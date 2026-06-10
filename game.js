@@ -85,7 +85,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway){
     const sn = stemFor(P.form==='spike'?7:6);
     for (let i=0;i<sn;i++){
       const ox=(rnd()-0.5)*14, len=H*(0.75+rnd()*0.3), tx=ox+sway*len*0.05;
-      ctx.strokeStyle = P.form==='spike' ? '#3a3038' : shade(S.fol,-18);
+      ctx.strokeStyle = P.stem || shade(S.fol,-18);
       ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(ox*0.4,0);
       ctx.quadraticCurveTo(ox,-len*0.55,tx,-len); ctx.stroke();
       if (!mature) continue;
@@ -134,7 +134,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway){
         ctx.strokeStyle=shade(S.fol,-25); ctx.lineWidth=1.1;
         ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         ctx.fillStyle=col;
-        if (key==='baptisia'&&season==='Spring'){ for(let s=0;s<4;s++){
+        if ((key==='baptisia'||key==='creamindigo')&&season==='Spring'){ for(let s=0;s<4;s++){
           ctx.beginPath(); ctx.ellipse(ox+sway*2,-len+s*3.4,1.9,2.4,0,0,7); ctx.fill(); } }
         else if (key==='amsonia'&&season==='Spring'){ for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
           ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); } }
@@ -262,6 +262,7 @@ const game = {
   px:SPAWN, py:SPAWN, tx:SPAWN, ty:SPAWN, moving:false, moveT:0, fromX:SPAWN, fromY:SPAWN,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   tool:PLANT_KEYS[0],
+  region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
   others:{},          // multiplayer presence
   lastDay:-1, dirty:false,
 };
@@ -475,9 +476,14 @@ function doSleep(){
 function showPlantCard(p){
   const P=PLANTS[p.s], g=Math.round(plantGrowth(p)*100), el=document.getElementById('plantCard');
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
-    <p>${P.blurb}</p><p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
+    <p>${P.blurb}</p>
+    <p style="margin-top:6px;color:#cdbfa9">${P.space}&Prime; apart · ${P.spread}&Prime; spread ·
+      zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil</p>
+    <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
+      ? 'Native — '+P.eco.join(', ') : 'Garden cultivar (non-native)'}</p>
+    <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
   el.style.display='block';
-  clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',5200);
+  clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',6500);
 }
 function toast(msg){
   const el=document.getElementById('toast');
@@ -489,9 +495,10 @@ function toast(msg){
 const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
-  const ex=document.getElementById('exportScreen');
-  if (!ex.classList.contains('hidden')){ // planting list open: only Escape closes
-    if (e.key==='Escape') ex.classList.add('hidden');
+  const overlay=['exportScreen','regionScreen']
+    .map(id=>document.getElementById(id)).find(el=>!el.classList.contains('hidden'));
+  if (overlay){ // an overlay is open: only Escape closes, game keys ignored
+    if (e.key==='Escape') overlay.classList.add('hidden');
     return;
   }
   const k=e.key.toLowerCase();
@@ -681,10 +688,64 @@ function exportCsv(){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
+/* ---------- region filter ----------
+   A plant fits if it survives the chosen zone, and (for natives) calls
+   the chosen ecoregion home. Cultivars aren't native anywhere, so the
+   eco filter can't exclude them — the natives-only switch is how. */
+function plantFits(k){
+  const P=PLANTS[k], r=game.region;
+  if (r.zone && (P.zones[0]>r.zone || P.zones[1]<r.zone)) return false;
+  if (r.nativesOnly && !P.native) return false;
+  if (r.eco && P.native && !P.eco.includes(r.eco)) return false;
+  return true;
+}
+function trayKeys(){ // grasses first (the matrix), then sedges, then forbs
+  const ord={grass:0, sedge:1, forb:2};
+  return PLANT_KEYS.filter(plantFits).sort((a,b)=>
+    (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
+}
+function openRegion(){
+  const rs=$('regionSel'), zs=$('zoneSel');
+  if (!rs.options.length){
+    rs.innerHTML='<option value="">Anywhere</option>'+
+      REGIONS.map(r=>`<option>${r.name}</option>`).join('');
+    zs.innerHTML='<option value="">Any zone</option>'+
+      [3,4,5,6,7,8,9].map(z=>`<option>${z}</option>`).join('');
+    rs.onchange=()=>{ const r=REGIONS.find(x=>x.name===rs.value);
+      $('regionBlurb').textContent=r?r.blurb:'';
+      if (r) zs.value=String(r.zone); };
+  }
+  rs.value=game.region.eco||'';
+  zs.value=game.region.zone?String(game.region.zone):'';
+  const cur=REGIONS.find(x=>x.name===rs.value);
+  $('regionBlurb').textContent=cur?cur.blurb:'';
+  $('nativesOnly').checked=!!game.region.nativesOnly;
+  $('regionScreen').classList.remove('hidden');
+}
+function applyRegion(){
+  game.region={eco:$('regionSel').value||null,
+    zone:$('zoneSel').value?+$('zoneSel').value:null,
+    nativesOnly:$('nativesOnly').checked};
+  sSet('hortus:region',game.region);
+  updateRegionBtn();
+  if (game.mode) buildToolTray();
+  const n=PLANT_KEYS.filter(plantFits).length;
+  toast(`${n} of ${PLANT_KEYS.length} species fit${game.region.eco?' the '+game.region.eco:''}${game.region.zone?', zone '+game.region.zone:''}.`);
+  $('regionScreen').classList.add('hidden');
+}
+function updateRegionBtn(){
+  const r=game.region;
+  $('btnRegion').textContent=(r.eco||r.zone||r.nativesOnly)
+    ? `${r.eco||'Any region'}${r.zone?' · z'+r.zone:''}` : 'Region';
+}
+
 /* ---------- HUD / tool tray ---------- */
 function buildToolTray(){
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
-  PLANT_KEYS.forEach(k=>{
+  const keys=trayKeys();
+  // if the filter took the selected species away, fall back sensibly
+  if (PLANTS[game.tool] && !keys.includes(game.tool)) game.tool=keys[0]||'path';
+  keys.forEach(k=>{
     const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
     const c=document.createElement('canvas'); c.width=48; c.height=44;
     const ctx2=c.getContext('2d'); ctx2.scale(0.62,0.62);
@@ -826,7 +887,7 @@ function quitToMenu(){
   if (game.mode==='solo'&&hasStorage) saveSolo();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
-  $('exportScreen').classList.add('hidden');
+  $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   $('worldPill').innerHTML='Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button>';
@@ -842,6 +903,9 @@ $('btnExport').onclick=openExport;
 $('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');
 $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
+$('btnRegion').onclick=openRegion;
+$('btnRegionApply').onclick=applyRegion;
+$('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
@@ -888,6 +952,10 @@ function loop(t){
 }
 (async function init(){
   await ensurePlayerId();
-  if (hasStorage){ const c=await sGet('hortus:char'); if (c) game.char=c; }
+  if (hasStorage){
+    const c=await sGet('hortus:char'); if (c) game.char=c;
+    const r=await sGet('hortus:region'); if (r) game.region=r;
+  }
+  updateRegionBtn();
   requestAnimationFrame(loop);
 })();

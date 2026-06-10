@@ -85,13 +85,18 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     species and converts to real quantities (`ceil(tiles × TILE_IN² / space²)`)
     plus bed area; `openExport()` renders the overlay table, `exportCsv()`
     downloads it. Print CSS in `styles.css` strips everything but the sheet.
-15. **HUD** — tool tray (built from `PLANT_KEYS` + path/bed tools + shovel),
-    season dial, sleep button, plant-list button, contextual action hint.
+15. **Region filter + HUD** — `plantFits()` (zone range, natives-only,
+    ecoregion membership for natives; cultivars have `eco:[]` so only the
+    natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
+    → forbs), the region-picker overlay wiring, and the tool tray (filtered
+    species + path/bed tools + shovel), season dial, sleep button, plant-list
+    and region buttons, contextual action hint. The region choice persists as
+    `hortus:region`.
 16. **Screens** — menu, multiplayer lobby, character creator (with live
     preview), code display. Plain DOM, toggled by `show()`. The planting-list
-    overlay (`#exportScreen`) sits outside `show()` — it's an in-game overlay
-    toggled directly, and the keyboard handler ignores game keys while it's
-    open (Escape closes).
+    (`#exportScreen`) and region (`#regionScreen`) overlays sit outside
+    `show()` — in-game overlays toggled directly; the keyboard handler
+    ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
 
 ## The plant data model
@@ -104,12 +109,16 @@ key: {
   name: 'Little Bluestem',
   latin: 'Schizachyrium scoparium',
   form: 'bunchgrass',          // drives the drawing branch
+  type: 'grass',               // grass | sedge | forb — tray grouping
   h: 46,                       // mature height in px
   space: 18,                   // on-center planting distance, inches
   spread: 18,                  // mature clump width, inches
   zones: [3,9],                // USDA hardiness range
   native: true,                // straight species native to the central US?
   eco: ['Flint Hills', ...],   // EPA Level III ecoregions; [] for non-natives
+  sun: 'full',                 // full | part
+  moist: 'dry',                // dry | medium | moist
+  stem: '#3a3038',             // optional stem color override (salvia)
   blurb: '...',                // shown on the plant info card
   sea: {                       // per-season appearance
     Spring: { fol:'#7fa07a' },                 // foliage color
@@ -120,11 +129,12 @@ key: {
 }
 ```
 
-`drawPlant` uses `form`/`h`/`sea`; the rest feeds the planner features
-(export sheet, zone/ecoregion filtering — see backlog). Per-season keys:
-`fol` (foliage), `bloom` (flower this season, omit for none), `seed`
-(seedhead/structure — present in fall/winter is what makes it Oudolf),
-`eye` (cone center, echinacea only).
+`drawPlant` uses `form`/`h`/`sea`/`stem`; the rest feeds the planner features
+(export sheet, region filter, plant card). Per-season keys: `fol` (foliage),
+`bloom` (flower this season, omit for none), `seed` (seedhead/structure —
+present in fall/winter is what makes it Oudolf), `eye` (cone center,
+coneflowers only). `plants.js` also holds `REGIONS`, the curated ecoregion
+list the region picker offers (name + default zone + blurb).
 
 **To add a species:** add an entry in `plants.js`, reuse an existing `form` or
 add a new branch in `drawPlant`. It automatically appears in the tool tray
@@ -145,17 +155,17 @@ Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Feature backlog (v2 ideas, not yet built)
 
-Planned sequence for the "design tool" direction (each independently shippable):
-region picker (filter the palette by `zones`/`eco`; players pick their
-ecoregion from a curated list — don't ship GIS shapefiles) → catalog UI
-(the tool tray dies past ~15 species; search/filter palette).
+Next in the "design tool" direction: catalog UI — at 21 species the scrolling
+tool tray is near its limit; a searchable/filterable palette (the region
+filter already trims it) is the next shippable step.
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
-- **More species** — Topeka coneflower (Echinacea atrorubens) as a rattlesnake
-  master companion; baptisia variants; sedges for the region.
+- **More species** — switchgrass (Panicum virgatum) and big bluestem for the
+  tall matrix; penstemon (P. digitalis), prairie clover (Dalea purpurea),
+  golden alexanders (Zizia aurea — needs an umbel form in `drawPlant`).
 - **Photo mode** — capture the backlit winter seedhead shots that justify the
   whole aesthetic.
 - **Bloom timing within a season** — stagger flowering across the 16 days so a

@@ -106,13 +106,37 @@
     </div>
     <div class="hud-right">
       <div class="pill" id="worldPill">Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button></div>
-      <div class="pill"><button id="btnExport">Plant list</button></div>
+      <div class="pill"><button id="btnExport">Plant list</button> · <button id="btnRegion">Region</button></div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
   </div>
   <div class="hud-bottom">
     <div id="actionHint">Tap a tile to walk · tap again to plant — or WASD + E</div>
     <div id="toolTray"></div>
+  </div>
+</div>
+
+<!-- REGION PICKER -->
+<div class="screen hidden" id="regionScreen">
+  <div class="panel">
+    <h2>Where is this garden?</h2>
+    <p class="sub">Filter the planting palette to what belongs in your part of the prairie. Garden cultivars stay listed unless you hide them.</p>
+    <div class="field">
+      <label for="regionSel">Ecoregion</label>
+      <select id="regionSel"></select>
+      <p class="note" id="regionBlurb" style="margin-top:6px"></p>
+    </div>
+    <div class="field">
+      <label for="zoneSel">USDA hardiness zone</label>
+      <select id="zoneSel"></select>
+    </div>
+    <div class="field">
+      <label class="check-row"><input type="checkbox" id="nativesOnly"> Natives only — hide garden cultivars</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="btnRegionApply">Apply</button>
+    </div>
+    <button class="back-link" id="btnRegionClose">← Back to the garden</button>
   </div>
 </div>
 
