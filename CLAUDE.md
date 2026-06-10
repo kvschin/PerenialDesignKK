@@ -56,8 +56,14 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position, plants
    map, tool, multiplayer presence, timing).
-9. **Time helpers** — `absDay()`, `calClock()` (day/season/year/frac),
-   `plantGrowth()` (0..1 over 10 garden days).
+9. **Time helpers + phenology** — `absDay()`, `calClock()`
+   (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
+   `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
+   winter, so winter planting waits for spring) × `seasonEnvelope(key)`
+   (the perennial year: cut back to 0.12 at spring day 1, regrow on the
+   species' `phen` schedule — cool wakes day 0/full day 14, mid 4/24,
+   warm 7/28 — full through fall, winter holds full-size dead structure).
+   The plant card reports establishment, not seasonal size.
 10. **Iso math + world layout** — `isoX/isoY`, `screenOf` (world->screen),
     `tileAt` (screen->world). `isPath()` defines the built-in curved walkway.
     `HOUSE`/`inHouse`/`isDoor`/`canStand` define the cottage (2x2 footprint at
@@ -118,6 +124,7 @@ key: {
   eco: ['Flint Hills', ...],   // EPA Level III ecoregions; [] for non-natives
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
+  phen: 'warm',                // cool | mid | warm — spring wake order
   stem: '#3a3038',             // optional stem color override (salvia)
   blurb: '...',                // shown on the plant info card
   sea: {                       // per-season appearance

@@ -280,9 +280,38 @@ function calClock(){
   return {day:d%DAYS_PER_SEASON+1, season:SEASONS[sIdx], year,
           frac:((Date.now()-game.startTs)%DAY_MS)/DAY_MS};
 }
-function plantGrowth(p){ // 0..1 over 10 garden days
-  return Math.min(1,(absDay()-p.d)/10);
+/* ---------- phenology: how perennials actually behave ----------
+   A plant's drawn size = establishment x seasonal envelope.
+
+   Establishment counts only growing days (winter doesn't tick), so a
+   plant put in the ground in January sits as a nub until spring.
+
+   The envelope is the perennial year: everything is cut back to the
+   crown when spring arrives, regrows on its own schedule (cool-season
+   plants first, warm-season prairie grasses last), stands full through
+   fall, and holds as dead structure all winter — the Oudolf point. */
+const YEAR_DAYS = DAYS_PER_SEASON*4;
+const PHEN = { cool:{w:0,f:14}, mid:{w:4,f:24}, warm:{w:7,f:28} }; // wake/full, in days into the year
+function winterDaysBefore(d){ // winter days in [0,d); works for negative d
+  const y=Math.floor(d/YEAR_DAYS), r=d-y*YEAR_DAYS;
+  return y*DAYS_PER_SEASON + Math.max(0, r-(YEAR_DAYS-DAYS_PER_SEASON));
 }
+function growingDays(d0,d1){
+  return (d1-d0)-(winterDaysBefore(d1)-winterDaysBefore(d0));
+}
+function plantEstab(p){ // 0..1 over 10 growing days
+  return Math.max(0, Math.min(1, growingDays(p.d, absDay())/10));
+}
+function seasonEnvelope(key){
+  const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
+  if (ydf>=YEAR_DAYS-DAYS_PER_SEASON) return 1;      // winter: structure stands
+  const g=PHEN[(PLANTS[key]&&PLANTS[key].phen)||'mid'];
+  if (ydf<g.w) return 0.12;                          // still at the crown
+  if (ydf>=g.f) return 1;
+  const t=(ydf-g.w)/(g.f-g.w);
+  return 0.12+0.88*t*t*(3-2*t);                      // smoothstep up
+}
+function plantGrowth(p){ return plantEstab(p)*seasonEnvelope(p.s); }
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
 
 /* path through the garden — a lazy Oudolf curve */
@@ -474,7 +503,7 @@ function doSleep(){
   else toast('You slept in the cottage. A new day.');
 }
 function showPlantCard(p){
-  const P=PLANTS[p.s], g=Math.round(plantGrowth(p)*100), el=document.getElementById('plantCard');
+  const P=PLANTS[p.s], g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${P.space}&Prime; apart · ${P.spread}&Prime; spread ·
@@ -795,7 +824,9 @@ function updateHUD(){
   const sd=absDay();
   if (sd!==game.lastDay){
     if (game.lastDay>=0 && sd%DAYS_PER_SEASON===0)
-      toast(`${cal.season} begins. Watch the garden change.`);
+      toast(cal.season==='Spring'
+        ? 'Spring. Last year is cut back — everything starts small and grows again.'
+        : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
     if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(); game.dirty=false; }
   }
@@ -872,7 +903,9 @@ function starterDrift(){ // a welcoming drift near spawn so the world isn't empt
   const S=SPAWN;
   const picks=[['karl',S-3,S-3],['karl',S-2,S-3],['bluestem',S-3,S-2],
                ['echinacea',S+3,S+3],['echinacea',S+4,S+3],['dropseed',S+3,S+4]];
-  picks.forEach(([s,x,y])=>{ if(!isPath(x,y)) game.plants[`${x},${y}`]={s,d:absDay()-10,t:Date.now()}; });
+  // backdated 26 days = 10 growing days last fall + the winter between,
+  // so the drift arrives established and wakes with the player's first spring
+  picks.forEach(([s,x,y])=>{ if(!isPath(x,y)) game.plants[`${x},${y}`]={s,d:absDay()-26,t:Date.now()}; });
 }
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
