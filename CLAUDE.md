@@ -5,18 +5,18 @@ planting style, playing loosely like Animal Crossing. Cat/dog avatars tend an
 isometric prairie plot where plants change appearance by season. Solo play plus
 shared gardens for up to 4 people.
 
-The whole game is **one self-contained HTML file** — no build step, no npm
-dependencies, no framework. Open it in a browser to run it. Fonts load from
-Google Fonts over the network; everything else is inline.
+The game is plain HTML/CSS/JS in three files — `index.html` (markup),
+`styles.css`, and `game.js` (all logic) — with no build step, no npm
+dependencies, no framework. Fonts load from Google Fonts over the network;
+everything else is local.
 
 ## Run / test
 
-- Just open the HTML file in a browser. No server needed.
-- For a quick local server (avoids any file:// quirks): `python3 -m http.server`
-  then visit the printed localhost URL.
-- There is no test suite. To sanity-check JS after edits, extract the `<script>`
-  block and run it through `node --check` or `new Function(src)` to catch syntax
-  errors before reloading the browser.
+- Open `index.html` in a browser, or serve the folder to avoid file:// quirks:
+  `npx http-server -p 8642 -c-1` (this machine has Node but no Python; the same
+  command is wired into `.claude/launch.json` for the preview panel).
+- There is no test suite. After edits, run `node --check game.js` to catch
+  syntax errors before reloading the browser.
 
 ## Known constraints (read before touching save/multiplayer)
 
@@ -30,9 +30,10 @@ Google Fonts over the network; everything else is inline.
 - Mobile is a first-class target: tap-to-walk, tap-own-tile-to-act. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
-## Architecture (single file, top to bottom)
+## Architecture
 
-Everything lives in `hortus-perennis.html`. Rough order of the `<script>`:
+Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; all
+game logic in `game.js`. Rough order of `game.js`, top to bottom:
 
 1. **Constants** — `SEASONS`, `DAYS_PER_SEASON` (16), `DAY_MS` (20s real time
    per garden day), `GRID` (13x13), tile dimensions.
@@ -118,12 +119,6 @@ prettiness. Winter must show *structure*, not bare ground; that's the whole poin
 - Respect `prefers-reduced-motion` (already handled in CSS).
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
-
-## Suggested first refactor
-
-Before adding features, split the single file into `index.html`, `styles.css`,
-and `game.js`, and `git init`. At ~900+ lines the single-file form is getting
-hard to navigate. Keep behavior identical; this is purely structural.
 
 ## Feature backlog (v2 ideas, not yet built)
 

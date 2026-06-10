@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Hortus — an Oudolf garden game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<canvas id="menuCanvas"></canvas>
+<canvas id="gameCanvas" class="hidden"></canvas>
+
+<!-- MAIN MENU -->
+<div class="screen" id="menuScreen">
+  <div class="menu-card">
+    <div class="eyebrow">A perennial garden in 2.5D</div>
+    <h1 class="title">Hortus<br><em>Perennis</em></h1>
+    <p class="tagline">Plant in drifts. Wait for winter. Don't cut back the seedheads.</p>
+    <div class="menu-btns">
+      <button class="btn primary" id="btnSolo">Tend your own garden<small>Single player — saved to this device</small></button>
+      <button class="btn" id="btnMulti">Garden together<small>Shared world for up to 4 gardeners</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- MULTIPLAYER LOBBY -->
+<div class="screen hidden" id="multiScreen">
+  <div class="panel">
+    <h2>Garden together</h2>
+    <p class="sub">One person starts a garden and shares its code. Up to 4 gardeners can work the same beds. Anything planted in a shared garden is visible to anyone with the code.</p>
+    <div class="row">
+      <button class="btn primary" id="btnHost">Start a shared garden</button>
+    </div>
+    <div class="field" style="margin-top:16px">
+      <label for="joinCode">Or join with a garden code</label>
+      <input id="joinCode" maxlength="5" placeholder="e.g. PRARI" autocomplete="off" style="text-transform:uppercase">
+    </div>
+    <div class="row">
+      <button class="btn" id="btnJoin">Join garden</button>
+    </div>
+    <button class="back-link" data-back>← Back</button>
+  </div>
+</div>
+
+<!-- CHARACTER CREATOR -->
+<div class="screen hidden" id="creatorScreen">
+  <div class="panel" style="max-width:640px">
+    <h2>Who's gardening today?</h2>
+    <p class="sub">Pick your animal, coat, and name. You can always come back and change it.</p>
+    <div class="creator-grid">
+      <canvas id="previewCanvas" class="creator-preview" width="340" height="380"></canvas>
+      <div class="creator-opts">
+        <div class="field"><label>Animal</label>
+          <div class="chip-row" id="speciesRow">
+            <button class="chip sel" data-species="cat">Cat</button>
+            <button class="chip" data-species="dog">Dog</button>
+          </div>
+        </div>
+        <div class="field"><label>Coat</label><div class="chip-row" id="coatRow"></div></div>
+        <div class="field"><label>Marking</label>
+          <div class="chip-row" id="markRow">
+            <button class="chip sel" data-mark="solid">Solid</button>
+            <button class="chip" data-mark="tuxedo">Tuxedo</button>
+            <button class="chip" data-mark="patch">Eye patch</button>
+          </div>
+        </div>
+        <div class="field"><label for="petName">Name</label>
+          <input id="petName" maxlength="14" placeholder="Bramble" autocomplete="off">
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="btnStartGame">Into the garden →</button>
+    </div>
+    <button class="back-link" data-back>← Back</button>
+  </div>
+</div>
+
+<!-- GARDEN CODE SHOW -->
+<div class="screen hidden" id="codeScreen">
+  <div class="panel" style="text-align:center">
+    <h2>Your garden code</h2>
+    <div class="code-display" id="codeDisplay">·····</div>
+    <p class="note">Share this with up to 3 friends. They choose "Garden together → Join" and enter it. The garden keeps growing whether or not anyone is visiting.</p>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnCodeContinue">Continue →</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="season-dial">
+      <div>
+        <div class="season-name" id="seasonName">Spring</div>
+        <div class="season-day" id="seasonDay">Day 1 · Year 1</div>
+      </div>
+      <div>
+        <div class="day-bar"><i id="dayBarFill"></i></div>
+        <button id="btnSleep" style="margin-top:6px;background:none;border:1px solid rgba(239,230,211,.35);color:var(--seedhead);font-size:10px;padding:3px 8px;border-radius:3px">Sleep → next day</button>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="pill" id="worldPill">Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button></div>
+      <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
+    </div>
+  </div>
+  <div class="hud-bottom">
+    <div id="actionHint">Tap a tile to walk · tap again to plant — or WASD + E</div>
+    <div id="toolTray"></div>
+  </div>
+</div>
+
+<div id="plantCard"></div>
+<div id="toast"></div>
+
+<script src="game.js"></script>
+</body>
+</html>
