@@ -106,7 +106,7 @@
     </div>
     <div class="hud-right">
       <div class="pill" id="worldPill">Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button></div>
-      <div class="pill"><button id="btnExport">Plant list</button> · <button id="btnRegion">Region</button></div>
+      <div class="pill"><button id="btnExport">Plant list</button> · <button id="btnRegion">Region</button> · <button id="btnRotate" title="Rotate view (R)">⟳ Rotate</button></div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
   </div>
@@ -115,6 +115,28 @@
     <div id="cvRow" class="chip-row hidden"></div>
     <div id="trayTabs"></div>
     <div id="toolTray"></div>
+  </div>
+</div>
+
+<!-- PLOT SETUP (new solo gardens) -->
+<div class="screen hidden" id="plotScreen">
+  <div class="panel">
+    <h2>Lay out the plot</h2>
+    <p class="sub">How much ground are we working? One tile is 18 inches square. You can always start small — the house and beds move later.</p>
+    <div class="field"><label>Plot size</label>
+      <div class="chip-row" id="plotPresets"></div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:120px"><label for="plotW">Width, feet</label>
+        <input id="plotW" type="number" min="24" max="200" value="46"></div>
+      <div class="field" style="flex:1;min-width:120px"><label for="plotL">Length, feet</label>
+        <input id="plotL" type="number" min="24" max="200" value="46"></div>
+    </div>
+    <p class="note" id="plotNote"></p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="btnPlotStart">Break ground →</button>
+    </div>
+    <button class="back-link" id="btnPlotBack">← Back</button>
   </div>
 </div>
 

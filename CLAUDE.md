@@ -37,9 +37,11 @@ Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; all
 game logic in `game.js`. Rough order of `game.js`, top to bottom:
 
 1. **Constants** — `SEASONS`, `DAYS_PER_SEASON` (16), `DAY_MS` (20s real time
-   per garden day), `GRID` (31x31), `SPAWN` (plot center, where players start),
-   tile dimensions, `TILE_IN` (18 — real-world inches per tile side, the scale
-   the export sheet converts through).
+   per garden day), `GW`/`GH` (plot size in tiles — per-garden, set by
+   `setWorldSize()` from the plot screen or save; 31x31 classic default),
+   `SPAWNX`/`SPAWNY` (plot center, where players start), tile dimensions,
+   `TILE_IN` (18 — real-world inches per tile side; `ftToTiles()` converts,
+   so 1 tile = 1.5 ft), `HOUSE_SIZES`/`WALL_COLS`/`ROOF_COLS` (house chips).
 2. **`AMBIENCE`** — per-season sky gradient, grass/soil tones, light tint, snow
    flag. This is what makes the world *look* like each season.
 3. **`PLANTS`** — in `plants.js`, the data model for every species (see
@@ -66,12 +68,18 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    species' `phen` schedule — cool wakes day 0/full day 14, mid 4/24,
    warm 7/28 — full through fall, winter holds full-size dead structure).
    The plant card reports establishment, not seasonal size.
-10. **Iso math + world layout** — `isoX/isoY`, `screenOf` (world->screen),
-    `tileAt` (screen->world). `isPath()` defines the built-in curved walkway.
-    `HOUSE`/`inHouse`/`isDoor`/`canStand` define the cottage (2x2 footprint at
-    the plot's east corner, door tile on its south side; standing on the door
-    and acting sleeps to the next day). `tileTerrain()` reads player-laid
-    terrain from `game.terrain` ("x,y" -> `{k:'path'|'bed', t}`).
+10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
+    looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
+    world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
+    snaps the camera). `screenOf` (world->screen via view), `viewScreen`
+    (view->screen), `viewDepth` (depth-sort key), `tileAt` (screen->world).
+    World logic never rotates — only the mapping. `isPath()` defines the
+    built-in curved walkway. The house lives in `game.house`
+    (`{x,y,w,h,wall,roof}`, sized in real feet via `HOUSE_SIZES`);
+    `inHouse`/`doorPos`/`isDoor`/`canStand` derive from it (door tile
+    centered on the south side; standing there and acting sleeps to the
+    next day). `defaultHouse()` picks a shed on small plots, a cottage on
+    big ones. `tileTerrain()` reads player-laid terrain from `game.terrain`.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
@@ -80,15 +88,18 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     snowfall. Cost scales with screen size, not `GRID` — grow the world freely.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
-    lift on current tile), tap and keyboard input. **Keys map to SCREEN
-    directions**: one key is a screen-cardinal step (a world diagonal, e.g.
-    D = world `+x,-y`); holding two keys combines into a world-axis step.
-    Tapping the cottage walks to the door and sleeps on arrival.
+    lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
+    House tool: tap moves the house, chips resize/repaint), tap and keyboard
+    input. **Keys map to SCREEN directions** regardless of rotation: one key
+    is a screen-cardinal step (a view diagonal); two keys combine into view
+    axes; `viewDirToWorld` converts to world steps. Tapping the house walks
+    to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage, solo save/load
-    (plants + terrain + `grid` size; saves without `grid` predate the world
-    expansion and get recentered from (6,6) to `SPAWN` on load), host/join
-    shared worlds via shared keys, presence polling, `mergeMap`
-    (last-write-wins by timestamp) for both plants and terrain.
+    (plants + terrain + `gw`/`gh` plot size + `rot` + `house`; older saves
+    with only `grid` load square, and 13x13-era saves recenter from (6,6)),
+    host/join shared worlds via shared keys (meta carries gw/gh; the house
+    syncs via its own key, last-write-wins by timestamp), presence polling,
+    `mergeMap` for plants and terrain.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species and converts to real quantities (`ceil(tiles × TILE_IN² / space²)`)
     plus bed area; `openExport()` renders the overlay table, `exportCsv()`
@@ -102,14 +113,17 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     exist), species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
-    stores `v`; tool state is `game.tool` + `game.toolVar`). Plus season
-    dial, sleep button, plant-list and region buttons, contextual action
-    hint. The region choice persists as `hortus:region`.
+    stores `v`; tool state is `game.tool` + `game.toolVar`). The House tool
+    (Landscape tab) reuses the chip row for sizes and wall/roof colors.
+    Plus season dial, sleep button, plant-list, region, and rotate buttons,
+    contextual action hint. The region choice persists as `hortus:region`.
 16. **Screens** — menu, multiplayer lobby, character creator (with live
-    preview), code display. Plain DOM, toggled by `show()`. The planting-list
-    (`#exportScreen`) and region (`#regionScreen`) overlays sit outside
-    `show()` — in-game overlays toggled directly; the keyboard handler
-    ignores game keys while one is open (Escape closes).
+    preview), code display, plot setup (`#plotScreen`, new solo gardens
+    only: acre presets or width x length in feet). Plain DOM, toggled by
+    `show()`. The planting-list (`#exportScreen`) and region
+    (`#regionScreen`) overlays sit outside `show()` — in-game overlays
+    toggled directly; the keyboard handler ignores game keys while one is
+    open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
 
 ## The plant data model
@@ -175,7 +189,11 @@ Winter must show *structure*, not bare ground; that's the whole point.
 
 Next in the "design tool" direction: search within tray categories if any
 category outgrows its row; woody plants (types `shrub`/`tree`) to fill the
-placeholder tabs.
+placeholder tabs. Woody design notes: canopies span multiple tiles (footprint
+from `spread` — `ceil(spread/TILE_IN)` tiles across), block planting beneath
+(or shade-filter to `sun:'part'`), and establish over *years*, not days —
+reuse `growingDays()` with a much longer horizon so a tree visibly fills in
+across seasons; canopy radius should creep up with establishment.
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.

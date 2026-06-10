@@ -7,10 +7,15 @@
 const SEASONS = ['Spring','Summer','Fall','Winter'];
 const DAYS_PER_SEASON = 16;
 const DAY_MS = 20000;                 // 20 real seconds per garden day
-const GRID = 31;                      // 31x31 plot (~46ft square at 18" tiles)
-const SPAWN = (GRID-1)/2;             // players start at the plot's center
+/* The plot is sized per garden (plot screen / save): GW x GH tiles.
+   31x31 (~46ft square at 18-inch tiles) is the classic default. */
+let GW = 31, GH = 31;
+let SPAWNX = 15, SPAWNY = 15;         // players start at the plot's center
+function setWorldSize(gw,gh){ GW=gw; GH=gh;
+  SPAWNX=Math.floor(gw/2); SPAWNY=Math.floor(gh/2); }
 const TILE_W = 76, TILE_H = 38;
-const TILE_IN = 18;                   // real-world inches per tile side (export sheet math)
+const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
+function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
@@ -282,45 +287,70 @@ function drawCritter(ctx, x, y, ch, t, walking, scale){
   ctx.restore();
 }
 
-/* ---------- the cottage renderer ---------- */
+/* ---------- the house renderer ----------
+   Works in VIEW space so rotation just works: the footprint is mapped
+   to a view-space rect, walls/roof/door are built on its lattice. Size
+   and colors come from game.house. The door clings to its world tile —
+   from behind the house it's simply out of sight. */
 function drawHouse(ctx, W, H, season){
-  const wH=46, rH=26;
-  const T=screenOf(HOUSE.x,HOUSE.y,W,H);                 // north corner
-  const R=screenOf(HOUSE.x+HOUSE.w,HOUSE.y,W,H);          // east
-  const B=screenOf(HOUSE.x+HOUSE.w,HOUSE.y+HOUSE.h,W,H);  // south
-  const L=screenOf(HOUSE.x,HOUSE.y+HOUSE.h,W,H);          // west
-  // ridge runs along world-x over the middle of the footprint
-  const M1=screenOf(HOUSE.x,HOUSE.y+HOUSE.h/2,W,H);
-  const M2=screenOf(HOUSE.x+HOUSE.w,HOUSE.y+HOUSE.h/2,W,H);
-  const g1=[M1[0],M1[1]-wH-rH], g2=[M2[0],M2[1]-wH-rH];
-  const up=(p,h)=>[p[0],p[1]-h];
+  const hh=game.house; if (!hh) return;
+  const [va,vb]=worldToView(hh.x,hh.y), [vc,vd]=worldToView(hh.x+hh.w-1,hh.y+hh.h-1);
+  const vx0=Math.min(va,vc), vy0=Math.min(vb,vd);
+  const vw=Math.abs(va-vc)+1, vh=Math.abs(vb-vd)+1;
+  const wH=Math.min(110, 28+Math.min(vw,vh)*9), rH=wH*0.55, dH=Math.min(wH-8,30);
+  const P=(vx,vy)=>viewScreen(vx,vy,W,H);
+  const T=P(vx0,vy0), R=P(vx0+vw,vy0), B=P(vx0+vw,vy0+vh), L=P(vx0,vy0+vh);
+  const up=(p,h2)=>[p[0],p[1]-h2];
+  const wall=hh.wall||'#8a7a60', roof=hh.roof||'#9a5f3a';
+  const wallD=shade(wall,-24), roofD=shade(roof,-26);
   const quad=(a,b,c,d,col)=>{ ctx.fillStyle=col; ctx.beginPath();
     ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]);
     ctx.closePath(); ctx.fill(); };
-  // back roof face first, then the two camera-facing walls
-  quad(up(T,wH),up(R,wH),g2,g1,HOUSE_COL.roofD);
-  quad(L,B,up(B,wH),up(L,wH),HOUSE_COL.wall);    // southwest wall
-  quad(B,R,up(R,wH),up(B,wH),HOUSE_COL.wallD);   // southeast wall
-  // gable end on the southeast, then the front roof face
-  ctx.fillStyle=HOUSE_COL.wallD; ctx.beginPath();
-  ctx.moveTo(B[0],B[1]-wH); ctx.lineTo(R[0],R[1]-wH);
-  ctx.lineTo(g2[0],g2[1]); ctx.closePath(); ctx.fill();
-  quad(up(L,wH),up(B,wH),g2,g1,HOUSE_COL.roof);
-  // door on the southwest wall, over the door tile
-  const d1=screenOf(HOUSE.doorX+0.22,HOUSE.y+HOUSE.h,W,H);
-  const d2=screenOf(HOUSE.doorX+0.78,HOUSE.y+HOUSE.h,W,H);
-  quad(d1,d2,up(d2,26),up(d1,26),HOUSE_COL.door);
-  ctx.strokeStyle=HOUSE_COL.trim; ctx.lineWidth=1.2; ctx.beginPath();
-  ctx.moveTo(d1[0],d1[1]); ctx.lineTo(d1[0],d1[1]-26); ctx.lineTo(d2[0],d2[1]-26);
-  ctx.lineTo(d2[0],d2[1]); ctx.stroke();
-  // a warm window on the southeast wall
-  const w1=screenOf(HOUSE.x+HOUSE.w,HOUSE.y+1.35,W,H);
-  const w2=screenOf(HOUSE.x+HOUSE.w,HOUSE.y+0.75,W,H);
-  quad(up(w1,16),up(w2,16),up(w2,32),up(w1,32),HOUSE_COL.glow);
+  const tri=(a,b,c,col)=>{ ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]);
+    ctx.closePath(); ctx.fill(); };
+  // ridge runs along the footprint's longer view axis
+  let g1,g2,backRoof,frontRoof,gable;
+  if (vw>=vh){
+    g1=up(P(vx0,vy0+vh/2),wH+rH); g2=up(P(vx0+vw,vy0+vh/2),wH+rH);
+    backRoof=[up(T,wH),up(R,wH),g2,g1]; frontRoof=[up(L,wH),up(B,wH),g2,g1];
+    gable=[up(B,wH),up(R,wH),g2];
+  } else {
+    g1=up(P(vx0+vw/2,vy0),wH+rH); g2=up(P(vx0+vw/2,vy0+vh),wH+rH);
+    backRoof=[up(T,wH),up(L,wH),g2,g1]; frontRoof=[up(R,wH),up(B,wH),g2,g1];
+    gable=[up(L,wH),up(B,wH),g2];
+  }
+  quad(backRoof[0],backRoof[1],backRoof[2],backRoof[3],roofD);
+  quad(L,B,up(B,wH),up(L,wH),wall);    // view-southwest wall
+  quad(B,R,up(R,wH),up(B,wH),wallD);   // view-southeast wall
+  tri(gable[0],gable[1],gable[2],wallD);
+  quad(frontRoof[0],frontRoof[1],frontRoof[2],frontRoof[3],roof);
+  // door over its world tile, when that wall faces the camera
+  const [dX,dY]=doorPos(); const [dvx,dvy]=worldToView(dX,dY);
+  let doorWall=null; // 'sw' | 'se'
+  if (Math.round(dvy)===vy0+vh && dvx>=vx0 && dvx<vx0+vw) doorWall='sw';
+  else if (Math.round(dvx)===vx0+vw && dvy>=vy0 && dvy<vy0+vh) doorWall='se';
+  if (doorWall){
+    const d1=doorWall==='sw'?P(dvx+0.22,vy0+vh):P(vx0+vw,dvy+0.22);
+    const d2=doorWall==='sw'?P(dvx+0.78,vy0+vh):P(vx0+vw,dvy+0.78);
+    quad(d1,d2,up(d2,dH),up(d1,dH),HOUSE_TRIM.door);
+    ctx.strokeStyle=HOUSE_TRIM.trim; ctx.lineWidth=1.2; ctx.beginPath();
+    ctx.moveTo(d1[0],d1[1]); ctx.lineTo(d1[0],d1[1]-dH); ctx.lineTo(d2[0],d2[1]-dH);
+    ctx.lineTo(d2[0],d2[1]); ctx.stroke();
+  }
+  // warm windows on the wall without the door
+  const winWall=doorWall==='se'?'sw':'se';
+  const len=winWall==='se'?vh:vw, n=Math.max(1,Math.min(4,Math.round(len/3)));
+  for (let i=0;i<n;i++){
+    const t=(i+0.5)/n;
+    const w1=winWall==='se'?P(vx0+vw,vy0+vh*t-0.2):P(vx0+vw*t-0.2,vy0+vh);
+    const w2=winWall==='se'?P(vx0+vw,vy0+vh*t+0.2):P(vx0+vw*t+0.2,vy0+vh);
+    quad(up(w1,wH*0.34),up(w2,wH*0.34),up(w2,wH*0.62),up(w1,wH*0.62),HOUSE_TRIM.glow);
+  }
   // snow blankets the roof in winter
   if (AMBIENCE[season].snow){
-    quad(up(L,wH),up(B,wH),g2,g1,'rgba(240,244,250,0.75)');
-    quad(up(T,wH),up(R,wH),g2,g1,'rgba(240,244,250,0.45)');
+    quad(frontRoof[0],frontRoof[1],frontRoof[2],frontRoof[3],'rgba(240,244,250,0.75)');
+    quad(backRoof[0],backRoof[1],backRoof[2],backRoof[3],'rgba(240,244,250,0.45)');
   }
 }
 
@@ -331,8 +361,10 @@ const game = {
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
   terrain:{},         // "x,y" -> {k:'path'|'bed', t:ts} or {removed:true,t}
   startTs:Date.now(), dayOffset:0,
-  px:SPAWN, py:SPAWN, tx:SPAWN, ty:SPAWN, moving:false, moveT:0, fromX:SPAWN, fromY:SPAWN,
+  px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
+  house:null, houseT:0,                              // per-garden house + sync stamp
+  rot:0,                                             // view rotation, 90-degree steps
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -389,33 +421,82 @@ function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
 
 /* path through the garden — a lazy Oudolf curve */
 function isPath(x,y){
-  const c = Math.round(GRID/2 + Math.sin(x*0.55)*2.2);
+  const c = Math.round(GH/2 + Math.sin(x*0.55)*2.2);
   return y===c || y===c-1;
 }
 
-/* the cottage: a 2x2 footprint you can't walk through, with a door tile
-   on its south side. Anyone — you or a visiting gardener — sleeps there
-   to bring on the next day. Sited northeast of spawn, clear of the walkway. */
-const HOUSE = {x:SPAWN+3, y:SPAWN-6, w:2, h:2, doorX:SPAWN+3, doorY:SPAWN-4};
-const HOUSE_COL = {wall:'#8a7a60', wallD:'#6b5d4a', roof:'#9a5f3a', roofD:'#7a4a2e',
-  door:'#3a2c22', trim:'#efe6d3', glow:'#d9c08a'};
-function inHouse(x,y){ return x>=HOUSE.x && x<HOUSE.x+HOUSE.w && y>=HOUSE.y && y<HOUSE.y+HOUSE.h; }
-function isDoor(x,y){ return x===HOUSE.doorX && y===HOUSE.doorY; }
-function canStand(x,y){ return x>=0 && y>=0 && x<GRID && y<GRID && !inHouse(x,y); }
+/* the house: a per-garden footprint you can't walk through, with a door
+   tile centered on its south side. Anyone — you or a visiting gardener —
+   sleeps there to bring on the next day. Position, size (real feet), and
+   colors live in game.house; the House tool moves/resizes/paints it. */
+const HOUSE_TRIM = {door:'#3a2c22', trim:'#efe6d3', glow:'#d9c08a'};
+const HOUSE_SIZES = [ // [label, width ft, depth ft] -> tiles via ftToTiles
+  ['Shed',3,3],['Tiny home',12,9],['Cottage',24,18],['House',36,27],['Big house',45,36]];
+const WALL_COLS = [['Cedar','#8a7a60'],['Cream','#d9cdb0'],['Sage','#8a9a78'],
+  ['Barn red','#9a4a3a'],['Slate','#6e7787']];
+const ROOF_COLS = [['Rust','#9a5f3a'],['Charcoal','#3f3a38'],['Forest','#4a5d46'],
+  ['Weathered','#8a8274']];
+function defaultHouse(){ // a shed on small plots, a cottage on real yards
+  const big=GW*GH>=1900, w=big?ftToTiles(24):2, h=big?ftToTiles(18):2;
+  return {x:Math.max(0,Math.min(GW-w-1,SPAWNX+3)), y:Math.max(0,SPAWNY-6-(h-2)),
+          w, h, wall:'#8a7a60', roof:'#9a5f3a'};
+}
+function inHouse(x,y){ const h=game.house; if (!h) return false;
+  return x>=h.x && x<h.x+h.w && y>=h.y && y<h.y+h.h; }
+function doorPos(){ const h=game.house;
+  return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
+function isDoor(x,y){ const [dx,dy]=doorPos(); return x===dx && y===dy; }
+function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y); }
 
 /* player-laid terrain (paths and beds) on top of the built-in walkway */
 function tileTerrain(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t.k:null; }
 
-/* ---------- isometric math ---------- */
+/* ---------- isometric math + view rotation ----------
+   The camera always looks at VIEW space; game.rot rotates world tiles
+   into it in 90-degree steps so the garden can be seen from any side.
+   World logic (movement, planting, saves) never changes — only the
+   world<->view mapping. */
 let cam = {x:0,y:0};
 function isoX(x,y){ return (x-y)*TILE_W/2; }
 function isoY(x,y){ return (x+y)*TILE_H/2; }
-function screenOf(x,y,W,H){ return [W/2 + isoX(x,y) - cam.x, H*0.24 + isoY(x,y) - cam.y]; }
+function worldToView(x,y){
+  switch(game.rot){
+    case 1:  return [y, GW-1-x];
+    case 2:  return [GW-1-x, GH-1-y];
+    case 3:  return [GH-1-y, x];
+    default: return [x,y];
+  }
+}
+function viewToWorld(vx,vy){
+  switch(game.rot){
+    case 1:  return [GW-1-vy, vx];
+    case 2:  return [GW-1-vx, GH-1-vy];
+    case 3:  return [vy, GH-1-vx];
+    default: return [vx,vy];
+  }
+}
+function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWorld
+  switch(game.rot){
+    case 1:  return [-dvy, dvx];
+    case 2:  return [-dvx,-dvy];
+    case 3:  return [ dvy,-dvx];
+    default: return [dvx,dvy];
+  }
+}
+function viewScreen(vx,vy,W,H){ return [W/2 + isoX(vx,vy) - cam.x, H*0.24 + isoY(vx,vy) - cam.y]; }
+function screenOf(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScreen(vx,vy,W,H); }
+function viewDepth(x,y){ const [vx,vy]=worldToView(x,y); return vx+vy; }
 function tileAt(sx,sy,W,H){
   const rx = sx - W/2 + cam.x, ry = sy - H*0.24 + cam.y - TILE_H/2;
   const fx = (rx/(TILE_W/2) + ry/(TILE_H/2))/2;
   const fy = (ry/(TILE_H/2) - rx/(TILE_W/2))/2;
-  return [Math.round(fx), Math.round(fy)];
+  return viewToWorld(Math.round(fx), Math.round(fy));
+}
+function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
+  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-innerHeight*0.21; }
+function rotateView(){
+  game.rot=(game.rot+1)%4; snapCam(); game.dirty=true;
+  toast(`View rotated — ${game.rot*90}°.`);
 }
 
 /* ---------- main render ---------- */
@@ -445,9 +526,9 @@ function render(t){
   // (the padding covers plant/cottage heights overhanging tile bounds)
   const crn=[tileAt(0,0,W,H),tileAt(W,0,W,H),tileAt(0,H,W,H),tileAt(W,H,W,H)];
   const x0=Math.max(0,Math.min(crn[0][0],crn[1][0],crn[2][0],crn[3][0])-2);
-  const x1=Math.min(GRID-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+2);
+  const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+2);
   const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-2);
-  const y1=Math.min(GRID-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+2);
+  const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+2);
 
   // ground tiles back-to-front
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
@@ -482,19 +563,21 @@ function render(t){
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
   const ents=[];
-  if (HOUSE.x+HOUSE.w-1>=x0 && HOUSE.x<=x1 && HOUSE.y+HOUSE.h-1>=y0 && HOUSE.y<=y1)
-    ents.push({depth:(HOUSE.x+HOUSE.w-1)+(HOUSE.y+HOUSE.h-1)+0.45,
+  const hh=game.house;
+  if (hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
+    ents.push({depth:Math.max(viewDepth(hh.x,hh.y),viewDepth(hh.x+hh.w-1,hh.y),
+        viewDepth(hh.x,hh.y+hh.h-1),viewDepth(hh.x+hh.w-1,hh.y+hh.h-1))+0.45,
       draw:()=>drawHouse(cx,W,H,cal.season)});
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
-    ents.push({depth:x+y+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+    ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,plantGrowth(p),cal.season,tileSeed(x,y),sway,p.v);}});
   }
   // local player (smooth move)
   let dx=game.px, dy=game.py;
-  ents.push({depth:dx+dy+0.5, draw:()=>{ const [sx,sy]=screenOf(dx,dy,W,H);
+  ents.push({depth:viewDepth(dx,dy)+0.5, draw:()=>{ const [sx,sy]=screenOf(dx,dy,W,H);
     drawCritter(cx,sx,sy+TILE_H/2,game.char,t,game.moving,1);
     cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
     const nm=game.char.name||'You', wN=cx.measureText(nm).width;
@@ -503,7 +586,7 @@ function render(t){
   // other gardeners
   for (const id in game.others){ const o=game.others[id];
     if (Date.now()-o.ts > 30000) continue;
-    ents.push({depth:o.x+o.y+0.5, draw:()=>{ const [sx,sy]=screenOf(o.x,o.y,W,H);
+    ents.push({depth:viewDepth(o.x,o.y)+0.5, draw:()=>{ const [sx,sy]=screenOf(o.x,o.y,W,H);
       drawCritter(cx,sx,sy+TILE_H/2,{species:o.sp,coat:o.c,coatD:o.cd,mark:o.m},t,false,1);
       cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
       const wN=cx.measureText(o.n).width;
@@ -542,6 +625,7 @@ function stepMove(dt){
 function actHere(){
   const x=Math.round(game.tx), y=Math.round(game.ty), k=`${x},${y}`;
   if (isDoor(x,y)){ doSleep(); return; }
+  if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
   const terr = tileTerrain(x,y);
   if (game.tool==='shovel'){
@@ -574,8 +658,34 @@ function actHere(){
 }
 function doSleep(){
   game.dayOffset++; game.dirty=true;
-  if (game.mode==='multi') toast('You napped in the cottage — a shared garden keeps its own clock.');
-  else toast('You slept in the cottage. A new day.');
+  if (game.mode==='multi') toast('You napped in the house — a shared garden keeps its own clock.');
+  else toast('You slept well. A new day.');
+}
+
+/* ---------- house placement / sizing / paint ---------- */
+function pushHouse(){ game.houseT=Date.now();
+  if (game.mode==='multi') sSet(wkey('house'),{h:game.house,t:game.houseT},true); }
+function placeHouse(x,y){
+  const h=game.house; if (!h) return;
+  const nx=Math.max(0,Math.min(GW-h.w,x)), ny=Math.max(0,Math.min(GH-h.h-1,y));
+  const ppx=Math.round(game.px), ppy=Math.round(game.py);
+  if (ppx>=nx&&ppx<nx+h.w&&ppy>=ny&&ppy<ny+h.h){ toast("You're standing in the way."); return; }
+  h.x=nx; h.y=ny; game.dirty=true; pushHouse();
+  toast('The house settles onto new ground.');
+}
+function applyHouseSize(wFt,dFt,label){
+  const h=game.house, w=ftToTiles(wFt), d=ftToTiles(dFt);
+  if (w>GW-2 || d>GH-3){ toast('The plot is too small for that house.'); return; }
+  h.w=w; h.h=d; h.sizeFt=[wFt,dFt];
+  h.x=Math.max(0,Math.min(GW-w,h.x)); h.y=Math.max(0,Math.min(GH-d-1,h.y));
+  if (inHouse(Math.round(game.px),Math.round(game.py))){
+    const [dx2,dy2]=doorPos(); game.px=game.tx=dx2; game.py=game.ty=dy2; game.moving=false; }
+  game.dirty=true; pushHouse();
+  toast(`${label} — ${wFt}' × ${dFt}'.`);
+}
+function paintHouse(part,col,label){
+  game.house[part]=col; game.dirty=true; pushHouse();
+  toast(part==='wall'?`Walls painted ${label.toLowerCase()}.`:`Roof done in ${label.toLowerCase()}.`);
 }
 function showPlantCard(p){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
@@ -607,9 +717,11 @@ addEventListener('keydown',e=>{
   }
   const k=e.key.toLowerCase();
   if (k==='e'||k===' '){ e.preventDefault(); actHere(); return; }
+  if (k==='r'){ e.preventDefault(); rotateView(); return; }
   /* keys move in SCREEN directions: D is right on screen, W is up, etc.
-     One key = a screen-cardinal step (a world diagonal); holding two keys
-     combines into the world axes for screen-diagonal moves. */
+     One key = a screen-cardinal step (a view diagonal); holding two keys
+     combines into the view axes. The loop converts view direction to
+     world direction per the current rotation. */
   const map={w:[-1,-1],arrowup:[-1,-1],s:[1,1],arrowdown:[1,1],
              a:[-1,1],arrowleft:[-1,1],d:[1,-1],arrowright:[1,-1]};
   if (map[k]){ e.preventDefault(); heldKeys[k]=map[k]; }
@@ -620,9 +732,11 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()]; });
 let lastTap=0;
 cnv.addEventListener('pointerdown',e=>{
   const [x,y]=tileAt(e.clientX,e.clientY,innerWidth,innerHeight);
-  if (x<0||y<0||x>=GRID||y>=GRID) return;
-  if (inHouse(x,y)){ // tapping the cottage walks to the door, then sleeps
-    game.pathTarget=[HOUSE.doorX,HOUSE.doorY]; game.sleepOnArrive=true; return; }
+  if (x<0||y<0||x>=GW||y>=GH) return;
+  if (game.tool==='house'){ placeHouse(x,y); return; }
+  if (inHouse(x,y)){ // tapping the house walks to the door, then sleeps
+    const [dx2,dy2]=doorPos();
+    game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true; return; }
   game.sleepOnArrive=false;
   if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(); return; }
   // step one tile toward target repeatedly handled in loop via pathTarget
@@ -660,7 +774,8 @@ async function ensurePlayerId(){
 }
 async function saveSolo(){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
-  await sSet('hortus:solo',{grid:GRID,plants:game.plants,terrain:game.terrain,
+  await sSet('hortus:solo',{gw:GW,gh:GH,rot:game.rot,house:game.house,
+    plants:game.plants,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   toast('Garden saved.');
 }
@@ -673,11 +788,14 @@ function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
 async function loadSolo(){
   const s=await sGet('hortus:solo');
   if (!s) return false;
-  // saves from before the world expansion were laid out around tile (6,6);
-  // recenter them on the new, larger plot
-  const shift = s.grid ? 0 : SPAWN-6;
+  // plot size: gw/gh (current), grid (square-era), or neither (13x13 era,
+  // laid out around tile (6,6) — recenter on the classic plot)
+  setWorldSize(s.gw||s.grid||31, s.gh||s.grid||31);
+  const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.plants=shiftKeys(s.plants||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
+  game.house=s.house||defaultHouse();
+  game.rot=s.rot||0;
   game.startTs=s.startTs||Date.now();
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
   return true;
@@ -690,17 +808,22 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
-  await sSet(wkey('meta'),{startTs:game.startTs},true);
+  setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
+  await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
   await sSet(wkey('terrain'),{},true);
+  await sSet(wkey('house'),{h:game.house,t:game.houseT},true);
 }
 async function joinWorld(code){
   game.code=code;
   const meta=await sGet(wkey('meta'),true);
   if (!meta){ toast('No garden found with that code.'); game.code=null; return false; }
   game.startTs=meta.startTs; game.dayOffset=0;
+  setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
+  const ho=await sGet(wkey('house'),true);
+  game.house=(ho&&ho.h)||defaultHouse(); game.houseT=(ho&&ho.t)||0;
   return true;
 }
 async function syncPlantsOut(){
@@ -733,6 +856,8 @@ async function pollWorld(){
   if (remote) mergeMap(game.plants,remote);
   const remoteT=await sGet(wkey('terrain'),true);
   if (remoteT) mergeMap(game.terrain,remoteT);
+  const ho=await sGet(wkey('house'),true);
+  if (ho && ho.h && (ho.t||0)>game.houseT){ game.house=ho.h; game.houseT=ho.t; }
   const players=await sGet(wkey('players'),true)||{};
   game.others={};
   let live=0;
@@ -853,7 +978,7 @@ const TRAY_CATS=[
   {id:'shrubs',     label:'Shrubs',     types:['shrub']},
   {id:'trees',      label:'Trees',      types:['tree']},
   {id:'dig',        label:'Dig',        tools:['shovel']},
-  {id:'landscape',  label:'Landscape',  tools:['path','bed']},
+  {id:'landscape',  label:'Landscape',  tools:['path','bed','house']},
 ];
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
@@ -931,6 +1056,21 @@ function buildToolTray(){
       tray.appendChild(b);
     });
   }
+  if (cat.tools.includes('house')){
+    const b=document.createElement('button'); b.className='tool'+(game.tool==='house'?' sel':'');
+    b.dataset.k='house';
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const tc=c.getContext('2d'); const hc=game.house||{wall:'#8a7a60',roof:'#9a5f3a'};
+    tc.fillStyle=hc.wall; tc.fillRect(14,20,20,13);
+    tc.fillStyle=hc.roof; tc.beginPath();
+    tc.moveTo(10,22); tc.lineTo(24,9); tc.lineTo(38,22); tc.closePath(); tc.fill();
+    tc.fillStyle=HOUSE_TRIM.door; tc.fillRect(21,26,6,7);
+    const sp=document.createElement('span'); sp.textContent='House';
+    b.append(c,sp);
+    b.onclick=()=>{ game.tool='house'; game.toolVar=null; refreshTray(); renderCvRow();
+      toast('House: tap the map to move it — size and colors above.'); };
+    tray.appendChild(b);
+  }
   if (cat.tools.includes('shovel')){
     const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
     sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
@@ -951,6 +1091,24 @@ function refreshTray(){
 function renderCvRow(){
   const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
   row.innerHTML='';
+  if (game.tool==='house' && game.house){ // size + paint chips
+    row.classList.remove('hidden');
+    const chip=(label,sel,fn,title)=>{
+      const b=document.createElement('button');
+      b.className='chip'+(sel?' sel':''); b.textContent=label; if (title) b.title=title;
+      b.onclick=()=>{ fn(); renderCvRow(); buildToolTray(); };
+      row.appendChild(b);
+    };
+    HOUSE_SIZES.forEach(([label,wf,df])=>
+      chip(`${label} ${wf}'×${df}'`,
+        game.house.w===ftToTiles(wf)&&game.house.h===ftToTiles(df),
+        ()=>applyHouseSize(wf,df,label)));
+    WALL_COLS.forEach(([n,c])=>
+      chip('Walls · '+n, game.house.wall===c, ()=>paintHouse('wall',c,n)));
+    ROOF_COLS.forEach(([n,c])=>
+      chip('Roof · '+n, game.house.roof===c, ()=>paintHouse('roof',c,n)));
+    return;
+  }
   if (!P || (!P.cv && !P.group)){ row.classList.add('hidden'); return; }
   row.classList.remove('hidden');
   const mk=(k,v,label,note)=>{
@@ -993,7 +1151,7 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen'].forEach(s=>
+function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id)); }
 let pendingMode=null;
 
@@ -1048,7 +1206,7 @@ $('btnStartGame').onclick=async()=>{
   await saveChar();
   if (pendingMode==='solo'){ game.mode='solo';
     const had=await loadSolo();
-    if (!had){ game.startTs=Date.now(); game.plants={}; game.terrain={}; starterDrift(); }
+    if (!had){ openPlotScreen(); return; }  // new garden: lay out the plot first
   } else {
     game.mode='multi';
     $('playersPill').classList.remove('hidden');
@@ -1059,21 +1217,54 @@ $('btnStartGame').onclick=async()=>{
   enterGarden();
 };
 function starterDrift(){ // a welcoming drift near spawn so the world isn't empty
-  const S=SPAWN;
-  const picks=[['karl',S-3,S-3],['karl',S-2,S-3],['bluestem',S-3,S-2],
-               ['echinacea',S+3,S+3],['echinacea',S+4,S+3],['dropseed',S+3,S+4]];
+  const SX=SPAWNX, SY=SPAWNY;
+  const picks=[['karl',SX-3,SY-3],['karl',SX-2,SY-3],['bluestem',SX-3,SY-2],
+               ['echinacea',SX+3,SY+3],['echinacea',SX+4,SY+3],['dropseed',SX+3,SY+4]];
   // backdated 26 days = 10 growing days last fall + the winter between,
   // so the drift arrives established and wakes with the player's first spring
-  picks.forEach(([s,x,y])=>{ if(!isPath(x,y)) game.plants[`${x},${y}`]={s,d:absDay()-26,t:Date.now()}; });
+  picks.forEach(([s,x,y])=>{ if(!isPath(x,y)&&!inHouse(x,y))
+    game.plants[`${x},${y}`]={s,d:absDay()-26,t:Date.now()}; });
 }
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
-  game.px=game.tx=SPAWN; game.py=game.ty=SPAWN; game.lastDay=absDay();
-  // start the camera on the player instead of easing in from the plot corner
-  cam.x=isoX(game.px,game.py); cam.y=isoY(game.px,game.py)-innerHeight*0.21;
+  if (!game.house) game.house=defaultHouse();
+  game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.lastDay=absDay();
+  snapCam(); // start the camera on the player instead of easing in
   buildToolTray();
+}
+/* the plot screen: size a brand-new solo garden in real feet */
+const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
+const FT_MIN=24, FT_MAX=200; // 16..134 tiles per side
+function plotFt(id){ return Math.max(FT_MIN,Math.min(FT_MAX,+$(id).value||46)); }
+function updatePlotNote(){
+  const w=plotFt('plotW'), l=plotFt('plotL');
+  $('plotNote').textContent=
+    `${ftToTiles(w)} × ${ftToTiles(l)} tiles · ${(w*l).toLocaleString()} sq ft · ${(w*l/43560).toFixed(2)} acres`;
+}
+function openPlotScreen(){
+  const row=$('plotPresets');
+  if (!row.children.length){
+    PLOT_PRESETS.forEach(([n,w,l],i)=>{
+      const b=document.createElement('button');
+      b.className='chip'+(i===0?' sel':''); b.textContent=n;
+      b.onclick=()=>{ $('plotW').value=w; $('plotL').value=l; updatePlotNote();
+        row.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
+      row.appendChild(b);
+    });
+    $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote();
+      row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
+    $('btnPlotStart').onclick=()=>{
+      setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
+      game.house=defaultHouse(); game.rot=0;
+      game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
+      starterDrift(); enterGarden();
+    };
+    $('btnPlotBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
+  }
+  $('plotW').value=46; $('plotL').value=46; updatePlotNote();
+  show('plotScreen');
 }
 function quitToMenu(){
   if (game.mode==='solo'&&hasStorage) saveSolo();
@@ -1098,6 +1289,7 @@ $('btnCsv').onclick=exportCsv;
 $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
+$('btnRotate').onclick=rotateView;
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
@@ -1135,7 +1327,8 @@ function loop(t){
       if (vecs.length){
         let mx=0,my=0; vecs.forEach(v=>{mx+=v[0];my+=v[1];});
         mx=Math.sign(mx); my=Math.sign(my);
-        if (mx||my){ tryMove(Math.round(game.px)+mx,Math.round(game.py)+my); keyCooldown=40; }
+        if (mx||my){ const [wx,wy]=viewDirToWorld(mx,my);
+          tryMove(Math.round(game.px)+wx,Math.round(game.py)+wy); keyCooldown=40; }
       }
     }
     followPath(); stepMove(dt); render(t); updateHUD();
