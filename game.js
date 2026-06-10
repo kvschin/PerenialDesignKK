@@ -145,14 +145,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
     }
   }
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike'){
+    const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
     // basal foliage
-    const fn = stemFor(8);
-    ctx.strokeStyle = S.fol; ctx.lineWidth = 1.8;
-    for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*0.34;
+    const fn = stemFor(L.leaves||8);
+    ctx.strokeStyle = S.fol; ctx.lineWidth = L.leafW||1.8;
+    for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
       ctx.beginPath(); ctx.moveTo(0,0);
       ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
     // flower stems
-    const sn = stemFor(P.form==='spike'?7:6);
+    const sn = stemFor(P.form==='spike'?7:(L.stems||6));
     for (let i=0;i<sn;i++){
       const ox=(rnd()-0.5)*14, len=H*(0.75+rnd()*0.3), tx=ox+sway*len*0.05;
       ctx.strokeStyle = P.stem || shade(S.fol,-18);
@@ -161,11 +162,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
       if (!mature) continue;
       const hx=tx, hy=-len;
       if (P.form==='cone'){
-        if (S.bloom){ // petals + cone
-          ctx.strokeStyle=S.bloom; ctx.lineWidth=2.2;
-          for(let p=0;p<7;p++){ const pa=p/7*Math.PI*2;
+        if (S.bloom){ // rays + cone, carried per the species' look
+          const rays=L.rays||7, rl=L.rayLen||6, dr=(L.droop===undefined)?2.5:L.droop;
+          ctx.strokeStyle=S.bloom; ctx.lineWidth=L.rayW||2.2;
+          for(let p=0;p<rays;p++){ const pa=p/rays*Math.PI*2;
             ctx.beginPath(); ctx.moveTo(hx,hy);
-            ctx.lineTo(hx+Math.cos(pa)*6, hy+Math.sin(pa)*4.5+2.5); ctx.stroke(); }
+            ctx.lineTo(hx+Math.cos(pa)*rl, hy+Math.sin(pa)*rl*0.75+dr); ctx.stroke(); }
           ctx.fillStyle=S.eye||'#b5651d';
           ctx.beginPath(); ctx.ellipse(hx,hy-1,3.2,3.6,0,0,7); ctx.fill();
         } else if (S.seed){ ctx.fillStyle=S.seed;
@@ -874,17 +876,34 @@ function buildToolTray(){
         ? 'Nothing woody in the palette yet.' : 'Nothing fits the region filter.';
       tray.appendChild(sp);
     }
+    const grouped={};
     keys.forEach(k=>{
       const P=PLANTS[k];
-      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
+      // species sharing a group collapse into one button; the chip row
+      // (renderCvRow) picks the species inside it
+      if (P.group){
+        if (grouped[P.group]) return;
+        grouped[P.group]=true;
+      }
+      const rep = P.group && PLANTS[game.tool] && PLANTS[game.tool].group===P.group
+        ? game.tool : k;
+      const R=PLANTS[rep];
+      const b=document.createElement('button');
+      b.className='tool'+((P.group ? PLANTS[game.tool]&&PLANTS[game.tool].group===P.group
+                                   : game.tool===k)?' sel':'');
+      b.dataset.k=k; if (P.group) b.dataset.group=P.group;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const sc=Math.min(0.62, 36/(P.h||40));   // tall grasses shrink to fit
+      const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-      drawPlant(ctx2,24/sc,42/sc,k,1,'Summer',tileSeed(3,7),0);
-      const sp=document.createElement('span'); sp.textContent=P.name.split(' ').slice(0,2).join(' ');
+      drawPlant(ctx2,24/sc,42/sc,rep,1,'Summer',tileSeed(3,7),0);
+      const sp=document.createElement('span');
+      sp.textContent=P.group ? P.group[0].toUpperCase()+P.group.slice(1)
+                             : P.name.split(' ').slice(0,2).join(' ');
       b.append(c,sp);
-      b.onclick=()=>{ game.tool=k; game.toolVar=null; refreshTray(); renderCvRow();
-        toast(`${P.name} — ${P.latin}${P.cv?' · cultivars above':''}`); };
+      b.onclick=()=>{ game.tool=rep; game.toolVar=null; refreshTray(); renderCvRow();
+        const D=PLANTS[game.tool];
+        toast(P.group ? `${cap(P.group)}s — pick a species above`
+                      : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
       tray.appendChild(b);
     });
     renderCvRow();
@@ -919,23 +938,36 @@ function buildToolTray(){
     tray.appendChild(sh);
   }
 }
-function refreshTray(){ document.querySelectorAll('.tool').forEach(el=>
-  el.classList.toggle('sel',el.dataset.k===game.tool)); }
-/* cultivar chips: shown when the selected species offers them */
+function cap(s){ return s[0].toUpperCase()+s.slice(1); }
+function refreshTray(){
+  const cur=PLANTS[game.tool];
+  document.querySelectorAll('.tool').forEach(el=>
+    el.classList.toggle('sel', el.dataset.group
+      ? !!(cur && cur.group===el.dataset.group)
+      : el.dataset.k===game.tool));
+}
+/* variant chips: species inside a group, and/or cultivars of the
+   selected species. A chip is a (species, cultivar|null) pair. */
 function renderCvRow(){
   const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
-  if (!P || !P.cv){ row.classList.add('hidden'); row.innerHTML=''; return; }
-  row.classList.remove('hidden'); row.innerHTML='';
-  const mk=(v,label,note)=>{
+  row.innerHTML='';
+  if (!P || (!P.cv && !P.group)){ row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  const mk=(k,v,label,note)=>{
     const b=document.createElement('button');
-    b.className='chip'+(((game.toolVar||null)===v)?' sel':''); b.textContent=label;
-    if (note) b.title=note;
-    b.onclick=()=>{ game.toolVar=v; renderCvRow();
-      toast(v?`${plantDef(game.tool,v).name} — ${note}`:`${P.name} — the straight species`); };
+    b.className='chip'+((game.tool===k && (game.toolVar||null)===v)?' sel':'');
+    b.textContent=label; if (note) b.title=note;
+    b.onclick=()=>{ game.tool=k; game.toolVar=v; refreshTray(); renderCvRow();
+      const def=plantDef(k,v);
+      toast(v?`${def.name} — ${note}`:`${def.name} — ${def.latin}`); };
     row.appendChild(b);
   };
-  mk(null,'Straight species','');
-  for (const v in P.cv) mk(v,P.cv[v].name,P.cv[v].note);
+  const members=P.group ? trayKeys().filter(k=>PLANTS[k].group===P.group) : [game.tool];
+  members.forEach(k=>{
+    const M=PLANTS[k];
+    mk(k, null, M.group ? (M.chip||M.name) : 'Straight species');
+    for (const v in (M.cv||{})) mk(k, v, M.cv[v].name, M.cv[v].note);
+  });
 }
 let lastHint='';
 function setHint(txt){ if (txt!==lastHint){ lastHint=txt;

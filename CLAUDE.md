@@ -99,8 +99,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Perennials / Shrubs / Trees / Dig /
     Landscape — shrubs and trees are empty placeholders until woody types
-    exist), species buttons in the active category, and `renderCvRow()`
-    cultivar chips when the selected species has `cv` (the planted tile
+    exist), species buttons in the active category (species sharing a
+    `group` collapse to one button), and `renderCvRow()` chips: group
+    members and/or cultivars of the selected species (the planted tile
     stores `v`; tool state is `game.tool` + `game.toolVar`). Plus season
     dial, sleep button, plant-list and region buttons, contextual action
     hint. The region choice persists as `hortus:region`.
@@ -132,6 +133,9 @@ key: {
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)
+  group: 'coneflower',         // optional: species sharing a group collapse
+  chip: 'Pale Purple',         //   to one tray button; chips pick the species
+  look: { rays:7, droop:6 },   // optional cone-form carriage (see plants.js)
   stem: '#3a3038',             // optional stem color override (salvia)
   blurb: '...',                // shown on the plant info card
   sea: {                       // per-season appearance

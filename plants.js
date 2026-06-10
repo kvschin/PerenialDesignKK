@@ -30,6 +30,14 @@
            (nominative use; names aren't copyrightable) — plant patents
            restrict propagation, not depiction. Avoid trademarked TRADE
            names as branding; the cultivar name in quotes is safe.
+   group   optional family handle ('coneflower'): species sharing it
+           collapse into one tray button, and the chip row picks the
+           species (each stays a full entry — own latin, zones, eco)
+   chip    short label for this species' chip inside its group
+   look    optional tweaks for the cone form, how the flower carries
+           itself: rays (count), rayLen, rayW, droop (how hard the
+           rays fall), stems, leaves, leafW, leafLen — leafy purpurea
+           vs wispy pallida vs hard-reflexed atrorubens
    sea     per-season appearance, the Oudolf heart of the game:
            fol (foliage), bloom (flower this season, omit for none),
            seed (persistent seedhead/structure — fall/winter presence is
@@ -104,26 +112,47 @@ const PLANTS = {
 
   /* ---------- forbs: the flowering layer ---------- */
   echinacea:{ name:'Purple Coneflower', latin:'Echinacea purpurea', form:'cone', type:'forb', h:48,
+    group:'coneflower', chip:'Purple',
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
-    blurb:'Pink petals around an orange cone in July; black seedheads that feed goldfinches all winter.',
+    look:{leaves:10, leafW:2.3, leafLen:0.38, stems:6, rays:8, rayLen:6, droop:2.5, rayW:2.4},
+    blurb:'Pink petals around an orange cone in July; black seedheads that feed goldfinches all winter. The leafiest of the tribe.',
     sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#c76b8e',eye:'#b5651d'}, Fall:{fol:'#6b6248',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}},
     cv:{
       magnus:{name:"'Magnus'", note:'flat, deep-rose rays held wide',
+        look:{leaves:10, leafW:2.3, leafLen:0.38, stems:6, rays:8, rayLen:6.5, droop:1, rayW:2.4},
         sea:{Summer:{fol:'#5d7a4c',bloom:'#b84a78',eye:'#a05518'}}},
       whiteswan:{name:"'White Swan'", note:'white rays around a green-gold cone',
         sea:{Summer:{fol:'#5d7a4c',bloom:'#f0ead8',eye:'#b58a2e'}}},
     }},
   pallida:{ name:'Pale Purple Coneflower', latin:'Echinacea pallida', form:'cone', type:'forb', h:52,
+    group:'coneflower', chip:'Pale Purple',
     space:18, spread:18, zones:[4,8], native:true, sun:'full', moist:'dry', phen:'mid',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
-    blurb:'Pale drooping petals on wiry stems weeks before purpurea. The prairie original.',
+    look:{leaves:5, leafW:1.2, leafLen:0.3, stems:4, rays:7, rayLen:8.5, droop:6, rayW:1.3},
+    blurb:'Long pale ribbons drooping from the cone on wiry, near-naked stems, weeks before purpurea. The prairie original.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#d8a0b8',eye:'#8a5a3a'}, Fall:{fol:'#8a7a55',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}}},
   topeka:{ name:'Topeka Coneflower', latin:'Echinacea atrorubens', form:'cone', type:'forb', h:44,
+    group:'coneflower', chip:'Topeka',
     space:15, spread:12, zones:[5,8], native:true, sun:'full', moist:'dry', phen:'mid',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains'],
-    blurb:'The Flint Hills coneflower — deep wine petals swept back hard. Rare in the trade; grow it if you find it.',
+    look:{leaves:4, leafW:1.4, leafLen:0.28, stems:4, rays:6, rayLen:5.5, droop:7, rayW:1.6},
+    blurb:'The Flint Hills coneflower — deep wine rays swept back hard against the stem. Rare in the trade; grow it if you find it.',
     sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#a84a5e',eye:'#5e3a2a'}, Fall:{fol:'#7a6a4a',seed:'#352820'}, Winter:{fol:'#6b5d4a',seed:'#201812'}}},
+  angustifolia:{ name:'Narrowleaf Coneflower', latin:'Echinacea angustifolia', form:'cone', type:'forb', h:30,
+    group:'coneflower', chip:'Narrowleaf',
+    space:12, spread:12, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid',
+    eco:['High Plains','Central Great Plains','Flint Hills','Southwestern Tablelands'],
+    look:{leaves:6, leafW:1.3, leafLen:0.3, stems:4, rays:8, rayLen:5, droop:3, rayW:1.7},
+    blurb:'The shortgrass echinacea — pink stars close to the ground on a taproot. The one the Plains tribes used for everything.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#c08aaa',eye:'#7a4a2e'}, Fall:{fol:'#8a7a55',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}}},
+  paradoxa:{ name:'Yellow Coneflower', latin:'Echinacea paradoxa', form:'cone', type:'forb', h:42,
+    group:'coneflower', chip:'Yellow',
+    space:18, spread:15, zones:[4,8], native:true, sun:'full', moist:'dry', phen:'mid',
+    eco:['Ozark Highlands'],
+    look:{leaves:5, leafW:1.4, leafLen:0.32, stems:5, rays:7, rayLen:8, droop:6.5, rayW:1.7},
+    blurb:'The paradox: an echinacea in clear yellow, rays falling like a shuttlecock. Ozark glades only, but happy in any dry garden.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#e8c23a',eye:'#5e4a2a'}, Fall:{fol:'#8a7a55',seed:'#3a3024'}, Winter:{fol:'#6b5d4a',seed:'#2a241c'}}},
   rattlesnake:{ name:'Rattlesnake Master', latin:'Eryngium yuccifolium', form:'globe', type:'forb', h:52,
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
