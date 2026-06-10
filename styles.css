@@ -97,6 +97,29 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #plantCard h3{font-family:'Fraunces',serif;font-size:19px}
 #plantCard .latin{font-style:italic;color:var(--bronze);font-size:12px;margin-bottom:6px}
 #plantCard p{font-size:12.5px;color:#cdbfa9;line-height:1.5}
+/* ---------- export / planting list ---------- */
+.export-table{width:100%;border-collapse:collapse;margin-top:4px;font-size:13px}
+.export-table th{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);
+  text-align:left;padding:6px 8px 6px 0;border-bottom:1px solid rgba(239,230,211,.3)}
+.export-table td{padding:7px 8px 7px 0;border-bottom:1px solid rgba(239,230,211,.12);vertical-align:top}
+.export-table td:nth-child(n+2),.export-table th:nth-child(n+2){text-align:right;white-space:nowrap}
+.export-table .latin{font-style:italic;color:var(--bronze);font-size:11px}
+.export-table tfoot td{border-bottom:none;border-top:1.5px solid rgba(239,230,211,.4);font-weight:600}
+
+/* print: just the planting list, black on white */
+@media print{
+  html,body{height:auto;overflow:visible;background:#fff}
+  #gameCanvas,#menuCanvas,#hud,#toast,#plantCard{display:none!important}
+  #exportScreen{position:static;padding:0;overflow:visible}
+  #exportScreen .panel{background:#fff;border:none;color:#111;max-width:100%;backdrop-filter:none;padding:0}
+  #exportScreen h2{color:#111}
+  #exportScreen .sub,#exportScreen .note{color:#444}
+  #exportScreen .export-table th{color:#555;border-color:#999}
+  #exportScreen .export-table td{color:#111;border-color:#ccc}
+  #exportScreen .export-table .latin{color:#555}
+  #exportScreen .row,#exportScreen .back-link{display:none!important}
+}
+
 @media(max-width:640px){
   .creator-grid{flex-direction:column;align-items:center}
   .season-name{font-size:16px}

@@ -106,12 +106,27 @@
     </div>
     <div class="hud-right">
       <div class="pill" id="worldPill">Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button></div>
+      <div class="pill"><button id="btnExport">Plant list</button></div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
   </div>
   <div class="hud-bottom">
     <div id="actionHint">Tap a tile to walk · tap again to plant — or WASD + E</div>
     <div id="toolTray"></div>
+  </div>
+</div>
+
+<!-- EXPORT / PLANTING LIST -->
+<div class="screen hidden" id="exportScreen">
+  <div class="panel" style="max-width:640px">
+    <h2>Planting list</h2>
+    <p class="sub" id="exportMeta"></p>
+    <div id="exportBody"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnPrint">Print</button>
+      <button class="btn" id="btnCsv">Download CSV</button>
+    </div>
+    <button class="back-link" id="btnExportClose">← Back to the garden</button>
   </div>
 </div>
 

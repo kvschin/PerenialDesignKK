@@ -10,6 +10,7 @@ const DAY_MS = 20000;                 // 20 real seconds per garden day
 const GRID = 31;                      // 31x31 plot (~46ft square at 18" tiles)
 const SPAWN = (GRID-1)/2;             // players start at the plot's center
 const TILE_W = 76, TILE_H = 38;
+const TILE_IN = 18;                   // real-world inches per tile side (export sheet math)
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
@@ -488,6 +489,11 @@ function toast(msg){
 const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
+  const ex=document.getElementById('exportScreen');
+  if (!ex.classList.contains('hidden')){ // planting list open: only Escape closes
+    if (e.key==='Escape') ex.classList.add('hidden');
+    return;
+  }
   const k=e.key.toLowerCase();
   if (k==='e'||k===' '){ e.preventDefault(); actHere(); return; }
   /* keys move in SCREEN directions: D is right on screen, W is up, etc.
@@ -625,6 +631,54 @@ async function pollWorld(){
   const names=[game.char.name||'You',...Object.values(game.others).map(o=>o.n)];
   list.innerHTML='🌿 '+names.slice(0,4).join('<br>🌿 ');
   if (live>=4) toast('This bed is full — 4 gardeners max.');
+}
+
+/* ---------- export: the planting list ----------
+   Tallies what's planted and converts game tiles to real quantities:
+   one tile is TILE_IN inches square, so a species at tighter spacing
+   needs more plants than tiles to fill the same ground, and a big
+   clumper like baptisia needs fewer. */
+function exportRows(){
+  const counts={};
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p.removed && p.s) counts[p.s]=(counts[p.s]||0)+1; }
+  return Object.keys(counts).map(s=>{
+    const P=PLANTS[s], n=counts[s];
+    return {name:P.name, latin:P.latin, native:P.native, count:n,
+      areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
+      space:P.space,
+      order:Math.ceil(n*TILE_IN*TILE_IN/(P.space*P.space))};
+  }).sort((a,b)=>b.count-a.count);
+}
+function openExport(){
+  const rows=exportRows(), body=$('exportBody');
+  const where=game.mode==='multi'?`Garden ${game.code}`:'Solo garden';
+  $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
+  if (!rows.length){
+    body.innerHTML='<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
+  } else {
+    const tr=rows.map(r=>`<tr><td>${r.name}${r.native?'':' *'}<div class="latin">${r.latin}</div></td>
+      <td>${r.count}</td><td>${r.areaFt}</td><td>${r.space}"</td><td><b>${r.order}</b></td></tr>`).join('');
+    const tot=rows.reduce((a,r)=>({c:a.c+r.count,f:a.f+r.areaFt,o:a.o+r.order}),{c:0,f:0,o:0});
+    body.innerHTML=`<table class="export-table"><thead><tr>
+      <th>Species</th><th>In the garden</th><th>Sq ft</th><th>Spacing</th><th>To order</th></tr></thead>
+      <tbody>${tr}</tbody>
+      <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table>
+      <p class="note">"To order" converts planted ground to plants at each species' recommended
+      spacing — buy that many to fill the same area. * marks garden cultivars of non-native origin.</p>`;
+  }
+  $('exportScreen').classList.remove('hidden');
+}
+function exportCsv(){
+  const rows=exportRows();
+  if (!rows.length){ toast('Nothing planted yet.'); return; }
+  const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
+  const lines=[['Common name','Latin name','Native','Tiles planted','Bed area (sq ft)','Spacing (in)','Plants to order'].map(esc).join(',')];
+  rows.forEach(r=>lines.push([r.name,r.latin,r.native?'yes':'no',r.count,r.areaFt,r.space,r.order].map(esc).join(',')));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
+  a.download='hortus-planting-list.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 /* ---------- HUD / tool tray ---------- */
@@ -772,6 +826,7 @@ function quitToMenu(){
   if (game.mode==='solo'&&hasStorage) saveSolo();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
+  $('exportScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   $('worldPill').innerHTML='Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button>';
@@ -783,6 +838,10 @@ function wireHudButtons(){
 }
 wireHudButtons();
 $('btnSleep').onclick=doSleep;
+$('btnExport').onclick=openExport;
+$('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');
+$('btnPrint').onclick=()=>window.print();
+$('btnCsv').onclick=exportCsv;
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');

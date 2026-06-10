@@ -38,7 +38,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 
 1. **Constants** — `SEASONS`, `DAYS_PER_SEASON` (16), `DAY_MS` (20s real time
    per garden day), `GRID` (31x31), `SPAWN` (plot center, where players start),
-   tile dimensions.
+   tile dimensions, `TILE_IN` (18 — real-world inches per tile side, the scale
+   the export sheet converts through).
 2. **`AMBIENCE`** — per-season sky gradient, grass/soil tones, light tint, snow
    flag. This is what makes the world *look* like each season.
 3. **`PLANTS`** — in `plants.js`, the data model for every species (see
@@ -80,11 +81,18 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     expansion and get recentered from (6,6) to `SPAWN` on load), host/join
     shared worlds via shared keys, presence polling, `mergeMap`
     (last-write-wins by timestamp) for both plants and terrain.
-14. **HUD** — tool tray (built from `PLANT_KEYS` + path/bed tools + shovel),
-    season dial, sleep button, contextual action hint.
-15. **Screens** — menu, multiplayer lobby, character creator (with live
-    preview), code display. Plain DOM, toggled by `show()`.
-16. **Menu meadow + main loop** — animated title background, then `loop(t)`.
+14. **Export / planting list** — `exportRows()` tallies planted tiles per
+    species and converts to real quantities (`ceil(tiles × TILE_IN² / space²)`)
+    plus bed area; `openExport()` renders the overlay table, `exportCsv()`
+    downloads it. Print CSS in `styles.css` strips everything but the sheet.
+15. **HUD** — tool tray (built from `PLANT_KEYS` + path/bed tools + shovel),
+    season dial, sleep button, plant-list button, contextual action hint.
+16. **Screens** — menu, multiplayer lobby, character creator (with live
+    preview), code display. Plain DOM, toggled by `show()`. The planting-list
+    overlay (`#exportScreen`) sits outside `show()` — it's an in-game overlay
+    toggled directly, and the keyboard handler ignores game keys while it's
+    open (Escape closes).
+17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
 
 ## The plant data model
 
@@ -138,10 +146,9 @@ Winter must show *structure*, not bare ground; that's the whole point.
 ## Feature backlog (v2 ideas, not yet built)
 
 Planned sequence for the "design tool" direction (each independently shippable):
-export sheet (per-species counts + real quantities from `space`, with Latin
-names, printable/CSV) → region picker (filter the palette by `zones`/`eco`;
-players pick their ecoregion from a curated list — don't ship GIS shapefiles)
-→ catalog UI (the tool tray dies past ~15 species; search/filter palette).
+region picker (filter the palette by `zones`/`eco`; players pick their
+ecoregion from a curated list — don't ship GIS shapefiles) → catalog UI
+(the tool tray dies past ~15 species; search/filter palette).
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.
