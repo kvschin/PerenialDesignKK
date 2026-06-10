@@ -5,8 +5,10 @@
    against. drawPlant() uses: form, h, sea, stem. The planner features
    use: type, space, spread, zones, native, eco, sun, moist.
 
-   form    one of: bunchgrass | vertgrass | cone | globe | spike | shrub
-   type    grass | sedge | forb — groups the tool tray (matrix first)
+   form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
+           oatgrass | cone | globe | spike | shrub
+   type    grass | sedge | forb — drives the tray categories
+           (future woody plants get type shrub | tree)
    h       mature height in px (drives the renderer, not real units)
    space   on-center planting distance in inches (what you'd order/space by)
    spread  mature clump width in inches (info card / export notes)
@@ -22,6 +24,12 @@
            bloomers) emerge first; warm-season prairie grasses and
            late risers like butterfly weed wait for real heat
    stem    optional stem color override (salvia's near-black stems)
+   cv      optional named cultivars: { key:{ name:"'Cultivar'", note,
+           ...overrides } }. Overrides merge over the straight species —
+           h, stem, and per-season sea keys. Cultivar names are facts
+           (nominative use; names aren't copyrightable) — plant patents
+           restrict propagation, not depiction. Avoid trademarked TRADE
+           names as branding; the cultivar name in quotes is safe.
    sea     per-season appearance, the Oudolf heart of the game:
            fol (foliage), bloom (flower this season, omit for none),
            seed (persistent seedhead/structure — fall/winter presence is
@@ -38,7 +46,35 @@ const PLANTS = {
     eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands',
          'Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Blue-green all summer, then the best copper in the prairie. Backlit in November it glows.',
-    sea:{Spring:{fol:'#7fa07a'}, Summer:{fol:'#6e8f9b'}, Fall:{fol:'#c0623b',seed:'#efe6d3'}, Winter:{fol:'#a35a35',seed:'#f3ecdd'}}},
+    sea:{Spring:{fol:'#7fa07a'}, Summer:{fol:'#6e8f9b'}, Fall:{fol:'#c0623b',seed:'#efe6d3'}, Winter:{fol:'#a35a35',seed:'#f3ecdd'}},
+    cv:{
+      standingovation:{name:"'Standing Ovation'", note:'stiffly upright on blue legs, wine-red fall',
+        sea:{Summer:{fol:'#5d7a9b'}, Fall:{fol:'#8a4a52',seed:'#efe6d3'}, Winter:{fol:'#7a4a48',seed:'#f3ecdd'}}},
+      theblues:{name:"'The Blues'", note:'powder-blue stems all season',
+        sea:{Summer:{fol:'#7d93b8'}, Fall:{fol:'#b06a4a',seed:'#efe6d3'}}},
+    }},
+  bigbluestem:{ name:'Big Bluestem', latin:'Andropogon gerardii', form:'turkeyfoot', type:'grass', h:78,
+    space:24, spread:30, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'warm',
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains',
+         'Western Corn Belt Plains','Southwestern Tablelands'],
+    blurb:'King of the tallgrass — turkey-foot seedheads at eye level by September. The Flint Hills are made of it.',
+    sea:{Spring:{fol:'#7d9a6e'}, Summer:{fol:'#6e8a8a'}, Fall:{fol:'#a8584a',seed:'#c9b08a'}, Winter:{fol:'#8a5040',seed:'#d6c4a4'}},
+    cv:{
+      blackhawks:{name:"'Blackhawks'", note:'foliage darkens to near-black purple',
+        sea:{Summer:{fol:'#5e5468'}, Fall:{fol:'#4a3a4e',seed:'#c9b9a0'}, Winter:{fol:'#3f3442',seed:'#cdbfa8'}}},
+    }},
+  switchgrass:{ name:'Switchgrass', latin:'Panicum virgatum', form:'cloudgrass', type:'grass', h:66,
+    space:24, spread:30, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'warm',
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains',
+         'Western Corn Belt Plains','Southwestern Tablelands'],
+    blurb:'A sturdy clump under an airy cloud of seed. Birds work it all winter.',
+    sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#6f8f5a',bloom:'#d8b8c2'}, Fall:{fol:'#d9b85e',seed:'#e0cfae'}, Winter:{fol:'#c2a878',seed:'#e6d8ba'}},
+    cv:{
+      northwind:{name:"'Northwind'", note:'steel-blue, a strict vertical column',
+        sea:{Summer:{fol:'#6e8f9b'}, Fall:{fol:'#d9b86a',seed:'#e8d9b0'}}},
+      shenandoah:{name:"'Shenandoah'", note:'leaves flushed wine-red by July',
+        sea:{Summer:{fol:'#8a6a62'}, Fall:{fol:'#a04438',seed:'#d8b8a0'}}},
+    }},
   dropseed:{ name:'Prairie Dropseed', latin:'Sporobolus heterolepis', form:'bunchgrass', type:'grass', h:34,
     space:18, spread:24, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'warm',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
@@ -50,7 +86,7 @@ const PLANTS = {
          'Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'The tallgrass skyline. Bronze plumes in September; Kansas and Oklahoma both claim it as state grass.',
     sea:{Spring:{fol:'#7d9a6e'}, Summer:{fol:'#6f8f7a'}, Fall:{fol:'#c98a4a',seed:'#d9b87a'}, Winter:{fol:'#b08a5e',seed:'#e0cfa8'}}},
-  sideoats:{ name:'Sideoats Grama', latin:'Bouteloua curtipendula', form:'bunchgrass', type:'grass', h:30,
+  sideoats:{ name:'Sideoats Grama', latin:'Bouteloua curtipendula', form:'oatgrass', type:'grass', h:30,
     space:15, spread:18, zones:[3,9], native:true, sun:'full', moist:'dry', phen:'warm',
     eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands',
          'Central Irregular Plains','Western Corn Belt Plains'],
@@ -71,7 +107,13 @@ const PLANTS = {
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Pink petals around an orange cone in July; black seedheads that feed goldfinches all winter.',
-    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#c76b8e',eye:'#b5651d'}, Fall:{fol:'#6b6248',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}}},
+    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#c76b8e',eye:'#b5651d'}, Fall:{fol:'#6b6248',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}},
+    cv:{
+      magnus:{name:"'Magnus'", note:'flat, deep-rose rays held wide',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#b84a78',eye:'#a05518'}}},
+      whiteswan:{name:"'White Swan'", note:'white rays around a green-gold cone',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f0ead8',eye:'#b58a2e'}}},
+    }},
   pallida:{ name:'Pale Purple Coneflower', latin:'Echinacea pallida', form:'cone', type:'forb', h:52,
     space:18, spread:18, zones:[4,8], native:true, sun:'full', moist:'dry', phen:'mid',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],

@@ -48,10 +48,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 5. **`mulberry(seed)`** — tiny seeded RNG. Used so each plant clump looks unique
    but renders identically every frame. Never use `Math.random()` for anything
    that must be stable across frames — derive a seed and use `mulberry`.
-6. **`drawPlant(ctx, x, y, key, growth, season, seed, sway)`** — procedural
-   renderer. Branches on `PLANTS[key].form` (`bunchgrass`, `vertgrass`, `cone`,
-   `globe`, `spike`, `shrub`). Reads the season's `fol`/`bloom`/`seed`/`eye`
-   colors. Adds snow caps when `AMBIENCE[season].snow`.
+6. **`drawPlant(ctx, x, y, key, growth, season, seed, sway, variant)`** —
+   procedural renderer. Resolves `plantDef(key, variant)` (cultivar overrides
+   merged over the species, cached) and branches on its `form` (`bunchgrass`,
+   `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
+   `spike`, `shrub`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors.
+   Adds snow caps when `AMBIENCE[season].snow`.
 7. **`drawCritter(...)`** — round-bodied cat/dog avatar, with walk bob, tail,
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position, plants
@@ -94,10 +96,14 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 15. **Region filter + HUD** — `plantFits()` (zone range, natives-only,
     ecoregion membership for natives; cultivars have `eco:[]` so only the
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
-    → forbs), the region-picker overlay wiring, and the tool tray (filtered
-    species + path/bed tools + shovel), season dial, sleep button, plant-list
-    and region buttons, contextual action hint. The region choice persists as
-    `hortus:region`.
+    → forbs), the region-picker overlay wiring, and the tool tray:
+    `TRAY_CATS` category tabs (Grasses / Perennials / Shrubs / Trees / Dig /
+    Landscape — shrubs and trees are empty placeholders until woody types
+    exist), species buttons in the active category, and `renderCvRow()`
+    cultivar chips when the selected species has `cv` (the planted tile
+    stores `v`; tool state is `game.tool` + `game.toolVar`). Plus season
+    dial, sleep button, plant-list and region buttons, contextual action
+    hint. The region choice persists as `hortus:region`.
 16. **Screens** — menu, multiplayer lobby, character creator (with live
     preview), code display. Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`) and region (`#regionScreen`) overlays sit outside
@@ -125,6 +131,7 @@ key: {
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
+  cv: { theblues: {...} },     // optional cultivars (see plants.js header)
   stem: '#3a3038',             // optional stem color override (salvia)
   blurb: '...',                // shown on the plant info card
   sea: {                       // per-season appearance
@@ -162,9 +169,9 @@ Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Feature backlog (v2 ideas, not yet built)
 
-Next in the "design tool" direction: catalog UI — at 21 species the scrolling
-tool tray is near its limit; a searchable/filterable palette (the region
-filter already trims it) is the next shippable step.
+Next in the "design tool" direction: search within tray categories if any
+category outgrows its row; woody plants (types `shrub`/`tree`) to fill the
+placeholder tabs.
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.

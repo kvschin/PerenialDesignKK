@@ -23,6 +23,21 @@ const AMBIENCE = {
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,
    which index.html loads before this file. */
 
+/* Resolve a species key + optional cultivar into an effective plant def:
+   the cultivar's overrides merge over the straight species, per-season
+   colors included. Cached — render asks every frame. */
+const _defCache={};
+function plantDef(key,v){
+  const base=PLANTS[key];
+  if (!v || !base || !base.cv || !base.cv[v]) return base;
+  const ck=key+'|'+v;
+  if (_defCache[ck]) return _defCache[ck];
+  const c=base.cv[v];
+  const d=Object.assign({},base,c,{name:base.name+' '+c.name,sea:{}});
+  for (const s of SEASONS) d.sea[s]=Object.assign({},base.sea[s],(c.sea||{})[s]);
+  return _defCache[ck]=d;
+}
+
 /* coat palettes for cats & dogs */
 const COATS = [
   {n:'Marmalade', c:'#d98a4a', d:'#a35a2e'},
@@ -39,8 +54,8 @@ function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
 
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
-function drawPlant(ctx, x, y, key, growth, season, seed, sway){
-  const P = PLANTS[key], S = P.sea[season], rnd = mulberry(seed);
+function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
+  const P = plantDef(key, variant), S = P.sea[season], rnd = mulberry(seed);
   const H = P.h * (0.25 + 0.75*growth);
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
@@ -72,6 +87,61 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway){
       ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len); ctx.stroke();
       if (S.seed && mature){ ctx.fillStyle=S.seed;
         ctx.beginPath(); ctx.ellipse(tip,-len-4,2.6,9,sway*0.05,0,7); ctx.fill(); }
+    }
+  }
+  else if (P.form === 'turkeyfoot'){ // big bluestem: very tall, 3-pronged tips
+    const bn = stemFor(7); // low basal blades
+    for (let i=0;i<bn;i++){ const a=(i/(bn-1)-0.5)*1.5, l=H*0.3;
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+    const n = stemFor(8);
+    for (let i=0;i<n;i++){
+      const ox=(rnd()-0.5)*14, len=H*(0.78+rnd()*0.25), tip=ox+sway*len*0.07;
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*22); ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len); ctx.stroke();
+      if (S.seed && mature && i%2===0){ // the turkey foot
+        ctx.strokeStyle=S.seed; ctx.lineWidth=1.6;
+        for (let p3=-1;p3<=1;p3++){ ctx.beginPath(); ctx.moveTo(tip,-len);
+          ctx.lineTo(tip+p3*3.6, -len-6-(p3===0?2.5:0)); ctx.stroke(); }
+      }
+    }
+  }
+  else if (P.form === 'cloudgrass'){ // switchgrass: clump under an airy seed cloud
+    const n = stemFor(11);
+    for (let i=0;i<n;i++){ // arching blades
+      const a=(i/(n-1)-0.5)*1.3+(rnd()-0.5)*0.2, len=H*0.55*(0.7+rnd()*0.4);
+      const bx=Math.sin(a)*len*0.6+sway*len*0.05;
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.4,-len*0.7,bx,-len); ctx.stroke();
+    }
+    const sn = stemFor(6), cloud=S.seed||S.bloom;
+    for (let i=0;i<sn;i++){
+      const ox=(rnd()-0.5)*10, len=H*(0.85+rnd()*0.2), tip=ox+sway*len*0.06;
+      ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=1.1;
+      ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len*0.92); ctx.stroke();
+      if (cloud && mature){ ctx.fillStyle=cloud;
+        for (let d2=0;d2<9;d2++){ ctx.beginPath();
+          ctx.arc(tip+(rnd()-0.5)*15, -len*0.92+2-rnd()*11, 0.9, 0, 7); ctx.fill(); } }
+    }
+  }
+  else if (P.form === 'oatgrass'){ // sideoats: spikelets hung along one side
+    const n = stemFor(9);
+    for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*1.4+(rnd()-0.5)*0.2, len=H*0.5*(0.6+rnd()*0.5);
+      const bx=Math.sin(a)*len*0.55+sway*len*0.05;
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.3;
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.4,-len*0.6,bx,-len); ctx.stroke(); }
+    const sn = stemFor(5), oat=S.seed||S.bloom;
+    for (let i=0;i<sn;i++){
+      const ox=(rnd()-0.5)*8, len=H*(0.8+rnd()*0.25), tip=ox+5+sway*len*0.05;
+      ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox+2.5,-len*0.6,tip,-len); ctx.stroke();
+      if (oat && mature){ ctx.fillStyle=oat;
+        for (let s2=0;s2<6;s2++){ const f=0.45+s2*0.09;
+          const px=ox*0.5+(tip-ox*0.5)*f-2.4, py=-len*f;
+          ctx.beginPath(); ctx.ellipse(px,py,1.9,1.1,0.5,0,7); ctx.fill(); } }
     }
   }
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike'){
@@ -261,7 +331,8 @@ const game = {
   startTs:Date.now(), dayOffset:0,
   px:SPAWN, py:SPAWN, tx:SPAWN, ty:SPAWN, moving:false, moveT:0, fromX:SPAWN, fromY:SPAWN,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
-  tool:PLANT_KEYS[0],
+  tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
+  trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
   others:{},          // multiplayer presence
   lastDay:-1, dirty:false,
@@ -417,7 +488,7 @@ function render(t){
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
     ents.push({depth:x+y+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-      drawPlant(cx,sx,sy+TILE_H/2,p.s,plantGrowth(p),cal.season,tileSeed(x,y),sway);}});
+      drawPlant(cx,sx,sy+TILE_H/2,p.s,plantGrowth(p),cal.season,tileSeed(x,y),sway,p.v);}});
   }
   // local player (smooth move)
   let dx=game.px, dy=game.py;
@@ -493,8 +564,10 @@ function actHere(){
   }
   if (isPath(x,y)||terr==='path'){ toast('The path stays a path — Oudolf would approve.'); return; }
   if (hasPlant){ showPlantCard(existing); return; }
-  game.plants[k]={s:game.tool,d:absDay(),t:Date.now()}; game.dirty=true;
-  toast(`Planted ${PLANTS[game.tool].name}. Plant in drifts of 3+!`);
+  const np={s:game.tool,d:absDay(),t:Date.now()};
+  if (game.toolVar) np.v=game.toolVar;
+  game.plants[k]=np; game.dirty=true;
+  toast(`Planted ${plantDef(game.tool,game.toolVar).name}. Plant in drifts of 3+!`);
   syncPlantsOut();
 }
 function doSleep(){
@@ -503,7 +576,7 @@ function doSleep(){
   else toast('You slept in the cottage. A new day.');
 }
 function showPlantCard(p){
-  const P=PLANTS[p.s], g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
+  const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${P.space}&Prime; apart · ${P.spread}&Prime; spread ·
@@ -675,11 +748,12 @@ async function pollWorld(){
    needs more plants than tiles to fill the same ground, and a big
    clumper like baptisia needs fewer. */
 function exportRows(){
-  const counts={};
+  const counts={}; // keyed species|cultivar — cultivars order separately
   for (const k in game.plants){ const p=game.plants[k];
-    if (!p.removed && p.s) counts[p.s]=(counts[p.s]||0)+1; }
-  return Object.keys(counts).map(s=>{
-    const P=PLANTS[s], n=counts[s];
+    if (!p.removed && p.s){ const ck=p.s+'|'+(p.v||'');
+      counts[ck]=(counts[ck]||0)+1; } }
+  return Object.keys(counts).map(ck=>{
+    const [s,v]=ck.split('|'), P=plantDef(s,v||null), n=counts[ck];
     return {name:P.name, latin:P.latin, native:P.native, count:n,
       areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
       space:P.space,
@@ -769,47 +843,100 @@ function updateRegionBtn(){
 }
 
 /* ---------- HUD / tool tray ---------- */
+/* tray categories: the bottom main menu. Shrubs and Trees are honest
+   placeholders until woody plants exist (type 'shrub' / 'tree'). */
+const TRAY_CATS=[
+  {id:'grasses',    label:'Grasses',    types:['grass','sedge']},
+  {id:'perennials', label:'Perennials', types:['forb']},
+  {id:'shrubs',     label:'Shrubs',     types:['shrub']},
+  {id:'trees',      label:'Trees',      types:['tree']},
+  {id:'dig',        label:'Dig',        tools:['shovel']},
+  {id:'landscape',  label:'Landscape',  tools:['path','bed']},
+];
 function buildToolTray(){
+  const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
+  TRAY_CATS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
+    b.onclick=()=>{ game.trayCat=c.id; buildToolTray(); };
+    tabs.appendChild(b);
+  });
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
-  const keys=trayKeys();
-  // if the filter took the selected species away, fall back sensibly
-  if (PLANTS[game.tool] && !keys.includes(game.tool)) game.tool=keys[0]||'path';
-  keys.forEach(k=>{
-    const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const ctx2=c.getContext('2d'); ctx2.scale(0.62,0.62);
-    drawPlant(ctx2,38,66,k,1,'Summer',tileSeed(3,7),0);
-    const sp=document.createElement('span'); sp.textContent=PLANTS[k].name.split(' ').slice(0,2).join(' ');
-    b.append(c,sp);
-    b.onclick=()=>{ game.tool=k; refreshTray();
-      const P=PLANTS[k]; toast(`${P.name} — ${P.latin}`); };
-    tray.appendChild(b);
-  });
-  // terrain tools: lay a path, dig a bed
-  [['path','Path','#bba98c','Path: stand on grass and act to lay gravel.'],
-   ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.']]
-  .forEach(([k,label,colr,hint])=>{
-    const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const tc=c.getContext('2d'); tc.fillStyle=colr;
-    tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
-    tc.closePath(); tc.fill();
-    tc.fillStyle='rgba(0,0,0,0.18)';
-    const rs=mulberry(k==='path'?11:23);
-    for (let i=0;i<5;i++){ tc.beginPath();
-      tc.ellipse(24+(rs()-0.5)*22, 23+(rs()-0.5)*10, 2,1.2,0,0,7); tc.fill(); }
-    const sp=document.createElement('span'); sp.textContent=label;
-    b.append(c,sp);
-    b.onclick=()=>{ game.tool=k; refreshTray(); toast(hint); };
-    tray.appendChild(b);
-  });
-  const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
-  sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
-  sh.onclick=()=>{ game.tool='shovel'; refreshTray(); toast('Shovel: lifts plants, paths, and beds where you stand.'); };
-  tray.appendChild(sh);
+  const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+  if (cat.types){
+    const keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
+    // if the filter took the selected species away, fall back sensibly
+    const all=trayKeys();
+    if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
+    if (!keys.length){
+      const sp=document.createElement('span'); sp.className='tray-empty';
+      sp.textContent=(cat.id==='shrubs'||cat.id==='trees')
+        ? 'Nothing woody in the palette yet.' : 'Nothing fits the region filter.';
+      tray.appendChild(sp);
+    }
+    keys.forEach(k=>{
+      const P=PLANTS[k];
+      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      const sc=Math.min(0.62, 36/(P.h||40));   // tall grasses shrink to fit
+      const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
+      drawPlant(ctx2,24/sc,42/sc,k,1,'Summer',tileSeed(3,7),0);
+      const sp=document.createElement('span'); sp.textContent=P.name.split(' ').slice(0,2).join(' ');
+      b.append(c,sp);
+      b.onclick=()=>{ game.tool=k; game.toolVar=null; refreshTray(); renderCvRow();
+        toast(`${P.name} — ${P.latin}${P.cv?' · cultivars above':''}`); };
+      tray.appendChild(b);
+    });
+    renderCvRow();
+    return;
+  }
+  // tool categories: Landscape (path, bed) and Dig (shovel)
+  renderCvRow();
+  if (cat.tools.includes('path')||cat.tools.includes('bed')){
+    [['path','Path','#bba98c','Path: stand on grass and act to lay gravel.'],
+     ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.']]
+    .filter(([k])=>cat.tools.includes(k))
+    .forEach(([k,label,colr,hint])=>{
+      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      const tc=c.getContext('2d'); tc.fillStyle=colr;
+      tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
+      tc.closePath(); tc.fill();
+      tc.fillStyle='rgba(0,0,0,0.18)';
+      const rs=mulberry(k==='path'?11:23);
+      for (let i=0;i<5;i++){ tc.beginPath();
+        tc.ellipse(24+(rs()-0.5)*22, 23+(rs()-0.5)*10, 2,1.2,0,0,7); tc.fill(); }
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp);
+      b.onclick=()=>{ game.tool=k; game.toolVar=null; refreshTray(); toast(hint); };
+      tray.appendChild(b);
+    });
+  }
+  if (cat.tools.includes('shovel')){
+    const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
+    sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
+    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: lifts plants, paths, and beds where you stand.'); };
+    tray.appendChild(sh);
+  }
 }
 function refreshTray(){ document.querySelectorAll('.tool').forEach(el=>
   el.classList.toggle('sel',el.dataset.k===game.tool)); }
+/* cultivar chips: shown when the selected species offers them */
+function renderCvRow(){
+  const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
+  if (!P || !P.cv){ row.classList.add('hidden'); row.innerHTML=''; return; }
+  row.classList.remove('hidden'); row.innerHTML='';
+  const mk=(v,label,note)=>{
+    const b=document.createElement('button');
+    b.className='chip'+(((game.toolVar||null)===v)?' sel':''); b.textContent=label;
+    if (note) b.title=note;
+    b.onclick=()=>{ game.toolVar=v; renderCvRow();
+      toast(v?`${plantDef(game.tool,v).name} — ${note}`:`${P.name} — the straight species`); };
+    row.appendChild(b);
+  };
+  mk(null,'Straight species','');
+  for (const v in P.cv) mk(v,P.cv[v].name,P.cv[v].note);
+}
 let lastHint='';
 function setHint(txt){ if (txt!==lastHint){ lastHint=txt;
   document.getElementById('actionHint').textContent=txt; } }
