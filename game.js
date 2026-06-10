@@ -18,42 +18,8 @@ const AMBIENCE = {
   Winter:{sky:['#6e7787','#cdd3d8'], grass:['#9b9484','#857f70'], soil:'#5a5048', tint:'rgba(200,215,235,0.10)', snow:1},
 };
 
-/* ---------- the Oudolf palette ----------
-   Each species: form + per-season foliage/bloom/seed colors.
-   bloom:null means no flower that season; seed persists = winter structure. */
-const PLANTS = {
-  bluestem:{ name:'Little Bluestem', latin:'Schizachyrium scoparium', form:'bunchgrass', h:46,
-    blurb:'Blue-green all summer, then the best copper in the prairie. Backlit in November it glows.',
-    sea:{Spring:{fol:'#7fa07a'}, Summer:{fol:'#6e8f9b'}, Fall:{fol:'#c0623b',seed:'#efe6d3'}, Winter:{fol:'#a35a35',seed:'#f3ecdd'}}},
-  dropseed:{ name:'Prairie Dropseed', latin:'Sporobolus heterolepis', form:'bunchgrass', h:34,
-    blurb:'A fine-textured fountain that smells faintly of popcorn in bloom. Turns pumpkin-gold in fall.',
-    sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#6f8f5a',seed:'#d8c9a8'}, Fall:{fol:'#d99a4e'}, Winter:{fol:'#c2a06a'}}},
-  karl:{ name:"Feather Reed Grass 'Karl Foerster'", latin:'Calamagrostis × acutiflora', form:'vertgrass', h:62,
-    blurb:'The exclamation point. Vertical wheat-colored plumes by June that stand straight through snow.',
-    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#7d9a5f',seed:'#d9c08a'}, Fall:{fol:'#b89a5e',seed:'#d9c08a'}, Winter:{fol:'#b09a6e',seed:'#e0d2ae'}}},
-  echinacea:{ name:'Purple Coneflower', latin:'Echinacea purpurea', form:'cone', h:48,
-    blurb:'Pink petals around an orange cone in July; black seedheads that feed goldfinches all winter.',
-    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#c76b8e',eye:'#b5651d'}, Fall:{fol:'#6b6248',seed:'#3a2c22'}, Winter:{fol:'#6b5d4a',seed:'#241a16'}}},
-  rattlesnake:{ name:'Rattlesnake Master', latin:'Eryngium yuccifolium', form:'globe', h:52,
-    blurb:'Silver yucca-like leaves and pale spiky globes. Architectural in every season.',
-    sea:{Spring:{fol:'#8fa8a0'}, Summer:{fol:'#8fa8a0',bloom:'#dfe8dd'}, Fall:{fol:'#9a9a86',seed:'#8a7a5e'}, Winter:{fol:'#8d8674',seed:'#6e5f48'}}},
-  allium:{ name:"Ornamental Onion 'Millenium'", latin:'Allium', form:'globe', h:36,
-    blurb:'Rosy-purple drumsticks in high summer, mobbed by pollinators. Tan globes persist after frost.',
-    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#b06a9e'}, Fall:{fol:'#9a8a5e',seed:'#c2ad85'}, Winter:{fol:'#9a8f78',seed:'#cdbb95'}}},
-  baptisia:{ name:'Blue False Indigo', latin:'Baptisia australis', form:'shrub', h:50,
-    blurb:'Indigo spikes in spring on a shrub-like clump; charcoal seed pods that rattle in winter wind.',
-    sea:{Spring:{fol:'#6f8f6e',bloom:'#4a5d9e'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}}},
-  mountainmint:{ name:'Mountain Mint', latin:'Pycnanthemum muticum', form:'shrub', h:40,
-    blurb:'Silver-dusted bracts that look frosted in July. The single best pollinator plant in the bed.',
-    sea:{Spring:{fol:'#7d9a6e'}, Summer:{fol:'#8fa89a',bloom:'#e8e8e0'}, Fall:{fol:'#8a8a70',seed:'#4e463a'}, Winter:{fol:'#7d7666',seed:'#3a342c'}}},
-  amsonia:{ name:'Bluestar', latin:'Amsonia hubrichtii', form:'shrub', h:44,
-    blurb:'Steel-blue stars in spring, ferny green all summer, then pure molten gold in October.',
-    sea:{Spring:{fol:'#7d9a6e',bloom:'#7d93c8'}, Summer:{fol:'#6f8f5a'}, Fall:{fol:'#e8b84a'}, Winter:{fol:'#b09a6e'}}},
-  salvia:{ name:"Meadow Sage 'Caradonna'", latin:'Salvia nemorosa', form:'spike', h:38,
-    blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
-    sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
-};
-const PLANT_KEYS = Object.keys(PLANTS);
+/* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,
+   which index.html loads before this file. */
 
 /* coat palettes for cats & dogs */
 const COATS = [

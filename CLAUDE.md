@@ -5,10 +5,11 @@ planting style, playing loosely like Animal Crossing. Cat/dog avatars tend an
 isometric prairie plot where plants change appearance by season. Solo play plus
 shared gardens for up to 4 people.
 
-The game is plain HTML/CSS/JS in three files — `index.html` (markup),
-`styles.css`, and `game.js` (all logic) — with no build step, no npm
-dependencies, no framework. Fonts load from Google Fonts over the network;
-everything else is local.
+The game is plain HTML/CSS/JS in four files — `index.html` (markup),
+`styles.css`, `plants.js` (species data), and `game.js` (all logic) — with no
+build step, no npm dependencies, no framework. Fonts load from Google Fonts
+over the network; everything else is local. `index.html` loads `plants.js`
+before `game.js`; keep that order.
 
 ## Run / test
 
@@ -39,8 +40,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    per garden day), `GRID` (13x13), tile dimensions.
 2. **`AMBIENCE`** — per-season sky gradient, grass/soil tones, light tint, snow
    flag. This is what makes the world *look* like each season.
-3. **`PLANTS`** — the data model for every species (see below). The heart of the
-   game's Oudolf character.
+3. **`PLANTS`** — in `plants.js`, the data model for every species (see
+   below). The heart of the game's Oudolf character.
 4. **`COATS`** — cat/dog coat color pairs (base + shadow).
 5. **`mulberry(seed)`** — tiny seeded RNG. Used so each plant clump looks unique
    but renders identically every frame. Never use `Math.random()` for anything
@@ -82,7 +83,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 
 ## The plant data model
 
-Each entry in `PLANTS` is the contract `drawPlant` renders against:
+Each entry in `PLANTS` (in `plants.js`) is the contract the game renders and
+plans against:
 
 ```js
 key: {
@@ -90,6 +92,11 @@ key: {
   latin: 'Schizachyrium scoparium',
   form: 'bunchgrass',          // drives the drawing branch
   h: 46,                       // mature height in px
+  space: 18,                   // on-center planting distance, inches
+  spread: 18,                  // mature clump width, inches
+  zones: [3,9],                // USDA hardiness range
+  native: true,                // straight species native to the central US?
+  eco: ['Flint Hills', ...],   // EPA Level III ecoregions; [] for non-natives
   blurb: '...',                // shown on the plant info card
   sea: {                       // per-season appearance
     Spring: { fol:'#7fa07a' },                 // foliage color
@@ -100,14 +107,17 @@ key: {
 }
 ```
 
-Per-season keys: `fol` (foliage), `bloom` (flower this season, omit for none),
-`seed` (seedhead/structure — present in fall/winter is what makes it Oudolf),
+`drawPlant` uses `form`/`h`/`sea`; the rest feeds the planner features
+(export sheet, zone/ecoregion filtering — see backlog). Per-season keys:
+`fol` (foliage), `bloom` (flower this season, omit for none), `seed`
+(seedhead/structure — present in fall/winter is what makes it Oudolf),
 `eye` (cone center, echinacea only).
 
-**To add a species:** add an entry to `PLANTS`, reuse an existing `form` or add a
-new branch in `drawPlant`. It automatically appears in the tool tray (built from
-`PLANT_KEYS`). Match real botany — Kevin grows these; accuracy matters more than
-prettiness. Winter must show *structure*, not bare ground; that's the whole point.
+**To add a species:** add an entry in `plants.js`, reuse an existing `form` or
+add a new branch in `drawPlant`. It automatically appears in the tool tray
+(built from `PLANT_KEYS`). Match real botany — Kevin grows these; accuracy
+matters more than prettiness, and that includes spacing/zone/ecoregion data.
+Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Conventions
 
@@ -121,6 +131,13 @@ prettiness. Winter must show *structure*, not bare ground; that's the whole poin
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 
 ## Feature backlog (v2 ideas, not yet built)
+
+Planned sequence for the "design tool" direction (each independently shippable):
+larger world (camera-windowed rendering instead of full-grid loop) → export
+sheet (per-species counts + real quantities from `space`, with Latin names,
+printable/CSV) → region picker (filter the palette by `zones`/`eco`; players
+pick their ecoregion from a curated list — don't ship GIS shapefiles) →
+catalog UI (the tool tray dies past ~15 species; search/filter palette).
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.
