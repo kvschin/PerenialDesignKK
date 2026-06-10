@@ -7,7 +7,8 @@
 const SEASONS = ['Spring','Summer','Fall','Winter'];
 const DAYS_PER_SEASON = 16;
 const DAY_MS = 20000;                 // 20 real seconds per garden day
-const GRID = 13;                      // 13x13 plot
+const GRID = 31;                      // 31x31 plot (~46ft square at 18" tiles)
+const SPAWN = (GRID-1)/2;             // players start at the plot's center
 const TILE_W = 76, TILE_H = 38;
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
@@ -257,7 +258,7 @@ const game = {
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
   terrain:{},         // "x,y" -> {k:'path'|'bed', t:ts} or {removed:true,t}
   startTs:Date.now(), dayOffset:0,
-  px:6, py:6, tx:6, ty:6, moving:false, moveT:0, fromX:6, fromY:6,
+  px:SPAWN, py:SPAWN, tx:SPAWN, ty:SPAWN, moving:false, moveT:0, fromX:SPAWN, fromY:SPAWN,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   tool:PLANT_KEYS[0],
   others:{},          // multiplayer presence
@@ -290,8 +291,8 @@ function isPath(x,y){
 
 /* the cottage: a 2x2 footprint you can't walk through, with a door tile
    on its south side. Anyone — you or a visiting gardener — sleeps there
-   to bring on the next day. */
-const HOUSE = {x:9, y:0, w:2, h:2, doorX:9, doorY:2};
+   to bring on the next day. Sited northeast of spawn, clear of the walkway. */
+const HOUSE = {x:SPAWN+3, y:SPAWN-6, w:2, h:2, doorX:SPAWN+3, doorY:SPAWN-4};
 const HOUSE_COL = {wall:'#8a7a60', wallD:'#6b5d4a', roof:'#9a5f3a', roofD:'#7a4a2e',
   door:'#3a2c22', trim:'#efe6d3', glow:'#d9c08a'};
 function inHouse(x,y){ return x>=HOUSE.x && x<HOUSE.x+HOUSE.w && y>=HOUSE.y && y<HOUSE.y+HOUSE.h; }
@@ -335,8 +336,17 @@ function render(t){
 
   const sway = Math.sin(t*0.0012);
 
+  // visible tile window: invert the four screen corners to world tiles
+  // and take the padded bounding box, so we only walk what's on screen
+  // (the padding covers plant/cottage heights overhanging tile bounds)
+  const crn=[tileAt(0,0,W,H),tileAt(W,0,W,H),tileAt(0,H,W,H),tileAt(W,H,W,H)];
+  const x0=Math.max(0,Math.min(crn[0][0],crn[1][0],crn[2][0],crn[3][0])-2);
+  const x1=Math.min(GRID-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+2);
+  const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-2);
+  const y1=Math.min(GRID-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+2);
+
   // ground tiles back-to-front
-  for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++){
+  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
     const terr=tileTerrain(x,y);
@@ -365,13 +375,16 @@ function render(t){
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
 
-  // depth-sorted entities: plants + critters + the cottage
+  // depth-sorted entities: plants + critters + the cottage,
+  // culled to the same visible window as the ground
   const ents=[];
-  ents.push({depth:(HOUSE.x+HOUSE.w-1)+(HOUSE.y+HOUSE.h-1)+0.45,
-    draw:()=>drawHouse(cx,W,H,cal.season)});
+  if (HOUSE.x+HOUSE.w-1>=x0 && HOUSE.x<=x1 && HOUSE.y+HOUSE.h-1>=y0 && HOUSE.y<=y1)
+    ents.push({depth:(HOUSE.x+HOUSE.w-1)+(HOUSE.y+HOUSE.h-1)+0.45,
+      draw:()=>drawHouse(cx,W,H,cal.season)});
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
+    if (x<x0||x>x1||y<y0||y>y1) continue;
     ents.push({depth:x+y+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,plantGrowth(p),cal.season,tileSeed(x,y),sway);}});
   }
@@ -530,15 +543,27 @@ async function ensurePlayerId(){
 }
 async function saveSolo(){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
-  await sSet('hortus:solo',{plants:game.plants,terrain:game.terrain,
+  await sSet('hortus:solo',{grid:GRID,plants:game.plants,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   toast('Garden saved.');
 }
+function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
+  if (!d) return m;
+  const out={};
+  for (const k in m){ const [x,y]=k.split(',').map(Number); out[`${x+d},${y+d}`]=m[k]; }
+  return out;
+}
 async function loadSolo(){
   const s=await sGet('hortus:solo');
-  if (s){ game.plants=s.plants||{}; game.terrain=s.terrain||{}; game.startTs=s.startTs||Date.now();
-    game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char; return true; }
-  return false;
+  if (!s) return false;
+  // saves from before the world expansion were laid out around tile (6,6);
+  // recenter them on the new, larger plot
+  const shift = s.grid ? 0 : SPAWN-6;
+  game.plants=shiftKeys(s.plants||{},shift);
+  game.terrain=shiftKeys(s.terrain||{},shift);
+  game.startTs=s.startTs||Date.now();
+  game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
+  return true;
 }
 async function saveChar(){ if (hasStorage) await sSet('hortus:char',game.char); }
 
@@ -728,15 +753,19 @@ $('btnStartGame').onclick=async()=>{
   }
   enterGarden();
 };
-function starterDrift(){ // a welcoming drift so the world isn't empty
-  const picks=[['karl',3,3],['karl',4,3],['bluestem',3,4],['echinacea',9,9],['echinacea',10,9],['dropseed',9,10]];
+function starterDrift(){ // a welcoming drift near spawn so the world isn't empty
+  const S=SPAWN;
+  const picks=[['karl',S-3,S-3],['karl',S-2,S-3],['bluestem',S-3,S-2],
+               ['echinacea',S+3,S+3],['echinacea',S+4,S+3],['dropseed',S+3,S+4]];
   picks.forEach(([s,x,y])=>{ if(!isPath(x,y)) game.plants[`${x},${y}`]={s,d:absDay()-10,t:Date.now()}; });
 }
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
-  game.px=game.tx=6; game.py=game.ty=6; game.lastDay=absDay();
+  game.px=game.tx=SPAWN; game.py=game.ty=SPAWN; game.lastDay=absDay();
+  // start the camera on the player instead of easing in from the plot corner
+  cam.x=isoX(game.px,game.py); cam.y=isoY(game.px,game.py)-innerHeight*0.21;
   buildToolTray();
 }
 function quitToMenu(){

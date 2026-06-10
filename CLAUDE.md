@@ -37,7 +37,8 @@ Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; all
 game logic in `game.js`. Rough order of `game.js`, top to bottom:
 
 1. **Constants** — `SEASONS`, `DAYS_PER_SEASON` (16), `DAY_MS` (20s real time
-   per garden day), `GRID` (13x13), tile dimensions.
+   per garden day), `GRID` (31x31), `SPAWN` (plot center, where players start),
+   tile dimensions.
 2. **`AMBIENCE`** — per-season sky gradient, grass/soil tones, light tint, snow
    flag. This is what makes the world *look* like each season.
 3. **`PLANTS`** — in `plants.js`, the data model for every species (see
@@ -62,9 +63,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the plot's east corner, door tile on its south side; standing on the door
     and acting sleeps to the next day). `tileTerrain()` reads player-laid
     terrain from `game.terrain` ("x,y" -> `{k:'path'|'bed', t}`).
-11. **`render(t)`** — sky, depth-sorted ground tiles (grass / walkway / laid
-    path / bed / flagstone doorstep), a single depth-sorted entity pass for the
-    cottage + plants + critters (sorted by `x+y`), season tint, snowfall.
+11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
+    corners invert (via `tileAt`) to a padded world-tile bounding box, and
+    only those tiles/entities draw. Ground tiles (grass / walkway / laid path
+    / bed / flagstone doorstep) back-to-front, a single depth-sorted entity
+    pass for the cottage + plants + critters (sorted by `x+y`), season tint,
+    snowfall. Cost scales with screen size, not `GRID` — grow the world freely.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), tap and keyboard input. **Keys map to SCREEN
@@ -72,9 +76,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     D = world `+x,-y`); holding two keys combines into a world-axis step.
     Tapping the cottage walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage, solo save/load
-    (plants + terrain), host/join shared worlds via shared keys, presence
-    polling, `mergeMap` (last-write-wins by timestamp) for both plants and
-    terrain.
+    (plants + terrain + `grid` size; saves without `grid` predate the world
+    expansion and get recentered from (6,6) to `SPAWN` on load), host/join
+    shared worlds via shared keys, presence polling, `mergeMap`
+    (last-write-wins by timestamp) for both plants and terrain.
 14. **HUD** — tool tray (built from `PLANT_KEYS` + path/bed tools + shovel),
     season dial, sleep button, contextual action hint.
 15. **Screens** — menu, multiplayer lobby, character creator (with live
@@ -133,11 +138,10 @@ Winter must show *structure*, not bare ground; that's the whole point.
 ## Feature backlog (v2 ideas, not yet built)
 
 Planned sequence for the "design tool" direction (each independently shippable):
-larger world (camera-windowed rendering instead of full-grid loop) → export
-sheet (per-species counts + real quantities from `space`, with Latin names,
-printable/CSV) → region picker (filter the palette by `zones`/`eco`; players
-pick their ecoregion from a curated list — don't ship GIS shapefiles) →
-catalog UI (the tool tray dies past ~15 species; search/filter palette).
+export sheet (per-species counts + real quantities from `space`, with Latin
+names, printable/CSV) → region picker (filter the palette by `zones`/`eco`;
+players pick their ecoregion from a curated list — don't ship GIS shapefiles)
+→ catalog UI (the tool tray dies past ~15 species; search/filter palette).
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.
