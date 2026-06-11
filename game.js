@@ -456,6 +456,7 @@ const game = {
   hoverTile:null,                                    // pointer tile, for the house ghost
   worldId:null, worldName:'My garden',               // current solo save slot
   drift:false,                                       // plant in clusters, Oudolf style
+  fx:[],                                             // short-lived planting pulses
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -614,7 +615,7 @@ function tileAt(sx,sy,W,H){
   return viewToWorld(Math.round(fx), Math.round(fy));
 }
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
-  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-innerHeight*0.21; }
+  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
 function rotateView(){
   game.rot=(game.rot+1)%4; snapCam(); game.dirty=true;
   toast(`View rotated — ${game.rot*90}°.`);
@@ -624,13 +625,19 @@ function rotateView(){
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
 let DPR = Math.min(2, window.devicePixelRatio||1);
+/* phones get a wider view: the world renders at 0.75x so ~1.3x more
+   garden fits on a small screen. All input math divides by ZOOM. */
+let ZOOM = 1;
+function calcZoom(){ ZOOM = Math.min(innerWidth,innerHeight)<760 ? 0.75 : 1; }
+calcZoom();
 function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
-addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); });
+addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
 let snowFlakes = [];
 function render(t){
-  const W=innerWidth, H=innerHeight, cal=calClock(), amb=AMBIENCE[cal.season];
+  const W=innerWidth/ZOOM, H=innerHeight/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
+  cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   // sky
   const g = cx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
@@ -742,6 +749,18 @@ function render(t){
   }
   ents.sort((a,b)=>a.depth-b.depth).forEach(e=>e.draw());
 
+  // planting pulses: an expanding diamond so a tap visibly took
+  game.fx=game.fx.filter(f=>t-f.t0<550);
+  game.fx.forEach(f=>{
+    const a=(t-f.t0)/550, e2=0.55+a*0.85;
+    const [sx,sy]=screenOf(f.x,f.y,W,H), cyx=sy+TILE_H/2;
+    cx.strokeStyle=`rgba(243,236,221,${0.95*(1-a)})`; cx.lineWidth=2.5;
+    cx.beginPath();
+    cx.moveTo(sx, cyx-(TILE_H/2)*e2); cx.lineTo(sx+(TILE_W/2)*e2, cyx);
+    cx.lineTo(sx, cyx+(TILE_H/2)*e2); cx.lineTo(sx-(TILE_W/2)*e2, cyx);
+    cx.closePath(); cx.stroke();
+  });
+
   // season light tint + falling snow
   cx.fillStyle=amb.tint; cx.fillRect(0,0,W,H);
   if (amb.snow){
@@ -805,10 +824,11 @@ function actHere(){
   if (n>1){ stampDrift(x,y,n); return; }
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
-  game.plants[k]=np; game.dirty=true;
+  game.plants[k]=np; game.dirty=true; plantFx(x,y);
   toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`);
   syncPlantsOut();
 }
+function plantFx(x,y){ game.fx.push({x,y,t0:performance.now()}); }
 /* drift planting: one action stamps a loose, natural cluster. Tighter
    spacers come in bigger drifts; woody plants always plant singly. */
 function driftCount(def){
@@ -832,7 +852,7 @@ function stampDrift(cx0,cy0,n){
     const sh=shadeAt(x,y); if (sh && def.sun!=='part') continue;
     const np={s:game.tool,d:absDay(),t:Date.now()+placed};
     if (game.toolVar) np.v=game.toolVar;
-    game.plants[k]=np; placed++;
+    game.plants[k]=np; plantFx(x,y); placed++;
   }
   if (placed){ game.dirty=true; syncPlantsOut();
     toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
@@ -878,7 +898,8 @@ function showPlantCard(p){
       zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil${
       P.grow?` · ~${P.grow} yrs to size`:''}</p>
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
-      ? 'Native — '+P.eco.join(', ') : 'Garden cultivar (non-native)'}</p>
+      ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
+      : 'Garden cultivar (non-native)'}</p>
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
   el.style.display='block';
   clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',6500);
@@ -929,8 +950,11 @@ function sweepLift(x,y){
     game.dirty=true; sweep.terr++;
   }
 }
+function evTile(e){ // pointer position -> world tile, zoom-aware
+  return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
+}
 cnv.addEventListener('pointerdown',e=>{
-  const [x,y]=tileAt(e.clientX,e.clientY,innerWidth,innerHeight);
+  const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
@@ -947,7 +971,7 @@ cnv.addEventListener('pointerdown',e=>{
   game.pathTarget=[x,y];
 });
 cnv.addEventListener('pointermove',e=>{
-  const [x,y]=tileAt(e.clientX,e.clientY,innerWidth,innerHeight);
+  const [x,y]=evTile(e);
   if (sweep){ sweepLift(x,y); return; }
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
 });
@@ -1355,22 +1379,29 @@ function refreshTray(){
 function renderCvRow(){
   const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
   row.innerHTML='';
-  if (game.tool==='house' && game.house){ // size + paint chips
+  if (game.tool==='house' && game.house){ // size + paint chips, labeled groups
     row.classList.remove('hidden');
-    const chip=(label,sel,fn,title)=>{
+    const lab=t2=>{ const s=document.createElement('span');
+      s.className='chip-label'; s.textContent=t2; row.appendChild(s); };
+    const chip=(label,sel,fn,sw)=>{
       const b=document.createElement('button');
-      b.className='chip'+(sel?' sel':''); b.textContent=label; if (title) b.title=title;
+      b.className='chip'+(sel?' sel':''); b.textContent=label;
+      if (sw){ const dot=document.createElement('span'); dot.className='chip-swatch';
+        dot.style.background=sw; b.prepend(dot); }
       b.onclick=()=>{ fn(); renderCvRow(); buildToolTray(); };
       row.appendChild(b);
     };
+    lab('House size');
     HOUSE_SIZES.forEach(([label,wf,df])=>
       chip(`${label} ${wf}'×${df}'`,
         game.house.w===ftToTiles(wf)&&game.house.h===ftToTiles(df),
         ()=>applyHouseSize(wf,df,label)));
+    lab('Wall color');
     WALL_COLS.forEach(([n,c])=>
-      chip('Walls · '+n, game.house.wall===c, ()=>paintHouse('wall',c,n)));
+      chip(n, game.house.wall===c, ()=>paintHouse('wall',c,n), c));
+    lab('Roof color');
     ROOF_COLS.forEach(([n,c])=>
-      chip('Roof · '+n, game.house.roof===c, ()=>paintHouse('roof',c,n)));
+      chip(n, game.house.roof===c, ()=>paintHouse('roof',c,n), c));
     return;
   }
   if (!P || (!P.cv && !P.group)){ row.classList.add('hidden'); return; }

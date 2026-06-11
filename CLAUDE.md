@@ -97,8 +97,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
     / bed / flagstone doorstep) back-to-front, a single depth-sorted entity
-    pass for the cottage + plants + critters (sorted by `x+y`), season tint,
-    snowfall. Cost scales with screen size, not `GRID` — grow the world freely.
+    pass for the cottage + plants + critters (sorted by `x+y`), planting
+    pulse fx (`game.fx`), season tint, snowfall. Small screens render at
+    `ZOOM` 0.75 (~1.3x more world); all pointer math divides by it
+    (`evTile`). Cost scales with screen size, not `GRID`.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
