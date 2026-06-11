@@ -16,6 +16,9 @@ before `game.js`; keep that order.
 - Open `index.html` in a browser, or serve the folder to avoid file:// quirks:
   `npx http-server -p 8642 -c-1` (this machine has Node but no Python; the same
   command is wired into `.claude/launch.json` for the preview panel).
+- Live deployment: GitHub Pages serves `master` as-is at
+  <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
+  redeploys automatically (no build step, nothing to configure).
 - There is no test suite. After edits, run `node --check game.js` to catch
   syntax errors before reloading the browser.
 
