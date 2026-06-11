@@ -89,11 +89,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
-    House tool: tap moves the house, chips resize/repaint), tap and keyboard
-    input. **Keys map to SCREEN directions** regardless of rotation: one key
-    is a screen-cardinal step (a view diagonal); two keys combine into view
-    axes; `viewDirToWorld` converts to world steps. Tapping the house walks
-    to the door and sleeps on arrival.
+    House tool: hover draws an RTS-style ghost — tinted footprint, red when
+    the player stands in it, translucent house via `drawHouse` override —
+    and click/tap places; chips resize/repaint), shovel **drag-sweep**
+    (pointerdown with shovel starts a sweep; dragging lifts every plant
+    crossed, one toast + sync at pointerup; terrain still lifts via
+    stand-and-act), tap and keyboard input. **Keys map to SCREEN directions**
+    regardless of rotation: one key is a screen-cardinal step (a view
+    diagonal); two keys combine into view axes; `viewDirToWorld` converts to
+    world steps. Tapping the house walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage, solo save/load
     (plants + terrain + `gw`/`gh` plot size + `rot` + `house`; older saves
     with only `grid` load square, and 13x13-era saves recenter from (6,6)),
@@ -109,8 +113,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Perennials / Shrubs / Trees / Dig /
-    Landscape — shrubs and trees are empty placeholders until woody types
-    exist), species buttons in the active category (species sharing a
+    Landscape / House — shrubs and trees are empty placeholders until woody
+    types exist; a tool tab arms its first tool on click, and browsing a
+    plant tab disarms house/shovel so taps go back to walking), species
+    buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tool

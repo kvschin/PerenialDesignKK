@@ -292,8 +292,8 @@ function drawCritter(ctx, x, y, ch, t, walking, scale){
    to a view-space rect, walls/roof/door are built on its lattice. Size
    and colors come from game.house. The door clings to its world tile —
    from behind the house it's simply out of sight. */
-function drawHouse(ctx, W, H, season){
-  const hh=game.house; if (!hh) return;
+function drawHouse(ctx, W, H, season, hOv){
+  const hh=hOv||game.house; if (!hh) return;
   const [va,vb]=worldToView(hh.x,hh.y), [vc,vd]=worldToView(hh.x+hh.w-1,hh.y+hh.h-1);
   const vx0=Math.min(va,vc), vy0=Math.min(vb,vd);
   const vw=Math.abs(va-vc)+1, vh=Math.abs(vb-vd)+1;
@@ -326,7 +326,7 @@ function drawHouse(ctx, W, H, season){
   tri(gable[0],gable[1],gable[2],wallD);
   quad(frontRoof[0],frontRoof[1],frontRoof[2],frontRoof[3],roof);
   // door over its world tile, when that wall faces the camera
-  const [dX,dY]=doorPos(); const [dvx,dvy]=worldToView(dX,dY);
+  const [dX,dY]=doorPos(hh); const [dvx,dvy]=worldToView(dX,dY);
   let doorWall=null; // 'sw' | 'se'
   if (Math.round(dvy)===vy0+vh && dvx>=vx0 && dvx<vx0+vw) doorWall='sw';
   else if (Math.round(dvx)===vx0+vw && dvy>=vy0 && dvy<vy0+vh) doorWall='se';
@@ -365,6 +365,7 @@ const game = {
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   house:null, houseT:0,                              // per-garden house + sync stamp
   rot:0,                                             // view rotation, 90-degree steps
+  hoverTile:null,                                    // pointer tile, for the house ghost
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -443,7 +444,7 @@ function defaultHouse(){ // a shed on small plots, a cottage on real yards
 }
 function inHouse(x,y){ const h=game.house; if (!h) return false;
   return x>=h.x && x<h.x+h.w && y>=h.y && y<h.y+h.h; }
-function doorPos(){ const h=game.house;
+function doorPos(hOv){ const h=hOv||game.house;
   return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
 function isDoor(x,y){ const [dx,dy]=doorPos(); return x===dx && y===dy; }
 function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y); }
@@ -560,6 +561,28 @@ function render(t){
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
 
+  // RTS-style placement ghost while the House tool is armed: tinted
+  // footprint (red when you're standing in it) under a translucent house
+  let ghost=null;
+  if (game.tool==='house' && game.hoverTile && game.house){
+    const h=game.house;
+    const gx=Math.max(0,Math.min(GW-h.w,game.hoverTile[0]));
+    const gy=Math.max(0,Math.min(GH-h.h-1,game.hoverTile[1]));
+    const ppx=Math.round(game.px), ppy=Math.round(game.py);
+    const blocked = ppx>=gx&&ppx<gx+h.w&&ppy>=gy&&ppy<gy+h.h;
+    ghost=Object.assign({},h,{x:gx,y:gy,blocked});
+    cx.fillStyle = blocked ? 'rgba(220,90,70,0.34)' : 'rgba(140,205,125,0.30)';
+    for (let yy=gy; yy<gy+h.h; yy++) for (let xx=gx; xx<gx+h.w; xx++){
+      const [sx,sy]=screenOf(xx,yy,W,H);
+      cx.beginPath(); cx.moveTo(sx,sy); cx.lineTo(sx+TILE_W/2,sy+TILE_H/2);
+      cx.lineTo(sx,sy+TILE_H); cx.lineTo(sx-TILE_W/2,sy+TILE_H/2); cx.closePath(); cx.fill();
+    }
+    const [dgx,dgy]=doorPos(ghost), [dsx,dsy]=screenOf(dgx,dgy,W,H);
+    cx.fillStyle='rgba(243,236,221,0.45)';  // the doorstep-to-be
+    cx.beginPath(); cx.moveTo(dsx,dsy); cx.lineTo(dsx+TILE_W/2,dsy+TILE_H/2);
+    cx.lineTo(dsx,dsy+TILE_H); cx.lineTo(dsx-TILE_W/2,dsy+TILE_H/2); cx.closePath(); cx.fill();
+  }
+
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
   const ents=[];
@@ -568,6 +591,10 @@ function render(t){
     ents.push({depth:Math.max(viewDepth(hh.x,hh.y),viewDepth(hh.x+hh.w-1,hh.y),
         viewDepth(hh.x,hh.y+hh.h-1),viewDepth(hh.x+hh.w-1,hh.y+hh.h-1))+0.45,
       draw:()=>drawHouse(cx,W,H,cal.season)});
+  if (ghost)
+    ents.push({depth:Math.max(viewDepth(ghost.x,ghost.y),viewDepth(ghost.x+ghost.w-1,ghost.y),
+        viewDepth(ghost.x,ghost.y+ghost.h-1),viewDepth(ghost.x+ghost.w-1,ghost.y+ghost.h-1))+0.46,
+      draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
@@ -730,10 +757,24 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()]; });
 
 /* tap / click: first tap walks, tap on own tile acts */
 let lastTap=0;
+let sweep=null; // shovel drag-lift in progress: {count}
+function sweepLift(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return;
+  const k=`${x},${y}`, p=game.plants[k];
+  if (p && !p.removed){
+    game.plants[k]={removed:true,t:Date.now()};
+    game.dirty=true; sweep.count++;
+  }
+}
 cnv.addEventListener('pointerdown',e=>{
   const [x,y]=tileAt(e.clientX,e.clientY,innerWidth,innerHeight);
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='house'){ placeHouse(x,y); return; }
+  if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
+    sweep={count:0};
+    try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+    sweepLift(x,y); return;
+  }
   if (inHouse(x,y)){ // tapping the house walks to the door, then sleeps
     const [dx2,dy2]=doorPos();
     game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true; return; }
@@ -742,6 +783,21 @@ cnv.addEventListener('pointerdown',e=>{
   // step one tile toward target repeatedly handled in loop via pathTarget
   game.pathTarget=[x,y];
 });
+cnv.addEventListener('pointermove',e=>{
+  const [x,y]=tileAt(e.clientX,e.clientY,innerWidth,innerHeight);
+  if (sweep){ sweepLift(x,y); return; }
+  game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
+});
+function endSweep(){
+  if (!sweep) return;
+  if (sweep.count){ toast(`Lifted ${sweep.count} plant${sweep.count>1?'s':''}. Good divisions make free plants.`);
+    syncPlantsOut(); }
+  else toast('Nothing under the shovel there.');
+  sweep=null;
+}
+cnv.addEventListener('pointerup',endSweep);
+cnv.addEventListener('pointercancel',()=>{ sweep=null; });
+cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
 function followPath(){
   if (!game.pathTarget||game.moving) return;
   const [gx,gy]=game.pathTarget;
@@ -978,7 +1034,8 @@ const TRAY_CATS=[
   {id:'shrubs',     label:'Shrubs',     types:['shrub']},
   {id:'trees',      label:'Trees',      types:['tree']},
   {id:'dig',        label:'Dig',        tools:['shovel']},
-  {id:'landscape',  label:'Landscape',  tools:['path','bed','house']},
+  {id:'landscape',  label:'Landscape',  tools:['path','bed']},
+  {id:'house',      label:'House',      tools:['house']},
 ];
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
@@ -995,6 +1052,9 @@ function buildToolTray(){
     // if the filter took the selected species away, fall back sensibly
     const all=trayKeys();
     if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
+    // browsing plants disarms tap-action tools (house placement, shovel sweep)
+    if ((game.tool==='house'||game.tool==='shovel') && keys.length){
+      game.tool=keys[0]; game.toolVar=null; }
     if (!keys.length){
       const sp=document.createElement('span'); sp.className='tray-empty';
       sp.textContent=(cat.id==='shrubs'||cat.id==='trees')
@@ -1034,7 +1094,9 @@ function buildToolTray(){
     renderCvRow();
     return;
   }
-  // tool categories: Landscape (path, bed) and Dig (shovel)
+  // tool categories: Landscape (path, bed), Dig (shovel), House.
+  // A tool tab arms its first tool right away — RTS style.
+  if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; }
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')){
     [['path','Path','#bba98c','Path: stand on grass and act to lay gravel.'],
@@ -1074,7 +1136,7 @@ function buildToolTray(){
   if (cat.tools.includes('shovel')){
     const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
     sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
-    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: lifts plants, paths, and beds where you stand.'); };
+    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag across plants to lift several at once.'); };
     tray.appendChild(sh);
   }
 }
@@ -1135,8 +1197,12 @@ function updateHUD(){
   document.getElementById('seasonName').textContent=cal.season;
   document.getElementById('seasonDay').textContent=`Day ${cal.day} · Year ${cal.year}`;
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
-  setHint(isDoor(Math.round(game.px),Math.round(game.py))
-    ? 'At the cottage door — press E or tap here to sleep'
+  setHint(game.tool==='house'
+    ? 'Hover shows where the house lands — click to set it down'
+    : game.tool==='shovel'
+    ? 'Drag across plants to lift them — stand and act for paths/beds'
+    : isDoor(Math.round(game.px),Math.round(game.py))
+    ? 'At the door — press E or tap here to sleep'
     : 'Tap a tile to walk · tap again to act — or WASD + E');
   const sd=absDay();
   if (sd!==game.lastDay){
