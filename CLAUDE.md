@@ -81,8 +81,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
     snaps the camera). `screenOf` (world->screen via view), `viewScreen`
     (view->screen), `viewDepth` (depth-sort key), `tileAt` (screen->world).
-    World logic never rotates — only the mapping. `isPath()` defines the
-    built-in curved walkway. The house lives in `game.house`
+    World logic never rotates — only the mapping. `seedWalkway()` lays the
+    starter walkway as ordinary path terrain at world creation (so the
+    shovel can remove it like anything player-laid; saves without `wv` get
+    it seeded once on load). The house lives in `game.house`
     (`{x,y,w,h,wall,roof}`, sized in real feet via `HOUSE_SIZES`);
     `inHouse`/`doorPos`/`isDoor`/`canStand` derive from it (door tile
     centered on the south side; standing there and acting sleeps to the
@@ -108,12 +110,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
-13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage, solo save/load
-    (plants + terrain + `gw`/`gh` plot size + `rot` + `house`; older saves
-    with only `grid` load square, and 13x13-era saves recenter from (6,6)),
-    host/join shared worlds via shared keys (meta carries gw/gh; the house
-    syncs via its own key, last-write-wins by timestamp), presence polling,
-    `mergeMap` for plants and terrain.
+13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
+    are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
+    each save lives at `hortus:world:<id>` (plants + terrain + gw/gh + rot +
+    house + name + `wv` walkway flag). The old single `hortus:solo` key
+    migrates into the first slot once. Older saves with only `grid` load
+    square; 13x13-era saves recenter from (6,6). Autosave on day change is
+    silent; the Save button toasts. Host/join shared worlds via shared keys
+    (meta carries gw/gh; the house syncs via its own key, last-write-wins
+    by timestamp), presence polling, `mergeMap` for plants and terrain.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species and converts to real quantities (`ceil(tiles × TILE_IN² / space²)`)
     plus bed area; `openExport()` renders the overlay table, `exportCsv()`
@@ -132,10 +137,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (Landscape tab) reuses the chip row for sizes and wall/roof colors.
     Plus season dial, sleep button, plant-list, region, and rotate buttons,
     contextual action hint. The region choice persists as `hortus:region`.
-16. **Screens** — menu, multiplayer lobby, character creator (with live
-    preview), code display, plot setup (`#plotScreen`, new solo gardens
-    only: acre presets or width x length in feet). Plain DOM, toggled by
-    `show()`. The planting-list (`#exportScreen`) and region
+16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
+    gardens or start new; Solo goes here when saves exist), multiplayer
+    lobby, character creator (with live preview), code display, plot setup
+    (`#plotScreen`, new solo gardens: name + acre presets or width x length
+    in feet). Plain DOM, toggled by `show()`. The planting-list (`#exportScreen`) and region
     (`#regionScreen`) overlays sit outside `show()` — in-game overlays
     toggled directly; the keyboard handler ignores game keys while one is
     open (Escape closes).

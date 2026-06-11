@@ -118,11 +118,27 @@
   </div>
 </div>
 
+<!-- YOUR GARDENS (saved solo worlds) -->
+<div class="screen hidden" id="worldsScreen">
+  <div class="panel">
+    <h2>Your gardens</h2>
+    <p class="sub">Pick up where you left off, or break new ground.</p>
+    <div id="worldList"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnNewWorld">Start a new garden</button>
+    </div>
+    <button class="back-link" data-back>← Back</button>
+  </div>
+</div>
+
 <!-- PLOT SETUP (new solo gardens) -->
 <div class="screen hidden" id="plotScreen">
   <div class="panel">
     <h2>Lay out the plot</h2>
     <p class="sub">How much ground are we working? One tile is 18 inches square. You can always start small — the house and beds move later.</p>
+    <div class="field"><label for="plotName">Garden name</label>
+      <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off">
+    </div>
     <div class="field"><label>Plot size</label>
       <div class="chip-row" id="plotPresets"></div>
     </div>

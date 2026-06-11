@@ -454,6 +454,7 @@ const game = {
   house:null, houseT:0,                              // per-garden house + sync stamp
   rot:0,                                             // view rotation, 90-degree steps
   hoverTile:null,                                    // pointer tile, for the house ghost
+  worldId:null, worldName:'My garden',               // current solo save slot
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -530,10 +531,18 @@ function shadeAt(x,y){
 }
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
 
-/* path through the garden — a lazy Oudolf curve */
-function isPath(x,y){
-  const c = Math.round(GH/2 + Math.sin(x*0.55)*2.2);
-  return y===c || y===c-1;
+/* the starter walkway — a lazy Oudolf curve, seeded as ordinary path
+   terrain when a world is created so the shovel can take it out like
+   anything else the gardener lays down */
+function seedWalkway(){
+  for (let x=0;x<GW;x++){
+    const c = Math.round(GH/2 + Math.sin(x*0.55)*2.2);
+    [c,c-1].forEach(y=>{
+      if (y<0||y>=GH) return;
+      const k=`${x},${y}`;
+      if (!game.terrain[k]) game.terrain[k]={k:'path',t:Date.now()};
+    });
+  }
 }
 
 /* the house: a per-garden footprint you can't walk through, with a door
@@ -646,7 +655,7 @@ function render(t){
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
     const terr=tileTerrain(x,y);
-    const path=isPath(x,y)||terr==='path';
+    const path=terr==='path';
     const rs=mulberry(tileSeed(x,y));
     let col;
     if (path) col = amb.snow?'#b8b2a6':'#bba98c';
@@ -772,12 +781,10 @@ function actHere(){
     else if (terr){
       game.terrain[k]={removed:true,t:Date.now()}; game.dirty=true;
       toast(terr==='path'?'Path dug up.':'Bed turned back to grass.'); syncTerrainOut(); }
-    else if (isPath(x,y)) toast('The old walkway stays — Oudolf would approve.');
     else toast('Nothing here to lift.');
     return;
   }
   if (game.tool==='path'||game.tool==='bed'){
-    if (isPath(x,y)){ toast('Already a path.'); return; }
     if (hasPlant){ toast('Lift the plant first.'); return; }
     if (terr===game.tool){ toast(terr==='path'?'Already a path.':'Already a bed.'); return; }
     game.terrain[k]={k:game.tool,t:Date.now()}; game.dirty=true;
@@ -785,7 +792,7 @@ function actHere(){
     syncTerrainOut();
     return;
   }
-  if (isPath(x,y)||terr==='path'){ toast('The path stays a path — Oudolf would approve.'); return; }
+  if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
   if (hasPlant){ showPlantCard(existing); return; }
   const shadeTree=shadeAt(x,y);
   if (shadeTree && plantDef(game.tool,game.toolVar).sun!=='part'){
@@ -957,12 +964,33 @@ async function ensurePlayerId(){
   if (!id){ id='p'+Math.random().toString(36).slice(2,10); await sSet('hortus:pid',id); }
   game.playerId=id;
 }
-async function saveSolo(){
+/* solo worlds live in named slots: 'hortus:worlds' is the index
+   [{id,name,ts,gw,gh}], each save under 'hortus:world:<id>'. The old
+   single 'hortus:solo' key migrates into the first slot once. */
+async function worldsIndex(){ return (await sGet('hortus:worlds'))||[]; }
+async function migrateLegacyWorld(){
+  let idx=await worldsIndex();
+  if (idx.length) return idx;
+  const legacy=await sGet('hortus:solo');
+  if (!legacy) return idx;
+  const entry={id:'w'+Date.now().toString(36), name:'My garden', ts:Date.now(),
+    gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
+  await sSet('hortus:world:'+entry.id, legacy);
+  await sSet('hortus:worlds',[entry]);
+  try{ localStorage.removeItem('hortus:solo'); }catch(e){}
+  return [entry];
+}
+async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
-  await sSet('hortus:solo',{gw:GW,gh:GH,rot:game.rot,house:game.house,
+  if (!game.worldId) game.worldId='w'+Date.now().toString(36);
+  await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
+    gw:GW,gh:GH,rot:game.rot,house:game.house,
     plants:game.plants,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
-  toast('Garden saved.');
+  const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
+  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH});
+  await sSet('hortus:worlds',idx);
+  if (!silent) toast('Garden saved.');
 }
 function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
   if (!d) return m;
@@ -970,8 +998,8 @@ function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
   for (const k in m){ const [x,y]=k.split(',').map(Number); out[`${x+d},${y+d}`]=m[k]; }
   return out;
 }
-async function loadSolo(){
-  const s=await sGet('hortus:solo');
+async function loadSolo(id){
+  const s=await sGet('hortus:world:'+id);
   if (!s) return false;
   // plot size: gw/gh (current), grid (square-era), or neither (13x13 era,
   // laid out around tile (6,6) — recenter on the classic plot)
@@ -983,6 +1011,10 @@ async function loadSolo(){
   game.rot=s.rot||0;
   game.startTs=s.startTs||Date.now();
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
+  game.worldName=s.name||'My garden';
+  // saves from before the walkway became terrain get it seeded once,
+  // so the old built-in path is finally shovel-able
+  if (!s.wv) seedWalkway();
   return true;
 }
 async function saveChar(){ if (hasStorage) await sSet('hortus:char',game.char); }
@@ -994,9 +1026,10 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
   setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
+  seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
-  await sSet(wkey('terrain'),{},true);
+  await sSet(wkey('terrain'),game.terrain,true);
   await sSet(wkey('house'),{h:game.house,t:game.houseT},true);
 }
 async function joinWorld(code){
@@ -1339,17 +1372,53 @@ function updateHUD(){
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
-    if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(); game.dirty=false; }
+    if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; }
   }
 }
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen'].forEach(s=>
+function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id)); }
 let pendingMode=null;
 
-$('btnSolo').onclick=async()=>{ pendingMode='solo'; openCreator(); };
+$('btnSolo').onclick=()=>{ openWorlds(); };
+
+/* the worlds screen: continue a saved garden or break new ground */
+async function openWorlds(){
+  const idx=await migrateLegacyWorld();
+  if (!idx.length){ pendingMode='solo'; openCreator(); return; } // nothing saved yet
+  const list=$('worldList'); list.innerHTML='';
+  idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
+    const row=document.createElement('button'); row.className='world-row';
+    const info=document.createElement('span'); info.style.flex='1';
+    const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
+    const meta=document.createElement('span'); meta.className='meta';
+    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft · last tended ${new Date(w.ts).toLocaleDateString()}`;
+    info.append(nm,document.createElement('br'),meta);
+    const del=document.createElement('button'); del.className='world-del'; del.textContent='✕';
+    del.title='Delete this garden';
+    del.onclick=e=>{ e.stopPropagation();
+      if (del.dataset.arm){ deleteWorld(w.id); }
+      else { del.dataset.arm='1'; del.textContent='Sure?'; } };
+    row.append(info,del);
+    row.onclick=()=>enterWorld(w.id);
+    list.appendChild(row);
+  });
+  show('worldsScreen');
+}
+async function enterWorld(id){
+  game.worldId=id; game.mode='solo';
+  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.mode=null; return; }
+  enterGarden();
+}
+async function deleteWorld(id){
+  const idx=(await worldsIndex()).filter(w=>w.id!==id);
+  await sSet('hortus:worlds',idx);
+  try{ localStorage.removeItem('hortus:world:'+id); }catch(e){}
+  if (idx.length) openWorlds(); else show('menuScreen');
+}
+$('btnNewWorld').onclick=()=>{ pendingMode='solo'; openCreator(); };
 $('btnMulti').onclick=()=>{ if(!hasStorage){ toast('Shared gardens need storage, which this view lacks.'); return; } show('multiScreen'); };
 $('btnHost').onclick=async()=>{ pendingMode='multi-host'; await hostWorld();
   $('codeDisplay').textContent=game.code; show('codeScreen'); };
@@ -1398,9 +1467,8 @@ requestAnimationFrame(previewLoop);
 $('btnStartGame').onclick=async()=>{
   game.char.name=$('petName').value.trim()||'Bramble';
   await saveChar();
-  if (pendingMode==='solo'){ game.mode='solo';
-    const had=await loadSolo();
-    if (!had){ openPlotScreen(); return; }  // new garden: lay out the plot first
+  if (pendingMode==='solo'){ game.mode='solo'; game.worldId=null;
+    openPlotScreen(); return;  // always a new garden: lay out the plot first
   } else {
     game.mode='multi';
     $('playersPill').classList.remove('hidden');
@@ -1416,7 +1484,7 @@ function starterDrift(){ // a welcoming drift near spawn so the world isn't empt
                ['echinacea',SX+3,SY+3],['echinacea',SX+4,SY+3],['dropseed',SX+3,SY+4]];
   // backdated 26 days = 10 growing days last fall + the winter between,
   // so the drift arrives established and wakes with the player's first spring
-  picks.forEach(([s,x,y])=>{ if(!isPath(x,y)&&!inHouse(x,y))
+  picks.forEach(([s,x,y])=>{ if(tileTerrain(x,y)!=='path'&&!inHouse(x,y))
     game.plants[`${x},${y}`]={s,d:absDay()-26,t:Date.now()}; });
 }
 function enterGarden(){
@@ -1427,6 +1495,14 @@ function enterGarden(){
   game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.lastDay=absDay();
   snapCam(); // start the camera on the player instead of easing in
   buildToolTray();
+  if (game.mode==='solo'){ // pill shows which garden this is
+    const wp=$('worldPill'); wp.textContent='';
+    wp.append(document.createTextNode((game.worldName||'Solo garden')+' · '));
+    const bs=document.createElement('button'); bs.id='btnSave'; bs.textContent='Save';
+    const bq=document.createElement('button'); bq.id='btnQuit'; bq.textContent='Menu';
+    wp.append(bs,document.createTextNode(' '),bq);
+    wireHudButtons();
+  }
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
@@ -1451,13 +1527,16 @@ function openPlotScreen(){
       row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
     $('btnPlotStart').onclick=()=>{
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
+      game.worldId='w'+Date.now().toString(36);
+      game.worldName=$('plotName').value.trim()||'My garden';
       game.house=defaultHouse(); game.rot=0;
       game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
-      starterDrift(); enterGarden();
+      seedWalkway(); starterDrift(); enterGarden();
+      saveSolo(true); // claim the slot right away
     };
     $('btnPlotBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
   }
-  $('plotW').value=46; $('plotL').value=46; updatePlotNote();
+  $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; updatePlotNote();
   show('plotScreen');
 }
 function quitToMenu(){
