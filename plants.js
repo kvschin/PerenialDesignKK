@@ -6,9 +6,16 @@
    use: type, space, spread, zones, native, eco, sun, moist.
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
-           oatgrass | cone | globe | spike | shrub
-   type    grass | sedge | forb — drives the tray categories
-           (future woody plants get type shrub | tree)
+           oatgrass | cone | globe | spike | shrub (herbaceous mound) |
+           bush (woody shrub) | tree (deciduous) | conifer
+   type    grass | sedge | forb | shrub | tree — drives the tray categories
+   grow    woody only: years to mature size (establishment horizon —
+           perennials use 10 growing days; a bur oak uses 10 years).
+           Woody plants skip the spring cutback; they are structure.
+   cw      woody only: mature canopy/twig width in px for the renderer
+           (real-world spread stays in `spread`; trees shade a radius of
+           spread/TILE_IN/2 tiles as they establish, and only sun:'part'
+           plants can be planted in that shade)
    h       mature height in px (drives the renderer, not real units)
    space   on-center planting distance in inches (what you'd order/space by)
    spread  mature clump width in inches (info card / export notes)
@@ -211,6 +218,58 @@ const PLANTS = {
     space:18, spread:15, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool', eco:[], stem:'#3a3038',
     blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
+
+  /* ---------- woody shrubs ---------- */
+  leadplant:{ name:'Leadplant', latin:'Amorpha canescens', form:'bush', type:'shrub', h:36, cw:44,
+    space:36, spread:36, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid', grow:3,
+    eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands',
+         'Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:"Silver leaflets and violet spikes on a shrub the bison couldn't kill. Roots go sixteen feet down.",
+    sea:{Spring:{fol:'#8a9a8a'}, Summer:{fol:'#7d8f7d',bloom:'#6a4a9e'}, Fall:{fol:'#8a8a70'}, Winter:{seed:'#3a342c'}}},
+  sumac:{ name:'Fragrant Sumac', latin:'Rhus aromatica', form:'bush', type:'shrub', h:42, cw:78,
+    space:72, spread:96, zones:[3,9], native:true, sun:'full', moist:'dry', phen:'mid', grow:4,
+    eco:['Flint Hills','Central Great Plains','Southwestern Tablelands',
+         'Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'Glossy three-part leaves, knee to chest high, and the best scarlet fall on the dry side of the yard.',
+    sea:{Spring:{fol:'#7d9a5f',bloom:'#e8d97a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#c0523a'}, Winter:{seed:'#a8504a'}},
+    cv:{
+      growlow:{name:"'Gro-Low'", note:'knee-high and twice as wide — living mulch', h:24, cw:90,
+        sea:{Spring:{fol:'#7d9a5f',bloom:'#e8d97a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#c0523a'}, Winter:{seed:'#a8504a'}}},
+    }},
+  newjersey:{ name:'New Jersey Tea', latin:'Ceanothus americanus', form:'bush', type:'shrub', h:30, cw:48,
+    space:36, spread:42, zones:[4,8], native:true, sun:'full', moist:'dry', phen:'mid', grow:3,
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'A foam of white over a tidy woody knot. Tea from the leaves once started a revolution, roughly.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d8a4c',bloom:'#f0efe2'}, Fall:{fol:'#8a8a5e'}, Winter:{seed:'#5e5248'}}},
+  coralberry:{ name:'Coralberry', latin:'Symphoricarpos orbiculatus', form:'bush', type:'shrub', h:34, cw:64,
+    space:48, spread:60, zones:[2,7], native:true, sun:'part', moist:'medium', phen:'mid', grow:3,
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'An easy thicket that holds its coral-pink berries on bare winter stems. Quail cover.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#9a8a5e',seed:'#c25a6e'}, Winter:{seed:'#b8506a'}}},
+
+  /* ---------- trees ---------- */
+  buroak:{ name:'Bur Oak', latin:'Quercus macrocarpa', form:'tree', type:'tree', h:120, cw:150,
+    space:480, spread:840, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'warm', grow:10,
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'The savanna king — corky bark, fringed acorns, two centuries of patience. Plant it for someone else.',
+    sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#4e6e44'}, Fall:{fol:'#9a7a45'}, Winter:{fol:'#8a6e4e'}}},
+  redbud:{ name:'Eastern Redbud', latin:'Cercis canadensis', form:'tree', type:'tree', h:70, cw:95,
+    space:240, spread:300, zones:[4,9], native:true, sun:'part', moist:'medium', phen:'cool', grow:5,
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:"Magenta flowers straight out of the bare branches in April, heart leaves after. The prairie edge's small tree.",
+    sea:{Spring:{bloom:'#c75a8e'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#e8c23a'}, Winter:{seed:'#5e4a3a'}}},
+  cottonwood:{ name:'Eastern Cottonwood', latin:'Populus deltoides', form:'tree', type:'tree', h:140, cw:170,
+    space:600, spread:900, zones:[3,9], native:true, sun:'full', moist:'moist', phen:'mid', grow:5,
+    eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands',
+         'Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'The state tree of Kansas: fast, huge, glittering leaves, June cotton everywhere. Needs room and water.',
+    sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#6f9a4e',seed:'#f3efe5'}, Fall:{fol:'#e8c23a'}, Winter:{}}},
+  redcedar:{ name:'Eastern Red Cedar', latin:'Juniperus virginiana', form:'conifer', type:'tree', h:90, cw:55,
+    space:180, spread:240, zones:[2,9], native:true, sun:'full', moist:'dry', phen:'cool', grow:7,
+    eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands',
+         'Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'Native evergreen with blue juniper berries. Honest warning: off the yard it eats unburned prairie.',
+    sea:{Spring:{fol:'#4e6e52'}, Summer:{fol:'#46624a'}, Fall:{fol:'#4e6650',seed:'#7a93a8'}, Winter:{fol:'#3f5a46',seed:'#7a93a8'}}},
 };
 const PLANT_KEYS = Object.keys(PLANTS);
 

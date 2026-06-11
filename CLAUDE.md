@@ -54,8 +54,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    procedural renderer. Resolves `plantDef(key, variant)` (cultivar overrides
    merged over the species, cached) and branches on its `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
-   `spike`, `shrub`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors.
-   Adds snow caps when `AMBIENCE[season].snow`.
+   `spike`, `shrub` herbaceous mound, `bush` woody shrub, `tree` deciduous,
+   `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
+   forms draw trunk/twigs every season and leaf out only when `fol` is
+   present (redbud blooms on bare branches: `bloom` without `fol`). Adds
+   snow caps when `AMBIENCE[season].snow`.
 7. **`drawCritter(...)`** — round-bodied cat/dog avatar, with walk bob, tail,
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position, plants
@@ -67,7 +70,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    (the perennial year: cut back to 0.12 at spring day 1, regrow on the
    species' `phen` schedule — cool wakes day 0/full day 14, mid 4/24,
    warm 7/28 — full through fall, winter holds full-size dead structure).
-   The plant card reports establishment, not seasonal size.
+   Woody plants (`type` shrub/tree) skip the envelope entirely — no spring
+   cutback — and establish over `grow` *years* of growing days instead of
+   10 days. `canopyRadius()`/`shadeAt()`: trees shade `spread/TILE_IN/2`
+   tiles (scaled by establishment); planting there is refused unless the
+   plant is `sun:'part'`. The plant card reports establishment, not
+   seasonal size.
 10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
     looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
@@ -93,8 +101,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the player stands in it, translucent house via `drawHouse` override —
     and click/tap places; chips resize/repaint), shovel **drag-sweep**
     (pointerdown with shovel starts a sweep; dragging lifts every plant
-    crossed, one toast + sync at pointerup; terrain still lifts via
-    stand-and-act), tap and keyboard input. **Keys map to SCREEN directions**
+    crossed, and clears laid path/bed on tiles with no living plant —
+    plants take priority, so a planted bed needs two passes; one toast +
+    sync at pointerup), tap and keyboard input. Planting checks `shadeAt`
+    (tree canopies admit only `sun:'part'` plants). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
@@ -113,10 +123,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Perennials / Shrubs / Trees / Dig /
-    Landscape / House — shrubs and trees are empty placeholders until woody
-    types exist; a tool tab arms its first tool on click, and browsing a
-    plant tab disarms house/shovel so taps go back to walking), species
-    buttons in the active category (species sharing a
+    Landscape / House — a tool tab arms its first tool on click, and
+    browsing a plant tab disarms house/shovel so taps go back to walking),
+    species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tool
@@ -152,6 +161,8 @@ key: {
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
+  grow: 10,                    // woody only: years to mature size
+  cw: 150,                     // woody only: canopy/twig width in px
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)
   group: 'coneflower',         // optional: species sharing a group collapse
   chip: 'Pale Purple',         //   to one tray button; chips pick the species
@@ -194,12 +205,9 @@ Winter must show *structure*, not bare ground; that's the whole point.
 ## Feature backlog (v2 ideas, not yet built)
 
 Next in the "design tool" direction: search within tray categories if any
-category outgrows its row; woody plants (types `shrub`/`tree`) to fill the
-placeholder tabs. Woody design notes: canopies span multiple tiles (footprint
-from `spread` — `ceil(spread/TILE_IN)` tiles across), block planting beneath
-(or shade-filter to `sun:'part'`), and establish over *years*, not days —
-reuse `growingDays()` with a much longer horizon so a tree visibly fills in
-across seasons; canopy radius should creep up with establishment.
+category outgrows its row. Woody follow-ups: existing full-sun plants under
+a canopy that has grown over them could decline rather than persist; tree
+canopies could render across tile boundaries with their own depth slices.
 
 - **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
   one action. The most Oudolf-true addition; planting in drifts is core to the style.

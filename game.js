@@ -64,9 +64,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
   const H = P.h * (0.25 + 0.75*growth);
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
-  // soft ground shadow
+  // soft ground shadow (canopy-wide for woody plants)
+  const shR = (P.cw ? P.cw*0.42 : 14)*growth + 6;
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath(); ctx.ellipse(0, 2, 14*growth+6, 5*growth+2.5, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 2, shR, shR*0.36+1.5, 0, 0, 7); ctx.fill();
 
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
 
@@ -218,6 +219,93 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
         else { ctx.beginPath(); ctx.arc(ox+sway*2,-len,key==='mountainmint'?3.4:2.6,0,7); ctx.fill(); }
       }
     }
+  }
+  else if (P.form === 'tree'){ // deciduous: trunk + branches always, canopy by season
+    const cw=(P.cw||100)*(0.3+0.7*growth), trunkH=H*0.42;
+    const cy=-trunkH-H*0.30; // canopy center
+    ctx.strokeStyle='#5e4a38'; ctx.lineCap='round';
+    ctx.lineWidth=Math.max(2, 6*growth);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(sway*2,-trunkH); ctx.stroke();
+    const tips=[];
+    ctx.lineWidth=Math.max(1.2, 2.2*growth);
+    for (let i=0;i<5;i++){
+      const a=(i/4-0.5)*1.7+(rnd()-0.5)*0.2;
+      const bx=Math.sin(a)*cw*0.34+sway*3, by=cy-Math.cos(a)*H*0.18;
+      ctx.beginPath(); ctx.moveTo(sway*1.4,-trunkH*0.92);
+      ctx.quadraticCurveTo(bx*0.35,-trunkH-H*0.12,bx,by); ctx.stroke();
+      tips.push([bx,by]);
+    }
+    if (S.fol){ // leaf canopy
+      const n=stemFor(26);
+      for (let i=0;i<n;i++){
+        const a=rnd()*Math.PI*2, r=Math.sqrt(rnd());
+        ctx.fillStyle=shade(S.fol,(rnd()-0.5)*30);
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a)*cw*0.48*r+sway*3, cy-Math.sin(a)*H*0.26*r,
+          cw*0.15, cw*0.10, a, 0, 7);
+        ctx.fill();
+      }
+    }
+    if (S.bloom){ // flowers: on the canopy, or straight on bare branches (redbud)
+      ctx.fillStyle=S.bloom;
+      const spots=S.fol?10:14;
+      for (let i=0;i<spots;i++){
+        const [tx2,ty2]=tips[i%tips.length];
+        const f=0.45+rnd()*0.55;
+        ctx.beginPath();
+        ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, 1.8, 0, 7);
+        ctx.fill();
+      }
+    }
+    if (S.seed && mature){ // cottonwood fluff, oak's held leaves handled via fol
+      ctx.fillStyle=S.seed;
+      for (let i=0;i<8;i++){ ctx.beginPath();
+        ctx.arc((rnd()-0.5)*cw*0.8+sway*3, cy-(rnd()-0.5)*H*0.4, 1.4, 0, 7); ctx.fill(); }
+    }
+  }
+  else if (P.form === 'conifer'){ // stacked evergreen, dense at any season
+    const cw=(P.cw||60)*(0.3+0.7*growth);
+    ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,4*growth);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H*0.18); ctx.stroke();
+    for (let t=0;t<3;t++){
+      const w=cw*(0.95-t*0.27), yb=-H*(0.16+t*0.26), yt=-H*(0.46+t*0.27);
+      ctx.fillStyle=shade(S.fol,(t-1)*10);
+      ctx.beginPath(); ctx.moveTo(-w/2+sway*(t+1)*0.6,yb);
+      ctx.lineTo(w/2+sway*(t+1)*0.6,yb); ctx.lineTo(sway*(t+1.6),yt);
+      ctx.closePath(); ctx.fill();
+    }
+    if (S.seed && mature){ ctx.fillStyle=S.seed;
+      for (let i=0;i<6;i++){ ctx.beginPath();
+        ctx.arc((rnd()-0.5)*cw*0.6, -H*(0.25+rnd()*0.5), 1.2, 0, 7); ctx.fill(); } }
+  }
+  else if (P.form === 'bush'){ // woody shrub: twigs hold through winter
+    const cw=(P.cw||50)*(0.35+0.65*growth);
+    const tn=stemFor(7), tips=[];
+    ctx.strokeStyle='#6e5a48'; ctx.lineWidth=1.6; ctx.lineCap='round';
+    for (let i=0;i<tn;i++){
+      const a=(i/(tn-1)-0.5)*1.5+(rnd()-0.5)*0.2;
+      const tx2=Math.sin(a)*cw*0.5+sway*2, ty2=-H*(0.55+rnd()*0.45);
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*4,0);
+      ctx.quadraticCurveTo(tx2*0.4,ty2*0.55,tx2,ty2); ctx.stroke();
+      tips.push([tx2,ty2]);
+    }
+    if (S.fol){
+      const n=stemFor(20);
+      for (let i=0;i<n;i++){
+        const a=rnd()*Math.PI*2, r=rnd();
+        ctx.fillStyle=shade(S.fol,(rnd()-0.5)*28);
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a)*cw*0.5*r+sway*2, -H*(0.35+rnd()*0.55),
+          3.6, 2.6, a, 0, 7);
+        ctx.fill();
+      }
+    }
+    if (S.bloom && mature){ ctx.fillStyle=S.bloom;
+      tips.forEach(([tx2,ty2])=>{ ctx.beginPath();
+        ctx.ellipse(tx2,ty2-2,2.2,3.2,0,0,7); ctx.fill(); }); }
+    if (S.seed && mature){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
+      tips.forEach(([tx2,ty2])=>{ for (let b=0;b<3;b++){ const f=0.6+b*0.15;
+        ctx.beginPath(); ctx.arc(tx2*f,ty2*f,1.6,0,7); ctx.fill(); } }); }
   }
   // winter snow caps on mature structure
   if (AMBIENCE[season].snow && mature){
@@ -405,8 +493,10 @@ function winterDaysBefore(d){ // winter days in [0,d); works for negative d
 function growingDays(d0,d1){
   return (d1-d0)-(winterDaysBefore(d1)-winterDaysBefore(d0));
 }
-function plantEstab(p){ // 0..1 over 10 growing days
-  return Math.max(0, Math.min(1, growingDays(p.d, absDay())/10));
+function plantEstab(p){ // perennials: 10 growing days; woody: grow years
+  const P=PLANTS[p.s]||{};
+  const horizon=P.grow ? P.grow*(YEAR_DAYS-DAYS_PER_SEASON) : 10;
+  return Math.max(0, Math.min(1, growingDays(p.d, absDay())/horizon));
 }
 function seasonEnvelope(key){
   const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
@@ -417,7 +507,27 @@ function seasonEnvelope(key){
   const t=(ydf-g.w)/(g.f-g.w);
   return 0.12+0.88*t*t*(3-2*t);                      // smoothstep up
 }
-function plantGrowth(p){ return plantEstab(p)*seasonEnvelope(p.s); }
+function plantGrowth(p){
+  const P=PLANTS[p.s];
+  if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
+  return plantEstab(p)*seasonEnvelope(p.s);
+}
+/* trees throw shade as they establish; only part-sun plants grow there */
+function canopyRadius(p){ const P=PLANTS[p.s];
+  if (!P || P.type!=='tree') return 0;
+  return (P.spread/TILE_IN/2)*plantEstab(p);
+}
+function shadeAt(x,y){
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const P=PLANTS[p.s]; if (!P || P.type!=='tree') continue;
+    const [tx2,ty2]=k.split(',').map(Number);
+    if (tx2===x && ty2===y) continue; // the trunk tile itself is just occupied
+    const r=canopyRadius(p);
+    if (r>=1 && Math.max(Math.abs(x-tx2),Math.abs(y-ty2))<=r) return p;
+  }
+  return null;
+}
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
 
 /* path through the garden — a lazy Oudolf curve */
@@ -677,6 +787,11 @@ function actHere(){
   }
   if (isPath(x,y)||terr==='path'){ toast('The path stays a path — Oudolf would approve.'); return; }
   if (hasPlant){ showPlantCard(existing); return; }
+  const shadeTree=shadeAt(x,y);
+  if (shadeTree && plantDef(game.tool,game.toolVar).sun!=='part'){
+    toast(`Too shady under the ${PLANTS[shadeTree.s].name.toLowerCase()} — shade-tolerant plants only.`);
+    return;
+  }
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
   game.plants[k]=np; game.dirty=true;
@@ -716,10 +831,12 @@ function paintHouse(part,col,label){
 }
 function showPlantCard(p){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
+  const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
-    <p style="margin-top:6px;color:#cdbfa9">${P.space}&Prime; apart · ${P.spread}&Prime; spread ·
-      zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil</p>
+    <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·
+      zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil${
+      P.grow?` · ~${P.grow} yrs to size`:''}</p>
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native — '+P.eco.join(', ') : 'Garden cultivar (non-native)'}</p>
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
@@ -757,13 +874,19 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()]; });
 
 /* tap / click: first tap walks, tap on own tile acts */
 let lastTap=0;
-let sweep=null; // shovel drag-lift in progress: {count}
+let sweep=null; // shovel drag-lift in progress: {plants, terr}
 function sweepLift(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`, p=game.plants[k];
   if (p && !p.removed){
     game.plants[k]={removed:true,t:Date.now()};
-    game.dirty=true; sweep.count++;
+    game.dirty=true; sweep.plants++;
+    return;
+  }
+  // no plant here: bare laid path/bed comes up instead
+  if (tileTerrain(x,y)){
+    game.terrain[k]={removed:true,t:Date.now()};
+    game.dirty=true; sweep.terr++;
   }
 }
 cnv.addEventListener('pointerdown',e=>{
@@ -771,7 +894,7 @@ cnv.addEventListener('pointerdown',e=>{
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={count:0};
+    sweep={plants:0, terr:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -790,8 +913,14 @@ cnv.addEventListener('pointermove',e=>{
 });
 function endSweep(){
   if (!sweep) return;
-  if (sweep.count){ toast(`Lifted ${sweep.count} plant${sweep.count>1?'s':''}. Good divisions make free plants.`);
-    syncPlantsOut(); }
+  const parts=[];
+  if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
+  if (sweep.terr) parts.push(`${sweep.terr} path/bed tile${sweep.terr>1?'s':''}`);
+  if (parts.length){
+    toast(`Lifted ${parts.join(' and ')}.`);
+    if (sweep.plants) syncPlantsOut();
+    if (sweep.terr) syncTerrainOut();
+  }
   else toast('Nothing under the shovel there.');
   sweep=null;
 }
@@ -985,8 +1114,8 @@ function plantFits(k){
   if (r.eco && P.native && !P.eco.includes(r.eco)) return false;
   return true;
 }
-function trayKeys(){ // grasses first (the matrix), then sedges, then forbs
-  const ord={grass:0, sedge:1, forb:2};
+function trayKeys(){ // grasses first (the matrix), then sedges, forbs, woody
+  const ord={grass:0, sedge:1, forb:2, shrub:3, tree:4};
   return PLANT_KEYS.filter(plantFits).sort((a,b)=>
     (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
 }
@@ -1057,8 +1186,7 @@ function buildToolTray(){
       game.tool=keys[0]; game.toolVar=null; }
     if (!keys.length){
       const sp=document.createElement('span'); sp.className='tray-empty';
-      sp.textContent=(cat.id==='shrubs'||cat.id==='trees')
-        ? 'Nothing woody in the palette yet.' : 'Nothing fits the region filter.';
+      sp.textContent='Nothing fits the region filter here.';
       tray.appendChild(sp);
     }
     const grouped={};
@@ -1136,7 +1264,7 @@ function buildToolTray(){
   if (cat.tools.includes('shovel')){
     const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
     sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
-    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag across plants to lift several at once.'); };
+    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag to lift plants — and bare paths or beds.'); };
     tray.appendChild(sh);
   }
 }
@@ -1200,7 +1328,7 @@ function updateHUD(){
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='shovel'
-    ? 'Drag across plants to lift them — stand and act for paths/beds'
+    ? 'Drag to lift plants — bare path and bed tiles clear too'
     : isDoor(Math.round(game.px),Math.round(game.py))
     ? 'At the door — press E or tap here to sleep'
     : 'Tap a tile to walk · tap again to act — or WASD + E');
