@@ -455,6 +455,7 @@ const game = {
   rot:0,                                             // view rotation, 90-degree steps
   hoverTile:null,                                    // pointer tile, for the house ghost
   worldId:null, worldName:'My garden',               // current solo save slot
+  drift:false,                                       // plant in clusters, Oudolf style
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -794,16 +795,48 @@ function actHere(){
   }
   if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
   if (hasPlant){ showPlantCard(existing); return; }
+  const def=plantDef(game.tool,game.toolVar);
   const shadeTree=shadeAt(x,y);
-  if (shadeTree && plantDef(game.tool,game.toolVar).sun!=='part'){
+  if (shadeTree && def.sun!=='part'){
     toast(`Too shady under the ${PLANTS[shadeTree.s].name.toLowerCase()} — shade-tolerant plants only.`);
     return;
   }
+  const n=game.drift?driftCount(def):1;
+  if (n>1){ stampDrift(x,y,n); return; }
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
   game.plants[k]=np; game.dirty=true;
-  toast(`Planted ${plantDef(game.tool,game.toolVar).name}. Plant in drifts of 3+!`);
+  toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`);
   syncPlantsOut();
+}
+/* drift planting: one action stamps a loose, natural cluster. Tighter
+   spacers come in bigger drifts; woody plants always plant singly. */
+function driftCount(def){
+  if (def.type==='shrub'||def.type==='tree') return 1;
+  return def.space<=12?7 : def.space<=18?5 : def.space<=30?3 : 1;
+}
+function stampDrift(cx0,cy0,n){
+  const offs=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
+              [2,0],[0,2],[-2,0],[0,-2],[2,1],[1,2],[-1,2],[-2,1]];
+  const rest=offs.slice(1); // keep the clicked tile first, shuffle the rest
+  for (let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0;
+    [rest[i],rest[j]]=[rest[j],rest[i]]; }
+  const def=plantDef(game.tool,game.toolVar);
+  let placed=0;
+  for (const [ox,oy] of [offs[0],...rest]){
+    if (placed>=n) break;
+    const x=cx0+ox, y=cy0+oy, k=`${x},${y}`;
+    if (x<0||y<0||x>=GW||y>=GH) continue;
+    if (inHouse(x,y) || tileTerrain(x,y)==='path') continue;
+    const ex=game.plants[k]; if (ex && !ex.removed) continue;
+    const sh=shadeAt(x,y); if (sh && def.sun!=='part') continue;
+    const np={s:game.tool,d:absDay(),t:Date.now()+placed};
+    if (game.toolVar) np.v=game.toolVar;
+    game.plants[k]=np; placed++;
+  }
+  if (placed){ game.dirty=true; syncPlantsOut();
+    toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
+  else toast('No room for a drift here.');
 }
 function doSleep(){
   game.dayOffset++; game.dirty=true;
@@ -1207,6 +1240,14 @@ function buildToolTray(){
     b.onclick=()=>{ game.trayCat=c.id; buildToolTray(); };
     tabs.appendChild(b);
   });
+  const dr=document.createElement('button'); // drift toggle, right-aligned
+  dr.className='tab drift'+(game.drift?' sel':'');
+  dr.textContent=game.drift?'✦ Drift':'Drift';
+  dr.title='Plant in loose clusters of 3–7 — the Oudolf way';
+  dr.onclick=()=>{ game.drift=!game.drift; buildToolTray();
+    toast(game.drift?'Drift planting on — each planting stamps a natural cluster.'
+                    :'Single planting.'); };
+  tabs.appendChild(dr);
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
   if (cat.types){

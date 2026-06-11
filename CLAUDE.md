@@ -106,7 +106,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     crossed, and clears laid path/bed on tiles with no living plant —
     plants take priority, so a planted bed needs two passes; one toast +
     sync at pointerup), tap and keyboard input. Planting checks `shadeAt`
-    (tree canopies admit only `sun:'part'` plants). **Keys map to SCREEN directions**
+    (tree canopies admit only `sun:'part'` plants). With the Drift toggle
+    on, planting calls `stampDrift()` — a loose shuffled cluster around the
+    target tile, sized by spacing (`driftCount`: ≤12" → 7, ≤18" → 5,
+    ≤30" → 3); woody plants always plant singly; tiles that are occupied,
+    paths, in-house, or too shady are skipped. **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
@@ -215,8 +219,6 @@ category outgrows its row. Woody follow-ups: existing full-sun plants under
 a canopy that has grown over them could decline rather than persist; tree
 canopies could render across tile boundaries with their own depth slices.
 
-- **Drift planting** — stamp 3–5 of the selected species in a natural cluster in
-  one action. The most Oudolf-true addition; planting in drifts is core to the style.
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
 - **More species** — switchgrass (Panicum virgatum) and big bluestem for the
