@@ -53,15 +53,20 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 5. **`mulberry(seed)`** — tiny seeded RNG. Used so each plant clump looks unique
    but renders identically every frame. Never use `Math.random()` for anything
    that must be stable across frames — derive a seed and use `mulberry`.
-6. **`drawPlant(ctx, x, y, key, growth, season, seed, sway, variant)`** —
-   procedural renderer. Resolves `plantDef(key, variant)` (cultivar overrides
-   merged over the species, cached) and branches on its `form` (`bunchgrass`,
+6. **`drawPlant(ctx, x, y, key, growth, season, seed, sway, variant,
+   bloomLvl)`** — procedural renderer. Resolves `plantDef(key, variant)`
+   (cultivar overrides merged over the species, cached) and branches on its
+   `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
    `spike`, `shrub` herbaceous mound, `bush` woody shrub, `tree` deciduous,
    `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
-   present (redbud blooms on bare branches: `bloom` without `fol`). Adds
-   snow caps when `AMBIENCE[season].snow`.
+   present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
+   staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
+   (cool species peak ~day 5, mid ~8, warm ~11, per-species jitter); the
+   flower pass thins to that fraction of stems. Tray icons/previews pass
+   `bloomLvl=1` to force full bloom. Adds snow caps when
+   `AMBIENCE[season].snow`.
 7. **`drawCritter(...)`** — round-bodied cat/dog avatar, with walk bob, tail,
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position, plants
@@ -98,9 +103,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
     / bed / flagstone doorstep) back-to-front, a single depth-sorted entity
     pass for the cottage + plants + critters (sorted by `x+y`), planting
-    pulse fx (`game.fx`), season tint, snowfall. Small screens render at
-    `ZOOM` 0.75 (~1.3x more world); all pointer math divides by it
-    (`evTile`). Cost scales with screen size, not `GRID`.
+    pulse fx (`game.fx`), season tint, snowfall, and — when `game.photo` is
+    set — a golden-hour wash for `takePhoto()` (renders one washed frame,
+    downloads the canvas PNG; the DOM HUD is excluded automatically).
+    Full-sun plants under a tree canopy render stunted (growth × 0.45,
+    `shadeTrees` precomputed per frame); the plant card says "Struggling".
+    Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
+    math divides by it (`evTile`). Cost scales with screen size, not `GRID`.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
@@ -142,10 +151,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
-    stores `v`; tool state is `game.tool` + `game.toolVar`). The House tool
-    (Landscape tab) reuses the chip row for sizes and wall/roof colors.
-    Plus season dial, sleep button, plant-list, region, and rotate buttons,
-    contextual action hint. The region choice persists as `hortus:region`.
+    stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
+    is its own icon tray: Place tool + size/wall/roof buttons in labeled
+    sections (`.tray-sep`). A search input in the tabs row filters the open
+    category by name/latin/group (`applyTraySearch`, display:none — no
+    rebuild, so typing keeps focus; inputs are excluded from game keys).
+    Plus season dial, sleep button, plant-list, region, rotate, and photo
+    buttons, contextual action hint. The plant card sits top-right with an
+    ✕ (`showPlantCard(p,x,y)` adds a shade warning when coords are given).
+    The region choice persists as `hortus:region`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start new; Solo goes here when saves exist), multiplayer
     lobby, character creator (with live preview), code display, plot setup
@@ -219,17 +233,12 @@ Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Feature backlog (v2 ideas, not yet built)
 
-Next in the "design tool" direction: search within tray categories if any
-category outgrows its row. Woody follow-ups: existing full-sun plants under
-a canopy that has grown over them could decline rather than persist; tree
-canopies could render across tile boundaries with their own depth slices.
+Woody follow-up still open: tree canopies rendering across tile boundaries
+with their own depth slices. The big one: a real multiplayer backend
+(reimplement `sGet`/`sSet` against a small server — see Known constraints).
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
-- **More species** — switchgrass (Panicum virgatum) and big bluestem for the
-  tall matrix; penstemon (P. digitalis), prairie clover (Dalea purpurea),
+- **More species** — penstemon (P. digitalis), prairie clover (Dalea purpurea),
   golden alexanders (Zizia aurea — needs an umbel form in `drawPlant`).
-- **Photo mode** — capture the backlit winter seedhead shots that justify the
-  whole aesthetic.
-- **Bloom timing within a season** — stagger flowering across the 16 days so a
-  bed peaks and fades rather than switching all at once.
+- **Undo** — snapshot plants+terrain before sweeps/placements; one level is enough.

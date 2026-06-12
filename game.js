@@ -59,8 +59,12 @@ function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
 
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
-function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
+function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl){
   const P = plantDef(key, variant), S = P.sea[season], rnd = mulberry(seed);
+  // how far into its bloom window this species is (1 = forced full bloom,
+  // used by tray icons / previews); gates and thins the flower pass
+  const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key) : 0);
+  const blooming = !!S.bloom && blv>0.08;
   const H = P.h * (0.25 + 0.75*growth);
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
@@ -122,7 +126,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
       ctx.quadraticCurveTo(bx*0.4,-len*0.7,bx,-len); ctx.stroke();
     }
-    const sn = stemFor(6), cloud=S.seed||S.bloom;
+    const sn = stemFor(6), cloud=S.seed||(blooming?S.bloom:null);
     for (let i=0;i<sn;i++){
       const ox=(rnd()-0.5)*10, len=H*(0.85+rnd()*0.2), tip=ox+sway*len*0.06;
       ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=1.1;
@@ -139,7 +143,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
       ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.3;
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
       ctx.quadraticCurveTo(bx*0.4,-len*0.6,bx,-len); ctx.stroke(); }
-    const sn = stemFor(5), oat=S.seed||S.bloom;
+    const sn = stemFor(5), oat=S.seed||(blooming?S.bloom:null);
     for (let i=0;i<sn;i++){
       const ox=(rnd()-0.5)*8, len=H*(0.8+rnd()*0.25), tip=ox+5+sway*len*0.05;
       ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=1.2;
@@ -167,8 +171,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
       ctx.quadraticCurveTo(ox,-len*0.55,tx,-len); ctx.stroke();
       if (!mature) continue;
       const hx=tx, hy=-len;
+      // bloom staggering: only the leading fraction of stems flower
+      const headOn = blooming && i < Math.max(1, Math.ceil(sn*blv));
       if (P.form==='cone'){
-        if (S.bloom){ // rays + cone, carried per the species' look
+        if (headOn){ // rays + cone, carried per the species' look
           const rays=L.rays||7, rl=L.rayLen||6, dr=(L.droop===undefined)?2.5:L.droop;
           ctx.strokeStyle=S.bloom; ctx.lineWidth=L.rayW||2.2;
           for(let p=0;p<rays;p++){ const pa=p/rays*Math.PI*2;
@@ -180,7 +186,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
           ctx.beginPath(); ctx.ellipse(hx,hy,3,3.8,0,0,7); ctx.fill(); }
       }
       else if (P.form==='globe'){
-        const col = S.bloom || S.seed;
+        const col = (headOn?S.bloom:null) || S.seed;
         if (col){ ctx.fillStyle=col;
           ctx.beginPath(); ctx.arc(hx,hy,key==='allium'?5:4.2,0,7); ctx.fill();
           ctx.strokeStyle=shade(col,-30); ctx.lineWidth=0.7;
@@ -189,7 +195,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
             ctx.lineTo(hx+Math.cos(pa)*5.5,hy+Math.sin(pa)*5.5); ctx.stroke(); } }
       }
       else { // spike
-        const col=S.bloom||S.seed;
+        const col=(headOn?S.bloom:null)||S.seed;
         if (col){ ctx.fillStyle=col;
           for(let s=0;s<5;s++){ ctx.beginPath();
             ctx.ellipse(hx+(rnd()-0.5)*1.5, hy+s*3.2, 1.8,2.2,0,0,7); ctx.fill(); } }
@@ -205,8 +211,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
       ctx.fillStyle = shade(S.fol,(rnd()-0.5)*30);
       ctx.beginPath(); ctx.ellipse(px,py,3.4,2.6,a,0,7); ctx.fill();
     }
-    if (mature && (S.bloom||S.seed)){
-      const col=S.bloom||S.seed, m=stemFor(7);
+    if (mature && ((blooming&&S.bloom)||S.seed)){
+      const col=(blooming?S.bloom:null)||S.seed;
+      const m0=stemFor(7), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
       for (let i=0;i<m;i++){
         const ox=(rnd()-0.5)*20, len=H*(0.85+rnd()*0.2);
         ctx.strokeStyle=shade(S.fol,-25); ctx.lineWidth=1.1;
@@ -246,9 +253,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
         ctx.fill();
       }
     }
-    if (S.bloom){ // flowers: on the canopy, or straight on bare branches (redbud)
+    if (blooming){ // flowers: on the canopy, or straight on bare branches (redbud)
       ctx.fillStyle=S.bloom;
-      const spots=S.fol?10:14;
+      const spots=Math.max(2,Math.ceil((S.fol?10:14)*blv));
       for (let i=0;i<spots;i++){
         const [tx2,ty2]=tips[i%tips.length];
         const f=0.45+rnd()*0.55;
@@ -300,9 +307,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant){
         ctx.fill();
       }
     }
-    if (S.bloom && mature){ ctx.fillStyle=S.bloom;
-      tips.forEach(([tx2,ty2])=>{ ctx.beginPath();
-        ctx.ellipse(tx2,ty2-2,2.2,3.2,0,0,7); ctx.fill(); }); }
+    if (blooming && mature){ ctx.fillStyle=S.bloom;
+      tips.slice(0,Math.max(1,Math.ceil(tips.length*blv))).forEach(([tx2,ty2])=>{
+        ctx.beginPath(); ctx.ellipse(tx2,ty2-2,2.2,3.2,0,0,7); ctx.fill(); }); }
     if (S.seed && mature){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
       tips.forEach(([tx2,ty2])=>{ for (let b=0;b<3;b++){ const f=0.6+b*0.15;
         ctx.beginPath(); ctx.arc(tx2*f,ty2*f,1.6,0,7); ctx.fill(); } }); }
@@ -515,6 +522,18 @@ function plantGrowth(p){
   if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
   return plantEstab(p)*seasonEnvelope(p.s);
 }
+/* bloom staggering: within a bloom season each species rises, peaks,
+   and fades instead of switching on at the season line. Cool species
+   peak early in the season, warm late, with a per-species nudge so a
+   mixed bed rolls rather than blinks. */
+function bloomLevel(key){
+  const d=(((absDay()%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+calClock().frac;
+  const P=PLANTS[key]||{};
+  const centers={cool:5, mid:8, warm:11};
+  const jit=(((key.charCodeAt(0)||0)+key.length)%5-2)*0.8;
+  const t2=Math.max(0, 1-Math.abs(d-((centers[P.phen]||8)+jit))/7);
+  return t2*t2*(3-2*t2);
+}
 /* trees throw shade as they establish; only part-sun plants grow there */
 function canopyRadius(p){ const P=PLANTS[p.s];
   if (!P || P.type!=='tree') return 0;
@@ -620,6 +639,19 @@ function rotateView(){
   game.rot=(game.rot+1)%4; snapCam(); game.dirty=true;
   toast(`View rotated — ${game.rot*90}°.`);
 }
+/* photo mode: one frame rendered with a golden-hour wash, saved as PNG.
+   The HUD is DOM, not canvas, so the shot is clean automatically. */
+function takePhoto(){
+  game.photo=true; render(performance.now()); game.photo=false;
+  cnv.toBlob(b=>{
+    if (!b){ toast('The camera jammed — try again.'); return; }
+    const a=document.createElement('a'), cal=calClock();
+    a.href=URL.createObjectURL(b);
+    a.download=`hortus-${cal.season.toLowerCase()}-y${cal.year}-d${cal.day}.png`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  },'image/png');
+  toast('Photo taken — golden hour included.');
+}
 
 /* ---------- main render ---------- */
 const cnv = document.getElementById('gameCanvas');
@@ -722,12 +754,26 @@ function render(t){
     ents.push({depth:Math.max(viewDepth(ghost.x,ghost.y),viewDepth(ghost.x+ghost.w-1,ghost.y),
         viewDepth(ghost.x,ghost.y+ghost.h-1),viewDepth(ghost.x+ghost.w-1,ghost.y+ghost.h-1))+0.46,
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
+  // canopies stunt full-sun plants beneath them (they persist, smaller)
+  const shadeTrees=[];
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const P=PLANTS[p.s];
+    if (P && P.type==='tree'){ const r=canopyRadius(p);
+      if (r>=1){ const [tx2,ty2]=k.split(',').map(Number); shadeTrees.push([tx2,ty2,r,k]); } }
+  }
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
+    let g2v=plantGrowth(p);
+    const P2=PLANTS[p.s];
+    if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
+        shadeTrees.some(([sx2,sy2,r,sk])=>sk!==k &&
+          Math.max(Math.abs(x-sx2),Math.abs(y-sy2))<=r))
+      g2v*=0.45; // struggling under the canopy
     ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-      drawPlant(cx,sx,sy+TILE_H/2,p.s,plantGrowth(p),cal.season,tileSeed(x,y),sway,p.v);}});
+      drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
   }
   // local player (smooth move)
   let dx=game.px, dy=game.py;
@@ -771,6 +817,14 @@ function render(t){
       cx.beginPath(); cx.arc(f.x,f.y,f.r,0,7); cx.fill(); });
     snowFlakes=snowFlakes.filter(f=>f.y<H+5);
   } else snowFlakes.length=0;
+
+  if (game.photo){ // golden-hour wash, only on the captured frame
+    const g2=cx.createRadialGradient(W*0.72,H*0.22,30, W*0.72,H*0.22,H*0.95);
+    g2.addColorStop(0,'rgba(255,212,140,0.38)');
+    g2.addColorStop(0.5,'rgba(228,160,90,0.10)');
+    g2.addColorStop(1,'rgba(50,35,55,0.24)');
+    cx.fillStyle=g2; cx.fillRect(0,0,W,H);
+  }
 }
 
 /* ---------- movement & actions ---------- */
@@ -813,7 +867,7 @@ function actHere(){
     return;
   }
   if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
-  if (hasPlant){ showPlantCard(existing); return; }
+  if (hasPlant){ showPlantCard(existing,x,y); return; }
   const def=plantDef(game.tool,game.toolVar);
   const shadeTree=shadeAt(x,y);
   if (shadeTree && def.sun!=='part'){
@@ -889,9 +943,10 @@ function paintHouse(part,col,label){
   game.house[part]=col; game.dirty=true; pushHouse();
   toast(part==='wall'?`Walls painted ${label.toLowerCase()}.`:`Roof done in ${label.toLowerCase()}.`);
 }
-function showPlantCard(p){
+function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
+  const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeAt(px2,py2);
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·
@@ -900,9 +955,13 @@ function showPlantCard(p){
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
       : 'Garden cultivar (non-native)'}</p>
+    ${shaded?'<p style="color:#c9a07f">Struggling — a canopy has grown over it and it wants full sun.</p>':''}
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
+  const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
+  xb.onclick=()=>{ el.style.display='none'; clearTimeout(el._t); };
+  el.prepend(xb);
   el.style.display='block';
-  clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',6500);
+  clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',8000);
 }
 function toast(msg){
   const el=document.getElementById('toast');
@@ -914,6 +973,7 @@ function toast(msg){
 const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
+  if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
   const overlay=['exportScreen','regionScreen']
     .map(id=>document.getElementById(id)).find(el=>!el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
@@ -1264,6 +1324,11 @@ function buildToolTray(){
     b.onclick=()=>{ game.trayCat=c.id; buildToolTray(); };
     tabs.appendChild(b);
   });
+  const si=document.createElement('input'); // search within the open category
+  si.id='traySearch'; si.type='search'; si.placeholder='search…';
+  si.value=game.traySearch||'';
+  si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
+  tabs.appendChild(si);
   const dr=document.createElement('button'); // drift toggle, right-aligned
   dr.className='tab drift'+(game.drift?' sel':'');
   dr.textContent=game.drift?'✦ Drift':'Drift';
@@ -1306,7 +1371,7 @@ function buildToolTray(){
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-      drawPlant(ctx2,24/sc,42/sc,rep,1,'Summer',tileSeed(3,7),0);
+      drawPlant(ctx2,24/sc,42/sc,rep,1,'Summer',tileSeed(3,7),0,undefined,1);
       const sp=document.createElement('span');
       sp.textContent=P.group ? P.group[0].toUpperCase()+P.group.slice(1)
                              : P.name.split(' ').slice(0,2).join(' ');
@@ -1317,7 +1382,7 @@ function buildToolTray(){
                       : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
       tray.appendChild(b);
     });
-    renderCvRow();
+    renderCvRow(); applyTraySearch();
     return;
   }
   // tool categories: Landscape (path, bed), Dig (shovel), House.
@@ -1345,19 +1410,56 @@ function buildToolTray(){
     });
   }
   if (cat.tools.includes('house')){
-    const b=document.createElement('button'); b.className='tool'+(game.tool==='house'?' sel':'');
-    b.dataset.k='house';
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const tc=c.getContext('2d'); const hc=game.house||{wall:'#8a7a60',roof:'#9a5f3a'};
-    tc.fillStyle=hc.wall; tc.fillRect(14,20,20,13);
-    tc.fillStyle=hc.roof; tc.beginPath();
-    tc.moveTo(10,22); tc.lineTo(24,9); tc.lineTo(38,22); tc.closePath(); tc.fill();
-    tc.fillStyle=HOUSE_TRIM.door; tc.fillRect(21,26,6,7);
-    const sp=document.createElement('span'); sp.textContent='House';
-    b.append(c,sp);
-    b.onclick=()=>{ game.tool='house'; game.toolVar=null; refreshTray(); renderCvRow();
-      toast('House: tap the map to move it — size and colors above.'); };
-    tray.appendChild(b);
+    // the House tab works like the plant tray: icon buttons in labeled
+    // sections — Place, House size, Wall color, Roof color
+    const hc=game.house||{wall:'#8a7a60',roof:'#9a5f3a'};
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const toolBtn=(label,sel,draw,fn)=>{
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      draw(c.getContext('2d'));
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
+    };
+    const miniHouse=(tc,wf,df,wall,roof)=>{
+      const w2=Math.min(40,13+wf*0.55), h2=Math.min(20,7+df*0.3);
+      const x0=24-w2/2, y0=36-h2;
+      tc.fillStyle=wall; tc.fillRect(x0,y0,w2,h2);
+      tc.fillStyle=roof; tc.beginPath();
+      tc.moveTo(x0-3,y0); tc.lineTo(24,y0-6-wf*0.14); tc.lineTo(x0+w2+3,y0);
+      tc.closePath(); tc.fill();
+      tc.fillStyle=HOUSE_TRIM.door; tc.fillRect(22,36-Math.min(9,h2-1),4,Math.min(9,h2-1));
+    };
+    const pb=toolBtn('Place', game.tool==='house',
+      tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
+        tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
+        tc.strokeRect(3,8,42,32); },
+      ()=>{ game.tool='house'; game.toolVar=null; refreshTray();
+        toast('Tap the map to set the house down — hover shows where.'); });
+    pb.dataset.k='house';
+    sep('House size');
+    HOUSE_SIZES.forEach(([label,wf,df])=>{
+      const sel=!!game.house && game.house.w===ftToTiles(wf) && game.house.h===ftToTiles(df);
+      toolBtn(`${label} ${wf}'×${df}'`, sel,
+        tc=>miniHouse(tc,wf,df,hc.wall,hc.roof),
+        ()=>{ applyHouseSize(wf,df,label); buildToolTray(); });
+    });
+    sep('Wall color');
+    WALL_COLS.forEach(([n,c2])=>{
+      toolBtn(n, !!game.house && game.house.wall===c2,
+        tc=>{ tc.fillStyle=c2; tc.fillRect(13,11,22,22);
+          tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(13,11,22,22); },
+        ()=>{ paintHouse('wall',c2,n); buildToolTray(); });
+    });
+    sep('Roof color');
+    ROOF_COLS.forEach(([n,c2])=>{
+      toolBtn(n, !!game.house && game.house.roof===c2,
+        tc=>{ tc.fillStyle=c2; tc.beginPath();
+          tc.moveTo(8,32); tc.lineTo(24,12); tc.lineTo(40,32);
+          tc.closePath(); tc.fill(); },
+        ()=>{ paintHouse('roof',c2,n); buildToolTray(); });
+    });
   }
   if (cat.tools.includes('shovel')){
     const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
@@ -1367,6 +1469,17 @@ function buildToolTray(){
   }
 }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
+function applyTraySearch(){ // hide tray buttons that don't match the query
+  const q=(game.traySearch||'').toLowerCase().trim();
+  document.querySelectorAll('#toolTray .tool').forEach(b=>{
+    const k=b.dataset.k, P=k&&PLANTS[k];
+    let hay=k||'';
+    if (P){ hay=P.name+' '+P.latin+' '+(P.group||'');
+      if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
+        hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin; }); }
+    b.style.display=(!q||hay.toLowerCase().includes(q))?'':'none';
+  });
+}
 function refreshTray(){
   const cur=PLANTS[game.tool];
   document.querySelectorAll('.tool').forEach(el=>
@@ -1379,30 +1492,8 @@ function refreshTray(){
 function renderCvRow(){
   const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
   row.innerHTML='';
-  if (game.tool==='house' && game.house){ // size + paint chips, labeled groups
-    row.classList.remove('hidden');
-    const lab=t2=>{ const s=document.createElement('span');
-      s.className='chip-label'; s.textContent=t2; row.appendChild(s); };
-    const chip=(label,sel,fn,sw)=>{
-      const b=document.createElement('button');
-      b.className='chip'+(sel?' sel':''); b.textContent=label;
-      if (sw){ const dot=document.createElement('span'); dot.className='chip-swatch';
-        dot.style.background=sw; b.prepend(dot); }
-      b.onclick=()=>{ fn(); renderCvRow(); buildToolTray(); };
-      row.appendChild(b);
-    };
-    lab('House size');
-    HOUSE_SIZES.forEach(([label,wf,df])=>
-      chip(`${label} ${wf}'×${df}'`,
-        game.house.w===ftToTiles(wf)&&game.house.h===ftToTiles(df),
-        ()=>applyHouseSize(wf,df,label)));
-    lab('Wall color');
-    WALL_COLS.forEach(([n,c])=>
-      chip(n, game.house.wall===c, ()=>paintHouse('wall',c,n), c));
-    lab('Roof color');
-    ROOF_COLS.forEach(([n,c])=>
-      chip(n, game.house.roof===c, ()=>paintHouse('roof',c,n), c));
-    return;
+  if (game.tool==='house'){ // house options live in the tray itself now
+    row.classList.add('hidden'); return;
   }
   if (!P || (!P.cv && !P.group)){ row.classList.add('hidden'); return; }
   row.classList.remove('hidden');
@@ -1527,8 +1618,8 @@ function previewLoop(t){
   if (!$('creatorScreen').classList.contains('hidden')){
     pcx.clearRect(0,0,340,380);
     pcx.save(); pcx.scale(2,2);
-    drawPlant(pcx,40,168,'karl',1,'Fall',7,Math.sin(t*0.001));
-    drawPlant(pcx,132,172,'echinacea',1,'Summer',13,Math.sin(t*0.001));
+    drawPlant(pcx,40,168,'karl',1,'Fall',7,Math.sin(t*0.001),undefined,1);
+    drawPlant(pcx,132,172,'echinacea',1,'Summer',13,Math.sin(t*0.001),undefined,1);
     drawCritter(pcx,86,168,game.char,t,false,2.1);
     pcx.restore();
   }
@@ -1635,6 +1726,7 @@ $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
 $('btnRotate').onclick=rotateView;
+$('btnPhoto').onclick=takePhoto;
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
@@ -1658,7 +1750,7 @@ function menuRender(t){
   mcx.beginPath(); mcx.arc(W*0.74,H*0.42,38,0,7); mcx.fill();
   const sway=Math.sin(t*0.0011);
   meadow.forEach(m=>{ mcx.save(); mcx.translate(m.x*W,m.y*H); mcx.scale(m.s,m.s);
-    drawPlant(mcx,0,0,m.k,1,'Fall',m.seed,sway+Math.sin(t*0.0014+m.seed)*0.5); mcx.restore(); });
+    drawPlant(mcx,0,0,m.k,1,'Fall',m.seed,sway+Math.sin(t*0.0014+m.seed)*0.5,undefined,1); mcx.restore(); });
 }
 
 /* ---------- main loop ---------- */
