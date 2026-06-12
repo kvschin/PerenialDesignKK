@@ -708,10 +708,19 @@ function takePhoto(){
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
 let DPR = Math.min(2, window.devicePixelRatio||1);
-/* phones get a wider view: the world renders at 0.75x so ~1.3x more
-   garden fits on a small screen. All input math divides by ZOOM. */
-let ZOOM = 1;
-function calcZoom(){ ZOOM = Math.min(innerWidth,innerHeight)<760 ? 0.75 : 1; }
+/* view zoom: a small-screen base (phones start at 0.75x for ~1.3x more
+   garden) times the player's own zoom — pinch, wheel, +/- keys, or the
+   zoom pill. All drawing and input math runs through ZOOM. */
+let ZOOM = 1, baseZoom = 1, userZoom = 1;
+function calcZoom(){
+  baseZoom = Math.min(innerWidth,innerHeight)<760 ? 0.75 : 1;
+  ZOOM = Math.max(0.4, Math.min(1.8, baseZoom*userZoom));
+}
+function setUserZoom(z){
+  userZoom = Math.max(0.4, Math.min(2.2, z));
+  calcZoom(); if (game.mode) snapCam();
+}
+function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
 function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
@@ -952,7 +961,7 @@ function stampDrift(cx0,cy0,n){
     if (placed>=n) break;
     const x=cx0+ox, y=cy0+oy, k=`${x},${y}`;
     if (x<0||y<0||x>=GW||y>=GH) continue;
-    if (inHouse(x,y) || tileTerrain(x,y)==='path') continue;
+    if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='path') continue;
     const ex=game.plants[k]; if (ex && !ex.removed) continue;
     const sh=shadeAt(x,y); if (sh && def.sun!=='part') continue;
     const np={s:game.tool,d:absDay(),t:Date.now()+placed};
@@ -972,13 +981,23 @@ function doSleep(){
 /* ---------- house placement / sizing / paint ---------- */
 function pushHouse(){ game.houseT=Date.now();
   if (game.mode==='multi') sSet(wkey('house'),{h:game.house,t:game.houseT},true); }
+function displacePlants(x,y,w,h){ // a house can't share ground with plants
+  let n=0;
+  for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++){
+    const k=`${xx},${yy}`, p=game.plants[k];
+    if (p && !p.removed){ game.plants[k]={removed:true,t:Date.now()}; n++; }
+  }
+  if (n){ game.dirty=true; syncPlantsOut(); }
+  return n;
+}
 function placeHouse(x,y){
   const h=game.house; if (!h) return;
   const nx=Math.max(0,Math.min(GW-h.w,x)), ny=Math.max(0,Math.min(GH-h.h-1,y));
   const ppx=Math.round(game.px), ppy=Math.round(game.py);
   if (ppx>=nx&&ppx<nx+h.w&&ppy>=ny&&ppy<ny+h.h){ toast("You're standing in the way."); return; }
   h.x=nx; h.y=ny; game.dirty=true; pushHouse();
-  toast('The house settles onto new ground.');
+  const n=displacePlants(nx,ny,h.w,h.h);
+  toast('The house settles onto new ground.'+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
 }
 function applyHouseSize(wFt,dFt,label){
   const h=game.house, w=ftToTiles(wFt), d=ftToTiles(dFt);
@@ -988,7 +1007,8 @@ function applyHouseSize(wFt,dFt,label){
   if (inHouse(Math.round(game.px),Math.round(game.py))){
     const [dx2,dy2]=doorPos(); game.px=game.tx=dx2; game.py=game.ty=dy2; game.moving=false; }
   game.dirty=true; pushHouse();
-  toast(`${label} — ${wFt}' × ${dFt}'.`);
+  const n=displacePlants(h.x,h.y,w,d);
+  toast(`${label} — ${wFt}' × ${dFt}'.`+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
 }
 function paintHouse(part,col,label){
   game.house[part]=col; game.dirty=true; pushHouse();
@@ -1034,6 +1054,8 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if (k==='e'||k===' '){ e.preventDefault(); actHere(); return; }
   if (k==='r'){ e.preventDefault(); rotateView(); return; }
+  if (k==='+'||k==='='){ e.preventDefault(); zoomBy(1.12); return; }
+  if (k==='-'){ e.preventDefault(); zoomBy(0.89); return; }
   /* keys move in SCREEN directions: D is right on screen, W is up, etc.
      One key = a screen-cardinal step (a view diagonal); holding two keys
      combines into the view axes. The loop converts view direction to
@@ -1064,7 +1086,17 @@ function sweepLift(x,y){
 function evTile(e){ // pointer position -> world tile, zoom-aware
   return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
 }
+/* two fingers pinch the zoom; everything else is one-finger business */
+const activePtrs=new Map(); let pinch=null;
 cnv.addEventListener('pointerdown',e=>{
+  activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if (activePtrs.size===2){
+    const [a,b2]=[...activePtrs.values()];
+    pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom};
+    sweep=null; game.pathTarget=null; game.sleepOnArrive=false;
+    return;
+  }
+  if (activePtrs.size>1) return;
   const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='house'){ placeHouse(x,y); return; }
@@ -1082,10 +1114,20 @@ cnv.addEventListener('pointerdown',e=>{
   game.pathTarget=[x,y];
 });
 cnv.addEventListener('pointermove',e=>{
+  if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if (pinch && activePtrs.size>=2){
+    const [a,b2]=[...activePtrs.values()];
+    setUserZoom(pinch.z0*(Math.hypot(a[0]-b2[0],a[1]-b2[1])||1)/pinch.d0);
+    return;
+  }
   const [x,y]=evTile(e);
   if (sweep){ sweepLift(x,y); return; }
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
 });
+cnv.addEventListener('wheel',e=>{
+  if (!game.mode) return;
+  e.preventDefault(); zoomBy(e.deltaY<0?1.12:0.89);
+},{passive:false});
 function endSweep(){
   if (!sweep) return;
   const parts=[];
@@ -1099,8 +1141,16 @@ function endSweep(){
   else toast('Nothing under the shovel there.');
   sweep=null;
 }
-cnv.addEventListener('pointerup',endSweep);
-cnv.addEventListener('pointercancel',()=>{ sweep=null; });
+cnv.addEventListener('pointerup',e=>{
+  activePtrs.delete(e.pointerId);
+  if (activePtrs.size<2) pinch=null;
+  endSweep();
+});
+cnv.addEventListener('pointercancel',e=>{
+  activePtrs.delete(e.pointerId);
+  if (activePtrs.size<2) pinch=null;
+  sweep=null;
+});
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
 function followPath(){
   if (!game.pathTarget||game.moving) return;
@@ -1351,7 +1401,7 @@ function applyRegion(){
 }
 function updateRegionBtn(){
   const r=game.region;
-  $('btnRegion').textContent=(r.eco||r.zone||r.nativesOnly)
+  $('regionLbl').textContent=(r.eco||r.zone||r.nativesOnly)
     ? `${r.eco||'Any region'}${r.zone?' · z'+r.zone:''}` : 'Region';
 }
 
@@ -1578,11 +1628,13 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='bed') label='Dig bed';
   else if (game.tool==='house') label=null;           // house places by tap
   else if (PLANTS[game.tool]) label=game.drift?'Plant a drift':'Plant here';
-  const state=(ZOOM<1 && label) ? label : '';
+  const state=(baseZoom<1 && label) ? label : '';
   if (state!==lastAct){ lastAct=state;
     const b=document.getElementById('btnAct');
     b.classList.toggle('hidden',!state);
     if (state) b.textContent=state;
+    // the big button replaces the instructional hint on phones
+    document.getElementById('actionHint').classList.toggle('hidden',!!state);
   }
 }
 function updateHUD(){
@@ -1705,8 +1757,6 @@ $('btnStartGame').onclick=async()=>{
   } else {
     game.mode='multi';
     $('playersPill').classList.remove('hidden');
-    $('worldPill').innerHTML=`Garden <b>${game.code}</b> · <button id="btnQuit2">Menu</button>`;
-    $('btnQuit2').onclick=quitToMenu;
     syncTimer=setInterval(pollWorld,4000); pollWorld(); pushPresence();
   }
   enterGarden();
@@ -1728,14 +1778,8 @@ function enterGarden(){
   game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.lastDay=absDay();
   snapCam(); // start the camera on the player instead of easing in
   buildToolTray();
-  if (game.mode==='solo'){ // pill shows which garden this is
-    const wp=$('worldPill'); wp.textContent='';
-    wp.append(document.createTextNode((game.worldName||'Solo garden')+' · '));
-    const bs=document.createElement('button'); bs.id='btnSave'; bs.textContent='Save';
-    const bq=document.createElement('button'); bq.id='btnQuit'; bq.textContent='Menu';
-    wp.append(bs,document.createTextNode(' '),bq);
-    wireHudButtons();
-  }
+  $('worldLabel').textContent = game.mode==='multi'
+    ? `Garden ${game.code}` : (game.worldName||'Solo garden');
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
@@ -1779,14 +1823,16 @@ function quitToMenu(){
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
-  $('worldPill').innerHTML='Solo garden · <button id="btnSave">Save</button> <button id="btnQuit">Menu</button>';
-  wireHudButtons(); show('menuScreen');
+  show('menuScreen');
 }
-function wireHudButtons(){
-  const s=$('btnSave'); if (s) s.onclick=saveSolo;
-  const q=$('btnQuit'); if (q) q.onclick=quitToMenu;
-}
-wireHudButtons();
+$('btnMenu').onclick=quitToMenu;
+$('btnZoomIn').onclick=()=>zoomBy(1.18);
+$('btnZoomOut').onclick=()=>zoomBy(0.85);
+/* no Save button: autosave covers day changes, quitting, and the tab
+   being hidden or closed mid-session */
+function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
+addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); });
+addEventListener('pagehide',autosaveNow);
 $('btnSleep').onclick=doSleep;
 $('btnExport').onclick=openExport;
 $('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');

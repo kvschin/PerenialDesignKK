@@ -115,7 +115,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
     House tool: hover draws an RTS-style ghost — tinted footprint, red when
     the player stands in it, translucent house via `drawHouse` override —
-    and click/tap places; chips resize/repaint), shovel **drag-sweep**
+    and click/tap places; placing or resizing onto planted tiles
+    `displacePlants()` them with a count in the toast; drifts also skip
+    the door tile; chips resize/repaint), shovel **drag-sweep**
     (pointerdown with shovel starts a sweep; dragging lifts every plant
     crossed, and clears laid path/bed on tiles with no living plant —
     plants take priority, so a planted bed needs two passes; one toast +
@@ -158,13 +160,19 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
     Plus season dial, sleep button, plant-list, region, rotate, and photo
-    buttons, contextual action hint. On small screens (`ZOOM<1`) a big
-    contextual action button (`setActButton`: Plant here / Plant a drift /
-    Dig here / Lay path / Dig bed / Sleep; hidden for the House tool) calls
-    `actHere()` so first-time mobile players don't need the tap-twice
-    gesture. The plant card sits top-right with an ✕ (`showPlantCard(p,x,y)`
-    adds a shade warning when coords are given). The region choice persists
-    as `hortus:region`.
+    buttons (a compact icon bar; labels hide on small screens, the region
+    label shows the active filter), contextual action hint. There is no
+    Save button — autosave fires on day change, quit, and
+    visibilitychange/pagehide. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
+    userZoom`, driven by pinch (two-pointer tracking in the canvas
+    handlers), mouse wheel, +/- keys, and the fixed right-side zoom pill;
+    `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
+    big contextual action button (`setActButton`: Plant here / Plant a
+    drift / Dig here / Lay path / Dig bed / Sleep; hidden for the House
+    tool) calls `actHere()` and replaces the instructional hint. The plant
+    card sits top-right with an ✕ (`showPlantCard(p,x,y)` adds a shade
+    warning when coords are given). The region choice persists as
+    `hortus:region`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start new; Solo goes here when saves exist), multiplayer
     lobby, character creator (with live preview), code display, plot setup
