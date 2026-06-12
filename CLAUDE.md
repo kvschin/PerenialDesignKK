@@ -58,8 +58,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    (cultivar overrides merged over the species, cached) and branches on its
    `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
-   `spike`, `shrub` herbaceous mound, `bush` woody shrub, `tree` deciduous,
-   `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
+   `spike`, `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
+   woody shrub, `tree` deciduous, `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
    present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
    staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
@@ -145,7 +145,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     ecoregion membership for natives; cultivars have `eco:[]` so only the
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
     → forbs), the region-picker overlay wiring, and the tool tray:
-    `TRAY_CATS` category tabs (Grasses / Perennials / Shrubs / Trees / Dig /
+    `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
+    (`sunFilter` splits forbs+sedges by `sun`) / Shrubs / Trees / Dig /
     Landscape / House — a tool tab arms its first tool on click, and
     browsing a plant tab disarms house/shovel so taps go back to walking),
     species buttons in the active category (species sharing a
@@ -157,9 +158,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
     Plus season dial, sleep button, plant-list, region, rotate, and photo
-    buttons, contextual action hint. The plant card sits top-right with an
-    ✕ (`showPlantCard(p,x,y)` adds a shade warning when coords are given).
-    The region choice persists as `hortus:region`.
+    buttons, contextual action hint. On small screens (`ZOOM<1`) a big
+    contextual action button (`setActButton`: Plant here / Plant a drift /
+    Dig here / Lay path / Dig bed / Sleep; hidden for the House tool) calls
+    `actHere()` so first-time mobile players don't need the tap-twice
+    gesture. The plant card sits top-right with an ✕ (`showPlantCard(p,x,y)`
+    adds a shade warning when coords are given). The region choice persists
+    as `hortus:region`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start new; Solo goes here when saves exist), multiplayer
     lobby, character creator (with live preview), code display, plot setup

@@ -156,12 +156,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike'){
     const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
-    // basal foliage
-    const fn = stemFor(L.leaves||8);
-    ctx.strokeStyle = S.fol; ctx.lineWidth = L.leafW||1.8;
-    for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
-      ctx.beginPath(); ctx.moveTo(0,0);
-      ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+    // basal foliage (skipped in seasons with no foliage color)
+    if (S.fol){
+      const fn = stemFor(L.leaves||8);
+      ctx.strokeStyle = S.fol; ctx.lineWidth = L.leafW||1.8;
+      for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+    }
     // flower stems
     const sn = stemFor(P.form==='spike'?7:(L.stems||6));
     for (let i=0;i<sn;i++){
@@ -225,6 +227,54 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); } }
         else { ctx.beginPath(); ctx.arc(ox+sway*2,-len,key==='mountainmint'?3.4:2.6,0,7); ctx.fill(); }
       }
+    }
+  }
+  else if (P.form === 'fern'){ // arching fronds, leaflets tapering to the tip
+    if (S.fol){
+      const n=stemFor(9);
+      for (let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*1.9+(rnd()-0.5)*0.2;
+        const len=H*(0.65+rnd()*0.4);
+        const p1x=Math.sin(a)*len*0.8+sway*len*0.06, p1y=-Math.cos(a*0.55)*len;
+        const cxc=p1x*0.35, cyc=p1y*0.7;
+        const col=shade(S.fol,(rnd()-0.5)*22);
+        ctx.strokeStyle=col; ctx.lineWidth=1.1;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(cxc,cyc,p1x,p1y); ctx.stroke();
+        ctx.fillStyle=col;
+        for (let f=0.25;f<=0.95;f+=0.14){ // leaflets along the rachis
+          const u=1-f;
+          const bx=2*u*f*cxc+f*f*p1x, by=2*u*f*cyc+f*f*p1y;
+          ctx.beginPath(); ctx.ellipse(bx,by,(1-f)*4.2+0.8,1.1,a*0.5,0,7); ctx.fill();
+        }
+      }
+    }
+    if (S.seed && (mature||!S.fol)){ // ostrich fern's stiff fertile fronds hold all winter
+      ctx.strokeStyle=S.seed; ctx.lineWidth=1.8;
+      for (let i=0;i<3;i++){ const ox=(rnd()-0.5)*6;
+        ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox+sway*2,-H*(0.5+rnd()*0.2)); ctx.stroke(); }
+    }
+  }
+  else if (P.form === 'leafmound'){ // hosta: broad overlapping leaves, scapes above
+    if (S.fol){
+      const n=stemFor(11);
+      for (let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*2.4+(rnd()-0.5)*0.25;
+        const l=H*0.62*(0.6+rnd()*0.45);
+        const lx=Math.sin(a)*l, ly=-Math.cos(a*0.5)*l*0.7;
+        ctx.fillStyle=shade(S.fol,(rnd()-0.5)*26);
+        ctx.beginPath();
+        ctx.ellipse(lx*0.7+sway, ly*0.8, l*0.42, l*0.24, Math.atan2(ly,lx), 0, 7);
+        ctx.fill();
+      }
+    }
+    if (blooming && mature){
+      ctx.strokeStyle=shade(S.fol||'#6f8f5a',-18); ctx.lineWidth=1.1;
+      const m=Math.max(1,Math.ceil(3*blv));
+      for (let i=0;i<m;i++){ const ox=(rnd()-0.5)*10, len=H*(1.0+rnd()*0.2);
+        ctx.beginPath(); ctx.moveTo(ox*0.4,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
+        ctx.fillStyle=S.bloom;
+        for (let s2=0;s2<4;s2++){ ctx.beginPath();
+          ctx.ellipse(ox+sway*2+(rnd()-0.5)*2,-len+s2*2.8,1.5,2,0,0,7); ctx.fill(); } }
     }
   }
   else if (P.form === 'tree'){ // deciduous: trunk + branches always, canopy by season
@@ -325,6 +375,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
 }
 
 function shade(hex, amt){
+  if (!hex) hex='#6b6248'; // seasons without that color: dead-stem brown
   const n=parseInt(hex.slice(1),16);
   let r=(n>>16)+amt, g=((n>>8)&255)+amt, b=(n&255)+amt;
   r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
@@ -1308,13 +1359,14 @@ function updateRegionBtn(){
 /* tray categories: the bottom main menu. Shrubs and Trees are honest
    placeholders until woody plants exist (type 'shrub' / 'tree'). */
 const TRAY_CATS=[
-  {id:'grasses',    label:'Grasses',    types:['grass','sedge']},
-  {id:'perennials', label:'Perennials', types:['forb']},
-  {id:'shrubs',     label:'Shrubs',     types:['shrub']},
-  {id:'trees',      label:'Trees',      types:['tree']},
-  {id:'dig',        label:'Dig',        tools:['shovel']},
-  {id:'landscape',  label:'Landscape',  tools:['path','bed']},
-  {id:'house',      label:'House',      tools:['house']},
+  {id:'grasses',  label:'Grasses',          types:['grass','sedge']},
+  {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
+  {id:'shadeper', label:'Shade Perennials', types:['forb','sedge'], sunFilter:'part'},
+  {id:'shrubs',   label:'Shrubs',           types:['shrub']},
+  {id:'trees',    label:'Trees',            types:['tree']},
+  {id:'dig',      label:'Dig',              tools:['shovel']},
+  {id:'landscape',label:'Landscape',        tools:['path','bed']},
+  {id:'house',    label:'House',            tools:['house']},
 ];
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
@@ -1340,7 +1392,8 @@ function buildToolTray(){
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
   if (cat.types){
-    const keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
+    let keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
+    if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
     // if the filter took the selected species away, fall back sensibly
     const all=trayKeys();
     if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
@@ -1513,9 +1566,25 @@ function renderCvRow(){
     for (const v in (M.cv||{})) mk(k, v, M.cv[v].name, M.cv[v].note);
   });
 }
-let lastHint='';
+let lastHint='', lastAct='';
 function setHint(txt){ if (txt!==lastHint){ lastHint=txt;
   document.getElementById('actionHint').textContent=txt; } }
+function setActButton(){ // the big mobile do-it button, labeled by context
+  const px3=Math.round(game.px), py3=Math.round(game.py);
+  let label=null;
+  if (isDoor(px3,py3)) label='Sleep';
+  else if (game.tool==='shovel') label='Dig here';
+  else if (game.tool==='path') label='Lay path';
+  else if (game.tool==='bed') label='Dig bed';
+  else if (game.tool==='house') label=null;           // house places by tap
+  else if (PLANTS[game.tool]) label=game.drift?'Plant a drift':'Plant here';
+  const state=(ZOOM<1 && label) ? label : '';
+  if (state!==lastAct){ lastAct=state;
+    const b=document.getElementById('btnAct');
+    b.classList.toggle('hidden',!state);
+    if (state) b.textContent=state;
+  }
+}
 function updateHUD(){
   const cal=calClock();
   document.getElementById('seasonName').textContent=cal.season;
@@ -1528,6 +1597,7 @@ function updateHUD(){
     : isDoor(Math.round(game.px),Math.round(game.py))
     ? 'At the door — press E or tap here to sleep'
     : 'Tap a tile to walk · tap again to act — or WASD + E');
+  setActButton();
   const sd=absDay();
   if (sd!==game.lastDay){
     if (game.lastDay>=0 && sd%DAYS_PER_SEASON===0)
@@ -1727,6 +1797,7 @@ $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
 $('btnRotate').onclick=rotateView;
 $('btnPhoto').onclick=takePhoto;
+$('btnAct').onclick=()=>actHere();
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');

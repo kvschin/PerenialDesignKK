@@ -129,6 +129,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.2)}
 .tool.sel span{color:var(--seedhead)}
 #actionHint{pointer-events:none;font-size:12px;color:rgba(239,230,211,.85);background:rgba(25,18,15,.6);padding:4px 12px;border-radius:3px}
+#btnAct{pointer-events:auto;background:var(--bronze);border:none;color:var(--ink);
+  font-weight:700;font-size:15px;padding:12px 32px;border-radius:26px;
+  box-shadow:0 3px 10px rgba(0,0,0,.4);letter-spacing:.02em}
+#btnAct:active{transform:translateY(1px)}
 #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:rgba(25,18,15,.92);border:1.5px solid var(--bronze);
   color:var(--seedhead);padding:10px 18px;border-radius:4px;font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #plantCard{position:fixed;top:108px;right:10px;background:rgba(25,18,15,.94);

@@ -7,7 +7,8 @@
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
            oatgrass | cone | globe | spike | shrub (herbaceous mound) |
-           bush (woody shrub) | tree (deciduous) | conifer
+           fern | leafmound (hosta) | bush (woody shrub) |
+           tree (deciduous) | conifer
    type    grass | sedge | forb | shrub | tree — drives the tray categories
    grow    woody only: years to mature size (establishment horizon —
            perennials use 10 growing days; a bur oak uses 10 years).
@@ -218,6 +219,43 @@ const PLANTS = {
     space:18, spread:15, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool', eco:[], stem:'#3a3038',
     blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
+
+  /* ---------- shade perennials: under the canopy ---------- */
+  hosta:{ name:'Hosta', latin:'Hosta hybrida', form:'leafmound', type:'forb', h:30,
+    space:30, spread:36, zones:[3,9], native:false, sun:'part', moist:'medium', phen:'mid', eco:[],
+    blurb:'The shade workhorse — broad ribbed leaves in a tidy mound, lavender scapes in July. Deer agree.',
+    sea:{Spring:{fol:'#7a9a6a'}, Summer:{fol:'#6f8f5a',bloom:'#b8a8d8'}, Fall:{fol:'#c9b86a'}, Winter:{}},
+    cv:{
+      blueangel:{name:"'Blue Angel'", note:'huge blue-gray leaves',
+        sea:{Spring:{fol:'#7e95a0'}, Summer:{fol:'#7a93a0',bloom:'#cfc8e8'}, Fall:{fol:'#b8ad7a'}, Winter:{}}},
+      sumsubstance:{name:"'Sum and Substance'", note:'chartreuse, the brighter the shade the better',
+        sea:{Spring:{fol:'#aac25a'}, Summer:{fol:'#a8c25a',bloom:'#cabfe0'}, Fall:{fol:'#c9b85a'}, Winter:{}}},
+    }},
+  ostrichfern:{ name:'Ostrich Fern', latin:'Matteuccia struthiopteris', form:'fern', type:'forb', h:55,
+    space:36, spread:48, zones:[3,7], native:true, sun:'part', moist:'moist', phen:'cool',
+    eco:['Western Corn Belt Plains'],
+    blurb:'Vase of plumes shoulder-high in a damp corner; stiff fertile fronds stand all winter. Fiddleheads in April.',
+    sea:{Spring:{fol:'#7aa55a'}, Summer:{fol:'#5d8a4c'}, Fall:{fol:'#a8893f',seed:'#6e4a32'}, Winter:{seed:'#6e4a32'}}},
+  ladyfern:{ name:'Lady Fern', latin:'Athyrium filix-femina', form:'fern', type:'forb', h:36,
+    space:24, spread:30, zones:[3,8], native:true, sun:'part', moist:'moist', phen:'cool',
+    eco:['Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'Lacy, fresh-green, and forgiving — the fern for the north side of anything.',
+    sea:{Spring:{fol:'#8ab06a'}, Summer:{fol:'#6f9a55'}, Fall:{fol:'#b09a55'}, Winter:{}}},
+  christmasfern:{ name:'Christmas Fern', latin:'Polystichum acrostichoides', form:'fern', type:'forb', h:30,
+    space:24, spread:24, zones:[3,9], native:true, sun:'part', moist:'medium', phen:'cool',
+    eco:['Ozark Highlands','Central Irregular Plains'],
+    blurb:'Leathery fronds still green at Christmas, hence the name. Dry shade once settled.',
+    sea:{Spring:{fol:'#5d8a52'}, Summer:{fol:'#4e7a48'}, Fall:{fol:'#4e7a48'}, Winter:{fol:'#3f5e42'}}},
+  pennsedge:{ name:'Pennsylvania Sedge', latin:'Carex pensylvanica', form:'bunchgrass', type:'sedge', h:18,
+    space:12, spread:15, zones:[3,8], native:true, sun:'part', moist:'dry', phen:'cool',
+    eco:['Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'A soft no-mow lawn for dry shade — ankle-high swirls under the oaks.',
+    sea:{Spring:{fol:'#7aa55a',seed:'#c2b48a'}, Summer:{fol:'#6f9a55'}, Fall:{fol:'#a8945e'}, Winter:{fol:'#a89a78'}}},
+  columbine:{ name:'Wild Columbine', latin:'Aquilegia canadensis', form:'globe', type:'forb', h:32,
+    space:12, spread:15, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'Red-and-yellow lanterns nodding over lacy leaves in April, made for returning hummingbirds.',
+    sea:{Spring:{fol:'#6f8f6e',bloom:'#c8503a'}, Summer:{fol:'#7a936a'}, Fall:{fol:'#9a8a5e',seed:'#5e5244'}, Winter:{seed:'#4a4238'}}},
 
   /* ---------- woody shrubs ---------- */
   leadplant:{ name:'Leadplant', latin:'Amorpha canescens', form:'bush', type:'shrub', h:36, cw:44,
