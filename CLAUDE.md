@@ -69,8 +69,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    `AMBIENCE[season].snow`.
 7. **`drawCritter(...)`** — round-bodied cat/dog avatar, with walk bob, tail,
    ears that differ by species, and tuxedo/patch markings.
-8. **`game`** — the single mutable state object (mode, player position, plants
-   map, tool, multiplayer presence, timing).
+8. **`game`** — the single mutable state object (mode, player position,
+   plants map, `bulbs` map — a second layer sharing tiles with plants —
+   tool, multiplayer presence, timing).
 9. **Time helpers + phenology** — `absDay()`, `calClock()`
    (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
    `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
@@ -80,7 +81,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    warm 7/28 — full through fall, winter holds full-size dead structure).
    Woody plants (`type` shrub/tree) skip the envelope entirely — no spring
    cutback — and establish over `grow` *years* of growing days instead of
-   10 days. `canopyRadius()`/`shadeAt()`: trees shade `spread/TILE_IN/2`
+   10 days. Bulbs (`type` bulb) use `bulbEnvelope()`: up at spring day 0,
+   full by day 1.5, yellowing away by day 15, underground (growth 0,
+   render-culled) the rest of the year; `bloomDay` sequences their bloom
+   (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `spread/TILE_IN/2`
    tiles (scaled by establishment); planting there is refused unless the
    plant is `sun:'part'`. The plant card reports establishment, not
    seasonal size.
@@ -121,19 +125,25 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (pointerdown with shovel starts a sweep; dragging lifts every plant
     crossed, and clears laid path/bed on tiles with no living plant —
     plants take priority, so a planted bed needs two passes; one toast +
-    sync at pointerup), tap and keyboard input. Planting checks `shadeAt`
-    (tree canopies admit only `sun:'part'` plants). With the Drift toggle
-    on, planting calls `stampDrift()` — a loose shuffled cluster around the
-    target tile, sized by spacing (`driftCount`: ≤12" → 7, ≤18" → 5,
-    ≤30" → 3); woody plants always plant singly; tiles that are occupied,
-    paths, in-house, or too shady are skipped. **Keys map to SCREEN directions**
+    sync at pointerup), tap and keyboard input. All placement funnels
+    through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
+    bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
+    refuse planted tiles). **Drag-to-plant**: pointerdown with a
+    plant/bulb/path/bed armed defers; crossing a tile line turns the
+    gesture into a paint-drag that applies the tool to every tile crossed
+    (one toast + sync at pointerup via `finishToolDrag`), while a plain
+    tap resolves at pointerup to the classic walk/act (`tapAction`). With
+    the Drift toggle on, single planting calls `stampDrift()` — a loose
+    shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
+    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The shovel
+    lifts plants, then bulbs, then terrain. **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
-    each save lives at `hortus:world:<id>` (plants + terrain + gw/gh + rot +
-    house + name + `wv` walkway flag). The old single `hortus:solo` key
+    each save lives at `hortus:world:<id>` (plants + bulbs + terrain +
+    gw/gh + rot + house + name + `wv` walkway flag). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
@@ -148,8 +158,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
-    (`sunFilter` splits forbs+sedges by `sun`) / Shrubs / Trees / Dig /
-    Landscape / House — a tool tab arms its first tool on click, and
+    (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
+    Dig / Landscape / House — a tool tab arms its first tool on click, and
     browsing a plant tab disarms house/shovel so taps go back to walking),
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group

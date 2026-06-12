@@ -7,9 +7,16 @@
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
            oatgrass | cone | globe | spike | shrub (herbaceous mound) |
-           fern | leafmound (hosta) | bush (woody shrub) |
-           tree (deciduous) | conifer
-   type    grass | sedge | forb | shrub | tree — drives the tray categories
+           fern | leafmound (hosta) | bulbcup (crocus/tulip/daffodil) |
+           bush (woody shrub) | tree (deciduous) | conifer
+   type    grass | sedge | forb | bulb | shrub | tree — drives the tray
+           categories. Bulbs live in their own layer (game.bulbs): they
+           share tiles with perennials, bloom in earliest spring while
+           the layer above is cut back, and vanish underground by summer
+   bloomDay  optional: day-of-season the bloom peaks (bulbs sequence
+           through spring: crocus 1, daffodil 3, muscari 4, tulip 6,
+           camassia 9); species without it peak by phen (cool 5, mid 8,
+           warm 11)
    grow    woody only: years to mature size (establishment horizon —
            perennials use 10 growing days; a bur oak uses 10 years).
            Woody plants skip the spring cutback; they are structure.
@@ -219,6 +226,34 @@ const PLANTS = {
     space:18, spread:15, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool', eco:[], stem:'#3a3038',
     blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
+
+  /* ---------- bulbs: the layer under everything ----------
+     They share tiles with perennials and bloom while the upper layer
+     is still cut back — the Oudolf bulb lasagne. */
+  crocus:{ name:'Snow Crocus', latin:'Crocus tommasinianus', form:'bulbcup', type:'bulb', h:10,
+    space:3, spread:3, zones:[3,8], native:false, sun:'part', moist:'medium', phen:'cool', bloomDay:1, eco:[],
+    look:{stems:5, cup:2.6},
+    blurb:'First color of the year — lavender cups in the snowmelt, gone before the grasses stir. Squirrel-proof, mostly.',
+    sea:{Spring:{fol:'#6f9a5a',bloom:'#a98ad8',eye:'#e8b83a'}, Summer:{}, Fall:{}, Winter:{}}},
+  daffodil:{ name:'Daffodil', latin:'Narcissus pseudonarcissus', form:'bulbcup', type:'bulb', h:22,
+    space:6, spread:6, zones:[3,8], native:false, sun:'part', moist:'medium', phen:'cool', bloomDay:3, eco:[],
+    look:{stems:3, cup:3.4},
+    blurb:"Yellow trumpets the rodents won't touch. Plant once, count more every April.",
+    sea:{Spring:{fol:'#5d8a4c',bloom:'#e8c23a',eye:'#e8902a'}, Summer:{}, Fall:{}, Winter:{}}},
+  muscari:{ name:'Grape Hyacinth', latin:'Muscari armeniacum', form:'spike', type:'bulb', h:12,
+    space:3, spread:3, zones:[4,8], native:false, sun:'part', moist:'medium', phen:'cool', bloomDay:4, eco:[],
+    blurb:'Cobalt beads by the hundred. Let it run through the bulb lawn.',
+    sea:{Spring:{fol:'#6f9a5a',bloom:'#4a5dae'}, Summer:{}, Fall:{}, Winter:{}}},
+  tulip:{ name:'Species Tulip', latin:'Tulipa clusiana', form:'bulbcup', type:'bulb', h:18,
+    space:5, spread:5, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool', bloomDay:6, eco:[],
+    look:{stems:3, cup:3.2},
+    blurb:'The wild kind that comes back — slim candy-striped cups that close at night.',
+    sea:{Spring:{fol:'#6f8f6e',bloom:'#c0392b',eye:'#e8c23a'}, Summer:{}, Fall:{}, Winter:{}}},
+  camassia:{ name:'Wild Hyacinth', latin:'Camassia scilloides', form:'spike', type:'bulb', h:30,
+    space:6, spread:6, zones:[4,8], native:true, sun:'part', moist:'moist', phen:'cool', bloomDay:9,
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:"The prairie's own bulb — steeples of pale violet stars in late spring, then gone into the grass.",
+    sea:{Spring:{fol:'#6f9a5a',bloom:'#8a8ac8'}, Summer:{}, Fall:{}, Winter:{}}},
 
   /* ---------- shade perennials: under the canopy ---------- */
   hosta:{ name:'Hosta', latin:'Hosta hybrida', form:'leafmound', type:'forb', h:30,

@@ -229,6 +229,30 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
+  else if (P.form === 'bulbcup'){ // crocus/tulip/daffodil: straps and cups
+    const L2=P.look||{};
+    if (S.fol){
+      const n=stemFor(5);
+      ctx.strokeStyle=S.fol; ctx.lineWidth=1.4;
+      for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*1.2+(rnd()-0.5)*0.2, l=H*(0.5+rnd()*0.4);
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.6,Math.sin(a)*l*0.8,-l); ctx.stroke(); }
+    }
+    if (blooming){
+      const sn=Math.max(1,Math.ceil((L2.stems||3)*blv)), cup=L2.cup||3;
+      for (let i=0;i<sn;i++){
+        const ox=(rnd()-0.5)*8, len=H*(0.7+rnd()*0.3);
+        ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway,-len); ctx.stroke();
+        ctx.strokeStyle=S.bloom; ctx.lineWidth=1.8;
+        for (let p2=-1;p2<=1;p2++){ ctx.beginPath();
+          ctx.moveTo(ox+sway,-len);
+          ctx.lineTo(ox+sway+p2*cup*0.8,-len-cup*1.6); ctx.stroke(); }
+        if (S.eye){ ctx.fillStyle=S.eye;
+          ctx.beginPath(); ctx.arc(ox+sway,-len-cup*0.5,cup*0.45,0,7); ctx.fill(); }
+      }
+    }
+  }
   else if (P.form === 'fern'){ // arching fronds, leaflets tapering to the tip
     if (S.fol){
       const n=stemFor(9);
@@ -505,6 +529,7 @@ const game = {
   mode:null, code:null, playerId:null,
   char:{species:'cat', coatIdx:0, coat:COATS[0].c, coatD:COATS[0].d, mark:'solid', name:''},
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
+  bulbs:{},           // same shape — the layer under the plants
   terrain:{},         // "x,y" -> {k:'path'|'bed', t:ts} or {removed:true,t}
   startTs:Date.now(), dayOffset:0,
   px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
@@ -568,9 +593,17 @@ function seasonEnvelope(key){
   const t=(ydf-g.w)/(g.f-g.w);
   return 0.12+0.88*t*t*(3-2*t);                      // smoothstep up
 }
+function bulbEnvelope(){ // up with the thaw, gone under the summer canopy
+  const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
+  if (ydf>=DAYS_PER_SEASON) return 0;          // underground from summer on
+  if (ydf<1.5) return ydf/1.5;
+  if (ydf<10) return 1;
+  return Math.max(0,(DAYS_PER_SEASON-1-ydf)/5); // foliage yellows away
+}
 function plantGrowth(p){
   const P=PLANTS[p.s];
   if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
+  if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope();
   return plantEstab(p)*seasonEnvelope(p.s);
 }
 /* bloom staggering: within a bloom season each species rises, peaks,
@@ -582,7 +615,8 @@ function bloomLevel(key){
   const P=PLANTS[key]||{};
   const centers={cool:5, mid:8, warm:11};
   const jit=(((key.charCodeAt(0)||0)+key.length)%5-2)*0.8;
-  const t2=Math.max(0, 1-Math.abs(d-((centers[P.phen]||8)+jit))/7);
+  const c=(P.bloomDay!==undefined)?P.bloomDay:(centers[P.phen]||8)+jit;
+  const t2=Math.max(0, 1-Math.abs(d-c)/7);
   return t2*t2*(3-2*t2);
 }
 /* trees throw shade as they establish; only part-sun plants grow there */
@@ -822,6 +856,15 @@ function render(t){
     if (P && P.type==='tree'){ const r=canopyRadius(p);
       if (r>=1){ const [tx2,ty2]=k.split(',').map(Number); shadeTrees.push([tx2,ty2,r,k]); } }
   }
+  // the bulb layer: invisible most of the year, so cull hard
+  for (const k in game.bulbs){ const p=game.bulbs[k];
+    if (p.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    if (x<x0||x>x1||y<y0||y>y1) continue;
+    const gB=plantGrowth(p); if (gB<=0.02) continue;
+    ents.push({depth:viewDepth(x,y)+0.25, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+      drawPlant(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v);}});
+  }
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
@@ -908,10 +951,14 @@ function actHere(){
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
   const terr = tileTerrain(x,y);
+  const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
     if (hasPlant){
       game.plants[k]={removed:true,t:Date.now()}; game.dirty=true;
       toast('Lifted. Good divisions make free plants.'); syncPlantsOut(); }
+    else if (hasBulb){
+      game.bulbs[k]={removed:true,t:Date.now()}; game.dirty=true;
+      toast('Bulb dug up.'); syncBulbsOut(); }
     else if (terr){
       game.terrain[k]={removed:true,t:Date.now()}; game.dirty=true;
       toast(terr==='path'?'Path dug up.':'Bed turned back to grass.'); syncTerrainOut(); }
@@ -926,9 +973,20 @@ function actHere(){
     syncTerrainOut();
     return;
   }
+  const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
+  if (!def) return;
+  if (def.type==='bulb'){ // bulbs go UNDER plants — a plant here is no obstacle
+    if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
+    if (terr==='path'){ toast('Not in the gravel — lift the path first.'); return; }
+    const n=game.drift?driftCount(def):1;
+    if (n>1){ stampDrift(x,y,n); return; }
+    if (applyToolAt(x,y)){ syncBulbsOut();
+      toast(`Tucked in ${def.name} — it shows at first thaw.`); }
+    else toast('No spot for a bulb here.');
+    return;
+  }
   if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
-  const def=plantDef(game.tool,game.toolVar);
   const shadeTree=shadeAt(x,y);
   if (shadeTree && def.sun!=='part'){
     toast(`Too shady under the ${PLANTS[shadeTree.s].name.toLowerCase()} — shade-tolerant plants only.`);
@@ -936,18 +994,53 @@ function actHere(){
   }
   const n=game.drift?driftCount(def):1;
   if (n>1){ stampDrift(x,y,n); return; }
-  const np={s:game.tool,d:absDay(),t:Date.now()};
-  if (game.toolVar) np.v=game.toolVar;
-  game.plants[k]=np; game.dirty=true; plantFx(x,y);
-  toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`);
-  syncPlantsOut();
+  if (applyToolAt(x,y)){ syncPlantsOut();
+    toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
+  else toast('No room here.');
 }
 function plantFx(x,y){ game.fx.push({x,y,t0:performance.now()}); }
 /* drift planting: one action stamps a loose, natural cluster. Tighter
    spacers come in bigger drifts; woody plants always plant singly. */
 function driftCount(def){
   if (def.type==='shrub'||def.type==='tree') return 1;
-  return def.space<=12?7 : def.space<=18?5 : def.space<=30?3 : 1;
+  return def.space<=6?9 : def.space<=12?7 : def.space<=18?5 : def.space<=30?3 : 1;
+}
+/* the one silent placer behind drifts, drags, and single planting:
+   puts the armed tool on a tile if it fits, no toasts. Returns what
+   it placed ('plant'|'bulb'|'path'|'bed') or null. */
+function applyToolAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return null;
+  if (inHouse(x,y) || isDoor(x,y)) return null;
+  const k=`${x},${y}`, terr=tileTerrain(x,y);
+  if (game.tool==='path'||game.tool==='bed'){
+    const ex=game.plants[k];
+    if (ex && !ex.removed) return null;
+    if (terr===game.tool) return null;
+    game.terrain[k]={k:game.tool,t:Date.now()}; game.dirty=true;
+    return game.tool;
+  }
+  if (!PLANTS[game.tool]) return null;
+  const def=plantDef(game.tool,game.toolVar);
+  if (terr==='path') return null;
+  const np={s:game.tool,d:absDay(),t:Date.now()};
+  if (game.toolVar) np.v=game.toolVar;
+  if (def.type==='bulb'){ // bulbs tuck in under whatever is planted above
+    const eb=game.bulbs[k];
+    if (eb && !eb.removed) return null;
+    game.bulbs[k]=np; game.dirty=true; plantFx(x,y);
+    return 'bulb';
+  }
+  const ex=game.plants[k];
+  if (ex && !ex.removed) return null;
+  const sh=shadeAt(x,y);
+  if (sh && def.sun!=='part') return null;
+  game.plants[k]=np; game.dirty=true; plantFx(x,y);
+  return 'plant';
+}
+function syncToolLayer(what){
+  if (what==='path'||what==='bed') syncTerrainOut();
+  else if (what==='bulb') syncBulbsOut();
+  else syncPlantsOut();
 }
 function stampDrift(cx0,cy0,n){
   const offs=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
@@ -956,19 +1049,13 @@ function stampDrift(cx0,cy0,n){
   for (let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0;
     [rest[i],rest[j]]=[rest[j],rest[i]]; }
   const def=plantDef(game.tool,game.toolVar);
-  let placed=0;
+  let placed=0, what=null;
   for (const [ox,oy] of [offs[0],...rest]){
     if (placed>=n) break;
-    const x=cx0+ox, y=cy0+oy, k=`${x},${y}`;
-    if (x<0||y<0||x>=GW||y>=GH) continue;
-    if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='path') continue;
-    const ex=game.plants[k]; if (ex && !ex.removed) continue;
-    const sh=shadeAt(x,y); if (sh && def.sun!=='part') continue;
-    const np={s:game.tool,d:absDay(),t:Date.now()+placed};
-    if (game.toolVar) np.v=game.toolVar;
-    game.plants[k]=np; plantFx(x,y); placed++;
+    const r=applyToolAt(cx0+ox,cy0+oy);
+    if (r){ placed++; what=r; }
   }
-  if (placed){ game.dirty=true; syncPlantsOut();
+  if (placed){ syncToolLayer(what);
     toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
   else toast('No room for a drift here.');
 }
@@ -1077,7 +1164,13 @@ function sweepLift(x,y){
     game.dirty=true; sweep.plants++;
     return;
   }
-  // no plant here: bare laid path/bed comes up instead
+  const b3=game.bulbs[k]; // then the layer underneath
+  if (b3 && !b3.removed){
+    game.bulbs[k]={removed:true,t:Date.now()};
+    game.dirty=true; sweep.bulbs++;
+    return;
+  }
+  // bare ground: laid path/bed comes up instead
   if (tileTerrain(x,y)){
     game.terrain[k]={removed:true,t:Date.now()};
     game.dirty=true; sweep.terr++;
@@ -1087,13 +1180,13 @@ function evTile(e){ // pointer position -> world tile, zoom-aware
   return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
 }
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null;
+const activePtrs=new Map(); let pinch=null, toolDrag=null;
 cnv.addEventListener('pointerdown',e=>{
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
     pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom};
-    sweep=null; game.pathTarget=null; game.sleepOnArrive=false;
+    sweep=null; toolDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
     return;
   }
   if (activePtrs.size>1) return;
@@ -1101,18 +1194,37 @@ cnv.addEventListener('pointerdown',e=>{
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, terr:0};
+    sweep={plants:0, bulbs:0, terr:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
+  // plant/bulb/path/bed: press-and-drag paints tiles like the shovel
+  // sweeps them; a plain tap (resolved at pointerup) walks or acts
+  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed'){
+    toolDrag={sx:x, sy:y, active:false, count:0, what:null};
+    try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+    return;
+  }
+  tapAction(x,y);
+});
+function tapAction(x,y){ // the classic tap: walk there, act on your own tile
   if (inHouse(x,y)){ // tapping the house walks to the door, then sleeps
     const [dx2,dy2]=doorPos();
     game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true; return; }
   game.sleepOnArrive=false;
   if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(); return; }
-  // step one tile toward target repeatedly handled in loop via pathTarget
   game.pathTarget=[x,y];
-});
+}
+function finishToolDrag(){
+  if (!toolDrag || !toolDrag.active) return;
+  if (toolDrag.count){
+    syncToolLayer(toolDrag.what);
+    const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
+    toast(toolDrag.what==='path' ? `Laid ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`
+        : toolDrag.what==='bed'  ? `Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`
+        : `Planted ${toolDrag.count} — ${def.name}.`);
+  } else toast('Nothing would take along that line.');
+}
 cnv.addEventListener('pointermove',e=>{
   if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (pinch && activePtrs.size>=2){
@@ -1122,6 +1234,18 @@ cnv.addEventListener('pointermove',e=>{
   }
   const [x,y]=evTile(e);
   if (sweep){ sweepLift(x,y); return; }
+  if (toolDrag){
+    if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
+      toolDrag.active=true; // crossed a tile line: it's a paint-drag now
+      const r0=applyToolAt(toolDrag.sx,toolDrag.sy);
+      if (r0){ toolDrag.count++; toolDrag.what=r0; }
+    }
+    if (toolDrag.active){
+      const r=applyToolAt(x,y);
+      if (r){ toolDrag.count++; toolDrag.what=r; }
+    }
+    return;
+  }
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
 });
 cnv.addEventListener('wheel',e=>{
@@ -1132,10 +1256,12 @@ function endSweep(){
   if (!sweep) return;
   const parts=[];
   if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
+  if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
   if (sweep.terr) parts.push(`${sweep.terr} path/bed tile${sweep.terr>1?'s':''}`);
   if (parts.length){
     toast(`Lifted ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
+    if (sweep.bulbs) syncBulbsOut();
     if (sweep.terr) syncTerrainOut();
   }
   else toast('Nothing under the shovel there.');
@@ -1144,12 +1270,17 @@ function endSweep(){
 cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
+  if (toolDrag){
+    if (toolDrag.active) finishToolDrag();
+    else tapAction(toolDrag.sx,toolDrag.sy);
+    toolDrag=null;
+  }
   endSweep();
 });
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  sweep=null;
+  sweep=null; toolDrag=null;
 });
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
 function followPath(){
@@ -1203,7 +1334,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
     gw:GW,gh:GH,rot:game.rot,house:game.house,
-    plants:game.plants,terrain:game.terrain,
+    plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH});
@@ -1224,6 +1355,7 @@ async function loadSolo(id){
   setWorldSize(s.gw||s.grid||31, s.gh||s.grid||31);
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.plants=shiftKeys(s.plants||{},shift);
+  game.bulbs=shiftKeys(s.bulbs||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
   game.house=s.house||defaultHouse();
   game.rot=s.rot||0;
@@ -1242,11 +1374,13 @@ function wkey(part){ return `hortus:w:${game.code}:${part}`; }
 let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
-  game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
+  game.startTs=Date.now(); game.dayOffset=0;
+  game.plants={}; game.bulbs={}; game.terrain={};
   setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
+  await sSet(wkey('bulbs'),{},true);
   await sSet(wkey('terrain'),game.terrain,true);
   await sSet(wkey('house'),{h:game.house,t:game.houseT},true);
 }
@@ -1257,6 +1391,7 @@ async function joinWorld(code){
   game.startTs=meta.startTs; game.dayOffset=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
+  const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
   const ho=await sGet(wkey('house'),true);
   game.house=(ho&&ho.h)||defaultHouse(); game.houseT=(ho&&ho.t)||0;
@@ -1273,6 +1408,12 @@ async function syncTerrainOut(){
   const remote=await sGet(wkey('terrain'),true)||{};
   mergeMap(game.terrain,remote);
   await sSet(wkey('terrain'),game.terrain,true);
+}
+async function syncBulbsOut(){
+  if (game.mode!=='multi') { return; }
+  const remote=await sGet(wkey('bulbs'),true)||{};
+  mergeMap(game.bulbs,remote);
+  await sSet(wkey('bulbs'),game.bulbs,true);
 }
 function mergeMap(target,remote){ // last write wins, per tile
   for (const k in remote){ const r=remote[k], l=target[k];
@@ -1292,6 +1433,8 @@ async function pollWorld(){
   if (remote) mergeMap(game.plants,remote);
   const remoteT=await sGet(wkey('terrain'),true);
   if (remoteT) mergeMap(game.terrain,remoteT);
+  const remoteB=await sGet(wkey('bulbs'),true);
+  if (remoteB) mergeMap(game.bulbs,remoteB);
   const ho=await sGet(wkey('house'),true);
   if (ho && ho.h && (ho.t||0)>game.houseT){ game.house=ho.h; game.houseT=ho.t; }
   const players=await sGet(wkey('players'),true)||{};
@@ -1312,9 +1455,11 @@ async function pollWorld(){
    clumper like baptisia needs fewer. */
 function exportRows(){
   const counts={}; // keyed species|cultivar — cultivars order separately
-  for (const k in game.plants){ const p=game.plants[k];
-    if (!p.removed && p.s){ const ck=p.s+'|'+(p.v||'');
-      counts[ck]=(counts[ck]||0)+1; } }
+  [game.plants,game.bulbs].forEach(layer=>{
+    for (const k in layer){ const p=layer[k];
+      if (!p.removed && p.s){ const ck=p.s+'|'+(p.v||'');
+        counts[ck]=(counts[ck]||0)+1; } }
+  });
   return Object.keys(counts).map(ck=>{
     const [s,v]=ck.split('|'), P=plantDef(s,v||null), n=counts[ck];
     return {name:P.name, latin:P.latin, native:P.native, count:n,
@@ -1365,8 +1510,8 @@ function plantFits(k){
   if (r.eco && P.native && !P.eco.includes(r.eco)) return false;
   return true;
 }
-function trayKeys(){ // grasses first (the matrix), then sedges, forbs, woody
-  const ord={grass:0, sedge:1, forb:2, shrub:3, tree:4};
+function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs, woody
+  const ord={grass:0, sedge:1, forb:2, bulb:3, shrub:4, tree:5};
   return PLANT_KEYS.filter(plantFits).sort((a,b)=>
     (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
 }
@@ -1412,6 +1557,7 @@ const TRAY_CATS=[
   {id:'grasses',  label:'Grasses',          types:['grass','sedge']},
   {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
   {id:'shadeper', label:'Shade Perennials', types:['forb','sedge'], sunFilter:'part'},
+  {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'dig',      label:'Dig',              tools:['shovel']},
@@ -1474,7 +1620,7 @@ function buildToolTray(){
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-      drawPlant(ctx2,24/sc,42/sc,rep,1,'Summer',tileSeed(3,7),0,undefined,1);
+      drawPlant(ctx2,24/sc,42/sc,rep,1,R.type==='bulb'?'Spring':'Summer',tileSeed(3,7),0,undefined,1);
       const sp=document.createElement('span');
       sp.textContent=P.group ? P.group[0].toUpperCase()+P.group.slice(1)
                              : P.name.split(' ').slice(0,2).join(' ');
@@ -1807,7 +1953,8 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.house=defaultHouse(); game.rot=0;
-      game.startTs=Date.now(); game.dayOffset=0; game.plants={}; game.terrain={};
+      game.startTs=Date.now(); game.dayOffset=0;
+      game.plants={}; game.bulbs={}; game.terrain={};
       seedWalkway(); starterDrift(); enterGarden();
       saveSolo(true); // claim the slot right away
     };
