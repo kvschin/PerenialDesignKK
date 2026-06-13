@@ -2148,7 +2148,7 @@ function updateHUD(){
 const $=id=>document.getElementById(id);
 function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen') refreshMenuCards();
+  if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
 let pendingMode=null;
 const MULTIPLAYER_ENABLED=false;
@@ -2371,30 +2371,79 @@ $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
 sizeCanvas(mcnv); sizeCanvas(cnv);
-const meadow=[];
-(function seedMeadow(){
-  const keys=['karl','bluestem','echinacea','allium','dropseed','salvia','rattlesnake'];
+const MENU_SCENES={
+  Spring:{
+    sky:['#6f8795','#cfdac3','#1c1813'],
+    glow:['rgba(202,213,132,.30)','rgba(96,132,78,.18)'],
+    ground:'rgba(30,46,29,.30)', alpha:.72, bloom:1,
+    keys:['crocus','daffodil','muscari','camassia','baptisia','creamindigo','amsonia','sedge','karl']
+  },
+  Summer:{
+    sky:['#627d83','#9ebd91','#1d1812'],
+    glow:['rgba(218,184,96,.28)','rgba(80,112,70,.18)'],
+    ground:'rgba(31,55,29,.34)', alpha:.66, bloom:1,
+    keys:['echinacea','pallida','rattlesnake','allium','yarrow','monarda','culvers','switchgrass','dropseed']
+  },
+  Fall:{
+    sky:['#211610','#3b2a22','#17100d'],
+    glow:['rgba(166,91,44,.28)','rgba(92,58,36,.16)'],
+    ground:'rgba(16,10,8,.34)', alpha:.58, bloom:1,
+    keys:['aster','newengland','goldenrod','liatris','sedum','bluestem','switchgrass','indiangrass','sanguisorba','helenium']
+  },
+  Winter:{
+    sky:['#26303a','#6d746f','#171613'],
+    glow:['rgba(211,221,226,.20)','rgba(112,116,108,.12)'],
+    ground:'rgba(235,238,232,.11)', alpha:.64, bloom:undefined, snow:true,
+    keys:['bluestem','bigbluestem','switchgrass','rattlesnake','allium','culvers','sanguisorba','goldenrod','karl','sideoats']
+  }
+};
+const meadow=[], menuSnow=[];
+let menuSeason='Fall';
+function seedMenuMeadow(){
+  const sc=MENU_SCENES[menuSeason], keys=sc.keys;
+  meadow.length=0; menuSnow.length=0;
   for (let i=0;i<54;i++) meadow.push({k:keys[i%keys.length], x:Math.random(),
     y:0.76+Math.random()*0.22, s:0.45+Math.random()*1.05, seed:(Math.random()*1e9)|0});
   meadow.sort((a,b)=>a.y-b.y);
-})();
+}
+function advanceMenuSeason(){
+  let next=0;
+  if (hasStorage){
+    const raw=localStorage.getItem('hortus:menuSeasonIdx');
+    next=((raw===null?-1:(parseInt(raw,10)||0))+1)%SEASONS.length;
+    try{ localStorage.setItem('hortus:menuSeasonIdx',String(next)); }catch(_){}
+  } else {
+    next=(SEASONS.indexOf(menuSeason)+1)%SEASONS.length;
+  }
+  menuSeason=SEASONS[next];
+  seedMenuMeadow();
+}
 function menuRender(t){
   const W=innerWidth,H=innerHeight;
+  const sc=MENU_SCENES[menuSeason]||MENU_SCENES.Fall;
   const g=mcx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#211610'); g.addColorStop(0.52,'#3b2a22'); g.addColorStop(1,'#17100d');
+  g.addColorStop(0,sc.sky[0]); g.addColorStop(0.52,sc.sky[1]); g.addColorStop(1,sc.sky[2]);
   mcx.fillStyle=g; mcx.fillRect(0,0,W,H);
   const glow=mcx.createRadialGradient(W*.5,H*.7,10,W*.5,H*.72,Math.max(W,H)*.58);
-  glow.addColorStop(0,'rgba(166,91,44,.28)');
-  glow.addColorStop(0.42,'rgba(92,58,36,.16)');
+  glow.addColorStop(0,sc.glow[0]);
+  glow.addColorStop(0.42,sc.glow[1]);
   glow.addColorStop(1,'rgba(23,16,13,0)');
   mcx.fillStyle=glow; mcx.fillRect(0,0,W,H);
-  mcx.fillStyle='rgba(16,10,8,.34)';
+  mcx.fillStyle=sc.ground;
   mcx.fillRect(0,H*.8,W,H*.2);
   const sway=Math.sin(t*0.0011);
-  mcx.save(); mcx.globalAlpha=.58;
+  mcx.save(); mcx.globalAlpha=sc.alpha;
   meadow.forEach(m=>{ mcx.save(); mcx.translate(m.x*W,m.y*H); mcx.scale(m.s,m.s);
-    drawPlant(mcx,0,0,m.k,1,'Fall',m.seed,sway+Math.sin(t*0.0014+m.seed)*0.42,undefined,1); mcx.restore(); });
+    drawPlant(mcx,0,0,m.k,1,menuSeason,m.seed,sway+Math.sin(t*0.0014+m.seed)*0.42,undefined,sc.bloom); mcx.restore(); });
   mcx.restore();
+  if (sc.snow){
+    if (menuSnow.length<48 && Math.random()<0.42)
+      menuSnow.push({x:Math.random()*W,y:-5,v:0.25+Math.random()*0.45,r:1+Math.random()*1.4,w:Math.random()*7});
+    mcx.fillStyle='rgba(245,248,252,0.72)';
+    menuSnow.forEach(f=>{ f.y+=f.v; f.x+=Math.sin((t*0.001)+f.w)*0.22;
+      mcx.beginPath(); mcx.arc(f.x,f.y,f.r,0,7); mcx.fill(); });
+    for (let i=menuSnow.length-1;i>=0;i--) if (menuSnow[i].y>H+5) menuSnow.splice(i,1);
+  }
 }
 
 /* ---------- main loop ---------- */
@@ -2423,6 +2472,7 @@ function loop(t){
     const r=await sGet('hortus:region'); if (r) game.region=r;
   }
   updateRegionBtn();
+  advanceMenuSeason();
   refreshMenuCards();
   requestAnimationFrame(loop);
 })();
