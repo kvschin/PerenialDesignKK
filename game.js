@@ -428,6 +428,41 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       tips.forEach(([tx2,ty2])=>{ for (let b=0;b<3;b++){ const f=0.6+b*0.15;
         ctx.beginPath(); ctx.arc(tx2*f,ty2*f,1.6,0,7); ctx.fill(); } }); }
   }
+  else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub
+    const L = P.look||{}, panicle = L.bloomShape==='panicle';
+    const cw=(P.cw||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
+    ctx.strokeStyle='#6e5a48'; ctx.lineWidth=2; ctx.lineCap='round';
+    for (let i=0;i<tn;i++){
+      const a=(i/(tn-1)-0.5)*1.3+(rnd()-0.5)*0.2;
+      const tx2=Math.sin(a)*cw*0.42+sway*2, ty2=-H*(0.6+rnd()*0.38);
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(tx2*0.4,ty2*0.55,tx2,ty2); ctx.stroke();
+      tips.push([tx2,ty2]);
+    }
+    if (S.fol){ const n=stemFor(22); // broad leafy mound
+      for (let i=0;i<n;i++){ const a=rnd()*Math.PI*2, r=rnd();
+        ctx.fillStyle=shade(S.fol,(rnd()-0.5)*26);
+        ctx.beginPath(); ctx.ellipse(Math.cos(a)*cw*0.46*r+sway*2, -H*(0.30+rnd()*0.5),
+          4.4,3.2,a,0,7); ctx.fill(); }
+    }
+    const headR=L.headR||7;
+    const drawHead=(hx,hy,col,scale)=>{
+      const r=headR*(scale||1);
+      if (panicle){ for (let k=0;k<16;k++){ const f=k/16; // taper to a point
+        const wr=r*(1-f)*0.9;
+        ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+        ctx.beginPath(); ctx.ellipse(hx+(rnd()-0.5)*2*wr, hy-r*0.3-f*r*1.7, 1.9,1.9,0,0,7); ctx.fill(); } }
+      else { for (let k=0;k<20;k++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r;
+        ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+        ctx.beginPath(); ctx.ellipse(hx+Math.cos(a)*rr, hy-r*0.55+Math.sin(a)*rr*0.82, 2,2,0,0,7); ctx.fill(); } }
+    };
+    if (blooming && mature && S.bloom){
+      const heads=Math.max(1,Math.ceil(tips.length*blv));
+      for (let t=0;t<heads;t++) drawHead(tips[t][0],tips[t][1],S.bloom,1);
+    } else if (S.seed && mature){ // dried heads hold through winter
+      tips.forEach(([hx,hy])=>drawHead(hx,hy,S.seed,0.8));
+    }
+  }
   // winter snow caps on mature structure
   if (AMBIENCE[season].snow && mature){
     ctx.fillStyle='rgba(240,244,250,0.85)';

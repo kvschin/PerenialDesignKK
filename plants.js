@@ -10,7 +10,8 @@
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
            burnet) | shrub (herbaceous mound) | fern | leafmound (hosta) |
            bulbcup (crocus/tulip/daffodil) | bush (woody shrub) |
-           tree (deciduous) | conifer
+           hydrangea (mophead/panicle shrub; look.bloomShape 'mop'|'panicle',
+           look.headR sizes the flower heads) | tree (deciduous) | conifer
    type    grass | sedge | forb | bulb | shrub | tree — drives the tray
            categories. Bulbs live in their own layer (game.bulbs): they
            share tiles with perennials, bloom in earliest spring while
@@ -445,6 +446,77 @@ const PLANTS = {
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'An easy thicket that holds its coral-pink berries on bare winter stems. Quail cover.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#9a8a5e',seed:'#c25a6e'}, Winter:{seed:'#b8506a'}}},
+
+  /* ---------- hydrangeas (their own group; lots of cultivars) ---------- */
+  hydrangea:{ name:'Bigleaf Hydrangea', latin:'Hydrangea macrophylla', form:'hydrangea', type:'shrub', h:42, cw:72,
+    group:'hydrangea', chip:'Bigleaf',
+    space:48, spread:60, zones:[6,9], native:false, sun:'part', moist:'moist', phen:'mid', grow:3, eco:[],
+    look:{bloomShape:'mop', headR:8},
+    blurb:'The classic mophead — blue in acid soil, pink in sweet. Buds are tender, so give it a sheltered spot.',
+    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#4e7a48',bloom:'#6a8fc8'}, Fall:{fol:'#7a7050',bloom:'#8a7aae'}, Winter:{fol:'#6b5d4a',seed:'#b8a888'}},
+    cv:{
+      nikkoblue:{name:"'Nikko Blue'", note:'deep true-blue mopheads',
+        sea:{Summer:{fol:'#4e7a48',bloom:'#4a78c8'}, Fall:{fol:'#7a7050',bloom:'#6a6ab0'}}},
+      endlesssummer:{name:"'Endless Summer'", note:'reblooms on new wood — flowers even after a hard winter',
+        sea:{Summer:{fol:'#4e7a48',bloom:'#6a9ad0'}, Fall:{fol:'#7a7050',bloom:'#8a8ac0'}}},
+      citylineparis:{name:"'Cityline Paris'", note:'compact, vivid rose-red', h:30, cw:40,
+        sea:{Summer:{fol:'#4e7a48',bloom:'#d0567e'}, Fall:{fol:'#7a7050',bloom:'#b04a6e'}}},
+      twistnshout:{name:"'Twist-n-Shout'", note:'reblooming lacecap, pink to periwinkle',
+        sea:{Summer:{fol:'#4e7a48',bloom:'#a87ac0'}, Fall:{fol:'#7a7050',bloom:'#9a6ab0'}}},
+    }},
+  panniclehydrangea:{ name:'Panicle Hydrangea', latin:'Hydrangea paniculata', form:'hydrangea', type:'shrub', h:64, cw:92,
+    group:'hydrangea', chip:'Panicle',
+    space:60, spread:72, zones:[3,8], native:false, sun:'full', moist:'medium', phen:'mid', grow:4, eco:[],
+    look:{bloomShape:'panicle', headR:9},
+    blurb:'The tough, sun-loving, cold-hardy one — big conical plumes opening white and aging to rose. Dries on the stem all winter.',
+    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#f0ede0'}, Fall:{fol:'#7a7050',bloom:'#e0a8b0'}, Winter:{fol:'#6b5d4a',seed:'#cdb89a'}},
+    cv:{
+      limelight:{name:"'Limelight'", note:'huge lime-green cones cooling to cream',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#cbd89a'}, Fall:{fol:'#7a7050',bloom:'#e0c4a8'}}},
+      littlelime:{name:"'Little Lime'", note:'dwarf Limelight for small beds', h:40, cw:60,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#cbd89a'}, Fall:{fol:'#7a7050',bloom:'#e0bca8'}}},
+      vanillastrawberry:{name:"'Vanilla Strawberry'", note:'white aging to deep strawberry-red',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f4ede2'}, Fall:{fol:'#7a7050',bloom:'#d0586e'}}},
+      quickfire:{name:"'Quick Fire'", note:'blooms early, fast to deep pink',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f0e6dc'}, Fall:{fol:'#7a7050',bloom:'#c84a6a'}}},
+      bobo:{name:"'Bobo'", note:'dwarf, smothered in white', h:34, cw:48,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f2efe4'}, Fall:{fol:'#7a7050',bloom:'#e6b0b4'}}},
+      pinkywinky:{name:"'Pinky Winky'", note:'two-tone cones, white tips over pink base',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f0e2e0'}, Fall:{fol:'#7a7050',bloom:'#dc8aa0'}}},
+    }},
+  smoothhydrangea:{ name:'Smooth Hydrangea', latin:'Hydrangea arborescens', form:'hydrangea', type:'shrub', h:44, cw:74,
+    group:'hydrangea', chip:'Smooth',
+    space:42, spread:54, zones:[3,9], native:true, sun:'part', moist:'medium', phen:'mid', grow:3,
+    eco:['Ozark Highlands'],
+    look:{bloomShape:'mop', headR:9},
+    blurb:'The native woodland-edge hydrangea — dependable white domes every summer on new wood, so it never misses after a cold winter.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#eef0e2'}, Fall:{fol:'#8a8a5e',bloom:'#d8d8c0'}, Winter:{fol:'#6b5d4a',seed:'#b0a888'}},
+    cv:{
+      annabelle:{name:"'Annabelle'", note:'enormous pure-white mopheads, the classic', h:46, cw:78,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f2f4e8'}, Fall:{fol:'#8a8a5e',bloom:'#dcdcc4'}}},
+      incrediball:{name:"'Incrediball'", note:'Annabelle with stronger stems that hold the heads up', h:48, cw:80,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f2f4ea'}, Fall:{fol:'#8a8a5e',bloom:'#dcdcc4'}}},
+      invinciblespirit:{name:"'Invincibelle Spirit'", note:'the pink smooth hydrangea, reblooming',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#d884a4'}, Fall:{fol:'#8a8a5e',bloom:'#c07090'}}},
+      haashalo:{name:"'Haas Halo'", note:'big native lacecap loved by pollinators',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#eef0e2'}, Fall:{fol:'#8a8a5e',bloom:'#d4d4bc'}}},
+    }},
+  oakleafhydrangea:{ name:'Oakleaf Hydrangea', latin:'Hydrangea quercifolia', form:'hydrangea', type:'shrub', h:52, cw:80,
+    group:'hydrangea', chip:'Oakleaf',
+    space:60, spread:72, zones:[5,9], native:false, sun:'part', moist:'medium', phen:'mid', grow:4, eco:[],
+    look:{bloomShape:'panicle', headR:8},
+    blurb:'A Southern native with oak-shaped leaves that burn wine-red in fall and white cones that age to dusty rose. Four-season structure.',
+    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#f0ede0'}, Fall:{fol:'#7a2e3a',bloom:'#c89aa8'}, Winter:{fol:'#6b4a3a',seed:'#c2a888'}},
+    cv:{
+      snowqueen:{name:"'Snow Queen'", note:'upright white cones, deep burgundy fall leaves',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f2efe4'}, Fall:{fol:'#7a2e3a',bloom:'#d0a8b0'}}},
+      rubyslippers:{name:"'Ruby Slippers'", note:'compact; white cones flush to deep ruby', h:36, cw:54,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f0ece0'}, Fall:{fol:'#6e2832',bloom:'#b04a5e'}}},
+      alice:{name:"'Alice'", note:'large; foot-long white panicles', h:60, cw:90,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f2efe4'}, Fall:{fol:'#7a2e3a',bloom:'#cca0ac'}}},
+      peewee:{name:"'Pee Wee'", note:'dwarf oakleaf for tight corners', h:38, cw:54,
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#f0ede0'}, Fall:{fol:'#7a323e',bloom:'#c89aa8'}}},
+    }},
 
   /* ---------- trees ---------- */
   buroak:{ name:'Bur Oak', latin:'Quercus macrocarpa', form:'tree', type:'tree', h:120, cw:150,
