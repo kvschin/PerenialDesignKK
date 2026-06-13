@@ -1670,7 +1670,7 @@ function buildPlanMap(){
   ctx.font='600 22px Fraunces, serif';
   ctx.fillText(game.worldName||'Planting plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-  ctx.fillText(`Planting plan · Hortus Perennis · ${new Date().toLocaleDateString()}`, padL, 56);
+  ctx.fillText(`Planting plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   ctx.fillText(`1 tile = ${TILE_IN}" · plot ${Math.round(GW*1.5)} × ${Math.round(GH*1.5)} ft`, padL, 70);
   // north arrow (world y points up-page on plans; our y+ is south)
   ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.2;

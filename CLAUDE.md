@@ -1,9 +1,12 @@
-# Hortus Perennis
+# Pocket Prairie Garden Design
 
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style, playing loosely like Animal Crossing. Cat/dog avatars tend an
 isometric prairie plot where plants change appearance by season. Solo play plus
 shared gardens for up to 4 people.
+
+Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
+**Pocket Prairie**.
 
 The game is plain HTML/CSS/JS in four files — `index.html` (markup),
 `styles.css`, `plants.js` (species data), and `game.js` (all logic) — with no
