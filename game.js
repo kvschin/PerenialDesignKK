@@ -17,13 +17,16 @@ const TILE_W = 76, TILE_H = 38;
 const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
-/* UX feature flags for retired interactions.
-   Sleeping is currently hidden because it made the house feel like a required
-   daily task instead of a planning landmark. The mobile action button is hidden
-   because drag-to-place made a large "Plant here" CTA redundant and cluttered
-   small screens. Flip these back to true if those flows return later. */
+/* UX feature flags for retired / optional interactions.
+   Sleep stays as a deliberate HUD action, but house-door sleep is disabled so
+   the house feels like a planning landmark instead of a required daily chore.
+   The mobile action button is hidden because drag-to-place made a large
+   "Plant here" CTA redundant. The movement hint is hidden because the toolbar
+   already carries the current task well enough on small screens. */
+const ENABLE_HUD_SLEEP_BUTTON = true;
 const ENABLE_HOUSE_SLEEP = false;
 const ENABLE_MOBILE_ACT_BUTTON = false;
+const ENABLE_ACTION_HINT = false;
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
@@ -1119,7 +1122,7 @@ function stampDrift(cx0,cy0,n){
   else toast('No room for a drift here.');
 }
 function doSleep(){
-  if (!ENABLE_HOUSE_SLEEP){ toast('Sleeping is tucked away for now.'); return; }
+  if (!ENABLE_HUD_SLEEP_BUTTON && !ENABLE_HOUSE_SLEEP){ toast('Sleeping is tucked away for now.'); return; }
   game.dayOffset++; game.dirty=true;
   if (game.mode==='multi') toast('You napped in the house — a shared garden keeps its own clock.');
   else toast('You slept well. A new day.');
@@ -2083,12 +2086,20 @@ function renderCvRow(){
   });
 }
 let lastHint='', lastAct='';
-function setHint(txt){ if (txt!==lastHint){ lastHint=txt;
-  document.getElementById('actionHint').textContent=txt; } }
+function setHint(txt){
+  const el=document.getElementById('actionHint');
+  if (!ENABLE_ACTION_HINT){
+    el.classList.add('hidden');
+    if (lastHint!==''){ lastHint=''; el.textContent=''; }
+    return;
+  }
+  el.classList.remove('hidden');
+  if (txt!==lastHint){ lastHint=txt; el.textContent=txt; }
+}
 function setActButton(){ // the big mobile do-it button, labeled by context
   if (!ENABLE_MOBILE_ACT_BUTTON){
     document.getElementById('btnAct').classList.add('hidden');
-    document.getElementById('actionHint').classList.remove('hidden');
+    document.getElementById('actionHint').classList.toggle('hidden',!ENABLE_ACTION_HINT);
     lastAct='';
     return;
   }
@@ -2106,7 +2117,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
     b.classList.toggle('hidden',!state);
     if (state) b.textContent=state;
     // the big button replaces the instructional hint on phones
-    document.getElementById('actionHint').classList.toggle('hidden',!!state);
+    document.getElementById('actionHint').classList.toggle('hidden',!!state||!ENABLE_ACTION_HINT);
   }
 }
 function updateHUD(){
@@ -2340,7 +2351,7 @@ $('btnZoomOut').onclick=()=>zoomBy(0.85);
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
 addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); });
 addEventListener('pagehide',autosaveNow);
-$('btnSleep').classList.toggle('hidden',!ENABLE_HOUSE_SLEEP);
+$('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
 $('btnExport').onclick=openExport;
 $('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');
