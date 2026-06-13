@@ -150,9 +150,21 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (meta carries gw/gh; the house syncs via its own key, last-write-wins
     by timestamp), presence polling, `mergeMap` for plants and terrain.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
-    species and converts to real quantities (`ceil(tiles × TILE_IN² / space²)`)
-    plus bed area; `openExport()` renders the overlay table, `exportCsv()`
-    downloads it. Print CSS in `styles.css` strips everything but the sheet.
+    species (plants + bulbs) and converts to real quantities
+    (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
+    the overlay table, `exportCsv()` downloads it. Print CSS in `styles.css`
+    strips everything but the sheet.
+14b. **Planting plan** — `openPlan()` draws an Oudolf-style top-down drift
+    map to `#planCanvas`. `planComponents()` flood-fills contiguous
+    same-species/cultivar tiles (8-connectivity) into drifts;
+    `traceOutlines()` walks each drift's 4-connectivity boundary into loops
+    (collinear runs merged), `buildPlanMap()` smooths them into organic
+    blobs (quadratic midpoint spline + `planJitter` lattice wobble) tinted
+    from `planColor`. Trees → dashed mature-canopy circles + trunk dot;
+    bulbs → scatter rings; house, paths/beds, title block, north arrow,
+    legend with `planCodes` (unique genus/epithet abbreviations + cultivar
+    tag), and a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
+    also prints (own page). Empty gardens render an empty sheet, no crash.
 15. **Region filter + HUD** — `plantFits()` (zone range, natives-only,
     ecoregion membership for natives; cultivars have `eco:[]` so only the
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
@@ -169,9 +181,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     sections (`.tray-sep`). A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus season dial, sleep button, plant-list, region, rotate, and photo
-    buttons (a compact icon bar; labels hide on small screens, the region
-    label shows the active filter), contextual action hint. There is no
+    Plus season dial, sleep button, plant-list, region, rotate, photo, and
+    plan buttons (a compact icon bar; labels hide on small screens, the
+    region label shows the active filter), contextual action hint. There is no
     Save button — autosave fires on day change, quit, and
     visibilitychange/pagehide. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
@@ -187,10 +199,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     gardens or start new; Solo goes here when saves exist), multiplayer
     lobby, character creator (with live preview), code display, plot setup
     (`#plotScreen`, new solo gardens: name + acre presets or width x length
-    in feet). Plain DOM, toggled by `show()`. The planting-list (`#exportScreen`) and region
-    (`#regionScreen`) overlays sit outside `show()` — in-game overlays
-    toggled directly; the keyboard handler ignores game keys while one is
-    open (Escape closes).
+    in feet). Plain DOM, toggled by `show()`. The planting-list
+    (`#exportScreen`), region (`#regionScreen`), and plan (`#planScreen`)
+    overlays sit outside `show()` — in-game overlays toggled directly; the
+    keyboard handler ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
 
 ## The plant data model

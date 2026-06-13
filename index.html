@@ -112,6 +112,7 @@
         <button id="btnRegion" title="Region filter">🌎<span class="lbl" id="regionLbl">Region</span></button>
         <button id="btnRotate" title="Rotate view (R)">⟳<span class="lbl">Rotate</span></button>
         <button id="btnPhoto" title="Golden-hour photo">📷<span class="lbl">Photo</span></button>
+        <button id="btnPlan" title="Oudolf-style planting plan">🗺<span class="lbl">Plan</span></button>
       </div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
@@ -188,6 +189,18 @@
       <button class="btn primary" id="btnRegionApply">Apply</button>
     </div>
     <button class="back-link" id="btnRegionClose">← Back to the garden</button>
+  </div>
+</div>
+
+<!-- PLANTING PLAN (Oudolf-style drift map) -->
+<div class="screen hidden" id="planScreen">
+  <div class="panel" style="max-width:min(94vw,1040px);width:100%">
+    <div class="plan-wrap"><canvas id="planCanvas"></canvas></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnPlanPng">Download PNG</button>
+      <button class="btn" id="btnPlanList">Planting list →</button>
+    </div>
+    <button class="back-link" id="btnPlanClose">← Back to the garden</button>
   </div>
 </div>
 

@@ -165,6 +165,11 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .export-table .latin{font-style:italic;color:var(--bronze);font-size:11px}
 .export-table tfoot td{border-bottom:none;border-top:1.5px solid rgba(239,230,211,.4);font-weight:600}
 
+/* ---------- planting plan ---------- */
+.plan-wrap{width:100%;max-height:74vh;overflow:auto;border-radius:4px;
+  background:#f7f3e8;border:1px solid rgba(239,230,211,.3)}
+#planCanvas{display:block;width:100%;height:auto}
+
 /* print: just the planting list, black on white */
 @media print{
   html,body{height:auto;overflow:visible;background:#fff}
@@ -177,6 +182,11 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   #exportScreen .export-table td{color:#111;border-color:#ccc}
   #exportScreen .export-table .latin{color:#555}
   #exportScreen .row,#exportScreen .back-link{display:none!important}
+  /* the plan prints too, on its own page */
+  #planScreen{position:static;padding:0;overflow:visible}
+  #planScreen .panel{background:#fff;border:none;max-width:100%;backdrop-filter:none;padding:0}
+  #planScreen .plan-wrap{max-height:none;overflow:visible;border:none;background:#fff}
+  #planScreen .row,#planScreen .back-link{display:none!important}
 }
 
 @media(max-width:640px){

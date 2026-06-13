@@ -1132,7 +1132,7 @@ const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
-  const overlay=['exportScreen','regionScreen']
+  const overlay=['exportScreen','regionScreen','planScreen']
     .map(id=>document.getElementById(id)).find(el=>!el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape') overlay.classList.add('hidden');
@@ -1497,6 +1497,254 @@ function exportCsv(){
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   a.download='hortus-planting-list.csv'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* ---------- the planting plan: an Oudolf-style drift map ----------
+   Top-down 2D. Contiguous same-species tiles flood-fill into drifts,
+   each drift's boundary is traced and smoothed into an organic blob,
+   labeled with a short code. Trees draw as dashed mature-canopy
+   circles, bulbs as scatter dots over the drifts. */
+function planComponents(){
+  const live={};
+  for (const k in game.plants){ const p=game.plants[k]; if (!p.removed) live[k]=p; }
+  const seen={}, comps=[];
+  for (const k in live){
+    if (seen[k]) continue;
+    const p=live[k], stack=[k], tiles=[];
+    seen[k]=true;
+    while (stack.length){
+      const cur=stack.pop(); tiles.push(cur);
+      const [cx2,cy2]=cur.split(',').map(Number);
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
+        if (!dx&&!dy) continue;
+        const nk=`${cx2+dx},${cy2+dy}`;
+        if (seen[nk]) continue;
+        const np=live[nk];
+        if (np && np.s===p.s && (np.v||'')===(p.v||'')){ seen[nk]=true; stack.push(nk); }
+      }
+    }
+    comps.push({s:p.s, v:p.v||null, tiles});
+  }
+  return comps;
+}
+function traceOutlines(tileSet){ // rectilinear boundary loops of a tile set
+  const has=(x,y)=>tileSet.has(`${x},${y}`);
+  const edges=new Map(); // "x,y" start -> [end points]
+  const add=(x1,y1,x2,y2)=>{ const k=`${x1},${y1}`;
+    (edges.get(k)||edges.set(k,[]).get(k)).push([x2,y2]); };
+  for (const k of tileSet){ const [x,y]=k.split(',').map(Number);
+    if (!has(x,y-1)) add(x,y, x+1,y);
+    if (!has(x+1,y)) add(x+1,y, x+1,y+1);
+    if (!has(x,y+1)) add(x+1,y+1, x,y+1);
+    if (!has(x-1,y)) add(x,y+1, x,y);
+  }
+  const loops=[];
+  for (const [start] of edges){
+    if (!edges.get(start).length) continue;
+    const pts=[start.split(',').map(Number)];
+    let cur=start;
+    while (true){
+      const outs=edges.get(cur);
+      if (!outs || !outs.length) break;
+      const [nx,ny]=outs.pop();
+      const nk=`${nx},${ny}`;
+      if (nk===start) break;
+      pts.push([nx,ny]); cur=nk;
+    }
+    if (pts.length>2){
+      // merge collinear runs so the smoothing gets long, sweeping curves
+      const out=[];
+      for (let i=0;i<pts.length;i++){
+        const a=pts[(i+pts.length-1)%pts.length], b2=pts[i], c=pts[(i+1)%pts.length];
+        if ((b2[0]-a[0])*(c[1]-b2[1])!==(b2[1]-a[1])*(c[0]-b2[0])) out.push(b2);
+      }
+      if (out.length>2) loops.push(out);
+    }
+  }
+  return loops;
+}
+function planJitter(x,y){ // shared lattice wobble: neighboring blobs nest
+  const r=mulberry((x*73856093 ^ y*83492791)>>>0);
+  return [(r()-0.5)*0.5, (r()-0.5)*0.5];
+}
+function mixHex(a,b2,t){
+  const pa=parseInt(a.slice(1),16), pb=parseInt(b2.slice(1),16);
+  const ch=(sh)=>Math.round(((pa>>sh)&255)*(1-t)+((pb>>sh)&255)*t);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
+function planColor(def){
+  const s=def.sea.Summer||{}, f=def.sea.Fall||{}, sp=def.sea.Spring||{};
+  return s.bloom||sp.bloom||f.bloom||f.seed||s.fol||sp.fol||'#8a8a70';
+}
+function planCodes(ids){ // short Oudolf-style codes, unique per species|cv
+  const used={}, codes={};
+  ids.forEach(id=>{
+    const [s,v]=id.split('|'), P=plantDef(s,v||null);
+    const latin=(P.latin||'').split(' ');
+    const gen=(latin[0]||s).slice(0,3).toUpperCase(), ep=(latin[1]||'');
+    let code=null;
+    for (let n=0;n<=ep.length;n++){
+      const c=gen+(n?ep.slice(0,n):'');
+      if (!used[c]){ code=c; break; }
+    }
+    if (!code){ let i=2; while (used[gen+i]) i++; code=gen+i; }
+    if (v) code+="'"+v.slice(0,2).toUpperCase();
+    used[code]=1; codes[id]=code;
+  });
+  return codes;
+}
+
+function buildPlanMap(){
+  const pc=$('planCanvas'), ctx=pc.getContext('2d');
+  const cell=Math.max(9, Math.min(24, Math.floor(1000/Math.max(GW,GH))));
+  const padL=34, padT=92;
+  const comps=planComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
+  const ids=[...new Set([
+    ...comps.map(c=>c.s+'|'+(c.v||'')),
+    ...bulbsLive.map(k=>{ const b2=game.bulbs[k]; return b2.s+'|'+(b2.v||''); })
+  ])];
+  const codes=planCodes(ids);
+  const legCols=3, legRows=Math.ceil(ids.length/legCols);
+  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+legRows*15+26;
+  pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
+  ctx.setTransform(2,0,0,2,0,0);
+  const X=x=>padL+x*cell, Y=y=>padT+y*cell;
+  // paper
+  ctx.fillStyle='#f7f3e8'; ctx.fillRect(0,0,W2,H2);
+  ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1;
+  ctx.strokeRect(8,8,W2-16,H2-16);
+  // title block
+  ctx.fillStyle='#2c241c'; ctx.textAlign='left';
+  ctx.font='600 22px Fraunces, serif';
+  ctx.fillText(game.worldName||'Planting plan', padL, 38);
+  ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+  ctx.fillText(`Planting plan · Hortus Perennis · ${new Date().toLocaleDateString()}`, padL, 56);
+  ctx.fillText(`1 tile = ${TILE_IN}" · plot ${Math.round(GW*1.5)} × ${Math.round(GH*1.5)} ft`, padL, 70);
+  // north arrow (world y points up-page on plans; our y+ is south)
+  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(W2-40,62); ctx.lineTo(W2-40,34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W2-40,30); ctx.lineTo(W2-45,42); ctx.lineTo(W2-35,42); ctx.closePath();
+  ctx.fillStyle='#2c241c'; ctx.fill();
+  ctx.font='10px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillText('N',W2-40,80);
+  // terrain
+  for (const k in game.terrain){ const t2=game.terrain[k];
+    if (t2.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    ctx.fillStyle=t2.k==='path'?'#dccdaa':'#ebe2c9';
+    ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
+  }
+  // drifts as smoothed blobs (largest first so small ones read on top)
+  const smoothLoop=(loop)=>{
+    const pts=loop.map(([x,y])=>{ const [jx,jy]=planJitter(x,y);
+      return [X(x+jx*0.6), Y(y+jy*0.6)]; });
+    const mid=(a,b2)=>[(a[0]+b2[0])/2,(a[1]+b2[1])/2];
+    ctx.beginPath();
+    let m=mid(pts[pts.length-1],pts[0]);
+    ctx.moveTo(m[0],m[1]);
+    for (let i=0;i<pts.length;i++){
+      const nxt=mid(pts[i],pts[(i+1)%pts.length]);
+      ctx.quadraticCurveTo(pts[i][0],pts[i][1],nxt[0],nxt[1]);
+    }
+    ctx.closePath();
+  };
+  comps.forEach(c=>{
+    const def=plantDef(c.s,c.v);
+    if (def.type==='tree') return; // trees become canopy circles below
+    const col=planColor(def);
+    const loops=traceOutlines(new Set(c.tiles));
+    loops.forEach(loop=>{
+      smoothLoop(loop);
+      ctx.fillStyle=mixHex(col,'#f7f3e8',0.66); ctx.fill();
+      ctx.strokeStyle=mixHex(col,'#2c241c',0.25); ctx.lineWidth=1.3; ctx.stroke();
+    });
+  });
+  // trees: mature canopy circles, trunk dot
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const def=plantDef(p.s,p.v);
+    if (def.type!=='tree') continue;
+    const [x,y]=k.split(',').map(Number);
+    const r=Math.max(cell*0.6,(def.spread/TILE_IN/2)*cell);
+    ctx.strokeStyle='#6e5a40'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,r,0,7); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#4a3a28';
+    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2.5,cell*0.18),0,7); ctx.fill();
+  }
+  // bulbs: scatter rings over everything
+  bulbsLive.forEach(k=>{
+    const b2=game.bulbs[k], [x,y]=k.split(',').map(Number);
+    ctx.strokeStyle=planColor(plantDef(b2.s,b2.v)); ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke();
+  });
+  // house
+  const hh=game.house;
+  if (hh){
+    ctx.fillStyle='#e3ddd2'; ctx.strokeStyle='#4a4238'; ctx.lineWidth=1.6;
+    ctx.fillRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
+    ctx.strokeRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
+    const [dX,dY]=doorPos();
+    ctx.fillStyle='#4a4238';
+    ctx.fillRect(X(dX)+cell*0.3,Y(dY)-2,cell*0.4,3);
+    if (hh.w*cell>40){ ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
+      ctx.fillText('HOUSE', X(hh.x)+hh.w*cell/2, Y(hh.y)+hh.h*cell/2+3); }
+  }
+  // labels at drift centroids, white halo for legibility
+  ctx.textAlign='center';
+  comps.forEach(c=>{
+    const def=plantDef(c.s,c.v);
+    if (def.type==='tree'){ var lt=c.tiles[0].split(',').map(Number);
+      var lx=X(lt[0])+cell/2, ly=Y(lt[1])-cell*0.4; }
+    else {
+      let sx=0,sy=0;
+      c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number); sx+=x; sy+=y; });
+      var lx=X(sx/c.tiles.length+0.5), ly=Y(sy/c.tiles.length+0.5)+3;
+    }
+    const fs=Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2));
+    ctx.font=`600 ${fs}px IBM Plex Sans`;
+    ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=3;
+    const code=codes[c.s+'|'+(c.v||'')];
+    ctx.strokeText(code,lx,ly); ctx.fillStyle='#2c241c'; ctx.fillText(code,lx,ly);
+  });
+  // legend + scale bar
+  let ly2=padT+GH*cell+26;
+  ctx.textAlign='left'; ctx.font='600 10px IBM Plex Sans';
+  ctx.fillStyle='#6e5f48'; ctx.fillText('KEY', padL, ly2-8);
+  const colW=(W2-padL*2)/legCols;
+  const counts={};
+  comps.forEach(c=>{ const id=c.s+'|'+(c.v||''); counts[id]=(counts[id]||0)+c.tiles.length; });
+  bulbsLive.forEach(k=>{ const b2=game.bulbs[k], id=b2.s+'|'+(b2.v||'');
+    counts[id]=(counts[id]||0)+1; });
+  ids.forEach((id,i)=>{
+    const [s,v]=id.split('|'), def=plantDef(s,v||null);
+    const cx2=padL+(i%legCols)*colW, cy2=ly2+Math.floor(i/legCols)*15;
+    ctx.fillStyle=mixHex(planColor(def),'#f7f3e8',0.5);
+    ctx.fillRect(cx2,cy2-7,9,9);
+    ctx.strokeStyle=mixHex(planColor(def),'#2c241c',0.25); ctx.lineWidth=1;
+    ctx.strokeRect(cx2,cy2-7,9,9);
+    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
+    const nm=def.name.length>26?def.name.slice(0,25)+'…':def.name;
+    ctx.fillText(`${codes[id]} — ${nm} (${counts[id]||0})`, cx2+14, cy2);
+  });
+  // scale bar: 10 ft
+  const ftPx=cell/1.5, bx2=W2-padL-ftPx*10, by2=H2-18;
+  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+ftPx*10,by2); ctx.stroke();
+  for (let f=0;f<=10;f+=5){ ctx.beginPath();
+    ctx.moveTo(bx2+ftPx*f,by2-4); ctx.lineTo(bx2+ftPx*f,by2+4); ctx.stroke(); }
+  ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
+  ctx.fillText('10 ft', bx2+ftPx*5, by2-8);
+}
+function openPlan(){ buildPlanMap(); $('planScreen').classList.remove('hidden'); }
+function downloadPlan(){
+  $('planCanvas').toBlob(b2=>{
+    if (!b2) return;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b2);
+    a.download=`${(game.worldName||'garden').replace(/\s+/g,'-').toLowerCase()}-plan.png`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  },'image/png');
 }
 
 /* ---------- region filter ----------
@@ -1968,6 +2216,7 @@ function quitToMenu(){
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
+  $('planScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   show('menuScreen');
@@ -1990,6 +2239,10 @@ $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
 $('btnRotate').onclick=rotateView;
 $('btnPhoto').onclick=takePhoto;
+$('btnPlan').onclick=openPlan;
+$('btnPlanClose').onclick=()=>$('planScreen').classList.add('hidden');
+$('btnPlanPng').onclick=downloadPlan;
+$('btnPlanList').onclick=()=>{ $('planScreen').classList.add('hidden'); openExport(); };
 $('btnAct').onclick=()=>actHere();
 
 /* ---------- menu background: a living meadow ---------- */
