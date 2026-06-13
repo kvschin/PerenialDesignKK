@@ -724,6 +724,7 @@ const SHADE_ACTIVE_ESTAB = 0.35;
 const SHADE_MIN_RADIUS = 1.5;
 const SHADE_ACTIVE_SCORE = 0.42;
 const SHADE_FUTURE_SCORE = 0.18;
+const SHADE_AREA_SCALE = Math.SQRT1_2; // length x width ~= half the former restricted area
 /* Garden-space compass: north is y-1, south is y+1, east is x+1,
    west is x-1. View rotation changes the camera, not these directions.
    Kansas sun is modeled as a daily arc across the southern sky, so
@@ -748,7 +749,7 @@ function shadeSeasonScale(){
   return s==='Summer'?0.9:s==='Winter'?1.45:1.12;
 }
 function treeShadeReach(sh){
-  return Math.ceil(sh.r*(1.4*shadeSeasonScale()+0.75));
+  return Math.ceil(sh.r*(1.4*shadeSeasonScale()*SHADE_AREA_SCALE+0.75));
 }
 function treeShadeScore(sh,x,y){
   if (!sh || sh.r<1 || (x===sh.x && y===sh.y)) return 0;
@@ -760,16 +761,16 @@ function treeShadeScore(sh,x,y){
     const sx=sample.sun[0]/mag, sy=sample.sun[1]/mag;
     const shx=-sx, shy=-sy;
     const proj=dx*shx+dy*shy;
-    const crown=sh.r*(0.22+0.24*sh.est);
+    const crown=sh.r*(0.22+0.24*sh.est)*SHADE_AREA_SCALE;
     if (dist<=crown){
       score += sample.weight*0.58;
       continue;
     }
-    const len=sh.r*sample.len*scale*(0.65+0.35*sh.est);
+    const len=sh.r*sample.len*scale*(0.65+0.35*sh.est)*SHADE_AREA_SCALE;
     if (proj<-sh.r*0.12 || proj>len) continue;
     const perp=Math.abs(dx*(-shy)+dy*shx);
     const taper=1-(Math.max(0,proj)/Math.max(1,len))*0.55;
-    const width=sh.r*sample.width*taper;
+    const width=sh.r*sample.width*taper*SHADE_AREA_SCALE;
     if (perp<=width){
       const across=1-perp/Math.max(0.1,width)*0.35;
       const along=1-Math.max(0,proj)/Math.max(0.1,len)*0.25;
