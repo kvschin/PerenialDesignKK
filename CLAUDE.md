@@ -110,7 +110,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
     / bed / flagstone doorstep) back-to-front, a single depth-sorted entity
-    pass for the cottage + plants + critters (sorted by `x+y`), planting
+    pass for the cottage + plants + critters (`houseDrawDepth()` anchors the
+    cottage at the doorstep/front center, not the far corner, so nearby
+    players/plants draw in front of large houses), planting
     pulse fx (`game.fx`), season tint, snowfall, and — when `game.photo` is
     set — a golden-hour wash for `takePhoto()` (renders one washed frame,
     downloads the canvas PNG; the DOM HUD is excluded automatically).

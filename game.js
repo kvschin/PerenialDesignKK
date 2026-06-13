@@ -762,6 +762,10 @@ function tileAt(sx,sy,W,H){
   const fy = (ry/(TILE_H/2) - rx/(TILE_W/2))/2;
   return viewToWorld(Math.round(fx), Math.round(fy));
 }
+function houseDrawDepth(h){
+  const [dx,dy]=doorPos(h);
+  return viewDepth(dx,dy)+0.05;
+}
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
 function rotateView(dir){
@@ -885,12 +889,10 @@ function render(t){
   const ents=[];
   const hh=game.house;
   if (hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
-    ents.push({depth:Math.max(viewDepth(hh.x,hh.y),viewDepth(hh.x+hh.w-1,hh.y),
-        viewDepth(hh.x,hh.y+hh.h-1),viewDepth(hh.x+hh.w-1,hh.y+hh.h-1))+0.45,
+    ents.push({depth:houseDrawDepth(hh),
       draw:()=>drawHouse(cx,W,H,cal.season)});
   if (ghost)
-    ents.push({depth:Math.max(viewDepth(ghost.x,ghost.y),viewDepth(ghost.x+ghost.w-1,ghost.y),
-        viewDepth(ghost.x,ghost.y+ghost.h-1),viewDepth(ghost.x+ghost.w-1,ghost.y+ghost.h-1))+0.46,
+    ents.push({depth:houseDrawDepth(ghost)+0.01,
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
   // canopies stunt full-sun plants beneath them (they persist, smaller)
   const shadeTrees=[];
@@ -2082,8 +2084,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
 }
 function updateHUD(){
   const cal=calClock();
-  document.getElementById('seasonName').textContent=cal.season;
-  document.getElementById('seasonDay').textContent=`Day ${cal.day} · Year ${cal.year}`;
+  document.getElementById('seasonName').textContent=`${cal.season} - Year ${cal.year}`;
+  document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
