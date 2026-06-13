@@ -101,6 +101,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   font-size:14px;padding:5px 8px;border-radius:3px;color:var(--seedhead)}
 .pill.iconbar button:hover{background:rgba(201,127,63,.2)}
 .pill.iconbar .lbl{font-size:11px;color:#cdbfa9}
+.pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
+.pill.iconbar .ic-emoji{display:none;font-size:15px}
 #btnSleep{margin-top:6px;background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
 #btnSleep:hover{border-color:var(--bronze)}
@@ -194,7 +196,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .season-name{font-size:16px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}
-  .pill.iconbar button{font-size:16px;padding:6px 9px}
+  .pill.iconbar button{font-size:16px;padding:6px 8px}
+  .pill.iconbar .ic{width:26px;height:26px}
+  .pill.iconbar .ic-emoji{font-size:18px}
   #plantCard h3{font-size:15px}
   #plantCard .latin{font-size:11px;margin-bottom:4px}
   #plantCard p{font-size:11px;line-height:1.4}

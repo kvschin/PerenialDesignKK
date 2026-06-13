@@ -93,7 +93,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
     snaps the camera). `screenOf` (world->screen via view), `viewScreen`
     (view->screen), `viewDepth` (depth-sort key), `tileAt` (screen->world).
-    World logic never rotates — only the mapping. `seedWalkway()` lays the
+    World logic never rotates — only the mapping. `rotateView(dir)` also
+    fires from a two-finger twist (~40° per 90° step, alongside pinch-zoom).
+    `safeSpawn()` returns a standable tile near plot center (door, else a
+    spiral search) so re-entering a garden never drops the player stuck
+    inside the house. `seedWalkway()` lays the
     starter walkway as ordinary path terrain at world creation (so the
     shovel can remove it like anything player-laid; saves without `wv` get
     it seeded once on load). The house lives in `game.house`

@@ -702,6 +702,21 @@ function doorPos(hOv){ const h=hOv||game.house;
   return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
 function isDoor(x,y){ const [dx,dy]=doorPos(); return x===dx && y===dy; }
 function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y); }
+/* a standable starting tile near plot center — the door if the house
+   sits on the spawn, else a spiral search outward, so re-entering a
+   garden never drops the player stuck inside their own walls */
+function safeSpawn(){
+  if (canStand(SPAWNX,SPAWNY)) return [SPAWNX,SPAWNY];
+  const [dx,dy]=doorPos();
+  if (canStand(dx,dy)) return [dx,dy];
+  for (let r=1;r<Math.max(GW,GH);r++)
+    for (let oy=-r;oy<=r;oy++) for (let ox=-r;ox<=r;ox++){
+      if (Math.max(Math.abs(ox),Math.abs(oy))!==r) continue;
+      const x=SPAWNX+ox, y=SPAWNY+oy;
+      if (canStand(x,y)) return [x,y];
+    }
+  return [0,0];
+}
 
 /* player-laid terrain (paths and beds) on top of the built-in walkway */
 function tileTerrain(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t.k:null; }
@@ -749,8 +764,8 @@ function tileAt(sx,sy,W,H){
 }
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
-function rotateView(){
-  game.rot=(game.rot+1)%4; snapCam(); game.dirty=true;
+function rotateView(dir){
+  game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;
   toast(`View rotated — ${game.rot*90}°.`);
 }
 /* photo mode: one frame rendered with a golden-hour wash, saved as PNG.
@@ -1214,7 +1229,8 @@ cnv.addEventListener('pointerdown',e=>{
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
-    pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom};
+    pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
+           a0:Math.atan2(b2[1]-a[1], b2[0]-a[0])};   // twist baseline
     sweep=null; toolDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
     return;
   }
@@ -1259,6 +1275,10 @@ cnv.addEventListener('pointermove',e=>{
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
     setUserZoom(pinch.z0*(Math.hypot(a[0]-b2[0],a[1]-b2[1])||1)/pinch.d0);
+    // twist: each ~40° of rotation snaps the view one 90° step
+    const ang=Math.atan2(b2[1]-a[1], b2[0]-a[0]);
+    let tw=ang-pinch.a0; while(tw>Math.PI)tw-=2*Math.PI; while(tw<-Math.PI)tw+=2*Math.PI;
+    if (Math.abs(tw)>0.7){ rotateView(tw>0?1:-1); pinch.a0=ang; }
     return;
   }
   const [x,y]=evTile(e);
@@ -2198,7 +2218,8 @@ function enterGarden(){
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
   if (!game.house) game.house=defaultHouse();
-  game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.lastDay=absDay();
+  const [spx,spy]=safeSpawn();   // never start stuck inside the house
+  game.px=game.tx=spx; game.py=game.ty=spy; game.lastDay=absDay();
   snapCam(); // start the camera on the player instead of easing in
   buildToolTray();
   $('worldLabel').textContent = game.mode==='multi'
@@ -2266,7 +2287,7 @@ $('btnCsv').onclick=exportCsv;
 $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
-$('btnRotate').onclick=rotateView;
+$('btnRotate').onclick=()=>rotateView(1);
 $('btnPhoto').onclick=takePhoto;
 $('btnPlan').onclick=openPlan;
 $('btnPlanClose').onclick=()=>$('planScreen').classList.add('hidden');
