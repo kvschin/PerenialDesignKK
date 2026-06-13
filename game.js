@@ -429,7 +429,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.arc(tx2*f,ty2*f,1.6,0,7); ctx.fill(); } }); }
   }
   else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub
-    const L = P.look||{}, panicle = L.bloomShape==='panicle';
+    const L = P.look||{}, panicle = L.bloomShape==='panicle', lacecap = L.bloomShape==='lacecap';
     const cw=(P.cw||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
     ctx.strokeStyle='#6e5a48'; ctx.lineWidth=2; ctx.lineCap='round';
     for (let i=0;i<tn;i++){
@@ -452,6 +452,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const wr=r*(1-f)*0.9;
         ctx.fillStyle=shade(col,(rnd()-0.5)*16);
         ctx.beginPath(); ctx.ellipse(hx+(rnd()-0.5)*2*wr, hy-r*0.3-f*r*1.7, 1.9,1.9,0,0,7); ctx.fill(); } }
+      else if (lacecap){ // flat disc: tiny fertile center ringed by showy florets
+        const cy=hy-r*0.4;
+        ctx.fillStyle=shade(col,-46);
+        for (let k=0;k<12;k++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r*0.6;
+          ctx.beginPath(); ctx.ellipse(hx+Math.cos(a)*rr, cy+Math.sin(a)*rr*0.42, 1.1,1.1,0,0,7); ctx.fill(); }
+        const ring=Math.round(7+r*0.5);
+        for (let k=0;k<ring;k++){ const a=k/ring*Math.PI*2;
+          ctx.fillStyle=shade(col,(rnd()-0.5)*14);
+          ctx.beginPath(); ctx.ellipse(hx+Math.cos(a)*r, cy+Math.sin(a)*r*0.45, 2.4,2.2,a,0,7); ctx.fill(); } }
       else { for (let k=0;k<20;k++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r;
         ctx.fillStyle=shade(col,(rnd()-0.5)*16);
         ctx.beginPath(); ctx.ellipse(hx+Math.cos(a)*rr, hy-r*0.55+Math.sin(a)*rr*0.82, 2,2,0,0,7); ctx.fill(); } }
@@ -1980,7 +1989,7 @@ function buildToolTray(){
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
       drawPlant(ctx2,24/sc,42/sc,rep,1,R.type==='bulb'?'Spring':'Summer',tileSeed(3,7),0,undefined,1);
       const sp=document.createElement('span');
-      sp.textContent=P.group ? P.group[0].toUpperCase()+P.group.slice(1)
+      sp.textContent=P.group ? (R.groupLabel||P.group[0].toUpperCase()+P.group.slice(1))
                              : P.name.split(' ').slice(0,2).join(' ');
       b.append(c,sp);
       b.onclick=()=>{ game.tool=rep; game.toolVar=null; refreshTray(); renderCvRow();

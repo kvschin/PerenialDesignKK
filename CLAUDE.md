@@ -62,8 +62,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
    `spike`, `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
-   woody shrub, `hydrangea` (mophead/panicle via `look.bloomShape`),
-   `tree` deciduous, `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
+   woody shrub, `hydrangea` (`look.bloomShape` 'mop'|'lacecap'|'panicle';
+   grouped in the tray by flower type — mophead/lacecap/panicle/oakleaf —
+   not by species), `tree` deciduous, `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
    present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
    staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
