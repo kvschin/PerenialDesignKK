@@ -722,6 +722,18 @@ function bloomLevel(key){
    but they don't block full-sun perennials until the canopy is meaningful. */
 const SHADE_ACTIVE_ESTAB = 0.35;
 const SHADE_MIN_RADIUS = 1.5;
+const SHADE_ACTIVE_SCORE = 0.42;
+const SHADE_FUTURE_SCORE = 0.18;
+/* Garden-space compass: north is y-1, south is y+1, east is x+1,
+   west is x-1. View rotation changes the camera, not these directions.
+   Kansas sun is modeled as a daily arc across the southern sky, so
+   tree shade falls generally northward, with morning/evening drift. */
+const DIRS = {N:[0,-1], E:[1,0], S:[0,1], W:[-1,0]};
+const SUN_PATH = [
+  {name:'morning',   sun:[0.72,0.70],  weight:0.25, len:1.20, width:0.44}, // SE sun -> NW shade
+  {name:'midday',    sun:DIRS.S,       weight:0.40, len:0.88, width:0.56}, // S sun  -> N shade
+  {name:'afternoon', sun:[-0.72,0.70], weight:0.35, len:1.25, width:0.46}, // SW sun -> NE shade
+];
 function canopyRadius(p){ const P=PLANTS[p.s];
   if (!P || P.type!=='tree') return 0;
   return (P.spread/TILE_IN/2)*plantEstab(p);
@@ -729,20 +741,61 @@ function canopyRadius(p){ const P=PLANTS[p.s];
 function treeShadeInfo(k,p){
   const P=PLANTS[p.s]; if (!P || P.type!=='tree') return null;
   const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p), est=plantEstab(p);
-  return {p,x:tx2,y:ty2,r,est,active:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
+  return {p,x:tx2,y:ty2,r,est,activePotential:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
+}
+function shadeSeasonScale(){
+  const s=calClock().season;
+  return s==='Summer'?0.9:s==='Winter'?1.45:1.12;
+}
+function treeShadeReach(sh){
+  return Math.ceil(sh.r*(1.4*shadeSeasonScale()+0.75));
+}
+function treeShadeScore(sh,x,y){
+  if (!sh || sh.r<1 || (x===sh.x && y===sh.y)) return 0;
+  const dx=x-sh.x, dy=y-sh.y, dist=Math.hypot(dx,dy);
+  const scale=shadeSeasonScale();
+  let score=0;
+  for (const sample of SUN_PATH){
+    const mag=Math.hypot(sample.sun[0],sample.sun[1])||1;
+    const sx=sample.sun[0]/mag, sy=sample.sun[1]/mag;
+    const shx=-sx, shy=-sy;
+    const proj=dx*shx+dy*shy;
+    const crown=sh.r*(0.22+0.24*sh.est);
+    if (dist<=crown){
+      score += sample.weight*0.58;
+      continue;
+    }
+    const len=sh.r*sample.len*scale*(0.65+0.35*sh.est);
+    if (proj<-sh.r*0.12 || proj>len) continue;
+    const perp=Math.abs(dx*(-shy)+dy*shx);
+    const taper=1-(Math.max(0,proj)/Math.max(1,len))*0.55;
+    const width=sh.r*sample.width*taper;
+    if (perp<=width){
+      const across=1-perp/Math.max(0.1,width)*0.35;
+      const along=1-Math.max(0,proj)/Math.max(0.1,len)*0.25;
+      score += sample.weight*across*along;
+    }
+  }
+  return Math.min(1,score);
 }
 function shadeInfoAt(x,y,includeFuture){
-  let future=null;
+  let active=null, future=null;
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const sh=treeShadeInfo(k,p);
     if (!sh) continue;
-    if (sh.x===x && sh.y===y) continue; // the trunk tile itself is just occupied
-    if (sh.r<1 || Math.max(Math.abs(x-sh.x),Math.abs(y-sh.y))>sh.r) continue;
-    if (sh.active) return sh;
-    if (includeFuture && !future) future=sh;
+    const reach=treeShadeReach(sh);
+    if (Math.abs(x-sh.x)>reach || Math.abs(y-sh.y)>reach) continue;
+    const score=treeShadeScore(sh,x,y);
+    if (sh.activePotential && score>=SHADE_ACTIVE_SCORE){
+      const hit=Object.assign({score,active:true},sh);
+      if (!active || hit.score>active.score) active=hit;
+    } else if (includeFuture && score>=SHADE_FUTURE_SCORE){
+      const hit=Object.assign({score,active:false},sh);
+      if (!future || hit.score>future.score) future=hit;
+    }
   }
-  return future;
+  return active||future;
 }
 function shadeAt(x,y){
   const sh=shadeInfoAt(x,y,false);
@@ -930,8 +983,9 @@ function render(t){
     if (p.removed) continue;
     const sh=treeShadeInfo(k,p);
     if (!sh || sh.r<1) continue;
-    if (sh.x+sh.r<x0 || sh.x-sh.r>x1 || sh.y+sh.r<y0 || sh.y-sh.r>y1) continue;
-    (sh.active?shadeTrees:futureShadeTrees).push(sh);
+    const reach=treeShadeReach(sh);
+    if (sh.x+reach<x0 || sh.x-reach>x1 || sh.y+reach<y0 || sh.y-reach>y1) continue;
+    (sh.activePotential?shadeTrees:futureShadeTrees).push(sh);
   }
 
   // ground tiles back-to-front
@@ -960,24 +1014,22 @@ function render(t){
   }
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
   shadeTrees.forEach(sh=>{
-    const rr=Math.ceil(sh.r);
+    const rr=treeShadeReach(sh);
     for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
       for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
-        if (xx===sh.x && yy===sh.y) continue;
-        const d=Math.max(Math.abs(xx-sh.x),Math.abs(yy-sh.y));
-        if (d>sh.r) continue;
+        const score=treeShadeScore(sh,xx,yy);
+        if (score<SHADE_ACTIVE_SCORE) continue;
         const [sx,sy]=screenOf(xx,yy,W,H);
-        const a=(0.08+0.12*sh.est)*(1-d/(sh.r+0.5)*0.5);
+        const a=(0.06+0.18*score)*(0.65+0.35*sh.est);
         tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
       }
   });
   futureShadeTrees.forEach(sh=>{
-    const rr=Math.ceil(sh.r);
+    const rr=treeShadeReach(sh);
     for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
       for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
-        if (xx===sh.x && yy===sh.y) continue;
-        const d=Math.max(Math.abs(xx-sh.x),Math.abs(yy-sh.y));
-        if (d<=sh.r && d>sh.r-1){
+        const score=treeShadeScore(sh,xx,yy);
+        if (score>=SHADE_FUTURE_SCORE && score<SHADE_ACTIVE_SCORE){
           const [sx,sy]=screenOf(xx,yy,W,H);
           tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
         }
@@ -1047,8 +1099,7 @@ function render(t){
     let g2v=plantGrowth(p);
     const P2=PLANTS[p.s];
     if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
-        shadeTrees.some(sh=>sh.p!==p &&
-          Math.max(Math.abs(x-sh.x),Math.abs(y-sh.y))<=sh.r))
+        shadeTrees.some(sh=>sh.p!==p && treeShadeScore(sh,x,y)>=SHADE_ACTIVE_SCORE))
       g2v*=0.45; // struggling under the canopy
     ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
