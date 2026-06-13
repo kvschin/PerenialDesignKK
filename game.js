@@ -213,6 +213,26 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
+  else if (P.form === 'drumstick'){ // burnet: small buttons bobbing on wiry stems
+    const L = P.look||{};
+    if (S.fol){ const fn=stemFor(7); // low pinnate basal foliage
+      ctx.strokeStyle=S.fol; ctx.lineWidth=1.3;
+      for(let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*0.26;
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); } }
+    const sn=stemFor(L.stems||7);
+    for(let i=0;i<sn;i++){
+      const ox=(rnd()-0.5)*17, len=H*(0.65+rnd()*0.4), tip=ox+sway*len*0.09;
+      ctx.strokeStyle=shade(S.fol||'#6b6248',-14); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(ox*0.3,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len); ctx.stroke();
+      if (!mature) continue;
+      const headOn = blooming ? (i < Math.max(1,Math.ceil(sn*blv))) : false;
+      const col=(headOn?S.bloom:null)||S.seed;
+      if (col){ ctx.fillStyle=col;
+        const bw=L.button||1.8, bl=L.buttonLen||3.2;
+        ctx.beginPath(); ctx.ellipse(tip,-len-bl*0.4,bw,bl,sway*0.12,0,7); ctx.fill(); }
+    }
+  }
   else if (P.form === 'shrub'){
     // mounded clump of foliage dots
     const n = stemFor(26);

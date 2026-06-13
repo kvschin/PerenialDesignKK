@@ -7,9 +7,10 @@
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
-           yarrow, sedum, joe pye) | shrub (herbaceous mound) |
-           fern | leafmound (hosta) | bulbcup (crocus/tulip/daffodil) |
-           bush (woody shrub) | tree (deciduous) | conifer
+           yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
+           burnet) | shrub (herbaceous mound) | fern | leafmound (hosta) |
+           bulbcup (crocus/tulip/daffodil) | bush (woody shrub) |
+           tree (deciduous) | conifer
    type    grass | sedge | forb | bulb | shrub | tree — drives the tray
            categories. Bulbs live in their own layer (game.bulbs): they
            share tiles with perennials, bloom in earliest spring while
@@ -289,6 +290,68 @@ const PLANTS = {
     space:18, spread:15, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool', eco:[], stem:'#3a3038',
     blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
+  helenium:{ name:'Sneezeweed', latin:'Helenium autumnale', form:'cone', type:'forb', h:48,
+    space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    look:{rays:13, rayLen:5, droop:3.5, rayW:1.6, leaves:8, leafLen:0.34, stems:7},
+    blurb:'Domed gold daisies with a fat brown button, late summer into fall. Wet feet welcome; it never sneezes anyone.',
+    sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#e8b438',eye:'#7a4a26'}, Fall:{fol:'#7a6a48',bloom:'#d99a2e',eye:'#6e3a22'}, Winter:{fol:'#6b5d4a',seed:'#2c2218'}},
+    cv:{
+      moerheim:{name:"'Moerheim Beauty'", note:'burnt copper-orange, fading rust',
+        sea:{Summer:{fol:'#5d7a4c',bloom:'#c85a2e',eye:'#5e2e1e'}, Fall:{fol:'#7a6a48',bloom:'#a8482a',eye:'#52261a'}}},
+    }},
+  sanguisorba:{ name:'Canadian Burnet', latin:'Sanguisorba canadensis', form:'drumstick', type:'forb', h:56,
+    group:'burnet', chip:'Canadian',
+    space:24, spread:30, zones:[3,7], native:true, sun:'full', moist:'moist', phen:'mid',
+    eco:['Western Corn Belt Plains','Central Irregular Plains'],
+    look:{stems:8, button:1.8, buttonLen:4.6},
+    blurb:'White bottlebrushes nodding on tall wiry stems over a wet meadow in September. The native burnet.',
+    sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#6e8a6c',bloom:'#f0ede2',seed:'#b8a888'}, Winter:{fol:'#6b5d4a',seed:'#8a7a60'}}},
+  greatburnet:{ name:'Great Burnet', latin:'Sanguisorba officinalis', form:'drumstick', type:'forb', h:42,
+    group:'burnet', chip:'Great',
+    space:18, spread:24, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'mid', eco:[],
+    look:{stems:9, button:1.5, buttonLen:2.4},
+    blurb:'Tiny oxblood drumsticks floating on airy branched stems — pure Oudolf scatter through the grasses.',
+    sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c',bloom:'#7a2e3a'}, Fall:{fol:'#7a6a55',bloom:'#5e2430',seed:'#4a2a2e'}, Winter:{fol:'#5e574a',seed:'#3a2024'}}},
+  lilacsquirrel:{ name:"Burnet 'Lilac Squirrel'", latin:'Sanguisorba hakusanensis', form:'drumstick', type:'forb', h:34,
+    group:'burnet', chip:'Lilac Squirrel',
+    space:18, spread:18, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'mid', eco:[],
+    look:{stems:6, button:2.3, buttonLen:5.8},
+    blurb:'Long fuzzy mauve-pink catkins drooping like bottle-brush tails over blue-green leaves. A conversation piece.',
+    sea:{Spring:{fol:'#7d93a0'}, Summer:{fol:'#6e8a90',bloom:'#d089aa'}, Fall:{fol:'#8a8470',seed:'#b89a9e'}, Winter:{fol:'#7d7666',seed:'#9a8a82'}}},
+  coreopsis:{ name:'Threadleaf Coreopsis', latin:'Coreopsis verticillata', form:'cone', type:'forb', h:28,
+    group:'coreopsis', chip:'Threadleaf',
+    space:18, spread:24, zones:[3,9], native:true, sun:'full', moist:'dry', phen:'mid',
+    eco:['Ozark Highlands','Central Irregular Plains'],
+    look:{rays:8, rayLen:4.5, droop:1, rayW:1.6, leaves:5, leafW:1, leafLen:0.34, stems:7},
+    blurb:'A haze of fine foliage spangled with gold stars all summer. Shear it once and it reblooms.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d8a4c',bloom:'#e8c23a',eye:'#c89a2a'}, Fall:{fol:'#7a8a55',bloom:'#d9b43a',eye:'#b8902a'}, Winter:{fol:'#8a7a60',seed:'#5e5240'}},
+    cv:{
+      moonbeam:{name:"'Moonbeam'", note:'soft lemon-cream, blooms for months',
+        sea:{Summer:{fol:'#5d8a4c',bloom:'#eef0c2',eye:'#cdc878'}, Fall:{fol:'#7a8a55',bloom:'#e2e4b8',eye:'#c2bd72'}}},
+      zagreb:{name:"'Zagreb'", note:'deep golden-yellow, tidy and tough',
+        sea:{Summer:{fol:'#5d8a4c',bloom:'#f0a82a',eye:'#b8801e'}, Fall:{fol:'#7a8a55',bloom:'#e09a26',eye:'#a8741a'}}},
+    }},
+  lanceleaf:{ name:'Lanceleaf Coreopsis', latin:'Coreopsis lanceolata', form:'cone', type:'forb', h:30,
+    group:'coreopsis', chip:'Lanceleaf',
+    space:15, spread:18, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'mid',
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
+    look:{rays:8, rayLen:5.5, droop:1.5, rayW:2.4, leaves:6, leafLen:0.34, stems:5},
+    blurb:'Big bright gold daisies on a tough prairie native — the roadside tickseed, happiest in lean dry ground.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#f0b828',eye:'#a86a1e'}, Fall:{fol:'#7a7050',seed:'#5e5240'}, Winter:{fol:'#6b5d4a',seed:'#4a4234'}}},
+  talltickseed:{ name:'Tall Tickseed', latin:'Coreopsis tripteris', form:'cone', type:'forb', h:70,
+    group:'coreopsis', chip:'Tall',
+    space:24, spread:36, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'warm',
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
+    look:{rays:8, rayLen:4.5, droop:1, rayW:1.6, leaves:7, leafLen:0.42, stems:9},
+    blurb:'Head-high sprays of pale gold daisies with dark eyes, smelling faintly of anise. The back-of-border tickseed.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#5d7a4c',bloom:'#e8d048',eye:'#5a3a2a'}, Winter:{fol:'#8a7a60',seed:'#5e5240'}}},
+  willowsunflower:{ name:'Willowleaf Sunflower', latin:'Helianthus salicifolius', form:'cone', type:'forb', h:76,
+    space:24, spread:36, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'warm',
+    eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Southwestern Tablelands'],
+    look:{rays:11, rayLen:4, droop:1, rayW:1.4, leaves:11, leafLen:0.55, stems:9},
+    blurb:'A green fountain of willowy leaves all summer, then a tower of small gold suns in October. Plant it big.',
+    sea:{Spring:{fol:'#7d9a6a'}, Summer:{fol:'#6f9a5a'}, Fall:{fol:'#7a8a55',bloom:'#f0b82a',eye:'#6e4a1e'}, Winter:{fol:'#8a7a60',seed:'#5e5240'}}},
 
   /* ---------- bulbs: the layer under everything ----------
      They share tiles with perennials and bloom while the upper layer
