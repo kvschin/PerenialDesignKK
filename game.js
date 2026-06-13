@@ -36,6 +36,20 @@ const AMBIENCE = {
   Winter:{sky:['#6e7787','#cdd3d8'], grass:['#9b9484','#857f70'], soil:'#5a5048', tint:'rgba(200,215,235,0.10)', snow:1},
 };
 
+const PATH_COLORS = [
+  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa'},
+  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6'},
+  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68'},
+  {id:'slate', label:'Slate', fill:'#7a8386', plan:'#b8c0c2'},
+  {id:'clay', label:'Red clay', fill:'#a76543', plan:'#d3a184'},
+  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e'},
+];
+function pathColor(id){ return PATH_COLORS.find(c=>c.id===id)||PATH_COLORS[0]; }
+function pathColorId(id){ return pathColor(id).id; }
+function pathFill(t,snow){ const p=pathColor(t&&t.c);
+  return snow ? mixHex(p.fill,'#eef2f8',0.42) : p.fill; }
+function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
+
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,
    which index.html loads before this file. */
 
@@ -625,6 +639,7 @@ const game = {
   drift:false,                                       // plant in clusters, Oudolf style
   fx:[],                                             // short-lived planting pulses
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
+  pathColor:'warm',                                  // selected path swatch for new/repainted paths
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
   others:{},          // multiplayer presence
@@ -775,7 +790,8 @@ function safeSpawn(){
 }
 
 /* player-laid terrain (paths and beds) on top of the built-in walkway */
-function tileTerrain(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t.k:null; }
+function terrainAt(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t:null; }
+function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
 
 /* ---------- isometric math + view rotation ----------
    The camera always looks at VIEW space; game.rot rotates world tiles
@@ -892,11 +908,11 @@ function render(t){
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    const terr=tileTerrain(x,y);
+    const terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
     const path=terr==='path';
     const rs=mulberry(tileSeed(x,y));
     let col;
-    if (path) col = amb.snow?'#b8b2a6':'#bba98c';
+    if (path) col = pathFill(terrObj,amb.snow);
     else if (isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
@@ -1056,7 +1072,7 @@ function actHere(){
   }
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
-  const terr = tileTerrain(x,y);
+  const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
     if (hasPlant){
@@ -1073,9 +1089,20 @@ function actHere(){
   }
   if (game.tool==='path'||game.tool==='bed'){
     if (hasPlant){ toast('Lift the plant first.'); return; }
-    if (terr===game.tool){ toast(terr==='path'?'Already a path.':'Already a bed.'); return; }
-    game.terrain[k]={k:game.tool,t:Date.now()}; game.dirty=true;
-    toast(game.tool==='path'?'Path laid.':'Bed dug. Ready for planting.');
+    if (terr===game.tool){
+      if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
+        game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
+        toast(`${pathColor(game.pathColor).label} path color applied.`);
+        syncTerrainOut();
+        return;
+      }
+      toast(terr==='path'?'Already a path.':'Already a bed.'); return;
+    }
+    game.terrain[k]=game.tool==='path'
+      ? {k:'path',c:game.pathColor,t:Date.now()}
+      : {k:'bed',t:Date.now()};
+    game.dirty=true;
+    toast(game.tool==='path'?`${pathColor(game.pathColor).label} path laid.`:'Bed dug. Ready for planting.');
     syncTerrainOut();
     return;
   }
@@ -1117,12 +1144,21 @@ function driftCount(def){
 function applyToolAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return null;
   if (inHouse(x,y) || isDoor(x,y)) return null;
-  const k=`${x},${y}`, terr=tileTerrain(x,y);
+  const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   if (game.tool==='path'||game.tool==='bed'){
     const ex=game.plants[k];
     if (ex && !ex.removed) return null;
-    if (terr===game.tool) return null;
-    game.terrain[k]={k:game.tool,t:Date.now()}; game.dirty=true;
+    if (terr===game.tool){
+      if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
+        game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
+        return 'path';
+      }
+      return null;
+    }
+    game.terrain[k]=game.tool==='path'
+      ? {k:'path',c:game.pathColor,t:Date.now()}
+      : {k:'bed',t:Date.now()};
+    game.dirty=true;
     return game.tool;
   }
   if (!PLANTS[game.tool]) return null;
@@ -1335,7 +1371,7 @@ function finishToolDrag(){
   if (toolDrag.count){
     syncToolLayer(toolDrag.what);
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
-    toast(toolDrag.what==='path' ? `Laid ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`
+    toast(toolDrag.what==='path' ? `Updated ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`
         : toolDrag.what==='bed'  ? `Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`
         : `Planted ${toolDrag.count} — ${def.name}.`);
   } else toast('Nothing would take along that line.');
@@ -1452,7 +1488,7 @@ async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
-    gw:GW,gh:GH,rot:game.rot,house:game.house,
+    gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,
     plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -1477,6 +1513,7 @@ async function loadSolo(id){
   game.bulbs=shiftKeys(s.bulbs||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
   game.house=s.house||defaultHouse();
+  game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.rot=s.rot||0;
   game.startTs=s.startTs||Date.now();
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
@@ -1494,7 +1531,7 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0;
-  game.plants={}; game.bulbs={}; game.terrain={};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm';
   setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
@@ -1750,7 +1787,7 @@ function buildPlanMap(){
   for (const k in game.terrain){ const t2=game.terrain[k];
     if (t2.removed) continue;
     const [x,y]=k.split(',').map(Number);
-    ctx.fillStyle=t2.k==='path'?'#dccdaa':'#ebe2c9';
+    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):'#ebe2c9';
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
   }
   // drifts as smoothed blobs (largest first so small ones read on top)
@@ -2006,7 +2043,8 @@ function buildToolTray(){
   if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; }
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')){
-    [['path','Path','#bba98c','Path: stand on grass and act to lay gravel.'],
+    const pathCol=pathColor(game.pathColor);
+    [['path','Path',pathCol.fill,`${pathCol.label} path: drag or act to lay paths.`],
      ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.']]
     .filter(([k])=>cat.tools.includes(k))
     .forEach(([k,label,colr,hint])=>{
@@ -2024,6 +2062,31 @@ function buildToolTray(){
       b.onclick=()=>{ game.tool=k; game.toolVar=null; refreshTray(); toast(hint); };
       tray.appendChild(b);
     });
+    if (cat.tools.includes('path')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Path color'; tray.appendChild(sep);
+      PATH_COLORS.forEach(pc=>{
+        const b=document.createElement('button');
+        b.className='tool'+(game.tool==='path'&&game.pathColor===pc.id?' sel':'');
+        b.dataset.k='path'; b.dataset.pathColor=pc.id;
+        const c=document.createElement('canvas'); c.width=48; c.height=44;
+        const tc=c.getContext('2d');
+        tc.fillStyle=pc.fill;
+        tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
+        tc.closePath(); tc.fill();
+        tc.strokeStyle='rgba(239,230,211,.45)'; tc.lineWidth=1.2; tc.stroke();
+        tc.fillStyle='rgba(0,0,0,.18)';
+        const rs=mulberry(100+PATH_COLORS.indexOf(pc));
+        for (let i=0;i<5;i++){ tc.beginPath();
+          tc.ellipse(24+(rs()-0.5)*22,23+(rs()-0.5)*10,2,1.2,0,0,7); tc.fill(); }
+        const sp=document.createElement('span'); sp.textContent=pc.label.split(' ')[0];
+        b.append(c,sp);
+        b.title=pc.label;
+        b.onclick=()=>{ game.tool='path'; game.toolVar=null; game.pathColor=pc.id;
+          buildToolTray(); toast(`${pc.label} path selected.`); };
+        tray.appendChild(b);
+      });
+    }
   }
   if (cat.tools.includes('house')){
     // the House tab works like the plant tray: icon buttons in labeled
@@ -2090,6 +2153,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
   document.querySelectorAll('#toolTray .tool').forEach(b=>{
     const k=b.dataset.k, P=k&&PLANTS[k];
     let hay=k||'';
+    if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'');
       if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
         hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin; }); }
@@ -2098,10 +2162,14 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
 }
 function refreshTray(){
   const cur=PLANTS[game.tool];
-  document.querySelectorAll('.tool').forEach(el=>
-    el.classList.toggle('sel', el.dataset.group
+  document.querySelectorAll('.tool').forEach(el=>{
+    const sel=el.dataset.pathColor
+      ? game.tool==='path' && game.pathColor===el.dataset.pathColor
+      : el.dataset.group
       ? !!(cur && cur.group===el.dataset.group)
-      : el.dataset.k===game.tool));
+      : el.dataset.k===game.tool;
+    el.classList.toggle('sel', sel);
+  });
 }
 /* variant chips: species inside a group, and/or cultivars of the
    selected species. A chip is a (species, cultivar|null) pair. */
@@ -2368,7 +2436,7 @@ function openPlotScreen(){
       game.worldName=$('plotName').value.trim()||'My garden';
       game.house=defaultHouse(); game.rot=0;
       game.startTs=Date.now(); game.dayOffset=0;
-      game.plants={}; game.bulbs={}; game.terrain={};
+      game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm';
       seedWalkway(); starterDrift(); enterGarden();
       saveSolo(true); // claim the slot right away
     };
