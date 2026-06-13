@@ -68,23 +68,6 @@ function plantDef(key,v){
   return _defCache[ck]=d;
 }
 
-const _xyCache=new Map();
-function xyKey(k){
-  let v=_xyCache.get(k);
-  if (v) return v;
-  const i=k.indexOf(',');
-  v=[+k.slice(0,i), +k.slice(i+1)];
-  _xyCache.set(k,v);
-  return v;
-}
-const MAX_TREE_CANOPY_TILES = Math.ceil(Object.keys(PLANTS).reduce((m,k)=>{
-  const p=PLANTS[k];
-  if (!p || p.type!=='tree') return m;
-  m=Math.max(m,(p.spread||0)/TILE_IN/2);
-  if (p.cv) for (const v in p.cv) m=Math.max(m,((p.cv[v].spread||p.spread||0)/TILE_IN/2));
-  return m;
-},0));
-
 /* coat palettes for cats & dogs */
 const COATS = [
   {n:'Marmalade', c:'#d98a4a', d:'#a35a2e'},
@@ -669,26 +652,12 @@ const game = {
 const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
   localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
 
-const YEAR_DAYS = DAYS_PER_SEASON*4;
-let clockCache=null;
-function readClock(now=Date.now()){
-  const elapsed=now-game.startTs;
-  const d=Math.floor(elapsed/DAY_MS) + game.dayOffset;
-  const sIdx=((Math.floor(d/DAYS_PER_SEASON)%4)+4)%4;
-  return {
-    now,
-    abs:d,
-    day:((d%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON+1,
-    season:SEASONS[sIdx],
-    year:Math.floor(d/YEAR_DAYS)+1,
-    frac:(((elapsed%DAY_MS)+DAY_MS)%DAY_MS)/DAY_MS
-  };
-}
-function curClock(){ return clockCache||readClock(); }
-function absDay(){ return curClock().abs; }
+function absDay(){ return Math.floor((Date.now()-game.startTs)/DAY_MS) + game.dayOffset; }
 function calClock(){
-  const c=curClock();
-  return {day:c.day, season:c.season, year:c.year, frac:c.frac};
+  const d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
+  const sIdx=Math.floor(d/DAYS_PER_SEASON)%4;
+  return {day:d%DAYS_PER_SEASON+1, season:SEASONS[sIdx], year,
+          frac:((Date.now()-game.startTs)%DAY_MS)/DAY_MS};
 }
 /* ---------- phenology: how perennials actually behave ----------
    A plant's drawn size = establishment x seasonal envelope.
@@ -700,6 +669,7 @@ function calClock(){
    crown when spring arrives, regrows on its own schedule (cool-season
    plants first, warm-season prairie grasses last), stands full through
    fall, and holds as dead structure all winter — the Oudolf point. */
+const YEAR_DAYS = DAYS_PER_SEASON*4;
 const PHEN = { cool:{w:0,f:14}, mid:{w:4,f:24}, warm:{w:7,f:28} }; // wake/full, in days into the year
 function winterDaysBefore(d){ // winter days in [0,d); works for negative d
   const y=Math.floor(d/YEAR_DAYS), r=d-y*YEAR_DAYS;
@@ -757,7 +727,7 @@ function shadeAt(x,y){
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const P=PLANTS[p.s]; if (!P || P.type!=='tree') continue;
-    const [tx2,ty2]=xyKey(k);
+    const [tx2,ty2]=k.split(',').map(Number);
     if (tx2===x && ty2===y) continue; // the trunk tile itself is just occupied
     const r=canopyRadius(p);
     if (r>=1 && Math.max(Math.abs(x-tx2),Math.abs(y-ty2))<=r) return p;
@@ -912,10 +882,7 @@ addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); 
 
 let snowFlakes = [];
 function render(t){
-  const cal=readClock(), prevClock=clockCache;
-  clockCache=cal;
-  try {
-  const W=innerWidth/ZOOM, H=innerHeight/ZOOM, amb=AMBIENCE[cal.season];
+  const W=innerWidth/ZOOM, H=innerHeight/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   // sky
   const g = cx.createLinearGradient(0,0,0,H);
@@ -1001,42 +968,33 @@ function render(t){
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
   // canopies stunt full-sun plants beneath them (they persist, smaller)
   const shadeTrees=[];
-  const sx0=Math.max(0,x0-MAX_TREE_CANOPY_TILES), sx1=Math.min(GW-1,x1+MAX_TREE_CANOPY_TILES);
-  const sy0=Math.max(0,y0-MAX_TREE_CANOPY_TILES), sy1=Math.min(GH-1,y1+MAX_TREE_CANOPY_TILES);
-  for (let y=sy0;y<=sy1;y++) for (let x=sx0;x<=sx1;x++){
-    const k=`${x},${y}`, p=game.plants[k];
-    if (!p || p.removed) continue;
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
     const P=PLANTS[p.s];
     if (P && P.type==='tree'){ const r=canopyRadius(p);
-      if (r>=1 && x+r>=x0 && x-r<=x1 && y+r>=y0 && y-r<=y1) shadeTrees.push([x,y,r,k]); }
+      if (r>=1){ const [tx2,ty2]=k.split(',').map(Number); shadeTrees.push([tx2,ty2,r,k]); } }
   }
-  // bulb and plant layers are map lookups over the visible camera window,
-  // rather than full-world scans, so large gardens stay responsive.
-  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
-    const k=`${x},${y}`;
-    const b=game.bulbs[k];
-    if (b && !b.removed){
-      const gB=plantGrowth(b);
-      if (gB>0.02)
-        ents.push({depth:viewDepth(x,y)+0.25, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-          drawPlant(cx,sx,sy+TILE_H/2,b.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,b.v);}});
-    }
-    const p=game.plants[k];
-    if (p && !p.removed){
-      let g2v=plantGrowth(p);
-      const P2=PLANTS[p.s];
-      if (P2 && P2.sun!=='part' && P2.type!=='tree'){
-        for (let i=0;i<shadeTrees.length;i++){
-          const [sx2,sy2,r,sk]=shadeTrees[i];
-          if (sk!==k && Math.max(Math.abs(x-sx2),Math.abs(y-sy2))<=r){
-            g2v*=0.45; // struggling under the canopy
-            break;
-          }
-        }
-      }
-      ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-        drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
-    }
+  // the bulb layer: invisible most of the year, so cull hard
+  for (const k in game.bulbs){ const p=game.bulbs[k];
+    if (p.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    if (x<x0||x>x1||y<y0||y>y1) continue;
+    const gB=plantGrowth(p); if (gB<=0.02) continue;
+    ents.push({depth:viewDepth(x,y)+0.25, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+      drawPlant(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v);}});
+  }
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    if (x<x0||x>x1||y<y0||y>y1) continue;
+    let g2v=plantGrowth(p);
+    const P2=PLANTS[p.s];
+    if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
+        shadeTrees.some(([sx2,sy2,r,sk])=>sk!==k &&
+          Math.max(Math.abs(x-sx2),Math.abs(y-sy2))<=r))
+      g2v*=0.45; // struggling under the canopy
+    ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+      drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
   }
   // local player (smooth move)
   let dx=game.px, dy=game.py;
@@ -1048,7 +1006,7 @@ function render(t){
     cx.fillStyle='#f3ecdd'; cx.textAlign='center'; cx.fillText(nm,sx,sy-31); }});
   // other gardeners
   for (const id in game.others){ const o=game.others[id];
-    if (cal.now-o.ts > 30000) continue;
+    if (Date.now()-o.ts > 30000) continue;
     ents.push({depth:viewDepth(o.x,o.y)+0.5, draw:()=>{ const [sx,sy]=screenOf(o.x,o.y,W,H);
       drawCritter(cx,sx,sy+TILE_H/2,{species:o.sp,coat:o.c,coatD:o.cd,mark:o.m},t,false,1);
       cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
@@ -1087,9 +1045,6 @@ function render(t){
     g2.addColorStop(0.5,'rgba(228,160,90,0.10)');
     g2.addColorStop(1,'rgba(50,35,55,0.24)');
     cx.fillStyle=g2; cx.fillRect(0,0,W,H);
-  }
-  } finally {
-    clockCache=prevClock;
   }
 }
 
@@ -1544,7 +1499,7 @@ async function saveSolo(silent){
 function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
   if (!d) return m;
   const out={};
-  for (const k in m){ const [x,y]=xyKey(k); out[`${x+d},${y+d}`]=m[k]; }
+  for (const k in m){ const [x,y]=k.split(',').map(Number); out[`${x+d},${y+d}`]=m[k]; }
   return out;
 }
 async function loadSolo(id){
@@ -1715,7 +1670,7 @@ function planComponents(){
     seen[k]=true;
     while (stack.length){
       const cur=stack.pop(); tiles.push(cur);
-      const [cx2,cy2]=xyKey(cur);
+      const [cx2,cy2]=cur.split(',').map(Number);
       for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++){
         if (!dx&&!dy) continue;
         const nk=`${cx2+dx},${cy2+dy}`;
@@ -1733,7 +1688,7 @@ function traceOutlines(tileSet){ // rectilinear boundary loops of a tile set
   const edges=new Map(); // "x,y" start -> [end points]
   const add=(x1,y1,x2,y2)=>{ const k=`${x1},${y1}`;
     (edges.get(k)||edges.set(k,[]).get(k)).push([x2,y2]); };
-  for (const k of tileSet){ const [x,y]=xyKey(k);
+  for (const k of tileSet){ const [x,y]=k.split(',').map(Number);
     if (!has(x,y-1)) add(x,y, x+1,y);
     if (!has(x+1,y)) add(x+1,y, x+1,y+1);
     if (!has(x,y+1)) add(x+1,y+1, x,y+1);
@@ -1742,7 +1697,7 @@ function traceOutlines(tileSet){ // rectilinear boundary loops of a tile set
   const loops=[];
   for (const [start] of edges){
     if (!edges.get(start).length) continue;
-    const pts=[xyKey(start)];
+    const pts=[start.split(',').map(Number)];
     let cur=start;
     while (true){
       const outs=edges.get(cur);
@@ -1831,7 +1786,7 @@ function buildPlanMap(){
   // terrain
   for (const k in game.terrain){ const t2=game.terrain[k];
     if (t2.removed) continue;
-    const [x,y]=xyKey(k);
+    const [x,y]=k.split(',').map(Number);
     ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):'#ebe2c9';
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
   }
@@ -1865,7 +1820,7 @@ function buildPlanMap(){
     if (p.removed) continue;
     const def=plantDef(p.s,p.v);
     if (def.type!=='tree') continue;
-    const [x,y]=xyKey(k);
+    const [x,y]=k.split(',').map(Number);
     const r=Math.max(cell*0.6,(def.spread/TILE_IN/2)*cell);
     ctx.strokeStyle='#6e5a40'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,r,0,7); ctx.stroke();
@@ -1875,7 +1830,7 @@ function buildPlanMap(){
   }
   // bulbs: scatter rings over everything
   bulbsLive.forEach(k=>{
-    const b2=game.bulbs[k], [x,y]=xyKey(k);
+    const b2=game.bulbs[k], [x,y]=k.split(',').map(Number);
     ctx.strokeStyle=planColor(plantDef(b2.s,b2.v)); ctx.lineWidth=1.4;
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke();
   });
@@ -1895,11 +1850,11 @@ function buildPlanMap(){
   ctx.textAlign='center';
   comps.forEach(c=>{
     const def=plantDef(c.s,c.v);
-    if (def.type==='tree'){ var lt=xyKey(c.tiles[0]);
+    if (def.type==='tree'){ var lt=c.tiles[0].split(',').map(Number);
       var lx=X(lt[0])+cell/2, ly=Y(lt[1])-cell*0.4; }
     else {
       let sx=0,sy=0;
-      c.tiles.forEach(k=>{ const [x,y]=xyKey(k); sx+=x; sy+=y; });
+      c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number); sx+=x; sy+=y; });
       var lx=X(sx/c.tiles.length+0.5), ly=Y(sy/c.tiles.length+0.5)+3;
     }
     const fs=Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2));
