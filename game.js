@@ -718,21 +718,35 @@ function bloomLevel(key){
   const t2=Math.max(0, 1-Math.abs(d-c)/7);
   return t2*t2*(3-2*t2);
 }
-/* trees throw shade as they establish; only part-sun plants grow there */
+/* trees throw shade as they establish; baby trees show a future canopy,
+   but they don't block full-sun perennials until the canopy is meaningful. */
+const SHADE_ACTIVE_ESTAB = 0.35;
+const SHADE_MIN_RADIUS = 1.5;
 function canopyRadius(p){ const P=PLANTS[p.s];
   if (!P || P.type!=='tree') return 0;
   return (P.spread/TILE_IN/2)*plantEstab(p);
 }
-function shadeAt(x,y){
+function treeShadeInfo(k,p){
+  const P=PLANTS[p.s]; if (!P || P.type!=='tree') return null;
+  const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p), est=plantEstab(p);
+  return {p,x:tx2,y:ty2,r,est,active:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
+}
+function shadeInfoAt(x,y,includeFuture){
+  let future=null;
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
-    const P=PLANTS[p.s]; if (!P || P.type!=='tree') continue;
-    const [tx2,ty2]=k.split(',').map(Number);
-    if (tx2===x && ty2===y) continue; // the trunk tile itself is just occupied
-    const r=canopyRadius(p);
-    if (r>=1 && Math.max(Math.abs(x-tx2),Math.abs(y-ty2))<=r) return p;
+    const sh=treeShadeInfo(k,p);
+    if (!sh) continue;
+    if (sh.x===x && sh.y===y) continue; // the trunk tile itself is just occupied
+    if (sh.r<1 || Math.max(Math.abs(x-sh.x),Math.abs(y-sh.y))>sh.r) continue;
+    if (sh.active) return sh;
+    if (includeFuture && !future) future=sh;
   }
-  return null;
+  return future;
+}
+function shadeAt(x,y){
+  const sh=shadeInfoAt(x,y,false);
+  return sh&&sh.p;
 }
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
 
@@ -838,6 +852,14 @@ function houseDrawDepth(h){
   const [dx,dy]=doorPos(h);
   return viewDepth(dx,dy)+0.05;
 }
+function tileDiamond(ctx,sx,sy,fill,stroke,dash){
+  if (dash){ ctx.save(); ctx.setLineDash(dash); }
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+TILE_W/2,sy+TILE_H/2);
+  ctx.lineTo(sx,sy+TILE_H); ctx.lineTo(sx-TILE_W/2,sy+TILE_H/2); ctx.closePath();
+  if (fill){ ctx.fillStyle=fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke(); }
+  if (dash) ctx.restore();
+}
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
 function rotateView(dir){
@@ -903,6 +925,14 @@ function render(t){
   const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+2);
   const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-2);
   const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+2);
+  const shadeTrees=[], futureShadeTrees=[];
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const sh=treeShadeInfo(k,p);
+    if (!sh || sh.r<1) continue;
+    if (sh.x+sh.r<x0 || sh.x-sh.r>x1 || sh.y+sh.r<y0 || sh.y-sh.r>y1) continue;
+    (sh.active?shadeTrees:futureShadeTrees).push(sh);
+  }
 
   // ground tiles back-to-front
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
@@ -928,11 +958,45 @@ function render(t){
     if (amb.snow && !path && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
       cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
   }
+  // active shade is a cool wash; young trees get only a faint future-canopy edge.
+  shadeTrees.forEach(sh=>{
+    const rr=Math.ceil(sh.r);
+    for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
+      for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
+        if (xx===sh.x && yy===sh.y) continue;
+        const d=Math.max(Math.abs(xx-sh.x),Math.abs(yy-sh.y));
+        if (d>sh.r) continue;
+        const [sx,sy]=screenOf(xx,yy,W,H);
+        const a=(0.08+0.12*sh.est)*(1-d/(sh.r+0.5)*0.5);
+        tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
+      }
+  });
+  futureShadeTrees.forEach(sh=>{
+    const rr=Math.ceil(sh.r);
+    for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
+      for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
+        if (xx===sh.x && yy===sh.y) continue;
+        const d=Math.max(Math.abs(xx-sh.x),Math.abs(yy-sh.y));
+        if (d<=sh.r && d>sh.r-1){
+          const [sx,sy]=screenOf(xx,yy,W,H);
+          tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
+        }
+      }
+  });
   // hover/selection cursor on player's tile
   const [hx,hy]=screenOf(game.tx,game.ty,W,H);
   cx.strokeStyle='rgba(243,236,221,0.85)'; cx.lineWidth=2;
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
+  if (game.hoverTile && PLANTS[game.tool]){
+    const def=plantDef(game.tool,game.toolVar);
+    if (def && def.sun!=='part' && def.type!=='tree' && def.type!=='bulb'){
+      const [txh,tyh]=game.hoverTile, sh=shadeInfoAt(txh,tyh,true);
+      if (sh){ const [sx,sy]=screenOf(txh,tyh,W,H);
+        tileDiamond(cx,sx,sy,sh.active?'rgba(150,42,32,0.16)':'rgba(210,168,92,0.13)',
+          sh.active?'rgba(230,118,92,0.88)':'rgba(234,188,102,0.78)',sh.active?null:[5,4]); }
+    }
+  }
 
   // RTS-style placement ghost while the House tool is armed: tinted
   // footprint (red when you're standing in it) under a translucent house
@@ -966,14 +1030,7 @@ function render(t){
   if (ghost)
     ents.push({depth:houseDrawDepth(ghost)+0.01,
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
-  // canopies stunt full-sun plants beneath them (they persist, smaller)
-  const shadeTrees=[];
-  for (const k in game.plants){ const p=game.plants[k];
-    if (p.removed) continue;
-    const P=PLANTS[p.s];
-    if (P && P.type==='tree'){ const r=canopyRadius(p);
-      if (r>=1){ const [tx2,ty2]=k.split(',').map(Number); shadeTrees.push([tx2,ty2,r,k]); } }
-  }
+  // active canopies stunt full-sun plants beneath them (they persist, smaller)
   // the bulb layer: invisible most of the year, so cull hard
   for (const k in game.bulbs){ const p=game.bulbs[k];
     if (p.removed) continue;
@@ -990,8 +1047,8 @@ function render(t){
     let g2v=plantGrowth(p);
     const P2=PLANTS[p.s];
     if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
-        shadeTrees.some(([sx2,sy2,r,sk])=>sk!==k &&
-          Math.max(Math.abs(x-sx2),Math.abs(y-sy2))<=r))
+        shadeTrees.some(sh=>sh.p!==p &&
+          Math.max(Math.abs(x-sh.x),Math.abs(y-sh.y))<=sh.r))
       g2v*=0.45; // struggling under the canopy
     ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
@@ -1120,9 +1177,9 @@ function actHere(){
   }
   if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
-  const shadeTree=shadeAt(x,y);
+  const shadeTree=shadeInfoAt(x,y,false);
   if (shadeTree && def.sun!=='part'){
-    toast(`Too shady under the ${PLANTS[shadeTree.s].name.toLowerCase()} — shade-tolerant plants only.`);
+    toast(`Active canopy shade from the ${PLANTS[shadeTree.p.s].name.toLowerCase()} — shade-tolerant plants only.`);
     return;
   }
   const n=game.drift?driftCount(def):1;
@@ -1247,7 +1304,7 @@ function paintHouse(part,col,label){
 function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
-  const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeAt(px2,py2);
+  const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeInfoAt(px2,py2,false);
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·
@@ -1256,7 +1313,7 @@ function showPlantCard(p,px2,py2){
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
       : 'Garden cultivar (non-native)'}</p>
-    ${shaded?'<p style="color:#c9a07f">Struggling — a canopy has grown over it and it wants full sun.</p>':''}
+    ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
   xb.onclick=()=>{ el.style.display='none'; clearTimeout(el._t); };
