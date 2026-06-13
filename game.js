@@ -517,8 +517,105 @@ function shade(hex, amt){
   if (!hex) hex='#6b6248'; // seasons without that color: dead-stem brown
   const n=parseInt(hex.slice(1),16);
   let r=(n>>16)+amt, g=((n>>8)&255)+amt, b=(n&255)+amt;
-  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  r=Math.round(Math.max(0,Math.min(255,r)));
+  g=Math.round(Math.max(0,Math.min(255,g)));
+  b=Math.round(Math.max(0,Math.min(255,b)));
   return `rgb(${r},${g},${b})`;
+}
+
+/* Dense gardens were redrawing every plant procedurally every animation
+   frame. In-world plants now render once per visual state and then blit
+   from this cache; cache misses are budgeted so a huge view fills in over
+   a few frames instead of freezing. */
+const PLANT_SPRITE_CACHE_MAX = 1800;
+const PLANT_SPRITE_BUILDS_PER_FRAME = 70;
+const PLANT_SPRITE_VARIANTS = 64;
+const plantSpriteCache = new Map();
+let plantSpriteBuilds = 0;
+const tileSpriteCache = new Map();
+function makeBitmapCanvas(w,h){
+  const c = (typeof OffscreenCanvas!=='undefined') ? new OffscreenCanvas(w,h) : document.createElement('canvas');
+  c.width=w; c.height=h;
+  return c;
+}
+function drawTileSprite(ctx,sx,sy,fill){
+  const key=fill;
+  let sp=tileSpriteCache.get(key);
+  if (!sp){
+    const c=makeBitmapCanvas(TILE_W+4,TILE_H+4), tc=c.getContext('2d');
+    const ox=TILE_W/2+2, oy=2;
+    tc.fillStyle=fill;
+    tc.beginPath();
+    tc.moveTo(ox,oy); tc.lineTo(ox+TILE_W/2,oy+TILE_H/2);
+    tc.lineTo(ox,oy+TILE_H); tc.lineTo(ox-TILE_W/2,oy+TILE_H/2);
+    tc.closePath(); tc.fill();
+    tc.strokeStyle='rgba(0,0,0,0.07)'; tc.lineWidth=1; tc.stroke();
+    sp={c,ox,oy}; tileSpriteCache.set(key,sp);
+    if (tileSpriteCache.size>360) tileSpriteCache.delete(tileSpriteCache.keys().next().value);
+  }
+  ctx.drawImage(sp.c,sx-sp.ox,sy-sp.oy);
+}
+function plantSpriteDims(P,growth){
+  const h = P.h * (0.25 + 0.75*growth);
+  const cw = P.cw || Math.max(P.spread||0, 36);
+  return {
+    w:Math.ceil(Math.max(76, cw*1.35, h*0.95) + 44),
+    h:Math.ceil(Math.max(86, h*1.45, cw*0.9) + 36)
+  };
+}
+function rememberPlantSprite(k,sp){
+  plantSpriteCache.set(k,sp);
+  while (plantSpriteCache.size>PLANT_SPRITE_CACHE_MAX)
+    plantSpriteCache.delete(plantSpriteCache.keys().next().value);
+}
+function plantBloomForFrame(key,variant,season,memo){
+  const P=plantDef(key,variant), S=P&&P.sea&&P.sea[season];
+  if (!S || !S.bloom) return 0;
+  const id=key+'|'+(variant||'');
+  return memo[id]!==undefined ? memo[id] : (memo[id]=bloomLevel(key));
+}
+function drawPlantFallback(ctx,x,y,key,growth,season,variant){
+  const P=plantDef(key,variant), S=(P&&P.sea&&P.sea[season])||{};
+  if (!P) return;
+  const H=P.h*(0.25+0.75*growth), fol=S.fol||S.seed||'#6b6248', bloom=S.bloom||S.seed;
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='rgba(0,0,0,0.14)';
+  ctx.beginPath(); ctx.ellipse(0,2,10+growth*10,4+growth*2,0,0,7); ctx.fill();
+  if (P.type==='tree'){
+    ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,5*growth); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H*0.55); ctx.stroke();
+    if (S.fol){ ctx.fillStyle=fol; ctx.beginPath(); ctx.ellipse(0,-H*0.78,(P.cw||80)*0.22*growth,H*0.18,0,0,7); ctx.fill(); }
+  } else {
+    ctx.strokeStyle=fol; ctx.lineWidth=1.4;
+    const stems=P.type==='grass'||P.type==='sedge'?7:5;
+    for (let i=0;i<stems;i++){
+      const a=(i/(stems-1)-0.5)*1.4, len=H*(0.45+0.35*(i%3)/2);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(Math.sin(a)*len*0.35,-len*0.55,Math.sin(a)*len*0.55,-len); ctx.stroke();
+    }
+    if (bloom && growth>0.45){ ctx.fillStyle=bloom; ctx.beginPath(); ctx.ellipse(0,-H*0.85,4,3,0,0,7); ctx.fill(); }
+  }
+  ctx.restore();
+}
+function drawPlantSprite(ctx,x,y,key,growth,season,seed,variant,bloomLvl){
+  const P=plantDef(key,variant);
+  if (!P) return;
+  const gq=Math.max(0,Math.min(28,Math.round(growth*28)));
+  const bq=Math.max(0,Math.min(14,Math.round((bloomLvl||0)*14)));
+  const seedVariant=seed&(PLANT_SPRITE_VARIANTS-1);
+  const ck=[key,variant||'',season,seedVariant,gq,bq].join('|');
+  let sp=plantSpriteCache.get(ck);
+  if (sp){
+    plantSpriteCache.delete(ck); plantSpriteCache.set(ck,sp);
+  } else if (plantSpriteBuilds<PLANT_SPRITE_BUILDS_PER_FRAME){
+    plantSpriteBuilds++;
+    const g=gq/28, b=bq/14, dim=plantSpriteDims(P,g);
+    const c=makeBitmapCanvas(dim.w,dim.h), sc=c.getContext('2d');
+    const ox=Math.ceil(dim.w/2), oy=Math.ceil(dim.h-16);
+    drawPlant(sc,ox,oy,key,g,season,Math.imul(seedVariant+1,0x9E3779B1)>>>0,0,variant,b);
+    sp={c,ox,oy}; rememberPlantSprite(ck,sp);
+  }
+  if (sp) ctx.drawImage(sp.c,x-sp.ox,y-sp.oy);
+  else drawPlantFallback(ctx,x,y,key,growth,season,variant);
 }
 
 /* ---------- character renderer: round-bodied cats & dogs ---------- */
@@ -891,7 +988,10 @@ function takePhoto(){
 /* ---------- main render ---------- */
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
-let DPR = Math.min(2, window.devicePixelRatio||1);
+const MAX_CANVAS_DPR = 1.5;
+let DPR = 1;
+function syncDpr(){ DPR = Math.min(MAX_CANVAS_DPR, window.devicePixelRatio||1); }
+syncDpr();
 /* view zoom: a small-screen base (phones start at 0.75x for ~1.3x more
    garden) times the player's own zoom — pinch, wheel, +/- keys, or the
    zoom pill. All drawing and input math runs through ZOOM. */
@@ -906,7 +1006,7 @@ function setUserZoom(z){
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
-function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
+function sizeCanvas(c){ syncDpr(); c.width=innerWidth*DPR; c.height=innerHeight*DPR;
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
@@ -925,8 +1025,6 @@ function render(t){
   // camera eases toward player
   const [ptx,pty]=screenOf(game.px,game.py,W,H);
   cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
-
-  const sway = Math.sin(t*0.0012);
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen
@@ -949,12 +1047,7 @@ function render(t){
     else if (isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-    cx.fillStyle=col;
-    cx.beginPath();
-    cx.moveTo(sx,sy); cx.lineTo(sx+TILE_W/2,sy+TILE_H/2);
-    cx.lineTo(sx,sy+TILE_H); cx.lineTo(sx-TILE_W/2,sy+TILE_H/2);
-    cx.closePath(); cx.fill();
-    cx.strokeStyle='rgba(0,0,0,0.07)'; cx.lineWidth=1; cx.stroke();
+    drawTileSprite(cx,sx,sy,col);
     if (terr==='bed' && !amb.snow){ cx.fillStyle='rgba(0,0,0,0.12)';   // mulch flecks
       for (let i=0;i<3;i++){ cx.beginPath();
         cx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*11, 2.2,1.2,0,0,7); cx.fill(); } }
@@ -992,6 +1085,8 @@ function render(t){
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
   const ents=[];
+  const bloomMemo={};
+  plantSpriteBuilds=0;
   const hh=game.house;
   if (hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
     ents.push({depth:houseDrawDepth(hh),
@@ -1017,9 +1112,11 @@ function render(t){
     const b=game.bulbs[k];
     if (b && !b.removed){
       const gB=plantGrowth(b);
-      if (gB>0.02)
+      if (gB>0.02){
+        const bl=plantBloomForFrame(b.s,b.v,cal.season,bloomMemo);
         ents.push({depth:viewDepth(x,y)+0.25, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-          drawPlant(cx,sx,sy+TILE_H/2,b.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,b.v);}});
+          drawPlantSprite(cx,sx,sy+TILE_H/2,b.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,b.v,bl);}});
+      }
     }
     const p=game.plants[k];
     if (p && !p.removed){
@@ -1034,8 +1131,9 @@ function render(t){
           }
         }
       }
+      const bl=plantBloomForFrame(p.s,p.v,cal.season,bloomMemo);
       ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
-        drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v);}});
+        drawPlantSprite(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),p.v,bl);}});
     }
   }
   // local player (smooth move)
