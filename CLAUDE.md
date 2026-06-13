@@ -274,6 +274,6 @@ with their own depth slices. The big one: a real multiplayer backend
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
-- **More species** — penstemon (P. digitalis), prairie clover (Dalea purpurea),
-  golden alexanders (Zizia aurea — needs an umbel form in `drawPlant`).
+- **More species** — prairie clover (Dalea purpurea), golden alexanders
+  (Zizia aurea — can reuse the `umbel` form now), more bulbs.
 - **Undo** — snapshot plants+terrain before sweeps/placements; one level is enough.

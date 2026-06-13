@@ -154,7 +154,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.ellipse(px,py,1.9,1.1,0.5,0,7); ctx.fill(); } }
     }
   }
-  else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike'){
+  else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike' || P.form === 'umbel'){
     const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
     // basal foliage (skipped in seasons with no foliage color)
     if (S.fol){
@@ -195,6 +195,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           for(let p=0;p<6;p++){ const pa=p/6*Math.PI*2;
             ctx.beginPath(); ctx.moveTo(hx,hy);
             ctx.lineTo(hx+Math.cos(pa)*5.5,hy+Math.sin(pa)*5.5); ctx.stroke(); } }
+      }
+      else if (P.form==='umbel'){ // flat-to-domed corymb of tiny florets
+        const col=(headOn?S.bloom:null)||S.seed;
+        if (col){ ctx.fillStyle=col;
+          const rad=L.head||6, dome=(L.dome===undefined?0.4:L.dome), dots=Math.round(rad*2);
+          for(let d2=0;d2<dots;d2++){ const a2=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*rad;
+            ctx.beginPath();
+            ctx.ellipse(hx+Math.cos(a2)*rr, hy-rad*dome*0.5-Math.sin(a2)*rr*dome, 1.5,1.3,0,0,7);
+            ctx.fill(); } }
       }
       else { // spike
         const col=(headOn?S.bloom:null)||S.seed;
