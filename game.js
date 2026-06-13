@@ -17,6 +17,14 @@ const TILE_W = 76, TILE_H = 38;
 const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
+/* UX feature flags for retired interactions.
+   Sleeping is currently hidden because it made the house feel like a required
+   daily task instead of a planning landmark. The mobile action button is hidden
+   because drag-to-place made a large "Plant here" CTA redundant and cluttered
+   small screens. Flip these back to true if those flows return later. */
+const ENABLE_HOUSE_SLEEP = false;
+const ENABLE_MOBILE_ACT_BUTTON = false;
+
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
   Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0},
@@ -681,9 +689,10 @@ function seedWalkway(){
 }
 
 /* the house: a per-garden footprint you can't walk through, with a door
-   tile centered on its south side. Anyone — you or a visiting gardener —
-   sleeps there to bring on the next day. Position, size (real feet), and
-   colors live in game.house; the House tool moves/resizes/paints it. */
+   tile centered on its south side. Sleeping used to live there, but is
+   feature-flagged off because it made the house feel like a daily chore and
+   added HUD clutter. Position, size (real feet), and colors live in
+   game.house; the House tool moves/resizes/paints it. */
 const HOUSE_TRIM = {door:'#3a2c22', trim:'#efe6d3', glow:'#d9c08a'};
 const HOUSE_SIZES = [ // [label, width ft, depth ft] -> tiles via ftToTiles
   ['Shed',3,3],['Tiny home',12,9],['Cottage',24,18],['House',36,27],['Big house',45,36]];
@@ -993,7 +1002,11 @@ function stepMove(dt){
 }
 function actHere(){
   const x=Math.round(game.tx), y=Math.round(game.ty), k=`${x},${y}`;
-  if (isDoor(x,y)){ doSleep(); return; }
+  if (isDoor(x,y)){
+    if (ENABLE_HOUSE_SLEEP) doSleep();
+    else toast('The doorstep is just scenery for now.');
+    return;
+  }
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
   const terr = tileTerrain(x,y);
@@ -1106,6 +1119,7 @@ function stampDrift(cx0,cy0,n){
   else toast('No room for a drift here.');
 }
 function doSleep(){
+  if (!ENABLE_HOUSE_SLEEP){ toast('Sleeping is tucked away for now.'); return; }
   game.dayOffset++; game.dirty=true;
   if (game.mode==='multi') toast('You napped in the house — a shared garden keeps its own clock.');
   else toast('You slept well. A new day.');
@@ -1255,9 +1269,16 @@ cnv.addEventListener('pointerdown',e=>{
   tapAction(x,y);
 });
 function tapAction(x,y){ // the classic tap: walk there, act on your own tile
-  if (inHouse(x,y)){ // tapping the house walks to the door, then sleeps
-    const [dx2,dy2]=doorPos();
-    game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true; return; }
+  if (inHouse(x,y)){
+    if (ENABLE_HOUSE_SLEEP){ // old flow: tapping the house walked to the door, then slept
+      const [dx2,dy2]=doorPos();
+      game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true;
+    } else {
+      game.sleepOnArrive=false;
+      toast('The house is just scenery for now.');
+    }
+    return;
+  }
   game.sleepOnArrive=false;
   if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(); return; }
   game.pathTarget=[x,y];
@@ -1340,7 +1361,7 @@ function followPath(){
   const cxp=Math.round(game.px), cyp=Math.round(game.py);
   if (cxp===gx&&cyp===gy){
     game.pathTarget=null;
-    if (game.sleepOnArrive&&isDoor(gx,gy)) doSleep();
+    if (ENABLE_HOUSE_SLEEP && game.sleepOnArrive&&isDoor(gx,gy)) doSleep();
     game.sleepOnArrive=false; return; }
   const sx=Math.sign(gx-cxp), sy=Math.sign(gy-cyp);
   // prefer a diagonal step when both axes differ; slide along one axis
@@ -2065,9 +2086,15 @@ let lastHint='', lastAct='';
 function setHint(txt){ if (txt!==lastHint){ lastHint=txt;
   document.getElementById('actionHint').textContent=txt; } }
 function setActButton(){ // the big mobile do-it button, labeled by context
+  if (!ENABLE_MOBILE_ACT_BUTTON){
+    document.getElementById('btnAct').classList.add('hidden');
+    document.getElementById('actionHint').classList.remove('hidden');
+    lastAct='';
+    return;
+  }
   const px3=Math.round(game.px), py3=Math.round(game.py);
   let label=null;
-  if (isDoor(px3,py3)) label='Sleep';
+  if (ENABLE_HOUSE_SLEEP && isDoor(px3,py3)) label='Sleep';
   else if (game.tool==='shovel') label='Dig here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
@@ -2091,9 +2118,9 @@ function updateHUD(){
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='shovel'
     ? 'Drag to lift plants — bare path and bed tiles clear too'
-    : isDoor(Math.round(game.px),Math.round(game.py))
+    : ENABLE_HOUSE_SLEEP && isDoor(Math.round(game.px),Math.round(game.py))
     ? 'At the door — press E or tap here to sleep'
-    : 'Tap a tile to walk · tap again to act — or WASD + E');
+    : 'Tap a tile to walk · drag selected plants or tools to place them — or WASD + E');
   setActButton();
   const sd=absDay();
   if (sd!==game.lastDay){
@@ -2313,6 +2340,7 @@ $('btnZoomOut').onclick=()=>zoomBy(0.85);
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
 addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); });
 addEventListener('pagehide',autosaveNow);
+$('btnSleep').classList.toggle('hidden',!ENABLE_HOUSE_SLEEP);
 $('btnSleep').onclick=doSleep;
 $('btnExport').onclick=openExport;
 $('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');
@@ -2327,7 +2355,7 @@ $('btnPlan').onclick=openPlan;
 $('btnPlanClose').onclick=()=>$('planScreen').classList.add('hidden');
 $('btnPlanPng').onclick=downloadPlan;
 $('btnPlanList').onclick=()=>{ $('planScreen').classList.add('hidden'); openExport(); };
-$('btnAct').onclick=()=>actHere();
+$('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
