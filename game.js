@@ -2109,10 +2109,41 @@ function updateHUD(){
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
 function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen'].forEach(s=>
-  $(s).classList.toggle('hidden',s!==id)); }
+  $(s).classList.toggle('hidden',s!==id));
+  if (id==='menuScreen') refreshMenuCards();
+}
 let pendingMode=null;
+const MULTIPLAYER_ENABLED=false;
 
-$('btnSolo').onclick=()=>{ openWorlds(); };
+async function refreshMenuCards(){
+  const cont=$('btnContinue'), fresh=$('btnNewGarden'), together=$('btnMulti');
+  if (!cont||!fresh||!together) return;
+  const idx=hasStorage ? await migrateLegacyWorld() : [];
+  const hasSaved=idx.length>0;
+  cont.disabled=!hasSaved;
+  cont.classList.toggle('disabled',!hasSaved);
+  cont.classList.toggle('primary',hasSaved);
+  cont.querySelector('small').textContent=hasSaved
+    ? 'Return to a saved prairie plan'
+    : 'No saved garden on this device';
+  fresh.classList.toggle('primary',!hasSaved);
+  fresh.querySelector('small').textContent=hasSaved
+    ? 'Start with a fresh yard layout'
+    : 'Create your first prairie plan';
+  together.disabled=!MULTIPLAYER_ENABLED;
+  together.classList.toggle('disabled',!MULTIPLAYER_ENABLED);
+  together.querySelector('small').textContent=MULTIPLAYER_ENABLED
+    ? 'Shared world for up to 4 gardeners'
+    : 'Multiplayer coming soon';
+}
+
+$('btnContinue').onclick=async()=>{
+  const idx=hasStorage ? await migrateLegacyWorld() : [];
+  if (!idx.length){ toast('Start a new garden first.'); refreshMenuCards(); return; }
+  openWorlds();
+};
+$('btnNewGarden').onclick=()=>{ pendingMode='solo'; openCreator(); };
+$('btnSettings').onclick=()=>toast('Settings are coming soon.');
 
 /* the worlds screen: continue a saved garden or break new ground */
 async function openWorlds(){
@@ -2149,7 +2180,8 @@ async function deleteWorld(id){
   if (idx.length) openWorlds(); else show('menuScreen');
 }
 $('btnNewWorld').onclick=()=>{ pendingMode='solo'; openCreator(); };
-$('btnMulti').onclick=()=>{ if(!hasStorage){ toast('Shared gardens need storage, which this view lacks.'); return; } show('multiScreen'); };
+$('btnMulti').onclick=()=>{ if(!MULTIPLAYER_ENABLED){ toast('Multiplayer is coming soon.'); return; }
+  if(!hasStorage){ toast('Shared gardens need storage, which this view lacks.'); return; } show('multiScreen'); };
 $('btnHost').onclick=async()=>{ pendingMode='multi-host'; await hostWorld();
   $('codeDisplay').textContent=game.code; show('codeScreen'); };
 $('btnCodeContinue').onclick=()=>openCreator();
@@ -2303,23 +2335,27 @@ sizeCanvas(mcnv); sizeCanvas(cnv);
 const meadow=[];
 (function seedMeadow(){
   const keys=['karl','bluestem','echinacea','allium','dropseed','salvia','rattlesnake'];
-  for (let i=0;i<46;i++) meadow.push({k:keys[i%keys.length], x:Math.random(),
-    y:0.68+Math.random()*0.3, s:0.8+Math.random()*1.5, seed:(Math.random()*1e9)|0});
+  for (let i=0;i<54;i++) meadow.push({k:keys[i%keys.length], x:Math.random(),
+    y:0.76+Math.random()*0.22, s:0.45+Math.random()*1.05, seed:(Math.random()*1e9)|0});
   meadow.sort((a,b)=>a.y-b.y);
 })();
 function menuRender(t){
   const W=innerWidth,H=innerHeight;
   const g=mcx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#3a2c3e'); g.addColorStop(0.55,'#7a5a52'); g.addColorStop(1,'#241a16');
+  g.addColorStop(0,'#211610'); g.addColorStop(0.52,'#3b2a22'); g.addColorStop(1,'#17100d');
   mcx.fillStyle=g; mcx.fillRect(0,0,W,H);
-  // low sun
-  mcx.fillStyle='rgba(228,170,100,0.25)';
-  mcx.beginPath(); mcx.arc(W*0.74,H*0.42,90,0,7); mcx.fill();
-  mcx.fillStyle='rgba(228,170,100,0.5)';
-  mcx.beginPath(); mcx.arc(W*0.74,H*0.42,38,0,7); mcx.fill();
+  const glow=mcx.createRadialGradient(W*.5,H*.7,10,W*.5,H*.72,Math.max(W,H)*.58);
+  glow.addColorStop(0,'rgba(166,91,44,.28)');
+  glow.addColorStop(0.42,'rgba(92,58,36,.16)');
+  glow.addColorStop(1,'rgba(23,16,13,0)');
+  mcx.fillStyle=glow; mcx.fillRect(0,0,W,H);
+  mcx.fillStyle='rgba(16,10,8,.34)';
+  mcx.fillRect(0,H*.8,W,H*.2);
   const sway=Math.sin(t*0.0011);
+  mcx.save(); mcx.globalAlpha=.58;
   meadow.forEach(m=>{ mcx.save(); mcx.translate(m.x*W,m.y*H); mcx.scale(m.s,m.s);
-    drawPlant(mcx,0,0,m.k,1,'Fall',m.seed,sway+Math.sin(t*0.0014+m.seed)*0.5,undefined,1); mcx.restore(); });
+    drawPlant(mcx,0,0,m.k,1,'Fall',m.seed,sway+Math.sin(t*0.0014+m.seed)*0.42,undefined,1); mcx.restore(); });
+  mcx.restore();
 }
 
 /* ---------- main loop ---------- */
@@ -2348,5 +2384,6 @@ function loop(t){
     const r=await sGet('hortus:region'); if (r) game.region=r;
   }
   updateRegionBtn();
+  refreshMenuCards();
   requestAnimationFrame(loop);
 })();

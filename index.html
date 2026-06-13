@@ -23,14 +23,36 @@
 
 <!-- MAIN MENU -->
 <div class="screen" id="menuScreen">
-  <div class="menu-card">
-    <div class="eyebrow">A perennial garden in 2.5D</div>
-    <h1 class="title">Pocket<br><em>Prairie</em></h1>
-    <p class="tagline">Plant in drifts. Wait for winter. Don't cut back the seedheads.</p>
-    <div class="menu-btns">
-      <button class="btn primary" id="btnSolo">Tend your own garden<small>Single player — saved to this device</small></button>
-      <button class="btn" id="btnMulti">Garden together<small>Shared world for up to 4 gardeners</small></button>
+  <button class="menu-settings" id="btnSettings" type="button" aria-label="Settings" title="Settings">⚙</button>
+  <div class="menu-shell">
+    <div class="menu-title-block">
+      <div class="eyebrow">Pocket prairie garden design</div>
+      <h1 class="title">Pocket<br><em>Prairie</em></h1>
     </div>
+    <div class="menu-card" aria-label="Main menu">
+      <button class="menu-action primary" id="btnContinue" type="button">
+        <span>
+          <strong>Continue Garden</strong>
+          <small>Return to a saved prairie plan</small>
+        </span>
+        <i aria-hidden="true">›</i>
+      </button>
+      <button class="menu-action" id="btnNewGarden" type="button">
+        <span>
+          <strong>New Garden</strong>
+          <small>Start with a fresh yard layout</small>
+        </span>
+        <i aria-hidden="true">›</i>
+      </button>
+      <button class="menu-action disabled" id="btnMulti" type="button" disabled aria-disabled="true">
+        <span>
+          <strong>Garden Together</strong>
+          <small>Multiplayer coming soon</small>
+        </span>
+        <i aria-hidden="true">×</i>
+      </button>
+    </div>
+    <a class="menu-foot" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.2 · credits</a>
   </div>
 </div>
 
