@@ -531,7 +531,6 @@ const PLANT_SPRITE_CACHE_MAX = 1800;
 const PLANT_SPRITE_BUILDS_PER_FRAME = 70;
 const PLANT_SPRITE_VARIANTS = 64;
 const plantSpriteCache = new Map();
-const plantSpriteRecent = new Map();
 let plantSpriteBuilds = 0;
 const tileSpriteCache = new Map();
 function makeBitmapCanvas(w,h){
@@ -569,19 +568,6 @@ function rememberPlantSprite(k,sp){
   while (plantSpriteCache.size>PLANT_SPRITE_CACHE_MAX)
     plantSpriteCache.delete(plantSpriteCache.keys().next().value);
 }
-function rememberRecentPlantSprite(k,sp){
-  plantSpriteRecent.delete(k);
-  plantSpriteRecent.set(k,sp);
-  while (plantSpriteRecent.size>PLANT_SPRITE_CACHE_MAX)
-    plantSpriteRecent.delete(plantSpriteRecent.keys().next().value);
-}
-function recentPlantSprite(keys){
-  for (const k of keys){
-    const sp=plantSpriteRecent.get(k);
-    if (sp){ rememberRecentPlantSprite(k,sp); return sp; }
-  }
-  return null;
-}
 function plantBloomForFrame(key,variant,season,memo){
   const P=plantDef(key,variant), S=P&&P.sea&&P.sea[season];
   if (!S || !S.bloom) return 0;
@@ -616,10 +602,7 @@ function drawPlantSprite(ctx,x,y,key,growth,season,seed,variant,bloomLvl){
   const gq=Math.max(0,Math.min(28,Math.round(growth*28)));
   const bq=Math.max(0,Math.min(14,Math.round((bloomLvl||0)*14)));
   const seedVariant=seed&(PLANT_SPRITE_VARIANTS-1);
-  const v=variant||'';
-  const ck=[key,v,season,seedVariant,gq,bq].join('|');
-  const recentSameSeason=[key,v,season,seedVariant].join('|');
-  const recentAnySeason=[key,v,seedVariant].join('|');
+  const ck=[key,variant||'',season,seedVariant,gq,bq].join('|');
   let sp=plantSpriteCache.get(ck);
   if (sp){
     plantSpriteCache.delete(ck); plantSpriteCache.set(ck,sp);
@@ -630,12 +613,6 @@ function drawPlantSprite(ctx,x,y,key,growth,season,seed,variant,bloomLvl){
     const ox=Math.ceil(dim.w/2), oy=Math.ceil(dim.h-16);
     drawPlant(sc,ox,oy,key,g,season,Math.imul(seedVariant+1,0x9E3779B1)>>>0,0,variant,b);
     sp={c,ox,oy}; rememberPlantSprite(ck,sp);
-  }
-  if (sp){
-    rememberRecentPlantSprite(recentSameSeason,sp);
-    rememberRecentPlantSprite(recentAnySeason,sp);
-  } else {
-    sp=recentPlantSprite([recentSameSeason,recentAnySeason]);
   }
   if (sp) ctx.drawImage(sp.c,x-sp.ox,y-sp.oy);
   else drawPlantFallback(ctx,x,y,key,growth,season,variant);
