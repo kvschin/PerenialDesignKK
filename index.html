@@ -23,7 +23,6 @@
 
 <!-- MAIN MENU -->
 <div class="screen" id="menuScreen">
-  <button class="menu-settings" id="btnSettings" type="button" aria-label="Settings" title="Settings">⚙</button>
   <div class="menu-shell">
     <div class="menu-title-block">
       <div class="eyebrow">Pocket prairie garden design</div>
@@ -250,29 +249,6 @@
 
 <div id="plantCard"></div>
 <div id="toast"></div>
-
-<!-- SETTINGS -->
-<div class="screen hidden" id="settingsScreen">
-  <div class="panel settings-panel">
-    <h2>Settings</h2>
-    <p class="sub">Sound is quiet by design: prairie air, soil, seed packets, paper, and warm low tones.</p>
-    <label class="check-row audio-mute"><input type="checkbox" id="audioMuted"> Mute sound</label>
-    <div class="range-row">
-      <label for="volMaster">Master <span id="volMasterLabel">80%</span></label>
-      <input id="volMaster" type="range" min="0" max="100" value="80">
-    </div>
-    <div class="range-row">
-      <label for="volAmbience">Ambience <span id="volAmbienceLabel">55%</span></label>
-      <input id="volAmbience" type="range" min="0" max="100" value="55">
-    </div>
-    <div class="range-row">
-      <label for="volSfx">SFX <span id="volSfxLabel">65%</span></label>
-      <input id="volSfx" type="range" min="0" max="100" value="65">
-    </div>
-    <p class="note">Browsers start audio after your first tap or key press. Reduced motion mode softens ambience and hover sounds.</p>
-    <button class="back-link" id="btnSettingsClose">Close</button>
-  </div>
-</div>
 
 <script src="plants.js"></script>
 <script src="game.js"></script>
