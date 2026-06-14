@@ -1031,6 +1031,8 @@ const game = {
   rot:0,                                             // view rotation, 90-degree steps
   hoverTile:null,                                    // pointer tile, for the house ghost
   worldId:null, worldName:'My garden',               // current solo save slot
+  gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
+  design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
   drift:false,                                       // plant in clusters, Oudolf style
   fx:[],                                             // short-lived planting pulses
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
@@ -1376,7 +1378,7 @@ function calcZoom(){
 }
 function setUserZoom(z){
   userZoom = Math.max(0.4, Math.min(2.2, z));
-  calcZoom(); if (game.mode) snapCam();
+  calcZoom(); if (game.mode && game.gameMode!=='design') snapCam(); // design keeps its free camera
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
@@ -1393,9 +1395,11 @@ function render(t){
   g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
   cx.fillStyle=g; cx.fillRect(0,0,W,H);
 
-  // camera eases toward player
-  const [ptx,pty]=screenOf(game.px,game.py,W,H);
-  cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
+  // camera eases toward the player (story only; design pans freely)
+  if (game.gameMode!=='design'){
+    const [ptx,pty]=screenOf(game.px,game.py,W,H);
+    cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
+  }
 
   const sway = Math.sin(t*0.0012);
 
@@ -1534,8 +1538,9 @@ function render(t){
     ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v,undefined,detail);}});
   }
-  // local player (smooth move)
+  // local player (smooth move) — story mode only; design has no avatar
   let dx=game.px, dy=game.py;
+  if (game.gameMode!=='design')
   ents.push({depth:viewDepth(dx,dy)+0.5, draw:()=>{ const [sx,sy]=screenOf(dx,dy,W,H);
     drawCritter(cx,sx,sy+TILE_H/2,game.char,t,game.moving,1);
     cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
@@ -1868,7 +1873,9 @@ cnv.addEventListener('pointerdown',e=>{
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
     pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
-           a0:Math.atan2(b2[1]-a[1], b2[0]-a[0])};   // twist baseline
+           a0:Math.atan2(b2[1]-a[1], b2[0]-a[0]),    // twist baseline
+           cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
+           camx0:cam.x, camy0:cam.y};
     sweep=null; toolDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
     return;
   }
@@ -1891,6 +1898,10 @@ cnv.addEventListener('pointerdown',e=>{
   tapAction(x,y);
 });
 function tapAction(x,y){ // the classic tap: walk there, act on your own tile
+  if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
+    if (x<0||y<0||x>=GW||y>=GH) return;
+    game.tx=x; game.ty=y; actHere(); return;
+  }
   if (inHouse(x,y)){
     if (ENABLE_HOUSE_SLEEP){ // old flow: tapping the house walked to the door, then slept
       const [dx2,dy2]=doorPos();
@@ -1920,6 +1931,12 @@ cnv.addEventListener('pointermove',e=>{
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
     setUserZoom(pinch.z0*(Math.hypot(a[0]-b2[0],a[1]-b2[1])||1)/pinch.d0);
+    // two-finger drag pans the canvas (design mode has a free camera)
+    if (game.gameMode==='design'){
+      const cx=(a[0]+b2[0])/2, cy=(a[1]+b2[1])/2;
+      cam.x=pinch.camx0-(cx-pinch.cx0)/ZOOM;
+      cam.y=pinch.camy0-(cy-pinch.cy0)/ZOOM;
+    }
     // twist: each ~40° of rotation snaps the view one 90° step
     const ang=Math.atan2(b2[1]-a[1], b2[0]-a[0]);
     let tw=ang-pinch.a0; while(tw>Math.PI)tw-=2*Math.PI; while(tw<-Math.PI)tw+=2*Math.PI;
@@ -2027,11 +2044,12 @@ async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
+    mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,
     plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
-  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH});
+  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
   await sSet('hortus:worlds',idx);
   if (!silent) toast('Garden saved.');
 }
@@ -2048,10 +2066,13 @@ async function loadSolo(id){
   // laid out around tile (6,6) — recenter on the classic plot)
   setWorldSize(s.gw||s.grid||31, s.gh||s.grid||31);
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
+  game.gameMode = s.mode==='design' ? 'design' : 'story';
+  game.design = s.design || null;
   game.plants=shiftKeys(s.plants||{},shift);
   game.bulbs=shiftKeys(s.bulbs||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
-  game.house=s.house||defaultHouse();
+  // design gardens may legitimately have no house; story gardens get one
+  game.house = (s.house!==undefined) ? s.house : (game.gameMode==='design'?null:defaultHouse());
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.rot=s.rot||0;
   game.startTs=s.startTs||Date.now();
@@ -2817,54 +2838,155 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen'].forEach(s=>
+function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen','designScreen','libraryScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
   if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
 function closeOverlay(id){ $(id).classList.add('hidden'); }
+
+/* ---------- plant library: browse every species ---------- */
+const LIB_CATS=[
+  {label:'Grasses & Sedges', types:['grass','sedge']},
+  {label:'Perennials',       types:['forb']},
+  {label:'Bulbs',            types:['bulb']},
+  {label:'Shrubs',           types:['shrub']},
+  {label:'Trees',            types:['tree']},
+];
+function libSeed(key){ let h=0; for(let i=0;i<key.length;i++) h=(h*31+key.charCodeAt(i))>>>0; return h||7; }
+function libCanvas(key,variant,season,w,h){
+  const c=document.createElement('canvas'); c.width=w*2; c.height=h*2;
+  c.style.width=w+'px'; c.style.height=h+'px';
+  const ctx=c.getContext('2d'); ctx.scale(2,2);
+  const P=plantDef(key,variant), drawH=(P.h||40)*1.3+12, sc=Math.min(1.15,h/drawH);
+  ctx.save(); ctx.translate(w/2,h-5); ctx.scale(sc,sc);
+  drawPlant(ctx,0,0,key,1,season,libSeed(key),0,variant,1);
+  ctx.restore();
+  return c;
+}
+let libSel=null;
+function openLibrary(){ buildLibraryList(''); show('libraryScreen');
+  if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
+  applyLibrarySearch(); }
+function buildLibraryList(q){
+  const list=$('libraryList'); list.innerHTML='';
+  LIB_CATS.forEach(cat=>{
+    const keys=PLANT_KEYS.filter(k=>cat.types.includes(PLANTS[k].type));
+    if (!keys.length) return;
+    const head=document.createElement('div'); head.className='lib-cat'; head.textContent=cat.label;
+    head.dataset.cat='1'; list.appendChild(head);
+    keys.forEach(k=>{
+      const P=PLANTS[k];
+      const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
+      b.dataset.hay=(P.name+' '+P.latin).toLowerCase();
+      b.append(libCanvas(k,null,'Summer',30,36));
+      const t=document.createElement('span');
+      t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
+      b.append(t);
+      b.onclick=()=>showLibraryDetail(k);
+      list.appendChild(b);
+    });
+  });
+}
+function showLibraryDetail(key){
+  libSel=key;
+  document.querySelectorAll('.lib-item').forEach(el=>el.classList.toggle('sel',el.dataset.k===key));
+  const P=PLANTS[key], d=$('libraryDetail');
+  const dim=v=>v>=96?`${Math.round(v/12)} ft`:`${v}"`;
+  const seasons=['Spring','Summer','Fall','Winter'];
+  const imgs=document.createElement('div'); imgs.className='ld-img';
+  seasons.forEach(s=>{ const fig=document.createElement('figure');
+    fig.append(libCanvas(key,null,s,80,104));
+    const cap=document.createElement('figcaption'); cap.textContent=s; fig.append(cap);
+    imgs.append(fig); });
+  const facts=[
+    ['Type', P.type[0].toUpperCase()+P.type.slice(1)],
+    ['Mature size', `${dim(P.spread)} wide`+(P.grow?` · ~${P.grow} yrs`:'')],
+    ['Spacing', `${dim(P.space)} on center`],
+    ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
+    ['Light', P.sun==='full'?'Full sun':'Part shade'],
+    ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
+    ['Origin', P.native?('Native — '+(P.eco.join(', ')||'central US')):'Garden plant (non-native)'],
+  ];
+  const cvKeys=Object.keys(P.cv||{});
+  d.innerHTML='';
+  const card=document.createElement('div'); card.className='ld-card';
+  card.append(imgs);
+  const nm=document.createElement('div'); nm.className='ld-name'; nm.textContent=P.name; card.append(nm);
+  const la=document.createElement('div'); la.className='ld-latin'; la.textContent=P.latin; card.append(la);
+  const bl=document.createElement('p'); bl.className='ld-blurb'; bl.textContent=P.blurb; card.append(bl);
+  const dl=document.createElement('dl'); dl.className='ld-facts';
+  facts.forEach(([k,v])=>{ const dt=document.createElement('dt'); dt.textContent=k;
+    const dd=document.createElement('dd'); dd.textContent=v; dl.append(dt,dd); });
+  card.append(dl);
+  if (cvKeys.length){
+    const cvs=document.createElement('div'); cvs.className='ld-cvs';
+    const h4=document.createElement('h4'); h4.textContent=`${cvKeys.length} cultivar${cvKeys.length>1?'s':''}`;
+    cvs.append(h4);
+    cvKeys.forEach(v=>{ const row=document.createElement('div'); row.className='ld-cv';
+      row.innerHTML=`<b>${P.cv[v].name}</b> — ${P.cv[v].note||''}`; cvs.append(row); });
+    card.append(cvs);
+  }
+  d.append(card); d.scrollTop=0;
+}
+function applyLibrarySearch(){
+  const q=($('librarySearch').value||'').toLowerCase().trim();
+  document.querySelectorAll('.lib-item').forEach(b=>{
+    b.style.display=(!q||b.dataset.hay.includes(q))?'':'none'; });
+  document.querySelectorAll('.lib-cat').forEach(h=>{
+    let n=h.nextElementSibling, any=false;
+    while(n && !n.dataset.cat){ if(n.style.display!=='none') any=true; n=n.nextElementSibling; }
+    h.style.display=any?'':'none'; });
+}
+
 let pendingMode=null;
 const MULTIPLAYER_ENABLED=false;
 
 async function refreshMenuCards(){
-  const cont=$('btnContinue'), fresh=$('btnNewGarden'), together=$('btnMulti');
-  if (!cont||!fresh||!together) return;
+  const g=$('btnGardens'); if (!g) return;
   const idx=hasStorage ? await migrateLegacyWorld() : [];
-  const hasSaved=idx.length>0;
-  cont.disabled=!hasSaved;
-  cont.classList.toggle('disabled',!hasSaved);
-  cont.classList.toggle('primary',hasSaved);
-  cont.querySelector('small').textContent=hasSaved
-    ? 'Return to a saved prairie plan'
-    : 'No saved garden on this device';
-  fresh.classList.toggle('primary',!hasSaved);
-  fresh.querySelector('small').textContent=hasSaved
-    ? 'Start with a fresh yard layout'
-    : 'Create your first prairie plan';
-  together.disabled=!MULTIPLAYER_ENABLED;
-  together.classList.toggle('disabled',!MULTIPLAYER_ENABLED);
-  together.querySelector('small').textContent=MULTIPLAYER_ENABLED
-    ? 'Shared world for up to 4 gardeners'
-    : 'Multiplayer coming soon';
+  g.querySelector('small').textContent=idx.length
+    ? `${idx.length} saved garden${idx.length>1?'s':''}`
+    : 'Open and manage your saved gardens';
 }
 
-$('btnContinue').onclick=async()=>{
-  const idx=hasStorage ? await migrateLegacyWorld() : [];
-  if (!idx.length){ toast('Start a new garden first.'); refreshMenuCards(); return; }
-  openWorlds();
-};
-$('btnNewGarden').onclick=()=>{ pendingMode='solo'; openCreator(); };
+$('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
+$('btnStory').onclick=()=>{ pendingMode='story'; openWorlds('story'); };
+$('btnLibrary').onclick=openLibrary;
+$('btnLibraryClose').onclick=()=>show('menuScreen');
+$('librarySearch').oninput=applyLibrarySearch;
+$('btnGardens').onclick=()=>{ pendingMode=null; openWorlds('all'); };
 
-/* the worlds screen: continue a saved garden or break new ground */
-async function openWorlds(){
-  const idx=await migrateLegacyWorld();
-  if (!idx.length){ pendingMode='solo'; openCreator(); return; } // nothing saved yet
+/* the worlds screen — filtered by game mode. Legacy saves with no
+   `mode` are Story gardens (they had an avatar). */
+let worldsFilter='all';
+function worldMode(w){ return w.mode==='design'?'design':'story'; }
+function startNewGarden(mode){
+  if (mode==='design'){ pendingMode='design'; openDesignSetup(); }
+  else { pendingMode='story'; openCreator(); }
+}
+async function openWorlds(filter){
+  worldsFilter=filter||'all';
+  const all=await migrateLegacyWorld();
+  const idx=worldsFilter==='all' ? all : all.filter(w=>worldMode(w)===worldsFilter);
+  if (!idx.length && worldsFilter!=='all'){ startNewGarden(worldsFilter); return; } // none yet → create
+  const titles={design:'Design gardens', story:'Story gardens', all:'My gardens'};
+  const subs={
+    design:'Continue a planting plan, or start a new one.',
+    story:'Continue tending, or start a new garden.',
+    all:'Every garden saved on this device.'};
+  $('worldsTitle').textContent=titles[worldsFilter];
+  $('worldsSub').textContent=subs[worldsFilter];
+  $('btnNewWorld').textContent = worldsFilter==='story' ? 'Start a new garden' : 'Design a new garden';
   const list=$('worldList'); list.innerHTML='';
+  if (!idx.length){ const e=document.createElement('p'); e.className='note';
+    e.textContent='No gardens yet — start one below.'; list.appendChild(e); }
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
     const row=document.createElement('button'); row.className='world-row';
     const info=document.createElement('span'); info.style.flex='1';
     const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
+    const badge=worldMode(w)==='design'?' · Design':' · Story';
     const meta=document.createElement('span'); meta.className='meta';
-    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft · last tended ${new Date(w.ts).toLocaleDateString()}`;
+    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft${badge} · ${new Date(w.ts).toLocaleDateString()}`;
     info.append(nm,document.createElement('br'),meta);
     const del=document.createElement('button'); del.className='world-del'; del.textContent='✕';
     del.title='Delete this garden';
@@ -2886,11 +3008,9 @@ async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
   await sSet('hortus:worlds',idx);
   try{ localStorage.removeItem('hortus:world:'+id); }catch(e){}
-  if (idx.length) openWorlds(); else show('menuScreen');
+  openWorlds(worldsFilter);
 }
-$('btnNewWorld').onclick=()=>{ pendingMode='solo'; openCreator(); };
-$('btnMulti').onclick=()=>{ if(!MULTIPLAYER_ENABLED){ toast('Multiplayer is coming soon.'); return; }
-  if(!hasStorage){ toast('Shared gardens need storage, which this view lacks.'); return; } show('multiScreen'); };
+$('btnNewWorld').onclick=()=>startNewGarden(worldsFilter==='story'?'story':'design');
 $('btnHost').onclick=async()=>{ pendingMode='multi-host'; await hostWorld();
   $('codeDisplay').textContent=game.code; show('codeScreen'); };
 $('btnCodeContinue').onclick=()=>openCreator();
@@ -2938,7 +3058,7 @@ requestAnimationFrame(previewLoop);
 $('btnStartGame').onclick=async()=>{
   game.char.name=$('petName').value.trim()||'Bramble';
   await saveChar();
-  if (pendingMode==='solo'){ game.mode='solo'; game.worldId=null;
+  if (pendingMode==='story'){ game.mode='solo'; game.gameMode='story'; game.worldId=null;
     openPlotScreen(); return;  // always a new garden: lay out the plot first
   } else {
     game.mode='multi';
@@ -2960,10 +3080,18 @@ function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
-  if (!game.house) game.house=defaultHouse();
-  const [spx,spy]=safeSpawn();   // never start stuck inside the house
-  game.px=game.tx=spx; game.py=game.ty=spy; game.lastDay=absDay();
-  snapCam(); // start the camera on the player instead of easing in
+  document.body.classList.toggle('design-mode', game.gameMode==='design');
+  if (game.gameMode==='design'){
+    // free camera centered on the plot; no avatar, no forced house
+    game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
+    snapCam();
+  } else {
+    if (!game.house) game.house=defaultHouse();
+    const [spx,spy]=safeSpawn();   // never start stuck inside the house
+    game.px=game.tx=spx; game.py=game.ty=spy;
+    snapCam();
+  }
+  game.lastDay=absDay();
   buildToolTray();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
@@ -2993,21 +3121,67 @@ function openPlotScreen(){
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
-      game.house=defaultHouse(); game.rot=0;
-      game.startTs=Date.now(); game.dayOffset=0;
+      game.rot=0; game.startTs=Date.now(); game.dayOffset=0;
       game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm';
-      seedWalkway(); starterDrift(); enterGarden();
+      if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
+        game.mode='solo'; game.gameMode='design'; game.house=null;
+      } else {                                // story: avatar garden with a house + welcome drift
+        game.gameMode='story'; game.house=defaultHouse();
+        seedWalkway(); starterDrift();
+      }
+      enterGarden();
       saveSolo(true); // claim the slot right away
     };
-    $('btnPlotBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
+    $('btnPlotBack').onclick=()=>{ if (pendingMode==='design'){ openDesignSetup(); } else { game.mode=null; show('menuScreen'); } };
   }
   $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; updatePlotNote();
   show('plotScreen');
+}
+
+/* design setup: a questionnaire that tunes the palette before sizing */
+const GARDEN_TYPES=[
+  ['cottage','Cottage','Romantic and abundant — layered perennials and self-seeders.'],
+  ['prairie','Prairie / Meadow','Native grasses and forbs in naturalistic drifts.'],
+  ['butterfly','Pollinator','Nectar and host plants for butterflies and bees.'],
+  ['shade','Shade / Woodland','Understory calm — hostas, ferns, sedges, woodland bulbs.'],
+  ['japanese','Japanese','Restraint and structure — evergreens, moss, stone.'],
+  ['mediterranean','Mediterranean','Silver foliage and herbs that love dry heat.'],
+  ['modern','Modern','Bold blocks and clean structure, a tight palette.'],
+  ['gravel','Gravel / Rock','Drought-tough plants in lean, sharp drainage.'],
+  ['formal','Formal','Symmetry and clipped lines — axial beds and hedges.'],
+  ['coastal','Coastal','Salt- and wind-tolerant grasses and dune plants.'],
+];
+function openDesignSetup(){
+  const zs=$('dgnZone'), ts=$('dgnType');
+  if (!zs.options.length){
+    [3,4,5,6,7,8,9].forEach(z=>{ const o=document.createElement('option');
+      o.value=z; o.textContent='Zone '+z; zs.appendChild(o); });
+    GARDEN_TYPES.forEach(([id,label])=>{ const o=document.createElement('option');
+      o.value=id; o.textContent=label; ts.appendChild(o); });
+    const note=()=>{ const t=GARDEN_TYPES.find(g=>g[0]===ts.value); $('dgnTypeNote').textContent=t?t[2]:''; };
+    ts.onchange=note;
+    $('btnDesignNext').onclick=()=>{
+      const zone=+zs.value, type=ts.value;
+      game.design={zone, type, nativesOnly:$('dgnNatives').checked,
+        deer:$('dgnDeer').checked, rabbit:$('dgnRabbit').checked};
+      // tune the live palette: zone + natives apply now (deer/rabbit/style later)
+      game.region={eco:null, zone, nativesOnly:$('dgnNatives').checked};
+      sSet('hortus:region',game.region); updateRegionBtn();
+      openPlotScreen();
+    };
+    $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
+  }
+  const d=game.design||{};
+  zs.value=String(d.zone||6); ts.value=d.type||'prairie';
+  $('dgnNatives').checked=!!d.nativesOnly; $('dgnDeer').checked=!!d.deer; $('dgnRabbit').checked=!!d.rabbit;
+  $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===ts.value)||[])[2]||'';
+  show('designScreen');
 }
 function quitToMenu(){
   if (game.mode==='solo'&&hasStorage) saveSolo();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
+  document.body.classList.remove('design-mode');
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
   $('planScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
@@ -3122,17 +3296,20 @@ let prev=performance.now(), keyCooldown=0;
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
-    keyCooldown-=dt;
-    if (keyCooldown<=0 && !game.moving){
-      const vecs=Object.values(heldKeys);
-      if (vecs.length){
-        let mx=0,my=0; vecs.forEach(v=>{mx+=v[0];my+=v[1];});
-        mx=Math.sign(mx); my=Math.sign(my);
-        if (mx||my){ const [wx,wy]=viewDirToWorld(mx,my);
-          tryMove(Math.round(game.px)+wx,Math.round(game.py)+wy); keyCooldown=40; }
+    if (game.gameMode!=='design'){ // story mode: avatar movement
+      keyCooldown-=dt;
+      if (keyCooldown<=0 && !game.moving){
+        const vecs=Object.values(heldKeys);
+        if (vecs.length){
+          let mx=0,my=0; vecs.forEach(v=>{mx+=v[0];my+=v[1];});
+          mx=Math.sign(mx); my=Math.sign(my);
+          if (mx||my){ const [wx,wy]=viewDirToWorld(mx,my);
+            tryMove(Math.round(game.px)+wx,Math.round(game.py)+wy); keyCooldown=40; }
+        }
       }
+      followPath(); stepMove(dt);
     }
-    followPath(); stepMove(dt); render(t); updateHUD();
+    render(t); updateHUD();
   } else menuRender(t);
   requestAnimationFrame(loop);
 }

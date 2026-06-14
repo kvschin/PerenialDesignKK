@@ -29,26 +29,33 @@
       <h1 class="title">Pocket<br><em>Prairie</em></h1>
     </div>
     <div class="menu-card" aria-label="Main menu">
-      <button class="menu-action primary" id="btnContinue" type="button">
+      <button class="menu-action primary" id="btnDesign" type="button">
         <span>
-          <strong>Continue Garden</strong>
-          <small>Return to a saved prairie plan</small>
+          <strong>Design a Garden</strong>
+          <small>Plan a real planting — no avatar, place by hand</small>
         </span>
         <i aria-hidden="true">›</i>
       </button>
-      <button class="menu-action" id="btnNewGarden" type="button">
+      <button class="menu-action" id="btnStory" type="button">
         <span>
-          <strong>New Garden</strong>
-          <small>Start with a fresh yard layout</small>
+          <strong>Story Mode</strong>
+          <small>Tend a garden as your cat or dog</small>
         </span>
         <i aria-hidden="true">›</i>
       </button>
-      <button class="menu-action disabled" id="btnMulti" type="button" disabled aria-disabled="true">
+      <button class="menu-action" id="btnLibrary" type="button">
         <span>
-          <strong>Garden Together</strong>
-          <small>Multiplayer coming soon</small>
+          <strong>Plant Library</strong>
+          <small>Browse every species and its notes</small>
         </span>
-        <i aria-hidden="true">×</i>
+        <i aria-hidden="true">›</i>
+      </button>
+      <button class="menu-action" id="btnGardens" type="button">
+        <span>
+          <strong>My Gardens</strong>
+          <small>Open and manage your saved gardens</small>
+        </span>
+        <i aria-hidden="true">›</i>
       </button>
     </div>
     <a class="menu-foot" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.2 · credits</a>
@@ -162,8 +169,8 @@
 <!-- YOUR GARDENS (saved solo worlds) -->
 <div class="screen hidden" id="worldsScreen">
   <div class="panel">
-    <h2>Your gardens</h2>
-    <p class="sub">Pick up where you left off, or break new ground.</p>
+    <h2 id="worldsTitle">Your gardens</h2>
+    <p class="sub" id="worldsSub">Pick up where you left off, or break new ground.</p>
     <div id="worldList"></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnNewWorld">Start a new garden</button>
@@ -194,6 +201,30 @@
       <button class="btn primary" id="btnPlotStart">Break ground →</button>
     </div>
     <button class="back-link" id="btnPlotBack">← Back</button>
+  </div>
+</div>
+
+<!-- DESIGN SETUP (questionnaire for Design a Garden) -->
+<div class="screen hidden" id="designScreen">
+  <div class="panel">
+    <h2>What are you planting?</h2>
+    <p class="sub">A few questions to tune the plant palette to your garden. You can change any of this later.</p>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:120px"><label for="dgnZone">USDA hardiness zone</label>
+        <select id="dgnZone"></select></div>
+      <div class="field" style="flex:1;min-width:150px"><label for="dgnType">Garden style</label>
+        <select id="dgnType"></select></div>
+    </div>
+    <p class="note" id="dgnTypeNote" style="margin-top:0"></p>
+    <div class="field"><label>Constraints</label>
+      <label class="check-row"><input type="checkbox" id="dgnNatives"> Natives only</label>
+      <label class="check-row"><input type="checkbox" id="dgnDeer"> Deer resistant</label>
+      <label class="check-row"><input type="checkbox" id="dgnRabbit"> Rabbit resistant</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="btnDesignNext">Next: size the plot →</button>
+    </div>
+    <button class="back-link" id="btnDesignBack">← Back</button>
   </div>
 </div>
 
@@ -249,6 +280,21 @@
 
 <div id="plantCard"></div>
 <div id="toast"></div>
+
+<!-- PLANT LIBRARY -->
+<div class="screen hidden" id="libraryScreen">
+  <div class="library-wrap">
+    <div class="library-head">
+      <h2>Plant Library</h2>
+      <input id="librarySearch" type="search" placeholder="Search name or latin…" autocomplete="off">
+      <button class="back-link" id="btnLibraryClose">← Menu</button>
+    </div>
+    <div class="library-body">
+      <div class="library-list" id="libraryList"></div>
+      <div class="library-detail" id="libraryDetail"></div>
+    </div>
+  </div>
+</div>
 
 <script src="plants.js"></script>
 <script src="game.js"></script>

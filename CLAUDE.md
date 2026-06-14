@@ -1,9 +1,21 @@
 # Pocket Prairie Garden Design
 
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
-planting style, playing loosely like Animal Crossing. Cat/dog avatars tend an
-isometric prairie plot where plants change appearance by season. Solo play plus
-shared gardens for up to 4 people.
+planting style. The menu offers four modes: **Design a Garden** (a serious
+planner — no avatar, no movement, a free pan/pinch/twist camera and direct
+tap-to-place/drag-to-paint à la Procreate; no house at start; created via a
+questionnaire of zone/style/natives/deer/rabbit), **Story Mode** (the
+Animal-Crossing-ish original — a cat/dog avatar walks the plot, a house spawns),
+**Plant Library** (browse every species: list + seasonal images + facts +
+cultivars), and **My Gardens** (open/manage saved gardens).
+
+`game.gameMode` is `'design'` | `'story'`, saved per garden and on the world
+index entry (legacy saves with no `mode` are Story). Design vs Story branches
+live in `enterGarden`, `render` (avatar + camera easing skipped for design),
+the loop (movement skipped), `tapAction` (design taps route straight to
+`actHere` on the tapped tile), the two-finger pointer handler (adds camera pan
+in design), `setUserZoom`/snapCam (design keeps its free camera), and the
+`btnPlotStart`/save/load plumbing (design = blank plot, `house:null`).
 
 Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 **Pocket Prairie**.
