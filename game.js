@@ -224,9 +224,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
           ctx.beginPath(); ctx.arc(ghx,ghy,hr,0,7); ctx.fill();
           ctx.strokeStyle=shade(col,-30); ctx.lineWidth=0.7;
-          for(let p=0;p<6;p++){ const pa=p/6*Math.PI*2;
+          const spokes=L.spokes||6;
+          for(let p=0;p<spokes;p++){ const pa=p/spokes*Math.PI*2;
             ctx.beginPath(); ctx.moveTo(ghx,ghy);
-            ctx.lineTo(ghx+Math.cos(pa)*hr*1.3,ghy+Math.sin(pa)*hr*1.3); ctx.stroke(); } }
+            ctx.lineTo(ghx+Math.cos(pa)*hr*1.3,ghy+Math.sin(pa)*hr*1.3); ctx.stroke(); }
+          if (L.topknot){
+            ctx.fillStyle=L.topknot;
+            ctx.beginPath(); ctx.ellipse(ghx, ghy-hr*1.15, hr*0.42, hr*0.28, 0, 0, 7); ctx.fill();
+          } }
       }
       else if (P.form==='umbel'){ // flat-to-domed corymb of tiny florets
         const col=(headOn?S.bloom:null)||S.seed;
@@ -242,6 +247,35 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (col){ ctx.fillStyle=col;
           for(let s=0;s<5;s++){ ctx.beginPath();
             ctx.ellipse(hx+(rnd()-0.5)*1.5, hy+s*3.2, 1.8,2.2,0,0,7); ctx.fill(); } }
+      }
+    }
+  }
+  else if (P.form === 'pyramid'){ // Scilla peruviana: low straps below a dense pyramidal raceme
+    const L=P.look||{};
+    if (S.fol){
+      const n=stemFor(L.leaves||9);
+      ctx.strokeStyle=S.fol; ctx.lineWidth=L.leafW||1.7;
+      for(let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*1.45+(rnd()-0.5)*0.18, l=H*(L.leafLen||0.42)*(0.7+rnd()*0.35);
+        ctx.beginPath(); ctx.moveTo((rnd()-0.5)*4,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.35,-l*0.5,Math.sin(a)*l*0.75,-l); ctx.stroke();
+      }
+    }
+    if (mature && ((blooming&&S.bloom)||S.seed)){
+      const col=(blooming?S.bloom:null)||S.seed;
+      const stems=Math.max(1,L.stems||1), dots=L.dots||28;
+      for(let st=0;st<stems;st++){
+        const ox=(st-(stems-1)/2)*5+(rnd()-0.5)*2, len=H*(0.74+rnd()*0.12);
+        const topY=-len, baseY=-len*0.38, headW=L.headW||11;
+        ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.lineTo(ox+sway*1.5,topY); ctx.stroke();
+        ctx.fillStyle=col;
+        const shown=blooming?Math.max(5,Math.ceil(dots*blv)):Math.max(8,Math.ceil(dots*0.55));
+        for(let d=0;d<shown;d++){
+          const f=rnd(), rowY=baseY+(topY-baseY)*f, w=headW*(1-f)*0.9+2;
+          ctx.beginPath();
+          ctx.arc(ox+sway*1.5+(rnd()-0.5)*w, rowY+(rnd()-0.5)*2, 1.25, 0, 7); ctx.fill();
+        }
       }
     }
   }
@@ -296,6 +330,49 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const f=0.36+b*0.1, p=bez(f);
           ctx.beginPath();
           ctx.ellipse(p[0]+3, p[1]+4, headOn?2.1:1.8, headOn?3.3:2.1, -0.2, 0, 7); ctx.fill();
+        }
+      }
+    }
+  }
+  else if (P.form === 'martagon'){ // martagon lily: whorled leaves and recurved, nodding bells
+    const L=P.look||{}, stemCol=shade(S.fol||S.seed||'#6b6248',-18);
+    const sn=Math.max(1,L.stems||1);
+    for(let st=0;st<sn;st++){
+      const ox=(st-(sn-1)/2)*7+(rnd()-0.5)*2, len=H*(0.9+rnd()*0.08), tip=ox+sway*len*0.03;
+      ctx.strokeStyle=stemCol; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox+sway*1.5,-len*0.48,tip,-len); ctx.stroke();
+      if (S.fol){
+        const whorls=L.whorls||4;
+        for(let w=0;w<whorls;w++){
+          const wy=-len*(0.18+w*0.14), leaves=5+(w%2);
+          for(let j=0;j<leaves;j++){
+            const a=j/leaves*Math.PI*2+(w*0.4), r=5.5-rnd()*1.2;
+            ctx.fillStyle=shade(S.fol,(rnd()-0.5)*22);
+            ctx.beginPath();
+            ctx.ellipse(ox+Math.cos(a)*r, wy+Math.sin(a)*r*0.35, 4.5, 1.5, a*0.4, 0, 7); ctx.fill();
+          }
+        }
+      }
+      if (mature && ((blooming&&S.bloom)||S.seed)){
+        const flowers=blooming?Math.max(1,Math.ceil((L.flowers||5)*blv)):Math.min(4,L.flowers||5);
+        for(let f=0;f<flowers;f++){
+          const side=f%2?-1:1, fy=-len*(0.72+f*0.045), fx=tip+side*(3+rnd()*3);
+          ctx.strokeStyle=stemCol; ctx.lineWidth=0.9;
+          ctx.beginPath(); ctx.moveTo(tip,fy-4); ctx.quadraticCurveTo(fx,fy-2,fx,fy+2); ctx.stroke();
+          if (blooming && S.bloom){
+            ctx.strokeStyle=S.bloom; ctx.lineWidth=1.8;
+            for(let p=0;p<6;p++){
+              const a=p/6*Math.PI*2;
+              ctx.beginPath(); ctx.moveTo(fx,fy);
+              ctx.quadraticCurveTo(fx+Math.cos(a)*3,fy+Math.sin(a)*2,fx+Math.cos(a)*4.6,fy+Math.sin(a)*4.2-2);
+              ctx.stroke();
+            }
+            if (S.eye){ ctx.fillStyle=S.eye;
+              ctx.beginPath(); ctx.arc(fx,fy,1.2,0,7); ctx.fill(); }
+          } else if (S.seed){
+            ctx.fillStyle=S.seed;
+            ctx.beginPath(); ctx.ellipse(fx,fy,1.6,3.2,0,0,7); ctx.fill();
+          }
         }
       }
     }
