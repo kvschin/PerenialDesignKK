@@ -664,7 +664,8 @@ const AUDIO = (()=>{
   let ctx=null, masterBus=null, ambienceBus=null, sfxBus=null, ready=false, scene='menu';
   const sceneBuses={}, lastPlay={};
   const cooldown={hover:120, focus:160, invalid:260, plantPlace:80, plantRemove:120,
-    plantSelect:90, panelOpen:180, panelClose:180, drift:480, season:1800};
+    plantSelect:90, panelOpen:180, panelClose:180, drift:480, season:1800,
+    buttonPrimary:70, buttonSecondary:55, buttonTool:55, buttonIcon:65, buttonDisabled:220};
 
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   function savePrefs(){ try{ if (hasStorage) localStorage.setItem(STORE,JSON.stringify(prefs)); }catch(_){} }
@@ -773,11 +774,34 @@ const AUDIO = (()=>{
     src.connect(filter); filter.connect(e.g); src.start(e.t0); src.stop(e.t1+0.03);
   }
   const events={
-    primary(){ noise(0.045,0.010,'bandpass',900,0.65); tone(185,0.075,0.010,'triangle',0,150); tone(520,0.026,0.0035,'sine',0.018); },
-    secondary(){ noise(0.042,0.007,'bandpass',1450,0.7); tone(260,0.045,0.0045,'triangle',0,220); },
+    buttonPrimary(){ // terracotta press + warm soil body
+      noise(0.045,0.010,'bandpass',820,0.6);
+      noise(0.03,0.004,'highpass',2300,0.28,0.018);
+      tone(185,0.075,0.010,'triangle',0,150);
+      tone(520,0.026,0.0035,'sine',0.018);
+    },
+    buttonSecondary(){ // paper field-guide tap
+      noise(0.045,0.007,'bandpass',1450,0.7);
+      noise(0.035,0.003,'highpass',2600,0.25,0.014);
+      tone(260,0.045,0.0045,'triangle',0,220);
+    },
+    buttonTool(){ // seed packet / small wooden tray tick
+      noise(0.038,0.006,'bandpass',1850,0.85);
+      tone(410,0.035,0.0035,'triangle',0.012,360);
+    },
+    buttonIcon(){ // light brass/paper icon tap
+      noise(0.028,0.0045,'highpass',2100,0.35);
+      tone(620,0.035,0.0026,'sine',0.008,540);
+    },
+    buttonDisabled(){ // muffled clay thud, not a beep
+      noise(0.055,0.0048,'lowpass',420,0.25);
+      tone(95,0.075,0.0045,'sine',0,78);
+    },
+    primary(){ events.buttonPrimary(); },
+    secondary(){ events.buttonSecondary(); },
     hover(){ if (!reducedMotion.matches) noise(0.026,0.0035,'highpass',2200,0.3); },
     focus(){ if (!reducedMotion.matches) noise(0.032,0.0038,'bandpass',1700,0.6); },
-    invalid(){ noise(0.07,0.006,'lowpass',360,0.35); tone(92,0.11,0.009,'sine',0,72); },
+    invalid(){ events.buttonDisabled(); noise(0.07,0.004,'lowpass',360,0.35,0.02); },
     plantPlace(){ noise(0.09,0.012,'lowpass',520,0.45); noise(0.038,0.005,'bandpass',1800,0.8,0.035); tone(218,0.12,0.006,'triangle',0.012,180); },
     plantRemove(){ noise(0.13,0.010,'bandpass',650,0.42); noise(0.07,0.006,'highpass',1600,0.35,0.025); tone(130,0.11,0.005,'triangle',0,98); },
     plantSelect(){ noise(0.05,0.006,'bandpass',1250,0.65); tone(330,0.055,0.0038,'sine',0.012,390); },
@@ -2581,7 +2605,20 @@ function installUiSounds(){
   const pick=e=>e.target instanceof Element
     ? e.target.closest('button,.world-row,.chip,.swatch,.tool,.menu-action')
     : null;
+  const buttonSoundFor=el=>{
+    if (el.disabled || el.classList.contains('disabled')) return 'buttonDisabled';
+    if (el.classList.contains('back-link') || el.classList.contains('card-x')) return null;
+    if (el.classList.contains('tool') || el.classList.contains('chip') || el.classList.contains('swatch') ||
+        el.closest('#toolTray') || el.closest('#trayTabs')) return 'buttonTool';
+    if (el.closest('.pill.iconbar') || el.closest('#zoomPill') || el.id==='btnSettings') return 'buttonIcon';
+    if (el.classList.contains('primary')) return 'buttonPrimary';
+    return 'buttonSecondary';
+  };
   let lastHover=0;
+  document.addEventListener('pointerdown',e=>{
+    const el=pick(e);
+    if (el && (el.disabled || el.classList.contains('disabled'))) AUDIO.play('buttonDisabled');
+  },true);
   document.addEventListener('pointerover',e=>{
     const el=pick(e);
     if (!el || el.disabled || el.classList.contains('disabled')) return;
@@ -2595,7 +2632,8 @@ function installUiSounds(){
   document.addEventListener('click',e=>{
     const el=pick(e);
     if (!el || el.disabled || el.classList.contains('disabled')) return;
-    AUDIO.play(el.classList.contains('primary') ? 'primary' : 'secondary');
+    const snd=buttonSoundFor(el);
+    if (snd) AUDIO.play(snd);
   },true);
 }
 installUiSounds();
