@@ -652,6 +652,196 @@ const game = {
 const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
   localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
 
+/* ---------- audio: tactile prairie ambience + quiet UI feedback ---------- */
+const AUDIO = (()=>{
+  const STORE='pocketPrairie:audio';
+  const defaults={muted:false, master:0.8, ambience:0.55, sfx:0.65};
+  const reducedMotion = typeof matchMedia==='function'
+    ? matchMedia('(prefers-reduced-motion: reduce)')
+    : {matches:false, addEventListener(){}, addListener(){}};
+  let prefs=Object.assign({},defaults);
+  try{ if (hasStorage) prefs=Object.assign(prefs, JSON.parse(localStorage.getItem(STORE)||'{}')); }catch(_){}
+  let ctx=null, masterBus=null, ambienceBus=null, sfxBus=null, ready=false, scene='menu';
+  const sceneBuses={}, lastPlay={};
+  const cooldown={hover:120, focus:160, invalid:260, plantPlace:80, plantRemove:120,
+    plantSelect:90, panelOpen:180, panelClose:180, drift:480, season:1800};
+
+  const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
+  function savePrefs(){ try{ if (hasStorage) localStorage.setItem(STORE,JSON.stringify(prefs)); }catch(_){} }
+  function gainTo(g,val,jump){
+    if (!ctx||!g) return;
+    const t=ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value,t);
+    if (jump) g.gain.setValueAtTime(val,t);
+    else g.gain.setTargetAtTime(val,t,0.08);
+  }
+  function applyVolumes(jump){
+    if (!ctx) return;
+    gainTo(masterBus,prefs.muted?0:clamp01(prefs.master),jump);
+    gainTo(ambienceBus,clamp01(prefs.ambience)*(reducedMotion.matches?0.58:1),jump);
+    gainTo(sfxBus,clamp01(prefs.sfx)*(reducedMotion.matches?0.76:1),jump);
+  }
+  function makeGain(dest,val){
+    const g=ctx.createGain();
+    g.gain.value=val;
+    g.connect(dest);
+    return g;
+  }
+  function softNoiseBuffer(seconds){
+    const len=Math.max(1,Math.floor(ctx.sampleRate*seconds));
+    const b=ctx.createBuffer(1,len,ctx.sampleRate), data=b.getChannelData(0);
+    let v=0;
+    for (let i=0;i<len;i++){ v=v*0.86+(Math.random()*2-1)*0.14; data[i]=v; }
+    return b;
+  }
+  function addAmbienceNoise(group,{seconds=4,type='bandpass',freq=900,q=0.8,gain=0.01,pan=0}){
+    const src=ctx.createBufferSource(), filter=ctx.createBiquadFilter(), g=ctx.createGain();
+    const dest = typeof ctx.createStereoPanner==='function' ? ctx.createStereoPanner() : null;
+    src.buffer=softNoiseBuffer(seconds); src.loop=true;
+    filter.type=type; filter.frequency.value=freq; filter.Q.value=q;
+    g.gain.value=gain;
+    src.connect(filter); filter.connect(g);
+    if (dest){ dest.pan.value=pan; g.connect(dest); dest.connect(group); }
+    else g.connect(group);
+    src.start();
+  }
+  function addAmbienceTone(group,{freq=110,type='sine',gain=0.004,detune=0,pan=0}){
+    const osc=ctx.createOscillator(), g=ctx.createGain();
+    const dest = typeof ctx.createStereoPanner==='function' ? ctx.createStereoPanner() : null;
+    osc.type=type; osc.frequency.value=freq; osc.detune.value=detune;
+    g.gain.value=gain;
+    osc.connect(g);
+    if (dest){ dest.pan.value=pan; g.connect(dest); dest.connect(group); }
+    else g.connect(group);
+    osc.start();
+  }
+  function buildAmbience(){
+    const menu=makeGain(ambienceBus,0), garden=makeGain(ambienceBus,0);
+    sceneBuses.menu=menu; sceneBuses.garden=garden;
+    addAmbienceNoise(menu,{type:'bandpass',freq:1350,q:0.45,gain:0.012,pan:-0.25});
+    addAmbienceNoise(menu,{type:'lowpass',freq:260,q:0.25,gain:0.006,pan:0.2});
+    addAmbienceTone(menu,{freq:98,type:'sine',gain:0.004,pan:-0.15});
+    addAmbienceTone(menu,{freq:147,type:'triangle',gain:0.0022,detune:4,pan:0.2});
+    addAmbienceNoise(garden,{type:'bandpass',freq:1050,q:0.5,gain:0.014,pan:0.15});
+    addAmbienceNoise(garden,{type:'highpass',freq:2100,q:0.35,gain:0.006,pan:-0.35});
+    addAmbienceNoise(garden,{type:'lowpass',freq:190,q:0.22,gain:0.004,pan:0.25});
+    addAmbienceTone(garden,{freq:110,type:'sine',gain:0.0028,pan:-0.1});
+    addAmbienceTone(garden,{freq:165,type:'triangle',gain:0.0018,detune:-3,pan:0.18});
+  }
+  function ensure(){
+    if (ready){
+      if (ctx.state==='suspended') ctx.resume().catch(()=>{});
+      return true;
+    }
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if (!AC) return false;
+    ctx=new AC();
+    masterBus=ctx.createGain(); ambienceBus=ctx.createGain(); sfxBus=ctx.createGain();
+    ambienceBus.connect(masterBus); sfxBus.connect(masterBus); masterBus.connect(ctx.destination);
+    buildAmbience(); ready=true; applyVolumes(true); setScene(scene,true);
+    if (reducedMotion.addEventListener) reducedMotion.addEventListener('change',()=>applyVolumes(false));
+    else if (reducedMotion.addListener) reducedMotion.addListener(()=>applyVolumes(false));
+    return true;
+  }
+  function unlock(){
+    if (!ensure()) return;
+    ctx.resume().catch(()=>{});
+    setScene(scene,false);
+  }
+  function env(gain,dur,delay=0,attack=0.006){
+    const t0=ctx.currentTime+delay, t1=t0+Math.max(dur,attack+0.018);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001,gain),t0+attack);
+    g.gain.exponentialRampToValueAtTime(0.0001,t1);
+    g.connect(sfxBus);
+    return {g,t0,t1};
+  }
+  function tone(freq,dur,gain,type='sine',delay=0,endFreq=null){
+    if (!ctx) return;
+    const o=ctx.createOscillator(), e=env(gain,dur,delay);
+    o.type=type; o.frequency.setValueAtTime(freq,e.t0);
+    if (endFreq) o.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),e.t1);
+    o.connect(e.g); o.start(e.t0); o.stop(e.t1+0.03);
+  }
+  function noise(dur,gain,type='bandpass',freq=900,q=0.7,delay=0,attack=0.006){
+    if (!ctx) return;
+    const src=ctx.createBufferSource(), filter=ctx.createBiquadFilter(), e=env(gain,dur,delay,attack);
+    src.buffer=softNoiseBuffer(dur);
+    filter.type=type; filter.frequency.value=freq; filter.Q.value=q;
+    src.connect(filter); filter.connect(e.g); src.start(e.t0); src.stop(e.t1+0.03);
+  }
+  const events={
+    primary(){ noise(0.045,0.010,'bandpass',900,0.65); tone(185,0.075,0.010,'triangle',0,150); tone(520,0.026,0.0035,'sine',0.018); },
+    secondary(){ noise(0.042,0.007,'bandpass',1450,0.7); tone(260,0.045,0.0045,'triangle',0,220); },
+    hover(){ if (!reducedMotion.matches) noise(0.026,0.0035,'highpass',2200,0.3); },
+    focus(){ if (!reducedMotion.matches) noise(0.032,0.0038,'bandpass',1700,0.6); },
+    invalid(){ noise(0.07,0.006,'lowpass',360,0.35); tone(92,0.11,0.009,'sine',0,72); },
+    plantPlace(){ noise(0.09,0.012,'lowpass',520,0.45); noise(0.038,0.005,'bandpass',1800,0.8,0.035); tone(218,0.12,0.006,'triangle',0.012,180); },
+    plantRemove(){ noise(0.13,0.010,'bandpass',650,0.42); noise(0.07,0.006,'highpass',1600,0.35,0.025); tone(130,0.11,0.005,'triangle',0,98); },
+    plantSelect(){ noise(0.05,0.006,'bandpass',1250,0.65); tone(330,0.055,0.0038,'sine',0.012,390); },
+    panelOpen(){ noise(0.09,0.007,'bandpass',950,0.55); tone(165,0.18,0.006,'triangle',0,220); },
+    panelClose(){ noise(0.07,0.006,'bandpass',760,0.5); tone(190,0.13,0.0048,'triangle',0,135); },
+    drift(){ events.plantPlace(); noise(0.18,0.010,'bandpass',980,0.45,0.08); tone(247,0.26,0.006,'sine',0.06,330); tone(330,0.23,0.004,'triangle',0.11,392); },
+    season(){ noise(0.7,0.012,'bandpass',740,0.25); noise(0.45,0.006,'highpass',1900,0.25,0.08); tone(147,0.9,0.006,'sine',0,196); tone(220,0.85,0.004,'triangle',0.06,294); }
+  };
+  function play(name){
+    if (!ensure() || prefs.muted) return;
+    const t=performance.now(), wait=cooldown[name]||0;
+    if (wait && t-(lastPlay[name]||0)<wait) return;
+    lastPlay[name]=t;
+    if (ctx.state==='suspended') ctx.resume().catch(()=>{});
+    (events[name]||events.secondary)();
+  }
+  function setScene(next,jump){
+    scene=next==='garden'?'garden':'menu';
+    if (!ready) return;
+    Object.keys(sceneBuses).forEach(k=>gainTo(sceneBuses[k],k===scene?1:0,!!jump));
+  }
+  function setPrefs(next){
+    prefs=Object.assign({},prefs,next);
+    prefs.master=clamp01(prefs.master); prefs.ambience=clamp01(prefs.ambience); prefs.sfx=clamp01(prefs.sfx);
+    prefs.muted=!!prefs.muted;
+    savePrefs(); applyVolumes(false); updateSettingsUi();
+  }
+  function updateSettingsUi(){
+    const mute=document.getElementById('audioMuted');
+    if (!mute) return;
+    mute.checked=!!prefs.muted;
+    [['master','volMaster','volMasterLabel'],['ambience','volAmbience','volAmbienceLabel'],['sfx','volSfx','volSfxLabel']]
+      .forEach(([key,input,label])=>{
+        const el=document.getElementById(input), lab=document.getElementById(label);
+        if (!el||!lab) return;
+        const n=Math.round(clamp01(prefs[key])*100);
+        if (document.activeElement!==el) el.value=String(n);
+        lab.textContent=n+'%';
+      });
+  }
+  function bindSettings(){
+    const mute=document.getElementById('audioMuted');
+    if (!mute || bindSettings.done) return;
+    bindSettings.done=true; updateSettingsUi();
+    mute.onchange=()=>{ setPrefs({muted:mute.checked}); if (!mute.checked) play('primary'); };
+    [['master','volMaster'],['ambience','volAmbience'],['sfx','volSfx']].forEach(([key,id])=>{
+      const el=document.getElementById(id);
+      el.oninput=()=>setPrefs({[key]:(+el.value||0)/100});
+      el.onchange=()=>play('secondary');
+    });
+  }
+  function installUnlock(){
+    ['pointerdown','keydown','touchstart'].forEach(ev=>
+      addEventListener(ev,unlock,{once:true,capture:true,passive:true}));
+    document.addEventListener('visibilitychange',()=>{
+      if (!ctx) return;
+      if (document.hidden) ctx.suspend().catch(()=>{});
+      else if (ready && !prefs.muted) ctx.resume().catch(()=>{});
+    });
+  }
+  installUnlock();
+  return {play,setScene,setPrefs,bindSettings,updateSettingsUi,get prefs(){return prefs;}};
+})();
+
 function absDay(){ return Math.floor((Date.now()-game.startTs)/DAY_MS) + game.dayOffset; }
 function calClock(){
   const d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
@@ -1186,9 +1376,11 @@ function actHere(){
   if (game.tool==='shovel'){
     if (hasPlant){
       game.plants[k]={removed:true,t:Date.now()}; game.dirty=true;
+      AUDIO.play('plantRemove');
       toast('Lifted. Good divisions make free plants.'); syncPlantsOut(); }
     else if (hasBulb){
       game.bulbs[k]={removed:true,t:Date.now()}; game.dirty=true;
+      AUDIO.play('plantRemove');
       toast('Bulb dug up.'); syncBulbsOut(); }
     else if (terr){
       game.terrain[k]={removed:true,t:Date.now()}; game.dirty=true;
@@ -1240,7 +1432,7 @@ function actHere(){
     toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
   else toast('No room here.');
 }
-function plantFx(x,y){ game.fx.push({x,y,t0:performance.now()}); }
+function plantFx(x,y){ game.fx.push({x,y,t0:performance.now()}); AUDIO.play('plantPlace'); }
 /* drift planting: one action stamps a loose, natural cluster. Tighter
    spacers come in bigger drifts; woody plants always plant singly. */
 function driftCount(def){
@@ -1306,7 +1498,7 @@ function stampDrift(cx0,cy0,n){
     const r=applyToolAt(cx0+ox,cy0+oy);
     if (r){ placed++; what=r; }
   }
-  if (placed){ syncToolLayer(what);
+  if (placed){ syncToolLayer(what); AUDIO.play(placed>1?'drift':'plantPlace');
     toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
   else toast('No room for a drift here.');
 }
@@ -1326,7 +1518,7 @@ function displacePlants(x,y,w,h){ // a house can't share ground with plants
     const k=`${xx},${yy}`, p=game.plants[k];
     if (p && !p.removed){ game.plants[k]={removed:true,t:Date.now()}; n++; }
   }
-  if (n){ game.dirty=true; syncPlantsOut(); }
+  if (n){ game.dirty=true; syncPlantsOut(); AUDIO.play('plantRemove'); }
   return n;
 }
 function placeHouse(x,y){
@@ -1354,6 +1546,7 @@ function paintHouse(part,col,label){
   toast(part==='wall'?`Walls painted ${label.toLowerCase()}.`:`Roof done in ${label.toLowerCase()}.`);
 }
 function showPlantCard(p,px2,py2){
+  AUDIO.play('plantSelect');
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
   const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeInfoAt(px2,py2,false);
@@ -1368,7 +1561,7 @@ function showPlantCard(p,px2,py2){
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
-  xb.onclick=()=>{ el.style.display='none'; clearTimeout(el._t); };
+  xb.onclick=()=>{ el.style.display='none'; clearTimeout(el._t); AUDIO.play('panelClose'); };
   el.prepend(xb);
   el.style.display='block';
   clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',8000);
@@ -1376,6 +1569,8 @@ function showPlantCard(p,px2,py2){
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg; el.style.opacity=1;
+  if (/nothing|no room|already|first|failed|coming soon|only|lift the plant|dig the path|not in|no spot|shade-tolerant|standing in the way|just scenery|enter the/i.test(msg))
+    AUDIO.play('invalid');
   clearTimeout(el._t); el._t=setTimeout(()=>el.style.opacity=0,2600);
 }
 
@@ -1384,10 +1579,10 @@ const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
-  const overlay=['exportScreen','regionScreen','planScreen']
+  const overlay=['exportScreen','regionScreen','planScreen','settingsScreen']
     .map(id=>document.getElementById(id)).find(el=>!el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
-    if (e.key==='Escape') overlay.classList.add('hidden');
+    if (e.key==='Escape'){ overlay.classList.add('hidden'); AUDIO.play('panelClose'); }
     return;
   }
   const k=e.key.toLowerCase();
@@ -1479,6 +1674,7 @@ function finishToolDrag(){
   if (!toolDrag || !toolDrag.active) return;
   if (toolDrag.count){
     syncToolLayer(toolDrag.what);
+    if (toolDrag.what==='path'||toolDrag.what==='bed') AUDIO.play('secondary');
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     toast(toolDrag.what==='path' ? `Updated ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`
         : toolDrag.what==='bed'  ? `Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`
@@ -1523,6 +1719,7 @@ function endSweep(){
   if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
   if (sweep.terr) parts.push(`${sweep.terr} path/bed tile${sweep.terr>1?'s':''}`);
   if (parts.length){
+    if (sweep.plants || sweep.bulbs) AUDIO.play('plantRemove');
     toast(`Lifted ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
     if (sweep.bulbs) syncBulbsOut();
@@ -1734,6 +1931,7 @@ function exportRows(){
   }).sort((a,b)=>b.count-a.count);
 }
 function openExport(){
+  AUDIO.play('panelOpen');
   const rows=exportRows(), body=$('exportBody');
   const where=game.mode==='multi'?`Garden ${game.code}`:'Solo garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
@@ -2001,7 +2199,7 @@ function buildPlanMap(){
   ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
   ctx.fillText('10 ft', bx2+ftPx*5, by2-8);
 }
-function openPlan(){ buildPlanMap(); $('planScreen').classList.remove('hidden'); }
+function openPlan(){ AUDIO.play('panelOpen'); buildPlanMap(); $('planScreen').classList.remove('hidden'); }
 function downloadPlan(){
   $('planCanvas').toBlob(b2=>{
     if (!b2) return;
@@ -2029,6 +2227,7 @@ function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs, w
     (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
 }
 function openRegion(){
+  AUDIO.play('panelOpen');
   const rs=$('regionSel'), zs=$('zoneSel');
   if (!rs.options.length){
     rs.innerHTML='<option value="">Anywhere</option>'+
@@ -2055,7 +2254,7 @@ function applyRegion(){
   if (game.mode) buildToolTray();
   const n=PLANT_KEYS.filter(plantFits).length;
   toast(`${n} of ${PLANT_KEYS.length} species fit${game.region.eco?' the '+game.region.eco:''}${game.region.zone?', zone '+game.region.zone:''}.`);
-  $('regionScreen').classList.add('hidden');
+  closeOverlay('regionScreen');
 }
 function updateRegionBtn(){
   const r=game.region;
@@ -2138,7 +2337,7 @@ function buildToolTray(){
       sp.textContent=P.group ? (R.groupLabel||P.group[0].toUpperCase()+P.group.slice(1))
                              : P.name.split(' ').slice(0,2).join(' ');
       b.append(c,sp);
-      b.onclick=()=>{ game.tool=rep; game.toolVar=null; refreshTray(); renderCvRow();
+      b.onclick=()=>{ game.tool=rep; game.toolVar=null; AUDIO.play('plantSelect'); refreshTray(); renderCvRow();
         const D=PLANTS[game.tool];
         toast(P.group ? `${cap(P.group)}s — pick a species above`
                       : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
@@ -2294,7 +2493,7 @@ function renderCvRow(){
     const b=document.createElement('button');
     b.className='chip'+((game.tool===k && (game.toolVar||null)===v)?' sel':'');
     b.textContent=label; if (note) b.title=note;
-    b.onclick=()=>{ game.tool=k; game.toolVar=v; refreshTray(); renderCvRow();
+    b.onclick=()=>{ game.tool=k; game.toolVar=v; AUDIO.play('plantSelect'); refreshTray(); renderCvRow();
       const def=plantDef(k,v);
       toast(v?`${def.name} — ${note}`:`${def.name} — ${def.latin}`); };
     row.appendChild(b);
@@ -2357,7 +2556,7 @@ function updateHUD(){
   const sd=absDay();
   if (sd!==game.lastDay){
     if (game.lastDay>=0 && sd%DAYS_PER_SEASON===0)
-      toast(cal.season==='Spring'
+      AUDIO.play('season'), toast(cal.season==='Spring'
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
@@ -2367,10 +2566,39 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
+AUDIO.bindSettings();
 function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
+  AUDIO.setScene(id===''?'garden':'menu');
   if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
+function openSettings(){ AUDIO.bindSettings(); AUDIO.play('panelOpen'); $('settingsScreen').classList.remove('hidden'); }
+function closeSettings(){ $('settingsScreen').classList.add('hidden'); AUDIO.play('panelClose'); }
+function closeOverlay(id){ $(id).classList.add('hidden'); AUDIO.play('panelClose'); }
+function installUiSounds(){
+  if (installUiSounds.done) return;
+  installUiSounds.done=true;
+  const pick=e=>e.target instanceof Element
+    ? e.target.closest('button,.world-row,.chip,.swatch,.tool,.menu-action')
+    : null;
+  let lastHover=0;
+  document.addEventListener('pointerover',e=>{
+    const el=pick(e);
+    if (!el || el.disabled || el.classList.contains('disabled')) return;
+    const now=performance.now();
+    if (now-lastHover>85){ lastHover=now; AUDIO.play('hover'); }
+  });
+  document.addEventListener('focusin',e=>{
+    const el=pick(e);
+    if (el && !el.disabled && !el.classList.contains('disabled')) AUDIO.play('focus');
+  });
+  document.addEventListener('click',e=>{
+    const el=pick(e);
+    if (!el || el.disabled || el.classList.contains('disabled')) return;
+    AUDIO.play(el.classList.contains('primary') ? 'primary' : 'secondary');
+  },true);
+}
+installUiSounds();
 let pendingMode=null;
 const MULTIPLAYER_ENABLED=false;
 
@@ -2402,7 +2630,8 @@ $('btnContinue').onclick=async()=>{
   openWorlds();
 };
 $('btnNewGarden').onclick=()=>{ pendingMode='solo'; openCreator(); };
-$('btnSettings').onclick=()=>toast('Settings are coming soon.');
+$('btnSettings').onclick=openSettings;
+$('btnSettingsClose').onclick=closeSettings;
 
 /* the worlds screen: continue a saved garden or break new ground */
 async function openWorlds(){
@@ -2449,7 +2678,7 @@ $('btnJoin').onclick=async()=>{
   if (code.length<4){ toast('Enter the 5-character garden code.'); return; }
   if (await joinWorld(code)){ pendingMode='multi-join'; openCreator(); }
 };
-document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>show('menuScreen'));
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ AUDIO.play('panelClose'); show('menuScreen'); });
 
 /* creator */
 function openCreator(){
@@ -2559,7 +2788,7 @@ function quitToMenu(){
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
-  $('planScreen').classList.add('hidden');
+  $('planScreen').classList.add('hidden'); $('settingsScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   show('menuScreen');
@@ -2575,18 +2804,18 @@ addEventListener('pagehide',autosaveNow);
 $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
 $('btnExport').onclick=openExport;
-$('btnExportClose').onclick=()=>$('exportScreen').classList.add('hidden');
+$('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
 $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
-$('btnRegionClose').onclick=()=>$('regionScreen').classList.add('hidden');
+$('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
 $('btnRotate').onclick=()=>rotateView(1);
 $('btnPhoto').onclick=takePhoto;
 $('btnPlan').onclick=openPlan;
-$('btnPlanClose').onclick=()=>$('planScreen').classList.add('hidden');
+$('btnPlanClose').onclick=()=>closeOverlay('planScreen');
 $('btnPlanPng').onclick=downloadPlan;
-$('btnPlanList').onclick=()=>{ $('planScreen').classList.add('hidden'); openExport(); };
+$('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
 $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 
 /* ---------- menu background: a living meadow ---------- */
