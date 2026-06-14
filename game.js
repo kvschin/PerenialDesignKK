@@ -203,14 +203,27 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (P.form==='cone'){
         if (headOn){ // rays + cone, carried per the species' look
           const rays=L.rays||7, rl=L.rayLen||6, dr=(L.droop===undefined)?2.5:L.droop;
+          const dw=L.discW||3.2, dh=L.discH||3.6, dy=(L.discY===undefined?-1:L.discY);
           ctx.strokeStyle=S.bloom; ctx.lineWidth=L.rayW||2.2;
+          ctx.lineCap=L.rayCap||'round';
           for(let p=0;p<rays;p++){ const pa=p/rays*Math.PI*2;
             ctx.beginPath(); ctx.moveTo(hx,hy);
-            ctx.lineTo(hx+Math.cos(pa)*rl, hy+Math.sin(pa)*rl*0.75+dr); ctx.stroke(); }
+            const ex=hx+Math.cos(pa)*rl, ey=hy+Math.sin(pa)*rl*0.75+dr;
+            if (L.rayShape==='notched'){
+              ctx.quadraticCurveTo(hx+Math.cos(pa)*rl*0.55,hy+Math.sin(pa)*rl*0.28+dr*0.45,ex,ey); ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(ex,ey);
+              ctx.lineTo(ex+Math.cos(pa+0.55)*1.5,ey+Math.sin(pa+0.55)*1.1); ctx.stroke();
+            } else if (L.rayShape==='spoon'){
+              ctx.quadraticCurveTo(hx+Math.cos(pa)*rl*0.45,hy+Math.sin(pa)*rl*0.25+dr*0.4,ex,ey); ctx.stroke();
+              ctx.beginPath(); ctx.ellipse(ex,ey,(L.rayW||2.2)*0.72,(L.rayW||2.2)*0.42,pa,0,7); ctx.fillStyle=S.bloom; ctx.fill();
+            } else {
+              ctx.lineTo(ex,ey); ctx.stroke();
+            } }
           ctx.fillStyle=S.eye||'#b5651d';
-          ctx.beginPath(); ctx.ellipse(hx,hy-1,3.2,3.6,0,0,7); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(hx,hy+dy,dw,dh,0,0,7); ctx.fill();
+          ctx.lineCap='butt';
         } else if (S.seed){ ctx.fillStyle=S.seed;
-          ctx.beginPath(); ctx.ellipse(hx,hy,3,3.8,0,0,7); ctx.fill(); }
+          ctx.beginPath(); ctx.ellipse(hx,hy,L.seedW||3,L.seedH||3.8,0,0,7); ctx.fill(); }
       }
       else if (P.form==='globe'){
         const col = (headOn?S.bloom:null) || S.seed;
@@ -247,6 +260,80 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (col){ ctx.fillStyle=col;
           for(let s=0;s<5;s++){ ctx.beginPath();
             ctx.ellipse(hx+(rnd()-0.5)*1.5, hy+s*3.2, 1.8,2.2,0,0,7); ctx.fill(); } }
+      }
+    }
+  }
+  else if (P.form === 'bractstack'){ // spotted bee balm: stacked bracts with small spotted tubes
+    const L=P.look||{};
+    if (S.fol){
+      const n=stemFor(L.leaves||8);
+      ctx.strokeStyle=S.fol; ctx.lineWidth=L.leafW||1.4;
+      for(let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*1.45+(rnd()-0.5)*0.22, l=H*(L.leafLen||0.32)*(0.7+rnd()*0.4);
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.48,Math.sin(a)*l,-l*0.62); ctx.stroke();
+      }
+    }
+    const sn=stemFor(L.stems||4);
+    for(let i=0;i<sn;i++){
+      const ox=(rnd()-0.5)*12, len=H*(0.78+rnd()*0.2), tip=ox+sway*len*0.04;
+      ctx.strokeStyle=shade(S.fol||S.seed||'#6b6248',-18); ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.55,tip,-len); ctx.stroke();
+      if (!mature) continue;
+      const tiers=L.tiers||3, shown=blooming?Math.max(1,Math.ceil(tiers*blv)):tiers;
+      for(let tr=0;tr<shown;tr++){
+        const y=-len*(0.42+tr*0.15), w=(L.bractW||8)*(1-tr*0.12), br=(S.bract||S.bloom||S.seed);
+        if (br){
+          ctx.fillStyle=shade(br,(rnd()-0.5)*16);
+          for(let b=-2;b<=2;b++){
+            ctx.beginPath(); ctx.ellipse(tip+b*w*0.28,y+(Math.abs(b)%2)*1.5,w*0.22,2.1,b*0.2,0,7); ctx.fill();
+          }
+        }
+        const col=(blooming?S.bloom:null)||S.seed;
+        if (col){
+          ctx.fillStyle=col;
+          for(let f=0;f<5;f++){
+            ctx.beginPath(); ctx.ellipse(tip+(rnd()-0.5)*w,y-2-rnd()*3,1.2,1.8,0,0,7); ctx.fill();
+          }
+          if (blooming && S.eye){
+            ctx.fillStyle=S.eye;
+            for(let d=0;d<3;d++){ ctx.beginPath(); ctx.arc(tip+(rnd()-0.5)*w,y-2-rnd()*3,0.45,0,7); ctx.fill(); }
+          }
+        }
+      }
+    }
+  }
+  else if (P.form === 'pincushion'){ // scabiosa: wiry stems and pincushion disks
+    const L=P.look||{};
+    if (S.fol){
+      const n=stemFor(L.leaves||7);
+      ctx.strokeStyle=S.fol; ctx.lineWidth=L.leafW||1.1;
+      for(let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*1.7+(rnd()-0.5)*0.2, l=H*(L.leafLen||0.3);
+        ctx.beginPath(); ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.5,Math.sin(a)*l,-l*0.52); ctx.stroke();
+      }
+    }
+    const sn=stemFor(L.stems||7);
+    for(let i=0;i<sn;i++){
+      const ox=(rnd()-0.5)*16, len=H*(0.72+rnd()*0.32), tip=ox+sway*len*0.08;
+      ctx.strokeStyle=shade(S.fol||S.seed||'#6b6248',-18); ctx.lineWidth=0.9;
+      ctx.beginPath(); ctx.moveTo(ox*0.3,0); ctx.quadraticCurveTo(ox,-len*0.56,tip,-len); ctx.stroke();
+      if (!mature) continue;
+      const headOn=blooming && i < Math.max(1,Math.ceil(sn*blv));
+      const col=(headOn?S.bloom:null)||S.seed;
+      if (col){
+        const r=L.headR||4.6;
+        ctx.fillStyle=col;
+        ctx.beginPath(); ctx.ellipse(tip,-len,r,r*0.78,0,0,7); ctx.fill();
+        ctx.strokeStyle=shade(col,-25); ctx.lineWidth=0.7;
+        for(let p=0;p<8;p++){ const pa=p/8*Math.PI*2;
+          ctx.beginPath(); ctx.moveTo(tip,-len);
+          ctx.lineTo(tip+Math.cos(pa)*r*1.1,-len+Math.sin(pa)*r*0.82); ctx.stroke(); }
+        if (headOn && S.eye){
+          ctx.fillStyle=S.eye;
+          for(let d=0;d<6;d++){ ctx.beginPath(); ctx.arc(tip+(rnd()-0.5)*r,-len+(rnd()-0.5)*r*0.7,0.55,0,7); ctx.fill(); }
+        }
       }
     }
   }
@@ -446,9 +533,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.strokeStyle=shade(S.fol,-25); ctx.lineWidth=1.1;
         ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         ctx.fillStyle=col;
-        if ((key==='baptisia'||key==='creamindigo')&&season==='Spring'){ for(let s=0;s<4;s++){
+        if ((P.group==='baptisia'||key==='baptisia'||key==='creamindigo')&&season==='Spring'){ for(let s=0;s<4;s++){
           ctx.beginPath(); ctx.ellipse(ox+sway*2,-len+s*3.4,1.9,2.4,0,0,7); ctx.fill(); } }
-        else if (key==='amsonia'&&season==='Spring'){ for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
+        else if ((P.group==='amsonia'||key==='amsonia')&&season==='Spring'){ for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
           ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); } }
         else { ctx.beginPath(); ctx.arc(ox+sway*2,-len,key==='mountainmint'?3.4:2.6,0,7); ctx.fill(); }
       }
@@ -2211,7 +2298,7 @@ function plantFits(k){
 }
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs, woody
   const ord={grass:0, sedge:1, forb:2, bulb:3, shrub:4, tree:5};
-  return PLANT_KEYS.filter(plantFits).sort((a,b)=>
+  return PLANT_KEYS.filter(k=>!PLANTS[k].hidden).filter(plantFits).sort((a,b)=>
     (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
 }
 function openRegion(){
@@ -2239,8 +2326,9 @@ function applyRegion(){
   sSet('hortus:region',game.region);
   updateRegionBtn();
   if (game.mode) buildToolTray();
-  const n=PLANT_KEYS.filter(plantFits).length;
-  toast(`${n} of ${PLANT_KEYS.length} species fit${game.region.eco?' the '+game.region.eco:''}${game.region.zone?', zone '+game.region.zone:''}.`);
+  const visibleKeys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
+  const n=visibleKeys.filter(plantFits).length;
+  toast(`${n} of ${visibleKeys.length} species fit${game.region.eco?' the '+game.region.eco:''}${game.region.zone?', zone '+game.region.zone:''}.`);
   closeOverlay('regionScreen');
 }
 function updateRegionBtn(){
