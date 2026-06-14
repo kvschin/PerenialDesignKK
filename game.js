@@ -179,6 +179,54 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.ellipse(px,py,1.9,1.1,0.5,0,7); ctx.fill(); } }
     }
   }
+  else if (P.form === 'fountaingrass'){ // pennisetum: arching blades with bottlebrush plumes
+    const L=P.look||{}, n=stemFor(L.leaves||13);
+    for (let i=0;i<n;i++){
+      const a=(i/(n-1)-0.5)*(L.fan||1.9)+(rnd()-0.5)*0.18, len=H*(L.leafLen||0.54)*(0.7+rnd()*0.45);
+      const bx=Math.sin(a)*len*0.78+sway*len*0.06, by=-len*(0.46+rnd()*0.18);
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*22); ctx.lineWidth=L.leafW||1.35;
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.28,-len*0.72,bx,by); ctx.stroke();
+    }
+    const brush=(blooming?S.bloom:null)||S.seed, sn=stemFor(L.stems||6);
+    for (let i=0;i<sn;i++){
+      const a=(i/(sn-1)-0.5)*(L.fan||1.7)+(rnd()-0.5)*0.18, len=H*(0.74+rnd()*0.24);
+      const tip=Math.sin(a)*len*0.62+sway*len*0.06, topY=-len*(0.68+rnd()*0.08);
+      ctx.strokeStyle=shade(S.fol||brush,-18); ctx.lineWidth=1.05;
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*4,0);
+      ctx.quadraticCurveTo(tip*0.36,-len*0.58,tip,topY); ctx.stroke();
+      if (brush && mature){
+        ctx.fillStyle=brush;
+        const br=L.brush||5.5, shown=blooming?Math.max(3,Math.ceil(7*blv)):5;
+        for (let b=0;b<shown;b++){
+          ctx.beginPath();
+          ctx.ellipse(tip+(rnd()-0.5)*2,topY-b*2.1,br*0.38,br*0.22,a*0.5,0,7); ctx.fill();
+        }
+      }
+    }
+  }
+  else if (P.form === 'forestgrass'){ // Hakonechloa: low cascading ribbons for shade
+    const L=P.look||{}, n=stemFor(L.leaves||16);
+    for (let i=0;i<n;i++){
+      const a=(i/(n-1)-0.5)*(L.fan||2.2)+(rnd()-0.5)*0.12, len=H*(L.leafLen||0.7)*(0.72+rnd()*0.34);
+      const bx=Math.sin(a)*len*0.78+sway*len*0.04, by=-len*(0.28+rnd()*0.18);
+      const col=shade(S.fol,(rnd()-0.5)*18);
+      ctx.strokeStyle=col; ctx.lineWidth=L.leafW||2.2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.22,-len*0.72,bx,by); ctx.stroke();
+      if (L.stripe){
+        ctx.strokeStyle=shade(L.stripe,(rnd()-0.5)*12); ctx.lineWidth=Math.max(0.7,(L.leafW||2.2)*0.32);
+        ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,-1);
+        ctx.quadraticCurveTo(bx*0.22,-len*0.72,bx,by); ctx.stroke();
+      }
+    }
+    if (S.seed && mature){
+      ctx.strokeStyle=shade(S.fol||S.seed,-18); ctx.lineWidth=0.85;
+      for (let i=0;i<3;i++){ const ox=(rnd()-0.5)*10, len=H*(0.62+rnd()*0.16), tip=ox+sway*2;
+        ctx.beginPath(); ctx.moveTo(ox*0.4,0); ctx.quadraticCurveTo(ox,-len*0.5,tip,-len); ctx.stroke();
+        ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(tip,-len,1.2,3.8,0.2,0,7); ctx.fill(); }
+    }
+  }
   else if (P.form === 'cone' || P.form === 'globe' || P.form === 'spike' || P.form === 'umbel'){
     const L = P.look||{}; // per-species carriage: leafiness, wispiness, droop
     // basal foliage (skipped in seasons with no foliage color)
@@ -2450,9 +2498,10 @@ function updateRegionBtn(){
 /* tray categories: the bottom main menu. Shrubs and Trees are honest
    placeholders until woody plants exist (type 'shrub' / 'tree'). */
 const TRAY_CATS=[
-  {id:'grasses',  label:'Grasses',          types:['grass','sedge']},
+  {id:'grasses',  label:'Grasses',          types:['grass']},
+  {id:'sedges',   label:'Sedges',           types:['sedge'], sedgeSections:true},
   {id:'sunper',   label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
-  {id:'shadeper', label:'Shade Perennials', types:['forb','sedge'], sunFilter:'part'},
+  {id:'shadeper', label:'Shade Perennials', types:['forb'], sunFilter:'part'},
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
@@ -2489,6 +2538,7 @@ function buildToolTray(){
     // if the filter took the selected species away, fall back sensibly
     const all=trayKeys();
     if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
+    if (PLANTS[game.tool] && keys.length && !keys.includes(game.tool)){ game.tool=keys[0]; game.toolVar=null; }
     // browsing plants disarms tap-action tools (house placement, shovel sweep)
     if ((game.tool==='house'||game.tool==='shovel') && keys.length){
       game.tool=keys[0]; game.toolVar=null; }
@@ -2498,12 +2548,16 @@ function buildToolTray(){
       tray.appendChild(sp);
     }
     const grouped={};
-    keys.forEach(k=>{
+    const sections = cat.sedgeSections
+      ? [['Sun sedges',keys.filter(k=>PLANTS[k].sun==='full')],
+         ['Shade sedges',keys.filter(k=>PLANTS[k].sun!=='full')]]
+      : [[null,keys]];
+    const addPlantButton=(k)=>{
       const P=PLANTS[k];
       // species sharing a group collapse into one button; the chip row
       // (renderCvRow) picks the species inside it
       if (P.group){
-        if (grouped[P.group]) return;
+        if (grouped[P.group]) return false;
         grouped[P.group]=true;
       }
       const activeGroup = P.group && keys.includes(game.tool) &&
@@ -2528,6 +2582,17 @@ function buildToolTray(){
         toast(P.group ? `${label} — pick a species above`
                       : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
       tray.appendChild(b);
+      return true;
+    };
+    sections.forEach(([label,sectionKeys])=>{
+      if (!sectionKeys.length) return;
+      if (label){
+        const sep=document.createElement('span');
+        sep.className='tray-sep';
+        sep.textContent=label;
+        tray.appendChild(sep);
+      }
+      sectionKeys.forEach(addPlantButton);
     });
     renderCvRow(); applyTraySearch();
     return;
