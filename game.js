@@ -215,11 +215,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       else if (P.form==='globe'){
         const col = (headOn?S.bloom:null) || S.seed;
         if (col){ ctx.fillStyle=col;
-          ctx.beginPath(); ctx.arc(hx,hy,key==='allium'?5:4.2,0,7); ctx.fill();
+          const hr = L.headR || (key==='allium'?5:4.2);
+          const ghx = hx + (L.nod?4:0), ghy = hy + (L.nod?5:0);
+          if (L.nod){
+            ctx.strokeStyle=shade(S.fol||col,-25); ctx.lineWidth=1;
+            ctx.beginPath(); ctx.moveTo(hx,hy);
+            ctx.quadraticCurveTo(hx+2,hy+3,ghx,ghy-hr*0.45); ctx.stroke();
+          }
+          ctx.beginPath(); ctx.arc(ghx,ghy,hr,0,7); ctx.fill();
           ctx.strokeStyle=shade(col,-30); ctx.lineWidth=0.7;
           for(let p=0;p<6;p++){ const pa=p/6*Math.PI*2;
-            ctx.beginPath(); ctx.moveTo(hx,hy);
-            ctx.lineTo(hx+Math.cos(pa)*5.5,hy+Math.sin(pa)*5.5); ctx.stroke(); } }
+            ctx.beginPath(); ctx.moveTo(ghx,ghy);
+            ctx.lineTo(ghx+Math.cos(pa)*hr*1.3,ghy+Math.sin(pa)*hr*1.3); ctx.stroke(); } }
       }
       else if (P.form==='umbel'){ // flat-to-domed corymb of tiny florets
         const col=(headOn?S.bloom:null)||S.seed;
@@ -256,6 +263,41 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (col){ ctx.fillStyle=col;
         const bw=L.button||1.8, bl=L.buttonLen||3.2;
         ctx.beginPath(); ctx.ellipse(tip,-len-bl*0.4,bw,bl,sway*0.12,0,7); ctx.fill(); }
+    }
+  }
+  else if (P.form === 'archbell'){ // Solomon's seal: arched stems, alternating leaves, pendant bells
+    const L=P.look||{}, sn=stemFor(L.stems||4);
+    for (let i=0;i<sn;i++){
+      const ox=(i/(sn-1)-0.5)*12+(rnd()-0.5)*2;
+      const len=H*(0.72+rnd()*0.18), tip=ox+12+sway*len*0.04;
+      const ctrlX=ox+4+sway*2, ctrlY=-len*0.72;
+      const stemCol=shade(S.fol||S.seed||'#6b6248',-18);
+      ctx.strokeStyle=stemCol; ctx.lineWidth=1.3;
+      ctx.beginPath(); ctx.moveTo(ox,0);
+      ctx.quadraticCurveTo(ctrlX,ctrlY,tip,-len*0.55); ctx.stroke();
+      const bez=(f)=>{
+        const u=1-f;
+        return [u*u*ox+2*u*f*ctrlX+f*f*tip, 2*u*f*ctrlY+f*f*(-len*0.55)];
+      };
+      if (S.fol){
+        const leaves=L.leaves||8;
+        for (let j=0;j<leaves;j++){
+          const f=0.12+j/(leaves+1)*0.74, side=j%2?-1:1, p=bez(f);
+          ctx.fillStyle=shade(S.fol,(rnd()-0.5)*22);
+          ctx.beginPath();
+          ctx.ellipse(p[0]+side*4, p[1]+1.5, 5.2, 1.8, side*0.45, 0, 7); ctx.fill();
+        }
+      }
+      if (mature && ((blooming&&S.bloom)||S.seed)){
+        const headOn = blooming && i < Math.max(1, Math.ceil(sn*blv));
+        const bells=headOn ? Math.max(2,Math.ceil((L.bells||5)*blv)) : (S.seed?Math.min(4,L.bells||5):0);
+        ctx.fillStyle=(headOn?S.bloom:null)||S.seed;
+        for (let b=0;b<bells;b++){
+          const f=0.36+b*0.1, p=bez(f);
+          ctx.beginPath();
+          ctx.ellipse(p[0]+3, p[1]+4, headOn?2.1:1.8, headOn?3.3:2.1, -0.2, 0, 7); ctx.fill();
+        }
+      }
     }
   }
   else if (P.form === 'rosette'){ // yucca: evergreen sword-leaf crown + bell tower
@@ -744,8 +786,22 @@ function seasonEnvelope(key){
   const t=(ydf-g.w)/(g.f-g.w);
   return 0.12+0.88*t*t*(3-2*t);                      // smoothstep up
 }
-function bulbEnvelope(){ // up with the thaw, gone under the summer canopy
+function bulbEnvelope(key){ // spring ephemerals by default; onions can carry summer/fall bulbs
   const ydf=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
+  const P=PLANTS[key]||{};
+  if (P.bulbSeason==='summer'){
+    if (ydf<12) return 0;
+    if (ydf<18) return (ydf-12)/6;
+    if (ydf<48) return 1;
+    if (ydf<56) return Math.max(0,(56-ydf)/8);
+    return 0;
+  }
+  if (P.bulbSeason==='fall'){
+    if (ydf<24) return 0;
+    if (ydf<32) return (ydf-24)/8;
+    if (ydf<60) return 1;
+    return Math.max(0,(YEAR_DAYS-ydf)/4);
+  }
   if (ydf>=DAYS_PER_SEASON) return 0;          // underground from summer on
   if (ydf<1.5) return ydf/1.5;
   if (ydf<10) return 1;
@@ -754,7 +810,7 @@ function bulbEnvelope(){ // up with the thaw, gone under the summer canopy
 function plantGrowth(p){
   const P=PLANTS[p.s];
   if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
-  if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope();
+  if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope(p.s);
   return plantEstab(p)*seasonEnvelope(p.s);
 }
 /* bloom staggering: within a bloom season each species rises, peaks,
@@ -2186,7 +2242,8 @@ function buildToolTray(){
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-      drawPlant(ctx2,24/sc,42/sc,rep,1,R.type==='bulb'?'Spring':'Summer',tileSeed(3,7),0,undefined,1);
+      const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+      drawPlant(ctx2,24/sc,42/sc,rep,1,iconSeason,tileSeed(3,7),0,undefined,1);
       const sp=document.createElement('span');
       sp.textContent=P.group ? (R.groupLabel||P.group[0].toUpperCase()+P.group.slice(1))
                              : P.name.split(' ').slice(0,2).join(' ');

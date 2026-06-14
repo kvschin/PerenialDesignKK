@@ -9,6 +9,7 @@
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
            burnet) | rosette (yucca sword-leaf crown) |
+           archbell (arching Solomon's seal stems) |
            shrub (herbaceous mound) | fern | leafmound (hosta) |
            bulbcup (crocus/tulip/daffodil) | bush (woody shrub) |
            hydrangea (mophead/panicle shrub; look.bloomShape 'mop'|'panicle',
@@ -21,6 +22,8 @@
            through spring: crocus 1, daffodil 3, muscari 4, tulip 6,
            camassia 9); species without it peak by phen (cool 5, mid 8,
            warm 11)
+   bulbSeason optional for type:bulb: summer/fall keeps onion bulbs above
+           ground outside the default spring-ephemeral window
    grow    woody only: years to mature size (establishment horizon —
            perennials use 10 growing days; a bur oak uses 10 years).
            Woody plants skip the spring cutback; they are structure.
@@ -177,17 +180,21 @@ const PLANTS = {
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Silver yucca-like leaves and pale spiky globes. Architectural in every season.',
     sea:{Spring:{fol:'#8fa8a0'}, Summer:{fol:'#8fa8a0',bloom:'#dfe8dd'}, Fall:{fol:'#9a9a86',seed:'#8a7a5e'}, Winter:{fol:'#8d8674',seed:'#6e5f48'}}},
-  yucca:{ name:"Adam's Needle Yucca", latin:'Yucca filamentosa', form:'rosette', type:'forb', h:66,
-    space:36, spread:42, zones:[4,10], native:false, sun:'full', moist:'dry', phen:'cool', eco:[],
-    look:{leaves:20, leafLen:0.52, leafW:3.1, filaments:true, stems:1, bells:8},
-    blurb:'Evergreen sword leaves for dry garden architecture, with cream bells on a tall June stalk. Not a Kansas prairie native, but useful structure.',
-    sea:{Spring:{fol:'#7d8f80',edge:'#9aa88a'}, Summer:{fol:'#748a78',edge:'#9aa88a',bloom:'#efe6d3'}, Fall:{fol:'#7d8672',edge:'#9a967e',seed:'#8a7158'}, Winter:{fol:'#747c6a',edge:'#9a927a',seed:'#a89272'}},
+  yucca:{ name:'Yucca', latin:'Yucca glauca', form:'rosette', type:'forb', h:62,
+    space:36, spread:42, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'cool',
+    eco:['Flint Hills','Central Great Plains','High Plains','Southwestern Tablelands'],
+    look:{leaves:22, leafLen:0.5, leafW:2.4, filaments:false, stems:1, bells:8},
+    blurb:'Great Plains soapweed yucca: evergreen blue-green swords, dry-soil structure, and cream bells on a summer stalk.',
+    sea:{Spring:{fol:'#78918c',edge:'#9aa89a'}, Summer:{fol:'#6f8a86',edge:'#9aa89a',bloom:'#efe6d3'}, Fall:{fol:'#7d8672',edge:'#9a967e',seed:'#8a7158'}, Winter:{fol:'#747c6a',edge:'#9a927a',seed:'#a89272'}},
     cv:{
       colorguard:{name:"'Color Guard'", note:'bold yellow center with green edges, pink-bronze in winter',
+        latin:'Yucca filamentosa', native:false, eco:[],
         sea:{Spring:{fol:'#d8c85a',edge:'#526c58'}, Summer:{fol:'#e2d068',edge:'#536f58',bloom:'#f2ead8'}, Fall:{fol:'#d0b84e',edge:'#5d6b50',seed:'#8a7158'}, Winter:{fol:'#c0a24a',edge:'#7a554e',seed:'#a89272'}}},
       brightedge:{name:"'Bright Edge'", note:'green swords with clean golden margins',
+        latin:'Yucca filamentosa', native:false, eco:[],
         sea:{Spring:{fol:'#6e8a68',edge:'#d8c85a'}, Summer:{fol:'#637e62',edge:'#dcc85a',bloom:'#f2ead8'}, Fall:{fol:'#748060',edge:'#c4a848',seed:'#8a7158'}, Winter:{fol:'#6e7460',edge:'#b89a42',seed:'#a89272'}}},
       goldensword:{name:"'Golden Sword'", note:'wide gold-centered foliage, strong green margins',
+        latin:'Yucca filamentosa', native:false, eco:[],
         sea:{Spring:{fol:'#d6c05a',edge:'#4f755c'}, Summer:{fol:'#dcca62',edge:'#4e735c',bloom:'#f3ead8'}, Fall:{fol:'#c9a84a',edge:'#5e7458',seed:'#8a7158'}, Winter:{fol:'#b89442',edge:'#6a6e54',seed:'#a89272'}}},
     }},
   monarda:{ name:'Wild Bergamot', latin:'Monarda fistulosa', form:'globe', type:'forb', h:44,
@@ -415,6 +422,23 @@ const PLANTS = {
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:"The prairie's own bulb — steeples of pale violet stars in late spring, then gone into the grass.",
     sea:{Spring:{fol:'#6f9a5a',bloom:'#8a8ac8'}, Summer:{}, Fall:{}, Winter:{}}},
+  snowdrop:{ name:'Snowdrop', latin:'Galanthus nivalis', form:'bulbcup', type:'bulb', h:9,
+    space:3, spread:3, zones:[3,7], native:false, sun:'part', moist:'medium', phen:'cool', bloomDay:0, eco:[],
+    look:{stems:5, cup:2.4},
+    blurb:'Tiny white bells for the first thaw, best scattered under deciduous shade before the canopy closes.',
+    sea:{Spring:{fol:'#6f9a5a',bloom:'#f4f1e8',eye:'#7aa55a'}, Summer:{}, Fall:{}, Winter:{}}},
+  noddingonion:{ name:'Nodding Onion', latin:'Allium cernuum', form:'globe', type:'bulb', h:30,
+    space:6, spread:8, zones:[3,9], native:true, sun:'full', moist:'dry', phen:'mid', bloomDay:9, bulbSeason:'summer',
+    look:{leaves:7, leafW:1.1, leafLen:0.36, stems:5, nod:true, headR:3.5},
+    eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'A native summer onion with rose-pink umbels that bend at the neck, airy enough to thread through grasses.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#d08aa8'}, Fall:{fol:'#9a8a5e',seed:'#b8a888'}, Winter:{}}},
+  prairieonion:{ name:'Prairie Onion', latin:'Allium stellatum', form:'globe', type:'bulb', h:32,
+    space:6, spread:8, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'warm', bloomDay:3, bulbSeason:'fall',
+    look:{leaves:6, leafW:1, leafLen:0.32, stems:5, headR:4.4},
+    eco:['Flint Hills','Central Great Plains','High Plains','Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'Autumn onion for dry prairie edges: grassy leaves, pink-purple starry umbels, and small tan seed globes after bloom.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a'}, Fall:{fol:'#8a8a5e',bloom:'#c478a8',seed:'#b8a888'}, Winter:{}}},
 
   /* ---------- shade perennials: under the canopy ---------- */
   hosta:{ name:'Hosta', latin:'Hosta hybrida', form:'leafmound', type:'forb', h:30,
@@ -452,6 +476,43 @@ const PLANTS = {
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Red-and-yellow lanterns nodding over lacy leaves in April, made for returning hummingbirds.',
     sea:{Spring:{fol:'#6f8f6e',bloom:'#c8503a'}, Summer:{fol:'#7a936a'}, Fall:{fol:'#9a8a5e',seed:'#5e5244'}, Winter:{seed:'#4a4238'}}},
+  woodlandphlox:{ name:'Woodland Phlox', latin:'Phlox divaricata', form:'umbel', type:'forb', h:24,
+    space:12, spread:18, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
+    look:{head:5.5, dome:0.25, stems:6, leaves:7, leafLen:0.34},
+    eco:['Central Irregular Plains','Western Corn Belt Plains','Ozark Highlands'],
+    blurb:'Soft blue-lavender spring flowers for open shade, with a low, loose woodland habit rather than prairie verticality.',
+    sea:{Spring:{fol:'#6f8f6e',bloom:'#8fa8d8'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#8a8a5e',seed:'#b8a880'}, Winter:{}}},
+  wildgeranium:{ name:'Wild Geranium', latin:'Geranium maculatum', form:'umbel', type:'forb', h:24,
+    space:18, spread:24, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
+    look:{head:5, dome:0.15, stems:5, leaves:8, leafLen:0.32},
+    eco:['Central Irregular Plains','Western Corn Belt Plains','Ozark Highlands'],
+    blurb:'A sturdy native woodland geranium: palmate leaves, lilac-pink spring flowers, and quiet summer foliage.',
+    sea:{Spring:{fol:'#6f8f6e',bloom:'#c890b8'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#9a8a5e',seed:'#8a7058'}, Winter:{}}},
+  solomonsseal:{ name:"Solomon's Seal", latin:'Polygonatum biflorum', form:'archbell', type:'forb', h:38,
+    space:18, spread:24, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
+    look:{stems:4, leaves:9, bells:5},
+    eco:['Central Irregular Plains','Western Corn Belt Plains','Ozark Highlands'],
+    blurb:'Arching shade stems with paired cream bells underneath, then blue-black berries and straw-yellow fall structure.',
+    sea:{Spring:{fol:'#6f8f6e',bloom:'#ece8d8'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#c2a85a',seed:'#384058'}, Winter:{seed:'#5e5240'}}},
+  bluebells:{ name:'Virginia Bluebells', latin:'Mertensia virginica', form:'spike', type:'forb', h:28,
+    space:18, spread:18, zones:[3,8], native:true, sun:'part', moist:'moist', phen:'cool', bloomDay:3,
+    look:{leaves:9, leafW:2.2, leafLen:0.42, stems:5},
+    eco:['Central Irregular Plains','Western Corn Belt Plains'],
+    blurb:'The spring ephemeral everyone forgives for disappearing: pink buds opening to blue bells in moist woodland shade.',
+    sea:{Spring:{fol:'#7f9f8a',bloom:'#7da6d8'}, Summer:{fol:'#7a936a'}, Fall:{}, Winter:{}}},
+  heuchera:{ name:'Heuchera', latin:'Heuchera americana', form:'leafmound', type:'forb', h:24,
+    space:18, spread:18, zones:[4,9], native:true, sun:'part', moist:'medium', phen:'cool',
+    eco:['Central Irregular Plains','Western Corn Belt Plains','Ozark Highlands'],
+    blurb:'American alumroot for shade texture: scalloped leaves, airy cream flower wands, and color all season.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#647f55',bloom:'#e8dcc8'}, Fall:{fol:'#8a6a62'}, Winter:{fol:'#6f6258'}},
+    cv:{
+      greenSpice:{name:"'Green Spice'", note:'silver-green leaves with darker veining',
+        sea:{Spring:{fol:'#94a77c'}, Summer:{fol:'#8fa078',bloom:'#e8dcc8'}, Fall:{fol:'#9a8468'}, Winter:{fol:'#7a705f'}}},
+      palacepurple:{name:"'Palace Purple'", note:'deep bronze-purple foliage',
+        sea:{Spring:{fol:'#6f4d5a'}, Summer:{fol:'#5e3f4e',bloom:'#eadcca'}, Fall:{fol:'#6e3a46'}, Winter:{fol:'#4f343e'}}},
+      caramel:{name:"'Caramel'", note:'warm amber leaves for bright shade',
+        sea:{Spring:{fol:'#c79a58'}, Summer:{fol:'#bd8d4e',bloom:'#eadcca'}, Fall:{fol:'#b06f45'}, Winter:{fol:'#7a5640'}}},
+    }},
 
   /* ---------- woody shrubs ---------- */
   leadplant:{ name:'Leadplant', latin:'Amorpha canescens', form:'bush', type:'shrub', h:36, cw:44,
