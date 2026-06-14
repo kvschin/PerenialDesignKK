@@ -717,6 +717,76 @@ const AUDIO = (()=>{
     else g.connect(group);
     osc.start();
   }
+  const music={timer:null, step:0, next:0};
+  const LOFI_STEP=60/72/2; // eighth notes at a relaxed 72 bpm
+  function midi(n){ return 440*Math.pow(2,(n-69)/12); }
+  function musicEnv(dest,gain,dur,delay=0,attack=0.025,release=0.16){
+    const t0=ctx.currentTime+delay, t1=t0+Math.max(dur,attack+release+0.02);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001,gain),t0+attack);
+    g.gain.setTargetAtTime(0.0001,Math.max(t0+attack,t1-release),release*0.35);
+    g.connect(dest);
+    return {g,t0,t1};
+  }
+  function musicTone(dest,freq,dur,gain,type='triangle',delay=0,detune=0,filterFreq=900){
+    const o=ctx.createOscillator(), f=ctx.createBiquadFilter(), e=musicEnv(dest,gain,dur,delay,0.035,0.2);
+    o.type=type; o.frequency.value=freq; o.detune.value=detune;
+    f.type='lowpass'; f.frequency.value=filterFreq; f.Q.value=0.45;
+    o.connect(f); f.connect(e.g); o.start(e.t0); o.stop(e.t1+0.05);
+  }
+  function musicNoise(dest,dur,gain,type='bandpass',freq=1800,q=0.7,delay=0){
+    const src=ctx.createBufferSource(), f=ctx.createBiquadFilter(), e=musicEnv(dest,gain,dur,delay,0.004,0.08);
+    src.buffer=softNoiseBuffer(dur);
+    f.type=type; f.frequency.value=freq; f.Q.value=q;
+    src.connect(f); f.connect(e.g); src.start(e.t0); src.stop(e.t1+0.04);
+  }
+  function scheduleLofiStep(at,step){
+    const dest=sceneBuses.garden;
+    if (!dest) return;
+    const local=step%16, bar=Math.floor(step/16)%4;
+    const chords=[
+      {bass:36, notes:[52,55,59,64]}, // Cmaj7
+      {bass:33, notes:[48,52,55,60]}, // Am7
+      {bass:29, notes:[45,48,52,57]}, // Fmaj7
+      {bass:31, notes:[47,50,52,59]}, // G6
+    ];
+    const ch=chords[bar], lead=[64,67,69,67,62,64,67,59];
+    const when=Math.max(0,at-ctx.currentTime);
+    if (local===0 || local===8){
+      ch.notes.forEach((n,i)=>{
+        const d=(i*0.018)+(local===8?0.04:0);
+        musicTone(dest,midi(n),1.55,0.0027,'triangle',when+d,(i-1.5)*2.5,760);
+        musicTone(dest,midi(n+12),1.15,0.0009,'sine',when+d+0.006,(1.5-i)*3,1200);
+      });
+    }
+    if ([0,6,8,13].includes(local)){
+      musicTone(dest,midi(ch.bass),0.34,0.0042,'sine',when,0,320);
+      if (local===0 || local===8) musicTone(dest,midi(ch.bass+12),0.12,0.0018,'triangle',when+0.012,0,420);
+    }
+    if ([2,6,10,14].includes(local) && !reducedMotion.matches)
+      musicNoise(dest,0.035,0.0016,'highpass',2700,0.25,when);
+    if ((step%32===12 || step%32===15) && !reducedMotion.matches){
+      const n=lead[(Math.floor(step/4)+bar)%lead.length];
+      musicTone(dest,midi(n),0.22,0.0016,'sine',when+0.015,0,1100);
+    }
+  }
+  function pumpLofi(){
+    if (!ctx || scene!=='garden' || !sceneBuses.garden) return;
+    while (music.next < ctx.currentTime+0.65){
+      scheduleLofiStep(music.next,music.step++);
+      music.next += LOFI_STEP;
+    }
+  }
+  function startLofi(){
+    if (!ready || music.timer || scene!=='garden') return;
+    music.next=ctx.currentTime+0.08; music.step=0;
+    pumpLofi();
+    music.timer=setInterval(pumpLofi,140);
+  }
+  function stopLofi(){
+    if (music.timer){ clearInterval(music.timer); music.timer=null; }
+  }
   function buildAmbience(){
     const menu=makeGain(ambienceBus,0), garden=makeGain(ambienceBus,0);
     sceneBuses.menu=menu; sceneBuses.garden=garden;
@@ -729,6 +799,7 @@ const AUDIO = (()=>{
     addAmbienceNoise(garden,{type:'lowpass',freq:190,q:0.22,gain:0.004,pan:0.25});
     addAmbienceTone(garden,{freq:110,type:'sine',gain:0.0028,pan:-0.1});
     addAmbienceTone(garden,{freq:165,type:'triangle',gain:0.0018,detune:-3,pan:0.18});
+    addAmbienceNoise(garden,{seconds:7,type:'bandpass',freq:1450,q:0.22,gain:0.004,pan:0});
   }
   function ensure(){
     if (ready){
@@ -822,6 +893,7 @@ const AUDIO = (()=>{
     scene=next==='garden'?'garden':'menu';
     if (!ready) return;
     Object.keys(sceneBuses).forEach(k=>gainTo(sceneBuses[k],k===scene?1:0,!!jump));
+    if (scene==='garden') startLofi(); else stopLofi();
   }
   function setPrefs(next){
     prefs=Object.assign({},prefs,next);
@@ -858,8 +930,8 @@ const AUDIO = (()=>{
       addEventListener(ev,unlock,{once:true,capture:true,passive:true}));
     document.addEventListener('visibilitychange',()=>{
       if (!ctx) return;
-      if (document.hidden) ctx.suspend().catch(()=>{});
-      else if (ready && !prefs.muted) ctx.resume().catch(()=>{});
+      if (document.hidden){ stopLofi(); ctx.suspend().catch(()=>{}); }
+      else if (ready && !prefs.muted){ ctx.resume().then(()=>{ if (scene==='garden') startLofi(); }).catch(()=>{}); }
     });
   }
   installUnlock();
