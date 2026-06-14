@@ -614,46 +614,70 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'tree'){ // deciduous: trunk + branches always, canopy by season
-    const cw=(P.cw||100)*(0.3+0.7*growth), trunkH=H*0.42;
-    const cy=-trunkH-H*0.30; // canopy center
-    ctx.strokeStyle='#5e4a38'; ctx.lineCap='round';
-    ctx.lineWidth=Math.max(2, 6*growth);
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(sway*2,-trunkH); ctx.stroke();
+    const L=P.look||{};
+    const cw=(P.cw||100)*(L.cwMul||1)*(0.3+0.7*growth), trunkH=H*(L.trunkH||0.42);
+    const cy=-trunkH-H*(L.canopyY||0.30); // canopy center
+    ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
+    const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*growth);
+    for (let tr=0;tr<trunks;tr++){
+      const spread=(tr-(trunks-1)/2)*(L.trunkSpread||7)*(0.5+growth*0.5);
+      const lean=(tr-(trunks-1)/2)*(L.trunkLean||2.5);
+      ctx.lineWidth=trunkW*(trunks>1?0.72:1);
+      ctx.beginPath(); ctx.moveTo(spread,0);
+      ctx.quadraticCurveTo(spread*0.55,-trunkH*0.42,sway*2+lean,-trunkH); ctx.stroke();
+      if (L.barkStripe){
+        ctx.strokeStyle=L.barkStripe; ctx.lineWidth=Math.max(0.7,trunkW*0.16);
+        for(let bs=0;bs<3;bs++){ ctx.beginPath();
+          const y=-trunkH*(0.18+bs*0.22);
+          ctx.moveTo(spread-2,y); ctx.lineTo(spread+3,y-1); ctx.stroke(); }
+        ctx.strokeStyle=L.bark||'#5e4a38';
+      }
+    }
     const tips=[];
-    ctx.lineWidth=Math.max(1.2, 2.2*growth);
-    for (let i=0;i<5;i++){
-      const a=(i/4-0.5)*1.7+(rnd()-0.5)*0.2;
-      const bx=Math.sin(a)*cw*0.34+sway*3, by=cy-Math.cos(a)*H*0.18;
+    ctx.lineWidth=Math.max(1.2, (L.branchW||2.2)*growth);
+    const branchN=L.branches||5;
+    for (let i=0;i<branchN;i++){
+      const a=(i/(branchN-1)-0.5)*(L.branchSpread||1.7)+(rnd()-0.5)*0.2;
+      const bx=Math.sin(a)*cw*(L.branchReach||0.34)+sway*3, by=cy-Math.cos(a)*H*(L.branchLift||0.18);
       ctx.beginPath(); ctx.moveTo(sway*1.4,-trunkH*0.92);
-      ctx.quadraticCurveTo(bx*0.35,-trunkH-H*0.12,bx,by); ctx.stroke();
+      ctx.quadraticCurveTo(bx*0.35,-trunkH-H*(L.branchY||0.12),bx,by); ctx.stroke();
       tips.push([bx,by]);
     }
     if (S.fol){ // leaf canopy
-      const n=stemFor(26);
+      const n=stemFor(L.leafN||26);
       for (let i=0;i<n;i++){
         const a=rnd()*Math.PI*2, r=Math.sqrt(rnd());
         ctx.fillStyle=shade(S.fol,(rnd()-0.5)*30);
         ctx.beginPath();
-        ctx.ellipse(Math.cos(a)*cw*0.48*r+sway*3, cy-Math.sin(a)*H*0.26*r,
-          cw*0.15, cw*0.10, a, 0, 7);
+        ctx.ellipse(Math.cos(a)*cw*(L.canopyW||0.48)*r+sway*3, cy-Math.sin(a)*H*(L.canopyH||0.26)*r,
+          cw*(L.leafW||0.15), cw*(L.leafH||0.10), a, 0, 7);
         ctx.fill();
+      }
+      if (L.weep){
+        ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=1;
+        for (let w=0;w<8;w++){
+          const wx=(rnd()-0.5)*cw*0.7+sway*3, wy=cy+rnd()*H*0.12;
+          ctx.beginPath(); ctx.moveTo(wx,wy);
+          ctx.quadraticCurveTo(wx+(rnd()-0.5)*5,wy+H*0.16,wx+(rnd()-0.5)*7,wy+H*(0.24+rnd()*0.1)); ctx.stroke();
+        }
       }
     }
     if (blooming){ // flowers: on the canopy, or straight on bare branches (redbud)
       ctx.fillStyle=S.bloom;
-      const spots=Math.max(2,Math.ceil((S.fol?10:14)*blv));
+      const spots=Math.max(2,Math.ceil((L.flowerN||(S.fol?10:14))*blv));
       for (let i=0;i<spots;i++){
         const [tx2,ty2]=tips[i%tips.length];
         const f=0.45+rnd()*0.55;
         ctx.beginPath();
-        ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, 1.8, 0, 7);
+        ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, L.flowerSize||1.8, 0, 7);
         ctx.fill();
       }
     }
     if (S.seed && mature){ // cottonwood fluff, oak's held leaves handled via fol
       ctx.fillStyle=S.seed;
-      for (let i=0;i<8;i++){ ctx.beginPath();
-        ctx.arc((rnd()-0.5)*cw*0.8+sway*3, cy-(rnd()-0.5)*H*0.4, 1.4, 0, 7); ctx.fill(); }
+      const seeds=L.seedN||8, seedR=L.seedR||1.4;
+      for (let i=0;i<seeds;i++){ ctx.beginPath();
+        ctx.arc((rnd()-0.5)*cw*0.8+sway*3, cy-(rnd()-0.5)*H*0.4, seedR, 0, 7); ctx.fill(); }
     }
   }
   else if (P.form === 'conifer'){ // stacked evergreen, dense at any season
