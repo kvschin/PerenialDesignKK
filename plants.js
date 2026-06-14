@@ -8,7 +8,8 @@
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
-           burnet) | shrub (herbaceous mound) | fern | leafmound (hosta) |
+           burnet) | rosette (yucca sword-leaf crown) |
+           shrub (herbaceous mound) | fern | leafmound (hosta) |
            bulbcup (crocus/tulip/daffodil) | bush (woody shrub) |
            hydrangea (mophead/panicle shrub; look.bloomShape 'mop'|'panicle',
            look.headR sizes the flower heads) | tree (deciduous) | conifer
@@ -176,6 +177,19 @@ const PLANTS = {
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Silver yucca-like leaves and pale spiky globes. Architectural in every season.',
     sea:{Spring:{fol:'#8fa8a0'}, Summer:{fol:'#8fa8a0',bloom:'#dfe8dd'}, Fall:{fol:'#9a9a86',seed:'#8a7a5e'}, Winter:{fol:'#8d8674',seed:'#6e5f48'}}},
+  yucca:{ name:"Adam's Needle Yucca", latin:'Yucca filamentosa', form:'rosette', type:'forb', h:66,
+    space:36, spread:42, zones:[4,10], native:false, sun:'full', moist:'dry', phen:'cool', eco:[],
+    look:{leaves:20, leafLen:0.52, leafW:3.1, filaments:true, stems:1, bells:8},
+    blurb:'Evergreen sword leaves for dry garden architecture, with cream bells on a tall June stalk. Not a Kansas prairie native, but useful structure.',
+    sea:{Spring:{fol:'#7d8f80',edge:'#9aa88a'}, Summer:{fol:'#748a78',edge:'#9aa88a',bloom:'#efe6d3'}, Fall:{fol:'#7d8672',edge:'#9a967e',seed:'#8a7158'}, Winter:{fol:'#747c6a',edge:'#9a927a',seed:'#a89272'}},
+    cv:{
+      colorguard:{name:"'Color Guard'", note:'bold yellow center with green edges, pink-bronze in winter',
+        sea:{Spring:{fol:'#d8c85a',edge:'#526c58'}, Summer:{fol:'#e2d068',edge:'#536f58',bloom:'#f2ead8'}, Fall:{fol:'#d0b84e',edge:'#5d6b50',seed:'#8a7158'}, Winter:{fol:'#c0a24a',edge:'#7a554e',seed:'#a89272'}}},
+      brightedge:{name:"'Bright Edge'", note:'green swords with clean golden margins',
+        sea:{Spring:{fol:'#6e8a68',edge:'#d8c85a'}, Summer:{fol:'#637e62',edge:'#dcc85a',bloom:'#f2ead8'}, Fall:{fol:'#748060',edge:'#c4a848',seed:'#8a7158'}, Winter:{fol:'#6e7460',edge:'#b89a42',seed:'#a89272'}}},
+      goldensword:{name:"'Golden Sword'", note:'wide gold-centered foliage, strong green margins',
+        sea:{Spring:{fol:'#d6c05a',edge:'#4f755c'}, Summer:{fol:'#dcca62',edge:'#4e735c',bloom:'#f3ead8'}, Fall:{fol:'#c9a84a',edge:'#5e7458',seed:'#8a7158'}, Winter:{fol:'#b89442',edge:'#6a6e54',seed:'#a89272'}}},
+    }},
   monarda:{ name:'Wild Bergamot', latin:'Monarda fistulosa', form:'globe', type:'forb', h:44,
     space:24, spread:30, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains','Western Corn Belt Plains'],
@@ -300,6 +314,26 @@ const PLANTS = {
     cv:{
       moerheim:{name:"'Moerheim Beauty'", note:'burnt copper-orange, fading rust',
         sea:{Summer:{fol:'#5d7a4c',bloom:'#c85a2e',eye:'#5e2e1e'}, Fall:{fol:'#7a6a48',bloom:'#a8482a',eye:'#52261a'}}},
+    }},
+  rudbeckia:{ name:'Black-eyed Susan', latin:'Rudbeckia fulgida var. sullivantii', form:'cone', type:'forb', h:38,
+    space:18, spread:24, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'mid',
+    eco:['Central Irregular Plains','Western Corn Belt Plains','Ozark Highlands'],
+    look:{rays:12, rayLen:5.2, droop:1.2, rayW:1.8, leaves:9, leafLen:0.34, stems:7},
+    blurb:'The perennial black-eyed Susan: gold daisies with dark cones, late-summer color, and winter seedheads for finches.',
+    sea:{Spring:{fol:'#5f7f4d'}, Summer:{fol:'#58784a',bloom:'#e3aa2e',eye:'#3a2518'}, Fall:{fol:'#6f7048',bloom:'#d99a2e',eye:'#2c1c14',seed:'#3a2a20'}, Winter:{fol:'#625a45',seed:'#2a2018'}},
+    cv:{
+      goldsturm:{name:"'Goldsturm'", note:'classic compact gold daisies with strong black cones',
+        h:34, look:{rays:12, rayLen:5.4, droop:0.8, rayW:1.9, leaves:9, leafLen:0.34, stems:8},
+        sea:{Summer:{fol:'#58784a',bloom:'#e6b12f',eye:'#2f2118'}, Fall:{fol:'#6f7048',bloom:'#d59a2d',eye:'#2a1c14'}}},
+      littlegoldstar:{name:"'Little Goldstar'", note:'shorter, buttony, very floriferous',
+        h:25, space:15, spread:18, look:{rays:11, rayLen:4.4, droop:0.6, rayW:1.7, leaves:10, leafLen:0.32, stems:9},
+        sea:{Summer:{fol:'#5d7f4d',bloom:'#e9b533',eye:'#302018'}, Fall:{fol:'#747448',bloom:'#d9a02e',eye:'#2a1c14'}}},
+      vietteslittle:{name:"'Viette's Little Suzy'", note:'dwarf, neat, long-blooming gold flowers',
+        h:24, space:15, spread:18, look:{rays:11, rayLen:4.2, droop:0.7, rayW:1.7, leaves:9, leafLen:0.3, stems:8},
+        sea:{Summer:{fol:'#5d7f4d',bloom:'#e2a82e',eye:'#342218'}, Fall:{fol:'#747448',bloom:'#d0962b',eye:'#2a1c14'}}},
+      americangoldrush:{name:"'American Gold Rush'", note:'disease-resistant dome with golden rays and dark cones',
+        h:28, space:18, spread:24, look:{rays:12, rayLen:4.8, droop:0.8, rayW:1.8, leaves:10, leafLen:0.32, stems:9},
+        sea:{Summer:{fol:'#637f55',bloom:'#e8b236',eye:'#2f2118'}, Fall:{fol:'#77724a',bloom:'#d99d30',eye:'#2a1c14'}}},
     }},
   sanguisorba:{ name:'Canadian Burnet', latin:'Sanguisorba canadensis', form:'drumstick', type:'forb', h:56,
     group:'burnet', chip:'Canadian',

@@ -258,6 +258,58 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.ellipse(tip,-len-bl*0.4,bw,bl,sway*0.12,0,7); ctx.fill(); }
     }
   }
+  else if (P.form === 'rosette'){ // yucca: evergreen sword-leaf crown + bell tower
+    const L=P.look||{};
+    if (S.fol){
+      const n=stemFor(L.leaves||18), baseLen=H*(L.leafLen||0.5), lw=L.leafW||2.8;
+      ctx.lineCap='round';
+      for (let i=0;i<n;i++){
+        const a=(i/(n-1)-0.5)*2.35+(rnd()-0.5)*0.18;
+        const len=baseLen*(0.72+rnd()*0.36), bx=Math.sin(a)*len*0.82+sway*len*0.025;
+        const by=-Math.cos(a*0.45)*len*0.62;
+        if (S.edge){
+          ctx.strokeStyle=shade(S.edge,(rnd()-0.5)*12); ctx.lineWidth=lw+2.2;
+          ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,0);
+          ctx.quadraticCurveTo(bx*0.34,by*0.55,bx,by); ctx.stroke();
+        }
+        ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=lw;
+        ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,0);
+        ctx.quadraticCurveTo(bx*0.34,by*0.55,bx,by); ctx.stroke();
+        if (L.filaments && i%3===0){
+          ctx.strokeStyle='rgba(239,230,211,0.55)'; ctx.lineWidth=0.55;
+          ctx.beginPath(); ctx.moveTo(bx*0.72,by*0.78);
+          ctx.quadraticCurveTo(bx*0.88+2,by*0.88+2,bx+1.8,by+4); ctx.stroke();
+        }
+      }
+      ctx.lineCap='butt';
+    }
+    if (mature && (blooming || S.seed)){
+      const sn=Math.max(1,L.stems||1), bells=L.bells||7;
+      for (let st=0;st<sn;st++){
+        const ox=(st-(sn-1)/2)*5+(rnd()-0.5)*2, len=H*(0.86+rnd()*0.1);
+        const tip=ox+sway*len*0.025;
+        ctx.strokeStyle=shade(S.fol||'#7d8f80',-24); ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.55,tip,-len); ctx.stroke();
+        if (blooming && S.bloom){
+          ctx.fillStyle=S.bloom;
+          const shown=Math.max(2,Math.ceil(bells*blv));
+          for (let b=0;b<shown;b++){
+            const side=b%2?-1:1, py=-len*(0.35+b*0.065), px=tip+side*(3+rnd()*2);
+            ctx.beginPath(); ctx.ellipse(px,py,2.3,4.1,side*0.35,0,7); ctx.fill();
+            ctx.fillStyle=shade(S.bloom,-12);
+            ctx.beginPath(); ctx.ellipse(px,py+2.2,1.6,1.0,0,0,7); ctx.fill();
+            ctx.fillStyle=S.bloom;
+          }
+        } else if (S.seed){
+          ctx.fillStyle=S.seed;
+          for (let b=0;b<Math.min(5,bells);b++){
+            const side=b%2?-1:1, py=-len*(0.38+b*0.08), px=tip+side*3;
+            ctx.beginPath(); ctx.ellipse(px,py,1.8,3.2,side*0.2,0,7); ctx.fill();
+          }
+        }
+      }
+    }
+  }
   else if (P.form === 'shrub'){
     // mounded clump of foliage dots
     const n = stemFor(26);
