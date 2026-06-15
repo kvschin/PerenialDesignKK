@@ -1799,6 +1799,7 @@ function showPlantCard(p,px2,py2){
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
       : 'Garden cultivar (non-native)'}</p>
+    <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
     <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
@@ -2463,6 +2464,180 @@ function downloadPlan(){
   },'image/png');
 }
 
+/* ---------- plant roles ----------
+   Designer mode uses roles to push the right plants forward for the
+   chosen garden style. Roles are computed from the plant data so the
+   species file stays focused on botany; explicit PLANTS[k].roles can be
+   added later for finer curation. */
+const DESIGN_STYLE_LABELS={
+  cottage:'Cottage',
+  prairie:'Prairie / Meadow',
+  butterfly:'Pollinator',
+  shade:'Shade / Woodland',
+  japanese:'Japanese',
+  mediterranean:'Mediterranean',
+  modern:'Modern',
+  gravel:'Gravel / Rock',
+  formal:'Formal',
+  coastal:'Coastal',
+};
+const ROLE_LABELS={
+  architectural:'Architectural',
+  aromatic:'Aromatic',
+  block:'Block planting',
+  bulbLayer:'Bulb layer',
+  canopy:'Canopy',
+  coastal:'Coastal',
+  cottage:'Cottage',
+  dry:'Dry garden',
+  early:'Early season',
+  evergreen:'Evergreen',
+  fern:'Fern layer',
+  flower:'Flower color',
+  formal:'Formal',
+  gravel:'Gravel garden',
+  groundcover:'Groundcover',
+  hedge:'Hedge',
+  host:'Host plant',
+  hydrangea:'Hydrangea',
+  japanese:'Japanese',
+  matrix:'Matrix',
+  mediterranean:'Mediterranean',
+  modern:'Modern',
+  movement:'Movement',
+  native:'Native',
+  naturalistic:'Naturalistic',
+  nectar:'Nectar',
+  pollinator:'Pollinator',
+  prairie:'Prairie',
+  romantic:'Romantic',
+  seasonal:'Seasonal color',
+  seedhead:'Seedheads',
+  shade:'Shade',
+  silver:'Silver foliage',
+  structure:'Structure',
+  wet:'Moist soil',
+  wind:'Wind tolerant',
+  winter:'Winter interest',
+  woodland:'Woodland',
+};
+const ROLE_DISPLAY_ORDER=[
+  'prairie','matrix','pollinator','nectar','host','shade','woodland','groundcover',
+  'structure','hedge','evergreen','architectural','modern','formal','japanese',
+  'cottage','romantic','bulbLayer','early','dry','gravel','mediterranean',
+  'coastal','wind','winter','seedhead','native','flower','seasonal','wet',
+  'fern','hydrangea','aromatic','silver','movement','canopy','block'
+];
+const STYLE_ROLE_WEIGHTS={
+  cottage:{cottage:9,romantic:5,flower:4,pollinator:3,bulbLayer:3,hydrangea:4,seasonal:2,shade:1},
+  prairie:{prairie:9,native:4,matrix:5,naturalistic:4,pollinator:3,winter:3,seedhead:3,dry:1,movement:1},
+  butterfly:{pollinator:9,nectar:6,host:6,flower:4,native:3,early:2,seasonal:1},
+  shade:{shade:9,woodland:7,groundcover:4,fern:5,early:2,wet:2,structure:1,canopy:1},
+  japanese:{japanese:10,structure:5,evergreen:4,shade:3,formal:2,canopy:2,groundcover:1},
+  mediterranean:{mediterranean:9,dry:6,aromatic:4,silver:4,architectural:3,gravel:2},
+  modern:{modern:9,architectural:6,structure:5,block:5,matrix:3,winter:3,formal:2,seedhead:2},
+  gravel:{gravel:9,dry:6,architectural:4,silver:3,matrix:2,mediterranean:2},
+  formal:{formal:10,hedge:8,evergreen:5,structure:5,block:3,bulbLayer:2,architectural:1},
+  coastal:{coastal:9,wind:6,matrix:3,dry:2,groundcover:1,movement:1},
+};
+const STYLE_RECOMMEND_MIN={
+  cottage:9,
+  prairie:12,
+  butterfly:14,
+  shade:10,
+  japanese:10,
+  mediterranean:10,
+  modern:10,
+  gravel:10,
+  formal:10,
+  coastal:10,
+};
+const ROLE_CACHE={};
+function hasSeasonProp(P,prop){
+  return Object.values(P.sea||{}).some(s=>s && s[prop]);
+}
+function roleMatches(text,terms){
+  return terms.some(t=>text.includes(t));
+}
+function plantRoles(k){
+  if (ROLE_CACHE[k]) return ROLE_CACHE[k];
+  const P=PLANTS[k]; if (!P) return [];
+  const roles=new Set(P.roles||[]);
+  const text=`${P.name} ${P.latin} ${P.group||''} ${P.form||''}`.toLowerCase();
+  const group=P.group||'';
+  roles.add(P.type);
+  if (P.native) roles.add('native');
+  if (P.sun==='part') roles.add('shade'), roles.add('woodland');
+  if (P.moist==='dry') roles.add('dry');
+  if (P.moist==='moist') roles.add('wet');
+  if (hasSeasonProp(P,'bloom')) roles.add('flower'), roles.add('pollinator'), roles.add('seasonal');
+  if (hasSeasonProp(P,'seed')) roles.add('winter'), roles.add('seedhead');
+  if (P.native && ['grass','sedge','forb','bulb'].includes(P.type))
+    roles.add('prairie'), roles.add('naturalistic');
+  if (P.native && ['shrub','tree'].includes(P.type)) roles.add('naturalistic');
+  if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
+  if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
+  if (P.type==='bulb') roles.add('bulbLayer'), roles.add('early'), roles.add('seasonal');
+  if (P.type==='shrub') roles.add('structure');
+  if (P.type==='tree') roles.add('structure'), roles.add('canopy');
+  if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
+  if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
+  if (['globe','spike','drumstick','rosette','vertgrass','fountaingrass','cloudgrass','conifer'].includes(P.form))
+    roles.add('architectural');
+  if (['umbel','cone','pincushion','bractstack'].includes(P.form)) roles.add('flower');
+  if (P.form==='hydrangea') roles.add('hydrangea'), roles.add('cottage'), roles.add('romantic'), roles.add('shade');
+
+  if (group==='boxwood' || group==='yew'){
+    roles.add('evergreen'); roles.add('formal'); roles.add('hedge');
+    roles.add('structure'); roles.add('japanese'); roles.add('block');
+  }
+  if (group==='allium' || text.includes('allium')){
+    roles.add('bulbLayer'); roles.add('architectural'); roles.add('formal');
+    roles.add('modern'); roles.add('pollinator'); roles.add('nectar');
+  }
+  if (roleMatches(text,['hydrangea','phlox','yarrow','stachys','scabiosa','sedum','sanguisorba','salvia','catmint','aster','monarda']))
+    roles.add('cottage'), roles.add('romantic');
+  if (roleMatches(text,['monarda','bee balm','asclepias','butterfly weed','aster','goldenrod','liatris','mountain mint','agastache','coneflower','echinacea','rudbeckia','coreopsis','helenium','burnet','sanguisorba','scabiosa','phlox','penstemon','columbine','heuchera','salvia','calamint','catmint','allium']))
+    roles.add('pollinator'), roles.add('nectar');
+  if (roleMatches(text,['asclepias','milkweed','butterfly weed'])) roles.add('host');
+  if (roleMatches(text,['monarda','mountain mint','calamint','agastache','catmint','salvia','yarrow']))
+    roles.add('aromatic');
+  if (roleMatches(text,['yucca','eryngium','rattlesnake','echinops','stipa','fescue','mexican feather','calamint','catmint','salvia','yarrow','agastache','allium','baptisia','leadplant']))
+    roles.add('dry'), roles.add('gravel'), roles.add('mediterranean');
+  if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake']))
+    roles.add('silver');
+  if (roleMatches(text,['japanese maple','flowering cherry','hakone','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood']))
+    roles.add('japanese');
+  if (roleMatches(text,['fountain grass','miscanthus','feather reed','calamagrostis','fescue','hakone','boxwood','yew','hydrangea','allium','ginkgo','maple','cherry','birch','rattlesnake','eryngium','echinops']))
+    roles.add('modern'), roles.add('block');
+  if (roleMatches(text,['boxwood','yew','hydrangea','allium','japanese maple','flowering cherry','ginkgo','serviceberry']))
+    roles.add('formal'), roles.add('structure');
+  if (roleMatches(text,['muhly','fescue','stipa','sedge','carex','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
+    roles.add('coastal'), roles.add('wind');
+  return ROLE_CACHE[k]=[...roles].sort();
+}
+function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
+function roleSummary(k,max=6){
+  const roles=plantRoles(k).filter(r=>ROLE_LABELS[r]);
+  roles.sort((a,b)=>{
+    const ai=ROLE_DISPLAY_ORDER.indexOf(a), bi=ROLE_DISPLAY_ORDER.indexOf(b);
+    return (ai<0?999:ai)-(bi<0?999:bi) || roleLabel(a).localeCompare(roleLabel(b));
+  });
+  return roles.slice(0,max).map(roleLabel).join(', ');
+}
+function activeDesignType(){
+  const d=game.design && game.design.type;
+  return (game.gameMode==='design' && d && STYLE_ROLE_WEIGHTS[d]) ? d : null;
+}
+function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
+function plantStyleScore(k,type=activeDesignType()){
+  const weights=STYLE_ROLE_WEIGHTS[type]; if (!weights) return 0;
+  return plantRoles(k).reduce((n,r)=>n+(weights[r]||0),0);
+}
+function plantStyleRecommended(k,type=activeDesignType()){
+  return plantStyleScore(k,type)>=(STYLE_RECOMMEND_MIN[type]||1);
+}
+
 /* ---------- region filter ----------
    A plant fits if it survives the chosen zone, and (for natives) calls
    the chosen ecoregion home. Cultivars aren't native anywhere, so the
@@ -2476,8 +2651,14 @@ function plantFits(k){
 }
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs, woody
   const ord={grass:0, sedge:1, forb:2, bulb:3, shrub:4, tree:5};
-  return PLANT_KEYS.filter(k=>!PLANTS[k].hidden).filter(plantFits).sort((a,b)=>
-    (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name));
+  const d=activeDesignType();
+  return PLANT_KEYS.filter(k=>!PLANTS[k].hidden).filter(plantFits).sort((a,b)=>{
+    if (d){
+      const ds=plantStyleScore(b,d)-plantStyleScore(a,d);
+      if (ds) return ds;
+    }
+    return (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name);
+  });
 }
 function openRegion(){
   const rs=$('regionSel'), zs=$('zoneSel');
@@ -2569,10 +2750,21 @@ function buildToolTray(){
       tray.appendChild(sp);
     }
     const grouped={};
-    const sections = cat.sedgeSections
-      ? [['Sun sedges',keys.filter(k=>PLANTS[k].sun==='full')],
-         ['Shade sedges',keys.filter(k=>PLANTS[k].sun!=='full')]]
-      : [[null,keys]];
+    const designType=activeDesignType();
+    let sections;
+    if (cat.sedgeSections){
+      sections=[['Sun sedges',keys.filter(k=>PLANTS[k].sun==='full')],
+        ['Shade sedges',keys.filter(k=>PLANTS[k].sun!=='full')]];
+    } else if (designType){
+      const best=keys.filter(k=>plantStyleRecommended(k,designType));
+      const other=keys.filter(k=>!plantStyleRecommended(k,designType));
+      sections=[
+        best.length ? ['Best fit',best,`Recommended for ${designTypeName(designType)}`] : null,
+        other.length ? ['Other fits',other,`Still matches zone/native filters, but is less tied to ${designTypeName(designType)}`] : null,
+      ].filter(Boolean);
+    } else {
+      sections=[[null,keys]];
+    }
     const addPlantButton=(k)=>{
       const P=PLANTS[k];
       // species sharing a group collapse into one button; the chip row
@@ -2605,12 +2797,13 @@ function buildToolTray(){
       tray.appendChild(b);
       return true;
     };
-    sections.forEach(([label,sectionKeys])=>{
+    sections.forEach(([label,sectionKeys,title])=>{
       if (!sectionKeys.length) return;
       if (label){
         const sep=document.createElement('span');
         sep.className='tray-sep';
         sep.textContent=label;
+        if (title) sep.title=title;
         tray.appendChild(sep);
       }
       sectionKeys.forEach(addPlantButton);
@@ -2734,9 +2927,9 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     const k=b.dataset.k, P=k&&PLANTS[k];
     let hay=k||'';
     if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
-    if (P){ hay=P.name+' '+P.latin+' '+(P.group||'');
+    if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
       if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
-        hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin; }); }
+        hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin+' '+roleSummary(k2,12); }); }
     b.style.display=(!q||hay.toLowerCase().includes(q))?'':'none';
   });
 }
@@ -2890,7 +3083,7 @@ function buildLibraryList(q){
     keys.forEach(k=>{
       const P=PLANTS[k];
       const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
-      b.dataset.hay=(P.name+' '+P.latin).toLowerCase();
+      b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)).toLowerCase();
       b.append(libCanvas(k,null,'Summer',30,36));
       const t=document.createElement('span');
       t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
@@ -2919,6 +3112,7 @@ function showLibraryDetail(key){
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
     ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
     ['Origin', P.native?('Native — '+(P.eco.join(', ')||'central US')):'Garden plant (non-native)'],
+    ['Roles', roleSummary(key)],
   ];
   const cvKeys=Object.keys(P.cv||{});
   d.innerHTML='';
@@ -3178,7 +3372,7 @@ function openDesignSetup(){
       const zone=+zs.value, type=ts.value;
       game.design={zone, type, nativesOnly:$('dgnNatives').checked,
         deer:$('dgnDeer').checked, rabbit:$('dgnRabbit').checked};
-      // tune the live palette: zone + natives apply now (deer/rabbit/style later)
+      // tune the live palette: zone/native filters apply, style ranks the tray
       game.region={eco:null, zone, nativesOnly:$('dgnNatives').checked};
       sSet('hortus:region',game.region); updateRegionBtn();
       openPlotScreen();
