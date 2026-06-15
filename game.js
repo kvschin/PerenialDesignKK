@@ -35,6 +35,12 @@ const AMBIENCE = {
   Fall:  {sky:['#9a7d6e','#d9b98a'], grass:['#a78a4f','#8f7544'], soil:'#4e3a2b', tint:'rgba(255,170,90,0.08)', snow:0},
   Winter:{sky:['#6e7787','#cdd3d8'], grass:['#9b9484','#857f70'], soil:'#5a5048', tint:'rgba(200,215,235,0.10)', snow:1},
 };
+const SEASON_LIGHT = {
+  Spring:{sun:'rgba(255,235,180,0.20)', haze:'rgba(229,238,210,0.20)', beam:'rgba(255,246,190,0.08)', vignette:'rgba(42,55,42,0.13)'},
+  Summer:{sun:'rgba(255,225,135,0.18)', haze:'rgba(210,226,188,0.13)', beam:'rgba(255,240,165,0.10)', vignette:'rgba(32,46,36,0.14)'},
+  Fall:  {sun:'rgba(255,184,105,0.23)', haze:'rgba(224,174,112,0.18)', beam:'rgba(255,176,92,0.12)', vignette:'rgba(58,35,28,0.16)'},
+  Winter:{sun:'rgba(228,236,246,0.18)', haze:'rgba(231,238,245,0.18)', beam:'rgba(210,228,245,0.08)', vignette:'rgba(35,42,54,0.18)'},
+};
 
 const PATH_COLORS = [
   {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa'},
@@ -95,8 +101,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
   const shR = (P.cw ? P.cw*0.42 : 14)*growth + 6;
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath(); ctx.ellipse(0, 2, shR, shR*0.36+1.5, 0, 0, 7); ctx.fill();
+  drawSoftShadow(ctx,0,3,shR,shR*0.36+1.8,P.cw?0.19:0.15);
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.beginPath(); ctx.ellipse(0, 3, shR*0.58, shR*0.16+1.2, 0, 0, 7); ctx.fill();
 
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
 
@@ -566,6 +573,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'shrub'){
     // mounded clump of foliage dots
+    if (S.fol){
+      ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle=shade(S.fol,-25);
+      ctx.beginPath(); ctx.ellipse(sway, -H*0.40, 18*(0.5+0.5*growth), H*0.24, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
     const n = stemFor(26);
     for (let i=0;i<n;i++){
       const a=rnd()*Math.PI*2, r=rnd();
@@ -692,6 +704,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       tips.push([bx,by]);
     }
     if (S.fol){ // leaf canopy
+      ctx.save();
+      ctx.globalAlpha=0.24;
+      ctx.fillStyle=shade(S.fol,-26);
+      ctx.beginPath();
+      ctx.ellipse(sway*2, cy+H*0.06, cw*(L.canopyW||0.48)*0.92, H*(L.canopyH||0.26)*0.88, 0, 0, 7);
+      ctx.fill();
+      ctx.restore();
       const n=stemFor(L.leafN||26);
       for (let i=0;i<n;i++){
         const a=rnd()*Math.PI*2, r=Math.sqrt(rnd());
@@ -709,6 +728,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.quadraticCurveTo(wx+(rnd()-0.5)*5,wy+H*0.16,wx+(rnd()-0.5)*7,wy+H*(0.24+rnd()*0.1)); ctx.stroke();
         }
       }
+      ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle=shade(S.fol,22);
+      for (let i=0;i<Math.max(4,Math.round(n*0.18));i++){
+        const a=-Math.PI*0.65+rnd()*Math.PI*0.42, r=Math.sqrt(rnd());
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a)*cw*(L.canopyW||0.48)*r+sway*3, cy-Math.sin(a)*H*(L.canopyH||0.26)*r,
+          cw*(L.leafW||0.15)*0.65, cw*(L.leafH||0.10)*0.62, a, 0, 7);
+        ctx.fill();
+      }
+      ctx.restore();
     }
     if (blooming){ // flowers: on the canopy, or straight on bare branches (redbud)
       const spots=Math.max(2,Math.ceil((L.flowerN||(S.fol?10:14))*blv));
@@ -810,7 +838,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.quadraticCurveTo(tx2*0.4,ty2*0.55,tx2,ty2); ctx.stroke();
         tips.push([tx2,ty2]);
       }
-      if (S.fol){
+    if (S.fol){
+        ctx.save(); ctx.globalAlpha=0.20; ctx.fillStyle=shade(S.fol,-24);
+        ctx.beginPath(); ctx.ellipse(sway, -H*0.42, cw*0.45, H*0.28, 0, 0, 7); ctx.fill();
+        ctx.restore();
         const n=stemFor(20);
         for (let i=0;i<n;i++){
           const a=rnd()*Math.PI*2, r=rnd();
@@ -848,7 +879,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.quadraticCurveTo(tx2*0.4,ty2*0.55,tx2,ty2); ctx.stroke();
       tips.push([tx2,ty2]);
     }
-    if (S.fol){ const n=stemFor(22); // broad leafy mound
+    if (S.fol){ // broad leafy mound
+      ctx.save(); ctx.globalAlpha=0.23; ctx.fillStyle=shade(S.fol,-24);
+      ctx.beginPath(); ctx.ellipse(sway, -H*0.40, cw*0.44, H*0.26, 0, 0, 7); ctx.fill();
+      ctx.restore();
+      const n=stemFor(22);
       for (let i=0;i<n;i++){ const a=rnd()*Math.PI*2, r=rnd();
         ctx.fillStyle=shade(S.fol,(rnd()-0.5)*26);
         ctx.beginPath(); ctx.ellipse(Math.cos(a)*cw*0.46*r+sway*2, -H*(0.30+rnd()*0.5),
@@ -887,6 +922,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const rs=mulberry(seed+9), caps=4;
     for(let i=0;i<caps;i++){ ctx.beginPath();
       ctx.ellipse((rs()-0.5)*18,-H*(0.5+rs()*0.45),3.5,1.6,0,0,7); ctx.fill(); }
+  }
+  if (!AMBIENCE[season].snow && S.fol && growth>0.28){
+    const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
+    ctx.save(); ctx.globalAlpha=P.type==='tree'?0.16:0.13;
+    ctx.strokeStyle=col; ctx.lineWidth=P.type==='tree'?1.2:0.9; ctx.lineCap='round';
+    const n=P.type==='tree'?5:3;
+    for (let i=0;i<n;i++){
+      const px=(hl()-0.55)*(P.cw?P.cw*0.32:18), py=-H*(0.25+hl()*0.58);
+      ctx.beginPath();
+      ctx.moveTo(px-3,py+1);
+      ctx.quadraticCurveTo(px,py-2,px+4,py-3-hl()*3);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -972,6 +1021,8 @@ function drawHouse(ctx, W, H, season, hOv){
   const tri=(a,b,c,col)=>{ ctx.fillStyle=col; ctx.beginPath();
     ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]);
     ctx.closePath(); ctx.fill(); };
+  const cx0=(T[0]+R[0]+B[0]+L[0])/4, cy0=(T[1]+R[1]+B[1]+L[1])/4;
+  drawSoftShadow(ctx,cx0,cy0+TILE_H*0.45,Math.max(TILE_W*vw*0.34,54),Math.max(TILE_H*vh*0.34,18),0.24);
   // ridge runs along the footprint's longer view axis
   let g1,g2,backRoof,frontRoof,gable;
   if (vw>=vh){
@@ -988,6 +1039,12 @@ function drawHouse(ctx, W, H, season, hOv){
   quad(B,R,up(R,wH),up(B,wH),wallD);   // view-southeast wall
   tri(gable[0],gable[1],gable[2],wallD);
   quad(frontRoof[0],frontRoof[1],frontRoof[2],frontRoof[3],roof);
+  ctx.strokeStyle='rgba(255,246,218,0.25)'; ctx.lineWidth=1.2; ctx.beginPath();
+  ctx.moveTo(g1[0],g1[1]); ctx.lineTo(g2[0],g2[1]); ctx.stroke();
+  ctx.strokeStyle='rgba(0,0,0,0.16)'; ctx.lineWidth=1;
+  [frontRoof,backRoof].forEach(rf=>{
+    ctx.beginPath(); ctx.moveTo(rf[0][0],rf[0][1]); ctx.lineTo(rf[1][0],rf[1][1]); ctx.stroke();
+  });
   // door over its world tile, when that wall faces the camera
   const [dX,dY]=doorPos(hh); const [dvx,dvy]=worldToView(dX,dY);
   let doorWall=null; // 'sw' | 'se'
@@ -1009,6 +1066,8 @@ function drawHouse(ctx, W, H, season, hOv){
     const w1=winWall==='se'?P(vx0+vw,vy0+vh*t-0.2):P(vx0+vw*t-0.2,vy0+vh);
     const w2=winWall==='se'?P(vx0+vw,vy0+vh*t+0.2):P(vx0+vw*t+0.2,vy0+vh);
     quad(up(w1,wH*0.34),up(w2,wH*0.34),up(w2,wH*0.62),up(w1,wH*0.62),HOUSE_TRIM.glow);
+    ctx.strokeStyle='rgba(58,44,34,0.32)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(w1[0],w1[1]-wH*0.34); ctx.lineTo(w2[0],w2[1]-wH*0.34); ctx.stroke();
   }
   // snow blankets the roof in winter
   if (AMBIENCE[season].snow){
@@ -1336,13 +1395,98 @@ function houseDrawDepth(h){
   const [dx,dy]=doorPos(h);
   return viewDepth(dx,dy)+0.05;
 }
+function isoDiamondPath(ctx,sx,sy,inset){
+  const i=inset||0, hw=TILE_W/2-i, hh=TILE_H/2-i*0.5, cy=sy+TILE_H/2;
+  ctx.beginPath(); ctx.moveTo(sx,sy+i*0.5); ctx.lineTo(sx+hw,cy);
+  ctx.lineTo(sx,sy+TILE_H-i*0.5); ctx.lineTo(sx-hw,cy); ctx.closePath();
+}
 function tileDiamond(ctx,sx,sy,fill,stroke,dash){
   if (dash){ ctx.save(); ctx.setLineDash(dash); }
-  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+TILE_W/2,sy+TILE_H/2);
-  ctx.lineTo(sx,sy+TILE_H); ctx.lineTo(sx-TILE_W/2,sy+TILE_H/2); ctx.closePath();
+  isoDiamondPath(ctx,sx,sy,0);
   if (fill){ ctx.fillStyle=fill; ctx.fill(); }
   if (stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke(); }
   if (dash) ctx.restore();
+}
+function toneColor(col,amt){ return col && col[0]==='#' ? shade(col,amt) : col; }
+function drawSoftShadow(ctx,x,y,rx,ry,alpha){
+  ctx.fillStyle=`rgba(0,0,0,${alpha*0.22})`;
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,7); ctx.fill();
+  ctx.fillStyle=`rgba(0,0,0,${alpha*0.34})`;
+  ctx.beginPath(); ctx.ellipse(x,y,rx*0.70,ry*0.68,0,0,7); ctx.fill();
+  ctx.fillStyle=`rgba(0,0,0,${alpha*0.42})`;
+  ctx.beginPath(); ctx.ellipse(x,y,rx*0.42,ry*0.42,0,0,7); ctx.fill();
+}
+function fillDiamondFace(ctx,sx,sy,points,fill){
+  ctx.fillStyle=fill;
+  ctx.beginPath(); ctx.moveTo(points[0][0],points[0][1]);
+  for (let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
+  ctx.closePath(); ctx.fill();
+}
+function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs){
+  isoDiamondPath(ctx,sx,sy,0);
+  ctx.fillStyle=base; ctx.fill();
+  const top=toneColor(base,amb.snow?12:9), bottom=toneColor(base,-9);
+  fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],top);
+  fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],bottom);
+  ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1;
+  isoDiamondPath(ctx,sx,sy,0); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(sx,sy+1); ctx.lineTo(sx+TILE_W/2-1,sy+TILE_H/2); ctx.stroke();
+  if (amb.snow) return;
+  ctx.save();
+  if (terr==='bed'){
+    ctx.fillStyle='rgba(18,11,7,0.16)';
+    for (let i=0;i<5;i++){ ctx.beginPath();
+      ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*12, 2.2+rs()*1.4, 0.8+rs()*0.9, rs()*3,0,7); ctx.fill(); }
+    ctx.strokeStyle='rgba(239,230,211,0.05)';
+    for (let i=0;i<2;i++){ ctx.beginPath();
+      const ox=sx+(rs()-0.5)*28, oy=sy+TILE_H/2+(rs()-0.5)*11;
+      ctx.moveTo(ox-4,oy); ctx.lineTo(ox+5,oy+(rs()-0.5)*2); ctx.stroke(); }
+  } else if (path){
+    ctx.fillStyle='rgba(255,255,255,0.13)';
+    for (let i=0;i<6;i++){ ctx.beginPath();
+      ctx.ellipse(sx+(rs()-0.5)*34, sy+TILE_H/2+(rs()-0.5)*12, 1.3+rs()*1.2, 0.7+rs()*0.6, rs()*3,0,7); ctx.fill(); }
+    ctx.fillStyle='rgba(0,0,0,0.12)';
+    for (let i=0;i<3;i++){ ctx.beginPath();
+      ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*10, 1.3,0.8,rs()*3,0,7); ctx.fill(); }
+  } else {
+    const blades=2+((x*17+y*11)&1);
+    for (let i=0;i<blades;i++){
+      const ox=sx+(rs()-0.5)*30, oy=sy+TILE_H/2+(rs()-0.5)*12, len=3+rs()*4;
+      ctx.strokeStyle=`rgba(38,63,38,${0.12+rs()*0.10})`;
+      ctx.lineWidth=0.8;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      ctx.quadraticCurveTo(ox+(rs()-0.5)*3,oy-len*0.7,ox+(rs()-0.5)*5,oy-len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function drawSeasonSky(ctx,W,H,season){
+  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+  let g=ctx.createRadialGradient(W*0.72,H*0.14,0,W*0.72,H*0.14,H*0.9);
+  g.addColorStop(0,L.sun); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g=ctx.createLinearGradient(0,H*0.18,0,H*0.62);
+  g.addColorStop(0,'rgba(255,255,255,0)');
+  g.addColorStop(1,L.haze);
+  ctx.fillStyle=g; ctx.fillRect(0,H*0.18,W,H*0.46);
+}
+function applySeasonLighting(ctx,W,H,amb,season){
+  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+  ctx.fillStyle=amb.tint; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.globalCompositeOperation='screen';
+  const beam=ctx.createLinearGradient(W*0.18,0,W*0.92,H*0.92);
+  beam.addColorStop(0,L.beam);
+  beam.addColorStop(0.45,'rgba(255,255,255,0.02)');
+  beam.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=beam; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  const vg=ctx.createRadialGradient(W*0.50,H*0.44,Math.min(W,H)*0.20,W*0.50,H*0.44,Math.max(W,H)*0.74);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,L.vignette);
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
 }
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
@@ -1394,6 +1538,7 @@ function render(t){
   const g = cx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
   cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  drawSeasonSky(cx,W,H,cal.season);
 
   // camera eases toward the player (story only; design pans freely)
   if (game.gameMode!=='design'){
@@ -1433,15 +1578,7 @@ function render(t){
     else if (isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-    cx.fillStyle=col;
-    cx.beginPath();
-    cx.moveTo(sx,sy); cx.lineTo(sx+TILE_W/2,sy+TILE_H/2);
-    cx.lineTo(sx,sy+TILE_H); cx.lineTo(sx-TILE_W/2,sy+TILE_H/2);
-    cx.closePath(); cx.fill();
-    cx.strokeStyle='rgba(0,0,0,0.07)'; cx.lineWidth=1; cx.stroke();
-    if (terr==='bed' && !amb.snow){ cx.fillStyle='rgba(0,0,0,0.12)';   // mulch flecks
-      for (let i=0;i<3;i++){ cx.beginPath();
-        cx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*11, 2.2,1.2,0,0,7); cx.fill(); } }
+    drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs);
     if (amb.snow && !path && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
       cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
   }
@@ -1572,7 +1709,7 @@ function render(t){
   });
 
   // season light tint + falling snow
-  cx.fillStyle=amb.tint; cx.fillRect(0,0,W,H);
+  applySeasonLighting(cx,W,H,amb,cal.season);
   if (amb.snow){
     if (snowFlakes.length<70 && Math.random()<0.5)
       snowFlakes.push({x:Math.random()*W,y:-5,v:0.4+Math.random()*0.7,r:1+Math.random()*1.6,w:Math.random()*7});
