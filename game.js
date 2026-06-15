@@ -1111,6 +1111,8 @@ const game = {
   toolMenu:null,                                     // open flyout on the left canvas toolbar
   layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false}, // layer view: visibility + shade overlay
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
+  sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
+  selMode:'move',                                    // selection drag intent: 'move' | 'copy'
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
@@ -1774,6 +1776,9 @@ function render(t){
     cx.closePath(); cx.stroke();
   });
 
+  // selection tool: marquee, committed selection, and move/copy ghost
+  if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
+
   // season light tint + falling snow
   applySeasonLighting(cx,W,H,amb,cal.season);
   if (amb.snow){
@@ -1792,6 +1797,43 @@ function render(t){
     g2.addColorStop(1,'rgba(50,35,55,0.24)');
     cx.fillStyle=g2; cx.fillRect(0,0,W,H);
   }
+}
+
+function selDrawRect(cx,W,H,r,fill,stroke){
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    if (x<0||y<0||x>=GW||y>=GH) continue;
+    const [sx,sy]=screenOf(x,y,W,H);
+    tileDiamond(cx,sx,sy,fill,stroke);
+  }
+}
+function drawSelectionOverlay(cx,W,H,t,season,sway){
+  if (selDrag){                                    // dragging out a marquee
+    const r=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
+    selDrawRect(cx,W,H,r,'rgba(120,195,255,0.22)','rgba(150,210,255,0.95)');
+    return;
+  }
+  if (!game.sel) return;
+  if (selMove){                                    // moving/copying: ghost + valid/invalid tiles
+    const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
+    const items=selectionPayload(game.sel);
+    selDrawRect(cx,W,H,game.sel,'rgba(120,195,255,0.12)','rgba(150,210,255,0.45)');
+    for (const c of items){
+      const nx=c.x+dx, ny=c.y+dy, ok=selValidDest(nx,ny);
+      const [sx,sy]=screenOf(nx,ny,W,H);
+      tileDiamond(cx,sx,sy, ok?'rgba(120,210,130,0.28)':'rgba(220,90,70,0.42)',
+        ok?'rgba(150,235,150,0.7)':'rgba(240,120,100,0.85)');
+    }
+    cx.save(); cx.globalAlpha=0.55;
+    for (const c of items){
+      const nx=c.x+dx, ny=c.y+dy; if (!selValidDest(nx,ny)) continue;
+      const [sx,sy]=screenOf(nx,ny,W,H);
+      if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,plantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
+      if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,plantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);
+    }
+    cx.restore();
+    return;
+  }
+  selDrawRect(cx,W,H,game.sel,'rgba(120,195,255,0.20)','rgba(150,210,255,0.95)'); // resting selection
 }
 
 /* ---------- movement & actions ---------- */
@@ -2075,6 +2117,11 @@ addEventListener('keydown',e=>{
   if (confirmOpen){ if (e.key==='Escape') closeSeasonConfirm(); return; }
   const pauseOpen=!document.getElementById('pauseScreen').classList.contains('hidden');
   if (pauseOpen){ if (e.key==='Escape') closePause(); return; }
+  if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
+    if (selMove){ selMove=null; toast('Move cancelled.'); }
+    else if (game.sel){ clearSelection(); toast('Selection cleared.'); }
+    return;
+  }
   if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
@@ -2121,6 +2168,126 @@ function eraseBrush(cx,cy,counts){
   }
 }
 function sweepLift(x,y){ eraseBrush(x,y,sweep); }
+
+/* ---------- selection tool: marquee a region, then move/copy/rotate/erase ----------
+   game.sel is the committed rect; selDrag is an in-progress marquee; selMove
+   is an in-progress move/copy drag. All edits go through withUndo so each is
+   a single undo step. */
+let selDrag=null, selMove=null;
+function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
+  x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
+function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
+function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
+// snapshot every occupied tile in the rect across all three layers
+function selectionPayload(r){
+  const items=[];
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const k=`${x},${y}`;
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k];
+    const cell={x,y};
+    if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
+    if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
+    if (t && !t.removed) cell.terr=JSON.parse(JSON.stringify(t));
+    if (cell.plant||cell.bulb||cell.terr) items.push(cell);
+  }
+  return items;
+}
+// write items to their destination tiles (getDst(cell)->[x,y]); clearSource
+// first wipes the originals (move) — skipped for copy
+function selWrite(items, getDst, clearSource){
+  const now=Date.now();
+  if (clearSource){
+    for (const c of items){ const k=`${c.x},${c.y}`;
+      if (c.plant) game.plants[k]={removed:true,t:now};
+      if (c.bulb)  game.bulbs[k]={removed:true,t:now};
+      if (c.terr)  game.terrain[k]={removed:true,t:now};
+    }
+  }
+  for (const c of items){ const [nx,ny]=getDst(c); const k=`${nx},${ny}`;
+    if (c.plant) game.plants[k]=Object.assign({},c.plant,{t:now});
+    if (c.bulb)  game.bulbs[k]=Object.assign({},c.bulb,{t:now});
+    if (c.terr)  game.terrain[k]=Object.assign({},c.terr,{t:now});
+  }
+  game.dirty=true;
+  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; return a;},{});
+  if (layers.p) syncPlantsOut();
+  if (layers.b) syncBulbsOut();
+  if (layers.t) syncTerrainOut();
+}
+// commit a move or copy by tile offset; returns true if applied
+function commitSelectionOffset(dx,dy,copy){
+  if (!game.sel || (dx===0&&dy===0 && !copy)) return false;
+  const items=selectionPayload(game.sel);
+  if (!items.length){ if(!copy) return false; }
+  const dst=c=>[c.x+dx,c.y+dy];
+  if (items.some(c=>!selValidDest(...dst(c)))){
+    toast('That spot runs off the plot or into the house.'); return false;
+  }
+  withUndo(()=>selWrite(items, dst, !copy));
+  game.sel={x0:game.sel.x0+dx,y0:game.sel.y0+dy,x1:game.sel.x1+dx,y1:game.sel.y1+dy};
+  toast(copy?`Duplicated ${items.length} tile${items.length>1?'s':''}.`
+            :`Moved ${items.length} tile${items.length>1?'s':''}.`);
+  return true;
+}
+// rotate the selection contents 90° clockwise about the rect center
+function rotateSelection(){
+  if (!game.sel) return;
+  const r=game.sel, items=selectionPayload(r);
+  if (!items.length){ toast('Nothing in the selection to rotate.'); return; }
+  const cx2=(r.x0+r.x1)/2, cy2=(r.y0+r.y1)/2;
+  const rot=(x,y)=>[Math.round(cx2-(y-cy2)), Math.round(cy2+(x-cx2))];
+  if (items.some(c=>!selValidDest(...rot(c.x,c.y)))){
+    toast('Rotated selection would leave the plot.'); return;
+  }
+  withUndo(()=>selWrite(items, c=>rot(c.x,c.y), true));
+  // new bounding box: width/height swap about the center
+  const hw=(r.x1-r.x0)/2, hh=(r.y1-r.y0)/2;
+  game.sel={x0:Math.round(cx2-hh),y0:Math.round(cy2-hw),
+            x1:Math.round(cx2+hh),y1:Math.round(cy2+hw)};
+  toast(`Rotated ${items.length} tile${items.length>1?'s':''}.`);
+}
+function eraseSelection(){
+  if (!game.sel) return;
+  const items=selectionPayload(game.sel);
+  if (!items.length){ toast('Nothing in the selection to erase.'); clearSelection(); return; }
+  withUndo(()=>{ const now=Date.now();
+    for (const c of items){ const k=`${c.x},${c.y}`;
+      if (c.plant) game.plants[k]={removed:true,t:now};
+      if (c.bulb)  game.bulbs[k]={removed:true,t:now};
+      if (c.terr)  game.terrain[k]={removed:true,t:now};
+    }
+    game.dirty=true; syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); });
+  toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
+  clearSelection();
+}
+function clearSelection(){ game.sel=null; selDrag=null; selMove=null; buildToolTray(); }
+function selPointerDown(x,y,e){
+  try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+  if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
+    selMove={grabX:x,grabY:y,curX:x,curY:y,copy:game.selMode==='copy'};
+  } else {                              // start a fresh marquee
+    selDrag={x0:x,y0:y,x1:x,y1:y};
+    if (game.sel){ game.sel=null; buildToolTray(); }
+  }
+}
+function selPointerMove(x,y){
+  if (selDrag){ selDrag.x1=x; selDrag.y1=y; return true; }
+  if (selMove){ selMove.curX=x; selMove.curY=y; return true; }
+  return false;
+}
+function selPointerUp(){
+  if (selDrag){
+    game.sel=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
+    selDrag=null; buildToolTray();
+    return;
+  }
+  if (selMove){
+    const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
+    const copy=selMove.copy; selMove=null;
+    if (dx||dy) commitSelectionOffset(dx,dy,copy);
+    buildToolTray();
+  }
+}
 function evTile(e){ // pointer position -> world tile, zoom-aware
   return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
 }
@@ -2130,7 +2297,9 @@ function evTile(e){ // pointer position -> world tile, zoom-aware
 let spaceHeld=false, panDrag=null, undoStack=[], pendSnap=null, pendSig=null;
 function updateCanvasCursor(){
   if (!cnv) return;
-  cnv.style.cursor = panDrag ? 'grabbing' : (game.tool==='hand'||spaceHeld ? 'grab' : '');
+  cnv.style.cursor = panDrag ? 'grabbing'
+    : (game.tool==='hand'||spaceHeld) ? 'grab'
+    : game.tool==='select' ? 'crosshair' : '';
 }
 function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.house]); }
 function snapshotState(){ return {
@@ -2180,6 +2349,7 @@ cnv.addEventListener('pointerdown',e=>{
   }
   const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
+  if (game.tool==='select'){ selPointerDown(x,y,e); return; }
   // drawing onto a hidden layer? warn and offer to reveal it before placing
   if (isPlacementTool(game.tool)){
     const layer=toolTargetLayer(game.tool);
@@ -2252,6 +2422,7 @@ cnv.addEventListener('pointermove',e=>{
     return;
   }
   const [x,y]=evTile(e);
+  if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (sweep){ sweepLift(x,y); return; }
   if (toolDrag){
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
@@ -2290,6 +2461,7 @@ cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
   if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
+  if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
     else tapAction(toolDrag.sx,toolDrag.sy);
@@ -2301,7 +2473,7 @@ cnv.addEventListener('pointerup',e=>{
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  sweep=null; toolDrag=null; panDrag=null; pendSig=null; pendSnap=null; updateCanvasCursor();
+  sweep=null; toolDrag=null; panDrag=null; selDrag=null; selMove=null; pendSig=null; pendSnap=null; updateCanvasCursor();
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
@@ -3046,6 +3218,7 @@ function rememberBrushTool(){
 }
 function setTool(k,v){
   game.toolMenu=null;
+  if (k!=='select'){ game.sel=null; selDrag=null; selMove=null; } // leaving select drops its marquee
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -3092,6 +3265,17 @@ function drawCanvasIcon(tc,kind){
   } else if (kind==='layers'){
     for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
       tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
+  } else if (kind==='move'){
+    // four-way arrows
+    tc.beginPath(); tc.moveTo(21,6); tc.lineTo(21,28); tc.moveTo(10,17); tc.lineTo(32,17); tc.stroke();
+    const tip=(x,y,dx,dy)=>{ tc.beginPath(); tc.moveTo(x,y);
+      tc.lineTo(x+dx-dy*0.6,y+dy+dx*0.6); tc.moveTo(x,y); tc.lineTo(x+dx+dy*0.6,y+dy-dx*0.6); tc.stroke(); };
+    tip(21,6,0,4); tip(21,28,0,-4); tip(10,17,4,0); tip(32,17,-4,0);
+  } else if (kind==='copy'){
+    // two overlapping marquees
+    tc.setLineDash([3,2]);
+    tc.strokeRect(9,8,16,13); tc.strokeRect(17,14,16,13);
+    tc.setLineDash([]);
   }
 }
 function makeCanvasTool(label,kind,opts){
@@ -3215,6 +3399,40 @@ function renderEraseTray(tray){
     toast(`Erase size: ${sz}x${sz}.`);
   },`Erase size ${sz}x${sz}`));
 }
+function renderSelectTray(tray){
+  renderCvRow();
+  const sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
+    s.textContent=t; tray.appendChild(s); };
+  const btn=(label,kind,sel,fn,title,dim)=>{
+    const b=document.createElement('button');
+    b.className='tool'+(sel?' sel':'')+(dim?' disabled':'');
+    b.title=title||label;
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const ctx2=c.getContext('2d'); ctx2.save(); ctx2.translate(3,6);
+    drawCanvasIcon(ctx2,kind); ctx2.restore();
+    const sp=document.createElement('span'); sp.textContent=label;
+    b.append(c,sp); if (!dim) b.onclick=fn; tray.appendChild(b);
+    return b;
+  };
+  if (!game.sel){
+    const hint=document.createElement('span'); hint.className='tray-empty';
+    hint.textContent='Drag a box on the garden to select an area.';
+    tray.appendChild(hint);
+    return;
+  }
+  // mode toggles: how a drag on the selection behaves
+  sep('Drag to');
+  btn('Move','move',game.selMode==='move',()=>{ game.selMode='move'; buildToolTray();
+    toast('Drag the selection to move it.'); },'Drag the selection to a new spot');
+  btn('Duplicate','copy',game.selMode==='copy',()=>{ game.selMode='copy'; buildToolTray();
+    toast('Drag the selection to drop a copy.'); },'Drag to drop a copy, leaving the original');
+  // one-shot actions
+  sep('Actions');
+  btn('Rotate','rotate',false,()=>{ rotateSelection(); buildToolTray(); refreshCanvasTools(); },
+    'Rotate the selection 90°');
+  btn('Erase','erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },
+    'Delete everything in the selection');
+}
 function refreshCanvasTools(){ buildCanvasTools(); }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
@@ -3224,7 +3442,9 @@ function buildCanvasTools(){
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
-  add('Select','select',{disabled:true,title:'TODO: area selection tool'});
+  add('Select','select',{active:game.tool==='select',
+    title:'Drag a box to select tiles — then move, duplicate, rotate, or erase them',
+    onClick:()=>{ setTool('select'); buildToolTray(); }});
   add('Plant','brush',{active:brushActive||game.toolMenu==='plant',
     title:'Choose draw or drift planting, then pick plants from the catalog',
     onClick:()=>armPlantToolFromRail(true)});
@@ -3320,12 +3540,12 @@ function buildToolTray(){
     const b=document.createElement('button');
     b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
     b.onclick=()=>{ game.trayCat=c.id; game.toolMenu=null;
-      if (game.tool==='shovel') setTool('hand');
+      if (game.tool==='shovel'||game.tool==='select') setTool('hand');
       else refreshCanvasTools();
       buildToolTray(); };
     tabs.appendChild(b);
   });
-  if (game.tool!=='shovel'){
+  if (game.tool!=='shovel' && game.tool!=='select'){
     const si=document.createElement('input'); // search within the open category
     si.id='traySearch'; si.type='search'; si.placeholder='search…';
     si.value=game.traySearch||'';
@@ -3334,6 +3554,11 @@ function buildToolTray(){
   }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+  if (game.tool==='select'){
+    renderSelectTray(tray);
+    updateCanvasCursor();
+    return;
+  }
   if (game.tool==='shovel'){
     renderEraseTray(tray);
     updateCanvasCursor();

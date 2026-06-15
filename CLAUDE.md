@@ -152,7 +152,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
-    (`buildCanvasTools`: Hand / Select TODO / Plant / Erase / Fill TODO /
+    (`buildCanvasTools`: Hand / **Select** / Plant / Erase / Fill TODO /
     Pick TODO / Undo / Redo TODO / Rotate / **Layers**; `game.tool` uses
     `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat) and
     Erase **drag-sweep**
@@ -181,6 +181,24 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `showConfirm(title,body,okLabel,onOk)` builds a themed `.screen` panel
     (`#confirmPop`) on the fly; the key handler treats it like the other
     overlays (Escape closes, game keys ignored).
+    The **Select** tool (`game.tool==='select'`) marquee-selects a tile
+    region: pointerdown outside the current selection starts a `selDrag`
+    rectangle; release commits it to `game.sel` ({x0,y0,x1,y1}, inclusive).
+    Pointerdown *inside* the selection starts a `selMove` drag whose intent
+    (`game.selMode` 'move'|'copy') is set by the bottom tray. The bottom
+    contextual tray (`renderSelectTray`, same slot as the Erase options)
+    shows **Move / Duplicate** (mode toggles) and **Rotate / Erase**
+    (one-shot actions). `selectionPayload` snapshots all three layers in the
+    rect; `commitSelectionOffset(dx,dy,copy)` moves/copies (read-all →
+    clear-source → write-dest, so overlaps are safe), `rotateSelection`
+    spins contents 90° CW about the rect center, `eraseSelection` deletes
+    them — each wrapped in `withUndo` for a single undo step. Moves/rotations
+    are refused if any destination fails `selValidDest` (off-plot or into the
+    house/door). `drawSelectionOverlay` (called near the end of `render`)
+    draws the marquee, the resting selection (blue fill + outline), and the
+    move/copy ghost (destination diamonds tinted green/red for valid/invalid
+    plus translucent plant ghosts via `drawPlant`). Escape cancels an
+    in-progress move, then the selection; switching tools drops it.
     All placement funnels
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
     bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
@@ -347,5 +365,6 @@ with their own depth slices. The big one: a real multiplayer backend
     plant. UI metaphor under consideration: a wheelbarrow dropping dirt.
   - **Eyedropper** — sample a plant/material from a tile and arm it as the
     current tool.
-  - **Selection tool** — marquee-select a region to copy, duplicate, rotate,
-    or resize the plants/terrain inside it.
+  - *(Built)* **Selection tool** — marquee a region to move, duplicate,
+    rotate, or erase the plants/terrain inside it (see the Select tool in the
+    canvas-toolbar notes above). Resize-in-place is still open.
