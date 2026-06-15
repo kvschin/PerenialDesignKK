@@ -2117,7 +2117,6 @@ cnv.addEventListener('pointerdown',e=>{
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
     pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
-           a0:Math.atan2(b2[1]-a[1], b2[0]-a[0]),    // twist baseline
            cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
            camx0:cam.x, camy0:cam.y};
     sweep=null; toolDrag=null; panDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
@@ -2197,10 +2196,7 @@ cnv.addEventListener('pointermove',e=>{
       cam.x=pinch.camx0-(cx-pinch.cx0)/ZOOM;
       cam.y=pinch.camy0-(cy-pinch.cy0)/ZOOM;
     }
-    // twist: each ~40° of rotation snaps the view one 90° step
-    const ang=Math.atan2(b2[1]-a[1], b2[0]-a[0]);
-    let tw=ang-pinch.a0; while(tw>Math.PI)tw-=2*Math.PI; while(tw<-Math.PI)tw+=2*Math.PI;
-    if (Math.abs(tw)>0.7){ rotateView(tw>0?1:-1); pinch.a0=ang; }
+    // (two-finger twist-to-rotate removed — rotate via the ⟳ button or R key)
     return;
   }
   const [x,y]=evTile(e);

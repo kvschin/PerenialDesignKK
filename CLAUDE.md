@@ -17,8 +17,8 @@ the loop (movement skipped), `tapAction` (design taps route straight to
 in design), `setUserZoom`/snapCam (design keeps its free camera), and the
 `btnPlotStart`/save/load plumbing (design = blank plot, `house:null`).
 Design panning: two fingers on touch; on PC, middle-mouse drag or
-hold Space + drag (`panDrag`). Rotate is the two-finger twist, the R
-key, or the ⟳ button — all three exist. **Undo** (`undoStack`, button
+hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
+(two-finger twist was removed — it fought the pan/zoom gesture). **Undo** (`undoStack`, button
 + Ctrl/Cmd-Z): a gesture snapshots plants+bulbs+terrain+house on
 pointerdown (`beginUndo`) and commits it on pointerup only if state
 changed (`commitUndo`); discrete actions use `withUndo`. Stack resets
