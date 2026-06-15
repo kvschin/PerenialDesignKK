@@ -2470,6 +2470,7 @@ function downloadPlan(){
    species file stays focused on botany; explicit PLANTS[k].roles can be
    added later for finer curation. */
 const DESIGN_STYLE_LABELS={
+  any:'Any garden',
   cottage:'Cottage',
   prairie:'Prairie / Meadow',
   butterfly:'Pollinator',
@@ -3348,6 +3349,7 @@ function openPlotScreen(){
 
 /* design setup: a questionnaire that tunes the palette before sizing */
 const GARDEN_TYPES=[
+  ['any','Any garden','Use every plant that matches your zone and native-plant filters.'],
   ['cottage','Cottage','Romantic and abundant — layered perennials and self-seeders.'],
   ['prairie','Prairie / Meadow','Native grasses and forbs in naturalistic drifts.'],
   ['butterfly','Pollinator','Nectar and host plants for butterflies and bees.'],
@@ -3380,7 +3382,7 @@ function openDesignSetup(){
     $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
   }
   const d=game.design||{};
-  zs.value=String(d.zone||6); ts.value=d.type||'prairie';
+  zs.value=String(d.zone||6); ts.value=d.type||'any';
   $('dgnNatives').checked=!!d.nativesOnly; $('dgnDeer').checked=!!d.deer; $('dgnRabbit').checked=!!d.rabbit;
   $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===ts.value)||[])[2]||'';
   show('designScreen');
