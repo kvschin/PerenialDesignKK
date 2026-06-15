@@ -2863,6 +2863,19 @@ function libCanvas(key,variant,season,w,h){
   ctx.restore();
   return c;
 }
+/* a real photo for the species, if one has been added to photos/.
+   Tries .jpg → .jpeg → .png, then quietly removes itself (renders
+   below remain the fallback). Drop a file at photos/<key>.jpg. */
+function plantPhoto(key){
+  const wrap=document.createElement('div'); wrap.className='ld-photo';
+  const img=document.createElement('img'); img.alt='';
+  const exts=['jpg','jpeg','png']; let i=0;
+  img.onerror=()=>{ i++; if (i<exts.length) img.src=`photos/${key}.${exts[i]}`; else wrap.remove(); };
+  img.onload=()=>{ wrap.classList.add('has'); };
+  img.src=`photos/${key}.${exts[0]}`;
+  wrap.appendChild(img);
+  return wrap;
+}
 let libSel=null;
 function openLibrary(){ buildLibraryList(''); show('libraryScreen');
   if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
@@ -2910,6 +2923,7 @@ function showLibraryDetail(key){
   const cvKeys=Object.keys(P.cv||{});
   d.innerHTML='';
   const card=document.createElement('div'); card.className='ld-card';
+  card.append(plantPhoto(key));   // real photo if photos/<key>.jpg exists, else nothing
   card.append(imgs);
   const nm=document.createElement('div'); nm.className='ld-name'; nm.textContent=P.name; card.append(nm);
   const la=document.createElement('div'); la.className='ld-latin'; la.textContent=P.latin; card.append(la);
