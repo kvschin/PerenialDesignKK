@@ -3008,6 +3008,9 @@ function drawCanvasIcon(tc,kind){
     tc.beginPath(); tc.moveTo(11,20); tc.lineTo(11,11); tc.moveTo(17,20); tc.lineTo(17,8);
     tc.moveTo(23,20); tc.lineTo(23,10); tc.moveTo(29,21); tc.lineTo(29,14);
     tc.moveTo(11,20); tc.quadraticCurveTo(13,29,21,30); tc.quadraticCurveTo(30,30,31,23); tc.stroke();
+  } else if (kind==='select'){
+    tc.setLineDash([4,3]); tc.strokeRect(8,7,24,18); tc.setLineDash([]);
+    tc.beginPath(); tc.moveTo(26,22); tc.lineTo(34,29); tc.moveTo(30,29); tc.lineTo(34,29); tc.lineTo(34,25); tc.stroke();
   } else if (kind==='brush'){
     tc.save(); tc.translate(21,17); tc.rotate(-0.72);
     tc.fillStyle='#c97f3f'; tc.fillRect(-3,-13,6,19);
@@ -3036,10 +3039,6 @@ function drawCanvasIcon(tc,kind){
     tc.beginPath(); tc.moveTo(30,8); tc.lineTo(35,8); tc.lineTo(34,13); tc.stroke();
     tc.fillStyle='rgba(201,127,63,.28)'; tc.beginPath();
     tc.moveTo(21,7); tc.lineTo(32,16); tc.lineTo(21,25); tc.lineTo(10,16); tc.closePath(); tc.fill();
-  } else if (kind==='zoomin'||kind==='zoomout'){
-    tc.beginPath(); tc.arc(18,14,8,0,7); tc.stroke();
-    tc.beginPath(); tc.moveTo(24,20); tc.lineTo(32,28); tc.stroke();
-    tc.beginPath(); tc.moveTo(14,14); tc.lineTo(22,14); if (kind==='zoomin'){ tc.moveTo(18,10); tc.lineTo(18,18); } tc.stroke();
   } else if (kind==='layers'){
     for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
       tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
@@ -3065,6 +3064,7 @@ function buildCanvasTools(){
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
+  add('Select','select',{disabled:true,title:'TODO: area selection tool'});
   add('Brush','brush',{active:brushActive,disabled:!canBrush,
     title:canBrush?'Use the selected plant or material':'Pick a plant or material from the catalog first',
     onClick:()=>{ if (game.lastBrushTool) setTool(game.lastBrushTool,game.lastBrushVar);
@@ -3089,8 +3089,6 @@ function buildCanvasTools(){
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});
   add('Redo','redo',{disabled:true,title:'Redo is planned'});
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
-  add('Zoom +','zoomin',{title:'Zoom in (+)',onClick:()=>zoomBy(1.18)});
-  add('Zoom -','zoomout',{title:'Zoom out (-)',onClick:()=>zoomBy(0.85)});
   sep();
   add('Layers','layers',{disabled:true,title:'Layers/view controls are planned'});
 }
@@ -3423,6 +3421,8 @@ function updateHUD(){
   document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
   document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
+  document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Stop';
+  document.getElementById('btnPause').title=game.pausedAt?'Resume day progression':'Stop day progression';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
@@ -3464,16 +3464,19 @@ function nextSeasonName(){
   return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
 }
 function openPause(){
-  pauseClock();
   const cal=calClock();
   $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
-  $('btnPauseSave').classList.toggle('hidden',!(game.mode==='solo'&&hasStorage));
   $('pauseScreen').classList.remove('hidden');
 }
 function closePause(){
   $('confirmSeasonScreen').classList.add('hidden');
   $('pauseScreen').classList.add('hidden');
-  resumeClock();
+}
+function resumeFromTimeMenu(){ resumeClock(); closePause(); updateHUD(); }
+function toggleClock(){
+  if (game.pausedAt){ resumeClock(); toast('Time resumed.'); }
+  else { pauseClock(); toast('Time stopped.'); }
+  updateHUD();
 }
 function closeSeasonConfirm(){ $('confirmSeasonScreen').classList.add('hidden'); }
 function skipToAbsDay(targetDay){
@@ -3869,8 +3872,6 @@ function quitToMenu(){
   show('menuScreen');
 }
 $('btnMenu').onclick=quitToMenu;
-if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.18);
-if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.85);
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
@@ -3878,12 +3879,11 @@ addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); })
 addEventListener('pagehide',autosaveNow);
 $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
-$('btnPause').onclick=openPause;
-$('btnPauseResume').onclick=closePause;
-$('btnPauseSave').onclick=()=>{ saveSolo(false); game.dirty=false; };
+$('btnPause').onclick=toggleClock;
+$('btnTimeMenu').onclick=openPause;
+$('btnPauseResume').onclick=resumeFromTimeMenu;
 $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
-$('btnPauseMenu').onclick=quitToMenu;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
 $('btnConfirmSeasonSkip').onclick=confirmSkipSeason;
 $('btnExport').onclick=openExport;

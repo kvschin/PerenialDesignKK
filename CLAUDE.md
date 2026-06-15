@@ -152,7 +152,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar** (Hand /
-    Brush / Erase / Undo / Rotate / Zoom; `game.tool` uses `'hand'` for safe
+    Select TODO / Brush / Erase / Undo / Rotate; `game.tool` uses `'hand'` for safe
     panning and keeps `'shovel'` for Erase back-compat) and Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
@@ -214,19 +214,20 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools
-    (Hand/Brush/Erase/Undo/Rotate/Zoom) and starts new garden entries on
+    (Hand/Select TODO/Brush/Erase/Undo/Rotate) and starts new garden entries on
     Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus season/year/day dial, End Day, Pause, plant-list, region, photo, and plan
+    Plus clickable season/year/day dial, End Day, Stop/Start time, plant-list, region, photo, and plan
     buttons (a compact icon bar; labels hide on small screens, the
     region label shows the active filter), contextual action hint. There is no
     Save button — autosave fires on day change, quit, and
-    visibilitychange/pagehide. Pause opens a small modal with Resume, Save
-    (solo), Skip to next season/year, and Return to menu; season skip shows
-    a confirmation using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
+    visibilitychange/pagehide. Stop/Start freezes or resumes day progression
+    without blocking editing; clicking the time readout opens a small menu
+    with Resume and Skip to next season/year; season skip shows a confirmation
+    using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
-    handlers), mouse wheel, +/- keys, and the left toolbar zoom buttons;
+    handlers), mouse wheel, and +/- keys;
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
     drift / Erase here / Lay path / Dig bed / End Day; hidden for the House
