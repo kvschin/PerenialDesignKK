@@ -15,7 +15,7 @@ live in `enterGarden`, `render` (avatar + camera easing skipped for design),
 the loop (movement skipped), `tapAction` (design taps route straight to
 `actHere` on the tapped tile), the two-finger pointer handler (adds camera pan
 in design), `setUserZoom`/snapCam (design keeps its free camera), and the
-`btnPlotStart`/save/load plumbing (design = blank plot, `house:null`).
+`btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`).
 Design panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
 (two-finger twist was removed — it fought the pan/zoom gesture). **Undo** (`undoStack`, button
@@ -124,12 +124,19 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     inside the house. `seedWalkway()` lays the
     starter walkway as ordinary path terrain at world creation (so the
     shovel can remove it like anything player-laid; saves without `wv` get
-    it seeded once on load). The house lives in `game.house`
-    (`{x,y,w,h,wall,roof}`, sized in real feet via `HOUSE_SIZES`);
-    `inHouse`/`doorPos`/`isDoor`/`canStand` derive from it (door tile
-    centered on the south side; standing there and acting sleeps to the
-    next day). `defaultHouse()` picks a shed on small plots, a cottage on
-    big ones. `tileTerrain()` reads player-laid terrain from `game.terrain`.
+    it seeded once on load). Houses live in `game.houses` — an array, so a
+    garden can hold any number (each `{x,y,w,h,wall,roof,sizeFt}`, sized in
+    real feet via `HOUSE_SIZES`). `houseAt(x,y)` finds the house on a tile;
+    `inHouse`/`isDoor`/`canStand` iterate the array; `doorPos(h)` takes a
+    specific house (door tile centered on its south side). The House tab's
+    size/wall/roof chips edit `game.houseDraft` — the settings the **Place**
+    tool stamps the next house with; placing adds a house (overlaps with
+    another house or the avatar are refused), and the **Erase** tool on the
+    *landscape* layer removes any house it sweeps (`eraseBrush`). Existing
+    houses are recoloured/resized by erasing and re-placing.
+    `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
+    on big ones; legacy single-house saves (`house`) migrate to the array.
+    `tileTerrain()` reads player-laid terrain from `game.terrain`.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
@@ -188,11 +195,14 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (`game.selMode` 'move'|'copy') is set by the bottom tray. The bottom
     contextual tray (`renderSelectTray`, same slot as the Erase options)
     shows **Move / Duplicate** (mode toggles) and **Rotate / Erase**
-    (one-shot actions). `selectionPayload` snapshots all three layers in the
-    rect; `commitSelectionOffset(dx,dy,copy)` moves/copies (read-all →
-    clear-source → write-dest, so overlaps are safe), `rotateSelection`
-    spins contents 90° CW about the rect center, `eraseSelection` deletes
-    them — each wrapped in `withUndo` for a single undo step. Moves/rotations
+    (one-shot actions). On commit the marquee snapshots its contents once
+    into `game.selItems` (via `selectionPayload`, all three layers); every
+    op then works on those **owned** items — so a plant that later lands
+    inside the rect is never scooped up. `commitSelectionOffset(dx,dy,copy)`
+    moves/copies (read-all → clear-source → write-dest, so overlaps are
+    safe) and updates the items' coords; `rotateSelection` spins them 90° CW
+    about the rect center, `eraseSelection` deletes them — each wrapped in
+    `withUndo` for a single undo step. Moves/rotations
     are refused if any destination fails `selValidDest` (off-plot or into the
     house/door). `drawSelectionOverlay` (called near the end of `render`)
     draws the marquee, the resting selection (blue fill + outline), and the
@@ -201,8 +211,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     in-progress move, then the selection; switching tools drops it.
     All placement funnels
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
-    bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
-    refuse planted tiles). **Drag-to-plant**: pointerdown with a
+    bulbs tuck under perennials but are refused under trees/shrubs (and a
+    newly planted tree/shrub clears any bulb already there), plants check
+    `shadeAt`, paths refuse planted tiles). **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain

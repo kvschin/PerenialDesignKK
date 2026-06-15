@@ -1012,10 +1012,10 @@ function drawCritter(ctx, x, y, ch, t, walking, scale){
 /* ---------- the house renderer ----------
    Works in VIEW space so rotation just works: the footprint is mapped
    to a view-space rect, walls/roof/door are built on its lattice. Size
-   and colors come from game.house. The door clings to its world tile —
-   from behind the house it's simply out of sight. */
+   and colors come from the passed house object. The door clings to its
+   world tile — from behind the house it's simply out of sight. */
 function drawHouse(ctx, W, H, season, hOv){
-  const hh=hOv||game.house; if (!hh) return;
+  const hh=hOv; if (!hh) return;
   const [va,vb]=worldToView(hh.x,hh.y), [vc,vd]=worldToView(hh.x+hh.w-1,hh.y+hh.h-1);
   const vx0=Math.min(va,vc), vy0=Math.min(vb,vd);
   const vw=Math.abs(va-vc)+1, vh=Math.abs(vb-vd)+1;
@@ -1112,7 +1112,10 @@ const game = {
   layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false}, // layer view: visibility + shade overlay
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
+  selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
   selMode:'move',                                    // selection drag intent: 'move' | 'copy'
+  houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
+  houseDraft:null,                                   // settings for the next house the House tool places
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
@@ -1310,11 +1313,12 @@ function seedWalkway(){
   }
 }
 
-/* the house: a per-garden footprint you can't walk through, with a door
+/* houses: per-garden footprints you can't walk through, each with a door
    tile centered on its south side. Sleeping used to live there, but is
    feature-flagged off because it made the house feel like a daily chore and
-   added HUD clutter. Position, size (real feet), and colors live in
-   game.house; the House tool moves/resizes/paints it. */
+   added HUD clutter. game.houses holds every placed house ({x,y,w,h,wall,
+   roof,sizeFt}); game.houseDraft is the settings the House tool places with.
+   Place adds a house, Erase (landscape) removes one. */
 const HOUSE_TRIM = {door:'#3a2c22', trim:'#efe6d3', glow:'#d9c08a'};
 const HOUSE_SIZES = [ // [label, width ft, depth ft] -> tiles via ftToTiles
   ['Shed',3,3],['Tiny home',12,9],['Cottage',24,18],['House',36,27],['Big house',45,36]];
@@ -1322,24 +1326,37 @@ const WALL_COLS = [['Cedar','#8a7a60'],['Cream','#d9cdb0'],['Sage','#8a9a78'],
   ['Barn red','#9a4a3a'],['Slate','#6e7787']];
 const ROOF_COLS = [['Rust','#9a5f3a'],['Charcoal','#3f3a38'],['Forest','#4a5d46'],
   ['Weathered','#8a8274']];
-function defaultHouse(){ // a shed on small plots, a cottage on real yards
-  const big=GW*GH>=1900, w=big?ftToTiles(24):2, h=big?ftToTiles(18):2;
-  return {x:Math.max(0,Math.min(GW-w-1,SPAWNX+3)), y:Math.max(0,SPAWNY-6-(h-2)),
-          w, h, wall:'#8a7a60', roof:'#9a5f3a'};
+function defaultDraft(){ // settings for a freshly-armed House tool
+  const big=GW*GH>=1900;
+  return {w: big?ftToTiles(24):2, h: big?ftToTiles(18):2,
+          wall:'#8a7a60', roof:'#9a5f3a', sizeFt: big?[24,18]:[3,3]};
 }
-function inHouse(x,y){ const h=game.house; if (!h) return false;
-  return x>=h.x && x<h.x+h.w && y>=h.y && y<h.y+h.h; }
-function doorPos(hOv){ const h=hOv||game.house;
-  return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
-function isDoor(x,y){ const [dx,dy]=doorPos(); return x===dx && y===dy; }
+function defaultHouse(){ // a placed starter house (story mode), shed/cottage by plot size
+  const d=defaultDraft();
+  return {x:Math.max(0,Math.min(GW-d.w-1,SPAWNX+3)), y:Math.max(0,SPAWNY-6-(d.h-2)),
+          w:d.w, h:d.h, wall:d.wall, roof:d.roof, sizeFt:d.sizeFt};
+}
+function draftFromHouses(){ // seed the draft from an existing house, else defaults
+  const h=game.houses && game.houses[0];
+  return h ? {w:h.w,h:h.h,wall:h.wall,roof:h.roof,sizeFt:h.sizeFt||[h.w,h.h]} : defaultDraft();
+}
+function houseAt(x,y){ // the placed house covering this tile, or null
+  for (const h of game.houses){ if (x>=h.x && x<h.x+h.w && y>=h.y && y<h.y+h.h) return h; }
+  return null;
+}
+function inHouse(x,y){ return !!houseAt(x,y); }
+function doorPos(h){ return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
+function isDoor(x,y){
+  for (const h of game.houses){ const [dx,dy]=doorPos(h); if (x===dx && y===dy) return true; }
+  return false;
+}
 function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y) && tileTerrain(x,y)!=='water'; }
 /* a standable starting tile near plot center — the door if the house
    sits on the spawn, else a spiral search outward, so re-entering a
    garden never drops the player stuck inside their own walls */
 function safeSpawn(){
   if (canStand(SPAWNX,SPAWNY)) return [SPAWNX,SPAWNY];
-  const [dx,dy]=doorPos();
-  if (canStand(dx,dy)) return [dx,dy];
+  for (const h of game.houses){ const [dx,dy]=doorPos(h); if (canStand(dx,dy)) return [dx,dy]; }
   for (let r=1;r<Math.max(GW,GH);r++)
     for (let oy=-r;oy<=r;oy++) for (let ox=-r;ox<=r;ox++){
       if (Math.max(Math.abs(ox),Math.abs(oy))!==r) continue;
@@ -1689,12 +1706,14 @@ function render(t){
   // RTS-style placement ghost while the House tool is armed: tinted
   // footprint (red when you're standing in it) under a translucent house
   let ghost=null;
-  if (game.tool==='house' && game.hoverTile && game.house){
-    const h=game.house;
+  if (game.tool==='house' && game.hoverTile && game.houseDraft){
+    const h=game.houseDraft;
     const gx=Math.max(0,Math.min(GW-h.w,game.hoverTile[0]));
     const gy=Math.max(0,Math.min(GH-h.h-1,game.hoverTile[1]));
     const ppx=Math.round(game.px), ppy=Math.round(game.py);
-    const blocked = ppx>=gx&&ppx<gx+h.w&&ppy>=gy&&ppy<gy+h.h;
+    const onAvatar = game.gameMode!=='design' && ppx>=gx&&ppx<gx+h.w&&ppy>=gy&&ppy<gy+h.h;
+    const onHouse = game.houses.some(o=>gx<o.x+o.w&&gx+h.w>o.x&&gy<o.y+o.h&&gy+h.h>o.y);
+    const blocked = onAvatar || onHouse;
     ghost=Object.assign({},h,{x:gx,y:gy,blocked});
     cx.fillStyle = blocked ? 'rgba(220,90,70,0.34)' : 'rgba(140,205,125,0.30)';
     for (let yy=gy; yy<gy+h.h; yy++) for (let xx=gx; xx<gx+h.w; xx++){
@@ -1711,10 +1730,10 @@ function render(t){
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
   const ents=[];
-  const hh=game.house;
-  if (layerShown('landscape') && hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
-    ents.push({depth:houseDrawDepth(hh),
-      draw:()=>drawHouse(cx,W,H,cal.season)});
+  if (layerShown('landscape')) for (const hh of game.houses){
+    if (hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
+      ents.push({depth:houseDrawDepth(hh), draw:()=>drawHouse(cx,W,H,cal.season,hh)});
+  }
   if (ghost)
     ents.push({depth:houseDrawDepth(ghost)+0.01,
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
@@ -1815,7 +1834,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (!game.sel) return;
   if (selMove){                                    // moving/copying: ghost + valid/invalid tiles
     const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
-    const items=selectionPayload(game.sel);
+    const items=game.selItems||[];
     selDrawRect(cx,W,H,game.sel,'rgba(120,195,255,0.12)','rgba(150,210,255,0.45)');
     for (const c of items){
       const nx=c.x+dx, ny=c.y+dy, ok=selValidDest(nx,ny);
@@ -1863,17 +1882,19 @@ function actHere(){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0};
+    const counts={plants:0,bulbs:0,terr:0,house:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
     if (counts.bulbs) parts.push(`${counts.bulbs} bulb${counts.bulbs>1?'s':''}`);
     if (counts.terr) parts.push(`${counts.terr} terrain tile${counts.terr>1?'s':''}`);
+    if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (parts.length){
       toast(`Erased ${parts.join(' and ')}.`);
       if (counts.plants) syncPlantsOut();
       if (counts.bulbs) syncBulbsOut();
       if (counts.terr) syncTerrainOut();
+      if (counts.house) pushHouse();
     } else toast('Nothing to erase here.');
     return;
   }
@@ -1912,9 +1933,11 @@ function actHere(){
   }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
-  if (def.type==='bulb'){ // bulbs go UNDER plants — a plant here is no obstacle
+  if (def.type==='bulb'){ // bulbs go UNDER perennials — but not under trees or shrubs
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
     if (terr==='path'||terr==='water'){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first.'); return; }
+    if (hasPlant && plantLayerOf(existing)==='woody'){
+      toast('No bulbs under trees or shrubs — their roots claim that ground.'); return; }
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n); return; }
     if (applyToolAt(x,y)){ syncBulbsOut();
@@ -1978,9 +2001,11 @@ function applyToolAt(x,y){
   if (terr==='path'||terr==='water') return null;
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
-  if (def.type==='bulb'){ // bulbs tuck in under whatever is planted above
+  if (def.type==='bulb'){ // bulbs tuck in under perennials — but not under trees/shrubs
     const eb=game.bulbs[k];
     if (eb && !eb.removed) return null;
+    const above=game.plants[k];
+    if (above && !above.removed && plantLayerOf(above)==='woody') return null;
     game.bulbs[k]=np; game.dirty=true; plantFx(x,y);
     return 'bulb';
   }
@@ -1989,6 +2014,9 @@ function applyToolAt(x,y){
   const sh=shadeAt(x,y);
   if (sh && def.sun!=='part') return null;
   game.plants[k]=np; game.dirty=true; plantFx(x,y);
+  // a tree or shrub claims the ground — any bulb tucked under it is lost
+  if (def.type==='shrub'||def.type==='tree'){ const eb=game.bulbs[k];
+    if (eb && !eb.removed){ game.bulbs[k]={removed:true,t:Date.now()}; syncBulbsOut(); } }
   return 'plant';
 }
 function syncToolLayer(what){
@@ -2022,7 +2050,7 @@ function doSleep(){
 
 /* ---------- house placement / sizing / paint ---------- */
 function pushHouse(){ game.houseT=Date.now();
-  if (game.mode==='multi') sSet(wkey('house'),{h:game.house,t:game.houseT},true); }
+  if (game.mode==='multi') sSet(wkey('house'),{h:game.houses,t:game.houseT},true); }
 function displacePlants(x,y,w,h){ // a house can't share ground with plants
   let n=0;
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++){
@@ -2045,30 +2073,33 @@ function clearTerrainForHouse(x,y,w,h){
   return n;
 }
 function placeHouse(x,y){
-  const h=game.house; if (!h) return;
-  const nx=Math.max(0,Math.min(GW-h.w,x)), ny=Math.max(0,Math.min(GH-h.h-1,y));
+  const d=game.houseDraft || (game.houseDraft=defaultDraft());
+  const nx=Math.max(0,Math.min(GW-d.w,x)), ny=Math.max(0,Math.min(GH-d.h-1,y));
   const ppx=Math.round(game.px), ppy=Math.round(game.py);
-  if (ppx>=nx&&ppx<nx+h.w&&ppy>=ny&&ppy<ny+h.h){ toast("You're standing in the way."); return; }
-  h.x=nx; h.y=ny; game.dirty=true; pushHouse();
-  const n=displacePlants(nx,ny,h.w,h.h);
-  clearTerrainForHouse(nx,ny,h.w,h.h);
-  toast('The house settles onto new ground.'+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
-}
-function applyHouseSize(wFt,dFt,label){
-  const h=game.house, w=ftToTiles(wFt), d=ftToTiles(dFt);
-  if (w>GW-2 || d>GH-3){ toast('The plot is too small for that house.'); return; }
-  h.w=w; h.h=d; h.sizeFt=[wFt,dFt];
-  h.x=Math.max(0,Math.min(GW-w,h.x)); h.y=Math.max(0,Math.min(GH-d-1,h.y));
-  if (inHouse(Math.round(game.px),Math.round(game.py))){
-    const [dx2,dy2]=doorPos(); game.px=game.tx=dx2; game.py=game.ty=dy2; game.moving=false; }
+  if (game.gameMode!=='design' && ppx>=nx&&ppx<nx+d.w&&ppy>=ny&&ppy<ny+d.h){
+    toast("You're standing in the way."); return; }
+  if (game.houses.some(o=>nx<o.x+o.w&&nx+d.w>o.x&&ny<o.y+o.h&&ny+d.h>o.y)){
+    toast('That overlaps another house.'); return; }
+  game.houses.push({x:nx,y:ny,w:d.w,h:d.h,wall:d.wall,roof:d.roof,sizeFt:d.sizeFt});
   game.dirty=true; pushHouse();
-  const n=displacePlants(h.x,h.y,w,d);
-  clearTerrainForHouse(h.x,h.y,w,d);
-  toast(`${label} — ${wFt}' × ${dFt}'.`+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
+  const n=displacePlants(nx,ny,d.w,d.h);
+  clearTerrainForHouse(nx,ny,d.w,d.h);
+  toast('House placed.'+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
+}
+// the House tab's size/colour chips edit the draft — the settings the next
+// placed house uses (existing houses are changed by erasing + re-placing)
+function applyHouseSize(wFt,dFt,label){
+  const w=ftToTiles(wFt), d=ftToTiles(dFt);
+  if (w>GW-2 || d>GH-3){ toast('The plot is too small for that house.'); return; }
+  const dr=game.houseDraft || (game.houseDraft=defaultDraft());
+  dr.w=w; dr.h=d; dr.sizeFt=[wFt,dFt];
+  toast(`${label} — ${wFt}' × ${dFt}'. Tap the map to place it.`);
 }
 function paintHouse(part,col,label){
-  game.house[part]=col; game.dirty=true; pushHouse();
-  toast(part==='wall'?`Walls painted ${label.toLowerCase()}.`:`Roof done in ${label.toLowerCase()}.`);
+  const dr=game.houseDraft || (game.houseDraft=defaultDraft());
+  dr[part]=col;
+  toast(part==='wall'?`Walls set ${label.toLowerCase()}. Tap to place.`
+                     :`Roof set ${label.toLowerCase()}. Tap to place.`);
 }
 function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
@@ -2165,6 +2196,9 @@ function eraseBrush(cx,cy,counts){
       game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
     if (terrOK && tileTerrain(x,y)){
       game.terrain[k]={removed:true,t:now}; game.dirty=true; counts.terr++; }
+    if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
+      if (hh){ const i=game.houses.indexOf(hh);
+        if (i>=0){ game.houses.splice(i,1); game.dirty=true; counts.house=(counts.house||0)+1; } } }
   }
 }
 function sweepLift(x,y){ eraseBrush(x,y,sweep); }
@@ -2214,25 +2248,27 @@ function selWrite(items, getDst, clearSource){
   if (layers.b) syncBulbsOut();
   if (layers.t) syncTerrainOut();
 }
-// commit a move or copy by tile offset; returns true if applied
+// commit a move or copy by tile offset; returns true if applied. Operates on
+// the selection's OWNED items (game.selItems), not whatever is in the rect now
 function commitSelectionOffset(dx,dy,copy){
   if (!game.sel || (dx===0&&dy===0 && !copy)) return false;
-  const items=selectionPayload(game.sel);
-  if (!items.length){ if(!copy) return false; }
+  const items=game.selItems||[];
+  if (!items.length) return false;
   const dst=c=>[c.x+dx,c.y+dy];
   if (items.some(c=>!selValidDest(...dst(c)))){
     toast('That spot runs off the plot or into the house.'); return false;
   }
   withUndo(()=>selWrite(items, dst, !copy));
+  items.forEach(c=>{ c.x+=dx; c.y+=dy; });   // the selection now owns the moved/copied tiles
   game.sel={x0:game.sel.x0+dx,y0:game.sel.y0+dy,x1:game.sel.x1+dx,y1:game.sel.y1+dy};
   toast(copy?`Duplicated ${items.length} tile${items.length>1?'s':''}.`
             :`Moved ${items.length} tile${items.length>1?'s':''}.`);
   return true;
 }
-// rotate the selection contents 90° clockwise about the rect center
+// rotate the selection's owned contents 90° clockwise about the rect center
 function rotateSelection(){
   if (!game.sel) return;
-  const r=game.sel, items=selectionPayload(r);
+  const r=game.sel, items=game.selItems||[];
   if (!items.length){ toast('Nothing in the selection to rotate.'); return; }
   const cx2=(r.x0+r.x1)/2, cy2=(r.y0+r.y1)/2;
   const rot=(x,y)=>[Math.round(cx2-(y-cy2)), Math.round(cy2+(x-cx2))];
@@ -2240,6 +2276,7 @@ function rotateSelection(){
     toast('Rotated selection would leave the plot.'); return;
   }
   withUndo(()=>selWrite(items, c=>rot(c.x,c.y), true));
+  items.forEach(c=>{ const [nx,ny]=rot(c.x,c.y); c.x=nx; c.y=ny; });
   // new bounding box: width/height swap about the center
   const hw=(r.x1-r.x0)/2, hh=(r.y1-r.y0)/2;
   game.sel={x0:Math.round(cx2-hh),y0:Math.round(cy2-hw),
@@ -2248,7 +2285,7 @@ function rotateSelection(){
 }
 function eraseSelection(){
   if (!game.sel) return;
-  const items=selectionPayload(game.sel);
+  const items=game.selItems||[];
   if (!items.length){ toast('Nothing in the selection to erase.'); clearSelection(); return; }
   withUndo(()=>{ const now=Date.now();
     for (const c of items){ const k=`${c.x},${c.y}`;
@@ -2260,14 +2297,14 @@ function eraseSelection(){
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
-function clearSelection(){ game.sel=null; selDrag=null; selMove=null; buildToolTray(); }
+function clearSelection(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; buildToolTray(); }
 function selPointerDown(x,y,e){
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
     selMove={grabX:x,grabY:y,curX:x,curY:y,copy:game.selMode==='copy'};
   } else {                              // start a fresh marquee
     selDrag={x0:x,y0:y,x1:x,y1:y};
-    if (game.sel){ game.sel=null; buildToolTray(); }
+    if (game.sel){ game.sel=null; game.selItems=null; buildToolTray(); }
   }
 }
 function selPointerMove(x,y){
@@ -2278,6 +2315,9 @@ function selPointerMove(x,y){
 function selPointerUp(){
   if (selDrag){
     game.sel=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
+    // the selection OWNS exactly what was in the box when it was drawn — it
+    // won't scoop up items that later end up inside the rect
+    game.selItems=selectionPayload(game.sel);
     selDrag=null; buildToolTray();
     return;
   }
@@ -2301,12 +2341,12 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : game.tool==='select' ? 'crosshair' : '';
 }
-function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.house]); }
+function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.houses]); }
 function snapshotState(){ return {
   plants:JSON.parse(JSON.stringify(game.plants)),
   bulbs:JSON.parse(JSON.stringify(game.bulbs)),
   terrain:JSON.parse(JSON.stringify(game.terrain)),
-  house:game.house?JSON.parse(JSON.stringify(game.house)):null}; }
+  houses:JSON.parse(JSON.stringify(game.houses||[]))}; }
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift(); updateUndoBtn(); }
 function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
 function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
@@ -2315,7 +2355,7 @@ function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
 function doUndo(){
   if (!undoStack.length){ toast('Nothing to undo.'); return; }
   const s=undoStack.pop();
-  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.house=s.house;
+  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.houses=s.houses||[];
   game.dirty=true; updateUndoBtn();
   if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); pushHouse(); }
   buildToolTray(); toast('Undone.');
@@ -2358,7 +2398,7 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0};
+    sweep={plants:0, bulbs:0, terr:0, house:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -2378,7 +2418,7 @@ function tapAction(x,y){ // the classic tap: walk there, act on your own tile
   }
   if (inHouse(x,y)){
     if (ENABLE_HOUSE_SLEEP){ // old flow: tapping the house walked to the door, then slept
-      const [dx2,dy2]=doorPos();
+      const [dx2,dy2]=doorPos(houseAt(x,y));
       game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true;
     } else {
       game.sleepOnArrive=false;
@@ -2448,11 +2488,13 @@ function endSweep(){
   if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
   if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
   if (sweep.terr) parts.push(`${sweep.terr} terrain tile${sweep.terr>1?'s':''}`);
+  if (sweep.house) parts.push(`${sweep.house} house${sweep.house>1?'s':''}`);
   if (parts.length){
     toast(`Erased ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
     if (sweep.bulbs) syncBulbsOut();
     if (sweep.terr) syncTerrainOut();
+    if (sweep.house) pushHouse();
   }
   else toast('Nothing to erase there.');
   sweep=null;
@@ -2528,7 +2570,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,waterStyle:game.waterStyle,
+    gw:GW,gh:GH,rot:game.rot,houses:game.houses,pathColor:game.pathColor,waterStyle:game.waterStyle,
     plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
     startTs:saveStartTs(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -2554,8 +2596,12 @@ async function loadSolo(id){
   game.plants=shiftKeys(s.plants||{},shift);
   game.bulbs=shiftKeys(s.bulbs||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
-  // design gardens may legitimately have no house; story gardens get one
-  game.house = (s.house!==undefined) ? s.house : (game.gameMode==='design'?null:defaultHouse());
+  // houses: new saves store an array; migrate old single-house saves, and
+  // give story gardens a starter house when the save predates houses entirely
+  game.houses = s.houses ? s.houses
+    : (s.house ? [s.house] : (game.gameMode==='design' ? [] : [defaultHouse()]));
+  if (shift) game.houses.forEach(h=>{ h.x+=shift; h.y+=shift; });
+  game.houseDraft = draftFromHouses();
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
   game.rot=s.rot||0;
@@ -2576,13 +2622,13 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm'; game.waterStyle='pond';
-  setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
+  setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
   await sSet(wkey('bulbs'),{},true);
   await sSet(wkey('terrain'),game.terrain,true);
-  await sSet(wkey('house'),{h:game.house,t:game.houseT},true);
+  await sSet(wkey('house'),{h:game.houses,t:game.houseT},true);
 }
 async function joinWorld(code){
   game.code=code;
@@ -2594,7 +2640,9 @@ async function joinWorld(code){
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
   const ho=await sGet(wkey('house'),true);
-  game.house=(ho&&ho.h)||defaultHouse(); game.houseT=(ho&&ho.t)||0;
+  const hh=ho&&ho.h;
+  game.houses = Array.isArray(hh) ? hh : (hh ? [hh] : [defaultHouse()]);
+  game.houseDraft=draftFromHouses(); game.houseT=(ho&&ho.t)||0;
   return true;
 }
 async function syncPlantsOut(){
@@ -2636,7 +2684,8 @@ async function pollWorld(){
   const remoteB=await sGet(wkey('bulbs'),true);
   if (remoteB) mergeMap(game.bulbs,remoteB);
   const ho=await sGet(wkey('house'),true);
-  if (ho && ho.h && (ho.t||0)>game.houseT){ game.house=ho.h; game.houseT=ho.t; }
+  if (ho && ho.h && (ho.t||0)>game.houseT){
+    game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; }
   const players=await sGet(wkey('players'),true)||{};
   game.others={};
   let live=0;
@@ -2878,18 +2927,17 @@ function buildPlanMap(){
     ctx.strokeStyle=planColor(plantDef(b2.s,b2.v)); ctx.lineWidth=1.4;
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke();
   });
-  // house
-  const hh=game.house;
-  if (hh){
+  // houses
+  game.houses.forEach(hh=>{
     ctx.fillStyle='#e3ddd2'; ctx.strokeStyle='#4a4238'; ctx.lineWidth=1.6;
     ctx.fillRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
     ctx.strokeRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
-    const [dX,dY]=doorPos();
+    const [dX,dY]=doorPos(hh);
     ctx.fillStyle='#4a4238';
     ctx.fillRect(X(dX)+cell*0.3,Y(dY)-2,cell*0.4,3);
     if (hh.w*cell>40){ ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
       ctx.fillText('HOUSE', X(hh.x)+hh.w*cell/2, Y(hh.y)+hh.h*cell/2+3); }
-  }
+  });
   // labels at drift centroids, white halo for legibility
   ctx.textAlign='center';
   comps.forEach(c=>{
@@ -3218,7 +3266,7 @@ function rememberBrushTool(){
 }
 function setTool(k,v){
   game.toolMenu=null;
-  if (k!=='select'){ game.sel=null; selDrag=null; selMove=null; } // leaving select drops its marquee
+  if (k!=='select'){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; } // leaving select drops its marquee
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -3280,7 +3328,7 @@ function drawCanvasIcon(tc,kind){
 }
 function makeCanvasTool(label,kind,opts){
   const b=document.createElement('button');
-  b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'');
+  b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
   b.title=opts&&opts.title || label;
   const c=document.createElement('canvas'); c.width=42; c.height=32;
   drawCanvasIcon(c.getContext('2d'),kind);
@@ -3452,11 +3500,11 @@ function buildCanvasTools(){
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
     onClick:()=>{ setTool('shovel'); buildToolTray(); }});
   sep();
-  add('Fill','fill',{disabled:true,title:'Bucket fill is planned for a later painting pass'});
-  add('Pick','dropper',{disabled:true,title:'Eyedropper/copy is planned'});
+  add('Fill','fill',{disabled:true,todo:true,title:'Bucket fill is planned for a later painting pass'});
+  add('Pick','dropper',{disabled:true,todo:true,title:'Eyedropper/copy is planned'});
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});
-  add('Redo','redo',{disabled:true,title:'Redo is planned'});
+  add('Redo','redo',{disabled:true,todo:true,title:'Redo is planned'});
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
   sep();
   add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
@@ -3722,7 +3770,7 @@ function buildToolTray(){
   if (cat.tools.includes('house')){
     // the House tab works like the plant tray: icon buttons in labeled
     // sections — Place, House size, Wall color, Roof color
-    const hc=game.house||{wall:'#8a7a60',roof:'#9a5f3a'};
+    const hc=game.houseDraft||(game.houseDraft=defaultDraft());
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
     const toolBtn=(label,sel,draw,fn)=>{
@@ -3745,30 +3793,30 @@ function buildToolTray(){
       tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
         tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
         tc.strokeRect(3,8,42,32); },
-      ()=>{ setTool('house',null);
-        toast('Tap the map to set the house down — hover shows where.'); });
+      ()=>{ setTool('house',null); buildToolTray();
+        toast('Tap the map to set a house down — hover shows where. Place as many as you like.'); });
     pb.dataset.k='house';
     sep('House size');
     HOUSE_SIZES.forEach(([label,wf,df])=>{
-      const sel=!!game.house && game.house.w===ftToTiles(wf) && game.house.h===ftToTiles(df);
+      const sel=hc.w===ftToTiles(wf) && hc.h===ftToTiles(df);
       toolBtn(`${label} ${wf}'×${df}'`, sel,
         tc=>miniHouse(tc,wf,df,hc.wall,hc.roof),
-        ()=>{ withUndo(()=>applyHouseSize(wf,df,label)); buildToolTray(); });
+        ()=>{ applyHouseSize(wf,df,label); setTool('house',null); buildToolTray(); });
     });
     sep('Wall color');
     WALL_COLS.forEach(([n,c2])=>{
-      toolBtn(n, !!game.house && game.house.wall===c2,
+      toolBtn(n, hc.wall===c2,
         tc=>{ tc.fillStyle=c2; tc.fillRect(13,11,22,22);
           tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(13,11,22,22); },
-        ()=>{ withUndo(()=>paintHouse('wall',c2,n)); buildToolTray(); });
+        ()=>{ paintHouse('wall',c2,n); setTool('house',null); buildToolTray(); });
     });
     sep('Roof color');
     ROOF_COLS.forEach(([n,c2])=>{
-      toolBtn(n, !!game.house && game.house.roof===c2,
+      toolBtn(n, hc.roof===c2,
         tc=>{ tc.fillStyle=c2; tc.beginPath();
           tc.moveTo(8,32); tc.lineTo(24,12); tc.lineTo(40,32);
           tc.closePath(); tc.fill(); },
-        ()=>{ withUndo(()=>paintHouse('roof',c2,n)); buildToolTray(); });
+        ()=>{ paintHouse('roof',c2,n); setTool('house',null); buildToolTray(); });
     });
   }
   updateCanvasCursor();
@@ -4208,12 +4256,14 @@ function enterGarden(){
   sizeCanvas(cnv);
   game.tool='hand'; game.toolVar=null; game.pausedAt=0;
   document.body.classList.toggle('design-mode', game.gameMode==='design');
+  if (!Array.isArray(game.houses)) game.houses=[];
+  if (!game.houseDraft) game.houseDraft=draftFromHouses();
   if (game.gameMode==='design'){
     // free camera centered on the plot; no avatar, no forced house
     game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
     snapCam();
   } else {
-    if (!game.house) game.house=defaultHouse();
+    if (!game.houses.length) game.houses=[defaultHouse()];
     const [spx,spy]=safeSpawn();   // never start stuck inside the house
     game.px=game.tx=spx; game.py=game.ty=spy;
     snapCam();
@@ -4253,9 +4303,9 @@ function openPlotScreen(){
       game.rot=0; game.startTs=Date.now(); game.dayOffset=0;
       game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm'; game.waterStyle='pond';
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
-        game.mode='solo'; game.gameMode='design'; game.house=null;
+        game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
-        game.gameMode='story'; game.house=defaultHouse();
+        game.gameMode='story'; game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses();
         seedWalkway(); starterDrift();
       }
       enterGarden();
