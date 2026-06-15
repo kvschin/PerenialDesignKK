@@ -319,8 +319,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .day-bar i{display:none}
   .time-actions{min-width:0}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
-  #canvasTools{top:152px;left:8px;padding:4px;gap:3px}
-  .canvas-tool{width:44px;min-height:42px}
+  #canvasTools{top:152px;left:8px;padding:4px}
+  .canvas-tool{width:46px;min-height:50px}
   /* drop not-yet-built placeholder tools + dividers so the working tools
      fit above the bottom tray instead of clipping behind it */
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
