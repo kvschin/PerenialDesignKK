@@ -151,11 +151,14 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the player stands in it, translucent house via `drawHouse` override —
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
-    the door tile; chips resize/repaint), shovel **drag-sweep**
-    (pointerdown with shovel starts a sweep; dragging lifts every plant
-    crossed, and clears laid path/bed on tiles with no living plant —
-    plants take priority, so a planted bed needs two passes; one toast +
-    sync at pointerup), tap and keyboard input. All placement funnels
+    the door tile; chips resize/repaint), the **Erase** tool (the tray tab
+    is "Erase"; `game.tool` stays `'shovel'` for back-compat) **drag-sweep**
+    (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
+    a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
+    the layers `game.eraseMode` selects: `all` wipes plant+bulb+terrain on
+    each tile in one pass, or `plant`/`bulb`/`terrain` only; one toast +
+    per-layer sync at pointerup via `endSweep`), tap and keyboard input.
+    All placement funnels
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
     bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
     refuse planted tiles). **Drag-to-plant**: pointerdown with a
@@ -165,8 +168,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     tap resolves at pointerup to the classic walk/act (`tapAction`). With
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
-    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The shovel
-    lifts plants, then bulbs, then terrain. **Keys map to SCREEN directions**
+    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The Erase tool's
+    options live in its own tray (Place-style icon buttons, `sep`/`eBtn`):
+    layer (All/Plants/Bulbs/Landscape → `eraseMode`) and brush
+    (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
@@ -201,7 +206,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
     (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
-    Dig / Landscape / House — a tool tab arms its first tool on click, and
+    Erase / Landscape / House — a tool tab arms its first tool on click, and
     browsing a plant tab disarms house/shovel so taps go back to walking),
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
@@ -220,7 +225,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     handlers), mouse wheel, +/- keys, and the fixed right-side zoom pill;
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
-    drift / Dig here / Lay path / Dig bed / Sleep; hidden for the House
+    drift / Erase here / Lay path / Dig bed / Sleep; hidden for the House
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with an ✕ (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). The region choice persists as
@@ -306,4 +311,14 @@ with their own depth slices. The big one: a real multiplayer backend
 - **Plant health / water** — establishment can fail; watering during dry spells.
 - **More species** — prairie clover (Dalea purpurea), golden alexanders
   (Zizia aurea — can reuse the `umbel` form now), more bulbs.
-- **Undo** — snapshot plants+terrain before sweeps/placements; one level is enough.
+- **Procreate-style editing tools** (planned, not yet built — design mode):
+  - **Pencil** — freehand draw a single layer (already mostly covered by
+    drag-to-paint; the idea is a dedicated stroke tool).
+  - **Bucket fill** — flood-fill a connected region of the *same* existing
+    material (e.g. a contiguous block of dirt beds) with a new landscape
+    block, or — if the whole filled area is dirt bed — fill it with one
+    plant. UI metaphor under consideration: a wheelbarrow dropping dirt.
+  - **Eyedropper** — sample a plant/material from a tile and arm it as the
+    current tool.
+  - **Selection tool** — marquee-select a region to copy, duplicate, rotate,
+    or resize the plants/terrain inside it.

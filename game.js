@@ -1103,6 +1103,8 @@ const game = {
   gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
   drift:false,                                       // plant in clusters, Oudolf style
+  eraseMode:'all',                                   // erase: all | plant | bulb | terrain
+  eraseSize:1,                                       // erase brush diameter in tiles (odd)
   fx:[],                                             // short-lived planting pulses
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
@@ -1795,16 +1797,18 @@ function actHere(){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    if (hasPlant){
-      game.plants[k]={removed:true,t:Date.now()}; game.dirty=true;
-      toast('Lifted. Good divisions make free plants.'); syncPlantsOut(); }
-    else if (hasBulb){
-      game.bulbs[k]={removed:true,t:Date.now()}; game.dirty=true;
-      toast('Bulb dug up.'); syncBulbsOut(); }
-    else if (terr){
-      game.terrain[k]={removed:true,t:Date.now()}; game.dirty=true;
-      toast(terr==='path'?'Path dug up.':terr==='water'?'Water filled back in.':'Bed turned back to grass.'); syncTerrainOut(); }
-    else toast('Nothing here to lift.');
+    const counts={plants:0,bulbs:0,terr:0};
+    eraseBrush(x,y,counts);
+    const parts=[];
+    if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
+    if (counts.bulbs) parts.push(`${counts.bulbs} bulb${counts.bulbs>1?'s':''}`);
+    if (counts.terr) parts.push(`${counts.terr} terrain tile${counts.terr>1?'s':''}`);
+    if (parts.length){
+      toast(`Erased ${parts.join(' and ')}.`);
+      if (counts.plants) syncPlantsOut();
+      if (counts.bulbs) syncBulbsOut();
+      if (counts.terr) syncTerrainOut();
+    } else toast('Nothing to erase here.');
     return;
   }
   if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
@@ -2062,26 +2066,27 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 /* tap / click: first tap walks, tap on own tile acts */
 let lastTap=0;
 let sweep=null; // shovel drag-lift in progress: {plants, terr}
-function sweepLift(x,y){
-  if (x<0||y<0||x>=GW||y>=GH) return;
-  const k=`${x},${y}`, p=game.plants[k];
-  if (p && !p.removed){
-    game.plants[k]={removed:true,t:Date.now()};
-    game.dirty=true; sweep.plants++;
-    return;
-  }
-  const b3=game.bulbs[k]; // then the layer underneath
-  if (b3 && !b3.removed){
-    game.bulbs[k]={removed:true,t:Date.now()};
-    game.dirty=true; sweep.bulbs++;
-    return;
-  }
-  // bare ground: laid terrain comes up instead
-  if (tileTerrain(x,y)){
-    game.terrain[k]={removed:true,t:Date.now()};
-    game.dirty=true; sweep.terr++;
+/* the eraser: clears a square brush (game.eraseSize) centered on the
+   tile, removing the layers selected by game.eraseMode. 'all' wipes
+   plant + bulb + terrain on every tile in one pass; the others touch
+   only their layer. Counts tally into `counts`. */
+function eraseBrush(cx,cy,counts){
+  const r=((game.eraseSize|0)-1)/2, m=game.eraseMode, now=Date.now();
+  for (let dy=-r; dy<=r; dy++) for (let dx=-r; dx<=r; dx++){
+    const x=cx+dx, y=cy+dy;
+    if (x<0||y<0||x>=GW||y>=GH) continue;
+    const k=`${x},${y}`;
+    const p=game.plants[k];
+    if ((m==='all'||m==='plant') && p && !p.removed){
+      game.plants[k]={removed:true,t:now}; game.dirty=true; counts.plants++; }
+    const b=game.bulbs[k];
+    if ((m==='all'||m==='bulb') && b && !b.removed){
+      game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
+    if ((m==='all'||m==='terrain') && tileTerrain(x,y)){
+      game.terrain[k]={removed:true,t:now}; game.dirty=true; counts.terr++; }
   }
 }
+function sweepLift(x,y){ eraseBrush(x,y,sweep); }
 function evTile(e){ // pointer position -> world tile, zoom-aware
   return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
 }
@@ -2226,12 +2231,12 @@ function endSweep(){
   if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
   if (sweep.terr) parts.push(`${sweep.terr} terrain tile${sweep.terr>1?'s':''}`);
   if (parts.length){
-    toast(`Lifted ${parts.join(' and ')}.`);
+    toast(`Erased ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
     if (sweep.bulbs) syncBulbsOut();
     if (sweep.terr) syncTerrainOut();
   }
-  else toast('Nothing under the shovel there.');
+  else toast('Nothing to erase there.');
   sweep=null;
 }
 cnv.addEventListener('pointerup',e=>{
@@ -2967,7 +2972,7 @@ const TRAY_CATS=[
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'dig',      label:'Dig',              tools:['shovel']},
+  {id:'dig',      label:'Erase',            tools:['shovel']},
   {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'house',    label:'House',            tools:['house']},
 ];
@@ -3205,10 +3210,44 @@ function buildToolTray(){
     });
   }
   if (cat.tools.includes('shovel')){
-    const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
-    sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
-    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag to lift plants — and bare terrain.'); };
-    tray.appendChild(sh);
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const eBtn=(label,sel,draw,fn)=>{
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      const c=document.createElement('canvas'); c.width=48; c.height=44; draw(c.getContext('2d'));
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
+    };
+    // the eraser tool itself
+    const eb=eBtn('Erase', game.tool==='shovel',
+      tc=>{ tc.save(); tc.translate(24,23); tc.rotate(-0.5);
+        tc.fillStyle='#e8b8c2'; tc.strokeStyle='#6e5a48'; tc.lineWidth=1.6;
+        tc.fillRect(-11,-7,22,14); tc.strokeRect(-11,-7,22,14);
+        tc.fillStyle='#cdbfa9'; tc.fillRect(-11,-7,8,14); tc.strokeRect(-11,-7,8,14);
+        tc.restore(); },
+      ()=>{ game.tool='shovel'; game.toolVar=null; buildToolTray();
+        toast('Erase: tap or drag to clear. Pick layer + brush below.'); });
+    eb.dataset.k='shovel';
+    sep('Erases');
+    [['all','All','#e0d2ae'],['plant','Plants','#6f9a5a'],['bulb','Bulbs','#a98ad8'],['terrain','Landscape','#bba98c']]
+      .forEach(([m,lbl,col])=>{
+        eBtn(lbl, game.tool==='shovel' && game.eraseMode===m,
+          tc=>{ tc.fillStyle=col; tc.beginPath(); tc.arc(24,21,9,0,7); tc.fill();
+            tc.strokeStyle='rgba(0,0,0,.3)'; tc.lineWidth=1; tc.stroke();
+            if (m==='all'){ tc.fillStyle='#19120f'; tc.font='bold 13px sans-serif';
+              tc.textAlign='center'; tc.textBaseline='middle'; tc.fillText('✕',24,21); } },
+          ()=>{ game.tool='shovel'; game.eraseMode=m; buildToolTray();
+            toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); });
+      });
+    sep('Brush');
+    [1,3,5].forEach(sz=>{
+      eBtn(sz===1?'1 tile':`${sz}×${sz}`, game.tool==='shovel' && game.eraseSize===sz,
+        tc=>{ const r=3+sz*1.8; tc.strokeStyle='#cdbfa9'; tc.lineWidth=1.6;
+          tc.strokeRect(24-r,21-r,r*2,r*2);
+          tc.fillStyle='rgba(205,191,169,.25)'; tc.fillRect(24-r,21-r,r*2,r*2); },
+        ()=>{ game.tool='shovel'; game.eraseSize=sz; buildToolTray();
+          toast(`Brush: ${sz}×${sz}.`); });
+    });
   }
 }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
@@ -3285,7 +3324,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   const px3=Math.round(game.px), py3=Math.round(game.py);
   let label=null;
   if (ENABLE_HOUSE_SLEEP && isDoor(px3,py3)) label='Sleep';
-  else if (game.tool==='shovel') label='Dig here';
+  else if (game.tool==='shovel') label=game.eraseSize>1?`Erase ${game.eraseSize}×${game.eraseSize}`:'Erase here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
   else if (game.tool==='water') label='Add water';
@@ -3308,7 +3347,7 @@ function updateHUD(){
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='shovel'
-    ? 'Drag to lift plants — bare terrain clears too'
+    ? `Erase (${game.eraseMode==='all'?'everything':game.eraseMode+' only'}, ${game.eraseSize}×${game.eraseSize}) — tap or drag`
     : game.tool==='water'
     ? 'Drag to paint ponds, rivers, and lakes'
     : ENABLE_HOUSE_SLEEP && isDoor(Math.round(game.px),Math.round(game.py))
