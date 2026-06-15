@@ -211,8 +211,6 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #trayTabs .tab{background:none;border:none;color:#cdbfa9;font-size:11px;font-weight:600;
   letter-spacing:.05em;padding:6px 10px 8px;border-radius:3px 3px 0 0;white-space:nowrap}
 #trayTabs .tab.sel{background:rgba(201,127,63,.25);color:var(--seedhead)}
-#trayTabs .tab.drift{border:1px solid rgba(239,230,211,.25);border-bottom:none}
-#trayTabs .tab.drift.sel{border-color:var(--bronze)}
 #traySearch{margin-left:auto;width:88px;align-self:center;background:rgba(0,0,0,.3);
   border:1px solid rgba(239,230,211,.25);border-radius:3px;color:var(--seedhead);
   font-family:inherit;font-size:11px;padding:4px 7px;margin-right:4px;margin-bottom:4px}

@@ -1128,10 +1128,10 @@ function gameNow(){ return game.pausedAt || Date.now(); }
 function saveStartTs(){ return game.pausedAt ? game.startTs + (Date.now()-game.pausedAt) : game.startTs; }
 function absDay(){ return Math.floor((gameNow()-game.startTs)/DAY_MS) + game.dayOffset; }
 function calClock(){
-  const d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
+  const now=gameNow(), d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
   const sIdx=Math.floor(d/DAYS_PER_SEASON)%4;
   return {day:d%DAYS_PER_SEASON+1, season:SEASONS[sIdx], year,
-          frac:((Date.now()-game.startTs)%DAY_MS)/DAY_MS};
+          frac:((now-game.startTs)%DAY_MS)/DAY_MS};
 }
 /* ---------- phenology: how perennials actually behave ----------
    A plant's drawn size = establishment x seasonal envelope.
@@ -3075,12 +3075,47 @@ function drawPlantModeIcon(tc,drift){
     tc.beginPath(); tc.moveTo(x,y-4); tc.lineTo(x,y-10); tc.stroke();
   }
 }
+function plantCategoryFor(k){
+  const P=PLANTS[k]; if (!P) return 'grasses';
+  const cat=TRAY_CATS.find(c=>c.types && c.types.includes(P.type) &&
+    (!c.sunFilter || P.sun===c.sunFilter));
+  return cat ? cat.id : 'grasses';
+}
+function visiblePlantChoice(){
+  const visible=trayKeys();
+  if (PLANTS[game.lastBrushTool] && visible.includes(game.lastBrushTool))
+    return [game.lastBrushTool,game.lastBrushVar||null];
+  const cat=TRAY_CATS.find(c=>c.id===game.trayCat && c.types);
+  let keys=[];
+  if (cat){
+    keys=visible.filter(k=>cat.types.includes(PLANTS[k].type));
+    if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
+  }
+  const k=keys[0] || visible.find(k=>PLANTS[k].type==='grass') || visible[0] ||
+    PLANT_KEYS.find(k=>!PLANTS[k].hidden);
+  return k ? [k,null] : null;
+}
+function armPlantToolFromRail(openMenu){
+  const nextMenu=openMenu ? (game.toolMenu==='plant'?null:'plant') : null;
+  const choice=visiblePlantChoice();
+  if (choice){
+    game.tool=choice[0]; game.toolVar=choice[1];
+    game.trayCat=plantCategoryFor(choice[0]);
+    rememberBrushTool();
+  } else {
+    game.tool='hand'; game.toolVar=null;
+  }
+  game.toolMenu=nextMenu;
+  buildToolTray();
+  renderCvRow();
+  refreshCanvasTools();
+  updateCanvasCursor();
+  if (!choice) toast('Pick a plant from the catalog first.');
+  return !!choice;
+}
 function choosePlantMode(drift){
   game.drift=!!drift;
-  game.toolMenu=null;
-  if (game.lastBrushTool) setTool(game.lastBrushTool,game.lastBrushVar);
-  else refreshCanvasTools();
-  buildToolTray();
+  armPlantToolFromRail(false);
   toast(game.drift
     ? 'Drift planting on. Pick a plant, then paint natural clusters.'
     : 'Draw mode. Pick a plant, then paint single placements.');
@@ -3144,7 +3179,7 @@ function buildCanvasTools(){
   add('Select','select',{disabled:true,title:'TODO: area selection tool'});
   add('Plant','brush',{active:brushActive||game.toolMenu==='plant',
     title:'Choose draw or drift planting, then pick plants from the catalog',
-    onClick:()=>{ game.toolMenu=game.toolMenu==='plant'?null:'plant'; refreshCanvasTools(); }});
+    onClick:()=>armPlantToolFromRail(true)});
   if (game.toolMenu==='plant') addPlantToolMenu(rail);
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
     onClick:()=>{ setTool('shovel'); buildToolTray(); }});
@@ -3175,14 +3210,6 @@ function buildToolTray(){
     si.value=game.traySearch||'';
     si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
     tabs.appendChild(si);
-    const dr=document.createElement('button'); // drift toggle, right-aligned
-    dr.className='tab drift'+(game.drift?' sel':'');
-    dr.textContent=game.drift?'✦ Drift':'Drift';
-    dr.title='Plant in loose clusters of 3–7 — the Oudolf way';
-    dr.onclick=()=>{ game.toolMenu=null; game.drift=!game.drift; buildToolTray(); refreshCanvasTools();
-      toast(game.drift?'Drift planting on — each planting stamps a natural cluster.'
-                      :'Single planting.'); };
-    tabs.appendChild(dr);
   }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
@@ -3497,8 +3524,8 @@ function updateHUD(){
   document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
   document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
-  document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Stop';
-  document.getElementById('btnPause').title=game.pausedAt?'Resume day progression':'Stop day progression';
+  document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Pause';
+  document.getElementById('btnPause').title=game.pausedAt?'Start day progression':'Pause day progression';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
@@ -3550,8 +3577,8 @@ function closePause(){
 }
 function resumeFromTimeMenu(){ resumeClock(); closePause(); updateHUD(); }
 function toggleClock(){
-  if (game.pausedAt){ resumeClock(); toast('Time resumed.'); }
-  else { pauseClock(); toast('Time stopped.'); }
+  if (game.pausedAt){ resumeClock(); toast('Day started.'); }
+  else { pauseClock(); toast('Day paused.'); }
   updateHUD();
 }
 function closeSeasonConfirm(){ $('confirmSeasonScreen').classList.add('hidden'); }

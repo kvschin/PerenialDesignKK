@@ -214,15 +214,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools
-    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout) and starts new garden entries on
+    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout and exits Erase back to the last visible plant) and starts new garden entries on
     Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus clickable season/year/day dial, End Day, Stop/Start time, plant-list, region, photo, and plan
+    Plus clickable season/year/day dial, End Day, Pause/Start time, plant-list, region, photo, and plan
     buttons (a compact icon bar; labels hide on small screens, the
     region label shows the active filter), contextual action hint. There is no
     Save button — autosave fires on day change, quit, and
-    visibilitychange/pagehide. Stop/Start freezes or resumes day progression
+    visibilitychange/pagehide. Pause/Start freezes or resumes day progression
     without blocking editing; clicking the time readout opens a small menu
     with Resume and Skip to next season/year; season skip shows a confirmation
     using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
