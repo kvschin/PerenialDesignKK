@@ -2061,6 +2061,8 @@ const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
+  const confirmPop=document.getElementById('confirmPop');
+  if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
   const overlay=['exportScreen','regionScreen','planScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
@@ -2178,6 +2180,11 @@ cnv.addEventListener('pointerdown',e=>{
   }
   const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
+  // drawing onto a hidden layer? warn and offer to reveal it before placing
+  if (isPlacementTool(game.tool)){
+    const layer=toolTargetLayer(game.tool);
+    if (layer && !layerShown(layer)){ promptRevealLayer(layer,x,y); return; }
+  }
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
@@ -3020,14 +3027,19 @@ function plantLayerOf(p){ const P=p&&PLANTS[p.s];
   return (P && (P.type==='shrub'||P.type==='tree')) ? 'woody' : 'perennials'; }
 // is a layer currently visible? hidden layers don't render and can't be edited
 function layerShown(name){ return game.layerVis[name]!==false; }
-// does the active edit focus permit touching this layer?
+// does the active edit focus permit touching this layer? (focus is 'all' for now)
 function layerEditable(name){ return game.layerFocus==='all' || game.layerFocus===name; }
-const LAYER_DEFS=[                                  // order shown in the Layers popover
-  ['perennials','Perennials'],
-  ['bulbs','Bulbs'],
-  ['woody','Woody plants'],
-  ['landscape','Landscape'],
-];
+const LAYER_LABELS={perennials:'Perennials',bulbs:'Bulbs',woody:'Trees & Shrubs',landscape:'Landscape'};
+const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable layers, in menu order
+// the layer a placement tool draws onto (so we can warn when it's hidden)
+function isPlacementTool(t){ return t==='house'||t==='path'||t==='bed'||t==='water'||!!PLANTS[t]; }
+function toolTargetLayer(t){ t=t||game.tool;
+  if (t==='house'||t==='path'||t==='bed'||t==='water') return 'landscape';
+  const P=PLANTS[t]; if (!P) return null;
+  if (P.type==='bulb') return 'bulbs';
+  if (P.type==='shrub'||P.type==='tree') return 'woody';
+  return 'perennials';
+}
 function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || k==='house'; }
 function rememberBrushTool(){
   if (isBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
@@ -3228,13 +3240,48 @@ function buildCanvasTools(){
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
   sep();
   add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
-    title:'Show/hide garden layers and pick the layer you are editing',
+    title:'Show or hide garden layers and the shade overlay',
     onClick:()=>toggleLayerMenu()});
   if (game.toolMenu==='layers') addLayerMenu(rail);
 }
+/* a small themed yes/no modal, built on the fly (matches the .screen panels).
+   Returns nothing; calls onOk only if the user confirms. */
+function showConfirm(title, body, okLabel, onOk){
+  const old=document.getElementById('confirmPop'); if (old) old.remove();
+  const scr=document.createElement('div');
+  scr.id='confirmPop'; scr.className='screen';
+  scr.style.cssText='z-index:60;background:rgba(0,0,0,.55)';
+  scr.innerHTML='<div class="panel pause-panel"><h2></h2><p class="sub"></p>'+
+    '<div class="row" style="margin-top:14px">'+
+    '<button class="btn" data-x></button><button class="btn primary" data-ok></button></div></div>';
+  scr.querySelector('h2').textContent=title;
+  scr.querySelector('p').textContent=body||'';
+  scr.querySelector('[data-x]').textContent='Cancel';
+  scr.querySelector('[data-ok]').textContent=okLabel||'OK';
+  const close=()=>scr.remove();
+  scr.querySelector('[data-x]').onclick=close;
+  scr.querySelector('[data-ok]').onclick=()=>{ close(); onOk&&onOk(); };
+  scr.addEventListener('click',e=>{ if (e.target===scr) close(); });
+  document.body.appendChild(scr);
+}
+/* the layer is hidden but the gardener is trying to draw on it: offer to
+   reveal it, and honor their click by placing once they say yes. */
+function promptRevealLayer(layer,x,y){
+  const label=LAYER_LABELS[layer];
+  showConfirm(`Show the ${label} layer?`,
+    `The ${label} layer is hidden right now, so you can't see what you place there. Show it and plant?`,
+    'Show layer',
+    ()=>{
+      game.layerVis[layer]=true; refreshCanvasTools();
+      withUndo(()=>{
+        if (game.tool==='house'){ placeHouse(x,y); }
+        else { game.tx=x; game.ty=y; actHere(); }
+      });
+    });
+}
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
-  return game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k)) || game.layerFocus!=='all';
+  return game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function toggleLayerMenu(){
   game.toolMenu = game.toolMenu==='layers' ? null : 'layers';
@@ -3243,49 +3290,28 @@ function toggleLayerMenu(){
 function addLayerMenu(rail){
   const pop=document.createElement('div');
   pop.className='tool-popover layer-popover';
-  // "All" resets to the normal full garden
-  const allBtn=document.createElement('button');
-  allBtn.className='layer-all'+(!layerViewActive()?' sel':'');
-  allBtn.innerHTML='<span>All</span><span class="layer-hint">show everything</span>';
-  allBtn.title='Show the normal full garden';
-  allBtn.onclick=ev=>{ ev.stopPropagation();
-    LAYER_DEFS.forEach(([k])=>game.layerVis[k]=true);
-    game.layerVis.shade=false; game.layerFocus='all';
-    refreshCanvasTools(); toast('Showing the full garden.'); };
-  pop.appendChild(allBtn);
-  // one row per editable layer: an eye toggles visibility, the name sets edit focus
-  LAYER_DEFS.forEach(([key,label])=>{
-    const row=document.createElement('div');
-    row.className='layer-row'+(game.layerFocus===key?' focus':'')+(layerShown(key)?'':' hidden');
-    const eye=document.createElement('button');
-    eye.className='layer-eye'+(layerShown(key)?' on':'');
-    eye.title=layerShown(key)?`Hide ${label.toLowerCase()}`:`Show ${label.toLowerCase()}`;
-    eye.textContent=layerShown(key)?'◉':'○';
-    eye.onclick=ev=>{ ev.stopPropagation();
-      game.layerVis[key]=!layerShown(key);
-      if (!layerShown(key) && game.layerFocus===key) game.layerFocus='all';
-      refreshCanvasTools();
-      toast(`${label} ${layerShown(key)?'shown':'hidden'}.`); };
-    const name=document.createElement('button');
-    name.className='layer-name';
-    name.textContent=label;
-    name.title=`Edit ${label.toLowerCase()} only`;
-    name.onclick=ev=>{ ev.stopPropagation();
-      if (game.layerFocus===key){ game.layerFocus='all'; toast('Editing all layers.'); }
-      else { game.layerFocus=key; game.layerVis[key]=true; toast(`Editing ${label.toLowerCase()} only.`); }
-      refreshCanvasTools(); };
-    row.append(eye,name); pop.appendChild(row);
-  });
-  // shade overlay — a view aid, not a planting layer
-  const sh=document.createElement('button');
-  sh.className='layer-shade'+(game.layerVis.shade?' sel':'');
-  sh.innerHTML='<span>Shade overlay</span><span class="layer-hint">sun vs. shade</span>';
-  sh.title='Tint tiles by sun/shade suitability for planting';
-  sh.onclick=ev=>{ ev.stopPropagation();
-    game.layerVis.shade=!game.layerVis.shade;
-    refreshCanvasTools();
-    toast(game.layerVis.shade?'Shade overlay on.':'Shade overlay off.'); };
-  pop.appendChild(sh);
+  const section=title=>{ const h=document.createElement('div');
+    h.className='layer-section'; h.textContent=title; pop.appendChild(h); };
+  // one row = a visibility toggle. The whole row (eye + label) flips it;
+  // the row mutes when off and stays put so it can be turned back on.
+  const row=(get,set,label)=>{
+    const on=get();
+    const b=document.createElement('button');
+    b.className='layer-row'+(on?'':' off');
+    b.title=(on?'Hide ':'Show ')+label;
+    const eye=document.createElement('span'); eye.className='layer-eye';
+    eye.textContent=on?'◉':'○';
+    const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
+    b.append(eye,nm);
+    b.onclick=ev=>{ ev.stopPropagation(); set(!on); refreshCanvasTools();
+      toast(`${label} ${!on?'shown':'hidden'}.`); };
+    pop.appendChild(b);
+  };
+  section('Layers');
+  LAYER_DEFS.forEach(([key])=>row(
+    ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
+  section('Overlays');
+  row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
   rail.appendChild(pop);
 }
 function buildToolTray(){

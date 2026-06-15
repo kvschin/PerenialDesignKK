@@ -163,15 +163,24 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     per-layer sync at pointerup via `endSweep`), tap and keyboard input.
     The **Layers** button opens a flyout (`addLayerMenu`, same
     `game.toolMenu` popover mechanism as Plant's Draw/Drift) over
-    `game.layerVis` (per-layer visibility for perennials / bulbs / woody /
-    landscape + a `shade` overlay flag) and `game.layerFocus` (the one layer
-    edits are locked to, or `'all'`). Each row's eye toggles render
-    visibility; the name sets edit focus. `render` skips hidden layers
-    (`layerShown`: landscape gates terrain+doorstep+house, bulbs gate the
-    bulb pass, perennials/woody split plants via `plantLayerOf`), and the
-    shade overlay washes every tile by canopy reach (amber full sun → teal
-    part → blue shade). `eraseBrush` only clears layers that are visible
-    **and** in focus (`layerEditable`), so hidden layers are protected.
+    `game.layerVis` — a *Layers* section (visibility eye toggles for
+    Perennials / Bulbs / Trees & Shrubs / Landscape; internal keys
+    `perennials`/`bulbs`/`woody`/`landscape`) and an *Overlays* section (the
+    `shade` flag). Each whole row toggles its layer; the row mutes (`.off`)
+    when hidden and stays put so it can be turned back on. `render` skips
+    hidden layers (`layerShown`: landscape gates terrain+doorstep+house,
+    bulbs gate the bulb pass, perennials/woody split plants via
+    `plantLayerOf`); the shade overlay washes every tile by canopy reach
+    (amber full sun → teal part → blue shade). `eraseBrush` only clears
+    layers that are visible (`layerEditable`/`layerShown`), so hidden layers
+    are protected. **Drawing onto a hidden layer is intercepted**: the
+    pointerdown placement guard checks `toolTargetLayer(game.tool)` and, if
+    that layer is hidden, calls `promptRevealLayer` — a `showConfirm` modal
+    ("Show the *Bulbs* layer?") that, on confirm, reveals the layer and
+    plants the held tile via `withUndo`; Cancel places nothing.
+    `showConfirm(title,body,okLabel,onOk)` builds a themed `.screen` panel
+    (`#confirmPop`) on the fly; the key handler treats it like the other
+    overlays (Escape closes, game keys ignored).
     All placement funnels
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
     bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
