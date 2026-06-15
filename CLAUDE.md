@@ -151,9 +151,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the player stands in it, translucent house via `drawHouse` override —
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
-    the door tile; chips resize/repaint), the **Tools** tab (Hand / Erase /
-    Undo / Rotate; `game.tool` uses `'hand'` for panning and keeps `'shovel'`
-    for Erase back-compat) and Erase **drag-sweep**
+    the door tile; chips resize/repaint), the left **canvas toolbar** (Hand /
+    Brush / Erase / Undo / Rotate / Zoom; `game.tool` uses `'hand'` for safe
+    panning and keeps `'shovel'` for Erase back-compat) and Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+terrain on
@@ -170,7 +170,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
     ≤18" → 5, ≤30" → 3); woody plants always plant singly. The Erase tool's
-    options live in the Tools tray (Place-style icon buttons, `sep`/`eBtn`):
+    options live in the left canvas toolbar:
     layer (All/Plants/Bulbs/Landscape → `eraseMode`) and brush
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
@@ -207,26 +207,29 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
     (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
-    Tools / Landscape / House — a tool tab arms its first tool on click, and
-    browsing a plant tab disarms hand/house/shovel so taps go back to walking),
+    Landscape / House — the bottom bar is catalog/materials only),
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
-    sections (`.tray-sep`). A search input in the tabs row filters the open
+    sections (`.tray-sep`). The left canvas toolbar owns action tools
+    (Hand/Brush/Erase/Undo/Rotate/Zoom) and starts new garden entries on
+    Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus season dial, sleep button, plant-list, region, photo, and plan
+    Plus season/year/day dial, End Day, Pause, plant-list, region, photo, and plan
     buttons (a compact icon bar; labels hide on small screens, the
     region label shows the active filter), contextual action hint. There is no
     Save button — autosave fires on day change, quit, and
-    visibilitychange/pagehide. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
+    visibilitychange/pagehide. Pause opens a small modal with Resume, Save
+    (solo), Skip to next season/year, and Return to menu; season skip shows
+    a confirmation using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
-    handlers), mouse wheel, +/- keys, and the fixed right-side zoom pill;
+    handlers), mouse wheel, +/- keys, and the left toolbar zoom buttons;
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
-    drift / Erase here / Lay path / Dig bed / Sleep; hidden for the House
+    drift / Erase here / Lay path / Dig bed / End Day; hidden for the House
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with an ✕ (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). The region choice persists as

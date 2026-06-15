@@ -18,7 +18,7 @@ const TILE_IN = 18;                   // real-world inches per tile side (export
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* UX feature flags for retired / optional interactions.
-   Sleep stays as a deliberate HUD action, but house-door sleep is disabled so
+   End Day stays as a deliberate HUD action, but house-door sleep is disabled so
    the house feels like a planning landmark instead of a required daily chore.
    The mobile action button is hidden because drag-to-place made a large
    "Plant here" CTA redundant. The movement hint is hidden because the toolbar
@@ -1106,12 +1106,14 @@ const game = {
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
   eraseSize:1,                                       // erase brush diameter in tiles (odd)
   fx:[],                                             // short-lived planting pulses
-  tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
+  tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
+  lastBrushTool:null, lastBrushVar:null,             // last plant/material tool chosen from the catalog
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
   others:{},          // multiplayer presence
+  pausedAt:0,
   lastDay:-1, dirty:false,
 };
 /* Solo saves persist to localStorage now that the game runs standalone.
@@ -1121,7 +1123,9 @@ const game = {
 const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
   localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
 
-function absDay(){ return Math.floor((Date.now()-game.startTs)/DAY_MS) + game.dayOffset; }
+function gameNow(){ return game.pausedAt || Date.now(); }
+function saveStartTs(){ return game.pausedAt ? game.startTs + (Date.now()-game.pausedAt) : game.startTs; }
+function absDay(){ return Math.floor((gameNow()-game.startTs)/DAY_MS) + game.dayOffset; }
 function calClock(){
   const d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
   const sIdx=Math.floor(d/DAYS_PER_SEASON)%4;
@@ -1948,10 +1952,10 @@ function stampDrift(cx0,cy0,n){
   else toast('No room for a drift here.');
 }
 function doSleep(){
-  if (!ENABLE_HUD_SLEEP_BUTTON && !ENABLE_HOUSE_SLEEP){ toast('Sleeping is tucked away for now.'); return; }
+  if (!ENABLE_HUD_SLEEP_BUTTON && !ENABLE_HOUSE_SLEEP){ toast('End Day is tucked away for now.'); return; }
   game.dayOffset++; game.dirty=true;
-  if (game.mode==='multi') toast('You napped in the house — a shared garden keeps its own clock.');
-  else toast('You slept well. A new day.');
+  if (game.mode==='multi') toast('Day advanced here — a shared garden keeps its own clock.');
+  else toast('A new garden day begins.');
 }
 
 /* ---------- house placement / sizing / paint ---------- */
@@ -2045,6 +2049,10 @@ addEventListener('keydown',e=>{
   }
   const k=e.key.toLowerCase();
   if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); doUndo(); return; }
+  const confirmOpen=!document.getElementById('confirmSeasonScreen').classList.contains('hidden');
+  if (confirmOpen){ if (e.key==='Escape') closeSeasonConfirm(); return; }
+  const pauseOpen=!document.getElementById('pauseScreen').classList.contains('hidden');
+  if (pauseOpen){ if (e.key==='Escape') closePause(); return; }
   if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
@@ -2120,6 +2128,7 @@ function doUndo(){
 function updateUndoBtn(){
   const disabled=!undoStack.length;
   document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',disabled));
+  refreshCanvasTools();
 }
 
 /* two fingers pinch the zoom; everything else is one-finger business */
@@ -2318,7 +2327,7 @@ async function saveSolo(silent){
     mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,waterStyle:game.waterStyle,
     plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
-    startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
+    startTs:saveStartTs(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
   await sSet('hortus:worlds',idx);
@@ -2979,10 +2988,112 @@ const TRAY_CATS=[
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'tools',    label:'Tools',            tools:['hand','shovel','undo','rotate']},
   {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'house',    label:'House',            tools:['house']},
 ];
+function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || k==='house'; }
+function rememberBrushTool(){
+  if (isBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
+}
+function setTool(k,v){
+  game.tool=k; game.toolVar=v||null;
+  rememberBrushTool();
+  refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
+}
+function drawCanvasIcon(tc,kind){
+  tc.clearRect(0,0,42,32);
+  tc.strokeStyle='#d8c7ac'; tc.fillStyle='#d8c7ac'; tc.lineWidth=2;
+  tc.lineCap='round'; tc.lineJoin='round';
+  if (kind==='hand'){
+    tc.beginPath(); tc.moveTo(11,20); tc.lineTo(11,11); tc.moveTo(17,20); tc.lineTo(17,8);
+    tc.moveTo(23,20); tc.lineTo(23,10); tc.moveTo(29,21); tc.lineTo(29,14);
+    tc.moveTo(11,20); tc.quadraticCurveTo(13,29,21,30); tc.quadraticCurveTo(30,30,31,23); tc.stroke();
+  } else if (kind==='brush'){
+    tc.save(); tc.translate(21,17); tc.rotate(-0.72);
+    tc.fillStyle='#c97f3f'; tc.fillRect(-3,-13,6,19);
+    tc.fillStyle='#efe6d3'; tc.fillRect(-5,4,10,6);
+    tc.fillStyle='#6f8f5a'; tc.beginPath(); tc.moveTo(-6,10); tc.quadraticCurveTo(0,17,6,10); tc.closePath(); tc.fill();
+    tc.restore();
+  } else if (kind==='erase'){
+    tc.save(); tc.translate(21,17); tc.rotate(-0.5);
+    tc.fillStyle='#e8b8c2'; tc.strokeStyle='#6e5a48'; tc.lineWidth=1.6;
+    tc.fillRect(-11,-7,22,14); tc.strokeRect(-11,-7,22,14);
+    tc.fillStyle='#cdbfa9'; tc.fillRect(-11,-7,8,14); tc.strokeRect(-11,-7,8,14);
+    tc.restore();
+  } else if (kind==='fill'){
+    tc.save(); tc.translate(20,16); tc.rotate(-0.72);
+    tc.strokeRect(-8,-7,16,14); tc.beginPath(); tc.moveTo(8,3); tc.lineTo(15,9); tc.stroke();
+    tc.fillStyle='#5d93a8'; tc.beginPath(); tc.ellipse(14,12,4,2,0,0,7); tc.fill(); tc.restore();
+  } else if (kind==='dropper'){
+    tc.beginPath(); tc.moveTo(13,23); tc.lineTo(27,9); tc.stroke();
+    tc.strokeRect(24,6,6,6); tc.beginPath(); tc.moveTo(11,25); tc.lineTo(18,25); tc.stroke();
+  } else if (kind==='undo'||kind==='redo'){
+    const flip=kind==='redo'?-1:1; tc.save(); tc.translate(kind==='redo'?42:0,0); tc.scale(flip,1);
+    tc.beginPath(); tc.arc(22,17,9,0.25*Math.PI,1.65*Math.PI,true); tc.stroke();
+    tc.beginPath(); tc.moveTo(12,10); tc.lineTo(10,20); tc.lineTo(20,18); tc.stroke(); tc.restore();
+  } else if (kind==='rotate'){
+    tc.beginPath(); tc.arc(21,16,10,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
+    tc.beginPath(); tc.moveTo(30,8); tc.lineTo(35,8); tc.lineTo(34,13); tc.stroke();
+    tc.fillStyle='rgba(201,127,63,.28)'; tc.beginPath();
+    tc.moveTo(21,7); tc.lineTo(32,16); tc.lineTo(21,25); tc.lineTo(10,16); tc.closePath(); tc.fill();
+  } else if (kind==='zoomin'||kind==='zoomout'){
+    tc.beginPath(); tc.arc(18,14,8,0,7); tc.stroke();
+    tc.beginPath(); tc.moveTo(24,20); tc.lineTo(32,28); tc.stroke();
+    tc.beginPath(); tc.moveTo(14,14); tc.lineTo(22,14); if (kind==='zoomin'){ tc.moveTo(18,10); tc.lineTo(18,18); } tc.stroke();
+  } else if (kind==='layers'){
+    for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
+      tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
+  }
+}
+function makeCanvasTool(label,kind,opts){
+  const b=document.createElement('button');
+  b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'');
+  b.title=opts&&opts.title || label;
+  const c=document.createElement('canvas'); c.width=42; c.height=32;
+  drawCanvasIcon(c.getContext('2d'),kind);
+  const s=document.createElement('span'); s.textContent=label;
+  b.append(c,s);
+  if (opts&&opts.onClick) b.onclick=opts.onClick;
+  return b;
+}
+function refreshCanvasTools(){ buildCanvasTools(); }
+function buildCanvasTools(){
+  const rail=document.getElementById('canvasTools'); if (!rail) return;
+  rail.innerHTML='';
+  const brushActive=isBrushTool(game.tool), canBrush=!!game.lastBrushTool || brushActive;
+  const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
+  const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
+  add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
+    onClick:()=>setTool('hand')});
+  add('Brush','brush',{active:brushActive,disabled:!canBrush,
+    title:canBrush?'Use the selected plant or material':'Pick a plant or material from the catalog first',
+    onClick:()=>{ if (game.lastBrushTool) setTool(game.lastBrushTool,game.lastBrushVar);
+      else toast('Pick a plant or material from the catalog first.'); }});
+  add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
+    onClick:()=>setTool('shovel')});
+  if (game.tool==='shovel'){
+    sep();
+    [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
+      .forEach(([m,lbl])=>add(lbl,'erase',{active:game.eraseMode===m,danger:true,title:`Erase ${lbl.toLowerCase()}`,
+        onClick:()=>{ game.eraseMode=m; refreshCanvasTools();
+          toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); }}));
+    sep();
+    [1,3,5].forEach(sz=>add(sz===1?'1 tile':`${sz}x${sz}`,'layers',
+      {active:game.eraseSize===sz,danger:true,title:`Erase brush ${sz}x${sz}`,
+       onClick:()=>{ game.eraseSize=sz; refreshCanvasTools(); toast(`Brush: ${sz}x${sz}.`); }}));
+  }
+  sep();
+  add('Fill','fill',{disabled:true,title:'Bucket fill is planned for a later painting pass'});
+  add('Pick','dropper',{disabled:true,title:'Eyedropper/copy is planned'});
+  sep();
+  add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});
+  add('Redo','redo',{disabled:true,title:'Redo is planned'});
+  add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
+  add('Zoom +','zoomin',{title:'Zoom in (+)',onClick:()=>zoomBy(1.18)});
+  add('Zoom -','zoomout',{title:'Zoom out (-)',onClick:()=>zoomBy(0.85)});
+  sep();
+  add('Layers','layers',{disabled:true,title:'Layers/view controls are planned'});
+}
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
   TRAY_CATS.forEach(c=>{
@@ -3011,11 +3122,8 @@ function buildToolTray(){
     if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
     // if the filter took the selected species away, fall back sensibly
     const all=trayKeys();
-    if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
-    if (PLANTS[game.tool] && keys.length && !keys.includes(game.tool)){ game.tool=keys[0]; game.toolVar=null; }
-    // browsing plants disarms tap-action tools (pan, house placement, shovel sweep)
-    if ((game.tool==='hand'||game.tool==='house'||game.tool==='shovel') && keys.length){
-      game.tool=keys[0]; game.toolVar=null; }
+    if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool='hand'; game.toolVar=null; }
+    if (PLANTS[game.tool] && keys.length && !keys.includes(game.tool)){ game.tool='hand'; game.toolVar=null; }
     if (!keys.length){
       const sp=document.createElement('span'); sp.className='tray-empty';
       sp.textContent='Nothing fits the region filter here.';
@@ -3062,7 +3170,7 @@ function buildToolTray(){
                           : P.name.split(' ').slice(0,2).join(' ');
       sp.textContent=label;
       b.append(c,sp);
-      b.onclick=()=>{ game.tool=rep; game.toolVar=null; refreshTray(); renderCvRow();
+      b.onclick=()=>{ setTool(rep,null);
         const D=PLANTS[game.tool];
         toast(P.group ? `${label} — pick a species above`
                       : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
@@ -3083,9 +3191,9 @@ function buildToolTray(){
     renderCvRow(); applyTraySearch(); updateCanvasCursor();
     return;
   }
-  // tool categories: Tools (hand/erase/actions), Landscape, House.
+  // material categories: Landscape and House.
   // A tool tab arms its first tool right away — RTS style.
-  if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; }
+  if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; rememberBrushTool(); }
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')){
     const pathCol=pathColor(game.pathColor);
@@ -3110,7 +3218,7 @@ function buildToolTray(){
         tc.ellipse(24+(rs()-0.5)*22, 23+(rs()-0.5)*10, 2,1.2,0,0,7); tc.fill(); }
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp);
-      b.onclick=()=>{ game.tool=k; game.toolVar=null; refreshTray(); toast(hint); };
+      b.onclick=()=>{ setTool(k,null); toast(hint); };
       tray.appendChild(b);
     });
     if (cat.tools.includes('path')){
@@ -3133,7 +3241,7 @@ function buildToolTray(){
         const sp=document.createElement('span'); sp.textContent=pc.label.split(' ')[0];
         b.append(c,sp);
         b.title=pc.label;
-        b.onclick=()=>{ game.tool='path'; game.toolVar=null; game.pathColor=pc.id;
+        b.onclick=()=>{ game.pathColor=pc.id; setTool('path',null);
           buildToolTray(); toast(`${pc.label} path selected.`); };
         tray.appendChild(b);
       });
@@ -3158,7 +3266,7 @@ function buildToolTray(){
         const sp=document.createElement('span'); sp.textContent=ws.label;
         b.append(c,sp);
         b.title=ws.label;
-        b.onclick=()=>{ game.tool='water'; game.toolVar=null; game.waterStyle=ws.id;
+        b.onclick=()=>{ game.waterStyle=ws.id; setTool('water',null);
           buildToolTray(); toast(`${ws.label} water selected.`); };
         tray.appendChild(b);
       });
@@ -3190,7 +3298,7 @@ function buildToolTray(){
       tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
         tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
         tc.strokeRect(3,8,42,32); },
-      ()=>{ game.tool='house'; game.toolVar=null; refreshTray();
+      ()=>{ setTool('house',null);
         toast('Tap the map to set the house down — hover shows where.'); });
     pb.dataset.k='house';
     sep('House size');
@@ -3214,67 +3322,6 @@ function buildToolTray(){
           tc.moveTo(8,32); tc.lineTo(24,12); tc.lineTo(40,32);
           tc.closePath(); tc.fill(); },
         ()=>{ withUndo(()=>paintHouse('roof',c2,n)); buildToolTray(); });
-    });
-  }
-  if (cat.id==='tools'){
-    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
-      s.textContent=t2; tray.appendChild(s); };
-    const eBtn=(label,sel,draw,fn,cls='')=>{
-      const b=document.createElement('button'); b.className='tool'+(cls?` ${cls}`:'')+(sel?' sel':'');
-      const c=document.createElement('canvas'); c.width=48; c.height=44; draw(c.getContext('2d'));
-      const sp=document.createElement('span'); sp.textContent=label;
-      b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
-    };
-    const hb=eBtn('Hand', game.tool==='hand',
-      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
-        tc.beginPath(); tc.moveTo(15,24); tc.lineTo(15,15); tc.moveTo(21,24); tc.lineTo(21,12);
-        tc.moveTo(27,24); tc.lineTo(27,14); tc.moveTo(33,25); tc.lineTo(33,18);
-        tc.moveTo(15,24); tc.quadraticCurveTo(17,34,25,35); tc.quadraticCurveTo(34,35,35,27); tc.stroke(); },
-      ()=>{ game.tool='hand'; game.toolVar=null; buildToolTray();
-        toast('Hand: drag the map to pan.'); });
-    hb.dataset.k='hand';
-    const eb=eBtn('Erase', game.tool==='shovel',
-      tc=>{ tc.save(); tc.translate(24,23); tc.rotate(-0.5);
-        tc.fillStyle='#e8b8c2'; tc.strokeStyle='#6e5a48'; tc.lineWidth=1.6;
-        tc.fillRect(-11,-7,22,14); tc.strokeRect(-11,-7,22,14);
-        tc.fillStyle='#cdbfa9'; tc.fillRect(-11,-7,8,14); tc.strokeRect(-11,-7,8,14);
-        tc.restore(); },
-      ()=>{ game.tool='shovel'; game.toolVar=null; buildToolTray();
-        toast('Erase: tap or drag to clear. Pick layer + brush below.'); });
-    eb.dataset.k='shovel';
-    const ub=eBtn('Undo', false,
-      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
-        tc.beginPath(); tc.arc(25,23,10,0.25*Math.PI,1.65*Math.PI,true); tc.stroke();
-        tc.beginPath(); tc.moveTo(15,15); tc.lineTo(13,25); tc.lineTo(23,23); tc.stroke(); },
-      ()=>doUndo(), 'action');
-    ub.dataset.action='undo'; if (!undoStack.length) ub.classList.add('disabled');
-    const rb=eBtn('Rotate', false,
-      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
-        tc.beginPath(); tc.arc(24,22,11,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
-        tc.beginPath(); tc.moveTo(33,14); tc.lineTo(38,14); tc.lineTo(37,19); tc.stroke();
-        tc.fillStyle='rgba(201,127,63,.28)'; tc.beginPath();
-        tc.moveTo(24,12); tc.lineTo(36,22); tc.lineTo(24,32); tc.lineTo(12,22); tc.closePath(); tc.fill(); },
-      ()=>rotateView(1), 'action');
-    rb.dataset.action='rotate';
-    sep('Erases');
-    [['all','All','#e0d2ae'],['plant','Plants','#6f9a5a'],['bulb','Bulbs','#a98ad8'],['terrain','Landscape','#bba98c']]
-      .forEach(([m,lbl,col])=>{
-        eBtn(lbl, game.tool==='shovel' && game.eraseMode===m,
-          tc=>{ tc.fillStyle=col; tc.beginPath(); tc.arc(24,21,9,0,7); tc.fill();
-            tc.strokeStyle='rgba(0,0,0,.3)'; tc.lineWidth=1; tc.stroke();
-            if (m==='all'){ tc.fillStyle='#19120f'; tc.font='bold 13px sans-serif';
-              tc.textAlign='center'; tc.textBaseline='middle'; tc.fillText('✕',24,21); } },
-          ()=>{ game.tool='shovel'; game.eraseMode=m; buildToolTray();
-            toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); });
-      });
-    sep('Brush');
-    [1,3,5].forEach(sz=>{
-      eBtn(sz===1?'1 tile':`${sz}×${sz}`, game.tool==='shovel' && game.eraseSize===sz,
-        tc=>{ const r=3+sz*1.8; tc.strokeStyle='#cdbfa9'; tc.lineWidth=1.6;
-          tc.strokeRect(24-r,21-r,r*2,r*2);
-          tc.fillStyle='rgba(205,191,169,.25)'; tc.fillRect(24-r,21-r,r*2,r*2); },
-        ()=>{ game.tool='shovel'; game.eraseSize=sz; buildToolTray();
-          toast(`Brush: ${sz}×${sz}.`); });
     });
   }
   updateCanvasCursor();
@@ -3321,7 +3368,7 @@ function renderCvRow(){
     const b=document.createElement('button');
     b.className='chip'+((game.tool===k && (game.toolVar||null)===v)?' sel':'');
     b.textContent=label; if (note) b.title=note;
-    b.onclick=()=>{ game.tool=k; game.toolVar=v; refreshTray(); renderCvRow();
+    b.onclick=()=>{ setTool(k,v);
       const def=plantDef(k,v);
       toast(v?`${def.name} — ${note}`:`${def.name} — ${def.latin}`); };
     row.appendChild(b);
@@ -3372,7 +3419,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
 }
 function updateHUD(){
   const cal=calClock();
-  document.getElementById('seasonName').textContent=`${cal.season} - Year ${cal.year}`;
+  document.getElementById('seasonName').textContent=cal.season;
+  document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
   document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
   setHint(game.tool==='house'
@@ -3405,6 +3453,55 @@ function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plo
   if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
 function closeOverlay(id){ $(id).classList.add('hidden'); }
+function pauseClock(){ if (game.mode && !game.pausedAt) game.pausedAt=Date.now(); }
+function resumeClock(){
+  if (!game.pausedAt) return;
+  game.startTs += Date.now()-game.pausedAt;
+  game.pausedAt=0;
+}
+function nextSeasonName(){
+  const cal=calClock();
+  return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
+}
+function openPause(){
+  pauseClock();
+  const cal=calClock();
+  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  $('btnPauseSave').classList.toggle('hidden',!(game.mode==='solo'&&hasStorage));
+  $('pauseScreen').classList.remove('hidden');
+}
+function closePause(){
+  $('confirmSeasonScreen').classList.add('hidden');
+  $('pauseScreen').classList.add('hidden');
+  resumeClock();
+}
+function closeSeasonConfirm(){ $('confirmSeasonScreen').classList.add('hidden'); }
+function skipToAbsDay(targetDay){
+  const d=absDay();
+  if (targetDay<=d) return;
+  game.dayOffset += targetDay-d;
+  game.dirty=true;
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+}
+function openSeasonConfirm(){
+  $('confirmSeasonTitle').textContent=`Skip to ${nextSeasonName()}?`;
+  $('confirmSeasonScreen').classList.remove('hidden');
+}
+function confirmSkipSeason(){
+  const d=absDay();
+  skipToAbsDay((Math.floor(d/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON);
+  closeSeasonConfirm();
+  const cal=calClock();
+  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  toast(`${cal.season} begins.`);
+}
+function skipNextYear(){
+  const d=absDay(), yearLen=DAYS_PER_SEASON*SEASONS.length;
+  skipToAbsDay((Math.floor(d/yearLen)+1)*yearLen);
+  const cal=calClock();
+  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  toast(`Year ${cal.year} begins.`);
+}
 
 /* ---------- plant library: browse every species ---------- */
 const LIB_CATS=[
@@ -3657,6 +3754,7 @@ function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
+  game.tool='hand'; game.toolVar=null; game.pausedAt=0;
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   if (game.gameMode==='design'){
     // free camera centered on the plot; no avatar, no forced house
@@ -3671,6 +3769,7 @@ function enterGarden(){
   game.lastDay=absDay();
   undoStack=[]; updateUndoBtn();
   buildToolTray();
+  buildCanvasTools();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
 }
@@ -3758,18 +3857,20 @@ function openDesignSetup(){
 }
 function quitToMenu(){
   if (game.mode==='solo'&&hasStorage) saveSolo();
+  resumeClock();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
   game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
-  $('planScreen').classList.add('hidden');
+  $('planScreen').classList.add('hidden'); $('pauseScreen').classList.add('hidden');
+  $('confirmSeasonScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   show('menuScreen');
 }
 $('btnMenu').onclick=quitToMenu;
-$('btnZoomIn').onclick=()=>zoomBy(1.18);
-$('btnZoomOut').onclick=()=>zoomBy(0.85);
+if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.18);
+if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.85);
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
@@ -3777,6 +3878,14 @@ addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); })
 addEventListener('pagehide',autosaveNow);
 $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
+$('btnPause').onclick=openPause;
+$('btnPauseResume').onclick=closePause;
+$('btnPauseSave').onclick=()=>{ saveSolo(false); game.dirty=false; };
+$('btnSkipSeason').onclick=openSeasonConfirm;
+$('btnSkipYear').onclick=skipNextYear;
+$('btnPauseMenu').onclick=quitToMenu;
+$('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
+$('btnConfirmSeasonSkip').onclick=confirmSkipSeason;
 $('btnExport').onclick=openExport;
 $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();

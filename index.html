@@ -132,13 +132,15 @@
 <div id="hud" class="hidden">
   <div class="hud-top">
     <div class="season-dial">
-      <div>
+      <div class="season-readout">
+        <div class="season-label">Season</div>
         <div class="season-name" id="seasonName">Spring</div>
-        <div class="season-day" id="seasonDay">Day 1 · Year 1</div>
+        <div class="season-day"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></div>
       </div>
-      <div>
+      <div class="time-actions">
         <div class="day-bar"><i id="dayBarFill"></i></div>
-        <button id="btnSleep" title="Sleep to the next day">☾ Sleep</button>
+        <button id="btnSleep" title="Advance to the next day">End Day</button>
+        <button id="btnPause" title="Pause and garden menu">Pause</button>
       </div>
     </div>
     <div class="hud-right">
@@ -151,17 +153,41 @@
       </div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
-    <div id="zoomPill">
-      <button id="btnZoomIn" title="Zoom in (+)">+</button>
-      <button id="btnZoomOut" title="Zoom out (−)">−</button>
-    </div>
   </div>
+  <div id="canvasTools" aria-label="Canvas tools"></div>
   <div class="hud-bottom">
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
     <div id="cvRow" class="chip-row hidden"></div>
     <div id="trayTabs"></div>
     <div id="toolTray"></div>
+  </div>
+</div>
+
+<!-- PAUSE MENU -->
+<div class="screen hidden" id="pauseScreen">
+  <div class="panel pause-panel">
+    <h2>Paused</h2>
+    <p class="sub" id="pauseMeta">The garden will wait here.</p>
+    <div class="pause-actions">
+      <button class="btn primary" id="btnPauseResume">Resume</button>
+      <button class="btn" id="btnPauseSave">Save</button>
+      <button class="btn" id="btnSkipSeason">Skip to next season</button>
+      <button class="btn" id="btnSkipYear">Skip to next year</button>
+      <button class="btn" id="btnPauseMenu">Return to menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM SEASON SKIP -->
+<div class="screen hidden" id="confirmSeasonScreen">
+  <div class="panel pause-panel">
+    <h2 id="confirmSeasonTitle">Skip to Summer?</h2>
+    <p class="sub">Plants will grow, bloom states may update, and seasonal events may advance.</p>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="btnCancelSeasonSkip">Cancel</button>
+      <button class="btn primary" id="btnConfirmSeasonSkip">Skip Season</button>
+    </div>
   </div>
 </div>
 

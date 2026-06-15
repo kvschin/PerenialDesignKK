@@ -158,9 +158,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
 .hud-top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .season-dial{pointer-events:auto;background:rgba(25,18,15,.82);border:1.5px solid rgba(239,230,211,.25);
-  border-radius:4px;padding:8px 14px;display:flex;align-items:center;gap:12px}
+  border-radius:4px;padding:8px 12px;display:flex;align-items:stretch;gap:12px}
+.season-readout{min-width:108px}
+.season-label{font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);margin-bottom:2px}
 .season-name{font-family:'Fraunces',serif;font-size:20px;font-weight:600;line-height:1}
 .season-day{font-size:11px;color:#bdaf99;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.time-actions{display:flex;flex-direction:column;gap:5px;min-width:82px}
 .day-bar{width:70px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
 .day-bar i{display:block;height:100%;background:var(--bronze);width:0%}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
@@ -175,14 +178,24 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .pill.iconbar .lbl{font-size:11px;color:#cdbfa9}
 .pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
 .pill.iconbar .ic-emoji{display:none;font-size:15px}
-#btnSleep{margin-top:6px;background:none;border:1px solid rgba(239,230,211,.35);
+#btnSleep,#btnPause{background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
-#btnSleep:hover{border-color:var(--bronze)}
-#zoomPill{pointer-events:auto;position:fixed;right:10px;top:45%;display:flex;flex-direction:column;
-  gap:2px;background:rgba(25,18,15,.82);border:1.5px solid rgba(239,230,211,.25);border-radius:4px;padding:3px}
-#zoomPill button{background:none;border:none;color:var(--seedhead);font-size:18px;
-  width:30px;height:30px;line-height:1;border-radius:3px}
-#zoomPill button:hover{background:rgba(201,127,63,.2)}
+#btnSleep:hover,#btnPause:hover{border-color:var(--bronze);background:rgba(201,127,63,.13)}
+#canvasTools{pointer-events:auto;position:absolute;left:10px;top:82px;display:flex;flex-direction:column;gap:4px;
+  max-height:calc(100vh - 200px);overflow-y:auto;background:rgba(25,18,15,.86);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 5px 20px rgba(0,0,0,.22)}
+.canvas-tool{width:48px;min-height:50px;border-radius:4px;border:1.5px solid transparent;background:rgba(255,255,255,.05);
+  color:#cdbfa9;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;
+  padding:3px 2px 4px;position:relative;text-decoration:none}
+.canvas-tool canvas{position:absolute;top:3px;left:50%;transform:translateX(-50%)}
+.canvas-tool span{font-size:8px;line-height:1;text-align:center;pointer-events:none}
+.canvas-tool:hover:not(.disabled){background:rgba(201,127,63,.16);border-color:rgba(239,230,211,.25)}
+.canvas-tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.28);box-shadow:inset 0 0 0 1px rgba(239,230,211,.10)}
+.canvas-tool.sel span{color:var(--seedhead)}
+.canvas-tool.danger.sel{border-color:#e08a7a;background:rgba(126,42,35,.50);box-shadow:0 0 0 1px rgba(224,138,122,.25)}
+.canvas-tool.danger.sel span{color:#ffd9d1}
+.canvas-tool.disabled{opacity:.38;pointer-events:none}
+.canvas-sep{height:1px;background:rgba(239,230,211,.16);margin:2px 3px}
 #playerList{font-size:12px;line-height:1.6}
 .hud-bottom{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
@@ -232,6 +245,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #plantCard h3{font-family:'Fraunces',serif;font-size:19px}
 #plantCard .latin{font-style:italic;color:var(--bronze);font-size:12px;margin-bottom:6px}
 #plantCard p{font-size:12.5px;color:#cdbfa9;line-height:1.5}
+.pause-panel{max-width:360px}
+#pauseScreen,#confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
+.pause-actions{display:flex;flex-direction:column;gap:9px}
+.pause-actions .btn{width:100%;text-align:left}
 /* ---------- export / planting list ---------- */
 .export-table{width:100%;border-collapse:collapse;margin-top:4px;font-size:13px}
 .export-table th{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);
@@ -276,13 +293,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .menu-action small{font-size:12.5px}
   .menu-foot{font-size:10.5px}
   .creator-grid{flex-direction:column;align-items:center}
-  .season-dial{padding:8px 10px;gap:7px;flex-direction:column;align-items:stretch;min-width:112px}
-  .season-dial>div:first-child{text-align:left}
+  .season-dial{padding:8px 10px;gap:7px;flex-direction:column;align-items:stretch;min-width:122px}
+  .season-readout{text-align:left;min-width:0}
   .season-name{font-size:16px;line-height:1.05}
   .season-day{font-size:10px;margin-top:4px}
   .day-bar{width:100%;height:1px;border-radius:0;background:rgba(239,230,211,.42)}
   .day-bar i{display:none}
-  #btnSleep{width:100%;margin-top:0;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
+  .time-actions{min-width:0}
+  #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
+  #canvasTools{top:138px;left:8px;max-height:calc(100vh - 330px);padding:4px}
+  .canvas-tool{width:44px;min-height:48px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}
   .pill.iconbar button{font-size:16px;padding:6px 8px}
