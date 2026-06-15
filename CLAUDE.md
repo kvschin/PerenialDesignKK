@@ -16,6 +16,13 @@ the loop (movement skipped), `tapAction` (design taps route straight to
 `actHere` on the tapped tile), the two-finger pointer handler (adds camera pan
 in design), `setUserZoom`/snapCam (design keeps its free camera), and the
 `btnPlotStart`/save/load plumbing (design = blank plot, `house:null`).
+Design panning: two fingers on touch; on PC, middle-mouse drag or
+hold Space + drag (`panDrag`). Rotate is the two-finger twist, the R
+key, or the ⟳ button — all three exist. **Undo** (`undoStack`, button
++ Ctrl/Cmd-Z): a gesture snapshots plants+bulbs+terrain+house on
+pointerdown (`beginUndo`) and commits it on pointerup only if state
+changed (`commitUndo`); discrete actions use `withUndo`. Stack resets
+per garden, capped at 30.
 
 Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 **Pocket Prairie**.

@@ -2040,7 +2040,11 @@ addEventListener('keydown',e=>{
     return;
   }
   const k=e.key.toLowerCase();
-  if (k==='e'||k===' '){ e.preventDefault(); actHere(); return; }
+  if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); doUndo(); return; }
+  if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
+    e.preventDefault(); spaceHeld=true; cnv.style.cursor='grab'; return;
+  }
+  if (k==='e'||k===' '){ e.preventDefault(); withUndo(actHere); return; }
   if (k==='r'){ e.preventDefault(); rotateView(); return; }
   if (k==='+'||k==='='){ e.preventDefault(); zoomBy(1.12); return; }
   if (k==='-'){ e.preventDefault(); zoomBy(0.89); return; }
@@ -2052,7 +2056,8 @@ addEventListener('keydown',e=>{
              a:[-1,1],arrowleft:[-1,1],d:[1,-1],arrowright:[1,-1]};
   if (map[k]){ e.preventDefault(); heldKeys[k]=map[k]; }
 });
-addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()]; });
+addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
+  if (e.key===' '){ spaceHeld=false; cnv.style.cursor=''; } });
 
 /* tap / click: first tap walks, tap on own tile acts */
 let lastTap=0;
@@ -2080,6 +2085,31 @@ function sweepLift(x,y){
 function evTile(e){ // pointer position -> world tile, zoom-aware
   return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
 }
+/* ---------- undo: a stack of plants+bulbs+terrain+house snapshots ----------
+   A gesture snapshots state on pointerdown and commits it only if the
+   state actually changed by pointerup, so no-op taps don't pile up. */
+let spaceHeld=false, panDrag=null, undoStack=[], pendSnap=null, pendSig=null;
+function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.house]); }
+function snapshotState(){ return {
+  plants:JSON.parse(JSON.stringify(game.plants)),
+  bulbs:JSON.parse(JSON.stringify(game.bulbs)),
+  terrain:JSON.parse(JSON.stringify(game.terrain)),
+  house:game.house?JSON.parse(JSON.stringify(game.house)):null}; }
+function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift(); updateUndoBtn(); }
+function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
+function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
+function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
+  if (stateSig()!==sig) pushUndo(snap); }
+function doUndo(){
+  if (!undoStack.length){ toast('Nothing to undo.'); return; }
+  const s=undoStack.pop();
+  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.house=s.house;
+  game.dirty=true; updateUndoBtn();
+  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); pushHouse(); }
+  buildToolTray(); toast('Undone.');
+}
+function updateUndoBtn(){ const b=document.getElementById('btnUndo'); if (b) b.classList.toggle('disabled',!undoStack.length); }
+
 /* two fingers pinch the zoom; everything else is one-finger business */
 const activePtrs=new Map(); let pinch=null, toolDrag=null;
 cnv.addEventListener('pointerdown',e=>{
@@ -2090,12 +2120,21 @@ cnv.addEventListener('pointerdown',e=>{
            a0:Math.atan2(b2[1]-a[1], b2[0]-a[0]),    // twist baseline
            cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
            camx0:cam.x, camy0:cam.y};
-    sweep=null; toolDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
+    sweep=null; toolDrag=null; panDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
     return;
   }
   if (activePtrs.size>1) return;
+  // PC pan: middle-mouse drag, or hold Space and drag (design mode)
+  if (game.gameMode==='design' && (e.button===1 || spaceHeld)){
+    e.preventDefault();
+    panDrag={sx:e.clientX, sy:e.clientY, camx0:cam.x, camy0:cam.y};
+    cnv.style.cursor='grabbing';
+    try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+    return;
+  }
   const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
+  beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
     sweep={plants:0, bulbs:0, terr:0};
@@ -2143,6 +2182,11 @@ function finishToolDrag(){
   } else toast('Nothing would take along that line.');
 }
 cnv.addEventListener('pointermove',e=>{
+  if (panDrag){ // PC space/middle-drag pan
+    cam.x=panDrag.camx0-(e.clientX-panDrag.sx)/ZOOM;
+    cam.y=panDrag.camy0-(e.clientY-panDrag.sy)/ZOOM;
+    return;
+  }
   if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
@@ -2197,18 +2241,21 @@ function endSweep(){
 cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
+  if (panDrag){ panDrag=null; cnv.style.cursor=spaceHeld?'grab':''; return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
     else tapAction(toolDrag.sx,toolDrag.sy);
     toolDrag=null;
   }
   endSweep();
+  commitUndo();   // push the pre-gesture snapshot only if something changed
 });
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  sweep=null; toolDrag=null;
+  sweep=null; toolDrag=null; panDrag=null; pendSig=null; pendSnap=null;
 });
+cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
 function followPath(){
   if (!game.pathTarget||game.moving) return;
@@ -3143,14 +3190,14 @@ function buildToolTray(){
       const sel=!!game.house && game.house.w===ftToTiles(wf) && game.house.h===ftToTiles(df);
       toolBtn(`${label} ${wf}'×${df}'`, sel,
         tc=>miniHouse(tc,wf,df,hc.wall,hc.roof),
-        ()=>{ applyHouseSize(wf,df,label); buildToolTray(); });
+        ()=>{ withUndo(()=>applyHouseSize(wf,df,label)); buildToolTray(); });
     });
     sep('Wall color');
     WALL_COLS.forEach(([n,c2])=>{
       toolBtn(n, !!game.house && game.house.wall===c2,
         tc=>{ tc.fillStyle=c2; tc.fillRect(13,11,22,22);
           tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(13,11,22,22); },
-        ()=>{ paintHouse('wall',c2,n); buildToolTray(); });
+        ()=>{ withUndo(()=>paintHouse('wall',c2,n)); buildToolTray(); });
     });
     sep('Roof color');
     ROOF_COLS.forEach(([n,c2])=>{
@@ -3158,7 +3205,7 @@ function buildToolTray(){
         tc=>{ tc.fillStyle=c2; tc.beginPath();
           tc.moveTo(8,32); tc.lineTo(24,12); tc.lineTo(40,32);
           tc.closePath(); tc.fill(); },
-        ()=>{ paintHouse('roof',c2,n); buildToolTray(); });
+        ()=>{ withUndo(()=>paintHouse('roof',c2,n)); buildToolTray(); });
     });
   }
   if (cat.tools.includes('shovel')){
@@ -3554,6 +3601,7 @@ function enterGarden(){
     snapCam();
   }
   game.lastDay=absDay();
+  undoStack=[]; updateUndoBtn();
   buildToolTray();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
@@ -3669,6 +3717,7 @@ $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
 $('btnRotate').onclick=()=>rotateView(1);
+$('btnUndo').onclick=doUndo;
 $('btnPhoto').onclick=takePhoto;
 $('btnPlan').onclick=openPlan;
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');
