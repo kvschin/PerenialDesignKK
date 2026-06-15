@@ -183,8 +183,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #btnSleep,#btnPause{background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
 #btnSleep:hover,#btnPause:hover{border-color:var(--bronze);background:rgba(201,127,63,.13)}
-#canvasTools{pointer-events:auto;position:absolute;left:10px;top:82px;display:flex;flex-direction:column;gap:4px;
-  max-height:calc(100vh - 200px);overflow-y:auto;background:rgba(25,18,15,.86);
+#canvasTools{pointer-events:auto;position:absolute;left:10px;top:106px;display:flex;flex-direction:column;gap:4px;
+  overflow:visible;background:rgba(25,18,15,.86);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 5px 20px rgba(0,0,0,.22)}
 .canvas-tool{width:48px;min-height:50px;border-radius:4px;border:1.5px solid transparent;background:rgba(255,255,255,.05);
   color:#cdbfa9;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;
@@ -198,6 +198,11 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .canvas-tool.danger.sel span{color:#ffd9d1}
 .canvas-tool.disabled{opacity:.38;pointer-events:none}
 .canvas-sep{height:1px;background:rgba(239,230,211,.16);margin:2px 3px}
+.tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:128px;background:rgba(25,18,15,.94);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 8px 24px rgba(0,0,0,.34)}
+.tool-popover button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;border-radius:3px;
+  color:#cdbfa9;text-align:left;font-size:12px;padding:8px 9px}
+.tool-popover button:hover,.tool-popover button.sel{background:rgba(201,127,63,.22);color:var(--seedhead)}
 #playerList{font-size:12px;line-height:1.6}
 .hud-bottom{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
@@ -231,6 +236,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.2)}
 .tool.sel span{color:var(--seedhead)}
 .tool.action{background:rgba(239,230,211,.08)}
+.tool.danger.sel{border-color:#e08a7a;background:rgba(126,42,35,.45)}
+.tool.danger.sel span{color:#ffd9d1}
 .tool.disabled{opacity:.38;pointer-events:none}
 #actionHint{pointer-events:none;font-size:12px;color:rgba(239,230,211,.85);background:rgba(25,18,15,.6);padding:4px 12px;border-radius:3px}
 #btnAct{pointer-events:auto;background:var(--bronze);border:none;color:var(--ink);
@@ -303,8 +310,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .day-bar i{display:none}
   .time-actions{min-width:0}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
-  #canvasTools{top:138px;left:8px;max-height:calc(100vh - 330px);padding:4px}
+  #canvasTools{top:156px;left:8px;padding:4px}
   .canvas-tool{width:44px;min-height:48px}
+  .tool-popover{top:104px;width:122px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}
   .pill.iconbar button{font-size:16px;padding:6px 8px}

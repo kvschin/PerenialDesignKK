@@ -1108,6 +1108,7 @@ const game = {
   fx:[],                                             // short-lived planting pulses
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
   lastBrushTool:null, lastBrushVar:null,             // last plant/material tool chosen from the catalog
+  toolMenu:null,                                     // open flyout on the left canvas toolbar
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
@@ -2996,6 +2997,7 @@ function rememberBrushTool(){
   if (isBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
 }
 function setTool(k,v){
+  game.toolMenu=null;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -3055,33 +3057,97 @@ function makeCanvasTool(label,kind,opts){
   if (opts&&opts.onClick) b.onclick=opts.onClick;
   return b;
 }
+function drawPlantModeIcon(tc,drift){
+  tc.clearRect(0,0,28,24);
+  tc.strokeStyle='#d8c7ac'; tc.fillStyle='#d8c7ac'; tc.lineWidth=1.6;
+  if (!drift){
+    tc.save(); tc.translate(14,12); tc.rotate(-0.72);
+    tc.fillStyle='#c97f3f'; tc.fillRect(-2,-10,4,13);
+    tc.fillStyle='#efe6d3'; tc.fillRect(-4,3,8,4);
+    tc.fillStyle='#6f8f5a'; tc.beginPath(); tc.moveTo(-5,7); tc.quadraticCurveTo(0,13,5,7); tc.closePath(); tc.fill();
+    tc.restore();
+    return;
+  }
+  tc.strokeStyle='#efe6d3';
+  for (let i=0;i<5;i++){
+    const x=7+(i%3)*7, y=7+Math.floor(i/3)*7;
+    tc.beginPath(); tc.ellipse(x,y,4,2.5,0,0,7); tc.stroke();
+    tc.beginPath(); tc.moveTo(x,y-4); tc.lineTo(x,y-10); tc.stroke();
+  }
+}
+function choosePlantMode(drift){
+  game.drift=!!drift;
+  game.toolMenu=null;
+  if (game.lastBrushTool) setTool(game.lastBrushTool,game.lastBrushVar);
+  else refreshCanvasTools();
+  buildToolTray();
+  toast(game.drift
+    ? 'Drift planting on. Pick a plant, then paint natural clusters.'
+    : 'Draw mode. Pick a plant, then paint single placements.');
+}
+function addPlantToolMenu(rail){
+  const pop=document.createElement('div');
+  pop.className='tool-popover';
+  const option=(label,drift,title)=>{
+    const b=document.createElement('button');
+    b.className=game.drift===drift?'sel':'';
+    b.title=title;
+    const c=document.createElement('canvas'); c.width=28; c.height=24;
+    drawPlantModeIcon(c.getContext('2d'),drift);
+    const s=document.createElement('span'); s.textContent=label;
+    b.append(c,s);
+    b.onclick=(ev)=>{ ev.stopPropagation(); choosePlantMode(drift); };
+    pop.appendChild(b);
+  };
+  option('Draw plants',false,'Paint selected plants one at a time');
+  option('Drift plants',true,'Paint selected plants in natural clusters');
+  rail.appendChild(pop);
+}
+function renderEraseTray(tray){
+  renderCvRow();
+  const sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
+    s.textContent=t; tray.appendChild(s); };
+  const toolBtn=(label,kind,sel,fn,title)=>{
+    const b=document.createElement('button');
+    b.className='tool danger'+(sel?' sel':'');
+    b.title=title||label;
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const ctx2=c.getContext('2d'); ctx2.save(); ctx2.translate(3,6);
+    drawCanvasIcon(ctx2,kind); ctx2.restore();
+    const sp=document.createElement('span'); sp.textContent=label;
+    b.append(c,sp); b.onclick=fn; tray.appendChild(b);
+    return b;
+  };
+  sep('Erase');
+  [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
+    .forEach(([m,lbl])=>toolBtn(lbl,'erase',game.eraseMode===m,()=>{
+      game.eraseMode=m;
+      buildToolTray(); refreshCanvasTools();
+      toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`);
+    },`Erase ${lbl.toLowerCase()}`));
+  sep('Size');
+  [1,3,5].forEach(sz=>toolBtn(sz===1?'1 tile':`${sz}x${sz}`,'layers',game.eraseSize===sz,()=>{
+    game.eraseSize=sz;
+    buildToolTray(); refreshCanvasTools();
+    toast(`Erase size: ${sz}x${sz}.`);
+  },`Erase size ${sz}x${sz}`));
+}
 function refreshCanvasTools(){ buildCanvasTools(); }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
   rail.innerHTML='';
-  const brushActive=isBrushTool(game.tool), canBrush=!!game.lastBrushTool || brushActive;
+  const brushActive=isBrushTool(game.tool);
   const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
   add('Select','select',{disabled:true,title:'TODO: area selection tool'});
-  add('Brush','brush',{active:brushActive,disabled:!canBrush,
-    title:canBrush?'Use the selected plant or material':'Pick a plant or material from the catalog first',
-    onClick:()=>{ if (game.lastBrushTool) setTool(game.lastBrushTool,game.lastBrushVar);
-      else toast('Pick a plant or material from the catalog first.'); }});
+  add('Plant','brush',{active:brushActive||game.toolMenu==='plant',
+    title:'Choose draw or drift planting, then pick plants from the catalog',
+    onClick:()=>{ game.toolMenu=game.toolMenu==='plant'?null:'plant'; refreshCanvasTools(); }});
+  if (game.toolMenu==='plant') addPlantToolMenu(rail);
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
-    onClick:()=>setTool('shovel')});
-  if (game.tool==='shovel'){
-    sep();
-    [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
-      .forEach(([m,lbl])=>add(lbl,'erase',{active:game.eraseMode===m,danger:true,title:`Erase ${lbl.toLowerCase()}`,
-        onClick:()=>{ game.eraseMode=m; refreshCanvasTools();
-          toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); }}));
-    sep();
-    [1,3,5].forEach(sz=>add(sz===1?'1 tile':`${sz}x${sz}`,'layers',
-      {active:game.eraseSize===sz,danger:true,title:`Erase brush ${sz}x${sz}`,
-       onClick:()=>{ game.eraseSize=sz; refreshCanvasTools(); toast(`Brush: ${sz}x${sz}.`); }}));
-  }
+    onClick:()=>{ setTool('shovel'); buildToolTray(); }});
   sep();
   add('Fill','fill',{disabled:true,title:'Bucket fill is planned for a later painting pass'});
   add('Pick','dropper',{disabled:true,title:'Eyedropper/copy is planned'});
@@ -3097,24 +3163,34 @@ function buildToolTray(){
   TRAY_CATS.forEach(c=>{
     const b=document.createElement('button');
     b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
-    b.onclick=()=>{ game.trayCat=c.id; buildToolTray(); };
+    b.onclick=()=>{ game.trayCat=c.id; game.toolMenu=null;
+      if (game.tool==='shovel') setTool('hand');
+      else refreshCanvasTools();
+      buildToolTray(); };
     tabs.appendChild(b);
   });
-  const si=document.createElement('input'); // search within the open category
-  si.id='traySearch'; si.type='search'; si.placeholder='search…';
-  si.value=game.traySearch||'';
-  si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
-  tabs.appendChild(si);
-  const dr=document.createElement('button'); // drift toggle, right-aligned
-  dr.className='tab drift'+(game.drift?' sel':'');
-  dr.textContent=game.drift?'✦ Drift':'Drift';
-  dr.title='Plant in loose clusters of 3–7 — the Oudolf way';
-  dr.onclick=()=>{ game.drift=!game.drift; buildToolTray();
-    toast(game.drift?'Drift planting on — each planting stamps a natural cluster.'
-                    :'Single planting.'); };
-  tabs.appendChild(dr);
+  if (game.tool!=='shovel'){
+    const si=document.createElement('input'); // search within the open category
+    si.id='traySearch'; si.type='search'; si.placeholder='search…';
+    si.value=game.traySearch||'';
+    si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
+    tabs.appendChild(si);
+    const dr=document.createElement('button'); // drift toggle, right-aligned
+    dr.className='tab drift'+(game.drift?' sel':'');
+    dr.textContent=game.drift?'✦ Drift':'Drift';
+    dr.title='Plant in loose clusters of 3–7 — the Oudolf way';
+    dr.onclick=()=>{ game.toolMenu=null; game.drift=!game.drift; buildToolTray(); refreshCanvasTools();
+      toast(game.drift?'Drift planting on — each planting stamps a natural cluster.'
+                      :'Single planting.'); };
+    tabs.appendChild(dr);
+  }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+  if (game.tool==='shovel'){
+    renderEraseTray(tray);
+    updateCanvasCursor();
+    return;
+  }
   if (cat.types){
     let keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
     if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);

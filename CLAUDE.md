@@ -152,7 +152,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar** (Hand /
-    Select TODO / Brush / Erase / Undo / Rotate; `game.tool` uses `'hand'` for safe
+    Select TODO / Plant / Erase / Undo / Rotate; `game.tool` uses `'hand'` for safe
     panning and keeps `'shovel'` for Erase back-compat) and Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
@@ -170,8 +170,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
     ≤18" → 5, ≤30" → 3); woody plants always plant singly. The Erase tool's
-    options live in the left canvas toolbar:
-    layer (All/Plants/Bulbs/Landscape → `eraseMode`) and brush
+    options live in the bottom contextual toolbar when Erase is active:
+    layer (All/Plants/Bulbs/Landscape → `eraseMode`) and size
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
@@ -214,7 +214,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools
-    (Hand/Select TODO/Brush/Erase/Undo/Rotate) and starts new garden entries on
+    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout) and starts new garden entries on
     Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
