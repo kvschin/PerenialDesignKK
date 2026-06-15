@@ -55,6 +55,16 @@ function pathColorId(id){ return pathColor(id).id; }
 function pathFill(t,snow){ const p=pathColor(t&&t.c);
   return snow ? mixHex(p.fill,'#eef2f8',0.42) : p.fill; }
 function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
+const WATER_STYLES = [
+  {id:'pond', label:'Pond', fill:'#4f8491', deep:'#2f6578', edge:'#7da7a3', plan:'#9fc8d0'},
+  {id:'river', label:'River', fill:'#5d93a8', deep:'#336f8e', edge:'#8ab4b9', plan:'#a9d2df'},
+  {id:'lake', label:'Lake', fill:'#426f8d', deep:'#254f72', edge:'#789cae', plan:'#8fb7cf'},
+];
+function waterStyle(id){ return WATER_STYLES.find(c=>c.id===id)||WATER_STYLES[0]; }
+function waterStyleId(id){ return waterStyle(id).id; }
+function waterFill(t,snow){ const w=waterStyle(t&&t.c);
+  return snow ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill; }
+function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
 
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,
    which index.html loads before this file. */
@@ -1082,7 +1092,7 @@ const game = {
   char:{species:'cat', coatIdx:0, coat:COATS[0].c, coatD:COATS[0].d, mark:'solid', name:''},
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
   bulbs:{},           // same shape — the layer under the plants
-  terrain:{},         // "x,y" -> {k:'path'|'bed', t:ts} or {removed:true,t}
+  terrain:{},         // "x,y" -> {k:'path'|'bed'|'water', t:ts} or {removed:true,t}
   startTs:Date.now(), dayOffset:0,
   px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
@@ -1096,6 +1106,7 @@ const game = {
   fx:[],                                             // short-lived planting pulses
   tool:PLANT_KEYS[0], toolVar:null,                  // species + optional cultivar
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
+  waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
   others:{},          // multiplayer presence
@@ -1310,7 +1321,7 @@ function inHouse(x,y){ const h=game.house; if (!h) return false;
 function doorPos(hOv){ const h=hOv||game.house;
   return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
 function isDoor(x,y){ const [dx,dy]=doorPos(); return x===dx && y===dy; }
-function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y); }
+function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y) && tileTerrain(x,y)!=='water'; }
 /* a standable starting tile near plot center — the door if the house
    sits on the spawn, else a spiral search outward, so re-entering a
    garden never drops the player stuck inside their own walls */
@@ -1327,7 +1338,7 @@ function safeSpawn(){
   return [0,0];
 }
 
-/* player-laid terrain (paths and beds) on top of the built-in walkway */
+/* player-laid terrain (paths, beds, and water) on top of the built-in walkway */
 function terrainAt(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t:null; }
 function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
 
@@ -1462,6 +1473,32 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs){
   }
   ctx.restore();
 }
+function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,t){
+  const w=waterStyle(tile&&tile.c), frozen=!!amb.snow;
+  const base=frozen ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill;
+  isoDiamondPath(ctx,sx,sy,0);
+  ctx.fillStyle=base; ctx.fill();
+  fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],frozen?mixHex(w.fill,'#ffffff',0.72):mixHex(w.fill,'#9ed0d4',0.18));
+  fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],frozen?mixHex(w.deep,'#d7e7f0',0.55):w.deep);
+  const nbs=[[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy])=>tileTerrain(x+dx,y+dy)==='water').length;
+  ctx.strokeStyle=frozen?'rgba(255,255,255,0.48)':w.edge;
+  ctx.lineWidth=nbs<3?1.8:0.8;
+  isoDiamondPath(ctx,sx,sy,1.5); ctx.stroke();
+  const rr=mulberry(tileSeed(x,y)^0x517cc1);
+  ctx.save();
+  if (frozen){
+    ctx.strokeStyle='rgba(255,255,255,0.38)'; ctx.lineWidth=0.8;
+    for (let i=0;i<2;i++){ const ox=sx+(rr()-0.5)*24, oy=sy+TILE_H/2+(rr()-0.5)*9;
+      ctx.beginPath(); ctx.moveTo(ox-6,oy); ctx.lineTo(ox+6,oy+(rr()-0.5)*4); ctx.stroke(); }
+  } else {
+    ctx.strokeStyle='rgba(230,248,244,0.42)'; ctx.lineWidth=0.9;
+    for (let i=0;i<2;i++){
+      const phase=Math.sin(t*0.002+i+x*0.7+y*0.4), ox=sx+(rr()-0.5)*24, oy=sy+TILE_H/2+(rr()-0.5)*8;
+      ctx.beginPath(); ctx.ellipse(ox,oy,7+phase*1.4,2.2,0,0,7); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawSeasonSky(ctx,W,H,season){
   const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
   let g=ctx.createRadialGradient(W*0.72,H*0.14,0,W*0.72,H*0.14,H*0.9);
@@ -1572,14 +1609,17 @@ function render(t){
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
     const terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
     const path=terr==='path';
+    const water=terr==='water';
     const rs=mulberry(tileSeed(x,y));
     let col;
-    if (path) col = pathFill(terrObj,amb.snow);
+    if (water) col = waterFill(terrObj,amb.snow);
+    else if (path) col = pathFill(terrObj,amb.snow);
     else if (isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-    drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs);
-    if (amb.snow && !path && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
+    if (water) drawWaterTexture(cx,sx,sy,x,y,terrObj,amb,t);
+    else drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs);
+    if (amb.snow && !path && !water && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
       cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
   }
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
@@ -1763,26 +1803,40 @@ function actHere(){
       toast('Bulb dug up.'); syncBulbsOut(); }
     else if (terr){
       game.terrain[k]={removed:true,t:Date.now()}; game.dirty=true;
-      toast(terr==='path'?'Path dug up.':'Bed turned back to grass.'); syncTerrainOut(); }
+      toast(terr==='path'?'Path dug up.':terr==='water'?'Water filled back in.':'Bed turned back to grass.'); syncTerrainOut(); }
     else toast('Nothing here to lift.');
     return;
   }
-  if (game.tool==='path'||game.tool==='bed'){
+  if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
     if (hasPlant){ toast('Lift the plant first.'); return; }
+    if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
+    if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)){
+      toast('Step aside before making water.'); return;
+    }
     if (terr===game.tool){
+      if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
+        game.terrain[k]={k:'water',c:game.waterStyle,t:Date.now()}; game.dirty=true;
+        toast(`${waterStyle(game.waterStyle).label} water applied.`);
+        syncTerrainOut();
+        return;
+      }
       if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
         game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
         toast(`${pathColor(game.pathColor).label} path color applied.`);
         syncTerrainOut();
         return;
       }
-      toast(terr==='path'?'Already a path.':'Already a bed.'); return;
+      toast(terr==='path'?'Already a path.':terr==='water'?'Already water.':'Already a bed.'); return;
     }
     game.terrain[k]=game.tool==='path'
       ? {k:'path',c:game.pathColor,t:Date.now()}
+      : game.tool==='water'
+      ? {k:'water',c:game.waterStyle,t:Date.now()}
       : {k:'bed',t:Date.now()};
     game.dirty=true;
-    toast(game.tool==='path'?`${pathColor(game.pathColor).label} path laid.`:'Bed dug. Ready for planting.');
+    toast(game.tool==='path'?`${pathColor(game.pathColor).label} path laid.`
+      : game.tool==='water'?`${waterStyle(game.waterStyle).label} water laid.`
+      :'Bed dug. Ready for planting.');
     syncTerrainOut();
     return;
   }
@@ -1790,7 +1844,7 @@ function actHere(){
   if (!def) return;
   if (def.type==='bulb'){ // bulbs go UNDER plants — a plant here is no obstacle
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
-    if (terr==='path'){ toast('Not in the gravel — lift the path first.'); return; }
+    if (terr==='path'||terr==='water'){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first.'); return; }
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n); return; }
     if (applyToolAt(x,y)){ syncBulbsOut();
@@ -1798,7 +1852,7 @@ function actHere(){
     else toast('No spot for a bulb here.');
     return;
   }
-  if (terr==='path'){ toast('Dig the path up first — plants and gravel disagree.'); return; }
+  if (terr==='path'||terr==='water'){ toast(terr==='water'?'Dry land first — plants and ponds disagree.':'Dig the path up first — plants and gravel disagree.'); return; }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
   const shadeTree=shadeInfoAt(x,y,false);
   if (shadeTree && def.sun!=='part'){
@@ -1820,15 +1874,21 @@ function driftCount(def){
 }
 /* the one silent placer behind drifts, drags, and single planting:
    puts the armed tool on a tile if it fits, no toasts. Returns what
-   it placed ('plant'|'bulb'|'path'|'bed') or null. */
+   it placed ('plant'|'bulb'|'path'|'bed'|'water') or null. */
 function applyToolAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return null;
   if (inHouse(x,y) || isDoor(x,y)) return null;
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
-  if (game.tool==='path'||game.tool==='bed'){
-    const ex=game.plants[k];
+  if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
+    const ex=game.plants[k], eb=game.bulbs[k];
     if (ex && !ex.removed) return null;
+    if (game.tool==='water' && eb && !eb.removed) return null;
+    if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
     if (terr===game.tool){
+      if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
+        game.terrain[k]={k:'water',c:game.waterStyle,t:Date.now()}; game.dirty=true;
+        return 'water';
+      }
       if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
         game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
         return 'path';
@@ -1837,13 +1897,15 @@ function applyToolAt(x,y){
     }
     game.terrain[k]=game.tool==='path'
       ? {k:'path',c:game.pathColor,t:Date.now()}
+      : game.tool==='water'
+      ? {k:'water',c:game.waterStyle,t:Date.now()}
       : {k:'bed',t:Date.now()};
     game.dirty=true;
     return game.tool;
   }
   if (!PLANTS[game.tool]) return null;
   const def=plantDef(game.tool,game.toolVar);
-  if (terr==='path') return null;
+  if (terr==='path'||terr==='water') return null;
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
   if (def.type==='bulb'){ // bulbs tuck in under whatever is planted above
@@ -1860,7 +1922,7 @@ function applyToolAt(x,y){
   return 'plant';
 }
 function syncToolLayer(what){
-  if (what==='path'||what==='bed') syncTerrainOut();
+  if (what==='path'||what==='bed'||what==='water') syncTerrainOut();
   else if (what==='bulb') syncBulbsOut();
   else syncPlantsOut();
 }
@@ -1900,6 +1962,18 @@ function displacePlants(x,y,w,h){ // a house can't share ground with plants
   if (n){ game.dirty=true; syncPlantsOut(); }
   return n;
 }
+function clearTerrainForHouse(x,y,w,h){
+  let n=0;
+  const clear=(xx,yy)=>{
+    if (xx<0||yy<0||xx>=GW||yy>=GH) return;
+    const k=`${xx},${yy}`;
+    if (terrainAt(xx,yy)){ game.terrain[k]={removed:true,t:Date.now()}; n++; }
+  };
+  for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
+  clear(x+((w-1)>>1),y+h); // keep the doorstep standable
+  if (n){ game.dirty=true; syncTerrainOut(); }
+  return n;
+}
 function placeHouse(x,y){
   const h=game.house; if (!h) return;
   const nx=Math.max(0,Math.min(GW-h.w,x)), ny=Math.max(0,Math.min(GH-h.h-1,y));
@@ -1907,6 +1981,7 @@ function placeHouse(x,y){
   if (ppx>=nx&&ppx<nx+h.w&&ppy>=ny&&ppy<ny+h.h){ toast("You're standing in the way."); return; }
   h.x=nx; h.y=ny; game.dirty=true; pushHouse();
   const n=displacePlants(nx,ny,h.w,h.h);
+  clearTerrainForHouse(nx,ny,h.w,h.h);
   toast('The house settles onto new ground.'+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
 }
 function applyHouseSize(wFt,dFt,label){
@@ -1918,6 +1993,7 @@ function applyHouseSize(wFt,dFt,label){
     const [dx2,dy2]=doorPos(); game.px=game.tx=dx2; game.py=game.ty=dy2; game.moving=false; }
   game.dirty=true; pushHouse();
   const n=displacePlants(h.x,h.y,w,d);
+  clearTerrainForHouse(h.x,h.y,w,d);
   toast(`${label} — ${wFt}' × ${dFt}'.`+(n?` ${n} plant${n>1?'s':''} lifted from under it.`:''));
 }
 function paintHouse(part,col,label){
@@ -1995,7 +2071,7 @@ function sweepLift(x,y){
     game.dirty=true; sweep.bulbs++;
     return;
   }
-  // bare ground: laid path/bed comes up instead
+  // bare ground: laid terrain comes up instead
   if (tileTerrain(x,y)){
     game.terrain[k]={removed:true,t:Date.now()};
     game.dirty=true; sweep.terr++;
@@ -2026,9 +2102,9 @@ cnv.addEventListener('pointerdown',e=>{
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
-  // plant/bulb/path/bed: press-and-drag paints tiles like the shovel
+  // plant/bulb/path/bed/water: press-and-drag paints tiles like the shovel
   // sweeps them; a plain tap (resolved at pointerup) walks or acts
-  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed'){
+  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed' || game.tool==='water'){
     toolDrag={sx:x, sy:y, active:false, count:0, what:null};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
@@ -2051,6 +2127,7 @@ function tapAction(x,y){ // the classic tap: walk there, act on your own tile
     return;
   }
   game.sleepOnArrive=false;
+  if (tileTerrain(x,y)==='water'){ toast('Water blocks the way.'); return; }
   if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(); return; }
   game.pathTarget=[x,y];
 }
@@ -2061,6 +2138,7 @@ function finishToolDrag(){
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     toast(toolDrag.what==='path' ? `Updated ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`
         : toolDrag.what==='bed'  ? `Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`
+        : toolDrag.what==='water'? `Laid ${toolDrag.count} water tile${toolDrag.count>1?'s':''}.`
         : `Planted ${toolDrag.count} — ${def.name}.`);
   } else toast('Nothing would take along that line.');
 }
@@ -2106,7 +2184,7 @@ function endSweep(){
   const parts=[];
   if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
   if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
-  if (sweep.terr) parts.push(`${sweep.terr} path/bed tile${sweep.terr>1?'s':''}`);
+  if (sweep.terr) parts.push(`${sweep.terr} terrain tile${sweep.terr>1?'s':''}`);
   if (parts.length){
     toast(`Lifted ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
@@ -2183,7 +2261,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,
+    gw:GW,gh:GH,rot:game.rot,house:game.house,pathColor:game.pathColor,waterStyle:game.waterStyle,
     plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,
     startTs:game.startTs,dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -2212,6 +2290,7 @@ async function loadSolo(id){
   // design gardens may legitimately have no house; story gardens get one
   game.house = (s.house!==undefined) ? s.house : (game.gameMode==='design'?null:defaultHouse());
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
+  game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
   game.rot=s.rot||0;
   game.startTs=s.startTs||Date.now();
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
@@ -2229,7 +2308,7 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm';
+  game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm'; game.waterStyle='pond';
   setWorldSize(31,31); game.house=defaultHouse(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
@@ -2485,7 +2564,7 @@ function buildPlanMap(){
   for (const k in game.terrain){ const t2=game.terrain[k];
     if (t2.removed) continue;
     const [x,y]=k.split(',').map(Number);
-    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):'#ebe2c9';
+    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):'#ebe2c9';
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
   }
   // drifts as smoothed blobs (largest first so small ones read on top)
@@ -2846,7 +2925,7 @@ const TRAY_CATS=[
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'dig',      label:'Dig',              tools:['shovel']},
-  {id:'landscape',label:'Landscape',        tools:['path','bed']},
+  {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'house',    label:'House',            tools:['house']},
 ];
 function buildToolTray(){
@@ -2949,14 +3028,16 @@ function buildToolTray(){
     renderCvRow(); applyTraySearch();
     return;
   }
-  // tool categories: Landscape (path, bed), Dig (shovel), House.
+  // tool categories: Landscape (path, bed, water), Dig (shovel), House.
   // A tool tab arms its first tool right away — RTS style.
   if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; }
   renderCvRow();
-  if (cat.tools.includes('path')||cat.tools.includes('bed')){
+  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')){
     const pathCol=pathColor(game.pathColor);
+    const waterCol=waterStyle(game.waterStyle);
     [['path','Path',pathCol.fill,`${pathCol.label} path: drag or act to lay paths.`],
-     ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.']]
+     ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.'],
+     ['water','Water',waterCol.fill,`${waterCol.label}: drag to paint ponds, rivers, or lakes.`]]
     .filter(([k])=>cat.tools.includes(k))
     .forEach(([k,label,colr,hint])=>{
       const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
@@ -2964,6 +3045,10 @@ function buildToolTray(){
       const tc=c.getContext('2d'); tc.fillStyle=colr;
       tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
       tc.closePath(); tc.fill();
+      if (k==='water'){
+        tc.strokeStyle='rgba(232,248,244,.8)'; tc.lineWidth=1;
+        for (let r=0;r<2;r++){ tc.beginPath(); tc.ellipse(24,21+r*6,12-r*3,2.2,0,0,7); tc.stroke(); }
+      }
       tc.fillStyle='rgba(0,0,0,0.18)';
       const rs=mulberry(k==='path'?11:23);
       for (let i=0;i<5;i++){ tc.beginPath();
@@ -2995,6 +3080,31 @@ function buildToolTray(){
         b.title=pc.label;
         b.onclick=()=>{ game.tool='path'; game.toolVar=null; game.pathColor=pc.id;
           buildToolTray(); toast(`${pc.label} path selected.`); };
+        tray.appendChild(b);
+      });
+    }
+    if (cat.tools.includes('water')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Water'; tray.appendChild(sep);
+      WATER_STYLES.forEach(ws=>{
+        const b=document.createElement('button');
+        b.className='tool'+(game.tool==='water'&&game.waterStyle===ws.id?' sel':'');
+        b.dataset.k='water'; b.dataset.waterStyle=ws.id;
+        const c=document.createElement('canvas'); c.width=48; c.height=44;
+        const tc=c.getContext('2d');
+        tc.fillStyle=ws.fill;
+        tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
+        tc.closePath(); tc.fill();
+        tc.fillStyle=ws.deep;
+        tc.beginPath(); tc.moveTo(24,23); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
+        tc.closePath(); tc.fill();
+        tc.strokeStyle='rgba(232,248,244,.75)'; tc.lineWidth=1;
+        tc.beginPath(); tc.ellipse(24,22,12,2.2,0,0,7); tc.stroke();
+        const sp=document.createElement('span'); sp.textContent=ws.label;
+        b.append(c,sp);
+        b.title=ws.label;
+        b.onclick=()=>{ game.tool='water'; game.toolVar=null; game.waterStyle=ws.id;
+          buildToolTray(); toast(`${ws.label} water selected.`); };
         tray.appendChild(b);
       });
     }
@@ -3054,7 +3164,7 @@ function buildToolTray(){
   if (cat.tools.includes('shovel')){
     const sh=document.createElement('button'); sh.className='tool'+(game.tool==='shovel'?' sel':'');
     sh.dataset.k='shovel'; sh.innerHTML='<span style="font-size:20px;margin-bottom:8px">⛏</span><span>Shovel</span>';
-    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag to lift plants — and bare paths or beds.'); };
+    sh.onclick=()=>{ game.tool='shovel'; game.toolVar=null; refreshTray(); toast('Shovel: drag to lift plants — and bare terrain.'); };
     tray.appendChild(sh);
   }
 }
@@ -3065,6 +3175,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     const k=b.dataset.k, P=k&&PLANTS[k];
     let hay=k||'';
     if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
+    if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
       if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
         hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin+' '+roleSummary(k2,12); }); }
@@ -3076,6 +3187,8 @@ function refreshTray(){
   document.querySelectorAll('.tool').forEach(el=>{
     const sel=el.dataset.pathColor
       ? game.tool==='path' && game.pathColor===el.dataset.pathColor
+      : el.dataset.waterStyle
+      ? game.tool==='water' && game.waterStyle===el.dataset.waterStyle
       : el.dataset.group
       ? !!(cur && cur.group===el.dataset.group)
       : el.dataset.k===game.tool;
@@ -3132,6 +3245,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='shovel') label='Dig here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
+  else if (game.tool==='water') label='Add water';
   else if (game.tool==='house') label=null;           // house places by tap
   else if (PLANTS[game.tool]) label=game.drift?'Plant a drift':'Plant here';
   const state=(baseZoom<1 && label) ? label : '';
@@ -3151,7 +3265,9 @@ function updateHUD(){
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='shovel'
-    ? 'Drag to lift plants — bare path and bed tiles clear too'
+    ? 'Drag to lift plants — bare terrain clears too'
+    : game.tool==='water'
+    ? 'Drag to paint ponds, rivers, and lakes'
     : ENABLE_HOUSE_SLEEP && isDoor(Math.round(game.px),Math.round(game.py))
     ? 'At the door — press E or tap here to sleep'
     : 'Tap a tile to walk · drag selected plants or tools to place them — or WASD + E');
@@ -3468,7 +3584,7 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.dayOffset=0;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm';
+      game.plants={}; game.bulbs={}; game.terrain={}; game.pathColor='warm'; game.waterStyle='pond';
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.house=null;
       } else {                                // story: avatar garden with a house + welcome drift
