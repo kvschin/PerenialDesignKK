@@ -1109,6 +1109,8 @@ const game = {
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
   lastBrushTool:null, lastBrushVar:null,             // last plant/material tool chosen from the catalog
   toolMenu:null,                                     // open flyout on the left canvas toolbar
+  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false}, // layer view: visibility + shade overlay
+  layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
@@ -1614,14 +1616,15 @@ function render(t){
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    const terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
+    const showLand=layerShown('landscape');           // hide player-laid terrain + doorstep with the layer
+    const terrObj=showLand?terrainAt(x,y):null, terr=terrObj&&terrObj.k;
     const path=terr==='path';
     const water=terr==='water';
     const rs=mulberry(tileSeed(x,y));
     let col;
     if (water) col = waterFill(terrObj,amb.snow);
     else if (path) col = pathFill(terrObj,amb.snow);
-    else if (isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
+    else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
     if (water) drawWaterTexture(cx,sx,sy,x,y,terrObj,amb,t);
@@ -1652,6 +1655,20 @@ function render(t){
         }
       }
   });
+  // Shade-suitability overlay (Layers view): wash every tile by how much
+  // canopy reaches it — amber = full sun, teal = shade, between = part shade
+  if (game.layerVis.shade){
+    for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
+      let score=0;
+      shadeTrees.forEach(sh=>{ const s=treeShadeScore(sh,xx,yy); if (s>score) score=s; });
+      const [sx,sy]=screenOf(xx,yy,W,H);
+      if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+      const col = score>=SHADE_ACTIVE_SCORE ? 'rgba(38,84,112,0.52)'      // shade — cool blue
+        : score>0 ? 'rgba(70,132,128,0.44)'                              // part shade — teal
+        : 'rgba(232,180,78,0.40)';                                       // full sun — amber
+      tileDiamond(cx,sx,sy,col,null);
+    }
+  }
   // hover/selection cursor on player's tile
   const [hx,hy]=screenOf(game.tx,game.ty,W,H);
   cx.strokeStyle='rgba(243,236,221,0.85)'; cx.lineWidth=2;
@@ -1693,7 +1710,7 @@ function render(t){
   // culled to the same visible window as the ground
   const ents=[];
   const hh=game.house;
-  if (hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
+  if (layerShown('landscape') && hh && hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
     ents.push({depth:houseDrawDepth(hh),
       draw:()=>drawHouse(cx,W,H,cal.season)});
   if (ghost)
@@ -1701,6 +1718,7 @@ function render(t){
       draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
   // active canopies stunt full-sun plants beneath them (they persist, smaller)
   // the bulb layer: invisible most of the year, so cull hard
+  if (layerShown('bulbs'))
   for (const k in game.bulbs){ const p=game.bulbs[k];
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
@@ -1711,6 +1729,7 @@ function render(t){
   }
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
+    if (!layerShown(plantLayerOf(p))) continue;       // perennials/woody view toggle
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
     let g2v=plantGrowth(p);
@@ -2081,17 +2100,21 @@ let sweep=null; // shovel drag-lift in progress: {plants, terr}
    only their layer. Counts tally into `counts`. */
 function eraseBrush(cx,cy,counts){
   const r=((game.eraseSize|0)-1)/2, m=game.eraseMode, now=Date.now();
+  // a layer is erasable only if it's visible, in edit focus, and in eraseMode
+  const can=(name,mode)=>layerShown(name) && layerEditable(name) && (m==='all'||m===mode);
+  const peren=can('perennials','plant'), woody=can('woody','plant');
+  const bulbOK=can('bulbs','bulb'), terrOK=can('landscape','terrain');
   for (let dy=-r; dy<=r; dy++) for (let dx=-r; dx<=r; dx++){
     const x=cx+dx, y=cy+dy;
     if (x<0||y<0||x>=GW||y>=GH) continue;
     const k=`${x},${y}`;
     const p=game.plants[k];
-    if ((m==='all'||m==='plant') && p && !p.removed){
+    if (p && !p.removed && (plantLayerOf(p)==='woody'?woody:peren)){
       game.plants[k]={removed:true,t:now}; game.dirty=true; counts.plants++; }
     const b=game.bulbs[k];
-    if ((m==='all'||m==='bulb') && b && !b.removed){
+    if (bulbOK && b && !b.removed){
       game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
-    if ((m==='all'||m==='terrain') && tileTerrain(x,y)){
+    if (terrOK && tileTerrain(x,y)){
       game.terrain[k]={removed:true,t:now}; game.dirty=true; counts.terr++; }
   }
 }
@@ -2992,6 +3015,19 @@ const TRAY_CATS=[
   {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'house',    label:'House',            tools:['house']},
 ];
+// which garden layer a planted tile belongs to (perennials vs woody)
+function plantLayerOf(p){ const P=p&&PLANTS[p.s];
+  return (P && (P.type==='shrub'||P.type==='tree')) ? 'woody' : 'perennials'; }
+// is a layer currently visible? hidden layers don't render and can't be edited
+function layerShown(name){ return game.layerVis[name]!==false; }
+// does the active edit focus permit touching this layer?
+function layerEditable(name){ return game.layerFocus==='all' || game.layerFocus===name; }
+const LAYER_DEFS=[                                  // order shown in the Layers popover
+  ['perennials','Perennials'],
+  ['bulbs','Bulbs'],
+  ['woody','Woody plants'],
+  ['landscape','Landscape'],
+];
 function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || k==='house'; }
 function rememberBrushTool(){
   if (isBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
@@ -3191,7 +3227,66 @@ function buildCanvasTools(){
   add('Redo','redo',{disabled:true,title:'Redo is planned'});
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
   sep();
-  add('Layers','layers',{disabled:true,title:'Layers/view controls are planned'});
+  add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
+    title:'Show/hide garden layers and pick the layer you are editing',
+    onClick:()=>toggleLayerMenu()});
+  if (game.toolMenu==='layers') addLayerMenu(rail);
+}
+// true when the view is anything other than "everything visible, no overlay"
+function layerViewActive(){
+  return game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k)) || game.layerFocus!=='all';
+}
+function toggleLayerMenu(){
+  game.toolMenu = game.toolMenu==='layers' ? null : 'layers';
+  refreshCanvasTools();
+}
+function addLayerMenu(rail){
+  const pop=document.createElement('div');
+  pop.className='tool-popover layer-popover';
+  // "All" resets to the normal full garden
+  const allBtn=document.createElement('button');
+  allBtn.className='layer-all'+(!layerViewActive()?' sel':'');
+  allBtn.innerHTML='<span>All</span><span class="layer-hint">show everything</span>';
+  allBtn.title='Show the normal full garden';
+  allBtn.onclick=ev=>{ ev.stopPropagation();
+    LAYER_DEFS.forEach(([k])=>game.layerVis[k]=true);
+    game.layerVis.shade=false; game.layerFocus='all';
+    refreshCanvasTools(); toast('Showing the full garden.'); };
+  pop.appendChild(allBtn);
+  // one row per editable layer: an eye toggles visibility, the name sets edit focus
+  LAYER_DEFS.forEach(([key,label])=>{
+    const row=document.createElement('div');
+    row.className='layer-row'+(game.layerFocus===key?' focus':'')+(layerShown(key)?'':' hidden');
+    const eye=document.createElement('button');
+    eye.className='layer-eye'+(layerShown(key)?' on':'');
+    eye.title=layerShown(key)?`Hide ${label.toLowerCase()}`:`Show ${label.toLowerCase()}`;
+    eye.textContent=layerShown(key)?'◉':'○';
+    eye.onclick=ev=>{ ev.stopPropagation();
+      game.layerVis[key]=!layerShown(key);
+      if (!layerShown(key) && game.layerFocus===key) game.layerFocus='all';
+      refreshCanvasTools();
+      toast(`${label} ${layerShown(key)?'shown':'hidden'}.`); };
+    const name=document.createElement('button');
+    name.className='layer-name';
+    name.textContent=label;
+    name.title=`Edit ${label.toLowerCase()} only`;
+    name.onclick=ev=>{ ev.stopPropagation();
+      if (game.layerFocus===key){ game.layerFocus='all'; toast('Editing all layers.'); }
+      else { game.layerFocus=key; game.layerVis[key]=true; toast(`Editing ${label.toLowerCase()} only.`); }
+      refreshCanvasTools(); };
+    row.append(eye,name); pop.appendChild(row);
+  });
+  // shade overlay — a view aid, not a planting layer
+  const sh=document.createElement('button');
+  sh.className='layer-shade'+(game.layerVis.shade?' sel':'');
+  sh.innerHTML='<span>Shade overlay</span><span class="layer-hint">sun vs. shade</span>';
+  sh.title='Tint tiles by sun/shade suitability for planting';
+  sh.onclick=ev=>{ ev.stopPropagation();
+    game.layerVis.shade=!game.layerVis.shade;
+    refreshCanvasTools();
+    toast(game.layerVis.shade?'Shade overlay on.':'Shade overlay off.'); };
+  pop.appendChild(sh);
+  rail.appendChild(pop);
 }
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';

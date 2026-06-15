@@ -151,14 +151,27 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the player stands in it, translucent house via `drawHouse` override —
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
-    the door tile; chips resize/repaint), the left **canvas toolbar** (Hand /
-    Select TODO / Plant / Erase / Undo / Rotate; `game.tool` uses `'hand'` for safe
-    panning and keeps `'shovel'` for Erase back-compat) and Erase **drag-sweep**
+    the door tile; chips resize/repaint), the left **canvas toolbar**
+    (`buildCanvasTools`: Hand / Select TODO / Plant / Erase / Fill TODO /
+    Pick TODO / Undo / Redo TODO / Rotate / **Layers**; `game.tool` uses
+    `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat) and
+    Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+terrain on
     each tile in one pass, or `plant`/`bulb`/`terrain` only; one toast +
     per-layer sync at pointerup via `endSweep`), tap and keyboard input.
+    The **Layers** button opens a flyout (`addLayerMenu`, same
+    `game.toolMenu` popover mechanism as Plant's Draw/Drift) over
+    `game.layerVis` (per-layer visibility for perennials / bulbs / woody /
+    landscape + a `shade` overlay flag) and `game.layerFocus` (the one layer
+    edits are locked to, or `'all'`). Each row's eye toggles render
+    visibility; the name sets edit focus. `render` skips hidden layers
+    (`layerShown`: landscape gates terrain+doorstep+house, bulbs gate the
+    bulb pass, perennials/woody split plants via `plantLayerOf`), and the
+    shade overlay washes every tile by canopy reach (amber full sun → teal
+    part → blue shade). `eraseBrush` only clears layers that are visible
+    **and** in focus (`layerEditable`), so hidden layers are protected.
     All placement funnels
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
     bulbs ignore plant occupancy and shade, plants check `shadeAt`, paths
