@@ -215,6 +215,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tool span{font-size:8.5px;color:#cdbfa9;text-align:center;line-height:1.05;pointer-events:none}
 .tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.2)}
 .tool.sel span{color:var(--seedhead)}
+.tool.action{background:rgba(239,230,211,.08)}
+.tool.disabled{opacity:.38;pointer-events:none}
 #actionHint{pointer-events:none;font-size:12px;color:rgba(239,230,211,.85);background:rgba(25,18,15,.6);padding:4px 12px;border-radius:3px}
 #btnAct{pointer-events:auto;background:var(--bronze);border:none;color:var(--ink);
   font-weight:700;font-size:15px;padding:12px 32px;border-radius:26px;

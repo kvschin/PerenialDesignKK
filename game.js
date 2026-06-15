@@ -1561,7 +1561,7 @@ function calcZoom(){
 }
 function setUserZoom(z){
   userZoom = Math.max(0.4, Math.min(2.2, z));
-  calcZoom(); if (game.mode && game.gameMode!=='design') snapCam(); // design keeps its free camera
+  calcZoom(); if (game.mode && game.gameMode!=='design' && game.tool!=='hand') snapCam(); // design/hand keep a free camera
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
@@ -1579,8 +1579,8 @@ function render(t){
   cx.fillStyle=g; cx.fillRect(0,0,W,H);
   drawSeasonSky(cx,W,H,cal.season);
 
-  // camera eases toward the player (story only; design pans freely)
-  if (game.gameMode!=='design'){
+  // camera eases toward the player (story only; design and Hand tool pan freely)
+  if (game.gameMode!=='design' && game.tool!=='hand'){
     const [ptx,pty]=screenOf(game.px,game.py,W,H);
     cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
   }
@@ -2046,7 +2046,7 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); doUndo(); return; }
   if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
-    e.preventDefault(); spaceHeld=true; cnv.style.cursor='grab'; return;
+    e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
   if (k==='e'||k===' '){ e.preventDefault(); withUndo(actHere); return; }
   if (k==='r'){ e.preventDefault(); rotateView(); return; }
@@ -2061,7 +2061,7 @@ addEventListener('keydown',e=>{
   if (map[k]){ e.preventDefault(); heldKeys[k]=map[k]; }
 });
 addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
-  if (e.key===' '){ spaceHeld=false; cnv.style.cursor=''; } });
+  if (e.key===' '){ spaceHeld=false; updateCanvasCursor(); } });
 
 /* tap / click: first tap walks, tap on own tile acts */
 let lastTap=0;
@@ -2094,6 +2094,10 @@ function evTile(e){ // pointer position -> world tile, zoom-aware
    A gesture snapshots state on pointerdown and commits it only if the
    state actually changed by pointerup, so no-op taps don't pile up. */
 let spaceHeld=false, panDrag=null, undoStack=[], pendSnap=null, pendSig=null;
+function updateCanvasCursor(){
+  if (!cnv) return;
+  cnv.style.cursor = panDrag ? 'grabbing' : (game.tool==='hand'||spaceHeld ? 'grab' : '');
+}
 function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.house]); }
 function snapshotState(){ return {
   plants:JSON.parse(JSON.stringify(game.plants)),
@@ -2113,7 +2117,10 @@ function doUndo(){
   if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); pushHouse(); }
   buildToolTray(); toast('Undone.');
 }
-function updateUndoBtn(){ const b=document.getElementById('btnUndo'); if (b) b.classList.toggle('disabled',!undoStack.length); }
+function updateUndoBtn(){
+  const disabled=!undoStack.length;
+  document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',disabled));
+}
 
 /* two fingers pinch the zoom; everything else is one-finger business */
 const activePtrs=new Map(); let pinch=null, toolDrag=null;
@@ -2128,11 +2135,11 @@ cnv.addEventListener('pointerdown',e=>{
     return;
   }
   if (activePtrs.size>1) return;
-  // PC pan: middle-mouse drag, or hold Space and drag (design mode)
-  if (game.gameMode==='design' && (e.button===1 || spaceHeld)){
+  // Hand tool pans the map; design mode also supports middle mouse / Space-drag.
+  if (game.tool==='hand' || (game.gameMode==='design' && (e.button===1 || spaceHeld))){
     e.preventDefault();
     panDrag={sx:e.clientX, sy:e.clientY, camx0:cam.x, camy0:cam.y};
-    cnv.style.cursor='grabbing';
+    updateCanvasCursor();
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
@@ -2242,7 +2249,7 @@ function endSweep(){
 cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  if (panDrag){ panDrag=null; cnv.style.cursor=spaceHeld?'grab':''; return; }
+  if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
     else tapAction(toolDrag.sx,toolDrag.sy);
@@ -2254,7 +2261,7 @@ cnv.addEventListener('pointerup',e=>{
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  sweep=null; toolDrag=null; panDrag=null; pendSig=null; pendSnap=null;
+  sweep=null; toolDrag=null; panDrag=null; pendSig=null; pendSnap=null; updateCanvasCursor();
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
@@ -2972,7 +2979,7 @@ const TRAY_CATS=[
   {id:'bulbs',    label:'Bulbs',            types:['bulb']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'dig',      label:'Erase',            tools:['shovel']},
+  {id:'tools',    label:'Tools',            tools:['hand','shovel','undo','rotate']},
   {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'house',    label:'House',            tools:['house']},
 ];
@@ -3006,8 +3013,8 @@ function buildToolTray(){
     const all=trayKeys();
     if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool=all[0]||'path'; game.toolVar=null; }
     if (PLANTS[game.tool] && keys.length && !keys.includes(game.tool)){ game.tool=keys[0]; game.toolVar=null; }
-    // browsing plants disarms tap-action tools (house placement, shovel sweep)
-    if ((game.tool==='house'||game.tool==='shovel') && keys.length){
+    // browsing plants disarms tap-action tools (pan, house placement, shovel sweep)
+    if ((game.tool==='hand'||game.tool==='house'||game.tool==='shovel') && keys.length){
       game.tool=keys[0]; game.toolVar=null; }
     if (!keys.length){
       const sp=document.createElement('span'); sp.className='tray-empty';
@@ -3073,10 +3080,10 @@ function buildToolTray(){
       }
       sectionKeys.forEach(addPlantButton);
     });
-    renderCvRow(); applyTraySearch();
+    renderCvRow(); applyTraySearch(); updateCanvasCursor();
     return;
   }
-  // tool categories: Landscape (path, bed, water), Dig (shovel), House.
+  // tool categories: Tools (hand/erase/actions), Landscape, House.
   // A tool tab arms its first tool right away — RTS style.
   if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; }
   renderCvRow();
@@ -3209,16 +3216,23 @@ function buildToolTray(){
         ()=>{ withUndo(()=>paintHouse('roof',c2,n)); buildToolTray(); });
     });
   }
-  if (cat.tools.includes('shovel')){
+  if (cat.id==='tools'){
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    const eBtn=(label,sel,draw,fn)=>{
-      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+    const eBtn=(label,sel,draw,fn,cls='')=>{
+      const b=document.createElement('button'); b.className='tool'+(cls?` ${cls}`:'')+(sel?' sel':'');
       const c=document.createElement('canvas'); c.width=48; c.height=44; draw(c.getContext('2d'));
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
     };
-    // the eraser tool itself
+    const hb=eBtn('Hand', game.tool==='hand',
+      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
+        tc.beginPath(); tc.moveTo(15,24); tc.lineTo(15,15); tc.moveTo(21,24); tc.lineTo(21,12);
+        tc.moveTo(27,24); tc.lineTo(27,14); tc.moveTo(33,25); tc.lineTo(33,18);
+        tc.moveTo(15,24); tc.quadraticCurveTo(17,34,25,35); tc.quadraticCurveTo(34,35,35,27); tc.stroke(); },
+      ()=>{ game.tool='hand'; game.toolVar=null; buildToolTray();
+        toast('Hand: drag the map to pan.'); });
+    hb.dataset.k='hand';
     const eb=eBtn('Erase', game.tool==='shovel',
       tc=>{ tc.save(); tc.translate(24,23); tc.rotate(-0.5);
         tc.fillStyle='#e8b8c2'; tc.strokeStyle='#6e5a48'; tc.lineWidth=1.6;
@@ -3228,6 +3242,20 @@ function buildToolTray(){
       ()=>{ game.tool='shovel'; game.toolVar=null; buildToolTray();
         toast('Erase: tap or drag to clear. Pick layer + brush below.'); });
     eb.dataset.k='shovel';
+    const ub=eBtn('Undo', false,
+      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
+        tc.beginPath(); tc.arc(25,23,10,0.25*Math.PI,1.65*Math.PI,true); tc.stroke();
+        tc.beginPath(); tc.moveTo(15,15); tc.lineTo(13,25); tc.lineTo(23,23); tc.stroke(); },
+      ()=>doUndo(), 'action');
+    ub.dataset.action='undo'; if (!undoStack.length) ub.classList.add('disabled');
+    const rb=eBtn('Rotate', false,
+      tc=>{ tc.strokeStyle='#d8c7ac'; tc.lineWidth=2.2; tc.lineCap='round'; tc.lineJoin='round';
+        tc.beginPath(); tc.arc(24,22,11,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
+        tc.beginPath(); tc.moveTo(33,14); tc.lineTo(38,14); tc.lineTo(37,19); tc.stroke();
+        tc.fillStyle='rgba(201,127,63,.28)'; tc.beginPath();
+        tc.moveTo(24,12); tc.lineTo(36,22); tc.lineTo(24,32); tc.lineTo(12,22); tc.closePath(); tc.fill(); },
+      ()=>rotateView(1), 'action');
+    rb.dataset.action='rotate';
     sep('Erases');
     [['all','All','#e0d2ae'],['plant','Plants','#6f9a5a'],['bulb','Bulbs','#a98ad8'],['terrain','Landscape','#bba98c']]
       .forEach(([m,lbl,col])=>{
@@ -3249,6 +3277,7 @@ function buildToolTray(){
           toast(`Brush: ${sz}×${sz}.`); });
     });
   }
+  updateCanvasCursor();
 }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
 function applyTraySearch(){ // hide tray buttons that don't match the query
@@ -3276,6 +3305,7 @@ function refreshTray(){
       : el.dataset.k===game.tool;
     el.classList.toggle('sel', sel);
   });
+  updateCanvasCursor();
 }
 /* variant chips: species inside a group, and/or cultivars of the
    selected species. A chip is a (species, cultivar|null) pair. */
@@ -3324,6 +3354,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   const px3=Math.round(game.px), py3=Math.round(game.py);
   let label=null;
   if (ENABLE_HOUSE_SLEEP && isDoor(px3,py3)) label='Sleep';
+  else if (game.tool==='hand') label=null;
   else if (game.tool==='shovel') label=game.eraseSize>1?`Erase ${game.eraseSize}×${game.eraseSize}`:'Erase here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
@@ -3346,6 +3377,8 @@ function updateHUD(){
   document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
+    : game.tool==='hand'
+    ? 'Hand: drag the map to pan'
     : game.tool==='shovel'
     ? `Erase (${game.eraseMode==='all'?'everything':game.eraseMode+' only'}, ${game.eraseSize}×${game.eraseSize}) — tap or drag`
     : game.tool==='water'
@@ -3751,8 +3784,8 @@ $('btnCsv').onclick=exportCsv;
 $('btnRegion').onclick=openRegion;
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
-$('btnRotate').onclick=()=>rotateView(1);
-$('btnUndo').onclick=doUndo;
+if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
+if ($('btnUndo')) $('btnUndo').onclick=doUndo;
 $('btnPhoto').onclick=takePhoto;
 $('btnPlan').onclick=openPlan;
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');

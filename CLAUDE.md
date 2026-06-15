@@ -151,8 +151,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the player stands in it, translucent house via `drawHouse` override —
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
-    the door tile; chips resize/repaint), the **Erase** tool (the tray tab
-    is "Erase"; `game.tool` stays `'shovel'` for back-compat) **drag-sweep**
+    the door tile; chips resize/repaint), the **Tools** tab (Hand / Erase /
+    Undo / Rotate; `game.tool` uses `'hand'` for panning and keeps `'shovel'`
+    for Erase back-compat) and Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+terrain on
@@ -169,7 +170,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
     ≤18" → 5, ≤30" → 3); woody plants always plant singly. The Erase tool's
-    options live in its own tray (Place-style icon buttons, `sep`/`eBtn`):
+    options live in the Tools tray (Place-style icon buttons, `sep`/`eBtn`):
     layer (All/Plants/Bulbs/Landscape → `eraseMode`) and brush
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
@@ -206,8 +207,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
     (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
-    Erase / Landscape / House — a tool tab arms its first tool on click, and
-    browsing a plant tab disarms house/shovel so taps go back to walking),
+    Tools / Landscape / House — a tool tab arms its first tool on click, and
+    browsing a plant tab disarms hand/house/shovel so taps go back to walking),
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
@@ -216,8 +217,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     sections (`.tray-sep`). A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus season dial, sleep button, plant-list, region, rotate, photo, and
-    plan buttons (a compact icon bar; labels hide on small screens, the
+    Plus season dial, sleep button, plant-list, region, photo, and plan
+    buttons (a compact icon bar; labels hide on small screens, the
     region label shows the active filter), contextual action hint. There is no
     Save button — autosave fires on day change, quit, and
     visibilitychange/pagehide. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
