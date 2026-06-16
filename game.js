@@ -3124,19 +3124,21 @@ function plantRoles(k){
     roles.add('structure'); roles.add('japanese'); roles.add('block');
   }
   if (group==='allium' || text.includes('allium')){
-    roles.add('bulbLayer'); roles.add('architectural'); roles.add('formal');
+    if (P.type==='bulb') roles.add('bulbLayer');
+    roles.add('architectural'); roles.add('formal');
     roles.add('modern'); roles.add('pollinator'); roles.add('nectar');
   }
-  if (roleMatches(text,['hydrangea','phlox','yarrow','stachys','scabiosa','sedum','sanguisorba','salvia','catmint','aster','monarda']))
+  if (roleMatches(text,['hydrangea','phlox','yarrow','stachys','scabiosa','sedum','sanguisorba','salvia','catmint','aster','monarda','iris','filipendula','lobelia','poppy mallow','poppymallow','gaura']))
     roles.add('cottage'), roles.add('romantic');
-  if (roleMatches(text,['monarda','bee balm','asclepias','butterfly weed','aster','goldenrod','liatris','mountain mint','agastache','coneflower','echinacea','rudbeckia','coreopsis','helenium','burnet','sanguisorba','scabiosa','phlox','penstemon','columbine','heuchera','salvia','calamint','catmint','allium']))
+  if (roleMatches(text,['monarda','bee balm','asclepias','milkweed','butterfly weed','zizia','golden alexander','aster','goldenrod','liatris','mountain mint','agastache','coneflower','echinacea','rudbeckia','coreopsis','helenium','helianthus','sunflower','silphium','prairie dock','burnet','sanguisorba','scabiosa','phlox','penstemon','columbine','heuchera','lobelia','hypericum','st. johnswort','callirhoe','poppy mallow','gaura','oenothera','shooting star','primula','pasque','pulsatilla','filipendula','geum','prairie smoke','tradescantia','spiderwort','sisyrinchium','blue-eyed grass','iris','salvia','calamint','catmint','allium']))
     roles.add('pollinator'), roles.add('nectar');
   if (roleMatches(text,['asclepias','milkweed','butterfly weed'])) roles.add('host');
+  if (roleMatches(text,['antennaria','pussytoes','zizia','golden alexander'])) roles.add('host');
   if (roleMatches(text,['monarda','mountain mint','calamint','agastache','catmint','salvia','yarrow']))
     roles.add('aromatic');
-  if (roleMatches(text,['yucca','eryngium','rattlesnake','echinops','stipa','fescue','mexican feather','calamint','catmint','salvia','yarrow','agastache','allium','baptisia','leadplant']))
+  if (roleMatches(text,['yucca','eryngium','rattlesnake','echinops','stipa','fescue','mexican feather','calamint','catmint','salvia','yarrow','agastache','allium','baptisia','leadplant','pussytoes','antennaria','pasque','pulsatilla','prairie smoke','geum','poppy mallow','callirhoe','gaura','blue-eyed grass','sisyrinchium']))
     roles.add('dry'), roles.add('gravel'), roles.add('mediterranean');
-  if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake']))
+  if (roleMatches(text,['silver','blue fescue','yucca','eryngium','echinops','yarrow','stachys','rattlesnake','pussytoes','antennaria']))
     roles.add('silver');
   if (roleMatches(text,['japanese maple','flowering cherry','hakone','hosta','fern','astilbe','heuchera','hydrangea','ginkgo','birch','yew','boxwood']))
     roles.add('japanese');
