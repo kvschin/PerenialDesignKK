@@ -1114,6 +1114,7 @@ const game = {
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
   selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
   selMode:'move',                                    // selection drag intent: 'move' | 'copy'
+  fillMode:false,                                    // bucket-fill: tap floods a connected same-material region
   houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
   houseDraft:null,                                   // settings for the next house the House tool places
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
@@ -2395,6 +2396,7 @@ cnv.addEventListener('pointerdown',e=>{
     const layer=toolTargetLayer(game.tool);
     if (layer && !layerShown(layer)){ promptRevealLayer(layer,x,y); return; }
   }
+  if (fillActive()){ doFloodFill(x,y); return; }  // bucket fill is a single tap, self-undoing
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
@@ -3380,6 +3382,7 @@ function visiblePlantChoice(){
 function armPlantToolFromRail(openMenu){
   const nextMenu=openMenu ? (game.toolMenu==='plant'?null:'plant') : null;
   const choice=visiblePlantChoice();
+  game.fillMode=false;                  // plain planting, not bucket-fill
   if (choice){
     game.tool=choice[0]; game.toolVar=choice[1];
     game.trayCat=plantCategoryFor(choice[0]);
@@ -3394,6 +3397,56 @@ function armPlantToolFromRail(openMenu){
   updateCanvasCursor();
   if (!choice) toast('Pick a plant from the catalog first.');
   return !!choice;
+}
+/* bucket fill: a tap floods the connected region of the tapped tile's
+   GROUND material (grass / path / bed / water) and applies the armed brush
+   to every tile in it — fill a bed block with a plant, recolour a path run,
+   turn a lawn into beds, etc. Fill is a mode layered over the armed brush,
+   so the bottom catalog still picks what you fill WITH. */
+function fillActive(){ return game.fillMode && isBrushTool(game.tool) && game.tool!=='house'; }
+function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
+function armFillTool(){
+  game.toolMenu=null;
+  // keep the current plant/material if one's armed; otherwise pick a sensible default
+  if (!isBrushTool(game.tool) || game.tool==='house'){
+    const choice=visiblePlantChoice();
+    if (choice){ game.tool=choice[0]; game.toolVar=choice[1]; }
+    else { game.tool='hand'; game.toolVar=null; }
+  }
+  // keep the catalog tab on the armed brush so buildToolTray won't drop it
+  if (PLANTS[game.tool]) game.trayCat=plantCategoryFor(game.tool);
+  else if (game.tool==='path'||game.tool==='bed'||game.tool==='water') game.trayCat='landscape';
+  rememberBrushTool();
+  game.fillMode = isBrushTool(game.tool) && game.tool!=='house';
+  buildToolTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
+  toast(game.fillMode
+    ? 'Fill: tap an area to flood it with the selected plant or material.'
+    : 'Pick a plant or material from the catalog, then tap to fill.');
+}
+function doFloodFill(sx,sy){
+  if (sx<0||sy<0||sx>=GW||sy>=GH || inHouse(sx,sy) || isDoor(sx,sy)) return;
+  const seed=groundMat(sx,sy);
+  // BFS the 4-connected region sharing that ground material
+  const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
+  while (q.length){
+    const [x,y]=q.shift(); region.push([x,y]);
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy, key=nx+','+ny;
+      if (nx<0||ny<0||nx>=GW||ny>=GH || seen.has(key)) continue;
+      if (inHouse(nx,ny) || isDoor(nx,ny)) continue;
+      if (groundMat(nx,ny)!==seed) continue;
+      seen.add(key); q.push([nx,ny]);
+    }
+  }
+  let placed=0, what=null;
+  withUndo(()=>{ region.forEach(([x,y])=>{ const r=applyToolAt(x,y); if (r){ placed++; what=r; } }); });
+  if (placed){
+    syncToolLayer(what);
+    const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
+    const label = def ? def.name : game.tool==='path'?`${pathColor(game.pathColor).label} path`
+      : game.tool==='water'?`${waterStyle(game.waterStyle).label} water` : 'bed';
+    toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
+  } else toast('Nothing here that fill can change.');
 }
 function choosePlantMode(drift){
   game.drift=!!drift;
@@ -3495,14 +3548,16 @@ function buildCanvasTools(){
   add('Select','select',{active:game.tool==='select',
     title:'Drag a box to select tiles — then move, duplicate, rotate, or erase them',
     onClick:()=>{ setTool('select'); buildToolTray(); }});
-  add('Plant','brush',{active:brushActive||game.toolMenu==='plant',
+  add('Plant','brush',{active:(brushActive&&!game.fillMode)||game.toolMenu==='plant',
     title:'Choose draw or drift planting, then pick plants from the catalog',
     onClick:()=>armPlantToolFromRail(true)});
   if (game.toolMenu==='plant') addPlantToolMenu(rail);
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
     onClick:()=>{ setTool('shovel'); buildToolTray(); }});
   sep();
-  add('Fill','fill',{disabled:true,todo:true,title:'Bucket fill is planned for a later painting pass'});
+  add('Fill','fill',{active:fillActive(),
+    title:'Bucket fill: tap to flood a connected area of one material — pick what to fill with from the catalog',
+    onClick:()=>armFillTool()});
   add('Pick','dropper',{disabled:true,todo:true,title:'Eyedropper/copy is planned'});
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});

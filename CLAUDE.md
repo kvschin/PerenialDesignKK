@@ -159,7 +159,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
-    (`buildCanvasTools`: Hand / **Select** / Plant / Erase / Fill TODO /
+    (`buildCanvasTools`: Hand / **Select** / Plant / Erase / **Fill** /
     Pick TODO / Undo / Redo TODO / Rotate / **Layers**; `game.tool` uses
     `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat) and
     Erase **drag-sweep**
@@ -220,7 +220,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     tap resolves at pointerup to the classic walk/act (`tapAction`). With
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
-    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The Erase tool's
+    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The **Fill** tool
+    (`game.fillMode`, a mode layered over the armed brush — the bottom
+    catalog still picks what you fill WITH) bucket-fills: a tap runs
+    `doFloodFill`, which BFS-floods the 4-connected region sharing the
+    tapped tile's ground material (`groundMat`: grass/path/bed/water) and
+    applies the armed brush to every tile via `applyToolAt`, wrapped in one
+    `withUndo`. `armFillTool` arms a brush + sets the flag; `fillActive()`
+    gates it (`fillMode && isBrushTool && tool!=='house'`); the Plant rail
+    button clears the flag. The Erase tool's
     options live in the bottom contextual toolbar when Erase is active:
     layer (All/Plants/Bulbs/Landscape → `eraseMode`) and size
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
@@ -370,10 +378,9 @@ with their own depth slices. The big one: a real multiplayer backend
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by
     drag-to-paint; the idea is a dedicated stroke tool).
-  - **Bucket fill** — flood-fill a connected region of the *same* existing
-    material (e.g. a contiguous block of dirt beds) with a new landscape
-    block, or — if the whole filled area is dirt bed — fill it with one
-    plant. UI metaphor under consideration: a wheelbarrow dropping dirt.
+  - *(Built)* **Bucket fill** — the **Fill** tool floods the connected
+    region of one ground material with the armed brush (plant or landscape);
+    see `doFloodFill` in the canvas-toolbar notes above.
   - **Eyedropper** — sample a plant/material from a tile and arm it as the
     current tool.
   - *(Built)* **Selection tool** — marquee a region to move, duplicate,
