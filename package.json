@@ -1,0 +1,12 @@
+{
+  "name": "pocket-prairie-garden-design",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A 2.5D Oudolf-style perennial garden planner and game. Plain HTML/CSS/JS, no build step.",
+  "scripts": {
+    "test": "node tests/run.js",
+    "check": "node --check game.js && node --check plants.js",
+    "serve": "npx http-server -p 8642 -c-1"
+  },
+  "license": "UNLICENSED"
+}

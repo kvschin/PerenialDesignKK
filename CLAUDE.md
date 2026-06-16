@@ -41,8 +41,17 @@ before `game.js`; keep that order.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
-- There is no test suite. After edits, run `node --check game.js` to catch
-  syntax errors before reloading the browser.
+- After edits, run `node --check game.js` to catch syntax errors before
+  reloading the browser.
+- Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
+  loads the real `plants.js` and `game.js` inside a `vm` sandbox with light
+  DOM stubs. `tests/plants.test.js` checks the species data contract;
+  `tests/game.test.js` smoke-renders every species and unit-tests the pure
+  logic (iso math, flood fill, selection ownership, bulb/woody rules, the
+  house array). All of game.js's testable logic lives above the first DOM
+  access (~line 1578), so it loads and runs headless. Add a `test(name,fn)`
+  with `assert(...)` to the matching file when you add a feature; the runner
+  exits non-zero on any failure.
 
 ## Known constraints (read before touching save/multiplayer)
 
