@@ -1578,14 +1578,6 @@ function takePhoto(){
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
 let DPR = Math.min(2, window.devicePixelRatio||1);
-/* Adaptive render resolution: a big high-DPI desktop window has to fill an
-   order of magnitude more pixels than a phone, so framerate can dip there
-   despite the faster CPU. renderScale shrinks the backing store (the canvas
-   stays the same CSS size, the browser upscales) when frames run long, and
-   eases back toward 1 when there's headroom. Tuned by tuneQuality() each
-   frame. 1 = full resolution; floored so it never gets too soft. */
-let renderScale = 1;
-function deviceScale(){ return DPR*renderScale; }
 /* view zoom: a small-screen base (phones start at 0.75x for ~1.3x more
    garden) times the player's own zoom — pinch, wheel, +/- keys, or the
    zoom pill. All drawing and input math runs through ZOOM. */
@@ -1600,22 +1592,18 @@ function setUserZoom(z){
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
-function sizeCanvas(c){ const s=deviceScale();
-  c.width=Math.round(innerWidth*s); c.height=Math.round(innerHeight*s);
-  c.getContext('2d').setTransform(s,0,0,s,0,0); }
+function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
+  c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
 let snowFlakes = [];
-let _skyGrad=null, _skyKey='';
 function render(t){
   const W=innerWidth/ZOOM, H=innerHeight/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
-  cx.setTransform(deviceScale()*ZOOM,0,0,deviceScale()*ZOOM,0,0);
-  // sky — the gradient only changes with season or viewport height, so cache it
-  const skyKey=cal.season+'|'+Math.round(H);
-  if (skyKey!==_skyKey){ _skyKey=skyKey;
-    _skyGrad=cx.createLinearGradient(0,0,0,H);
-    _skyGrad.addColorStop(0,amb.sky[0]); _skyGrad.addColorStop(1,amb.sky[1]); }
-  cx.fillStyle=_skyGrad; cx.fillRect(0,0,W,H);
+  cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
+  // sky
+  const g = cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
   drawSeasonSky(cx,W,H,cal.season);
 
   // camera eases toward the player (story only; design and Hand tool pan freely)
@@ -3981,19 +3969,14 @@ function setActButton(){ // the big mobile do-it button, labeled by context
     document.getElementById('actionHint').classList.toggle('hidden',!!state||!ENABLE_ACTION_HINT);
   }
 }
-const _hud={};   // last-written HUD values, so we only touch the DOM on change
-function setText(id,val){ if (_hud[id]!==val){ _hud[id]=val; document.getElementById(id).textContent=val; } }
 function updateHUD(){
   const cal=calClock();
-  setText('seasonName',cal.season);
-  setText('seasonYear',`Year ${cal.year}`);
-  setText('seasonDay',`Day ${cal.day}`);
-  const pct=Math.round(cal.frac*100);          // whole percent — avoids a layout every frame
-  if (_hud.dayBar!==pct){ _hud.dayBar=pct; document.getElementById('dayBarFill').style.width=pct+'%'; }
-  const pause=game.pausedAt?'Start':'Pause';
-  if (_hud.pause!==pause){ _hud.pause=pause;
-    const b=document.getElementById('btnPause'); b.textContent=pause;
-    b.title=game.pausedAt?'Start day progression':'Pause day progression'; }
+  document.getElementById('seasonName').textContent=cal.season;
+  document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
+  document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
+  document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
+  document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Pause';
+  document.getElementById('btnPause').title=game.pausedAt?'Start day progression':'Pause day progression';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
@@ -4555,24 +4538,8 @@ function menuRender(t){
 
 /* ---------- main loop ---------- */
 let prev=performance.now(), keyCooldown=0;
-/* Frame-pacing governor: aim for ~60fps. If the smoothed frame interval
-   slips below that, drop renderScale a notch (fewer pixels to fill); when
-   there's clear headroom, ease it back toward full resolution. Uses the
-   real frame interval, so it catches GPU-bound fill cost on big windows,
-   not just JS time. A cooldown + dead zone keep it from oscillating. */
-let frameEMA=16.7, qCooldown=30;
-function tuneQuality(dt){
-  if (dt<=0 || dt>100) return;                 // ignore stalls / backgrounded tabs
-  frameEMA += (dt-frameEMA)*0.08;
-  if (--qCooldown>0) return;
-  if (frameEMA>21 && renderScale>0.6){         // below ~48fps: lighten the load
-    renderScale=Math.max(0.6, renderScale-0.12); sizeCanvas(cnv); sizeCanvas(mcnv); qCooldown=40;
-  } else if (frameEMA<15 && renderScale<1){     // comfortably above 60fps: sharpen back up
-    renderScale=Math.min(1, renderScale+0.08); sizeCanvas(cnv); sizeCanvas(mcnv); qCooldown=40;
-  }
-}
 function loop(t){
-  const dt=Math.min(50,t-prev), frame=t-prev; prev=t;
+  const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
     if (game.gameMode!=='design'){ // story mode: avatar movement
       keyCooldown-=dt;
@@ -4589,7 +4556,6 @@ function loop(t){
     }
     render(t); updateHUD();
   } else menuRender(t);
-  tuneQuality(frame);
   requestAnimationFrame(loop);
 }
 (async function init(){
