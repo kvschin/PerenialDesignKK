@@ -160,6 +160,16 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `shadeTrees` precomputed per frame); the plant card says "Struggling".
     Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
     math divides by it (`evTile`). Cost scales with screen size, not `GRID`.
+    **Adaptive resolution**: a big high-DPI desktop window fills ~10x the
+    pixels of a phone, so `renderScale` (1 → floor 0.6, via `deviceScale()`
+    = `DPR*renderScale`) shrinks the canvas backing store when frames run
+    long and eases it back up when there's headroom. `tuneQuality(frame)` in
+    the loop smooths the frame interval (`frameEMA`) and targets ~60fps
+    (lighten >21ms, sharpen <15ms, dead zone between, cooldown to avoid
+    oscillation); the canvas stays CSS-sized so the browser upscales. The
+    sky gradient is cached per season/height and `updateHUD` only writes the
+    DOM on change (the day bar is rounded to whole percent) to avoid a
+    layout every frame.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the

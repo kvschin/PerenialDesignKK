@@ -169,3 +169,17 @@ test('plantLayerOf separates woody from perennial layers', () => {
   assertEqual(plantLayerOf({ s: woody }), 'woody', 'tree/shrub -> woody');
   assertEqual(plantLayerOf({ s: forb }), 'perennials', 'forb -> perennials');
 });
+
+test('adaptive render quality lowers on slow frames and recovers on fast ones', () => {
+  renderScale = 1; frameEMA = 16.7; qCooldown = 0;
+  for (let i = 0; i < 400; i++) tuneQuality(40);        // sustained ~25fps
+  assert(renderScale <= 0.62, `should drop toward the floor, got ${renderScale}`);
+  assert(renderScale >= 0.6, 'never below the 0.6 floor');
+  frameEMA = 10; qCooldown = 0;
+  for (let i = 0; i < 400; i++) tuneQuality(10);        // sustained ~100fps
+  assertEqual(renderScale, 1, 'recovers to full resolution and clamps at 1');
+  // pathological frame intervals (backgrounded tab / stalls) are ignored
+  const keep = renderScale;
+  tuneQuality(0); tuneQuality(5000);
+  assertEqual(renderScale, keep, 'ignores zero / huge frame intervals');
+});
