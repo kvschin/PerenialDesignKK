@@ -2144,7 +2144,8 @@ addEventListener('keydown',e=>{
     return;
   }
   const k=e.key.toLowerCase();
-  if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); doUndo(); return; }
+  if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); e.shiftKey?doRedo():doUndo(); return; }
+  if ((e.ctrlKey||e.metaKey) && k==='y'){ e.preventDefault(); doRedo(); return; }
   const confirmOpen=!document.getElementById('confirmSeasonScreen').classList.contains('hidden');
   if (confirmOpen){ if (e.key==='Escape') closeSeasonConfirm(); return; }
   const pauseOpen=!document.getElementById('pauseScreen').classList.contains('hidden');
@@ -2335,12 +2336,12 @@ function evTile(e){ // pointer position -> world tile, zoom-aware
 /* ---------- undo: a stack of plants+bulbs+terrain+house snapshots ----------
    A gesture snapshots state on pointerdown and commits it only if the
    state actually changed by pointerup, so no-op taps don't pile up. */
-let spaceHeld=false, panDrag=null, undoStack=[], pendSnap=null, pendSig=null;
+let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendSig=null;
 function updateCanvasCursor(){
   if (!cnv) return;
   cnv.style.cursor = panDrag ? 'grabbing'
     : (game.tool==='hand'||spaceHeld) ? 'grab'
-    : game.tool==='select' ? 'crosshair' : '';
+    : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
 }
 function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.houses]); }
 function snapshotState(){ return {
@@ -2348,22 +2349,31 @@ function snapshotState(){ return {
   bulbs:JSON.parse(JSON.stringify(game.bulbs)),
   terrain:JSON.parse(JSON.stringify(game.terrain)),
   houses:JSON.parse(JSON.stringify(game.houses||[]))}; }
-function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift(); updateUndoBtn(); }
+// a new action invalidates the redo chain (standard undo/redo semantics)
+function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
+  redoStack.length=0; updateUndoBtn(); }
 function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
 function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
 function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
-function doUndo(){
-  if (!undoStack.length){ toast('Nothing to undo.'); return; }
-  const s=undoStack.pop();
+function applySnapshot(s){ // restore plants/bulbs/terrain/houses + refresh UI
   game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.houses=s.houses||[];
   game.dirty=true; updateUndoBtn();
   if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); pushHouse(); }
-  buildToolTray(); toast('Undone.');
+  buildToolTray();
+}
+function doUndo(){
+  if (!undoStack.length){ toast('Nothing to undo.'); return; }
+  redoStack.push(snapshotState()); if (redoStack.length>30) redoStack.shift();
+  applySnapshot(undoStack.pop()); toast('Undone.');
+}
+function doRedo(){
+  if (!redoStack.length){ toast('Nothing to redo.'); return; }
+  undoStack.push(snapshotState()); if (undoStack.length>30) undoStack.shift();
+  applySnapshot(redoStack.pop()); toast('Redone.');
 }
 function updateUndoBtn(){
-  const disabled=!undoStack.length;
-  document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',disabled));
+  document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',!undoStack.length));
   refreshCanvasTools();
 }
 
@@ -2391,6 +2401,7 @@ cnv.addEventListener('pointerdown',e=>{
   const [x,y]=evTile(e);
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
+  if (game.tool==='pick'){ pickAt(x,y); return; }   // eyedropper: sample, then become that brush
   // drawing onto a hidden layer? warn and offer to reveal it before placing
   if (isPlacementTool(game.tool)){
     const layer=toolTargetLayer(game.tool);
@@ -3448,6 +3459,30 @@ function doFloodFill(sx,sy){
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
   } else toast('Nothing here that fill can change.');
 }
+/* eyedropper: sample whatever is on the tapped tile (plant > bulb > terrain)
+   and arm it as the brush, dropping straight into Plant mode so the next tap
+   paints with it. */
+function pickAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return;
+  const k=`${x},${y}`;
+  const p=game.plants[k], b=game.bulbs[k], terr=terrainAt(x,y);
+  if (p && !p.removed){
+    game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
+    setTool(p.s, p.v||null); buildToolTray();
+    toast(`Picked ${plantDef(p.s,p.v).name}.`);
+  } else if (b && !b.removed){
+    game.fillMode=false; game.trayCat='bulbs';
+    setTool(b.s, b.v||null); buildToolTray();
+    toast(`Picked ${plantDef(b.s,b.v).name}.`);
+  } else if (terr){
+    if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
+    if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
+    game.fillMode=false; game.trayCat='landscape';
+    setTool(terr.k, null); buildToolTray();
+    toast(terr.k==='path'?`Picked ${pathColor(game.pathColor).label} path.`
+      : terr.k==='water'?`Picked ${waterStyle(game.waterStyle).label} water.` : 'Picked bed.');
+  } else toast('Nothing here to pick — tap a plant or material.');
+}
 function choosePlantMode(drift){
   game.drift=!!drift;
   armPlantToolFromRail(false);
@@ -3558,10 +3593,12 @@ function buildCanvasTools(){
   add('Fill','fill',{active:fillActive(),
     title:'Bucket fill: tap to flood a connected area of one material — pick what to fill with from the catalog',
     onClick:()=>armFillTool()});
-  add('Pick','dropper',{disabled:true,todo:true,title:'Eyedropper/copy is planned'});
+  add('Pick','dropper',{active:game.tool==='pick',
+    title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
+    onClick:()=>{ setTool('pick'); buildToolTray(); }});
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});
-  add('Redo','redo',{disabled:true,todo:true,title:'Redo is planned'});
+  add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:()=>doRedo()});
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
   sep();
   add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
@@ -3645,7 +3682,7 @@ function buildToolTray(){
     const b=document.createElement('button');
     b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
     b.onclick=()=>{ game.trayCat=c.id; game.toolMenu=null;
-      if (game.tool==='shovel'||game.tool==='select') setTool('hand');
+      if (game.tool==='shovel'||game.tool==='select'||game.tool==='pick') setTool('hand');
       else refreshCanvasTools();
       buildToolTray(); };
     tabs.appendChild(b);
@@ -4326,7 +4363,7 @@ function enterGarden(){
     snapCam();
   }
   game.lastDay=absDay();
-  undoStack=[]; updateUndoBtn();
+  undoStack=[]; redoStack=[]; updateUndoBtn();
   buildToolTray();
   buildCanvasTools();
   $('worldLabel').textContent = game.mode==='multi'

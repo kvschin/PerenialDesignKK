@@ -319,10 +319,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .day-bar i{display:none}
   .time-actions{min-width:0}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
-  #canvasTools{top:152px;left:8px;padding:4px}
-  .canvas-tool{width:46px;min-height:50px}
-  /* drop not-yet-built placeholder tools + dividers so the working tools
-     fit above the bottom tray instead of clipping behind it */
+  /* ten tools have to clear the bottom tray, so compact the rail: smaller
+     icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
+  #canvasTools{top:150px;left:8px;padding:3px;gap:2px}
+  .canvas-tool{width:44px;min-height:42px}
+  .canvas-tool canvas{width:34px;height:26px;top:2px}
+  .canvas-tool span{font-size:7px}
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
   .tool-popover{top:104px;width:122px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}

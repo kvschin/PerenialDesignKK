@@ -18,11 +18,14 @@ in design), `setUserZoom`/snapCam (design keeps its free camera), and the
 `btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`).
 Design panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
-(two-finger twist was removed — it fought the pan/zoom gesture). **Undo** (`undoStack`, button
-+ Ctrl/Cmd-Z): a gesture snapshots plants+bulbs+terrain+house on
+(two-finger twist was removed — it fought the pan/zoom gesture). **Undo/redo**
+(`undoStack`/`redoStack`, buttons + Ctrl/Cmd-Z, redo via Ctrl/Cmd-Shift-Z
+or Ctrl/Cmd-Y): a gesture snapshots plants+bulbs+terrain+houses on
 pointerdown (`beginUndo`) and commits it on pointerup only if state
-changed (`commitUndo`); discrete actions use `withUndo`. Stack resets
-per garden, capped at 30.
+changed (`commitUndo`); discrete actions use `withUndo`. `pushUndo` records
+the pre-action snapshot and clears the redo chain; `doUndo`/`doRedo` shuttle
+snapshots between the two stacks via `applySnapshot`. Both reset per garden,
+capped at 30.
 
 Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 **Pocket Prairie**.
@@ -169,8 +172,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
     (`buildCanvasTools`: Hand / **Select** / Plant / Erase / **Fill** /
-    Pick TODO / Undo / Redo TODO / Rotate / **Layers**; `game.tool` uses
-    `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat) and
+    **Pick** / Undo / **Redo** / Rotate / **Layers**; `game.tool` uses
+    `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat; the
+    mobile rail shrinks the icons/rows so all ten clear the bottom tray) and
     Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
@@ -237,7 +241,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     applies the armed brush to every tile via `applyToolAt`, wrapped in one
     `withUndo`. `armFillTool` arms a brush + sets the flag; `fillActive()`
     gates it (`fillMode && isBrushTool && tool!=='house'`); the Plant rail
-    button clears the flag. The Erase tool's
+    button clears the flag. The **Pick** tool (`game.tool==='pick'`,
+    eyedropper) samples the tapped tile via `pickAt` — plant > bulb > terrain
+    priority — arms that species/material as the brush (copying path/water
+    colour and switching `trayCat`), then drops into plain Plant mode so the
+    next tap paints with it. The Erase tool's
     options live in the bottom contextual toolbar when Erase is active:
     layer (All/Plants/Bulbs/Landscape → `eraseMode`) and size
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
@@ -390,8 +398,8 @@ with their own depth slices. The big one: a real multiplayer backend
   - *(Built)* **Bucket fill** — the **Fill** tool floods the connected
     region of one ground material with the armed brush (plant or landscape);
     see `doFloodFill` in the canvas-toolbar notes above.
-  - **Eyedropper** — sample a plant/material from a tile and arm it as the
-    current tool.
+  - *(Built)* **Eyedropper** — the **Pick** tool samples a tile's plant or
+    material onto the brush (`pickAt`); see the canvas-toolbar notes above.
   - *(Built)* **Selection tool** — marquee a region to move, duplicate,
     rotate, or erase the plants/terrain inside it (see the Select tool in the
     canvas-toolbar notes above). Resize-in-place is still open.

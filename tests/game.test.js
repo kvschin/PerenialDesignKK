@@ -169,3 +169,39 @@ test('plantLayerOf separates woody from perennial layers', () => {
   assertEqual(plantLayerOf({ s: woody }), 'woody', 'tree/shrub -> woody');
   assertEqual(plantLayerOf({ s: forb }), 'perennials', 'forb -> perennials');
 });
+
+test('undo/redo round-trips and a new action clears the redo chain', () => {
+  setup();
+  const g = firstOfType('grass');
+  withUndo(() => { game.plants['5,5'] = { s: g, d: 0, t: 1 }; });
+  withUndo(() => { game.plants['6,5'] = { s: g, d: 0, t: 1 }; });
+  assertEqual(live(game.plants).length, 2, 'two plants placed');
+  doUndo(); assertEqual(live(game.plants).length, 1, 'undo removed the last');
+  doRedo(); assertEqual(live(game.plants).length, 2, 'redo restored it');
+  assertEqual(redoStack.length, 0, 'redo consumed its entry');
+  doUndo(); assertEqual(redoStack.length, 1, 'undo refilled the redo chain');
+  withUndo(() => { game.plants['7,7'] = { s: g, d: 0, t: 1 }; }); // a fresh action
+  assertEqual(redoStack.length, 0, 'a new action clears redo');
+});
+
+test('eyedropper samples a plant, a bulb, or a material onto the brush', () => {
+  setup();
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb');
+  game.plants['3,3'] = { s: forb, v: null, d: 0, t: 1 };
+  game.bulbs['4,4'] = { s: bulb, v: null, d: 0, t: 1 };
+  game.terrain['5,5'] = { k: 'path', c: 'slate', t: 1 };
+
+  game.tool = 'pick'; game.fillMode = true; pickAt(3, 3);
+  assertEqual(game.tool, forb, 'picked the plant');
+  assert(game.fillMode === false, 'eyedropper drops into plain plant mode');
+
+  game.tool = 'pick'; pickAt(4, 4);
+  assertEqual(game.tool, bulb, 'picked the bulb');
+
+  game.tool = 'pick'; game.pathColor = 'warm'; pickAt(5, 5);
+  assertEqual(game.tool, 'path', 'picked the path material');
+  assertEqual(game.pathColor, 'slate', 'copied the path colour');
+
+  game.tool = 'pick'; pickAt(10, 10);
+  assertEqual(game.tool, 'pick', 'nothing to pick on bare grass — stays on the tool');
+});
