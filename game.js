@@ -4113,8 +4113,7 @@ function buildToolTray(){
       miniFence(c.getContext('2d'),Object.assign({},fd,draftPatch));
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.title=tip||label;
-      b.onclick=()=>{ Object.assign(fd,draftPatch); fd.style=fenceStyleId(fd.style);
-        if (!FENCE_HEIGHTS.includes(fd.height)) fd.height=4;
+      b.onclick=()=>{ game.fenceDraft=normalizeFenceDraft(Object.assign({},fenceDraft(),draftPatch));
         setTool('fence',null); buildToolTray();
         toast(`${fenceLabel()} selected. Drag to draw connected runs.`); };
       tray.appendChild(b); return b;
