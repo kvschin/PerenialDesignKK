@@ -137,6 +137,35 @@ test('bed styles are stored on terrain and can be repainted', () => {
   assertEqual(applyToolAt(3, 3), null, 'same style is a no-op');
 });
 
+test('shrubs reserve their mature footprint for planting and materials', () => {
+  setup(17, 17);
+  const bulb = firstOfType('bulb');
+  const forb = firstOfType('forb');
+  game.bulbs['10,8'] = { s: bulb, d: 0, t: 1 };
+  game.tool = 'sumac'; game.toolVar = null;
+  assertEqual(applyToolAt(8, 8), 'plant', 'wide shrub planted');
+  assert(game.bulbs['10,8'].removed, 'bulb inside shrub footprint was cleared');
+
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(10, 8), null, 'perennial refused inside mature shrub footprint');
+  game.tool = 'path';
+  assertEqual(applyToolAt(10, 8), null, 'path refused inside mature shrub footprint');
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0 };
+  eraseBrush(10, 8, counts);
+  assertEqual(counts.plants, 1, 'erasing the shrub edge removes the shrub');
+  assert(game.plants['8,8'].removed, 'shrub center was removed');
+});
+
+test('compatible hedge shrubs can be planted edge to edge', () => {
+  setup(13, 13);
+  game.tool = 'boxwoodsquare'; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), 'plant', 'first hedge shrub planted');
+  assertEqual(applyToolAt(6, 5), 'plant', 'same hedge shrub can connect');
+  game.tool = 'hydrangea';
+  assertEqual(applyToolAt(5, 6), null, 'unrelated shrub cannot overlap the hedge footprint');
+});
+
 test('selection move shifts owned items and is refused off-plot', () => {
   setup(15, 15);
   game.plants['5,5'] = { s: firstOfType('grass'), d: 0, t: 1 };

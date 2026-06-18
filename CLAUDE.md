@@ -230,9 +230,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed/water/fence rules —
     bulbs tuck under perennials but are refused under trees/shrubs (and a
     newly planted tree/shrub clears any bulb already there), plants check
-    `shadeAt`, paths refuse planted tiles, beds store a material `c`
-    (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and can be repainted like path
-    colors, and fences refuse planted/water/house tiles). **Drag-to-plant**: pointerdown with a
+    `shadeAt`; shrubs reserve a mature spread footprint from `spread`/`TILE_IN`
+    (paths, water, fences, bulbs, and perennials refuse that ground; compatible
+    clipped hedge shrubs can still connect edge-to-edge); paths refuse planted
+    tiles, beds store a material `c` (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and
+    can be repainted like path colors, and fences refuse planted/water/house
+    tiles). **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain
@@ -248,7 +251,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `withUndo`. `armFillTool` arms a brush + sets the flag; `fillActive()`
     gates it (`fillMode && isBrushTool && tool!=='house' && tool!=='fence'`);
     the Plant rail
-    button clears the flag. The **Pick** tool (`game.tool==='pick'`,
+    button clears the flag. The **Pick** and **Erase** tools see the mature
+    shrub footprint, so sampling or erasing the visible edge of a large shrub
+    acts on the shrub's center tile. The **Pick** tool (`game.tool==='pick'`,
     eyedropper) samples the tapped tile via `pickAt` — plant > bulb > fence >
     terrain priority — arms that species/material/structure as the brush
     (copying path colour, bed material, water style, or fence material/height/gate mode and

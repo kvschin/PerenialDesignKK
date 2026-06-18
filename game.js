@@ -115,6 +115,12 @@ function plantDef(key,v){
   for (const s of SEASONS) d.sea[s]=Object.assign({},base.sea[s],(c.sea||{})[s]);
   return _defCache[ck]=d;
 }
+function isShrubDef(P){ return P && P.type==='shrub'; }
+function shrubVisualCw(P){
+  if (!isShrubDef(P)) return P && P.cw;
+  const realWidth=((P.spread||P.space||TILE_IN)/TILE_IN)*TILE_W*0.42;
+  return Math.max(P.cw||0, realWidth);
+}
 
 /* coat palettes for cats & dogs */
 const COATS = [
@@ -827,7 +833,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'bush'){ // woody shrub: twigs hold through winter
     const L=P.look||{};
-    const cw=(P.cw||50)*(0.35+0.65*growth);
+    const cw=(shrubVisualCw(P)||50)*(0.35+0.65*growth);
     if (L.clip){
       const fol=S.fol||S.seed||'#4f6f45', shape=L.shape||'round';
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=-H*0.08;
@@ -912,7 +918,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub
     const L = P.look||{}, panicle = L.bloomShape==='panicle', lacecap = L.bloomShape==='lacecap';
-    const cw=(P.cw||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
+    const cw=(shrubVisualCw(P)||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
     ctx.strokeStyle='#6e5a48'; ctx.lineWidth=2; ctx.lineCap='round';
     for (let i=0;i<tn;i++){
       const a=(i/(tn-1)-0.5)*1.3+(rnd()-0.5)*0.2;
@@ -1316,6 +1322,84 @@ function plantGrowth(p){
   if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
   if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope(p.s);
   return plantEstab(p)*seasonEnvelope(p.s);
+}
+function shrubRadiusTiles(P){
+  return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;
+}
+function shrubFootprintTiles(cx,cy,p,mature){
+  const P=p && p.s ? plantDef(p.s,p.v) : p;
+  if (!isShrubDef(P)) return [[cx,cy]];
+  const est=p && p.s ? plantEstab(p) : 1;
+  const r=shrubRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
+  const reach=Math.ceil(r), tiles=[];
+  for (let yy=cy-reach; yy<=cy+reach; yy++) for (let xx=cx-reach; xx<=cx+reach; xx++){
+    if (xx<0||yy<0||xx>=GW||yy>=GH) continue;
+    if (Math.hypot(xx-cx,yy-cy)<=r+0.001) tiles.push([xx,yy]);
+  }
+  if (!tiles.some(([x,y])=>x===cx&&y===cy)) tiles.push([cx,cy]);
+  return tiles;
+}
+function shrubHedgeCompatible(a,b){
+  const A=plantDef(a.s,a.v), B=plantDef(b.s,b.v);
+  return isShrubDef(A) && isShrubDef(B) &&
+    A.group && A.group===B.group &&
+    ((A.look&&A.look.hedge) || (B.look&&B.look.hedge));
+}
+function livePlantKeyAt(x,y){ const k=`${x},${y}`, p=game.plants[k]; return (p&&!p.removed) ? k : null; }
+function shrubAt(x,y,opts){
+  opts=opts||{};
+  const ignore=opts.ignoreKey||null;
+  const direct=livePlantKeyAt(x,y);
+  if (direct && direct!==ignore){
+    const p=game.plants[direct];
+    if (isShrubDef(plantDef(p.s,p.v))) return {key:direct,p,x,y,center:true};
+  }
+  for (const k in game.plants){ if (k===ignore) continue;
+    const p=game.plants[k]; if (!p||p.removed) continue;
+    if (!isShrubDef(plantDef(p.s,p.v))) continue;
+    const [cx2,cy2]=k.split(',').map(Number);
+    if (cx2===x && cy2===y) continue;
+    const r=shrubRadiusTiles(plantDef(p.s,p.v));
+    if (Math.abs(x-cx2)>Math.ceil(r) || Math.abs(y-cy2)>Math.ceil(r)) continue;
+    if (Math.hypot(x-cx2,y-cy2)<=r+0.001) return {key:k,p,x:cx2,y:cy2,center:false};
+  }
+  return null;
+}
+function canPlaceShrubAt(x,y,np,opts){
+  opts=opts||{};
+  const P=plantDef(np.s,np.v);
+  if (!isShrubDef(P)) return {ok:true};
+  const ignore=opts.ignoreKey||null;
+  for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
+    if (xx<0||yy<0||xx>=GW||yy>=GH) return {ok:false, reason:'plot'};
+    if (inHouse(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
+    if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
+    const terr=tileTerrain(xx,yy);
+    if (terr==='path'||terr==='water') return {ok:false, reason:terr};
+    const k=`${xx},${yy}`, p=game.plants[k];
+    if (p && !p.removed && k!==ignore){
+      if (shrubHedgeCompatible(np,p) && Math.hypot(xx-x,yy-y)>=0.95) continue;
+      return {ok:false, reason:'plant'};
+    }
+    const other=shrubAt(xx,yy,{ignoreKey:ignore});
+    if (other){
+      if (shrubHedgeCompatible(np,other.p) && Math.hypot(other.x-x,other.y-y)>=0.95) continue;
+      return {ok:false, reason:'shrub'};
+    }
+  }
+  return {ok:true};
+}
+function clearBulbsUnderShrub(x,y,p){
+  let n=0, now=Date.now();
+  for (const [xx,yy] of shrubFootprintTiles(x,y,p,true)){
+    const k=`${xx},${yy}`, b=game.bulbs[k];
+    if (b && !b.removed){ game.bulbs[k]={removed:true,t:now}; n++; }
+  }
+  if (n){ game.dirty=true; syncBulbsOut(); }
+  return n;
+}
+function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
+  return shrubFootprintTiles(cx,cy,p,true).some(([xx,yy])=>xx>=x&&xx<x+w&&yy>=y&&yy<y+h);
 }
 /* bloom staggering: within a bloom season each species rises, peaks,
    and fades instead of switching on at the season line. Cool species
@@ -1766,10 +1850,11 @@ function render(t){
   // and take the padded bounding box, so we only walk what's on screen
   // (the padding covers plant/cottage heights overhanging tile bounds)
   const crn=[tileAt(0,0,W,H),tileAt(W,0,W,H),tileAt(0,H,W,H),tileAt(W,H,W,H)];
-  const x0=Math.max(0,Math.min(crn[0][0],crn[1][0],crn[2][0],crn[3][0])-2);
-  const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+2);
-  const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-2);
-  const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+2);
+  const pad=5; // large shrubs can overhang several tile centers
+  const x0=Math.max(0,Math.min(crn[0][0],crn[1][0],crn[2][0],crn[3][0])-pad);
+  const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+pad);
+  const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-pad);
+  const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+pad);
   const shadeTrees=[], futureShadeTrees=[];
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
@@ -1844,6 +1929,15 @@ function render(t){
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
   if (game.hoverTile && PLANTS[game.tool]){
     const def=plantDef(game.tool,game.toolVar);
+    if (def && def.type==='shrub'){
+      const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
+      const ok=canPlaceShrubAt(txh,tyh,draft).ok;
+      shrubFootprintTiles(txh,tyh,draft,true).forEach(([xx,yy])=>{
+        const [sx,sy]=screenOf(xx,yy,W,H);
+        tileDiamond(cx,sx,sy,ok?'rgba(126,190,104,0.22)':'rgba(190,70,58,0.24)',
+          ok?'rgba(184,218,132,0.68)':'rgba(238,118,94,0.82)');
+      });
+    }
     if (def && def.sun!=='part' && def.type!=='tree' && def.type!=='bulb'){
       const [txh,tyh]=game.hoverTile, sh=shadeInfoAt(txh,tyh,true);
       if (sh){ const [sx,sy]=screenOf(txh,tyh,W,H);
@@ -2046,6 +2140,7 @@ function actHere(){
     return;
   }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
+  const shrubHit = shrubAt(x,y);
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
@@ -2069,6 +2164,7 @@ function actHere(){
   }
   if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
     if (hasPlant){ toast('Lift the plant first.'); return; }
+    if (shrubHit){ toast('Lift the shrub first — its mature spread claims this ground.'); return; }
     if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
     if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)){
       toast('Step aside before making water.'); return;
@@ -2112,6 +2208,10 @@ function actHere(){
   if (def.type==='bulb'){ // bulbs go UNDER perennials — but not under trees or shrubs
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
     if (terr==='path'||terr==='water'){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first.'); return; }
+    if (shrubHit){
+      toast(`No bulbs under ${plantDef(shrubHit.p.s,shrubHit.p.v).name.toLowerCase()} — the shrub claims that ground.`);
+      return;
+    }
     if (hasPlant && plantLayerOf(existing)==='woody'){
       toast('No bulbs under trees or shrubs — their roots claim that ground.'); return; }
     const n=game.drift?driftCount(def):1;
@@ -2122,6 +2222,11 @@ function actHere(){
     return;
   }
   if (terr==='path'||terr==='water'){ toast(terr==='water'?'Dry land first — plants and ponds disagree.':'Dig the path up first — plants and gravel disagree.'); return; }
+  if (shrubHit && def.type!=='shrub' && (!hasPlant || shrubHit.key!==k)){
+    showPlantCard(shrubHit.p,shrubHit.x,shrubHit.y);
+    toast(`${plantDef(shrubHit.p.s,shrubHit.p.v).name} needs this mature spread.`);
+    return;
+  }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
   const shadeTree=shadeInfoAt(x,y,false);
   if (shadeTree && def.sun!=='part'){
@@ -2152,6 +2257,7 @@ function applyToolAt(x,y){
   if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
     const ex=game.plants[k], eb=game.bulbs[k];
     if (ex && !ex.removed) return null;
+    if (shrubAt(x,y)) return null;
     if (game.tool==='water' && fenceAt(x,y)) return null;
     if (game.tool==='water' && eb && !eb.removed) return null;
     if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
@@ -2187,6 +2293,7 @@ function applyToolAt(x,y){
   if (def.type==='bulb'){ // bulbs tuck in under perennials — but not under trees/shrubs
     const eb=game.bulbs[k];
     if (eb && !eb.removed) return null;
+    if (shrubAt(x,y)) return null;
     const above=game.plants[k];
     if (above && !above.removed && plantLayerOf(above)==='woody') return null;
     game.bulbs[k]=np; game.dirty=true; plantFx(x,y);
@@ -2194,11 +2301,14 @@ function applyToolAt(x,y){
   }
   const ex=game.plants[k];
   if (ex && !ex.removed) return null;
+  if (def.type!=='shrub' && shrubAt(x,y)) return null;
+  if (def.type==='shrub' && !canPlaceShrubAt(x,y,np).ok) return null;
   const sh=shadeAt(x,y);
   if (sh && def.sun!=='part') return null;
   game.plants[k]=np; game.dirty=true; plantFx(x,y);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
-  if (def.type==='shrub'||def.type==='tree'){ const eb=game.bulbs[k];
+  if (def.type==='shrub') clearBulbsUnderShrub(x,y,np);
+  else if (def.type==='tree'){ const eb=game.bulbs[k];
     if (eb && !eb.removed){ game.bulbs[k]={removed:true,t:Date.now()}; syncBulbsOut(); } }
   return 'plant';
 }
@@ -2241,6 +2351,7 @@ function fenceLabel(f){
 function canPlaceFence(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
   if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
+  if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   if (!d.gate && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
@@ -2261,9 +2372,12 @@ function pushHouse(){ game.houseT=Date.now();
   if (game.mode==='multi') sSet(wkey('house'),{h:game.houses,t:game.houseT},true); }
 function displacePlants(x,y,w,h){ // a house can't share ground with plants
   let n=0;
-  for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++){
-    const k=`${xx},${yy}`, p=game.plants[k];
-    if (p && !p.removed){ game.plants[k]={removed:true,t:Date.now()}; n++; }
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p || p.removed) continue;
+    const [px2,py2]=k.split(',').map(Number);
+    const inside=px2>=x&&px2<x+w&&py2>=y&&py2<y+h;
+    const overlaps=isShrubDef(plantDef(p.s,p.v)) && shrubFootprintOverlapsRect(px2,py2,p,x,y,w,h);
+    if (inside || overlaps){ game.plants[k]={removed:true,t:Date.now()}; n++; }
   }
   if (n){ game.dirty=true; syncPlantsOut(); }
   return n;
@@ -2314,11 +2428,12 @@ function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
   const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeInfoAt(px2,py2,false);
+  const shrubFoot = P.type==='shrub' ? ` · reserves about ${Math.max(1,Math.round((P.spread||P.space||TILE_IN)/TILE_IN))} tiles wide` : '';
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·
       zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil${
-      P.grow?` · ~${P.grow} yrs to size`:''}</p>
+      P.grow?` · ~${P.grow} yrs to size`:''}${shrubFoot}</p>
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
       : 'Garden cultivar (non-native)'}</p>
@@ -2398,9 +2513,13 @@ function eraseBrush(cx,cy,counts){
     const x=cx+dx, y=cy+dy;
     if (x<0||y<0||x>=GW||y>=GH) continue;
     const k=`${x},${y}`;
-    const p=game.plants[k];
+    let pk=k, p=game.plants[k];
+    if (!(p && !p.removed)){
+      const sh=shrubAt(x,y);
+      if (sh){ pk=sh.key; p=sh.p; }
+    }
     if (p && !p.removed && (plantLayerOf(p)==='woody'?woody:peren)){
-      game.plants[k]={removed:true,t:now}; game.dirty=true; counts.plants++; }
+      game.plants[pk]={removed:true,t:now}; game.dirty=true; counts.plants++; }
     const b=game.bulbs[k];
     if (bulbOK && b && !b.removed){
       game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
@@ -3002,7 +3121,11 @@ function exportCsv(){
    circles, bulbs as scatter dots over the drifts. */
 function planComponents(){
   const live={};
-  for (const k in game.plants){ const p=game.plants[k]; if (!p.removed) live[k]=p; }
+  for (const k in game.plants){ const p=game.plants[k]; if (!p.removed){
+    const [x,y]=k.split(',').map(Number), def=plantDef(p.s,p.v);
+    if (def.type==='shrub') shrubFootprintTiles(x,y,p,true).forEach(([xx,yy])=>{ if (!live[`${xx},${yy}`]) live[`${xx},${yy}`]=p; });
+    else live[k]=p;
+  } }
   const seen={}, comps=[];
   for (const k in live){
     if (seen[k]) continue;
@@ -3717,7 +3840,8 @@ function doFloodFill(sx,sy){
 function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
-  const p=game.plants[k], b=game.bulbs[k], f=fenceAt(x,y), terr=terrainAt(x,y);
+  const direct=game.plants[k], sh=shrubAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
