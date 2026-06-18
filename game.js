@@ -1158,10 +1158,25 @@ function drawFence(ctx,W,H,season,f,x,y){
   if (!connected){ drawSegment(1,0,true); drawSegment(-1,0,true); }
   drawPost(ax,ay,f.style==='brick'?7:3.8);
   if (f.gate){
-    ctx.strokeStyle=f.style==='vinyl'?'#7a6f63':st.fill; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(ax-12,ay-h*.25); ctx.lineTo(ax+12,ay-h*.68);
-    ctx.moveTo(ax-12,ay-h*.68); ctx.lineTo(ax+12,ay-h*.25); ctx.stroke();
-    ctx.fillStyle=st.fill; ctx.beginPath(); ctx.arc(ax+8,ay-h*.47,2,0,7); ctx.fill();
+    const gateCol=f.style==='vinyl'?'#6f6458':f.style==='black'?'#efe6d3':shade(st.fill,28);
+    const hingeX=ax-13, latchX=ax+13, base=ay, top=ay-h*.72, mid=ay-h*.43;
+    ctx.strokeStyle='rgba(0,0,0,0.28)'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(hingeX,base-3); ctx.lineTo(hingeX,top);
+    ctx.moveTo(latchX,base-3); ctx.lineTo(latchX,top); ctx.stroke();
+    ctx.strokeStyle=gateCol; ctx.lineWidth=2.6;
+    ctx.beginPath(); ctx.moveTo(hingeX,base-3); ctx.lineTo(hingeX,top);
+    ctx.moveTo(latchX,base-3); ctx.lineTo(latchX,top); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(hingeX,top); ctx.lineTo(latchX,top);
+    ctx.moveTo(hingeX,mid); ctx.lineTo(latchX,mid);
+    ctx.moveTo(hingeX,base-h*.16); ctx.lineTo(latchX,base-h*.16);
+    ctx.moveTo(hingeX,base-h*.16); ctx.lineTo(latchX,top);
+    ctx.moveTo(hingeX,top); ctx.lineTo(latchX,base-h*.16);
+    ctx.stroke();
+    ctx.strokeStyle='rgba(239,230,211,0.55)'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.arc(hingeX+2,base-h*.18,22,-1.15,-0.12); ctx.stroke();
+    ctx.fillStyle=f.style==='black'?'#c97f3f':'#efe6d3';
+    ctx.beginPath(); ctx.arc(latchX-4,mid,2.5,0,7); ctx.fill();
   }
   if (AMBIENCE[season].snow){
     ctx.strokeStyle='rgba(240,244,250,0.66)'; ctx.lineWidth=2;
@@ -4101,7 +4116,20 @@ function buildToolTray(){
       }
       if (d.gate){ tc.strokeStyle=st.fill; tc.lineWidth=1.5;
         tc.beginPath(); tc.moveTo(15,y-h*.25); tc.lineTo(33,y-h*.72);
-        tc.moveTo(15,y-h*.72); tc.lineTo(33,y-h*.25); tc.stroke(); }
+        tc.moveTo(15,y-h*.72); tc.lineTo(33,y-h*.25); tc.stroke();
+        const gateCol=d.style==='black'?'#efe6d3':(d.style==='vinyl'?'#6f6458':shade(st.fill,30));
+        tc.strokeStyle=gateCol; tc.lineWidth=2;
+        tc.beginPath(); tc.moveTo(13,y-h*.1); tc.lineTo(13,y-h*.82);
+        tc.moveTo(35,y-h*.1); tc.lineTo(35,y-h*.82);
+        tc.moveTo(13,y-h*.82); tc.lineTo(35,y-h*.82);
+        tc.moveTo(13,y-h*.48); tc.lineTo(35,y-h*.48);
+        tc.moveTo(13,y-h*.1); tc.lineTo(35,y-h*.82);
+        tc.stroke();
+        tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1;
+        tc.beginPath(); tc.arc(14,y-h*.14,16,-1.2,-0.08); tc.stroke();
+        tc.fillStyle=d.style==='black'?'#c97f3f':'#efe6d3';
+        tc.beginPath(); tc.arc(31,y-h*.48,1.8,0,7); tc.fill();
+      }
     };
     const toolBtn=(label,sel,draftPatch,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
