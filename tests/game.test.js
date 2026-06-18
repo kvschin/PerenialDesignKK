@@ -8,6 +8,7 @@ function setup(gw, gh){
   game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = []; game.fences = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
+  game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false;
   game.eraseMode = 'all'; game.eraseSize = 1;
@@ -124,6 +125,18 @@ test('bucket fill respects a path wall and is one undo step', () => {
   assertEqual(undoStack.length - before, 1, 'fill is a single undo step');
 });
 
+test('bed styles are stored on terrain and can be repainted', () => {
+  setup(11, 11);
+  game.tool = 'bed';
+  game.bedStyle = 'gravel';
+  assertEqual(applyToolAt(3, 3), 'bed', 'gravel bed placed');
+  assertEqual(game.terrain['3,3'].c, 'gravel', 'bed style stored');
+  game.bedStyle = 'leaf';
+  assertEqual(applyToolAt(3, 3), 'bed', 'existing bed restyled');
+  assertEqual(game.terrain['3,3'].c, 'leaf', 'new bed style stored');
+  assertEqual(applyToolAt(3, 3), null, 'same style is a no-op');
+});
+
 test('selection move shifts owned items and is refused off-plot', () => {
   setup(15, 15);
   game.plants['5,5'] = { s: firstOfType('grass'), d: 0, t: 1 };
@@ -226,6 +239,7 @@ test('eyedropper samples a plant, a bulb, a fence, or a material onto the brush'
   game.bulbs['4,4'] = { s: bulb, v: null, d: 0, t: 1 };
   game.fences['6,6'] = { style: 'brick', height: 6, gate: true, t: 1 };
   game.terrain['5,5'] = { k: 'path', c: 'slate', t: 1 };
+  game.terrain['7,7'] = { k: 'bed', c: 'rock', t: 1 };
 
   game.tool = 'pick'; game.fillMode = true; pickAt(3, 3);
   assertEqual(game.tool, forb, 'picked the plant');
@@ -244,6 +258,10 @@ test('eyedropper samples a plant, a bulb, a fence, or a material onto the brush'
   assertEqual(game.fenceDraft.style, 'brick', 'copied fence material');
   assertEqual(game.fenceDraft.height, 6, 'copied fence height');
   assert(game.fenceDraft.gate, 'copied gate mode');
+
+  game.tool = 'pick'; game.bedStyle = 'soil'; pickAt(7, 7);
+  assertEqual(game.tool, 'bed', 'picked the bed material');
+  assertEqual(game.bedStyle, 'rock', 'copied the bed style');
 
   game.tool = 'pick'; pickAt(10, 10);
   assertEqual(game.tool, 'pick', 'nothing to pick on bare grass — stays on the tool');

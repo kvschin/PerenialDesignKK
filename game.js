@@ -55,6 +55,20 @@ function pathColorId(id){ return pathColor(id).id; }
 function pathFill(t,snow){ const p=pathColor(t&&t.c);
   return snow ? mixHex(p.fill,'#eef2f8',0.42) : p.fill; }
 function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
+const BED_STYLES = [
+  {id:'soil', label:'Soil', fill:null, plan:'#ebe2c9', texture:'soil'},
+  {id:'gravel', label:'Gravel', fill:'#a99f86', plan:'#d6ceb8', texture:'gravel'},
+  {id:'rock', label:'River rock', short:'Rock', fill:'#87877f', plan:'#c5c5bb', texture:'rock'},
+  {id:'leaf', label:'Leaf litter', short:'Leaf', fill:'#6d4d32', plan:'#b88c60', texture:'leaf'},
+  {id:'mulch', label:'Bark mulch', short:'Bark', fill:'#5b3526', plan:'#9d7558', texture:'mulch'},
+];
+function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
+function bedStyleId(id){ return bedStyle(id).id; }
+function bedFill(t,amb){
+  const b=bedStyle(t&&t.c), fill=b.fill||amb.soil;
+  return amb.snow ? mixHex(fill,'#eef2f8',0.42) : fill;
+}
+function bedPlanFill(t){ return bedStyle(t&&t.c).plan; }
 const WATER_STYLES = [
   {id:'pond', label:'Pond', fill:'#4f8491', deep:'#2f6578', edge:'#7da7a3', plan:'#9fc8d0'},
   {id:'river', label:'River', fill:'#5d93a8', deep:'#336f8e', edge:'#8ab4b9', plan:'#a9d2df'},
@@ -1219,6 +1233,7 @@ const game = {
   houseDraft:null,                                   // settings for the next house the House tool places
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
+  bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
   region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
@@ -1566,7 +1581,7 @@ function fillDiamondFace(ctx,sx,sy,points,fill){
   for (let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
   ctx.closePath(); ctx.fill();
 }
-function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs){
+function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj){
   isoDiamondPath(ctx,sx,sy,0);
   ctx.fillStyle=base; ctx.fill();
   const top=toneColor(base,amb.snow?12:9), bottom=toneColor(base,-9);
@@ -1579,13 +1594,42 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs){
   if (amb.snow) return;
   ctx.save();
   if (terr==='bed'){
-    ctx.fillStyle='rgba(18,11,7,0.16)';
-    for (let i=0;i<5;i++){ ctx.beginPath();
-      ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*12, 2.2+rs()*1.4, 0.8+rs()*0.9, rs()*3,0,7); ctx.fill(); }
-    ctx.strokeStyle='rgba(239,230,211,0.05)';
-    for (let i=0;i<2;i++){ ctx.beginPath();
-      const ox=sx+(rs()-0.5)*28, oy=sy+TILE_H/2+(rs()-0.5)*11;
-      ctx.moveTo(ox-4,oy); ctx.lineTo(ox+5,oy+(rs()-0.5)*2); ctx.stroke(); }
+    const bs=bedStyle(terrObj&&terrObj.c);
+    if (bs.texture==='gravel'){
+      for (let i=0;i<10;i++){ ctx.beginPath();
+        ctx.fillStyle=i%2?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.16)';
+        ctx.ellipse(sx+(rs()-0.5)*34, sy+TILE_H/2+(rs()-0.5)*13, 1.2+rs()*1.2, 0.7+rs()*0.8, rs()*3,0,7); ctx.fill(); }
+    } else if (bs.texture==='rock'){
+      for (let i=0;i<6;i++){
+        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12;
+        ctx.fillStyle=i%2?'rgba(240,236,224,0.18)':'rgba(30,28,25,0.20)';
+        ctx.beginPath(); ctx.ellipse(ox,oy,2.8+rs()*2.2,1.6+rs()*1.2,rs()*3,0,7); ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.7; ctx.stroke();
+      }
+    } else if (bs.texture==='leaf'){
+      const cols=['rgba(173,112,54,0.44)','rgba(91,56,31,0.42)','rgba(196,142,76,0.30)'];
+      for (let i=0;i<7;i++){
+        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12, a=rs()*Math.PI;
+        ctx.fillStyle=cols[i%cols.length];
+        ctx.beginPath(); ctx.ellipse(ox,oy,3.8,1.2,a,0,7); ctx.fill();
+        ctx.strokeStyle='rgba(40,26,16,0.20)'; ctx.lineWidth=0.6;
+        ctx.beginPath(); ctx.moveTo(ox-Math.cos(a)*3,oy-Math.sin(a)*1.1); ctx.lineTo(ox+Math.cos(a)*3,oy+Math.sin(a)*1.1); ctx.stroke();
+      }
+    } else if (bs.texture==='mulch'){
+      ctx.strokeStyle='rgba(30,16,10,0.34)'; ctx.lineWidth=2;
+      for (let i=0;i<8;i++){
+        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12;
+        ctx.beginPath(); ctx.moveTo(ox-3-rs()*2,oy); ctx.lineTo(ox+4+rs()*3,oy+(rs()-0.5)*4); ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle='rgba(18,11,7,0.16)';
+      for (let i=0;i<5;i++){ ctx.beginPath();
+        ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*12, 2.2+rs()*1.4, 0.8+rs()*0.9, rs()*3,0,7); ctx.fill(); }
+      ctx.strokeStyle='rgba(239,230,211,0.05)';
+      for (let i=0;i<2;i++){ ctx.beginPath();
+        const ox=sx+(rs()-0.5)*28, oy=sy+TILE_H/2+(rs()-0.5)*11;
+        ctx.moveTo(ox-4,oy); ctx.lineTo(ox+5,oy+(rs()-0.5)*2); ctx.stroke(); }
+    }
   } else if (path){
     ctx.fillStyle='rgba(255,255,255,0.13)';
     for (let i=0;i<6;i++){ ctx.beginPath();
@@ -1749,10 +1793,10 @@ function render(t){
     if (water) col = waterFill(terrObj,amb.snow);
     else if (path) col = pathFill(terrObj,amb.snow);
     else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
-    else if (terr==='bed') col = shade(amb.soil,(rs()-0.5)*12);
+    else if (terr==='bed') col = shade(bedFill(terrObj,amb),(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
     if (water) drawWaterTexture(cx,sx,sy,x,y,terrObj,amb,t);
-    else drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs);
+    else drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
     if (amb.snow && !path && !water && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
       cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
   }
@@ -2042,17 +2086,23 @@ function actHere(){
         syncTerrainOut();
         return;
       }
+      if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
+        game.terrain[k]={k:'bed',c:game.bedStyle,t:Date.now()}; game.dirty=true;
+        toast(`${bedStyle(game.bedStyle).label} bed applied.`);
+        syncTerrainOut();
+        return;
+      }
       toast(terr==='path'?'Already a path.':terr==='water'?'Already water.':'Already a bed.'); return;
     }
     game.terrain[k]=game.tool==='path'
       ? {k:'path',c:game.pathColor,t:Date.now()}
       : game.tool==='water'
       ? {k:'water',c:game.waterStyle,t:Date.now()}
-      : {k:'bed',t:Date.now()};
+      : {k:'bed',c:game.bedStyle,t:Date.now()};
     game.dirty=true;
     toast(game.tool==='path'?`${pathColor(game.pathColor).label} path laid.`
       : game.tool==='water'?`${waterStyle(game.waterStyle).label} water laid.`
-      :'Bed dug. Ready for planting.');
+      :`${bedStyle(game.bedStyle).label} bed dug. Ready for planting.`);
     syncTerrainOut();
     return;
   }
@@ -2114,13 +2164,17 @@ function applyToolAt(x,y){
         game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
         return 'path';
       }
+      if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
+        game.terrain[k]={k:'bed',c:game.bedStyle,t:Date.now()}; game.dirty=true;
+        return 'bed';
+      }
       return null;
     }
     game.terrain[k]=game.tool==='path'
       ? {k:'path',c:game.pathColor,t:Date.now()}
       : game.tool==='water'
       ? {k:'water',c:game.waterStyle,t:Date.now()}
-      : {k:'bed',t:Date.now()};
+      : {k:'bed',c:game.bedStyle,t:Date.now()};
     game.dirty=true;
     return game.tool;
   }
@@ -2750,7 +2804,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,houses:game.houses,pathColor:game.pathColor,waterStyle:game.waterStyle,
+    gw:GW,gh:GH,rot:game.rot,houses:game.houses,pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,fences:game.fences,
     startTs:saveStartTs(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -2784,6 +2838,7 @@ async function loadSolo(id){
   if (shift) game.houses.forEach(h=>{ h.x+=shift; h.y+=shift; });
   game.houseDraft = draftFromHouses();
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
+  game.bedStyle=bedStyleId(s.bedStyle||'soil');
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.rot=s.rot||0;
@@ -2803,7 +2858,7 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.dayOffset=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
   setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
@@ -3072,7 +3127,7 @@ function buildPlanMap(){
   for (const k in game.terrain){ const t2=game.terrain[k];
     if (t2.removed) continue;
     const [x,y]=k.split(',').map(Number);
-    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):'#ebe2c9';
+    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):bedPlanFill(t2);
     ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
   }
   // fences and gates
@@ -3651,7 +3706,8 @@ function doFloodFill(sx,sy){
     syncToolLayer(what);
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     const label = def ? def.name : game.tool==='path'?`${pathColor(game.pathColor).label} path`
-      : game.tool==='water'?`${waterStyle(game.waterStyle).label} water` : 'bed';
+      : game.tool==='water'?`${waterStyle(game.waterStyle).label} water`
+      : `${bedStyle(game.bedStyle).label} bed`;
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
   } else toast('Nothing here that fill can change.');
 }
@@ -3678,10 +3734,12 @@ function pickAt(x,y){
   } else if (terr){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
+    if (terr.k==='bed') game.bedStyle=bedStyleId(terr.c||game.bedStyle);
     game.fillMode=false; game.trayCat='landscape';
     setTool(terr.k, null); buildToolTray();
     toast(terr.k==='path'?`Picked ${pathColor(game.pathColor).label} path.`
-      : terr.k==='water'?`Picked ${waterStyle(game.waterStyle).label} water.` : 'Picked bed.');
+      : terr.k==='water'?`Picked ${waterStyle(game.waterStyle).label} water.`
+      : `Picked ${bedStyle(game.bedStyle).label} bed.`);
   } else toast('Nothing here to pick — tap a plant or material.');
 }
 function choosePlantMode(drift){
@@ -4019,79 +4077,81 @@ function buildToolTray(){
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')){
     const pathCol=pathColor(game.pathColor);
+    const bedCol=bedStyle(game.bedStyle);
     const waterCol=waterStyle(game.waterStyle);
-    [['path','Path',pathCol.fill,`${pathCol.label} path: drag or act to lay paths.`],
-     ['bed','Bed','#54402f','Bed: stand on grass and act to dig a planting bed.'],
-     ['water','Water',waterCol.fill,`${waterCol.label}: drag to paint ponds, rivers, or lakes.`]]
-    .filter(([k])=>cat.tools.includes(k))
-    .forEach(([k,label,colr,hint])=>{
-      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const tc=c.getContext('2d'); tc.fillStyle=colr;
+    const drawMat=(tc,opt)=>{
+      const seed=opt.seed||1, rs=mulberry(seed);
+      tc.fillStyle=opt.fill;
       tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
       tc.closePath(); tc.fill();
-      if (k==='water'){
-        tc.strokeStyle='rgba(232,248,244,.8)'; tc.lineWidth=1;
-        for (let r=0;r<2;r++){ tc.beginPath(); tc.ellipse(24,21+r*6,12-r*3,2.2,0,0,7); tc.stroke(); }
-      }
-      tc.fillStyle='rgba(0,0,0,0.18)';
-      const rs=mulberry(k==='path'?11:23);
-      for (let i=0;i<5;i++){ tc.beginPath();
-        tc.ellipse(24+(rs()-0.5)*22, 23+(rs()-0.5)*10, 2,1.2,0,0,7); tc.fill(); }
-      const sp=document.createElement('span'); sp.textContent=label;
-      b.append(c,sp);
-      b.onclick=()=>{ setTool(k,null); toast(hint); };
-      tray.appendChild(b);
-    });
-    if (cat.tools.includes('path')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Path color'; tray.appendChild(sep);
-      PATH_COLORS.forEach(pc=>{
-        const b=document.createElement('button');
-        b.className='tool'+(game.tool==='path'&&game.pathColor===pc.id?' sel':'');
-        b.dataset.k='path'; b.dataset.pathColor=pc.id;
-        const c=document.createElement('canvas'); c.width=48; c.height=44;
-        const tc=c.getContext('2d');
-        tc.fillStyle=pc.fill;
-        tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
-        tc.closePath(); tc.fill();
-        tc.strokeStyle='rgba(239,230,211,.45)'; tc.lineWidth=1.2; tc.stroke();
-        tc.fillStyle='rgba(0,0,0,.18)';
-        const rs=mulberry(100+PATH_COLORS.indexOf(pc));
-        for (let i=0;i<5;i++){ tc.beginPath();
-          tc.ellipse(24+(rs()-0.5)*22,23+(rs()-0.5)*10,2,1.2,0,0,7); tc.fill(); }
-        const sp=document.createElement('span'); sp.textContent=pc.label.split(' ')[0];
-        b.append(c,sp);
-        b.title=pc.label;
-        b.onclick=()=>{ game.pathColor=pc.id; setTool('path',null);
-          buildToolTray(); toast(`${pc.label} path selected.`); };
-        tray.appendChild(b);
-      });
-    }
-    if (cat.tools.includes('water')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Water'; tray.appendChild(sep);
-      WATER_STYLES.forEach(ws=>{
-        const b=document.createElement('button');
-        b.className='tool'+(game.tool==='water'&&game.waterStyle===ws.id?' sel':'');
-        b.dataset.k='water'; b.dataset.waterStyle=ws.id;
-        const c=document.createElement('canvas'); c.width=48; c.height=44;
-        const tc=c.getContext('2d');
-        tc.fillStyle=ws.fill;
-        tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
-        tc.closePath(); tc.fill();
-        tc.fillStyle=ws.deep;
+      if (opt.deep){
+        tc.fillStyle=opt.deep;
         tc.beginPath(); tc.moveTo(24,23); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
         tc.closePath(); tc.fill();
-        tc.strokeStyle='rgba(232,248,244,.75)'; tc.lineWidth=1;
-        tc.beginPath(); tc.ellipse(24,22,12,2.2,0,0,7); tc.stroke();
-        const sp=document.createElement('span'); sp.textContent=ws.label;
-        b.append(c,sp);
-        b.title=ws.label;
-        b.onclick=()=>{ game.waterStyle=ws.id; setTool('water',null);
-          buildToolTray(); toast(`${ws.label} water selected.`); };
-        tray.appendChild(b);
-      });
+      }
+      tc.strokeStyle='rgba(239,230,211,.45)'; tc.lineWidth=1.2; tc.stroke();
+      if (opt.texture==='water'){
+        tc.strokeStyle='rgba(232,248,244,.78)'; tc.lineWidth=1;
+        for (let r=0;r<2;r++){ tc.beginPath(); tc.ellipse(24,21+r*6,12-r*3,2.2,0,0,7); tc.stroke(); }
+      } else if (opt.texture==='leaf'){
+        const cols=['rgba(181,111,52,.75)','rgba(83,50,28,.72)','rgba(211,153,77,.55)'];
+        for (let i=0;i<6;i++){ tc.fillStyle=cols[i%cols.length]; tc.beginPath();
+          tc.ellipse(24+(rs()-0.5)*24,23+(rs()-0.5)*10,3.4,1.1,rs()*3,0,7); tc.fill(); }
+      } else if (opt.texture==='mulch'){
+        tc.strokeStyle='rgba(30,16,10,.55)'; tc.lineWidth=2;
+        for (let i=0;i<6;i++){ const ox=24+(rs()-0.5)*24, oy=23+(rs()-0.5)*10;
+          tc.beginPath(); tc.moveTo(ox-4,oy); tc.lineTo(ox+5,oy+(rs()-0.5)*3); tc.stroke(); }
+      } else {
+        tc.fillStyle=opt.texture==='rock'?'rgba(255,255,255,.20)':'rgba(0,0,0,.18)';
+        const n=opt.texture==='rock'?5:6;
+        for (let i=0;i<n;i++){ tc.beginPath();
+          tc.ellipse(24+(rs()-0.5)*22,23+(rs()-0.5)*10,opt.texture==='rock'?2.8:2,opt.texture==='rock'?1.6:1.2,rs()*3,0,7); tc.fill(); }
+      }
+    };
+    const materialBtn=(k,label,sel,draw,fn,tip)=>{
+      const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
+      if (sel!==undefined) b.className='tool'+(sel?' sel':'');
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      draw(c.getContext('2d'));
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label; b.onclick=fn;
+      tray.appendChild(b);
+      return b;
+    };
+    [
+      ['path','Path',tc=>drawMat(tc,{fill:pathCol.fill,texture:'gravel',seed:11}),`${pathCol.label} path: drag or act to lay paths.`],
+      ['bed','Bed',tc=>drawMat(tc,{fill:bedCol.fill||'#54402f',texture:bedCol.texture,seed:23}),`${bedCol.label} bed: drag or act to prepare planting beds.`],
+      ['water','Water',tc=>drawMat(tc,{fill:waterCol.fill,deep:waterCol.deep,texture:'water',seed:37}),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
+    ].filter(([k])=>cat.tools.includes(k))
+    .forEach(([k,label,draw,hint])=>{
+      materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); toast(hint); },hint);
+    });
+    if (game.tool==='path' && cat.tools.includes('path')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Path color'; tray.appendChild(sep);
+      PATH_COLORS.forEach((pc,i)=>materialBtn('path',pc.label.split(' ')[0],
+        game.tool==='path'&&game.pathColor===pc.id,
+        tc=>drawMat(tc,{fill:pc.fill,texture:'gravel',seed:100+i}),
+        ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); toast(`${pc.label} path selected.`); },
+        pc.label).dataset.pathColor=pc.id);
+    }
+    if (game.tool==='bed' && cat.tools.includes('bed')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Bed type'; tray.appendChild(sep);
+      BED_STYLES.forEach((bs,i)=>materialBtn('bed',bs.short||bs.label,
+        game.tool==='bed'&&game.bedStyle===bs.id,
+        tc=>drawMat(tc,{fill:bs.fill||'#54402f',texture:bs.texture,seed:150+i}),
+        ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); toast(`${bs.label} bed selected.`); },
+        bs.label).dataset.bedStyle=bs.id);
+    }
+    if (game.tool==='water' && cat.tools.includes('water')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Water'; tray.appendChild(sep);
+      WATER_STYLES.forEach((ws,i)=>materialBtn('water',ws.label,
+        game.tool==='water'&&game.waterStyle===ws.id,
+        tc=>drawMat(tc,{fill:ws.fill,deep:ws.deep,texture:'water',seed:200+i}),
+        ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); toast(`${ws.label} water selected.`); },
+        ws.label).dataset.waterStyle=ws.id);
     }
   }
   if (cat.tools.includes('fence')){
@@ -4215,6 +4275,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     const k=b.dataset.k, P=k&&PLANTS[k];
     let hay=k||'';
     if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
+    if (b.dataset.bedStyle) hay+=' '+bedStyle(b.dataset.bedStyle).label+' bed gravel rock leaf litter mulch soil';
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (k==='fence') hay+=' structures fence gate door '+FENCE_STYLES.map(f=>f.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
@@ -4228,6 +4289,8 @@ function refreshTray(){
   document.querySelectorAll('.tool').forEach(el=>{
     const sel=el.dataset.pathColor
       ? game.tool==='path' && game.pathColor===el.dataset.pathColor
+      : el.dataset.bedStyle
+      ? game.tool==='bed' && game.bedStyle===el.dataset.bedStyle
       : el.dataset.waterStyle
       ? game.tool==='water' && game.waterStyle===el.dataset.waterStyle
       : el.dataset.fenceStyle
@@ -4657,6 +4720,7 @@ function enterGarden(){
   if (!game.fences) game.fences={};
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
   game.fenceDraft=normalizeFenceDraft(game.fenceDraft);
+  game.bedStyle=bedStyleId(game.bedStyle);
   if (game.gameMode==='design'){
     // free camera centered on the plot; no avatar, no forced house
     game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
@@ -4700,7 +4764,7 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.dayOffset=0;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
+      game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift

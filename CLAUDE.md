@@ -230,8 +230,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed/water/fence rules —
     bulbs tuck under perennials but are refused under trees/shrubs (and a
     newly planted tree/shrub clears any bulb already there), plants check
-    `shadeAt`, paths refuse planted tiles, and fences refuse planted/water/house
-    tiles). **Drag-to-plant**: pointerdown with a
+    `shadeAt`, paths refuse planted tiles, beds store a material `c`
+    (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and can be repainted like path
+    colors, and fences refuse planted/water/house tiles). **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain
@@ -250,7 +251,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     button clears the flag. The **Pick** tool (`game.tool==='pick'`,
     eyedropper) samples the tapped tile via `pickAt` — plant > bulb > fence >
     terrain priority — arms that species/material/structure as the brush
-    (copying path/water colour or fence material/height/gate mode and
+    (copying path colour, bed material, water style, or fence material/height/gate mode and
     switching `trayCat`), then drops into plain Plant/Structures mode so the
     next tap paints with it. The Erase tool's
     options live in the bottom contextual toolbar when Erase is active:
@@ -263,7 +264,8 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (plants + bulbs + terrain + fences +
-    gw/gh + rot + houses + name + `wv` walkway flag + current fence draft). The old single `hortus:solo` key
+    gw/gh + rot + houses + name + `wv` walkway flag + current path/bed/water
+    material choices and fence draft). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
@@ -296,8 +298,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
-    stores `v`; tool state is `game.tool` + `game.toolVar`). The Structures
-    tab draws fences and gates from `game.fenceDraft` with 4 ft/6 ft heights
+    stores `v`; tool state is `game.tool` + `game.toolVar`). The Landscape
+    tab is contextual: select Path to reveal path colors, Bed to reveal bed
+    materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
+    to reveal pond/river/lake styles. The Structures tab draws fences and
+    gates from `game.fenceDraft` with 4 ft/6 ft heights
     and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools

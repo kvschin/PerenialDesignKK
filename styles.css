@@ -337,6 +337,21 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   #plantCard .latin{font-size:11px;margin-bottom:4px}
   #plantCard p{font-size:11px;line-height:1.4}
 }
+@media(min-width:1600px) and (min-height:800px){
+  #trayTabs{padding:7px 10px 0;gap:3px}
+  #trayTabs .tab{font-size:12px;padding:8px 13px 10px}
+  #traySearch{width:108px;font-size:12px;padding:6px 8px}
+  #toolTray{gap:8px;padding:10px;min-height:92px}
+  .tool{width:66px;min-width:66px;height:76px;padding-bottom:6px;gap:3px}
+  .tool canvas{width:58px;height:52px}
+  .tool span{font-size:10px;line-height:1.08}
+  .tray-sep{font-size:9.5px;padding:3px 2px;margin-left:6px}
+  #cvRow .chip{font-size:13px;padding:7px 13px}
+  #canvasTools{gap:5px;padding:6px}
+  .canvas-tool{width:54px;min-height:56px}
+  .canvas-tool canvas{width:46px;height:35px}
+  .canvas-tool span{font-size:8.5px}
+}
 @media (prefers-reduced-motion: reduce){
   *{transition:none!important;animation:none!important}
 }
