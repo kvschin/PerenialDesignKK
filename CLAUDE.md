@@ -20,7 +20,7 @@ Design panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
 (two-finger twist was removed — it fought the pan/zoom gesture). **Undo/redo**
 (`undoStack`/`redoStack`, buttons + Ctrl/Cmd-Z, redo via Ctrl/Cmd-Shift-Z
-or Ctrl/Cmd-Y): a gesture snapshots plants+bulbs+terrain+houses on
+or Ctrl/Cmd-Y): a gesture snapshots plants+bulbs+terrain+houses+fences on
 pointerdown (`beginUndo`) and commits it on pointerup only if state
 changed (`commitUndo`); discrete actions use `withUndo`. `pushUndo` records
 the pre-action snapshot and clears the redo chain; `doUndo`/`doRedo` shuttle
@@ -107,7 +107,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position,
    plants map, `bulbs` map — a second layer sharing tiles with plants —
-   tool, multiplayer presence, timing).
+   `terrain`, `houses`, `fences`, tool, multiplayer presence, timing).
 9. **Time helpers + phenology** — `absDay()`, `calClock()`
    (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
    `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
@@ -149,6 +149,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
     on big ones; legacy single-house saves (`house`) migrate to the array.
     `tileTerrain()` reads player-laid terrain from `game.terrain`.
+    Fences live in `game.fences` as tile structures (`{style,height,gate}`):
+    normal fence tiles block movement, gate tiles are walkable, and adjacent
+    fence/gate tiles visually connect.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. Ground tiles (grass / walkway / laid path
@@ -178,21 +181,22 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
-    the layers `game.eraseMode` selects: `all` wipes plant+bulb+terrain on
-    each tile in one pass, or `plant`/`bulb`/`terrain` only; one toast +
+    the layers `game.eraseMode` selects: `all` wipes plant+bulb+landscape on
+    each tile in one pass, or `plant`/`bulb`/`terrain` (Landscape) only; one toast +
     per-layer sync at pointerup via `endSweep`), tap and keyboard input.
     The **Layers** button opens a flyout (`addLayerMenu`, same
     `game.toolMenu` popover mechanism as Plant's Draw/Drift) over
-    `game.layerVis` — a *Layers* section (visibility eye toggles for
-    Perennials / Bulbs / Trees & Shrubs / Landscape; internal keys
-    `perennials`/`bulbs`/`woody`/`landscape`) and an *Overlays* section (the
-    `shade` flag). Each whole row toggles its layer; the row mutes (`.off`)
-    when hidden and stays put so it can be turned back on. `render` skips
-    hidden layers (`layerShown`: landscape gates terrain+doorstep+house,
-    bulbs gate the bulb pass, perennials/woody split plants via
-    `plantLayerOf`); the shade overlay washes every tile by canopy reach
-    (amber full sun → teal part → blue shade). `eraseBrush` only clears
-    layers that are visible (`layerEditable`/`layerShown`), so hidden layers
+    `game.layerVis` and `game.layerFocus` — a *Visible* section (All,
+    Perennials, Bulbs, Woody Plants, Landscape/Hardscape), an *Edit* section
+    (which layer is currently editable, or All), and an *Overlays* section
+    (Shade Overlay, stored as the `shade` flag). Each whole visible row
+    toggles its layer; the row mutes (`.off`) when hidden and stays put so it
+    can be turned back on. `render` skips hidden layers (`layerShown`:
+    landscape gates terrain+doorstep+houses+fences, bulbs gate the bulb pass,
+    perennials/woody split plants via `plantLayerOf`); the shade overlay
+    washes every tile by canopy reach (amber full sun → teal part → blue
+    shade). `eraseBrush` only clears layers that are visible and allowed by
+    edit focus (`layerEditable`/`layerShown`), so hidden and unfocused layers
     are protected. **Drawing onto a hidden layer is intercepted**: the
     pointerdown placement guard checks `toolTargetLayer(game.tool)` and, if
     that layer is hidden, calls `promptRevealLayer` — a `showConfirm` modal
@@ -209,7 +213,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     contextual tray (`renderSelectTray`, same slot as the Erase options)
     shows **Move / Duplicate** (mode toggles) and **Rotate / Erase**
     (one-shot actions). On commit the marquee snapshots its contents once
-    into `game.selItems` (via `selectionPayload`, all three layers); every
+    into `game.selItems` (via `selectionPayload`, plants/bulbs/terrain/fences); every
     op then works on those **owned** items — so a plant that later lands
     inside the rect is never scooped up. `commitSelectionOffset(dx,dy,copy)`
     moves/copies (read-all → clear-source → write-dest, so overlaps are
@@ -223,11 +227,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     plus translucent plant ghosts via `drawPlant`). Escape cancels an
     in-progress move, then the selection; switching tools drops it.
     All placement funnels
-    through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed rules —
+    through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed/water/fence rules —
     bulbs tuck under perennials but are refused under trees/shrubs (and a
     newly planted tree/shrub clears any bulb already there), plants check
-    `shadeAt`, paths refuse planted tiles). **Drag-to-plant**: pointerdown with a
-    plant/bulb/path/bed armed defers; crossing a tile line turns the
+    `shadeAt`, paths refuse planted tiles, and fences refuse planted/water/house
+    tiles). **Drag-to-plant**: pointerdown with a
+    plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain
     tap resolves at pointerup to the classic walk/act (`tapAction`). With
@@ -240,27 +245,31 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     tapped tile's ground material (`groundMat`: grass/path/bed/water) and
     applies the armed brush to every tile via `applyToolAt`, wrapped in one
     `withUndo`. `armFillTool` arms a brush + sets the flag; `fillActive()`
-    gates it (`fillMode && isBrushTool && tool!=='house'`); the Plant rail
+    gates it (`fillMode && isBrushTool && tool!=='house' && tool!=='fence'`);
+    the Plant rail
     button clears the flag. The **Pick** tool (`game.tool==='pick'`,
-    eyedropper) samples the tapped tile via `pickAt` — plant > bulb > terrain
-    priority — arms that species/material as the brush (copying path/water
-    colour and switching `trayCat`), then drops into plain Plant mode so the
+    eyedropper) samples the tapped tile via `pickAt` — plant > bulb > fence >
+    terrain priority — arms that species/material/structure as the brush
+    (copying path/water colour or fence material/height/gate mode and
+    switching `trayCat`), then drops into plain Plant/Structures mode so the
     next tap paints with it. The Erase tool's
     options live in the bottom contextual toolbar when Erase is active:
-    layer (All/Plants/Bulbs/Landscape → `eraseMode`) and size
+    layer (All/Plants/Bulbs/Landscape → `eraseMode`; Landscape includes
+    terrain, houses, and fences) and size
     (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
-    each save lives at `hortus:world:<id>` (plants + bulbs + terrain +
-    gw/gh + rot + house + name + `wv` walkway flag). The old single `hortus:solo` key
+    each save lives at `hortus:world:<id>` (plants + bulbs + terrain + fences +
+    gw/gh + rot + houses + name + `wv` walkway flag + current fence draft). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
     (meta carries gw/gh; the house syncs via its own key, last-write-wins
-    by timestamp), presence polling, `mergeMap` for plants and terrain.
+    by timestamp), presence polling, `mergeMap` for plants, bulbs, terrain,
+    and fences.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
@@ -273,7 +282,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (collinear runs merged), `buildPlanMap()` smooths them into organic
     blobs (quadratic midpoint spline + `planJitter` lattice wobble) tinted
     from `planColor`. Trees → dashed mature-canopy circles + trunk dot;
-    bulbs → scatter rings; house, paths/beds, title block, north arrow,
+    bulbs → scatter rings; house, fences/gates, paths/beds, title block, north arrow,
     legend with `planCodes` (unique genus/epithet abbreviations + cultivar
     tag), and a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
@@ -283,11 +292,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     → forbs), the region-picker overlay wiring, and the tool tray:
     `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
     (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
-    Landscape / House — the bottom bar is catalog/materials only),
+    Landscape / Structures / House — the bottom bar is catalog/materials only),
     species buttons in the active category (species sharing a
     `group` collapse to one button), and `renderCvRow()` chips: group
     members and/or cultivars of the selected species (the planted tile
-    stores `v`; tool state is `game.tool` + `game.toolVar`). The House tab
+    stores `v`; tool state is `game.tool` + `game.toolVar`). The Structures
+    tab draws fences and gates from `game.fenceDraft` with 4 ft/6 ft heights
+    and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools
     (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout and exits Erase back to the last visible plant) and starts new garden entries on

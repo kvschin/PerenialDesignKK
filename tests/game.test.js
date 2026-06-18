@@ -5,8 +5,9 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design';
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = [];
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = []; game.fences = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
+  game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false;
   game.eraseMode = 'all'; game.eraseSize = 1;
@@ -163,6 +164,40 @@ test('houses: place several, refuse overlaps, erase removes one', () => {
   assertEqual(game.houses.length, 2, 'two houses remain');
 });
 
+test('fences place as blocking structures, gates stay walkable, and erase removes them', () => {
+  setup(21, 21);
+  game.tool = 'fence';
+  game.fenceDraft = { style: 'wood', height: 6, gate: false };
+  assertEqual(applyToolAt(5, 5), 'fence', 'fence placed');
+  assertEqual(fenceAt(5, 5).style, 'wood', 'style saved');
+  assertEqual(fenceAt(5, 5).height, 6, 'height saved');
+  assert(!canStand(5, 5), 'regular fence blocks movement');
+
+  game.fenceDraft = { style: 'vinyl', height: 4, gate: true };
+  assertEqual(applyToolAt(6, 5), 'gate', 'gate placed');
+  assert(canStand(6, 5), 'gate is walkable');
+
+  game.tool = firstOfType('forb');
+  assertEqual(applyToolAt(5, 5), null, 'plants refuse fence tiles');
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(5, 5, counts);
+  assertEqual(counts.fence, 1, 'erase counted the fence');
+  assert(!fenceAt(5, 5), 'fence removed');
+});
+
+test('story mode refuses to place a blocking fence under the player', () => {
+  setup(21, 21);
+  game.gameMode = 'story';
+  game.px = game.tx = 7; game.py = game.ty = 7;
+  game.tool = 'fence';
+  game.fenceDraft = { style: 'black', height: 4, gate: false };
+  assertEqual(applyToolAt(7, 7), null, 'blocking fence under player refused');
+  game.fenceDraft.gate = true;
+  assertEqual(applyToolAt(7, 7), 'gate', 'gate under player is allowed');
+});
+
 test('plantLayerOf separates woody from perennial layers', () => {
   const woody = firstOfType('tree') || firstOfType('shrub');
   const forb = firstOfType('forb');
@@ -184,11 +219,12 @@ test('undo/redo round-trips and a new action clears the redo chain', () => {
   assertEqual(redoStack.length, 0, 'a new action clears redo');
 });
 
-test('eyedropper samples a plant, a bulb, or a material onto the brush', () => {
+test('eyedropper samples a plant, a bulb, a fence, or a material onto the brush', () => {
   setup();
   const forb = firstOfType('forb'), bulb = firstOfType('bulb');
   game.plants['3,3'] = { s: forb, v: null, d: 0, t: 1 };
   game.bulbs['4,4'] = { s: bulb, v: null, d: 0, t: 1 };
+  game.fences['6,6'] = { style: 'brick', height: 6, gate: true, t: 1 };
   game.terrain['5,5'] = { k: 'path', c: 'slate', t: 1 };
 
   game.tool = 'pick'; game.fillMode = true; pickAt(3, 3);
@@ -201,6 +237,13 @@ test('eyedropper samples a plant, a bulb, or a material onto the brush', () => {
   game.tool = 'pick'; game.pathColor = 'warm'; pickAt(5, 5);
   assertEqual(game.tool, 'path', 'picked the path material');
   assertEqual(game.pathColor, 'slate', 'copied the path colour');
+
+  game.tool = 'pick'; pickAt(6, 6);
+  assertEqual(game.tool, 'fence', 'picked the fence structure');
+  assertEqual(game.trayCat, 'structures', 'switched to Structures');
+  assertEqual(game.fenceDraft.style, 'brick', 'copied fence material');
+  assertEqual(game.fenceDraft.height, 6, 'copied fence height');
+  assert(game.fenceDraft.gate, 'copied gate mode');
 
   game.tool = 'pick'; pickAt(10, 10);
   assertEqual(game.tool, 'pick', 'nothing to pick on bare grass — stays on the tool');
