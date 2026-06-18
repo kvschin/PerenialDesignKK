@@ -12,6 +12,7 @@ function setup(gw, gh){
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false;
   game.eraseMode = 'all'; game.eraseSize = 1;
+  game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false };
   game.layerFocus = 'all';
   game.sel = null; game.selItems = null; game.selMode = 'move';
@@ -155,6 +156,7 @@ test('shrubs reserve their mature footprint for planting and materials', () => {
   eraseBrush(10, 8, counts);
   assertEqual(counts.plants, 1, 'erasing the shrub edge removes the shrub');
   assert(game.plants['8,8'].removed, 'shrub center was removed');
+  assert(shrubVisualCw(plantDef('sumac')) > PLANTS.sumac.cw, 'wide shrubs render from real spread, not just icon width');
 });
 
 test('compatible hedge shrubs can be planted edge to edge', () => {

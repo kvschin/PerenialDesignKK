@@ -232,10 +232,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     newly planted tree/shrub clears any bulb already there), plants check
     `shadeAt`; shrubs reserve a mature spread footprint from `spread`/`TILE_IN`
     (paths, water, fences, bulbs, and perennials refuse that ground; compatible
-    clipped hedge shrubs can still connect edge-to-edge); paths refuse planted
-    tiles, beds store a material `c` (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and
-    can be repainted like path colors, and fences refuse planted/water/house
-    tiles). **Drag-to-plant**: pointerdown with a
+    clipped hedge shrubs can still connect edge-to-edge). The reserved shrub
+    footprint is also a visual affordance: a faint base under each shrub, a
+    stronger outline when hovered or when its plant card is open, and a brief
+    red pulse when it blocks placement. Paths refuse planted tiles, beds store
+    a material `c` (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and can be repainted
+    like path colors, and fences refuse planted/water/house tiles). **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain
