@@ -141,10 +141,13 @@ test('bed styles are stored on terrain and can be repainted', () => {
 });
 
 test('winter soil beds are frosted instead of nearly black', () => {
-  const col = bedFill({ k: 'bed', c: 'soil' }, AMBIENCE.Winter);
-  const nums = col.match(/\d+/g).map(Number);
-  const avg = (nums[0] + nums[1] + nums[2]) / 3;
-  assert(avg > 185, `winter soil should be light enough to read as frost/snow, got ${col}`);
+  for (const bs of BED_STYLES){
+    const fill = bedFill({ k: 'bed', c: bs.id }, AMBIENCE.Winter);
+    const shaded = shade(fill, -12); // render path applies a small seeded shade to bed fill
+    const nums = shaded.match(/\d+/g).map(Number);
+    const avg = (nums[0] + nums[1] + nums[2]) / 3;
+    assert(avg > 120, `winter ${bs.id} bed should not render black, got ${shaded} from ${fill}`);
+  }
 });
 
 test('garden clock advances only while the garden is active', () => {

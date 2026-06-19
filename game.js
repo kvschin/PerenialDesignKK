@@ -997,10 +997,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   ctx.restore();
 }
 
-function shade(hex, amt){
-  if (!hex) hex='#6b6248'; // seasons without that color: dead-stem brown
-  const n=parseInt(hex.slice(1),16);
-  let r=(n>>16)+amt, g=((n>>8)&255)+amt, b=(n&255)+amt;
+function colorParts(col){
+  if (!col) col='#6b6248'; // seasons without that color: dead-stem brown
+  if (col[0]==='#'){
+    const n=parseInt(col.slice(1),16);
+    if (Number.isFinite(n)) return [(n>>16)&255,(n>>8)&255,n&255];
+  }
+  const m=String(col).match(/rgba?\(([^)]+)\)/i);
+  if (m){
+    const parts=m[1].split(',').slice(0,3).map(v=>parseFloat(v));
+    if (parts.every(Number.isFinite)) return parts;
+  }
+  return [107,98,72];
+}
+function shade(col, amt){
+  const [r0,g0,b0]=colorParts(col);
+  let r=r0+amt, g=g0+amt, b=b0+amt;
   r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
   return `rgb(${r},${g},${b})`;
 }
