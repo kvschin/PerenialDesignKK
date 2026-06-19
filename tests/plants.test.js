@@ -1,7 +1,7 @@
 /* Tier 1 — the PLANTS data contract.  Runs concatenated after plants.js, so
    PLANTS and REGIONS are in scope.  Uses injected test()/assert(). */
 
-const TYPES  = ['grass', 'sedge', 'forb', 'bulb', 'shrub', 'tree'];
+const TYPES  = ['grass', 'sedge', 'forb', 'bulb', 'water', 'shrub', 'tree'];
 const SUNS   = ['full', 'part'];
 const MOISTS = ['dry', 'medium', 'moist'];
 const PHENS  = ['cool', 'mid', 'warm'];

@@ -253,7 +253,17 @@ test('connected hedge shrubs expose a render angle for continuous lines', () => 
   applyToolAt(5, 5); applyToolAt(6, 5);
   const d = hedgeRenderDetail(5, 5, game.plants['5,5'], 1024, 768);
   assert(d && typeof d.hedgeAngle === 'number', 'connected hedge has an orientation');
+  assert(Array.isArray(d.hedgeAxis) && d.hedgeStep > 0, 'connected hedge exposes screen-space prism data');
   assert(!d.hedgeEndPos && d.hedgeEndNeg, 'end caps know which side is connected');
+});
+
+test('bamboo trees expose grove neighbors when planted together', () => {
+  setup(13, 13);
+  game.tool = 'bamboo'; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), 'plant', 'first bamboo planted');
+  assertEqual(applyToolAt(6, 5), 'plant', 'second bamboo planted');
+  const d = plantRenderDetail(5, 5, game.plants['5,5'], 1024, 768);
+  assert(d && d.bambooDirs && d.bambooDirs.length, 'adjacent bamboo links into a grove');
 });
 
 test('boxwood and yew cultivars are documented but not selectable variants', () => {
@@ -277,16 +287,19 @@ test('formal boxwood silhouettes match the intended clipped shapes', () => {
   assert(square.look.bodyH >= 0.9, 'square hedge is tall enough to read as a cuboid');
 });
 
-test('clipped shrubs get their own rounded plan components', () => {
+test('shrubs get their own rounded plan components', () => {
   setup(13, 13);
   game.plants['4,4'] = { s: 'boxwoodlow', d: 0, t: 1 };
   game.plants['7,5'] = { s: 'boxwoodsquare', d: 0, t: 1 };
   game.plants['8,5'] = { s: 'boxwoodsquare', d: 0, t: 1 };
-  const comps = clippedShrubPlanComponents();
+  game.plants['10,8'] = { s: 'hydrangea', d: 0, t: 1 };
+  const comps = shrubPlanComponents();
   const low = comps.find(c => c.s === 'boxwoodlow');
   const hedge = comps.find(c => c.s === 'boxwoodsquare');
+  const hydrangea = comps.find(c => c.s === 'hydrangea');
   assert(low && low.shape === 'sphere' && low.tiles.length === 1, 'low ball is a one-plant round plan symbol');
   assert(hedge && hedge.hedge && hedge.tiles.length === 2, 'touching square boxwoods become one hedge symbol');
+  assert(hydrangea && !hydrangea.hedge && hydrangea.tiles.length > 1, 'ordinary shrubs get mature rounded plan footprints');
 });
 
 test('dusk overlay marks the layer view active', () => {
@@ -386,6 +399,21 @@ test('lights place as one-tile structures, block plants, and erase with landscap
   assert(!lightAt(5, 5), 'light removed');
 });
 
+test('water plants only plant into open water tiles', () => {
+  setup(13, 13);
+  const waterPlant = firstOfType('water');
+  assert(waterPlant, 'water plant exists');
+  game.tool = waterPlant; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), null, 'water plant refused on dry land');
+  game.tool = 'water'; game.waterStyle = 'pond';
+  assertEqual(applyToolAt(5, 5), 'water', 'water tile painted');
+  game.tool = waterPlant;
+  assertEqual(applyToolAt(5, 5), 'plant', 'water plant placed in water');
+  assertEqual(game.plants['5,5'].s, waterPlant, 'water plant stored in plant layer');
+  game.tool = 'water';
+  assertEqual(applyToolAt(5, 5), null, 'water repaint refuses occupied water plant tile');
+});
+
 test('story mode refuses to place a blocking fence under the player', () => {
   setup(21, 21);
   game.gameMode = 'story';
@@ -400,8 +428,10 @@ test('story mode refuses to place a blocking fence under the player', () => {
 test('plantLayerOf separates woody from perennial layers', () => {
   const woody = firstOfType('tree') || firstOfType('shrub');
   const forb = firstOfType('forb');
+  const waterPlant = firstOfType('water');
   assertEqual(plantLayerOf({ s: woody }), 'woody', 'tree/shrub -> woody');
   assertEqual(plantLayerOf({ s: forb }), 'perennials', 'forb -> perennials');
+  assertEqual(plantLayerOf({ s: waterPlant }), 'perennials', 'water plants render with planted layers');
 });
 
 test('undo/redo round-trips and a new action clears the redo chain', () => {
