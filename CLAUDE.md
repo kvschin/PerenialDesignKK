@@ -313,7 +313,9 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`). The left canvas toolbar owns action tools
-    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout and exits Erase back to the last visible plant) and starts new garden entries on
+    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout
+    and returns from other canvas tools to the last drawable brush: plant,
+    path, bed, or water; house/fence do not overwrite that memory) and starts new garden entries on
     Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
@@ -343,6 +345,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     overlays sit outside `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
+    Garden time uses accumulated open-play milliseconds (`elapsedMs`) instead
+    of raw wall-clock time since creation. `suspendClock()` banks elapsed time
+    before hidden/pagehide saves, and `resumeClockSession()` restarts the session
+    timer when the app is visible again, so days/years do not advance while the
+    app is closed.
 
 ## The plant data model
 

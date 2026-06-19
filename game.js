@@ -66,7 +66,11 @@ function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
 function bedStyleId(id){ return bedStyle(id).id; }
 function bedFill(t,amb){
   const b=bedStyle(t&&t.c), fill=b.fill||amb.soil;
-  return amb.snow ? mixHex(fill,'#eef2f8',0.42) : fill;
+  if (!amb.snow) return fill;
+  const snowMix=b.id==='soil' ? 0.76
+    : (b.id==='leaf'||b.id==='mulch') ? 0.64
+    : 0.52;
+  return mixHex(fill,'#eef2f8',snowMix);
 }
 function bedPlanFill(t){ return bedStyle(t&&t.c).plan; }
 const WATER_STYLES = [
@@ -1218,7 +1222,7 @@ const game = {
   bulbs:{},           // same shape — the layer under the plants
   terrain:{},         // "x,y" -> {k:'path'|'bed'|'water', t:ts} or {removed:true,t}
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
-  startTs:Date.now(), dayOffset:0,
+  startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   house:null, houseT:0,                              // per-garden house + sync stamp
@@ -1261,14 +1265,18 @@ const game = {
 const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
   localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
 
-function gameNow(){ return game.pausedAt || Date.now(); }
-function saveStartTs(){ return game.pausedAt ? game.startTs + (Date.now()-game.pausedAt) : game.startTs; }
-function absDay(){ return Math.floor((gameNow()-game.startTs)/DAY_MS) + game.dayOffset; }
+function clockActive(){ return !!(game.mode && !game.pausedAt && !game.clockSuspended); }
+function elapsedGameMs(){
+  const base=game.elapsedMs||0;
+  return base + (clockActive() ? Math.max(0, Date.now()-game.startTs) : 0);
+}
+function saveStartTs(){ return Date.now()-elapsedGameMs(); } // legacy field; elapsedMs is authoritative now
+function absDay(){ return Math.floor(elapsedGameMs()/DAY_MS) + game.dayOffset; }
 function calClock(){
-  const now=gameNow(), d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
+  const ms=elapsedGameMs(), d=absDay(), year=Math.floor(d/(DAYS_PER_SEASON*4))+1;
   const sIdx=Math.floor(d/DAYS_PER_SEASON)%4;
   return {day:d%DAYS_PER_SEASON+1, season:SEASONS[sIdx], year,
-          frac:((now-game.startTs)%DAY_MS)/DAY_MS};
+          frac:(ms%DAY_MS)/DAY_MS};
 }
 /* ---------- phenology: how perennials actually behave ----------
    A plant's drawn size = establishment x seasonal envelope.
@@ -3012,7 +3020,7 @@ async function saveSolo(silent){
     mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,houses:game.houses,pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,fences:game.fences,
-    startTs:saveStartTs(),dayOffset:game.dayOffset,char:game.char});
+    startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
   await sSet('hortus:worlds',idx);
@@ -3048,7 +3056,12 @@ async function loadSolo(id){
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.rot=s.rot||0;
-  game.startTs=s.startTs||Date.now();
+  const migratedElapsed = s.elapsedMs!==undefined
+    ? Math.max(0,+s.elapsedMs||0)
+    : Math.max(0,((s.savedAt||Date.now())-(s.startTs||Date.now())));
+  game.elapsedMs=migratedElapsed;
+  game.startTs=Date.now();
+  game.clockSuspended=false; game.pausedAt=0;
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
   game.worldName=s.name||'My garden';
   // saves from before the walkway became terrain get it seeded once,
@@ -3063,11 +3076,11 @@ function wkey(part){ return `hortus:w:${game.code}:${part}`; }
 let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
-  game.startTs=Date.now(); game.dayOffset=0;
+  game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
   setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
-  await sSet(wkey('meta'),{startTs:game.startTs,gw:GW,gh:GH},true);
+  await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
   await sSet(wkey('bulbs'),{},true);
   await sSet(wkey('terrain'),game.terrain,true);
@@ -3078,7 +3091,9 @@ async function joinWorld(code){
   game.code=code;
   const meta=await sGet(wkey('meta'),true);
   if (!meta){ toast('No garden found with that code.'); game.code=null; return false; }
-  game.startTs=meta.startTs; game.dayOffset=0;
+  game.elapsedMs=meta.elapsedMs!==undefined ? Math.max(0,+meta.elapsedMs||0)
+    : Math.max(0,Date.now()-(meta.startTs||Date.now()));
+  game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
@@ -3736,8 +3751,9 @@ function toolTargetLayer(t){ t=t||game.tool;
   return 'perennials';
 }
 function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || k==='house' || k==='fence'; }
+function isDrawableBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water'; }
 function rememberBrushTool(){
-  if (isBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
+  if (isDrawableBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
 }
 function setTool(k,v){
   game.toolMenu=null;
@@ -3839,6 +3855,8 @@ function plantCategoryFor(k){
 }
 function visiblePlantChoice(){
   const visible=trayKeys();
+  if (game.lastBrushTool==='path'||game.lastBrushTool==='bed'||game.lastBrushTool==='water')
+    return [game.lastBrushTool,null];
   if (PLANTS[game.lastBrushTool] && visible.includes(game.lastBrushTool))
     return [game.lastBrushTool,game.lastBrushVar||null];
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat && c.types);
@@ -3857,7 +3875,7 @@ function armPlantToolFromRail(openMenu){
   game.fillMode=false;                  // plain planting, not bucket-fill
   if (choice){
     game.tool=choice[0]; game.toolVar=choice[1];
-    game.trayCat=plantCategoryFor(choice[0]);
+    game.trayCat=PLANTS[choice[0]] ? plantCategoryFor(choice[0]) : 'landscape';
     rememberBrushTool();
   } else {
     game.tool='hand'; game.toolVar=null;
@@ -4610,7 +4628,7 @@ function updateHUD(){
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
-    if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; }
+    if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; }
   }
 }
 
@@ -4621,11 +4639,29 @@ function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plo
   if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
 function closeOverlay(id){ $(id).classList.add('hidden'); }
-function pauseClock(){ if (game.mode && !game.pausedAt) game.pausedAt=Date.now(); }
+function suspendClock(){
+  if (!game.mode || game.pausedAt || game.clockSuspended) return;
+  game.elapsedMs=elapsedGameMs();
+  game.clockSuspended=true;
+  game.startTs=Date.now();
+}
+function resumeClockSession(){
+  if (!game.mode || !game.clockSuspended) return;
+  game.clockSuspended=false;
+  game.startTs=Date.now();
+}
+function pauseClock(){
+  if (!game.mode || game.pausedAt) return;
+  game.elapsedMs=elapsedGameMs();
+  game.pausedAt=Date.now();
+  game.clockSuspended=false;
+  game.startTs=Date.now();
+}
 function resumeClock(){
   if (!game.pausedAt) return;
-  game.startTs += Date.now()-game.pausedAt;
   game.pausedAt=0;
+  game.clockSuspended=false;
+  game.startTs=Date.now();
 }
 function nextSeasonName(){
   const cal=calClock();
@@ -4925,7 +4961,7 @@ function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   sizeCanvas(cnv);
-  game.tool='hand'; game.toolVar=null; game.pausedAt=0;
+  game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   if (!Array.isArray(game.houses)) game.houses=[];
   if (!game.fences) game.fences={};
@@ -4974,7 +5010,7 @@ function openPlotScreen(){
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
-      game.rot=0; game.startTs=Date.now(); game.dayOffset=0;
+      game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
@@ -5032,10 +5068,11 @@ function openDesignSetup(){
   show('designScreen');
 }
 function quitToMenu(){
+  suspendClock();
   if (game.mode==='solo'&&hasStorage) saveSolo();
-  resumeClock();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
-  game.mode=null; game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
+  game.mode=null; game.pausedAt=0; game.clockSuspended=false;
+  game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
   $('planScreen').classList.add('hidden'); $('pauseScreen').classList.add('hidden');
@@ -5047,9 +5084,12 @@ function quitToMenu(){
 $('btnMenu').onclick=quitToMenu;
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
-function autosaveNow(){ if (game.mode==='solo'&&hasStorage&&game.dirty){ saveSolo(true); game.dirty=false; } }
-addEventListener('visibilitychange',()=>{ if (document.hidden) autosaveNow(); });
-addEventListener('pagehide',autosaveNow);
+function autosaveNow(){ if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; } }
+addEventListener('visibilitychange',()=>{
+  if (document.hidden){ suspendClock(); autosaveNow(); }
+  else { resumeClockSession(); updateHUD(); }
+});
+addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
 $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
 $('btnPause').onclick=toggleClock;

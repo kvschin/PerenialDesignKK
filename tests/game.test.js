@@ -10,7 +10,9 @@ function setup(gw, gh){
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
+  game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false;
+  game.lastBrushTool = null; game.lastBrushVar = null;
   game.eraseMode = 'all'; game.eraseSize = 1;
   game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false };
@@ -136,6 +138,52 @@ test('bed styles are stored on terrain and can be repainted', () => {
   assertEqual(applyToolAt(3, 3), 'bed', 'existing bed restyled');
   assertEqual(game.terrain['3,3'].c, 'leaf', 'new bed style stored');
   assertEqual(applyToolAt(3, 3), null, 'same style is a no-op');
+});
+
+test('winter soil beds are frosted instead of nearly black', () => {
+  const col = bedFill({ k: 'bed', c: 'soil' }, AMBIENCE.Winter);
+  const nums = col.match(/\d+/g).map(Number);
+  const avg = (nums[0] + nums[1] + nums[2]) / 3;
+  assert(avg > 185, `winter soil should be light enough to read as frost/snow, got ${col}`);
+});
+
+test('garden clock advances only while the garden is active', () => {
+  const realNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  try {
+    setup(11, 11);
+    game.mode = 'solo';
+    game.startTs = now; game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
+    now += DAY_MS * 2.4;
+    assertEqual(absDay(), 2, 'open play advances days');
+    suspendClock();
+    const frozen = absDay();
+    now += DAY_MS * 20;
+    assertEqual(absDay(), frozen, 'hidden/closed time does not advance days');
+    resumeClockSession();
+    now += DAY_MS * 1.1;
+    assertEqual(absDay(), frozen + 1, 'resumed open play advances again');
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('draw tool restores the last plant or material after other tools', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  setTool(forb, null);
+  assertEqual(game.lastBrushTool, forb, 'plant brush remembered');
+  setTool('fence', null);
+  assertEqual(game.lastBrushTool, forb, 'structure tool does not overwrite drawing brush');
+  setTool('shovel', null);
+  armPlantToolFromRail(false);
+  assertEqual(game.tool, forb, 'draw rail restores previous plant brush');
+
+  setTool('bed', null);
+  setTool('house', null);
+  armPlantToolFromRail(false);
+  assertEqual(game.tool, 'bed', 'draw rail restores previous material brush');
 });
 
 test('shrubs reserve their mature footprint for planting and materials', () => {
