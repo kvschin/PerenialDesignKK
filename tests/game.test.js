@@ -286,6 +286,13 @@ test('dusk overlay marks the layer view active', () => {
   assert(layerViewActive(), 'dusk/night overlay makes Layers active');
 });
 
+test('layer edit focus is disabled while the edit controls are hidden', () => {
+  setup(13, 13);
+  game.layerFocus = 'woody';
+  assert(layerEditable('perennials'), 'hidden edit focus should not block perennial edits');
+  assert(!layerViewActive(), 'hidden edit focus should not make Layers look active');
+});
+
 test('selection move shifts owned items and is refused off-plot', () => {
   setup(15, 15);
   game.plants['5,5'] = { s: firstOfType('grass'), d: 0, t: 1 };

@@ -845,17 +845,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const cw=(shrubVisualCw(P)||50)*(0.35+0.65*growth);
     if (L.clip){
       const fol=S.fol||S.seed||'#4f6f45', shape=L.shape||'round';
-      const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=-H*0.08;
+      const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=0;
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
-      if (shape==='square' && hedgeDirs.length){
-        ctx.save();
-        ctx.strokeStyle=shade(fol,-15); ctx.lineWidth=Math.max(18,bodyW*0.68); ctx.lineCap='butt';
-        hedgeDirs.forEach(([dx,dy])=>{
-          ctx.beginPath(); ctx.moveTo(0,baseY-bodyH*0.42);
-          ctx.lineTo(dx*0.92,dy*0.92+baseY-bodyH*0.42); ctx.stroke();
-        });
-        ctx.restore();
-      }
+      const connectedSquare=shape==='square' && hedgeDirs.length;
       if (shape==='sphere'){
         ctx.fillStyle=shade(fol,-20);
         ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.47,bodyW*0.50,bodyH*0.52,0,0,7); ctx.fill();
@@ -864,8 +856,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.fillStyle=shade(fol,14);
         ctx.beginPath(); ctx.ellipse(-bodyW*0.12,baseY-bodyH*0.66,bodyW*0.30,bodyH*0.19,-0.1,0,7); ctx.fill();
       } else if (shape==='square'){
-        const top=baseY-bodyH*0.88, frontTop=top+bodyH*0.14, bottom=baseY-bodyH*0.08;
-        const left=-bodyW/2, right=bodyW/2, inset=bodyW*0.12;
+        const top=baseY-bodyH*0.92, frontTop=top+bodyH*(connectedSquare?0.18:0.14), bottom=baseY;
+        const left=-bodyW/2, right=bodyW/2, inset=connectedSquare?0:bodyW*0.12;
         ctx.fillStyle=shade(fol,-18); ctx.fillRect(left,frontTop,bodyW,bottom-frontTop);
         ctx.fillStyle=shade(fol,10);
         ctx.beginPath();
@@ -874,11 +866,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.closePath(); ctx.fill();
         ctx.fillStyle=shade(fol,-25); ctx.fillRect(left,bottom-bodyH*0.08,bodyW,bodyH*0.08);
         ctx.save();
-        ctx.strokeStyle=shade(fol,-31); ctx.lineWidth=1; ctx.globalAlpha=0.25;
+        ctx.strokeStyle=shade(fol,-31); ctx.lineWidth=1; ctx.globalAlpha=connectedSquare?0.14:0.25;
         ctx.beginPath();
-        ctx.moveTo(left,frontTop); ctx.lineTo(left,bottom);
-        ctx.moveTo(right,frontTop); ctx.lineTo(right,bottom);
+        if (!connectedSquare){
+          ctx.moveTo(left,frontTop); ctx.lineTo(left,bottom);
+          ctx.moveTo(right,frontTop); ctx.lineTo(right,bottom);
+        }
         ctx.moveTo(left,frontTop); ctx.lineTo(right,frontTop);
+        ctx.moveTo(left,bottom-bodyH*0.08); ctx.lineTo(right,bottom-bodyH*0.08);
         ctx.stroke(); ctx.restore();
       } else if (shape==='cone' || shape==='pyramid'){
         const layers=shape==='cone'?3:2;
@@ -3948,8 +3943,9 @@ function plantLayerOf(p){ const P=p&&PLANTS[p.s];
   return (P && (P.type==='shrub'||P.type==='tree')) ? 'woody' : 'perennials'; }
 // is a layer currently visible? hidden layers don't render and can't be edited
 function layerShown(name){ return game.layerVis[name]!==false; }
+const ENABLE_LAYER_EDIT_FOCUS = false; // kept for later; hidden now because visibility is the useful layer control
 // does the active edit focus permit touching this layer? (focus is 'all' for now)
-function layerEditable(name){ return game.layerFocus==='all' || game.layerFocus===name; }
+function layerEditable(name){ return !ENABLE_LAYER_EDIT_FOCUS || game.layerFocus==='all' || game.layerFocus===name; }
 const LAYER_LABELS={all:'All',perennials:'Perennials',bulbs:'Bulbs',woody:'Woody Plants',landscape:'Landscape/Hardscape'};
 const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable layers, in menu order
 // the layer a placement tool draws onto (so we can warn when it's hidden)
@@ -4373,7 +4369,7 @@ function promptRevealLayer(layer,x,y){
 }
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
-  return game.layerFocus!=='all' || game.layerVis.shade || game.layerVis.night || LAYER_DEFS.some(([k])=>!layerShown(k));
+  return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade || game.layerVis.night || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
   if (!layer || layerEditable(layer)) return false;
@@ -4385,6 +4381,7 @@ function toggleLayerMenu(){
   refreshCanvasTools();
 }
 function addLayerMenu(rail){
+  if (!ENABLE_LAYER_EDIT_FOCUS) game.layerFocus='all';
   const pop=document.createElement('div');
   pop.className='tool-popover layer-popover';
   const section=title=>{ const h=document.createElement('div');
@@ -4431,9 +4428,11 @@ function addLayerMenu(rail){
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
     ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
-  section('Edit');
-  focusRow('all','All');
-  LAYER_DEFS.forEach(([key])=>focusRow(key,LAYER_LABELS[key]));
+  if (ENABLE_LAYER_EDIT_FOCUS){
+    section('Edit');
+    focusRow('all','All');
+    LAYER_DEFS.forEach(([key])=>focusRow(key,LAYER_LABELS[key]));
+  }
   section('Overlays');
   row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
   row(()=>!!game.layerVis.night, v=>{ game.layerVis.night=v; }, 'Dusk / Night');
