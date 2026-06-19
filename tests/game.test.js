@@ -15,7 +15,7 @@ function setup(gw, gh){
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.eraseMode = 'all'; game.eraseSize = 1;
   game.focusPlantKey = null; game.shrubFx = [];
-  game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false };
+  game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
   game.layerFocus = 'all';
   game.sel = null; game.selItems = null; game.selMode = 'move';
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
@@ -255,6 +255,35 @@ test('boxwood and yew cultivars are documented but not selectable variants', () 
       `${k} keeps cultivar notes for the plant library`);
     assert(PLANTS[k].libraryCultivars.every(c => c.name && c.size), `${k} cultivar notes include size`);
   });
+});
+
+test('formal boxwood silhouettes match the intended clipped shapes', () => {
+  const round = plantDef('boxwoodround');
+  const low = plantDef('boxwoodlow');
+  const square = plantDef('boxwoodsquare');
+  assert(round.spread >= 54 && round.cw >= 69, 'round boxwood is roughly 50% larger');
+  assertEqual(low.look.shape, 'sphere', 'low ball renders as a small sphere');
+  assertEqual(square.look.shape, 'square', 'square hedge keeps its square form');
+  assert(square.look.bodyH >= 0.9, 'square hedge is tall enough to read as a cuboid');
+});
+
+test('clipped shrubs get their own rounded plan components', () => {
+  setup(13, 13);
+  game.plants['4,4'] = { s: 'boxwoodlow', d: 0, t: 1 };
+  game.plants['7,5'] = { s: 'boxwoodsquare', d: 0, t: 1 };
+  game.plants['8,5'] = { s: 'boxwoodsquare', d: 0, t: 1 };
+  const comps = clippedShrubPlanComponents();
+  const low = comps.find(c => c.s === 'boxwoodlow');
+  const hedge = comps.find(c => c.s === 'boxwoodsquare');
+  assert(low && low.shape === 'sphere' && low.tiles.length === 1, 'low ball is a one-plant round plan symbol');
+  assert(hedge && hedge.hedge && hedge.tiles.length === 2, 'touching square boxwoods become one hedge symbol');
+});
+
+test('dusk overlay marks the layer view active', () => {
+  setup(13, 13);
+  assert(!layerViewActive(), 'default layer view is inactive');
+  game.layerVis.night = true;
+  assert(layerViewActive(), 'dusk/night overlay makes Layers active');
 });
 
 test('selection move shifts owned items and is refused off-plot', () => {

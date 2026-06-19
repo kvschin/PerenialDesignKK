@@ -849,10 +849,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
       if (shape==='square' && hedgeDirs.length){
         ctx.save();
-        ctx.strokeStyle=shade(fol,-10); ctx.lineWidth=Math.max(18,bodyW*0.72); ctx.lineCap='square';
+        ctx.strokeStyle=shade(fol,-15); ctx.lineWidth=Math.max(18,bodyW*0.68); ctx.lineCap='butt';
         hedgeDirs.forEach(([dx,dy])=>{
-          ctx.beginPath(); ctx.moveTo(0,baseY-bodyH*0.46);
-          ctx.lineTo(dx*0.92,dy*0.92+baseY-bodyH*0.46); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0,baseY-bodyH*0.42);
+          ctx.lineTo(dx*0.92,dy*0.92+baseY-bodyH*0.42); ctx.stroke();
         });
         ctx.restore();
       }
@@ -864,11 +864,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.fillStyle=shade(fol,14);
         ctx.beginPath(); ctx.ellipse(-bodyW*0.12,baseY-bodyH*0.66,bodyW*0.30,bodyH*0.19,-0.1,0,7); ctx.fill();
       } else if (shape==='square'){
-        ctx.fillStyle=shade(fol,-18); ctx.fillRect(-bodyW/2,baseY-bodyH*0.78,bodyW,bodyH*0.76);
+        const top=baseY-bodyH*0.88, frontTop=top+bodyH*0.14, bottom=baseY-bodyH*0.08;
+        const left=-bodyW/2, right=bodyW/2, inset=bodyW*0.12;
+        ctx.fillStyle=shade(fol,-18); ctx.fillRect(left,frontTop,bodyW,bottom-frontTop);
         ctx.fillStyle=shade(fol,10);
-        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.78,bodyW/2,bodyH*0.20,0,0,7); ctx.fill();
-        ctx.fillStyle=shade(fol,-8);
-        ctx.fillRect(-bodyW/2,baseY-bodyH*0.17,bodyW,bodyH*0.15);
+        ctx.beginPath();
+        ctx.moveTo(left,frontTop); ctx.lineTo(left+inset,top);
+        ctx.lineTo(right-inset,top); ctx.lineTo(right,frontTop);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle=shade(fol,-25); ctx.fillRect(left,bottom-bodyH*0.08,bodyW,bodyH*0.08);
+        ctx.save();
+        ctx.strokeStyle=shade(fol,-31); ctx.lineWidth=1; ctx.globalAlpha=0.25;
+        ctx.beginPath();
+        ctx.moveTo(left,frontTop); ctx.lineTo(left,bottom);
+        ctx.moveTo(right,frontTop); ctx.lineTo(right,bottom);
+        ctx.moveTo(left,frontTop); ctx.lineTo(right,frontTop);
+        ctx.stroke(); ctx.restore();
       } else if (shape==='cone' || shape==='pyramid'){
         const layers=shape==='cone'?3:2;
         for (let q=0;q<layers;q++){
@@ -1262,7 +1273,7 @@ const game = {
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
   lastBrushTool:null, lastBrushVar:null,             // last plant/material tool chosen from the catalog
   toolMenu:null,                                     // open flyout on the left canvas toolbar
-  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false}, // layer view: visibility + shade overlay
+  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,night:false}, // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
   selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
@@ -1906,6 +1917,27 @@ function applySeasonLighting(ctx,W,H,amb,season){
   vg.addColorStop(1,L.vignette);
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
 }
+function applyDuskLighting(ctx,W,H,season){
+  const winter=season==='Winter';
+  ctx.save();
+  ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
+  ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='screen';
+  let g=ctx.createRadialGradient(W*0.74,H*0.16,0,W*0.74,H*0.16,H*0.86);
+  g.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
+  g.addColorStop(0.38,'rgba(92,118,176,0.07)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g=ctx.createLinearGradient(0,H*0.52,0,H);
+  g.addColorStop(0,'rgba(255,255,255,0)');
+  g.addColorStop(1,'rgba(186,116,72,0.08)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  const vg=ctx.createRadialGradient(W*0.48,H*0.46,Math.min(W,H)*0.22,W*0.48,H*0.46,Math.max(W,H)*0.78);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(5,10,20,0.26)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+}
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
 function rotateView(dir){
@@ -2198,6 +2230,7 @@ function render(t){
       cx.beginPath(); cx.arc(f.x,f.y,f.r,0,7); cx.fill(); });
     snowFlakes=snowFlakes.filter(f=>f.y<H+5);
   } else snowFlakes.length=0;
+  if (game.layerVis.night) applyDuskLighting(cx,W,H,cal.season);
 
   if (game.photo){ // golden-hour wash, only on the captured frame
     const g2=cx.createRadialGradient(W*0.72,H*0.22,30, W*0.72,H*0.22,H*0.95);
@@ -3373,6 +3406,103 @@ function planColor(def){
   const s=def.sea.Summer||{}, f=def.sea.Fall||{}, sp=def.sea.Spring||{};
   return s.bloom||sp.bloom||f.bloom||f.seed||s.fol||sp.fol||'#8a8a70';
 }
+function roundedRectPath(ctx,x,y,w,h,r){
+  r=Math.max(0,Math.min(r,w/2,h/2));
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+function isClippedShrubPlanDef(def){
+  return isShrubDef(def) && !!(def.look && def.look.clip);
+}
+function clippedShrubPlanComponents(){
+  const live={};
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p || p.removed) continue;
+    const def=plantDef(p.s,p.v);
+    if (!isClippedShrubPlanDef(def)) continue;
+    const [x,y]=k.split(',').map(Number);
+    live[k]={p,def,x,y};
+  }
+  const seen={}, comps=[];
+  for (const k in live){
+    if (seen[k]) continue;
+    const root=live[k], hedge=!!(root.def.look&&root.def.look.hedge);
+    const id=root.p.s+'|'+(root.p.v||''), stack=[k], tiles=[];
+    seen[k]=true;
+    while (stack.length){
+      const cur=stack.pop();
+      tiles.push(cur);
+      if (!hedge) continue;
+      const [cx2,cy2]=cur.split(',').map(Number);
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+        const nk=`${cx2+dx},${cy2+dy}`, nb=live[nk];
+        if (!nb || seen[nk]) return;
+        if ((nb.p.s+'|'+(nb.p.v||''))!==id) return;
+        if (!(nb.def.look&&nb.def.look.hedge)) return;
+        seen[nk]=true; stack.push(nk);
+      });
+    }
+    comps.push({s:root.p.s,v:root.p.v||null,tiles,shape:root.def.look.shape||'round',hedge});
+  }
+  return comps;
+}
+function drawPlanCode(ctx,code,lx,ly,fs){
+  ctx.textAlign='center';
+  ctx.font=`600 ${fs}px IBM Plex Sans`;
+  ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=3;
+  ctx.strokeText(code,lx,ly); ctx.fillStyle='#2c241c'; ctx.fillText(code,lx,ly);
+}
+function drawClippedShrubPlan(ctx,c,codes,cell,X,Y){
+  const def=plantDef(c.s,c.v), col=planColor(def), fill=mixHex(col,'#f7f3e8',0.62);
+  const stroke=mixHex(col,'#2c241c',0.18);
+  const pts=c.tiles.map(k=>k.split(',').map(Number));
+  const code=codes[c.s+'|'+(c.v||'')];
+  const shape=(def.look&&def.look.shape)||'round';
+  const r=Math.max(cell*0.42,(def.spread/TILE_IN/2)*cell);
+  ctx.save();
+  ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=1.25;
+  if (shape==='sphere' && !c.hedge){
+    pts.forEach(([x,y])=>{
+      const cx2=X(x)+cell/2, cy2=Y(y)+cell/2;
+      ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.globalAlpha=0.28; ctx.fillStyle='#f7f3e8';
+      ctx.beginPath(); ctx.arc(cx2-r*0.25,cy2-r*0.30,r*0.28,0,7); ctx.fill(); ctx.restore();
+      drawPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(12,r*0.45)));
+    });
+    ctx.restore();
+    return;
+  }
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const sameRow=minY===maxY, sameCol=minX===maxX;
+  let rx,ry,rw,rh,rad;
+  if (sameRow){
+    const c1=X(minX)+cell/2, c2=X(maxX)+cell/2, cy2=Y(minY)+cell/2;
+    rx=c1-r; ry=cy2-r*0.70; rw=(c2-c1)+r*2; rh=r*1.40; rad=Math.min(rh*0.18,cell*0.24);
+  } else if (sameCol){
+    const cx2=X(minX)+cell/2, c1=Y(minY)+cell/2, c2=Y(maxY)+cell/2;
+    rx=cx2-r*0.70; ry=c1-r; rw=r*1.40; rh=(c2-c1)+r*2; rad=Math.min(rw*0.18,cell*0.24);
+  } else {
+    rx=X(minX)+cell/2-r; ry=Y(minY)+cell/2-r;
+    rw=(X(maxX)-X(minX))+r*2; rh=(Y(maxY)-Y(minY))+r*2; rad=Math.min(cell*0.28,r*0.28);
+  }
+  roundedRectPath(ctx,rx,ry,rw,rh,rad);
+  ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle='#f7f3e8';
+  roundedRectPath(ctx,rx+rw*0.08,ry+rh*0.10,rw*0.58,rh*0.26,Math.min(rad,rh*0.13));
+  ctx.fill(); ctx.restore();
+  drawPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
+  ctx.restore();
+}
 function planCodes(ids){ // short Oudolf-style codes, unique per species|cv
   const used={}, codes={};
   ids.forEach(id=>{
@@ -3395,10 +3525,13 @@ function buildPlanMap(){
   const pc=$('planCanvas'), ctx=pc.getContext('2d');
   const cell=Math.max(9, Math.min(24, Math.floor(1000/Math.max(GW,GH))));
   const padL=34, padT=92;
-  const comps=planComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  const allComps=planComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  const clippedComps=clippedShrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  const comps=allComps.filter(c=>!isClippedShrubPlanDef(plantDef(c.s,c.v)));
   const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
   const ids=[...new Set([
     ...comps.map(c=>c.s+'|'+(c.v||'')),
+    ...clippedComps.map(c=>c.s+'|'+(c.v||'')),
     ...bulbsLive.map(k=>{ const b2=game.bulbs[k]; return b2.s+'|'+(b2.v||''); })
   ])];
   const codes=planCodes(ids);
@@ -3471,6 +3604,7 @@ function buildPlanMap(){
       ctx.strokeStyle=mixHex(col,'#2c241c',0.25); ctx.lineWidth=1.3; ctx.stroke();
     });
   });
+  clippedComps.forEach(c=>drawClippedShrubPlan(ctx,c,codes,cell,X,Y));
   // trees: mature canopy circles, trunk dot
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
@@ -3525,6 +3659,7 @@ function buildPlanMap(){
   const colW=(W2-padL*2)/legCols;
   const counts={};
   comps.forEach(c=>{ const id=c.s+'|'+(c.v||''); counts[id]=(counts[id]||0)+c.tiles.length; });
+  clippedComps.forEach(c=>{ const id=c.s+'|'+(c.v||''); counts[id]=(counts[id]||0)+c.tiles.length; });
   bulbsLive.forEach(k=>{ const b2=game.bulbs[k], id=b2.s+'|'+(b2.v||'');
     counts[id]=(counts[id]||0)+1; });
   ids.forEach((id,i)=>{
@@ -4197,7 +4332,7 @@ function buildCanvasTools(){
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
   sep();
   add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
-    title:'Show or hide garden layers and the shade overlay',
+    title:'Show or hide garden layers and overlays',
     onClick:()=>toggleLayerMenu()});
   if (game.toolMenu==='layers') addLayerMenu(rail);
 }
@@ -4238,7 +4373,7 @@ function promptRevealLayer(layer,x,y){
 }
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
-  return game.layerFocus!=='all' || game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k));
+  return game.layerFocus!=='all' || game.layerVis.shade || game.layerVis.night || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
   if (!layer || layerEditable(layer)) return false;
@@ -4283,7 +4418,7 @@ function addLayerMenu(rail){
     pop.appendChild(b);
   };
   section('Visible');
-  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) && !game.layerVis.shade;
+  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) && !game.layerVis.shade && !game.layerVis.night;
   const allRow=document.createElement('button');
   allRow.className='layer-row'+(allVisible()?' sel':'');
   allRow.title='Show the normal full garden';
@@ -4292,7 +4427,7 @@ function addLayerMenu(rail){
   allRow.append(allEye,allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
     LAYER_DEFS.forEach(([key])=>{ game.layerVis[key]=true; });
-    game.layerVis.shade=false; refreshCanvasTools(); toast('All layers shown.'); };
+    game.layerVis.shade=false; game.layerVis.night=false; refreshCanvasTools(); toast('All layers shown.'); };
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
     ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
@@ -4301,6 +4436,7 @@ function addLayerMenu(rail){
   LAYER_DEFS.forEach(([key])=>focusRow(key,LAYER_LABELS[key]));
   section('Overlays');
   row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
+  row(()=>!!game.layerVis.night, v=>{ game.layerVis.night=v; }, 'Dusk / Night');
   rail.appendChild(pop);
 }
 function buildToolTray(){
