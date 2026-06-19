@@ -5,9 +5,10 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design';
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = []; game.fences = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = []; game.fences = {}; game.lights = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
+  game.lightDraft = { type: 'path', tone: 'warm' };
   game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
@@ -246,6 +247,15 @@ test('compatible hedge shrubs can be planted edge to edge', () => {
   assertEqual(applyToolAt(7, 5), null, 'round boxwood does not merge into a square hedge');
 });
 
+test('connected hedge shrubs expose a render angle for continuous lines', () => {
+  setup(13, 13);
+  game.tool = 'boxwoodsquare'; game.toolVar = null;
+  applyToolAt(5, 5); applyToolAt(6, 5);
+  const d = hedgeRenderDetail(5, 5, game.plants['5,5'], 1024, 768);
+  assert(d && typeof d.hedgeAngle === 'number', 'connected hedge has an orientation');
+  assert(!d.hedgeEndPos && d.hedgeEndNeg, 'end caps know which side is connected');
+});
+
 test('boxwood and yew cultivars are documented but not selectable variants', () => {
   const keys = PLANT_KEYS.filter(k => ['boxwood', 'yew'].includes(PLANTS[k].group));
   assert(keys.length >= 2, 'boxwood/yew entries exist');
@@ -356,6 +366,26 @@ test('fences place as blocking structures, gates stay walkable, and erase remove
   assert(!fenceAt(5, 5), 'fence removed');
 });
 
+test('lights place as one-tile structures, block plants, and erase with landscape', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.tool = 'light';
+  game.lightDraft = { type: 'lantern', tone: 'eco' };
+  assertEqual(applyToolAt(5, 5), 'light', 'light placed');
+  assertEqual(lightAt(5, 5).type, 'lantern', 'light type saved');
+  assertEqual(lightAt(5, 5).tone, 'eco', 'light tone saved');
+  assert(!canStand(5, 5), 'light occupies its tile');
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), null, 'plants refuse light tiles');
+  game.tool = 'water';
+  assertEqual(applyToolAt(5, 5), null, 'water refuses light tiles');
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(5, 5, counts);
+  assertEqual(counts.light, 1, 'erase counted the light');
+  assert(!lightAt(5, 5), 'light removed');
+});
+
 test('story mode refuses to place a blocking fence under the player', () => {
   setup(21, 21);
   game.gameMode = 'story';
@@ -388,12 +418,13 @@ test('undo/redo round-trips and a new action clears the redo chain', () => {
   assertEqual(redoStack.length, 0, 'a new action clears redo');
 });
 
-test('eyedropper samples a plant, a bulb, a fence, or a material onto the brush', () => {
+test('eyedropper samples a plant, bulb, fence, light, or material onto the brush', () => {
   setup();
   const forb = firstOfType('forb'), bulb = firstOfType('bulb');
   game.plants['3,3'] = { s: forb, v: null, d: 0, t: 1 };
   game.bulbs['4,4'] = { s: bulb, v: null, d: 0, t: 1 };
   game.fences['6,6'] = { style: 'brick', height: 6, gate: true, t: 1 };
+  game.lights['8,8'] = { type: 'lamp', tone: 'bright', t: 1 };
   game.terrain['5,5'] = { k: 'path', c: 'slate', t: 1 };
   game.terrain['7,7'] = { k: 'bed', c: 'rock', t: 1 };
 
@@ -414,6 +445,12 @@ test('eyedropper samples a plant, a bulb, a fence, or a material onto the brush'
   assertEqual(game.fenceDraft.style, 'brick', 'copied fence material');
   assertEqual(game.fenceDraft.height, 6, 'copied fence height');
   assert(game.fenceDraft.gate, 'copied gate mode');
+
+  game.tool = 'pick'; pickAt(8, 8);
+  assertEqual(game.tool, 'light', 'picked the light structure');
+  assertEqual(game.trayCat, 'lighting', 'switched to Lighting');
+  assertEqual(game.lightDraft.type, 'lamp', 'copied light fixture');
+  assertEqual(game.lightDraft.tone, 'bright', 'copied light tone');
 
   game.tool = 'pick'; game.bedStyle = 'soil'; pickAt(7, 7);
   assertEqual(game.tool, 'bed', 'picked the bed material');
