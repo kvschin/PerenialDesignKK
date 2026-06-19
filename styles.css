@@ -123,6 +123,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .ld-cvs h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
 .ld-cv{padding:5px 0;border-top:1px solid rgba(239,230,211,.12);color:#ddd0ba}
 .ld-cv b{color:var(--seedhead);font-style:italic}
+.ld-cv span{color:var(--bronze);font-size:12px}
 .library-empty{padding:40px;text-align:center;color:#a99a82}
 @media(max-width:640px){
   .library-body{flex-direction:column}

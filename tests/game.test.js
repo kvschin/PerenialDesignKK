@@ -226,6 +226,15 @@ test('shrubs reserve their mature footprint for planting and materials', () => {
   assert(shrubVisualCw(plantDef('sumac')) > PLANTS.sumac.cw, 'wide shrubs render from real spread, not just icon width');
 });
 
+test('small shrub footprints are rounded, not full square blocks', () => {
+  setup(13, 13);
+  const p = { s: 'boxwoodround', d: 0, t: 1 };
+  const tiles = new Set(shrubFootprintTiles(6, 6, p, true).map(([x, y]) => `${x},${y}`));
+  assert(tiles.has('6,6'), 'center claimed');
+  assert(tiles.has('7,6') && tiles.has('5,6') && tiles.has('6,7') && tiles.has('6,5'), 'cardinal edge claimed');
+  assert(!tiles.has('7,7') && !tiles.has('5,5'), 'diagonal corners stay plantable');
+});
+
 test('compatible hedge shrubs can be planted edge to edge', () => {
   setup(13, 13);
   game.tool = 'boxwoodsquare'; game.toolVar = null;
@@ -233,6 +242,19 @@ test('compatible hedge shrubs can be planted edge to edge', () => {
   assertEqual(applyToolAt(6, 5), 'plant', 'same hedge shrub can connect');
   game.tool = 'hydrangea';
   assertEqual(applyToolAt(5, 6), null, 'unrelated shrub cannot overlap the hedge footprint');
+  game.tool = 'boxwoodround';
+  assertEqual(applyToolAt(7, 5), null, 'round boxwood does not merge into a square hedge');
+});
+
+test('boxwood and yew cultivars are documented but not selectable variants', () => {
+  const keys = PLANT_KEYS.filter(k => ['boxwood', 'yew'].includes(PLANTS[k].group));
+  assert(keys.length >= 2, 'boxwood/yew entries exist');
+  keys.forEach(k => {
+    assert(!PLANTS[k].cv, `${k} has no selectable cultivar chips`);
+    assert(Array.isArray(PLANTS[k].libraryCultivars) && PLANTS[k].libraryCultivars.length,
+      `${k} keeps cultivar notes for the plant library`);
+    assert(PLANTS[k].libraryCultivars.every(c => c.name && c.size), `${k} cultivar notes include size`);
+  });
 });
 
 test('selection move shifts owned items and is refused off-plot', () => {

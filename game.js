@@ -848,18 +848,27 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=-H*0.08;
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
       if (shape==='square' && hedgeDirs.length){
-        ctx.strokeStyle=shade(fol,-14); ctx.lineWidth=Math.max(12,bodyW*0.45); ctx.lineCap='butt';
+        ctx.save();
+        ctx.strokeStyle=shade(fol,-10); ctx.lineWidth=Math.max(18,bodyW*0.72); ctx.lineCap='square';
         hedgeDirs.forEach(([dx,dy])=>{
-          ctx.beginPath(); ctx.moveTo(0,-bodyH*0.62);
-          ctx.lineTo(dx*0.52,dy*0.52-bodyH*0.62); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0,baseY-bodyH*0.46);
+          ctx.lineTo(dx*0.92,dy*0.92+baseY-bodyH*0.46); ctx.stroke();
         });
+        ctx.restore();
       }
-      if (shape==='square'){
-        ctx.fillStyle=shade(fol,-16); ctx.fillRect(-bodyW/2,baseY-bodyH*0.78,bodyW,bodyH*0.72);
-        ctx.fillStyle=shade(fol,10);
-        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.78,bodyW/2,bodyH*0.18,0,0,7); ctx.fill();
+      if (shape==='sphere'){
+        ctx.fillStyle=shade(fol,-20);
+        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.47,bodyW*0.50,bodyH*0.52,0,0,7); ctx.fill();
         ctx.fillStyle=shade(fol,-6);
-        ctx.fillRect(-bodyW/2,baseY-bodyH*0.18,bodyW,bodyH*0.12);
+        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.36,bodyW*0.46,bodyH*0.34,0,0,7); ctx.fill();
+        ctx.fillStyle=shade(fol,14);
+        ctx.beginPath(); ctx.ellipse(-bodyW*0.12,baseY-bodyH*0.66,bodyW*0.30,bodyH*0.19,-0.1,0,7); ctx.fill();
+      } else if (shape==='square'){
+        ctx.fillStyle=shade(fol,-18); ctx.fillRect(-bodyW/2,baseY-bodyH*0.78,bodyW,bodyH*0.76);
+        ctx.fillStyle=shade(fol,10);
+        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.78,bodyW/2,bodyH*0.20,0,0,7); ctx.fill();
+        ctx.fillStyle=shade(fol,-8);
+        ctx.fillRect(-bodyW/2,baseY-bodyH*0.17,bodyW,bodyH*0.15);
       } else if (shape==='cone' || shape==='pyramid'){
         const layers=shape==='cone'?3:2;
         for (let q=0;q<layers;q++){
@@ -872,13 +881,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const w=bodyW*0.62;
         ctx.fillStyle=shade(fol,-13); ctx.fillRect(-w/2,baseY-bodyH,w,bodyH*0.94);
         ctx.fillStyle=shade(fol,8);
-        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH,w/2,bodyH*0.16,0,0,7); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.08,w/2,bodyH*0.12,0,0,7); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(0,baseY-bodyH,w/2,bodyH*0.16,0,0,7); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.08,w/2,bodyH*0.12,0,0,7); ctx.fill();
       } else {
-        ctx.fillStyle=shade(fol,-18);
-        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.36,bodyW*0.56,bodyH*0.36,0,0,7); ctx.fill();
+        const isMound=shape==='mound';
+        ctx.fillStyle=shade(fol,-20);
+        ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*(isMound?0.30:0.38),bodyW*(isMound?0.58:0.54),bodyH*(isMound?0.30:0.38),0,0,7); ctx.fill();
         ctx.fillStyle=shade(fol,8);
-        ctx.beginPath(); ctx.ellipse(-bodyW*0.05,baseY-bodyH*0.56,bodyW*0.46,bodyH*0.31,0,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(-bodyW*0.05,baseY-bodyH*(isMound?0.46:0.57),bodyW*(isMound?0.48:0.44),bodyH*(isMound?0.22:0.30),0,0,7); ctx.fill();
       }
       if (L.fleck||L.needles){
         ctx.strokeStyle=shade(fol,L.needles?-24:-12); ctx.lineWidth=0.8; ctx.lineCap='round';
@@ -1354,6 +1364,22 @@ function plantGrowth(p){
 function shrubRadiusTiles(P){
   return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;
 }
+function shrubClaimsTile(cx,cy,p,x,y,mature){
+  const P=p && p.s ? plantDef(p.s,p.v) : p;
+  if (!isShrubDef(P)) return x===cx && y===cy;
+  if (x===cx && y===cy) return true;
+  const est=p && p.s ? plantEstab(p) : 1;
+  const r=shrubRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
+  const dx=Math.abs(x-cx), dy=Math.abs(y-cy), dist=Math.hypot(dx,dy);
+  if (dist<=Math.max(0,r-0.36)) return true;
+  if (!dx || !dy) return dist<=r+0.001;
+  if (dist>r+0.72) return false;
+  let hits=0;
+  for (const ox of [-0.45,0,0.45]) for (const oy of [-0.45,0,0.45]){
+    if (Math.hypot((x+ox)-cx,(y+oy)-cy)<=r+0.001) hits++;
+  }
+  return hits>=7;
+}
 function shrubFootprintTiles(cx,cy,p,mature){
   const P=p && p.s ? plantDef(p.s,p.v) : p;
   if (!isShrubDef(P)) return [[cx,cy]];
@@ -1362,7 +1388,7 @@ function shrubFootprintTiles(cx,cy,p,mature){
   const reach=Math.ceil(r), tiles=[];
   for (let yy=cy-reach; yy<=cy+reach; yy++) for (let xx=cx-reach; xx<=cx+reach; xx++){
     if (xx<0||yy<0||xx>=GW||yy>=GH) continue;
-    if (Math.hypot(xx-cx,yy-cy)<=r+0.001) tiles.push([xx,yy]);
+    if (shrubClaimsTile(cx,cy,p,xx,yy,mature)) tiles.push([xx,yy]);
   }
   if (!tiles.some(([x,y])=>x===cx&&y===cy)) tiles.push([cx,cy]);
   return tiles;
@@ -1371,7 +1397,7 @@ function shrubHedgeCompatible(a,b){
   const A=plantDef(a.s,a.v), B=plantDef(b.s,b.v);
   return isShrubDef(A) && isShrubDef(B) &&
     A.group && A.group===B.group &&
-    ((A.look&&A.look.hedge) || (B.look&&B.look.hedge));
+    !!(A.look&&A.look.hedge) && !!(B.look&&B.look.hedge);
 }
 function livePlantKeyAt(x,y){ const k=`${x},${y}`, p=game.plants[k]; return (p&&!p.removed) ? k : null; }
 function shrubInfoFromKey(k){
@@ -1395,7 +1421,7 @@ function shrubAt(x,y,opts){
     if (cx2===x && cy2===y) continue;
     const r=shrubRadiusTiles(plantDef(p.s,p.v));
     if (Math.abs(x-cx2)>Math.ceil(r) || Math.abs(y-cy2)>Math.ceil(r)) continue;
-    if (Math.hypot(x-cx2,y-cy2)<=r+0.001) return {key:k,p,x:cx2,y:cy2,center:false};
+    if (shrubClaimsTile(cx2,cy2,p,x,y,true)) return {key:k,p,x:cx2,y:cy2,center:false};
   }
   return null;
 }
@@ -1436,10 +1462,10 @@ function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
   return shrubFootprintTiles(cx,cy,p,true).some(([xx,yy])=>xx>=x&&xx<x+w&&yy>=y&&yy<y+h);
 }
 function drawShrubFootprint(ctx,W,H,sh,mode,age){
-  const p=sh && sh.p, key=sh && sh.key;
+  const p=sh && sh.p;
   if (!p || p.removed) return;
   const est=plantEstab(p);
-  const tiles=shrubFootprintTiles(sh.x,sh.y,p,true);
+  const P=plantDef(p.s,p.v), r=shrubRadiusTiles(P);
   let fill='rgba(35,52,31,0.075)', stroke='rgba(239,230,211,0.08)', dash=null, line=1;
   if (mode==='hover'){
     fill='rgba(218,170,84,0.13)'; stroke='rgba(246,220,156,0.72)'; line=1.6;
@@ -1459,12 +1485,13 @@ function drawShrubFootprint(ctx,W,H,sh,mode,age){
   }
   ctx.save();
   ctx.lineWidth=line;
-  tiles.forEach(([xx,yy])=>{
-    const [sx,sy]=screenOf(xx,yy,W,H);
-    tileDiamond(ctx,sx,sy,fill,stroke,dash);
-  });
+  if (dash) ctx.setLineDash(dash);
+  const [sx,sy]=screenOf(sh.x,sh.y,W,H), cy=sy+TILE_H/2;
+  ctx.beginPath();
+  ctx.ellipse(sx,cy,(TILE_W/2)*r*1.06,(TILE_H/2)*r*1.06,0,0,7);
+  if (fill){ ctx.fillStyle=fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle=stroke; ctx.stroke(); }
   if (mode!=='base'){
-    const [sx,sy]=screenOf(sh.x,sh.y,W,H);
     ctx.strokeStyle=stroke; ctx.lineWidth=line+0.3;
     ctx.beginPath(); ctx.ellipse(sx,sy+TILE_H/2,10,4,0,0,7); ctx.stroke();
   }
@@ -2050,11 +2077,7 @@ function render(t){
     if (def && def.type==='shrub'){
       const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
       const ok=canPlaceShrubAt(txh,tyh,draft).ok;
-      shrubFootprintTiles(txh,tyh,draft,true).forEach(([xx,yy])=>{
-        const [sx,sy]=screenOf(xx,yy,W,H);
-        tileDiamond(cx,sx,sy,ok?'rgba(126,190,104,0.22)':'rgba(190,70,58,0.24)',
-          ok?'rgba(184,218,132,0.68)':'rgba(238,118,94,0.82)');
-      });
+      drawShrubFootprint(cx,W,H,{x:txh,y:tyh,p:draft},ok?'hover':'blocked');
     }
     if (def && def.sun!=='part' && def.type!=='tree' && def.type!=='bulb'){
       const [txh,tyh]=game.hoverTile, sh=shadeInfoAt(txh,tyh,true);
@@ -4840,7 +4863,8 @@ function buildLibraryList(q){
     keys.forEach(k=>{
       const P=PLANTS[k];
       const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
-      b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)).toLowerCase();
+      const cvHay=(P.libraryCultivars||[]).map(c=>(c.name||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
+      b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
       b.append(libCanvas(k,null,'Summer',30,36));
       const t=document.createElement('span');
       t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
@@ -4871,7 +4895,7 @@ function showLibraryDetail(key){
     ['Origin', P.native?('Native — '+(P.eco.join(', ')||'central US')):'Garden plant (non-native)'],
     ['Roles', roleSummary(key)],
   ];
-  const cvKeys=Object.keys(P.cv||{});
+  const cvKeys=Object.keys(P.cv||{}), libraryCultivars=P.libraryCultivars||[];
   d.innerHTML='';
   const card=document.createElement('div'); card.className='ld-card';
   card.append(plantPhoto(key));   // real photo if photos/<key>.jpg exists, else nothing
@@ -4883,12 +4907,16 @@ function showLibraryDetail(key){
   facts.forEach(([k,v])=>{ const dt=document.createElement('dt'); dt.textContent=k;
     const dd=document.createElement('dd'); dd.textContent=v; dl.append(dt,dd); });
   card.append(dl);
-  if (cvKeys.length){
+  if (cvKeys.length || libraryCultivars.length){
     const cvs=document.createElement('div'); cvs.className='ld-cvs';
-    const h4=document.createElement('h4'); h4.textContent=`${cvKeys.length} cultivar${cvKeys.length>1?'s':''}`;
+    const n=cvKeys.length+libraryCultivars.length;
+    const h4=document.createElement('h4'); h4.textContent=`${n} cultivar${n>1?'s':''}`;
     cvs.append(h4);
     cvKeys.forEach(v=>{ const row=document.createElement('div'); row.className='ld-cv';
       row.innerHTML=`<b>${P.cv[v].name}</b> — ${P.cv[v].note||''}`; cvs.append(row); });
+    libraryCultivars.forEach(c=>{ const row=document.createElement('div'); row.className='ld-cv';
+      const size=c.size ? ` <span>${c.size}</span>` : '';
+      row.innerHTML=`<b>${c.name}</b>${size} - ${c.note||''}`; cvs.append(row); });
     card.append(cvs);
   }
   d.append(card); d.scrollTop=0;
