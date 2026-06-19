@@ -198,7 +198,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .canvas-tool.danger.sel span{color:#ffd9d1}
 .canvas-tool.disabled{opacity:.38;pointer-events:none}
 .canvas-sep{height:1px;background:rgba(239,230,211,.16);margin:2px 3px}
-.tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:128px;background:rgba(25,18,15,.94);
+.tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:154px;background:rgba(25,18,15,.94);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 8px 24px rgba(0,0,0,.34)}
 .tool-popover button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;border-radius:3px;
   color:#cdbfa9;text-align:left;font-size:12px;padding:8px 9px}
@@ -327,7 +327,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .canvas-tool canvas{width:34px;height:26px;top:2px}
   .canvas-tool span{font-size:7px}
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
-  .tool-popover{top:104px;width:122px}
+  .tool-popover{top:104px;width:148px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}
   .pill.iconbar button{font-size:16px;padding:6px 8px}

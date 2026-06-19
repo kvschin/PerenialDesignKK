@@ -11,7 +11,7 @@ function setup(gw, gh){
   game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
-  game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false;
+  game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.freePlanting = false;
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.eraseMode = 'all'; game.eraseSize = 1;
   game.focusPlantKey = null; game.shrubFx = [];
@@ -187,6 +187,22 @@ test('draw tool restores the last plant or material after other tools', () => {
   setTool('house', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, 'bed', 'draw rail restores previous material brush');
+});
+
+test('free placement stores sub-tile offsets for herbaceous plants only', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.freePlanting = true;
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5, { ox: 0.32, oy: -0.27 }), 'plant', 'forb planted');
+  assertEqual(game.plants['5,5'].ox, 0.32, 'x offset stored');
+  assertEqual(game.plants['5,5'].oy, -0.27, 'y offset stored');
+  assertEqual(plantDepth(5, 5, game.plants['5,5']), viewDepth(5.32, 4.73), 'depth uses free placement offset');
+
+  game.tool = 'sumac'; game.toolVar = null;
+  assertEqual(applyToolAt(8, 8, { ox: 0.4, oy: 0.4 }), 'plant', 'shrub planted');
+  assert(game.plants['8,8'].ox === undefined && game.plants['8,8'].oy === undefined,
+    'shrubs stay grid-centered because their mature footprint is tile-based');
 });
 
 test('shrubs reserve their mature footprint for planting and materials', () => {

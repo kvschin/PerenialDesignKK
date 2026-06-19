@@ -1245,6 +1245,7 @@ const game = {
   gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
   drift:false,                                       // plant in clusters, Oudolf style
+  freePlanting:false,                                // herbaceous plants can sit off the tile center
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
   eraseSize:1,                                       // erase brush diameter in tiles (odd)
   fx:[],                                             // short-lived planting pulses
@@ -1681,6 +1682,14 @@ function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWor
 }
 function viewScreen(vx,vy,W,H){ return [W/2 + isoX(vx,vy) - cam.x, H*0.24 + isoY(vx,vy) - cam.y]; }
 function screenOf(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScreen(vx,vy,W,H); }
+function plantOffset(p){
+  const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
+  return {ox:Number.isFinite(ox)?ox:0, oy:Number.isFinite(oy)?oy:0};
+}
+function plantScreenOf(x,y,p,W,H){
+  const o=plantOffset(p);
+  return screenOf(x+o.ox,y+o.oy,W,H);
+}
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);
   return !!(D && D.look && D.look.hedge);
@@ -1701,11 +1710,22 @@ function hedgeRenderDetail(x,y,p,W,H){
   return hedgeDirs.length ? {hedgeDirs} : null;
 }
 function viewDepth(x,y){ const [vx,vy]=worldToView(x,y); return vx+vy; }
-function tileAt(sx,sy,W,H){
+function plantDepth(x,y,p){
+  const o=plantOffset(p);
+  return viewDepth(x+o.ox,y+o.oy);
+}
+function viewPointAt(sx,sy,W,H){
   const rx = sx - W/2 + cam.x, ry = sy - H*0.24 + cam.y - TILE_H/2;
   const fx = (rx/(TILE_W/2) + ry/(TILE_H/2))/2;
   const fy = (ry/(TILE_H/2) - rx/(TILE_W/2))/2;
-  return viewToWorld(Math.round(fx), Math.round(fy));
+  return [fx,fy];
+}
+function worldPointAt(sx,sy,W,H){
+  return viewToWorld(...viewPointAt(sx,sy,W,H));
+}
+function tileAt(sx,sy,W,H){
+  const [vx,vy]=viewPointAt(sx,sy,W,H);
+  return viewToWorld(Math.round(vx), Math.round(vy));
 }
 function houseDrawDepth(h){
   const [dx,dy]=doorPos(h);
@@ -2092,7 +2112,7 @@ function render(t){
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
     const gB=plantGrowth(p); if (gB<=0.02) continue;
-    ents.push({depth:viewDepth(x,y)+0.25, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+    ents.push({depth:plantDepth(x,y,p)+0.25, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v);}});
   }
   for (const k in game.plants){ const p=game.plants[k];
@@ -2106,7 +2126,7 @@ function render(t){
         shadeTrees.some(sh=>sh.p!==p && treeShadeScore(sh,x,y)>=SHADE_ACTIVE_SCORE))
       g2v*=0.45; // struggling under the canopy
     const detail=hedgeRenderDetail(x,y,p,W,H);
-    ents.push({depth:viewDepth(x,y)+0.3, draw:()=>{ const [sx,sy]=screenOf(x,y,W,H);
+    ents.push({depth:plantDepth(x,y,p)+0.3, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
       drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v,undefined,detail);}});
   }
   // local player (smooth move) — story mode only; design has no avatar
@@ -2134,7 +2154,7 @@ function render(t){
   game.fx=game.fx.filter(f=>t-f.t0<550);
   game.fx.forEach(f=>{
     const a=(t-f.t0)/550, e2=0.55+a*0.85;
-    const [sx,sy]=screenOf(f.x,f.y,W,H), cyx=sy+TILE_H/2;
+    const [sx,sy]=screenOf(f.x+(f.ox||0),f.y+(f.oy||0),W,H), cyx=sy+TILE_H/2;
     cx.strokeStyle=`rgba(243,236,221,${0.95*(1-a)})`; cx.lineWidth=2.5;
     cx.beginPath();
     cx.moveTo(sx, cyx-(TILE_H/2)*e2); cx.lineTo(sx+(TILE_W/2)*e2, cyx);
@@ -2218,7 +2238,7 @@ function stepMove(dt){
   else { game.px=game.fromX+(game.tx-game.fromX)*game.moveT;
          game.py=game.fromY+(game.ty-game.fromY)*game.moveT; }
 }
-function actHere(){
+function actHere(opts){
   const x=Math.round(game.tx), y=Math.round(game.ty), k=`${x},${y}`;
   if (isPlacementTool(game.tool)){
     const layer=toolTargetLayer(game.tool);
@@ -2316,8 +2336,8 @@ function actHere(){
     if (hasPlant && plantLayerOf(existing)==='woody'){
       toast('No bulbs under trees or shrubs — their roots claim that ground.'); return; }
     const n=game.drift?driftCount(def):1;
-    if (n>1){ stampDrift(x,y,n); return; }
-    if (applyToolAt(x,y)){ syncBulbsOut();
+    if (n>1){ stampDrift(x,y,n,opts); return; }
+    if (applyToolAt(x,y,opts)){ syncBulbsOut();
       toast(`Tucked in ${def.name} — it shows at first thaw.`); }
     else toast('No spot for a bulb here.');
     return;
@@ -2336,12 +2356,21 @@ function actHere(){
     return;
   }
   const n=game.drift?driftCount(def):1;
-  if (n>1){ stampDrift(x,y,n); return; }
-  if (applyToolAt(x,y)){ syncPlantsOut();
+  if (n>1){ stampDrift(x,y,n,opts); return; }
+  if (applyToolAt(x,y,opts)){ syncPlantsOut();
     toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
   else toast('No room here.');
 }
-function plantFx(x,y){ game.fx.push({x,y,t0:performance.now()}); }
+function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()}); }
+function freePlantable(def){ return !!(game.freePlanting && def && !['bulb','shrub','tree'].includes(def.type)); }
+function clampPlantOffset(v){ return Math.max(-0.44,Math.min(0.44,Number.isFinite(+v)?+v:0)); }
+function roundedOffset(v){ return Math.round(clampPlantOffset(v)*100)/100; }
+function naturalPlantOffset(x,y,opts){
+  if (opts && Number.isFinite(+opts.ox) && Number.isFinite(+opts.oy))
+    return {ox:roundedOffset(opts.ox), oy:roundedOffset(opts.oy)};
+  const rs=mulberry((tileSeed(x,y) ^ Date.now())>>>0);
+  return {ox:roundedOffset((rs()-0.5)*0.78), oy:roundedOffset((rs()-0.5)*0.78)};
+}
 /* drift planting: one action stamps a loose, natural cluster. Tighter
    spacers come in bigger drifts; woody plants always plant singly. */
 function driftCount(def){
@@ -2351,7 +2380,7 @@ function driftCount(def){
 /* the one silent placer behind drifts, drags, and single planting:
    puts the armed tool on a tile if it fits, no toasts. Returns what
    it placed ('plant'|'bulb'|'path'|'bed'|'water'|'fence'|'gate') or null. */
-function applyToolAt(x,y){
+function applyToolAt(x,y,opts){
   if (x<0||y<0||x>=GW||y>=GH) return null;
   if (inHouse(x,y) || isDoor(x,y)) return null;
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
@@ -2398,7 +2427,7 @@ function applyToolAt(x,y){
     if (shrubAt(x,y)) return null;
     const above=game.plants[k];
     if (above && !above.removed && plantLayerOf(above)==='woody') return null;
-    game.bulbs[k]=np; game.dirty=true; plantFx(x,y);
+    game.bulbs[k]=np; game.dirty=true; plantFx(x,y,np);
     return 'bulb';
   }
   const ex=game.plants[k];
@@ -2407,7 +2436,8 @@ function applyToolAt(x,y){
   if (def.type==='shrub' && !canPlaceShrubAt(x,y,np).ok) return null;
   const sh=shadeAt(x,y);
   if (sh && def.sun!=='part') return null;
-  game.plants[k]=np; game.dirty=true; plantFx(x,y);
+  if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
+  game.plants[k]=np; game.dirty=true; plantFx(x,y,np);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
   if (def.type==='shrub') clearBulbsUnderShrub(x,y,np);
   else if (def.type==='tree'){ const eb=game.bulbs[k];
@@ -2420,7 +2450,7 @@ function syncToolLayer(what){
   else if (what==='bulb') syncBulbsOut();
   else syncPlantsOut();
 }
-function stampDrift(cx0,cy0,n){
+function stampDrift(cx0,cy0,n,opts){
   const offs=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
               [2,0],[0,2],[-2,0],[0,-2],[2,1],[1,2],[-1,2],[-2,1]];
   const rest=offs.slice(1); // keep the clicked tile first, shuffle the rest
@@ -2430,7 +2460,7 @@ function stampDrift(cx0,cy0,n){
   let placed=0, what=null;
   for (const [ox,oy] of [offs[0],...rest]){
     if (placed>=n) break;
-    const r=applyToolAt(cx0+ox,cy0+oy);
+    const r=applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null);
     if (r){ placed++; what=r; }
   }
   if (placed){ syncToolLayer(what);
@@ -2771,8 +2801,16 @@ function selPointerUp(){
     buildToolTray();
   }
 }
+function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
+  const W=innerWidth/ZOOM, H=innerHeight/ZOOM;
+  const sx=e.clientX/ZOOM, sy=e.clientY/ZOOM;
+  const [wx,wy]=worldPointAt(sx, sy, W, H);
+  const [x,y]=tileAt(sx, sy, W, H);
+  return {x,y,ox:wx-x,oy:wy-y};
+}
 function evTile(e){ // pointer position -> world tile, zoom-aware
-  return tileAt(e.clientX/ZOOM, e.clientY/ZOOM, innerWidth/ZOOM, innerHeight/ZOOM);
+  const p=evPlacement(e);
+  return [p.x,p.y];
 }
 /* ---------- undo: a stack of plants+bulbs+terrain+house snapshots ----------
    A gesture snapshots state on pointerdown and commits it only if the
@@ -2840,7 +2878,7 @@ cnv.addEventListener('pointerdown',e=>{
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
-  const [x,y]=evTile(e);
+  const place=evPlacement(e), x=place.x, y=place.y;
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
   if (game.tool==='pick'){ pickAt(x,y); return; }   // eyedropper: sample, then become that brush
@@ -2861,16 +2899,16 @@ cnv.addEventListener('pointerdown',e=>{
   // plant/bulb/path/bed/water/fence: press-and-drag paints tiles like the shovel
   // sweeps them; a plain tap (resolved at pointerup) walks or acts
   if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed' || game.tool==='water' || game.tool==='fence'){
-    toolDrag={sx:x, sy:y, active:false, count:0, what:null};
+    toolDrag={sx:x, sy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
-  tapAction(x,y);
+  tapAction(x,y,place);
 });
-function tapAction(x,y){ // the classic tap: walk there, act on your own tile
+function tapAction(x,y,opts){ // the classic tap: walk there, act on your own tile
   if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
     if (x<0||y<0||x>=GW||y>=GH) return;
-    game.tx=x; game.ty=y; actHere(); return;
+    game.tx=x; game.ty=y; actHere(opts); return;
   }
   if (inHouse(x,y)){
     if (ENABLE_HOUSE_SLEEP){ // old flow: tapping the house walked to the door, then slept
@@ -2885,7 +2923,7 @@ function tapAction(x,y){ // the classic tap: walk there, act on your own tile
   game.sleepOnArrive=false;
   if (tileTerrain(x,y)==='water'){ toast('Water blocks the way.'); return; }
   if (fenceBlocks(x,y)){ toast('The fence blocks the way. Use a gate.'); return; }
-  if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(); return; }
+  if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(opts); return; }
   game.pathTarget=[x,y];
 }
 function finishToolDrag(){
@@ -2919,17 +2957,17 @@ cnv.addEventListener('pointermove',e=>{
     // (two-finger twist-to-rotate removed — rotate via the ⟳ button or R key)
     return;
   }
-  const [x,y]=evTile(e);
+  const place=evPlacement(e), x=place.x, y=place.y;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (sweep){ sweepLift(x,y); return; }
   if (toolDrag){
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
-      const r0=applyToolAt(toolDrag.sx,toolDrag.sy);
+      const r0=applyToolAt(toolDrag.sx,toolDrag.sy,toolDrag);
       if (r0){ toolDrag.count++; toolDrag.what=r0; }
     }
     if (toolDrag.active){
-      const r=applyToolAt(x,y);
+      const r=applyToolAt(x,y,place);
       if (r){ toolDrag.count++; toolDrag.what=r; }
     }
     return;
@@ -2966,7 +3004,7 @@ cnv.addEventListener('pointerup',e=>{
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
-    else tapAction(toolDrag.sx,toolDrag.sy);
+    else tapAction(toolDrag.sx,toolDrag.sy,toolDrag);
     toolDrag=null;
   }
   endSweep();
@@ -3030,7 +3068,8 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,houses:game.houses,pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
+    gw:GW,gh:GH,rot:game.rot,houses:game.houses,freePlanting:game.freePlanting,
+    pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,fences:game.fences,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -3066,6 +3105,7 @@ async function loadSolo(id){
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.bedStyle=bedStyleId(s.bedStyle||'soil');
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
+  game.freePlanting=!!s.freePlanting;
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
@@ -3089,7 +3129,8 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.freePlanting=false;
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
   setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
@@ -3859,6 +3900,17 @@ function drawPlantModeIcon(tc,drift){
     tc.beginPath(); tc.moveTo(x,y-4); tc.lineTo(x,y-10); tc.stroke();
   }
 }
+function drawPlacementIcon(tc,free){
+  tc.clearRect(0,0,28,24);
+  tc.strokeStyle='rgba(216,199,172,.55)'; tc.lineWidth=1;
+  for (let i=0;i<2;i++) for (let j=0;j<2;j++){
+    const x=6+i*10, y=5+j*8;
+    tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x+5,y+3); tc.lineTo(x,y+6); tc.lineTo(x-5,y+3); tc.closePath(); tc.stroke();
+  }
+  const pts=free ? [[9,11],[19,8],[15,18]] : [[8,8],[18,8],[13,16]];
+  tc.fillStyle=free?'#c97f3f':'#efe6d3';
+  pts.forEach(([x,y])=>{ tc.beginPath(); tc.ellipse(x,y,3.2,2.2,0,0,7); tc.fill(); });
+}
 function plantCategoryFor(k){
   const P=PLANTS[k]; if (!P) return 'grasses';
   const cat=TRAY_CATS.find(c=>c.types && c.types.includes(P.type) &&
@@ -3990,6 +4042,13 @@ function choosePlantMode(drift){
     ? 'Drift planting on. Pick a plant, then paint natural clusters.'
     : 'Draw mode. Pick a plant, then paint single placements.');
 }
+function choosePlacementMode(free){
+  game.freePlanting=!!free;
+  armPlantToolFromRail(false);
+  toast(game.freePlanting
+    ? 'Free placement on. Herbaceous plants land where you click, not just tile centers.'
+    : 'Grid placement on. Plants sit neatly at tile centers.');
+}
 function addPlantToolMenu(rail){
   const pop=document.createElement('div');
   pop.className='tool-popover';
@@ -4006,6 +4065,19 @@ function addPlantToolMenu(rail){
   };
   option('Draw plants',false,'Paint selected plants one at a time');
   option('Drift plants',true,'Paint selected plants in natural clusters');
+  const placement=(label,free,title)=>{
+    const b=document.createElement('button');
+    b.className=game.freePlanting===free?'sel':'';
+    b.title=title;
+    const c=document.createElement('canvas'); c.width=28; c.height=24;
+    drawPlacementIcon(c.getContext('2d'),free);
+    const s=document.createElement('span'); s.textContent=label;
+    b.append(c,s);
+    b.onclick=(ev)=>{ ev.stopPropagation(); choosePlacementMode(free); };
+    pop.appendChild(b);
+  };
+  placement('Grid placement',false,'Plants snap to tile centers');
+  placement('Free placement',true,'Plants keep the cursor position inside the tile');
   rail.appendChild(pop);
 }
 function renderEraseTray(tray){
@@ -5023,7 +5095,8 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
+      game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.freePlanting=false;
+      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
