@@ -15,6 +15,8 @@ function setWorldSize(gw,gh){ GW=gw; GH=gh;
   SPAWNX=Math.floor(gw/2); SPAWNY=Math.floor(gh/2); }
 const TILE_W = 76, TILE_H = 38;
 const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
+const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
+const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* UX feature flags for retired / optional interactions.
@@ -83,6 +85,8 @@ function waterStyleId(id){ return waterStyle(id).id; }
 function waterFill(t,snow){ const w=waterStyle(t&&t.c);
   return snow ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill; }
 function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
+const ELEV_TOOLS = ['raise','lower','level'];
+function isElevationTool(t){ return ELEV_TOOLS.includes(t); }
 const FENCE_STYLES = [
   {id:'black', label:'Black Aluminum', post:'#1e1d1b', rail:'#2f312f', fill:'#151514'},
   {id:'wood', label:'Wood', post:'#7b5636', rail:'#9a7148', fill:'#6a4529'},
@@ -1445,6 +1449,7 @@ const game = {
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
   bulbs:{},           // same shape — the layer under the plants
   terrain:{},         // "x,y" -> {k:'path'|'bed'|'water', t:ts} or {removed:true,t}
+  elevation:{},       // "x,y" -> {h:-2..4, t:ts} or {removed:true,t}
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
@@ -1879,6 +1884,25 @@ function safeSpawn(){
 /* player-laid terrain (paths, beds, and water) on top of the built-in walkway */
 function terrainAt(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t:null; }
 function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
+function elevationAt(x,y){
+  const e=game.elevation && game.elevation[`${Math.round(x)},${Math.round(y)}`];
+  return (e && !e.removed && Number.isFinite(+e.h)) ? Math.max(ELEV_MIN,Math.min(ELEV_MAX,+e.h|0)) : 0;
+}
+function setElevationAt(x,y,h){
+  const k=`${x},${y}`, n=Math.max(ELEV_MIN,Math.min(ELEV_MAX,+h|0));
+  if (n===elevationAt(x,y)) return false;
+  if (!game.elevation) game.elevation={};
+  game.elevation[k]=n===0 ? {removed:true,t:Date.now()} : {h:n,t:Date.now()};
+  game.dirty=true;
+  return true;
+}
+function applyElevationTool(x,y){
+  const h=elevationAt(x,y);
+  if (game.tool==='raise') return setElevationAt(x,y,h+1);
+  if (game.tool==='lower') return setElevationAt(x,y,h-1);
+  if (game.tool==='level') return setElevationAt(x,y,0);
+  return false;
+}
 
 /* ---------- isometric math + view rotation ----------
    The camera always looks at VIEW space; game.rot rotates world tiles
@@ -1913,7 +1937,8 @@ function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWor
   }
 }
 function viewScreen(vx,vy,W,H){ return [W/2 + isoX(vx,vy) - cam.x, H*0.24 + isoY(vx,vy) - cam.y]; }
-function screenOf(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScreen(vx,vy,W,H); }
+function screenOfFlat(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScreen(vx,vy,W,H); }
+function screenOf(x,y,W,H){ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx,sy-elevationAt(x,y)*ELEV_STEP]; }
 function plantOffset(p){
   const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
   return {ox:Number.isFinite(ox)?ox:0, oy:Number.isFinite(oy)?oy:0};
@@ -2003,6 +2028,28 @@ function tileDiamond(ctx,sx,sy,fill,stroke,dash){
   if (fill){ ctx.fillStyle=fill; ctx.fill(); }
   if (stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke(); }
   if (dash) ctx.restore();
+}
+function drawElevationSides(ctx,W,H,x,y,base){
+  const h=elevationAt(x,y);
+  if (h<=0) return;
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
+  const side=(a,b,dy,fill)=>{
+    ctx.fillStyle=fill;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+    ctx.lineTo(b[0],b[1]+dy); ctx.lineTo(a[0],a[1]+dy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(35,28,20,0.16)'; ctx.lineWidth=1; ctx.stroke();
+  };
+  [[1,0,right,bottom,-18],[0,1,bottom,left,-28]].forEach(([dvx,dvy,a,b,shadeAmt])=>{
+    const [dx,dy]=viewDirToWorld(dvx,dvy), nh=elevationAt(x+dx,y+dy), diff=h-nh;
+    if (diff>0) side(a,b,diff*ELEV_STEP,toneColor(base,shadeAmt));
+  });
+}
+function drawElevationRim(ctx,sx,sy,h){
+  if (!h) return;
+  const a=Math.min(0.32,0.12+Math.abs(h)*0.045);
+  tileDiamond(ctx,sx,sy,h>0?`rgba(255,244,210,${a*0.28})`:`rgba(28,36,48,${a})`,
+    h>0?'rgba(245,220,160,0.36)':'rgba(105,128,145,0.42)');
 }
 function toneColor(col,amt){ return col && col[0]==='#' ? shade(col,amt) : col; }
 function drawSoftShadow(ctx,x,y,rx,ry,alpha){
@@ -2266,8 +2313,10 @@ function render(t){
     else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
     else if (terr==='bed') col = shade(bedFill(terrObj,amb),(rs()-0.5)*12);
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
+    drawElevationSides(cx,W,H,x,y,col);
     if (water) drawWaterTexture(cx,sx,sy,x,y,terrObj,amb,t);
     else drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
+    drawElevationRim(cx,sx,sy,elevationAt(x,y));
     if (amb.snow && !path && !water && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
       cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
   }
@@ -2559,17 +2608,31 @@ function actHere(opts){
     else toast('Lighting needs a clear dry tile.');
     return;
   }
+  if (isElevationTool(game.tool)){
+    const before=elevationAt(x,y);
+    if (applyToolAt(x,y)){
+      syncElevationOut();
+      const after=elevationAt(x,y);
+      toast(game.tool==='level' ? 'Leveled ground.' : `Elevation ${after>before?'raised':'lowered'} to ${after}.`);
+    } else {
+      toast(game.tool==='raise' ? 'Already at the highest elevation.'
+        : game.tool==='lower' ? 'Already at the lowest elevation.'
+        : 'Already level.');
+    }
+    return;
+  }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
   const shrubHit = shrubAt(x,y);
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,house:0,fence:0,light:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,fence:0,light:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
     if (counts.bulbs) parts.push(`${counts.bulbs} bulb${counts.bulbs>1?'s':''}`);
     if (counts.terr) parts.push(`${counts.terr} terrain tile${counts.terr>1?'s':''}`);
+    if (counts.elev) parts.push(`${counts.elev} elevation tile${counts.elev>1?'s':''}`);
     if (counts.fence) parts.push(`${counts.fence} fence${counts.fence>1?'s':''}`);
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
@@ -2578,6 +2641,7 @@ function actHere(opts){
       if (counts.plants) syncPlantsOut();
       if (counts.bulbs) syncBulbsOut();
       if (counts.terr) syncTerrainOut();
+      if (counts.elev) syncElevationOut();
       if (counts.fence) syncFencesOut();
       if (counts.light) syncLightsOut();
       if (counts.house) pushHouse();
@@ -2706,6 +2770,7 @@ function applyToolAt(x,y,opts){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   if (game.tool==='fence') return placeFenceAt(x,y);
   if (game.tool==='light') return placeLightAt(x,y);
+  if (isElevationTool(game.tool)) return applyElevationTool(x,y) ? 'elevation' : null;
   if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
     const ex=game.plants[k], eb=game.bulbs[k];
     if (ex && !ex.removed) return null;
@@ -2780,6 +2845,7 @@ function applyToolAt(x,y,opts){
 }
 function syncToolLayer(what){
   if (what==='path'||what==='bed'||what==='water') syncTerrainOut();
+  else if (what==='elevation') syncElevationOut();
   else if (what==='fence'||what==='gate') syncFencesOut();
   else if (what==='light') syncLightsOut();
   else if (what==='bulb') syncBulbsOut();
@@ -3015,6 +3081,8 @@ function eraseBrush(cx,cy,counts){
       game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
     if (terrOK && tileTerrain(x,y)){
       game.terrain[k]={removed:true,t:now}; game.dirty=true; counts.terr++; }
+    if (terrOK && elevationAt(x,y)){
+      game.elevation[k]={removed:true,t:now}; game.dirty=true; counts.elev=(counts.elev||0)+1; }
     if (terrOK && fenceAt(x,y)){
       game.fences[k]={removed:true,t:now}; game.dirty=true; counts.fence=(counts.fence||0)+1; }
     if (terrOK && lightAt(x,y)){
@@ -3035,19 +3103,20 @@ function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
 function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
-// snapshot every occupied tile in the rect across plants, bulbs, terrain, fences, and lights
+// snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, and lights
 function selectionPayload(r){
   const items=[];
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], f=game.fences[k], l=game.lights[k];
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k];
     const cell={x,y};
     if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
     if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
     if (t && !t.removed) cell.terr=JSON.parse(JSON.stringify(t));
+    if (e && !e.removed) cell.elev=JSON.parse(JSON.stringify(e));
     if (f && !f.removed) cell.fence=JSON.parse(JSON.stringify(f));
     if (l && !l.removed) cell.light=JSON.parse(JSON.stringify(l));
-    if (cell.plant||cell.bulb||cell.terr||cell.fence||cell.light) items.push(cell);
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light) items.push(cell);
   }
   return items;
 }
@@ -3060,6 +3129,7 @@ function selWrite(items, getDst, clearSource){
       if (c.plant) game.plants[k]={removed:true,t:now};
       if (c.bulb)  game.bulbs[k]={removed:true,t:now};
       if (c.terr)  game.terrain[k]={removed:true,t:now};
+      if (c.elev)  game.elevation[k]={removed:true,t:now};
       if (c.fence) game.fences[k]={removed:true,t:now};
       if (c.light) game.lights[k]={removed:true,t:now};
     }
@@ -3068,14 +3138,16 @@ function selWrite(items, getDst, clearSource){
     if (c.plant) game.plants[k]=Object.assign({},c.plant,{t:now});
     if (c.bulb)  game.bulbs[k]=Object.assign({},c.bulb,{t:now});
     if (c.terr)  game.terrain[k]=Object.assign({},c.terr,{t:now});
+    if (c.elev)  game.elevation[k]=Object.assign({},c.elev,{t:now});
     if (c.fence) game.fences[k]=Object.assign({},c.fence,{t:now});
     if (c.light) game.lights[k]=Object.assign({},c.light,{t:now});
   }
   game.dirty=true;
-  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; if(c.fence)a.f=1; if(c.light)a.l=1; return a;},{});
+  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; if(c.elev)a.e=1; if(c.fence)a.f=1; if(c.light)a.l=1; return a;},{});
   if (layers.p) syncPlantsOut();
   if (layers.b) syncBulbsOut();
   if (layers.t) syncTerrainOut();
+  if (layers.e) syncElevationOut();
   if (layers.f) syncFencesOut();
   if (layers.l) syncLightsOut();
 }
@@ -3123,10 +3195,11 @@ function eraseSelection(){
       if (c.plant) game.plants[k]={removed:true,t:now};
       if (c.bulb)  game.bulbs[k]={removed:true,t:now};
       if (c.terr)  game.terrain[k]={removed:true,t:now};
+      if (c.elev)  game.elevation[k]={removed:true,t:now};
       if (c.fence) game.fences[k]={removed:true,t:now};
       if (c.light) game.lights[k]={removed:true,t:now};
     }
-    game.dirty=true; syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncFencesOut(); syncLightsOut(); });
+    game.dirty=true; syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
@@ -3182,11 +3255,12 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
 }
-function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.houses,game.fences,game.lights]); }
+function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights]); }
 function snapshotState(){ return {
   plants:JSON.parse(JSON.stringify(game.plants)),
   bulbs:JSON.parse(JSON.stringify(game.bulbs)),
   terrain:JSON.parse(JSON.stringify(game.terrain)),
+  elevation:JSON.parse(JSON.stringify(game.elevation||{})),
   houses:JSON.parse(JSON.stringify(game.houses||[])),
   fences:JSON.parse(JSON.stringify(game.fences||{})),
   lights:JSON.parse(JSON.stringify(game.lights||{}))}; }
@@ -3198,9 +3272,9 @@ function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pend
 function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
 function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights + refresh UI
-  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{};
+  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{};
   game.dirty=true; updateUndoBtn();
-  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncFencesOut(); syncLightsOut(); pushHouse(); }
+  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); pushHouse(); }
   buildToolTray();
 }
 function doUndo(){
@@ -3253,13 +3327,13 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0, house:0, fence:0, light:0};
+    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, fence:0, light:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
-  // plant/bulb/path/bed/water/fence/light: press-and-drag paints tiles like the shovel
+  // plant/bulb/path/bed/water/elevation/fence/light: press-and-drag paints tiles like the shovel
   // sweeps them; a plain tap (resolved at pointerup) walks or acts
-  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed' || game.tool==='water' || game.tool==='fence' || game.tool==='light'){
+  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed' || game.tool==='water' || isElevationTool(game.tool) || game.tool==='fence' || game.tool==='light'){
     toolDrag={sx:x, sy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
@@ -3297,6 +3371,7 @@ function finishToolDrag(){
     if (toolDrag.what==='path') msg=`Updated ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='bed') msg=`Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='water') msg=`Laid ${toolDrag.count} water tile${toolDrag.count>1?'s':''}.`;
+    else if (toolDrag.what==='elevation') msg=`Adjusted ${toolDrag.count} elevation tile${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='fence'||toolDrag.what==='gate') msg=`Placed ${toolDrag.count} ${fenceLabel().toLowerCase()} tile${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='light') msg=`Placed ${toolDrag.count} ${lightLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
     else msg=`Planted ${toolDrag.count} - ${def.name}.`;
@@ -3349,6 +3424,7 @@ function endSweep(){
   if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
   if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
   if (sweep.terr) parts.push(`${sweep.terr} terrain tile${sweep.terr>1?'s':''}`);
+  if (sweep.elev) parts.push(`${sweep.elev} elevation tile${sweep.elev>1?'s':''}`);
   if (sweep.fence) parts.push(`${sweep.fence} fence${sweep.fence>1?'s':''}`);
   if (sweep.light) parts.push(`${sweep.light} light${sweep.light>1?'s':''}`);
   if (sweep.house) parts.push(`${sweep.house} house${sweep.house>1?'s':''}`);
@@ -3357,6 +3433,7 @@ function endSweep(){
     if (sweep.plants) syncPlantsOut();
     if (sweep.bulbs) syncBulbsOut();
     if (sweep.terr) syncTerrainOut();
+    if (sweep.elev) syncElevationOut();
     if (sweep.fence) syncFencesOut();
     if (sweep.light) syncLightsOut();
     if (sweep.house) pushHouse();
@@ -3437,7 +3514,7 @@ async function saveSolo(silent){
     mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,houses:game.houses,freePlanting:game.freePlanting,
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,fences:game.fences,lights:game.lights,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,elevation:game.elevation,fences:game.fences,lights:game.lights,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
@@ -3462,6 +3539,7 @@ async function loadSolo(id){
   game.plants=shiftKeys(s.plants||{},shift);
   game.bulbs=shiftKeys(s.bulbs||{},shift);
   game.terrain=shiftKeys(s.terrain||{},shift);
+  game.elevation=shiftKeys(s.elevation||{},shift);
   game.fences=shiftKeys(s.fences||{},shift);
   game.lights=shiftKeys(s.lights||{},shift);
   // houses: new saves store an array; migrate old single-house saves, and
@@ -3498,7 +3576,7 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.lights={}; game.freePlanting=false;
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'};
   setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
@@ -3506,6 +3584,7 @@ async function hostWorld(){
   await sSet(wkey('plants'),{},true);
   await sSet(wkey('bulbs'),{},true);
   await sSet(wkey('terrain'),game.terrain,true);
+  await sSet(wkey('elevation'),game.elevation,true);
   await sSet(wkey('fences'),game.fences,true);
   await sSet(wkey('lights'),game.lights,true);
   await sSet(wkey('house'),{h:game.houses,t:game.houseT},true);
@@ -3521,6 +3600,7 @@ async function joinWorld(code){
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
+  const el=await sGet(wkey('elevation'),true); game.elevation=el||{};
   const fn=await sGet(wkey('fences'),true); game.fences=fn||{};
   const li=await sGet(wkey('lights'),true); game.lights=li||{};
   const ho=await sGet(wkey('house'),true);
@@ -3540,6 +3620,12 @@ async function syncTerrainOut(){
   const remote=await sGet(wkey('terrain'),true)||{};
   mergeMap(game.terrain,remote);
   await sSet(wkey('terrain'),game.terrain,true);
+}
+async function syncElevationOut(){
+  if (game.mode!=='multi') { return; }
+  const remote=await sGet(wkey('elevation'),true)||{};
+  mergeMap(game.elevation,remote);
+  await sSet(wkey('elevation'),game.elevation,true);
 }
 async function syncBulbsOut(){
   if (game.mode!=='multi') { return; }
@@ -3577,6 +3663,8 @@ async function pollWorld(){
   if (remote) mergeMap(game.plants,remote);
   const remoteT=await sGet(wkey('terrain'),true);
   if (remoteT) mergeMap(game.terrain,remoteT);
+  const remoteE=await sGet(wkey('elevation'),true);
+  if (remoteE) mergeMap(game.elevation,remoteE);
   const remoteB=await sGet(wkey('bulbs'),true);
   if (remoteB) mergeMap(game.bulbs,remoteB);
   const remoteF=await sGet(wkey('fences'),true);
@@ -3887,6 +3975,17 @@ function buildPlanMap(){
   ctx.beginPath(); ctx.moveTo(W2-40,30); ctx.lineTo(W2-45,42); ctx.lineTo(W2-35,42); ctx.closePath();
   ctx.fillStyle='#2c241c'; ctx.fill();
   ctx.font='10px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillText('N',W2-40,80);
+  // elevation grade: subtle plan cue under materials/plants
+  for (const k in game.elevation){ const e=game.elevation[k];
+    if (!e || e.removed || !e.h) continue;
+    const [x,y]=k.split(',').map(Number);
+    ctx.fillStyle=e.h>0?'rgba(145,119,70,0.16)':'rgba(73,112,140,0.18)';
+    ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
+    ctx.fillStyle=e.h>0?'#8a6735':'#4f7388';
+    ctx.font=`600 ${Math.max(7,Math.min(10,cell*0.42))}px IBM Plex Sans`;
+    ctx.textAlign='center';
+    ctx.fillText(`${e.h>0?'+':''}${e.h}`,X(x)+cell/2,Y(y)+cell/2+3);
+  }
   // terrain
   for (const k in game.terrain){ const t2=game.terrain[k];
     if (t2.removed) continue;
@@ -4272,7 +4371,7 @@ const TRAY_CATS=[
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
+  {id:'landscape',label:'Landscape',        tools:['path','bed','water','raise','lower','level']},
   {id:'structures',label:'Structures',      tools:['fence']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'house',    label:'House',            tools:['house']},
@@ -4288,16 +4387,16 @@ function layerEditable(name){ return !ENABLE_LAYER_EDIT_FOCUS || game.layerFocus
 const LAYER_LABELS={all:'All',perennials:'Perennials',bulbs:'Bulbs',woody:'Woody Plants',landscape:'Landscape/Hardscape'};
 const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable layers, in menu order
 // the layer a placement tool draws onto (so we can warn when it's hidden)
-function isPlacementTool(t){ return t==='house'||t==='fence'||t==='light'||t==='path'||t==='bed'||t==='water'||!!PLANTS[t]; }
+function isPlacementTool(t){ return t==='house'||t==='fence'||t==='light'||t==='path'||t==='bed'||t==='water'||isElevationTool(t)||!!PLANTS[t]; }
 function toolTargetLayer(t){ t=t||game.tool;
-  if (t==='house'||t==='fence'||t==='light'||t==='path'||t==='bed'||t==='water') return 'landscape';
+  if (t==='house'||t==='fence'||t==='light'||t==='path'||t==='bed'||t==='water'||isElevationTool(t)) return 'landscape';
   const P=PLANTS[t]; if (!P) return null;
   if (P.type==='bulb') return 'bulbs';
   if (P.type==='shrub'||P.type==='tree') return 'woody';
   return 'perennials';
 }
-function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || k==='house' || k==='fence' || k==='light'; }
-function isDrawableBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water'; }
+function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || isElevationTool(k) || k==='house' || k==='fence' || k==='light'; }
+function isDrawableBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || isElevationTool(k); }
 function rememberBrushTool(){
   if (isDrawableBrushTool(game.tool)){ game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null; }
 }
@@ -4412,7 +4511,7 @@ function plantCategoryFor(k){
 }
 function visiblePlantChoice(){
   const visible=trayKeys();
-  if (game.lastBrushTool==='path'||game.lastBrushTool==='bed'||game.lastBrushTool==='water')
+  if (game.lastBrushTool==='path'||game.lastBrushTool==='bed'||game.lastBrushTool==='water'||isElevationTool(game.lastBrushTool))
     return [game.lastBrushTool,null];
   if (PLANTS[game.lastBrushTool] && visible.includes(game.lastBrushTool))
     return [game.lastBrushTool,game.lastBrushVar||null];
@@ -4462,12 +4561,12 @@ function armFillTool(){
   }
   // keep the catalog tab on the armed brush so buildToolTray won't drop it
   if (PLANTS[game.tool]) game.trayCat=plantCategoryFor(game.tool);
-  else if (game.tool==='path'||game.tool==='bed'||game.tool==='water') game.trayCat='landscape';
+  else if (game.tool==='path'||game.tool==='bed'||game.tool==='water'||isElevationTool(game.tool)) game.trayCat='landscape';
   rememberBrushTool();
   game.fillMode = isBrushTool(game.tool) && game.tool!=='house' && game.tool!=='fence' && game.tool!=='light';
   buildToolTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
   toast(game.fillMode
-    ? 'Fill: tap an area to flood it with the selected plant or material.'
+    ? 'Fill: tap an area to flood it with the selected plant, material, or grade.'
     : 'Pick a plant or material from the catalog, then tap to fill.');
 }
 function doFloodFill(sx,sy){
@@ -4492,6 +4591,7 @@ function doFloodFill(sx,sy){
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     const label = def ? def.name : game.tool==='path'?`${pathColor(game.pathColor).label} path`
       : game.tool==='water'?`${waterStyle(game.waterStyle).label} water`
+      : isElevationTool(game.tool)?(game.tool==='raise'?'raised grade':game.tool==='lower'?'lowered grade':'level grade')
       : `${bedStyle(game.bedStyle).label} bed`;
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
   } else toast('Nothing here that fill can change.');
@@ -4890,7 +4990,7 @@ function buildToolTray(){
   // A tool tab arms its first tool right away — RTS style.
   if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; rememberBrushTool(); }
   renderCvRow();
-  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')){
+  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.some(isElevationTool)){
     const pathCol=pathColor(game.pathColor);
     const bedCol=bedStyle(game.bedStyle);
     const waterCol=waterStyle(game.waterStyle);
@@ -4923,6 +5023,21 @@ function buildToolTray(){
           tc.ellipse(24+(rs()-0.5)*22,23+(rs()-0.5)*10,opt.texture==='rock'?2.8:2,opt.texture==='rock'?1.6:1.2,rs()*3,0,7); tc.fill(); }
       }
     };
+    const drawElev=(tc,kind)=>{
+      const high=kind==='raise', low=kind==='lower';
+      tc.fillStyle=low?'#6f7f83':'#8ba263';
+      tc.beginPath(); tc.moveTo(24,10+(low?9:0)); tc.lineTo(42,21+(low?9:0)); tc.lineTo(24,32+(low?9:0)); tc.lineTo(6,21+(low?9:0));
+      tc.closePath(); tc.fill();
+      if (high){
+        tc.fillStyle='#5c6f46';
+        tc.beginPath(); tc.moveTo(6,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(6,29); tc.closePath(); tc.fill();
+        tc.fillStyle='#42563e';
+        tc.beginPath(); tc.moveTo(42,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(42,29); tc.closePath(); tc.fill();
+      }
+      tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1.3; tc.stroke();
+      tc.fillStyle='#efe6d3'; tc.font='700 18px IBM Plex Sans'; tc.textAlign='center';
+      tc.fillText(kind==='level'?'0':(high?'+':'-'),24,26+(low?8:0));
+    };
     const materialBtn=(k,label,sel,draw,fn,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(game.tool===k?' sel':''); b.dataset.k=k;
       if (sel!==undefined) b.className='tool'+(sel?' sel':'');
@@ -4937,6 +5052,9 @@ function buildToolTray(){
       ['path','Path',tc=>drawMat(tc,{fill:pathCol.fill,texture:'gravel',seed:11}),`${pathCol.label} path: drag or act to lay paths.`],
       ['bed','Bed',tc=>drawMat(tc,{fill:bedCol.fill||'#54402f',texture:bedCol.texture,seed:23}),`${bedCol.label} bed: drag or act to prepare planting beds.`],
       ['water','Water',tc=>drawMat(tc,{fill:waterCol.fill,deep:waterCol.deep,texture:'water',seed:37}),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
+      ['raise','Raise',tc=>drawElev(tc,'raise'),'Raise ground one step. Drag to build a berm or terrace.'],
+      ['lower','Lower',tc=>drawElev(tc,'lower'),'Lower ground one step. Drag to shape a swale or basin.'],
+      ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
     ].filter(([k])=>cat.tools.includes(k))
     .forEach(([k,label,draw,hint])=>{
       materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); toast(hint); },hint);
@@ -5142,6 +5260,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
     if (b.dataset.bedStyle) hay+=' '+bedStyle(b.dataset.bedStyle).label+' bed gravel rock leaf litter mulch soil';
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
+    if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='fence') hay+=' structures fence gate door '+FENCE_STYLES.map(f=>f.label).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
@@ -5228,6 +5347,9 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
   else if (game.tool==='water') label='Add water';
+  else if (game.tool==='raise') label='Raise grade';
+  else if (game.tool==='lower') label='Lower grade';
+  else if (game.tool==='level') label='Level grade';
   else if (game.tool==='fence') label=fenceDraft().gate?'Place gate':'Place fence';
   else if (game.tool==='light') label='Place light';
   else if (game.tool==='house') label=null;           // house places by tap
@@ -5614,6 +5736,7 @@ function enterGarden(){
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   if (!Array.isArray(game.houses)) game.houses=[];
+  if (!game.elevation) game.elevation={};
   if (!game.fences) game.fences={};
   if (!game.lights) game.lights={};
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
@@ -5663,7 +5786,7 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.fences={}; game.lights={}; game.freePlanting=false;
+      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();

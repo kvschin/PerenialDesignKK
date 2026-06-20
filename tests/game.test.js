@@ -5,7 +5,7 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design';
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.houses = []; game.fences = {}; game.lights = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
@@ -139,6 +139,44 @@ test('bed styles are stored on terrain and can be repainted', () => {
   assertEqual(applyToolAt(3, 3), 'bed', 'existing bed restyled');
   assertEqual(game.terrain['3,3'].c, 'leaf', 'new bed style stored');
   assertEqual(applyToolAt(3, 3), null, 'same style is a no-op');
+});
+
+test('elevation tools raise, lower, level, and clamp grade', () => {
+  setup(11, 11);
+  game.tool = 'raise';
+  for (let i = 0; i < ELEV_MAX + 2; i++) applyToolAt(5, 5);
+  assertEqual(elevationAt(5, 5), ELEV_MAX, 'raise clamps at max elevation');
+  assertEqual(applyToolAt(5, 5), null, 'raise refuses a no-op at max elevation');
+  game.tool = 'lower';
+  for (let i = 0; i < ELEV_MAX - ELEV_MIN + 2; i++) applyToolAt(5, 5);
+  assertEqual(elevationAt(5, 5), ELEV_MIN, 'lower clamps at min elevation');
+  game.tool = 'level';
+  assertEqual(applyToolAt(5, 5), 'elevation', 'level changes non-zero grade');
+  assertEqual(elevationAt(5, 5), 0, 'level returns to flat ground');
+});
+
+test('elevation participates in undo, erase, and selection moves', () => {
+  setup(13, 13);
+  game.tool = 'raise';
+  withUndo(() => applyToolAt(4, 4));
+  assertEqual(elevationAt(4, 4), 1, 'raised ground');
+  doUndo();
+  assertEqual(elevationAt(4, 4), 0, 'undo restores flat ground');
+  doRedo();
+  assertEqual(elevationAt(4, 4), 1, 'redo restores raised ground');
+
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 };
+  game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.some(c => c.elev), 'selection owns elevation');
+  commitSelectionOffset(2, 0, false);
+  assertEqual(elevationAt(4, 4), 0, 'move clears original elevation');
+  assertEqual(elevationAt(6, 4), 1, 'move carries elevation');
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0 };
+  game.eraseMode = 'terrain';
+  eraseBrush(6, 4, counts);
+  assertEqual(counts.elev, 1, 'landscape erase counts elevation');
+  assertEqual(elevationAt(6, 4), 0, 'landscape erase levels elevation');
 });
 
 test('winter soil beds are frosted instead of nearly black', () => {
