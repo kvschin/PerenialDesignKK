@@ -379,6 +379,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   /* fatter tap targets on touch screens */
   .seg .seg-opt{padding:8px 11px}
   #cvRow .chip{padding:8px 13px}
+  /* let the Plants sub-tabs wrap instead of scrolling off; tighter padding
+     keeps the wrap to ~two rows */
+  #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px}
+  #trayTabs .tab{padding:6px 8px}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,
   .hud-bottom.collapsed #toolTray{display:none !important}

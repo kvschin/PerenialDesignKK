@@ -4763,7 +4763,7 @@ function buildCanvasTools(){
   add('Select','select',{active:game.tool==='select',
     title:'Drag a box to select tiles — then move, duplicate, rotate, or erase them',
     onClick:()=>{ setTool('select'); buildToolTray(); }});
-  add('Plant','brush',{active:brushActive&&!game.fillMode,
+  add('Plant','brush',{active:!!PLANTS[game.tool]&&!game.fillMode,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
@@ -5395,19 +5395,23 @@ function renderBrushBar(){
     return s;
   };
   const lab=document.createElement('span'); lab.className='brush-lab'; lab.textContent='Brush';
-  bar.append(lab,
-    seg([
-      {label:'Draw', on:!game.drift, title:'Paint one plant at a time',
-        draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
-      {label:'Drift',on:game.drift,  title:'Paint natural clusters',
-        draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
-    ]),
-    seg([
-      {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
-        draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
-      {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
-        draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
-    ]));
+  const woody = PLANTS[game.tool].type==='shrub' || PLANTS[game.tool].type==='tree';
+  const parts=[lab];
+  // Draw vs Drift is a no-op for woody plants (they always plant singly), so
+  // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
+  if (!woody) parts.push(seg([
+    {label:'Draw', on:!game.drift, title:'Paint one plant at a time',
+      draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
+    {label:'Drift',on:game.drift,  title:'Paint natural clusters',
+      draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
+  ]));
+  parts.push(seg([
+    {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
+      draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
+    {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
+      draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
+  ]));
+  bar.append(...parts);
 }
 /* the collapsible palette (phones only): the handle folds the catalog away so
    the garden gets the room while you paint; the brush bar + act button stay.
