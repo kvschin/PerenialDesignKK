@@ -342,7 +342,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     the tabs row (`game.searchOpen`): tapping it swaps the sub-tabs for a search
     field (so it never adds a wrapping row) that filters the open category by
     name/latin/group (`applyTraySearch`, display:none — no rebuild, so typing
-    keeps focus; inputs are excluded from game keys).
+    keeps focus; inputs are excluded from game keys). Because the field *takes
+    the categories' place*, the toggle glyph flips from `🔍` to a bold **✕**
+    while open (`.tab-search.close`, title "Close search — back to categories")
+    so the way back is obvious; tapping it or pressing **Escape** in the field
+    restores the sub-tabs.
     The top bar is **one connected glassy bar** (`.hud-top` carries the glass;
     the clusters sit transparent on it). Left = the
     **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
@@ -353,7 +357,12 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     empty) + a `☰` Menu. The Menu opens `#gardenMenu` — the planting list,
     region filter (shows the active filter), photo, planting plan, and Save &
     quit — so the infrequent outputs sit one tap behind `☰` rather than a
-    permanent row. In **design** mode the readout drops the meaningless
+    permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
+    modal: `openGardenMenu()` measures the action bar's rect and pins the panel
+    just under the `☰`, right-aligned to it (`position:fixed`, JS-set
+    `top`/`right`); clicking the transparent backdrop dismisses it. So it drops
+    from the corner over the still-visible garden instead of covering the
+    screen. In **design** mode the readout drops the meaningless
     Year/Day (a day is 20s real time) for the season + early/mid/late phase
     (`clockMeta`/`seasonPhase`) and an **Advance** button; **story** mode keeps
     the full calendar + End Day. On phones the whole palette collapses: a

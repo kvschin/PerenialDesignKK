@@ -4941,8 +4941,11 @@ function buildToolTray(){
   const canSearch = game.tool!=='shovel' && game.tool!=='select';
   if (canSearch){
     const sb=document.createElement('button');
-    sb.className='tab tab-search'+(game.searchOpen?' sel':'');
-    sb.textContent='\u{1F50D}'; sb.title=game.searchOpen?'Close search':'Search the open category';
+    // when open, the glyph flips to ✕ so it's obvious how to get the
+    // categories back (it took their place); 🔍 when closed
+    sb.className='tab tab-search'+(game.searchOpen?' sel close':'');
+    sb.textContent=game.searchOpen?'✕':'\u{1F50D}';
+    sb.title=game.searchOpen?'Close search — back to categories':'Search the open category';
     sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
       buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
     tabs.appendChild(sb);
@@ -4953,6 +4956,8 @@ function buildToolTray(){
     si.id='traySearch'; si.type='search'; si.placeholder='search plants…';
     si.value=game.traySearch||'';
     si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
+    si.onkeydown=(e)=>{ if (e.key==='Escape'){ e.stopPropagation();
+      game.searchOpen=false; game.traySearch=''; buildToolTray(); } };
     tabs.appendChild(si);
   } else {
     // tier 2: the active group's category sub-tabs
@@ -6067,7 +6072,17 @@ function quitToMenu(){
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   show('menuScreen');
 }
-$('btnMenu').onclick=()=>$('gardenMenu').classList.remove('hidden');
+function openGardenMenu(){
+  const gm=$('gardenMenu'); gm.classList.remove('hidden');
+  // anchor the dropdown right under the ☰ button, right-aligned to the action
+  // bar — robust to the bar's height/width at any breakpoint
+  const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
+  if (p && bar.width){ p.style.top=(bar.bottom+6)+'px';
+    p.style.right=Math.max(8,Math.round(innerWidth-bar.right))+'px'; }
+}
+$('btnMenu').onclick=openGardenMenu;
+// click the backdrop (anywhere off the panel) to dismiss, like any dropdown
+$('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab

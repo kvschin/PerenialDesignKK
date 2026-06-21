@@ -240,6 +240,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #trayTabs .tab-div{width:1px;align-self:stretch;background:rgba(239,230,211,.2);margin:4px 6px 8px;flex-shrink:0}
 #trayTabs .tab.tab-search{font-size:13px;padding:5px 9px;opacity:.65;flex-shrink:0}
 #trayTabs .tab.tab-search.sel{opacity:1;background:rgba(201,127,63,.3)}
+/* the ✕ close state: a touch bolder so it reads as "exit search" */
+#trayTabs .tab.tab-search.close{font-size:12px;font-weight:700;color:var(--seedhead)}
 #traySearch{flex:1;min-width:110px;max-width:240px;align-self:center;background:rgba(0,0,0,.3);
   border:1px solid rgba(239,230,211,.25);border-radius:4px;color:var(--seedhead);
   font-family:inherit;font-size:12px;padding:5px 9px;margin:0 4px 4px}
@@ -301,6 +303,17 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tool-popover,#plantCard{
   background:rgba(24,17,13,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .pause-panel{max-width:360px}
+/* garden menu: a compact dropdown anchored under the ☰ button (top/right set
+   in JS), not a full-screen centered modal — keeps the garden in view */
+#gardenMenu{display:block;padding:0;background:transparent}
+#gardenMenu .panel{position:fixed;top:54px;right:10px;width:236px;max-width:calc(100vw - 16px);
+  padding:13px;border-radius:8px;box-shadow:0 16px 46px rgba(0,0,0,.48);animation:gmDrop .14s ease-out}
+#gardenMenu .panel h2{font-size:16px;margin-bottom:2px}
+#gardenMenu .panel .sub{display:none}
+#gardenMenu .pause-actions{gap:6px}
+#gardenMenu .pause-actions .btn{padding:10px 12px;font-size:13px}
+#gardenMenu #btnGmClose{padding:9px 12px;font-size:12.5px}
+@keyframes gmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 #pauseScreen,#confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
 .pause-actions{display:flex;flex-direction:column;gap:9px}
 .pause-actions .btn{width:100%;text-align:left}
