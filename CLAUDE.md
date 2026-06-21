@@ -338,10 +338,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     not overwrite that memory); its two style toggles — Draw/Drift and
     Grid/Free — dock in the palette as the `#brushBar` segmented controls
     (`renderBrushBar`), not a floating flyout. New garden entries start on
-    Hand so accidental painting is harder. A search input in the tabs row filters the open
-    category by name/latin/group (`applyTraySearch`, display:none — no
-    rebuild, so typing keeps focus; inputs are excluded from game keys).
-    The top bar is **two anchored clusters**, not a row of pills. Left = the
+    Hand so accidental painting is harder. Search is a magnifier **toggle** in
+    the tabs row (`game.searchOpen`): tapping it swaps the sub-tabs for a search
+    field (so it never adds a wrapping row) that filters the open category by
+    name/latin/group (`applyTraySearch`, display:none — no rebuild, so typing
+    keeps focus; inputs are excluded from game keys).
+    The top bar is **one connected glassy bar** (`.hud-top` carries the glass;
+    the clusters sit transparent on it). Left = the
     **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on), the season
@@ -355,8 +358,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     (`clockMeta`/`seasonPhase`) and an **Advance** button; **story** mode keeps
     the full calendar + End Day. On phones the whole palette collapses: a
     `#sheetHandle` folds the catalog away while you paint (`applySheetState`,
-    `game.sheetCollapsed`), leaving the brush bar + a context label, and the
-    chrome panels are glassy (`backdrop-filter` blur). There is no Save
+    `game.sheetCollapsed`), leaving the brush bar + a context label + a swatch
+    of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
+    (edge-to-edge, square corners, `env(safe-area-inset-*)`), and the chrome
+    panels are glassy (`backdrop-filter` blur). There is no Save
     button — autosave fires on day change, quit, and visibilitychange/pagehide. Pause/Start freezes or resumes day progression
     without blocking editing; clicking the time readout opens a small menu
     with Resume and Skip to next season/year; season skip shows a confirmation

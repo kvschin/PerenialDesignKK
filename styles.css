@@ -157,9 +157,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
-.hud-top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.season-dial{pointer-events:auto;background:rgba(25,18,15,.82);border:1.5px solid rgba(239,230,211,.25);
-  border-radius:4px;padding:8px 12px;display:flex;align-items:stretch;gap:12px}
+/* one connected top bar: the strip carries the glass, the clusters sit on it */
+.hud-top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;
+  align-items:center;gap:10px;pointer-events:auto;background:rgba(24,17,13,.64);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:8px;padding:5px 10px}
+.season-dial{pointer-events:auto;padding:2px 4px;display:flex;align-items:center;gap:12px}
 .season-readout{min-width:108px;background:none;border:none;color:inherit;text-align:left;padding:0;border-radius:3px}
 .season-readout:hover{background:rgba(239,230,211,.06)}
 .season-readout:focus-visible{outline:1.5px solid var(--bronze);outline-offset:3px}
@@ -175,8 +178,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .season-dial .daynight:hover{background:rgba(201,127,63,.28)}
 .season-dial .daynight.on{background:rgba(120,140,180,.28);border-color:rgba(180,200,230,.4);color:#dbe4f5}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
-.pill{pointer-events:auto;background:rgba(25,18,15,.82);border:1.5px solid rgba(239,230,211,.25);
-  border-radius:4px;padding:7px 12px;font-size:12px;color:var(--seedhead)}
+.pill{pointer-events:auto;padding:2px;font-size:12px;color:var(--seedhead)}
 .pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:none;cursor:pointer;border-radius:3px;padding:2px 6px}
 .pill button:hover{background:rgba(201,127,63,.2)}
 .pill.iconbar{display:flex;gap:2px;padding:4px 6px}
@@ -226,6 +228,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #playerList{font-size:12px;line-height:1.6}
 .hud-bottom{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
 #sheetHandle{display:none} /* the collapse handle is a phone-only affordance */
+#sheetHandle canvas{width:24px;height:21px;flex-shrink:0;display:block}
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
   border:1.5px solid rgba(239,230,211,.25);border-bottom:none;border-radius:6px 6px 0 0;
   padding:5px 8px 0;max-width:96vw;overflow-x:auto;margin-bottom:-8px}
@@ -235,9 +238,11 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #trayTabs .tab.grp{border-radius:5px;color:var(--seedhead);opacity:.55;margin-bottom:4px}
 #trayTabs .tab.grp.sel{background:rgba(201,127,63,.42);opacity:1}
 #trayTabs .tab-div{width:1px;align-self:stretch;background:rgba(239,230,211,.2);margin:4px 6px 8px;flex-shrink:0}
-#traySearch{margin-left:auto;width:88px;align-self:center;background:rgba(0,0,0,.3);
-  border:1px solid rgba(239,230,211,.25);border-radius:3px;color:var(--seedhead);
-  font-family:inherit;font-size:11px;padding:4px 7px;margin-right:4px;margin-bottom:4px}
+#trayTabs .tab.tab-search{font-size:13px;padding:5px 9px;opacity:.65;flex-shrink:0}
+#trayTabs .tab.tab-search.sel{opacity:1;background:rgba(201,127,63,.3)}
+#traySearch{flex:1;min-width:110px;max-width:240px;align-self:center;background:rgba(0,0,0,.3);
+  border:1px solid rgba(239,230,211,.25);border-radius:4px;color:var(--seedhead);
+  font-family:inherit;font-size:12px;padding:5px 9px;margin:0 4px 4px}
 #traySearch:focus{outline:none;border-color:var(--bronze)}
 #toolTray{pointer-events:auto;display:flex;gap:6px;background:rgba(25,18,15,.85);border:1.5px solid rgba(239,230,211,.25);
   border-radius:0 0 6px 6px;padding:8px;max-width:96vw;overflow-x:auto;min-height:78px;align-items:center}
@@ -291,7 +296,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* glassy chrome: a soft backdrop blur lets the garden read through the dark
    panels so the UI feels lighter over the world. Kept as one rule — if
    backdrop-filter ever costs frames on a machine, delete these two lines. */
-.season-dial,.pill,#canvasTools,#trayTabs,#toolTray,#cvRow,#brushBar{
+#canvasTools,#trayTabs,#toolTray,#cvRow,#brushBar{
   background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .tool-popover,#plantCard{
   background:rgba(24,17,13,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -383,6 +388,14 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
      keeps the wrap to ~two rows */
   #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px}
   #trayTabs .tab{padding:6px 8px}
+  /* full-bleed palette: edge to edge, square corners, padded clear of the
+     rounded screen corners + home indicator via safe-area insets */
+  .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
+  .hud-bottom.collapsed{padding-bottom:env(safe-area-inset-bottom)}
+  #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
+  #trayTabs{border-top:none}
+  #toolTray{padding-bottom:calc(8px + env(safe-area-inset-bottom));
+    padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,
   .hud-bottom.collapsed #toolTray{display:none !important}

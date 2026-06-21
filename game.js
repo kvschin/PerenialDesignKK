@@ -4936,21 +4936,33 @@ function buildToolTray(){
     b.onclick=()=>selectCat(lastCatByGroup[g.id]||g.cats[0]);
     tabs.appendChild(b);
   });
+  // search is a toggle (a magnifier), not a permanent input row. When open it
+  // takes the sub-tabs' place, so it never adds a wrapping row.
+  const canSearch = game.tool!=='shovel' && game.tool!=='select';
+  if (canSearch){
+    const sb=document.createElement('button');
+    sb.className='tab tab-search'+(game.searchOpen?' sel':'');
+    sb.textContent='\u{1F50D}'; sb.title=game.searchOpen?'Close search':'Search the open category';
+    sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
+      buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
+    tabs.appendChild(sb);
+  }
   const div=document.createElement('span'); div.className='tab-div'; tabs.appendChild(div);
-  // tier 2: the active group's category sub-tabs
-  const groupCats=TRAY_GROUPS.find(g=>g.id===activeGroup).cats;
-  TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
-    const b=document.createElement('button');
-    b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
-    b.onclick=()=>selectCat(c.id);
-    tabs.appendChild(b);
-  });
-  if (game.tool!=='shovel' && game.tool!=='select'){
+  if (canSearch && game.searchOpen){
     const si=document.createElement('input'); // search within the open category
-    si.id='traySearch'; si.type='search'; si.placeholder='search…';
+    si.id='traySearch'; si.type='search'; si.placeholder='search plants…';
     si.value=game.traySearch||'';
     si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
     tabs.appendChild(si);
+  } else {
+    // tier 2: the active group's category sub-tabs
+    const groupCats=TRAY_GROUPS.find(g=>g.id===activeGroup).cats;
+    TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
+      const b=document.createElement('button');
+      b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
+      b.onclick=()=>selectCat(c.id);
+      tabs.appendChild(b);
+    });
   }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
@@ -5471,6 +5483,22 @@ function applySheetState(){
   hb.classList.toggle('collapsed', !!game.sheetCollapsed);
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=game.sheetCollapsed?'▴':'▾';
+  drawSheetSwatch();
+}
+/* a mini render of the armed plant in the collapse handle, so you always see
+   what you're about to paint. Materials/tools show no swatch (the label says it). */
+function drawSheetSwatch(){
+  const c=document.getElementById('sheetSwatch'); if (!c) return;
+  const P=PLANTS[game.tool];
+  if (!P){ c.style.display='none'; return; }
+  c.style.display='';
+  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  const R=plantDef(game.tool,game.toolVar);
+  const sc=Math.min(0.5, 18/(R.h||40));
+  g.save(); g.scale(sc,sc);
+  const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
+  drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,game.tool,1,iconSeason,tileSeed(3,7),0,game.toolVar||undefined,1);
+  g.restore();
 }
 let lastHint='', lastAct='';
 function setHint(txt){
