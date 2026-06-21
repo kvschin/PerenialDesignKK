@@ -706,31 +706,99 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'shrub'){
-    // mounded clump of foliage dots
+    const L=P.look||{}, habit=L.habit||'mound', fol=S.fol||'#6f8f5a';
+    const leafDot=(px,py,w,h,a,col)=>{
+      ctx.fillStyle=shade(col||fol,(rnd()-0.5)*26);
+      ctx.beginPath(); ctx.ellipse(px,py,w,h,a,0,7); ctx.fill();
+    };
     if (S.fol){
-      ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle=shade(S.fol,-25);
-      ctx.beginPath(); ctx.ellipse(sway, -H*0.40, 18*(0.5+0.5*growth), H*0.24, 0, 0, 7); ctx.fill();
+      ctx.save(); ctx.globalAlpha=0.20; ctx.fillStyle=shade(fol,-25);
+      const sw=L.shadowW||18, sh=L.shadowH||H*0.24, sy=L.shadowY||-H*0.40;
+      ctx.beginPath(); ctx.ellipse(sway, sy, sw*(0.5+0.5*growth), sh, 0, 0, 7); ctx.fill();
       ctx.restore();
     }
-    const n = stemFor(26);
-    for (let i=0;i<n;i++){
-      const a=rnd()*Math.PI*2, r=rnd();
-      const px=Math.cos(a)*16*r*(0.5+0.5*growth)+sway*2, py=-H*0.55*(0.25+rnd()*0.75);
-      ctx.fillStyle = shade(S.fol,(rnd()-0.5)*30);
-      ctx.beginPath(); ctx.ellipse(px,py,3.4,2.6,a,0,7); ctx.fill();
+    if (S.fol && habit==='threadleaf'){
+      const stems=stemFor(L.stems||22);
+      ctx.strokeStyle=fol; ctx.lineWidth=L.leafW||0.82; ctx.lineCap='round';
+      for(let i=0;i<stems;i++){
+        const a=(i/(stems-1)-0.5)*(L.spread||2.2)+(rnd()-0.5)*0.18;
+        const len=H*(0.45+rnd()*0.45), bx=(rnd()-0.5)*7;
+        const tx=Math.sin(a)*len*0.58+sway*len*0.035, ty=-len;
+        ctx.beginPath(); ctx.moveTo(bx,0);
+        ctx.quadraticCurveTo(bx+Math.sin(a)*len*0.18,-len*0.48,tx,ty); ctx.stroke();
+        if (i%3===0){
+          ctx.strokeStyle=shade(fol,14);
+          ctx.beginPath(); ctx.moveTo(tx,ty);
+          ctx.lineTo(tx+(rnd()-0.5)*5,ty-3-rnd()*5); ctx.stroke();
+          ctx.strokeStyle=fol;
+        }
+      }
+      ctx.lineCap='butt';
+    } else if (S.fol && habit==='broadamsonia'){
+      const stems=stemFor(L.stems||12);
+      for(let i=0;i<stems;i++){
+        const ox=(rnd()-0.5)*13, len=H*(0.55+rnd()*0.35), tx=ox+sway*1.6;
+        ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=1.1;
+        ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.52,tx,-len); ctx.stroke();
+        const leaves=L.leaves||5;
+        for(let j=0;j<leaves;j++){
+          const f=(j+1)/(leaves+1), side=j%2?-1:1, px=ox+(tx-ox)*f*0.7, py=-len*(0.18+f*0.64);
+          leafDot(px+side*(3+rnd()*2),py,4.2,2.6,side*0.35,fol);
+        }
+      }
+    } else if (S.fol && habit==='baptisia'){
+      const stems=stemFor(L.stems||11), baseW=L.baseW||18;
+      for(let i=0;i<stems;i++){
+        const ox=(i/(stems-1)-0.5)*baseW+(rnd()-0.5)*2.5, len=H*(0.68+rnd()*0.23);
+        const tx=ox*0.45+(rnd()-0.5)*6+sway*1.5;
+        ctx.strokeStyle=P.stem||shade(fol,-25); ctx.lineWidth=1.8;
+        ctx.beginPath(); ctx.moveTo(ox,2); ctx.quadraticCurveTo(ox*0.7,-len*0.42,tx,-len); ctx.stroke();
+        const whorls=L.leafWhorls||4;
+        for(let w=0;w<whorls;w++){
+          const f=0.42+w/(whorls+0.2)*0.50, px=ox+(tx-ox)*f, py=-len*f;
+          for(let l=0;l<3;l++){
+            const aa=(-0.9+l*0.9)+(rnd()-0.5)*0.18, side=Math.sin(aa);
+            leafDot(px+side*(4.6+rnd()*1.6),py-Math.cos(aa)*2,3.8,2.5,aa,fol);
+          }
+        }
+      }
+    } else {
+      const n = stemFor(L.leaves||26);
+      const wide=L.foliageW||16, high=L.foliageH||0.55, leafW=L.leafW||3.4, leafH=L.leafH||2.6;
+      for (let i=0;i<n;i++){
+        const a=rnd()*Math.PI*2, r=rnd();
+        const px=Math.cos(a)*wide*r*(0.5+0.5*growth)+sway*2;
+        const py=-H*high*(0.25+rnd()*0.75);
+        leafDot(px,py,leafW,leafH,a,fol);
+      }
     }
     if (mature && ((blooming&&S.bloom)||S.seed)){
       const col=(blooming?S.bloom:null)||S.seed;
-      const m0=stemFor(7), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
+      const m0=stemFor(L.flowerStems||7), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
       for (let i=0;i<m;i++){
-        const ox=(rnd()-0.5)*20, len=H*(0.85+rnd()*0.2);
-        ctx.strokeStyle=shade(S.fol,-25); ctx.lineWidth=1.1;
+        const ox=(rnd()-0.5)*(L.flowerW||20), len=H*((L.flowerLen||0.85)+rnd()*(L.flowerJitter||0.2));
+        ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=habit==='baptisia'?1.5:1.1;
         ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         ctx.fillStyle=col;
-        if ((P.group==='baptisia'||key==='baptisia'||key==='creamindigo')&&season==='Spring'){ for(let s=0;s<4;s++){
-          ctx.beginPath(); ctx.ellipse(ox+sway*2,-len+s*3.4,1.9,2.4,0,0,7); ctx.fill(); } }
-        else if ((P.group==='amsonia'||key==='amsonia')&&season==='Spring'){ for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
-          ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); } }
+        if (habit==='baptisia'&&season==='Spring'){
+          const pods=S.seed&&!blooming, count=pods?3:(L.raceme||6);
+          for(let s=0;s<count;s++){
+            ctx.beginPath();
+            ctx.ellipse(ox+sway*2+(s%2?-1.8:1.8),-len+s*3.3,pods?2.1:2.0,pods?3.1:2.4,0,0,7); ctx.fill();
+          }
+        }
+        else if ((habit==='threadleaf'||habit==='broadamsonia')&&season==='Spring'){
+          for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
+            ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); }
+        }
+        else if (habit==='asterdome'||habit==='asterupright'||habit==='asterclean'){
+          const heads=habit==='asterdome'?3:(habit==='asterclean'?2:1), rad=habit==='asterupright'?3.0:2.4;
+          for(let h=0;h<heads;h++){
+            const hx=ox+sway*2+(h-(heads-1)/2)*4, hy=-len+rnd()*3;
+            ctx.beginPath(); ctx.arc(hx,hy,rad,0,7); ctx.fill();
+            if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(hx,hy,rad*0.35,0,7); ctx.fill(); ctx.fillStyle=col; }
+          }
+        }
         else { ctx.beginPath(); ctx.arc(ox+sway*2,-len,key==='mountainmint'?3.4:2.6,0,7); ctx.fill(); }
       }
     }
