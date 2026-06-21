@@ -154,8 +154,18 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     fence/gate tiles visually connect.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
-    only those tiles/entities draw. Ground tiles (grass / walkway / laid path
-    / bed / flagstone doorstep) back-to-front, a single depth-sorted entity
+    only those tiles/entities draw. The ground (grass / walkway / laid path /
+    bed / flagstone doorstep) was the whole frame cost — 961 tiles of
+    fills/strokes/blades redrawn every frame — so it's now **cached**:
+    `paintGround` renders it once to an offscreen `groundCanvas`, blitted each
+    frame, rebuilt only when the cache key changes (season / rot / zoom / cam /
+    canvas size / landscape-layer vis + `groundDataSig()`, a cheap signature of
+    the sparse terrain/elevation/house data). Empty-garden ground dropped
+    ~12ms → ~0.35ms. Water ripples freeze only while the view is perfectly
+    still (no `t` in the key); any pan/edit resumes them. A perf **debug HUD**
+    (`dbg`, toggled by backtick or `?debug`, zero-cost off) shows FPS + a
+    ground/plants frame-time breakdown. Ground drawn back-to-front, a single
+    depth-sorted entity
     pass for the cottage + plants + critters (`houseDrawDepth()` anchors the
     cottage at the doorstep/front center, not the far corner, so nearby
     players/plants draw in front of large houses), planting

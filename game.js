@@ -2251,6 +2251,44 @@ function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
 let snowFlakes = [];
+/* The ground (961 tiles, each a pile of fills/strokes/blades) is identical
+   every frame unless the camera, season, window, or terrain changes — yet it
+   was the entire frame cost (~12ms). So render it once to an offscreen layer
+   and blit it; rebuild only when the cache key changes. groundDataSig captures
+   the terrain/elevation/house data cheaply (it's sparse — usually empty), and
+   camera/season/size go straight in the key. Trade-off: water ripples freeze
+   while the view is perfectly still; any pan or edit resumes them. */
+let groundCanvas=null, groundCtx=null, groundKey='';
+function groundDataSig(){
+  let s='';
+  for (const k in game.terrain){ const o=game.terrain[k]; if (o&&!o.removed) s+=k+o.k+(o.c||'')+';'; }
+  for (const k in game.elevation){ const o=game.elevation[k]; if (o&&!o.removed) s+='e'+k+o.h+';'; }
+  const hs=game.houses||[]; for (let i=0;i<hs.length;i++){ const h=hs[i]; s+='H'+h.x+','+h.y+','+h.w+','+h.h+';'; }
+  return s;
+}
+function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
+  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+    const [sx,sy]=screenOf(x,y,W,H);
+    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+    const showLand=layerShown('landscape');
+    const terrObj=showLand?terrainAt(x,y):null, terr=terrObj&&terrObj.k;
+    const path=terr==='path';
+    const water=terr==='water';
+    const rs=mulberry(tileSeed(x,y));
+    let col;
+    if (water) col = waterFill(terrObj,amb.snow);
+    else if (path) col = pathFill(terrObj,amb.snow);
+    else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
+    else if (terr==='bed') col = shade(bedFill(terrObj,amb),(rs()-0.5)*12);
+    else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
+    drawElevationSides(ctx,W,H,x,y,col);
+    if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb,t);
+    else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
+    drawElevationRim(ctx,sx,sy,elevationAt(x,y));
+    if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
+      ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
+  }
+}
 function render(t){
   const W=innerWidth/ZOOM, H=innerHeight/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
@@ -2298,28 +2336,21 @@ function render(t){
     visibleLights.push({l,x,y});
   }
 
-  // ground tiles back-to-front
-  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
-    const [sx,sy]=screenOf(x,y,W,H);
-    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    const showLand=layerShown('landscape');           // hide player-laid terrain + doorstep with the layer
-    const terrObj=showLand?terrainAt(x,y):null, terr=terrObj&&terrObj.k;
-    const path=terr==='path';
-    const water=terr==='water';
-    const rs=mulberry(tileSeed(x,y));
-    let col;
-    if (water) col = waterFill(terrObj,amb.snow);
-    else if (path) col = pathFill(terrObj,amb.snow);
-    else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
-    else if (terr==='bed') col = shade(bedFill(terrObj,amb),(rs()-0.5)*12);
-    else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-    drawElevationSides(cx,W,H,x,y,col);
-    if (water) drawWaterTexture(cx,sx,sy,x,y,terrObj,amb,t);
-    else drawGroundTexture(cx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
-    drawElevationRim(cx,sx,sy,elevationAt(x,y));
-    if (amb.snow && !path && !water && rs()>0.4){ cx.fillStyle='rgba(238,242,248,0.7)';
-      cx.beginPath(); cx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); cx.fill(); }
+  const tG0=dbg.on?performance.now():0;
+  // ground tiles: static per camera/terrain/season, so render once to an
+  // offscreen layer and blit it; rebuild only when the cache key changes.
+  const gkey=cal.season+'|'+game.rot+'|'+ZOOM+'|'+cam.x+'|'+cam.y+'|'+
+    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataSig();
+  if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
+  if (groundCanvas.width!==cnv.width||groundCanvas.height!==cnv.height){
+    groundCanvas.width=cnv.width; groundCanvas.height=cnv.height; groundKey=''; }
+  if (gkey!==groundKey){
+    groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
+    groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
+    paintGround(groundCtx,x0,x1,y0,y1,W,H,amb,t);
+    groundKey=gkey;
   }
+  cx.save(); cx.setTransform(1,0,0,1,0,0); cx.drawImage(groundCanvas,0,0); cx.restore();
   if (layerShown('woody')) visibleShrubs.forEach(sh=>drawShrubFootprint(cx,W,H,sh,'base'));
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
   shadeTrees.forEach(sh=>{
@@ -2423,6 +2454,8 @@ function render(t){
 
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
+  if (dbg.on) dbg.accGround+=performance.now()-tG0;
+  const tE0=dbg.on?performance.now():0;
   const ents=[];
   if (layerShown('landscape')) for (const k in game.fences){
     const f=game.fences[k]; if (f.removed) continue;
@@ -2485,6 +2518,7 @@ function render(t){
       cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31); }});
   }
   ents.sort((a,b)=>a.depth-b.depth).forEach(e=>e.draw());
+  if (dbg.on){ dbg.accEnts+=performance.now()-tE0; dbg.ents=ents.length; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
 
   // planting pulses: an expanding diamond so a tap visibly took
   game.fx=game.fx.filter(f=>t-f.t0<550);
@@ -3014,6 +3048,7 @@ const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
+  if (e.key==='`'){ toggleDebug(); return; }
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
   const overlay=['gardenMenu','exportScreen','regionScreen','planScreen']
@@ -6125,6 +6160,36 @@ function menuRender(t){
 
 /* ---------- main loop ---------- */
 let prev=performance.now(), keyCooldown=0;
+/* ---- debug HUD: perf diagnostics, off by default ----
+   Toggle with the backtick key (`) or add ?debug to the URL. Costs nothing
+   when off (every measurement is guarded by dbg.on). Shows FPS + a per-frame
+   time breakdown — ground pass vs entity/plant pass vs the rest — so we can
+   see where the frame actually goes, plus entity/tile counts and the canvas
+   pixel budget. Works identically on desktop and tablet for side-by-side. */
+const dbg={on:false, el:null, fps:0, frames:0, fpsAt:0, n:0,
+  accTotal:0, accGround:0, accEnts:0, ents:0, tiles:0, tG0:0, tE0:0};
+function toggleDebug(){
+  dbg.on=!dbg.on;
+  if (dbg.on && !dbg.el){
+    dbg.el=document.createElement('div'); dbg.el.id='debugHud';
+    dbg.el.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:99;'+
+      'background:rgba(10,7,5,.82);color:#cfe3c2;font:11px/1.5 ui-monospace,Menlo,monospace;'+
+      'padding:6px 11px;border-radius:6px;white-space:pre;pointer-events:none;letter-spacing:.02em';
+    document.body.appendChild(dbg.el);
+  }
+  if (dbg.el) dbg.el.style.display=dbg.on?'block':'none';
+  dbg.frames=0; dbg.fpsAt=performance.now(); dbg.n=dbg.accTotal=dbg.accGround=dbg.accEnts=0;
+}
+function updateDebugHud(){
+  if (!dbg.el) return;
+  const c=document.getElementById('gameCanvas'), n=dbg.n||1, avg=ms=>(ms/n).toFixed(1);
+  const mp=c?(c.width*c.height/1e6).toFixed(2):'?';
+  dbg.el.textContent=
+    `FPS ${(dbg.fps||0).toFixed(0)}    frame ${avg(dbg.accTotal)}ms\n`+
+    `ground ${avg(dbg.accGround)}ms   plants ${avg(dbg.accEnts)}ms\n`+
+    `entities ${dbg.ents}   tiles ${dbg.tiles}\n`+
+    `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`;
+}
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
@@ -6141,7 +6206,12 @@ function loop(t){
       }
       followPath(); stepMove(dt);
     }
-    render(t); updateHUD();
+    if (dbg.on){
+      const r0=performance.now(); render(t); dbg.accTotal+=performance.now()-r0; dbg.n++; dbg.frames++;
+      if (t-dbg.fpsAt>=500){ dbg.fps=dbg.frames*1000/(t-dbg.fpsAt); updateDebugHud();
+        dbg.frames=0; dbg.fpsAt=t; dbg.n=dbg.accTotal=dbg.accGround=dbg.accEnts=0; }
+    } else render(t);
+    updateHUD();
   } else menuRender(t);
   requestAnimationFrame(loop);
 }
@@ -6154,5 +6224,6 @@ function loop(t){
   updateRegionBtn();
   advanceMenuSeason();
   refreshMenuCards();
+  if (location.search.includes('debug')) toggleDebug();
   requestAnimationFrame(loop);
 })();
