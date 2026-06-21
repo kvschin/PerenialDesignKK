@@ -169,10 +169,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .time-actions{display:flex;flex-direction:column;gap:5px;min-width:82px}
 .day-bar{width:70px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
 .day-bar i{display:block;height:100%;background:var(--bronze);width:0%}
+.season-dial .daynight{align-self:center;width:34px;height:34px;flex-shrink:0;border-radius:8px;
+  background:rgba(201,127,63,.16);border:1.5px solid rgba(239,230,211,.22);color:#f0b765;
+  font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.season-dial .daynight:hover{background:rgba(201,127,63,.28)}
+.season-dial .daynight.on{background:rgba(120,140,180,.28);border-color:rgba(180,200,230,.4);color:#dbe4f5}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .pill{pointer-events:auto;background:rgba(25,18,15,.82);border:1.5px solid rgba(239,230,211,.25);
   border-radius:4px;padding:7px 12px;font-size:12px;color:var(--seedhead)}
-.pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:underline}
+.pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:none;cursor:pointer;border-radius:3px;padding:2px 6px}
+.pill button:hover{background:rgba(201,127,63,.2)}
 .pill.iconbar{display:flex;gap:2px;padding:4px 6px}
 .pill.iconbar button{display:flex;align-items:center;gap:4px;text-decoration:none;
   font-size:14px;padding:5px 8px;border-radius:3px;color:var(--seedhead)}
@@ -181,6 +187,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .pill.iconbar .lbl{font-size:11px;color:#cdbfa9}
 .pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
 .pill.iconbar .ic-emoji{display:none;font-size:15px}
+.pill.iconbar .bar-div{width:1px;align-self:stretch;background:rgba(239,230,211,.2);margin:2px 4px}
 #btnSleep,#btnPause{background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
 #btnSleep:hover,#btnPause:hover{border-color:var(--bronze);background:rgba(201,127,63,.13)}
@@ -218,12 +225,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .layer-row.off .layer-name{text-decoration:line-through}
 #playerList{font-size:12px;line-height:1.6}
 .hud-bottom{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
+#sheetHandle{display:none} /* the collapse handle is a phone-only affordance */
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
   border:1.5px solid rgba(239,230,211,.25);border-bottom:none;border-radius:6px 6px 0 0;
   padding:5px 8px 0;max-width:96vw;overflow-x:auto;margin-bottom:-8px}
 #trayTabs .tab{background:none;border:none;color:#cdbfa9;font-size:11px;font-weight:600;
   letter-spacing:.05em;padding:6px 10px 8px;border-radius:3px 3px 0 0;white-space:nowrap}
 #trayTabs .tab.sel{background:rgba(201,127,63,.25);color:var(--seedhead)}
+#trayTabs .tab.grp{border-radius:5px;color:var(--seedhead);opacity:.55;margin-bottom:4px}
+#trayTabs .tab.grp.sel{background:rgba(201,127,63,.42);opacity:1}
+#trayTabs .tab-div{width:1px;align-self:stretch;background:rgba(239,230,211,.2);margin:4px 6px 8px;flex-shrink:0}
 #traySearch{margin-left:auto;width:88px;align-self:center;background:rgba(0,0,0,.3);
   border:1px solid rgba(239,230,211,.25);border-radius:3px;color:var(--seedhead);
   font-family:inherit;font-size:11px;padding:4px 7px;margin-right:4px;margin-bottom:4px}
@@ -231,12 +242,21 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #toolTray{pointer-events:auto;display:flex;gap:6px;background:rgba(25,18,15,.85);border:1.5px solid rgba(239,230,211,.25);
   border-radius:0 0 6px 6px;padding:8px;max-width:96vw;overflow-x:auto;min-height:78px;align-items:center}
 .tray-empty{font-size:12px;color:#a99a82;padding:4px 10px;white-space:nowrap}
-.tray-sep{writing-mode:vertical-rl;font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--bronze);display:flex;align-items:center;padding:2px 1px;
+.tray-sep{font-size:8px;letter-spacing:.1em;text-transform:uppercase;text-align:center;line-height:1.15;
+  color:var(--bronze);display:flex;align-items:center;padding:2px 6px;max-width:54px;
   border-left:1px solid rgba(239,230,211,.15);margin-left:4px;flex-shrink:0}
 #cvRow{pointer-events:auto;background:rgba(25,18,15,.85);border:1.5px solid rgba(239,230,211,.25);
   border-radius:6px;padding:6px 8px;max-width:96vw;overflow-x:auto;flex-wrap:nowrap;margin-bottom:0}
 #cvRow .chip{font-size:12px;padding:6px 11px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+#brushBar{pointer-events:auto;display:flex;align-items:center;gap:8px;background:rgba(25,18,15,.85);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:6px;padding:5px 9px;max-width:96vw;margin-bottom:0}
+#brushBar .brush-lab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze)}
+.seg{display:inline-flex;border:1px solid rgba(239,230,211,.22);border-radius:6px;overflow:hidden;flex-shrink:0}
+.seg .seg-opt{display:flex;align-items:center;gap:5px;background:none;border:none;color:#cdbfa9;
+  font-size:11px;font-weight:600;letter-spacing:.03em;padding:5px 9px;white-space:nowrap}
+.seg .seg-opt+.seg-opt{border-left:1px solid rgba(239,230,211,.18)}
+.seg .seg-opt.on{background:rgba(201,127,63,.3);color:var(--seedhead)}
+.seg .seg-opt canvas{display:block;height:16px;width:auto}
 .chip-label{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);
   align-self:center;padding:0 4px 0 8px;white-space:nowrap}
 .chip-swatch{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.35);flex-shrink:0}
@@ -250,6 +270,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .tool.danger.sel{border-color:#e08a7a;background:rgba(126,42,35,.45)}
 .tool.danger.sel span{color:#ffd9d1}
 .tool.disabled{opacity:.38;pointer-events:none}
+.tool.has-sub::after{content:'\203A';position:absolute;top:0;right:5px;font-size:15px;line-height:1;color:var(--bronze);pointer-events:none}
+.tool.tool-back{background:rgba(201,127,63,.12);border-color:rgba(201,127,63,.3)}
+.tool.tool-back span{color:var(--seedhead)}
 #actionHint{pointer-events:none;font-size:12px;color:rgba(239,230,211,.85);background:rgba(25,18,15,.6);padding:4px 12px;border-radius:3px}
 #btnAct{pointer-events:auto;background:var(--bronze);border:none;color:var(--ink);
   font-weight:700;font-size:15px;padding:12px 32px;border-radius:26px;
@@ -265,6 +288,13 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #plantCard h3{font-family:'Fraunces',serif;font-size:19px}
 #plantCard .latin{font-style:italic;color:var(--bronze);font-size:12px;margin-bottom:6px}
 #plantCard p{font-size:12.5px;color:#cdbfa9;line-height:1.5}
+/* glassy chrome: a soft backdrop blur lets the garden read through the dark
+   panels so the UI feels lighter over the world. Kept as one rule — if
+   backdrop-filter ever costs frames on a machine, delete these two lines. */
+.season-dial,.pill,#canvasTools,#trayTabs,#toolTray,#cvRow,#brushBar{
+  background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.tool-popover,#plantCard{
+  background:rgba(24,17,13,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .pause-panel{max-width:360px}
 #pauseScreen,#confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
 .pause-actions{display:flex;flex-direction:column;gap:9px}
@@ -313,13 +343,13 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .menu-action small{font-size:12.5px}
   .menu-foot{font-size:10.5px}
   .creator-grid{flex-direction:column;align-items:center}
-  .season-dial{padding:8px 10px;gap:7px;flex-direction:column;align-items:stretch;min-width:122px}
+  .season-dial{padding:7px 9px;gap:9px;align-items:center}
   .season-readout{text-align:left;min-width:0}
   .season-name{font-size:16px;line-height:1.05}
-  .season-day{font-size:10px;margin-top:4px}
-  .day-bar{width:100%;height:1px;border-radius:0;background:rgba(239,230,211,.42)}
-  .day-bar i{display:none}
-  .time-actions{min-width:0}
+  .season-day{font-size:10px;margin-top:3px}
+  .day-bar{width:62px;height:3px;border-radius:2px;background:rgba(255,255,255,.16)}
+  .day-bar i{display:block}
+  .time-actions{min-width:0;gap:4px}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
   /* ten tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
@@ -337,6 +367,21 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   #plantCard h3{font-size:15px}
   #plantCard .latin{font-size:11px;margin-bottom:4px}
   #plantCard p{font-size:11px;line-height:1.4}
+  /* collapsible palette: a tap on the handle folds the catalog away so the
+     garden gets the room while you paint; the brush bar + act button stay. */
+  #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;
+    background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border:1.5px solid rgba(239,230,211,.25);border-radius:8px;
+    padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw}
+  #sheetHandle .grip-bar{width:26px;height:4px;border-radius:3px;background:rgba(239,230,211,.42);flex-shrink:0}
+  #sheetHandle .sheet-ctx{color:#cdbfa9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48vw}
+  #sheetHandle .chev{color:var(--bronze);font-size:10px}
+  /* fatter tap targets on touch screens */
+  .seg .seg-opt{padding:8px 11px}
+  #cvRow .chip{padding:8px 13px}
+  .hud-bottom.collapsed #cvRow,
+  .hud-bottom.collapsed #trayTabs,
+  .hud-bottom.collapsed #toolTray{display:none !important}
 }
 @media(min-width:1600px) and (min-height:800px){
   #trayTabs{padding:7px 10px 0;gap:3px}

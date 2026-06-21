@@ -3016,7 +3016,7 @@ addEventListener('keydown',e=>{
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
-  const overlay=['exportScreen','regionScreen','planScreen']
+  const overlay=['gardenMenu','exportScreen','regionScreen','planScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){ overlay.classList.add('hidden'); }
@@ -3289,6 +3289,7 @@ function doRedo(){
 }
 function updateUndoBtn(){
   document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',!undoStack.length));
+  document.querySelectorAll('#btnRedo,[data-action="redo"]').forEach(b=>b.classList.toggle('disabled',!redoStack.length));
   refreshCanvasTools();
 }
 
@@ -4376,6 +4377,14 @@ const TRAY_CATS=[
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'house',    label:'House',            tools:['house']},
 ];
+// two-tier tab grouping: a top-level Plants / Build toggle decides which set
+// of category sub-tabs shows, so the bar never spills all twelve at once.
+const TRAY_GROUPS=[
+  {id:'plants', label:'Plants', cats:['grasses','sedges','sunper','shadeper','bulbs','waterplants','shrubs','trees']},
+  {id:'build',  label:'Build',  cats:['landscape','structures','lighting','house']},
+];
+function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
+let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
 // which garden layer a planted tile belongs to (perennials vs woody)
 function plantLayerOf(p){ const P=p&&PLANTS[p.s];
   return (P && (P.type==='shrub'||P.type==='tree')) ? 'woody' : 'perennials'; }
@@ -4529,6 +4538,7 @@ function armPlantToolFromRail(openMenu){
   const nextMenu=openMenu ? (game.toolMenu==='plant'?null:'plant') : null;
   const choice=visiblePlantChoice();
   game.fillMode=false;                  // plain planting, not bucket-fill
+  game.drill=null;                      // returning to Plant starts at the grid
   if (choice){
     game.tool=choice[0]; game.toolVar=choice[1];
     game.trayCat=PLANTS[choice[0]] ? plantCategoryFor(choice[0]) : 'landscape';
@@ -4753,13 +4763,11 @@ function buildCanvasTools(){
   add('Select','select',{active:game.tool==='select',
     title:'Drag a box to select tiles — then move, duplicate, rotate, or erase them',
     onClick:()=>{ setTool('select'); buildToolTray(); }});
-  add('Plant','brush',{active:(brushActive&&!game.fillMode)||game.toolMenu==='plant',
-    title:'Choose draw or drift planting, then pick plants from the catalog',
-    onClick:()=>armPlantToolFromRail(true)});
-  if (game.toolMenu==='plant') addPlantToolMenu(rail);
+  add('Plant','brush',{active:brushActive&&!game.fillMode,
+    title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
+    onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
     onClick:()=>{ setTool('shovel'); buildToolTray(); }});
-  sep();
   add('Fill','fill',{active:fillActive(),
     title:'Bucket fill: tap to flood a connected area of one material — pick what to fill with from the catalog',
     onClick:()=>armFillTool()});
@@ -4767,10 +4775,7 @@ function buildCanvasTools(){
     title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
     onClick:()=>{ setTool('pick'); buildToolTray(); }});
   sep();
-  add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:()=>doUndo()});
-  add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:()=>doRedo()});
   add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
-  sep();
   add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
     title:'Show or hide garden layers and overlays',
     onClick:()=>toggleLayerMenu()});
@@ -4813,7 +4818,7 @@ function promptRevealLayer(layer,x,y){
 }
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
-  return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade || game.layerVis.night || LAYER_DEFS.some(([k])=>!layerShown(k));
+  return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
   if (!layer || layerEditable(layer)) return false;
@@ -4859,7 +4864,7 @@ function addLayerMenu(rail){
     pop.appendChild(b);
   };
   section('Visible');
-  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) && !game.layerVis.shade && !game.layerVis.night;
+  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) && !game.layerVis.shade;
   const allRow=document.createElement('button');
   allRow.className='layer-row'+(allVisible()?' sel':'');
   allRow.title='Show the normal full garden';
@@ -4868,7 +4873,7 @@ function addLayerMenu(rail){
   allRow.append(allEye,allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
     LAYER_DEFS.forEach(([key])=>{ game.layerVis[key]=true; });
-    game.layerVis.shade=false; game.layerVis.night=false; refreshCanvasTools(); toast('All layers shown.'); };
+    game.layerVis.shade=false; refreshCanvasTools(); toast('All layers shown.'); };
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
     ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
@@ -4879,18 +4884,30 @@ function addLayerMenu(rail){
   }
   section('Overlays');
   row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
-  row(()=>!!game.layerVis.night, v=>{ game.layerVis.night=v; }, 'Dusk / Night');
   rail.appendChild(pop);
 }
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
-  TRAY_CATS.forEach(c=>{
+  const activeGroup=trayGroupOf(game.trayCat);
+  lastCatByGroup[activeGroup]=game.trayCat;
+  const selectCat=(id)=>{ game.trayCat=id; game.toolMenu=null; game.drill=null;
+    if (game.tool==='shovel'||game.tool==='select'||game.tool==='pick') setTool('hand');
+    else refreshCanvasTools();
+    buildToolTray(); };
+  // tier 1: Plants / Build
+  TRAY_GROUPS.forEach(g=>{
+    const b=document.createElement('button');
+    b.className='tab grp'+(activeGroup===g.id?' sel':''); b.textContent=g.label;
+    b.onclick=()=>selectCat(lastCatByGroup[g.id]||g.cats[0]);
+    tabs.appendChild(b);
+  });
+  const div=document.createElement('span'); div.className='tab-div'; tabs.appendChild(div);
+  // tier 2: the active group's category sub-tabs
+  const groupCats=TRAY_GROUPS.find(g=>g.id===activeGroup).cats;
+  TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
     const b=document.createElement('button');
     b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
-    b.onclick=()=>{ game.trayCat=c.id; game.toolMenu=null;
-      if (game.tool==='shovel'||game.tool==='select'||game.tool==='pick') setTool('hand');
-      else refreshCanvasTools();
-      buildToolTray(); };
+    b.onclick=()=>selectCat(c.id);
     tabs.appendChild(b);
   });
   if (game.tool!=='shovel' && game.tool!=='select'){
@@ -4924,6 +4941,19 @@ function buildToolTray(){
       sp.textContent='Nothing fits the region filter here.';
       tray.appendChild(sp);
     }
+    // drilled into a species' sub-species? show those (+ Back) instead of the grid.
+    if (game.drill && !PLANTS[game.drill]) game.drill=null;
+    if (game.drill){
+      const D=PLANTS[game.drill];
+      const members=D.group ? keys.filter(k=>PLANTS[k].group===D.group)
+                            : (keys.includes(game.drill)?[game.drill]:[]);
+      if (members.length){
+        renderDrillIn(tray, game.drill, members);
+        renderCvRow(); applyTraySearch(); updateCanvasCursor();
+        return;
+      }
+      game.drill=null; // the drilled species fell outside this filter/category
+    }
     const grouped={};
     const designType=activeDesignType();
     let sections;
@@ -4952,8 +4982,9 @@ function buildToolTray(){
         PLANTS[game.tool] && PLANTS[game.tool].group===P.group;
       const rep = activeGroup ? game.tool : k;
       const R=PLANTS[rep];
+      const drillable=!!(P.group || P.cv);
       const b=document.createElement('button');
-      b.className='tool'+((P.group ? activeGroup : game.tool===k)?' sel':'');
+      b.className='tool'+((P.group ? activeGroup : game.tool===k)?' sel':'')+(drillable?' has-sub':'');
       b.dataset.k=k; if (P.group) b.dataset.group=P.group;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
@@ -4965,10 +4996,10 @@ function buildToolTray(){
                           : P.name.split(' ').slice(0,2).join(' ');
       sp.textContent=label;
       b.append(c,sp);
-      b.onclick=()=>{ setTool(rep,null);
-        const D=PLANTS[game.tool];
-        toast(P.group ? `${label} — pick a species above`
-                      : `${D.name} — ${D.latin}${D.cv?' · cultivars above':''}`); };
+      b.onclick=()=>{
+        if (drillable){ game.drill=k; buildToolTray(); }   // open its sub-species
+        else { setTool(k,null); toast(`${P.name} — ${P.latin}`); }
+      };
       tray.appendChild(b);
       return true;
     };
@@ -5298,28 +5329,109 @@ function refreshTray(){
 /* variant chips: species inside a group, and/or cultivars of the
    selected species. A chip is a (species, cultivar|null) pair. */
 function renderCvRow(){
-  const row=document.getElementById('cvRow'), P=PLANTS[game.tool];
-  row.innerHTML='';
-  if (game.tool==='house'){ // house options live in the tray itself now
-    row.classList.add('hidden'); return;
-  }
-  if (!P || (!P.cv && !P.group)){ row.classList.add('hidden'); return; }
-  row.classList.remove('hidden');
-  const mk=(k,v,label,note)=>{
+  // Sub-species now drill into the catalog row (see renderDrillIn), so this
+  // legacy chip row stays hidden. The two calls below are the live hooks that
+  // ride along on every tool change: the brush bar and the collapsible sheet.
+  renderBrushBar();
+  applySheetState();
+  const row=document.getElementById('cvRow');
+  if (row){ row.innerHTML=''; row.classList.add('hidden'); }
+}
+/* drill-in catalog: a grouped species (or one with cultivars) expands here into
+   its members + cultivars, fronted by a Back chip — so sub-species never need a
+   separate always-on row. Each button arms (species, cultivar) and stays in the
+   drill so you can compare; Back returns to the species grid. */
+function renderDrillIn(tray, drillKey, members){
+  const back=document.createElement('button');
+  back.className='tool tool-back'; back.title='Back to the catalog';
+  const bc=document.createElement('canvas'); bc.width=48; bc.height=44;
+  const bx=bc.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+  bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
+  const bs=document.createElement('span'); bs.textContent='Back'; back.append(bc,bs);
+  back.onclick=()=>{ game.drill=null; buildToolTray(); };
+  tray.appendChild(back);
+  const mk=(k,v,label)=>{
+    const R=plantDef(k,v);
     const b=document.createElement('button');
-    b.className='chip'+((game.tool===k && (game.toolVar||null)===v)?' sel':'');
-    b.textContent=label; if (note) b.title=note;
-    b.onclick=()=>{ setTool(k,v);
-      const def=plantDef(k,v);
-      toast(v?`${def.name} — ${note}`:`${def.name} — ${def.latin}`); };
-    row.appendChild(b);
+    b.className='tool'+((game.tool===k && (game.toolVar||null)===(v||null))?' sel':'');
+    b.dataset.k=k; if (v) b.dataset.v=v;
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const sc=Math.min(0.62, 36/(R.h||40));
+    const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
+    const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+    drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
+    const sp=document.createElement('span'); sp.textContent=label; b.append(c,sp);
+    b.onclick=()=>{ setTool(k,v||null); buildToolTray();
+      const D=plantDef(k,v); toast(`${D.name} — ${D.latin}`); };
+    tray.appendChild(b);
   };
-  const members=P.group ? trayKeys().filter(k=>PLANTS[k].group===P.group) : [game.tool];
   members.forEach(k=>{
     const M=PLANTS[k];
-    mk(k, null, M.group ? (M.chip||M.name) : 'Straight species');
-    for (const v in (M.cv||{})) mk(k, v, M.cv[v].name, M.cv[v].note);
+    mk(k, null, M.group ? (M.chip||M.name.split(' ').slice(0,2).join(' '))
+                        : M.name.split(' ').slice(0,2).join(' '));
+    for (const v in (M.cv||{})) mk(k, v, M.cv[v].name);
   });
+}
+/* the Plant tool's brush styles, docked in the palette instead of a floating
+   flyout: two segmented toggles — pattern (Draw/Drift) and placement
+   (Grid/Free). Visible only when a plant species is the armed brush. */
+function renderBrushBar(){
+  const bar=document.getElementById('brushBar'); if (!bar) return;
+  bar.innerHTML='';
+  if (!PLANTS[game.tool] || game.tool==='shovel' || game.tool==='select'){
+    bar.classList.add('hidden'); return;
+  }
+  bar.classList.remove('hidden');
+  const seg=(opts)=>{
+    const s=document.createElement('div'); s.className='seg';
+    opts.forEach(o=>{
+      const b=document.createElement('button');
+      b.className='seg-opt'+(o.on?' on':''); b.title=o.title||o.label;
+      const c=document.createElement('canvas'); c.width=28; c.height=24;
+      o.draw(c.getContext('2d'));
+      const sp=document.createElement('span'); sp.textContent=o.label;
+      b.append(c,sp); b.onclick=o.click; s.appendChild(b);
+    });
+    return s;
+  };
+  const lab=document.createElement('span'); lab.className='brush-lab'; lab.textContent='Brush';
+  bar.append(lab,
+    seg([
+      {label:'Draw', on:!game.drift, title:'Paint one plant at a time',
+        draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
+      {label:'Drift',on:game.drift,  title:'Paint natural clusters',
+        draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
+    ]),
+    seg([
+      {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
+        draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
+      {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
+        draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
+    ]));
+}
+/* the collapsible palette (phones only): the handle folds the catalog away so
+   the garden gets the room while you paint; the brush bar + act button stay.
+   sheetContextLabel names whatever brush is armed, for the collapsed strip. */
+function sheetContextLabel(){
+  const P=PLANTS[game.tool];
+  if (P) return plantDef(game.tool,game.toolVar).name+(game.drift?' · drift':'');
+  if (game.tool==='path')  return pathColor(game.pathColor).label+' path';
+  if (game.tool==='water') return waterStyle(game.waterStyle).label+' water';
+  if (game.tool==='bed')   return bedStyle(game.bedStyle).label+' bed';
+  if (isElevationTool(game.tool)) return game.tool[0].toUpperCase()+game.tool.slice(1)+' grade';
+  if (game.tool==='fence') return 'Fence';
+  if (game.tool==='light') return 'Lighting';
+  if (game.tool==='house') return 'House';
+  if (game.tool==='shovel') return 'Erase';
+  if (game.tool==='select') return 'Select';
+  if (game.tool==='pick') return 'Eyedropper';
+  return 'Tap to choose a plant';
+}
+function applySheetState(){
+  const hb=document.querySelector('.hud-bottom'); if (!hb) return;
+  hb.classList.toggle('collapsed', !!game.sheetCollapsed);
+  const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
+  const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=game.sheetCollapsed?'▴':'▾';
 }
 let lastHint='', lastAct='';
 function setHint(txt){
@@ -5363,12 +5475,43 @@ function setActButton(){ // the big mobile do-it button, labeled by context
     document.getElementById('actionHint').classList.toggle('hidden',!!state||!ENABLE_ACTION_HINT);
   }
 }
+/* the time readout string. Design is a planner — real days are meaningless, so
+   it shows season + how far through it; Story keeps the life-sim calendar. */
+function clockMeta(){
+  const cal=calClock();
+  if (game.gameMode==='design'){
+    const sf=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
+    return `${cal.season} · ${sf<0.34?'early':sf<0.67?'mid':'late'} season`;
+  }
+  return `${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+}
+/* the top-bar day/night toggle: promoted out of the Layers overlay menu, it
+   flips game.layerVis.night (which relights the world and switches lighting on).
+   Shows the current state — sun by day, moon by night. */
+function updateDayNightBtn(){
+  const b=document.getElementById('btnDayNight'); if (!b) return;
+  const night=!!game.layerVis.night;
+  b.textContent=night?'☾':'☀';
+  b.classList.toggle('on',night);
+  b.title=night?'Switch to day':'Switch to night (preview lighting)';
+}
 function updateHUD(){
   const cal=calClock();
   document.getElementById('seasonName').textContent=cal.season;
   document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
   document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
-  document.getElementById('dayBarFill').style.width=(cal.frac*100)+'%';
+  // Design is a planner: real days are meaningless (a day is 20s), so show the
+  // season + how far through it instead of a Year/Day count. Story keeps the
+  // life-sim calendar. The internal clock is unchanged either way.
+  const design=game.gameMode==='design';
+  const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
+  const phase=seasonFrac<0.34?'Early season':seasonFrac<0.67?'Mid-season':'Late season';
+  document.getElementById('seasonPhase').textContent=phase;
+  document.getElementById('seasonClkCal').style.display=design?'none':'';
+  document.getElementById('seasonPhase').style.display=design?'':'none';
+  document.getElementById('dayBarFill').style.width=((design?seasonFrac:cal.frac)*100)+'%';
+  document.getElementById('btnSleep').textContent=design?'Advance':'End Day';
+  updateDayNightBtn();
   document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Pause';
   document.getElementById('btnPause').title=game.pausedAt?'Start day progression':'Pause day progression';
   setHint(game.tool==='house'
@@ -5435,7 +5578,7 @@ function nextSeasonName(){
 }
 function openPause(){
   const cal=calClock();
-  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  $('pauseMeta').textContent=clockMeta();
   $('pauseScreen').classList.remove('hidden');
 }
 function closePause(){
@@ -5465,14 +5608,14 @@ function confirmSkipSeason(){
   skipToAbsDay((Math.floor(d/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON);
   closeSeasonConfirm();
   const cal=calClock();
-  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  $('pauseMeta').textContent=clockMeta();
   toast(`${cal.season} begins.`);
 }
 function skipNextYear(){
   const d=absDay(), yearLen=DAYS_PER_SEASON*SEASONS.length;
   skipToAbsDay((Math.floor(d/yearLen)+1)*yearLen);
   const cal=calClock();
-  $('pauseMeta').textContent=`${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  $('pauseMeta').textContent=clockMeta();
   toast(`Year ${cal.year} begins.`);
 }
 
@@ -5852,12 +5995,14 @@ function quitToMenu(){
   document.body.classList.remove('design-mode');
   $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
   $('planScreen').classList.add('hidden'); $('pauseScreen').classList.add('hidden');
-  $('confirmSeasonScreen').classList.add('hidden');
+  $('gardenMenu').classList.add('hidden'); $('confirmSeasonScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   show('menuScreen');
 }
-$('btnMenu').onclick=quitToMenu;
+$('btnMenu').onclick=()=>$('gardenMenu').classList.remove('hidden');
+$('btnQuit').onclick=quitToMenu;
+$('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; } }
@@ -5868,6 +6013,9 @@ addEventListener('visibilitychange',()=>{
 addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
 $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
 $('btnSleep').onclick=doSleep;
+if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ game.layerVis.night=!game.layerVis.night;
+  updateDayNightBtn(); refreshCanvasTools();
+  toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
 $('btnPause').onclick=toggleClock;
 $('btnTimeMenu').onclick=openPause;
 $('btnPauseResume').onclick=resumeFromTimeMenu;
@@ -5875,21 +6023,23 @@ $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
 $('btnConfirmSeasonSkip').onclick=confirmSkipSeason;
-$('btnExport').onclick=openExport;
+$('btnExport').onclick=()=>{ closeOverlay('gardenMenu'); openExport(); };
 $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
-$('btnRegion').onclick=openRegion;
+$('btnRegion').onclick=()=>{ closeOverlay('gardenMenu'); openRegion(); };
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
 if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
 if ($('btnUndo')) $('btnUndo').onclick=doUndo;
-$('btnPhoto').onclick=takePhoto;
-$('btnPlan').onclick=openPlan;
+if ($('btnRedo')) $('btnRedo').onclick=doRedo;
+$('btnPhoto').onclick=()=>{ closeOverlay('gardenMenu'); takePhoto(); };
+$('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');
 $('btnPlanPng').onclick=downloadPlan;
 $('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
 $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
+if ($('sheetHandle')) $('sheetHandle').onclick=()=>{ game.sheetCollapsed=!game.sheetCollapsed; applySheetState(); };
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');

@@ -340,11 +340,14 @@ test('shrubs get their own rounded plan components', () => {
   assert(hydrangea && !hydrangea.hedge && hydrangea.tiles.length > 1, 'ordinary shrubs get mature rounded plan footprints');
 });
 
-test('dusk overlay marks the layer view active', () => {
+test('shade overlay marks the layer view active; night does not (night is a top-bar toggle)', () => {
   setup(13, 13);
   assert(!layerViewActive(), 'default layer view is inactive');
   game.layerVis.night = true;
-  assert(layerViewActive(), 'dusk/night overlay makes Layers active');
+  assert(!layerViewActive(), 'night is now a top-bar day/night toggle, not a Layers overlay');
+  game.layerVis.night = false;
+  game.layerVis.shade = true;
+  assert(layerViewActive(), 'the shade diagnostic still makes Layers active');
 });
 
 test('layer edit focus is disabled while the edit controls are hidden', () => {

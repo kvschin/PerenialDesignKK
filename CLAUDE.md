@@ -174,10 +174,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
-    (`buildCanvasTools`: Hand / **Select** / Plant / Erase / **Fill** /
-    **Pick** / Undo / **Redo** / Rotate / **Layers**; `game.tool` uses
-    `'hand'` for safe panning and keeps `'shovel'` for Erase back-compat; the
-    mobile rail shrinks the icons/rows so all ten clear the bottom tray) and
+    (`buildCanvasTools`, grouped by function: the six drawing/mode tools
+    Hand / **Select** / Plant / Erase / **Fill** / **Pick**, a divider, then
+    the view/manage group Rotate / **Layers**. Undo/**Redo** are one-shot
+    actions, not modes, so they live in the top-bar action bar, not the
+    rail — see the HUD notes. `game.tool` uses `'hand'` for safe panning and
+    keeps `'shovel'` for Erase back-compat; the mobile rail shrinks the
+    icons/rows so all eight clear the bottom tray) and
     Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
@@ -299,31 +302,52 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     ecoregion membership for natives; cultivars have `eco:[]` so only the
     natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
     → forbs), the region-picker overlay wiring, and the tool tray:
-    `TRAY_CATS` category tabs (Grasses / Sun Perennials / Shade Perennials
-    (`sunFilter` splits forbs+sedges by `sun`) / Bulbs / Shrubs / Trees /
-    Landscape / Structures / House — the bottom bar is catalog/materials only),
-    species buttons in the active category (species sharing a
-    `group` collapse to one button), and `renderCvRow()` chips: group
-    members and/or cultivars of the selected species (the planted tile
-    stores `v`; tool state is `game.tool` + `game.toolVar`). The Landscape
+    a two-tier `TRAY_CATS`/`TRAY_GROUPS` tab row — a top-level **Plants** /
+    **Build** toggle picks which category sub-tabs show (Plants → Grasses /
+    Sedges / Sun Perennials / Shade Perennials (`sunFilter`) / Bulbs / Water
+    Plants / Shrubs / Trees; Build → Landscape / Structures / Lighting /
+    House); `lastCatByGroup` remembers the sub-tab per group. Then species
+    buttons in the active category (species sharing a `group` collapse to one
+    button, marked with a `›`). Sub-species **drill in**: tapping a grouped
+    species or one with cultivars opens its members/cultivars in the catalog
+    row behind a ‹ Back chip (`renderDrillIn`, `game.drill`); the old
+    always-on cultivar row is retired — `renderCvRow` now just hides `#cvRow`
+    and is the hook that refreshes the brush bar + collapse sheet. The planted
+    tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select Path to reveal path colors, Bed to reveal bed
     materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
     to reveal pond/river/lake styles. The Structures tab draws fences and
     gates from `game.fenceDraft` with 4 ft/6 ft heights
     and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
-    sections (`.tray-sep`). The left canvas toolbar owns action tools
-    (Hand/Select TODO/Plant/Erase/Undo/Rotate; Plant opens a Draw/Drift flyout
-    and returns from other canvas tools to the last drawable brush: plant,
-    path, bed, or water; house/fence do not overwrite that memory) and starts new garden entries on
+    sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
+    The left canvas toolbar owns the drawing tools (Hand/Select/Plant/Erase/
+    Fill/Pick) plus Rotate and Layers, grouped by function with a divider;
+    Undo/Redo are not modes and live in the top-bar action bar instead. Plant
+    arms the last drawable brush (plant, path, bed, or water; house/fence do
+    not overwrite that memory); its two style toggles — Draw/Drift and
+    Grid/Free — dock in the palette as the `#brushBar` segmented controls
+    (`renderBrushBar`), not a floating flyout. New garden entries start on
     Hand so accidental painting is harder. A search input in the tabs row filters the open
     category by name/latin/group (`applyTraySearch`, display:none — no
     rebuild, so typing keeps focus; inputs are excluded from game keys).
-    Plus clickable season/year/day dial, End Day, Pause/Start time, plant-list, region, photo, and plan
-    buttons (a compact icon bar; labels hide on small screens, the
-    region label shows the active filter), contextual action hint. There is no
-    Save button — autosave fires on day change, quit, and
-    visibilitychange/pagehide. Pause/Start freezes or resumes day progression
+    The top bar is **two anchored clusters**, not a row of pills. Left = the
+    **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
+    `updateDayNightBtn`, promoted out of the Layers menu — it flips
+    `layerVis.night` to relight the world and switch lighting on), the season
+    name + progress bar, and Advance/Pause. Right = the **action bar**
+    (`#actionBar`): Undo/Redo (`updateUndoBtn` greys each when its stack is
+    empty) + a `☰` Menu. The Menu opens `#gardenMenu` — the planting list,
+    region filter (shows the active filter), photo, planting plan, and Save &
+    quit — so the infrequent outputs sit one tap behind `☰` rather than a
+    permanent row. In **design** mode the readout drops the meaningless
+    Year/Day (a day is 20s real time) for the season + early/mid/late phase
+    (`clockMeta`/`seasonPhase`) and an **Advance** button; **story** mode keeps
+    the full calendar + End Day. On phones the whole palette collapses: a
+    `#sheetHandle` folds the catalog away while you paint (`applySheetState`,
+    `game.sheetCollapsed`), leaving the brush bar + a context label, and the
+    chrome panels are glassy (`backdrop-filter` blur). There is no Save
+    button — autosave fires on day change, quit, and visibilitychange/pagehide. Pause/Start freezes or resumes day progression
     without blocking editing; clicking the time readout opens a small menu
     with Resume and Skip to next season/year; season skip shows a confirmation
     using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
