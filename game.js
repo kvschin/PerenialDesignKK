@@ -319,9 +319,32 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (S.fol){
       const fn = stemFor(L.leaves||8);
       ctx.strokeStyle = S.fol; ctx.lineWidth = L.leafW||1.8;
-      for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
-        ctx.beginPath(); ctx.moveTo(0,0);
-        ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+      ctx.lineCap = L.leafCap || 'round';
+      if (L.leafStyle === 'willow'){
+        const spread = L.leafSpread || 1.8, fan = L.leafFan || 0.42;
+        for (let i=0;i<fn;i++){
+          const u=fn>1 ? i/(fn-1) : 0.5, side=Math.sin((u-0.5)*Math.PI);
+          const l=H*(L.leafLen||0.6)*(0.82+rnd()*0.32);
+          const bx=(rnd()-0.5)*7, by=(rnd()-0.5)*3;
+          const ex=bx+side*l*fan*spread+(rnd()-0.5)*2.5, ey=by-l*(0.68+rnd()*0.24);
+          ctx.beginPath(); ctx.moveTo(bx,by);
+          ctx.quadraticCurveTo(bx+side*l*0.18,by-l*0.42,ex,ey); ctx.stroke();
+        }
+        const crowns = stemFor(L.crowns||0);
+        for (let c=0;c<crowns;c++){
+          const cx=(rnd()-0.5)*16, cy=-H*(0.28+rnd()*0.42), n=L.crownLeaves||6;
+          for (let j=0;j<n;j++){
+            const a=(j/n)*Math.PI*2, ll=H*0.11*(0.75+rnd()*0.45);
+            ctx.beginPath(); ctx.moveTo(cx,cy);
+            ctx.lineTo(cx+Math.cos(a)*ll*0.8, cy+Math.sin(a)*ll*0.55); ctx.stroke();
+          }
+        }
+      } else {
+        for (let i=0;i<fn;i++){ const a=(i/(fn-1)-0.5)*1.8, l=H*(L.leafLen||0.34);
+          ctx.beginPath(); ctx.moveTo(0,0);
+          ctx.quadraticCurveTo(Math.sin(a)*l*0.7,-l*0.5,Math.sin(a)*l,-l*0.55); ctx.stroke(); }
+      }
+      ctx.lineCap = 'butt';
     }
     // flower stems
     const sn = stemFor(P.form==='spike'?7:(L.stems||6));
@@ -330,34 +353,66 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle = P.stem || shade(S.fol,-18);
       ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(ox*0.4,0);
       ctx.quadraticCurveTo(ox,-len*0.55,tx,-len); ctx.stroke();
+      if (S.fol && L.stemLeaves){
+        const leafPairs = Math.max(1, Math.round(L.stemLeaves));
+        ctx.strokeStyle = S.fol; ctx.lineWidth = L.stemLeafW || 1;
+        ctx.lineCap = 'round';
+        for (let lp=0; lp<leafPairs; lp++){
+          const f=(lp+1)/(leafPairs+1), px=ox*0.35+(tx-ox*0.35)*f*0.75, py=-len*(0.18+f*0.54);
+          const side=((lp+i)%2===0?-1:1), ll=(L.stemLeafLen||7)*(0.8+rnd()*0.35);
+          ctx.beginPath(); ctx.moveTo(px,py);
+          ctx.quadraticCurveTo(px+side*ll*0.45,py-ll*0.08,px+side*ll,py-ll*0.28);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+      }
       if (!mature) continue;
       const hx=tx, hy=-len;
       // bloom staggering: only the leading fraction of stems flower
       const headOn = blooming && i < Math.max(1, Math.ceil(sn*blv));
       if (P.form==='cone'){
-        if (headOn){ // rays + cone, carried per the species' look
-          const rays=L.rays||7, rl=L.rayLen||6, dr=(L.droop===undefined)?2.5:L.droop;
-          const dw=L.discW||3.2, dh=L.discH||3.6, dy=(L.discY===undefined?-1:L.discY);
-          ctx.strokeStyle=S.bloom; ctx.lineWidth=L.rayW||2.2;
-          ctx.lineCap=L.rayCap||'round';
+        const headCount = Math.max(1, Math.round(L.heads||1));
+        const headOffset = (n,total)=>{
+          if (total<=1) return {x:0,y:0,s:1};
+          const side=n-(total-1)/2, row=Math.abs(side);
+          return {
+            x:side*(L.headSpread||4)+(rnd()-0.5)*1.5,
+            y:row*(L.headDrop||2)+rnd()*1.3,
+            s:row<0.3 ? 1 : (L.sideHeadScale||0.84)*(0.88+rnd()*0.2)
+          };
+        };
+        const drawConeHead = (cx,cy,sc)=>{
+          const rays=L.rays||7, rl=(L.rayLen||6)*sc, dr=(L.droop===undefined?2.5:L.droop)*sc;
+          const dw=(L.discW||3.2)*sc, dh=(L.discH||3.6)*sc, dy=(L.discY===undefined?-1:L.discY)*sc;
+          const rw=(L.rayW||2.2)*sc;
+          ctx.strokeStyle=S.bloom; ctx.lineWidth=rw; ctx.lineCap=L.rayCap||'round';
           for(let p=0;p<rays;p++){ const pa=p/rays*Math.PI*2;
-            ctx.beginPath(); ctx.moveTo(hx,hy);
-            const ex=hx+Math.cos(pa)*rl, ey=hy+Math.sin(pa)*rl*0.75+dr;
+            ctx.beginPath(); ctx.moveTo(cx,cy);
+            const ex=cx+Math.cos(pa)*rl, ey=cy+Math.sin(pa)*rl*0.75+dr;
             if (L.rayShape==='notched'){
-              ctx.quadraticCurveTo(hx+Math.cos(pa)*rl*0.55,hy+Math.sin(pa)*rl*0.28+dr*0.45,ex,ey); ctx.stroke();
+              ctx.quadraticCurveTo(cx+Math.cos(pa)*rl*0.55,cy+Math.sin(pa)*rl*0.28+dr*0.45,ex,ey); ctx.stroke();
               ctx.beginPath(); ctx.moveTo(ex,ey);
-              ctx.lineTo(ex+Math.cos(pa+0.55)*1.5,ey+Math.sin(pa+0.55)*1.1); ctx.stroke();
+              ctx.lineTo(ex+Math.cos(pa+0.55)*1.5*sc,ey+Math.sin(pa+0.55)*1.1*sc); ctx.stroke();
             } else if (L.rayShape==='spoon'){
-              ctx.quadraticCurveTo(hx+Math.cos(pa)*rl*0.45,hy+Math.sin(pa)*rl*0.25+dr*0.4,ex,ey); ctx.stroke();
-              ctx.beginPath(); ctx.ellipse(ex,ey,(L.rayW||2.2)*0.72,(L.rayW||2.2)*0.42,pa,0,7); ctx.fillStyle=S.bloom; ctx.fill();
+              ctx.quadraticCurveTo(cx+Math.cos(pa)*rl*0.45,cy+Math.sin(pa)*rl*0.25+dr*0.4,ex,ey); ctx.stroke();
+              ctx.beginPath(); ctx.ellipse(ex,ey,rw*0.72,rw*0.42,pa,0,7); ctx.fillStyle=S.bloom; ctx.fill();
             } else {
               ctx.lineTo(ex,ey); ctx.stroke();
             } }
           ctx.fillStyle=S.eye||'#b5651d';
-          ctx.beginPath(); ctx.ellipse(hx,hy+dy,dw,dh,0,0,7); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(cx,cy+dy,dw,dh,0,0,7); ctx.fill();
           ctx.lineCap='butt';
-        } else if (S.seed){ ctx.fillStyle=S.seed;
-          ctx.beginPath(); ctx.ellipse(hx,hy,L.seedW||3,L.seedH||3.8,0,0,7); ctx.fill(); }
+        };
+        const drawSeedHead = (cx,cy,sc)=>{
+          ctx.fillStyle=S.seed;
+          ctx.beginPath(); ctx.ellipse(cx,cy,(L.seedW||3)*sc,(L.seedH||3.8)*sc,0,0,7); ctx.fill();
+        };
+        if (headOn){
+          for(let h=0; h<headCount; h++){ const o=headOffset(h,headCount); drawConeHead(hx+o.x,hy+o.y,o.s); }
+        } else if (S.seed){
+          const seedCount = Math.max(1, Math.round(L.seedHeads || Math.min(headCount,3)));
+          for(let h=0; h<seedCount; h++){ const o=headOffset(h,seedCount); drawSeedHead(hx+o.x,hy+o.y,o.s); }
+        }
       }
       else if (P.form==='globe'){
         const col = (headOn?S.bloom:null) || S.seed;

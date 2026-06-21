@@ -120,6 +120,13 @@ test('cultivars (cv) are well-formed', () => {
   }
 });
 
+test('sunflower species keep distinct visual signatures', () => {
+  assertEqual(PLANTS.willowsunflower.look.leafStyle, 'willow', 'willowleaf should read as fine spring foliage');
+  assert(PLANTS.willowsunflower.look.leaves >= 30, 'willowleaf needs dense threadlike spring leaves');
+  assert(PLANTS.maximiliansunflower.look.heads >= 4, 'maximilian should render as a flower burst');
+  assert(PLANTS.maximiliansunflower.look.stems >= 12, 'maximilian should carry many flowering stems');
+});
+
 test('grouped species share one groupLabel per group', () => {
   const label = {};
   for (const k of keys){
