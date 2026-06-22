@@ -4708,7 +4708,8 @@ const TRAY_CATS=[
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'landscape',label:'Landscape',        tools:['path','bed','water','raise','lower','level']},
+  {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
+  {id:'leveling', label:'Leveling',         tools:['raise','lower','level']},
   {id:'structures',label:'Structures',      tools:['fence']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'house',    label:'House',            tools:['house']},
@@ -4717,7 +4718,7 @@ const TRAY_CATS=[
 // of category sub-tabs shows, so the bar never spills all twelve at once.
 const TRAY_GROUPS=[
   {id:'plants', label:'Plants', cats:['grasses','sedges','sunper','shadeper','bulbs','waterplants','shrubs','trees']},
-  {id:'build',  label:'Build',  cats:['landscape','structures','lighting','house']},
+  {id:'build',  label:'Build',  cats:['landscape','leveling','structures','lighting','house']},
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
@@ -4885,7 +4886,9 @@ function armPlantToolFromRail(openMenu){
   game.drill=null;                      // returning to Plant starts at the grid
   if (choice){
     game.tool=choice[0]; game.toolVar=choice[1];
-    game.trayCat=PLANTS[choice[0]] ? plantCategoryFor(choice[0]) : 'landscape';
+    game.trayCat=PLANTS[choice[0]] ? plantCategoryFor(choice[0])
+      : isElevationTool(choice[0]) ? 'leveling'
+      : 'landscape';
     rememberBrushTool();
   } else {
     game.tool='hand'; game.toolVar=null;
@@ -4915,7 +4918,8 @@ function armFillTool(){
   }
   // keep the catalog tab on the armed brush so buildToolTray won't drop it
   if (PLANTS[game.tool]) game.trayCat=plantCategoryFor(game.tool);
-  else if (game.tool==='path'||game.tool==='bed'||game.tool==='water'||isElevationTool(game.tool)) game.trayCat='landscape';
+  else if (isElevationTool(game.tool)) game.trayCat='leveling';
+  else if (game.tool==='path'||game.tool==='bed'||game.tool==='water') game.trayCat='landscape';
   rememberBrushTool();
   game.fillMode = isBrushTool(game.tool) && game.tool!=='house' && game.tool!=='fence' && game.tool!=='light';
   buildToolTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -5524,6 +5528,30 @@ function buildToolTray(){
         tc.beginPath(); tc.arc(31,y-h*.48,1.8,0,7); tc.fill();
       }
     };
+    const backBtn=()=>{
+      const b=document.createElement('button');
+      b.className='tool tool-back'; b.title='Back to Structures';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+      bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
+      const sp=document.createElement('span'); sp.textContent='Back';
+      b.append(c,sp);
+      b.onclick=()=>{ game.drill=null; buildToolTray(); };
+      tray.appendChild(b);
+    };
+    const mainFenceBtn=()=>{
+      const b=document.createElement('button');
+      b.className='tool has-sub'+(game.tool==='fence'?' sel':'');
+      b.dataset.k='fence';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniFence(c.getContext('2d'),fd);
+      const sp=document.createElement('span'); sp.textContent='Fence';
+      b.append(c,sp);
+      b.title=`Fence: ${fenceLabel()}. Open to choose gate, height, and material.`;
+      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; buildToolTray();
+        toast(`${fenceLabel()} selected. Choose height/material or drag to draw connected runs.`); };
+      tray.appendChild(b);
+    };
     const toolBtn=(label,sel,draftPatch,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
       b.dataset.k='fence';
@@ -5539,13 +5567,18 @@ function buildToolTray(){
         toast(`${fenceLabel()} selected. Drag to draw connected runs.`); };
       tray.appendChild(b); return b;
     };
-    sep('Place');
-    toolBtn('Fence', game.tool==='fence'&&!fd.gate, {gate:false}, 'Draw connected fence tiles');
-    toolBtn('Gate', game.tool==='fence'&&!!fd.gate, {gate:true}, 'Draw walkable fence doors / gates');
-    sep('Height');
-    FENCE_HEIGHTS.forEach(h=>toolBtn(`${h} ft`, fd.height===h, {height:h}, `${h} foot tall fence`));
-    sep('Material');
-    FENCE_STYLES.forEach(st=>toolBtn(st.label.split(' ')[0], fd.style===st.id, {style:st.id}, st.label));
+    if (game.drill!=='fence'){
+      mainFenceBtn();
+    } else {
+      backBtn();
+      sep('Place');
+      toolBtn('Fence', game.tool==='fence'&&!fd.gate, {gate:false}, 'Draw connected fence tiles');
+      toolBtn('Gate', game.tool==='fence'&&!!fd.gate, {gate:true}, 'Draw walkable fence doors / gates');
+      sep('Height');
+      FENCE_HEIGHTS.forEach(h=>toolBtn(`${h} ft`, fd.height===h, {height:h}, `${h} foot tall fence`));
+      sep('Material');
+      FENCE_STYLES.forEach(st=>toolBtn(st.label.split(' ')[0], fd.style===st.id, {style:st.id}, st.label));
+    }
   }
   if (cat.tools.includes('light')){
     const ld=lightDraft();
@@ -5792,7 +5825,7 @@ function sheetContextLabel(){
   if (game.tool==='water') return waterStyle(game.waterStyle).label+' water';
   if (game.tool==='bed')   return bedStyle(game.bedStyle).label+' bed';
   if (isElevationTool(game.tool)) return game.tool[0].toUpperCase()+game.tool.slice(1)+' grade';
-  if (game.tool==='fence') return 'Fence';
+  if (game.tool==='fence') return fenceLabel();
   if (game.tool==='light') return 'Lighting';
   if (game.tool==='house') return 'House';
   if (game.tool==='shovel') return 'Erase';
@@ -5908,7 +5941,8 @@ function updateHUD(){
   if (fill){
     const w=Math.round(seasonFrac*1000)/10;
     if (w!==game._fillW){ fill.style.width=w+'%'; game._fillW=w; }
-    if (cal.season!==game._fillSeason){ fill.style.background=SEASON_FILL[cal.season]||'#7fc24e'; game._fillSeason=cal.season; }
+    const fillBg=game.pausedAt ? '#8c867c' : (SEASON_FILL[cal.season]||'#7fc24e');
+    if (fillBg!==game._fillBg){ fill.style.background=fillBg; game._fillBg=fillBg; }
   }
   updateDayNightBtn();
   setHint(game.tool==='house'
