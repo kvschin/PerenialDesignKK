@@ -133,15 +133,13 @@
   <div class="hud-top">
     <div class="season-dial">
       <button id="btnDayNight" class="daynight" title="Switch to night (preview lighting)" aria-label="Toggle day or night">☀</button>
-      <button class="season-readout" id="btnTimeMenu" title="Open time controls">
-        <div class="season-name" id="seasonName">Spring</div>
-        <div class="season-day" id="seasonClock"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none"></span></div>
+      <button class="season-box" id="btnSeasonBox" title="Hold to speed up time · tap for the time menu" aria-label="Season — hold to speed up time, tap for the time menu">
+        <span class="season-fill" id="seasonFill"></span>
+        <span class="season-box-inner">
+          <span class="season-name" id="seasonName">Spring</span>
+          <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span></span>
+        </span>
       </button>
-      <div class="time-actions">
-        <div class="day-bar"><i id="dayBarFill"></i></div>
-        <button id="btnSleep" title="Advance time">End Day</button>
-        <button id="btnPause" title="Pause day progression">Pause</button>
-      </div>
     </div>
     <div class="hud-right">
       <div class="pill iconbar" id="actionBar">

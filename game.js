@@ -5696,6 +5696,11 @@ function setActButton(){ // the big mobile do-it button, labeled by context
 }
 /* the time readout string. Design is a planner — real days are meaningless, so
    it shows season + how far through it; Story keeps the life-sim calendar. */
+// the season box fill colour — Kevin's palette: easter green, dark green,
+// the existing fall bronze, a darker winter blue
+const SEASON_FILL = { Spring:'#7fc24e', Summer:'#2f7d3a', Fall:'#c97f3f', Winter:'#3f6190' };
+// game-ms added per real-ms while holding the season box (~2 garden days/sec)
+const FF_RATE = 40;
 function clockMeta(){
   const cal=calClock();
   if (game.gameMode==='design'){
@@ -5728,11 +5733,14 @@ function updateHUD(){
   document.getElementById('seasonPhase').textContent=phase;
   document.getElementById('seasonClkCal').style.display=design?'none':'';
   document.getElementById('seasonPhase').style.display=design?'':'none';
-  document.getElementById('dayBarFill').style.width=((design?seasonFrac:cal.frac)*100)+'%';
-  document.getElementById('btnSleep').textContent=design?'Advance':'End Day';
+  // the season box fills across the whole season, tinted by the season colour
+  const fill=document.getElementById('seasonFill');
+  if (fill){
+    const w=Math.round(seasonFrac*1000)/10;
+    if (w!==game._fillW){ fill.style.width=w+'%'; game._fillW=w; }
+    if (cal.season!==game._fillSeason){ fill.style.background=SEASON_FILL[cal.season]||'#7fc24e'; game._fillSeason=cal.season; }
+  }
   updateDayNightBtn();
-  document.getElementById('btnPause').textContent=game.pausedAt?'Start':'Pause';
-  document.getElementById('btnPause').title=game.pausedAt?'Start day progression':'Pause day progression';
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
@@ -5796,8 +5804,8 @@ function nextSeasonName(){
   return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
 }
 function openPause(){
-  const cal=calClock();
   $('pauseMeta').textContent=clockMeta();
+  $('btnPauseResume').textContent=game.pausedAt?'Resume':'Pause day';
   $('pauseScreen').classList.remove('hidden');
 }
 function closePause(){
@@ -6240,14 +6248,26 @@ addEventListener('visibilitychange',()=>{
   else { resumeClockSession(); updateHUD(); }
 });
 addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
-$('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON);
-$('btnSleep').onclick=doSleep;
+if ($('btnSleep')){ $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON); $('btnSleep').onclick=doSleep; }
 if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ game.layerVis.night=!game.layerVis.night;
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
-$('btnPause').onclick=toggleClock;
-$('btnTimeMenu').onclick=openPause;
-$('btnPauseResume').onclick=resumeFromTimeMenu;
+if ($('btnPause')) $('btnPause').onclick=toggleClock;
+// the season box: hold to fast-forward time, tap to open the time menu
+(function wireSeasonBox(){
+  const box=$('btnSeasonBox'); if (!box) return;
+  let holdTimer=null, ffStarted=false;
+  const cancelFF=()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+    if (ffStarted){ game.ffActive=false; ffStarted=false; } };
+  box.addEventListener('pointerdown',e=>{ e.preventDefault(); ffStarted=false;
+    holdTimer=setTimeout(()=>{ game.ffActive=true; ffStarted=true; },200); });
+  box.addEventListener('pointerup',()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+    if (ffStarted){ game.ffActive=false; ffStarted=false; } else openPause(); });
+  box.addEventListener('pointerleave',cancelFF);
+  box.addEventListener('pointercancel',cancelFF);
+})();
+// the menu's primary button now pauses or resumes, since the dial's Pause button is gone
+$('btnPauseResume').onclick=()=>{ if (game.pausedAt) resumeClock(); else pauseClock(); closePause(); updateHUD(); };
 $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
@@ -6383,6 +6403,7 @@ function updateDebugHud(){
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
+    if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
     if (game.gameMode!=='design'){ // story mode: avatar movement
       keyCooldown-=dt;
       if (keyCooldown<=0 && !game.moving){

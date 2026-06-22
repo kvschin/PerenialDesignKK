@@ -357,8 +357,16 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     resolve to 0 and nothing bleeds/clears). Left = the
     **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
-    `layerVis.night` to relight the world and switch lighting on), the season
-    name + progress bar, and Advance/Pause. Right = the **action bar**
+    `layerVis.night` to relight the world and switch lighting on) next to the
+    **season box** (`#btnSeasonBox`): a label (season name + early/mid/late
+    phase in design, season + Year/Day in story) whose interior `#seasonFill`
+    fills left-to-right with the season's progress, tinted by `SEASON_FILL`
+    (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
+    blue) — this replaced the old thin progress line and the Advance/Pause
+    buttons. **Hold** the box to fast-forward time (`game.ffActive`; the loop
+    adds `FF_RATE` game-ms per real-ms, ~2 garden days/sec); a short **tap**
+    opens the time menu (`openPause` → `#pauseScreen`), whose primary button is
+    now a Pause/Resume toggle. Right = the **action bar**
     (`#actionBar`): Undo/Redo (`updateUndoBtn` greys each when its stack is
     empty) + a `☰` Menu. The Menu opens `#gardenMenu` — the planting list,
     region filter (shows the active filter), photo, planting plan, and Save &
@@ -381,9 +389,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
     so it lifts above an iPad's home bar too). The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
-    button — autosave fires on day change, quit, and visibilitychange/pagehide. Pause/Start freezes or resumes day progression
-    without blocking editing; clicking the time readout opens a small menu
-    with Resume and Skip to next season/year; season skip shows a confirmation
+    button — autosave fires on day change, quit, and visibilitychange/pagehide.
+    Pausing/resuming (now the time menu's primary toggle) freezes or resumes day
+    progression without blocking editing; the menu (opened by tapping the season
+    box) also offers Skip to next season/year; season skip shows a confirmation
     using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
     handlers), mouse wheel, and +/- keys;
