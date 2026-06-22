@@ -2404,6 +2404,14 @@ function probeUnitH(unit){
   document.body.appendChild(d); const h=d.getBoundingClientRect().height; d.remove(); return h||0;
 }
 function trueViewH(){ return Math.round(Math.max(innerHeight, probeUnitH('100vh'), probeUnitH('100lvh'))); }
+function setViewportFill(color){
+  if (!color) return;
+  document.documentElement.style.setProperty('--viewport-fill', color);
+  document.documentElement.style.background = color;
+  document.body.style.background = color;
+  const theme=document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute('content', color);
+}
 // VW/VH = the canvas's true CSS-pixel size; render + pointer math use them, so
 // the garden fills the whole screen and clicks stay accurate. sizeCanvas FORCES
 // the canvas box to that size via inline style, overriding any (stale or short)
@@ -6151,6 +6159,7 @@ function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   setActiveCanvas(cnv);
+  setViewportFill('#4b5044');
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   if (!Array.isArray(game.houses)) game.houses=[];
@@ -6274,6 +6283,7 @@ function quitToMenu(){
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   setActiveCanvas(mcnv);
+  setMenuViewportFill();
   show('menuScreen');
 }
 function openGardenMenu(){
@@ -6348,30 +6358,34 @@ const MENU_SCENES={
   Spring:{
     sky:['#6f8795','#cfdac3','#1c1813'],
     glow:['rgba(202,213,132,.30)','rgba(96,132,78,.18)'],
-    ground:'rgba(30,46,29,.30)', alpha:.72, bloom:1,
+    ground:'rgba(30,46,29,.30)', pageBg:'#1d2419', alpha:.72, bloom:1,
     keys:['crocus','daffodil','muscari','camassia','baptisia','creamindigo','amsonia','sedge','karl']
   },
   Summer:{
     sky:['#627d83','#9ebd91','#1d1812'],
     glow:['rgba(218,184,96,.28)','rgba(80,112,70,.18)'],
-    ground:'rgba(31,55,29,.34)', alpha:.66, bloom:1,
+    ground:'rgba(31,55,29,.34)', pageBg:'#1d2919', alpha:.66, bloom:1,
     keys:['echinacea','pallida','rattlesnake','allium','yarrow','monarda','culvers','switchgrass','dropseed']
   },
   Fall:{
     sky:['#211610','#3b2a22','#17100d'],
     glow:['rgba(166,91,44,.28)','rgba(92,58,36,.16)'],
-    ground:'rgba(16,10,8,.34)', alpha:.58, bloom:1,
+    ground:'rgba(16,10,8,.34)', pageBg:'#17100d', alpha:.58, bloom:1,
     keys:['aster','newengland','goldenrod','liatris','sedum','bluestem','switchgrass','indiangrass','sanguisorba','helenium']
   },
   Winter:{
     sky:['#26303a','#6d746f','#171613'],
     glow:['rgba(211,221,226,.20)','rgba(112,116,108,.12)'],
-    ground:'rgba(235,238,232,.11)', alpha:.64, bloom:undefined, snow:true,
+    ground:'rgba(235,238,232,.11)', pageBg:'#1c1d1b', alpha:.64, bloom:undefined, snow:true,
     keys:['bluestem','bigbluestem','switchgrass','rattlesnake','allium','culvers','sanguisorba','goldenrod','karl','sideoats']
   }
 };
 const meadow=[], menuSnow=[];
 let menuSeason='Fall';
+function setMenuViewportFill(){
+  const sc=MENU_SCENES[menuSeason]||MENU_SCENES.Fall;
+  setViewportFill(sc.pageBg||sc.sky[2]||'#241a16');
+}
 function seedMenuMeadow(){
   const sc=MENU_SCENES[menuSeason], keys=sc.keys;
   meadow.length=0; menuSnow.length=0;
@@ -6390,6 +6404,7 @@ function advanceMenuSeason(){
   }
   menuSeason=SEASONS[next];
   seedMenuMeadow();
+  setMenuViewportFill();
 }
 function menuRender(t){
   const W=VW,H=VH;
@@ -6467,6 +6482,7 @@ function vpMeasure(){
     document.body.appendChild(d); const r=d.getBoundingClientRect(); d.remove(); return r; })();
   const c=activeCanvas(), cr=c?c.getBoundingClientRect():{height:0,bottom:0,top:0};
   const vv=window.visualViewport;
+  const fill=getComputedStyle(document.documentElement).getPropertyValue('--viewport-fill').trim();
   return {
     standalone:(navigator.standalone===true)||matchMedia('(display-mode: standalone)').matches,
     dpr:devicePixelRatio,
@@ -6481,6 +6497,7 @@ function vpMeasure(){
     canvasId:c?c.id:'?',
     canvasClientH:c?c.clientHeight:0,
     canvasRect:Math.round(cr.top)+'..'+Math.round(cr.bottom),
+    viewportFill:fill||'n/a',
     VWxVH:(typeof VW!=='undefined'?VW:'?')+'x'+(typeof VH!=='undefined'?VH:'?')
   };
 }
@@ -6504,6 +6521,7 @@ function updateViewportDebug(){
     'canvas       '+m.canvasId+'\n'+
     'canvas clntH '+m.canvasClientH+'\n'+
     'canvas rect  '+m.canvasRect+'\n'+
+    'fill         '+m.viewportFill+'\n'+
     'VW x VH      '+m.VWxVH;
 }
 function showViewportDebug(){

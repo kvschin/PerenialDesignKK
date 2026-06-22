@@ -8,9 +8,10 @@
   --steel:#7d93a8;       /* amsonia blue */
   --ink:#19120f;
   --paper:#f3ecdd;
+  --viewport-fill:#241a16;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:var(--loam);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
+html,body{height:100%;overflow:hidden;background:var(--viewport-fill);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
 /* The canvas must cover the FULL screen under viewport-fit=cover. In an iOS
    standalone PWA, 100vh / 100% / window.innerHeight all stop at the safe-area
