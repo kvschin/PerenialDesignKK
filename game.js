@@ -2408,15 +2408,36 @@ function trueViewH(){ return Math.round(Math.max(innerHeight, probeUnitH('100vh'
 // the garden fills the whole screen and clicks stay accurate. sizeCanvas FORCES
 // the canvas box to that size via inline style, overriding any (stale or short)
 // CSS height so the --loam body bg can't leak as a band behind the home bar.
-let VW=innerWidth, VH=innerHeight;
-function sizeCanvas(c){
-  const w=c.clientWidth||innerWidth, h=trueViewH();
+let VW=innerWidth, VH=innerHeight, activeCanvasId='menuCanvas';
+function activeCanvas(){ return document.getElementById(activeCanvasId)||cnv; }
+function sizeCanvas(c, opts){
+  if (!c) return;
+  const active=!!(opts&&opts.active);
+  const h=trueViewH();
+  const r=c.getBoundingClientRect();
+  const w=Math.round(r.width||c.clientWidth||innerWidth);
   c.style.width=w+'px'; c.style.height=h+'px';
-  if (c.clientHeight>0){ VW=w; VH=h; }   // only a visible canvas drives the view size
+  if (active){ VW=w; VH=h; }   // the visible/active canvas owns render + pointer size
   c.width=w*DPR; c.height=h*DPR;
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0);
 }
-addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
+function setActiveCanvas(c){
+  if (!c) return;
+  activeCanvasId=c.id||activeCanvasId;
+  sizeCanvas(c,{active:true});
+  const other=c.id==='gameCanvas' ? document.getElementById('menuCanvas') : cnv;
+  if (other) sizeCanvas(other,{active:false});
+  const settle=()=>{ sizeCanvas(c,{active:true}); calcZoom();
+    if (typeof updateViewportDebug==='function') updateViewportDebug(); };
+  requestAnimationFrame(settle);
+  requestAnimationFrame(()=>requestAnimationFrame(settle));
+}
+function resizeCanvases(){
+  setActiveCanvas(activeCanvas());
+  calcZoom();
+  if (typeof updateViewportDebug==='function') updateViewportDebug();
+}
+addEventListener('resize', resizeCanvases);
 
 let snowFlakes = [];
 /* The ground (961 tiles, each a pile of fills/strokes/blades) is identical
@@ -6129,7 +6150,7 @@ function starterDrift(){ // a welcoming drift near spawn so the world isn't empt
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
-  sizeCanvas(cnv);
+  setActiveCanvas(cnv);
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   if (!Array.isArray(game.houses)) game.houses=[];
@@ -6252,6 +6273,7 @@ function quitToMenu(){
   $('gardenMenu').classList.add('hidden'); $('confirmSeasonScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
+  setActiveCanvas(mcnv);
   show('menuScreen');
 }
 function openGardenMenu(){
@@ -6321,7 +6343,7 @@ if ($('sheetHandle')) $('sheetHandle').onclick=()=>{ game.sheetCollapsed=!game.s
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');
-sizeCanvas(mcnv); sizeCanvas(cnv);
+setActiveCanvas(mcnv);
 const MENU_SCENES={
   Spring:{
     sky:['#6f8795','#cfdac3','#1c1813'],
@@ -6443,7 +6465,7 @@ function vpMeasure(){
   const insetDiv=(()=>{ const d=document.createElement('div');
     d.style.cssText='position:fixed;inset:0;visibility:hidden;pointer-events:none';
     document.body.appendChild(d); const r=d.getBoundingClientRect(); d.remove(); return r; })();
-  const c=document.getElementById('gameCanvas'), cr=c?c.getBoundingClientRect():{height:0,bottom:0,top:0};
+  const c=activeCanvas(), cr=c?c.getBoundingClientRect():{height:0,bottom:0,top:0};
   const vv=window.visualViewport;
   return {
     standalone:(navigator.standalone===true)||matchMedia('(display-mode: standalone)').matches,
@@ -6456,6 +6478,7 @@ function vpMeasure(){
     safeLR:probeW('width:env(safe-area-inset-left,0px)')+' / '+probeW('width:env(safe-area-inset-right,0px)'),
     fixedInset0H:Math.round(insetDiv.height),
     h100vh:probeH('height:100vh'), h100dvh:probeH('height:100dvh'), h100lvh:probeH('height:100lvh'),
+    canvasId:c?c.id:'?',
     canvasClientH:c?c.clientHeight:0,
     canvasRect:Math.round(cr.top)+'..'+Math.round(cr.bottom),
     VWxVH:(typeof VW!=='undefined'?VW:'?')+'x'+(typeof VH!=='undefined'?VH:'?')
@@ -6478,6 +6501,7 @@ function updateViewportDebug(){
     '100vh        '+m.h100vh+'\n'+
     '100dvh       '+m.h100dvh+'\n'+
     '100lvh       '+m.h100lvh+'\n'+
+    'canvas       '+m.canvasId+'\n'+
     'canvas clntH '+m.canvasClientH+'\n'+
     'canvas rect  '+m.canvasRect+'\n'+
     'VW x VH      '+m.VWxVH;
