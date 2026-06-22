@@ -392,15 +392,22 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     edge behind it). On desktop/iPad `.hud-bottom` stays a
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
     so it lifts above an iPad's home bar too). **Canvas full-bleed under
-    `viewport-fit=cover`:** in an iOS standalone PWA `innerHeight`/`100vh`/`100%`
-    all stop at the safe-area bottom (the true bottom is *not* the bottom), so
-    the `--loam` body bg leaked through as a band — even on the menu. Fix: the
-    canvas box is `height:calc(100vh + env(safe-area-inset-bottom))` so it spans
-    the whole screen, and `sizeCanvas()` derives the buffer plus `VW`/`VH` (used
-    by `render`, `evPlacement`, `snapCam`, `menuRender` in place of
-    `innerWidth/innerHeight`) from the canvas's real `clientWidth/clientHeight`
-    — so it fills with no stretch and clicks stay true. A hidden canvas reports
-    `clientHeight 0` and is skipped so it can't poison `VW/VH`. The chrome
+    `viewport-fit=cover`:** an iOS standalone PWA with `black-translucent` has a
+    short *fixed* layout viewport (e.g. 812 on a 874 screen, screen minus the
+    top inset), and iOS clips every `position:fixed` layer to it — so a
+    full-height fixed canvas still left the bottom safe-area strip showing the
+    propagated root `--viewport-fill` background. The root bg *does* paint the
+    whole screen, so the fix is to paint the canvas + HUD as **document
+    content, not fixed layers**: `html,body` get `min-height:100lvh`
+    (the full screen) + `position:relative`, and `#gameCanvas`/`#menuCanvas`/
+    `#hud` are `position:absolute` inside that full-height body. `sizeCanvas()`
+    still forces the canvas box to `trueViewH()` = `max(innerHeight,100vh,100lvh)`
+    (the largest ruler; `innerHeight`/`100%`/`100dvh` report the short height)
+    and derives the buffer + `VW`/`VH` (used by `render`, `evPlacement`,
+    `snapCam`, `menuRender` in place of `innerWidth/innerHeight`) from it — so
+    the garden fills the screen and clicks stay true. `setViewportFill()` still
+    matches the root bg to the season as a belt-and-suspenders. A `?debug`/`?vp`
+    URL or a **3-finger tap** shows a viewport diagnostics panel. The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
     button — autosave fires on day change, quit, and visibilitychange/pagehide.
     Pausing/resuming (now the time menu's primary toggle) freezes or resumes day

@@ -11,14 +11,21 @@
   --viewport-fill:#241a16;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:var(--viewport-fill);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
+/* min-height:100lvh makes the document the FULL screen height (the large
+   viewport, 874 on the test iPhone — not the short 812 layout viewport), and
+   position:relative makes <body> the containing block for the absolutely-
+   positioned canvas/HUD below. Painting them as document content (not as
+   position:fixed layers) is what lets iOS standalone fill the bottom safe-area
+   strip instead of exposing the root --viewport-fill there. */
+html,body{height:100%;min-height:100vh;min-height:100lvh;overflow:hidden;overscroll-behavior:none;
+  position:relative;background:var(--viewport-fill);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
 /* The canvas must cover the FULL screen under viewport-fit=cover. In an iOS
    standalone PWA, 100vh / 100% / window.innerHeight all stop at the safe-area
    bottom, leaking the --loam body bg as a band behind the home indicator —
    so add env(safe-area-inset-bottom) back. sizeCanvas() then derives the
    buffer + all render/pointer math from the canvas's real clientHeight. */
-#gameCanvas{position:fixed;top:0;left:0;width:100%;height:100vh;
+#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100vh;
   height:calc(100vh + env(safe-area-inset-bottom));display:block;touch-action:none}
 
 /* ---------- screens ---------- */
@@ -26,7 +33,7 @@ button{font-family:inherit;cursor:pointer}
 .hidden{display:none!important}
 
 #menuScreen{background:transparent}
-#menuCanvas{position:fixed;top:0;left:0;width:100%;height:100vh;
+#menuCanvas{position:absolute;top:0;left:0;width:100%;height:100vh;
   height:calc(100vh + env(safe-area-inset-bottom));z-index:0;pointer-events:none}
 .menu-shell{position:relative;width:min(390px,calc(100vw - 36px));min-height:min(720px,100%);display:flex;flex-direction:column;
   justify-content:center;gap:18px;padding:48px 0 34px;text-align:center}
@@ -164,7 +171,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .swatch.sel{border-color:var(--seedhead);box-shadow:0 0 0 2px var(--bronze)}
 
 /* ---------- HUD ---------- */
-#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+/* absolute (not fixed) so the HUD lives in the full-height document and its
+   bottom tray reaches the true screen bottom, not the short fixed viewport */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:5}
 /* one connected top bar: the strip carries the glass, the clusters sit on it */
 .hud-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
   align-items:center;gap:10px;pointer-events:auto;background:rgba(24,17,13,.74);
