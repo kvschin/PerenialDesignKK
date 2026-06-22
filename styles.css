@@ -180,7 +180,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   border-bottom:1.5px solid rgba(239,230,211,.22);
   padding:max(6px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 6px max(12px,env(safe-area-inset-left))}
-.season-dial{pointer-events:auto;padding:2px 4px;display:flex;align-items:center;gap:12px}
+.season-dial{pointer-events:auto;padding:2px 4px;display:flex;align-items:center;gap:12px;min-width:0}
 .season-readout{min-width:108px;background:none;border:none;color:inherit;text-align:left;padding:0;border-radius:3px}
 .season-readout:hover{background:rgba(239,230,211,.06)}
 .season-readout:focus-visible{outline:1.5px solid var(--bronze);outline-offset:3px}
@@ -201,7 +201,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
-.season-box{position:relative;overflow:hidden;display:flex;align-items:center;width:150px;min-width:150px;height:34px;min-height:34px;
+.season-box{position:relative;overflow:hidden;display:flex;align-items:center;width:150px;min-width:88px;flex-shrink:1;height:34px;min-height:34px;
   background:rgba(0,0,0,.24);border:1.5px solid rgba(239,230,211,.22);border-radius:8px;
   padding:3px 12px;color:inherit;text-align:left;cursor:pointer;
   -webkit-touch-callout:none;user-select:none;touch-action:manipulation}
@@ -209,10 +209,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .season-box:active{border-color:var(--bronze)}
 .season-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:#7fc24e;opacity:.58;
   transition:background .45s ease;pointer-events:none}
-.season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px}
-.season-box .season-name{font-size:15.5px;line-height:1}
-.season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1}
-.hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.season-box .season-name{font-size:15.5px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0}
 .pill{pointer-events:auto;padding:2px;font-size:12px;color:var(--seedhead)}
 .pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:none;cursor:pointer;border-radius:3px;padding:2px 6px}
 .pill button:hover{background:rgba(201,127,63,.2)}
@@ -406,7 +406,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .menu-foot{font-size:10.5px}
   .creator-grid{flex-direction:column;align-items:center}
   .season-dial{padding:7px 9px;gap:9px;align-items:center}
-  .season-box{width:132px;min-width:132px;padding:3px 9px}
+  .season-box{width:132px;min-width:84px;padding:3px 9px}
   .season-box .season-name{font-size:14.5px}
   .season-sub{font-size:8.2px;letter-spacing:.07em}
   .season-readout{text-align:left;min-width:0}
@@ -459,6 +459,15 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,
   .hud-bottom.collapsed #toolTray{display:none !important}
+}
+/* legacy phones (≤359px): the top bar now carries 3 view tools beside the
+   season dial, so tighten gaps/buttons here only — normal phones keep the
+   comfortable 34px targets above. The season box shrinks first, then this. */
+@media(max-width:359px){
+  .season-dial{gap:6px;padding:5px 6px}
+  .season-dial .daynight,.top-tool{width:30px;height:30px}
+  .top-tool canvas{width:28px;height:21px}
+  .season-box{width:116px;min-width:74px;padding:3px 7px}
 }
 @media(min-width:1600px) and (min-height:800px){
   #trayTabs{padding:7px 10px 0;gap:3px}

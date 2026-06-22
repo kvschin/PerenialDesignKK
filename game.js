@@ -3745,7 +3745,8 @@ function snapshotState(){ return {
   elevation:JSON.parse(JSON.stringify(game.elevation||{})),
   houses:JSON.parse(JSON.stringify(game.houses||[])),
   fences:JSON.parse(JSON.stringify(game.fences||{})),
-  lights:JSON.parse(JSON.stringify(game.lights||{}))}; }
+  lights:JSON.parse(JSON.stringify(game.lights||{})),
+  firepits:JSON.parse(JSON.stringify(game.firepits||{}))}; }
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
@@ -3753,10 +3754,10 @@ function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
 function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
 function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
-function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights + refresh UI
-  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{};
+function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights/firepits + refresh UI
+  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{}; game.firepits=s.firepits||{};
   game.dirty=true; updateUndoBtn();
-  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); pushHouse(); }
+  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); pushHouse(); }
   buildToolTray();
 }
 function doUndo(){
@@ -3770,8 +3771,8 @@ function doRedo(){
   applySnapshot(redoStack.pop()); toast('Redone.');
 }
 function updateUndoBtn(){
-  document.querySelectorAll('#btnUndo,[data-action="undo"]').forEach(b=>b.classList.toggle('disabled',!undoStack.length));
-  document.querySelectorAll('#btnRedo,[data-action="redo"]').forEach(b=>b.classList.toggle('disabled',!redoStack.length));
+  // Undo/Redo live in the canvas rail now; their greyed state is recomputed from
+  // undoStack/redoStack each time the rail is (re)built.
   refreshCanvasTools();
 }
 
@@ -5289,16 +5290,26 @@ function renderSelectTray(tray){
     'Paste the saved area starting at this selection',!storedArea());
 }
 function refreshCanvasTools(){ buildCanvasTools(); }
-function syncTopSelectTool(){
-  const b=document.getElementById('btnSelectTool'); if (!b) return;
-  b.classList.toggle('sel',game.tool==='select');
-  b.onclick=()=>{ setTool('select'); buildToolTray(); };
-  const c=document.getElementById('btnSelectIcon');
-  if (c) drawCanvasIcon(c.getContext('2d'),'select');
+// The top bar carries the view/select controls — Select · Rotate · Layers, the
+// non-painting tools — beside the season dial. Keep their icons + state in sync,
+// and (re)render the Layers flyout pinned under its button.
+function syncTopTools(){
+  const sel=document.getElementById('btnSelectTool');
+  if (sel){ sel.classList.toggle('sel',game.tool==='select');
+    sel.onclick=()=>{ setTool('select'); buildToolTray(); };
+    const c=document.getElementById('btnSelectIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'select'); }
+  const rot=document.getElementById('btnRotateTool');
+  if (rot){ rot.onclick=()=>rotateView(1);
+    const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
+  const lay=document.getElementById('btnLayersTool');
+  if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
+    lay.onclick=()=>toggleLayerMenu();
+    const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
+  renderLayerMenu();
 }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
-  syncTopSelectTool();
+  syncTopTools();
   rail.innerHTML='';
   const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
@@ -5312,12 +5323,11 @@ function buildCanvasTools(){
   add('Pick','dropper',{active:game.tool==='pick',
     title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
     onClick:()=>{ setTool('pick'); buildToolTray(); }});
+  // Undo/Redo are one-shot history actions, not modes — docked below a divider
+  // so they read apart from the paint tools; greyed when their stack is empty.
   sep();
-  add('Rotate','rotate',{title:'Rotate view (R)',onClick:()=>rotateView(1)});
-  add('Layers','layers',{active:game.toolMenu==='layers'||layerViewActive(),
-    title:'Show or hide garden layers and overlays',
-    onClick:()=>toggleLayerMenu()});
-  if (game.toolMenu==='layers') addLayerMenu(rail);
+  add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:doUndo});
+  add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:doRedo});
 }
 /* a small themed yes/no modal, built on the fly (matches the .screen panels).
    Returns nothing; calls onOk only if the user confirms. */
@@ -5367,7 +5377,23 @@ function toggleLayerMenu(){
   game.toolMenu = game.toolMenu==='layers' ? null : 'layers';
   refreshCanvasTools();
 }
-function addLayerMenu(rail){
+// The Layers flyout hangs off the top-bar Layers button now, so pin it there as
+// a fixed dropdown (same idea as the garden/time menus) and rebuild it in place
+// whenever the rail refreshes — its rows call refreshCanvasTools() to re-render.
+function renderLayerMenu(){
+  const old=document.getElementById('layerPop'); if (old) old.remove();
+  const btn=document.getElementById('btnLayersTool');
+  if (game.toolMenu!=='layers' || !btn) return;
+  const pop=buildLayerPopover(); pop.id='layerPop';
+  pop.style.position='fixed'; pop.style.zIndex='40';
+  pop.style.bottom='auto'; pop.style.right='auto';
+  document.body.appendChild(pop);
+  const r=btn.getBoundingClientRect(), w=pop.offsetWidth||172;
+  let left=Math.min(Math.round(r.left), innerWidth-w-8); left=Math.max(8,left);
+  pop.style.top=Math.round(r.bottom+6)+'px';
+  pop.style.left=left+'px';
+}
+function buildLayerPopover(){
   if (!ENABLE_LAYER_EDIT_FOCUS) game.layerFocus='all';
   const pop=document.createElement('div');
   pop.className='tool-popover layer-popover';
@@ -5422,7 +5448,7 @@ function addLayerMenu(rail){
   }
   section('Overlays');
   row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
-  rail.appendChild(pop);
+  return pop;
 }
 function buildToolTray(){
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
@@ -6763,8 +6789,6 @@ $('btnRegion').onclick=()=>{ closeOverlay('gardenMenu'); openRegion(); };
 $('btnRegionApply').onclick=applyRegion;
 $('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
 if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
-if ($('btnUndo')) $('btnUndo').onclick=doUndo;
-if ($('btnRedo')) $('btnRedo').onclick=doRedo;
 $('btnPhoto').onclick=()=>{ closeOverlay('gardenMenu'); takePhoto(); };
 $('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');

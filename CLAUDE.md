@@ -184,21 +184,27 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
-    (`buildCanvasTools`, grouped by function: the six drawing/mode tools
-    Hand / **Select** / Plant / Erase / **Fill** / **Pick**, a divider, then
-    the view/manage group Rotate / **Layers**. Undo/**Redo** are one-shot
-    actions, not modes, so they live in the top-bar action bar, not the
-    rail — see the HUD notes. `game.tool` uses `'hand'` for safe panning and
-    keeps `'shovel'` for Erase back-compat; the mobile rail shrinks the
-    icons/rows so all eight clear the bottom tray) and
+    (`buildCanvasTools`, the paint/edit tools only: Hand / Plant / Erase /
+    **Pick**, a divider, then **Undo** / **Redo** as one-shot actions —
+    `makeCanvasTool` greys each via `disabled:!undoStack.length` when its stack
+    is empty, recomputed every rebuild; `updateUndoBtn` just calls
+    `refreshCanvasTools`. The non-painting view/select tools — **Select**,
+    Rotate, **Layers** — live in the top bar beside the season dial instead
+    (`syncTopTools` keeps their icons/state in sync; Fill moved into the Select
+    tray). `game.tool` uses `'hand'` for safe panning and keeps `'shovel'` for
+    Erase back-compat; the mobile rail shrinks the icons/rows so all clear the
+    bottom tray) and
     Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+landscape on
     each tile in one pass, or `plant`/`bulb`/`terrain` (Landscape) only; one toast +
     per-layer sync at pointerup via `endSweep`), tap and keyboard input.
-    The **Layers** button opens a flyout (`addLayerMenu`, same
-    `game.toolMenu` popover mechanism as Plant's Draw/Drift) over
+    The top-bar **Layers** button opens a flyout (`buildLayerPopover` builds
+    it, `renderLayerMenu` pins it as a `position:fixed` dropdown under the
+    button — measured from its rect like the garden/time menus — and rebuilds
+    it in place on `refreshCanvasTools`; `toggleLayerMenu` flips
+    `game.toolMenu`) over
     `game.layerVis` and `game.layerFocus` — a *Visible* section (All,
     Perennials, Bulbs, Woody Plants, Landscape/Hardscape), an *Edit* section
     (which layer is currently editable, or All), and an *Overlays* section
@@ -341,9 +347,10 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     Pick, and sync via `syncFirepitsOut` — all parallel to lights. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
-    The left canvas toolbar owns the drawing tools (Hand/Select/Plant/Erase/
-    Fill/Pick) plus Rotate and Layers, grouped by function with a divider;
-    Undo/Redo are not modes and live in the top-bar action bar instead. Plant
+    The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)
+    plus Undo/Redo below a divider; the view/select tools (Select/Rotate/Layers)
+    sit in the top bar beside the season dial, and Fill lives in the Select
+    tray. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
     not overwrite that memory); its two style toggles — Draw/Drift and
     Grid/Free — dock in the palette as the `#brushBar` segmented controls
@@ -378,10 +385,16 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     opens the time menu (`openPause` → `#pauseScreen`), now a **dropdown** that
     `openPause` pins just under the season box (`position:fixed`, JS-set
     `top`/`left`; click the backdrop to dismiss — same mechanism as
-    `#gardenMenu`), whose primary button is now a Pause/Resume toggle. Right =
+    `#gardenMenu`), whose primary button is now a Pause/Resume toggle. After the
+    box sit the three **view tools** — Select, Rotate, Layers
+    (`#btnSelectTool`/`#btnRotateTool`/`#btnLayersTool`, the non-painting tools,
+    kept in sync by `syncTopTools`); the season box `flex-shrink`s (explicit
+    `width` + lower `min-width`, not `flex-basis` — a content-sized parent
+    ignores the basis) so the box + tools + ☰ all fit a 360px phone, with a
+    `≤359px` query tightening gaps/buttons for legacy widths. Right =
     the **action bar**
-    (`#actionBar`): Undo/Redo (`updateUndoBtn` greys each when its stack is
-    empty) + a `☰` Menu. The Menu opens `#gardenMenu` — the planting list,
+    (`#actionBar`): just a `☰` Menu now (Undo/Redo moved down to the canvas
+    rail). The Menu opens `#gardenMenu` — the planting list,
     region filter (shows the active filter), photo, planting plan, and Save &
     quit — so the infrequent outputs sit one tap behind `☰` rather than a
     permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
