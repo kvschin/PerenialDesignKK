@@ -190,25 +190,28 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .time-actions{display:flex;flex-direction:column;gap:5px;min-width:82px}
 .day-bar{width:70px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
 .day-bar i{display:block;height:100%;background:var(--bronze);width:0%}
-.season-dial .daynight{align-self:center;width:34px;height:34px;flex-shrink:0;border-radius:8px;
+.season-dial .daynight,.top-tool{align-self:center;width:34px;height:34px;flex-shrink:0;border-radius:8px;
   background:rgba(201,127,63,.16);border:1.5px solid rgba(239,230,211,.22);color:#f0b765;
   font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.season-dial .daynight:hover{background:rgba(201,127,63,.28)}
+.season-dial .daynight:hover,.top-tool:hover{background:rgba(201,127,63,.28)}
 .season-dial .daynight.on{background:rgba(120,140,180,.28);border-color:rgba(180,200,230,.4);color:#dbe4f5}
+.top-tool{padding:0;color:#d8c7ac}
+.top-tool canvas{width:32px;height:24px;display:block}
+.top-tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.30);box-shadow:inset 0 0 0 1px rgba(239,230,211,.10)}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
-.season-box{position:relative;overflow:hidden;display:flex;align-items:center;min-width:148px;
+.season-box{position:relative;overflow:hidden;display:flex;align-items:center;width:150px;min-width:150px;height:34px;min-height:34px;
   background:rgba(0,0,0,.24);border:1.5px solid rgba(239,230,211,.22);border-radius:8px;
-  padding:6px 13px;color:inherit;text-align:left;cursor:pointer;
+  padding:3px 12px;color:inherit;text-align:left;cursor:pointer;
   -webkit-touch-callout:none;user-select:none;touch-action:manipulation}
 .season-box:hover{border-color:rgba(239,230,211,.42)}
 .season-box:active{border-color:var(--bronze)}
 .season-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:#7fc24e;opacity:.58;
   transition:background .45s ease;pointer-events:none}
 .season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px}
-.season-box .season-name{font-size:17px;line-height:1.05}
-.season-sub{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#ece1cb}
+.season-box .season-name{font-size:15.5px;line-height:1}
+.season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .pill{pointer-events:auto;padding:2px;font-size:12px;color:var(--seedhead)}
 .pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:none;cursor:pointer;border-radius:3px;padding:2px 6px}
@@ -403,6 +406,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .menu-foot{font-size:10.5px}
   .creator-grid{flex-direction:column;align-items:center}
   .season-dial{padding:7px 9px;gap:9px;align-items:center}
+  .season-box{width:132px;min-width:132px;padding:3px 9px}
+  .season-box .season-name{font-size:14.5px}
+  .season-sub{font-size:8.2px;letter-spacing:.07em}
   .season-readout{text-align:left;min-width:0}
   .season-name{font-size:16px;line-height:1.05}
   .season-day{font-size:10px;margin-top:3px}
@@ -410,7 +416,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .day-bar i{display:block}
   .time-actions{min-width:0;gap:4px}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
-  /* ten tools have to clear the bottom tray, so compact the rail: smaller
+  /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
   #canvasTools{top:150px;left:8px;padding:3px;gap:2px}
   .canvas-tool{width:44px;min-height:42px}

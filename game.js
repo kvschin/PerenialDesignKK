@@ -5103,16 +5103,21 @@ function renderSelectTray(tray){
     'Paste the saved area starting at this selection',!storedArea());
 }
 function refreshCanvasTools(){ buildCanvasTools(); }
+function syncTopSelectTool(){
+  const b=document.getElementById('btnSelectTool'); if (!b) return;
+  b.classList.toggle('sel',game.tool==='select');
+  b.onclick=()=>{ setTool('select'); buildToolTray(); };
+  const c=document.getElementById('btnSelectIcon');
+  if (c) drawCanvasIcon(c.getContext('2d'),'select');
+}
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
+  syncTopSelectTool();
   rail.innerHTML='';
   const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
-  add('Select','select',{active:game.tool==='select',
-    title:'Drag a box to select tiles, then move, duplicate, fill, save, paste, rotate, or erase them',
-    onClick:()=>{ setTool('select'); buildToolTray(); }});
   add('Plant','brush',{active:!!PLANTS[game.tool]&&!game.fillMode,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
