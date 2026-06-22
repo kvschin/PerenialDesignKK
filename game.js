@@ -347,9 +347,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.lineCap = 'butt';
     }
     // flower stems
-    const sn = stemFor(P.form==='spike'?7:(L.stems||6));
+    const sn = stemFor(P.form==='spike'?(L.stems||7):(L.stems||6));
     for (let i=0;i<sn;i++){
-      const ox=(rnd()-0.5)*14, len=H*(0.75+rnd()*0.3), tx=ox+sway*len*0.05;
+      const ox=(rnd()-0.5)*(L.stemSpread||14);
+      const len=H*((L.lenBase||0.75)+rnd()*(L.lenJitter||0.3));
+      const tx=ox+sway*len*0.05+(P.form==='spike'?(rnd()-0.5)*(L.wildLean||0):0);
       ctx.strokeStyle = P.stem || shade(S.fol,-18);
       ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(ox*0.4,0);
       ctx.quadraticCurveTo(ox,-len*0.55,tx,-len); ctx.stroke();
@@ -446,9 +448,31 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       else { // spike
         const col=(headOn?S.bloom:null)||S.seed;
-        if (col){ ctx.fillStyle=col;
-          for(let s=0;s<5;s++){ ctx.beginPath();
-            ctx.ellipse(hx+(rnd()-0.5)*1.5, hy+s*3.2, 1.8,2.2,0,0,7); ctx.fill(); } }
+        if (col){
+          if (L.spikeStyle==='liatris'){
+            const spikeLen=L.spikeLen||18, florets=Math.max(3,Math.round(L.florets||8));
+            const dense=L.dense||1, capW=L.capW||2.3, capH=L.capH||2.8;
+            for(let s=0;s<florets;s++){
+              const u=florets>1?s/(florets-1):0, yy=hy+u*spikeLen;
+              const side=(s%2?-1:1), xx=hx+side*(L.zigzag||1.1)*(0.55+rnd())+(rnd()-0.5)*(L.ragged||1.4);
+              ctx.fillStyle=shade(col,(rnd()-0.5)*18);
+              ctx.beginPath(); ctx.ellipse(xx,yy,capW*(0.85+rnd()*0.3),capH*(0.85+rnd()*0.3),0,0,7); ctx.fill();
+              if (blooming && L.fuzz){
+                ctx.strokeStyle=shade(col,20); ctx.lineWidth=0.65; ctx.lineCap='round';
+                for(let f=0;f<Math.max(1,Math.round(dense));f++){
+                  const a=(rnd()-0.5)*Math.PI;
+                  ctx.beginPath(); ctx.moveTo(xx,yy);
+                  ctx.lineTo(xx+Math.cos(a)*L.fuzz,yy+Math.sin(a)*L.fuzz); ctx.stroke();
+                }
+                ctx.lineCap='butt';
+              }
+            }
+          } else {
+            ctx.fillStyle=col;
+            for(let s=0;s<5;s++){ ctx.beginPath();
+              ctx.ellipse(hx+(rnd()-0.5)*1.5, hy+s*3.2, 1.8,2.2,0,0,7); ctx.fill(); }
+          }
+        }
       }
     }
   }
