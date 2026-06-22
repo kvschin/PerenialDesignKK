@@ -2394,6 +2394,10 @@ function setUserZoom(z){
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
 function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
+  // pin the CSS box to innerWidth/innerHeight too: in an iOS standalone PWA
+  // these report the FULL screen (incl. the home-indicator safe area) while
+  // CSS 100%/100vh stop short, leaking the --loam body bg as a bottom band
+  c.style.width=innerWidth+'px'; c.style.height=innerHeight+'px';
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
@@ -5804,9 +5808,15 @@ function nextSeasonName(){
   return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
 }
 function openPause(){
+  const ps=$('pauseScreen');
   $('pauseMeta').textContent=clockMeta();
   $('btnPauseResume').textContent=game.pausedAt?'Resume':'Pause day';
-  $('pauseScreen').classList.remove('hidden');
+  ps.classList.remove('hidden');
+  // drop the panel down under the season box, left-aligned to it
+  const box=$('btnSeasonBox'), p=ps.querySelector('.panel');
+  if (box && p){ const r=box.getBoundingClientRect();
+    p.style.top=(r.bottom+6)+'px';
+    p.style.left=Math.max(8,Math.round(r.left))+'px'; }
 }
 function closePause(){
   $('confirmSeasonScreen').classList.add('hidden');
@@ -6268,6 +6278,8 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
 })();
 // the menu's primary button now pauses or resumes, since the dial's Pause button is gone
 $('btnPauseResume').onclick=()=>{ if (game.pausedAt) resumeClock(); else pauseClock(); closePause(); updateHUD(); };
+// the time menu is a dropdown — click the backdrop (off the panel) to dismiss
+$('pauseScreen').onclick=(e)=>{ if (e.target===$('pauseScreen')) closePause(); };
 $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;

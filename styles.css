@@ -12,10 +12,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--loam);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
-/* width/height:100% (not 100vh) so the canvas covers the full screen
-   INCLUDING the iOS safe areas under viewport-fit=cover — 100vh can stop
-   short of the home indicator and leak the --loam body bg as a band on
-   iPhone/iPad. 100% resolves against the full-screen containing block. */
+/* width/height:100% is only the pre-JS fallback — sizeCanvas() pins the box
+   to innerWidth/innerHeight px, which (unlike 100%/100vh) span the full screen
+   incl. the iOS safe areas in a standalone PWA, so the --loam body bg can't
+   leak as a band behind the home indicator. */
 #gameCanvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
 /* ---------- screens ---------- */
@@ -333,7 +333,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #gardenMenu .pause-actions .btn{padding:10px 12px;font-size:13px}
 #gardenMenu #btnGmClose{padding:9px 12px;font-size:12.5px}
 @keyframes gmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
-#pauseScreen,#confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
+#confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
+/* time menu: a compact dropdown that drops down under the season box (top/left
+   set in JS via openPause), not a centered modal */
+#pauseScreen{display:block;padding:0;background:transparent;z-index:18}
+#pauseScreen .panel{position:fixed;top:56px;left:10px;width:214px;max-width:calc(100vw - 16px);
+  padding:13px;border-radius:8px;box-shadow:0 16px 46px rgba(0,0,0,.48);animation:gmDrop .14s ease-out}
+#pauseScreen .panel h2{font-size:16px;margin-bottom:2px}
+#pauseScreen .panel .sub{font-size:11px;margin-bottom:10px}
+#pauseScreen .pause-actions{gap:6px}
+#pauseScreen .pause-actions .btn{padding:10px 12px;font-size:13px}
 .pause-actions{display:flex;flex-direction:column;gap:9px}
 .pause-actions .btn{width:100%;text-align:left}
 /* ---------- export / planting list ---------- */
@@ -420,13 +429,13 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
      keeps the wrap to ~two rows */
   #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px}
   #trayTabs .tab{padding:6px 8px}
-  /* full-bleed palette: edge to edge, square corners. The whole cluster
-     floats just above the home indicator (bottom:safe-area) so the garden
-     shows in the gap below it — not a dark slab of tray background */
-  .hud-bottom{left:0;transform:none;width:100%;bottom:env(safe-area-inset-bottom);padding:0;gap:6px}
+  /* full-bleed palette: edge to edge, square corners, docked to the bottom.
+     The catalog's own bottom padding lifts it clear of the home indicator
+     while the tray background runs to the screen edge behind it. */
+  .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
-  #toolTray{padding-bottom:10px;
+  #toolTray{padding-bottom:calc(6px + env(safe-area-inset-bottom));
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,

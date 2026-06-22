@@ -365,8 +365,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     blue) — this replaced the old thin progress line and the Advance/Pause
     buttons. **Hold** the box to fast-forward time (`game.ffActive`; the loop
     adds `FF_RATE` game-ms per real-ms, ~2 garden days/sec); a short **tap**
-    opens the time menu (`openPause` → `#pauseScreen`), whose primary button is
-    now a Pause/Resume toggle. Right = the **action bar**
+    opens the time menu (`openPause` → `#pauseScreen`), now a **dropdown** that
+    `openPause` pins just under the season box (`position:fixed`, JS-set
+    `top`/`left`; click the backdrop to dismiss — same mechanism as
+    `#gardenMenu`), whose primary button is now a Pause/Resume toggle. Right =
+    the **action bar**
     (`#actionBar`): Undo/Redo (`updateUndoBtn` greys each when its stack is
     empty) + a `☰` Menu. The Menu opens `#gardenMenu` — the planting list,
     region filter (shows the active filter), photo, planting plan, and Save &
@@ -384,10 +387,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `game.sheetCollapsed`), leaving the brush bar + a context label + a swatch
     of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
     (edge-to-edge, square corners, docked to `bottom:0` with
-    `padding-bottom:calc(12px + env(safe-area-inset-bottom))` so the catalog
-    clears the home indicator). On desktop/iPad `.hud-bottom` stays a
+    `padding-bottom:calc(6px + env(safe-area-inset-bottom))` so the catalog
+    clears the home indicator while the tray background runs to the screen
+    edge behind it). On desktop/iPad `.hud-bottom` stays a
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
-    so it lifts above an iPad's home bar too). The chrome
+    so it lifts above an iPad's home bar too). **Canvas full-bleed under
+    `viewport-fit=cover`:** `sizeCanvas()` pins the CSS box to
+    `innerWidth/innerHeight` px (not CSS `100%`/`100vh`, which stop short of the
+    home-indicator safe area in a standalone PWA and leak the `--loam` body bg
+    as a band) so the garden paints edge to edge. The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
     button — autosave fires on day change, quit, and visibilitychange/pagehide.
     Pausing/resuming (now the time menu's primary toggle) freezes or resumes day
