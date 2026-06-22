@@ -12,14 +12,18 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--loam);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
-#gameCanvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
+/* width/height:100% (not 100vh) so the canvas covers the full screen
+   INCLUDING the iOS safe areas under viewport-fit=cover — 100vh can stop
+   short of the home indicator and leak the --loam body bg as a band on
+   iPhone/iPad. 100% resolves against the full-screen containing block. */
+#gameCanvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
 /* ---------- screens ---------- */
 .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:18px;overflow-y:auto}
 .hidden{display:none!important}
 
 #menuScreen{background:transparent}
-#menuCanvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;pointer-events:none}
+#menuCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .menu-shell{position:relative;width:min(390px,calc(100vw - 36px));min-height:min(720px,100%);display:flex;flex-direction:column;
   justify-content:center;gap:18px;padding:48px 0 34px;text-align:center}
 .menu-title-block{padding:0 10px}
@@ -402,13 +406,13 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
      keeps the wrap to ~two rows */
   #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px}
   #trayTabs .tab{padding:6px 8px}
-  /* full-bleed palette: edge to edge, square corners, padded clear of the
-     rounded screen corners + home indicator via safe-area insets */
-  .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
-  .hud-bottom.collapsed{padding-bottom:env(safe-area-inset-bottom)}
+  /* full-bleed palette: edge to edge, square corners. The whole cluster
+     floats just above the home indicator (bottom:safe-area) so the garden
+     shows in the gap below it — not a dark slab of tray background */
+  .hud-bottom{left:0;transform:none;width:100%;bottom:env(safe-area-inset-bottom);padding:0;gap:6px}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
-  #toolTray{padding-bottom:calc(12px + env(safe-area-inset-bottom));
+  #toolTray{padding-bottom:10px;
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,
