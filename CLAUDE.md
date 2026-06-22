@@ -348,7 +348,13 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     so the way back is obvious; tapping it or pressing **Escape** in the field
     restores the sub-tabs.
     The top bar is **one connected glassy bar** (`.hud-top` carries the glass;
-    the clusters sit transparent on it). Left = the
+    the clusters sit transparent on it), **flush to the top edge, full-width**
+    (`top:0;left:0;right:0`, square, `border-bottom` only). It pads with
+    `max(6px,env(safe-area-inset-top))` so on a notched phone the glass bleeds
+    up *behind* the iOS status bar (`apple-mobile-web-app-status-bar-style`
+    is `black-translucent`) while the content ducks below the notch — this is
+    why the viewport meta carries `viewport-fit=cover` (without it the insets
+    resolve to 0 and nothing bleeds/clears). Left = the
     **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on), the season
@@ -369,7 +375,11 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `#sheetHandle` folds the catalog away while you paint (`applySheetState`,
     `game.sheetCollapsed`), leaving the brush bar + a context label + a swatch
     of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
-    (edge-to-edge, square corners, `env(safe-area-inset-*)`), and the chrome
+    (edge-to-edge, square corners, docked to `bottom:0` with
+    `padding-bottom:calc(12px + env(safe-area-inset-bottom))` so the catalog
+    clears the home indicator). On desktop/iPad `.hud-bottom` stays a
+    **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
+    so it lifts above an iPad's home bar too). The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
     button — autosave fires on day change, quit, and visibilitychange/pagehide. Pause/Start freezes or resumes day progression
     without blocking editing; clicking the time readout opens a small menu
