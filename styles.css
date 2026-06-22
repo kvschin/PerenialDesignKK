@@ -12,18 +12,21 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--loam);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
-/* width/height:100% is only the pre-JS fallback — sizeCanvas() pins the box
-   to innerWidth/innerHeight px, which (unlike 100%/100vh) span the full screen
-   incl. the iOS safe areas in a standalone PWA, so the --loam body bg can't
-   leak as a band behind the home indicator. */
-#gameCanvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+/* The canvas must cover the FULL screen under viewport-fit=cover. In an iOS
+   standalone PWA, 100vh / 100% / window.innerHeight all stop at the safe-area
+   bottom, leaking the --loam body bg as a band behind the home indicator —
+   so add env(safe-area-inset-bottom) back. sizeCanvas() then derives the
+   buffer + all render/pointer math from the canvas's real clientHeight. */
+#gameCanvas{position:fixed;top:0;left:0;width:100%;height:100vh;
+  height:calc(100vh + env(safe-area-inset-bottom));display:block;touch-action:none}
 
 /* ---------- screens ---------- */
 .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:10;padding:18px;overflow-y:auto}
 .hidden{display:none!important}
 
 #menuScreen{background:transparent}
-#menuCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#menuCanvas{position:fixed;top:0;left:0;width:100%;height:100vh;
+  height:calc(100vh + env(safe-area-inset-bottom));z-index:0;pointer-events:none}
 .menu-shell{position:relative;width:min(390px,calc(100vw - 36px));min-height:min(720px,100%);display:flex;flex-direction:column;
   justify-content:center;gap:18px;padding:48px 0 34px;text-align:center}
 .menu-title-block{padding:0 10px}

@@ -2356,7 +2356,7 @@ function applyDuskLighting(ctx,W,H,season){
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
 }
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
-  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(innerHeight/ZOOM)*0.21; }
+  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(VH/ZOOM)*0.21; }
 function rotateView(dir){
   game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;
   toast(`View rotated — ${game.rot*90}°.`);
@@ -2393,12 +2393,20 @@ function setUserZoom(z){
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
-function sizeCanvas(c){ c.width=innerWidth*DPR; c.height=innerHeight*DPR;
-  // pin the CSS box to innerWidth/innerHeight too: in an iOS standalone PWA
-  // these report the FULL screen (incl. the home-indicator safe area) while
-  // CSS 100%/100vh stop short, leaking the --loam body bg as a bottom band
-  c.style.width=innerWidth+'px'; c.style.height=innerHeight+'px';
-  c.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
+// VW/VH = the canvas's true CSS-pixel size, read from the laid-out element.
+// The canvas box is height:calc(100vh + safe-area-inset-bottom), so it spans
+// the WHOLE screen under viewport-fit=cover even when innerHeight/100vh stop
+// short of the home indicator in a standalone PWA. All render + pointer math
+// uses VW/VH, so the garden fills the screen with no stretch and clicks stay
+// true. (A hidden canvas reports clientHeight 0 — skip it so it can't poison
+// the size; the visible canvas sets it.)
+let VW=innerWidth, VH=innerHeight;
+function sizeCanvas(c){
+  const w=c.clientWidth, h=c.clientHeight;
+  if (h>0){ VW=w; VH=h; }
+  c.width=(w||innerWidth)*DPR; c.height=(h||innerHeight)*DPR;
+  c.getContext('2d').setTransform(DPR,0,0,DPR,0,0);
+}
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
 
 let snowFlakes = [];
@@ -2441,7 +2449,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
   }
 }
 function render(t){
-  const W=innerWidth/ZOOM, H=innerHeight/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
+  const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   // sky
   const g = cx.createLinearGradient(0,0,0,H);
@@ -3421,7 +3429,7 @@ function selPointerUp(){
   }
 }
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
-  const W=innerWidth/ZOOM, H=innerHeight/ZOOM;
+  const W=VW/ZOOM, H=VH/ZOOM;
   const sx=e.clientX/ZOOM, sy=e.clientY/ZOOM;
   const [wx,wy]=worldPointAt(sx, sy, W, H);
   const [x,y]=tileAt(sx, sy, W, H);
@@ -6353,7 +6361,7 @@ function advanceMenuSeason(){
   seedMenuMeadow();
 }
 function menuRender(t){
-  const W=innerWidth,H=innerHeight;
+  const W=VW,H=VH;
   const sc=MENU_SCENES[menuSeason]||MENU_SCENES.Fall;
   const g=mcx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,sc.sky[0]); g.addColorStop(0.52,sc.sky[1]); g.addColorStop(1,sc.sky[2]);

@@ -392,10 +392,15 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     edge behind it). On desktop/iPad `.hud-bottom` stays a
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
     so it lifts above an iPad's home bar too). **Canvas full-bleed under
-    `viewport-fit=cover`:** `sizeCanvas()` pins the CSS box to
-    `innerWidth/innerHeight` px (not CSS `100%`/`100vh`, which stop short of the
-    home-indicator safe area in a standalone PWA and leak the `--loam` body bg
-    as a band) so the garden paints edge to edge. The chrome
+    `viewport-fit=cover`:** in an iOS standalone PWA `innerHeight`/`100vh`/`100%`
+    all stop at the safe-area bottom (the true bottom is *not* the bottom), so
+    the `--loam` body bg leaked through as a band — even on the menu. Fix: the
+    canvas box is `height:calc(100vh + env(safe-area-inset-bottom))` so it spans
+    the whole screen, and `sizeCanvas()` derives the buffer plus `VW`/`VH` (used
+    by `render`, `evPlacement`, `snapCam`, `menuRender` in place of
+    `innerWidth/innerHeight`) from the canvas's real `clientWidth/clientHeight`
+    — so it fills with no stretch and clicks stay true. A hidden canvas reports
+    `clientHeight 0` and is skipped so it can't poison `VW/VH`. The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
     button — autosave fires on day change, quit, and visibilitychange/pagehide.
     Pausing/resuming (now the time menu's primary toggle) freezes or resumes day
