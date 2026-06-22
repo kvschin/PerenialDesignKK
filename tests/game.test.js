@@ -5,10 +5,11 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design';
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {}; game.firepits = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
+  game.firepitDraft = { shape: 'round', size: 'round36' };
   game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
@@ -475,6 +476,33 @@ test('lights place as one-tile structures, block plants, and erase with landscap
   eraseBrush(5, 5, counts);
   assertEqual(counts.light, 1, 'erase counted the light');
   assert(!lightAt(5, 5), 'light removed');
+});
+
+test('fire pits reserve their footprint and erase as structures', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.tool = 'firepit';
+  game.firepitDraft = { shape: 'round', size: 'round48' };
+  assertEqual(applyToolAt(5, 5), 'firepit', 'fire pit placed');
+  assertEqual(firepitAt(5, 5).shape, 'round', 'shape saved');
+  assertEqual(firepitAt(7, 7).size, 'round48', '48 inch fire pit spans three tiles');
+  assert(!canStand(6, 6), 'fire pit footprint blocks movement');
+
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(6, 6), null, 'plants refuse fire pit footprint');
+  game.tool = 'water';
+  assertEqual(applyToolAt(6, 6), null, 'water refuses fire pit footprint');
+
+  game.tool = 'firepit';
+  game.firepitDraft = { shape: 'square', size: 'rect24x48' };
+  assertEqual(applyToolAt(9, 5), 'firepit', 'rectangular fire pit placed');
+  assert(firepitAt(11, 6), '24x48 fire pit reserves a rectangular footprint');
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0, firepit: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(6, 6, counts);
+  assertEqual(counts.firepit, 1, 'erase counted the whole fire pit once');
+  assert(!firepitAt(5, 5), 'fire pit removed');
 });
 
 test('water plants only plant into open water tiles', () => {

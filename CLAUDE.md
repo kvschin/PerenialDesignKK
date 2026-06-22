@@ -328,7 +328,17 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
     to reveal pond/river/lake styles. The Structures tab draws fences and
     gates from `game.fenceDraft` with 4 ft/6 ft heights
-    and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials. The House tab
+    and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials, plus **fire
+    pits** from `game.firepitDraft` (Round/Square shape + size — round
+    24/36/48 in, square 36 in or 24x48 in — `FIREPIT_SIZES`/`firepitTileSize`;
+    drill in for shape/size like a grouped species). Fire pits live in
+    `game.firepits` keyed by origin tile (`{shape,size,t}` or `{removed:true}`),
+    reserve a mature footprint via `firepitFootprint`/`canPlaceFirepit`
+    (refused under house/door/water/plants/bulbs/fences/lights/shrubs and the
+    Story-mode avatar), block movement (`canStand`/`firepitAt`), and render
+    through `drawFirepit` (stone rim + coals + flames, snow cap in winter).
+    They erase as Landscape, move/rotate/copy in selections, eyedrop with
+    Pick, and sync via `syncFirepitsOut` — all parallel to lights. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the drawing tools (Hand/Select/Plant/Erase/
