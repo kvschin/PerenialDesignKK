@@ -383,6 +383,43 @@ test('selection only carries the items it owned, not late arrivals', () => {
   assert(!live(game.plants).includes('6,8'), 'late arrival was not scooped');
 });
 
+test('selection fill uses the last selected plant and replaces existing plants', () => {
+  setup(15, 15);
+  const grass = firstOfType('grass');
+  const forb = firstOfType('forb');
+  game.plants['5,5'] = { s: grass, d: 0, t: 1 };
+  game.sel = { x0: 5, y0: 5, x1: 6, y1: 6 };
+  game.selItems = selectionPayload(game.sel);
+  game.lastBrushTool = forb;
+  game.lastBrushVar = null;
+  fillSelectionWithPlant();
+  const keys = ['5,5', '6,5', '5,6', '6,6'];
+  keys.forEach(k => assert(game.plants[k] && game.plants[k].s === forb, `${k} filled with selected forb`));
+  assertEqual(game.selItems.length, 4, 'selection ownership refreshes after fill');
+});
+
+test('selection save and paste carries an area into another garden slot', () => {
+  setup(15, 15);
+  areaClipboard = null;
+  localStorage.removeItem(AREA_CLIP_KEY);
+  const forb = firstOfType('forb');
+  game.plants['3,3'] = { s: forb, d: 0, t: 1 };
+  game.terrain['4,3'] = { k: 'path', c: 'lime', t: 1 };
+  game.sel = { x0: 3, y0: 3, x1: 4, y1: 3 };
+  game.selItems = selectionPayload(game.sel);
+  saveSelectedArea();
+
+  setup(15, 15);
+  game.plants['9,8'] = { s: firstOfType('grass'), d: 0, t: 1 };
+  game.sel = { x0: 8, y0: 8, x1: 8, y1: 8 };
+  pasteSavedArea();
+  assert(game.plants['8,8'] && game.plants['8,8'].s === forb, 'saved plant pasted at selection origin');
+  assert(game.terrain['9,8'] && game.terrain['9,8'].k === 'path' && game.terrain['9,8'].c === 'lime',
+    'saved material pasted at relative offset');
+  assert(game.plants['9,8'] && game.plants['9,8'].removed, 'target footprint was cleared before paste');
+  assertEqual(game.sel.x1, 9, 'selection expands to saved area width');
+});
+
 test('houses: place several, refuse overlaps, erase removes one', () => {
   setup(21, 21);
   game.tool = 'house';

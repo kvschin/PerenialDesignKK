@@ -3329,10 +3329,13 @@ function sweepLift(x,y){ eraseBrush(x,y,sweep); }
    is an in-progress move/copy drag. All edits go through withUndo so each is
    a single undo step. */
 let selDrag=null, selMove=null;
+const AREA_CLIP_KEY='hortus:areaClipboard';
+let areaClipboard=null;
 function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
 function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
+function cloneCell(c){ return JSON.parse(JSON.stringify(c)); }
 // snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, and lights
 function selectionPayload(r){
   const items=[];
@@ -3349,6 +3352,109 @@ function selectionPayload(r){
     if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light) items.push(cell);
   }
   return items;
+}
+function selectedPlantBrush(){
+  const k=game.lastBrushTool;
+  return PLANTS[k] ? [k,game.lastBrushVar||null] : null;
+}
+function selectionAreaPayload(r){
+  return {v:1,w:r.x1-r.x0+1,h:r.y1-r.y0+1,items:selectionPayload(r).map(c=>{
+    const out=cloneCell(c); out.x-=r.x0; out.y-=r.y0; return out;
+  })};
+}
+function storedArea(){
+  if (areaClipboard) return areaClipboard;
+  if (!hasStorage) return null;
+  try{
+    const raw=localStorage.getItem(AREA_CLIP_KEY);
+    areaClipboard=raw?JSON.parse(raw):null;
+  }catch(_){ areaClipboard=null; }
+  return areaClipboard;
+}
+function saveSelectedArea(){
+  if (!game.sel){ toast('Select an area first.'); return; }
+  const area=selectionAreaPayload(game.sel);
+  if (!area.items.length){ toast('Nothing in the selection to save.'); return; }
+  area.savedAt=Date.now();
+  areaClipboard=area;
+  if (hasStorage){
+    try{ localStorage.setItem(AREA_CLIP_KEY,JSON.stringify(area)); }
+    catch(_){ toast('That selection is too large to save here.'); return; }
+  }
+  buildToolTray();
+  toast(`Saved ${area.items.length} occupied tile${area.items.length>1?'s':''} as an area.`);
+}
+function rectForSavedArea(area,x0,y0){ return {x0,y0,x1:x0+area.w-1,y1:y0+area.h-1}; }
+function rectFits(r){
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++)
+    if (!selValidDest(x,y)) return false;
+  return true;
+}
+function clearRectLayers(r){
+  const now=Date.now();
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const k=`${x},${y}`;
+    if (game.plants[k] && !game.plants[k].removed) game.plants[k]={removed:true,t:now};
+    if (game.bulbs[k] && !game.bulbs[k].removed) game.bulbs[k]={removed:true,t:now};
+    if (game.terrain[k] && !game.terrain[k].removed) game.terrain[k]={removed:true,t:now};
+    if (game.elevation[k] && !game.elevation[k].removed) game.elevation[k]={removed:true,t:now};
+    if (game.fences[k] && !game.fences[k].removed) game.fences[k]={removed:true,t:now};
+    if (game.lights[k] && !game.lights[k].removed) game.lights[k]={removed:true,t:now};
+  }
+  game.dirty=true;
+}
+function syncSelectionLayers(){
+  syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut();
+}
+function pasteSavedArea(){
+  const area=storedArea();
+  if (!area || !area.items || !area.items.length){ toast('No saved area yet.'); return; }
+  if (!game.sel){ toast('Select where to paste the saved area.'); return; }
+  const target=rectForSavedArea(area,game.sel.x0,game.sel.y0);
+  if (!rectFits(target)){ toast('Saved area would run off the plot or into a house.'); return; }
+  const items=area.items.map(c=>{ const out=cloneCell(c); out.x=target.x0+c.x; out.y=target.y0+c.y; return out; });
+  withUndo(()=>{ clearRectLayers(target); selWrite(items,c=>[c.x,c.y],false); });
+  syncSelectionLayers();
+  game.sel=target;
+  game.selItems=selectionPayload(game.sel);
+  buildToolTray();
+  toast(`Pasted saved area: ${items.length} occupied tile${items.length>1?'s':''}.`);
+}
+function fillSelectionWithPlant(){
+  if (!game.sel){ toast('Select an area first.'); return; }
+  const brush=selectedPlantBrush();
+  if (!brush){ toast('Pick a plant first, then return to Select.'); return; }
+  const [tool,toolVar]=brush, def=plantDef(tool,toolVar);
+  const oldTool=game.tool, oldVar=game.toolVar, oldDrift=game.drift;
+  let placed=0, what=null;
+  withUndo(()=>{
+    game.tool=tool; game.toolVar=toolVar; game.drift=false;
+    for (let y=game.sel.y0;y<=game.sel.y1;y++) for (let x=game.sel.x0;x<=game.sel.x1;x++){
+      const k=`${x},${y}`;
+      const oldPlant=game.plants[k]?cloneCell(game.plants[k]):null;
+      const oldBulb=game.bulbs[k]?cloneCell(game.bulbs[k]):null;
+      const now=Date.now();
+      if (def.type==='bulb'){
+        if (oldBulb && !oldBulb.removed) game.bulbs[k]={removed:true,t:now};
+      } else {
+        if (oldPlant && !oldPlant.removed) game.plants[k]={removed:true,t:now};
+      }
+      const r=applyToolAt(x,y);
+      if (r){ placed++; what=r; }
+      else {
+        if (oldPlant) game.plants[k]=oldPlant; else delete game.plants[k];
+        if (oldBulb) game.bulbs[k]=oldBulb; else delete game.bulbs[k];
+      }
+    }
+    game.tool=oldTool; game.toolVar=oldVar; game.drift=oldDrift;
+  });
+  game.tool=oldTool; game.toolVar=oldVar; game.drift=oldDrift;
+  if (placed){
+    syncToolLayer(what);
+    game.selItems=selectionPayload(game.sel);
+    toast(`Filled ${placed} tile${placed>1?'s':''} with ${def.name}.`);
+  } else toast(`No open spots for ${def.name} in that selection.`);
+  buildToolTray(); refreshCanvasTools();
 }
 // write items to their destination tiles (getDst(cell)->[x,y]); clearSource
 // first wipes the originals (move) — skipped for copy
@@ -4674,6 +4780,14 @@ function drawCanvasIcon(tc,kind){
     tc.save(); tc.translate(20,16); tc.rotate(-0.72);
     tc.strokeRect(-8,-7,16,14); tc.beginPath(); tc.moveTo(8,3); tc.lineTo(15,9); tc.stroke();
     tc.fillStyle='#5d93a8'; tc.beginPath(); tc.ellipse(14,12,4,2,0,0,7); tc.fill(); tc.restore();
+  } else if (kind==='save'){
+    tc.strokeRect(10,7,22,18);
+    tc.beginPath(); tc.moveTo(15,7); tc.lineTo(15,14); tc.lineTo(27,14); tc.lineTo(27,7); tc.stroke();
+    tc.beginPath(); tc.moveTo(15,25); tc.lineTo(15,19); tc.lineTo(27,19); tc.lineTo(27,25); tc.stroke();
+  } else if (kind==='paste'){
+    tc.strokeRect(12,10,18,16);
+    tc.beginPath(); tc.moveTo(17,10); tc.lineTo(17,6); tc.lineTo(25,6); tc.lineTo(25,10); tc.stroke();
+    tc.setLineDash([3,2]); tc.strokeRect(7,15,18,12); tc.setLineDash([]);
   } else if (kind==='dropper'){
     tc.beginPath(); tc.moveTo(13,23); tc.lineTo(27,9); tc.stroke();
     tc.strokeRect(24,6,6,6); tc.beginPath(); tc.moveTo(11,25); tc.lineTo(18,25); tc.stroke();
@@ -4976,31 +5090,34 @@ function renderSelectTray(tray){
     toast('Drag the selection to drop a copy.'); },'Drag to drop a copy, leaving the original');
   // one-shot actions
   sep('Actions');
+  btn('Fill','fill',false,()=>{ fillSelectionWithPlant(); },
+    'Fill the selection with the last selected plant');
   btn('Rotate','rotate',false,()=>{ rotateSelection(); buildToolTray(); refreshCanvasTools(); },
     'Rotate the selection 90°');
   btn('Erase','erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },
     'Delete everything in the selection');
+  sep('Area');
+  btn('Save','save',false,()=>{ saveSelectedArea(); },
+    'Save this selected area for later pasting');
+  btn('Paste','paste',false,()=>{ pasteSavedArea(); },
+    'Paste the saved area starting at this selection',!storedArea());
 }
 function refreshCanvasTools(){ buildCanvasTools(); }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
   rail.innerHTML='';
-  const brushActive=isBrushTool(game.tool);
   const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
   add('Select','select',{active:game.tool==='select',
-    title:'Drag a box to select tiles — then move, duplicate, rotate, or erase them',
+    title:'Drag a box to select tiles, then move, duplicate, fill, save, paste, rotate, or erase them',
     onClick:()=>{ setTool('select'); buildToolTray(); }});
   add('Plant','brush',{active:!!PLANTS[game.tool]&&!game.fillMode,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
     onClick:()=>{ setTool('shovel'); buildToolTray(); }});
-  add('Fill','fill',{active:fillActive(),
-    title:'Bucket fill: tap to flood a connected area of one material — pick what to fill with from the catalog',
-    onClick:()=>armFillTool()});
   add('Pick','dropper',{active:game.tool==='pick',
     title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
     onClick:()=>{ setTool('pick'); buildToolTray(); }});
