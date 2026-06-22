@@ -2435,15 +2435,13 @@ function setActiveCanvas(c){
   sizeCanvas(c,{active:true});
   const other=c.id==='gameCanvas' ? document.getElementById('menuCanvas') : cnv;
   if (other) sizeCanvas(other,{active:false});
-  const settle=()=>{ sizeCanvas(c,{active:true}); calcZoom();
-    if (typeof updateViewportDebug==='function') updateViewportDebug(); };
+  const settle=()=>{ sizeCanvas(c,{active:true}); calcZoom(); };
   requestAnimationFrame(settle);
   requestAnimationFrame(()=>requestAnimationFrame(settle));
 }
 function resizeCanvases(){
   setActiveCanvas(activeCanvas());
   calcZoom();
-  if (typeof updateViewportDebug==='function') updateViewportDebug();
 }
 addEventListener('resize', resizeCanvases);
 
@@ -6474,87 +6472,6 @@ function updateDebugHud(){
     `entities ${dbg.ents}   tiles ${dbg.tiles}\n`+
     `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`;
 }
-/* ---------- viewport diagnostics (add ?debug to the URL) ----------
-   Measures every candidate for "the true screen height" so we can see which
-   one actually spans the full screen on a given device, plus what the
-   safe-area insets resolve to. Tap the panel to re-measure. */
-function vpMeasure(){
-  const probeH=(css)=>{ const d=document.createElement('div');
-    d.style.cssText='position:fixed;left:-300px;top:0;width:0;visibility:hidden;pointer-events:none;'+css;
-    document.body.appendChild(d); const h=d.getBoundingClientRect().height; d.remove(); return Math.round(h); };
-  const probeW=(css)=>{ const d=document.createElement('div');
-    d.style.cssText='position:fixed;left:0;top:-300px;height:0;visibility:hidden;pointer-events:none;'+css;
-    document.body.appendChild(d); const w=d.getBoundingClientRect().width; d.remove(); return Math.round(w); };
-  const insetDiv=(()=>{ const d=document.createElement('div');
-    d.style.cssText='position:fixed;inset:0;visibility:hidden;pointer-events:none';
-    document.body.appendChild(d); const r=d.getBoundingClientRect(); d.remove(); return r; })();
-  const c=activeCanvas(), cr=c?c.getBoundingClientRect():{height:0,bottom:0,top:0};
-  const vv=window.visualViewport;
-  const fill=getComputedStyle(document.documentElement).getPropertyValue('--viewport-fill').trim();
-  return {
-    standalone:(navigator.standalone===true)||matchMedia('(display-mode: standalone)').matches,
-    dpr:devicePixelRatio,
-    inner:innerWidth+'x'+innerHeight,
-    docEl:document.documentElement.clientWidth+'x'+document.documentElement.clientHeight,
-    screen:screen.width+'x'+screen.height,
-    visualVp:vv?Math.round(vv.width)+'x'+Math.round(vv.height)+' @'+Math.round(vv.offsetTop):'n/a',
-    safeTB:probeH('height:env(safe-area-inset-top,0px)')+' / '+probeH('height:env(safe-area-inset-bottom,0px)'),
-    safeLR:probeW('width:env(safe-area-inset-left,0px)')+' / '+probeW('width:env(safe-area-inset-right,0px)'),
-    fixedInset0H:Math.round(insetDiv.height),
-    h100vh:probeH('height:100vh'), h100dvh:probeH('height:100dvh'), h100lvh:probeH('height:100lvh'),
-    canvasId:c?c.id:'?',
-    canvasClientH:c?c.clientHeight:0,
-    canvasRect:Math.round(cr.top)+'..'+Math.round(cr.bottom),
-    viewportFill:fill||'n/a',
-    VWxVH:(typeof VW!=='undefined'?VW:'?')+'x'+(typeof VH!=='undefined'?VH:'?')
-  };
-}
-let vpEl=null;
-function updateViewportDebug(){
-  if (!vpEl) return; const m=vpMeasure();
-  vpEl.textContent=
-    'VIEWPORT DEBUG  (tap to refresh)\n'+
-    'standalone   '+m.standalone+'\n'+
-    'dpr          '+m.dpr+'\n'+
-    'inner        '+m.inner+'\n'+
-    'documentEl   '+m.docEl+'\n'+
-    'screen       '+m.screen+'\n'+
-    'visualVp     '+m.visualVp+'\n'+
-    'safe T / B   '+m.safeTB+'\n'+
-    'safe L / R   '+m.safeLR+'\n'+
-    'fixed inset0 '+m.fixedInset0H+'\n'+
-    '100vh        '+m.h100vh+'\n'+
-    '100dvh       '+m.h100dvh+'\n'+
-    '100lvh       '+m.h100lvh+'\n'+
-    'canvas       '+m.canvasId+'\n'+
-    'canvas clntH '+m.canvasClientH+'\n'+
-    'canvas rect  '+m.canvasRect+'\n'+
-    'fill         '+m.viewportFill+'\n'+
-    'VW x VH      '+m.VWxVH;
-}
-function showViewportDebug(){
-  if (!vpEl){
-    vpEl=document.createElement('div'); vpEl.id='vpDebug';
-    vpEl.style.cssText='position:fixed;top:170px;left:50%;transform:translateX(-50%);z-index:100;'+
-      'background:rgba(8,6,4,.93);color:#dcecca;font:12px/1.5 ui-monospace,Menlo,monospace;'+
-      'padding:11px 14px;border-radius:8px;white-space:pre;max-width:92vw;'+
-      'border:1px solid rgba(239,230,211,.32);box-shadow:0 10px 34px rgba(0,0,0,.5)';
-    vpEl.onclick=updateViewportDebug;
-    document.body.appendChild(vpEl);
-    addEventListener('resize',updateViewportDebug);
-    if (window.visualViewport) visualViewport.addEventListener('resize',updateViewportDebug);
-    setTimeout(updateViewportDebug,500); setTimeout(updateViewportDebug,1600);
-  }
-  vpEl.style.display='block';
-  updateViewportDebug();
-}
-// a 3-finger tap toggles the panel — so it works inside the installed
-// home-screen app (standalone PWA) where you can't add ?debug to the URL
-addEventListener('touchstart',(e)=>{ if (e.touches.length===3){
-  if (!vpEl) showViewportDebug();
-  else { vpEl.style.display = vpEl.style.display==='none'?'block':'none';
-    if (vpEl.style.display!=='none') updateViewportDebug(); }
-}}, {passive:true});
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
@@ -6591,6 +6508,5 @@ function loop(t){
   advanceMenuSeason();
   refreshMenuCards();
   if (location.search.includes('debug')) toggleDebug();
-  if (location.search.includes('debug')||location.search.includes('vp')) showViewportDebug();
   requestAnimationFrame(loop);
 })();
