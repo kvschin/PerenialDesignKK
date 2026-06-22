@@ -6486,8 +6486,16 @@ function showViewportDebug(){
     if (window.visualViewport) visualViewport.addEventListener('resize',updateViewportDebug);
     setTimeout(updateViewportDebug,500); setTimeout(updateViewportDebug,1600);
   }
+  vpEl.style.display='block';
   updateViewportDebug();
 }
+// a 3-finger tap toggles the panel — so it works inside the installed
+// home-screen app (standalone PWA) where you can't add ?debug to the URL
+addEventListener('touchstart',(e)=>{ if (e.touches.length===3){
+  if (!vpEl) showViewportDebug();
+  else { vpEl.style.display = vpEl.style.display==='none'?'block':'none';
+    if (vpEl.style.display!=='none') updateViewportDebug(); }
+}}, {passive:true});
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
