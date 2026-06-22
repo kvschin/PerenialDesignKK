@@ -2393,18 +2393,27 @@ function setUserZoom(z){
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();
-// VW/VH = the canvas's true CSS-pixel size, read from the laid-out element.
-// The canvas box is height:calc(100vh + safe-area-inset-bottom), so it spans
-// the WHOLE screen under viewport-fit=cover even when innerHeight/100vh stop
-// short of the home indicator in a standalone PWA. All render + pointer math
-// uses VW/VH, so the garden fills the screen with no stretch and clicks stay
-// true. (A hidden canvas reports clientHeight 0 — skip it so it can't poison
-// the size; the visible canvas sets it.)
+// The true full-screen height under viewport-fit=cover. Measured on an iPhone
+// standalone PWA: innerHeight / 100% / 100dvh all report the SHORT height (they
+// stop ~one inset short of the screen), while 100vh / 100lvh span the whole
+// screen. So take the LARGEST candidate — robust no matter which unit a given
+// iOS version gets wrong — instead of trusting any single one.
+function probeUnitH(unit){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;left:-300px;top:0;width:0;height:'+unit+';visibility:hidden;pointer-events:none';
+  document.body.appendChild(d); const h=d.getBoundingClientRect().height; d.remove(); return h||0;
+}
+function trueViewH(){ return Math.round(Math.max(innerHeight, probeUnitH('100vh'), probeUnitH('100lvh'))); }
+// VW/VH = the canvas's true CSS-pixel size; render + pointer math use them, so
+// the garden fills the whole screen and clicks stay accurate. sizeCanvas FORCES
+// the canvas box to that size via inline style, overriding any (stale or short)
+// CSS height so the --loam body bg can't leak as a band behind the home bar.
 let VW=innerWidth, VH=innerHeight;
 function sizeCanvas(c){
-  const w=c.clientWidth, h=c.clientHeight;
-  if (h>0){ VW=w; VH=h; }
-  c.width=(w||innerWidth)*DPR; c.height=(h||innerHeight)*DPR;
+  const w=c.clientWidth||innerWidth, h=trueViewH();
+  c.style.width=w+'px'; c.style.height=h+'px';
+  if (c.clientHeight>0){ VW=w; VH=h; }   // only a visible canvas drives the view size
+  c.width=w*DPR; c.height=h*DPR;
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0);
 }
 addEventListener('resize', ()=>{ sizeCanvas(cnv); sizeCanvas(mcnv); calcZoom(); });
