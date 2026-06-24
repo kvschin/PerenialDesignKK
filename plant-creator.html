@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Prairie — Plant Creator (dev tool)</title>
+<style>
+  :root{ --bg:#1c140f; --panel:#26201b; --line:rgba(239,230,211,.18); --ink:#efe6d3;
+    --bronze:#c97f3f; --sub:#bdaf99; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif }
+  h1{ font-size:18px; margin:0 } h1 small{ color:var(--sub); font-weight:400; font-size:12px }
+  header{ padding:12px 18px; border-bottom:1.5px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap }
+  #loadnote{ font-size:12px; color:var(--sub) }
+  #loadnote.bad{ color:#e08a6a }
+  .wrap{ display:grid; grid-template-columns:340px 1fr 380px; gap:0; min-height:calc(100vh - 52px) }
+  @media(max-width:1100px){ .wrap{ grid-template-columns:1fr } }
+  .col{ padding:16px 18px; overflow:auto }
+  .col + .col{ border-left:1.5px solid var(--line) }
+  h2{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--bronze); margin:18px 0 8px }
+  h2:first-child{ margin-top:0 }
+  label{ display:block; font-size:11px; color:var(--sub); margin:8px 0 2px }
+  input[type=text],input[type=number],select,textarea{ width:100%; background:#17110d; color:var(--ink);
+    border:1px solid var(--line); border-radius:5px; padding:6px 8px; font:inherit }
+  textarea{ resize:vertical; min-height:54px }
+  .row{ display:flex; gap:8px } .row > *{ flex:1 }
+  .inline{ display:flex; align-items:center; gap:6px } .inline label{ margin:0 }
+  input[type=color]{ width:38px; height:28px; padding:0; border:1px solid var(--line); border-radius:5px; background:none; cursor:pointer }
+  input[type=checkbox]{ width:15px; height:15px }
+  .seas{ border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-bottom:8px }
+  .seas h3{ margin:0 0 6px; font-size:12px; color:var(--ink) }
+  .swatchrow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+  .swatchrow .pick{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--sub) }
+  .previews{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+  .pv{ border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#0e0b08 }
+  .pv .cap{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--sub); padding:5px 8px; border-bottom:1px solid var(--line) }
+  .pv canvas{ display:block; width:100%; height:200px }
+  .gallery{ display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr)); gap:7px }
+  .gcell{ border:1px solid var(--line); border-radius:6px; background:#0e0b08; cursor:pointer; text-align:center; padding-bottom:3px }
+  .gcell.sel{ border-color:var(--bronze); box-shadow:inset 0 0 0 1px var(--bronze) }
+  .gcell canvas{ display:block; width:100%; height:60px }
+  .gcell span{ font-size:9.5px; color:var(--sub); line-height:1.1; display:block }
+  pre{ background:#0e0b08; border:1px solid var(--line); border-radius:8px; padding:12px;
+    font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; color:#d7e3c8; white-space:pre-wrap; word-break:break-word; max-height:50vh; overflow:auto }
+  button{ background:var(--bronze); color:#1c140f; border:none; border-radius:6px; padding:9px 14px;
+    font:600 13px/1 inherit; cursor:pointer } button.ghost{ background:none; color:var(--ink); border:1px solid var(--line) }
+  .hint{ font-size:11px; color:var(--sub); margin-top:6px }
+  .lookrow{ margin:5px 0 }
+  .lookrow label{ display:flex; justify-content:space-between; align-items:baseline; margin:2px 0; font-size:11px }
+  .lookrow label b{ color:var(--ink); font-variant-numeric:tabular-nums }
+  .lookrow input[type=range]{ width:100%; accent-color:var(--bronze) }
+  .cost{ border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin:6px 0 2px }
+  .cost-head{ display:flex; justify-content:space-between; align-items:baseline; font-size:12px; margin-bottom:6px }
+  .cost-head #pc-cost-band{ font-weight:600 }
+  .cost-bar{ height:7px; background:#0e0b08; border-radius:4px; overflow:hidden }
+  .cost-fill{ height:100%; width:0; transition:width .12s ease, background .2s }
+  .cost.light .cost-fill{ background:#6fae54 }    .cost.light #pc-cost-band{ color:#8fce74 }
+  .cost.moderate .cost-fill{ background:#d8a23a }  .cost.moderate #pc-cost-band{ color:#e6b757 }
+  .cost.heavy .cost-fill{ background:#cf5a44 }    .cost.heavy #pc-cost-band{ color:#e87a62 }
+  .cost .hint{ margin-top:7px }
+</style>
+</head>
+<body>
+
+<!-- Pre-stub: let the game's real plants.js + game.js load in this non-game
+     page without booting the app. getElementById returns rich stubs for the
+     game's own element ids (real-first, so this tool's pc-* controls still
+     resolve); addEventListener is swallowed during load so the game wires no
+     handlers; rAF is a no-op so the game loop never starts. drawPlant and its
+     helpers are all defined before game.js touches the DOM, so the renderer
+     is fully available afterward. -->
+<script>
+(function(){
+  function noopCtx(){ return new Proxy({}, {
+    get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p];
+      return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();}, getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p]; if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame;
+  window.requestAnimationFrame=function(){ return 0; };
+})();
+</script>
+<script src="plants.js"></script>
+<script src="game.js"></script>
+<script>
+// game.js has loaded (or thrown after defining the renderer). Restore the real
+// addEventListener for this tool's own use; keep getElementById stubbed so any
+// stray game callback stays harmless.
+window.addEventListener = window.__realAdd; document.addEventListener = document.__realAdd;
+</script>
+
+<header>
+  <h1>🌱 Plant Creator <small>dev tool — builds a <code>plants.js</code> entry; preview uses the game's real renderer</small></h1>
+  <span id="loadnote">checking renderer…</span>
+</header>
+
+<div class="wrap">
+  <!-- ───────────── fields ───────────── -->
+  <div class="col">
+    <h2>Identity</h2>
+    <label>Key (the object key in PLANTS — lowercase, no spaces)</label>
+    <input type="text" id="pc-key" value="myplant">
+    <div class="row">
+      <div><label>Common name</label><input type="text" id="pc-name" value="My Plant"></div>
+      <div><label>Latin name</label><input type="text" id="pc-latin" value="Genus species"></div>
+    </div>
+
+    <h2>Shape &amp; size</h2>
+    <div class="row">
+      <div><label>Form (shape)</label><select id="pc-form"></select></div>
+      <div><label>Type (tray group)</label><select id="pc-type"></select></div>
+    </div>
+    <div class="row">
+      <div><label>Height (px)</label><input type="number" id="pc-h" value="46"></div>
+      <div><label>Spacing (in)</label><input type="number" id="pc-space" value="18"></div>
+      <div><label>Spread (in)</label><input type="number" id="pc-spread" value="18"></div>
+    </div>
+    <div class="row" id="pc-woody" style="display:none">
+      <div><label>Canopy width cw (px, woody)</label><input type="number" id="pc-cw" value="120"></div>
+      <div><label>Grow (years, trees)</label><input type="number" id="pc-grow" value="10"></div>
+    </div>
+
+    <h2>Where it grows</h2>
+    <div class="row">
+      <div><label>Zone min</label><input type="number" id="pc-zmin" value="4"></div>
+      <div><label>Zone max</label><input type="number" id="pc-zmax" value="8"></div>
+      <div class="inline" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="pc-native" checked><label for="pc-native">Native</label></div>
+    </div>
+    <div class="row">
+      <div><label>Sun</label><select id="pc-sun"><option>full</option><option>part</option></select></div>
+      <div><label>Moisture</label><select id="pc-moist"><option>dry</option><option selected>medium</option><option>moist</option></select></div>
+      <div><label>Phenology (spring wake)</label><select id="pc-phen"><option>cool</option><option selected>mid</option><option>warm</option></select></div>
+    </div>
+    <label>Ecoregions (comma-separated; for the natives filter)</label>
+    <input type="text" id="pc-eco" value="Flint Hills, Central Great Plains">
+
+    <h2>Propagation (Story mode — optional)</h2>
+    <div class="row">
+      <div><label>Stratification</label><select id="pc-strat"><option value="">(default)</option><option>none</option><option>cold</option><option>double</option></select></div>
+      <div><label>Spreads</label><select id="pc-spreads"><option value="">(default)</option><option>clump</option><option>seed</option><option>run</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Grow-out (growing days)</label><input type="number" id="pc-growout" placeholder="(default 6)"></div>
+      <div><label>Forage rarity</label><select id="pc-wild"><option value="">(default)</option><option>common</option><option>uncommon</option><option>rare</option></select></div>
+    </div>
+
+    <h2>Blurb (info card)</h2>
+    <textarea id="pc-blurb" placeholder="One or two dry, gardener-facing sentences."></textarea>
+  </div>
+
+  <!-- ───────────── colours + preview ───────────── -->
+  <div class="col">
+    <h2>Seasonal colours</h2>
+    <p class="hint">Foliage is required each season. Tick <b>bloom</b> for a flower, <b>seed</b> for a persistent seedhead/structure (the fall/winter presence is the whole Oudolf point), <b>eye</b> for a cone centre (coneflowers).</p>
+    <div id="pc-seasons"></div>
+
+    <h2>Shape tuning (look)</h2>
+    <p class="hint">These are the per-species carriage knobs — drag to morph the shape and watch the preview. Only knobs you touch get written to the code. <em>Count knobs (stems, rays, spokes) add a little draw cost per plant — fine unless you fill the screen with an ornate one.</em></p>
+    <div id="pc-look-sliders"></div>
+    <label>look (raw — type any params here, e.g. <code>rayShape:'spoon', heads:3</code>)</label>
+    <textarea id="pc-look-json" placeholder="(empty — uses each shape's defaults)"></textarea>
+    <div class="row" style="margin-top:6px"><button class="ghost" id="pc-look-reset" style="flex:0 0 auto">Clear look</button></div>
+
+    <div id="pc-cost" class="cost light">
+      <div class="cost-head"><span id="pc-cost-num">~0 draw elements / plant</span><span id="pc-cost-band">Light</span></div>
+      <div class="cost-bar"><div id="pc-cost-fill" class="cost-fill"></div></div>
+      <p class="hint" id="pc-cost-hint"></p>
+    </div>
+
+    <h2>Live preview <small style="color:var(--sub);font-weight:400;text-transform:none;letter-spacing:0">— exactly how the game draws it</small></h2>
+    <div class="previews" id="pc-previews"></div>
+  </div>
+
+  <!-- ───────────── shapes + code ───────────── -->
+  <div class="col">
+    <h2>Pick a shape</h2>
+    <p class="hint">Click a silhouette to set the form. Most real plants map onto one of these.</p>
+    <div class="gallery" id="pc-gallery"></div>
+
+    <h2>Code for plants.js</h2>
+    <p class="hint">Paste this inside the <code>PLANTS = {…}</code> object in <code>plants.js</code>, then run <code>node tests/run.js</code> and reload the game.</p>
+    <div class="row" style="margin-bottom:8px">
+      <button id="pc-copy" style="flex:0 0 auto">Copy code</button>
+      <button class="ghost" id="pc-refresh" style="flex:0 0 auto">Redraw preview</button>
+    </div>
+    <pre id="pc-code">…</pre>
+  </div>
+</div>
+
+<script>
+(function(){
+  var note=document.getElementById('loadnote');
+  if (typeof drawPlant!=='function' || typeof PLANTS!=='object'){
+    note.textContent='⚠ Could not load the game renderer (open this via the dev server, e.g. http://localhost:8642/plant-creator.html, not file://).';
+    note.className='bad'; return;
+  }
+  note.textContent='✓ renderer loaded — preview matches the game';
+
+  var SEAS = (typeof SEASONS!=='undefined' && SEASONS) || ['Spring','Summer','Fall','Winter'];
+  var FORMS = ['bunchgrass','vertgrass','turkeyfoot','cloudgrass','oatgrass',
+    'cone','globe','spike','umbel','drumstick','rosette','archbell','martagon',
+    'pyramid','bractstack','pincushion','shrub','fern','leafmound',
+    'bulbcup','bush','hydrangea','tree','conifer'];
+  var TYPES = ['grass','sedge','forb','bulb','shrub','tree','water'];
+  var GRASS_FORMS={bunchgrass:1,vertgrass:1,turkeyfoot:1,cloudgrass:1,oatgrass:1};
+  var WOODY_FORMS={bush:1,hydrangea:1,tree:1,conifer:1};
+  function formType(f){ if(GRASS_FORMS[f]) return 'grass'; if(f==='bulbcup') return 'bulb';
+    if(f==='bush'||f==='hydrangea') return 'shrub'; if(f==='tree'||f==='conifer') return 'tree'; return 'forb'; }
+  function formH(f){ if(f==='tree') return 120; if(f==='conifer') return 110; if(f==='hydrangea') return 64;
+    if(f==='bush') return 58; if(f==='bulbcup') return 22; if(GRASS_FORMS[f]) return 48; return 44; }
+
+  var $=function(id){ return document.getElementById(id); };
+
+  // default seasonal palette
+  var seaState = {
+    Spring:{ fol:'#7fa07a', bloom:{on:false,c:'#d98ab0'}, seed:{on:false,c:'#efe6d3'}, eye:{on:false,c:'#3a2a1a'} },
+    Summer:{ fol:'#6e8f6b', bloom:{on:true ,c:'#b07aa8'}, seed:{on:false,c:'#efe6d3'}, eye:{on:false,c:'#3a2a1a'} },
+    Fall:  { fol:'#c0623b', bloom:{on:false,c:'#b07aa8'}, seed:{on:true ,c:'#efe6d3'}, eye:{on:false,c:'#3a2a1a'} },
+    Winter:{ fol:'#a35a35', bloom:{on:false,c:'#b07aa8'}, seed:{on:true ,c:'#f3ecdd'}, eye:{on:false,c:'#3a2a1a'} },
+  };
+
+  // build the form/type dropdowns
+  var fSel=$('pc-form'); FORMS.forEach(function(f){ var o=document.createElement('option'); o.value=o.textContent=f; fSel.appendChild(o); });
+  fSel.value='cone';
+  var tSel=$('pc-type'); TYPES.forEach(function(t){ var o=document.createElement('option'); o.value=o.textContent=t; tSel.appendChild(o); });
+  tSel.value='forb';
+
+  // build the per-season colour rows
+  var seasWrap=$('pc-seasons');
+  SEAS.forEach(function(s){
+    var st=seaState[s];
+    var box=document.createElement('div'); box.className='seas';
+    box.innerHTML='<h3>'+s+'</h3>';
+    var row=document.createElement('div'); row.className='swatchrow';
+    function pick(labelTxt, key, hasToggle){
+      var wrap=document.createElement('div'); wrap.className='pick';
+      var html='';
+      if(hasToggle) html+='<input type="checkbox" data-s="'+s+'" data-k="'+key+'" data-t="on" '+(st[key].on?'checked':'')+'>';
+      html+='<input type="color" data-s="'+s+'" data-k="'+key+'" data-t="c" value="'+(key==='fol'?st.fol:st[key].c)+'"><span>'+labelTxt+'</span>';
+      wrap.innerHTML=html; row.appendChild(wrap);
+    }
+    pick('foliage','fol',false);
+    pick('bloom','bloom',true);
+    pick('seed','seed',true);
+    pick('eye','eye',true);
+    box.appendChild(row); seasWrap.appendChild(box);
+  });
+  seasWrap.addEventListener('input', function(e){
+    var t=e.target, s=t.getAttribute('data-s'), k=t.getAttribute('data-k'), kind=t.getAttribute('data-t');
+    if(!s) return;
+    if(k==='fol'){ seaState[s].fol=t.value; }
+    else if(kind==='on'){ seaState[s][k].on=t.checked; }
+    else { seaState[s][k].c=t.value; }
+    update();
+  });
+
+  // build the 4 preview canvases
+  var pvWrap=$('pc-previews');
+  SEAS.forEach(function(s){
+    var d=document.createElement('div'); d.className='pv';
+    d.innerHTML='<div class="cap">'+s+'</div><canvas id="pc-prev-'+s+'" width="300" height="400"></canvas>';
+    pvWrap.appendChild(d);
+  });
+
+  // ---- read the form into a PLANTS-style def ----
+  function num(id,dflt){ var v=parseFloat($(id).value); return isNaN(v)?dflt:v; }
+  function buildDraft(){
+    var form=$('pc-form').value, type=$('pc-type').value;
+    var sea={};
+    SEAS.forEach(function(s){ var st=seaState[s], o={fol:st.fol};
+      if(st.bloom.on) o.bloom=st.bloom.c; if(st.seed.on) o.seed=st.seed.c; if(st.eye.on) o.eye=st.eye.c; sea[s]=o; });
+    var eco=$('pc-eco').value.split(',').map(function(x){return x.trim();}).filter(Boolean);
+    var d={ name:$('pc-name').value, latin:$('pc-latin').value, form:form, type:type,
+      h:num('pc-h',44), space:num('pc-space',18), spread:num('pc-spread',18),
+      zones:[num('pc-zmin',4),num('pc-zmax',8)], native:$('pc-native').checked,
+      eco:eco, sun:$('pc-sun').value, moist:$('pc-moist').value, phen:$('pc-phen').value,
+      blurb:$('pc-blurb').value, sea:sea };
+    var woody = (type==='shrub'||type==='tree'||WOODY_FORMS[form]);
+    if(woody){ d.cw=num('pc-cw',120); if(type==='tree'||form==='tree'||form==='conifer') d.grow=num('pc-grow',10); }
+    if($('pc-strat').value) d.strat=$('pc-strat').value;
+    if($('pc-spreads').value) d.spreads=$('pc-spreads').value;
+    if($('pc-growout').value) d.growOut=num('pc-growout',6);
+    if($('pc-wild').value) d.wild=$('pc-wild').value;
+    if(Object.keys(lookObj).length) d.look=Object.assign({},lookObj);
+    return d;
+  }
+
+  // ---- render one plant into a canvas via the real drawPlant ----
+  function renderInto(canvas, def, season, baseH){
+    var ctx=canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height);
+    // backing is 2x the CSS box; draw in CSS px after scaling
+    var W=canvas.width/2, H=canvas.height/2;
+    ctx.scale(2,2);
+    // soft ground
+    ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath();
+    ctx.ellipse(W/2, H-12, W*0.28, 7, 0, 0, Math.PI*2); ctx.fill();
+    var drawH=(def.h||40)*1.3+14, sc=Math.min(1.5,(H-26)/drawH);
+    ctx.save(); ctx.translate(W/2, H-12); ctx.scale(sc,sc);
+    var key='__pcdraft';
+    PLANTS[key]=def;
+    try{ drawPlant(ctx,0,0,key,1,season,7,0,undefined,1); }catch(err){ /* shape may need a field; ignore */ }
+    delete PLANTS[key];
+    ctx.restore();
+  }
+
+  // ---- code generation ----
+  function col(c){ return "'"+c+"'"; }
+  function genSea(sea){
+    return SEAS.map(function(s){ var o=sea[s], parts=["fol:"+col(o.fol)];
+      if(o.bloom) parts.push("bloom:"+col(o.bloom));
+      if(o.seed) parts.push("seed:"+col(o.seed));
+      if(o.eye) parts.push("eye:"+col(o.eye));
+      return s+":{"+parts.join(", ")+"}"; }).join(", ");
+  }
+  function genCode(){
+    var d=buildDraft(), key=($('pc-key').value||'myplant').trim();
+    var L=[];
+    L.push("  "+key+":{ name:"+col(d.name)+", latin:"+col(d.latin)+", form:"+col(d.form)+", type:"+col(d.type)+", h:"+d.h+",");
+    var line2="    space:"+d.space+", spread:"+d.spread+", zones:["+d.zones[0]+","+d.zones[1]+"], native:"+d.native+", sun:"+col(d.sun)+", moist:"+col(d.moist)+", phen:"+col(d.phen)+",";
+    L.push(line2);
+    if(d.cw!==undefined){ var w="    cw:"+d.cw+(d.grow!==undefined?", grow:"+d.grow:"")+","; L.push(w); }
+    var prop=[];
+    if(d.strat) prop.push("strat:"+col(d.strat));
+    if(d.spreads) prop.push("spreads:"+col(d.spreads));
+    if(d.growOut) prop.push("growOut:"+d.growOut);
+    if(d.wild) prop.push("wild:"+col(d.wild));
+    if(prop.length) L.push("    "+prop.join(", ")+",");
+    L.push("    eco:["+d.eco.map(col).join(",")+"],");
+    if(Object.keys(lookObj).length) L.push("    look:{"+serializeLook()+"},");
+    if(d.blurb) L.push("    blurb:"+col(d.blurb.replace(/'/g,"\\'"))+",");
+    L.push("    sea:{"+genSea(d.sea)+"} },");
+    return L.join("\n");
+  }
+
+  // ---- update everything ----
+  function update(){
+    var d=buildDraft();
+    $('pc-woody').style.display = (d.type==='shrub'||d.type==='tree'||WOODY_FORMS[d.form]) ? 'flex' : 'none';
+    SEAS.forEach(function(s){ renderInto($('pc-prev-'+s), d, s); });
+    renderCost(d);
+    $('pc-code').textContent=genCode();
+    // sync gallery selection
+    [].forEach.call(document.querySelectorAll('.gcell'), function(c){ c.classList.toggle('sel', c.getAttribute('data-form')===d.form); });
+  }
+
+  // ---- shape gallery ----
+  function genericDef(form){
+    var t=formType(form), woody=WOODY_FORMS[form];
+    var isFlower = !GRASS_FORMS[form] && form!=='fern' && form!=='leafmound' && form!=='rosette';
+    var sea={};
+    SEAS.forEach(function(s){ var o={fol:'#6f9a5e'};
+      if(s==='Summer' && isFlower) o.bloom='#c77ab0';
+      if(s==='Summer' && form==='cone') o.eye='#3a2a1a';
+      if(s==='Fall' && GRASS_FORMS[form]) o.seed='#e3d6b0';
+      sea[s]=o; });
+    var d={ name:form, latin:form, form:form, type:t, h:formH(form), space:18, spread:18,
+      zones:[4,8], native:true, eco:[], sun:'full', moist:'medium', phen:'mid', sea:sea };
+    if(woody){ d.cw=form==='tree'?120:90; if(form==='tree'||form==='conifer') d.grow=10; }
+    if(form==='cone') d.look={rays:14};
+    return d;
+  }
+  var gal=$('pc-gallery');
+  FORMS.forEach(function(form){
+    var cell=document.createElement('div'); cell.className='gcell'; cell.setAttribute('data-form',form);
+    cell.innerHTML='<canvas width="148" height="120"></canvas><span>'+form+'</span>';
+    gal.appendChild(cell);
+    renderInto(cell.querySelector('canvas'), genericDef(form), 'Summer');
+    cell.addEventListener('click', function(){
+      $('pc-form').value=form; $('pc-type').value=formType(form); update();
+    });
+  });
+
+  // ---- shape tuning: the look carriage params ----
+  var lookObj = {};
+  var LOOK_SLIDERS = [
+    {k:'stems',      label:'stems',            min:1, max:20, step:1,    def:6,   note:'count'},
+    {k:'stemSpread', label:'stem spread (width)',min:0,max:40, step:1,   def:14},
+    {k:'rays',       label:'rays / petals',    min:3, max:24, step:1,    def:7,   note:'count'},
+    {k:'rayLen',     label:'ray length',       min:2, max:16, step:0.2,  def:6},
+    {k:'droop',      label:'droop',            min:0, max:6,  step:0.1,  def:2.5},
+    {k:'rayW',       label:'ray width',        min:0.5,max:5, step:0.1,  def:2.2},
+    {k:'discW',      label:'disc / seed width',min:1, max:9,  step:0.1,  def:3.2},
+    {k:'discH',      label:'disc / seed height',min:1,max:9,  step:0.1,  def:3.6},
+    {k:'headR',      label:'globe head radius',min:1, max:12, step:0.2,  def:4.2},
+    {k:'spokes',     label:'globe spokes',     min:3, max:14, step:1,    def:6,   note:'count'},
+    {k:'head',       label:'umbel head',       min:2, max:14, step:0.5,  def:6},
+    {k:'dome',       label:'umbel dome',       min:0, max:1,  step:0.05, def:0.4},
+  ];
+  var lookWrap=$('pc-look-sliders');
+  LOOK_SLIDERS.forEach(function(s){
+    var row=document.createElement('div'); row.className='lookrow';
+    row.innerHTML='<label>'+s.label+(s.note?' <span style="color:#7d7464">('+s.note+')</span>':'')+
+      ' <b data-v="'+s.k+'">'+s.def+'</b></label>'+
+      '<input type="range" data-k="'+s.k+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.def+'">';
+    lookWrap.appendChild(row);
+    row.querySelector('input').addEventListener('input', function(e){
+      lookObj[s.k]=parseFloat(e.target.value);
+      row.querySelector('[data-v="'+s.k+'"]').textContent=e.target.value;
+      syncLookJson(); update();
+    });
+  });
+  function serializeLook(){
+    var keys=Object.keys(lookObj); if(!keys.length) return '';
+    return keys.map(function(k){ var v=lookObj[k]; return k+':'+(typeof v==='string'?"'"+v+"'":v); }).join(', ');
+  }
+  function syncLookJson(){ $('pc-look-json').value=serializeLook(); }
+  function syncSlidersFromLook(){
+    LOOK_SLIDERS.forEach(function(s){
+      var rng=lookWrap.querySelector('input[data-k="'+s.k+'"]'), b=lookWrap.querySelector('[data-v="'+s.k+'"]');
+      if(rng && lookObj[s.k]!==undefined){ rng.value=lookObj[s.k]; if(b) b.textContent=lookObj[s.k]; }
+    });
+  }
+  $('pc-look-json').addEventListener('input', function(){
+    var txt=$('pc-look-json').value.trim().replace(/^\{|\}$/g,'').trim();
+    if(!txt){ lookObj={}; update(); return; }
+    try{ var obj=(new Function('return ({'+txt+'})'))();
+      if(obj && typeof obj==='object'){ lookObj=obj; syncSlidersFromLook(); update(); } }
+    catch(err){ /* invalid mid-typing — ignore until it parses */ }
+  });
+  $('pc-look-reset').addEventListener('click', function(){ lookObj={}; syncLookJson(); update(); });
+
+  // ---- per-plant draw-cost estimate ----
+  // A heuristic count of the canvas elements drawPlant lays down for one plant.
+  // Not exact — it mirrors the count knobs that actually scale the work (stems,
+  // rays, heads, spokes, blades, leaves) so the bar tracks relative cost. The
+  // game's debug HUD (backtick / ?debug) is the source of truth for real ms.
+  function estimateElements(d){
+    var L=d.look||{}, form=d.form, n=(L.leaves!==undefined?L.leaves:8);
+    if (GRASS_FORMS[form]) n += (L.blades!==undefined?L.blades:Math.round((d.h||40)*0.55));
+    else if (form==='fern') n += (L.fronds||7)*8;
+    else if (form==='leafmound'||form==='rosette') n += (L.leaves||14);
+    else if (form==='bulbcup') n += 3;
+    else if (form==='bush'||form==='hydrangea'||form==='shrub') n += 40 + (L.heads?L.heads*6:0);
+    else if (form==='tree'||form==='conifer') n += Math.round((d.cw||120)*0.55);
+    else { // cone / globe / spike / umbel and other flower forms
+      var stems=(L.stems!==undefined?L.stems:(form==='spike'?7:6));
+      var heads=(L.heads!==undefined?L.heads:1), per;
+      if (form==='cone') per=(L.rays!==undefined?L.rays:7)+5;
+      else if (form==='globe') per=(L.spokes!==undefined?L.spokes:6)+4;
+      else if (form==='umbel') per=Math.round((L.head!==undefined?L.head:6)*2);
+      else if (form==='spike') per=(L.florets||14);
+      else per=(L.rays!==undefined?L.rays:7)+4;
+      var stemLeaves=(L.stemLeaves?L.stemLeaves*2:0);
+      n += stems*(1+stemLeaves+heads*per);
+    }
+    return Math.round(n);
+  }
+  function costBand(n){ return n<=120?'light':n<=240?'moderate':'heavy'; }
+  function renderCost(d){
+    var n=estimateElements(d), band=costBand(n);
+    $('pc-cost-num').textContent='~'+n+' draw elements / plant';
+    $('pc-cost-band').textContent=band.charAt(0).toUpperCase()+band.slice(1);
+    $('pc-cost').className='cost '+band;
+    $('pc-cost-fill').style.width=Math.min(100,Math.round(n/240*100))+'%';
+    $('pc-cost-hint').textContent = band==='light'
+      ? 'Light — fine even in big drifts.'
+      : band==='moderate'
+      ? 'Moderate — fine; only heavy if you fill the screen with it.'
+      : 'Heavy — lovely as a specimen, but go easy on big screen-filling drifts of it.';
+  }
+
+  // ---- wire all inputs ----
+  ['pc-key','pc-name','pc-latin','pc-form','pc-type','pc-h','pc-space','pc-spread','pc-cw','pc-grow',
+   'pc-zmin','pc-zmax','pc-native','pc-sun','pc-moist','pc-phen','pc-eco','pc-strat','pc-spreads',
+   'pc-growout','pc-wild','pc-blurb'].forEach(function(id){
+    var el=$(id); if(el){ el.addEventListener('input',update); el.addEventListener('change',update); }
+  });
+  $('pc-refresh').addEventListener('click',update);
+  $('pc-copy').addEventListener('click',function(){
+    var txt=$('pc-code').textContent;
+    if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(function(){ flash('Copied!'); }, function(){ selectCode(); }); }
+    else selectCode();
+  });
+  function selectCode(){ var r=document.createRange(); r.selectNodeContents($('pc-code'));
+    var sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); flash('Selected — press Ctrl/Cmd-C'); }
+  function flash(msg){ var b=$('pc-copy'), old=b.textContent; b.textContent=msg; setTimeout(function(){ b.textContent=old; },1200); }
+
+  update();
+})();
+</script>
+</body>
+</html>
