@@ -48,6 +48,16 @@
            cool-season plants (sedges, Calamagrostis, the spring
            bloomers) emerge first; warm-season prairie grasses and
            late risers like butterfly weed wait for real heat
+   strat   Story propagation: seed dormancy. none = sow & germinate now
+           (warm-season grasses); cold = ~one winter of cold-moist before
+           it sprouts; double = two winters (Baptisia, some lilies).
+           Default: warm grasses none, everything else cold.
+   spreads Story: how it travels once established. clump = stays put;
+           seed = self-sows into gaps; run = rhizome colonizer (a thug).
+           Default clump. (Drives §4.5 tending; not wired to growth yet.)
+   growOut Story: growing days from germination to a plantable plug (def 6)
+   seedSeason  Story: season collectible seed is ripe (default Fall)
+   wild    Story forage rarity: common | uncommon | rare (cultivars rare)
    stem    optional stem color override (salvia's near-black stems)
    cv      optional named cultivars: { key:{ name:"'Cultivar'", note,
            ...overrides } }. Overrides merge over the straight species —
@@ -100,7 +110,7 @@ const PLANTS = {
       blackhawks:{name:"'Blackhawks'", note:'foliage darkens to near-black purple',
         sea:{Summer:{fol:'#5e5468'}, Fall:{fol:'#4a3a4e',seed:'#c9b9a0'}, Winter:{fol:'#3f3442',seed:'#cdbfa8'}}},
     }},
-  switchgrass:{ name:'Switchgrass', latin:'Panicum virgatum', form:'cloudgrass', type:'grass', h:66,
+  switchgrass:{ name:'Switchgrass', latin:'Panicum virgatum', form:'cloudgrass', type:'grass', h:66, strat:'cold', spreads:'seed',
     space:24, spread:30, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'warm',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains',
          'Western Corn Belt Plains','Southwestern Tablelands'],
@@ -307,7 +317,7 @@ const PLANTS = {
     sea:{Spring:{fol:'#7ea65a',seed:'#c2b48a'}, Summer:{fol:'#6f9354'}, Fall:{fol:'#9a8a5e'}, Winter:{fol:'#a89a78'}}},
 
   /* ---------- forbs: the flowering layer ---------- */
-  echinacea:{ name:'Purple Coneflower', latin:'Echinacea purpurea', form:'cone', type:'forb', h:48,
+  echinacea:{ name:'Purple Coneflower', latin:'Echinacea purpurea', form:'cone', type:'forb', h:48, spreads:'seed',
     group:'coneflower', chip:'Purple',
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Flint Hills','Central Irregular Plains','Western Corn Belt Plains'],
@@ -408,7 +418,7 @@ const PLANTS = {
     look:{leaves:7, leafW:1.2, leafLen:0.32, stems:3, headR:7.2, spokes:12},
     blurb:'Tall lavender-purple spheres with strong stems, useful when the planting needs height without much footprint.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#9a70c8'}, Fall:{fol:'#9a8a5e',seed:'#b8a888'}, Winter:{fol:'#9a8f78',seed:'#c8b898'}}},
-  baptisia:{ name:'Baptisia', latin:'Baptisia australis', form:'shrub', type:'forb', h:50,
+  baptisia:{ name:'Baptisia', latin:'Baptisia australis', form:'shrub', type:'forb', h:50, strat:'double',
     group:'baptisia', groupLabel:'Baptisia', chip:'Blue',
     space:36, spread:42, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'cool',
     eco:['Flint Hills','Central Great Plains','Central Irregular Plains'],
@@ -436,7 +446,7 @@ const PLANTS = {
     look:{habit:'baptisia', stems:9, baseW:17, leafWhorls:3, raceme:5, flowerStems:6, flowerW:22, flowerLen:0.72},
     blurb:'Cream pea-flowers low to the ground in April, before the grasses wake. Slow but permanent.',
     sea:{Spring:{fol:'#7d9a6e',bloom:'#e8e0b8'}, Summer:{fol:'#6f8f6e'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}}},
-  mountainmint:{ name:'Mountain Mint', latin:'Pycnanthemum muticum', form:'shrub', type:'forb', h:40,
+  mountainmint:{ name:'Mountain Mint', latin:'Pycnanthemum muticum', form:'shrub', type:'forb', h:40, spreads:'run', wild:'uncommon',
     space:24, spread:30, zones:[4,8], native:true, sun:'full', moist:'medium', phen:'mid',
     eco:['Central Irregular Plains','Western Corn Belt Plains'],
     blurb:'Silver-dusted bracts that look frosted in July. The single best pollinator plant in the bed.',

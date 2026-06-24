@@ -371,6 +371,17 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .export-table .latin{font-style:italic;color:var(--bronze);font-size:11px}
 .export-table tfoot td{border-bottom:none;border-top:1.5px solid rgba(239,230,211,.4);font-weight:600}
 
+/* ---------- potting bench (Story propagation) ---------- */
+#pottingBody{max-height:60vh;overflow:auto}
+.pot-section{margin:14px 0 4px}
+.pot-section h3{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin:0 0 4px}
+.pot-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(239,230,211,.12)}
+.pot-row .pn{flex:1;min-width:0}
+.pot-row .pn b{font-weight:600}
+.pot-row .ps{display:block;font-size:11px;color:#bdaf99;font-style:italic}
+.pot-row .btn.sm{padding:5px 14px;font-size:12px;white-space:nowrap;flex-shrink:0}
+.pot-empty{font-size:12px;color:#a99a82;padding:6px 0}
+
 /* ---------- planting plan ---------- */
 .plan-wrap{width:100%;max-height:74vh;overflow:auto;border-radius:4px;
   background:#f7f3e8;border:1px solid rgba(239,230,211,.3)}
