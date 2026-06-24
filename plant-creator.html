@@ -395,18 +395,29 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
   // ---- shape tuning: the look carriage params ----
   var lookObj = {};
   var LOOK_SLIDERS = [
-    {k:'stems',      label:'stems',            min:1, max:20, step:1,    def:6,   note:'count'},
-    {k:'stemSpread', label:'stem spread (width)',min:0,max:40, step:1,   def:14},
-    {k:'rays',       label:'rays / petals',    min:3, max:24, step:1,    def:7,   note:'count'},
-    {k:'rayLen',     label:'ray length',       min:2, max:16, step:0.2,  def:6},
-    {k:'droop',      label:'droop',            min:0, max:6,  step:0.1,  def:2.5},
-    {k:'rayW',       label:'ray width',        min:0.5,max:5, step:0.1,  def:2.2},
-    {k:'discW',      label:'disc / seed width',min:1, max:9,  step:0.1,  def:3.2},
-    {k:'discH',      label:'disc / seed height',min:1,max:9,  step:0.1,  def:3.6},
-    {k:'headR',      label:'globe head radius',min:1, max:12, step:0.2,  def:4.2},
-    {k:'spokes',     label:'globe spokes',     min:3, max:14, step:1,    def:6,   note:'count'},
-    {k:'head',       label:'umbel head',       min:2, max:14, step:0.5,  def:6},
-    {k:'dome',       label:'umbel dome',       min:0, max:1,  step:0.05, def:0.4},
+    // stems
+    {k:'stems',       label:'stems',                 min:1,  max:20, step:1,    def:6,    note:'count'},
+    {k:'stemSpread',  label:'stem spread (width)',   min:0,  max:40, step:1,    def:14},
+    // basal foliage
+    {k:'leaves',      label:'basal leaves',          min:0,  max:18, step:1,    def:8,    note:'count'},
+    {k:'leafW',       label:'leaf thickness',        min:0.5,max:6,  step:0.1,  def:1.8},
+    {k:'leafLen',     label:'leaf length (× height)',min:0.1,max:1,  step:0.02, def:0.34},
+    // foliage along the stem
+    {k:'stemLeaves',  label:'leaves along stem',     min:0,  max:8,  step:1,    def:0,    note:'pairs'},
+    {k:'stemLeafLen', label:'stem-leaf length',      min:2,  max:16, step:0.5,  def:7},
+    {k:'stemLeafW',   label:'stem-leaf thickness',   min:0.5,max:4,  step:0.1,  def:1},
+    // flower head
+    {k:'rays',        label:'rays / petals',         min:3,  max:24, step:1,    def:7,    note:'count'},
+    {k:'rayLen',      label:'ray length',            min:2,  max:16, step:0.2,  def:6},
+    {k:'droop',       label:'droop',                 min:0,  max:6,  step:0.1,  def:2.5},
+    {k:'rayW',        label:'ray width',             min:0.5,max:5,  step:0.1,  def:2.2},
+    {k:'discW',       label:'disc / seed width',     min:1,  max:9,  step:0.1,  def:3.2},
+    {k:'discH',       label:'disc / seed height',    min:1,  max:9,  step:0.1,  def:3.6},
+    // globe / umbel heads
+    {k:'headR',       label:'globe head radius',     min:1,  max:12, step:0.2,  def:4.2},
+    {k:'spokes',      label:'globe spokes',          min:3,  max:14, step:1,    def:6,    note:'count'},
+    {k:'head',        label:'umbel head',            min:2,  max:14, step:0.5,  def:6},
+    {k:'dome',        label:'umbel dome',            min:0,  max:1,  step:0.05, def:0.4},
   ];
   var lookWrap=$('pc-look-sliders');
   LOOK_SLIDERS.forEach(function(s){
