@@ -261,10 +261,132 @@ Each phase is independently testable and leaves Story Mode playable.
 
 ---
 
-## 8. Explicitly out of scope
+## 8. World structure (multi-location Story mode)
 
-- **Design Mode** — unchanged. Full palette, no economy, no collecting. It is
-  the pro tool; Story Mode is the game.
+Story Mode grows from "edit one plot" into a small connected world: your
+yard, your greenhouse, a town with a store, and NPC yards you design on
+commission. This is an **expansion, not an engine rewrite** — the current
+engine already does the hard parts.
+
+### 8.1 Why the engine already supports it
+
+- **Data-swap loading.** `enterGarden()`/`loadSolo()` already swap a whole
+  plot's data into `game` and render it. Travelling between locations is the
+  same move generalized: bank the current place, load the target, drop the
+  avatar at the entrance. To the renderer every place is just "the tiles in
+  `game`."
+- **Windowed render.** Cost scales with *screen size, not world size*, and
+  only the active location renders — so more/bigger locations don't tax FPS.
+- **Stateless/lazy time.** A plant's size and a flat's stage are computed from
+  elapsed time, not simulated per frame. So your greenhouse trays and yard
+  keep "progressing" while you're in town and **catch up for free** on return.
+
+### 8.2 Location taxonomy
+
+| Kind | Examples | Editable? |
+|------|----------|-----------|
+| **Home** | your yard, your greenhouse | yes (greenhouse trays are interactive) |
+| **Authored / fixed** | town, store interior | no — hand-designed, you walk and interact |
+| **Commission** | an NPC's yard | yes, temporarily, under a brief (§4.4) |
+
+### 8.3 The pieces to build (all additive)
+
+1. **Location/scene manager** — the keystone. A registry of places + a
+   `goTo(id, entrance)` that generalizes `enterGarden` (bank current, load
+   target, place the avatar). A `game.location` pointer for "where am I."
+2. **Travel / portals** — door or plot-edge tiles carrying a target location +
+   entry point; walking onto one transitions.
+3. **NPCs** — reuse the existing `drawCritter` avatar renderer. Data: who,
+   where, role (vendor | commissioner | flavor), dialogue. Non-player critters.
+4. **Shop + currency** — a vendor NPC opens a buy UI; a simple ledger
+   (`game.coins` or similar). Sells seeds, cosmetics, tools, and bench/
+   greenhouse capacity upgrades.
+5. **Save bundle** — a Story save becomes a *set* of location plots (keyed by
+   location id) **plus** location-independent player state (currency, seed/
+   stock inventory, unlocks, commission progress). Generalizes the one-blob
+   solo save.
+
+None of this touches the iso renderer, camera, movement, tile editing, or the
+plant/propagation sim — those already run on "whatever is loaded."
+
+### 8.4 Authoring with Design Mode (the big shortcut)
+
+**Design Mode is already a map editor**, and authored locations are just saved
+plots. So the town, the store exterior, and NPC-yard starting states are
+**built in Design Mode**, visually — not hand-coded tile arrays. Kevin authors
+content with the same tool players use; it dogfoods the planner.
+
+Design Mode gains a thin **location-authoring layer** — extra tools only the
+developer sees:
+- a **portal** tool (mark a tile → target location + entry point),
+- a **place-NPC** tool (drop an NPC, set role/dialogue/inventory),
+- an **interactive-spot** tag (this counter opens the shop; this bench is the
+  potting station),
+- an **authored-location** flag on the save (fixed map vs. player garden),
+- an **export** action (download the plot + its NPCs/portals/tags as JSON).
+
+**Players never see these tools.** Design Mode stays exactly as it is for
+players — a *garden planner* that produces their own garden saves. The
+level-authoring layer is the dev-only addition.
+
+**Dev-gating: a flag, not a separate build.** No build step / no second app —
+that would fight the no-build, GitHub-Pages-serves-`master` setup. Instead the
+authoring tools ship present-but-dormant and switch on behind a flag
+(`?author=1` / a localStorage toggle), the same proven pattern as the existing
+`?debug` perf HUD ("zero-cost off"). The risk of a player finding the flag is
+nil: all effects are local (`localStorage`, no backend), so worst case they
+place an NPC in their own copy. (If stricter isolation is ever wanted, the
+tools can move to a separate `author.html` + `author.js` that the player
+`index.html` simply doesn't load — same shared `game.js`. Start with the flag.)
+
+**Tooling is dev-gated; content ships as data.** The authoring *power* lives
+only on the dev side; the authored *maps* are committed content everyone loads:
+
+```
+flip ?author  →  lay out town / NPC plot in Design Mode + author tools
+              →  Export  →  locations/town.json (committed to the repo)
+              →  the location manager loads it as a fixed place for all players
+```
+
+Players consume the JSON; they never touch the editor that made it. This keeps
+the whole authoring story inside the existing engine with no new pipeline.
+
+### 8.5 Build order for the world system (foundation first)
+
+1. **Location manager + travel** between two real places — your yard ↔ your
+   greenhouse — proving bank/load/portal/avatar-entry.
+2. **Design-Mode authoring tools** (portal / NPC / interactive) + the
+   authored-location flag.
+3. **Town + store** (authored in Design Mode) + a vendor NPC + shop UI +
+   currency — the first fixed location and the first place to *buy* seeds.
+4. **NPC yards + commissions** — the teaching ladder from §4.4, now as
+   travel-to locations.
+
+This **reorders the earlier phases**: the greenhouse-you-walk-into and the
+seed *sourcing* (shop/forage) both ride on the location system, so the
+location foundation (step 1) becomes the prerequisite for the embodied
+versions of Phases 2–4. The headless propagation loop (Phase 1) already
+works and is independent.
+
+### 8.6 Open decisions (world structure)
+
+1. **Greenhouse: its own location, or an object on your yard?** Once the
+   location system exists, a walk-in greenhouse is cheap — lean toward making
+   it a location for the embodiment you wanted.
+2. **One town for everyone, or procedural/personal?** Lean: one authored town
+   (simpler, hand-crafted character).
+3. **Currency source** — commissions + selling your surplus plants/divisions,
+   vs. a simpler allowance. Tie to the §3 economy.
+4. **How authored maps are stored/shipped** — bundled JSON vs. seeded into
+   localStorage on first run.
+
+---
+
+## 9. Explicitly out of scope
+
+- **Design Mode (player-facing)** — unchanged as the pro planner: full palette,
+  no economy, no collecting. The new **location-authoring tools** (§8.4) are a
+  separate authoring layer, not part of the normal planner UX.
 - **Multiplayer backend** — sharing in Phase 5 can ride the existing
   photo/export paths; real cross-device sync is still the separate big-ticket
   backlog item (`sGet`/`sSet` against a server).
