@@ -59,6 +59,12 @@ test('ftToTiles converts and clamps to a 2-tile minimum', () => {
   assert(ftToTiles(1) >= 2, 'never smaller than 2 tiles');
 });
 
+test('selection measurement labels prefer feet but keep one tile as inches', () => {
+  assertEqual(selMetricLabel(1), '18 in', 'one tile reminds users of the base block size');
+  assertEqual(selMetricLabel(2), '3 ft', 'two tiles display as feet');
+  assertEqual(selMetricLabel(3), '4.5 ft', 'half-foot dimensions stay readable');
+});
+
 test('drawPlant renders every species + cultivar across all seasons', () => {
   const ctx = document.createElement('canvas').getContext('2d');
   let rendered = 0;

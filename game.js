@@ -2935,14 +2935,31 @@ function selDrawRect(cx,W,H,r,fill,stroke){
     tileDiamond(cx,sx,sy,fill,stroke);
   }
 }
-function selMetricLabel(n){ return `${n*TILE_IN} inches | ${n} Square${n===1?'':'s'}`; }
+function selMetricLabel(n){
+  const inches=n*TILE_IN;
+  if (inches<24) return `${inches} in`;
+  const feet=inches/12;
+  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+}
+function drawSelMetricLabel(cx,x,y,label){
+  cx.font='700 11px "IBM Plex Sans", sans-serif';
+  cx.textAlign='center';
+  cx.textBaseline='middle';
+  cx.lineWidth=4;
+  cx.strokeStyle='rgba(243,236,221,0.9)';
+  cx.fillStyle='#172733';
+  cx.strokeText(label,x,y);
+  cx.fillText(label,x,y);
+}
 function drawSelDimLine(cx,a,b,label,side){
   const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy);
   if (len<4) return;
-  const nx=-dy/len, ny=dx/len, off=16*side, tick=13, labelOff=14*side;
-  const ax=a[0]+nx*off, ay=a[1]+ny*off, bx=b[0]+nx*off, by=b[1]+ny*off;
+  const ux=dx/len, uy=dy/len, nx=-dy/len, ny=dx/len;
+  const off=16*side, tick=11, labelOff=14*side, shorten=Math.min(16,len*0.2);
+  const ax=a[0]+ux*shorten+nx*off, ay=a[1]+uy*shorten+ny*off;
+  const bx=b[0]-ux*shorten+nx*off, by=b[1]-uy*shorten+ny*off;
   cx.save();
-  cx.strokeStyle='#df3030';
+  cx.strokeStyle='#72c9ff';
   cx.lineWidth=3;
   cx.lineCap='round';
   cx.lineJoin='round';
@@ -2952,15 +2969,10 @@ function drawSelDimLine(cx,a,b,label,side){
   cx.moveTo(bx-nx*tick,by-ny*tick); cx.lineTo(bx+nx*tick,by+ny*tick);
   cx.stroke();
 
-  const tx=(ax+bx)/2+nx*labelOff, ty=(ay+by)/2+ny*labelOff;
-  cx.font='700 11px "IBM Plex Sans", sans-serif';
-  cx.textAlign='center';
-  cx.textBaseline='middle';
-  cx.lineWidth=4;
-  cx.strokeStyle='rgba(243,236,221,0.9)';
-  cx.fillStyle='#171e17';
-  cx.strokeText(label,tx,ty);
-  cx.fillText(label,tx,ty);
+  if (label){
+    const tx=(ax+bx)/2+nx*labelOff, ty=(ay+by)/2+ny*labelOff;
+    drawSelMetricLabel(cx,tx,ty,label);
+  }
   cx.restore();
 }
 function drawSelectionMetrics(cx,W,H,r){
@@ -2970,8 +2982,16 @@ function drawSelectionMetrics(cx,W,H,r){
   const b=screenOf(r.x1+0.5,r.y0-0.5,W,H);
   const c=screenOf(r.x1+0.5,r.y1+0.5,W,H);
   const d=screenOf(r.x0-0.5,r.y1+0.5,W,H);
-  drawSelDimLine(cx,d,c,selMetricLabel(w),1);
-  drawSelDimLine(cx,b,c,selMetricLabel(h),-1);
+  const wLabel=selMetricLabel(w), hLabel=selMetricLabel(h);
+  const wLen=Math.hypot(c[0]-d[0],c[1]-d[1]);
+  const hLen=Math.hypot(c[0]-b[0],c[1]-b[1]);
+  const compact=Math.min(wLen,hLen)<120;
+  drawSelDimLine(cx,d,c,compact?null:wLabel,1);
+  drawSelDimLine(cx,b,c,compact?null:hLabel,-1);
+  if (compact){
+    const cx0=(a[0]+b[0]+c[0]+d[0])/4, cy0=(a[1]+b[1]+c[1]+d[1])/4;
+    drawSelMetricLabel(cx,cx0,cy0-18,w===h?`${wLabel} each side`:`${wLabel} x ${hLabel}`);
+  }
 }
 function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selDrag){                                    // dragging out a marquee
