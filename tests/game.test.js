@@ -399,6 +399,19 @@ test('selection fill uses the last selected plant and replaces existing plants',
   assertEqual(game.selItems.length, 4, 'selection ownership refreshes after fill');
 });
 
+test('selection fill uses the last selected landscape material', () => {
+  setup(15, 15);
+  game.sel = { x0: 5, y0: 5, x1: 6, y1: 6 };
+  game.selItems = selectionPayload(game.sel);
+  game.lastBrushTool = 'bed';
+  game.bedStyle = 'gravel';
+  fillSelectionWithPlant();
+  const keys = ['5,5', '6,5', '5,6', '6,6'];
+  keys.forEach(k => assert(game.terrain[k] && game.terrain[k].k === 'bed' && game.terrain[k].c === 'gravel',
+    `${k} filled with gravel bed`));
+  assertEqual(game.selItems.length, 4, 'selection ownership refreshes after material fill');
+});
+
 test('selection save and paste carries an area into another garden slot', () => {
   setup(15, 15);
   areaClipboard = null;
