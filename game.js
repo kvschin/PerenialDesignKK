@@ -3877,7 +3877,7 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
 }
-function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights,game.firepits]); }
+function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights,game.firepits,game.stock]); }
 function snapshotState(){ return {
   plants:JSON.parse(JSON.stringify(game.plants)),
   bulbs:JSON.parse(JSON.stringify(game.bulbs)),
@@ -3886,16 +3886,22 @@ function snapshotState(){ return {
   houses:JSON.parse(JSON.stringify(game.houses||[])),
   fences:JSON.parse(JSON.stringify(game.fences||{})),
   lights:JSON.parse(JSON.stringify(game.lights||{})),
-  firepits:JSON.parse(JSON.stringify(game.firepits||{}))}; }
+  firepits:JSON.parse(JSON.stringify(game.firepits||{})),
+  stock:JSON.parse(JSON.stringify(game.stock||{}))}; }
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
 function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
 function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
+function cancelPendingUndo(restore){
+  if (restore && pendSnap && pendSig!==null && stateSig()!==pendSig) applySnapshot(pendSnap);
+  pendSig=null; pendSnap=null;
+}
 function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
 function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights/firepits + refresh UI
   game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{}; game.firepits=s.firepits||{};
+  if (s.stock) game.stock=s.stock;
   game.dirty=true; updateUndoBtn();
   if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); pushHouse(); }
   buildToolTray();
@@ -3917,7 +3923,13 @@ function updateUndoBtn(){
 }
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, toolDrag=null;
+const activePtrs=new Map(); let pinch=null, toolDrag=null, fillTap=null;
+function cancelCanvasGesture(restore){
+  cancelPendingUndo(restore);
+  sweep=null; toolDrag=null; fillTap=null; panDrag=null; selDrag=null; selMove=null;
+  game.pathTarget=null; game.sleepOnArrive=false;
+  updateCanvasCursor();
+}
 cnv.addEventListener('pointerdown',e=>{
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (activePtrs.size===2){
@@ -3925,7 +3937,7 @@ cnv.addEventListener('pointerdown',e=>{
     pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
            cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
            camx0:cam.x, camy0:cam.y};
-    sweep=null; toolDrag=null; panDrag=null; game.pathTarget=null; game.sleepOnArrive=false;
+    cancelCanvasGesture(true);
     return;
   }
   if (activePtrs.size>1) return;
@@ -3947,7 +3959,11 @@ cnv.addEventListener('pointerdown',e=>{
     if (blockIfWrongEditLayer(layer)) return;
     if (layer && !layerShown(layer)){ promptRevealLayer(layer,x,y); return; }
   }
-  if (fillActive()){ doFloodFill(x,y); return; }  // bucket fill is a single tap, self-undoing
+  if (fillActive()){ // bucket fill commits on pointerup so a pinch can still cancel it
+    fillTap={x,y};
+    try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+    return;
+  }
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
@@ -4074,6 +4090,7 @@ cnv.addEventListener('pointerup',e=>{
   if (activePtrs.size<2) pinch=null;
   if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
+  if (fillTap){ const f=fillTap; fillTap=null; doFloodFill(f.x,f.y); return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
     else tapAction(toolDrag.sx,toolDrag.sy,toolDrag);
@@ -4085,7 +4102,7 @@ cnv.addEventListener('pointerup',e=>{
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
-  sweep=null; toolDrag=null; panDrag=null; selDrag=null; selMove=null; pendSig=null; pendSnap=null; updateCanvasCursor();
+  cancelCanvasGesture(true);
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });

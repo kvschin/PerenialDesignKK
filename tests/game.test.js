@@ -20,8 +20,9 @@ function setup(gw, gh){
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
   game.layerFocus = 'all';
   game.sel = null; game.selItems = null; game.selMode = 'move';
+  game.seeds = {}; game.flats = []; game.stock = {}; game.propSeeded = false; game.plantFromStock = false;
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
-  undoStack.length = 0;
+  undoStack.length = 0; redoStack.length = 0; pendSnap = null; pendSig = null;
 }
 const live = obj => Object.keys(obj).filter(k => obj[k] && !obj[k].removed);
 const firstOfType = t => Object.keys(PLANTS).find(k => PLANTS[k].type === t && !PLANTS[k].hidden);
@@ -233,6 +234,19 @@ test('draw tool restores the last plant or material after other tools', () => {
   setTool('house', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, 'bed', 'draw rail restores previous material brush');
+});
+
+test('pinch cancel restores pending placement or erase gestures', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.plants['5,5'] = { s: forb, d: 0, t: 1 };
+  beginUndo();
+  sweep = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, fence: 0, light: 0, firepit: 0 };
+  sweepLift(5, 5);
+  assert(game.plants['5,5'].removed, 'first finger can erase before pinch starts');
+  cancelCanvasGesture(true);
+  assert(game.plants['5,5'] && !game.plants['5,5'].removed, 'pinch start restores the erased plant');
+  assertEqual(undoStack.length, 0, 'cancelled pinch gesture does not create an undo entry');
 });
 
 test('free placement stores sub-tile offsets for herbaceous plants only', () => {
