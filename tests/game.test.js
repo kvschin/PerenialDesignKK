@@ -15,6 +15,7 @@ function setup(gw, gh){
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.freePlanting = false;
   game.lastBrushTool = null; game.lastBrushVar = null;
+  game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
   game.eraseMode = 'all'; game.eraseSize = 1;
   game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
@@ -234,6 +235,24 @@ test('draw tool restores the last plant or material after other tools', () => {
   setTool('house', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, 'bed', 'draw rail restores previous material brush');
+});
+
+test('draw tool restores brush catalog page and keeps armed brush while browsing', () => {
+  setup(13, 13);
+  const drillKey = Object.keys(PLANTS).find(k => PLANTS[k].type === 'forb' && (PLANTS[k].group || PLANTS[k].cv));
+  game.trayCat = plantCategoryFor(drillKey);
+  game.drill = drillKey;
+  setTool(drillKey, null);
+  setTool('shovel', null);
+  armPlantToolFromRail(false);
+  assertEqual(game.tool, drillKey, 'last brush restored');
+  assertEqual(game.trayCat, plantCategoryFor(drillKey), 'last brush category restored');
+  assertEqual(game.drill, drillKey, 'drill-in page restored');
+
+  game.trayCat = 'trees';
+  game.drill = null;
+  buildToolTray();
+  assertEqual(game.tool, drillKey, 'browsing another category does not disarm the brush');
 });
 
 test('pinch cancel restores pending placement or erase gestures', () => {
