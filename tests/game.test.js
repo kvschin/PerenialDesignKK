@@ -225,16 +225,37 @@ test('draw tool restores the last plant or material after other tools', () => {
   const forb = firstOfType('forb');
   setTool(forb, null);
   assertEqual(game.lastBrushTool, forb, 'plant brush remembered');
-  setTool('fence', null);
-  assertEqual(game.lastBrushTool, forb, 'structure tool does not overwrite drawing brush');
+  setTool('select', null);
+  assertEqual(game.lastBrushTool, forb, 'selection tool does not overwrite drawing brush');
   setTool('shovel', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, forb, 'draw rail restores previous plant brush');
 
   setTool('bed', null);
-  setTool('house', null);
+  setTool('select', null);
   armPlantToolFromRail(false);
   assertEqual(game.tool, 'bed', 'draw rail restores previous material brush');
+  assertEqual(game.trayCat, 'landscape', 'material brush restores the Landscape catalog');
+});
+
+test('draw tool restores build brushes and their catalog panels', () => {
+  setup(13, 13);
+  game.trayCat = 'structures';
+  game.drill = 'firepit';
+  setTool('firepit', null);
+  setTool('select', null);
+  armPlantToolFromRail(false);
+  assertEqual(game.tool, 'firepit', 'structure brush restored');
+  assertEqual(game.trayCat, 'structures', 'structure catalog restored');
+  assertEqual(game.drill, 'firepit', 'structure sub-panel restored');
+
+  game.trayCat = 'lighting';
+  game.drill = null;
+  setTool('light', null);
+  setTool('shovel', null);
+  armPlantToolFromRail(false);
+  assertEqual(game.tool, 'light', 'lighting brush restored');
+  assertEqual(game.trayCat, 'lighting', 'lighting catalog restored');
 });
 
 test('draw tool restores brush catalog page and keeps armed brush while browsing', () => {

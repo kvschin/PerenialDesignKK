@@ -1718,7 +1718,7 @@ const game = {
   eraseSize:1,                                       // erase brush diameter in tiles (odd)
   fx:[],                                             // short-lived planting pulses
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
-  lastBrushTool:null, lastBrushVar:null,             // last plant/material tool chosen from the catalog
+  lastBrushTool:null, lastBrushVar:null,             // last placement brush chosen from the catalog
   lastBrushTrayCat:'grasses', lastBrushDrill:null, trayScroll:{}, // where the brush catalog was last browsed
   toolMenu:null,                                     // open flyout on the left canvas toolbar
   layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,night:false}, // layer view: visibility + overlays
@@ -5149,30 +5149,49 @@ function toolTargetLayer(t){ t=t||game.tool;
   return 'perennials';
 }
 function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || isElevationTool(k) || k==='house' || k==='fence' || k==='light' || k==='firepit'; }
-function isDrawableBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || isElevationTool(k); }
 function brushTrayCatForTool(k){
   if (PLANTS[k]) return plantCategoryFor(k);
   if (isElevationTool(k)) return 'leveling';
   if (k==='path'||k==='bed'||k==='water') return 'landscape';
+  if (k==='fence'||k==='firepit') return 'structures';
+  if (k==='light') return 'lighting';
+  if (k==='house') return 'house';
   return null;
 }
 function isBrushTrayCat(id){
   const c=TRAY_CATS.find(c=>c.id===id);
-  return !!(c && (c.types || (c.tools && c.tools.some(t=>t==='path'||t==='bed'||t==='water'||isElevationTool(t)))));
+  return !!(c && (c.types || (c.tools && c.tools.some(t=>isBrushTool(t)))));
+}
+function toolFitsBrushTray(k,catId){
+  const c=TRAY_CATS.find(c=>c.id===catId);
+  if (!c) return false;
+  if (PLANTS[k]) return !!(c.types && c.types.includes(PLANTS[k].type) && (!c.sunFilter || PLANTS[k].sun===c.sunFilter));
+  if (isElevationTool(k)) return catId==='leveling';
+  if (k==='path'||k==='bed'||k==='water') return catId==='landscape';
+  if (k==='fence'||k==='firepit') return catId==='structures';
+  if (k==='light') return catId==='lighting';
+  if (k==='house') return catId==='house';
+  return false;
 }
 function drillFitsTray(drill,catId){
   const P=PLANTS[drill], c=TRAY_CATS.find(c=>c.id===catId);
   return !!(P && c && c.types && c.types.includes(P.type) && (!c.sunFilter || P.sun===c.sunFilter));
 }
+function brushDrillFitsTray(drill,catId){
+  if (drillFitsTray(drill,catId)) return true;
+  const c=TRAY_CATS.find(c=>c.id===catId);
+  return !!(c && c.id==='structures' && c.tools && c.tools.includes(drill));
+}
 function rememberBrushMenu(cat=game.trayCat,drill=game.drill){
   if (!isBrushTrayCat(cat)) return;
   game.lastBrushTrayCat=cat;
-  game.lastBrushDrill=drillFitsTray(drill,cat) ? drill : null;
+  game.lastBrushDrill=brushDrillFitsTray(drill,cat) ? drill : null;
 }
 function rememberBrushTool(){
-  if (isDrawableBrushTool(game.tool)){
+  if (isBrushTool(game.tool)){
     game.lastBrushTool=game.tool; game.lastBrushVar=game.toolVar||null;
-    rememberBrushMenu();
+    const cat=toolFitsBrushTray(game.tool,game.trayCat) ? game.trayCat : brushTrayCatForTool(game.tool);
+    rememberBrushMenu(cat,game.drill);
   }
 }
 function setTool(k,v){
@@ -5295,7 +5314,7 @@ function plantCategoryFor(k){
 }
 function visiblePlantChoice(){
   const visible=trayKeys();
-  if (game.lastBrushTool==='path'||game.lastBrushTool==='bed'||game.lastBrushTool==='water'||isElevationTool(game.lastBrushTool))
+  if (isBrushTool(game.lastBrushTool) && !PLANTS[game.lastBrushTool])
     return [game.lastBrushTool,null];
   if (PLANTS[game.lastBrushTool] && visible.includes(game.lastBrushTool))
     return [game.lastBrushTool,game.lastBrushVar||null];
@@ -5316,8 +5335,8 @@ function armPlantToolFromRail(openMenu){
   if (choice){
     game.tool=choice[0]; game.toolVar=choice[1];
     const fallbackCat=brushTrayCatForTool(choice[0]) || 'grasses';
-    game.trayCat=isBrushTrayCat(game.lastBrushTrayCat) ? game.lastBrushTrayCat : fallbackCat;
-    game.drill=drillFitsTray(game.lastBrushDrill,game.trayCat) ? game.lastBrushDrill : null;
+    game.trayCat=toolFitsBrushTray(choice[0],game.lastBrushTrayCat) ? game.lastBrushTrayCat : fallbackCat;
+    game.drill=brushDrillFitsTray(game.lastBrushDrill,game.trayCat) ? game.lastBrushDrill : null;
     rememberBrushTool();
   } else {
     game.tool='hand'; game.toolVar=null; game.drill=null;
@@ -6016,7 +6035,7 @@ function buildToolTray(){
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
       const sp=document.createElement('span'); sp.textContent='Back';
       b.append(c,sp);
-      b.onclick=()=>{ game.drill=null; buildToolTray(); };
+      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
       tray.appendChild(b);
     };
     const mainFenceBtn=()=>{
@@ -6028,7 +6047,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent='Fence';
       b.append(c,sp);
       b.title=`Fence: ${fenceLabel()}. Open to choose gate, height, and material.`;
-      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; buildToolTray();
+      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
         toast(`${fenceLabel()} selected. Choose height/material or drag to draw connected runs.`); };
       tray.appendChild(b);
     };
@@ -6043,7 +6062,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.title=tip||label;
       b.onclick=()=>{ game.fenceDraft=normalizeFenceDraft(Object.assign({},fenceDraft(),draftPatch));
-        setTool('fence',null); buildToolTray();
+        setTool('fence',null); rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
         toast(`${fenceLabel()} selected. Drag to draw connected runs.`); };
       tray.appendChild(b); return b;
     };
@@ -6091,14 +6110,14 @@ function buildToolTray(){
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
       const sp=document.createElement('span'); sp.textContent='Back';
       b.append(c,sp);
-      b.onclick=()=>{ game.drill=null; buildToolTray(); };
+      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
       tray.appendChild(b);
     };
     const choose=(patch)=>{
       const cur=firepitDraft(), next=Object.assign({},cur,patch);
       if (patch.shape && !patch.size && patch.shape!==cur.shape) next.size=firepitSize(null,patch.shape).id;
       game.firepitDraft=normalizeFirepitDraft(next);
-      setTool('firepit',null); game.drill='firepit'; buildToolTray();
+      setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
       toast(`${firepitLabel()} selected. Tap clear dry ground to place.`);
     };
     const toolBtn=(label,sel,patch,tip)=>{
@@ -6122,7 +6141,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent='Fire Pit';
       b.append(c,sp);
       b.title=`Fire Pit: ${firepitLabel()}. Open to choose shape and size.`;
-      b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; buildToolTray();
+      b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
         toast(`${firepitLabel()} selected. Choose shape/size or tap to place.`); };
       tray.appendChild(b);
     } else if (game.drill==='firepit'){
