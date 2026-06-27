@@ -21,7 +21,6 @@ function setup(gw, gh){
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
   game.layerFocus = 'all';
   game.sel = null; game.selItems = null; game.selMode = 'move';
-  game.seeds = {}; game.flats = []; game.stock = {}; game.propSeeded = false; game.plantFromStock = false;
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
   undoStack.length = 0; redoStack.length = 0; pendSnap = null; pendSig = null;
 }
@@ -667,65 +666,4 @@ test('eyedropper samples a plant, bulb, fence, light, or material onto the brush
 
   game.tool = 'pick'; pickAt(10, 10);
   assertEqual(game.tool, 'pick', 'nothing to pick on bare grass — stays on the tool');
-});
-
-test('propagation: stratification + grow-out timing (pure)', () => {
-  // none: germinates at sow; plug after growOut growing days
-  assertEqual(germDay(10, 'none'), 10, 'no-strat seed germinates immediately');
-  assertEqual(growthDayAfter(10, 6), 16, 'grow-out adds growing days when no winter intervenes');
-  // grow-out skips winter (days 48-63 of each 64-day year do not tick)
-  assertEqual(growthDayAfter(46, 6), 68, 'grow-out pauses through winter, resumes in spring');
-  // cold: must cross one Winter->Spring boundary (spring starts at multiples of 64)
-  assertEqual(germDay(40, 'cold'), 64, 'fall-sown cold seed germinates next spring');
-  assertEqual(germDay(5, 'cold'), 64, 'spring-sown cold seed waits the year (missed the cold)');
-  assertEqual(germDay(64, 'cold'), 128, 'sown at spring start -> the following spring');
-  assertEqual(germDay(40, 'double'), 128, 'double-dormancy needs two winters');
-
-  // stage transitions for a fall-sown cold flat: germinates day 64, plug day 70
-  const f = { s: 'echinacea', sown: 40, strat: 'cold', grow: 6 };
-  assertEqual(flatReadyDay(f), 70, 'ready day = germination + grow-out');
-  assertEqual(flatStage(f, 50), 'stratifying', 'still over winter');
-  assertEqual(flatStage(f, 64), 'growing', 'germinated, not yet a plug');
-  assertEqual(flatStage(f, 70), 'ready', 'grown out to a plug');
-  // a direct-sow flat never stratifies
-  const g = { s: 'bluestem', sown: 10, strat: 'none', grow: 6 };
-  assert(flatStage(g, 10) !== 'stratifying' && flatStage(g, 16) === 'ready', 'none-strat skips stratifying');
-});
-
-test('propagation: seed data + accessor defaults', () => {
-  assertEqual(seedStrat('bluestem'), 'none', 'warm-season grass sows now');
-  assertEqual(seedStrat('echinacea'), 'cold', 'forb defaults to cold-moist');
-  assertEqual(seedStrat('switchgrass'), 'cold', 'tagged override beats the warm-grass default');
-  assertEqual(seedStrat('baptisia'), 'double', 'double-dormancy tag');
-  assertEqual(plantSpreads('mountainmint'), 'run', 'rhizome thug');
-  assertEqual(plantSpreads('echinacea'), 'seed', 'self-sower');
-  assertEqual(plantSpreads('bluestem'), 'clump', 'default stays put');
-  assert(canSow('echinacea') && canSow('bluestem'), 'herbaceous is sowable');
-  assert(!canSow(firstOfType('tree')), 'woody is not sowable in Phase 1');
-});
-
-test('propagation: sow consumes seed, harvest yields a plug', () => {
-  setup();
-  game.gameMode = 'story';
-  game.seeds = {}; game.flats = []; game.stock = {}; game.propSeeded = false;
-  game.elapsedMs = 0; game.startTs = Date.now(); game.dayOffset = 40; // "today" = day 40 (fall)
-
-  giveStarterSeeds();
-  assertEqual(seedCount('echinacea'), 5, 'starter packet granted');
-
-  const f = sowSeed('echinacea');
-  assert(f && f.sown === 40, 'sowing stamps the current day');
-  assertEqual(seedCount('echinacea'), 4, 'sowing consumes one seed');
-  assertEqual(game.flats.length, 1, 'a flat was sown');
-  assertEqual(flatStage(f, absDay()), 'stratifying', 'cold seed sits over winter');
-
-  assertEqual(harvestReadyFlats(40), 0, 'nothing ready yet');
-  assertEqual(game.flats.length, 1, 'flat still cooking');
-
-  assertEqual(harvestReadyFlats(200), 1, 'harvested once grown out');
-  assertEqual(stockCount('echinacea'), 1, 'a plug entered stock');
-  assertEqual(game.flats.length, 0, 'flat cleared after harvest');
-
-  assert(useStock('echinacea') === true && stockCount('echinacea') === 0, 'planting spends the plug');
-  assert(sowSeed('nope_not_a_plant') === null, 'cannot sow an unknown/empty seed');
 });

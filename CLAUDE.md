@@ -124,27 +124,6 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
    tiles (scaled by establishment); planting there is refused unless the
    plant is `sun:'part'`. The plant card reports establishment, not
    seasonal size.
-9b. **Propagation (Story-mode only)** — the seed→plant loop, built on the
-    same day clock. State: `game.seeds`/`game.stock` (species→count maps of
-    held seed and grown plugs), `game.flats` (sown trays `{s,sown,strat,grow}`),
-    `game.plantFromStock` (a plug is armed; the next placement spends one).
-    Pure, headless-testable timing (take an explicit `now`): `germDay()`
-    (cold-strat seed crosses one Winter→Spring boundary — `nextSpringStart` —
-    before it sprouts; `double` needs two; `none` germinates at sow),
-    `growthDayAfter()` (grow out `growOut` *growing* days, winter skipped),
-    `flatStage()` → `stratifying`|`growing`|`ready`. Inventory wrappers
-    (`sowSeed`/`harvestReadyFlats`/`useStock`/`giveStarterSeeds`) read
-    `absDay()`/`game`. New optional `PLANTS` fields drive it: `strat`
-    (none|cold|double, default warm-grass→none else cold), `growOut`,
-    `spreads` (clump|seed|run — for later tending), `seedSeason`, `wild`.
-    The **Potting bench** UI (`#pottingScreen`, `openPotting`/`renderPotting`/
-    `pottingClick`; ☰ menu, Story only) is the view over this state: sow,
-    watch flats stratify/grow, collect plugs, arm one to plant. Planting from
-    stock is **additive** — `applyToolAt` only gates on `stockCount` when
-    `plantFromStock` is set, so normal free-planting is untouched; `setTool`
-    clears the flag. A starter seed packet is auto-granted once per story
-    garden (`propSeeded`), the stub for the eventual NPC giver. Seeds/flats/
-    stock persist in the solo save blob. Full design: `docs/story-mode-design.md`.
 10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
     looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
@@ -312,8 +291,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (plants + bulbs + terrain + fences +
     gw/gh + rot + houses + name + `wv` walkway flag + current path/bed/water
-    material choices and fence draft + Story propagation seeds/flats/stock/
-    propSeeded). The old single `hortus:solo` key
+    material choices and fence draft). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
@@ -503,8 +481,6 @@ key: {
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
-  strat: 'cold',               // Story seed-start: none | cold | double (opt)
-  spreads: 'clump',            // Story spread: clump | seed | run (opt)
   grow: 10,                    // woody only: years to mature size
   cw: 150,                     // woody only: canopy/twig width in px
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)

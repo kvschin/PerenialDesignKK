@@ -1700,8 +1700,6 @@ const game = {
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
-  seeds:{}, flats:[], stock:{}, propSeeded:false, // Story propagation: seed inventory, sown trays, grown plugs
-  plantFromStock:false, // a grown plug is armed: next placement spends one from game.stock
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
@@ -1822,69 +1820,6 @@ function plantGrowth(p){
   if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope(p.s);
   return plantEstab(p)*seasonEnvelope(p.s);
 }
-
-/* ---------- propagation: seed -> stratify -> grow out -> plug ----------
-   Story-mode only. You don't pull plants from an infinite catalog; you sow
-   seed and grow it on. Cold-strat seed must pass through one full winter
-   before it germinates — one Winter->Spring boundary is one stratification
-   cycle (double-dormancy seed needs two) — then it grows out over `growOut`
-   *growing* days (winter doesn't tick, same as plant establishment). The
-   timing fns are pure and take an explicit `now`, so they're deterministic
-   and headless-testable; only the inventory wrappers read absDay()/game. */
-const SEED_GROWOUT_DEFAULT = 6;   // germination -> plantable plug, in growing days
-const STARTER_SEEDS = { bluestem:5, echinacea:5, butterfly:3, mountainmint:3, baptisia:2 };
-function seedStrat(key){ const P=PLANTS[key]||{};
-  return P.strat || (P.type==='grass'&&P.phen==='warm' ? 'none' : 'cold'); } // warm grasses sprout warm; most natives want cold-moist
-function seedGrowOut(key){ return (PLANTS[key]||{}).growOut || SEED_GROWOUT_DEFAULT; }
-function plantSpreads(key){ return (PLANTS[key]||{}).spreads || 'clump'; }  // clump | seed | run
-function seedSeasonOf(key){ return (PLANTS[key]||{}).seedSeason || 'Fall'; }
-function seedWild(key){ return (PLANTS[key]||{}).wild || 'common'; }         // forage rarity
-function canSow(key){ const t=(PLANTS[key]||{}).type; return t==='grass'||t==='sedge'||t==='forb'; } // Phase 1: herbaceous only
-
-// strict-next Spring start after day d (a Winter->Spring boundary == one
-// completed winter). Spring begins wherever absDay % YEAR_DAYS === 0.
-function nextSpringStart(d){ return (Math.floor(d/YEAR_DAYS)+1)*YEAR_DAYS; }
-function stratCycles(strat){ return strat==='double' ? 2 : strat==='cold' ? 1 : 0; }
-function germDay(sown, strat){ let d=sown; for (let i=stratCycles(strat);i>0;i--) d=nextSpringStart(d); return d; }
-// first day at which `growDays` growing days have elapsed since `start`
-function growthDayAfter(start, growDays){
-  if (growDays<=0) return start;
-  const cap=start+growDays+YEAR_DAYS*8;            // generous: winters don't tick
-  let d=start; while (d<cap && growingDays(start,d)<growDays) d++;
-  return d;
-}
-function flatReadyDay(flat){ return growthDayAfter(germDay(flat.sown,flat.strat), flat.grow); }
-// 'stratifying' (cold seed still over winter) | 'growing' | 'ready' (a plug)
-function flatStage(flat, now){
-  if (now<germDay(flat.sown,flat.strat)) return 'stratifying';
-  return now>=flatReadyDay(flat) ? 'ready' : 'growing';
-}
-
-// --- inventory (stateful; Story mode): seeds you hold, flats sown, plugs grown ---
-function ensurePropState(){ if (!game.seeds) game.seeds={}; if (!game.flats) game.flats=[]; if (!game.stock) game.stock={}; }
-function seedCount(key){ return (game.seeds&&game.seeds[key])||0; }
-function stockCount(key){ return (game.stock&&game.stock[key])||0; }
-function addSeed(key, n){ ensurePropState(); game.seeds[key]=(game.seeds[key]||0)+(n||1); }
-function giveStarterSeeds(){ for (const k in STARTER_SEEDS) addSeed(k, STARTER_SEEDS[k]); }
-function sowSeed(key){
-  ensurePropState();
-  if (!canSow(key) || seedCount(key)<=0) return null;
-  if (--game.seeds[key]<=0) delete game.seeds[key];
-  const flat={s:key, sown:absDay(), strat:seedStrat(key), grow:seedGrowOut(key), t:Date.now()};
-  game.flats.push(flat); return flat;
-}
-function harvestReadyFlats(now){
-  ensurePropState();
-  if (now===undefined) now=absDay();
-  let n=0; const keep=[];
-  for (const f of game.flats){
-    if (flatStage(f,now)==='ready'){ game.stock[f.s]=(game.stock[f.s]||0)+1; n++; }
-    else keep.push(f);
-  }
-  game.flats=keep; return n;
-}
-function useStock(key){ ensurePropState(); if (stockCount(key)<=0) return false; if (--game.stock[key]<=0) delete game.stock[key]; return true; }
-
 function shrubRadiusTiles(P){
   return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;
 }
@@ -3284,7 +3219,6 @@ function applyToolAt(x,y,opts){
     return game.tool;
   }
   if (!PLANTS[game.tool]) return null;
-  if (game.plantFromStock && stockCount(game.tool)<=0) return null; // armed a plug but none left
   const def=plantDef(game.tool,game.toolVar);
   if (fenceAt(x,y)) return null;
   if (lightAt(x,y)) return null;
@@ -3320,7 +3254,6 @@ function applyToolAt(x,y,opts){
   if (sh && def.sun!=='part') return null;
   if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
   game.plants[k]=np; game.dirty=true; plantFx(x,y,np);
-  if (game.plantFromStock) useStock(np.s); // spend the grown plug
   // a tree or shrub claims the ground — any bulb tucked under it is lost
   if (def.type==='shrub') clearBulbsUnderShrub(x,y,np);
   else if (def.type==='tree'){ const eb=game.bulbs[k];
@@ -3504,7 +3437,7 @@ addEventListener('keydown',e=>{
   if (e.key==='`'){ toggleDebug(); return; }
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
-  const overlay=['gardenMenu','exportScreen','regionScreen','planScreen','pottingScreen']
+  const overlay=['gardenMenu','exportScreen','regionScreen','planScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){ overlay.classList.add('hidden'); }
@@ -3878,7 +3811,7 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
 }
-function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights,game.firepits,game.stock]); }
+function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights,game.firepits]); }
 function snapshotState(){ return {
   plants:JSON.parse(JSON.stringify(game.plants)),
   bulbs:JSON.parse(JSON.stringify(game.bulbs)),
@@ -3887,8 +3820,7 @@ function snapshotState(){ return {
   houses:JSON.parse(JSON.stringify(game.houses||[])),
   fences:JSON.parse(JSON.stringify(game.fences||{})),
   lights:JSON.parse(JSON.stringify(game.lights||{})),
-  firepits:JSON.parse(JSON.stringify(game.firepits||{})),
-  stock:JSON.parse(JSON.stringify(game.stock||{}))}; }
+  firepits:JSON.parse(JSON.stringify(game.firepits||{}))}; }
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
@@ -3902,7 +3834,6 @@ function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
 function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights/firepits + refresh UI
   game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{}; game.firepits=s.firepits||{};
-  if (s.stock) game.stock=s.stock;
   game.dirty=true; updateUndoBtn();
   if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); pushHouse(); }
   buildToolTray();
@@ -4161,7 +4092,6 @@ async function saveSolo(silent){
     gw:GW,gh:GH,rot:game.rot,houses:game.houses,freePlanting:game.freePlanting,
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,elevation:game.elevation,fences:game.fences,lights:game.lights,firepits:game.firepits,
-    seeds:game.seeds,flats:game.flats,stock:game.stock,propSeeded:game.propSeeded,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char});
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
@@ -4212,10 +4142,6 @@ async function loadSolo(id){
   game.clockSuspended=false; game.pausedAt=0;
   game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
   game.worldName=s.name||'My garden';
-  // Story propagation inventory; auto-grant the starter packet once per story
-  // garden (stub for the NPC who hands you your first seeds) so it's testable
-  game.seeds=s.seeds||{}; game.flats=s.flats||[]; game.stock=s.stock||{}; game.propSeeded=!!s.propSeeded;
-  if (game.gameMode==='story' && !game.propSeeded){ giveStarterSeeds(); game.propSeeded=true; }
   // saves from before the walkway became terrain get it seeded once,
   // so the old built-in path is finally shovel-able
   if (!s.wv) seedWalkway();
@@ -4387,72 +4313,6 @@ function openExport(){
   }
   $('exportScreen').classList.remove('hidden');
 }
-
-/* ---------- potting bench: the Story propagation UI ----------
-   A view over game.seeds / game.flats / game.stock: sow seed (cold-strat
-   sits over a winter), watch flats stratify -> grow -> ready, collect the
-   plug into stock, then arm it to plant in the ground. No new data model —
-   just the surface that lets you actually run the loop. */
-const STRAT_LABEL = { none:'sow now', cold:'needs a winter', double:'needs two winters' };
-function flatStatusText(f, now){
-  const st=flatStage(f,now);
-  if (st==='ready') return 'Ready — collect your plug';
-  if (st==='stratifying') return 'Stratifying over winter — sprouts in spring';
-  const left=Math.max(0, f.grow - growingDays(germDay(f.sown,f.strat), now));
-  return `Growing — a plug in ~${left} growing day${left===1?'':'s'}`;
-}
-function openPotting(){ ensurePropState(); renderPotting(); $('pottingScreen').classList.remove('hidden'); }
-function renderPotting(){
-  const now=absDay();
-  $('pottingMeta').textContent=`${clockMeta()} — cold-strat seed needs one winter before it sprouts`;
-  const sec=(title,inner)=>`<div class="pot-section"><h3>${title}</h3>${inner}</div>`;
-  const empty=msg=>`<div class="pot-empty">${msg}</div>`;
-  const seedKeys=Object.keys(game.seeds||{}).filter(k=>game.seeds[k]>0 && PLANTS[k]).sort();
-  const seedRows = seedKeys.length ? seedKeys.map(k=>
-    `<div class="pot-row"><span class="pn"><b>${PLANTS[k].name}</b> &times;${game.seeds[k]}
-       <span class="ps">${STRAT_LABEL[seedStrat(k)]||''}</span></span>
-       <button class="btn sm" data-act="sow" data-key="${k}">Sow</button></div>`).join('')
-    : empty('No seed in hand. (A starter packet comes with every story garden.)');
-  const flatRows = game.flats.length ? game.flats.map((f,i)=>
-    `<div class="pot-row"><span class="pn"><b>${PLANTS[f.s]?PLANTS[f.s].name:f.s}</b>
-       <span class="ps">${flatStatusText(f,now)}</span></span>${
-       flatStage(f,now)==='ready'?`<button class="btn sm" data-act="collect" data-idx="${i}">Collect</button>`:''
-       }</div>`).join('')
-    : empty('Nothing sown yet — sow a seed above.');
-  const readyN=game.flats.filter(f=>flatStage(f,now)==='ready').length;
-  const collectAll = readyN>1
-    ? `<div class="pot-row"><span class="pn"></span><button class="btn sm" data-act="collectall">Collect all ${readyN}</button></div>` : '';
-  const stockKeys=Object.keys(game.stock||{}).filter(k=>game.stock[k]>0 && PLANTS[k]).sort();
-  const stockRows = stockKeys.length ? stockKeys.map(k=>
-    `<div class="pot-row"><span class="pn"><b>${PLANTS[k].name}</b> &times;${game.stock[k]} plug${game.stock[k]===1?'':'s'}</span>
-       <button class="btn sm" data-act="plant" data-key="${k}">Plant</button></div>`).join('')
-    : empty('No plugs yet — sow seed and let it come up.');
-  $('pottingBody').innerHTML = sec('Seeds in hand', seedRows)
-    + sec('Sown', flatRows+collectAll)
-    + sec('Grown plugs', stockRows);
-}
-function pottingClick(e){
-  const b=e.target.closest('button[data-act]'); if (!b) return;
-  const act=b.dataset.act, key=b.dataset.key;
-  if (act==='sow'){
-    if (sowSeed(key)){ syncPropOut();
-      toast(`Sowed ${PLANTS[key].name}. ${seedStrat(key)==='none'?'It will come up shortly.':'It needs a winter to sprout.'}`);
-      renderPotting(); }
-  } else if (act==='collect'){
-    const f=game.flats[+b.dataset.idx];
-    if (f && flatStage(f,absDay())==='ready'){ const nm=PLANTS[f.s]?PLANTS[f.s].name:f.s;
-      harvestReadyFlats(); syncPropOut(); toast(`Collected a ${nm} plug.`); renderPotting(); }
-  } else if (act==='collectall'){
-    const n=harvestReadyFlats(); if (n){ syncPropOut(); toast(`Collected ${n} plug${n===1?'':'s'}.`); renderPotting(); }
-  } else if (act==='plant'){ armPlug(key); }
-}
-function armPlug(key){
-  if (stockCount(key)<=0) return;
-  setTool(key); game.plantFromStock=true;   // setTool clears the flag; re-arm right after
-  closeOverlay('pottingScreen'); setActButton();
-  toast(`Planting ${PLANTS[key].name} — tap your garden (${stockCount(key)} plug${stockCount(key)===1?'':'s'}).`);
-}
-function syncPropOut(){ game.dirty=true; if (game.mode==='solo'&&hasStorage) saveSolo(true); }
 function exportCsv(){
   const rows=exportRows();
   if (!rows.length){ toast('Nothing planted yet.'); return; }
@@ -5196,7 +5056,6 @@ function rememberBrushTool(){
 }
 function setTool(k,v){
   game.toolMenu=null;
-  game.plantFromStock=false; // any normal tool pick leaves "plant from stock" mode
   if (k!=='select'){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; } // leaving select drops its marquee
   if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
@@ -6953,13 +6812,12 @@ function openPlotScreen(){
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
-      game.seeds={}; game.flats=[]; game.stock={}; game.propSeeded=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
         game.gameMode='story'; game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses();
-        seedWalkway(); starterDrift(); giveStarterSeeds(); game.propSeeded=true;
+        seedWalkway(); starterDrift();
       }
       enterGarden();
       saveSolo(true); // claim the slot right away
@@ -7028,7 +6886,6 @@ function quitToMenu(){
 }
 function openGardenMenu(){
   const gm=$('gardenMenu'); gm.classList.remove('hidden');
-  if ($('btnPotting')) $('btnPotting').style.display = game.gameMode==='design' ? 'none' : ''; // Story only
   // anchor the dropdown right under the ☰ button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
   const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
@@ -7040,9 +6897,6 @@ $('btnMenu').onclick=openGardenMenu;
 $('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
-if ($('btnPotting')) $('btnPotting').onclick=()=>{ closeOverlay('gardenMenu'); openPotting(); };
-if ($('btnPottingClose')) $('btnPottingClose').onclick=()=>closeOverlay('pottingScreen');
-if ($('pottingBody')) $('pottingBody').onclick=pottingClick;
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; } }
