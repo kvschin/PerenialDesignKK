@@ -2598,8 +2598,9 @@ function render(t){
   cx.fillStyle=g; cx.fillRect(0,0,W,H);
   drawSeasonSky(cx,W,H,cal.season);
 
-  // camera eases toward the player (story only; design and Hand tool pan freely)
-  if (game.gameMode!=='design' && game.tool!=='hand'){
+  // camera eases toward the player (story + visiting; design and Hand tool pan
+  // freely — but a visit always follows the avatar, since its tool stays 'hand')
+  if (game.visiting || (game.gameMode!=='design' && game.tool!=='hand')){
     const [ptx,pty]=screenOf(game.px,game.py,W,H);
     cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
   }
@@ -6675,7 +6676,6 @@ async function refreshMenuCards(){
 $('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
 $('btnDaily').onclick=openDaily;
 $('btnDailyStart').onclick=()=>{ game.challenge=todaysChallenge(); pendingMode='design'; openDesignSetup(); };
-$('btnStory').onclick=()=>{ pendingMode='story'; openWorlds('story'); };
 $('btnLibrary').onclick=openLibrary;
 $('btnLibraryClose').onclick=()=>show('menuScreen');
 $('librarySearch').oninput=applyLibrarySearch;
@@ -6860,6 +6860,7 @@ function enterGarden(){
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   document.body.classList.toggle('visiting', !!game.visiting);
+  userZoom = game.visiting ? 1.7 : 1; calcZoom(); // visits zoom in on the avatar (closer view + fewer tiles → smoother)
   if (!Array.isArray(game.houses)) game.houses=[];
   if (!game.elevation) game.elevation={};
   if (!game.fences) game.fences={};
