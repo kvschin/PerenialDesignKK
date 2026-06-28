@@ -6663,6 +6663,27 @@ function openDaily(){
   $('dailyPlants').textContent=c.plants;
   show('dailyScreen');
 }
+// Drop straight into a design garden for today's challenge — no questionnaire,
+// no plot screen (the prompt is the constraint). Name is Daily: "<title>", the
+// plot is a random 40–100 ft rectangle (width/length independent), and the
+// palette is left broad so any prompt can be met.
+function startDailyChallenge(){
+  const c=todaysChallenge(); game.challenge=c; pendingMode='design';
+  const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+  setWorldSize(ftToTiles(rnd(40,100)), ftToTiles(rnd(40,100)));
+  game.worldId='w'+Date.now().toString(36);
+  game.worldName=`Daily: "${c.title}"`;
+  game.mode='solo'; game.gameMode='design'; game.visiting=false;
+  game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
+  game.houses=[]; game.houseDraft=defaultDraft();
+  const zone=(game.region&&game.region.zone)||6;          // keep the user's zone, drop style/native filters
+  game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false};
+  game.region={eco:null,zone,nativesOnly:false}; updateRegionBtn();
+  enterGarden();
+  saveSolo(true);
+}
 
 async function refreshMenuCards(){
   const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
@@ -6675,7 +6696,7 @@ async function refreshMenuCards(){
 
 $('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
 $('btnDaily').onclick=openDaily;
-$('btnDailyStart').onclick=()=>{ game.challenge=todaysChallenge(); pendingMode='design'; openDesignSetup(); };
+$('btnDailyStart').onclick=startDailyChallenge;
 $('btnLibrary').onclick=openLibrary;
 $('btnLibraryClose').onclick=()=>show('menuScreen');
 $('librarySearch').oninput=applyLibrarySearch;
