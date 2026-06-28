@@ -4760,9 +4760,11 @@ const ROLE_LABELS={
   canopy:'Canopy',
   coastal:'Coastal',
   cottage:'Cottage',
+  deerOk:'Deer-resistant',
   dry:'Dry garden',
   early:'Early season',
   evergreen:'Evergreen',
+  late:'Late season',
   fern:'Fern layer',
   flower:'Flower color',
   formal:'Formal',
@@ -4781,6 +4783,7 @@ const ROLE_LABELS={
   nectar:'Nectar',
   pollinator:'Pollinator',
   prairie:'Prairie',
+  rabbitOk:'Rabbit-resistant',
   romantic:'Romantic',
   seasonal:'Seasonal color',
   seedhead:'Seedheads',
@@ -4798,7 +4801,8 @@ const ROLE_DISPLAY_ORDER=[
   'structure','hedge','evergreen','architectural','modern','formal','japanese',
   'cottage','romantic','bulbLayer','early','dry','gravel','mediterranean',
   'coastal','wind','winter','seedhead','native','flower','seasonal','water','wet',
-  'fern','hydrangea','aromatic','silver','movement','canopy','block'
+  'fern','hydrangea','aromatic','silver','movement','canopy','block',
+  'late','deerOk','rabbitOk'
 ];
 const STYLE_ROLE_WEIGHTS={
   cottage:{cottage:9,romantic:5,flower:4,pollinator:3,bulbLayer:3,hydrangea:4,seasonal:2,shade:1},
@@ -4831,6 +4835,32 @@ function hasSeasonProp(P,prop){
 function roleMatches(text,terms){
   return terms.some(t=>text.includes(t));
 }
+/* ---------- deer & rabbit browse resistance ----------
+   Curated from Rutgers / Missouri Botanical browse ratings for this palette.
+   The texture rules in plantRoles already cover the broadly-avoided groups
+   (grasses, sedges, ferns, aromatic mints, fuzzy/silver foliage). These sets
+   add the toxic or bitter forbs, the resistant minor bulbs, and the few tough
+   shrubs those rules miss. Whole genera that are uniformly left alone go in
+   GROUPS; one-off species go in KEYS. Deer and rabbits track each other
+   closely on this native/prairie palette, so one list drives both roles. */
+const BROWSE_RESIST_GROUPS=new Set([
+  'allium','alliumbulb','milkweed','iris','baptisia','amsonia','liatris',
+  'coreopsis','burnet','blueeyedgrass','boxwood','rudbeckia','camassia',
+]);
+const BROWSE_RESIST_KEYS=new Set([
+  // toxic or bitter forbs
+  'creamindigo','helenium','culvers','penstemon','columbine','wildgeranium',
+  'bluebells','heuchera','astilbe','solomonsseal','shootingstar',
+  'greatstjohnswort','filipendula','goldenrod','joepye','gaura','poppymallow',
+  'pasqueflower','prairiesmoke','goldenalexander','heartleafalexander',
+  // resistant minor bulbs (toxic alkaloids or onion scent)
+  'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
+  'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
+  // tough shrubs
+  'sumac','coralberry','smokebush',
+]);
+// readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
+// New Jersey tea) — left off the resistant list on purpose.
 function plantRoles(k){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const P=PLANTS[k]; if (!P) return [];
@@ -4889,6 +4919,17 @@ function plantRoles(k){
     roles.add('formal'), roles.add('structure');
   if (roleMatches(text,['muhly','fescue','stipa','sedge','carex','panicum','switchgrass','dropseed','sideoats','yucca','bald cypress','birch']))
     roles.add('coastal'), roles.add('wind');
+  // late-season bloom — drives the "Late-Season Glow" prompt
+  if (P.sea && P.sea.Fall && P.sea.Fall.bloom) roles.add('late');
+  // deer & rabbit resistance: broad texture cues + the curated lists above.
+  // Trees outgrow browse height, so the questionnaire exempts them and they
+  // never carry the role here.
+  if (P.type!=='tree' && (
+        roles.has('grass') || roles.has('sedge') || roles.has('fern') ||
+        roles.has('aromatic') || roles.has('silver') ||
+        BROWSE_RESIST_GROUPS.has(group) || BROWSE_RESIST_KEYS.has(k))){
+    roles.add('deerOk'); roles.add('rabbitOk');
+  }
   return ROLE_CACHE[k]=[...roles].sort();
 }
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
@@ -4913,6 +4954,25 @@ function plantStyleRecommended(k,type=activeDesignType()){
   return plantStyleScore(k,type)>=(STYLE_RECOMMEND_MIN[type]||1);
 }
 
+/* A daily challenge can pin the palette to plants that fit its prompt. A
+   plant must satisfy every criterion the match specifies:
+     types — plant.type is one of these
+     moist — plant.moist is one of these (e.g. dry/medium for a dry bed, so
+             adaptable medium-moisture plants the prompt names aren't lost)
+     roles — shares at least one role from plantRoles
+   plus an escape hatch:
+     keys  — explicit species the prompt names, always allowed
+   No match → everything fits (mood/technique prompts like Monochrome,
+   Repetition, Cottage Abundance leave the palette open). */
+function challengeAllows(k){
+  const m=game.challenge && game.challenge.match; if (!m) return true;
+  if (m.keys && m.keys.includes(k)) return true;
+  const P=PLANTS[k];
+  if (m.types && !m.types.includes(P.type)) return false;
+  if (m.moist && !m.moist.includes(P.moist)) return false;
+  if (m.roles){ const rs=plantRoles(k); if (!m.roles.some(r=>rs.includes(r))) return false; }
+  return true;
+}
 /* ---------- region filter ----------
    A plant fits if it survives the chosen zone, and (for natives) calls
    the chosen ecoregion home. Cultivars aren't native anywhere, so the
@@ -4922,6 +4982,14 @@ function plantFits(k){
   if (r.zone && (P.zones[0]>r.zone || P.zones[1]<r.zone)) return false;
   if (r.nativesOnly && !P.native) return false;
   if (r.eco && P.native && !P.eco.includes(r.eco)) return false;
+  if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
+  // deer / rabbit pressure from the design questionnaire: hide plants they
+  // readily browse. Trees outgrow browse height, so they're exempt.
+  const d=game.design;
+  if (d && P.type!=='tree'){
+    if (d.deer && !plantRoles(k).includes('deerOk')) return false;
+    if (d.rabbit && !plantRoles(k).includes('rabbitOk')) return false;
+  }
   return true;
 }
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/water, woody
@@ -4934,6 +5002,18 @@ function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/wa
     }
     return (ord[PLANTS[a].type]-ord[PLANTS[b].type]) || PLANTS[a].name.localeCompare(PLANTS[b].name);
   });
+}
+// First plant sub-tab (in tab order) that actually has stock under the current
+// filter — so a daily challenge whose palette skips grasses (bulbs, ephemerals,
+// woody) opens on a populated tab instead of an empty one.
+function firstStockedTrayCat(){
+  const keys=trayKeys();
+  for (const c of TRAY_CATS){
+    if (!c.types) continue;                              // skip Build tool tabs
+    if (keys.some(k=>c.types.includes(PLANTS[k].type) && (!c.sunFilter || PLANTS[k].sun===c.sunFilter)))
+      return c.id;
+  }
+  return 'grasses';
 }
 function openRegion(){
   const rs=$('regionSel'), zs=$('zoneSel');
@@ -6628,31 +6708,61 @@ const MULTIPLAYER_ENABLED=false;
    A prompt-only design brief that rotates once a day. Date-seeded so everyone
    gets the same one (the Wordle trick) — no backend, nothing scored. It just
    suggests a style + a few plant types to design toward. */
+// `match` pins the plant palette to what fits the prompt (any-of roles /
+// any-of types, checked in challengeAllows). Technique-only prompts carry no
+// match and leave the full palette open.
 const DAILY_CHALLENGES = [
   { title:'Dry Prairie Matrix',   brief:'A sunny, low-water bed in the tallgrass spirit.',
-    plants:'Lead with native grasses — little bluestem, prairie dropseed — and scatter three forbs through them.' },
+    plants:'Lead with native grasses — little bluestem, prairie dropseed — and scatter three forbs through them.',
+    match:{moist:['dry','medium'], roles:['prairie','matrix','dry']} },
   { title:'Shade Woodland Floor', brief:'A cool, layered planting for part to full shade.',
-    plants:'Ferns, woodland sedges, and a hosta or two. Keep it green and textural.' },
+    plants:'Ferns, woodland sedges, and a hosta or two. Keep it green and textural.',
+    match:{roles:['shade','woodland','fern']} },
   { title:'Pollinator Patch',     brief:'A bed built to pull in bees and butterflies.',
-    plants:'At least four summer-blooming natives — coneflower, wild bergamot, milkweed, mountain mint.' },
+    plants:'At least four summer-blooming natives — coneflower, wild bergamot, milkweed, mountain mint.',
+    match:{roles:['pollinator','nectar','host']} },
   { title:'Four-Season Interest', brief:'A garden that earns its keep in every season.',
-    plants:'Include winter structure: grasses and seedheads that still stand after a hard frost.' },
+    plants:'Include winter structure: grasses and seedheads that still stand after a hard frost.',
+    match:{roles:['seedhead','winter']} },
   { title:'Cottage Abundance',    brief:'Romantic, full, and a little wild.',
     plants:'Layered self-seeders — yarrow, salvia, coneflower — with a froth of fine grass between.' },
   { title:'Hot, Dry Gravel',      brief:'A sun-baked, fast-draining bed.',
-    plants:'Drought-tough natives — rattlesnake master, blazing star, little bluestem, yucca.' },
+    plants:'Drought-tough natives — rattlesnake master, blazing star, little bluestem, yucca.',
+    match:{moist:['dry','medium'], roles:['dry','gravel','silver']} },
   { title:'Slow-Draining Low',    brief:'A planting for a wet spot that holds water.',
-    plants:'Moisture-lovers — swamp milkweed, switchgrass, and a stand of sedges.' },
+    plants:'Moisture-lovers — swamp milkweed, switchgrass, and a stand of sedges.',
+    match:{roles:['wet','water'], keys:['switchgrass']} },
   { title:'Monochrome Study',     brief:'A garden in shades of a single colour.',
     plants:'Pick one bloom colour and repeat it; let foliage and seedheads carry the rest.' },
   { title:'Grasses Only',         brief:'Texture and movement, no flowers required.',
-    plants:'A pure matrix of grasses and sedges at varied heights — bluestem, dropseed, switchgrass, moor grass.' },
+    plants:'A pure matrix of grasses and sedges at varied heights — bluestem, dropseed, switchgrass, moor grass.',
+    match:{types:['grass','sedge']} },
   { title:'Late-Season Glow',     brief:'A bed that peaks in September and October.',
-    plants:'Asters, goldenrod, big bluestem, and switchgrass for autumn colour and seed.' },
+    plants:'Asters, goldenrod, big bluestem, and switchgrass for autumn colour and seed.',
+    match:{roles:['late','seedhead']} },
   { title:'Deer-Resistant Border',brief:'A border the deer will mostly walk past.',
-    plants:'Aromatic and tough — wild bergamot, mountain mint, salvia, yarrow, and grasses.' },
+    plants:'Aromatic and tough — wild bergamot, mountain mint, salvia, yarrow, and grasses.',
+    match:{roles:['deerOk']} },
   { title:'Repetition & Rhythm',  brief:'One idea, repeated, for a calm planting.',
     plants:'Choose three or four species and repeat them in drifts across the whole bed.' },
+  { title:'Matrix & Scatter',     brief:'A grass matrix with perennials threaded through it.',
+    plants:'A base layer of fine grasses, then single perennials scattered through like seed on the wind.',
+    match:{roles:['matrix','prairie']} },
+  { title:'Hummingbird Garden',   brief:'Tubular reds and pinks they can’t resist.',
+    plants:'Cardinal flower, bee balm, penstemon, and salvia — repeated in bold patches.',
+    match:{roles:['nectar','pollinator']} },
+  { title:'Spring Ephemerals',    brief:'An early show that fades before summer’s heat.',
+    plants:'Bulbs underplanting woodland ephemerals — bluebells, shooting star, prairie smoke.',
+    match:{roles:['bulbLayer','early'], keys:['bluebells','woodlandphlox','shootingstar','prairiesmoke','pasqueflower','columbine','wildgeranium','dwarfcrestediris','solomonsseal']} },
+  { title:'Foliage First',        brief:'A planting that works on leaf, not flower.',
+    plants:'Lean on shape and colour — ferns, fine grasses, silver mounds, a bold hosta.',
+    match:{roles:['fern','silver','groundcover','architectural','matrix','structure']} },
+  { title:'Evergreen Bones',      brief:'Year-round structure that never goes bare.',
+    plants:'Clipped evergreens and woody form — boxwood, yew, and a small tree for height.',
+    match:{roles:['evergreen','structure']} },
+  { title:'Sensory Garden',       brief:'Scents to brush past and textures to touch.',
+    plants:'Aromatic mints and soft, silvery leaves — mountain mint, calamint, lamb’s ear, fine grass.',
+    match:{roles:['aromatic','silver','movement']} },
 ];
 function todaysChallenge(){ return DAILY_CHALLENGES[Math.floor(Date.now()/864e5) % DAILY_CHALLENGES.length]; }
 function openDaily(){
@@ -6682,6 +6792,7 @@ function startDailyChallenge(){
   game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false};
   game.region={eco:null,zone,nativesOnly:false}; updateRegionBtn();
   enterGarden();
+  game.trayCat=firstStockedTrayCat(); buildToolTray();   // open on a populated sub-tab for this prompt
   saveSolo(true);
 }
 

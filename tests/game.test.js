@@ -12,6 +12,7 @@ function setup(gw, gh){
   game.firepitDraft = { shape: 'round', size: 'round36' };
   game.bedStyle = 'soil';
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
+  game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.freePlanting = false;
   game.lastBrushTool = null; game.lastBrushVar = null;
@@ -666,4 +667,77 @@ test('eyedropper samples a plant, bulb, fence, light, or material onto the brush
 
   game.tool = 'pick'; pickAt(10, 10);
   assertEqual(game.tool, 'pick', 'nothing to pick on bare grass — stays on the tool');
+});
+
+// ---------- daily-challenge palette + deer/rabbit resistance ----------
+test('deer/rabbit resistance tags the right plants', () => {
+  const deer = k => plantRoles(k).includes('deerOk');
+  const rabbit = k => plantRoles(k).includes('rabbitOk');
+  // broadly avoided: grasses, ferns, aromatic mints, toxic forbs/bulbs, tough shrubs
+  ['bluestem', 'ladyfern', 'monarda', 'mountainmint', 'salvia', 'yarrow', 'baptisia',
+    'butterfly', 'daffodil', 'siberianiris', 'boxwoodround', 'sumac', 'goldenrod', 'rudbeckia']
+    .forEach(k => assert(deer(k) && rabbit(k), `${k} should be browse-resistant`));
+  // readily browsed: kept off the list on purpose (honest data)
+  ['hosta', 'tulip', 'gardentulip', 'crocus', 'newjersey', 'yewlow', 'hydrangea', 'sedum', 'echinacea', 'dahlia']
+    .forEach(k => assert(!deer(k) && !rabbit(k), `${k} should NOT be browse-resistant`));
+  // trees outgrow browse height — exempt, so they never carry the role
+  // (even Silver Maple, whose name would otherwise trip the 'silver' cue)
+  ['silvermaple', 'whiteoak', 'ginkgo'].forEach(k => assert(!deer(k), `${k} (tree) should not carry deerOk`));
+});
+
+test('late-season role comes from a fall bloom', () => {
+  assert(plantRoles('newengland').includes('late'), 'New England aster blooms late');
+  assert(plantRoles('goldenrod').includes('late'), 'goldenrod blooms late');
+  assert(!plantRoles('crocus').includes('late'), 'a spring bulb is not late-season');
+});
+
+test('daily challenge match limits the palette', () => {
+  setup();
+  const find = t => DAILY_CHALLENGES.find(c => c.title === t);
+  game.challenge = find('Grasses Only');
+  assert(challengeAllows('bluestem'), 'a grass passes Grasses Only');
+  assert(challengeAllows('sedge'), 'a sedge passes Grasses Only');
+  assert(!challengeAllows('echinacea'), 'a forb is excluded from Grasses Only');
+  game.challenge = find('Deer-Resistant Border');
+  assert(challengeAllows('monarda'), 'an aromatic forb passes the deer border');
+  assert(!challengeAllows('hosta'), 'hosta is excluded from the deer border');
+  // moist range keeps adaptable medium-moisture plants the prompt names
+  game.challenge = find('Dry Prairie Matrix');
+  assert(challengeAllows('dropseed'), 'medium-moisture prairie dropseed fits the dry matrix');
+  assert(!challengeAllows('swampmilkweed'), 'a true moisture-lover is excluded from the dry matrix');
+  // keys whitelist a named species the role/moist filter would otherwise miss
+  game.challenge = find('Slow-Draining Low');
+  assert(challengeAllows('switchgrass'), 'switchgrass is whitelisted into the wet bed');
+  assert(!challengeAllows('bluestem'), 'a dry grass stays out of the wet bed');
+  game.challenge = find('Monochrome Study');           // technique-only — carries no match
+  assert(challengeAllows('echinacea') && challengeAllows('hosta'), 'an unrestricted prompt allows anything');
+  game.challenge = null;
+  assert(challengeAllows('hosta'), 'no challenge → everything allowed');
+});
+
+test('every daily challenge has a stocked, non-empty opening tab', () => {
+  setup();
+  game.region = { eco: null, zone: null, nativesOnly: false };   // widest palette
+  for (const c of DAILY_CHALLENGES){
+    game.challenge = c;
+    const keys = trayKeys();
+    assert(keys.length > 0, `${c.title} produced an empty palette`);
+    const cat = firstStockedTrayCat();
+    const def = TRAY_CATS.find(x => x.id === cat);
+    const n = keys.filter(k => def.types.includes(PLANTS[k].type) && (!def.sunFilter || PLANTS[k].sun === def.sunFilter)).length;
+    assert(n > 0, `${c.title} opens on an empty "${cat}" tab`);
+  }
+  game.challenge = null;
+});
+
+test('deer/rabbit questionnaire filter narrows the tray, trees exempt', () => {
+  setup();                                              // region zone null, design null
+  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: true, rabbit: false };
+  assert(plantFits('monarda'), 'a resistant forb stays under deer pressure');
+  assert(!plantFits('hosta'), 'a browsed forb is hidden under deer pressure');
+  assert(plantFits('whiteoak'), 'trees are exempt from the browse filter');
+  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: true };
+  assert(!plantFits('hosta'), 'rabbit pressure hides browsed plants too');
+  game.design = null;
+  assert(plantFits('hosta'), 'no pressure → hosta returns');
 });
