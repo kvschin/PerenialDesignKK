@@ -6742,6 +6742,42 @@ async function visitWorld(id){
   game.gameMode='story'; game.visiting=true;
   enterGarden();
 }
+/* share-a-file: a garden is just a JSON blob, so export it to a file a friend
+   can import (no backend). Export wraps the stored world in a small envelope;
+   import validates the envelope, writes it as a fresh local world, and lists
+   it so it can be Opened or Visited. */
+async function shareCurrentGarden(){
+  closeOverlay('gardenMenu');
+  if (game.mode!=='solo' || !game.worldId){ toast('Save the garden first, then share it.'); return; }
+  if (!game.visiting) await saveSolo(true);            // store the latest (no-op while visiting)
+  const w=await sGet('hortus:world:'+game.worldId);
+  if (!w){ toast('That garden could not be read.'); return; }
+  const env=JSON.stringify({ pocketPrairie:1, v:1, exported:Date.now(), world:w });
+  const fname=((game.worldName||w.name||'garden').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase())||'garden';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([env],{type:'application/json'}));
+  a.download=fname+'.prairie.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Garden file downloaded — send it to a friend to share.');
+}
+function importWorldFile(file){
+  if (!file) return;
+  const reader=new FileReader();
+  reader.onload=async()=>{
+    let env; try{ env=JSON.parse(reader.result); }catch(e){ toast('That file is not a garden.'); return; }
+    const w=env && env.pocketPrairie && env.world;
+    if (!w || typeof w!=='object' || typeof w.plants!=='object'){ toast('That does not look like a Pocket Prairie garden.'); return; }
+    const id='w'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
+    w.name=(w.name||'Shared garden').replace(/ \(shared\)$/,'')+' (shared)';
+    await sSet('hortus:world:'+id, w);
+    const idx=(await worldsIndex()).filter(x=>x.id!==id);
+    idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:w.mode==='design'?'design':'story' });
+    await sSet('hortus:worlds', idx);
+    toast(`Imported "${w.name}". Open or Visit it below.`);
+    openWorlds(worldsFilter);
+  };
+  reader.readAsText(file);
+}
 async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
   await sSet('hortus:worlds',idx);
@@ -6749,6 +6785,8 @@ async function deleteWorld(id){
   openWorlds(worldsFilter);
 }
 $('btnNewWorld').onclick=()=>startNewGarden(worldsFilter==='story'?'story':'design');
+if ($('btnImport')) $('btnImport').onclick=()=>$('importFile').click();
+if ($('importFile')) $('importFile').onchange=e=>{ importWorldFile(e.target.files&&e.target.files[0]); e.target.value=''; };
 $('btnHost').onclick=async()=>{ pendingMode='multi-host'; await hostWorld();
   $('codeDisplay').textContent=game.code; show('codeScreen'); };
 $('btnCodeContinue').onclick=()=>openCreator();
@@ -6964,6 +7002,7 @@ $('btnMenu').onclick=openGardenMenu;
 // click the backdrop (anywhere off the panel) to dismiss, like any dropdown
 $('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
+if ($('btnShare')) $('btnShare').onclick=shareCurrentGarden;
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */

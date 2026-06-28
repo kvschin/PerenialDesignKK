@@ -194,6 +194,7 @@
       <button class="btn" id="btnRegion">Region &middot; <span id="regionLbl">Any</span></button>
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
       <button class="btn" id="btnPlan">Planting plan</button>
+      <button class="btn" id="btnShare">Share garden (download)</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
@@ -233,7 +234,9 @@
     <div id="worldList"></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnNewWorld">Start a new garden</button>
+      <button class="btn" id="btnImport">Import a garden</button>
     </div>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none">
     <button class="back-link" data-back>← Back</button>
   </div>
 </div>
