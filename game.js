@@ -6416,9 +6416,9 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen','designScreen','libraryScreen'].forEach(s=>
+function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen','designScreen','libraryScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
+  if (id==='menuScreen'){ game.challenge=null; advanceMenuSeason(); refreshMenuCards(); }
 }
 function closeOverlay(id){ $(id).classList.add('hidden'); }
 function suspendClock(){
@@ -6616,7 +6616,48 @@ function applyLibrarySearch(){
 let pendingMode=null;
 const MULTIPLAYER_ENABLED=false;
 
+/* ---------- daily design challenge ----------
+   A prompt-only design brief that rotates once a day. Date-seeded so everyone
+   gets the same one (the Wordle trick) — no backend, nothing scored. It just
+   suggests a style + a few plant types to design toward. */
+const DAILY_CHALLENGES = [
+  { title:'Dry Prairie Matrix',   brief:'A sunny, low-water bed in the tallgrass spirit.',
+    plants:'Lead with native grasses — little bluestem, prairie dropseed — and scatter three forbs through them.' },
+  { title:'Shade Woodland Floor', brief:'A cool, layered planting for part to full shade.',
+    plants:'Ferns, woodland sedges, and a hosta or two. Keep it green and textural.' },
+  { title:'Pollinator Patch',     brief:'A bed built to pull in bees and butterflies.',
+    plants:'At least four summer-blooming natives — coneflower, wild bergamot, milkweed, mountain mint.' },
+  { title:'Four-Season Interest', brief:'A garden that earns its keep in every season.',
+    plants:'Include winter structure: grasses and seedheads that still stand after a hard frost.' },
+  { title:'Cottage Abundance',    brief:'Romantic, full, and a little wild.',
+    plants:'Layered self-seeders — yarrow, salvia, coneflower — with a froth of fine grass between.' },
+  { title:'Hot, Dry Gravel',      brief:'A sun-baked, fast-draining bed.',
+    plants:'Drought-tough natives — rattlesnake master, blazing star, little bluestem, yucca.' },
+  { title:'Slow-Draining Low',    brief:'A planting for a wet spot that holds water.',
+    plants:'Moisture-lovers — swamp milkweed, switchgrass, and a stand of sedges.' },
+  { title:'Monochrome Study',     brief:'A garden in shades of a single colour.',
+    plants:'Pick one bloom colour and repeat it; let foliage and seedheads carry the rest.' },
+  { title:'Grasses Only',         brief:'Texture and movement, no flowers required.',
+    plants:'A pure matrix of grasses and sedges at varied heights — bluestem, dropseed, switchgrass, moor grass.' },
+  { title:'Late-Season Glow',     brief:'A bed that peaks in September and October.',
+    plants:'Asters, goldenrod, big bluestem, and switchgrass for autumn colour and seed.' },
+  { title:'Deer-Resistant Border',brief:'A border the deer will mostly walk past.',
+    plants:'Aromatic and tough — wild bergamot, mountain mint, salvia, yarrow, and grasses.' },
+  { title:'Repetition & Rhythm',  brief:'One idea, repeated, for a calm planting.',
+    plants:'Choose three or four species and repeat them in drifts across the whole bed.' },
+];
+function todaysChallenge(){ return DAILY_CHALLENGES[Math.floor(Date.now()/864e5) % DAILY_CHALLENGES.length]; }
+function openDaily(){
+  const c=todaysChallenge();
+  $('dailyDate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  $('dailyTitle').textContent=c.title;
+  $('dailyBrief').textContent=c.brief;
+  $('dailyPlants').textContent=c.plants;
+  show('dailyScreen');
+}
+
 async function refreshMenuCards(){
+  const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
   const g=$('btnGardens'); if (!g) return;
   const idx=hasStorage ? await migrateLegacyWorld() : [];
   g.querySelector('small').textContent=idx.length
@@ -6625,6 +6666,8 @@ async function refreshMenuCards(){
 }
 
 $('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
+$('btnDaily').onclick=openDaily;
+$('btnDailyStart').onclick=()=>{ game.challenge=todaysChallenge(); pendingMode='design'; openDesignSetup(); };
 $('btnStory').onclick=()=>{ pendingMode='story'; openWorlds('story'); };
 $('btnLibrary').onclick=openLibrary;
 $('btnLibraryClose').onclick=()=>show('menuScreen');
@@ -6784,6 +6827,8 @@ function enterGarden(){
   buildCanvasTools();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
+  if (game.challenge && game.gameMode==='design')
+    setTimeout(()=>{ if (game.challenge) toast(`Today's challenge — ${game.challenge.title}: ${game.challenge.brief}`); }, 450);
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];

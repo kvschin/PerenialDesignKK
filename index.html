@@ -36,6 +36,13 @@
         </span>
         <i aria-hidden="true">›</i>
       </button>
+      <button class="menu-action" id="btnDaily" type="button">
+        <span>
+          <strong>Daily design challenge</strong>
+          <small>A fresh planting prompt each day</small>
+        </span>
+        <i aria-hidden="true">›</i>
+      </button>
       <button class="menu-action" id="btnStory" type="button">
         <span>
           <strong>Story Mode</strong>
@@ -125,6 +132,20 @@
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnCodeContinue">Continue →</button>
     </div>
+  </div>
+</div>
+
+<!-- DAILY DESIGN CHALLENGE -->
+<div class="screen hidden" id="dailyScreen">
+  <div class="panel" style="max-width:540px">
+    <div id="dailyDate" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px">Today</div>
+    <h2 id="dailyTitle">Challenge</h2>
+    <p class="sub" id="dailyBrief"></p>
+    <p class="note" id="dailyPlants"></p>
+    <div class="row" style="margin-top:18px">
+      <button class="btn primary" id="btnDailyStart">Start designing →</button>
+    </div>
+    <button class="back-link" data-back>← Back to menu</button>
   </div>
 </div>
 
