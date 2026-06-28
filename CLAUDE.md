@@ -1,13 +1,21 @@
 # Pocket Prairie Garden Design
 
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
-planting style. The menu offers four modes: **Design a Garden** (a serious
-planner — no avatar, no movement, a free pan/pinch/twist camera and direct
-tap-to-place/drag-to-paint à la Procreate; no house at start; created via a
-questionnaire of zone/style/natives/deer/rabbit), **Story Mode** (the
-Animal-Crossing-ish original — a cat/dog avatar walks the plot, a house spawns),
-**Plant Library** (browse every species: list + seasonal images + facts +
-cultivars), and **My Gardens** (open/manage saved gardens).
+planting style. **Design a Garden** is the core: a serious planner — no avatar,
+no movement, a free pan/pinch/twist camera and direct tap-to-place/drag-to-paint
+à la Procreate; no house at start; created via a questionnaire of
+zone/style/natives/deer/rabbit. The other menu entries: **Daily design
+challenge** (a date-seeded planting prompt — prompt-only, no scoring — that
+drops you into Design mode; `DAILY_CHALLENGES` / `todaysChallenge` / `openDaily`,
+shown via the `#dailyScreen` panel, carried in as `game.challenge` and toasted
+on entry, cleared whenever the main menu shows), **Story Mode** (the
+Animal-Crossing-ish avatar mode — a cat/dog walks the plot, a house spawns; its
+build/tend/propagate build-out was cut — see the backlog — and the avatar is
+trending toward a lighter "visit and stroll" direction), **Plant Library**
+(browse every species: list + seasonal images + facts + cultivars), and
+**My Gardens** (open/manage saved gardens). A dev-only **Plant Creator**
+(`plant-creator.html`, opened directly, not linked from the game) loads the real
+`plants.js`/`game.js` to author `PLANTS` entries with a live `drawPlant` preview.
 
 `game.gameMode` is `'design'` | `'story'`, saved per garden and on the world
 index entry (legacy saves with no `mode` are Story). Design vs Story branches
@@ -522,11 +530,22 @@ Winter must show *structure*, not bare ground; that's the whole point.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 
-## Feature backlog (v2 ideas, not yet built)
+## Direction & backlog
 
-Woody follow-up still open: tree canopies rendering across tile boundaries
-with their own depth slices. The big one: a real multiplayer backend
-(reimplement `sGet`/`sSet` against a small server — see Known constraints).
+**Scope pivot (current direction).** Story Mode's heavy build-out — seed
+propagation, NPCs, a town/shop, an economy, a multi-location world — was
+explored and **cut** as too big for a no-framework canvas app (the propagation
+feature was actually built, then reverted in "Remove Story-mode seed
+propagation"). The project is now **Design-first**: the planner plus the
+**Daily design challenge**, with two lightweight, **backend-free** features
+planned next — **"Visit Gardens"** (stroll your own + imported gardens as the
+cat/dog avatar, read-only) and **share-a-file** garden export/import. Live
+cross-device multiplayer stays deferred. (Fuller record: `docs/direction.md`.)
+
+Still open: woody follow-up — tree canopies rendering across tile boundaries
+with their own depth slices. A real multiplayer backend (reimplement
+`sGet`/`sSet` against a small server — see Known constraints) is only needed if
+live cross-device visiting is ever built.
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
