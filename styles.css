@@ -157,6 +157,14 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-del{background:none;border:1px solid rgba(239,230,211,.25);color:#a99a82;
   font-size:11px;padding:4px 8px;border-radius:3px;flex-shrink:0}
 .world-del:hover{border-color:#c25a4a;color:#e08a7a}
+.world-visit{background:none;border:1px solid rgba(239,230,211,.3);color:var(--seedhead);
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:4px;white-space:nowrap}
+.world-visit:hover{border-color:var(--bronze);background:rgba(201,127,63,.16)}
+/* Visit Gardens: a read-only stroll hides all the editing chrome (the left
+   tool rail, the catalog/brush tray, the mobile act button, and the Select
+   tool — Rotate and Layers stay, they only change the view). */
+body.visiting #canvasTools, body.visiting .hud-bottom, body.visiting #btnAct,
+body.visiting #btnSelectTool{display:none!important}
 
 /* ---------- character creator ---------- */
 .creator-grid{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}

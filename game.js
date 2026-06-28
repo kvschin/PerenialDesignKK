@@ -1709,6 +1709,7 @@ const game = {
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
   gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
+  visiting:false,                                    // Visit Gardens: read-only avatar stroll of a loaded garden
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
   drift:false,                                       // plant in clusters, Oudolf style
   freePlanting:false,                                // herbaceous plants can sit off the tile center
@@ -3913,6 +3914,11 @@ cnv.addEventListener('pointerdown',e=>{
   tapAction(x,y,place);
 });
 function tapAction(x,y,opts){ // the classic tap: walk there, act on your own tile
+  if (game.visiting){ // read-only stroll: walk to walkable tiles, never edit
+    if (x<0||y<0||x>=GW||y>=GH) return;
+    if (inHouse(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)) return;
+    game.sleepOnArrive=false; game.pathTarget=[x,y]; return;
+  }
   if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
     if (x<0||y<0||x>=GW||y>=GH) return;
     game.tx=x; game.ty=y; actHere(opts); return;
@@ -4085,6 +4091,7 @@ async function migrateLegacyWorld(){
   return [entry];
 }
 async function saveSolo(silent){
+  if (game.visiting) return;                          // Visit Gardens is read-only — never overwrite the garden
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
@@ -6418,7 +6425,7 @@ function updateHUD(){
 const $=id=>document.getElementById(id);
 function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen','designScreen','libraryScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen'){ game.challenge=null; advanceMenuSeason(); refreshMenuCards(); }
+  if (id==='menuScreen'){ game.challenge=null; game.visiting=false; advanceMenuSeason(); refreshMenuCards(); }
 }
 function closeOverlay(id){ $(id).classList.add('hidden'); }
 function suspendClock(){
@@ -6711,15 +6718,28 @@ async function openWorlds(filter){
     del.onclick=e=>{ e.stopPropagation();
       if (del.dataset.arm){ deleteWorld(w.id); }
       else { del.dataset.arm='1'; del.textContent='Sure?'; } };
-    row.append(info,del);
+    const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
+    visit.title='Walk this garden as your avatar (read-only)';
+    visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
+    row.append(info,visit,del);
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });
   show('worldsScreen');
 }
 async function enterWorld(id){
+  game.worldId=id; game.mode='solo'; game.visiting=false;
+  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.mode=null; return; }
+  enterGarden();
+}
+// Visit Gardens: load any saved garden and walk it as a read-only avatar. We
+// force story mode (so the avatar/movement/camera all work, even on a Design
+// garden) and set game.visiting, which hides the editing chrome, makes taps
+// walk-only, and turns saveSolo into a no-op so the garden is never altered.
+async function visitWorld(id){
   game.worldId=id; game.mode='solo';
   if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.mode=null; return; }
+  game.gameMode='story'; game.visiting=true;
   enterGarden();
 }
 async function deleteWorld(id){
@@ -6801,6 +6821,7 @@ function enterGarden(){
   setViewportFill('#4b5044');
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
+  document.body.classList.toggle('visiting', !!game.visiting);
   if (!Array.isArray(game.houses)) game.houses=[];
   if (!game.elevation) game.elevation={};
   if (!game.fences) game.fences={};
@@ -6816,7 +6837,7 @@ function enterGarden(){
     game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
     snapCam();
   } else {
-    if (!game.houses.length) game.houses=[defaultHouse()];
+    if (!game.houses.length && !game.visiting) game.houses=[defaultHouse()];
     const [spx,spy]=safeSpawn();   // never start stuck inside the house
     game.px=game.tx=spx; game.py=game.ty=spy;
     snapCam();
@@ -6829,6 +6850,8 @@ function enterGarden(){
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')
     setTimeout(()=>{ if (game.challenge) toast(`Today's challenge — ${game.challenge.title}: ${game.challenge.brief}`); }, 450);
+  if (game.visiting)
+    setTimeout(()=>{ if (game.visiting) toast(`Visiting ${game.worldName||'this garden'} — read-only. Tap to walk around.`); }, 450);
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
