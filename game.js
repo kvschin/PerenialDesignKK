@@ -4964,14 +4964,22 @@ function plantStyleRecommended(k,type=activeDesignType()){
      keys  — explicit species the prompt names, always allowed
    No match → everything fits (mood/technique prompts like Monochrome,
    Repetition, Cottage Abundance leave the palette open). */
-function challengeAllows(k){
-  const m=game.challenge && game.challenge.match; if (!m) return true;
+function matchAllows(m,k){
+  if (!m) return true;
   if (m.keys && m.keys.includes(k)) return true;
   const P=PLANTS[k];
   if (m.types && !m.types.includes(P.type)) return false;
   if (m.moist && !m.moist.includes(P.moist)) return false;
   if (m.roles){ const rs=plantRoles(k); if (!m.roles.some(r=>rs.includes(r))) return false; }
   return true;
+}
+function challengeAllows(k){ return matchAllows(game.challenge && game.challenge.match, k); }
+// Total selectable species, and how many a given challenge admits (ignoring
+// zone — that's a separate axis). 0 of total is the "full palette" case.
+function speciesCount(){ return PLANT_KEYS.filter(k=>!PLANTS[k].hidden).length; }
+function challengePaletteSize(c){
+  if (!c || !c.match) return speciesCount();
+  return PLANT_KEYS.filter(k=>!PLANTS[k].hidden && matchAllows(c.match,k)).length;
 }
 /* ---------- region filter ----------
    A plant fits if it survives the chosen zone, and (for natives) calls
@@ -6771,6 +6779,10 @@ function openDaily(){
   $('dailyTitle').textContent=c.title;
   $('dailyBrief').textContent=c.brief;
   $('dailyPlants').textContent=c.plants;
+  const n=challengePaletteSize(c), total=speciesCount();
+  $('dailyPalette').textContent = n<total
+    ? `Palette · ${n} of ${total} plants fit this challenge`
+    : 'Palette · full — design freely';
   show('dailyScreen');
 }
 // Drop straight into a design garden for today's challenge — no questionnaire,
@@ -7020,7 +7032,11 @@ function enterGarden(){
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')
-    setTimeout(()=>{ if (game.challenge) toast(`Today's challenge — ${game.challenge.title}: ${game.challenge.brief}`); }, 450);
+    setTimeout(()=>{ if (game.challenge){
+      const n=challengePaletteSize(game.challenge), total=speciesCount();
+      const pal = n<total ? `${n} of ${total} plants fit this challenge` : 'full palette — design freely';
+      toast(`${game.challenge.title} — ${pal}.`);
+    } }, 450);
   if (game.visiting)
     setTimeout(()=>{ if (game.visiting) toast(`Visiting ${game.worldName||'this garden'} — read-only. Tap to walk around.`); }, 450);
 }

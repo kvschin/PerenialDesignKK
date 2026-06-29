@@ -730,6 +730,14 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
   game.challenge = null;
 });
 
+test('challenge palette size reports the limit for the entry badge', () => {
+  const find = t => DAILY_CHALLENGES.find(c => c.title === t);
+  const total = speciesCount();
+  assertEqual(challengePaletteSize(find('Grasses Only')), 30, 'Grasses Only admits all 30 grasses + sedges');
+  assertEqual(challengePaletteSize(find('Cottage Abundance')), total, 'an unrestricted prompt is the full palette');
+  assert(challengePaletteSize(find('Sensory Garden')) < total, 'Sensory Garden is a real limit');
+});
+
 test('deer/rabbit questionnaire filter narrows the tray, trees exempt', () => {
   setup();                                              // region zone null, design null
   game.design = { zone: 6, type: 'any', nativesOnly: false, deer: true, rabbit: false };
