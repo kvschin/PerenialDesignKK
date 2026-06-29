@@ -591,8 +591,15 @@ let prev=performance.now(), keyCooldown=0;
    time breakdown — ground pass vs entity/plant pass vs the rest — so we can
    see where the frame actually goes, plus entity/tile counts and the canvas
    pixel budget. Works identically on desktop and tablet for side-by-side. */
-const dbg={on:false, el:null, fps:0, frames:0, fpsAt:0, n:0,
-  accTotal:0, accGround:0, accEnts:0, ents:0, tiles:0, tG0:0, tE0:0};
+const dbg={on:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0};
+// Labelled phase timing with ~zero cost when off: dnow() reads the clock only
+// while on; dmark folds the elapsed delta into a named accumulator; dtime wraps
+// an ad-hoc call so any function can be timed (e.g. dtime('flood',()=>doFloodFill())).
+function dnow(){ return dbg.on?performance.now():0; }
+function dmark(label,t0){ if (dbg.on) dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t0); }
+function dtime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
+  try{ return fn(); } finally{ dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t); } }
+function dbgReset(){ dbg.n=0; dbg.acc={}; }
 function toggleDebug(){
   dbg.on=!dbg.on;
   if (dbg.on && !dbg.el){
@@ -603,22 +610,49 @@ function toggleDebug(){
     document.body.appendChild(dbg.el);
   }
   if (dbg.el) dbg.el.style.display=dbg.on?'block':'none';
-  dbg.frames=0; dbg.fpsAt=performance.now(); dbg.n=dbg.accTotal=dbg.accGround=dbg.accEnts=0;
+  dbg.fpsAt=performance.now(); dbgReset();
 }
 function updateDebugHud(){
   if (!dbg.el) return;
-  const c=document.getElementById('gameCanvas'), n=dbg.n||1, avg=ms=>(ms/n).toFixed(1);
+  const c=document.getElementById('gameCanvas'), n=dbg.n||1, avg=ms=>ms/n;
   const mp=c?(c.width*c.height/1e6).toFixed(2):'?';
+  const total=dbg.acc.frame||0;
+  // every measured phase, biggest first, with its share of the frame
+  const rows=Object.keys(dbg.acc).filter(k=>k!=='frame')
+    .sort((a,b)=>dbg.acc[b]-dbg.acc[a])
+    .map(k=>`  ${k.padEnd(7)}${avg(dbg.acc[k]).toFixed(2).padStart(6)}ms ${(total?Math.round(dbg.acc[k]/total*100):0).toString().padStart(3)}%`)
+    .join('\n');
   dbg.el.textContent=
-    `FPS ${(dbg.fps||0).toFixed(0)}    frame ${avg(dbg.accTotal)}ms\n`+
-    `ground ${avg(dbg.accGround)}ms   plants ${avg(dbg.accEnts)}ms\n`+
-    `entities ${dbg.ents}   tiles ${dbg.tiles}\n`+
+    `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)\n`+
+    rows+'\n'+
     `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`;
+}
+// debug-only: pack the plot with a dense mix so the profiler sees worst-case.
+function stressGarden(){
+  const keys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
+  const byType={}; for (const k of keys){ (byType[PLANTS[k].type]||(byType[PLANTS[k].type]=[])).push(k); }
+  const pick=t=>{ const a=byType[t]; return a&&a[(Math.random()*a.length)|0]; };
+  game.plants={}; game.bulbs={};
+  const now=Date.now(), d=absDay();
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    if (inHouse(x,y)||isDoor(x,y)) continue;
+    const r=Math.random(); let s=null;
+    if (r<0.04) s=pick('tree');
+    else if (r<0.11) s=pick('shrub');
+    else if (r<0.58) s=pick(Math.random()<0.5?'grass':'forb');
+    else if (r<0.70){ const b=pick('bulb'); if (b) game.bulbs[x+','+y]={s:b,d,t:now}; continue; }
+    else continue;
+    if (s) game.plants[x+','+y]={s,d,t:now};
+  }
+  groundKey=''; game.dirty=true;
+  toast('Stress garden: '+Object.keys(game.plants).length+' plants, '+Object.keys(game.bulbs).length+' bulbs');
 }
 function loop(t){
   const dt=Math.min(50,t-prev); prev=t;
   if (game.mode){
+    const tFrame=dnow();
     if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
+    const tMove=dnow();
     if (game.gameMode!=='design'){ // story mode: avatar movement
       keyCooldown-=dt;
       if (keyCooldown<=0 && !game.moving){
@@ -632,12 +666,12 @@ function loop(t){
       }
       followPath(); stepMove(dt);
     }
-    if (dbg.on){
-      const r0=performance.now(); render(t); dbg.accTotal+=performance.now()-r0; dbg.n++; dbg.frames++;
-      if (t-dbg.fpsAt>=500){ dbg.fps=dbg.frames*1000/(t-dbg.fpsAt); updateDebugHud();
-        dbg.frames=0; dbg.fpsAt=t; dbg.n=dbg.accTotal=dbg.accGround=dbg.accEnts=0; }
-    } else render(t);
-    updateHUD();
+    dmark('move',tMove);
+    render(t);                                   // render adds its own phase marks
+    const tHud=dnow(); updateHUD(); dmark('hud',tHud);
+    dmark('frame',tFrame);
+    if (dbg.on){ dbg.n++;
+      if (t-dbg.fpsAt>=500){ dbg.fps=dbg.n*1000/(t-dbg.fpsAt); updateDebugHud(); dbg.fpsAt=t; dbgReset(); } }
   } else menuRender(t);
   requestAnimationFrame(loop);
 }

@@ -156,7 +156,7 @@ function render(t){
     visibleLights.push({l,x,y});
   }
 
-  const tG0=dbg.on?performance.now():0;
+  const tG0=dnow();
   // ground tiles: static per camera/terrain/season, so render once to an
   // offscreen layer and blit it; rebuild only when the cache key changes.
   const gkey=cal.season+'|'+game.rot+'|'+ZOOM+'|'+cam.x+'|'+cam.y+'|'+
@@ -171,6 +171,8 @@ function render(t){
     groundKey=gkey;
   }
   cx.save(); cx.setTransform(1,0,0,1,0,0); cx.drawImage(groundCanvas,0,0); cx.restore();
+  dmark('ground',tG0);
+  const tShade=dnow();
   if (layerShown('woody')) visibleShrubs.forEach(sh=>drawShrubFootprint(cx,W,H,sh,'base'));
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
   shadeTrees.forEach(sh=>{
@@ -209,6 +211,8 @@ function render(t){
       tileDiamond(cx,sx,sy,col,null);
     }
   }
+  dmark('shade',tShade);
+  const tCursor=dnow();
   const focusedShrub=layerShown('woody') && game.focusPlantKey ? shrubInfoFromKey(game.focusPlantKey) : null;
   if (focusedShrub) drawShrubFootprint(cx,W,H,focusedShrub,'focus');
   const hoverShrub=layerShown('woody') && game.hoverTile ? shrubAt(game.hoverTile[0],game.hoverTile[1]) : null;
@@ -274,8 +278,8 @@ function render(t){
 
   // depth-sorted entities: plants + critters + the cottage,
   // culled to the same visible window as the ground
-  if (dbg.on) dbg.accGround+=performance.now()-tG0;
-  const tE0=dbg.on?performance.now():0;
+  dmark('cursor',tCursor);
+  const tGather=dnow();
   const ents=[];
   if (layerShown('landscape')) for (const k in game.fences){
     const f=game.fences[k]; if (f.removed) continue;
@@ -343,8 +347,11 @@ function render(t){
       cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
       cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31); }});
   }
-  ents.sort((a,b)=>a.depth-b.depth).forEach(e=>e.draw());
-  if (dbg.on){ dbg.accEnts+=performance.now()-tE0; dbg.ents=ents.length; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
+  dmark('gather',tGather);
+  const tSort=dnow(); ents.sort((a,b)=>a.depth-b.depth); dmark('sort',tSort);
+  const tDraw=dnow(); ents.forEach(e=>e.draw()); dmark('draw',tDraw);
+  if (dbg.on){ dbg.ents=ents.length; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
+  const tFx=dnow();
 
   // planting pulses: an expanding diamond so a tap visibly took
   game.fx=game.fx.filter(f=>t-f.t0<550);
@@ -383,6 +390,7 @@ function render(t){
     g2.addColorStop(1,'rgba(50,35,55,0.24)');
     cx.fillStyle=g2; cx.fillRect(0,0,W,H);
   }
+  dmark('fx',tFx);
 }
 
 function selDrawRect(cx,W,H,r,fill,stroke){

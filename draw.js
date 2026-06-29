@@ -1131,24 +1131,37 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   ctx.restore();
 }
 
+// colorParts/shade run per blade/petal (thousands of calls per frame) but with
+// a small, bounded set of inputs (the PLANTS season colors), so memoize both.
+// Returned arrays are treated read-only by callers; shade quantizes the jitter
+// to whole steps for the cache key — imperceptible vs the old fractional value.
+const _partsCache=new Map();
 function colorParts(col){
   if (!col) col='#6b6248'; // seasons without that color: dead-stem brown
+  const hit=_partsCache.get(col); if (hit) return hit;
+  let out;
   if (col[0]==='#'){
     const n=parseInt(col.slice(1),16);
-    if (Number.isFinite(n)) return [(n>>16)&255,(n>>8)&255,n&255];
+    if (Number.isFinite(n)) out=[(n>>16)&255,(n>>8)&255,n&255];
   }
-  const m=String(col).match(/rgba?\(([^)]+)\)/i);
-  if (m){
-    const parts=m[1].split(',').slice(0,3).map(v=>parseFloat(v));
-    if (parts.every(Number.isFinite)) return parts;
+  if (!out){
+    const m=String(col).match(/rgba?\(([^)]+)\)/i);
+    if (m){
+      const parts=m[1].split(',').slice(0,3).map(v=>parseFloat(v));
+      if (parts.every(Number.isFinite)) out=parts;
+    }
   }
-  return [107,98,72];
+  if (!out) out=[107,98,72];
+  _partsCache.set(col,out); return out;
 }
+const _shadeCache=new Map();
 function shade(col, amt){
+  const a=amt|0, key=col+'|'+a;
+  const hit=_shadeCache.get(key); if (hit!==undefined) return hit;
   const [r0,g0,b0]=colorParts(col);
-  let r=r0+amt, g=g0+amt, b=b0+amt;
-  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
-  return `rgb(${r},${g},${b})`;
+  const cl=v=>v<0?0:v>255?255:v;
+  const out=`rgb(${cl(r0+a)},${cl(g0+a)},${cl(b0+a)})`;
+  _shadeCache.set(key,out); return out;
 }
 
 /* ---------- character renderer: round-bodied cats & dogs ---------- */
