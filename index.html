@@ -353,6 +353,13 @@
 </div>
 
 <script src="plants.js"></script>
-<script src="game.js"></script>
+<!-- game.js was split for navigability; load order matters (shared global scope) -->
+<script src="core.js"></script>
+<script src="draw.js"></script>
+<script src="world.js"></script>
+<script src="view.js"></script>
+<script src="io.js"></script>
+<script src="ui.js"></script>
+<script src="screens.js"></script>
 </body>
 </html>

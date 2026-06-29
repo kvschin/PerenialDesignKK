@@ -15,7 +15,8 @@ trending toward a lighter "visit and stroll" direction), **Plant Library**
 (browse every species: list + seasonal images + facts + cultivars), and
 **My Gardens** (open/manage saved gardens). A dev-only **Plant Creator**
 (`plant-creator.html`, opened directly, not linked from the game) loads the real
-`plants.js`/`game.js` to author `PLANTS` entries with a live `drawPlant` preview.
+`plants.js` + game modules to author `PLANTS` entries with a live `drawPlant`
+preview.
 
 `game.gameMode` is `'design'` | `'story'`, saved per garden and on the world
 index entry (legacy saves with no `mode` are Story). Design vs Story branches
@@ -38,11 +39,20 @@ capped at 30.
 Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 **Pocket Prairie**.
 
-The game is plain HTML/CSS/JS in four files — `index.html` (markup),
-`styles.css`, `plants.js` (species data), and `game.js` (all logic) — with no
-build step, no npm dependencies, no framework. Fonts load from Google Fonts
-over the network; everything else is local. `index.html` loads `plants.js`
-before `game.js`; keep that order.
+The game is plain HTML/CSS/JS — `index.html` (markup), `styles.css`,
+`plants.js` (species data), and the game logic, split for navigability across
+seven ordered modules: `core.js`, `draw.js`, `world.js`, `view.js`, `io.js`,
+`ui.js`, `screens.js` — with no build step, no npm dependencies, no framework.
+Fonts load from Google Fonts over the network; everything else is local. The
+modules share one global scope (plain `<script>` tags, no bundler), so **load
+order matters**: `index.html` loads `plants.js` first, then the seven modules in
+the order above — keep that order. Function declarations hoist only *within* a
+file, so the bottom-of-file button wiring and `init` live in `screens.js` (last,
+after everything is defined), and no earlier module may *call* a later module's
+function at load time (cross-file calls inside function bodies are fine — they
+run after every script has loaded). Each module begins with `'use strict';`
+(it's per-script). `git`-blame note: these were one `game.js` until the
+mid-2026 split — a clean cut, no logic moved.
 
 ## Run / test
 
@@ -52,17 +62,19 @@ before `game.js`; keep that order.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
-- After edits, run `node --check game.js` to catch syntax errors before
-  reloading the browser.
+- After edits, run `node --check <module>.js` on the file(s) you touched to
+  catch syntax errors before reloading the browser.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
-  loads the real `plants.js` and `game.js` inside a `vm` sandbox with light
-  DOM stubs. `tests/plants.test.js` checks the species data contract;
-  `tests/game.test.js` smoke-renders every species and unit-tests the pure
-  logic (iso math, flood fill, selection ownership, bulb/woody rules, the
-  house array). All of game.js's testable logic lives above the first DOM
-  access (~line 1578), so it loads and runs headless. Add a `test(name,fn)`
-  with `assert(...)` to the matching file when you add a feature; the runner
-  exits non-zero on any failure.
+  loads `plants.js` and the seven game modules (in load order) inside a `vm`
+  sandbox with light DOM stubs. `tests/plants.test.js` checks the species data
+  contract; `tests/game.test.js` smoke-renders every species and unit-tests the
+  pure logic (iso math, flood fill, selection ownership, bulb/woody rules, the
+  house array). The modules concatenate into one sandbox script and the DOM
+  stubs let them load fully (including the bottom-of-file `init`), so the pure
+  functions run headless. The runner concatenates, so it won't catch cross-file
+  load-order/hoisting bugs — only the browser will. Add a `test(name,fn)` with
+  `assert(...)` to the matching file when you add a feature; the runner exits
+  non-zero on any failure.
 
 ## Known constraints (read before touching save/multiplayer)
 
@@ -78,8 +90,28 @@ before `game.js`; keep that order.
 
 ## Architecture
 
-Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; all
-game logic in `game.js`. Rough order of `game.js`, top to bottom:
+Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game
+logic is split across seven modules. They map onto the section list below
+(which is also the load order, top to bottom):
+
+- **`core.js`** — §1 constants, §2 `AMBIENCE`, §4 `COATS`, the path/bed/water/
+  fence/light/firepit/house data tables, and `plantDef` (cultivar merge cache).
+- **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
+  `drawCritter`.
+- **`world.js`** — §8 the `game` state object, §9 time helpers + phenology,
+  shade constants, `DIRS`/`SUN_PATH`, house/world data, `cam`.
+- **`view.js`** — §10 iso math + view rotation, §11 `render`/`paintGround`,
+  §12 movement/actions/tools, the canvas input handlers (pointer/key/wheel),
+  undo/redo, and the selection tool.
+- **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
+  §14 export sheet (`exportRows`), §14b planting plan (`openPlan`).
+- **`ui.js`** — §15 roles/style scoring, region filter (`plantFits`), the tool
+  tray + tabs + brush bar, layer menu, HUD readouts, and the Plant Library.
+- **`screens.js`** — §16 screens (menu, worlds, creator, plot, design setup),
+  the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
+  `init` IIFE.
+
+Rough order of the logic, top to bottom (the numbering predates the split):
 
 1. **Constants** — `SEASONS`, `DAYS_PER_SEASON` (16), `DAY_MS` (20s real time
    per garden day), `GW`/`GH` (plot size in tiles — per-garden, set by
@@ -183,7 +215,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     Full-sun plants under a tree canopy render stunted (growth × 0.45,
     `shadeTrees` precomputed per frame); the plant card says "Struggling".
     Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
-    math divides by it (`evTile`). Cost scales with screen size, not `GRID`.
+    math divides by it (`evPlacement`). Cost scales with screen size, not `GRID`.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
@@ -277,7 +309,7 @@ game logic in `game.js`. Rough order of `game.js`, top to bottom:
     `doFloodFill`, which BFS-floods the 4-connected region sharing the
     tapped tile's ground material (`groundMat`: grass/path/bed/water) and
     applies the armed brush to every tile via `applyToolAt`, wrapped in one
-    `withUndo`. `armFillTool` arms a brush + sets the flag; `fillActive()`
+    `withUndo`. The Fill toggle sets the `fillMode` flag; `fillActive()`
     gates it (`fillMode && isBrushTool && tool!=='house' && tool!=='fence'`);
     the Plant rail
     button clears the flag. The **Pick** and **Erase** tools see the mature

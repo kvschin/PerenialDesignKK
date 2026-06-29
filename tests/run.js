@@ -118,10 +118,13 @@ currentFile = 'plants.test.js';
 let r = runTier('plants', [read('plants.js'), read('tests/plants.test.js')], false);
 if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: false, err: r.err });
 
-// ---------- Tier 2: game.js logic + render smoke test (DOM-stubbed) ----------
+// ---------- Tier 2: game logic + render smoke test (DOM-stubbed) ----------
+// game.js was split into ordered modules; load them in the same order the
+// browser does (they share one global scope when concatenated here).
 currentFile = 'game.test.js';
-r = runTier('game', [read('plants.js'), read('game.js'), read('tests/game.test.js')], true);
-if (!r.ok) results.push({ file: 'game.test.js', name: 'load game.js (DOM-stubbed)', ok: false, err: r.err });
+const GAME_MODULES = ['core.js','draw.js','world.js','view.js','io.js','ui.js','screens.js'];
+r = runTier('game', [read('plants.js'), ...GAME_MODULES.map(read), read('tests/game.test.js')], true);
+if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });
 
 // ---------- report ----------
 const passed = results.filter(x => x.ok).length;
