@@ -109,7 +109,13 @@ logic is split across nine modules. They map onto the section list below
 - **`ui.js`** — §15 roles/style scoring, region filter (`plantFits`/`trayKeys`),
   and the HUD readouts.
 - **`tray.js`** — the tool tray: category tabs, brush bar, drill-in, search,
-  and the layer menu (`buildToolTray`).
+  and the layer menu (`buildToolTray`). Also the `TOOLS` metadata table +
+  `toolMeta(t)` resolver — the source of truth for each tool's
+  `{layer,brush,placement,paints,material,apply}` (plant tools resolve by
+  `PLANTS[t].type`); `isBrushTool`/`isPlacementTool`/`toolTargetLayer`/
+  `fillActive` and the path/bed/water guards all read it instead of re-deriving
+  `==='house'||==='fence'||…` chains, and `applyToolAt` dispatches through its
+  `apply` hook.
 - **`library.js`** — the Plant Library browser (`openLibrary`).
 - **`screens.js`** — §16 screens (menu, worlds, creator, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
@@ -304,7 +310,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     plus translucent plant ghosts via `drawPlant`). Escape cancels an
     in-progress move, then the selection; switching tools drops it.
     All placement funnels
-    through `applyToolAt(x,y)` (silent; handles plant/bulb/path/bed/water/fence rules —
+    through `applyToolAt(x,y)` — now a thin dispatcher: it applies the universal
+    guards (off-plot, house/door) then calls the armed tool's `apply` hook from
+    the `TOOLS` table (`placePlantAt` for species, `placeTerrainAt` for
+    path/bed/water, `placeFenceAt`/`placeLightAt`/`placeFirepitAt`/
+    `applyElevationTool` for the rest; house has no hook — it places via
+    `placeHouse` from pointerdown). The hooks are silent and handle the rules —
     bulbs tuck under perennials but are refused under trees/shrubs (and a
     newly planted tree/shrub clears any bulb already there), plants check
     `shadeAt`; shrubs reserve a mature spread footprint from `spread`/`TILE_IN`
@@ -328,8 +339,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tapped tile's ground material (`groundMat`: grass/path/bed/water) and
     applies the armed brush to every tile via `applyToolAt`, wrapped in one
     `withUndo`. The Fill toggle sets the `fillMode` flag; `fillActive()`
-    gates it (`fillMode && isBrushTool && tool!=='house' && tool!=='fence'`);
-    the Plant rail
+    gates it (`fillMode && toolMeta(tool).paints` — `paints` is true for the
+    continuous fills (plants + path/bed/water/elevation) and false for the
+    discrete structures house/fence/light/firepit); the Plant rail
     button clears the flag. The **Pick** and **Erase** tools see the mature
     shrub footprint, so sampling or erasing the visible edge of a large shrub
     acts on the shrub's center tile. The **Pick** tool (`game.tool==='pick'`,

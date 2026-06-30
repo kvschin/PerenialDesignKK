@@ -290,7 +290,7 @@ function render(t){
   const hoverShrub=layerShown('woody') && game.hoverTile ? shrubAt(game.hoverTile[0],game.hoverTile[1]) : null;
   if (hoverShrub){
     let mode='hover';
-    if (isPlacementTool(game.tool) && !['hand','select','pick','shovel','house'].includes(game.tool)){
+    if (isPlacementTool(game.tool) && game.tool!=='house'){  // placement tools are blocked by a shrub here; house ghosts instead
       mode='blocked';
       if (PLANTS[game.tool] && plantDef(game.tool,game.toolVar).type==='shrub'){
         const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
@@ -668,7 +668,7 @@ function actHere(opts){
     } else toast('Nothing to erase here.');
     return;
   }
-  if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
+  if (toolMeta(game.tool).material){
     if (hasPlant){ toast('Lift the plant first.'); return; }
     if (shrubHit){ pulseShrubFootprint(shrubHit); toast('Lift the shrub first — its mature spread claims this ground.'); return; }
     if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
@@ -783,49 +783,54 @@ function driftCount(def){
   if (def.type==='shrub'||def.type==='tree') return 1;
   return def.space<=6?9 : def.space<=12?7 : def.space<=18?5 : def.space<=30?3 : 1;
 }
-/* the one silent placer behind drifts, drags, and single planting:
-   puts the armed tool on a tile if it fits, no toasts. Returns what
-   it placed ('plant'|'bulb'|'path'|'bed'|'water'|'fence'|'gate'|'light') or null. */
+/* the one silent placer behind drifts, drags, and single planting: puts the
+   armed tool on a tile if it fits, no toasts. Dispatches through the tool's
+   apply hook (see the TOOLS table in tray.js); returns what it placed
+   ('plant'|'bulb'|'path'|'bed'|'water'|'fence'|'gate'|'light'|'elevation') or
+   null. The universal guards (off-plot, house/door) live here so every hook
+   inherits them; tools without a hook (hand/select/pick/erase/house) no-op. */
 function applyToolAt(x,y,opts){
   if (x<0||y<0||x>=GW||y>=GH) return null;
   if (inHouse(x,y) || isDoor(x,y)) return null;
+  const meta=toolMeta(game.tool);
+  return meta.apply ? meta.apply(x,y,opts) : null;
+}
+// path/bed/water: lay or repaint a ground material on a tile
+function placeTerrainAt(x,y){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
-  if (game.tool==='fence') return placeFenceAt(x,y);
-  if (game.tool==='light') return placeLightAt(x,y);
-  if (game.tool==='firepit') return placeFirepitAt(x,y);
-  if (isElevationTool(game.tool)) return applyElevationTool(x,y) ? 'elevation' : null;
-  if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
-    const ex=game.plants[k], eb=game.bulbs[k];
-    if (ex && !ex.removed) return null;
-    if (shrubAt(x,y)) return null;
-    if (game.tool==='water' && fenceAt(x,y)) return null;
-    if (game.tool==='water' && lightAt(x,y)) return null;
-    if (firepitAt(x,y)) return null;
-    if (game.tool==='water' && eb && !eb.removed) return null;
-    if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
-    if (terr===game.tool){
-      if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
-        setTile('terrain',k,{k:'water',c:game.waterStyle,t:Date.now()});
-        return 'water';
-      }
-      if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
-        setTile('terrain',k,{k:'path',c:game.pathColor,t:Date.now()});
-        return 'path';
-      }
-      if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
-        setTile('terrain',k,{k:'bed',c:game.bedStyle,t:Date.now()});
-        return 'bed';
-      }
-      return null;
+  const ex=game.plants[k], eb=game.bulbs[k];
+  if (ex && !ex.removed) return null;
+  if (shrubAt(x,y)) return null;
+  if (game.tool==='water' && fenceAt(x,y)) return null;
+  if (game.tool==='water' && lightAt(x,y)) return null;
+  if (firepitAt(x,y)) return null;
+  if (game.tool==='water' && eb && !eb.removed) return null;
+  if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
+  if (terr===game.tool){
+    if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
+      setTile('terrain',k,{k:'water',c:game.waterStyle,t:Date.now()});
+      return 'water';
     }
-    setTile('terrain',k, game.tool==='path'
-      ? {k:'path',c:game.pathColor,t:Date.now()}
-      : game.tool==='water'
-      ? {k:'water',c:game.waterStyle,t:Date.now()}
-      : {k:'bed',c:game.bedStyle,t:Date.now()});
-    return game.tool;
+    if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
+      setTile('terrain',k,{k:'path',c:game.pathColor,t:Date.now()});
+      return 'path';
+    }
+    if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
+      setTile('terrain',k,{k:'bed',c:game.bedStyle,t:Date.now()});
+      return 'bed';
+    }
+    return null;
   }
-  if (!PLANTS[game.tool]) return null;
+  setTile('terrain',k, game.tool==='path'
+    ? {k:'path',c:game.pathColor,t:Date.now()}
+    : game.tool==='water'
+    ? {k:'water',c:game.waterStyle,t:Date.now()}
+    : {k:'bed',c:game.bedStyle,t:Date.now()});
+  return game.tool;
+}
+// plant/bulb/water-plant: drop the armed species on a tile if it fits
+function placePlantAt(x,y,opts){
+  const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   const def=plantDef(game.tool,game.toolVar);
   if (fenceAt(x,y)) return null;
   if (lightAt(x,y)) return null;
@@ -1523,8 +1528,8 @@ cnv.addEventListener('pointerdown',e=>{
     sweepLift(x,y); return;
   }
   // plant/bulb/path/bed/water/elevation/fence/light/firepit: press-and-drag paints tiles like the shovel
-  // sweeps them; a plain tap (resolved at pointerup) walks or acts
-  if (PLANTS[game.tool] || game.tool==='path' || game.tool==='bed' || game.tool==='water' || isElevationTool(game.tool) || game.tool==='fence' || game.tool==='light' || game.tool==='firepit'){
+  // sweeps them; a plain tap (resolved at pointerup) walks or acts. (house already returned above.)
+  if (isBrushTool(game.tool)){
     toolDrag={sx:x, sy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;

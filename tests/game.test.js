@@ -164,6 +164,67 @@ test('elevation tools raise, lower, level, and clamp grade', () => {
   assertEqual(elevationAt(5, 5), 0, 'level returns to flat ground');
 });
 
+test('toolMeta is the source of truth for the legacy tool predicates', () => {
+  setup();
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb');
+  const woody = firstOfType('shrub') || firstOfType('tree');
+  // layer routing matches plant type
+  assertEqual(toolMeta(forb).layer, 'perennials', 'forb -> perennials layer');
+  assertEqual(toolMeta(bulb).layer, 'bulbs', 'bulb -> bulbs layer');
+  assertEqual(toolMeta(woody).layer, 'woody', 'woody -> woody layer');
+  assertEqual(toolMeta('path').layer, 'landscape', 'landscape brushes -> landscape layer');
+  assertEqual(toolMeta('hand').layer, null, 'non-drawing tools have no layer');
+  // the three legacy predicates are now just table reads
+  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'house', 'fence', 'light', 'firepit',
+                   'hand', 'select', 'pick', 'shovel']){
+    assertEqual(isBrushTool(t), toolMeta(t).brush, `isBrushTool(${t}) tracks the table`);
+    assertEqual(isPlacementTool(t), toolMeta(t).placement, `isPlacementTool(${t}) tracks the table`);
+    assertEqual(toolTargetLayer(t), toolMeta(t).layer, `toolTargetLayer(${t}) tracks the table`);
+  }
+  // hand/select/pick/shovel are neither brush nor placement; the rest are both
+  for (const t of ['hand', 'select', 'pick', 'shovel'])
+    assert(!toolMeta(t).brush && !toolMeta(t).placement, `${t} is not a brush/placement tool`);
+  // material flag is exactly the path/bed/water set
+  for (const t of ['path', 'bed', 'water']) assert(toolMeta(t).material, `${t} is a ground material`);
+  for (const t of [forb, bulb, woody, 'raise', 'house', 'fence', 'light', 'hand'])
+    assert(!toolMeta(t).material, `${t} is not a ground material`);
+});
+
+test('every brush/placement tool has an apply hook; non-drawing tools do not', () => {
+  setup();
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb');
+  const woody = firstOfType('shrub') || firstOfType('tree');
+  // drawing tools dispatch through a hook
+  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'lower', 'level', 'fence', 'light', 'firepit'])
+    assertEqual(typeof toolMeta(t).apply, 'function', `${t} has an apply hook`);
+  // house places via placeHouse, not applyToolAt; the rest are not placers at all
+  for (const t of ['house', 'hand', 'select', 'pick', 'shovel'])
+    assert(!toolMeta(t).apply, `${t} has no apply hook`);
+  // applyToolAt routes through the hook: a plant lands, house no-ops
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), 'plant', 'plant tool dispatches to placePlantAt');
+  game.tool = 'house';
+  assertEqual(applyToolAt(6, 6), null, 'house no-ops through applyToolAt');
+});
+
+test('paints flag drives fill — continuous fills only, not discrete structures', () => {
+  setup();
+  const forb = firstOfType('forb');
+  game.fillMode = true;
+  // plants + path/bed/water/elevation flood-fill
+  for (const t of [forb, 'path', 'bed', 'water', 'raise']){
+    game.tool = t; assert(fillActive(), `${t} flood-fills`); assert(toolMeta(t).paints, `${t}.paints`);
+  }
+  // discrete structures are brushes but never flood-fill
+  for (const t of ['house', 'fence', 'light', 'firepit']){
+    game.tool = t;
+    assert(!fillActive(), `${t} does not flood-fill`);
+    assert(toolMeta(t).brush && !toolMeta(t).paints, `${t} is a brush but not a paint`);
+  }
+  game.fillMode = false; game.tool = forb;
+  assert(!fillActive(), 'fill needs fillMode on');
+});
+
 test('elevation participates in undo, erase, and selection moves', () => {
   setup(13, 13);
   game.tool = 'raise';

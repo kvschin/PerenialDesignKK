@@ -35,20 +35,59 @@ const ENABLE_LAYER_EDIT_FOCUS = false; // kept for later; hidden now because vis
 function layerEditable(name){ return !ENABLE_LAYER_EDIT_FOCUS || game.layerFocus==='all' || game.layerFocus===name; }
 const LAYER_LABELS={all:'All',perennials:'Perennials',bulbs:'Bulbs',woody:'Woody Plants',landscape:'Landscape/Hardscape'};
 const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable layers, in menu order
-// the layer a placement tool draws onto (so we can warn when it's hidden)
-function isPlacementTool(t){ return t==='house'||t==='fence'||t==='light'||t==='firepit'||t==='path'||t==='bed'||t==='water'||isElevationTool(t)||!!PLANTS[t]; }
-function toolTargetLayer(t){ t=t||game.tool;
-  if (t==='house'||t==='fence'||t==='light'||t==='firepit'||t==='path'||t==='bed'||t==='water'||isElevationTool(t)) return 'landscape';
-  const P=PLANTS[t]; if (!P) return null;
-  if (P.type==='bulb') return 'bulbs';
-  if (P.type==='shrub'||P.type==='tree') return 'woody';
-  return 'perennials';
+/* ---------- tool metadata ----------
+   game.tool is either a fixed tool id (below) or a plant key (PLANTS[t]). One table
+   is the source of truth for each tool's behavior, so callers ask toolMeta() instead
+   of re-deriving "==='house'||==='fence'||..." chains across the input handlers:
+     layer     — the garden layer it draws onto (null for non-drawing tools)
+     brush     — arms a repeatable brush (vs. one-shot hand/select/pick/erase)
+     placement — puts something on a tile (we warn when its layer is hidden)
+     paints    — flood-fills / drag-paints a continuous fill; false for the discrete
+                 structures (house/fence/light/firepit) that place one at a time.
+     material  — a ground-material brush (path/bed/water); folds the old
+                 tool==='path'||==='bed'||==='water' guards.
+     apply     — the silent placement hook applyToolAt dispatches to; returns what
+                 it placed ('plant'|'bulb'|'path'|… ) or null. House has none (it's
+                 placed via placeHouse from pointerdown); non-drawing tools have none.
+   The apply hooks are arrow wrappers (like the GAME_LAYERS sync hooks) so the
+   placement functions — defined later in view.js — resolve at call time. */
+const TOOLS={
+  hand:    {layer:null,        brush:false, placement:false, paints:false, material:false},
+  select:  {layer:null,        brush:false, placement:false, paints:false, material:false},
+  pick:    {layer:null,        brush:false, placement:false, paints:false, material:false},
+  shovel:  {layer:null,        brush:false, placement:false, paints:false, material:false}, // Erase
+  path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
+  bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
+  water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
+  raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
+  fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
+  light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
+  firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
+};
+// plant tools are keyed by species id; their layer + placer follow the plant type
+const TOOL_PLANT={
+  perennials:{layer:'perennials',brush:true,placement:true,paints:true,material:false,apply:(x,y,o)=>placePlantAt(x,y,o)},
+  bulbs:     {layer:'bulbs',     brush:true,placement:true,paints:true,material:false,apply:(x,y,o)=>placePlantAt(x,y,o)},
+  woody:     {layer:'woody',     brush:true,placement:true,paints:true,material:false,apply:(x,y,o)=>placePlantAt(x,y,o)},
+};
+const TOOL_NONE={layer:null, brush:false, placement:false, paints:false, material:false};
+function toolMeta(t){ t=t||game.tool;
+  if (TOOLS[t]) return TOOLS[t];
+  const P=PLANTS[t];
+  if (P) return TOOL_PLANT[P.type==='bulb'?'bulbs':(P.type==='shrub'||P.type==='tree')?'woody':'perennials'];
+  return TOOL_NONE;
 }
-function isBrushTool(k){ return !!PLANTS[k] || k==='path' || k==='bed' || k==='water' || isElevationTool(k) || k==='house' || k==='fence' || k==='light' || k==='firepit'; }
+// the legacy predicates now just read the one table (kept for their many call sites)
+function isPlacementTool(t){ return toolMeta(t).placement; }
+function toolTargetLayer(t){ return toolMeta(t).layer; }
+function isBrushTool(k){ return toolMeta(k).brush; }
 function brushTrayCatForTool(k){
   if (PLANTS[k]) return plantCategoryFor(k);
   if (isElevationTool(k)) return 'leveling';
-  if (k==='path'||k==='bed'||k==='water') return 'landscape';
+  if (toolMeta(k).material) return 'landscape';
   if (k==='fence'||k==='firepit') return 'structures';
   if (k==='light') return 'lighting';
   if (k==='house') return 'house';
@@ -63,7 +102,7 @@ function toolFitsBrushTray(k,catId){
   if (!c) return false;
   if (PLANTS[k]) return !!(c.types && c.types.includes(PLANTS[k].type) && (!c.sunFilter || PLANTS[k].sun===c.sunFilter));
   if (isElevationTool(k)) return catId==='leveling';
-  if (k==='path'||k==='bed'||k==='water') return catId==='landscape';
+  if (toolMeta(k).material) return catId==='landscape';
   if (k==='fence'||k==='firepit') return catId==='structures';
   if (k==='light') return catId==='lighting';
   if (k==='house') return catId==='house';
@@ -249,7 +288,7 @@ function armPlantToolFromRail(openMenu){
    to every tile in it — fill a bed block with a plant, recolour a path run,
    turn a lawn into beds, etc. Fill is a mode layered over the armed brush,
    so the bottom catalog still picks what you fill WITH. */
-function fillActive(){ return game.fillMode && isBrushTool(game.tool) && game.tool!=='house' && game.tool!=='fence' && game.tool!=='light' && game.tool!=='firepit'; }
+function fillActive(){ return game.fillMode && toolMeta(game.tool).paints; }
 function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
 function doFloodFill(sx,sy){
   if (sx<0||sy<0||sx>=GW||sy>=GH || inHouse(sx,sy) || isDoor(sx,sy)) return;
