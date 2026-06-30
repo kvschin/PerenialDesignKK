@@ -4,27 +4,32 @@ A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
 no movement, a free pan/pinch/twist camera and direct tap-to-place/drag-to-paint
 à la Procreate; no house at start; created via a questionnaire of
-zone/style/natives/deer/rabbit. The other menu entries: **Daily design
-challenge** (a date-seeded planting prompt — prompt-only, no scoring — that
-drops you into Design mode; `DAILY_CHALLENGES` / `todaysChallenge` / `openDaily`,
-shown via the `#dailyScreen` panel, carried in as `game.challenge` and toasted
-on entry, cleared whenever the main menu shows), **Story Mode** (the
-Animal-Crossing-ish avatar mode — a cat/dog walks the plot, a house spawns; its
-build/tend/propagate build-out was cut — see the backlog — and the avatar is
-trending toward a lighter "visit and stroll" direction), **Plant Library**
-(browse every species: list + seasonal images + facts + cultivars), and
-**My Gardens** (open/manage saved gardens). A dev-only **Plant Creator**
-(`plant-creator.html`, opened directly, not linked from the game) loads the real
-`plants.js` + game modules to author `PLANTS` entries with a live `drawPlant`
-preview.
+zone/style/natives/deer/rabbit. The menu has four entries: Design a Garden,
+**Daily design challenge** (a date-seeded planting prompt — prompt-only, no
+scoring — that drops you into Design mode; `DAILY_CHALLENGES` /
+`todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried in
+as `game.challenge` and toasted on entry, cleared whenever the main menu shows),
+**Plant Library** (browse every species: list + seasonal images + facts +
+cultivars), and **View Gardens** (open/manage saved gardens; each row also
+offers a read-only **Visit** that strolls the garden as a cat/dog avatar — Visit
+is shown only here, not in the Design-a-Garden flow). A dev-only
+**Plant Creator** (`plant-creator.html`, opened directly, not linked from the
+game) loads the real `plants.js` + game modules to author `PLANTS` entries with
+a live `drawPlant` preview.
 
 `game.gameMode` is `'design'` | `'story'`, saved per garden and on the world
-index entry (legacy saves with no `mode` are Story). Design vs Story branches
-live in `enterGarden`, `render` (avatar + camera easing skipped for design),
-the loop (movement skipped), `tapAction` (design taps route straight to
-`actHere` on the tapped tile), the two-finger pointer handler (adds camera pan
-in design), `setUserZoom`/snapCam (design keeps its free camera), and the
-`btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`).
+index entry. **Design is the only mode you can start** — the old avatar **Story
+Mode** was retired from the menu, and the story-creation / character-creator
+paths (`startNewGarden('story')` / `openCreator`) are now unreachable from the
+UI. The `'story'` value survives for exactly two things: the read-only **Visit**
+feature (`visitWorld` forces `gameMode='story'` + `game.visiting`, so the
+avatar/movement/camera all work while editing chrome is hidden and saves are
+no-ops) and **legacy story saves** (older saves with no `mode` load as story).
+Design vs story branches live in `enterGarden`, `render` (avatar + camera easing
+skipped for design), the loop (movement skipped), `tapAction` (design taps route
+straight to `actHere` on the tapped tile), the two-finger pointer handler (adds
+camera pan in design), `setUserZoom`/snapCam (design keeps its free camera), and
+the `btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`).
 Design panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
 (two-finger twist was removed — it fought the pan/zoom gesture). **Undo/redo**
@@ -412,7 +417,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `game.firepits` keyed by origin tile (`{shape,size,t}` or `{removed:true}`),
     reserve a mature footprint via `firepitFootprint`/`canPlaceFirepit`
     (refused under house/door/water/plants/bulbs/fences/lights/shrubs and the
-    Story-mode avatar), block movement (`canStand`/`firepitAt`), and render
+    avatar when one is present), block movement (`canStand`/`firepitAt`), and render
     through `drawFirepit` (stone rim + coals + flames, snow cap in winter).
     They erase as Landscape, move/rotate/copy in selections, eyedrop with
     Pick, and sync via `syncFirepitsOut` — all parallel to lights. The House tab
@@ -447,7 +452,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on) next to the
     **season box** (`#btnSeasonBox`): a label (season name + early/mid/late
-    phase in design, season + Year/Day in story) whose interior `#seasonFill`
+    phase in design, season + Year/Day on the avatar path) whose interior `#seasonFill`
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
@@ -475,8 +480,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     from the corner over the still-visible garden instead of covering the
     screen. In **design** mode the readout drops the meaningless
     Year/Day (a day is 20s real time) for the season + early/mid/late phase
-    (`clockMeta`/`seasonPhase`) and an **Advance** button; **story** mode keeps
-    the full calendar + End Day. On phones the whole palette collapses: a
+    (`clockMeta`/`seasonPhase`) and an **Advance** button; the avatar path
+    (Visit / legacy saves) keeps the full calendar + End Day. On phones the whole palette collapses: a
     `#sheetHandle` folds the catalog away while you paint (`applySheetState`,
     `game.sheetCollapsed`), leaving the brush bar + a context label + a swatch
     of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
@@ -518,10 +523,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     warning when coords are given). The region choice persists as
     `hortus:region`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
-    gardens or start new; Solo goes here when saves exist), multiplayer
-    lobby, character creator (with live preview), code display, plot setup
-    (`#plotScreen`, new solo gardens: name + acre presets or width x length
-    in feet). Plain DOM, toggled by `show()`. The planting-list
+    gardens or start a new one; reached via Design a Garden and View Gardens —
+    the Design entry hides the per-row Visit button, View Gardens shows it),
+    plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
+    length in feet), and the daily-challenge panel (`#dailyScreen`). Still in
+    the markup but no longer reached from the menu (legacy, tied to the retired
+    story / multiplayer paths): the multiplayer lobby, character creator (with
+    live preview), and code display. Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`), region (`#regionScreen`), and plan (`#planScreen`)
     overlays sit outside `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
@@ -595,14 +603,19 @@ Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Direction & backlog
 
-**Scope pivot (current direction).** Story Mode's heavy build-out — seed
-propagation, NPCs, a town/shop, an economy, a multi-location world — was
-explored and **cut** as too big for a no-framework canvas app (the propagation
-feature was actually built, then reverted in "Remove Story-mode seed
-propagation"). The project is now **Design-first**: the planner plus the
-**Daily design challenge**, with two lightweight, **backend-free** features
-planned next — **"Visit Gardens"** (stroll your own + imported gardens as the
-cat/dog avatar, read-only) and **share-a-file** garden export/import. Live
+**Scope pivot (current direction).** The project is **Design-first**: the
+planner plus the **Daily design challenge**. The avatar **Story Mode** — the
+cozy Animal-Crossing-ish original — had a heavy build-out (seed propagation,
+NPCs, a town/shop, an economy, a multi-location world) that was explored and
+**cut** as too big for a no-framework canvas app (the propagation feature was
+built, then reverted in "Remove Story-mode seed propagation"); the mode itself
+is now **retired from the menu** — you can't start one, and the
+creation/character-creator paths are unreachable. Its avatar/movement code lives
+on for the two lightweight, **backend-free** features that replaced it, both now
+**built**: **Visit Gardens** (stroll your saved or imported gardens as the
+cat/dog avatar, read-only — the `Visit` button on each **View Gardens** row;
+the Design-a-Garden list omits it) and
+**share-a-file** garden export/import (`btnShare` / `btnImport`). Live
 cross-device multiplayer stays deferred. (Fuller record: `docs/direction.md`.)
 
 Still open: woody follow-up — tree canopies rendering across tile boundaries

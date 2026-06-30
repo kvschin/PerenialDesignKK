@@ -18,7 +18,8 @@ Around that core:
   *suggests* a style + plant types and drops you into Design mode. Nothing is
   scored or enforced. Prompts live in `DAILY_CHALLENGES` (game.js).
 - **Plant Library** *(built)* — browse every species.
-- **My Gardens** *(built)* — manage saved gardens.
+- **View Gardens** *(built)* — open, manage, and **Visit** saved gardens
+  (read-only avatar stroll; Visit is offered here, not in the Design flow).
 
 ## The pivot (what was cut, and why)
 

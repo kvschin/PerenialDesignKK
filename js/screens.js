@@ -103,7 +103,7 @@ async function refreshMenuCards(){
   const idx=hasStorage ? await migrateLegacyWorld() : [];
   g.querySelector('small').textContent=idx.length
     ? `${idx.length} saved garden${idx.length>1?'s':''}`
-    : 'Open and manage your saved gardens';
+    : 'Open, visit, and manage saved gardens';
 }
 
 $('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
@@ -127,7 +127,7 @@ async function openWorlds(filter){
   const all=await migrateLegacyWorld();
   const idx=worldsFilter==='all' ? all : all.filter(w=>worldMode(w)===worldsFilter);
   if (!idx.length && worldsFilter!=='all'){ startNewGarden(worldsFilter); return; } // none yet → create
-  const titles={design:'Design gardens', story:'Story gardens', all:'My gardens'};
+  const titles={design:'Design gardens', story:'Story gardens', all:'View gardens'};
   const subs={
     design:'Continue a planting plan, or start a new one.',
     story:'Continue tending, or start a new garden.',
@@ -151,10 +151,15 @@ async function openWorlds(filter){
     del.onclick=e=>{ e.stopPropagation();
       if (del.dataset.arm){ deleteWorld(w.id); }
       else { del.dataset.arm='1'; del.textContent='Sure?'; } };
-    const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
-    visit.title='Walk this garden as your avatar (read-only)';
-    visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
-    row.append(info,visit,del);
+    // Visit (read-only stroll) lives in View Gardens, not the Design-a-Garden flow
+    if (worldsFilter!=='design'){
+      const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
+      visit.title='Walk this garden as your avatar (read-only)';
+      visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
+      row.append(info,visit,del);
+    } else {
+      row.append(info,del);
+    }
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });

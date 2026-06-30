@@ -1,7 +1,7 @@
 # Pocket Prairie Garden Design
 
 A 2.5D perennial-gardening game and planner in the spirit of Piet Oudolf's
-naturalistic planting style. Nearly 200 real species — grasses, sedges,
+naturalistic planting style. More than 200 real species — grasses, sedges,
 coneflowers and other forbs, ornamental bulbs, shrubs, and trees — grow, bloom,
 stand through winter, and get cut back each spring on their true phenology, all
 rendered procedurally on an isometric prairie plot.
@@ -10,18 +10,21 @@ rendered procedurally on an isometric prairie plot.
 
 ## Four ways in
 
-The menu opens onto four modes:
+The menu opens onto four entries:
 
 - **Design a Garden** — a serious planner for your actual yard. No avatar, no
   movement: a free pan / pinch / twist camera and direct tap-to-place,
   drag-to-paint editing à la Procreate. Size the plot in feet or acres, set it
   up from a short questionnaire (zone, style, natives-only, deer/rabbit), then
   build with the full tool set below.
-- **Story Mode** — the cozy, Animal-Crossing-ish original: a cat or dog avatar
-  walks the plot, a house spawns, and you tend the garden tile by tile.
+- **Daily design challenge** — a fresh date-seeded planting prompt each day
+  (a dry gravel garden, a pollinator border, a monochrome study, …). It drops
+  you straight into Design mode with a fitting plant palette — no scoring, just
+  a new brief.
 - **Plant Library** — browse every species with seasonal images, facts, and
   cultivars (you can drop in your own photos).
-- **My Gardens** — open and manage your saved gardens.
+- **View Gardens** — open and manage your saved gardens, share one to a file, or
+  **Visit** any of them to stroll it as a cat or dog avatar (read-only).
 
 ## Design tools
 
@@ -53,9 +56,10 @@ open `index.html`, or serve the folder to avoid `file://` quirks:
 npx http-server -p 8642 -c-1      # or: npm run serve
 ```
 
-The four files are `index.html` (markup), `styles.css`, `plants.js` (species
-data), and `game.js` (all logic). GitHub Pages serves `master` as-is, so every
-push redeploys.
+`index.html` (markup) and `styles.css` sit at the repo root; the JavaScript
+lives in `js/` — `plants.js` (species data) plus the game logic, split for
+navigability across nine small modules (no bundler; load order matters).
+GitHub Pages serves `master` as-is, so every push redeploys.
 
 ## Tests
 
