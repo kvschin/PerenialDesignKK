@@ -202,9 +202,23 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     canvas size / landscape-layer vis + `groundDataSig()`, a cheap signature of
     the sparse terrain/elevation/house data). Empty-garden ground dropped
     ~12ms → ~0.35ms. Water ripples freeze only while the view is perfectly
-    still (no `t` in the key); any pan/edit resumes them. A perf **debug HUD**
-    (`dbg`, toggled by backtick or `?debug`, zero-cost off) shows FPS + a
-    ground/plants frame-time breakdown. Ground drawn back-to-front, a single
+    still (no `t` in the key); any pan/edit resumes them. **Dense gardens draw
+    plants from a sprite cache** (`PSPRITE`, `drawPlantMaybeCached`): `drawPlant`
+    was ~88% of a heavy frame, re-running each plant's procedural recipe every
+    frame, so each plant renders once to a small offscreen canvas — keyed by its
+    own `tileSeed` so every clump stays unique (no shared variant pool) — and is
+    blitted after, with sway applied as a cheap skew on the blit and growth/bloom
+    bucketed so the key is frame-stable. It engages only past ~300 visible plants
+    (with hysteresis); lighter gardens keep the pristine, smoothly-growing
+    procedural path. Eviction runs once per frame and only on off-screen sprites
+    (never the visible set, so the cache can't thrash/flicker), sprite scale is
+    capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
+    few frames rather than wiping (the blit auto-scales). ~2.7–3.4× on dense
+    frames; `PSPRITE.off` A/Bs it, dev-only `stressGarden()` packs the plot. A
+    perf **debug HUD** (`dbg`, toggled by backtick or `?debug`, zero-cost off;
+    `dnow`/`dmark`/`dtime` are the phase timers) shows FPS + a per-phase
+    frame-time breakdown — ground / shade / cursor / gather / sort / draw / fx,
+    plus move / hud — sorted by cost. Ground drawn back-to-front, a single
     depth-sorted entity
     pass for the cottage + plants + critters (`houseDrawDepth()` anchors the
     cottage at the doorstep/front center, not the far corner, so nearby
