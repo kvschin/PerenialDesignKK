@@ -108,6 +108,77 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
       ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
   }
 }
+/* ---------- plant sprite cache (perf) ----------
+   drawPlant re-runs a plant's whole procedural recipe every frame, which is
+   ~88% of a heavy frame. A plant tile looks identical frame to frame apart
+   from a global wind sway, so render it once to a small offscreen canvas —
+   keyed by its own seed, so every clump stays unique (no shared variants) —
+   and blit it on later frames, shearing the blit for sway. Growth and bloom
+   are bucketed so the key is stable across frames; the cache clears on a zoom
+   change (sprites bake the current device scale, so a 1:1 blit stays crisp)
+   and is evicted LRU under a memory budget. It only kicks in once a frame is
+   heavy enough that the bucketing is imperceptible — light gardens keep the
+   pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
+const PSPRITE={ map:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
+  MEM:48*1024*1024, BUDGET:160, MIN:300, off:false, active:false };
+function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
+function pspriteFrame(){                        // once per render: age the cache
+  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
+  // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
+  // budget — never the visible set. This is what stops the cache thrashing and
+  // flickering when the working set is large (e.g. a dense garden on retina):
+  // memory may overshoot to hold everything on screen, but it never re-renders
+  // a visible plant it just discarded.
+  if (PSPRITE.bytes>PSPRITE.MEM) for (const [k,e] of PSPRITE.map){
+    if (PSPRITE.bytes<=PSPRITE.MEM || e.used>=PSPRITE.frame-1) break;
+    PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k);
+  }
+}
+function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
+function makePlantSprite(key,gB,bB,season,seed,variant,detail){
+  const P=plantDef(key,variant), growth=gB/8;
+  const H=P.h*(0.25+0.75*growth);
+  // the box must cover the whole drawing — woody canopies reach well above P.h
+  // and wide of P.cw, so trees clip if we size from P.h alone.
+  const woody=P.type==='tree'||P.type==='shrub';
+  const canopy=(isShrubDef(P)?(shrubVisualCw(P)||50):(P.cw||80))*(0.3+0.7*growth);
+  const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62)+18;
+  const top=(woody?Math.max(H,0.75*H+canopy*0.7):H*1.12)+26;
+  const bot=18, s=pspriteScale();
+  const pw=Math.max(1,Math.ceil(halfW*2*s)), ph=Math.max(1,Math.ceil((top+bot)*s));
+  if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
+  const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+  const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
+  drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,detail); // still (sway 0), bucketed bloom
+  return { cv, ox:halfW, oy:top, s, bytes:pw*ph*4 };
+}
+// blit a cached plant if we can, else fall back to a live procedural draw.
+function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites){
+  if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
+  const P=plantDef(key,variant), S=P.sea[season];
+  const gB=gbucket(growth,9), bB=(S&&S.bloom)?gbucket(bloomLevel(key),4):0;
+  const kk=seed+'|'+key+'|'+(variant||'')+'|'+season+'|'+gB+'|'+bB+'|'+(detail?JSON.stringify(detail):'');
+  let e=PSPRITE.map.get(kk);
+  // A sprite baked at a very different zoom blits soft, so re-render it (budget
+  // permitting) at the current scale. But to keep zooming smooth, reuse the old
+  // one for this frame rather than dropping a visible plant to a slow procedural
+  // draw — the cache converges back to crisp within a few frames after a zoom.
+  if (!e || Math.abs(e.s-PSPRITE.scale) > PSPRITE.scale*0.12){
+    if (PSPRITE.rendered<PSPRITE.BUDGET){
+      const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
+      if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes; }
+    }
+    if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
+  }
+  if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
+  e.used=PSPRITE.frame;
+  PSPRITE.map.set(kk,e);
+  const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
+  if (sway){
+    ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,sway*0.05,1,0,0); ctx.translate(-bx,-by);
+    ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
+  } else ctx.drawImage(e.cv,lx,ly,dw,dh);
+}
 function render(t){
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
@@ -125,6 +196,7 @@ function render(t){
   }
 
   const sway = Math.sin(t*0.0012);
+  pspriteFrame();
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen
@@ -281,6 +353,7 @@ function render(t){
   dmark('cursor',tCursor);
   const tGather=dnow();
   const ents=[];
+  let plantCount=0, useSprites=false;          // sprite cache kicks in only when dense (set after gather)
   if (layerShown('landscape')) for (const k in game.fences){
     const f=game.fences[k]; if (f.removed) continue;
     const [x,y]=k.split(',').map(Number);
@@ -311,8 +384,9 @@ function render(t){
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
     const gB=plantGrowth(p); if (gB<=0.02) continue;
+    plantCount++;
     ents.push({depth:plantDepth(x,y,p)+0.25, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
-      drawPlant(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v);}});
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v,undefined,useSprites);}});
   }
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
@@ -325,8 +399,9 @@ function render(t){
         shadeTrees.some(sh=>sh.p!==p && treeShadeScore(sh,x,y)>=SHADE_ACTIVE_SCORE))
       g2v*=0.45; // struggling under the canopy
     const detail=plantRenderDetail(x,y,p,W,H);
+    plantCount++;
     ents.push({depth:plantDepth(x,y,p)+0.3, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
-      drawPlant(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v,undefined,detail);}});
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v,detail,useSprites);}});
   }
   // local player (smooth move) — story mode only; design has no avatar
   let dx=game.px, dy=game.py;
@@ -347,6 +422,10 @@ function render(t){
       cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
       cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31); }});
   }
+  // dense gardens only — keeps light ones pristine. Hysteresis (on >MIN, off
+  // <0.7·MIN) stops a flicker between procedural/cached while panning the edge.
+  PSPRITE.active = !PSPRITE.off && plantCount > (PSPRITE.active ? PSPRITE.MIN*0.7 : PSPRITE.MIN);
+  useSprites = PSPRITE.active;
   dmark('gather',tGather);
   const tSort=dnow(); ents.sort((a,b)=>a.depth-b.depth); dmark('sort',tSort);
   const tDraw=dnow(); ents.forEach(e=>e.draw()); dmark('draw',tDraw);
