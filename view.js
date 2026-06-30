@@ -805,25 +805,24 @@ function applyToolAt(x,y,opts){
     if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
     if (terr===game.tool){
       if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
-        game.terrain[k]={k:'water',c:game.waterStyle,t:Date.now()}; game.dirty=true;
+        setTile('terrain',k,{k:'water',c:game.waterStyle,t:Date.now()});
         return 'water';
       }
       if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
-        game.terrain[k]={k:'path',c:game.pathColor,t:Date.now()}; game.dirty=true;
+        setTile('terrain',k,{k:'path',c:game.pathColor,t:Date.now()});
         return 'path';
       }
       if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
-        game.terrain[k]={k:'bed',c:game.bedStyle,t:Date.now()}; game.dirty=true;
+        setTile('terrain',k,{k:'bed',c:game.bedStyle,t:Date.now()});
         return 'bed';
       }
       return null;
     }
-    game.terrain[k]=game.tool==='path'
+    setTile('terrain',k, game.tool==='path'
       ? {k:'path',c:game.pathColor,t:Date.now()}
       : game.tool==='water'
       ? {k:'water',c:game.waterStyle,t:Date.now()}
-      : {k:'bed',c:game.bedStyle,t:Date.now()};
-    game.dirty=true;
+      : {k:'bed',c:game.bedStyle,t:Date.now()});
     return game.tool;
   }
   if (!PLANTS[game.tool]) return null;
@@ -841,7 +840,7 @@ function applyToolAt(x,y,opts){
     const sh=shadeAt(x,y);
     if (sh && def.sun!=='part') return null;
     if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
-    game.plants[k]=np; game.dirty=true; plantFx(x,y,np);
+    setTile('plants',k,np); plantFx(x,y,np);
     return 'plant';
   }
   if (terr==='path'||terr==='water') return null;
@@ -851,7 +850,7 @@ function applyToolAt(x,y,opts){
     if (shrubAt(x,y)) return null;
     const above=game.plants[k];
     if (above && !above.removed && plantLayerOf(above)==='woody') return null;
-    game.bulbs[k]=np; game.dirty=true; plantFx(x,y,np);
+    setTile('bulbs',k,np); plantFx(x,y,np);
     return 'bulb';
   }
   const ex=game.plants[k];
@@ -861,11 +860,11 @@ function applyToolAt(x,y,opts){
   const sh=shadeAt(x,y);
   if (sh && def.sun!=='part') return null;
   if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
-  game.plants[k]=np; game.dirty=true; plantFx(x,y,np);
+  setTile('plants',k,np); plantFx(x,y,np);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
   if (def.type==='shrub') clearBulbsUnderShrub(x,y,np);
   else if (def.type==='tree'){ const eb=game.bulbs[k];
-    if (eb && !eb.removed){ game.bulbs[k]={removed:true,t:Date.now()}; syncBulbsOut(); } }
+    if (eb && !eb.removed){ clearTile('bulbs',k); syncBulbsOut(); } }
   return 'plant';
 }
 function syncToolLayer(what){
@@ -922,7 +921,7 @@ function placeFenceAt(x,y){
   const next={style:fenceStyleId(d.style),height:FENCE_HEIGHTS.includes(d.height)?d.height:4,gate:!!d.gate,t:now};
   const cur=fenceAt(x,y);
   if (cur && cur.style===next.style && cur.height===next.height && !!cur.gate===next.gate) return null;
-  game.fences[k]=next; game.dirty=true;
+  setTile('fences',k,next);
   return next.gate?'gate':'fence';
 }
 function canPlaceLight(x,y){
@@ -939,7 +938,7 @@ function placeLightAt(x,y){
   const next={type:lightTypeId(d.type),tone:lightToneId(d.tone),t:now};
   const cur=lightAt(x,y);
   if (cur && cur.type===next.type && cur.tone===next.tone) return null;
-  game.lights[k]=next; game.dirty=true;
+  setTile('lights',k,next);
   return 'light';
 }
 
@@ -953,7 +952,7 @@ function displacePlants(x,y,w,h){ // a house can't share ground with plants
     const [px2,py2]=k.split(',').map(Number);
     const inside=px2>=x&&px2<x+w&&py2>=y&&py2<y+h;
     const overlaps=isShrubDef(plantDef(p.s,p.v)) && shrubFootprintOverlapsRect(px2,py2,p,x,y,w,h);
-    if (inside || overlaps){ game.plants[k]={removed:true,t:Date.now()}; n++; }
+    if (inside || overlaps){ clearTile('plants',k); n++; }
   }
   if (n){ game.dirty=true; syncPlantsOut(); }
   return n;
@@ -963,11 +962,11 @@ function clearTerrainForHouse(x,y,w,h){
   const clear=(xx,yy)=>{
     if (xx<0||yy<0||xx>=GW||yy>=GH) return;
     const k=`${xx},${yy}`;
-    if (terrainAt(xx,yy)){ game.terrain[k]={removed:true,t:Date.now()}; n++; }
-    if (fenceAt(xx,yy)){ game.fences[k]={removed:true,t:Date.now()}; n++; }
-    if (lightAt(xx,yy)){ game.lights[k]={removed:true,t:Date.now()}; n++; }
+    if (terrainAt(xx,yy)){ clearTile('terrain',k); n++; }
+    if (fenceAt(xx,yy)){ clearTile('fences',k); n++; }
+    if (lightAt(xx,yy)){ clearTile('lights',k); n++; }
     const fp=firepitAt(xx,yy);
-    if (fp){ game.firepits[fp.key]={removed:true,t:Date.now()}; n++; }
+    if (fp){ clearTile('firepits',fp.key); n++; }
   };
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
   clear(x+((w-1)>>1),y+h); // keep the doorstep standable
@@ -1103,21 +1102,21 @@ function eraseBrush(cx,cy,counts){
       if (sh){ pk=sh.key; p=sh.p; }
     }
     if (p && !p.removed && (plantLayerOf(p)==='woody'?woody:peren)){
-      game.plants[pk]={removed:true,t:now}; game.dirty=true; counts.plants++; }
+      clearTile('plants',pk); counts.plants++; }
     const b=game.bulbs[k];
     if (bulbOK && b && !b.removed){
-      game.bulbs[k]={removed:true,t:now}; game.dirty=true; counts.bulbs++; }
+      clearTile('bulbs',k); counts.bulbs++; }
     if (terrOK && tileTerrain(x,y)){
-      game.terrain[k]={removed:true,t:now}; game.dirty=true; counts.terr++; }
+      clearTile('terrain',k); counts.terr++; }
     if (terrOK && elevationAt(x,y)){
-      game.elevation[k]={removed:true,t:now}; game.dirty=true; counts.elev=(counts.elev||0)+1; }
+      clearTile('elevation',k); counts.elev=(counts.elev||0)+1; }
     if (terrOK && fenceAt(x,y)){
-      game.fences[k]={removed:true,t:now}; game.dirty=true; counts.fence=(counts.fence||0)+1; }
+      clearTile('fences',k); counts.fence=(counts.fence||0)+1; }
     if (terrOK && lightAt(x,y)){
-      game.lights[k]={removed:true,t:now}; game.dirty=true; counts.light=(counts.light||0)+1; }
+      clearTile('lights',k); counts.light=(counts.light||0)+1; }
     if (terrOK){
       const fp=firepitAt(x,y);
-      if (fp){ game.firepits[fp.key]={removed:true,t:now}; game.dirty=true; counts.firepit=(counts.firepit||0)+1; }
+      if (fp){ clearTile('firepits',fp.key); counts.firepit=(counts.firepit||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -1403,7 +1402,7 @@ function evPlacement(e){ // pointer position -> owning world tile + sub-tile off
 /* ---------- undo: a stack of plants+bulbs+terrain+house snapshots ----------
    A gesture snapshots state on pointerdown and commits it only if the
    state actually changed by pointerup, so no-op taps don't pile up. */
-let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendSig=null;
+let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendSig=null, pendRev=0;
 function updateCanvasCursor(){
   if (!cnv) return;
   cnv.style.cursor = panDrag ? 'grabbing'
@@ -1439,14 +1438,19 @@ function snapshotState(){
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
-function beginUndo(){ pendSig=stateSig(); pendSnap=snapshotState(); }
-function commitUndo(){ if (pendSig!==null && stateSig()!==pendSig) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
+// Did the model change since the marker? game.rev (bumped by setTile/clearTile)
+// is the O(1) fast path; the structural hash is the fallback for the few sites
+// not yet routed through those helpers (the selection subsystem), so undo stays
+// correct everywhere while common edits skip the hash via || short-circuit.
+function changedSince(rev,sig){ return game.rev!==rev || stateSig()!==sig; }
+function beginUndo(){ pendRev=game.rev; pendSig=stateSig(); pendSnap=snapshotState(); }
+function commitUndo(){ if (pendSig!==null && changedSince(pendRev,pendSig)) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
 function cancelPendingUndo(restore){
-  if (restore && pendSnap && pendSig!==null && stateSig()!==pendSig) applySnapshot(pendSnap);
+  if (restore && pendSnap && pendSig!==null && changedSince(pendRev,pendSig)) applySnapshot(pendSnap);
   pendSig=null; pendSnap=null;
 }
-function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
-  if (stateSig()!==sig) pushUndo(snap); }
+function withUndo(fn){ const rev=game.rev, sig=stateSig(), snap=snapshotState(); fn();
+  if (changedSince(rev,sig)) pushUndo(snap); }
 function applySnapshot(s){ // restore every layer + refresh UI
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
   game.dirty=true; updateUndoBtn();

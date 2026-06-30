@@ -1478,7 +1478,7 @@ function placeFirepitAt(x,y){
   const cur=game.firepits[k];
   if (cur && !cur.removed && cur.shape===d.shape && cur.size===d.size) return null;
   if (!canPlaceFirepit(x,y,k)) return null;
-  game.firepits[k]=Object.assign({},d,{t:Date.now()});
+  setTile('firepits',k,Object.assign({},d,{t:Date.now()}));
   game.dirty=true;
   return 'firepit';
 }

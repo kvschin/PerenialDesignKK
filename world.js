@@ -50,6 +50,7 @@ const game = {
   others:{},          // multiplayer presence
   pausedAt:0,
   lastDay:-1, dirty:false,
+  rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it
 };
 // The mutable layers a garden is made of, enumerated once so undo, save/load,
 // and multiplayer sync iterate this list instead of hand-listing all eight in
@@ -69,6 +70,13 @@ const GAME_LAYERS=[
   {k:'houses', array:true, sync:()=>pushHouse()},
 ];
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
+// Single write paths for the layer maps, so the bookkeeping every edit needs —
+// mark dirty for the renderer + bump the edit revision undo watches — can't be
+// forgotten at a call site. setTile stores a value; clearTile writes the
+// {removed} tombstone the erase/sync/merge paths expect. (Multiplayer sync
+// still flushes at gesture end via the existing syncToolLayer/endSweep paths.)
+function setTile(layer,key,val){ game[layer][key]=val; game.dirty=true; game.rev++; }
+function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; game.dirty=true; game.rev++; }
 /* Solo saves persist to localStorage now that the game runs standalone.
    sGet/sSet keep their old async signatures so callers are unchanged.
    `shared` keys land in the same localStorage, so shared gardens only
@@ -472,7 +480,7 @@ function setElevationAt(x,y,h){
   const k=`${x},${y}`, n=Math.max(ELEV_MIN,Math.min(ELEV_MAX,+h|0));
   if (n===elevationAt(x,y)) return false;
   if (!game.elevation) game.elevation={};
-  game.elevation[k]=n===0 ? {removed:true,t:Date.now()} : {h:n,t:Date.now()};
+  if (n===0) clearTile('elevation',k); else setTile('elevation',k,{h:n,t:Date.now()});
   game.dirty=true;
   return true;
 }
