@@ -122,7 +122,7 @@ if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: fa
 // game.js was split into ordered modules; load them in the same order the
 // browser does (they share one global scope when concatenated here).
 currentFile = 'game.test.js';
-const GAME_MODULES = ['core.js','draw.js','world.js','view.js','io.js','ui.js','screens.js'];
+const GAME_MODULES = ['core.js','draw.js','world.js','view.js','io.js','ui.js','tray.js','library.js','screens.js'];
 r = runTier('game', [read('plants.js'), ...GAME_MODULES.map(read), read('tests/game.test.js')], true);
 if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });
 
