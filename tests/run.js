@@ -115,15 +115,15 @@ function runTier(label, sources, withDom){
 
 // ---------- Tier 1: plants.js data contract (no DOM needed) ----------
 currentFile = 'plants.test.js';
-let r = runTier('plants', [read('plants.js'), read('tests/plants.test.js')], false);
+let r = runTier('plants', [read('js/plants.js'), read('tests/plants.test.js')], false);
 if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: false, err: r.err });
 
 // ---------- Tier 2: game logic + render smoke test (DOM-stubbed) ----------
-// game.js was split into ordered modules; load them in the same order the
-// browser does (they share one global scope when concatenated here).
+// game.js was split into ordered modules (under js/); load them in the same
+// order the browser does (they share one global scope when concatenated here).
 currentFile = 'game.test.js';
 const GAME_MODULES = ['core.js','draw.js','world.js','view.js','io.js','ui.js','tray.js','library.js','screens.js'];
-r = runTier('game', [read('plants.js'), ...GAME_MODULES.map(read), read('tests/game.test.js')], true);
+r = runTier('game', [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f)), read('tests/game.test.js')], true);
 if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });
 
 // ---------- report ----------

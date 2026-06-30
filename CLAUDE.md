@@ -39,13 +39,14 @@ capped at 30.
 Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 **Pocket Prairie**.
 
-The game is plain HTML/CSS/JS — `index.html` (markup), `styles.css`,
-`plants.js` (species data), and the game logic, split for navigability across
-nine ordered modules: `core.js`, `draw.js`, `world.js`, `view.js`, `io.js`,
+The game is plain HTML/CSS/JS — `index.html` (markup) and `styles.css` at the
+repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
+the game logic, split for navigability across nine ordered modules: `core.js`,
+`draw.js`, `world.js`, `view.js`, `io.js`,
 `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step, no npm
 dependencies, no framework. Fonts load from Google Fonts over the network;
 everything else is local. The modules share one global scope (plain `<script>`
-tags, no bundler), so **load order matters**: `index.html` loads `plants.js`
+tags, no bundler), so **load order matters**: `index.html` loads `js/plants.js`
 first, then the nine modules in the order above — keep that order. Function declarations hoist only *within* a
 file, so the bottom-of-file button wiring and `init` live in `screens.js` (last,
 after everything is defined), and no earlier module may *call* a later module's
