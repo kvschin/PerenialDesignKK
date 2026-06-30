@@ -31,12 +31,14 @@ async function saveSolo(silent){
   if (game.visiting) return;                          // Visit Gardens is read-only — never overwrite the garden
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
-  await sSet('hortus:world:'+game.worldId,{wv:1,name:game.worldName,
+  const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,houses:game.houses,freePlanting:game.freePlanting,
+    gw:GW,gh:GH,rot:game.rot,freePlanting:game.freePlanting,
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,plants:game.plants,bulbs:game.bulbs,terrain:game.terrain,elevation:game.elevation,fences:game.fences,lights:game.lights,firepits:game.firepits,
-    startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char});
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,
+    startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
+  for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/houses
+  await sSet('hortus:world:'+game.worldId,blob);
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
   await sSet('hortus:worlds',idx);
@@ -57,13 +59,7 @@ async function loadSolo(id){
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.gameMode = s.mode==='design' ? 'design' : 'story';
   game.design = s.design || null;
-  game.plants=shiftKeys(s.plants||{},shift);
-  game.bulbs=shiftKeys(s.bulbs||{},shift);
-  game.terrain=shiftKeys(s.terrain||{},shift);
-  game.elevation=shiftKeys(s.elevation||{},shift);
-  game.fences=shiftKeys(s.fences||{},shift);
-  game.lights=shiftKeys(s.lights||{},shift);
-  game.firepits=shiftKeys(s.firepits||{},shift);
+  for (const L of GAME_MAPS) game[L.k]=shiftKeys(s[L.k]||{},shift);   // the keyed "x,y" layers
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
   game.houses = s.houses ? s.houses

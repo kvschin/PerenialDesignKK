@@ -1410,16 +1410,32 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
 }
-function stateSig(){ return JSON.stringify([game.plants,game.bulbs,game.terrain,game.elevation,game.houses,game.fences,game.lights,game.firepits]); }
-function snapshotState(){ return {
-  plants:JSON.parse(JSON.stringify(game.plants)),
-  bulbs:JSON.parse(JSON.stringify(game.bulbs)),
-  terrain:JSON.parse(JSON.stringify(game.terrain)),
-  elevation:JSON.parse(JSON.stringify(game.elevation||{})),
-  houses:JSON.parse(JSON.stringify(game.houses||[])),
-  fences:JSON.parse(JSON.stringify(game.fences||{})),
-  lights:JSON.parse(JSON.stringify(game.lights||{})),
-  firepits:JSON.parse(JSON.stringify(game.firepits||{}))}; }
+// Cheap structural hash of every layer for undo change-detection — folds keys
+// and values into one number, so begin/commit no longer JSON-serialize (and
+// allocate + string-compare) the whole garden twice per gesture. A true
+// revision counter would be cleaner, but reliably bumping it needs a single
+// mutation chokepoint (the deferred refactor #3); this gets the same win
+// centrally, without scattering rev++ across every write site.
+function stateSig(){
+  let h=2166136261;
+  const mix=n=>{ h^=n|0; h=Math.imul(h,16777619); };
+  const fold=v=>{
+    if (v==null){ mix(1); return; }
+    const t=typeof v;
+    if (t==='number'){ mix(v|0); mix((v*4096)|0); }
+    else if (t==='boolean'){ mix(v?3:2); }
+    else if (t==='string'){ for (let i=0;i<v.length;i++) mix(v.charCodeAt(i)); mix(v.length); }
+    else if (Array.isArray(v)){ for (let i=0;i<v.length;i++) fold(v[i]); mix(v.length); }
+    else for (const k in v){ for (let i=0;i<k.length;i++) mix(k.charCodeAt(i)); fold(v[k]); }
+  };
+  for (const L of GAME_LAYERS) fold(game[L.k]);
+  return h>>>0;
+}
+function snapshotState(){
+  const s={};
+  for (const L of GAME_LAYERS) s[L.k]=JSON.parse(JSON.stringify(game[L.k]||(L.array?[]:{})));
+  return s;
+}
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
@@ -1431,10 +1447,10 @@ function cancelPendingUndo(restore){
 }
 function withUndo(fn){ const sig=stateSig(), snap=snapshotState(); fn();
   if (stateSig()!==sig) pushUndo(snap); }
-function applySnapshot(s){ // restore plants/bulbs/terrain/houses/fences/lights/firepits + refresh UI
-  game.plants=s.plants; game.bulbs=s.bulbs; game.terrain=s.terrain; game.elevation=s.elevation||{}; game.houses=s.houses||[]; game.fences=s.fences||{}; game.lights=s.lights||{}; game.firepits=s.firepits||{};
+function applySnapshot(s){ // restore every layer + refresh UI
+  for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
   game.dirty=true; updateUndoBtn();
-  if (game.mode==='multi'){ syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); pushHouse(); }
+  if (game.mode==='multi') for (const L of GAME_LAYERS) L.sync();
   buildToolTray();
 }
 function doUndo(){

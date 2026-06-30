@@ -51,6 +51,24 @@ const game = {
   pausedAt:0,
   lastDay:-1, dirty:false,
 };
+// The mutable layers a garden is made of, enumerated once so undo, save/load,
+// and multiplayer sync iterate this list instead of hand-listing all eight in
+// six different places (a missed entry was a recurring bug — see the reverted
+// `game.stock`). `array` marks the houses list (the rest are "x,y" maps);
+// `sync` flushes that layer to the shared world in multiplayer. The sync refs
+// are arrows so they resolve at call time — the functions live in io.js, which
+// loads after this file. `GAME_MAPS` is the keyed subset that load shifts.
+const GAME_LAYERS=[
+  {k:'plants',    sync:()=>syncPlantsOut()},
+  {k:'bulbs',     sync:()=>syncBulbsOut()},
+  {k:'terrain',   sync:()=>syncTerrainOut()},
+  {k:'elevation', sync:()=>syncElevationOut()},
+  {k:'fences',    sync:()=>syncFencesOut()},
+  {k:'lights',    sync:()=>syncLightsOut()},
+  {k:'firepits',  sync:()=>syncFirepitsOut()},
+  {k:'houses', array:true, sync:()=>pushHouse()},
+];
+const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
 /* Solo saves persist to localStorage now that the game runs standalone.
    sGet/sSet keep their old async signatures so callers are unchanged.
    `shared` keys land in the same localStorage, so shared gardens only
