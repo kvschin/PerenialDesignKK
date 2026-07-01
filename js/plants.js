@@ -6,6 +6,7 @@
    use: type, space, spread, zones, native, eco, sun, moist.
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
+           moorgrass | fountaingrass | forestgrass |
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
            burnet) | rosette (yucca sword-leaf crown) |
@@ -135,9 +136,10 @@ const PLANTS = {
     space:24, spread:24, zones:[4,9], native:false, sun:'full', moist:'medium', phen:'cool', eco:[],
     blurb:'The exclamation point. Vertical wheat-colored plumes by June that stand straight through snow.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#7d9a5f',seed:'#d9c08a'}, Fall:{fol:'#b89a5e',seed:'#d9c08a'}, Winter:{fol:'#b09a6e',seed:'#e0d2ae'}}},
-  sesleria:{ name:'Autumn Moor Grass', latin:'Sesleria autumnalis', form:'cloudgrass', type:'grass', h:30,
+  sesleria:{ name:'Autumn Moor Grass', latin:'Sesleria autumnalis', form:'moorgrass', type:'grass', h:30,
     space:18, spread:18, zones:[5,8], native:false, sun:'part', moist:'dry', phen:'cool', eco:[],
-    blurb:'A neat European cool-season grass: fresh green mounds, pale silver seed clouds in late summer, and quiet structure for dry shade.',
+    look:{leaves:15, stems:5, fan:1.05, leafLen:0.58, seedBeads:5},
+    blurb:'A neat European cool-season grass: fresh green mounds, pale upright seed wands in late summer, and quiet structure for dry shade.',
     sea:{Spring:{fol:'#8ead67'}, Summer:{fol:'#7f9f5e',seed:'#d8d0b8'}, Fall:{fol:'#b4a65f',seed:'#e2d6bc'}, Winter:{fol:'#a49a74',seed:'#d8ccb4'}}},
   lovegrass:{ name:'Purple Lovegrass', latin:'Eragrostis spectabilis', form:'cloudgrass', type:'grass', h:30,
     space:18, spread:24, zones:[5,9], native:true, sun:'full', moist:'dry', phen:'warm',
@@ -158,7 +160,6 @@ const PLANTS = {
         h:34, sea:{Fall:{fol:'#8a8a5e',bloom:'#d696b2',seed:'#cba0ac'}, Winter:{fol:'#a89072',seed:'#d8c0b6'}}},
     }},
   mexicanfeather:{ name:'Mexican Feather Grass', latin:'Nassella tenuissima', form:'oatgrass', type:'grass', h:32,
-    group:'stipa', groupLabel:'Stipa', chip:'Mexican Feather',
     space:18, spread:24, zones:[7,10], native:false, sun:'full', moist:'dry', phen:'warm', eco:[],
     blurb:'Fine blond hair in constant motion. Beautiful, but self-seeds freely and is invasive in some regions.',
     sea:{Spring:{fol:'#8a9a6a'}, Summer:{fol:'#a8b87a',seed:'#d8c99a'}, Fall:{fol:'#c8b878',seed:'#e0d2ae'}, Winter:{fol:'#b8a878',seed:'#d8c8a8'}}},
@@ -227,12 +228,12 @@ const PLANTS = {
     }},
   hakone:{ name:'Japanese Forest Grass', latin:'Hakonechloa macra', form:'forestgrass', type:'grass', h:26,
     space:18, spread:24, zones:[5,9], native:false, sun:'part', moist:'medium', phen:'cool', eco:[],
-    look:{leaves:16, leafLen:0.72, leafW:2.2, fan:2.2},
+    look:{leaves:24, leafLen:1.05, leafW:2.6, fan:2.8, sweep:0.92, arch:0.86, tipLift:0.18},
     blurb:'A slow, cascading shade grass for soft edges and woodland paths. More foliage texture than prairie structure.',
     sea:{Spring:{fol:'#8dad58'}, Summer:{fol:'#719a4e',seed:'#c9b88a'}, Fall:{fol:'#d39a42'}, Winter:{}},
     cv:{
       aureola:{name:"'Aureola'", note:'gold and green striped classic for bright shade',
-        look:{leaves:16, leafLen:0.72, leafW:2.2, fan:2.2, stripe:'#d7c85c'},
+        look:{leaves:24, leafLen:1.05, leafW:2.6, fan:2.8, sweep:0.92, arch:0.86, tipLift:0.18, stripe:'#d7c85c'},
         sea:{Spring:{fol:'#c6c55c'}, Summer:{fol:'#b8bf58',seed:'#c9b88a'}, Fall:{fol:'#d89a42'}}},
       allgold:{name:"'All Gold'", note:'solid chartreuse-gold, brightest in part shade',
         sea:{Spring:{fol:'#d0c650'}, Summer:{fol:'#c2c556',seed:'#c9b88a'}, Fall:{fol:'#df9d3f'}}},
@@ -242,7 +243,6 @@ const PLANTS = {
         sea:{Spring:{fol:'#85a85a'}, Summer:{fol:'#729a50',seed:'#c9b88a'}, Fall:{fol:'#c85e3e'}}},
     }},
   giantstipa:{ name:'Giant Feather Grass', latin:'Stipa gigantea', form:'oatgrass', type:'grass', h:58,
-    group:'stipa', groupLabel:'Stipa', chip:'Giant',
     space:30, spread:36, zones:[6,9], native:false, sun:'full', moist:'dry', phen:'warm', eco:[],
     blurb:'A tall, airy Mediterranean stipa with golden oat-like panicles held well above a basal mound.',
     sea:{Spring:{fol:'#7d9a6a'}, Summer:{fol:'#7a8f62',seed:'#d7b45f'}, Fall:{fol:'#b89a5e',seed:'#d8bd78'}, Winter:{fol:'#a89068',seed:'#d0bd8a'}}},

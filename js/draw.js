@@ -84,6 +84,33 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.arc(tip+(rnd()-0.5)*15, -len*0.92+2-rnd()*11, 0.9, 0, 7); ctx.fill(); } }
     }
   }
+  else if (P.form === 'moorgrass'){ // Sesleria: tidy mound with short upright seed wands
+    const L=P.look||{}, n=stemFor(L.leaves||14);
+    for (let i=0;i<n;i++){
+      const a=(i/(n-1)-0.5)*(L.fan||1.05)+(rnd()-0.5)*0.16;
+      const len=H*(L.leafLen||0.58)*(0.82+rnd()*0.26);
+      const bx=Math.sin(a)*len*0.5+sway*len*0.025;
+      const by=-len*(0.72+rnd()*0.14);
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=1.45; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.28,-len*0.42,bx,by); ctx.stroke();
+    }
+    const seed=S.seed||(blooming?S.bloom:null), sn=stemFor(L.stems||5);
+    if (seed && mature){
+      for (let i=0;i<sn;i++){
+        const ox=(rnd()-0.5)*8, len=H*(0.76+rnd()*0.14), tip=ox+sway*len*0.025;
+        ctx.strokeStyle=shade(S.fol,-14); ctx.lineWidth=0.95;
+        ctx.beginPath(); ctx.moveTo(ox*0.45,0);
+        ctx.quadraticCurveTo(ox*0.8,-len*0.45,tip,-len); ctx.stroke();
+        ctx.fillStyle=seed;
+        const beads=L.seedBeads||5;
+        for (let b=0;b<beads;b++){
+          const py=-len+b*2.0, px=tip+(rnd()-0.5)*2.0;
+          ctx.beginPath(); ctx.ellipse(px,py,1.2,1.7,(rnd()-0.5)*0.6,0,7); ctx.fill();
+        }
+      }
+    }
+  }
   else if (P.form === 'oatgrass'){ // sideoats: spikelets hung along one side
     const n = stemFor(9);
     for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*1.4+(rnd()-0.5)*0.2, len=H*0.5*(0.6+rnd()*0.5);
@@ -132,15 +159,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const L=P.look||{}, n=stemFor(L.leaves||16);
     for (let i=0;i<n;i++){
       const a=(i/(n-1)-0.5)*(L.fan||2.2)+(rnd()-0.5)*0.12, len=H*(L.leafLen||0.7)*(0.72+rnd()*0.34);
-      const bx=Math.sin(a)*len*0.78+sway*len*0.04, by=-len*(0.28+rnd()*0.18);
+      const bx=Math.sin(a)*len*(L.sweep||0.78)+sway*len*0.04;
+      const by=-len*((L.tipLift||0.28)+rnd()*0.12);
       const col=shade(S.fol,(rnd()-0.5)*18);
       ctx.strokeStyle=col; ctx.lineWidth=L.leafW||2.2; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
-      ctx.quadraticCurveTo(bx*0.22,-len*0.72,bx,by); ctx.stroke();
+      ctx.quadraticCurveTo(bx*0.18,-len*(L.arch||0.72),bx,by); ctx.stroke();
       if (L.stripe){
         ctx.strokeStyle=shade(L.stripe,(rnd()-0.5)*12); ctx.lineWidth=Math.max(0.7,(L.leafW||2.2)*0.32);
         ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,-1);
-        ctx.quadraticCurveTo(bx*0.22,-len*0.72,bx,by); ctx.stroke();
+        ctx.quadraticCurveTo(bx*0.18,-len*(L.arch||0.72),bx,by); ctx.stroke();
       }
     }
     if (S.seed && mature){

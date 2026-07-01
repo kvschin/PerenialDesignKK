@@ -127,6 +127,17 @@ test('sunflower species keep distinct visual signatures', () => {
   assert(PLANTS.maximiliansunflower.look.stems >= 12, 'maximilian should carry many flowering stems');
 });
 
+test('ornamental grass forms keep distinct silhouettes and picker entries', () => {
+  assertEqual(PLANTS.sesleria.form, 'moorgrass', 'autumn moor grass should not reuse the airy cloudgrass silhouette');
+  assert(PLANTS.sesleria.look.seedBeads >= 4, 'autumn moor grass needs short upright seed wands');
+  assertEqual(PLANTS.tuftedhair.form, 'cloudgrass', 'tufted hairgrass keeps the airy seed-cloud form');
+  assertEqual(PLANTS.hakone.form, 'forestgrass', 'japanese forest grass keeps its cascading forestgrass form');
+  assert(PLANTS.hakone.look.leaves >= 20, 'japanese forest grass needs a fuller flowing mound');
+  assert(PLANTS.hakone.look.sweep > 0.85, 'japanese forest grass leaves should sweep outward');
+  assertEqual(PLANTS.mexicanfeather.latin, 'Nassella tenuissima', 'mexican feather grass uses the current Nassella name');
+  assert(!PLANTS.mexicanfeather.group, 'mexican feather grass should appear as its own tray button');
+});
+
 test('rudbeckia group keeps species distinct and trims redundant cultivars', () => {
   assertEqual(PLANTS.rudbeckia.group, 'rudbeckia', 'black-eyed susan should anchor the rudbeckia group');
   assertEqual(PLANTS.rudbeckiatriloba.group, 'rudbeckia', 'brown-eyed susan should share the rudbeckia picker');
