@@ -135,6 +135,7 @@ test('ornamental grass forms keep distinct silhouettes and picker entries', () =
   assert(PLANTS.hakone.look.leaves >= 20, 'japanese forest grass needs a fuller flowing mound');
   assert(PLANTS.hakone.look.sweep > 0.85, 'japanese forest grass leaves should sweep outward');
   assertEqual(PLANTS.mexicanfeather.latin, 'Nassella tenuissima', 'mexican feather grass uses the current Nassella name');
+  assert(PLANTS.mexicanfeather.zones[0] <= 6, 'mexican feather grass should remain visible in a zone 6 garden');
   assert(!PLANTS.mexicanfeather.group, 'mexican feather grass should appear as its own tray button');
 });
 

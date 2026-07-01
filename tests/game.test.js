@@ -798,6 +798,14 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
   game.challenge = null;
 });
 
+test('zone 6 grass palette includes Mexican feather grass', () => {
+  setup();
+  game.region = { eco: null, zone: 6, nativesOnly: false };
+  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false };
+  assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
+  assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
+});
+
 test('challenge palette size reports the limit for the entry badge', () => {
   const find = t => DAILY_CHALLENGES.find(c => c.title === t);
   const total = speciesCount();
