@@ -1,13 +1,31 @@
 'use strict';
 /* ---------- plant library: browse every species ---------- */
 const LIB_CATS=[
-  {label:'Grasses & Sedges', types:['grass','sedge']},
-  {label:'Perennials',       types:['forb']},
-  {label:'Bulbs',            types:['bulb']},
-  {label:'Water Plants',     types:['water']},
-  {label:'Shrubs',           types:['shrub']},
-  {label:'Trees',            types:['tree']},
+  {id:'grasses',    label:'Grasses',          types:['grass']},
+  {id:'sedges',     label:'Sedges',           types:['sedge']},
+  {id:'sunper',     label:'Sun Perennials',   types:['forb'], sunFilter:'full'},
+  {id:'shadeper',   label:'Shade Perennials', types:['forb'], sunFilter:'part'},
+  {id:'bulbs',      label:'Bulbs',            types:['bulb']},
+  {id:'waterplants',label:'Water Plants',     types:['water']},
+  {id:'shrubs',     label:'Shrubs',           types:['shrub']},
+  {id:'trees',      label:'Trees',            types:['tree']},
 ];
+const LIB_OPEN_KEY='pocketprairie:libraryOpen';
+let libCollapsed=loadLibraryCollapsed();
+function loadLibraryCollapsed(){
+  try { return JSON.parse(localStorage.getItem(LIB_OPEN_KEY)||'{}')||{}; }
+  catch(e){ return {}; }
+}
+function saveLibraryCollapsed(){
+  try { localStorage.setItem(LIB_OPEN_KEY, JSON.stringify(libCollapsed)); }
+  catch(e){}
+}
+function libraryCatKeys(cat){
+  return PLANT_KEYS.filter(k=>{
+    const P=PLANTS[k];
+    return P && !P.hidden && cat.types.includes(P.type) && (!cat.sunFilter || P.sun===cat.sunFilter);
+  });
+}
 function libSeed(key){ let h=0; for(let i=0;i<key.length;i++) h=(h*31+key.charCodeAt(i))>>>0; return h||7; }
 function libCanvas(key,variant,season,w,h){
   const c=document.createElement('canvas'); c.width=w*2; c.height=h*2;
@@ -39,10 +57,26 @@ function openLibrary(){ buildLibraryList(''); show('libraryScreen');
 function buildLibraryList(q){
   const list=$('libraryList'); list.innerHTML='';
   LIB_CATS.forEach(cat=>{
-    const keys=PLANT_KEYS.filter(k=>cat.types.includes(PLANTS[k].type));
+    const keys=libraryCatKeys(cat);
     if (!keys.length) return;
-    const head=document.createElement('div'); head.className='lib-cat'; head.textContent=cat.label;
-    head.dataset.cat='1'; list.appendChild(head);
+    const section=document.createElement('section'); section.className='lib-section';
+    section.dataset.catId=cat.id;
+    const head=document.createElement('button'); head.type='button'; head.className='lib-cat';
+    head.dataset.cat='1'; head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
+    const title=document.createElement('span'); title.textContent=cat.label;
+    const count=document.createElement('small'); count.textContent=keys.length;
+    head.append(title,count);
+    const items=document.createElement('div'); items.className='lib-cat-items';
+    items.id=`lib-cat-${cat.id}`;
+    head.setAttribute('aria-controls', items.id);
+    if (libCollapsed[cat.id]) section.classList.add('collapsed');
+    head.onclick=()=>{
+      libCollapsed[cat.id]=!libCollapsed[cat.id];
+      saveLibraryCollapsed();
+      section.classList.toggle('collapsed', !!libCollapsed[cat.id]);
+      head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
+    };
+    section.append(head,items);
     keys.forEach(k=>{
       const P=PLANTS[k];
       const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
@@ -53,8 +87,9 @@ function buildLibraryList(q){
       t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
       b.append(t);
       b.onclick=()=>showLibraryDetail(k);
-      list.appendChild(b);
+      items.appendChild(b);
     });
+    list.appendChild(section);
   });
 }
 function showLibraryDetail(key){
@@ -106,11 +141,27 @@ function showLibraryDetail(key){
 }
 function applyLibrarySearch(){
   const q=($('librarySearch').value||'').toLowerCase().trim();
-  document.querySelectorAll('.lib-item').forEach(b=>{
-    b.style.display=(!q||b.dataset.hay.includes(q))?'':'none'; });
-  document.querySelectorAll('.lib-cat').forEach(h=>{
-    let n=h.nextElementSibling, any=false;
-    while(n && !n.dataset.cat){ if(n.style.display!=='none') any=true; n=n.nextElementSibling; }
-    h.style.display=any?'':'none'; });
+  let total=0;
+  document.querySelectorAll('.lib-section').forEach(section=>{
+    let any=false;
+    section.querySelectorAll('.lib-item').forEach(b=>{
+      const show=!q || b.dataset.hay.includes(q);
+      b.style.display=show?'':'none';
+      if (show){ any=true; total++; }
+    });
+    const head=section.querySelector('.lib-cat');
+    section.style.display=any?'':'none';
+    section.classList.toggle('search-open', !!q && any);
+    if (head) head.setAttribute('aria-expanded', (!libCollapsed[section.dataset.catId] || (!!q && any))?'true':'false');
+  });
+  let empty=document.querySelector('.library-empty');
+  if (!total){
+    if (!empty){
+      empty=document.createElement('div');
+      empty.className='library-empty';
+      $('libraryList').appendChild(empty);
+    }
+    empty.textContent=q ? 'No plants match that search.' : 'No plants in the library yet.';
+  } else if (empty) empty.remove();
 }
 
