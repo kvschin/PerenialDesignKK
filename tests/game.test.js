@@ -18,6 +18,7 @@ function setup(gw, gh){
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
   game.eraseMode = 'all'; game.eraseSize = 1;
+  cam.x = 0; cam.y = 0;
   game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
   game.layerFocus = 'all';
@@ -53,6 +54,25 @@ test('iso view rotation round-trips for all four rotations', () => {
       const [vx, vy] = worldToView(x, y);
       const [wx, wy] = viewToWorld(vx, vy);
       assert(wx === x && wy === y, `rot ${rot}: (${x},${y}) -> (${wx},${wy})`);
+    }
+  }
+});
+
+test('tileAt picks the drawn diamond for elevated terrain', () => {
+  setup(17, 17);
+  const W = 900, H = 700;
+  for (let rot = 0; rot < 4; rot++){
+    game.rot = rot;
+    game.elevation = {};
+    setElevationAt(6, 7, ELEV_MAX);
+    setElevationAt(10, 7, ELEV_MIN);
+    for (const [x, y, label] of [[4, 5, 'flat'], [6, 7, 'raised'], [10, 7, 'lowered']]){
+      const [sx, sy] = screenOf(x, y, W, H);
+      const [px, py] = tileAt(sx, sy + TILE_H / 2, W, H);
+      assertEqual(`${px},${py}`, `${x},${y}`, `${label} tile picked at rot ${rot}`);
+      const [wx, wy] = worldPointAt(sx, sy + TILE_H / 2, W, H, elevationAt(x, y));
+      assert(Math.abs(wx - x) < 0.0001 && Math.abs(wy - y) < 0.0001,
+        `${label} sub-tile inverse respects elevation at rot ${rot}`);
     }
   }
 });
@@ -507,6 +527,23 @@ test('selection move shifts owned items and is refused off-plot', () => {
   const before = JSON.stringify(game.plants);
   assert(!commitSelectionOffset(-99, -99, false), 'off-plot move refused');
   assertEqual(JSON.stringify(game.plants), before, 'refused move left state untouched');
+});
+
+test('selection rotation returns mixed-parity selections after four turns', () => {
+  for (const [w, h] of [[2, 1], [3, 2], [2, 3], [4, 1]]){
+    setup(20, 20);
+    const grass = firstOfType('grass');
+    game.sel = { x0: 5, y0: 5, x1: 5 + w - 1, y1: 5 + h - 1 };
+    for (let y = game.sel.y0; y <= game.sel.y1; y++)
+      for (let x = game.sel.x0; x <= game.sel.x1; x++)
+        game.plants[`${x},${y}`] = { s: grass, d: 0, t: 1 };
+    game.selItems = selectionPayload(game.sel);
+    const beforeSel = JSON.stringify(game.sel);
+    const beforeKeys = live(game.plants).sort().join('|');
+    for (let i = 0; i < 4; i++) rotateSelection();
+    assertEqual(JSON.stringify(game.sel), beforeSel, `${w}x${h} selection rect returns after four rotations`);
+    assertEqual(live(game.plants).sort().join('|'), beforeKeys, `${w}x${h} selection items return after four rotations`);
+  }
 });
 
 test('selection only carries the items it owned, not late arrivals', () => {

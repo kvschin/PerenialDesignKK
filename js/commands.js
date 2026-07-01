@@ -695,22 +695,22 @@ function commitSelectionOffset(dx,dy,copy){
             :`Moved ${items.length} tile${items.length>1?'s':''}.`);
   return true;
 }
-// rotate the selection's owned contents 90° clockwise about the rect center
+// rotate the selection's owned contents 90° clockwise in integer tile space.
+// Anchoring at the rect origin avoids half-tile rounding drift for mixed parity
+// selections, so four rotations return exactly to the starting footprint.
 function rotateSelection(){
   if (!game.sel) return;
   const r=game.sel, items=game.selItems||[];
   if (!items.length){ toast('Nothing in the selection to rotate.'); return; }
-  const cx2=(r.x0+r.x1)/2, cy2=(r.y0+r.y1)/2;
-  const rot=(x,y)=>[Math.round(cx2-(y-cy2)), Math.round(cy2+(x-cx2))];
-  if (items.some(c=>{ const [x,y]=rot(c.x,c.y); return !selItemValidDest(c,x,y); })){
+  const w=r.x1-r.x0+1, h=r.y1-r.y0+1;
+  const nr={x0:r.x0,y0:r.y0,x1:r.x0+h-1,y1:r.y0+w-1};
+  const rot=(x,y)=>[nr.x0+(r.y1-y), nr.y0+(x-r.x0)];
+  if (nr.x1>=GW || nr.y1>=GH || items.some(c=>{ const [x,y]=rot(c.x,c.y); return !selItemValidDest(c,x,y); })){
     toast('Rotated selection would leave the plot.'); return;
   }
   withUndo(()=>selWrite(items, c=>rot(c.x,c.y), true));
   items.forEach(c=>{ const [nx,ny]=rot(c.x,c.y); c.x=nx; c.y=ny; });
-  // new bounding box: width/height swap about the center
-  const hw=(r.x1-r.x0)/2, hh=(r.y1-r.y0)/2;
-  game.sel={x0:Math.round(cx2-hh),y0:Math.round(cy2-hw),
-            x1:Math.round(cx2+hh),y1:Math.round(cy2+hw)};
+  game.sel=nr;
   toast(`Rotated ${items.length} tile${items.length>1?'s':''}.`);
 }
 function eraseSelection(){
@@ -766,8 +766,8 @@ function selPointerUp(){
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
   const W=VW/ZOOM, H=VH/ZOOM;
   const sx=e.clientX/ZOOM, sy=e.clientY/ZOOM;
-  const [wx,wy]=worldPointAt(sx, sy, W, H);
   const [x,y]=tileAt(sx, sy, W, H);
+  const [wx,wy]=worldPointAt(sx, sy, W, H, elevationAt(x,y));
   return {x,y,ox:wx-x,oy:wy-y};
 }
 /* ---------- undo: a stack of layer snapshots ----------

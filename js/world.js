@@ -600,10 +600,25 @@ function viewPointAt(sx,sy,W,H){
   const fy = (ry/(TILE_H/2) - rx/(TILE_W/2))/2;
   return [fx,fy];
 }
-function worldPointAt(sx,sy,W,H){
-  return viewToWorld(...viewPointAt(sx,sy,W,H));
+function worldPointAt(sx,sy,W,H,elev){
+  return viewToWorld(...viewPointAt(sx,sy+(elev||0)*ELEV_STEP,W,H));
+}
+function inWorldTile(x,y){ return x>=0&&y>=0&&x<GW&&y<GH; }
+function pointInTileDiamond(sx,sy,x,y,W,H){
+  const [tx,ty]=screenOf(x,y,W,H), cx=tx, cy=ty+TILE_H/2;
+  const dx=Math.abs(sx-cx)/(TILE_W/2), dy=Math.abs(sy-cy)/(TILE_H/2);
+  return dx+dy<=1.0001;
+}
+function tileAtElevation(sx,sy,W,H,h){
+  const [vx,vy]=viewPointAt(sx,sy+h*ELEV_STEP,W,H);
+  return viewToWorld(Math.round(vx),Math.round(vy));
 }
 function tileAt(sx,sy,W,H){
+  for (let h=ELEV_MAX; h>=ELEV_MIN; h--){
+    if (h===0) continue;
+    const [x,y]=tileAtElevation(sx,sy,W,H,h);
+    if (inWorldTile(x,y) && elevationAt(x,y)===h && pointInTileDiamond(sx,sy,x,y,W,H)) return [x,y];
+  }
   const [vx,vy]=viewPointAt(sx,sy,W,H);
   return viewToWorld(Math.round(vx), Math.round(vy));
 }
