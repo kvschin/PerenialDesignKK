@@ -20,6 +20,9 @@ then preserve this order unless you are intentionally refactoring dependencies:
 <script src="js/draw.js"></script>
 <script src="js/world.js"></script>
 <script src="js/view.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/input.js"></script>
 <script src="js/io.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/tray.js"></script>
@@ -69,10 +72,19 @@ then preserve this order unless you are intentionally refactoring dependencies:
   helpers, time/season helpers, phenology, shade/canopy math, house and
   collision helpers, terrain lookup, iso/view math, safe spawning, and world
   sizing.
-- `js/view.js`: the garden canvas runtime: `render(t)`, visible-window
-  gathering, entity sorting, pointer/touch/wheel/keyboard input, selection,
-  pinch protection, drag gestures, undo snapshots, `actHere`, `applyToolAt`,
-  and placement/sync dispatch.
+- `js/view.js`: garden canvas glue: active canvas sizing, viewport/PWA sizing
+  probes, zoom state, active canvas switching, resize handling, and compass
+  updates.
+- `js/renderer.js`: garden rendering: `render(t)`, visible-window gathering,
+  ground and plant sprite caches, entity sorting, overlays, selection metrics,
+  shade/night/season passes, and snow/photo effects.
+- `js/commands.js`: state-changing garden commands: movement steps,
+  `actHere`, `applyToolAt`, placement hooks, drift stamping, erase, selection
+  mutation, saved-area paste/fill, house/fence/light/firepit placement, undo,
+  and toasts.
+- `js/input.js`: canvas and keyboard input wiring: held movement keys,
+  pointer/touch/wheel handlers, pinch protection, panning, brush drags,
+  shovel sweeps, tap-to-act/walk, and `followPath()`.
 - `js/io.js`: save/load, import/export, localStorage persistence, autosave,
   planting-list export, plan-map export, and shared-world compatibility hooks.
 - `js/ui.js`: HUD and in-game DOM updates, time controls, action button,
@@ -113,7 +125,7 @@ describe which layer a tool edits, whether it is a brush, what it paints, and
 any special apply behavior. Add new tool behavior there first instead of
 scattering category checks through input handlers.
 
-`applyToolAt(x, y, opts)` in `js/view.js` is the silent dispatcher for brush
+`applyToolAt(x, y, opts)` in `js/commands.js` is the silent dispatcher for brush
 placement and material application. Gesture handlers, selection fill, drift
 planting, and tap actions should funnel through it. User-facing wrappers like
 `actHere()` can add toasts, movement intent, or one-off affordances, but should
@@ -125,7 +137,7 @@ shared/local persistence behavior predictable.
 
 ## Input and gestures
 
-Pointer input flows through `js/view.js`: pointer down decides whether the app
+Pointer input flows through `js/input.js`: pointer down decides whether the app
 is panning, pinching, selecting, erasing, dragging a brush, or tapping. Pinch
 gestures must cancel pending placement with `cancelCanvasGesture(true)` so
 two-finger zoom cannot accidentally plant or erase.
@@ -229,7 +241,8 @@ The current top priorities are:
 
 1. Keep all placement/state changes flowing through `toolMeta()`,
    `applyToolAt()`, and the mutation helpers.
-2. Continue separating input gesture state from placement rules in `js/view.js`.
+2. Continue separating input gesture state in `js/input.js` from placement
+   rules in `js/commands.js`.
 3. Split renderer internals only when a change needs it; avoid giant cosmetic
    renderer refactors.
 4. Keep plant/category/library additions data-driven in `js/plants.js`.

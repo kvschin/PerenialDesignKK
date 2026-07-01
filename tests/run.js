@@ -3,9 +3,8 @@
    The game is plain browser JS with no module exports, so we load the real
    source files inside a `vm` sandbox:
      - plants.js is pure data -> runs with no stubs (Tier 1: data contract).
-     - game.js touches the DOM only from line ~1578 on, so a light set of
-       browser stubs lets the whole file load; then we call the real pure
-       functions (Tier 2: logic + a render smoke test).
+     - the ordered js/ modules load with light browser stubs; then we call the
+       real pure functions (Tier 2: logic + a render smoke test).
    Each *.test.js file is concatenated after the source it exercises and uses
    the injected `test()` / `assert()` globals.  Run: `node tests/run.js`. */
 
@@ -26,7 +25,7 @@ function test(name, fn){
 function assert(cond, msg){ if (!cond) throw new Error(msg || 'assertion failed'); }
 function assertEqual(a, b, msg){ if (a !== b) throw new Error(`${msg || 'not equal'}: ${JSON.stringify(a)} !== ${JSON.stringify(b)}`); }
 
-// ---------- minimal browser stubs (only what loading game.js needs) ----------
+// ---------- minimal browser stubs (only what loading the browser modules needs) ----------
 function makeCtx(){
   return new Proxy({}, {
     get(o, p){
@@ -119,10 +118,13 @@ let r = runTier('plants', [read('js/plants.js'), read('tests/plants.test.js')], 
 if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: false, err: r.err });
 
 // ---------- Tier 2: game logic + render smoke test (DOM-stubbed) ----------
-// game.js was split into ordered modules (under js/); load them in the same
+// Game logic is split into ordered modules (under js/); load them in the same
 // order the browser does (they share one global scope when concatenated here).
 currentFile = 'game.test.js';
-const GAME_MODULES = ['core.js','draw.js','world.js','view.js','io.js','ui.js','tray.js','library.js','screens.js'];
+const GAME_MODULES = [
+  'core.js','draw.js','world.js','view.js','renderer.js','commands.js','input.js',
+  'io.js','ui.js','tray.js','library.js','screens.js'
+];
 r = runTier('game', [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f)), read('tests/game.test.js')], true);
 if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });
 

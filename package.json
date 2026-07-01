@@ -5,7 +5,7 @@
   "description": "A 2.5D Oudolf-style perennial garden planner and game. Plain HTML/CSS/JS, no build step.",
   "scripts": {
     "test": "node tests/run.js",
-    "check": "node --check game.js && node --check plants.js",
+    "check": "node --check js/plants.js && node --check js/core.js && node --check js/draw.js && node --check js/world.js && node --check js/view.js && node --check js/renderer.js && node --check js/commands.js && node --check js/input.js && node --check js/io.js && node --check js/ui.js && node --check js/tray.js && node --check js/library.js && node --check js/screens.js",
     "serve": "npx http-server -p 8642 -c-1"
   },
   "license": "UNLICENSED"
