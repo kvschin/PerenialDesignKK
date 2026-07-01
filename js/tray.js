@@ -137,29 +137,60 @@ function setTool(k,v){
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
 }
+function roundedIconRect(tc,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  tc.moveTo(x+r,y);
+  tc.lineTo(x+w-r,y);
+  tc.quadraticCurveTo(x+w,y,x+w,y+r);
+  tc.lineTo(x+w,y+h-r);
+  tc.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  tc.lineTo(x+r,y+h);
+  tc.quadraticCurveTo(x,y+h,x,y+h-r);
+  tc.lineTo(x,y+r);
+  tc.quadraticCurveTo(x,y,x+r,y);
+}
 function drawCanvasIcon(tc,kind){
   tc.clearRect(0,0,42,32);
-  tc.strokeStyle='#d8c7ac'; tc.fillStyle='#d8c7ac'; tc.lineWidth=2;
+  const cream='#efe6d3', seed='#d8c7ac', bronze='#c97f3f', sage='#7f9f5e',
+    leaf='#8ead67', soil='#6e5a48', rose='#e8b8c2', water='#6ea6b2';
+  tc.strokeStyle=seed; tc.fillStyle=seed; tc.lineWidth=2;
   tc.lineCap='round'; tc.lineJoin='round';
   if (kind==='hand'){
-    tc.beginPath(); tc.moveTo(11,20); tc.lineTo(11,11); tc.moveTo(17,20); tc.lineTo(17,8);
-    tc.moveTo(23,20); tc.lineTo(23,10); tc.moveTo(29,21); tc.lineTo(29,14);
-    tc.moveTo(11,20); tc.quadraticCurveTo(13,29,21,30); tc.quadraticCurveTo(30,30,31,23); tc.stroke();
+    tc.strokeStyle=cream; tc.lineWidth=2.05;
+    tc.beginPath(); tc.moveTo(11,19); tc.lineTo(11,11); tc.moveTo(16,19); tc.lineTo(16,7);
+    tc.moveTo(21,19); tc.lineTo(21,9); tc.moveTo(26,20); tc.lineTo(26,13);
+    tc.moveTo(11,19); tc.quadraticCurveTo(12,27,20,29); tc.quadraticCurveTo(30,29,31,22);
+    tc.quadraticCurveTo(30,19,26,20); tc.stroke();
+    tc.fillStyle=sage; tc.beginPath();
+    tc.ellipse(21,23,4.2,2.1,-0.45,0,7); tc.fill();
+    tc.strokeStyle=shade(sage,-28); tc.lineWidth=1;
+    tc.beginPath(); tc.moveTo(18,24); tc.quadraticCurveTo(21,21,25,22); tc.stroke();
   } else if (kind==='select'){
     tc.setLineDash([4,3]); tc.strokeRect(8,7,24,18); tc.setLineDash([]);
     tc.beginPath(); tc.moveTo(26,22); tc.lineTo(34,29); tc.moveTo(30,29); tc.lineTo(34,29); tc.lineTo(34,25); tc.stroke();
   } else if (kind==='brush'){
-    tc.save(); tc.translate(21,17); tc.rotate(-0.72);
-    tc.fillStyle='#c97f3f'; tc.fillRect(-3,-13,6,19);
-    tc.fillStyle='#efe6d3'; tc.fillRect(-5,4,10,6);
-    tc.fillStyle='#6f8f5a'; tc.beginPath(); tc.moveTo(-6,10); tc.quadraticCurveTo(0,17,6,10); tc.closePath(); tc.fill();
+    tc.save(); tc.translate(21,17); tc.rotate(-0.62);
+    tc.fillStyle=bronze; tc.strokeStyle=shade(bronze,-34); tc.lineWidth=1.2;
+    tc.beginPath(); roundedIconRect(tc,-3.3,-14,6.6,17,2); tc.fill(); tc.stroke();
+    tc.fillStyle=cream; tc.strokeStyle=soil; tc.beginPath(); roundedIconRect(tc,-5,1.5,10,6.2,1.5); tc.fill(); tc.stroke();
+    tc.strokeStyle=shade(leaf,-30); tc.lineWidth=1.25;
+    tc.beginPath(); tc.moveTo(0,7); tc.lineTo(0,14); tc.stroke();
+    tc.fillStyle=leaf;
+    tc.beginPath(); tc.ellipse(-3.5,11.4,3.5,1.7,-0.65,0,7); tc.fill();
+    tc.beginPath(); tc.ellipse(3.7,10.4,3.9,1.9,0.45,0,7); tc.fill();
     tc.restore();
   } else if (kind==='erase'){
-    tc.save(); tc.translate(21,17); tc.rotate(-0.5);
-    tc.fillStyle='#e8b8c2'; tc.strokeStyle='#6e5a48'; tc.lineWidth=1.6;
-    tc.fillRect(-11,-7,22,14); tc.strokeRect(-11,-7,22,14);
-    tc.fillStyle='#cdbfa9'; tc.fillRect(-11,-7,8,14); tc.strokeRect(-11,-7,8,14);
+    tc.save(); tc.translate(21,17); tc.rotate(-0.48);
+    tc.fillStyle=rose; tc.strokeStyle=soil; tc.lineWidth=1.6;
+    tc.beginPath(); roundedIconRect(tc,-11,-7,22,14,2); tc.fill(); tc.stroke();
+    tc.fillStyle=cream; tc.beginPath(); roundedIconRect(tc,-11,-7,7.5,14,2); tc.fill(); tc.stroke();
+    tc.strokeStyle='rgba(110,90,72,.5)'; tc.lineWidth=1;
+    tc.beginPath(); tc.moveTo(-1,-4); tc.lineTo(8,2); tc.moveTo(1,3); tc.lineTo(9,6); tc.stroke();
     tc.restore();
+    tc.fillStyle=shade(leaf,-24);
+    tc.beginPath(); tc.ellipse(12,25,3.4,1.5,0.2,0,7); tc.fill();
+    tc.fillStyle='rgba(239,230,211,.72)';
+    tc.beginPath(); tc.arc(28,8,1.2,0,7); tc.arc(32,11,0.9,0,7); tc.fill();
   } else if (kind==='fill'){
     tc.save(); tc.translate(20,16); tc.rotate(-0.72);
     tc.strokeRect(-8,-7,16,14); tc.beginPath(); tc.moveTo(8,3); tc.lineTo(15,9); tc.stroke();
@@ -173,12 +204,27 @@ function drawCanvasIcon(tc,kind){
     tc.beginPath(); tc.moveTo(17,10); tc.lineTo(17,6); tc.lineTo(25,6); tc.lineTo(25,10); tc.stroke();
     tc.setLineDash([3,2]); tc.strokeRect(7,15,18,12); tc.setLineDash([]);
   } else if (kind==='dropper'){
-    tc.beginPath(); tc.moveTo(13,23); tc.lineTo(27,9); tc.stroke();
-    tc.strokeRect(24,6,6,6); tc.beginPath(); tc.moveTo(11,25); tc.lineTo(18,25); tc.stroke();
+    tc.save(); tc.translate(21,16); tc.rotate(-0.75);
+    tc.strokeStyle=cream; tc.lineWidth=2;
+    tc.beginPath(); tc.moveTo(-8,0); tc.lineTo(8,0); tc.stroke();
+    tc.fillStyle=bronze; tc.strokeStyle=soil; tc.lineWidth=1.2;
+    tc.beginPath(); roundedIconRect(tc,5,-4,8,8,2); tc.fill(); tc.stroke();
+    tc.fillStyle=water; tc.beginPath(); tc.moveTo(-11,2); tc.quadraticCurveTo(-15,7,-9,9);
+    tc.quadraticCurveTo(-4,7,-8,2); tc.fill();
+    tc.restore();
+    tc.strokeStyle=shade(sage,-28); tc.lineWidth=1.3;
+    tc.beginPath(); tc.moveTo(11,25); tc.quadraticCurveTo(16,22,21,24); tc.stroke();
+    tc.fillStyle=sage; tc.beginPath(); tc.ellipse(23,24,3,1.5,-0.2,0,7); tc.fill();
   } else if (kind==='undo'||kind==='redo'){
     const flip=kind==='redo'?-1:1; tc.save(); tc.translate(kind==='redo'?42:0,0); tc.scale(flip,1);
-    tc.beginPath(); tc.arc(22,17,9,0.25*Math.PI,1.65*Math.PI,true); tc.stroke();
-    tc.beginPath(); tc.moveTo(12,10); tc.lineTo(10,20); tc.lineTo(20,18); tc.stroke(); tc.restore();
+    tc.strokeStyle=cream; tc.lineWidth=2.2;
+    tc.beginPath(); tc.arc(23,17,9.5,0.20*Math.PI,1.62*Math.PI,true); tc.stroke();
+    tc.fillStyle=sage; tc.beginPath();
+    tc.moveTo(11,9); tc.lineTo(9,19); tc.lineTo(19,17); tc.closePath(); tc.fill();
+    tc.strokeStyle=shade(sage,-32); tc.lineWidth=1;
+    tc.beginPath(); tc.moveTo(11,16); tc.quadraticCurveTo(14,13,18,12); tc.stroke();
+    tc.fillStyle=bronze; tc.beginPath(); tc.arc(29,24,1.4,0,7); tc.fill();
+    tc.restore();
   } else if (kind==='rotate'){
     tc.beginPath(); tc.arc(21,16,10,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
     tc.beginPath(); tc.moveTo(30,8); tc.lineTo(35,8); tc.lineTo(34,13); tc.stroke();
