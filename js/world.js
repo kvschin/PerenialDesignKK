@@ -75,8 +75,15 @@ const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
 // forgotten at a call site. setTile stores a value; clearTile writes the
 // {removed} tombstone the erase/sync/merge paths expect. (Multiplayer sync
 // still flushes at gesture end via the existing syncToolLayer/endSweep paths.)
-function setTile(layer,key,val){ game[layer][key]=val; game.dirty=true; game.rev++; }
-function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; game.dirty=true; game.rev++; }
+function markModelChanged(){ game.dirty=true; game.rev++; }
+function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); }
+function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); }
+function addHouse(h){ game.houses.push(h); markModelChanged(); }
+function removeHouseAtIndex(i){
+  if (i<0 || i>=game.houses.length) return false;
+  game.houses.splice(i,1); markModelChanged();
+  return true;
+}
 /* Solo saves persist to localStorage now that the game runs standalone.
    sGet/sSet keep their old async signatures so callers are unchanged.
    `shared` keys land in the same localStorage, so shared gardens only
@@ -248,12 +255,12 @@ function canPlaceShrubAt(x,y,np,opts){
   return {ok:true};
 }
 function clearBulbsUnderShrub(x,y,p){
-  let n=0, now=Date.now();
+  let n=0;
   for (const [xx,yy] of shrubFootprintTiles(x,y,p,true)){
     const k=`${xx},${yy}`, b=game.bulbs[k];
-    if (b && !b.removed){ game.bulbs[k]={removed:true,t:now}; n++; }
+    if (b && !b.removed){ clearTile('bulbs',k); n++; }
   }
-  if (n){ game.dirty=true; syncBulbsOut(); }
+  if (n) syncBulbsOut();
   return n;
 }
 function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
@@ -408,7 +415,7 @@ function seedWalkway(){
     [c,c-1].forEach(y=>{
       if (y<0||y>=GH) return;
       const k=`${x},${y}`;
-      if (!game.terrain[k]) game.terrain[k]={k:'path',t:Date.now()};
+      if (!game.terrain[k]) setTile('terrain',k,{k:'path',t:Date.now()});
     });
   }
 }
@@ -481,7 +488,6 @@ function setElevationAt(x,y,h){
   if (n===elevationAt(x,y)) return false;
   if (!game.elevation) game.elevation={};
   if (n===0) clearTile('elevation',k); else setTile('elevation',k,{h:n,t:Date.now()});
-  game.dirty=true;
   return true;
 }
 function applyElevationTool(x,y){

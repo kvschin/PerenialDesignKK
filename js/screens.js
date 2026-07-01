@@ -288,7 +288,7 @@ function starterDrift(){ // a welcoming drift near spawn so the world isn't empt
   // backdated 26 days = 10 growing days last fall + the winter between,
   // so the drift arrives established and wakes with the player's first spring
   picks.forEach(([s,x,y])=>{ if(tileTerrain(x,y)!=='path'&&!inHouse(x,y))
-    game.plants[`${x},${y}`]={s,d:absDay()-26,t:Date.now()}; });
+    setTile('plants',`${x},${y}`,{s,d:absDay()-26,t:Date.now()}); });
 }
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
@@ -646,11 +646,11 @@ function stressGarden(){
     if (r<0.04) s=pick('tree');
     else if (r<0.11) s=pick('shrub');
     else if (r<0.58) s=pick(Math.random()<0.5?'grass':'forb');
-    else if (r<0.70){ const b=pick('bulb'); if (b) game.bulbs[x+','+y]={s:b,d,t:now}; continue; }
+    else if (r<0.70){ const b=pick('bulb'); if (b) setTile('bulbs',x+','+y,{s:b,d,t:now}); continue; }
     else continue;
-    if (s) game.plants[x+','+y]={s,d,t:now};
+    if (s) setTile('plants',x+','+y,{s,d,t:now});
   }
-  groundKey=''; game.dirty=true;
+  groundKey='';
   toast('Stress garden: '+Object.keys(game.plants).length+' plants, '+Object.keys(game.bulbs).length+' bulbs');
 }
 function loop(t){
