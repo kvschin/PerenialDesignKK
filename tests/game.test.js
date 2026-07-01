@@ -631,6 +631,13 @@ test('fire pits reserve their footprint and erase as structures', () => {
   game.firepitDraft = { shape: 'square', size: 'rect24x48' };
   assertEqual(applyToolAt(9, 5), 'firepit', 'rectangular fire pit placed');
   assert(firepitAt(11, 6), '24x48 fire pit reserves a rectangular footprint');
+  assertEqual(firepitLabel({ shape: 'square', size: 'rect24x48' }), '24x48 rectangular fire pit', 'rectangle fire pit label is not called square');
+  const rectSize = firepitTileSize({ shape: 'square', size: 'rect24x48' });
+  assertEqual(rectSize.w, 3, '24x48 fire pit spans three tiles long');
+  assertEqual(rectSize.h, 2, '24x48 fire pit spans two tiles wide');
+  const ctx = document.createElement('canvas').getContext('2d');
+  drawFirepit(ctx, 640, 480, 'Summer', { shape: 'square', size: 'rect24x48' }, 9, 5);
+  drawFirepitGlow(ctx, 640, 480, { shape: 'square', size: 'rect24x48' }, 9, 5);
 
   const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0, firepit: 0 };
   game.tool = 'shovel'; game.eraseMode = 'terrain';

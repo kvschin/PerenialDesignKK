@@ -138,7 +138,7 @@ function render(t){
   const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+pad);
   const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-pad);
   const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+pad);
-  const shadeTrees=[], futureShadeTrees=[], visibleShrubs=[], visibleLights=[];
+  const shadeTrees=[], futureShadeTrees=[], visibleShrubs=[], visibleLights=[], visibleFirepits=[];
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const shrub=shrubInfoFromKey(k);
@@ -298,6 +298,7 @@ function render(t){
     const f=game.firepits[k]; if (!f || f.removed) continue;
     const [x,y]=k.split(',').map(Number), sz=firepitTileSize(f);
     if (x+sz.w-1<x0||x>x1||y+sz.h-1<y0||y>y1) continue;
+    visibleFirepits.push({f,x,y});
     ents.push({depth:viewDepth(x+sz.w-1,y+sz.h-1)+0.37, draw:()=>drawFirepit(cx,W,H,cal.season,f,x,y)});
   }
   if (layerShown('landscape')) for (const hh of game.houses){
@@ -390,6 +391,7 @@ function render(t){
   } else snowFlakes.length=0;
   if (game.layerVis.night){
     applyDuskLighting(cx,W,H,cal.season);
+    visibleFirepits.forEach(({f,x,y})=>drawFirepitGlow(cx,W,H,f,x,y));
     visibleLights.forEach(({l,x,y})=>drawLightGlow(cx,W,H,l,x,y));
   }
 

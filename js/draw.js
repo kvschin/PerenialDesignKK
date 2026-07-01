@@ -1438,10 +1438,42 @@ function drawLightGlow(ctx,W,H,l,x,y){
   ctx.beginPath(); ctx.arc(sx,head,typ.kind==='path'?2.5:3.5,0,7); ctx.fill();
   ctx.restore();
 }
+function polyPath(ctx,pts){
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+}
+function polyCenter(pts){
+  let x=0,y=0;
+  pts.forEach(p=>{ x+=p[0]; y+=p[1]; });
+  return [x/pts.length,y/pts.length];
+}
+function scalePoly(pts,scale){
+  const c=polyCenter(pts);
+  return pts.map(p=>[c[0]+(p[0]-c[0])*scale,c[1]+(p[1]-c[1])*scale]);
+}
+function polyBounds(pts){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  pts.forEach(p=>{ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); });
+  return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
+}
+function firepitScreenPoly(W,H,x,y,sz,scale){
+  const pts=[
+    screenOf(x,y,W,H),
+    screenOf(x+sz.w,y,W,H),
+    screenOf(x+sz.w,y+sz.h,W,H),
+    screenOf(x,y+sz.h,W,H)
+  ];
+  return scale===undefined ? pts : scalePoly(pts,scale);
+}
+function firepitShapeName(f){
+  const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
+  return d.shape==='round' ? 'round' : (s.wIn===s.hIn ? 'square' : 'rectangular');
+}
 function firepitDraft(){ return game.firepitDraft=normalizeFirepitDraft(game.firepitDraft); }
 function firepitLabel(f){
   const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
-  return `${s.plan} ${d.shape} fire pit`;
+  return `${s.plan} ${firepitShapeName(d)} fire pit`;
 }
 function firepitAt(x,y){
   if (!game.firepits) return null;
@@ -1483,8 +1515,9 @@ function placeFirepitAt(x,y){
 }
 function drawFirepit(ctx,W,H,season,f,x,y){
   const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
-  const [sx,sy]=screenOf(x+(sz.w-1)/2,y+(sz.h-1)/2,W,H), base=sy+TILE_H/2;
-  const rx=Math.max(17,sz.w*TILE_W*0.26), ry=Math.max(9,sz.h*TILE_H*0.36);
+  const footprint=firepitScreenPoly(W,H,x,y,sz,0.82), center=polyCenter(footprint), bounds=polyBounds(footprint);
+  const sx=center[0], base=center[1];
+  const rx=Math.max(17,bounds.w*0.50), ry=Math.max(9,bounds.h*0.50);
   ctx.save();
   drawSoftShadow(ctx,sx,base+3,rx*0.92,ry*0.58,0.22);
   const outer='#6d6358', rimHi='#968b7d', inner='#2a211c', coal='#4a2418';
@@ -1493,12 +1526,14 @@ function drawFirepit(ctx,W,H,season,f,x,y){
     ctx.fillStyle=rimHi; ctx.beginPath(); ctx.ellipse(sx,base-2,rx*0.86,ry*0.72,0,0,7); ctx.fill();
     ctx.fillStyle=inner; ctx.beginPath(); ctx.ellipse(sx,base-1,rx*0.58,ry*0.46,0,0,7); ctx.fill();
   } else {
-    const diamond=(rxx,ryy,dy,fill)=>{ ctx.fillStyle=fill; ctx.beginPath();
-      ctx.moveTo(sx,base-ryy+dy); ctx.lineTo(sx+rxx,base+dy);
-      ctx.lineTo(sx,base+ryy+dy); ctx.lineTo(sx-rxx,base+dy); ctx.closePath(); ctx.fill(); };
-    diamond(rx,ry,0,outer);
-    diamond(rx*0.86,ry*0.72,-2,rimHi);
-    diamond(rx*0.56,ry*0.45,-1,inner);
+    const rim=scalePoly(footprint,0.78), hole=scalePoly(footprint,0.42);
+    ctx.fillStyle=outer; polyPath(ctx,footprint); ctx.fill();
+    ctx.fillStyle=rimHi; polyPath(ctx,rim.map(p=>[p[0],p[1]-2])); ctx.fill();
+    ctx.fillStyle=inner; polyPath(ctx,hole.map(p=>[p[0],p[1]-1])); ctx.fill();
+    ctx.strokeStyle='rgba(35,28,23,0.38)'; ctx.lineWidth=1.2;
+    polyPath(ctx,footprint); ctx.stroke();
+    ctx.strokeStyle='rgba(236,220,190,0.20)'; ctx.lineWidth=1;
+    polyPath(ctx,rim.map(p=>[p[0],p[1]-2])); ctx.stroke();
   }
   ctx.fillStyle=coal;
   ctx.beginPath(); ctx.ellipse(sx,base,rx*0.28,Math.max(3,ry*0.22),0,0,7); ctx.fill();
@@ -1509,6 +1544,28 @@ function drawFirepit(ctx,W,H,season,f,x,y){
     ctx.strokeStyle='rgba(240,244,250,0.68)'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.ellipse(sx,base-3,rx*0.86,ry*0.72,0,Math.PI*1.05,Math.PI*1.92); ctx.stroke();
   }
+  ctx.restore();
+}
+function drawFirepitGlow(ctx,W,H,f,x,y){
+  const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
+  const footprint=firepitScreenPoly(W,H,x,y,sz,0.84), center=polyCenter(footprint), b=polyBounds(footprint);
+  const sx=center[0], sy=center[1]-5, r=Math.max(62,b.w*0.72,b.h*1.55);
+  ctx.save();
+  ctx.globalCompositeOperation='screen';
+  let g=ctx.createRadialGradient(sx,sy,0,sx,sy,r);
+  g.addColorStop(0,'rgba(255,138,56,0.46)');
+  g.addColorStop(0.28,'rgba(255,156,74,0.22)');
+  g.addColorStop(1,'rgba(255,180,96,0)');
+  ctx.fillStyle=g; ctx.fillRect(sx-r,sy-r,r*2,r*2);
+  g=ctx.createRadialGradient(sx,center[1]+2,0,sx,center[1]+2,r*0.72);
+  g.addColorStop(0,'rgba(255,104,38,0.20)');
+  g.addColorStop(1,'rgba(255,160,70,0)');
+  ctx.fillStyle=g; ctx.fillRect(sx-r,center[1]-r*0.42,r*2,r*0.95);
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation='screen';
+  ctx.fillStyle='rgba(255,190,98,0.74)';
+  ctx.beginPath(); ctx.ellipse(sx,sy+3,Math.max(5,b.w*0.055),Math.max(2.5,b.h*0.10),0,0,7); ctx.fill();
   ctx.restore();
 }
 
