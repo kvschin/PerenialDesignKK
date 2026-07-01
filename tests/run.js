@@ -48,7 +48,7 @@ function makeEl(tag){
       remove(...c){ c.forEach(x => this._s.delete(x)); },
       toggle(c, f){ const on = f === undefined ? !this._s.has(c) : !!f; on ? this._s.add(c) : this._s.delete(c); return on; },
       contains(c){ return this._s.has(c); } },
-    style: {}, dataset: {}, children: [],
+    style: { setProperty(){}, removeProperty(){} }, dataset: {}, children: [],
     appendChild(c){ this.children.push(c); return c; }, append(...c){ this.children.push(...c); },
     prepend(){}, remove(){}, removeChild(c){ return c; }, insertBefore(c){ return c; },
     addEventListener(){}, removeEventListener(){}, setAttribute(){}, removeAttribute(){}, getAttribute(){ return null; },

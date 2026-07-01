@@ -295,6 +295,7 @@ function enterGarden(){
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
+  resetSelectionState();
   game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   document.body.classList.toggle('visiting', !!game.visiting);

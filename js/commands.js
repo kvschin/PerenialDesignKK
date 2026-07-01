@@ -730,7 +730,8 @@ function eraseSelection(){
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
-function clearSelection(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; buildToolTray(); }
+function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; }
+function clearSelection(){ resetSelectionState(); buildToolTray(); }
 function selPointerDown(x,y,e){
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
@@ -821,6 +822,7 @@ function cancelPendingUndo(restore){
 function withUndo(fn){ const rev=game.rev, sig=stateSig(), snap=snapshotState(); fn();
   if (changedSince(rev,sig)) pushUndo(snap); }
 function applySnapshot(s){ // restore every layer + refresh UI
+  resetSelectionState();
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
   markModelChanged(); updateUndoBtn();
   if (game.mode==='multi') for (const L of GAME_LAYERS) L.sync();

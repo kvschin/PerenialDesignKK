@@ -131,7 +131,7 @@ function rememberBrushTool(){
 }
 function setTool(k,v){
   game.toolMenu=null;
-  if (k!=='select'){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; } // leaving select drops its marquee
+  if (k!=='select') resetSelectionState(); // leaving select drops its marquee
   if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();

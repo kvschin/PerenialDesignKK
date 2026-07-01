@@ -13,7 +13,7 @@ function calcZoom(){
 }
 function setUserZoom(z){
   userZoom = Math.max(0.4, Math.min(2.2, z));
-  calcZoom(); if (game.mode && game.gameMode!=='design' && game.tool!=='hand') snapCam(); // design/hand keep a free camera
+  calcZoom(); if (game.mode && game.gameMode!=='design') snapCam(); // design keeps a free camera
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 calcZoom();

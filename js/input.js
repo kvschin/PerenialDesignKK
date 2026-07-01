@@ -48,6 +48,10 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 
 /* two fingers pinch the zoom; everything else is one-finger business */
 const activePtrs=new Map(); let pinch=null, toolDrag=null, fillTap=null;
+function shouldStartPan(e){
+  return (game.tool==='hand' && game.gameMode==='design' && !game.visiting)
+    || (game.gameMode==='design' && (e.button===1 || spaceHeld));
+}
 function cancelCanvasGesture(restore){
   cancelPendingUndo(restore);
   sweep=null; toolDrag=null; fillTap=null; panDrag=null; selDrag=null; selMove=null;
@@ -66,7 +70,7 @@ cnv.addEventListener('pointerdown',e=>{
   }
   if (activePtrs.size>1) return;
   // Hand tool pans the map; design mode also supports middle mouse / Space-drag.
-  if (game.tool==='hand' || (game.gameMode==='design' && (e.button===1 || spaceHeld))){
+  if (shouldStartPan(e)){
     e.preventDefault();
     panDrag={sx:e.clientX, sy:e.clientY, camx0:cam.x, camy0:cam.y};
     updateCanvasCursor();

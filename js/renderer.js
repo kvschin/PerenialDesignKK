@@ -119,9 +119,8 @@ function render(t){
   cx.fillStyle=g; cx.fillRect(0,0,W,H);
   drawSeasonSky(cx,W,H,cal.season);
 
-  // camera eases toward the player (story + visiting; design and Hand tool pan
-  // freely — but a visit always follows the avatar, since its tool stays 'hand')
-  if (game.visiting || (game.gameMode!=='design' && game.tool!=='hand')){
+  // camera eases toward the player in avatar modes; design mode keeps a free camera.
+  if (game.gameMode!=='design'){
     const [ptx,pty]=screenOf(game.px,game.py,W,H);
     cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
   }

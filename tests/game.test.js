@@ -4,7 +4,7 @@
 // fresh, predictable state for a test
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
-  game.mode = 'solo'; game.gameMode = 'design';
+  game.mode = 'solo'; game.gameMode = 'design'; game.visiting = false;
   game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {}; game.firepits = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
@@ -23,6 +23,7 @@ function setup(gw, gh){
   game.layerFocus = 'all';
   game.sel = null; game.selItems = null; game.selMode = 'move';
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
+  game.pathTarget = null; game.sleepOnArrive = false;
   undoStack.length = 0; redoStack.length = 0; pendSnap = null; pendSig = null;
 }
 const live = obj => Object.keys(obj).filter(k => obj[k] && !obj[k].removed);
@@ -65,6 +66,20 @@ test('selection measurement labels prefer feet but keep one tile as inches', () 
   assertEqual(selMetricLabel(1), '18 in', 'one tile reminds users of the base block size');
   assertEqual(selMetricLabel(2), '3 ft', 'two tiles display as feet');
   assertEqual(selMetricLabel(3), '4.5 ft', 'half-foot dimensions stay readable');
+});
+
+test('hand tool pans only in design mode so visit taps can walk', () => {
+  setup(15, 15);
+  game.tool = 'hand';
+  game.gameMode = 'design'; game.visiting = false;
+  assert(shouldStartPan({ button: 0 }), 'design hand tool still pans the canvas');
+  game.gameMode = 'story'; game.visiting = false;
+  assert(!shouldStartPan({ button: 0 }), 'legacy story hand tool should not swallow taps');
+  game.visiting = true;
+  assert(!shouldStartPan({ button: 0 }), 'visit hand tool should not swallow taps');
+  tapAction(4, 4, {});
+  assertEqual(game.pathTarget[0], 4, 'visit tap chooses a walk target x');
+  assertEqual(game.pathTarget[1], 4, 'visit tap chooses a walk target y');
 });
 
 test('drawPlant renders every species + cultivar across all seasons', () => {
@@ -503,6 +518,27 @@ test('selection only carries the items it owned, not late arrivals', () => {
   assert(live(game.plants).includes('5,8'), 'owned item moved');
   assert(live(game.plants).includes('6,5'), 'late arrival stayed put');
   assert(!live(game.plants).includes('6,8'), 'late arrival was not scooped');
+});
+
+test('snapshot restore clears stale selection ownership', () => {
+  setup(15, 15);
+  game.plants['5,5'] = { s: firstOfType('grass'), d: 0, t: 1 };
+  const snap = snapshotState();
+  game.sel = { x0: 5, y0: 5, x1: 6, y1: 6 };
+  game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.length, 'selection owns a payload before restore');
+  applySnapshot(snap);
+  assertEqual(game.sel, null, 'restore drops selection rect');
+  assertEqual(game.selItems, null, 'restore drops owned payload');
+});
+
+test('entering a garden clears stale selection ownership', () => {
+  setup(15, 15);
+  game.sel = { x0: 3, y0: 3, x1: 4, y1: 4 };
+  game.selItems = [{ x: 3, y: 3, plant: { s: firstOfType('grass'), d: 0, t: 1 } }];
+  enterGarden();
+  assertEqual(game.sel, null, 'garden entry drops old selection rect');
+  assertEqual(game.selItems, null, 'garden entry drops old owned payload');
 });
 
 test('selection fill uses the last selected plant and replaces existing plants', () => {
