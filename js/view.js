@@ -69,63 +69,40 @@ function resizeCanvases(){
 }
 addEventListener('resize', resizeCanvases);
 
-/* Cardinal edge labels replace the old round compass badge. The function name
-   stays updateCompass() because rotate/load code already calls it. Labels are
-   projected from world N/E/S/W edges and clamped into the visible garden area. */
-function compassSafeRect(){
-  const topbar=document.querySelector('.hud-top');
-  const tools=document.getElementById('canvasTools');
-  const bottom=document.querySelector('.hud-bottom');
-  const visible=el=>el && getComputedStyle(el).display!=='none';
-  const tr=visible(topbar)?topbar.getBoundingClientRect():null;
-  const lr=visible(tools)?tools.getBoundingClientRect():null;
-  const br=visible(bottom)?bottom.getBoundingClientRect():null;
-  return {
-    left:Math.max(14,(lr&&lr.right>0)?lr.right+10:14),
-    right:Math.max(40,VW-18),
-    top:Math.max(70,(tr&&tr.bottom>0)?tr.bottom+14:70),
-    bottom:Math.max(120,(br&&br.top>0)?br.top-16:VH-18),
-  };
-}
-function clampCompassPoint(p,c,r){
-  const inside=p[0]>=r.left&&p[0]<=r.right&&p[1]>=r.top&&p[1]<=r.bottom;
-  if (inside) return p;
-  const dx=p[0]-c[0], dy=p[1]-c[1], hits=[];
-  const add=(t,x,y)=>{ if (t>=0 && x>=r.left-0.5 && x<=r.right+0.5 && y>=r.top-0.5 && y<=r.bottom+0.5) hits.push([t,x,y]); };
-  if (Math.abs(dx)>0.001){
-    let t=(r.left-c[0])/dx; add(t,r.left,c[1]+dy*t);
-    t=(r.right-c[0])/dx; add(t,r.right,c[1]+dy*t);
-  }
-  if (Math.abs(dy)>0.001){
-    let t=(r.top-c[1])/dy; add(t,c[0]+dx*t,r.top);
-    t=(r.bottom-c[1])/dy; add(t,c[0]+dx*t,r.bottom);
-  }
-  hits.sort((a,b)=>a[0]-b[0]);
-  const h=hits.find(v=>v[0]>0.02);
-  if (h) return [h[1],h[2]];
-  return [Math.max(r.left,Math.min(r.right,p[0])),Math.max(r.top,Math.min(r.bottom,p[1]))];
+/* Cardinal direction markers sit just past the plot edge. They are not clamped
+   to the viewport; when that part of the garden edge leaves the screen, the
+   marker leaves too. This keeps the directions spatial instead of HUD-like. */
+let compassDom=null, compassKey='';
+function compassElements(){
+  if (compassDom && compassDom.root && compassDom.root.isConnected) return compassDom;
+  const root=document.getElementById('compassEdges');
+  if (!root) return null;
+  compassDom={ root, labels:Array.from(root.querySelectorAll('.compass-edge-label')) };
+  return compassDom;
 }
 function updateCompass(){
-  const root=document.getElementById('compassEdges'); if (!root) return;
-  const labels=root.querySelectorAll('.compass-edge-label');
-  if (!game.mode){ labels.forEach(el=>el.classList.add('off')); return; }
-  const W=VW/ZOOM, H=VH/ZOOM, r=compassSafeRect();
+  const dom=compassElements(); if (!dom) return;
+  const key=[game.mode?1:0,game.rot,VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH].join('|');
+  if (key===compassKey) return;
+  compassKey=key;
+  if (!game.mode){ dom.labels.forEach(el=>el.classList.add('off')); return; }
+  const W=VW/ZOOM, H=VH/ZOOM, pad=42;
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };
-  const center=project((GW-1)/2,(GH-1)/2);
   const edges={
-    N:{m:[(GW-1)/2,-0.62], a:[-0.5,-0.5], b:[GW-0.5,-0.5]},
-    E:{m:[GW-0.38,(GH-1)/2], a:[GW-0.5,-0.5], b:[GW-0.5,GH-0.5]},
-    S:{m:[(GW-1)/2,GH-0.38], a:[-0.5,GH-0.5], b:[GW-0.5,GH-0.5]},
-    W:{m:[-0.62,(GH-1)/2], a:[-0.5,-0.5], b:[-0.5,GH-0.5]},
+    N:{m:[(GW-1)/2,-0.76], tip:[(GW-1)/2,-1.58]},
+    E:{m:[GW-0.24,(GH-1)/2], tip:[GW+0.58,(GH-1)/2]},
+    S:{m:[(GW-1)/2,GH-0.24], tip:[(GW-1)/2,GH+0.58]},
+    W:{m:[-0.76,(GH-1)/2], tip:[-1.58,(GH-1)/2]},
   };
-  labels.forEach(el=>{
+  dom.labels.forEach(el=>{
     const d=el.dataset.dir, def=edges[d]; if (!def) return;
-    const p=clampCompassPoint(project(def.m[0],def.m[1]),center,r);
-    const a=project(def.a[0],def.a[1]), b=project(def.b[0],def.b[1]);
-    let ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
-    if (ang>90) ang-=180; else if (ang<-90) ang+=180;
+    const p=project(def.m[0],def.m[1]);
+    if (p[0]<-pad || p[0]>VW+pad || p[1]<-pad || p[1]>VH+pad){ el.classList.add('off'); return; }
+    const tip=project(def.tip[0],def.tip[1]);
+    const ang=Math.atan2(tip[1]-p[1],tip[0]-p[0])*180/Math.PI;
     el.classList.remove('off');
-    el.style.transform=`translate(${Math.round(p[0])}px,${Math.round(p[1])}px) translate(-50%,-50%) rotate(${ang.toFixed(1)}deg)`;
+    el.style.transform=`translate(${Math.round(p[0])}px,${Math.round(p[1])}px) translate(-50%,-50%)`;
+    el.style.setProperty('--compass-arrow',`${ang.toFixed(1)}deg`);
   });
 }
 

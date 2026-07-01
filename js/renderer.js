@@ -125,7 +125,7 @@ function render(t){
     const [ptx,pty]=screenOf(game.px,game.py,W,H);
     cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
   }
-  updateCompass();
+  const tCompass=dnow(); updateCompass(); dmark('compass',tCompass);
 
   const sway = Math.sin(t*0.0012);
   pspriteFrame();

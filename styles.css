@@ -253,9 +253,12 @@ body.visiting #btnSelectTool{display:none!important}
    replacing the old round compass so the tool rail has more breathing room. */
 #compassEdges{position:absolute;inset:0;pointer-events:none;z-index:6}
 .compass-edge-label{position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;
-  opacity:.88;filter:drop-shadow(0 2px 5px rgba(25,18,15,.55));transition:opacity .18s ease, transform .18s ease}
-.compass-edge-label i{width:32px;height:2px;border-radius:3px;background:rgba(239,230,211,.72);
-  box-shadow:0 0 0 1px rgba(25,18,15,.14),0 0 10px rgba(201,127,63,.12)}
+  opacity:.9;filter:drop-shadow(0 2px 5px rgba(25,18,15,.55));transition:opacity .16s ease}
+.compass-edge-label i{position:relative;width:28px;height:3px;border-radius:3px;background:rgba(239,230,211,.76);
+  box-shadow:0 0 0 1px rgba(25,18,15,.14),0 0 10px rgba(201,127,63,.12);
+  transform:rotate(var(--compass-arrow,0deg));transform-origin:center}
+.compass-edge-label i::after{content:"";position:absolute;right:-2px;top:50%;transform:translateY(-50%);
+  border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--bronze)}
 .compass-edge-label b{font:800 12px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.1em;color:var(--seedhead);
   text-shadow:0 2px 5px rgba(25,18,15,.7)}
 .compass-edge-label[data-dir="N"] b{color:var(--bronze)}
