@@ -50,6 +50,14 @@ function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
   for (const k in m){ const [x,y]=k.split(',').map(Number); out[`${x+d},${y+d}`]=m[k]; }
   return out;
 }
+function compactSoloMap(m){
+  const out={};
+  for (const k in (m||{})){
+    const v=m[k];
+    if (v && !v.removed) out[k]=v;
+  }
+  return out;
+}
 async function loadSolo(id){
   const s=await sGet('hortus:world:'+id);
   if (!s) return false;
@@ -59,7 +67,7 @@ async function loadSolo(id){
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.gameMode = s.mode==='design' ? 'design' : 'story';
   game.design = s.design || null;
-  for (const L of GAME_MAPS) game[L.k]=shiftKeys(s[L.k]||{},shift);   // the keyed "x,y" layers
+  for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
   game.houses = s.houses ? s.houses
@@ -173,8 +181,10 @@ async function syncFirepitsOut(){
   await sSet(wkey('firepits'),game.firepits,true);
 }
 function mergeMap(target,remote){ // last write wins, per tile
+  let changed=false;
   for (const k in remote){ const r=remote[k], l=target[k];
-    if (!l || (r.t||0)>(l.t||0)) target[k]=r; }
+    if (!l || (r.t||0)>(l.t||0)){ target[k]=r; changed=true; } }
+  if (changed) markModelChanged();
 }
 async function pushPresence(){
   if (game.mode!=='multi') return;

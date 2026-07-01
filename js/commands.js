@@ -622,16 +622,17 @@ function fillSelectionWithPlant(){
       const k=`${x},${y}`;
       const oldPlant=def&&game.plants[k]?cloneCell(game.plants[k]):null;
       const oldBulb=def&&game.bulbs[k]?cloneCell(game.bulbs[k]):null;
+      let clearedPlant=false, clearedBulb=false;
       if (def && def.type==='bulb'){
-        if (oldBulb && !oldBulb.removed) clearTile('bulbs',k);
+        if (oldBulb && !oldBulb.removed){ clearTile('bulbs',k); clearedBulb=true; }
       } else if (def) {
-        if (oldPlant && !oldPlant.removed) clearTile('plants',k);
+        if (oldPlant && !oldPlant.removed){ clearTile('plants',k); clearedPlant=true; }
       }
       const r=applyToolAt(x,y);
       if (r){ placed++; what=r; }
       else if (def) {
-        if (oldPlant) setTile('plants',k,oldPlant);
-        if (oldBulb) setTile('bulbs',k,oldBulb);
+        if (clearedPlant) setTile('plants',k,oldPlant);
+        if (clearedBulb) setTile('bulbs',k,oldBulb);
       }
     }
     game.tool=oldTool; game.toolVar=oldVar; game.drift=oldDrift;
@@ -769,36 +770,15 @@ function evPlacement(e){ // pointer position -> owning world tile + sub-tile off
   const [x,y]=tileAt(sx, sy, W, H);
   return {x,y,ox:wx-x,oy:wy-y};
 }
-/* ---------- undo: a stack of plants+bulbs+terrain+house snapshots ----------
-   A gesture snapshots state on pointerdown and commits it only if the
-   state actually changed by pointerup, so no-op taps don't pile up. */
-let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendSig=null, pendRev=0;
+/* ---------- undo: a stack of layer snapshots ----------
+   A gesture snapshots state on pointerdown and commits it only if a mutation
+   helper bumped game.rev by pointerup, so no-op taps don't pile up. */
+let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendRev=0;
 function updateCanvasCursor(){
   if (!cnv) return;
   cnv.style.cursor = panDrag ? 'grabbing'
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
-}
-// Cheap structural hash of every layer for undo change-detection — folds keys
-// and values into one number, so begin/commit no longer JSON-serialize (and
-// allocate + string-compare) the whole garden twice per gesture. A true
-// revision counter would be cleaner, but reliably bumping it needs a single
-// mutation chokepoint (the deferred refactor #3); this gets the same win
-// centrally, without scattering rev++ across every write site.
-function stateSig(){
-  let h=2166136261;
-  const mix=n=>{ h^=n|0; h=Math.imul(h,16777619); };
-  const fold=v=>{
-    if (v==null){ mix(1); return; }
-    const t=typeof v;
-    if (t==='number'){ mix(v|0); mix((v*4096)|0); }
-    else if (t==='boolean'){ mix(v?3:2); }
-    else if (t==='string'){ for (let i=0;i<v.length;i++) mix(v.charCodeAt(i)); mix(v.length); }
-    else if (Array.isArray(v)){ for (let i=0;i<v.length;i++) fold(v[i]); mix(v.length); }
-    else for (const k in v){ for (let i=0;i<k.length;i++) mix(k.charCodeAt(i)); fold(v[k]); }
-  };
-  for (const L of GAME_LAYERS) fold(game[L.k]);
-  return h>>>0;
 }
 function snapshotState(){
   const s={};
@@ -808,19 +788,17 @@ function snapshotState(){
 // a new action invalidates the redo chain (standard undo/redo semantics)
 function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStack.shift();
   redoStack.length=0; updateUndoBtn(); }
-// Did the model change since the marker? game.rev (bumped by setTile/clearTile)
-// is the O(1) fast path; the structural hash is the fallback for the few sites
-// not yet routed through those helpers (the selection subsystem), so undo stays
-// correct everywhere while common edits skip the hash via || short-circuit.
-function changedSince(rev,sig){ return game.rev!==rev || stateSig()!==sig; }
-function beginUndo(){ pendRev=game.rev; pendSig=stateSig(); pendSnap=snapshotState(); }
-function commitUndo(){ if (pendSig!==null && changedSince(pendRev,pendSig)) pushUndo(pendSnap); pendSig=null; pendSnap=null; }
+// Model mutations go through helpers that bump game.rev, so undo change
+// detection is an O(1) revision comparison instead of a full-layer hash.
+function changedSince(rev){ return game.rev!==rev; }
+function beginUndo(){ pendRev=game.rev; pendSnap=snapshotState(); }
+function commitUndo(){ if (pendSnap && changedSince(pendRev)) pushUndo(pendSnap); pendSnap=null; }
 function cancelPendingUndo(restore){
-  if (restore && pendSnap && pendSig!==null && changedSince(pendRev,pendSig)) applySnapshot(pendSnap);
-  pendSig=null; pendSnap=null;
+  if (restore && pendSnap && changedSince(pendRev)) applySnapshot(pendSnap);
+  pendSnap=null;
 }
-function withUndo(fn){ const rev=game.rev, sig=stateSig(), snap=snapshotState(); fn();
-  if (changedSince(rev,sig)) pushUndo(snap); }
+function withUndo(fn){ const rev=game.rev, snap=snapshotState(); fn();
+  if (changedSince(rev)) pushUndo(snap); }
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});

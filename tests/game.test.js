@@ -24,7 +24,8 @@ function setup(gw, gh){
   game.sel = null; game.selItems = null; game.selMode = 'move';
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
   game.pathTarget = null; game.sleepOnArrive = false;
-  undoStack.length = 0; redoStack.length = 0; pendSnap = null; pendSig = null;
+  game.rev = 0; game.dirty = false;
+  undoStack.length = 0; redoStack.length = 0; pendSnap = null;
 }
 const live = obj => Object.keys(obj).filter(k => obj[k] && !obj[k].removed);
 const firstOfType = t => Object.keys(PLANTS).find(k => PLANTS[k].type === t && !PLANTS[k].hidden);
@@ -569,6 +570,22 @@ test('selection fill uses the last selected landscape material', () => {
   assertEqual(game.selItems.length, 4, 'selection ownership refreshes after material fill');
 });
 
+test('failed selection fill does not rewrite plant tombstones', () => {
+  setup(15, 15);
+  const forb = firstOfType('forb');
+  game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 };
+  game.selItems = selectionPayload(game.sel);
+  game.lastBrushTool = forb;
+  game.plants['5,5'] = { removed: true, t: 1 };
+  game.terrain['5,5'] = { k: 'path', c: 'warm', t: 1 };
+  const rev = game.rev;
+  const undoCount = undoStack.length;
+  fillSelectionWithPlant();
+  assertEqual(game.rev, rev, 'failed fill should not dirty a tombstone-only tile');
+  assertEqual(undoStack.length, undoCount, 'failed fill should not push a phantom undo entry');
+  assert(game.plants['5,5'] && game.plants['5,5'].removed, 'tombstone remains untouched');
+});
+
 test('selection save and paste carries an area into another garden slot', () => {
   setup(15, 15);
   areaClipboard = null;
@@ -720,15 +737,48 @@ test('plantLayerOf separates woody from perennial layers', () => {
 test('undo/redo round-trips and a new action clears the redo chain', () => {
   setup();
   const g = firstOfType('grass');
-  withUndo(() => { game.plants['5,5'] = { s: g, d: 0, t: 1 }; });
-  withUndo(() => { game.plants['6,5'] = { s: g, d: 0, t: 1 }; });
+  withUndo(() => { setTile('plants', '5,5', { s: g, d: 0, t: 1 }); });
+  withUndo(() => { setTile('plants', '6,5', { s: g, d: 0, t: 1 }); });
   assertEqual(live(game.plants).length, 2, 'two plants placed');
   doUndo(); assertEqual(live(game.plants).length, 1, 'undo removed the last');
   doRedo(); assertEqual(live(game.plants).length, 2, 'redo restored it');
   assertEqual(redoStack.length, 0, 'redo consumed its entry');
   doUndo(); assertEqual(redoStack.length, 1, 'undo refilled the redo chain');
-  withUndo(() => { game.plants['7,7'] = { s: g, d: 0, t: 1 }; }); // a fresh action
+  withUndo(() => { setTile('plants', '7,7', { s: g, d: 0, t: 1 }); }); // a fresh action
   assertEqual(redoStack.length, 0, 'a new action clears redo');
+});
+
+test('no-op undo gestures do not push snapshots', () => {
+  setup();
+  const undoCount = undoStack.length;
+  beginUndo();
+  commitUndo();
+  assertEqual(undoStack.length, undoCount, 'begin/commit with no mutation is skipped');
+  withUndo(() => {});
+  assertEqual(undoStack.length, undoCount, 'withUndo with no mutation is skipped');
+});
+
+test('remote map merge bumps revision only when it applies newer data', () => {
+  setup();
+  const grass = firstOfType('grass');
+  const rev = game.rev;
+  mergeMap(game.plants, { '2,2': { s: grass, d: 0, t: 2 } });
+  assert(game.rev > rev, 'accepted remote entry marks the model changed');
+  const revAfter = game.rev;
+  mergeMap(game.plants, { '2,2': { s: firstOfType('forb'), d: 0, t: 1 } });
+  assertEqual(game.rev, revAfter, 'older remote entry is ignored without dirtying');
+});
+
+test('solo map compaction drops removed tombstones and keeps live entries', () => {
+  const grass = firstOfType('grass');
+  const compacted = compactSoloMap({
+    '1,1': { removed: true, t: 2 },
+    '2,2': { s: grass, d: 0, t: 3 },
+    '3,3': null
+  });
+  assert(!('1,1' in compacted), 'removed tombstone dropped');
+  assert(!('3,3' in compacted), 'null entry dropped');
+  assert(compacted['2,2'] && compacted['2,2'].s === grass, 'live entry kept');
 });
 
 test('eyedropper samples a plant, bulb, fence, light, or material onto the brush', () => {
