@@ -249,13 +249,17 @@ body.visiting #btnSelectTool{display:none!important}
 #btnSleep,#btnPause{background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
 #btnSleep:hover,#btnPause:hover{border-color:var(--bronze);background:rgba(201,127,63,.13)}
-/* north compass — small badge above the tool rail; the arrow points to world-north */
-#compass{position:absolute;left:12px;top:56px;width:40px;height:40px;border-radius:50%;pointer-events:none;z-index:6;
-  background:rgba(25,18,15,.6);border:1.5px solid rgba(239,230,211,.25);box-shadow:0 3px 12px rgba(0,0,0,.22);backdrop-filter:blur(4px)}
-.compass-rotor{position:absolute;inset:0;transition:transform .25s ease}
-.compass-arrow{position:absolute;left:50%;top:9px;transform:translateX(-50%);width:0;height:0;
-  border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:12px solid #d98b5a}
-.compass-n{position:absolute;left:50%;top:0;transform:translateX(-50%);font:700 9px/1 'IBM Plex Sans',system-ui,sans-serif;color:#f3ecdd;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+/* garden direction labels: cardinal marks attach to the visible plot edge,
+   replacing the old round compass so the tool rail has more breathing room. */
+#compassEdges{position:absolute;inset:0;pointer-events:none;z-index:6}
+.compass-edge-label{position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;
+  opacity:.88;filter:drop-shadow(0 2px 5px rgba(25,18,15,.55));transition:opacity .18s ease, transform .18s ease}
+.compass-edge-label i{width:32px;height:2px;border-radius:3px;background:rgba(239,230,211,.72);
+  box-shadow:0 0 0 1px rgba(25,18,15,.14),0 0 10px rgba(201,127,63,.12)}
+.compass-edge-label b{font:800 12px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.1em;color:var(--seedhead);
+  text-shadow:0 2px 5px rgba(25,18,15,.7)}
+.compass-edge-label[data-dir="N"] b{color:var(--bronze)}
+.compass-edge-label.off{opacity:0}
 #canvasTools{pointer-events:auto;position:absolute;left:10px;top:106px;display:flex;flex-direction:column;gap:4px;
   overflow:visible;background:rgba(25,18,15,.86);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 5px 20px rgba(0,0,0,.22)}
