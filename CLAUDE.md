@@ -258,7 +258,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Pick**, a divider, then **Undo** / **Redo** as one-shot actions —
     `makeCanvasTool` greys each via `disabled:!undoStack.length` when its stack
     is empty, recomputed every rebuild; `updateUndoBtn` just calls
-    `refreshCanvasTools`. The non-painting view/select tools — **Select**,
+    `refreshCanvasTools`. Above the rail sits a small **north compass**
+    (`#compass` / `updateCompass`): a badge whose arrow points to world-north on
+    screen — found by projecting the plot centre and one tile north and taking
+    the screen delta, so it tracks `game.rot` only (updated on rotate + on
+    entering a garden, not per frame; the angle is unwrapped so the needle takes
+    the short way round). The non-painting view/select tools — **Select**,
     Rotate, **Layers** — live in the top bar beside the season dial instead
     (`syncTopTools` keeps their icons/state in sync; Fill moved into the Select
     tray). `game.tool` uses `'hand'` for safe panning and keeps `'shovel'` for
@@ -385,10 +390,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `traceOutlines()` walks each drift's 4-connectivity boundary into loops
     (collinear runs merged), `buildPlanMap()` smooths them into organic
     blobs (quadratic midpoint spline + `planJitter` lattice wobble) tinted
-    from `planColor`. Trees → dashed mature-canopy circles + trunk dot;
-    bulbs → scatter rings; house, fences/gates, paths/beds, title block, north arrow,
-    legend with `planCodes` (unique genus/epithet abbreviations + cultivar
-    tag), and a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
+    from `planColor`. A faint tile grid underlays the whole plot so bare ground
+    reads as blank tiles. Trees → dashed canopy circles + trunk dot, the circle
+    sized to the tree's *current* reach (`canopyRadius`, establishment-scaled),
+    not full mature spread — a young tree draws a small circle, growing as it
+    ages; bulbs → scatter rings; house, fences/gates, paths/beds, title block,
+    north arrow, legend with `planCodes` (short genus/epithet abbreviations,
+    unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
+    Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
+    a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
 15. **Region filter + HUD** — `plantFits()` (zone range, natives-only,
     ecoregion membership for natives; cultivars have `eco:[]` so only the

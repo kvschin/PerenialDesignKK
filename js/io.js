@@ -244,10 +244,10 @@ function openExport(){
     const tr=rows.map(r=>`<tr><td>${r.name}${r.native?'':' *'}<div class="latin">${r.latin}</div></td>
       <td>${r.count}</td><td>${r.areaFt}</td><td>${r.space}"</td><td><b>${r.order}</b></td></tr>`).join('');
     const tot=rows.reduce((a,r)=>({c:a.c+r.count,f:a.f+r.areaFt,o:a.o+r.order}),{c:0,f:0,o:0});
-    body.innerHTML=`<table class="export-table"><thead><tr>
-      <th>Species</th><th>In the garden</th><th>Sq ft</th><th>Spacing</th><th>To order</th></tr></thead>
+    body.innerHTML=`<div class="export-wrap"><table class="export-table"><thead><tr>
+      <th>Species</th><th>Planted</th><th>Sq ft</th><th>Spacing</th><th>To order</th></tr></thead>
       <tbody>${tr}</tbody>
-      <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table>
+      <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
       <p class="note">"To order" converts planted ground to plants at each species' recommended
       spacing — buy that many to fill the same area. * marks garden cultivars of non-native origin.</p>`;
   }
@@ -452,18 +452,22 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
 }
 function planCodes(ids){ // short Oudolf-style codes, unique per species|cv
   const used={}, codes={};
-  ids.forEach(id=>{
-    const [s,v]=id.split('|'), P=plantDef(s,v||null);
-    const latin=(P.latin||'').split(' ');
-    const gen=(latin[0]||s).slice(0,3).toUpperCase(), ep=(latin[1]||'');
+  // parse genus/epithet once; count 2-letter genus prefixes so a lone genus can
+  // use a short 2-letter code (a single Amsonia -> "AM"), growing only on collision
+  const info=ids.map(id=>{ const [s,v]=id.split('|'), P=plantDef(s,v||null);
+    const parts=(P.latin||'').split(' ');
+    return {id, v, gen:(parts[0]||s).toUpperCase(), ep:(parts[1]||'').toUpperCase()}; });
+  const gen2={}; info.forEach(o=>{ const g=o.gen.slice(0,2); gen2[g]=(gen2[g]||0)+1; });
+  info.forEach(o=>{
+    const g2=o.gen.slice(0,2), g3=o.gen.slice(0,3);
     let code=null;
-    for (let n=0;n<=ep.length;n++){
-      const c=gen+(n?ep.slice(0,n):'');
-      if (!used[c]){ code=c; break; }
+    if (gen2[g2]===1 && !used[g2]) code=g2;               // only genus with this prefix → 2 letters
+    else {                                                // else 3 letters, then grow into the epithet
+      for (let n=0;n<=o.ep.length;n++){ const c=g3+(n?o.ep.slice(0,n):''); if (!used[c]){ code=c; break; } }
+      if (!code){ let i=2; while (used[g3+i]) i++; code=g3+i; }
     }
-    if (!code){ let i=2; while (used[gen+i]) i++; code=gen+i; }
-    if (v) code+="'"+v.slice(0,2).toUpperCase();
-    used[code]=1; codes[id]=code;
+    if (o.v) code+="'"+o.v.slice(0,2).toUpperCase();
+    used[code]=1; codes[o.id]=code;
   });
   return codes;
 }
@@ -504,6 +508,10 @@ function buildPlanMap(){
   ctx.beginPath(); ctx.moveTo(W2-40,30); ctx.lineTo(W2-45,42); ctx.lineTo(W2-35,42); ctx.closePath();
   ctx.fillStyle='#2c241c'; ctx.fill();
   ctx.font='10px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillText('N',W2-40,80);
+  // faint tile grid so bare ground still reads as a plot of blank tiles
+  ctx.strokeStyle='rgba(120,108,86,0.16)'; ctx.lineWidth=0.5;
+  for (let gx=0;gx<=GW;gx++){ ctx.beginPath(); ctx.moveTo(X(gx),Y(0)); ctx.lineTo(X(gx),Y(GH)); ctx.stroke(); }
+  for (let gy=0;gy<=GH;gy++){ ctx.beginPath(); ctx.moveTo(X(0),Y(gy)); ctx.lineTo(X(GW),Y(gy)); ctx.stroke(); }
   // elevation grade: subtle plan cue under materials/plants
   for (const k in game.elevation){ const e=game.elevation[k];
     if (!e || e.removed || !e.h) continue;
@@ -584,7 +592,9 @@ function buildPlanMap(){
     const def=plantDef(p.s,p.v);
     if (def.type!=='tree') continue;
     const [x,y]=k.split(',').map(Number);
-    const r=Math.max(cell*0.6,(def.spread/TILE_IN/2)*cell);
+    // canopy sized to the tree's actual (establishment-scaled) reach, not full
+    // mature spread — a young tree draws a small circle, growing as it ages
+    const r=Math.max(cell*0.5, canopyRadius(p)*cell);
     ctx.strokeStyle='#6e5a40'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,r,0,7); ctx.stroke();
     ctx.setLineDash([]);

@@ -69,6 +69,24 @@ function resizeCanvases(){
 }
 addEventListener('resize', resizeCanvases);
 
+/* North compass: point the badge's arrow at world-north on screen. North is
+   world y-1; we project the plot centre and one tile north of it, and the
+   screen delta is north's on-screen direction (cam/size/zoom cancel out, so it
+   depends only on game.rot). Updated on rotate + on entering a garden, not per
+   frame. The angle is unwrapped toward the last value so the needle takes the
+   short way round instead of spinning 270°. */
+let compassAngle=0;
+function updateCompass(){
+  const el=document.getElementById('compass'); if (!el || !game.mode) return;
+  const rotor=el.querySelector('.compass-rotor'); if (!rotor) return;
+  const [ax,ay]=screenOfFlat(GW/2,GH/2,VW,VH), [bx,by]=screenOfFlat(GW/2,GH/2-1,VW,VH);
+  let target=Math.atan2(by-ay,bx-ax)*180/Math.PI + 90;   // +90: the arrow's default points up
+  while (target-compassAngle> 180) target-=360;
+  while (target-compassAngle<-180) target+=360;
+  compassAngle=target;
+  rotor.style.transform=`rotate(${target}deg)`;
+}
+
 let snowFlakes = [];
 /* The ground (961 tiles, each a pile of fills/strokes/blades) is identical
    every frame unless the camera, season, window, or terrain changes — yet it

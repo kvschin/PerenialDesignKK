@@ -800,6 +800,7 @@ function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(VH/ZOOM)*0.21; }
 function rotateView(dir){
   game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;
+  updateCompass();
   toast(`View rotated — ${game.rot*90}°.`);
 }
 /* photo mode: one frame rendered with a golden-hour wash, saved as PNG.

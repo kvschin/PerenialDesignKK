@@ -323,6 +323,7 @@ function enterGarden(){
   undoStack=[]; redoStack=[]; updateUndoBtn();
   buildToolTray();
   buildCanvasTools();
+  updateCompass();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')

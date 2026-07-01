@@ -237,6 +237,13 @@ body.visiting #btnSelectTool{display:none!important}
 #btnSleep,#btnPause{background:none;border:1px solid rgba(239,230,211,.35);
   color:var(--seedhead);font-size:11px;padding:4px 10px;border-radius:3px;white-space:nowrap}
 #btnSleep:hover,#btnPause:hover{border-color:var(--bronze);background:rgba(201,127,63,.13)}
+/* north compass — small badge above the tool rail; the arrow points to world-north */
+#compass{position:absolute;left:12px;top:56px;width:40px;height:40px;border-radius:50%;pointer-events:none;z-index:6;
+  background:rgba(25,18,15,.6);border:1.5px solid rgba(239,230,211,.25);box-shadow:0 3px 12px rgba(0,0,0,.22);backdrop-filter:blur(4px)}
+.compass-rotor{position:absolute;inset:0;transition:transform .25s ease}
+.compass-arrow{position:absolute;left:50%;top:9px;transform:translateX(-50%);width:0;height:0;
+  border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:12px solid #d98b5a}
+.compass-n{position:absolute;left:50%;top:0;transform:translateX(-50%);font:700 9px/1 'IBM Plex Sans',system-ui,sans-serif;color:#f3ecdd;text-shadow:0 1px 2px rgba(0,0,0,.55)}
 #canvasTools{pointer-events:auto;position:absolute;left:10px;top:106px;display:flex;flex-direction:column;gap:4px;
   overflow:visible;background:rgba(25,18,15,.86);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 5px 20px rgba(0,0,0,.22)}
@@ -378,6 +385,14 @@ body.visiting #btnSelectTool{display:none!important}
 .export-table td:nth-child(n+2),.export-table th:nth-child(n+2){text-align:right;white-space:nowrap}
 .export-table .latin{font-style:italic;color:var(--bronze);font-size:11px}
 .export-table tfoot td{border-bottom:none;border-top:1.5px solid rgba(239,230,211,.4);font-weight:600}
+/* keep every column reachable on a phone: fit if we can, scroll if we must */
+.export-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:520px){
+  .export-table{font-size:12px}
+  .export-table th{letter-spacing:.06em;padding-right:6px}
+  .export-table td{padding-right:6px}
+  .export-table .latin{font-size:10px}
+}
 
 /* ---------- planting plan ---------- */
 .plan-wrap{width:100%;max-height:74vh;overflow:auto;border-radius:4px;
