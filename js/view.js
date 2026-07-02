@@ -70,6 +70,12 @@ function sizeCanvas(c, opts){
   if (!c) return;
   const active=!!(opts&&opts.active);
   const h=trueViewH();
+  // Clear the inline width we set last time before measuring: it wins over the
+  // CSS width:100%, so leaving it on makes getBoundingClientRect() read back the
+  // OLD pixel width — freezing width across resize/rotation (height escaped only
+  // because it comes from trueViewH()'s fresh probe, not the rect). Cleared, the
+  // rect re-resolves width:100% against the current viewport.
+  c.style.width='';
   const r=c.getBoundingClientRect();
   const w=Math.round(r.width||c.clientWidth||innerWidth);
   c.style.width=w+'px'; c.style.height=h+'px';

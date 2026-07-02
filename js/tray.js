@@ -577,84 +577,8 @@ function chooseFillMode(on){
   renderBrushBar(); refreshCanvasTools(); updateCanvasCursor();
   toast(game.fillMode?'Fill mode on. Tap a connected area to flood it.':'Fill mode off. Drag or tap to paint.');
 }
-function renderEraseTray(tray){
-  renderCvRow();
-  const sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
-    s.textContent=t; tray.appendChild(s); };
-  const toolBtn=(label,kind,sel,fn,title)=>{
-    const b=document.createElement('button');
-    b.className='tool danger'+(sel?' sel':'');
-    b.title=title||label;
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const ctx2=c.getContext('2d'); ctx2.save(); ctx2.translate(3,6);
-    drawCanvasIcon(ctx2,kind); ctx2.restore();
-    const sp=document.createElement('span'); sp.textContent=label;
-    b.append(c,sp); b.onclick=fn; tray.appendChild(b);
-    return b;
-  };
-  sep('Erase');
-  [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
-    .forEach(([m,lbl])=>toolBtn(lbl,'erase',game.eraseMode===m,()=>{
-      game.eraseMode=m;
-      buildToolTray(); refreshCanvasTools();
-      toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`);
-    },`Erase ${lbl.toLowerCase()}`));
-  sep('Size');
-  const cur=normalizeBrushSize(game.brushSize);
-  BRUSH_SIZES.forEach(sz=>{
-    const b=document.createElement('button');
-    b.className='tool danger'+(cur===sz?' sel':'');
-    b.title=`Erase ${sz} tile${sz>1?'s':''} wide`;
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    drawBrushSizeIcon(c.getContext('2d'),sz,24,22,15);
-    const sp=document.createElement('span'); sp.textContent=sz===1?'1 tile':`${sz} wide`;
-    b.append(c,sp);
-    b.onclick=()=>{ setBrushSize(sz); buildToolTray(); refreshCanvasTools();
-      toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`); };
-    tray.appendChild(b);
-  });
-}
-function renderSelectTray(tray){
-  renderCvRow();
-  const sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
-    s.textContent=t; tray.appendChild(s); };
-  const btn=(label,kind,sel,fn,title,dim)=>{
-    const b=document.createElement('button');
-    b.className='tool'+(sel?' sel':'')+(dim?' disabled':'');
-    b.title=title||label;
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const ctx2=c.getContext('2d'); ctx2.save(); ctx2.translate(3,6);
-    drawCanvasIcon(ctx2,kind); ctx2.restore();
-    const sp=document.createElement('span'); sp.textContent=label;
-    b.append(c,sp); if (!dim) b.onclick=fn; tray.appendChild(b);
-    return b;
-  };
-  if (!game.sel){
-    const hint=document.createElement('span'); hint.className='tray-empty';
-    hint.textContent='Drag a box on the garden to select an area.';
-    tray.appendChild(hint);
-    return;
-  }
-  // mode toggles: how a drag on the selection behaves
-  sep('Drag to');
-  btn('Move','move',game.selMode==='move',()=>{ game.selMode='move'; buildToolTray();
-    toast('Drag the selection to move it.'); },'Drag the selection to a new spot');
-  btn('Duplicate','copy',game.selMode==='copy',()=>{ game.selMode='copy'; buildToolTray();
-    toast('Drag the selection to drop a copy.'); },'Drag to drop a copy, leaving the original');
-  // one-shot actions
-  sep('Actions');
-  btn('Fill area','fill',false,()=>{ fillSelectionWithPlant(); },
-    'Fill the selection with the last selected plant or landscape material');
-  btn('Rotate','rotate',false,()=>{ rotateSelection(); buildToolTray(); refreshCanvasTools(); },
-    'Rotate the selection 90°');
-  btn('Erase','erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },
-    'Delete everything in the selection');
-  sep('Area');
-  btn('Save','save',false,()=>{ saveSelectedArea(); },
-    'Save this selected area for later pasting');
-  btn('Paste','paste',false,()=>{ pasteSavedArea(); },
-    'Paste the saved area starting at this selection',!storedArea());
-}
+// (renderEraseTray / renderSelectTray were retired in Wave 4 — the Erase and
+// Select tool options moved to the brush bar and the marquee action pill.)
 function refreshCanvasTools(){ buildCanvasTools(); }
 // The top bar carries the view/select controls. Desktop/tablet show the full
 // buttons; phones collapse them into the compact View Tools menu.
@@ -700,7 +624,7 @@ function buildCanvasTools(){
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
-    onClick:()=>toggleEraseToolMenu()});
+    onClick:()=>armEraseTool()});
   add('Pick','dropper',{active:game.tool==='pick',
     title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
     onClick:()=>{ setTool('pick'); buildToolTray(); }});
@@ -709,7 +633,6 @@ function buildCanvasTools(){
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:doUndo});
   add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:doRedo});
-  renderErasePopover();
   renderViewToolsMenu();
   renderLayerMenu();
   renderSelectionActions();
@@ -763,47 +686,12 @@ function renderViewToolsMenu(){
   }
   anchorPopover(pop,btn);
 }
-function toggleEraseToolMenu(){
-  const wasOpen=game.tool==='shovel' && game.toolMenu==='erase';
-  setTool('shovel',null);
-  game.toolMenu=wasOpen?null:'erase';
+// Arm Erase. Its layer + size options live in the brush bar (renderBrushBar),
+// alongside the paint brush controls, so there's no separate menu to toggle.
+function armEraseTool(){
+  setTool('shovel',null);   // setTool clears game.toolMenu
   buildToolTray();
   refreshCanvasTools();
-}
-function renderErasePopover(){
-  const old=document.getElementById('erasePop'); if (old) old.remove();
-  const rail=document.getElementById('canvasTools');
-  const btn=rail && Array.from(rail.querySelectorAll('.canvas-tool')).find(b=>b.title&&b.title.startsWith('Erase'));
-  if (game.toolMenu!=='erase' || !btn) return;
-  const pop=document.createElement('div');
-  pop.id='erasePop'; pop.className='tool-popover erase-popover';
-  const section=t=>{ const h=document.createElement('div'); h.className='pop-section'; h.textContent=t; pop.appendChild(h); };
-  const grid=()=>{ const g=document.createElement('div'); g.className='pop-grid'; pop.appendChild(g); return g; };
-  section('Erase');
-  const modes=grid();
-  [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']].forEach(([m,lbl])=>{
-    modes.appendChild(popButton(lbl,null,game.eraseMode===m,()=>{
-      game.eraseMode=m; game.toolMenu='erase'; refreshCanvasTools();
-      toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`);
-    },`Erase ${lbl.toLowerCase()}`, game.eraseMode===m?' danger':''));
-  });
-  section('Size');
-  const sizes=grid(), cur=normalizeBrushSize(game.brushSize);
-  BRUSH_SIZES.forEach(sz=>{
-    sizes.appendChild(popButton(sz===1?'1 tile':`${sz} wide`,null,cur===sz,()=>{
-      setBrushSize(sz); game.toolMenu='erase'; refreshCanvasTools();
-      toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`);
-    },`Erase ${sz} tile${sz>1?'s':''} wide`, cur===sz?' danger':''));
-  });
-  document.body.appendChild(pop);
-  const r=btn.getBoundingClientRect();
-  pop.style.position='fixed'; pop.style.zIndex='40';
-  pop.style.top=Math.round(r.top)+'px';
-  pop.style.left=Math.round(r.right+7)+'px';
-  if (pop.getBoundingClientRect().right>innerWidth-8){
-    pop.style.left='auto';
-    pop.style.right='8px';
-  }
 }
 function renderSelectionActions(){
   const el=document.getElementById('selectionActions'); if (!el) return;
@@ -1788,7 +1676,12 @@ function renderBrushBar(){
   const bar=document.getElementById('brushBar'); if (!bar) return;
   bar.innerHTML='';
   const meta=toolMeta(game.tool), P=PLANTS[game.tool];
-  if (!meta.paints){
+  const erasing = game.tool==='shovel';
+  // Erase is "just another brush": its layer + size options ride the brush bar
+  // exactly where path/bed options do, so the erase size dots ARE the paint size
+  // dots (one control, can't drift). No rail popover, and on a collapsed phone
+  // sheet the width/layer stay visible because the brush bar persists.
+  if (!meta.paints && !erasing){
     bar.classList.add('hidden'); return;
   }
   bar.classList.remove('hidden');
@@ -1797,16 +1690,31 @@ function renderBrushBar(){
     opts.forEach(o=>{
       const b=document.createElement('button');
       b.className='seg-opt'+(o.on?' on':''); b.title=o.title||o.label;
-      const c=document.createElement('canvas'); c.width=28; c.height=24;
-      o.draw(c.getContext('2d'));
+      if (o.draw){ const c=document.createElement('canvas'); c.width=28; c.height=24;
+        o.draw(c.getContext('2d')); b.appendChild(c); }   // layer chips are text-only
       const sp=document.createElement('span'); sp.textContent=o.label;
-      b.append(c,sp); b.onclick=o.click; s.appendChild(b);
+      b.appendChild(sp); b.onclick=o.click; s.appendChild(b);
     });
     return s;
   };
-  const lab=document.createElement('span'); lab.className='brush-lab'; lab.textContent='Brush';
-  const woody = P && (P.type==='shrub' || P.type==='tree');
+  const lab=document.createElement('span');
+  lab.className='brush-lab'+(erasing?' danger':''); lab.textContent=erasing?'Erase':'Brush';
   const parts=[lab];
+  if (erasing){
+    // which layers a sweep clears, then the shared disc size — no Draw/Grid/Fill.
+    parts.push(seg([['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
+      .map(([m,lbl])=>({label:lbl, on:game.eraseMode===m, title:`Erase ${lbl.toLowerCase()}`,
+        click:()=>{ game.eraseMode=m; renderBrushBar();
+          toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); }}))));
+    const curE=normalizeBrushSize(game.brushSize);
+    parts.push(seg(BRUSH_SIZES.map(sz=>({label:String(sz), on:curE===sz,
+      title:`Erase ${sz} tile${sz>1?'s':''} wide`, draw:tc=>drawBrushSizeIcon(tc,sz),
+      click:()=>{ setBrushSize(sz); renderBrushBar();
+        toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`); }}))));
+    bar.append(...parts);
+    return;
+  }
+  const woody = P && (P.type==='shrub' || P.type==='tree');
   // Draw vs Drift is a no-op for woody plants (they always plant singly), so
   // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
   if (P && !woody) parts.push(seg([

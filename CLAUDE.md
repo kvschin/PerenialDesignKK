@@ -337,10 +337,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     region: pointerdown outside the current selection starts a `selDrag`
     rectangle; release commits it to `game.sel` ({x0,y0,x1,y1}, inclusive).
     Pointerdown *inside* the selection starts a `selMove` drag whose intent
-    (`game.selMode` 'move'|'copy') is set by the bottom tray. The bottom
-    contextual tray (`renderSelectTray`, same slot as the Erase options)
-    shows **Move / Duplicate** (mode toggles) and **Rotate / Erase**
-    (one-shot actions). On commit the marquee snapshots its contents once
+    (`game.selMode` 'move'|'copy') is set by the marquee action pill
+    (`renderSelectionActions`, anchored to the selection) which
+    shows **Move / Duplicate** (mode toggles) and **Fill / Rotate / Erase /
+    Save / Paste** (one-shot actions). On commit the marquee snapshots its contents once
     into `game.selItems` (via `selectionPayload`, plants/bulbs/terrain/fences); every
     op then works on those **owned** items — so a plant that later lands
     inside the rect is never scooped up. `commitSelectionOffset(dx,dy,copy)`
@@ -424,12 +424,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     terrain priority — arms that species/material/structure as the brush
     (copying path colour, bed material, water style, or fence material/height/gate mode and
     switching `trayCat`), then drops into plain Plant/Structures mode so the
-    next tap paints with it. The Erase tool's
-    options live in the bottom contextual toolbar when Erase is active:
-    layer (All/Plants/Bulbs/Landscape → `eraseMode`; Landscape includes
-    terrain, houses, and fences) and size (the shared
-    `game.brushSize` disc, 1/2/3/5/7 → `setBrushSize`, same control as the
-    paint brush bar). **Keys map to SCREEN directions**
+    next tap paints with it. **Erase is just another brush**: arming it
+    (`armEraseTool`) shows its options in the `#brushBar` itself, right where
+    the path/bed options sit — a **layer** seg (All/Plants/Bulbs/Land →
+    `eraseMode`; Land includes terrain, houses, and fences) and the **size**
+    seg (the shared `game.brushSize` disc, 1/2/3/5/7 → `setBrushSize`), which is
+    literally the same `seg()` builder and icons as the paint size dots, so the
+    two can't drift. `renderBrushBar` branches on `game.tool==='shovel'` (a red
+    "Erase" `brush-lab`, no Draw/Grid/Fill segs); the bar's `paints` gate lets
+    shovel through. There is no erase rail popover (the old `renderErasePopover`
+    /`renderEraseTray` were removed) — so on a collapsed phone sheet the erase
+    width/layer stay visible because the brush bar persists. **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
@@ -582,7 +587,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (the largest ruler; `innerHeight`/`100%`/`100dvh` report the short height)
     and derives the buffer + `VW`/`VH` (used by `render`, `evPlacement`,
     `snapCam`, `menuRender` in place of `innerWidth/innerHeight`) from it — so
-    the garden fills the screen and clicks stay true. `setViewportFill()` still
+    the garden fills the screen and clicks stay true. **Width** is *not* forced:
+    `sizeCanvas` clears its own inline `style.width` before measuring, then reads
+    the CSS `width:100%` back off `getBoundingClientRect()` — otherwise the inline
+    width it set last time wins over the CSS and freezes width across resize /
+    rotation (only height escaped, via the fresh `trueViewH()` probe), stranding
+    a dead body-bg strip. `resizeCanvases` (on `resize`/`orientationchange`) then
+    re-`snapCam`s and re-pins open chrome. `setViewportFill()` still
     matches the root bg to the season as a belt-and-suspenders. A `?debug`/`?vp`
     URL or a **3-finger tap** shows a viewport diagnostics panel. The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
