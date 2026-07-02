@@ -21,8 +21,10 @@ function setup(gw, gh){
   game.eraseMode = 'all'; game.brushSize = 1;
   cam.x = 0; cam.y = 0;
   game.focusPlantKey = null; game.shrubFx = [];
-  game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
+  game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true,
+    shade: false, moisture: false, height: false, edgeRulers: false, night: false };
   game.layerFocus = 'all';
+  game.ruler = null;
   game.sel = null; game.selItems = null; game.selMode = 'move';
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
   game.pathTarget = null; game.sleepOnArrive = false;
@@ -104,6 +106,21 @@ test('selection measurement labels prefer feet but keep one tile as inches', () 
   assertEqual(selMetricLabel(1), '18 in', 'one tile reminds users of the base block size');
   assertEqual(selMetricLabel(2), '3 ft', 'two tiles display as feet');
   assertEqual(selMetricLabel(3), '4.5 ft', 'half-foot dimensions stay readable');
+  assertEqual(distanceMetricLabel([0, 0], [0, 0]), '18 in', 'zero-length ruler still reminds users of tile size');
+  assertEqual(distanceMetricLabel([0, 0], [3, 4]), '7.5 ft', 'ruler uses true tile distance');
+});
+
+test('layer overlay flags mark layer view as active', () => {
+  setup();
+  assert(!layerViewActive(), 'normal full garden is not a special layer view');
+  game.layerVis.moisture = true;
+  assert(layerViewActive(), 'moisture overlay is an active layer view');
+  game.layerVis.moisture = false;
+  game.layerVis.height = true;
+  assert(layerViewActive(), 'height overlay is an active layer view');
+  game.layerVis.height = false;
+  game.layerVis.edgeRulers = true;
+  assert(layerViewActive(), 'edge rulers overlay is an active layer view');
 });
 
 test('hand tool pans only in design mode so visit taps can walk', () => {

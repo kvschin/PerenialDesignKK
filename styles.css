@@ -305,7 +305,8 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
   color:#cdbfa9;text-align:left;font-size:12px;padding:7px 9px;cursor:pointer}
 .layer-row:hover{background:rgba(201,127,63,.18);color:var(--seedhead)}
 .layer-row.sel{background:rgba(201,127,63,.25);color:var(--seedhead)}
-.layer-row .layer-eye{flex:0 0 auto;width:14px;text-align:center;font-size:12px;color:var(--seedhead)}
+.layer-row .layer-eye{flex:0 0 24px;width:24px;height:18px;text-align:center;font-size:12px;color:var(--seedhead)}
+canvas.layer-eye{display:block}
 .layer-row .layer-name{flex:1}
 .layer-row.off{opacity:.42}
 .layer-row.off .layer-eye{color:#7d7164}

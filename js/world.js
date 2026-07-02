@@ -36,8 +36,9 @@ const game = {
   sheetState:'half',                                 // mobile palette: collapsed | half | full
   sheetCollapsed:false,                              // legacy alias kept in sync with sheetState
   previewMode:'today',                               // design view: today | established (visual only)
-  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,night:false}, // layer view: visibility + overlays
+  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,moisture:false,height:false,edgeRulers:false,night:false}, // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
+  ruler:null,                                        // tape measure {a:[x,y], b:[x,y]|null}
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
   selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
   selMode:'move',                                    // selection drag intent: 'move' | 'copy'

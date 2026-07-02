@@ -355,6 +355,8 @@ function render(t){
       tileDiamond(cx,sx,sy,col,null);
     }
   }
+  if (game.layerVis.moisture) drawMoistureOverlay(cx,W,H,x0,x1,y0,y1);
+  if (game.layerVis.height) drawHeightOverlay(cx,W,H,x0,x1,y0,y1);
   dmark('shade',tShade);
   const tCursor=dnow();
   const focusedShrub=layerShown('woody') && game.focusPlantKey ? shrubInfoFromKey(game.focusPlantKey) : null;
@@ -527,6 +529,9 @@ function render(t){
 
   // selection tool: marquee, committed selection, and move/copy ghost
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
+  drawRulerOverlay(cx,W,H);
+  drawToolDragMetric(cx,W,H);
+  if (game.layerVis.edgeRulers && VW>640) drawSelectionMetrics(cx,W,H,{x0:0,y0:0,x1:GW-1,y1:GH-1});
   if (typeof positionSelectionActions==='function') positionSelectionActions();
 
   // season light tint + falling snow
@@ -568,6 +573,17 @@ function selMetricLabel(n){
   const feet=inches/12;
   return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
 }
+function distanceMetricLabel(a,b){
+  const dx=(b[0]-a[0]), dy=(b[1]-a[1]);
+  const inches=Math.max(TILE_IN,Math.round(Math.hypot(dx,dy)*TILE_IN));
+  if (inches<24) return `${inches} in`;
+  const feet=inches/12;
+  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+}
+function tileCenterScreen(x,y,W,H){
+  const [sx,sy]=screenOf(x,y,W,H);
+  return [sx,sy+TILE_H/2];
+}
 function drawSelMetricLabel(cx,x,y,label){
   cx.font='700 11px "IBM Plex Sans", sans-serif';
   cx.textAlign='center';
@@ -577,6 +593,68 @@ function drawSelMetricLabel(cx,x,y,label){
   cx.fillStyle='#172733';
   cx.strokeText(label,x,y);
   cx.fillText(label,x,y);
+}
+function drawRulerEndpoint(cx,p){
+  cx.save();
+  cx.strokeStyle='#72c9ff';
+  cx.fillStyle='rgba(23,39,51,0.62)';
+  cx.lineWidth=2.4;
+  cx.beginPath(); cx.arc(p[0],p[1],5.5,0,7); cx.fill(); cx.stroke();
+  cx.restore();
+}
+function drawRulerOverlay(cx,W,H){
+  const r=game.ruler;
+  if (!r || !r.a) return;
+  const a=tileCenterScreen(r.a[0],r.a[1],W,H);
+  drawRulerEndpoint(cx,a);
+  if (!r.b){
+    drawSelMetricLabel(cx,a[0],a[1]-22,'Start');
+    return;
+  }
+  const b=tileCenterScreen(r.b[0],r.b[1],W,H);
+  drawRulerEndpoint(cx,b);
+  drawSelDimLine(cx,a,b,distanceMetricLabel(r.a,r.b),1);
+}
+function drawToolDragMetric(cx,W,H){
+  if (typeof toolDrag==='undefined' || !toolDrag || !toolDrag.active || !toolDrag.what) return;
+  if (!['path','bed','water','fence','gate'].includes(toolDrag.what)) return;
+  const a=tileCenterScreen(toolDrag.sx,toolDrag.sy,W,H);
+  const b=tileCenterScreen(toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy,W,H);
+  drawSelDimLine(cx,a,b,distanceMetricLabel([toolDrag.sx,toolDrag.sy],[toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy]),1);
+}
+function overlayPlantAt(x,y){
+  const k=`${x},${y}`;
+  const p=game.plants[k]; if (p && !p.removed) return p;
+  const b=game.bulbs[k]; if (b && !b.removed) return b;
+  return null;
+}
+function plantHeightIn(p){
+  const D=p && plantDef(p.s,p.v);
+  if (!D) return 0;
+  return D.heightIn || D.height || D.h || 36;
+}
+function drawMoistureOverlay(cx,W,H,x0,x1,y0,y1){
+  const cols={dry:'rgba(224,168,86,0.38)',medium:'rgba(103,155,97,0.34)',moist:'rgba(74,142,174,0.42)'};
+  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+    const terr=terrainAt(x,y);
+    const p=overlayPlantAt(x,y), D=p&&plantDef(p.s,p.v);
+    const moist=terr&&terr.k==='water' ? 'moist' : D&&D.moist;
+    if (!moist) continue;
+    const [sx,sy]=screenOf(x,y,W,H);
+    tileDiamond(cx,sx,sy,cols[moist]||cols.medium,null);
+  }
+}
+function drawHeightOverlay(cx,W,H,x0,x1,y0,y1){
+  for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+    const p=overlayPlantAt(x,y); if (!p) continue;
+    const h=plantHeightIn(p);
+    const col = h>=96 ? 'rgba(92,66,122,0.46)'
+      : h>=48 ? 'rgba(161,101,62,0.42)'
+      : h>=24 ? 'rgba(191,151,73,0.38)'
+      : 'rgba(125,164,104,0.34)';
+    const [sx,sy]=screenOf(x,y,W,H);
+    tileDiamond(cx,sx,sy,col,null);
+  }
 }
 function drawSelDimLine(cx,a,b,label,side){
   const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy);

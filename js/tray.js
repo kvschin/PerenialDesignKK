@@ -54,6 +54,7 @@ const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable
 const TOOLS={
   hand:    {layer:null,        brush:false, placement:false, paints:false, material:false},
   select:  {layer:null,        brush:false, placement:false, paints:false, material:false},
+  ruler:   {layer:null,        brush:false, placement:false, paints:false, material:false},
   pick:    {layer:null,        brush:false, placement:false, paints:false, material:false},
   shovel:  {layer:null,        brush:false, placement:false, paints:false, material:false}, // Erase
   path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
@@ -133,7 +134,7 @@ function setTool(k,v){
   game.toolMenu=null;
   game.catMenuOpen=false;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
-  if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='pick') game.fillMode=false;
+  if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -672,7 +673,8 @@ function syncTopTools(){
     lay.onclick=()=>toggleLayerMenu();
     const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
   const rul=document.getElementById('btnRulerTool');
-  if (rul){ rul.onclick=()=>toast('Ruler mode is next in the Measure wave.');
+  if (rul){ rul.classList.toggle('sel',game.tool==='ruler');
+    rul.onclick=()=>{ setTool('ruler'); toast('Tap two points, or drag, to measure.'); };
     const c=document.getElementById('btnRulerIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'ruler'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
@@ -754,10 +756,10 @@ function renderViewToolsMenu(){
     game.toolMenu='layers'; refreshCanvasTools();
   },'Show or hide garden layers'));
   if (!game.visiting){
-    pop.appendChild(popButton('Ruler','ruler',false,()=>{
-      game.toolMenu=null; refreshCanvasTools();
-      toast('Ruler mode is next in the Measure wave.');
-    },'Tape measure mode is planned next'));
+    pop.appendChild(popButton('Ruler','ruler',game.tool==='ruler',()=>{
+      setTool('ruler'); game.toolMenu=null; refreshCanvasTools();
+      toast('Tap two points, or drag, to measure.');
+    },'Tape measure'));
   }
   anchorPopover(pop,btn);
 }
@@ -872,7 +874,9 @@ function promptRevealLayer(layer,x,y){
 }
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
-  return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade || LAYER_DEFS.some(([k])=>!layerShown(k));
+  return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade ||
+    game.layerVis.moisture || game.layerVis.height || game.layerVis.edgeRulers ||
+    LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
   if (!layer || layerEditable(layer)) return false;
@@ -908,6 +912,22 @@ function buildLayerPopover(){
   pop.className='tool-popover layer-popover';
   const section=title=>{ const h=document.createElement('div');
     h.className='layer-section'; h.textContent=title; pop.appendChild(h); };
+  const eyeIcon=(on)=>{
+    const c=document.createElement('canvas');
+    c.className='layer-eye';
+    c.width=24; c.height=18;
+    const tc=c.getContext('2d');
+    tc.clearRect(0,0,24,18);
+    tc.strokeStyle=on?'#efe6d3':'#7d7164';
+    tc.fillStyle=on?'rgba(201,127,63,.34)':'rgba(239,230,211,.05)';
+    tc.lineWidth=1.7; tc.lineCap='round'; tc.lineJoin='round';
+    tc.beginPath();
+    tc.moveTo(3,9); tc.quadraticCurveTo(12,2.5,21,9); tc.quadraticCurveTo(12,15.5,3,9);
+    tc.fill(); tc.stroke();
+    tc.beginPath(); tc.arc(12,9,on?3.1:2.2,0,7); tc.fillStyle=on?'#c97f3f':'#7d7164'; tc.fill();
+    if (!on){ tc.strokeStyle='#7d7164'; tc.lineWidth=2; tc.beginPath(); tc.moveTo(5,15); tc.lineTo(19,3); tc.stroke(); }
+    return c;
+  };
   // one row = a visibility toggle. The whole row (eye + label) flips it;
   // the row mutes when off and stays put so it can be turned back on.
   const row=(get,set,label)=>{
@@ -915,10 +935,8 @@ function buildLayerPopover(){
     const b=document.createElement('button');
     b.className='layer-row'+(on?'':' off');
     b.title=(on?'Hide ':'Show ')+label;
-    const eye=document.createElement('span'); eye.className='layer-eye';
-    eye.textContent=on?'*':'-';
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
-    b.append(eye,nm);
+    b.append(eyeIcon(on),nm);
     b.onclick=ev=>{ ev.stopPropagation(); set(!on); refreshCanvasTools();
       toast(`${label} ${!on?'shown':'hidden'}.`); };
     pop.appendChild(b);
@@ -928,8 +946,7 @@ function buildLayerPopover(){
     const b=document.createElement('button');
     b.className='layer-row'+(on?' sel':'');
     b.title=`Edit ${label}`;
-    const eye=document.createElement('span'); eye.className='layer-eye';
-    eye.textContent=on?'*':'-';
+    const eye=document.createElement('span'); eye.className='layer-eye'; eye.textContent=on?'*':'-';
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
     b.append(eye,nm);
     b.onclick=ev=>{ ev.stopPropagation(); game.layerFocus=key; refreshCanvasTools();
@@ -937,16 +954,17 @@ function buildLayerPopover(){
     pop.appendChild(b);
   };
   section('Visible');
-  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) && !game.layerVis.shade;
+  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) &&
+    !game.layerVis.shade && !game.layerVis.moisture && !game.layerVis.height && !game.layerVis.edgeRulers;
   const allRow=document.createElement('button');
   allRow.className='layer-row'+(allVisible()?' sel':'');
   allRow.title='Show the normal full garden';
-  const allEye=document.createElement('span'); allEye.className='layer-eye'; allEye.textContent=allVisible()?'*':'-';
   const allName=document.createElement('span'); allName.className='layer-name'; allName.textContent='All';
-  allRow.append(allEye,allName);
+  allRow.append(eyeIcon(allVisible()),allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
     LAYER_DEFS.forEach(([key])=>{ game.layerVis[key]=true; });
-    game.layerVis.shade=false; refreshCanvasTools(); toast('All layers shown.'); };
+    game.layerVis.shade=false; game.layerVis.moisture=false; game.layerVis.height=false; game.layerVis.edgeRulers=false;
+    refreshCanvasTools(); toast('All layers shown.'); };
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
     ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
@@ -957,6 +975,9 @@ function buildLayerPopover(){
   }
   section('Overlays');
   row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
+  row(()=>!!game.layerVis.moisture, v=>{ game.layerVis.moisture=v; }, 'Moisture Overlay');
+  row(()=>!!game.layerVis.height, v=>{ game.layerVis.height=v; }, 'Height Overlay');
+  row(()=>!!game.layerVis.edgeRulers, v=>{ game.layerVis.edgeRulers=v; }, 'Edge Rulers');
   return pop;
 }
 function trayViewKey(cat=game.trayCat,drill=game.drill){
@@ -978,6 +999,131 @@ function restoreTrayScroll(){
 function finishToolTrayRender(){
   restoreTrayScroll();
   updateCanvasCursor();
+}
+function trayCatLabel(id){ const c=TRAY_CATS.find(c=>c.id===id); return c?c.label:cap(id||'catalog'); }
+function traySep(tray,label,title){
+  const sep=document.createElement('span');
+  sep.className='tray-sep';
+  sep.textContent=label;
+  if (title) sep.title=title;
+  tray.appendChild(sep);
+  return sep;
+}
+function plantSearchHay(k){
+  const P=PLANTS[k];
+  if (!P) return '';
+  let hay=[k,P.name,P.latin,P.group||'',P.chip||'',roleSummary(k,12),trayCatLabel(plantCategoryFor(k))].join(' ');
+  for (const v in (P.cv||{})){
+    const C=P.cv[v];
+    hay+=' '+v+' '+(C.name||'')+' '+(C.latin||'');
+  }
+  if (P.group) PLANT_KEYS.forEach(k2=>{ const G=PLANTS[k2];
+    if (G && G.group===P.group) hay+=' '+G.name+' '+G.latin+' '+(G.chip||'')+' '+roleSummary(k2,12);
+  });
+  return hay.toLowerCase();
+}
+function searchToolItems(){
+  return [
+    {cat:'landscape',tool:'path',label:'Path',kind:'fill',
+      hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
+    {cat:'landscape',tool:'bed',label:'Bed',kind:'fill',
+      hay:'bed beds soil gravel rock river rock leaf litter mulch bark planting area landscape'},
+    {cat:'landscape',tool:'water',label:'Water',kind:'fill',
+      hay:'water pond river lake stream creek wet landscape'},
+    {cat:'leveling',tool:'raise',label:'Raise',kind:'layers',
+      hay:'raise elevation grade berm terrace hill leveling'},
+    {cat:'leveling',tool:'lower',label:'Lower',kind:'layers',
+      hay:'lower elevation grade swale basin depression leveling'},
+    {cat:'leveling',tool:'level',label:'Level',kind:'layers',
+      hay:'level elevation grade flatten reset leveling'},
+    {cat:'structures',tool:'fence',drill:'fence',label:'Fence / Gate',kind:'layers',
+      hay:'fence gate door structures black aluminum wood vinyl chainlink brick 4 foot 6 foot'},
+    {cat:'structures',tool:'firepit',drill:'firepit',label:'Fire Pit',kind:'fill',
+      hay:'fire pit firepit structure round square rectangle 24 36 48 patio'},
+    {cat:'lighting',tool:'light',label:'Lighting',kind:'dropper',
+      hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
+    {cat:'house',tool:'house',label:'House',kind:'brush',
+      hay:'house home building wall roof size color'}
+  ];
+}
+function drawSearchToolIcon(tc,item){
+  tc.clearRect(0,0,48,44);
+  if (item.tool==='path'||item.tool==='bed'||item.tool==='water'){
+    const fill=item.tool==='path'?pathColor(game.pathColor).fill
+      : item.tool==='bed'?(bedStyle(game.bedStyle).fill||'#54402f')
+      : waterStyle(game.waterStyle).fill;
+    tc.fillStyle=fill;
+    tc.beginPath(); tc.moveTo(24,9); tc.lineTo(42,22); tc.lineTo(24,35); tc.lineTo(6,22); tc.closePath(); tc.fill();
+    tc.strokeStyle='rgba(239,230,211,.48)'; tc.lineWidth=1.4; tc.stroke();
+    return;
+  }
+  tc.save(); tc.translate(3,6); drawCanvasIcon(tc,item.kind||'brush'); tc.restore();
+}
+function renderSearchPlantButton(tray,k){
+  const P=PLANTS[k], catId=plantCategoryFor(k), R=plantDef(k,null);
+  const b=document.createElement('button');
+  b.className='tool'+(game.tool===k?' sel':'')+((P.group||P.cv)?' has-sub':'');
+  b.dataset.k=k; if (P.group) b.dataset.group=P.group;
+  b.title=`${P.name} - ${P.latin} (${trayCatLabel(catId)})`;
+  const c=document.createElement('canvas'); c.width=48; c.height=44;
+  const sc=Math.min(0.62,36/(R.h||40));
+  const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
+  const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+  drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,undefined,1);
+  const sp=document.createElement('span');
+  sp.textContent=(P.chip||P.name).split(' ').slice(0,2).join(' ');
+  b.append(c,sp);
+  b.onclick=()=>{
+    saveTrayScroll();
+    game.trayCat=catId; game.searchOpen=false; game.traySearch=''; game.catMenuOpen=false;
+    game.drill=(P.group||P.cv) ? k : null;
+    setTool(k,null);
+    buildToolTray();
+    toast(`${P.name} - ${P.latin}`);
+  };
+  tray.appendChild(b);
+}
+function renderSearchToolButton(tray,item){
+  const b=document.createElement('button');
+  b.className='tool'+(game.tool===item.tool?' sel':'')+(item.drill?' has-sub':'');
+  b.dataset.k=item.tool;
+  b.title=`${item.label} - ${trayCatLabel(item.cat)}`;
+  const c=document.createElement('canvas'); c.width=48; c.height=44;
+  drawSearchToolIcon(c.getContext('2d'),item);
+  const sp=document.createElement('span'); sp.textContent=item.label;
+  b.append(c,sp);
+  b.onclick=()=>{
+    saveTrayScroll();
+    game.trayCat=item.cat; game.searchOpen=false; game.traySearch=''; game.catMenuOpen=false;
+    game.drill=item.drill||null;
+    setTool(item.tool,null);
+    buildToolTray();
+    toast(`${item.label} selected.`);
+  };
+  tray.appendChild(b);
+}
+function renderGlobalSearchTray(tray,q){
+  q=(q||'').toLowerCase().trim();
+  const groups=[];
+  TRAY_CATS.forEach(cat=>{
+    const plants=cat.types ? trayKeys().filter(k=>
+      cat.types.includes(PLANTS[k].type) && (!cat.sunFilter || PLANTS[k].sun===cat.sunFilter) &&
+      plantSearchHay(k).includes(q)) : [];
+    const tools=cat.tools ? searchToolItems().filter(item=>item.cat===cat.id && item.hay.includes(q)) : [];
+    if (plants.length || tools.length) groups.push({cat,plants,tools});
+  });
+  if (!groups.length){
+    const sp=document.createElement('span');
+    sp.className='tray-empty';
+    sp.textContent=`No catalog results for "${q}".`;
+    tray.appendChild(sp);
+    return;
+  }
+  groups.forEach(({cat,plants,tools})=>{
+    traySep(tray,cat.label,'Search result category');
+    plants.slice(0,36).forEach(k=>renderSearchPlantButton(tray,k));
+    tools.forEach(item=>renderSearchToolButton(tray,item));
+  });
 }
 function buildToolTray(){
   saveTrayScroll();
@@ -1007,17 +1153,20 @@ function buildToolTray(){
     drawSearchIcon(sc.getContext('2d'), game.searchOpen);
     sb.appendChild(sc);
     sb.setAttribute('aria-label', game.searchOpen?'Close search':'Search');
-    sb.title=game.searchOpen?'Close search — back to categories':'Search the open category';
+    sb.title=game.searchOpen?'Close search - back to categories':'Search the whole catalog';
     sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
       buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
     tabs.appendChild(sb);
   }
   const div=document.createElement('span'); div.className='tab-div'; tabs.appendChild(div);
   if (canSearch && game.searchOpen){
-    const si=document.createElement('input'); // search within the open category
-    si.id='traySearch'; si.type='search'; si.placeholder='search plants…';
+    const si=document.createElement('input');
+    si.id='traySearch'; si.type='search'; si.placeholder='search all catalog...';
     si.value=game.traySearch||'';
-    si.oninput=()=>{ game.traySearch=si.value; applyTraySearch(); };
+    si.oninput=()=>{ game.traySearch=si.value; buildToolTray();
+      const next=document.getElementById('traySearch');
+      if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} }
+    };
     si.onkeydown=(e)=>{ if (e.key==='Escape'){ e.stopPropagation();
       game.searchOpen=false; game.traySearch=''; buildToolTray(); } };
     tabs.appendChild(si);
@@ -1051,6 +1200,13 @@ function buildToolTray(){
   }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+  const globalQuery=canSearch && game.searchOpen ? (game.traySearch||'').trim() : '';
+  if (globalQuery){
+    renderGlobalSearchTray(tray,globalQuery);
+    renderCvRow();
+    finishToolTrayRender();
+    return;
+  }
   if (cat.types){
     let keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
     if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);

@@ -865,7 +865,7 @@ function updateCanvasCursor(){
   if (!cnv) return;
   cnv.style.cursor = panDrag ? 'grabbing'
     : (game.tool==='hand'||spaceHeld) ? 'grab'
-    : (game.tool==='select'||game.tool==='pick') ? 'crosshair' : '';
+    : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick') ? 'crosshair' : '';
 }
 function snapshotState(){
   const s={};

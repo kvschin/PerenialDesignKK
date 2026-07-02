@@ -321,6 +321,7 @@ function enterGarden(){
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
   resetSelectionState();
+  game.ruler=null;
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
   if (game.gameMode==='design' && !game.visiting){
     game.previewMode=game.previewMode||'established';

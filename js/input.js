@@ -47,7 +47,7 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null;
+const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null;
 function shouldStartPan(e){
   return (game.tool==='hand' && game.gameMode==='design' && !game.visiting)
     || (game.gameMode==='design' && (e.button===1 || spaceHeld));
@@ -62,7 +62,7 @@ function showGestureCancel(msg){
 }
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
-  sweep=null; toolDrag=null; fillTap=null; panDrag=null; selDrag=null; selMove=null;
+  sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null;
   game.pathTarget=null; game.sleepOnArrive=false;
   if (notice) showGestureCancel(notice);
   updateCanvasCursor();
@@ -115,6 +115,14 @@ cnv.addEventListener('pointerdown',e=>{
   const place=evPlacement(e), x=place.x, y=place.y;
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
+  if (game.tool==='ruler'){
+    const pending=game.ruler && game.ruler.a && !game.ruler.b ? game.ruler.a.slice() : null;
+    rulerDrag={sx:x, sy:y, cx:x, cy:y, moved:false, pending};
+    game.ruler=pending ? {a:pending,b:[x,y],active:true} : {a:[x,y],b:null,active:true};
+    try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+    updateCanvasCursor();
+    return;
+  }
   if (game.tool==='pick'){ pickAt(x,y); return; }   // eyedropper: sample, then become that brush
   // drawing onto a hidden layer? warn and offer to reveal it before placing
   if (isPlacementTool(game.tool)){
@@ -137,7 +145,7 @@ cnv.addEventListener('pointerdown',e=>{
   // plant/bulb/path/bed/water/elevation/fence/light/firepit: press-and-drag paints tiles like the shovel
   // sweeps them; a plain tap (resolved at pointerup) walks or acts. (house already returned above.)
   if (isBrushTool(game.tool)){
-    toolDrag={sx:x, sy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
+    toolDrag={sx:x, sy:y, cx:x, cy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
@@ -214,8 +222,19 @@ cnv.addEventListener('pointermove',e=>{
   // keep the brush/erase footprint ghost under the cursor even mid-drag
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
+  if (rulerDrag){
+    if (x>=0&&y>=0&&x<GW&&y<GH){
+      if (x!==rulerDrag.sx || y!==rulerDrag.sy) rulerDrag.moved=true;
+      rulerDrag.cx=x; rulerDrag.cy=y;
+      const a=rulerDrag.pending || [rulerDrag.sx,rulerDrag.sy];
+      game.ruler={a:a,b:[x,y],active:true};
+    }
+    return;
+  }
   if (sweep){ sweepLift(x,y); return; }
   if (toolDrag){
+    if (x<0||y<0||x>=GW||y>=GH) return;
+    toolDrag.cx=x; toolDrag.cy=y;
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
       const r0=stampBrushAt(toolDrag.sx,toolDrag.sy,toolDrag);
@@ -263,6 +282,14 @@ cnv.addEventListener('pointerup',e=>{
   finishMultiTouch();
   if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
+  if (rulerDrag){
+    const r=rulerDrag; rulerDrag=null;
+    if (r.pending) game.ruler={a:r.pending,b:[r.cx,r.cy],active:false};
+    else if (r.moved) game.ruler={a:[r.sx,r.sy],b:[r.cx,r.cy],active:false};
+    else game.ruler={a:[r.sx,r.sy],b:null,active:false};
+    updateCanvasCursor();
+    return;
+  }
   if (fillTap){ const f=fillTap; fillTap=null; doFloodFill(f.x,f.y); return; }
   if (toolDrag){
     if (toolDrag.active) finishToolDrag();
