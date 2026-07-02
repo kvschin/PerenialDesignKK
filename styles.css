@@ -510,15 +510,21 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
   .time-actions{min-width:0;gap:4px}
   .top-tools-full{display:none}
   #btnViewTools{display:flex}
+  .season-dial .daynight,.top-tool{width:44px;height:44px;min-width:44px;min-height:44px}
+  .top-tool canvas{width:34px;height:26px}
+  .season-box{height:44px;min-height:44px}
+  .pill.iconbar{min-height:44px;align-items:center}
+  .pill.iconbar button{min-width:44px;min-height:44px;justify-content:center}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
   /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
   #canvasTools{top:150px;left:8px;padding:3px;gap:2px}
-  .canvas-tool{width:44px;min-height:42px}
+  .canvas-tool{width:44px;min-width:44px;min-height:44px;flex:0 0 auto}
   .canvas-tool canvas{width:34px;height:26px;top:2px}
   .canvas-tool span{font-size:7px}
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
   .tool-popover{top:104px;width:148px}
+  .tool-popover button,.layer-row{min-height:44px}
   .view-tools-popover{width:156px}
   .zoom-pill{right:8px;bottom:calc(112px + env(safe-area-inset-bottom));padding:3px}
   .zoom-pill button{min-width:32px;height:32px;font-size:12px}
@@ -538,20 +544,20 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
   #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;touch-action:none;
     background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     border:1.5px solid rgba(239,230,211,.25);border-radius:8px;
-    min-height:44px;padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw;flex-shrink:0}
+    height:44px;min-height:44px;padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw;flex:0 0 44px}
   #sheetHandle .grip-bar{width:26px;height:4px;border-radius:3px;background:rgba(239,230,211,.42);flex-shrink:0}
   #sheetHandle .sheet-ctx{color:#cdbfa9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48vw}
   #sheetHandle .chev{color:var(--bronze);font-size:10px}
   /* fatter tap targets on touch screens */
-  .seg .seg-opt{min-height:40px;padding:8px 11px}
-  #cvRow .chip{padding:8px 13px}
+  .seg .seg-opt{min-height:44px;padding:9px 12px}
+  #cvRow .chip{min-height:44px;padding:9px 13px;display:flex;align-items:center}
   /* let the Plants sub-tabs wrap instead of scrolling off; tighter padding
      keeps the wrap to ~two rows */
-  #trayTabs{flex-wrap:nowrap;row-gap:2px;gap:4px;min-height:44px;flex-shrink:0;align-items:stretch;overflow:visible}
-  #trayTabs .tab{min-height:38px;padding:6px 8px;display:flex;align-items:center}
-  #trayTabs .tab.tab-search{min-width:44px;min-height:38px;padding:6px 10px}
+  #trayTabs{flex-wrap:nowrap;row-gap:2px;gap:4px;min-height:48px;flex:0 0 auto;align-items:stretch;overflow:visible}
+  #trayTabs .tab{min-height:44px;padding:8px 9px;display:flex;align-items:center}
+  #trayTabs .tab.tab-search{min-width:44px;min-height:44px;padding:8px 10px}
   #trayTabs .tab.subcat{display:none}
-  .cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:128px;max-width:42vw;
+  .cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:128px;max-width:42vw;min-height:44px;
     background:rgba(239,230,211,.08);border:1px solid rgba(239,230,211,.16);border-radius:7px;
     color:var(--seedhead);font-size:12px;font-weight:700;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}
   .cat-current span{overflow:hidden;text-overflow:ellipsis}
@@ -560,10 +566,10 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
     bottom:calc(100% + 8px);z-index:42;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;
     padding:7px;background:rgba(24,17,13,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     border:1.5px solid rgba(239,230,211,.25);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.42)}
-  .cat-pop button{min-height:40px;border:1px solid rgba(239,230,211,.12);border-radius:7px;background:rgba(239,230,211,.06);
+  .cat-pop button{min-height:44px;border:1px solid rgba(239,230,211,.12);border-radius:7px;background:rgba(239,230,211,.06);
     color:#cdbfa9;font:700 12px/1.1 'IBM Plex Sans',system-ui,sans-serif}
   .cat-pop button.sel{background:rgba(201,127,63,.3);border-color:var(--bronze);color:var(--seedhead)}
-  #brushBar{min-height:44px;max-width:100vw;overflow-x:auto;flex-shrink:0}
+  #brushBar{min-height:44px;max-width:100vw;overflow-x:auto;flex:0 0 auto}
   /* full-bleed palette: edge to edge, square corners, docked to the bottom.
      The catalog's own bottom padding lifts it clear of the home indicator
      while the tray background runs to the screen edge behind it. */
@@ -585,9 +591,7 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
    season dial, so tighten gaps/buttons here only — normal phones keep the
    comfortable 34px targets above. The season box shrinks first, then this. */
 @media(max-width:359px){
-  .season-dial{gap:6px;padding:5px 6px}
-  .season-dial .daynight,.top-tool{width:30px;height:30px}
-  .top-tool canvas{width:28px;height:21px}
+  .season-dial{gap:5px;padding:5px 6px}
   .season-box{width:116px;min-width:74px;padding:3px 7px}
 }
 @media(min-width:1600px) and (min-height:800px){
