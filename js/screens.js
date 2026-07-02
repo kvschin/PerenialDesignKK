@@ -534,7 +534,30 @@ $('btnPlanClose').onclick=()=>closeOverlay('planScreen');
 $('btnPlanPng').onclick=downloadPlan;
 $('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
 $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
-if ($('sheetHandle')) $('sheetHandle').onclick=()=>{ game.sheetCollapsed=!game.sheetCollapsed; applySheetState(); };
+if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.89);
+if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
+if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
+(function wireSheetHandle(){
+  const h=$('sheetHandle'); if (!h) return;
+  let drag=null;
+  h.addEventListener('pointerdown',e=>{
+    drag={y:e.clientY,moved:false};
+    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  h.addEventListener('pointermove',e=>{
+    if (!drag) return;
+    if (Math.abs(e.clientY-drag.y)>10) drag.moved=true;
+  });
+  const finish=e=>{
+    if (!drag) return;
+    const dy=e.clientY-drag.y, moved=drag.moved;
+    drag=null;
+    if (moved && Math.abs(dy)>28) nudgeSheetState(dy<0?1:-1);
+    else cycleSheetState();
+  };
+  h.addEventListener('pointerup',finish);
+  h.addEventListener('pointercancel',()=>{ drag=null; });
+})();
 
 /* ---------- menu background: a living meadow ---------- */
 const mcnv=$('menuCanvas'), mcx=mcnv.getContext('2d');

@@ -32,6 +32,9 @@ const game = {
   lastBrushTool:null, lastBrushVar:null,             // last placement brush chosen from the catalog
   lastBrushTrayCat:'grasses', lastBrushDrill:null, trayScroll:{}, // where the brush catalog was last browsed
   toolMenu:null,                                     // open flyout on the left canvas toolbar
+  catMenuOpen:false,                                 // mobile category dropdown in the bottom sheet
+  sheetState:'half',                                 // mobile palette: collapsed | half | full
+  sheetCollapsed:false,                              // legacy alias kept in sync with sheetState
   previewMode:'today',                               // design view: today | established (visual only)
   layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,night:false}, // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape

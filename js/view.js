@@ -14,8 +14,32 @@ function calcZoom(){
 function setUserZoom(z){
   userZoom = Math.max(0.4, Math.min(2.2, z));
   calcZoom(); if (game.mode && game.gameMode!=='design') snapCam(); // design keeps a free camera
+  updateZoomPill();
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
+function updateZoomPill(){
+  const lab=document.getElementById('zoomLabel');
+  if (lab) lab.textContent=Math.round(ZOOM*100)+'%';
+}
+function fitPlot(){
+  if (!game.mode) return;
+  calcZoom();
+  const corners=[[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]].map(([x,y])=>worldToView(x,y));
+  const xs=corners.map(p=>isoX(p[0],p[1])), ys=corners.map(p=>isoY(p[0],p[1]));
+  const minX=Math.min(...xs)-TILE_W, maxX=Math.max(...xs)+TILE_W;
+  const minY=Math.min(...ys)-TILE_H, maxY=Math.max(...ys)+TILE_H*2;
+  const worldW=Math.max(1,maxX-minX), worldH=Math.max(1,maxY-minY);
+  const availW=Math.max(260,VW-96);
+  const availH=Math.max(240,VH-196);
+  const targetZoom=Math.max(0.42,Math.min(1.45,Math.min(availW/worldW,availH/worldH)));
+  userZoom=Math.max(0.4,Math.min(2.2,targetZoom/baseZoom));
+  calcZoom();
+  cam.x=(minX+maxX)/2;
+  cam.y=(minY+maxY)/2-(VH/ZOOM)*0.22;
+  compassKey='';
+  updateCompass();
+  updateZoomPill();
+}
 calcZoom();
 // The true full-screen height under viewport-fit=cover. Measured on an iPhone
 // standalone PWA: innerHeight / 100% / 100dvh all report the SHORT height (they
@@ -74,6 +98,7 @@ function settleViewportChange(){
   setActiveCanvas(activeCanvas());
   calcZoom();
   if (game.mode && game.gameMode==='design') snapCam();
+  updateZoomPill();
   compassKey='';
   updateCompass();
   repositionOpenChrome();

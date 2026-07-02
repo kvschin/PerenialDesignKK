@@ -527,6 +527,7 @@ function render(t){
 
   // selection tool: marquee, committed selection, and move/copy ghost
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
+  if (typeof positionSelectionActions==='function') positionSelectionActions();
 
   // season light tint + falling snow
   applySeasonLighting(cx,W,H,amb,cal.season);

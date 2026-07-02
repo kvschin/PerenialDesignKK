@@ -819,14 +819,14 @@ function eraseSelection(){
   clearSelection();
 }
 function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; }
-function clearSelection(){ resetSelectionState(); buildToolTray(); }
+function clearSelection(){ resetSelectionState(); buildToolTray(); refreshCanvasTools(); }
 function selPointerDown(x,y,e){
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
     selMove={grabX:x,grabY:y,curX:x,curY:y,copy:game.selMode==='copy'};
   } else {                              // start a fresh marquee
     selDrag={x0:x,y0:y,x1:x,y1:y};
-    if (game.sel){ game.sel=null; game.selItems=null; buildToolTray(); }
+    if (game.sel){ game.sel=null; game.selItems=null; buildToolTray(); refreshCanvasTools(); }
   }
 }
 function selPointerMove(x,y){
@@ -840,14 +840,14 @@ function selPointerUp(){
     // the selection OWNS exactly what was in the box when it was drawn — it
     // won't scoop up items that later end up inside the rect
     game.selItems=selectionPayload(game.sel);
-    selDrag=null; buildToolTray();
+    selDrag=null; buildToolTray(); refreshCanvasTools();
     return;
   }
   if (selMove){
     const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
     const copy=selMove.copy; selMove=null;
     if (dx||dy) commitSelectionOffset(dx,dy,copy);
-    buildToolTray();
+    buildToolTray(); refreshCanvasTools();
   }
 }
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset

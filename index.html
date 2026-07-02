@@ -155,9 +155,7 @@
           <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span></span>
         </span>
       </button>
-      <button id="btnSelectTool" class="top-tool" title="Select an area" aria-label="Select an area"><canvas id="btnSelectIcon" width="42" height="32" aria-hidden="true"></canvas></button>
-      <button id="btnRotateTool" class="top-tool" title="Rotate view (R)" aria-label="Rotate view"><canvas id="btnRotateIcon" width="42" height="32" aria-hidden="true"></canvas></button>
-      <button id="btnLayersTool" class="top-tool" title="Show or hide garden layers and overlays" aria-label="Garden layers and overlays"><canvas id="btnLayersIcon" width="42" height="32" aria-hidden="true"></canvas></button>
+      <button id="btnViewTools" class="top-tool" title="View tools" aria-label="View tools"><canvas id="btnViewToolsIcon" width="42" height="32" aria-hidden="true"></canvas></button>
     </div>
     <div class="hud-right">
       <div class="pill iconbar" id="actionBar">
@@ -173,6 +171,14 @@
     <span class="compass-edge-label" data-dir="W"><i></i><b>W</b></span>
   </div>
   <div id="canvasTools" aria-label="Canvas tools"></div>
+  <div id="zoomPill" class="zoom-pill" aria-label="Zoom controls">
+    <button id="btnZoomOut" title="Zoom out" aria-label="Zoom out">-</button>
+    <button id="btnZoomFit" title="Fit plot to screen" aria-label="Fit plot to screen">Fit</button>
+    <span id="zoomLabel">100%</span>
+    <button id="btnZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+  </div>
+  <div id="selectionActions" class="selection-actions hidden" aria-label="Selection actions"></div>
+  <div id="gestureCancel" class="gesture-cancel hidden" aria-live="polite"></div>
   <div class="hud-bottom">
     <button id="sheetHandle" aria-label="Expand or collapse the palette"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
     <button id="btnAct" class="hidden">Plant here</button>

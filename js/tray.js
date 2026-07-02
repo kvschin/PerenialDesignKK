@@ -131,6 +131,7 @@ function rememberBrushTool(){
 }
 function setTool(k,v){
   game.toolMenu=null;
+  game.catMenuOpen=false;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
   if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
@@ -233,6 +234,18 @@ function drawCanvasIcon(tc,kind){
   } else if (kind==='layers'){
     for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
       tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
+  } else if (kind==='viewtools'){
+    tc.fillStyle=cream;
+    [13,21,29].forEach(x=>{ tc.beginPath(); tc.arc(x,16,2.1,0,7); tc.fill(); });
+    tc.strokeStyle='rgba(201,127,63,.55)'; tc.lineWidth=1.3;
+    tc.beginPath(); tc.moveTo(9,8); tc.lineTo(33,8); tc.moveTo(9,24); tc.lineTo(33,24); tc.stroke();
+  } else if (kind==='ruler'){
+    tc.save(); tc.translate(21,17); tc.rotate(-0.55);
+    tc.fillStyle='rgba(201,127,63,.25)'; tc.strokeStyle=cream; tc.lineWidth=1.6;
+    tc.beginPath(); roundedIconRect(tc,-14,-5,28,10,2); tc.fill(); tc.stroke();
+    tc.strokeStyle=seed; tc.lineWidth=1;
+    for (let x=-9;x<=9;x+=6){ tc.beginPath(); tc.moveTo(x,-5); tc.lineTo(x,-1); tc.stroke(); }
+    tc.restore();
   } else if (kind==='move'){
     // four-way arrows
     tc.beginPath(); tc.moveTo(21,6); tc.lineTo(21,28); tc.moveTo(10,17); tc.lineTo(32,17); tc.stroke();
@@ -646,18 +659,16 @@ function refreshCanvasTools(){ buildCanvasTools(); }
 // non-painting tools — beside the season dial. Keep their icons + state in sync,
 // and (re)render the Layers flyout pinned under its button.
 function syncTopTools(){
-  const sel=document.getElementById('btnSelectTool');
-  if (sel){ sel.classList.toggle('sel',game.tool==='select');
-    sel.onclick=()=>{ setTool('select'); buildToolTray(); };
-    const c=document.getElementById('btnSelectIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'select'); }
-  const rot=document.getElementById('btnRotateTool');
-  if (rot){ rot.onclick=()=>rotateView(1);
-    const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
-  const lay=document.getElementById('btnLayersTool');
-  if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
-    lay.onclick=()=>toggleLayerMenu();
-    const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
+  const view=document.getElementById('btnViewTools');
+  if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
+    view.onclick=()=>toggleViewToolsMenu();
+    const c=document.getElementById('btnViewToolsIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'viewtools'); }
+  renderViewToolsMenu();
   renderLayerMenu();
+}
+function toggleViewToolsMenu(){
+  game.toolMenu = game.toolMenu==='view' ? null : 'view';
+  refreshCanvasTools();
 }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
@@ -672,7 +683,7 @@ function buildCanvasTools(){
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
-    onClick:()=>{ setTool('shovel'); buildToolTray(); }});
+    onClick:()=>toggleEraseToolMenu()});
   add('Pick','dropper',{active:game.tool==='pick',
     title:'Eyedropper: tap a tile to copy its plant or material onto the brush',
     onClick:()=>{ setTool('pick'); buildToolTray(); }});
@@ -681,6 +692,133 @@ function buildCanvasTools(){
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:doUndo});
   add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:doRedo});
+  renderErasePopover();
+  renderViewToolsMenu();
+  renderLayerMenu();
+  renderSelectionActions();
+}
+function popButton(label,kind,sel,fn,title,extra){
+  const b=document.createElement('button');
+  b.className=(sel?' sel':'')+(extra||'');
+  b.title=title||label;
+  if (kind){
+    const c=document.createElement('canvas'); c.width=42; c.height=32;
+    drawCanvasIcon(c.getContext('2d'),kind);
+    b.appendChild(c);
+  }
+  const sp=document.createElement('span'); sp.textContent=label; b.appendChild(sp);
+  b.onclick=ev=>{ ev.stopPropagation(); fn&&fn(); };
+  return b;
+}
+function anchorPopover(pop,anchor){
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||170;
+  let left=Math.min(Math.round(r.left), innerWidth-w-8);
+  left=Math.max(8,left);
+  pop.style.position='fixed'; pop.style.zIndex='40';
+  pop.style.top=Math.round(r.bottom+6)+'px';
+  pop.style.left=left+'px';
+  pop.style.right='auto'; pop.style.bottom='auto';
+}
+function renderViewToolsMenu(){
+  const old=document.getElementById('viewToolsPop'); if (old) old.remove();
+  const btn=document.getElementById('btnViewTools');
+  if (game.toolMenu!=='view' || !btn) return;
+  const pop=document.createElement('div');
+  pop.id='viewToolsPop'; pop.className='tool-popover view-tools-popover';
+  if (!game.visiting){
+    pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
+      setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
+      toast('Drag a box on the garden to select an area.');
+    },'Select an area'));
+  }
+  pop.appendChild(popButton('Rotate','rotate',false,()=>{
+    rotateView(1); game.toolMenu=null; refreshCanvasTools();
+  },'Rotate view 90 degrees'));
+  pop.appendChild(popButton('Layers','layers',layerViewActive(),()=>{
+    game.toolMenu='layers'; refreshCanvasTools();
+  },'Show or hide garden layers'));
+  if (!game.visiting){
+    pop.appendChild(popButton('Ruler','ruler',false,()=>{
+      game.toolMenu=null; refreshCanvasTools();
+      toast('Ruler mode is next in the Measure wave.');
+    },'Tape measure mode is planned next'));
+  }
+  anchorPopover(pop,btn);
+}
+function toggleEraseToolMenu(){
+  const wasOpen=game.tool==='shovel' && game.toolMenu==='erase';
+  setTool('shovel',null);
+  game.toolMenu=wasOpen?null:'erase';
+  buildToolTray();
+  refreshCanvasTools();
+}
+function renderErasePopover(){
+  const old=document.getElementById('erasePop'); if (old) old.remove();
+  const rail=document.getElementById('canvasTools');
+  const btn=rail && Array.from(rail.querySelectorAll('.canvas-tool')).find(b=>b.title&&b.title.startsWith('Erase'));
+  if (game.toolMenu!=='erase' || !btn) return;
+  const pop=document.createElement('div');
+  pop.id='erasePop'; pop.className='tool-popover erase-popover';
+  const section=t=>{ const h=document.createElement('div'); h.className='pop-section'; h.textContent=t; pop.appendChild(h); };
+  const grid=()=>{ const g=document.createElement('div'); g.className='pop-grid'; pop.appendChild(g); return g; };
+  section('Erase');
+  const modes=grid();
+  [['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']].forEach(([m,lbl])=>{
+    modes.appendChild(popButton(lbl,null,game.eraseMode===m,()=>{
+      game.eraseMode=m; game.toolMenu='erase'; refreshCanvasTools();
+      toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`);
+    },`Erase ${lbl.toLowerCase()}`, game.eraseMode===m?' danger':''));
+  });
+  section('Size');
+  const sizes=grid(), cur=normalizeBrushSize(game.brushSize);
+  BRUSH_SIZES.forEach(sz=>{
+    sizes.appendChild(popButton(sz===1?'1 tile':`${sz} wide`,null,cur===sz,()=>{
+      setBrushSize(sz); game.toolMenu='erase'; refreshCanvasTools();
+      toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`);
+    },`Erase ${sz} tile${sz>1?'s':''} wide`, cur===sz?' danger':''));
+  });
+  document.body.appendChild(pop);
+  const r=btn.getBoundingClientRect();
+  pop.style.position='fixed'; pop.style.zIndex='40';
+  pop.style.top=Math.round(r.top)+'px';
+  pop.style.left=Math.round(r.right+7)+'px';
+  if (pop.getBoundingClientRect().right>innerWidth-8){
+    pop.style.left='auto';
+    pop.style.right='8px';
+  }
+}
+function renderSelectionActions(){
+  const el=document.getElementById('selectionActions'); if (!el) return;
+  el.innerHTML='';
+  if (game.tool!=='select' || !game.sel){ el.classList.add('hidden'); return; }
+  const btn=(label,sel,fn,title,cls)=>{
+    const b=document.createElement('button');
+    b.className=(sel?'sel ':'')+(cls||'');
+    b.textContent=label; b.title=title||label;
+    b.onclick=e=>{ e.stopPropagation(); fn&&fn(); };
+    el.appendChild(b);
+  };
+  btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); toast('Drag the selection to move it.'); });
+  btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); toast('Drag the selection to drop a copy.'); });
+  btn('Fill',false,()=>fillSelectionWithPlant(),'Fill the selection with the last selected plant or landscape material');
+  btn('Rotate',false,()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); },'Rotate the selection 90 degrees');
+  btn('Erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },'Delete everything in the selection','danger');
+  btn('Save',false,()=>saveSelectedArea(),'Save this selected area for later pasting');
+  btn('Paste',false,()=>pasteSavedArea(),'Paste the saved area starting here',storedArea()?'':'disabled');
+  el.classList.remove('hidden');
+  positionSelectionActions();
+}
+function positionSelectionActions(){
+  const el=document.getElementById('selectionActions');
+  if (!el || el.classList.contains('hidden') || !game.sel) return;
+  const r=game.sel, W=VW/ZOOM, H=VH/ZOOM;
+  const top=screenOf((r.x0+r.x1)/2, r.y0-0.7, W, H);
+  let x=Math.round(top[0]*ZOOM), y=Math.round(top[1]*ZOOM);
+  x=Math.max(86,Math.min(VW-86,x));
+  y=Math.max(118,Math.min(VH-120,y));
+  el.style.left=x+'px';
+  el.style.top=y+'px';
 }
 /* a small themed yes/no modal, built on the fly (matches the .screen panels).
    Returns nothing; calls onOk only if the user confirms. */
@@ -735,8 +873,9 @@ function toggleLayerMenu(){
 // whenever the rail refreshes — its rows call refreshCanvasTools() to re-render.
 function renderLayerMenu(){
   const old=document.getElementById('layerPop'); if (old) old.remove();
-  const btn=document.getElementById('btnLayersTool');
+  const btn=document.getElementById('btnViewTools');
   if (game.toolMenu!=='layers' || !btn) return;
+  const viewPop=document.getElementById('viewToolsPop'); if (viewPop) viewPop.remove();
   const pop=buildLayerPopover(); pop.id='layerPop';
   pop.style.position='fixed'; pop.style.zIndex='40';
   pop.style.bottom='auto'; pop.style.right='auto';
@@ -829,8 +968,9 @@ function buildToolTray(){
   const activeGroup=trayGroupOf(game.trayCat);
   lastCatByGroup[activeGroup]=game.trayCat;
   const selectCat=(id)=>{ saveTrayScroll(); game.trayCat=id; game.toolMenu=null; game.drill=null;
+    game.catMenuOpen=false;
     rememberBrushMenu(id,null);
-    if (game.tool==='shovel'||game.tool==='select'||game.tool==='pick') setTool('hand');
+    if (game.tool==='pick') setTool('hand');
     else refreshCanvasTools();
     buildToolTray(); };
   // tier 1: Plants / Build
@@ -842,7 +982,7 @@ function buildToolTray(){
   });
   // search is a toggle (a magnifier), not a permanent input row. When open it
   // takes the sub-tabs' place, so it never adds a wrapping row.
-  const canSearch = game.tool!=='shovel' && game.tool!=='select';
+  const canSearch = true;
   if (canSearch){
     const sb=document.createElement('button');
     sb.className='tab tab-search'+(game.searchOpen?' sel close':'');
@@ -867,25 +1007,33 @@ function buildToolTray(){
   } else {
     // tier 2: the active group's category sub-tabs
     const groupCats=TRAY_GROUPS.find(g=>g.id===activeGroup).cats;
+    const curCat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+    const cur=document.createElement('button');
+    cur.className='cat-current';
+    cur.innerHTML=`<span>${curCat.label}</span><i>${game.catMenuOpen?'▲':'▼'}</i>`;
+    cur.onclick=()=>{ game.catMenuOpen=!game.catMenuOpen; buildToolTray(); };
+    tabs.appendChild(cur);
+    if (game.catMenuOpen){
+      const pop=document.createElement('div');
+      pop.className='cat-pop';
+      TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
+        const b=document.createElement('button');
+        b.className=game.trayCat===c.id?'sel':'';
+        b.textContent=c.label;
+        b.onclick=()=>selectCat(c.id);
+        pop.appendChild(b);
+      });
+      tabs.appendChild(pop);
+    }
     TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
       const b=document.createElement('button');
-      b.className='tab'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
+      b.className='tab subcat'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
       b.onclick=()=>selectCat(c.id);
       tabs.appendChild(b);
     });
   }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
-  if (game.tool==='select'){
-    renderSelectTray(tray);
-    finishToolTrayRender();
-    return;
-  }
-  if (game.tool==='shovel'){
-    renderEraseTray(tray);
-    finishToolTrayRender();
-    return;
-  }
   if (cat.types){
     let keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
     if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
@@ -1543,11 +1691,33 @@ function sheetContextLabel(){
   if (game.tool==='pick') return 'Eyedropper';
   return 'Tap to choose a plant';
 }
+const SHEET_STATES=['collapsed','half','full'];
+function normalizedSheetState(s){
+  if (SHEET_STATES.includes(s)) return s;
+  return game.sheetCollapsed ? 'collapsed' : 'half';
+}
+function setSheetState(s){
+  game.sheetState=normalizedSheetState(s);
+  game.sheetCollapsed=game.sheetState==='collapsed';
+  applySheetState();
+}
+function cycleSheetState(){
+  const s=normalizedSheetState(game.sheetState);
+  setSheetState(s==='collapsed'?'half':s==='half'?'collapsed':'half');
+}
+function nudgeSheetState(dir){
+  const i=SHEET_STATES.indexOf(normalizedSheetState(game.sheetState));
+  setSheetState(SHEET_STATES[Math.max(0,Math.min(SHEET_STATES.length-1,i+dir))]);
+}
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
-  hb.classList.toggle('collapsed', !!game.sheetCollapsed);
+  const s=normalizedSheetState(game.sheetState);
+  game.sheetState=s; game.sheetCollapsed=s==='collapsed';
+  hb.classList.remove('collapsed','sheet-collapsed','sheet-half','sheet-full');
+  hb.classList.add('sheet-'+s);
+  hb.classList.toggle('collapsed', s==='collapsed');
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
-  const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=game.sheetCollapsed?'▴':'▾';
+  const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=s==='full'?'▾':s==='half'?'─':'▴';
   drawSheetSwatch();
 }
 /* a mini render of the armed brush in the collapse handle, so you always see

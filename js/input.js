@@ -47,25 +47,60 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, toolDrag=null, fillTap=null;
+const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null;
 function shouldStartPan(e){
   return (game.tool==='hand' && game.gameMode==='design' && !game.visiting)
     || (game.gameMode==='design' && (e.button===1 || spaceHeld));
 }
-function cancelCanvasGesture(restore){
+function showGestureCancel(msg){
+  const el=document.getElementById('gestureCancel'); if (!el) return;
+  el.textContent=msg||'Placement cancelled';
+  el.classList.remove('hidden');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{ el.classList.remove('show'); el.classList.add('hidden'); },900);
+}
+function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
   sweep=null; toolDrag=null; fillTap=null; panDrag=null; selDrag=null; selMove=null;
   game.pathTarget=null; game.sleepOnArrive=false;
+  if (notice) showGestureCancel(notice);
   updateCanvasCursor();
+}
+function startMultiTouch(count){
+  multiTouch={count,start:Date.now(),moved:false,pts:new Map(activePtrs)};
+}
+function markMultiMoved(){
+  if (!multiTouch || multiTouch.moved) return;
+  for (const [id,p] of activePtrs){
+    const s=multiTouch.pts.get(id);
+    if (s && Math.hypot(p[0]-s[0],p[1]-s[1])>10){ multiTouch.moved=true; return; }
+  }
+}
+function finishMultiTouch(){
+  if (!multiTouch || activePtrs.size) return;
+  const quick=Date.now()-multiTouch.start<320;
+  if (quick && !multiTouch.moved){
+    if (multiTouch.count>=3){ doRedo(); showGestureCancel('Redo'); }
+    else if (multiTouch.count===2){ doUndo(); showGestureCancel('Undo'); }
+  }
+  multiTouch=null;
 }
 cnv.addEventListener('pointerdown',e=>{
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if (activePtrs.size>=3){
+    startMultiTouch(3);
+    pinch=null;
+    cancelCanvasGesture(true,'Gesture shortcut');
+    return;
+  }
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
     pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
            cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
            camx0:cam.x, camy0:cam.y};
-    cancelCanvasGesture(true);
+    startMultiTouch(2);
+    cancelCanvasGesture(true,'Zooming - placement cancelled');
     return;
   }
   if (activePtrs.size>1) return;
@@ -160,9 +195,12 @@ cnv.addEventListener('pointermove',e=>{
     return;
   }
   if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+  markMultiMoved();
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
-    setUserZoom(pinch.z0*(Math.hypot(a[0]-b2[0],a[1]-b2[1])||1)/pinch.d0);
+    const d=Math.hypot(a[0]-b2[0],a[1]-b2[1])||1;
+    if (Math.abs(d-pinch.d0)>8) multiTouch && (multiTouch.moved=true);
+    setUserZoom(pinch.z0*d/pinch.d0);
     // two-finger drag pans the canvas (design mode has a free camera)
     if (game.gameMode==='design'){
       const cx=(a[0]+b2[0])/2, cy=(a[1]+b2[1])/2;
@@ -222,6 +260,7 @@ function endSweep(){
 cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
+  finishMultiTouch();
   if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
   if (fillTap){ const f=fillTap; fillTap=null; doFloodFill(f.x,f.y); return; }
@@ -236,6 +275,7 @@ cnv.addEventListener('pointerup',e=>{
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (activePtrs.size<2) pinch=null;
+  finishMultiTouch();
   cancelCanvasGesture(true);
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll

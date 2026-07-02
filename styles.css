@@ -179,7 +179,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    tool rail, the catalog/brush tray, the mobile act button, and the Select
    tool — Rotate and Layers stay, they only change the view). */
 body.visiting #canvasTools, body.visiting .hud-bottom, body.visiting #btnAct,
-body.visiting #btnSelectTool{display:none!important}
+body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
 
 /* ---------- character creator ---------- */
 .creator-grid{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
@@ -288,6 +288,13 @@ body.visiting #btnSelectTool{display:none!important}
 .tool-popover button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;border-radius:3px;
   color:#cdbfa9;text-align:left;font-size:12px;padding:8px 9px}
 .tool-popover button:hover,.tool-popover button.sel{background:rgba(201,127,63,.22);color:var(--seedhead)}
+.tool-popover .pop-section{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--bronze);
+  font-weight:700;padding:7px 8px 4px}
+.tool-popover .pop-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:0 3px 4px}
+.tool-popover .pop-grid button{justify-content:center;text-align:center;padding:8px 6px;border:1px solid rgba(239,230,211,.12)}
+.tool-popover .pop-grid button.danger.sel{background:rgba(126,42,35,.56);border-color:#e08a7a;color:#ffd9d1}
+.view-tools-popover{width:168px}
+.view-tools-popover button canvas{width:26px;height:20px;flex:0 0 auto}
 .layer-popover{top:auto;bottom:6px;width:172px;padding:6px;display:flex;flex-direction:column;gap:1px}
 .layer-section{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a7d6c;
   padding:7px 9px 3px;font-weight:600}
@@ -308,6 +315,7 @@ body.visiting #btnSelectTool{display:none!important}
 .hud-bottom{position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
 #sheetHandle{display:none} /* the collapse handle is a phone-only affordance */
 #sheetHandle canvas{width:24px;height:21px;flex-shrink:0;display:block}
+#trayTabs{position:relative}
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
   border:1.5px solid rgba(239,230,211,.25);border-bottom:none;border-radius:6px 6px 0 0;
   padding:5px 8px 0;max-width:96vw;overflow-x:auto;margin-bottom:-8px}
@@ -323,6 +331,8 @@ body.visiting #btnSelectTool{display:none!important}
 #trayTabs .tab.tab-search.sel{opacity:1;background:rgba(201,127,63,.3)}
 /* the ✕ close state: a touch bolder so it reads as "exit search" */
 #trayTabs .tab.tab-search.close{font-size:12px;font-weight:700;color:var(--seedhead)}
+.cat-current{display:none}
+.cat-pop{display:none}
 #traySearch{flex:1;min-width:110px;max-width:240px;align-self:center;background:rgba(0,0,0,.3);
   border:1px solid rgba(239,230,211,.25);border-radius:4px;color:var(--seedhead);
   font-family:inherit;font-size:12px;padding:5px 9px;margin:0 4px 4px}
@@ -366,6 +376,29 @@ body.visiting #btnSelectTool{display:none!important}
   font-weight:700;font-size:15px;padding:12px 32px;border-radius:26px;
   box-shadow:0 3px 10px rgba(0,0,0,.4);letter-spacing:.02em}
 #btnAct:active{transform:translateY(1px)}
+.zoom-pill{position:absolute;right:12px;bottom:126px;z-index:7;pointer-events:auto;display:flex;align-items:center;
+  gap:2px;background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:999px;padding:4px;color:#cdbfa9;
+  box-shadow:0 5px 18px rgba(0,0,0,.22)}
+.zoom-pill button{min-width:34px;height:30px;border:none;border-radius:999px;background:rgba(239,230,211,.06);
+  color:var(--seedhead);font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif}
+.zoom-pill button:hover{background:rgba(201,127,63,.24)}
+.zoom-pill #zoomLabel{min-width:42px;text-align:center;font-size:11px;font-weight:700;color:#cdbfa9}
+.selection-actions{position:absolute;left:50%;top:50%;z-index:14;pointer-events:auto;display:flex;gap:4px;
+  max-width:min(92vw,560px);overflow-x:auto;padding:5px;background:rgba(24,17,13,.74);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  border:1.5px solid rgba(150,210,255,.42);border-radius:999px;box-shadow:0 8px 26px rgba(0,0,0,.32);
+  transform:translate(-50%,-100%)}
+.selection-actions button{border:1px solid rgba(239,230,211,.14);border-radius:999px;background:rgba(239,230,211,.07);
+  color:#cdbfa9;padding:8px 11px;font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;white-space:nowrap}
+.selection-actions button.sel{background:rgba(201,127,63,.34);border-color:var(--bronze);color:var(--seedhead)}
+.selection-actions button.danger{border-color:rgba(224,138,122,.5);color:#ffd9d1;background:rgba(126,42,35,.34)}
+.selection-actions button.disabled{opacity:.4;pointer-events:none}
+.gesture-cancel{position:absolute;left:50%;top:50%;z-index:26;transform:translate(-50%,-50%);
+  pointer-events:none;background:rgba(24,17,13,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1.5px solid rgba(239,230,211,.25);border-radius:999px;padding:10px 16px;color:var(--seedhead);
+  font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif;opacity:0;transition:opacity .18s ease}
+.gesture-cancel.show{opacity:1}
 #toast{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(25,18,15,.92);border:1.5px solid var(--bronze);
   color:var(--seedhead);padding:10px 18px;border-radius:4px;font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #plantCard{position:fixed;top:108px;right:10px;background:rgba(25,18,15,.94);
@@ -478,6 +511,12 @@ body.visiting #btnSelectTool{display:none!important}
   .canvas-tool span{font-size:7px}
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
   .tool-popover{top:104px;width:148px}
+  .view-tools-popover{width:156px}
+  .zoom-pill{right:8px;bottom:calc(112px + env(safe-area-inset-bottom));padding:3px}
+  .zoom-pill button{min-width:32px;height:32px;font-size:12px}
+  .zoom-pill #zoomLabel{display:none}
+  .selection-actions{max-width:calc(100vw - 16px);border-radius:14px;padding:5px;transform:translate(-50%,-106%)}
+  .selection-actions button{padding:9px 10px;font-size:11px}
   #plantCard{top:128px;right:8px;max-width:76vw;padding:10px 22px 10px 12px}
   .pill.iconbar .lbl{display:none}
   .pill.iconbar button{font-size:16px;padding:6px 8px}
@@ -488,7 +527,7 @@ body.visiting #btnSelectTool{display:none!important}
   #plantCard p{font-size:11px;line-height:1.4}
   /* collapsible palette: a tap on the handle folds the catalog away so the
      garden gets the room while you paint; the brush bar + act button stay. */
-  #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;
+  #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;touch-action:none;
     background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     border:1.5px solid rgba(239,230,211,.25);border-radius:8px;
     min-height:44px;padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw;flex-shrink:0}
@@ -500,9 +539,22 @@ body.visiting #btnSelectTool{display:none!important}
   #cvRow .chip{padding:8px 13px}
   /* let the Plants sub-tabs wrap instead of scrolling off; tighter padding
      keeps the wrap to ~two rows */
-  #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px;min-height:44px;flex-shrink:0;align-items:stretch}
+  #trayTabs{flex-wrap:nowrap;row-gap:2px;gap:4px;min-height:44px;flex-shrink:0;align-items:stretch;overflow:visible}
   #trayTabs .tab{min-height:38px;padding:6px 8px;display:flex;align-items:center}
   #trayTabs .tab.tab-search{min-width:44px;min-height:38px;padding:6px 10px}
+  #trayTabs .tab.subcat{display:none}
+  .cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:128px;max-width:42vw;
+    background:rgba(239,230,211,.08);border:1px solid rgba(239,230,211,.16);border-radius:7px;
+    color:var(--seedhead);font-size:12px;font-weight:700;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}
+  .cat-current span{overflow:hidden;text-overflow:ellipsis}
+  .cat-current i{font-style:normal;color:var(--bronze);font-size:10px}
+  .cat-pop{position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));
+    bottom:calc(100% + 8px);z-index:42;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;
+    padding:7px;background:rgba(24,17,13,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1.5px solid rgba(239,230,211,.25);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.42)}
+  .cat-pop button{min-height:40px;border:1px solid rgba(239,230,211,.12);border-radius:7px;background:rgba(239,230,211,.06);
+    color:#cdbfa9;font:700 12px/1.1 'IBM Plex Sans',system-ui,sans-serif}
+  .cat-pop button.sel{background:rgba(201,127,63,.3);border-color:var(--bronze);color:var(--seedhead)}
   #brushBar{min-height:44px;max-width:100vw;overflow-x:auto;flex-shrink:0}
   /* full-bleed palette: edge to edge, square corners, docked to the bottom.
      The catalog's own bottom padding lifts it clear of the home indicator
@@ -510,13 +562,16 @@ body.visiting #btnSelectTool{display:none!important}
   .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
-  #toolTray{min-height:96px;max-height:min(36vh,292px);overflow-x:hidden;overflow-y:auto;
+  #toolTray{min-height:96px;max-height:min(34vh,276px);overflow-x:hidden;overflow-y:auto;
     flex-wrap:wrap;align-content:flex-start;align-items:flex-start;-webkit-overflow-scrolling:touch;
     padding-bottom:calc(6px + env(safe-area-inset-bottom));
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
-  .hud-bottom.collapsed #cvRow,
-  .hud-bottom.collapsed #trayTabs,
-  .hud-bottom.collapsed #toolTray{display:none !important}
+  .hud-bottom.sheet-collapsed #cvRow,
+  .hud-bottom.sheet-collapsed #trayTabs,
+  .hud-bottom.sheet-collapsed #toolTray{display:none !important}
+  .hud-bottom.sheet-full #toolTray{max-height:calc(100lvh - 222px);min-height:min(52vh,520px)}
+  .hud-bottom.sheet-full #trayTabs{border-top:1.5px solid rgba(239,230,211,.25)}
+  .hud-bottom.sheet-half #toolTray{max-height:min(34vh,276px)}
 }
 /* legacy phones (≤359px): the top bar now carries 3 view tools beside the
    season dial, so tighten gaps/buttons here only — normal phones keep the
