@@ -315,7 +315,7 @@ function render(t){
     if (p.removed) continue;
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
-    const gB=plantGrowth(p); if (gB<=0.02) continue;
+    const gB=displayPlantGrowth(p); if (gB<=0.02) continue;
     plantCount++;
     ents.push({depth:plantDepth(x,y,p)+0.25, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
       drawPlantMaybeCached(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v,undefined,useSprites);}});
@@ -325,7 +325,7 @@ function render(t){
     if (!layerShown(plantLayerOf(p))) continue;       // perennials/woody view toggle
     const [x,y]=k.split(',').map(Number);
     if (x<x0||x>x1||y<y0||y>y1) continue;
-    let g2v=plantGrowth(p);
+    let g2v=displayPlantGrowth(p);
     const P2=PLANTS[p.s];
     if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
         shadeTrees.some(sh=>sh.p!==p && treeShadeScore(sh,x,y)>=SHADE_ACTIVE_SCORE))
@@ -497,8 +497,8 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.fence) drawFence(cx,W,H,season,c.fence,nx,ny);
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
       if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny);
-      if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,plantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
-      if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,plantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);
+      if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
+      if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);
     }
     cx.restore();
     return;

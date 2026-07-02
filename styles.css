@@ -172,6 +172,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-visit{background:none;border:1px solid rgba(239,230,211,.3);color:var(--seedhead);
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:4px;white-space:nowrap}
 .world-visit:hover{border-color:var(--bronze);background:rgba(201,127,63,.16)}
+.world-dup{background:rgba(201,127,63,.12);border:1px solid rgba(201,127,63,.36);color:var(--seedhead);
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:4px;white-space:nowrap}
+.world-dup:hover{border-color:var(--bronze);background:rgba(201,127,63,.22)}
 /* Visit Gardens: a read-only stroll hides all the editing chrome (the left
    tool rail, the catalog/brush tray, the mobile act button, and the Select
    tool — Rotate and Layers stay, they only change the view). */
@@ -270,6 +273,8 @@ body.visiting #btnSelectTool{display:none!important}
   color:#cdbfa9;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;
   padding:3px 2px 4px;position:relative;text-decoration:none}
 .canvas-tool canvas{position:absolute;top:3px;left:50%;transform:translateX(-50%)}
+.canvas-tool canvas.rail-swatch{left:auto;right:2px;top:2px;transform:none;width:18px;height:16px;
+  border-radius:3px;background:rgba(25,18,15,.72);border:1px solid rgba(239,230,211,.28)}
 .canvas-tool span{font-size:8px;line-height:1;text-align:center;pointer-events:none}
 .canvas-tool:hover:not(.disabled){background:rgba(201,127,63,.16);border-color:rgba(239,230,211,.25)}
 .canvas-tool.sel{border-color:var(--bronze);background:rgba(201,127,63,.28);box-shadow:inset 0 0 0 1px rgba(239,230,211,.10)}
@@ -295,6 +300,10 @@ body.visiting #btnSelectTool{display:none!important}
 .layer-row.off{opacity:.42}
 .layer-row.off .layer-eye{color:#7d7164}
 .layer-row.off .layer-name{text-decoration:line-through}
+.preview-toggle{display:flex;flex-direction:column;gap:7px;margin:0 0 12px;padding:10px;
+  border:1px solid rgba(239,230,211,.14);border-radius:5px;background:rgba(239,230,211,.045)}
+.preview-toggle>span{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--bronze);font-weight:700}
+.preview-toggle small{font-size:11px;line-height:1.35;color:#bdaf99}
 #playerList{font-size:12px;line-height:1.6}
 .hud-bottom{position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:0 8px}
 #sheetHandle{display:none} /* the collapse handle is a phone-only affordance */

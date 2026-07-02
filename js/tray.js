@@ -254,8 +254,65 @@ function makeCanvasTool(label,kind,opts){
   drawCanvasIcon(c.getContext('2d'),kind);
   const s=document.createElement('span'); s.textContent=label;
   b.append(c,s);
+  if (opts&&opts.swatch){
+    const sw=document.createElement('canvas');
+    sw.className='rail-swatch'; sw.width=30; sw.height=24;
+    drawBrushSwatchCanvas(sw,true);
+    b.appendChild(sw);
+  }
   if (opts&&opts.onClick) b.onclick=opts.onClick;
   return b;
+}
+function brushSwatchChoice(includeLast){
+  if (isBrushTool(game.tool)) return [game.tool,game.toolVar||null];
+  if (includeLast && isBrushTool(game.lastBrushTool)) return [game.lastBrushTool,game.lastBrushVar||null];
+  return [null,null];
+}
+function drawBrushSwatchCanvas(c,includeLast){
+  if (!c) return false;
+  const [k,v]=brushSwatchChoice(includeLast);
+  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if (!k){ c.style.display='none'; return false; }
+  c.style.display='';
+  if (PLANTS[k]){
+    const R=plantDef(k,v);
+    const sc=Math.min(0.45, (c.height-5)/(R.h||40));
+    g.save(); g.scale(sc,sc);
+    const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
+    drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
+    g.restore();
+    return true;
+  }
+  const diamond=(fill,stroke)=>{
+    const cx0=c.width/2, cy0=c.height/2+1, w=c.width*.72, h=c.height*.48;
+    g.fillStyle=fill; g.beginPath();
+    g.moveTo(cx0,cy0-h/2); g.lineTo(cx0+w/2,cy0); g.lineTo(cx0,cy0+h/2); g.lineTo(cx0-w/2,cy0);
+    g.closePath(); g.fill();
+    if (stroke){ g.strokeStyle=stroke; g.lineWidth=1.2; g.stroke(); }
+  };
+  if (k==='path'){ diamond(pathColor(game.pathColor).fill,'rgba(239,230,211,.55)'); return true; }
+  if (k==='bed'){ diamond(bedStyle(game.bedStyle).fill||'#54402f','rgba(239,230,211,.42)'); return true; }
+  if (k==='water'){ const ws=waterStyle(game.waterStyle); diamond(ws.fill,'rgba(232,248,244,.55)');
+    g.strokeStyle='rgba(232,248,244,.8)'; g.lineWidth=1; g.beginPath();
+    g.ellipse(c.width/2,c.height/2+1,c.width*.22,2.2,0,0,7); g.stroke(); return true; }
+  if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
+    g.fillStyle='#efe6d3'; g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
+  if (k==='fence'){ const st=fenceStyle(fenceDraft().style);
+    g.strokeStyle=st.rail; g.lineWidth=2; g.lineCap='round';
+    g.beginPath(); g.moveTo(5,16); g.lineTo(25,16); g.moveTo(5,10); g.lineTo(25,10);
+    for (let x=7;x<=23;x+=8){ g.moveTo(x,19); g.lineTo(x,6); } g.stroke(); return true; }
+  if (k==='light'){ const ld=lightDraft(), tone=lightTone(ld.tone);
+    g.fillStyle=tone.col; g.beginPath(); g.ellipse(15,9,6,3,0,0,7); g.fill();
+    g.strokeStyle='#d8c7ac'; g.lineWidth=1.7; g.beginPath(); g.moveTo(15,10); g.lineTo(15,22); g.stroke(); return true; }
+  if (k==='firepit'){ diamond('#74695d','rgba(239,230,211,.35)');
+    g.fillStyle='#30261f'; g.beginPath(); g.ellipse(c.width/2,c.height/2+1,6,3,0,0,7); g.fill();
+    g.strokeStyle='#ef7f37'; g.lineWidth=1.3; g.beginPath();
+    g.moveTo(12,12); g.quadraticCurveTo(13,7,15,10); g.moveTo(18,13); g.quadraticCurveTo(20,8,17,6); g.stroke(); return true; }
+  if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
+    g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
+  c.style.display='none';
+  return false;
 }
 function drawPlantModeIcon(tc,drift){
   tc.clearRect(0,0,28,24);
@@ -553,11 +610,12 @@ function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
   syncTopTools();
   rail.innerHTML='';
-  const add=(label,kind,opts)=>rail.appendChild(makeCanvasTool(label,kind,opts||{}));
+  const add=(label,kind,opts)=>{ const b=makeCanvasTool(label,kind,opts||{}); rail.appendChild(b); return b; };
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
-  add('Plant','brush',{active:!!PLANTS[game.tool],
+  add('Plant','brush',{active:isBrushTool(game.tool),
+    swatch:true,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
@@ -862,13 +920,8 @@ function buildToolTray(){
     renderCvRow(); applyTraySearch(); finishToolTrayRender();
     return;
   }
-  // material categories: Landscape and House.
-  // A tool tab arms its first tool right away — RTS style.
-  if (!cat.tools.includes(game.tool)){
-    game.tool=cat.tools[0]; game.toolVar=null;
-    if (!toolMeta(game.tool).paints) game.fillMode=false;
-    rememberBrushTool();
-  }
+  // Material/build categories are catalogs, not hidden mode switches: opening a
+  // tab should not silently arm the first tool inside it.
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.some(isElevationTool)){
     const pathCol=pathColor(game.pathColor);
@@ -1420,18 +1473,9 @@ function applySheetState(){
   const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=game.sheetCollapsed?'▴':'▾';
   drawSheetSwatch();
 }
-/* a mini render of the armed plant in the collapse handle, so you always see
-   what you're about to paint. Materials/tools show no swatch (the label says it). */
+/* a mini render of the armed brush in the collapse handle, so you always see
+   what you're about to paint. */
 function drawSheetSwatch(){
   const c=document.getElementById('sheetSwatch'); if (!c) return;
-  const P=PLANTS[game.tool];
-  if (!P){ c.style.display='none'; return; }
-  c.style.display='';
-  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
-  const R=plantDef(game.tool,game.toolVar);
-  const sc=Math.min(0.5, 18/(R.h||40));
-  g.save(); g.scale(sc,sc);
-  const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
-  drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,game.tool,1,iconSeason,tileSeed(3,7),0,game.toolVar||undefined,1);
-  g.restore();
+  drawBrushSwatchCanvas(c,false);
 }

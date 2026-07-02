@@ -30,6 +30,7 @@ const game = {
   lastBrushTool:null, lastBrushVar:null,             // last placement brush chosen from the catalog
   lastBrushTrayCat:'grasses', lastBrushDrill:null, trayScroll:{}, // where the brush catalog was last browsed
   toolMenu:null,                                     // open flyout on the left canvas toolbar
+  previewMode:'today',                               // design view: today | established (visual only)
   layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,night:false}, // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
@@ -163,6 +164,12 @@ function plantGrowth(p){
   if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
   if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope(p.s);
   return plantEstab(p)*seasonEnvelope(p.s);
+}
+function establishedPreviewActive(){
+  return game.gameMode==='design' && game.previewMode==='established';
+}
+function displayPlantGrowth(p){
+  return establishedPreviewActive() ? 1 : plantGrowth(p);
 }
 function shrubRadiusTiles(P){
   return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;

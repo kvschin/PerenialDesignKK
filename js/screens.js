@@ -85,6 +85,7 @@ function startDailyChallenge(){
   game.worldId='w'+Date.now().toString(36);
   game.worldName=`Daily: "${c.title}"`;
   game.mode='solo'; game.gameMode='design'; game.visiting=false;
+  game.previewMode='established';
   game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
@@ -146,6 +147,9 @@ async function openWorlds(filter){
     const meta=document.createElement('span'); meta.className='meta';
     meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft${badge} · ${new Date(w.ts).toLocaleDateString()}`;
     info.append(nm,document.createElement('br'),meta);
+    const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
+    dup.title='Make a separate copy of this garden';
+    dup.onclick=e=>{ e.stopPropagation(); duplicateWorld(w.id); };
     const del=document.createElement('button'); del.className='world-del'; del.textContent='✕';
     del.title='Delete this garden';
     del.onclick=e=>{ e.stopPropagation();
@@ -156,9 +160,9 @@ async function openWorlds(filter){
       const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
       visit.title='Walk this garden as your avatar (read-only)';
       visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
-      row.append(info,visit,del);
+      row.append(info,dup,visit,del);
     } else {
-      row.append(info,del);
+      row.append(info,dup,del);
     }
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
@@ -220,6 +224,26 @@ async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
   await sSet('hortus:worlds',idx);
   try{ localStorage.removeItem('hortus:world:'+id); }catch(e){}
+  openWorlds(worldsFilter);
+}
+async function duplicateWorld(id){
+  const src=await sGet('hortus:world:'+id);
+  if (!src){ toast('That garden could not be duplicated.'); return; }
+  const copy=JSON.parse(JSON.stringify(src));
+  const base=(copy.name||'My garden').replace(/ copy(?: \d+)?$/i,'');
+  const idx=await worldsIndex();
+  const siblingNames=new Set(idx.map(w=>(w.name||'').toLowerCase()));
+  let name=base+' copy', n=2;
+  while (siblingNames.has(name.toLowerCase())) name=`${base} copy ${n++}`;
+  const newId='w'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
+  copy.name=name;
+  copy.savedAt=Date.now();
+  await sSet('hortus:world:'+newId,copy);
+  const next=idx.filter(w=>w.id!==newId);
+  next.push({id:newId,name,ts:Date.now(),gw:copy.gw||copy.grid||31,gh:copy.gh||copy.grid||31,
+    mode:copy.mode==='design'?'design':'story'});
+  await sSet('hortus:worlds',next);
+  toast(`Duplicated "${base}".`);
   openWorlds(worldsFilter);
 }
 $('btnNewWorld').onclick=()=>startNewGarden(worldsFilter==='story'?'story':'design');
@@ -296,7 +320,14 @@ function enterGarden(){
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
   resetSelectionState();
-  game.tool='hand'; game.toolVar=null; game.pausedAt=0; game.clockSuspended=false; game.startTs=Date.now();
+  game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
+  if (game.gameMode==='design' && !game.visiting){
+    game.previewMode=game.previewMode||'established';
+    game.pausedAt=Date.now();
+  } else {
+    game.previewMode='today';
+    game.pausedAt=0;
+  }
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   document.body.classList.toggle('visiting', !!game.visiting);
   userZoom = game.visiting ? 1.7 : 1; calcZoom(); // visits zoom in on the avatar (closer view + fewer tiles → smoother)
@@ -365,9 +396,9 @@ function openPlotScreen(){
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
-        game.mode='solo'; game.gameMode='design'; game.houses=[]; game.houseDraft=defaultDraft();
+        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
-        game.gameMode='story'; game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses();
+        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses();
         seedWalkway(); starterDrift();
       }
       enterGarden();
@@ -483,6 +514,8 @@ $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
 $('btnConfirmSeasonSkip').onclick=confirmSkipSeason;
+if ($('btnPreviewToday')) $('btnPreviewToday').onclick=()=>setPreviewMode('today');
+if ($('btnPreviewEstablished')) $('btnPreviewEstablished').onclick=()=>setPreviewMode('established');
 $('btnExport').onclick=()=>{ closeOverlay('gardenMenu'); openExport(); };
 $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();

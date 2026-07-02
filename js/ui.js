@@ -393,6 +393,29 @@ function updateDayNightBtn(){
   b.classList.toggle('on',night);
   b.title=night?'Switch to day':'Switch to night (preview lighting)';
 }
+function updatePreviewToggle(){
+  const wrap=document.getElementById('previewToggle'); if (!wrap) return;
+  const show=game.gameMode==='design';
+  wrap.classList.toggle('hidden',!show);
+  if (!show) return;
+  const today=document.getElementById('btnPreviewToday');
+  const est=document.getElementById('btnPreviewEstablished');
+  if (today) today.classList.toggle('on',game.previewMode!=='established');
+  if (est) est.classList.toggle('on',game.previewMode==='established');
+  const note=document.getElementById('previewModeNote');
+  if (note) note.textContent=game.previewMode==='established'
+    ? 'Shows the mature design without advancing garden time.'
+    : 'Shows current growth, bloom timing, and establishment.';
+}
+function setPreviewMode(mode){
+  mode = mode==='established' ? 'established' : 'today';
+  if (game.previewMode===mode){ updatePreviewToggle(); return; }
+  game.previewMode=mode;
+  game.dirty=true;
+  updatePreviewToggle();
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  toast(mode==='established'?'Previewing established plants.':'Previewing today.');
+}
 function updateHUD(){
   const cal=calClock();
   document.getElementById('seasonName').textContent=cal.season;
@@ -416,6 +439,7 @@ function updateHUD(){
     if (fillBg!==game._fillBg){ fill.style.background=fillBg; game._fillBg=fillBg; }
   }
   updateDayNightBtn();
+  updatePreviewToggle();
   setHint(game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
@@ -484,6 +508,7 @@ function openPause(){
   const ps=$('pauseScreen');
   $('pauseMeta').textContent=clockMeta();
   $('btnPauseResume').textContent=game.pausedAt?'Resume':'Pause day';
+  updatePreviewToggle();
   ps.classList.remove('hidden');
   // drop the panel down under the season box, left-aligned to it
   const box=$('btnSeasonBox'), p=ps.querySelector('.panel');

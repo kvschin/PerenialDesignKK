@@ -15,6 +15,7 @@ function setup(gw, gh){
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.freePlanting = false;
+  game.previewMode = 'today';
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
   game.eraseMode = 'all'; game.eraseSize = 1;
@@ -345,6 +346,31 @@ test('garden clock advances only while the garden is active', () => {
   }
 });
 
+test('design preview can show established plants without changing real growth', () => {
+  setup(11, 11);
+  const forb = firstOfType('forb');
+  const p = { s: forb, d: absDay(), t: 1 };
+  game.previewMode = 'today';
+  assert(displayPlantGrowth(p) < 1, 'today preview respects establishment and seasonal growth');
+  game.previewMode = 'established';
+  assertEqual(displayPlantGrowth(p), 1, 'established preview renders mature plants');
+  assert(plantGrowth(p) < 1, 'real growth remains unchanged for saves/cards/exports');
+});
+
+test('entering design mode starts paused while visits keep time running', () => {
+  setup(15, 15);
+  game.gameMode = 'design'; game.visiting = false; game.previewMode = 'established';
+  enterGarden();
+  assert(game.pausedAt, 'design mode starts with time paused');
+  assertEqual(game.previewMode, 'established', 'design keeps the established preview');
+
+  setup(15, 15);
+  game.gameMode = 'story'; game.visiting = true; game.previewMode = 'established';
+  enterGarden();
+  assert(!game.pausedAt, 'visit/story mode does not start paused');
+  assertEqual(game.previewMode, 'today', 'visit/story mode uses today preview');
+});
+
 test('draw tool restores the last plant or material after other tools', () => {
   setup(13, 13);
   const forb = firstOfType('forb');
@@ -399,6 +425,20 @@ test('draw tool restores brush catalog page and keeps armed brush while browsing
   game.drill = null;
   buildToolTray();
   assertEqual(game.tool, drillKey, 'browsing another category does not disarm the brush');
+});
+
+test('browsing build tabs does not silently arm a drawing tool', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  setTool(forb, null);
+  game.trayCat = 'landscape';
+  buildToolTray();
+  assertEqual(game.tool, forb, 'landscape catalog leaves the armed plant alone');
+
+  setTool('hand', null);
+  game.trayCat = 'structures';
+  buildToolTray();
+  assertEqual(game.tool, 'hand', 'structures catalog waits for an explicit tool tap');
 });
 
 test('pinch cancel restores pending placement or erase gestures', () => {
