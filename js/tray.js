@@ -332,6 +332,17 @@ function drawPlantModeIcon(tc,drift){
     tc.beginPath(); tc.moveTo(x,y-4); tc.lineTo(x,y-10); tc.stroke();
   }
 }
+// matrix scatter: evenly-spaced dots of two kinds (grass + forb) interwoven
+function drawMatrixModeIcon(tc){
+  tc.clearRect(0,0,28,24);
+  // grass matrix on a lattice
+  tc.strokeStyle='#8ead67'; tc.lineWidth=1.4; tc.lineCap='round';
+  [[5,18],[13,14],[21,18],[9,8],[17,8]].forEach(([x,y])=>{
+    tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x,y-5); tc.stroke(); });
+  // forbs scattered through the gaps
+  tc.fillStyle='#c97f3f';
+  [[9,15],[18,13],[13,7]].forEach(([x,y])=>{ tc.beginPath(); tc.arc(x,y,2,0,7); tc.fill(); });
+}
 function drawPlacementIcon(tc,free){
   tc.clearRect(0,0,28,24);
   tc.strokeStyle='rgba(216,199,172,.55)'; tc.lineWidth=1;
@@ -371,6 +382,23 @@ function drawBrushSizeIcon(tc,size,cx0,cy0,maxR){
   tc.beginPath(); tc.arc(cx0,cy0,r,0,7); tc.stroke();
 }
 function setBrushSize(sz){ game.brushSize=normalizeBrushSize(sz); }
+// a bed edge drawn crisp (formal) vs curved (organic), for the edge-style chips
+function drawEdgeStyleIcon(tc,style){
+  const w=tc.canvas.width, midY=tc.canvas.height/2;
+  tc.clearRect(0,0,w,tc.canvas.height);
+  tc.fillStyle='#6e5a48';
+  tc.beginPath();
+  if (style==='formal'){
+    tc.moveTo(8,midY-8); tc.lineTo(w-8,midY-8); tc.lineTo(w-8,midY+9); tc.lineTo(8,midY+9); tc.closePath();
+  } else {
+    tc.moveTo(8,midY-1);
+    tc.quadraticCurveTo(w*0.30,midY-10,w*0.5,midY-3);
+    tc.quadraticCurveTo(w*0.72,midY+5,w-8,midY-4);
+    tc.lineTo(w-8,midY+9); tc.lineTo(8,midY+9); tc.closePath();
+  }
+  tc.fill();
+  tc.strokeStyle='#c9a07f'; tc.lineWidth=1.5; tc.stroke();
+}
 function drawSearchIcon(tc,close){
   tc.clearRect(0,0,24,24);
   tc.lineCap='round'; tc.lineJoin='round';
@@ -506,11 +534,16 @@ function pickAt(x,y){
   } else toast('Nothing here to pick — tap a plant or material.');
 }
 function choosePlantMode(drift){
-  game.drift=!!drift;
+  game.drift=!!drift; game.matrix=false;   // Draw/Drift and Matrix are exclusive patterns
   armPlantToolFromRail(false);
   toast(game.drift
     ? 'Drift planting on. Pick a plant, then paint natural clusters.'
     : 'Draw mode. Pick a plant, then paint single placements.');
+}
+function chooseMatrixMode(){
+  game.matrix=true; game.drift=false;
+  armPlantToolFromRail(false);
+  toast('Matrix on. Paint a region to scatter this species at its spacing — plant feature forbs first, then flow the grass matrix around them.');
 }
 function choosePlacementMode(free){
   game.freePlanting=!!free;
@@ -1039,6 +1072,19 @@ function buildToolTray(){
         ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); toast(`${ws.label} water selected.`); },
         ws.label).dataset.waterStyle=ws.id);
     }
+    // edge look for beds/paths/water — organic curves vs crisp tile edges
+    // (per-garden, defaulted from the questionnaire style). Rebuilds the ground
+    // cache so the change shows immediately.
+    if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
+      const sep=document.createElement('span'); sep.className='tray-sep'; sep.textContent='Edge'; tray.appendChild(sep);
+      [['organic','Organic'],['formal','Formal']].forEach(([id,label])=>{
+        materialBtn('edge_'+id, label, game.edgeStyle===id,
+          tc=>drawEdgeStyleIcon(tc,id),
+          ()=>{ game.edgeStyle=id; if (typeof groundKey!=='undefined') groundKey='';
+            buildToolTray(); toast(id==='organic'?'Organic edges — beds and paths curve.':'Formal edges — crisp tile edges.'); },
+          id==='organic'?'Curved, naturalistic bed and path edges':'Crisp, straight tile edges');
+      });
+    }
   }
   if (cat.tools.includes('fence')){
     const fd=fenceDraft();
@@ -1443,10 +1489,12 @@ function renderBrushBar(){
   // Draw vs Drift is a no-op for woody plants (they always plant singly), so
   // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
   if (P && !woody) parts.push(seg([
-    {label:'Draw', on:!game.drift, title:'Paint one plant at a time',
+    {label:'Draw', on:!game.drift&&!game.matrix, title:'Paint one plant at a time',
       draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
     {label:'Drift',on:game.drift,  title:'Paint natural clusters',
       draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
+    {label:'Matrix',on:game.matrix, title:'Scatter across a painted region at real spacing (flows around what’s there)',
+      draw:tc=>drawMatrixModeIcon(tc),  click:()=>chooseMatrixMode()},
   ]));
   if (P) parts.push(seg([
     {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
@@ -1481,7 +1529,7 @@ function renderBrushBar(){
    sheetContextLabel names whatever brush is armed, for the collapsed strip. */
 function sheetContextLabel(){
   const P=PLANTS[game.tool];
-  if (P) return plantDef(game.tool,game.toolVar).name+(game.drift?' · drift':'');
+  if (P) return plantDef(game.tool,game.toolVar).name+(game.matrix?' · matrix':game.drift?' · drift':'');
   if (game.tool==='path')  return pathColor(game.pathColor).label+' path';
   if (game.tool==='water') return waterStyle(game.waterStyle).label+' water';
   if (game.tool==='bed')   return bedStyle(game.bedStyle).label+' bed';

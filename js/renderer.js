@@ -17,11 +17,18 @@ function groundDataSig(){
   return s;
 }
 function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
+  const showLand=layerShown('landscape');
+  // Organic edges: terrain draws its GRASS base in this tile pass and the
+  // material is overlaid as a smoothed blob afterward (paintTerrainBlobs), so
+  // the curve can cut a corner and show grass under it. Formal edges keep the
+  // crisp per-tile material rendering. Doorstep + elevation stay per-tile.
+  const organic = showLand && game.edgeStyle==='organic';
+  const smoothable = t2 => t2==='path'||t2==='bed'||t2==='water';
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    const showLand=layerShown('landscape');
-    const terrObj=showLand?terrainAt(x,y):null, terr=terrObj&&terrObj.k;
+    const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
+    const terr = (organic && smoothable(terrRaw)) ? null : terrRaw;  // organic: grass base under blobs
     const path=terr==='path';
     const water=terr==='water';
     const rs=mulberry(tileSeed(x,y));
@@ -37,6 +44,90 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
     drawElevationRim(ctx,sx,sy,elevationAt(x,y));
     if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
       ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
+  }
+  if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
+}
+/* ---------- organic terrain: smoothed region blobs (Wave 3) ----------
+   Reuses the plan sheet's traceOutlines pipeline. Contiguous same-material
+   (kind+colour) tiles flood into regions; each region's rectilinear boundary
+   is traced ONCE and cached in world (tile-corner) space, keyed by
+   groundDataSig() so tracing runs only on edit — never per pan frame. The
+   per-frame cost is just projecting cached corners through screenOf and
+   drawing a midpoint-quadratic spline (inward-bounded, so it never claims
+   ground the tile rules don't). The per-tile texture pass runs clipped to the
+   blob, so gravel/mulch/water detail is preserved; grass shows in cut corners. */
+let terrainLoopCache={sig:null, regions:[]};
+function buildTerrainRegions(){
+  const sig=groundDataSig();
+  if (terrainLoopCache.sig===sig) return terrainLoopCache.regions;
+  const keyOf={}; // "x,y" -> "kind|colour"
+  for (const k in game.terrain){ const o=game.terrain[k];
+    if (o && !o.removed) keyOf[k]=o.k+'|'+(o.c||''); }
+  const seen={}, regions=[];
+  for (const k in keyOf){
+    if (seen[k]) continue;
+    const key=keyOf[k], stack=[k], set=new Set();
+    seen[k]=true;
+    while (stack.length){
+      const cur=stack.pop(); set.add(cur);
+      const [cx2,cy2]=cur.split(',').map(Number);
+      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nk=`${cx2+dx},${cy2+dy}`;
+        if (seen[nk] || keyOf[nk]!==key) continue;
+        seen[nk]=true; stack.push(nk);
+      }
+    }
+    const o=game.terrain[k];
+    regions.push({ kind:o.k, c:o.c, tiles:set, loops:traceOutlines(set) });
+  }
+  terrainLoopCache={sig, regions};
+  return regions;
+}
+// append one smoothed loop (jittered corners + midpoint quadratic) to the
+// current path — no beginPath, so multiple loops accumulate for one fill/clip
+function addSmoothTerrainLoop(ctx,loop,W,H){
+  const pts=loop.map(([gx,gy])=>{ const [jx,jy]=planJitter(gx,gy);
+    return screenOf(gx+jx*0.55, gy+jy*0.55, W, H); });
+  if (pts.length<3){ pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); return; }
+  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  let m=mid(pts[pts.length-1],pts[0]); ctx.moveTo(m[0],m[1]);
+  for (let i=0;i<pts.length;i++){ const n=mid(pts[i],pts[(i+1)%pts.length]);
+    ctx.quadraticCurveTo(pts[i][0],pts[i][1],n[0],n[1]); }
+}
+function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
+  for (const region of buildTerrainRegions()){
+    let vis=false;
+    for (const kk of region.tiles){ const c=kk.indexOf(',');
+      const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
+      if (tx>=x0-2&&tx<=x1+2&&ty>=y0-2&&ty<=y1+2){ vis=true; break; } }
+    if (!vis) continue;
+    const isWater=region.kind==='water', o={k:region.kind,c:region.c};
+    const base = isWater ? waterFill(o,amb.snow)
+      : region.kind==='path' ? pathFill(o,amb.snow) : bedFill(o,amb);
+    // fill the smoothed silhouette
+    ctx.beginPath();
+    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    ctx.fillStyle=base; ctx.fill('evenodd');
+    // per-tile texture, clipped to the blob (gravel/mulch/ripples preserved)
+    ctx.save();
+    ctx.beginPath();
+    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    ctx.clip('evenodd');
+    for (const kk of region.tiles){ const c=kk.indexOf(',');
+      const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
+      if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
+      const [sx,sy]=screenOf(tx,ty,W,H);
+      const rs=mulberry(tileSeed(tx,ty));
+      if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,t);
+      else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o);
+    }
+    ctx.restore();
+    // one continuous edge stroke (replaces the per-tile diamond strokes)
+    ctx.beginPath();
+    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    ctx.strokeStyle = isWater ? (amb.snow?'rgba(255,255,255,0.5)':waterStyle(region.c).edge)
+      : region.kind==='path' ? 'rgba(60,48,34,0.32)' : 'rgba(48,36,24,0.30)';
+    ctx.lineWidth=1.6; ctx.stroke();
   }
 }
 /* ---------- plant sprite cache (perf) ----------
@@ -175,7 +266,7 @@ function render(t){
   const tG0=dnow();
   // ground tiles: static per camera/terrain/season, so render once to an
   // offscreen layer and blit it; rebuild only when the cache key changes.
-  const gkey=cal.season+'|'+game.rot+'|'+ZOOM+'|'+cam.x+'|'+cam.y+'|'+
+  const gkey=cal.season+'|'+game.rot+'|'+ZOOM+'|'+cam.x+'|'+cam.y+'|'+game.edgeStyle+'|'+
     (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataSig();
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
   if (groundCanvas.width!==cnv.width||groundCanvas.height!==cnv.height){

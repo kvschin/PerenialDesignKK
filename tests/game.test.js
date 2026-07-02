@@ -14,8 +14,8 @@ function setup(gw, gh){
   game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
-  game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.freePlanting = false;
-  game.previewMode = 'today';
+  game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
+  game.previewMode = 'today'; game.edgeStyle = 'organic';
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
   game.eraseMode = 'all'; game.brushSize = 1;
@@ -351,6 +351,55 @@ test('the paint brush stamps a disc; the erase brush shares the size; plants sta
     if (p && !p.removed) planted++;
   }
   assertEqual(planted, 1, 'a sized plant brush still places a single plant');
+});
+
+test('edge style seeds from the questionnaire garden type', () => {
+  ['formal', 'modern', 'japanese'].forEach(t => assertEqual(edgeStyleFromType(t), 'formal', `${t} keeps crisp edges`));
+  ['prairie', 'cottage', 'any', 'shade', undefined].forEach(t => assertEqual(edgeStyleFromType(t), 'organic', `${t} gets organic edges`));
+  assertEqual(edgeStyleId('formal'), 'formal', 'formal normalizes');
+  assertEqual(edgeStyleId('nonsense'), 'organic', 'unknown edge style falls back to organic');
+});
+
+test('matrix scatter self-thins a region and interplants around what is there', () => {
+  setup(31, 31);
+  const cx = SPAWNX, cy = SPAWNY;
+  game.tool = 'karl'; game.toolVar = null; game.matrix = true; game.drift = false;
+  let grass = 0;
+  for (let y = cy - 3; y <= cy + 3; y++) for (let x = cx - 3; x <= cx + 3; x++) if (applyToolAt(x, y, null)) grass++;
+  assert(grass > 0 && grass < 49, 'matrix places some but thins the 7x7 region');
+  // no two same-species orthogonally adjacent (spacing respected)
+  let adj = 0;
+  for (const k in game.plants) {
+    const p = game.plants[k]; if (!p || p.removed || p.s !== 'karl') continue;
+    const [x, y] = k.split(',').map(Number);
+    const q = game.plants[`${x + 1},${y}`], r = game.plants[`${x},${y + 1}`];
+    if (q && !q.removed && q.s === 'karl') adj++;
+    if (r && !r.removed && r.s === 'karl') adj++;
+  }
+  assertEqual(adj, 0, 'matrix keeps same-species at least a tile apart');
+  // a second species interplants into the gaps, skipping occupied tiles
+  game.tool = 'echinacea';
+  let forb = 0;
+  for (let y = cy - 3; y <= cy + 3; y++) for (let x = cx - 3; x <= cx + 3; x++) if (applyToolAt(x, y, null)) forb++;
+  assert(forb > 0, 'a second matrix species fills the gaps around the grass');
+  assert(grass + forb <= 49, 'two interwoven layers never exceed the region tile count');
+  // matrix off: the same species can sit on adjacent tiles again
+  setup(31, 31);
+  game.tool = 'karl'; game.matrix = false;
+  assert(applyToolAt(cx, cy, null) && applyToolAt(cx + 1, cy, null), 'without matrix, adjacent same-species is allowed');
+});
+
+test('organic terrain traces contiguous same-material tiles into regions', () => {
+  setup(21, 21);
+  for (let y = 3; y <= 5; y++) for (let x = 3; x <= 6; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 3; y <= 5; y++) for (let x = 12; x <= 14; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 10; y <= 12; y++) for (let x = 3; x <= 6; x++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  const regions = buildTerrainRegions();
+  assertEqual(regions.length, 3, 'two bed blocks + one path block = three regions');
+  assert(regions.every(r => r.loops.length >= 1), 'every region traced at least one boundary loop');
+  // a differently-coloured neighbour is its own region even when adjacent
+  setTile('terrain', '7,3', { k: 'bed', c: 'gravel', t: 1 });
+  assertEqual(buildTerrainRegions().length, 4, 'a different bed colour splits into its own region');
 });
 
 test('winter soil beds are frosted instead of nearly black', () => {

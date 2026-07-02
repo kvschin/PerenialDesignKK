@@ -34,6 +34,7 @@ async function saveSolo(silent){
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,freePlanting:game.freePlanting,previewMode:game.previewMode,
+    edgeStyle:game.edgeStyle,
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
@@ -68,6 +69,7 @@ async function loadSolo(id){
   game.gameMode = s.mode==='design' ? 'design' : 'story';
   game.design = s.design || null;
   game.previewMode = s.previewMode || (game.gameMode==='design' ? 'established' : 'today');
+  game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely

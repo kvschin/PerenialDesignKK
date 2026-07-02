@@ -229,10 +229,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fills/strokes/blades redrawn every frame — so it's now **cached**:
     `paintGround` renders it once to an offscreen `groundCanvas`, blitted each
     frame, rebuilt only when the cache key changes (season / rot / zoom / cam /
-    canvas size / landscape-layer vis + `groundDataSig()`, a cheap signature of
-    the sparse terrain/elevation/house data). Empty-garden ground dropped
-    ~12ms → ~0.35ms. Water ripples freeze only while the view is perfectly
-    still (no `t` in the key); any pan/edit resumes them. **Dense gardens draw
+    `game.edgeStyle` / canvas size / landscape-layer vis + `groundDataSig()`, a
+    cheap signature of the sparse terrain/elevation/house data). Empty-garden
+    ground dropped ~12ms → ~0.35ms. Water ripples freeze only while the view is
+    perfectly still (no `t` in the key); any pan/edit resumes them.
+    **Organic terrain edges (Wave 3)**: when `game.edgeStyle==='organic'`,
+    `paintGround` draws terrain tiles' *grass* base and overlays the material as
+    a **smoothed blob** — `buildTerrainRegions()` floods contiguous same-material
+    (kind+colour) tiles, `traceOutlines` (reused from the plan sheet) walks each
+    boundary, and the loops are cached in world tile-corner space in
+    `terrainLoopCache` keyed by `groundDataSig()`, so tracing runs only on edit,
+    **never per pan frame** (the ground canvas still rebuilds on pan, but only
+    projects cached corners). `paintTerrainBlobs` projects each loop through
+    `screenOf`, draws a jittered midpoint-quadratic spline (`planJitter`,
+    inward-bounded so it never claims ground the tile rules don't), fills the
+    material colour, then runs the per-tile texture pass **clipped** to the blob
+    (gravel/mulch/ripples preserved) and strokes one continuous edge — grass
+    shows in the cut corners. `formal` keeps the crisp per-tile rendering
+    (unchanged). Perf: organic tracks formal even on a pathological
+    573-terrain-tile / 48-region stress rebuild; a still view just blits. **Dense gardens draw
     plants from a sprite cache** (`PSPRITE`, `drawPlantMaybeCached`): `drawPlant`
     was ~88% of a heavy frame, re-running each plant's procedural recipe every
     frame, so each plant renders once to a small offscreen canvas — keyed by its
@@ -376,7 +391,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tap resolves at pointerup to the classic walk/act (`tapAction`). With
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
-    ≤18" → 5, ≤30" → 3); woody plants always plant singly. The **Fill** tool
+    ≤18" → 5, ≤30" → 3); woody plants always plant singly.
+    **Matrix scatter (Wave 3)**: a third plant-pattern mode (`game.matrix`,
+    exclusive with Drift, the `Matrix` chip beside Draw/Drift in the brush bar).
+    When on, `placePlantAt` runs the tile through `matrixSpacingBlocks(x,y,def)` —
+    it refuses if a *same-species* plant sits within the species' real spacing
+    (`round(space/TILE_IN)` tiles, Euclidean), so a dragged/filled region
+    self-thins to a natural stand (~a checkerboard at 18" spacing) and *flows
+    around whatever is already there*. Occupancy still blocks any species, so the
+    workflow is: scatter the feature forbs first, then flow the grass matrix into
+    the gaps — authentic two-layer interplanting. Woody/bulb/water types opt out
+    (they place normally even with Matrix armed). The **Fill** tool
     (`game.fillMode`, a mode layered over the armed brush — the bottom
     catalog still picks what you fill WITH) bucket-fills: a tap runs
     `doFloodFill`, which BFS-floods the 4-connected region sharing the
@@ -472,9 +497,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sit in the top bar beside the season dial, and Fill lives in the Select
     tray. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
-    not overwrite that memory); its two style toggles — Draw/Drift and
-    Grid/Free — dock in the palette as the `#brushBar` segmented controls
-    (`renderBrushBar`), not a floating flyout. New garden entries start on
+    not overwrite that memory); its style toggles — Draw/Drift/Matrix and
+    Grid/Free for plants, plus the shared disc **size** dots for the sizable
+    material/elevation brushes, and the **Fill** chip — dock in the palette as
+    the `#brushBar` segmented controls (`renderBrushBar`), not a floating flyout.
+    (The Landscape tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
+    — next to the path/bed/water swatches.) New garden entries start on
     Hand so accidental painting is harder. Search is a magnifier **toggle** in
     the tabs row (`game.searchOpen`): tapping it swaps the sub-tabs for a search
     field (so it never adds a wrapping row) that filters the open category by
@@ -726,8 +754,12 @@ stress garden before merge (see the perf notes in §11).
   `game.brushSize`, a disc predicate generalizing `eraseBrush`'s box loop; unify
   erase sizing onto it; `sizable` flag in `TOOLS`; size dots in the brush bar,
   reused in the erase control).
-- **Wave 3 — "Curves & Brushes"** (the payoff; depends on Wave 2): smoothed
-  terrain rendering — reuse the plan sheet's `traceOutlines`/`smoothLoop`/
+- **Wave 3 — "Curves & Brushes"** *(done — smoothed terrain via
+  `buildTerrainRegions`/`paintTerrainBlobs` with the `terrainLoopCache` keyed by
+  `groundDataSig()`; `game.edgeStyle` organic/formal, seeded by
+  `edgeStyleFromType`, Edge chips in the Landscape tray; `game.matrix` scatter
+  gated by `matrixSpacingBlocks` in `placePlantAt`, Matrix beside Draw/Drift)*:
+  smoothed terrain rendering — reuse the plan sheet's `traceOutlines`/`smoothLoop`/
   `planJitter` pipeline in `paintGround`, **caching traced loops in world space
   keyed by `groundDataSig()`** so tracing runs only on edit, not per pan frame
   (data model unchanged — tile-truth for rules; the spline is inward-bounded);

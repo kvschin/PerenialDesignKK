@@ -87,6 +87,11 @@ const WATER_STYLES = [
 ];
 function waterStyle(id){ return WATER_STYLES.find(c=>c.id===id)||WATER_STYLES[0]; }
 function waterStyleId(id){ return waterStyle(id).id; }
+// terrain edge look: crisp tiles for the structured styles, smoothed curves
+// for the naturalistic ones. Seeds game.edgeStyle from the questionnaire.
+const FORMAL_EDGE_STYLES=['formal','modern','japanese'];
+function edgeStyleFromType(type){ return FORMAL_EDGE_STYLES.includes(type)?'formal':'organic'; }
+function edgeStyleId(s){ return s==='formal'?'formal':'organic'; }
 function waterFill(t,snow){ const w=waterStyle(t&&t.c);
   return snow ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill; }
 function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }

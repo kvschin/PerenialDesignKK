@@ -90,6 +90,7 @@ function startDailyChallenge(){
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
   game.houses=[]; game.houseDraft=defaultDraft();
+  game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
   const zone=(game.region&&game.region.zone)||6;          // keep the user's zone, drop style/native filters
   game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false};
   game.region={eco:null,zone,nativesOnly:false}; updateRegionBtn();
@@ -340,6 +341,7 @@ function enterGarden(){
   game.fenceDraft=normalizeFenceDraft(game.fenceDraft);
   game.lightDraft=normalizeLightDraft(game.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(game.firepitDraft);
+  game.edgeStyle=edgeStyleId(game.edgeStyle);
   game.bedStyle=bedStyleId(game.bedStyle);
   if (game.gameMode==='design'){
     // free camera centered on the plot; no avatar, no forced house
@@ -395,6 +397,8 @@ function openPlotScreen(){
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
+      // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
+      game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
         game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift

@@ -256,6 +256,21 @@ function placeTerrainAt(x,y){
     : {k:'bed',c:game.bedStyle,t:Date.now()});
   return game.tool;
 }
+// Matrix scatter: keep new plantings of the SAME species at least their real
+// spacing apart, so a dragged/filled region self-thins to a natural stand and
+// flows around whatever's already there — plant the feature forbs first, then
+// fill the grass matrix into the gaps (two-layer interplanting). Woody/bulb/
+// water types opt out (they place normally even with Matrix armed).
+function matrixSpacingBlocks(x,y,def){
+  if (def.type==='shrub'||def.type==='tree'||def.type==='bulb'||def.type==='water') return false;
+  const spaceT=Math.max(1,Math.round((def.space||TILE_IN)/TILE_IN));
+  for (let dy=-spaceT;dy<=spaceT;dy++) for (let dx=-spaceT;dx<=spaceT;dx++){
+    if ((!dx&&!dy) || Math.hypot(dx,dy)>spaceT+1e-6) continue;
+    const q=game.plants[`${x+dx},${y+dy}`];
+    if (q && !q.removed && q.s===game.tool) return true;
+  }
+  return false;
+}
 // plant/bulb/water-plant: drop the armed species on a tile if it fits
 function placePlantAt(x,y,opts){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
@@ -288,6 +303,7 @@ function placePlantAt(x,y,opts){
   }
   const ex=game.plants[k];
   if (ex && !ex.removed) return null;
+  if (game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
   if (def.type!=='shrub' && shrubAt(x,y)) return null;
   if (def.type==='shrub' && !canPlaceShrubAt(x,y,np).ok) return null;
   const sh=shadeAt(x,y);

@@ -22,7 +22,9 @@ const game = {
   visiting:false,                                    // Visit Gardens: read-only avatar stroll of a loaded garden
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
   drift:false,                                       // plant in clusters, Oudolf style
+  matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
   freePlanting:false,                                // herbaceous plants can sit off the tile center
+  edgeStyle:'organic',                               // terrain edge look: organic (smoothed) | formal (crisp tiles)
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
   brushSize:1,                                       // shared paint/erase brush diameter in tiles (BRUSH_SIZES)
   fx:[],                                             // short-lived planting pulses
