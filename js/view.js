@@ -63,11 +63,27 @@ function setActiveCanvas(c){
   requestAnimationFrame(settle);
   requestAnimationFrame(()=>requestAnimationFrame(settle));
 }
-function resizeCanvases(){
+function repositionOpenChrome(){
+  if (typeof syncTopTools==='function') syncTopTools();
+  const shown=id=>{ const el=document.getElementById(id);
+    return el && !el.classList.contains('hidden'); };
+  if (shown('pauseScreen') && typeof openPause==='function') openPause();
+  if (shown('gardenMenu') && typeof openGardenMenu==='function') openGardenMenu();
+}
+function settleViewportChange(){
   setActiveCanvas(activeCanvas());
   calcZoom();
+  if (game.mode && game.gameMode==='design') snapCam();
+  compassKey='';
+  updateCompass();
+  repositionOpenChrome();
+}
+function resizeCanvases(){
+  settleViewportChange();
+  requestAnimationFrame(settleViewportChange);
 }
 addEventListener('resize', resizeCanvases);
+addEventListener('orientationchange', resizeCanvases);
 
 /* Cardinal direction markers sit just past the plot edge. They are not clamped
    to the viewport; when that part of the garden edge leaves the screen, the

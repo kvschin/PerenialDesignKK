@@ -277,6 +277,18 @@ test('paints flag drives fill — continuous fills only, not discrete structures
   assert(!fillActive(), 'fill needs fillMode on');
 });
 
+test('brush bar fill toggle arms only continuous paint tools', () => {
+  setup();
+  game.tool = 'bed'; game.fillMode = false;
+  chooseFillMode(true);
+  assert(game.fillMode && fillActive(), 'fill toggle arms a landscape paint brush');
+  chooseFillMode(false);
+  assert(!game.fillMode, 'fill toggle turns off');
+  game.tool = 'fence';
+  chooseFillMode(true);
+  assert(!game.fillMode && !fillActive(), 'fill toggle refuses discrete structures');
+});
+
 test('elevation participates in undo, erase, and selection moves', () => {
   setup(13, 13);
   game.tool = 'raise';

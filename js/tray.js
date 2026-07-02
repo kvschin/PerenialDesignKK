@@ -286,6 +286,37 @@ function drawPlacementIcon(tc,free){
   tc.fillStyle=free?'#c97f3f':'#efe6d3';
   pts.forEach(([x,y])=>{ tc.beginPath(); tc.ellipse(x,y,3.2,2.2,0,0,7); tc.fill(); });
 }
+function drawFillModeIcon(tc,on){
+  tc.clearRect(0,0,28,24);
+  tc.lineCap='round'; tc.lineJoin='round';
+  tc.strokeStyle='rgba(216,199,172,.55)'; tc.lineWidth=1;
+  for (let i=0;i<2;i++) for (let j=0;j<2;j++){
+    const x=7+i*9, y=4+j*7;
+    tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x+5,y+3); tc.lineTo(x,y+6); tc.lineTo(x-5,y+3); tc.closePath(); tc.stroke();
+  }
+  tc.save(); tc.translate(16,10); tc.rotate(-0.72);
+  tc.strokeStyle=on?'#efe6d3':'#d8c7ac'; tc.lineWidth=1.7;
+  tc.strokeRect(-6,-5,12,10);
+  tc.beginPath(); tc.moveTo(6,2); tc.lineTo(11,7); tc.stroke();
+  tc.restore();
+  tc.fillStyle=on?'#c97f3f':'#7d93a8';
+  tc.beginPath(); tc.ellipse(22,19,4.4,2.2,0,0,7); tc.fill();
+}
+function drawSearchIcon(tc,close){
+  tc.clearRect(0,0,24,24);
+  tc.lineCap='round'; tc.lineJoin='round';
+  if (close){
+    tc.strokeStyle='#efe6d3'; tc.lineWidth=2.4;
+    tc.beginPath(); tc.moveTo(7,7); tc.lineTo(17,17); tc.moveTo(17,7); tc.lineTo(7,17); tc.stroke();
+    return;
+  }
+  tc.strokeStyle='#efe6d3'; tc.lineWidth=2;
+  tc.beginPath(); tc.arc(10.5,10.5,5.5,0,Math.PI*2); tc.stroke();
+  tc.strokeStyle='#c97f3f'; tc.lineWidth=2.4;
+  tc.beginPath(); tc.moveTo(15,15); tc.lineTo(19,19); tc.stroke();
+  tc.fillStyle='rgba(111,143,90,.35)';
+  tc.beginPath(); tc.ellipse(9,11,3.1,1.7,-0.45,0,7); tc.fill();
+}
 function plantCategoryFor(k){
   const P=PLANTS[k]; if (!P) return 'grasses';
   const cat=TRAY_CATS.find(c=>c.types && c.types.includes(P.type) &&
@@ -419,6 +450,17 @@ function choosePlacementMode(free){
     ? 'Free placement on. Herbaceous plants land where you click, not just tile centers.'
     : 'Grid placement on. Plants sit neatly at tile centers.');
 }
+function chooseFillMode(on){
+  if (on && !toolMeta(game.tool).paints){
+    game.fillMode=false;
+    toast('Pick a plant, landscape material, or leveling brush to use Fill.');
+    renderBrushBar(); refreshCanvasTools();
+    return;
+  }
+  game.fillMode=!!on;
+  renderBrushBar(); refreshCanvasTools(); updateCanvasCursor();
+  toast(game.fillMode?'Fill mode on. Tap a connected area to flood it.':'Fill mode off. Drag or tap to paint.');
+}
 function renderEraseTray(tray){
   renderCvRow();
   const sep=t=>{ const s=document.createElement('span'); s.className='tray-sep';
@@ -477,7 +519,7 @@ function renderSelectTray(tray){
     toast('Drag the selection to drop a copy.'); },'Drag to drop a copy, leaving the original');
   // one-shot actions
   sep('Actions');
-  btn('Fill','fill',false,()=>{ fillSelectionWithPlant(); },
+  btn('Fill area','fill',false,()=>{ fillSelectionWithPlant(); },
     'Fill the selection with the last selected plant or landscape material');
   btn('Rotate','rotate',false,()=>{ rotateSelection(); buildToolTray(); refreshCanvasTools(); },
     'Rotate the selection 90°');
@@ -515,7 +557,7 @@ function buildCanvasTools(){
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
-  add('Plant','brush',{active:!!PLANTS[game.tool]&&!game.fillMode,
+  add('Plant','brush',{active:!!PLANTS[game.tool],
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
   add('Erase','erase',{active:game.tool==='shovel',danger:true,title:'Erase plants, bulbs, or landscape',
@@ -692,10 +734,11 @@ function buildToolTray(){
   const canSearch = game.tool!=='shovel' && game.tool!=='select';
   if (canSearch){
     const sb=document.createElement('button');
-    // when open, the glyph flips to ✕ so it's obvious how to get the
-    // categories back (it took their place); 🔍 when closed
     sb.className='tab tab-search'+(game.searchOpen?' sel close':'');
-    sb.textContent=game.searchOpen?'✕':'\u{1F50D}';
+    const sc=document.createElement('canvas'); sc.width=24; sc.height=24;
+    drawSearchIcon(sc.getContext('2d'), game.searchOpen);
+    sb.appendChild(sc);
+    sb.setAttribute('aria-label', game.searchOpen?'Close search':'Search');
     sb.title=game.searchOpen?'Close search — back to categories':'Search the open category';
     sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
       buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
@@ -821,7 +864,11 @@ function buildToolTray(){
   }
   // material categories: Landscape and House.
   // A tool tab arms its first tool right away — RTS style.
-  if (!cat.tools.includes(game.tool)){ game.tool=cat.tools[0]; game.toolVar=null; rememberBrushTool(); }
+  if (!cat.tools.includes(game.tool)){
+    game.tool=cat.tools[0]; game.toolVar=null;
+    if (!toolMeta(game.tool).paints) game.fillMode=false;
+    rememberBrushTool();
+  }
   renderCvRow();
   if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.some(isElevationTool)){
     const pathCol=pathColor(game.pathColor);
@@ -1294,13 +1341,14 @@ function renderDrillIn(tray, drillKey, members){
     for (const v in (M.cv||{})) mk(k, v, M.cv[v].name);
   });
 }
-/* the Plant tool's brush styles, docked in the palette instead of a floating
-   flyout: two segmented toggles — pattern (Draw/Drift) and placement
-   (Grid/Free). Visible only when a plant species is the armed brush. */
+/* Brush styles dock in the palette instead of a floating flyout. Plant brushes
+   get Draw/Drift and Grid/Free; every continuous paint brush also gets Fill,
+   which flood-fills the connected ground region with the armed brush. */
 function renderBrushBar(){
   const bar=document.getElementById('brushBar'); if (!bar) return;
   bar.innerHTML='';
-  if (!PLANTS[game.tool] || game.tool==='shovel' || game.tool==='select'){
+  const meta=toolMeta(game.tool), P=PLANTS[game.tool];
+  if (!meta.paints){
     bar.classList.add('hidden'); return;
   }
   bar.classList.remove('hidden');
@@ -1317,22 +1365,33 @@ function renderBrushBar(){
     return s;
   };
   const lab=document.createElement('span'); lab.className='brush-lab'; lab.textContent='Brush';
-  const woody = PLANTS[game.tool].type==='shrub' || PLANTS[game.tool].type==='tree';
+  const woody = P && (P.type==='shrub' || P.type==='tree');
   const parts=[lab];
   // Draw vs Drift is a no-op for woody plants (they always plant singly), so
   // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
-  if (!woody) parts.push(seg([
+  if (P && !woody) parts.push(seg([
     {label:'Draw', on:!game.drift, title:'Paint one plant at a time',
       draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
     {label:'Drift',on:game.drift,  title:'Paint natural clusters',
       draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
   ]));
-  parts.push(seg([
+  if (P) parts.push(seg([
     {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
       draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
     {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
       draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
   ]));
+  const fillSeg=document.createElement('div'); fillSeg.className='seg';
+  const fillBtn=document.createElement('button');
+  fillBtn.className='seg-opt'+(game.fillMode?' on':'');
+  fillBtn.title=game.fillMode?'Turn Fill off and paint normally':'Fill a connected area with this brush';
+  const fillIcon=document.createElement('canvas'); fillIcon.width=28; fillIcon.height=24;
+  drawFillModeIcon(fillIcon.getContext('2d'), game.fillMode);
+  const fillText=document.createElement('span'); fillText.textContent='Fill';
+  fillBtn.append(fillIcon,fillText);
+  fillBtn.onclick=()=>chooseFillMode(!game.fillMode);
+  fillSeg.appendChild(fillBtn);
+  parts.push(fillSeg);
   bar.append(...parts);
 }
 /* the collapsible palette (phones only): the handle folds the catalog away so

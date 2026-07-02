@@ -308,7 +308,9 @@ body.visiting #btnSelectTool{display:none!important}
 #trayTabs .tab.grp{border-radius:5px;color:var(--seedhead);opacity:.55;margin-bottom:4px}
 #trayTabs .tab.grp.sel{background:rgba(201,127,63,.42);opacity:1}
 #trayTabs .tab-div{width:1px;align-self:stretch;background:rgba(239,230,211,.2);margin:4px 6px 8px;flex-shrink:0}
-#trayTabs .tab.tab-search{font-size:13px;padding:5px 9px;opacity:.65;flex-shrink:0}
+#trayTabs .tab.tab-search{font-size:13px;padding:5px 9px;opacity:.65;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center}
+#trayTabs .tab.tab-search canvas{width:18px;height:18px;display:block}
 #trayTabs .tab.tab-search.sel{opacity:1;background:rgba(201,127,63,.3)}
 /* the ✕ close state: a touch bolder so it reads as "exit search" */
 #trayTabs .tab.tab-search.close{font-size:12px;font-weight:700;color:var(--seedhead)}
@@ -480,24 +482,28 @@ body.visiting #btnSelectTool{display:none!important}
   #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;
     background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     border:1.5px solid rgba(239,230,211,.25);border-radius:8px;
-    padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw}
+    min-height:44px;padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw;flex-shrink:0}
   #sheetHandle .grip-bar{width:26px;height:4px;border-radius:3px;background:rgba(239,230,211,.42);flex-shrink:0}
   #sheetHandle .sheet-ctx{color:#cdbfa9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48vw}
   #sheetHandle .chev{color:var(--bronze);font-size:10px}
   /* fatter tap targets on touch screens */
-  .seg .seg-opt{padding:8px 11px}
+  .seg .seg-opt{min-height:40px;padding:8px 11px}
   #cvRow .chip{padding:8px 13px}
   /* let the Plants sub-tabs wrap instead of scrolling off; tighter padding
      keeps the wrap to ~two rows */
-  #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px}
-  #trayTabs .tab{padding:6px 8px}
+  #trayTabs{flex-wrap:wrap;row-gap:2px;gap:2px;min-height:44px;flex-shrink:0;align-items:stretch}
+  #trayTabs .tab{min-height:38px;padding:6px 8px;display:flex;align-items:center}
+  #trayTabs .tab.tab-search{min-width:44px;min-height:38px;padding:6px 10px}
+  #brushBar{min-height:44px;max-width:100vw;overflow-x:auto;flex-shrink:0}
   /* full-bleed palette: edge to edge, square corners, docked to the bottom.
      The catalog's own bottom padding lifts it clear of the home indicator
      while the tray background runs to the screen edge behind it. */
   .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
-  #toolTray{padding-bottom:calc(6px + env(safe-area-inset-bottom));
+  #toolTray{min-height:96px;max-height:min(36vh,292px);overflow-x:hidden;overflow-y:auto;
+    flex-wrap:wrap;align-content:flex-start;align-items:flex-start;-webkit-overflow-scrolling:touch;
+    padding-bottom:calc(6px + env(safe-area-inset-bottom));
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .hud-bottom.collapsed #cvRow,
   .hud-bottom.collapsed #trayTabs,
