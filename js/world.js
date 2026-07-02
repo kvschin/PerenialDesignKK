@@ -24,7 +24,7 @@ const game = {
   drift:false,                                       // plant in clusters, Oudolf style
   freePlanting:false,                                // herbaceous plants can sit off the tile center
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
-  eraseSize:1,                                       // erase brush diameter in tiles (odd)
+  brushSize:1,                                       // shared paint/erase brush diameter in tiles (BRUSH_SIZES)
   fx:[],                                             // short-lived planting pulses
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
   lastBrushTool:null, lastBrushVar:null,             // last placement brush chosen from the catalog
@@ -412,6 +412,24 @@ function shadeAt(x,y){
   return sh&&sh.p;
 }
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
+
+/* ---------- shared disc brush (materials, elevation, erase) ----------
+   One `game.brushSize` (diameter in tiles) drives paint and erase alike.
+   brushOffsets returns the tile offsets of a disc centered on the cursor
+   tile — a rounded footprint, so a fat dragged stroke reads as a curved
+   ribbon and a 5-wide erase clips its corners instead of a hard square.
+   Pure + tiny, so it's unit-tested and cheap to call per gesture/frame.
+   size 1 -> 1 tile, 3 -> the full 3x3, 5 -> a rounded 5x5 (21 of 25). */
+const BRUSH_SIZES=[1,2,3,5,7];
+function normalizeBrushSize(s){ s=s|0; return BRUSH_SIZES.includes(s)?s:1; }
+function brushOffsets(size){
+  size=normalizeBrushSize(size);
+  if (size===1) return [[0,0]];
+  const r=size/2, reach=Math.ceil(r), out=[];
+  for (let dy=-reach;dy<=reach;dy++) for (let dx=-reach;dx<=reach;dx++)
+    if (Math.hypot(dx,dy)<=r+1e-6) out.push([dx,dy]);
+  return out;
+}
 
 /* the starter walkway — a lazy Oudolf curve, seeded as ordinary path
    terrain when a world is created so the shovel can take it out like

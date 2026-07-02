@@ -347,7 +347,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   let label=null;
   if (ENABLE_HOUSE_SLEEP && isDoor(px3,py3)) label='Sleep';
   else if (game.tool==='hand') label=null;
-  else if (game.tool==='shovel') label=game.eraseSize>1?`Erase ${game.eraseSize}×${game.eraseSize}`:'Erase here';
+  else if (game.tool==='shovel') label=game.brushSize>1?`Erase ${game.brushSize}-wide`:'Erase here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
   else if (game.tool==='water') label='Add water';
@@ -445,7 +445,7 @@ function updateHUD(){
     : game.tool==='hand'
     ? 'Hand: drag the map to pan'
     : game.tool==='shovel'
-    ? `Erase (${game.eraseMode==='all'?'everything':game.eraseMode+' only'}, ${game.eraseSize}×${game.eraseSize}) — tap or drag`
+    ? `Erase (${game.eraseMode==='all'?'everything':game.eraseMode+' only'}, ${game.brushSize}-wide) — tap or drag`
     : game.tool==='water'
     ? 'Drag to paint ponds, rivers, and lakes'
     : game.tool==='fence'

@@ -285,7 +285,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     bottom tray) and
     Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
-    a centered square brush of `game.eraseSize` tiles — 1/3/5 — that clears
+    a centered **disc brush** of `game.brushSize` tiles (the shared
+    paint/erase size — `brushOffsets`, see the disc-brush note below) that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+landscape on
     each tile in one pass, or `plant`/`bulb`/`terrain` (Landscape) only; one toast +
     per-layer sync at pointerup via `endSweep`), tap and keyboard input.
@@ -350,7 +351,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     stronger outline when hovered or when its plant card is open, and a brief
     red pulse when it blocks placement. Paths refuse planted tiles, beds store
     a material `c` (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and can be repainted
-    like path colors, and fences refuse planted/water/house tiles). **Drag-to-plant**: pointerdown with a
+    like path colors, and fences refuse planted/water/house tiles).
+    **Disc-brush engine (Wave 2)**: one shared `game.brushSize` (diameter in
+    `BRUSH_SIZES` = 1/2/3/5/7) drives paint and erase alike. `brushOffsets(size)`
+    (world.js) returns the tile offsets of a *rounded disc* centered on the
+    cursor — size 3 is the full 3×3, size 5 a rounded 5×5 (21 of 25, corners
+    cut), so a fat dragged stroke reads as a curved ribbon (the base of Wave 3
+    curves) and erase clips its corners instead of a hard square. The tap/drag
+    paint paths funnel through `stampBrushAt(x,y,opts)` (commands.js), which
+    stamps the disc for the `sizable` tools (path/bed/water + raise/lower/level,
+    flagged in the `TOOLS` table) and falls through to a single `applyToolAt`
+    for everything else — **plants are deliberately not sizable** (a solid disc
+    would break spacing; that's the Wave 3 Matrix brush's job). Fill and
+    `stampDrift` still call `applyToolAt` directly (they already cover an area).
+    Size dots live in the brush bar (`renderBrushBar`, sizable tools only) and,
+    reusing the same `setBrushSize`, in the Erase tray. A **cursor footprint
+    ghost** (`drawBrushGhost`, renderer.js) tints the disc under `game.hoverTile`
+    before commit — cream for paint, red for erase — reusing the same
+    `brushOffsets` so the preview can't disagree with the stamp (desktop hover;
+    touch paints on contact). **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain
@@ -377,8 +396,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     next tap paints with it. The Erase tool's
     options live in the bottom contextual toolbar when Erase is active:
     layer (All/Plants/Bulbs/Landscape → `eraseMode`; Landscape includes
-    terrain, houses, and fences) and size
-    (1/3×3/5×5 → `eraseSize`). **Keys map to SCREEN directions**
+    terrain, houses, and fences) and size (the shared
+    `game.brushSize` disc, 1/2/3/5/7 → `setBrushSize`, same control as the
+    paint brush bar). **Keys map to SCREEN directions**
     regardless of rotation: one key is a screen-cardinal step (a view
     diagonal); two keys combine into view axes; `viewDirToWorld` converts to
     world steps. Tapping the house walks to the door and sleeps on arrival.
@@ -696,7 +716,11 @@ stress garden before merge (see the perf notes in §11).
   (rail swatch reusing `drawSheetSwatch` + stop the silent auto-arm on tab open);
   Duplicate garden (copy the localStorage blob + index row — one-afternoon
   freebie).
-- **Wave 2 — Shared interaction primitives** (build once, many consumers):
+- **Wave 2 — Shared interaction primitives** *(done — `brushOffsets` disc
+  predicate + `game.brushSize` + `stampBrushAt`; `sizable` flag on
+  path/bed/water/raise/lower/level; erase unified onto the shared size;
+  size dots in the brush bar + Erase tray via `setBrushSize`; cursor footprint
+  ghost `drawBrushGhost`, cream for paint / red for erase, hover-only)*:
   cursor footprint ghost (generalize `drawShrubFootprint` — previews disc area,
   erase area, and plant spacing before commit); disc-brush engine (shared
   `game.brushSize`, a disc predicate generalizing `eraseBrush`'s box loop; unify

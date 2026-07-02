@@ -54,7 +54,7 @@ function actHere(opts){
   }
   if (isElevationTool(game.tool)){
     const before=elevationAt(x,y);
-    if (applyToolAt(x,y)){
+    if (stampBrushAt(x,y)){
       syncElevationOut();
       const after=elevationAt(x,y);
       toast(game.tool==='level' ? 'Leveled ground.' : `Elevation ${after>before?'raised':'lowered'} to ${after}.`);
@@ -105,7 +105,7 @@ function actHere(opts){
       toast('Step aside before making water.'); return;
     }
     const wasSame=terr===game.tool;
-    const r=applyToolAt(x,y,opts);
+    const r=stampBrushAt(x,y,opts);
     if (r){
       syncToolLayer(r);
       toast(game.tool==='path'
@@ -204,6 +204,24 @@ function applyToolAt(x,y,opts){
   if (inHouse(x,y) || isDoor(x,y)) return null;
   const meta=toolMeta(game.tool);
   return meta.apply ? meta.apply(x,y,opts) : null;
+}
+/* stamp the armed brush across its disc footprint (game.brushSize) for the
+   sizable tools — path/bed/water and the raise/lower/level brushes. Plants
+   aren't sizable (a solid disc would violate spacing; that's the Matrix
+   brush's job), so they fall through to a single applyToolAt. Returns the
+   last non-null 'what', matching applyToolAt's contract, so the tap/drag
+   toast + sync paths are unchanged. Fill and drift keep calling applyToolAt
+   directly — they already cover an area, so the brush disc doesn't apply. */
+function toolBrushSize(){ return toolMeta(game.tool).sizable ? normalizeBrushSize(game.brushSize) : 1; }
+function stampBrushAt(x,y,opts){
+  const size=toolBrushSize();
+  if (size===1) return applyToolAt(x,y,opts);
+  let what=null;
+  for (const [dx,dy] of brushOffsets(size)){
+    const r=applyToolAt(x+dx,y+dy,(dx===0&&dy===0)?opts:null);
+    if (r) what=r;
+  }
+  return what;
 }
 // path/bed/water: lay or repaint a ground material on a tile
 function placeTerrainAt(x,y){
@@ -508,17 +526,17 @@ function toast(msg){
 
 /* tap / click: first tap walks, tap on own tile acts */
 let sweep=null; // shovel drag-lift in progress: {plants, terr}
-/* the eraser: clears a square brush (game.eraseSize) centered on the
-   tile, removing the layers selected by game.eraseMode. 'all' wipes
-   plant + bulb + terrain on every tile in one pass; the others touch
-   only their layer. Counts tally into `counts`. */
+/* the eraser: clears a disc brush (game.brushSize, shared with the paint
+   brushes) centered on the tile, removing the layers selected by
+   game.eraseMode. 'all' wipes plant + bulb + terrain on every tile in one
+   pass; the others touch only their layer. Counts tally into `counts`. */
 function eraseBrush(cx,cy,counts){
-  const r=((game.eraseSize|0)-1)/2, m=game.eraseMode, now=Date.now();
+  const m=game.eraseMode;
   // a layer is erasable only if it's visible, in edit focus, and in eraseMode
   const can=(name,mode)=>layerShown(name) && layerEditable(name) && (m==='all'||m===mode);
   const peren=can('perennials','plant'), woody=can('woody','plant');
   const bulbOK=can('bulbs','bulb'), terrOK=can('landscape','terrain');
-  for (let dy=-r; dy<=r; dy++) for (let dx=-r; dx<=r; dx++){
+  for (const [dx,dy] of brushOffsets(game.brushSize)){
     const x=cx+dx, y=cy+dy;
     if (x<0||y<0||x>=GW||y>=GH) continue;
     const k=`${x},${y}`;

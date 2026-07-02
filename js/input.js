@@ -178,11 +178,11 @@ cnv.addEventListener('pointermove',e=>{
   if (toolDrag){
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
-      const r0=applyToolAt(toolDrag.sx,toolDrag.sy,toolDrag);
+      const r0=stampBrushAt(toolDrag.sx,toolDrag.sy,toolDrag);
       if (r0){ toolDrag.count++; toolDrag.what=r0; }
     }
     if (toolDrag.active){
-      const r=applyToolAt(x,y,place);
+      const r=stampBrushAt(x,y,place);
       if (r){ toolDrag.count++; toolDrag.what=r; }
     }
     return;

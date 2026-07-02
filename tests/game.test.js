@@ -18,7 +18,7 @@ function setup(gw, gh){
   game.previewMode = 'today';
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
-  game.eraseMode = 'all'; game.eraseSize = 1;
+  game.eraseMode = 'all'; game.brushSize = 1;
   cam.x = 0; cam.y = 0;
   game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true, shade: false, night: false };
@@ -312,6 +312,45 @@ test('elevation participates in undo, erase, and selection moves', () => {
   eraseBrush(6, 4, counts);
   assertEqual(counts.elev, 1, 'landscape erase counts elevation');
   assertEqual(elevationAt(6, 4), 0, 'landscape erase levels elevation');
+});
+
+test('brushOffsets is a centered disc: 1 tile, full 3x3, rounded 5x5', () => {
+  assertEqual(brushOffsets(1).length, 1, 'size 1 is a single tile');
+  assert(brushOffsets(1)[0][0] === 0 && brushOffsets(1)[0][1] === 0, 'size 1 is the center');
+  assertEqual(brushOffsets(3).length, 9, 'size 3 is the full 3x3');
+  assertEqual(brushOffsets(5).length, 21, 'size 5 is a rounded 5x5 (corners cut)');
+  // every offset stays within the disc radius, so paint/erase/ghost agree
+  for (const sz of BRUSH_SIZES)
+    for (const [dx, dy] of brushOffsets(sz))
+      assert(Math.hypot(dx, dy) <= sz / 2 + 1e-6, `offset in radius for size ${sz}`);
+  assertEqual(normalizeBrushSize(4), 1, 'an unknown size falls back to 1');
+});
+
+test('the paint brush stamps a disc; the erase brush shares the size; plants stay single', () => {
+  setup(31, 31);
+  // a size-3 path brush at the center paints the full 3x3 via stampBrushAt
+  game.tool = 'path'; game.pathColor = 'warm'; game.brushSize = 3;
+  stampBrushAt(10, 10, null);
+  let paved = 0;
+  for (const [dx, dy] of brushOffsets(3)) if (tileTerrain(10 + dx, 10 + dy) === 'path') paved++;
+  assertEqual(paved, 9, 'size-3 path brush paved the whole 3x3 disc');
+
+  // erasing at the same shared size lifts the whole disc in one pass
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0 };
+  eraseBrush(10, 10, counts);
+  assertEqual(counts.terr, 9, 'size-3 erase lifted the whole 3x3 disc');
+
+  // plants are not sizable — a size-3 plant brush drops exactly one plant
+  game.tool = 'karl'; game.toolVar = null; game.brushSize = 3;
+  assertEqual(toolBrushSize(), 1, 'plant tools ignore brush size');
+  stampBrushAt(20, 20, null);
+  let planted = 0;
+  for (const [dx, dy] of brushOffsets(3)) {
+    const p = game.plants[`${20 + dx},${20 + dy}`];
+    if (p && !p.removed) planted++;
+  }
+  assertEqual(planted, 1, 'a sized plant brush still places a single plant');
 });
 
 test('winter soil beds are frosted instead of nearly black', () => {

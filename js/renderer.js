@@ -110,6 +110,19 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
     ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
   } else ctx.drawImage(e.cv,lx,ly,dw,dh);
 }
+// cursor footprint: tint each tile of the brush disc so the stamp/erase area
+// reads before commit. Reuses the same brushOffsets the paint/erase paths use,
+// so the preview can't disagree with what actually gets placed.
+function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
+  const fill = mode==='erase' ? 'rgba(200,84,68,0.16)' : 'rgba(224,206,150,0.15)';
+  const stroke = mode==='erase' ? 'rgba(236,120,96,0.62)' : 'rgba(240,224,170,0.58)';
+  for (const [dx,dy] of brushOffsets(size)){
+    const x=cxT+dx, y=cyT+dy;
+    if (x<0||y<0||x>=GW||y>=GH) continue;
+    const [sx,sy]=screenOf(x,y,W,H);
+    tileDiamond(cx,sx,sy,fill,stroke);
+  }
+}
 function render(t){
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
@@ -253,6 +266,14 @@ function render(t){
         tileDiamond(cx,sx,sy,sh.active?'rgba(150,42,32,0.16)':'rgba(210,168,92,0.13)',
           sh.active?'rgba(230,118,92,0.88)':'rgba(234,188,102,0.78)',sh.active?null:[5,4]); }
     }
+  }
+  // brush footprint ghost: the disc a sizable paint/elevation tool will stamp,
+  // and the erase brush's reach — so the stamp area is visible before commit
+  // (desktop hover; touch has no hover, it paints on contact).
+  if (game.hoverTile){
+    const [bxT,byT]=game.hoverTile, bmeta=toolMeta(game.tool);
+    if (game.tool==='shovel') drawBrushGhost(cx,W,H,bxT,byT,game.brushSize,'erase');
+    else if (bmeta.sizable && normalizeBrushSize(game.brushSize)>1) drawBrushGhost(cx,W,H,bxT,byT,game.brushSize,'paint');
   }
 
   // RTS-style placement ghost while the House tool is armed: tinted

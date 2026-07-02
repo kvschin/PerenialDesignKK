@@ -56,12 +56,12 @@ const TOOLS={
   select:  {layer:null,        brush:false, placement:false, paints:false, material:false},
   pick:    {layer:null,        brush:false, placement:false, paints:false, material:false},
   shovel:  {layer:null,        brush:false, placement:false, paints:false, material:false}, // Erase
-  path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
-  bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
-  water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  apply:(x,y,o)=>placeTerrainAt(x,y)},
-  raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
-  lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
-  level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
@@ -359,6 +359,18 @@ function drawFillModeIcon(tc,on){
   tc.fillStyle=on?'#c97f3f':'#7d93a8';
   tc.beginPath(); tc.ellipse(22,19,4.4,2.2,0,0,7); tc.fill();
 }
+// a filled disc scaled by brush size, for the brush-bar + erase size dots
+function drawBrushSizeIcon(tc,size,cx0,cy0,maxR){
+  cx0=cx0||14; cy0=cy0||12; maxR=maxR||9;
+  const i=Math.max(0,BRUSH_SIZES.indexOf(normalizeBrushSize(size)));
+  const r=Math.max(2, maxR*(0.34+0.66*i/(BRUSH_SIZES.length-1)));
+  tc.clearRect(0,0,tc.canvas.width,tc.canvas.height);
+  tc.fillStyle='rgba(216,199,172,0.92)';
+  tc.beginPath(); tc.arc(cx0,cy0,r,0,7); tc.fill();
+  tc.strokeStyle='rgba(46,36,28,0.5)'; tc.lineWidth=1;
+  tc.beginPath(); tc.arc(cx0,cy0,r,0,7); tc.stroke();
+}
+function setBrushSize(sz){ game.brushSize=normalizeBrushSize(sz); }
 function drawSearchIcon(tc,close){
   tc.clearRect(0,0,24,24);
   tc.lineCap='round'; tc.lineJoin='round';
@@ -541,11 +553,19 @@ function renderEraseTray(tray){
       toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`);
     },`Erase ${lbl.toLowerCase()}`));
   sep('Size');
-  [1,3,5].forEach(sz=>toolBtn(sz===1?'1 tile':`${sz}x${sz}`,'layers',game.eraseSize===sz,()=>{
-    game.eraseSize=sz;
-    buildToolTray(); refreshCanvasTools();
-    toast(`Erase size: ${sz}x${sz}.`);
-  },`Erase size ${sz}x${sz}`));
+  const cur=normalizeBrushSize(game.brushSize);
+  BRUSH_SIZES.forEach(sz=>{
+    const b=document.createElement('button');
+    b.className='tool danger'+(cur===sz?' sel':'');
+    b.title=`Erase ${sz} tile${sz>1?'s':''} wide`;
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    drawBrushSizeIcon(c.getContext('2d'),sz,24,22,15);
+    const sp=document.createElement('span'); sp.textContent=sz===1?'1 tile':`${sz} wide`;
+    b.append(c,sp);
+    b.onclick=()=>{ setBrushSize(sz); buildToolTray(); refreshCanvasTools();
+      toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`); };
+    tray.appendChild(b);
+  });
 }
 function renderSelectTray(tray){
   renderCvRow();
@@ -1434,6 +1454,15 @@ function renderBrushBar(){
     {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
       draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
   ]));
+  // brush size (disc): materials + elevation only — plants keep their spacing
+  if (meta.sizable){
+    const cur=normalizeBrushSize(game.brushSize);
+    parts.push(seg(BRUSH_SIZES.map(sz=>({
+      label:String(sz), on:cur===sz, title:`Brush ${sz} tile${sz>1?'s':''} wide`,
+      draw:tc=>drawBrushSizeIcon(tc,sz),
+      click:()=>{ setBrushSize(sz); renderBrushBar(); }
+    }))));
+  }
   const fillSeg=document.createElement('div'); fillSeg.className='seg';
   const fillBtn=document.createElement('button');
   fillBtn.className='seg-opt'+(game.fillMode?' on':'');
