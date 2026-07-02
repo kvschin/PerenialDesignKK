@@ -63,8 +63,10 @@ mid-2026 split — a clean cut, no logic moved.
 ## Run / test
 
 - Open `index.html` in a browser, or serve the folder to avoid file:// quirks:
-  `npx http-server -p 8642 -c-1` (this machine has Node but no Python; the same
-  command is wired into `.claude/launch.json` for the preview panel).
+  `npx http-server -c-1` (this machine has Node but no Python). The preview panel
+  runs the same server via `.claude/launch.json`, which uses `autoPort` (the
+  harness assigns a free port) rather than a hard-coded `-p`, so it doesn't
+  collide with anything already holding 8642.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
@@ -660,3 +662,79 @@ live cross-device visiting is ever built.
   - *(Built)* **Selection tool** — marquee a region to move, duplicate,
     rotate, or erase the plants/terrain inside it (see the Select tool in the
     canvas-toolbar notes above). Resize-in-place is still open.
+
+### UX + design-feature roadmap (waves)
+
+The agreed build order, from a UX/UI audit + a curves/brushes/features
+consultation (mid-2026). Ordered by **what unblocks what**, not raw priority.
+Four sequencing calls drive it: (1) **WYSIWYG comes early** — every visual
+feature is judged through it, so it precedes the feature work; (2) **stabilize
+mobile cheaply now, do the full sheet redesign last** — the bottom sheet's final
+contents (Fill + brush-size + Matrix) must be frozen before it's redesigned, or
+it gets built twice; (3) the **cursor footprint ghost** and the **disc-brush
+engine** are shared primitives (brush size, erase, curves, plant-spacing ghost
+all consume them) so they're built once, before their consumers; (4) **brush
+size precedes curves** — a big disc brush dragged in an S *is* the curved path,
+so shipping the brush is half of curves. Anything touching the render loop
+(preview toggle, ghost, curves, overlays) lands behind the debug-HUD phase
+timers and, if it feeds a cache, becomes part of that cache key — A/B on a
+stress garden before merge (see the perf notes in §11).
+
+- **Wave 0 — Stop the bleeding** (small; nothing built on top until fixed):
+  re-wire flood fill (Fill chip → `game.fillMode` in the brush bar; rename the
+  Select tray's button to "Fill area" in the same edit — the flood-fill UI entry
+  was lost when Fill moved to the Select tray, and `nothing sets fillMode=true`);
+  de-compress the phone tray (`min-height` on tab rows + handle, vertical scroll
+  in the catalog — this cheap stabilization is what lets the real sheet redesign
+  wait for Wave 4); re-pin popovers + re-`snapCam` on resize/orientation; fix the
+  🔍 search glyph to a drawn canvas icon.
+- **Wave 1 — A planner you can trust your eyes in** (the lens for all later
+  visual work; cheap): pause the clock by default in design mode (season box
+  shows the paused state it already supports); "Today / Established" preview
+  toggle (renders `plantGrowth` clamped to 1 — the sprite key already buckets
+  growth), defaulting new design gardens to Established; armed-brush visibility
+  (rail swatch reusing `drawSheetSwatch` + stop the silent auto-arm on tab open);
+  Duplicate garden (copy the localStorage blob + index row — one-afternoon
+  freebie).
+- **Wave 2 — Shared interaction primitives** (build once, many consumers):
+  cursor footprint ghost (generalize `drawShrubFootprint` — previews disc area,
+  erase area, and plant spacing before commit); disc-brush engine (shared
+  `game.brushSize`, a disc predicate generalizing `eraseBrush`'s box loop; unify
+  erase sizing onto it; `sizable` flag in `TOOLS`; size dots in the brush bar,
+  reused in the erase control).
+- **Wave 3 — "Curves & Brushes"** (the payoff; depends on Wave 2): smoothed
+  terrain rendering — reuse the plan sheet's `traceOutlines`/`smoothLoop`/
+  `planJitter` pipeline in `paintGround`, **caching traced loops in world space
+  keyed by `groundDataSig()`** so tracing runs only on edit, not per pan frame
+  (data model unchanged — tile-truth for rules; the spline is inward-bounded);
+  Organic/Formal edge style on Path/Bed chips, defaulted from the questionnaire
+  style (`prairie`/`cottage` → organic, `formal`/`modern`/`japanese` → crisp);
+  Matrix/scatter brush ("Matrix" beside Draw/Drift — places a species at its real
+  `space` within the painted region, skipping occupied tiles, enabling two-layer
+  interplanting).
+- **Wave 4 — Definitive mobile redesign** (now that the sheet's contents are
+  frozen): tri-state bottom sheet (collapsed/half/full via drag on the handle —
+  `applySheetState` has the seam), chip-dropdown category nav, `[⋯]` view-tools
+  consolidation (Select/Rotate/Layers/Ruler), 44px rail, Erase → popover on the
+  rail button (stops evicting the catalog); zoom pill + fit-plot (also heals the
+  resize-stranding); two-finger-tap undo / three-finger redo; visible move-cancel
+  on touch; selection actions in a pill anchored to the marquee (desktop/tablet).
+- **Wave 5 — Measure & analyze** (the ruler + the overlay family, shared render
+  pattern): tape-measure mode (tap-tap or drag, reusing `drawSelDimLine`/
+  `selMetricLabel`; entry via top bar / view-tools popover) + a free
+  running-length label during path/bed/fence drags (`toolDrag.count` knows the
+  tiles); overlay family clustered (touching the Layers overlay section once):
+  edge-rulers overlay (desktop/tablet only), hydrozone/moisture overlay (`moist`
+  data), `heightIn` data pass + height overlay, real eye icons in the Layers
+  menu; global search scope with jump-to-category.
+- **Wave 6 — Site-accuracy & polish** (biggest lift, lowest urgency): set true
+  north at plot setup (rotates `SUN_PATH`; compass, plan arrow, shade all derive
+  downstream); replace-species across garden/selection; site-photo underlay
+  (image layer under the ground cache, opacity in Layers, resolution-capped
+  data-URL in the save — watch localStorage size); left-handed rail mirroring.
+- **Floaters** (no hard dependency, pull forward on appetite): **bloom/interest
+  calendar** (rows = species, columns = seasons early/mid/late, cells tinted by
+  actual bloom color — pure presentation over existing `bloomLevel` data, a
+  quick credibility win, natural alongside plan-sheet work); **replace-species**
+  (the natural companion to the Matrix brush — promote out of Wave 6 if
+  palette-iteration friction bites during Wave 3).

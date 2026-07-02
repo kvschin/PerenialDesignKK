@@ -4,8 +4,8 @@
     {
       "name": "hortus",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "-p", "8642", "-c-1"],
-      "port": 8642
+      "runtimeArgs": ["--yes", "http-server", "-c-1"],
+      "autoPort": true
     }
   ]
 }
