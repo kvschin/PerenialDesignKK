@@ -402,6 +402,21 @@ test('organic terrain traces contiguous same-material tiles into regions', () =>
   assertEqual(buildTerrainRegions().length, 4, 'a different bed colour splits into its own region');
 });
 
+test('organic edges collapse a diagonal tile staircase to a straight line', () => {
+  // a right-triangle bed: the hypotenuse is traced as a 45-degree staircase
+  const set = new Set();
+  for (let y = 0; y <= 8; y++) for (let x = 0; x <= 8; x++) if (x + y >= 8) set.add(`${x},${y}`);
+  const raw = traceOutlines(set)[0];
+  assert(raw.length >= 12, 'the raw staircase boundary has many step corners');
+  const simp = simplifyClosedLoop(raw, 0.9);
+  assert(simp.length < raw.length && simp.length <= 6, 'the staircase collapses to a few real corners');
+  // no surviving vertex sits in the middle of the diagonal — it is one segment
+  const onDiag = simp.filter(([x, y]) => x + y > 1 && x + y < 15 && x > 0 && y > 0).length;
+  assert(onDiag <= 1, 'the diagonal edge became a single straight line');
+  // an already-clean rectangle is left untouched
+  assertEqual(simplifyClosedLoop([[0, 0], [5, 0], [5, 5], [0, 5]], 0.9).length, 4, 'a clean rectangle is unchanged');
+});
+
 test('winter soil beds are frosted instead of nearly black', () => {
   for (const bs of BED_STYLES){
     const fill = bedFill({ k: 'bed', c: bs.id }, AMBIENCE.Winter);

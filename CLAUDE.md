@@ -240,7 +240,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     boundary, and the loops are cached in world tile-corner space in
     `terrainLoopCache` keyed by `groundDataSig()`, so tracing runs only on edit,
     **never per pan frame** (the ground canvas still rebuilds on pan, but only
-    projects cached corners). `paintTerrainBlobs` projects each loop through
+    projects cached corners). Each traced loop is first run through
+    `simplifyClosedLoop` (Douglas–Peucker, eps ≈ 0.9 tiles) so a diagonal edge —
+    which `traceOutlines` renders as a right/down/right/down staircase — collapses
+    to a straight line instead of scalloping into a zigzag; real notches survive.
+    `paintTerrainBlobs` projects each loop through
     `screenOf`, draws a jittered midpoint-quadratic spline (`planJitter`,
     inward-bounded so it never claims ground the tile rules don't), fills the
     material colour, then runs the per-tile texture pass **clipped** to the blob
@@ -384,7 +388,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     ghost** (`drawBrushGhost`, renderer.js) tints the disc under `game.hoverTile`
     before commit — cream for paint, red for erase — reusing the same
     `brushOffsets` so the preview can't disagree with the stamp (desktop hover;
-    touch paints on contact). **Drag-to-plant**: pointerdown with a
+    touch paints on contact). `pointermove` updates `game.hoverTile` up front,
+    before the sweep/toolDrag early-returns, so the footprint tracks the cursor
+    mid-drag instead of freezing where the gesture began. **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
     (one toast + sync at pointerup via `finishToolDrag`), while a plain

@@ -57,6 +57,42 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
    ground the tile rules don't). The per-tile texture pass runs clipped to the
    blob, so gravel/mulch/water detail is preserved; grass shows in cut corners. */
 let terrainLoopCache={sig:null, regions:[]};
+// Douglas–Peucker on a closed boundary loop: `traceOutlines` renders a diagonal
+// edge as a rectilinear staircase (right/down/right/down); left alone, the
+// spline uses each step corner as a control point and scallops into a zigzag.
+// Collapsing the staircase to its endpoints first makes it draw as one straight
+// diagonal. eps is in tiles: a 45° staircase deviates ~0.71 from its ideal
+// chord and a genuine one-tile jog deviates ~1, so ~0.9 erases the artifact
+// while keeping real notches. Runs only on edit (cached), so cost is irrelevant.
+const TERRAIN_SIMPLIFY_EPS=0.9;
+function simplifyClosedLoop(pts, eps){
+  if (pts.length<=4) return pts;
+  const segDist=(p,a,b)=>{
+    const dx=b[0]-a[0], dy=b[1]-a[1], L2=dx*dx+dy*dy;
+    if (L2<1e-12) return Math.hypot(p[0]-a[0],p[1]-a[1]);
+    let t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2; t=t<0?0:t>1?1:t;
+    return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
+  };
+  const dp=(arr)=>{
+    if (arr.length<3) return arr.slice();
+    let idx=-1, max=0;
+    for (let i=1;i<arr.length-1;i++){ const d=segDist(arr[i],arr[0],arr[arr.length-1]);
+      if (d>max){ max=d; idx=i; } }
+    if (max>eps) return dp(arr.slice(0,idx+1)).slice(0,-1).concat(dp(arr.slice(idx)));
+    return [arr[0], arr[arr.length-1]];
+  };
+  // anchor on two extreme, guaranteed-real corners so no kink is introduced
+  let a0=0; for (let i=1;i<pts.length;i++){ const p=pts[i], q=pts[a0];
+    if (p[0]<q[0] || (p[0]===q[0] && p[1]<q[1])) a0=i; }
+  let a1=a0, best=-1;
+  for (let i=0;i<pts.length;i++){ const d=Math.hypot(pts[i][0]-pts[a0][0], pts[i][1]-pts[a0][1]);
+    if (d>best){ best=d; a1=i; } }
+  const lo=Math.min(a0,a1), hi=Math.max(a0,a1);
+  if (hi-lo<1) return pts;
+  const out=dp(pts.slice(lo,hi+1)).slice(0,-1)
+    .concat(dp(pts.slice(hi).concat(pts.slice(0,lo+1))).slice(0,-1));
+  return out.length>=3 ? out : pts;
+}
 function buildTerrainRegions(){
   const sig=groundDataSig();
   if (terrainLoopCache.sig===sig) return terrainLoopCache.regions;
@@ -78,7 +114,8 @@ function buildTerrainRegions(){
       }
     }
     const o=game.terrain[k];
-    regions.push({ kind:o.k, c:o.c, tiles:set, loops:traceOutlines(set) });
+    regions.push({ kind:o.k, c:o.c, tiles:set,
+      loops:traceOutlines(set).map(l=>simplifyClosedLoop(l,TERRAIN_SIMPLIFY_EPS)) });
   }
   terrainLoopCache={sig, regions};
   return regions;

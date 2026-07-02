@@ -173,6 +173,8 @@ cnv.addEventListener('pointermove',e=>{
     return;
   }
   const place=evPlacement(e), x=place.x, y=place.y;
+  // keep the brush/erase footprint ghost under the cursor even mid-drag
+  game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (sweep){ sweepLift(x,y); return; }
   if (toolDrag){
@@ -187,7 +189,6 @@ cnv.addEventListener('pointermove',e=>{
     }
     return;
   }
-  game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
 });
 cnv.addEventListener('wheel',e=>{
   if (!game.mode) return;
