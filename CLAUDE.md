@@ -46,13 +46,13 @@ Public app name: **Pocket Prairie Garden Design**. iPhone home-screen label:
 
 The game is plain HTML/CSS/JS — `index.html` (markup) and `styles.css` at the
 repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
-the game logic, split for navigability across nine ordered modules: `core.js`,
-`draw.js`, `world.js`, `view.js`, `io.js`,
-`ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step, no npm
-dependencies, no framework. Fonts load from Google Fonts over the network;
-everything else is local. The modules share one global scope (plain `<script>`
-tags, no bundler), so **load order matters**: `index.html` loads `js/plants.js`
-first, then the nine modules in the order above — keep that order. Function declarations hoist only *within* a
+the game logic, split for navigability across ordered app modules: `core.js`,
+`draw.js`, `world.js`, `view.js`, `renderer.js`, `commands.js`, `input.js`,
+`io.js`, `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step,
+no npm dependencies, no framework. Fonts load from Google Fonts over the
+network; everything else is local. The modules share one global scope (plain
+`<script>` tags, no bundler), so **load order matters**: `index.html` loads
+`js/plants.js` first, then the modules in the order above — keep that order. Function declarations hoist only *within* a
 file, so the bottom-of-file button wiring and `init` live in `screens.js` (last,
 after everything is defined), and no earlier module may *call* a later module's
 function at load time (cross-file calls inside function bodies are fine — they
@@ -71,7 +71,7 @@ mid-2026 split — a clean cut, no logic moved.
 - After edits, run `node --check <module>.js` on the file(s) you touched to
   catch syntax errors before reloading the browser.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
-  loads `plants.js` and the nine game modules (in load order) inside a `vm`
+  loads `plants.js` and the app modules (in load order) inside a `vm`
   sandbox with light DOM stubs. `tests/plants.test.js` checks the species data
   contract; `tests/game.test.js` smoke-renders every species and unit-tests the
   pure logic (iso math, flood fill, selection ownership, bulb/woody rules, the
@@ -97,19 +97,31 @@ mid-2026 split — a clean cut, no logic moved.
 ## Architecture
 
 Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game
-logic is split across nine modules. They map onto the section list below
+logic is split across ordered modules. They map onto the section list below
 (which is also the load order, top to bottom):
 
-- **`core.js`** — §1 constants, §2 `AMBIENCE`, §4 `COATS`, the path/bed/water/
-  fence/light/firepit/house data tables, and `plantDef` (cultivar merge cache).
+- **`core.js`** — constants, `AMBIENCE`, `COATS`, shared color helpers such as
+  `mixHex`, the path/bed/water/fence/light/firepit/house data tables, and
+  `plantDef` (cultivar merge cache).
 - **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
-  `drawCritter`.
+  `drawCritter`, and canvas drawing primitives for houses, fences, lights,
+  firepits, plan symbols, and other rendered objects.
 - **`world.js`** — §8 the `game` state object, the `GAME_LAYERS` registry +
   `setTile`/`clearTile` mutation helpers, §9 time helpers + phenology, shade
-  constants, `DIRS`/`SUN_PATH`, house/world data, `cam`.
-- **`view.js`** — §10 iso math + view rotation, §11 `render`/`paintGround`,
-  §12 movement/actions/tools, the canvas input handlers (pointer/key/wheel),
-  undo/redo, and the selection tool.
+  constants, `DIRS`/`SUN_PATH`, house/world data, `cam`, terrain/elevation
+  lookup, collision helpers, iso/view math, and depth helpers.
+- **`view.js`** — active canvas sizing, viewport/PWA sizing probes, zoom state,
+  active canvas switching, resize handling, and compass/map-edge direction
+  updates.
+- **`renderer.js`** — `render(t)`, visible-window gathering, ground and plant
+  sprite caches, entity sorting, overlays, selection metrics, shade/night/
+  season passes, snow, and photo effects.
+- **`commands.js`** — movement steps, `actHere`, `applyToolAt`, drift stamping,
+  erase, selection mutation, saved-area paste/fill, house/fence/light/firepit
+  placement, undo/redo, and toasts.
+- **`input.js`** — keyboard and canvas input wiring: pointer/touch/wheel
+  handlers, pinch protection, panning, brush drags, shovel sweeps, tap-to-act/
+  walk, and `followPath()`.
 - **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
   §14 export sheet (`exportRows`), §14b planting plan (`openPlan`).
 - **`ui.js`** — §15 roles/style scoring, region filter (`plantFits`/`trayKeys`),
@@ -236,9 +248,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     frame-time breakdown — ground / shade / cursor / gather / sort / draw / fx,
     plus move / hud — sorted by cost. Ground drawn back-to-front, a single
     depth-sorted entity
-    pass for the cottage + plants + critters (`houseDrawDepth()` anchors the
-    cottage at the doorstep/front center, not the far corner, so nearby
-    players/plants draw in front of large houses), planting
+    pass for the cottage + plants + critters (`houseDrawDepth()` uses the
+    current-rotation max view depth over the footprint, so large houses sort
+    consistently from every side), planting
     pulse fx (`game.fx`), season tint, snowfall, and — when `game.photo` is
     set — a golden-hour wash for `takePhoto()` (renders one washed frame,
     downloads the canvas PNG; the DOM HUD is excluded automatically).

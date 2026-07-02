@@ -18,6 +18,11 @@ const TILE_IN = 18;                   // real-world inches per tile side (export
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
 const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
+function mixHex(a,b2,t){
+  const pa=parseInt(a.slice(1),16), pb=parseInt(b2.slice(1),16);
+  const ch=(sh)=>Math.round(((pa>>sh)&255)*(1-t)+((pb>>sh)&255)*t);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
 
 /* UX feature flags for retired / optional interactions.
    End Day stays as a deliberate HUD action, but house-door sleep is disabled so

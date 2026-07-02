@@ -347,11 +347,6 @@ function planJitter(x,y){ // shared lattice wobble: neighboring blobs nest
   const r=mulberry((x*73856093 ^ y*83492791)>>>0);
   return [(r()-0.5)*0.5, (r()-0.5)*0.5];
 }
-function mixHex(a,b2,t){
-  const pa=parseInt(a.slice(1),16), pb=parseInt(b2.slice(1),16);
-  const ch=(sh)=>Math.round(((pa>>sh)&255)*(1-t)+((pb>>sh)&255)*t);
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
-}
 function planColor(def){
   const s=def.sea.Summer||{}, f=def.sea.Fall||{}, sp=def.sea.Spring||{};
   return s.bloom||sp.bloom||f.bloom||f.seed||s.fol||sp.fol||'#8a8a70';
@@ -490,6 +485,7 @@ function buildPlanMap(){
   const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
   const comps=allComps.filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
   const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
+  const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
   const ids=[...new Set([
     ...comps.map(c=>c.s+'|'+(c.v||'')),
     ...shrubComps.map(c=>c.s+'|'+(c.v||'')),
@@ -497,7 +493,8 @@ function buildPlanMap(){
   ])];
   const codes=planCodes(ids);
   const legCols=3, legRows=Math.ceil(ids.length/legCols);
-  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+legRows*15+26;
+  const fixtureRows=lightsLive.length?1:0;
+  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+(legRows+fixtureRows)*15+26;
   pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
   ctx.setTransform(2,0,0,2,0,0);
   const X=x=>padL+x*cell, Y=y=>padT+y*cell;
@@ -570,6 +567,19 @@ function buildPlanMap(){
     if (f.gate){ ctx.strokeStyle=st.post; ctx.lineWidth=1;
       ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(3,cell*0.24),0.2,Math.PI*1.3); ctx.stroke(); }
   }
+  // lighting fixtures
+  lightsLive.forEach(k=>{
+    const l=game.lights[k], [x,y]=k.split(',').map(Number), tone=lightTone(l.tone);
+    const cx2=X(x)+cell/2, cy2=Y(y)+cell/2, r=Math.max(2.5,cell*0.18);
+    ctx.save();
+    ctx.fillStyle=mixHex(tone.col,'#f7f3e8',0.22);
+    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(92,84,69,0.42)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(cx2-r*1.8,cy2); ctx.lineTo(cx2+r*1.8,cy2);
+    ctx.moveTo(cx2,cy2-r*1.8); ctx.lineTo(cx2,cy2+r*1.8); ctx.stroke();
+    ctx.restore();
+  });
   // drifts as smoothed blobs (largest first so small ones read on top)
   const smoothLoop=(loop)=>{
     const pts=loop.map(([x,y])=>{ const [jx,jy]=planJitter(x,y);
@@ -666,6 +676,14 @@ function buildPlanMap(){
     const nm=def.name.length>26?def.name.slice(0,25)+'…':def.name;
     ctx.fillText(`${codes[id]} — ${nm} (${counts[id]||0})`, cx2+14, cy2);
   });
+  if (lightsLive.length){
+    const cy2=ly2+legRows*15, cx2=padL;
+    ctx.fillStyle=mixHex(lightTone('warm').col,'#f7f3e8',0.22);
+    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.arc(cx2+4.5,cy2-3,4,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
+    ctx.fillText(`LIGHT - lighting fixture (${lightsLive.length})`, cx2+14, cy2);
+  }
   // scale bar: 10 ft
   const ftPx=cell/1.5, bx2=W2-padL-ftPx*10, by2=H2-18;
   ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;

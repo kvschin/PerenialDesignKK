@@ -622,9 +622,14 @@ function tileAt(sx,sy,W,H){
   const [vx,vy]=viewPointAt(sx,sy,W,H);
   return viewToWorld(Math.round(vx), Math.round(vy));
 }
+function footprintDrawDepth(x,y,w,h){
+  return Math.max(
+    viewDepth(x,y), viewDepth(x+w-1,y),
+    viewDepth(x,y+h-1), viewDepth(x+w-1,y+h-1)
+  );
+}
 function houseDrawDepth(h){
-  const [dx,dy]=doorPos(h);
-  return viewDepth(dx,dy)+0.05;
+  return footprintDrawDepth(h.x,h.y,h.w,h.h)+0.05;
 }
 function isoDiamondPath(ctx,sx,sy,inset){
   const i=inset||0, hw=TILE_W/2-i, hh=TILE_H/2-i*0.5, cy=sy+TILE_H/2;

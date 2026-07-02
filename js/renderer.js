@@ -299,7 +299,7 @@ function render(t){
     const [x,y]=k.split(',').map(Number), sz=firepitTileSize(f);
     if (x+sz.w-1<x0||x>x1||y+sz.h-1<y0||y>y1) continue;
     visibleFirepits.push({f,x,y});
-    ents.push({depth:viewDepth(x+sz.w-1,y+sz.h-1)+0.37, draw:()=>drawFirepit(cx,W,H,cal.season,f,x,y)});
+    ents.push({depth:footprintDrawDepth(x,y,sz.w,sz.h)+0.37, draw:()=>drawFirepit(cx,W,H,cal.season,f,x,y)});
   }
   if (layerShown('landscape')) for (const hh of game.houses){
     if (hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)

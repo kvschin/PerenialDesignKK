@@ -356,6 +356,59 @@ function placeLightAt(x,y){
   setTile('lights',k,next);
   return 'light';
 }
+function lightAt(x,y){ const l=game.lights&&game.lights[`${x},${y}`]; return (l&&!l.removed)?l:null; }
+function lightDraft(){ return game.lightDraft=normalizeLightDraft(game.lightDraft); }
+function lightLabel(l){
+  const d=l||lightDraft();
+  return `${lightTone(d.tone).label} ${lightType(d.type).label}`;
+}
+function firepitShapeName(f){
+  const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
+  return d.shape==='round' ? 'round' : (s.wIn===s.hIn ? 'square' : 'rectangular');
+}
+function firepitDraft(){ return game.firepitDraft=normalizeFirepitDraft(game.firepitDraft); }
+function firepitLabel(f){
+  const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
+  return `${s.plan} ${firepitShapeName(d)} fire pit`;
+}
+function firepitAt(x,y){
+  if (!game.firepits) return null;
+  for (const k in game.firepits){
+    const f=game.firepits[k]; if (!f || f.removed) continue;
+    const [fx,fy]=k.split(',').map(Number), sz=firepitTileSize(f);
+    if (x>=fx && x<fx+sz.w && y>=fy && y<fy+sz.h)
+      return Object.assign({key:k,x:fx,y:fy},f);
+  }
+  return null;
+}
+function firepitFootprint(x,y,f){
+  const sz=firepitTileSize(f), tiles=[];
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  return tiles;
+}
+function canPlaceFirepit(x,y,ignoreKey){
+  const d=firepitDraft(), sz=firepitTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of firepitFootprint(x,y,d)){
+    const k=`${xx},${yy}`;
+    if (inHouse(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || shrubAt(xx,yy)) return false;
+    const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
+    if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
+    const p=game.plants[k], b=game.bulbs[k];
+    if ((p&&!p.removed) || (b&&!b.removed)) return false;
+  }
+  return true;
+}
+function placeFirepitAt(x,y){
+  if (!game.firepits) game.firepits={};
+  const d=normalizeFirepitDraft(firepitDraft()), k=`${x},${y}`;
+  const cur=game.firepits[k];
+  if (cur && !cur.removed && cur.shape===d.shape && cur.size===d.size) return null;
+  if (!canPlaceFirepit(x,y,k)) return null;
+  setTile('firepits',k,Object.assign({},d,{t:Date.now()}));
+  return 'firepit';
+}
 
 /* ---------- house placement / sizing / paint ---------- */
 function pushHouse(){ game.houseT=Date.now();
@@ -447,8 +500,8 @@ function showPlantCard(p,px2,py2){
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg; el.style.opacity=1;
-  if (/nothing|no room|already|first|failed|coming soon|only|lift the plant|dig the path|not in|no spot|shade-tolerant|standing in the way|just scenery|enter the/i.test(msg))
-  clearTimeout(el._t); el._t=setTimeout(()=>el.style.opacity=0,2600);
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.style.opacity=0,2600);
 }
 
 

@@ -77,6 +77,22 @@ test('tileAt picks the drawn diamond for elevated terrain', () => {
   }
 });
 
+test('multi-tile structure depth follows the rotated footprint', () => {
+  setup(21, 21);
+  const house = { x: 4, y: 6, w: 5, h: 3 };
+  for (let rot = 0; rot < 4; rot++){
+    game.rot = rot;
+    const expected = Math.max(
+      viewDepth(house.x, house.y), viewDepth(house.x + house.w - 1, house.y),
+      viewDepth(house.x, house.y + house.h - 1), viewDepth(house.x + house.w - 1, house.y + house.h - 1)
+    );
+    assertEqual(footprintDrawDepth(house.x, house.y, house.w, house.h), expected,
+      `footprint depth uses visual far corner at rot ${rot}`);
+    assertEqual(houseDrawDepth(house), expected + 0.05,
+      `house depth follows footprint at rot ${rot}`);
+  }
+});
+
 test('ftToTiles converts and clamps to a 2-tile minimum', () => {
   assertEqual(ftToTiles(18), 12, '18ft at 18in tiles = 12 tiles');
   assertEqual(ftToTiles(1.5), 2, 'one tile of feet rounds to the minimum 2');
@@ -702,6 +718,26 @@ test('lights place as one-tile structures, block plants, and erase with landscap
   assert(!lightAt(5, 5), 'light removed');
 });
 
+test('planting plan includes lighting fixtures in the key', () => {
+  setup(13, 13);
+  game.lights['5,5'] = { type: 'path', tone: 'warm', t: 1 };
+  const oldGet = document.getElementById;
+  const labels = [];
+  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  document.getElementById = id => id === 'planCanvas'
+    ? { getContext(){ return ctx; }, style: {} }
+    : oldGet.call(document, id);
+  try {
+    buildPlanMap();
+  } finally {
+    document.getElementById = oldGet;
+  }
+  assert(labels.some(t => t.includes('LIGHT - lighting fixture (1)')), 'plan key lists lighting fixtures');
+});
+
 test('fire pits reserve their footprint and erase as structures', () => {
   setup(13, 13);
   const forb = firstOfType('forb');
@@ -793,6 +829,25 @@ test('no-op undo gestures do not push snapshots', () => {
   assertEqual(undoStack.length, undoCount, 'begin/commit with no mutation is skipped');
   withUndo(() => {});
   assertEqual(undoStack.length, undoCount, 'withUndo with no mutation is skipped');
+});
+
+test('toast clears the previous timer for informational messages', () => {
+  const oldGet = document.getElementById, oldSet = setTimeout, oldClear = clearTimeout;
+  const el = { textContent: '', style: { opacity: 0 }, _t: 41 };
+  let cleared = null;
+  document.getElementById = id => id === 'toast' ? el : oldGet.call(document, id);
+  setTimeout = (fn, ms) => { assertEqual(ms, 2600, 'toast timeout duration'); return 99; };
+  clearTimeout = id => { cleared = id; };
+  try {
+    toast('Picked Karl Foerster.');
+  } finally {
+    document.getElementById = oldGet;
+    setTimeout = oldSet;
+    clearTimeout = oldClear;
+  }
+  assertEqual(cleared, 41, 'previous toast timer was cleared');
+  assertEqual(el._t, 99, 'new toast timer was stored');
+  assertEqual(el.style.opacity, 1, 'toast is visible after update');
 });
 
 test('remote map merge bumps revision only when it applies newer data', () => {
