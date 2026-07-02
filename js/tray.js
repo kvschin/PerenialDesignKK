@@ -655,10 +655,25 @@ function renderSelectTray(tray){
     'Paste the saved area starting at this selection',!storedArea());
 }
 function refreshCanvasTools(){ buildCanvasTools(); }
-// The top bar carries the view/select controls — Select · Rotate · Layers, the
-// non-painting tools — beside the season dial. Keep their icons + state in sync,
-// and (re)render the Layers flyout pinned under its button.
+// The top bar carries the view/select controls. Desktop/tablet show the full
+// buttons; phones collapse them into the compact View Tools menu.
+function visibleEl(el){ return !!(el && getComputedStyle(el).display!=='none'); }
 function syncTopTools(){
+  const sel=document.getElementById('btnSelectTool');
+  if (sel){ sel.classList.toggle('sel',game.tool==='select');
+    sel.onclick=()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
+      toast('Drag a box on the garden to select an area.'); };
+    const c=document.getElementById('btnSelectIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'select'); }
+  const rot=document.getElementById('btnRotateTool');
+  if (rot){ rot.onclick=()=>rotateView(1);
+    const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
+  const lay=document.getElementById('btnLayersTool');
+  if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
+    lay.onclick=()=>toggleLayerMenu();
+    const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
+  const rul=document.getElementById('btnRulerTool');
+  if (rul){ rul.onclick=()=>toast('Ruler mode is next in the Measure wave.');
+    const c=document.getElementById('btnRulerIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'ruler'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
     view.onclick=()=>toggleViewToolsMenu();
@@ -723,7 +738,7 @@ function anchorPopover(pop,anchor){
 function renderViewToolsMenu(){
   const old=document.getElementById('viewToolsPop'); if (old) old.remove();
   const btn=document.getElementById('btnViewTools');
-  if (game.toolMenu!=='view' || !btn) return;
+  if (game.toolMenu!=='view' || !visibleEl(btn)) return;
   const pop=document.createElement('div');
   pop.id='viewToolsPop'; pop.className='tool-popover view-tools-popover';
   if (!game.visiting){
@@ -873,7 +888,9 @@ function toggleLayerMenu(){
 // whenever the rail refreshes — its rows call refreshCanvasTools() to re-render.
 function renderLayerMenu(){
   const old=document.getElementById('layerPop'); if (old) old.remove();
-  const btn=document.getElementById('btnViewTools');
+  const btn = visibleEl(document.getElementById('btnLayersTool'))
+    ? document.getElementById('btnLayersTool')
+    : document.getElementById('btnViewTools');
   if (game.toolMenu!=='layers' || !btn) return;
   const viewPop=document.getElementById('viewToolsPop'); if (viewPop) viewPop.remove();
   const pop=buildLayerPopover(); pop.id='layerPop';

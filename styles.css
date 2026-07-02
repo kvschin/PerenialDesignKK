@@ -180,6 +180,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    tool — Rotate and Layers stay, they only change the view). */
 body.visiting #canvasTools, body.visiting .hud-bottom, body.visiting #btnAct,
 body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
+body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important}
 
 /* ---------- character creator ---------- */
 .creator-grid{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
@@ -205,6 +206,8 @@ body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
   border-bottom:1.5px solid rgba(239,230,211,.22);
   padding:max(6px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 6px max(12px,env(safe-area-inset-left))}
 .season-dial{pointer-events:auto;padding:2px 4px;display:flex;align-items:center;gap:12px;min-width:0}
+.top-tools-full{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#btnViewTools{display:none}
 .season-readout{min-width:108px;background:none;border:none;color:inherit;text-align:left;padding:0;border-radius:3px}
 .season-readout:hover{background:rgba(239,230,211,.06)}
 .season-readout:focus-visible{outline:1.5px solid var(--bronze);outline-offset:3px}
@@ -399,6 +402,9 @@ body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
   border:1.5px solid rgba(239,230,211,.25);border-radius:999px;padding:10px 16px;color:var(--seedhead);
   font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif;opacity:0;transition:opacity .18s ease}
 .gesture-cancel.show{opacity:1}
+@media(max-width:1024px), (pointer:coarse){
+  #zoomPill{display:none}
+}
 #toast{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(25,18,15,.92);border:1.5px solid var(--bronze);
   color:var(--seedhead);padding:10px 18px;border-radius:4px;font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #plantCard{position:fixed;top:108px;right:10px;background:rgba(25,18,15,.94);
@@ -502,6 +508,8 @@ body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
   .day-bar{width:62px;height:3px;border-radius:2px;background:rgba(255,255,255,.16)}
   .day-bar i{display:block}
   .time-actions{min-width:0;gap:4px}
+  .top-tools-full{display:none}
+  #btnViewTools{display:flex}
   #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(239,230,211,.28)}
   /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
