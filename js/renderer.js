@@ -264,6 +264,138 @@ function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
     tileDiamond(cx,sx,sy,fill,stroke);
   }
 }
+/* ---------- persistent scene list (perf) ----------
+   Between edits nothing on the ground moves: an entity's depth changes only on
+   edit / rotation / layer toggle / the game day. The old gather allocated a
+   fresh {depth, draw:closure} per visible entity and re-sorted them EVERY
+   FRAME — thousands of objects per frame whose only job was to become garbage
+   (GC pauses read as stutter even when the average frame looks fine). So the
+   scene is built once into plain records, depth-sorted, and a frame only culls
+   (numeric compares) and draws. Time-varying looks — growth, sway, bloom — are
+   computed at draw time from the live plant refs, so nothing visual goes stale;
+   day-granular facts (tree shade reach/stunting — plantEstab is integer-day)
+   sit in the key via absDay(). In-place edits invalidate via game.rev
+   (markModelChanged in setTile/clearTile/addHouse/applySnapshot/mergeMap);
+   wholesale map swaps (load / new garden / legacy fixups) are caught by object
+   identity in sceneStale. Side fix: stunting is now computed against the FULL
+   tree list — the old per-frame pass used the viewport-culled list, so an
+   off-screen tree's shade stopped stunting a visible plant. */
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,HOUSE:3,BULB:4,PLANT:5,GHOST:6,PLAYER:7,OTHER:8};
+let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[]};
+let scenePlantCount=0;  // plants+bulbs drawn LAST frame — feeds the sprite-cache hysteresis
+function sceneLayerBits(){
+  return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
+    (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
+}
+function sceneKey(){
+  return game.rev+'|'+game.rot+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH;
+}
+function sceneStale(skey){
+  const r=scene.refs;
+  return scene.key!==skey || !r ||
+    r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
+    r.lights!==game.lights || r.firepits!==game.firepits || r.houses!==game.houses;
+}
+function buildScene(W,H){
+  const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[];
+  const plantRecs=[];
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (layerShown('woody')){
+      const shrub=shrubInfoFromKey(k);
+      if (shrub){ shrub.cullR=Math.ceil(shrubRadiusTiles(plantDef(p.s,p.v)))+1; shrubs.push(shrub); }
+    }
+    const sh=treeShadeInfo(k,p);
+    if (sh && sh.r>=1){ sh.reach=treeShadeReach(sh); (sh.activePotential?shadeTrees:futureShadeTrees).push(sh); }
+    if (!layerShown(plantLayerOf(p))) continue;
+    const rec={d:plantDepth(x,y,p)+0.3, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
+      x,y,p, seed:tileSeed(x,y), detail:plantRenderDetail(x,y,p,W,H), stunt:false};
+    plantRecs.push(rec); ents.push(rec);
+  }
+  // full-sun plants under an ACTIVE canopy render stunted; day-granular, so
+  // it lives here (against ALL trees, not just the on-screen ones)
+  for (const rec of plantRecs){
+    const P2=PLANTS[rec.p.s];
+    if (P2 && P2.sun!=='part' && P2.type!=='tree')
+      rec.stunt=shadeTrees.some(sh=>sh.p!==rec.p && treeShadeScore(sh,rec.x,rec.y)>=SHADE_ACTIVE_SCORE);
+  }
+  if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
+    if (p.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    ents.push({d:plantDepth(x,y,p)+0.25, kind:SCENE_K.BULB, bx0:x,bx1:x,by0:y,by1:y,
+      x,y,p, seed:(tileSeed(x,y)^0x9e37)>>>0});
+  }
+  if (layerShown('landscape')){
+    for (const k in game.fences){ const f=game.fences[k];
+      if (f.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      ents.push({d:viewDepth(x,y)+0.34, kind:SCENE_K.FENCE, bx0:x,bx1:x,by0:y,by1:y, x,y,f});
+    }
+    for (const k in game.lights){ const l=game.lights[k];
+      if (!l || l.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      const rec={d:viewDepth(x,y)+0.36, kind:SCENE_K.LIGHT, bx0:x,bx1:x,by0:y,by1:y, x,y,l};
+      ents.push(rec); lights.push(rec);
+    }
+    for (const k in game.firepits){ const f=game.firepits[k];
+      if (!f || f.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=firepitTileSize(f);
+      const rec={d:footprintDrawDepth(x,y,sz.w,sz.h)+0.37, kind:SCENE_K.FIREPIT,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,f};
+      ents.push(rec); firepits.push(rec);
+    }
+    for (const hh of game.houses)
+      ents.push({d:houseDrawDepth(hh), kind:SCENE_K.HOUSE,
+        bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
+  }
+  ents.sort((a,b)=>a.d-b.d);
+  scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
+    lights:game.lights,firepits:game.firepits,houses:game.houses},
+    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits};
+}
+// draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
+function drawSceneEnt(e,W,H,season,sway,useSprites,t){
+  switch(e.kind){
+    case SCENE_K.FENCE: drawFence(cx,W,H,season,e.f,e.x,e.y); return 0;
+    case SCENE_K.LIGHT: drawLightFixture(cx,W,H,season,e.l,e.x,e.y,game.layerVis.night); return 0;
+    case SCENE_K.FIREPIT: drawFirepit(cx,W,H,season,e.f,e.x,e.y); return 0;
+    case SCENE_K.HOUSE: drawHouse(cx,W,H,season,e.h); return 0;
+    case SCENE_K.BULB:{
+      const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
+      const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites);
+      return 1;
+    }
+    case SCENE_K.PLANT:{
+      let g=displayPlantGrowth(e.p); if (e.stunt) g*=0.45;      // struggling under canopy
+      const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites);
+      return 1;
+    }
+    case SCENE_K.GHOST:
+      cx.globalAlpha=0.55; drawHouse(cx,W,H,season,e.h); cx.globalAlpha=1; return 0;
+    case SCENE_K.PLAYER:{
+      const [sx,sy]=screenOf(e.x,e.y,W,H);
+      drawCritter(cx,sx,sy+TILE_H/2,game.char,t,game.moving,1);
+      cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
+      const nm=game.char.name||'You', wN=cx.measureText(nm).width;
+      cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
+      cx.fillStyle='#f3ecdd'; cx.textAlign='center'; cx.fillText(nm,sx,sy-31);
+      return 0;
+    }
+    case SCENE_K.OTHER:{
+      const o=e.o, [sx,sy]=screenOf(o.x,o.y,W,H);
+      drawCritter(cx,sx,sy+TILE_H/2,{species:o.sp,coat:o.c,coatD:o.cd,mark:o.m},t,false,1);
+      cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
+      const wN=cx.measureText(o.n).width;
+      cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
+      cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31);
+      return 0;
+    }
+  }
+  return 0;
+}
 function render(t){
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
@@ -292,26 +424,12 @@ function render(t){
   const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+pad);
   const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-pad);
   const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+pad);
-  const shadeTrees=[], futureShadeTrees=[], visibleShrubs=[], visibleLights=[], visibleFirepits=[];
-  for (const k in game.plants){ const p=game.plants[k];
-    if (p.removed) continue;
-    const shrub=shrubInfoFromKey(k);
-    if (shrub && layerShown('woody')){
-      const r=Math.ceil(shrubRadiusTiles(plantDef(p.s,p.v)))+1;
-      if (!(shrub.x+r<x0 || shrub.x-r>x1 || shrub.y+r<y0 || shrub.y-r>y1)) visibleShrubs.push(shrub);
-    }
-    const sh=treeShadeInfo(k,p);
-    if (!sh || sh.r<1) continue;
-    const reach=treeShadeReach(sh);
-    if (sh.x+reach<x0 || sh.x-reach>x1 || sh.y+reach<y0 || sh.y-reach>y1) continue;
-    (sh.activePotential?shadeTrees:futureShadeTrees).push(sh);
-  }
-  if (layerShown('landscape')) for (const k in game.lights){ const l=game.lights[k];
-    if (!l || l.removed) continue;
-    const [x,y]=k.split(',').map(Number);
-    if (x<x0||x>x1||y<y0||y>y1) continue;
-    visibleLights.push({l,x,y});
-  }
+  // persistent scene list: rebuild only on edit / rot / layer toggle / day tick
+  // (or when a load swapped the maps wholesale) — never on pan/zoom frames
+  const tScene=dnow();
+  if (sceneStale(sceneKey())) buildScene(W,H);
+  const shadeTrees=scene.shadeTrees, futureShadeTrees=scene.futureShadeTrees;
+  dmark('gather',tScene);
 
   const tG0=dnow();
   // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
@@ -355,10 +473,14 @@ function render(t){
   cx.restore();
   dmark('ground',tG0);
   const tShade=dnow();
-  if (layerShown('woody')) visibleShrubs.forEach(sh=>drawShrubFootprint(cx,W,H,sh,'base'));
+  if (layerShown('woody')) for (const sh of scene.shrubs){
+    if (sh.x+sh.cullR<x0 || sh.x-sh.cullR>x1 || sh.y+sh.cullR<y0 || sh.y-sh.cullR>y1) continue;
+    drawShrubFootprint(cx,W,H,sh,'base');
+  }
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
-  shadeTrees.forEach(sh=>{
-    const rr=treeShadeReach(sh);
+  for (const sh of shadeTrees){
+    const rr=sh.reach;
+    if (sh.x+rr<x0 || sh.x-rr>x1 || sh.y+rr<y0 || sh.y-rr>y1) continue;
     for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
       for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
         const score=treeShadeScore(sh,xx,yy);
@@ -367,9 +489,10 @@ function render(t){
         const a=(0.06+0.18*score)*(0.65+0.35*sh.est);
         tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
       }
-  });
-  futureShadeTrees.forEach(sh=>{
-    const rr=treeShadeReach(sh);
+  }
+  for (const sh of futureShadeTrees){
+    const rr=sh.reach;
+    if (sh.x+rr<x0 || sh.x-rr>x1 || sh.y+rr<y0 || sh.y-rr>y1) continue;
     for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
       for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
         const score=treeShadeScore(sh,xx,yy);
@@ -378,7 +501,7 @@ function render(t){
           tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
         }
       }
-  });
+  }
   // Shade-suitability overlay (Layers view): wash every tile by how much
   // canopy reaches it — amber = full sun, teal = shade, between = part shade
   if (game.layerVis.shade){
@@ -468,89 +591,42 @@ function render(t){
     cx.lineTo(dsx,dsy+TILE_H); cx.lineTo(dsx-TILE_W/2,dsy+TILE_H/2); cx.closePath(); cx.fill();
   }
 
-  // depth-sorted entities: plants + critters + the cottage,
-  // culled to the same visible window as the ground
+  // depth-sorted entities: the persistent scene list is already sorted, so a
+  // frame only culls each record (numeric compares) and merges in the handful
+  // of per-frame dynamic entities (house ghost, avatar, other gardeners).
   dmark('cursor',tCursor);
   const tGather=dnow();
-  const ents=[];
-  let plantCount=0, useSprites=false;          // sprite cache kicks in only when dense (set after gather)
-  if (layerShown('landscape')) for (const k in game.fences){
-    const f=game.fences[k]; if (f.removed) continue;
-    const [x,y]=k.split(',').map(Number);
-    if (x<x0||x>x1||y<y0||y>y1) continue;
-    ents.push({depth:viewDepth(x,y)+0.34, draw:()=>drawFence(cx,W,H,cal.season,f,x,y)});
-  }
-  visibleLights.forEach(({l,x,y})=>{
-    ents.push({depth:viewDepth(x,y)+0.36, draw:()=>drawLightFixture(cx,W,H,cal.season,l,x,y,game.layerVis.night)});
-  });
-  if (layerShown('landscape')) for (const k in game.firepits){
-    const f=game.firepits[k]; if (!f || f.removed) continue;
-    const [x,y]=k.split(',').map(Number), sz=firepitTileSize(f);
-    if (x+sz.w-1<x0||x>x1||y+sz.h-1<y0||y>y1) continue;
-    visibleFirepits.push({f,x,y});
-    ents.push({depth:footprintDrawDepth(x,y,sz.w,sz.h)+0.37, draw:()=>drawFirepit(cx,W,H,cal.season,f,x,y)});
-  }
-  if (layerShown('landscape')) for (const hh of game.houses){
-    if (hh.x+hh.w-1>=x0 && hh.x<=x1 && hh.y+hh.h-1>=y0 && hh.y<=y1)
-      ents.push({depth:houseDrawDepth(hh), draw:()=>drawHouse(cx,W,H,cal.season,hh)});
-  }
-  if (ghost)
-    ents.push({depth:houseDrawDepth(ghost)+0.01,
-      draw:()=>{ cx.globalAlpha=0.55; drawHouse(cx,W,H,cal.season,ghost); cx.globalAlpha=1; }});
-  // active canopies stunt full-sun plants beneath them (they persist, smaller)
-  // the bulb layer: invisible most of the year, so cull hard
-  if (layerShown('bulbs'))
-  for (const k in game.bulbs){ const p=game.bulbs[k];
-    if (p.removed) continue;
-    const [x,y]=k.split(',').map(Number);
-    if (x<x0||x>x1||y<y0||y>y1) continue;
-    const gB=displayPlantGrowth(p); if (gB<=0.02) continue;
-    plantCount++;
-    ents.push({depth:plantDepth(x,y,p)+0.25, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,p.s,gB,cal.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v,undefined,useSprites);}});
-  }
-  for (const k in game.plants){ const p=game.plants[k];
-    if (p.removed) continue;
-    if (!layerShown(plantLayerOf(p))) continue;       // perennials/woody view toggle
-    const [x,y]=k.split(',').map(Number);
-    if (x<x0||x>x1||y<y0||y>y1) continue;
-    let g2v=displayPlantGrowth(p);
-    const P2=PLANTS[p.s];
-    if (P2 && P2.sun!=='part' && P2.type!=='tree' &&
-        shadeTrees.some(sh=>sh.p!==p && treeShadeScore(sh,x,y)>=SHADE_ACTIVE_SCORE))
-      g2v*=0.45; // struggling under the canopy
-    const detail=plantRenderDetail(x,y,p,W,H);
-    plantCount++;
-    ents.push({depth:plantDepth(x,y,p)+0.3, draw:()=>{ const [sx,sy]=plantScreenOf(x,y,p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,p.s,g2v,cal.season,tileSeed(x,y),sway,p.v,detail,useSprites);}});
-  }
-  // local player (smooth move) — story mode only; design has no avatar
-  let dx=game.px, dy=game.py;
+  const dyn=[];
+  if (ghost) dyn.push({d:houseDrawDepth(ghost)+0.01, kind:SCENE_K.GHOST, h:ghost});
   if (game.gameMode!=='design')
-  ents.push({depth:viewDepth(dx,dy)+0.5, draw:()=>{ const [sx,sy]=screenOf(dx,dy,W,H);
-    drawCritter(cx,sx,sy+TILE_H/2,game.char,t,game.moving,1);
-    cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
-    const nm=game.char.name||'You', wN=cx.measureText(nm).width;
-    cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
-    cx.fillStyle='#f3ecdd'; cx.textAlign='center'; cx.fillText(nm,sx,sy-31); }});
-  // other gardeners
+    dyn.push({d:viewDepth(game.px,game.py)+0.5, kind:SCENE_K.PLAYER, x:game.px, y:game.py});
   for (const id in game.others){ const o=game.others[id];
     if (Date.now()-o.ts > 30000) continue;
-    ents.push({depth:viewDepth(o.x,o.y)+0.5, draw:()=>{ const [sx,sy]=screenOf(o.x,o.y,W,H);
-      drawCritter(cx,sx,sy+TILE_H/2,{species:o.sp,coat:o.c,coatD:o.cd,mark:o.m},t,false,1);
-      cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
-      const wN=cx.measureText(o.n).width;
-      cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
-      cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31); }});
+    dyn.push({d:viewDepth(o.x,o.y)+0.5, kind:SCENE_K.OTHER, o});
   }
-  // dense gardens only — keeps light ones pristine. Hysteresis (on >MIN, off
-  // <0.7·MIN) stops a flicker between procedural/cached while panning the edge.
-  PSPRITE.active = !PSPRITE.off && plantCount > (PSPRITE.active ? PSPRITE.MIN*0.7 : PSPRITE.MIN);
-  useSprites = PSPRITE.active;
   dmark('gather',tGather);
-  const tSort=dnow(); ents.sort((a,b)=>a.depth-b.depth); dmark('sort',tSort);
-  const tDraw=dnow(); ents.forEach(e=>e.draw()); dmark('draw',tDraw);
-  if (dbg.on){ dbg.ents=ents.length; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
+  const tSort=dnow(); if (dyn.length>1) dyn.sort((a,b)=>a.d-b.d); dmark('sort',tSort);
+  // dense gardens only — keeps light ones pristine. Hysteresis (on >MIN, off
+  // <0.7·MIN) stops a flicker between procedural/cached while panning the
+  // edge; the count is last frame's drawn plants (one-frame lag it absorbs).
+  PSPRITE.active = !PSPRITE.off && scenePlantCount > (PSPRITE.active ? PSPRITE.MIN*0.7 : PSPRITE.MIN);
+  const useSprites = PSPRITE.active;
+  const tDraw=dnow();
+  const sents=scene.ents;
+  let plantCount=0, drawn=0, di=0;
+  for (let i=0;i<sents.length;i++){
+    const e=sents[i];
+    while (di<dyn.length && dyn[di].d<=e.d){
+      plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites,t); drawn++; }
+    if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+    plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites,t);
+    drawn++;
+  }
+  while (di<dyn.length){
+    plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites,t); drawn++; }
+  scenePlantCount=plantCount;
+  dmark('draw',tDraw);
+  if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
   const tFx=dnow();
 
   // planting pulses: an expanding diamond so a tap visibly took
@@ -584,8 +660,14 @@ function render(t){
   } else snowFlakes.length=0;
   if (game.layerVis.night){
     applyDuskLighting(cx,W,H,cal.season);
-    visibleFirepits.forEach(({f,x,y})=>drawFirepitGlow(cx,W,H,f,x,y));
-    visibleLights.forEach(({l,x,y})=>drawLightGlow(cx,W,H,l,x,y));
+    for (const e of scene.firepits){
+      if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+      drawFirepitGlow(cx,W,H,e.f,e.x,e.y);
+    }
+    for (const e of scene.lights){
+      if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+      drawLightGlow(cx,W,H,e.l,e.x,e.y);
+    }
   }
 
   if (game.photo){ // golden-hour wash, only on the captured frame

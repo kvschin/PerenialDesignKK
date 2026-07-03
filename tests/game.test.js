@@ -993,6 +993,35 @@ test('undo/redo round-trips and a new action clears the redo chain', () => {
   assertEqual(redoStack.length, 0, 'a new action clears redo');
 });
 
+test('persistent scene list: sorted records, edit/rot/swap invalidation, stunting', () => {
+  setup();
+  const g = firstOfType('grass');
+  const tree = firstOfType('tree');
+  setTile('plants', '10,10', { s: tree, d: -10000, t: 1 });  // mature canopy
+  setTile('plants', '10,9',  { s: g, d: 0, t: 1 });          // full-sun grass in its shade
+  setTile('plants', '3,4',   { s: g, d: 0, t: 1 });          // out in the open
+  setTile('fences', '6,6', { style: 'wood', height: 4, t: 1 });
+  addHouse({ x: 15, y: 15, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
+  buildScene(800, 600);
+  assert(!sceneStale(sceneKey()), 'fresh after build');
+  assertEqual(scene.ents.length, 5, 'tree+2 plants+fence+house records');
+  for (let i = 1; i < scene.ents.length; i++)
+    assert(scene.ents[i].d >= scene.ents[i - 1].d, 'records are depth-sorted');
+  assertEqual(scene.shadeTrees.length, 1, 'mature tree casts active shade');
+  const shaded = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 10 && e.y === 9);
+  const open   = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 3 && e.y === 4);
+  assert(shaded.stunt === true, 'full-sun plant under the canopy is stunted');
+  assert(open.stunt === false, 'plant in the open is not');
+  setTile('plants', '2,2', { s: g, d: 0, t: 1 });
+  assert(sceneStale(sceneKey()), 'setTile bumps game.rev and invalidates');
+  buildScene(800, 600);
+  game.rot = 1;
+  assert(sceneStale(sceneKey()), 'rotation invalidates');
+  game.rot = 0; buildScene(800, 600);
+  game.plants = Object.assign({}, game.plants); // wholesale swap, as load/undo do
+  assert(sceneStale(sceneKey()), 'map identity swap invalidates without a rev bump');
+});
+
 test('no-op undo gestures do not push snapshots', () => {
   setup();
   const undoCount = undoStack.length;

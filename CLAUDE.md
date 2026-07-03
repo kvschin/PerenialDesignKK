@@ -280,7 +280,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     depth-sorted entity
     pass for the cottage + plants + critters (`houseDrawDepth()` uses the
     current-rotation max view depth over the footprint, so large houses sort
-    consistently from every side), planting
+    consistently from every side). That pass reads a **persistent scene list**
+    (`scene` / `buildScene` / `sceneStale`): plain depth-sorted records built
+    once per edit / rotation / layer toggle / game day — invalidated by
+    `game.rev` (bumped by `markModelChanged` in `setTile`/`clearTile`/
+    `addHouse`/`applySnapshot`/`mergeMap`) plus map object identity for
+    wholesale swaps (load / new garden) — so a frame only culls (numeric
+    bounds compares) and draws, merging in the few per-frame dynamic entities
+    (house ghost, avatar, other gardeners) by depth. The old gather allocated
+    a `{depth, draw:closure}` per visible entity and re-sorted EVERY frame —
+    thousands of objects/frame of pure GC churn (stutter). Growth/sway/bloom
+    are computed at draw time from live plant refs so nothing visual goes
+    stale; day-granular facts (tree shade reach, canopy stunting — `plantEstab`
+    is integer-day) live in the records, and stunting is now computed against
+    the FULL tree list (the old per-frame pass used the viewport-culled list,
+    so an off-screen tree stopped stunting a visible plant). Planting
     pulse fx (`game.fx`), season tint, snowfall, and — when `game.photo` is
     set — a golden-hour wash for `takePhoto()` (renders one washed frame,
     downloads the canvas PNG; the DOM HUD is excluded automatically).
