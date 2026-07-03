@@ -394,24 +394,76 @@ function treeShadeScore(sh,x,y){
   }
   return Math.min(1,score);
 }
-function shadeInfoAt(x,y,includeFuture){
-  let active=null, future=null;
+/* Shade only changes when the model, day/season, rotation, or plot size
+   changes. Cache it per tile so render-time plant stunting, canopy washes, and
+   shade overlays are table lookups instead of plant x tree x sun-sample math. */
+let shadeMapCache={key:null, plantsRef:null, activeScore:null, activeAlpha:null,
+  futureScore:null, futureDrawScore:null, activeTree:null, futureTree:null};
+function shadeMapIndex(x,y){ return y*GW+x; }
+function shadeMapKey(){ return game.rev+'|'+game.rot+'|'+absDay()+'|'+GW+'x'+GH; }
+function resetShadeMapCache(){
+  shadeMapCache={key:null, plantsRef:null, activeScore:null, activeAlpha:null,
+    futureScore:null, futureDrawScore:null, activeTree:null, futureTree:null};
+}
+function ensureShadeMap(){
+  const key=shadeMapKey(), n=Math.max(0,GW*GH);
+  if (shadeMapCache.key===key && shadeMapCache.plantsRef===game.plants &&
+      shadeMapCache.activeScore && shadeMapCache.activeScore.length===n) return shadeMapCache;
+  const activeScore=new Float32Array(n), activeAlpha=new Float32Array(n);
+  const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
+  const activeTree=new Array(n), futureTree=new Array(n);
   for (const k in game.plants){ const p=game.plants[k];
-    if (p.removed) continue;
+    if (!p || p.removed) continue;
     const sh=treeShadeInfo(k,p);
-    if (!sh) continue;
+    if (!sh || sh.r<1) continue;
     const reach=treeShadeReach(sh);
-    if (Math.abs(x-sh.x)>reach || Math.abs(y-sh.y)>reach) continue;
-    const score=treeShadeScore(sh,x,y);
-    if (sh.activePotential && score>=SHADE_ACTIVE_SCORE){
-      const hit=Object.assign({score,active:true},sh);
-      if (!active || hit.score>active.score) active=hit;
-    } else if (includeFuture && score>=SHADE_FUTURE_SCORE){
-      const hit=Object.assign({score,active:false},sh);
-      if (!future || hit.score>future.score) future=hit;
+    sh.reach=reach;
+    const yA=Math.max(0,sh.y-reach), yB=Math.min(GH-1,sh.y+reach);
+    const xA=Math.max(0,sh.x-reach), xB=Math.min(GW-1,sh.x+reach);
+    for (let yy=yA; yy<=yB; yy++) for (let xx=xA; xx<=xB; xx++){
+      const score=treeShadeScore(sh,xx,yy);
+      if (score<=0) continue;
+      const idx=shadeMapIndex(xx,yy);
+      if (sh.activePotential && score>activeScore[idx]){
+        activeScore[idx]=score;
+        if (score>=SHADE_ACTIVE_SCORE) activeTree[idx]=sh;
+      }
+      if (sh.activePotential && score>=SHADE_ACTIVE_SCORE){
+        const alpha=(0.06+0.18*score)*(0.65+0.35*sh.est);
+        if (alpha>activeAlpha[idx]) activeAlpha[idx]=alpha;
+      } else if (score>=SHADE_FUTURE_SCORE && score>futureScore[idx]){
+        futureScore[idx]=score; futureTree[idx]=sh;
+      }
+      if (!sh.activePotential && score>=SHADE_FUTURE_SCORE && score>futureDrawScore[idx])
+        futureDrawScore[idx]=score;
     }
   }
-  return active||future;
+  shadeMapCache={key, plantsRef:game.plants, activeScore, activeAlpha,
+    futureScore, futureDrawScore, activeTree, futureTree};
+  return shadeMapCache;
+}
+function shadeScoreAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return 0;
+  return ensureShadeMap().activeScore[shadeMapIndex(x,y)]||0;
+}
+function shadeActiveAlphaAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return 0;
+  return ensureShadeMap().activeAlpha[shadeMapIndex(x,y)]||0;
+}
+function shadeFutureDrawScoreAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return 0;
+  return ensureShadeMap().futureDrawScore[shadeMapIndex(x,y)]||0;
+}
+function shadeInfoAt(x,y,includeFuture){
+  if (x<0||y<0||x>=GW||y>=GH) return null;
+  const m=ensureShadeMap(), idx=shadeMapIndex(x,y);
+  const active=m.activeTree[idx];
+  if (active) return Object.assign({score:m.activeScore[idx],active:true},active);
+  if (includeFuture){
+    const future=m.futureTree[idx];
+    if (future) return Object.assign({score:m.futureScore[idx],active:false},future);
+  }
+  return null;
 }
 function shadeAt(x,y){
   const sh=shadeInfoAt(x,y,false);

@@ -340,10 +340,11 @@ function buildScene(W,H){
   }
   // full-sun plants under an ACTIVE canopy render stunted; day-granular, so
   // it lives here (against ALL trees, not just the on-screen ones)
+  ensureShadeMap();
   for (const rec of plantRecs){
     const P2=PLANTS[rec.p.s];
     if (P2 && P2.sun!=='part' && P2.type!=='tree')
-      rec.stunt=shadeTrees.some(sh=>sh.p!==rec.p && treeShadeScore(sh,rec.x,rec.y)>=SHADE_ACTIVE_SCORE);
+      rec.stunt=shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
   }
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
     if (p.removed) continue;
@@ -453,7 +454,6 @@ function render(t){
   // (or when a load swapped the maps wholesale) — never on pan/zoom frames
   const tScene=dnow();
   if (sceneStale(sceneKey())) buildScene(W,H);
-  const shadeTrees=scene.shadeTrees, futureShadeTrees=scene.futureShadeTrees;
   dmark('gather',tScene);
 
   const tG0=dnow();
@@ -503,36 +503,19 @@ function render(t){
     drawShrubFootprint(cx,W,H,sh,'base');
   }
   // active shade is a cool wash; young trees get only a faint future-canopy edge.
-  for (const sh of shadeTrees){
-    const rr=sh.reach;
-    if (sh.x+rr<x0 || sh.x-rr>x1 || sh.y+rr<y0 || sh.y-rr>y1) continue;
-    for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
-      for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
-        const score=treeShadeScore(sh,xx,yy);
-        if (score<SHADE_ACTIVE_SCORE) continue;
-        const [sx,sy]=screenOf(xx,yy,W,H);
-        const a=(0.06+0.18*score)*(0.65+0.35*sh.est);
-        tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
-      }
-  }
-  for (const sh of futureShadeTrees){
-    const rr=sh.reach;
-    if (sh.x+rr<x0 || sh.x-rr>x1 || sh.y+rr<y0 || sh.y-rr>y1) continue;
-    for (let yy=Math.max(y0,sh.y-rr); yy<=Math.min(y1,sh.y+rr); yy++)
-      for (let xx=Math.max(x0,sh.x-rr); xx<=Math.min(x1,sh.x+rr); xx++){
-        const score=treeShadeScore(sh,xx,yy);
-        if (score>=SHADE_FUTURE_SCORE && score<SHADE_ACTIVE_SCORE){
-          const [sx,sy]=screenOf(xx,yy,W,H);
-          tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
-        }
-      }
+  for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
+    const [sx,sy]=screenOf(xx,yy,W,H);
+    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+    const a=shadeActiveAlphaAt(xx,yy);
+    if (a>0) tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
+    else if (shadeFutureDrawScoreAt(xx,yy)>=SHADE_FUTURE_SCORE)
+      tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
   }
   // Shade-suitability overlay (Layers view): wash every tile by how much
   // canopy reaches it — amber = full sun, teal = shade, between = part shade
   if (game.layerVis.shade){
     for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
-      let score=0;
-      shadeTrees.forEach(sh=>{ const s=treeShadeScore(sh,xx,yy); if (s>score) score=s; });
+      const score=shadeScoreAt(xx,yy);
       const [sx,sy]=screenOf(xx,yy,W,H);
       if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
       const col = score>=SHADE_ACTIVE_SCORE ? 'rgba(38,84,112,0.52)'      // shade — cool blue

@@ -1022,6 +1022,27 @@ test('persistent scene list: sorted records, edit/rot/swap invalidation, stuntin
   assert(sceneStale(sceneKey()), 'map identity swap invalidates without a rev bump');
 });
 
+test('shade map caches per-tile tree shade and invalidates on day/map changes', () => {
+  setup();
+  const tree = firstOfType('tree');
+  setTile('plants', '10,10', { s: tree, d: -10000, t: 1 });
+  const sh = treeShadeInfo('10,10', game.plants['10,10']);
+  sh.reach = treeShadeReach(sh);
+  const expected = treeShadeScore(sh, 10, 9);
+  assert(expected >= SHADE_ACTIVE_SCORE, 'fixture tile receives active shade');
+  assertEqual(Math.round(shadeScoreAt(10, 9) * 1000), Math.round(expected * 1000),
+    'shade map stores the same score as the geometric scorer');
+  assert(shadeActiveAlphaAt(10, 9) > 0, 'active shade wash alpha is cached');
+  assert(shadeInfoAt(10, 9, false).active, 'cached shade info reports active shade');
+  const cached = shadeMapCache.activeScore;
+  game.dayOffset += 100;
+  shadeScoreAt(10, 9);
+  assert(shadeMapCache.activeScore !== cached, 'day changes rebuild the shade map');
+  game.plants = {};
+  game.dayOffset = 0;
+  assertEqual(shadeScoreAt(10, 9), 0, 'map identity swap rebuilds even without rev');
+});
+
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // below the plant floor it never engages, however slow the draw
