@@ -266,9 +266,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     frame, so each plant renders once to a small offscreen canvas — keyed by its
     own `tileSeed` so every clump stays unique (no shared variant pool) — and is
     blitted after, with sway applied as a cheap skew on the blit and growth/bloom
-    bucketed so the key is frame-stable. It engages only past ~300 visible plants
-    (with hysteresis); lighter gardens keep the pristine, smoothly-growing
-    procedural path. Eviction runs once per frame and only on off-screen sprites
+    bucketed so the key is frame-stable. A **governor** (`updateSpriteMode`)
+    engages it when the measured draw phase stays heavy (>6ms for 3 straight
+    frames, 40-plant floor) rather than at a fixed plant count — so a mid-size
+    garden gets sprites on a weak GPU or huge window while the same garden on a
+    fast desktop keeps the pristine, smoothly-growing procedural path. Because
+    sprites make draw fast, disengaging reads the *predicted* procedural cost
+    (plant count × a per-plant ms learned while procedural) rather than the live
+    number, and releases only when that stays under ~2.5ms for ~45 frames.
+    Eviction runs once per frame and only on off-screen sprites
     (never the visible set, so the cache can't thrash/flicker), sprite scale is
     capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
     few frames rather than wiping (the blit auto-scales). ~2.7–3.4× on dense

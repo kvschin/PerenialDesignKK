@@ -192,7 +192,33 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
    heavy enough that the bucketing is imperceptible — light gardens keep the
    pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
 const PSPRITE={ map:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
-  MEM:48*1024*1024, BUDGET:160, MIN:300, off:false, active:false };
+  MEM:48*1024*1024, BUDGET:160, off:false, active:false,
+  FLOOR:40, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0 };
+/* sprite-mode governor: engage the cache when the DRAW PHASE is measured
+   heavy, not at a fixed plant count — the old 300-plant threshold left a
+   typical 150–250 plant design fully procedural forever, even on a window
+   where that costs 10ms+ a frame. Now a garden that's cheap on a fast desktop
+   stays pristine procedural, and the same garden on a weak GPU or a huge
+   window flips to sprites. Turning sprites ON makes draw fast, so the OFF
+   decision can't read the live number (it would flap): it predicts what
+   procedural WOULD cost — plantCount × a per-plant ms learned (EMA) while
+   procedural was last active — and disengages only when that stays cheap.
+   The 40-plant floor keeps genuinely light gardens procedural regardless. */
+function updateSpriteMode(drawMs, plantCount){
+  if (PSPRITE.off){ PSPRITE.active=false; PSPRITE.hot=0; PSPRITE.calm=0; return; }
+  if (!PSPRITE.active){
+    if (plantCount>20 && drawMs>0){
+      const per=drawMs/plantCount;
+      PSPRITE.plantMs = PSPRITE.plantMs ? PSPRITE.plantMs*0.9+per*0.1 : per;
+    }
+    PSPRITE.hot = (plantCount>PSPRITE.FLOOR && drawMs>PSPRITE.HI_MS) ? PSPRITE.hot+1 : 0;
+    if (PSPRITE.hot>=3){ PSPRITE.active=true; PSPRITE.hot=0; PSPRITE.calm=0; }
+  } else {
+    const predicted=plantCount*(PSPRITE.plantMs||0.02);
+    PSPRITE.calm = (plantCount<=PSPRITE.FLOOR || predicted<PSPRITE.LO_MS) ? PSPRITE.calm+1 : 0;
+    if (PSPRITE.calm>=45){ PSPRITE.active=false; PSPRITE.calm=0; }
+  }
+}
 function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
 function pspriteFrame(){                        // once per render: age the cache
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
@@ -282,7 +308,6 @@ function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
    off-screen tree's shade stopped stunting a visible plant. */
 const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,HOUSE:3,BULB:4,PLANT:5,GHOST:6,PLAYER:7,OTHER:8};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[]};
-let scenePlantCount=0;  // plants+bulbs drawn LAST frame — feeds the sprite-cache hysteresis
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
@@ -606,12 +631,8 @@ function render(t){
   }
   dmark('gather',tGather);
   const tSort=dnow(); if (dyn.length>1) dyn.sort((a,b)=>a.d-b.d); dmark('sort',tSort);
-  // dense gardens only — keeps light ones pristine. Hysteresis (on >MIN, off
-  // <0.7·MIN) stops a flicker between procedural/cached while panning the
-  // edge; the count is last frame's drawn plants (one-frame lag it absorbs).
-  PSPRITE.active = !PSPRITE.off && scenePlantCount > (PSPRITE.active ? PSPRITE.MIN*0.7 : PSPRITE.MIN);
-  const useSprites = PSPRITE.active;
-  const tDraw=dnow();
+  const useSprites = PSPRITE.active;   // set by the governor at last frame's end
+  const tDraw=dnow(), tDrawWall=performance.now();
   const sents=scene.ents;
   let plantCount=0, drawn=0, di=0;
   for (let i=0;i<sents.length;i++){
@@ -624,8 +645,8 @@ function render(t){
   }
   while (di<dyn.length){
     plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites,t); drawn++; }
-  scenePlantCount=plantCount;
   dmark('draw',tDraw);
+  updateSpriteMode(performance.now()-tDrawWall, plantCount);
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
   const tFx=dnow();
 

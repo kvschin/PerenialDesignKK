@@ -1022,6 +1022,31 @@ test('persistent scene list: sorted records, edit/rot/swap invalidation, stuntin
   assert(sceneStale(sceneKey()), 'map identity swap invalidates without a rev bump');
 });
 
+test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
+  PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
+  // below the plant floor it never engages, however slow the draw
+  for (let i = 0; i < 10; i++) updateSpriteMode(9, 30);
+  assert(!PSPRITE.active, 'below the plant floor stays procedural');
+  // sustained heavy draw engages after three consecutive hot frames
+  updateSpriteMode(8, 200); updateSpriteMode(8, 200);
+  assert(!PSPRITE.active, 'two hot frames are not enough');
+  updateSpriteMode(8, 200);
+  assert(PSPRITE.active, 'engaged after three consecutive heavy frames');
+  // sprites make draw fast — the predicted procedural cost (200 x learned
+  // ~0.04ms = ~8ms) keeps it engaged instead of flapping off
+  for (let i = 0; i < 60; i++) updateSpriteMode(1.2, 200);
+  assert(PSPRITE.active, 'fast sprite frames do not flap it off');
+  // most plants erased -> procedural would be cheap -> calm window releases it
+  for (let i = 0; i < 45; i++) updateSpriteMode(0.5, 40);
+  assert(!PSPRITE.active, 'disengages when procedural would be cheap again');
+  // dev A/B toggle forces it off
+  updateSpriteMode(9, 500); updateSpriteMode(9, 500); updateSpriteMode(9, 500);
+  assert(PSPRITE.active, 're-engaged for the toggle check');
+  PSPRITE.off = true; updateSpriteMode(9, 500);
+  assert(!PSPRITE.active, 'PSPRITE.off wins');
+  PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
+});
+
 test('no-op undo gestures do not push snapshots', () => {
   setup();
   const undoCount = undoStack.length;
