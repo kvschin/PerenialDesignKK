@@ -889,6 +889,7 @@ function withUndo(fn){ const rev=game.rev, snap=snapshotState(); fn();
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
+  markGroundChanged({terrain:true});
   markModelChanged(); updateUndoBtn();
   if (game.mode==='multi') for (const L of GAME_LAYERS) L.sync();
   buildToolTray();

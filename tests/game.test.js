@@ -19,6 +19,7 @@ function setup(gw, gh){
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
   game.eraseMode = 'all'; game.brushSize = 1;
+  game.groundRev = 0; game.terrainRev = 0;
   cam.x = 0; cam.y = 0;
   game.focusPlantKey = null; game.shrubFx = [];
   game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true,
@@ -218,6 +219,25 @@ test('bed styles are stored on terrain and can be repainted', () => {
   assertEqual(applyToolAt(3, 3), 'bed', 'existing bed restyled');
   assertEqual(game.terrain['3,3'].c, 'leaf', 'new bed style stored');
   assertEqual(applyToolAt(3, 3), null, 'same style is a no-op');
+});
+
+test('ground cache revisions change only for ground-affecting edits', () => {
+  setup(11, 11);
+  const g = firstOfType('grass');
+  const ground0 = game.groundRev, terrain0 = game.terrainRev;
+  setTile('plants', '2,2', { s: g, d: 0, t: 1 });
+  assertEqual(game.groundRev, ground0, 'plant edits do not rebake ground');
+  assertEqual(game.terrainRev, terrain0, 'plant edits do not retrace terrain blobs');
+  setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 1 });
+  assert(game.groundRev > ground0, 'terrain edit rebakes ground');
+  assert(game.terrainRev > terrain0, 'terrain edit retraces organic regions');
+  const ground1 = game.groundRev, terrain1 = game.terrainRev;
+  setElevationAt(4, 4, 1);
+  assert(game.groundRev > ground1, 'elevation edit rebakes ground');
+  assertEqual(game.terrainRev, terrain1, 'elevation edit does not retrace terrain blobs');
+  const ground2 = game.groundRev;
+  addHouse({ x: 6, y: 6, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
+  assert(game.groundRev > ground2, 'house edit rebakes ground for doorstep/footprint');
 });
 
 test('elevation tools raise, lower, level, and clamp grade', () => {

@@ -13,7 +13,7 @@ let snowFlakes = [];
    bake: briefly soft, never slow) and ~180ms after a pan ends (so a resting
    frame is always freshly rasterized, never a resampled blit). Trade-off:
    water ripples freeze except at rebakes (they already froze on a still view). */
-let groundCanvas=null, groundCtx=null, groundKey='';
+let groundCanvas=null, groundCtx=null, groundKey='', groundRefs={terrain:null,elevation:null,houses:null};
 let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
 let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
 let groundCamPrevX=NaN, groundCamPrevY=NaN, groundCamT=-1e9; // last cam tick, for settle
@@ -21,12 +21,10 @@ const GROUND_MARGIN_CSS=200;    // pan headroom baked around the viewport, CSS p
 const GROUND_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
 const GROUND_PAN_SETTLE=180;    // ms after the last cam move before the crisp rebake
 const GROUND_ZOOM_DRIFT=0.18;   // mid-gesture rebake if scale drifts this far from the bake
-function groundDataSig(){
-  let s='';
-  for (const k in game.terrain){ const o=game.terrain[k]; if (o&&!o.removed) s+=k+o.k+(o.c||'')+';'; }
-  for (const k in game.elevation){ const o=game.elevation[k]; if (o&&!o.removed) s+='e'+k+o.h+';'; }
-  const hs=game.houses||[]; for (let i=0;i<hs.length;i++){ const h=hs[i]; s+='H'+h.x+','+h.y+','+h.w+','+h.h+';'; }
-  return s;
+function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
+function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
+function groundRefsChanged(){
+  return groundRefs.terrain!==game.terrain || groundRefs.elevation!==game.elevation || groundRefs.houses!==game.houses;
 }
 function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   ex=ex||0;   // extra cull slack in draw units — the world-anchored bake paints a margin past the viewport
@@ -63,13 +61,13 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
 /* ---------- organic terrain: smoothed region blobs (Wave 3) ----------
    Reuses the plan sheet's traceOutlines pipeline. Contiguous same-material
    (kind+colour) tiles flood into regions; each region's rectilinear boundary
-   is traced ONCE and cached in world (tile-corner) space, keyed by
-   groundDataSig() so tracing runs only on edit — never per pan frame. The
+   is traced ONCE and cached in world (tile-corner) space, keyed by terrainRev
+   so tracing runs only on edit — never per pan frame. The
    per-frame cost is just projecting cached corners through screenOf and
    drawing a midpoint-quadratic spline (inward-bounded, so it never claims
    ground the tile rules don't). The per-tile texture pass runs clipped to the
    blob, so gravel/mulch/water detail is preserved; grass shows in cut corners. */
-let terrainLoopCache={sig:null, regions:[]};
+let terrainLoopCache={sig:null, terrainRef:null, regions:[]};
 // Douglas–Peucker on a closed boundary loop: `traceOutlines` renders a diagonal
 // edge as a rectilinear staircase (right/down/right/down); left alone, the
 // spline uses each step corner as a control point and scallops into a zigzag.
@@ -107,8 +105,8 @@ function simplifyClosedLoop(pts, eps){
   return out.length>=3 ? out : pts;
 }
 function buildTerrainRegions(){
-  const sig=groundDataSig();
-  if (terrainLoopCache.sig===sig) return terrainLoopCache.regions;
+  const sig=terrainRegionKey();
+  if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain) return terrainLoopCache.regions;
   const keyOf={}; // "x,y" -> "kind|colour"
   for (const k in game.terrain){ const o=game.terrain[k];
     if (o && !o.removed) keyOf[k]=o.k+'|'+(o.c||''); }
@@ -130,7 +128,7 @@ function buildTerrainRegions(){
     regions.push({ kind:o.k, c:o.c, tiles:set,
       loops:traceOutlines(set).map(l=>simplifyClosedLoop(l,TERRAIN_SIMPLIFY_EPS)) });
   }
-  terrainLoopCache={sig, regions};
+  terrainLoopCache={sig, terrainRef:game.terrain, regions};
   return regions;
 }
 // append one smoothed loop (jittered corners + midpoint quadratic) to the
@@ -460,7 +458,7 @@ function render(t){
   // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
   // then blit per frame (see the note at the top of this file).
   const gkey=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
-    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataSig();
+    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataKey();
   const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
   if (groundCanvas.width!==cnv.width+2*MD||groundCanvas.height!==cnv.height+2*MD){
@@ -471,6 +469,7 @@ function render(t){
   const camStale=cam.x!==groundCamX||cam.y!==groundCamY;
   const panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
   const mustBake = gkey!==groundKey
+    || groundRefsChanged()
     || panDev>=MD
     || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
@@ -486,6 +485,7 @@ function render(t){
     groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
     paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
     groundKey=gkey; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
+    groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
   // approximation mid-zoom-gesture that the settle rebake replaces crisp.

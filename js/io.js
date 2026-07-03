@@ -76,6 +76,7 @@ async function loadSolo(id){
   game.houses = s.houses ? s.houses
     : (s.house ? [s.house] : (game.gameMode==='design' ? [] : [defaultHouse()]));
   if (shift) game.houses.forEach(h=>{ h.x+=shift; h.y+=shift; });
+  markGroundChanged({terrain:true});
   game.houseDraft = draftFromHouses();
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.bedStyle=bedStyleId(s.bedStyle||'soil');
@@ -108,7 +109,7 @@ async function hostWorld(){
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
-  setWorldSize(31,31); game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
+  setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
   await sSet(wkey('plants'),{},true);
@@ -138,6 +139,7 @@ async function joinWorld(code){
   const ho=await sGet(wkey('house'),true);
   const hh=ho&&ho.h;
   game.houses = Array.isArray(hh) ? hh : (hh ? [hh] : [defaultHouse()]);
+  markGroundChanged({terrain:true});
   game.houseDraft=draftFromHouses(); game.houseT=(ho&&ho.t)||0;
   return true;
 }
@@ -187,7 +189,11 @@ function mergeMap(target,remote){ // last write wins, per tile
   let changed=false;
   for (const k in remote){ const r=remote[k], l=target[k];
     if (!l || (r.t||0)>(l.t||0)){ target[k]=r; changed=true; } }
-  if (changed) markModelChanged();
+  if (changed){
+    markModelChanged();
+    if (target===game.terrain) markLayerCacheChanged('terrain');
+    else if (target===game.elevation) markLayerCacheChanged('elevation');
+  }
 }
 async function pushPresence(){
   if (game.mode!=='multi') return;
@@ -215,7 +221,7 @@ async function pollWorld(){
   if (remoteFP) mergeMap(game.firepits,remoteFP);
   const ho=await sGet(wkey('house'),true);
   if (ho && ho.h && (ho.t||0)>game.houseT){
-    game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; }
+    game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; markLayerCacheChanged('houses'); }
   const players=await sGet(wkey('players'),true)||{};
   game.others={};
   let live=0;

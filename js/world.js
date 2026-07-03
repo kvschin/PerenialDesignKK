@@ -58,6 +58,8 @@ const game = {
   pausedAt:0,
   lastDay:-1, dirty:false,
   rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it
+  groundRev:0,         // ground render cache revision: terrain, elevation, houses, or plot-size state changed
+  terrainRev:0,        // organic terrain-region cache revision: terrain map changed
 };
 // The mutable layers a garden is made of, enumerated once so undo, save/load,
 // and multiplayer sync iterate this list instead of hand-listing all eight in
@@ -79,16 +81,26 @@ const GAME_LAYERS=[
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
 // Single write paths for the layer maps, so the bookkeeping every edit needs —
 // mark dirty for the renderer + bump the edit revision undo watches — can't be
-// forgotten at a call site. setTile stores a value; clearTile writes the
-// {removed} tombstone the erase/sync/merge paths expect. (Multiplayer sync
-// still flushes at gesture end via the existing syncToolLayer/endSweep paths.)
+// forgotten at a call site. Ground-cache revisions are narrower than game.rev:
+// planting should not rebake terrain, but terrain/elevation/houses should.
+// setTile stores a value; clearTile writes the {removed} tombstone the
+// erase/sync/merge paths expect. (Multiplayer sync still flushes at gesture
+// end via the existing syncToolLayer/endSweep paths.)
 function markModelChanged(){ game.dirty=true; game.rev++; }
-function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); }
-function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); }
-function addHouse(h){ game.houses.push(h); markModelChanged(); }
+function markGroundChanged(opts){
+  game.groundRev++;
+  if (opts && opts.terrain) game.terrainRev++;
+}
+function markLayerCacheChanged(layer){
+  if (layer==='terrain') markGroundChanged({terrain:true});
+  else if (layer==='elevation' || layer==='houses') markGroundChanged();
+}
+function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer); }
+function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer); }
+function addHouse(h){ game.houses.push(h); markModelChanged(); markLayerCacheChanged('houses'); }
 function removeHouseAtIndex(i){
   if (i<0 || i>=game.houses.length) return false;
-  game.houses.splice(i,1); markModelChanged();
+  game.houses.splice(i,1); markModelChanged(); markLayerCacheChanged('houses');
   return true;
 }
 /* Solo saves persist to localStorage now that the game runs standalone.

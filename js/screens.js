@@ -90,6 +90,7 @@ function startDailyChallenge(){
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
   game.houses=[]; game.houseDraft=defaultDraft();
+  markGroundChanged({terrain:true});
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
   const zone=(game.region&&game.region.zone)||6;          // keep the user's zone, drop style/native filters
   game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false};
@@ -333,8 +334,9 @@ function enterGarden(){
   document.body.classList.toggle('design-mode', game.gameMode==='design');
   document.body.classList.toggle('visiting', !!game.visiting);
   userZoom = game.visiting ? 1.7 : 1; calcZoom(); // visits zoom in on the avatar (closer view + fewer tiles → smoother)
-  if (!Array.isArray(game.houses)) game.houses=[];
-  if (!game.elevation) game.elevation={};
+  let groundReset=false;
+  if (!Array.isArray(game.houses)){ game.houses=[]; groundReset=true; }
+  if (!game.elevation){ game.elevation={}; groundReset=true; }
   if (!game.fences) game.fences={};
   if (!game.lights) game.lights={};
   if (!game.firepits) game.firepits={};
@@ -349,11 +351,12 @@ function enterGarden(){
     game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
     snapCam();
   } else {
-    if (!game.houses.length && !game.visiting) game.houses=[defaultHouse()];
+    if (!game.houses.length && !game.visiting){ game.houses=[defaultHouse()]; groundReset=true; }
     const [spx,spy]=safeSpawn();   // never start stuck inside the house
     game.px=game.tx=spx; game.py=game.ty=spy;
     snapCam();
   }
+  if (groundReset) markGroundChanged();
   game.lastDay=absDay();
   undoStack=[]; redoStack=[]; updateUndoBtn();
   buildToolTray();
@@ -401,9 +404,9 @@ function openPlotScreen(){
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
-        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; game.houseDraft=defaultDraft();
+        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
-        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; game.houseDraft=draftFromHouses();
+        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses();
         seedWalkway(); starterDrift();
       }
       enterGarden();
