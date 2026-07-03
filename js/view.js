@@ -2,7 +2,11 @@
 /* ---------- canvas / viewport glue ---------- */
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
-let DPR = Math.min(2, window.devicePixelRatio||1);
+/* Cap the canvas backing scale at 1.5x: past that the extra pixels are
+   invisible in a painterly isometric scene but every full-screen pass (sky,
+   ground blit, season tint) pays for them — a 4K@2x buffer is 16.6M px.
+   1.5 matches the sprite cache's cap (pspriteScale), so sprite blits stay 1:1. */
+let DPR = Math.min(1.5, window.devicePixelRatio||1);
 /* view zoom: a small-screen base (phones start at 0.75x for ~1.3x more
    garden) times the player's own zoom - pinch, wheel, +/- keys, or the
    zoom pill. All drawing and input math runs through ZOOM. */

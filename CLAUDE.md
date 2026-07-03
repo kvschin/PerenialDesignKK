@@ -226,21 +226,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. The ground (grass / walkway / laid path /
     bed / flagstone doorstep) was the whole frame cost — 961 tiles of
-    fills/strokes/blades redrawn every frame — so it's now **cached**:
-    `paintGround` renders it once to an offscreen `groundCanvas`, blitted each
-    frame, rebuilt only when the cache key changes (season / rot / zoom / cam /
+    fills/strokes/blades redrawn every frame — so it's **cached in a
+    world-anchored layer**: `paintGround` bakes viewport + a 200-CSS-px margin
+    into `groundCanvas`, keyed **without** cam/zoom (season / rot /
     `game.edgeStyle` / canvas size / landscape-layer vis + `groundDataSig()`, a
-    cheap signature of the sparse terrain/elevation/house data). Empty-garden
-    ground dropped ~12ms → ~0.35ms. Water ripples freeze only while the view is
-    perfectly still (no `t` in the key); any pan/edit resumes them.
+    cheap signature of the sparse terrain/elevation/house data). The camera is
+    a pure screen translation (`viewScreen` subtracts `cam`), so a pan frame is
+    one integer-offset `drawImage` — measured 5.6ms → 0.08ms (65% → 2% of a
+    panning frame on a 570-plant stress garden at 1600×900). Rebakes happen on
+    key change, on leaving the baked margin, ~140ms after the last zoom tick
+    (mid-gesture frames scale-blit the stale bake — briefly soft, never slow),
+    and ~180ms after a pan ends (resting frames are freshly rasterized, never
+    resampled). Water ripples freeze except at rebakes. The canvas backing
+    scale is capped at `DPR = min(1.5, devicePixelRatio)` (view.js) — matching
+    the sprite cache's cap, so sprite blits stay 1:1 and 4K/retina full-screen
+    passes don't quadruple the pixel budget.
     **Organic terrain edges (Wave 3)**: when `game.edgeStyle==='organic'`,
     `paintGround` draws terrain tiles' *grass* base and overlays the material as
     a **smoothed blob** — `buildTerrainRegions()` floods contiguous same-material
     (kind+colour) tiles, `traceOutlines` (reused from the plan sheet) walks each
     boundary, and the loops are cached in world tile-corner space in
     `terrainLoopCache` keyed by `groundDataSig()`, so tracing runs only on edit,
-    **never per pan frame** (the ground canvas still rebuilds on pan, but only
-    projects cached corners). Each traced loop is first run through
+    **never per pan frame** (and since the world-anchored ground layer no longer
+    rebakes on pan at all, blob projection now runs only at rebakes too). Each
+    traced loop is first run through
     `simplifyClosedLoop` (Douglas–Peucker, eps ≈ 0.9 tiles) so a diagonal edge —
     which `traceOutlines` renders as a right/down/right/down staircase — collapses
     to a straight line instead of scalloping into a zigzag; real notches survive.

@@ -2,13 +2,25 @@
 
 let snowFlakes = [];
 /* The ground (961 tiles, each a pile of fills/strokes/blades) is identical
-   every frame unless the camera, season, window, or terrain changes — yet it
-   was the entire frame cost (~12ms). So render it once to an offscreen layer
-   and blit it; rebuild only when the cache key changes. groundDataSig captures
-   the terrain/elevation/house data cheaply (it's sparse — usually empty), and
-   camera/season/size go straight in the key. Trade-off: water ripples freeze
-   while the view is perfectly still; any pan or edit resumes them. */
+   every frame unless the season, window, or terrain changes — yet repainting
+   it was the entire frame cost (~12ms). So bake it once to a WORLD-ANCHORED
+   offscreen layer sized viewport + margin, keyed WITHOUT the camera or zoom:
+   the camera is a pure screen translation (viewScreen subtracts cam), so a
+   pan frame is one integer-offset drawImage instead of a repaint (measured
+   65% of a panning frame before this). Rebake when the data/season/rot/size
+   key changes, when the camera leaves the baked margin, or — settle passes —
+   ~140ms after the last zoom tick (mid-gesture frames scale-blit the stale
+   bake: briefly soft, never slow) and ~180ms after a pan ends (so a resting
+   frame is always freshly rasterized, never a resampled blit). Trade-off:
+   water ripples freeze except at rebakes (they already froze on a still view). */
 let groundCanvas=null, groundCtx=null, groundKey='';
+let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
+let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
+let groundCamPrevX=NaN, groundCamPrevY=NaN, groundCamT=-1e9; // last cam tick, for settle
+const GROUND_MARGIN_CSS=200;    // pan headroom baked around the viewport, CSS px
+const GROUND_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
+const GROUND_PAN_SETTLE=180;    // ms after the last cam move before the crisp rebake
+const GROUND_ZOOM_DRIFT=0.18;   // mid-gesture rebake if scale drifts this far from the bake
 function groundDataSig(){
   let s='';
   for (const k in game.terrain){ const o=game.terrain[k]; if (o&&!o.removed) s+=k+o.k+(o.c||'')+';'; }
@@ -16,7 +28,8 @@ function groundDataSig(){
   const hs=game.houses||[]; for (let i=0;i<hs.length;i++){ const h=hs[i]; s+='H'+h.x+','+h.y+','+h.w+','+h.h+';'; }
   return s;
 }
-function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
+function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
+  ex=ex||0;   // extra cull slack in draw units — the world-anchored bake paints a margin past the viewport
   const showLand=layerShown('landscape');
   // Organic edges: terrain draws its GRASS base in this tile pass and the
   // material is overlaid as a smoothed blob afterward (paintTerrainBlobs), so
@@ -26,7 +39,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t){
   const smoothable = t2 => t2==='path'||t2==='bed'||t2==='water';
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     const [sx,sy]=screenOf(x,y,W,H);
-    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
+    if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
     const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
     const terr = (organic && smoothable(terrRaw)) ? null : terrRaw;  // organic: grass base under blobs
     const path=terr==='path';
@@ -301,20 +314,45 @@ function render(t){
   }
 
   const tG0=dnow();
-  // ground tiles: static per camera/terrain/season, so render once to an
-  // offscreen layer and blit it; rebuild only when the cache key changes.
-  const gkey=cal.season+'|'+game.rot+'|'+ZOOM+'|'+cam.x+'|'+cam.y+'|'+game.edgeStyle+'|'+
+  // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
+  // then blit per frame (see the note at the top of this file).
+  const gkey=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
     (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataSig();
+  const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
-  if (groundCanvas.width!==cnv.width||groundCanvas.height!==cnv.height){
-    groundCanvas.width=cnv.width; groundCanvas.height=cnv.height; groundKey=''; }
-  if (gkey!==groundKey){
+  if (groundCanvas.width!==cnv.width+2*MD||groundCanvas.height!==cnv.height+2*MD){
+    groundCanvas.width=cnv.width+2*MD; groundCanvas.height=cnv.height+2*MD; groundKey=''; }
+  if (ZOOM!==groundZoomPrev){ groundZoomT=t; groundZoomPrev=ZOOM; }        // zoom gesture heat
+  if (cam.x!==groundCamPrevX||cam.y!==groundCamPrevY){ groundCamT=t; groundCamPrevX=cam.x; groundCamPrevY=cam.y; }
+  const zoomStale=ZOOM!==groundZoom;
+  const camStale=cam.x!==groundCamX||cam.y!==groundCamY;
+  const panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
+  const mustBake = gkey!==groundKey
+    || panDev>=MD
+    || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
+    || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
+  if (mustBake){
+    const Mu=MD/(DPR*ZOOM);                            // margin in draw units
+    // expanded tile bbox: the viewport window plus the baked margin
+    const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
+    const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
+    const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
+    const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
+    const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
     groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
-    groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
-    paintGround(groundCtx,x0,x1,y0,y1,W,H,amb,t);
-    groundKey=gkey;
+    groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
+    paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
+    groundKey=gkey; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
   }
-  cx.save(); cx.setTransform(1,0,0,1,0,0); cx.drawImage(groundCanvas,0,0); cx.restore();
+  // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
+  // approximation mid-zoom-gesture that the settle rebake replaces crisp.
+  const k=ZOOM/groundZoom;
+  let bdx=DPR*VW/2*(1-k) - k*MD + DPR*ZOOM*(groundCamX-cam.x);
+  let bdy=DPR*VH*0.24*(1-k) - k*MD + DPR*ZOOM*(groundCamY-cam.y);
+  if (k===1){ bdx=Math.round(bdx); bdy=Math.round(bdy); }  // 1:1 copy, no resampling
+  cx.save(); cx.setTransform(1,0,0,1,0,0);
+  cx.drawImage(groundCanvas,bdx,bdy,groundCanvas.width*k,groundCanvas.height*k);
+  cx.restore();
   dmark('ground',tG0);
   const tShade=dnow();
   if (layerShown('woody')) visibleShrubs.forEach(sh=>drawShrubFootprint(cx,W,H,sh,'base'));
