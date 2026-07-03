@@ -655,7 +655,76 @@ function menuRender(t){
 }
 
 /* ---------- main loop ---------- */
-let prev=performance.now(), keyCooldown=0;
+const MENU_FRAME_MS=1000/30;
+const IDLE_FRAME_MS=1000/30;
+const IDLE_GRACE_MS=700;
+const HUD_IDLE_MS=500;
+let prev=performance.now(), keyCooldown=0, lastMenuRender=-Infinity, lastGardenRender=-Infinity, lastHudUpdate=0;
+let lastMeaningfulChange=performance.now(), lastRenderSig='';
+
+function markLoopActivity(){ lastMeaningfulChange=performance.now(); }
+['pointerdown','pointermove','pointerup','wheel','keydown','keyup','touchstart','touchmove'].forEach(type=>
+  addEventListener(type,markLoopActivity,{passive:true}));
+function screenOpen(id){
+  const el=document.getElementById(id);
+  return !!el && !el.classList.contains('hidden');
+}
+function fullScreenRenderBlocked(){
+  return screenOpen('libraryScreen') || screenOpen('planScreen') || screenOpen('exportScreen');
+}
+function layerVisibilitySig(){
+  const vis=game.layerVis||{};
+  return Object.keys(vis).sort().map(k=>k+':'+(vis[k]?1:0)).join(',');
+}
+function selectionSig(){
+  const s=game.sel;
+  return s ? `${s.x0},${s.y0},${s.x1},${s.y1}` : '';
+}
+function rulerSig(){
+  const r=game.ruler;
+  return r ? `${r.a?r.a.join(','):''}>${r.b?r.b.join(','):''}` : '';
+}
+function renderStateSig(){
+  return [
+    game.rev, game.groundRev, game.terrainRev, game.rot, absDay(),
+    GW, GH, VW, VH, ZOOM.toFixed(3), cam.x.toFixed(1), cam.y.toFixed(1),
+    game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
+    game.fenceMode, game.fenceHeight, game.fenceMaterial,
+    game.lightMode, game.lightStyle, game.firepitShape, game.firepitSize,
+    game.previewMode, game.edgeStyle, layerVisibilitySig(),
+    game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig()
+  ].join('|');
+}
+function hasHeldMovement(){
+  return typeof heldKeys!=='undefined' && Object.keys(heldKeys).length>0;
+}
+function hasActiveGesture(){
+  return (typeof activePtrs!=='undefined' && activePtrs.size>0)
+    || (typeof pinch!=='undefined' && !!pinch)
+    || (typeof toolDrag!=='undefined' && !!toolDrag)
+    || (typeof fillTap!=='undefined' && !!fillTap)
+    || (typeof rulerDrag!=='undefined' && !!rulerDrag)
+    || (typeof panDrag!=='undefined' && !!panDrag)
+    || (typeof selDrag!=='undefined' && !!selDrag)
+    || (typeof selMove!=='undefined' && !!selMove)
+    || (typeof sweep!=='undefined' && !!sweep);
+}
+function hasTransientGardenWork(){
+  return !!(game.ffActive || game.moving || game.pathTarget || hasHeldMovement() || hasActiveGesture()
+    || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length));
+}
+function shouldRenderGarden(t){
+  if (fullScreenRenderBlocked()) return false;
+  const sig=renderStateSig();
+  if (sig!==lastRenderSig){
+    lastRenderSig=sig;
+    lastMeaningfulChange=t;
+    return true;
+  }
+  if (hasTransientGardenWork()) return true;
+  if (t-lastMeaningfulChange<IDLE_GRACE_MS) return true;
+  return t-lastGardenRender>=IDLE_FRAME_MS;
+}
 /* ---- debug HUD: perf diagnostics, off by default ----
    Toggle with the backtick key (`) or add ?debug to the URL. Costs nothing
    when off (every measurement is guarded by dbg.on). Shows FPS + a per-frame
@@ -737,13 +806,23 @@ function loop(t){
       }
       followPath(); stepMove(dt);
     }
-    dmark('move',tMove);
-    render(t);                                   // render adds its own phase marks
-    const tHud=dnow(); updateHUD(); dmark('hud',tHud);
-    dmark('frame',tFrame);
-    if (dbg.on){ dbg.n++;
-      if (t-dbg.fpsAt>=500){ dbg.fps=dbg.n*1000/(t-dbg.fpsAt); updateDebugHud(); dbg.fpsAt=t; dbgReset(); } }
-  } else menuRender(t);
+    const moveMs=dbg.on ? performance.now()-tMove : 0;
+    const shouldDraw=shouldRenderGarden(t);
+    if (shouldDraw){
+      if (dbg.on) dbg.acc.move=(dbg.acc.move||0)+moveMs;
+      render(t);                                   // render adds its own phase marks
+      lastGardenRender=t;
+      const tHud=dnow(); updateHUD(); lastHudUpdate=t; dmark('hud',tHud);
+      dmark('frame',tFrame);
+      if (dbg.on){ dbg.n++;
+        if (t-dbg.fpsAt>=500){ dbg.fps=dbg.n*1000/(t-dbg.fpsAt); updateDebugHud(); dbg.fpsAt=t; dbgReset(); } }
+    } else if (t-lastHudUpdate>=HUD_IDLE_MS){
+      updateHUD(); lastHudUpdate=t;
+    }
+  } else if (t-lastMenuRender>=MENU_FRAME_MS){
+    menuRender(t);
+    lastMenuRender=t;
+  }
   requestAnimationFrame(loop);
 }
 (async function init(){
