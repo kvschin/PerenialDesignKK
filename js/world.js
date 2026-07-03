@@ -424,10 +424,12 @@ function ensureShadeMap(){
   const activeScore=new Float32Array(n), activeAlpha=new Float32Array(n);
   const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
   const activeTree=new Array(n), futureTree=new Array(n);
+  let trees=0;   // hasShade lets the render wash loop skip treeless gardens entirely
   for (const k in game.plants){ const p=game.plants[k];
     if (!p || p.removed) continue;
     const sh=treeShadeInfo(k,p);
     if (!sh || sh.r<1) continue;
+    trees++;
     const reach=treeShadeReach(sh);
     sh.reach=reach;
     const yA=Math.max(0,sh.y-reach), yB=Math.min(GH-1,sh.y+reach);
@@ -451,7 +453,7 @@ function ensureShadeMap(){
     }
   }
   shadeMapCache={key, plantsRef:game.plants, activeScore, activeAlpha,
-    futureScore, futureDrawScore, activeTree, futureTree};
+    futureScore, futureDrawScore, activeTree, futureTree, hasShade:trees>0};
   return shadeMapCache;
 }
 function shadeScoreAt(x,y){

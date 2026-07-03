@@ -1088,6 +1088,20 @@ test('sprite governor: engages on measured-heavy draw, predicts to disengage', (
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
 });
 
+test('glass governor: sustained interaction jank drops the blur, spikes do not', () => {
+  GLASS.off = false; GLASS.ema = 16.7; GLASS.warm = 0;
+  // warmup frames are ignored, however janky (first-load font/shader stalls)
+  for (let i = 0; i < GLASS.WARM_FRAMES; i++) updateGlassMode(45);
+  assert(!GLASS.off, 'warmup jank does not trip it');
+  // a lone spike after warmup is absorbed by the EMA
+  updateGlassMode(45); updateGlassMode(16); updateGlassMode(16);
+  assert(!GLASS.off, 'a lone spike is absorbed');
+  // sustained jank converges the EMA past the limit and trips it
+  for (let i = 0; i < 40; i++) updateGlassMode(45);
+  assert(GLASS.off, 'sustained jank drops the glass');
+  GLASS.off = false; GLASS.ema = 16.7; GLASS.warm = 0;
+});
+
 test('no-op undo gestures do not push snapshots', () => {
   setup();
   const undoCount = undoStack.length;

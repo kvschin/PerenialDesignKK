@@ -419,6 +419,16 @@ canvas.layer-eye{display:block}
   background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .tool-popover,#plantCard{
   background:rgba(24,17,13,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* perf fallback (the glass governor in screens.js): the compositor re-blurs
+   every backdrop-filter region over the animating canvas each frame — a GPU
+   cost the JS timers can't see. Sustained interaction jank adds .no-glass:
+   blur off everywhere, and the biggest always-on surfaces go near-solid so
+   the chrome stays readable over the moving garden. Force with ?noglass. */
+body.no-glass *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+body.no-glass .hud-top{background:rgba(22,15,12,.94)}
+body.no-glass #canvasTools,body.no-glass #trayTabs,body.no-glass #toolTray,
+body.no-glass #cvRow,body.no-glass #brushBar{background:rgba(24,17,13,.93)}
+body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.96)}
 .pause-panel{max-width:360px}
 /* garden menu: a compact dropdown anchored under the ☰ button (top/right set
    in JS), not a full-screen centered modal — keeps the garden in view */

@@ -722,6 +722,8 @@ function positionSelectionActions(){
   let x=Math.round(top[0]*ZOOM), y=Math.round(top[1]*ZOOM);
   x=Math.max(86,Math.min(VW-86,x));
   y=Math.max(118,Math.min(VH-120,y));
+  if (el._px===x && el._py===y) return;   // called per frame — write only on change
+  el._px=x; el._py=y;
   el.style.left=x+'px';
   el.style.top=y+'px';
 }

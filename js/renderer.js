@@ -502,20 +502,25 @@ function render(t){
     if (sh.x+sh.cullR<x0 || sh.x-sh.cullR>x1 || sh.y+sh.cullR<y0 || sh.y-sh.cullR>y1) continue;
     drawShrubFootprint(cx,W,H,sh,'base');
   }
-  // active shade is a cool wash; young trees get only a faint future-canopy edge.
-  for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
+  // active shade is a cool wash; young trees get only a faint future-canopy
+  // edge. Hoist the shade map once (the At() helpers re-check the cache key
+  // per call — a string build per tile per frame) and skip treeless gardens.
+  const shadeMap=ensureShadeMap();
+  if (shadeMap.hasShade) for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
+    const si=yy*GW+xx;
+    const a=shadeMap.activeAlpha[si];
+    const fut=a>0?0:shadeMap.futureDrawScore[si];
+    if (a<=0 && fut<SHADE_FUTURE_SCORE) continue;
     const [sx,sy]=screenOf(xx,yy,W,H);
     if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
-    const a=shadeActiveAlphaAt(xx,yy);
     if (a>0) tileDiamond(cx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
-    else if (shadeFutureDrawScoreAt(xx,yy)>=SHADE_FUTURE_SCORE)
-      tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
+    else tileDiamond(cx,sx,sy,null,'rgba(210,168,92,0.34)',[5,5]);
   }
   // Shade-suitability overlay (Layers view): wash every tile by how much
   // canopy reaches it — amber = full sun, teal = shade, between = part shade
   if (game.layerVis.shade){
     for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
-      const score=shadeScoreAt(xx,yy);
+      const score=shadeMap.activeScore[yy*GW+xx]||0;
       const [sx,sy]=screenOf(xx,yy,W,H);
       if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;
       const col = score>=SHADE_ACTIVE_SCORE ? 'rgba(38,84,112,0.52)'      // shade — cool blue

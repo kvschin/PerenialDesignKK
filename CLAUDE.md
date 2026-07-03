@@ -652,6 +652,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     overlays sit outside `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
+    The loop throttles itself: garden frames render full-rate only while
+    something is happening (`shouldRenderGarden` — a state signature +
+    gesture/fx checks + a 700ms activity grace), else at a 30fps idle cadence;
+    render is skipped entirely under the full-screen Library/Plan/Export
+    overlays, and the menu meadow runs at 30fps. A **glass governor**
+    (`updateGlassMode`, `GLASS`) watches frame *spacing* on interaction frames
+    only — the backdrop-blur recomposite is GPU cost the JS phase timers can't
+    see — and on sustained jank adds `body.no-glass` for the session (blur off
+    everywhere, near-solid chrome fills; force with `?noglass`; state shown in
+    the debug HUD). Per-frame HUD DOM writes are change-guarded (`hudText`/
+    `hudDisplay` in ui.js) so identical values never touch the DOM.
     Garden time uses accumulated open-play milliseconds (`elapsedMs`) instead
     of raw wall-clock time since creation. `suspendClock()` banks elapsed time
     before hidden/pagehide saves, and `resumeClockSession()` restarts the session

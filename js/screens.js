@@ -689,8 +689,6 @@ function renderStateSig(){
     game.rev, game.groundRev, game.terrainRev, game.rot, absDay(),
     GW, GH, VW, VH, ZOOM.toFixed(3), cam.x.toFixed(1), cam.y.toFixed(1),
     game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
-    game.fenceMode, game.fenceHeight, game.fenceMaterial,
-    game.lightMode, game.lightStyle, game.firepitShape, game.firepitSize,
     game.previewMode, game.edgeStyle, layerVisibilitySig(),
     game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig()
   ].join('|');
@@ -724,6 +722,25 @@ function shouldRenderGarden(t){
   if (hasTransientGardenWork()) return true;
   if (t-lastMeaningfulChange<IDLE_GRACE_MS) return true;
   return t-lastGardenRender>=IDLE_FRAME_MS;
+}
+/* ---- glass governor ----
+   The chrome's backdrop-filter blur is recomposited by the GPU every frame the
+   canvas animates under it — a cost the JS phase timers can't see. If frame
+   SPACING stays janky while the user is actively interacting (idle frames are
+   deliberately 30fps, so they don't count), drop the blur for the session via
+   body.no-glass (solid fills keep the look). Warmup skips the first ~90 hot
+   frames so first-load font/shader jank can't trip it. Session-only: a fast
+   machine is never punished twice, a slow one re-trips in a few seconds.
+   Force it off yourself with ?noglass. */
+const GLASS={ema:16.7, off:false, warm:0, LIMIT_MS:30, WARM_FRAMES:90};
+function updateGlassMode(dt){
+  if (GLASS.off) return;
+  if (GLASS.warm<GLASS.WARM_FRAMES){ GLASS.warm++; return; }
+  GLASS.ema=GLASS.ema*0.9+dt*0.1;
+  if (GLASS.ema>GLASS.LIMIT_MS){
+    GLASS.off=true;
+    if (document.body && document.body.classList) document.body.classList.add('no-glass');
+  }
 }
 /* ---- debug HUD: perf diagnostics, off by default ----
    Toggle with the backtick key (`) or add ?debug to the URL. Costs nothing
@@ -765,7 +782,8 @@ function updateDebugHud(){
   dbg.el.textContent=
     `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)\n`+
     rows+'\n'+
-    `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`;
+    `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`+
+    `  glass ${GLASS.off?'OFF':'on'} (${GLASS.ema.toFixed(1)}ms)`;
 }
 // debug-only: pack the plot with a dense mix so the profiler sees worst-case.
 function stressGarden(){
@@ -809,6 +827,10 @@ function loop(t){
     const moveMs=dbg.on ? performance.now()-tMove : 0;
     const shouldDraw=shouldRenderGarden(t);
     if (shouldDraw){
+      // glass governor samples frame SPACING, but only while the user is
+      // actively interacting — idle frames run at a deliberate 30fps cadence
+      // and would read as jank.
+      if (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS) updateGlassMode(dt);
       if (dbg.on) dbg.acc.move=(dbg.acc.move||0)+moveMs;
       render(t);                                   // render adds its own phase marks
       lastGardenRender=t;
@@ -835,5 +857,6 @@ function loop(t){
   advanceMenuSeason();
   refreshMenuCards();
   if (location.search.includes('debug')) toggleDebug();
+  if (location.search.includes('noglass')){ GLASS.off=true; document.body.classList.add('no-glass'); }
   requestAnimationFrame(loop);
 })();

@@ -389,6 +389,8 @@ function clockMeta(){
 function updateDayNightBtn(){
   const b=document.getElementById('btnDayNight'); if (!b) return;
   const night=!!game.layerVis.night;
+  if (b._night===night) return;   // runs per frame — write only on change
+  b._night=night;
   b.textContent=night?'☾':'☀';
   b.classList.toggle('on',night);
   b.title=night?'Switch to day':'Switch to night (preview lighting)';
@@ -403,9 +405,12 @@ function updatePreviewToggle(){
   if (today) today.classList.toggle('on',game.previewMode!=='established');
   if (est) est.classList.toggle('on',game.previewMode==='established');
   const note=document.getElementById('previewModeNote');
-  if (note) note.textContent=game.previewMode==='established'
-    ? 'Shows the mature design without advancing garden time.'
-    : 'Shows current growth, bloom timing, and establishment.';
+  if (note && note._mode!==game.previewMode){   // per-frame: write only on change
+    note._mode=game.previewMode;
+    note.textContent=game.previewMode==='established'
+      ? 'Shows the mature design without advancing garden time.'
+      : 'Shows current growth, bloom timing, and establishment.';
+  }
 }
 function setPreviewMode(mode){
   mode = mode==='established' ? 'established' : 'today';
@@ -416,20 +421,28 @@ function setPreviewMode(mode){
   if (game.mode==='solo'&&hasStorage) saveSolo(true);
   toast(mode==='established'?'Previewing established plants.':'Previewing today.');
 }
+// updateHUD runs every rendered frame; assigning textContent replaces the text
+// node even when the string is identical (a real DOM mutation + style recalc
+// 60x/s), so every write here is guarded by a last-written cache on the
+// element — the same pattern the season fill below has always used.
+function hudText(id,txt){ const el=document.getElementById(id);
+  if (el && el._t!==txt){ el._t=txt; el.textContent=txt; } }
+function hudDisplay(id,disp){ const el=document.getElementById(id);
+  if (el && el._d!==disp){ el._d=disp; el.style.display=disp; } }
 function updateHUD(){
   const cal=calClock();
-  document.getElementById('seasonName').textContent=cal.season;
-  document.getElementById('seasonYear').textContent=`Year ${cal.year}`;
-  document.getElementById('seasonDay').textContent=`Day ${cal.day}`;
+  hudText('seasonName',cal.season);
+  hudText('seasonYear',`Year ${cal.year}`);
+  hudText('seasonDay',`Day ${cal.day}`);
   // Design is a planner: real days are meaningless (a day is 20s), so show the
   // season + how far through it instead of a Year/Day count. Story keeps the
   // life-sim calendar. The internal clock is unchanged either way.
   const design=game.gameMode==='design';
   const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
   const phase=seasonFrac<0.34?'Early season':seasonFrac<0.67?'Mid-season':'Late season';
-  document.getElementById('seasonPhase').textContent=phase;
-  document.getElementById('seasonClkCal').style.display=design?'none':'';
-  document.getElementById('seasonPhase').style.display=design?'':'none';
+  hudText('seasonPhase',phase);
+  hudDisplay('seasonClkCal',design?'none':'');
+  hudDisplay('seasonPhase',design?'':'none');
   // the season box fills across the whole season, tinted by the season colour
   const fill=document.getElementById('seasonFill');
   if (fill){
