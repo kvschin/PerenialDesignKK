@@ -1268,7 +1268,8 @@ test('zone 6 grass palette includes Mexican feather grass', () => {
 test('challenge palette size reports the limit for the entry badge', () => {
   const find = t => DAILY_CHALLENGES.find(c => c.title === t);
   const total = speciesCount();
-  assertEqual(challengePaletteSize(find('Grasses Only')), 30, 'Grasses Only admits all 30 grasses + sedges');
+  const grassSedge = PLANT_KEYS.filter(k => !PLANTS[k].hidden && ['grass', 'sedge'].includes(PLANTS[k].type)).length;
+  assertEqual(challengePaletteSize(find('Grasses Only')), grassSedge, 'Grasses Only admits every grass + sedge');
   assertEqual(challengePaletteSize(find('Cottage Abundance')), total, 'an unrestricted prompt is the full palette');
   assert(challengePaletteSize(find('Sensory Garden')) < total, 'Sensory Garden is a real limit');
 });
