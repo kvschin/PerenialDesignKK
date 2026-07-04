@@ -658,7 +658,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `plantFits`' zone/native/deer/rabbit gates that never touches game state)
     updates under every knob so each choice visibly does something. Selections
     commit to `game.design`/`game.region` on Next, unchanged. Setup panels
-    rise-fade in (`.panel-enter`) and sit more translucent over the meadow. Still in
+    rise-fade in (`.panel-enter`) and sit more translucent over the meadow, which
+    **replants live** to the chosen style + zone (`styleMeadowKeys`/
+    `applyMeadowPalette`, called on every style/zone change): the tray's own
+    `plantStyleScore` ranks a herbaceous, zone-filtered palette and the species
+    are reassigned in place over the existing meadow slots — same positions, so
+    the backdrop reads as being replanted, not teleporting (Prairie → grasses,
+    Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the curated
+    seasonal meadow). Going Back to the menu re-seeds the season default. Still in
     the markup but no longer reached from the menu (legacy, tied to the retired
     story / multiplayer paths): the multiplayer lobby, character creator (with
     live preview), and code display. Plain DOM, toggled by `show()`. The planting-list

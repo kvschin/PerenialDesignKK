@@ -452,6 +452,7 @@ function openDesignSetup(){
     b.textContent=label; b.onclick=fn; return b; };
   const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
     consEl=$('dgnConstraints');
+  const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone);  // replant the backdrop to match
   function updateReadout(){
     $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
       `We'll only offer plants that can take that.`;
@@ -462,7 +463,7 @@ function openDesignSetup(){
   }
   function setZone(z){
     sel.zone=Math.max(3,Math.min(9,z));
-    renderWinter(); renderZoneChips(); updateReadout(); updateCount();
+    renderWinter(); renderZoneChips(); updateReadout(); updateCount(); syncMeadow();
   }
   function renderWinter(){ winterEl.innerHTML='';
     WINTER_BANDS.forEach(([label,,z])=>winterEl.appendChild(mkChip(label,sel.zone===z,()=>setZone(z)))); }
@@ -473,7 +474,8 @@ function openDesignSetup(){
   }
   function renderType(){ typeEl.innerHTML='';
     GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
-      sel.type=id; renderType(); $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
+      sel.type=id; renderType(); syncMeadow();
+      $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
     $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===sel.type)||[])[2]||'';
   }
   function renderConstraints(){ consEl.innerHTML='';
@@ -487,6 +489,7 @@ function openDesignSetup(){
   manualBtn.onclick=()=>{ sel.zoneManual=!sel.zoneManual;
     manualBtn.textContent=sel.zoneManual?'Hide zone list ‹':'I know my zone ›'; renderZoneChips(); };
   renderWinter(); renderZoneChips(); renderType(); renderConstraints(); updateReadout(); updateCount();
+  syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
     game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly, deer:sel.deer, rabbit:sel.rabbit};
     // tune the live palette: zone/native filters apply, style ranks the tray
@@ -647,6 +650,28 @@ function seedMenuMeadow(){
   for (let i=0;i<54;i++) meadow.push({k:keys[i%keys.length], x:Math.random(),
     y:0.76+Math.random()*0.22, s:0.45+Math.random()*1.05, seed:(Math.random()*1e9)|0});
   meadow.sort((a,b)=>a.y-b.y);
+}
+/* The design questionnaire replants the menu meadow behind it to match the
+   chosen style + zone, so a choice visibly changes the world, not just a form.
+   Reuses the tray's own plantStyleScore ranking (herbaceous only — no trees in
+   the backdrop) filtered to the zone; 'Any garden' (no style weights) keeps the
+   curated seasonal meadow. applyMeadowPalette reassigns species IN PLACE over
+   the existing slots — same positions/seeds, so it reads as the meadow being
+   replanted rather than teleporting. */
+function styleMeadowKeys(type, zone){
+  if (!type || !STYLE_ROLE_WEIGHTS[type]) return null;
+  const herb=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge'||t==='forb'||t==='bulb'; };
+  const fits=k=>!PLANTS[k].hidden && herb(k) &&
+    (!zone || (PLANTS[k].zones[0]<=zone && PLANTS[k].zones[1]>=zone));
+  const ranked=PLANT_KEYS.filter(fits)
+    .map(k=>[k,plantStyleScore(k,type)]).filter(e=>e[1]>0)
+    .sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
+  return ranked.length>=4 ? ranked : null;
+}
+function applyMeadowPalette(type, zone){
+  const keys=styleMeadowKeys(type,zone) || (MENU_SCENES[menuSeason]||MENU_SCENES.Fall).keys;
+  if (!meadow.length) seedMenuMeadow();
+  for (let i=0;i<meadow.length;i++) meadow[i].k=keys[i%keys.length];
 }
 function advanceMenuSeason(){
   let next=0;

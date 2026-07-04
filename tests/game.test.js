@@ -1285,6 +1285,20 @@ test('deer/rabbit questionnaire filter narrows the tray, trees exempt', () => {
   assert(plantFits('hosta'), 'no pressure → hosta returns');
 });
 
+test('styleMeadowKeys replants the menu backdrop per style, herbaceous only', () => {
+  assertEqual(styleMeadowKeys('any', 6), null, "'Any garden' keeps the curated seasonal meadow");
+  const prairie = styleMeadowKeys('prairie', 6);
+  assert(prairie && prairie.length >= 4, 'prairie yields a palette');
+  const herb = k => ['grass', 'sedge', 'forb', 'bulb'].includes(PLANTS[k].type);
+  assert(prairie.every(herb), 'no trees/shrubs in the backdrop');
+  assert(prairie.some(k => PLANTS[k].type === 'grass'), 'prairie leans on grasses');
+  const shade = styleMeadowKeys('shade', 6);
+  assert(shade.every(herb) && shade.join() !== prairie.join(), 'shade palette differs from prairie');
+  // zone gates the palette: a warm-only species should drop out of a cold zone
+  const warm = styleMeadowKeys('prairie', 4);
+  assert(warm.every(k => PLANTS[k].zones[0] <= 4 && PLANTS[k].zones[1] >= 4), 'zone 4 palette all tolerate zone 4');
+});
+
 test('zoneFromZip maps prefixes to a clampable zone and rejects junk', () => {
   assertEqual(zoneFromZip('66044'), 6, 'Lawrence KS → zone 6');   // 660 band
   assertEqual(zoneFromZip('02139'), 6, 'Cambridge MA → zone 6');  // 020 band
