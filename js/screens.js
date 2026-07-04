@@ -432,30 +432,69 @@ const GARDEN_TYPES=[
   ['formal','Formal','Symmetry and clipped lines — axial beds and hedges.'],
   ['coastal','Coastal','Salt- and wind-tolerant grasses and dune plants.'],
 ];
+// Plain-language winter bands for people who don't know their zone: each maps
+// to a representative zone (6 and 7 are the most-populated US zones, so the two
+// middle bands hit them). The ZIP field is the precise path; this is the
+// "won't type a ZIP / not in the US" fallback.
+const WINTER_BANDS=[
+  ['Deep freeze','well below 0°F',4],
+  ['Cold winters','below 0°F most years',6],
+  ['Light frost','freezes, rarely below 20°F',7],
+  ['Barely freezes','mild winters',9],
+];
+const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'15°F',9:'25°F'};
 function openDesignSetup(){
-  const zs=$('dgnZone'), ts=$('dgnType');
-  if (!zs.options.length){
-    [3,4,5,6,7,8,9].forEach(z=>{ const o=document.createElement('option');
-      o.value=z; o.textContent='Zone '+z; zs.appendChild(o); });
-    GARDEN_TYPES.forEach(([id,label])=>{ const o=document.createElement('option');
-      o.value=id; o.textContent=label; ts.appendChild(o); });
-    const note=()=>{ const t=GARDEN_TYPES.find(g=>g[0]===ts.value); $('dgnTypeNote').textContent=t?t[2]:''; };
-    ts.onchange=note;
-    $('btnDesignNext').onclick=()=>{
-      const zone=+zs.value, type=ts.value;
-      game.design={zone, type, nativesOnly:$('dgnNatives').checked,
-        deer:$('dgnDeer').checked, rabbit:$('dgnRabbit').checked};
-      // tune the live palette: zone/native filters apply, style ranks the tray
-      game.region={eco:null, zone, nativesOnly:$('dgnNatives').checked};
-      sSet('hortus:region',game.region); updateRegionBtn();
-      openPlotScreen();
-    };
-    $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
-  }
   const d=game.design||{};
-  zs.value=String(d.zone||6); ts.value=d.type||'any';
-  $('dgnNatives').checked=!!d.nativesOnly; $('dgnDeer').checked=!!d.deer; $('dgnRabbit').checked=!!d.rabbit;
-  $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===ts.value)||[])[2]||'';
+  const sel={zone:d.zone||6, type:d.type||'any',
+    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, zoneManual:false};
+  const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
+    b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
+    b.textContent=label; b.onclick=fn; return b; };
+  const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
+    consEl=$('dgnConstraints');
+  function updateReadout(){
+    $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
+      `We'll only offer plants that can take that.`;
+  }
+  function updateCount(){
+    const n=paletteCount(sel);
+    $('dgnCount').innerHTML=`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
+  }
+  function setZone(z){
+    sel.zone=Math.max(3,Math.min(9,z));
+    renderWinter(); renderZoneChips(); updateReadout(); updateCount();
+  }
+  function renderWinter(){ winterEl.innerHTML='';
+    WINTER_BANDS.forEach(([label,,z])=>winterEl.appendChild(mkChip(label,sel.zone===z,()=>setZone(z)))); }
+  function renderZoneChips(){
+    zoneChipsEl.classList.toggle('hidden',!sel.zoneManual);
+    zoneChipsEl.innerHTML=''; if (!sel.zoneManual) return;
+    for (let z=3;z<=9;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z)));
+  }
+  function renderType(){ typeEl.innerHTML='';
+    GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
+      sel.type=id; renderType(); $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
+    $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===sel.type)||[])[2]||'';
+  }
+  function renderConstraints(){ consEl.innerHTML='';
+    const t=(label,key)=>consEl.appendChild(mkChip(label,sel[key],()=>{
+      sel[key]=!sel[key]; renderConstraints(); updateCount(); },'toggle'));
+    t('Natives only','nativesOnly'); t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
+  }
+  const zipEl=$('dgnZip'); zipEl.value='';
+  zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
+  const manualBtn=$('dgnZoneManual'); manualBtn.textContent='I know my zone ›';
+  manualBtn.onclick=()=>{ sel.zoneManual=!sel.zoneManual;
+    manualBtn.textContent=sel.zoneManual?'Hide zone list ‹':'I know my zone ›'; renderZoneChips(); };
+  renderWinter(); renderZoneChips(); renderType(); renderConstraints(); updateReadout(); updateCount();
+  $('btnDesignNext').onclick=()=>{
+    game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly, deer:sel.deer, rabbit:sel.rabbit};
+    // tune the live palette: zone/native filters apply, style ranks the tray
+    game.region={eco:null, zone:sel.zone, nativesOnly:sel.nativesOnly};
+    sSet('hortus:region',game.region); updateRegionBtn();
+    openPlotScreen();
+  };
+  $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
   show('designScreen');
 }
 function quitToMenu(){

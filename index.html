@@ -263,7 +263,7 @@
 
 <!-- PLOT SETUP (new solo gardens) -->
 <div class="screen hidden" id="plotScreen">
-  <div class="panel">
+  <div class="panel panel-enter">
     <h2>Lay out the plot</h2>
     <p class="sub">How much ground are we working? One tile is 18 inches square. You can always start small — the house and beds move later.</p>
     <div class="field"><label for="plotName">Garden name</label>
@@ -288,21 +288,25 @@
 
 <!-- DESIGN SETUP (questionnaire for Design a Garden) -->
 <div class="screen hidden" id="designScreen">
-  <div class="panel">
+  <div class="panel panel-enter">
     <h2>What are you planting?</h2>
     <p class="sub">A few questions to tune the plant palette to your garden. You can change any of this later.</p>
-    <div class="row">
-      <div class="field" style="flex:1;min-width:120px"><label for="dgnZone">USDA hardiness zone</label>
-        <select id="dgnZone"></select></div>
-      <div class="field" style="flex:1;min-width:150px"><label for="dgnType">Garden style</label>
-        <select id="dgnType"></select></div>
+    <div class="field"><label for="dgnZip">Your climate</label>
+      <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="ZIP code">
+      <p class="field-hint">Sets your hardiness zone. Stays on your device.</p>
+      <div class="chip-row" id="dgnWinter" style="margin-top:8px"></div>
+      <p class="zone-readout" id="dgnZoneOut"></p>
+      <button type="button" class="link-toggle" id="dgnZoneManual">I know my zone ›</button>
+      <div class="chip-row hidden" id="dgnZoneChips" style="margin-top:8px"></div>
     </div>
-    <p class="note" id="dgnTypeNote" style="margin-top:0"></p>
-    <div class="field"><label>Constraints</label>
-      <label class="check-row"><input type="checkbox" id="dgnNatives"> Natives only</label>
-      <label class="check-row"><input type="checkbox" id="dgnDeer"> Deer resistant</label>
-      <label class="check-row"><input type="checkbox" id="dgnRabbit"> Rabbit resistant</label>
+    <div class="field"><label>Garden style</label>
+      <div class="chip-row chip-grid" id="dgnTypeChips"></div>
+      <p class="field-hint" id="dgnTypeNote"></p>
     </div>
+    <div class="field"><label>Keep out browsers &amp; pick natives</label>
+      <div class="chip-row" id="dgnConstraints"></div>
+    </div>
+    <p class="palette-count" id="dgnCount"></p>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="btnDesignNext">Next: size the plot →</button>
     </div>

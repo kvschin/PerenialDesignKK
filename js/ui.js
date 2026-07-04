@@ -265,6 +265,26 @@ function plantFits(k){
   }
   return true;
 }
+/* How many species a hypothetical questionnaire selection leaves in the palette,
+   computed without touching live game state — drives the live tally on the
+   design-setup panel so each knob visibly does something. Mirrors plantFits'
+   zone/native/deer/rabbit gates (no challenge, no eco: design setup sets
+   neither). Style only ranks the tray, so it doesn't change this count. */
+function paletteCount(sel){
+  sel=sel||{};
+  let n=0;
+  for (const k of PLANT_KEYS){
+    const P=PLANTS[k]; if (P.hidden) continue;
+    if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
+    if (sel.nativesOnly && !P.native) continue;
+    if (P.type!=='tree'){
+      if (sel.deer && !plantRoles(k).includes('deerOk')) continue;
+      if (sel.rabbit && !plantRoles(k).includes('rabbitOk')) continue;
+    }
+    n++;
+  }
+  return n;
+}
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/water, woody
   const ord={grass:0, sedge:1, forb:2, bulb:3, water:4, shrub:5, tree:6};
   const d=activeDesignType();

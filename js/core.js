@@ -18,6 +18,38 @@ const TILE_IN = 18;                   // real-world inches per tile side (export
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
 const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
+
+/* Approximate USDA hardiness zone from a US ZIP, by 3-digit prefix. Coarse on
+   purpose: species use zone RANGES and the region filter is changeable in-game,
+   so within ~half a zone is plenty. Stored as [lo,hi,zone] prefix bands (not
+   930 rows) with the band's representative zone; gaps + non-US input return null
+   (the questionnaire then falls back to the winter-cold picker). Nothing here
+   leaves the device — it's a static lookup. Callers clamp to the palette's 3–9. */
+const ZIP_ZONE_BANDS=[
+  [10,19,5],[20,27,6],[28,29,6],[30,38,5],[39,49,4],[50,59,4],[60,69,6],[70,89,6],   // New England + NJ
+  [100,104,7],[105,109,6],[110,119,7],[120,139,5],[140,149,6],[150,168,6],[169,179,5],
+  [180,189,6],[190,199,7],                                                            // NY / PA / DE
+  [200,205,7],[206,219,7],[220,237,7],[238,246,6],[247,268,6],[270,279,7],[280,289,7],
+  [290,299,8],                                                                        // DC / MD / VA / WV / NC / SC
+  [300,319,8],[320,329,9],[330,349,10],[350,369,8],[370,385,7],[386,399,8],           // GA / FL / AL / TN / MS
+  [400,427,6],[430,459,6],[460,479,6],[480,489,6],[490,499,5],                        // KY / OH / IN / MI
+  [500,528,5],[530,549,5],[550,567,4],[570,577,5],[580,588,4],[590,599,4],            // IA / WI / MN / SD / ND / MT
+  [600,629,6],[630,658,6],[660,679,6],[680,693,5],                                    // IL / MO / KS / NE
+  [700,714,9],[716,729,7],[730,749,7],[750,769,8],[770,779,9],[780,789,8],[790,799,7],// LA / AR / OK / TX
+  [800,816,5],[820,831,4],[832,838,5],[840,847,6],[850,853,9],[855,865,8],[870,875,7],
+  [877,884,6],[889,891,9],[893,898,6],                                                // CO / WY / ID / UT / AZ / NM / NV
+  [900,928,9],[930,961,9],[967,968,11],[970,979,8],[980,986,8],[988,994,6],[995,999,4],// CA / HI / OR / WA / AK
+];
+function zoneFromZip(zip){
+  const digits=String(zip||'').replace(/\D/g,'');
+  if (digits.length<3) return null;
+  const p=+digits.slice(0,3);
+  for (let i=0;i<ZIP_ZONE_BANDS.length;i++){
+    const b=ZIP_ZONE_BANDS[i];
+    if (p>=b[0] && p<=b[1]) return b[2];
+  }
+  return null;
+}
 function mixHex(a,b2,t){
   const pa=parseInt(a.slice(1),16), pb=parseInt(b2.slice(1),16);
   const ch=(sh)=>Math.round(((pa>>sh)&255)*(1-t)+((pb>>sh)&255)*t);

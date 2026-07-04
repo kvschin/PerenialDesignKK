@@ -1284,3 +1284,29 @@ test('deer/rabbit questionnaire filter narrows the tray, trees exempt', () => {
   game.design = null;
   assert(plantFits('hosta'), 'no pressure → hosta returns');
 });
+
+test('zoneFromZip maps prefixes to a clampable zone and rejects junk', () => {
+  assertEqual(zoneFromZip('66044'), 6, 'Lawrence KS → zone 6');   // 660 band
+  assertEqual(zoneFromZip('02139'), 6, 'Cambridge MA → zone 6');  // 020 band
+  assertEqual(zoneFromZip('551'), 4, 'a bare 3-digit MN prefix works');
+  assertEqual(zoneFromZip('99501'), 4, 'Anchorage AK → cold band');
+  assertEqual(zoneFromZip('33101'), 10, 'Miami raw zone is 10 (caller clamps to 9)');
+  assertEqual(zoneFromZip('ab'), null, 'too short → null (fall back to winter picker)');
+  assertEqual(zoneFromZip(''), null, 'empty → null');
+  assertEqual(zoneFromZip('09012'), null, 'an uncovered prefix → null');
+});
+
+test('paletteCount tracks zone/native/deer/rabbit without touching game state', () => {
+  const savedRegion = game.region, savedDesign = game.design;
+  const all = paletteCount({});
+  const z4 = paletteCount({ zone: 4 });
+  const z8 = paletteCount({ zone: 8 });
+  assert(all > 0, 'some plants exist');
+  assert(z4 <= all && z8 <= all, 'a zone filter never grows the palette');
+  assert(paletteCount({ zone: 6, nativesOnly: true }) <= paletteCount({ zone: 6 }),
+    'natives-only narrows or holds');
+  assert(paletteCount({ zone: 6, deer: true }) < paletteCount({ zone: 6 }),
+    'deer pressure removes browsed species');
+  assertEqual(game.region, savedRegion, 'game.region untouched');
+  assertEqual(game.design, savedDesign, 'game.design untouched');
+});

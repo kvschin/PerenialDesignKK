@@ -3,8 +3,9 @@
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
 no movement, a free pan/pinch/twist camera and direct tap-to-place/drag-to-paint
-à la Procreate; no house at start; created via a questionnaire of
-zone/style/natives/deer/rabbit. The menu has four entries: Design a Garden,
+à la Procreate; no house at start; created via a chip-based questionnaire of
+climate (ZIP→zone or a plain-language winter-cold picker)/style/natives/deer/
+rabbit, with a live palette count. The menu has four entries: Design a Garden,
 **Daily design challenge** (a date-seeded planting prompt — prompt-only, no
 scoring — that drops you into Design mode; `DAILY_CHALLENGES` /
 `todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried in
@@ -644,7 +645,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     gardens or start a new one; reached via Design a Garden and View Gardens —
     the Design entry hides the per-row Visit button, View Gardens shows it),
     plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
-    length in feet), and the daily-challenge panel (`#dailyScreen`). Still in
+    length in feet), the design questionnaire (`#designScreen` /
+    `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
+    questionnaire is all chips, not native selects/checkboxes (which read as a
+    stray HTML form inside the drawn world): **climate** offers a ZIP field
+    (`zoneFromZip`, a 3-digit-prefix→zone band table in core.js, clamped to the
+    palette's 3–9, device-local) with a plain-language "how cold does winter
+    get?" chip fallback (`WINTER_BANDS`) and an "I know my zone" reveal of 3–9
+    chips — all three write one `sel.zone`, echoed by a teaching readout
+    (`ZONE_LOWS`); **style** is a chip grid; **constraints** are toggle chips.
+    A live **palette count** (`paletteCount` in ui.js — a pure mirror of
+    `plantFits`' zone/native/deer/rabbit gates that never touches game state)
+    updates under every knob so each choice visibly does something. Selections
+    commit to `game.design`/`game.region` on Next, unchanged. Setup panels
+    rise-fade in (`.panel-enter`) and sit more translucent over the meadow. Still in
     the markup but no longer reached from the menu (legacy, tied to the retired
     story / multiplayer paths): the multiplayer lobby, character creator (with
     live preview), and code display. Plain DOM, toggled by `show()`. The planting-list
