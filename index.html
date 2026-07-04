@@ -291,13 +291,16 @@
   <div class="panel panel-enter">
     <h2>What are you planting?</h2>
     <p class="sub">A few questions to tune the plant palette to your garden. You can change any of this later.</p>
-    <div class="field"><label for="dgnZip">Your climate</label>
-      <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="ZIP code">
-      <p class="field-hint">Sets your hardiness zone. Stays on your device.</p>
-      <div class="chip-row" id="dgnWinter" style="margin-top:8px"></div>
+    <div class="field"><label>USDA hardiness zone</label>
+      <div class="chip-row" id="dgnZoneChips"></div>
+      <div class="zone-help hidden" id="dgnZoneHelp">
+        <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="ZIP code">
+        <p class="field-hint">Finds your zone from your ZIP. Stays on your device.</p>
+        <p class="field-hint" style="margin-top:9px">Not in the US? How cold does winter get?</p>
+        <div class="chip-row" id="dgnWinter" style="margin-top:6px"></div>
+      </div>
       <p class="zone-readout" id="dgnZoneOut"></p>
-      <button type="button" class="link-toggle" id="dgnZoneManual">I know my zone ›</button>
-      <div class="chip-row hidden" id="dgnZoneChips" style="margin-top:8px"></div>
+      <button type="button" class="link-toggle" id="dgnZoneToggle">Don't know your zone? ›</button>
     </div>
     <div class="field"><label>Garden style</label>
       <div class="chip-row chip-grid" id="dgnTypeChips"></div>

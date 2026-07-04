@@ -446,12 +446,12 @@ const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'
 function openDesignSetup(){
   const d=game.design||{};
   const sel={zone:d.zone||6, type:d.type||'any',
-    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, zoneManual:false};
+    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, zoneHelp:false};
   const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
     b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
     b.textContent=label; b.onclick=fn; return b; };
   const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
-    consEl=$('dgnConstraints');
+    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle');
   const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone);  // replant the backdrop to match
   function updateReadout(){
     $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
@@ -463,14 +463,18 @@ function openDesignSetup(){
   }
   function setZone(z){
     sel.zone=Math.max(3,Math.min(9,z));
-    renderWinter(); renderZoneChips(); updateReadout(); updateCount(); syncMeadow();
+    renderZoneChips(); renderWinter(); updateReadout(); updateCount(); syncMeadow();
   }
   function renderWinter(){ winterEl.innerHTML='';
     WINTER_BANDS.forEach(([label,,z])=>winterEl.appendChild(mkChip(label,sel.zone===z,()=>setZone(z)))); }
-  function renderZoneChips(){
-    zoneChipsEl.classList.toggle('hidden',!sel.zoneManual);
-    zoneChipsEl.innerHTML=''; if (!sel.zoneManual) return;
-    for (let z=3;z<=9;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z)));
+  // zone chips are face up by default; "Don't know your zone?" flips to the ZIP
+  // + winter-cold helper (which sets the same sel.zone, echoed by the readout).
+  function renderZoneChips(){ zoneChipsEl.innerHTML='';
+    for (let z=3;z<=9;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z))); }
+  function renderZoneMode(){
+    zoneChipsEl.classList.toggle('hidden',sel.zoneHelp);
+    helpEl.classList.toggle('hidden',!sel.zoneHelp);
+    zoneToggle.textContent=sel.zoneHelp?'‹ Back to zones':"Don't know your zone? ›";
   }
   function renderType(){ typeEl.innerHTML='';
     GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
@@ -485,10 +489,9 @@ function openDesignSetup(){
   }
   const zipEl=$('dgnZip'); zipEl.value='';
   zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
-  const manualBtn=$('dgnZoneManual'); manualBtn.textContent='I know my zone ›';
-  manualBtn.onclick=()=>{ sel.zoneManual=!sel.zoneManual;
-    manualBtn.textContent=sel.zoneManual?'Hide zone list ‹':'I know my zone ›'; renderZoneChips(); };
-  renderWinter(); renderZoneChips(); renderType(); renderConstraints(); updateReadout(); updateCount();
+  zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
+  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderConstraints();
+  updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
     game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly, deer:sel.deer, rabbit:sel.rabbit};
