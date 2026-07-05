@@ -244,25 +244,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     scale is capped at `DPR = min(1.5, devicePixelRatio)` (view.js) — matching
     the sprite cache's cap, so sprite blits stay 1:1 and 4K/retina full-screen
     passes don't quadruple the pixel budget.
-    **Organic terrain edges (Wave 3)**: when `game.edgeStyle==='organic'`,
+    **Organic terrain edges (Wave 3 + Tier 1)**: when `game.edgeStyle==='organic'`,
     `paintGround` draws terrain tiles' *grass* base and overlays the material as
-    a **smoothed blob** — `buildTerrainRegions()` floods contiguous same-material
-    (kind+colour) tiles, `traceOutlines` (reused from the plan sheet) walks each
-    boundary, and the loops are cached in world tile-corner space in
-    `terrainLoopCache` keyed by `groundDataSig()`, so tracing runs only on edit,
-    **never per pan frame** (and since the world-anchored ground layer no longer
-    rebakes on pan at all, blob projection now runs only at rebakes too). Each
-    traced loop is first run through
-    `simplifyClosedLoop` (Douglas–Peucker, eps ≈ 0.9 tiles) so a diagonal edge —
-    which `traceOutlines` renders as a right/down/right/down staircase — collapses
-    to a straight line instead of scalloping into a zigzag; real notches survive.
-    `paintTerrainBlobs` projects each loop through
-    `screenOf`, draws a jittered midpoint-quadratic spline (`planJitter`,
-    inward-bounded so it never claims ground the tile rules don't), fills the
-    material colour, then runs the per-tile texture pass **clipped** to the blob
-    (gravel/mulch/ripples preserved) and strokes one continuous edge — grass
-    shows in the cut corners. `formal` keeps the crisp per-tile rendering
-    (unchanged). Perf: organic tracks formal even on a pathological
+    a **smoothed blob** — `buildTerrainRegions()` floods same-material tiles
+    (kind+colour, **8-connected**, and **split by elevation level** — a raised
+    bed is its own terrace region drawn lifted by `elev*ELEV_STEP`, regions
+    painted low-to-high), `traceOutlines` (reused from the plan sheet) walks
+    each boundary, and the geometry is cached in world tile-corner space in
+    `terrainLoopCache` keyed by `terrainRev` (elevation edits bump it too), so
+    tracing runs only on edit, **never per pan frame**. Each boundary is
+    classified into **arcs** (`terrainUnitEdges`/`terrainLoopArcs`): **hard**
+    arcs — shared with another region (other material/colour/elevation) — draw
+    as exact tile lines with no jitter, so beds and paths **butt seamlessly**
+    and painted corners stay corners; **soft** arcs — facing grass — are
+    Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
+    diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
+    pre-jittered inward (`planJitter`) on interiors only, and drawn as
+    midpoint-quadratic splines **pinned to their endpoints**; **pinch corners**
+    (8-connected diagonal touches, `useCount>=2`) are pinned exact so lobes
+    kiss instead of gapping. `terrainLoopPath(ctx, loop, proj)` renders the
+    cached arcs through an arbitrary projector — the garden uses
+    `screenOfFlat` + terrace lift, and **`openPlan` uses the same function**
+    projected to paper, so the plan sheet finally matches the garden (formal
+    gardens keep crisp per-tile cells in both). The per-tile texture pass runs
+    **clipped** to the blob (gravel/mulch/ripples preserved) with one
+    continuous edge stroke — grass still shows in soft cut corners. Perf: organic tracks formal even on a pathological
     573-terrain-tile / 48-region stress rebuild; a still view just blits. **Dense gardens draw
     plants from a sprite cache** (`PSPRITE`, `drawPlantMaybeCached`): `drawPlant`
     was ~88% of a heavy frame, re-running each plant's procedural recipe every

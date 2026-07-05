@@ -539,12 +539,28 @@ function buildPlanMap(){
     ctx.textAlign='center';
     ctx.fillText(`${e.h>0?'+':''}${e.h}`,X(x)+cell/2,Y(y)+cell/2+3);
   }
-  // terrain
-  for (const k in game.terrain){ const t2=game.terrain[k];
-    if (t2.removed) continue;
-    const [x,y]=k.split(',').map(Number);
-    ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):bedPlanFill(t2);
-    ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
+  // terrain — organic gardens draw the SAME smoothed region geometry the
+  // garden renderer uses (terrainLoopPath over the cached arcs, projected to
+  // paper), so the plan finally matches what the gardener sees; formal
+  // gardens keep the crisp per-tile cells.
+  if (game.edgeStyle==='organic'){
+    const planProj=([gx,gy])=>[X(gx),Y(gy)];
+    for (const region of buildTerrainRegions()){
+      const o={k:region.kind,c:region.c};
+      ctx.fillStyle=region.kind==='path'?pathPlanFill(o):region.kind==='water'?waterPlanFill(o):bedPlanFill(o);
+      ctx.beginPath();
+      for (const loop of region.loops) terrainLoopPath(ctx,loop,planProj);
+      ctx.fill('evenodd');
+      ctx.strokeStyle='rgba(88,70,52,0.5)'; ctx.lineWidth=1.1;
+      ctx.stroke();
+    }
+  } else {
+    for (const k in game.terrain){ const t2=game.terrain[k];
+      if (t2.removed) continue;
+      const [x,y]=k.split(',').map(Number);
+      ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):bedPlanFill(t2);
+      ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
+    }
   }
   // fire pits
   for (const k in game.firepits){ const f=game.firepits[k];

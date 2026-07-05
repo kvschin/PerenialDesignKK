@@ -92,8 +92,10 @@ function markGroundChanged(opts){
   if (opts && opts.terrain) game.terrainRev++;
 }
 function markLayerCacheChanged(layer){
-  if (layer==='terrain') markGroundChanged({terrain:true});
-  else if (layer==='elevation' || layer==='houses') markGroundChanged();
+  // elevation splits organic terrain regions (a raised bed is its own terrace
+  // blob), so elevation edits retrace the region cache along with terrain edits
+  if (layer==='terrain' || layer==='elevation') markGroundChanged({terrain:true});
+  else if (layer==='houses') markGroundChanged();
 }
 function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer); }
 function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer); }

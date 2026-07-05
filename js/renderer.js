@@ -58,16 +58,32 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
 }
-/* ---------- organic terrain: smoothed region blobs (Wave 3) ----------
+/* ---------- organic terrain: smoothed region blobs (Wave 3 + Tier 1) ----------
    Reuses the plan sheet's traceOutlines pipeline. Contiguous same-material
-   (kind+colour) tiles flood into regions; each region's rectilinear boundary
-   is traced ONCE and cached in world (tile-corner) space, keyed by terrainRev
-   so tracing runs only on edit — never per pan frame. The
-   per-frame cost is just projecting cached corners through screenOf and
-   drawing a midpoint-quadratic spline (inward-bounded, so it never claims
-   ground the tile rules don't). The per-tile texture pass runs clipped to the
-   blob, so gravel/mulch/water detail is preserved; grass shows in cut corners. */
-let terrainLoopCache={sig:null, terrainRef:null, regions:[]};
+   tiles flood into regions (8-connected, split by elevation level); each
+   region's rectilinear boundary is traced ONCE, classified into ARCS, and
+   cached in world (tile-corner) space keyed by terrainRev — tracing runs only
+   on edit, never per pan frame.
+
+   The arc classification is what lets materials meet (the old renderer inset
+   every region away from every boundary, so beds could never touch paths and
+   grass seams showed everywhere):
+   - HARD arcs — boundary shared with another region (other material, other
+     colour, or the same material at another elevation) — draw as exact tile
+     lines, no jitter, no rounding: the two fills butt seamlessly and the
+     corners the gardener painted stay corners.
+   - SOFT arcs — boundary facing grass — keep the organic treatment:
+     Douglas-Peucker'd (staircases → straight diagonals), interiors jittered
+     inward-bounded, drawn as a midpoint-quadratic spline pinned exactly to the
+     arc's endpoints (so curves land on the corners where a hard edge begins).
+   - PINCH corners — where 8-connected lobes of one region touch diagonally —
+     are pinned exact so the lobes kiss at the corner instead of gapping.
+   Soft interiors are pre-jittered in tile space, so the garden renderer and
+   the plan sheet project the SAME cached geometry (terrainLoopPath takes a
+   projector) — the plan finally matches the garden. Regions carry their
+   elevation and draw lifted by elev*ELEV_STEP, low-to-high, so raised beds
+   sit on their terraces instead of rendering flat. */
+let terrainLoopCache={sig:null, terrainRef:null, elevRef:null, regions:[]};
 // Douglas–Peucker on a closed boundary loop: `traceOutlines` renders a diagonal
 // edge as a rectilinear staircase (right/down/right/down); left alone, the
 // spline uses each step corner as a control point and scallops into a zigzag.
@@ -76,22 +92,27 @@ let terrainLoopCache={sig:null, terrainRef:null, regions:[]};
 // chord and a genuine one-tile jog deviates ~1, so ~0.9 erases the artifact
 // while keeping real notches. Runs only on edit (cached), so cost is irrelevant.
 const TERRAIN_SIMPLIFY_EPS=0.9;
-function simplifyClosedLoop(pts, eps){
-  if (pts.length<=4) return pts;
+// Douglas-Peucker on an OPEN polyline — endpoints always survive, so an arc
+// simplified between two pinned corners still lands exactly on those corners.
+function dpOpen(arr, eps){
   const segDist=(p,a,b)=>{
     const dx=b[0]-a[0], dy=b[1]-a[1], L2=dx*dx+dy*dy;
     if (L2<1e-12) return Math.hypot(p[0]-a[0],p[1]-a[1]);
     let t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2; t=t<0?0:t>1?1:t;
     return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
   };
-  const dp=(arr)=>{
-    if (arr.length<3) return arr.slice();
+  const dp=(a)=>{
+    if (a.length<3) return a.slice();
     let idx=-1, max=0;
-    for (let i=1;i<arr.length-1;i++){ const d=segDist(arr[i],arr[0],arr[arr.length-1]);
+    for (let i=1;i<a.length-1;i++){ const d=segDist(a[i],a[0],a[a.length-1]);
       if (d>max){ max=d; idx=i; } }
-    if (max>eps) return dp(arr.slice(0,idx+1)).slice(0,-1).concat(dp(arr.slice(idx)));
-    return [arr[0], arr[arr.length-1]];
+    if (max>eps) return dp(a.slice(0,idx+1)).slice(0,-1).concat(dp(a.slice(idx)));
+    return [a[0], a[a.length-1]];
   };
+  return dp(arr);
+}
+function simplifyClosedLoop(pts, eps){
+  if (pts.length<=4) return pts;
   // anchor on two extreme, guaranteed-real corners so no kink is introduced
   let a0=0; for (let i=1;i<pts.length;i++){ const p=pts[i], q=pts[a0];
     if (p[0]<q[0] || (p[0]===q[0] && p[1]<q[1])) a0=i; }
@@ -100,16 +121,151 @@ function simplifyClosedLoop(pts, eps){
     if (d>best){ best=d; a1=i; } }
   const lo=Math.min(a0,a1), hi=Math.max(a0,a1);
   if (hi-lo<1) return pts;
-  const out=dp(pts.slice(lo,hi+1)).slice(0,-1)
-    .concat(dp(pts.slice(hi).concat(pts.slice(0,lo+1))).slice(0,-1));
+  const out=dpOpen(pts.slice(lo,hi+1),eps).slice(0,-1)
+    .concat(dpOpen(pts.slice(hi).concat(pts.slice(0,lo+1)),eps).slice(0,-1));
   return out.length>=3 ? out : pts;
+}
+// drop interior points collinear with their neighbors (integer lattice input)
+function mergeCollinearOpen(pts){
+  if (pts.length<3) return pts.slice();
+  const out=[pts[0]];
+  for (let i=1;i<pts.length-1;i++){
+    const a=pts[i-1], b=pts[i], c=pts[i+1];
+    if ((b[0]-a[0])*(c[1]-b[1])!==(b[1]-a[1])*(c[0]-b[0])) out.push(b);
+  }
+  out.push(pts[pts.length-1]);
+  return out;
+}
+function mergeCollinearClosed(pts){
+  const n=pts.length, out=[];
+  for (let i=0;i<n;i++){
+    const a=pts[(i+n-1)%n], b=pts[i], c=pts[(i+1)%n];
+    if ((b[0]-a[0])*(c[1]-b[1])!==(b[1]-a[1])*(c[0]-b[0])) out.push(b);
+  }
+  return out.length>2?out:pts;
+}
+// Expand a traced loop (corners only) back to unit tile edges, classifying
+// each edge by what sits on its OUTSIDE: another region's material = HARD
+// (butt exactly), grass/plot-edge = SOFT (smooth organically). Orientation-
+// free: of the two tiles flanking an edge, the one not in the region is out.
+function terrainUnitEdges(loop, set, solid){
+  const edges=[];
+  for (let i=0;i<loop.length;i++){
+    const a=loop[i], b=loop[(i+1)%loop.length];
+    const dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]);
+    let x=a[0], y=a[1];
+    while (x!==b[0] || y!==b[1]){
+      const nx=x+dx, ny=y+dy;
+      let out;
+      if (dx!==0){ const tx=Math.min(x,nx), t1=`${tx},${y-1}`, t2=`${tx},${y}`;
+        out = set.has(t1) ? t2 : t1; }
+      else { const ty=Math.min(y,ny), t1=`${x-1},${ty}`, t2=`${x},${ty}`;
+        out = set.has(t1) ? t2 : t1; }
+      edges.push({a:[x,y], b:[nx,ny], hard:!!solid[out]});
+      x=nx; y=ny;
+    }
+  }
+  return edges;
+}
+function finishTerrainArc(hard, pts){
+  pts=mergeCollinearOpen(pts);
+  if (!hard && pts.length>2){
+    // A pinch lobe's arc starts and ends on the SAME corner, so the DP chord
+    // is a point and a unit-tile lobe (corners ~0.71 < eps) collapses to a
+    // sliver. Keep unit-scale lobes verbatim; anchor-split larger near-closed
+    // arcs at their farthest corner so DP always has real chords to test.
+    const a=pts[0], b=pts[pts.length-1];
+    const closedish=Math.hypot(a[0]-b[0],a[1]-b[1])<1;
+    if (pts.length<=5){ /* single-tile lobe: every corner is structural */ }
+    else if (closedish){
+      let far=1, best=-1;
+      for (let i=1;i<pts.length-1;i++){ const d=Math.hypot(pts[i][0]-a[0],pts[i][1]-a[1]);
+        if (d>best){ best=d; far=i; } }
+      pts=dpOpen(pts.slice(0,far+1),TERRAIN_SIMPLIFY_EPS).slice(0,-1)
+        .concat(dpOpen(pts.slice(far),TERRAIN_SIMPLIFY_EPS));
+    }
+    else pts=dpOpen(pts, TERRAIN_SIMPLIFY_EPS);
+  }
+  if (!hard){   // inward-bounded lattice jitter, interiors only — endpoints stay pinned
+    for (let i=1;i<pts.length-1;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
+      pts[i]=[pts[i][0]+jx*0.55, pts[i][1]+jy*0.55]; }
+  }
+  return {hard, pts};
+}
+// Split one loop's unit edges into maximal same-hardness arcs, cutting also at
+// pinch corners (useCount>=2: the boundary passes through the corner twice —
+// an 8-connected diagonal touch) so those corners stay exact and lobes kiss.
+function terrainLoopArcs(es, useCount){
+  const n=es.length;
+  const isCut=i=>{
+    const prev=es[(i+n-1)%n];
+    if (prev.hard!==es[i].hard) return true;
+    return useCount[es[i].a.join(',')]>=2;
+  };
+  const cuts=[];
+  for (let i=0;i<n;i++) if (isCut(i)) cuts.push(i);
+  if (!cuts.length){                       // uniform loop, no pins — closed treatment
+    const raw=es.map(e=>e.a), hard=es[0].hard;
+    let pts=mergeCollinearClosed(raw);
+    if (!hard){
+      pts=simplifyClosedLoop(pts, TERRAIN_SIMPLIFY_EPS)
+        .map(([x,y])=>{ const [jx,jy]=planJitter(x,y); return [x+jx*0.55, y+jy*0.55]; });
+    }
+    return {closed:true, hard, pts};
+  }
+  const arcs=[];
+  for (let c=0;c<cuts.length;c++){
+    const i0=cuts[c], i1=cuts[(c+1)%cuts.length];
+    let len=(i1-i0+n)%n; if (len===0) len=n;
+    const pts=[]; for (let s=0;s<=len;s++) pts.push(es[(i0+s)%n].a);
+    arcs.push(finishTerrainArc(es[i0].hard, pts));
+  }
+  return {closed:false, arcs};
+}
+/* Append one cached region loop to the current ctx path through an arbitrary
+   projector ([gx,gy] tile corners → canvas px) — the garden (iso + elevation
+   lift) and the plan sheet (flat paper) draw the SAME geometry. Hard arcs are
+   straight exact lines; soft arcs are midpoint-quadratic splines pinned to
+   their endpoints; fully-soft loops keep the original closed spline. */
+function terrainLoopPath(ctx, loop, proj){
+  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  if (loop.closed){
+    const pts=loop.pts.map(proj);
+    if (loop.hard || pts.length<3){
+      pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+      ctx.closePath(); return;
+    }
+    let m=mid(pts[pts.length-1],pts[0]); ctx.moveTo(m[0],m[1]);
+    for (let i=0;i<pts.length;i++){ const nn=mid(pts[i],pts[(i+1)%pts.length]);
+      ctx.quadraticCurveTo(pts[i][0],pts[i][1],nn[0],nn[1]); }
+    ctx.closePath(); return;
+  }
+  loop.arcs.forEach((arc,ai)=>{
+    const pts=arc.pts.map(proj);
+    if (ai===0) ctx.moveTo(pts[0][0],pts[0][1]);
+    if (arc.hard || pts.length<3){
+      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+    } else {
+      for (let i=1;i<pts.length-1;i++){
+        const end = i===pts.length-2 ? pts[i+1] : mid(pts[i],pts[i+1]);
+        ctx.quadraticCurveTo(pts[i][0],pts[i][1], end[0],end[1]);
+      }
+    }
+  });
+  ctx.closePath();
 }
 function buildTerrainRegions(){
   const sig=terrainRegionKey();
-  if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain) return terrainLoopCache.regions;
-  const keyOf={}; // "x,y" -> "kind|colour"
+  if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain &&
+      terrainLoopCache.elevRef===game.elevation) return terrainLoopCache.regions;
+  const solid={};  // every live terrain tile, any material — the hardness lookup
+  const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
   for (const k in game.terrain){ const o=game.terrain[k];
-    if (o && !o.removed) keyOf[k]=o.k+'|'+(o.c||''); }
+    if (!o || o.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    solid[k]=true;
+    keyOf[k]=o.k+'|'+(o.c||'')+'|'+(elevationAt(x,y)||0);
+  }
   const seen={}, regions=[];
   for (const k in keyOf){
     if (seen[k]) continue;
@@ -117,30 +273,28 @@ function buildTerrainRegions(){
     seen[k]=true;
     while (stack.length){
       const cur=stack.pop(); set.add(cur);
-      const [cx2,cy2]=cur.split(',').map(Number);
-      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const ci=cur.indexOf(','), cx2=+cur.slice(0,ci), cy2=+cur.slice(ci+1);
+      // 8-connectivity: tiles of one material touching only at a corner join
+      // one region; the pinch handling in terrainLoopArcs makes the lobes
+      // actually meet at that corner instead of both rounding away from it
+      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
         const nk=`${cx2+dx},${cy2+dy}`;
         if (seen[nk] || keyOf[nk]!==key) continue;
         seen[nk]=true; stack.push(nk);
       }
     }
     const o=game.terrain[k];
-    regions.push({ kind:o.k, c:o.c, tiles:set,
-      loops:traceOutlines(set).map(l=>simplifyClosedLoop(l,TERRAIN_SIMPLIFY_EPS)) });
+    const ci=k.indexOf(',');
+    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid));
+    const useCount={};
+    for (const es of unit) for (const e of es){
+      const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
+    regions.push({ kind:o.k, c:o.c, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
+      loops:unit.map(es=>terrainLoopArcs(es,useCount)) });
   }
-  terrainLoopCache={sig, terrainRef:game.terrain, regions};
+  regions.sort((a,b)=>a.elev-b.elev);   // higher terraces paint over lower edges
+  terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
   return regions;
-}
-// append one smoothed loop (jittered corners + midpoint quadratic) to the
-// current path — no beginPath, so multiple loops accumulate for one fill/clip
-function addSmoothTerrainLoop(ctx,loop,W,H){
-  const pts=loop.map(([gx,gy])=>{ const [jx,jy]=planJitter(gx,gy);
-    return screenOf(gx+jx*0.55, gy+jy*0.55, W, H); });
-  if (pts.length<3){ pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); return; }
-  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
-  let m=mid(pts[pts.length-1],pts[0]); ctx.moveTo(m[0],m[1]);
-  for (let i=0;i<pts.length;i++){ const n=mid(pts[i],pts[(i+1)%pts.length]);
-    ctx.quadraticCurveTo(pts[i][0],pts[i][1],n[0],n[1]); }
 }
 function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
   for (const region of buildTerrainRegions()){
@@ -152,14 +306,19 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     const isWater=region.kind==='water', o={k:region.kind,c:region.c};
     const base = isWater ? waterFill(o,amb.snow)
       : region.kind==='path' ? pathFill(o,amb.snow) : bedFill(o,amb);
-    // fill the smoothed silhouette
+    // project cached tile-corner geometry into the iso view, lifted to the
+    // region's terrace (screenOfFlat + explicit lift: the old screenOf call
+    // missed elevation entirely for fractional corners, so raised beds drew flat)
+    const lift=region.elev*ELEV_STEP;
+    const proj=([gx,gy])=>{ const p=screenOfFlat(gx,gy,W,H); return [p[0],p[1]-lift]; };
+    // fill the silhouette
     ctx.beginPath();
-    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.fillStyle=base; ctx.fill('evenodd');
     // per-tile texture, clipped to the blob (gravel/mulch/ripples preserved)
     ctx.save();
     ctx.beginPath();
-    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.clip('evenodd');
     for (const kk of region.tiles){ const c=kk.indexOf(',');
       const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
@@ -172,7 +331,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     ctx.restore();
     // one continuous edge stroke (replaces the per-tile diamond strokes)
     ctx.beginPath();
-    for (const loop of region.loops) addSmoothTerrainLoop(ctx,loop,W,H);
+    for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.strokeStyle = isWater ? (amb.snow?'rgba(255,255,255,0.5)':waterStyle(region.c).edge)
       : region.kind==='path' ? 'rgba(60,48,34,0.32)' : 'rgba(48,36,24,0.30)';
     ctx.lineWidth=1.6; ctx.stroke();

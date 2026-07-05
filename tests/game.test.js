@@ -238,7 +238,7 @@ test('ground cache revisions change only for ground-affecting edits', () => {
   const ground1 = game.groundRev, terrain1 = game.terrainRev;
   setElevationAt(4, 4, 1);
   assert(game.groundRev > ground1, 'elevation edit rebakes ground');
-  assertEqual(game.terrainRev, terrain1, 'elevation edit does not retrace terrain blobs');
+  assert(game.terrainRev > terrain1, 'elevation edit retraces regions (raised beds are their own terrace blobs)');
   const ground2 = game.groundRev;
   addHouse({ x: 6, y: 6, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
   assert(game.groundRev > ground2, 'house edit rebakes ground for doorstep/footprint');
@@ -441,6 +441,62 @@ test('organic terrain traces contiguous same-material tiles into regions', () =>
   // a differently-coloured neighbour is its own region even when adjacent
   setTile('terrain', '7,3', { k: 'bed', c: 'gravel', t: 1 });
   assertEqual(buildTerrainRegions().length, 4, 'a different bed colour splits into its own region');
+});
+
+test('organic regions: material boundaries are hard, grass edges stay soft', () => {
+  setup(21, 21);
+  // a bed with a path butted against its east side
+  for (let y = 5; y <= 8; y++) for (let x = 3; x <= 6; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 5; y <= 8; y++) for (let x = 7; x <= 9; x++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  const regions = buildTerrainRegions();
+  assertEqual(regions.length, 2, 'bed and path are separate regions');
+  const bed = regions.find(r => r.kind === 'bed');
+  assert(!bed.loops[0].closed, 'a butted region splits into arcs');
+  const hard = bed.loops[0].arcs.filter(a => a.hard);
+  const soft = bed.loops[0].arcs.filter(a => !a.hard);
+  assert(hard.length >= 1 && soft.length >= 1, 'the loop has both hard and soft arcs');
+  // the shared boundary is the x=7 tile line, exact and unjittered
+  const sharedPts = hard.flatMap(a => a.pts);
+  assert(sharedPts.every(([x, y]) => Number.isInteger(x) && Number.isInteger(y)),
+    'hard arc points are exact tile corners (no jitter)');
+  assert(sharedPts.some(([x]) => x === 7), 'the hard arc lies on the shared tile line');
+  // soft arc endpoints stay pinned on the lattice so curves land on real corners
+  for (const a of soft){
+    const first = a.pts[0], last = a.pts[a.pts.length - 1];
+    assert(Number.isInteger(first[0]) && Number.isInteger(first[1]), 'soft arc start pinned');
+    assert(Number.isInteger(last[0]) && Number.isInteger(last[1]), 'soft arc end pinned');
+  }
+});
+
+test('organic regions: diagonal same-material tiles join one region and pin the pinch', () => {
+  setup(21, 21);
+  setTile('terrain', '4,4', { k: 'bed', c: 'mulch', t: 1 });
+  setTile('terrain', '5,5', { k: 'bed', c: 'mulch', t: 1 });
+  const regions = buildTerrainRegions();
+  assertEqual(regions.length, 1, '8-connectivity merges the diagonal pair');
+  assertEqual(regions[0].tiles.size, 2, 'both tiles in the region');
+  // the pinch corner (5,5) is pinned exact somewhere in the arc geometry
+  const allPts = regions[0].loops.flatMap(l => l.closed ? l.pts : l.arcs.flatMap(a => a.pts));
+  assert(allPts.some(([x, y]) => x === 5 && y === 5), 'the pinch corner survives exactly');
+  // and each lobe keeps real area: a unit-tile lobe arc must retain its three
+  // interior corners (DP once collapsed these to a degenerate sliver)
+  const arcs = regions[0].loops.flatMap(l => l.closed ? [] : l.arcs);
+  assert(arcs.length >= 2, 'the pinch splits the boundary into lobe arcs');
+  for (const a of arcs) assert(a.pts.length >= 5, `lobe arc keeps its corners (got ${a.pts.length})`);
+});
+
+test('organic regions: elevation splits terraces and orders them low-to-high', () => {
+  setup(21, 21);
+  for (let x = 3; x <= 6; x++) setTile('terrain', `${x},10`, { k: 'bed', c: 'mulch', t: 1 });
+  setElevationAt(5, 10, 1); setElevationAt(6, 10, 1);
+  const regions = buildTerrainRegions();
+  assertEqual(regions.length, 2, 'one bed at two elevations = two terrace regions');
+  assertEqual(regions[0].elev, 0, 'low terrace first');
+  assertEqual(regions[1].elev, 1, 'high terrace second');
+  // the boundary between the terraces is hard on both sides
+  const hardOnSplit = r => !r.loops[0].closed &&
+    r.loops[0].arcs.some(a => a.hard && a.pts.some(([x]) => x === 5));
+  assert(hardOnSplit(regions[0]) && hardOnSplit(regions[1]), 'terrace step butts exactly at x=5');
 });
 
 test('organic edges collapse a diagonal tile staircase to a straight line', () => {
