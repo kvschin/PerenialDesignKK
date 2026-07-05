@@ -164,7 +164,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    (cultivar overrides merged over the species, cached) and branches on its
    `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
-   `spike`, `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
+   `spike`, `agave` (symmetric succulent rosette), `ocotillo` (fan of
+   red-tipped canes), `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
    woody shrub, `hydrangea` (`look.bloomShape` 'mop'|'lacecap'|'panicle';
    grouped in the tray by flower type — mophead/lacecap/panicle/oakleaf —
    not by species), `tree` deciduous, `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody

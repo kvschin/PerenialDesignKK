@@ -13,6 +13,8 @@
            archbell (arching Solomon's seal stems) |
            martagon (recurved lily bells) | pyramid (dense scilla raceme) |
            bractstack (spotted bee balm tiers) | pincushion (scabiosa) |
+           agave (symmetric succulent rosette, spine-tipped leaves) |
+           ocotillo (spray of tall bare canes, red-tipped in spring) |
            shrub (herbaceous mound) | fern | leafmound (hosta) |
            bulbcup (crocus/tulip/daffodil) | bush (woody shrub, plus
            clipped evergreen forms via look.clip/look.shape/look.hedge) |
@@ -1912,26 +1914,26 @@ const PLANTS = {
     roles:['dry','gravel','mediterranean','architectural','silver','deerOk','rabbitOk'],
     blurb:'A silvery sphere of slender, saw-toothed leaves — each ending in a spoon — topped in summer by a tall creamy flower plume. Hill Country and Chihuahuan classic, also called sotol.',
     sea:{Spring:{fol:'#8ba090',edge:'#a6b8a4'}, Summer:{fol:'#84997f',edge:'#a6b8a4',bloom:'#e8e0cc'}, Fall:{fol:'#8a9880',edge:'#a2ae94',seed:'#c9bfa0'}, Winter:{fol:'#7f8c76',edge:'#98a288',seed:'#b8ad90'}}},
-  ocotillo:{ name:'Ocotillo', latin:'Fouquieria splendens', form:'rosette', type:'forb', h:72,
+  ocotillo:{ name:'Ocotillo', latin:'Fouquieria splendens', form:'ocotillo', type:'forb', h:72,
     space:60, spread:60, zones:[8,10], native:true, sun:'full', moist:'dry', phen:'warm',
     eco:['Sonoran Basin and Range','Chihuahuan Deserts'],
-    look:{leaves:11, leafLen:1.0, leafW:0.9, filaments:false, stems:0, bells:10},
+    look:{canes:13, spread:0.95},
     roles:['dry','gravel','mediterranean','architectural','nectar','deerOk','rabbitOk'],
     blurb:'A spray of tall, spiny, whip-like canes — grey and bare in drought, flushing tiny green leaves after rain, and tipped with flame-red flower clusters in spring for hummingbirds.',
     sea:{Spring:{fol:'#8a8a6e',edge:'#6a5a44',bloom:'#cf3a2a'}, Summer:{fol:'#6f8a5a',edge:'#6a5a44'}, Fall:{fol:'#8a7f60',edge:'#6a5a44',seed:'#6a5a44'}, Winter:{fol:'#847a62',edge:'#6a5a44',seed:'#6a5a44'}}},
-  parryagave:{ name:'Agave', latin:'Agave parryi', form:'rosette', type:'forb', h:36,
+  parryagave:{ name:'Agave', latin:'Agave parryi', form:'agave', type:'forb', h:30,
     group:'agave', groupLabel:'Agave', chip:"Parry's",
     space:30, spread:36, zones:[5,10], native:true, sun:'full', moist:'dry', phen:'warm',
     eco:['Arizona/New Mexico Mountains','Chihuahuan Deserts','Sonoran Basin and Range'],
-    look:{leaves:34, leafLen:0.5, leafW:2.4, filaments:false, stems:0, bells:0},
+    look:{leaves:28, leafLen:0.52, leafW:3.4},
     roles:['dry','gravel','mediterranean','architectural','silver','deerOk','rabbitOk'],
     blurb:"A tight artichoke rosette of stiff gray-blue leaves tipped in dark spines. The hardiest agave, good up into the mountains of New Mexico.",
     sea:{Spring:{fol:'#8ba3a0',edge:'#5a4a3a'}, Summer:{fol:'#86a0a0',edge:'#5a4a3a'}, Fall:{fol:'#83999a',edge:'#5a4a3a'}, Winter:{fol:'#7e9494',edge:'#5a4a3a'}}},
-  havardagave:{ name:'Agave', latin:'Agave havardiana', form:'rosette', type:'forb', h:44,
+  havardagave:{ name:'Agave', latin:'Agave havardiana', form:'agave', type:'forb', h:40,
     group:'agave', groupLabel:'Agave', chip:"Havard's",
     space:48, spread:54, zones:[5,10], native:true, sun:'full', moist:'dry', phen:'warm',
     eco:['Chihuahuan Deserts','Edwards Plateau'],
-    look:{leaves:30, leafLen:0.58, leafW:2.7, filaments:false, stems:0, bells:0},
+    look:{leaves:24, leafLen:0.62, leafW:4.0},
     roles:['dry','gravel','mediterranean','architectural','silver','deerOk','rabbitOk'],
     blurb:'The Big Bend agave — a broad blue-gray rosette of wide, cupped leaves with heavy terminal spines. Cold-hardy and drought-proof.',
     sea:{Spring:{fol:'#8fa6a4',edge:'#544436'}, Summer:{fol:'#8aa3a2',edge:'#544436'}, Fall:{fol:'#879d9c',edge:'#544436'}, Winter:{fol:'#829896',edge:'#544436'}}},

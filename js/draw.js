@@ -594,6 +594,67 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
+  else if (P.form === 'agave'){ // succulent rosette: thick pointed leaves radiating from a tight crown
+    const L=P.look||{};
+    const n=stemFor(L.leaves||30), maxLen=H*(L.leafLen||0.5);
+    const cy=-H*0.32, squash=0.58;                 // iso foreshortening of the radial star
+    const fol=S.fol||'#8ba3a0', spine=S.edge||shade(fol,-45);
+    const leaves=[];
+    for (let i=0;i<n;i++){
+      const a=(i/n)*Math.PI*2 + (rnd()-0.5)*0.12;
+      leaves.push({dx:Math.cos(a), dy:Math.sin(a), len:maxLen*(0.72+rnd()*0.4)});
+    }
+    leaves.sort((p,q)=>p.dy-q.dy);                 // dy>0 points toward the viewer — paint back-to-front
+    ctx.lineCap='round';
+    for (const lf of leaves){
+      const tipX=lf.dx*lf.len + sway*lf.len*0.02;
+      const tipY=cy + lf.dy*lf.len*squash;
+      const midX=lf.dx*lf.len*0.55, midY=cy + lf.dy*lf.len*squash*0.55 - lf.len*0.12; // slight upward recurve
+      const dep=(lf.dy+1)/2;                        // 0 back .. 1 front
+      const w=(L.leafW||3.2)*(0.9+0.2*dep);
+      ctx.strokeStyle=shade(fol,-34); ctx.lineWidth=w+1.6;   // dark undershadow
+      ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
+      ctx.strokeStyle=shade(fol,-10+dep*20+(rnd()-0.5)*8); ctx.lineWidth=w;   // leaf body
+      ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
+      ctx.strokeStyle=spine; ctx.lineWidth=1.2;              // dark terminal spine
+      ctx.beginPath(); ctx.moveTo(tipX,tipY); ctx.lineTo(tipX+lf.dx*2.2,tipY+lf.dy*squash*2.2); ctx.stroke();
+    }
+    ctx.lineCap='butt';
+    ctx.fillStyle=shade(fol,16);                   // tight new leaves in the crown
+    ctx.beginPath(); ctx.ellipse(0,cy,(L.leafW||3.2)*1.1,(L.leafW||3.2)*0.7,0,0,7); ctx.fill();
+  }
+  else if (P.form === 'ocotillo'){ // a spray of tall bare canes, flame-red at the tips in spring
+    const L=P.look||{};
+    const n=stemFor(L.canes||L.leaves||11), spread=L.spread||0.95;
+    const caneCol=S.edge||shade(S.fol||'#8a8a6e',-30);
+    const hasLeaves=!!S.fol, leafCol=S.fol||'#6f8a5a';
+    for (let i=0;i<n;i++){
+      const t=n>1?(i/(n-1)-0.5):0;                  // -0.5 .. 0.5 across the fan
+      const ang=t*spread, len=H*(0.82+rnd()*0.3), baseX=t*4;
+      const tipX=baseX+Math.sin(ang)*len + sway*len*0.05, tipY=-Math.cos(ang)*len;
+      const midX=baseX+Math.sin(ang)*len*0.5, midY=-Math.cos(ang)*len*0.52;
+      ctx.strokeStyle=shade(caneCol,(rnd()-0.5)*16); ctx.lineWidth=2.4*(0.5+0.5*growth); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
+      if (hasLeaves && mature){                      // leaf flush along the cane after rain
+        ctx.fillStyle=leafCol;
+        for (let s=0.28;s<0.95;s+=0.13){
+          const lx=baseX+(tipX-baseX)*s+(rnd()-0.5)*2, ly=tipY*s+(rnd()-0.5)*2;
+          ctx.beginPath(); ctx.ellipse(lx,ly,1.5,2.3,ang,0,7); ctx.fill();
+        }
+      }
+      if (blooming && S.bloom){                      // flame-red cluster at the tip
+        ctx.fillStyle=S.bloom;
+        const fn=Math.max(1,Math.round(3*blv));
+        for (let f=0;f<fn;f++){
+          ctx.beginPath(); ctx.ellipse(tipX+(rnd()-0.5)*3, tipY-2-f*2.5, 1.8, 3.4, 0, 0, 7); ctx.fill();
+        }
+      } else if (S.seed){
+        ctx.fillStyle=S.seed;
+        ctx.beginPath(); ctx.ellipse(tipX,tipY-2,1.3,2.4,0,0,7); ctx.fill();
+      }
+    }
+    ctx.lineCap='butt';
+  }
   else if (P.form === 'shrub'){
     const L=P.look||{}, habit=L.habit||'mound', fol=S.fol||'#6f8f5a';
     const leafDot=(px,py,w,h,a,col)=>{
