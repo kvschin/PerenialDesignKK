@@ -123,7 +123,7 @@ addEventListener('orientationchange', resizeCanvases);
 /* Cardinal direction markers sit just past the plot edge. They are not clamped
    to the viewport; when that part of the garden edge leaves the screen, the
    marker leaves too. This keeps the directions spatial instead of HUD-like. */
-let compassDom=null, compassKey='';
+let compassDom=null, compassKey='', compassChrome={key:'',rects:[]};
 function compassElements(){
   if (compassDom && compassDom.root && compassDom.root.isConnected) return compassDom;
   const root=document.getElementById('compassEdges');
@@ -131,13 +131,46 @@ function compassElements(){
   compassDom={ root, labels:Array.from(root.querySelectorAll('.compass-edge-label')) };
   return compassDom;
 }
+function compassChromeStateKey(){
+  const bodyCls=(document.body&&document.body.className)||'';
+  const ids=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow','brushBar','trayTabs','toolTray','plantCard','selectionActions'];
+  const parts=ids.map(id=>{
+    const el=document.getElementById(id);
+    return el ? [id,el.className||'',el.style&&el.style.display||''].join(':') : id+':x';
+  });
+  return [VW,VH,bodyCls,game.sheetState||'',game.toolMenu||'',game.trayCat||'',game.drill||'',
+    game.searchOpen?1:0,game.catMenuOpen?1:0,parts.join('|')].join('|');
+}
+function compassChromeRects(stateKey){
+  if (compassChrome.key===stateKey) return compassChrome.rects;
+  const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.cat-pop','.selection-actions'];
+  const rects=[];
+  for (const sel of sels){
+    document.querySelectorAll(sel).forEach(el=>{
+      if (!el || (el.classList&&el.classList.contains('hidden'))) return;
+      const cs=typeof getComputedStyle==='function' ? getComputedStyle(el) : null;
+      if (cs && (cs.display==='none' || cs.visibility==='hidden')) return;
+      const r=el.getBoundingClientRect&&el.getBoundingClientRect();
+      if (!r || r.width<=0 || r.height<=0) return;
+      const pad=sel==='.hud-top'||sel==='.hud-bottom' ? 22 : 18;
+      rects.push({left:r.left-pad,top:r.top-pad,right:r.right+pad,bottom:r.bottom+pad});
+    });
+  }
+  compassChrome={key:stateKey,rects};
+  return rects;
+}
+function compassBlockedByChrome(p,rects){
+  return rects.some(r=>p[0]>=r.left && p[0]<=r.right && p[1]>=r.top && p[1]<=r.bottom);
+}
 function updateCompass(){
   const dom=compassElements(); if (!dom) return;
-  const key=[game.mode?1:0,game.rot,VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH].join('|');
+  const chromeKey=compassChromeStateKey();
+  const key=[game.mode?1:0,game.rot,VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,chromeKey].join('|');
   if (key===compassKey) return;
   compassKey=key;
   if (!game.mode){ dom.labels.forEach(el=>el.classList.add('off')); return; }
   const W=VW/ZOOM, H=VH/ZOOM, pad=42;
+  const chromeRects=compassChromeRects(chromeKey);
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };
   const edges={
     N:{m:[(GW-1)/2,-0.76], tip:[(GW-1)/2,-1.58]},
@@ -148,7 +181,9 @@ function updateCompass(){
   dom.labels.forEach(el=>{
     const d=el.dataset.dir, def=edges[d]; if (!def) return;
     const p=project(def.m[0],def.m[1]);
-    if (p[0]<-pad || p[0]>VW+pad || p[1]<-pad || p[1]>VH+pad){ el.classList.add('off'); return; }
+    if (p[0]<-pad || p[0]>VW+pad || p[1]<-pad || p[1]>VH+pad || compassBlockedByChrome(p,chromeRects)){
+      el.classList.add('off'); return;
+    }
     const tip=project(def.tip[0],def.tip[1]);
     const ang=Math.atan2(tip[1]-p[1],tip[0]-p[0])*180/Math.PI;
     el.classList.remove('off');
