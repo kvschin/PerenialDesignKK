@@ -203,7 +203,7 @@
     <p class="sub">Take something out of your garden — or head back.</p>
     <div class="pause-actions">
       <button class="btn" id="btnExport">Planting list</button>
-      <button class="btn" id="btnRegion">Region &middot; <span id="regionLbl">Any</span></button>
+      <button class="btn" id="btnFilters">Plant filters &middot; <span id="filterLbl">Any</span></button>
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
       <button class="btn" id="btnPlan">Planting plan</button>
       <button class="btn" id="btnShare">Share garden (download)</button>
@@ -317,27 +317,26 @@
   </div>
 </div>
 
-<!-- REGION PICKER -->
-<div class="screen hidden" id="regionScreen">
+<!-- PLANT FILTERS -->
+<div class="screen hidden" id="filterScreen">
   <div class="panel">
-    <h2>Where is this garden?</h2>
-    <p class="sub">Filter the planting palette to what belongs in your part of the prairie. Garden cultivars stay listed unless you hide them.</p>
+    <h2>Plant filters</h2>
+    <p class="sub">Tune the palette without changing the garden. Zone keeps plants winter-hardy; the toggles narrow what appears in the tray.</p>
     <div class="field">
-      <label for="regionSel">Ecoregion</label>
-      <select id="regionSel"></select>
-      <p class="note" id="regionBlurb" style="margin-top:6px"></p>
+      <label for="filterZoneSel">USDA hardiness zone</label>
+      <select id="filterZoneSel"></select>
     </div>
     <div class="field">
-      <label for="zoneSel">USDA hardiness zone</label>
-      <select id="zoneSel"></select>
-    </div>
-    <div class="field">
-      <label class="check-row"><input type="checkbox" id="nativesOnly"> Natives only — hide garden cultivars</label>
+      <label class="check-row"><input type="checkbox" id="filterNative"> Native plants only</label>
+      <label class="check-row"><input type="checkbox" id="filterDeer"> Deer resistant</label>
+      <label class="check-row"><input type="checkbox" id="filterRabbit"> Rabbit resistant</label>
+      <label class="check-row"><input type="checkbox" id="filterSquirrel"> Squirrel resistant bulbs</label>
+      <p class="note" style="margin-top:6px">Squirrels mostly matter for bulbs, so that toggle focuses on bulbs they usually leave alone.</p>
     </div>
     <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnRegionApply">Apply</button>
+      <button class="btn primary" id="btnFiltersApply">Apply</button>
     </div>
-    <button class="back-link" id="btnRegionClose">← Back to the garden</button>
+    <button class="back-link" id="btnFiltersClose">Back to the garden</button>
   </div>
 </div>
 

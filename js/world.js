@@ -20,7 +20,7 @@ const game = {
   worldId:null, worldName:'My garden',               // current solo save slot
   gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
   visiting:false,                                    // Visit Gardens: read-only avatar stroll of a loaded garden
-  design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit}
+  design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit,squirrel}
   drift:false,                                       // plant in clusters, Oudolf style
   matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
   freePlanting:false,                                // herbaceous plants can sit off the tile center
@@ -53,7 +53,7 @@ const game = {
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
-  region:{eco:null, zone:null, nativesOnly:false},   // palette filter, persisted
+  filters:{zone:null, nativesOnly:false, deer:false, rabbit:false, squirrel:false}, // palette filters, persisted
   others:{},          // multiplayer presence
   pausedAt:0,
   lastDay:-1, dirty:false,

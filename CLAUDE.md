@@ -128,7 +128,7 @@ logic is split across ordered modules. They map onto the section list below
   walk, and `followPath()`.
 - **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
   §14 export sheet (`exportRows`), §14b planting plan (`openPlan`).
-- **`ui.js`** — §15 roles/style scoring, region filter (`plantFits`/`trayKeys`),
+- **`ui.js`** — §15 roles/style scoring, plant filters (`plantFits`/`trayKeys`),
   and the HUD readouts.
 - **`tray.js`** — the tool tray: category tabs, brush bar, drill-in, search,
   and the layer menu (`buildToolTray`). Also the `TOOLS` metadata table +
@@ -502,10 +502,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
-15. **Region filter + HUD** — `plantFits()` (zone range, natives-only,
-    ecoregion membership for natives; cultivars have `eco:[]` so only the
-    natives-only switch hides them), `trayKeys()` (filtered, grasses → sedges
-    → forbs), the region-picker overlay wiring, and the tool tray:
+15. **Plant filters + HUD** - `plantFits()` (zone range, native-only,
+    deer/rabbit-resistant plants, and squirrel-resistant bulbs), `trayKeys()`
+    (filtered, grasses to sedges to forbs), the plant-filter overlay wiring,
+    and the tool tray:
     a two-tier `TRAY_CATS`/`TRAY_GROUPS` tab row — a top-level **Plants** /
     **Build** toggle picks which category sub-tabs show (Plants → Grasses /
     Sedges / Sun Perennials / Shade Perennials (`sunFilter`) / Bulbs / Water
@@ -586,7 +586,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the **action bar**
     (`#actionBar`): just a `☰` Menu now (Undo/Redo moved down to the canvas
     rail). The Menu opens `#gardenMenu` — the planting list,
-    region filter (shows the active filter), photo, planting plan, and Save &
+    plant filters (shows the active filter), photo, planting plan, and Save &
     quit — so the infrequent outputs sit one tap behind `☰` rather than a
     permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
     modal: `openGardenMenu()` measures the action bar's rect and pins the panel
@@ -641,8 +641,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     drift / Erase here / Lay path / Dig bed / End Day; hidden for the House
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with an ✕ (`showPlantCard(p,x,y)` adds a shade
-    warning when coords are given). The region choice persists as
-    `hortus:region`.
+    warning when coords are given). Plant filters persist as `hortus:filters`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start a new one; reached via Design a Garden and View Gardens —
     the Design entry hides the per-row Visit button, View Gardens shows it.
@@ -664,9 +663,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     that stays visible in both views; **style** is a chip grid; **constraints**
     are toggle chips.
     A live **palette count** (`paletteCount` in ui.js — a pure mirror of
-    `plantFits`' zone/native/deer/rabbit gates that never touches game state)
+    `plantFits`' zone/native/deer/rabbit/squirrel gates that never touches game state)
     updates under every knob so each choice visibly does something. Selections
-    commit to `game.design`/`game.region` on Next, unchanged. Setup panels
+    commit to `game.design`/`game.filters` on Next, unchanged. Setup panels
     rise-fade in (`.panel-enter`) and sit more translucent over the meadow, which
     **replants live** to the chosen style + zone (`styleMeadowKeys`/
     `applyMeadowPalette`, called on every style/zone change): the tray's own
@@ -678,7 +677,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the markup but no longer reached from the menu (legacy, tied to the retired
     story / multiplayer paths): the multiplayer lobby, character creator (with
     live preview), and code display. Plain DOM, toggled by `show()`. The planting-list
-    (`#exportScreen`), region (`#regionScreen`), and plan (`#planScreen`)
+    (`#exportScreen`), plant filters (`#filterScreen`), and plan (`#planScreen`)
     overlays sit outside `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
@@ -715,7 +714,6 @@ key: {
   spread: 18,                  // mature clump width, inches
   zones: [3,9],                // USDA hardiness range
   native: true,                // straight species native to the central US?
-  eco: ['Flint Hills', ...],   // EPA Level III ecoregions; [] for non-natives
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
@@ -737,16 +735,15 @@ key: {
 ```
 
 `drawPlant` uses `form`/`h`/`sea`/`stem`; the rest feeds the planner features
-(export sheet, region filter, plant card). Per-season keys: `fol` (foliage),
+(export sheet, plant filters, plant card). Per-season keys: `fol` (foliage),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
-coneflowers only). `plants.js` also holds `REGIONS`, the curated ecoregion
-list the region picker offers (name + default zone + blurb).
+coneflowers only).
 
 **To add a species:** add an entry in `plants.js`, reuse an existing `form` or
 add a new branch in `drawPlant`. It automatically appears in the tool tray
 (built from `PLANT_KEYS`). Match real botany — Kevin grows these; accuracy
-matters more than prettiness, and that includes spacing/zone/ecoregion data.
+matters more than prettiness, and that includes spacing/zone/native/resistance data.
 Winter must show *structure*, not bare ground; that's the whole point.
 
 ## Conventions

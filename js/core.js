@@ -20,7 +20,7 @@ const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow sw
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* Approximate USDA hardiness zone from a US ZIP, by 3-digit prefix. Coarse on
-   purpose: species use zone RANGES and the region filter is changeable in-game,
+   purpose: species use zone RANGES and plant filters are changeable in-game,
    so within ~half a zone is plenty. Stored as [lo,hi,zone] prefix bands (not
    930 rows) with the band's representative zone; gaps + non-US input return null
    (the questionnaire then falls back to the winter-cold picker). Nothing here

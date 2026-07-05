@@ -11,7 +11,7 @@ function setup(gw, gh){
   game.lightDraft = { type: 'path', tone: 'warm' };
   game.firepitDraft = { shape: 'round', size: 'round36' };
   game.bedStyle = 'soil';
-  game.rot = 0; game.region = { eco: null, zone: null, nativesOnly: false };
+  game.rot = 0; game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
@@ -151,17 +151,21 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
-test('plantFits applies zone, natives-only, and ecoregion filters', () => {
+test('plantFits applies zone and palette filters', () => {
   setup();
   const k = Object.keys(PLANTS).find(x => PLANTS[x].zones[0] >= 3 && PLANTS[x].zones[1] <= 9);
   const z = PLANTS[k].zones;
-  game.region = { zone: z[0], nativesOnly: false, eco: null };
+  game.filters = normalizeFilters({ zone: z[0] });
   assert(plantFits(k), 'should fit at its lower zone');
-  game.region = { zone: z[0] - 1, nativesOnly: false, eco: null };
+  game.filters = normalizeFilters({ zone: z[0] - 1 });
   assert(!plantFits(k), 'should be excluded below its range');
   const nonNative = Object.keys(PLANTS).find(x => !PLANTS[x].native);
-  game.region = { zone: null, nativesOnly: true, eco: null };
+  game.filters = normalizeFilters({ nativesOnly: true });
   assert(!plantFits(nonNative), 'natives-only hides cultivars/non-natives');
+  game.filters = normalizeFilters({ squirrel: true });
+  assert(plantFits('daffodil'), 'squirrel-resistant bulbs stay visible');
+  assert(!plantFits('tulip'), 'tulips are hidden by the squirrel bulb filter');
+  assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
 test('bulbs cannot be planted under a tree or shrub', () => {
@@ -1244,7 +1248,7 @@ test('daily challenge match limits the palette', () => {
 
 test('every daily challenge has a stocked, non-empty opening tab', () => {
   setup();
-  game.region = { eco: null, zone: null, nativesOnly: false };   // widest palette
+  game.filters = normalizeFilters({});                           // widest palette
   for (const c of DAILY_CHALLENGES){
     game.challenge = c;
     const keys = trayKeys();
@@ -1259,8 +1263,8 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
 
 test('zone 6 grass palette includes Mexican feather grass', () => {
   setup();
-  game.region = { eco: null, zone: 6, nativesOnly: false };
-  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false };
+  game.filters = normalizeFilters({ zone: 6 });
+  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false, squirrel: false };
   assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
 });
@@ -1274,15 +1278,15 @@ test('challenge palette size reports the limit for the entry badge', () => {
   assert(challengePaletteSize(find('Sensory Garden')) < total, 'Sensory Garden is a real limit');
 });
 
-test('deer/rabbit questionnaire filter narrows the tray, trees exempt', () => {
-  setup();                                              // region zone null, design null
-  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: true, rabbit: false };
+test('deer/rabbit plant filters narrow the tray, trees exempt', () => {
+  setup();                                              // filters wide, design null
+  game.filters = normalizeFilters({ zone: 6, deer: true });
   assert(plantFits('monarda'), 'a resistant forb stays under deer pressure');
   assert(!plantFits('hosta'), 'a browsed forb is hidden under deer pressure');
   assert(plantFits('whiteoak'), 'trees are exempt from the browse filter');
-  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: true };
+  game.filters = normalizeFilters({ zone: 6, rabbit: true });
   assert(!plantFits('hosta'), 'rabbit pressure hides browsed plants too');
-  game.design = null;
+  game.filters = normalizeFilters({});
   assert(plantFits('hosta'), 'no pressure → hosta returns');
 });
 
@@ -1334,8 +1338,8 @@ test('zoneFromZip maps prefixes to a clampable zone and rejects junk', () => {
   assertEqual(zoneFromZip('09012'), null, 'an uncovered prefix → null');
 });
 
-test('paletteCount tracks zone/native/deer/rabbit without touching game state', () => {
-  const savedRegion = game.region, savedDesign = game.design;
+test('paletteCount tracks zone/native/deer/rabbit/squirrel without touching game state', () => {
+  const savedFilters = game.filters, savedDesign = game.design;
   const all = paletteCount({});
   const z4 = paletteCount({ zone: 4 });
   const z8 = paletteCount({ zone: 8 });
@@ -1345,6 +1349,8 @@ test('paletteCount tracks zone/native/deer/rabbit without touching game state', 
     'natives-only narrows or holds');
   assert(paletteCount({ zone: 6, deer: true }) < paletteCount({ zone: 6 }),
     'deer pressure removes browsed species');
-  assertEqual(game.region, savedRegion, 'game.region untouched');
+  assert(paletteCount({ zone: 6, squirrel: true }) <= paletteCount({ zone: 6 }),
+    'squirrel bulb pressure narrows or holds');
+  assertEqual(game.filters, savedFilters, 'game.filters untouched');
   assertEqual(game.design, savedDesign, 'game.design untouched');
 });

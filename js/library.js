@@ -110,7 +110,7 @@ function showLibraryDetail(key){
     ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
     ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
-    ['Origin', P.native?('Native — '+(P.eco.join(', ')||'central US')):'Garden plant (non-native)'],
+    ['Origin', P.native?'Native':'Garden plant (non-native)'],
     ['Roles', roleSummary(key)],
   ];
   const cvKeys=Object.keys(P.cv||{}), libraryCultivars=P.libraryCultivars||[];

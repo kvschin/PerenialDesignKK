@@ -63,7 +63,7 @@ then preserve this order unless you are intentionally refactoring dependencies:
 
 - `js/core.js`: constants, shared helpers, app-level configuration, cultivar
   merging, structure/light/firepit metadata, palette helpers.
-- `js/plants.js`: plant species data, cultivars, ecoregions, and plant-library
+- `js/plants.js`: plant species data, cultivars, and plant-library
   notes. This is the source of truth for botany-facing behavior.
 - `js/draw.js`: all canvas drawing primitives, including plants, avatars,
   houses, fences, firepits, lights, terrain details, plan-map symbols, and
@@ -185,7 +185,6 @@ key: {
   spread: 18,                 // mature width in inches
   zones: [3, 9],
   native: true,
-  eco: ['Flint Hills'],
   sun: 'full',                // full | part
   moist: 'dry',               // dry | medium | moist | wet
   phen: 'warm',               // cool | mid | warm

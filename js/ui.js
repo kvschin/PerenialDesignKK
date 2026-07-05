@@ -50,6 +50,7 @@ const ROLE_LABELS={
   prairie:'Prairie',
   rabbitOk:'Rabbit-resistant',
   romantic:'Romantic',
+  squirrelOk:'Squirrel-resistant bulb',
   seasonal:'Seasonal color',
   seedhead:'Seedheads',
   shade:'Shade',
@@ -67,7 +68,7 @@ const ROLE_DISPLAY_ORDER=[
   'cottage','romantic','bulbLayer','early','dry','gravel','mediterranean',
   'coastal','wind','winter','seedhead','native','flower','seasonal','water','wet',
   'fern','hydrangea','aromatic','silver','movement','canopy','block',
-  'late','deerOk','rabbitOk'
+  'late','deerOk','rabbitOk','squirrelOk'
 ];
 const STYLE_ROLE_WEIGHTS={
   cottage:{cottage:9,romantic:5,flower:4,pollinator:3,bulbLayer:3,hydrangea:4,seasonal:2,shade:1},
@@ -123,6 +124,11 @@ const BROWSE_RESIST_KEYS=new Set([
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
   // tough shrubs
   'sumac','coralberry','smokebush',
+]);
+const SQUIRREL_RESIST_GROUPS=new Set(['allium','alliumbulb']);
+const SQUIRREL_RESIST_KEYS=new Set([
+  'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
+  'muscari','leucojum','scillaperuviana','puschkinia','ipheion'
 ]);
 // readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
 // New Jersey tea) — left off the resistant list on purpose.
@@ -195,6 +201,8 @@ function plantRoles(k){
         BROWSE_RESIST_GROUPS.has(group) || BROWSE_RESIST_KEYS.has(k))){
     roles.add('deerOk'); roles.add('rabbitOk');
   }
+  if (P.type==='bulb' && (SQUIRREL_RESIST_GROUPS.has(group) || SQUIRREL_RESIST_KEYS.has(k)))
+    roles.add('squirrelOk');
   return ROLE_CACHE[k]=[...roles].sort();
 }
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
@@ -246,30 +254,39 @@ function challengePaletteSize(c){
   if (!c || !c.match) return speciesCount();
   return PLANT_KEYS.filter(k=>!PLANTS[k].hidden && matchAllows(c.match,k)).length;
 }
-/* ---------- region filter ----------
-   A plant fits if it survives the chosen zone, and (for natives) calls
-   the chosen ecoregion home. Cultivars aren't native anywhere, so the
-   eco filter can't exclude them — the natives-only switch is how. */
+/* ---------- plant filters ----------
+   A plant fits if it survives the chosen zone and passes the optional
+   native / browse-resistance gates. Squirrel resistance is bulb-focused:
+   squirrels mostly affect planted bulbs, not established perennials. */
+function normalizeFilters(src){
+  src=src||{};
+  return {
+    zone:src.zone?+src.zone:null,
+    nativesOnly:!!src.nativesOnly,
+    deer:!!src.deer,
+    rabbit:!!src.rabbit,
+    squirrel:!!src.squirrel
+  };
+}
+function activeFilters(){ return normalizeFilters(game.filters); }
 function plantFits(k){
-  const P=PLANTS[k], r=game.region;
-  if (r.zone && (P.zones[0]>r.zone || P.zones[1]<r.zone)) return false;
-  if (r.nativesOnly && !P.native) return false;
-  if (r.eco && P.native && !P.eco.includes(r.eco)) return false;
+  const P=PLANTS[k], f=activeFilters();
+  if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
+  if (f.nativesOnly && !P.native) return false;
   if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
-  // deer / rabbit pressure from the design questionnaire: hide plants they
-  // readily browse. Trees outgrow browse height, so they're exempt.
-  const d=game.design;
-  if (d && P.type!=='tree'){
-    if (d.deer && !plantRoles(k).includes('deerOk')) return false;
-    if (d.rabbit && !plantRoles(k).includes('rabbitOk')) return false;
+  const roles=plantRoles(k);
+  if (P.type!=='tree'){
+    if (f.deer && !roles.includes('deerOk')) return false;
+    if (f.rabbit && !roles.includes('rabbitOk')) return false;
   }
+  if (f.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) return false;
   return true;
 }
 /* How many species a hypothetical questionnaire selection leaves in the palette,
-   computed without touching live game state — drives the live tally on the
+   computed without touching live game state - drives the live tally on the
    design-setup panel so each knob visibly does something. Mirrors plantFits'
-   zone/native/deer/rabbit gates (no challenge, no eco: design setup sets
-   neither). Style only ranks the tray, so it doesn't change this count. */
+   zone/native/deer/rabbit/squirrel gates. Style only ranks the tray, so it
+   does not change this count. */
 function paletteCount(sel){
   sel=sel||{};
   let n=0;
@@ -277,10 +294,12 @@ function paletteCount(sel){
     const P=PLANTS[k]; if (P.hidden) continue;
     if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
     if (sel.nativesOnly && !P.native) continue;
+    const roles=plantRoles(k);
     if (P.type!=='tree'){
-      if (sel.deer && !plantRoles(k).includes('deerOk')) continue;
-      if (sel.rabbit && !plantRoles(k).includes('rabbitOk')) continue;
+      if (sel.deer && !roles.includes('deerOk')) continue;
+      if (sel.rabbit && !roles.includes('rabbitOk')) continue;
     }
+    if (sel.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) continue;
     n++;
   }
   return n;
@@ -297,7 +316,7 @@ function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/wa
   });
 }
 // First plant sub-tab (in tab order) that actually has stock under the current
-// filter — so a daily challenge whose palette skips grasses (bulbs, ephemerals,
+// filter - so a daily challenge whose palette skips grasses (bulbs, ephemerals,
 // woody) opens on a populated tab instead of an empty one.
 function firstStockedTrayCat(){
   const keys=trayKeys();
@@ -308,40 +327,51 @@ function firstStockedTrayCat(){
   }
   return 'grasses';
 }
-function openRegion(){
-  const rs=$('regionSel'), zs=$('zoneSel');
-  if (!rs.options.length){
-    rs.innerHTML='<option value="">Anywhere</option>'+
-      REGIONS.map(r=>`<option>${r.name}</option>`).join('');
+function openFilters(){
+  const zs=$('filterZoneSel');
+  if (!zs.options.length){
     zs.innerHTML='<option value="">Any zone</option>'+
       [3,4,5,6,7,8,9].map(z=>`<option>${z}</option>`).join('');
-    rs.onchange=()=>{ const r=REGIONS.find(x=>x.name===rs.value);
-      $('regionBlurb').textContent=r?r.blurb:'';
-      if (r) zs.value=String(r.zone); };
   }
-  rs.value=game.region.eco||'';
-  zs.value=game.region.zone?String(game.region.zone):'';
-  const cur=REGIONS.find(x=>x.name===rs.value);
-  $('regionBlurb').textContent=cur?cur.blurb:'';
-  $('nativesOnly').checked=!!game.region.nativesOnly;
-  $('regionScreen').classList.remove('hidden');
+  const f=activeFilters();
+  zs.value=f.zone?String(f.zone):'';
+  $('filterNative').checked=!!f.nativesOnly;
+  $('filterDeer').checked=!!f.deer;
+  $('filterRabbit').checked=!!f.rabbit;
+  $('filterSquirrel').checked=!!f.squirrel;
+  $('filterScreen').classList.remove('hidden');
 }
-function applyRegion(){
-  game.region={eco:$('regionSel').value||null,
-    zone:$('zoneSel').value?+$('zoneSel').value:null,
-    nativesOnly:$('nativesOnly').checked};
-  sSet('hortus:region',game.region);
-  updateRegionBtn();
+function applyFilters(){
+  game.filters=normalizeFilters({
+    zone:$('filterZoneSel').value?+$('filterZoneSel').value:null,
+    nativesOnly:$('filterNative').checked,
+    deer:$('filterDeer').checked,
+    rabbit:$('filterRabbit').checked,
+    squirrel:$('filterSquirrel').checked
+  });
+  if (game.design){
+    game.design.zone=game.filters.zone||game.design.zone;
+    game.design.nativesOnly=game.filters.nativesOnly;
+    game.design.deer=game.filters.deer;
+    game.design.rabbit=game.filters.rabbit;
+    game.design.squirrel=game.filters.squirrel;
+  }
+  sSet('hortus:filters',game.filters);
+  updateFilterBtn();
   if (game.mode) buildToolTray();
   const visibleKeys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
   const n=visibleKeys.filter(plantFits).length;
-  toast(`${n} of ${visibleKeys.length} species fit${game.region.eco?' the '+game.region.eco:''}${game.region.zone?', zone '+game.region.zone:''}.`);
-  closeOverlay('regionScreen');
+  toast(`${n} of ${visibleKeys.length} species fit these filters.`);
+  closeOverlay('filterScreen');
 }
-function updateRegionBtn(){
-  const r=game.region;
-  $('regionLbl').textContent=(r.eco||r.zone||r.nativesOnly)
-    ? `${r.eco||'Any region'}${r.zone?' · z'+r.zone:''}` : 'Region';
+function updateFilterBtn(){
+  const f=activeFilters(), bits=[];
+  if (f.zone) bits.push('z'+f.zone);
+  if (f.nativesOnly) bits.push('Native');
+  if (f.deer) bits.push('Deer');
+  if (f.rabbit) bits.push('Rabbit');
+  if (f.squirrel) bits.push('Squirrel');
+  $('filterLbl').textContent=bits.length?bits.join(' / '):'Any';
 }
 
 /* ---------- HUD readouts (hint, mobile action button, top/bottom bars) ---------- */

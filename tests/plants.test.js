@@ -1,5 +1,5 @@
 /* Tier 1 — the PLANTS data contract.  Runs concatenated after plants.js, so
-   PLANTS and REGIONS are in scope.  Uses injected test()/assert(). */
+   PLANTS is in scope.  Uses injected test()/assert(). */
 
 const TYPES  = ['grass', 'sedge', 'forb', 'bulb', 'water', 'shrub', 'tree'];
 const SUNS   = ['full', 'part'];
@@ -51,12 +51,10 @@ test('zones are a sane USDA range', () => {
   }
 });
 
-test('native flag + eco array are consistent', () => {
+test('native flag is a boolean', () => {
   for (const k of keys){
     const P = PLANTS[k];
     assert(typeof P.native === 'boolean', `${k}: native not boolean`);
-    assert(Array.isArray(P.eco), `${k}: eco not an array`);
-    if (!P.native) assert(P.eco.length === 0, `${k}: non-native should have empty eco`);
   }
 });
 
@@ -179,14 +177,5 @@ test('grouped species share one groupLabel per group', () => {
     const gl = P.groupLabel || P.group;
     if (label[P.group] === undefined) label[P.group] = gl;
     else assert(label[P.group] === gl, `group "${P.group}" has clashing labels: "${label[P.group]}" vs "${gl}"`);
-  }
-});
-
-test('REGIONS is a valid picker list', () => {
-  assert(Array.isArray(REGIONS) && REGIONS.length > 0, 'REGIONS missing');
-  for (const R of REGIONS){
-    assert(typeof R.name === 'string' && R.name.length, `region bad name: ${JSON.stringify(R)}`);
-    assert(typeof R.zone === 'number' && R.zone >= 1 && R.zone <= 13, `region ${R.name}: zone ${R.zone}`);
-    assert(typeof R.blurb === 'string', `region ${R.name}: blurb`);
   }
 });

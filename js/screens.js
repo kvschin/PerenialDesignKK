@@ -92,9 +92,9 @@ function startDailyChallenge(){
   game.houses=[]; game.houseDraft=defaultDraft();
   markGroundChanged({terrain:true});
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
-  const zone=(game.region&&game.region.zone)||6;          // keep the user's zone, drop style/native filters
-  game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false};
-  game.region={eco:null,zone,nativesOnly:false}; updateRegionBtn();
+  const zone=(game.filters&&game.filters.zone)||6;        // keep the user's zone, drop style/native filters
+  game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false,squirrel:false};
+  game.filters=normalizeFilters({zone}); updateFilterBtn();
   enterGarden();
   game.trayCat=firstStockedTrayCat(); buildToolTray();   // open on a populated sub-tab for this prompt
   saveSolo(true);
@@ -516,7 +516,7 @@ const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'
 function openDesignSetup(){
   const d=game.design||{};
   const sel={zone:d.zone||6, type:d.type||'any',
-    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, zoneHelp:false};
+    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false};
   const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
     b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
     b.textContent=label; b.onclick=fn; return b; };
@@ -556,6 +556,7 @@ function openDesignSetup(){
     const t=(label,key)=>consEl.appendChild(mkChip(label,sel[key],()=>{
       sel[key]=!sel[key]; renderConstraints(); updateCount(); },'toggle'));
     t('Natives only','nativesOnly'); t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
+    t('Squirrel resistant bulbs','squirrel');
   }
   const zipEl=$('dgnZip'); zipEl.value='';
   zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
@@ -564,10 +565,12 @@ function openDesignSetup(){
   updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
-    game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly, deer:sel.deer, rabbit:sel.rabbit};
-    // tune the live palette: zone/native filters apply, style ranks the tray
-    game.region={eco:null, zone:sel.zone, nativesOnly:sel.nativesOnly};
-    sSet('hortus:region',game.region); updateRegionBtn();
+    game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly,
+      deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel};
+    // tune the live palette: filters apply, style ranks the tray
+    game.filters=normalizeFilters({zone:sel.zone, nativesOnly:sel.nativesOnly,
+      deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel});
+    sSet('hortus:filters',game.filters); updateFilterBtn();
     openPlotScreen();
   };
   $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
@@ -580,7 +583,7 @@ function quitToMenu(){
   game.mode=null; game.pausedAt=0; game.clockSuspended=false;
   game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
-  $('exportScreen').classList.add('hidden'); $('regionScreen').classList.add('hidden');
+  $('exportScreen').classList.add('hidden'); $('filterScreen').classList.add('hidden');
   $('planScreen').classList.add('hidden'); $('pauseScreen').classList.add('hidden');
   $('gardenMenu').classList.add('hidden'); $('confirmSeasonScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
@@ -643,9 +646,9 @@ $('btnExport').onclick=()=>{ closeOverlay('gardenMenu'); openExport(); };
 $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
-$('btnRegion').onclick=()=>{ closeOverlay('gardenMenu'); openRegion(); };
-$('btnRegionApply').onclick=applyRegion;
-$('btnRegionClose').onclick=()=>closeOverlay('regionScreen');
+$('btnFilters').onclick=()=>{ closeOverlay('gardenMenu'); openFilters(); };
+$('btnFiltersApply').onclick=applyFilters;
+$('btnFiltersClose').onclick=()=>closeOverlay('filterScreen');
 if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
 $('btnPhoto').onclick=()=>{ closeOverlay('gardenMenu'); takePhoto(); };
 $('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
@@ -988,9 +991,9 @@ function loop(t){
   await ensurePlayerId();
   if (hasStorage){
     const c=await sGet('hortus:char'); if (c) game.char=c;
-    const r=await sGet('hortus:region'); if (r) game.region=r;
+    const f=await sGet('hortus:filters'); if (f) game.filters=normalizeFilters(f);
   }
-  updateRegionBtn();
+  updateFilterBtn();
   advanceMenuSeason();
   refreshMenuCards();
   if (location.search.includes('debug')) toggleDebug();

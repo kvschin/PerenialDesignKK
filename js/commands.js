@@ -518,7 +518,7 @@ function showPlantCard(p,px2,py2){
       zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil${
       P.grow?` · ~${P.grow} yrs to size`:''}${shrubFoot}</p>
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
-      ? 'Native — '+P.eco.slice(0,2).join(', ')+(P.eco.length>2?` +${P.eco.length-2} more`:'')
+      ? 'Native'
       : 'Garden cultivar (non-native)'}</p>
     <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}

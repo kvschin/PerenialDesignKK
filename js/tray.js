@@ -1105,7 +1105,7 @@ function buildToolTray(){
     if (PLANTS[game.tool] && !all.includes(game.tool)){ game.tool='hand'; game.toolVar=null; }
     if (!keys.length){
       const sp=document.createElement('span'); sp.className='tray-empty';
-      sp.textContent='Nothing fits the region filter here.';
+      sp.textContent='Nothing fits the plant filters here.';
       tray.appendChild(sp);
     }
     // drilled into a species' sub-species? show those (+ Back) instead of the grid.
