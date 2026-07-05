@@ -121,6 +121,67 @@ $('btnGardens').onclick=()=>{ pendingMode=null; openWorlds('all'); };
    `mode` are Story gardens (they had an avatar). */
 let worldsFilter='all';
 function worldMode(w){ return w.mode==='design'?'design':'story'; }
+/* Worlds-list thumbnails: a tiny top-down map drawn straight from the save
+   blob — always current (no stored screenshot to go stale), zero localStorage,
+   and it works retroactively for every existing save. Grass checker + terrain
+   fills reuse the real color tables; plants are foliage-colored dots (woody
+   bigger), houses are wall/roof blocks. Cheap: one pass at list-open time. */
+function drawWorldThumb(cvs, s){
+  const g=cvs.getContext('2d'); if (!g) return;
+  const gw=s.gw||s.grid||31, gh=s.gh||s.grid||31;
+  const W=cvs.width, H=cvs.height;
+  const sc=Math.min(W/gw, H/gh), ox=(W-gw*sc)/2, oy=(H-gh*sc)/2;
+  const amb=AMBIENCE.Summer;
+  g.clearRect(0,0,W,H);   // odd-aspect plots show the .world-thumb css mat
+  if (sc>=1.6){                                   // checker reads only when tiles have pixels
+    for (let y=0;y<gh;y++) for (let x=0;x<gw;x++){
+      g.fillStyle=amb.grass[(x+y)%2];
+      g.fillRect(ox+x*sc, oy+y*sc, sc+0.5, sc+0.5);
+    }
+  } else { g.fillStyle=amb.grass[0]; g.fillRect(ox,oy,gw*sc,gh*sc); }
+  const terr=s.terrain||{};
+  for (const k in terr){ const t=terr[k]; if (!t || t.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (x<0||y<0||x>=gw||y>=gh) continue;
+    g.fillStyle = t.k==='water' ? waterFill(t,false)
+      : t.k==='path' ? pathFill(t,false) : bedFill(t,amb);
+    g.fillRect(ox+x*sc, oy+y*sc, sc+0.5, sc+0.5);
+  }
+  const houses=Array.isArray(s.houses)?s.houses:(s.house?[s.house]:[]);
+  for (const hh of houses){ if (!hh) continue;
+    g.fillStyle=hh.wall||'#8a7a60';
+    g.fillRect(ox+hh.x*sc, oy+hh.y*sc, (hh.w||2)*sc, (hh.h||2)*sc);
+    g.fillStyle=hh.roof||'#9a5f3a';
+    g.fillRect(ox+hh.x*sc, oy+hh.y*sc, (hh.w||2)*sc, (hh.h||2)*sc*0.45);
+  }
+  const dots=(map,woodyBoost)=>{
+    for (const k in (map||{})){ const p=map[k]; if (!p || p.removed || !p.s) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      if (x<0||y<0||x>=gw||y>=gh) continue;
+      let P=null; try{ P=plantDef(p.s,p.v); }catch(e){}
+      if (!P || !P.sea) continue;
+      const S=P.sea.Summer||P.sea.Spring||P.sea.Fall||P.sea.Winter||{};
+      const woody=P.type==='tree'||P.type==='shrub';
+      g.fillStyle=S.fol||S.bloom||S.seed||'#6f8f5a';
+      const r=Math.max(woody?2:1, sc*(woody?(woodyBoost||1.3):0.5));
+      g.beginPath(); g.arc(ox+(x+0.5)*sc, oy+(y+0.5)*sc, r, 0, 7); g.fill();
+    }
+  };
+  dots(s.plants,1.3); dots(s.bulbs,0.5);
+  g.strokeStyle='rgba(239,230,211,0.25)'; g.lineWidth=1;
+  g.strokeRect(ox+0.5,oy+0.5,gw*sc-1,gh*sc-1);
+}
+// live plant count + the garden's own season, from a save blob (pure — the
+// worlds list shows it so a row answers "which garden was this?" unopened)
+function worldSaveMeta(s){
+  let plants=0;
+  for (const k in (s.plants||{})) if (s.plants[k] && !s.plants[k].removed) plants++;
+  for (const k in (s.bulbs||{}))  if (s.bulbs[k]  && !s.bulbs[k].removed)  plants++;
+  const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
+  const yearDays=DAYS_PER_SEASON*4;
+  const season=SEASONS[Math.floor((((day%yearDays)+yearDays)%yearDays)/DAYS_PER_SEASON)];
+  return {plants, season};
+}
 function startNewGarden(mode){
   if (mode==='design'){ pendingMode='design'; openDesignSetup(); }
   else { pendingMode='story'; openCreator(); }
@@ -143,12 +204,21 @@ async function openWorlds(filter){
     e.textContent='No gardens yet — start one below.'; list.appendChild(e); }
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
     const row=document.createElement('button'); row.className='world-row';
-    const info=document.createElement('span'); info.style.flex='1';
+    const thumb=document.createElement('canvas'); thumb.className='world-thumb';
+    thumb.width=168; thumb.height=126;   // 2x the CSS box, crisp on retina
+    const info=document.createElement('span'); info.style.flex='1'; info.style.minWidth='0';
     const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
     const badge=worldMode(w)==='design'?' · Design':' · Story';
     const meta=document.createElement('span'); meta.className='meta';
     meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft${badge} · ${new Date(w.ts).toLocaleDateString()}`;
     info.append(nm,document.createElement('br'),meta);
+    // the save blob fills in the picture + living details (async, per row)
+    sGet('hortus:world:'+w.id).then(s=>{
+      if (!s) return;
+      drawWorldThumb(thumb,s);
+      const m=worldSaveMeta(s);
+      meta.textContent+=` · ${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
+    });
     const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
     dup.title='Make a separate copy of this garden';
     dup.onclick=e=>{ e.stopPropagation(); duplicateWorld(w.id); };
@@ -162,9 +232,9 @@ async function openWorlds(filter){
       const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
       visit.title='Walk this garden as your avatar (read-only)';
       visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
-      row.append(info,dup,visit,del);
+      row.append(thumb,info,dup,visit,del);
     } else {
-      row.append(info,dup,del);
+      row.append(thumb,info,dup,del);
     }
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);

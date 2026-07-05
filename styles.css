@@ -192,6 +192,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-row:hover{border-color:var(--bronze);background:rgba(201,127,63,.12)}
 .world-row .wname{font-weight:600;font-size:15px}
 .world-row .meta{font-size:11px;color:#a99a82}
+/* the mini-map drawn from the save, so a row answers "which garden was this?" */
+.world-thumb{width:84px;height:63px;flex:0 0 auto;border-radius:4px;
+  background:#241a16;border:1px solid rgba(239,230,211,.18)}
 .world-del{background:none;border:1px solid rgba(239,230,211,.25);color:#a99a82;
   font-size:11px;padding:4px 8px;border-radius:3px;flex-shrink:0}
 .world-del:hover{border-color:#c25a4a;color:#e08a7a}
@@ -521,6 +524,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
 }
 
 @media(max-width:640px){
+  .world-thumb{width:64px;height:48px}
   #menuScreen{padding:14px 16px}
   .menu-shell{width:min(330px,calc(100vw - 32px));min-height:100%;gap:14px;padding:54px 0 24px}
   .menu-title-block{padding:0}

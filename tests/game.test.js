@@ -1300,6 +1300,29 @@ test('styleMeadowKeys replants the menu backdrop per style, herbaceous only', ()
   assert(warm.every(k => PLANTS[k].zones[0] <= 4 && PLANTS[k].zones[1] >= 4), 'zone 4 palette all tolerate zone 4');
 });
 
+test('worlds-list thumbnails: meta counts live plants and reads the save season', () => {
+  const g = firstOfType('grass');
+  const save = {
+    gw: 21, gh: 21,
+    plants: { '2,2': { s: g, d: 0, t: 1 }, '3,3': { s: g, d: 0, t: 1 }, '4,4': { removed: true, t: 2 } },
+    bulbs: { '5,5': { s: firstOfType('bulb'), d: 0, t: 1 } },
+    terrain: { '6,6': { k: 'path', c: 'warm', t: 1 }, '7,7': { k: 'water', c: 'pond', t: 1 } },
+    houses: [{ x: 10, y: 10, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a' }],
+    elapsedMs: DAY_MS * (DAYS_PER_SEASON + 2),   // day 18 -> Summer
+    dayOffset: 0,
+  };
+  const m = worldSaveMeta(save);
+  assertEqual(m.plants, 3, 'tombstones are not counted; bulbs are');
+  assertEqual(m.season, 'Summer', 'season derives from elapsed game time');
+  const m2 = worldSaveMeta({ });
+  assertEqual(m2.plants, 0, 'an empty blob is safe');
+  assertEqual(m2.season, 'Spring', 'day zero is spring');
+  // the drawer runs against the same blob without throwing (canvas is stubbed)
+  const cvs = document.createElement('canvas'); cvs.width = 168; cvs.height = 126;
+  drawWorldThumb(cvs, save);
+  drawWorldThumb(cvs, { gw: 139, gh: 139, plants: {}, terrain: {} }); // acre plot: flat fill path
+});
+
 test('zoneFromZip maps prefixes to a clampable zone and rejects junk', () => {
   assertEqual(zoneFromZip('66044'), 6, 'Lawrence KS → zone 6');   // 660 band
   assertEqual(zoneFromZip('02139'), 6, 'Cambridge MA → zone 6');  // 020 band

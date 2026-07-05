@@ -645,7 +645,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `hortus:region`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start a new one; reached via Design a Garden and View Gardens —
-    the Design entry hides the per-row Visit button, View Gardens shows it),
+    the Design entry hides the per-row Visit button, View Gardens shows it.
+    Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
+    map drawn from the save blob at list-open time: grass checker, real
+    terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
+    dots, house blocks — always current, no stored screenshot) plus a meta
+    line with live plant count + the garden's own season (`worldSaveMeta`)),
     plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
     length in feet), the design questionnaire (`#designScreen` /
     `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
