@@ -168,6 +168,20 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
+test('bloom calendar rows come from planted blooming species', () => {
+  setup();
+  setTile('plants', '5,5', { s: 'echinacea', d: 0, t: 1 });
+  setTile('plants', '6,5', { s: 'echinacea', d: 0, t: 1 });
+  setTile('bulbs', '7,5', { s: 'daffodil', d: 0, t: 1 });
+  const rows = bloomRows();
+  const cone = rows.find(r => r.key === 'echinacea|');
+  const bulb = rows.find(r => r.key === 'daffodil|');
+  assert(cone && cone.count === 2, 'summer perennial counted once per planted tile');
+  assert(cone.windows.some(w => w.season === 'Summer'), 'coneflower shows a summer bloom window');
+  assert(bulb && bulb.count === 1, 'spring bulb counted');
+  assert(bulb.windows.some(w => w.season === 'Spring'), 'daffodil shows a spring bloom window');
+});
+
 test('bulbs cannot be planted under a tree or shrub', () => {
   setup();
   const woody = firstOfType('shrub') || firstOfType('tree');

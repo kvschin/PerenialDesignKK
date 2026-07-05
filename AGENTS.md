@@ -86,7 +86,8 @@ then preserve this order unless you are intentionally refactoring dependencies:
   pointer/touch/wheel handlers, pinch protection, panning, brush drags,
   shovel sweeps, tap-to-act/walk, and `followPath()`.
 - `js/io.js`: save/load, import/export, localStorage persistence, autosave,
-  planting-list export, plan-map export, and shared-world compatibility hooks.
+  planting-list export, design-plan export, bloom calendar, and shared-world
+  compatibility hooks.
 - `js/ui.js`: HUD and in-game DOM updates, time controls, action button,
   top-bar state, menu/status copy, plant cards, and overlay wiring.
 - `js/tray.js`: tool metadata (`TOOLS`, `toolMeta()`), bottom catalog, category

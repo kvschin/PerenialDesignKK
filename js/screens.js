@@ -584,7 +584,8 @@ function quitToMenu(){
   game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
   $('exportScreen').classList.add('hidden'); $('filterScreen').classList.add('hidden');
-  $('planScreen').classList.add('hidden'); $('pauseScreen').classList.add('hidden');
+  $('planScreen').classList.add('hidden'); $('bloomScreen').classList.add('hidden');
+  $('pauseScreen').classList.add('hidden');
   $('gardenMenu').classList.add('hidden'); $('confirmSeasonScreen').classList.add('hidden');
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
@@ -655,6 +656,8 @@ $('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
 $('btnPlanClose').onclick=()=>closeOverlay('planScreen');
 $('btnPlanPng').onclick=downloadPlan;
 $('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
+$('btnBloom').onclick=()=>{ closeOverlay('gardenMenu'); openBloomCalendar(); };
+$('btnBloomClose').onclick=()=>closeOverlay('bloomScreen');
 $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.89);
 if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
@@ -810,7 +813,8 @@ function screenOpen(id){
   return !!el && !el.classList.contains('hidden');
 }
 function fullScreenRenderBlocked(){
-  return screenOpen('libraryScreen') || screenOpen('planScreen') || screenOpen('exportScreen');
+  return screenOpen('libraryScreen') || screenOpen('planScreen') ||
+    screenOpen('bloomScreen') || screenOpen('exportScreen');
 }
 function layerVisibilitySig(){
   const vis=game.layerVis||{};

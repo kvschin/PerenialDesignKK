@@ -127,7 +127,8 @@ logic is split across ordered modules. They map onto the section list below
   handlers, pinch protection, panning, brush drags, shovel sweeps, tap-to-act/
   walk, and `followPath()`.
 - **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
-  §14 export sheet (`exportRows`), §14b planting plan (`openPlan`).
+  §14 export sheet (`exportRows`), §14b design plan (`openPlan`), §14c bloom
+  calendar (`openBloomCalendar`).
 - **`ui.js`** — §15 roles/style scoring, plant filters (`plantFits`/`trayKeys`),
   and the HUD readouts.
 - **`tray.js`** — the tool tray: category tabs, brush bar, drill-in, search,
@@ -492,7 +493,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
     the overlay table, `exportCsv()` downloads it. Print CSS in `styles.css`
     strips everything but the sheet.
-14b. **Planting plan** — `openPlan()` draws an Oudolf-style top-down drift
+14b. **Design plan** — `openPlan()` draws an Oudolf-style top-down drift
     map to `#planCanvas`. `planComponents()` flood-fills contiguous
     same-species/cultivar tiles (8-connectivity) into drifts;
     `traceOutlines()` walks each drift's 4-connectivity boundary into loops
@@ -508,6 +509,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
+14c. **Bloom calendar** - `bloomRows()` reads planted plants + bulbs, groups
+    them by species/cultivar, and maps seasonal bloom data to approximate
+    day ranges inside each 16-day season; `openBloomCalendar()` renders the
+    in-game `#bloomScreen` table from that data.
 15. **Plant filters + HUD** - `plantFits()` (zone range, native-only,
     deer/rabbit-resistant plants, and squirrel-resistant bulbs), `trayKeys()`
     (filtered, grasses to sedges to forbs), the plant-filter overlay wiring,
@@ -683,14 +688,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the markup but no longer reached from the menu (legacy, tied to the retired
     story / multiplayer paths): the multiplayer lobby, character creator (with
     live preview), and code display. Plain DOM, toggled by `show()`. The planting-list
-    (`#exportScreen`), plant filters (`#filterScreen`), and plan (`#planScreen`)
-    overlays sit outside `show()` — in-game overlays toggled directly; the
+    (`#exportScreen`), plant filters (`#filterScreen`), design plan
+    (`#planScreen`), and bloom calendar (`#bloomScreen`) overlays sit outside
+    `show()` — in-game overlays toggled directly; the
     keyboard handler ignores game keys while one is open (Escape closes).
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
     The loop throttles itself: garden frames render full-rate only while
     something is happening (`shouldRenderGarden` — a state signature +
     gesture/fx checks + a 700ms activity grace), else at a 30fps idle cadence;
-    render is skipped entirely under the full-screen Library/Plan/Export
+    render is skipped entirely under the full-screen Library/Plan/Bloom/Export
     overlays, and the menu meadow runs at 30fps. A **glass governor**
     (`updateGlassMode`, `GLASS`) watches frame *spacing* on interaction frames
     only — the backdrop-blur recomposite is GPU cost the JS phase timers can't

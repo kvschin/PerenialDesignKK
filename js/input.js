@@ -8,7 +8,7 @@ addEventListener('keydown',e=>{
   if (e.key==='`'){ toggleDebug(); return; }
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
-  const overlay=['gardenMenu','exportScreen','filterScreen','planScreen']
+  const overlay=['gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){ overlay.classList.add('hidden'); }

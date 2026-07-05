@@ -202,11 +202,12 @@
     <h2 id="worldLabel">My garden</h2>
     <p class="sub">Take something out of your garden — or head back.</p>
     <div class="pause-actions">
-      <button class="btn" id="btnExport">Planting list</button>
       <button class="btn" id="btnFilters">Plant filters &middot; <span id="filterLbl">Any</span></button>
+      <button class="btn" id="btnExport">Planting list</button>
+      <button class="btn" id="btnPlan">Design plan</button>
+      <button class="btn" id="btnBloom">Bloom calendar</button>
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
-      <button class="btn" id="btnPlan">Planting plan</button>
-      <button class="btn" id="btnShare">Share garden (download)</button>
+      <button class="btn" id="btnShare">Share garden</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
@@ -339,7 +340,7 @@
   </div>
 </div>
 
-<!-- PLANTING PLAN (Oudolf-style drift map) -->
+<!-- DESIGN PLAN (Oudolf-style drift map) -->
 <div class="screen hidden" id="planScreen">
   <div class="panel" style="max-width:min(94vw,1040px);width:100%">
     <div class="plan-wrap"><canvas id="planCanvas"></canvas></div>
@@ -348,6 +349,16 @@
       <button class="btn" id="btnPlanList">Planting list →</button>
     </div>
     <button class="back-link" id="btnPlanClose">← Back to the garden</button>
+  </div>
+</div>
+
+<!-- BLOOM CALENDAR -->
+<div class="screen hidden" id="bloomScreen">
+  <div class="panel" style="max-width:min(94vw,940px);width:100%">
+    <h2>Bloom calendar</h2>
+    <p class="sub" id="bloomMeta"></p>
+    <div id="bloomBody"></div>
+    <button class="back-link" id="btnBloomClose">Back to the garden</button>
   </div>
 </div>
 

@@ -238,6 +238,9 @@ async function pollWorld(){
    one tile is TILE_IN inches square, so a species at tighter spacing
    needs more plants than tiles to fill the same ground, and a big
    clumper like baptisia needs fewer. */
+function htmlEscape(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,ch=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
 function exportRows(){
   const counts={}; // keyed species|cultivar — cultivars order separately
   [game.plants,game.bulbs].forEach(layer=>{
@@ -282,6 +285,68 @@ function exportCsv(){
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   a.download='hortus-planting-list.csv'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* ---------- bloom calendar ----------
+   A planted-only calendar: reads the same placed plant/bulb layers as the
+   planting list, then maps seasonal bloom colors to approximate day ranges
+   within each 16-day season. It is a design aid, not a strict horticultural
+   prediction. */
+function bloomWindowFor(def){
+  const centers={cool:5, mid:8, warm:11};
+  const peak0=def.bloomDay!==undefined ? def.bloomDay : (centers[def.phen]||8);
+  const peak=Math.max(1,Math.min(DAYS_PER_SEASON,Math.round(peak0)+1));
+  return {start:Math.max(1,peak-3), end:Math.min(DAYS_PER_SEASON,peak+3)};
+}
+function bloomRows(){
+  const counts={};
+  [game.plants,game.bulbs].forEach(layer=>{
+    for (const k in layer){ const p=layer[k];
+      if (p && !p.removed && p.s){
+        const ck=p.s+'|'+(p.v||'');
+        counts[ck]=(counts[ck]||0)+1;
+      }
+    }
+  });
+  return Object.keys(counts).map(ck=>{
+    const [s,v]=ck.split('|'), def=plantDef(s,v||null), win=bloomWindowFor(def);
+    const windows=SEASONS.map((season,idx)=>{
+      const sea=(def.sea&&def.sea[season])||{};
+      return sea.bloom ? {season,seasonIndex:idx,start:win.start,end:win.end,color:sea.bloom} : null;
+    }).filter(Boolean);
+    if (!windows.length) return null;
+    return {key:ck,name:def.name,latin:def.latin||'',count:counts[ck],
+      color:planColor(def),windows,
+      first:windows[0].seasonIndex*DAYS_PER_SEASON+windows[0].start};
+  }).filter(Boolean).sort((a,b)=>a.first-b.first || a.name.localeCompare(b.name));
+}
+function bloomRangeHtml(win){
+  const left=((win.start-1)/DAYS_PER_SEASON)*100;
+  const width=((win.end-win.start+1)/DAYS_PER_SEASON)*100;
+  const label=win.start===win.end ? `Day ${win.start}` : `Days ${win.start}-${win.end}`;
+  return `<span class="bloom-range" style="left:${left}%;width:${width}%;background:${win.color}" title="${htmlEscape(win.season)} ${htmlEscape(label)}"><span>${htmlEscape(label)}</span></span>`;
+}
+function openBloomCalendar(){
+  const rows=bloomRows(), body=$('bloomBody');
+  const where=game.mode==='multi'?`Garden ${game.code}`:(game.worldName||'My garden');
+  $('bloomMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one season = ${DAYS_PER_SEASON} garden days`;
+  if (!rows.length){
+    body.innerHTML='<p class="note">Nothing blooming is planted yet. Add flowering perennials or bulbs, then come back for the calendar.</p>';
+  } else {
+    const head=`<div class="bloom-head">Species</div>${SEASONS.map(s=>`<div class="bloom-head">${s}</div>`).join('')}`;
+    const lines=rows.map(r=>{
+      const bySeason={};
+      r.windows.forEach(w=>{ bySeason[w.season]=w; });
+      const cells=SEASONS.map(s=>{
+        const win=bySeason[s];
+        return `<div class="bloom-cell"><div class="bloom-track">${win?bloomRangeHtml(win):''}</div></div>`;
+      }).join('');
+      return `<div class="bloom-name"><b>${htmlEscape(r.name)}</b><small>${htmlEscape(r.latin)}</small><em>${r.count} planted</em></div>${cells}`;
+    }).join('');
+    body.innerHTML=`<div class="bloom-wrap"><div class="bloom-grid">${head}${lines}</div></div>
+      <p class="note">Bloom timing is approximate and uses the garden's 16-day season rhythm. Weather, establishment, and cultivar differences can shift real-world timing.</p>`;
+  }
+  $('bloomScreen').classList.remove('hidden');
 }
 
 /* ---------- the planting plan: an Oudolf-style drift map ----------
@@ -514,9 +579,9 @@ function buildPlanMap(){
   // title block
   ctx.fillStyle='#2c241c'; ctx.textAlign='left';
   ctx.font='600 22px Fraunces, serif';
-  ctx.fillText(game.worldName||'Planting plan', padL, 38);
+  ctx.fillText(game.worldName||'Design plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-  ctx.fillText(`Planting plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
+  ctx.fillText(`Design plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   ctx.fillText(`1 tile = ${TILE_IN}" · plot ${Math.round(GW*1.5)} × ${Math.round(GH*1.5)} ft`, padL, 70);
   // north arrow (world y points up-page on plans; our y+ is south)
   ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.2;
