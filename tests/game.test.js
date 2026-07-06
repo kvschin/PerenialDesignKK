@@ -600,6 +600,68 @@ test('design preview can show established plants without changing real growth', 
   assert(plantGrowth(p) < 1, 'real growth remains unchanged for saves/cards/exports');
 });
 
+test('plant cards lead with woody mature size and keep herbaceous inches', () => {
+  setup();
+  const oldGet = document.getElementById;
+  const card = { _t: 0, style: {}, innerHTML: '', prepend(){} };
+  document.getElementById = id => id === 'plantCard' ? card : oldGet.call(document, id);
+  try {
+    const oak = { s: 'whiteoak', d: absDay(), t: 1 };
+    game.plants['5,5'] = oak;
+    game.previewMode = 'established';
+    showPlantCard(oak, 5, 5);
+    assert(card.innerHTML.includes('<b>Mature size:</b> 11 ft H &times; 75 ft W'),
+      'white oak card leads with mature height and width in feet');
+    assert(card.innerHTML.includes('~10 yrs to size'), 'white oak card shows years-to-size');
+    assert(card.innerHTML.includes('crown covers ~50 tiles wide'), 'white oak card shows crown coverage in tiles');
+    assert(card.innerHTML.includes('Shown at maturity'), 'preview-mode card says it is shown at maturity');
+
+    const bluestem = { s: 'bluestem', d: absDay(), t: 1 };
+    game.plants = { '6,6': bluestem };
+    game.previewMode = 'today';
+    showPlantCard(bluestem, 6, 6);
+    assert(card.innerHTML.includes('<b>Mature size:</b> 46&Prime; H &times; 18&Prime; W'),
+      'little bluestem card keeps inch units');
+    assert(!card.innerHTML.includes('crown covers'), 'little bluestem card does not get woody crown copy');
+    assert(!card.innerHTML.includes('yrs to size'), 'little bluestem card does not get woody years copy');
+  } finally {
+    document.getElementById = oldGet;
+  }
+});
+
+test('library mature size includes height for woody and herbaceous plants', () => {
+  setup();
+  const oldGet = document.getElementById;
+  const detail = { innerHTML: '', children: [], append(...c){ this.children.push(...c); }, scrollTop: 0 };
+  const findClass = (el, cls) => {
+    if (!el) return null;
+    if (el.className === cls) return el;
+    for (const child of el.children || []){
+      const found = findClass(child, cls);
+      if (found) return found;
+    }
+    return null;
+  };
+  const fact = label => {
+    const dl = findClass(detail.children[0], 'ld-facts');
+    for (let i = 0; dl && i < dl.children.length - 1; i += 2)
+      if (dl.children[i].textContent === label) return dl.children[i + 1].textContent;
+    return '';
+  };
+  document.getElementById = id => id === 'libraryDetail' ? detail : oldGet.call(document, id);
+  try {
+    showLibraryDetail('whiteoak');
+    assertEqual(fact('Mature size'), '11 ft H x 75 ft W - ~10 yrs to size',
+      'library white oak mature size includes height and width in feet');
+    detail.children = [];
+    showLibraryDetail('bluestem');
+    assertEqual(fact('Mature size'), '46" H x 18" W',
+      'library little bluestem mature size includes height and stays in inches');
+  } finally {
+    document.getElementById = oldGet;
+  }
+});
+
 test('entering design mode starts paused while visits keep time running', () => {
   setup(15, 15);
   game.gameMode = 'design'; game.visiting = false; game.previewMode = 'established';

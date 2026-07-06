@@ -96,7 +96,6 @@ function showLibraryDetail(key){
   libSel=key;
   document.querySelectorAll('.lib-item').forEach(el=>el.classList.toggle('sel',el.dataset.k===key));
   const P=PLANTS[key], d=$('libraryDetail');
-  const dim=v=>v>=96?`${Math.round(v/12)} ft`:`${v}"`;
   const seasons=['Spring','Summer','Fall','Winter'];
   const imgs=document.createElement('div'); imgs.className='ld-img';
   seasons.forEach(s=>{ const fig=document.createElement('figure');
@@ -105,8 +104,8 @@ function showLibraryDetail(key){
     imgs.append(fig); });
   const facts=[
     ['Type', P.type[0].toUpperCase()+P.type.slice(1)],
-    ['Mature size', `${dim(P.spread)} wide`+(P.grow?` · ~${P.grow} yrs`:'')],
-    ['Spacing', `${dim(P.space)} on center`],
+    ['Mature size', matureSizeText(P,false)+(P.grow?` - ${yearsToSizeText(P)}`:'')],
+    ['Spacing', `${plantMeasure(P.space,false)} on center`],
     ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
     ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],

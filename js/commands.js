@@ -577,27 +577,48 @@ function paintHouse(part,col,label){
   toast(part==='wall'?`Walls set ${label.toLowerCase()}. Tap to place.`
                      :`Roof set ${label.toLowerCase()}. Tap to place.`);
 }
+function plantMeasure(v,html){
+  v=Number(v)||0;
+  if (v>=96) return `${Math.max(1,Math.round(v/12))} ft`;
+  return `${Math.max(1,Math.round(v))}${html?'&Prime;':'"'}`;
+}
+function matureSizeText(P,html){
+  return `${plantMeasure(P.h,html)} H ${html?'&times;':'x'} ${plantMeasure(P.spread,html)} W`;
+}
+function yearsToSizeText(P){ return P.grow ? `~${P.grow} yrs to size` : ''; }
+function crownTilesText(P){
+  if (!isWoodyDef(P)) return '';
+  const n=Math.max(1,Math.round(woodyRadiusTiles(P)*2));
+  return `crown covers ~${n} tile${n===1?'':'s'} wide`;
+}
 function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   clearTimeout(el._t);
   const focusKey=plantKeyOf(p);
   game.focusPlantKey=focusKey;
-  const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
   const shaded = px2!==undefined && P.sun!=='part' && !isTreeDef(P) && shadeInfoAt(px2,py2,false);
-  const shrubFoot = isShrubDef(P) ? ` · reserves about ${Math.max(1,Math.round(woodyRadiusTiles(P)*2))} tiles wide` : '';
+  const detailBits=[
+    `<b>Mature size:</b> ${matureSizeText(P,true)}`,
+    `${plantMeasure(P.space,true)} apart`,
+    `zones ${P.zones[0]}-${P.zones[1]}`,
+    `${P.sun} sun`,
+    `${P.moist} soil`,
+  ];
+  const yrs=yearsToSizeText(P), crown=crownTilesText(P);
+  if (yrs) detailBits.push(yrs);
+  if (crown) detailBits.push(crown);
+  const status=establishedPreviewActive()
+    ? (g>=100?'Shown at maturity.':`Shown at maturity - ${g}% established today.`)
+    : (g>=100?'Fully established':`Establishing - ${g}% grown`);
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
-    <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·
-      zones ${P.zones[0]}–${P.zones[1]} · ${P.sun} sun · ${P.moist} soil${
-      P.grow?` · ~${P.grow} yrs to size`:''}${shrubFoot}</p>
+    <p style="margin-top:6px;color:#cdbfa9">${detailBits.join(' - ')}</p>
     <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
       ? 'Native'
       : 'Garden cultivar (non-native)'}</p>
     <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
-    <p style="margin-top:6px;color:#efe6d3">${g>=100?'Fully established'
-      :establishedPreviewActive()?`Shown at mature size — ${g}% established today.`
-      :`Establishing — ${g}% grown`}</p>`;
+    <p style="margin-top:6px;color:#efe6d3">${status}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
   const close=()=>{ el.style.display='none'; clearTimeout(el._t);
     if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };
