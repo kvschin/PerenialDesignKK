@@ -1320,6 +1320,36 @@ test('established preview matures the display shade but never the placement rule
   assert(sceneKey() !== kEst, 'sceneKey distinguishes preview modes');
 });
 
+test('tree placement ghost previews mature canopy and respects woody visibility', () => {
+  setup(21, 21);
+  const tree = firstOfType('tree');
+  const def = plantDef(tree);
+  const matureR = woodyRadiusTiles(def);
+  const draft = matureWoodyDraft(tree, null);
+  assertEqual(Math.round(canopyRadius(draft) * 1000), Math.round(matureR * 1000),
+    'mature placement draft uses the same canopy radius as the established tree');
+  const ellipses = [], dashes = [];
+  const ctx = new Proxy({
+    ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); },
+    setLineDash(v){ dashes.push(v.slice()); },
+  }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  assert(drawTreePlacementGhost(ctx, 800, 600, 10, 10, tree, null), 'tree ghost draws while woody is visible');
+  assertEqual(ellipses.length, SUN_PATH.length + 1, 'tree ghost draws one O(1) shade lobe per sun path plus the canopy ring');
+  const canopy = ellipses[ellipses.length - 1];
+  assertEqual(Math.round(canopy.rx * 1000), Math.round((TILE_W / 2) * matureR * 1000),
+    'tree ghost canopy width follows the mature radius');
+  assertEqual(Math.round(canopy.ry * 1000), Math.round((TILE_H / 2) * matureR * 1000),
+    'tree ghost canopy depth follows the mature radius');
+  assert(dashes.some(d => d.join(',') === '7,5'), 'tree ghost mature canopy is dashed');
+  game.layerVis.woody = false;
+  ellipses.length = 0;
+  assert(!drawTreePlacementGhost(ctx, 800, 600, 10, 10, tree, null), 'tree ghost skips hidden woody layer');
+  assertEqual(ellipses.length, 0, 'hidden woody layer draws no ghost ellipses');
+});
+
 test('trees soft-warn on crowded spacing but never block, and the trunk refuses underplanting', () => {
   setup(31, 31);
   const treeKey = Object.keys(PLANTS).find(k =>

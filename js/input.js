@@ -63,6 +63,7 @@ function showGestureCancel(msg){
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
   sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null;
+  game.hoverTile=null;
   game.pathTarget=null; game.sleepOnArrive=false;
   if (notice) showGestureCancel(notice);
   updateCanvasCursor();
@@ -113,6 +114,7 @@ cnv.addEventListener('pointerdown',e=>{
     return;
   }
   const place=evPlacement(e), x=place.x, y=place.y;
+  game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
   if (game.tool==='ruler'){

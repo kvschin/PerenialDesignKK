@@ -465,6 +465,54 @@ function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
     tileDiamond(cx,sx,sy,fill,stroke);
   }
 }
+function screenDeltaForWorld(dx,dy){
+  const [v0x,v0y]=worldToView(0,0), [v1x,v1y]=worldToView(dx,dy);
+  return [isoX(v1x-v0x,v1y-v0y), isoY(v1x-v0x,v1y-v0y)];
+}
+function drawTreeShadeSweepGhost(ctx,sh,sx,cy){
+  if (!sh || sh.r<=0) return;
+  const scale=shadeSeasonScale();
+  ctx.save();
+  for (const sample of SUN_PATH){
+    const mag=Math.hypot(sample.sun[0],sample.sun[1])||1;
+    const sunX=sample.sun[0]/mag, sunY=sample.sun[1]/mag;
+    const shadeX=-sunX, shadeY=-sunY;
+    const len=sh.r*sample.len*scale*SHADE_AREA_SCALE*(0.65+0.35*sh.est);
+    const width=sh.r*sample.width*SHADE_AREA_SCALE;
+    const [dx,dy]=screenDeltaForWorld(shadeX*len,shadeY*len);
+    const [wx,wy]=screenDeltaForWorld(-shadeY*width,shadeX*width);
+    const lpx=Math.hypot(dx,dy), wpx=Math.hypot(wx,wy);
+    if (lpx<4 || wpx<3) continue;
+    ctx.save();
+    ctx.translate(sx+dx*0.52,cy+dy*0.52);
+    ctx.rotate(Math.atan2(dy,dx));
+    ctx.fillStyle=`rgba(41,65,47,${0.08+sample.weight*0.10})`;
+    ctx.beginPath();
+    ctx.ellipse(0,0,lpx*0.55,wpx*0.85,0,0,7);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function drawTreePlacementGhost(ctx,W,H,x,y,key,v){
+  if (!layerShown('woody')) return false;
+  const def=plantDef(key,v);
+  if (!isTreeDef(def)) return false;
+  const draft=matureWoodyDraft(key,v), sh=treeShadeInfo(`${x},${y}`,draft);
+  if (!sh || sh.r<=0) return false;
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  drawTreeShadeSweepGhost(ctx,sh,sx,cy);
+  tileDiamond(ctx,sx,sy,'rgba(46,70,42,0.20)','rgba(246,220,156,0.84)');
+  ctx.save();
+  ctx.setLineDash([7,5]);
+  ctx.lineWidth=1.8;
+  ctx.strokeStyle='rgba(246,220,156,0.86)';
+  ctx.beginPath();
+  ctx.ellipse(sx,cy,(TILE_W/2)*sh.r,(TILE_H/2)*sh.r,0,0,7);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
 /* ---------- persistent scene list (perf) ----------
    Between edits nothing on the ground moves: an entity's depth changes only on
    edit / rotation / layer toggle / the game day. The old gather allocated a
@@ -743,12 +791,15 @@ function render(t){
   cx.strokeStyle='rgba(243,236,221,0.85)'; cx.lineWidth=2;
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
-  if (game.hoverTile && PLANTS[game.tool]){
+  if (game.hoverTile && PLANTS[game.tool] && layerShown(toolTargetLayer(game.tool))){
     const def=plantDef(game.tool,game.toolVar);
     if (isShrubDef(def)){
-      const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
+      const [txh,tyh]=game.hoverTile, draft=matureWoodyDraft(game.tool,game.toolVar);
       const ok=canPlaceShrubAt(txh,tyh,draft).ok;
-      drawShrubFootprint(cx,W,H,{x:txh,y:tyh,p:draft},ok?'hover':'blocked');
+      drawShrubFootprint(cx,W,H,{x:txh,y:tyh,p:draft},ok?'ghost':'ghostBlocked');
+    } else if (isTreeDef(def)){
+      const [txh,tyh]=game.hoverTile;
+      drawTreePlacementGhost(cx,W,H,txh,tyh,game.tool,game.toolVar);
     }
     if (def && def.sun!=='part' && !isTreeDef(def) && def.type!=='bulb'){
       const [txh,tyh]=game.hoverTile;

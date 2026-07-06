@@ -16,7 +16,7 @@ const game = {
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   house:null, houseT:0,                              // per-garden house + sync stamp
   rot:0,                                             // view rotation, 90-degree steps
-  hoverTile:null,                                    // pointer tile, for the house ghost
+  hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
   gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
@@ -194,6 +194,11 @@ function establishedPreviewActive(){
 function displayPlantGrowth(p){
   return establishedPreviewActive() ? 1 : plantGrowth(p);
 }
+function matureWoodyDraft(key,v){
+  const p={s:key,d:absDay()-YEAR_DAYS*1000,t:0};
+  if (v) p.v=v;
+  return p;
+}
 /* the display lens for establishment-derived facts (canopy reach, shade
    washes/stunting, plan circles, footprint styling, the plant card): real
    establishment normally, maturity under the design "Established" preview.
@@ -311,7 +316,11 @@ function drawShrubFootprint(ctx,W,H,sh,mode,age){
   const est=effectiveEstab(p);   // Established preview: never the "young" dashed style
   const P=plantDef(p.s,p.v), r=woodyRadiusTiles(P);
   let fill='rgba(35,52,31,0.075)', stroke='rgba(239,230,211,0.08)', dash=null, line=1;
-  if (mode==='hover'){
+  if (mode==='ghost'){
+    fill='rgba(218,170,84,0.10)'; stroke='rgba(246,220,156,0.78)'; line=1.7; dash=[7,5];
+  } else if (mode==='ghostBlocked'){
+    fill='rgba(166,64,48,0.16)'; stroke='rgba(236,118,92,0.86)'; line=1.8; dash=[7,5];
+  } else if (mode==='hover'){
     fill='rgba(218,170,84,0.13)'; stroke='rgba(246,220,156,0.72)'; line=1.6;
   } else if (mode==='blocked'){
     fill='rgba(166,64,48,0.18)'; stroke='rgba(236,118,92,0.86)'; line=1.8;
@@ -378,12 +387,12 @@ const SUN_PATH = [
 ];
 /* real=true reads true establishment (placement rules); default reads the
    display lens (effectiveEstab — mature under the Established preview) */
-function canopyRadius(p,real){ const P=PLANTS[p.s];
+function canopyRadius(p,real){ const P=plantDef(p.s,p.v);
   if (!isTreeDef(P)) return 0;
   return woodyRadiusTiles(P)*(real?plantEstab(p):effectiveEstab(p));
 }
 function treeShadeInfo(k,p,real){
-  const P=PLANTS[p.s]; if (!isTreeDef(P)) return null;
+  const P=plantDef(p.s,p.v); if (!isTreeDef(P)) return null;
   const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p,real), est=real?plantEstab(p):effectiveEstab(p);
   return {p,x:tx2,y:ty2,r,est,activePotential:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
 }
