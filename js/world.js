@@ -184,7 +184,7 @@ function bulbEnvelope(key){ // spring ephemerals by default; onions can carry su
 }
 function plantGrowth(p){
   const P=PLANTS[p.s];
-  if (P && (P.type==='shrub'||P.type==='tree')) return plantEstab(p); // woody: no cutback
+  if (isWoodyDef(P)) return plantEstab(p); // woody: no cutback
   if (P && P.type==='bulb') return plantEstab(p)*bulbEnvelope(p.s);
   return plantEstab(p)*seasonEnvelope(p.s);
 }
@@ -202,15 +202,12 @@ function displayPlantGrowth(p){
 function effectiveEstab(p){
   return establishedPreviewActive() ? 1 : plantEstab(p);
 }
-function shrubRadiusTiles(P){
-  return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;
-}
 function shrubClaimsTile(cx,cy,p,x,y,mature){
   const P=p && p.s ? plantDef(p.s,p.v) : p;
   if (!isShrubDef(P)) return x===cx && y===cy;
   if (x===cx && y===cy) return true;
   const est=p && p.s ? plantEstab(p) : 1;
-  const r=shrubRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
+  const r=woodyRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
   const dx=Math.abs(x-cx), dy=Math.abs(y-cy), dist=Math.hypot(dx,dy);
   if (dist<=Math.max(0,r-0.36)) return true;
   if (!dx || !dy) return dist<=r+0.001;
@@ -225,7 +222,7 @@ function shrubFootprintTiles(cx,cy,p,mature){
   const P=p && p.s ? plantDef(p.s,p.v) : p;
   if (!isShrubDef(P)) return [[cx,cy]];
   const est=p && p.s ? plantEstab(p) : 1;
-  const r=shrubRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
+  const r=woodyRadiusTiles(P)*(mature===false ? Math.max(0.35,est) : 1);
   const reach=Math.ceil(r), tiles=[];
   for (let yy=cy-reach; yy<=cy+reach; yy++) for (let xx=cx-reach; xx<=cx+reach; xx++){
     if (xx<0||yy<0||xx>=GW||yy>=GH) continue;
@@ -260,7 +257,7 @@ function shrubAt(x,y,opts){
     if (!isShrubDef(plantDef(p.s,p.v))) continue;
     const [cx2,cy2]=k.split(',').map(Number);
     if (cx2===x && cy2===y) continue;
-    const r=shrubRadiusTiles(plantDef(p.s,p.v));
+    const r=woodyRadiusTiles(plantDef(p.s,p.v));
     if (Math.abs(x-cx2)>Math.ceil(r) || Math.abs(y-cy2)>Math.ceil(r)) continue;
     if (shrubClaimsTile(cx2,cy2,p,x,y,true)) return {key:k,p,x:cx2,y:cy2,center:false};
   }
@@ -309,7 +306,7 @@ function drawShrubFootprint(ctx,W,H,sh,mode,age){
   const p=sh && sh.p;
   if (!p || p.removed) return;
   const est=effectiveEstab(p);   // Established preview: never the "young" dashed style
-  const P=plantDef(p.s,p.v), r=shrubRadiusTiles(P);
+  const P=plantDef(p.s,p.v), r=woodyRadiusTiles(P);
   let fill='rgba(35,52,31,0.075)', stroke='rgba(239,230,211,0.08)', dash=null, line=1;
   if (mode==='hover'){
     fill='rgba(218,170,84,0.13)'; stroke='rgba(246,220,156,0.72)'; line=1.6;
@@ -379,13 +376,39 @@ const SUN_PATH = [
 /* real=true reads true establishment (placement rules); default reads the
    display lens (effectiveEstab — mature under the Established preview) */
 function canopyRadius(p,real){ const P=PLANTS[p.s];
-  if (!P || P.type!=='tree') return 0;
-  return (P.spread/TILE_IN/2)*(real?plantEstab(p):effectiveEstab(p));
+  if (!isTreeDef(P)) return 0;
+  return woodyRadiusTiles(P)*(real?plantEstab(p):effectiveEstab(p));
 }
 function treeShadeInfo(k,p,real){
-  const P=PLANTS[p.s]; if (!P || P.type!=='tree') return null;
+  const P=PLANTS[p.s]; if (!isTreeDef(P)) return null;
   const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p,real), est=real?plantEstab(p):effectiveEstab(p);
   return {p,x:tx2,y:ty2,r,est,activePotential:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
+}
+/* Tree spacing (T3). A trunk is one HARD tile — occupancy already stops two
+   trees (or a tree and a perennial/bulb) from sharing it, and the canopy area
+   around it stays open for underplanting on purpose (§D). What was missing is
+   that nothing noticed two big trees dropped inside their combined spread. So
+   spacing is a SOFT signal: `nearestTreeCrowder` returns the closest tree the
+   one at (x,y) would crowd — judged by the AVERAGE of the two species'
+   recommended on-center spacing, so a large oak beside a small redbud is rated
+   by their real needs — or null. It never blocks; callers just warn. */
+function treeSpacingTiles(P){
+  return Math.max(1, (P.space||P.spread||TILE_IN)/TILE_IN);
+}
+function nearestTreeCrowder(x,y,def,ignoreKey){
+  if (!isTreeDef(def)) return null;
+  const aSpace=treeSpacingTiles(def);
+  let best=null;
+  for (const key in game.plants){
+    if (key===ignoreKey) continue;
+    const p=game.plants[key]; if (!p||p.removed) continue;
+    const P=plantDef(p.s,p.v); if (!isTreeDef(P)) continue;
+    const ci=key.indexOf(','), tx=+key.slice(0,ci), ty=+key.slice(ci+1);
+    if (tx===x && ty===y) continue;
+    const dist=Math.hypot(tx-x,ty-y), want=(aSpace+treeSpacingTiles(P))/2;
+    if (dist<want && (!best || dist<best.dist)) best={key,x:tx,y:ty,p,dist,wantTiles:want};
+  }
+  return best;
 }
 function shadeSeasonScale(){
   const s=calClock().season;

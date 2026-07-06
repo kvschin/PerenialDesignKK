@@ -171,7 +171,7 @@ function actHere(opts){
     return;
   }
   if (terr==='path'||terr==='water'){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree.'); return; }
-  if (shrubHit && def.type!=='shrub' && (!hasPlant || shrubHit.key!==k)){
+  if (shrubHit && !isShrubDef(def) && (!hasPlant || shrubHit.key!==k)){
     pulseShrubFootprint(shrubHit);
     showPlantCard(shrubHit.p,shrubHit.x,shrubHit.y);
     toast(`${plantDef(shrubHit.p.s,shrubHit.p.v).name} needs this mature spread.`);
@@ -186,11 +186,24 @@ function actHere(opts){
   const n=game.drift?driftCount(def):1;
   if (n>1){ stampDrift(x,y,n,opts); return; }
   if (applyToolAt(x,y,opts)){ syncPlantsOut();
-    toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
+    if (isTreeDef(def)) toast(treePlacedMessage(def,x,y,k));
+    else toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
   else toast('No room here.');
 }
+/* soft tree-spacing feedback (T3): the trunk placed fine (occupancy guaranteed
+   its tile was clear); if it landed inside a nearby tree's spacing, say so in
+   real feet — advice, not a block, so the design still stands. */
+function treePlacedMessage(def,x,y,k){
+  const crowd=nearestTreeCrowder(x,y,def,k);
+  if (!crowd) return `Planted ${def.name}.`;
+  const wantFt=Math.max(1,Math.round(crowd.wantTiles*TILE_IN/12));
+  const other=plantDef(crowd.p.s,crowd.p.v);
+  return crowd.p.s===game.tool
+    ? `Planted ${def.name} — but it crowds another ${def.name}. They want about ${wantFt} ft apart at maturity.`
+    : `Planted ${def.name} — it will crowd the nearby ${other.name.toLowerCase()}. Give large trees about ${wantFt} ft of room.`;
+}
 function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()}); }
-function freePlantable(def){ return !!(game.freePlanting && def && !['bulb','shrub','tree'].includes(def.type)); }
+function freePlantable(def){ return !!(game.freePlanting && def && def.type!=='bulb' && !isWoodyDef(def)); }
 function clampPlantOffset(v){ return Math.max(-0.44,Math.min(0.44,Number.isFinite(+v)?+v:0)); }
 function roundedOffset(v){ return Math.round(clampPlantOffset(v)*100)/100; }
 function naturalPlantOffset(x,y,opts){
@@ -202,7 +215,7 @@ function naturalPlantOffset(x,y,opts){
 /* drift planting: one action stamps a loose, natural cluster. Tighter
    spacers come in bigger drifts; woody plants always plant singly. */
 function driftCount(def){
-  if (def.type==='shrub'||def.type==='tree') return 1;
+  if (isWoodyDef(def)) return 1;
   return def.space<=6?9 : def.space<=12?7 : def.space<=18?5 : def.space<=30?3 : 1;
 }
 /* the one silent placer behind drifts, drags, and single planting: puts the
@@ -275,7 +288,7 @@ function placeTerrainAt(x,y){
 // fill the grass matrix into the gaps (two-layer interplanting). Woody/bulb/
 // water types opt out (they place normally even with Matrix armed).
 function matrixSpacingBlocks(x,y,def){
-  if (def.type==='shrub'||def.type==='tree'||def.type==='bulb'||def.type==='water') return false;
+  if (isWoodyDef(def)||def.type==='bulb'||def.type==='water') return false;
   const spaceT=Math.max(1,Math.round((def.space||TILE_IN)/TILE_IN));
   for (let dy=-spaceT;dy<=spaceT;dy++) for (let dx=-spaceT;dx<=spaceT;dx++){
     if ((!dx&&!dy) || Math.hypot(dx,dy)>spaceT+1e-6) continue;
@@ -318,15 +331,15 @@ function placePlantAt(x,y,opts){
   const ex=game.plants[k];
   if (ex && !ex.removed) return null;
   if (game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
-  if (def.type!=='shrub' && shrubAt(x,y)) return null;
-  if (def.type==='shrub' && !canPlaceShrubAt(x,y,np).ok) return null;
+  if (!isShrubDef(def) && shrubAt(x,y)) return null;
+  if (isShrubDef(def) && !canPlaceShrubAt(x,y,np).ok) return null;
   const sh=shadeAt(x,y);
   if (sh && def.sun!=='part') return null;
   if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
   setTile('plants',k,np); plantFx(x,y,np);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
-  if (def.type==='shrub') clearBulbsUnderShrub(x,y,np);
-  else if (def.type==='tree'){ const eb=game.bulbs[k];
+  if (isShrubDef(def)) clearBulbsUnderShrub(x,y,np);
+  else if (isTreeDef(def)){ const eb=game.bulbs[k];
     if (eb && !eb.removed){ clearTile('bulbs',k); syncBulbsOut(); } }
   return 'plant';
 }
@@ -570,8 +583,8 @@ function showPlantCard(p,px2,py2){
   const focusKey=plantKeyOf(p);
   game.focusPlantKey=focusKey;
   const dim=v=>v>=96?`${Math.round(v/12)}&prime;`:`${v}&Prime;`; // feet for tree-scale numbers
-  const shaded = px2!==undefined && P.sun!=='part' && P.type!=='tree' && shadeInfoAt(px2,py2,false);
-  const shrubFoot = P.type==='shrub' ? ` · reserves about ${Math.max(1,Math.round((P.spread||P.space||TILE_IN)/TILE_IN))} tiles wide` : '';
+  const shaded = px2!==undefined && P.sun!=='part' && !isTreeDef(P) && shadeInfoAt(px2,py2,false);
+  const shrubFoot = isShrubDef(P) ? ` · reserves about ${Math.max(1,Math.round(woodyRadiusTiles(P)*2))} tiles wide` : '';
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:#cdbfa9">${dim(P.space)} apart · ${dim(P.spread)} spread ·

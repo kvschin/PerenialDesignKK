@@ -731,7 +731,7 @@ test('shrubs reserve their mature footprint for planting and materials', () => {
   eraseBrush(10, 8, counts);
   assertEqual(counts.plants, 1, 'erasing the shrub edge removes the shrub');
   assert(game.plants['8,8'].removed, 'shrub center was removed');
-  assert(shrubVisualCw(plantDef('sumac')) > PLANTS.sumac.cw, 'wide shrubs render from real spread, not just icon width');
+  assert(woodyVisualCw(plantDef('sumac')) > PLANTS.sumac.cw, 'wide shrubs render from real spread, not just icon width');
 });
 
 test('small shrub footprints are rounded, not full square blocks', () => {
@@ -1242,6 +1242,34 @@ test('established preview matures the display shade but never the placement rule
   const kEst = sceneKey();
   game.previewMode = 'today';
   assert(sceneKey() !== kEst, 'sceneKey distinguishes preview modes');
+});
+
+test('trees soft-warn on crowded spacing but never block, and the trunk refuses underplanting', () => {
+  setup(31, 31);
+  const treeKey = Object.keys(PLANTS).find(k =>
+    PLANTS[k].type === 'tree' && !PLANTS[k].hidden && PLANTS[k].space >= 120 && PLANTS[k].space <= 300) || firstOfType('tree');
+  const def = plantDef(treeKey, null);
+  const spanT = treeSpacingTiles(def);
+  const cx = 15, cy = 15;
+  game.tool = treeKey; game.toolVar = null;
+  assertEqual(placePlantAt(cx, cy), 'plant', 'first tree places');
+  // an adjacent same-species tree still places — spacing is a soft warning, not a block
+  assertEqual(placePlantAt(cx + 1, cy), 'plant', 'adjacent same-species tree still places');
+  const crowd = nearestTreeCrowder(cx + 1, cy, def, `${cx + 1},${cy}`);
+  assert(crowd && crowd.x === cx && crowd.y === cy, 'crowder scan finds the neighbor inside the spacing');
+  // a tree planted well beyond its spacing is not flagged as crowded
+  const fx = cx + Math.ceil(spanT) + 2;
+  assert(fx < GW, 'far test tile fits the plot');
+  assert(!nearestTreeCrowder(fx, cy, def, null), 'a well-spaced tree reads as uncrowded');
+  // the trunk tile is hard-occupied: a perennial cannot underplant it
+  const forb = Object.keys(PLANTS).find(k => PLANTS[k].type === 'forb' && PLANTS[k].sun === 'full' && !PLANTS[k].hidden);
+  game.tool = forb; game.toolVar = null;
+  assertEqual(placePlantAt(cx, cy), null, 'perennial refused on the trunk tile');
+  // but the open canopy area takes a perennial and a bulb (canopy is not reserved)
+  assertEqual(placePlantAt(cx + 4, cy + 4), 'plant', 'perennial plants in the open canopy area');
+  const bulb = firstOfType('bulb');
+  game.tool = bulb; game.toolVar = null;
+  assertEqual(placePlantAt(cx + 3, cy), 'bulb', 'bulb tucks in near the tree (not on the trunk)');
 });
 
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {

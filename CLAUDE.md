@@ -194,7 +194,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    10 days. Bulbs (`type` bulb) use `bulbEnvelope()`: up at spring day 0,
    full by day 1.5, yellowing away by day 15, underground (growth 0,
    render-culled) the rest of the year; `bloomDay` sequences their bloom
-   (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `spread/TILE_IN/2`
+   (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `woodyRadiusTiles(P)`
    tiles (scaled by establishment); planting there is refused unless the
    plant is `sun:'part'`. **Display vs rules (woody T1)**: `effectiveEstab(p)`
    is the display lens — real establishment normally, 1 under the design
@@ -920,8 +920,8 @@ visual-only (mature-looking trees cast no shade, drew dot-sized plan circles);
 trees have no footprint or spacing while shrubs hard-reserve mature spread;
 tree visuals are ~24× compressed vs near-1:1 perennials (white oak `cw:160`px
 ≈ 2 tiles drawn vs `spread:900`″ = 50 tiles real); spread→radius conversion is
-written four ways (`shrubRadiusTiles`/`shrubVisualCw`/`canopyRadius`/
-`drawShrubPlan`); everything woody hard-blocks (no soft warnings); placement
+written four ways before T2 centralized it in `woodyRadiusTiles`/
+`woodyVisualCw`; everything woody hard-blocks (no soft warnings); placement
 previews are shrub-only and desktop-hover-only; selection moves bypass
 footprint invariants. Guiding principle (T1, now load-bearing): **what you SEE
 follows the preview; what's LEGAL never does** — rules plan for maturity the
@@ -934,13 +934,23 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     (`ensureShadeMap(real)`); preview flag in `sceneKey`/`shadeMapKey`;
     hover shade diamond red only where placement actually refuses, amber for
     preview/future canopy. See the §9 note.
-  - **T2 unify spread→radius** — one `woodyRadiusTiles`/`woodyVisualCw` +
-    `isTreeDef`/`isWoodyDef`; sweep the ~8 stringly
-    `type==='shrub'||type==='tree'` sites. Zero behavior change.
-  - **T3 tree placement rules** — `trunkTiles` hard footprint (default 1) +
-    soft `space`-based spacing warning; underplanting refused on the trunk
-    tile only; decide bulbs-under-canopy (recommend allow; keep trunk/shrub
-    refusals).
+  - *(built)* **T2 unify spread→radius** — one `woodyRadiusTiles`/
+    `woodyVisualCw` + `isTreeDef`/`isWoodyDef`; swept the stringly
+    `type==='shrub'||type==='tree'` runtime sites. Zero behavior change.
+  - *(built)* **T3 tree placement rules** — the trunk stays a hard one-tile
+    footprint (occupancy already stops two trees, or a tree and a
+    perennial/bulb, from sharing a tile); the canopy area is deliberately
+    left open for underplanting, and bulbs-under-canopy is allowed (only the
+    same trunk tile refuses, via the existing woody check). The new behavior
+    is a **soft same-/mixed-species spacing warning**: `nearestTreeCrowder`
+    (world.js) finds the closest tree the just-placed one lands inside the
+    spacing of — judged by the AVERAGE of the two species' `space`, so a big
+    oak beside a small redbud is rated by their real needs — and
+    `treePlacedMessage` (commands.js) toasts it in real feet on placement. It
+    never blocks (previews T9's soft-warning direction). Trunk multi-tile
+    footprints for giants were scoped out (a real trunk is ~1 tile; visual
+    mass is T10's job, not a rules footprint). Test: "trees soft-warn on
+    crowded spacing but never block, and the trunk refuses underplanting".
   - **T4 selection ops respect woody footprints** — `selValidDest`/
     `commitSelectionOffset`/`rotateSelection` validate moved shrubs (and T3
     trunks) like house placement already does (`shrubFootprintOverlapsRect`).
