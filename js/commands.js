@@ -1,5 +1,53 @@
 'use strict';
 
+/* ---------- placement policy ---------- */
+const PLANT_PLACEMENT_POLICY={
+  occupancy:{mode:'hard'},
+  shrubCore:{mode:'hard'},
+  woodyTrunk:{mode:'hard'},
+  water:{mode:'hard'},
+  activeCanopySun:{mode:'soft',toast:'warn'},
+  treeSpacing:{mode:'soft',toast:'warn'},
+};
+function placementPolicy(rule){ return PLANT_PLACEMENT_POLICY[rule] || {mode:'hard'}; }
+function canopyShadePolicyCheck(def,x,y){
+  if (!def || def.sun==='part') return null;
+  const shadeTree=shadeInfoAt(x,y,false,true);   // rules read true establishment
+  return shadeTree ? {rule:'activeCanopySun',policy:placementPolicy('activeCanopySun'),shade:shadeTree} : null;
+}
+function canopyShadeHardBlock(def,x,y){
+  const check=canopyShadePolicyCheck(def,x,y);
+  return check && check.policy.mode==='hard' ? check : null;
+}
+function canopyShadeSoftWarning(def,x,y){
+  const check=canopyShadePolicyCheck(def,x,y);
+  return check && check.policy.mode==='soft' ? check : null;
+}
+function canopyShadeTreeName(check){
+  return PLANTS[check.shade.p.s].name.toLowerCase();
+}
+function canopyShadeHardMessage(def,check){
+  return `Active canopy shade from the ${canopyShadeTreeName(check)} — ${def.type==='water'?'part-shade water plants':'shade-tolerant plants'} only.`;
+}
+function canopyShadeWarningText(check){
+  return `active canopy shade from the ${canopyShadeTreeName(check)}; it will struggle here`;
+}
+function appendPlacementWarning(base,text){
+  const clean=base.replace(/\.$/,'');
+  return `${clean}${clean.includes(' — ')?';':' —'} ${text}.`;
+}
+function plantPlacedMessage(def,x,y,k,shadeWarn,water){
+  const base=water ? `Planted ${def.name} in the water.`
+    : isTreeDef(def) ? treePlacedMessage(def,x,y,k)
+    : `Planted ${def.name}.${!shadeWarn && (def.type==='forb'||def.type==='grass')?' Drifts of 3+ read better — try the Drift toggle.':''}`;
+  return shadeWarn ? appendPlacementWarning(base,canopyShadeWarningText(shadeWarn)) : base;
+}
+function plantPlacementToastKind(def,x,y,k,shadeWarn){
+  if (shadeWarn) return shadeWarn.policy.toast;
+  if (isTreeDef(def) && nearestTreeCrowder(x,y,def,k)) return placementPolicy('treeSpacing').toast;
+  return null;
+}
+
 /* ---------- movement & actions ---------- */
 function tryMove(nx,ny){
   if (!canStand(nx,ny)||game.moving) return;
@@ -142,14 +190,15 @@ function actHere(opts){
     if (hasPlant){ showPlantCard(existing,x,y); return; }
     if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
     if (shrubHit){ pulseShrubFootprint(shrubHit); toast('Water plants need open water outside the shrub spread.'); return; }
-    const shadeTree=shadeInfoAt(x,y,false,true);   // rules read true establishment
-    if (shadeTree && def.sun!=='part'){
-      toast(`Active canopy shade from the ${PLANTS[shadeTree.p.s].name.toLowerCase()} — part-shade water plants only.`);
+    const shadeBlock=canopyShadeHardBlock(def,x,y);
+    if (shadeBlock){
+      toast(canopyShadeHardMessage(def,shadeBlock));
       return;
     }
+    const shadeWarn=canopyShadeSoftWarning(def,x,y);
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
-    if (applyToolAt(x,y,opts)){ syncPlantsOut(); toast(`Planted ${def.name} in the water.`); }
+    if (applyToolAt(x,y,opts)){ syncPlantsOut(); toast(plantPlacedMessage(def,x,y,k,shadeWarn,true),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
     else toast('No open water here.');
     return;
   }
@@ -178,16 +227,16 @@ function actHere(opts){
     return;
   }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
-  const shadeTree=shadeInfoAt(x,y,false,true);     // rules read true establishment
-  if (shadeTree && def.sun!=='part'){
-    toast(`Active canopy shade from the ${PLANTS[shadeTree.p.s].name.toLowerCase()} — shade-tolerant plants only.`);
+  const shadeBlock=canopyShadeHardBlock(def,x,y);
+  if (shadeBlock){
+    toast(canopyShadeHardMessage(def,shadeBlock));
     return;
   }
+  const shadeWarn=canopyShadeSoftWarning(def,x,y);
   const n=game.drift?driftCount(def):1;
   if (n>1){ stampDrift(x,y,n,opts); return; }
   if (applyToolAt(x,y,opts)){ syncPlantsOut();
-    if (isTreeDef(def)) toast(treePlacedMessage(def,x,y,k));
-    else toast(`Planted ${def.name}.${def.type==='forb'||def.type==='grass'?' Drifts of 3+ read better — try the Drift toggle.':''}`); }
+    toast(plantPlacedMessage(def,x,y,k,shadeWarn,false),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
   else toast('No room here.');
 }
 /* soft tree-spacing feedback (T3): the trunk placed fine (occupancy guaranteed
@@ -312,8 +361,7 @@ function placePlantAt(x,y,opts){
     if (terr!=='water') return null;
     if ((ex && !ex.removed) || (eb && !eb.removed)) return null;
     if (shrubAt(x,y)) return null;
-    const sh=shadeAt(x,y);
-    if (sh && def.sun!=='part') return null;
+    if (canopyShadeHardBlock(def,x,y)) return null;
     if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
     setTile('plants',k,np); plantFx(x,y,np);
     return 'plant';
@@ -333,8 +381,7 @@ function placePlantAt(x,y,opts){
   if (game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
   if (!isShrubDef(def) && shrubAt(x,y)) return null;
   if (isShrubDef(def) && !canPlaceShrubAt(x,y,np).ok) return null;
-  const sh=shadeAt(x,y);
-  if (sh && def.sun!=='part') return null;
+  if (canopyShadeHardBlock(def,x,y)) return null;
   if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
   setTile('plants',k,np); plantFx(x,y,np);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
@@ -627,9 +674,10 @@ function showPlantCard(p,px2,py2){
   el.style.display='block';
   el._t=setTimeout(close,8000);
 }
-function toast(msg){
+function toast(msg,kind){
   const el=document.getElementById('toast');
   el.textContent=msg; el.style.opacity=1;
+  if (el.classList) el.classList.toggle('warn',kind==='warn');
   clearTimeout(el._t);
   el._t=setTimeout(()=>el.style.opacity=0,2600);
 }

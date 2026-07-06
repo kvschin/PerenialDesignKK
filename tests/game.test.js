@@ -194,16 +194,49 @@ test('bloom calendar rows use real-world bloom months from planted species', () 
   assert(bulb.months.includes(3) && bulb.months.includes(4), 'daffodil shows real spring bloom months');
 });
 
-test('bulbs cannot be planted under a tree or shrub', () => {
-  setup();
-  const woody = firstOfType('shrub') || firstOfType('tree');
+test('bulbs cannot be planted under a tree trunk or shrub footprint', () => {
+  setup(21, 21);
+  const tree = 'whiteoak';
+  const shrub = 'sumac';
   const bulb = firstOfType('bulb');
-  game.plants['5,5'] = { s: woody, d: 0, t: 1 };
+  game.plants['5,5'] = { s: tree, d: -10000, t: 1 };
   game.tool = bulb; game.toolVar = null;
-  assert(applyToolAt(5, 5) === null, 'bulb under woody must be refused');
+  assert(applyToolAt(5, 5) === null, 'bulb on a tree trunk must be refused');
+  assert(applyToolAt(5, 4) === 'bulb', 'bulb under open tree canopy is allowed');
+  game.bulbs = {};
+  game.plants = { '10,10': { s: shrub, d: 0, t: 1 } };
+  assert(applyToolAt(12, 10) === null, 'bulb inside a mature shrub footprint must be refused');
   // but a bulb under a perennial is fine
   game.plants = { '6,6': { s: firstOfType('forb'), d: 0, t: 1 } };
   assert(applyToolAt(6, 6) === 'bulb', 'bulb under a perennial is allowed');
+});
+
+test('full-sun plants under active canopy place with a warning and render struggling', () => {
+  setup(31, 31);
+  const x = 15, y = 14;
+  setTile('plants', '15,15', { s: 'whiteoak', d: -10000, t: 1 });
+  assertEqual(placementPolicy('activeCanopySun').mode, 'soft', 'active tree shade is a soft rule');
+  assertEqual(placementPolicy('shrubCore').mode, 'hard', 'shrub footprint remains a hard rule');
+  assert(shadeInfoAt(x, y, false, true), 'fixture tile is in active true-establishment shade');
+
+  const oldToast = toast;
+  let msg = '', kind = null;
+  toast = (m, k) => { msg = m; kind = k; };
+  try {
+    game.tool = 'bluestem'; game.toolVar = null;
+    game.tx = x; game.ty = y;
+    actHere();
+  } finally {
+    toast = oldToast;
+  }
+
+  assertEqual(game.plants[`${x},${y}`].s, 'bluestem', 'little bluestem plants under active oak shade');
+  assertEqual(kind, 'warn', 'the shade warning uses the amber toast style');
+  assert(msg.includes('active canopy shade from the white oak') && msg.includes('will struggle'),
+    `warning copy explains the canopy consequence: ${msg}`);
+  buildScene(800, 600);
+  const rec = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === x && e.y === y);
+  assert(rec && rec.stunt === true, 'the placed full-sun grass renders stunted under the canopy');
 });
 
 test('planting a tree/shrub clears a bulb already on the tile', () => {
