@@ -458,7 +458,7 @@ function updatePreviewToggle(){
   if (note && note._mode!==game.previewMode){   // per-frame: write only on change
     note._mode=game.previewMode;
     note.textContent=game.previewMode==='established'
-      ? 'Shows the mature design without advancing garden time.'
+      ? 'Shows the mature design — full sizes, tree canopies, and shade — without advancing garden time.'
       : 'Shows current growth, bloom timing, and establishment.';
   }
 }

@@ -488,7 +488,8 @@ function sceneLayerBits(){
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
 }
 function sceneKey(){
-  return game.rev+'|'+game.rot+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH;
+  return game.rev+'|'+game.rot+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
+    '|'+(establishedPreviewActive()?1:0);   // preview flips shade trees + stunting
 }
 function sceneStale(skey){
   const r=scene.refs;
@@ -750,10 +751,14 @@ function render(t){
       drawShrubFootprint(cx,W,H,{x:txh,y:tyh,p:draft},ok?'hover':'blocked');
     }
     if (def && def.sun!=='part' && def.type!=='tree' && def.type!=='bulb'){
-      const [txh,tyh]=game.hoverTile, sh=shadeInfoAt(txh,tyh,true);
+      const [txh,tyh]=game.hoverTile;
+      // red only where placement will actually refuse (true establishment);
+      // preview-mature or future canopies warn amber-dashed instead
+      const shReal=shadeInfoAt(txh,tyh,false,true);
+      const sh=shReal||shadeInfoAt(txh,tyh,true);
       if (sh){ const [sx,sy]=screenOf(txh,tyh,W,H);
-        tileDiamond(cx,sx,sy,sh.active?'rgba(150,42,32,0.16)':'rgba(210,168,92,0.13)',
-          sh.active?'rgba(230,118,92,0.88)':'rgba(234,188,102,0.78)',sh.active?null:[5,4]); }
+        tileDiamond(cx,sx,sy,shReal?'rgba(150,42,32,0.16)':'rgba(210,168,92,0.13)',
+          shReal?'rgba(230,118,92,0.88)':'rgba(234,188,102,0.78)',shReal?null:[5,4]); }
     }
   }
   // brush footprint ghost: the disc a sizable paint/elevation tool will stamp,

@@ -1212,6 +1212,38 @@ test('shade map caches per-tile tree shade and invalidates on day/map changes', 
   assertEqual(shadeScoreAt(10, 9), 0, 'map identity swap rebuilds even without rev');
 });
 
+test('established preview matures the display shade but never the placement rules', () => {
+  setup();
+  const tree = firstOfType('tree');
+  setTile('plants', '10,10', { s: tree, d: absDay(), t: 1 });   // freshly planted — 0% established
+  const p = game.plants['10,10'];
+  // Today view: display and real agree — no canopy yet
+  assertEqual(canopyRadius(p), 0, 'today: a day-old tree has no display canopy');
+  assertEqual(canopyRadius(p, true), 0, 'today: no real canopy either');
+  assertEqual(shadeScoreAt(10, 9), 0, 'today: no display shade');
+  // Established preview: the DISPLAY side matures, the RULES side does not
+  game.previewMode = 'established';
+  assert(canopyRadius(p) > 1, 'preview: display canopy jumps to mature reach');
+  assertEqual(canopyRadius(p, true), 0, 'preview: real canopy still zero');
+  assert(shadeScoreAt(10, 9) >= SHADE_ACTIVE_SCORE, 'preview: display shade map is active north of the trunk');
+  assert(shadeInfoAt(10, 9, false) && shadeInfoAt(10, 9, false).active, 'preview: display info reports active shade');
+  assert(!shadeAt(10, 9), 'preview: the placement-rule helper sees no shade');
+  // ...so placing a full-sun perennial under the shown canopy still succeeds
+  const forb = Object.keys(PLANTS).find(k => PLANTS[k].type === 'forb' && PLANTS[k].sun === 'full' && !PLANTS[k].hidden);
+  game.tool = forb; game.toolVar = null;
+  assertEqual(placePlantAt(10, 9), 'plant', 'preview: full-sun placement is legal under preview-only shade');
+  assert(shadeScoreAt(10, 9) >= SHADE_ACTIVE_SCORE, 'preview: the placed plant reads as shaded for display (stunting)');
+  // toggling back to Today reverts every display consumer
+  game.previewMode = 'today';
+  assertEqual(canopyRadius(p), 0, 'back to today: display canopy shrinks to real establishment');
+  assertEqual(shadeScoreAt(10, 9), 0, 'back to today: display shade gone');
+  // the scene list rebuilds across the toggle (shade trees + stunting live in it)
+  game.previewMode = 'established';
+  const kEst = sceneKey();
+  game.previewMode = 'today';
+  assert(sceneKey() !== kEst, 'sceneKey distinguishes preview modes');
+});
+
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // below the plant floor it never engages, however slow the draw

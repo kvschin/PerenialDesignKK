@@ -196,8 +196,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    render-culled) the rest of the year; `bloomDay` sequences their bloom
    (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `spread/TILE_IN/2`
    tiles (scaled by establishment); planting there is refused unless the
-   plant is `sun:'part'`. The plant card reports establishment, not
-   seasonal size.
+   plant is `sun:'part'`. **Display vs rules (woody T1)**: `effectiveEstab(p)`
+   is the display lens — real establishment normally, 1 under the design
+   "Established" preview — and every establishment-derived *visual* reads it
+   (shade washes + stunting, the plan sheet's canopy circles, shrub-footprint
+   styling, the card's "Shown at mature size — N% established today" line).
+   Placement RULES always read true establishment: `shadeAt` /
+   `shadeInfoAt(x,y,future,real=true)` hit a second rules-map slot
+   (`ensureShadeMap(real)`; outside the preview the maps coincide and the
+   real slot is never built), so toggling the preview never changes what's
+   legal — full-sun plants CAN be placed under a preview-mature canopy; they
+   render stunted, their card says Struggling, and the hover diamond warns
+   amber (red only where placement will actually refuse). `sceneKey` and
+   `shadeMapKey` carry the preview flag so shade trees/stunting rebuild on
+   toggle. The plant card reports establishment, not seasonal size.
 10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
     looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
@@ -899,3 +911,66 @@ stress garden before merge (see the perf notes in §11).
   quick credibility win, natural alongside plan-sheet work); **replace-species**
   (the natural companion to the Matrix brush — promote out of Wave 6 if
   palette-iteration friction bites during Wave 3).
+
+### Trees & Shrubs roadmap (T1–T12, from the mid-2026 woody audit)
+
+An architecture/UX audit of the woody-plant system produced twelve tickets in
+three phases. Core findings it addresses: the Established preview was
+visual-only (mature-looking trees cast no shade, drew dot-sized plan circles);
+trees have no footprint or spacing while shrubs hard-reserve mature spread;
+tree visuals are ~24× compressed vs near-1:1 perennials (white oak `cw:160`px
+≈ 2 tiles drawn vs `spread:900`″ = 50 tiles real); spread→radius conversion is
+written four ways (`shrubRadiusTiles`/`shrubVisualCw`/`canopyRadius`/
+`drawShrubPlan`); everything woody hard-blocks (no soft warnings); placement
+previews are shrub-only and desktop-hover-only; selection moves bypass
+footprint invariants. Guiding principle (T1, now load-bearing): **what you SEE
+follows the preview; what's LEGAL never does** — rules plan for maturity the
+way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
+
+- **Phase 1 — model coherence (before any new woody features):**
+  - *(built)* **T1 `effectiveEstab`** — one establishment lens for visuals
+    (shade washes/stunting, plan circles, footprint styling, card) vs true
+    establishment for placement rules; dual shade-map slots
+    (`ensureShadeMap(real)`); preview flag in `sceneKey`/`shadeMapKey`;
+    hover shade diamond red only where placement actually refuses, amber for
+    preview/future canopy. See the §9 note.
+  - **T2 unify spread→radius** — one `woodyRadiusTiles`/`woodyVisualCw` +
+    `isTreeDef`/`isWoodyDef`; sweep the ~8 stringly
+    `type==='shrub'||type==='tree'` sites. Zero behavior change.
+  - **T3 tree placement rules** — `trunkTiles` hard footprint (default 1) +
+    soft `space`-based spacing warning; underplanting refused on the trunk
+    tile only; decide bulbs-under-canopy (recommend allow; keep trunk/shrub
+    refusals).
+  - **T4 selection ops respect woody footprints** — `selValidDest`/
+    `commitSelectionOffset`/`rotateSelection` validate moved shrubs (and T3
+    trunks) like house placement already does (`shrubFootprintOverlapsRect`).
+  - **T11 QA** — each ticket lands with tests (T1's is
+    "established preview matures the display shade but never the placement
+    rules" in tests/game.test.js).
+- **Phase 2 — make the model visible:**
+  - **T5 placement ghost for trees/shrubs** — trunk diamond + dashed mature
+    canopy + shade sweep before drop; on touch, anchored to the armed state
+    (no hover exists). Ghost must reuse the same radius function as placement.
+  - **T6 honest plan sheet** — done for canopy circles by T1 (they follow the
+    preview); remaining: optional faint canopy fill, "dashed = mature crown"
+    legend note, shrub blob radius from the T2 function.
+  - **T7 woody plant card + Library sizing** — lead with mature H×W in feet
+    (`dim()` exists), years-to-size, "crown covers ~N tiles"; Library's
+    Mature size line gains height.
+  - **T8 "Mature canopies" overlay toggle** — Layers→Overlays, dashed rings
+    for all woody at mature size; off by default, flag-gated like Shade.
+  - **T12 docs** — plants.js/CLAUDE.md document per-field units
+    (inches-truth: `space`/`spread`; px-art: `h`/`cw`) and footprint policy.
+- **Phase 3 — behavior changes and the big lifts:**
+  - **T9 soft-warning policy** — full-sun-under-active-canopy becomes
+    place+warn (stunting already shows the consequence); hard blocks stay for
+    occupancy/shrub-core/trunk/water; policy in one table.
+  - **T10 woody visual rescale + age-at-placement** — compression-curve
+    rescale of woody `h`/`cw` (perennials ~1:1, big trees ~3-4× today's size)
+    plus an Age seg (New/Young/Mature) that backdates `d`, Mature default in
+    design mode. **Highest perf risk**: sprite cache bails over 2600px
+    (renderer.js `makePlantSprite`) — raise the budget deliberately or clamp
+    bake scale for giants; stress-garden A/B mandatory.
+  - Then: tree canopies rendering across tile boundaries with their own depth
+    slices (the long-standing woody follow-up above), seasonal canopy,
+    growth-timeline scrub.

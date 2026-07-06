@@ -142,7 +142,7 @@ function actHere(opts){
     if (hasPlant){ showPlantCard(existing,x,y); return; }
     if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
     if (shrubHit){ pulseShrubFootprint(shrubHit); toast('Water plants need open water outside the shrub spread.'); return; }
-    const shadeTree=shadeInfoAt(x,y,false);
+    const shadeTree=shadeInfoAt(x,y,false,true);   // rules read true establishment
     if (shadeTree && def.sun!=='part'){
       toast(`Active canopy shade from the ${PLANTS[shadeTree.p.s].name.toLowerCase()} — part-shade water plants only.`);
       return;
@@ -178,7 +178,7 @@ function actHere(opts){
     return;
   }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
-  const shadeTree=shadeInfoAt(x,y,false);
+  const shadeTree=shadeInfoAt(x,y,false,true);     // rules read true establishment
   if (shadeTree && def.sun!=='part'){
     toast(`Active canopy shade from the ${PLANTS[shadeTree.p.s].name.toLowerCase()} — shade-tolerant plants only.`);
     return;
@@ -582,7 +582,9 @@ function showPlantCard(p,px2,py2){
       : 'Garden cultivar (non-native)'}</p>
     <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
-    <p style="margin-top:6px;color:#efe6d3">${g<100?`Establishing — ${g}% grown`:'Fully established'}</p>`;
+    <p style="margin-top:6px;color:#efe6d3">${g>=100?'Fully established'
+      :establishedPreviewActive()?`Shown at mature size — ${g}% established today.`
+      :`Establishing — ${g}% grown`}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.textContent='✕';
   const close=()=>{ el.style.display='none'; clearTimeout(el._t);
     if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };

@@ -769,8 +769,10 @@ function buildPlanMap(){
     const def=plantDef(p.s,p.v);
     if (def.type!=='tree') continue;
     const [x,y]=k.split(',').map(Number);
-    // canopy sized to the tree's actual (establishment-scaled) reach, not full
-    // mature spread — a young tree draws a small circle, growing as it ages
+    // canopy sized to the tree's effective reach: establishment-scaled in the
+    // Today view (a young tree draws a small circle, growing as it ages), full
+    // mature spread under the design Established preview — the plan always
+    // matches what the garden view is showing
     const r=Math.max(cell*0.5, canopyRadius(p)*cell);
     ctx.strokeStyle='#6e5a40'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,r,0,7); ctx.stroke();

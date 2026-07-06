@@ -194,6 +194,14 @@ function establishedPreviewActive(){
 function displayPlantGrowth(p){
   return establishedPreviewActive() ? 1 : plantGrowth(p);
 }
+/* the display lens for establishment-derived facts (canopy reach, shade
+   washes/stunting, plan circles, footprint styling, the plant card): real
+   establishment normally, maturity under the design "Established" preview.
+   Placement RULES never read this — legality must not change with a view
+   toggle — they use plantEstab via shadeAt/ensureShadeMap(real). */
+function effectiveEstab(p){
+  return establishedPreviewActive() ? 1 : plantEstab(p);
+}
 function shrubRadiusTiles(P){
   return isShrubDef(P) ? Math.max(0.45, ((P.spread||P.space||TILE_IN)/TILE_IN)/2) : 0;
 }
@@ -300,7 +308,7 @@ function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
 function drawShrubFootprint(ctx,W,H,sh,mode,age){
   const p=sh && sh.p;
   if (!p || p.removed) return;
-  const est=plantEstab(p);
+  const est=effectiveEstab(p);   // Established preview: never the "young" dashed style
   const P=plantDef(p.s,p.v), r=shrubRadiusTiles(P);
   let fill='rgba(35,52,31,0.075)', stroke='rgba(239,230,211,0.08)', dash=null, line=1;
   if (mode==='hover'){
@@ -368,13 +376,15 @@ const SUN_PATH = [
   {name:'midday',    sun:DIRS.S,       weight:0.40, len:0.88, width:0.56}, // S sun  -> N shade
   {name:'afternoon', sun:[-0.72,0.70], weight:0.35, len:1.25, width:0.46}, // SW sun -> NE shade
 ];
-function canopyRadius(p){ const P=PLANTS[p.s];
+/* real=true reads true establishment (placement rules); default reads the
+   display lens (effectiveEstab — mature under the Established preview) */
+function canopyRadius(p,real){ const P=PLANTS[p.s];
   if (!P || P.type!=='tree') return 0;
-  return (P.spread/TILE_IN/2)*plantEstab(p);
+  return (P.spread/TILE_IN/2)*(real?plantEstab(p):effectiveEstab(p));
 }
-function treeShadeInfo(k,p){
+function treeShadeInfo(k,p,real){
   const P=PLANTS[p.s]; if (!P || P.type!=='tree') return null;
-  const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p), est=plantEstab(p);
+  const [tx2,ty2]=k.split(',').map(Number), r=canopyRadius(p,real), est=real?plantEstab(p):effectiveEstab(p);
   return {p,x:tx2,y:ty2,r,est,activePotential:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS};
 }
 function shadeSeasonScale(){
@@ -415,25 +425,35 @@ function treeShadeScore(sh,x,y){
 /* Shade only changes when the model, day/season, rotation, or plot size
    changes. Cache it per tile so render-time plant stunting, canopy washes, and
    shade overlays are table lookups instead of plant x tree x sun-sample math. */
-let shadeMapCache={key:null, plantsRef:null, activeScore:null, activeAlpha:null,
-  futureScore:null, futureDrawScore:null, activeTree:null, futureTree:null};
-function shadeMapIndex(x,y){ return y*GW+x; }
-function shadeMapKey(){ return game.rev+'|'+game.rot+'|'+absDay()+'|'+GW+'x'+GH; }
-function resetShadeMapCache(){
-  shadeMapCache={key:null, plantsRef:null, activeScore:null, activeAlpha:null,
+/* two slots: `shadeMapCache` is the DISPLAY map (effectiveEstab — what washes,
+   stunting, the plan, and cards show); `shadeMapCacheReal` is the RULES map
+   (true establishment — what shadeAt/placement guards read). Outside the
+   Established preview the two are identical, so the real path aliases the
+   display slot and the second map is never built. */
+function emptyShadeCache(){
+  return {key:null, plantsRef:null, activeScore:null, activeAlpha:null,
     futureScore:null, futureDrawScore:null, activeTree:null, futureTree:null};
 }
-function ensureShadeMap(){
-  const key=shadeMapKey(), n=Math.max(0,GW*GH);
-  if (shadeMapCache.key===key && shadeMapCache.plantsRef===game.plants &&
-      shadeMapCache.activeScore && shadeMapCache.activeScore.length===n) return shadeMapCache;
+let shadeMapCache=emptyShadeCache(), shadeMapCacheReal=emptyShadeCache();
+function shadeMapIndex(x,y){ return y*GW+x; }
+function shadeMapKey(real){ return game.rev+'|'+game.rot+'|'+absDay()+'|'+GW+'x'+GH+
+  ((!real && establishedPreviewActive())?'|est':''); }
+function resetShadeMapCache(){
+  shadeMapCache=emptyShadeCache(); shadeMapCacheReal=emptyShadeCache();
+}
+function ensureShadeMap(real){
+  real = !!real && establishedPreviewActive();   // maps coincide outside the preview
+  const key=shadeMapKey(real), n=Math.max(0,GW*GH);
+  const cached = real ? shadeMapCacheReal : shadeMapCache;
+  if (cached.key===key && cached.plantsRef===game.plants &&
+      cached.activeScore && cached.activeScore.length===n) return cached;
   const activeScore=new Float32Array(n), activeAlpha=new Float32Array(n);
   const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
   const activeTree=new Array(n), futureTree=new Array(n);
   let trees=0;   // hasShade lets the render wash loop skip treeless gardens entirely
   for (const k in game.plants){ const p=game.plants[k];
     if (!p || p.removed) continue;
-    const sh=treeShadeInfo(k,p);
+    const sh=treeShadeInfo(k,p,real);
     if (!sh || sh.r<1) continue;
     trees++;
     const reach=treeShadeReach(sh);
@@ -458,9 +478,10 @@ function ensureShadeMap(){
         futureDrawScore[idx]=score;
     }
   }
-  shadeMapCache={key, plantsRef:game.plants, activeScore, activeAlpha,
+  const built={key, plantsRef:game.plants, activeScore, activeAlpha,
     futureScore, futureDrawScore, activeTree, futureTree, hasShade:trees>0};
-  return shadeMapCache;
+  if (real) shadeMapCacheReal=built; else shadeMapCache=built;
+  return built;
 }
 function shadeScoreAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return 0;
@@ -474,9 +495,9 @@ function shadeFutureDrawScoreAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return 0;
   return ensureShadeMap().futureDrawScore[shadeMapIndex(x,y)]||0;
 }
-function shadeInfoAt(x,y,includeFuture){
+function shadeInfoAt(x,y,includeFuture,real){
   if (x<0||y<0||x>=GW||y>=GH) return null;
-  const m=ensureShadeMap(), idx=shadeMapIndex(x,y);
+  const m=ensureShadeMap(real), idx=shadeMapIndex(x,y);
   const active=m.activeTree[idx];
   if (active) return Object.assign({score:m.activeScore[idx],active:true},active);
   if (includeFuture){
@@ -485,8 +506,8 @@ function shadeInfoAt(x,y,includeFuture){
   }
   return null;
 }
-function shadeAt(x,y){
-  const sh=shadeInfoAt(x,y,false);
+function shadeAt(x,y){ // placement-rule helper: always TRUE establishment
+  const sh=shadeInfoAt(x,y,false,true);
   return sh&&sh.p;
 }
 function tileSeed(x,y){ return (x*73856093 ^ y*19349663)>>>0; }
