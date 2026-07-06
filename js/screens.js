@@ -161,7 +161,7 @@ function drawWorldThumb(cvs, s){
       let P=null; try{ P=plantDef(p.s,p.v); }catch(e){}
       if (!P || !P.sea) continue;
       const S=P.sea.Summer||P.sea.Spring||P.sea.Fall||P.sea.Winter||{};
-      const woody=P.type==='tree'||P.type==='shrub';
+      const woody=isWoodyDef(P);
       g.fillStyle=S.fol||S.bloom||S.seed||'#6f8f5a';
       const r=Math.max(woody?2:1, sc*(woody?(woodyBoost||1.3):0.5));
       g.beginPath(); g.arc(ox+(x+0.5)*sc, oy+(y+0.5)*sc, r, 0, 7); g.fill();

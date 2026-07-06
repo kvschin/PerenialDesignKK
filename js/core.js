@@ -228,10 +228,21 @@ function plantDef(key,v){
   return _defCache[ck]=d;
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }
-function shrubVisualCw(P){
-  if (!isShrubDef(P)) return P && P.cw;
-  const realWidth=((P.spread||P.space||TILE_IN)/TILE_IN)*TILE_W*0.50;
-  return Math.max(P.cw||0, realWidth);
+function isTreeDef(P){ return P && P.type==='tree'; }
+function isWoodyDef(P){ return isShrubDef(P) || isTreeDef(P); }
+/* Woody spread is truth data (inches); h/cw are drawing hints. Keep the
+   spread->tile radius conversion here so shade, shrub footprints, plan marks,
+   and cards cannot drift into slightly different ideas of plant size. */
+function woodyRadiusTiles(P){
+  if (!isWoodyDef(P)) return 0;
+  const minRadius=isShrubDef(P) ? 0.45 : 0;
+  return Math.max(minRadius, ((P.spread||P.space||TILE_IN)/TILE_IN)/2);
+}
+function woodyVisualCw(P){
+  if (!P) return undefined;
+  if (!isWoodyDef(P)) return P.cw;
+  if (isTreeDef(P)) return P.cw; // T10 owns tree visual rescaling; keep behavior flat here.
+  return Math.max(P.cw||0, woodyRadiusTiles(P)*TILE_W);
 }
 function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;

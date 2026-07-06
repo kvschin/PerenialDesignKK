@@ -27,7 +27,7 @@ function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId))
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
 // which garden layer a planted tile belongs to (perennials vs woody)
 function plantLayerOf(p){ const P=p&&PLANTS[p.s];
-  return (P && (P.type==='shrub'||P.type==='tree')) ? 'woody' : 'perennials'; }
+  return isWoodyDef(P) ? 'woody' : 'perennials'; }
 // is a layer currently visible? hidden layers don't render and can't be edited
 function layerShown(name){ return game.layerVis[name]!==false; }
 const ENABLE_LAYER_EDIT_FOCUS = false; // kept for later; hidden now because visibility is the useful layer control
@@ -79,7 +79,7 @@ const TOOL_NONE={layer:null, brush:false, placement:false, paints:false, materia
 function toolMeta(t){ t=t||game.tool;
   if (TOOLS[t]) return TOOLS[t];
   const P=PLANTS[t];
-  if (P) return TOOL_PLANT[P.type==='bulb'?'bulbs':(P.type==='shrub'||P.type==='tree')?'woody':'perennials'];
+  if (P) return TOOL_PLANT[P.type==='bulb'?'bulbs':isWoodyDef(P)?'woody':'perennials'];
   return TOOL_NONE;
 }
 // the legacy predicates now just read the one table (kept for their many call sites)
@@ -1799,7 +1799,7 @@ function renderBrushBar(){
     bar.append(...parts);
     return;
   }
-  const woody = P && (P.type==='shrub' || P.type==='tree');
+  const woody = isWoodyDef(P);
   // Draw vs Drift is a no-op for woody plants (they always plant singly), so
   // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
   if (P && !woody) parts.push(seg([

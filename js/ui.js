@@ -147,13 +147,13 @@ function plantRoles(k){
   if (hasSeasonProp(P,'seed')) roles.add('winter'), roles.add('seedhead');
   if (P.native && ['grass','sedge','forb','bulb','water'].includes(P.type))
     roles.add('prairie'), roles.add('naturalistic');
-  if (P.native && ['shrub','tree'].includes(P.type)) roles.add('naturalistic');
+  if (P.native && isWoodyDef(P)) roles.add('naturalistic');
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
   if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
   if (P.type==='bulb') roles.add('bulbLayer'), roles.add('early'), roles.add('seasonal');
   if (P.type==='water') roles.add('wet'), roles.add('water'), roles.add('naturalistic');
-  if (P.type==='shrub') roles.add('structure');
-  if (P.type==='tree') roles.add('structure'), roles.add('canopy');
+  if (isShrubDef(P)) roles.add('structure');
+  if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');
   if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
   if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
   if (['globe','spike','drumstick','rosette','agave','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer'].includes(P.form))
@@ -195,7 +195,7 @@ function plantRoles(k){
   // deer & rabbit resistance: broad texture cues + the curated lists above.
   // Trees outgrow browse height, so the questionnaire exempts them and they
   // never carry the role here.
-  if (P.type!=='tree' && (
+  if (!isTreeDef(P) && (
         roles.has('grass') || roles.has('sedge') || roles.has('fern') ||
         roles.has('aromatic') || roles.has('silver') ||
         BROWSE_RESIST_GROUPS.has(group) || BROWSE_RESIST_KEYS.has(k))){
@@ -275,7 +275,7 @@ function plantFits(k){
   if (f.nativesOnly && !P.native) return false;
   if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
   const roles=plantRoles(k);
-  if (P.type!=='tree'){
+  if (!isTreeDef(P)){
     if (f.deer && !roles.includes('deerOk')) return false;
     if (f.rabbit && !roles.includes('rabbitOk')) return false;
   }
@@ -295,7 +295,7 @@ function paletteCount(sel){
     if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
     if (sel.nativesOnly && !P.native) continue;
     const roles=plantRoles(k);
-    if (P.type!=='tree'){
+    if (!isTreeDef(P)){
       if (sel.deer && !roles.includes('deerOk')) continue;
       if (sel.rabbit && !roles.includes('rabbitOk')) continue;
     }

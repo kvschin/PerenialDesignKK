@@ -413,8 +413,8 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const H=P.h*(0.25+0.75*growth);
   // the box must cover the whole drawing — woody canopies reach well above P.h
   // and wide of P.cw, so trees clip if we size from P.h alone.
-  const woody=P.type==='tree'||P.type==='shrub';
-  const canopy=(isShrubDef(P)?(shrubVisualCw(P)||50):(P.cw||80))*(0.3+0.7*growth);
+  const woody=isWoodyDef(P);
+  const canopy=(isShrubDef(P)?(woodyVisualCw(P)||50):(woodyVisualCw(P)||80))*(0.3+0.7*growth);
   const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62)+18;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):H*1.12)+26;
   const bot=18, s=pspriteScale();
@@ -505,7 +505,7 @@ function buildScene(W,H){
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (layerShown('woody')){
       const shrub=shrubInfoFromKey(k);
-      if (shrub){ shrub.cullR=Math.ceil(shrubRadiusTiles(plantDef(p.s,p.v)))+1; shrubs.push(shrub); }
+      if (shrub){ shrub.cullR=Math.ceil(woodyRadiusTiles(plantDef(p.s,p.v)))+1; shrubs.push(shrub); }
     }
     const sh=treeShadeInfo(k,p);
     if (sh && sh.r>=1){ sh.reach=treeShadeReach(sh); (sh.activePotential?shadeTrees:futureShadeTrees).push(sh); }
@@ -519,7 +519,7 @@ function buildScene(W,H){
   ensureShadeMap();
   for (const rec of plantRecs){
     const P2=PLANTS[rec.p.s];
-    if (P2 && P2.sun!=='part' && P2.type!=='tree')
+    if (P2 && P2.sun!=='part' && !isTreeDef(P2))
       rec.stunt=shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
   }
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
@@ -726,7 +726,7 @@ function render(t){
     let mode='hover';
     if (isPlacementTool(game.tool) && game.tool!=='house'){  // placement tools are blocked by a shrub here; house ghosts instead
       mode='blocked';
-      if (PLANTS[game.tool] && plantDef(game.tool,game.toolVar).type==='shrub'){
+      if (PLANTS[game.tool] && isShrubDef(plantDef(game.tool,game.toolVar))){
         const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
         if (canPlaceShrubAt(txh,tyh,draft).ok) mode='hover';
       }
@@ -745,12 +745,12 @@ function render(t){
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
   if (game.hoverTile && PLANTS[game.tool]){
     const def=plantDef(game.tool,game.toolVar);
-    if (def && def.type==='shrub'){
+    if (isShrubDef(def)){
       const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
       const ok=canPlaceShrubAt(txh,tyh,draft).ok;
       drawShrubFootprint(cx,W,H,{x:txh,y:tyh,p:draft},ok?'hover':'blocked');
     }
-    if (def && def.sun!=='part' && def.type!=='tree' && def.type!=='bulb'){
+    if (def && def.sun!=='part' && !isTreeDef(def) && def.type!=='bulb'){
       const [txh,tyh]=game.hoverTile;
       // red only where placement will actually refuse (true establishment);
       // preview-mature or future canopies warn amber-dashed instead

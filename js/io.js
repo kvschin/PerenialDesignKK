@@ -406,7 +406,7 @@ function planComponents(){
   const live={};
   for (const k in game.plants){ const p=game.plants[k]; if (!p.removed){
     const [x,y]=k.split(',').map(Number), def=plantDef(p.s,p.v);
-    if (def.type==='shrub') shrubFootprintTiles(x,y,p,true).forEach(([xx,yy])=>{ if (!live[`${xx},${yy}`]) live[`${xx},${yy}`]=p; });
+    if (isShrubDef(def)) shrubFootprintTiles(x,y,p,true).forEach(([xx,yy])=>{ if (!live[`${xx},${yy}`]) live[`${xx},${yy}`]=p; });
     else live[k]=p;
   } }
   const seen={}, comps=[];
@@ -537,7 +537,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
   const pts=c.tiles.map(k=>k.split(',').map(Number));
   const code=codes[c.s+'|'+(c.v||'')];
   const shape=(def.look&&def.look.shape)||'round';
-  const r=Math.max(cell*0.42,(def.spread/TILE_IN/2)*cell);
+  const r=Math.max(cell*0.42,woodyRadiusTiles(def)*cell);
   ctx.save();
   ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=1.25;
   if (!c.hedge){
@@ -753,7 +753,7 @@ function buildPlanMap(){
   };
   comps.forEach(c=>{
     const def=plantDef(c.s,c.v);
-    if (def.type==='tree') return; // trees become canopy circles below
+    if (isTreeDef(def)) return; // trees become canopy circles below
     const col=planColor(def);
     const loops=traceOutlines(new Set(c.tiles));
     loops.forEach(loop=>{
@@ -767,7 +767,7 @@ function buildPlanMap(){
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
     const def=plantDef(p.s,p.v);
-    if (def.type!=='tree') continue;
+    if (!isTreeDef(def)) continue;
     const [x,y]=k.split(',').map(Number);
     // canopy sized to the tree's effective reach: establishment-scaled in the
     // Today view (a young tree draws a small circle, growing as it ages), full
@@ -801,7 +801,7 @@ function buildPlanMap(){
   ctx.textAlign='center';
   comps.forEach(c=>{
     const def=plantDef(c.s,c.v);
-    if (def.type==='tree'){ var lt=c.tiles[0].split(',').map(Number);
+    if (isTreeDef(def)){ var lt=c.tiles[0].split(',').map(Number);
       var lx=X(lt[0])+cell/2, ly=Y(lt[1])-cell*0.4; }
     else {
       let sx=0,sy=0;

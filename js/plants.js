@@ -38,8 +38,8 @@
            perennials use 10 growing days; a bur oak uses 10 years).
            Woody plants skip the spring cutback; they are structure.
    cw      woody only: mature canopy/twig width in px for the renderer
-           (real-world spread stays in `spread`; trees shade a radius of
-           spread/TILE_IN/2 tiles as they establish, and only sun:'part'
+           (real-world spread stays in `spread`; trees shade a radius from
+           `woodyRadiusTiles(P)` as they establish, and only sun:'part'
            plants can be planted in that shade)
    h       mature height in px (drives the renderer, not real units)
    space   on-center planting distance in inches (what you'd order/space by)

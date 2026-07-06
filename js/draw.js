@@ -15,7 +15,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
-  const shadowW = isShrubDef(P) ? shrubVisualCw(P) : P.cw;
+  const shadowW = woodyVisualCw(P);
   const shR = (shadowW ? shadowW*0.42 : 14)*growth + 6;
   drawSoftShadow(ctx,0,3,shR,shR*0.36+1.8,P.cw?0.19:0.15);
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
@@ -1015,7 +1015,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'bush'){ // woody shrub: twigs hold through winter
     const L=P.look||{};
-    const cw=(shrubVisualCw(P)||50)*(0.35+0.65*growth);
+    const cw=(woodyVisualCw(P)||50)*(0.35+0.65*growth);
     if (L.clip){
       const fol=S.fol||S.seed||'#4f6f45', shape=L.shape||'round';
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=0;
@@ -1150,7 +1150,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub
     const L = P.look||{}, panicle = L.bloomShape==='panicle', lacecap = L.bloomShape==='lacecap';
-    const cw=(shrubVisualCw(P)||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
+    const cw=(woodyVisualCw(P)||70)*(0.4+0.6*growth), tn=stemFor(6), tips=[];
     ctx.strokeStyle='#6e5a48'; ctx.lineWidth=2; ctx.lineCap='round';
     for (let i=0;i<tn;i++){
       const a=(i/(tn-1)-0.5)*1.3+(rnd()-0.5)*0.2;
@@ -1205,9 +1205,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   if (!AMBIENCE[season].snow && S.fol && growth>0.28){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
-    ctx.save(); ctx.globalAlpha=P.type==='tree'?0.16:0.13;
-    ctx.strokeStyle=col; ctx.lineWidth=P.type==='tree'?1.2:0.9; ctx.lineCap='round';
-    const n=P.type==='tree'?5:3;
+    ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
+    ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';
+    const n=isTreeDef(P)?5:3;
     for (let i=0;i<n;i++){
       const px=(hl()-0.55)*(P.cw?P.cw*0.32:18), py=-H*(0.25+hl()*0.58);
       ctx.beginPath();
