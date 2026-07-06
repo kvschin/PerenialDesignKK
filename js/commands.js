@@ -673,12 +673,160 @@ function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
 function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
+// Selection moves validate against the post-move world: selected source tiles
+// are empty for moves, while selected destination shrubs/terrain already count.
+function liveSelectionValue(v){ return v && !v.removed ? v : null; }
+function selectionEmptySets(){
+  return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
+    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set()};
+}
+function selectionSourceSets(items,copy){
+  const out=selectionEmptySets();
+  if (copy) return out;
+  items.forEach(c=>{
+    const k=`${c.x},${c.y}`;
+    if (c.plant) out.plants.add(k);
+    if (c.bulb) out.bulbs.add(k);
+    if (c.terr) out.terrain.add(k);
+    if (c.elev) out.elevation.add(k);
+    if (c.fence) out.fences.add(k);
+    if (c.light) out.lights.add(k);
+    if (c.firepit) out.firepits.add(k);
+    if (c.boulder) out.boulders.add(k);
+  });
+  return out;
+}
+function selectionDestMaps(items,dst){
+  const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
+    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map()};
+  items.forEach(c=>{
+    const [x,y]=dst(c), k=`${x},${y}`;
+    if (c.plant) out.plants.set(k,Object.assign({x,y},c.plant));
+    if (c.bulb) out.bulbs.set(k,Object.assign({x,y},c.bulb));
+    if (c.terr) out.terrain.set(k,c.terr);
+    if (c.elev) out.elevation.set(k,c.elev);
+    if (c.fence) out.fences.set(k,c.fence);
+    if (c.light) out.lights.set(k,c.light);
+    if (c.firepit) out.firepits.set(k,Object.assign({x,y},c.firepit));
+    if (c.boulder) out.boulders.set(k,Object.assign({x,y},c.boulder));
+  });
+  return out;
+}
+function selectionValidationContext(items,dst,copy){
+  return {ignore:selectionSourceSets(items,copy), dest:selectionDestMaps(items,dst)};
+}
+function selectionIgnored(ctx,layer,k){ return !!(ctx && ctx.ignore[layer] && ctx.ignore[layer].has(k)); }
+function selectionDest(ctx,layer,k){ return ctx && ctx.dest[layer] && ctx.dest[layer].get(k); }
+function selectionTerrainKindAt(x,y,ctx){
+  const k=`${x},${y}`, d=selectionDest(ctx,'terrain',k);
+  if (liveSelectionValue(d)) return d.k;
+  if (selectionIgnored(ctx,'terrain',k)) return null;
+  return tileTerrain(x,y);
+}
+function selectionPlantAt(x,y,ctx,ownDestKey){
+  const k=`${x},${y}`, d=selectionDest(ctx,'plants',k);
+  if (liveSelectionValue(d) && k!==ownDestKey) return d;
+  if (selectionIgnored(ctx,'plants',k)) return null;
+  const cur=liveSelectionValue(game.plants[k]);
+  if (cur) return cur;
+  return null;
+}
+function selectionFenceAt(x,y,ctx){
+  const k=`${x},${y}`, d=selectionDest(ctx,'fences',k);
+  if (liveSelectionValue(d)) return d;
+  if (selectionIgnored(ctx,'fences',k)) return null;
+  return fenceAt(x,y);
+}
+function selectionLightAt(x,y,ctx){
+  const k=`${x},${y}`, d=selectionDest(ctx,'lights',k);
+  if (liveSelectionValue(d)) return d;
+  if (selectionIgnored(ctx,'lights',k)) return null;
+  return lightAt(x,y);
+}
+function selectionFirepitAt(x,y,ctx){
+  if (ctx) for (const [key,f] of ctx.dest.firepits){
+    if (!liveSelectionValue(f)) continue;
+    const sz=firepitTileSize(f);
+    if (x>=f.x && x<f.x+sz.w && y>=f.y && y<f.y+sz.h) return Object.assign({key},f);
+  }
+  const fp=firepitAt(x,y);
+  return fp && selectionIgnored(ctx,'firepits',fp.key) ? null : fp;
+}
+function selectionBoulderAt(x,y,ctx){
+  if (ctx) for (const [key,b] of ctx.dest.boulders){
+    if (!liveSelectionValue(b)) continue;
+    const sz=boulderTileSize(b);
+    if (x>=b.x && x<b.x+sz.w && y>=b.y && y<b.y+sz.h) return Object.assign({key},b);
+  }
+  const bo=boulderAt(x,y);
+  return bo && selectionIgnored(ctx,'boulders',bo.key) ? null : bo;
+}
+function selectionShrubAt(x,y,ctx,ownDestKey){
+  if (ctx) for (const [key,p] of ctx.dest.plants){
+    if (key===ownDestKey || !liveSelectionValue(p) || !isShrubDef(plantDef(p.s,p.v))) continue;
+    if (shrubClaimsTile(p.x,p.y,p,x,y,true)) return {key,p,x:p.x,y:p.y,center:key===`${x},${y}`};
+  }
+  return shrubAt(x,y,{ignoreKeys:ctx&&ctx.ignore.plants});
+}
+function selectionShrubDestValid(c,x,y,ctx){
+  const ownKey=`${x},${y}`, np=Object.assign({},c.plant);
+  for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
+    if (!selValidDest(xx,yy)) return false;
+    if (selectionFenceAt(xx,yy,ctx) || selectionLightAt(xx,yy,ctx) ||
+        selectionFirepitAt(xx,yy,ctx) || selectionBoulderAt(xx,yy,ctx)) return false;
+    const terr=selectionTerrainKindAt(xx,yy,ctx);
+    if (terr==='path'||terr==='water') return false;
+    const p=selectionPlantAt(xx,yy,ctx,ownKey);
+    if (p){
+      if (shrubHedgeCompatible(np,p) && Math.hypot(xx-x,yy-y)>=0.95) continue;
+      return false;
+    }
+    const other=selectionShrubAt(xx,yy,ctx,ownKey);
+    if (other){
+      if (shrubHedgeCompatible(np,other.p) && Math.hypot(other.x-x,other.y-y)>=0.95) continue;
+      return false;
+    }
+  }
+  return true;
+}
+function selectionTreeTrunkDestValid(c,x,y,ctx){
+  const k=`${x},${y}`;
+  if (!selValidDest(x,y)) return false;
+  if (selectionFenceAt(x,y,ctx) || selectionLightAt(x,y,ctx) ||
+      selectionFirepitAt(x,y,ctx) || selectionBoulderAt(x,y,ctx)) return false;
+  const terr=selectionTerrainKindAt(x,y,ctx);
+  if (terr==='path'||terr==='water') return false;
+  if (selectionPlantAt(x,y,ctx,k)) return false;
+  if (selectionShrubAt(x,y,ctx,k)) return false;
+  return true;
+}
+function selectionUnderplantDestValid(c,x,y,ctx){
+  const k=`${x},${y}`, p=selectionPlantAt(x,y,ctx,c.plant?k:null);
+  if (p && isWoodyDef(plantDef(p.s,p.v))) return false;
+  if (selectionShrubAt(x,y,ctx,c.plant?k:null)) return false;
+  return true;
+}
 function selItemValidDest(c,x,y){
   const sz=c.firepit ? firepitTileSize(c.firepit) : c.boulder ? boulderTileSize(c.boulder) : null;
   if (!sz) return selValidDest(x,y);
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++)
     if (!selValidDest(xx,yy)) return false;
   return true;
+}
+function selItemDestValid(c,x,y,ctx){
+  if (!selItemValidDest(c,x,y)) return false;
+  if (c.plant){
+    const P=plantDef(c.plant.s,c.plant.v);
+    if (isShrubDef(P)) return selectionShrubDestValid(c,x,y,ctx);
+    if (isTreeDef(P)) return selectionTreeTrunkDestValid(c,x,y,ctx);
+    return selectionUnderplantDestValid(c,x,y,ctx);
+  }
+  if (c.bulb) return selectionUnderplantDestValid(c,x,y,ctx);
+  return true;
+}
+function selectionDestinationsValid(items,dst,copy){
+  const ctx=selectionValidationContext(items,dst,copy);
+  return items.every(c=>{ const [x,y]=dst(c); return selItemDestValid(c,x,y,ctx); });
 }
 function cloneCell(c){ return JSON.parse(JSON.stringify(c)); }
 // snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, lights, and hardscape
@@ -855,8 +1003,8 @@ function commitSelectionOffset(dx,dy,copy){
   const items=game.selItems||[];
   if (!items.length) return false;
   const dst=c=>[c.x+dx,c.y+dy];
-  if (items.some(c=>{ const [x,y]=dst(c); return !selItemValidDest(c,x,y); })){
-    toast('That spot runs off the plot or into the house.'); return false;
+  if (!selectionDestinationsValid(items,dst,copy)){
+    toast('That spot is blocked for the selected plants or hardscape.'); return false;
   }
   withUndo(()=>selWrite(items, dst, !copy));
   items.forEach(c=>{ c.x+=dx; c.y+=dy; });   // the selection now owns the moved/copied tiles
@@ -875,8 +1023,8 @@ function rotateSelection(){
   const w=r.x1-r.x0+1, h=r.y1-r.y0+1;
   const nr={x0:r.x0,y0:r.y0,x1:r.x0+h-1,y1:r.y0+w-1};
   const rot=(x,y)=>[nr.x0+(r.y1-y), nr.y0+(x-r.x0)];
-  if (nr.x1>=GW || nr.y1>=GH || items.some(c=>{ const [x,y]=rot(c.x,c.y); return !selItemValidDest(c,x,y); })){
-    toast('Rotated selection would leave the plot.'); return;
+  if (nr.x1>=GW || nr.y1>=GH || !selectionDestinationsValid(items,c=>rot(c.x,c.y),false)){
+    toast('Rotated selection would be blocked.'); return;
   }
   withUndo(()=>selWrite(items, c=>rot(c.x,c.y), true));
   items.forEach(c=>{ const [nx,ny]=rot(c.x,c.y); c.x=nx; c.y=ny; });

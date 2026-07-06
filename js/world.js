@@ -247,12 +247,15 @@ function shrubInfoFromKey(k){
 function shrubAt(x,y,opts){
   opts=opts||{};
   const ignore=opts.ignoreKey||null;
+  const ignoreKeys=opts.ignoreKeys||null;
+  const ignored=k=>k===ignore || !!(ignoreKeys && (ignoreKeys.has ? ignoreKeys.has(k) : ignoreKeys[k]));
   const direct=livePlantKeyAt(x,y);
-  if (direct && direct!==ignore){
+  if (direct && !ignored(direct)){
     const sh=shrubInfoFromKey(direct);
     if (sh) return sh;
   }
   for (const k in game.plants){ if (k===ignore) continue;
+    if (ignored(k)) continue;
     const p=game.plants[k]; if (!p||p.removed) continue;
     if (!isShrubDef(plantDef(p.s,p.v))) continue;
     const [cx2,cy2]=k.split(',').map(Number);

@@ -951,12 +951,15 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     footprints for giants were scoped out (a real trunk is ~1 tile; visual
     mass is T10's job, not a rules footprint). Test: "trees soft-warn on
     crowded spacing but never block, and the trunk refuses underplanting".
-  - **T4 selection ops respect woody footprints** — `selValidDest`/
+  - *(built)* **T4 selection ops respect woody footprints** — `selValidDest`/
     `commitSelectionOffset`/`rotateSelection` validate moved shrubs (and T3
     trunks) like house placement already does (`shrubFootprintOverlapsRect`).
-  - **T11 QA** — each ticket lands with tests (T1's is
-    "established preview matures the display shade but never the placement
-    rules" in tests/game.test.js).
+    Test: "selection move validates shrub footprints and tree trunks".
+  - *(built/current)* **T11 QA** — woody tests now cover the landed rules:
+    T1's display/rules shade-map split plus scene stunting, T3's trunk refusal
+    and soft spacing warning message, T4's selection-move refusal, and the
+    existing tree plan canopy radius path. T6/T9-specific assertions should be
+    added with those tickets when their behavior exists.
 - **Phase 2 — make the model visible:**
   - **T5 placement ghost for trees/shrubs** — trunk diamond + dashed mature
     canopy + shade sweep before drop; on touch, anchored to the armed state

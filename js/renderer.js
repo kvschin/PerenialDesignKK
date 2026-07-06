@@ -1030,9 +1030,10 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selMove){                                    // moving/copying: ghost + valid/invalid tiles
     const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
     const items=game.selItems||[];
+    const selCtx=selectionValidationContext(items,c=>[c.x+dx,c.y+dy],selMove.copy);
     selDrawRect(cx,W,H,game.sel,'rgba(120,195,255,0.12)','rgba(150,210,255,0.45)');
     for (const c of items){
-      const nx=c.x+dx, ny=c.y+dy, ok=selItemValidDest(c,nx,ny);
+      const nx=c.x+dx, ny=c.y+dy, ok=selItemDestValid(c,nx,ny,selCtx);
       const [sx,sy]=screenOf(nx,ny,W,H);
       tileDiamond(cx,sx,sy, ok?'rgba(120,210,130,0.28)':'rgba(220,90,70,0.42)',
         ok?'rgba(150,235,150,0.7)':'rgba(240,120,100,0.85)');

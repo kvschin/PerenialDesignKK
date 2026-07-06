@@ -809,6 +809,39 @@ test('shrubs get their own rounded plan components', () => {
   assert(hydrangea && !hydrangea.hedge && hydrangea.tiles.length > 1, 'ordinary shrubs get mature rounded plan footprints');
 });
 
+test('tree plan canopy radius follows the established-preview display lens', () => {
+  setup(21, 21);
+  const tree = firstOfType('tree');
+  const def = plantDef(tree);
+  game.plants['10,10'] = { s: tree, d: absDay(), t: 1 };
+  const cell = Math.max(9, Math.min(24, Math.floor(1000 / Math.max(GW, GH))));
+  const oldGet = document.getElementById;
+  const planRadii = mode => {
+    const arcs = [];
+    const ctx = new Proxy({ arc(x, y, r){ arcs.push(r); } }, {
+      get(o, p){ return p in o ? o[p] : () => {}; },
+      set(o, p, v){ o[p] = v; return true; }
+    });
+    document.getElementById = id => id === 'planCanvas'
+      ? { getContext(){ return ctx; }, style: {} }
+      : oldGet.call(document, id);
+    try {
+      game.previewMode = mode;
+      buildPlanMap();
+    } finally {
+      document.getElementById = oldGet;
+    }
+    return arcs.sort((a, b) => b - a);
+  };
+  const today = planRadii('today')[0];
+  const established = planRadii('established')[0];
+  assertEqual(Math.round(today * 1000), Math.round(cell * 0.5 * 1000),
+    'fresh tree plan circle bottoms out at the trunk-readable minimum today');
+  assertEqual(Math.round(established * 1000), Math.round(woodyRadiusTiles(def) * cell * 1000),
+    'established preview plan circle uses mature woody radius');
+  assert(established > today, 'established preview plan circle grows from today');
+});
+
 test('shade overlay marks the layer view active; night does not (night is a top-bar toggle)', () => {
   setup(13, 13);
   assert(!layerViewActive(), 'default layer view is inactive');
@@ -838,6 +871,41 @@ test('selection move shifts owned items and is refused off-plot', () => {
   const before = JSON.stringify(game.plants);
   assert(!commitSelectionOffset(-99, -99, false), 'off-plot move refused');
   assertEqual(JSON.stringify(game.plants), before, 'refused move left state untouched');
+});
+
+test('selection move validates shrub footprints and tree trunks', () => {
+  setup(20, 20);
+  game.plants['4,4'] = { s: 'sumac', d: 0, t: 1 };
+  game.terrain['8,4'] = { k: 'path', c: 'warm', t: 1 };
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 };
+  game.selItems = selectionPayload(game.sel);
+  let dst = c => [c.x + 4, c.y];
+  let ctx = selectionValidationContext(game.selItems, dst, false);
+  assert(!selItemDestValid(game.selItems[0], 8, 4, ctx), 'move ghost marks shrub-over-path invalid');
+  let before = JSON.stringify({ plants: game.plants, terrain: game.terrain, sel: game.sel });
+  assert(!commitSelectionOffset(4, 0, false), 'shrub move onto path refused');
+  assertEqual(JSON.stringify({ plants: game.plants, terrain: game.terrain, sel: game.sel }), before,
+    'path-blocked shrub move leaves state untouched');
+
+  setup(20, 20);
+  game.plants['4,4'] = { s: 'sumac', d: 0, t: 1 };
+  game.plants['10,4'] = { s: 'hydrangea', d: 0, t: 1 };
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 };
+  game.selItems = selectionPayload(game.sel);
+  before = JSON.stringify({ plants: game.plants, sel: game.sel });
+  assert(!commitSelectionOffset(4, 0, false), 'shrub move into another mature shrub footprint refused');
+  assertEqual(JSON.stringify({ plants: game.plants, sel: game.sel }), before,
+    'shrub-over-shrub move leaves state untouched');
+
+  setup(20, 20);
+  game.plants['8,8'] = { s: firstOfType('tree'), d: 0, t: 1 };
+  game.plants['5,5'] = { s: firstOfType('grass'), d: 0, t: 2 };
+  game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 };
+  game.selItems = selectionPayload(game.sel);
+  before = JSON.stringify({ plants: game.plants, sel: game.sel });
+  assert(!commitSelectionOffset(3, 3, false), 'perennial move onto a tree trunk refused');
+  assertEqual(JSON.stringify({ plants: game.plants, sel: game.sel }), before,
+    'tree-trunk-blocked move leaves state untouched');
 });
 
 test('selection rotation returns mixed-parity selections after four turns', () => {
@@ -1226,6 +1294,8 @@ test('established preview matures the display shade but never the placement rule
   assert(canopyRadius(p) > 1, 'preview: display canopy jumps to mature reach');
   assertEqual(canopyRadius(p, true), 0, 'preview: real canopy still zero');
   assert(shadeScoreAt(10, 9) >= SHADE_ACTIVE_SCORE, 'preview: display shade map is active north of the trunk');
+  assertEqual(ensureShadeMap(true).activeScore[shadeMapIndex(10, 9)] || 0, 0,
+    'preview: real/rules shade map stays unshaded for a fresh tree');
   assert(shadeInfoAt(10, 9, false) && shadeInfoAt(10, 9, false).active, 'preview: display info reports active shade');
   assert(!shadeAt(10, 9), 'preview: the placement-rule helper sees no shade');
   // ...so placing a full-sun perennial under the shown canopy still succeeds
@@ -1233,10 +1303,16 @@ test('established preview matures the display shade but never the placement rule
   game.tool = forb; game.toolVar = null;
   assertEqual(placePlantAt(10, 9), 'plant', 'preview: full-sun placement is legal under preview-only shade');
   assert(shadeScoreAt(10, 9) >= SHADE_ACTIVE_SCORE, 'preview: the placed plant reads as shaded for display (stunting)');
+  buildScene(800, 600);
+  const shadedRec = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 10 && e.y === 9);
+  assert(shadedRec && shadedRec.stunt === true, 'preview: scene stunting follows display shade');
   // toggling back to Today reverts every display consumer
   game.previewMode = 'today';
   assertEqual(canopyRadius(p), 0, 'back to today: display canopy shrinks to real establishment');
   assertEqual(shadeScoreAt(10, 9), 0, 'back to today: display shade gone');
+  buildScene(800, 600);
+  const todayRec = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 10 && e.y === 9);
+  assert(todayRec && todayRec.stunt === false, 'today: scene stunting clears with display shade');
   // the scene list rebuilds across the toggle (shade trees + stunting live in it)
   game.previewMode = 'established';
   const kEst = sceneKey();
@@ -1257,6 +1333,8 @@ test('trees soft-warn on crowded spacing but never block, and the trunk refuses 
   assertEqual(placePlantAt(cx + 1, cy), 'plant', 'adjacent same-species tree still places');
   const crowd = nearestTreeCrowder(cx + 1, cy, def, `${cx + 1},${cy}`);
   assert(crowd && crowd.x === cx && crowd.y === cy, 'crowder scan finds the neighbor inside the spacing');
+  const warn = treePlacedMessage(def, cx + 1, cy, `${cx + 1},${cy}`);
+  assert(warn.includes('crowds') && warn.includes('ft apart'), 'crowded tree placement returns a soft warning message');
   // a tree planted well beyond its spacing is not flagged as crowded
   const fx = cx + Math.ceil(spanT) + 2;
   assert(fx < GW, 'far test tile fits the plot');
