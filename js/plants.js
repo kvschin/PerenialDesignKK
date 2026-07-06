@@ -2,8 +2,9 @@
    HORTUS PERENNIS — species data
    =====================================================
    Each entry is the contract the rest of the game renders and plans
-   against. drawPlant() uses: form, h, sea, stem. The planner features
-   use: type, space, spread, zones, native, sun, moist.
+   against. drawPlant() uses px-art fields: form, h, cw, sea, stem.
+   Planner/rules/export features use inches-truth and site fields:
+   type, space, spread, grow, zones, native, sun, moist.
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
            moorgrass | fountaingrass | forestgrass |
@@ -20,7 +21,7 @@
            clipped evergreen forms via look.clip/look.shape/look.hedge) |
            hydrangea (mophead/panicle shrub; look.bloomShape 'mop'|'panicle',
            look.headR sizes the flower heads) | tree (deciduous) | conifer
-   type    grass | sedge | forb | bulb | shrub | tree — drives the tray
+   type    grass | sedge | forb | bulb | water | shrub | tree - drives the tray
            categories. Bulbs live in their own layer (game.bulbs): they
            share tiles with perennials, bloom in earliest spring while
            the layer above is cut back, and vanish underground by summer
@@ -37,13 +38,14 @@
    grow    woody only: years to mature size (establishment horizon —
            perennials use 10 growing days; a bur oak uses 10 years).
            Woody plants skip the spring cutback; they are structure.
-   cw      woody only: mature canopy/twig width in px for the renderer
-           (real-world spread stays in `spread`; trees shade a radius from
-           `woodyRadiusTiles(P)` as they establish, and only sun:'part'
-           plants can be planted in that shade)
-   h       mature height in px (drives the renderer, not real units)
-   space   on-center planting distance in inches (what you'd order/space by)
-   spread  mature clump width in inches (info card / export notes)
+   cw      px-art: woody canopy/twig width for the renderer via
+           `woodyVisualCw(P)`. It is not shade reach or footprint size.
+   h       px-art: mature render height. It is not a real-world height,
+           footprint, shade, order, or spacing unit.
+   space   inches-truth: on-center planting distance (what you'd order/space by)
+   spread  inches-truth: mature clump/crown width. For woody plants this is
+           the only source for `woodyRadiusTiles(P)`, which drives shrub
+           reservations, tree shade/canopy rings, plan circles, and overlays.
    zones   [min,max] USDA hardiness range
    native  true if the straight species is native to North America;
            false for cultivars/hybrids of garden (non-native) origin
@@ -72,6 +74,23 @@
            fol (foliage), bloom (flower this season, omit for none),
            seed (persistent seedhead/structure — fall/winter presence is
            the whole point), eye (cone center, coneflowers only)
+
+   Footprint policy:
+   - Herbaceous plants occupy one plant tile; `space` drives matrix/export
+     spacing and `spread` is mature-width metadata.
+   - Bulbs occupy one bulb-layer tile and may share non-woody plant tiles,
+     but not a woody trunk or mature shrub reservation.
+   - Shrubs reserve a mature rounded footprint from
+     `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from
+     `spread`. Compatible clipped hedges may connect edge-to-edge.
+   - Trees have one hard trunk tile. Canopy is visual/shade/soft-warning
+     space, not an occupancy footprint; mature rings and shade still use
+     `woodyRadiusTiles(P)`, never `cw`.
+
+   `effectiveEstab(p)` is a display lens only: real establishment normally,
+   maturity in Design mode's Established preview. Visuals may read it; placement
+   legality reads true establishment (except shrubs, which reserve mature size
+   by policy).
 
    Accuracy matters more than prettiness — Kevin grows these.
 */

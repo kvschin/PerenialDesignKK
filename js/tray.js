@@ -761,7 +761,7 @@ function promptRevealLayer(layer,x,y){
     `The ${label} layer is hidden right now, so you can't see what you place there. Show it and plant?`,
     'Show layer',
     ()=>{
-      game.layerVis[layer]=true; refreshCanvasTools();
+      setLayerVis(layer,true); refreshCanvasTools();
       withUndo(()=>{
         if (game.tool==='house'){ placeHouse(x,y); }
         else { game.tx=x; game.ty=y; actHere(); }
@@ -771,7 +771,7 @@ function promptRevealLayer(layer,x,y){
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
   return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade ||
-    game.layerVis.moisture || game.layerVis.height || game.layerVis.edgeRulers ||
+    game.layerVis.moisture || game.layerVis.height || game.layerVis.matureCanopies || game.layerVis.edgeRulers ||
     LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
@@ -851,29 +851,32 @@ function buildLayerPopover(){
   };
   section('Visible');
   const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) &&
-    !game.layerVis.shade && !game.layerVis.moisture && !game.layerVis.height && !game.layerVis.edgeRulers;
+    !game.layerVis.shade && !game.layerVis.moisture && !game.layerVis.height &&
+    !game.layerVis.matureCanopies && !game.layerVis.edgeRulers;
   const allRow=document.createElement('button');
   allRow.className='layer-row'+(allVisible()?' sel':'');
   allRow.title='Show the normal full garden';
   const allName=document.createElement('span'); allName.className='layer-name'; allName.textContent='All';
   allRow.append(eyeIcon(allVisible()),allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
-    LAYER_DEFS.forEach(([key])=>{ game.layerVis[key]=true; });
-    game.layerVis.shade=false; game.layerVis.moisture=false; game.layerVis.height=false; game.layerVis.edgeRulers=false;
+    LAYER_DEFS.forEach(([key])=>{ setLayerVis(key,true,false); });
+    ['shade','moisture','height','matureCanopies','edgeRulers'].forEach(key=>setLayerVis(key,false,false));
+    persistLayerVis();
     refreshCanvasTools(); toast('All layers shown.'); };
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
-    ()=>layerShown(key), v=>{ game.layerVis[key]=v; }, LAYER_LABELS[key]));
+    ()=>layerShown(key), v=>{ setLayerVis(key,v); }, LAYER_LABELS[key]));
   if (ENABLE_LAYER_EDIT_FOCUS){
     section('Edit');
     focusRow('all','All');
     LAYER_DEFS.forEach(([key])=>focusRow(key,LAYER_LABELS[key]));
   }
   section('Overlays');
-  row(()=>!!game.layerVis.shade, v=>{ game.layerVis.shade=v; }, 'Shade Overlay');
-  row(()=>!!game.layerVis.moisture, v=>{ game.layerVis.moisture=v; }, 'Moisture Overlay');
-  row(()=>!!game.layerVis.height, v=>{ game.layerVis.height=v; }, 'Height Overlay');
-  row(()=>!!game.layerVis.edgeRulers, v=>{ game.layerVis.edgeRulers=v; }, 'Edge Rulers');
+  row(()=>!!game.layerVis.shade, v=>{ setLayerVis('shade',v); }, 'Shade Overlay');
+  row(()=>!!game.layerVis.moisture, v=>{ setLayerVis('moisture',v); }, 'Moisture Overlay');
+  row(()=>!!game.layerVis.height, v=>{ setLayerVis('height',v); }, 'Height Overlay');
+  row(()=>!!game.layerVis.matureCanopies, v=>{ setLayerVis('matureCanopies',v); }, 'Mature Canopies');
+  row(()=>!!game.layerVis.edgeRulers, v=>{ setLayerVis('edgeRulers',v); }, 'Edge Rulers');
   return pop;
 }
 function trayViewKey(cat=game.trayCat,drill=game.drill){

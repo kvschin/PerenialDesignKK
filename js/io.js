@@ -35,6 +35,7 @@ async function saveSolo(silent){
     mode:game.gameMode,design:game.design,
     gw:GW,gh:GH,rot:game.rot,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
+    layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
@@ -70,6 +71,7 @@ async function loadSolo(id){
   game.design = s.design || null;
   game.previewMode = s.previewMode || (game.gameMode==='design' ? 'established' : 'today');
   game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
+  game.layerVis = normalizeLayerVis(s.layerVis);
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
@@ -109,6 +111,7 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+  game.layerVis=defaultLayerVis();
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
@@ -131,6 +134,7 @@ async function joinWorld(code){
     : Math.max(0,Date.now()-(meta.startTs||Date.now()));
   game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
+  game.layerVis=defaultLayerVis();
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};

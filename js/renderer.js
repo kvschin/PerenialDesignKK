@@ -513,6 +513,37 @@ function drawTreePlacementGhost(ctx,W,H,x,y,key,v){
   ctx.restore();
   return true;
 }
+function drawMatureCanopyRing(ctx,W,H,x,y,p){
+  const P=p && plantDef(p.s,p.v);
+  if (!isWoodyDef(P)) return false;
+  const r=woodyRadiusTiles(P);
+  if (r<=0) return false;
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  ctx.save();
+  ctx.setLineDash([7,5]);
+  ctx.lineWidth=1.4;
+  ctx.strokeStyle=isTreeDef(P) ? 'rgba(246,220,156,0.74)' : 'rgba(199,221,158,0.70)';
+  ctx.beginPath();
+  ctx.ellipse(sx,cy,(TILE_W/2)*r,(TILE_H/2)*r,0,0,7);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
+  if (!game.layerVis.matureCanopies || !layerShown('woody')) return 0;
+  let n=0;
+  for (const k in game.plants){
+    const p=game.plants[k];
+    if (!p || p.removed) continue;
+    const P=plantDef(p.s,p.v);
+    if (!isWoodyDef(P)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    const reach=Math.ceil(woodyRadiusTiles(P));
+    if (x+reach<x0 || x-reach>x1 || y+reach<y0 || y-reach>y1) continue;
+    if (drawMatureCanopyRing(ctx,W,H,x,y,p)) n++;
+  }
+  return n;
+}
 /* ---------- persistent scene list (perf) ----------
    Between edits nothing on the ground moves: an entity's depth changes only on
    edit / rotation / layer toggle / the game day. The old gather allocated a
@@ -763,6 +794,7 @@ function render(t){
       tileDiamond(cx,sx,sy,col,null);
     }
   }
+  if (game.layerVis.matureCanopies) drawMatureCanopyOverlay(cx,W,H,x0,x1,y0,y1);
   if (game.layerVis.moisture) drawMoistureOverlay(cx,W,H,x0,x1,y0,y1);
   if (game.layerVis.height) drawHeightOverlay(cx,W,H,x0,x1,y0,y1);
   dmark('shade',tShade);

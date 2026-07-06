@@ -23,8 +23,7 @@ function setup(gw, gh){
   game.groundRev = 0; game.terrainRev = 0;
   cam.x = 0; cam.y = 0;
   game.focusPlantKey = null; game.shrubFx = [];
-  game.layerVis = { perennials: true, bulbs: true, woody: true, landscape: true,
-    shade: false, moisture: false, height: false, edgeRulers: false, night: false };
+  game.layerVis = defaultLayerVis();
   game.layerFocus = 'all';
   game.ruler = null;
   game.sel = null; game.selItems = null; game.selMode = 'move';
@@ -115,14 +114,26 @@ test('selection measurement labels prefer feet but keep one tile as inches', () 
 test('layer overlay flags mark layer view as active', () => {
   setup();
   assert(!layerViewActive(), 'normal full garden is not a special layer view');
+  assertEqual(game.layerVis.matureCanopies, false, 'mature canopies overlay defaults off');
   game.layerVis.moisture = true;
   assert(layerViewActive(), 'moisture overlay is an active layer view');
   game.layerVis.moisture = false;
   game.layerVis.height = true;
   assert(layerViewActive(), 'height overlay is an active layer view');
   game.layerVis.height = false;
+  game.layerVis.matureCanopies = true;
+  assert(layerViewActive(), 'mature canopies overlay is an active layer view');
+  game.layerVis.matureCanopies = false;
   game.layerVis.edgeRulers = true;
   assert(layerViewActive(), 'edge rulers overlay is an active layer view');
+});
+
+test('layer visibility migration adds mature canopies off and drops unknown flags', () => {
+  const vis = normalizeLayerVis({ woody: false, shade: true, mystery: true });
+  assertEqual(vis.woody, false, 'saved hidden woody layer is preserved');
+  assertEqual(vis.shade, true, 'saved overlay flag is preserved');
+  assertEqual(vis.matureCanopies, false, 'missing mature canopies flag defaults off');
+  assertEqual(vis.mystery, undefined, 'unknown layer visibility flags are not persisted');
 });
 
 test('hand tool pans only in design mode so visit taps can walk', () => {
@@ -1451,6 +1462,46 @@ test('tree placement ghost previews mature canopy and respects woody visibility'
   ellipses.length = 0;
   assert(!drawTreePlacementGhost(ctx, 800, 600, 10, 10, tree, null), 'tree ghost skips hidden woody layer');
   assertEqual(ellipses.length, 0, 'hidden woody layer draws no ghost ellipses');
+});
+
+test('mature canopies overlay draws dashed mature rings for all woody plants', () => {
+  setup(31, 31);
+  const tree = firstOfType('tree');
+  const shrub = firstOfType('shrub');
+  game.plants['10,10'] = { s: tree, d: absDay(), t: 1 };
+  game.plants['14,10'] = { s: shrub, d: absDay(), t: 2 };
+  const ellipses = [], dashes = [];
+  const ctx = new Proxy({
+    ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); },
+    setLineDash(v){ dashes.push(v.slice()); },
+  }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  assertEqual(drawMatureCanopyOverlay(ctx, 800, 600, 0, 30, 0, 30), 0,
+    'overlay flag off skips the woody scan');
+  assertEqual(ellipses.length, 0, 'overlay off draws no rings');
+
+  game.layerVis.matureCanopies = true;
+  assertEqual(drawMatureCanopyOverlay(ctx, 800, 600, 0, 30, 0, 30), 2,
+    'overlay draws one ring for each woody plant');
+  const treeR = woodyRadiusTiles(plantDef(tree));
+  const shrubR = woodyRadiusTiles(plantDef(shrub));
+  assertEqual(Math.round(ellipses[0].rx * 1000), Math.round((TILE_W / 2) * treeR * 1000),
+    'tree overlay width follows woodyRadiusTiles');
+  assertEqual(Math.round(ellipses[0].ry * 1000), Math.round((TILE_H / 2) * treeR * 1000),
+    'tree overlay depth follows woodyRadiusTiles');
+  assertEqual(Math.round(ellipses[1].rx * 1000), Math.round((TILE_W / 2) * shrubR * 1000),
+    'shrub overlay width follows woodyRadiusTiles');
+  assertEqual(Math.round(ellipses[1].ry * 1000), Math.round((TILE_H / 2) * shrubR * 1000),
+    'shrub overlay depth follows woodyRadiusTiles');
+  assert(dashes.filter(d => d.join(',') === '7,5').length >= 2, 'mature canopy rings are dashed');
+
+  game.layerVis.woody = false;
+  ellipses.length = 0;
+  assertEqual(drawMatureCanopyOverlay(ctx, 800, 600, 0, 30, 0, 30), 0,
+    'hidden woody layer skips mature canopy overlay');
+  assertEqual(ellipses.length, 0, 'hidden woody layer draws no canopy rings');
 });
 
 test('trees soft-warn on crowded spacing but never block, and the trunk refuses underplanting', () => {

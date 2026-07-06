@@ -195,8 +195,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    full by day 1.5, yellowing away by day 15, underground (growth 0,
    render-culled) the rest of the year; `bloomDay` sequences their bloom
    (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `woodyRadiusTiles(P)`
-   tiles (scaled by establishment); planting there is refused unless the
-   plant is `sun:'part'`. **Display vs rules (woody T1)**: `effectiveEstab(p)`
+   tiles, derived from real `spread` inches and scaled by establishment; never
+   use `cw` for shade or footprint radius. Planting in active true-establishment
+   shade is refused unless the plant is `sun:'part'` (T9 may soften that into a
+   warning, but the radius source stays the same). **Display vs rules (woody T1)**: `effectiveEstab(p)`
    is the display lens — real establishment normally, 1 under the design
    "Established" preview — and every establishment-derived *visual* reads it
    (shade washes + stunting, the plan sheet's canopy circles, shrub-footprint
@@ -332,6 +334,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     downloads the canvas PNG; the DOM HUD is excluded automatically).
     Full-sun plants under a tree canopy render stunted (growth × 0.45,
     `shadeTrees` precomputed per frame); the plant card says "Struggling".
+    Woody visual rings are separate from legality: placement ghosts,
+    plan circles, and the Mature Canopies overlay all draw dashed mature crowns
+    from `woodyRadiusTiles(P)` (`spread` inches), while `drawPlant` keeps using
+    `h`/`cw` as px-art. `drawMatureCanopyOverlay` is flag-gated by
+    `game.layerVis.matureCanopies` and `layerShown('woody')`, so the off path
+    costs only that boolean check.
     Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
     math divides by it (`evPlacement`). Cost scales with screen size, not `GRID`.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
@@ -516,9 +524,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     blobs (quadratic midpoint spline + `planJitter` lattice wobble) tinted
     from `planColor`. A faint tile grid underlays the whole plot so bare ground
     reads as blank tiles. Trees → dashed canopy circles + trunk dot, the circle
-    sized to the tree's *current* reach (`canopyRadius`, establishment-scaled),
-    not full mature spread — a young tree draws a small circle, growing as it
-    ages; bulbs → scatter rings; house, fences/gates, paths/beds, title block,
+    sized to `canopyRadius()` through the display lens: Today shows current
+    reach, Established preview shows mature reach, and the legend says
+    "Dashed = mature crown". Shrub plan blobs use `woodyRadiusTiles(P)` from
+    `spread`; bulbs -> scatter rings; house, fences/gates, paths/beds, title block,
     north arrow, legend with `planCodes` (short genus/epithet abbreviations,
     unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
@@ -739,10 +748,10 @@ key: {
   name: 'Little Bluestem',
   latin: 'Schizachyrium scoparium',
   form: 'bunchgrass',          // drives the drawing branch
-  type: 'grass',               // grass | sedge | forb — tray grouping
-  h: 46,                       // mature height in px
-  space: 18,                   // on-center planting distance, inches
-  spread: 18,                  // mature clump width, inches
+  type: 'grass',               // grass | sedge | forb | bulb | water | shrub | tree
+  h: 46,                       // px-art: mature render height, not real height
+  space: 18,                   // inches-truth: on-center planting distance
+  spread: 18,                  // inches-truth: mature clump/crown width
   zones: [3,9],                // USDA hardiness range
   native: true,                // straight species native to the central US?
   sun: 'full',                 // full | part
@@ -750,7 +759,7 @@ key: {
   phen: 'warm',                // cool | mid | warm — spring wake order
   bloomMonths: [7,8,9],        // real-world bloom calendar months
   grow: 10,                    // woody only: years to mature size
-  cw: 150,                     // woody only: canopy/twig width in px
+  cw: 150,                     // px-art: woody canopy/twig drawing width
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)
   group: 'coneflower',         // optional: species sharing a group collapse
   chip: 'Pale Purple',         //   to one tray button; chips pick the species
@@ -766,12 +775,46 @@ key: {
 }
 ```
 
-`drawPlant` uses `form`/`h`/`sea`/`stem`; the rest feeds the planner features
-(export sheet, plant filters, plant card). Per-season keys: `fol` (foliage),
+`drawPlant` uses `form`/`h`/`cw`/`sea`/`stem`; planner/rules features use
+`type`/`space`/`spread`/`grow` plus the site data. Valid `type` values are
+`grass`, `sedge`, `forb`, `bulb`, `water`, `shrub`, and `tree`. Per-season keys:
+`fol` (foliage),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
 coneflowers only). `bloomMonths` drives the real-world Bloom Calendar; keep
 `bloomDay` for in-game staggered seasonal animation.
+
+### Units and footprint policy
+
+The plant model deliberately separates **inches-truth** from **px-art**. If a
+rule, export, plan, or footprint needs real size, it must read inches fields and
+convert through the shared helpers. If a renderer needs a pleasing sprite, it
+may read px-art fields. Do not let those two paths drift together again.
+
+| Field | Unit | Policy |
+| --- | --- | --- |
+| `space` | real inches | On-center planting distance. Used for export quantities, matrix spacing, spacing copy, and tree soft-spacing warnings. |
+| `spread` | real inches | Mature width. The source for woody crown/footprint radius through `woodyRadiusTiles(P)`; also used in cards/library/plan labels. |
+| `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing. It is not a footprint, shade, order, or spacing unit. Existing cards/height overlay may use it as a legacy height fallback until a true real-height field exists. |
+| `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)`. It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
+| `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
+
+Footprint rules are intentionally asymmetric:
+
+| Plant/object | Hard footprint | Soft or visual reach |
+| --- | --- | --- |
+| Herbaceous grasses/sedges/forbs/water plants | One plant tile, or a stored sub-tile art offset when free planting is on. They do not reserve `spread`. | `space` drives matrix/export spacing; `spread` is mature-width metadata. |
+| Bulbs | One bulb-layer tile. They may share with non-woody plants, but not a woody trunk or mature shrub reservation. | Seasonal bulb art comes from `bulbEnvelope()` and `bloomDay`. |
+| Shrubs | Mature rounded footprint from `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from `spread`. Paths, water, structures, bulbs, and perennials refuse it; compatible hedges may connect edge-to-edge. | Faint base/hover/focus/pulse/ghost rings reuse the same mature footprint. |
+| Trees | One hard trunk tile. Canopy area is deliberately open for underplanting except for the separate shade-suitability rule. | Shade, plan circles, placement ghosts, and the Mature Canopies overlay use `woodyRadiusTiles(P)` from `spread`; spacing is a soft warning from `space`. |
+
+`effectiveEstab(p)` is **display-only**: it equals true `plantEstab(p)` in
+normal views and `1` in Design mode's Established preview. Direct consumers
+include shade washes/stunting, tree plan circles, and shrub footprint styling;
+related mature ghosts/cards must match the same mature radius/copy contract
+without changing placement rules. Placement legality reads true establishment
+(or the explicit shrub mature-reservation policy above), so changing the preview
+never changes what can be planted.
 
 **To add a species:** add an entry in `plants.js`, reuse an existing `form` or
 add a new branch in `drawPlant`. It automatically appears in the tool tray
@@ -957,22 +1000,22 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     Test: "selection move validates shrub footprints and tree trunks".
   - *(built/current)* **T11 QA** — woody tests now cover the landed rules:
     T1's display/rules shade-map split plus scene stunting, T3's trunk refusal
-    and soft spacing warning message, T4's selection-move refusal, and the
-    existing tree plan canopy radius path. T6/T9-specific assertions should be
-    added with those tickets when their behavior exists.
+    and soft spacing warning message, T4's selection-move refusal, T5's
+    placement ghosts, T6's plan radius/legend path, and T8's mature canopy
+    overlay. T9-specific assertions should be added with that behavior.
 - **Phase 2 — make the model visible:**
-  - **T5 placement ghost for trees/shrubs** — trunk diamond + dashed mature
+  - *(built)* **T5 placement ghost for trees/shrubs** — trunk diamond + dashed mature
     canopy + shade sweep before drop; on touch, anchored to the armed state
     (no hover exists). Ghost must reuse the same radius function as placement.
-  - **T6 honest plan sheet** — done for canopy circles by T1 (they follow the
-    preview); remaining: optional faint canopy fill, "dashed = mature crown"
-    legend note, shrub blob radius from the T2 function.
-  - **T7 woody plant card + Library sizing** — lead with mature H×W in feet
-    (`dim()` exists), years-to-size, "crown covers ~N tiles"; Library's
+  - *(built)* **T6 honest plan sheet** - canopy circles use the display lens
+    (Today = current reach, Established = mature reach); the legend explains
+    dashed mature crowns, and shrub blobs use the T2 radius function.
+  - *(built)* **T7 woody plant card + Library sizing** — lead with mature H×W in feet
+    (`plantMeasure()`/`matureSizeText()`), years-to-size, "crown covers ~N tiles"; Library's
     Mature size line gains height.
-  - **T8 "Mature canopies" overlay toggle** — Layers→Overlays, dashed rings
+  - *(built)* **T8 "Mature canopies" overlay toggle** — Layers→Overlays, dashed rings
     for all woody at mature size; off by default, flag-gated like Shade.
-  - **T12 docs** — plants.js/CLAUDE.md document per-field units
+  - *(built)* **T12 docs** — plants.js/CLAUDE.md document per-field units
     (inches-truth: `space`/`spread`; px-art: `h`/`cw`) and footprint policy.
 - **Phase 3 — behavior changes and the big lifts:**
   - **T9 soft-warning policy** — full-sun-under-active-canopy becomes

@@ -86,6 +86,7 @@ function startDailyChallenge(){
   game.worldName=`Daily: "${c.title}"`;
   game.mode='solo'; game.gameMode='design'; game.visiting=false;
   game.previewMode='established';
+  game.layerVis=defaultLayerVis();
   game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
@@ -471,6 +472,7 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
+      game.layerVis=defaultLayerVis();
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
@@ -618,7 +620,7 @@ addEventListener('visibilitychange',()=>{
 });
 addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
 if ($('btnSleep')){ $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON); $('btnSleep').onclick=doSleep; }
-if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ game.layerVis.night=!game.layerVis.night;
+if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.layerVis.night);
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
 if ($('btnPause')) $('btnPause').onclick=toggleClock;

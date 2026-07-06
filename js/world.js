@@ -1,5 +1,39 @@
 'use strict';
 /* ---------- world / state ---------- */
+const DEFAULT_LAYER_VIS = Object.freeze({
+  perennials:true,
+  bulbs:true,
+  woody:true,
+  landscape:true,
+  shade:false,
+  moisture:false,
+  height:false,
+  matureCanopies:false,
+  edgeRulers:false,
+  night:false,
+});
+function defaultLayerVis(){ return Object.assign({}, DEFAULT_LAYER_VIS); }
+function normalizeLayerVis(vis){
+  const out=defaultLayerVis();
+  if (vis && typeof vis==='object'){
+    Object.keys(DEFAULT_LAYER_VIS).forEach(k=>{
+      if (vis[k]!==undefined) out[k]=!!vis[k];
+    });
+  }
+  return out;
+}
+function persistLayerVis(){
+  game.dirty=true;
+  if (game.mode==='solo' && hasStorage && typeof saveSolo==='function') saveSolo(true);
+}
+function setLayerVis(key,val,autosave){
+  if (!game.layerVis) game.layerVis=defaultLayerVis();
+  const next=!!val;
+  if (game.layerVis[key]===next) return false;
+  game.layerVis[key]=next;
+  if (autosave!==false) persistLayerVis();
+  return true;
+}
 const game = {
   mode:null, code:null, playerId:null,
   char:{species:'cat', coatIdx:0, coat:COATS[0].c, coatD:COATS[0].d, mark:'solid', name:''},
@@ -37,7 +71,7 @@ const game = {
   sheetState:'half',                                 // mobile palette: collapsed | half | full
   sheetCollapsed:false,                              // legacy alias kept in sync with sheetState
   previewMode:'today',                               // design view: today | established (visual only)
-  layerVis:{perennials:true,bulbs:true,woody:true,landscape:true,shade:false,moisture:false,height:false,edgeRulers:false,night:false}, // layer view: visibility + overlays
+  layerVis:defaultLayerVis(),                         // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   ruler:null,                                        // tape measure {a:[x,y], b:[x,y]|null}
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
