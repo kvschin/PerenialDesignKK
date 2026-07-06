@@ -797,7 +797,8 @@ may read px-art fields. Do not let those two paths drift together again.
 | --- | --- | --- |
 | `space` | real inches | On-center planting distance. Used for export quantities, matrix spacing, spacing copy, and tree soft-spacing warnings. |
 | `spread` | real inches | Mature width. The source for woody crown/footprint radius through `woodyRadiusTiles(P)`; also used in cards/library/plan labels. |
-| `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing — displayed through `woodyVisualH(P)` (trees rescale by the T10 compression factor; everything else passes through). It is not a footprint, shade, order, or spacing unit. Existing cards/height overlay may use it as a legacy height fallback until a true real-height field exists. |
+| `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing — displayed through `woodyVisualH(P)` (trees rescale by the T10 compression factor; everything else passes through). It is not a footprint, shade, order, or spacing unit. Cards/library fall back to it for herbaceous/shrub species, whose px h sits near 1:1 with inches. |
+| `heightIn` | real inches | True mature height. Required on every `type:'tree'` species (px `h` under-reads trees ~8×) and set on cultivars that mature meaningfully shorter (weeping maples, Snow Fountains cherry). `matureSizeText` (card + Library) prefers it; the height overlay reads `heightIn||height||h`. |
 | `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)` (T10: trees blend `cw` toward true screen width in log space, so the stored value is the shape signal, not the on-screen size). It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
 
@@ -1050,6 +1051,13 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     75ms procedural / 11.7ms sprites — statistically identical to the same
     garden un-aged (77/12.6), i.e. no stress regression; realistic mature
     design garden (200 perennials + 6 mature trees) runs 1.8ms/frame.
+    Follow-ups landed with it: **`heightIn`** (real mature inches, required
+    on all trees + shorter cultivars — see the units table) so the plant
+    card/Library report a white oak as 90 ft, not the px-art 11 ft; and a
+    lower **tree sapling floor** (0.12 vs the classic 0.25/0.3 in draw.js —
+    the sprite box keeps the bigger floors as safe margin) so a day-one
+    tree draws as a whip (~12% of mature height, pixel-verified 61px vs
+    521px) instead of a 20-ft "sapling".
   - Then: tree canopies rendering across tile boundaries with their own depth
     slices (the long-standing woody follow-up above), seasonal canopy,
     growth-timeline scrub.

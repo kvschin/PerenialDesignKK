@@ -654,8 +654,8 @@ test('plant cards lead with woody mature size and keep herbaceous inches', () =>
     game.plants['5,5'] = oak;
     game.previewMode = 'established';
     showPlantCard(oak, 5, 5);
-    assert(card.innerHTML.includes('<b>Mature size:</b> 11 ft H &times; 75 ft W'),
-      'white oak card leads with mature height and width in feet');
+    assert(card.innerHTML.includes('<b>Mature size:</b> 90 ft H &times; 75 ft W'),
+      'white oak card leads with REAL mature height (heightIn) and width in feet');
     assert(card.innerHTML.includes('~10 yrs to size'), 'white oak card shows years-to-size');
     assert(card.innerHTML.includes('crown covers ~50 tiles wide'), 'white oak card shows crown coverage in tiles');
     assert(card.innerHTML.includes('Shown at maturity'), 'preview-mode card says it is shown at maturity');
@@ -695,8 +695,8 @@ test('library mature size includes height for woody and herbaceous plants', () =
   document.getElementById = id => id === 'libraryDetail' ? detail : oldGet.call(document, id);
   try {
     showLibraryDetail('whiteoak');
-    assertEqual(fact('Mature size'), '11 ft H x 75 ft W - ~10 yrs to size',
-      'library white oak mature size includes height and width in feet');
+    assertEqual(fact('Mature size'), '90 ft H x 75 ft W - ~10 yrs to size',
+      'library white oak mature size uses the real heightIn in feet');
     detail.children = [];
     showLibraryDetail('bluestem');
     assertEqual(fact('Mature size'), '46" H x 18" W',
@@ -1614,6 +1614,18 @@ test('age-at-placement backdates woody planting so establishment is immediate', 
   assertEqual(game.plants['20,20'].d, absDay(), 'herbaceous planting day is today regardless of the age seg');
   // a mature-placed tree casts REAL shade immediately (rules-map, not preview)
   assert(!!shadeAt(10, 9), 'mature-placed tree drives true-establishment shade at once');
+});
+
+test('plant card mature size uses real tree heights (heightIn)', () => {
+  const oak = PLANTS.whiteoak;
+  const txt = matureSizeText(oak, false);
+  assert(txt.startsWith(plantMeasure(oak.heightIn, false)), 'tree card height comes from heightIn');
+  assert(txt.includes('90 ft'), `white oak reads 90 ft H (got "${txt}")`);
+  const grass = PLANTS.bluestem;
+  assert(matureSizeText(grass, false).startsWith(plantMeasure(grass.h, false)), 'herbaceous card keeps the px-h fallback');
+  // a weeping cultivar's own heightIn overrides the species number
+  const cq = plantDef('japanesemaple', 'crimsonqueen');
+  assert(matureSizeText(cq, false).startsWith('9 ft'), `Crimson Queen reads 9 ft (got "${matureSizeText(cq, false)}")`);
 });
 
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {

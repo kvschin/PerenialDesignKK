@@ -410,7 +410,10 @@ function pspriteFrame(){                        // once per render: age the cach
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
 function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const P=plantDef(key,variant), growth=gB/8;
-  const H=woodyVisualH(P)*(0.25+0.75*growth);   // trees: display-rescaled (T10)
+  // trees: display-rescaled (T10). The 0.25/0.3 floors here are deliberately
+  // LARGER than draw.js's tree sapling floor (0.12) — the box only has to
+  // contain the drawing, so young trees just get a bit of empty margin.
+  const H=woodyVisualH(P)*(0.25+0.75*growth);
   // the box must cover the whole drawing — woody canopies reach well above the
   // drawn height and wide of the drawn cw, so trees clip if we size from H alone.
   const woody=isWoodyDef(P);

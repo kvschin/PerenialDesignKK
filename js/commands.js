@@ -630,7 +630,9 @@ function plantMeasure(v,html){
   return `${Math.max(1,Math.round(v))}${html?'&Prime;':'"'}`;
 }
 function matureSizeText(P,html){
-  return `${plantMeasure(P.h,html)} H ${html?'&times;':'x'} ${plantMeasure(P.spread,html)} W`;
+  // heightIn is real inches (trees declare it — px h under-reads them ~8x);
+  // herbaceous/shrub px h sits near 1:1 with inches, so it stays the fallback
+  return `${plantMeasure(P.heightIn||P.h,html)} H ${html?'&times;':'x'} ${plantMeasure(P.spread,html)} W`;
 }
 function yearsToSizeText(P){ return P.grow ? `~${P.grow} yrs to size` : ''; }
 function crownTilesText(P){

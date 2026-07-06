@@ -11,7 +11,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // used by tray icons / previews); gates and thins the flower pass
   const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key) : 0);
   const blooming = !!S.bloom && blv>0.08;
-  const H = woodyVisualH(P) * (0.25 + 0.75*growth);   // trees: display-rescaled height (T10)
+  // trees: display-rescaled height (T10) — and a LOWER growth floor, because
+  // 25% of a rescaled oak (~480px) reads as a 20-ft "sapling"; day-one trees
+  // should look like whips. Everything else keeps the classic 0.25 floor.
+  const gFloor = isTreeDef(P) ? 0.12 : 0.25;
+  const H = woodyVisualH(P) * (gFloor + (1-gFloor)*growth);
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
@@ -871,7 +875,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // vs = the T10 display-rescale factor; absolute strokes (trunk, branches,
     // flowers) scale with it so a big canopy doesn't sit on toothpick wood
     const vs=(woodyVisualCw(P)||100)/(P.cw||100);
-    const cw=(woodyVisualCw(P)||100)*(L.cwMul||1)*(0.3+0.7*growth), trunkH=H*(L.trunkH||0.42);
+    const cw=(woodyVisualCw(P)||100)*(L.cwMul||1)*(0.12+0.88*growth), trunkH=H*(L.trunkH||0.42);
     const cy=-trunkH-H*(L.canopyY||0.30); // canopy center
     ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
     const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*vs*growth);
@@ -969,7 +973,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'conifer'){ // stacked evergreen, dense at any season
     const vs=(woodyVisualCw(P)||60)/(P.cw||60);
-    const cw=(woodyVisualCw(P)||60)*(0.3+0.7*growth);
+    const cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
     ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,4*vs*growth);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H*0.18); ctx.stroke();
     for (let t=0;t<3;t++){
@@ -986,7 +990,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   else if (P.form === 'bamboo'){ // linked cane grove / screen
     const L=P.look||{}, fol=S.fol||'#4f7c50', cane=L.cane||'#5f7f42';
     const vs=(woodyVisualCw(P)||80)/(P.cw||80);
-    const cw=(woodyVisualCw(P)||80)*(0.32+0.68*growth), dirs=(detail&&detail.bambooDirs)||[];
+    const cw=(woodyVisualCw(P)||80)*(0.14+0.86*growth), dirs=(detail&&detail.bambooDirs)||[];
     if (dirs.length && S.fol){
       ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle=shade(fol,-20);
       dirs.forEach(([dx,dy])=>{

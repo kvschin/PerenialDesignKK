@@ -230,7 +230,7 @@ function displayPlantGrowth(p){
   return establishedPreviewActive() ? 1 : plantGrowth(p);
 }
 function matureWoodyDraft(key,v){
-  const p={s:key,d:absDay()-YEAR_DAYS*1000,t:0};
+  const p={s:key,d:woodyPlantedDay(plantDef(key,v),'mature'),t:0};
   if (v) p.v=v;
   return p;
 }

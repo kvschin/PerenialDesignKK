@@ -84,6 +84,22 @@ test('woody species declare years-to-size (grow)', () => {
   }
 });
 
+test('trees declare a real mature height (heightIn)', () => {
+  for (const k of keys){
+    const P = PLANTS[k];
+    if (P.type !== 'tree') continue;
+    assert(typeof P.heightIn === 'number', `${k}: trees need heightIn (real inches)`);
+    assert(P.heightIn >= 96 && P.heightIn <= 1440, `${k}: heightIn ${P.heightIn} outside 8-120 ft`);
+    assert(P.heightIn > P.h, `${k}: heightIn should exceed the px-art h (that is the whole point)`);
+    for (const cvk in (P.cv || {})){
+      const c = P.cv[cvk];
+      if (c.heightIn !== undefined)
+        assert(typeof c.heightIn === 'number' && c.heightIn >= 48 && c.heightIn <= P.heightIn,
+          `${k}.${cvk}: cultivar heightIn should be a plausible height at or under the species`);
+    }
+  }
+});
+
 test('bulb-only fields are valid when present', () => {
   for (const k of keys){
     const P = PLANTS[k];
