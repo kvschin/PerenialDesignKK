@@ -154,7 +154,7 @@ cnv.addEventListener('pointerdown',e=>{
 function tapAction(x,y,opts){ // the classic tap: walk there, act on your own tile
   if (game.visiting){ // read-only stroll: walk to walkable tiles, never edit
     if (x<0||y<0||x>=GW||y>=GH) return;
-    if (inHouse(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)) return;
+    if (inHouse(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)) return;
     game.sleepOnArrive=false; game.pathTarget=[x,y]; return;
   }
   if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
@@ -176,6 +176,7 @@ function tapAction(x,y,opts){ // the classic tap: walk there, act on your own ti
   if (fenceBlocks(x,y)){ toast('The fence blocks the way. Use a gate.'); return; }
   if (lightAt(x,y)){ toast('The light blocks the way.'); return; }
   if (firepitAt(x,y)){ toast('The fire pit blocks the way.'); return; }
+  if (boulderAt(x,y)){ toast('The boulder blocks the way.'); return; }
   if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(opts); return; }
   game.pathTarget=[x,y];
 }
@@ -192,6 +193,7 @@ function finishToolDrag(){
     else if (toolDrag.what==='fence'||toolDrag.what==='gate') msg=`Placed ${toolDrag.count} ${fenceLabel().toLowerCase()} tile${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='light') msg=`Placed ${toolDrag.count} ${lightLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
     else if (toolDrag.what==='firepit') msg=`Placed ${toolDrag.count} ${firepitLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
+    else if (toolDrag.what==='boulder') msg=`Placed ${toolDrag.count} ${boulderLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
     else msg=`Planted ${toolDrag.count} - ${def.name}.`;
     toast(msg);
   } else toast('Nothing would take along that line.');
@@ -261,6 +263,7 @@ function endSweep(){
   if (sweep.fence) parts.push(`${sweep.fence} fence${sweep.fence>1?'s':''}`);
   if (sweep.light) parts.push(`${sweep.light} light${sweep.light>1?'s':''}`);
   if (sweep.firepit) parts.push(`${sweep.firepit} fire pit${sweep.firepit>1?'s':''}`);
+  if (sweep.boulder) parts.push(`${sweep.boulder} boulder${sweep.boulder>1?'s':''}`);
   if (sweep.house) parts.push(`${sweep.house} house${sweep.house>1?'s':''}`);
   if (parts.length){
     toast(`Erased ${parts.join(' and ')}.`);
@@ -271,6 +274,7 @@ function endSweep(){
     if (sweep.fence) syncFencesOut();
     if (sweep.light) syncLightsOut();
     if (sweep.firepit) syncFirepitsOut();
+    if (sweep.boulder) syncBouldersOut();
     if (sweep.house) pushHouse();
   }
   else toast('Nothing to erase there.');

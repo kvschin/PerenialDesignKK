@@ -481,8 +481,8 @@ function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,HOUSE:3,BULB:4,PLANT:5,GHOST:6,PLAYER:7,OTHER:8};
-let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[]};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,PLAYER:8,OTHER:9};
+let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
@@ -494,10 +494,10 @@ function sceneStale(skey){
   const r=scene.refs;
   return scene.key!==skey || !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
-    r.lights!==game.lights || r.firepits!==game.firepits || r.houses!==game.houses;
+    r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.houses!==game.houses;
 }
 function buildScene(W,H){
-  const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[];
+  const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[];
   const plantRecs=[];
   for (const k in game.plants){ const p=game.plants[k];
     if (p.removed) continue;
@@ -546,14 +546,21 @@ function buildScene(W,H){
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,f};
       ents.push(rec); firepits.push(rec);
     }
+    for (const k in game.boulders){ const b=game.boulders[k];
+      if (!b || b.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=boulderTileSize(b);
+      const rec={d:footprintDrawDepth(x,y,sz.w,sz.h)+0.38, kind:SCENE_K.BOULDER,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,b};
+      ents.push(rec); boulders.push(rec);
+    }
     for (const hh of game.houses)
       ents.push({d:houseDrawDepth(hh), kind:SCENE_K.HOUSE,
         bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
   }
   ents.sort((a,b)=>a.d-b.d);
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,houses:game.houses},
-    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits};
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,houses:game.houses},
+    ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
 function drawSceneEnt(e,W,H,season,sway,useSprites,t){
@@ -561,6 +568,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,t){
     case SCENE_K.FENCE: drawFence(cx,W,H,season,e.f,e.x,e.y); return 0;
     case SCENE_K.LIGHT: drawLightFixture(cx,W,H,season,e.l,e.x,e.y,game.layerVis.night); return 0;
     case SCENE_K.FIREPIT: drawFirepit(cx,W,H,season,e.f,e.x,e.y); return 0;
+    case SCENE_K.BOULDER: drawBoulder(cx,W,H,season,e.b,e.x,e.y); return 0;
     case SCENE_K.HOUSE: drawHouse(cx,W,H,season,e.h); return 0;
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
@@ -1031,6 +1039,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.fence) drawFence(cx,W,H,season,c.fence,nx,ny);
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
       if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny);
+      if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
       if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
       if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);
     }

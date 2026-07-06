@@ -1540,7 +1540,7 @@ function polyBounds(pts){
   pts.forEach(p=>{ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); });
   return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
 }
-function firepitScreenPoly(W,H,x,y,sz,scale){
+function footprintScreenPoly(W,H,x,y,sz,scale){
   const pts=[
     screenOf(x,y,W,H),
     screenOf(x+sz.w,y,W,H),
@@ -1548,6 +1548,57 @@ function firepitScreenPoly(W,H,x,y,sz,scale){
     screenOf(x,y+sz.h,W,H)
   ];
   return scale===undefined ? pts : scalePoly(pts,scale);
+}
+function firepitScreenPoly(W,H,x,y,sz,scale){ return footprintScreenPoly(W,H,x,y,sz,scale); }
+function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
+  const r=mulberry(seed>>>0), n=12;
+  ctx.beginPath();
+  for (let i=0;i<n;i++){
+    const a=(Math.PI*2*i/n)-Math.PI/2;
+    const wob=0.88+r()*0.2;
+    const px=sx+Math.cos(a)*rx*wob;
+    const py=sy+Math.sin(a)*ry*wob*(flatten||1);
+    if (!i) ctx.moveTo(px,py);
+    else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+}
+function drawBoulder(ctx,W,H,season,b,x,y){
+  const d=normalizeBoulderDraft(b), sz=boulderTileSize(d), spec=sz.spec;
+  const footprint=footprintScreenPoly(W,H,x,y,sz,0.86), center=polyCenter(footprint), bounds=polyBounds(footprint);
+  const sx=center[0], base=center[1], seed=(tileSeed(x,y)^0x6d2b79f5^boulderTypeId(d.type).length)>>>0;
+  const tone=spec.tone||'#7f8178', side=shade(tone,-22), top=shade(tone,16), hi=shade(tone,36);
+  const rx=Math.max(16,bounds.w*(spec.shape==='oblong'?0.56:0.48));
+  const ry=Math.max(7,bounds.h*(spec.shape==='oblong'?0.46:0.54));
+  ctx.save();
+  drawSoftShadow(ctx,sx,base+6,rx*0.98,Math.max(5,ry*0.55),0.24);
+  if (spec.shape==='rect'){
+    const topPoly=scalePoly(footprint,0.76).map(p=>[p[0],p[1]-7]);
+    const front=topPoly.map(p=>[p[0],p[1]+12]);
+    ctx.fillStyle=side; polyPath(ctx,[topPoly[3],topPoly[2],front[2],front[3]]); ctx.fill();
+    ctx.fillStyle=shade(tone,-10); polyPath(ctx,[topPoly[1],topPoly[2],front[2],front[1]]); ctx.fill();
+    ctx.fillStyle=top; polyPath(ctx,topPoly); ctx.fill();
+    ctx.strokeStyle='rgba(45,42,36,0.24)'; ctx.lineWidth=1.1; polyPath(ctx,topPoly); ctx.stroke();
+    ctx.fillStyle='rgba(239,230,211,0.18)';
+    ctx.fillRect(sx-rx*0.42,base-12,rx*0.55,4);
+  } else {
+    const flat=spec.shape==='oblong'?0.72:1;
+    ctx.fillStyle=side;
+    irregularBoulderPath(ctx,sx,base+3,rx,ry,seed,flat); ctx.fill();
+    ctx.fillStyle=top;
+    irregularBoulderPath(ctx,sx,base-4,rx*0.92,ry*0.92,seed+17,flat); ctx.fill();
+    ctx.strokeStyle='rgba(48,45,38,0.22)'; ctx.lineWidth=1;
+    irregularBoulderPath(ctx,sx,base-4,rx*0.92,ry*0.92,seed+17,flat); ctx.stroke();
+    ctx.fillStyle='rgba(239,230,211,0.22)';
+    ctx.beginPath(); ctx.ellipse(sx-rx*0.2,base-ry*0.35,rx*0.28,Math.max(2,ry*0.12),-0.12,0,7); ctx.fill();
+    ctx.fillStyle=hi;
+    ctx.beginPath(); ctx.ellipse(sx+rx*0.18,base-ry*0.12,rx*0.16,Math.max(1.5,ry*0.08),0.18,0,7); ctx.fill();
+  }
+  if (AMBIENCE[season].snow){
+    ctx.strokeStyle='rgba(240,244,250,0.58)'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.ellipse(sx,base-ry*0.28,rx*0.62,Math.max(2,ry*0.17),0,Math.PI*1.05,Math.PI*1.9); ctx.stroke();
+  }
+  ctx.restore();
 }
 function drawFirepit(ctx,W,H,season,f,x,y){
   const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);

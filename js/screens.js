@@ -87,8 +87,8 @@ function startDailyChallenge(){
   game.mode='solo'; game.gameMode='design'; game.visiting=false;
   game.previewMode='established';
   game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
   game.houses=[]; game.houseDraft=defaultDraft();
   markGroundChanged({terrain:true});
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
@@ -410,10 +410,12 @@ function enterGarden(){
   if (!game.fences) game.fences={};
   if (!game.lights) game.lights={};
   if (!game.firepits) game.firepits={};
+  if (!game.boulders) game.boulders={};
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
   game.fenceDraft=normalizeFenceDraft(game.fenceDraft);
   game.lightDraft=normalizeLightDraft(game.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(game.firepitDraft);
+  game.boulderDraft=normalizeBoulderDraft(game.boulderDraft);
   game.edgeStyle=edgeStyleId(game.edgeStyle);
   game.bedStyle=bedStyleId(game.bedStyle);
   if (game.gameMode==='design'){
@@ -469,8 +471,8 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
-      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
+      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house

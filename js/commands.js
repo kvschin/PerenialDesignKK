@@ -52,6 +52,14 @@ function actHere(opts){
     else toast('Fire pit needs clear dry ground.');
     return;
   }
+  if (game.tool==='boulder'){
+    const sh=shrubAt(x,y);
+    if (sh){ pulseShrubFootprint(sh); toast('Boulders need clear ground outside the shrub spread.'); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ syncToolLayer(r); toast(`${boulderLabel()} placed.`); }
+    else toast('Boulder needs clear dry ground.');
+    return;
+  }
   if (isElevationTool(game.tool)){
     const before=elevationAt(x,y);
     if (stampBrushAt(x,y)){
@@ -80,6 +88,7 @@ function actHere(opts){
     if (counts.fence) parts.push(`${counts.fence} fence${counts.fence>1?'s':''}`);
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
+    if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (parts.length){
       toast(`Erased ${parts.join(' and ')}.`);
@@ -90,6 +99,7 @@ function actHere(opts){
       if (counts.fence) syncFencesOut();
       if (counts.light) syncLightsOut();
       if (counts.firepit) syncFirepitsOut();
+      if (counts.boulder) syncBouldersOut();
       if (counts.house) pushHouse();
     } else toast('Nothing to erase here.');
     return;
@@ -101,6 +111,7 @@ function actHere(opts){
     if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
+    if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)){
       toast('Step aside before making water.'); return;
     }
@@ -123,6 +134,7 @@ function actHere(opts){
   if (fenceAt(x,y)){ toast('Fence is in the way.'); return; }
   if (lightAt(x,y)){ toast('A light is in the way.'); return; }
   if (firepitAt(x,y)){ toast('A fire pit is in the way.'); return; }
+  if (boulderAt(x,y)){ toast('A boulder is in the way.'); return; }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
   if (def.type==='water'){
@@ -232,6 +244,7 @@ function placeTerrainAt(x,y){
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
+  if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
   if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
   if (terr===game.tool){
@@ -278,6 +291,7 @@ function placePlantAt(x,y,opts){
   if (fenceAt(x,y)) return null;
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
+  if (boulderAt(x,y)) return null;
   const np={s:game.tool,d:absDay(),t:Date.now()};
   if (game.toolVar) np.v=game.toolVar;
   if (def.type==='water'){
@@ -322,6 +336,7 @@ function syncToolLayer(what){
   else if (what==='fence'||what==='gate') syncFencesOut();
   else if (what==='light') syncLightsOut();
   else if (what==='firepit') syncFirepitsOut();
+  else if (what==='boulder') syncBouldersOut();
   else if (what==='bulb') syncBulbsOut();
   else syncPlantsOut();
 }
@@ -357,7 +372,7 @@ function fenceLabel(f){
 }
 function canPlaceFence(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
-  if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y)) return false;
+  if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   if (!d.gate && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
@@ -376,7 +391,7 @@ function placeFenceAt(x,y){
 function canPlaceLight(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
   if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y) || firepitAt(x,y) || shrubAt(x,y)) return false;
+  if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
   if (game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
@@ -426,7 +441,7 @@ function canPlaceFirepit(x,y,ignoreKey){
   for (const [xx,yy] of firepitFootprint(x,y,d)){
     const k=`${xx},${yy}`;
     if (inHouse(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
     if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
     const p=game.plants[k], b=game.bulbs[k];
@@ -442,6 +457,49 @@ function placeFirepitAt(x,y){
   if (!canPlaceFirepit(x,y,k)) return null;
   setTile('firepits',k,Object.assign({},d,{t:Date.now()}));
   return 'firepit';
+}
+function boulderDraft(){ return game.boulderDraft=normalizeBoulderDraft(game.boulderDraft); }
+function boulderLabel(b){
+  const d=normalizeBoulderDraft(b||boulderDraft()), spec=boulderType(d.type);
+  return `${spec.label} (${spec.plan})`;
+}
+function boulderAt(x,y){
+  if (!game.boulders) return null;
+  for (const k in game.boulders){
+    const b=game.boulders[k]; if (!b || b.removed) continue;
+    const [bx,by]=k.split(',').map(Number), sz=boulderTileSize(b);
+    if (x>=bx && x<bx+sz.w && y>=by && y<by+sz.h)
+      return Object.assign({key:k,x:bx,y:by},b);
+  }
+  return null;
+}
+function boulderFootprint(x,y,b){
+  const sz=boulderTileSize(b), tiles=[];
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  return tiles;
+}
+function canPlaceBoulder(x,y,ignoreKey){
+  const d=boulderDraft(), sz=boulderTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of boulderFootprint(x,y,d)){
+    const k=`${xx},${yy}`;
+    if (inHouse(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy)) return false;
+    const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
+    if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
+    const p=game.plants[k], b=game.bulbs[k];
+    if ((p&&!p.removed) || (b&&!b.removed)) return false;
+  }
+  return true;
+}
+function placeBoulderAt(x,y){
+  if (!game.boulders) game.boulders={};
+  const d=normalizeBoulderDraft(boulderDraft()), k=`${x},${y}`;
+  const cur=game.boulders[k];
+  if (cur && !cur.removed && cur.type===d.type) return null;
+  if (!canPlaceBoulder(x,y,k)) return null;
+  setTile('boulders',k,Object.assign({},d,{t:Date.now()}));
+  return 'boulder';
 }
 
 /* ---------- house placement / sizing / paint ---------- */
@@ -469,10 +527,12 @@ function clearTerrainForHouse(x,y,w,h){
     if (lightAt(xx,yy)){ clearTile('lights',k); n++; }
     const fp=firepitAt(xx,yy);
     if (fp){ clearTile('firepits',fp.key); n++; }
+    const bo=boulderAt(xx,yy);
+    if (bo){ clearTile('boulders',bo.key); n++; }
   };
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
   clear(x+((w-1)>>1),y+h); // keep the doorstep standable
-  if (n){ syncTerrainOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); }
+  if (n){ syncTerrainOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut(); }
   return n;
 }
 function placeHouse(x,y){
@@ -577,6 +637,8 @@ function eraseBrush(cx,cy,counts){
     if (terrOK){
       const fp=firepitAt(x,y);
       if (fp){ clearTile('firepits',fp.key); counts.firepit=(counts.firepit||0)+1; }
+      const bo=boulderAt(x,y);
+      if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -597,19 +659,19 @@ function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
 function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
 function selItemValidDest(c,x,y){
-  if (!c.firepit) return selValidDest(x,y);
-  const sz=firepitTileSize(c.firepit);
+  const sz=c.firepit ? firepitTileSize(c.firepit) : c.boulder ? boulderTileSize(c.boulder) : null;
+  if (!sz) return selValidDest(x,y);
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++)
     if (!selValidDest(xx,yy)) return false;
   return true;
 }
 function cloneCell(c){ return JSON.parse(JSON.stringify(c)); }
-// snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, and lights
+// snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, lights, and hardscape
 function selectionPayload(r){
   const items=[];
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k];
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k];
     const cell={x,y};
     if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
     if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
@@ -618,7 +680,8 @@ function selectionPayload(r){
     if (f && !f.removed) cell.fence=JSON.parse(JSON.stringify(f));
     if (l && !l.removed) cell.light=JSON.parse(JSON.stringify(l));
     if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit) items.push(cell);
+    if (bo && !bo.removed) cell.boulder=JSON.parse(JSON.stringify(bo));
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder) items.push(cell);
   }
   return items;
 }
@@ -677,10 +740,12 @@ function clearRectLayers(r){
     if (game.lights[k] && !game.lights[k].removed) clearTile('lights',k);
     const fp=firepitAt(x,y);
     if (fp) clearTile('firepits',fp.key);
+    const bo=boulderAt(x,y);
+    if (bo) clearTile('boulders',bo.key);
   }
 }
 function syncSelectionLayers(){
-  syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut();
+  syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut();
 }
 function pasteSavedArea(){
   const area=storedArea();
@@ -744,6 +809,7 @@ function selWrite(items, getDst, clearSource){
       if (c.fence) clearTile('fences',k);
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
+      if (c.boulder) clearTile('boulders',k);
     }
   }
   const now=Date.now();
@@ -755,8 +821,9 @@ function selWrite(items, getDst, clearSource){
     if (c.fence) setTile('fences',k,Object.assign({},c.fence,{t:now}));
     if (c.light) setTile('lights',k,Object.assign({},c.light,{t:now}));
     if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
+    if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
   }
-  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; if(c.elev)a.e=1; if(c.fence)a.f=1; if(c.light)a.l=1; if(c.firepit)a.fp=1; return a;},{});
+  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; if(c.elev)a.e=1; if(c.fence)a.f=1; if(c.light)a.l=1; if(c.firepit)a.fp=1; if(c.boulder)a.bo=1; return a;},{});
   if (layers.p) syncPlantsOut();
   if (layers.b) syncBulbsOut();
   if (layers.t) syncTerrainOut();
@@ -764,6 +831,7 @@ function selWrite(items, getDst, clearSource){
   if (layers.f) syncFencesOut();
   if (layers.l) syncLightsOut();
   if (layers.fp) syncFirepitsOut();
+  if (layers.bo) syncBouldersOut();
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
 // the selection's OWNED items (game.selItems), not whatever is in the rect now
@@ -813,8 +881,9 @@ function eraseSelection(){
       if (c.fence) clearTile('fences',k);
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
+      if (c.boulder) clearTile('boulders',k);
     }
-    syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); });
+    syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut(); });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }

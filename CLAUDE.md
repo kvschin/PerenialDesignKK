@@ -459,14 +459,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `withUndo`. The Fill toggle sets the `fillMode` flag; `fillActive()`
     gates it (`fillMode && toolMeta(tool).paints` — `paints` is true for the
     continuous fills (plants + path/bed/water/elevation) and false for the
-    discrete structures house/fence/light/firepit); the Plant rail
+    discrete hardscape/structure tools house/fence/light/firepit/boulder); the Plant rail
     button clears the flag. The **Pick** and **Erase** tools see the mature
     shrub footprint, so sampling or erasing the visible edge of a large shrub
     acts on the shrub's center tile. The **Pick** tool (`game.tool==='pick'`,
     eyedropper) samples the tapped tile via `pickAt` — plant > bulb > fence >
     terrain priority — arms that species/material/structure as the brush
     (copying path colour, bed material, water style, or fence material/height/gate mode and
-    switching `trayCat`), then drops into plain Plant/Structures mode so the
+    switching `trayCat`), then drops into plain Plant/Hardscape mode so the
     next tap paints with it. **Erase is just another brush**: arming it
     (`armEraseTool`) shows its options in the `#brushBar` itself, right where
     the path/bed options sit — a **layer** seg (All/Plants/Bulbs/Land →
@@ -483,15 +483,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     world steps. Tapping the house walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
-    each save lives at `hortus:world:<id>` (plants + bulbs + terrain + fences +
+    each save lives at `hortus:world:<id>` (layer maps from `GAME_LAYERS` +
     gw/gh + rot + houses + name + `wv` walkway flag + current path/bed/water
-    material choices and fence draft). The old single `hortus:solo` key
+    material choices and hardscape/light drafts). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
     (meta carries gw/gh; the house syncs via its own key, last-write-wins
-    by timestamp), presence polling, `mergeMap` for plants, bulbs, terrain,
-    and fences.
+    by timestamp), presence polling, and `mergeMap` for keyed layer maps.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
@@ -524,7 +523,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a two-tier `TRAY_CATS`/`TRAY_GROUPS` tab row — a top-level **Plants** /
     **Build** toggle picks which category sub-tabs show (Plants → Grasses /
     Sedges / Sun Perennials / Shade Perennials (`sunFilter`) / Bulbs / Water
-    Plants / Shrubs / Trees; Build → Landscape / Structures / Lighting /
+    Plants / Shrubs / Trees; Build → Landscape / Hardscape / Lighting /
     House); `lastCatByGroup` remembers the sub-tab per group. Then species
     buttons in the active category (species sharing a `group` collapse to one
     button, marked with a `›`). Sub-species **drill in**: tapping a grouped
@@ -535,7 +534,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select Path to reveal path colors, Bed to reveal bed
     materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
-    to reveal pond/river/lake styles. The Structures tab draws fences and
+    to reveal pond/river/lake styles. The Hardscape tab draws fences and
     gates from `game.fenceDraft` with 4 ft/6 ft heights
     and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials, plus **fire
     pits** from `game.firepitDraft` (Round/Square shape + size — round
@@ -546,8 +545,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (refused under house/door/water/plants/bulbs/fences/lights/shrubs and the
     avatar when one is present), block movement (`canStand`/`firepitAt`), and render
     through `drawFirepit` (stone rim + coals + flames, snow cap in winter).
-    They erase as Landscape, move/rotate/copy in selections, eyedrop with
-    Pick, and sync via `syncFirepitsOut` — all parallel to lights. The House tab
+    Boulders live in `game.boulders` keyed by origin tile (`{type,t}` or
+    `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
+    rectangular, and oblong footprints, block movement/planting, render through
+    `drawBoulder`, export to the design plan, and sync via `syncBouldersOut`.
+    Fire pits and boulders erase as Landscape, move/rotate/copy in selections,
+    eyedrop with Pick, and sync through their layer-specific sync helpers. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)

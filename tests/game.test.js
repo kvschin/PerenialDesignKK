@@ -5,11 +5,12 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design'; game.visiting = false;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {}; game.firepits = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
   game.firepitDraft = { shape: 'round', size: 'round36' };
+  game.boulderDraft = { type: 'round1' };
   game.bedStyle = 'soil';
   game.rot = 0; game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
   game.design = null; game.challenge = null;
@@ -283,7 +284,7 @@ test('toolMeta is the source of truth for the legacy tool predicates', () => {
   assertEqual(toolMeta('path').layer, 'landscape', 'landscape brushes -> landscape layer');
   assertEqual(toolMeta('hand').layer, null, 'non-drawing tools have no layer');
   // the three legacy predicates are now just table reads
-  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'house', 'fence', 'light', 'firepit',
+  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'house', 'fence', 'light', 'firepit', 'boulder',
                    'hand', 'select', 'pick', 'shovel']){
     assertEqual(isBrushTool(t), toolMeta(t).brush, `isBrushTool(${t}) tracks the table`);
     assertEqual(isPlacementTool(t), toolMeta(t).placement, `isPlacementTool(${t}) tracks the table`);
@@ -294,7 +295,7 @@ test('toolMeta is the source of truth for the legacy tool predicates', () => {
     assert(!toolMeta(t).brush && !toolMeta(t).placement, `${t} is not a brush/placement tool`);
   // material flag is exactly the path/bed/water set
   for (const t of ['path', 'bed', 'water']) assert(toolMeta(t).material, `${t} is a ground material`);
-  for (const t of [forb, bulb, woody, 'raise', 'house', 'fence', 'light', 'hand'])
+  for (const t of [forb, bulb, woody, 'raise', 'house', 'fence', 'light', 'boulder', 'hand'])
     assert(!toolMeta(t).material, `${t} is not a ground material`);
 });
 
@@ -303,7 +304,7 @@ test('every brush/placement tool has an apply hook; non-drawing tools do not', (
   const forb = firstOfType('forb'), bulb = firstOfType('bulb');
   const woody = firstOfType('shrub') || firstOfType('tree');
   // drawing tools dispatch through a hook
-  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'lower', 'level', 'fence', 'light', 'firepit'])
+  for (const t of [forb, bulb, woody, 'path', 'bed', 'water', 'raise', 'lower', 'level', 'fence', 'light', 'firepit', 'boulder'])
     assertEqual(typeof toolMeta(t).apply, 'function', `${t} has an apply hook`);
   // house places via placeHouse, not applyToolAt; the rest are not placers at all
   for (const t of ['house', 'hand', 'select', 'pick', 'shovel'])
@@ -324,7 +325,7 @@ test('paints flag drives fill — continuous fills only, not discrete structures
     game.tool = t; assert(fillActive(), `${t} flood-fills`); assert(toolMeta(t).paints, `${t}.paints`);
   }
   // discrete structures are brushes but never flood-fill
-  for (const t of ['house', 'fence', 'light', 'firepit']){
+  for (const t of ['house', 'fence', 'light', 'firepit', 'boulder']){
     game.tool = t;
     assert(!fillActive(), `${t} does not flood-fill`);
     assert(toolMeta(t).brush && !toolMeta(t).paints, `${t} is a brush but not a paint`);
@@ -1066,6 +1067,52 @@ test('fire pits reserve their footprint and erase as structures', () => {
   assert(!firepitAt(5, 5), 'fire pit removed');
 });
 
+test('boulders reserve their footprint and erase as hardscape', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.tool = 'boulder';
+  game.boulderDraft = { type: 'large32' };
+  assertEqual(applyToolAt(5, 5), 'boulder', 'boulder placed');
+  assertEqual(boulderAt(7, 6).type, 'large32', 'large boulder spans its footprint');
+  assert(!canStand(6, 5), 'boulder blocks movement');
+
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(6, 5), null, 'plants refuse boulder footprint');
+  game.tool = 'water';
+  assertEqual(applyToolAt(6, 5), null, 'water refuses boulder footprint');
+
+  game.tool = 'pick';
+  pickAt(7, 6);
+  assertEqual(game.tool, 'boulder', 'eyedropper picks boulder hardscape');
+  assertEqual(game.boulderDraft.type, 'large32', 'eyedropper copies boulder type');
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0, firepit: 0, boulder: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(6, 5, counts);
+  assertEqual(counts.boulder, 1, 'erase counted the whole boulder once');
+  assert(!boulderAt(5, 5), 'boulder removed');
+});
+
+test('planting plan includes boulders in the key', () => {
+  setup(13, 13);
+  game.boulders['5,5'] = { type: 'medium2', t: 1 };
+  const oldGet = document.getElementById;
+  const labels = [];
+  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  document.getElementById = id => id === 'planCanvas'
+    ? { getContext(){ return ctx; }, style: {} }
+    : oldGet.call(document, id);
+  try {
+    buildPlanMap();
+  } finally {
+    document.getElementById = oldGet;
+  }
+  assert(labels.some(t => t.includes('BOULDER - stone feature (1)')), 'plan key lists boulders');
+});
+
 test('water plants only plant into open water tiles', () => {
   setup(13, 13);
   const waterPlant = firstOfType('water');
@@ -1256,12 +1303,13 @@ test('solo map compaction drops removed tombstones and keeps live entries', () =
   assert(compacted['2,2'] && compacted['2,2'].s === grass, 'live entry kept');
 });
 
-test('eyedropper samples a plant, bulb, fence, light, or material onto the brush', () => {
+test('eyedropper samples a plant, bulb, hardscape, light, or material onto the brush', () => {
   setup();
   const forb = firstOfType('forb'), bulb = firstOfType('bulb');
   game.plants['3,3'] = { s: forb, v: null, d: 0, t: 1 };
   game.bulbs['4,4'] = { s: bulb, v: null, d: 0, t: 1 };
   game.fences['6,6'] = { style: 'brick', height: 6, gate: true, t: 1 };
+  game.boulders['9,9'] = { type: 'oblong31', t: 1 };
   game.lights['8,8'] = { type: 'lamp', tone: 'bright', t: 1 };
   game.terrain['5,5'] = { k: 'path', c: 'slate', t: 1 };
   game.terrain['7,7'] = { k: 'bed', c: 'rock', t: 1 };
@@ -1283,6 +1331,10 @@ test('eyedropper samples a plant, bulb, fence, light, or material onto the brush
   assertEqual(game.fenceDraft.style, 'brick', 'copied fence material');
   assertEqual(game.fenceDraft.height, 6, 'copied fence height');
   assert(game.fenceDraft.gate, 'copied gate mode');
+
+  game.tool = 'pick'; pickAt(9, 9);
+  assertEqual(game.tool, 'boulder', 'picked the boulder hardscape');
+  assertEqual(game.boulderDraft.type, 'oblong31', 'copied boulder type');
 
   game.tool = 'pick'; pickAt(8, 8);
   assertEqual(game.tool, 'light', 'picked the light structure');

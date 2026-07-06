@@ -13,7 +13,7 @@ const TRAY_CATS=[
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
   {id:'leveling', label:'Leveling',         tools:['raise','lower','level']},
-  {id:'structures',label:'Structures',      tools:['fence','firepit']},
+  {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'house',    label:'House',            tools:['house']},
 ];
@@ -43,7 +43,7 @@ const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable
      brush     — arms a repeatable brush (vs. one-shot hand/select/pick/erase)
      placement — puts something on a tile (we warn when its layer is hidden)
      paints    — flood-fills / drag-paints a continuous fill; false for the discrete
-                 structures (house/fence/light/firepit) that place one at a time.
+                 hardscape structures (house/fence/light/firepit/boulder) that place one at a time.
      material  — a ground-material brush (path/bed/water); folds the old
                  tool==='path'||==='bed'||==='water' guards.
      apply     — the silent placement hook applyToolAt dispatches to; returns what
@@ -67,6 +67,7 @@ const TOOLS={
   fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
+  boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
 };
 // plant tools are keyed by species id; their layer + placer follow the plant type
 const TOOL_PLANT={
@@ -89,7 +90,7 @@ function brushTrayCatForTool(k){
   if (PLANTS[k]) return plantCategoryFor(k);
   if (isElevationTool(k)) return 'leveling';
   if (toolMeta(k).material) return 'landscape';
-  if (k==='fence'||k==='firepit') return 'structures';
+  if (k==='fence'||k==='firepit'||k==='boulder') return 'structures';
   if (k==='light') return 'lighting';
   if (k==='house') return 'house';
   return null;
@@ -104,7 +105,7 @@ function toolFitsBrushTray(k,catId){
   if (PLANTS[k]) return !!(c.types && c.types.includes(PLANTS[k].type) && (!c.sunFilter || PLANTS[k].sun===c.sunFilter));
   if (isElevationTool(k)) return catId==='leveling';
   if (toolMeta(k).material) return catId==='landscape';
-  if (k==='fence'||k==='firepit') return catId==='structures';
+  if (k==='fence'||k==='firepit'||k==='boulder') return catId==='structures';
   if (k==='light') return catId==='lighting';
   if (k==='house') return catId==='house';
   return false;
@@ -134,7 +135,7 @@ function setTool(k,v){
   game.toolMenu=null;
   game.catMenuOpen=false;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
-  if (k==='fence'||k==='light'||k==='firepit'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
+  if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
   refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
@@ -505,14 +506,14 @@ function doFloodFill(sx,sy){
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
   } else toast('Nothing here that fill can change.');
 }
-/* eyedropper: sample whatever is on the tapped tile (plant > bulb > fence/light/firepit > terrain)
+/* eyedropper: sample whatever is on the tapped tile (plant > bulb > fence/light/firepit/boulder > terrain)
    and arm it as the brush, dropping straight into Plant mode so the next tap
    paints with it. */
 function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), terr=terrainAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
@@ -536,6 +537,11 @@ function pickAt(x,y){
     game.firepitDraft=normalizeFirepitDraft(fp);
     setTool('firepit', null); buildToolTray();
     toast(`Picked ${firepitLabel(fp)}.`);
+  } else if (bo){
+    game.fillMode=false; game.trayCat='structures'; game.drill='boulder';
+    game.boulderDraft=normalizeBoulderDraft(bo);
+    setTool('boulder', null); buildToolTray();
+    toast(`Picked ${boulderLabel(bo)}.`);
   } else if (terr){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
@@ -927,9 +933,11 @@ function searchToolItems(){
     {cat:'leveling',tool:'level',label:'Level',kind:'layers',
       hay:'level elevation grade flatten reset leveling'},
     {cat:'structures',tool:'fence',drill:'fence',label:'Fence / Gate',kind:'layers',
-      hay:'fence gate door structures black aluminum wood vinyl chainlink brick 4 foot 6 foot'},
+      hay:'fence gate door hardscape structures black aluminum wood vinyl chainlink brick 4 foot 6 foot'},
     {cat:'structures',tool:'firepit',drill:'firepit',label:'Fire Pit',kind:'fill',
-      hay:'fire pit firepit structure round square rectangle 24 36 48 patio'},
+      hay:'fire pit firepit hardscape structure round square rectangle 24 36 48 patio'},
+    {cat:'structures',tool:'boulder',drill:'boulder',label:'Boulder',kind:'fill',
+      hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
     {cat:'lighting',tool:'light',label:'Lighting',kind:'dropper',
       hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
     {cat:'house',tool:'house',label:'House',kind:'brush',
@@ -1336,7 +1344,7 @@ function buildToolTray(){
     };
     const backBtn=()=>{
       const b=document.createElement('button');
-      b.className='tool tool-back'; b.title='Back to Structures';
+      b.className='tool tool-back'; b.title='Back to Hardscape';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
@@ -1422,7 +1430,7 @@ function buildToolTray(){
     };
     const backBtn=()=>{
       const b=document.createElement('button');
-      b.className='tool tool-back'; b.title='Back to Structures';
+      b.className='tool tool-back'; b.title='Back to Hardscape';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
@@ -1470,6 +1478,78 @@ function buildToolTray(){
       sep('Size');
       FIREPIT_SIZES.filter(s=>s.shape===fd.shape).forEach(s=>
         toolBtn(s.label, fd.size===s.id, {size:s.id}, `${s.plan} ${fd.shape} fire pit`));
+    }
+  }
+  if (cat.tools.includes('boulder')){
+    const bd=boulderDraft();
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const miniBoulder=(tc,d)=>{
+      d=normalizeBoulderDraft(d);
+      const spec=boulderType(d.type), cx2=24, cy2=25;
+      const rx=Math.max(10,8*spec.w), ry=Math.max(5,5*spec.h*(spec.shape==='oblong'?0.72:1));
+      tc.fillStyle='rgba(0,0,0,.22)';
+      tc.beginPath(); tc.ellipse(cx2,cy2+7,rx*.92,4,0,0,7); tc.fill();
+      if (spec.shape==='rect'){
+        tc.fillStyle=shade(spec.tone,-18); tc.fillRect(cx2-rx*.72,cy2-2,rx*1.44,ry*.92);
+        tc.fillStyle=shade(spec.tone,16); tc.fillRect(cx2-rx*.64,cy2-9,rx*1.28,ry*.8);
+        tc.strokeStyle='rgba(40,36,30,.28)'; tc.lineWidth=1;
+        tc.strokeRect(cx2-rx*.64,cy2-9,rx*1.28,ry*.8);
+      } else {
+        tc.fillStyle=shade(spec.tone,-18);
+        tc.beginPath(); tc.ellipse(cx2,cy2+1,rx,ry,0,0,7); tc.fill();
+        tc.fillStyle=shade(spec.tone,18);
+        tc.beginPath(); tc.ellipse(cx2,cy2-4,rx*.88,ry*.84,0,0,7); tc.fill();
+        tc.fillStyle='rgba(239,230,211,.23)';
+        tc.beginPath(); tc.ellipse(cx2-rx*.18,cy2-ry*.55,rx*.24,Math.max(2,ry*.12),-0.1,0,7); tc.fill();
+      }
+    };
+    const backBtn=()=>{
+      const b=document.createElement('button');
+      b.className='tool tool-back'; b.title='Back to Hardscape';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+      bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
+      const sp=document.createElement('span'); sp.textContent='Back';
+      b.append(c,sp);
+      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
+      tray.appendChild(b);
+    };
+    const choose=(type)=>{
+      game.boulderDraft=normalizeBoulderDraft({type});
+      setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
+      toast(`${boulderLabel()} selected. Tap clear dry ground to place.`);
+    };
+    const toolBtn=(spec)=>{
+      const b=document.createElement('button');
+      b.className='tool'+(bd.type===spec.id?' sel':'');
+      b.dataset.k='boulder'; b.dataset.boulderType=spec.id;
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniBoulder(c.getContext('2d'),{type:spec.id});
+      const sp=document.createElement('span'); sp.textContent=spec.short;
+      b.append(c,sp);
+      b.title=`${spec.label} (${spec.plan})`;
+      b.onclick=()=>choose(spec.id);
+      tray.appendChild(b);
+    };
+    if (!game.drill){
+      const b=document.createElement('button');
+      b.className='tool has-sub'+(game.tool==='boulder'?' sel':'');
+      b.dataset.k='boulder';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniBoulder(c.getContext('2d'),bd);
+      const sp=document.createElement('span'); sp.textContent='Boulder';
+      b.append(c,sp);
+      b.title=`Boulder: ${boulderLabel()}. Open to choose size and shape.`;
+      b.onclick=()=>{ setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
+        toast(`${boulderLabel()} selected. Choose size/shape or tap to place.`); };
+      tray.appendChild(b);
+    } else if (game.drill==='boulder'){
+      backBtn();
+      sep('Round');
+      BOULDER_TYPES.filter(b=>b.shape==='round').forEach(toolBtn);
+      sep('Oblong');
+      BOULDER_TYPES.filter(b=>b.shape==='oblong'||b.shape==='rect').forEach(toolBtn);
     }
   }
   if (cat.tools.includes('light')){
@@ -1586,8 +1666,9 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.bedStyle) hay+=' '+bedStyle(b.dataset.bedStyle).label+' bed gravel rock leaf litter mulch soil';
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
-    if (k==='fence') hay+=' structures fence gate door '+FENCE_STYLES.map(f=>f.label).join(' ');
-    if (k==='firepit') hay+=' structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
+    if (k==='fence') hay+=' hardscape structures fence gate door '+FENCE_STYLES.map(f=>f.label).join(' ');
+    if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
+    if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
       if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
@@ -1614,6 +1695,8 @@ function refreshTray(){
       ? game.tool==='firepit' && firepitDraft().shape===el.dataset.firepitShape
       : el.dataset.firepitSize
       ? game.tool==='firepit' && firepitDraft().size===el.dataset.firepitSize
+      : el.dataset.boulderType
+      ? game.tool==='boulder' && boulderDraft().type===el.dataset.boulderType
       : el.dataset.lightType
       ? game.tool==='light' && lightDraft().type===el.dataset.lightType
       : el.dataset.lightTone
@@ -1768,6 +1851,7 @@ function sheetContextLabel(){
   if (game.tool==='fence') return fenceLabel();
   if (game.tool==='light') return 'Lighting';
   if (game.tool==='firepit') return firepitLabel();
+  if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='house') return 'House';
   if (game.tool==='shovel') return 'Erase';
   if (game.tool==='select') return 'Select';

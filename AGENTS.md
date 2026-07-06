@@ -62,11 +62,11 @@ then preserve this order unless you are intentionally refactoring dependencies:
 ## Module map
 
 - `js/core.js`: constants, shared helpers, app-level configuration, cultivar
-  merging, structure/light/firepit metadata, palette helpers.
+  merging, hardscape/light/firepit/boulder metadata, palette helpers.
 - `js/plants.js`: plant species data, cultivars, and plant-library
   notes. This is the source of truth for botany-facing behavior.
 - `js/draw.js`: all canvas drawing primitives, including plants, avatars,
-  houses, fences, firepits, lights, terrain details, plan-map symbols, and
+  houses, fences, firepits, boulders, lights, terrain details, plan-map symbols, and
   seasonal visual treatment.
 - `js/world.js`: the mutable `game` object, layer definitions, state mutation
   helpers, time/season helpers, phenology, shade/canopy math, house and
@@ -80,8 +80,8 @@ then preserve this order unless you are intentionally refactoring dependencies:
   shade/night/season passes, and snow/photo effects.
 - `js/commands.js`: state-changing garden commands: movement steps,
   `actHere`, `applyToolAt`, placement hooks, drift stamping, erase, selection
-  mutation, saved-area paste/fill, house/fence/light/firepit placement, undo,
-  and toasts.
+  mutation, saved-area paste/fill, house/fence/light/firepit/boulder placement,
+  undo, and toasts.
 - `js/input.js`: canvas and keyboard input wiring: held movement keys,
   pointer/touch/wheel handlers, pinch protection, panning, brush drags,
   shovel sweeps, tap-to-act/walk, and `followPath()`.
@@ -101,7 +101,7 @@ then preserve this order unless you are intentionally refactoring dependencies:
 ## State and tool architecture
 
 `game` is the single mutable model. Layer maps include plants, bulbs, terrain,
-elevation, fences, lights, and firepits; houses are stored in `game.houses`.
+elevation, fences, lights, firepits, and boulders; houses are stored in `game.houses`.
 Layer names live in `GAME_LAYERS` and should be used for save/load, sync, undo,
 and generic layer operations.
 
@@ -117,9 +117,9 @@ removeHouseAtIndex(index);
 
 These helpers set `game.dirty` and increment `game.rev`. Do not add new direct
 edit paths that write to `game.plants`, `game.terrain`, `game.fences`,
-`game.lights`, `game.firepits`, or `game.houses` without going through these
-helpers or a clearly named wrapper. Direct writes make autosave, undo, render
-cache invalidation, and future sync harder to reason about.
+`game.lights`, `game.firepits`, `game.boulders`, or `game.houses` without going
+through these helpers or a clearly named wrapper. Direct writes make autosave,
+undo, render cache invalidation, and future sync harder to reason about.
 
 `toolMeta()` in `js/tray.js` is the source of truth for active tools. It should
 describe which layer a tool edits, whether it is a brush, what it paints, and

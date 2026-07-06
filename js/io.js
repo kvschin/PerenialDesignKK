@@ -36,9 +36,9 @@ async function saveSolo(silent){
     gw:GW,gh:GH,rot:game.rot,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
-  for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/houses
+  for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   await sSet('hortus:world:'+game.worldId,blob);
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
@@ -85,6 +85,7 @@ async function loadSolo(id){
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.lightDraft=normalizeLightDraft(s.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(s.firepitDraft);
+  game.boulderDraft=normalizeBoulderDraft(s.boulderDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
     ? Math.max(0,+s.elapsedMs||0)
@@ -107,8 +108,8 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.freePlanting=false;
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
@@ -119,6 +120,7 @@ async function hostWorld(){
   await sSet(wkey('fences'),game.fences,true);
   await sSet(wkey('lights'),game.lights,true);
   await sSet(wkey('firepits'),game.firepits,true);
+  await sSet(wkey('boulders'),game.boulders,true);
   await sSet(wkey('house'),{h:game.houses,t:game.houseT},true);
 }
 async function joinWorld(code){
@@ -136,6 +138,7 @@ async function joinWorld(code){
   const fn=await sGet(wkey('fences'),true); game.fences=fn||{};
   const li=await sGet(wkey('lights'),true); game.lights=li||{};
   const fp=await sGet(wkey('firepits'),true); game.firepits=fp||{};
+  const bo=await sGet(wkey('boulders'),true); game.boulders=bo||{};
   const ho=await sGet(wkey('house'),true);
   const hh=ho&&ho.h;
   game.houses = Array.isArray(hh) ? hh : (hh ? [hh] : [defaultHouse()]);
@@ -185,6 +188,12 @@ async function syncFirepitsOut(){
   mergeMap(game.firepits,remote);
   await sSet(wkey('firepits'),game.firepits,true);
 }
+async function syncBouldersOut(){
+  if (game.mode!=='multi') { return; }
+  const remote=await sGet(wkey('boulders'),true)||{};
+  mergeMap(game.boulders,remote);
+  await sSet(wkey('boulders'),game.boulders,true);
+}
 function mergeMap(target,remote){ // last write wins, per tile
   let changed=false;
   for (const k in remote){ const r=remote[k], l=target[k];
@@ -219,6 +228,8 @@ async function pollWorld(){
   if (remoteL) mergeMap(game.lights,remoteL);
   const remoteFP=await sGet(wkey('firepits'),true);
   if (remoteFP) mergeMap(game.firepits,remoteFP);
+  const remoteBO=await sGet(wkey('boulders'),true);
+  if (remoteBO) mergeMap(game.boulders,remoteBO);
   const ho=await sGet(wkey('house'),true);
   if (ho && ho.h && (ho.t||0)>game.houseT){
     game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; markLayerCacheChanged('houses'); }
@@ -597,6 +608,7 @@ function buildPlanMap(){
   const comps=allComps.filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
   const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
   const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
+  const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
   const ids=[...new Set([
     ...comps.map(c=>c.s+'|'+(c.v||'')),
     ...shrubComps.map(c=>c.s+'|'+(c.v||'')),
@@ -604,7 +616,7 @@ function buildPlanMap(){
   ])];
   const codes=planCodes(ids);
   const legCols=3, legRows=Math.ceil(ids.length/legCols);
-  const fixtureRows=lightsLive.length?1:0;
+  const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
   const W2=padL*2+GW*cell, H2=padT+GH*cell+34+(legRows+fixtureRows)*15+26;
   pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
   ctx.setTransform(2,0,0,2,0,0);
@@ -679,6 +691,24 @@ function buildPlanMap(){
       ctx.fillStyle='#2f261f'; ctx.fillRect(px+w*0.32,py+h*0.32,w*0.36,h*0.36);
     }
   }
+  // boulders
+  bouldersLive.forEach(k=>{
+    const b=normalizeBoulderDraft(game.boulders[k]), spec=boulderType(b.type), sz=boulderTileSize(b);
+    const [x,y]=k.split(',').map(Number), px=X(x), py=Y(y), w=sz.w*cell, h=sz.h*cell;
+    ctx.save();
+    ctx.fillStyle=mixHex(spec.tone||'#7f8178','#f7f3e8',0.2);
+    ctx.strokeStyle=mixHex(spec.tone||'#7f8178','#2c241c',0.25);
+    ctx.lineWidth=1.2;
+    if (spec.shape==='rect'){
+      ctx.fillRect(px+cell*0.08,py+cell*0.18,w-cell*0.16,h-cell*0.28);
+      ctx.strokeRect(px+cell*0.08,py+cell*0.18,w-cell*0.16,h-cell*0.28);
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(px+w/2,py+h/2,w*0.42,h*(spec.shape==='oblong'?0.28:0.38),0,0,7);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  });
   // fences and gates
   for (const k in game.fences){ const f=game.fences[k];
     if (f.removed) continue;
@@ -810,6 +840,14 @@ function buildPlanMap(){
     ctx.beginPath(); ctx.arc(cx2+4.5,cy2-3,4,0,7); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
     ctx.fillText(`LIGHT - lighting fixture (${lightsLive.length})`, cx2+14, cy2);
+  }
+  if (bouldersLive.length){
+    const cy2=ly2+(legRows+(lightsLive.length?1:0))*15, cx2=padL;
+    ctx.fillStyle=mixHex('#7f8178','#f7f3e8',0.2);
+    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
+    ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
   }
   // scale bar: 10 ft
   const ftPx=cell/1.5, bx2=W2-padL-ftPx*10, by2=H2-18;

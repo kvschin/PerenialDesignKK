@@ -10,6 +10,7 @@ const game = {
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
+  boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
   moveDur:170, pathTarget:null, sleepOnArrive:false,
@@ -49,6 +50,7 @@ const game = {
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
+  boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -76,6 +78,7 @@ const GAME_LAYERS=[
   {k:'fences',    sync:()=>syncFencesOut()},
   {k:'lights',    sync:()=>syncLightsOut()},
   {k:'firepits',  sync:()=>syncFirepitsOut()},
+  {k:'boulders',  sync:()=>syncBouldersOut()},
   {k:'houses', array:true, sync:()=>pushHouse()},
 ];
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
@@ -266,6 +269,7 @@ function canPlaceShrubAt(x,y,np,opts){
     if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
     if (lightAt(xx,yy)) return {ok:false, reason:'light'};
     if (firepitAt(xx,yy)) return {ok:false, reason:'firepit'};
+    if (boulderAt(xx,yy)) return {ok:false, reason:'boulder'};
     const terr=tileTerrain(xx,yy);
     if (terr==='path'||terr==='water') return {ok:false, reason:terr};
     const k=`${xx},${yy}`, p=game.plants[k];
@@ -559,7 +563,7 @@ function isDoor(x,y){
 function fenceAt(x,y){ const f=game.fences[`${x},${y}`]; return (f&&!f.removed)?f:null; }
 function fenceBlocks(x,y){ const f=fenceAt(x,y); return !!(f && !f.gate); }
 function fenceNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!fenceAt(x,y); }
-function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && tileTerrain(x,y)!=='water'; }
+function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
 /* a standable starting tile near plot center — the door if the house
    sits on the spawn, else a spiral search outward, so re-entering a
    garden never drops the player stuck inside their own walls */
