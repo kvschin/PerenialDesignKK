@@ -257,13 +257,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     classified into **arcs** (`terrainUnitEdges`/`terrainLoopArcs`): **hard**
     arcs — shared with another region (other material/colour/elevation) — draw
     as exact tile lines with no jitter, so beds and paths **butt seamlessly**
-    and painted corners stay corners; **soft** arcs — facing grass — are
+    and painted corners stay corners (the **plot boundary is hard too** — a bed
+    painted to the plot edge runs exactly into the plot corner; leave a grass
+    tile for a margin); **soft** arcs — facing grass — are
     Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
     pre-jittered inward (`planJitter`) on interiors only, and drawn as
     midpoint-quadratic splines **pinned to their endpoints**; **pinch corners**
-    (8-connected diagonal touches, `useCount>=2`) are pinned exact so lobes
-    kiss instead of gapping. `terrainLoopPath(ctx, loop, proj)` renders the
+    are pinned exact so lobes kiss instead of gapping — both same-region
+    8-connected diagonal touches (`useCount>=2`) and **cross-material saddles**
+    (a soil bed corner touching a path corner diagonally pins the shared
+    corner in BOTH regions, so different materials connect there too). `terrainLoopPath(ctx, loop, proj)` renders the
     cached arcs through an arbitrary projector — the garden uses
     `screenOfFlat` + terrace lift, and **`openPlan` uses the same function**
     projected to paper, so the plan sheet finally matches the garden (formal

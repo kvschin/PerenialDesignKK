@@ -146,10 +146,17 @@ function mergeCollinearClosed(pts){
 }
 // Expand a traced loop (corners only) back to unit tile edges, classifying
 // each edge by what sits on its OUTSIDE: another region's material = HARD
-// (butt exactly), grass/plot-edge = SOFT (smooth organically). Orientation-
-// free: of the two tiles flanking an edge, the one not in the region is out.
+// (butt exactly), grass = SOFT (smooth organically). The plot boundary is
+// hard too — a bed painted to the edge of the plot runs exactly to it (leave
+// a grass tile if you want a margin). Orientation-free: of the two tiles
+// flanking an edge, the one not in the region is out.
 function terrainUnitEdges(loop, set, solid){
   const edges=[];
+  const hardOut=(key)=>{
+    if (solid[key]) return true;
+    const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
+    return ox<0 || oy<0 || ox>=GW || oy>=GH;      // beyond the plot
+  };
   for (let i=0;i<loop.length;i++){
     const a=loop[i], b=loop[(i+1)%loop.length];
     const dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]);
@@ -161,7 +168,7 @@ function terrainUnitEdges(loop, set, solid){
         out = set.has(t1) ? t2 : t1; }
       else { const ty=Math.min(y,ny), t1=`${x-1},${ty}`, t2=`${x},${ty}`;
         out = set.has(t1) ? t2 : t1; }
-      edges.push({a:[x,y], b:[nx,ny], hard:!!solid[out]});
+      edges.push({a:[x,y], b:[nx,ny], hard:hardOut(out)});
       x=nx; y=ny;
     }
   }
@@ -193,14 +200,18 @@ function finishTerrainArc(hard, pts){
   return {hard, pts};
 }
 // Split one loop's unit edges into maximal same-hardness arcs, cutting also at
-// pinch corners (useCount>=2: the boundary passes through the corner twice —
-// an 8-connected diagonal touch) so those corners stay exact and lobes kiss.
-function terrainLoopArcs(es, useCount){
+// pinch corners so those corners stay exact and lobes kiss: same-region
+// pinches (useCount>=2: the boundary passes through the corner twice) and
+// cross-material saddles (two solid tiles meeting only at this corner across
+// grass — e.g. a soil bed corner touching a path corner diagonally).
+function terrainLoopArcs(es, useCount, saddle){
   const n=es.length;
   const isCut=i=>{
     const prev=es[(i+n-1)%n];
     if (prev.hard!==es[i].hard) return true;
-    return useCount[es[i].a.join(',')]>=2;
+    const v=es[i].a;
+    if (useCount[v.join(',')]>=2) return true;
+    return !!(saddle && saddle(v[0],v[1]));
   };
   const cuts=[];
   for (let i=0;i<n;i++) if (isCut(i)) cuts.push(i);
@@ -289,8 +300,15 @@ function buildTerrainRegions(){
     const useCount={};
     for (const es of unit) for (const e of es){
       const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
+    // saddle: at this corner, two solid tiles meet only diagonally across
+    // grass — pin it in BOTH regions so their curves connect at the point
+    const sTile=(tx,ty)=>!!solid[tx+','+ty];
+    const saddle=(x,y)=>{
+      const nw=sTile(x-1,y-1), ne=sTile(x,y-1), sw=sTile(x-1,y), se=sTile(x,y);
+      return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
+    };
     regions.push({ kind:o.k, c:o.c, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
-      loops:unit.map(es=>terrainLoopArcs(es,useCount)) });
+      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle)) });
   }
   regions.sort((a,b)=>a.elev-b.elev);   // higher terraces paint over lower edges
   terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};

@@ -499,6 +499,34 @@ test('organic regions: diagonal same-material tiles join one region and pin the 
   for (const a of arcs) assert(a.pts.length >= 5, `lobe arc keeps its corners (got ${a.pts.length})`);
 });
 
+test('organic regions: plot edges are hard so beds run into plot corners', () => {
+  setup(21, 21);
+  // a bed filling the plot's NW corner
+  for (let y = 0; y <= 2; y++) for (let x = 0; x <= 2; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
+  const r = buildTerrainRegions()[0];
+  assert(!r.loops[0].closed, 'plot-edge bed splits into hard (edge) + soft (grass) arcs');
+  const hard = r.loops[0].arcs.filter(a => a.hard);
+  const hardPts = hard.flatMap(a => a.pts);
+  assert(hardPts.some(([x, y]) => x === 0 && y === 0), 'the plot corner (0,0) itself is reached exactly');
+  assert(hardPts.some(([x, y]) => x === 0) && hardPts.some(([, y]) => y === 0),
+    'hard arcs run along both plot boundaries');
+});
+
+test('organic regions: a cross-material diagonal saddle pins the shared corner in both regions', () => {
+  setup(21, 21);
+  setTile('terrain', '4,4', { k: 'bed', c: 'soil', t: 1 });
+  setTile('terrain', '5,5', { k: 'path', c: 'warm', t: 1 });
+  const regions = buildTerrainRegions();
+  assertEqual(regions.length, 2, 'different materials stay separate regions');
+  for (const r of regions){
+    const pts = r.loops.flatMap(l => l.closed ? l.pts : l.arcs.flatMap(a => a.pts));
+    assert(pts.some(([x, y]) => x === 5 && y === 5),
+      `${r.kind} pins the shared corner (5,5) exactly so the two connect`);
+    const arcs = r.loops.flatMap(l => l.closed ? [] : l.arcs);
+    assert(arcs.length >= 1, `${r.kind} loop was split at the saddle`);
+  }
+});
+
 test('organic regions: elevation splits terraces and orders them low-to-high', () => {
   setup(21, 21);
   for (let x = 3; x <= 6; x++) setTile('terrain', `${x},10`, { k: 'bed', c: 'mulch', t: 1 });
