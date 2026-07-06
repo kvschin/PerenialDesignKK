@@ -580,7 +580,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tray. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
     not overwrite that memory); its style toggles — Draw/Drift/Matrix and
-    Grid/Free for plants, plus the shared disc **size** dots for the sizable
+    Grid/Free for herbaceous plants, an **Age** seg (New/Young/Mature →
+    `game.woodyAge`/`chooseWoodyAge`, T10) in their place for woody brushes,
+    plus the shared disc **size** dots for the sizable
     material/elevation brushes, and the **Fill** chip — dock in the palette as
     the `#brushBar` segmented controls (`renderBrushBar`), not a floating flyout.
     (The Landscape tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
@@ -795,8 +797,8 @@ may read px-art fields. Do not let those two paths drift together again.
 | --- | --- | --- |
 | `space` | real inches | On-center planting distance. Used for export quantities, matrix spacing, spacing copy, and tree soft-spacing warnings. |
 | `spread` | real inches | Mature width. The source for woody crown/footprint radius through `woodyRadiusTiles(P)`; also used in cards/library/plan labels. |
-| `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing. It is not a footprint, shade, order, or spacing unit. Existing cards/height overlay may use it as a legacy height fallback until a true real-height field exists. |
-| `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)`. It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
+| `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing — displayed through `woodyVisualH(P)` (trees rescale by the T10 compression factor; everything else passes through). It is not a footprint, shade, order, or spacing unit. Existing cards/height overlay may use it as a legacy height fallback until a true real-height field exists. |
+| `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)` (T10: trees blend `cw` toward true screen width in log space, so the stored value is the shape signal, not the on-screen size). It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
 
 Footprint rules are intentionally asymmetric:
@@ -1018,15 +1020,36 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
   - *(built)* **T12 docs** — plants.js/CLAUDE.md document per-field units
     (inches-truth: `space`/`spread`; px-art: `h`/`cw`) and footprint policy.
 - **Phase 3 — behavior changes and the big lifts:**
-  - **T9 soft-warning policy** — full-sun-under-active-canopy becomes
-    place+warn (stunting already shows the consequence); hard blocks stay for
-    occupancy/shrub-core/trunk/water; policy in one table.
-  - **T10 woody visual rescale + age-at-placement** — compression-curve
-    rescale of woody `h`/`cw` (perennials ~1:1, big trees ~3-4× today's size)
-    plus an Age seg (New/Young/Mature) that backdates `d`, Mature default in
-    design mode. **Highest perf risk**: sprite cache bails over 2600px
-    (renderer.js `makePlantSprite`) — raise the budget deliberately or clamp
-    bake scale for giants; stress-garden A/B mandatory.
+  - *(built)* **T9 soft-warning policy** — `PLANT_PLACEMENT_POLICY`
+    (commands.js) states each placement rule's mode in one table: occupancy,
+    shrub core, woody trunk, and water stay HARD; active-canopy-sun and tree
+    spacing are SOFT. Full-sun plants place under an active canopy with an
+    amber warning toast (`toast(msg,'warn')`, `#toast.warn`) — the stunted
+    render and Struggling card already show the consequence.
+  - *(built)* **T10 woody visual rescale + age-at-placement** — TREES only
+    (shrubs already drew at ~half true width): `woodyVisualCw` blends art
+    `cw` toward true screen width in log space (`exp(0.58·ln cw +
+    0.42·ln realPx)`, capped below real) — white oak 160→605px (~3.8×, ~16%
+    of true 3800px), redbud ~3×, small trees nearer real; narrow cultivars
+    stay narrow because `cw` remains the shape signal. `woodyVisualH` scales
+    `h` by the same factor; inside the tree/conifer/bamboo branches a `vs`
+    factor scales trunk/branch strokes, flower/seed sizes, and leaf blobs
+    trade size for count (`leafMul`, coverage constant) so giants read as
+    foliage, not balloons. Icon/preview fits (tray ×3, sheet swatch,
+    library) measure `woodyVisualH` so big trees aren't clipped. **Age seg**
+    (New/Young/Mature) replaces the no-op Grid/Free for woody brushes:
+    `game.woodyAge` + `chooseWoodyAge` + `woodyPlantedDay(def,age)` backdate
+    `d` by whole `YEAR_DAYS` (growing-day exact: Mature = full `grow` years
+    → estab 1, Young ≈ half); design mode defaults Mature, story New. A
+    mature-placed tree drives TRUE-establishment shade at once, and (per T9)
+    full-sun underplanting still places with the amber warn. **Sprite
+    safety**: `makePlantSprite` clamps giant bakes to ≤1024px instead of
+    bailing (blit upscales slightly soft at high zoom); entries carry
+    `want`/`capped` so resolution-capped giants never rebake while zooming
+    in. Stress A/B (562 plants, 35 mature trees + 59 mature shrubs):
+    75ms procedural / 11.7ms sprites — statistically identical to the same
+    garden un-aged (77/12.6), i.e. no stress regression; realistic mature
+    design garden (200 perennials + 6 mature trees) runs 1.8ms/frame.
   - Then: tree canopies rendering across tile boundaries with their own depth
     slices (the long-standing woody follow-up above), seasonal canopy,
     growth-timeline scrub.

@@ -354,7 +354,7 @@ function placePlantAt(x,y,opts){
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
-  const np={s:game.tool,d:absDay(),t:Date.now()};
+  const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
   if (def.type==='water'){
     const ex=game.plants[k], eb=game.bulbs[k];

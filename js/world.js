@@ -58,6 +58,7 @@ const game = {
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit,squirrel}
   drift:false,                                       // plant in clusters, Oudolf style
   matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
+  woodyAge:'new',                                    // age trees/shrubs plant at: new | young | mature (design defaults mature)
   freePlanting:false,                                // herbaceous plants can sit off the tile center
   edgeStyle:'organic',                               // terrain edge look: organic (smoothed) | formal (crisp tiles)
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
@@ -232,6 +233,19 @@ function matureWoodyDraft(key,v){
   const p={s:key,d:absDay()-YEAR_DAYS*1000,t:0};
   if (v) p.v=v;
   return p;
+}
+/* age-at-placement (T10): backdate the planting day so a tree that already
+   exists in the yard is modeled at its real age. plantEstab counts GROWING
+   days (winters skipped), so backdating by whole YEAR_DAYS credits exactly
+   that many years — Mature = the species' full `grow` horizon (estab 1),
+   Young = about half. Non-woody plants always plant new. */
+const WOODY_AGES=['new','young','mature'];
+function normalizeWoodyAge(a){ return WOODY_AGES.includes(a)?a:'new'; }
+function woodyPlantedDay(def,age){
+  age=normalizeWoodyAge(age);
+  if (!isWoodyDef(def) || age==='new') return absDay();
+  const years=def.grow||5;
+  return absDay() - (age==='mature'?years:Math.ceil(years/2))*YEAR_DAYS;
 }
 /* the display lens for establishment-derived facts (canopy reach, shade
    washes/stunting, plan circles, footprint styling, the plant card): real

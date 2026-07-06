@@ -11,7 +11,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // used by tray icons / previews); gates and thins the flower pass
   const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key) : 0);
   const blooming = !!S.bloom && blv>0.08;
-  const H = P.h * (0.25 + 0.75*growth);
+  const H = woodyVisualH(P) * (0.25 + 0.75*growth);   // trees: display-rescaled height (T10)
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
@@ -868,13 +868,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'tree'){ // deciduous: trunk + branches always, canopy by season
     const L=P.look||{};
-    const cw=(P.cw||100)*(L.cwMul||1)*(0.3+0.7*growth), trunkH=H*(L.trunkH||0.42);
+    // vs = the T10 display-rescale factor; absolute strokes (trunk, branches,
+    // flowers) scale with it so a big canopy doesn't sit on toothpick wood
+    const vs=(woodyVisualCw(P)||100)/(P.cw||100);
+    const cw=(woodyVisualCw(P)||100)*(L.cwMul||1)*(0.3+0.7*growth), trunkH=H*(L.trunkH||0.42);
     const cy=-trunkH-H*(L.canopyY||0.30); // canopy center
     ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
-    const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*growth);
+    const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*vs*growth);
     for (let tr=0;tr<trunks;tr++){
-      const spread=(tr-(trunks-1)/2)*(L.trunkSpread||7)*(0.5+growth*0.5);
-      const lean=(tr-(trunks-1)/2)*(L.trunkLean||2.5);
+      const spread=(tr-(trunks-1)/2)*(L.trunkSpread||7)*vs*(0.5+growth*0.5);
+      const lean=(tr-(trunks-1)/2)*(L.trunkLean||2.5)*vs;
       ctx.lineWidth=trunkW*(trunks>1?0.72:1);
       ctx.beginPath(); ctx.moveTo(spread,0);
       ctx.quadraticCurveTo(spread*0.55,-trunkH*0.42,sway*2+lean,-trunkH); ctx.stroke();
@@ -882,12 +885,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.strokeStyle=L.barkStripe; ctx.lineWidth=Math.max(0.7,trunkW*0.16);
         for(let bs=0;bs<3;bs++){ ctx.beginPath();
           const y=-trunkH*(0.18+bs*0.22);
-          ctx.moveTo(spread-2,y); ctx.lineTo(spread+3,y-1); ctx.stroke(); }
+          ctx.moveTo(spread-2*vs,y); ctx.lineTo(spread+3*vs,y-1); ctx.stroke(); }
         ctx.strokeStyle=L.bark||'#5e4a38';
       }
     }
     const tips=[];
-    ctx.lineWidth=Math.max(1.2, (L.branchW||2.2)*growth);
+    ctx.lineWidth=Math.max(1.2, (L.branchW||2.2)*vs*growth);
     const branchN=L.branches||5;
     for (let i=0;i<branchN;i++){
       const a=(i/(branchN-1)-0.5)*(L.branchSpread||1.7)+(rnd()-0.5)*0.2;
@@ -904,17 +907,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.ellipse(sway*2, cy+H*0.06, cw*(L.canopyW||0.48)*0.92, H*(L.canopyH||0.26)*0.88, 0, 0, 7);
       ctx.fill();
       ctx.restore();
-      const n=stemFor(L.leafN||26);
+      // T10: leaf blobs are cw-relative, so a rescaled giant would read as a
+      // few huge lobes — trade blob size for blob count (coverage constant)
+      const leafMul=Math.min(3,Math.max(1,vs*0.75)), leafDim=1/Math.sqrt(leafMul);
+      const n=stemFor(Math.round((L.leafN||26)*leafMul));
       for (let i=0;i<n;i++){
         const a=rnd()*Math.PI*2, r=Math.sqrt(rnd());
         ctx.fillStyle=shade(S.fol,(rnd()-0.5)*30);
         ctx.beginPath();
         ctx.ellipse(Math.cos(a)*cw*(L.canopyW||0.48)*r+sway*3, cy-Math.sin(a)*H*(L.canopyH||0.26)*r,
-          cw*(L.leafW||0.15), cw*(L.leafH||0.10), a, 0, 7);
+          cw*(L.leafW||0.15)*leafDim, cw*(L.leafH||0.10)*leafDim, a, 0, 7);
         ctx.fill();
       }
       if (L.weep){
-        ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=1;
+        ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=Math.max(1,vs*0.7);
         for (let w=0;w<8;w++){
           const wx=(rnd()-0.5)*cw*0.7+sway*3, wy=cy+rnd()*H*0.12;
           ctx.beginPath(); ctx.moveTo(wx,wy);
@@ -926,7 +932,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const a=-Math.PI*0.65+rnd()*Math.PI*0.42, r=Math.sqrt(rnd());
         ctx.beginPath();
         ctx.ellipse(Math.cos(a)*cw*(L.canopyW||0.48)*r+sway*3, cy-Math.sin(a)*H*(L.canopyH||0.26)*r,
-          cw*(L.leafW||0.15)*0.65, cw*(L.leafH||0.10)*0.62, a, 0, 7);
+          cw*(L.leafW||0.15)*leafDim*0.65, cw*(L.leafH||0.10)*leafDim*0.62, a, 0, 7);
         ctx.fill();
       }
       ctx.restore();
@@ -940,7 +946,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const f=0.5+rnd()*0.45, hx=sway*1.4+(tx2-sway*1.4)*f, hy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
           ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*26);
           for (let p=0;p<4;p++){ ctx.beginPath();
-            ctx.ellipse(hx+(rnd()-0.5)*12,hy+(rnd()-0.5)*10,3.2,2.1,(rnd()-0.5)*1.2,0,7); ctx.fill(); }
+            ctx.ellipse(hx+(rnd()-0.5)*12*vs,hy+(rnd()-0.5)*10*vs,3.2*vs,2.1*vs,(rnd()-0.5)*1.2,0,7); ctx.fill(); }
         }
         ctx.restore();
       } else {
@@ -949,21 +955,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
           ctx.beginPath();
-          ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, L.flowerSize||1.8, 0, 7);
+          ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, (L.flowerSize||1.8)*vs, 0, 7);
           ctx.fill();
         }
       }
     }
     if (S.seed && mature){ // cottonwood fluff, oak's held leaves handled via fol
       ctx.fillStyle=S.seed;
-      const seeds=L.seedN||8, seedR=L.seedR||1.4;
+      const seeds=L.seedN||8, seedR=(L.seedR||1.4)*vs;
       for (let i=0;i<seeds;i++){ ctx.beginPath();
         ctx.arc((rnd()-0.5)*cw*0.8+sway*3, cy-(rnd()-0.5)*H*0.4, seedR, 0, 7); ctx.fill(); }
     }
   }
   else if (P.form === 'conifer'){ // stacked evergreen, dense at any season
-    const cw=(P.cw||60)*(0.3+0.7*growth);
-    ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,4*growth);
+    const vs=(woodyVisualCw(P)||60)/(P.cw||60);
+    const cw=(woodyVisualCw(P)||60)*(0.3+0.7*growth);
+    ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,4*vs*growth);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H*0.18); ctx.stroke();
     for (let t=0;t<3;t++){
       const w=cw*(0.95-t*0.27), yb=-H*(0.16+t*0.26), yt=-H*(0.46+t*0.27);
@@ -978,7 +985,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   }
   else if (P.form === 'bamboo'){ // linked cane grove / screen
     const L=P.look||{}, fol=S.fol||'#4f7c50', cane=L.cane||'#5f7f42';
-    const cw=(P.cw||80)*(0.32+0.68*growth), dirs=(detail&&detail.bambooDirs)||[];
+    const vs=(woodyVisualCw(P)||80)/(P.cw||80);
+    const cw=(woodyVisualCw(P)||80)*(0.32+0.68*growth), dirs=(detail&&detail.bambooDirs)||[];
     if (dirs.length && S.fol){
       ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle=shade(fol,-20);
       dirs.forEach(([dx,dy])=>{
@@ -995,20 +1003,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       let ox=(rnd()-0.5)*cw*0.62, lean=(rnd()-0.5)*6+sway*2;
       if (pull){ const len=Math.hypot(pull[0],pull[1])||1; ox+=(pull[0]/len)*cw*0.20; lean+=(pull[0]/len)*4; }
       const ht=H*(0.72+rnd()*0.34);
-      ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=3.2;
+      ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=3.2*vs;
       ctx.beginPath(); ctx.moveTo(ox+1,0); ctx.quadraticCurveTo(ox+lean*0.25,-ht*0.45,ox+lean,-ht); ctx.stroke();
-      ctx.strokeStyle=shade(cane,(rnd()-0.5)*24); ctx.lineWidth=2.1;
+      ctx.strokeStyle=shade(cane,(rnd()-0.5)*24); ctx.lineWidth=2.1*vs;
       ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox+lean*0.25,-ht*0.45,ox+lean,-ht); ctx.stroke();
-      ctx.strokeStyle='rgba(246,236,202,0.24)'; ctx.lineWidth=0.8;
+      ctx.strokeStyle='rgba(246,236,202,0.24)'; ctx.lineWidth=0.8*vs;
       for (let n=1;n<5;n++){ const yy=-ht*n/5, xx=ox+lean*(n/5);
-        ctx.beginPath(); ctx.moveTo(xx-2.4,yy); ctx.lineTo(xx+2.4,yy); ctx.stroke(); }
+        ctx.beginPath(); ctx.moveTo(xx-2.4*vs,yy); ctx.lineTo(xx+2.4*vs,yy); ctx.stroke(); }
       if (S.fol){
         const leaves=Math.max(2,Math.round((L.leafN||36)/canes));
         for (let j=0;j<leaves;j++){
           const f=0.45+rnd()*0.48, lx=ox+lean*f, ly=-ht*f;
           const side=rnd()<0.5?-1:1;
           ctx.fillStyle=shade(fol,(rnd()-0.5)*26);
-          ctx.beginPath(); ctx.ellipse(lx+side*(5+rnd()*7),ly+(rnd()-0.5)*5,8,2.1,side*0.35,0,7); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(lx+side*(5+rnd()*7)*vs,ly+(rnd()-0.5)*5,8*vs,2.1*vs,side*0.35,0,7); ctx.fill();
         }
       }
     }
@@ -1196,12 +1204,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       tips.forEach(([hx,hy])=>drawHead(hx,hy,S.seed,0.8));
     }
   }
-  // winter snow caps on mature structure
+  // winter snow caps on mature structure (woody: spread across the drawn crown)
   if (AMBIENCE[season].snow && mature){
     ctx.fillStyle='rgba(240,244,250,0.85)';
-    const rs=mulberry(seed+9), caps=4;
+    const capW=P.cw?Math.max(18,(woodyVisualCw(P)||18)*0.5):18;
+    const capS=P.cw?Math.max(1,(woodyVisualCw(P)||60)/60):1;
+    const rs=mulberry(seed+9), caps=isTreeDef(P)?7:4;
     for(let i=0;i<caps;i++){ ctx.beginPath();
-      ctx.ellipse((rs()-0.5)*18,-H*(0.5+rs()*0.45),3.5,1.6,0,0,7); ctx.fill(); }
+      ctx.ellipse((rs()-0.5)*capW,-H*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
   }
   if (!AMBIENCE[season].snow && S.fol && growth>0.28){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
@@ -1209,7 +1219,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';
     const n=isTreeDef(P)?5:3;
     for (let i=0;i<n;i++){
-      const px=(hl()-0.55)*(P.cw?P.cw*0.32:18), py=-H*(0.25+hl()*0.58);
+      const px=(hl()-0.55)*(P.cw?(woodyVisualCw(P)||P.cw)*0.32:18), py=-H*(0.25+hl()*0.58);
       ctx.beginPath();
       ctx.moveTo(px-3,py+1);
       ctx.quadraticCurveTo(px,py-2,px+4,py-3-hl()*3);

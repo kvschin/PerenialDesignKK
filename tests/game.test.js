@@ -1567,6 +1567,55 @@ test('trees soft-warn on crowded spacing but never block, and the trunk refuses 
   assertEqual(placePlantAt(cx + 3, cy), 'bulb', 'bulb tucks in near the tree (not on the trunk)');
 });
 
+test('woody visual rescale: trees draw larger, proportional, and below true scale', () => {
+  const oak = PLANTS.whiteoak, realPx = woodyRadiusTiles(oak) * 2 * TILE_W;
+  const vcw = woodyVisualCw(oak), vh = woodyVisualH(oak);
+  assert(vcw >= oak.cw * 2.5 && vcw <= oak.cw * 5, `oak drawn width rescaled 2.5-5x (got ${vcw} from ${oak.cw})`);
+  assert(vcw < realPx * 0.25, 'giants stay well below true screen scale');
+  const factor = vcw / oak.cw;
+  assert(Math.abs(vh / oak.h - factor) < 0.02, 'height scales by the same factor as width');
+  // small trees land closer to true size than giants (compression, not linear)
+  const redbud = PLANTS.redbud;
+  const oakShare = vcw / realPx;
+  const redbudShare = woodyVisualCw(redbud) / (woodyRadiusTiles(redbud) * 2 * TILE_W);
+  assert(redbudShare > oakShare, 'smaller trees keep a larger share of true size');
+  // narrow cultivars stay narrower than their species
+  const sw = plantDef('sweetgum', null), swNarrow = plantDef('sweetgum', 'slendersilhouette');
+  assert(woodyVisualCw(swNarrow) < woodyVisualCw(sw) * 0.8, 'narrow cultivar stays visibly narrower');
+  // never wider than an art cw that already exceeds real width, and non-trees untouched
+  const grass = PLANTS.bluestem;
+  assertEqual(woodyVisualH(grass), grass.h, 'herbaceous height untouched');
+  const shrub = PLANTS.smokebush;
+  assertEqual(woodyVisualCw(shrub), Math.max(shrub.cw, woodyRadiusTiles(shrub) * TILE_W), 'shrub visual width rule unchanged');
+});
+
+test('age-at-placement backdates woody planting so establishment is immediate', () => {
+  setup(31, 31);
+  const treeKey = firstOfType('tree'), def = plantDef(treeKey, null);
+  game.tool = treeKey; game.toolVar = null;
+  // mature: full establishment the moment it lands
+  game.woodyAge = 'mature';
+  assertEqual(placePlantAt(10, 10), 'plant', 'mature tree places');
+  assertEqual(plantEstab(game.plants['10,10']), 1, 'mature-placed tree is fully established');
+  // young: roughly half grown
+  game.woodyAge = 'young';
+  assertEqual(placePlantAt(20, 10), 'plant', 'young tree places');
+  const est = plantEstab(game.plants['20,10']);
+  assert(est >= 0.4 && est <= 0.8, `young-placed tree is part grown (got ${est})`);
+  // new: starts from zero
+  game.woodyAge = 'new';
+  assertEqual(placePlantAt(10, 20), 'plant', 'new tree places');
+  assertEqual(plantEstab(game.plants['10,20']), 0, 'new-placed tree starts unestablished');
+  // herbaceous plants ignore the age seg entirely
+  game.woodyAge = 'mature';
+  const forb = Object.keys(PLANTS).find(k => PLANTS[k].type === 'forb' && PLANTS[k].sun === 'full' && !PLANTS[k].hidden);
+  game.tool = forb;
+  assertEqual(placePlantAt(20, 20), 'plant', 'forb places');
+  assertEqual(game.plants['20,20'].d, absDay(), 'herbaceous planting day is today regardless of the age seg');
+  // a mature-placed tree casts REAL shade immediately (rules-map, not preview)
+  assert(!!shadeAt(10, 9), 'mature-placed tree drives true-establishment shade at once');
+});
+
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // below the plant floor it never engages, however slow the draw

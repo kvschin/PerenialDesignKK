@@ -241,8 +241,26 @@ function woodyRadiusTiles(P){
 function woodyVisualCw(P){
   if (!P) return undefined;
   if (!isWoodyDef(P)) return P.cw;
-  if (isTreeDef(P)) return P.cw; // T10 owns tree visual rescaling; keep behavior flat here.
+  if (isTreeDef(P)){
+    /* T10 compression curve: trees drew ~24x smaller than reality (white oak
+       cw:160px vs 3800px of true 75ft crown) while perennials sit near 1:1.
+       Blend the art cw toward true screen width in log space — small trees
+       land near real size, giants compress to ~16% of real (oak ~605px) so
+       one oak reads as a TREE without swallowing the plot. The species' cw
+       stays the shape signal, so narrow cultivars stay narrow. */
+    const cw=P.cw||100, realPx=woodyRadiusTiles(P)*2*TILE_W;
+    if (realPx<=cw) return cw;
+    return Math.round(Math.min(realPx, Math.exp(Math.log(cw)*0.58 + Math.log(realPx)*0.42)));
+  }
   return Math.max(P.cw||0, woodyRadiusTiles(P)*TILE_W);
+}
+/* drawn height pairs with drawn width: trees scale h by the same factor the
+   compression curve applied to cw, so proportions hold. Data (P.h) is
+   untouched — this is a display transform, like woodyVisualCw. */
+function woodyVisualH(P){
+  if (!P) return undefined;
+  if (!isTreeDef(P)) return P.h;
+  return Math.round((P.h||80) * (woodyVisualCw(P)/(P.cw||100)));
 }
 function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;

@@ -397,9 +397,11 @@ function enterGarden(){
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
   if (game.gameMode==='design' && !game.visiting){
     game.previewMode=game.previewMode||'established';
+    game.woodyAge='mature';                     // designers plan around existing/mature trees
     game.pausedAt=Date.now();
   } else {
     game.previewMode='today';
+    game.woodyAge='new';                        // the avatar path grows things for real
     game.pausedAt=0;
   }
   document.body.classList.toggle('design-mode', game.gameMode==='design');

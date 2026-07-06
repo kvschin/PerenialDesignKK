@@ -410,20 +410,25 @@ function pspriteFrame(){                        // once per render: age the cach
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
 function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const P=plantDef(key,variant), growth=gB/8;
-  const H=P.h*(0.25+0.75*growth);
-  // the box must cover the whole drawing — woody canopies reach well above P.h
-  // and wide of P.cw, so trees clip if we size from P.h alone.
+  const H=woodyVisualH(P)*(0.25+0.75*growth);   // trees: display-rescaled (T10)
+  // the box must cover the whole drawing — woody canopies reach well above the
+  // drawn height and wide of the drawn cw, so trees clip if we size from H alone.
   const woody=isWoodyDef(P);
-  const canopy=(isShrubDef(P)?(woodyVisualCw(P)||50):(woodyVisualCw(P)||80))*(0.3+0.7*growth);
+  const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
   const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62)+18;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):H*1.12)+26;
-  const bot=18, s=pspriteScale();
+  const bot=18, want=pspriteScale();
+  // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
+  // the bake RESOLUTION instead of bailing to per-frame procedural — the blit
+  // scales it up slightly soft at high zoom, which reads fine on foliage and
+  // keeps one oak from costing 13MB of sprite memory.
+  const s=Math.min(want, 1024/Math.max(halfW*2, top+bot));
   const pw=Math.max(1,Math.ceil(halfW*2*s)), ph=Math.max(1,Math.ceil((top+bot)*s));
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
   const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
   const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
   drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,detail); // still (sway 0), bucketed bloom
-  return { cv, ox:halfW, oy:top, s, bytes:pw*ph*4 };
+  return { cv, ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites){
@@ -436,7 +441,11 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   // permitting) at the current scale. But to keep zooming smooth, reuse the old
   // one for this frame rather than dropping a visible plant to a slow procedural
   // draw — the cache converges back to crisp within a few frames after a zoom.
-  if (!e || Math.abs(e.s-PSPRITE.scale) > PSPRITE.scale*0.12){
+  // Resolution-capped giants (T10) compare on the REQUESTED scale and never
+  // rebake while zooming further in — the bake would come out identical.
+  const eScale=e&&(e.want!==undefined?e.want:e.s);
+  if (!e || (Math.abs(eScale-PSPRITE.scale) > PSPRITE.scale*0.12 &&
+             !(e.capped && PSPRITE.scale>e.s))){
     if (PSPRITE.rendered<PSPRITE.BUDGET){
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
       if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes; }

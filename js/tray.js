@@ -291,7 +291,7 @@ function drawBrushSwatchCanvas(c,includeLast){
   c.style.display='';
   if (PLANTS[k]){
     const R=plantDef(k,v);
-    const sc=Math.min(0.45, (c.height-5)/(R.h||40));
+    const sc=Math.min(0.45, (c.height-5)/(woodyVisualH(R)||40));
     g.save(); g.scale(sc,sc);
     const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
     drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
@@ -571,6 +571,16 @@ function choosePlacementMode(free){
   toast(game.freePlanting
     ? 'Free placement on. Herbaceous plants land where you click, not just tile centers.'
     : 'Grid placement on. Plants sit neatly at tile centers.');
+}
+function chooseWoodyAge(age){
+  game.woodyAge=normalizeWoodyAge(age);
+  armPlantToolFromRail(false);
+  renderBrushBar();
+  toast(game.woodyAge==='mature'
+    ? 'Planting at mature size — for trees and shrubs already in the yard.'
+    : game.woodyAge==='young'
+    ? 'Planting about half grown.'
+    : 'Planting new — it grows in over the years.');
 }
 function chooseFillMode(on){
   if (on && !toolMeta(game.tool).paints){
@@ -967,7 +977,7 @@ function renderSearchPlantButton(tray,k){
   b.dataset.k=k; if (P.group) b.dataset.group=P.group;
   b.title=`${P.name} - ${P.latin} (${trayCatLabel(catId)})`;
   const c=document.createElement('canvas'); c.width=48; c.height=44;
-  const sc=Math.min(0.62,36/(R.h||40));
+  const sc=Math.min(0.62,36/(woodyVisualH(R)||40));
   const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
   const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
   drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,undefined,1);
@@ -1165,7 +1175,7 @@ function buildToolTray(){
       b.className='tool'+((P.group ? activeGroup : game.tool===k)?' sel':'')+(drillable?' has-sub':'');
       b.dataset.k=k; if (P.group) b.dataset.group=P.group;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const sc=Math.min(0.62, 36/(R.h||40));   // tall plants shrink to fit
+      const sc=Math.min(0.62, 36/(woodyVisualH(R)||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
       const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
       drawPlant(ctx2,24/sc,42/sc,rep,1,iconSeason,tileSeed(3,7),0,undefined,1);
@@ -1741,7 +1751,7 @@ function renderDrillIn(tray, drillKey, members){
     b.className='tool'+((game.tool===k && (game.toolVar||null)===(v||null))?' sel':'');
     b.dataset.k=k; if (v) b.dataset.v=v;
     const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const sc=Math.min(0.62, 36/(R.h||40));
+    const sc=Math.min(0.62, 36/(woodyVisualH(R)||40));
     const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
     const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
     drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
@@ -1813,12 +1823,22 @@ function renderBrushBar(){
     {label:'Matrix',on:game.matrix, title:'Scatter across a painted region at real spacing (flows around what’s there)',
       draw:tc=>drawMatrixModeIcon(tc),  click:()=>chooseMatrixMode()},
   ]));
-  if (P) parts.push(seg([
+  // Grid/Free only moves herbaceous plants (freePlantable excludes woody), so
+  // woody brushes trade it for the Age seg: what age the tree/shrub plants at.
+  if (P && !woody) parts.push(seg([
     {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
       draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
     {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
       draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
   ]));
+  if (P && woody){
+    const age=normalizeWoodyAge(game.woodyAge);
+    parts.push(seg([
+      {label:'New',    on:age==='new',    title:'Plant a young start — it grows in over the years', click:()=>chooseWoodyAge('new')},
+      {label:'Young',  on:age==='young',  title:'Plant about half grown', click:()=>chooseWoodyAge('young')},
+      {label:'Mature', on:age==='mature', title:'Plant at mature size — for trees and shrubs already in the yard', click:()=>chooseWoodyAge('mature')},
+    ]));
+  }
   // brush size (disc): materials + elevation only — plants keep their spacing
   if (meta.sizable){
     const cur=normalizeBrushSize(game.brushSize);
