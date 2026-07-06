@@ -807,18 +807,40 @@ test('shrubs get their own rounded plan components', () => {
   assert(low && low.shape === 'sphere' && low.tiles.length === 1, 'low ball is a one-plant round plan symbol');
   assert(hedge && hedge.hedge && hedge.tiles.length === 2, 'touching square boxwoods become one hedge symbol');
   assert(hydrangea && !hydrangea.hedge && hydrangea.tiles.length > 1, 'ordinary shrubs get mature rounded plan footprints');
+  const ellipses = [];
+  const ctx = new Proxy({ ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); } }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  const cell = 20, X = x => x * cell, Y = y => y * cell;
+  drawShrubPlan(ctx, hydrangea, { 'hydrangea|': 'HY' }, cell, X, Y);
+  const blob = ellipses[0], r = woodyRadiusTiles(plantDef('hydrangea')) * cell;
+  assertEqual(Math.round(blob.rx * 1000), Math.round(r * 1000), 'shrub plan blob radius uses woodyRadiusTiles');
+  assertEqual(Math.round(blob.ry * 1000), Math.round(r * 1000), 'shrub plan blob radius uses woodyRadiusTiles vertically');
+  assertEqual(Math.round(blob.x * 1000), Math.round((hydrangea.x + 0.5) * cell * 1000),
+    'shrub plan blob centers on the shrub origin');
 });
 
-test('tree plan canopy radius follows the established-preview display lens', () => {
-  setup(21, 21);
-  const tree = firstOfType('tree');
+test('tree plan canopy radius follows the effective display lens', () => {
+  setup(61, 61);
+  const tree = 'whiteoak';
   const def = plantDef(tree);
-  game.plants['10,10'] = { s: tree, d: absDay(), t: 1 };
+  const cx = 30, cy = 30;
+  game.plants[`${cx},${cy}`] = { s: tree, d: absDay(), t: 1 };
   const cell = Math.max(9, Math.min(24, Math.floor(1000 / Math.max(GW, GH))));
   const oldGet = document.getElementById;
-  const planRadii = mode => {
-    const arcs = [];
-    const ctx = new Proxy({ arc(x, y, r){ arcs.push(r); } }, {
+  const planDraw = mode => {
+    const arcs = [], labels = [];
+    let dash = [], clips = 0;
+    const stack = [];
+    const ctx = new Proxy({
+      save(){ stack.push(dash.slice()); },
+      restore(){ dash = stack.pop() || []; },
+      setLineDash(v){ dash = v.slice(); },
+      arc(x, y, r){ arcs.push({ x, y, r, dash: dash.join(',') }); },
+      fillText(t){ labels.push(String(t)); },
+      clip(){ clips++; },
+    }, {
       get(o, p){ return p in o ? o[p] : () => {}; },
       set(o, p, v){ o[p] = v; return true; }
     });
@@ -831,15 +853,34 @@ test('tree plan canopy radius follows the established-preview display lens', () 
     } finally {
       document.getElementById = oldGet;
     }
-    return arcs.sort((a, b) => b - a);
+    return { arcs, labels, clips };
   };
-  const today = planRadii('today')[0];
-  const established = planRadii('established')[0];
-  assertEqual(Math.round(today * 1000), Math.round(cell * 0.5 * 1000),
-    'fresh tree plan circle bottoms out at the trunk-readable minimum today');
-  assertEqual(Math.round(established * 1000), Math.round(woodyRadiusTiles(def) * cell * 1000),
-    'established preview plan circle uses mature woody radius');
-  assert(established > today, 'established preview plan circle grows from today');
+  const fresh = planDraw('today');
+  assertEqual(fresh.arcs.filter(a => a.dash === '5,4').length, 0,
+    'fresh Today plan shows no false canopy ring');
+
+  const horizon = def.grow * (YEAR_DAYS - DAYS_PER_SEASON);
+  game.plants[`${cx},${cy}`].d = absDay() - Math.ceil(horizon / 2);
+  const today = planDraw('today');
+  const todayRing = today.arcs.find(a => a.dash === '5,4');
+  assert(todayRing, 'establishing Today plan draws the current canopy reach');
+  assertEqual(Math.round(todayRing.r * 1000), Math.round(canopyRadius(game.plants[`${cx},${cy}`]) * cell * 1000),
+    'Today ring follows current effective reach');
+
+  const established = planDraw('established');
+  const estRing = established.arcs.find(a => a.dash === '5,4');
+  const trunk = established.arcs.filter(a => a.r < cell * 0.5).pop();
+  assertEqual(Math.round((estRing.r / cell) * 2), 50,
+    'established white oak plan circle is 50 tiles across');
+  assertEqual(Math.round(estRing.x * 1000), Math.round(trunk.x * 1000),
+    'canopy circle is centered on the trunk dot');
+  assertEqual(Math.round(estRing.y * 1000), Math.round(trunk.y * 1000),
+    'canopy circle is centered on the trunk dot vertically');
+  assertEqual(Math.round(estRing.r * 1000), Math.round(woodyRadiusTiles(def) * cell * 1000),
+    'Established preview uses mature woody radius');
+  assert(established.clips > 0, 'large canopy rings are clipped to the plot sheet');
+  assert(established.labels.some(t => t.includes('Dashed = mature crown')),
+    'tree plan legend explains dashed mature crowns');
 });
 
 test('shade overlay marks the layer view active; night does not (night is a top-bar toggle)', () => {

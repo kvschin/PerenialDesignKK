@@ -400,8 +400,8 @@ function openBloomCalendar(){
 /* ---------- the planting plan: an Oudolf-style drift map ----------
    Top-down 2D. Contiguous same-species tiles flood-fill into drifts,
    each drift's boundary is traced and smoothed into an organic blob,
-   labeled with a short code. Trees draw as dashed mature-canopy
-   circles, bulbs as scatter dots over the drifts. */
+   labeled with a short code. Trees draw as dashed effective-canopy
+   circles (mature under Established preview), bulbs as scatter dots over the drifts. */
 function planComponents(){
   const live={};
   for (const k in game.plants){ const p=game.plants[k]; if (!p.removed){
@@ -521,7 +521,7 @@ function shrubPlanComponents(){
     } else {
       shrubFootprintTiles(root.x,root.y,root.p,true).forEach(([xx,yy])=>tiles.push(`${xx},${yy}`));
     }
-    comps.push({s:root.p.s,v:root.p.v||null,tiles,shape:(root.def.look&&root.def.look.shape)||'round',hedge});
+    comps.push({s:root.p.s,v:root.p.v||null,x:root.x,y:root.y,tiles,shape:(root.def.look&&root.def.look.shape)||'round',hedge});
   }
   return comps;
 }
@@ -541,11 +541,9 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
   ctx.save();
   ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=1.25;
   if (!c.hedge){
-    const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
-    const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
-    const cx2=(X(minX)+X(maxX+1))/2, cy2=(Y(minY)+Y(maxY+1))/2;
-    const rx=Math.max(r*0.62, (maxX-minX+1)*cell*0.48);
-    const ry=Math.max(r*0.48, (maxY-minY+1)*cell*0.48);
+    const cx2=X((Number.isFinite(c.x)?c.x:pts[0][0])+0.5);
+    const cy2=Y((Number.isFinite(c.y)?c.y:pts[0][1])+0.5);
+    const rx=r, ry=r;
     ctx.beginPath();
     ctx.ellipse(cx2,cy2,rx,ry,0,0,7);
     ctx.fill(); ctx.stroke();
@@ -577,6 +575,27 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
   drawPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
   ctx.restore();
 }
+function drawTreePlan(ctx,p,x,y,cell,X,Y){
+  const def=plantDef(p.s,p.v), reach=canopyRadius(p);
+  const cx2=X(x)+cell/2, cy2=Y(y)+cell/2;
+  if (reach>0){
+    const r=reach*cell;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(X(0),Y(0),GW*cell,GH*cell);
+    ctx.clip();
+    ctx.globalAlpha=0.12;
+    ctx.fillStyle=mixHex(planColor(def),'#f7f3e8',0.56);
+    ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.strokeStyle=mixHex(planColor(def),'#2c241c',0.18);
+    ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle='#4a3a28';
+  ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2.5,cell*0.18),0,7); ctx.fill();
+}
 function planCodes(ids){ // short Oudolf-style codes, unique per species|cv
   const used={}, codes={};
   // parse genus/epithet once; count 2-letter genus prefixes so a lone genus can
@@ -607,6 +626,10 @@ function buildPlanMap(){
   const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
   const comps=allComps.filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
   const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
+  const treesLive=Object.keys(game.plants).filter(k=>{
+    const p=game.plants[k];
+    return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
+  });
   const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
   const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
   const ids=[...new Set([
@@ -617,7 +640,8 @@ function buildPlanMap(){
   const codes=planCodes(ids);
   const legCols=3, legRows=Math.ceil(ids.length/legCols);
   const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
-  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+(legRows+fixtureRows)*15+26;
+  const noteRows=treesLive.length?1:0;
+  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+(legRows+fixtureRows+noteRows)*15+26;
   pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
   ctx.setTransform(2,0,0,2,0,0);
   const X=x=>padL+x*cell, Y=y=>padT+y*cell;
@@ -763,23 +787,11 @@ function buildPlanMap(){
     });
   });
   shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y));
-  // trees: mature canopy circles, trunk dot
-  for (const k in game.plants){ const p=game.plants[k];
-    if (p.removed) continue;
-    const def=plantDef(p.s,p.v);
-    if (!isTreeDef(def)) continue;
+  // trees: effective canopy circles, clipped to the plot, plus trunk dot
+  treesLive.forEach(k=>{ const p=game.plants[k];
     const [x,y]=k.split(',').map(Number);
-    // canopy sized to the tree's effective reach: establishment-scaled in the
-    // Today view (a young tree draws a small circle, growing as it ages), full
-    // mature spread under the design Established preview — the plan always
-    // matches what the garden view is showing
-    const r=Math.max(cell*0.5, canopyRadius(p)*cell);
-    ctx.strokeStyle='#6e5a40'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
-    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,r,0,7); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle='#4a3a28';
-    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2.5,cell*0.18),0,7); ctx.fill();
-  }
+    drawTreePlan(ctx,p,x,y,cell,X,Y);
+  });
   // bulbs: scatter rings over everything
   bulbsLive.forEach(k=>{
     const b2=game.bulbs[k], [x,y]=k.split(',').map(Number);
@@ -850,6 +862,15 @@ function buildPlanMap(){
     ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
     ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
     ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
+  }
+  if (treesLive.length){
+    const cy2=ly2+(legRows+fixtureRows)*15, cx2=padL;
+    ctx.save();
+    ctx.strokeStyle='#6e5f48'; ctx.lineWidth=1.1; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(cx2,cy2-3); ctx.lineTo(cx2+22,cy2-3); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
+    ctx.fillText('Dashed = mature crown in Established preview; Today shows current reach.', cx2+28, cy2);
   }
   // scale bar: 10 ft
   const ftPx=cell/1.5, bx2=W2-padL-ftPx*10, by2=H2-18;
