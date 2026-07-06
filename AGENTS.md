@@ -189,6 +189,7 @@ key: {
   sun: 'full',                // full | part
   moist: 'dry',               // dry | medium | moist | wet
   phen: 'warm',               // cool | mid | warm
+  bloomMonths: [7, 8, 9],     // real-world bloom calendar months, 1-12
   grow: 10,                   // woody only: years to mature size
   cw: 150,                    // woody only: canopy/twig width in px
   cv: { theblues: {} },       // selectable cultivars
@@ -217,7 +218,10 @@ matter more than making every plant equally flashy.
 
 Water plants use `type: 'water'` and should only place on water terrain.
 Woody shrubs/trees establish over years and can occupy more than one tile.
-Bulbs share space with plants and have their own seasonal envelope.
+Bulbs share space with plants and have their own seasonal envelope. Keep
+`bloomDay` for in-game bloom timing and `bloomMonths` for real-world calendar
+exports; if `bloomMonths` is missing, the calendar falls back to conservative
+season-to-month estimates.
 
 ## UI conventions
 

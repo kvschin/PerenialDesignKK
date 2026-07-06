@@ -168,7 +168,7 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
-test('bloom calendar rows come from planted blooming species', () => {
+test('bloom calendar rows use real-world bloom months from planted species', () => {
   setup();
   setTile('plants', '5,5', { s: 'echinacea', d: 0, t: 1 });
   setTile('plants', '6,5', { s: 'echinacea', d: 0, t: 1 });
@@ -177,9 +177,9 @@ test('bloom calendar rows come from planted blooming species', () => {
   const cone = rows.find(r => r.key === 'echinacea|');
   const bulb = rows.find(r => r.key === 'daffodil|');
   assert(cone && cone.count === 2, 'summer perennial counted once per planted tile');
-  assert(cone.windows.some(w => w.season === 'Summer'), 'coneflower shows a summer bloom window');
+  assert(cone.months.includes(6) && cone.months.includes(8), 'coneflower shows real summer bloom months');
   assert(bulb && bulb.count === 1, 'spring bulb counted');
-  assert(bulb.windows.some(w => w.season === 'Spring'), 'daffodil shows a spring bloom window');
+  assert(bulb.months.includes(3) && bulb.months.includes(4), 'daffodil shows real spring bloom months');
 });
 
 test('bulbs cannot be planted under a tree or shrub', () => {

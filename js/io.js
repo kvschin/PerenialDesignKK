@@ -288,15 +288,58 @@ function exportCsv(){
 }
 
 /* ---------- bloom calendar ----------
-   A planted-only calendar: reads the same placed plant/bulb layers as the
-   planting list, then maps seasonal bloom colors to approximate day ranges
-   within each 16-day season. It is a design aid, not a strict horticultural
-   prediction. */
-function bloomWindowFor(def){
-  const centers={cool:5, mid:8, warm:11};
-  const peak0=def.bloomDay!==undefined ? def.bloomDay : (centers[def.phen]||8);
-  const peak=Math.max(1,Math.min(DAYS_PER_SEASON,Math.round(peak0)+1));
-  return {start:Math.max(1,peak-3), end:Math.min(DAYS_PER_SEASON,peak+3)};
+   A planted-only real-world bloom calendar. `bloomMonths` is the preferred
+   data source; the season fallback keeps older/unrefined species visible until
+   their month ranges are curated. Game animation still uses bloomDay. */
+const CAL_MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+const CAL_MONTH_LABELS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function normalizeBloomMonths(months){
+  const out=[];
+  (months||[]).forEach(m=>{ m=Number(m); if (m>=1 && m<=12 && !out.includes(m)) out.push(m); });
+  return out.sort((a,b)=>a-b);
+}
+function bloomMonthsFromRange(start,end){
+  start=Number(start); end=Number(end);
+  if (!(start>=1 && start<=12 && end>=1 && end<=12)) return [];
+  const out=[];
+  if (start<=end){ for (let m=start;m<=end;m++) out.push(m); }
+  else { for (let m=start;m<=12;m++) out.push(m); for (let m=1;m<=end;m++) out.push(m); }
+  return normalizeBloomMonths(out);
+}
+function fallbackBloomMonths(def){
+  const seasons=SEASONS.filter(s=>def.sea && def.sea[s] && def.sea[s].bloom);
+  if (!seasons.length) return [];
+  const out=[];
+  if (def.type==='bulb' && seasons.includes('Spring')){
+    const d=def.bloomDay!==undefined ? def.bloomDay : 4;
+    if (d<=1) out.push(2,3);
+    else if (d<=4) out.push(3,4);
+    else if (d<=7) out.push(4,5);
+    else out.push(5,6);
+  }
+  seasons.forEach(s=>{
+    if (s==='Spring') out.push(def.type==='bulb' ? 3 : 4,5);
+    else if (s==='Summer') out.push(6,7,8);
+    else if (s==='Fall') out.push(9,10);
+    else if (s==='Winter') out.push(12,1,2);
+  });
+  return normalizeBloomMonths(out);
+}
+function bloomMonthsFor(def){
+  if (Array.isArray(def.bloomMonths)) return normalizeBloomMonths(def.bloomMonths);
+  const ranged=bloomMonthsFromRange(def.bloomStart,def.bloomEnd);
+  return ranged.length ? ranged : fallbackBloomMonths(def);
+}
+function bloomMonthColor(def,month){
+  const season = (month>=3 && month<=5) ? 'Spring' :
+    (month>=6 && month<=8) ? 'Summer' :
+    (month>=9 && month<=11) ? 'Fall' : 'Winter';
+  return (def.sea && def.sea[season] && def.sea[season].bloom) || planColor(def);
+}
+function bloomMonthSeasonClass(month){
+  return (month>=3 && month<=5) ? 'spring' :
+    (month>=6 && month<=8) ? 'summer' :
+    (month>=9 && month<=11) ? 'fall' : 'winter';
 }
 function bloomRows(){
   const counts={};
@@ -309,42 +352,36 @@ function bloomRows(){
     }
   });
   return Object.keys(counts).map(ck=>{
-    const [s,v]=ck.split('|'), def=plantDef(s,v||null), win=bloomWindowFor(def);
-    const windows=SEASONS.map((season,idx)=>{
-      const sea=(def.sea&&def.sea[season])||{};
-      return sea.bloom ? {season,seasonIndex:idx,start:win.start,end:win.end,color:sea.bloom} : null;
-    }).filter(Boolean);
-    if (!windows.length) return null;
+    const [s,v]=ck.split('|'), def=plantDef(s,v||null), months=bloomMonthsFor(def);
+    if (!months.length) return null;
+    const colors={};
+    months.forEach(m=>{ colors[m]=bloomMonthColor(def,m); });
     return {key:ck,name:def.name,latin:def.latin||'',count:counts[ck],
-      color:planColor(def),windows,
-      first:windows[0].seasonIndex*DAYS_PER_SEASON+windows[0].start};
+      color:planColor(def),months,colors,first:months[0]};
   }).filter(Boolean).sort((a,b)=>a.first-b.first || a.name.localeCompare(b.name));
 }
-function bloomRangeHtml(win){
-  const left=((win.start-1)/DAYS_PER_SEASON)*100;
-  const width=((win.end-win.start+1)/DAYS_PER_SEASON)*100;
-  const label=win.start===win.end ? `Day ${win.start}` : `Days ${win.start}-${win.end}`;
-  return `<span class="bloom-range" style="left:${left}%;width:${width}%;background:${win.color}" title="${htmlEscape(win.season)} ${htmlEscape(label)}"><span>${htmlEscape(label)}</span></span>`;
+function bloomMonthCellHtml(row,month){
+  const seasonClass=bloomMonthSeasonClass(month);
+  if (!row.months.includes(month)) return `<div class="bloom-cell ${seasonClass}"></div>`;
+  const label=CAL_MONTH_LABELS[month-1];
+  const color=row.colors[month]||row.color;
+  return `<div class="bloom-cell ${seasonClass} active" title="${htmlEscape(row.name)} blooms in ${label}">
+    <span class="bloom-dot" style="background:${color}"></span></div>`;
 }
 function openBloomCalendar(){
   const rows=bloomRows(), body=$('bloomBody');
   const where=game.mode==='multi'?`Garden ${game.code}`:(game.worldName||'My garden');
-  $('bloomMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one season = ${DAYS_PER_SEASON} garden days`;
+  $('bloomMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · approximate real-world bloom months`;
   if (!rows.length){
     body.innerHTML='<p class="note">Nothing blooming is planted yet. Add flowering perennials or bulbs, then come back for the calendar.</p>';
   } else {
-    const head=`<div class="bloom-head">Species</div>${SEASONS.map(s=>`<div class="bloom-head">${s}</div>`).join('')}`;
+    const head=`<div class="bloom-head">Species</div>${CAL_MONTHS.map(m=>`<div class="bloom-head month">${CAL_MONTH_LABELS[m-1]}</div>`).join('')}`;
     const lines=rows.map(r=>{
-      const bySeason={};
-      r.windows.forEach(w=>{ bySeason[w.season]=w; });
-      const cells=SEASONS.map(s=>{
-        const win=bySeason[s];
-        return `<div class="bloom-cell"><div class="bloom-track">${win?bloomRangeHtml(win):''}</div></div>`;
-      }).join('');
+      const cells=CAL_MONTHS.map(m=>bloomMonthCellHtml(r,m)).join('');
       return `<div class="bloom-name"><b>${htmlEscape(r.name)}</b><small>${htmlEscape(r.latin)}</small><em>${r.count} planted</em></div>${cells}`;
     }).join('');
     body.innerHTML=`<div class="bloom-wrap"><div class="bloom-grid">${head}${lines}</div></div>
-      <p class="note">Bloom timing is approximate and uses the garden's 16-day season rhythm. Weather, establishment, and cultivar differences can shift real-world timing.</p>`;
+      <p class="note">Bloom timing is approximate and region-dependent. Use it as a planning guide; zone, weather, microclimate, and cultivar differences can shift bloom windows earlier or later.</p>`;
   }
   $('bloomScreen').classList.remove('hidden');
 }

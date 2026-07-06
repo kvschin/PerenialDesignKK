@@ -96,6 +96,20 @@ test('bulb-only fields are valid when present', () => {
   }
 });
 
+test('real-world bloom month metadata is valid when present', () => {
+  assert(typeof BLOOM_MONTHS === 'object' && BLOOM_MONTHS, 'BLOOM_MONTHS missing');
+  for (const k of Object.keys(BLOOM_MONTHS)){
+    assert(PLANTS[k], `${k}: bloom month override points at no plant`);
+  }
+  for (const k of keys){
+    const P = PLANTS[k];
+    if (!P.bloomMonths) continue;
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: bloomMonths not an array`);
+    for (const m of P.bloomMonths)
+      assert(Number.isInteger(m) && m >= 1 && m <= 12, `${k}: bad bloom month ${m}`);
+  }
+});
+
 test('cultivars (cv) are well-formed', () => {
   for (const k of keys){
     const cv = PLANTS[k].cv;

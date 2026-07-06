@@ -28,6 +28,10 @@
            through spring: crocus 1, daffodil 3, muscari 4, tulip 6,
            camassia 9); species without it peak by phen (cool 5, mid 8,
            warm 11)
+   bloomMonths optional: real-world bloom months as numbers 1-12. This powers
+           the Bloom Calendar export; `bloomDay` remains the in-game timing
+           control. Missing entries fall back to conservative season-to-month
+           estimates so every flowering plant still appears in the calendar.
    bulbSeason optional for type:bulb: summer/fall keeps onion bulbs above
            ground outside the default spring-ephemeral window
    grow    woody only: years to mature size (establishment horizon —
@@ -1946,4 +1950,89 @@ const PLANTS = {
     blurb:'A tidy silver-grey subshrub that foams with tiny white-to-pink flowers in late summer, drying to rust. A pollinator magnet that holds through winter.',
     sea:{Spring:{fol:'#a2a48e'}, Summer:{fol:'#9a9c86',bloom:'#f0ece0'}, Fall:{fol:'#9a9078',bloom:'#d8a890',seed:'#a8785a'}, Winter:{fol:'#8c8672',seed:'#9a6e54'}}},
 };
+
+/* Real-world bloom windows for the planner/export calendar. Months are
+   broad North American garden ranges (roughly zone 5-7 unless the plant is
+   explicitly desert/southern). Regional refinements can override these later;
+   the game simulation still uses bloomDay + seasonal sea data. */
+const BLOOM_MONTHS = {
+  // grasses and grass-like flowering/seed interest
+  switchgrass:[7,8], lovegrass:[8,9], pinkmuhly:[9,10],
+  fountaingrass:[7,8,9], orientalfountain:[7,8,9],
+
+  // prairie forb backbone
+  echinacea:[6,7,8], pallida:[6,7], topeka:[6,7], angustifolia:[6,7], paradoxa:[6,7],
+  rattlesnake:[7,8,9], yucca:[6,7], monarda:[7,8], spottedbeebalm:[7,8],
+  allium:[7,8], baptisia:[5,6], creamindigo:[5,6], mountainmint:[7,8,9],
+  amsonia:[4,5], ozarkamsonia:[4,5], culvers:[6,7], yarrow:[6,7,8,9],
+  sedum:[8,9,10], phlox:[7,8,9], joepye:[7,8,9], stachys:[6,7],
+  penstemon:[5,6], butterfly:[6,7,8], swampmilkweed:[6,7,8],
+  prairiemilkweed:[6,7], commonmilkweed:[6,7], showymilkweed:[6,7],
+  whorledmilkweed:[6,7,8], greenmilkweed:[6,7],
+  liatris:[8,9], liatrispycnostachya:[7,8,9], liatriscylindracea:[7,8],
+  liatrisspicata:[7,8], goldenrod:[8,9,10],
+  salvia:[5,6,7], salviaspecies:[5,6,7], echinops:[7,8], calamint:[7,8,9],
+  agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9],
+  helenium:[8,9,10], rudbeckia:[7,8,9], rudbeckiatriloba:[8,9,10],
+  rudbeckiamaxima:[7,8,9], sanguisorba:[8,9], greatburnet:[7,8,9],
+  lilacsquirrel:[7,8], coreopsis:[6,7,8], lanceleaf:[5,6,7],
+  talltickseed:[8,9], willowsunflower:[9,10], maximiliansunflower:[8,9,10],
+  sawtoothsunflower:[8,9,10], stiffsunflower:[7,8,9], ashysunflower:[7,8,9],
+  woodlandsunflower:[7,8,9], spiderwort:[5,6], prairiespiderwort:[5,6],
+  blueeyedgrass:[4,5,6], narrowblueeyedgrass:[4,5,6],
+  blueflagiris:[5,6], northernblueflag:[5,6], dwarfcrestediris:[4,5],
+  germaniris:[5,6], siberianiris:[5,6], goldenalexander:[5,6],
+  heartleafalexander:[5,6], pussytoes:[4,5], prairiedock:[7,8,9],
+  cardinallobelia:[7,8,9], greatbluelobelia:[7,8,9],
+  greatstjohnswort:[6,7,8], poppymallow:[6,7,8], gaura:[6,7,8,9,10],
+  shootingstar:[4,5], pasqueflower:[3,4], filipendula:[6,7,8], prairiesmoke:[4,5],
+
+  // asters and late season composites
+  aster:[8,9,10], newengland:[8,9,10], smoothaster:[8,9,10],
+
+  // bulbs and geophytes
+  crocus:[2,3], snowdrop:[2,3], winteraconite:[2,3], daffodil:[3,4],
+  puschkinia:[3,4], muscari:[4,5], tulip:[4,5], tulipatarda:[4,5],
+  tuliplinifolia:[4,5], gardentulip:[4,5], anemoneblanda:[3,4],
+  ipheion:[4,5], leucojum:[4,5], fritillaria:[4,5], camassia:[5,6],
+  camassiaquamash:[5,6], camassialeichtlinii:[5,6], scillaperuviana:[4,5],
+  claudeshride:[6,7], lycoris:[8,9], dahlia:[7,8,9,10],
+  colchicum:[9,10], alliumGlobemaster:[5,6], alliumPurpleSensation:[5,6],
+  alliumGladiator:[5,6], alliumPinkJewel:[6,7], alliumAtropurpureum:[6,7],
+  alliumChristophii:[6,7], alliumRedMohican:[6,7],
+  noddingonion:[7,8], prairieonion:[8,9],
+
+  // shade and woodland perennials
+  hosta:[7,8], columbine:[4,5,6], woodlandphlox:[4,5], wildgeranium:[4,5],
+  solomonsseal:[4,5], bluebells:[4,5], heuchera:[5,6], astilbe:[6,7],
+
+  // shrubs and trees
+  leadplant:[6,7], sumac:[4,5], newjersey:[6,7], smokebush:[6,7],
+  smoketree:[6,7], hydrangea:[6,7,8,9], smoothhydrangea:[6,7,8,9],
+  bigleaflace:[6,7,8,9], smoothlace:[6,7,8,9], serratahydrangea:[6,7,8],
+  panniclehydrangea:[7,8,9], oakleafhydrangea:[6,7],
+  serviceberry:[4], redmaple:[3,4], silvermaple:[3,4],
+  floweringcherry:[4], redbud:[4],
+
+  // water plants
+  waterlotus:[6,7,8], fragrantwaterlily:[6,7,8,9], pickerelweed:[6,7,8,9],
+  waterblueflag:[5,6], arrowhead:[7,8,9], lizardtail:[6,7,8],
+
+  // desert / dry garden palette
+  redyucca:[5,6,7,8,9,10], sotol:[5,6], ocotillo:[3,4,5],
+  blackfootdaisy:[4,5,6,7,8,9,10], fournervedaisy:[3,4,5,6,9,10],
+  desertmarigold:[4,5,6,7,8,9,10], chocolateflower:[5,6,7,8,9,10],
+  parrypenstemon:[3,4,5], palmerpenstemon:[4,5,6],
+  eatonpenstemon:[3,4,5], desertpenstemon:[3,4,5], pineleafpenstemon:[5,6,7,8,9],
+  flameacanthus:[6,7,8,9,10], damianita:[4,5,9,10], apacheplume:[5,6,7],
+  desertwillow:[6,7,8,9], antelopehorns:[5,6], greggmistflower:[7,8,9,10],
+  mealycupsage:[5,6,7,8,9,10], autumnsage:[4,5,6,7,8,9,10],
+  pitchersage:[8,9,10], desertglobemallow:[4,5,6,7,8,9],
+  scarletglobemallow:[4,5,6,7,8], prairieverbena:[4,5,6,7,8,9,10],
+  prairiezinnia:[6,7,8,9], desertzinnia:[6,7,8,9],
+  tuftedprimrose:[4,5,6,7,8], berlandiersundrops:[4,5,6,7,8,9,10],
+  mexicanhat:[6,7,8,9], engelmanndaisy:[5,6,7,8,9],
+  wrightbuckwheat:[7,8,9,10],
+};
+for (const k in BLOOM_MONTHS) if (PLANTS[k]) PLANTS[k].bloomMonths = BLOOM_MONTHS[k];
 const PLANT_KEYS = Object.keys(PLANTS);

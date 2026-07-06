@@ -514,9 +514,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
 14c. **Bloom calendar** - `bloomRows()` reads planted plants + bulbs, groups
-    them by species/cultivar, and maps seasonal bloom data to approximate
-    day ranges inside each 16-day season; `openBloomCalendar()` renders the
-    in-game `#bloomScreen` table from that data.
+    them by species/cultivar, and maps `bloomMonths` to real-world Jan-Dec
+    columns; missing month data falls back to conservative season-to-month
+    estimates. `openBloomCalendar()` renders the in-game `#bloomScreen` table.
 15. **Plant filters + HUD** - `plantFits()` (zone range, native-only,
     deer/rabbit-resistant plants, and squirrel-resistant bulbs), `trayKeys()`
     (filtered, grasses to sedges to forbs), the plant-filter overlay wiring,
@@ -733,6 +733,7 @@ key: {
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
+  bloomMonths: [7,8,9],        // real-world bloom calendar months
   grow: 10,                    // woody only: years to mature size
   cw: 150,                     // woody only: canopy/twig width in px
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)
@@ -754,7 +755,8 @@ key: {
 (export sheet, plant filters, plant card). Per-season keys: `fol` (foliage),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
-coneflowers only).
+coneflowers only). `bloomMonths` drives the real-world Bloom Calendar; keep
+`bloomDay` for in-game staggered seasonal animation.
 
 **To add a species:** add an entry in `plants.js`, reuse an existing `form` or
 add a new branch in `drawPlant`. It automatically appears in the tool tray
