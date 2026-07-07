@@ -413,7 +413,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   // trees: display-rescaled (T10). The 0.25/0.3 floors here are deliberately
   // LARGER than draw.js's tree sapling floor (0.12) — the box only has to
   // contain the drawing, so young trees just get a bit of empty margin.
-  const H=woodyVisualH(P)*(0.25+0.75*growth);
+  const H=plantVisualH(P)*(0.25+0.75*growth);
   // the box must cover the whole drawing — woody canopies reach well above the
   // drawn height and wide of the drawn cw, so trees clip if we size from H alone.
   const woody=isWoodyDef(P);

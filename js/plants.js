@@ -40,8 +40,12 @@
            Woody plants skip the spring cutback; they are structure.
    cw      px-art: woody canopy/twig width for the renderer via
            `woodyVisualCw(P)`. It is not shade reach or footprint size.
-   h       px-art: mature render height. It is not a real-world height,
-           footprint, shade, order, or spacing unit.
+   h       px-art: mature render height, drawn through plantVisualH(P) — woody
+           rescales by the compression factor, herbaceous scales by HERB_SCALE
+           (~1.75, so drifts read as masses), bulbs pass through. Every
+           herbaceous form derives its whole geometry from the drawn height, so
+           that one factor scales the plant's width too. It is not a real-world
+           height, footprint, shade, order, or spacing unit.
    heightIn inches-truth: real mature height. REQUIRED for type:'tree' (their
            px h under-reads reality ~8x; cards/library show heightIn first);
            optional on cultivars that mature meaningfully shorter (weeping

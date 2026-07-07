@@ -1582,9 +1582,6 @@ test('woody visual rescale: trees draw larger, proportional, and below true scal
   // narrow cultivars stay narrower than their species
   const sw = plantDef('sweetgum', null), swNarrow = plantDef('sweetgum', 'slendersilhouette');
   assert(woodyVisualCw(swNarrow) < woodyVisualCw(sw) * 0.8, 'narrow cultivar stays visibly narrower');
-  // never wider than an art cw that already exceeds real width, and non-trees untouched
-  const grass = PLANTS.bluestem;
-  assertEqual(woodyVisualH(grass), grass.h, 'herbaceous height untouched');
   const shrub = PLANTS.smokebush;
   assertEqual(woodyVisualCw(shrub), Math.max(shrub.cw, woodyRadiusTiles(shrub) * TILE_W), 'shrub visual width rule unchanged');
   // shrub drawn height follows the widened width, keeping the species' aspect
@@ -1593,6 +1590,21 @@ test('woody visual rescale: trees draw larger, proportional, and below true scal
   const drawnAspect = woodyVisualH(yew) / woodyVisualCw(yew);
   assert(Math.abs(drawnAspect - yew.h / yew.cw) < 0.05,
     `yew keeps its intended h:cw aspect at the widened size (got ${drawnAspect.toFixed(2)} vs ${(yew.h / yew.cw).toFixed(2)})`);
+});
+
+test('herbaceous plants draw larger so drifts read as masses (H1)', () => {
+  // every herbaceous form derives its geometry from the drawn height, so one
+  // height factor scales the whole plant. Bulbs opt out (already read closed).
+  const grass = PLANTS.bluestem, forb = PLANTS.echinacea;
+  assertEqual(plantVisualH(grass), Math.round(grass.h * HERB_SCALE), 'grass drawn height scaled by HERB_SCALE');
+  assertEqual(plantVisualH(forb), Math.round(forb.h * HERB_SCALE), 'forb drawn height scaled by HERB_SCALE');
+  assert(HERB_SCALE > 1.4 && HERB_SCALE < 2.2, 'HERB_SCALE stays in the tuned range');
+  // bulbs are unchanged
+  const bulb = firstOfType('bulb');
+  assertEqual(plantVisualH(PLANTS[bulb]), PLANTS[bulb].h, 'bulbs keep their drawn height');
+  // woody still routed through the same seam (trees rescale, herbaceous alias holds)
+  assert(plantVisualH(PLANTS.whiteoak) > PLANTS.whiteoak.h, 'tree height still rescaled through plantVisualH');
+  assertEqual(woodyVisualH(grass), plantVisualH(grass), 'woodyVisualH alias forwards to plantVisualH');
 });
 
 test('age-at-placement backdates woody planting so establishment is immediate', () => {

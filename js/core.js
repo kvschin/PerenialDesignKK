@@ -254,16 +254,27 @@ function woodyVisualCw(P){
   }
   return Math.max(P.cw||0, woodyRadiusTiles(P)*TILE_W);
 }
-/* drawn height pairs with drawn width: woody plants scale h by the same
-   factor woodyVisualCw applied to cw, so the species' intended h:cw aspect
-   survives. (T2 widened shrub bodies toward true spread but left height at
-   art px — a low yew drew six times wider than tall.) Data (P.h) is
-   untouched — this is a display transform, like woodyVisualCw. */
-function woodyVisualH(P){
+/* HERB_SCALE (H1): herbaceous plants were drawn at ~half the on-screen scale
+   of shrubs — a mature drift at correct spacing showed ~65% bare ground and
+   read as scattered sprigs, not a mass. Every herbaceous form derives its
+   whole geometry from the drawn height H, so ONE height factor at this seam
+   scales width and height together and preserves each species' hand-drawn
+   proportions. Bulbs already read closed (~0.85 of spacing) so they opt out.
+   Tuned by measuring drawn-width ÷ spacing across all species. */
+const HERB_SCALE = 1.75;
+/* plantVisualH — the universal drawn-height display transform (data P.h is
+   untouched). Trees/shrubs: scale h by the same factor woodyVisualCw applied
+   to cw, so the intended h:cw aspect survives (T2 widened shrub bodies toward
+   true spread but left height at art px — a low yew drew six times wider than
+   tall). Herbaceous (grass/sedge/forb/water): × HERB_SCALE. Bulbs: unchanged. */
+function plantVisualH(P){
   if (!P) return undefined;
-  if (!isWoodyDef(P)) return P.h;
-  return Math.round((P.h||80) * (woodyVisualCw(P)/(P.cw||P.h||80)));
+  if (isWoodyDef(P)) return Math.round((P.h||80) * (woodyVisualCw(P)/(P.cw||P.h||80)));
+  if (P.type==='bulb') return P.h;
+  return Math.round((P.h||36) * HERB_SCALE);
 }
+// back-compat alias: this used to be woody-only; it now covers every plant.
+function woodyVisualH(P){ return plantVisualH(P); }
 function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;
   return null;

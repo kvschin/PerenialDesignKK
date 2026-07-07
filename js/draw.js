@@ -15,7 +15,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // 25% of a rescaled oak (~480px) reads as a 20-ft "sapling"; day-one trees
   // should look like whips. Everything else keeps the classic 0.25 floor.
   const gFloor = isTreeDef(P) ? 0.12 : 0.25;
-  const H = woodyVisualH(P) * (gFloor + (1-gFloor)*growth);
+  const H = plantVisualH(P) * (gFloor + (1-gFloor)*growth);   // H1: herbaceous scaled up too
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
@@ -42,13 +42,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'vertgrass'){
-    const n = stemFor(9);
+    // upright vase (miscanthus/indiangrass/Karl Foerster): blades rise from a
+    // tight base and SPLAY outward at the tips, so the clump reads as a real
+    // fountain of width, not the pencil it used to be (H2). look.fan tunes the
+    // splay (arching miscanthus wide, stiff feather reed narrow).
+    const L=P.look||{}, n = stemFor(L.leaves||9), fan=L.fan!==undefined?L.fan:1.25;
     for (let i=0;i<n;i++){
-      const ox=(rnd()-0.5)*12, len=H*(0.8+rnd()*0.25), tip=ox+sway*len*0.05;
+      const a=(i/(n-1)-0.5)*fan+(rnd()-0.5)*0.18, len=H*(0.8+rnd()*0.25);
+      const baseX=(rnd()-0.5)*6, tip=baseX+Math.sin(a)*len*0.42+sway*len*0.05;
       ctx.strokeStyle = shade(S.fol,(rnd()-0.5)*20); ctx.lineWidth=1.6;
-      ctx.beginPath(); ctx.moveTo(ox,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo((baseX+tip)*0.5,-len*0.62,tip,-len); ctx.stroke();
       if (S.seed && mature){ ctx.fillStyle=S.seed;
-        ctx.beginPath(); ctx.ellipse(tip,-len-4,2.6,9,sway*0.05,0,7); ctx.fill(); }
+        ctx.beginPath(); ctx.ellipse(tip,-len-4,2.6,9,a*0.5+sway*0.05,0,7); ctx.fill(); }
     }
   }
   else if (P.form === 'turkeyfoot'){ // big bluestem: very tall, 3-pronged tips

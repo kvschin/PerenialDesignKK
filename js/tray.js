@@ -291,7 +291,7 @@ function drawBrushSwatchCanvas(c,includeLast){
   c.style.display='';
   if (PLANTS[k]){
     const R=plantDef(k,v);
-    const sc=Math.min(0.45, (c.height-5)/(woodyVisualH(R)||40));
+    const sc=Math.min(0.45, (c.height-5)/(plantVisualH(R)||40));
     g.save(); g.scale(sc,sc);
     const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
     drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
@@ -977,7 +977,7 @@ function renderSearchPlantButton(tray,k){
   b.dataset.k=k; if (P.group) b.dataset.group=P.group;
   b.title=`${P.name} - ${P.latin} (${trayCatLabel(catId)})`;
   const c=document.createElement('canvas'); c.width=48; c.height=44;
-  const sc=Math.min(0.62,36/(woodyVisualH(R)||40));
+  const sc=Math.min(0.62,36/(plantVisualH(R)||40));
   const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
   const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
   drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,undefined,1);
@@ -1175,7 +1175,7 @@ function buildToolTray(){
       b.className='tool'+((P.group ? activeGroup : game.tool===k)?' sel':'')+(drillable?' has-sub':'');
       b.dataset.k=k; if (P.group) b.dataset.group=P.group;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const sc=Math.min(0.62, 36/(woodyVisualH(R)||40));   // tall plants shrink to fit
+      const sc=Math.min(0.62, 36/(plantVisualH(R)||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
       const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
       drawPlant(ctx2,24/sc,42/sc,rep,1,iconSeason,tileSeed(3,7),0,undefined,1);
@@ -1751,7 +1751,7 @@ function renderDrillIn(tray, drillKey, members){
     b.className='tool'+((game.tool===k && (game.toolVar||null)===(v||null))?' sel':'');
     b.dataset.k=k; if (v) b.dataset.v=v;
     const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const sc=Math.min(0.62, 36/(woodyVisualH(R)||40));
+    const sc=Math.min(0.62, 36/(plantVisualH(R)||40));
     const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
     const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
     drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
