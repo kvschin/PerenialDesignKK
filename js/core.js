@@ -254,13 +254,15 @@ function woodyVisualCw(P){
   }
   return Math.max(P.cw||0, woodyRadiusTiles(P)*TILE_W);
 }
-/* drawn height pairs with drawn width: trees scale h by the same factor the
-   compression curve applied to cw, so proportions hold. Data (P.h) is
+/* drawn height pairs with drawn width: woody plants scale h by the same
+   factor woodyVisualCw applied to cw, so the species' intended h:cw aspect
+   survives. (T2 widened shrub bodies toward true spread but left height at
+   art px — a low yew drew six times wider than tall.) Data (P.h) is
    untouched — this is a display transform, like woodyVisualCw. */
 function woodyVisualH(P){
   if (!P) return undefined;
-  if (!isTreeDef(P)) return P.h;
-  return Math.round((P.h||80) * (woodyVisualCw(P)/(P.cw||100)));
+  if (!isWoodyDef(P)) return P.h;
+  return Math.round((P.h||80) * (woodyVisualCw(P)/(P.cw||P.h||80)));
 }
 function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;

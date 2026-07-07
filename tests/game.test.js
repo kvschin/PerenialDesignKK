@@ -1587,6 +1587,12 @@ test('woody visual rescale: trees draw larger, proportional, and below true scal
   assertEqual(woodyVisualH(grass), grass.h, 'herbaceous height untouched');
   const shrub = PLANTS.smokebush;
   assertEqual(woodyVisualCw(shrub), Math.max(shrub.cw, woodyRadiusTiles(shrub) * TILE_W), 'shrub visual width rule unchanged');
+  // shrub drawn height follows the widened width, keeping the species' aspect
+  // (pre-fix a low yew drew ~6x wider than tall)
+  const yew = PLANTS.yewlow;
+  const drawnAspect = woodyVisualH(yew) / woodyVisualCw(yew);
+  assert(Math.abs(drawnAspect - yew.h / yew.cw) < 0.05,
+    `yew keeps its intended h:cw aspect at the widened size (got ${drawnAspect.toFixed(2)} vs ${(yew.h / yew.cw).toFixed(2)})`);
 });
 
 test('age-at-placement backdates woody planting so establishment is immediate', () => {

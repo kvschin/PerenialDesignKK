@@ -1033,7 +1033,48 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=0;
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
       const connectedSquare=shape==='square' && hedgeDirs.length;
-      if (shape==='sphere'){
+      if (L.needles){
+        // yew (Taxus): dense LAYERED SPRAYS, never smooth topiary — even a
+        // clipped yew keeps a soft, feathery surface. Column = an upright
+        // irregular pillar (Hicksii); mound/round = wide layered masses.
+        // Mature plants carry scattered red arils in fall/winter (S.seed).
+        const col=shape==='column';
+        const bw=bodyW*(col?0.56:1.0), bh=Math.max(bodyH,12);
+        const span=col?0.92:(shape==='mound'?0.62:0.76);   // spray reach up the body
+        ctx.fillStyle=shade(fol,-30);                       // dark underbody grounds the mass
+        ctx.beginPath();
+        if (col) ctx.ellipse(0,baseY-bh*0.50,bw*0.44,bh*0.48,0,0,7);
+        else ctx.ellipse(0,baseY-bh*0.26,bw*0.50,bh*0.30,0,0,7);
+        ctx.fill();
+        const n=Math.max(16,Math.min(60,Math.round(bw*bh/210)));
+        const sprayW=Math.max(7,bw*(col?0.20:0.13)), sprayH=sprayW*0.40;
+        const arils=[];
+        for (let i=0;i<n;i++){
+          const t=rnd();                                    // 0 base .. 1 top
+          const wf=col ? (0.92-t*0.28) : Math.sqrt(Math.max(0.06,1-t*t));
+          const px2=(rnd()*2-1)*bw*0.5*wf, py2=baseY-bh*(0.08+t*span);
+          const ang=(px2/Math.max(1,bw))*0.9+(rnd()-0.5)*0.5; // sprays sweep outward
+          ctx.fillStyle=shade(fol,-16+t*26+(rnd()-0.5)*14);   // lighter toward the light
+          ctx.beginPath();
+          ctx.ellipse(px2,py2,sprayW*(0.7+rnd()*0.5),sprayH*(0.7+rnd()*0.5),ang,0,7);
+          ctx.fill();
+          if (rnd()<0.22) arils.push([px2+(rnd()-0.5)*sprayW,py2+(rnd()-0.5)*sprayH]);
+        }
+        // feathery upswept shoot tips break the outline along the top
+        ctx.strokeStyle=shade(fol,30); ctx.lineWidth=1.1; ctx.lineCap='round';
+        for (let i=0;i<Math.max(6,Math.round(n*0.4));i++){
+          const t=0.55+rnd()*0.45;
+          const wf=col ? (0.92-t*0.28) : Math.sqrt(Math.max(0.06,1-t*t));
+          const px2=(rnd()*2-1)*bw*0.5*wf, py2=baseY-bh*(0.08+t*span);
+          const dx=(px2>=0?1:-1)*(1.5+rnd()*2.5);
+          ctx.beginPath(); ctx.moveTo(px2,py2);
+          ctx.quadraticCurveTo(px2+dx*0.6,py2-2.5,px2+dx,py2-(3.5+rnd()*3)); ctx.stroke();
+        }
+        if (S.seed && mature && arils.length){              // red arils, female plants in fruit
+          ctx.fillStyle=S.seed;
+          arils.slice(0,7).forEach(([ax,ay])=>{ ctx.beginPath(); ctx.arc(ax,ay,1.5,0,7); ctx.fill(); });
+        }
+      } else if (shape==='sphere'){
         ctx.fillStyle=shade(fol,-20);
         ctx.beginPath(); ctx.ellipse(0,baseY-bodyH*0.47,bodyW*0.50,bodyH*0.52,0,0,7); ctx.fill();
         ctx.fillStyle=shade(fol,-6);
@@ -1065,9 +1106,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           if (endNeg){ ctx.moveTo(A[0],A[1]); ctx.lineTo(At[0],At[1]); }
           if (endPos){ ctx.moveTo(B[0],B[1]); ctx.lineTo(Bt[0],Bt[1]); }
           ctx.stroke(); ctx.restore();
-          if (L.fleck||L.needles){
+          if (L.fleck){
             ctx.save();
-            ctx.strokeStyle=shade(fol,L.needles?-24:-12); ctx.lineWidth=0.8; ctx.lineCap='round';
+            ctx.strokeStyle=shade(fol,-12); ctx.lineWidth=0.8; ctx.lineCap='round';
             for (let i=0;i<9;i++){ const a=left+rnd()*len, b=back+rnd()*thick, p1=pt(a-2,b,1), p2=pt(a+2,b+(rnd()-0.5)*2,1);
               ctx.beginPath(); ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]); ctx.stroke(); }
             ctx.restore();
@@ -1115,8 +1156,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.fillStyle=shade(fol,8);
         ctx.beginPath(); ctx.ellipse(-bodyW*0.05,baseY-bodyH*(isMound?0.46:0.57),bodyW*(isMound?0.48:0.44),bodyH*(isMound?0.22:0.30),0,0,7); ctx.fill();
       }
-      if (L.fleck||L.needles){
-        ctx.strokeStyle=shade(fol,L.needles?-24:-12); ctx.lineWidth=0.8; ctx.lineCap='round';
+      if (L.fleck){   // boxwood leaf flecks; yews texture themselves via sprays
+        ctx.strokeStyle=shade(fol,-12); ctx.lineWidth=0.8; ctx.lineCap='round';
         for (let i=0;i<9;i++){ const fx=(rnd()-0.5)*bodyW*0.8, fy=baseY-bodyH*(0.18+rnd()*0.64);
           ctx.beginPath(); ctx.moveTo(fx-2,fy); ctx.lineTo(fx+2,fy+(rnd()-0.5)*2); ctx.stroke(); }
       }
