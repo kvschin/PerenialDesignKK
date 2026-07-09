@@ -273,6 +273,14 @@ function plantVisualH(P){
   if (P.type==='bulb') return P.h;
   return Math.round((P.h||36) * HERB_SCALE);
 }
+/* Grass forms derive their width from H. Counter that coupling for cultivars
+   so a taller selection can stay narrow and a shorter one can still be broad.
+   Straight species retain their hand-tuned form silhouette. */
+function plantVisualWidthScale(P,key){
+  const base=key&&PLANTS[key];
+  if (!P || P.type!=='grass' || !base || !P.h || !base.h || !P.spread || !base.spread) return 1;
+  return (P.spread/base.spread) * (base.h/P.h);
+}
 // back-compat alias: this used to be woody-only; it now covers every plant.
 function woodyVisualH(P){ return plantVisualH(P); }
 function plantKeyOf(p){

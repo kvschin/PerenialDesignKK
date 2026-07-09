@@ -148,6 +148,38 @@ test('cultivars (cv) are well-formed', () => {
   }
 });
 
+test('grass cultivars use comparable mature height and spread data', () => {
+  for (const k of keys){
+    const P = PLANTS[k];
+    if (P.type !== 'grass') continue;
+    assert(P.h >= 9 && P.h <= 108, `${k}: grass height ${P.h} outside audited range`);
+    assert(P.spread >= 9 && P.spread <= 72, `${k}: grass spread ${P.spread} outside audited range`);
+    for (const v of Object.keys(P.cv || {})){
+      const C = P.cv[v];
+      assert(C.cw === undefined, `${k}.${v}: grass width must use spread, not woody-only cw`);
+      const D = Object.assign({}, P, C);
+      assert(D.h >= 9 && D.h <= 108, `${k}.${v}: grass height ${D.h} outside audited range`);
+      assert(D.spread >= 9 && D.spread <= 72, `${k}.${v}: grass spread ${D.spread} outside audited range`);
+    }
+  }
+});
+
+test('signature grass cultivars keep their real-world size hierarchy', () => {
+  const effective = (k, v) => Object.assign({}, PLANTS[k], PLANTS[k].cv[v]);
+  const northwind = effective('switchgrass', 'northwind');
+  const heavyMetal = effective('switchgrass', 'heavymetal');
+  const shenandoah = effective('switchgrass', 'shenandoah');
+  assert(northwind.h > heavyMetal.h && heavyMetal.h > shenandoah.h,
+    'Northwind should be taller than Heavy Metal, which should be taller than Shenandoah');
+  assert(shenandoah.spread > northwind.spread && northwind.spread > heavyMetal.spread,
+    'Shenandoah should be broader than Northwind, which should be broader than Heavy Metal');
+  assert(effective('bigbluestem', 'blackhawks').h < PLANTS.bigbluestem.h,
+    'Blackhawks should stay shorter than straight big bluestem');
+  assert(effective('pinkmuhly', 'whitecloud').h > PLANTS.pinkmuhly.h,
+    'White Cloud should stand taller than pink muhly');
+  assert(PLANTS.giantstipa.h > PLANTS.karl.h, 'giant feather grass should overtop Karl Foerster');
+});
+
 test('sunflower species keep distinct visual signatures', () => {
   assertEqual(PLANTS.willowsunflower.look.leafStyle, 'willow', 'willowleaf should read as fine spring foliage');
   assert(PLANTS.willowsunflower.look.leaves >= 30, 'willowleaf needs dense threadlike spring leaves');

@@ -19,11 +19,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const mature = growth > 0.55;
   ctx.save(); ctx.translate(x, y);
   // soft ground shadow (canopy-wide for woody plants)
-  const shadowW = woodyVisualCw(P);
+  const shadowW = woodyVisualCw(P) || (P.type==='grass' ? (P.spread||P.space||16)*HERB_SCALE : 0);
   const shR = (shadowW ? shadowW*0.42 : 14)*growth + 6;
   drawSoftShadow(ctx,0,3,shR,shR*0.36+1.8,P.cw?0.19:0.15);
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.beginPath(); ctx.ellipse(0, 3, shR*0.58, shR*0.16+1.2, 0, 0, 7); ctx.fill();
+  ctx.scale(plantVisualWidthScale(P,key),1);
 
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
 

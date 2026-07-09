@@ -418,7 +418,8 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   // drawn height and wide of the drawn cw, so trees clip if we size from H alone.
   const woody=isWoodyDef(P);
   const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
-  const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62)+18;
+  const grassW=plantVisualWidthScale(P,key);
+  const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62*Math.max(1,grassW))+18;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):H*1.12)+26;
   const bot=18, want=pspriteScale();
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp

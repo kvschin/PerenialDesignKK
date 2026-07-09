@@ -1607,6 +1607,18 @@ test('herbaceous plants draw larger so drifts read as masses (H1)', () => {
   assertEqual(woodyVisualH(grass), plantVisualH(grass), 'woodyVisualH alias forwards to plantVisualH');
 });
 
+test('grass cultivar width scaling follows spread independently of height', () => {
+  const northwind=plantDef('switchgrass','northwind');
+  const shenandoah=plantDef('switchgrass','shenandoah');
+  const nwScale=plantVisualWidthScale(northwind,'switchgrass');
+  const shScale=plantVisualWidthScale(shenandoah,'switchgrass');
+  assert(northwind.h > shenandoah.h, 'Northwind remains the taller switchgrass');
+  assert(nwScale < 1 && shScale > 1, 'narrow Northwind and broad Shenandoah get opposite width corrections');
+  const drawnRatio=(plantVisualH(northwind)*nwScale)/(plantVisualH(shenandoah)*shScale);
+  assert(Math.abs(drawnRatio-northwind.spread/shenandoah.spread)<0.02,
+    'cultivar drawn-width ratio follows mature spread instead of mature height');
+});
+
 test('age-at-placement backdates woody planting so establishment is immediate', () => {
   setup(31, 31);
   const treeKey = firstOfType('tree'), def = plantDef(treeKey, null);
