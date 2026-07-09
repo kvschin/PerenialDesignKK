@@ -28,17 +28,42 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
 
   if (P.form === 'bunchgrass'){
-    const n = stemFor(13);
-    for (let i=0;i<n;i++){
-      const a = (i/(n-1)-0.5)*1.5 + (rnd()-0.5)*0.3;
-      const len = H*(0.6+rnd()*0.45);
-      const bx = Math.sin(a)*len*0.55 + sway*len*0.06;
-      const by = -Math.cos(a*0.5)*len;
-      ctx.strokeStyle = shade(S.fol, (rnd()-0.5)*24);
-      ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo((rnd()-0.5)*6,0);
-      ctx.quadraticCurveTo(bx*0.4, by*0.62, bx, by); ctx.stroke();
-      if (S.seed && mature && i%2===0){ ctx.fillStyle=S.seed;
-        ctx.beginPath(); ctx.ellipse(bx,by,2.1,3.4,a,0,7); ctx.fill(); }
+    const L=P.look||{}, n = stemFor(L.leaves||13);
+    ctx.lineCap='round';
+    if (L.mound){
+      const fan=L.fan||2.15, spread=L.spread||0.68, lift=L.dome||0.68, edgeDrop=L.edgeDrop||0.42;
+      const seedEvery=L.seedStems ? Math.max(2,Math.floor(n/L.seedStems)) : 0;
+      for (let i=0;i<n;i++){
+        const u=n>1?i/(n-1):0.5, side=u-0.5;
+        const a=side*fan+(rnd()-0.5)*(L.jitter||0.26);
+        const len=H*(L.leafLen||0.86)*(0.78+rnd()*0.26);
+        const arc=Math.max(0,1-Math.abs(side)*2);
+        const bx=Math.sin(a)*len*spread+sway*len*0.025;
+        const by=-len*(lift-edgeDrop*Math.abs(side)*1.35+arc*0.12+(rnd()-0.5)*0.07);
+        const baseX=(rnd()-0.5)*(L.baseW||5);
+        ctx.strokeStyle = shade(S.fol, (rnd()-0.5)*(L.colorJitter||22));
+        ctx.lineWidth = L.leafW||1.2; ctx.beginPath(); ctx.moveTo(baseX,0);
+        ctx.quadraticCurveTo(baseX+bx*0.22, -len*0.46, bx, by); ctx.stroke();
+        if (S.seed && mature && seedEvery && i%seedEvery===0){
+          const sx=baseX+(rnd()-0.5)*4, sy=-H*(0.82+rnd()*0.22);
+          ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
+          ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(sx*0.45,-H*0.42,sx,sy); ctx.stroke();
+          ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(sx,sy,1.25,3.4,a*0.4,0,7); ctx.fill();
+        }
+      }
+    } else {
+      const fan=L.fan||1.5, spread=L.spread||0.55;
+      for (let i=0;i<n;i++){
+        const a = (i/(n-1)-0.5)*fan + (rnd()-0.5)*0.3;
+        const len = H*(L.leafLen||1)*(0.6+rnd()*0.45);
+        const bx = Math.sin(a)*len*spread + sway*len*0.06;
+        const by = -Math.cos(a*0.5)*len;
+        ctx.strokeStyle = shade(S.fol, (rnd()-0.5)*24);
+        ctx.lineWidth = L.leafW||1.4; ctx.beginPath(); ctx.moveTo((rnd()-0.5)*6,0);
+        ctx.quadraticCurveTo(bx*0.4, by*0.62, bx, by); ctx.stroke();
+        if (S.seed && mature && i%(L.seedEvery||2)===0){ ctx.fillStyle=S.seed;
+          ctx.beginPath(); ctx.ellipse(bx,by,2.1,3.4,a,0,7); ctx.fill(); }
+      }
     }
   }
   else if (P.form === 'vertgrass'){
@@ -74,23 +99,84 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
-  else if (P.form === 'cloudgrass'){ // switchgrass: clump under an airy seed cloud
-    const n = stemFor(11);
-    for (let i=0;i<n;i++){ // arching blades
-      const a=(i/(n-1)-0.5)*1.3+(rnd()-0.5)*0.2, len=H*0.55*(0.7+rnd()*0.4);
-      const bx=Math.sin(a)*len*0.6+sway*len*0.05;
-      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.4;
+  else if (P.form === 'cloudgrass'){ // switchgrass/muhly/lovegrass: foliage clump under an airy seed cloud
+    const L=P.look||{}, n = stemFor(L.leaves||11);
+    const leafFan=L.leafFan||1.3, leafSpread=L.bladeSpread!==undefined?L.bladeSpread:0.6;
+    const leafArch=L.leafArch||0.7, leafLean=L.leafLean!==undefined?L.leafLean:0.05;
+    ctx.lineCap='round';
+    for (let i=0;i<n;i++){ // arching or upright blades
+      const u=n>1?i/(n-1):0.5;
+      const a=(u-0.5)*leafFan+(rnd()-0.5)*(L.leafJitter||0.2), len=H*(L.leafLen||0.55)*(0.7+rnd()*0.4);
+      const bx=Math.sin(a)*len*leafSpread+sway*len*leafLean;
+      const by=-len*(L.leafUpright||1);
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=L.leafW||1.4;
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
-      ctx.quadraticCurveTo(bx*0.4,-len*0.7,bx,-len); ctx.stroke();
+      ctx.quadraticCurveTo(bx*0.4,-len*leafArch,bx,by); ctx.stroke();
     }
-    const sn = stemFor(6), cloud=S.seed||(blooming?S.bloom:null);
+    const sn = stemFor(L.stems||6), cloud=S.seed||(blooming?S.bloom:null);
+    const stemFan=L.stemFan!==undefined?L.stemFan:null, topF=L.cloudTop||0.92;
     for (let i=0;i<sn;i++){
-      const ox=(rnd()-0.5)*10, len=H*(0.85+rnd()*0.2), tip=ox+sway*len*0.06;
-      ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=1.1;
-      ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len*0.92); ctx.stroke();
+      const u=sn>1?i/(sn-1):0.5, side=u-0.5;
+      const len=H*(0.85+rnd()*0.2);
+      const ox=stemFan!==null ? side*(L.stemBase||12)+(rnd()-0.5)*(L.stemJitter||4) : (rnd()-0.5)*10;
+      const tip=stemFan!==null ? ox+side*len*stemFan*0.34+sway*len*(L.stemLean!==undefined?L.stemLean:0.06) : ox+sway*len*0.06;
+      ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=L.stemW||1.1;
+      ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox,-len*0.6,tip,-len*topF); ctx.stroke();
       if (cloud && mature){ ctx.fillStyle=cloud;
-        for (let d2=0;d2<9;d2++){ ctx.beginPath();
-          ctx.arc(tip+(rnd()-0.5)*15, -len*0.92+2-rnd()*11, 0.9, 0, 7); ctx.fill(); } }
+        const dots=L.cloudDots||9, cloudW=L.cloudWidth||15, cloudH=L.cloudHeight||11, dotR=L.cloudRadius||0.9;
+        for (let d2=0;d2<dots;d2++){
+          const px=tip+(rnd()-0.5)*cloudW, py=-len*topF+2-rnd()*cloudH;
+          if (L.panicle){
+            const oldAlpha=ctx.globalAlpha;
+            ctx.globalAlpha=0.45; ctx.strokeStyle=shade(cloud,(rnd()-0.5)*18); ctx.lineWidth=0.45;
+            ctx.beginPath(); ctx.moveTo(tip,-len*topF+1); ctx.lineTo(px,py); ctx.stroke();
+            ctx.globalAlpha=oldAlpha; ctx.fillStyle=cloud;
+          }
+          ctx.beginPath(); ctx.arc(px, py, dotR, 0, 7); ctx.fill();
+        } }
+    }
+  }
+  else if (P.form === 'feathergrass'){ // Nassella: fine green hair under loose blond, wind-combed awns
+    const L=P.look||{}, leafN=stemFor(L.leaves||30), fan=L.fan||2.3;
+    ctx.lineCap='round';
+    for (let i=0;i<leafN;i++){
+      const u=leafN>1?i/(leafN-1):0.5, side=u-0.5;
+      const a=side*fan+(rnd()-0.5)*0.32, len=H*(L.leafLen||0.72)*(0.68+rnd()*0.44);
+      const bx=Math.sin(a)*len*(L.leafSpread||0.55)+sway*len*0.08;
+      const by=-len*(0.48+rnd()*0.18);
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*20); ctx.lineWidth=L.leafW||0.78;
+      ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
+      ctx.quadraticCurveTo(bx*0.24,-len*0.72,bx,by); ctx.stroke();
+    }
+    const plume=(blooming?S.bloom:null)||S.seed, plumeN=stemFor(L.plumes||20);
+    for (let i=0;i<plumeN;i++){
+      const u=plumeN>1?i/(plumeN-1):0.5, side=u-0.5;
+      const a=side*fan+(rnd()-0.5)*0.44, len=H*(L.plumeLen||0.95)*(0.75+rnd()*0.32);
+      const baseX=(rnd()-0.5)*5;
+      const tipX=baseX+Math.sin(a)*len*(L.plumeSpread||0.78)+sway*len*0.16;
+      const tipY=-len*(0.66+rnd()*0.2);
+      ctx.strokeStyle=shade(S.fol,-8); ctx.lineWidth=L.stemW||0.65;
+      ctx.beginPath(); ctx.moveTo(baseX,0);
+      ctx.quadraticCurveTo(tipX*0.25,-len*0.65,tipX,tipY); ctx.stroke();
+      if (plume && mature){
+        const wisps=L.wisps||5, oldAlpha=ctx.globalAlpha;
+        for (let w=0;w<wisps;w++){
+          const f=0.42+rnd()*0.38;
+          const sx=baseX+(tipX-baseX)*f+(rnd()-0.5)*2;
+          const sy=-len*f*(0.68+rnd()*0.08);
+          const curlDir=side===0 ? (rnd()<0.5?-1:1) : (side<0?-1:1);
+          const ex=tipX+(rnd()-0.5)*H*0.5+curlDir*H*(0.08+rnd()*0.12);
+          const ey=tipY+(rnd()-0.5)*H*0.22+rnd()*4;
+          ctx.globalAlpha=0.42+rnd()*0.24;
+          ctx.strokeStyle=shade(plume,(rnd()-0.5)*24+8); ctx.lineWidth=0.45+rnd()*0.2;
+          ctx.beginPath(); ctx.moveTo(sx,sy);
+          ctx.quadraticCurveTo((sx+ex)*0.5+(rnd()-0.5)*8, sy-H*(0.12+rnd()*0.12), ex, ey); ctx.stroke();
+          if (rnd()>0.54){
+            ctx.fillStyle=shade(plume,-4); ctx.beginPath(); ctx.arc(sx,sy,0.55,0,7); ctx.fill();
+          }
+        }
+        ctx.globalAlpha=oldAlpha;
+      }
     }
   }
   else if (P.form === 'moorgrass'){ // Sesleria: tidy mound with short upright seed wands

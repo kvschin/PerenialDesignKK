@@ -7,7 +7,7 @@
    type, space, spread, grow, zones, native, sun, moist.
 
    form    one of: bunchgrass | vertgrass | turkeyfoot | cloudgrass |
-           moorgrass | fountaingrass | forestgrass |
+           feathergrass | moorgrass | fountaingrass | forestgrass |
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
            burnet) | rosette (yucca sword-leaf crown) |
@@ -75,10 +75,11 @@
            collapse into one tray button, and the chip row picks the
            species (each stays a full entry — own latin, zones)
    chip    short label for this species' chip inside its group
-   look    optional tweaks for the cone form, how the flower carries
-           itself: rays (count), rayLen, rayW, droop (how hard the
-           rays fall), stems, leaves, leafW, leafLen — leafy purpurea
-           vs wispy pallida vs hard-reflexed atrorubens
+   look    optional rendering tweaks for plant forms. Grasses use it for
+           leaf count, fan, mound/cloud/plume density; cone forms use
+           rays (count), rayLen, rayW, droop (how hard the rays fall),
+           stems, leaves, leafW, leafLen — leafy purpurea vs wispy
+           pallida vs hard-reflexed atrorubens
    sea     per-season appearance, the Oudolf heart of the game:
            fol (foliage), bloom (flower this season, omit for none),
            seed (persistent seedhead/structure — fall/winter presence is
@@ -131,6 +132,9 @@ const PLANTS = {
     }},
   switchgrass:{ name:'Switchgrass', latin:'Panicum virgatum', form:'cloudgrass', type:'grass', h:66,
     space:24, spread:30, zones:[3,9], native:true, sun:'full', moist:'medium', phen:'warm',
+    look:{leaves:28, stems:14, leafFan:1.05, leafLen:0.72, bladeSpread:0.46, leafW:1.55,
+      stemFan:0.3, stemBase:18, stemLean:0.02, panicle:true, cloudDots:18, cloudWidth:14,
+      cloudHeight:20, cloudRadius:0.75},
     blurb:'A sturdy clump under an airy cloud of seed. Birds work it all winter.',
     sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#6f8f5a',bloom:'#d8b8c2'}, Fall:{fol:'#d9b85e',seed:'#e0cfae'}, Winter:{fol:'#c2a878',seed:'#e6d8ba'}},
     cv:{
@@ -178,8 +182,10 @@ const PLANTS = {
       fastforward:{name:"'Fast Forward'", note:'earlier bloom for shorter seasons',
         h:34, sea:{Fall:{fol:'#8a8a5e',bloom:'#d696b2',seed:'#cba0ac'}, Winter:{fol:'#a89072',seed:'#d8c0b6'}}},
     }},
-  mexicanfeather:{ name:'Mexican Feather Grass', latin:'Nassella tenuissima', form:'oatgrass', type:'grass', h:32,
+  mexicanfeather:{ name:'Mexican Feather Grass', latin:'Nassella tenuissima', form:'feathergrass', type:'grass', h:32,
     space:18, spread:24, zones:[6,10], native:false, sun:'full', moist:'dry', phen:'warm',
+    look:{leaves:34, plumes:24, fan:2.35, leafLen:0.74, leafW:0.72, leafSpread:0.58,
+      plumeLen:1.0, plumeSpread:0.86, wisps:6, stemW:0.58},
     blurb:'Fine blond hair in constant motion. Borderline in cold zone 6, beautiful in lean dry soil, and self-seeds freely enough to be invasive in some regions.',
     sea:{Spring:{fol:'#8a9a6a'}, Summer:{fol:'#a8b87a',seed:'#d8c99a'}, Fall:{fol:'#c8b878',seed:'#e0d2ae'}, Winter:{fol:'#b8a878',seed:'#d8c8a8'}}},
   tuftedhair:{ name:'Tufted Hairgrass', latin:'Deschampsia cespitosa', form:'cloudgrass', type:'grass', h:36,
@@ -234,6 +240,8 @@ const PLANTS = {
     }},
   bluefescue:{ name:'Blue Fescue', latin:'Festuca glauca', form:'bunchgrass', type:'grass', h:18,
     space:12, spread:15, zones:[4,8], native:false, sun:'full', moist:'dry', phen:'cool',
+    look:{mound:true, leaves:34, fan:2.65, leafLen:0.92, leafW:1.05, spread:0.83,
+      dome:0.66, edgeDrop:0.34, seedStems:0, baseW:4},
     blurb:'Small cool-season blue mound for dry edges and gravelly fronts. It wants drainage more than pampering.',
     sea:{Spring:{fol:'#7f9eae',seed:'#c8c0a0'}, Summer:{fol:'#6f8fa8',seed:'#c8c0a0'}, Fall:{fol:'#8a9a92'}, Winter:{fol:'#9aa6a0'}},
     cv:{
