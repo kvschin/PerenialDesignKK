@@ -291,3 +291,48 @@ test('grouped species share one groupLabel per group', () => {
     else assert(label[P.group] === gl, `group "${P.group}" has clashing labels: "${label[P.group]}" vs "${gl}"`);
   }
 });
+
+test('native landscape-gap additions retain their botanical identity and intended roles', () => {
+  const expected = {
+    purpleprairieclover:['Dalea purpurea','forb'], whiteprairieclover:['Dalea candida','forb'],
+    bluegrama:['Bouteloua gracilis','grass'], northernseaoats:['Chasmanthium latifolium','grass'],
+    prairieironweed:['Vernonia fasciculata','forb'], bluestemmedgoldenrod:['Solidago caesia','forb'],
+    whitewoodaster:['Eurybia divaricata','forb'], whiteturtlehead:['Chelone glabra','forb'],
+    goldenragwort:['Packera aurea','forb'], yellowtroutlily:['Erythronium americanum','bulb'],
+    michiganlily:['Lilium michiganense','bulb'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: recommended native landscape addition is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.type, expected[k][1], `${k}: type`);
+    assert(P.native, `${k}: should remain a North American native`);
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
+  }
+  assertEqual(PLANTS.purpleprairieclover.group, 'prairieclover', 'both prairie clovers share a picker');
+  assertEqual(PLANTS.whiteprairieclover.group, 'prairieclover', 'both prairie clovers share a picker');
+  assertEqual(PLANTS.bluegrama.look.headStyle, 'eyelash', 'blue grama needs its signature seed combs');
+  assert(PLANTS.northernseaoats.look.spikeletW > 3, 'northern sea oats needs broad hanging spikelets');
+  assertEqual(PLANTS.michiganlily.bulbSeason, 'summer', 'Michigan lily must not use the spring-ephemeral bulb envelope');
+});
+
+test('second-wave native additions keep their distinct form and cultivar policy', () => {
+  const expected = {
+    largebeardtongue:['Penstemon grandiflorus','spike'],
+    roughgoldenrod:['Solidago rugosa','spike'],
+    mossphlox:['Phlox subulata','shrub'],
+    falsesunflower:['Heliopsis helianthoides','cone'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: second-wave plant is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.form, expected[k][1], `${k}: renderer form`);
+    assert(P.native, `${k}: straight species should be native`);
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
+  }
+  assertEqual(PLANTS.largebeardtongue.look.spikeStyle, 'bell', 'large beardtongue needs tubular bells');
+  assertEqual(PLANTS.roughgoldenrod.look.spikeStyle, 'goldenrodPanicle', 'rough goldenrod needs arching panicles');
+  assertEqual(PLANTS.roughgoldenrod.cv.fireworks.native, false, 'Fireworks remains a garden cultivar');
+  assertEqual(PLANTS.mossphlox.look.habit, 'mossphlox', 'moss phlox needs a low evergreen mat');
+});

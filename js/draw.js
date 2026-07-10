@@ -254,22 +254,39 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
-  else if (P.form === 'oatgrass'){ // sideoats: spikelets hung along one side
-    const n = stemFor(9);
-    for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*1.4+(rnd()-0.5)*0.2, len=H*0.5*(0.6+rnd()*0.5);
-      const bx=Math.sin(a)*len*0.55+sway*len*0.05;
-      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=1.3;
+  else if (P.form === 'oatgrass'){ // gramas and sea oats: species-specific one-sided heads
+    const L=P.look||{}, n=stemFor(L.leaves||9), leafFan=L.leafFan===undefined?1.4:L.leafFan;
+    for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*leafFan+(rnd()-0.5)*0.2, len=H*(L.leafLen||0.5)*(0.6+rnd()*0.5);
+      const bx=Math.sin(a)*len*(L.leafSpread||0.55)+sway*len*0.05;
+      ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=L.leafW||1.3;
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
       ctx.quadraticCurveTo(bx*0.4,-len*0.6,bx,-len); ctx.stroke(); }
-    const sn = stemFor(5), oat=S.seed||(blooming?S.bloom:null);
+    const sn=stemFor(L.stems||5), oat=S.seed||(blooming?S.bloom:null);
     for (let i=0;i<sn;i++){
-      const ox=(rnd()-0.5)*8, len=H*(0.8+rnd()*0.25), tip=ox+5+sway*len*0.05;
+      const ox=(rnd()-0.5)*(L.stemSpread||8), len=H*((L.stemLen||0.8)+rnd()*(L.stemJitter===undefined?0.25:L.stemJitter));
+      const tip=ox+(L.tipOffset===undefined?5:L.tipOffset)+sway*len*0.05;
       ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.quadraticCurveTo(ox+2.5,-len*0.6,tip,-len); ctx.stroke();
-      if (oat && mature){ ctx.fillStyle=oat;
-        for (let s2=0;s2<6;s2++){ const f=0.45+s2*0.09;
-          const px=ox*0.5+(tip-ox*0.5)*f-2.4, py=-len*f;
-          ctx.beginPath(); ctx.ellipse(px,py,1.9,1.1,0.5,0,7); ctx.fill(); } }
+      if (!oat || !mature) continue;
+      ctx.fillStyle=oat;
+      if (L.headStyle==='eyelash'){
+        const heads=L.heads||1, headLen=L.headLen||9, teeth=L.teeth||8, toothLen=L.toothLen||2.2;
+        for(let h2=0;h2<heads;h2++){
+          const side=h2%2?-1:1, fy=-len*(0.7+h2*0.1), fx=tip+sway*0.6;
+          ctx.strokeStyle=shade(oat,-12); ctx.lineWidth=1.15;
+          ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+side*headLen,fy+side*(L.headTilt||0)); ctx.stroke();
+          ctx.strokeStyle=oat; ctx.lineWidth=0.85;
+          for(let tooth=0;tooth<teeth;tooth++){
+            const t=teeth===1?0.5:tooth/(teeth-1), tx=fx+side*headLen*t, ty=fy+side*(L.headTilt||0)*t;
+            ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(tx,ty+toothLen); ctx.stroke();
+          }
+        }
+      } else {
+        const spikelets=L.spikelets||6, step=L.spikeletStep===undefined?0.09:L.spikeletStep;
+        for (let s2=0;s2<spikelets;s2++){ const f=0.45+s2*step;
+          const px=ox*0.5+(tip-ox*0.5)*f+(L.spikeletSide===undefined?-2.4:L.spikeletSide), py=-len*f;
+          ctx.beginPath(); ctx.ellipse(px,py,L.spikeletW||1.9,L.spikeletH||1.1,0.5,0,7); ctx.fill(); }
+      }
     }
   }
   else if (P.form === 'fountaingrass'){ // pennisetum: arching blades with bottlebrush plumes
@@ -457,7 +474,32 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       else { // spike
         const col=(headOn?S.bloom:null)||S.seed;
         if (col){
-          if (L.spikeStyle==='liatris'){
+          if (L.spikeStyle==='bell'){
+            const bells=Math.max(2,Math.round(L.bellCount||5)), bellW=L.bellW||2.8, bellH=L.bellH||4.2;
+            for(let b=0;b<bells;b++){
+              const side=b%2?-1:1, rootY=hy+b*bellH*0.8, bx=hx+side*(L.bellLean||2.6), by=rootY+bellH*0.36;
+              ctx.strokeStyle=shade(S.fol||col,-24); ctx.lineWidth=0.85;
+              ctx.beginPath(); ctx.moveTo(hx,rootY-1); ctx.quadraticCurveTo(hx+side*1.4,rootY,bx,by-bellH*0.36); ctx.stroke();
+              ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+              ctx.beginPath(); ctx.ellipse(bx,by,bellW,bellH,side*0.18,0,7); ctx.fill();
+              ctx.fillStyle=shade(col,22);
+              ctx.beginPath(); ctx.ellipse(bx+side*bellW*0.22,by+bellH*0.26,bellW*0.62,bellH*0.28,side*0.16,0,7); ctx.fill();
+            }
+          } else if (L.spikeStyle==='goldenrodPanicle'){
+            const panicles=Math.max(3,Math.round(L.panicles||6)), dots=Math.max(3,Math.round(L.panicleDots||6));
+            for(let p=0;p<panicles;p++){
+              const u=panicles===1?0.5:p/(panicles-1), side=p%2?-1:1;
+              const baseY=hy+u*H*0.30, reach=(L.panicleSpread||13)*(0.58+rnd()*0.42);
+              const endX=hx+side*reach, endY=baseY+(L.panicleDrop||6)*(0.55+rnd()*0.45);
+              ctx.strokeStyle=shade(S.fol||col,-22); ctx.lineWidth=0.8;
+              ctx.beginPath(); ctx.moveTo(hx,baseY); ctx.quadraticCurveTo(hx+side*reach*0.52,baseY-1,endX,endY); ctx.stroke();
+              ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+              for(let d=0;d<dots;d++){
+                const f=0.38+d/(dots-1)*0.62, px=hx+(endX-hx)*f+(rnd()-0.5)*2.2, py=baseY+(endY-baseY)*f+(rnd()-0.5)*2.2;
+                ctx.beginPath(); ctx.arc(px,py,1.15+(rnd()*0.35),0,7); ctx.fill();
+              }
+            }
+          } else if (L.spikeStyle==='liatris'){
             const spikeLen=L.spikeLen||18, florets=Math.max(3,Math.round(L.florets||8));
             const dense=L.dense||1, capW=L.capW||2.3, capH=L.capH||2.8;
             for(let s=0;s<florets;s++){
@@ -855,6 +897,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
       }
+    } else if (S.fol && habit==='mossphlox'){
+      const runners=stemFor(L.runners||16), matW=L.matW||24, matH=H*(L.foliageH||0.18);
+      ctx.strokeStyle=fol; ctx.lineWidth=L.leafW||0.8; ctx.lineCap='round';
+      for(let i=0;i<runners;i++){
+        const side=i%2?-1:1, y=-matH*(0.18+rnd()*0.82), endX=side*(matW*(0.28+rnd()*0.28))+sway;
+        ctx.beginPath(); ctx.moveTo((rnd()-0.5)*4,0); ctx.quadraticCurveTo(endX*0.45,y-matH*0.32,endX,y); ctx.stroke();
+        leafDot(endX-side*1.2,y,1.4,0.6,side*0.2,fol);
+      }
+      ctx.lineCap='butt';
     } else {
       const n = stemFor(L.leaves||26);
       const wide=L.foliageW||16, high=L.foliageH||0.55, leafW=L.leafW||3.4, leafH=L.leafH||2.6;
@@ -867,7 +918,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
     if (mature && ((blooming&&S.bloom)||S.seed)){
       const col=(blooming?S.bloom:null)||S.seed;
-      const m0=stemFor(L.flowerStems||7), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
+      const m0=stemFor(habit==='mossphlox'?(L.flowers||18):(L.flowerStems||7)), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
       for (let i=0;i<m;i++){
         const ox=(rnd()-0.5)*(L.flowerW||20), len=H*((L.flowerLen||0.85)+rnd()*(L.flowerJitter||0.2));
         ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=habit==='baptisia'?1.5:1.1;
@@ -883,6 +934,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         else if ((habit==='threadleaf'||habit==='broadamsonia')&&season==='Spring'){
           for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
             ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); }
+        }
+        else if (habit==='mossphlox'){
+          const petals=L.petals||5, petal=L.petal||2.2, cx=ox+sway*2+(rnd()-0.5)*(L.flowerSpread||24), cy=-H*(0.08+rnd()*(L.foliageH||0.18));
+          for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
+            ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*petal*0.72,cy+Math.sin(a)*petal*0.58,petal,petal*0.56,a,0,7); ctx.fill(); }
+          if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(cx,cy,petal*0.34,0,7); ctx.fill(); ctx.fillStyle=col; }
         }
         else if (habit==='asterdome'||habit==='asterupright'||habit==='asterclean'){
           const heads=habit==='asterdome'?3:(habit==='asterclean'?2:1), rad=habit==='asterupright'?3.0:2.4;

@@ -115,7 +115,7 @@ const BROWSE_RESIST_GROUPS=new Set([
 ]);
 const BROWSE_RESIST_KEYS=new Set([
   // toxic or bitter forbs
-  'creamindigo','helenium','culvers','penstemon','columbine','wildgeranium',
+  'creamindigo','helenium','culvers','penstemon','largebeardtongue','columbine','wildgeranium',
   'bluebells','heuchera','astilbe','solomonsseal','shootingstar',
   'greatstjohnswort','filipendula','goldenrod','joepye','gaura','poppymallow',
   'pasqueflower','prairiesmoke','goldenalexander','heartleafalexander',

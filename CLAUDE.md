@@ -871,8 +871,11 @@ live cross-device visiting is ever built.
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
-- **More species** — prairie clover (Dalea purpurea), golden alexanders
-  (Zizia aurea — can reuse the `umbel` form now), more bulbs.
+- **More species** — the first two native gap passes are landed (purple and white
+  prairie clovers, blue grama, northern sea oats, ironweed, woodland-edge
+  goldenrod/aster, turtlehead, golden ragwort, trout lily, Michigan lily,
+  large beardtongue, rough-stemmed goldenrod, moss phlox, and false sunflower).
+  Further regional bulb expansion remains open.
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by
     drag-to-paint; the idea is a dedicated stroke tool).
