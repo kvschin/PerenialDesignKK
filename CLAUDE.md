@@ -825,6 +825,17 @@ add a new branch in `drawPlant`. It automatically appears in the tool tray
 matters more than prettiness, and that includes spacing/zone/native/resistance data.
 Winter must show *structure*, not bare ground; that's the whole point.
 
+**Sedge catalog:** keep one Sedge tab rather than adding habitat tabs. The tray
+sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden
+headings; `moist:'moist'` is the rain-garden classification (the schema has no
+`'wet'` value).
+
+**Sedge visuals:** retain `bunchgrass` as the shared renderer. Use `look` values
+(`mound`, `leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
+separate carpet, meadow, broad woodland, wet upright, and arching sedges. Palm
+Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`,
+`pendant`) communicate distinctive fruit without bespoke image assets.
+
 ## Conventions
 
 - Vanilla JS, no framework, no bundler. Keep it that way unless explicitly asked.

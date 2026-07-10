@@ -187,7 +187,7 @@ key: {
   zones: [3, 9],
   native: true,
   sun: 'full',                // full | part
-  moist: 'dry',               // dry | medium | moist | wet
+  moist: 'dry',               // dry | medium | moist
   phen: 'warm',               // cool | mid | warm
   bloomMonths: [7, 8, 9],     // real-world bloom calendar months, 1-12
   grow: 10,                   // woody only: years to mature size
@@ -215,6 +215,16 @@ To add a species, update `js/plants.js`, reuse an existing `form` when possible,
 or add a focused drawing branch in `js/draw.js`. Match real botany: mature
 height, spread, spacing, shade/water needs, seasonality, and winter structure
 matter more than making every plant equally flashy.
+
+Keep sedges in the single Sedge catalog tab. Its data-driven headings are Sun &
+meadow, Shade & woodland, and Wet & rain garden: `moist:'moist'` is the wet-site
+classification. Do not introduce `moist:'wet'` without expanding the validator,
+filtering, and saved-data contract together.
+
+Sedges use the existing `bunchgrass` renderer. Tune their `look` values for
+carpet, meadow, woodland, wetland, or arching habits before adding a new form.
+Only Palm Sedge (`sedgeHabit:'palm'`) and the shared seed styles (`mace`,
+`brush`, `pendant`) receive signature rendering treatments.
 
 Water plants use `type: 'water'` and should only place on water terrain.
 Woody shrubs/trees establish over years and can occupy more than one tile.

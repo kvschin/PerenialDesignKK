@@ -31,7 +31,54 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   if (P.form === 'bunchgrass'){
     const L=P.look||{}, n = stemFor(L.leaves||13);
     ctx.lineCap='round';
-    if (L.mound){
+    const drawSedgeSeed=(style,sx,sy,a)=>{
+      ctx.fillStyle=S.seed;
+      if (style==='mace'){
+        ctx.strokeStyle=shade(S.seed,-12); ctx.lineWidth=0.9;
+        for (let p=0;p<5;p++){
+          const ang=p*Math.PI*0.4+a*0.25;
+          ctx.beginPath(); ctx.moveTo(sx,sy);
+          ctx.lineTo(sx+Math.cos(ang)*4.6,sy+Math.sin(ang)*4.6); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.ellipse(sx,sy,3.25,3.25,0,0,7); ctx.fill();
+      } else if (style==='brush'){
+        ctx.strokeStyle=shade(S.seed,-10); ctx.lineWidth=0.7;
+        for (let p=0;p<5;p++){
+          const ox=(p-2)*1.25;
+          ctx.beginPath(); ctx.moveTo(sx+ox,sy+2.4); ctx.lineTo(sx+ox*1.5,sy-3.6); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.ellipse(sx,sy,2.15,4.2,a*0.25,0,7); ctx.fill();
+      } else if (style==='pendant'){
+        const drop=5.4;
+        ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
+        ctx.beginPath(); ctx.moveTo(sx,sy-1); ctx.quadraticCurveTo(sx+3.8,sy+1.5,sx+3.2,sy+drop); ctx.stroke();
+        ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(sx+3.2,sy+drop+1.8,1.75,3.6,0.45,0,7); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.ellipse(sx,sy,1.25,3.4,a*0.4,0,7); ctx.fill();
+      }
+    };
+    if (L.sedgeHabit==='palm'){
+      // Palm sedge carries leaf ranks up short stems; a basal tuft cannot show
+      // the graphic, almost radial architecture that makes it useful in a plan.
+      const stems=stemFor(L.palmStems||5), ranks=L.palmRanks||3;
+      for (let i=0;i<stems;i++){
+        const side=stems>1?i/(stems-1)-0.5:0, baseX=side*H*(L.palmSpread||0.38);
+        const stemH=H*(L.palmStemLen||0.76)*(0.86+rnd()*0.14);
+        ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=L.stemW||1.05;
+        ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(baseX,-stemH*0.5,baseX+side*2,-stemH); ctx.stroke();
+        for (let r=0;r<ranks;r++){
+          const y=-stemH*(0.3+r*0.22), leafLen=H*(L.palmLeafLen||0.29)*(0.88+rnd()*0.17);
+          for (const dir of [-1,1]){
+            const tipX=baseX+dir*leafLen*(0.78+rnd()*0.22)+sway*leafLen*0.025;
+            const tipY=y-leafLen*(0.22+rnd()*0.09);
+            ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*(L.colorJitter||18)); ctx.lineWidth=L.leafW||1.75;
+            ctx.beginPath(); ctx.moveTo(baseX,y);
+            ctx.quadraticCurveTo(baseX+dir*leafLen*0.34,y-leafLen*0.08,tipX,tipY); ctx.stroke();
+          }
+        }
+        if (S.seed && mature && i%2===0) drawSedgeSeed(L.seedStyle,baseX+side*2,-stemH-2,side);
+      }
+    } else if (L.mound){
       const fan=L.fan||2.15, spread=L.spread||0.68, lift=L.dome||0.68, edgeDrop=L.edgeDrop||0.42;
       const seedEvery=L.seedStems ? Math.max(2,Math.floor(n/L.seedStems)) : 0;
       for (let i=0;i<n;i++){
@@ -49,7 +96,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const sx=baseX+(rnd()-0.5)*4, sy=-H*(0.82+rnd()*0.22);
           ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
           ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(sx*0.45,-H*0.42,sx,sy); ctx.stroke();
-          ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(sx,sy,1.25,3.4,a*0.4,0,7); ctx.fill();
+          drawSedgeSeed(L.seedStyle,sx,sy,a);
         }
       }
     } else {

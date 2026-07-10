@@ -164,6 +164,56 @@ test('grass cultivars use comparable mature height and spread data', () => {
   }
 });
 
+test('native sedge collection is complete, distinct, and within herbaceous size bounds', () => {
+  const phaseOne = {
+    oaksedge:'Carex albicans', meadssedge:'Carex meadii', texassedge:'Carex texensis',
+    cherokeesedge:'Carex cherokeensis', cedarsedge:'Carex planostachys',
+    tussocksedge:'Carex stricta', lakesedge:'Carex lacustris',
+    awlfruitedsedge:'Carex stipata', bristlysedge:'Carex comosa',
+    bluewoodsedge:'Carex flaccosperma', whitebearsedge:'Carex albursina',
+    longbeakedsedge:'Carex sprengelii', sunsedge:'Carex inops subsp. heliophila',
+    clusteredfieldsedge:'Carex praegracilis',
+  };
+  const latin=new Set();
+  for (const k in phaseOne){
+    const P=PLANTS[k];
+    assert(P, `${k}: phase-one sedge missing`);
+    assertEqual(P.latin, phaseOne[k], `${k}: botanical name`);
+    assertEqual(P.type, 'sedge', `${k}: must remain a sedge`);
+    assert(P.native, `${k}: should be a North American native`);
+    assert(P.h >= 10 && P.h <= 52, `${k}: height ${P.h} outside sedge range`);
+    assert(P.space >= 10 && P.space <= 36, `${k}: spacing ${P.space} outside sedge range`);
+    assert(P.spread >= 12 && P.spread <= 48, `${k}: spread ${P.spread} outside sedge range`);
+    assert(!latin.has(P.latin), `${k}: duplicate botanical name ${P.latin}`);
+    latin.add(P.latin);
+  }
+  assertEqual(PLANTS.palmsedge.latin, 'Carex muskingumensis',
+    'Palm Sedge remains the catalog entry for Muskingum Sedge');
+  assertEqual(PLANTS.oaksedge.name, 'Oak Sedge', 'Carex albicans uses the Oak Sedge label');
+  assertEqual(PLANTS.whitebearsedge.name, 'White Bear Sedge', 'Carex albursina uses the White Bear Sedge label');
+  assertEqual(PLANTS.sunsedge.name, 'Sun Sedge', 'the prairie Carex inops taxon is Sun Sedge');
+  assert(keys.filter(k=>PLANTS[k].type==='sedge').length >= 26, 'expected the expanded sedge collection');
+});
+
+test('sedges carry visual archetypes and preserve signature seedheads', () => {
+  const sedges=keys.filter(k=>PLANTS[k].type==='sedge');
+  for (const k of sedges){
+    const L=PLANTS[k].look||{};
+    assert(L.mound || L.sedgeHabit==='palm', `${k}: sedge needs a deliberate preview habit`);
+  }
+  assertEqual(PLANTS.palmsedge.look.sedgeHabit, 'palm', 'Palm Sedge needs ranked leaves');
+  assertEqual(PLANTS.grayssedge.look.seedStyle, 'mace', "Gray's Sedge needs its mace fruit");
+  for (const k of ['foxsedge','awlfruitedsedge','bristlysedge'])
+    assertEqual(PLANTS[k].look.seedStyle, 'brush', `${k}: needs a brush-like seedhead`);
+  assertEqual(PLANTS.longbeakedsedge.look.seedStyle, 'pendant', 'Long-beaked Sedge needs pendent seedheads');
+  assert(PLANTS.plantainsedge.look.leafW > 2 && PLANTS.whitebearsedge.look.leafW > 2,
+    'broad woodland sedges need broader foliage than the fine carpets');
+  assert(PLANTS.ivorysedge.look.leafW < 1 && PLANTS.pennsedge.look.leaves >= 20,
+    'fine lawn sedges need their dense, narrow leaf texture');
+  assert(PLANTS.lakesedge.look.dome > 0.85 && PLANTS.tussocksedge.look.dome > 0.85,
+    'wet upright sedges need a hummock profile');
+});
+
 test('signature grass cultivars keep their real-world size hierarchy', () => {
   const effective = (k, v) => Object.assign({}, PLANTS[k], PLANTS[k].cv[v]);
   const northwind = effective('switchgrass', 'northwind');

@@ -1146,8 +1146,14 @@ function buildToolTray(){
     const designType=activeDesignType();
     let sections;
     if (cat.sedgeSections){
-      sections=[['Sun sedges',keys.filter(k=>PLANTS[k].sun==='full')],
-        ['Shade sedges',keys.filter(k=>PLANTS[k].sun!=='full')]];
+      const wet=keys.filter(k=>PLANTS[k].moist==='moist');
+      sections=[
+        ['Sun & meadow',keys.filter(k=>PLANTS[k].sun==='full' && PLANTS[k].moist!=='moist'),
+          'Sunny, average-to-dry meadow sedges'],
+        ['Shade & woodland',keys.filter(k=>PLANTS[k].sun!=='full' && PLANTS[k].moist!=='moist'),
+          'Part-shade sedges for woodland and path edges'],
+        ['Wet & rain garden',wet,'Sedges for swales, pond margins, and reliably moist ground'],
+      ];
     } else if (designType){
       const best=keys.filter(k=>plantStyleRecommended(k,designType));
       const other=keys.filter(k=>!plantStyleRecommended(k,designType));
