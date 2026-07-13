@@ -474,7 +474,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
 #confirmSeasonScreen{background:rgba(12,8,6,.28);z-index:18}
 /* time menu: a compact dropdown that drops down under the season box (top/left
    set in JS via openPause), not a centered modal */
-#pauseScreen{display:block;padding:0;background:transparent;z-index:18}
+/* the backdrop passes pointer events through (only the panel is interactive),
+   so the season box stays pressable while the menu is open — a hold on the
+   box must fast-forward, not die on an invisible backdrop and eat the gesture
+   closing the menu. Click-out dismissal is a document-level listener in
+   openPause instead of a backdrop click. */
+#pauseScreen{display:block;padding:0;background:transparent;z-index:18;pointer-events:none}
+#pauseScreen .panel{pointer-events:auto}
 #pauseScreen .panel{position:fixed;top:56px;left:10px;width:214px;max-width:calc(100vw - 16px);
   padding:13px;border-radius:8px;box-shadow:0 16px 46px rgba(0,0,0,.48);animation:gmDrop .14s ease-out}
 #pauseScreen .panel h2{font-size:16px;margin-bottom:2px}

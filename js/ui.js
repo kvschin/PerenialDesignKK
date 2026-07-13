@@ -567,21 +567,34 @@ function nextSeasonName(){
   const cal=calClock();
   return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
 }
+/* the time dropdown's backdrop is pointer-transparent (see styles.css), so
+   the season box keeps working while it's open — dismissal is this capture
+   listener: any press outside the panel (and off the box, whose own handler
+   toggles) closes the menu, and the press still acts on what it hit. */
+function pauseOutsidePress(e){
+  const ps=$('pauseScreen');
+  if (ps.classList.contains('hidden')) return;
+  const panel=ps.querySelector('.panel'), box=$('btnSeasonBox');
+  if ((panel && panel.contains(e.target)) || (box && box.contains(e.target))) return;
+  closePause();
+}
 function openPause(){
   const ps=$('pauseScreen');
   $('pauseMeta').textContent=clockMeta();
   $('btnPauseResume').textContent=game.pausedAt?'Resume':'Pause day';
   updatePreviewToggle();
   ps.classList.remove('hidden');
+  document.addEventListener('pointerdown',pauseOutsidePress,true);
   // drop the panel down under the season box, left-aligned to it
   const box=$('btnSeasonBox'), p=ps.querySelector('.panel');
   if (box && p){ const r=box.getBoundingClientRect();
-    p.style.top=(r.bottom+6)+'px';
+    p.style.top=(r.bottom+10)+'px';
     p.style.left=Math.max(8,Math.round(r.left))+'px'; }
 }
 function closePause(){
   $('confirmSeasonScreen').classList.add('hidden');
   $('pauseScreen').classList.add('hidden');
+  document.removeEventListener('pointerdown',pauseOutsidePress,true);
 }
 function toggleClock(){
   if (game.pausedAt){ resumeClock(); toast('Day started.'); }

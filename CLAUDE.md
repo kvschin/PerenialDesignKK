@@ -614,10 +614,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     blue) — this replaced the old thin progress line and the Advance/Pause
     buttons. **Hold** the box to fast-forward time (`game.ffActive`; the loop
     adds `FF_RATE` game-ms per real-ms, ~2 garden days/sec); a short **tap**
-    opens the time menu (`openPause` → `#pauseScreen`), now a **dropdown** that
-    `openPause` pins just under the season box (`position:fixed`, JS-set
-    `top`/`left`; click the backdrop to dismiss — same mechanism as
-    `#gardenMenu`), whose primary button is now a Pause/Resume toggle. After the
+    TOGGLES the time menu (`openPause`/`closePause` → `#pauseScreen`), a
+    **dropdown** that `openPause` pins just under the season box
+    (`position:fixed`, JS-set `top`/`left`), whose primary button is a
+    Pause/Resume toggle. The dropdown's backdrop is **pointer-transparent**
+    (`#pauseScreen{pointer-events:none}`, panel `auto`) so the season box
+    keeps working while the menu is open — a hold still fast-forwards (and
+    dismisses the dropdown); dismissal is a document-level capture
+    `pointerdown` outside the panel (`pauseOutsidePress`), not a backdrop
+    click, so the press also acts on whatever it hit. Crossing a season
+    boundary — naturally, mid-fast-forward, or via the menu's Skip — runs a
+    **season crossfade** (renderer.js `seasonFade`): the last frame of the
+    old season is snapshotted once and dissolves over the new season's live
+    frames for ~1.1s (one `drawImage`/frame; the season-keyed ground bake
+    and sprite caches are untouched; skipped under `prefers-reduced-motion`
+    and reset by `enterGarden`; `hasTransientGardenWork` keeps frames live
+    while it runs). After the
     box sit the three **view tools** — Select, Rotate, Layers
     (`#btnSelectTool`/`#btnRotateTool`/`#btnLayersTool`, the non-painting tools,
     kept in sync by `syncTopTools`); the season box `flex-shrink`s (explicit
@@ -871,10 +883,12 @@ live cross-device visiting is ever built.
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
-- **More species** — the first two native gap passes are landed (purple and white
-  prairie clovers, blue grama, northern sea oats, ironweed, woodland-edge
-  goldenrod/aster, turtlehead, golden ragwort, trout lily, Michigan lily,
-  large beardtongue, rough-stemmed goldenrod, moss phlox, and false sunflower).
+- **More species** — two native-gap passes and a focused European/Oudolf pass are
+  landed (purple and white prairie clovers, blue grama, northern sea oats,
+  ironweed, woodland-edge goldenrod/aster, turtlehead, golden ragwort, trout
+  lily, Michigan lily, large beardtongue, rough-stemmed goldenrod, moss phlox,
+  false sunflower, Molinia 'Transparent', Macedonian scabious, great masterwort,
+  Pyrenean sea holly, stonecrop 'Matrona', and mountain fleece 'Firetail').
   Further regional bulb expansion remains open.
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by

@@ -420,7 +420,14 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
   const grassW=plantVisualWidthScale(P,key);
   const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62*Math.max(1,grassW))+18;
-  const top=(woody?Math.max(H,0.75*H+canopy*0.7):H*1.12)+26;
+  // Cloud grasses can throw a seed veil substantially above their nominal
+  // height. Size its sprite for the tallest panicle plus cloud rather than
+  // clipping tall, airy forms such as Molinia 'Transparent'.
+  const L=P.look||{};
+  const herbTop=P.form==='cloudgrass'
+    ? Math.max(H*1.12, H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)+6)
+    : H*1.12;
+  const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop)+26;
   const bot=18, want=pspriteScale();
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
   // the bake RESOLUTION instead of bailing to per-frame procedural — the blit
@@ -698,8 +705,45 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,t){
   }
   return 0;
 }
+/* ---------- season crossfade ----------
+   Seasons used to flip abruptly (sky, ground, every plant) on the frame the
+   day counter crossed the boundary — jarring mid-fast-forward and after the
+   menu's Skip. Blending colors per frame would defeat the season-keyed ground
+   bake and sprite caches, so instead the LAST frame of the old season is
+   snapshotted once and faded out over the new season's live frames: one
+   drawImage per frame for ~1.1s, no cache touched. */
+const SEASON_FADE_MS=1100;
+const seasonFade={cv:null, t0:0, active:false, last:null};
+const seasonFadeRMQ=(typeof matchMedia==='function') ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+function seasonFadeActive(){ return seasonFade.active; }
+function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; }
+function maybeStartSeasonFade(t,season){
+  if (seasonFade.last && seasonFade.last!==season && !game.photo &&
+      !(seasonFadeRMQ && seasonFadeRMQ.matches)){
+    if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');
+    if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
+      seasonFade.cv.width=cnv.width; seasonFade.cv.height=cnv.height; }
+    const fcx=seasonFade.cv.getContext('2d');
+    fcx.clearRect(0,0,seasonFade.cv.width,seasonFade.cv.height);
+    fcx.drawImage(cnv,0,0);                     // canvas still shows the OLD season here
+    seasonFade.t0=t; seasonFade.active=true;
+  }
+  seasonFade.last=season;
+}
+function drawSeasonFade(t){
+  if (!seasonFade.active) return;
+  const f=(t-seasonFade.t0)/SEASON_FADE_MS;
+  if (f>=1 || !seasonFade.cv || seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
+    seasonFade.active=false; seasonFade.cv=null; return;   // done, or resized mid-fade
+  }
+  cx.save(); cx.setTransform(1,0,0,1,0,0);
+  cx.globalAlpha=Math.pow(1-f,1.4);              // ease-out: old season lingers then lets go
+  cx.drawImage(seasonFade.cv,0,0);
+  cx.restore();
+}
 function render(t){
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
+  maybeStartSeasonFade(t,cal.season);            // must run before the sky pass clears the frame
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
   // sky
   const g = cx.createLinearGradient(0,0,0,H);
@@ -972,6 +1016,7 @@ function render(t){
     g2.addColorStop(1,'rgba(50,35,55,0.24)');
     cx.fillStyle=g2; cx.fillRect(0,0,W,H);
   }
+  drawSeasonFade(t);                             // old season dissolves over the new one
   dmark('fx',tFx);
 }
 

@@ -394,6 +394,7 @@ function enterGarden(){
   setViewportFill('#4b5044');
   resetSelectionState();
   game.ruler=null;
+  resetSeasonFade();   // never crossfade from a previous garden's last frame
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
   if (game.gameMode==='design' && !game.visiting){
     game.previewMode=game.previewMode||'established';
@@ -626,23 +627,29 @@ if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.l
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
 if ($('btnPause')) $('btnPause').onclick=toggleClock;
-// the season box: hold to fast-forward time, tap to open the time menu
+// the season box: hold to fast-forward time, tap to toggle the time menu.
+// The box stays pressable while the menu is open (see openPause's z-lift),
+// so a hold always fast-forwards — starting one dismisses the dropdown so
+// the garden underneath is visible while time runs.
 (function wireSeasonBox(){
   const box=$('btnSeasonBox'); if (!box) return;
   let holdTimer=null, ffStarted=false;
   const cancelFF=()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
     if (ffStarted){ game.ffActive=false; ffStarted=false; } };
   box.addEventListener('pointerdown',e=>{ e.preventDefault(); ffStarted=false;
-    holdTimer=setTimeout(()=>{ game.ffActive=true; ffStarted=true; },200); });
+    holdTimer=setTimeout(()=>{ game.ffActive=true; ffStarted=true; closePause(); },200); });
   box.addEventListener('pointerup',()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
-    if (ffStarted){ game.ffActive=false; ffStarted=false; } else openPause(); });
+    if (ffStarted){ game.ffActive=false; ffStarted=false; }
+    else if (!$('pauseScreen').classList.contains('hidden')) closePause();
+    else openPause(); });
   box.addEventListener('pointerleave',cancelFF);
   box.addEventListener('pointercancel',cancelFF);
 })();
 // the menu's primary button now pauses or resumes, since the dial's Pause button is gone
 $('btnPauseResume').onclick=()=>{ if (game.pausedAt) resumeClock(); else pauseClock(); closePause(); updateHUD(); };
-// the time menu is a dropdown — click the backdrop (off the panel) to dismiss
-$('pauseScreen').onclick=(e)=>{ if (e.target===$('pauseScreen')) closePause(); };
+// the time menu dismisses via a document-level outside-press listener
+// (openPause/closePause in ui.js) — its backdrop is pointer-transparent so
+// the season box keeps working while the menu is open
 $('btnSkipSeason').onclick=openSeasonConfirm;
 $('btnSkipYear').onclick=skipNextYear;
 $('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
@@ -859,7 +866,8 @@ function hasActiveGesture(){
 }
 function hasTransientGardenWork(){
   return !!(game.ffActive || game.moving || game.pathTarget || hasHeldMovement() || hasActiveGesture()
-    || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length));
+    || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
+    || seasonFadeActive());   // the season crossfade needs live frames for ~1s
 }
 function shouldRenderGarden(t){
   if (fullScreenRenderBlocked()) return false;
@@ -956,7 +964,7 @@ function stressGarden(){
   toast('Stress garden: '+Object.keys(game.plants).length+' plants, '+Object.keys(game.bulbs).length+' bulbs');
 }
 function loop(t){
-  const dt=Math.min(50,t-prev); prev=t;
+  const dt=Math.min(50,Math.max(0,t-prev)); prev=t;   // floor 0: a backward t must never rewind FF time
   if (game.mode){
     const tFrame=dnow();
     if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
