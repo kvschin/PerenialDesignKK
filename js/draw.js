@@ -451,12 +451,26 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.beginPath(); ctx.moveTo(hx,hy);
             ctx.quadraticCurveTo(hx+2,hy+3,ghx,ghy-hr*0.45); ctx.stroke();
           }
-          ctx.beginPath(); ctx.arc(ghx,ghy,hr,0,7); ctx.fill();
+          if (L.globeStyle==='seaHolly'){
+            const bracts=Math.max(8,Math.round(L.bracts||12)), bractLen=L.bractLen||4.6, bractW=L.bractW||1.2;
+            ctx.fillStyle=S.bract||shade(S.fol||col,24);
+            for(let p=0;p<bracts;p++){
+              const a=p/bracts*Math.PI*2, bx=ghx+Math.cos(a)*hr*0.38, by=ghy+Math.sin(a)*hr*0.38;
+              const tx=ghx+Math.cos(a)*(hr+bractLen), ty=ghy+Math.sin(a)*(hr+bractLen);
+              const px=Math.cos(a+Math.PI/2)*bractW, py=Math.sin(a+Math.PI/2)*bractW;
+              ctx.beginPath(); ctx.moveTo(bx+px,by+py); ctx.lineTo(tx,ty); ctx.lineTo(bx-px,by-py); ctx.closePath(); ctx.fill();
+            }
+          }
+          ctx.fillStyle=col; ctx.beginPath();
+          if (L.globeStyle==='seaHolly') ctx.ellipse(ghx,ghy,hr*0.84,hr*1.08,0,0,7);
+          else ctx.arc(ghx,ghy,hr,0,7);
+          ctx.fill();
           ctx.strokeStyle=shade(col,-30); ctx.lineWidth=0.7;
           const spokes=L.spokes||6;
           for(let p=0;p<spokes;p++){ const pa=p/spokes*Math.PI*2;
             ctx.beginPath(); ctx.moveTo(ghx,ghy);
-            ctx.lineTo(ghx+Math.cos(pa)*hr*1.3,ghy+Math.sin(pa)*hr*1.3); ctx.stroke(); }
+            const spokeR=L.globeStyle==='seaHolly'?hr*1.02:hr*1.3;
+            ctx.lineTo(ghx+Math.cos(pa)*spokeR,ghy+Math.sin(pa)*spokeR); ctx.stroke(); }
           if (L.topknot){
             ctx.fillStyle=L.topknot;
             ctx.beginPath(); ctx.ellipse(ghx, ghy-hr*1.15, hr*0.42, hr*0.28, 0, 0, 7); ctx.fill();
@@ -571,10 +585,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     if (S.fol){
       const n=stemFor(L.leaves||7);
       ctx.strokeStyle=S.fol; ctx.lineWidth=L.leafW||1.1;
-      for(let i=0;i<n;i++){
-        const a=(i/(n-1)-0.5)*1.7+(rnd()-0.5)*0.2, l=H*(L.leafLen||0.3);
-        ctx.beginPath(); ctx.moveTo(0,0);
-        ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.5,Math.sin(a)*l,-l*0.52); ctx.stroke();
+      if (L.pincushionStyle==='astrantia'){
+        for(let i=0;i<n;i++){
+          const ox=(rnd()-0.5)*16, oy=(rnd()-0.5)*4-H*0.08, l=H*(L.leafLen||0.32)*(0.75+rnd()*0.3);
+          for(let p=0;p<5;p++){
+            const a=-Math.PI/2+p/5*Math.PI*2+(rnd()-0.5)*0.12;
+            ctx.beginPath(); ctx.moveTo(ox,oy);
+            ctx.quadraticCurveTo(ox+Math.cos(a)*l*0.38,oy+Math.sin(a)*l*0.38,
+              ox+Math.cos(a)*l,oy+Math.sin(a)*l); ctx.stroke();
+          }
+        }
+      } else {
+        for(let i=0;i<n;i++){
+          const a=(i/(n-1)-0.5)*1.7+(rnd()-0.5)*0.2, l=H*(L.leafLen||0.3);
+          ctx.beginPath(); ctx.moveTo(0,0);
+          ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.5,Math.sin(a)*l,-l*0.52); ctx.stroke();
+        }
       }
     }
     const sn=stemFor(L.stems||7);
@@ -587,6 +613,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const col=(headOn?S.bloom:null)||S.seed;
       if (col){
         const r=L.headR||4.6;
+        if (L.pincushionStyle==='astrantia'){
+          const bracts=Math.max(10,Math.round(L.bracts||16)), bractLen=L.bractLen||3.8, bractW=L.bractW||1;
+          ctx.fillStyle=S.bract||shade(col,30);
+          for(let p=0;p<bracts;p++){
+            const a=p/bracts*Math.PI*2, bx=tip+Math.cos(a)*r*0.42, by=-len+Math.sin(a)*r*0.32;
+            const tx=tip+Math.cos(a)*(r+bractLen), ty=-len+Math.sin(a)*(r*0.78+bractLen);
+            const px=Math.cos(a+Math.PI/2)*bractW, py=Math.sin(a+Math.PI/2)*bractW*0.75;
+            ctx.beginPath(); ctx.moveTo(bx+px,by+py); ctx.lineTo(tx,ty); ctx.lineTo(bx-px,by-py); ctx.closePath(); ctx.fill();
+          }
+        }
         ctx.fillStyle=col;
         ctx.beginPath(); ctx.ellipse(tip,-len,r,r*0.78,0,0,7); ctx.fill();
         ctx.strokeStyle=shade(col,-25); ctx.lineWidth=0.7;

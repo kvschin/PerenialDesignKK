@@ -336,3 +336,28 @@ test('second-wave native additions keep their distinct form and cultivar policy'
   assertEqual(PLANTS.roughgoldenrod.cv.fireworks.native, false, 'Fireworks remains a garden cultivar');
   assertEqual(PLANTS.mossphlox.look.habit, 'mossphlox', 'moss phlox needs a low evergreen mat');
 });
+
+test('European Oudolf additions retain their design roles and distinct renderer styles', () => {
+  const expected = {
+    molinia:['Molinia caerulea subsp. arundinacea','cloudgrass'],
+    knautia:['Knautia macedonica','pincushion'],
+    astrantia:['Astrantia major','pincushion'],
+    eryngiumbourgatii:['Eryngium bourgatii','globe'],
+    matrona:["Hylotelephium 'Matrona'",'umbel'],
+    persicaria:['Persicaria amplexicaulis','spike'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: European/Oudolf addition is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.form, expected[k][1], `${k}: renderer form`);
+    assertEqual(P.native, false, `${k}: should not be marked North American native`);
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
+  }
+  assertEqual(PLANTS.rattlesnake.group, 'eryngium', 'rattlesnake master anchors the Eryngium picker');
+  assertEqual(PLANTS.eryngiumbourgatii.look.globeStyle, 'seaHolly', 'Pyrenean sea holly needs its bracted blue head');
+  assertEqual(PLANTS.astrantia.look.pincushionStyle, 'astrantia', 'masterwort needs its star-bracted head');
+  assertEqual(PLANTS.sedum.group, 'hylotelephium', 'Autumn Joy shares the stonecrop picker');
+  assertEqual(PLANTS.matrona.group, 'hylotelephium', 'Matrona is a sibling, not an Autumn Joy cultivar');
+  assertEqual(PLANTS.persicaria.look.spikeStyle, 'liatris', 'Firetail needs fine, upright red wands');
+});

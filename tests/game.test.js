@@ -1683,6 +1683,14 @@ test('sprite governor: engages on measured-heavy draw, predicts to disengage', (
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
 });
 
+test('cloudgrass sprite bounds retain tall transparent panicles', () => {
+  const P=PLANTS.molinia, L=P.look, H=plantVisualH(P);
+  const sprite=makePlantSprite('molinia',8,0,'Fall',12345,null,null);
+  const tallestPanicle=H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)-2;
+  assert(sprite && sprite.oy >= tallestPanicle+26,
+    'Molinia sprite box must clear its tallest panicle cloud');
+});
+
 test('glass governor: sustained interaction jank drops the blur, spikes do not', () => {
   GLASS.off = false; GLASS.ema = 16.7; GLASS.warm = 0;
   // warmup frames are ignored, however janky (first-load font/shader stalls)

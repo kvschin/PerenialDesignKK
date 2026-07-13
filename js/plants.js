@@ -81,8 +81,11 @@
            stems, leaves, leafW, leafLen — leafy purpurea vs wispy
            pallida vs hard-reflexed atrorubens
            Spike forms may select `spikeStyle:'liatris'|'bell'|
-           'goldenrodPanicle'`; shrub forms may select `habit:'mossphlox'`
-           for a low evergreen runner mat instead of a generic mound.
+           'goldenrodPanicle'`; pincushion forms may select
+           `pincushionStyle:'astrantia'`; globe forms may select
+           `globeStyle:'seaHolly'`; shrub forms may select
+           `habit:'mossphlox'` for a low evergreen runner mat instead of a
+           generic mound.
            Sedges stay on the `bunchgrass` form: use mound/leaves/fan/
            leafLen/leafW/spread/dome/edgeDrop to distinguish carpet,
            meadow, woodland, and wetland habits. `sedgeHabit:'palm'`
@@ -309,6 +312,12 @@ const PLANTS = {
     space:30, spread:36, zones:[6,9], native:false, sun:'full', moist:'dry', phen:'warm',
     blurb:'A tall, airy Mediterranean stipa with golden oat-like panicles held well above a basal mound.',
     sea:{Spring:{fol:'#7d9a6a'}, Summer:{fol:'#7a8f62',seed:'#d7b45f'}, Fall:{fol:'#b89a5e',seed:'#d8bd78'}, Winter:{fol:'#a89068',seed:'#d0bd8a'}}},
+  molinia:{ name:"Purple Moor Grass 'Transparent'", latin:'Molinia caerulea subsp. arundinacea', form:'cloudgrass', type:'grass', h:72,
+    space:36, spread:48, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'warm',
+    look:{leaves:18, leafFan:1, leafLen:0.31, bladeSpread:0.52, leafW:1.2, stems:8, stemFan:0.75,
+      stemBase:10, stemLean:0.03, panicle:true, cloudDots:6, cloudWidth:22, cloudHeight:28, cloudRadius:0.55, cloudTop:1.12},
+    blurb:'A low green tussock sending a transparent veil of purple-then-straw panicles high above it. The quiet late-season matrix grass.',
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#9f8eaa'}, Fall:{fol:'#b49d62',seed:'#c5b38a'}, Winter:{fol:'#a68b68',seed:'#c4ae88'}}},
   sedge:{ name:'Plains Oval Sedge', latin:'Carex brevior', form:'bunchgrass', type:'sedge', h:22,
     space:12, spread:15, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
     look:{mound:true, leaves:16, leafW:1.1, leafLen:0.85, fan:1.85, spread:0.62, dome:0.79, edgeDrop:0.26, seedStems:4},
@@ -480,9 +489,17 @@ const PLANTS = {
     blurb:'The paradox: an echinacea in clear yellow, rays falling like a shuttlecock. Ozark glades only, but happy in any dry garden.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#6f8f5a',bloom:'#e8c23a',eye:'#5e4a2a'}, Fall:{fol:'#8a7a55',seed:'#3a3024'}, Winter:{fol:'#6b5d4a',seed:'#2a241c'}}},
   rattlesnake:{ name:'Rattlesnake Master', latin:'Eryngium yuccifolium', form:'globe', type:'forb', h:52,
+    group:'eryngium', groupLabel:'Eryngium', chip:'Rattlesnake',
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     blurb:'Silver yucca-like leaves and pale spiky globes. Architectural in every season.',
     sea:{Spring:{fol:'#8fa8a0'}, Summer:{fol:'#8fa8a0',bloom:'#dfe8dd'}, Fall:{fol:'#9a9a86',seed:'#8a7a5e'}, Winter:{fol:'#8d8674',seed:'#6e5f48'}}},
+  eryngiumbourgatii:{ name:'Pyrenean Sea Holly', latin:'Eryngium bourgatii', form:'globe', type:'forb', h:24,
+    group:'eryngium', groupLabel:'Eryngium', chip:'Pyrenean',
+    space:18, spread:18, zones:[5,8], native:false, sun:'full', moist:'dry', phen:'mid',
+    look:{leaves:9, leafW:1.25, leafLen:0.4, stems:7, stemSpread:15, lenBase:0.68, lenJitter:0.2,
+      headR:3.8, spokes:7, globeStyle:'seaHolly', bracts:14, bractLen:4.8},
+    blurb:'Steel-blue thistles with a prickly silver-blue ruff. Give it hot, sharp drainage and leave its roots alone.',
+    sea:{Spring:{fol:'#77979a'}, Summer:{fol:'#6c9092',bloom:'#7faec0',bract:'#a4c3c6'}, Fall:{fol:'#849694',seed:'#8da8ac',bract:'#aebbb8'}, Winter:{fol:'#8b8876',seed:'#9da5a0'}}},
   yucca:{ name:'Yucca', latin:'Yucca glauca', form:'rosette', type:'forb', h:62,
     space:36, spread:42, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'cool',
     look:{leaves:22, leafLen:0.5, leafW:2.4, filaments:false, stems:1, bells:8},
@@ -636,10 +653,17 @@ const PLANTS = {
         sea:{Spring:{fol:'#9aa890'}, Summer:{fol:'#8a9a80',bloom:'#e8c23a'}, Fall:{fol:'#9a9a78',seed:'#c2b482'}}},
     }},
   sedum:{ name:"Stonecrop 'Autumn Joy'", latin:'Hylotelephium', form:'umbel', type:'forb', h:28,
+    group:'hylotelephium', groupLabel:'Stonecrop', chip:'Autumn Joy',
     space:18, spread:24, zones:[3,9], native:false, sun:'full', moist:'dry', phen:'mid',
     look:{head:6.5, dome:0.6, stems:7, leaves:6, leafW:2.6, leafLen:0.36},
     blurb:'Broccoli-green all summer, dusty rose in September, then copper seedheads that hold the snow. Pure structure.',
     sea:{Spring:{fol:'#8aa882'}, Summer:{fol:'#7d9a78',bloom:'#cdd6c0'}, Fall:{fol:'#9a8a6e',bloom:'#c87a8e'}, Winter:{fol:'#8a6e52',seed:'#9a5e3e'}}},
+  matrona:{ name:"Stonecrop 'Matrona'", latin:"Hylotelephium 'Matrona'", form:'umbel', type:'forb', h:30,
+    group:'hylotelephium', groupLabel:'Stonecrop', chip:'Matrona',
+    space:24, spread:24, zones:[3,9], native:false, sun:'full', moist:'dry', phen:'mid', stem:'#744e52',
+    look:{head:7, dome:0.58, stems:7, leaves:7, leafW:2.8, leafLen:0.4},
+    blurb:'Dusky ruby stems and gray-green leaves carry broad pale-pink plates into autumn, then hold a dark, handsome silhouette.',
+    sea:{Spring:{fol:'#7f987e'}, Summer:{fol:'#778d76',bloom:'#c9c9c1'}, Fall:{fol:'#866f68',bloom:'#cf8995'}, Winter:{fol:'#6b5a50',seed:'#875867'}}},
   phlox:{ name:"Garden Phlox 'Jeana'", latin:'Phlox paniculata', form:'umbel', type:'forb', h:50,
     space:18, spread:24, zones:[4,8], native:true, sun:'full', moist:'medium', phen:'mid',
     look:{head:5.5, dome:0.5, stems:5, leaves:7, leafLen:0.3},
@@ -650,6 +674,13 @@ const PLANTS = {
     look:{head:8, dome:0.6, stems:5, leaves:6, leafLen:0.3},
     blurb:'A shrub-sized native with great dusky-mauve domes on wine-dark stems, humming with bees. Give it a wet back corner.',
     sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c',bloom:'#b07a92'}, Fall:{fol:'#7a6a55',seed:'#6e5244'}, Winter:{fol:'#6b5d4a',seed:'#4e3c30'}}},
+  persicaria:{ name:"Mountain Fleece 'Firetail'", latin:'Persicaria amplexicaulis', form:'spike', type:'forb', h:48,
+    space:36, spread:42, zones:[4,7], native:false, sun:'part', moist:'moist', phen:'mid', stem:'#874d4b',
+    look:{spikeStyle:'liatris', stems:10, stemSpread:22, lenBase:0.72, lenJitter:0.2, wildLean:4,
+      leaves:12, leafW:2.8, leafLen:0.42, stemLeaves:5, stemLeafW:1.6, stemLeafLen:9,
+      spikeLen:20, florets:14, capW:1.3, capH:1.5, fuzz:0, dense:1, zigzag:0.35, ragged:0.5},
+    blurb:'Long, slender red wands from midsummer into fall over a generous clump. A moisture-loving weaver for roomy borders.',
+    sea:{Spring:{fol:'#6e8c68'}, Summer:{fol:'#63835f',bloom:'#cf3f4b'}, Fall:{fol:'#7a735d',bloom:'#bc3a45',seed:'#7d5360'}, Winter:{fol:'#6c6053',seed:'#75525a'}}},
   prairieironweed:{ name:'Prairie Ironweed', latin:'Vernonia fasciculata', form:'umbel', type:'forb', h:48,
     space:30, spread:30, zones:[4,9], native:true, sun:'full', moist:'moist', phen:'warm',
     look:{head:7.5, dome:0.38, stems:7, stemSpread:20, lenBase:0.78, lenJitter:0.22, leaves:10, leafW:2.1, leafLen:0.45, stemLeaves:3, stemLeafW:1.2, stemLeafLen:8},
@@ -844,6 +875,11 @@ const PLANTS = {
       bluecockade:{name:"'Blue Cockade'", note:'deeper blue-violet flowers',
         sea:{Summer:{fol:'#6f8f6e',bloom:'#5f68b8',eye:'#d8d0e8'}, Fall:{fol:'#8a8a6e',bloom:'#5f68b8',eye:'#d8d0e8',seed:'#8a7a70'}}},
     }},
+  knautia:{ name:'Macedonian Scabious', latin:'Knautia macedonica', form:'pincushion', type:'forb', h:24,
+    space:18, spread:18, zones:[5,9], native:false, sun:'full', moist:'medium', phen:'mid',
+    look:{leaves:7, leafW:1.15, leafLen:0.34, stems:9, headR:4.1},
+    blurb:'Small wine-red pincushions on wiry, dancing stems from summer into fall. Best in lean soil with room to weave.',
+    sea:{Spring:{fol:'#708861'}, Summer:{fol:'#628057',bloom:'#8e3f5f',eye:'#e2b4bc'}, Fall:{fol:'#786c58',bloom:'#7b3654',eye:'#d5a3ae',seed:'#7d5961'}, Winter:{fol:'#6c6052',seed:'#72515a'}}},
   helenium:{ name:'Sneezeweed', latin:'Helenium autumnale', form:'cone', type:'forb', h:48,
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
     look:{rays:14, rayLen:4.4, droop:4.7, rayW:1.25, rayShape:'notched', discW:4.4, discH:4.0, discY:0.4, seedW:4.1, seedH:4.2, leaves:8, leafLen:0.34, stems:7},
@@ -1445,6 +1481,12 @@ const PLANTS = {
       caramel:{name:"'Caramel'", note:'warm amber leaves for bright shade',
         sea:{Spring:{fol:'#c79a58'}, Summer:{fol:'#bd8d4e',bloom:'#eadcca'}, Fall:{fol:'#b06f45'}, Winter:{fol:'#7a5640'}}},
     }},
+  astrantia:{ name:'Great Masterwort', latin:'Astrantia major', form:'pincushion', type:'forb', h:34,
+    space:18, spread:18, zones:[4,7], native:false, sun:'part', moist:'moist', phen:'cool',
+    look:{pincushionStyle:'astrantia', leaves:8, leafW:1.05, leafLen:0.32, stems:7, headR:3.4,
+      bracts:18, bractLen:4, bractW:1.1},
+    blurb:'Papery pink starbursts around a pin-cushion center, floating over palmate leaves in cool, reliably moist shade.',
+    sea:{Spring:{fol:'#6f8d68'}, Summer:{fol:'#5d7d5e',bloom:'#c890a4',bract:'#e1bdc5',eye:'#8d5c69'}, Fall:{fol:'#7d7661',seed:'#98727d',bract:'#c5abb0'}, Winter:{fol:'#6b6256',seed:'#806b67'}}},
   astilbe:{ name:'Astilbe', latin:'Astilbe chinensis', form:'spike', type:'forb', h:34,
     space:18, spread:24, zones:[3,8], native:false, sun:'part', moist:'moist', phen:'cool',
     look:{leaves:9, leafW:1.5, leafLen:0.36, stems:6},
@@ -2205,21 +2247,21 @@ const PLANTS = {
 const BLOOM_MONTHS = {
   // grasses and grass-like flowering/seed interest
   switchgrass:[7,8], bluegrama:[6,7,8], lovegrass:[8,9], pinkmuhly:[9,10],
-  northernseaoats:[8,9], fountaingrass:[7,8,9], orientalfountain:[7,8,9],
+  northernseaoats:[8,9], fountaingrass:[7,8,9], orientalfountain:[7,8,9], molinia:[8,9,10],
 
   // prairie forb backbone
   echinacea:[6,7,8], pallida:[6,7], topeka:[6,7], angustifolia:[6,7], paradoxa:[6,7],
-  rattlesnake:[7,8,9], yucca:[6,7], monarda:[7,8], spottedbeebalm:[7,8],
+  rattlesnake:[7,8,9], eryngiumbourgatii:[7,8], yucca:[6,7], monarda:[7,8], spottedbeebalm:[7,8],
   allium:[7,8], baptisia:[5,6], creamindigo:[5,6], purpleprairieclover:[6,7,8], whiteprairieclover:[5,6,7], mountainmint:[7,8,9],
   amsonia:[4,5], ozarkamsonia:[4,5], culvers:[6,7], yarrow:[6,7,8,9],
-  sedum:[8,9,10], phlox:[7,8,9], joepye:[7,8,9], prairieironweed:[7,8,9], stachys:[6,7],
+  sedum:[8,9,10], matrona:[8,9,10], phlox:[7,8,9], joepye:[7,8,9], persicaria:[6,7,8,9,10], prairieironweed:[7,8,9], stachys:[6,7],
   penstemon:[5,6], largebeardtongue:[5,6], butterfly:[6,7,8], swampmilkweed:[6,7,8],
   prairiemilkweed:[6,7], commonmilkweed:[6,7], showymilkweed:[6,7],
   whorledmilkweed:[6,7,8], greenmilkweed:[6,7],
   liatris:[8,9], liatrispycnostachya:[7,8,9], liatriscylindracea:[7,8],
   liatrisspicata:[7,8], goldenrod:[8,9,10], bluestemmedgoldenrod:[8,9], roughgoldenrod:[8,9,10],
   salvia:[5,6,7], salviaspecies:[5,6,7], echinops:[7,8], calamint:[7,8,9],
-  agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9],
+  agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9], knautia:[6,7,8,9],
   helenium:[8,9,10], rudbeckia:[7,8,9], rudbeckiatriloba:[8,9,10],
   rudbeckiamaxima:[7,8,9], falsesunflower:[6,7,8], sanguisorba:[8,9], greatburnet:[7,8,9],
   lilacsquirrel:[7,8], coreopsis:[6,7,8], lanceleaf:[5,6,7],
@@ -2251,7 +2293,7 @@ const BLOOM_MONTHS = {
 
   // shade and woodland perennials
   hosta:[7,8], columbine:[4,5,6], woodlandphlox:[4,5], wildgeranium:[4,5],
-  solomonsseal:[4,5], bluebells:[4,5], heuchera:[5,6], astilbe:[6,7],
+  solomonsseal:[4,5], bluebells:[4,5], heuchera:[5,6], astrantia:[5,6,7], astilbe:[6,7],
 
   // shrubs and trees
   leadplant:[6,7], sumac:[4,5], newjersey:[6,7], smokebush:[6,7],
