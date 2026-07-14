@@ -619,12 +619,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **season dial**: a local stroke-icon sun/moon day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on) next to the
-    **season box** (`#btnSeasonBox`): a label (season name + early/mid/late
+    **season box** (`#btnSeasonBox`): a compact readout (season name + early/mid/late
     phase in design, season + Year/Day on the avatar path) whose interior `#seasonFill`
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
-    buttons. The face explicitly says **Time**. **Hold** the box for 360ms to
+    buttons. **Hold** the box for 360ms to
     fast-forward (`game.ffActive`; the loop adds `FF_RATE` game-ms per real-ms,
     ~2 garden days/sec): a border trace fills during the hold and the calendar
     line changes to **Fast-forwarding** while it is active. A short **tap**
