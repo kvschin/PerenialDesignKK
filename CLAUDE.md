@@ -31,7 +31,8 @@ Design vs story branches live in `enterGarden`, `render` (avatar + camera easing
 skipped for design), the loop (movement skipped), `tapAction` (design taps route
 straight to `actHere` on the tapped tile), the two-finger pointer handler (adds
 camera pan in design), `setUserZoom`/snapCam (design keeps its free camera), and
-the `btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`).
+the `btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`,
+`buildings:[]`).
 Design panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
 (two-finger twist was removed — it fought the pan/zoom gesture). **Undo/redo**
@@ -181,7 +182,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    ears that differ by species, and tuxedo/patch markings.
 8. **`game`** — the single mutable state object (mode, player position,
    plants map, `bulbs` map — a second layer sharing tiles with plants —
-   `terrain`, `houses`, `fences`, tool, multiplayer presence, timing).
+   `terrain`, `houses`, `buildings`, `fences`, tool, multiplayer presence, timing).
 9. **Time helpers + phenology** — `absDay()`, `calClock()`
    (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
    `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
@@ -236,6 +237,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     houses are recoloured/resized by erasing and re-placing.
     `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
     on big ones; legacy single-house saves (`house`) migrate to the array.
+    **Design-site footprints are separate from houses.** `game.buildings` is
+    an array of `{id,vertices,status,label,wall,roof,t}` polygons whose
+    vertices sit on the tile-corner lattice. `buildingTiles()` derives (and
+    WeakMap-caches) their occupied tiles; `buildingAt`/`siteStructureAt` make
+    them non-walkable and non-plantable without adding an interior model.
+    The Site tray's **Draw footprint** tool collects orthogonal corners, closes
+    at the first corner or the on-canvas action, and validates a clear, flat
+    site before `commitBuildingFootprint` stores it. Drafts are transient;
+    only committed polygons save/sync/undo. Existing vs Proposed changes the
+    visual treatment, not collision behavior. Erase removes a whole footprint.
     `tileTerrain()` reads player-laid terrain from `game.terrain`.
     Fences live in `game.fences` as tile structures (`{style,height,gate}`):
     normal fence tiles block movement, gate tiles are walkable, and adjacent
@@ -504,12 +515,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (layer maps from `GAME_LAYERS` +
-    gw/gh + rot + houses + name + `wv` walkway flag + current path/bed/water
+    gw/gh + rot + houses + building polygons + name + `wv` walkway flag + current path/bed/water
     material choices and hardscape/light drafts). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
-    (meta carries gw/gh; the house syncs via its own key, last-write-wins
+    (meta carries gw/gh; houses and building polygons sync via their own keys, last-write-wins
     by timestamp), presence polling, and `mergeMap` for keyed layer maps.
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species (plants + bulbs) and converts to real quantities
@@ -527,7 +538,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sized to `canopyRadius()` through the display lens: Today shows current
     reach, Established preview shows mature reach, and the legend says
     "Dashed = mature crown". Shrub plan blobs use `woodyRadiusTiles(P)` from
-    `spread`; bulbs -> scatter rings; house, fences/gates, paths/beds, title block,
+    `spread`; bulbs -> scatter rings; building footprints, house, fences/gates, paths/beds, title block,
     north arrow, legend with `planCodes` (short genus/epithet abbreviations,
     unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
@@ -545,7 +556,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Build** toggle picks which category sub-tabs show (Plants → Grasses /
     Sedges / Sun Perennials / Shade Perennials (`sunFilter`) / Bulbs / Water
     Plants / Shrubs / Trees; Build → Landscape / Hardscape / Lighting /
-    House); `lastCatByGroup` remembers the sub-tab per group. Then species
+    Site); `lastCatByGroup` remembers the sub-tab per group. Then species
     buttons in the active category (species sharing a `group` collapse to one
     button, marked with a `›`). Sub-species **drill in**: tapping a grouped
     species or one with cultivars opens its members/cultivars in the catalog

@@ -38,6 +38,7 @@ async function saveSolo(silent){
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,
+    buildingStyleDraft:game.buildingStyleDraft,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   await sSet('hortus:world:'+game.worldId,blob);
@@ -78,8 +79,14 @@ async function loadSolo(id){
   game.houses = s.houses ? s.houses
     : (s.house ? [s.house] : (game.gameMode==='design' ? [] : [defaultHouse()]));
   if (shift) game.houses.forEach(h=>{ h.x+=shift; h.y+=shift; });
+  game.buildings=Array.isArray(s.buildings) ? s.buildings.map(b=>{
+    const out=Object.assign({},b,{vertices:Array.isArray(b.vertices)?b.vertices.map(p=>[+p[0]||0,+p[1]||0]):[]});
+    if (shift) out.vertices.forEach(p=>{ p[0]+=shift; p[1]+=shift; });
+    return out;
+  }) : [];
   markGroundChanged({terrain:true});
   game.houseDraft = draftFromHouses();
+  game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(s.buildingStyleDraft);
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.bedStyle=bedStyleId(s.bedStyle||'soil');
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
@@ -110,9 +117,9 @@ let syncTimer=null, presenceThrottle=0;
 async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.buildings=[]; game.freePlanting=false;
   game.layerVis=defaultLayerVis();
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); game.buildingsT=Date.now();
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
   await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
@@ -125,6 +132,7 @@ async function hostWorld(){
   await sSet(wkey('firepits'),game.firepits,true);
   await sSet(wkey('boulders'),game.boulders,true);
   await sSet(wkey('house'),{h:game.houses,t:game.houseT},true);
+  await sSet(wkey('buildings'),{b:game.buildings,t:game.buildingsT},true);
 }
 async function joinWorld(code){
   game.code=code;
@@ -146,8 +154,10 @@ async function joinWorld(code){
   const ho=await sGet(wkey('house'),true);
   const hh=ho&&ho.h;
   game.houses = Array.isArray(hh) ? hh : (hh ? [hh] : [defaultHouse()]);
+  const bu=await sGet(wkey('buildings'),true);
+  game.buildings=Array.isArray(bu&&bu.b) ? bu.b : []; game.buildingsT=(bu&&bu.t)||0;
   markGroundChanged({terrain:true});
-  game.houseDraft=draftFromHouses(); game.houseT=(ho&&ho.t)||0;
+  game.houseDraft=draftFromHouses(); game.houseT=(ho&&ho.t)||0; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle();
   return true;
 }
 async function syncPlantsOut(){
@@ -237,6 +247,9 @@ async function pollWorld(){
   const ho=await sGet(wkey('house'),true);
   if (ho && ho.h && (ho.t||0)>game.houseT){
     game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; markLayerCacheChanged('houses'); }
+  const bu=await sGet(wkey('buildings'),true);
+  if (bu && Array.isArray(bu.b) && (bu.t||0)>game.buildingsT){
+    game.buildings=bu.b; game.buildingsT=bu.t; markModelChanged(); }
   const players=await sGet(wkey('players'),true)||{};
   game.others={};
   let live=0;
@@ -801,6 +814,20 @@ function buildPlanMap(){
     const b2=game.bulbs[k], [x,y]=k.split(',').map(Number);
     ctx.strokeStyle=planColor(plantDef(b2.s,b2.v)); ctx.lineWidth=1.4;
     ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke();
+  });
+  // building footprints: exterior site context, deliberately distinct from legacy houses
+  (game.buildings||[]).forEach(b=>{
+    if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) return;
+    ctx.save();
+    ctx.fillStyle=b.status==='proposed'?'rgba(201,127,63,.26)':(b.roof||'#9a5f3a')+'88';
+    ctx.strokeStyle=b.status==='proposed'?'#b87835':'#4a4238'; ctx.lineWidth=1.5;
+    if (b.status==='proposed') ctx.setLineDash([4,3]);
+    ctx.beginPath(); b.vertices.forEach(([x,y],i)=>{ if (i) ctx.lineTo(X(x),Y(y)); else ctx.moveTo(X(x),Y(y)); }); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    const r=buildingBounds(b);
+    if (r){ ctx.fillStyle='#2c241c'; ctx.font='600 9px IBM Plex Sans'; ctx.textAlign='center';
+      ctx.fillText(b.status==='proposed'?'PROPOSED':(b.label||'EXISTING').toUpperCase(),X((r.x0+r.x1+1)/2),Y((r.y0+r.y1+1)/2)+3); }
+    ctx.restore();
   });
   // houses
   game.houses.forEach(hh=>{

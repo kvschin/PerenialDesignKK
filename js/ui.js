@@ -407,7 +407,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='fence') label=fenceDraft().gate?'Place gate':'Place fence';
   else if (game.tool==='light') label='Place light';
   else if (game.tool==='firepit') label='Place fire pit';
-  else if (game.tool==='house') label=null;           // house places by tap
+  else if (game.tool==='house'||game.tool==='building') label=null; // site objects place by direct canvas tap
   else if (PLANTS[game.tool]) label=game.drift?'Plant a drift':'Plant here';
   const state=(baseZoom<1 && label) ? label : '';
   if (state!==lastAct){ lastAct=state;
@@ -503,7 +503,9 @@ function updateHUD(){
   }
   updateDayNightBtn();
   updatePreviewToggle();
-  setHint(game.tool==='house'
+  setHint(game.tool==='building'
+    ? 'Tap exterior corners, then tap the first corner or Close to finish'
+    : game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
     : game.tool==='hand'
     ? 'Hand: drag the map to pan'

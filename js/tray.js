@@ -15,7 +15,7 @@ const TRAY_CATS=[
   {id:'leveling', label:'Leveling',         tools:['raise','lower','level']},
   {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder']},
   {id:'lighting', label:'Lighting',         tools:['light']},
-  {id:'house',    label:'House',            tools:['house']},
+  {id:'house',    label:'Site',             tools:['building','house']},
 ];
 // two-tier tab grouping: a top-level Plants / Build toggle decides which set
 // of category sub-tabs shows, so the bar never spills all twelve at once.
@@ -64,6 +64,7 @@ const TOOLS={
   lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
+  building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
   fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
@@ -92,7 +93,7 @@ function brushTrayCatForTool(k){
   if (toolMeta(k).material) return 'landscape';
   if (k==='fence'||k==='firepit'||k==='boulder') return 'structures';
   if (k==='light') return 'lighting';
-  if (k==='house') return 'house';
+  if (k==='house'||k==='building') return 'house';
   return null;
 }
 function isBrushTrayCat(id){
@@ -107,7 +108,7 @@ function toolFitsBrushTray(k,catId){
   if (toolMeta(k).material) return catId==='landscape';
   if (k==='fence'||k==='firepit'||k==='boulder') return catId==='structures';
   if (k==='light') return catId==='lighting';
-  if (k==='house') return catId==='house';
+  if (k==='house'||k==='building') return catId==='house';
   return false;
 }
 function drillFitsTray(drill,catId){
@@ -132,13 +133,14 @@ function rememberBrushTool(){
   }
 }
 function setTool(k,v){
+  if (game.tool==='building' && k!=='building' && typeof cancelBuildingDraft==='function') cancelBuildingDraft();
   game.toolMenu=null;
   game.catMenuOpen=false;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
-  if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
+  if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='building'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
-  refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor();
+  refreshTray(); renderCvRow(); refreshCanvasTools(); updateCanvasCursor(); updateActiveToolStatus();
 }
 function roundedIconRect(tc,x,y,w,h,r){
   r=Math.min(r,w/2,h/2);
@@ -236,6 +238,13 @@ function drawCanvasIcon(tc,kind){
   } else if (kind==='layers'){
     for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
       tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
+  } else if (kind==='building'){
+    tc.fillStyle='rgba(154,95,58,.32)'; tc.strokeStyle=cream; tc.lineWidth=2;
+    tc.beginPath(); tc.moveTo(8,9); tc.lineTo(31,9); tc.lineTo(31,17); tc.lineTo(37,17);
+    tc.lineTo(37,27); tc.lineTo(17,27); tc.lineTo(17,20); tc.lineTo(8,20); tc.closePath(); tc.fill(); tc.stroke();
+    tc.fillStyle=bronze; [[8,9],[31,9],[31,17],[37,17],[37,27],[17,27],[17,20],[8,20]].forEach(p=>{
+      tc.beginPath(); tc.arc(p[0],p[1],1.8,0,7); tc.fill();
+    });
   } else if (kind==='viewtools'){
     tc.fillStyle=cream;
     [13,21,29].forEach(x=>{ tc.beginPath(); tc.arc(x,16,2.1,0,7); tc.fill(); });
@@ -265,6 +274,7 @@ function makeCanvasTool(label,kind,opts){
   const b=document.createElement('button');
   b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
   b.title=opts&&opts.title || label;
+  b.setAttribute('aria-pressed',opts&&opts.active?'true':'false');
   const c=document.createElement('canvas'); c.width=42; c.height=32;
   drawCanvasIcon(c.getContext('2d'),kind);
   const s=document.createElement('span'); s.textContent=label;
@@ -480,7 +490,7 @@ function armPlantToolFromRail(openMenu){
 function fillActive(){ return game.fillMode && toolMeta(game.tool).paints; }
 function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
 function doFloodFill(sx,sy){
-  if (sx<0||sy<0||sx>=GW||sy>=GH || inHouse(sx,sy) || isDoor(sx,sy)) return;
+  if (sx<0||sy<0||sx>=GW||sy>=GH || siteStructureAt(sx,sy) || isDoor(sx,sy)) return;
   const seed=groundMat(sx,sy);
   // BFS the 4-connected region sharing that ground material
   const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
@@ -489,7 +499,7 @@ function doFloodFill(sx,sy){
     for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=x+dx, ny=y+dy, key=nx+','+ny;
       if (nx<0||ny<0||nx>=GW||ny>=GH || seen.has(key)) continue;
-      if (inHouse(nx,ny) || isDoor(nx,ny)) continue;
+      if (siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
       if (groundMat(nx,ny)!==seed) continue;
       seen.add(key); q.push([nx,ny]);
     }
@@ -513,7 +523,7 @@ function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), terr=terrainAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
@@ -542,6 +552,10 @@ function pickAt(x,y){
     game.boulderDraft=normalizeBoulderDraft(bo);
     setTool('boulder', null); buildToolTray();
     toast(`Picked ${boulderLabel(bo)}.`);
+  } else if (building){
+    game.fillMode=false; game.trayCat='house'; game.buildingStyleDraft=normalizeBuildingStyle(building);
+    setTool('building',null); buildToolTray();
+    toast(`Picked ${building.status==='proposed'?'proposed':'existing'} building footprint style.`);
   } else if (terr){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
@@ -668,11 +682,17 @@ function popButton(label,kind,sel,fn,title,extra){
 }
 function anchorPopover(pop,anchor){
   document.body.appendChild(pop);
-  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||170;
-  let left=Math.min(Math.round(r.left), innerWidth-w-8);
-  left=Math.max(8,left);
+  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||170, h=pop.offsetHeight||160;
+  const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:8,top:8,right:innerWidth-8,bottom:innerHeight-8};
+  let left=Math.min(Math.round(r.left),safe.right-w);
+  left=Math.max(safe.left,left);
+  let top=r.bottom+6;
+  if (top+h>safe.bottom && r.top-h-6>=safe.top) top=r.top-h-6;
+  top=Math.max(safe.top,Math.min(safe.bottom-h,top));
   pop.style.position='fixed'; pop.style.zIndex='40';
-  pop.style.top=Math.round(r.bottom+6)+'px';
+  pop.style.maxHeight=Math.max(80,safe.bottom-safe.top-8)+'px';
+  pop.style.overflowY='auto';
+  pop.style.top=Math.round(top)+'px';
   pop.style.left=left+'px';
   pop.style.right='auto'; pop.style.bottom='auto';
 }
@@ -682,6 +702,11 @@ function renderViewToolsMenu(){
   if (game.toolMenu!=='view' || !visibleEl(btn)) return;
   const pop=document.createElement('div');
   pop.id='viewToolsPop'; pop.className='tool-popover view-tools-popover';
+  pop.appendChild(popButton('Fit plot',null,false,()=>{
+    fitPlot(); game.toolMenu=null; refreshCanvasTools(); toast('Plot fitted to the available canvas.');
+  },'Fit the whole plot in the clear canvas area'));
+  pop.appendChild(popButton('Zoom out',null,false,()=>{ zoomBy(0.89); },'Zoom out'));
+  pop.appendChild(popButton('Zoom in',null,false,()=>{ zoomBy(1.12); },'Zoom in'));
   if (!game.visiting){
     pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
       setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
@@ -736,8 +761,9 @@ function positionSelectionActions(){
   const r=game.sel, W=VW/ZOOM, H=VH/ZOOM;
   const top=screenOf((r.x0+r.x1)/2, r.y0-0.7, W, H);
   let x=Math.round(top[0]*ZOOM), y=Math.round(top[1]*ZOOM);
-  x=Math.max(86,Math.min(VW-86,x));
-  y=Math.max(118,Math.min(VH-120,y));
+  const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:86,top:118,right:VW-86,bottom:VH-120};
+  x=Math.max(safe.left+78,Math.min(safe.right-78,x));
+  y=Math.max(safe.top+26,Math.min(safe.bottom-12,y));
   if (el._px===x && el._py===y) return;   // called per frame — write only on change
   el._px=x; el._py=y;
   el.style.left=x+'px';
@@ -895,15 +921,16 @@ function trayViewKey(cat=game.trayCat,drill=game.drill){
 function saveTrayScroll(){
   const tray=document.getElementById('toolTray');
   if (!tray || !tray.dataset || !tray.dataset.viewKey) return;
-  game.trayScroll[tray.dataset.viewKey]=tray.scrollLeft||0;
+  game.trayScroll[tray.dataset.viewKey]={left:tray.scrollLeft||0,top:tray.scrollTop||0};
 }
 function restoreTrayScroll(){
   const tray=document.getElementById('toolTray');
   if (!tray || !tray.dataset) return;
   const key=trayViewKey();
   tray.dataset.viewKey=key;
-  const left=game.trayScroll[key];
+  const saved=game.trayScroll[key], left=typeof saved==='object'?saved.left:saved, top=typeof saved==='object'?saved.top:0;
   tray.scrollLeft=Number.isFinite(left) ? left : 0;
+  tray.scrollTop=Number.isFinite(top) ? top : 0;
 }
 function finishToolTrayRender(){
   restoreTrayScroll();
@@ -953,6 +980,8 @@ function searchToolItems(){
       hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
     {cat:'lighting',tool:'light',label:'Lighting',kind:'dropper',
       hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
+    {cat:'house',tool:'building',label:'Building Footprint',kind:'building',
+      hay:'building footprint house site exterior outline existing proposed wall roof bed area'},
     {cat:'house',tool:'house',label:'House',kind:'brush',
       hay:'house home building wall roof size color'}
   ];
@@ -1629,6 +1658,7 @@ function buildToolTray(){
       s.textContent=t2; tray.appendChild(s); };
     const toolBtn=(label,sel,draw,fn)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.setAttribute('aria-pressed',sel?'true':'false');
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       draw(c.getContext('2d'));
       const sp=document.createElement('span'); sp.textContent=label;
@@ -1643,6 +1673,38 @@ function buildToolTray(){
       tc.closePath(); tc.fill();
       tc.fillStyle=HOUSE_TRIM.door; tc.fillRect(22,36-Math.min(9,h2-1),4,Math.min(9,h2-1));
     };
+    if (game.gameMode==='design'){
+      const bd=buildingStyleDraft();
+      const miniFootprint=(tc,style)=>{
+        tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':style.roof;
+        tc.strokeStyle=style.status==='proposed'?'#e5b36e':'#efe6d3'; tc.lineWidth=1.8;
+        tc.setLineDash(style.status==='proposed'?[3,2]:[]);
+        tc.beginPath(); tc.moveTo(7,10); tc.lineTo(31,10); tc.lineTo(31,18); tc.lineTo(40,18);
+        tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
+        tc.setLineDash([]);
+      };
+      const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
+        setTool('building',null); buildToolTray();
+        toast('Tap exterior corners. Tap the first corner or Close when the outline is ready.');
+      });
+      place.dataset.k='building'; place.title='Draw an orthogonal exterior building footprint';
+      sep('Status');
+      ['existing','proposed'].forEach(status=>toolBtn(status==='existing'?'Existing':'Proposed',bd.status===status,
+        tc=>miniFootprint(tc,Object.assign({},bd,{status})),()=>{
+          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{status}));
+          setTool('building',null); buildToolTray();
+        }));
+      sep('Wall color');
+      WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.wall===c2,
+        tc=>{ tc.fillStyle=c2; tc.fillRect(12,12,24,21); tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(12,12,24,21); },()=>{
+          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{wall:c2})); setTool('building',null); buildToolTray();
+        }));
+      sep('Roof color');
+      ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.roof===c2,
+        tc=>{ tc.fillStyle=c2; tc.beginPath(); tc.moveTo(7,31); tc.lineTo(24,12); tc.lineTo(41,31); tc.closePath(); tc.fill(); },()=>{
+          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{roof:c2})); setTool('building',null); buildToolTray();
+        }));
+    } else {
     const pb=toolBtn('Place', game.tool==='house',
       tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
         tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
@@ -1672,6 +1734,7 @@ function buildToolTray(){
           tc.closePath(); tc.fill(); },
         ()=>{ paintHouse('roof',c2,n); setTool('house',null); buildToolTray(); });
     });
+    }
   }
   finishToolTrayRender();
 }
@@ -1724,6 +1787,7 @@ function refreshTray(){
       ? !!(cur && cur.group===el.dataset.group)
       : el.dataset.k===game.tool;
     el.classList.toggle('sel', sel);
+    if (el.hasAttribute('aria-pressed')) el.setAttribute('aria-pressed',sel?'true':'false');
   });
   updateCanvasCursor();
 }
@@ -1794,6 +1858,7 @@ function renderBrushBar(){
     opts.forEach(o=>{
       const b=document.createElement('button');
       b.className='seg-opt'+(o.on?' on':''); b.title=o.title||o.label;
+      b.setAttribute('aria-pressed',o.on?'true':'false');
       if (o.draw){ const c=document.createElement('canvas'); c.width=28; c.height=24;
         o.draw(c.getContext('2d')); b.appendChild(c); }   // layer chips are text-only
       const sp=document.createElement('span'); sp.textContent=o.label;
@@ -1857,6 +1922,7 @@ function renderBrushBar(){
   const fillSeg=document.createElement('div'); fillSeg.className='seg';
   const fillBtn=document.createElement('button');
   fillBtn.className='seg-opt'+(game.fillMode?' on':'');
+  fillBtn.setAttribute('aria-pressed',game.fillMode?'true':'false');
   fillBtn.title=game.fillMode?'Turn Fill off and paint normally':'Fill a connected area with this brush';
   const fillIcon=document.createElement('canvas'); fillIcon.width=28; fillIcon.height=24;
   drawFillModeIcon(fillIcon.getContext('2d'), game.fillMode);
@@ -1882,10 +1948,51 @@ function sheetContextLabel(){
   if (game.tool==='firepit') return firepitLabel();
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='house') return 'House';
+  if (game.tool==='building') return 'Building footprint';
   if (game.tool==='shovel') return 'Erase';
   if (game.tool==='select') return 'Select';
   if (game.tool==='pick') return 'Eyedropper';
   return 'Tap to choose a plant';
+}
+function activeToolStatusInfo(){
+  const P=PLANTS[game.tool];
+  if (game.tool==='building'){
+    const n=(game.buildingDraft&&game.buildingDraft.vertices||[]).length;
+    return n ? {k:'Building footprint',v:`${n} corner${n===1?'':'s'} set · tap the next corner or close the outline`}
+      : {k:'Building footprint',v:'Tap exterior corners, then close the outline'};
+  }
+  if (P){
+    const mode=game.matrix?'Matrix':game.drift?'Drift':'Draw';
+    return {k:'Planting',v:`${plantDef(game.tool,game.toolVar).name} · ${mode}${isWoodyDef(P)?` · ${cap(game.woodyAge)}`:''}`};
+  }
+  const map={path:`${pathColor(game.pathColor).label} path`,bed:`${bedStyle(game.bedStyle).label} bed`,water:`${waterStyle(game.waterStyle).label} water`,
+    fence:fenceLabel(),light:lightLabel(),firepit:firepitLabel(),boulder:boulderLabel(),house:'Legacy house',
+    shovel:`Erase · ${game.eraseMode}`,select:'Select an area',ruler:'Tape measure',pick:'Pick a plant or material',hand:'Hand · drag to pan'};
+  return {k:map[game.tool]||'Plant tool',v:game.tool==='hand'?'Choose a plant or build tool below':''};
+}
+function updateActiveToolStatus(){
+  const el=document.getElementById('activeToolStatus'); if (!el) return;
+  const info=activeToolStatusInfo();
+  el.innerHTML=`<b>${info.k}</b>${info.v?`<span>${info.v}</span>`:''}`;
+  const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
+}
+function renderBuildingDraftActions(){
+  const draft=game.tool==='building' && game.buildingDraft;
+  let el=document.getElementById('buildingActions');
+  if (!draft){ if (el) el.remove(); return; }
+  if (!el){ el=document.createElement('div'); el.id='buildingActions'; el.setAttribute('role','group');
+    el.setAttribute('aria-label','Building footprint actions'); document.body.appendChild(el); }
+  el.innerHTML='';
+  const add=(label,fn,primary,disabled)=>{
+    const b=document.createElement('button'); b.type='button'; b.textContent=label;
+    if (primary) b.classList.add('primary'); b.disabled=!!disabled; b.onclick=fn; el.appendChild(b);
+  };
+  add('Close outline',()=>commitBuildingDraft(),true,draft.vertices.length<3);
+  add('Undo corner',()=>{ draft.vertices.pop(); if (!draft.vertices.length) cancelBuildingDraft(); else updateBuildingUi(); });
+  add('Cancel',()=>{ cancelBuildingDraft(); toast('Building outline cancelled.'); });
+  const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:8,right:VW-8,top:8,bottom:VH-8};
+  el.style.left=Math.round((safe.left+safe.right)/2)+'px';
+  el.style.top=Math.round(safe.bottom-8)+'px';
 }
 const SHEET_STATES=['collapsed','half','full'];
 function normalizedSheetState(s){
@@ -1913,8 +2020,11 @@ function applySheetState(){
   hb.classList.add('sheet-'+s);
   hb.classList.toggle('collapsed', s==='collapsed');
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
+  const handle=document.getElementById('sheetHandle'); if (handle) handle.setAttribute('aria-expanded',s==='collapsed'?'false':'true');
   const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=s==='full'?'▾':s==='half'?'─':'▴';
   drawSheetSwatch();
+  updateActiveToolStatus();
+  renderBuildingDraftActions();
 }
 /* a mini render of the armed brush in the collapse handle, so you always see
    what you're about to paint. */

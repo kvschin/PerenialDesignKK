@@ -26,6 +26,9 @@ addEventListener('keydown',e=>{
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }
     return;
   }
+  if (e.key==='Escape' && game.tool==='building' && game.buildingDraft){
+    cancelBuildingDraft(); toast('Building outline cancelled.'); return;
+  }
   if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
@@ -47,7 +50,48 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null;
+const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null, buildingHover=null;
+function buildingCornerForPlacement(place){
+  return [Math.max(0,Math.min(GW,Math.round(place.wx+0.5))),
+    Math.max(0,Math.min(GH,Math.round(place.wy+0.5)))];
+}
+function updateBuildingUi(){
+  if (typeof renderBuildingDraftActions==='function') renderBuildingDraftActions();
+  if (typeof updateActiveToolStatus==='function') updateActiveToolStatus();
+}
+function cancelBuildingDraft(){
+  game.buildingDraft=null; buildingHover=null;
+  const actions=document.getElementById('buildingActions'); if (actions) actions.remove();
+  updateBuildingUi();
+}
+function addBuildingCorner(place){
+  const raw=buildingCornerForPlacement(place);
+  const draft=game.buildingDraft || (game.buildingDraft={vertices:[]});
+  const vs=draft.vertices;
+  if (vs.length>=3 && samePoint(raw,vs[0])){ commitBuildingDraft(); return; }
+  let next=raw, prev=vs[vs.length-1];
+  if (prev && !samePoint(prev,raw) && prev[0]!==raw[0] && prev[1]!==raw[1]){
+    // Keep every edge orthogonal without making touch users land exactly on an axis.
+    next=Math.abs(raw[0]-prev[0])>=Math.abs(raw[1]-prev[1]) ? [raw[0],prev[1]] : [prev[0],raw[1]];
+  }
+  if (prev && samePoint(prev,next)){ toast('Choose a different corner.'); return; }
+  if (vs.some(p=>samePoint(p,next))){ toast('That corner is already in this outline.'); return; }
+  vs.push(next); buildingHover=null;
+  updateBuildingUi();
+  toast(vs.length<3 ? 'Add another corner, then tap the first corner or Close.' : 'Corner added. Tap the first corner or Close to finish.');
+}
+function commitBuildingDraft(){
+  const draft=game.buildingDraft;
+  if (!draft || !draft.vertices || draft.vertices.length<3){ toast('Add at least three corners first.'); return false; }
+  let committed=false;
+  withUndo(()=>{ committed=commitBuildingFootprint(draft.vertices); });
+  if (committed){ cancelBuildingDraft(); refreshCanvasTools(); }
+  return committed;
+}
+function buildingPointerDown(place){
+  if (!layerShown('landscape')){ toast('Show Landscape/Hardscape to draw a building footprint.'); return; }
+  addBuildingCorner(place);
+}
 function shouldStartPan(e){
   return (game.tool==='hand' && game.gameMode==='design' && !game.visiting)
     || (game.gameMode==='design' && (e.button===1 || spaceHeld));
@@ -64,6 +108,7 @@ function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
   sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null;
   game.hoverTile=null;
+  if (game.tool==='building' && game.buildingDraft) cancelBuildingDraft();
   game.pathTarget=null; game.sleepOnArrive=false;
   if (notice) showGestureCancel(notice);
   updateCanvasCursor();
@@ -116,6 +161,7 @@ cnv.addEventListener('pointerdown',e=>{
   const place=evPlacement(e), x=place.x, y=place.y;
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
   if (x<0||y<0||x>=GW||y>=GH) return;
+  if (game.tool==='building'){ buildingPointerDown(place); return; }
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
   if (game.tool==='ruler'){
     const pending=game.ruler && game.ruler.a && !game.ruler.b ? game.ruler.a.slice() : null;
@@ -140,7 +186,7 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, fence:0, light:0, firepit:0};
+    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -156,7 +202,7 @@ cnv.addEventListener('pointerdown',e=>{
 function tapAction(x,y,opts){ // the classic tap: walk there, act on your own tile
   if (game.visiting){ // read-only stroll: walk to walkable tiles, never edit
     if (x<0||y<0||x>=GW||y>=GH) return;
-    if (inHouse(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)) return;
+    if (siteStructureAt(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)) return;
     game.sleepOnArrive=false; game.pathTarget=[x,y]; return;
   }
   if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
@@ -225,6 +271,7 @@ cnv.addEventListener('pointermove',e=>{
   const place=evPlacement(e), x=place.x, y=place.y;
   // keep the brush/erase footprint ghost under the cursor even mid-drag
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
+  buildingHover=game.tool==='building' ? buildingCornerForPlacement(place) : null;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (rulerDrag){
     if (x>=0&&y>=0&&x<GW&&y<GH){
@@ -267,6 +314,7 @@ function endSweep(){
   if (sweep.firepit) parts.push(`${sweep.firepit} fire pit${sweep.firepit>1?'s':''}`);
   if (sweep.boulder) parts.push(`${sweep.boulder} boulder${sweep.boulder>1?'s':''}`);
   if (sweep.house) parts.push(`${sweep.house} house${sweep.house>1?'s':''}`);
+  if (sweep.building) parts.push(`${sweep.building} building footprint${sweep.building>1?'s':''}`);
   if (parts.length){
     toast(`Erased ${parts.join(' and ')}.`);
     if (sweep.plants) syncPlantsOut();
@@ -278,6 +326,7 @@ function endSweep(){
     if (sweep.firepit) syncFirepitsOut();
     if (sweep.boulder) syncBouldersOut();
     if (sweep.house) pushHouse();
+    if (sweep.building) pushBuildings();
   }
   else toast('Nothing to erase there.');
   sweep=null;
@@ -312,7 +361,7 @@ cnv.addEventListener('pointercancel',e=>{
   cancelCanvasGesture(true);
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
-cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; });
+cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; buildingHover=null; });
 function followPath(){
   if (!game.pathTarget||game.moving) return;
   const [gx,gy]=game.pathTarget;

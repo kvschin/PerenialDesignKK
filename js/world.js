@@ -81,11 +81,15 @@ const game = {
   fillMode:false,                                    // bucket-fill: tap floods a connected same-material region
   shrubFx:[],                                        // short-lived footprint pulses when shrubs block placement
   houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
+  buildings:[],                                      // design-site footprints: {id,vertices,status,label,wall,roof,t}; independent of story houses
   houseDraft:null,                                   // settings for the next house the House tool places
+  buildingDraft:null,                                // unfinished footprint only; never persisted
+  buildingStyleDraft:{status:'existing',label:'House',wall:'#8a7a60',roof:'#9a5f3a'},
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
+  buildingsT:0,                                         // last shared footprint revision
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -99,9 +103,9 @@ const game = {
   terrainRev:0,        // organic terrain-region cache revision: terrain map changed
 };
 // The mutable layers a garden is made of, enumerated once so undo, save/load,
-// and multiplayer sync iterate this list instead of hand-listing all eight in
+// and multiplayer sync iterate this list instead of hand-listing every layer in
 // six different places (a missed entry was a recurring bug — see the reverted
-// `game.stock`). `array` marks the houses list (the rest are "x,y" maps);
+// `game.stock`). `array` marks the house/building lists (the rest are "x,y" maps);
 // `sync` flushes that layer to the shared world in multiplayer. The sync refs
 // are arrows so they resolve at call time — the functions live in io.js, which
 // loads after this file. `GAME_MAPS` is the keyed subset that load shifts.
@@ -115,6 +119,7 @@ const GAME_LAYERS=[
   {k:'firepits',  sync:()=>syncFirepitsOut()},
   {k:'boulders',  sync:()=>syncBouldersOut()},
   {k:'houses', array:true, sync:()=>pushHouse()},
+  {k:'buildings', array:true, sync:()=>pushBuildings()},
 ];
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
 // Single write paths for the layer maps, so the bookkeeping every edit needs —
@@ -142,6 +147,11 @@ function removeHouseAtIndex(i){
   if (i<0 || i>=game.houses.length) return false;
   game.houses.splice(i,1); markModelChanged(); markLayerCacheChanged('houses');
   return true;
+}
+function addBuilding(b){ game.buildings.push(b); markModelChanged(); }
+function removeBuildingAtIndex(i){
+  if (i<0 || i>=game.buildings.length) return false;
+  game.buildings.splice(i,1); markModelChanged(); return true;
 }
 /* Solo saves persist to localStorage now that the game runs standalone.
    sGet/sSet keep their old async signatures so callers are unchanged.
@@ -326,7 +336,7 @@ function canPlaceShrubAt(x,y,np,opts){
   const ignore=opts.ignoreKey||null;
   for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
     if (xx<0||yy<0||xx>=GW||yy>=GH) return {ok:false, reason:'plot'};
-    if (inHouse(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
     if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
     if (lightAt(xx,yy)) return {ok:false, reason:'light'};
     if (firepitAt(xx,yy)) return {ok:false, reason:'firepit'};
@@ -659,6 +669,46 @@ function houseAt(x,y){ // the placed house covering this tile, or null
   return null;
 }
 function inHouse(x,y){ return !!houseAt(x,y); }
+/* Building Footprints are design-site context, not a second house system. The
+   persisted truth is an orthogonal polygon on the tile-corner lattice; its
+   tile fill/bounds live in a WeakMap so saves and the renderer never carry
+   cache baggage or re-rasterize every frame. */
+const BUILDING_GEOM=new WeakMap();
+function polygonContains(px,py,verts){
+  let inside=false;
+  for (let i=0,j=verts.length-1;i<verts.length;j=i++){
+    const [xi,yi]=verts[i], [xj,yj]=verts[j];
+    if ((yi>py)!==(yj>py) && px<(xj-xi)*(py-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+function buildingGeometry(b){
+  if (!b || !Array.isArray(b.vertices) || !b.vertices.length) return {tiles:[],bounds:null};
+  const hit=BUILDING_GEOM.get(b); if (hit) return hit;
+  const vs=b.vertices, xs=vs.map(p=>p[0]), ys=vs.map(p=>p[1]);
+  const minX=Math.max(0,Math.floor(Math.min(...xs))), maxX=Math.min(GW-1,Math.ceil(Math.max(...xs))-1);
+  const minY=Math.max(0,Math.floor(Math.min(...ys))), maxY=Math.min(GH-1,Math.ceil(Math.max(...ys))-1);
+  const tiles=[];
+  for (let y=minY;y<=maxY;y++) for (let x=minX;x<=maxX;x++)
+    if (polygonContains(x+.5,y+.5,vs)) tiles.push([x,y]);
+  const out={tiles,bounds:tiles.length?{x0:minX,y0:minY,x1:maxX,y1:maxY}:null};
+  BUILDING_GEOM.set(b,out); return out;
+}
+function buildingTiles(b){ return buildingGeometry(b).tiles; }
+function buildingBounds(b){ return buildingGeometry(b).bounds; }
+function buildingAt(x,y,ignoreId){
+  for (const b of game.buildings||[]){
+    if (!b || b.id===ignoreId) continue;
+    const r=buildingBounds(b); if (!r || x<r.x0||x>r.x1||y<r.y0||y>r.y1) continue;
+    if (buildingTiles(b).some(p=>p[0]===x&&p[1]===y)) return b;
+  }
+  return null;
+}
+function inBuilding(x,y){ return !!buildingAt(x,y); }
+function siteStructureAt(x,y){ return buildingAt(x,y) || houseAt(x,y); }
+function buildingDrawDepth(b){
+  const r=buildingBounds(b); return r ? footprintDrawDepth(r.x0,r.y0,r.x1-r.x0+1,r.y1-r.y0+1)+0.045 : -Infinity;
+}
 function doorPos(h){ return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
 function isDoor(x,y){
   for (const h of game.houses){ const [dx,dy]=doorPos(h); if (x===dx && y===dy) return true; }
@@ -667,7 +717,7 @@ function isDoor(x,y){
 function fenceAt(x,y){ const f=game.fences[`${x},${y}`]; return (f&&!f.removed)?f:null; }
 function fenceBlocks(x,y){ const f=fenceAt(x,y); return !!(f && !f.gate); }
 function fenceNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!fenceAt(x,y); }
-function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !inHouse(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
+function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !siteStructureAt(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
 /* a standable starting tile near plot center — the door if the house
    sits on the spawn, else a spiral search outward, so re-entering a
    garden never drops the player stuck inside their own walls */
@@ -1049,4 +1099,3 @@ function takePhoto(){
   },'image/png');
   toast('Photo taken — golden hour included.');
 }
-

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Pocket Prairie Garden Design</title>
 <meta name="application-name" content="Pocket Prairie Garden Design">
 <meta name="apple-mobile-web-app-title" content="Pocket Prairie">
@@ -177,6 +177,7 @@
     <span class="compass-edge-label" data-dir="W"><i></i><b>W</b></span>
   </div>
   <div id="canvasTools" aria-label="Canvas tools"></div>
+  <div id="activeToolStatus" class="active-tool-status" aria-live="polite" aria-atomic="true"></div>
   <div id="zoomPill" class="zoom-pill" aria-label="Zoom controls">
     <button id="btnZoomOut" title="Zoom out" aria-label="Zoom out">-</button>
     <button id="btnZoomFit" title="Fit plot to screen" aria-label="Fit plot to screen">Fit</button>
@@ -186,7 +187,7 @@
   <div id="selectionActions" class="selection-actions hidden" aria-label="Selection actions"></div>
   <div id="gestureCancel" class="gesture-cancel hidden" aria-live="polite"></div>
   <div class="hud-bottom">
-    <button id="sheetHandle" aria-label="Expand or collapse the palette"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
+    <button id="sheetHandle" aria-label="Expand or collapse the palette" aria-controls="brushBar trayTabs toolTray" aria-expanded="true"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
     <div id="cvRow" class="chip-row hidden"></div>
@@ -377,7 +378,7 @@
 </div>
 
 <div id="plantCard"></div>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- PLANT LIBRARY -->
 <div class="screen hidden" id="libraryScreen">

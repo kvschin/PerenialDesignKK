@@ -9,6 +9,18 @@
   --ink:#19120f;
   --paper:#f3ecdd;
   --viewport-fill:#241a16;
+  /* UI surfaces keep the editing chrome coherent: overlays are light helpers,
+     workspace controls are persistent, and dialogs are deliberate stops. */
+  --surface-overlay:rgba(30,22,18,.72);
+  --surface-workspace:rgba(31,23,18,.94);
+  --surface-dialog:rgba(24,17,13,.97);
+  --border-subtle:rgba(239,230,211,.22);
+  --border-active:var(--bronze);
+  --action-primary:var(--bronze);
+  --action-danger:#c96758;
+  --focus-ring:#f2c07c;
+  --radius-control:5px;
+  --radius-panel:9px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* min-height:100lvh makes the document the FULL screen height (the large
@@ -20,6 +32,8 @@
 html,body{height:100%;min-height:100vh;min-height:100lvh;overflow:hidden;overscroll-behavior:none;
   position:relative;background:var(--viewport-fill);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--focus-ring)!important;outline-offset:2px}
 /* The canvas must cover the FULL screen under viewport-fit=cover. In an iOS
    standalone PWA, 100vh / 100% / window.innerHeight all stop at the safe-area
    bottom, leaking the --loam body bg as a band behind the home indicator —
@@ -65,9 +79,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-foot{align-self:center;color:rgba(239,230,211,.58);font-size:11px;text-decoration:none;margin-top:auto;
   padding-top:10px;letter-spacing:.03em}
 .menu-foot:hover{color:var(--seedhead)}
-.btn{border:1.5px solid rgba(239,230,211,.35);background:rgba(25,18,15,.55);color:var(--seedhead);
+.btn{border:1.5px solid rgba(239,230,211,.35);background:var(--surface-workspace);color:var(--seedhead);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:3px;letter-spacing:.02em;
-  backdrop-filter:blur(3px);transition:border-color .15s,background .15s,transform .08s}
+  transition:border-color .12s,background .12s,transform .1s}
 .btn:hover{border-color:var(--bronze);background:rgba(201,127,63,.18)}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--bronze);border-color:var(--bronze);color:var(--ink)}
@@ -76,8 +90,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .btn:focus-visible{outline:2px solid var(--seedhead);outline-offset:2px}
 
 /* ---------- panels (multiplayer / creator) ---------- */
-.panel{background:rgba(25,18,15,.92);border:1.5px solid rgba(239,230,211,.25);border-radius:6px;
-  padding:26px;max-width:560px;width:100%;backdrop-filter:blur(4px)}
+.panel{background:var(--surface-dialog);border:1.5px solid rgba(239,230,211,.25);border-radius:var(--radius-panel);
+  padding:26px;max-width:560px;width:100%}
 .panel h2{font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin-bottom:4px}
 .panel .sub{color:#bdaf99;font-size:13px;margin-bottom:18px}
 .field{margin-bottom:14px}
@@ -230,8 +244,7 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* one connected top bar: the strip carries the glass, the clusters sit on it */
 .hud-top{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;justify-content:space-between;
-  align-items:center;gap:10px;pointer-events:auto;background:rgba(24,17,13,.74);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  align-items:center;gap:10px;pointer-events:auto;background:var(--surface-workspace);
   border-bottom:1.5px solid rgba(239,230,211,.22);
   padding:max(6px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 6px max(12px,env(safe-area-inset-left))}
 .season-dial{pointer-events:auto;padding:2px 4px;display:flex;align-items:center;gap:12px;min-width:0}
@@ -299,8 +312,15 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .compass-edge-label[data-dir="N"] b{color:var(--bronze)}
 .compass-edge-label.off{opacity:0}
 #canvasTools{pointer-events:auto;position:absolute;left:10px;top:106px;z-index:10;display:flex;flex-direction:column;gap:4px;
-  overflow:visible;background:rgba(25,18,15,.86);
+  overflow:visible;background:var(--surface-workspace);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 5px 20px rgba(0,0,0,.22)}
+.active-tool-status{position:absolute;left:70px;top:60px;z-index:9;pointer-events:none;
+  max-width:min(300px,calc(100vw - 88px));padding:7px 10px;border:1px solid var(--border-subtle);
+  border-radius:var(--radius-control);background:var(--surface-overlay);color:var(--seedhead);
+  font-size:11px;line-height:1.28;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.active-tool-status:empty{display:none}
+.active-tool-status b{display:block;color:var(--bronze);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
+.active-tool-status span{display:block;color:#d7c7ac;margin-top:1px}
 .canvas-tool{width:48px;min-height:50px;border-radius:4px;border:1.5px solid transparent;background:rgba(255,255,255,.05);
   color:#cdbfa9;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;
   padding:3px 2px 4px;position:relative;text-decoration:none}
@@ -315,7 +335,7 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .canvas-tool.danger.sel span{color:#ffd9d1}
 .canvas-tool.disabled{opacity:.38;pointer-events:none}
 .canvas-sep{height:1px;background:rgba(239,230,211,.16);margin:2px 3px}
-.tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:154px;background:rgba(25,18,15,.94);
+.tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:154px;background:var(--surface-dialog);
   border:1.5px solid rgba(239,230,211,.25);border-radius:5px;padding:5px;box-shadow:0 8px 24px rgba(0,0,0,.34)}
 .tool-popover button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;border-radius:3px;
   color:#cdbfa9;text-align:left;font-size:12px;padding:8px 9px}
@@ -344,7 +364,7 @@ canvas.layer-eye{display:block}
 #sheetHandle{display:none} /* the collapse handle is a phone-only affordance */
 #sheetHandle canvas{width:24px;height:21px;flex-shrink:0;display:block}
 #trayTabs{position:relative}
-#trayTabs{pointer-events:auto;display:flex;gap:2px;background:rgba(25,18,15,.85);
+#trayTabs{pointer-events:auto;display:flex;gap:2px;background:var(--surface-workspace);
   border:1.5px solid rgba(239,230,211,.25);border-bottom:none;border-radius:6px 6px 0 0;
   padding:5px 8px 0;max-width:96vw;overflow-x:auto;margin-bottom:-8px}
 #trayTabs .tab{background:none;border:none;color:#cdbfa9;font-size:11px;font-weight:600;
@@ -365,16 +385,16 @@ canvas.layer-eye{display:block}
   border:1px solid rgba(239,230,211,.25);border-radius:4px;color:var(--seedhead);
   font-family:inherit;font-size:12px;padding:5px 9px;margin:0 4px 4px}
 #traySearch:focus{outline:none;border-color:var(--bronze)}
-#toolTray{pointer-events:auto;display:flex;gap:6px;background:rgba(25,18,15,.85);border:1.5px solid rgba(239,230,211,.25);
+#toolTray{pointer-events:auto;display:flex;gap:6px;background:var(--surface-workspace);border:1.5px solid rgba(239,230,211,.25);
   border-radius:0 0 6px 6px;padding:8px;max-width:96vw;overflow-x:auto;min-height:78px;align-items:center}
 .tray-empty{font-size:12px;color:#a99a82;padding:4px 10px;white-space:nowrap}
 .tray-sep{font-size:8px;letter-spacing:.1em;text-transform:uppercase;text-align:center;line-height:1.15;
   color:var(--bronze);display:flex;align-items:center;padding:2px 6px;max-width:54px;
   border-left:1px solid rgba(239,230,211,.15);margin-left:4px;flex-shrink:0}
-#cvRow{pointer-events:auto;background:rgba(25,18,15,.85);border:1.5px solid rgba(239,230,211,.25);
+#cvRow{pointer-events:auto;background:var(--surface-workspace);border:1.5px solid rgba(239,230,211,.25);
   border-radius:6px;padding:6px 8px;max-width:96vw;overflow-x:auto;flex-wrap:nowrap;margin-bottom:0}
 #cvRow .chip{font-size:12px;padding:6px 11px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-#brushBar{pointer-events:auto;display:flex;align-items:center;gap:8px;background:rgba(25,18,15,.85);
+#brushBar{pointer-events:auto;display:flex;align-items:center;gap:8px;background:var(--surface-workspace);
   border:1.5px solid rgba(239,230,211,.25);border-radius:6px;padding:5px 9px;max-width:96vw;margin-bottom:0}
 #brushBar .brush-lab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze)}
 #brushBar .brush-lab.danger{color:#e08a7a}   /* Erase: the bar reads destructive */
@@ -414,8 +434,7 @@ canvas.layer-eye{display:block}
 .zoom-pill button:hover{background:rgba(201,127,63,.24)}
 .zoom-pill #zoomLabel{min-width:42px;text-align:center;font-size:11px;font-weight:700;color:#cdbfa9}
 .selection-actions{position:absolute;left:50%;top:50%;z-index:14;pointer-events:auto;display:flex;gap:4px;
-  max-width:min(92vw,560px);overflow-x:auto;padding:5px;background:rgba(24,17,13,.74);
-  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  max-width:min(92vw,560px);overflow-x:auto;padding:5px;background:var(--surface-overlay);
   border:1.5px solid rgba(150,210,255,.42);border-radius:999px;box-shadow:0 8px 26px rgba(0,0,0,.32);
   transform:translate(-50%,-100%)}
 .selection-actions button{border:1px solid rgba(239,230,211,.14);border-radius:999px;background:rgba(239,230,211,.07);
@@ -434,7 +453,13 @@ canvas.layer-eye{display:block}
 #toast{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(25,18,15,.92);border:1.5px solid var(--bronze);
   color:var(--seedhead);padding:10px 18px;border-radius:4px;font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #toast.warn{background:rgba(58,35,16,.94);border-color:#c9843f;color:#ffe3ba}
-#plantCard{position:fixed;top:108px;right:10px;background:rgba(25,18,15,.94);
+#buildingActions{position:absolute;z-index:18;display:flex;gap:5px;pointer-events:auto;
+  transform:translate(-50%,-100%);padding:5px;border:1px solid var(--border-active);
+  border-radius:var(--radius-panel);background:var(--surface-overlay);box-shadow:0 8px 24px rgba(0,0,0,.32)}
+#buildingActions button{min-height:32px;border:1px solid rgba(239,230,211,.18);border-radius:var(--radius-control);
+  background:rgba(239,230,211,.08);color:var(--seedhead);padding:6px 9px;font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif}
+#buildingActions button.primary{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
+#plantCard{position:fixed;top:108px;right:10px;background:var(--surface-dialog);
   border:1.5px solid rgba(239,230,211,.3);border-radius:6px;padding:14px 26px 14px 18px;z-index:25;max-width:300px;display:none}
 .card-x{position:absolute;top:5px;right:7px;background:none;border:none;color:#a99a82;
   font-size:14px;line-height:1;padding:4px}
@@ -445,10 +470,8 @@ canvas.layer-eye{display:block}
 /* glassy chrome: a soft backdrop blur lets the garden read through the dark
    panels so the UI feels lighter over the world. Kept as one rule — if
    backdrop-filter ever costs frames on a machine, delete these two lines. */
-#canvasTools,#trayTabs,#toolTray,#cvRow,#brushBar{
-  background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.tool-popover,#plantCard{
-  background:rgba(24,17,13,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* Persistent controls are intentionally near-opaque. This avoids a second,
+   unrelated visual mode when the performance governor turns blur off. */
 /* perf fallback (the glass governor in screens.js): the compositor re-blurs
    every backdrop-filter region over the animating canvas each frame — a GPU
    cost the JS timers can't see. Sustained interaction jank adds .no-glass:
@@ -591,6 +614,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
   #canvasTools{top:150px;left:8px;padding:3px;gap:2px}
+  .active-tool-status{left:8px;top:74px;max-width:calc(100vw - 16px);font-size:10px;padding:5px 8px}
   .canvas-tool{width:44px;min-width:44px;min-height:44px;flex:0 0 auto}
   .canvas-tool canvas{width:34px;height:26px;top:2px}
   .canvas-tool span{font-size:7px}
@@ -614,7 +638,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   /* collapsible palette: a tap on the handle folds the catalog away so the
      garden gets the room while you paint; the brush bar + act button stay. */
   #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;touch-action:none;
-    background:rgba(24,17,13,.64);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    background:var(--surface-workspace);
     border:1.5px solid rgba(239,230,211,.25);border-radius:8px;
     height:44px;min-height:44px;padding:9px 16px;color:var(--seedhead);font-size:12px;font-weight:600;max-width:96vw;flex:0 0 44px}
   #sheetHandle .grip-bar{width:26px;height:4px;border-radius:3px;background:rgba(239,230,211,.42);flex-shrink:0}

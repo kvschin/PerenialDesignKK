@@ -25,6 +25,33 @@ function updateZoomPill(){
   const lab=document.getElementById('zoomLabel');
   if (lab) lab.textContent=Math.round(ZOOM*100)+'%';
 }
+/* The garden is a canvas workspace, not an empty viewport: the top bar, tool
+   rail and bottom sheet can all claim part of it. Floating controls and camera
+   recovery share this one rectangle so a selection pill, a building draft, or
+   Fit Plot never lands beneath the editing chrome. It deliberately reads live
+   DOM bounds only on state changes / explicit callers, never in render(). */
+function usableCanvasRect(){
+  const out={left:8,top:8,right:Math.max(8,VW-8),bottom:Math.max(8,VH-8)};
+  const take=(el,edge)=>{
+    if (!el || el.classList.contains('hidden')) return;
+    const cs=getComputedStyle(el);
+    if (cs.display==='none' || cs.visibility==='hidden') return;
+    const r=el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    if (edge==='top') out.top=Math.max(out.top,Math.min(VH-8,r.bottom+8));
+    if (edge==='bottom') out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
+    if (edge==='left') out.left=Math.max(out.left,Math.min(VW-8,r.right+8));
+  };
+  take(document.querySelector('.hud-top'),'top');
+  take(document.getElementById('canvasTools'),'left');
+  const sheet=document.querySelector('.hud-bottom');
+  if (sheet && !sheet.classList.contains('sheet-collapsed')){
+    const r=sheet.getBoundingClientRect();
+    if (r.width && r.height) out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
+  }
+  if (out.right-out.left<120){ out.left=8; out.right=Math.max(8,VW-8); }
+  if (out.bottom-out.top<120){ out.top=8; out.bottom=Math.max(8,VH-8); }
+  return out;
+}
 function fitPlot(){
   if (!game.mode) return;
   calcZoom();
@@ -33,13 +60,16 @@ function fitPlot(){
   const minX=Math.min(...xs)-TILE_W, maxX=Math.max(...xs)+TILE_W;
   const minY=Math.min(...ys)-TILE_H, maxY=Math.max(...ys)+TILE_H*2;
   const worldW=Math.max(1,maxX-minX), worldH=Math.max(1,maxY-minY);
-  const availW=Math.max(260,VW-96);
-  const availH=Math.max(240,VH-196);
+  const safe=usableCanvasRect();
+  const availW=Math.max(180,safe.right-safe.left);
+  const availH=Math.max(180,safe.bottom-safe.top);
   const targetZoom=Math.max(0.42,Math.min(1.45,Math.min(availW/worldW,availH/worldH)));
   userZoom=Math.max(0.4,Math.min(2.2,targetZoom/baseZoom));
   calcZoom();
-  cam.x=(minX+maxX)/2;
-  cam.y=(minY+maxY)/2-(VH/ZOOM)*0.22;
+  const W=VW/ZOOM, H=VH/ZOOM;
+  const wantX=(safe.left+safe.right)/(2*ZOOM), wantY=(safe.top+safe.bottom)/(2*ZOOM);
+  cam.x=W/2+(minX+maxX)/2-wantX;
+  cam.y=H*0.24+(minY+maxY)/2-wantY;
   compassKey='';
   updateCompass();
   updateZoomPill();

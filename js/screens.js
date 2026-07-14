@@ -149,6 +149,15 @@ function drawWorldThumb(cvs, s){
     g.fillRect(ox+x*sc, oy+y*sc, sc+0.5, sc+0.5);
   }
   const houses=Array.isArray(s.houses)?s.houses:(s.house?[s.house]:[]);
+  const buildings=Array.isArray(s.buildings)?s.buildings:[];
+  for (const b of buildings){
+    if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) continue;
+    g.save(); g.fillStyle=(b.roof||'#9a5f3a')+(b.status==='proposed'?'88':'cc');
+    g.strokeStyle=b.status==='proposed'?'#d79b55':'#3f3329'; g.lineWidth=Math.max(1,sc*.35);
+    if (b.status==='proposed') g.setLineDash([2,1]);
+    g.beginPath(); b.vertices.forEach(([x,y],i)=>{ if (i) g.lineTo(ox+x*sc,oy+y*sc); else g.moveTo(ox+x*sc,oy+y*sc); }); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
   for (const hh of houses){ if (!hh) continue;
     g.fillStyle=hh.wall||'#8a7a60';
     g.fillRect(ox+hh.x*sc, oy+hh.y*sc, (hh.w||2)*sc, (hh.h||2)*sc);
@@ -415,7 +424,10 @@ function enterGarden(){
   if (!game.lights) game.lights={};
   if (!game.firepits) game.firepits={};
   if (!game.boulders) game.boulders={};
+  if (!game.buildings) game.buildings=[];
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
+  game.buildingDraft=null;
+  game.buildingStyleDraft=normalizeBuildingStyle(game.buildingStyleDraft);
   game.fenceDraft=normalizeFenceDraft(game.fenceDraft);
   game.lightDraft=normalizeLightDraft(game.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(game.firepitDraft);
@@ -481,9 +493,9 @@ function openPlotScreen(){
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
-        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
+        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; game.buildings=[]; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
       } else {                                // story: avatar garden with a house + welcome drift
-        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses();
+        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; game.buildings=[]; game.buildingDraft=null; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses();
         seedWalkway(); starterDrift();
       }
       enterGarden();

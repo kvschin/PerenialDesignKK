@@ -5,12 +5,13 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design'; game.visiting = false;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
   game.firepitDraft = { shape: 'round', size: 'round36' };
   game.boulderDraft = { type: 'round1' };
+  game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
   game.bedStyle = 'soil';
   game.rot = 0; game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
   game.design = null; game.challenge = null;
@@ -1183,6 +1184,27 @@ test('houses: place several, refuse overlaps, erase removes one', () => {
   eraseBrush(8, 8, counts); // landscape erase over the middle house
   assertEqual(counts.house, 1, 'one house erased');
   assertEqual(game.houses.length, 2, 'two houses remain');
+});
+
+test('building footprints rasterize, block placement, and erase as one site object', () => {
+  setup(21, 21);
+  const outline = [[3, 3], [8, 3], [8, 6], [3, 6]];
+  assert(commitBuildingFootprint(outline), 'valid rectangular footprint commits');
+  assertEqual(game.buildings.length, 1, 'one footprint stored as a polygon');
+  assert(buildingAt(4, 4), 'interior tile resolves to the footprint');
+  assert(!buildingAt(9, 4), 'outside tile is clear');
+  assert(!canStand(4, 4), 'footprint blocks movement');
+  buildScene(900, 700);
+  assert(scene.ents.some(e => e.kind === SCENE_K.BUILDING), 'footprint enters the depth-sorted scene');
+  game.tool = firstOfType('forb');
+  assertEqual(applyToolAt(4, 4), null, 'plant tool refuses footprint tiles');
+  game.plants['12,12'] = { s: firstOfType('grass'), d: 0, t: 1 };
+  assert(!commitBuildingFootprint([[11, 11], [14, 11], [14, 14], [11, 14]]), 'footprint refuses an occupied site');
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(4, 4, counts);
+  assertEqual(counts.building, 1, 'one footprint erased despite multiple covered tiles');
+  assertEqual(game.buildings.length, 0, 'footprint removed as a whole');
 });
 
 test('fences place as blocking structures, gates stay walkable, and erase removes them', () => {

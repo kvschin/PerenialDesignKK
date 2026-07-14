@@ -76,6 +76,7 @@ function actHere(opts){
     return;
   }
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
+  if (game.tool==='building'){ toast('Tap exterior corners, then close the outline.'); return; }
   if (game.tool==='fence'){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Fence needs clear ground outside the shrub spread.'); return; }
@@ -126,7 +127,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,fence:0,light:0,firepit:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -138,6 +139,7 @@ function actHere(opts){
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
+    if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
       toast(`Erased ${parts.join(' and ')}.`);
       if (counts.plants) syncPlantsOut();
@@ -149,6 +151,7 @@ function actHere(opts){
       if (counts.firepit) syncFirepitsOut();
       if (counts.boulder) syncBouldersOut();
       if (counts.house) pushHouse();
+      if (counts.building) pushBuildings();
     } else toast('Nothing to erase here.');
     return;
   }
@@ -275,7 +278,7 @@ function driftCount(def){
    inherits them; tools without a hook (hand/select/pick/erase/house) no-op. */
 function applyToolAt(x,y,opts){
   if (x<0||y<0||x>=GW||y>=GH) return null;
-  if (inHouse(x,y) || isDoor(x,y)) return null;
+  if (siteStructureAt(x,y) || isDoor(x,y)) return null;
   const meta=toolMeta(game.tool);
   return meta.apply ? meta.apply(x,y,opts) : null;
 }
@@ -397,6 +400,7 @@ function syncToolLayer(what){
   else if (what==='light') syncLightsOut();
   else if (what==='firepit') syncFirepitsOut();
   else if (what==='boulder') syncBouldersOut();
+  else if (what==='building') pushBuildings();
   else if (what==='bulb') syncBulbsOut();
   else syncPlantsOut();
 }
@@ -432,7 +436,7 @@ function fenceLabel(f){
 }
 function canPlaceFence(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
-  if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
+  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   if (!d.gate && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
@@ -450,7 +454,7 @@ function placeFenceAt(x,y){
 }
 function canPlaceLight(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
-  if (inHouse(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
+  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
   if (game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
@@ -500,7 +504,7 @@ function canPlaceFirepit(x,y,ignoreKey){
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
   for (const [xx,yy] of firepitFootprint(x,y,d)){
     const k=`${xx},${yy}`;
-    if (inHouse(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
     if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
@@ -543,7 +547,7 @@ function canPlaceBoulder(x,y,ignoreKey){
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
   for (const [xx,yy] of boulderFootprint(x,y,d)){
     const k=`${xx},${yy}`;
-    if (inHouse(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy)) return false;
     const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
     if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
@@ -565,6 +569,72 @@ function placeBoulderAt(x,y){
 /* ---------- house placement / sizing / paint ---------- */
 function pushHouse(){ game.houseT=Date.now();
   if (game.mode==='multi') sSet(wkey('house'),{h:game.houses,t:game.houseT},true); }
+function normalizeBuildingStyle(d){
+  d=d&&typeof d==='object'?d:{};
+  return {status:d.status==='proposed'?'proposed':'existing',label:String(d.label||'House').slice(0,32),
+    wall:d.wall||'#8a7a60',roof:d.roof||'#9a5f3a'};
+}
+function buildingStyleDraft(){ return game.buildingStyleDraft=normalizeBuildingStyle(game.buildingStyleDraft); }
+function pushBuildings(){
+  game.buildingsT=Date.now();
+  if (game.mode==='multi') sSet(wkey('buildings'),{b:game.buildings,t:game.buildingsT},true);
+}
+function buildingSignedArea(vs){
+  let a=0; for (let i=0;i<vs.length;i++){ const p=vs[i],q=vs[(i+1)%vs.length]; a+=p[0]*q[1]-q[0]*p[1]; }
+  return a/2;
+}
+function samePoint(a,b){ return a[0]===b[0]&&a[1]===b[1]; }
+function between(v,a,b){ return v>=Math.min(a,b)&&v<=Math.max(a,b); }
+function orthSegmentsTouch(a,b,c,d){
+  const abH=a[1]===b[1], cdH=c[1]===d[1];
+  if (abH===cdH){
+    if (abH && a[1]===c[1]) return Math.max(Math.min(a[0],b[0]),Math.min(c[0],d[0]))<=Math.min(Math.max(a[0],b[0]),Math.max(c[0],d[0]));
+    if (!abH && a[0]===c[0]) return Math.max(Math.min(a[1],b[1]),Math.min(c[1],d[1]))<=Math.min(Math.max(a[1],b[1]),Math.max(c[1],d[1]));
+    return false;
+  }
+  const h=abH?[a,b]:[c,d], v=abH?[c,d]:[a,b];
+  return between(v[0],h[0][0],h[1][0])&&between(h[0],v[0][1],v[1][1]);
+}
+function buildingOutlineValid(vs){
+  if (!Array.isArray(vs)||vs.length<3) return 'Use at least three corners.';
+  for (let i=0;i<vs.length;i++){
+    const a=vs[i],b=vs[(i+1)%vs.length];
+    if (!Number.isInteger(a[0])||!Number.isInteger(a[1])||a[0]<0||a[1]<0||a[0]>GW||a[1]>GH) return 'Keep every corner on the plot.';
+    if (samePoint(a,b) || (a[0]!==b[0]&&a[1]!==b[1])) return 'Footprints use straight north/south or east/west edges.';
+  }
+  if (Math.abs(buildingSignedArea(vs))<1) return 'That outline has no usable area.';
+  for (let i=0;i<vs.length;i++) for (let j=i+1;j<vs.length;j++){
+    if (j===i+1 || (i===0&&j===vs.length-1)) continue;
+    if (orthSegmentsTouch(vs[i],vs[(i+1)%vs.length],vs[j],vs[(j+1)%vs.length])) return 'The outline crosses itself.';
+  }
+  return '';
+}
+function validateBuildingFootprint(vs,ignoreId){
+  const outline=buildingOutlineValid(vs); if (outline) return {ok:false,msg:outline};
+  const draft={vertices:vs}, tiles=buildingTiles(draft);
+  if (!tiles.length) return {ok:false,msg:'That outline does not cover a full tile.'};
+  for (const [x,y] of tiles){
+    const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
+    if (siteStructureAt(x,y) || buildingAt(x,y,ignoreId)) return {ok:false,msg:'A building cannot overlap another structure.'};
+    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y))
+      return {ok:false,msg:'Lift plants, paths, and hardscape before drawing a building here.'};
+  }
+  return {ok:true,tiles};
+}
+function commitBuildingFootprint(vertices){
+  const vs=vertices.map(p=>[p[0],p[1]]), check=validateBuildingFootprint(vs);
+  if (!check.ok){ toast(check.msg,'warn'); return false; }
+  const style=buildingStyleDraft();
+  addBuilding(Object.assign({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),vertices:vs,t:Date.now()},style));
+  pushBuildings();
+  toast(`${style.status==='existing'?'Existing':'Proposed'} building footprint added.`);
+  return true;
+}
+function removeBuildingAt(x,y){
+  const b=buildingAt(x,y); if (!b) return false;
+  const i=game.buildings.indexOf(b); if (!removeBuildingAtIndex(i)) return false;
+  pushBuildings(); return true;
+}
 function displacePlants(x,y,w,h){ // a house can't share ground with plants
   let n=0;
   for (const k in game.plants){ const p=game.plants[k];
@@ -601,8 +671,9 @@ function placeHouse(x,y){
   const ppx=Math.round(game.px), ppy=Math.round(game.py);
   if (game.gameMode!=='design' && ppx>=nx&&ppx<nx+d.w&&ppy>=ny&&ppy<ny+d.h){
     toast("You're standing in the way."); return; }
-  if (game.houses.some(o=>nx<o.x+o.w&&nx+d.w>o.x&&ny<o.y+o.h&&ny+d.h>o.y)){
-    toast('That overlaps another house.'); return; }
+  if (game.houses.some(o=>nx<o.x+o.w&&nx+d.w>o.x&&ny<o.y+o.h&&ny+d.h>o.y)
+    || game.buildings.some(b=>buildingTiles(b).some(([bx,by])=>bx>=nx&&bx<nx+d.w&&by>=ny&&by<ny+d.h))){
+    toast('That overlaps another building.'); return; }
   addHouse({x:nx,y:ny,w:d.w,h:d.h,wall:d.wall,roof:d.roof,sizeFt:d.sizeFt});
   pushHouse();
   const n=displacePlants(nx,ny,d.w,d.h);
@@ -729,6 +800,9 @@ function eraseBrush(cx,cy,counts){
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
         if (removeHouseAtIndex(i)) counts.house=(counts.house||0)+1; } }
+    if (terrOK){ const bb=buildingAt(x,y);
+      if (bb){ const i=game.buildings.indexOf(bb);
+        if (removeBuildingAtIndex(i)) counts.building=(counts.building||0)+1; } }
   }
 }
 function sweepLift(x,y){ eraseBrush(x,y,sweep); }
@@ -743,7 +817,7 @@ let areaClipboard=null;
 function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
-function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !inHouse(x,y) && !isDoor(x,y); }
+function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !siteStructureAt(x,y) && !isDoor(x,y); }
 // Selection moves validate against the post-move world: selected source tiles
 // are empty for moves, while selected destination shrubs/terrain already count.
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
@@ -1158,7 +1232,7 @@ function evPlacement(e){ // pointer position -> owning world tile + sub-tile off
   const sx=e.clientX/ZOOM, sy=e.clientY/ZOOM;
   const [x,y]=tileAt(sx, sy, W, H);
   const [wx,wy]=worldPointAt(sx, sy, W, H, elevationAt(x,y));
-  return {x,y,ox:wx-x,oy:wy-y};
+  return {x,y,wx,wy,ox:wx-x,oy:wy-y};
 }
 /* ---------- undo: a stack of layer snapshots ----------
    A gesture snapshots state on pointerdown and commits it only if a mutation
@@ -1168,7 +1242,7 @@ function updateCanvasCursor(){
   if (!cnv) return;
   cnv.style.cursor = panDrag ? 'grabbing'
     : (game.tool==='hand'||spaceHeld) ? 'grab'
-    : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick') ? 'crosshair' : '';
+    : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick'||game.tool==='building') ? 'crosshair' : '';
 }
 function snapshotState(){
   const s={};
