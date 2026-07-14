@@ -867,6 +867,16 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
 - Respect `prefers-reduced-motion` (already handled in CSS).
+- Keep application chrome on the semantic design tokens in `styles.css`.
+  `--surface-overlay`, `--surface-workspace`, and `--surface-dialog` express
+  information over the canvas, persistent editing controls, and deliberate
+  stops respectively. Neutral controls use the shared control/border/text
+  tokens; bronze is reserved for the primary action or armed state, the cool
+  selection tokens identify selection geometry, and danger tokens identify
+  destructive state. Controls use `--radius-control`, containers use
+  `--radius-panel`, and true capsules alone use `--radius-pill`. Reuse the
+  spacing, shadow, focus, and disabled-state tokens instead of adding close
+  one-off values.
 - Treat canvas guidance as persistent workspace state, not a transient toast:
   `#activeToolStatus` names the armed tool and its next canvas action. Dialogs
   use the shared `openOverlay` / `closeOverlay` focus path, trap keyboard focus,
