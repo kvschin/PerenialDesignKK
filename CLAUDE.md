@@ -558,9 +558,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Plants / Shrubs / Trees; Build → Landscape / Hardscape / Lighting /
     Site); `lastCatByGroup` remembers the sub-tab per group. Then species
     buttons in the active category (species sharing a `group` collapse to one
-    button, marked with a `›`). Sub-species **drill in**: tapping a grouped
+    button, marked with the shared CSS chevron). Sub-species **drill in**:
+    tapping a grouped
     species or one with cultivars opens its members/cultivars in the catalog
-    row behind a ‹ Back chip (`renderDrillIn`, `game.drill`); the old
+    row behind a Back chip (`renderDrillIn`, `game.drill`); the old
     always-on cultivar row is retired — `renderCvRow` now just hides `#cvRow`
     and is the hook that refreshes the brush bar + collapse sheet. The planted
     tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
@@ -603,7 +604,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     field (so it never adds a wrapping row) that filters the open category by
     name/latin/group (`applyTraySearch`, display:none — no rebuild, so typing
     keeps focus; inputs are excluded from game keys). Because the field *takes
-    the categories' place*, the toggle glyph flips from `🔍` to a bold **✕**
+    the categories' place*, the drawn magnifier changes to a drawn close icon
     while open (`.tab-search.close`, title "Close search — back to categories")
     so the way back is obvious; tapping it or pressing **Escape** in the field
     restores the sub-tabs.
@@ -615,7 +616,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is `black-translucent`) while the content ducks below the notch — this is
     why the viewport meta carries `viewport-fit=cover` (without it the insets
     resolve to 0 and nothing bleeds/clears). Left = the
-    **season dial**: a `☀`/`☾` day/night toggle (`#btnDayNight`/
+    **season dial**: a local stroke-icon sun/moon day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on) next to the
     **season box** (`#btnSeasonBox`): a label (season name + early/mid/late
@@ -623,8 +624,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
-    buttons. **Hold** the box to fast-forward time (`game.ffActive`; the loop
-    adds `FF_RATE` game-ms per real-ms, ~2 garden days/sec); a short **tap**
+    buttons. The face explicitly says **Time**. **Hold** the box for 360ms to
+    fast-forward (`game.ffActive`; the loop adds `FF_RATE` game-ms per real-ms,
+    ~2 garden days/sec): a border trace fills during the hold and the calendar
+    line changes to **Fast-forwarding** while it is active. A short **tap**
     TOGGLES the time menu (`openPause`/`closePause` → `#pauseScreen`), a
     **dropdown** that `openPause` pins just under the season box
     (`position:fixed`, JS-set `top`/`left`), whose primary button is a
@@ -645,29 +648,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (`#btnSelectTool`/`#btnRotateTool`/`#btnLayersTool`, the non-painting tools,
     kept in sync by `syncTopTools`); the season box `flex-shrink`s (explicit
     `width` + lower `min-width`, not `flex-basis` — a content-sized parent
-    ignores the basis) so the box + tools + ☰ all fit a 360px phone, with a
+    ignores the basis) so the box + tools + Menu all fit a 360px phone, with a
     `≤359px` query tightening gaps/buttons for legacy widths. Right =
     the **action bar**
-    (`#actionBar`): just a `☰` Menu now (Undo/Redo moved down to the canvas
+    (`#actionBar`): just a stroke-icon Menu now (Undo/Redo moved down to the canvas
     rail). The Menu opens `#gardenMenu` — the planting list,
-    plant filters (shows the active filter), photo, planting plan, and Save &
-    quit — so the infrequent outputs sit one tap behind `☰` rather than a
+    plant filters (shows the active filter), photo, planting plan, opt-in
+    haptics when the device supports them, and Save & quit — so the infrequent
+    outputs sit one tap behind Menu rather than a
     permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
     modal: `openGardenMenu()` measures the action bar's rect and pins the panel
-    just under the `☰`, right-aligned to it (`position:fixed`, JS-set
+    just under the Menu icon, right-aligned to it (`position:fixed`, JS-set
     `top`/`right`); clicking the transparent backdrop dismisses it. So it drops
     from the corner over the still-visible garden instead of covering the
     screen. In **design** mode the readout drops the meaningless
     Year/Day (a day is 20s real time) for the season + early/mid/late phase
-    (`clockMeta`/`seasonPhase`) and an **Advance** button; the avatar path
-    (Visit / legacy saves) keeps the full calendar + End Day. On phones the whole palette collapses: a
-    `#sheetHandle` folds the catalog away while you paint (`applySheetState`,
-    `game.sheetCollapsed`), leaving the brush bar + a context label + a swatch
+    (`clockMeta`/`seasonPhase`); the avatar path
+    (Visit / legacy saves) keeps the full calendar + End Day. On phones the
+    palette has collapsed/half/full states: `#sheetHandle` moves among them
+    while you paint (`applySheetState`, `game.sheetCollapsed`), leaving the
+    brush bar + a context label + a swatch
     of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
     (edge-to-edge, square corners, docked to `bottom:0` with
     `padding-bottom:calc(6px + env(safe-area-inset-bottom))` so the catalog
     clears the home indicator while the tray background runs to the screen
-    edge behind it). On desktop/iPad `.hud-bottom` stays a
+    edge behind it). `#sheetCatalog` remains mounted across those states, so
+    its scroll position survives; max-height/opacity/translate animate over
+    the shared panel timing, and only the collapsed state clips its content
+    (half/full must let the category popover escape above the sheet). On
+    desktop/iPad `.hud-bottom` stays a
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
     so it lifts above an iPad's home bar too). **Canvas full-bleed under
     `viewport-fit=cover`:** an iOS standalone PWA with `black-translucent` has a
@@ -699,12 +708,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     box) also offers Skip to next season/year; season skip shows a confirmation
     using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
-    handlers), mouse wheel, and +/- keys;
+    handlers), mouse wheel, and +/- keys. The phone zoom pill stays hidden to
+    protect canvas space; the one-time Time coach also teaches pinch zoom.
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
     drift / Erase here / Lay path / Dig bed / End Day; hidden for the House
     tool) calls `actHere()` and replaces the instructional hint. The plant
-    card sits top-right with an ✕ (`showPlantCard(p,x,y)` adds a shade
+    card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). Plant filters persist as `hortus:filters`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
     gardens or start a new one; reached via Design a Garden and View Gardens —
@@ -867,6 +877,15 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
 - Respect `prefers-reduced-motion` (already handled in CSS).
+- Interface icons use the hidden local SVG symbol set in `index.html` plus
+  `uiIcon` / `setUiIcon`; do not reintroduce emoji or mixed Unicode glyphs for
+  navigation, state, close, delete, or menu actions. Botanical previews and
+  editing-tool illustrations remain canvas-drawn.
+- UI motion uses `--motion-control` (110ms), `--motion-menu` (160ms), and
+  `--motion-panel` (200ms) with the shared easing tokens. Controls may move
+  down 1px on press; panels rise/fade by 8px; menus use a short directional
+  reveal. Keep motion out of the garden renderer and preserve the global
+  reduced-motion override.
 - Keep application chrome on the semantic design tokens in `styles.css`.
   `--surface-overlay`, `--surface-workspace`, and `--surface-dialog` express
   information over the canvas, persistent editing controls, and deliberate
@@ -883,6 +902,10 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   restore the opener on close, and use the dialog surface/scrim tokens. Compact
   view and layer flyouts expose menu state through ARIA. The mobile palette has
   collapsed, half, and full states reachable by both swipe and handle activation.
+  Gesture-only affordances get a one-time contextual coach rather than a
+  permanent help wall. Haptics are capability-gated, default off, stored as
+  `hortus:haptics`, and fire once per completed placement/success or throttled
+  invalid action — never for every tile in a continuous paint gesture.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 
@@ -953,7 +976,7 @@ stress garden before merge (see the perf notes in §11).
   de-compress the phone tray (`min-height` on tab rows + handle, vertical scroll
   in the catalog — this cheap stabilization is what lets the real sheet redesign
   wait for Wave 4); re-pin popovers + re-`snapCam` on resize/orientation; fix the
-  🔍 search glyph to a drawn canvas icon.
+  search glyph to a drawn canvas icon.
 - **Wave 1 — A planner you can trust your eyes in** (the lens for all later
   visual work; cheap): pause the clock by default in design mode (season box
   shows the paused state it already supports); "Today / Established" preview

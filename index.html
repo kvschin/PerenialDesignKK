@@ -18,6 +18,21 @@
 </head>
 <body>
 
+<!-- Local interface icon set. Plant and tool art stays canvas-drawn; these
+     simple stroke icons keep navigation and chrome visually consistent. -->
+<svg class="ui-icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="ui-chevron-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="ui-chevron-up" viewBox="0 0 24 24"><path d="m5 15 7-7 7 7"/></symbol>
+  <symbol id="ui-chevron-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
+  <symbol id="ui-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="ui-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ui-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="ui-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
+  <symbol id="ui-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
+  <symbol id="ui-moon" viewBox="0 0 24 24"><path d="M19.4 15.7A8 8 0 0 1 8.3 4.6a8 8 0 1 0 11.1 11.1Z"/></symbol>
+  <symbol id="ui-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v7M12 10v7M16 10v7M6.5 7l.8 13h9.4l.8-13"/></symbol>
+</svg>
+
 <canvas id="menuCanvas"></canvas>
 <canvas id="gameCanvas" class="hidden"></canvas>
 
@@ -34,28 +49,28 @@
           <strong>Design a Garden</strong>
           <small>Plan a real planting — no avatar, place by hand</small>
         </span>
-        <i aria-hidden="true">›</i>
+        <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
       <button class="menu-action" id="btnDaily" type="button">
         <span>
           <strong>Daily design challenge</strong>
           <small>A fresh planting prompt each day</small>
         </span>
-        <i aria-hidden="true">›</i>
+        <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
       <button class="menu-action" id="btnLibrary" type="button">
         <span>
           <strong>Plant Library</strong>
           <small>Browse every species and its notes</small>
         </span>
-        <i aria-hidden="true">›</i>
+        <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
       <button class="menu-action" id="btnGardens" type="button">
         <span>
           <strong>View Gardens</strong>
           <small>Open, visit, and manage saved gardens</small>
         </span>
-        <i aria-hidden="true">›</i>
+        <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
     </div>
     <a class="menu-foot" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.2 · credits</a>
@@ -78,7 +93,7 @@
     <div class="row">
       <button class="btn" id="btnJoin">Join garden</button>
     </div>
-    <button class="back-link" data-back>← Back</button>
+    <button class="back-link" data-back>Back</button>
   </div>
 </div>
 
@@ -110,9 +125,9 @@
       </div>
     </div>
     <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnStartGame">Into the garden →</button>
+      <button class="btn primary" id="btnStartGame">Into the garden</button>
     </div>
-    <button class="back-link" data-back>← Back</button>
+    <button class="back-link" data-back>Back</button>
   </div>
 </div>
 
@@ -121,9 +136,9 @@
   <div class="panel" style="text-align:center">
     <h2>Your garden code</h2>
     <div class="code-display" id="codeDisplay">·····</div>
-    <p class="note">Joiners choose "Garden together → Join" and enter this code. For now that only works from another tab in this same browser — cross-device sharing needs the server that's still on the roadmap.</p>
+    <p class="note">Joiners choose Garden together, then Join, and enter this code. For now that only works from another tab in this same browser — cross-device sharing needs the server that's still on the roadmap.</p>
     <div class="row" style="margin-top:14px">
-      <button class="btn primary" id="btnCodeContinue">Continue →</button>
+      <button class="btn primary" id="btnCodeContinue">Continue</button>
     </div>
   </div>
 </div>
@@ -137,9 +152,9 @@
     <p class="note" id="dailyPlants"></p>
     <div id="dailyPalette" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin-top:12px"></div>
     <div class="row" style="margin-top:18px">
-      <button class="btn primary" id="btnDailyStart">Start designing →</button>
+      <button class="btn primary" id="btnDailyStart">Start designing</button>
     </div>
-    <button class="back-link" data-back>← Back to menu</button>
+    <button class="back-link" data-back>Back to menu</button>
   </div>
 </div>
 
@@ -147,12 +162,13 @@
 <div id="hud" class="hidden">
   <div class="hud-top">
     <div class="season-dial">
-      <button id="btnDayNight" class="daynight" title="Switch to night (preview lighting)" aria-label="Toggle day or night">☀</button>
-      <button class="season-box" id="btnSeasonBox" title="Hold to speed up time · tap for the time menu" aria-label="Season — hold to speed up time, tap for the time menu" aria-haspopup="dialog" aria-controls="pauseScreen" aria-expanded="false">
+      <button id="btnDayNight" class="daynight" title="Switch to night (preview lighting)" aria-label="Toggle day or night"><svg class="ui-icon" aria-hidden="true"><use href="#ui-sun"></use></svg></button>
+      <button class="season-box" id="btnSeasonBox" title="Tap for Time controls · hold to fast-forward" aria-label="Time — tap for controls, hold to fast-forward" aria-haspopup="dialog" aria-controls="pauseScreen" aria-expanded="false">
         <span class="season-fill" id="seasonFill"></span>
+        <svg class="time-progress" viewBox="0 0 150 34" preserveAspectRatio="none" aria-hidden="true"><rect x="1" y="1" width="148" height="32" rx="5" pathLength="100"></rect></svg>
         <span class="season-box-inner">
-          <span class="season-name" id="seasonName">Spring</span>
-          <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span></span>
+          <span class="season-head"><span class="time-label">Time</span><span class="season-name" id="seasonName">Spring</span></span>
+          <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span><span id="timeState" class="time-state" role="status" aria-live="polite">Fast-forwarding</span></span>
         </span>
       </button>
       <div class="top-tools-full" aria-label="View tools">
@@ -165,7 +181,7 @@
     </div>
     <div class="hud-right">
       <div class="pill iconbar" id="actionBar">
-        <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><span class="ic-emoji" style="display:inline">☰</span><span class="lbl">Menu</span></button>
+        <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span class="lbl">Menu</span></button>
       </div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
@@ -179,21 +195,27 @@
   <div id="canvasTools" aria-label="Canvas tools"></div>
   <div id="activeToolStatus" class="active-tool-status" aria-live="polite" aria-atomic="true"></div>
   <div id="zoomPill" class="zoom-pill" aria-label="Zoom controls">
-    <button id="btnZoomOut" title="Zoom out" aria-label="Zoom out">-</button>
+    <button id="btnZoomOut" title="Zoom out" aria-label="Zoom out"><svg class="ui-icon" aria-hidden="true"><use href="#ui-minus"></use></svg></button>
     <button id="btnZoomFit" title="Fit plot to screen" aria-label="Fit plot to screen">Fit</button>
     <span id="zoomLabel">100%</span>
-    <button id="btnZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+    <button id="btnZoomIn" title="Zoom in" aria-label="Zoom in"><svg class="ui-icon" aria-hidden="true"><use href="#ui-plus"></use></svg></button>
   </div>
   <div id="selectionActions" class="selection-actions hidden" aria-label="Selection actions"></div>
   <div id="gestureCancel" class="gesture-cancel hidden" aria-live="polite"></div>
+  <div id="coachTip" class="coach-tip hidden">
+    <span id="coachTipText" role="status" aria-live="polite"></span>
+    <button id="coachTipClose" type="button" aria-label="Dismiss tip"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+  </div>
   <div class="hud-bottom">
-    <button id="sheetHandle" aria-label="Expand palette to full height" aria-controls="brushBar trayTabs toolTray" aria-expanded="true" data-state="half"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
+    <button id="sheetHandle" aria-label="Expand palette to full height" aria-controls="brushBar trayTabs toolTray" aria-expanded="true" data-state="half"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-down"></use></svg></span></button>
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
-    <div id="cvRow" class="chip-row hidden"></div>
     <div id="brushBar" class="hidden"></div>
-    <div id="trayTabs"></div>
-    <div id="toolTray"></div>
+    <div id="sheetCatalog">
+      <div id="cvRow" class="chip-row hidden"></div>
+      <div id="trayTabs"></div>
+      <div id="toolTray"></div>
+    </div>
   </div>
 </div>
 
@@ -209,6 +231,7 @@
       <button class="btn" id="btnBloom">Bloom calendar</button>
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
       <button class="btn" id="btnShare">Share garden</button>
+      <button class="btn hidden" id="btnHaptics" aria-pressed="false">Haptic feedback · Off</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
@@ -259,7 +282,7 @@
       <button class="btn" id="btnImport">Import a garden</button>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" style="display:none">
-    <button class="back-link" data-back>← Back</button>
+    <button class="back-link" data-back>Back</button>
   </div>
 </div>
 
@@ -282,9 +305,9 @@
     </div>
     <p class="note" id="plotNote"></p>
     <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnPlotStart">Break ground →</button>
+      <button class="btn primary" id="btnPlotStart">Break ground</button>
     </div>
-    <button class="back-link" id="btnPlotBack">← Back</button>
+    <button class="back-link" id="btnPlotBack">Back</button>
   </div>
 </div>
 
@@ -302,7 +325,7 @@
         <div class="chip-row" id="dgnWinter" style="margin-top:6px"></div>
       </div>
       <p class="zone-readout" id="dgnZoneOut"></p>
-      <button type="button" class="link-toggle" id="dgnZoneToggle">Don't know your zone? ›</button>
+      <button type="button" class="link-toggle" id="dgnZoneToggle">Don't know your zone?</button>
     </div>
     <div class="field"><label>Garden style</label>
       <div class="chip-row chip-grid" id="dgnTypeChips"></div>
@@ -313,9 +336,9 @@
     </div>
     <p class="palette-count" id="dgnCount"></p>
     <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnDesignNext">Next: size the plot →</button>
+      <button class="btn primary" id="btnDesignNext">Next: size the plot</button>
     </div>
-    <button class="back-link" id="btnDesignBack">← Back</button>
+    <button class="back-link" id="btnDesignBack">Back</button>
   </div>
 </div>
 
@@ -347,9 +370,9 @@
     <div class="plan-wrap"><canvas id="planCanvas"></canvas></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnPlanPng">Download PNG</button>
-      <button class="btn" id="btnPlanList">Planting list →</button>
+      <button class="btn" id="btnPlanList">Planting list</button>
     </div>
-    <button class="back-link" id="btnPlanClose">← Back to the garden</button>
+    <button class="back-link" id="btnPlanClose">Back to the garden</button>
   </div>
 </div>
 
@@ -373,7 +396,7 @@
       <button class="btn primary" id="btnPrint">Print</button>
       <button class="btn" id="btnCsv">Download CSV</button>
     </div>
-    <button class="back-link" id="btnExportClose">← Back to the garden</button>
+    <button class="back-link" id="btnExportClose">Back to the garden</button>
   </div>
 </div>
 
@@ -386,7 +409,7 @@
     <div class="library-head">
       <h2>Plant Library</h2>
       <input id="librarySearch" type="search" placeholder="Search name or latin…" autocomplete="off">
-      <button class="back-link" id="btnLibraryClose">← Menu</button>
+      <button class="back-link" id="btnLibraryClose">Menu</button>
     </div>
     <div class="library-body">
       <div class="library-list" id="libraryList"></div>

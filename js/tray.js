@@ -1123,7 +1123,9 @@ function buildToolTray(){
     const curCat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
     const cur=document.createElement('button');
     cur.className='cat-current';
-    cur.innerHTML=`<span>${curCat.label}</span><i>${game.catMenuOpen?'▲':'▼'}</i>`;
+    const lab=document.createElement('span'); lab.textContent=curCat.label;
+    const arrow=document.createElement('i'); setUiIcon(arrow,game.catMenuOpen?'chevron-up':'chevron-down');
+    cur.replaceChildren(lab,arrow);
     cur.onclick=()=>{ game.catMenuOpen=!game.catMenuOpen; buildToolTray(); };
     tabs.appendChild(cur);
     if (game.catMenuOpen){
@@ -2042,7 +2044,8 @@ function applySheetState(){
     handle.setAttribute('data-state',s);
     handle.setAttribute('aria-label',`${cap(s)} palette; activate to show ${next} height`);
   }
-  const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=s==='full'?'▾':s==='half'?'─':'▴';
+  const chev=document.querySelector('#sheetHandle .chev');
+  if (chev) setUiIcon(chev,s==='full'?'chevron-down':s==='half'?'minus':'chevron-up');
   drawSheetSwatch();
   updateActiveToolStatus();
   renderBuildingDraftActions();

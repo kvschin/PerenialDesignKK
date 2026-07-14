@@ -232,8 +232,8 @@ async function openWorlds(filter){
     const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
     dup.title='Make a separate copy of this garden';
     dup.onclick=e=>{ e.stopPropagation(); duplicateWorld(w.id); };
-    const del=document.createElement('button'); del.className='world-del'; del.textContent='✕';
-    del.title='Delete this garden';
+    const del=document.createElement('button'); del.className='world-del'; setUiIcon(del,'trash');
+    del.title='Delete this garden'; del.setAttribute('aria-label',`Delete ${w.name||'this garden'}`);
     del.onclick=e=>{ e.stopPropagation();
       if (del.dataset.arm){ deleteWorld(w.id); }
       else { del.dataset.arm='1'; del.textContent='Sure?'; } };
@@ -450,6 +450,7 @@ function enterGarden(){
   buildToolTray();
   buildCanvasTools();
   updateCompass();
+  syncHapticsButton();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')
@@ -460,6 +461,7 @@ function enterGarden(){
     } }, 450);
   if (game.visiting)
     setTimeout(()=>{ if (game.visiting) toast(`Visiting ${game.worldName||'this garden'} — read-only. Tap to walk around.`); }, 450);
+  else if (game.gameMode==='design') setTimeout(showTimeCoachTip,900);
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
@@ -563,7 +565,7 @@ function openDesignSetup(){
   function renderZoneMode(){
     zoneChipsEl.classList.toggle('hidden',sel.zoneHelp);
     helpEl.classList.toggle('hidden',!sel.zoneHelp);
-    zoneToggle.textContent=sel.zoneHelp?'‹ Back to zones':"Don't know your zone? ›";
+    zoneToggle.textContent=sel.zoneHelp?'Back to zones':"Don't know your zone?";
   }
   function renderType(){ typeEl.innerHTML='';
     GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
@@ -606,6 +608,7 @@ function quitToMenu(){
   closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
   closeOverlay('pauseScreen',false);
   closeOverlay('gardenMenu',false); closeOverlay('confirmSeasonScreen',false);
+  dismissCoachTip();
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   setActiveCanvas(mcnv);
@@ -613,18 +616,25 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
+  syncHapticsButton();
   const gm=openOverlay('gardenMenu','#btnFilters');
-  // anchor the dropdown right under the ☰ button, right-aligned to the action
+  // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
   const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
   if (p && bar.width){ p.style.top=(bar.bottom+6)+'px';
     p.style.right=Math.max(8,Math.round(innerWidth-bar.right))+'px'; }
 }
 $('btnMenu').onclick=openGardenMenu;
+if ($('coachTipClose')) $('coachTipClose').onclick=dismissCoachTip;
 // click the backdrop (anywhere off the panel) to dismiss, like any dropdown
 $('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
 if ($('btnShare')) $('btnShare').onclick=shareCurrentGarden;
+if ($('btnHaptics')) $('btnHaptics').onclick=()=>{
+  const on=setHapticsEnabled(!hapticsOn); syncHapticsButton();
+  if (on) hapticFeedback('success');
+  toast(`Haptic feedback ${on?'on':'off'}.`);
+};
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
@@ -645,17 +655,40 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
 // the garden underneath is visible while time runs.
 (function wireSeasonBox(){
   const box=$('btnSeasonBox'); if (!box) return;
-  let holdTimer=null, ffStarted=false;
-  const cancelFF=()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
-    if (ffStarted){ game.ffActive=false; ffStarted=false; } };
-  box.addEventListener('pointerdown',e=>{ e.preventDefault(); ffStarted=false;
-    holdTimer=setTimeout(()=>{ game.ffActive=true; ffStarted=true; closePause(); },200); });
-  box.addEventListener('pointerup',()=>{ if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
-    if (ffStarted){ game.ffActive=false; ffStarted=false; }
-    else if (!$('pauseScreen').classList.contains('hidden')) closePause();
-    else openPause(); });
+  const HOLD_MS=360;
+  let holdTimer=null, ffStarted=false, pressActive=false;
+  const resetFF=()=>{
+    const wasFast=ffStarted;
+    if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+    game.ffActive=false; ffStarted=false;
+    box.classList.remove('hold-arming','fast-forwarding');
+    box.setAttribute('aria-label','Time — tap for controls, hold to fast-forward');
+    return wasFast;
+  };
+  const cancelFF=()=>{ pressActive=false; resetFF(); };
+  box.addEventListener('pointerdown',e=>{
+    e.preventDefault(); dismissCoachTip(); resetFF(); pressActive=true;
+    box.classList.add('hold-arming');
+    try{ box.setPointerCapture(e.pointerId); }catch(_){ }
+    holdTimer=setTimeout(()=>{
+      holdTimer=null; game.ffActive=true; ffStarted=true; closePause();
+      box.classList.remove('hold-arming'); box.classList.add('fast-forwarding');
+      box.setAttribute('aria-label','Time — fast-forwarding while held');
+      hapticFeedback('success');
+    },HOLD_MS);
+  });
+  box.addEventListener('pointerup',()=>{
+    if (!pressActive) return;
+    pressActive=false;
+    const wasFast=resetFF();
+    if (!wasFast){
+      if (!$('pauseScreen').classList.contains('hidden')) closePause();
+      else openPause();
+    }
+  });
   box.addEventListener('pointerleave',cancelFF);
   box.addEventListener('pointercancel',cancelFF);
+  box.addEventListener('lostpointercapture',()=>{ if (pressActive) cancelFF(); });
 })();
 // the menu's primary button now pauses or resumes, since the dial's Pause button is gone
 $('btnPauseResume').onclick=()=>{ if (game.pausedAt) resumeClock(); else pauseClock(); closePause(); updateHUD(); };
@@ -692,6 +725,7 @@ if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
   let drag=null;
   h.addEventListener('pointerdown',e=>{
     drag={y:e.clientY,moved:false};
+    h.classList.add('dragging');
     try{ h.setPointerCapture(e.pointerId); }catch(_){}
   });
   h.addEventListener('pointermove',e=>{
@@ -702,11 +736,12 @@ if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
     if (!drag) return;
     const dy=e.clientY-drag.y, moved=drag.moved;
     drag=null;
+    h.classList.remove('dragging');
     if (moved && Math.abs(dy)>28) nudgeSheetState(dy<0?1:-1);
     else cycleSheetState();
   };
   h.addEventListener('pointerup',finish);
-  h.addEventListener('pointercancel',()=>{ drag=null; });
+  h.addEventListener('pointercancel',()=>{ drag=null; h.classList.remove('dragging'); });
 })();
 
 /* ---------- menu background: a living meadow ---------- */

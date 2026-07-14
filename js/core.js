@@ -67,6 +67,30 @@ const ENABLE_HOUSE_SLEEP = false;
 const ENABLE_MOBILE_ACT_BUTTON = false;
 const ENABLE_ACTION_HINT = false;
 
+/* Haptics are an explicit, device-local preference and default off. Feedback
+   stays short and gesture-level: one pulse after a completed placement or
+   success, never a buzz for every tile in a paint drag. */
+const HAPTIC_KEY='hortus:haptics';
+let hapticsOn=false, lastHapticAt=0;
+try{ hapticsOn=localStorage.getItem(HAPTIC_KEY)==='1'; }catch(_){ }
+function supportsHaptics(){
+  if (typeof navigator==='undefined' || typeof navigator.vibrate!=='function') return false;
+  return (navigator.maxTouchPoints||0)>0 || (typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches);
+}
+function setHapticsEnabled(on){
+  hapticsOn=!!on && supportsHaptics();
+  try{ localStorage.setItem(HAPTIC_KEY,hapticsOn?'1':'0'); }catch(_){ }
+  return hapticsOn;
+}
+function hapticFeedback(kind){
+  if (!hapticsOn || !supportsHaptics()) return;
+  const now=Date.now(), gap=kind==='invalid'?240:70;
+  if (now-lastHapticAt<gap) return;
+  lastHapticAt=now;
+  const pattern=kind==='invalid' ? [8,28,8] : kind==='success' ? 16 : 8;
+  try{ navigator.vibrate(pattern); }catch(_){ }
+}
+
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
   Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0},

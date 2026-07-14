@@ -39,6 +39,11 @@
   --shadow-overlay:0 8px 24px rgba(0,0,0,.34);
   --shadow-dialog:0 22px 70px rgba(0,0,0,.48);
   --disabled-opacity:.40;
+  --motion-control:110ms;
+  --motion-menu:160ms;
+  --motion-panel:200ms;
+  --ease-standard:cubic-bezier(.2,.7,.2,1);
+  --ease-emphasized:cubic-bezier(.2,.8,.2,1);
   --space-1:4px;
   --space-2:8px;
   --space-3:12px;
@@ -61,6 +66,9 @@
 html,body{height:100%;min-height:100vh;min-height:100lvh;overflow:hidden;overscroll-behavior:none;
   position:relative;background:var(--viewport-fill);font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--seedhead)}
 button{font-family:inherit;cursor:pointer}
+.ui-icon-sprite{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.ui-icon{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;pointer-events:none;flex:0 0 auto}
 button:focus-visible,input:focus-visible,select:focus-visible{
   outline:2px solid var(--focus-ring)!important;outline-offset:2px}
 button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
@@ -95,16 +103,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-action{min-height:76px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
   padding:16px 18px;border-radius:var(--radius-control);border:1.5px solid var(--border-quiet);
   background:var(--surface-control);color:var(--text-primary);text-align:left;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:transform .12s,background .15s,border-color .15s,box-shadow .15s}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:transform var(--motion-control) var(--ease-standard),background var(--motion-control),border-color var(--motion-control),box-shadow var(--motion-control)}
 .menu-action:hover{transform:translateY(-1px);border-color:var(--border-strong);background:var(--surface-control-hover)}
 .menu-action:active{transform:translateY(1px) scale(.99)}
 .menu-action strong{display:block;font-family:'Fraunces',serif;font-size:22px;font-weight:650;letter-spacing:0}
 .menu-action small{display:block;margin-top:3px;color:var(--text-secondary);font-size:13px;line-height:1.35}
-.menu-action i{font-style:normal;font-size:30px;color:rgba(239,230,211,.64);line-height:1}
+.menu-action .menu-chevron{width:22px;height:22px;color:rgba(239,230,211,.64)}
 .menu-action.primary{background:linear-gradient(180deg,#d49253,#b86b38);border-color:#e1a46a;color:#211610;
   box-shadow:0 10px 24px rgba(139,74,36,.3),inset 0 1px 0 rgba(255,255,255,.24)}
 .menu-action.primary small{color:rgba(33,22,16,.74)}
-.menu-action.primary i{color:rgba(33,22,16,.72)}
+.menu-action.primary .menu-chevron{color:rgba(33,22,16,.72)}
 .menu-action.primary:hover{background:linear-gradient(180deg,#e0a060,#c4763f);border-color:#efb37a}
 .menu-action.disabled,.menu-action:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
 .menu-action.disabled:hover,.menu-action:disabled:hover{transform:none;background:var(--surface-control);border-color:var(--border-quiet)}
@@ -114,7 +122,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-foot:hover{color:var(--seedhead)}
 .btn{border:1.5px solid var(--border-control);background:var(--surface-workspace);color:var(--text-primary);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:var(--radius-control);letter-spacing:.02em;
-  transition:border-color .12s,background .12s,transform .1s}
+  transition:border-color var(--motion-control),background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .btn:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--bronze);border-color:var(--bronze);color:var(--ink)}
@@ -157,8 +165,8 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .palette-count b{color:var(--bronze);font-weight:600}
 /* setup panels rise + fade in so a screen change feels intentional, not a swap
    (prefers-reduced-motion strips all animation globally at the bottom) */
-@keyframes panelEnter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.panel-enter{animation:panelEnter .26s cubic-bezier(.22,.61,.36,1)}
+@keyframes panelEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.panel-enter,.modal-screen:not(.hidden)>.panel{animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
 /* the setup panels sit over the live meadow — lean on the blur and let a little
    more of the world glow through than the opaque in-game dropdowns do */
 #designScreen .panel,#plotScreen .panel{background:rgba(23,16,13,.84);
@@ -246,7 +254,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-thumb{width:84px;height:63px;flex:0 0 auto;border-radius:var(--radius-control);
   background:#241a16;border:1px solid var(--border-quiet)}
 .world-del{background:var(--surface-danger);border:1px solid rgba(224,138,122,.50);color:var(--action-danger-text);
-  font-size:11px;padding:4px 8px;border-radius:var(--radius-control);flex-shrink:0}
+  font-size:11px;padding:4px 8px;border-radius:var(--radius-control);flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:5px;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.world-del:active{transform:translateY(1px)}
+.world-del .ui-icon{width:15px;height:15px}
 .world-del:hover{border-color:var(--action-danger);background:rgba(126,42,35,.60)}
 .world-visit{background:none;border:1px solid var(--border-control);color:var(--text-primary);
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
@@ -274,7 +285,9 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .creator-opts{flex:1;min-width:240px}
 .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
 .chip{padding:8px 14px;border-radius:var(--radius-control);border:1.5px solid var(--border-control);background:var(--surface-input);
-  color:var(--text-primary);font-size:14px;font-weight:500}
+  color:var(--text-primary);font-size:14px;font-weight:500;
+  transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.chip:active{transform:translateY(1px)}
 .chip.sel{background:var(--bronze);border-color:var(--bronze);color:var(--ink)}
 .swatch{width:34px;height:34px;border-radius:50%;border:2px solid var(--border-control);padding:0}
 .swatch.sel{border-color:var(--seedhead);box-shadow:0 0 0 2px var(--bronze)}
@@ -303,7 +316,10 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .day-bar i{display:block;height:100%;background:var(--bronze);width:0%}
 .season-dial .daynight,.top-tool{align-self:center;width:34px;height:34px;flex-shrink:0;border-radius:var(--radius-control);
   background:var(--surface-control);border:1.5px solid var(--border-subtle);color:#f0b765;
-  font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.season-dial .daynight:active,.top-tool:active{transform:translateY(1px)}
+.season-dial .daynight .ui-icon{width:18px;height:18px}
 .season-dial .daynight:hover,.top-tool:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}
 .season-dial .daynight.on{background:rgba(120,140,180,.28);border-color:rgba(180,200,230,.4);color:#dbe4f5}
 .top-tool{padding:0;color:var(--text-secondary)}
@@ -315,21 +331,35 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .season-box{position:relative;overflow:hidden;display:flex;align-items:center;width:150px;min-width:88px;flex-shrink:1;height:34px;min-height:34px;
   background:var(--surface-input);border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);
   padding:3px 12px;color:inherit;text-align:left;cursor:pointer;
-  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .season-box:hover{border-color:var(--border-strong)}
-.season-box:active{border-color:var(--bronze)}
+.season-box:active{border-color:var(--bronze);transform:translateY(1px)}
 .season-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:#7fc24e;opacity:.58;
   transition:background .45s ease;pointer-events:none}
 .season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.season-head{display:flex;align-items:baseline;gap:5px;min-width:0;line-height:1}
+.time-label{font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:#fff0d8;font-weight:700;flex:0 0 auto}
 .season-box .season-name{font-size:15.5px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time-progress{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.time-progress rect{fill:none;stroke:#ffd39e;stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:100;stroke-dashoffset:100;
+  transition:stroke-dashoffset var(--motion-control) linear,opacity var(--motion-control);opacity:0}
+.season-box.hold-arming .time-progress rect{stroke-dashoffset:0;opacity:1;transition-duration:360ms}
+.season-box.fast-forwarding{border-color:#ffd39e;background:rgba(201,127,63,.18)}
+.season-box.fast-forwarding .time-progress rect{stroke-dashoffset:0;opacity:1}
+.time-state{display:none;color:#fff3df;font-weight:700}
+.season-box.fast-forwarding #seasonClkCal,.season-box.fast-forwarding #seasonPhase{display:none!important}
+.season-box.fast-forwarding .time-state{display:inline}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0}
 .pill{pointer-events:auto;padding:2px;font-size:12px;color:var(--seedhead)}
 .pill button{background:none;border:none;color:var(--bronze);font-weight:600;font-size:12px;text-decoration:none;cursor:pointer;border-radius:var(--radius-control);padding:2px 6px}
 .pill button:hover{background:var(--surface-control-hover)}
 .pill.iconbar{display:flex;gap:2px;padding:4px 6px}
 .pill.iconbar button{display:flex;align-items:center;gap:4px;text-decoration:none;
-  font-size:14px;padding:5px 8px;border-radius:var(--radius-control);color:var(--text-primary)}
+  font-size:14px;padding:5px 8px;border-radius:var(--radius-control);color:var(--text-primary);
+  transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.pill.iconbar button:active{transform:translateY(1px)}
 .pill.iconbar button:hover{background:var(--surface-control-hover)}
 .pill.iconbar button.disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .pill.iconbar .lbl{font-size:11px;color:var(--text-secondary)}
@@ -365,7 +395,9 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .active-tool-status span{display:block;color:var(--text-secondary);margin-top:1px}
 .canvas-tool{width:48px;min-height:50px;border-radius:var(--radius-control);border:1.5px solid transparent;background:var(--surface-control);
   color:var(--text-secondary);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;
-  padding:3px 2px 4px;position:relative;text-decoration:none}
+  padding:3px 2px 4px;position:relative;text-decoration:none;
+  transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.canvas-tool:active:not(.disabled){transform:translateY(1px)}
 .canvas-tool canvas{position:absolute;top:3px;left:50%;transform:translateX(-50%)}
 .canvas-tool canvas.rail-swatch{left:auto;right:2px;top:2px;transform:none;width:18px;height:16px;
   border-radius:3px;background:rgba(25,18,15,.72);border:1px solid rgba(239,230,211,.28)}
@@ -378,9 +410,13 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .canvas-tool.disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .canvas-sep{height:1px;background:rgba(239,230,211,.16);margin:2px 3px}
 .tool-popover{position:absolute;left:calc(100% + 7px);top:108px;width:154px;background:var(--surface-dialog);
-  border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);padding:var(--space-1);box-shadow:var(--shadow-overlay)}
+  border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);padding:var(--space-1);box-shadow:var(--shadow-overlay);
+  animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}
+@keyframes popoverEnter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .tool-popover button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;border-radius:var(--radius-control);
-  color:var(--text-secondary);text-align:left;font-size:12px;padding:8px 9px}
+  color:var(--text-secondary);text-align:left;font-size:12px;padding:8px 9px;
+  transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.tool-popover button:active{transform:translateY(1px)}
 .tool-popover button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .tool-popover button.sel{background:var(--surface-active);color:var(--text-primary)}
 .view-tools-popover{width:168px}
@@ -406,12 +442,15 @@ canvas.layer-eye{display:block}
 .hud-bottom{position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:50%;z-index:10;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:100%;padding:0 var(--space-2)}
 #sheetHandle{display:none} /* the collapse handle is a phone-only affordance */
 #sheetHandle canvas{width:24px;height:21px;flex-shrink:0;display:block}
+#sheetCatalog{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:100%}
 #trayTabs{position:relative}
 #trayTabs{pointer-events:auto;display:flex;gap:2px;background:var(--surface-workspace);
   border:1.5px solid var(--border-subtle);border-bottom:none;border-radius:var(--radius-panel) var(--radius-panel) 0 0;
   padding:5px 8px 0;max-width:96vw;overflow-x:auto;margin-bottom:-8px}
 #trayTabs .tab{background:none;border:none;color:var(--text-secondary);font-size:11px;font-weight:600;
-  letter-spacing:.05em;padding:6px 10px 8px;border-radius:var(--radius-control) var(--radius-control) 0 0;white-space:nowrap}
+  letter-spacing:.05em;padding:6px 10px 8px;border-radius:var(--radius-control) var(--radius-control) 0 0;white-space:nowrap;
+  transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+#trayTabs .tab:active{transform:translateY(1px)}
 #trayTabs .tab:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 #trayTabs .tab.sel{background:var(--surface-active);color:var(--text-primary)}
 #trayTabs .tab.grp{border-radius:var(--radius-control);color:var(--text-primary);opacity:.55;margin-bottom:4px}
@@ -421,7 +460,7 @@ canvas.layer-eye{display:block}
   display:flex;align-items:center;justify-content:center}
 #trayTabs .tab.tab-search canvas{width:18px;height:18px;display:block}
 #trayTabs .tab.tab-search.sel{opacity:1;background:var(--surface-active)}
-/* the ✕ close state: a touch bolder so it reads as "exit search" */
+/* the search close state: a touch bolder so it reads as "exit search" */
 #trayTabs .tab.tab-search.close{font-size:12px;font-weight:700;color:var(--seedhead)}
 .cat-current{display:none}
 .cat-pop{display:none}
@@ -444,7 +483,9 @@ canvas.layer-eye{display:block}
 #brushBar .brush-lab.danger{color:var(--action-danger)}   /* Erase: the bar reads destructive */
 .seg{display:inline-flex;border:1px solid var(--border-subtle);border-radius:var(--radius-control);overflow:hidden;flex-shrink:0}
 .seg .seg-opt{display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--text-secondary);
-  font-size:11px;font-weight:600;letter-spacing:.03em;padding:5px 9px;white-space:nowrap}
+  font-size:11px;font-weight:600;letter-spacing:.03em;padding:5px 9px;white-space:nowrap;
+  transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.seg .seg-opt:active{transform:translateY(1px)}
 .seg .seg-opt+.seg-opt{border-left:1px solid rgba(239,230,211,.18)}
 .seg .seg-opt:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .seg .seg-opt.on{background:var(--surface-active);color:var(--text-primary)}
@@ -453,7 +494,9 @@ canvas.layer-eye{display:block}
   align-self:center;padding:0 4px 0 8px;white-space:nowrap}
 .chip-swatch{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.35);flex-shrink:0}
 .tool{width:54px;min-width:54px;height:62px;border-radius:var(--radius-control);border:1.5px solid transparent;background:var(--surface-control);
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:4px;gap:2px;position:relative}
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:4px;gap:2px;position:relative;
+  transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.tool:active:not(.disabled){transform:translateY(1px)}
 .tool canvas{position:absolute;top:2px;left:50%;transform:translateX(-50%);pointer-events:none}
 .tool span{font-size:8.5px;color:var(--text-secondary);text-align:center;line-height:1.05;pointer-events:none}
 .tool:hover:not(.disabled){background:var(--surface-control-hover)}
@@ -463,7 +506,7 @@ canvas.layer-eye{display:block}
 .tool.danger.sel{border-color:var(--action-danger);background:var(--surface-danger)}
 .tool.danger.sel span{color:var(--action-danger-text)}
 .tool.disabled{opacity:var(--disabled-opacity);pointer-events:none}
-.tool.has-sub::after{content:'\203A';position:absolute;top:0;right:5px;font-size:15px;line-height:1;color:var(--bronze);pointer-events:none}
+.tool.has-sub::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-top:1.5px solid var(--bronze);border-right:1.5px solid var(--bronze);transform:rotate(45deg);pointer-events:none}
 .tool.tool-back{background:rgba(201,127,63,.12);border-color:rgba(201,127,63,.3)}
 .tool.tool-back span{color:var(--seedhead)}
 #actionHint{pointer-events:none;font-size:12px;color:var(--seedhead);background:var(--surface-overlay);
@@ -477,7 +520,10 @@ canvas.layer-eye{display:block}
   border:1.5px solid var(--border-subtle);border-radius:var(--radius-pill);padding:4px;color:var(--text-secondary);
   box-shadow:var(--shadow-control)}
 .zoom-pill button{min-width:34px;height:30px;border:none;border-radius:var(--radius-pill);background:var(--surface-control);
-  color:var(--text-primary);font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif}
+  color:var(--text-primary);font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
+  transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.zoom-pill button:active{transform:translateY(1px)}
+.zoom-pill button .ui-icon{width:15px;height:15px}
 .zoom-pill button:hover{background:var(--surface-control-hover)}
 .zoom-pill #zoomLabel{min-width:42px;text-align:center;font-size:11px;font-weight:700;color:var(--text-secondary)}
 .selection-actions{position:absolute;left:50%;top:50%;z-index:14;pointer-events:auto;display:flex;gap:4px;
@@ -495,6 +541,18 @@ canvas.layer-eye{display:block}
   border:1.5px solid var(--border-subtle);border-radius:var(--radius-pill);padding:10px 16px;color:var(--text-primary);
   font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif;opacity:0;transition:opacity .18s ease}
 .gesture-cancel.show{opacity:1}
+.coach-tip{position:absolute;left:max(12px,env(safe-area-inset-left));top:calc(58px + env(safe-area-inset-top));z-index:24;
+  display:flex;align-items:center;gap:10px;max-width:min(330px,calc(100vw - 24px));pointer-events:auto;
+  padding:9px 9px 9px 12px;border:1.5px solid var(--border-active);border-radius:var(--radius-panel);
+  background:var(--surface-dialog);box-shadow:var(--shadow-overlay);color:var(--text-primary);font-size:12px;line-height:1.35;
+  animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
+.coach-tip::before{content:'';position:absolute;top:-6px;left:76px;width:10px;height:10px;background:var(--surface-dialog);
+  border-left:1.5px solid var(--border-active);border-top:1.5px solid var(--border-active);transform:rotate(45deg)}
+.coach-tip span{position:relative;z-index:1}
+.coach-tip button{position:relative;z-index:1;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:0 0 30px;
+  border:0;border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary)}
+.coach-tip button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
+.coach-tip button .ui-icon{width:15px;height:15px}
 @media(max-width:1024px), (pointer:coarse){
   #zoomPill{display:none}
 }
@@ -510,7 +568,8 @@ canvas.layer-eye{display:block}
 #plantCard{position:fixed;top:108px;right:10px;background:var(--surface-dialog);
   border:1.5px solid var(--border-control);border-radius:var(--radius-panel);padding:14px 26px 14px 18px;z-index:25;max-width:300px;display:none;box-shadow:var(--shadow-overlay)}
 .card-x{position:absolute;top:5px;right:7px;background:none;border:none;color:var(--text-muted);
-  font-size:14px;line-height:1;padding:4px}
+  font-size:14px;line-height:1;padding:4px;display:flex;align-items:center;justify-content:center}
+.card-x .ui-icon{width:15px;height:15px}
 .card-x:hover{color:var(--seedhead)}
 #plantCard h3{font-family:'Fraunces',serif;font-size:19px}
 #plantCard .latin{font-style:italic;color:var(--bronze);font-size:12px;margin-bottom:6px}
@@ -531,11 +590,11 @@ body.no-glass #canvasTools,body.no-glass #trayTabs,body.no-glass #toolTray,
 body.no-glass #cvRow,body.no-glass #brushBar{background:rgba(24,17,13,.93)}
 body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.96)}
 .pause-panel{max-width:360px}
-/* garden menu: a compact dropdown anchored under the ☰ button (top/right set
+/* garden menu: a compact dropdown anchored under the menu button (top/right set
    in JS), not a full-screen centered modal — keeps the garden in view */
 #gardenMenu{display:block;padding:0;background:transparent}
 #gardenMenu .panel{position:fixed;top:54px;right:10px;width:236px;max-width:calc(100vw - 16px);
-  padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop .14s ease-out}
+  padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop var(--motion-menu) var(--ease-emphasized)}
 #gardenMenu .panel h2{font-size:16px;margin-bottom:2px}
 #gardenMenu .panel .sub{display:none}
 #gardenMenu .pause-actions{gap:6px}
@@ -553,7 +612,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
 #pauseScreen{display:block;padding:0;background:transparent;z-index:18;pointer-events:none}
 #pauseScreen .panel{pointer-events:auto}
 #pauseScreen .panel{position:fixed;top:56px;left:10px;width:214px;max-width:calc(100vw - 16px);
-  padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop .14s ease-out}
+  padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop var(--motion-menu) var(--ease-emphasized)}
 #pauseScreen .panel h2{font-size:16px;margin-bottom:2px}
 #pauseScreen .panel .sub{font-size:11px;margin-bottom:10px}
 #pauseScreen .pause-actions{gap:6px}
@@ -688,10 +747,14 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;touch-action:none;
     background:var(--surface-workspace);
     border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);
-    height:44px;min-height:44px;padding:9px 16px;color:var(--text-primary);font-size:12px;font-weight:600;max-width:96vw;flex:0 0 44px}
+    height:44px;min-height:44px;padding:9px 16px;color:var(--text-primary);font-size:12px;font-weight:600;max-width:96vw;flex:0 0 44px;
+    transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+  #sheetHandle.dragging{background:var(--surface-control-hover);border-color:var(--border-active);transform:translateY(1px)}
   #sheetHandle .grip-bar{width:26px;height:4px;border-radius:var(--radius-control);background:var(--border-strong);flex-shrink:0}
+  #sheetHandle.dragging .grip-bar{background:var(--bronze)}
   #sheetHandle .sheet-ctx{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48vw}
-  #sheetHandle .chev{color:var(--bronze);font-size:10px}
+  #sheetHandle .chev{color:var(--bronze);display:flex}
+  #sheetHandle .chev .ui-icon{width:14px;height:14px}
   /* fatter tap targets on touch screens */
   .seg .seg-opt{min-height:44px;padding:9px 10px}
   #cvRow .chip{min-height:44px;padding:9px 13px;display:flex;align-items:center}
@@ -705,11 +768,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
     background:var(--surface-control);border:1px solid var(--border-quiet);border-radius:var(--radius-control);
     color:var(--text-primary);font-size:12px;font-weight:700;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}
   .cat-current span{overflow:hidden;text-overflow:ellipsis}
-  .cat-current i{font-style:normal;color:var(--bronze);font-size:10px}
+  .cat-current i{font-style:normal;color:var(--bronze);display:flex}
+  .cat-current i .ui-icon{width:14px;height:14px}
   .cat-pop{position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));
     bottom:calc(100% + 8px);z-index:42;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;
     padding:7px;background:var(--surface-dialog);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay)}
+    border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay);
+    animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}
   .cat-pop button{min-height:44px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);
     color:var(--text-secondary);font:700 12px/1.1 'IBM Plex Sans',system-ui,sans-serif}
   .cat-pop button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
@@ -725,15 +790,16 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
      The catalog's own bottom padding lifts it clear of the home indicator
      while the tray background runs to the screen edge behind it. */
   .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
+  #sheetCatalog{width:100%;gap:6px;max-height:calc(100lvh - 128px);overflow:visible;opacity:1;transform:translateY(0);visibility:visible;
+    transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear 0s}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
   #toolTray{min-height:96px;max-height:min(34vh,276px);overflow-x:hidden;overflow-y:auto;
     flex-wrap:wrap;align-content:flex-start;align-items:flex-start;-webkit-overflow-scrolling:touch;
     padding-bottom:calc(6px + env(safe-area-inset-bottom));
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
-  .hud-bottom.sheet-collapsed #cvRow,
-  .hud-bottom.sheet-collapsed #trayTabs,
-  .hud-bottom.sheet-collapsed #toolTray{display:none !important}
+  .hud-bottom.sheet-collapsed #sheetCatalog{max-height:0;overflow:hidden;opacity:0;transform:translateY(8px);visibility:hidden;pointer-events:none;
+    transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear var(--motion-panel)}
   .hud-bottom.sheet-full #toolTray{max-height:calc(100lvh - 222px);min-height:min(52vh,520px)}
   .hud-bottom.sheet-full #trayTabs{border-top:1.5px solid rgba(239,230,211,.25)}
   .hud-bottom.sheet-half #toolTray{max-height:min(34vh,276px)}

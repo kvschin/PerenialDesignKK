@@ -1,4 +1,42 @@
 'use strict';
+const SVG_NS='http://www.w3.org/2000/svg';
+function uiIcon(name,className){
+  const svg=document.createElementNS(SVG_NS,'svg');
+  svg.setAttribute('class','ui-icon'+(className?' '+className:''));
+  svg.setAttribute('aria-hidden','true');
+  const use=document.createElementNS(SVG_NS,'use');
+  use.setAttribute('href',`#ui-${name}`);
+  svg.appendChild(use);
+  return svg;
+}
+function setUiIcon(el,name){ if (el) el.replaceChildren(uiIcon(name)); }
+
+const TIME_COACH_KEY='hortus:coach:time-v1';
+function dismissCoachTip(){
+  const tip=document.getElementById('coachTip'); if (!tip) return;
+  tip.classList.add('hidden'); clearTimeout(tip._timer);
+}
+function showTimeCoachTip(){
+  const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
+  if (!tip || !txt || !game.mode || game.visiting || game.gameMode!=='design') return;
+  try{ if (localStorage.getItem(TIME_COACH_KEY)) return;
+    localStorage.setItem(TIME_COACH_KEY,'1'); }catch(_){ if (tip.dataset.shown) return; }
+  tip.dataset.shown='1';
+  const touch=typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches;
+  txt.textContent=touch
+    ? 'Tap Time for controls, or hold it to fast-forward. Pinch the garden to zoom.'
+    : 'Tap Time for controls, or hold it to fast-forward.';
+  tip.classList.remove('hidden');
+  clearTimeout(tip._timer); tip._timer=setTimeout(dismissCoachTip,7500);
+}
+function syncHapticsButton(){
+  const b=document.getElementById('btnHaptics'); if (!b) return;
+  const supported=supportsHaptics();
+  b.classList.toggle('hidden',!supported);
+  if (!supported) return;
+  b.textContent=`Haptic feedback · ${hapticsOn?'On':'Off'}`;
+  b.setAttribute('aria-pressed',hapticsOn?'true':'false');
+}
 /* ---------- plant roles ----------
    Designer mode uses roles to push the right plants forward for the
    chosen garden style. Roles are computed from the plant data so the
@@ -441,7 +479,7 @@ function updateDayNightBtn(){
   const night=!!game.layerVis.night;
   if (b._night===night) return;   // runs per frame — write only on change
   b._night=night;
-  b.textContent=night?'☾':'☀';
+  setUiIcon(b,night?'moon':'sun');
   b.classList.toggle('on',night);
   b.title=night?'Switch to day':'Switch to night (preview lighting)';
 }
