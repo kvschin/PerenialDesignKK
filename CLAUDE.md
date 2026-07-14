@@ -867,6 +867,12 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
 - Respect `prefers-reduced-motion` (already handled in CSS).
+- Treat canvas guidance as persistent workspace state, not a transient toast:
+  `#activeToolStatus` names the armed tool and its next canvas action. Dialogs
+  use the shared `openOverlay` / `closeOverlay` focus path, trap keyboard focus,
+  restore the opener on close, and use the dialog surface/scrim tokens. Compact
+  view and layer flyouts expose menu state through ARIA. The mobile palette has
+  collapsed, half, and full states reachable by both swipe and handle activation.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 

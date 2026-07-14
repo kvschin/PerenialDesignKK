@@ -148,7 +148,7 @@
   <div class="hud-top">
     <div class="season-dial">
       <button id="btnDayNight" class="daynight" title="Switch to night (preview lighting)" aria-label="Toggle day or night">☀</button>
-      <button class="season-box" id="btnSeasonBox" title="Hold to speed up time · tap for the time menu" aria-label="Season — hold to speed up time, tap for the time menu">
+      <button class="season-box" id="btnSeasonBox" title="Hold to speed up time · tap for the time menu" aria-label="Season — hold to speed up time, tap for the time menu" aria-haspopup="dialog" aria-controls="pauseScreen" aria-expanded="false">
         <span class="season-fill" id="seasonFill"></span>
         <span class="season-box-inner">
           <span class="season-name" id="seasonName">Spring</span>
@@ -158,14 +158,14 @@
       <div class="top-tools-full" aria-label="View tools">
         <button id="btnSelectTool" class="top-tool" title="Select an area" aria-label="Select an area"><canvas id="btnSelectIcon" width="42" height="32" aria-hidden="true"></canvas></button>
         <button id="btnRotateTool" class="top-tool" title="Rotate view (R)" aria-label="Rotate view"><canvas id="btnRotateIcon" width="42" height="32" aria-hidden="true"></canvas></button>
-        <button id="btnLayersTool" class="top-tool" title="Show or hide garden layers and overlays" aria-label="Garden layers and overlays"><canvas id="btnLayersIcon" width="42" height="32" aria-hidden="true"></canvas></button>
+        <button id="btnLayersTool" class="top-tool" title="Show or hide garden layers and overlays" aria-label="Garden layers and overlays" aria-haspopup="menu" aria-controls="layerPop" aria-expanded="false"><canvas id="btnLayersIcon" width="42" height="32" aria-hidden="true"></canvas></button>
         <button id="btnRulerTool" class="top-tool" title="Tape measure" aria-label="Tape measure"><canvas id="btnRulerIcon" width="42" height="32" aria-hidden="true"></canvas></button>
       </div>
-      <button id="btnViewTools" class="top-tool" title="View tools" aria-label="View tools"><canvas id="btnViewToolsIcon" width="42" height="32" aria-hidden="true"></canvas></button>
+      <button id="btnViewTools" class="top-tool" title="View tools, zoom, and fit plot" aria-label="View tools, zoom, and fit plot" aria-haspopup="menu" aria-controls="viewToolsPop" aria-expanded="false"><canvas id="btnViewToolsIcon" width="42" height="32" aria-hidden="true"></canvas></button>
     </div>
     <div class="hud-right">
       <div class="pill iconbar" id="actionBar">
-        <button id="btnMenu" title="Garden menu"><span class="ic-emoji" style="display:inline">☰</span><span class="lbl">Menu</span></button>
+        <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><span class="ic-emoji" style="display:inline">☰</span><span class="lbl">Menu</span></button>
       </div>
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
@@ -187,7 +187,7 @@
   <div id="selectionActions" class="selection-actions hidden" aria-label="Selection actions"></div>
   <div id="gestureCancel" class="gesture-cancel hidden" aria-live="polite"></div>
   <div class="hud-bottom">
-    <button id="sheetHandle" aria-label="Expand or collapse the palette" aria-controls="brushBar trayTabs toolTray" aria-expanded="true"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
+    <button id="sheetHandle" aria-label="Expand palette to full height" aria-controls="brushBar trayTabs toolTray" aria-expanded="true" data-state="half"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev">▾</span></button>
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
     <div id="cvRow" class="chip-row hidden"></div>
@@ -198,8 +198,8 @@
 </div>
 
 <!-- GARDEN MENU -->
-<div class="screen hidden" id="gardenMenu">
-  <div class="panel pause-panel">
+<div class="screen hidden" id="gardenMenu" role="dialog" aria-modal="false" aria-labelledby="worldLabel">
+  <div class="panel pause-panel" tabindex="-1">
     <h2 id="worldLabel">My garden</h2>
     <p class="sub">Take something out of your garden — or head back.</p>
     <div class="pause-actions">
@@ -216,9 +216,9 @@
 </div>
 
 <!-- TIME MENU -->
-<div class="screen hidden" id="pauseScreen">
-  <div class="panel pause-panel">
-    <h2>Time</h2>
+<div class="screen hidden" id="pauseScreen" role="dialog" aria-modal="false" aria-labelledby="timeMenuTitle">
+  <div class="panel pause-panel" tabindex="-1">
+    <h2 id="timeMenuTitle">Time</h2>
     <p class="sub" id="pauseMeta">Spring · Year 1 · Day 1</p>
     <div class="preview-toggle hidden" id="previewToggle">
       <span>Plant preview</span>
@@ -237,8 +237,8 @@
 </div>
 
 <!-- CONFIRM SEASON SKIP -->
-<div class="screen hidden" id="confirmSeasonScreen">
-  <div class="panel pause-panel">
+<div class="screen modal-screen hidden" id="confirmSeasonScreen" role="alertdialog" aria-modal="true" aria-labelledby="confirmSeasonTitle">
+  <div class="panel pause-panel" tabindex="-1">
     <h2 id="confirmSeasonTitle">Skip to Summer?</h2>
     <p class="sub">Plants will grow, bloom states may update, and seasonal events may advance.</p>
     <div class="row" style="margin-top:14px">
@@ -320,9 +320,9 @@
 </div>
 
 <!-- PLANT FILTERS -->
-<div class="screen hidden" id="filterScreen">
-  <div class="panel">
-    <h2>Plant filters</h2>
+<div class="screen modal-screen hidden" id="filterScreen" role="dialog" aria-modal="true" aria-labelledby="filterTitle">
+  <div class="panel" tabindex="-1">
+    <h2 id="filterTitle">Plant filters</h2>
     <p class="sub">Tune the palette without changing the garden. Zone keeps plants winter-hardy; the toggles narrow what appears in the tray.</p>
     <div class="field">
       <label for="filterZoneSel">USDA hardiness zone</label>
@@ -342,8 +342,8 @@
 </div>
 
 <!-- DESIGN PLAN (Oudolf-style drift map) -->
-<div class="screen hidden" id="planScreen">
-  <div class="panel" style="max-width:min(94vw,1040px);width:100%">
+<div class="screen modal-screen hidden" id="planScreen" role="dialog" aria-modal="true" aria-label="Design plan">
+  <div class="panel" tabindex="-1" style="max-width:min(94vw,1040px);width:100%">
     <div class="plan-wrap"><canvas id="planCanvas"></canvas></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnPlanPng">Download PNG</button>
@@ -354,9 +354,9 @@
 </div>
 
 <!-- BLOOM CALENDAR -->
-<div class="screen hidden" id="bloomScreen">
-  <div class="panel" style="max-width:min(94vw,940px);width:100%">
-    <h2>Bloom calendar</h2>
+<div class="screen modal-screen hidden" id="bloomScreen" role="dialog" aria-modal="true" aria-labelledby="bloomTitle">
+  <div class="panel" tabindex="-1" style="max-width:min(94vw,940px);width:100%">
+    <h2 id="bloomTitle">Bloom calendar</h2>
     <p class="sub" id="bloomMeta"></p>
     <div id="bloomBody"></div>
     <button class="back-link" id="btnBloomClose">Back to the garden</button>
@@ -364,9 +364,9 @@
 </div>
 
 <!-- EXPORT / PLANTING LIST -->
-<div class="screen hidden" id="exportScreen">
-  <div class="panel" style="max-width:640px">
-    <h2>Planting list</h2>
+<div class="screen modal-screen hidden" id="exportScreen" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+  <div class="panel" tabindex="-1" style="max-width:640px">
+    <h2 id="exportTitle">Planting list</h2>
     <p class="sub" id="exportMeta"></p>
     <div id="exportBody"></div>
     <div class="row" style="margin-top:14px">

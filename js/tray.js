@@ -570,31 +570,23 @@ function pickAt(x,y){
 function choosePlantMode(drift){
   game.drift=!!drift; game.matrix=false;   // Draw/Drift and Matrix are exclusive patterns
   armPlantToolFromRail(false);
-  toast(game.drift
-    ? 'Drift planting on. Pick a plant, then paint natural clusters.'
-    : 'Draw mode. Pick a plant, then paint single placements.');
+  updateActiveToolStatus();
 }
 function chooseMatrixMode(){
   game.matrix=true; game.drift=false;
   armPlantToolFromRail(false);
-  toast('Matrix on. Paint a region to scatter this species at its spacing — plant feature forbs first, then flow the grass matrix around them.');
+  updateActiveToolStatus();
 }
 function choosePlacementMode(free){
   game.freePlanting=!!free;
   armPlantToolFromRail(false);
-  toast(game.freePlanting
-    ? 'Free placement on. Herbaceous plants land where you click, not just tile centers.'
-    : 'Grid placement on. Plants sit neatly at tile centers.');
+  updateActiveToolStatus();
 }
 function chooseWoodyAge(age){
   game.woodyAge=normalizeWoodyAge(age);
   armPlantToolFromRail(false);
   renderBrushBar();
-  toast(game.woodyAge==='mature'
-    ? 'Planting at mature size — for trees and shrubs already in the yard.'
-    : game.woodyAge==='young'
-    ? 'Planting about half grown.'
-    : 'Planting new — it grows in over the years.');
+  updateActiveToolStatus();
 }
 function chooseFillMode(on){
   if (on && !toolMeta(game.tool).paints){
@@ -605,7 +597,7 @@ function chooseFillMode(on){
   }
   game.fillMode=!!on;
   renderBrushBar(); refreshCanvasTools(); updateCanvasCursor();
-  toast(game.fillMode?'Fill mode on. Tap a connected area to flood it.':'Fill mode off. Drag or tap to paint.');
+  updateActiveToolStatus();
 }
 // (renderEraseTray / renderSelectTray were retired in Wave 4 — the Erase and
 // Select tool options moved to the brush bar and the marquee action pill.)
@@ -616,30 +608,39 @@ function visibleEl(el){ return !!(el && getComputedStyle(el).display!=='none'); 
 function syncTopTools(){
   const sel=document.getElementById('btnSelectTool');
   if (sel){ sel.classList.toggle('sel',game.tool==='select');
-    sel.onclick=()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
-      toast('Drag a box on the garden to select an area.'); };
+    sel.onclick=()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools(); };
     const c=document.getElementById('btnSelectIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'select'); }
   const rot=document.getElementById('btnRotateTool');
   if (rot){ rot.onclick=()=>rotateView(1);
     const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
   const lay=document.getElementById('btnLayersTool');
   if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
+    lay.setAttribute('aria-expanded',game.toolMenu==='layers'?'true':'false');
     lay.onclick=()=>toggleLayerMenu();
     const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
   const rul=document.getElementById('btnRulerTool');
   if (rul){ rul.classList.toggle('sel',game.tool==='ruler');
-    rul.onclick=()=>{ setTool('ruler'); toast('Tap two points, or drag, to measure.'); };
+    rul.onclick=()=>setTool('ruler');
     const c=document.getElementById('btnRulerIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'ruler'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
+    view.setAttribute('aria-expanded',(game.toolMenu==='view'||(!visibleEl(lay)&&game.toolMenu==='layers'))?'true':'false');
     view.onclick=()=>toggleViewToolsMenu();
     const c=document.getElementById('btnViewToolsIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'viewtools'); }
   renderViewToolsMenu();
   renderLayerMenu();
 }
 function toggleViewToolsMenu(){
-  game.toolMenu = game.toolMenu==='view' ? null : 'view';
+  const opening=game.toolMenu!=='view';
+  game.toolMenu = opening ? 'view' : null;
   refreshCanvasTools();
+  if (opening) focusToolMenu('viewToolsPop');
+}
+function focusToolMenu(id){
+  requestAnimationFrame(()=>{
+    const pop=document.getElementById(id), first=pop&&pop.querySelector('button:not([disabled])');
+    if (first) first.focus({preventScroll:true});
+  });
 }
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
@@ -669,6 +670,7 @@ function buildCanvasTools(){
 }
 function popButton(label,kind,sel,fn,title,extra){
   const b=document.createElement('button');
+  b.setAttribute('role','menuitem');
   b.className=(sel?' sel':'')+(extra||'');
   b.title=title||label;
   if (kind){
@@ -702,6 +704,7 @@ function renderViewToolsMenu(){
   if (game.toolMenu!=='view' || !visibleEl(btn)) return;
   const pop=document.createElement('div');
   pop.id='viewToolsPop'; pop.className='tool-popover view-tools-popover';
+  pop.setAttribute('role','menu'); pop.setAttribute('aria-label','View tools');
   pop.appendChild(popButton('Fit plot',null,false,()=>{
     fitPlot(); game.toolMenu=null; refreshCanvasTools(); toast('Plot fitted to the available canvas.');
   },'Fit the whole plot in the clear canvas area'));
@@ -710,19 +713,17 @@ function renderViewToolsMenu(){
   if (!game.visiting){
     pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
       setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
-      toast('Drag a box on the garden to select an area.');
     },'Select an area'));
   }
   pop.appendChild(popButton('Rotate','rotate',false,()=>{
     rotateView(1); game.toolMenu=null; refreshCanvasTools();
   },'Rotate view 90 degrees'));
   pop.appendChild(popButton('Layers','layers',layerViewActive(),()=>{
-    game.toolMenu='layers'; refreshCanvasTools();
+    game.toolMenu='layers'; refreshCanvasTools(); focusToolMenu('layerPop');
   },'Show or hide garden layers'));
   if (!game.visiting){
     pop.appendChild(popButton('Ruler','ruler',game.tool==='ruler',()=>{
       setTool('ruler'); game.toolMenu=null; refreshCanvasTools();
-      toast('Tap two points, or drag, to measure.');
     },'Tape measure'));
   }
   anchorPopover(pop,btn);
@@ -745,8 +746,8 @@ function renderSelectionActions(){
     b.onclick=e=>{ e.stopPropagation(); fn&&fn(); };
     el.appendChild(b);
   };
-  btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); toast('Drag the selection to move it.'); });
-  btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); toast('Drag the selection to drop a copy.'); });
+  btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); updateActiveToolStatus(); });
+  btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); updateActiveToolStatus(); });
   btn('Fill',false,()=>fillSelectionWithPlant(),'Fill the selection with the last selected plant or landscape material');
   btn('Rotate',false,()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); },'Rotate the selection 90 degrees');
   btn('Erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },'Delete everything in the selection','danger');
@@ -774,20 +775,22 @@ function positionSelectionActions(){
 function showConfirm(title, body, okLabel, onOk){
   const old=document.getElementById('confirmPop'); if (old) old.remove();
   const scr=document.createElement('div');
-  scr.id='confirmPop'; scr.className='screen';
-  scr.style.cssText='z-index:60;background:rgba(0,0,0,.55)';
-  scr.innerHTML='<div class="panel pause-panel"><h2></h2><p class="sub"></p>'+
+  scr.id='confirmPop'; scr.className='screen modal-screen hidden'; scr.setAttribute('role','alertdialog');
+  scr.setAttribute('aria-modal','true'); scr.setAttribute('aria-labelledby','confirmPopTitle');
+  scr.style.zIndex='60';
+  scr.innerHTML='<div class="panel pause-panel" tabindex="-1"><h2 id="confirmPopTitle"></h2><p class="sub"></p>'+
     '<div class="row" style="margin-top:14px">'+
     '<button class="btn" data-x></button><button class="btn primary" data-ok></button></div></div>';
   scr.querySelector('h2').textContent=title;
   scr.querySelector('p').textContent=body||'';
   scr.querySelector('[data-x]').textContent='Cancel';
   scr.querySelector('[data-ok]').textContent=okLabel||'OK';
-  const close=()=>scr.remove();
+  const close=()=>{ closeOverlay('confirmPop'); scr.remove(); };
   scr.querySelector('[data-x]').onclick=close;
   scr.querySelector('[data-ok]').onclick=()=>{ close(); onOk&&onOk(); };
   scr.addEventListener('click',e=>{ if (e.target===scr) close(); });
   document.body.appendChild(scr);
+  openOverlay('confirmPop','[data-x]');
 }
 /* the layer is hidden but the gardener is trying to draw on it: offer to
    reveal it, and honor their click by placing once they say yes. */
@@ -816,8 +819,10 @@ function blockIfWrongEditLayer(layer){
   return true;
 }
 function toggleLayerMenu(){
-  game.toolMenu = game.toolMenu==='layers' ? null : 'layers';
+  const opening=game.toolMenu!=='layers';
+  game.toolMenu = opening ? 'layers' : null;
   refreshCanvasTools();
+  if (opening) focusToolMenu('layerPop');
 }
 // The Layers flyout hangs off the top-bar Layers button now, so pin it there as
 // a fixed dropdown (same idea as the garden/time menus) and rebuild it in place
@@ -830,6 +835,7 @@ function renderLayerMenu(){
   if (game.toolMenu!=='layers' || !btn) return;
   const viewPop=document.getElementById('viewToolsPop'); if (viewPop) viewPop.remove();
   const pop=buildLayerPopover(); pop.id='layerPop';
+  pop.setAttribute('aria-label','Garden layers and overlays');
   pop.style.position='fixed'; pop.style.zIndex='40';
   pop.style.bottom='auto'; pop.style.right='auto';
   document.body.appendChild(pop);
@@ -841,9 +847,9 @@ function renderLayerMenu(){
 function buildLayerPopover(){
   if (!ENABLE_LAYER_EDIT_FOCUS) game.layerFocus='all';
   const pop=document.createElement('div');
-  pop.className='tool-popover layer-popover';
+  pop.className='tool-popover layer-popover'; pop.setAttribute('role','menu');
   const section=title=>{ const h=document.createElement('div');
-    h.className='layer-section'; h.textContent=title; pop.appendChild(h); };
+    h.className='layer-section'; h.setAttribute('role','presentation'); h.textContent=title; pop.appendChild(h); };
   const eyeIcon=(on)=>{
     const c=document.createElement('canvas');
     c.className='layer-eye';
@@ -865,6 +871,7 @@ function buildLayerPopover(){
   const row=(get,set,label)=>{
     const on=get();
     const b=document.createElement('button');
+    b.setAttribute('role','menuitemcheckbox'); b.setAttribute('aria-checked',on?'true':'false');
     b.className='layer-row'+(on?'':' off');
     b.title=(on?'Hide ':'Show ')+label;
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
@@ -876,6 +883,7 @@ function buildLayerPopover(){
   const focusRow=(key,label)=>{
     const on=game.layerFocus===key;
     const b=document.createElement('button');
+    b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',on?'true':'false');
     b.className='layer-row'+(on?' sel':'');
     b.title=`Edit ${label}`;
     const eye=document.createElement('span'); eye.className='layer-eye'; eye.textContent=on?'*':'-';
@@ -890,6 +898,7 @@ function buildLayerPopover(){
     !game.layerVis.shade && !game.layerVis.moisture && !game.layerVis.height &&
     !game.layerVis.matureCanopies && !game.layerVis.edgeRulers;
   const allRow=document.createElement('button');
+  allRow.setAttribute('role','menuitemradio'); allRow.setAttribute('aria-checked',allVisible()?'true':'false');
   allRow.className='layer-row'+(allVisible()?' sel':'');
   allRow.title='Show the normal full garden';
   const allName=document.createElement('span'); allName.className='layer-name'; allName.textContent='All';
@@ -1019,7 +1028,6 @@ function renderSearchPlantButton(tray,k){
     game.drill=(P.group||P.cv) ? k : null;
     setTool(k,null);
     buildToolTray();
-    toast(`${P.name} - ${P.latin}`);
   };
   tray.appendChild(b);
 }
@@ -1038,7 +1046,6 @@ function renderSearchToolButton(tray,item){
     game.drill=item.drill||null;
     setTool(item.tool,null);
     buildToolTray();
-    toast(`${item.label} selected.`);
   };
   tray.appendChild(b);
 }
@@ -1221,7 +1228,7 @@ function buildToolTray(){
       b.append(c,sp);
       b.onclick=()=>{
         if (drillable){ game.drill=k; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); }   // open its sub-species
-        else { setTool(k,null); toast(`${P.name} — ${P.latin}`); }
+        else setTool(k,null);
       };
       tray.appendChild(b);
       return true;
@@ -1310,7 +1317,7 @@ function buildToolTray(){
       ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
     ].filter(([k])=>cat.tools.includes(k))
     .forEach(([k,label,draw,hint])=>{
-      materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); toast(hint); },hint);
+      materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); },hint);
     });
     if (game.tool==='path' && cat.tools.includes('path')){
       const sep=document.createElement('span'); sep.className='tray-sep';
@@ -1318,7 +1325,7 @@ function buildToolTray(){
       PATH_COLORS.forEach((pc,i)=>materialBtn('path',pc.label.split(' ')[0],
         game.tool==='path'&&game.pathColor===pc.id,
         tc=>drawMat(tc,{fill:pc.fill,texture:'gravel',seed:100+i}),
-        ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); toast(`${pc.label} path selected.`); },
+        ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); },
         pc.label).dataset.pathColor=pc.id);
     }
     if (game.tool==='bed' && cat.tools.includes('bed')){
@@ -1327,7 +1334,7 @@ function buildToolTray(){
       BED_STYLES.forEach((bs,i)=>materialBtn('bed',bs.short||bs.label,
         game.tool==='bed'&&game.bedStyle===bs.id,
         tc=>drawMat(tc,{fill:bs.fill||'#54402f',texture:bs.texture,seed:150+i}),
-        ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); toast(`${bs.label} bed selected.`); },
+        ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
         bs.label).dataset.bedStyle=bs.id);
     }
     if (game.tool==='water' && cat.tools.includes('water')){
@@ -1336,7 +1343,7 @@ function buildToolTray(){
       WATER_STYLES.forEach((ws,i)=>materialBtn('water',ws.label,
         game.tool==='water'&&game.waterStyle===ws.id,
         tc=>drawMat(tc,{fill:ws.fill,deep:ws.deep,texture:'water',seed:200+i}),
-        ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); toast(`${ws.label} water selected.`); },
+        ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); },
         ws.label).dataset.waterStyle=ws.id);
     }
     // edge look for beds/paths/water — organic curves vs crisp tile edges
@@ -1410,8 +1417,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent='Fence';
       b.append(c,sp);
       b.title=`Fence: ${fenceLabel()}. Open to choose gate, height, and material.`;
-      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-        toast(`${fenceLabel()} selected. Choose height/material or drag to draw connected runs.`); };
+      b.onclick=()=>{ setTool('fence',null); game.drill='fence'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
     };
     const toolBtn=(label,sel,draftPatch,tip)=>{
@@ -1425,8 +1431,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.title=tip||label;
       b.onclick=()=>{ game.fenceDraft=normalizeFenceDraft(Object.assign({},fenceDraft(),draftPatch));
-        setTool('fence',null); rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-        toast(`${fenceLabel()} selected. Drag to draw connected runs.`); };
+        setTool('fence',null); rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b); return b;
     };
     if (!game.drill){
@@ -1492,7 +1497,6 @@ function buildToolTray(){
       if (patch.shape && !patch.size && patch.shape!==cur.shape) next.size=firepitSize(null,patch.shape).id;
       game.firepitDraft=normalizeFirepitDraft(next);
       setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-      toast(`${firepitLabel()} selected. Tap clear dry ground to place.`);
     };
     const toolBtn=(label,sel,patch,tip)=>{
       const d=normalizeFirepitDraft(Object.assign({},fd,patch));
@@ -1515,8 +1519,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent='Fire Pit';
       b.append(c,sp);
       b.title=`Fire Pit: ${firepitLabel()}. Open to choose shape and size.`;
-      b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-        toast(`${firepitLabel()} selected. Choose shape/size or tap to place.`); };
+      b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
     } else if (game.drill==='firepit'){
       backBtn();
@@ -1566,7 +1569,6 @@ function buildToolTray(){
     const choose=(type)=>{
       game.boulderDraft=normalizeBoulderDraft({type});
       setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-      toast(`${boulderLabel()} selected. Tap clear dry ground to place.`);
     };
     const toolBtn=(spec)=>{
       const b=document.createElement('button');
@@ -1589,8 +1591,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent='Boulder';
       b.append(c,sp);
       b.title=`Boulder: ${boulderLabel()}. Open to choose size and shape.`;
-      b.onclick=()=>{ setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
-        toast(`${boulderLabel()} selected. Choose size/shape or tap to place.`); };
+      b.onclick=()=>{ setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
     } else if (game.drill==='boulder'){
       backBtn();
@@ -1641,8 +1642,7 @@ function buildToolTray(){
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.title=tip||label;
       b.onclick=()=>{ game.lightDraft=normalizeLightDraft(Object.assign({},lightDraft(),draftPatch));
-        setTool('light',null); buildToolTray();
-        toast(`${lightLabel()} selected. Drag to place lighting.`); };
+        setTool('light',null); buildToolTray(); };
       tray.appendChild(b); return b;
     };
     sep('Fixture');
@@ -1685,7 +1685,6 @@ function buildToolTray(){
       };
       const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
         setTool('building',null); buildToolTray();
-        toast('Tap exterior corners. Tap the first corner or Close when the outline is ready.');
       });
       place.dataset.k='building'; place.title='Draw an orthogonal exterior building footprint';
       sep('Status');
@@ -1710,7 +1709,7 @@ function buildToolTray(){
         tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
         tc.strokeRect(3,8,42,32); },
       ()=>{ setTool('house',null); buildToolTray();
-        toast('Tap the map to set a house down — hover shows where. Place as many as you like.'); });
+      });
     pb.dataset.k='house';
     sep('House size');
     HOUSE_SIZES.forEach(([label,wf,df])=>{
@@ -1826,8 +1825,7 @@ function renderDrillIn(tray, drillKey, members){
     const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
     drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
     const sp=document.createElement('span'); sp.textContent=label; b.append(c,sp);
-    b.onclick=()=>{ setTool(k,v||null); buildToolTray();
-      const D=plantDef(k,v); toast(`${D.name} — ${D.latin}`); };
+    b.onclick=()=>{ setTool(k,v||null); buildToolTray(); };
     tray.appendChild(b);
   };
   members.forEach(k=>{
@@ -1874,12 +1872,12 @@ function renderBrushBar(){
     parts.push(seg([['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
       .map(([m,lbl])=>({label:lbl, on:game.eraseMode===m, title:`Erase ${lbl.toLowerCase()}`,
         click:()=>{ game.eraseMode=m; renderBrushBar();
-          toast(m==='all'?'Erasing everything.':`Erasing ${lbl.toLowerCase()} only.`); }}))));
+          updateActiveToolStatus(); }}))));
     const curE=normalizeBrushSize(game.brushSize);
     parts.push(seg(BRUSH_SIZES.map(sz=>({label:String(sz), on:curE===sz,
       title:`Erase ${sz} tile${sz>1?'s':''} wide`, draw:tc=>drawBrushSizeIcon(tc,sz),
       click:()=>{ setBrushSize(sz); renderBrushBar();
-        toast(`Erase brush: ${sz} tile${sz>1?'s':''} wide.`); }}))));
+        updateActiveToolStatus(); }}))));
     bar.append(...parts);
     return;
   }
@@ -1916,7 +1914,7 @@ function renderBrushBar(){
     parts.push(seg(BRUSH_SIZES.map(sz=>({
       label:String(sz), on:cur===sz, title:`Brush ${sz} tile${sz>1?'s':''} wide`,
       draw:tc=>drawBrushSizeIcon(tc,sz),
-      click:()=>{ setBrushSize(sz); renderBrushBar(); }
+      click:()=>{ setBrushSize(sz); renderBrushBar(); updateActiveToolStatus(); }
     }))));
   }
   const fillSeg=document.createElement('div'); fillSeg.className='seg';
@@ -1954,25 +1952,43 @@ function sheetContextLabel(){
   if (game.tool==='pick') return 'Eyedropper';
   return 'Tap to choose a plant';
 }
-function activeToolStatusInfo(){
+function persistentToolGuide(){
   const P=PLANTS[game.tool];
   if (game.tool==='building'){
     const n=(game.buildingDraft&&game.buildingDraft.vertices||[]).length;
-    return n ? {k:'Building footprint',v:`${n} corner${n===1?'':'s'} set · tap the next corner or close the outline`}
-      : {k:'Building footprint',v:'Tap exterior corners, then close the outline'};
+    return {k:'Building footprint',v:n
+      ? `${n} corner${n===1?'':'s'} set — tap the next corner, first corner, or Close outline`
+      : 'Tap exterior corners; use Close outline when the shape is complete'};
   }
   if (P){
-    const mode=game.matrix?'Matrix':game.drift?'Drift':'Draw';
-    return {k:'Planting',v:`${plantDef(game.tool,game.toolVar).name} · ${mode}${isWoodyDef(P)?` · ${cap(game.woodyAge)}`:''}`};
+    const D=plantDef(game.tool,game.toolVar), mode=game.matrix?'Matrix':game.drift?'Drift':'Draw';
+    const action=game.fillMode?'Tap a connected region to fill it':game.matrix?'Drag across the planting region':game.drift?'Tap or drag to form a natural cluster':'Tap once or drag to paint';
+    const placement=isWoodyDef(P)?` — ${cap(game.woodyAge)} size`:` — ${game.freePlanting?'Free':'Grid'} placement`;
+    return {k:D.name,v:`${mode} — ${action}${placement}`};
   }
-  const map={path:`${pathColor(game.pathColor).label} path`,bed:`${bedStyle(game.bedStyle).label} bed`,water:`${waterStyle(game.waterStyle).label} water`,
-    fence:fenceLabel(),light:lightLabel(),firepit:firepitLabel(),boulder:boulderLabel(),house:'Legacy house',
-    shovel:`Erase · ${game.eraseMode}`,select:'Select an area',ruler:'Tape measure',pick:'Pick a plant or material',hand:'Hand · drag to pan'};
-  return {k:map[game.tool]||'Plant tool',v:game.tool==='hand'?'Choose a plant or build tool below':''};
+  const guides={
+    hand:{k:'Hand',v:'Drag to pan — pinch, wheel, or View Tools to zoom'},
+    select:{k:'Select',v:game.sel?`${cap(game.selMode)} mode — drag the selected area to ${game.selMode==='copy'?'place a copy':'move it'}`:'Drag a box around an area, then use the actions above it'},
+    ruler:{k:'Tape measure',v:'Tap two points or drag between them'},
+    pick:{k:'Eyedropper',v:'Tap an existing plant, material, or structure to copy it'},
+    shovel:{k:'Erase',v:`${cap(game.eraseMode)} layer — tap or drag — ${game.brushSize}-tile brush`},
+    path:{k:`${pathColor(game.pathColor).label} path`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
+    bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
+    water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
+    raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
+    lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
+    level:{k:'Level grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
+    fence:{k:fenceLabel(),v:'Tap or drag to draw a connected run'},
+    light:{k:lightLabel(),v:'Tap or drag on clear, dry ground'},
+    firepit:{k:firepitLabel(),v:'Tap clear, dry ground to place'},
+    boulder:{k:boulderLabel(),v:'Tap clear, dry ground to place'},
+    house:{k:'Legacy house',v:'Tap the map to place the current size and finish'}
+  };
+  return guides[game.tool]||{k:'Choose a tool',v:'Select a plant or build tool from the palette'};
 }
 function updateActiveToolStatus(){
   const el=document.getElementById('activeToolStatus'); if (!el) return;
-  const info=activeToolStatusInfo();
+  const info=persistentToolGuide();
   el.innerHTML=`<b>${info.k}</b>${info.v?`<span>${info.v}</span>`:''}`;
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
 }
@@ -2006,7 +2022,7 @@ function setSheetState(s){
 }
 function cycleSheetState(){
   const s=normalizedSheetState(game.sheetState);
-  setSheetState(s==='collapsed'?'half':s==='half'?'collapsed':'half');
+  setSheetState(s==='collapsed'?'half':s==='half'?'full':'collapsed');
 }
 function nudgeSheetState(dir){
   const i=SHEET_STATES.indexOf(normalizedSheetState(game.sheetState));
@@ -2020,7 +2036,12 @@ function applySheetState(){
   hb.classList.add('sheet-'+s);
   hb.classList.toggle('collapsed', s==='collapsed');
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
-  const handle=document.getElementById('sheetHandle'); if (handle) handle.setAttribute('aria-expanded',s==='collapsed'?'false':'true');
+  const handle=document.getElementById('sheetHandle'); if (handle){
+    const next=s==='collapsed'?'half':s==='half'?'full':'collapsed';
+    handle.setAttribute('aria-expanded',s==='collapsed'?'false':'true');
+    handle.setAttribute('data-state',s);
+    handle.setAttribute('aria-label',`${cap(s)} palette; activate to show ${next} height`);
+  }
   const chev=document.querySelector('#sheetHandle .chev'); if (chev) chev.textContent=s==='full'?'▾':s==='half'?'─':'▴';
   drawSheetSwatch();
   updateActiveToolStatus();

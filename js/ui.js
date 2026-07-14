@@ -339,7 +339,7 @@ function openFilters(){
   $('filterDeer').checked=!!f.deer;
   $('filterRabbit').checked=!!f.rabbit;
   $('filterSquirrel').checked=!!f.squirrel;
-  $('filterScreen').classList.remove('hidden');
+  openOverlay('filterScreen','#filterZoneSel');
 }
 function applyFilters(){
   game.filters=normalizeFilters({
@@ -540,7 +540,40 @@ function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plo
   $(s).classList.toggle('hidden',s!==id));
   if (id==='menuScreen'){ game.challenge=null; game.visiting=false; advanceMenuSeason(); refreshMenuCards(); }
 }
-function closeOverlay(id){ $(id).classList.add('hidden'); }
+function overlayController(id){ return document.querySelector(`[aria-controls="${id}"]`); }
+function overlayFocusables(el){
+  if (!el) return [];
+  return Array.from(el.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
+    .filter(n=>!n.classList.contains('hidden') && n.getAttribute('aria-hidden')!=='true');
+}
+function openOverlay(id,focusSelector){
+  const el=$(id); if (!el) return null;
+  el._returnFocus=document.activeElement && document.activeElement.focus ? document.activeElement : null;
+  el.classList.remove('hidden');
+  const ctl=overlayController(id); if (ctl) ctl.setAttribute('aria-expanded','true');
+  requestAnimationFrame(()=>{
+    if (el.classList.contains('hidden')) return;
+    const target=(focusSelector&&el.querySelector(focusSelector)) || overlayFocusables(el)[0] || el.querySelector('.panel') || el;
+    if (target && target.focus) target.focus({preventScroll:true});
+  });
+  return el;
+}
+function closeOverlay(id,restoreFocus=true){
+  const el=$(id); if (!el) return;
+  el.classList.add('hidden');
+  const ctl=overlayController(id); if (ctl) ctl.setAttribute('aria-expanded','false');
+  const back=el._returnFocus; el._returnFocus=null;
+  if (restoreFocus && back && back.isConnected!==false && back.focus) back.focus({preventScroll:true});
+}
+function trapOverlayFocus(el,e){
+  if (!el || e.key!=='Tab') return false;
+  const nodes=overlayFocusables(el); if (!nodes.length){ e.preventDefault(); return true; }
+  const first=nodes[0], last=nodes[nodes.length-1], active=document.activeElement;
+  const outside=!el.contains || !el.contains(active);
+  if (e.shiftKey && (active===first || outside)){ e.preventDefault(); last.focus(); return true; }
+  if (!e.shiftKey && (active===last || outside)){ e.preventDefault(); first.focus(); return true; }
+  return false;
+}
 function suspendClock(){
   if (!game.mode || game.pausedAt || game.clockSuspended) return;
   game.elapsedMs=elapsedGameMs();
@@ -585,7 +618,7 @@ function openPause(){
   $('pauseMeta').textContent=clockMeta();
   $('btnPauseResume').textContent=game.pausedAt?'Resume':'Pause day';
   updatePreviewToggle();
-  ps.classList.remove('hidden');
+  openOverlay('pauseScreen');
   document.addEventListener('pointerdown',pauseOutsidePress,true);
   // drop the panel down under the season box, left-aligned to it
   const box=$('btnSeasonBox'), p=ps.querySelector('.panel');
@@ -594,8 +627,8 @@ function openPause(){
     p.style.left=Math.max(8,Math.round(r.left))+'px'; }
 }
 function closePause(){
-  $('confirmSeasonScreen').classList.add('hidden');
-  $('pauseScreen').classList.add('hidden');
+  closeOverlay('confirmSeasonScreen',false);
+  closeOverlay('pauseScreen');
   document.removeEventListener('pointerdown',pauseOutsidePress,true);
 }
 function toggleClock(){
@@ -603,7 +636,7 @@ function toggleClock(){
   else { pauseClock(); toast('Day paused.'); }
   updateHUD();
 }
-function closeSeasonConfirm(){ $('confirmSeasonScreen').classList.add('hidden'); }
+function closeSeasonConfirm(){ closeOverlay('confirmSeasonScreen'); }
 function skipToAbsDay(targetDay){
   const d=absDay();
   if (targetDay<=d) return;
@@ -613,7 +646,7 @@ function skipToAbsDay(targetDay){
 }
 function openSeasonConfirm(){
   $('confirmSeasonTitle').textContent=`Skip to ${nextSeasonName()}?`;
-  $('confirmSeasonScreen').classList.remove('hidden');
+  openOverlay('confirmSeasonScreen','#btnCancelSeasonSkip');
 }
 function confirmSkipSeason(){
   const d=absDay();

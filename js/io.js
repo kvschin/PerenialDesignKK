@@ -301,7 +301,7 @@ function openExport(){
       <p class="note">"To order" converts planted ground to plants at each species' recommended
       spacing — buy that many to fill the same area. * marks garden cultivars of non-native origin.</p>`;
   }
-  $('exportScreen').classList.remove('hidden');
+  openOverlay('exportScreen','#btnPrint');
 }
 function exportCsv(){
   const rows=exportRows();
@@ -411,7 +411,7 @@ function openBloomCalendar(){
     body.innerHTML=`<div class="bloom-wrap"><div class="bloom-grid">${head}${lines}</div></div>
       <p class="note">Bloom timing is approximate and region-dependent. Use it as a planning guide; zone, weather, microclimate, and cultivar differences can shift bloom windows earlier or later.</p>`;
   }
-  $('bloomScreen').classList.remove('hidden');
+  openOverlay('bloomScreen','#btnBloomClose');
 }
 
 /* ---------- the planting plan: an Oudolf-style drift map ----------
@@ -912,7 +912,7 @@ function buildPlanMap(){
   ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
   ctx.fillText('10 ft', bx2+ftPx*5, by2-8);
 }
-function openPlan(){ buildPlanMap(); $('planScreen').classList.remove('hidden'); }
+function openPlan(){ buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
 function downloadPlan(){
   $('planCanvas').toBlob(b2=>{
     if (!b2) return;

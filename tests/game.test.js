@@ -20,6 +20,7 @@ function setup(gw, gh){
   game.previewMode = 'today'; game.edgeStyle = 'organic';
   game.lastBrushTool = null; game.lastBrushVar = null;
   game.lastBrushTrayCat = 'grasses'; game.lastBrushDrill = null; game.trayScroll = {};
+  game.sheetState = 'half'; game.sheetCollapsed = false;
   game.eraseMode = 'all'; game.brushSize = 1;
   game.groundRev = 0; game.terrainRev = 0;
   cam.x = 0; cam.y = 0;
@@ -342,6 +343,71 @@ test('toolMeta is the source of truth for the legacy tool predicates', () => {
   for (const t of ['path', 'bed', 'water']) assert(toolMeta(t).material, `${t} is a ground material`);
   for (const t of [forb, bulb, woody, 'raise', 'house', 'fence', 'light', 'boulder', 'hand'])
     assert(!toolMeta(t).material, `${t} is not a ground material`);
+});
+
+test('persistent tool guidance explains the next canvas action', () => {
+  setup(21, 21);
+  game.tool = 'ruler';
+  assert(/tap two points|drag/i.test(persistentToolGuide().v), 'ruler guidance is actionable');
+  game.tool = 'path'; game.fillMode = false;
+  assert(/tap or drag/i.test(persistentToolGuide().v), 'paint guidance stays on canvas');
+  game.fillMode = true;
+  assert(/connected region/i.test(persistentToolGuide().v), 'fill guidance reflects the armed mode');
+  game.tool = firstOfType('forb'); game.fillMode = false; game.freePlanting = true;
+  assert(/free placement/i.test(persistentToolGuide().v), 'plant guidance reflects free placement');
+  game.tool = 'building'; game.buildingDraft = { vertices: [[2, 2], [6, 2]] };
+  assert(/2 corners/i.test(persistentToolGuide().v), 'building guidance reports draft progress');
+});
+
+test('mobile sheet supports collapsed, half, and full recovery states', () => {
+  setup(21, 21);
+  setSheetState('collapsed');
+  assertEqual(game.sheetState, 'collapsed', 'sheet collapses');
+  cycleSheetState();
+  assertEqual(game.sheetState, 'half', 'handle activation restores the working sheet');
+  cycleSheetState();
+  assertEqual(game.sheetState, 'full', 'second handle activation exposes the full catalog');
+  cycleSheetState();
+  assertEqual(game.sheetState, 'collapsed', 'third handle activation clears the canvas');
+  nudgeSheetState(1);
+  assertEqual(game.sheetState, 'half', 'upward nudge restores the working sheet');
+  nudgeSheetState(1);
+  assertEqual(game.sheetState, 'full', 'second upward nudge opens the full catalog');
+  nudgeSheetState(-1);
+  assertEqual(game.sheetState, 'half', 'downward nudge returns to half');
+});
+
+test('mobile canvas recovery avoids visible editing chrome', () => {
+  const oldVW=VW, oldVH=VH, oldQuery=document.querySelector, oldGet=document.getElementById;
+  const top=document.createElement('div'), tools=document.createElement('div'), sheet=document.createElement('div');
+  top.getBoundingClientRect=()=>({left:0,top:0,right:390,bottom:118,width:390,height:118});
+  tools.getBoundingClientRect=()=>({left:8,top:150,right:56,bottom:370,width:48,height:220});
+  sheet.getBoundingClientRect=()=>({left:0,top:620,right:390,bottom:844,width:390,height:224});
+  try {
+    VW=390; VH=844;
+    document.querySelector=sel=>sel==='.hud-top'?top:sel==='.hud-bottom'?sheet:oldQuery.call(document,sel);
+    document.getElementById=id=>id==='canvasTools'?tools:oldGet.call(document,id);
+    const safe=usableCanvasRect();
+    assertEqual(safe.top,126,'safe canvas begins below the top controls');
+    assertEqual(safe.left,64,'safe canvas begins beyond the tool rail');
+    assertEqual(safe.bottom,612,'safe canvas ends above the open palette');
+    sheet.classList.add('sheet-collapsed');
+    assertEqual(usableCanvasRect().bottom,836,'collapsed palette gives the canvas its height back');
+  } finally {
+    VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
+  }
+});
+
+test('modal focus trap wraps keyboard focus inside the active dialog', () => {
+  const host=document.createElement('div'), first=document.createElement('button'), last=document.createElement('button');
+  let focused=''; first.focus=()=>{ focused='first'; }; last.focus=()=>{ focused='last'; };
+  host.querySelectorAll=()=>[first,last]; host.contains=n=>n===first||n===last;
+  let prevented=false; document.activeElement=last;
+  trapOverlayFocus(host,{key:'Tab',shiftKey:false,preventDefault(){ prevented=true; }});
+  assert(prevented && focused==='first', 'Tab wraps from last control to first');
+  prevented=false; focused=''; document.activeElement=first;
+  trapOverlayFocus(host,{key:'Tab',shiftKey:true,preventDefault(){ prevented=true; }});
+  assert(prevented && focused==='last', 'Shift+Tab wraps from first control to last');
 });
 
 test('every brush/placement tool has an apply hook; non-drawing tools do not', () => {

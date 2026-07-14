@@ -7,20 +7,46 @@ addEventListener('keydown',e=>{
   if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
   if (e.key==='`'){ toggleDebug(); return; }
   const confirmPop=document.getElementById('confirmPop');
-  if (confirmPop){ if (e.key==='Escape') confirmPop.remove(); return; }
-  const overlay=['gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen']
+  if (confirmPop){
+    if (e.key==='Escape'){ closeOverlay('confirmPop'); confirmPop.remove(); }
+    else trapOverlayFocus(confirmPop,e);
+    return;
+  }
+  const overlay=['gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen','confirmSeasonScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
-    if (e.key==='Escape'){ overlay.classList.add('hidden'); }
+    if (e.key==='Escape') closeOverlay(overlay.id);
+    else trapOverlayFocus(overlay,e);
     return;
   }
   const k=e.key.toLowerCase();
   if ((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); e.shiftKey?doRedo():doUndo(); return; }
   if ((e.ctrlKey||e.metaKey) && k==='y'){ e.preventDefault(); doRedo(); return; }
-  const confirmOpen=!document.getElementById('confirmSeasonScreen').classList.contains('hidden');
-  if (confirmOpen){ if (e.key==='Escape') closeSeasonConfirm(); return; }
   const pauseOpen=!document.getElementById('pauseScreen').classList.contains('hidden');
-  if (pauseOpen){ if (e.key==='Escape') closePause(); return; }
+  if (pauseOpen){ if (e.key==='Escape') closePause(); else trapOverlayFocus(document.getElementById('pauseScreen'),e); return; }
+  const toolMenu=(game.toolMenu==='view'&&document.getElementById('viewToolsPop')) ||
+    (game.toolMenu==='layers'&&document.getElementById('layerPop'));
+  if (toolMenu){
+    const opener=game.toolMenu==='layers' && visibleEl(document.getElementById('btnLayersTool'))
+      ? document.getElementById('btnLayersTool') : document.getElementById('btnViewTools');
+    if (e.key==='Escape' || e.key==='Tab'){
+      e.preventDefault(); game.toolMenu=null; refreshCanvasTools();
+      if (opener) opener.focus({preventScroll:true});
+      return;
+    }
+    const items=Array.from(toolMenu.querySelectorAll('button:not([disabled])'));
+    if (items.length && ['ArrowDown','ArrowUp','Home','End'].includes(e.key)){
+      e.preventDefault();
+      const at=items.indexOf(document.activeElement);
+      const next=e.key==='Home'?0:e.key==='End'?items.length-1:
+        e.key==='ArrowDown'?(at<0?0:(at+1)%items.length):(at<0?items.length-1:(at-1+items.length)%items.length);
+      items[next].focus({preventScroll:true});
+      return;
+    }
+    // Keep canvas shortcuts from firing while focus is in a menu. Enter and
+    // Space retain their native button activation.
+    return;
+  }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }

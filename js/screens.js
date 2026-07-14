@@ -602,10 +602,10 @@ function quitToMenu(){
   game.mode=null; game.pausedAt=0; game.clockSuspended=false;
   game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
-  $('exportScreen').classList.add('hidden'); $('filterScreen').classList.add('hidden');
-  $('planScreen').classList.add('hidden'); $('bloomScreen').classList.add('hidden');
-  $('pauseScreen').classList.add('hidden');
-  $('gardenMenu').classList.add('hidden'); $('confirmSeasonScreen').classList.add('hidden');
+  closeOverlay('exportScreen',false); closeOverlay('filterScreen',false);
+  closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
+  closeOverlay('pauseScreen',false);
+  closeOverlay('gardenMenu',false); closeOverlay('confirmSeasonScreen',false);
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
   setActiveCanvas(mcnv);
@@ -613,7 +613,7 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
-  const gm=$('gardenMenu'); gm.classList.remove('hidden');
+  const gm=openOverlay('gardenMenu','#btnFilters');
   // anchor the dropdown right under the ☰ button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
   const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
