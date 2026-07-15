@@ -490,7 +490,7 @@ function armPlantToolFromRail(openMenu){
 function fillActive(){ return game.fillMode && toolMeta(game.tool).paints; }
 function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
 function doFloodFill(sx,sy){
-  if (sx<0||sy<0||sx>=GW||sy>=GH || siteStructureAt(sx,sy) || isDoor(sx,sy)) return;
+  if (!onPlot(sx,sy) || siteStructureAt(sx,sy) || isDoor(sx,sy)) return;
   const seed=groundMat(sx,sy);
   // BFS the 4-connected region sharing that ground material
   const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
@@ -498,7 +498,7 @@ function doFloodFill(sx,sy){
     const [x,y]=q.shift(); region.push([x,y]);
     for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=x+dx, ny=y+dy, key=nx+','+ny;
-      if (nx<0||ny<0||nx>=GW||ny>=GH || seen.has(key)) continue;
+      if (!onPlot(nx,ny) || seen.has(key)) continue;
       if (siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
       if (groundMat(nx,ny)!==seed) continue;
       seen.add(key); q.push([nx,ny]);

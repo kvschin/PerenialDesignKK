@@ -12,7 +12,9 @@ const DAY_MS = 20000;                 // 20 real seconds per garden day
 let GW = 31, GH = 31;
 let SPAWNX = 15, SPAWNY = 15;         // players start at the plot's center
 function setWorldSize(gw,gh){ GW=gw; GH=gh;
-  SPAWNX=Math.floor(gw/2); SPAWNY=Math.floor(gh/2); }
+  SPAWNX=Math.floor(gw/2); SPAWNY=Math.floor(gh/2);
+  game.plotShape=null; game.plotRev++; rebuildPlotMask();   // a shape from another plot size is meaningless
+}
 const TILE_W = 76, TILE_H = 38;
 const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view

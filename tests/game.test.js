@@ -2186,3 +2186,136 @@ test('paletteCount tracks zone/native/deer/rabbit/squirrel without touching game
   assertEqual(game.filters, savedFilters, 'game.filters untouched');
   assertEqual(game.design, savedDesign, 'game.design untouched');
 });
+
+/* ---------- plot shape (lot boundary) ---------- */
+
+test('no plot shape leaves onPlot true everywhere and placement works at a corner', () => {
+  setup(31, 31);
+  assertEqual(game.plotShape, null, 'no shape by default');
+  for (const [x, y] of [[0, 0], [30, 0], [0, 30], [30, 30], [15, 15]])
+    assert(onPlot(x, y), `(${x},${y}) is on-plot with no shape set`);
+  assert(!onPlot(-1, 0) && !onPlot(0, -1) && !onPlot(31, 0) && !onPlot(0, 31),
+    'off-grid coordinates are never on-plot');
+  const forb = firstOfType('forb');
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(0, 0), 'plant', 'planting still works at a corner tile with no shape');
+});
+
+test('setPlotShape masks placement to an irregular lot', () => {
+  setup(31, 31);
+  const shape = [[0, 0], [31, 0], [24, 31], [0, 31]]; // trapezoid: SE corner cut off
+  assert(setPlotShape(shape), 'a valid trapezoid is accepted');
+  assertEqual(JSON.stringify(game.plotShape), JSON.stringify(shape), 'the shape is stored verbatim');
+  assert(game.plotRev > 0, 'accepting a shape bumps plotRev');
+
+  assert(!onPlot(28, 29), 'a tile past the cut corner is off the lot');
+  assert(onPlot(15, 15), 'a tile away from the cut corner is on the lot');
+
+  const forb = firstOfType('forb');
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(30, 20), null, 'planting is refused off the lot');
+  assertEqual(applyToolAt(5, 5), 'plant', 'planting still works on the lot');
+
+  game.tool = 'path'; game.pathColor = 'warm';
+  assertEqual(applyToolAt(30, 22), null, 'laying terrain is refused off the lot');
+  assertEqual(applyToolAt(5, 10), 'path', 'laying terrain still works on the lot');
+
+  game.tool = 'fence';
+  assertEqual(applyToolAt(30, 24), null, 'placing a fence is refused off the lot');
+  assertEqual(applyToolAt(5, 15), 'fence', 'placing a fence still works on the lot');
+});
+
+test('selValidDest refuses off-mask destinations', () => {
+  setup(31, 31);
+  assert(selValidDest(10, 10), 'a plain tile is a valid destination with no shape');
+  setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]);
+  assert(!selValidDest(30, 25), 'off-mask tile is not a valid selection destination');
+  assert(selValidDest(5, 25), 'on-mask tile remains a valid selection destination');
+});
+
+test('flood fill never writes past the plot mask', () => {
+  setup(31, 31);
+  setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]);
+  game.tool = 'bed'; game.toolVar = null; game.fillMode = true;
+  doFloodFill(5, 5); // an interior grass tile; the rest of the plot is untouched grass too
+  const beds = Object.keys(game.terrain).filter(k => { const t = game.terrain[k]; return t && t.k === 'bed' && !t.removed; });
+  assert(beds.length > 0, 'fill placed bed tiles from the interior seed');
+  assert(beds.every(k => { const [x, y] = k.split(',').map(Number); return onPlot(x, y); }),
+    'every filled tile is on the lot mask');
+  assert(!(game.terrain['30,20'] && !game.terrain['30,20'].removed), 'the cut-corner tile was never reached');
+});
+
+test('a shrub footprint crossing the lot line is refused with reason plot', () => {
+  setup(31, 31);
+  setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]);
+  const shrub = 'sumac', cx = 22, cy = 30; // trunk sits on-lot; its ~2.7-tile mature radius crosses the cut corner
+  assert(onPlot(cx, cy), 'the trunk tile itself is on the lot');
+  const np = { s: shrub, d: absDay(), t: 1 };
+  const check = canPlaceShrubAt(cx, cy, np);
+  assertEqual(check.ok, false, 'a mature footprint crossing the lot line is refused');
+  assertEqual(check.reason, 'plot', 'the refusal reason is the lot boundary');
+  game.tool = shrub; game.toolVar = null;
+  assertEqual(applyToolAt(cx, cy), null, 'the normal placement path refuses it too');
+});
+
+test('setWorldSize clears an existing plot shape', () => {
+  setup(31, 31);
+  assert(setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]), 'shape accepted');
+  assert(game.plotShape, 'sanity: a shape is set');
+  setWorldSize(21, 21);
+  assertEqual(game.plotShape, null, 'changing plot size clears an existing shape — it would be meaningless');
+  assert(onPlot(0, 0) && onPlot(20, 20), 'the resized plot is a full rectangle again');
+});
+
+test('setPlotShape rejects invalid polygons', () => {
+  setup(31, 31);
+  assertEqual(setPlotShape([[0, 0], [10, 0], [10, 10]]), false, 'a triangle (wrong vertex count) is rejected');
+  assertEqual(game.plotShape, null, 'rejected shape does not apply');
+  assertEqual(setPlotShape([[0, 0], [10, 10], [10, 0], [0, 10]]), false, 'a self-intersecting bowtie is rejected');
+  assertEqual(game.plotShape, null, 'bowtie does not apply');
+  assertEqual(setPlotShape([[0, 0], [2, 0], [2, 1], [0, 1]]), false, 'a sliver enclosing under 9 tiles is rejected');
+  assertEqual(game.plotShape, null, 'sliver does not apply');
+  assert(setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]), 'a valid shape is still accepted after prior rejections');
+});
+
+test('setPlotShape rounds and clamps vertices onto the lattice', () => {
+  setup(21, 21);
+  assert(setPlotShape([[-3, -1], [25, 0.4], [15.6, 21], [0, 21]]),
+    'out-of-range/fractional vertices are cleaned up, not rejected');
+  const [v0, v1, v2] = game.plotShape;
+  assertEqual(JSON.stringify(v0), JSON.stringify([0, 0]), 'negative coordinates clamp to 0');
+  assertEqual(JSON.stringify(v1), JSON.stringify([21, 0]), 'over-width coordinates clamp to GW and round');
+  assertEqual(JSON.stringify(v2), JSON.stringify([16, 21]), 'fractional coordinates round to the nearest integer');
+});
+
+test('saveSolo blob carries plotShape and applying it back round-trips the shape', () => {
+  setup(31, 31);
+  const shape = [[0, 0], [31, 0], [24, 31], [0, 31]];
+  assert(setPlotShape(shape), 'shape accepted before saving');
+  game.mode = 'solo'; game.worldId = 'test-plotshape-roundtrip';
+  saveSolo(true); // sSet's localStorage.setItem runs synchronously, before saveSolo's own first await
+  const raw = localStorage.getItem('hortus:world:test-plotshape-roundtrip');
+  assert(raw, 'a garden blob was written to storage');
+  const blob = JSON.parse(raw);
+  assertEqual(JSON.stringify(blob.plotShape), JSON.stringify(shape), 'the saved blob carries the plot shape');
+
+  // apply the blob the way loadSolo does (setWorldSize, then setPlotShape) to a fresh garden
+  setup(21, 21);
+  assertEqual(game.plotShape, null, 'sanity: the fresh garden starts with no shape');
+  setWorldSize(blob.gw || 31, blob.gh || 31);
+  setPlotShape(blob.plotShape || null);
+  assertEqual(JSON.stringify(game.plotShape), JSON.stringify(shape), 'reloading restores the saved plot shape');
+  assert(!onPlot(28, 29), 'the reloaded shape still excludes the cut corner');
+  assert(onPlot(15, 15), 'the reloaded shape still includes the interior');
+});
+
+test('a save blob without plotShape loads as a full rectangle', () => {
+  setup(21, 21);
+  assert(setPlotShape([[0, 0], [21, 0], [14, 21], [0, 21]]), 'a shape is set before simulating a legacy load');
+  assert(game.plotShape, 'sanity check');
+  const legacyBlob = { gw: 21, gh: 21 }; // no plotShape key, like a save from before this feature
+  setWorldSize(legacyBlob.gw || 31, legacyBlob.gh || 31);
+  setPlotShape(legacyBlob.plotShape || null);
+  assertEqual(game.plotShape, null, 'a blob with no plotShape field loads as the full rectangle');
+  assert(onPlot(0, 0) && onPlot(20, 20), 'every corner is on-plot with no shape');
+});

@@ -120,6 +120,7 @@ const game = {
   rot:0,                                             // view rotation, 90-degree steps
   siteNorthDeg:0,                                    // true north, degrees clockwise from plot-up; independent of view
   siteNorthPreviewDeg:null,                          // transient dialog preview; never persisted
+  plotShape:null,                                    // optional lot-boundary polygon (tile-corner coords); null = full GWxGH rectangle
   hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
@@ -174,6 +175,7 @@ const game = {
   rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it
   groundRev:0,         // ground render cache revision: terrain, elevation, houses, or plot-size state changed
   terrainRev:0,        // organic terrain-region cache revision: terrain map changed
+  plotRev:0,           // plot-shape mask revision: bumped by setPlotShape/setWorldSize; onPlot mask rebuilds on change
 };
 // The mutable layers a garden is made of, enumerated once so undo, save/load,
 // and multiplayer sync iterate this list instead of hand-listing every layer in
@@ -409,7 +411,7 @@ function canPlaceShrubAt(x,y,np,opts){
   const ignore=opts.ignoreKey||null, ignoreKeys=opts.ignoreKeys||null;
   const ignored=k=>k===ignore || !!(ignoreKeys && (ignoreKeys.has ? ignoreKeys.has(k) : ignoreKeys[k]));
   for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
-    if (xx<0||yy<0||xx>=GW||yy>=GH) return {ok:false, reason:'plot'};
+    if (!onPlot(xx,yy)) return {ok:false, reason:'plot'};
     if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
     if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
     if (lightAt(xx,yy)) return {ok:false, reason:'light'};
@@ -750,7 +752,7 @@ function seedWalkway(){
   for (let x=0;x<GW;x++){
     const c = Math.round(GH/2 + Math.sin(x*0.55)*2.2);
     [c,c-1].forEach(y=>{
-      if (y<0||y>=GH) return;
+      if (!onPlot(x,y)) return;
       const k=`${x},${y}`;
       if (!game.terrain[k]) setTile('terrain',k,{k:'path',t:Date.now()});
     });
@@ -837,7 +839,63 @@ function isDoor(x,y){
 function fenceAt(x,y){ const f=game.fences[`${x},${y}`]; return (f&&!f.removed)?f:null; }
 function fenceBlocks(x,y){ const f=fenceAt(x,y); return !!(f && !f.gate); }
 function fenceNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!fenceAt(x,y); }
-function canStand(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !siteStructureAt(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
+
+/* ---------- plot shape (lot boundary) ----------
+   An optional polygon mask over the GWxGH rectangle, for an irregular lot
+   instead of the default axis-aligned plot. game.plotShape is either null
+   (the full rectangle) or exactly four [x,y] tile-CORNER lattice vertices
+   (integers, 0..GW / 0..GH), listed once around a simple (non-crossing)
+   quad. The mask is derived, never stored: rebuildPlotMask() only runs on
+   setup/load (see setWorldSize/setPlotShape below), never per frame. */
+let plotMask=null;
+function rebuildPlotMask(){
+  if (!game.plotShape){ plotMask=null; return; }
+  const verts=game.plotShape, mask=new Uint8Array(Math.max(0,GW*GH));
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
+    if (polygonContains(x+0.5,y+0.5,verts)) mask[y*GW+x]=1;
+  plotMask=mask;
+}
+// the one legality predicate for "is this the player's lot": bounds, then
+// the mask lookup (or true everywhere when no shape is set). Allocation-free
+// so it's cheap to call from placement/collision loops.
+function onPlot(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return false;
+  return plotMask ? !!plotMask[y*GW+x] : true;
+}
+function plotEdgesCross(a,b,c,d){ // strict segment intersection (CCW test)
+  const ccw=(p,q,r)=>(r[1]-p[1])*(q[0]-p[0])>(q[1]-p[1])*(r[0]-p[0]);
+  return ccw(a,c,d)!==ccw(b,c,d) && ccw(a,b,c)!==ccw(a,b,d);
+}
+// null clears the shape (full rectangle). Otherwise: exactly four vertices,
+// rounded to integers and clamped onto the lattice, non-self-intersecting
+// (only the two diagonally-opposite edge pairs of a simple quad can cross),
+// and enclosing at least 9 tiles (reject slivers). Returns true/false.
+function setPlotShape(verts){
+  if (verts===null || verts===undefined){
+    game.plotShape=null;
+  } else {
+    if (!Array.isArray(verts) || verts.length!==4 || !verts.every(v=>Array.isArray(v)&&v.length>=2))
+      return false;
+    const clean=verts.map(v=>[
+      Math.max(0,Math.min(GW,Math.round(+v[0]))),
+      Math.max(0,Math.min(GH,Math.round(+v[1])))
+    ]);
+    if (clean.some(([x,y])=>!Number.isFinite(x)||!Number.isFinite(y))) return false;
+    if (plotEdgesCross(clean[0],clean[1],clean[2],clean[3])) return false;   // edge 0-1 vs 2-3
+    if (plotEdgesCross(clean[1],clean[2],clean[3],clean[0])) return false;   // edge 1-2 vs 3-0
+    let enclosed=0;
+    for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
+      if (polygonContains(x+0.5,y+0.5,clean)) enclosed++;
+    if (enclosed<9) return false;
+    game.plotShape=clean;
+  }
+  game.plotRev++;
+  rebuildPlotMask();
+  markGroundChanged({terrain:true});
+  markModelChanged();
+  return true;
+}
+function canStand(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
 /* a standable starting tile near plot center — the door if the house
    sits on the spawn, else a spiral search outward, so re-entering a
    garden never drops the player stuck inside their own walls */

@@ -55,7 +55,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),freePlanting:game.freePlanting,previewMode:game.previewMode,
+    gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
@@ -92,6 +92,7 @@ async function loadSolo(id){
   // plot size: gw/gh (current), grid (square-era), or neither (13x13 era,
   // laid out around tile (6,6) — recenter on the classic plot)
   setWorldSize(s.gw||s.grid||31, s.gh||s.grid||31);
+  setPlotShape(s.plotShape||null);   // tolerates absence: legacy saves load as full rectangles
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.gameMode = s.mode==='design' ? 'design' : 'story';
   game.design = s.design || null;

@@ -278,7 +278,7 @@ function driftCount(def){
    null. The universal guards (off-plot, house/door) live here so every hook
    inherits them; tools without a hook (hand/select/pick/erase/house) no-op. */
 function applyToolAt(x,y,opts){
-  if (x<0||y<0||x>=GW||y>=GH) return null;
+  if (!onPlot(x,y)) return null;
   if (siteStructureAt(x,y) || isDoor(x,y)) return null;
   const meta=toolMeta(game.tool);
   return meta.apply ? meta.apply(x,y,opts) : null;
@@ -437,7 +437,7 @@ function fenceLabel(f){
   return `${d.height}' ${fenceStyle(d.style).label}${d.gate?' gate':' fence'}`;
 }
 function canPlaceFence(x,y){
-  if (x<0||y<0||x>=GW||y>=GH) return false;
+  if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
@@ -455,7 +455,7 @@ function placeFenceAt(x,y){
   return next.gate?'gate':'fence';
 }
 function canPlaceLight(x,y){
-  if (x<0||y<0||x>=GW||y>=GH) return false;
+  if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
   if (game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
@@ -505,6 +505,7 @@ function canPlaceFirepit(x,y,ignoreKey){
   const d=firepitDraft(), sz=firepitTileSize(d);
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
   for (const [xx,yy] of firepitFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
@@ -548,6 +549,7 @@ function canPlaceBoulder(x,y,ignoreKey){
   const d=boulderDraft(), sz=boulderTileSize(d);
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
   for (const [xx,yy] of boulderFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy)) return false;
@@ -616,6 +618,7 @@ function validateBuildingFootprint(vs,ignoreId){
   const draft={vertices:vs}, tiles=buildingTiles(draft);
   if (!tiles.length) return {ok:false,msg:'That outline does not cover a full tile.'};
   for (const [x,y] of tiles){
+    if (!onPlot(x,y)) return {ok:false,msg:'The lot line cuts through there.'};
     const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
     if (siteStructureAt(x,y) || buildingAt(x,y,ignoreId)) return {ok:false,msg:'A building cannot overlap another structure.'};
     if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y))
@@ -668,9 +671,17 @@ function clearTerrainForHouse(x,y,w,h){
   if (n){ syncTerrainOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut(); }
   return n;
 }
+// every footprint tile plus the doorstep must sit on the lot — mirrors the
+// fence/light/firepit/boulder placers, which each refuse per occupied tile
+function houseFootprintOnPlot(x,y,w,h){
+  for (let yy=y; yy<y+h; yy++) for (let xx=x; xx<x+w; xx++)
+    if (!onPlot(xx,yy)) return false;
+  return onPlot(x+((w-1)>>1), y+h);
+}
 function placeHouse(x,y){
   const d=game.houseDraft || (game.houseDraft=defaultDraft());
   const nx=Math.max(0,Math.min(GW-d.w,x)), ny=Math.max(0,Math.min(GH-d.h-1,y));
+  if (!houseFootprintOnPlot(nx,ny,d.w,d.h)){ rejectPlacement('The lot line cuts through there.'); return; }
   const ppx=Math.round(game.px), ppy=Math.round(game.py);
   if (game.gameMode!=='design' && ppx>=nx&&ppx<nx+d.w&&ppy>=ny&&ppy<ny+d.h){
     rejectPlacement("You're standing in the way."); return; }
@@ -782,7 +793,7 @@ function eraseBrush(cx,cy,counts){
   const bulbOK=can('bulbs','bulb'), terrOK=can('landscape','terrain');
   for (const [dx,dy] of brushOffsets(game.brushSize)){
     const x=cx+dx, y=cy+dy;
-    if (x<0||y<0||x>=GW||y>=GH) continue;
+    if (!onPlot(x,y)) continue;
     const k=`${x},${y}`;
     let pk=k, p=game.plants[k];
     if (!(p && !p.removed)){
@@ -828,7 +839,7 @@ let areaClipboard=null;
 function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
-function selValidDest(x,y){ return x>=0&&y>=0&&x<GW&&y<GH && !siteStructureAt(x,y) && !isDoor(x,y); }
+function selValidDest(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !isDoor(x,y); }
 // Selection moves validate against the post-move world: selected source tiles
 // are empty for moves, while selected destination shrubs/terrain already count.
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
