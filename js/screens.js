@@ -722,8 +722,10 @@ if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
 if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
 (function wireSheetHandle(){
   const h=$('sheetHandle'); if (!h) return;
+  const down=$('btnSheetDown'), up=$('btnSheetUp');
   let drag=null;
   h.addEventListener('pointerdown',e=>{
+    if (e.target.closest && e.target.closest('.sheet-actions')) return;
     drag={y:e.clientY,moved:false};
     h.classList.add('dragging');
     try{ h.setPointerCapture(e.pointerId); }catch(_){}
@@ -738,10 +740,12 @@ if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
     drag=null;
     h.classList.remove('dragging');
     if (moved && Math.abs(dy)>28) nudgeSheetState(dy<0?1:-1);
-    else cycleSheetState();
+    else nudgeSheetState(normalizedSheetState(game.sheetState)==='collapsed'?1:-1);
   };
   h.addEventListener('pointerup',finish);
   h.addEventListener('pointercancel',()=>{ drag=null; h.classList.remove('dragging'); });
+  if (down) down.onclick=e=>{ e.stopPropagation(); nudgeSheetState(-1); };
+  if (up) up.onclick=e=>{ e.stopPropagation(); nudgeSheetState(1); };
 })();
 
 /* ---------- menu background: a living meadow ---------- */

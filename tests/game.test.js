@@ -345,18 +345,18 @@ test('toolMeta is the source of truth for the legacy tool predicates', () => {
     assert(!toolMeta(t).material, `${t} is not a ground material`);
 });
 
-test('persistent tool guidance explains the next canvas action', () => {
+test('tool guidance explains the next canvas action', () => {
   setup(21, 21);
   game.tool = 'ruler';
-  assert(/tap two points|drag/i.test(persistentToolGuide().v), 'ruler guidance is actionable');
+  assert(/tap two points|drag/i.test(toolGuide().v), 'ruler guidance is actionable');
   game.tool = 'path'; game.fillMode = false;
-  assert(/tap or drag/i.test(persistentToolGuide().v), 'paint guidance stays on canvas');
+  assert(/tap or drag/i.test(toolGuide().v), 'paint guidance stays on canvas');
   game.fillMode = true;
-  assert(/connected region/i.test(persistentToolGuide().v), 'fill guidance reflects the armed mode');
+  assert(/connected region/i.test(toolGuide().v), 'fill guidance reflects the armed mode');
   game.tool = firstOfType('forb'); game.fillMode = false; game.freePlanting = true;
-  assert(/free placement/i.test(persistentToolGuide().v), 'plant guidance reflects free placement');
+  assert(/free placement/i.test(toolGuide().v), 'plant guidance reflects free placement');
   game.tool = 'building'; game.buildingDraft = { vertices: [[2, 2], [6, 2]] };
-  assert(/2 corners/i.test(persistentToolGuide().v), 'building guidance reports draft progress');
+  assert(/2 corners/i.test(toolGuide().v), 'building guidance reports draft progress');
 });
 
 test('mobile sheet supports collapsed, half, and full recovery states', () => {

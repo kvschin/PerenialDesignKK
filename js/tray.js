@@ -1954,7 +1954,7 @@ function sheetContextLabel(){
   if (game.tool==='pick') return 'Eyedropper';
   return 'Tap to choose a plant';
 }
-function persistentToolGuide(){
+function toolGuide(){
   const P=PLANTS[game.tool];
   if (game.tool==='building'){
     const n=(game.buildingDraft&&game.buildingDraft.vertices||[]).length;
@@ -1990,9 +1990,16 @@ function persistentToolGuide(){
 }
 function updateActiveToolStatus(){
   const el=document.getElementById('activeToolStatus'); if (!el) return;
-  const info=persistentToolGuide();
+  const info=toolGuide();
   el.innerHTML=`<b>${info.k}</b>${info.v?`<span>${info.v}</span>`:''}`;
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
+  el.classList.add('show');
+  clearTimeout(el._hideTimer);
+  // Multi-step footprint drawing needs live progress. Ordinary tool guidance
+  // is a brief confirmation, not permanent canvas chrome.
+  if (!(game.tool==='building' && game.buildingDraft)){
+    el._hideTimer=setTimeout(()=>el.classList.remove('show'),4000);
+  }
 }
 function renderBuildingDraftActions(){
   const draft=game.tool==='building' && game.buildingDraft;
@@ -2039,15 +2046,19 @@ function applySheetState(){
   hb.classList.toggle('collapsed', s==='collapsed');
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const handle=document.getElementById('sheetHandle'); if (handle){
-    const next=s==='collapsed'?'half':s==='half'?'full':'collapsed';
-    handle.setAttribute('aria-expanded',s==='collapsed'?'false':'true');
     handle.setAttribute('data-state',s);
-    handle.setAttribute('aria-label',`${cap(s)} palette; activate to show ${next} height`);
+    handle.setAttribute('aria-label',`${cap(s)} plant palette. Swipe or use the show less and show more buttons.`);
   }
-  const chev=document.querySelector('#sheetHandle .chev');
-  if (chev) setUiIcon(chev,s==='full'?'chevron-down':s==='half'?'minus':'chevron-up');
+  const down=document.getElementById('btnSheetDown'), up=document.getElementById('btnSheetUp');
+  if (down){
+    down.disabled=s==='collapsed';
+    down.setAttribute('aria-label',s==='full'?'Reduce plant palette to half height':'Collapse plant palette');
+  }
+  if (up){
+    up.disabled=s==='full';
+    up.setAttribute('aria-label',s==='collapsed'?'Expand plant palette to half height':'Expand plant palette to full height');
+  }
   drawSheetSwatch();
-  updateActiveToolStatus();
   renderBuildingDraftActions();
 }
 /* a mini render of the armed brush in the collapse handle, so you always see

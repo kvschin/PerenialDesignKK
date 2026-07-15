@@ -388,7 +388,9 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .active-tool-status{position:absolute;left:70px;top:60px;z-index:9;pointer-events:none;
   max-width:min(300px,calc(100vw - 88px));padding:7px 10px;border:1px solid var(--border-subtle);
   border-radius:var(--radius-control);background:var(--surface-overlay);color:var(--seedhead);
-  font-size:11px;line-height:1.28;box-shadow:var(--shadow-control)}
+  font-size:11px;line-height:1.28;box-shadow:var(--shadow-control);opacity:0;visibility:hidden;transform:translateY(-4px);
+  transition:opacity var(--motion-menu),transform var(--motion-menu) var(--ease-standard),visibility 0s linear var(--motion-menu)}
+.active-tool-status.show{opacity:1;visibility:visible;transform:none;transition-delay:0s}
 .active-tool-status:empty{display:none}
 .active-tool-status b{display:block;color:var(--bronze);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
 .active-tool-status span{display:block;color:var(--text-secondary);margin-top:1px}
@@ -720,7 +722,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
   #canvasTools{top:150px;left:8px;padding:3px;gap:2px}
-  .active-tool-status{left:8px;top:74px;max-width:calc(100vw - 16px);font-size:10px;padding:5px 8px}
+  .active-tool-status{left:8px;top:calc(62px + env(safe-area-inset-top));max-width:calc(100vw - 16px);font-size:10px;padding:5px 8px}
   .canvas-tool{width:44px;min-width:44px;min-height:44px;flex:0 0 auto}
   .canvas-tool canvas{width:34px;height:26px;top:2px}
   .canvas-tool span{font-size:7px}
@@ -741,19 +743,24 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   #plantCard h3{font-size:15px}
   #plantCard .latin{font-size:11px;margin-bottom:4px}
   #plantCard p{font-size:11px;line-height:1.4}
-  /* collapsible palette: a tap on the handle folds the catalog away so the
-     garden gets the room while you paint; the brush bar + act button stay. */
+  /* tri-state palette: the handle can be swiped, while explicit down/up
+     controls make collapsed, half, and full states directly reversible. */
   #sheetHandle{display:flex;align-items:center;gap:9px;justify-content:center;pointer-events:auto;touch-action:none;
     background:var(--surface-workspace);
     border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);
-    height:44px;min-height:44px;padding:9px 16px;color:var(--text-primary);font-size:12px;font-weight:600;max-width:96vw;flex:0 0 44px;
+    height:48px;min-height:48px;padding:3px 4px 3px 14px;color:var(--text-primary);font-size:12px;font-weight:600;width:min(390px,96vw);max-width:96vw;flex:0 0 48px;
     transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
   #sheetHandle.dragging{background:var(--surface-control-hover);border-color:var(--border-active);transform:translateY(1px)}
   #sheetHandle .grip-bar{width:26px;height:4px;border-radius:var(--radius-control);background:var(--border-strong);flex-shrink:0}
   #sheetHandle.dragging .grip-bar{background:var(--bronze)}
-  #sheetHandle .sheet-ctx{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48vw}
-  #sheetHandle .chev{color:var(--bronze);display:flex}
-  #sheetHandle .chev .ui-icon{width:14px;height:14px}
+  #sheetHandle .sheet-ctx{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;text-align:center}
+  #sheetHandle .sheet-actions{display:flex;align-self:stretch;flex:0 0 auto;border-left:1px solid var(--border-quiet);padding-left:3px}
+  #sheetHandle .sheet-actions button{display:flex;align-items:center;justify-content:center;width:40px;min-width:40px;min-height:40px;padding:0;
+    border:0;border-radius:var(--radius-control);background:transparent;color:var(--bronze);transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+  #sheetHandle .sheet-actions button:hover:not(:disabled){background:var(--surface-control-hover)}
+  #sheetHandle .sheet-actions button:active:not(:disabled){transform:translateY(1px)}
+  #sheetHandle .sheet-actions button:disabled{color:var(--text-disabled);opacity:.35}
+  #sheetHandle .sheet-actions .ui-icon{width:16px;height:16px}
   /* fatter tap targets on touch screens */
   .seg .seg-opt{min-height:44px;padding:9px 10px}
   #cvRow .chip{min-height:44px;padding:9px 13px;display:flex;align-items:center}
@@ -788,8 +795,8 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
   /* full-bleed palette: edge to edge, square corners, docked to the bottom.
      The catalog's own bottom padding lifts it clear of the home indicator
      while the tray background runs to the screen edge behind it. */
-  .hud-bottom{left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
-  #sheetCatalog{width:100%;gap:6px;max-height:calc(100lvh - 128px);overflow:visible;opacity:1;transform:translateY(0);visibility:visible;
+  .hud-bottom{--sheet-safe-top:max(12px,calc(env(safe-area-inset-top) + 8px));left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px}
+  #sheetCatalog{width:100%;gap:6px;min-height:0;max-height:calc(100dvh - 128px);overflow:visible;opacity:1;transform:translateY(0);visibility:visible;
     transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear 0s}
   #trayTabs,#toolTray{width:100%;max-width:100vw;border-radius:0;border-left:none;border-right:none}
   #trayTabs{border-top:none}
@@ -799,7 +806,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:rgba(24,17,13,.9
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .hud-bottom.sheet-collapsed #sheetCatalog{max-height:0;overflow:hidden;opacity:0;transform:translateY(8px);visibility:hidden;pointer-events:none;
     transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear var(--motion-panel)}
-  .hud-bottom.sheet-full #toolTray{max-height:calc(100lvh - 222px);min-height:min(52vh,520px)}
+  .hud-bottom.sheet-full{height:calc(100vh - var(--sheet-safe-top));height:calc(100dvh - var(--sheet-safe-top));max-height:calc(100dvh - var(--sheet-safe-top));overflow:hidden}
+  .hud-bottom.sheet-full #sheetCatalog{flex:1 1 0;max-height:none;overflow:visible}
+  .hud-bottom.sheet-full .cat-pop{top:calc(100% + 6px);bottom:auto;max-height:calc(100dvh - var(--sheet-safe-top) - 124px);overflow-y:auto}
+  .hud-bottom.sheet-full #toolTray{flex:1 1 0;max-height:none;min-height:0}
   .hud-bottom.sheet-full #trayTabs{border-top:1.5px solid rgba(239,230,211,.25)}
   .hud-bottom.sheet-half #toolTray{max-height:min(34vh,276px)}
 }

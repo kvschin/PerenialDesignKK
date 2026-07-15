@@ -207,7 +207,13 @@
     <button id="coachTipClose" type="button" aria-label="Dismiss tip"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
   </div>
   <div class="hud-bottom">
-    <button id="sheetHandle" aria-label="Expand palette to full height" aria-controls="brushBar trayTabs toolTray" aria-expanded="true" data-state="half"><span class="grip-bar"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span><span class="chev"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-down"></use></svg></span></button>
+    <div id="sheetHandle" role="group" aria-label="Plant palette height" data-state="half">
+      <span class="grip-bar" aria-hidden="true"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span>
+      <span class="sheet-actions">
+        <button id="btnSheetDown" type="button" title="Show less of the plant palette" aria-label="Show less of the plant palette" aria-controls="brushBar trayTabs toolTray"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-down"></use></svg></button>
+        <button id="btnSheetUp" type="button" title="Show more of the plant palette" aria-label="Show more of the plant palette" aria-controls="brushBar trayTabs toolTray"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>
+      </span>
+    </div>
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
     <div id="brushBar" class="hidden"></div>

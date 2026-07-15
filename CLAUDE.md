@@ -896,12 +896,16 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   `--radius-panel`, and true capsules alone use `--radius-pill`. Reuse the
   spacing, shadow, focus, and disabled-state tokens instead of adding close
   one-off values.
-- Treat canvas guidance as persistent workspace state, not a transient toast:
-  `#activeToolStatus` names the armed tool and its next canvas action. Dialogs
+- Treat canvas guidance as contextual workspace help, not permanent chrome:
+  `#activeToolStatus` briefly names the armed tool and its next canvas action;
+  multi-step building-footprint progress remains visible until the outline is
+  completed or cancelled. Dialogs
   use the shared `openOverlay` / `closeOverlay` focus path, trap keyboard focus,
   restore the opener on close, and use the dialog surface/scrim tokens. Compact
   view and layer flyouts expose menu state through ARIA. The mobile palette has
-  collapsed, half, and full states reachable by both swipe and handle activation.
+  collapsed, half, and full states reachable by swipe and explicit down/up
+  controls; its full height stays below the top safe area and scrolls the
+  catalog internally.
   Gesture-only affordances get a one-time contextual coach rather than a
   permanent help wall. Haptics are capability-gated, default off, stored as
   `hortus:haptics`, and fire once per completed placement/success or throttled
