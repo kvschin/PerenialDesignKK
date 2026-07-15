@@ -738,6 +738,7 @@ function armEraseTool(){
 function renderSelectionActions(){
   const el=document.getElementById('selectionActions'); if (!el) return;
   el.innerHTML='';
+  const oldMore=document.getElementById('selectionMore'); if (oldMore) oldMore.remove();
   if (game.tool!=='select' || !game.sel){ el.classList.add('hidden'); return; }
   const btn=(label,sel,fn,title,cls)=>{
     const b=document.createElement('button');
@@ -745,16 +746,65 @@ function renderSelectionActions(){
     b.textContent=label; b.title=title||label;
     b.onclick=e=>{ e.stopPropagation(); fn&&fn(); };
     el.appendChild(b);
+    return b;
   };
+  const est=selectionEstimate(game.sel,3,game.selItems);
+  const summary=document.createElement('span'); summary.className='selection-summary';
+  const feet=n=>Number.isInteger(n)?String(n):n.toFixed(1);
+  summary.textContent=`${feet(est.widthFt)} x ${feet(est.heightFt)} ft - ${Math.round(est.areaSqFt)} sq ft`;
+  el.appendChild(summary);
   btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); updateActiveToolStatus(); });
   btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); updateActiveToolStatus(); });
   btn('Fill',false,()=>fillSelectionWithPlant(),'Fill the selection with the last selected plant or landscape material');
-  btn('Rotate',false,()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); },'Rotate the selection 90 degrees');
-  btn('Erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },'Delete everything in the selection','danger');
-  btn('Save',false,()=>saveSelectedArea(),'Save this selected area for later pasting');
-  btn('Paste',false,()=>pasteSavedArea(),'Paste the saved area starting here',storedArea()?'':'disabled');
+  const more=btn('More',false,null,'More selection actions');
+  more.setAttribute('aria-haspopup','menu');
+  more.onclick=e=>{ e.stopPropagation(); showSelectionMore(more); };
   el.classList.remove('hidden');
   positionSelectionActions();
+}
+function showSelectionMore(anchor){
+  const old=document.getElementById('selectionMore'); if (old){ old.remove(); return; }
+  const pop=document.createElement('div'); pop.id='selectionMore'; pop.className='selection-more'; pop.setAttribute('role','menu');
+  const add=(label,fn,cls,disabled)=>{
+    const b=document.createElement('button'); b.type='button'; b.textContent=label; b.setAttribute('role','menuitem');
+    if (cls) b.className=cls; b.disabled=!!disabled;
+    b.onclick=e=>{ e.stopPropagation(); pop.remove(); fn&&fn(); };
+    pop.appendChild(b);
+  };
+  add('Estimate materials\u2026',()=>openSelectionEstimate());
+  add('Replace plants\u2026',()=>openSelectionReplace());
+  add('Rotate 90 degrees',()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); });
+  add('Save area',()=>saveSelectedArea());
+  add('Paste saved area',()=>pasteSavedArea(),null,!storedArea());
+  add('Erase selection',()=>{ eraseSelection(); refreshCanvasTools(); },'danger');
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||190;
+  pop.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
+  pop.style.top=Math.max(8,r.top-pop.offsetHeight-6)+'px';
+  const dismiss=e=>{ if (!pop.contains(e.target)){ pop.remove(); document.removeEventListener('pointerdown',dismiss,true); } };
+  setTimeout(()=>document.addEventListener('pointerdown',dismiss,true),0);
+  const first=pop.querySelector('button:not(:disabled)'); if (first) first.focus();
+}
+function renderSelectionEstimate(){
+  const depth=+(document.getElementById('estimateDepth')||{}).value||3;
+  const est=selectionEstimate(game.sel,depth,game.selItems), body=document.getElementById('estimateBody');
+  if (!est||!body) return;
+  const row=(label,value)=>`<div><span>${label}</span><strong>${value}</strong></div>`;
+  let html=row('Selected area',`Approx. ${Math.round(est.areaSqFt)} sq ft`);
+  if (est.bedTiles){
+    html+=row('Bed area',`Approx. ${Math.round(est.bedAreaSqFt)} sq ft`);
+    html+=row('Exposed bed edge',`Approx. ${est.edgeFt.toFixed(1)} ft`);
+    html+=row(`Mulch at ${depth} in`,`Approx. ${est.mulchCuYd.toFixed(1)} cu yd`);
+    if (est.approxPlants) html+=row(`${est.armedName} at spacing`,`Approx. ${est.approxPlants} plants`);
+  }
+  if (est.plants||est.bulbs) html+=row('Already placed',`${est.plants} plants${est.bulbs?` + ${est.bulbs} bulbs`:''}`);
+  if (!est.bedTiles) html+=row('Bed materials','No bed tiles in this selection');
+  body.innerHTML=html;
+  const v=document.getElementById('estimateDepthValue'); if (v) v.textContent=`${depth} in`;
+}
+function openSelectionEstimate(){
+  if (!game.sel){ toast('Select an area first.'); return; }
+  renderSelectionEstimate(); openOverlay('estimateScreen','#estimateDepth');
 }
 function positionSelectionActions(){
   const el=document.getElementById('selectionActions');
@@ -807,11 +857,111 @@ function promptRevealLayer(layer,x,y){
       });
     });
 }
+let sitePhotoEditState=null;
+function fittedUnderlay(prepared,base){
+  if (base){
+    return normalizeUnderlay(Object.assign({},base,prepared,{visible:true,locked:false}));
+  }
+  const ratio=prepared.pixelW/prepared.pixelH, maxW=GW*.86, maxH=GH*.86;
+  const widthTiles=Math.max(1,Math.min(maxW,maxH*ratio));
+  return normalizeUnderlay(Object.assign({},prepared,{cx:(GW-1)/2,cy:(GH-1)/2,widthTiles,rotation:0,opacity:.35,visible:true,locked:false}));
+}
+function chooseSitePhoto(){
+  const input=document.getElementById('sitePhotoFile'); if (!input) return;
+  input.value=''; input.click();
+}
+function syncSitePhotoEditor(){
+  const u=game.underlay; if (!u) return;
+  const width=document.getElementById('sitePhotoWidth'), opacity=document.getElementById('sitePhotoOpacity'), rotation=document.getElementById('sitePhotoRotation');
+  if (width && document.activeElement!==width) width.value=(u.widthTiles*TILE_IN/12).toFixed(1);
+  if (opacity) opacity.value=Math.round(u.opacity*100);
+  if (rotation) rotation.value=Math.round(u.rotation);
+  const ov=document.getElementById('sitePhotoOpacityValue'); if (ov) ov.textContent=`${Math.round(u.opacity*100)}%`;
+  const rv=document.getElementById('sitePhotoRotationValue'); if (rv) rv.textContent=`${Math.round(u.rotation)} deg`;
+}
+function sitePhotoCalibrationUi(message){
+  const help=document.getElementById('sitePhotoHelp'), button=document.getElementById('btnSitePhotoCalibrate');
+  if (help) help.textContent=message||'Drag the photo to move it. Pinch to scale and rotate, or use the controls below.';
+  if (button) button.setAttribute('aria-pressed',game.underlayCalibration?'true':'false');
+  if (typeof updateCanvasCursor==='function') updateCanvasCursor();
+}
+function startSitePhotoCalibration(){
+  if (!game.photoEditing||!game.underlay) return;
+  closeOverlay('sitePhotoCalibrateScreen',false);
+  game.underlayCalibration={points:[]};
+  sitePhotoCalibrationUi('Tap the first endpoint of a distance you know.');
+  showCoachTip('Tap two points on the photo, then enter the real distance between them.','site-photo-calibrate');
+}
+function cancelSitePhotoCalibration(restoreFocus=true){
+  game.underlayCalibration=null;
+  closeOverlay('sitePhotoCalibrateScreen',restoreFocus);
+  sitePhotoCalibrationUi();
+}
+function recordSitePhotoCalibrationPoint(point){
+  const c=game.underlayCalibration;
+  if (!c||!game.underlay) return false;
+  if (!underlayContainsWorldPoint(game.underlay,point)){
+    toast('Place the calibration point inside the photo.','warn'); return true;
+  }
+  if (c.points.length>=2) return true;
+  c.points.push(point.slice());
+  if (c.points.length===1){ sitePhotoCalibrationUi('Now tap the second endpoint of that known distance.'); return true; }
+  sitePhotoCalibrationUi('Enter the real distance between your two points.');
+  const input=document.getElementById('sitePhotoKnownDistance');
+  if (input){
+    input.value='';
+    input.placeholder=(Math.hypot(point[0]-c.points[0][0],point[1]-c.points[0][1])*TILE_IN/12).toFixed(1);
+  }
+  openOverlay('sitePhotoCalibrateScreen','#sitePhotoKnownDistance');
+  return true;
+}
+function applySitePhotoCalibration(){
+  const c=game.underlayCalibration, input=document.getElementById('sitePhotoKnownDistance');
+  const next=c&&c.points.length===2?calibrateUnderlayDistance(game.underlay,c.points[0],c.points[1],input&&input.value):null;
+  if (!next){ toast('Enter a distance greater than zero.','warn'); if (input) input.focus(); return; }
+  game.underlay=next; markUnderlayChanged(); cancelSitePhotoCalibration(); syncSitePhotoEditor();
+  toast('Photo scale calibrated.');
+}
+function beginSitePhotoEdit(){
+  if (!game.underlay){ chooseSitePhoto(); return; }
+  if (!sitePhotoEditState) sitePhotoEditState={underlay:JSON.parse(JSON.stringify(game.underlay)),sheet:normalizedSheetState(game.sheetState)};
+  game.photoEditing=true; game.underlay.visible=true; game.underlay.locked=false; markUnderlayChanged();
+  const editor=document.getElementById('sitePhotoEditor'), hb=document.querySelector('.hud-bottom');
+  if (editor) editor.classList.remove('hidden'); if (hb) hb.classList.add('photo-editing');
+  setSheetState('half'); syncSitePhotoEditor();
+  showCoachTip('Drag the photo to move it. Pinch to scale or rotate; use the controls for precise changes.','site-photo-edit');
+}
+function closeSitePhotoEdit(commit){
+  const prior=sitePhotoEditState;
+  cancelSitePhotoCalibration(false);
+  if (!commit && prior) game.underlay=prior.underlay;
+  if (commit && game.underlay) game.underlay.locked=true;
+  game.photoEditing=false; markUnderlayChanged();
+  const editor=document.getElementById('sitePhotoEditor'), hb=document.querySelector('.hud-bottom');
+  if (editor) editor.classList.add('hidden'); if (hb) hb.classList.remove('photo-editing');
+  const restore=prior&&prior.sheet; sitePhotoEditState=null;
+  if (restore) setSheetState(restore); else applySheetState();
+  refreshCanvasTools(); buildToolTray();
+  if (game.mode==='solo') saveSolo(true).then(ok=>{ if (commit&&ok===false) toast('The site photo could not be saved - device storage is full.','warn'); });
+}
+function fitSitePhotoToPlot(){
+  const u=game.underlay; if (!u) return;
+  const ratio=u.pixelW/u.pixelH, maxW=GW*.86, maxH=GH*.86;
+  u.widthTiles=Math.max(1,Math.min(maxW,maxH*ratio)); u.cx=(GW-1)/2; u.cy=(GH-1)/2; u.rotation=0;
+  markUnderlayChanged(); syncSitePhotoEditor();
+}
+async function importSitePhoto(file){
+  try{
+    const prepared=await prepareUnderlayFile(file), had=game.underlay;
+    if (!sitePhotoEditState) sitePhotoEditState={underlay:had?JSON.parse(JSON.stringify(had)):null,sheet:normalizedSheetState(game.sheetState)};
+    game.underlay=fittedUnderlay(prepared,had); markUnderlayChanged(); beginSitePhotoEdit(); buildToolTray(); refreshCanvasTools();
+  }catch(err){ toast(err&&err.message?err.message:'That site photo could not be added.','warn'); }
+}
 // true when the view is anything other than "everything visible, no overlay"
 function layerViewActive(){
   return (ENABLE_LAYER_EDIT_FOCUS && game.layerFocus!=='all') || game.layerVis.shade ||
     game.layerVis.moisture || game.layerVis.height || game.layerVis.matureCanopies || game.layerVis.edgeRulers ||
-    LAYER_DEFS.some(([k])=>!layerShown(k));
+    !!(game.underlay&&game.underlay.visible) || LAYER_DEFS.some(([k])=>!layerShown(k));
 }
 function blockIfWrongEditLayer(layer){
   if (!layer || layerEditable(layer)) return false;
@@ -922,6 +1072,19 @@ function buildLayerPopover(){
   row(()=>!!game.layerVis.height, v=>{ setLayerVis('height',v); }, 'Height Overlay');
   row(()=>!!game.layerVis.matureCanopies, v=>{ setLayerVis('matureCanopies',v); }, 'Mature Canopies');
   row(()=>!!game.layerVis.edgeRulers, v=>{ setLayerVis('edgeRulers',v); }, 'Edge Rulers');
+  section('Reference');
+  if (game.underlay){
+    row(()=>!!game.underlay.visible, v=>{ game.underlay.visible=v; markUnderlayChanged(); if (game.mode==='solo') saveSolo(true); }, 'Site Photo');
+    const edit=document.createElement('button'); edit.className='layer-row'; edit.setAttribute('role','menuitem');
+    const mark=document.createElement('span'); mark.className='layer-eye'; mark.textContent='+';
+    const label=document.createElement('span'); label.className='layer-name'; label.textContent='Edit site photo\u2026'; edit.append(mark,label);
+    edit.onclick=ev=>{ ev.stopPropagation(); game.toolMenu=null; beginSitePhotoEdit(); refreshCanvasTools(); }; pop.appendChild(edit);
+  } else {
+    const add=document.createElement('button'); add.className='layer-row'; add.setAttribute('role','menuitem');
+    const mark=document.createElement('span'); mark.className='layer-eye'; mark.textContent='+';
+    const label=document.createElement('span'); label.className='layer-name'; label.textContent='Add site photo\u2026'; add.append(mark,label);
+    add.onclick=ev=>{ ev.stopPropagation(); chooseSitePhoto(); }; pop.appendChild(add);
+  }
   return pop;
 }
 function trayViewKey(cat=game.trayCat,drill=game.drill){
@@ -1056,9 +1219,11 @@ function renderGlobalSearchTray(tray,q){
     const plants=cat.types ? trayKeys().filter(k=>
       cat.types.includes(PLANTS[k].type) && (!cat.sunFilter || PLANTS[k].sun===cat.sunFilter) &&
       plantSearchHay(k).includes(q)) : [];
-    const tools=cat.tools ? searchToolItems().filter(item=>item.cat===cat.id && item.hay.includes(q)) : [];
-    if (plants.length || tools.length) groups.push({cat,plants,tools});
+    if (plants.length) groups.push({cat,plants});
   });
+  const total=groups.reduce((n,g)=>n+g.plants.length,0), status=document.createElement('span');
+  status.className='search-count'; status.setAttribute('role','status'); status.textContent=`${total} plant${total===1?'':'s'} found`;
+  tray.appendChild(status);
   if (!groups.length){
     const sp=document.createElement('span');
     sp.className='tray-empty';
@@ -1066,11 +1231,121 @@ function renderGlobalSearchTray(tray,q){
     tray.appendChild(sp);
     return;
   }
-  groups.forEach(({cat,plants,tools})=>{
+  groups.forEach(({cat,plants})=>{
     traySep(tray,cat.label,'Search result category');
     plants.slice(0,36).forEach(k=>renderSearchPlantButton(tray,k));
-    tools.forEach(item=>renderSearchToolButton(tray,item));
   });
+}
+let replacePlantContext=null;
+function selectionReplaceSources(){
+  const map=new Map();
+  for (const c of (game.selItems||[])) for (const p of [c.plant,c.bulb]){
+    if (!p||p.removed) continue;
+    const id=`${p.s}|${p.v||''}`, old=map.get(id)||{p:{s:p.s,v:p.v||null},count:0,key:`${c.x},${c.y}`};
+    old.count++; map.set(id,old);
+  }
+  return [...map.values()].sort((a,b)=>b.count-a.count||plantDef(a.p.s,a.p.v).name.localeCompare(plantDef(b.p.s,b.p.v).name));
+}
+function replaceOptionList(source,q){
+  const from=plantDef(source.s,source.v), group=replacementGroup(from), out=[];
+  trayKeys().forEach(k=>{
+    const P=PLANTS[k], add=v=>{
+      const D=plantDef(k,v), hay=`${P.name} ${P.latin} ${D.name||''} ${D.note||''}`.toLowerCase();
+      if (replacementGroup(D)===group && (!q||hay.includes(q))) out.push({s:k,v:v||null,D});
+    };
+    add(null); Object.keys(P.cv||{}).forEach(add);
+  });
+  return out.filter(o=>!(o.s===source.s&&(o.v||null)===(source.v||null)))
+    .sort((a,b)=>a.D.name.localeCompare(b.D.name));
+}
+function replaceScopeCount(scope){
+  if (!replacePlantContext||!replacePlantContext.source) return 0;
+  return replacementScopeTargets(Object.assign({},replacePlantContext,{scope})).length;
+}
+function startReplacePlant(source,key,scope){
+  replacePlantContext={source:{s:source.s,v:source.v||null},key,scope:scope||'one',target:null,choosingSource:false};
+  const search=document.getElementById('replacePlantSearch'); if (search) search.value='';
+  renderReplacePlantUi();
+}
+function openReplacePlant(p,x,y,scope){
+  if (!p||!PLANTS[p.s]) return;
+  startReplacePlant(p,`${x},${y}`,scope||'one');
+  openOverlay('replacePlantScreen','#replacePlantSearch');
+}
+function openSelectionReplace(){
+  if (!game.sel){ toast('Select an area first.'); return; }
+  const sources=selectionReplaceSources();
+  if (!sources.length){ toast('There are no plants in this selection.'); return; }
+  if (sources.length===1){
+    startReplacePlant(sources[0].p,sources[0].key,'selection');
+  } else {
+    replacePlantContext={choosingSource:true,sources,source:null,target:null,scope:'selection'};
+    const search=document.getElementById('replacePlantSearch'); if (search) search.value='';
+    renderReplacePlantUi();
+  }
+  openOverlay('replacePlantScreen','#replacePlantSearch');
+}
+function renderReplacePlantUi(){
+  const ctx=replacePlantContext, title=document.getElementById('replacePlantTitle'), meta=document.getElementById('replacePlantMeta');
+  const scopeEl=document.getElementById('replacePlantScope'), results=document.getElementById('replacePlantResults');
+  const search=document.getElementById('replacePlantSearch'), count=document.getElementById('replacePlantCount');
+  const summary=document.getElementById('replacePlantSummary'), apply=document.getElementById('btnReplacePlantApply');
+  if (!ctx||!title||!results) return;
+  results.innerHTML=''; scopeEl.innerHTML=''; apply.disabled=true;
+  if (ctx.choosingSource){
+    title.textContent='Choose a plant to replace'; meta.textContent='This selection contains several plants. Choose the exact species or cultivar first.';
+    scopeEl.closest('.field').classList.add('hidden');
+    search.placeholder='Filter selected plants';
+    const q=(search.value||'').toLowerCase().trim();
+    const shown=ctx.sources.filter(({p})=>{ const D=plantDef(p.s,p.v); return `${D.name} ${PLANTS[p.s].latin}`.toLowerCase().includes(q); });
+    shown.forEach(({p,count:n,key})=>{
+      const D=plantDef(p.s,p.v), b=document.createElement('button'); b.type='button'; b.className='replace-plant-result source';
+      b.innerHTML=`<span><strong>${D.name}</strong><small>${PLANTS[p.s].latin}</small></span><em>${n}</em>`;
+      b.onclick=()=>startReplacePlant(p,key,'selection'); results.appendChild(b);
+    });
+    count.textContent=`${shown.length} of ${ctx.sources.length} plant types in selection`;
+    summary.textContent='Choose the source plant before choosing its replacement.';
+    return;
+  }
+  const from=plantDef(ctx.source.s,ctx.source.v), one=replaceScopeCount('one'), sel=replaceScopeCount('selection'), all=replaceScopeCount('garden');
+  title.textContent=`Replace ${from.name}`; meta.textContent='Positions and planted age stay the same. Only the exact selected species and cultivar will change.';
+  scopeEl.closest('.field').classList.remove('hidden');
+  [['one','This plant',one],['selection','Selection',sel],['garden','Garden',all]].forEach(([id,label,n])=>{
+    const b=document.createElement('button'); b.type='button'; b.className='seg-opt'+(ctx.scope===id?' on':'');
+    b.textContent=`${label} (${n})`; b.disabled=!n; b.onclick=()=>{ ctx.scope=id; ctx.target=null; renderReplacePlantUi(); };
+    scopeEl.appendChild(b);
+  });
+  search.placeholder='Search compatible plants';
+  const q=(search.value||'').toLowerCase().trim(), opts=replaceOptionList(ctx.source,q);
+  count.textContent=`${opts.length} compatible plant${opts.length===1?'':'s'} found`;
+  opts.slice(0,80).forEach(o=>{
+    const b=document.createElement('button'); b.type='button'; b.className='replace-plant-result'+(ctx.target&&ctx.target.s===o.s&&(ctx.target.v||null)===(o.v||null)?' sel':'');
+    b.setAttribute('role','option'); b.setAttribute('aria-selected',b.classList.contains('sel')?'true':'false');
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const sc=Math.min(.62,36/(plantVisualH(o.D)||40)), tc=c.getContext('2d'); tc.scale(sc,sc);
+    drawPlant(tc,24/sc,42/sc,o.s,1,o.D.type==='bulb'?'Spring':'Summer',tileSeed(3,7),0,o.v||undefined,1);
+    const copy=document.createElement('span'), cat=document.createElement('small');
+    copy.innerHTML=`<strong>${o.D.name}</strong><small>${PLANTS[o.s].latin}</small>`;
+    cat.textContent=trayCatLabel(plantCategoryFor(o.s)); b.append(c,copy,cat);
+    b.onclick=()=>{ ctx.target={s:o.s,v:o.v}; renderReplacePlantUi(); };
+    results.appendChild(b);
+  });
+  if (!opts.length){ const empty=document.createElement('p'); empty.className='tray-empty'; empty.textContent='No compatible plants match this search.'; results.appendChild(empty); }
+  if (!ctx.target){ summary.textContent='Choose a replacement plant.'; return; }
+  const target=plantDef(ctx.target.s,ctx.target.v), check=replacementPreflight(ctx,ctx.target), total=check.valid.length+check.blocked.length;
+  summary.textContent=check.blocked.length
+    ? `${check.valid.length} of ${total} can change to ${target.name}; ${check.blocked.length} cannot fit.`
+    : `${check.valid.length} ${from.name} -> ${target.name}`;
+  apply.textContent=`Replace ${check.valid.length} plant${check.valid.length===1?'':'s'}`;
+  apply.disabled=!check.valid.length;
+}
+function applyPlantReplacement(){
+  const ctx=replacePlantContext; if (!ctx||!ctx.target) return;
+  const from=plantDef(ctx.source.s,ctx.source.v), to=plantDef(ctx.target.s,ctx.target.v), result=replacePlantInstances(ctx,ctx.target);
+  if (!result.changed){ toast(result.reason||'Those plants cannot be replaced there.','warn'); return; }
+  closeOverlay('replacePlantScreen'); replacePlantContext=null;
+  toast(`Replaced ${result.changed} ${from.name}${result.blocked.length?`; ${result.blocked.length} blocked`:''} with ${to.name}.`);
+  renderSelectionActions();
 }
 function buildToolTray(){
   saveTrayScroll();
@@ -1099,7 +1374,7 @@ function buildToolTray(){
     const sc=document.createElement('canvas'); sc.width=24; sc.height=24;
     drawSearchIcon(sc.getContext('2d'), game.searchOpen);
     sb.appendChild(sc);
-    sb.setAttribute('aria-label', game.searchOpen?'Close search':'Search');
+    sb.setAttribute('aria-label', game.searchOpen?'Close plant search':'Search all plants');
     sb.title=game.searchOpen?'Close search - back to categories':'Search the whole catalog';
     sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
       buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
@@ -1108,7 +1383,7 @@ function buildToolTray(){
   const div=document.createElement('span'); div.className='tab-div'; tabs.appendChild(div);
   if (canSearch && game.searchOpen){
     const si=document.createElement('input');
-    si.id='traySearch'; si.type='search'; si.placeholder='search all catalog...';
+    si.id='traySearch'; si.type='search'; si.placeholder='Search all plants'; si.setAttribute('aria-label','Search all plants');
     si.value=game.traySearch||'';
     si.oninput=()=>{ game.traySearch=si.value; buildToolTray();
       const next=document.getElementById('traySearch');
@@ -1685,6 +1960,13 @@ function buildToolTray(){
         tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
         tc.setLineDash([]);
       };
+      const photo=toolBtn(game.underlay?'Edit site photo':'Add site photo',false,tc=>{
+        tc.fillStyle='#8ca39a'; tc.fillRect(7,9,34,26);
+        tc.fillStyle='#d8c98c'; tc.beginPath(); tc.arc(32,16,4,0,7); tc.fill();
+        tc.fillStyle='#526d55'; tc.beginPath(); tc.moveTo(8,34); tc.lineTo(18,22); tc.lineTo(24,28); tc.lineTo(31,20); tc.lineTo(41,34); tc.closePath(); tc.fill();
+        tc.strokeStyle='#efe6d3'; tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
+      },()=>{ if (game.underlay) beginSitePhotoEdit(); else chooseSitePhoto(); });
+      photo.dataset.k='site-photo'; photo.title=game.underlay?'Edit the calibrated site-photo reference':'Add a calibrated site-photo reference';
       const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
         setTool('building',null); buildToolTray();
       });
@@ -2037,13 +2319,55 @@ function nudgeSheetState(dir){
   const i=SHEET_STATES.indexOf(normalizedSheetState(game.sheetState));
   setSheetState(SHEET_STATES[Math.max(0,Math.min(SHEET_STATES.length-1,i+dir))]);
 }
+function mobileSheetUi(){ return typeof matchMedia==='function' && matchMedia('(max-width:640px)').matches; }
+function sheetSafeTopPx(hb){
+  const p=document.createElement('i'); p.setAttribute('aria-hidden','true');
+  p.style.cssText='position:absolute;visibility:hidden;pointer-events:none;height:var(--sheet-safe-top);width:0';
+  hb.appendChild(p); const h=p.getBoundingClientRect().height||12; p.remove(); return h;
+}
+function sheetTargetHeight(hb,state){
+  if (state==='full'){
+    const full=typeof trueViewH==='function'?trueViewH():innerHeight;
+    const visible=window.visualViewport&&window.visualViewport.height?window.visualViewport.height:full;
+    return Math.max(180,Math.min(full,visible)-sheetSafeTopPx(hb));
+  }
+  const old=hb.style.height; hb.style.height='auto';
+  const h=Math.ceil(hb.getBoundingClientRect().height); hb.style.height=old; return h;
+}
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
   const s=normalizedSheetState(game.sheetState);
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
+  const phone=mobileSheetUi(), reduced=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const start=phone?hb.getBoundingClientRect().height:0;
+  if (hb._sheetEnd){ hb.removeEventListener('transitionend',hb._sheetEnd); hb._sheetEnd=null; }
+  if (hb._sheetFrame) cancelAnimationFrame(hb._sheetFrame);
+  if (hb._sheetTimer){ clearTimeout(hb._sheetTimer); hb._sheetTimer=null; }
+  hb.classList.add('sheet-measuring'); hb.classList.remove('sheet-animating');
   hb.classList.remove('collapsed','sheet-collapsed','sheet-half','sheet-full');
   hb.classList.add('sheet-'+s);
   hb.classList.toggle('collapsed', s==='collapsed');
+  if (phone){
+    const target=sheetTargetHeight(hb,s), ready=hb.dataset.sheetReady==='1';
+    hb.dataset.sheetReady='1';
+    if (!ready||reduced||Math.abs(start-target)<1){
+      hb.style.height=''; hb.classList.remove('sheet-measuring');
+    } else {
+      hb.style.height=`${start}px`; hb.getBoundingClientRect();
+      hb.classList.remove('sheet-measuring'); hb.classList.add('sheet-animating');
+      const token=(hb._sheetToken||0)+1; hb._sheetToken=token;
+      hb._sheetFrame=requestAnimationFrame(()=>{ hb._sheetFrame=null; if (hb._sheetToken===token) hb.style.height=`${target}px`; });
+      const finish=()=>{ if (hb._sheetToken!==token) return;
+        if (hb._sheetEnd) hb.removeEventListener('transitionend',hb._sheetEnd);
+        hb._sheetEnd=null; if (hb._sheetTimer) clearTimeout(hb._sheetTimer); hb._sheetTimer=null;
+        hb.classList.remove('sheet-animating'); hb.style.height=''; };
+      hb._sheetEnd=ev=>{ if (ev.target!==hb||ev.propertyName!=='height') return; finish(); };
+      hb.addEventListener('transitionend',hb._sheetEnd);
+      hb._sheetTimer=setTimeout(finish,700); // cleanup even if rotation/display changes swallow transitionend
+    }
+  } else {
+    hb.style.height=''; hb.dataset.sheetReady=''; hb.classList.remove('sheet-measuring','sheet-animating');
+  }
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const handle=document.getElementById('sheetHandle'); if (handle){
     handle.setAttribute('data-state',s);
@@ -2067,3 +2391,37 @@ function drawSheetSwatch(){
   const c=document.getElementById('sheetSwatch'); if (!c) return;
   drawBrushSwatchCanvas(c,false);
 }
+
+const replaceSearch=document.getElementById('replacePlantSearch');
+if (replaceSearch) replaceSearch.addEventListener('input',()=>{ if (replacePlantContext&&!replacePlantContext.choosingSource) replacePlantContext.target=null; renderReplacePlantUi(); });
+const replaceApply=document.getElementById('btnReplacePlantApply'); if (replaceApply) replaceApply.onclick=applyPlantReplacement;
+const replaceCancel=document.getElementById('btnReplacePlantCancel'); if (replaceCancel) replaceCancel.onclick=()=>{ closeOverlay('replacePlantScreen'); replacePlantContext=null; };
+const replaceScreen=document.getElementById('replacePlantScreen'); if (replaceScreen) replaceScreen.onclick=e=>{ if (e.target===replaceScreen){ closeOverlay('replacePlantScreen'); replacePlantContext=null; } };
+const estimateDepth=document.getElementById('estimateDepth'); if (estimateDepth) estimateDepth.addEventListener('input',renderSelectionEstimate);
+const estimateClose=document.getElementById('btnEstimateClose'); if (estimateClose) estimateClose.onclick=()=>closeOverlay('estimateScreen');
+const estimateScreen=document.getElementById('estimateScreen'); if (estimateScreen) estimateScreen.onclick=e=>{ if (e.target===estimateScreen) closeOverlay('estimateScreen'); };
+const siteFile=document.getElementById('sitePhotoFile'); if (siteFile) siteFile.onchange=()=>{ const f=siteFile.files&&siteFile.files[0]; if (f) importSitePhoto(f); };
+const siteWidth=document.getElementById('sitePhotoWidth'); if (siteWidth) siteWidth.onchange=()=>{ if (!game.underlay) return;
+  const feet=+siteWidth.value; if (!Number.isFinite(feet)||feet<=0){ syncSitePhotoEditor(); return; }
+  game.underlay.widthTiles=Math.max(.5,Math.min(Math.max(GW,GH)*8,feet*12/TILE_IN)); markUnderlayChanged(); syncSitePhotoEditor(); };
+const siteOpacity=document.getElementById('sitePhotoOpacity'); if (siteOpacity) siteOpacity.oninput=()=>{ if (!game.underlay) return;
+  game.underlay.opacity=Math.max(.1,Math.min(.85,+siteOpacity.value/100)); markUnderlayChanged(); syncSitePhotoEditor(); };
+const siteRotation=document.getElementById('sitePhotoRotation'); if (siteRotation) siteRotation.oninput=()=>{ if (!game.underlay) return;
+  game.underlay.rotation=+siteRotation.value||0; markUnderlayChanged(); syncSitePhotoEditor(); };
+document.querySelectorAll('[data-photo-nudge]').forEach(b=>b.onclick=()=>{ if (!game.underlay) return;
+  const [dx,dy]=b.dataset.photoNudge.split(',').map(Number); game.underlay.cx+=dx; game.underlay.cy+=dy; markUnderlayChanged(); });
+const photoRotate=delta=>{ if (!game.underlay) return; game.underlay.rotation=Math.max(-180,Math.min(180,game.underlay.rotation+delta)); markUnderlayChanged(); syncSitePhotoEditor(); };
+const photoRL=document.getElementById('btnSitePhotoRotateLeft'); if (photoRL) photoRL.onclick=()=>photoRotate(-15);
+const photoRR=document.getElementById('btnSitePhotoRotateRight'); if (photoRR) photoRR.onclick=()=>photoRotate(15);
+const photoFit=document.getElementById('btnSitePhotoFit'); if (photoFit) photoFit.onclick=fitSitePhotoToPlot;
+const photoCalibrate=document.getElementById('btnSitePhotoCalibrate'); if (photoCalibrate) photoCalibrate.onclick=startSitePhotoCalibration;
+const photoCalibrateApply=document.getElementById('btnSitePhotoCalibrateApply'); if (photoCalibrateApply) photoCalibrateApply.onclick=applySitePhotoCalibration;
+const photoCalibrateCancel=document.getElementById('btnSitePhotoCalibrateCancel'); if (photoCalibrateCancel) photoCalibrateCancel.onclick=startSitePhotoCalibration;
+const photoCalibrateScreen=document.getElementById('sitePhotoCalibrateScreen'); if (photoCalibrateScreen) photoCalibrateScreen.onclick=e=>{ if (e.target===photoCalibrateScreen) cancelSitePhotoCalibration(); };
+const photoReplace=document.getElementById('btnSitePhotoReplace'); if (photoReplace) photoReplace.onclick=chooseSitePhoto;
+const photoCancel=document.getElementById('btnSitePhotoCancel'); if (photoCancel) photoCancel.onclick=()=>closeSitePhotoEdit(false);
+const photoCancelX=document.getElementById('btnSitePhotoCancelX'); if (photoCancelX) photoCancelX.onclick=()=>closeSitePhotoEdit(false);
+const photoDone=document.getElementById('btnSitePhotoDone'); if (photoDone) photoDone.onclick=()=>closeSitePhotoEdit(true);
+const photoRemove=document.getElementById('btnSitePhotoRemove'); if (photoRemove) photoRemove.onclick=()=>showConfirm('Remove site photo?',
+  'The design stays in place, but this reference image will be removed from the garden.','Remove photo',()=>{
+    game.underlay=null; closeSitePhotoEdit(true); toast('Site photo removed.'); });

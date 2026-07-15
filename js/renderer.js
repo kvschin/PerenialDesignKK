@@ -14,6 +14,7 @@ let snowFlakes = [];
    frame is always freshly rasterized, never a resampled blit). Trade-off:
    water ripples freeze except at rebakes (they already froze on a still view). */
 let groundCanvas=null, groundCtx=null, groundKey='', groundRefs={terrain:null,elevation:null,houses:null};
+let underlayImage={src:null,img:null,ready:false,error:false};
 let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
 let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
 let groundCamPrevX=NaN, groundCamPrevY=NaN, groundCamT=-1e9; // last cam tick, for settle
@@ -25,6 +26,60 @@ function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
 function groundRefsChanged(){
   return groundRefs.terrain!==game.terrain || groundRefs.elevation!==game.elevation || groundRefs.houses!==game.houses;
+}
+function currentUnderlayImage(){
+  const u=game.underlay;
+  if (!u || !u.data) return null;
+  if (underlayImage.src!==u.data){
+    const img=new Image();
+    underlayImage={src:u.data,img,ready:false,error:false};
+    img.onload=()=>{ if (underlayImage.img===img) underlayImage.ready=true; };
+    img.onerror=()=>{ if (underlayImage.img===img) underlayImage.error=true; };
+    img.src=u.data;
+  }
+  return underlayImage.ready && !underlayImage.error ? underlayImage.img : null;
+}
+// The reference is composited above the opaque grass cache but below every
+// plant, structure, selection, and analysis overlay. At its deliberately low
+// opacity it remains traceable without hiding finished design objects.
+function drawSiteUnderlay(ctx,W,H){
+  const u=game.underlay, img=u&&u.visible&&currentUnderlayImage();
+  if (!u || !img) return;
+  const {w,h}=underlaySize(u), rad=(+u.rotation||0)*Math.PI/180;
+  const c=screenOfFlat(u.cx,u.cy,W,H), x1=screenOfFlat(u.cx+1,u.cy,W,H), y1=screenOfFlat(u.cx,u.cy+1,W,H);
+  const vx=[x1[0]-c[0],x1[1]-c[1]], vy=[y1[0]-c[0],y1[1]-c[1]];
+  const ex=[vx[0]*Math.cos(rad)+vy[0]*Math.sin(rad),vx[1]*Math.cos(rad)+vy[1]*Math.sin(rad)];
+  const ey=[-vx[0]*Math.sin(rad)+vy[0]*Math.cos(rad),-vx[1]*Math.sin(rad)+vy[1]*Math.cos(rad)];
+  const corners=[screenOfFlat(-0.5,-0.5,W,H),screenOfFlat(GW-0.5,-0.5,W,H),
+    screenOfFlat(GW-0.5,GH-0.5,W,H),screenOfFlat(-0.5,GH-0.5,W,H)];
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(corners[0][0],corners[0][1]);
+  corners.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath(); ctx.clip();
+  ctx.globalAlpha=u.opacity;
+  ctx.translate(c[0],c[1]);
+  ctx.transform(ex[0],ex[1],ey[0],ey[1],0,0);
+  ctx.drawImage(img,-w/2,-h/2,w,h);
+  ctx.restore();
+  if (game.photoEditing){
+    const worldCorner=(lx,ly)=>{
+      const wx=u.cx+lx*Math.cos(rad)-ly*Math.sin(rad), wy=u.cy+lx*Math.sin(rad)+ly*Math.cos(rad);
+      return screenOfFlat(wx,wy,W,H);
+    };
+    const q=[worldCorner(-w/2,-h/2),worldCorner(w/2,-h/2),worldCorner(w/2,h/2),worldCorner(-w/2,h/2)];
+    ctx.save(); ctx.strokeStyle='#72c9ff'; ctx.lineWidth=2.5; ctx.setLineDash([7,5]);
+    ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); q.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle='#172733';
+    q.forEach(p=>{ ctx.beginPath(); ctx.arc(p[0],p[1],4.5,0,7); ctx.fill(); }); ctx.restore();
+    const points=game.underlayCalibration&&game.underlayCalibration.points;
+    if (points&&points.length){
+      const ps=points.map(p=>screenOfFlat(p[0],p[1],W,H));
+      ctx.save(); ctx.strokeStyle='#f4c66a'; ctx.fillStyle='#172733'; ctx.lineWidth=3; ctx.setLineDash([]);
+      if (ps.length>1){ ctx.beginPath(); ctx.moveTo(ps[0][0],ps[0][1]); ctx.lineTo(ps[1][0],ps[1][1]); ctx.stroke(); }
+      ps.forEach((p,i)=>{ ctx.beginPath(); ctx.arc(p[0],p[1],7,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#f4c66a'; ctx.font="700 10px 'IBM Plex Sans', sans-serif"; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),p[0],p[1]); ctx.fillStyle='#172733'; });
+      ctx.restore();
+    }
+  }
 }
 function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   ex=ex||0;   // extra cull slack in draw units — the world-anchored bake paints a margin past the viewport
@@ -824,6 +879,7 @@ function render(t){
   cx.save(); cx.setTransform(1,0,0,1,0,0);
   cx.drawImage(groundCanvas,bdx,bdy,groundCanvas.width*k,groundCanvas.height*k);
   cx.restore();
+  drawSiteUnderlay(cx,W,H);
   dmark('ground',tG0);
   const tShade=dnow();
   if (layerShown('woody')) for (const sh of scene.shrubs){
@@ -1047,6 +1103,12 @@ function distanceMetricLabel(a,b){
   const feet=inches/12;
   return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
 }
+function inchesMetricLabel(inches){
+  inches=Math.max(0,+inches||0);
+  if (inches<24) return `${Math.round(inches)} in`;
+  const feet=inches/12;
+  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+}
 function tileCenterScreen(x,y,W,H){
   const [sx,sy]=screenOf(x,y,W,H);
   return [sx,sy+TILE_H/2];
@@ -1085,9 +1147,19 @@ function drawRulerOverlay(cx,W,H){
 function drawToolDragMetric(cx,W,H){
   if (typeof toolDrag==='undefined' || !toolDrag || !toolDrag.active || !toolDrag.what) return;
   if (!['path','bed','water','fence','gate'].includes(toolDrag.what)) return;
-  const a=tileCenterScreen(toolDrag.sx,toolDrag.sy,W,H);
   const b=tileCenterScreen(toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy,W,H);
-  drawSelDimLine(cx,a,b,distanceMetricLabel([toolDrag.sx,toolDrag.sy],[toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy]),1);
+  let label;
+  if (toolDrag.what==='bed'||toolDrag.what==='water'){
+    const n=toolDrag.affected?toolDrag.affected.size:0, area=tileAreaSqFt(n);
+    label=`${area<10?area.toFixed(1):Math.round(area)} sq ft`;
+  } else {
+    label=inchesMetricLabel(toolDrag.runInches||TILE_IN);
+    if (toolDrag.what==='path' && toolBrushSize()>1) label+=` x ${selMetricLabel(toolBrushSize())} wide`;
+  }
+  const safe=typeof usableCanvasRect==='function'?usableCanvasRect():{left:8,top:8,right:VW-8,bottom:VH-8};
+  const x=Math.max(safe.left/ZOOM+46,Math.min(safe.right/ZOOM-46,b[0]));
+  const y=Math.max(safe.top/ZOOM+22,Math.min(safe.bottom/ZOOM-22,b[1]-28));
+  drawSelMetricLabel(cx,x,y,label);
 }
 function overlayPlantAt(x,y){
   const k=`${x},${y}`;

@@ -601,9 +601,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     — next to the path/bed/water swatches.) New garden entries start on
     Hand so accidental painting is harder. Search is a magnifier **toggle** in
     the tabs row (`game.searchOpen`): tapping it swaps the sub-tabs for a search
-    field (so it never adds a wrapping row) that filters the open category by
-    name/latin/group (`applyTraySearch`, display:none — no rebuild, so typing
-    keeps focus; inputs are excluded from game keys). Because the field *takes
+    field (so it never adds a wrapping row) that searches every visible plant
+    category by common/Latin/cultivar text (`renderGlobalSearchTray`) and groups
+    results by their real category with a live result count. Activating a result
+    arms it and jumps back to its category/drill-in. Because the field *takes
     the categories' place*, the drawn magnifier changes to a drawn close icon
     while open (`.tab-search.close`, title "Close search — back to categories")
     so the way back is obvious; tapping it or pressing **Escape** in the field
@@ -673,8 +674,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `padding-bottom:calc(6px + env(safe-area-inset-bottom))` so the catalog
     clears the home indicator while the tray background runs to the screen
     edge behind it). `#sheetCatalog` remains mounted across those states, so
-    its scroll position survives; max-height/opacity/translate animate over
-    the shared panel timing, and only the collapsed state clips its content
+    its scroll position survives. `applySheetState` performs a measured-height
+    FLIP on the parent (px start/target, then clears the inline height), because
+    CSS cannot interpolate the half state's `auto` or the full state's `none`;
+    this makes all six directed collapsed/half/full transitions reversible,
+    including rapid interruptions. Reduced motion skips the interpolation.
+    Only the collapsed state clips its content
     (half/full must let the category popover escape above the sheet). On
     desktop/iPad `.hud-bottom` stays a
     **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
@@ -1020,19 +1025,30 @@ stress garden before merge (see the perf notes in §11).
   rail button (stops evicting the catalog); zoom pill + fit-plot (also heals the
   resize-stranding); two-finger-tap undo / three-finger redo; visible move-cancel
   on touch; selection actions in a pill anchored to the marquee (desktop/tablet).
-- **Wave 5 — Measure & analyze** (the ruler + the overlay family, shared render
+- **Wave 5 — Measure & analyze** *(built)* (the ruler + the overlay family, shared render
   pattern): tape-measure mode (tap-tap or drag, reusing `drawSelDimLine`/
   `selMetricLabel`; entry via top bar / view-tools popover) + a free
-  running-length label during path/bed/fence drags (`toolDrag.count` knows the
-  tiles); overlay family clustered (touching the Layers overlay section once):
+  cumulative running-length label during path/fence drags (fast pointer gaps
+  are filled and visited edges are counted once), plus unique painted-area
+  feedback for bed/water. Selection actions show dimensions/area and More →
+  Estimate materials computes actual selected bed area, exposed edging, 2/3/4in
+  mulch volume, placed counts, and armed-species spacing estimates. Overlay
+  family clustered (touching the Layers overlay section once):
   edge-rulers overlay (desktop/tablet only), hydrozone/moisture overlay (`moist`
   data), `heightIn` data pass + height overlay, real eye icons in the Layers
-  menu; global search scope with jump-to-category.
+  menu; global plant search scope with jump-to-category.
 - **Wave 6 — Site-accuracy & polish** (biggest lift, lowest urgency): set true
   north at plot setup (rotates `SUN_PATH`; compass, plan arrow, shade all derive
-  downstream); replace-species across garden/selection; site-photo underlay
-  (image layer under the ground cache, opacity in Layers, resolution-capped
-  data-URL in the save — watch localStorage size); left-handed rail mirroring.
+  downstream); *(built)* exact species+cultivar replacement from plant details
+  or selection More, scoped to one/selection/garden with preflighted blocked
+  positions and one undo step; *(built)* one calibrated site-photo reference
+  under Build → Site (drag/pinch transform, two-point known-distance
+  calibration plus a full-photo-width fallback, opacity, fit/rotate/nudge,
+  Cancel/locked Done, visibility in Layers). The photo is
+  resized to a bounded JPEG data-URL and stored as `game.underlay` outside
+  `GAME_LAYERS`, so ordinary undo snapshots never clone its base64 payload. It
+  composites above the opaque ground cache but below plants, structures, and
+  analysis overlays. True north and left-handed rail mirroring remain.
 - **Floaters** (no hard dependency, pull forward on appetite): **bloom/interest
   calendar** (rows = species, columns = seasons early/mid/late, cells tinted by
   actual bloom color — pure presentation over existing `bloomLevel` data, a

@@ -86,7 +86,7 @@ function startDailyChallenge(){
   game.worldName=`Daily: "${c.title}"`;
   game.mode='solo'; game.gameMode='design'; game.visiting=false;
   game.previewMode='established';
-  game.layerVis=defaultLayerVis();
+  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
@@ -489,7 +489,7 @@ function openPlotScreen(){
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-      game.layerVis=defaultLayerVis();
+      game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
@@ -598,6 +598,7 @@ function openDesignSetup(){
   show('designScreen');
 }
 function quitToMenu(){
+  if (game.photoEditing) closeSitePhotoEdit(false);
   suspendClock();
   if (game.mode==='solo'&&hasStorage) saveSolo();
   if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }

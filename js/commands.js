@@ -749,6 +749,12 @@ function showPlantCard(p,px2,py2){
     if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };
   xb.onclick=close;
   el.prepend(xb);
+  if (!game.visiting && px2!==undefined && py2!==undefined){
+    const rb=document.createElement('button'); rb.type='button'; rb.className='card-action'; rb.textContent='Replace\u2026';
+    rb.title=`Replace ${P.name} here or across the garden`;
+    rb.onclick=()=>{ close(); openReplacePlant(p,px2,py2); };
+    if (el.appendChild) el.appendChild(rb); else el.prepend(rb);
+  }
   el.style.display='block';
   el._t=setTimeout(close,8000);
 }
@@ -998,6 +1004,116 @@ function selectionPayload(r){
   }
   return items;
 }
+function selectionEstimate(r=game.sel,depthIn=3,items=game.selItems){
+  if (!r) return null;
+  const w=r.x1-r.x0+1, h=r.y1-r.y0+1, owned=items||selectionPayload(r);
+  const bedKeys=new Set(); let plants=0, bulbs=0;
+  for (const c of owned){
+    if (c.terr && c.terr.k==='bed') bedKeys.add(`${c.x},${c.y}`);
+    if (c.plant) plants++;
+    if (c.bulb) bulbs++;
+  }
+  const bedArea=tileAreaSqFt(bedKeys.size), armed=PLANTS[game.lastBrushTool]?plantDef(game.lastBrushTool,game.lastBrushVar):null;
+  return {
+    w,h,widthFt:w*TILE_IN/12,heightFt:h*TILE_IN/12,areaSqFt:tileAreaSqFt(w*h),
+    bedTiles:bedKeys.size,bedAreaSqFt:bedArea,edgeFt:materialPerimeterFt(bedKeys),
+    mulchCuYd:mulchYards(bedArea,depthIn),plants,bulbs,
+    armedName:armed&&armed.name,approxPlants:armed&&bedKeys.size?plantsForTiles(bedKeys.size,armed.space):null,
+  };
+}
+function replacementGroup(D){
+  if (!D) return null;
+  if (D.type==='bulb'||D.type==='water'||D.type==='shrub'||D.type==='tree') return D.type;
+  return ['grass','sedge','forb'].includes(D.type)?'perennial':null;
+}
+function exactPlantMatch(p,s,v){ return !!(p&&!p.removed&&p.s===s&&(p.v||null)===(v||null)); }
+function replacementScopeTargets(ctx){
+  if (!ctx) return [];
+  const D=plantDef(ctx.source.s,ctx.source.v), layer=D.type==='bulb'?'bulbs':'plants';
+  const out=[], seen=new Set(), add=k=>{
+    if (seen.has(k)) return; const p=game[layer][k];
+    if (exactPlantMatch(p,ctx.source.s,ctx.source.v)){ seen.add(k); out.push({layer,key:k,p}); }
+  };
+  if (ctx.scope==='one') add(ctx.key);
+  else if (ctx.scope==='selection'){
+    for (const c of (game.selItems||[])) add(`${c.x},${c.y}`);
+  } else for (const k in game[layer]) add(k);
+  return out;
+}
+function replacementPreflight(ctx,target){
+  const from=plantDef(ctx.source.s,ctx.source.v), to=plantDef(target.s,target.v);
+  const targets=replacementScopeTargets(ctx);
+  if (!from||!to||replacementGroup(from)!==replacementGroup(to)) return {valid:[],blocked:targets,reason:'Choose a compatible plant type.'};
+  const candidates=[], ignoredShrubs=isShrubDef(to)?new Set(targets.map(item=>item.key)):null;
+  for (const item of targets){
+    const [x,y]=item.key.split(',').map(Number), np=Object.assign({},item.p,{s:target.s,t:Date.now()});
+    if (target.v) np.v=target.v; else delete np.v;
+    let ok=!siteStructureAt(x,y)&&!isDoor(x,y);
+    if (ok && to.type==='water') ok=tileTerrain(x,y)==='water';
+    if (ok && to.type==='bulb'){
+      const sh=shrubAt(x,y), above=game.plants[item.key];
+      ok=!sh && !(above&&!above.removed&&plantLayerOf(above)==='woody');
+    }
+    if (ok && isShrubDef(to)) ok=canPlaceShrubAt(x,y,np,{ignoreKeys:ignoredShrubs}).ok;
+    if (ok && !isShrubDef(to) && to.type!=='bulb' && to.type!=='water'){
+      const terr=tileTerrain(x,y); ok=terr!=='path'&&terr!=='water'&&!shrubAt(x,y,{ignoreKey:item.key});
+    }
+    candidates.push(Object.assign({},item,{next:np,x,y,ok}));
+  }
+  // Validate a shrub batch against its virtual final state. Source shrubs that
+  // cannot change remain obstacles; successful candidates are compared as the
+  // replacement species so adjacent batch members do not block one another
+  // merely because their old footprints still exist in game.plants.
+  if (isShrubDef(to) && candidates.length>1){
+    const blocked=new Set(candidates.map((c,i)=>c.ok?null:i).filter(i=>i!==null));
+    const overlaps=(a,ap,b,bp)=>{
+      if (shrubHedgeCompatible(ap,bp) && Math.hypot(a.x-b.x,a.y-b.y)>=0.95) return false;
+      const tiles=new Set(shrubFootprintTiles(a.x,a.y,ap,true).map(p=>p.join(',')));
+      return shrubFootprintTiles(b.x,b.y,bp,true).some(p=>tiles.has(p.join(',')));
+    };
+    let changed=true;
+    while (changed){
+      changed=false;
+      for (let i=0;i<candidates.length;i++){
+        if (blocked.has(i)) continue;
+        for (let j=0;j<candidates.length;j++){
+          if (i===j) continue;
+          const other=blocked.has(j)?candidates[j].p:candidates[j].next;
+          if (overlaps(candidates[i],candidates[i].next,candidates[j],other)){
+            blocked.add(i); candidates[i].ok=false; changed=true; break;
+          }
+        }
+      }
+    }
+  }
+  const valid=candidates.filter(c=>c.ok), blocked=candidates.filter(c=>!c.ok);
+  return {valid,blocked,reason:blocked.length?'Some positions are blocked or too small for the replacement.':''};
+}
+function updateReplacementSelection(valid,clearedBulbs){
+  if (!game.selItems) return;
+  const changed=new Map(valid.map(item=>[item.key,item]));
+  game.selItems.forEach(cell=>{
+    const key=`${cell.x},${cell.y}`, item=changed.get(key);
+    if (item) cell[item.layer==='bulbs'?'bulb':'plant']=JSON.parse(JSON.stringify(item.next));
+    if (clearedBulbs&&clearedBulbs.has(key)) delete cell.bulb;
+  });
+}
+function replacePlantInstances(ctx,target){
+  const check=replacementPreflight(ctx,target);
+  if (!check.valid.length) return Object.assign(check,{changed:0});
+  const clearedBulbs=new Set();
+  withUndo(()=>{ check.valid.forEach(item=>{
+    if (item.layer==='plants'&&isShrubDef(plantDef(item.next.s,item.next.v)))
+      clearBulbsUnderShrub(item.x,item.y,item.next,false,clearedBulbs);
+    setTile(item.layer,item.key,item.next);
+  }); });
+  const layers=new Set(check.valid.map(item=>item.layer));
+  if (layers.has('plants')) syncPlantsOut();
+  if (layers.has('bulbs')||clearedBulbs.size) syncBulbsOut();
+  updateReplacementSelection(check.valid,clearedBulbs);
+  hapticFeedback('success');
+  return Object.assign(check,{changed:check.valid.length});
+}
 function selectedFillBrush(){
   const k=game.lastBrushTool;
   if (PLANTS[k]){
@@ -1245,7 +1361,7 @@ function evPlacement(e){ // pointer position -> owning world tile + sub-tile off
 let spaceHeld=false, panDrag=null, undoStack=[], redoStack=[], pendSnap=null, pendRev=0;
 function updateCanvasCursor(){
   if (!cnv) return;
-  cnv.style.cursor = panDrag ? 'grabbing'
+  cnv.style.cursor = game.underlayCalibration ? 'crosshair' : panDrag ? 'grabbing'
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick'||game.tool==='building') ? 'crosshair' : '';
 }

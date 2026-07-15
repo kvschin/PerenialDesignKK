@@ -22,6 +22,69 @@ function normalizeLayerVis(vis){
   }
   return out;
 }
+const UNDERLAY_DATA_LIMIT=950000;
+function normalizeUnderlay(raw){
+  if (!raw || typeof raw!=='object') return null;
+  const data=typeof raw.data==='string'?raw.data:'';
+  if (!/^data:image\/(?:jpeg|png|webp);base64,/i.test(data) || data.length>UNDERLAY_DATA_LIMIT) return null;
+  const sourceW=Math.round(+raw.pixelW||0), sourceH=Math.round(+raw.pixelH||0);
+  if (sourceW<1||sourceH<1) return null;
+  const pixelW=Math.min(4096,sourceW), pixelH=Math.min(4096,sourceH);
+  return {
+    v:1,
+    data,
+    pixelW,
+    pixelH,
+    cx:Number.isFinite(+raw.cx)?+raw.cx:GW/2,
+    cy:Number.isFinite(+raw.cy)?+raw.cy:GH/2,
+    widthTiles:Math.max(0.5,Math.min(Math.max(GW,GH)*8,+raw.widthTiles||Math.min(GW,pixelW/pixelH*GH))),
+    rotation:Math.max(-180,Math.min(180,+raw.rotation||0)),
+    opacity:Math.max(0.1,Math.min(0.85,+raw.opacity||0.35)),
+    visible:raw.visible!==false,
+    locked:raw.locked!==false,
+  };
+}
+function underlaySize(u=game.underlay){
+  if (!u) return {w:0,h:0};
+  const w=Math.max(0.5,+u.widthTiles||1);
+  return {w,h:w*(Math.max(1,+u.pixelH||1)/Math.max(1,+u.pixelW||1))};
+}
+function underlayContainsWorldPoint(u,p){
+  if (!u||!p) return false;
+  const {w,h}=underlaySize(u), rad=(+u.rotation||0)*Math.PI/180;
+  const dx=p[0]-u.cx, dy=p[1]-u.cy;
+  const lx=dx*Math.cos(rad)+dy*Math.sin(rad), ly=-dx*Math.sin(rad)+dy*Math.cos(rad);
+  return Math.abs(lx)<=w/2+0.001 && Math.abs(ly)<=h/2+0.001;
+}
+// Scale the reference from a real-world distance while keeping the first
+// calibration point anchored to the same garden position.
+function calibrateUnderlayDistance(u,a,b,knownFt){
+  const measured=a&&b?Math.hypot(b[0]-a[0],b[1]-a[1]):0;
+  const feet=+knownFt, oldWidth=u&&+u.widthTiles;
+  if (!u||!Number.isFinite(measured)||measured<0.001||!Number.isFinite(feet)||feet<=0||!oldWidth) return null;
+  const desiredTiles=feet*12/TILE_IN, rawScale=desiredTiles/measured;
+  const widthTiles=Math.max(0.5,Math.min(Math.max(GW,GH)*8,oldWidth*rawScale));
+  const scale=widthTiles/oldWidth;
+  return normalizeUnderlay(Object.assign({},u,{widthTiles,
+    cx:a[0]+(u.cx-a[0])*scale,cy:a[1]+(u.cy-a[1])*scale}));
+}
+function markUnderlayChanged(){ game.dirty=true; }
+function tileAreaSqFt(n){ return Math.max(0,+n||0)*TILE_IN*TILE_IN/144; }
+function mulchYards(areaSqFt,depthIn){ return Math.max(0,+areaSqFt||0)*(Math.max(0,+depthIn||0)/12)/27; }
+function plantsForTiles(n,spaceIn){
+  const cells=Math.max(0,+n||0), spacing=Math.max(1,+spaceIn||TILE_IN);
+  return Math.ceil(cells*TILE_IN*TILE_IN/(spacing*spacing));
+}
+function materialPerimeterFt(keys){
+  const set=keys instanceof Set?keys:new Set(keys||[]); let edges=0;
+  set.forEach(k=>{ const [x,y]=k.split(',').map(Number);
+    if (!set.has(`${x-1},${y}`)) edges++;
+    if (!set.has(`${x+1},${y}`)) edges++;
+    if (!set.has(`${x},${y-1}`)) edges++;
+    if (!set.has(`${x},${y+1}`)) edges++;
+  });
+  return edges*TILE_IN/12;
+}
 function persistLayerVis(){
   game.dirty=true;
   if (game.mode==='solo' && hasStorage && typeof saveSolo==='function') saveSolo(true);
@@ -75,6 +138,9 @@ const game = {
   layerVis:defaultLayerVis(),                         // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   ruler:null,                                        // tape measure {a:[x,y], b:[x,y]|null}
+  underlay:null,                                     // optional calibrated site-photo reference; never part of undo layers
+  photoEditing:false,                                // transient editor gesture mode; never persisted
+  underlayCalibration:null,                          // transient two-point calibration; never persisted
   sel:null,                                          // committed selection rect {x0,y0,x1,y1} (world tiles, inclusive)
   selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
   selMode:'move',                                    // selection drag intent: 'move' | 'copy'
@@ -333,7 +399,8 @@ function canPlaceShrubAt(x,y,np,opts){
   opts=opts||{};
   const P=plantDef(np.s,np.v);
   if (!isShrubDef(P)) return {ok:true};
-  const ignore=opts.ignoreKey||null;
+  const ignore=opts.ignoreKey||null, ignoreKeys=opts.ignoreKeys||null;
+  const ignored=k=>k===ignore || !!(ignoreKeys && (ignoreKeys.has ? ignoreKeys.has(k) : ignoreKeys[k]));
   for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
     if (xx<0||yy<0||xx>=GW||yy>=GH) return {ok:false, reason:'plot'};
     if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
@@ -344,11 +411,11 @@ function canPlaceShrubAt(x,y,np,opts){
     const terr=tileTerrain(xx,yy);
     if (terr==='path'||terr==='water') return {ok:false, reason:terr};
     const k=`${xx},${yy}`, p=game.plants[k];
-    if (p && !p.removed && k!==ignore){
+    if (p && !p.removed && !ignored(k)){
       if (shrubHedgeCompatible(np,p) && Math.hypot(xx-x,yy-y)>=0.95) continue;
       return {ok:false, reason:'plant'};
     }
-    const other=shrubAt(xx,yy,{ignoreKey:ignore});
+    const other=shrubAt(xx,yy,{ignoreKey:ignore,ignoreKeys});
     if (other){
       if (shrubHedgeCompatible(np,other.p) && Math.hypot(other.x-x,other.y-y)>=0.95) continue;
       return {ok:false, reason:'shrub'};
@@ -356,13 +423,13 @@ function canPlaceShrubAt(x,y,np,opts){
   }
   return {ok:true};
 }
-function clearBulbsUnderShrub(x,y,p){
+function clearBulbsUnderShrub(x,y,p,autosync,removedKeys){
   let n=0;
   for (const [xx,yy] of shrubFootprintTiles(x,y,p,true)){
     const k=`${xx},${yy}`, b=game.bulbs[k];
-    if (b && !b.removed){ clearTile('bulbs',k); n++; }
+    if (b && !b.removed){ clearTile('bulbs',k); if (removedKeys) removedKeys.add(k); n++; }
   }
-  if (n) syncBulbsOut();
+  if (n && autosync!==false) syncBulbsOut();
   return n;
 }
 function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){

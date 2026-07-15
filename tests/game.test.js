@@ -28,6 +28,7 @@ function setup(gw, gh){
   game.layerVis = defaultLayerVis();
   game.layerFocus = 'all';
   game.ruler = null;
+  game.underlay = null; game.photoEditing = false; game.underlayCalibration = null;
   game.sel = null; game.selItems = null; game.selMode = 'move';
   game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
   game.pathTarget = null; game.sleepOnArrive = false;
@@ -111,6 +112,49 @@ test('selection measurement labels prefer feet but keep one tile as inches', () 
   assertEqual(selMetricLabel(3), '4.5 ft', 'half-foot dimensions stay readable');
   assertEqual(distanceMetricLabel([0, 0], [0, 0]), '18 in', 'zero-length ruler still reminds users of tile size');
   assertEqual(distanceMetricLabel([0, 0], [3, 4]), '7.5 ft', 'ruler uses true tile distance');
+});
+
+test('area, edging, mulch, and spacing estimates use the 18-inch planning grid', () => {
+  setup(12, 12);
+  assertEqual(tileAreaSqFt(4), 9, 'four tiles cover nine square feet');
+  assertEqual(materialPerimeterFt(new Set(['1,1','2,1','1,2','2,2'])), 12, 'a 3ft square has 12ft of exposed edge');
+  assert(Math.abs(mulchYards(86,3)-0.7963)<0.001, '86 sq ft at 3in is about 0.8 cubic yards');
+  assertEqual(plantsForTiles(4,18),4,'18in spacing estimates one plant per tile');
+  game.sel={x0:1,y0:1,x1:2,y1:2};
+  game.terrain['1,1']={k:'bed'}; game.terrain['2,1']={k:'bed'}; game.terrain['2,2']={k:'path'};
+  game.plants['1,1']={s:firstOfType('forb'),d:0,t:1};
+  game.selItems=selectionPayload(game.sel);
+  const est=selectionEstimate(game.sel,3,game.selItems);
+  assertEqual(est.areaSqFt,9,'selection area uses its marquee');
+  assertEqual(est.bedAreaSqFt,4.5,'materials use actual bed tiles, not the bounding box');
+  assertEqual(est.edgeFt,9,'two adjacent bed tiles expose six grid edges');
+  assertEqual(est.plants,1,'placed plant count comes from selection ownership');
+});
+
+test('site-photo normalization is bounded and ordinary undo snapshots exclude image data', () => {
+  setup(20, 16);
+  const data='data:image/jpeg;base64,AAAA';
+  const u=normalizeUnderlay({data,pixelW:1200,pixelH:800,cx:3,cy:4,widthTiles:10,opacity:2,rotation:240,visible:true,locked:false});
+  assert(u&&u.data===data,'valid raster underlay is accepted');
+  assertEqual(u.opacity,.85,'opacity is clamped');
+  assertEqual(u.rotation,180,'rotation is clamped');
+  assertEqual(normalizeUnderlay({data:'data:image/svg+xml;base64,AAAA',pixelW:10,pixelH:10}),null,'SVG is rejected');
+  game.underlay=u;
+  const snap=snapshotState();
+  assertEqual(snap.underlay,undefined,'underlay is not cloned into an undo snapshot');
+  assert(!JSON.stringify(snap).includes(data),'undo snapshots contain no base64 photo');
+});
+
+test('site-photo two-point calibration preserves its first world anchor', () => {
+  setup(20,16);
+  const u=normalizeUnderlay({data:'data:image/jpeg;base64,AAAA',pixelW:1200,pixelH:800,cx:3,cy:4,widthTiles:10,opacity:.35,rotation:0,visible:true,locked:false});
+  assert(underlayContainsWorldPoint(u,[3,4]),'photo center is inside its rotated bounds');
+  const next=calibrateUnderlayDistance(u,[1,1],[3,1],6); // 6ft = four 18in tiles, twice the measured span
+  assert(next,'valid calibration returns a transformed photo');
+  assertEqual(next.widthTiles,20,'known distance applies uniform scale');
+  assertEqual(next.cx,5,'center scales about the first calibration endpoint');
+  assertEqual(next.cy,7,'the anchor-preserving transform applies on both axes');
+  assertEqual(calibrateUnderlayDistance(u,[1,1],[1,1],6),null,'coincident points are rejected');
 });
 
 test('layer overlay flags mark layer view as active', () => {
@@ -1236,6 +1280,56 @@ test('selection save and paste carries an area into another garden slot', () => 
     'saved material pasted at relative offset');
   assert(game.plants['9,8'] && game.plants['9,8'].removed, 'target footprint was cleared before paste');
   assertEqual(game.sel.x1, 9, 'selection expands to saved area width');
+});
+
+test('plant replacement matches exact sources, respects selection ownership, and is one undo step', () => {
+  setup(14,14);
+  const forbs=Object.keys(PLANTS).filter(k=>PLANTS[k].type==='forb'&&!PLANTS[k].hidden);
+  const from=forbs[0], to=forbs.find(k=>k!==from);
+  game.plants['2,2']={s:from,d:-90,t:1,ox:.2,oy:-.1};
+  game.plants['3,2']={s:from,d:-45,t:2};
+  game.plants['4,2']={s:from,d:-30,t:3};
+  game.sel={x0:2,y0:2,x1:4,y1:2};
+  game.selItems=selectionPayload({x0:2,y0:2,x1:3,y1:2}); // deliberately does not own the late arrival at 4,2
+  const ctx={source:{s:from,v:null},key:'2,2',scope:'selection'};
+  const result=replacePlantInstances(ctx,{s:to,v:null});
+  assertEqual(result.changed,2,'only the two selection-owned sources change');
+  assertEqual(game.plants['4,2'].s,from,'matching late arrival outside selection ownership stays unchanged');
+  assertEqual(game.selItems.length,2,'replacement preserves the original selection ownership set');
+  assert(!game.selItems.some(c=>c.x===4&&c.y===2),'replacement does not recapture a late arrival');
+  assert(game.selItems.every(c=>c.plant&&c.plant.s===to),'owned selection records track the replacements');
+  assertEqual(game.plants['2,2'].d,-90,'planted age is preserved');
+  assertEqual(game.plants['2,2'].ox,.2,'free-placement offset is preserved');
+  assertEqual(undoStack.length,1,'the batch creates one undo step');
+  doUndo();
+  assertEqual(game.plants['2,2'].s,from,'one undo restores the source species');
+  assertEqual(game.plants['3,2'].s,from,'undo restores the whole replacement batch');
+});
+
+test('shrub replacement clears covered bulbs and validates the batch final state', () => {
+  setup(30,30);
+  const bulb=firstOfType('bulb');
+  game.plants['15,15']={s:'damianita',d:0,t:1};
+  game.bulbs['16,15']={s:bulb,d:0,t:1};
+  let result=replacePlantInstances({source:{s:'damianita',v:null},key:'15,15',scope:'one'},{s:'sumac',v:null});
+  assertEqual(result.changed,1,'a larger shrub replacement succeeds on a clear site');
+  assert(game.bulbs['16,15']&&game.bulbs['16,15'].removed,'bulbs in the mature replacement footprint are cleared');
+
+  setup(30,30);
+  game.plants['10,10']={s:'sumac',d:0,t:1};
+  game.plants['11,10']={s:'sumac',d:0,t:2};
+  result=replacePlantInstances({source:{s:'sumac',v:null},key:'10,10',scope:'garden'},{s:'damianita',v:null});
+  assertEqual(result.changed,2,'adjacent sources are assessed as their smaller simultaneous replacements');
+  assertEqual(game.plants['10,10'].s,'damianita','first batch shrub changed');
+  assertEqual(game.plants['11,10'].s,'damianita','second batch shrub changed');
+});
+
+test('stroke tracing fills fast pointer gaps and does not double-count a repeated edge', () => {
+  assertEqual(strokeLineTiles(1,1,5,1).map(p=>p.join(',')).join('|'),'1,1|2,1|3,1|4,1|5,1','fast horizontal strokes interpolate every tile');
+  const drag={trace:[[1,1]],edgeSeen:new Set(),affected:new Set(),runInches:0};
+  recordToolDragPoint(drag,2,1,null);
+  recordToolDragPoint(drag,1,1,null);
+  assertEqual(drag.runInches,TILE_IN,'retracing the same centerline edge is counted once');
 });
 
 test('houses: place several, refuse overlaps, erase removes one', () => {

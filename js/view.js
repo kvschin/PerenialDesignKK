@@ -44,10 +44,11 @@ function usableCanvasRect(){
   take(document.querySelector('.hud-top'),'top');
   take(document.getElementById('canvasTools'),'left');
   const sheet=document.querySelector('.hud-bottom');
-  if (sheet && !sheet.classList.contains('sheet-collapsed')){
+  if (sheet && !sheet.classList.contains('sheet-collapsed') && getComputedStyle(sheet).visibility!=='hidden'){
     const r=sheet.getBoundingClientRect();
     if (r.width && r.height) out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
   }
+  take(document.getElementById('sitePhotoEditor'),'bottom');
   if (out.right-out.left<120){ out.left=8; out.right=Math.max(8,VW-8); }
   if (out.bottom-out.top<120){ out.top=8; out.bottom=Math.max(8,VH-8); }
   return out;
@@ -163,7 +164,7 @@ function compassElements(){
 }
 function compassChromeStateKey(){
   const bodyCls=(document.body&&document.body.className)||'';
-  const ids=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow','brushBar','trayTabs','toolTray','plantCard','selectionActions'];
+  const ids=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow','brushBar','trayTabs','toolTray','plantCard','selectionActions','sitePhotoEditor'];
   const parts=ids.map(id=>{
     const el=document.getElementById(id);
     return el ? [id,el.className||'',el.style&&el.style.display||''].join(':') : id+':x';

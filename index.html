@@ -223,6 +223,50 @@
       <div id="toolTray"></div>
     </div>
   </div>
+  <aside id="sitePhotoEditor" class="site-photo-editor hidden" role="region" aria-labelledby="sitePhotoEditorTitle">
+    <div class="site-photo-editor-head">
+      <div><span class="eyebrow">Site reference</span><h2 id="sitePhotoEditorTitle">Position site photo</h2></div>
+      <button id="btnSitePhotoCancelX" type="button" aria-label="Cancel site photo changes"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <p class="site-photo-help" id="sitePhotoHelp" role="status">Drag the photo to move it. Pinch to scale and rotate, or use the controls below.</p>
+    <div class="site-photo-fields">
+      <label>Full photo width <span><input id="sitePhotoWidth" type="number" min="3" max="1000" step="0.5" inputmode="decimal"> ft</span></label>
+      <label>Opacity <span id="sitePhotoOpacityValue">35%</span><input id="sitePhotoOpacity" type="range" min="10" max="85" step="1" value="35"></label>
+      <label>Rotation <span id="sitePhotoRotationValue">0&deg;</span><input id="sitePhotoRotation" type="range" min="-180" max="180" step="1" value="0"></label>
+    </div>
+    <div class="site-photo-controls" aria-label="Site photo position controls">
+      <button id="btnSitePhotoCalibrate" class="site-photo-calibrate" type="button" aria-pressed="false">Calibrate a known distance&hellip;</button>
+      <div class="site-photo-nudge" aria-label="Nudge photo">
+        <button type="button" data-photo-nudge="0,-1" aria-label="Move photo up"><svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>
+        <button type="button" data-photo-nudge="-1,0" aria-label="Move photo left"><svg class="ui-icon rotate-left" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>
+        <button type="button" data-photo-nudge="1,0" aria-label="Move photo right"><svg class="ui-icon rotate-right" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>
+        <button type="button" data-photo-nudge="0,1" aria-label="Move photo down"><svg class="ui-icon rotate-down" aria-hidden="true"><use href="#ui-chevron-up"></use></svg></button>
+      </div>
+      <button id="btnSitePhotoRotateLeft" type="button">Rotate -15&deg;</button>
+      <button id="btnSitePhotoRotateRight" type="button">Rotate +15&deg;</button>
+      <button id="btnSitePhotoFit" type="button">Fit plot</button>
+    </div>
+    <div class="site-photo-actions">
+      <button id="btnSitePhotoReplace" class="btn" type="button">Replace image</button>
+      <button id="btnSitePhotoRemove" class="btn danger" type="button">Remove</button>
+      <span></span>
+      <button id="btnSitePhotoCancel" class="btn" type="button">Cancel</button>
+      <button id="btnSitePhotoDone" class="btn primary" type="button">Done</button>
+    </div>
+    <input id="sitePhotoFile" class="visually-hidden" type="file" accept="image/*">
+  </aside>
+  <div class="screen hidden" id="sitePhotoCalibrateScreen" role="dialog" aria-modal="true" aria-labelledby="sitePhotoCalibrateTitle">
+    <div class="panel site-photo-calibrate-panel" tabindex="-1">
+      <span class="eyebrow">Photo scale</span>
+      <h2 id="sitePhotoCalibrateTitle">Enter the known distance</h2>
+      <p class="sub">Use the real distance between the two points you marked.</p>
+      <label class="site-photo-known-distance">Known distance <span><input id="sitePhotoKnownDistance" type="number" min="0.5" max="2000" step="0.5" inputmode="decimal"> ft</span></label>
+      <div class="row site-photo-calibrate-actions">
+        <button id="btnSitePhotoCalibrateCancel" class="btn" type="button">Pick again</button>
+        <button id="btnSitePhotoCalibrateApply" class="btn primary" type="button">Set scale</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- GARDEN MENU -->
@@ -403,6 +447,45 @@
       <button class="btn" id="btnCsv">Download CSV</button>
     </div>
     <button class="back-link" id="btnExportClose">Back to the garden</button>
+  </div>
+</div>
+
+<!-- REPLACE PLANTS -->
+<div class="screen modal-screen hidden" id="replacePlantScreen" role="dialog" aria-modal="true" aria-labelledby="replacePlantTitle">
+  <div class="panel replace-plant-panel" tabindex="-1">
+    <h2 id="replacePlantTitle">Replace plant</h2>
+    <p class="sub" id="replacePlantMeta"></p>
+    <div class="field">
+      <label>Replace in</label>
+      <div class="seg replace-scope" id="replacePlantScope" role="group" aria-label="Replacement scope"></div>
+    </div>
+    <div class="field">
+      <label for="replacePlantSearch">Replacement plant</label>
+      <input id="replacePlantSearch" type="search" autocomplete="off" placeholder="Search all plants">
+      <p class="field-hint" id="replacePlantCount" aria-live="polite"></p>
+    </div>
+    <div id="replacePlantResults" class="replace-plant-results" role="listbox" aria-label="Compatible replacement plants"></div>
+    <div class="replace-plant-footer">
+      <p id="replacePlantSummary" aria-live="polite">Choose a replacement plant.</p>
+      <div class="row">
+        <button class="btn" id="btnReplacePlantCancel">Cancel</button>
+        <button class="btn primary" id="btnReplacePlantApply" disabled>Replace plants</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SELECTION MATERIAL ESTIMATE -->
+<div class="screen modal-screen hidden" id="estimateScreen" role="dialog" aria-modal="true" aria-labelledby="estimateTitle">
+  <div class="panel estimate-panel" tabindex="-1">
+    <h2 id="estimateTitle">Approximate materials</h2>
+    <p class="sub">A planning estimate from the live bed tiles inside your selection.</p>
+    <div id="estimateBody" class="estimate-grid"></div>
+    <div class="field estimate-depth">
+      <label for="estimateDepth">Mulch depth <span id="estimateDepthValue">3 in</span></label>
+      <input id="estimateDepth" type="range" min="2" max="4" step="1" value="3">
+    </div>
+    <button class="back-link" id="btnEstimateClose">Back to the garden</button>
   </div>
 </div>
 

@@ -2,8 +2,30 @@
 /* ---------- storage: save / load / multiplayer ---------- */
 async function sGet(key,shared){ try{ const r=localStorage.getItem(key);
   return r?JSON.parse(r):null; }catch(e){ return null; } }
-async function sSet(key,val,shared){ try{ localStorage.setItem(key,JSON.stringify(val)); }
-  catch(e){ console.error('storage',e); } }
+async function sSet(key,val,shared){ try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
+  catch(e){ console.error('storage',e); return false; } }
+
+async function prepareUnderlayFile(file){
+  if (!file || !['image/jpeg','image/png','image/webp'].includes(file.type))
+    throw new Error('Choose a JPEG, PNG, or WebP site photo.');
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((resolve,reject)=>{ const el=new Image();
+      el.onload=()=>resolve(el); el.onerror=()=>reject(new Error('That image could not be opened.')); el.src=url; });
+    let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if (!w||!h) throw new Error('That image has no readable dimensions.');
+    const max=1600, fit=Math.min(1,max/Math.max(w,h)); w=Math.max(1,Math.round(w*fit)); h=Math.max(1,Math.round(h*fit));
+    let quality=.8, data='';
+    for (let pass=0;pass<7;pass++){
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      const tc=cv.getContext('2d'); tc.fillStyle='#d7d2c8'; tc.fillRect(0,0,w,h); tc.drawImage(img,0,0,w,h);
+      data=cv.toDataURL('image/jpeg',quality);
+      if (data.length<=UNDERLAY_DATA_LIMIT) return {data,pixelW:w,pixelH:h};
+      if (quality>.56) quality-=.08; else { w=Math.max(1,Math.round(w*.82)); h=Math.max(1,Math.round(h*.82)); }
+    }
+    throw new Error('That photo is still too large after compression. Try a smaller image.');
+  } finally { URL.revokeObjectURL(url); }
+}
 
 async function ensurePlayerId(){
   if (!hasStorage){ game.playerId='p'+Math.random().toString(36).slice(2,8); return; }
@@ -39,13 +61,16 @@ async function saveSolo(silent){
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,
     buildingStyleDraft:game.buildingStyleDraft,
+    underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
-  await sSet('hortus:world:'+game.worldId,blob);
+  const stored=await sSet('hortus:world:'+game.worldId,blob);
+  if (!stored){ if (!silent) toast('This garden could not be saved - device storage is full.','warn'); return false; }
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
   await sSet('hortus:worlds',idx);
   if (!silent) toast('Garden saved.');
+  return true;
 }
 function shiftKeys(m,d){ // translate every "x,y" key by +d on both axes
   if (!d) return m;
@@ -73,6 +98,7 @@ async function loadSolo(id){
   game.previewMode = s.previewMode || (game.gameMode==='design' ? 'established' : 'today');
   game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
   game.layerVis = normalizeLayerVis(s.layerVis);
+  game.underlay=normalizeUnderlay(s.underlay); game.photoEditing=false;
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
@@ -118,7 +144,7 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.buildings=[]; game.freePlanting=false;
-  game.layerVis=defaultLayerVis();
+  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); game.buildingsT=Date.now();
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
@@ -142,7 +168,7 @@ async function joinWorld(code){
     : Math.max(0,Date.now()-(meta.startTs||Date.now()));
   game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
-  game.layerVis=defaultLayerVis();
+  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};

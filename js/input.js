@@ -4,7 +4,12 @@
 const heldKeys={};
 addEventListener('keydown',e=>{
   if (document.getElementById('hud').classList.contains('hidden')) return;
-  if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT')) return;
+  if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
+    if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }
+  if (e.target && (e.target.tagName==='INPUT'||e.target.tagName==='SELECT') && e.key!=='Escape' && e.key!=='Tab') return;
+  const selectionMore=document.getElementById('selectionMore');
+  if (selectionMore && e.key==='Escape'){ e.preventDefault(); selectionMore.remove();
+    const more=document.querySelector('#selectionActions button[aria-haspopup="menu"]'); if (more) more.focus(); return; }
   if (e.key==='`'){ toggleDebug(); return; }
   const confirmPop=document.getElementById('confirmPop');
   if (confirmPop){
@@ -12,10 +17,10 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(confirmPop,e);
     return;
   }
-  const overlay=['gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen','confirmSeasonScreen']
+  const overlay=['sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen','confirmSeasonScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
-    if (e.key==='Escape') closeOverlay(overlay.id);
+    if (e.key==='Escape'){ closeOverlay(overlay.id); if (overlay.id==='replacePlantScreen') replacePlantContext=null; }
     else trapOverlayFocus(overlay,e);
     return;
   }
@@ -76,7 +81,7 @@ addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
 
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null, buildingHover=null;
+const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null, buildingHover=null, photoDrag=null, photoPinch=null;
 function buildingCornerForPlacement(place){
   return [Math.max(0,Math.min(GW,Math.round(place.wx+0.5))),
     Math.max(0,Math.min(GH,Math.round(place.wy+0.5)))];
@@ -132,7 +137,7 @@ function showGestureCancel(msg){
 }
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
-  sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null;
+  sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
   game.hoverTile=null;
   if (game.tool==='building' && game.buildingDraft) cancelBuildingDraft();
   game.pathTarget=null; game.sleepOnArrive=false;
@@ -149,6 +154,41 @@ function markMultiMoved(){
     if (s && Math.hypot(p[0]-s[0],p[1]-s[1])>10){ multiTouch.moved=true; return; }
   }
 }
+function screenDeltaToWorld(dx,dy){
+  const W=VW/ZOOM,H=VH/ZOOM, o=screenOfFlat(0,0,W,H), px=screenOfFlat(1,0,W,H), py=screenOfFlat(0,1,W,H);
+  const ax=px[0]-o[0], ay=px[1]-o[1], bx=py[0]-o[0], by=py[1]-o[1], det=ax*by-ay*bx||1;
+  dx/=ZOOM; dy/=ZOOM;
+  return [(dx*by-dy*bx)/det,(ax*dy-ay*dx)/det];
+}
+function photoWorldPoint(e){ return worldPointAt(e.clientX/ZOOM,e.clientY/ZOOM,VW/ZOOM,VH/ZOOM,0); }
+function beginPhotoPointer(e){
+  e.preventDefault();
+  const pts=[...activePtrs.values()];
+  if (pts.length>=2){
+    const a=pts[0],b=pts[1], u=game.underlay;
+    photoPinch={d:Math.hypot(a[0]-b[0],a[1]-b[1])||1,angle:Math.atan2(b[1]-a[1],b[0]-a[0]),
+      mid:[(a[0]+b[0])/2,(a[1]+b[1])/2],width:u.widthTiles,rotation:u.rotation,cx:u.cx,cy:u.cy};
+    photoDrag=null;
+  } else photoDrag={id:e.pointerId,x:e.clientX,y:e.clientY,cx:game.underlay.cx,cy:game.underlay.cy};
+  try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+}
+function movePhotoPointer(e){
+  if (!activePtrs.has(e.pointerId)||!game.underlay) return;
+  activePtrs.set(e.pointerId,[e.clientX,e.clientY]); e.preventDefault();
+  const pts=[...activePtrs.values()], u=game.underlay;
+  if (pts.length>=2){
+    if (!photoPinch) beginPhotoPointer(e);
+    const a=pts[0],b=pts[1], d=Math.hypot(a[0]-b[0],a[1]-b[1])||1, ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+    const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2], move=screenDeltaToWorld(mid[0]-photoPinch.mid[0],mid[1]-photoPinch.mid[1]);
+    u.widthTiles=Math.max(.5,Math.min(Math.max(GW,GH)*8,photoPinch.width*d/photoPinch.d));
+    u.rotation=Math.max(-180,Math.min(180,photoPinch.rotation+(ang-photoPinch.angle)*180/Math.PI));
+    u.cx=photoPinch.cx+move[0]; u.cy=photoPinch.cy+move[1];
+  } else if (photoDrag){
+    const move=screenDeltaToWorld(e.clientX-photoDrag.x,e.clientY-photoDrag.y);
+    u.cx=photoDrag.cx+move[0]; u.cy=photoDrag.cy+move[1];
+  }
+  markUnderlayChanged(); if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor();
+}
 function finishMultiTouch(){
   if (!multiTouch || activePtrs.size) return;
   const quick=Date.now()-multiTouch.start<320;
@@ -160,6 +200,8 @@ function finishMultiTouch(){
 }
 cnv.addEventListener('pointerdown',e=>{
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if (game.photoEditing && game.underlayCalibration){ e.preventDefault(); recordSitePhotoCalibrationPoint(photoWorldPoint(e)); return; }
+  if (game.photoEditing && game.underlay){ beginPhotoPointer(e); return; }
   if (activePtrs.size>=3){
     startMultiTouch(3);
     pinch=null;
@@ -219,7 +261,8 @@ cnv.addEventListener('pointerdown',e=>{
   // plant/bulb/path/bed/water/elevation/fence/light/firepit: press-and-drag paints tiles like the shovel
   // sweeps them; a plain tap (resolved at pointerup) walks or acts. (house already returned above.)
   if (isBrushTool(game.tool)){
-    toolDrag={sx:x, sy:y, cx:x, cy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null};
+    toolDrag={sx:x, sy:y, cx:x, cy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null,
+      lastX:x,lastY:y,trace:[[x,y]],edgeSeen:new Set(),affected:new Set(),runInches:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
@@ -258,21 +301,59 @@ function finishToolDrag(){
   if (!toolDrag || !toolDrag.active) return;
   if (toolDrag.count){
     syncToolLayer(toolDrag.what);
+    const changed=toolDrag.affected&&toolDrag.affected.size?toolDrag.affected.size:toolDrag.count;
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     let msg;
-    if (toolDrag.what==='path') msg=`Updated ${toolDrag.count} path tile${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='bed') msg=`Dug ${toolDrag.count} bed tile${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='water') msg=`Laid ${toolDrag.count} water tile${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='elevation') msg=`Adjusted ${toolDrag.count} elevation tile${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='fence'||toolDrag.what==='gate') msg=`Placed ${toolDrag.count} ${fenceLabel().toLowerCase()} tile${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='light') msg=`Placed ${toolDrag.count} ${lightLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='firepit') msg=`Placed ${toolDrag.count} ${firepitLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
-    else if (toolDrag.what==='boulder') msg=`Placed ${toolDrag.count} ${boulderLabel().toLowerCase()}${toolDrag.count>1?'s':''}.`;
-    else msg=`Planted ${toolDrag.count} - ${def.name}.`;
+    if (toolDrag.what==='path') msg=`Updated ${changed} path tile${changed>1?'s':''}.`;
+    else if (toolDrag.what==='bed') msg=`Dug ${changed} bed tile${changed>1?'s':''}.`;
+    else if (toolDrag.what==='water') msg=`Laid ${changed} water tile${changed>1?'s':''}.`;
+    else if (toolDrag.what==='elevation') msg=`Adjusted ${changed} elevation tile${changed>1?'s':''}.`;
+    else if (toolDrag.what==='fence'||toolDrag.what==='gate') msg=`Placed ${changed} ${fenceLabel().toLowerCase()} tile${changed>1?'s':''}.`;
+    else if (toolDrag.what==='light') msg=`Placed ${changed} ${lightLabel().toLowerCase()}${changed>1?'s':''}.`;
+    else if (toolDrag.what==='firepit') msg=`Placed ${changed} ${firepitLabel().toLowerCase()}${changed>1?'s':''}.`;
+    else if (toolDrag.what==='boulder') msg=`Placed ${changed} ${boulderLabel().toLowerCase()}${changed>1?'s':''}.`;
+    else msg=`Planted ${changed} - ${def.name}.`;
     toast(msg);
   } else toast('Nothing would take along that line.');
 }
+function strokeLineTiles(x0,y0,x1,y1){
+  const out=[], dx=Math.abs(x1-x0), sx=x0<x1?1:-1, dy=-Math.abs(y1-y0), sy=y0<y1?1:-1;
+  let err=dx+dy, x=x0, y=y0;
+  while (true){ out.push([x,y]); if (x===x1&&y===y1) break;
+    const e2=2*err; if (e2>=dy){ err+=dy; x+=sx; } if (e2<=dx){ err+=dx; y+=sy; }
+  }
+  return out;
+}
+function recordToolDragPoint(drag,x,y,what){
+  const prev=drag.trace[drag.trace.length-1];
+  if (!prev || prev[0]!==x || prev[1]!==y){
+    const a=prev?`${prev[0]},${prev[1]}`:'', b=`${x},${y}`, edge=a<b?`${a}|${b}`:`${b}|${a}`;
+    if (prev && !drag.edgeSeen.has(edge)){ drag.edgeSeen.add(edge); drag.runInches+=Math.hypot(x-prev[0],y-prev[1])*TILE_IN; }
+    drag.trace.push([x,y]);
+  }
+  if (!what) return;
+  const size=toolBrushSize();
+  if (what==='bed'||what==='water'||what==='path'){
+    for (const [dx,dy] of brushOffsets(size)){
+      const xx=x+dx, yy=y+dy; if (xx<0||yy<0||xx>=GW||yy>=GH) continue;
+      const terr=terrainAt(xx,yy); if (terr&&terr.k===what) drag.affected.add(`${xx},${yy}`);
+    }
+  } else drag.affected.add(`${x},${y}`);
+}
+function paintToolDragLine(drag,x,y,place){
+  const pts=strokeLineTiles(drag.lastX,drag.lastY,x,y).slice(1);
+  for (const [xx,yy] of pts){
+    const opts=(xx===x&&yy===y)?place:null, r=stampBrushAt(xx,yy,opts);
+    recordToolDragPoint(drag,xx,yy,r);
+    if (r){ drag.count++; drag.what=r; }
+  }
+  drag.lastX=x; drag.lastY=y;
+}
 cnv.addEventListener('pointermove',e=>{
+  if (game.photoEditing && game.underlayCalibration){
+    if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]); return;
+  }
+  if (game.photoEditing && game.underlay){ movePhotoPointer(e); return; }
   if (panDrag){ // PC space/middle-drag pan
     cam.x=panDrag.camx0-(e.clientX-panDrag.sx)/ZOOM;
     cam.y=panDrag.camy0-(e.clientY-panDrag.sy)/ZOOM;
@@ -315,17 +396,20 @@ cnv.addEventListener('pointermove',e=>{
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
       const r0=stampBrushAt(toolDrag.sx,toolDrag.sy,toolDrag);
+      recordToolDragPoint(toolDrag,toolDrag.sx,toolDrag.sy,r0);
       if (r0){ toolDrag.count++; toolDrag.what=r0; }
     }
     if (toolDrag.active){
-      const r=stampBrushAt(x,y,place);
-      if (r){ toolDrag.count++; toolDrag.what=r; }
+      paintToolDragLine(toolDrag,x,y,place);
     }
     return;
   }
 });
 cnv.addEventListener('wheel',e=>{
   if (!game.mode) return;
+  if (game.photoEditing&&game.underlayCalibration){ e.preventDefault(); return; }
+  if (game.photoEditing&&game.underlay){ e.preventDefault(); game.underlay.widthTiles=Math.max(.5,Math.min(Math.max(GW,GH)*8,game.underlay.widthTiles*(e.deltaY<0?1.06:.94)));
+    markUnderlayChanged(); if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor(); return; }
   e.preventDefault(); zoomBy(e.deltaY<0?1.12:0.89);
 },{passive:false});
 function endSweep(){
@@ -359,6 +443,11 @@ function endSweep(){
 }
 cnv.addEventListener('pointerup',e=>{
   activePtrs.delete(e.pointerId);
+  if (game.photoEditing){
+    photoPinch=null; photoDrag=null;
+    if (activePtrs.size===1){ const [id,p]=[...activePtrs.entries()][0]; photoDrag={id,x:p[0],y:p[1],cx:game.underlay.cx,cy:game.underlay.cy}; }
+    return;
+  }
   if (activePtrs.size<2) pinch=null;
   finishMultiTouch();
   if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
@@ -382,6 +471,7 @@ cnv.addEventListener('pointerup',e=>{
 });
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
+  if (game.photoEditing){ photoPinch=null; photoDrag=null; return; }
   if (activePtrs.size<2) pinch=null;
   finishMultiTouch();
   cancelCanvasGesture(true);

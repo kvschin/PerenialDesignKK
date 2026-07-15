@@ -16,6 +16,16 @@ function dismissCoachTip(){
   const tip=document.getElementById('coachTip'); if (!tip) return;
   tip.classList.add('hidden'); clearTimeout(tip._timer);
 }
+function showCoachTip(text,key){
+  const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
+  if (!tip||!txt||!text) return;
+  const storeKey=key?`hortus:coach:${key}-v1`:null;
+  const seenAttr=key?`data-coach-${String(key).toLowerCase().replace(/[^a-z0-9-]/g,'-')}`:null;
+  try{ if (storeKey&&localStorage.getItem(storeKey)) return; if (storeKey) localStorage.setItem(storeKey,'1'); }
+  catch(_){ if (seenAttr&&tip.hasAttribute(seenAttr)) return; }
+  if (seenAttr) tip.setAttribute(seenAttr,'1'); txt.textContent=text; tip.classList.remove('hidden');
+  clearTimeout(tip._timer); tip._timer=setTimeout(dismissCoachTip,7500);
+}
 function showTimeCoachTip(){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
   if (!tip || !txt || !game.mode || game.visiting || game.gameMode!=='design') return;
