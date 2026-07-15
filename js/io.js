@@ -714,10 +714,18 @@ function buildPlanMap(){
   ctx.fillStyle='#2c241c'; ctx.fill();
   ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
   ctx.fillText('N',nc[0]+nd[0]*34,nc[1]+nd[1]*34+3);
-  // faint tile grid so bare ground still reads as a plot of blank tiles
+  // faint tile grid so bare ground still reads as a plot of blank tiles —
+  // clipped to the lot shape so an irregular plot doesn't grid past its edge
   ctx.strokeStyle='rgba(120,108,86,0.16)'; ctx.lineWidth=0.5;
+  ctx.save();
+  if (game.plotShape){
+    ctx.beginPath();
+    game.plotShape.forEach(([vx,vy],i)=>{ const px=X(vx), py=Y(vy); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+    ctx.closePath(); ctx.clip();
+  }
   for (let gx=0;gx<=GW;gx++){ ctx.beginPath(); ctx.moveTo(X(gx),Y(0)); ctx.lineTo(X(gx),Y(GH)); ctx.stroke(); }
   for (let gy=0;gy<=GH;gy++){ ctx.beginPath(); ctx.moveTo(X(0),Y(gy)); ctx.lineTo(X(GW),Y(gy)); ctx.stroke(); }
+  ctx.restore();
   // elevation grade: subtle plan cue under materials/plants
   for (const k in game.elevation){ const e=game.elevation[k];
     if (!e || e.removed || !e.h) continue;
@@ -875,6 +883,18 @@ function buildPlanMap(){
     if (hh.w*cell>40){ ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
       ctx.fillText('HOUSE', X(hh.x)+hh.w*cell/2, Y(hh.y)+hh.h*cell/2+3); }
   });
+  // lot boundary: the shape the garden sits on, or the full rectangle when
+  // no shape is set — drawn over fills/fixtures so the line reads on top
+  ctx.save();
+  ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1.4;
+  if (game.plotShape){
+    ctx.beginPath();
+    game.plotShape.forEach(([vx,vy],i)=>{ const px=X(vx), py=Y(vy); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+    ctx.closePath(); ctx.stroke();
+  } else {
+    ctx.strokeRect(X(0),Y(0),GW*cell,GH*cell);
+  }
+  ctx.restore();
   // labels at drift centroids, white halo for legibility
   ctx.textAlign='center';
   comps.forEach(c=>{

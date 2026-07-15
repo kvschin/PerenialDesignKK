@@ -91,6 +91,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   const organic = showLand && game.edgeStyle==='organic';
   const smoothable = t2 => t2==='path'||t2==='bed'||t2==='water';
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+    if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
     const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
@@ -210,7 +211,7 @@ function terrainUnitEdges(loop, set, solid){
   const hardOut=(key)=>{
     if (solid[key]) return true;
     const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
-    return ox<0 || oy<0 || ox>=GW || oy>=GH;      // beyond the plot
+    return !onPlot(ox,oy);      // beyond the plot rectangle, or off an irregular lot shape
   };
   for (let i=0;i<loop.length;i++){
     const a=loop[i], b=loop[(i+1)%loop.length];
@@ -535,7 +536,7 @@ function drawBrushGhost(cx,W,H,cxT,cyT,size,mode){
   const stroke = mode==='erase' ? 'rgba(236,120,96,0.62)' : 'rgba(240,224,170,0.58)';
   for (const [dx,dy] of brushOffsets(size)){
     const x=cxT+dx, y=cyT+dy;
-    if (x<0||y<0||x>=GW||y>=GH) continue;
+    if (!onPlot(x,y)) continue;
     const [sx,sy]=screenOf(x,y,W,H);
     tileDiamond(cx,sx,sy,fill,stroke);
   }
@@ -942,7 +943,8 @@ function render(t){
   cx.strokeStyle='rgba(243,236,221,0.85)'; cx.lineWidth=2;
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
-  if (game.hoverTile && PLANTS[game.tool] && layerShown(toolTargetLayer(game.tool))){
+  if (game.hoverTile && PLANTS[game.tool] && layerShown(toolTargetLayer(game.tool)) &&
+      onPlot(game.hoverTile[0],game.hoverTile[1])){   // void tiles get no ghost — the stamp would refuse them anyway
     const def=plantDef(game.tool,game.toolVar);
     if (isShrubDef(def)){
       const [txh,tyh]=game.hoverTile, draft=matureWoodyDraft(game.tool,game.toolVar);

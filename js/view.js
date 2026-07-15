@@ -200,7 +200,7 @@ function compassBlockedByChrome(p,rects){
 function updateCompass(){
   const dom=compassElements(); if (!dom) return;
   const chromeKey=compassChromeStateKey();
-  const key=[game.mode?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,chromeKey].join('|');
+  const key=[game.mode?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,game.plotRev,chromeKey].join('|');
   if (key===compassKey) return;
   compassKey=key;
   if (!game.mode){ dom.labels.forEach(el=>el.classList.add('off')); return; }
@@ -208,13 +208,20 @@ function updateCompass(){
   const chromeRects=compassChromeRects(chromeKey);
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };
   const center=[(GW-1)/2,(GH-1)/2], bounds={l:-.5,r:GW-.5,t:-.5,b:GH-.5};
+  const shape=game.plotShape;
   const ray=(d,offset)=>{
-    const ts=[];
-    if (d[0]>.000001) ts.push((bounds.r-center[0])/d[0]);
-    else if (d[0]<-.000001) ts.push((bounds.l-center[0])/d[0]);
-    if (d[1]>.000001) ts.push((bounds.b-center[1])/d[1]);
-    else if (d[1]<-.000001) ts.push((bounds.t-center[1])/d[1]);
-    const edge=Math.min(...ts.filter(t=>t>=0));
+    let edge;
+    if (shape){                                     // irregular lot: ray-hit the polygon edges
+      edge=rayPolygonExitT(center,d,shape);
+      if (edge===null || !Number.isFinite(edge)) edge=0;   // degenerate: center sits outside the shape
+    } else {
+      const ts=[];
+      if (d[0]>.000001) ts.push((bounds.r-center[0])/d[0]);
+      else if (d[0]<-.000001) ts.push((bounds.l-center[0])/d[0]);
+      if (d[1]>.000001) ts.push((bounds.b-center[1])/d[1]);
+      else if (d[1]<-.000001) ts.push((bounds.t-center[1])/d[1]);
+      edge=Math.min(...ts.filter(t=>t>=0));
+    }
     return [center[0]+d[0]*(edge+offset),center[1]+d[1]*(edge+offset)];
   };
   const dirs=siteDirections(), edges={};

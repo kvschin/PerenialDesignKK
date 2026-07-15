@@ -862,6 +862,25 @@ function onPlot(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
   return plotMask ? !!plotMask[y*GW+x] : true;
 }
+// Ray-vs-polygon-boundary hit test, used by the compass to find where a
+// direction ray leaves an irregular lot instead of the default rectangle.
+// verts are plotShape's tile-CORNER lattice coords; origin/dir are in the
+// tile-CENTER space screenOfFlat uses, so each vertex shifts -0.5 first.
+// Returns the smallest non-negative t (origin + t*dir), or null if the ray
+// never crosses an edge (e.g. origin sits outside a concave shape).
+function rayPolygonExitT(origin,dir,verts){
+  let best=null;
+  for (let i=0;i<verts.length;i++){
+    const ax=verts[i][0]-0.5, ay=verts[i][1]-0.5;
+    const bx=verts[(i+1)%verts.length][0]-0.5, by=verts[(i+1)%verts.length][1]-0.5;
+    const ex=ax-origin[0], ey=ay-origin[1], sx=bx-ax, sy=by-ay;
+    const denom=dir[0]*sy-dir[1]*sx;
+    if (Math.abs(denom)<1e-9) continue;             // parallel to this edge
+    const t=(ex*sy-sx*ey)/denom, u=(ex*dir[1]-dir[0]*ey)/denom;
+    if (t>=0 && u>=-1e-6 && u<=1+1e-6 && (best===null||t<best)) best=t;
+  }
+  return best;
+}
 function plotEdgesCross(a,b,c,d){ // strict segment intersection (CCW test)
   const ccw=(p,q,r)=>(r[1]-p[1])*(q[0]-p[0])>(q[1]-p[1])*(r[0]-p[0]);
   return ccw(a,c,d)!==ccw(b,c,d) && ccw(a,b,c)!==ccw(a,b,d);

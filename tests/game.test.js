@@ -2319,3 +2319,43 @@ test('a save blob without plotShape loads as a full rectangle', () => {
   assertEqual(game.plotShape, null, 'a blob with no plotShape field loads as the full rectangle');
   assert(onPlot(0, 0) && onPlot(20, 20), 'every corner is on-plot with no shape');
 });
+
+/* ---------- plot shape rendering (Phase B) ---------- */
+
+test('organic regions: the lot-shape mask edge is hard so beds run into the cut line', () => {
+  setup(31, 31);
+  const shape = [[0, 0], [31, 0], [24, 31], [0, 31]]; // same trapezoid as the plot-shape suite: SE corner cut off
+  assert(setPlotShape(shape), 'shape accepted');
+  // rows 24-27 hold the mask boundary at a fixed column: x<=24 on-plot, x=25 off
+  for (let y = 24; y <= 27; y++) for (let x = 22; x <= 24; x++)
+    setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
+  assert(onPlot(24, 25) && !onPlot(25, 25), 'sanity: the painted bed sits right against the lot line');
+  const r = buildTerrainRegions()[0];
+  assert(!r.loops[0].closed, 'a bed against the lot line splits into hard (lot edge) + soft (grass) arcs');
+  const hard = r.loops[0].arcs.filter(a => a.hard);
+  const hardPts = hard.flatMap(a => a.pts);
+  assert(hardPts.some(([x, y]) => x === 25 && y === 24), 'hard arc reaches the north end of the cut edge');
+  assert(hardPts.some(([x, y]) => x === 25 && y === 28), 'hard arc reaches the south end of the cut edge');
+  assert(hard.every(a => a.pts.every(([x]) => x === 25)),
+    'the hard run lies exactly on the lot-mask boundary line, unjittered');
+});
+
+test('setPlotShape bumps the ground and terrain cache keys', () => {
+  setup(21, 21);
+  const gKeyBefore = groundDataKey();
+  const tRevBefore = game.terrainRev;
+  assert(setPlotShape([[0, 0], [21, 0], [14, 21], [0, 21]]), 'shape accepted');
+  assert(groundDataKey() !== gKeyBefore, 'groundDataKey changes so the world-anchored ground bake retraces the new lot');
+  assert(game.terrainRev > tRevBefore, 'terrainRev bumps so the organic terrain-region cache retraces too');
+});
+
+test('blobOnPlot excludes tiles outside a saved garden\'s own shape', () => {
+  const shape = [[0, 0], [21, 0], [14, 21], [0, 21]];
+  assert(blobOnPlot(5, 5, 21, 21, shape), 'a tile well inside the shape is on the lot');
+  assert(!blobOnPlot(19, 19, 21, 21, shape), 'a tile past the cut corner is off the lot');
+  assert(blobOnPlot(5, 5, 21, 21, null), 'a null shape (legacy/rectangular save) treats every in-grid tile as on the lot');
+  assert(!blobOnPlot(-1, 5, 21, 21, null), 'off-grid coordinates are never on the lot, shape or no shape');
+  // the worlds-list drawer itself still runs against a shaped blob without throwing
+  const cvs = document.createElement('canvas'); cvs.width = 168; cvs.height = 126;
+  drawWorldThumb(cvs, { gw: 21, gh: 21, plotShape: shape, plants: {}, terrain: {} });
+});

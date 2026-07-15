@@ -128,15 +128,25 @@ function worldMode(w){ return w.mode==='design'?'design':'story'; }
    and it works retroactively for every existing save. Grass checker + terrain
    fills reuse the real color tables; plants are foliage-colored dots (woody
    bigger), houses are wall/roof blocks. Cheap: one pass at list-open time. */
+// Point-in-polygon test against a SAVED garden's OWN shape — never the live
+// mask (game.plotShape/onPlot), since a worlds-list row's blob may not be the
+// currently loaded garden. Mirrors rebuildPlotMask/onPlot exactly, just
+// parameterized off the blob instead of the live globals.
+function blobOnPlot(x,y,gw,gh,shape){
+  if (x<0||y<0||x>=gw||y>=gh) return false;
+  return shape ? polygonContains(x+0.5,y+0.5,shape) : true;
+}
 function drawWorldThumb(cvs, s){
   const g=cvs.getContext('2d'); if (!g) return;
   const gw=s.gw||s.grid||31, gh=s.gh||s.grid||31;
+  const shape=Array.isArray(s.plotShape)?s.plotShape:null;
   const W=cvs.width, H=cvs.height;
   const sc=Math.min(W/gw, H/gh), ox=(W-gw*sc)/2, oy=(H-gh*sc)/2;
   const amb=AMBIENCE.Summer;
   g.clearRect(0,0,W,H);   // odd-aspect plots show the .world-thumb css mat
   if (sc>=1.6){                                   // checker reads only when tiles have pixels
     for (let y=0;y<gh;y++) for (let x=0;x<gw;x++){
+      if (!blobOnPlot(x,y,gw,gh,shape)) continue;
       g.fillStyle=amb.grass[(x+y)%2];
       g.fillRect(ox+x*sc, oy+y*sc, sc+0.5, sc+0.5);
     }
