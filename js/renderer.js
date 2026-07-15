@@ -548,7 +548,7 @@ function drawTreeShadeSweepGhost(ctx,sh,sx,cy){
   if (!sh || sh.r<=0) return;
   const scale=shadeSeasonScale();
   ctx.save();
-  for (const sample of SUN_PATH){
+  for (const sample of orientedSunPath()){
     const mag=Math.hypot(sample.sun[0],sample.sun[1])||1;
     const sunX=sample.sun[0]/mag, sunY=sample.sun[1]/mag;
     const shadeX=-sunX, shadeY=-sunY;
@@ -642,7 +642,7 @@ function sceneLayerBits(){
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
 }
 function sceneKey(){
-  return game.rev+'|'+game.rot+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
+  return game.rev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
     '|'+(establishedPreviewActive()?1:0);   // preview flips shade trees + stunting
 }
 function sceneStale(skey){

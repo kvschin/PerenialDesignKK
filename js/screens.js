@@ -87,7 +87,8 @@ function startDailyChallenge(){
   game.mode='solo'; game.gameMode='design'; game.visiting=false;
   game.previewMode='established';
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-  game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
+  game.rot=0; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
+  game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
   game.houses=[]; game.houseDraft=defaultDraft();
@@ -450,7 +451,7 @@ function enterGarden(){
   buildToolTray();
   buildCanvasTools();
   updateCompass();
-  syncHapticsButton();
+  syncHapticsButton(); syncHandednessButton();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')
@@ -466,6 +467,58 @@ function enterGarden(){
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
 const FT_MIN=24, FT_MAX=200; // 16..134 tiles per side
+let plotNorthDraft=0, siteNorthEditorContext=null, siteNorthEditorDraft=0;
+function siteNorthEdgeName(value){
+  const deg=normalizeSiteNorthDeg(value), names={0:'top',90:'right',180:'bottom',270:'left'};
+  return names[deg]||null;
+}
+function siteNorthSummary(value){
+  const deg=normalizeSiteNorthDeg(value), edge=siteNorthEdgeName(deg);
+  return edge ? `North at ${edge} · ${deg}°` : `North · ${deg}° clockwise from top`;
+}
+function updatePlotNorthSummary(){
+  const label=$('plotNorthLabel'), arrow=$('btnPlotNorth')&&$('btnPlotNorth').querySelector('.north-summary-arrow');
+  if (label) label.textContent=siteNorthSummary(plotNorthDraft);
+  if (arrow) arrow.style.setProperty('--north-deg',`${normalizeSiteNorthDeg(plotNorthDraft)}deg`);
+}
+function updateSiteNorthEditor(){
+  const deg=normalizeSiteNorthDeg(siteNorthEditorDraft), edge=siteNorthEdgeName(deg);
+  $('siteNorthRange').value=deg; $('siteNorthNumber').value=deg;
+  $('siteNorthPreview').style.setProperty('--north-deg',`${deg}deg`);
+  $('siteNorthReadout').textContent=edge
+    ? `North points toward the ${edge} edge · ${deg}°.`
+    : `North points ${deg} degrees clockwise from the top edge.`;
+  document.querySelectorAll('[data-north-deg]').forEach(b=>{
+    const on=+b.dataset.northDeg===deg; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',on?'true':'false');
+  });
+}
+function setSiteNorthEditorDraft(value){
+  siteNorthEditorDraft=normalizeSiteNorthDeg(value);
+  if (siteNorthEditorContext==='garden') previewSiteNorthDeg(siteNorthEditorDraft);
+  updateSiteNorthEditor();
+}
+function openSiteNorthEditor(context){
+  siteNorthEditorContext=context==='plot'?'plot':'garden';
+  if (siteNorthEditorContext==='garden') clearSiteNorthPreview();
+  siteNorthEditorDraft=siteNorthEditorContext==='plot'?plotNorthDraft:normalizeSiteNorthDeg(game.siteNorthDeg);
+  updateSiteNorthEditor(); openOverlay('siteNorthScreen','#siteNorthRange');
+}
+function cancelSiteNorthEditor(){
+  if (siteNorthEditorContext==='garden') clearSiteNorthPreview();
+  siteNorthEditorContext=null; closeOverlay('siteNorthScreen');
+}
+function applySiteNorthEditor(){
+  const context=siteNorthEditorContext;
+  if (context==='plot'){
+    plotNorthDraft=normalizeSiteNorthDeg(siteNorthEditorDraft); updatePlotNorthSummary();
+  } else if (context==='garden'){
+    const changed=setSiteNorthDeg(siteNorthEditorDraft);
+    buildToolTray(); refreshCanvasTools();
+    if (changed && game.mode==='solo') saveSolo(true);
+    toast('North set. Sun and shade directions updated.');
+  }
+  siteNorthEditorContext=null; closeOverlay('siteNorthScreen');
+}
 function plotFt(id){ return Math.max(FT_MIN,Math.min(FT_MAX,+$(id).value||46)); }
 function updatePlotNote(){
   const w=plotFt('plotW'), l=plotFt('plotL');
@@ -484,11 +537,13 @@ function openPlotScreen(){
     });
     $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote();
       row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
+    $('btnPlotNorth').onclick=()=>openSiteNorthEditor('plot');
     $('btnPlotStart').onclick=()=>{
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
-      game.rot=0; game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
+      game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
+      game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
@@ -505,9 +560,16 @@ function openPlotScreen(){
     };
     $('btnPlotBack').onclick=()=>{ if (pendingMode==='design'){ openDesignSetup(); } else { game.mode=null; show('menuScreen'); } };
   }
-  $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; updatePlotNote();
+  $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
   show('plotScreen');
 }
+
+if ($('siteNorthRange')) $('siteNorthRange').oninput=e=>setSiteNorthEditorDraft(e.target.value);
+if ($('siteNorthNumber')) $('siteNorthNumber').onchange=e=>setSiteNorthEditorDraft(e.target.value);
+document.querySelectorAll('[data-north-deg]').forEach(b=>b.onclick=()=>setSiteNorthEditorDraft(b.dataset.northDeg));
+if ($('btnSiteNorthCancel')) $('btnSiteNorthCancel').onclick=cancelSiteNorthEditor;
+if ($('btnSiteNorthApply')) $('btnSiteNorthApply').onclick=applySiteNorthEditor;
+if ($('siteNorthScreen')) $('siteNorthScreen').onclick=e=>{ if (e.target===$('siteNorthScreen')) cancelSiteNorthEditor(); };
 
 /* design setup: a questionnaire that tunes the palette before sizing */
 const GARDEN_TYPES=[
@@ -617,7 +679,7 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
-  syncHapticsButton();
+  syncHapticsButton(); syncHandednessButton();
   const gm=openOverlay('gardenMenu','#btnFilters');
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
@@ -635,6 +697,10 @@ if ($('btnHaptics')) $('btnHaptics').onclick=()=>{
   const on=setHapticsEnabled(!hapticsOn); syncHapticsButton();
   if (on) hapticFeedback('success');
   toast(`Haptic feedback ${on?'on':'off'}.`);
+};
+if ($('btnHandedness')) $('btnHandedness').onclick=()=>{
+  const on=setLeftHandedLayout(!leftHandedLayout,true); syncHandednessButton();
+  toast(`Left-handed layout ${on?'on':'off'}.`);
 };
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab
@@ -895,7 +961,7 @@ function rulerSig(){
 }
 function renderStateSig(){
   return [
-    game.rev, game.groundRev, game.terrainRev, game.rot, absDay(),
+    game.rev, game.groundRev, game.terrainRev, game.rot, effectiveSiteNorthDeg(), absDay(),
     GW, GH, VW, VH, ZOOM.toFixed(3), cam.x.toFixed(1), cam.y.toFixed(1),
     game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
     game.previewMode, game.edgeStyle, layerVisibilitySig(),

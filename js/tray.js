@@ -1967,6 +1967,15 @@ function buildToolTray(){
         tc.strokeStyle='#efe6d3'; tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
       },()=>{ if (game.underlay) beginSitePhotoEdit(); else chooseSitePhoto(); });
       photo.dataset.k='site-photo'; photo.title=game.underlay?'Edit the calibrated site-photo reference':'Add a calibrated site-photo reference';
+      const northDeg=normalizeSiteNorthDeg(game.siteNorthDeg);
+      const north=toolBtn(`North ${northDeg}°`,false,tc=>{
+        tc.strokeStyle='rgba(239,230,211,.42)'; tc.lineWidth=1.3; tc.beginPath(); tc.arc(24,23,16,0,Math.PI*2); tc.stroke();
+        tc.save(); tc.translate(24,23); tc.rotate(northDeg*Math.PI/180);
+        tc.strokeStyle='#c97f3f'; tc.fillStyle='#c97f3f'; tc.lineWidth=2.5;
+        tc.beginPath(); tc.moveTo(0,12); tc.lineTo(0,-11); tc.stroke();
+        tc.beginPath(); tc.moveTo(0,-15); tc.lineTo(-5,-7); tc.lineTo(5,-7); tc.closePath(); tc.fill(); tc.restore();
+      },()=>openSiteNorthEditor('garden'));
+      north.dataset.k='site-north'; north.title='Set true north for sun, shade, compass markers, and the design plan';
       const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
         setTool('building',null); buildToolTray();
       });

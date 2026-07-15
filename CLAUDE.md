@@ -105,16 +105,18 @@ Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game
 logic is split across ordered modules. They map onto the section list below
 (which is also the load order, top to bottom):
 
-- **`core.js`** — constants, `AMBIENCE`, `COATS`, shared color helpers such as
-  `mixHex`, the path/bed/water/fence/light/firepit/house data tables, and
-  `plantDef` (cultivar merge cache).
+- **`core.js`** — constants, `AMBIENCE`, `COATS`, device preferences (haptics
+  and left-handed mobile layout), shared color helpers such as `mixHex`, the
+  path/bed/water/fence/light/firepit/house data tables, and `plantDef`
+  (cultivar merge cache).
 - **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
   `drawCritter`, and canvas drawing primitives for houses, fences, lights,
   firepits, plan symbols, and other rendered objects.
 - **`world.js`** — §8 the `game` state object, the `GAME_LAYERS` registry +
   `setTile`/`clearTile` mutation helpers, §9 time helpers + phenology, shade
-  constants, `DIRS`/`SUN_PATH`, house/world data, `cam`, terrain/elevation
-  lookup, collision helpers, iso/view math, and depth helpers.
+  constants, immutable `DIRS`/`SUN_PATH` plus the per-garden true-north
+  transform, house/world data, `cam`, terrain/elevation lookup, collision
+  helpers, iso/view math, and depth helpers.
 - **`view.js`** — active canvas sizing, viewport/PWA sizing probes, zoom state,
   active canvas switching, resize handling, and compass/map-edge direction
   updates.
@@ -365,18 +367,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Pick**, a divider, then **Undo** / **Redo** as one-shot actions —
     `makeCanvasTool` greys each via `disabled:!undoStack.length` when its stack
     is empty, recomputed every rebuild; `updateUndoBtn` just calls
-    `refreshCanvasTools`. Above the rail sits a small **north compass**
-    (`#compass` / `updateCompass`): a badge whose arrow points to world-north on
-    screen — found by projecting the plot centre and one tile north and taking
-    the screen delta, so it tracks `game.rot` only (updated on rotate + on
-    entering a garden, not per frame; the angle is unwrapped so the needle takes
-    the short way round). The non-painting view/select tools — **Select**,
+    `refreshCanvasTools`. **True north** is `game.siteNorthDeg`, an arbitrary
+    clockwise bearing from plot-up that is independent of `game.rot`.
+    `updateCompass` ray-intersects its rotated N/E/S/W vectors with the plot
+    boundary, then projects those geographic edge markers through the current
+    camera rotation. The same bearing rotates the cached derived sun path and
+    exported plan arrow; Rotate View never changes site orientation. The
+    non-painting view/select tools — **Select**,
     Rotate, **Layers** — live in the top bar beside the season dial instead
     (`syncTopTools` keeps their icons/state in sync; Fill moved into the Select
     tray). `game.tool` uses `'hand'` for safe panning and keeps `'shovel'` for
     Erase back-compat; the mobile rail shrinks the icons/rows so all clear the
-    bottom tray) and
-    Erase **drag-sweep**
+    bottom tray). The device-local **Left-handed layout** preference in the
+    Garden Menu mirrors only this rail to the right, moves dependent transient
+    chrome away from it, and makes `usableCanvasRect()` reserve the actual rail
+    side without changing the top bar, bottom palette, camera, or garden save.
+    The rail's Erase **drag-sweep**
     (pointerdown starts a sweep; tap or drag both run `eraseBrush(cx,cy)`,
     a centered **disc brush** of `game.brushSize` tiles (the shared
     paint/erase size — `brushOffsets`, see the disc-brush note below) that clears
@@ -515,7 +521,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (layer maps from `GAME_LAYERS` +
-    gw/gh + rot + houses + building polygons + name + `wv` walkway flag + current path/bed/water
+    gw/gh + rot + `siteNorthDeg` + houses + building polygons + name + `wv` walkway flag + current path/bed/water
     material choices and hardscape/light drafts). The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
@@ -539,7 +545,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     reach, Established preview shows mature reach, and the legend says
     "Dashed = mature crown". Shrub plan blobs use `woodyRadiusTiles(P)` from
     `spread`; bulbs -> scatter rings; building footprints, house, fences/gates, paths/beds, title block,
-    north arrow, legend with `planCodes` (short genus/epithet abbreviations,
+    true-north arrow (rotated within the fixed plan), legend with `planCodes` (short genus/epithet abbreviations,
     unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
@@ -730,7 +736,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     dots, house blocks — always current, no stored screenshot) plus a meta
     line with live plant count + the garden's own season (`worldSaveMeta`)),
     plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
-    length in feet), the design questionnaire (`#designScreen` /
+    length in feet plus an optional true-north row; its reusable bearing dialog
+    is also reached later from Build → Site), the design questionnaire (`#designScreen` /
     `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
     questionnaire is all chips, not native selects/checkboxes (which read as a
     stray HTML form inside the drawn world): **climate** shows the 3–9 zone
@@ -914,7 +921,8 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   Gesture-only affordances get a one-time contextual coach rather than a
   permanent help wall. Haptics are capability-gated, default off, stored as
   `hortus:haptics`, and fire once per completed placement/success or throttled
-  invalid action — never for every tile in a continuous paint gesture.
+  invalid action — never for every tile in a continuous paint gesture. The
+  left-handed rail preference is likewise device-local (`hortus:leftHanded`).
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 
@@ -1037,9 +1045,10 @@ stress garden before merge (see the perf notes in §11).
   edge-rulers overlay (desktop/tablet only), hydrozone/moisture overlay (`moist`
   data), `heightIn` data pass + height overlay, real eye icons in the Layers
   menu; global plant search scope with jump-to-category.
-- **Wave 6 — Site-accuracy & polish** (biggest lift, lowest urgency): set true
-  north at plot setup (rotates `SUN_PATH`; compass, plan arrow, shade all derive
-  downstream); *(built)* exact species+cultivar replacement from plant details
+- **Wave 6 — Site-accuracy & polish** *(built)*: true north at plot setup and
+  Build → Site (an arbitrary clockwise bearing rotates the derived sun path,
+  compass markers, plan arrow, shade maps, and tree-placement shade preview);
+  exact species+cultivar replacement from plant details
   or selection More, scoped to one/selection/garden with preflighted blocked
   positions and one undo step; *(built)* one calibrated site-photo reference
   under Build → Site (drag/pinch transform, two-point known-distance
@@ -1048,7 +1057,9 @@ stress garden before merge (see the perf notes in §11).
   resized to a bounded JPEG data-URL and stored as `game.underlay` outside
   `GAME_LAYERS`, so ordinary undo snapshots never clone its base64 payload. It
   composites above the opaque ground cache but below plants, structures, and
-  analysis overlays. True north and left-handed rail mirroring remain.
+  analysis overlays. A device-local left-handed preference mirrors the mobile
+  tool rail and its dependent transient chrome while preserving the user's
+  camera and the rest of the HUD.
 - **Floaters** (no hard dependency, pull forward on appetite): **bloom/interest
   calendar** (rows = species, columns = seasons early/mid/late, cells tinted by
   actual bloom color — pure presentation over existing `bloomLevel` data, a

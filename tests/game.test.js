@@ -13,7 +13,8 @@ function setup(gw, gh){
   game.boulderDraft = { type: 'round1' };
   game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
   game.bedStyle = 'soil';
-  game.rot = 0; game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
+  game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
@@ -63,6 +64,38 @@ test('iso view rotation round-trips for all four rotations', () => {
       assert(wx === x && wy === y, `rot ${rot}: (${x},${y}) -> (${wx},${wy})`);
     }
   }
+});
+
+test('true north rotates cardinal and sun directions without mutating the base path', () => {
+  setup(21,21);
+  const base=SUN_PATH.map(s=>s.sun.slice());
+  let dirs=siteDirections(0);
+  assert(Math.abs(dirs.N[0])<0.0001&&Math.abs(dirs.N[1]+1)<0.0001,'zero degrees points north toward plot-up');
+  game.siteNorthDeg=90;
+  dirs=siteDirections();
+  assert(Math.abs(dirs.N[0]-1)<0.0001&&Math.abs(dirs.N[1])<0.0001,'90 degrees points north toward plot-right');
+  const path=orientedSunPath();
+  assert(Math.abs(path[1].sun[0]+1)<0.0001&&Math.abs(path[1].sun[1])<0.0001,'midday southern sun rotates toward plot-left');
+  assertEqual(JSON.stringify(SUN_PATH.map(s=>s.sun)),JSON.stringify(base),'immutable base sun samples are unchanged');
+  assertEqual(normalizeSiteNorthDeg(-1),359,'negative bearings wrap into the canonical range');
+  assertEqual(normalizeSiteNorthDeg(361),1,'bearings above one turn wrap');
+});
+
+test('true north rotates tree shade and invalidates shade and scene keys', () => {
+  setup(21,21);
+  const sh={x:10,y:10,r:3,est:1,activePotential:true};
+  const northScore=treeShadeScore(sh,10,8), oldShadeKey=shadeMapKey(false), oldSceneKey=sceneKey();
+  assert(northScore>0,'default site casts shade toward plot-up');
+  setSiteNorthDeg(90);
+  assert(Math.abs(treeShadeScore(sh,12,10)-northScore)<0.0001,'rotating north right rotates the shade lobe right');
+  assert(treeShadeScore(sh,12,10)>treeShadeScore(sh,10,8),'the old north lobe no longer remains fixed to plot-up');
+  assert(shadeMapKey(false)!==oldShadeKey,'site orientation invalidates shade caches');
+  assert(sceneKey()!==oldSceneKey,'site orientation invalidates scene stunting');
+  previewSiteNorthDeg(180);
+  assertEqual(effectiveSiteNorthDeg(),180,'dialog preview drives derived directions without changing saved north');
+  assertEqual(game.siteNorthDeg,90,'preview does not overwrite the garden setting');
+  clearSiteNorthPreview();
+  assertEqual(effectiveSiteNorthDeg(),90,'cancelling restores the saved orientation');
 });
 
 test('tileAt picks the drawn diamond for elevated terrain', () => {
@@ -435,11 +468,24 @@ test('mobile canvas recovery avoids visible editing chrome', () => {
     assertEqual(safe.top,126,'safe canvas begins below the top controls');
     assertEqual(safe.left,64,'safe canvas begins beyond the tool rail');
     assertEqual(safe.bottom,612,'safe canvas ends above the open palette');
+    tools.getBoundingClientRect=()=>({left:334,top:150,right:382,bottom:370,width:48,height:220});
+    const rightSafe=usableCanvasRect();
+    assertEqual(rightSafe.left,8,'right-side rail leaves the left canvas edge open');
+    assertEqual(rightSafe.right,326,'right-side rail is reserved by shared canvas bounds');
     sheet.classList.add('sheet-collapsed');
     assertEqual(usableCanvasRect().bottom,836,'collapsed palette gives the canvas its height back');
   } finally {
     VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
   }
+});
+
+test('left-handed layout is a device preference, not garden state', () => {
+  setLeftHandedLayout(true,false);
+  assert(leftHandedLayout,'preference turns on');
+  assertEqual(localStorage.getItem(LEFT_HANDED_KEY),'1','preference persists locally');
+  assert(document.body.classList.contains('left-handed-layout'),'body class mirrors mobile chrome');
+  assertEqual(snapshotState().leftHandedLayout,undefined,'garden undo snapshots exclude device preference');
+  setLeftHandedLayout(false,false);
 });
 
 test('modal focus trap wraps keyboard focus inside the active dialog', () => {

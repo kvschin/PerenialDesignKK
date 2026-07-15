@@ -22,6 +22,11 @@ function normalizeLayerVis(vis){
   }
   return out;
 }
+function normalizeSiteNorthDeg(value){
+  const n=Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(((n%360)+360)%360)%360;
+}
 const UNDERLAY_DATA_LIMIT=950000;
 function normalizeUnderlay(raw){
   if (!raw || typeof raw!=='object') return null;
@@ -113,6 +118,8 @@ const game = {
   moveDur:170, pathTarget:null, sleepOnArrive:false,
   house:null, houseT:0,                              // per-garden house + sync stamp
   rot:0,                                             // view rotation, 90-degree steps
+  siteNorthDeg:0,                                    // true north, degrees clockwise from plot-up; independent of view
+  siteNorthPreviewDeg:null,                          // transient dialog preview; never persisted
   hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
@@ -500,16 +507,62 @@ const SHADE_MIN_RADIUS = 1.5;
 const SHADE_ACTIVE_SCORE = 0.42;
 const SHADE_FUTURE_SCORE = 0.18;
 const SHADE_AREA_SCALE = Math.SQRT1_2; // length x width ~= half the former restricted area
-/* Garden-space compass: north is y-1, south is y+1, east is x+1,
-   west is x-1. View rotation changes the camera, not these directions.
-   Kansas sun is modeled as a daily arc across the southern sky, so
-   tree shade falls generally northward, with morning/evening drift. */
+/* Site orientation is independent of camera rotation. Zero degrees means true
+   north points toward plot y-; positive degrees rotate clockwise on the plan.
+   SUN_PATH stays immutable in compass space (x=east, y=south), then a cached
+   derived path rotates those samples into world-grid space. */
 const DIRS = {N:[0,-1], E:[1,0], S:[0,1], W:[-1,0]};
 const SUN_PATH = [
   {name:'morning',   sun:[0.72,0.70],  weight:0.25, len:1.20, width:0.44}, // SE sun -> NW shade
   {name:'midday',    sun:DIRS.S,       weight:0.40, len:0.88, width:0.56}, // S sun  -> N shade
   {name:'afternoon', sun:[-0.72,0.70], weight:0.35, len:1.25, width:0.46}, // SW sun -> NE shade
 ];
+let siteDirectionCache={deg:null,dirs:null,path:null};
+function effectiveSiteNorthDeg(){
+  return game.siteNorthPreviewDeg===null||game.siteNorthPreviewDeg===undefined
+    ? normalizeSiteNorthDeg(game.siteNorthDeg) : normalizeSiteNorthDeg(game.siteNorthPreviewDeg);
+}
+function siteDirections(deg=effectiveSiteNorthDeg()){
+  deg=normalizeSiteNorthDeg(deg);
+  if (siteDirectionCache.deg===deg && siteDirectionCache.dirs) return siteDirectionCache.dirs;
+  const r=deg*Math.PI/180, north=[Math.sin(r),-Math.cos(r)], east=[Math.cos(r),Math.sin(r)];
+  const dirs={N:north,E:east,S:[-north[0],-north[1]],W:[-east[0],-east[1]]};
+  siteDirectionCache={deg,dirs,path:null};
+  return dirs;
+}
+function orientedSunPath(){
+  const deg=effectiveSiteNorthDeg(), dirs=siteDirections(deg);
+  if (siteDirectionCache.deg===deg && siteDirectionCache.path) return siteDirectionCache.path;
+  // A base sample is expressed as east/south components. Rotate both basis
+  // vectors once per orientation, never once per shaded tile.
+  siteDirectionCache.path=SUN_PATH.map(sample=>Object.assign({},sample,{sun:[
+    sample.sun[0]*dirs.E[0]+sample.sun[1]*dirs.S[0],
+    sample.sun[0]*dirs.E[1]+sample.sun[1]*dirs.S[1]
+  ]}));
+  return siteDirectionCache.path;
+}
+function setSiteNorthDeg(value){
+  const next=normalizeSiteNorthDeg(value);
+  clearSiteNorthPreview();
+  if (next===normalizeSiteNorthDeg(game.siteNorthDeg)) return false;
+  game.siteNorthDeg=next; siteDirectionCache={deg:null,dirs:null,path:null};
+  markModelChanged(); resetShadeMapCache();
+  if (typeof invalidateCompass==='function') invalidateCompass();
+  return true;
+}
+function previewSiteNorthDeg(value){
+  const next=normalizeSiteNorthDeg(value);
+  if (next===effectiveSiteNorthDeg()) return;
+  game.siteNorthPreviewDeg=next; siteDirectionCache={deg:null,dirs:null,path:null};
+  resetShadeMapCache();
+  if (typeof invalidateCompass==='function') invalidateCompass();
+}
+function clearSiteNorthPreview(){
+  if (game.siteNorthPreviewDeg===null||game.siteNorthPreviewDeg===undefined) return;
+  game.siteNorthPreviewDeg=null; siteDirectionCache={deg:null,dirs:null,path:null};
+  resetShadeMapCache();
+  if (typeof invalidateCompass==='function') invalidateCompass();
+}
 /* real=true reads true establishment (placement rules); default reads the
    display lens (effectiveEstab — mature under the Established preview) */
 function canopyRadius(p,real){ const P=plantDef(p.s,p.v);
@@ -559,7 +612,7 @@ function treeShadeScore(sh,x,y){
   const dx=x-sh.x, dy=y-sh.y, dist=Math.hypot(dx,dy);
   const scale=shadeSeasonScale();
   let score=0;
-  for (const sample of SUN_PATH){
+  for (const sample of orientedSunPath()){
     const mag=Math.hypot(sample.sun[0],sample.sun[1])||1;
     const sx=sample.sun[0]/mag, sy=sample.sun[1]/mag;
     const shx=-sx, shy=-sy;
@@ -596,7 +649,7 @@ function emptyShadeCache(){
 }
 let shadeMapCache=emptyShadeCache(), shadeMapCacheReal=emptyShadeCache();
 function shadeMapIndex(x,y){ return y*GW+x; }
-function shadeMapKey(real){ return game.rev+'|'+game.rot+'|'+absDay()+'|'+GW+'x'+GH+
+function shadeMapKey(real){ return game.rev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
   ((!real && establishedPreviewActive())?'|est':''); }
 function resetShadeMapCache(){
   shadeMapCache=emptyShadeCache(); shadeMapCacheReal=emptyShadeCache();

@@ -91,6 +91,28 @@ function hapticFeedback(kind){
   try{ navigator.vibrate(pattern); }catch(_){ }
 }
 
+/* The mobile rail side is a device preference, not garden data. Apply the
+   class while scripts load so opening the HUD never flashes on the wrong side. */
+const LEFT_HANDED_KEY='hortus:leftHanded';
+let leftHandedLayout=false;
+try{ leftHandedLayout=localStorage.getItem(LEFT_HANDED_KEY)==='1'; }catch(_){ }
+function applyLeftHandedLayout(animate){
+  if (typeof document==='undefined'||!document.body) return;
+  document.body.classList.toggle('left-handed-layout',leftHandedLayout);
+  if (animate){
+    document.body.classList.add('handedness-changing');
+    setTimeout(()=>document.body&&document.body.classList.remove('handedness-changing'),220);
+  }
+  if (typeof globalThis!=='undefined' && globalThis.__compassReady && typeof invalidateCompass==='function') invalidateCompass();
+}
+function setLeftHandedLayout(on,animate=true){
+  leftHandedLayout=!!on;
+  try{ localStorage.setItem(LEFT_HANDED_KEY,leftHandedLayout?'1':'0'); }catch(_){ }
+  applyLeftHandedLayout(animate);
+  return leftHandedLayout;
+}
+applyLeftHandedLayout(false);
+
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
   Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0},

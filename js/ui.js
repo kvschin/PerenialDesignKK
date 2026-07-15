@@ -47,6 +47,12 @@ function syncHapticsButton(){
   b.textContent=`Haptic feedback · ${hapticsOn?'On':'Off'}`;
   b.setAttribute('aria-pressed',hapticsOn?'true':'false');
 }
+function syncHandednessButton(){
+  const b=document.getElementById('btnHandedness'); if (!b) return;
+  b.textContent=`Left-handed layout · ${leftHandedLayout?'On':'Off'}`;
+  b.setAttribute('aria-pressed',leftHandedLayout?'true':'false');
+  b.title='Moves the mobile canvas tool rail to the right edge';
+}
 /* ---------- plant roles ----------
    Designer mode uses roles to push the right plants forward for the
    chosen garden style. Roles are computed from the plant data so the

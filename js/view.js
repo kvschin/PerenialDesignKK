@@ -40,9 +40,11 @@ function usableCanvasRect(){
     if (edge==='top') out.top=Math.max(out.top,Math.min(VH-8,r.bottom+8));
     if (edge==='bottom') out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
     if (edge==='left') out.left=Math.max(out.left,Math.min(VW-8,r.right+8));
+    if (edge==='right') out.right=Math.min(out.right,Math.max(8,r.left-8));
   };
   take(document.querySelector('.hud-top'),'top');
-  take(document.getElementById('canvasTools'),'left');
+  const rail=document.getElementById('canvasTools');
+  if (rail){ const rr=rail.getBoundingClientRect(); take(rail,rr.left+rr.width/2>VW/2?'right':'left'); }
   const sheet=document.querySelector('.hud-bottom');
   if (sheet && !sheet.classList.contains('sheet-collapsed') && getComputedStyle(sheet).visibility!=='hidden'){
     const r=sheet.getBoundingClientRect();
@@ -155,6 +157,8 @@ addEventListener('orientationchange', resizeCanvases);
    to the viewport; when that part of the garden edge leaves the screen, the
    marker leaves too. This keeps the directions spatial instead of HUD-like. */
 let compassDom=null, compassKey='', compassChrome={key:'',rects:[]};
+if (typeof globalThis!=='undefined') globalThis.__compassReady=true;
+function invalidateCompass(){ compassKey=''; compassChrome={key:'',rects:[]}; updateCompass(); }
 function compassElements(){
   if (compassDom && compassDom.root && compassDom.root.isConnected) return compassDom;
   const root=document.getElementById('compassEdges');
@@ -196,19 +200,25 @@ function compassBlockedByChrome(p,rects){
 function updateCompass(){
   const dom=compassElements(); if (!dom) return;
   const chromeKey=compassChromeStateKey();
-  const key=[game.mode?1:0,game.rot,VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,chromeKey].join('|');
+  const key=[game.mode?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,chromeKey].join('|');
   if (key===compassKey) return;
   compassKey=key;
   if (!game.mode){ dom.labels.forEach(el=>el.classList.add('off')); return; }
   const W=VW/ZOOM, H=VH/ZOOM, pad=42;
   const chromeRects=compassChromeRects(chromeKey);
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };
-  const edges={
-    N:{m:[(GW-1)/2,-0.76], tip:[(GW-1)/2,-1.58]},
-    E:{m:[GW-0.24,(GH-1)/2], tip:[GW+0.58,(GH-1)/2]},
-    S:{m:[(GW-1)/2,GH-0.24], tip:[(GW-1)/2,GH+0.58]},
-    W:{m:[-0.76,(GH-1)/2], tip:[-1.58,(GH-1)/2]},
+  const center=[(GW-1)/2,(GH-1)/2], bounds={l:-.5,r:GW-.5,t:-.5,b:GH-.5};
+  const ray=(d,offset)=>{
+    const ts=[];
+    if (d[0]>.000001) ts.push((bounds.r-center[0])/d[0]);
+    else if (d[0]<-.000001) ts.push((bounds.l-center[0])/d[0]);
+    if (d[1]>.000001) ts.push((bounds.b-center[1])/d[1]);
+    else if (d[1]<-.000001) ts.push((bounds.t-center[1])/d[1]);
+    const edge=Math.min(...ts.filter(t=>t>=0));
+    return [center[0]+d[0]*(edge+offset),center[1]+d[1]*(edge+offset)];
   };
+  const dirs=siteDirections(), edges={};
+  Object.keys(dirs).forEach(d=>{ edges[d]={m:ray(dirs[d],.26),tip:ray(dirs[d],1.08)}; });
   dom.labels.forEach(el=>{
     const d=el.dataset.dir, def=edges[d]; if (!def) return;
     const p=project(def.m[0],def.m[1]);

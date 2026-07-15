@@ -55,7 +55,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
-    gw:GW,gh:GH,rot:game.rot,freePlanting:game.freePlanting,previewMode:game.previewMode,
+    gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
@@ -99,6 +99,7 @@ async function loadSolo(id){
   game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
   game.layerVis = normalizeLayerVis(s.layerVis);
   game.underlay=normalizeUnderlay(s.underlay); game.photoEditing=false;
+  game.siteNorthDeg=normalizeSiteNorthDeg(s.siteNorthDeg); game.siteNorthPreviewDeg=null;
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
@@ -144,11 +145,11 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.buildings=[]; game.freePlanting=false;
-  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
+  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); game.buildingsT=Date.now();
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
   seedWalkway();
-  await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH},true);
+  await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH,siteNorthDeg:game.siteNorthDeg},true);
   await sSet(wkey('plants'),{},true);
   await sSet(wkey('bulbs'),{},true);
   await sSet(wkey('terrain'),game.terrain,true);
@@ -169,6 +170,7 @@ async function joinWorld(code){
   game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
+  game.siteNorthDeg=normalizeSiteNorthDeg(meta.siteNorthDeg); game.siteNorthPreviewDeg=null;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
   const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
   const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
@@ -699,12 +701,18 @@ function buildPlanMap(){
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
   ctx.fillText(`Design plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   ctx.fillText(`1 tile = ${TILE_IN}" · plot ${Math.round(GW*1.5)} × ${Math.round(GH*1.5)} ft`, padL, 70);
-  // north arrow (world y points up-page on plans; our y+ is south)
-  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.moveTo(W2-40,62); ctx.lineTo(W2-40,34); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(W2-40,30); ctx.lineTo(W2-45,42); ctx.lineTo(W2-35,42); ctx.closePath();
+  // True north rotates inside the plan; the garden drawing itself stays in
+  // the user's plot coordinates so labels and saved tile positions never move.
+  const nd=siteDirections(game.siteNorthDeg).N, nc=[W2-48,52], perp=[-nd[1],nd[0]];
+  const nt=[nc[0]+nd[0]*17,nc[1]+nd[1]*17], tail=[nc[0]-nd[0]*13,nc[1]-nd[1]*13];
+  const hb=[nt[0]-nd[0]*9,nt[1]-nd[1]*9];
+  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(nc[0],nc[1],24,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tail[0],tail[1]); ctx.lineTo(nt[0],nt[1]); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(nt[0],nt[1]); ctx.lineTo(hb[0]+perp[0]*5,hb[1]+perp[1]*5);
+  ctx.lineTo(hb[0]-perp[0]*5,hb[1]-perp[1]*5); ctx.closePath();
   ctx.fillStyle='#2c241c'; ctx.fill();
-  ctx.font='10px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillText('N',W2-40,80);
+  ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
+  ctx.fillText('N',nc[0]+nd[0]*34,nc[1]+nd[1]*34+3);
   // faint tile grid so bare ground still reads as a plot of blank tiles
   ctx.strokeStyle='rgba(120,108,86,0.16)'; ctx.lineWidth=0.5;
   for (let gx=0;gx<=GW;gx++){ ctx.beginPath(); ctx.moveTo(X(gx),Y(0)); ctx.lineTo(X(gx),Y(GH)); ctx.stroke(); }

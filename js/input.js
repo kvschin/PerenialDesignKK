@@ -3,6 +3,12 @@
 /* keyboard */
 const heldKeys={};
 addEventListener('keydown',e=>{
+  const northScreen=document.getElementById('siteNorthScreen');
+  if (northScreen&&!northScreen.classList.contains('hidden')){
+    if (e.key==='Escape'){ e.preventDefault(); cancelSiteNorthEditor(); }
+    else trapOverlayFocus(northScreen,e);
+    return;
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }
@@ -17,10 +23,13 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(confirmPop,e);
     return;
   }
-  const overlay=['sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen','confirmSeasonScreen']
+  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen','confirmSeasonScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
-    if (e.key==='Escape'){ closeOverlay(overlay.id); if (overlay.id==='replacePlantScreen') replacePlantContext=null; }
+    if (e.key==='Escape'){
+      if (overlay.id==='siteNorthScreen') cancelSiteNorthEditor();
+      else { closeOverlay(overlay.id); if (overlay.id==='replacePlantScreen') replacePlantContext=null; }
+    }
     else trapOverlayFocus(overlay,e);
     return;
   }

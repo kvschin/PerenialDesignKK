@@ -282,6 +282,7 @@
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
       <button class="btn" id="btnShare">Share garden</button>
       <button class="btn hidden" id="btnHaptics" aria-pressed="false">Haptic feedback · Off</button>
+      <button class="btn handedness-preference" id="btnHandedness" aria-pressed="false" title="Moves the mobile canvas tool rail to the right edge">Left-handed layout · Off</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
@@ -353,11 +354,46 @@
       <div class="field" style="flex:1;min-width:120px"><label for="plotL">Length, feet</label>
         <input id="plotL" type="number" min="24" max="200" value="46"></div>
     </div>
+    <div class="field site-north-setup">
+      <label for="btnPlotNorth">Site orientation <span class="optional">Optional</span></label>
+      <button id="btnPlotNorth" class="site-north-summary" type="button" aria-haspopup="dialog" aria-controls="siteNorthScreen" aria-expanded="false">
+        <span class="north-summary-arrow" aria-hidden="true"></span>
+        <span><strong id="plotNorthLabel">North at top · 0°</strong><small>Used for sun, shade, and the design plan. Change it later under Build → Site.</small></span>
+      </button>
+    </div>
     <p class="note" id="plotNote"></p>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="btnPlotStart">Break ground</button>
     </div>
     <button class="back-link" id="btnPlotBack">Back</button>
+  </div>
+</div>
+
+<!-- TRUE NORTH (plot setup and Build → Site share this editor) -->
+<div class="screen modal-screen hidden" id="siteNorthScreen" role="dialog" aria-modal="true" aria-labelledby="siteNorthTitle">
+  <div class="panel site-north-panel" tabindex="-1">
+    <span class="eyebrow">Site orientation</span>
+    <h2 id="siteNorthTitle">Set north</h2>
+    <p class="sub">This sets the real site direction used by sun, shade, compass markers, and the design plan. Rotate View only changes how you look at the garden.</p>
+    <div class="site-north-preview" id="siteNorthPreview" aria-hidden="true">
+      <span>Plot</span><i></i>
+    </div>
+    <p class="site-north-readout" id="siteNorthReadout" role="status">North points toward the top edge · 0°.</p>
+    <div class="chip-row site-north-shortcuts" role="group" aria-label="North edge shortcuts">
+      <button class="chip" type="button" data-north-deg="0">Top edge</button>
+      <button class="chip" type="button" data-north-deg="90">Right edge</button>
+      <button class="chip" type="button" data-north-deg="180">Bottom edge</button>
+      <button class="chip" type="button" data-north-deg="270">Left edge</button>
+    </div>
+    <div class="site-north-fine">
+      <label for="siteNorthRange">Degrees clockwise from top</label>
+      <input id="siteNorthRange" type="range" min="0" max="359" step="1" value="0">
+      <span><input id="siteNorthNumber" type="number" min="0" max="359" step="1" inputmode="numeric" value="0">°</span>
+    </div>
+    <div class="row site-north-actions">
+      <button class="btn" id="btnSiteNorthCancel" type="button">Cancel</button>
+      <button class="btn primary" id="btnSiteNorthApply" type="button">Set north</button>
+    </div>
   </div>
 </div>
 
