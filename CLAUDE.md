@@ -224,7 +224,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fires from a two-finger twist (~40° per 90° step, alongside pinch-zoom).
     `safeSpawn()` returns a standable tile near plot center (door, else a
     spiral search) so re-entering a garden never drops the player stuck
-    inside the house. `seedWalkway()` lays the
+    inside the house. **Irregular lots**: `game.plotShape` (optional, saved;
+    null = full rectangle) is a 4-vertex polygon on the tile-corner lattice
+    masking the GW×GH rectangle into the player's real lot. `setPlotShape`
+    validates (4 clamped integer verts, non-self-intersecting, ≥9 enclosed
+    tiles) and rebuilds the derived `plotMask`; `onPlot(x,y)` is the ONE
+    legality predicate every placement/collision/walkability guard funnels
+    through (`applyToolAt`, shrub/house/fence/firepit/boulder/building
+    placement, `selValidDest`, flood fill, erase, `canStand`). `setWorldSize`
+    always clears the shape. Rendering agrees with the mask: `paintGround`
+    skips off-lot tiles (void draws nothing — styling deliberately deferred),
+    organic terrain edges treat the lot line as HARD (beds butt exactly into
+    it), the compass ray-casts the polygon (`rayPolygonExitT`), the plan
+    sheet strokes the deeded boundary, and worlds-list thumbnails
+    point-in-polygon test the saved blob's own shape (`blobOnPlot`). Cache
+    keys ride `plotRev`/`groundRev`/`terrainRev` — nothing new per frame.
+    `seedWalkway()` lays the
     starter walkway as ordinary path terrain at world creation (so the
     shovel can remove it like anything player-laid; saves without `wv` get
     it seeded once on load). Houses live in `game.houses` — an array, so a
@@ -737,7 +752,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     line with live plant count + the garden's own season (`worldSaveMeta`)),
     plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
     length in feet plus an optional true-north row; its reusable bearing dialog
-    is also reached later from Build → Site), the design questionnaire (`#designScreen` /
+    is also reached later from Build → Site, and an optional **"Lot shape"**
+    disclosure opens an inline canvas editor — the plot rectangle drawn to
+    scale with four draggable corner handles snapping to the tile-corner
+    lattice, live per-side lengths in feet, and a north arrow from the pending
+    bearing. The draft lives in `pendingPlotShape` (never on `game` while
+    editing; invalid drags — crossed corners, sub-9-tile slivers — show danger
+    styling + a hint and revert on release, so pointerup can never hold an
+    invalid quad). Resizing width/length resets the shape; `btnPlotStart`
+    applies it AFTER `setWorldSize` via `setPlotShape` since sizing always
+    clears any shape), the design questionnaire (`#designScreen` /
     `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
     questionnaire is all chips, not native selects/checkboxes (which read as a
     stray HTML form inside the drawn world): **climate** shows the 3–9 zone

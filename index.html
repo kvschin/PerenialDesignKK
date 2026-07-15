@@ -361,6 +361,19 @@
         <span><strong id="plotNorthLabel">North at top · 0°</strong><small>Used for sun, shade, and the design plan. Change it later under Build → Site.</small></span>
       </button>
     </div>
+    <div class="field lot-shape-setup">
+      <label for="btnPlotShape">Lot shape <span class="optional">Optional</span></label>
+      <button id="btnPlotShape" class="site-north-summary" type="button" aria-expanded="false" aria-controls="plotShapeEditor">
+        <span><strong id="plotShapeLabel">Rectangle</strong><small>Drag the corners if your lot isn't a perfect rectangle.</small></span>
+      </button>
+      <div id="plotShapeEditor" class="lot-shape-editor hidden">
+        <canvas id="plotShapeCanvas"></canvas>
+        <p class="field-hint" id="plotShapeHint">Drag a corner. Side lengths are real feet.</p>
+        <div class="row lot-shape-actions">
+          <button class="btn" id="btnPlotShapeReset" type="button">Reset to rectangle</button>
+        </div>
+      </div>
+    </div>
     <p class="note" id="plotNote"></p>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="btnPlotStart">Break ground</button>

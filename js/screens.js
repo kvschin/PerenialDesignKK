@@ -530,6 +530,155 @@ function applySiteNorthEditor(){
   siteNorthEditorContext=null; closeOverlay('siteNorthScreen');
 }
 function plotFt(id){ return Math.max(FT_MIN,Math.min(FT_MAX,+$(id).value||46)); }
+/* ---------- lot-shape editor (plot setup) ----------
+   A pending 4-corner shape drafted BEFORE the world exists — btnPlotStart
+   applies it via setPlotShape only after setWorldSize (which always clears
+   any shape). Pure helpers are top-level for the headless tests; validation
+   mirrors setPlotShape's rules against the PENDING gw/gh, reusing the same
+   plotEdgesCross/polygonContains the world-side validator uses. */
+let pendingPlotShape=null, plotShapeDrag=null;
+function defaultPlotShapeVerts(gw,gh){ return [[0,0],[gw,0],[gw,gh],[0,gh]]; }
+function plotShapeSideLengthsFt(verts){
+  return verts.map((v,i)=>{ const w=verts[(i+1)%verts.length];
+    return Math.round(Math.hypot(w[0]-v[0],w[1]-v[1])*TILE_IN/12); });
+}
+function plotShapeSnap(px,py,gw,gh){
+  return [Math.max(0,Math.min(gw,Math.round(px))), Math.max(0,Math.min(gh,Math.round(py)))];
+}
+function plotShapeQuadOk(verts,gw,gh){
+  if (!Array.isArray(verts)||verts.length!==4) return false;
+  if (verts.some(([x,y])=>x<0||y<0||x>gw||y>gh)) return false;
+  if (plotEdgesCross(verts[0],verts[1],verts[2],verts[3])) return false;
+  if (plotEdgesCross(verts[1],verts[2],verts[3],verts[0])) return false;
+  let n=0;
+  for (let y=0;y<gh;y++) for (let x=0;x<gw;x++) if (polygonContains(x+0.5,y+0.5,verts)) n++;
+  return n>=9;
+}
+function plotShapeIsRect(verts,gw,gh){
+  const d=defaultPlotShapeVerts(gw,gh);
+  return verts.every((v,i)=>v[0]===d[i][0]&&v[1]===d[i][1]);
+}
+function updatePlotShapeSummary(){
+  const label=$('plotShapeLabel');
+  if (label) label.textContent=pendingPlotShape?'Custom shape':'Rectangle';
+}
+function plotShapeMetrics(){
+  const cvs=$('plotShapeCanvas'), gw=ftToTiles(plotFt('plotW')), gh=ftToTiles(plotFt('plotL'));
+  const cssW=cvs.clientWidth||300, cssH=cvs.clientHeight||236;
+  const pad=30, sc=Math.min((cssW-2*pad)/gw,(cssH-2*pad)/gh);
+  return {cvs,gw,gh,cssW,cssH,sc,ox:(cssW-gw*sc)/2,oy:(cssH-gh*sc)/2};
+}
+function drawPlotShapeEditor(){
+  const ed=$('plotShapeEditor');
+  if (!ed || ed.classList.contains('hidden')) return;
+  const m=plotShapeMetrics(), {cvs,gw,gh,cssW,cssH,sc,ox,oy}=m;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  if (cvs.width!==Math.round(cssW*dpr)||cvs.height!==Math.round(cssH*dpr)){
+    cvs.width=Math.round(cssW*dpr); cvs.height=Math.round(cssH*dpr); }
+  const g=cvs.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,cssW,cssH);
+  const P=(v)=>[ox+v[0]*sc, oy+v[1]*sc];
+  const verts=(plotShapeDrag&&plotShapeDrag.verts)||pendingPlotShape||defaultPlotShapeVerts(gw,gh);
+  const invalid=!!(plotShapeDrag&&!plotShapeDrag.valid);
+  // bounding rectangle + a light tile grid every 4 tiles for scale
+  g.strokeStyle='rgba(239,230,211,0.18)'; g.setLineDash([4,4]); g.lineWidth=1;
+  g.strokeRect(ox,oy,gw*sc,gh*sc); g.setLineDash([]);
+  g.strokeStyle='rgba(239,230,211,0.07)';
+  for (let x=4;x<gw;x+=4){ g.beginPath(); g.moveTo(ox+x*sc,oy); g.lineTo(ox+x*sc,oy+gh*sc); g.stroke(); }
+  for (let y=4;y<gh;y+=4){ g.beginPath(); g.moveTo(ox,oy+y*sc); g.lineTo(ox+gw*sc,oy+y*sc); g.stroke(); }
+  // the lot itself
+  g.beginPath(); verts.forEach((v,i)=>{ const [x,y]=P(v); i?g.lineTo(x,y):g.moveTo(x,y); }); g.closePath();
+  g.fillStyle=invalid?'rgba(166,64,48,0.16)':'rgba(111,143,90,0.28)'; g.fill();
+  g.strokeStyle=invalid?'rgba(236,118,92,0.9)':'rgba(239,230,211,0.75)'; g.lineWidth=1.6; g.stroke();
+  // per-side lengths in feet, held just outside each edge's midpoint
+  const fts=plotShapeSideLengthsFt(verts);
+  g.font='11px IBM Plex Sans, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  for (let i=0;i<4;i++){
+    const a=P(verts[i]), b=P(verts[(i+1)%4]);
+    const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+    const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
+    const nx=dy/len, ny=-dx/len;               // outward for clockwise winding
+    const lx=mx+nx*13, ly=my+ny*13;
+    g.strokeStyle='rgba(20,14,11,0.75)'; g.lineWidth=3; g.strokeText(fts[i]+' ft',lx,ly);
+    g.fillStyle='#efe6d3'; g.fillText(fts[i]+' ft',lx,ly);
+  }
+  // corner handles
+  verts.forEach((v,i)=>{ const [x,y]=P(v);
+    g.beginPath(); g.arc(x,y,7,0,7);
+    g.fillStyle=(plotShapeDrag&&plotShapeDrag.i===i)?'#e9c07a':'#daa54a'; g.fill();
+    g.strokeStyle='rgba(20,14,11,0.8)'; g.lineWidth=1.5; g.stroke(); });
+  // north arrow from the plot screen's pending bearing (presentational)
+  const deg=(typeof normalizeSiteNorthDeg==='function'?normalizeSiteNorthDeg(plotNorthDraft):0)*Math.PI/180;
+  g.save(); g.translate(cssW-22,26); g.rotate(deg);
+  g.strokeStyle='#efe6d3'; g.lineWidth=1.6; g.lineCap='round';
+  g.beginPath(); g.moveTo(0,9); g.lineTo(0,-7); g.stroke();
+  g.beginPath(); g.moveTo(-3.5,-3); g.lineTo(0,-9); g.lineTo(3.5,-3); g.stroke();
+  g.restore();
+  g.fillStyle='rgba(239,230,211,0.8)'; g.font='9px IBM Plex Sans, sans-serif';
+  g.fillText('N',cssW-22,44);
+}
+function setPlotShapeHint(text){
+  const hint=$('plotShapeHint');
+  if (hint) hint.textContent=text||'Drag a corner. Side lengths are real feet.';
+}
+function resetPendingPlotShape(fromResize){
+  const had=!!pendingPlotShape;
+  pendingPlotShape=null; plotShapeDrag=null;
+  updatePlotShapeSummary();
+  if (had && fromResize) setPlotShapeHint('Plot resized — shape reset.');
+  drawPlotShapeEditor();
+}
+function wirePlotShapeEditor(){
+  const cvs=$('plotShapeCanvas'); if (!cvs) return;
+  $('btnPlotShape').onclick=()=>{
+    const ed=$('plotShapeEditor'), open=ed.classList.contains('hidden');
+    ed.classList.toggle('hidden',!open);
+    $('btnPlotShape').setAttribute('aria-expanded',open?'true':'false');
+    if (open){ setPlotShapeHint(); drawPlotShapeEditor(); }
+  };
+  $('btnPlotShapeReset').onclick=()=>{ resetPendingPlotShape(false); setPlotShapeHint('Back to a full rectangle.'); };
+  const toTile=(e)=>{ const r=cvs.getBoundingClientRect(), m=plotShapeMetrics();
+    return [(e.clientX-r.left-m.ox)/m.sc, (e.clientY-r.top-m.oy)/m.sc]; };
+  cvs.addEventListener('pointerdown',e=>{
+    const m=plotShapeMetrics(), r=cvs.getBoundingClientRect();
+    const verts=pendingPlotShape||defaultPlotShapeVerts(m.gw,m.gh);
+    let best=-1, bestD=24;                     // generous touch target
+    verts.forEach((v,i)=>{ const hx=m.ox+v[0]*m.sc, hy=m.oy+v[1]*m.sc;
+      const d=Math.hypot(e.clientX-r.left-hx, e.clientY-r.top-hy);
+      if (d<bestD){ bestD=d; best=i; } });
+    if (best<0) return;
+    e.preventDefault();
+    plotShapeDrag={i:best, verts:verts.map(v=>v.slice()), last:verts.map(v=>v.slice()), valid:true};
+    cvs.setPointerCapture(e.pointerId);
+    drawPlotShapeEditor();
+  });
+  cvs.addEventListener('pointermove',e=>{
+    if (!plotShapeDrag) return;
+    e.preventDefault();
+    const m=plotShapeMetrics(), [tx,ty]=toTile(e);
+    plotShapeDrag.verts[plotShapeDrag.i]=plotShapeSnap(tx,ty,m.gw,m.gh);
+    plotShapeDrag.valid=plotShapeQuadOk(plotShapeDrag.verts,m.gw,m.gh);
+    if (plotShapeDrag.valid){
+      plotShapeDrag.last=plotShapeDrag.verts.map(v=>v.slice());
+      setPlotShapeHint();
+    } else {
+      const bow=plotEdgesCross(plotShapeDrag.verts[0],plotShapeDrag.verts[1],plotShapeDrag.verts[2],plotShapeDrag.verts[3])
+        || plotEdgesCross(plotShapeDrag.verts[1],plotShapeDrag.verts[2],plotShapeDrag.verts[3],plotShapeDrag.verts[0]);
+      setPlotShapeHint(bow?"Corners can't cross.":'Too small to garden.');
+    }
+    drawPlotShapeEditor();
+  });
+  const finish=()=>{
+    if (!plotShapeDrag) return;
+    const m=plotShapeMetrics();
+    const verts=plotShapeDrag.valid?plotShapeDrag.verts:plotShapeDrag.last;
+    pendingPlotShape=plotShapeIsRect(verts,m.gw,m.gh)?null:verts.map(v=>v.slice());
+    plotShapeDrag=null;
+    updatePlotShapeSummary(); setPlotShapeHint(); drawPlotShapeEditor();
+  };
+  cvs.addEventListener('pointerup',finish);
+  cvs.addEventListener('pointercancel',finish);
+}
 function updatePlotNote(){
   const w=plotFt('plotW'), l=plotFt('plotL');
   $('plotNote').textContent=
@@ -541,15 +690,18 @@ function openPlotScreen(){
     PLOT_PRESETS.forEach(([n,w,l],i)=>{
       const b=document.createElement('button');
       b.className='chip'+(i===0?' sel':''); b.textContent=n;
-      b.onclick=()=>{ $('plotW').value=w; $('plotL').value=l; updatePlotNote();
+      b.onclick=()=>{ $('plotW').value=w; $('plotL').value=l; updatePlotNote(); resetPendingPlotShape(true);
         row.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
       row.appendChild(b);
     });
-    $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote();
+    $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote(); resetPendingPlotShape(true);
       row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
     $('btnPlotNorth').onclick=()=>openSiteNorthEditor('plot');
+    wirePlotShapeEditor();
     $('btnPlotStart').onclick=()=>{
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
+      if (pendingPlotShape && !setPlotShape(pendingPlotShape))     // sized first — setWorldSize clears any shape
+        toast('That lot shape was too tight — starting rectangular.');
       game.worldId='w'+Date.now().toString(36);
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
@@ -571,6 +723,10 @@ function openPlotScreen(){
     $('btnPlotBack').onclick=()=>{ if (pendingMode==='design'){ openDesignSetup(); } else { game.mode=null; show('menuScreen'); } };
   }
   $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
+  pendingPlotShape=null; plotShapeDrag=null;               // every new plot starts rectangular
+  const shapeEd=$('plotShapeEditor');
+  if (shapeEd){ shapeEd.classList.add('hidden'); $('btnPlotShape').setAttribute('aria-expanded','false'); }
+  updatePlotShapeSummary(); setPlotShapeHint();
   show('plotScreen');
 }
 

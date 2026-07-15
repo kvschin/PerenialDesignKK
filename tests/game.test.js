@@ -1886,6 +1886,27 @@ test('plant card mature size uses real tree heights (heightIn)', () => {
   assert(matureSizeText(cq, false).startsWith('9 ft'), `Crimson Queen reads 9 ft (got "${matureSizeText(cq, false)}")`);
 });
 
+test('lot-shape setup helpers: side lengths, snapping, validity, and create order', () => {
+  setup(31, 31);
+  assertEqual(JSON.stringify(defaultPlotShapeVerts(20, 20)),
+    JSON.stringify([[0, 0], [20, 0], [20, 20], [0, 20]]), 'default verts are the full rectangle');
+  assertEqual(JSON.stringify(plotShapeSideLengthsFt([[0, 0], [20, 0], [16, 20], [0, 20]])),
+    JSON.stringify([30, 31, 24, 30]), 'side lengths convert tiles to rounded feet');
+  assertEqual(JSON.stringify(plotShapeSnap(3.4, -2, 20, 20)), JSON.stringify([3, 0]), 'snap clamps below zero');
+  assertEqual(JSON.stringify(plotShapeSnap(25.6, 19.5, 20, 20)), JSON.stringify([20, 20]), 'snap clamps past the far corner');
+  assert(plotShapeQuadOk([[0, 0], [20, 0], [14, 20], [0, 20]], 20, 20), 'a trapezoid validates');
+  assert(!plotShapeQuadOk([[0, 0], [20, 20], [20, 0], [0, 20]], 20, 20), 'a bowtie is rejected');
+  assert(!plotShapeQuadOk([[0, 0], [2, 0], [2, 2], [0, 2]], 20, 20), 'a sliver is rejected');
+  assert(plotShapeIsRect([[0, 0], [20, 0], [20, 20], [0, 20]], 20, 20), 'rect detection');
+  assert(!plotShapeIsRect([[0, 0], [20, 0], [14, 20], [0, 20]], 20, 20), 'custom detection');
+  // the create-order contract: size the world first (clears any shape), then apply
+  setWorldSize(21, 21);
+  assertEqual(game.plotShape, null, 'setWorldSize starts rectangular');
+  assert(setPlotShape([[0, 0], [21, 0], [15, 21], [0, 21]]), 'pending shape applies after sizing');
+  assert(!onPlot(20, 20), 'the cut corner is off the lot');
+  assert(onPlot(2, 2), 'the kept corner is on the lot');
+});
+
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // below the plant floor it never engages, however slow the draw
