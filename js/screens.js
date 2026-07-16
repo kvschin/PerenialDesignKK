@@ -521,6 +521,7 @@ function applySiteNorthEditor(){
   const context=siteNorthEditorContext;
   if (context==='plot'){
     plotNorthDraft=normalizeSiteNorthDeg(siteNorthEditorDraft); updatePlotNorthSummary();
+    drawPlotShapeEditor();                    // the diagram's dial mirrors the applied bearing
   } else if (context==='garden'){
     const changed=setSiteNorthDeg(siteNorthEditorDraft);
     buildToolTray(); refreshCanvasTools();
@@ -558,20 +559,32 @@ function plotShapeIsRect(verts,gw,gh){
   const d=defaultPlotShapeVerts(gw,gh);
   return verts.every((v,i)=>v[0]===d[i][0]&&v[1]===d[i][1]);
 }
-function updatePlotShapeSummary(){
-  const label=$('plotShapeLabel');
-  if (label) label.textContent=pendingPlotShape?'Custom shape':'Rectangle';
+function plotEdgeResizeTiles(axisVal){ // one axis of an edge-resize drag -> clamped whole tiles
+  return Math.max(ftToTiles(FT_MIN), Math.min(ftToTiles(FT_MAX), Math.round(axisVal)));
+}
+function plotDialDeg(dx,dy){ // pointer offset from the dial center -> bearing, snapped to 5°
+  const deg=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
+  return Math.round(deg/5)*5%360;
 }
 function plotShapeMetrics(){
+  // asymmetric right pad keeps a gutter for the north dial so a wide plot's
+  // corner handle never sits under it
   const cvs=$('plotShapeCanvas'), gw=ftToTiles(plotFt('plotW')), gh=ftToTiles(plotFt('plotL'));
   const cssW=cvs.clientWidth||300, cssH=cvs.clientHeight||236;
-  const pad=30, sc=Math.min((cssW-2*pad)/gw,(cssH-2*pad)/gh);
-  return {cvs,gw,gh,cssW,cssH,sc,ox:(cssW-gw*sc)/2,oy:(cssH-gh*sc)/2};
+  const padL=30,padR=60,padT=30,padB=34;
+  const sc=Math.min((cssW-padL-padR)/gw,(cssH-padT-padB)/gh);
+  return {cvs,gw,gh,cssW,cssH,sc,
+    ox:padL+((cssW-padL-padR)-gw*sc)/2, oy:padT+((cssH-padT-padB)-gh*sc)/2,
+    dial:[cssW-28,30]};
 }
 function drawPlotShapeEditor(){
-  const ed=$('plotShapeEditor');
-  if (!ed || ed.classList.contains('hidden')) return;
-  const m=plotShapeMetrics(), {cvs,gw,gh,cssW,cssH,sc,ox,oy}=m;
+  const cvs=$('plotShapeCanvas');
+  if (!cvs || !cvs.clientWidth) return;                  // plot screen not laid out
+  // during a drag, draw with the metrics frozen at pointerdown so the fit
+  // doesn't re-scale under the cursor while an edge resize changes the plot
+  const m=(plotShapeDrag&&plotShapeDrag.m)||plotShapeMetrics();
+  const {cssW,cssH,sc,ox,oy}=m;
+  const gw=ftToTiles(plotFt('plotW')), gh=ftToTiles(plotFt('plotL'));
   const dpr=Math.min(2,window.devicePixelRatio||1);
   if (cvs.width!==Math.round(cssW*dpr)||cvs.height!==Math.round(cssH*dpr)){
     cvs.width=Math.round(cssW*dpr); cvs.height=Math.round(cssH*dpr); }
@@ -579,7 +592,7 @@ function drawPlotShapeEditor(){
   g.clearRect(0,0,cssW,cssH);
   const P=(v)=>[ox+v[0]*sc, oy+v[1]*sc];
   const verts=(plotShapeDrag&&plotShapeDrag.verts)||pendingPlotShape||defaultPlotShapeVerts(gw,gh);
-  const invalid=!!(plotShapeDrag&&!plotShapeDrag.valid);
+  const invalid=!!(plotShapeDrag&&plotShapeDrag.type==='corner'&&!plotShapeDrag.valid);
   // bounding rectangle + a light tile grid every 4 tiles for scale
   g.strokeStyle='rgba(239,230,211,0.18)'; g.setLineDash([4,4]); g.lineWidth=1;
   g.strokeRect(ox,oy,gw*sc,gh*sc); g.setLineDash([]);
@@ -602,20 +615,35 @@ function drawPlotShapeEditor(){
     g.strokeStyle='rgba(20,14,11,0.75)'; g.lineWidth=3; g.strokeText(fts[i]+' ft',lx,ly);
     g.fillStyle='#efe6d3'; g.fillText(fts[i]+' ft',lx,ly);
   }
-  // corner handles
+  // edge-resize handles: small squares at the right/bottom box midpoints —
+  // squares resize the plot, circles shape it
+  [[gw,gh/2],[gw/2,gh]].forEach((v,i)=>{ const [x,y]=P(v);
+    const hot=plotShapeDrag&&plotShapeDrag.type==='edge'&&plotShapeDrag.edge===i;
+    g.fillStyle=hot?'#e9c07a':'rgba(218,165,74,0.85)';
+    g.strokeStyle='rgba(20,14,11,0.8)'; g.lineWidth=1.5;
+    g.beginPath(); g.rect(x-5.5,y-5.5,11,11); g.fill(); g.stroke(); });
+  // corner handles (shape)
   verts.forEach((v,i)=>{ const [x,y]=P(v);
+    const hot=plotShapeDrag&&plotShapeDrag.type==='corner'&&plotShapeDrag.i===i;
     g.beginPath(); g.arc(x,y,7,0,7);
-    g.fillStyle=(plotShapeDrag&&plotShapeDrag.i===i)?'#e9c07a':'#daa54a'; g.fill();
+    g.fillStyle=hot?'#e9c07a':'#daa54a'; g.fill();
     g.strokeStyle='rgba(20,14,11,0.8)'; g.lineWidth=1.5; g.stroke(); });
-  // north arrow from the plot screen's pending bearing (presentational)
-  const deg=(typeof normalizeSiteNorthDeg==='function'?normalizeSiteNorthDeg(plotNorthDraft):0)*Math.PI/180;
-  g.save(); g.translate(cssW-22,26); g.rotate(deg);
-  g.strokeStyle='#efe6d3'; g.lineWidth=1.6; g.lineCap='round';
-  g.beginPath(); g.moveTo(0,9); g.lineTo(0,-7); g.stroke();
-  g.beginPath(); g.moveTo(-3.5,-3); g.lineTo(0,-9); g.lineTo(3.5,-3); g.stroke();
+  // the north DIAL: drag to rotate the site bearing, tap for the fine dialog
+  const deg=(typeof normalizeSiteNorthDeg==='function'?normalizeSiteNorthDeg(plotNorthDraft):0);
+  const [dcx,dcy]=m.dial, hotDial=plotShapeDrag&&plotShapeDrag.type==='dial';
+  g.beginPath(); g.arc(dcx,dcy,14,0,7);
+  g.fillStyle='rgba(20,14,11,0.55)';
+  g.strokeStyle=hotDial?'#e9c07a':'rgba(239,230,211,0.45)'; g.lineWidth=hotDial?2:1.2;
+  g.fill(); g.stroke();
+  g.save(); g.translate(dcx,dcy); g.rotate(deg*Math.PI/180);
+  g.strokeStyle='#efe6d3'; g.lineWidth=1.7; g.lineCap='round';
+  g.beginPath(); g.moveTo(0,8); g.lineTo(0,-6); g.stroke();
+  g.beginPath(); g.moveTo(-3.5,-2); g.lineTo(0,-8); g.lineTo(3.5,-2); g.stroke();
   g.restore();
-  g.fillStyle='rgba(239,230,211,0.8)'; g.font='9px IBM Plex Sans, sans-serif';
-  g.fillText('N',cssW-22,44);
+  g.fillStyle='rgba(239,230,211,0.85)'; g.font='9px IBM Plex Sans, sans-serif';
+  g.textAlign='center';
+  g.fillText('N',dcx,dcy+22);
+  g.fillText(deg+'°',dcx,dcy+33);
 }
 function setPlotShapeHint(text){
   const hint=$('plotShapeHint');
@@ -624,57 +652,82 @@ function setPlotShapeHint(text){
 function resetPendingPlotShape(fromResize){
   const had=!!pendingPlotShape;
   pendingPlotShape=null; plotShapeDrag=null;
-  updatePlotShapeSummary();
   if (had && fromResize) setPlotShapeHint('Plot resized — shape reset.');
   drawPlotShapeEditor();
 }
 function wirePlotShapeEditor(){
   const cvs=$('plotShapeCanvas'); if (!cvs) return;
-  $('btnPlotShape').onclick=()=>{
-    const ed=$('plotShapeEditor'), open=ed.classList.contains('hidden');
-    ed.classList.toggle('hidden',!open);
-    $('btnPlotShape').setAttribute('aria-expanded',open?'true':'false');
-    if (open){ setPlotShapeHint(); drawPlotShapeEditor(); }
-  };
   $('btnPlotShapeReset').onclick=()=>{ resetPendingPlotShape(false); setPlotShapeHint('Back to a full rectangle.'); };
-  const toTile=(e)=>{ const r=cvs.getBoundingClientRect(), m=plotShapeMetrics();
-    return [(e.clientX-r.left-m.ox)/m.sc, (e.clientY-r.top-m.oy)/m.sc]; };
+  const pos=(e)=>{ const r=cvs.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
   cvs.addEventListener('pointerdown',e=>{
-    const m=plotShapeMetrics(), r=cvs.getBoundingClientRect();
+    const m=plotShapeMetrics(), [px,py]=pos(e);
     const verts=pendingPlotShape||defaultPlotShapeVerts(m.gw,m.gh);
-    let best=-1, bestD=24;                     // generous touch target
-    verts.forEach((v,i)=>{ const hx=m.ox+v[0]*m.sc, hy=m.oy+v[1]*m.sc;
-      const d=Math.hypot(e.clientX-r.left-hx, e.clientY-r.top-hy);
+    // hit priority: shape corners, then edge-resize squares, then the dial
+    let best=-1, bestD=24;                     // generous touch targets throughout
+    verts.forEach((v,i)=>{ const d=Math.hypot(px-(m.ox+v[0]*m.sc), py-(m.oy+v[1]*m.sc));
       if (d<bestD){ bestD=d; best=i; } });
-    if (best<0) return;
+    if (best>=0){
+      plotShapeDrag={type:'corner', i:best, m, verts:verts.map(v=>v.slice()), last:verts.map(v=>v.slice()), valid:true};
+    } else {
+      let eBest=-1, eD=22;
+      [[m.gw,m.gh/2],[m.gw/2,m.gh]].forEach((v,i)=>{
+        const d=Math.hypot(px-(m.ox+v[0]*m.sc), py-(m.oy+v[1]*m.sc));
+        if (d<eD){ eD=d; eBest=i; } });
+      if (eBest>=0){
+        if (pendingPlotShape){ pendingPlotShape=null; setPlotShapeHint('Plot resized — shape reset.'); }
+        plotShapeDrag={type:'edge', edge:eBest, m};
+      } else if (Math.hypot(px-m.dial[0],py-m.dial[1])<=22){
+        plotShapeDrag={type:'dial', m, moved:false};
+      } else return;
+    }
     e.preventDefault();
-    plotShapeDrag={i:best, verts:verts.map(v=>v.slice()), last:verts.map(v=>v.slice()), valid:true};
     cvs.setPointerCapture(e.pointerId);
     drawPlotShapeEditor();
   });
   cvs.addEventListener('pointermove',e=>{
-    if (!plotShapeDrag) return;
+    const d=plotShapeDrag; if (!d) return;
     e.preventDefault();
-    const m=plotShapeMetrics(), [tx,ty]=toTile(e);
-    plotShapeDrag.verts[plotShapeDrag.i]=plotShapeSnap(tx,ty,m.gw,m.gh);
-    plotShapeDrag.valid=plotShapeQuadOk(plotShapeDrag.verts,m.gw,m.gh);
-    if (plotShapeDrag.valid){
-      plotShapeDrag.last=plotShapeDrag.verts.map(v=>v.slice());
-      setPlotShapeHint();
-    } else {
-      const bow=plotEdgesCross(plotShapeDrag.verts[0],plotShapeDrag.verts[1],plotShapeDrag.verts[2],plotShapeDrag.verts[3])
-        || plotEdgesCross(plotShapeDrag.verts[1],plotShapeDrag.verts[2],plotShapeDrag.verts[3],plotShapeDrag.verts[0]);
-      setPlotShapeHint(bow?"Corners can't cross.":'Too small to garden.');
+    const m=d.m, [px,py]=pos(e);
+    if (d.type==='corner'){
+      d.verts[d.i]=plotShapeSnap((px-m.ox)/m.sc,(py-m.oy)/m.sc,m.gw,m.gh);
+      d.valid=plotShapeQuadOk(d.verts,m.gw,m.gh);
+      if (d.valid){ d.last=d.verts.map(v=>v.slice()); setPlotShapeHint(); }
+      else {
+        const bow=plotEdgesCross(d.verts[0],d.verts[1],d.verts[2],d.verts[3])
+          || plotEdgesCross(d.verts[1],d.verts[2],d.verts[3],d.verts[0]);
+        setPlotShapeHint(bow?"Corners can't cross.":'Too small to garden.');
+      }
+    } else if (d.type==='edge'){
+      // live-resize the plot: write the inputs (tile-snapped), keep the frozen
+      // scale so the geometry doesn't chase the cursor; refit happens on release
+      if (d.edge===0){
+        const maxT=Math.floor((m.cssW-44-m.ox)/m.sc);
+        const t=Math.min(plotEdgeResizeTiles((px-m.ox)/m.sc), Math.max(ftToTiles(FT_MIN),maxT));
+        $('plotW').value=Math.round(t*TILE_IN/12);
+      } else {
+        const maxT=Math.floor((m.cssH-18-m.oy)/m.sc);
+        const t=Math.min(plotEdgeResizeTiles((py-m.oy)/m.sc), Math.max(ftToTiles(FT_MIN),maxT));
+        $('plotL').value=Math.round(t*TILE_IN/12);
+      }
+      updatePlotNote();
+      document.querySelectorAll('#plotPresets .chip').forEach(c=>c.classList.remove('sel'));
+    } else if (d.type==='dial'){
+      const dx=px-m.dial[0], dy=py-m.dial[1];
+      if (Math.hypot(dx,dy)>4){ d.moved=true; plotNorthDraft=plotDialDeg(dx,dy); }
     }
     drawPlotShapeEditor();
   });
   const finish=()=>{
-    if (!plotShapeDrag) return;
-    const m=plotShapeMetrics();
-    const verts=plotShapeDrag.valid?plotShapeDrag.verts:plotShapeDrag.last;
-    pendingPlotShape=plotShapeIsRect(verts,m.gw,m.gh)?null:verts.map(v=>v.slice());
+    const d=plotShapeDrag; if (!d) return;
     plotShapeDrag=null;
-    updatePlotShapeSummary(); setPlotShapeHint(); drawPlotShapeEditor();
+    if (d.type==='corner'){
+      const verts=d.valid?d.verts:d.last;
+      pendingPlotShape=plotShapeIsRect(verts,d.m.gw,d.m.gh)?null:verts.map(v=>v.slice());
+      setPlotShapeHint();
+    } else if (d.type==='dial' && !d.moved){
+      openSiteNorthEditor('plot');             // a plain tap opens the fine-tune dialog
+    }
+    drawPlotShapeEditor();                     // refits to any new size
   };
   cvs.addEventListener('pointerup',finish);
   cvs.addEventListener('pointercancel',finish);
@@ -696,7 +749,6 @@ function openPlotScreen(){
     });
     $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote(); resetPendingPlotShape(true);
       row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
-    $('btnPlotNorth').onclick=()=>openSiteNorthEditor('plot');
     wirePlotShapeEditor();
     $('btnPlotStart').onclick=()=>{
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
@@ -724,10 +776,9 @@ function openPlotScreen(){
   }
   $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
   pendingPlotShape=null; plotShapeDrag=null;               // every new plot starts rectangular
-  const shapeEd=$('plotShapeEditor');
-  if (shapeEd){ shapeEd.classList.add('hidden'); $('btnPlotShape').setAttribute('aria-expanded','false'); }
-  updatePlotShapeSummary(); setPlotShapeHint();
+  setPlotShapeHint();
   show('plotScreen');
+  drawPlotShapeEditor();                                   // canvas is measurable once shown
 }
 
 if ($('siteNorthRange')) $('siteNorthRange').oninput=e=>setSiteNorthEditorDraft(e.target.value);

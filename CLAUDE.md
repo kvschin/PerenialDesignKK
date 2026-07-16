@@ -750,18 +750,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
     dots, house blocks — always current, no stored screenshot) plus a meta
     line with live plant count + the garden's own season (`worldSaveMeta`)),
-    plot setup (`#plotScreen`, new solo gardens: name + acre presets or width x
-    length in feet plus an optional true-north row; its reusable bearing dialog
-    is also reached later from Build → Site, and an optional **"Lot shape"**
-    disclosure opens an inline canvas editor — the plot rectangle drawn to
-    scale with four draggable corner handles snapping to the tile-corner
-    lattice, live per-side lengths in feet, and a north arrow from the pending
-    bearing. The draft lives in `pendingPlotShape` (never on `game` while
-    editing; invalid drags — crossed corners, sub-9-tile slivers — show danger
-    styling + a hint and revert on release, so pointerup can never hold an
-    invalid quad). Resizing width/length resets the shape; `btnPlotStart`
-    applies it AFTER `setWorldSize` via `setPlotShape` since sizing always
-    clears any shape), the design questionnaire (`#designScreen` /
+    plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
+    always-visible plot diagram that owns size, shape, and orientation
+    together. The width/length inputs sit inside the diagram card; the canvas
+    draws the plot to scale with two handle kinds — **squares** at the
+    right/bottom edge midpoints drag-resize width/length (writing the inputs
+    live, tile-snapped, frozen scale during the drag, refit on release) and
+    **circles** at the corners shape the lot (snapping to the tile-corner
+    lattice, live per-side lengths in feet). A **north dial** in the canvas
+    gutter rotates `plotNorthDraft` on drag (5° snaps) and opens the shared
+    fine-tune bearing dialog (`openSiteNorthEditor('plot')`, also reached from
+    Build → Site) on a plain tap. The shape draft lives in `pendingPlotShape`
+    (never on `game` while editing; invalid drags — crossed corners,
+    sub-9-tile slivers — show danger styling + a hint and revert on release).
+    Any resize (inputs, presets, or edge drag) resets the shape;
+    `btnPlotStart` applies it AFTER `setWorldSize` via `setPlotShape` since
+    sizing always clears any shape), the design questionnaire (`#designScreen` /
     `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
     questionnaire is all chips, not native selects/checkboxes (which read as a
     stray HTML form inside the drawn world): **climate** shows the 3–9 zone

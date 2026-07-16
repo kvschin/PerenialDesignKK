@@ -1899,6 +1899,15 @@ test('lot-shape setup helpers: side lengths, snapping, validity, and create orde
   assert(!plotShapeQuadOk([[0, 0], [2, 0], [2, 2], [0, 2]], 20, 20), 'a sliver is rejected');
   assert(plotShapeIsRect([[0, 0], [20, 0], [20, 20], [0, 20]], 20, 20), 'rect detection');
   assert(!plotShapeIsRect([[0, 0], [20, 0], [14, 20], [0, 20]], 20, 20), 'custom detection');
+  // edge-resize: whole tiles clamped to the plot's feet limits
+  assertEqual(plotEdgeResizeTiles(4), ftToTiles(FT_MIN), 'edge resize clamps to the minimum plot');
+  assertEqual(plotEdgeResizeTiles(999), ftToTiles(FT_MAX), 'edge resize clamps to the maximum plot');
+  assertEqual(plotEdgeResizeTiles(47.4), 47, 'edge resize snaps to whole tiles');
+  // the north dial: pointer offset -> clockwise-from-up bearing, snapped to 5°
+  assertEqual(plotDialDeg(0, -5), 0, 'dial up = 0');
+  assertEqual(plotDialDeg(10, -10), 45, 'dial NE = 45');
+  assertEqual(plotDialDeg(-7, 0), 270, 'dial left = 270');
+  assertEqual(plotDialDeg(1, 10) % 5, 0, 'dial output always lands on a 5° step');
   // the create-order contract: size the world first (clears any shape), then apply
   setWorldSize(21, 21);
   assertEqual(game.plotShape, null, 'setWorldSize starts rectangular');

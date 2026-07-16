@@ -345,30 +345,17 @@
     <div class="field"><label for="plotName">Garden name</label>
       <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off">
     </div>
-    <div class="field"><label>Plot size</label>
+    <div class="field lot-shape-setup"><label>Plot size</label>
       <div class="chip-row" id="plotPresets"></div>
-    </div>
-    <div class="row">
-      <div class="field" style="flex:1;min-width:120px"><label for="plotW">Width, feet</label>
-        <input id="plotW" type="number" min="24" max="200" value="46"></div>
-      <div class="field" style="flex:1;min-width:120px"><label for="plotL">Length, feet</label>
-        <input id="plotL" type="number" min="24" max="200" value="46"></div>
-    </div>
-    <div class="field site-north-setup">
-      <label for="btnPlotNorth">Site orientation <span class="optional">Optional</span></label>
-      <button id="btnPlotNorth" class="site-north-summary" type="button" aria-haspopup="dialog" aria-controls="siteNorthScreen" aria-expanded="false">
-        <span class="north-summary-arrow" aria-hidden="true"></span>
-        <span><strong id="plotNorthLabel">North at top · 0°</strong><small>Used for sun, shade, and the design plan. Change it later under Build → Site.</small></span>
-      </button>
-    </div>
-    <div class="field lot-shape-setup">
-      <label for="btnPlotShape">Lot shape <span class="optional">Optional</span></label>
-      <button id="btnPlotShape" class="site-north-summary" type="button" aria-expanded="false" aria-controls="plotShapeEditor">
-        <span><strong id="plotShapeLabel">Rectangle</strong><small>Drag the corners if your lot isn't a perfect rectangle.</small></span>
-      </button>
-      <div id="plotShapeEditor" class="lot-shape-editor hidden">
+      <div id="plotShapeEditor" class="lot-shape-editor">
+        <div class="row plot-dims">
+          <div class="field"><label for="plotW">Width, feet</label>
+            <input id="plotW" type="number" min="24" max="200" value="46"></div>
+          <div class="field"><label for="plotL">Length, feet</label>
+            <input id="plotL" type="number" min="24" max="200" value="46"></div>
+        </div>
         <canvas id="plotShapeCanvas"></canvas>
-        <p class="field-hint" id="plotShapeHint">Drag a corner. Side lengths are real feet.</p>
+        <p class="field-hint" id="plotShapeHint">Drag a square edge to resize, a corner to shape the lot, or the N dial to set north.</p>
         <div class="row lot-shape-actions">
           <button class="btn" id="btnPlotShapeReset" type="button">Reset to rectangle</button>
         </div>

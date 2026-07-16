@@ -645,6 +645,8 @@ canvas.layer-eye{display:block}
    its touch so corner drags never fight the panel's scroll */
 .lot-shape-setup .optional{float:right;color:var(--text-muted);font-size:9px;font-weight:500}
 .lot-shape-editor{margin-top:8px;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-input)}
+.plot-dims{gap:8px;margin-bottom:8px}
+.plot-dims .field{flex:1;min-width:110px;margin:0}
 #plotShapeCanvas{display:block;width:100%;height:236px;touch-action:none;border-radius:var(--radius-control);cursor:pointer}
 .lot-shape-actions{margin-top:8px;justify-content:flex-end}
 .lot-shape-actions .btn{min-height:44px;padding:8px 12px;font-size:12px}
