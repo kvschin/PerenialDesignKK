@@ -1080,7 +1080,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const leaves=L.leaves||5;
         for(let j=0;j<leaves;j++){
           const f=(j+1)/(leaves+1), side=j%2?-1:1, px=ox+(tx-ox)*f*0.7, py=-len*(0.18+f*0.64);
-          leafDot(px+side*(3+rnd()*2),py,4.2,2.6,side*0.35,fol);
+          const leafL=L.leafL||4.2, leafH=L.leafH||2.6;
+          leafDot(px+side*(leafL*0.72+rnd()*leafL*0.48),py,leafL,leafH,side*0.35,fol);
         }
       }
     } else if (S.fol && habit==='baptisia'){

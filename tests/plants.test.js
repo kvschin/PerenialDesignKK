@@ -361,3 +361,43 @@ test('European Oudolf additions retain their design roles and distinct renderer 
   assertEqual(PLANTS.matrona.group, 'hylotelephium', 'Matrona is a sibling, not an Autumn Joy cultivar');
   assertEqual(PLANTS.persicaria.look.spikeStyle, 'liatris', 'Firetail needs fine, upright red wands');
 });
+
+test('requested sun and shade catalog expansion retains distinct taxa and cultivars', () => {
+  const expected = {
+    alliumcarinatum:['Allium carinatum subsp. pulchellum','bulb'],
+    alliumcaeruleum:['Allium caeruleum','bulb'],
+    graysedge:['Carex grisea','sedge'],
+    mountainsedge:['Carex montana','sedge'],
+    marginalwoodfern:['Dryopteris marginalis','forb'],
+    willowamsonia:['Amsonia tabernaemontana var. salicifolia','forb'],
+    babyjoe:["Eutrochium dubium 'Baby Joe'",'forb'],
+    sanguineumgeranium:['Geranium sanguineum','forb'],
+    bigrootgeranium:['Geranium macrorrhizum','forb'],
+    autumnGoldenrod:['Solidago sphacelata','forb'],
+    silvermound:["Artemisia schmidtiana 'Silver Mound'",'forb'],
+    broadleafwormwood:['Artemisia ludoviciana var. latiloba','forb'],
+    menziesburnet:['Sanguisorba menziesii','forb'],
+    baldwinsironweed:['Vernonia baldwinii','forb'],
+    moorhexe:["Molinia caerulea subsp. caerulea 'Moorhexe'",'grass'],
+    sandlovegrass:['Eragrostis trichodes','grass'],
+  };
+  const foliageOnly = new Set(['marginalwoodfern','silvermound','broadleafwormwood']);
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: requested catalog entry is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.type, expected[k][1], `${k}: type`);
+    if (!foliageOnly.has(k)) assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
+  }
+  assert(PLANTS.bigbluestem.cv.redoctober, 'Big bluestem needs the Red October cultivar');
+  assertEqual(PLANTS.bigbluestem.cv.redoctober.name, "'Red October'", 'Red October cultivar name');
+  assertEqual(PLANTS.sedum.name, "Stonecrop 'Autumn Joy'", 'Autumn Joy remains the stonecrop anchor');
+  for (const k of ['autumnfire','purpleemperor','autumncharm']){
+    assertEqual(PLANTS[k].group, 'hylotelephium', `${k}: stonecrop group`);
+  }
+  assertEqual(PLANTS.willowamsonia.look.habit, 'broadamsonia', 'willow amsonia needs its broad habit');
+  assert(PLANTS.willowamsonia.look.leafL >= 5 && PLANTS.willowamsonia.look.leafH < 1.5, 'willow amsonia needs long, narrow leaves');
+  assertEqual(PLANTS.autumnGoldenrod.look.spikeStyle, 'goldenrodPanicle', 'autumn goldenrod needs an arching panicle');
+  assertEqual(PLANTS.moorhexe.form, 'moorgrass', 'Moorhexe uses the compact moorgrass silhouette');
+  assertEqual(PLANTS.sandlovegrass.form, 'cloudgrass', 'sand lovegrass uses the airy cloud silhouette');
+});
