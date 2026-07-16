@@ -25,6 +25,11 @@ const TRAY_GROUPS=[
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
+// A catalogue icon should show the plant at its representative flower moment,
+// not silently force a spring or fall species into a flowerless Summer frame.
+function plantIconSeason(P){
+  return SEASONS.find(s=>P&&P.sea&&(P.sea[s]||{}).bloom) || (P&&P.type==='bulb'?'Spring':'Summer');
+}
 // which garden layer a planted tile belongs to (perennials vs woody)
 function plantLayerOf(p){ const P=p&&PLANTS[p.s];
   return isWoodyDef(P) ? 'woody' : 'perennials'; }
@@ -301,9 +306,9 @@ function drawBrushSwatchCanvas(c,includeLast){
   c.style.display='';
   if (PLANTS[k]){
     const R=plantDef(k,v);
-    const sc=Math.min(0.45, (c.height-5)/(plantVisualH(R)||40));
+    const sc=Math.min(0.45, (c.height-5)/(plantArtTop(R)||40));
     g.save(); g.scale(sc,sc);
-    const iconSeason=R.type==='bulb'?(SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring'):'Summer';
+    const iconSeason=plantIconSeason(R);
     drawPlant(g,(c.width/2)/sc,(c.height-2)/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
     g.restore();
     return true;
@@ -1178,9 +1183,9 @@ function renderSearchPlantButton(tray,k){
   b.dataset.k=k; if (P.group) b.dataset.group=P.group;
   b.title=`${P.name} - ${P.latin} (${trayCatLabel(catId)})`;
   const c=document.createElement('canvas'); c.width=48; c.height=44;
-  const sc=Math.min(0.62,36/(plantVisualH(R)||40));
+  const sc=Math.min(0.62,36/(plantArtTop(R)||40));
   const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-  const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+  const iconSeason=plantIconSeason(R);
   drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,undefined,1);
   const sp=document.createElement('span');
   sp.textContent=(P.chip||P.name).split(' ').slice(0,2).join(' ');
@@ -1322,8 +1327,8 @@ function renderReplacePlantUi(){
     const b=document.createElement('button'); b.type='button'; b.className='replace-plant-result'+(ctx.target&&ctx.target.s===o.s&&(ctx.target.v||null)===(o.v||null)?' sel':'');
     b.setAttribute('role','option'); b.setAttribute('aria-selected',b.classList.contains('sel')?'true':'false');
     const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const sc=Math.min(.62,36/(plantVisualH(o.D)||40)), tc=c.getContext('2d'); tc.scale(sc,sc);
-    drawPlant(tc,24/sc,42/sc,o.s,1,o.D.type==='bulb'?'Spring':'Summer',tileSeed(3,7),0,o.v||undefined,1);
+    const sc=Math.min(.62,36/(plantArtTop(o.D)||40)), tc=c.getContext('2d'); tc.scale(sc,sc);
+    drawPlant(tc,24/sc,42/sc,o.s,1,plantIconSeason(o.D),tileSeed(3,7),0,o.v||undefined,1);
     const copy=document.createElement('span'), cat=document.createElement('small');
     copy.innerHTML=`<strong>${o.D.name}</strong><small>${PLANTS[o.s].latin}</small>`;
     cat.textContent=trayCatLabel(plantCategoryFor(o.s)); b.append(c,copy,cat);
@@ -1494,9 +1499,9 @@ function buildToolTray(){
       b.className='tool'+((P.group ? activeGroup : game.tool===k)?' sel':'')+(drillable?' has-sub':'');
       b.dataset.k=k; if (P.group) b.dataset.group=P.group;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const sc=Math.min(0.62, 36/(plantVisualH(R)||40));   // tall plants shrink to fit
+      const sc=Math.min(0.62, 36/(plantArtTop(R)||40));   // tall plants shrink to fit
       const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-      const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+      const iconSeason=plantIconSeason(R);
       drawPlant(ctx2,24/sc,42/sc,rep,1,iconSeason,tileSeed(3,7),0,undefined,1);
       const sp=document.createElement('span');
       const label=P.group ? (R.groupLabel||P.group[0].toUpperCase()+P.group.slice(1))
@@ -2113,9 +2118,9 @@ function renderDrillIn(tray, drillKey, members){
     b.className='tool'+((game.tool===k && (game.toolVar||null)===(v||null))?' sel':'');
     b.dataset.k=k; if (v) b.dataset.v=v;
     const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const sc=Math.min(0.62, 36/(plantVisualH(R)||40));
+    const sc=Math.min(0.62, 36/(plantArtTop(R)||40));
     const ctx2=c.getContext('2d'); ctx2.scale(sc,sc);
-    const iconSeason=R.type==='bulb' ? (SEASONS.find(s=>(R.sea[s]||{}).bloom)||'Spring') : 'Summer';
+    const iconSeason=plantIconSeason(R);
     drawPlant(ctx2,24/sc,42/sc,k,1,iconSeason,tileSeed(3,7),0,v||undefined,1);
     const sp=document.createElement('span'); sp.textContent=label; b.append(c,sp);
     b.onclick=()=>{ setTool(k,v||null); buildToolTray(); };

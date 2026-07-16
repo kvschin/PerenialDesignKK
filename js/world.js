@@ -489,18 +489,97 @@ function pulseShrubFootprint(hit){
   if (!key) return;
   game.shrubFx.push({key,t0:performance.now()});
 }
-/* bloom staggering: within a bloom season each species rises, peaks,
-   and fades instead of switching on at the season line. Cool species
-   peak early in the season, warm late, with a per-species nudge so a
-   mixed bed rolls rather than blinks. */
+/* Annual bloom windows ----------------------------------------------------
+   Flower timing used to restart inside every 16-day visual season. That made
+   a genuinely long-blooming gaura or salvia fade out at Summer's end and
+   begin a second bloom cycle in Fall. `bloomMonths` is already the curated,
+   real-world source for the calendar, so turn its consecutive runs into
+   year-relative game windows as well. `sea` still supplies seasonal colour;
+   it no longer owns the timing clock.
+
+   The optional `bloomWindow:{start,end}` data shape is available for a later,
+   finer-grained month contract. Existing catalogue entries need no migration:
+   their month runs are continuous windows now.
+   `bloomDay` remains the exact day-in-season override for bulbs, onions, and
+   other carefully staggered single-season species. */
+function bloomMonthPhase(month){ return ((month-3+12)%12)*(YEAR_DAYS/12); }
+function bloomWindowsFor(P){
+  if (!P) return [];
+  const explicit=P.bloomWindow;
+  if (explicit && Number.isFinite(explicit.start) && Number.isFinite(explicit.end)){
+    const start=((explicit.start-3+12)%12)*(YEAR_DAYS/12);
+    const end=((explicit.end-3+12)%12)*(YEAR_DAYS/12);
+    return [[start,end<=start ? end+YEAR_DAYS : end]];
+  }
+  const months=(P.bloomMonths||[]).filter(m=>Number.isInteger(m)&&m>=1&&m<=12);
+  if (months.length){
+    const on=Array(12).fill(false); months.forEach(m=>{ on[m-1]=true; });
+    if (on.every(Boolean)) return [[0,YEAR_DAYS]];
+    const gap=on.findIndex(v=>!v), out=[];
+    for (let step=1;step<=12;){
+      const i=(gap+step)%12;
+      if (!on[i]){ step++; continue; }
+      let len=0;
+      while (len<12 && on[(i+len)%12]) len++;
+      const start=bloomMonthPhase(i+1);
+      out.push([start,start+len*(YEAR_DAYS/12)]);
+      step+=len;
+    }
+    return out;
+  }
+  const on=SEASONS.map(s=>!!(P.sea&&P.sea[s]&&P.sea[s].bloom));
+  if (!on.some(Boolean)) return [];
+  if (on.every(Boolean)) return [[0,YEAR_DAYS]];
+  const gap=on.findIndex(v=>!v), out=[];
+  for (let step=1;step<=4;){
+    const i=(gap+step)%4;
+    if (!on[i]){ step++; continue; }
+    let len=0;
+    while (len<4 && on[(i+len)%4]) len++;
+    out.push([i*DAYS_PER_SEASON,(i+len)*DAYS_PER_SEASON]);
+    step+=len;
+  }
+  return out;
+}
+function bloomAppearance(P,season){
+  const sea=P&&P.sea||{}, here=sea[season]||{};
+  if (here.bloom) return here;
+  const at=SEASONS.indexOf(season);
+  if (at<0) return null;
+  for (let d=1;d<SEASONS.length;d++){
+    const before=sea[SEASONS[(at-d+SEASONS.length)%SEASONS.length]];
+    if (before&&before.bloom) return before;
+    const after=sea[SEASONS[(at+d)%SEASONS.length]];
+    if (after&&after.bloom) return after;
+  }
+  return null;
+}
+// Exact bloomDay entries have a deliberately seasonal performance. The
+// adjacent-season colour bridge belongs only to month-window plants.
+function bloomAppearanceFor(P,season){
+  const here=P&&P.sea&&(P.sea[season]||{});
+  return P&&P.bloomDay!==undefined ? (here&&here.bloom?here:null) : bloomAppearance(P,season);
+}
+function smoothBloom(t){ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); }
+function bloomWindowLevel(day,start,end){
+  let d=day;
+  if (end>YEAR_DAYS && d<start) d+=YEAR_DAYS;
+  if (d<start || d>end) return 0;
+  const span=end-start, rise=Math.min(3,span*0.32), fall=Math.min(4,span*0.34);
+  return Math.min(smoothBloom((d-start)/rise),smoothBloom((end-d)/fall));
+}
+/* Within a single, deliberately staggered bloom season, retain the familiar
+   rise/peak/fade. Across a month- or season-spanning run, use one annual
+   rise/hold/fade instead, so it cannot blink off at a seasonal boundary. */
 function bloomLevel(key){
-  const d=(((absDay()%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+calClock().frac;
   const P=PLANTS[key]||{};
-  const centers={cool:5, mid:8, warm:11};
-  const jit=(((key.charCodeAt(0)||0)+key.length)%5-2)*0.8;
-  const c=(P.bloomDay!==undefined)?P.bloomDay:(centers[P.phen]||8)+jit;
-  const t2=Math.max(0, 1-Math.abs(d-c)/7);
-  return t2*t2*(3-2*t2);
+  const seasonDay=(((absDay()%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+calClock().frac;
+  if (P.bloomDay!==undefined){
+    const t2=Math.max(0,1-Math.abs(seasonDay-P.bloomDay)/7);
+    return t2*t2*(3-2*t2);
+  }
+  const annualDay=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
+  return bloomWindowsFor(P).reduce((level,[start,end])=>Math.max(level,bloomWindowLevel(annualDay,start,end)),0);
 }
 /* trees throw shade as they establish; baby trees show a future canopy,
    but they don't block full-sun perennials until the canopy is meaningful. */

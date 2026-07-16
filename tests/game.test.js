@@ -273,6 +273,33 @@ test('bloom calendar rows use real-world bloom months from planted species', () 
   assert(bulb.months.includes(3) && bulb.months.includes(4), 'daffodil shows real spring bloom months');
 });
 
+test('long-blooming perennials carry one bloom across a season boundary', () => {
+  setup();
+  const windows = bloomWindowsFor(PLANTS.gaura);
+  assertEqual(windows.length, 1, 'gaura has one annual bloom run');
+  assert(windows[0][0] < DAYS_PER_SEASON * 2 && windows[0][1] > DAYS_PER_SEASON * 2,
+    'gaura bloom spans the Summer-to-Fall boundary');
+  game.dayOffset = DAYS_PER_SEASON * 2 - 1;
+  assertEqual(absDay(), DAYS_PER_SEASON * 2 - 1, 'late summer day offset is active');
+  assert(bloomWindowLevel(DAYS_PER_SEASON * 2 - 1, windows[0][0], windows[0][1]) > 0.9,
+    'late summer lies within gaura’s annual bloom window');
+  const lateSummer = bloomLevel('gaura');
+  game.dayOffset = DAYS_PER_SEASON * 2 + 1;
+  const earlyFall = bloomLevel('gaura');
+  assert(lateSummer > 0.9 && earlyFall > 0.9,
+    `gaura remains in full flower on both sides of the boundary (${lateSummer}/${earlyFall})`);
+});
+
+test('exact bloom-day species stay gated to their authored season', () => {
+  const onion = PLANTS.prairieonion;
+  assert(onion.bloomDay !== undefined, 'fixture uses the exact bloom-day contract');
+  assert(bloomAppearanceFor(onion, 'Fall'), 'prairie onion can bloom in Fall');
+  assertEqual(bloomAppearanceFor(onion, 'Summer'), null,
+    'prairie onion cannot borrow its Fall flower color into Summer');
+  assert(bloomAppearanceFor(PLANTS.gaura, 'Fall'),
+    'month-window plants retain their boundary color bridge');
+});
+
 test('bulbs cannot be planted under a tree trunk or shrub footprint', () => {
   setup(21, 21);
   const tree = 'whiteoak';

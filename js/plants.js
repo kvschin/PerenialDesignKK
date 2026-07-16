@@ -11,6 +11,9 @@
            oatgrass | cone | globe | spike | umbel (flat/domed corymb —
            yarrow, sedum, joe pye) | drumstick (buttons on wiry stems —
            burnet) | rosette (yucca sword-leaf crown) |
+           iris (two-rank sword fan with falls and standards) |
+           airywand (gaura's branching butterfly wands) |
+           sotol (serrated spoon-leaf rosette with tall panicle) |
            archbell (arching Solomon's seal stems) |
            martagon (recurved lily bells) | pyramid (dense scilla raceme) |
            bractstack (spotted bee balm tiers) | pincushion (scabiosa) |
@@ -30,9 +33,10 @@
            camassia 9); species without it peak by phen (cool 5, mid 8,
            warm 11)
    bloomMonths optional: real-world bloom months as numbers 1-12. This powers
-           the Bloom Calendar export; `bloomDay` remains the in-game timing
-           control. Missing entries fall back to conservative season-to-month
-           estimates so every flowering plant still appears in the calendar.
+           the Bloom Calendar export and, unless a precise `bloomDay` is
+           supplied, the annually continuous in-game bloom window. Missing
+           entries fall back to conservative season-to-month estimates so
+           every flowering plant still appears in the calendar.
    bulbSeason optional for type:bulb: summer/fall keeps onion bulbs above
            ground outside the default spring-ephemeral window
    grow    woody only: years to mature size (establishment horizon —
@@ -80,8 +84,8 @@
            rays (count), rayLen, rayW, droop (how hard the rays fall),
            stems, leaves, leafW, leafLen — leafy purpurea vs wispy
            pallida vs hard-reflexed atrorubens
-           Spike forms may select `spikeStyle:'liatris'|'bell'|
-           'goldenrodPanicle'`; pincushion forms may select
+           Spike forms may select `spikeStyle:'liatris'|'bell'|'penstemon'|
+           'culvers'|'prairieClover'|'goldenrodPanicle'`; pincushion forms may select
            `pincushionStyle:'astrantia'`; globe forms may select
            `globeStyle:'seaHolly'`; shrub forms may select
            `habit:'mossphlox'` for a low evergreen runner mat instead of a
@@ -491,6 +495,9 @@ const PLANTS = {
   rattlesnake:{ name:'Rattlesnake Master', latin:'Eryngium yuccifolium', form:'globe', type:'forb', h:52,
     group:'eryngium', groupLabel:'Eryngium', chip:'Rattlesnake',
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
+    look:{globeStyle:'rattlesnake', leaves:14, leafLen:0.52, leafW:1.35,
+      stems:7, stemSpread:19, lenBase:0.80, lenJitter:0.17, headW:3.4,
+      headH:4.8, bracts:9, bractLen:2.1},
     blurb:'Silver yucca-like leaves and pale spiky globes. Architectural in every season.',
     sea:{Spring:{fol:'#8fa8a0'}, Summer:{fol:'#8fa8a0',bloom:'#dfe8dd'}, Fall:{fol:'#9a9a86',seed:'#8a7a5e'}, Winter:{fol:'#8d8674',seed:'#6e5f48'}}},
   eryngiumbourgatii:{ name:'Pyrenean Sea Holly', latin:'Eryngium bourgatii', form:'globe', type:'forb', h:24,
@@ -580,7 +587,7 @@ const PLANTS = {
   purpleprairieclover:{ name:'Purple Prairie Clover', latin:'Dalea purpurea', form:'spike', type:'forb', h:30,
     group:'prairieclover', groupLabel:'Prairie Clover', chip:'Purple',
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid',
-    look:{spikeStyle:'liatris', stems:7, stemSpread:18, lenBase:0.62, lenJitter:0.22, leaves:8, leafW:1.1,
+    look:{spikeStyle:'prairieClover', stems:7, stemSpread:18, lenBase:0.62, lenJitter:0.22, leaves:8, leafW:1.1,
       leafLen:0.32, stemLeaves:3, stemLeafW:0.85, stemLeafLen:5, spikeLen:8, florets:5, capW:2.35,
       capH:2.05, fuzz:0, dense:1, zigzag:0.6, ragged:0.7},
     blurb:'Small purple flower cylinders on wiry stems: a taprooted prairie legume for dry sunny mixes and late-summer seed rhythm.',
@@ -588,7 +595,7 @@ const PLANTS = {
   whiteprairieclover:{ name:'White Prairie Clover', latin:'Dalea candida', form:'spike', type:'forb', h:24,
     group:'prairieclover', groupLabel:'Prairie Clover', chip:'White',
     space:15, spread:15, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
-    look:{spikeStyle:'liatris', stems:7, stemSpread:20, lenBase:0.68, lenJitter:0.22, leaves:8, leafW:1.1,
+    look:{spikeStyle:'prairieClover', stems:7, stemSpread:20, lenBase:0.68, lenJitter:0.22, leaves:8, leafW:1.1,
       leafLen:0.34, stemLeaves:3, stemLeafW:0.85, stemLeafLen:5, spikeLen:10, florets:6, capW:2.3,
       capH:2.05, fuzz:0, dense:1, zigzag:0.6, ragged:0.7},
     blurb:'Creamy white cylinders over fine foliage, a drought-tough prairie legume for sunny medium soils once established.',
@@ -616,19 +623,22 @@ const PLANTS = {
   aster:{ name:'Aromatic Aster', latin:'Symphyotrichum oblongifolium', form:'shrub', type:'forb', h:32,
     group:'aster', chip:'Aromatic',
     space:24, spread:30, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid',
-    look:{habit:'asterdome', leaves:32, foliageW:20, foliageH:0.50, leafW:2.2, leafH:1.8, flowerStems:16, flowerW:28, flowerLen:0.62, flowerJitter:0.18},
+    look:{habit:'asterdome', leaves:32, foliageW:20, foliageH:0.50, leafW:2.2, leafH:1.8, flowerStems:16, flowerW:28, flowerLen:0.62, flowerJitter:0.18,
+      flowerStyle:'aster', rays:10, rayLen:1.65, rayW:0.65, discR:0.9, headsPerStem:3},
     blurb:'Low violet-blue dome in October when everything else has quit. Smells of balsam when brushed.',
-    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#5d7a4c',bloom:'#8a6ab8'}, Winter:{fol:'#7a7060',seed:'#b8a88a'}}},
+    sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#5d7a4c',bloom:'#8a6ab8',eye:'#e8c23a'}, Winter:{fol:'#7a7060',seed:'#b8a88a'}}},
   newengland:{ name:'New England Aster', latin:'Symphyotrichum novae-angliae', form:'shrub', type:'forb', h:54,
     group:'aster', chip:'New England',
     space:24, spread:30, zones:[3,7], native:true, sun:'full', moist:'medium', phen:'mid',
-    look:{habit:'asterupright', leaves:20, foliageW:13, foliageH:0.82, leafW:2.8, leafH:2.1, flowerStems:10, flowerW:18, flowerLen:0.86, flowerJitter:0.18},
+    look:{habit:'asterupright', leaves:20, foliageW:13, foliageH:0.82, leafW:2.8, leafH:2.1, flowerStems:10, flowerW:18, flowerLen:0.86, flowerJitter:0.18,
+      flowerStyle:'aster', rays:11, rayLen:2.4, rayW:0.75, discR:1.05, headsPerStem:2},
     blurb:'The tall one — royal-purple daisies with gold eyes, mobbed by migrating monarchs in September.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#5d7a4c',bloom:'#7a4a9e',eye:'#e8c23a'}, Winter:{fol:'#7a7060',seed:'#a89878'}}},
   smoothaster:{ name:'Smooth Blue Aster', latin:'Symphyotrichum laeve', form:'shrub', type:'forb', h:40,
     group:'aster', chip:'Smooth Blue',
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid',
-    look:{habit:'asterclean', leaves:20, foliageW:15, foliageH:0.66, leafW:3.1, leafH:2.3, flowerStems:11, flowerW:22, flowerLen:0.78, flowerJitter:0.17},
+    look:{habit:'asterclean', leaves:20, foliageW:15, foliageH:0.66, leafW:3.1, leafH:2.3, flowerStems:11, flowerW:22, flowerLen:0.78, flowerJitter:0.17,
+      flowerStyle:'aster', rays:11, rayLen:2.05, rayW:0.7, discR:1, headsPerStem:2},
     blurb:'Clean blue-gray foliage no mildew touches, then clouds of pale lavender stars. The well-behaved aster.',
     sea:{Spring:{fol:'#7d93a0'}, Summer:{fol:'#6e8a90'}, Fall:{fol:'#6e8a90',bloom:'#9aa8d8',eye:'#e8c23a'}, Winter:{fol:'#8a8474',seed:'#b8a88a'}}},
   whitewoodaster:{ name:'White Wood Aster', latin:'Eurybia divaricata', form:'shrub', type:'forb', h:30,
@@ -639,6 +649,9 @@ const PLANTS = {
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#6f7657',bloom:'#f1eee2',eye:'#d8b63a'}, Winter:{fol:'#786f5f',seed:'#b8aa94'}}},
   culvers:{ name:"Culver's Root", latin:'Veronicastrum virginicum', form:'spike', type:'forb', h:60,
     space:24, spread:24, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
+    look:{spikeStyle:'culvers', stems:7, stemSpread:20, lenBase:0.82, lenJitter:0.16,
+      leaves:12, leafW:1.55, leafLen:0.42, stemLeaves:4, stemLeafW:1.2,
+      stemLeafLen:8, candelabraArms:5, candelabraBuds:5},
     blurb:'White candelabra held high over whorled leaves in July — the vertical exclamation in a wet-prairie border.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#f0ede0'}, Fall:{fol:'#7a7050',seed:'#5e5240'}, Winter:{fol:'#6b6150',seed:'#4a4234'}}},
   yarrow:{ name:'Common Yarrow', latin:'Achillea millefolium', form:'umbel', type:'forb', h:30,
@@ -693,6 +706,7 @@ const PLANTS = {
   penstemon:{ name:'Foxglove Beardtongue', latin:'Penstemon digitalis', form:'spike', type:'forb', h:38,
     group:'penstemon', groupLabel:'Penstemon', chip:'Foxglove',
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid',
+    look:{spikeStyle:'penstemon', stems:5, stemSpread:14, lenBase:0.76, lenJitter:0.16, stemLeaves:4, stemLeafW:1.2, stemLeafLen:7, tubeCount:7, tubeLen:4.8, tubeW:2.4, tubeLean:3},
     blurb:'Spires of white bells over green rosettes in June, then mahogany seed stalks that stand till spring.',
     sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#f2efe6'}, Fall:{fol:'#7a6a50',seed:'#6e4a3a'}, Winter:{fol:'#6b5d4a',seed:'#52372c'}},
     cv:{
@@ -787,6 +801,10 @@ const PLANTS = {
   goldenrod:{ name:'Showy Goldenrod', latin:'Solidago speciosa', form:'spike', type:'forb', h:50,
     group:'goldenrod', groupLabel:'Goldenrod', chip:'Showy',
     space:18, spread:18, zones:[3,8], native:true, sun:'full', moist:'dry', phen:'mid',
+    look:{spikeStyle:'goldenrodPanicle', stems:8, stemSpread:20, lenBase:0.78,
+      lenJitter:0.18, leaves:9, leafW:1.5, leafLen:0.38, stemLeaves:4,
+      stemLeafW:1.1, stemLeafLen:8, panicles:5, panicleSpread:10,
+      panicleDrop:4, panicleDots:6},
     blurb:'Dense golden wands in September. Blamed for hay fever it does not cause.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d8a4c'}, Fall:{fol:'#7a8a55',bloom:'#e8c23a'}, Winter:{fol:'#8a7a60',seed:'#b8a888'}}},
   bluestemmedgoldenrod:{ name:'Blue-stemmed Goldenrod', latin:'Solidago caesia', form:'spike', type:'forb', h:30,
@@ -924,7 +942,7 @@ const PLANTS = {
     space:24, spread:30, zones:[3,7], native:true, sun:'full', moist:'moist', phen:'mid',
     look:{stems:8, button:1.8, buttonLen:4.6},
     blurb:'White bottlebrushes nodding on tall wiry stems over a wet meadow in September. The native burnet.',
-    sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#6e8a6c',bloom:'#f0ede2',seed:'#b8a888'}, Winter:{fol:'#6b5d4a',seed:'#8a7a60'}}},
+    sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c',bloom:'#f0ede2'}, Fall:{fol:'#6e8a6c',bloom:'#f0ede2',seed:'#b8a888'}, Winter:{fol:'#6b5d4a',seed:'#8a7a60'}}},
   greatburnet:{ name:'Great Burnet', latin:'Sanguisorba officinalis', form:'drumstick', type:'forb', h:42,
     group:'burnet', chip:'Great',
     space:18, spread:24, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'mid',
@@ -1025,34 +1043,34 @@ const PLANTS = {
     look:{rays:6, rayLen:3.2, droop:0, rayW:1.15, discW:1.5, discH:1.5, leaves:7, leafW:0.8, leafLen:0.5, stems:5},
     blurb:'A slightly taller blue-eyed grass for moist sunny edges, blue stars over narrow iris-like leaves.',
     sea:{Spring:{fol:'#6f9a5a',bloom:'#657fc8',eye:'#e8c23a'}, Summer:{fol:'#5d8a4c',seed:'#8a7058'}, Fall:{fol:'#9a8a5e'}, Winter:{}}},
-  blueflagiris:{ name:'Southern Blue Flag', latin:'Iris virginica', form:'rosette', type:'forb', h:34,
+  blueflagiris:{ name:'Southern Blue Flag', latin:'Iris virginica', form:'iris', type:'forb', h:34,
     group:'iris', groupLabel:'Iris', chip:'Blue Flag',
     space:18, spread:24, zones:[5,9], native:true, sun:'full', moist:'moist', phen:'cool',
-    look:{leaves:14, leafLen:0.62, leafW:2.0, stems:3, bells:3},
+    look:{leaves:14, leafLen:0.70, leafW:2.0, fan:0.52, scapes:3, scapeLen:0.92, branches:1, blooms:2, fallLen:5, fallW:3.8, standardLen:4, standardW:2.8, fallDrop:2.4, crest:true},
     blurb:'Native wetland iris with violet-blue flowers and sword leaves, ideal for rain gardens and pond-edge plantings.',
     sea:{Spring:{fol:'#5d8a5c'}, Summer:{fol:'#4f7f4d',bloom:'#6a67b8',eye:'#e8c23a'}, Fall:{fol:'#8a8a5e',seed:'#6e5a3a'}, Winter:{}}},
-  northernblueflag:{ name:'Northern Blue Flag', latin:'Iris versicolor', form:'rosette', type:'forb', h:30,
+  northernblueflag:{ name:'Northern Blue Flag', latin:'Iris versicolor', form:'iris', type:'forb', h:30,
     group:'iris', groupLabel:'Iris', chip:'Northern',
     space:18, spread:24, zones:[3,8], native:true, sun:'full', moist:'moist', phen:'cool',
-    look:{leaves:13, leafLen:0.6, leafW:2.0, stems:3, bells:3},
+    look:{leaves:13, leafLen:0.68, leafW:1.85, fan:0.52, scapes:3, scapeLen:0.90, branches:1, blooms:2, fallLen:4.8, fallW:3.5, standardLen:3.9, standardW:2.6, fallDrop:2.2, crest:true},
     blurb:'Cold-hardy native blue flag for wet meadows and rain gardens, with violet flowers veined white and yellow.',
     sea:{Spring:{fol:'#5d8a5c'}, Summer:{fol:'#4f7f4d',bloom:'#5f68b8',eye:'#e8c23a'}, Fall:{fol:'#8a8a5e',seed:'#6e5a3a'}, Winter:{}}},
-  dwarfcrestediris:{ name:'Dwarf Crested Iris', latin:'Iris cristata', form:'rosette', type:'forb', h:8,
+  dwarfcrestediris:{ name:'Dwarf Crested Iris', latin:'Iris cristata', form:'iris', type:'forb', h:8,
     group:'iris', groupLabel:'Iris', chip:'Crested',
     space:10, spread:12, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool',
-    look:{leaves:10, leafLen:0.55, leafW:1.4, stems:3, bells:3},
+    look:{leaves:10, leafLen:0.52, leafW:1.4, fan:0.62, scapes:3, scapeLen:0.92, branches:0, blooms:2, fallLen:3.6, fallW:2.7, standardLen:3, standardW:2.2, fallDrop:1.6, crest:true},
     blurb:'A low woodland iris with pale lavender flowers and clean fans of leaves, excellent as a spring groundcover.',
     sea:{Spring:{fol:'#6f8f5a',bloom:'#9a8ad0',eye:'#e8c23a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#8a8a5e'}, Winter:{}}},
-  germaniris:{ name:'German Bearded Iris', latin:'Iris germanica', form:'rosette', type:'forb', h:32,
+  germaniris:{ name:'German Bearded Iris', latin:'Iris germanica', form:'iris', type:'forb', h:32,
     group:'iris', groupLabel:'Iris', chip:'Bearded',
     space:18, spread:24, zones:[3,9], native:false, sun:'full', moist:'dry', phen:'cool',
-    look:{leaves:14, leafLen:0.6, leafW:2.2, stems:3, bells:4},
+    look:{leaves:14, leafLen:0.70, leafW:2.2, fan:0.48, scapes:3, scapeLen:0.96, branches:2, blooms:3, fallLen:5.4, fallW:4.4, standardLen:4.2, standardW:3.1, fallDrop:2.2, beard:true},
     blurb:'Classic European bearded iris for dry sunny crowns, with architectural sword leaves and showy late-spring flowers.',
     sea:{Spring:{fol:'#6f8f5a',bloom:'#7a58a8',eye:'#d8a22e'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#8a8a5e'}, Winter:{}}},
-  siberianiris:{ name:'Siberian Iris', latin:'Iris sibirica', form:'rosette', type:'forb', h:34,
+  siberianiris:{ name:'Siberian Iris', latin:'Iris sibirica', form:'iris', type:'forb', h:34,
     group:'iris', groupLabel:'Iris', chip:'Siberian',
     space:18, spread:24, zones:[3,8], native:false, sun:'full', moist:'medium', phen:'cool',
-    look:{leaves:14, leafLen:0.66, leafW:1.6, stems:4, bells:4},
+    look:{leaves:14, leafLen:0.74, leafW:1.35, fan:0.46, scapes:4, scapeLen:0.88, branches:1, blooms:2, fallLen:4.3, fallW:2.7, standardLen:3.5, standardW:2.2, fallDrop:1.6},
     blurb:'European/Asian garden iris with slim grassy leaves and refined blue-violet flowers, tolerant of ordinary garden soil.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#5f68b8',eye:'#e8c23a'}, Fall:{fol:'#9a8a5e',seed:'#8a7058'}, Winter:{}}},
   goldenalexander:{ name:'Golden Alexander', latin:'Zizia aurea', form:'umbel', type:'forb', h:28,
@@ -1107,9 +1125,11 @@ const PLANTS = {
     look:{rays:5, rayLen:5.2, droop:0, rayW:2.4, discW:3, discH:3, leaves:8, leafW:1.5, leafLen:0.34, stems:6},
     blurb:'Large yellow St. Johnswort flowers with a firework boss of stamens, good for moist meadows and sunny swales.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#e8c23a',eye:'#c8902a'}, Fall:{fol:'#8a8a5e',seed:'#5e5240'}, Winter:{fol:'#7a6a58',seed:'#4a4034'}}},
-  poppymallow:{ name:'Purple Poppy Mallow', latin:'Callirhoe involucrata', form:'cone', type:'forb', h:12,
+  poppymallow:{ name:'Purple Poppy Mallow', latin:'Callirhoe involucrata', form:'shrub', type:'forb', h:12,
     space:18, spread:30, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'mid',
-    look:{rays:5, rayLen:6.4, droop:0.2, rayW:2.8, discW:2, discH:2, leaves:7, leafW:1.3, leafLen:0.25, stems:8},
+    look:{habit:'matflower', runners:14, matW:25, foliageH:0.18, leafW:1.05,
+      flowerStems:7, flowerW:24, flowerLen:0.14, flowers:8, petals:5,
+      petalLen:4.8, petalW:2.9, flowerStyle:'cup'},
     blurb:'A trailing magenta prairie mallow for hot dry edges, spilling through gravel and over path edges.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#b03086',eye:'#f0d6e8'}, Fall:{fol:'#8a8a5e',seed:'#5e5240'}, Winter:{}}},
   mossphlox:{ name:'Moss Phlox', latin:'Phlox subulata', form:'shrub', type:'forb', h:8,
@@ -1117,9 +1137,12 @@ const PLANTS = {
     look:{habit:'mossphlox', runners:16, matW:24, foliageH:0.18, leafW:0.8, flowers:22, flowerSpread:25, petals:5, petal:2.3, shadowW:24, shadowH:2.6, shadowY:-1.8},
     blurb:'An evergreenish needle-leaf carpet that turns rose-lavender in spring. Give it full sun and drainage, then let it knit dry edges together.',
     sea:{Spring:{fol:'#6f8a5d',bloom:'#c878a4',eye:'#e6b84a'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#6c7656'}, Winter:{fol:'#66705a'}}},
-  gaura:{ name:'Gaura', latin:'Oenothera lindheimeri', form:'cone', type:'forb', h:36,
+  gaura:{ name:'Gaura', latin:'Oenothera lindheimeri', form:'airywand', type:'forb', h:36,
     space:18, spread:24, zones:[5,9], native:true, sun:'full', moist:'dry', phen:'mid',
-    look:{rays:4, rayLen:4.8, droop:0, rayW:1.4, discW:1.6, discH:1.6, leaves:7, leafW:1.2, leafLen:0.3, stems:9},
+    look:{leaves:7, leafLen:0.28, leafW:1.1, stems:10, stemSpread:24,
+      lenBase:0.84, lenJitter:0.26, branches:2, branchAt:0.52,
+      flowerCount:5, petals:4, petalLen:2.5, petalW:1.25, flowerOffset:4,
+      flowerDrop:0.4},
     blurb:'Airy wandflower with white-to-pink butterfly blooms on wiry stems, superb motion for dry sunny plantings.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#f0d8e0',eye:'#c87892'}, Fall:{fol:'#8a8a5e',bloom:'#d8a0b8',eye:'#c87892'}, Winter:{}}},
   shootingstar:{ name:'Shooting Star', latin:'Primula meadia', form:'cone', type:'forb', h:16,
@@ -1139,7 +1162,9 @@ const PLANTS = {
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#d89ab0'}, Fall:{fol:'#9a8a5e',seed:'#b8a888'}, Winter:{seed:'#9a8a78'}}},
   prairiesmoke:{ name:'Prairie Smoke', latin:'Geum triflorum', form:'drumstick', type:'forb', h:12,
     space:10, spread:12, zones:[3,7], native:true, sun:'full', moist:'dry', phen:'cool',
-    look:{stems:6, button:1.8, buttonLen:3.2},
+    look:{stems:6, button:1.8, buttonLen:3.2, nod:true,
+      flowerStyle:'noddingBell', seedStyle:'smoke', plumeCount:13,
+      plumeLen:10, plumeW:9},
     blurb:'Nodding rose bells in spring become smoky pink seed plumes, beautiful in lean dry gravelly prairie.',
     sea:{Spring:{fol:'#6f8f5a',bloom:'#c07a8e'}, Summer:{fol:'#7d8a6a',seed:'#d8a0a8'}, Fall:{fol:'#9a8a5e'}, Winter:{seed:'#b89a9e'}}},
 
@@ -2047,9 +2072,11 @@ const PLANTS = {
     roles:['dry','gravel','mediterranean','architectural','nectar','deerOk','rabbitOk'],
     blurb:'Not a true yucca — an arching, grassy blue-green clump that throws up tall coral-red flower spikes all summer for hummingbirds. Evergreen and bulletproof.',
     sea:{Spring:{fol:'#6f8a80',edge:'#8fa898'}, Summer:{fol:'#67857c',edge:'#8fa898',bloom:'#d1553e'}, Fall:{fol:'#6e8272',edge:'#8a9a86',bloom:'#c64e3a',seed:'#7a5a48'}, Winter:{fol:'#647868',edge:'#84907e',seed:'#6e5442'}}},
-  sotol:{ name:'Desert Spoon', latin:'Dasylirion wheeleri', form:'rosette', type:'forb', h:52,
+  sotol:{ name:'Desert Spoon', latin:'Dasylirion wheeleri', form:'sotol', type:'forb', h:52,
     space:48, spread:60, zones:[7,10], native:true, sun:'full', moist:'dry', phen:'warm',
-    look:{leaves:40, leafLen:0.55, leafW:1.1, filaments:false, stems:1, bells:6},
+    look:{leaves:46, leafLen:0.82, leafW:0.9, rosetteSquash:0.44, teeth:12,
+      scapes:1, scapeLen:1.75, panicleStart:0.42, panicleBranches:18,
+      panicleDots:3, topScale:1.75},
     roles:['dry','gravel','mediterranean','architectural','silver','deerOk','rabbitOk'],
     blurb:'A silvery sphere of slender, saw-toothed leaves — each ending in a spoon — topped in summer by a tall creamy flower plume. Hill Country and Chihuahuan classic, also called sotol.',
     sea:{Spring:{fol:'#8ba090',edge:'#a6b8a4'}, Summer:{fol:'#84997f',edge:'#a6b8a4',bloom:'#e8e0cc'}, Fall:{fol:'#8a9880',edge:'#a2ae94',seed:'#c9bfa0'}, Winter:{fol:'#7f8c76',edge:'#98a288',seed:'#b8ad90'}}},
@@ -2100,12 +2127,14 @@ const PLANTS = {
   parrypenstemon:{ name:"Parry's Penstemon", latin:'Penstemon parryi', form:'spike', type:'forb', h:40,
     group:'penstemon', groupLabel:'Penstemon', chip:"Parry's",
     space:18, spread:18, zones:[8,10], native:true, sun:'full', moist:'dry', phen:'cool',
+    look:{spikeStyle:'penstemon', stems:5, stemSpread:16, lenBase:0.76, lenJitter:0.16, stemLeaves:4, stemLeafW:1.2, stemLeafLen:7, tubeCount:8, tubeLen:5.2, tubeW:2.5, tubeLean:3},
     roles:['dry','gravel','mediterranean','nectar','deerOk','rabbitOk'],
     blurb:'Tall wands of vivid rose-pink trumpets in early spring, a favorite of hummingbirds arriving in the Sonoran desert. Needs sharp drainage.',
     sea:{Spring:{fol:'#6a8360',bloom:'#d1568e'}, Summer:{fol:'#61795a'}, Fall:{fol:'#77704e',seed:'#6e4a3a'}, Winter:{seed:'#52372c'}}},
   palmerpenstemon:{ name:"Palmer's Penstemon", latin:'Penstemon palmeri', form:'spike', type:'forb', h:56,
     group:'penstemon', groupLabel:'Penstemon', chip:"Palmer's",
     space:18, spread:18, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'mid',
+    look:{spikeStyle:'penstemon', stems:7, stemSpread:20, lenBase:0.82, lenJitter:0.16, stemLeaves:5, stemLeafW:1.2, stemLeafLen:8, tubeCount:8, tubeLen:5.1, tubeW:2.5, tubeLean:3},
     roles:['dry','gravel','mediterranean','aromatic','nectar','deerOk','rabbitOk'],
     blurb:'Unusually fragrant pink snapdragon-like flowers on tall grey-blue stalks. One of the few scented penstemons, and tough in lean, gravelly soil.',
     sea:{Spring:{fol:'#89a08a',bloom:'#e7b6c8'}, Summer:{fol:'#7f9880',bloom:'#eab8ca'}, Fall:{fol:'#84855e',seed:'#6e4a3a'}, Winter:{seed:'#52372c'}}},
@@ -2218,18 +2247,21 @@ const PLANTS = {
   eatonpenstemon:{ name:'Firecracker Penstemon', latin:'Penstemon eatonii', form:'spike', type:'forb', h:36,
     group:'penstemon', groupLabel:'Penstemon', chip:'Firecracker',
     space:15, spread:15, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'cool',
+    look:{spikeStyle:'penstemon', stems:5, stemSpread:13, lenBase:0.76, lenJitter:0.16, stemLeaves:4, stemLeafW:1.1, stemLeafLen:6, tubeCount:8, tubeLen:6, tubeW:2.15, tubeLean:3, tubeDrop:1.3},
     roles:['dry','gravel','mediterranean','nectar','deerOk','rabbitOk'],
     blurb:'Brilliant scarlet tubular flowers on tall spikes in spring, timed for hummingbird migration. Evergreen basal rosettes and sharp drainage.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#d43a2e'}, Summer:{fol:'#556f47'}, Fall:{fol:'#6e6448',seed:'#6e4a3a'}, Winter:{fol:'#57604a',seed:'#52372c'}}},
   desertpenstemon:{ name:'Desert Penstemon', latin:'Penstemon pseudospectabilis', form:'spike', type:'forb', h:40,
     group:'penstemon', groupLabel:'Penstemon', chip:'Desert',
     space:15, spread:18, zones:[5,9], native:true, sun:'full', moist:'dry', phen:'cool',
+    look:{spikeStyle:'penstemon', stems:5, stemSpread:16, lenBase:0.76, lenJitter:0.16, stemLeaves:4, stemLeafW:1.2, stemLeafLen:7, tubeCount:7, tubeLen:5.1, tubeW:2.4, tubeLean:3},
     roles:['dry','gravel','mediterranean','nectar','deerOk','rabbitOk'],
     blurb:'Rose-magenta trumpets clasped by blue-grey leaves on tall wands. A showy canyon penstemon for hot, sharply drained gardens.',
     sea:{Spring:{fol:'#7f9880',bloom:'#d0568e'}, Summer:{fol:'#76907a'}, Fall:{fol:'#7e7d54',seed:'#6e4a3a'}, Winter:{seed:'#52372c'}}},
   pineleafpenstemon:{ name:'Pineleaf Penstemon', latin:'Penstemon pinifolius', form:'spike', type:'forb', h:16,
     group:'penstemon', groupLabel:'Penstemon', chip:'Pineleaf',
     space:12, spread:15, zones:[4,9], native:true, sun:'full', moist:'dry', phen:'mid',
+    look:{spikeStyle:'penstemon', stems:9, stemSpread:18, lenBase:0.72, lenJitter:0.20, leaves:24, leafW:0.7, leafLen:0.42, tubeCount:6, tubeLen:4, tubeW:1.8, tubeLean:2.6},
     roles:['dry','gravel','mediterranean','nectar','deerOk','rabbitOk'],
     blurb:'A low, evergreen cushion of needle-fine leaves lit by slim orange-red tubes all summer. A rock-garden gem from the sky islands.',
     sea:{Spring:{fol:'#5d7a52',bloom:'#e0662e'}, Summer:{fol:'#556f4a',bloom:'#e0662e'}, Fall:{fol:'#586a48',bloom:'#d65e2a'}, Winter:{fol:'#4f6044'}}},
@@ -2246,7 +2278,7 @@ const PLANTS = {
    the game simulation still uses bloomDay + seasonal sea data. */
 const BLOOM_MONTHS = {
   // grasses and grass-like flowering/seed interest
-  switchgrass:[7,8], bluegrama:[6,7,8], lovegrass:[8,9], pinkmuhly:[9,10],
+  switchgrass:[7,8], bluegrama:[6,7,8], lovegrass:[7,8], pinkmuhly:[9,10],
   northernseaoats:[8,9], fountaingrass:[7,8,9], orientalfountain:[7,8,9], molinia:[8,9,10],
 
   // prairie forb backbone
@@ -2263,17 +2295,17 @@ const BLOOM_MONTHS = {
   salvia:[5,6,7], salviaspecies:[5,6,7], echinops:[7,8], calamint:[7,8,9],
   agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9], knautia:[6,7,8,9],
   helenium:[8,9,10], rudbeckia:[7,8,9], rudbeckiatriloba:[8,9,10],
-  rudbeckiamaxima:[7,8,9], falsesunflower:[6,7,8], sanguisorba:[8,9], greatburnet:[7,8,9],
+  rudbeckiamaxima:[7,8,9], falsesunflower:[6,7,8], sanguisorba:[7,8,9,10], greatburnet:[7,8,9],
   lilacsquirrel:[7,8], coreopsis:[6,7,8], lanceleaf:[5,6,7],
   talltickseed:[8,9], willowsunflower:[9,10], maximiliansunflower:[8,9,10],
   sawtoothsunflower:[8,9,10], stiffsunflower:[7,8,9], ashysunflower:[7,8,9],
-  woodlandsunflower:[7,8,9], spiderwort:[5,6], prairiespiderwort:[5,6],
+  woodlandsunflower:[7,8,9], spiderwort:[5,6,7], prairiespiderwort:[5,6],
   blueeyedgrass:[4,5,6], narrowblueeyedgrass:[4,5,6],
   blueflagiris:[5,6], northernblueflag:[5,6], dwarfcrestediris:[4,5],
   germaniris:[5,6], siberianiris:[5,6], goldenalexander:[5,6],
   heartleafalexander:[5,6], pussytoes:[4,5], prairiedock:[7,8,9],
   cardinallobelia:[7,8,9], greatbluelobelia:[7,8,9], whiteturtlehead:[8,9,10], goldenragwort:[4,5],
-  greatstjohnswort:[6,7,8], poppymallow:[6,7,8], mossphlox:[4,5], gaura:[6,7,8,9,10],
+  greatstjohnswort:[6,7,8], poppymallow:[6,7,8], mossphlox:[4,5], gaura:[8,9,10],
   shootingstar:[4,5], pasqueflower:[3,4], filipendula:[6,7,8], prairiesmoke:[4,5],
 
   // asters and late season composites

@@ -321,6 +321,14 @@ function plantVisualH(P){
   if (P.type==='bulb') return P.h;
   return Math.round((P.h||36) * HERB_SCALE);
 }
+/* Some plants carry a flower scape well above the foliage mass.  Keep this
+   display-only extent separate from `h`: the renderer still uses h for the
+   plant's basic geometry while icons and sprite bounds reserve enough room
+   for the full silhouette. */
+function plantArtTop(P){
+  const H=plantVisualH(P)||40, L=P&&P.look||{};
+  return Math.round(H*Math.max(1,L.topScale||1));
+}
 /* Grass forms derive their width from H. Counter that coupling for cultivars
    so a taller selection can stay narrow and a shorter one can still be broad.
    Straight species retain their hand-tuned form silhouette. */

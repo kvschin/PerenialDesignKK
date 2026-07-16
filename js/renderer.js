@@ -475,13 +475,18 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const woody=isWoodyDef(P);
   const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
   const grassW=plantVisualWidthScale(P,key);
-  const halfW=(woody?Math.max(canopy*0.62,H*0.5):H*0.62*Math.max(1,grassW))+18;
+  const L=P.look||{};
+  const herbHalf=P.form==='sotol'
+    ? Math.max(H*0.62,H*(L.leafLen||0.82)*1.1)
+    : H*0.62*Math.max(1,grassW);
+  const halfW=(woody?Math.max(canopy*0.62,H*0.5):herbHalf)+18;
   // Cloud grasses can throw a seed veil substantially above their nominal
   // height. Size its sprite for the tallest panicle plus cloud rather than
   // clipping tall, airy forms such as Molinia 'Transparent'.
-  const L=P.look||{};
+  const artH=plantArtTop(P)*(0.25+0.75*growth);
   const herbTop=P.form==='cloudgrass'
     ? Math.max(H*1.12, H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)+6)
+    : P.form==='sotol' ? artH*1.05
     : H*1.12;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop)+26;
   const bot=18, want=pspriteScale();
@@ -494,14 +499,15 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
   const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
   const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
-  drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,detail); // still (sway 0), bucketed bloom
+  const spriteDetail=Object.assign({},detail||{},{bloomFallback:true});
+  drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail); // still (sway 0), bucketed bloom
   return { cv, ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites){
   if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
-  const P=plantDef(key,variant), S=P.sea[season];
-  const gB=gbucket(growth,9), bB=(S&&S.bloom)?gbucket(bloomLevel(key),4):0;
+  const P=plantDef(key,variant), bloomS=bloomAppearanceFor(P,season);
+  const gB=gbucket(growth,9), bB=bloomS?gbucket(bloomLevel(key),4):0;
   const kk=seed+'|'+key+'|'+(variant||'')+'|'+season+'|'+gB+'|'+bB+'|'+(detail?JSON.stringify(detail):'');
   let e=PSPRITE.map.get(kk);
   // A sprite baked at a very different zoom blits soft, so re-render it (budget

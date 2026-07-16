@@ -565,10 +565,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
-14c. **Bloom calendar** - `bloomRows()` reads planted plants + bulbs, groups
-    them by species/cultivar, and maps `bloomMonths` to real-world Jan-Dec
-    columns; missing month data falls back to conservative season-to-month
-    estimates. `openBloomCalendar()` renders the in-game `#bloomScreen` table.
+14c. **Bloom calendar + live phenology** - `bloomRows()` reads planted plants +
+    bulbs, groups them by species/cultivar, and maps `bloomMonths` to
+    real-world Jan-Dec columns; missing month data falls back to conservative
+    season-to-month estimates. The renderer also turns each consecutive
+    `bloomMonths` run into one continuous year-relative window, so a bloom
+    does not restart at a visual season boundary. `bloomDay` remains the
+    exact within-season override for deliberately staggered bulbs and onions.
+    `openBloomCalendar()` renders the in-game `#bloomScreen` table.
 15. **Plant filters + HUD** - `plantFits()` (zone range, native-only,
     deer/rabbit-resistant plants, and squirrel-resistant bulbs), `trayKeys()`
     (filtered, grasses to sedges to forbs), the plant-filter overlay wiring,
@@ -832,7 +836,7 @@ key: {
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
-  bloomMonths: [7,8,9],        // real-world bloom calendar months
+  bloomMonths: [7,8,9],        // calendar + continuous live bloom months
   grow: 10,                    // woody only: years to mature size
   cw: 150,                     // px-art: woody canopy/twig drawing width
   cv: { theblues: {...} },     // optional cultivars (see plants.js header)
@@ -856,8 +860,9 @@ key: {
 `fol` (foliage),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
-coneflowers only). `bloomMonths` drives the real-world Bloom Calendar; keep
-`bloomDay` for in-game staggered seasonal animation.
+coneflowers only). `bloomMonths` drives the real-world Bloom Calendar and,
+unless a precise `bloomDay` is set, the continuous live bloom window. Keep
+`bloomDay` for intentionally staggered within-season animation.
 
 ### Units and footprint policy
 
@@ -873,6 +878,7 @@ may read px-art fields. Do not let those two paths drift together again.
 | `h` | pixels | Mature render height, a drawing hint for `drawPlant` and sprite sizing — displayed through **`plantVisualH(P)`** (the universal drawn-height transform: trees/shrubs rescale by the woody compression factor, herbaceous grass/sedge/forb/water scale by `HERB_SCALE` ≈1.75 so drifts read as masses (H1), bulbs pass through). Every herbaceous form derives its whole geometry from the drawn height, so this one factor scales width and height together and preserves each species' proportions. `h` is not a footprint, shade, order, or spacing unit. Cards/library report `heightIn||h`; herbaceous px h sits near 1:1 with inches. (`woodyVisualH` is a back-compat alias for `plantVisualH`.) |
 | `heightIn` | real inches | True mature height. Required on every `type:'tree'` species (px `h` under-reads trees ~8×) and set on cultivars that mature meaningfully shorter (weeping maples, Snow Fountains cherry). `matureSizeText` (card + Library) prefers it; the height overlay reads `heightIn||height||h`. |
 | `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)` (T10: trees blend `cw` toward true screen width in log space, so the stored value is the shape signal, not the on-screen size). It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
+| `look.topScale` | display multiplier | Optional extra sprite/canvas headroom for a plant whose flowering structure rises materially above its foliage mass (for example sotol). `plantArtTop(P)` applies it only to bounds and icon scaling; it must not change physical dimensions or placement footprint. |
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
 
 Footprint rules are intentionally asymmetric:

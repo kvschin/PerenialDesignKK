@@ -27,11 +27,24 @@ function libraryCatKeys(cat){
   });
 }
 function libSeed(key){ let h=0; for(let i=0;i<key.length;i++) h=(h*31+key.charCodeAt(i))>>>0; return h||7; }
+function libraryBloomText(P){
+  const months=bloomMonthsFor(P);
+  if (!months.length) return 'Not recorded';
+  const runs=[];
+  for(let i=0;i<months.length;){
+    let j=i;
+    while(j+1<months.length && months[j+1]===months[j]+1) j++;
+    runs.push(i===j ? CAL_MONTH_LABELS[months[i]-1] : `${CAL_MONTH_LABELS[months[i]-1]}–${CAL_MONTH_LABELS[months[j]-1]}`);
+    i=j+1;
+  }
+  return runs.join(', ');
+}
+function libraryPreviewSeason(P){ return SEASONS.find(s=>P.sea&&P.sea[s]&&P.sea[s].bloom)||'Summer'; }
 function libCanvas(key,variant,season,w,h){
   const c=document.createElement('canvas'); c.width=w*2; c.height=h*2;
   c.style.width=w+'px'; c.style.height=h+'px';
   const ctx=c.getContext('2d'); ctx.scale(2,2);
-  const P=plantDef(key,variant), drawH=(plantVisualH(P)||40)*1.3+12, sc=Math.min(1.15,h/drawH);
+  const P=plantDef(key,variant), drawH=(plantArtTop(P)||40)*1.3+12, sc=Math.min(1.15,h/drawH);
   ctx.save(); ctx.translate(w/2,h-5); ctx.scale(sc,sc);
   drawPlant(ctx,0,0,key,1,season,libSeed(key),0,variant,1);
   ctx.restore();
@@ -82,7 +95,7 @@ function buildLibraryList(q){
       const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
       const cvHay=(P.libraryCultivars||[]).map(c=>(c.name||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
       b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
-      b.append(libCanvas(k,null,'Summer',30,36));
+      b.append(libCanvas(k,null,libraryPreviewSeason(P),30,36));
       const t=document.createElement('span');
       t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
       b.append(t);
@@ -107,6 +120,7 @@ function showLibraryDetail(key){
     ['Mature size', matureSizeText(P,false)+(P.grow?` - ${yearsToSizeText(P)}`:'')],
     ['Spacing', `${plantMeasure(P.space,false)} on center`],
     ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
+    ['Bloom', libraryBloomText(P)],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
     ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
     ['Origin', P.native?'Native':'Garden plant (non-native)'],
@@ -163,4 +177,3 @@ function applyLibrarySearch(){
     empty.textContent=q ? 'No plants match that search.' : 'No plants in the library yet.';
   } else if (empty) empty.remove();
 }
-
