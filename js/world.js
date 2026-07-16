@@ -884,7 +884,7 @@ function polygonContains(px,py,verts){
   return inside;
 }
 function buildingGeometry(b){
-  if (!b || !Array.isArray(b.vertices) || !b.vertices.length) return {tiles:[],bounds:null};
+  if (!b || !Array.isArray(b.vertices) || !b.vertices.length) return {tiles:[],tileSet:new Set(),bounds:null};
   const hit=BUILDING_GEOM.get(b); if (hit) return hit;
   const vs=b.vertices, xs=vs.map(p=>p[0]), ys=vs.map(p=>p[1]);
   const minX=Math.max(0,Math.floor(Math.min(...xs))), maxX=Math.min(GW-1,Math.ceil(Math.max(...xs))-1);
@@ -892,10 +892,12 @@ function buildingGeometry(b){
   const tiles=[];
   for (let y=minY;y<=maxY;y++) for (let x=minX;x<=maxX;x++)
     if (polygonContains(x+.5,y+.5,vs)) tiles.push([x,y]);
-  const out={tiles,bounds:tiles.length?{x0:minX,y0:minY,x1:maxX,y1:maxY}:null};
+  const out={tiles,tileSet:new Set(tiles.map(p=>p[0]+','+p[1])),
+    bounds:tiles.length?{x0:minX,y0:minY,x1:maxX,y1:maxY}:null};
   BUILDING_GEOM.set(b,out); return out;
 }
 function buildingTiles(b){ return buildingGeometry(b).tiles; }
+function buildingTileSet(b){ return buildingGeometry(b).tileSet; }
 function buildingBounds(b){ return buildingGeometry(b).bounds; }
 function buildingAt(x,y,ignoreId){
   for (const b of game.buildings||[]){
@@ -908,7 +910,7 @@ function buildingAt(x,y,ignoreId){
 function inBuilding(x,y){ return !!buildingAt(x,y); }
 function siteStructureAt(x,y){ return buildingAt(x,y) || houseAt(x,y); }
 function buildingDrawDepth(b){
-  const r=buildingBounds(b); return r ? footprintDrawDepth(r.x0,r.y0,r.x1-r.x0+1,r.y1-r.y0+1)+0.045 : -Infinity;
+  const r=buildingBounds(b); return r ? footprintDrawDepth(r.x0,r.y0,r.x1-r.x0+1,r.y1-r.y0+1)+0.355 : -Infinity;
 }
 function doorPos(h){ return h ? [h.x+((h.w-1)>>1), h.y+h.h] : [-1,-1]; }
 function isDoor(x,y){

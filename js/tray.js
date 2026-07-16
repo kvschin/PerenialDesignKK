@@ -2255,8 +2255,8 @@ function toolGuide(){
   if (game.tool==='building'){
     const n=(game.buildingDraft&&game.buildingDraft.vertices||[]).length;
     return {k:'Building footprint',v:n
-      ? `${n} corner${n===1?'':'s'} set — tap the next corner, first corner, or Close outline`
-      : 'Tap exterior corners; use Close outline when the shape is complete'};
+      ? `${n} corner${n===1?'':'s'} set — move or drag to preview the next wall in feet, then tap to place it`
+      : 'Tap the first corner, then move or drag to preview each wall in feet'};
   }
   if (P){
     const D=plantDef(game.tool,game.toolVar), mode=game.matrix?'Matrix':game.drift?'Drift':'Draw';

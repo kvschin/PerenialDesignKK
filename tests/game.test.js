@@ -461,6 +461,13 @@ test('tool guidance explains the next canvas action', () => {
   assert(/free placement/i.test(toolGuide().v), 'plant guidance reflects free placement');
   game.tool = 'building'; game.buildingDraft = { vertices: [[2, 2], [6, 2]] };
   assert(/2 corners/i.test(toolGuide().v), 'building guidance reports draft progress');
+  assert(/feet/i.test(toolGuide().v), 'building guidance explains the live dimension');
+  assertEqual(JSON.stringify(snapBuildingCorner([9, 5], [6, 2])), JSON.stringify([9, 2]),
+    'building preview snaps a loose pointer to its dominant orthogonal axis');
+  assertEqual(buildingEdgeFeetLabel([2, 2], [7, 2]), '7.5 ft', 'building edges report feet from the site scale');
+  const latticePoint=screenOfFlat(7, 4, 900, 700);
+  assertEqual(JSON.stringify(buildingCornerScreenPoint([7, 4], 900, 700, 0)), JSON.stringify(latticePoint),
+    'building draft points project onto the exact visible tile-corner lattice');
 });
 
 test('mobile sheet supports collapsed, half, and full recovery states', () => {
@@ -1428,7 +1435,11 @@ test('building footprints rasterize, block placement, and erase as one site obje
   assert(!buildingAt(9, 4), 'outside tile is clear');
   assert(!canStand(4, 4), 'footprint blocks movement');
   buildScene(900, 700);
-  assert(scene.ents.some(e => e.kind === SCENE_K.BUILDING), 'footprint enters the depth-sorted scene');
+  const buildingEnts=scene.ents.filter(e => e.kind === SCENE_K.BUILDING);
+  assertEqual(buildingEnts.length, buildingTiles(game.buildings[0]).length,
+    'each footprint tile enters the scene independently for correct plant depth');
+  assert(scene.ents.some(e => e.kind === SCENE_K.BUILDING_OUTLINE), 'footprint perimeter enters the depth-sorted scene');
+  assert(new Set(buildingEnts.map(e=>e.d)).size>1, 'a large footprint spans multiple draw depths');
   game.tool = firstOfType('forb');
   assertEqual(applyToolAt(4, 4), null, 'plant tool refuses footprint tiles');
   game.plants['12,12'] = { s: firstOfType('grass'), d: 0, t: 1 };

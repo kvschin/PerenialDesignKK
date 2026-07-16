@@ -263,7 +263,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     at the first corner or the on-canvas action, and validates a clear, flat
     site before `commitBuildingFootprint` stores it. Drafts are transient;
     only committed polygons save/sync/undo. Existing vs Proposed changes the
-    visual treatment, not collision behavior. Erase removes a whole footprint.
+    visual treatment, not collision behavior. The live draft edge uses the
+    same dominant-axis orthogonal snap as placement, projects directly onto
+    the visible tile-corner lattice, and labels its length in feet. Committed
+    footprints render as translucent, per-tile depth slices
+    with a strong polygon perimeter: nearby plants can sort in front and plants
+    behind remain legible, while the building still clearly defines bed edges.
+    Erase removes a whole footprint.
     `tileTerrain()` reads player-laid terrain from `game.terrain`.
     Fences live in `game.fences` as tile structures (`{style,height,gate}`):
     normal fence tiles block movement, gate tiles are walkable, and adjacent

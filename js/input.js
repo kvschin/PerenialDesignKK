@@ -95,6 +95,17 @@ function buildingCornerForPlacement(place){
   return [Math.max(0,Math.min(GW,Math.round(place.wx+0.5))),
     Math.max(0,Math.min(GH,Math.round(place.wy+0.5)))];
 }
+function snapBuildingCorner(raw,prev){
+  if (!prev || samePoint(prev,raw) || prev[0]===raw[0] || prev[1]===raw[1]) return raw;
+  // Let a loose mouse/finger motion resolve to the dominant orthogonal axis.
+  return Math.abs(raw[0]-prev[0])>=Math.abs(raw[1]-prev[1])
+    ? [raw[0],prev[1]] : [prev[0],raw[1]];
+}
+function previewBuildingCorner(place){
+  const raw=buildingCornerForPlacement(place), vs=game.buildingDraft&&game.buildingDraft.vertices||[];
+  if (vs.length>=3 && samePoint(raw,vs[0])) return raw;
+  return snapBuildingCorner(raw,vs[vs.length-1]);
+}
 function updateBuildingUi(){
   if (typeof renderBuildingDraftActions==='function') renderBuildingDraftActions();
   if (typeof updateActiveToolStatus==='function') updateActiveToolStatus();
@@ -109,11 +120,7 @@ function addBuildingCorner(place){
   const draft=game.buildingDraft || (game.buildingDraft={vertices:[]});
   const vs=draft.vertices;
   if (vs.length>=3 && samePoint(raw,vs[0])){ commitBuildingDraft(); return; }
-  let next=raw, prev=vs[vs.length-1];
-  if (prev && !samePoint(prev,raw) && prev[0]!==raw[0] && prev[1]!==raw[1]){
-    // Keep every edge orthogonal without making touch users land exactly on an axis.
-    next=Math.abs(raw[0]-prev[0])>=Math.abs(raw[1]-prev[1]) ? [raw[0],prev[1]] : [prev[0],raw[1]];
-  }
+  const prev=vs[vs.length-1], next=snapBuildingCorner(raw,prev);
   if (prev && samePoint(prev,next)){ toast('Choose a different corner.'); return; }
   if (vs.some(p=>samePoint(p,next))){ toast('That corner is already in this outline.'); return; }
   vs.push(next); buildingHover=null;
@@ -387,7 +394,7 @@ cnv.addEventListener('pointermove',e=>{
   const place=evPlacement(e), x=place.x, y=place.y;
   // keep the brush/erase footprint ghost under the cursor even mid-drag
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
-  buildingHover=game.tool==='building' ? buildingCornerForPlacement(place) : null;
+  buildingHover=game.tool==='building' ? previewBuildingCorner(place) : null;
   if (game.tool==='select'){ if (selPointerMove(x,y)) return; }
   if (rulerDrag){
     if (x>=0&&y>=0&&x<GW&&y<GH){

@@ -1793,47 +1793,74 @@ function drawCritter(ctx, x, y, ch, t, walking, scale){
 }
 
 /* ---------- building footprints ----------
-   Site footprints deliberately read as simple exterior massing: a roof plane,
-   shallow walls, and a clear perimeter. They define planting areas without
-   implying an editable interior or a separate building simulator. */
-function drawBuilding(ctx,W,H,season,b){
+   The planning mass is translucent and depth-sliced by tile: its footprint
+   stays unmistakable without hiding planting context in front of or behind a
+   large building. The strong perimeter carries the shape, not an opaque roof. */
+function drawBuildingTile(ctx,W,H,b,x,y){
   if (!b) return;
-  const tiles=buildingTiles(b); if (!tiles.length) return;
-  const set=new Set(tiles.map(p=>p[0]+','+p[1]));
+  const set=buildingTileSet(b);
   const proposed=b.status==='proposed', roof=b.roof||'#9a5f3a', wall=b.wall||'#8a7a60';
-  const lift=10;
-  ctx.save(); ctx.globalAlpha*=proposed?0.72:0.94;
+  const lift=10, baseAlpha=ctx.globalAlpha;
+  ctx.save();
   ctx.lineJoin='round'; ctx.lineWidth=1.15;
-  tiles.slice().sort((a,c)=>viewDepth(a[0],a[1])-viewDepth(c[0],c[1])).forEach(([x,y])=>{
-    const [sx,sy0]=screenOf(x,y,W,H), sy=sy0-lift;
-    const top=[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]];
-    if (!set.has((x+1)+','+y)){
-      ctx.fillStyle=shade(wall,-12); ctx.beginPath(); ctx.moveTo(...top[1]); ctx.lineTo(...top[2]);
-      ctx.lineTo(top[2][0],top[2][1]+lift); ctx.lineTo(top[1][0],top[1][1]+lift); ctx.closePath(); ctx.fill();
-    }
-    if (!set.has(x+','+(y+1))){
-      ctx.fillStyle=shade(wall,-24); ctx.beginPath(); ctx.moveTo(...top[2]); ctx.lineTo(...top[3]);
-      ctx.lineTo(top[3][0],top[3][1]+lift); ctx.lineTo(top[2][0],top[2][1]+lift); ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle=roof; ctx.strokeStyle=proposed?'rgba(248,208,130,.94)':'rgba(46,33,26,.55)';
-    if (proposed) ctx.setLineDash([4,3]);
-    ctx.beginPath(); ctx.moveTo(...top[0]); top.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.setLineDash([]);
-  });
+  const [sx,sy0]=screenOf(x,y,W,H), sy=sy0-lift;
+  const top=[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]];
+  ctx.globalAlpha=baseAlpha*(proposed?0.42:0.56);
+  if (!set.has((x+1)+','+y)){
+    ctx.fillStyle=shade(wall,-12); ctx.beginPath(); ctx.moveTo(...top[1]); ctx.lineTo(...top[2]);
+    ctx.lineTo(top[2][0],top[2][1]+lift); ctx.lineTo(top[1][0],top[1][1]+lift); ctx.closePath(); ctx.fill();
+  }
+  if (!set.has(x+','+(y+1))){
+    ctx.fillStyle=shade(wall,-24); ctx.beginPath(); ctx.moveTo(...top[2]); ctx.lineTo(...top[3]);
+    ctx.lineTo(top[3][0],top[3][1]+lift); ctx.lineTo(top[2][0],top[2][1]+lift); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha=baseAlpha*(proposed?0.28:0.40);
+  ctx.fillStyle=roof; ctx.beginPath(); ctx.moveTo(...top[0]); top.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha=baseAlpha*(proposed?0.68:0.32);
+  ctx.strokeStyle=proposed?'rgba(248,208,130,.94)':'rgba(46,33,26,.68)';
+  if (proposed) ctx.setLineDash([4,3]);
+  ctx.stroke();
+  ctx.restore();
+}
+function drawBuildingOutline(ctx,W,H,b){
+  if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) return;
+  const proposed=b.status==='proposed', lift=10;
+  const pts=b.vertices.map(p=>buildingCornerScreenPoint(p,W,H,lift));
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=2.2;
+  ctx.strokeStyle=proposed?'rgba(246,190,103,.98)':'rgba(60,42,31,.84)';
+  if (proposed) ctx.setLineDash([7,4]);
+  ctx.beginPath(); ctx.moveTo(...pts[0]); pts.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
   const bounds=buildingBounds(b);
   if (bounds){
     const [lx,ly]=screenOf((bounds.x0+bounds.x1)/2,(bounds.y0+bounds.y1)/2,W,H);
-    ctx.fillStyle='rgba(35,24,18,.72)'; ctx.font='700 9px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(35,24,18,.78)'; ctx.font='700 9px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
     ctx.fillText(proposed?'PROPOSED':(b.label||'EXISTING').toUpperCase(),lx,ly+TILE_H/2-lift+3);
   }
   ctx.restore();
 }
+function drawBuilding(ctx,W,H,season,b){
+  if (!b) return;
+  buildingTiles(b).slice().sort((a,c)=>viewDepth(a[0],a[1])-viewDepth(c[0],c[1]))
+    .forEach(p=>drawBuildingTile(ctx,W,H,b,p[0],p[1]));
+  drawBuildingOutline(ctx,W,H,b);
+}
+function buildingEdgeFeetLabel(a,b){
+  const feet=Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN/12;
+  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+}
+function buildingCornerScreenPoint(p,W,H,lift){
+  const q=screenOfFlat(p[0],p[1],W,H);
+  return [q[0],q[1]-(lift||0)];
+}
 function drawBuildingDraftOverlay(ctx,W,H){
   const d=game.tool==='building' && game.buildingDraft;
   if (!d || !d.vertices || !d.vertices.length) return;
-  const pts=d.vertices.map(p=>screenOfFlat(p[0]-.5,p[1]-.5,W,H));
+  // Draft corners sit on the ground lattice exactly where the pointer snaps.
+  // The former half-tile subtraction shifted every point visibly upward.
+  const pts=d.vertices.map(p=>buildingCornerScreenPoint(p,W,H,0));
   const hover=(typeof buildingHover!=='undefined' && buildingHover)
-    ? screenOfFlat(buildingHover[0]-.5,buildingHover[1]-.5,W,H) : null;
+    ? buildingCornerScreenPoint(buildingHover,W,H,0) : null;
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.strokeStyle='rgba(246,203,124,.96)'; ctx.lineWidth=2.5;
   ctx.beginPath(); ctx.moveTo(...pts[0]); pts.slice(1).forEach(p=>ctx.lineTo(...p));
@@ -1841,7 +1868,17 @@ function drawBuildingDraftOverlay(ctx,W,H){
   ctx.stroke(); ctx.setLineDash([]);
   pts.forEach((p,i)=>{ ctx.fillStyle=i===0?'#f2c07c':'#efe6d3'; ctx.beginPath(); ctx.arc(p[0],p[1],i===0?4:3.3,0,7); ctx.fill();
     ctx.strokeStyle='rgba(45,28,18,.8)'; ctx.lineWidth=1; ctx.stroke(); });
-  if (hover){ ctx.fillStyle='rgba(242,192,124,.9)'; ctx.beginPath(); ctx.arc(hover[0],hover[1],3,0,7); ctx.fill(); }
+  if (hover){
+    ctx.fillStyle='rgba(242,192,124,.9)'; ctx.beginPath(); ctx.arc(hover[0],hover[1],3,0,7); ctx.fill();
+    const last=pts[pts.length-1], lastWorld=d.vertices[d.vertices.length-1];
+    const dx=hover[0]-last[0], dy=hover[1]-last[1], len=Math.hypot(dx,dy);
+    if (len>1 && buildingHover && !samePoint(lastWorld,buildingHover)){
+      let nx=-dy/len, ny=dx/len;
+      if (ny>0){ nx=-nx; ny=-ny; }
+      drawSelMetricLabel(ctx,(last[0]+hover[0])/2+nx*15,(last[1]+hover[1])/2+ny*15,
+        buildingEdgeFeetLabel(lastWorld,buildingHover));
+    }
+  }
   ctx.restore();
 }
 

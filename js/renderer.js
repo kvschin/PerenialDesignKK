@@ -642,7 +642,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,PLAYER:8,OTHER:9,BUILDING:10};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,PLAYER:8,OTHER:9,BUILDING:10,BUILDING_OUTLINE:11};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -717,7 +717,9 @@ function buildScene(W,H){
     }
     for (const b of game.buildings||[]){
       const r=buildingBounds(b); if (!r) continue;
-      ents.push({d:buildingDrawDepth(b), kind:SCENE_K.BUILDING,
+      for (const p of buildingTiles(b)) ents.push({d:viewDepth(p[0],p[1])+0.345,kind:SCENE_K.BUILDING,
+        bx0:p[0],bx1:p[0],by0:p[1],by1:p[1],b,x:p[0],y:p[1]});
+      ents.push({d:buildingDrawDepth(b),kind:SCENE_K.BUILDING_OUTLINE,
         bx0:r.x0,bx1:r.x1,by0:r.y0,by1:r.y1,b});
     }
     for (const hh of game.houses)
@@ -736,7 +738,8 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,t){
     case SCENE_K.LIGHT: drawLightFixture(cx,W,H,season,e.l,e.x,e.y,game.layerVis.night); return 0;
     case SCENE_K.FIREPIT: drawFirepit(cx,W,H,season,e.f,e.x,e.y); return 0;
     case SCENE_K.BOULDER: drawBoulder(cx,W,H,season,e.b,e.x,e.y); return 0;
-    case SCENE_K.BUILDING: drawBuilding(cx,W,H,season,e.b); return 0;
+    case SCENE_K.BUILDING: drawBuildingTile(cx,W,H,e.b,e.x,e.y); return 0;
+    case SCENE_K.BUILDING_OUTLINE: drawBuildingOutline(cx,W,H,e.b); return 0;
     case SCENE_K.HOUSE: drawHouse(cx,W,H,season,e.h); return 0;
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
