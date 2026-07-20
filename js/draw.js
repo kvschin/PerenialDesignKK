@@ -40,10 +40,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   if (P.form === 'bunchgrass'){
     const L=P.look||{}, n = stemFor(L.leaves||13);
     ctx.lineCap='round';
-    const drawSedgeSeed=(style,sx,sy,a)=>{
-      ctx.fillStyle=S.seed;
+    const drawSedgeSeed=(style,sx,sy,a,col)=>{
+      col=col||S.seed;                     // fresh bloom tint if given, else dried seed
+      ctx.fillStyle=col;
       if (style==='mace'){
-        ctx.strokeStyle=shade(S.seed,-12); ctx.lineWidth=0.9;
+        ctx.strokeStyle=shade(col,-12); ctx.lineWidth=0.9;
         for (let p=0;p<5;p++){
           const ang=p*Math.PI*0.4+a*0.25;
           ctx.beginPath(); ctx.moveTo(sx,sy);
@@ -51,7 +52,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
         ctx.beginPath(); ctx.ellipse(sx,sy,3.25,3.25,0,0,7); ctx.fill();
       } else if (style==='brush'){
-        ctx.strokeStyle=shade(S.seed,-10); ctx.lineWidth=0.7;
+        ctx.strokeStyle=shade(col,-10); ctx.lineWidth=0.7;
         for (let p=0;p<5;p++){
           const ox=(p-2)*1.25;
           ctx.beginPath(); ctx.moveTo(sx+ox,sy+2.4); ctx.lineTo(sx+ox*1.5,sy-3.6); ctx.stroke();
@@ -61,7 +62,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const drop=5.4;
         ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
         ctx.beginPath(); ctx.moveTo(sx,sy-1); ctx.quadraticCurveTo(sx+3.8,sy+1.5,sx+3.2,sy+drop); ctx.stroke();
-        ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(sx+3.2,sy+drop+1.8,1.75,3.6,0.45,0,7); ctx.fill();
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(sx+3.2,sy+drop+1.8,1.75,3.6,0.45,0,7); ctx.fill();
       } else {
         ctx.beginPath(); ctx.ellipse(sx,sy,1.25,3.4,a*0.4,0,7); ctx.fill();
       }
@@ -90,6 +91,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     } else if (L.mound){
       const fan=L.fan||2.15, spread=L.spread||0.68, lift=L.dome||0.68, edgeDrop=L.edgeDrop||0.42;
       const seedEvery=L.seedStems ? Math.max(2,Math.floor(n/L.seedStems)) : 0;
+      // Fresh spring inflorescence tints the same tiny seed heads; drops back to
+      // dried seed out of bloom. No-op for mound sedges with no in-season bloom.
+      const moundHead=(blooming?S.bloom:null)||S.seed;
       for (let i=0;i<n;i++){
         const u=n>1?i/(n-1):0.5, side=u-0.5;
         const a=side*fan+(rnd()-0.5)*(L.jitter||0.26);
@@ -101,11 +105,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.strokeStyle = shade(S.fol, (rnd()-0.5)*(L.colorJitter||22));
         ctx.lineWidth = L.leafW||1.2; ctx.beginPath(); ctx.moveTo(baseX,0);
         ctx.quadraticCurveTo(baseX+bx*0.22, -len*0.46, bx, by); ctx.stroke();
-        if (S.seed && mature && seedEvery && i%seedEvery===0){
+        if (moundHead && mature && seedEvery && i%seedEvery===0){
           const sx=baseX+(rnd()-0.5)*4, sy=-H*(0.82+rnd()*0.22);
           ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=0.75;
           ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo(sx*0.45,-H*0.42,sx,sy); ctx.stroke();
-          drawSedgeSeed(L.seedStyle,sx,sy,a);
+          drawSedgeSeed(L.seedStyle,sx,sy,a,moundHead);
         }
       }
     } else {
@@ -270,7 +274,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*24); ctx.lineWidth=L.leafW||1.3;
       ctx.beginPath(); ctx.moveTo((rnd()-0.5)*5,0);
       ctx.quadraticCurveTo(bx*0.4,-len*0.6,bx,-len); ctx.stroke(); }
-    const sn=stemFor(L.stems||5), oat=S.seed||(blooming?S.bloom:null);
+    // Bloom-first, then dried seed (matches fountaingrass): the same eyelash
+    // combs / dangling spikelets tint to the fresh bloom colour while blooming,
+    // then read as tan seed. A no-op for any oatgrass season without a bloom.
+    const sn=stemFor(L.stems||5), oat=(blooming?S.bloom:null)||S.seed;
     for (let i=0;i<sn;i++){
       const ox=(rnd()-0.5)*(L.stemSpread||8), len=H*((L.stemLen||0.8)+rnd()*(L.stemJitter===undefined?0.25:L.stemJitter));
       const tip=ox+(L.tipOffset===undefined?5:L.tipOffset)+sway*len*0.05;

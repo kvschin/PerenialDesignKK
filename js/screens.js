@@ -887,7 +887,7 @@ function quitToMenu(){
   closeOverlay('exportScreen',false); closeOverlay('filterScreen',false);
   closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
   closeOverlay('pauseScreen',false);
-  closeOverlay('gardenMenu',false); closeOverlay('confirmSeasonScreen',false);
+  closeOverlay('gardenMenu',false);
   dismissCoachTip();
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
@@ -979,10 +979,8 @@ $('btnPauseResume').onclick=()=>{ if (game.pausedAt) resumeClock(); else pauseCl
 // the time menu dismisses via a document-level outside-press listener
 // (openPause/closePause in ui.js) — its backdrop is pointer-transparent so
 // the season box keeps working while the menu is open
-$('btnSkipSeason').onclick=openSeasonConfirm;
+$('btnSkipSeason').onclick=skipNextSeason;   // skip straight away — no confirm
 $('btnSkipYear').onclick=skipNextYear;
-$('btnCancelSeasonSkip').onclick=closeSeasonConfirm;
-$('btnConfirmSeasonSkip').onclick=confirmSkipSeason;
 if ($('btnPreviewToday')) $('btnPreviewToday').onclick=()=>setPreviewMode('today');
 if ($('btnPreviewEstablished')) $('btnPreviewEstablished').onclick=()=>setPreviewMode('established');
 $('btnExport').onclick=()=>{ closeOverlay('gardenMenu'); openExport(); };
