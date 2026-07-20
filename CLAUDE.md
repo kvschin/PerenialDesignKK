@@ -866,7 +866,11 @@ key: {
 `fol` (foliage),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
-coneflowers only). `bloomMonths` drives the real-world Bloom Calendar and,
+coneflowers only), `twig` (bare-stem colour for the `bush` form — the winter
+red/yellow of the dogwoods, ninebark's cinnamon bark; defaults to a neutral
+brown when absent, so only declare it where the stem IS the show). A winter
+that declares only `twig` draws bare coloured stems and nothing else, which is
+exactly the red-twig dogwood effect. `bloomMonths` drives the real-world Bloom Calendar and,
 unless a precise `bloomDay` is set, the continuous live bloom window. Keep
 `bloomDay` for intentionally staggered within-season animation.
 
@@ -996,7 +1000,22 @@ live cross-device visiting is ever built.
   lily, Michigan lily, large beardtongue, rough-stemmed goldenrod, moss phlox,
   false sunflower, Molinia 'Transparent', Macedonian scabious, great masterwort,
   Pyrenean sea holly, stonecrop 'Matrona', and mountain fleece 'Firetail').
-  Further regional bulb expansion remains open.
+  A **landscape-shrub pass** is landed — the ordinary flowering backbone the
+  catalog was missing between prairie forbs and clipped boxwood: ninebark,
+  red-twig dogwood, a five-species Viburnum group (arrowwood, cranberrybush,
+  Koreanspice, doublefile, blackhaw), a Lilac group (common, Miss Kim,
+  Bloomerang), a Spirea group (Japanese, bridal wreath), winterberry holly,
+  black chokeberry, and inkberry holly. It added five shared `bush` `look`
+  knobs rather than per-species branches — `bloomStyle` (`cluster` corymbs,
+  `panicle` lilac trusses, `spray` arching canes), `twigN`, `berryN`, the
+  per-season `twig` colour, and `broadleaf` (an informal evergreen leafy mound
+  in the `clip` family, used by inkberry — NOT a smooth clipped topiary ball;
+  distinct from boxwood's smooth dome and yew's needle sprays). Still open: forsythia and witch hazel (both want a
+  bloom-along-bare-stem style), elderberry, buttonbush, shrub roses,
+  summersweet, Virginia sweetspire, fothergilla, beautyberry (`seedAlong`),
+  and a dwarf-conifer set (spreading juniper, bird's nest spruce, mugo,
+  arborvitae column) that should reuse the yew `needles` spray with new
+  colours and shapes. Further regional bulb expansion remains open.
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by
     drag-to-paint; the idea is a dedicated stroke tool).

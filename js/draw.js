@@ -1466,7 +1466,31 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const bodyH=H*(L.bodyH||0.58), bodyW=cw*(L.bodyW||0.76), baseY=0;
       const hedgeDirs=(detail&&detail.hedgeDirs)||[];
       const connectedSquare=shape==='square' && hedgeDirs.length;
-      if (L.needles){
+      if (L.broadleaf){
+        // Informal BROADLEAF evergreen (inkberry, Ilex glabra): a dense mound
+        // of small dark leaves, NOT a smooth clipped topiary ball. Leaves hold
+        // every season and the leafy edge breaks the outline; a little woody
+        // structure shows low down, the way inkberry legs out with age.
+        const bw=bodyW, bh=Math.max(bodyH,16);
+        ctx.strokeStyle=shade(fol,-36); ctx.lineWidth=1.4; ctx.lineCap='round';
+        for (let i=0;i<3;i++){ const sx=(i-1)*bw*0.16;
+          ctx.beginPath(); ctx.moveTo(sx*0.25,baseY);
+          ctx.quadraticCurveTo(sx*0.7,baseY-bh*0.42,sx,baseY-bh*0.60); ctx.stroke(); }
+        ctx.fillStyle=shade(fol,-26);                       // shadowed underbody grounds the mass
+        ctx.beginPath(); ctx.ellipse(0,baseY-bh*0.36,bw*0.48,bh*0.34,0,0,7); ctx.fill();
+        const n=Math.max(30,Math.min(84,Math.round(bw*bh/80)));
+        for (let i=0;i<n;i++){
+          const t=Math.pow(rnd(),0.72);                     // biased low → fuller base
+          const prof=Math.sqrt(Math.max(0.05,1-t*t));       // rounded dome half-width
+          const px=(rnd()*2-1)*bw*0.5*prof;
+          const py=baseY-bh*(0.05+t*0.94);
+          const lit=t*24+(px<0?7:-4)+(rnd()-0.5)*22;         // top-lit, warmer to the left
+          ctx.fillStyle=shade(fol,-12+lit);
+          ctx.beginPath();
+          ctx.ellipse(px,py,2.5*(0.75+rnd()*0.55),1.7*(0.75+rnd()*0.55),(rnd()-0.5)*1.5,0,7);
+          ctx.fill();
+        }
+      } else if (L.needles){
         // yew (Taxus): dense LAYERED SPRAYS, never smooth topiary — even a
         // clipped yew keeps a soft, feathery surface. Column = an upright
         // irregular pillar (Hicksii); mound/round = wide layered masses.
@@ -1595,8 +1619,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.beginPath(); ctx.moveTo(fx-2,fy); ctx.lineTo(fx+2,fy+(rnd()-0.5)*2); ctx.stroke(); }
       }
     } else {
-      const tn=stemFor(7), tips=[];
-      ctx.strokeStyle='#6e5a48'; ctx.lineWidth=1.6; ctx.lineCap='round';
+      const tn=stemFor(L.twigN||7), tips=[];
+      ctx.strokeStyle=S.twig||'#6e5a48'; ctx.lineWidth=1.6; ctx.lineCap='round';
       for (let i=0;i<tn;i++){
         const a=(i/(tn-1)-0.5)*1.5+(rnd()-0.5)*0.2;
         const tx2=Math.sin(a)*cw*0.5+sway*2, ty2=-H*(0.55+rnd()*0.45);
@@ -1625,13 +1649,42 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<6;p++){ ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*24);
             ctx.beginPath(); ctx.ellipse(tx2+(rnd()-0.5)*16,ty2-3+(rnd()-0.5)*12,3.4,2.2,(rnd()-0.5)*1.2,0,7); ctx.fill(); } });
           ctx.restore();
+        } else if (L.bloomStyle==='panicle'){ // upright conical trusses (lilac)
+          const pr=L.clusterR||4.5;
+          heads.forEach(([tx2,ty2])=>{ for (let k=0;k<14;k++){ const f=k/14, wr=pr*(1-f*0.85);
+            ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
+            ctx.beginPath(); ctx.ellipse(tx2+(rnd()-0.5)*2*wr, ty2-pr*0.2-f*pr*1.9, 1.8,1.7,0,0,7); ctx.fill(); } });
+        } else if (L.bloomStyle==='spray'){ // flowers strung along arching canes (bridal wreath)
+          // Ride the cane's actual curve, not the base->tip chord: the twig is
+          // quadratic with control (0.4,0.55), so B(t) = (0.8t+0.2t^2, 1.1t-0.1t^2).
+          // The chord bows several px off a long cane, and on this style the arch
+          // IS the plant.
+          heads.forEach(([tx2,ty2])=>{ for (let k=0;k<9;k++){ const t=0.30+k*0.075;
+            const cx=tx2*(0.8*t+0.2*t*t), cy=ty2*(1.1*t-0.1*t*t);
+            ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
+            ctx.beginPath(); ctx.ellipse(cx+(rnd()-0.5)*3, cy+(rnd()-0.5)*2.5, 2.1,1.9,0,0,7); ctx.fill(); } });
+        } else if (L.bloomStyle==='cluster'){ // domed corymbs/cymes (ninebark, spirea, viburnum)
+          const cr=L.clusterR||4.5;
+          heads.forEach(([tx2,ty2])=>{ for (let p=0;p<8;p++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*cr;
+            ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
+            ctx.beginPath(); ctx.ellipse(tx2+Math.cos(a)*rr, ty2-cr*0.5+Math.sin(a)*rr*0.6, 1.7,1.6,0,0,7); ctx.fill(); } });
         } else { ctx.fillStyle=S.bloom;
           heads.forEach(([tx2,ty2])=>{
             ctx.beginPath(); ctx.ellipse(tx2,ty2-2,2.2,3.2,0,0,7); ctx.fill(); }); }
       }
       if (S.seed && mature){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
-        tips.forEach(([tx2,ty2])=>{ for (let b=0;b<3;b++){ const f=0.6+b*0.15;
-          ctx.beginPath(); ctx.arc(tx2*f,ty2*f,1.6,0,7); ctx.fill(); } }); }
+        // Own RNG stream (the mulberry(seed+N) convention the snow caps use):
+        // the bloom pass above burns a VARYING number of rnd() draws as bloom
+        // rises and fades, so sharing the stream would make a heavy berry set
+        // visibly jump on a species that blooms and fruits in one season.
+        const brnd=mulberry(seed+5);
+        // growth-scaled like the twig/leaf counts, so a just-mature shrub does
+        // not carry a full fruit set on three twigs. stemFor's floor of 3 keeps
+        // the default-3 species (coralberry, sumac) pixel-identical.
+        const bn=stemFor(L.berryN||3), f0=bn>3?0.42:0.6, fs=(0.92-f0)/Math.max(1,bn-1);
+        tips.forEach(([tx2,ty2])=>{ for (let b=0;b<bn;b++){ const f=f0+b*fs;
+          const jx=bn>3?(brnd()-0.5)*2.6:0, jy=bn>3?(brnd()-0.5)*2:0;
+          ctx.beginPath(); ctx.arc(tx2*f+jx,ty2*f+jy,1.6,0,7); ctx.fill(); } }); }
     }
   }
   else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub

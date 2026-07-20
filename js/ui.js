@@ -165,7 +165,7 @@ function roleMatches(text,terms){
    closely on this native/prairie palette, so one list drives both roles. */
 const BROWSE_RESIST_GROUPS=new Set([
   'allium','alliumbulb','milkweed','iris','baptisia','amsonia','liatris',
-  'coreopsis','burnet','blueeyedgrass','boxwood','rudbeckia','camassia',
+  'coreopsis','burnet','blueeyedgrass','boxwood','rudbeckia','camassia','lilac',
 ]);
 const BROWSE_RESIST_KEYS=new Set([
   // toxic or bitter forbs
@@ -176,8 +176,10 @@ const BROWSE_RESIST_KEYS=new Set([
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
-  // tough shrubs
-  'sumac','coralberry','smokebush',
+  // tough shrubs — berried natives and the resistant viburnums, listed by key
+  // rather than by group because doublefile shares group:'viburnum' and is browsed
+  'sumac','coralberry','smokebush','winterberry','inkberry','chokeberry',
+  'arrowwood','cranberrybush','koreanspice','blackhaw',
 ]);
 const SQUIRREL_RESIST_GROUPS=new Set(['allium','alliumbulb']);
 const SQUIRREL_RESIST_KEYS=new Set([
@@ -185,7 +187,8 @@ const SQUIRREL_RESIST_KEYS=new Set([
   'muscari','leucojum','scillaperuviana','puschkinia','ipheion'
 ]);
 // readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
-// New Jersey tea) — left off the resistant list on purpose.
+// New Jersey tea, doublefile viburnum, ninebark, red-twig dogwood, both
+// spireas) — left off the resistant list on purpose.
 function plantRoles(k){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const P=PLANTS[k]; if (!P) return [];

@@ -2116,6 +2116,29 @@ test('deer/rabbit resistance tags the right plants', () => {
   ['silvermaple', 'whiteoak', 'ginkgo'].forEach(k => assert(!deer(k), `${k} (tree) should not carry deerOk`));
 });
 
+// Browse resistance is rated per species, never per tray group. The trap: the
+// five viburnums share group:'viburnum', but Rutgers rates arrowwood/
+// cranberrybush/koreanspice/blackhaw A-B (rarely browsed) and doublefile C
+// (occasionally browsed). Tagging the group would quietly promise a deer-proof
+// doublefile. Same shape for the spireas, which share group:'spirea' and are
+// both browsed, while group:'lilac' genuinely is resistant across the board.
+test('landscape shrub browse resistance is rated per species, not by tray group', () => {
+  const deer = k => plantRoles(k).includes('deerOk');
+  const rabbit = k => plantRoles(k).includes('rabbitOk');
+  // four of the five grouped viburnums are rated resistant...
+  ['arrowwood', 'cranberrybush', 'koreanspice', 'blackhaw'].forEach(k =>
+    assert(deer(k) && rabbit(k), `${k} viburnum should be browse-resistant`));
+  // ...but doublefile shares their group and is browsed — the group must not carry the tag
+  assert(!deer('doublefile') && !rabbit('doublefile'),
+    'doublefile viburnum is browsed — it must not inherit resistance from group:"viburnum"');
+  // whole-genus resistance (lilac) plus the berried natives, listed by key
+  ['lilac', 'misskimlilac', 'bloomeranglilac', 'winterberry', 'inkberry', 'chokeberry']
+    .forEach(k => assert(deer(k) && rabbit(k), `${k} should be browse-resistant`));
+  // honestly browsed despite being tough shrubs
+  ['ninebark', 'redtwig', 'japanesespirea', 'bridalwreath']
+    .forEach(k => assert(!deer(k) && !rabbit(k), `${k} should NOT be browse-resistant`));
+});
+
 test('late-season role comes from a fall bloom', () => {
   assert(plantRoles('newengland').includes('late'), 'New England aster blooms late');
   assert(plantRoles('goldenrod').includes('late'), 'goldenrod blooms late');

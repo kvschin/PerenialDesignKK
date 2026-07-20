@@ -6,7 +6,7 @@ const SUNS   = ['full', 'part'];
 const MOISTS = ['dry', 'medium', 'moist'];
 const PHENS  = ['cool', 'mid', 'warm'];
 const SEASON_KEYS = ['Spring', 'Summer', 'Fall', 'Winter'];
-const COLOR_KEYS  = ['fol', 'bloom', 'seed', 'eye', 'bract', 'edge'];
+const COLOR_KEYS  = ['fol', 'bloom', 'seed', 'eye', 'bract', 'edge', 'twig'];
 const keys = Object.keys(PLANTS);
 
 test('PLANTS is a non-empty object', () => {
@@ -400,4 +400,94 @@ test('requested sun and shade catalog expansion retains distinct taxa and cultiv
   assertEqual(PLANTS.autumnGoldenrod.look.spikeStyle, 'goldenrodPanicle', 'autumn goldenrod needs an arching panicle');
   assertEqual(PLANTS.moorhexe.form, 'moorgrass', 'Moorhexe uses the compact moorgrass silhouette');
   assertEqual(PLANTS.sandlovegrass.form, 'cloudgrass', 'sand lovegrass uses the airy cloud silhouette');
+});
+
+test('landscape shrub expansion keeps botanical identity and grouping', () => {
+  const expected = {
+    ninebark:      ['Physocarpus opulifolius', true],
+    redtwig:       ['Cornus sericea', true],
+    arrowwood:     ['Viburnum dentatum', true],
+    cranberrybush: ['Viburnum opulus var. americanum', true],
+    koreanspice:   ['Viburnum carlesii', false],
+    doublefile:    ['Viburnum plicatum f. tomentosum', false],
+    blackhaw:      ['Viburnum prunifolium', true],
+    lilac:         ['Syringa vulgaris', false],
+    misskimlilac:  ["Syringa pubescens subsp. patula 'Miss Kim'", false],
+    bloomeranglilac:['Syringa \'Penda\'', false],
+    japanesespirea:['Spiraea japonica', false],
+    bridalwreath:  ['Spiraea x vanhouttei', false],
+    winterberry:   ['Ilex verticillata', true],
+    chokeberry:    ['Aronia melanocarpa', true],
+    inkberry:      ['Ilex glabra', true],
+  };
+  for (const k in expected){
+    const P = PLANTS[k];
+    assert(P, `${k}: landscape shrub is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.type, 'shrub', `${k}: must remain a shrub`);
+    assertEqual(P.native, expected[k][1],
+      `${k}: native status — the garden exotics must not be sold as North American natives`);
+  }
+  for (const k of ['arrowwood','cranberrybush','koreanspice','doublefile','blackhaw'])
+    assertEqual(PLANTS[k].group, 'viburnum', `${k}: the viburnums share one tray button`);
+  for (const k of ['lilac','misskimlilac','bloomeranglilac'])
+    assertEqual(PLANTS[k].group, 'lilac', `${k}: the lilacs share one tray button`);
+  for (const k of ['japanesespirea','bridalwreath'])
+    assertEqual(PLANTS[k].group, 'spirea', `${k}: the spireas share one tray button`);
+});
+
+/* Months -> the season slot the renderer would have to paint for that bloom to
+   show up in the garden.  Bloom Calendar columns are real calendar months. */
+const BLOOM_MONTH_SEASON = {
+  3:'Spring',  4:'Spring',  5:'Spring',
+  6:'Summer',  7:'Summer',  8:'Summer',
+  9:'Fall',   10:'Fall',   11:'Fall',
+  12:'Winter', 1:'Winter',  2:'Winter',
+};
+/* Known-stale entries that predate this contract: each lists bloom months but
+   paints its flowering as a `seed` seedhead instead of a `bloom` colour, so the
+   Bloom Calendar shows a bloom the garden never renders.  Eight of their fellow
+   grasses (switchgrass, pink muhly, molinia, ...) DO declare a bloom colour, so
+   this is inconsistency, not a grass/sedge convention.  Fix the data, then
+   delete the key from this list — do not add new keys here. */
+const BLOOM_SEASON_ALLOWLIST = new Set(['bluegrama','northernseaoats','graysedge','mountainsedge']);
+
+test('every species blooming in the calendar also blooms in a season slot', () => {
+  for (const k of keys){
+    const P = PLANTS[k];
+    if (!Array.isArray(P.bloomMonths) || !P.bloomMonths.length) continue;
+    if (BLOOM_SEASON_ALLOWLIST.has(k)) continue;
+    const want = [...new Set(P.bloomMonths.map(m => BLOOM_MONTH_SEASON[m]))];
+    const painted = want.filter(s => P.sea && P.sea[s] && P.sea[s].bloom);
+    assert(painted.length,
+      `${k}: blooms in months [${P.bloomMonths}] but no bloom colour in sea.${want.join('/')} — ` +
+      `the calendar promises a flower the garden never shows`);
+  }
+});
+
+test('winter-stem shrubs declare a twig colour', () => {
+  const hex = c => ({ r:parseInt(c.slice(1,3),16), g:parseInt(c.slice(3,5),16), b:parseInt(c.slice(5,7),16) });
+  const speciesTwig = PLANTS.redtwig.sea.Winter.twig;
+  assert(typeof speciesTwig === 'string' && speciesTwig[0] === '#',
+    'red-twig dogwood needs a winter twig colour — bare red stems are the whole reason to plant it');
+  const yellowTwig = PLANTS.redtwig.cv.flaviramea.sea.Winter.twig;
+  assert(typeof yellowTwig === 'string' && yellowTwig[0] === '#',
+    "'Flaviramea' needs its own winter twig colour");
+  assert(yellowTwig !== speciesTwig, "'Flaviramea' must not inherit the species red");
+  const sp = hex(speciesTwig), fl = hex(yellowTwig);
+  assert(fl.g - fl.b > 60, `'Flaviramea' should read yellow, not red (${yellowTwig})`);
+  assert(sp.g - sp.b < 40, `the straight species should read red, not yellow (${speciesTwig})`);
+  assert(fl.g > sp.g + 60, 'the yellow-twig should be visibly lighter-stemmed than the red-twig');
+  const ninebarkTwig = Object.values(PLANTS.ninebark.sea).map(s => s.twig).filter(Boolean);
+  assert(ninebarkTwig.length, 'ninebark needs a twig colour for its peeling winter bark');
+});
+
+test('clipped evergreen shrubs do not claim a bloom in the calendar', () => {
+  const clipped = keys.filter(k => PLANTS[k].look && PLANTS[k].look.clip);
+  assert(clipped.length >= 9, `expected the clipped evergreens, got ${clipped.length}`);
+  for (const k of ['inkberry','boxwoodround','yewlow'])
+    assert(clipped.includes(k), `${k}: should be a clipped evergreen`);
+  for (const k of clipped)
+    assert(!PLANTS[k].bloomMonths,
+      `${k}: clipped evergreens have no bloom pass in the renderer, so they must not list bloom months`);
 });
