@@ -652,10 +652,6 @@ function resumeClock(){
   game.clockSuspended=false;
   game.startTs=Date.now();
 }
-function nextSeasonName(){
-  const cal=calClock();
-  return SEASONS[(SEASONS.indexOf(cal.season)+1)%SEASONS.length];
-}
 /* the time dropdown's backdrop is pointer-transparent (see styles.css), so
    the season box keeps working while it's open — dismissal is this capture
    listener: any press outside the panel (and off the box, whose own handler
@@ -681,7 +677,6 @@ function openPause(){
     p.style.left=Math.max(8,Math.round(r.left))+'px'; }
 }
 function closePause(){
-  closeOverlay('confirmSeasonScreen',false);
   closeOverlay('pauseScreen');
   document.removeEventListener('pointerdown',pauseOutsidePress,true);
 }
@@ -690,22 +685,23 @@ function toggleClock(){
   else { pauseClock(); toast('Day paused.'); }
   updateHUD();
 }
-function closeSeasonConfirm(){ closeOverlay('confirmSeasonScreen'); }
 function skipToAbsDay(targetDay){
   const d=absDay();
   if (targetDay<=d) return;
   game.dayOffset += targetDay-d;
+  // Land exactly on the new season/year start, not partway through its first
+  // day. A garden day is only 20s, so the sub-day remainder the clock carried
+  // would otherwise burn off the instant you arrive (skip while 90% through a
+  // day and the new season's day 1 is already almost over). Bank whole days and
+  // restart the running segment from zero — correct whether paused or running.
+  const egm=elapsedGameMs(), rem=egm%DAY_MS;
+  if (rem){ game.elapsedMs=egm-rem; game.startTs=Date.now(); }
   game.dirty=true;
   if (game.mode==='solo'&&hasStorage) saveSolo(true);
 }
-function openSeasonConfirm(){
-  $('confirmSeasonTitle').textContent=`Skip to ${nextSeasonName()}?`;
-  openOverlay('confirmSeasonScreen','#btnCancelSeasonSkip');
-}
-function confirmSkipSeason(){
+function skipNextSeason(){
   const d=absDay();
   skipToAbsDay((Math.floor(d/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON);
-  closeSeasonConfirm();
   const cal=calClock();
   $('pauseMeta').textContent=clockMeta();
   toast(`${cal.season} begins.`);
