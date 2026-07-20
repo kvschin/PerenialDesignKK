@@ -444,19 +444,15 @@ const BLOOM_MONTH_SEASON = {
   9:'Fall',   10:'Fall',   11:'Fall',
   12:'Winter', 1:'Winter',  2:'Winter',
 };
-/* Known-stale entries that predate this contract: each lists bloom months but
-   paints its flowering as a `seed` seedhead instead of a `bloom` colour, so the
-   Bloom Calendar shows a bloom the garden never renders.  Eight of their fellow
-   grasses (switchgrass, pink muhly, molinia, ...) DO declare a bloom colour, so
-   this is inconsistency, not a grass/sedge convention.  Fix the data, then
-   delete the key from this list — do not add new keys here. */
-const BLOOM_SEASON_ALLOWLIST = new Set(['bluegrama','northernseaoats','graysedge','mountainsedge']);
-
+/* Every species with bloom months must paint a bloom colour in a matching
+   season, or the Bloom Calendar promises a flower the garden never renders.
+   (The four grasses/sedges that once painted only a `seed` seedhead —
+   bluegrama, northernseaoats, graysedge, mountainsedge — have since been
+   fixed, so this contract now covers the whole catalog with no exceptions.) */
 test('every species blooming in the calendar also blooms in a season slot', () => {
   for (const k of keys){
     const P = PLANTS[k];
     if (!Array.isArray(P.bloomMonths) || !P.bloomMonths.length) continue;
-    if (BLOOM_SEASON_ALLOWLIST.has(k)) continue;
     const want = [...new Set(P.bloomMonths.map(m => BLOOM_MONTH_SEASON[m]))];
     const painted = want.filter(s => P.sea && P.sea[s] && P.sea[s].bloom);
     assert(painted.length,
