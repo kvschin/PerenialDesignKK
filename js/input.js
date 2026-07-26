@@ -23,7 +23,7 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(confirmPop,e);
     return;
   }
-  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','filterScreen','planScreen','bloomScreen']
+  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){
@@ -61,6 +61,12 @@ addEventListener('keydown',e=>{
     // Space retain their native button activation.
     return;
   }
+  if (e.key==='Escape' && document.querySelector('.discovery-source-menu')){
+    e.preventDefault(); closeDiscoverySourceMenu(true); return;
+  }
+  if (e.key==='Escape' && game.catMenuOpen){
+    e.preventDefault(); game.catMenuOpen=false; buildToolTray(); return;
+  }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }
@@ -68,6 +74,9 @@ addEventListener('keydown',e=>{
   }
   if (e.key==='Escape' && game.tool==='building' && game.buildingDraft){
     cancelBuildingDraft(); toast('Building outline cancelled.'); return;
+  }
+  if (e.key==='Escape' && normalizedSheetState(game.sheetState)!=='collapsed'){
+    e.preventDefault(); setSheetState('collapsed'); return;
   }
   if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
@@ -176,7 +185,7 @@ function screenDeltaToWorld(dx,dy){
   dx/=ZOOM; dy/=ZOOM;
   return [(dx*by-dy*bx)/det,(ax*dy-ay*dx)/det];
 }
-function photoWorldPoint(e){ return worldPointAt(e.clientX/ZOOM,e.clientY/ZOOM,VW/ZOOM,VH/ZOOM,0); }
+function photoWorldPoint(e){ const p=canvasClientPoint(e); return worldPointAt(p.x/ZOOM,p.y/ZOOM,VW/ZOOM,VH/ZOOM,0); }
 function beginPhotoPointer(e){
   e.preventDefault();
   const pts=[...activePtrs.values()];

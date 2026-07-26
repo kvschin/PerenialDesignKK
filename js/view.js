@@ -2,6 +2,14 @@
 /* ---------- canvas / viewport glue ---------- */
 const cnv = document.getElementById('gameCanvas');
 const cx = cnv.getContext('2d');
+function canvasViewportRect(){
+  const r=cnv&&cnv.getBoundingClientRect ? cnv.getBoundingClientRect() : null;
+  return {left:r&&Number.isFinite(r.left)?r.left:0,top:r&&Number.isFinite(r.top)?r.top:0,
+    width:r&&r.width?r.width:VW,height:r&&r.height?r.height:VH};
+}
+function canvasClientPoint(e){
+  const r=canvasViewportRect(); return {x:e.clientX-r.left,y:e.clientY-r.top};
+}
 /* Cap the canvas backing scale at 1.5x: past that the extra pixels are
    invisible in a painterly isometric scene but every full-screen pass (sky,
    ground blit, season tint) pays for them — a 4K@2x buffer is 16.6M px.
@@ -32,11 +40,14 @@ function updateZoomPill(){
    DOM bounds only on state changes / explicit callers, never in render(). */
 function usableCanvasRect(){
   const out={left:8,top:8,right:Math.max(8,VW-8),bottom:Math.max(8,VH-8)};
+  const frame=canvasViewportRect();
   const take=(el,edge)=>{
     if (!el || el.classList.contains('hidden')) return;
     const cs=getComputedStyle(el);
     if (cs.display==='none' || cs.visibility==='hidden') return;
-    const r=el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const raw=el.getBoundingClientRect(); if (!raw.width || !raw.height) return;
+    const r={left:raw.left-frame.left,right:raw.right-frame.left,
+      top:raw.top-frame.top,bottom:raw.bottom-frame.top,width:raw.width,height:raw.height};
     if (edge==='top') out.top=Math.max(out.top,Math.min(VH-8,r.bottom+8));
     if (edge==='bottom') out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
     if (edge==='left') out.left=Math.max(out.left,Math.min(VW-8,r.right+8));
@@ -44,11 +55,15 @@ function usableCanvasRect(){
   };
   take(document.querySelector('.hud-top'),'top');
   const rail=document.getElementById('canvasTools');
-  if (rail){ const rr=rail.getBoundingClientRect(); take(rail,rr.left+rr.width/2>VW/2?'right':'left'); }
+  if (rail){ const rr=rail.getBoundingClientRect(); take(rail,rr.left-frame.left+rr.width/2>VW/2?'right':'left'); }
   const sheet=document.querySelector('.hud-bottom');
   if (sheet && !sheet.classList.contains('sheet-collapsed') && getComputedStyle(sheet).visibility!=='hidden'){
     const r=sheet.getBoundingClientRect();
-    if (r.width && r.height) out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
+    if (r.width && r.height){
+      const sideDocked=r.left>VW*.45 && r.top<VH*.3 && r.height>VH*.45;
+      if (sideDocked) out.right=Math.min(out.right,Math.max(8,r.left-8));
+      else out.bottom=Math.min(out.bottom,Math.max(8,r.top-8));
+    }
   }
   take(document.getElementById('sitePhotoEditor'),'bottom');
   if (out.right-out.left<120){ out.left=8; out.right=Math.max(8,VW-8); }
@@ -106,15 +121,17 @@ function activeCanvas(){ return document.getElementById(activeCanvasId)||cnv; }
 function sizeCanvas(c, opts){
   if (!c) return;
   const active=!!(opts&&opts.active);
-  const h=trueViewH();
+  const host=c.id==='gameCanvas'&&c.parentElement&&c.parentElement.classList.contains('canvas-stage') ? c.parentElement : null;
+  const hostRect=host&&host.getBoundingClientRect ? host.getBoundingClientRect() : null;
+  const h=Math.round(hostRect&&hostRect.height ? hostRect.height : trueViewH());
   // Clear the inline width we set last time before measuring: it wins over the
   // CSS width:100%, so leaving it on makes getBoundingClientRect() read back the
   // OLD pixel width — freezing width across resize/rotation (height escaped only
   // because it comes from trueViewH()'s fresh probe, not the rect). Cleared, the
   // rect re-resolves width:100% against the current viewport.
-  c.style.width='';
+  c.style.width=''; c.style.height='';
   const r=c.getBoundingClientRect();
-  const w=Math.round(r.width||c.clientWidth||innerWidth);
+  const w=Math.round(hostRect&&hostRect.width ? hostRect.width : (r.width||c.clientWidth||innerWidth));
   c.style.width=w+'px'; c.style.height=h+'px';
   if (active){ VW=w; VH=h; }   // the visible/active canvas owns render + pointer size
   c.width=w*DPR; c.height=h*DPR;
@@ -152,6 +169,19 @@ function resizeCanvases(){
 }
 addEventListener('resize', resizeCanvases);
 addEventListener('orientationchange', resizeCanvases);
+const canvasStage=document.getElementById('canvasStage');
+if (canvasStage && typeof ResizeObserver==='function'){
+  let canvasStageResizeFrame=0;
+  new ResizeObserver(()=>{
+    if (activeCanvasId!=='gameCanvas' || cnv.classList.contains('hidden')) return;
+    if (canvasStageResizeFrame) cancelAnimationFrame(canvasStageResizeFrame);
+    canvasStageResizeFrame=requestAnimationFrame(()=>{
+      canvasStageResizeFrame=0;
+      sizeCanvas(cnv,{active:true}); calcZoom(); updateZoomPill();
+      compassKey=''; updateCompass();
+    });
+  }).observe(canvasStage);
+}
 
 /* Cardinal direction markers sit just past the plot edge. They are not clamped
    to the viewport; when that part of the garden edge leaves the screen, the
@@ -179,6 +209,7 @@ function compassChromeStateKey(){
 function compassChromeRects(stateKey){
   if (compassChrome.key===stateKey) return compassChrome.rects;
   const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.cat-pop','.selection-actions'];
+  const frame=canvasViewportRect();
   const rects=[];
   for (const sel of sels){
     document.querySelectorAll(sel).forEach(el=>{
@@ -188,7 +219,8 @@ function compassChromeRects(stateKey){
       const r=el.getBoundingClientRect&&el.getBoundingClientRect();
       if (!r || r.width<=0 || r.height<=0) return;
       const pad=sel==='.hud-top'||sel==='.hud-bottom' ? 22 : 18;
-      rects.push({left:r.left-pad,top:r.top-pad,right:r.right+pad,bottom:r.bottom+pad});
+      rects.push({left:r.left-frame.left-pad,top:r.top-frame.top-pad,
+        right:r.right-frame.left+pad,bottom:r.bottom-frame.top+pad});
     });
   }
   compassChrome={key:stateKey,rects};

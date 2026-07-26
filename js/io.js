@@ -55,6 +55,7 @@ async function saveSolo(silent){
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
+    discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
     gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
@@ -96,6 +97,10 @@ async function loadSolo(id){
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   game.gameMode = s.mode==='design' ? 'design' : 'story';
   game.design = s.design || null;
+  // Old saves predate discovery lenses.  Garden criteria is still the source
+  // of truth; the global filters value only supplies compatibility/defaults.
+  if (game.design && typeof normalizeFilters==='function') game.filters=normalizeFilters(game.design);
+  game.discovery=typeof normalizeDiscovery==='function' ? normalizeDiscovery(s.discovery) : (s.discovery||game.discovery);
   game.previewMode = s.previewMode || (game.gameMode==='design' ? 'established' : 'today');
   game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
   game.layerVis = normalizeLayerVis(s.layerVis);
@@ -977,4 +982,3 @@ function downloadPlan(){
     a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
   },'image/png');
 }
-

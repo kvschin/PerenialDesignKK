@@ -123,7 +123,7 @@ if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: fa
 currentFile = 'game.test.js';
 const GAME_MODULES = [
   'core.js','draw.js','world.js','view.js','renderer.js','commands.js','input.js',
-  'io.js','ui.js','tray.js','library.js','screens.js'
+  'io.js','collections.js','ui.js','tray.js','library.js','screens.js'
 ];
 r = runTier('game', [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f)), read('tests/game.test.js')], true);
 if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });

@@ -169,6 +169,11 @@ const game = {
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
   filters:{zone:null, nativesOnly:false, deer:false, rabbit:false, squirrel:false}, // palette filters, persisted
+  // Garden rules above stay separate from these reversible catalog lenses.
+  // `source` is recommended | all | favorites | palette; a palette id only
+  // matters when source==='palette'.  The rest restores per-garden browsing
+  // context without ever changing what is legal to plant in that garden.
+  discovery:{source:'recommended', collectionId:null, category:null, returnCategory:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36, filterOpen:false},
   others:{},          // multiplayer presence
   pausedAt:0,
   lastDay:-1, dirty:false,

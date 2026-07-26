@@ -15,6 +15,7 @@ function setup(gw, gh){
   game.bedStyle = 'soil';
   game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
   game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.discovery = defaultDiscovery();
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
@@ -259,6 +260,232 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
+test('plant discovery resolves exact cultivars and applies flower filters after garden eligibility', () => {
+  setup();
+  const cultivar = allPlantRefs().find(ref => ref.v && DISCOVERY_SEASONS.some(([season]) =>
+    flowerFamiliesFor(refDef(ref), season).length));
+  assert(cultivar && cultivar.v, 'the catalog has a cultivar with a classified flower color');
+  const P = refDef(cultivar);
+  const [season] = DISCOVERY_SEASONS.find(([s]) => flowerFamiliesFor(P, s).length);
+  const color = flowerFamiliesFor(P, season)[0];
+  assert(allPlantRefs().some(ref => ref.s === cultivar.s && ref.v === cultivar.v),
+    'the catalog exposes an exact species + cultivar reference');
+  game.discovery = normalizeDiscovery({ source: 'all', bloomSeasons: [season], colorFamilies: [color] });
+  const results = discoveryRefs();
+  assert(results.some(ref => ref.s === cultivar.s && ref.v === cultivar.v),
+    'a cultivar is discoverable through its resolved seasonal flower color');
+  assert(results.every(ref => discoveryMatches(ref, activeDiscovery())),
+    'every discovery result satisfies the same composed predicate');
+});
+
+test('the catalog routes plant and landscape categories from the target category, not the prior view', () => {
+  setup();
+  assertEqual(trayGroupOf('sunper'), 'plants', 'a plant category stays in the Plants catalog');
+  assertEqual(trayGroupOf('landscape'), 'build', 'Landscape is a separate catalog mode');
+  assertEqual(trayGroupOf('structures'), 'build', 'Hardscape is a Landscape catalog category');
+  const targetIsPlants = trayGroupOf('landscape') === 'plants';
+  assertEqual(targetIsPlants, false, 'Plants-to-Landscape selection does not apply a plant discovery category');
+});
+
+test('the unified dock renders both plant discovery and landscape tool catalogs', () => {
+  setup();
+  game.trayCat = 'sunper'; game.tool = 'hand';
+  buildToolTray();
+  assertEqual(trayGroupOf(game.trayCat), 'plants', 'plant discovery dock renders from a plant category');
+  game.trayCat = 'landscape'; game.tool = 'hand';
+  buildToolTray();
+  assertEqual(trayGroupOf(game.trayCat), 'build', 'landscape tool dock renders from a landscape category');
+});
+
+test('plant catalog controls keep search directly below the mode switch', () => {
+  setup();
+  const tabs = document.createElement('div');
+  renderDiscoveryControls(tabs, () => {
+    const mode = document.createElement('div');
+    mode.className = 'catalog-mode';
+    return mode;
+  });
+  const controls = tabs.children[0];
+  assertEqual(controls.children[0].className, 'catalog-mode', 'Plants / Landscape remains first');
+  assertEqual(controls.children[1].id, 'trayFind', 'plant search immediately follows the mode switch');
+  assertEqual(controls.children[2].className, 'discovery-source-wrap', 'plant lists follow search');
+  const filterRow = controls.children[3];
+  assertEqual(filterRow.className, 'discovery-filter-row', 'filters remain after the source picker');
+  assert(!filterRow.children.some(child => child.className === 'discovery-eligibility'),
+    'the redundant eligibility status is not rendered');
+});
+
+test('plant category drag scrolling follows the pointer without changing selection', () => {
+  assertEqual(categoryDragScrollLeft(120, 200, 150), 170, 'dragging left reveals categories to the right');
+  assertEqual(categoryDragScrollLeft(120, 200, 250), 70, 'dragging right reveals categories to the left');
+});
+
+test('landscape search spans every landscape category', () => {
+  setup();
+  assert(landscapeSearchItems('pond').some(item => item.tool === 'water'), 'water vocabulary finds the Water tool');
+  assert(landscapeSearchItems('wall').some(item => item.tool === 'building'), 'site vocabulary finds Building Footprint');
+  assert(landscapeSearchItems('gate').some(item => item.tool === 'fence'), 'hardscape vocabulary finds Fence / Gate');
+  assertEqual(landscapeSearchItems('').length, 0, 'an empty query keeps the current landscape category visible');
+});
+
+test('applying garden criteria leaves the discovery lens intact', () => {
+  setup();
+  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.discovery = normalizeDiscovery({ source: 'all', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'] });
+  applyGardenCriteria({ zone: 7, nativesOnly: true, deer: true, rabbit: false, squirrel: false }, { refresh: false, announce: false });
+  assertEqual(game.filters.zone, 7, 'the garden criterion updates');
+  assert(game.filters.nativesOnly && game.filters.deer, 'the requested eligibility toggles update');
+  assertEqual(game.design.zone, 7, 'the saved garden design keeps the changed zone');
+  assertEqual(game.discovery.query, 'aster', 'the discovery query survives a criteria change');
+  assertEqual(game.discovery.bloomSeasons[0], 'Fall', 'the discovery bloom lens remains independent');
+});
+
+test('the fixed setup zone stays out of discovery filter summaries', () => {
+  setup();
+  game.filters = normalizeFilters({ zone: 6, nativesOnly: true, deer: false, rabbit: false, squirrel: false });
+  game.discovery = normalizeDiscovery({ colorFamilies: ['pink'], bloomSeasons: [] });
+  const labels = discoveryCriteriaLabels();
+  assert(!labels.some(label => /^Zone/.test(label)), 'the setup zone is not repeated in the in-garden catalog');
+  assert(labels.includes('Native'), 'an active garden criterion still has a concise summary label');
+  assertEqual(discoveryFilterCount(), 2, 'the filter badge counts the visible criterion and flower lens, not zone');
+});
+
+test('a named palette has a stable plant-list dropdown value', () => {
+  setup();
+  const palette = createPlantPalette('Dropdown regression');
+  game.discovery = normalizeDiscovery({ source: 'palette', collectionId: palette.id });
+  assertEqual(discoverySourceValue(), `palette:${palette.id}`, 'named palettes round-trip through the source selector');
+  assert(deletePlantPalette(palette.id), 'the temporary palette can be removed');
+});
+
+test('saved plant lists open to All instead of inheriting a category', () => {
+  setup();
+  game.trayCat = 'grasses';
+  const current = normalizeDiscovery({ source: 'all', category: 'grasses' });
+  const favorites = discoverySourceSelection('favorites', null, current);
+  const palette = discoverySourceSelection('palette', 'test-palette', current);
+  assertEqual(favorites.category, null, 'Favorites clears the prior plant category');
+  assertEqual(palette.category, null, 'a named palette clears the prior plant category');
+  assertEqual(palette.collectionId, 'test-palette', 'the named palette id remains exact');
+  const backToCatalog = discoverySourceSelection('all', null, normalizeDiscovery(favorites));
+  assertEqual(backToCatalog.category, 'grasses', 'ordinary catalog sources restore the concrete browsing category');
+});
+
+test('Find searches every plant category and clearing restores the browse category', () => {
+  setup();
+  game.trayCat = 'grasses';
+  const current = normalizeDiscovery({ source: 'all', category: 'grasses' });
+  const searching = discoverySearchSelection(current, 'Daffodil');
+  assertEqual(searching.category, null, 'a non-empty query is not trapped in the visible plant category');
+  assertEqual(searching.returnCategory, 'grasses', 'Find remembers the category it temporarily replaced');
+  const matches = discoveryRefsFor(normalizeDiscovery(Object.assign({}, current, searching)));
+  assert(matches.some(ref => refDef(ref).type === 'bulb'), 'the global Find query reaches matching bulbs from Grasses');
+  game.trayCat = 'bulbs'; // device-global tray state can differ after another garden is loaded
+  const reloaded = normalizeDiscovery(Object.assign({}, current, searching));
+  const cleared = discoverySearchSelection(reloaded, '');
+  assertEqual(cleared.category, 'grasses', 'clearing Find returns to the prior browse category');
+  assertEqual(plantTrayCategoryId(normalizeDiscovery(Object.assign({}, reloaded, cleared)), game.trayCat), 'grasses',
+    'the face-up category follows the restored per-garden category, not device-global tray state');
+  const migrated = normalizeDiscovery({ source: 'all', category: 'bulbs', query: 'Daffodil' });
+  assertEqual(migrated.category, null, 'a legacy saved query migrates to global search');
+  assertEqual(migrated.returnCategory, 'bulbs', 'the legacy category becomes its saved return category');
+});
+
+test('a named palette All view spans its saved plant categories', () => {
+  setup();
+  const grass = allPlantRefs().find(ref => !ref.v && refDef(ref).type === 'grass');
+  const bulb = allPlantRefs().find(ref => !ref.v && refDef(ref).type === 'bulb');
+  const palette = createPlantPalette('All categories regression', [grass, bulb]);
+  game.discovery = normalizeDiscovery({ source: 'palette', collectionId: palette.id, category: null });
+  const refs = discoveryRefs();
+  assert(refs.some(ref => ref.s === grass.s), 'the palette All view includes its grass');
+  assert(refs.some(ref => ref.s === bulb.s), 'the palette All view includes its bulb');
+  const data = discoveryCollectionCategoryData();
+  assert(data.counts.grasses > 0 && data.counts.bulbs > 0, 'optional category facets count both saved categories');
+  assert(deletePlantPalette(palette.id), 'the temporary palette can be removed');
+});
+
+test('catalog grouping collapses cultivars without losing exact references', () => {
+  setup();
+  const species = PLANT_KEYS.find(s => Object.keys(PLANTS[s].cv || {}).length >= 2);
+  const exact = allPlantRefs().filter(ref => ref.s === species);
+  const groups = groupDiscoveryRefs(exact);
+  assertEqual(groups.length, 1, 'one species and its cultivars render as one catalog family');
+  assertEqual(groups[0].refs.length, exact.length, 'the family retains every exact choice');
+  assert(groups[0].baseRef && !groups[0].baseRef.v, 'the straight species remains available');
+  assertEqual(groups[0].cultivarRefs.length, exact.length - 1, 'cultivars remain exact drill-in choices');
+  const cultivar = exact.find(ref => ref.v);
+  assert(/1 variety/.test(discoveryResultCountText([cultivar])), 'a cultivar-only result still reports one variety');
+  const matches = discoveryRefsFor(normalizeDiscovery({ source: 'all', query: cultivar.v }));
+  const matchGroups = groupDiscoveryRefs(matches);
+  assert(matchGroups.some(group => group.refs.some(ref => ref.s === cultivar.s && ref.v === cultivar.v)),
+    'an exact cultivar search still surfaces its exact reference');
+});
+
+test('the active discovery card tracks the exact selected cultivar', () => {
+  setup();
+  const cultivar = allPlantRefs().find(ref => ref.v);
+  assert(cultivar && cultivar.v, 'a cultivar fixture exists');
+  game.tool = cultivar.s; game.toolVar = cultivar.v;
+  assert(activePlantRef(cultivar), 'the exact selected cultivar receives the active-card treatment');
+  assert(!activePlantRef({ s: cultivar.s, v: null }), 'the base species is not mistaken for its selected cultivar');
+});
+
+test('flower color discovery never infers bloom time from foliage or plan color', () => {
+  const faux = { bloomMonths: [6], planColor: '#d77c9e', sea: {
+    Spring: { bloom: '#d77c9e' }, Summer: { fol: '#d77c9e' }, Fall: {}, Winter: {}
+  }};
+  assertEqual(flowerFamiliesFor(faux, 'Spring').length, 0,
+    'a renderer bloom outside authored bloom months cannot appear in the spring filter');
+  assertEqual(flowerFamiliesFor(faux, 'Summer').length, 0,
+    'foliage or plan color does not masquerade as a summer flower color');
+});
+
+test('favorites and named palettes preserve exact cultivar references', () => {
+  setup();
+  const cultivar = allPlantRefs().find(ref => ref.v);
+  assert(cultivar && cultivar.v, 'a cultivar exists for the collection contract');
+  const originallyFavorite = isFavorite(cultivar);
+  if (originallyFavorite) toggleFavorite(cultivar);
+  assert(toggleFavorite(cultivar), 'adding a cultivar to Favorites reports the new saved state');
+  assert(favoriteRefs().some(ref => ref.s === cultivar.s && ref.v === cultivar.v),
+    'Favorites retain both species and cultivar keys');
+  const palette = createPlantPalette('Regression palette', [cultivar]);
+  assert(palette && paletteRefs(palette.id).some(ref => ref.s === cultivar.s && ref.v === cultivar.v),
+    'a named palette stores the same exact cultivar reference');
+  assert(!addPaletteRef(palette.id, cultivar), 'a palette does not duplicate an exact reference');
+  const migrated = normalizePlantCollections({ favorites: [{ s: 'retired-species', v: 'old-form' }] });
+  assertEqual(migrated.favorites[0].s, 'retired-species', 'unresolved saved references survive collection normalization');
+  assertEqual(refDef({ s: cultivar.s, v: 'retired-form' }), null,
+    'a retired cultivar cannot silently resolve and plant as its base species');
+  assert(deletePlantPalette(palette.id), 'the named palette can be removed');
+  toggleFavorite(cultivar);
+  if (originallyFavorite) toggleFavorite(cultivar);
+});
+
+test('saved lists retain unavailable plants and expose them for removal', () => {
+  setup();
+  const outsideZone = allPlantRefs().find(ref => !ref.v && refDef(ref).zones[0] > 3);
+  assert(outsideZone, 'an out-of-zone plant fixture exists');
+  game.filters = normalizeFilters({ zone: 3 });
+  const originallyFavorite = isFavorite(outsideZone);
+  if (originallyFavorite) toggleFavorite(outsideZone);
+  toggleFavorite(outsideZone);
+  const palette = createPlantPalette('Unavailable regression', [outsideZone, { s: 'retired-species', v: null }]);
+  const unavailableFavorites = unavailableSavedRefs(favoriteRefs());
+  const unavailablePalette = unavailableSavedRefs(paletteRefs(palette.id));
+  assert(unavailableFavorites.some(ref => plantRefId(ref) === plantRefId(outsideZone)),
+    'an ineligible Favorite remains available to the manager');
+  assertEqual(unavailablePalette.length, 2, 'the manager receives garden-ineligible and retired palette entries');
+  assert(/Zone 3/.test(savedRefAvailabilityReason(outsideZone)), 'the manager explains the active-zone mismatch');
+  assertEqual(savedRefAvailabilityReason({ s: 'retired-species', v: null }), 'Retired plant',
+    'the manager labels an unresolved saved reference');
+  toggleFavorite(outsideZone);
+  assert(!isFavorite(outsideZone), 'the unavailable Favorite can be removed');
+  assert(deletePlantPalette(palette.id), 'the temporary palette can be removed');
+  if (originallyFavorite) toggleFavorite(outsideZone);
+});
+
 test('bloom calendar rows use real-world bloom months from planted species', () => {
   setup();
   setTile('plants', '5,5', { s: 'echinacea', d: 0, t: 1 });
@@ -471,21 +698,36 @@ test('tool guidance explains the next canvas action', () => {
 });
 
 test('mobile sheet supports collapsed, half, and full recovery states', () => {
+  const oldMatchMedia=matchMedia;
+  try {
+    matchMedia=q=>({matches:q.includes('max-width:767px'),addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+    setup(21, 21);
+    setSheetState('collapsed');
+    assertEqual(game.sheetState, 'collapsed', 'sheet collapses');
+    cycleSheetState();
+    assertEqual(game.sheetState, 'half', 'handle activation restores the working sheet');
+    cycleSheetState();
+    assertEqual(game.sheetState, 'full', 'second handle activation exposes the full catalog');
+    cycleSheetState();
+    assertEqual(game.sheetState, 'collapsed', 'third handle activation clears the canvas');
+    nudgeSheetState(1);
+    assertEqual(game.sheetState, 'half', 'upward nudge restores the working sheet');
+    nudgeSheetState(1);
+    assertEqual(game.sheetState, 'full', 'second upward nudge opens the full catalog');
+    nudgeSheetState(-1);
+    assertEqual(game.sheetState, 'half', 'downward nudge returns to half');
+  } finally { matchMedia=oldMatchMedia; }
+});
+
+test('desktop catalog moves directly between expanded and compact states', () => {
   setup(21, 21);
   setSheetState('collapsed');
-  assertEqual(game.sheetState, 'collapsed', 'sheet collapses');
-  cycleSheetState();
-  assertEqual(game.sheetState, 'half', 'handle activation restores the working sheet');
-  cycleSheetState();
-  assertEqual(game.sheetState, 'full', 'second handle activation exposes the full catalog');
-  cycleSheetState();
-  assertEqual(game.sheetState, 'collapsed', 'third handle activation clears the canvas');
-  nudgeSheetState(1);
-  assertEqual(game.sheetState, 'half', 'upward nudge restores the working sheet');
-  nudgeSheetState(1);
-  assertEqual(game.sheetState, 'full', 'second upward nudge opens the full catalog');
-  nudgeSheetState(-1);
-  assertEqual(game.sheetState, 'half', 'downward nudge returns to half');
+  nudgeCatalogHandle(1);
+  assertEqual(game.sheetState, 'full', 'reopen returns directly to the full catalog');
+  nudgeCatalogHandle(-1);
+  assertEqual(game.sheetState, 'collapsed', 'minimize returns directly to the compact bar');
+  setSheetState('half');
+  assertEqual(game.sheetState, 'full', 'legacy desktop half state normalizes to expanded');
 });
 
 test('mobile canvas recovery avoids visible editing chrome', () => {
@@ -508,6 +750,25 @@ test('mobile canvas recovery avoids visible editing chrome', () => {
     assertEqual(rightSafe.right,326,'right-side rail is reserved by shared canvas bounds');
     sheet.classList.add('sheet-collapsed');
     assertEqual(usableCanvasRect().bottom,836,'collapsed palette gives the canvas its height back');
+  } finally {
+    VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
+  }
+});
+
+test('desktop canvas recovery reserves the Organic side library', () => {
+  const oldVW=VW, oldVH=VH, oldQuery=document.querySelector, oldGet=document.getElementById;
+  const top=document.createElement('div'), tools=document.createElement('div'), sheet=document.createElement('div');
+  top.getBoundingClientRect=()=>({left:20,top:20,right:820,bottom:76,width:800,height:56});
+  tools.getBoundingClientRect=()=>({left:12,top:110,right:70,bottom:470,width:58,height:360});
+  sheet.getBoundingClientRect=()=>({left:878,top:20,right:1260,bottom:880,width:382,height:860});
+  try {
+    VW=1280; VH=900;
+    document.querySelector=sel=>sel==='.hud-top'?top:sel==='.hud-bottom'?sheet:oldQuery.call(document,sel);
+    document.getElementById=id=>id==='canvasTools'?tools:oldGet.call(document,id);
+    const safe=usableCanvasRect();
+    assertEqual(safe.left,78,'left tool rail remains reserved');
+    assertEqual(safe.right,870,'right library is reserved from the canvas workspace');
+    assertEqual(safe.bottom,892,'side library does not consume canvas height');
   } finally {
     VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
   }
@@ -2409,6 +2670,21 @@ test('a save blob without plotShape loads as a full rectangle', () => {
   setPlotShape(legacyBlob.plotShape || null);
   assertEqual(game.plotShape, null, 'a blob with no plotShape field loads as the full rectangle');
   assert(onPlot(0, 0) && onPlot(20, 20), 'every corner is on-plot with no shape');
+});
+
+test('save blobs preserve a garden’s discovery lens without changing its eligibility rules', () => {
+  setup(21, 21);
+  game.mode = 'solo'; game.worldId = 'test-discovery-roundtrip';
+  game.filters = normalizeFilters({ zone: 6, nativesOnly: true });
+  game.design = { zone: 6, type: 'any', nativesOnly: true, deer: false, rabbit: false, squirrel: false };
+  game.discovery = normalizeDiscovery({ source: 'favorites', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'], limit: 72 });
+  saveSolo(true);
+  const blob = JSON.parse(localStorage.getItem('hortus:world:test-discovery-roundtrip'));
+  assertEqual(blob.design.zone, 6, 'the hard garden zone stays in the save payload');
+  assertEqual(blob.discovery.source, 'favorites', 'the soft catalog source saves separately');
+  assertEqual(blob.discovery.query, 'aster', 'the catalog query round-trips');
+  assertEqual(blob.discovery.colorFamilies[0], 'purple', 'flower-color lens round-trips');
+  assertEqual(blob.discovery.bloomSeasons[0], 'Fall', 'bloom-season lens round-trips');
 });
 
 /* ---------- plot shape rendering (Phase B) ---------- */

@@ -26,6 +26,7 @@
   <symbol id="ui-chevron-down" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
   <symbol id="ui-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
   <symbol id="ui-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ui-heart" viewBox="0 0 24 24"><path d="M20.8 8.4c0 5-8.8 10.1-8.8 10.1S3.2 13.4 3.2 8.4A4.7 4.7 0 0 1 12 6a4.7 4.7 0 0 1 8.8 2.4Z"/></symbol>
   <symbol id="ui-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
   <symbol id="ui-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
   <symbol id="ui-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
@@ -34,7 +35,6 @@
 </svg>
 
 <canvas id="menuCanvas"></canvas>
-<canvas id="gameCanvas" class="hidden"></canvas>
 
 <!-- MAIN MENU -->
 <div class="screen" id="menuScreen">
@@ -186,6 +186,8 @@
       <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
   </div>
+  <main id="canvasStage" class="canvas-stage">
+  <canvas id="gameCanvas" class="hidden"></canvas>
   <div id="compassEdges" aria-hidden="true" title="Garden directions">
     <span class="compass-edge-label" data-dir="N"><i></i><b>N</b></span>
     <span class="compass-edge-label" data-dir="E"><i></i><b>E</b></span>
@@ -206,6 +208,10 @@
     <span id="coachTipText" role="status" aria-live="polite"></span>
     <button id="coachTipClose" type="button" aria-label="Dismiss tip"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
   </div>
+  <button id="btnLibraryLauncher" class="library-launcher" type="button" aria-label="Open plant library" onclick="setSheetState('full')">
+    <svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span>Plant library</span>
+  </button>
+  </main>
   <div class="hud-bottom">
     <div id="sheetHandle" role="group" aria-label="Plant palette height" data-state="half">
       <span class="grip-bar" aria-hidden="true"></span><canvas id="sheetSwatch" width="30" height="26" aria-hidden="true"></canvas><span class="sheet-ctx" id="sheetCtx"></span>
@@ -216,12 +222,19 @@
     </div>
     <button id="btnAct" class="hidden">Plant here</button>
     <div id="actionHint" class="hidden"></div>
-    <div id="brushBar" class="hidden"></div>
     <div id="sheetCatalog">
+      <header id="catalogHeader" class="catalog-header">
+        <div class="catalog-heading-copy">
+          <h2 id="catalogTitle">Plant library</h2>
+          <p id="catalogMeta" aria-live="polite">Browse plants for this garden</p>
+        </div>
+        <button id="btnCatalogClose" class="catalog-close" type="button" title="Minimize the library" aria-label="Minimize the plant library and show more of the plan" aria-controls="sheetCatalog"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+      </header>
       <div id="cvRow" class="chip-row hidden"></div>
       <div id="trayTabs"></div>
       <div id="toolTray"></div>
     </div>
+    <div id="brushBar" class="hidden"></div>
   </div>
   <aside id="sitePhotoEditor" class="site-photo-editor hidden" role="region" aria-labelledby="sitePhotoEditorTitle">
     <div class="site-photo-editor-head">
@@ -409,6 +422,11 @@
       <div class="chip-row" id="dgnConstraints"></div>
     </div>
     <p class="palette-count" id="dgnCount"></p>
+    <div class="field design-start-field">
+      <label>Start with</label>
+      <div id="dgnStartPalette" class="design-start-palette"></div>
+      <p class="field-hint">This picks your first plant view. You can browse every eligible plant later.</p>
+    </div>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="btnDesignNext">Next: size the plot</button>
     </div>
@@ -417,24 +435,37 @@
 </div>
 
 <!-- PLANT FILTERS -->
-<div class="screen modal-screen hidden" id="filterScreen" role="dialog" aria-modal="true" aria-labelledby="filterTitle">
-  <div class="panel" tabindex="-1">
-    <h2 id="filterTitle">Plant filters</h2>
-    <p class="sub">Tune the palette without changing the garden. Zone keeps plants winter-hardy; the toggles narrow what appears in the tray.</p>
-    <div class="field">
-      <label for="filterZoneSel">USDA hardiness zone</label>
-      <select id="filterZoneSel"></select>
+<div class="screen modal-screen hidden" id="discoveryFilterScreen" role="dialog" aria-modal="true" aria-labelledby="discoveryFilterTitle">
+  <div class="panel discovery-filter-panel" tabindex="-1">
+    <h2 id="discoveryFilterTitle">Plant filters</h2>
+    <p class="sub">Garden criteria decide what can be planted. Flower filters narrow the view without changing that eligibility.</p>
+    <div class="field discovery-criteria">
+      <label>Garden criteria</label>
+      <div class="discovery-criteria-checks">
+        <label class="check-row"><input type="checkbox" id="discoveryNative"> Native plants only</label>
+        <label class="check-row"><input type="checkbox" id="discoveryDeer"> Deer resistant</label>
+        <label class="check-row"><input type="checkbox" id="discoveryRabbit"> Rabbit resistant</label>
+        <label class="check-row"><input type="checkbox" id="discoverySquirrel"> Squirrel resistant bulbs</label>
+      </div>
     </div>
-    <div class="field">
-      <label class="check-row"><input type="checkbox" id="filterNative"> Native plants only</label>
-      <label class="check-row"><input type="checkbox" id="filterDeer"> Deer resistant</label>
-      <label class="check-row"><input type="checkbox" id="filterRabbit"> Rabbit resistant</label>
-      <label class="check-row"><input type="checkbox" id="filterSquirrel"> Squirrel resistant bulbs</label>
-    </div>
+    <div class="field"><label>Flower color</label><div id="discoveryColorChips" class="chip-row chip-grid" role="group" aria-label="Flower colors"></div></div>
+    <div class="field"><label>Blooms in</label><div id="discoverySeasonChips" class="chip-row" role="group" aria-label="Bloom seasons"></div></div>
+    <p class="palette-count" id="discoveryFilterCount" aria-live="polite"></p>
     <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnFiltersApply">Apply</button>
+      <button class="btn" id="btnDiscoveryClear" type="button">Clear flower filters</button>
+      <button class="btn primary" id="btnDiscoveryApply" type="button">Apply filters</button>
     </div>
-    <button class="back-link" id="btnFiltersClose">Back to the garden</button>
+    <button class="back-link" id="btnDiscoveryClose" type="button">Back to plants</button>
+  </div>
+</div>
+
+<!-- FAVORITES + PALETTES -->
+<div class="screen modal-screen hidden" id="paletteScreen" role="dialog" aria-modal="true" aria-labelledby="paletteTitle">
+  <div class="panel palette-manager-panel" tabindex="-1">
+    <div class="palette-manager-head"><div><h2 id="paletteTitle">Plant palettes</h2><p class="sub" id="paletteSubtitle">Favorites and palettes stay on this device and work in every garden.</p></div></div>
+    <div id="paletteList" class="palette-list"></div>
+    <div class="palette-create"><label for="paletteName">New palette</label><div class="row"><input id="paletteName" maxlength="30" placeholder="e.g. Front border" autocomplete="off"><button class="btn" id="btnPaletteCreate" type="button">Create</button></div></div>
+    <button class="back-link" id="btnPaletteClose" type="button">Back to plants</button>
   </div>
 </div>
 
@@ -541,6 +572,7 @@
 <script src="js/commands.js"></script>
 <script src="js/input.js"></script>
 <script src="js/io.js"></script>
+<script src="js/collections.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/tray.js"></script>
 <script src="js/library.js"></script>

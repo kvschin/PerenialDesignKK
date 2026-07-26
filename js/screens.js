@@ -204,7 +204,7 @@ function worldSaveMeta(s){
   return {plants, season};
 }
 function startNewGarden(mode){
-  if (mode==='design'){ pendingMode='design'; openDesignSetup(); }
+  if (mode==='design'){ pendingMode='design'; game.discovery=defaultDiscovery(); openDesignSetup(); }
   else { pendingMode='story'; openCreator(); }
 }
 async function openWorlds(filter){
@@ -816,12 +816,13 @@ const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'
 function openDesignSetup(){
   const d=game.design||{};
   const sel={zone:d.zone||6, type:d.type||'any',
-    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false};
+    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
+    startSource:activeDiscovery().source, startPaletteId:activeDiscovery().collectionId};
   const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
     b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
     b.textContent=label; b.onclick=fn; return b; };
   const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
-    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle');
+    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette');
   const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone);  // replant the backdrop to match
   function updateReadout(){
     $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
@@ -830,6 +831,7 @@ function openDesignSetup(){
   function updateCount(){
     const n=paletteCount(sel);
     $('dgnCount').innerHTML=`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
+    renderStartPalette();
   }
   function setZone(z){
     sel.zone=Math.max(3,Math.min(9,z));
@@ -849,6 +851,7 @@ function openDesignSetup(){
   function renderType(){ typeEl.innerHTML='';
     GARDEN_TYPES.forEach(([id,label])=>typeEl.appendChild(mkChip(label,sel.type===id,()=>{
       sel.type=id; renderType(); syncMeadow();
+      renderStartPalette();
       $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
     $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===sel.type)||[])[2]||'';
   }
@@ -858,10 +861,19 @@ function openDesignSetup(){
     t('Natives only','nativesOnly'); t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
     t('Squirrel resistant bulbs','squirrel');
   }
+  function selectionCount(refs){ return (refs||[]).filter(ref=>plantRefFitsCriteria(ref,sel)).length; }
+  function startChoice(label,source,id,meta){ const b=document.createElement('button'); b.type='button';
+    b.className='design-start-choice'+(sel.startSource===source&&sel.startPaletteId===(id||null)?' sel':'');
+    const title=document.createElement('b'); title.textContent=label; const small=document.createElement('small'); small.textContent=meta; b.append(title,small);
+    b.onclick=()=>{ sel.startSource=source; sel.startPaletteId=source==='palette'?id:null; renderStartPalette(); }; startEl.appendChild(b); }
+  function renderStartPalette(){ if (!startEl) return; startEl.innerHTML='';
+    startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,`${paletteCount(sel)} plants available`);
+    const favs=favoriteRefs(), available=selectionCount(favs); startChoice('Favorites','favorites',null,`${available} available / ${favs.length} saved`);
+    const data=plantCollectionsData(); (data.palettes||[]).forEach(p=>{ const available=selectionCount(p.items); startChoice(p.name,'palette',p.id,`${available} available / ${p.items.length} saved`); }); }
   const zipEl=$('dgnZip'); zipEl.value='';
   zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
   zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
-  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderConstraints();
+  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderConstraints(); renderStartPalette();
   updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
@@ -870,6 +882,7 @@ function openDesignSetup(){
     // tune the live palette: filters apply, style ranks the tray
     game.filters=normalizeFilters({zone:sel.zone, nativesOnly:sel.nativesOnly,
       deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel});
+    game.discovery=normalizeDiscovery({source:sel.startSource,collectionId:sel.startPaletteId,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36});
     sSet('hortus:filters',game.filters); updateFilterBtn();
     openPlotScreen();
   };
@@ -884,7 +897,7 @@ function quitToMenu(){
   game.mode=null; game.pausedAt=0; game.clockSuspended=false;
   game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
   document.body.classList.remove('design-mode');
-  closeOverlay('exportScreen',false); closeOverlay('filterScreen',false);
+  closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);
   closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
   closeOverlay('pauseScreen',false);
   closeOverlay('gardenMenu',false);
@@ -988,8 +1001,12 @@ $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();
 $('btnCsv').onclick=exportCsv;
 $('btnFilters').onclick=()=>{ closeOverlay('gardenMenu'); openFilters(); };
-$('btnFiltersApply').onclick=applyFilters;
-$('btnFiltersClose').onclick=()=>closeOverlay('filterScreen');
+if ($('btnDiscoveryApply')) $('btnDiscoveryApply').onclick=applyDiscoveryFilters;
+if ($('btnDiscoveryClear')) $('btnDiscoveryClear').onclick=clearDiscoveryFilters;
+if ($('btnDiscoveryClose')) $('btnDiscoveryClose').onclick=()=>{ discoveryFilterDraft=null; discoveryCriteriaDraft=null; closeOverlay('discoveryFilterScreen'); };
+if ($('btnPaletteClose')) $('btnPaletteClose').onclick=()=>{ palettePendingRef=null; paletteRenameId=null; closeOverlay('paletteScreen'); };
+if ($('btnPaletteCreate')) $('btnPaletteCreate').onclick=createPaletteFromInput;
+if ($('paletteName')) $('paletteName').onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); createPaletteFromInput(); } };
 if ($('btnRotate')) $('btnRotate').onclick=()=>rotateView(1);
 $('btnPhoto').onclick=()=>{ closeOverlay('gardenMenu'); takePhoto(); };
 $('btnPlan').onclick=()=>{ closeOverlay('gardenMenu'); openPlan(); };
@@ -1002,6 +1019,7 @@ $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.89);
 if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
 if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
+if ($('btnCatalogClose')) $('btnCatalogClose').onclick=()=>setSheetState('collapsed');
 (function wireSheetHandle(){
   const h=$('sheetHandle'); if (!h) return;
   const down=$('btnSheetDown'), up=$('btnSheetUp');
@@ -1021,13 +1039,13 @@ if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
     const dy=e.clientY-drag.y, moved=drag.moved;
     drag=null;
     h.classList.remove('dragging');
-    if (moved && Math.abs(dy)>28) nudgeSheetState(dy<0?1:-1);
-    else nudgeSheetState(normalizedSheetState(game.sheetState)==='collapsed'?1:-1);
+    if (moved && Math.abs(dy)>28) nudgeCatalogHandle(dy<0?1:-1);
+    else nudgeCatalogHandle(normalizedSheetState(game.sheetState)==='collapsed'?1:-1);
   };
   h.addEventListener('pointerup',finish);
   h.addEventListener('pointercancel',()=>{ drag=null; h.classList.remove('dragging'); });
-  if (down) down.onclick=e=>{ e.stopPropagation(); nudgeSheetState(-1); };
-  if (up) up.onclick=e=>{ e.stopPropagation(); nudgeSheetState(1); };
+  if (down) down.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(-1); };
+  if (up) up.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(1); };
 })();
 
 /* ---------- menu background: a living meadow ---------- */
@@ -1343,6 +1361,7 @@ function loop(t){
   if (hasStorage){
     const c=await sGet('hortus:char'); if (c) game.char=c;
     const f=await sGet('hortus:filters'); if (f) game.filters=normalizeFilters(f);
+    await loadPlantCollections();
   }
   updateFilterBtn();
   advanceMenuSeason();

@@ -273,6 +273,10 @@ function plantDef(key,v){
   const c=base.cv[v];
   const d=Object.assign({},base,c,{name:base.name+' '+c.name,sea:{}});
   for (const s of SEASONS) d.sea[s]=Object.assign({},base.sea[s],(c.sea||{})[s]);
+  if (base.flowerColorFamilies || c.flowerColorFamilies){
+    d.flowerColorFamilies={};
+    for (const s of SEASONS) d.flowerColorFamilies[s]=Object.assign({},base.flowerColorFamilies||{},c.flowerColorFamilies||{})[s];
+  }
   return _defCache[ck]=d;
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }

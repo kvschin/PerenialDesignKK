@@ -326,6 +326,193 @@ function normalizeFilters(src){
   };
 }
 function activeFilters(){ return normalizeFilters(game.filters); }
+
+/* ---------- plant discovery ----------
+   Garden criteria decide eligibility.  Discovery is a separate, reversible
+   lens over that eligible catalog: palette source, query, flower color, and
+   bloom timing.  Keeping the predicates here makes every tray entry point
+   (categories, Find, Favorites, and saved palettes) agree. */
+const DISCOVERY_COLOR_FAMILIES=[
+  ['pink','Pink','#d77c9e'], ['purple','Purple','#9470c9'], ['blue','Blue','#6f93cb'],
+  ['white','White','#eee9df'], ['yellow','Yellow','#e1bb42'], ['orange','Orange','#d98642'], ['red','Red','#c9554d']
+];
+const DISCOVERY_SEASONS=[['Spring',[3,4,5]],['Summer',[6,7,8]],['Fall',[9,10,11]]];
+function defaultDiscovery(){ return {source:'recommended',collectionId:null,category:null,returnCategory:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36,filterOpen:false}; }
+function normalizeDiscovery(src){
+  src=src||{};
+  const source=['recommended','all','favorites','palette'].includes(src.source) ? src.source : 'recommended';
+  const colors=(src.colorFamilies||[]).filter(c=>DISCOVERY_COLOR_FAMILIES.some(x=>x[0]===c));
+  const seasons=(src.bloomSeasons||[]).filter(s=>DISCOVERY_SEASONS.some(x=>x[0]===s));
+  let category=TRAY_CATS.some(c=>c.id===src.category && c.types) ? src.category : null;
+  let returnCategory=TRAY_CATS.some(c=>c.id===src.returnCategory && c.types) ? src.returnCategory : null;
+  const query=String(src.query||'').slice(0,120);
+  // Older saves could retain a concrete category beside a non-empty query.
+  // Migrate that category into the return slot so Find becomes global without
+  // forgetting where clearing the query should go back to.
+  if (query.trim() && category && !returnCategory){ returnCategory=category; category=null; }
+  return {source,collectionId:source==='palette' && src.collectionId ? String(src.collectionId) : null,category,returnCategory,
+    query,colorFamilies:[...new Set(colors)],bloomSeasons:[...new Set(seasons)],
+    limit:Math.max(24,Math.min(240,Number(src.limit)||36)),filterOpen:!!src.filterOpen};
+}
+function activeDiscovery(){
+  const d=normalizeDiscovery(game.discovery); game.discovery=d; return d;
+}
+function setDiscovery(patch,save){
+  game.discovery=normalizeDiscovery(Object.assign({},activeDiscovery(),patch||{}));
+  if (save && game.mode==='solo' && typeof saveSolo==='function') saveSolo(true);
+  return game.discovery;
+}
+function plantRef(s,v){ return {s:String(s||''),v:v?String(v):null}; }
+function refDef(ref){
+  if (!ref || !PLANTS[ref.s]) return null;
+  // `plantDef` intentionally falls back to a species for ordinary renderer
+  // callers. Discovery must be stricter: a saved retired cultivar is not its
+  // parent species, and must never appear selectable as that parent by mistake.
+  if (ref.v && !(PLANTS[ref.s].cv && PLANTS[ref.s].cv[ref.v])) return null;
+  return plantDef(ref.s,ref.v||null);
+}
+function plantRefDisplayName(ref){ const P=refDef(ref); return P ? P.name : 'Retired plant'; }
+function bloomSeasonForMonth(m){ return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter'; }
+function bloomMonthsInSeason(P,season){ return bloomMonthsFor(P).filter(m=>bloomSeasonForMonth(m)===season); }
+function hexHsl(hex){
+  const m=/^#?([0-9a-f]{6})$/i.exec(String(hex||'')); if (!m) return null;
+  const n=parseInt(m[1],16), r=((n>>16)&255)/255, g=((n>>8)&255)/255, b=(n&255)/255;
+  const hi=Math.max(r,g,b), lo=Math.min(r,g,b), d=hi-lo, l=(hi+lo)/2;
+  if (!d) return {h:0,s:0,l};
+  const s=d/(1-Math.abs(2*l-1));
+  let h=hi===r?((g-b)/d)%6:hi===g?(b-r)/d+2:(r-g)/d+4; h=(h*60+360)%360;
+  return {h,s,l};
+}
+function colorFamilyFromHex(hex){
+  const hsl=hexHsl(hex); if (!hsl) return null;
+  const {h,s,l}=hsl;
+  if (s<0.18 && l>0.72) return 'white';
+  if (s<0.22 || l<0.16) return null;
+  if (h>=315&&h<350&&l>=0.42) return 'pink';
+  if (h>=250&&h<315) return 'purple';
+  if (h>=190&&h<250) return 'blue';
+  if (h>=42&&h<72) return 'yellow';
+  if (h>=18&&h<42) return 'orange';
+  if (h<18||h>=350) return 'red';
+  return null;
+}
+/* Catalog fields may later override the conservative hue mapping with
+   `flowerColorFamilies:{Spring:['pink']}` on a species or cultivar. */
+function flowerFamiliesFor(P,season){
+  const declared=P&&P.flowerColorFamilies&&P.flowerColorFamilies[season];
+  if (Array.isArray(declared)) return declared.filter(c=>DISCOVERY_COLOR_FAMILIES.some(x=>x[0]===c));
+  // `bloomMonths` is authoritative for timing.  Do not fall back to planColor
+  // here: foliage and seedheads are useful in a plan, but never prove a flower
+  // is this color.  Cultivars arrive already resolved through plantDef().
+  if (!bloomMonthsInSeason(P,season).length) return [];
+  const hex=P&&P.sea&&P.sea[season]&&P.sea[season].bloom;
+  const family=colorFamilyFromHex(hex);
+  return family?[family]:[];
+}
+function bloomRangeText(P){
+  const months=bloomMonthsFor(P); if (!months.length) return 'No bloom time recorded';
+  const labels=CAL_MONTH_LABELS||['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const first=months[0], last=months[months.length-1];
+  return first===last ? labels[first-1] : `${labels[first-1]}\u2013${labels[last-1]}`;
+}
+function plantRefFitsCriteria(ref,criteria){
+  const P=refDef(ref), f=normalizeFilters(criteria); if (!P) return false;
+  if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
+  if (f.nativesOnly && !P.native) return false;
+  if (!challengeAllows(ref.s)) return false;
+  const roles=plantRoles(ref.s);
+  if (!isTreeDef(P)){
+    if (f.deer && !roles.includes('deerOk')) return false;
+    if (f.rabbit && !roles.includes('rabbitOk')) return false;
+  }
+  if (f.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) return false;
+  return true;
+}
+function plantRefFits(ref){ return plantRefFitsCriteria(ref,activeFilters()) && challengeAllows(ref.s); }
+function allPlantRefs(){
+  const out=[];
+  PLANT_KEYS.forEach(s=>{ const P=PLANTS[s]; if (!P||P.hidden) return;
+    out.push(plantRef(s)); Object.keys(P.cv||{}).forEach(v=>out.push(plantRef(s,v))); });
+  return out;
+}
+let discoverySearchIndex=null;
+function discoverySearchText(ref){
+  const P=refDef(ref); if (!P) return '';
+  return [ref.s,ref.v||'',P.name,P.latin,PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',roleSummary(ref.s,12),trayCatLabel(plantCategoryFor(ref.s))]
+    .join(' ').toLowerCase();
+}
+function ensureDiscoverySearchIndex(){
+  if (discoverySearchIndex) return discoverySearchIndex;
+  return discoverySearchIndex=allPlantRefs().map(ref=>({ref,hay:discoverySearchText(ref)}));
+}
+function discoverySourceRefs(d){
+  if (d.source==='favorites' && typeof favoriteRefs==='function') return favoriteRefs();
+  if (d.source==='palette' && typeof paletteRefs==='function') return paletteRefs(d.collectionId);
+  return ensureDiscoverySearchIndex().map(x=>x.ref);
+}
+function discoveryMatches(ref,d){
+  const P=refDef(ref); if (!P || !plantRefFits(ref)) return false;
+  if (d.category){ const cat=TRAY_CATS.find(c=>c.id===d.category);
+    if (!cat || !cat.types.includes(P.type) || (cat.sunFilter&&P.sun!==cat.sunFilter)) return false; }
+  const q=(d.query||'').trim().toLowerCase();
+  if (q && !discoverySearchText(ref).includes(q)) return false;
+  const selectedSeasons=d.bloomSeasons.length ? d.bloomSeasons : DISCOVERY_SEASONS.map(x=>x[0]);
+  const wantsColor=d.colorFamilies.length;
+  if (!wantsColor && !d.bloomSeasons.length) return true;
+  return selectedSeasons.some(season=>{
+    if (!bloomMonthsInSeason(P,season).length) return false;
+    const families=flowerFamiliesFor(P,season);
+    return !wantsColor || families.some(c=>d.colorFamilies.includes(c));
+  });
+}
+function discoveryRefsFor(discovery){
+  const d=normalizeDiscovery(discovery), seen=new Set();
+  const refs=discoverySourceRefs(d).filter(ref=>{
+    const id=typeof plantRefId==='function' ? plantRefId(ref) : `${ref.s}|${ref.v||''}`;
+    if (seen.has(id)||!discoveryMatches(ref,d)) return false; seen.add(id); return true;
+  });
+  const design=activeDesignType();
+  refs.sort((a,b)=>{
+    if (d.source==='recommended' && design){ const score=plantStyleScore(b.s,design)-plantStyleScore(a.s,design); if (score) return score; }
+    return plantRefDisplayName(a).localeCompare(plantRefDisplayName(b));
+  });
+  return refs;
+}
+function discoveryRefs(){ return discoveryRefsFor(activeDiscovery()); }
+/* Discovery remains exact-reference based for filtering, collections, and
+   planting. Grouping is a presentation-only view model built after that
+   pipeline, so a cultivar never loses its `{s,v}` identity. */
+function groupDiscoveryRefs(refs){
+  const groups=[], bySpecies=new Map();
+  (refs||[]).forEach(ref=>{
+    if (!ref||!ref.s) return;
+    let group=bySpecies.get(ref.s);
+    if (!group){
+      group={s:ref.s,refs:[],baseRef:null,cultivarRefs:[]};
+      bySpecies.set(ref.s,group); groups.push(group);
+    }
+    const exact=plantRef(ref.s,ref.v||null);
+    group.refs.push(exact);
+    if (exact.v) group.cultivarRefs.push(exact); else group.baseRef=exact;
+  });
+  groups.forEach(group=>{ group.representativeRef=group.baseRef||group.refs[0]||null; });
+  return groups;
+}
+function discoveryCriteriaLabels(f=activeFilters()){
+  const out=[];
+  if (f.nativesOnly) out.push('Native');
+  if (f.deer) out.push('Deer');
+  if (f.rabbit) out.push('Rabbit');
+  if (f.squirrel) out.push('Squirrel');
+  return out;
+}
+function discoveryFilterCount(){ const d=activeDiscovery(); return d.colorFamilies.length+d.bloomSeasons.length+discoveryCriteriaLabels().length; }
+function discoverySourceLabel(d=activeDiscovery()){
+  if (d.source==='favorites') return 'Favorites';
+  if (d.source==='palette' && typeof paletteById==='function'){ const p=paletteById(d.collectionId); return p?p.name:'Saved palette'; }
+  return d.source==='all'?'All eligible':'Recommended';
+}
+function collectionAvailability(refs){ const total=(refs||[]).length, available=(refs||[]).filter(plantRefFits).length; return {total,available}; }
 function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
@@ -385,29 +572,14 @@ function firstStockedTrayCat(){
   return 'grasses';
 }
 function openFilters(){
-  const zs=$('filterZoneSel');
-  if (!zs.options.length){
-    zs.innerHTML='<option value="">Any zone</option>'+
-      [3,4,5,6,7,8,9].map(z=>`<option>${z}</option>`).join('');
-  }
-  const f=activeFilters();
-  zs.value=f.zone?String(f.zone):'';
-  $('filterNative').checked=!!f.nativesOnly;
-  $('filterDeer').checked=!!f.deer;
-  $('filterRabbit').checked=!!f.rabbit;
-  $('filterSquirrel').checked=!!f.squirrel;
-  openOverlay('filterScreen','#filterZoneSel');
+  // The shared Plant filters modal owns both eligibility and flower discovery.
+  // `openDiscoveryFilters` lives in tray.js but is safe to call after startup.
+  if (typeof openDiscoveryFilters==='function') openDiscoveryFilters();
 }
-function applyFilters(){
-  game.filters=normalizeFilters({
-    zone:$('filterZoneSel').value?+$('filterZoneSel').value:null,
-    nativesOnly:$('filterNative').checked,
-    deer:$('filterDeer').checked,
-    rabbit:$('filterRabbit').checked,
-    squirrel:$('filterSquirrel').checked
-  });
+function applyGardenCriteria(next,{refresh=true,announce=true}={}){
+  game.filters=normalizeFilters(next);
   if (game.design){
-    game.design.zone=game.filters.zone||game.design.zone;
+    game.design.zone=game.filters.zone;
     game.design.nativesOnly=game.filters.nativesOnly;
     game.design.deer=game.filters.deer;
     game.design.rabbit=game.filters.rabbit;
@@ -415,11 +587,15 @@ function applyFilters(){
   }
   sSet('hortus:filters',game.filters);
   updateFilterBtn();
-  if (game.mode) buildToolTray();
+  if (refresh && game.mode) buildToolTray();
   const visibleKeys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
   const n=visibleKeys.filter(plantFits).length;
-  toast(`${n} of ${visibleKeys.length} species fit these filters.`);
-  closeOverlay('filterScreen');
+  if (announce) toast(`${n} of ${visibleKeys.length} species fit these filters.`);
+  return n;
+}
+function applyFilters(){
+  // Kept as a narrow programmatic entry point for callers outside the modal.
+  return applyGardenCriteria(activeFilters());
 }
 function updateFilterBtn(){
   const f=activeFilters(), bits=[];

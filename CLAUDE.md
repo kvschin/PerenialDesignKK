@@ -51,7 +51,7 @@ The game is plain HTML/CSS/JS — `index.html` (markup) and `styles.css` at the
 repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
 the game logic, split for navigability across ordered app modules: `core.js`,
 `draw.js`, `world.js`, `view.js`, `renderer.js`, `commands.js`, `input.js`,
-`io.js`, `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step,
+`io.js`, `collections.js`, `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step,
 no npm dependencies, no framework. Fonts load from Google Fonts over the
 network; everything else is local. The modules share one global scope (plain
 `<script>` tags, no bundler), so **load order matters**: `index.html` loads
@@ -108,7 +108,8 @@ logic is split across ordered modules. They map onto the section list below
 - **`core.js`** — constants, `AMBIENCE`, `COATS`, device preferences (haptics
   and left-handed mobile layout), shared color helpers such as `mixHex`, the
   path/bed/water/fence/light/firepit/house data tables, and `plantDef`
-  (cultivar merge cache).
+  (cultivar merge cache, including optional per-season `flowerColorFamilies`
+  overrides for catalog discovery).
 - **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
   `drawCritter`, and canvas drawing primitives for houses, fences, lights,
   firepits, plan symbols, and other rendered objects.
@@ -132,9 +133,14 @@ logic is split across ordered modules. They map onto the section list below
 - **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
   §14 export sheet (`exportRows`), §14b design plan (`openPlan`), §14c bloom
   calendar (`openBloomCalendar`).
-- **`ui.js`** — §15 roles/style scoring, plant filters (`plantFits`/`trayKeys`),
-  and the HUD readouts.
-- **`tray.js`** — the tool tray: category tabs, brush bar, drill-in, search,
+- **`collections.js`** — versioned device-local Favorites and named plant
+  palettes. Collections preserve exact `{s,v}` species/cultivar references and
+  remain independent of an individual garden's eligibility rules.
+- **`ui.js`** — §15 roles/style scoring, hard garden eligibility
+  (`plantFits`/`trayKeys`), discovery predicates over exact references, and the
+  HUD readouts.
+- **`tray.js`** — the tool tray: category tabs, plant discovery cards,
+  palettes, brush bar, drill-in, search,
   and the layer menu (`buildToolTray`). Also the `TOOLS` metadata table +
   `toolMeta(t)` resolver — the source of truth for each tool's
   `{layer,brush,placement,paints,material,apply}` (plant tools resolve by
@@ -543,7 +549,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (layer maps from `GAME_LAYERS` +
     gw/gh + rot + `siteNorthDeg` + houses + building polygons + name + `wv` walkway flag + current path/bed/water
-    material choices and hardscape/light drafts). The old single `hortus:solo` key
+    material choices, hardscape/light drafts, and the per-garden `discovery`
+    lens). `hortus:plant-collections:v1` holds device-local Favorites and named
+    palettes separately, so they can be used in every garden without changing a
+    garden's plant criteria. The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
     silent; the Save button toasts. Host/join shared worlds via shared keys
@@ -578,27 +587,69 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `bloomMonths` run into one continuous year-relative window, so a bloom
     does not restart at a visual season boundary. `bloomDay` remains the
     exact within-season override for deliberately staggered bulbs and onions.
-    `openBloomCalendar()` renders the in-game `#bloomScreen` table.
-15. **Plant filters + HUD** - `plantFits()` (zone range, native-only,
-    deer/rabbit-resistant plants, and squirrel-resistant bulbs), `trayKeys()`
-    (filtered, grasses to sedges to forbs), the plant-filter overlay wiring,
-    and the tool tray:
-    a two-tier `TRAY_CATS`/`TRAY_GROUPS` tab row — a top-level **Plants** /
-    **Build** toggle picks which category sub-tabs show (Plants → Grasses /
-    Sedges / Sun Perennials / Shade Perennials (`sunFilter`) / Bulbs / Water
-    Plants / Shrubs / Trees; Build → Landscape / Hardscape / Lighting /
-    Site); `lastCatByGroup` remembers the sub-tab per group. Then species
-    buttons in the active category (species sharing a `group` collapse to one
-    button, marked with the shared CSS chevron). Sub-species **drill in**:
-    tapping a grouped
-    species or one with cultivars opens its members/cultivars in the catalog
-    row behind a Back chip (`renderDrillIn`, `game.drill`); the old
-    always-on cultivar row is retired — `renderCvRow` now just hides `#cvRow`
-    and is the hook that refreshes the brush bar + collapse sheet. The planted
-    tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
+    `openBloomCalendar()` renders the in-game `#bloomScreen` table. The catalog
+    reuses the same `bloomMonths` timing for discovery; renderer bloom color is
+    considered only in an authored bloom season, so foliage or plan colors never
+    create false flower-color matches.
+15. **Plant eligibility, discovery + HUD** - `plantFits()` is the hard garden
+    gate (zone range, native-only, deer/rabbit-resistant plants, and
+    squirrel-resistant bulbs). `game.discovery` is a reversible saved browsing
+    lens over that gate: source (`recommended`, all eligible, Favorites, or one
+    named palette), category, common/Latin/cultivar search, flower-color family,
+    bloom season, and progressive result limit. `allPlantRefs()` expands every
+    selectable species and cultivar to an exact `{s,v}` reference; card
+    selection, Favorite status, named palettes, bloom metadata, and planting all
+    preserve that exact reference. Discovery filters exact references first,
+    then groups each matching base species and its cultivars into one family
+    card. Opening a family pushes an in-catalog variety view whose exact rows
+    retain their own heart, palette membership, bloom/size metadata, and bronze
+    selected state; an exact cultivar search can still surface that cultivar
+    directly. Progressive result limits count family groups, not raw cultivars.
+    The design questionnaire's **Start with**
+    choice picks the initial source only; it never narrows what can be planted.
+    `trayKeys()` remains the filtered species helper for legacy/build surfaces.
+    The catalog is one connected docked shell: Plant library/Landscape
+    library heading and count, a compact **Plants / Landscape** segmented switch,
+    Find directly beneath that stable switch, source picker, pointer-draggable
+    counted category facets with native touch scrolling, Filters, one independently scrolling result region,
+    and a fixed contextual placing/brush footer. Switching catalog modes selects
+    Hand so browsing cannot paint; it preserves the last brush for restoration.
+    Desktop and tablet use a dark loam right-side library (28px corners, large
+    elevation; 370-430px desktop and 340-390px tablet). Phone portrait keeps the
+    tri-state bottom sheet with the same internal hierarchy. Desktop/tablet show
+    horizontally scrolling counted category chips; phone uses the compact
+    category chooser. The plant categories are Grasses, Sedges, Sun Perennials,
+    Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
+    are Ground, Grade, Hardscape, Lighting, and Site. Only `#toolTray` scrolls in
+    the side library so its header, discovery controls, and footer remain visible.
+    `usableCanvasRect()` detects the side-docked library and reserves its right
+    edge for Fit Plot, selection/build actions, and camera recovery. The
+    dropdown includes Recommended, All eligible, Favorites, and every named
+    palette; a separate **Manage plant palettes** action creates, renames, and
+    deletes named palettes. Favorites and named palettes always open to a real
+    **All** view across every saved plant category; category choices become
+    optional counted facets and never inherit the previous catalog category.
+    The garden-start zone remains a fixed eligibility
+    gate and is deliberately not repeated in the in-garden filter sheet or
+    active-filter summary. Cards show a Fraunces common name, IBM Plex Sans Latin
+    name, bloom range plus a 12-month timeline driven by the same `bloomMonths`
+    data, sun, moisture, mature size, flower-color swatch, and a sage
+    variety-count tag. The selected card has a terracotta ring plus a visible
+    **Placing** badge, never color alone. A heart toggles Favorites and the
+    adjacent action adds to or
+    removes from a named palette. Adding a card opens a separate assignment
+    view that lists only named palettes with green **Add** / red **Remove**
+    actions and create-and-add; the normal source picker is never mixed into
+    that action. Saved retired or garden-ineligible references remain visible
+    with a reason and removable from Favorites or named palettes in the palette
+    manager rather than falling back to their base species. The
+    planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select Path to reveal path colors, Bed to reveal bed
     materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
-    to reveal pond/river/lake styles. The Hardscape tab draws fences and
+    to reveal pond/river/lake styles. Its dedicated debounced search spans all
+    Landscape categories and routes a result into the correct tool/category;
+    its result region is a responsive, vertically scrolling tool grid rather
+    than the legacy horizontal strip. The Hardscape tab draws fences and
     gates from `game.fenceDraft` with 4 ft/6 ft heights
     and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials, plus **fire
     pits** from `game.firepitDraft` (Round/Square shape + size — round
@@ -628,26 +679,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     plus the shared disc **size** dots for the sizable
     material/elevation brushes, and the **Fill** chip — dock in the palette as
     the `#brushBar` segmented controls (`renderBrushBar`), not a floating flyout.
+    In the docked library this is the fixed final row: a selected swatch,
+    **Now placing** name, contextual **Grid/Free** placement toggle for
+    herbaceous plants, and the remaining tool-contract controls below. It is a
+    real layout row rather than an overlay, so the last result card stays visible.
     (The Landscape tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
     — next to the path/bed/water swatches.) New garden entries start on
-    Hand so accidental painting is harder. Search is a magnifier **toggle** in
-    the tabs row (`game.searchOpen`): tapping it swaps the sub-tabs for a search
-    field (so it never adds a wrapping row) that searches every visible plant
-    category by common/Latin/cultivar text (`renderGlobalSearchTray`) and groups
-    results by their real category with a live result count. Activating a result
-    arms it and jumps back to its category/drill-in. Because the field *takes
-    the categories' place*, the drawn magnifier changes to a drawn close icon
-    while open (`.tab-search.close`, title "Close search — back to categories")
-    so the way back is obvious; tapping it or pressing **Escape** in the field
-    restores the sub-tabs.
-    The top bar is **one connected glassy bar** (`.hud-top` carries the glass;
-    the clusters sit transparent on it), **flush to the top edge, full-width**
-    (`top:0;left:0;right:0`, square, `border-bottom` only). It pads with
-    `max(6px,env(safe-area-inset-top))` so on a notched phone the glass bleeds
-    up *behind* the iOS status bar (`apple-mobile-web-app-status-bar-style`
-    is `black-translucent`) while the content ducks below the notch — this is
-    why the viewport meta carries `viewport-fit=cover` (without it the insets
-    resolve to 0 and nothing bleeds/clears). Left = the
+    Hand so accidental painting is harder. The single **Plant filters** modal
+    contains garden eligibility toggles (native/browse) and flower discovery
+    (color/bloom season); it is opened from either the garden menu or the tray.
+    The dedicated Plants Find field is debounced and searches common name,
+    Latin name, cultivar name, roles, and category across every plant category;
+    typing temporarily replaces the category facet with **All matching plants**
+    and persists that prior category as `returnCategory`, while clearing or
+    escaping returns to the correct per-garden browse category without
+    disturbing the active garden criteria or palette source.
+    The planner top chrome is one connected dark loam bar: the season/day-night
+    cluster stays top-left, view tools remain centered on desktop, tablet/phone use
+    the compact view-tools menu, and Menu stays at the far right within the same
+    surface. When the side library is open
+    `.hud-top` reserves its width so Menu cannot sit beneath it. The glass
+    performance fallback removes blur without changing the loam/seedhead/bronze
+    palette. Safe-area padding keeps phone controls
+    below a notch; `viewport-fit=cover` remains required for those insets. Left = the
     **season dial**: a local stroke-icon sun/moon day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on) next to the
@@ -696,12 +750,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     screen. In **design** mode the readout drops the meaningless
     Year/Day (a day is 20s real time) for the season + early/mid/late phase
     (`clockMeta`/`seasonPhase`); the avatar path
-    (Visit / legacy saves) keeps the full calendar + End Day. On phones the
-    palette has collapsed/half/full states: `#sheetHandle` moves among them
-    while you paint (`applySheetState`, `game.sheetCollapsed`), leaving the
-    brush bar + a context label + a swatch
-    of the armed plant (`drawSheetSwatch`); the mobile palette is full-bleed
-    (edge-to-edge, square corners, docked to `bottom:0` with
+    (Visit / legacy saves) keeps the full calendar + End Day. At 767px and below
+    the library has collapsed/half/full states: `#sheetHandle` moves among them
+    while you paint (`applySheetState`, `game.sheetCollapsed`). Collapsed leaves
+    only a compact context label + swatch of the armed plant
+    (`drawSheetSwatch`); the brush bar returns in half/full. The mobile palette is full-bleed
+    (edge-to-edge, 28px top corners, docked to `bottom:0` with
     `padding-bottom:calc(6px + env(safe-area-inset-bottom))` so the catalog
     clears the home indicator while the tray background runs to the screen
     edge behind it). `#sheetCatalog` remains mounted across those states, so
@@ -711,10 +765,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     this makes all six directed collapsed/half/full transitions reversible,
     including rapid interruptions. Reduced motion skips the interpolation.
     Only the collapsed state clips its content
-    (half/full must let the category popover escape above the sheet). On
-    desktop/iPad `.hud-bottom` stays a
-    **floating centered tray** (`bottom:max(10px,env(safe-area-inset-bottom))`,
-    so it lifts above an iPad's home bar too). **Canvas full-bleed under
+    (half/full must let the category popover escape above the sheet). In phone
+    half/full states the handle spans and visually joins the full-width sheet;
+    collapsed returns it to a compact inset bar. At 768px and above `.hud-bottom`
+    is the right-docked dark library; desktop/tablet deliberately have only
+    two levels: the expanded browser and a compact current-tool launcher on the
+    lower-right edge. The round close control in the library header minimizes
+    directly; the compact bar reopens directly to the browser, and Escape also
+    minimizes. Zoom/Fit sits in a cream pill at the bottom-left on these sizes.
+    The active plant result card uses the same terracotta selected treatment independently of
+    its Favorite heart. **Canvas full-bleed under
     `viewport-fit=cover`:** an iOS standalone PWA with `black-translucent` has a
     short *fixed* layout viewport (e.g. 812 on a 874 screen, screen minus the
     top inset), and iOS clips every `position:fixed` layer to it — so a

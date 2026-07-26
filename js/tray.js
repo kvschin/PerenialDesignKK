@@ -11,8 +11,8 @@ const TRAY_CATS=[
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'landscape',label:'Landscape',        tools:['path','bed','water']},
-  {id:'leveling', label:'Leveling',         tools:['raise','lower','level']},
+  {id:'landscape',label:'Ground',           tools:['path','bed','water']},
+  {id:'leveling', label:'Grade',            tools:['raise','lower','level']},
   {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'house',    label:'Site',             tools:['building','house']},
@@ -21,10 +21,11 @@ const TRAY_CATS=[
 // of category sub-tabs shows, so the bar never spills all twelve at once.
 const TRAY_GROUPS=[
   {id:'plants', label:'Plants', cats:['grasses','sedges','sunper','shadeper','bulbs','waterplants','shrubs','trees']},
-  {id:'build',  label:'Build',  cats:['landscape','leveling','structures','lighting','house']},
+  {id:'build',  label:'Landscape',  cats:['landscape','leveling','structures','lighting','house']},
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
+let catalogCategoryScroll={plants:0,build:0};
 // A catalogue icon should show the plant at its representative flower moment,
 // not silently force a spring or fall species into a flowerless Summer frame.
 function plantIconSeason(P){
@@ -161,8 +162,8 @@ function roundedIconRect(tc,x,y,w,h,r){
 }
 function drawCanvasIcon(tc,kind){
   tc.clearRect(0,0,42,32);
-  const cream='#efe6d3', seed='#d8c7ac', bronze='#c97f3f', sage='#7f9f5e',
-    leaf='#8ead67', soil='#6e5a48', rose='#e8b8c2', water='#6ea6b2';
+  const cream='#40382f', seed='#6d665a', bronze='#c67139', sage='#7a8a5e',
+    leaf='#8fa36f', soil='#6e5a48', rose='#d9a1a3', water='#6a9ba5';
   tc.strokeStyle=seed; tc.fillStyle=seed; tc.lineWidth=2;
   tc.lineCap='round'; tc.lineJoin='round';
   if (kind==='hand'){
@@ -1093,7 +1094,9 @@ function buildLayerPopover(){
   return pop;
 }
 function trayViewKey(cat=game.trayCat,drill=game.drill){
-  return `${cat}|${drill||''}|${game.searchOpen?'search':'grid'}`;
+  const d=typeof activeDiscovery==='function' ? activeDiscovery() : {};
+  const lens=[d.source||'recommended',d.collectionId||'',d.category||'',(d.query||'').trim().toLocaleLowerCase()].join(':');
+  return `${cat}|${drill||''}|${game.searchOpen?'search':'grid'}|${lens}`;
 }
 function saveTrayScroll(){
   const tray=document.getElementById('toolTray');
@@ -1163,6 +1166,10 @@ function searchToolItems(){
       hay:'house home building wall roof size color'}
   ];
 }
+function landscapeSearchItems(query){
+  const q=String(query||'').toLowerCase().trim();
+  return q ? searchToolItems().filter(item=>item.hay.includes(q)||item.label.toLowerCase().includes(q)) : [];
+}
 function drawSearchToolIcon(tc,item){
   tc.clearRect(0,0,48,44);
   if (item.tool==='path'||item.tool==='bed'||item.tool==='water'){
@@ -1217,6 +1224,18 @@ function renderSearchToolButton(tray,item){
   };
   tray.appendChild(b);
 }
+function renderLandscapeSearchTray(tray,query){
+  const items=landscapeSearchItems(query), status=document.createElement('div');
+  status.className='landscape-search-summary'; status.setAttribute('role','status');
+  status.textContent=`${items.length} landscape tool${items.length===1?'':'s'} found`;
+  tray.appendChild(status);
+  if (!items.length){
+    const empty=document.createElement('div'); empty.className='tray-empty landscape-search-empty';
+    empty.textContent=`No landscape tools match "${String(query||'').trim()}".`;
+    tray.appendChild(empty); return;
+  }
+  items.forEach(item=>renderSearchToolButton(tray,item));
+}
 function renderGlobalSearchTray(tray,q){
   q=(q||'').toLowerCase().trim();
   const groups=[];
@@ -1240,6 +1259,494 @@ function renderGlobalSearchTray(tray,q){
     traySep(tray,cat.label,'Search result category');
     plants.slice(0,36).forEach(k=>renderSearchPlantButton(tray,k));
   });
+}
+
+/* ---------- plant discovery: palettes, Find, and result cards ---------- */
+let discoverySearchTimer=0, landscapeSearchTimer=0, discoveryFilterDraft=null, discoveryCriteriaDraft=null, palettePendingRef=null, paletteRenameId=null, sourceMenuOpen=false, sourceMenuCloseListener=null;
+let discoveryOpenSpecies=null, discoveryReturnScroll=0;
+function focusDiscoverySourceTrigger(){
+  setTimeout(()=>{ const trigger=document.querySelector('.discovery-source'); if (trigger) trigger.focus({preventScroll:true}); },0);
+}
+function focusDiscoverySourceItem(position='selected'){
+  setTimeout(()=>{
+    if (!sourceMenuOpen) return;
+    const menu=document.querySelector('.discovery-source-menu'); if (!menu) return;
+    const items=[...menu.querySelectorAll('[role="menuitemradio"]')]; if (!items.length) return;
+    let target=position==='last' ? items[items.length-1] : position==='first' ? items[0] : menu.querySelector('[aria-checked="true"]')||items[0];
+    items.forEach(item=>item.tabIndex=item===target?0:-1); target.focus({preventScroll:true});
+  },0);
+}
+function openDiscoverySourceMenu(position='selected'){
+  sourceMenuOpen=true; buildToolTray(); focusDiscoverySourceItem(position);
+}
+function dismissDiscoverySourceMenu(restoreFocus=false){
+  closeDiscoverySourceMenu();
+  const menu=document.querySelector('.discovery-source-menu'); if (menu) menu.remove();
+  const trigger=document.querySelector('.discovery-source');
+  if (trigger){
+    trigger.setAttribute('aria-expanded','false');
+    const arrow=trigger.querySelector('i'); if (arrow) setUiIcon(arrow,'chevron-down');
+    if (restoreFocus) trigger.focus({preventScroll:true});
+  }
+}
+function closeDiscoverySourceMenu(rebuild=false,restoreFocus=false){
+  sourceMenuOpen=false;
+  if (sourceMenuCloseListener){ document.removeEventListener('click',sourceMenuCloseListener); sourceMenuCloseListener=null; }
+  if (rebuild){ buildToolTray(); if (restoreFocus) focusDiscoverySourceTrigger(); }
+}
+function discoverySwatch(family){ return (DISCOVERY_COLOR_FAMILIES.find(x=>x[0]===family)||[])[2]||'#b8a994'; }
+function previewSeasonForRef(ref,d){
+  const P=refDef(ref), seasons=(d.bloomSeasons||[]).length?d.bloomSeasons:DISCOVERY_SEASONS.map(x=>x[0]);
+  return seasons.find(s=>bloomMonthsInSeason(P,s).length && P.sea&&P.sea[s]&&P.sea[s].bloom)
+    || plantIconSeason(P);
+}
+function resultFlowerFamily(ref,d){
+  const P=refDef(ref), seasons=(d.bloomSeasons||[]).length?d.bloomSeasons:DISCOVERY_SEASONS.map(x=>x[0]);
+  for (const s of seasons){ const f=flowerFamiliesFor(P,s); if (f.length) return f[0]; }
+  return null;
+}
+function activePlantRef(ref){ return !!ref && game.tool===ref.s && (game.toolVar||null)===(ref.v||null); }
+function discoveryGroupBloomText(group){
+  const months=[...new Set(group.refs.flatMap(ref=>{ const P=refDef(ref); return P?bloomMonthsFor(P):[]; }))].sort((a,b)=>a-b);
+  if (!months.length) return 'No bloom time recorded';
+  const labels=CAL_MONTH_LABELS||['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months.length===1?labels[months[0]-1]:`${labels[months[0]-1]}\u2013${labels[months[months.length-1]-1]}`;
+}
+function discoveryGroupFamilies(group,d){
+  const out=[];
+  group.refs.forEach(ref=>{ const family=resultFlowerFamily(ref,d); if (family&&!out.includes(family)) out.push(family); });
+  return out.slice(0,3);
+}
+function discoveryBloomTimeline(P){
+  const line=document.createElement('span'); line.className='plant-bloom-timeline'; line.setAttribute('aria-hidden','true');
+  const active=new Set(bloomMonthsFor(P));
+  for (let month=1;month<=12;month++){
+    const tick=document.createElement('i'); if (active.has(month)) tick.className='on'; line.appendChild(tick);
+  }
+  return line;
+}
+function discoverySiteMeta(P){
+  const meta=document.createElement('span'); meta.className='plant-site-meta';
+  const sun=P.sun==='full'?'Full sun':P.sun==='part'?'Part shade':'Shade';
+  const moisture=P.moist==='dry'?'Low water':P.moist==='moist'?'Moist':'Average water';
+  const size=typeof matureSizeText==='function'?matureSizeText(P):'';
+  meta.textContent=[sun,moisture,size].filter(Boolean).join(' \u00b7 ');
+  return meta;
+}
+function discoveryPlacingBadge(row,selected){
+  if (!selected) return;
+  const badge=document.createElement('span'); badge.className='placing-badge'; badge.textContent='Placing'; row.appendChild(badge);
+}
+function discoveryResultCard(ref,d,opts={}){
+  const P=refDef(ref), row=document.createElement('article'), selected=activePlantRef(ref); row.className='plant-result-card'+(selected?' sel':'');
+  if (opts.variant) row.classList.add('plant-variant-card');
+  const main=document.createElement('button'); main.type='button'; main.className='plant-result-main';
+  main.title=`Choose ${P.name}`; main.setAttribute('aria-label',`Choose ${P.name}`); main.setAttribute('aria-pressed',selected?'true':'false');
+  const art=document.createElement('canvas'); art.className='plant-result-art'; art.width=112; art.height=124;
+  const tc=art.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(P)||40)); tc.scale(scale,scale);
+  drawPlant(tc,56/scale,110/scale,ref.s,1,previewSeasonForRef(ref,d),tileSeed(3,7),0,ref.v||undefined,1);
+  const copy=document.createElement('span'); copy.className='plant-result-copy';
+  const name=document.createElement('b'); name.textContent=P.name;
+  const latin=document.createElement('em'); latin.textContent=P.latin||'';
+  const meta=document.createElement('span'); meta.className='plant-result-meta';
+  const family=resultFlowerFamily(ref,d);
+  if (family){ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); }
+  const bloom=document.createElement('span'); bloom.textContent=`Blooms ${bloomRangeText(P)}`; meta.appendChild(bloom);
+  const kind=document.createElement('small'); kind.textContent=ref.v?'Cultivar':(opts.variant?'Straight species':''); if (kind.textContent) meta.appendChild(kind);
+  copy.append(name,latin,meta,discoveryBloomTimeline(P),discoverySiteMeta(P)); main.append(art,copy);
+  if (opts.variant){
+    const details=document.createElement('span'); details.className='plant-variant-details';
+    const size=typeof matureSizeText==='function'?matureSizeText(P):'';
+    details.textContent=[size,P.note||''].filter(Boolean).join(' \u00b7 ');
+    if (details.textContent) copy.appendChild(details);
+  }
+  main.onclick=()=>{ game.drill=null; setTool(ref.s,ref.v||null); buildToolTray(); toast(`${P.name} selected.`); };
+  const actions=document.createElement('span'); actions.className='plant-result-actions';
+  const heart=document.createElement('button'); heart.type='button'; heart.className='plant-result-heart'+(isFavorite(ref)?' on':'');
+  heart.title=isFavorite(ref)?`Remove ${P.name} from Favorites`:`Add ${P.name} to Favorites`;
+  heart.setAttribute('aria-label',heart.title); setUiIcon(heart,'heart');
+  heart.onclick=()=>{ toggleFavorite(ref); buildToolTray(); };
+  const inPalette=d.source==='palette' && d.collectionId;
+  const add=document.createElement('button'); add.type='button'; add.className='plant-result-add';
+  add.title=inPalette?`Remove ${P.name} from this palette`:`Add ${P.name} to a palette`;
+  add.setAttribute('aria-label',add.title); setUiIcon(add,inPalette?'minus':'plus');
+  add.onclick=()=>{ if (inPalette){ removePaletteRef(d.collectionId,ref); buildToolTray(); } else openPaletteManager(ref); };
+  actions.append(heart,add); row.append(main,actions); discoveryPlacingBadge(row,selected); return row;
+}
+function discoveryFamilyCard(group,d){
+  if (group.refs.length===1) return discoveryResultCard(group.refs[0],d);
+  const base=PLANTS[group.s], active=group.refs.find(activePlantRef), rep=active||group.representativeRef;
+  const R=refDef(rep)||base, row=document.createElement('article');
+  row.className='plant-result-card plant-family-card'+(active?' sel':''); row.id=`plant-family-${group.s}`;
+  const main=document.createElement('button'); main.type='button'; main.className='plant-result-main plant-family-main';
+  main.title=`View ${base.name} varieties`; main.setAttribute('aria-label',`View ${base.name} varieties`);
+  main.setAttribute('aria-expanded','false'); main.setAttribute('aria-controls',`plant-varieties-${group.s}`);
+  const art=document.createElement('canvas'); art.className='plant-result-art'; art.width=112; art.height=124;
+  const tc=art.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(R)||40)); tc.scale(scale,scale);
+  drawPlant(tc,56/scale,110/scale,group.s,1,previewSeasonForRef(rep,d),tileSeed(3,7),0,rep.v||undefined,1);
+  const copy=document.createElement('span'); copy.className='plant-result-copy';
+  const name=document.createElement('b'); name.textContent=base.name;
+  const latin=document.createElement('em'); latin.textContent=base.latin||'';
+  const meta=document.createElement('span'); meta.className='plant-result-meta';
+  discoveryGroupFamilies(group,d).forEach(family=>{ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); });
+  const varieties=document.createElement('span'); varieties.textContent=`${group.cultivarRefs.length} variet${group.cultivarRefs.length===1?'y':'ies'}`;
+  const bloom=document.createElement('span'); bloom.textContent=`Blooms ${discoveryGroupBloomText(group)}`;
+  varieties.className='plant-variety-tag';
+  meta.append(bloom,varieties); copy.append(name,latin,meta,discoveryBloomTimeline(R),discoverySiteMeta(R)); main.append(art,copy);
+  const open=document.createElement('span'); open.className='plant-family-open'; open.textContent='View'; const arrow=document.createElement('i'); setUiIcon(arrow,'chevron-right'); open.appendChild(arrow);
+  main.appendChild(open);
+  main.onclick=()=>{
+    const tray=document.getElementById('toolTray'); discoveryReturnScroll=tray?tray.scrollTop:0;
+    discoveryOpenSpecies=group.s; setSheetState('full'); buildToolTray();
+    setTimeout(()=>{ const head=document.querySelector('.cultivar-drill-back'); if (head) head.focus({preventScroll:true}); },0);
+  };
+  row.appendChild(main); discoveryPlacingBadge(row,!!active); return row;
+}
+function discoverySourceValue(d=activeDiscovery()){
+  return d.source==='palette'&&d.collectionId ? `palette:${d.collectionId}` : d.source;
+}
+function discoverySourceMenu(d){
+  const selected=discoverySourceValue(d), wrap=document.createElement('div'); wrap.className='discovery-source-wrap';
+  const trigger=document.createElement('button'); trigger.type='button'; trigger.className='discovery-source';
+  trigger.title='Choose the plants to browse'; trigger.setAttribute('aria-label','Choose plants to browse');
+  trigger.setAttribute('aria-haspopup','menu'); trigger.setAttribute('aria-expanded',sourceMenuOpen?'true':'false');
+  const label=document.createElement('span'); label.textContent=discoverySourceLabel(d);
+  const arrow=document.createElement('i'); setUiIcon(arrow,sourceMenuOpen?'chevron-up':'chevron-down'); trigger.append(label,arrow);
+  trigger.onclick=()=>{ if (sourceMenuOpen) dismissDiscoverySourceMenu(true); else openDiscoverySourceMenu(); };
+  trigger.onkeydown=e=>{
+    if (e.key==='Escape'&&sourceMenuOpen){ e.preventDefault(); e.stopPropagation(); dismissDiscoverySourceMenu(true); }
+    else if (!sourceMenuOpen&&(e.key==='ArrowDown'||e.key==='ArrowUp')){ e.preventDefault(); openDiscoverySourceMenu(e.key==='ArrowUp'?'last':'selected'); }
+  };
+  wrap.appendChild(trigger);
+  if (!sourceMenuOpen) return wrap;
+  const menu=document.createElement('div'); menu.className='discovery-source-menu'; menu.setAttribute('role','menu');
+  const section=labelText=>{ const label=document.createElement('p'); label.className='discovery-source-label'; label.textContent=labelText; menu.appendChild(label); };
+  const item=(labelText,value,active=false)=>{ const b=document.createElement('button'); b.type='button'; b.className='discovery-source-item'+(active?' sel':'');
+    b.textContent=labelText; b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',active?'true':'false');
+    b.tabIndex=active?0:-1;
+    b.onclick=()=>{ closeDiscoverySourceMenu();
+      if (value==='manage'){ buildToolTray(); openPaletteManager(); return; }
+      if (value.indexOf('palette:')===0) chooseDiscoverySource('palette',value.slice('palette:'.length));
+      else chooseDiscoverySource(value,null);
+    }; menu.appendChild(b); };
+  section('Plant lists');
+  item('Recommended','recommended',selected==='recommended');
+  item('All eligible','all',selected==='all');
+  const favs=favoriteRefs(), fa=collectionAvailability(favs);
+  item(`Favorites · ${fa.available}/${fa.total}`,'favorites',selected==='favorites');
+  const palettes=(plantCollectionsData().palettes||[]);
+  if (palettes.length){ section('My palettes'); palettes.forEach(p=>{ const a=collectionAvailability(p.items||[]); item(`${p.name} · ${a.available}/${a.total}`,`palette:${p.id}`,selected===`palette:${p.id}`); }); }
+  section('Palette actions'); item('Manage plant palettes…','manage');
+  menu.onkeydown=e=>{
+    const items=[...menu.querySelectorAll('[role="menuitemradio"]')], current=items.indexOf(document.activeElement);
+    if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); dismissDiscoverySourceMenu(true); return; }
+    if (e.key==='Tab'){
+      e.preventDefault(); dismissDiscoverySourceMenu();
+      const next=e.shiftKey?document.querySelector('.discovery-source'):document.querySelector('.discovery-filter-trigger');
+      if (next) next.focus({preventScroll:true});
+      return;
+    }
+    let next=null;
+    if (e.key==='ArrowDown') next=(Math.max(current,0)+1)%items.length;
+    else if (e.key==='ArrowUp') next=(current<=0?items.length:current)-1;
+    else if (e.key==='Home') next=0;
+    else if (e.key==='End') next=items.length-1;
+    if (next!==null){ e.preventDefault(); items.forEach((entry,index)=>entry.tabIndex=index===next?0:-1); items[next].focus(); }
+  };
+  wrap.onfocusout=()=>setTimeout(()=>{ if (sourceMenuOpen&&!wrap.contains(document.activeElement)) dismissDiscoverySourceMenu(); },0);
+  wrap.appendChild(menu);
+  setTimeout(()=>{ if (!sourceMenuOpen) return; const close=e=>{ if (!wrap.contains(e.target)) dismissDiscoverySourceMenu(); };
+    sourceMenuCloseListener=close; document.addEventListener('click',close); },0);
+  return wrap;
+}
+function discoveryFilterSummary(d){
+  const colors=d.colorFamilies.map(id=>(DISCOVERY_COLOR_FAMILIES.find(x=>x[0]===id)||[])[1]||id);
+  const labels=[...discoveryCriteriaLabels(),...colors,...d.bloomSeasons];
+  if (!labels.length) return null;
+  const summary=document.createElement('button'); summary.type='button'; summary.className='discovery-filter-summary';
+  const shown=labels.slice(0,2).join(' · '), extra=labels.length>2?` +${labels.length-2}`:'';
+  summary.textContent=`Filters: ${shown}${extra}`; summary.title=`Active filters: ${labels.join(', ')}. Change filters.`;
+  summary.onclick=()=>openDiscoveryFilters(summary); return summary;
+}
+function catalogMinimizeButton(){
+  const b=document.createElement('button'); b.type='button'; b.className='catalog-minimize';
+  b.title='Minimize the catalog'; b.setAttribute('aria-label','Minimize the catalog and show more of the plan');
+  b.setAttribute('aria-expanded','true'); b.setAttribute('aria-controls','sheetCatalog'); setUiIcon(b,'chevron-down');
+  b.onclick=()=>{ game.catMenuOpen=false; closeDiscoverySourceMenu(); buildToolTray(); setSheetState('collapsed'); };
+  return b;
+}
+function discoveryResultCountText(refs){
+  const groups=groupDiscoveryRefs(refs), varieties=groups.reduce((n,group)=>n+group.cultivarRefs.length,0);
+  return `${groups.length} plant${groups.length===1?'':'s'}${varieties?` \u00b7 ${varieties} variet${varieties===1?'y':'ies'}`:''}`;
+}
+function discoverySearchSelection(d,query){
+  const q=String(query||'');
+  const searching=!!q.trim();
+  const prior=d.query&&d.query.trim() ? (d.category||d.returnCategory) : d.category;
+  const fallback=prior||d.returnCategory||(discoveryCollectionView(d)?null:game.trayCat);
+  return {query:q,category:searching?null:fallback,returnCategory:searching?fallback:null,limit:36};
+}
+function categoryDragScrollLeft(startScroll,startX,currentX){
+  return startScroll+startX-currentX;
+}
+function enableCatalogDragScroll(strip,groupId){
+  let drag=null, suppressClick=false;
+  strip.scrollLeft=catalogCategoryScroll[groupId]||0;
+  strip.addEventListener('scroll',()=>{ catalogCategoryScroll[groupId]=strip.scrollLeft; },{passive:true});
+  strip.addEventListener('pointerdown',e=>{
+    if (e.pointerType==='touch'||e.button!==0||strip.scrollWidth<=strip.clientWidth) return;
+    drag={id:e.pointerId,startX:e.clientX,startScroll:strip.scrollLeft,moved:false,captured:false};
+  });
+  strip.addEventListener('pointermove',e=>{
+    if (!drag||e.pointerId!==drag.id) return;
+    if (!drag.moved&&Math.abs(e.clientX-drag.startX)>8){
+      drag.moved=true;
+      if (strip.setPointerCapture){ strip.setPointerCapture(e.pointerId); drag.captured=true; }
+      strip.classList.add('dragging');
+    }
+    if (!drag.moved) return;
+    strip.scrollLeft=categoryDragScrollLeft(drag.startScroll,drag.startX,e.clientX);
+    e.preventDefault();
+  });
+  const finish=(e,cancelled=false)=>{
+    if (!drag||e.pointerId!==drag.id) return;
+    const moved=drag.moved, captured=drag.captured, id=drag.id;
+    drag=null; strip.classList.remove('dragging');
+    if (captured&&strip.hasPointerCapture&&strip.hasPointerCapture(id)) strip.releasePointerCapture(id);
+    if (moved&&!cancelled){
+      suppressClick=true;
+      setTimeout(()=>{ suppressClick=false; },0);
+    }
+  };
+  strip.addEventListener('pointerup',e=>finish(e));
+  strip.addEventListener('pointercancel',e=>finish(e,true));
+  strip.addEventListener('lostpointercapture',e=>finish(e,true));
+  strip.addEventListener('click',e=>{
+    if (!suppressClick) return;
+    e.preventDefault(); e.stopImmediatePropagation(); suppressClick=false;
+  },true);
+}
+function renderDiscoveryControls(tabs,modeControl){
+  const d=activeDiscovery(), bar=document.createElement('div'); bar.className='discovery-controls';
+  if (modeControl) bar.appendChild(modeControl());
+  const find=document.createElement('input'); find.id='trayFind'; find.type='search'; find.autocomplete='off';
+  find.placeholder='Find a plant'; find.value=d.query; find.setAttribute('aria-label','Find a plant');
+  find.oninput=()=>{ discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,find.value)); clearTimeout(discoverySearchTimer);
+    discoverySearchTimer=setTimeout(()=>{ buildToolTray(); const next=document.getElementById('trayFind');
+      if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} } },120); };
+  find.onkeydown=e=>{ if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,'')); buildToolTray(); } };
+  bar.appendChild(find);
+  bar.appendChild(discoverySourceMenu(d));
+  const filterRow=document.createElement('div'); filterRow.className='discovery-filter-row';
+  const filters=document.createElement('button'); filters.type='button'; filters.className='discovery-filter-trigger';
+  const n=discoveryFilterCount(); filters.textContent=n?`Filters · ${n}`:'Filters'; filters.setAttribute('aria-expanded','false');
+  filters.onclick=()=>openDiscoveryFilters(filters); filterRow.appendChild(filters);
+  const count=document.createElement('span'); count.className='discovery-result-count'; count.setAttribute('role','status');
+  count.textContent=discoveryResultCountText(discoveryRefs()); filterRow.appendChild(count); bar.appendChild(filterRow);
+  tabs.appendChild(bar);
+}
+function renderLandscapeControls(tabs,modeControl){
+  const bar=document.createElement('div'); bar.className='landscape-controls';
+  if (modeControl) bar.appendChild(modeControl());
+  const find=document.createElement('input'); find.id='landscapeFind'; find.className='catalog-search';
+  find.type='search'; find.autocomplete='off'; find.placeholder='Find landscape tools';
+  find.value=game.traySearch||''; find.setAttribute('aria-label','Find landscape tools');
+  find.oninput=()=>{
+    game.traySearch=find.value; game.searchOpen=!!find.value.trim(); clearTimeout(landscapeSearchTimer);
+    landscapeSearchTimer=setTimeout(()=>{
+      buildToolTray();
+      const next=document.getElementById('landscapeFind');
+      if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} }
+    },120);
+  };
+  find.onkeydown=e=>{ if (e.key==='Escape'&&game.traySearch){
+    e.preventDefault(); e.stopPropagation(); game.traySearch=''; game.searchOpen=false; buildToolTray();
+  } };
+  bar.appendChild(find); tabs.appendChild(bar);
+}
+function renderDiscoveryTray(tray){
+  const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs), sourceRefs=discoverySourceRefs(d);
+  tray.classList.add('discovery-results');
+  const summary=document.createElement('div'); summary.className='discovery-summary';
+  if (d.source==='favorites'||d.source==='palette'){
+    const a=collectionAvailability(sourceRefs); summary.textContent=`${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`;
+  } else summary.textContent=`${discoverySourceLabel(d)} · ${discoveryResultCountText(refs)}`;
+  tray.appendChild(summary);
+  if (!refs.length){
+    discoveryOpenSpecies=null;
+    const empty=document.createElement('div'); empty.className='discovery-empty';
+    empty.textContent='Nothing matches this view.';
+    const reset=document.createElement('button'); reset.type='button'; reset.className='btn'; reset.textContent='Clear filters';
+    reset.onclick=()=>{ setDiscovery({source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36},true); buildToolTray(); };
+    empty.appendChild(reset); tray.appendChild(empty); return;
+  }
+  const openGroup=discoveryOpenSpecies&&groups.find(group=>group.s===discoveryOpenSpecies);
+  if (openGroup){
+    tray.classList.add('cultivar-drill');
+    const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.s}`;
+    const back=document.createElement('button'); back.type='button'; back.className='cultivar-drill-back'; setUiIcon(back,'chevron-left');
+    const backText=document.createElement('span'); backText.textContent='Back to plants'; back.appendChild(backText);
+    back.onclick=()=>{ const species=discoveryOpenSpecies; discoveryOpenSpecies=null; buildToolTray();
+      setTimeout(()=>{ const next=document.getElementById(`plant-family-${species}`), nextTray=document.getElementById('toolTray');
+        if (nextTray) nextTray.scrollTop=discoveryReturnScroll;
+        const focus=next&&next.querySelector('.plant-family-main'); if (focus) focus.focus({preventScroll:true}); },0); };
+    const title=document.createElement('div'); title.className='cultivar-drill-title';
+    const strong=document.createElement('strong'); strong.textContent=base.name;
+    const small=document.createElement('small'); small.textContent=`${openGroup.refs.length} matching choice${openGroup.refs.length===1?'':'s'} · ${base.latin||''}`;
+    title.append(strong,small); head.append(back,title); tray.appendChild(head);
+    const variants=document.createElement('div'); variants.className='plant-variant-grid';
+    openGroup.refs.forEach(ref=>variants.appendChild(discoveryResultCard(ref,d,{variant:true}))); tray.appendChild(variants);
+    return;
+  }
+  discoveryOpenSpecies=null;
+  const grid=document.createElement('div'); grid.className='plant-result-grid';
+  groups.slice(0,d.limit).forEach(group=>grid.appendChild(discoveryFamilyCard(group,d))); tray.appendChild(grid);
+  if (groups.length>d.limit){ const more=document.createElement('button'); more.type='button'; more.className='discovery-load-more';
+    more.textContent=`Load more plants (${groups.length-d.limit} left)`; more.onclick=()=>{ setDiscovery({limit:d.limit+36}); buildToolTray(); };
+    tray.appendChild(more); }
+}
+function openDiscoveryFilters(opener){
+  discoveryFilterDraft=normalizeDiscovery(activeDiscovery());
+  discoveryCriteriaDraft=activeFilters();
+  renderDiscoveryFilterScreen();
+  const screen=openOverlay('discoveryFilterScreen','#discoveryNative'); if (screen) screen._returnFocus=opener||screen._returnFocus;
+}
+function readDiscoveryCriteria(){
+  const current=discoveryCriteriaDraft||activeFilters();
+  return normalizeFilters({
+    // Zone is selected when a garden begins. It remains an eligibility gate,
+    // but is intentionally not editable from the in-garden discovery lens.
+    zone:current.zone,
+    nativesOnly:$('discoveryNative').checked,
+    deer:$('discoveryDeer').checked,
+    rabbit:$('discoveryRabbit').checked,
+    squirrel:$('discoverySquirrel').checked
+  });
+}
+function renderDiscoveryCriteria(){
+  const f=discoveryCriteriaDraft||activeFilters();
+  $('discoveryNative').checked=!!f.nativesOnly;
+  $('discoveryDeer').checked=!!f.deer;
+  $('discoveryRabbit').checked=!!f.rabbit;
+  $('discoverySquirrel').checked=!!f.squirrel;
+  [$('discoveryNative'),$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
+    discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen();
+  });
+}
+function renderDiscoveryFilterScreen(){
+  const d=discoveryFilterDraft||normalizeDiscovery(activeDiscovery()), colors=document.getElementById('discoveryColorChips'), seasons=document.getElementById('discoverySeasonChips');
+  if (!colors||!seasons) return; colors.innerHTML=''; seasons.innerHTML='';
+  renderDiscoveryCriteria();
+  DISCOVERY_COLOR_FAMILIES.forEach(([id,label,color])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip discovery-color-chip'+(d.colorFamilies.includes(id)?' sel':'');
+    b.setAttribute('aria-pressed',d.colorFamilies.includes(id)?'true':'false'); const dot=document.createElement('i'); dot.className='chip-swatch'; dot.style.background=color;
+    b.append(dot,document.createTextNode(label)); b.onclick=()=>{ const next=d.colorFamilies.includes(id)?d.colorFamilies.filter(x=>x!==id):[...d.colorFamilies,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{colorFamilies:next})); renderDiscoveryFilterScreen(); }; colors.appendChild(b); });
+  DISCOVERY_SEASONS.forEach(([id])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'+(d.bloomSeasons.includes(id)?' sel':''); b.textContent=id;
+    b.setAttribute('aria-pressed',d.bloomSeasons.includes(id)?'true':'false'); b.onclick=()=>{ const next=d.bloomSeasons.includes(id)?d.bloomSeasons.filter(x=>x!==id):[...d.bloomSeasons,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{bloomSeasons:next})); renderDiscoveryFilterScreen(); }; seasons.appendChild(b); });
+  const savedDiscovery=game.discovery, savedCriteria=game.filters;
+  game.discovery=normalizeDiscovery(d); game.filters=normalizeFilters(discoveryCriteriaDraft||savedCriteria);
+  const refs=discoveryRefs(), countText=discoveryResultCountText(refs); game.discovery=savedDiscovery; game.filters=savedCriteria;
+  document.getElementById('discoveryFilterCount').textContent=`${countText} match these filters.`;
+}
+function applyDiscoveryFilters(){
+  const n=applyGardenCriteria(discoveryCriteriaDraft||activeFilters(),{refresh:false,announce:false});
+  discoveryOpenSpecies=null;
+  setDiscovery(Object.assign({},discoveryFilterDraft||{}, {limit:36}),true); discoveryFilterDraft=null; discoveryCriteriaDraft=null;
+  closeOverlay('discoveryFilterScreen'); buildToolTray();
+  toast(`${n} eligible plant${n===1?'':'s'}; flower filters updated.`);
+}
+function clearDiscoveryFilters(){ discoveryFilterDraft=normalizeDiscovery(Object.assign({},activeDiscovery(),{colorFamilies:[],bloomSeasons:[]})); renderDiscoveryFilterScreen(); }
+function openPaletteManager(ref){
+  palettePendingRef=ref||null; paletteRenameId=null; renderPaletteManager();
+  openOverlay('paletteScreen','#paletteName');
+}
+function discoverySourceSelection(source,collectionId,current=activeDiscovery()){
+  const collection=source==='favorites'||source==='palette';
+  const searching=!!(current.query||'').trim(), fallback=current.category||current.returnCategory||game.trayCat;
+  return {source,collectionId:source==='palette'?collectionId:null,
+    category:collection||searching?null:fallback,returnCategory:collection?null:(searching?fallback:null),limit:36};
+}
+function chooseDiscoverySource(source,collectionId){
+  // A saved collection is a complete plant list. It opens to All rather than
+  // inheriting a hidden category from the prior catalog view.
+  discoveryOpenSpecies=null; game.catMenuOpen=false;
+  setDiscovery(discoverySourceSelection(source,collectionId),true);
+  palettePendingRef=null; paletteRenameId=null; closeOverlay('paletteScreen'); buildToolTray();
+}
+function savedRefLabel(ref){
+  const base=ref&&PLANTS[ref.s];
+  if (!base) return `Retired species: ${ref&&ref.s||'unknown'}`;
+  return ref.v ? `${base.name} (${ref.v})` : base.name;
+}
+function savedRefAvailabilityReason(ref){
+  const P=refDef(ref), f=activeFilters();
+  if (!P) return 'Retired plant';
+  if (!challengeAllows(ref.s)) return 'Unavailable in this challenge';
+  if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
+  if (f.nativesOnly && !P.native) return 'Excluded by natives-only criteria';
+  const roles=plantRoles(ref.s);
+  if (!isTreeDef(P) && f.deer && !roles.includes('deerOk')) return 'Not deer resistant';
+  if (!isTreeDef(P) && f.rabbit && !roles.includes('rabbitOk')) return 'Not rabbit resistant';
+  if (f.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) return 'Not squirrel resistant';
+  return 'Not eligible for this garden';
+}
+function unavailableSavedRefs(refs){ return (refs||[]).filter(ref=>!plantRefFits(ref)); }
+function appendUnavailableRefs(host,label,refs,onRemove){
+  if (!refs.length) return;
+  const section=document.createElement('div'); section.className='palette-unavailable';
+  const head=document.createElement('p'); head.textContent=label; section.appendChild(head);
+  refs.forEach(ref=>{ const row=document.createElement('div'); row.className='palette-unavailable-row';
+    const info=document.createElement('span'); info.className='palette-unavailable-info';
+    const name=document.createElement('span'); name.textContent=savedRefLabel(ref);
+    const reason=document.createElement('small'); reason.textContent=savedRefAvailabilityReason(ref); info.append(name,reason);
+    const remove=document.createElement('button'); remove.type='button'; remove.textContent='Remove';
+    remove.onclick=()=>{ onRemove(ref); renderPaletteManager(); buildToolTray(); };
+    row.append(info,remove); section.appendChild(row); });
+  host.appendChild(section);
+}
+function renderPaletteManager(){
+  const list=document.getElementById('paletteList'), title=$('paletteTitle'), subtitle=$('paletteSubtitle'), createLabel=document.querySelector('.palette-create>label');
+  if (!list) return;
+  list.innerHTML=''; const d=activeDiscovery(), assigning=!!palettePendingRef, data=plantCollectionsData();
+  const pending=assigning?refDef(palettePendingRef):null;
+  if (title) title.textContent=assigning?'Add to a palette':'Manage plant palettes';
+  if (subtitle) subtitle.textContent=assigning
+    ? `${pending?pending.name:'This plant'} can be added to any named palette on this device.`
+    : 'Your palettes appear in the plant-list menu and work in every garden.';
+  if (createLabel) createLabel.textContent=assigning?'Create a new palette and add this plant':'New palette';
+  if (assigning){
+    (data.palettes||[]).forEach(p=>{ const row=document.createElement('div'); row.className='palette-manager-row';
+      const info=document.createElement('div'); info.className='palette-assignment-name';
+      const strong=document.createElement('b'); strong.textContent=p.name; const small=document.createElement('small'); small.textContent=`${p.items.length} saved`;
+      info.append(strong,small); row.appendChild(info);
+      const included=(p.items||[]).some(item=>plantRefId(item)===plantRefId(palettePendingRef));
+      const action=document.createElement('button'); action.type='button'; action.className='palette-row-action '+(included?'remove':'add'); action.textContent=included?'Remove':'Add';
+      action.onclick=()=>{ if (included) removePaletteRef(p.id,palettePendingRef); else addPaletteRef(p.id,palettePendingRef); renderPaletteManager(); buildToolTray(); };
+      row.appendChild(action); list.appendChild(row);
+    });
+    if (!data.palettes.length){ const empty=document.createElement('p'); empty.className='note'; empty.textContent='Create your first named palette below; this plant will be added immediately.'; list.appendChild(empty); }
+    return;
+  }
+  appendUnavailableRefs(list,'Favorites: unavailable saved plants',unavailableSavedRefs(data.favorites),ref=>{ if (isFavorite(ref)) toggleFavorite(ref); });
+  (data.palettes||[]).forEach(p=>{ const a=collectionAvailability(p.items||[]), row=document.createElement('div'); row.className='palette-manager-row';
+    const info=document.createElement('div'); info.className='palette-assignment-name';
+    const strong=document.createElement('b'); strong.textContent=p.name; const small=document.createElement('small'); small.textContent=`${a.available} eligible / ${a.total} saved`; info.append(strong,small); row.appendChild(info);
+    const rename=document.createElement('button'); rename.type='button'; rename.className='palette-row-action'; rename.textContent='Rename'; rename.onclick=()=>{ paletteRenameId=p.id; renderPaletteManager(); }; row.appendChild(rename);
+    const del=document.createElement('button'); del.type='button'; del.className='palette-row-action danger'; del.textContent='Delete'; del.onclick=()=>{ if (!confirm(`Delete the "${p.name}" palette? This cannot be undone.`)) return; deletePlantPalette(p.id); if (d.source==='palette'&&d.collectionId===p.id) setDiscovery({source:'recommended',collectionId:null},true); paletteRenameId=null; renderPaletteManager(); buildToolTray(); }; row.appendChild(del); list.appendChild(row);
+    if (paletteRenameId===p.id){ const edit=document.createElement('div'); edit.className='palette-rename';
+      const input=document.createElement('input'); input.type='text'; input.maxLength=30; input.value=p.name; input.setAttribute('aria-label',`Rename ${p.name}`);
+      const save=document.createElement('button'); save.type='button'; save.textContent='Save'; save.onclick=()=>{ if ((input.value||'').trim()) renamePlantPalette(p.id,input.value); paletteRenameId=null; renderPaletteManager(); buildToolTray(); };
+      const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Cancel'; cancel.onclick=()=>{ paletteRenameId=null; renderPaletteManager(); };
+      edit.append(input,save,cancel); list.appendChild(edit); }
+    appendUnavailableRefs(list,`${p.name}: unavailable saved plants`,unavailableSavedRefs(p.items),ref=>removePaletteRef(p.id,ref));
+  });
+  if (!data.palettes.length){ const empty=document.createElement('p'); empty.className='note'; empty.textContent='No named palettes yet. Create one below, then add plants from the catalog.'; list.appendChild(empty); }
+}
+function createPaletteFromInput(){
+  const input=document.getElementById('paletteName'), name=(input&&input.value||'').trim(); if (!name) return;
+  const added=palettePendingRef, p=createPlantPalette(name,added?[added]:[]); if (input) input.value='';
+  if (!p) return;
+  if (added){ palettePendingRef=null; closeOverlay('paletteScreen'); buildToolTray(); toast(`Created ${p.name} and added ${plantRefDisplayName(added)}.`); }
+  else { renderPaletteManager(); buildToolTray(); toast(`Created ${p.name}.`); }
 }
 let replacePlantContext=null;
 function selectionReplaceSources(){
@@ -1352,90 +1859,134 @@ function applyPlantReplacement(){
   toast(`Replaced ${result.changed} ${from.name}${result.blocked.length?`; ${result.blocked.length} blocked`:''} with ${to.name}.`);
   renderSelectionActions();
 }
+function discoveryCollectionView(d=activeDiscovery()){
+  return d.source==='favorites'||d.source==='palette';
+}
+function discoveryCollectionCategoryData(d=activeDiscovery()){
+  const refs=discoveryRefsFor(Object.assign({},d,{category:null})), counts={};
+  refs.forEach(ref=>{ const id=plantCategoryFor(ref.s); counts[id]=(counts[id]||0)+1; });
+  return {refs,counts};
+}
+function discoveryAllCategoryLabel(d=activeDiscovery()){
+  return d.source==='favorites'?'All favorites':`All in ${discoverySourceLabel(d)}`;
+}
+function updateCatalogHeader(isPlantGroup){
+  const title=document.getElementById('catalogTitle'), meta=document.getElementById('catalogMeta');
+  if (title) title.textContent=isPlantGroup?'Plant library':'Landscape library';
+  if (!meta) return;
+  if (!isPlantGroup){ meta.textContent='Ground, grade, hardscape, lighting, and site tools'; return; }
+  const d=activeDiscovery(), refs=discoveryRefs();
+  meta.textContent=`${discoverySourceLabel(d)} \u00b7 ${discoveryResultCountText(refs)}`;
+}
+function plantTrayCategoryId(d=activeDiscovery(),currentId=game.trayCat){
+  return trayGroupOf(currentId)==='plants'&&d.category ? d.category : currentId;
+}
 function buildToolTray(){
   saveTrayScroll();
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
-  const activeGroup=trayGroupOf(game.trayCat);
+  const syncedCategory=plantTrayCategoryId(); if (syncedCategory!==game.trayCat) game.trayCat=syncedCategory;
+  const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
+  const activeGroup=trayGroupOf(cat.id);
+  const isPlantGroup=activeGroup==='plants';
+  tabs.classList.toggle('has-discovery',isPlantGroup);
   lastCatByGroup[activeGroup]=game.trayCat;
-  const selectCat=(id)=>{ saveTrayScroll(); game.trayCat=id; game.toolMenu=null; game.drill=null;
+  const selectCat=(id)=>{ saveTrayScroll(); game.toolMenu=null; game.drill=null; discoveryOpenSpecies=null; closeDiscoverySourceMenu();
+    const currentDiscovery=activeDiscovery(), searchActive=!!currentDiscovery.query.trim();
+    if (id===null){ setDiscovery({category:null,returnCategory:searchActive?currentDiscovery.returnCategory:null,limit:36}); game.catMenuOpen=false; buildToolTray(); return; }
+    game.trayCat=id;
+    const targetIsPlants=trayGroupOf(id)==='plants';
+    setDiscovery({category:targetIsPlants?id:null,returnCategory:targetIsPlants&&searchActive?id:null,limit:36});
+    game.searchOpen=false; game.traySearch='';
     game.catMenuOpen=false;
     rememberBrushMenu(id,null);
-    if (game.tool==='pick') setTool('hand');
+    if (game.tool==='pick' || targetIsPlants!==isPlantGroup) setTool('hand');
     else refreshCanvasTools();
     buildToolTray(); };
-  // tier 1: Plants / Build
-  TRAY_GROUPS.forEach(g=>{
-    const b=document.createElement('button');
-    b.className='tab grp'+(activeGroup===g.id?' sel':''); b.textContent=g.label;
-    b.onclick=()=>selectCat(lastCatByGroup[g.id]||g.cats[0]);
-    tabs.appendChild(b);
-  });
-  // search is a toggle (a magnifier), not a permanent input row. When open it
-  // takes the sub-tabs' place, so it never adds a wrapping row.
-  const canSearch = true;
-  if (canSearch){
-    const sb=document.createElement('button');
-    sb.className='tab tab-search'+(game.searchOpen?' sel close':'');
-    const sc=document.createElement('canvas'); sc.width=24; sc.height=24;
-    drawSearchIcon(sc.getContext('2d'), game.searchOpen);
-    sb.appendChild(sc);
-    sb.setAttribute('aria-label', game.searchOpen?'Close plant search':'Search all plants');
-    sb.title=game.searchOpen?'Close search - back to categories':'Search the whole catalog';
-    sb.onclick=()=>{ game.searchOpen=!game.searchOpen; if (!game.searchOpen) game.traySearch='';
-      buildToolTray(); const i=document.getElementById('traySearch'); if (i) i.focus(); };
-    tabs.appendChild(sb);
-  }
-  const div=document.createElement('span'); div.className='tab-div'; tabs.appendChild(div);
-  if (canSearch && game.searchOpen){
-    const si=document.createElement('input');
-    si.id='traySearch'; si.type='search'; si.placeholder='Search all plants'; si.setAttribute('aria-label','Search all plants');
-    si.value=game.traySearch||'';
-    si.oninput=()=>{ game.traySearch=si.value; buildToolTray();
-      const next=document.getElementById('traySearch');
-      if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} }
-    };
-    si.onkeydown=(e)=>{ if (e.key==='Escape'){ e.stopPropagation();
-      game.searchOpen=false; game.traySearch=''; buildToolTray(); } };
-    tabs.appendChild(si);
+  const switchGroup=(groupId)=>{
+    if (groupId===activeGroup) return;
+    const group=TRAY_GROUPS.find(g=>g.id===groupId); if (!group) return;
+    saveTrayScroll(); game.trayCat=lastCatByGroup[groupId]||group.cats[0]; game.drill=null; game.catMenuOpen=false; closeDiscoverySourceMenu();
+    const d=activeDiscovery();
+    setDiscovery({category:groupId==='plants'?(discoveryCollectionView(d)||d.query.trim()?null:game.trayCat):null,limit:36});
+    // Changing catalog modes never paints. The last brush stays remembered for
+    // the canvas Plant tool, but Landscape now clearly asks for its own tool.
+    setTool('hand'); refreshCanvasTools(); buildToolTray();
+  };
+  const modeControl=()=>{ const seg=document.createElement('div'); seg.className='catalog-mode';
+    TRAY_GROUPS.forEach(group=>{ const b=document.createElement('button'); b.type='button';
+      b.className=activeGroup===group.id?'sel':''; b.textContent=group.label;
+      b.setAttribute('aria-pressed',activeGroup===group.id?'true':'false'); b.onclick=()=>switchGroup(group.id); seg.appendChild(b); });
+    return seg; };
+  updateCatalogHeader(isPlantGroup);
+  if (isPlantGroup) renderDiscoveryControls(tabs,modeControl);
+  else renderLandscapeControls(tabs,modeControl);
+  const discovery=isPlantGroup?activeDiscovery():null, collectionView=!!(discovery&&discoveryCollectionView(discovery));
+  const collectionData=collectionView?discoveryCollectionCategoryData(discovery):null;
+  const cur=document.createElement('button'); cur.type='button'; cur.className='cat-current';
+  const lab=document.createElement('span');
+  lab.textContent=collectionView&&!discovery.category?discoveryAllCategoryLabel(discovery)
+    : isPlantGroup&&discovery&&!discovery.category?'All matching plants':cat.label;
+  const arrow=document.createElement('i'); setUiIcon(arrow,game.catMenuOpen?'chevron-up':'chevron-down');
+  cur.replaceChildren(lab,arrow); cur.setAttribute('aria-haspopup','menu'); cur.setAttribute('aria-expanded',game.catMenuOpen?'true':'false'); cur.setAttribute('aria-controls','catalogCategoryMenu');
+  cur.onclick=()=>{ game.catMenuOpen=!game.catMenuOpen; buildToolTray(); };
+  tabs.appendChild(cur);
+  const categoryStrip=document.createElement('div'); categoryStrip.className='catalog-category-strip';
+  categoryStrip.setAttribute('role','group');
+  categoryStrip.setAttribute('aria-label',isPlantGroup?'Plant categories':'Landscape categories');
+  if (isPlantGroup){
+    const allRefs=discoveryRefsFor(Object.assign({},discovery,{category:null}));
+    const all=document.createElement('button'); all.type='button'; all.className=discovery.category?'':'sel';
+    all.dataset.categoryId='all';
+    all.textContent=`All ${groupDiscoveryRefs(allRefs).length}`; all.setAttribute('aria-pressed',discovery.category?'false':'true');
+    all.onclick=()=>selectCat(null); categoryStrip.appendChild(all);
+    TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)).forEach(c=>{
+      const refs=discoveryRefsFor(Object.assign({},discovery,{category:c.id})); if (!refs.length) return;
+      const b=document.createElement('button'); b.type='button'; const selected=discovery.category===c.id;
+      b.dataset.categoryId=c.id;
+      b.className=selected?'sel':''; b.textContent=`${c.label} ${groupDiscoveryRefs(refs).length}`;
+      b.setAttribute('aria-pressed',selected?'true':'false'); b.onclick=()=>selectCat(c.id); categoryStrip.appendChild(b);
+    });
   } else {
-    // tier 2: the active group's category sub-tabs
-    const groupCats=TRAY_GROUPS.find(g=>g.id===activeGroup).cats;
-    const curCat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
-    const cur=document.createElement('button');
-    cur.className='cat-current';
-    const lab=document.createElement('span'); lab.textContent=curCat.label;
-    const arrow=document.createElement('i'); setUiIcon(arrow,game.catMenuOpen?'chevron-up':'chevron-down');
-    cur.replaceChildren(lab,arrow);
-    cur.onclick=()=>{ game.catMenuOpen=!game.catMenuOpen; buildToolTray(); };
-    tabs.appendChild(cur);
-    if (game.catMenuOpen){
-      const pop=document.createElement('div');
-      pop.className='cat-pop';
-      TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
-        const b=document.createElement('button');
-        b.className=game.trayCat===c.id?'sel':'';
-        b.textContent=c.label;
-        b.onclick=()=>selectCat(c.id);
-        pop.appendChild(b);
-      });
-      tabs.appendChild(pop);
-    }
-    TRAY_CATS.filter(c=>groupCats.includes(c.id)).forEach(c=>{
-      const b=document.createElement('button');
-      b.className='tab subcat'+(game.trayCat===c.id?' sel':''); b.textContent=c.label;
-      b.onclick=()=>selectCat(c.id);
-      tabs.appendChild(b);
+    TRAY_CATS.filter(c=>TRAY_GROUPS[1].cats.includes(c.id)).forEach(c=>{
+      const b=document.createElement('button'); b.type='button'; const selected=game.trayCat===c.id;
+      b.dataset.categoryId=c.id;
+      b.className=selected?'sel':''; b.textContent=c.label; b.setAttribute('aria-pressed',selected?'true':'false');
+      b.onclick=()=>selectCat(c.id); categoryStrip.appendChild(b);
     });
   }
+  enableCatalogDragScroll(categoryStrip,activeGroup);
+  tabs.appendChild(categoryStrip);
+  requestAnimationFrame(()=>{
+    const selected=categoryStrip.querySelector('.sel');
+    if (selected&&selected.scrollIntoView) selected.scrollIntoView({block:'nearest',inline:'nearest'});
+  });
+  if (isPlantGroup){ const summary=discoveryFilterSummary(activeDiscovery()); if (summary) tabs.appendChild(summary); }
+  if (game.catMenuOpen){
+    const pop=document.createElement('div'); pop.className='cat-pop'; pop.id='catalogCategoryMenu'; pop.setAttribute('role','menu');
+    TRAY_GROUPS.forEach(group=>{ const section=document.createElement('div'); section.className='cat-pop-group';
+      const head=document.createElement('p'); head.textContent=group.label; section.appendChild(head);
+      const grid=document.createElement('div'); grid.className='cat-pop-grid';
+      if (group.id==='plants'){
+        const all=document.createElement('button'); all.type='button'; all.className=discovery.category?'':'sel';
+        all.textContent=collectionView?`${discoveryAllCategoryLabel(discovery)} · ${collectionData.refs.length}`:'All matching plants';
+        all.setAttribute('role','menuitemradio'); all.setAttribute('aria-checked',discovery.category?'false':'true'); all.onclick=()=>selectCat(null); grid.appendChild(all);
+      }
+      TRAY_CATS.filter(c=>group.cats.includes(c.id)).forEach(c=>{ if (collectionView&&group.id==='plants'&&!collectionData.counts[c.id]) return;
+        const b=document.createElement('button'); b.type='button';
+        const selected=isPlantGroup?(discovery&&discovery.category===c.id):game.trayCat===c.id;
+        b.className=selected?'sel':''; b.textContent=c.label+(collectionView&&group.id==='plants'?` · ${collectionData.counts[c.id]||0}`:'');
+        b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',selected?'true':'false'); b.onclick=()=>selectCat(c.id); grid.appendChild(b); });
+      section.appendChild(grid); pop.appendChild(section); });
+    tabs.appendChild(pop);
+  }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
-  const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
-  const globalQuery=canSearch && game.searchOpen ? (game.traySearch||'').trim() : '';
-  if (globalQuery){
-    renderGlobalSearchTray(tray,globalQuery);
-    renderCvRow();
-    finishToolTrayRender();
+  tray.classList.remove('discovery-results','cultivar-drill','landscape-results');
+  if (isPlantGroup){
+    if (PLANTS[game.tool] && !plantRefFits(plantRef(game.tool,game.toolVar))){ game.tool='hand'; game.toolVar=null; }
+    renderDiscoveryTray(tray); renderCvRow(); finishToolTrayRender();
     return;
   }
+  tray.classList.add('landscape-results');
   if (cat.types){
     let keys=trayKeys().filter(k=>cat.types.includes(PLANTS[k].type));
     if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
@@ -1532,6 +2083,9 @@ function buildToolTray(){
   // Material/build categories are catalogs, not hidden mode switches: opening a
   // tab should not silently arm the first tool inside it.
   renderCvRow();
+  if ((game.traySearch||'').trim()){
+    renderLandscapeSearchTray(tray,game.traySearch); finishToolTrayRender(); return;
+  }
   if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.some(isElevationTool)){
     const pathCol=pathColor(game.pathColor);
     const bedCol=bedStyle(game.bedStyle);
@@ -2134,8 +2688,9 @@ function renderDrillIn(tray, drillKey, members){
   });
 }
 /* Brush styles dock in the palette instead of a floating flyout. Plant brushes
-   get Draw/Drift and Grid/Free; every continuous paint brush also gets Fill,
-   which flood-fills the connected ground region with the armed brush. */
+   get Draw/Drift, while Grid/Free sits beside the active plant summary; every
+   continuous paint brush also gets Fill, which flood-fills the connected ground
+   region with the armed brush. */
 function renderBrushBar(){
   const bar=document.getElementById('brushBar'); if (!bar) return;
   bar.innerHTML='';
@@ -2165,6 +2720,20 @@ function renderBrushBar(){
   const lab=document.createElement('span');
   lab.className='brush-lab'+(erasing?' danger':''); lab.textContent=erasing?'Erase':'Brush';
   const parts=[lab];
+  const placing=document.createElement('div'); placing.className='placing-summary';
+  const placingSwatch=document.createElement('canvas'); placingSwatch.width=48; placingSwatch.height=44; placingSwatch.setAttribute('aria-hidden','true');
+  drawBrushSwatchCanvas(placingSwatch,false);
+  const placingCopy=document.createElement('span'); placingCopy.className='placing-copy';
+  const placingLabel=document.createElement('small'); placingLabel.textContent=P?'Now placing':'Active tool';
+  const placingName=document.createElement('b'); placingName.textContent=sheetContextLabel(); placingCopy.append(placingLabel,placingName);
+  placing.append(placingSwatch,placingCopy);
+  let placingAction=null;
+  const controls=document.createElement('div'); controls.className='placing-controls';
+  const appendFooter=()=>{
+    if (placingAction) placing.appendChild(placingAction);
+    controls.replaceChildren(...parts);
+    bar.append(placing,controls);
+  };
   if (erasing){
     // which layers a sweep clears, then the shared disc size — no Draw/Grid/Fill.
     parts.push(seg([['all','All'],['plant','Plants'],['bulb','Bulbs'],['terrain','Land']]
@@ -2176,12 +2745,12 @@ function renderBrushBar(){
       title:`Erase ${sz} tile${sz>1?'s':''} wide`, draw:tc=>drawBrushSizeIcon(tc,sz),
       click:()=>{ setBrushSize(sz); renderBrushBar();
         updateActiveToolStatus(); }}))));
-    bar.append(...parts);
+    appendFooter();
     return;
   }
   const woody = isWoodyDef(P);
   // Draw vs Drift is a no-op for woody plants (they always plant singly), so
-  // only herbaceous plants get that toggle; everyone gets Grid/Free placement.
+  // only herbaceous plants get that toggle.
   if (P && !woody) parts.push(seg([
     {label:'Draw', on:!game.drift&&!game.matrix, title:'Paint one plant at a time',
       draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
@@ -2191,13 +2760,17 @@ function renderBrushBar(){
       draw:tc=>drawMatrixModeIcon(tc),  click:()=>chooseMatrixMode()},
   ]));
   // Grid/Free only moves herbaceous plants (freePlantable excludes woody), so
-  // woody brushes trade it for the Age seg: what age the tree/shrub plants at.
-  if (P && !woody) parts.push(seg([
+  // it occupies the contextual action at the right of the plant summary. Woody
+  // brushes keep Age with the remaining brush controls below.
+  if (P && !woody){
+    placingAction=seg([
     {label:'Grid', on:!game.freePlanting, title:'Snap to tile centers',
       draw:tc=>drawPlacementIcon(tc,false), click:()=>choosePlacementMode(false)},
     {label:'Free', on:game.freePlanting,   title:'Land where you tap, not just centers',
       draw:tc=>drawPlacementIcon(tc,true),  click:()=>choosePlacementMode(true)},
-  ]));
+    ]);
+    placingAction.classList.add('placing-placement');
+  }
   if (P && woody){
     const age=normalizeWoodyAge(game.woodyAge);
     parts.push(seg([
@@ -2227,11 +2800,11 @@ function renderBrushBar(){
   fillBtn.onclick=()=>chooseFillMode(!game.fillMode);
   fillSeg.appendChild(fillBtn);
   parts.push(fillSeg);
-  bar.append(...parts);
+  appendFooter();
 }
-/* the collapsible palette (phones only): the handle folds the catalog away so
-   the garden gets the room while you paint; the brush bar + act button stay.
-   sheetContextLabel names whatever brush is armed, for the collapsed strip. */
+/* The collapsible palette handle folds the catalog away to a compact current-
+   selection bar. Phones retain their three-height sheet; desktop/tablet use
+   the same bar as a simple collapse/expand control. */
 function sheetContextLabel(){
   const P=PLANTS[game.tool];
   if (P) return plantDef(game.tool,game.toolVar).name+(game.matrix?' · matrix':game.drift?' · drift':'');
@@ -2333,7 +2906,12 @@ function nudgeSheetState(dir){
   const i=SHEET_STATES.indexOf(normalizedSheetState(game.sheetState));
   setSheetState(SHEET_STATES[Math.max(0,Math.min(SHEET_STATES.length-1,i+dir))]);
 }
-function mobileSheetUi(){ return typeof matchMedia==='function' && matchMedia('(max-width:640px)').matches; }
+function mobileSheetUi(){ return typeof matchMedia==='function' && matchMedia('(max-width:767px)').matches; }
+function nudgeCatalogHandle(dir){
+  if (mobileSheetUi()){ nudgeSheetState(dir); return; }
+  // Desktop/tablet have one unambiguous destination in each direction.
+  setSheetState(dir<0?'collapsed':'full');
+}
 function sheetSafeTopPx(hb){
   const p=document.createElement('i'); p.setAttribute('aria-hidden','true');
   p.style.cssText='position:absolute;visibility:hidden;pointer-events:none;height:var(--sheet-safe-top);width:0';
@@ -2350,9 +2928,17 @@ function sheetTargetHeight(hb,state){
 }
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
-  const s=normalizedSheetState(game.sheetState);
+  const priorFocus=document.activeElement;
+  const catalog=document.getElementById('sheetCatalog');
+  const focusWasInCatalog=!!(priorFocus&&catalog&&catalog.contains(priorFocus));
+  const focusWasExpand=!!(priorFocus&&(priorFocus.id==='btnSheetUp'||priorFocus.id==='btnLibraryLauncher'));
+  const phone=mobileSheetUi();
+  let s=normalizedSheetState(game.sheetState);
+  // The middle state belongs only to the phone bottom sheet. Larger screens
+  // move directly between the browser and the compact current-tool bar.
+  if (!phone&&s==='half') s='full';
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
-  const phone=mobileSheetUi(), reduced=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   const start=phone?hb.getBoundingClientRect().height:0;
   if (hb._sheetEnd){ hb.removeEventListener('transitionend',hb._sheetEnd); hb._sheetEnd=null; }
   if (hb._sheetFrame) cancelAnimationFrame(hb._sheetFrame);
@@ -2385,17 +2971,31 @@ function applySheetState(){
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const handle=document.getElementById('sheetHandle'); if (handle){
     handle.setAttribute('data-state',s);
-    handle.setAttribute('aria-label',`${cap(s)} plant palette. Swipe or use the show less and show more buttons.`);
+    handle.setAttribute('aria-label',phone
+      ? `${cap(s)} plant palette. Swipe or use the show less and show more buttons.`
+      : `${s==='collapsed'?'Collapsed':'Expanded'} catalog. ${sheetContextLabel()} is selected. ${s==='collapsed'?'Use the up button to browse plants.':'Use the in-catalog minimize button to show more of the plan.'}`);
   }
   const down=document.getElementById('btnSheetDown'), up=document.getElementById('btnSheetUp');
+  const close=document.getElementById('btnCatalogClose');
+  const launcher=document.getElementById('btnLibraryLauncher');
+  if (close) close.onclick=()=>setSheetState('collapsed');
   if (down){
     down.disabled=s==='collapsed';
-    down.setAttribute('aria-label',s==='full'?'Reduce plant palette to half height':'Collapse plant palette');
+    down.setAttribute('aria-label',phone
+      ? (s==='full'?'Reduce plant palette to half height':'Collapse plant palette')
+      : 'Collapse plant catalog');
   }
   if (up){
     up.disabled=s==='full';
-    up.setAttribute('aria-label',s==='collapsed'?'Expand plant palette to half height':'Expand plant palette to full height');
+    up.setAttribute('aria-label',phone
+      ? (s==='collapsed'?'Expand plant palette to half height':'Expand plant palette to full height')
+      : 'Browse full plant catalog');
+    up.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(1); };
   }
+  if (down) down.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(-1); };
+  const moveFocus=target=>{ if (!target) return; try{ target.focus({preventScroll:true}); }catch(_){ target.focus(); } };
+  if (s==='collapsed'&&focusWasInCatalog) moveFocus(phone?up:launcher);
+  else if (!phone&&s==='full'&&focusWasExpand) moveFocus(close);
   drawSheetSwatch();
   renderBuildingDraftActions();
 }

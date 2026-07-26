@@ -742,6 +742,8 @@ function showPlantCard(p,px2,py2){
   const yrs=yearsToSizeText(P), crown=crownTilesText(P);
   if (yrs) detailBits.push(yrs);
   if (crown) detailBits.push(crown);
+  const bloomInfo=typeof bloomRangeText==='function' ? bloomRangeText(P) : '';
+  const bloomFamily=typeof resultFlowerFamily==='function' ? resultFlowerFamily({s:p.s,v:p.v||null},activeDiscovery()) : null;
   const status=establishedPreviewActive()
     ? (g>=100?'Shown at maturity.':`Shown at maturity - ${g}% established today.`)
     : (g>=100?'Fully established':`Establishing - ${g}% grown`);
@@ -752,6 +754,7 @@ function showPlantCard(p,px2,py2){
       ? 'Native'
       : 'Garden cultivar (non-native)'}</p>
     <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
+    ${bloomInfo&&bloomInfo!=='No bloom time recorded'?`<p style="color:#cdbfa9">Blooms ${bloomInfo}${bloomFamily?` \u00b7 ${bloomFamily}`:''}</p>`:''}
     ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
     <p style="margin-top:6px;color:#efe6d3">${status}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.title='Close plant details';
@@ -760,6 +763,12 @@ function showPlantCard(p,px2,py2){
     if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };
   xb.onclick=close;
   el.prepend(xb);
+  if (typeof isFavorite==='function' && typeof el.appendChild==='function'){
+    const fb=document.createElement('button'); fb.type='button'; fb.className='card-action';
+    const ref={s:p.s,v:p.v||null}; fb.textContent=isFavorite(ref)?'Remove from Favorites':'Add to Favorites';
+    fb.onclick=()=>{ toggleFavorite(ref); fb.textContent=isFavorite(ref)?'Remove from Favorites':'Add to Favorites'; };
+    el.appendChild(fb);
+  }
   if (!game.visiting && px2!==undefined && py2!==undefined){
     const rb=document.createElement('button'); rb.type='button'; rb.className='card-action'; rb.textContent='Replace\u2026';
     rb.title=`Replace ${P.name} here or across the garden`;
@@ -1361,7 +1370,7 @@ function selPointerUp(){
 }
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
   const W=VW/ZOOM, H=VH/ZOOM;
-  const sx=e.clientX/ZOOM, sy=e.clientY/ZOOM;
+  const pt=canvasClientPoint(e), sx=pt.x/ZOOM, sy=pt.y/ZOOM;
   const [x,y]=tileAt(sx, sy, W, H);
   const [wx,wy]=worldPointAt(sx, sy, W, H, elevationAt(x,y));
   return {x,y,wx,wy,ox:wx-x,oy:wy-y};
