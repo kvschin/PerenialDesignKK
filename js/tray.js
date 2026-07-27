@@ -25,7 +25,7 @@ const TRAY_GROUPS=[
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
-let catalogCategoryScroll={plants:0,build:0};
+let catalogCategoryScroll={plants:0,build:0}, catalogCategoryFocus=null;
 // A catalogue icon should show the plant at its representative flower moment,
 // not silently force a spring or fall species into a flowerless Summer frame.
 function plantIconSeason(P){
@@ -162,7 +162,7 @@ function roundedIconRect(tc,x,y,w,h,r){
 }
 function drawCanvasIcon(tc,kind){
   tc.clearRect(0,0,42,32);
-  const cream='#40382f', seed='#6d665a', bronze='#c67139', sage='#7a8a5e',
+  const cream='#efe6d3', seed='#cdbfa9', bronze='#c97f3f', sage='#6f8f5a',
     leaf='#8fa36f', soil='#6e5a48', rose='#d9a1a3', water='#6a9ba5';
   tc.strokeStyle=seed; tc.fillStyle=seed; tc.lineWidth=2;
   tc.lineCap='round'; tc.lineJoin='round';
@@ -1489,6 +1489,14 @@ function discoverySearchSelection(d,query){
 function categoryDragScrollLeft(startScroll,startX,currentX){
   return startScroll+startX-currentX;
 }
+function categoryKeyIndex(key,current,length){
+  if (!length) return -1;
+  if (key==='Home') return 0;
+  if (key==='End') return length-1;
+  if (key==='ArrowRight') return current<0?0:(current+1)%length;
+  if (key==='ArrowLeft') return (current<=0?length:current)-1;
+  return -1;
+}
 function enableCatalogDragScroll(strip,groupId){
   let drag=null, suppressClick=false;
   strip.scrollLeft=catalogCategoryScroll[groupId]||0;
@@ -1525,6 +1533,14 @@ function enableCatalogDragScroll(strip,groupId){
     if (!suppressClick) return;
     e.preventDefault(); e.stopImmediatePropagation(); suppressClick=false;
   },true);
+  strip.addEventListener('keydown',e=>{
+    const buttons=[...strip.querySelectorAll('button')], current=buttons.indexOf(document.activeElement);
+    const next=categoryKeyIndex(e.key,current,buttons.length);
+    if (next<0) return;
+    e.preventDefault();
+    buttons[next].focus({preventScroll:true});
+    buttons[next].scrollIntoView({block:'nearest',inline:'nearest'});
+  });
 }
 function renderDiscoveryControls(tabs,modeControl){
   const d=activeDiscovery(), bar=document.createElement('div'); bar.className='discovery-controls';
@@ -1938,20 +1954,20 @@ function buildToolTray(){
     const all=document.createElement('button'); all.type='button'; all.className=discovery.category?'':'sel';
     all.dataset.categoryId='all';
     all.textContent=`All ${groupDiscoveryRefs(allRefs).length}`; all.setAttribute('aria-pressed',discovery.category?'false':'true');
-    all.onclick=()=>selectCat(null); categoryStrip.appendChild(all);
+    all.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:'all'}; selectCat(null); }; categoryStrip.appendChild(all);
     TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)).forEach(c=>{
       const refs=discoveryRefsFor(Object.assign({},discovery,{category:c.id})); if (!refs.length) return;
       const b=document.createElement('button'); b.type='button'; const selected=discovery.category===c.id;
       b.dataset.categoryId=c.id;
       b.className=selected?'sel':''; b.textContent=`${c.label} ${groupDiscoveryRefs(refs).length}`;
-      b.setAttribute('aria-pressed',selected?'true':'false'); b.onclick=()=>selectCat(c.id); categoryStrip.appendChild(b);
+      b.setAttribute('aria-pressed',selected?'true':'false'); b.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); }; categoryStrip.appendChild(b);
     });
   } else {
     TRAY_CATS.filter(c=>TRAY_GROUPS[1].cats.includes(c.id)).forEach(c=>{
       const b=document.createElement('button'); b.type='button'; const selected=game.trayCat===c.id;
       b.dataset.categoryId=c.id;
       b.className=selected?'sel':''; b.textContent=c.label; b.setAttribute('aria-pressed',selected?'true':'false');
-      b.onclick=()=>selectCat(c.id); categoryStrip.appendChild(b);
+      b.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); }; categoryStrip.appendChild(b);
     });
   }
   enableCatalogDragScroll(categoryStrip,activeGroup);
@@ -1959,6 +1975,11 @@ function buildToolTray(){
   requestAnimationFrame(()=>{
     const selected=categoryStrip.querySelector('.sel');
     if (selected&&selected.scrollIntoView) selected.scrollIntoView({block:'nearest',inline:'nearest'});
+    if (catalogCategoryFocus&&catalogCategoryFocus.groupId===activeGroup){
+      const target=[...categoryStrip.querySelectorAll('button')].find(button=>button.dataset.categoryId===catalogCategoryFocus.id);
+      catalogCategoryFocus=null;
+      if (target) target.focus({preventScroll:true});
+    }
   });
   if (isPlantGroup){ const summary=discoveryFilterSummary(activeDiscovery()); if (summary) tabs.appendChild(summary); }
   if (game.catMenuOpen){
@@ -2821,6 +2842,7 @@ function sheetContextLabel(){
   if (game.tool==='shovel') return 'Erase';
   if (game.tool==='select') return 'Select';
   if (game.tool==='pick') return 'Eyedropper';
+  if (trayGroupOf(game.trayCat)==='build') return 'Tap to choose a landscape tool';
   return 'Tap to choose a plant';
 }
 function toolGuide(){
@@ -2923,7 +2945,7 @@ function sheetTargetHeight(hb,state){
     const visible=window.visualViewport&&window.visualViewport.height?window.visualViewport.height:full;
     return Math.max(180,Math.min(full,visible)-sheetSafeTopPx(hb));
   }
-  const old=hb.style.height; hb.style.height='auto';
+  const old=hb.style.height; hb.style.height=state==='half'?'':'auto';
   const h=Math.ceil(hb.getBoundingClientRect().height); hb.style.height=old; return h;
 }
 function applySheetState(){

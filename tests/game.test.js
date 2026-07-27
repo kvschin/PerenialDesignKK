@@ -292,9 +292,11 @@ test('the unified dock renders both plant discovery and landscape tool catalogs'
   game.trayCat = 'sunper'; game.tool = 'hand';
   buildToolTray();
   assertEqual(trayGroupOf(game.trayCat), 'plants', 'plant discovery dock renders from a plant category');
+  assertEqual(sheetContextLabel(), 'Tap to choose a plant', 'the compact handle names the plant browse action');
   game.trayCat = 'landscape'; game.tool = 'hand';
   buildToolTray();
   assertEqual(trayGroupOf(game.trayCat), 'build', 'landscape tool dock renders from a landscape category');
+  assertEqual(sheetContextLabel(), 'Tap to choose a landscape tool', 'the compact handle names the landscape browse action');
 });
 
 test('plant catalog controls keep search directly below the mode switch', () => {
@@ -318,6 +320,11 @@ test('plant catalog controls keep search directly below the mode switch', () => 
 test('plant category drag scrolling follows the pointer without changing selection', () => {
   assertEqual(categoryDragScrollLeft(120, 200, 150), 170, 'dragging left reveals categories to the right');
   assertEqual(categoryDragScrollLeft(120, 200, 250), 70, 'dragging right reveals categories to the left');
+  assertEqual(categoryKeyIndex('ArrowRight', 1, 4), 2, 'right arrow advances through category chips');
+  assertEqual(categoryKeyIndex('ArrowRight', 3, 4), 0, 'right arrow wraps to the first category');
+  assertEqual(categoryKeyIndex('ArrowLeft', 0, 4), 3, 'left arrow wraps to the final category');
+  assertEqual(categoryKeyIndex('Home', 2, 4), 0, 'Home focuses the first category');
+  assertEqual(categoryKeyIndex('End', 1, 4), 3, 'End focuses the final category');
 });
 
 test('landscape search spans every landscape category', () => {

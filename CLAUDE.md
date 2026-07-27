@@ -614,11 +614,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     counted category facets with native touch scrolling, Filters, one independently scrolling result region,
     and a fixed contextual placing/brush footer. Switching catalog modes selects
     Hand so browsing cannot paint; it preserves the last brush for restoration.
-    Desktop and tablet use a dark loam right-side library (28px corners, large
-    elevation; 370-430px desktop and 340-390px tablet). Phone portrait keeps the
-    tri-state bottom sheet with the same internal hierarchy. Desktop/tablet show
-    horizontally scrolling counted category chips; phone uses the compact
-    category chooser. The plant categories are Grasses, Sedges, Sun Perennials,
+    Desktop and tablet use one docked grid shell: a 56px full-width header,
+    canvas in the lower-left cell, and a flush dark-loam right-side library
+    separated only by a 1px divider (370-430px desktop and 340-390px tablet).
+    Closing the library collapses its grid column and expands the canvas. Phone
+    portrait keeps the tri-state bottom sheet with the same internal hierarchy.
+    Every breakpoint shows a one-line, horizontally scrolling counted category
+    strip; touch uses native scrolling, mouse/pen can drag, arrow/Home/End keys
+    move focus, and selection restores focus after the controls rebuild. The
+    plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
     are Ground, Grade, Hardscape, Lighting, and Site. Only `#toolTray` scrolls in
     the side library so its header, discovery controls, and footer remain visible.
@@ -752,7 +756,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (`clockMeta`/`seasonPhase`); the avatar path
     (Visit / legacy saves) keeps the full calendar + End Day. At 767px and below
     the library has collapsed/half/full states: `#sheetHandle` moves among them
-    while you paint (`applySheetState`, `game.sheetCollapsed`). Collapsed leaves
+    while you paint (`applySheetState`, `game.sheetCollapsed`). The half state is
+    capped at 55dvh (480px maximum) and gives its remaining height to the result
+    scroller so it cannot quietly become a nearly full-screen sheet. On phone
+    viewports 640px tall or shorter, half state omits its redundant catalog title,
+    mode switch, and search field; source/filter/category controls and results stay
+    usable there, while full state retains the complete hierarchy. Collapsed leaves
     only a compact context label + swatch of the armed plant
     (`drawSheetSwatch`); the brush bar returns in half/full. The mobile palette is full-bleed
     (edge-to-edge, 28px top corners, docked to `bottom:0` with
@@ -761,7 +770,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     edge behind it). `#sheetCatalog` remains mounted across those states, so
     its scroll position survives. `applySheetState` performs a measured-height
     FLIP on the parent (px start/target, then clears the inline height), because
-    CSS cannot interpolate the half state's `auto` or the full state's `none`;
+    transitions still need concrete start/target pixels even though the half and
+    full resting heights are CSS-governed;
     this makes all six directed collapsed/half/full transitions reversible,
     including rapid interruptions. Reduced motion skips the interpolation.
     Only the collapsed state clips its content
@@ -769,10 +779,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     half/full states the handle spans and visually joins the full-width sheet;
     collapsed returns it to a compact inset bar. At 768px and above `.hud-bottom`
     is the right-docked dark library; desktop/tablet deliberately have only
-    two levels: the expanded browser and a compact current-tool launcher on the
-    lower-right edge. The round close control in the library header minimizes
-    directly; the compact bar reopens directly to the browser, and Escape also
-    minimizes. Zoom/Fit sits in a cream pill at the bottom-left on these sizes.
+    two levels: the expanded browser and a compact **Plant library** launcher on
+    the lower-right edge. The round close control in the library header minimizes
+    directly; the launcher reopens directly to the browser, and Escape also
+    minimizes. Zoom/Fit sits in a dark loam pill at the bottom-left on these sizes.
     The active plant result card uses the same terracotta selected treatment independently of
     its Favorite heart. **Canvas full-bleed under
     `viewport-fit=cover`:** an iOS standalone PWA with `black-translucent` has a
