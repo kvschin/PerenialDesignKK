@@ -299,7 +299,51 @@ test('the unified dock renders both plant discovery and landscape tool catalogs'
   assertEqual(sheetContextLabel(), 'Tap to choose a landscape tool', 'the compact handle names the landscape browse action');
 });
 
-test('plant catalog controls keep search directly below the mode switch', () => {
+test('theme preference resolves auto against the OS and pins light/dark', () => {
+  setup();
+  const realMM = globalThis.matchMedia;
+  const setOs = light => { globalThis.matchMedia = () => ({ matches: light, addEventListener(){}, removeEventListener(){}, addListener(){}, removeListener(){} }); };
+
+  setOs(false);
+  assertEqual(setThemePref('auto'), 'dark', 'auto follows a dark OS');
+  assertEqual(themeLabel(), 'Auto (dark)', 'the label says what auto resolved to');
+  setOs(true);
+  assertEqual(resolvedTheme(), 'light', 'auto follows the OS when it flips');
+  assertEqual(themeLabel(), 'Auto (light)', 'the label follows too');
+
+  // An explicit choice must ignore the OS in both directions.
+  assertEqual(setThemePref('dark'), 'dark', 'dark pins dark on a light OS');
+  setOs(false);
+  assertEqual(setThemePref('light'), 'light', 'light pins light on a dark OS');
+  assertEqual(themeLabel(), 'Light', 'a pinned choice does not show a resolution');
+
+  assertEqual(setThemePref('nonsense'), 'dark', 'junk falls back to auto (dark OS here)');
+  assertEqual(localStorage.getItem('hortus:theme'), 'auto', 'junk is stored as auto, not as junk');
+
+  setThemePref('auto');
+  assertEqual(cycleThemePref(), 'light', 'cycle goes auto -> light');
+  assertEqual(cycleThemePref(), 'dark', 'cycle goes light -> dark');
+  assertEqual(cycleThemePref(), 'dark', 'cycle wraps dark -> auto (dark OS resolves to dark)');
+  assertEqual(localStorage.getItem('hortus:theme'), 'auto', 'the wrap stored auto, not dark');
+
+  globalThis.matchMedia = realMM;
+  setThemePref('auto');
+});
+
+test('uiInk always yields a usable colour, including with no computed style', () => {
+  setup();
+  // The sandbox getComputedStyle returns '' for every property, which is the
+  // same situation as a canvas icon drawn before the stylesheet resolves.
+  ['--icon-ink', '--icon-ink-soft', '--icon-ink-dim', '--icon-warm', '--icon-halo'].forEach(k => {
+    const v = uiInk(k);
+    assert(typeof v === 'string' && v.length > 0, `${k} resolves to something drawable`);
+    assert(/^(#|rgb)/.test(v), `${k} is a real colour, not an unresolved var(): ${v}`);
+  });
+  // An unknown token must not return empty and blank out an icon.
+  assert(/^#/.test(uiInk('--nope')), 'an unknown token still yields a colour');
+});
+
+test('plant catalog controls pair into two rows instead of five stacked rows', () => {
   setup();
   const tabs = document.createElement('div');
   renderDiscoveryControls(tabs, () => {
@@ -308,13 +352,63 @@ test('plant catalog controls keep search directly below the mode switch', () => 
     return mode;
   });
   const controls = tabs.children[0];
-  assertEqual(controls.children[0].className, 'catalog-mode', 'Plants / Landscape remains first');
-  assertEqual(controls.children[1].id, 'trayFind', 'plant search immediately follows the mode switch');
-  assertEqual(controls.children[2].className, 'discovery-source-wrap', 'plant lists follow search');
-  const filterRow = controls.children[3];
-  assertEqual(filterRow.className, 'discovery-filter-row', 'filters remain after the source picker');
+  // Five full-width rows cost 268px of fixed chrome and starved the result
+  // list, which was the only flexible row. Two pairs halve that.
+  assertEqual(controls.children.length, 2, 'controls collapse to two rows');
+  assertEqual(controls.children[0].className, 'catalog-control-row', 'row one is a pair wrapper');
+  assertEqual(controls.children[1].className, 'catalog-control-row', 'row two is a pair wrapper');
+  // Row one answers "what am I browsing", row two "how do I narrow it".
+  const [browse, narrow] = controls.children;
+  assertEqual(browse.children[0].className, 'catalog-mode', 'Plants / Landscape stays first');
+  assertEqual(browse.children[1].className, 'discovery-source-wrap', 'the source picker shares its row');
+  assertEqual(narrow.children[0].id, 'trayFind', 'search leads the narrowing row');
+  const filterRow = narrow.children[1];
+  assertEqual(filterRow.className, 'discovery-filter-row', 'filters share the search row');
   assert(!filterRow.children.some(child => child.className === 'discovery-eligibility'),
     'the redundant eligibility status is not rendered');
+});
+
+test('a plant with no recorded bloom drops the timeline instead of drawing 12 empty bars', () => {
+  setup();
+  const blooming = Object.keys(PLANTS).find(k => bloomMonthsFor(PLANTS[k]).length);
+  const bare = Object.keys(PLANTS).find(k => !bloomMonthsFor(PLANTS[k]).length);
+  assert(blooming, 'the catalog has at least one blooming species to compare against');
+  if (bare) {
+    // "Blooms No bloom time recorded" plus a dozen grey bars read as a data
+    // failure on a quarter of the catalog.
+    assertEqual(discoveryBloomTimeline(PLANTS[bare]), null, 'no timeline without bloom data');
+    assertEqual(discoveryBloomLabel(PLANTS[bare]), 'Grown for foliage', 'foliage copy replaces the empty range');
+    assertEqual(discoveryGroupBloomText({ refs: [{ s: bare }] }), '', 'group bloom text is empty, not a sentence');
+  }
+  const line = discoveryBloomTimeline(PLANTS[blooming]);
+  assert(line, 'a blooming species still renders its timeline');
+  assertEqual(line.children.length, 12, 'the timeline stays a twelve-month strip');
+  assert(line.children.some(c => c.className === 'on'), 'blooming months are marked');
+  assert(discoveryBloomLabel(PLANTS[blooming]).startsWith('Blooms '), 'blooming species keep the Blooms label');
+});
+
+test('the category strip reports which side can still scroll', () => {
+  setup();
+  const strip = document.createElement('div');
+  const wrap = document.createElement('div');
+  wrap.appendChild(strip);
+  strip.parentElement = wrap;
+  // 940px of chips in a 330px column: 6 of 9 categories sit off-screen, and
+  // with the scrollbar hidden the fade/arrows are the only affordance.
+  strip.scrollWidth = 940; strip.clientWidth = 330;
+  strip.scrollLeft = 0;
+  updateCatalogStripAffordance(strip);
+  assert(!strip.classList.contains('can-scroll-start'), 'no left fade at the start');
+  assert(strip.classList.contains('can-scroll-end'), 'right fade shows more categories exist');
+  assert(wrap.classList.contains('can-scroll-end'), 'the wrapper gets it too so the arrow can show');
+  strip.scrollLeft = 610;
+  updateCatalogStripAffordance(strip);
+  assert(strip.classList.contains('can-scroll-start'), 'left fade appears once scrolled');
+  assert(!strip.classList.contains('can-scroll-end'), 'right fade clears at the end');
+  strip.scrollWidth = 300; strip.clientWidth = 330; strip.scrollLeft = 0;
+  updateCatalogStripAffordance(strip);
+  assert(!strip.classList.contains('can-scroll-start') && !strip.classList.contains('can-scroll-end'),
+    'a strip that fits shows no affordance at all');
 });
 
 test('plant category drag scrolling follows the pointer without changing selection', () => {

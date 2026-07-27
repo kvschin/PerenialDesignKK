@@ -162,7 +162,9 @@ function roundedIconRect(tc,x,y,w,h,r){
 }
 function drawCanvasIcon(tc,kind){
   tc.clearRect(0,0,42,32);
-  const cream='#efe6d3', seed='#cdbfa9', bronze='#c97f3f', sage='#6f8f5a',
+  // cream/seed are the neutral ink of every rail + tray icon, so they follow
+  // the theme; the botanical accents below are the same in both.
+  const cream=uiInk('--icon-ink'), seed=uiInk('--icon-ink-soft'), bronze='#c97f3f', sage='#6f8f5a',
     leaf='#8fa36f', soil='#6e5a48', rose='#d9a1a3', water='#6a9ba5';
   tc.strokeStyle=seed; tc.fillStyle=seed; tc.lineWidth=2;
   tc.lineCap='round'; tc.lineJoin='round';
@@ -327,7 +329,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     g.strokeStyle='rgba(232,248,244,.8)'; g.lineWidth=1; g.beginPath();
     g.ellipse(c.width/2,c.height/2+1,c.width*.22,2.2,0,0,7); g.stroke(); return true; }
   if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
-    g.fillStyle='#efe6d3'; g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
     g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
   if (k==='fence'){ const st=fenceStyle(fenceDraft().style);
     g.strokeStyle=st.rail; g.lineWidth=2; g.lineCap='round';
@@ -335,7 +337,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     for (let x=7;x<=23;x+=8){ g.moveTo(x,19); g.lineTo(x,6); } g.stroke(); return true; }
   if (k==='light'){ const ld=lightDraft(), tone=lightTone(ld.tone);
     g.fillStyle=tone.col; g.beginPath(); g.ellipse(15,9,6,3,0,0,7); g.fill();
-    g.strokeStyle='#d8c7ac'; g.lineWidth=1.7; g.beginPath(); g.moveTo(15,10); g.lineTo(15,22); g.stroke(); return true; }
+    g.strokeStyle=uiInk('--icon-ink-soft'); g.lineWidth=1.7; g.beginPath(); g.moveTo(15,10); g.lineTo(15,22); g.stroke(); return true; }
   if (k==='firepit'){ diamond('#74695d','rgba(239,230,211,.35)');
     g.fillStyle='#30261f'; g.beginPath(); g.ellipse(c.width/2,c.height/2+1,6,3,0,0,7); g.fill();
     g.strokeStyle='#ef7f37'; g.lineWidth=1.3; g.beginPath();
@@ -347,16 +349,16 @@ function drawBrushSwatchCanvas(c,includeLast){
 }
 function drawPlantModeIcon(tc,drift){
   tc.clearRect(0,0,28,24);
-  tc.strokeStyle='#d8c7ac'; tc.fillStyle='#d8c7ac'; tc.lineWidth=1.6;
+  tc.strokeStyle=uiInk('--icon-ink-soft'); tc.fillStyle=uiInk('--icon-ink-soft'); tc.lineWidth=1.6;
   if (!drift){
     tc.save(); tc.translate(14,12); tc.rotate(-0.72);
     tc.fillStyle='#c97f3f'; tc.fillRect(-2,-10,4,13);
-    tc.fillStyle='#efe6d3'; tc.fillRect(-4,3,8,4);
+    tc.fillStyle=uiInk('--icon-ink'); tc.fillRect(-4,3,8,4);
     tc.fillStyle='#6f8f5a'; tc.beginPath(); tc.moveTo(-5,7); tc.quadraticCurveTo(0,13,5,7); tc.closePath(); tc.fill();
     tc.restore();
     return;
   }
-  tc.strokeStyle='#efe6d3';
+  tc.strokeStyle=uiInk('--icon-ink');
   for (let i=0;i<5;i++){
     const x=7+(i%3)*7, y=7+Math.floor(i/3)*7;
     tc.beginPath(); tc.ellipse(x,y,4,2.5,0,0,7); tc.stroke();
@@ -382,7 +384,7 @@ function drawPlacementIcon(tc,free){
     tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x+5,y+3); tc.lineTo(x,y+6); tc.lineTo(x-5,y+3); tc.closePath(); tc.stroke();
   }
   const pts=free ? [[9,11],[19,8],[15,18]] : [[8,8],[18,8],[13,16]];
-  tc.fillStyle=free?'#c97f3f':'#efe6d3';
+  tc.fillStyle=free?'#c97f3f':uiInk('--icon-ink');
   pts.forEach(([x,y])=>{ tc.beginPath(); tc.ellipse(x,y,3.2,2.2,0,0,7); tc.fill(); });
 }
 function drawFillModeIcon(tc,on){
@@ -394,7 +396,7 @@ function drawFillModeIcon(tc,on){
     tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x+5,y+3); tc.lineTo(x,y+6); tc.lineTo(x-5,y+3); tc.closePath(); tc.stroke();
   }
   tc.save(); tc.translate(16,10); tc.rotate(-0.72);
-  tc.strokeStyle=on?'#efe6d3':'#d8c7ac'; tc.lineWidth=1.7;
+  tc.strokeStyle=on?uiInk('--icon-ink'):uiInk('--icon-ink-soft'); tc.lineWidth=1.7;
   tc.strokeRect(-6,-5,12,10);
   tc.beginPath(); tc.moveTo(6,2); tc.lineTo(11,7); tc.stroke();
   tc.restore();
@@ -428,17 +430,17 @@ function drawEdgeStyleIcon(tc,style){
     tc.lineTo(w-8,midY+9); tc.lineTo(8,midY+9); tc.closePath();
   }
   tc.fill();
-  tc.strokeStyle='#c9a07f'; tc.lineWidth=1.5; tc.stroke();
+  tc.strokeStyle=uiInk('--icon-warm'); tc.lineWidth=1.5; tc.stroke();
 }
 function drawSearchIcon(tc,close){
   tc.clearRect(0,0,24,24);
   tc.lineCap='round'; tc.lineJoin='round';
   if (close){
-    tc.strokeStyle='#efe6d3'; tc.lineWidth=2.4;
+    tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=2.4;
     tc.beginPath(); tc.moveTo(7,7); tc.lineTo(17,17); tc.moveTo(17,7); tc.lineTo(7,17); tc.stroke();
     return;
   }
-  tc.strokeStyle='#efe6d3'; tc.lineWidth=2;
+  tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=2;
   tc.beginPath(); tc.arc(10.5,10.5,5.5,0,Math.PI*2); tc.stroke();
   tc.strokeStyle='#c97f3f'; tc.lineWidth=2.4;
   tc.beginPath(); tc.moveTo(15,15); tc.lineTo(19,19); tc.stroke();
@@ -1012,14 +1014,14 @@ function buildLayerPopover(){
     c.width=24; c.height=18;
     const tc=c.getContext('2d');
     tc.clearRect(0,0,24,18);
-    tc.strokeStyle=on?'#efe6d3':'#7d7164';
+    tc.strokeStyle=on?uiInk('--icon-ink'):uiInk('--icon-ink-dim');
     tc.fillStyle=on?'rgba(201,127,63,.34)':'rgba(239,230,211,.05)';
     tc.lineWidth=1.7; tc.lineCap='round'; tc.lineJoin='round';
     tc.beginPath();
     tc.moveTo(3,9); tc.quadraticCurveTo(12,2.5,21,9); tc.quadraticCurveTo(12,15.5,3,9);
     tc.fill(); tc.stroke();
-    tc.beginPath(); tc.arc(12,9,on?3.1:2.2,0,7); tc.fillStyle=on?'#c97f3f':'#7d7164'; tc.fill();
-    if (!on){ tc.strokeStyle='#7d7164'; tc.lineWidth=2; tc.beginPath(); tc.moveTo(5,15); tc.lineTo(19,3); tc.stroke(); }
+    tc.beginPath(); tc.arc(12,9,on?3.1:2.2,0,7); tc.fillStyle=on?'#c97f3f':uiInk('--icon-ink-dim'); tc.fill();
+    if (!on){ tc.strokeStyle=uiInk('--icon-ink-dim'); tc.lineWidth=2; tc.beginPath(); tc.moveTo(5,15); tc.lineTo(19,3); tc.stroke(); }
     return c;
   };
   // one row = a visibility toggle. The whole row (eye + label) flips it;
@@ -1306,9 +1308,10 @@ function resultFlowerFamily(ref,d){
   return null;
 }
 function activePlantRef(ref){ return !!ref && game.tool===ref.s && (game.toolVar||null)===(ref.v||null); }
+// '' when nothing in the group blooms; the caller swaps in the foliage copy.
 function discoveryGroupBloomText(group){
   const months=[...new Set(group.refs.flatMap(ref=>{ const P=refDef(ref); return P?bloomMonthsFor(P):[]; }))].sort((a,b)=>a-b);
-  if (!months.length) return 'No bloom time recorded';
+  if (!months.length) return '';
   const labels=CAL_MONTH_LABELS||['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return months.length===1?labels[months[0]-1]:`${labels[months[0]-1]}\u2013${labels[months[months.length-1]-1]}`;
 }
@@ -1317,13 +1320,21 @@ function discoveryGroupFamilies(group,d){
   group.refs.forEach(ref=>{ const family=resultFlowerFamily(ref,d); if (family&&!out.includes(family)) out.push(family); });
   return out.slice(0,3);
 }
+/* A plant with no recorded bloom used to render "Blooms No bloom time recorded"
+   plus twelve empty bars — a quarter of the catalog looked like a data failure.
+   Return null instead and let the caller skip the row entirely. */
 function discoveryBloomTimeline(P){
-  const line=document.createElement('span'); line.className='plant-bloom-timeline'; line.setAttribute('aria-hidden','true');
   const active=new Set(bloomMonthsFor(P));
+  if (!active.size) return null;
+  const line=document.createElement('span'); line.className='plant-bloom-timeline'; line.setAttribute('aria-hidden','true');
   for (let month=1;month<=12;month++){
     const tick=document.createElement('i'); if (active.has(month)) tick.className='on'; line.appendChild(tick);
   }
   return line;
+}
+// "Blooms Jun–Aug" when there is a bloom, "Grown for foliage" when there isn't.
+function discoveryBloomLabel(P){
+  return bloomMonthsFor(P).length ? `Blooms ${bloomRangeText(P)}` : 'Grown for foliage';
 }
 function discoverySiteMeta(P){
   const meta=document.createElement('span'); meta.className='plant-site-meta';
@@ -1351,9 +1362,11 @@ function discoveryResultCard(ref,d,opts={}){
   const meta=document.createElement('span'); meta.className='plant-result-meta';
   const family=resultFlowerFamily(ref,d);
   if (family){ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); }
-  const bloom=document.createElement('span'); bloom.textContent=`Blooms ${bloomRangeText(P)}`; meta.appendChild(bloom);
+  const bloom=document.createElement('span'); bloom.textContent=discoveryBloomLabel(P); meta.appendChild(bloom);
   const kind=document.createElement('small'); kind.textContent=ref.v?'Cultivar':(opts.variant?'Straight species':''); if (kind.textContent) meta.appendChild(kind);
-  copy.append(name,latin,meta,discoveryBloomTimeline(P),discoverySiteMeta(P)); main.append(art,copy);
+  copy.append(name,latin,meta);
+  const timeline=discoveryBloomTimeline(P); if (timeline) copy.appendChild(timeline);
+  copy.appendChild(discoverySiteMeta(P)); main.append(art,copy);
   if (opts.variant){
     const details=document.createElement('span'); details.className='plant-variant-details';
     const size=typeof matureSizeText==='function'?matureSizeText(P):'';
@@ -1390,9 +1403,12 @@ function discoveryFamilyCard(group,d){
   const meta=document.createElement('span'); meta.className='plant-result-meta';
   discoveryGroupFamilies(group,d).forEach(family=>{ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); });
   const varieties=document.createElement('span'); varieties.textContent=`${group.cultivarRefs.length} variet${group.cultivarRefs.length===1?'y':'ies'}`;
-  const bloom=document.createElement('span'); bloom.textContent=`Blooms ${discoveryGroupBloomText(group)}`;
+  const groupBloom=discoveryGroupBloomText(group);
+  const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
   varieties.className='plant-variety-tag';
-  meta.append(bloom,varieties); copy.append(name,latin,meta,discoveryBloomTimeline(R),discoverySiteMeta(R)); main.append(art,copy);
+  meta.append(bloom,varieties); copy.append(name,latin,meta);
+  const timeline=discoveryBloomTimeline(R); if (timeline) copy.appendChild(timeline);
+  copy.appendChild(discoverySiteMeta(R)); main.append(art,copy);
   const open=document.createElement('span'); open.className='plant-family-open'; open.textContent='View'; const arrow=document.createElement('i'); setUiIcon(arrow,'chevron-right'); open.appendChild(arrow);
   main.appendChild(open);
   main.onclick=()=>{
@@ -1497,10 +1513,43 @@ function categoryKeyIndex(key,current,length){
   if (key==='ArrowLeft') return (current<=0?length:current)-1;
   return -1;
 }
+/* The strip holds ~940px of categories in a ~330px column, so most of them sit
+   off-screen. The scrollbar is hidden and drag-scroll is invisible to a mouse,
+   which left 6 of 9 plant categories undiscoverable. Edge fades show that more
+   exists; the chevrons give pointer users something to click. */
+function wrapCategoryStrip(strip){
+  const wrap=document.createElement('div'); wrap.className='catalog-category-nav';
+  const page=dir=>()=>{
+    const step=Math.max(120,Math.round(strip.clientWidth*.8));
+    strip.scrollBy({left:dir*step,behavior:catalogReducedMotion()?'auto':'smooth'});
+  };
+  const arrow=(dir,icon,label)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='catalog-strip-arrow '+(dir<0?'start':'end');
+    b.title=label; b.setAttribute('aria-label',label); b.tabIndex=-1; setUiIcon(b,icon); b.onclick=page(dir); return b;
+  };
+  wrap.append(arrow(-1,'chevron-up','Scroll categories left'),strip,arrow(1,'chevron-up','Scroll categories right'));
+  return wrap;
+}
+function catalogReducedMotion(){
+  return typeof matchMedia==='function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function updateCatalogStripAffordance(strip){
+  const max=strip.scrollWidth-strip.clientWidth, at=strip.scrollLeft;
+  const start=max>1&&at>1, end=max>1&&at<max-1;
+  // The fade lives on the strip; the arrows live on the wrapper, so both need it.
+  [strip,strip.parentElement].forEach(el=>{
+    if (!el||!el.classList) return;
+    el.classList.toggle('can-scroll-start',start);
+    el.classList.toggle('can-scroll-end',end);
+  });
+}
 function enableCatalogDragScroll(strip,groupId){
   let drag=null, suppressClick=false;
   strip.scrollLeft=catalogCategoryScroll[groupId]||0;
-  strip.addEventListener('scroll',()=>{ catalogCategoryScroll[groupId]=strip.scrollLeft; },{passive:true});
+  strip.addEventListener('scroll',()=>{ catalogCategoryScroll[groupId]=strip.scrollLeft; updateCatalogStripAffordance(strip); },{passive:true});
+  // The strip is measured after it is appended (see below) — scrollWidth is 0
+  // while it is still detached. The observer keeps it honest as widths change.
+  if (typeof ResizeObserver==='function') new ResizeObserver(()=>updateCatalogStripAffordance(strip)).observe(strip);
   strip.addEventListener('pointerdown',e=>{
     if (e.pointerType==='touch'||e.button!==0||strip.scrollWidth<=strip.clientWidth) return;
     drag={id:e.pointerId,startX:e.clientX,startScroll:strip.scrollLeft,moved:false,captured:false};
@@ -1542,28 +1591,37 @@ function enableCatalogDragScroll(strip,groupId){
     buttons[next].scrollIntoView({block:'nearest',inline:'nearest'});
   });
 }
+/* The five discovery controls used to stack as five full-width rows — 268px of
+   fixed, non-scrolling chrome above the results on every screen. Because the
+   result region was the only flexible row it absorbed all vertical pressure
+   (1.5 cards at 1366x768, 0.2 at phone-landscape). Pairing them into two rows
+   halves that; .catalog-control-row is the flex pair wrapper. */
+function catalogControlRow(...kids){
+  const row=document.createElement('div'); row.className='catalog-control-row';
+  kids.forEach(k=>{ if (k) row.appendChild(k); }); return row;
+}
 function renderDiscoveryControls(tabs,modeControl){
   const d=activeDiscovery(), bar=document.createElement('div'); bar.className='discovery-controls';
-  if (modeControl) bar.appendChild(modeControl());
   const find=document.createElement('input'); find.id='trayFind'; find.type='search'; find.autocomplete='off';
   find.placeholder='Find a plant'; find.value=d.query; find.setAttribute('aria-label','Find a plant');
   find.oninput=()=>{ discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,find.value)); clearTimeout(discoverySearchTimer);
     discoverySearchTimer=setTimeout(()=>{ buildToolTray(); const next=document.getElementById('trayFind');
       if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} } },120); };
   find.onkeydown=e=>{ if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,'')); buildToolTray(); } };
-  bar.appendChild(find);
-  bar.appendChild(discoverySourceMenu(d));
   const filterRow=document.createElement('div'); filterRow.className='discovery-filter-row';
   const filters=document.createElement('button'); filters.type='button'; filters.className='discovery-filter-trigger';
   const n=discoveryFilterCount(); filters.textContent=n?`Filters · ${n}`:'Filters'; filters.setAttribute('aria-expanded','false');
   filters.onclick=()=>openDiscoveryFilters(filters); filterRow.appendChild(filters);
   const count=document.createElement('span'); count.className='discovery-result-count'; count.setAttribute('role','status');
-  count.textContent=discoveryResultCountText(discoveryRefs()); filterRow.appendChild(count); bar.appendChild(filterRow);
+  count.textContent=discoveryResultCountText(discoveryRefs()); filterRow.appendChild(count);
+  // Row 1: what you're browsing (mode + source). Row 2: how you narrow it
+  // (search + filters). Both pairs read left-to-right as one decision.
+  bar.appendChild(catalogControlRow(modeControl?modeControl():null,discoverySourceMenu(d)));
+  bar.appendChild(catalogControlRow(find,filterRow));
   tabs.appendChild(bar);
 }
 function renderLandscapeControls(tabs,modeControl){
   const bar=document.createElement('div'); bar.className='landscape-controls';
-  if (modeControl) bar.appendChild(modeControl());
   const find=document.createElement('input'); find.id='landscapeFind'; find.className='catalog-search';
   find.type='search'; find.autocomplete='off'; find.placeholder='Find landscape tools';
   find.value=game.traySearch||''; find.setAttribute('aria-label','Find landscape tools');
@@ -1578,7 +1636,8 @@ function renderLandscapeControls(tabs,modeControl){
   find.onkeydown=e=>{ if (e.key==='Escape'&&game.traySearch){
     e.preventDefault(); e.stopPropagation(); game.traySearch=''; game.searchOpen=false; buildToolTray();
   } };
-  bar.appendChild(find); tabs.appendChild(bar);
+  bar.appendChild(catalogControlRow(modeControl?modeControl():null,find));
+  tabs.appendChild(bar);
 }
 function renderDiscoveryTray(tray){
   const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs), sourceRefs=discoverySourceRefs(d);
@@ -1971,7 +2030,8 @@ function buildToolTray(){
     });
   }
   enableCatalogDragScroll(categoryStrip,activeGroup);
-  tabs.appendChild(categoryStrip);
+  tabs.appendChild(wrapCategoryStrip(categoryStrip));
+  updateCatalogStripAffordance(categoryStrip);   // now measurable: it is in the DOM
   requestAnimationFrame(()=>{
     const selected=categoryStrip.querySelector('.sel');
     if (selected&&selected.scrollIntoView) selected.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -2152,7 +2212,7 @@ function buildToolTray(){
         tc.beginPath(); tc.moveTo(42,21); tc.lineTo(24,32); tc.lineTo(24,40); tc.lineTo(42,29); tc.closePath(); tc.fill();
       }
       tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1.3; tc.stroke();
-      tc.fillStyle='#efe6d3'; tc.font='700 18px IBM Plex Sans'; tc.textAlign='center';
+      tc.fillStyle=uiInk('--icon-ink'); tc.font='700 18px IBM Plex Sans'; tc.textAlign='center';
       tc.fillText(kind==='level'?'0':(high?'+':'-'),24,26+(low?8:0));
     };
     const materialBtn=(k,label,sel,draw,fn,tip)=>{
@@ -2240,7 +2300,7 @@ function buildToolTray(){
       if (d.gate){ tc.strokeStyle=st.fill; tc.lineWidth=1.5;
         tc.beginPath(); tc.moveTo(15,y-h*.25); tc.lineTo(33,y-h*.72);
         tc.moveTo(15,y-h*.72); tc.lineTo(33,y-h*.25); tc.stroke();
-        const gateCol=d.style==='black'?'#efe6d3':(d.style==='vinyl'?'#6f6458':shade(st.fill,30));
+        const gateCol=d.style==='black'?uiInk('--icon-ink'):(d.style==='vinyl'?'#6f6458':shade(st.fill,30));
         tc.strokeStyle=gateCol; tc.lineWidth=2;
         tc.beginPath(); tc.moveTo(13,y-h*.1); tc.lineTo(13,y-h*.82);
         tc.moveTo(35,y-h*.1); tc.lineTo(35,y-h*.82);
@@ -2250,7 +2310,7 @@ function buildToolTray(){
         tc.stroke();
         tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1;
         tc.beginPath(); tc.arc(14,y-h*.14,16,-1.2,-0.08); tc.stroke();
-        tc.fillStyle=d.style==='black'?'#c97f3f':'#efe6d3';
+        tc.fillStyle=d.style==='black'?'#c97f3f':uiInk('--icon-ink');
         tc.beginPath(); tc.arc(31,y-h*.48,1.8,0,7); tc.fill();
       }
     };
@@ -2258,7 +2318,7 @@ function buildToolTray(){
       const b=document.createElement('button');
       b.className='tool tool-back'; b.title='Back to Hardscape';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
       const sp=document.createElement('span'); sp.textContent='Back';
       b.append(c,sp);
@@ -2342,7 +2402,7 @@ function buildToolTray(){
       const b=document.createElement('button');
       b.className='tool tool-back'; b.title='Back to Hardscape';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
       const sp=document.createElement('span'); sp.textContent='Back';
       b.append(c,sp);
@@ -2416,7 +2476,7 @@ function buildToolTray(){
       const b=document.createElement('button');
       b.className='tool tool-back'; b.title='Back to Hardscape';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
       bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
       const sp=document.createElement('span'); sp.textContent='Back';
       b.append(c,sp);
@@ -2534,7 +2594,7 @@ function buildToolTray(){
       const bd=buildingStyleDraft();
       const miniFootprint=(tc,style)=>{
         tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':style.roof;
-        tc.strokeStyle=style.status==='proposed'?'#e5b36e':'#efe6d3'; tc.lineWidth=1.8;
+        tc.strokeStyle=style.status==='proposed'?'#e5b36e':uiInk('--icon-ink'); tc.lineWidth=1.8;
         tc.setLineDash(style.status==='proposed'?[3,2]:[]);
         tc.beginPath(); tc.moveTo(7,10); tc.lineTo(31,10); tc.lineTo(31,18); tc.lineTo(40,18);
         tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
@@ -2544,7 +2604,7 @@ function buildToolTray(){
         tc.fillStyle='#8ca39a'; tc.fillRect(7,9,34,26);
         tc.fillStyle='#d8c98c'; tc.beginPath(); tc.arc(32,16,4,0,7); tc.fill();
         tc.fillStyle='#526d55'; tc.beginPath(); tc.moveTo(8,34); tc.lineTo(18,22); tc.lineTo(24,28); tc.lineTo(31,20); tc.lineTo(41,34); tc.closePath(); tc.fill();
-        tc.strokeStyle='#efe6d3'; tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
+        tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
       },()=>{ if (game.underlay) beginSitePhotoEdit(); else chooseSitePhoto(); });
       photo.dataset.k='site-photo'; photo.title=game.underlay?'Edit the calibrated site-photo reference':'Add a calibrated site-photo reference';
       const northDeg=normalizeSiteNorthDeg(game.siteNorthDeg);
@@ -2579,7 +2639,7 @@ function buildToolTray(){
     } else {
     const pb=toolBtn('Place', game.tool==='house',
       tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
-        tc.strokeStyle='#efe6d3'; tc.setLineDash([3,3]); tc.lineWidth=1.2;
+        tc.strokeStyle=uiInk('--icon-ink'); tc.setLineDash([3,3]); tc.lineWidth=1.2;
         tc.strokeRect(3,8,42,32); },
       ()=>{ setTool('house',null); buildToolTray();
       });
@@ -2682,7 +2742,7 @@ function renderDrillIn(tray, drillKey, members){
   const back=document.createElement('button');
   back.className='tool tool-back'; back.title='Back to the catalog';
   const bc=document.createElement('canvas'); bc.width=48; bc.height=44;
-  const bx=bc.getContext('2d'); bx.strokeStyle='#e0c9a8'; bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+  const bx=bc.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
   bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
   const bs=document.createElement('span'); bs.textContent='Back'; back.append(bc,bs);
   back.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
@@ -2928,7 +2988,12 @@ function nudgeSheetState(dir){
   const i=SHEET_STATES.indexOf(normalizedSheetState(game.sheetState));
   setSheetState(SHEET_STATES[Math.max(0,Math.min(SHEET_STATES.length-1,i+dir))]);
 }
-function mobileSheetUi(){ return typeof matchMedia==='function' && matchMedia('(max-width:767px)').matches; }
+/* Must stay verbatim-identical to the SHEET tier in styles.css (see the
+   "Responsive tiers" comment there). Portrait tablets get the bottom sheet, not
+   the side dock, so orientation decides rather than width alone. If these two
+   ever disagree the tri-state logic and the layout argue about which UI is up. */
+const SHEET_UI_MQ='(max-width:767px), (max-width:1024px) and (orientation:portrait)';
+function mobileSheetUi(){ return typeof matchMedia==='function' && matchMedia(SHEET_UI_MQ).matches; }
 function nudgeCatalogHandle(dir){
   if (mobileSheetUi()){ nudgeSheetState(dir); return; }
   // Desktop/tablet have one unambiguous destination in each direction.

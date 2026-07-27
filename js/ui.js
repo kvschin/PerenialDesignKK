@@ -53,6 +53,13 @@ function syncHandednessButton(){
   b.setAttribute('aria-pressed',leftHandedLayout?'true':'false');
   b.title='Moves the mobile canvas tool rail to the right edge';
 }
+/* Cycles Auto -> Light -> Dark. Auto shows what it resolved to, so the label
+   always answers "what am I looking at" as well as "what did I pick". */
+function syncThemeButton(){
+  const b=document.getElementById('btnTheme'); if (!b) return;
+  b.textContent=`Appearance · ${themeLabel()}`;
+  b.title='Switches the interface between light and dark. The garden keeps its own seasonal colours.';
+}
 /* ---------- plant roles ----------
    Designer mode uses roles to push the right plants forward for the
    chosen garden style. Roles are computed from the plant data so the

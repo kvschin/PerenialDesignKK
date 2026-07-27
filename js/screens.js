@@ -461,7 +461,7 @@ function enterGarden(){
   buildToolTray();
   buildCanvasTools();
   updateCompass();
-  syncHapticsButton(); syncHandednessButton();
+  syncHapticsButton(); syncHandednessButton(); syncThemeButton();
   $('worldLabel').textContent = game.mode==='multi'
     ? `Garden ${game.code}` : (game.worldName||'Solo garden');
   if (game.challenge && game.gameMode==='design')
@@ -612,8 +612,8 @@ function drawPlotShapeEditor(){
     const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
     const nx=dy/len, ny=-dx/len;               // outward for clockwise winding
     const lx=mx+nx*13, ly=my+ny*13;
-    g.strokeStyle='rgba(20,14,11,0.75)'; g.lineWidth=3; g.strokeText(fts[i]+' ft',lx,ly);
-    g.fillStyle='#efe6d3'; g.fillText(fts[i]+' ft',lx,ly);
+    g.strokeStyle=uiInk('--icon-halo'); g.lineWidth=3; g.strokeText(fts[i]+' ft',lx,ly);
+    g.fillStyle=uiInk('--icon-ink'); g.fillText(fts[i]+' ft',lx,ly);
   }
   // edge-resize handles: small squares at the right/bottom box midpoints —
   // squares resize the plot, circles shape it
@@ -633,7 +633,7 @@ function drawPlotShapeEditor(){
   const [dcx,dcy]=m.dial, hotDial=plotShapeDrag&&plotShapeDrag.type==='dial';
   g.beginPath(); g.arc(dcx,dcy,14,0,7);
   g.fillStyle='rgba(20,14,11,0.55)';
-  g.strokeStyle=hotDial?'#e9c07a':'rgba(239,230,211,0.45)'; g.lineWidth=hotDial?2:1.2;
+  g.strokeStyle=hotDial?'#e9c07a':uiInk('--icon-ink-dim'); g.lineWidth=hotDial?2:1.2;
   g.fill(); g.stroke();
   g.save(); g.translate(dcx,dcy); g.rotate(deg*Math.PI/180);
   g.strokeStyle='#efe6d3'; g.lineWidth=1.7; g.lineCap='round';
@@ -909,7 +909,7 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
-  syncHapticsButton(); syncHandednessButton();
+  syncHapticsButton(); syncHandednessButton(); syncThemeButton();
   const gm=openOverlay('gardenMenu','#btnFilters');
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
@@ -931,6 +931,10 @@ if ($('btnHaptics')) $('btnHaptics').onclick=()=>{
 if ($('btnHandedness')) $('btnHandedness').onclick=()=>{
   const on=setLeftHandedLayout(!leftHandedLayout,true); syncHandednessButton();
   toast(`Left-handed layout ${on?'on':'off'}.`);
+};
+if ($('btnTheme')) $('btnTheme').onclick=()=>{
+  cycleThemePref(); syncThemeButton();
+  toast(`Appearance: ${themeLabel()}.`);
 };
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
 /* no Save button: autosave covers day changes, quitting, and the tab

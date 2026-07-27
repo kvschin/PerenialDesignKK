@@ -749,14 +749,14 @@ function showPlantCard(p,px2,py2){
     : (g>=100?'Fully established':`Establishing - ${g}% grown`);
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
-    <p style="margin-top:6px;color:#cdbfa9">${detailBits.join(' - ')}</p>
-    <p style="color:${P.native?'#9ab87a':'#c9a07f'}">${P.native
+    <p style="margin-top:6px;color:var(--text-secondary)">${detailBits.join(' - ')}</p>
+    <p style="color:${P.native?'var(--color-accent-2-700)':'var(--icon-warm)'}">${P.native
       ? 'Native'
       : 'Garden cultivar (non-native)'}</p>
-    <p style="color:#b9a88f">Roles: ${roleSummary(p.s)}</p>
-    ${bloomInfo&&bloomInfo!=='No bloom time recorded'?`<p style="color:#cdbfa9">Blooms ${bloomInfo}${bloomFamily?` \u00b7 ${bloomFamily}`:''}</p>`:''}
-    ${shaded?`<p style="color:#c9a07f">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
-    <p style="margin-top:6px;color:#efe6d3">${status}</p>`;
+    <p style="color:var(--text-muted)">Roles: ${roleSummary(p.s)}</p>
+    ${bloomInfo&&bloomInfo!=='No bloom time recorded'?`<p style="color:var(--text-secondary)">Blooms ${bloomInfo}${bloomFamily?` \u00b7 ${bloomFamily}`:''}</p>`:''}
+    ${shaded?`<p style="color:var(--icon-warm)">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
+    <p style="margin-top:6px;color:var(--text-primary)">${status}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.title='Close plant details';
   xb.setAttribute('aria-label','Close plant details'); setUiIcon(xb,'close');
   const close=()=>{ el.style.display='none'; clearTimeout(el._t);

@@ -177,8 +177,13 @@ if (canvasStage && typeof ResizeObserver==='function'){
     if (canvasStageResizeFrame) cancelAnimationFrame(canvasStageResizeFrame);
     canvasStageResizeFrame=requestAnimationFrame(()=>{
       canvasStageResizeFrame=0;
-      sizeCanvas(cnv,{active:true}); calcZoom(); updateZoomPill();
-      compassKey=''; updateCompass();
+      // Docking/undocking the plant library resizes the stage without a window
+      // resize. The partial list this used to inline re-measured the canvas but
+      // skipped snapCam() and repositionOpenChrome() — so a design-mode camera
+      // stayed clamped to the narrower column, and an open time/garden dropdown
+      // stayed pinned to coordinates that had just moved. settleViewportChange
+      // is the one path that does all of it.
+      settleViewportChange();
     });
   }).observe(canvasStage);
 }

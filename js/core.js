@@ -115,6 +115,68 @@ function setLeftHandedLayout(on,animate=true){
 }
 applyLeftHandedLayout(false);
 
+/* ---------- Theme (device preference, like haptics and the rail side) ----------
+   'auto' follows the OS; 'light'/'dark' pin it. Only the CHROME themes — the
+   garden keeps its seasonal AMBIENCE palette in both, because a meadow at
+   midday is not "dark mode". An inline bootstrap in index.html stamps the
+   resolved value on <html> before first paint so there is no flash; this code
+   owns it from then on, including following the OS while set to 'auto'. */
+const THEME_KEY='hortus:theme';
+const THEME_CHOICES=['auto','light','dark'];
+let themePref='auto';
+try{ const v=localStorage.getItem(THEME_KEY); if (THEME_CHOICES.includes(v)) themePref=v; }catch(_){ }
+function systemPrefersLight(){
+  return typeof matchMedia==='function' && matchMedia('(prefers-color-scheme: light)').matches;
+}
+function resolvedTheme(pref=themePref){
+  return pref==='auto' ? (systemPrefersLight()?'light':'dark') : pref;
+}
+/* Canvas icons cannot resolve CSS variables, so they read the resolved colours
+   through here. Cached because icon builders call it many times per rebuild;
+   the cache is dropped whenever the theme changes. */
+let uiInkCache=null;
+function uiInk(name){
+  if (!uiInkCache){
+    uiInkCache={};
+    if (typeof getComputedStyle==='function' && typeof document!=='undefined' && document.documentElement){
+      const cs=getComputedStyle(document.documentElement);
+      ['--icon-ink','--icon-ink-soft','--icon-ink-dim','--icon-warm','--icon-halo'].forEach(k=>{
+        const v=(cs.getPropertyValue(k)||'').trim(); if (v) uiInkCache[k]=v;
+      });
+    }
+  }
+  // Fall back to the dark values so a headless/stubbed DOM still draws.
+  const fallback={'--icon-ink':'#efe6d3','--icon-ink-soft':'#d8c7ac','--icon-ink-dim':'#7d7164',
+    '--icon-warm':'#c9a07f','--icon-halo':'rgba(20,14,11,0.75)'};
+  return uiInkCache[name]||fallback[name]||'#efe6d3';
+}
+function applyTheme(){
+  if (typeof document==='undefined'||!document.documentElement) return resolvedTheme();
+  const t=resolvedTheme();
+  document.documentElement.setAttribute('data-theme',t);
+  uiInkCache=null;
+  // Sprite/ground caches key off season and zoom, not theme, so only the DOM
+  // chrome and the canvas-drawn ICONS need rebuilding.
+  if (typeof refreshCanvasTools==='function') refreshCanvasTools();
+  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.mode) buildToolTray();
+  if (typeof syncTopTools==='function') syncTopTools();
+  if (typeof drawSheetSwatch==='function') drawSheetSwatch();
+  return t;
+}
+function setThemePref(pref){
+  themePref=THEME_CHOICES.includes(pref)?pref:'auto';
+  try{ localStorage.setItem(THEME_KEY,themePref); }catch(_){ }
+  return applyTheme();
+}
+function cycleThemePref(){ return setThemePref(THEME_CHOICES[(THEME_CHOICES.indexOf(themePref)+1)%THEME_CHOICES.length]); }
+function themeLabel(){ return themePref==='auto'?`Auto (${resolvedTheme()})`:themePref==='light'?'Light':'Dark'; }
+if (typeof matchMedia==='function'){
+  const mq=matchMedia('(prefers-color-scheme: light)');
+  const onChange=()=>{ if (themePref==='auto') applyTheme(); };
+  if (mq.addEventListener) mq.addEventListener('change',onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+}
+
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
   Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0},

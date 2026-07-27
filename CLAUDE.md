@@ -609,23 +609,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     choice picks the initial source only; it never narrows what can be planted.
     `trayKeys()` remains the filtered species helper for legacy/build surfaces.
     The catalog is one connected docked shell: Plant library/Landscape
-    library heading and count, a compact **Plants / Landscape** segmented switch,
-    Find directly beneath that stable switch, source picker, pointer-draggable
-    counted category facets with native touch scrolling, Filters, one independently scrolling result region,
-    and a fixed contextual placing/brush footer. Switching catalog modes selects
+    library heading and count, then the controls **paired two-to-a-row** by
+    `catalogControlRow()` — row 1 is *what you're browsing* (the compact
+    **Plants / Landscape** segmented switch + source picker), row 2 is *how you
+    narrow it* (Find + Filters) — then pointer-draggable counted category
+    facets with native touch scrolling, one independently scrolling result
+    region, and a fixed contextual placing/brush footer. The pairing is
+    load-bearing, not cosmetic: as five stacked full-width rows the controls
+    were 268px of fixed, non-scrolling chrome, and because the result list is
+    the only flexible row it absorbed every pixel of vertical pressure (1.5
+    cards at 1366x768, 0.2 at phone-landscape). Two rows plus a 104px card put
+    it at 4.3 / 3.1 / 2.1 cards at 1440x900 / 1366x768 / 1280x620.
+    Switching catalog modes selects
     Hand so browsing cannot paint; it preserves the last brush for restoration.
-    Desktop and tablet use one docked grid shell: a 56px full-width header,
+    The docked grid shell is a 56px full-width header,
     canvas in the lower-left cell, and a flush dark-loam right-side library
     separated only by a 1px divider (370-430px desktop and 340-390px tablet).
-    Closing the library collapses its grid column and expands the canvas. Phone
-    portrait keeps the tri-state bottom sheet with the same internal hierarchy.
+    Closing the library collapses its grid column; the `ResizeObserver` on
+    `#canvasStage` (view.js) then re-runs `settleViewportChange()` so the canvas,
+    `VW`/`VH`, the design camera clamp, and any open dropdown all follow.
+    Phone **and portrait tablet**
+    keep the tri-state bottom sheet with the same internal hierarchy.
     Every breakpoint shows a one-line, horizontally scrolling counted category
     strip; touch uses native scrolling, mouse/pen can drag, arrow/Home/End keys
     move focus, and selection restores focus after the controls rebuild. The
+    strip carries its own scroll affordance (`updateCatalogStripAffordance`,
+    called after it is appended — `scrollWidth` is 0 while detached — and kept
+    honest by a `ResizeObserver`): `can-scroll-start`/`can-scroll-end` land on
+    both the strip (mask-image edge fade) and its `.catalog-category-nav`
+    wrapper (chevron buttons, pointer-only). Without it 6 of 9 categories sat
+    off-screen behind a hidden scrollbar with only `cursor:grab` to hint at it. The
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
-    are Ground, Grade, Hardscape, Lighting, and Site. Only `#toolTray` scrolls in
-    the side library so its header, discovery controls, and footer remain visible.
+    are Ground, Grade, Hardscape, Lighting, and Site. `#toolTray` is the primary
+    scroller so the header, discovery controls, and footer stay visible; below
+    `max-height:700px` the control stack becomes a scroller too, because
+    `#sheetCatalog` is `overflow:hidden` and used to simply swallow the overflow
+    (at 932x430 the category strip and the Filters button were 0% visible with
+    no scrollbar to recover them).
     `usableCanvasRect()` detects the side-docked library and reserves its right
     edge for Fit Plot, selection/build actions, and camera recovery. The
     dropdown includes Recommended, All eligible, Favorites, and every named
@@ -701,8 +722,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     The planner top chrome is one connected dark loam bar: the season/day-night
     cluster stays top-left, view tools remain centered on desktop, tablet/phone use
     the compact view-tools menu, and Menu stays at the far right within the same
-    surface. When the side library is open
-    `.hud-top` reserves its width so Menu cannot sit beneath it. The glass
+    surface. `.hud-top` spans `grid-column:1/-1` as a grid row in the docked
+    shell, so it does not need to dodge the library and never has since the grid
+    landed (an old `right:calc(--organic-library-width …)` on it was dead code —
+    `position:relative` + `inset:auto` meant `right` only ever resolved to 0).
+    The glass
     performance fallback removes blur without changing the loam/seedhead/bronze
     palette. Safe-area padding keeps phone controls
     below a notch; `viewport-fit=cover` remains required for those insets. Left = the
@@ -1003,6 +1027,61 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
 - Respect `prefers-reduced-motion` (already handled in CSS).
+- **Responsive tiers.** Two complementary media conditions decide the planner's
+  shape, defined once at the top of the "Responsive tiers" comment in
+  `styles.css`:
+  - SHEET — `(max-width:767px), (max-width:1024px) and (orientation:portrait)`
+  - DOCK — `(min-width:1025px), (min-width:768px) and (orientation:landscape)`
+
+  They are exact complements. `SHEET_UI_MQ` / `mobileSheetUi()` in `tray.js`
+  must match the SHEET string **verbatim** — if CSS and JS disagree, the
+  tri-state sheet logic and the layout argue about which UI is on screen.
+  Orientation is in there because a width-only 767/768 split handed portrait
+  tablets the landscape layout: at 820x1180 the side dock took 44% of the width
+  and left the garden — the actual product — a 459px slot.
+
+  A third, orthogonal tier handles **short** viewports (`max-height:700px`, with
+  a tighter `520px` step). Height was almost entirely unmodelled before, which
+  is why phone-landscape and short desktop windows clipped navigation out of
+  reach. When you add planner chrome, ask what it does at 430px tall, not just
+  at 390px wide.
+- **Light mode themes the CHROME, never the world.** `hortus:theme` is a
+  device-local preference (`auto`|`light`|`dark`, like haptics and the rail
+  side), cycled from **Appearance** in the Garden Menu. `auto` is resolved in
+  JS, not CSS: a tiny inline bootstrap in `index.html`'s `<head>` stamps
+  `data-theme="light|dark"` on `<html>` before first paint (no dark-flash, and
+  `styles.css` needs one `[data-theme="light"]` block instead of a duplicate
+  inside `@media (prefers-color-scheme)`). `applyTheme()` in core.js owns it
+  afterwards and keeps following the OS while the pref is `auto`.
+  - The garden is deliberately **not** themed — `AMBIENCE` drives sky/grass/soil
+    and `PLANTS` drives foliage, and a meadow at midday is not "dark mode". The
+    colour literals in `plants.js`, `draw.js`, and `world.js` are world art and
+    must stay out of the theme.
+  - Most surfaces are expressed as `rgba(var(--ink-rgb),X)` — "a little ink over
+    the current surface" — so one channel flip inverts ~39 of them correctly
+    instead of maintaining two parallel colour lists. Prefer that form over a
+    new hardcoded rgba.
+  - **Canvas cannot resolve CSS variables**, so the ~40 chrome icon literals go
+    through `uiInk('--icon-ink' | '--icon-ink-soft' | '--icon-ink-dim' |
+    '--icon-warm' | '--icon-halo')` in core.js, which caches the computed values
+    and is invalidated by `applyTheme()` (which then rebuilds the icons). A new
+    canvas icon that hardcodes a light neutral will be invisible in light mode.
+  - Accents move between themes: bronze `#c97f3f` reads 5.3:1 on loam but only
+    3.2:1 on paper, so light mode uses a deeper `--color-accent` and
+    `--color-accent-700` is "the higher-contrast step against the surface" in
+    *both* directions (lighter on loam, darker on paper) — reach for it on small
+    caps rather than plain accent.
+  - The HUD's `color-mix(--color-text N%, transparent)` text ramp is **not**
+    symmetric (52% seedhead over loam is bright; 52% loam over paper is washed
+    to 3.25:1), so `[data-theme="light"] #hud` overrides it with solid inks.
+    Both themes are verified at 0 contrast failures across 23 sampled elements.
+- **Forced colors.** `@media (forced-colors: active)` is load-bearing here, not
+  a nicety: ~54 buttons draw their icons to `<canvas>`, and forced-colors does
+  not recolour canvas bitmaps, so without it the whole tool system renders as
+  blank boxes in Windows High Contrast. Selection also signals with background
+  colour alone, which forced-colors discards — armed/selected states re-signal
+  with `Highlight`/`HighlightText` and an explicit border. Any new canvas icon
+  or background-only selected state needs a line in that block.
 - Interface icons use the hidden local SVG symbol set in `index.html` plus
   `uiIcon` / `setUiIcon`; do not reintroduce emoji or mixed Unicode glyphs for
   navigation, state, close, delete, or menu actions. Botanical previews and
@@ -1021,7 +1100,13 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   destructive state. Controls use `--radius-control`, containers use
   `--radius-panel`, and true capsules alone use `--radius-pill`. Reuse the
   spacing, shadow, focus, and disabled-state tokens instead of adding close
-  one-off values.
+  one-off values. `#hud` softens the radius scale slightly (10px/20px vs the
+  root's 5px/9px) but must **not** redefine it into pill territory: it used to
+  set `--radius-control:999px`, which gave the planner and the modals launched
+  from it two different visual languages one tap apart, forced a growing list
+  of per-component re-overrides, and lozenged everything that was not a capsule
+  (`.active-tool-status` is a three-line text block). Controls that genuinely
+  are capsules declare `--radius-pill` for themselves.
 - Treat canvas guidance as contextual workspace help, not permanent chrome:
   `#activeToolStatus` briefly names the armed tool and its next canvas action;
   multi-step building-footprint progress remains visible until the outline is
