@@ -1,0 +1,207 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Art pass prototype — classic vs ART2</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{ --loam:#201a15; --paper:#f4efe6; --bronze:#c97f3f; --line:rgba(244,239,230,.14); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--loam);color:var(--paper);
+       font:15px/1.5 'IBM Plex Sans',system-ui,sans-serif}
+  header{padding:20px 24px 14px;border-bottom:1px solid var(--line)}
+  h1{margin:0 0 4px;font:600 22px/1.2 Fraunces,Georgia,serif}
+  header p{margin:0;opacity:.62;max-width:70ch;font-size:13.5px}
+  .bar{display:flex;flex-wrap:wrap;gap:20px;align-items:center;
+       padding:12px 24px;border-bottom:1px solid var(--line);
+       position:sticky;top:0;background:var(--loam);z-index:5}
+  .grp{display:flex;gap:6px;align-items:center}
+  .grp>label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;opacity:.5;margin-right:2px}
+  button{font:inherit;font-size:13px;padding:5px 13px;border-radius:6px;cursor:pointer;
+         background:rgba(244,239,230,.07);color:var(--paper);border:1px solid var(--line)}
+  button.on{background:var(--bronze);border-color:var(--bronze);color:#1a1310;font-weight:600}
+  input[type=range]{width:130px;accent-color:var(--bronze)}
+  main{padding:22px 24px 60px}
+  .row{display:grid;grid-template-columns:190px 1fr;gap:20px;align-items:start;
+       padding:18px 0;border-bottom:1px solid var(--line)}
+  .meta h3{margin:0 0 2px;font:600 16px/1.25 Fraunces,Georgia,serif}
+  .meta .lat{font-style:italic;opacity:.6;font-size:13px}
+  .meta .note{margin-top:9px;font-size:12.5px;opacity:.55;line-height:1.45}
+  .pair{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0}
+  figcaption{font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+             opacity:.5;margin-top:6px;display:flex;gap:8px;align-items:baseline}
+  figcaption b{color:var(--bronze);font-weight:600;letter-spacing:0;text-transform:none;font-size:12px}
+  canvas{background:#2c2620;border:1px solid var(--line);border-radius:8px;display:block}
+  .ops{opacity:.45;font-size:11px;letter-spacing:0;text-transform:none}
+  .foot{padding:20px 24px;opacity:.55;font-size:13px;max-width:78ch;line-height:1.6}
+  .foot code{background:rgba(244,239,230,.09);padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+
+<!-- Same stub harness plant-creator.html uses: let the real modules load and
+     define the renderer without a real DOM, then take the real listeners back. -->
+<script>
+(function(){
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="js/plants.js"></script>
+<script src="js/core.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/world.js"></script>
+<script src="js/view.js"></script>
+<script src="js/io.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/tray.js"></script>
+<script src="js/library.js"></script>
+<script src="js/screens.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF;
+</script>
+
+<header>
+  <h1>Art pass prototype</h1>
+  <p>Left is what ships today. Right is the same species through the ART2 primitives —
+     filled leaf silhouettes, value gradients instead of flat fills, tapered ray florets,
+     a domed cone, and depth inside the clump. Same data, same seed, same renderer entry point.
+     Draw-op counts are printed under each panel, since that is the honest proxy for bake cost.</p>
+</header>
+
+<div class="bar">
+  <div class="grp" id="seasons"><label>Season</label></div>
+  <div class="grp"><label>Growth</label>
+    <input type="range" id="growth" min="0.3" max="1" step="0.05" value="1">
+    <span id="growthv" style="opacity:.55;font-size:12px;width:32px">100%</span></div>
+  <div class="grp" id="views"><label>View</label></div>
+</div>
+
+<main id="out"></main>
+
+<div class="foot">
+  Everything new is gated on <code>ART2.on</code> in <code>js/draw.js</code> — with the flag off the
+  shipped renderer is unchanged, so this can sit in the tree while you decide.
+  The per-species data added is four optional <code>look</code> keys:
+  <code>leafShape</code>, <code>leafTeeth</code>, <code>leafHW</code>, <code>leafFan</code>.
+</div>
+
+<script>
+(function(){
+  const SPECIES=[
+    ['echinacea',  'broad ovate leaves, coarsely toothed, leafy up the stem'],
+    ['pallida',    'narrow linear leaves, untoothed, nearly naked stems'],
+    ['angustifolia','narrow lanceolate, hairy, low and taprooted'],
+    ['paradoxa',   'linear-lanceolate, untoothed, rays fall like a shuttlecock'],
+    ['topeka',     'narrow lanceolate, rays swept hard back against the stem'],
+  ];
+  const SEASONS=['Spring','Summer','Fall','Winter'];
+  const VIEWS=[
+    {k:'single', label:'Single'},
+    {k:'drift',  label:'Drift'},
+    {k:'actual', label:'Actual size'},
+  ];
+  let season='Summer', view='single', growth=1;
+
+  // Count paint ops rather than trusting wall-clock timings on a noisy machine.
+  let ops=0;
+  const C=CanvasRenderingContext2D.prototype;
+  for (const m of ['fill','stroke','fillRect','strokeRect','drawImage','fillText']){
+    const orig=C[m];
+    C[m]=function(){ ops++; return orig.apply(this,arguments); };
+  }
+
+  function panel(key, on, w, h, scale, mode){
+    const cv=document.createElement('canvas');
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=w*dpr; cv.height=h*dpr; cv.style.width=w+'px'; cv.style.height=h+'px';
+    const ctx=cv.getContext('2d');
+    ctx.scale(dpr,dpr);
+    ART2.on=on; ops=0;
+    ctx.save(); ctx.scale(scale,scale);
+    const W=w/scale, H=h/scale;
+    if (mode==='drift'){
+      const spots=[[0.5,0.99,101],[0.22,0.93,207],[0.78,0.95,313],[0.36,0.86,419],[0.66,0.88,523]];
+      for (const [fx,fy,sd] of spots) drawPlant(ctx, W*fx, H*fy, key, growth, season, sd, 0, null, 1);
+    } else {
+      drawPlant(ctx, W/2, H*0.97, key, growth, season, 101, 0, null, 1);
+    }
+    ctx.restore();
+    ART2.on=false;
+    return {cv, ops};
+  }
+
+  function render(){
+    const out=document.getElementById('out');
+    out.innerHTML='';
+    const cfg = view==='drift'  ? {w:300,h:230,scale:1.35}
+              : view==='actual' ? {w:150,h:150,scale:1}
+              :                   {w:230,h:250,scale:2.1};
+    for (const [key,note] of SPECIES){
+      const P=PLANTS[key];
+      const row=document.createElement('div'); row.className='row';
+      const meta=document.createElement('div'); meta.className='meta';
+      meta.innerHTML='<h3>'+P.name+'</h3><div class="lat">'+P.latin+'</div>'+
+                     '<div class="note">'+note+'</div>';
+      const pair=document.createElement('div'); pair.className='pair';
+      for (const [on,label] of [[false,'Classic'],[true,'ART2']]){
+        const r=panel(key,on,cfg.w,cfg.h,cfg.scale,view);
+        const fig=document.createElement('figure');
+        fig.appendChild(r.cv);
+        const cap=document.createElement('figcaption');
+        cap.innerHTML=(on?'<b>'+label+'</b>':label)+' <span class="ops">'+r.ops+' ops</span>';
+        fig.appendChild(cap); pair.appendChild(fig);
+      }
+      row.appendChild(meta); row.appendChild(pair); out.appendChild(row);
+    }
+  }
+
+  function seg(host, items, get, set){
+    host.querySelectorAll('button').forEach(b=>b.remove());
+    for (const it of items){
+      const b=document.createElement('button');
+      b.textContent=it.label; b.className = get()===it.k ? 'on' : '';
+      b.onclick=()=>{ set(it.k); seg(host,items,get,set); render(); };
+      host.appendChild(b);
+    }
+  }
+
+  if (typeof PLANTS==='undefined' || typeof drawPlant!=='function'){
+    document.getElementById('out').innerHTML=
+      '<p style="opacity:.7">Renderer did not load — serve the folder '+
+      '(<code>npx http-server -c-1</code>) rather than opening the file directly.</p>';
+    return;
+  }
+  seg(document.getElementById('seasons'), SEASONS.map(s=>({k:s,label:s})),
+      ()=>season, v=>season=v);
+  seg(document.getElementById('views'), VIEWS, ()=>view, v=>view=v);
+  const g=document.getElementById('growth');
+  g.oninput=()=>{ growth=+g.value;
+    document.getElementById('growthv').textContent=Math.round(growth*100)+'%'; render(); };
+  render();
+})();
+</script>
