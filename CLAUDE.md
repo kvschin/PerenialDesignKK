@@ -738,10 +738,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
-    buttons. **Hold** the box for 360ms to
+    buttons. The fill runs at `.44` opacity with a crisp 2px ink-channel
+    leading edge (`.season-fill::after`): at the old `.18` it washed out to
+    grey and the season's end was invisible, and the edge is what makes "how
+    far through am I" legible rather than a soft gradient guess. Text stays
+    ≥4.7:1 over every season band in both themes. **Hold** the box for 360ms to
     fast-forward (`game.ffActive`; the loop adds `FF_RATE` game-ms per real-ms,
-    ~2 garden days/sec): a border trace fills during the hold and the calendar
-    line changes to **Fast-forwarding** while it is active. A short **tap**
+    ~2 garden days/sec): a **masked conic ring** (`.season-box::after`, animated
+    through the registered `--hold-sweep` property) traces the hold and the
+    calendar line changes to **Fast-forwarding** while it is active. The ring
+    takes `border-radius:inherit`, so it always matches the box — it replaced
+    an SVG `<rect rx="5">` in a fixed `150x34` viewBox with
+    `preserveAspectRatio="none"`, which drew 5px corners inside a 10px box and
+    distorted to a 4.4×6.5px ellipse on a phone: visibly a square sitting
+    inside the rounded box. Do not reintroduce fixed-viewBox chrome geometry
+    over a box whose size changes per breakpoint. A short **tap**
     TOGGLES the time menu (`openPause`/`closePause` → `#pauseScreen`), a
     **dropdown** that `openPause` pins just under the season box
     (`position:fixed`, JS-set `top`/`left`), whose primary button is a

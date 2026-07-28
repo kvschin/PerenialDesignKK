@@ -181,7 +181,8 @@
 /* An armed tool paints its canvas icon flat against the accent fill. On loam
    the accent is light enough to take a black icon; on paper the accent is a
    deep bronze, so the same icon has to go white instead. */
-[data-theme="light"] .canvas-tool.sel canvas:not(.rail-swatch){filter:brightness(0) invert(1)!important}
+[data-theme="light"] .canvas-tool.sel canvas:not(.rail-swatch),
+[data-theme="light"] .seg .seg-opt.on canvas{filter:brightness(0) invert(1)!important}
 /* "Auto" is resolved in JS, not here: the inline bootstrap in index.html stamps
    data-theme="light|dark" on <html> before first paint, so this file needs one
    light block instead of a duplicate inside @media (prefers-color-scheme), and
@@ -306,7 +307,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .panel-enter,.modal-screen:not(.hidden)>.panel{animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
 /* the setup panels sit over the live meadow — lean on the blur and let a little
    more of the world glow through than the opaque in-game dropdowns do */
-#designScreen .panel,#plotScreen .panel{background:rgba(23,16,13,.84);
+/* Channel-based, not a literal: this was the one hardcoded dark surface the
+   theme never reached, so in light mode the setup panels stayed dark while
+   their text correctly went dark too — 1.07:1, effectively unreadable. */
+#designScreen .panel,#plotScreen .panel{background:rgba(var(--paper-rgb),.88);
   backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
 @media (pointer:coarse){
   #designScreen .chip,#plotScreen .chip{min-height:44px;display:inline-flex;align-items:center}
@@ -509,16 +513,36 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .season-box:active{border-color:var(--bronze);transform:translateY(1px)}
 .season-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:#7fc24e;opacity:.58;
   transition:background .45s ease;pointer-events:none}
+/* A crisp leading edge on the fill. The fill alone is a soft wash with no
+   defined end, so "how far through the season am I / when does it turn" was
+   guesswork; this gives it a playhead. Ink-channel so it reads in both themes. */
+.season-fill::after{content:'';position:absolute;top:0;right:0;bottom:0;width:2px;
+  background:rgba(var(--ink-rgb),.72);border-radius:1px}
+.season-box[data-progress="0"] .season-fill::after{opacity:0}
 .season-box-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
 .season-head{display:flex;align-items:baseline;gap:5px;min-width:0;line-height:1}
 .season-box .season-name{font-size:15.5px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .season-sub{font-size:8.7px;letter-spacing:.09em;text-transform:uppercase;color:#ece1cb;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.time-progress{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
-.time-progress rect{fill:none;stroke:#ffd39e;stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:100;stroke-dashoffset:100;
-  transition:stroke-dashoffset var(--motion-control) linear,opacity var(--motion-control);opacity:0}
-.season-box.hold-arming .time-progress rect{stroke-dashoffset:0;opacity:1;transition-duration:360ms}
+/* Hold-to-fast-forward trace.
+   This was an SVG <rect rx="5"> in a fixed 150x34 viewBox with
+   preserveAspectRatio="none" — a leftover from when the box was a different
+   shape. It drew 5px corners inside a 10px-radius box, and because the viewBox
+   is stretched non-uniformly it distorted to a 4.4x6.5px ellipse on a phone
+   (132x44): visibly a square sitting inside the rounded box rather than a
+   trace around it. A masked ring inherits the box's ACTUAL border-radius at
+   every breakpoint, so the two can never disagree again. */
+@property --hold-sweep{syntax:'<percentage>';inherits:false;initial-value:0%}
+.season-box::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  border-radius:inherit;padding:2px;
+  background:conic-gradient(from 0deg,#ffd39e var(--hold-sweep),transparent 0);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity var(--motion-control)}
+.season-box.hold-arming::after{opacity:1;--hold-sweep:100%;
+  transition:--hold-sweep 360ms linear,opacity var(--motion-control)}
 .season-box.fast-forwarding{border-color:#ffd39e;background:rgba(201,127,63,.18)}
-.season-box.fast-forwarding .time-progress rect{stroke-dashoffset:0;opacity:1}
+.season-box.fast-forwarding::after{opacity:1;--hold-sweep:100%}
 .time-state{display:none;color:#fff3df;font-weight:700}
 .season-box.fast-forwarding #seasonClkCal,.season-box.fast-forwarding #seasonPhase{display:none!important}
 .season-box.fast-forwarding .time-state{display:inline}
@@ -1209,7 +1233,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .season-box:hover{background:var(--surface-control-hover)}
 .season-box .season-name{font-family:var(--font-heading);font-weight:600}
 .season-sub{color:color-mix(in srgb,var(--color-text) 58%,transparent)}
-.season-fill{opacity:.18}
+/* .18 washed the season colour out to almost nothing against the loam bar —
+   it read as grey, and you could not see where the season had got to. .44
+   keeps the season name well clear (6.8:1) while the band is actually legible
+   as a colour. */
+.season-fill{opacity:.44}
 .top-tools-full{position:static;left:auto;top:auto;transform:none;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
 .hud-right{pointer-events:auto}
 .pill.iconbar .lbl,.pill.iconbar button{color:var(--color-text)}
@@ -1217,7 +1245,16 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .canvas-tool{background:transparent;color:color-mix(in srgb,var(--color-text) 74%,transparent);border-radius:16px}
 .canvas-tool:hover:not(.disabled){background:var(--surface-control-hover);border-color:transparent}
 .canvas-tool.sel{background:var(--color-accent);border-color:var(--color-accent);color:var(--ink);box-shadow:none}
-.canvas-tool.sel span{color:var(--ink)}.canvas-tool.sel canvas:not(.rail-swatch){filter:brightness(0) saturate(100%)}
+/* Anything sitting on the SOLID accent fill has to flip its canvas icon to the
+   on-accent ink. The label already did (var(--ink)), but the icon did not — a
+   selected Draw/Grid chip kept cream #efe6d3 art on bronze #c97f3f at 2.55:1,
+   so the icon dissolved into the fill while its label stayed crisp and the
+   chip read as unselected. Tray .tool.sel is deliberately excluded: it tints
+   with translucent --surface-active, not solid accent, so light art is right
+   there. */
+.canvas-tool.sel span{color:var(--ink)}
+.canvas-tool.sel canvas:not(.rail-swatch),
+.seg .seg-opt.on canvas{filter:brightness(0) saturate(100%)}
 .canvas-sep{background:var(--color-divider);margin:5px 8px}
 .tool-popover,.selection-more{background:var(--surface-dialog);border-color:var(--color-divider);color:var(--color-text)}
 .zoom-pill{left:20px;right:auto;bottom:20px;background:var(--color-bg);border-color:var(--color-divider);box-shadow:var(--shadow-control);color:var(--color-text);padding:5px 7px}
