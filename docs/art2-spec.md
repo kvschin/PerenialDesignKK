@@ -86,6 +86,31 @@ drawFloret(ctx, cx,cy, r, col, opt)
   // Small lit blob with a highlight offset toward the light. This is the
   // replacement for the flat `ctx.arc`/`ctx.ellipse` fills that spike,
   // umbel, globe and panicle heads use. opt: {squash, lift, drop}
+
+/* ---- added by Wave B (grasses & sedges) ---- */
+
+drawBlade(ctx, bx,by, cx,cy, tx,ty, hw, col, lit)
+  // One grass/sedge blade along an EXPLICIT quadratic (drawLeaf derives its
+  // control point from `bow`, a perpendicular offset, which cannot express the
+  // hand-tuned arch/sweep/cascade the grass branches already carry). Monotone
+  // taper from the sheath, baked at 6 steps rather than 10, no midrib.
+  //
+  // It deliberately does NOT call litFill. Measured: filling a blade-sized
+  // path through a 3-stop gradient costs 14.5us vs 3.8us flat, and the cost is
+  // the gradient SHADER, not the allocation (creating the object is 0.7us).
+  // A bunchgrass draws 13-34 blades, so per-blade gradients alone put little
+  // bluestem over the 5x budget. Instead the blade is a dark body plus a lit
+  // sliver (BLADE_LIT, a second baked profile that nests inside BLADE_PROF on
+  // the same spine) — ~5.6us, and on a near-vertical blade a gradient along
+  // the light axis IS just a lighter tip. `lit:false` skips the sliver; the
+  // shadowed skirt of a clump has no lit face to show, so it costs one fill.
+
+fanIdx(k, n)  // outermost-first fan order: 0, n-1, 1, n-2, ... centre last
+  // The classic loops run left to right, so the rightmost blade always
+  // over-paints the clump and a tuft reads as a flat comb. Walking in from
+  // both edges makes it read as a dome, and because depth then tracks |side|
+  // the recession is arithmetic — no {z} records, no comparator, no sort, so
+  // the hot path stays allocation-free.
 ```
 
 ### `LEAF_SHAPES`
@@ -164,6 +189,18 @@ Straight from `CLAUDE.md`; the art pass must not blur the line.
 | `leafTeeth` / `leafTeethN` | serrated margin, and how many teeth |
 | `leafBow` | sideways curve of the leaf spine |
 
+Added by Wave B (grasses & sedges), all read only inside `art2On` branches so
+`?art2=0` renders exactly the classic art:
+
+| key | meaning |
+| --- | --- |
+| `bladeHW` | half-width multiplier on the existing `leafW` (default 0.85). Note this is a HALF-width against a `lineWidth`, and the taper averages 0.64 of peak, so 0.85 is roughly equal ink to the stroke it replaces. Going much below ~0.7 visibly thins a drift. |
+| `bladeShade` | how much the shaded skirt of a clump darkens (default 16–19 by form) |
+| `culmHW` | as `bladeHW`, for `turkeyfoot`'s flowering culms |
+| `cloudSquash` | squash on `cloudgrass` panicle spikelets |
+| `plumeStyle` | `vertgrass` inflorescence: `fan` (miscanthus, silky), `spike` (Karl Foerster, tight vertical), `open` (indiangrass, loose panicle) |
+| `plumeLen` | plume height as a fraction of drawn height |
+
 Add new keys only when a real species needs one, and document it here.
 
 ## 6. How to verify — required before reporting done
@@ -175,6 +212,18 @@ Add new keys only when a real species needs one, and document it here.
    the pixels, and confirm *only* the species you opted in changed. Anything
    else moving is a bug. Snippet in §7.
 4. **Perf.** Measure your forms against the §4 budget. Report the numbers.
+
+   > **Do not take wall-clock timings inside `art-prototype.html`.** It wraps
+   > `CanvasRenderingContext2D.fill/stroke/fillRect/strokeRect/drawImage/fillText`
+   > in a counting closure at load and never unwraps them. That wrapper costs
+   > per OP, and ART2 issues roughly twice the ops, so it inflates the ART2 side
+   > by about 2x — and any further patch/restore of those prototype methods (an
+   > op-counting helper, say) compounds it. Measured both ways, little bluestem
+   > in Fall came out 6.4x instrumented and **2.0x** clean. Use a separate page
+   > that loads the modules with the same DOM stub harness and no
+   > instrumentation. Op counts from the prototype are still fine — that is what
+   > it is for. On a noisy machine take the MIN over interleaved A/B rounds
+   > rather than a mean; means here drifted 30–40% run to run.
 5. **Look at it.** `art-prototype.html` renders side-by-side; edit its `SPECIES`
    list to your forms. Serve with `npx http-server -c-1`.
 

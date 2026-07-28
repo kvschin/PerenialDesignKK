@@ -99,6 +99,7 @@ window.requestAnimationFrame=window.__realRAF;
     <input type="range" id="growth" min="0.3" max="1" step="0.05" value="1">
     <span id="growthv" style="opacity:.55;font-size:12px;width:32px">100%</span></div>
   <div class="grp" id="views"><label>View</label></div>
+  <div class="grp" id="sets"><label>Set</label></div>
 </div>
 
 <main id="out"></main>
@@ -112,13 +113,42 @@ window.requestAnimationFrame=window.__realRAF;
 
 <script>
 (function(){
-  const SPECIES=[
-    ['echinacea',  'broad ovate leaves, coarsely toothed, leafy up the stem'],
-    ['pallida',    'narrow linear leaves, untoothed, nearly naked stems'],
-    ['angustifolia','narrow lanceolate, hairy, low and taprooted'],
-    ['paradoxa',   'linear-lanceolate, untoothed, rays fall like a shuttlecock'],
-    ['topeka',     'narrow lanceolate, rays swept hard back against the stem'],
-  ];
+  /* Named sets rather than one SPECIES array. Every wave wanted to point this
+     page at its own forms and kept overwriting the previous wave's list, so the
+     Echinacea reference set survived only in git history. Add a set; do not
+     replace one. Pick with ?set=grasses or the Set control. */
+  const SETS={
+    coneflower:[
+      ['echinacea',  'broad ovate leaves, coarsely toothed, leafy up the stem'],
+      ['pallida',    'narrow linear leaves, untoothed, nearly naked stems'],
+      ['angustifolia','narrow lanceolate, hairy, low and taprooted'],
+      ['paradoxa',   'linear-lanceolate, untoothed, rays fall like a shuttlecock'],
+      ['topeka',     'narrow lanceolate, rays swept hard back against the stem'],
+    ],
+    forbs:[
+      ['rudbeckia',  'many-rayed composite — the ray-width stress case'],
+      ['rattlesnake','globe head, yucca-like sword leaves'],
+      ['astrantia',  'umbel — dense, and the wave A absolute-cost worst case'],
+      ['baptisia',   'shrub (herbaceous mound) — obovate leaflets'],
+      ['liatris',    'spike — bottlebrush raceme'],
+    ],
+    grasses:[
+      ['bluestem',   'fine upright bunchgrass, the texture reference'],
+      ['switchgrass','cloudgrass — foliage clump under an airy seed veil'],
+      ['miscanthus', 'vertgrass — silky upright plume'],
+      ['bigbluestem','turkeyfoot — three-pronged racemes kept as strokes'],
+      ['hakone',     'forestgrass — low cascading ribbons for shade'],
+    ],
+    woody:[
+      ['whiteoak',   'the mature-canopy worst case'],
+      ['redbud',     'blooms on bare branches — must survive'],
+      ['ninebark',   'leaves now hang on the twig spines'],
+      ['redtwig',    'winter is twig-only — must stay twig-only'],
+      ['baldcypress','conifer — highest ratio, lowest absolute'],
+    ],
+  };
+  const qSet=new URLSearchParams(location.search).get('set');
+  let setName = SETS[qSet] ? qSet : 'coneflower';
   const SEASONS=['Spring','Summer','Fall','Winter'];
   const VIEWS=[
     {k:'single', label:'Single'},
@@ -127,13 +157,43 @@ window.requestAnimationFrame=window.__realRAF;
   ];
   let season='Summer', view='single', growth=1;
 
-  // Count paint ops rather than trusting wall-clock timings on a noisy machine.
-  let ops=0;
+  /* Count paint ops. THE WRAPPER MUST BE REMOVED AFTER EACH COUNT — an earlier
+     version installed it once at load and left it there forever. The wrapper
+     costs per op, ART2 issues ~2x the ops, so every wall-clock reading taken on
+     this page was inflated ~2x on the ART2 side. Two separate waves of work
+     chased phantom regressions off it (a conifer read 3.94x here and 1.87x on a
+     clean page). Count ops here; take TIMINGS with bench() below, which
+     measures with the wrapper off. */
+  const COUNTED=['fill','stroke','fillRect','strokeRect','drawImage','fillText'];
   const C=CanvasRenderingContext2D.prototype;
-  for (const m of ['fill','stroke','fillRect','strokeRect','drawImage','fillText']){
-    const orig=C[m];
-    C[m]=function(){ ops++; return orig.apply(this,arguments); };
+  let ops=0;
+  function countOps(fn){
+    const saved=COUNTED.map(m=>[m,C[m]]);
+    for (const [m,orig] of saved) C[m]=function(){ ops++; return orig.apply(this,arguments); };
+    ops=0;
+    try { fn(); } finally { for (const [m,orig] of saved) C[m]=orig; }
+    return ops;
   }
+
+  /* Wall-clock bench, deliberately outside countOps. Interleaved A/B and
+     min-of-rounds, because means on this machine drift 30-40% run to run. */
+  window.bench = (key, iters, growth, season) => {
+    iters=iters||300; growth=growth===undefined?1:growth; season=season||'Summer';
+    const c=document.createElement('canvas'); c.width=700; c.height=700;
+    const g=c.getContext('2d');
+    const one=on=>{ ART2.on=on;
+      for(let i=0;i<25;i++){ g.save(); g.translate(350,660);
+        drawPlant(g,0,0,key,growth,season,101,Math.sin(i)*0.5,null,1); g.restore(); }
+      const t0=performance.now();
+      for(let i=0;i<iters;i++){ g.clearRect(0,0,700,700); g.save(); g.translate(350,660);
+        drawPlant(g,0,0,key,growth,season,101,Math.sin(i*0.13)*0.5,null,1); g.restore(); }
+      return (performance.now()-t0)/iters; };
+    let bc=Infinity, ba=Infinity;
+    for(let r=0;r<3;r++){ bc=Math.min(bc,one(false)); ba=Math.min(ba,one(true)); }
+    ART2.on=true;
+    const out={key, classicMs:+bc.toFixed(3), art2Ms:+ba.toFixed(3), ratio:+(ba/bc).toFixed(2)};
+    console.log(out); return out;
+  };
 
   function panel(key, on, w, h, scale, mode){
     const cv=document.createElement('canvas');
@@ -141,18 +201,20 @@ window.requestAnimationFrame=window.__realRAF;
     cv.width=w*dpr; cv.height=h*dpr; cv.style.width=w+'px'; cv.style.height=h+'px';
     const ctx=cv.getContext('2d');
     ctx.scale(dpr,dpr);
-    ART2.on=on; ops=0;
-    ctx.save(); ctx.scale(scale,scale);
+    ART2.on=on;
     const W=w/scale, H=h/scale;
-    if (mode==='drift'){
-      const spots=[[0.5,0.99,101],[0.22,0.93,207],[0.78,0.95,313],[0.36,0.86,419],[0.66,0.88,523]];
-      for (const [fx,fy,sd] of spots) drawPlant(ctx, W*fx, H*fy, key, growth, season, sd, 0, null, 1);
-    } else {
-      drawPlant(ctx, W/2, H*0.97, key, growth, season, 101, 0, null, 1);
-    }
-    ctx.restore();
-    ART2.on=false;
-    return {cv, ops};
+    const n=countOps(()=>{
+      ctx.save(); ctx.scale(scale,scale);
+      if (mode==='drift'){
+        const spots=[[0.5,0.99,101],[0.22,0.93,207],[0.78,0.95,313],[0.36,0.86,419],[0.66,0.88,523]];
+        for (const [fx,fy,sd] of spots) drawPlant(ctx, W*fx, H*fy, key, growth, season, sd, 0, null, 1);
+      } else {
+        drawPlant(ctx, W/2, H*0.97, key, growth, season, 101, 0, null, 1);
+      }
+      ctx.restore();
+    });
+    ART2.on=true;
+    return {cv, ops:n};
   }
 
   function render(){
@@ -161,7 +223,7 @@ window.requestAnimationFrame=window.__realRAF;
     const cfg = view==='drift'  ? {w:300,h:230,scale:1.35}
               : view==='actual' ? {w:150,h:150,scale:1}
               :                   {w:230,h:250,scale:2.1};
-    for (const [key,note] of SPECIES){
+    for (const [key,note] of SETS[setName]){
       const P=PLANTS[key];
       const row=document.createElement('div'); row.className='row';
       const meta=document.createElement('div'); meta.className='meta';
@@ -199,6 +261,8 @@ window.requestAnimationFrame=window.__realRAF;
   seg(document.getElementById('seasons'), SEASONS.map(s=>({k:s,label:s})),
       ()=>season, v=>season=v);
   seg(document.getElementById('views'), VIEWS, ()=>view, v=>view=v);
+  seg(document.getElementById('sets'), Object.keys(SETS).map(k=>({k,label:k})),
+      ()=>setName, v=>setName=v);
   const g=document.getElementById('growth');
   g.oninput=()=>{ growth=+g.value;
     document.getElementById('growthv').textContent=Math.round(growth*100)+'%'; render(); };
