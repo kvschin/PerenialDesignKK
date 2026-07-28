@@ -853,7 +853,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     map drawn from the save blob at list-open time: grass checker, real
     terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
     dots, house blocks — always current, no stored screenshot) plus a meta
-    line with live plant count + the garden's own season (`worldSaveMeta`)),
+    line with live plant count + the garden's own season (`worldSaveMeta`).
+    The panel is **locked to the viewport and only `#worldList` scrolls**, so
+    the heading and the New/Import/Back actions stay put however many gardens
+    you have; previously the whole `.screen` scrolled and at a dozen gardens
+    the panel ran 2604px on an 844px phone, putting the title above the
+    viewport and every action below the fold. Row buttons align to
+    `--thumb-w` on `.world-row` (which also sizes the mini-map) rather than a
+    hardcoded indent — the old 94px was sized for the 84px desktop thumbnail
+    and overflowed the 64px phone row, wrapping Delete onto a third line and
+    costing 46px per row),
     plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
     always-visible plot diagram that owns size, shape, and orientation
     together. The width/length inputs sit inside the diagram card; the canvas

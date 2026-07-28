@@ -380,15 +380,31 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .ld-name{font-size:22px}
 }
 
-/* ---------- worlds list ---------- */
-.world-row{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;
+/* ---------- worlds list ----------
+   This is a browse surface, not a form: with a dozen saved gardens the panel
+   ran 2604px tall in an 844px phone, so the whole .screen scrolled and took
+   the chrome with it — the "Your gardens" heading ended up above the viewport
+   and Start a new garden / Import / Back all sat below the fold. Lock the
+   panel to the viewport and let ONLY the list scroll, so the heading stays put
+   and the actions stay reachable however many gardens you have. */
+#worldsScreen .panel{display:flex;flex-direction:column;min-height:0;max-height:100%}
+#worldsScreen .panel>*{flex:0 0 auto}
+#worldsScreen #worldList{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;scrollbar-width:thin;margin:0 -4px;padding:2px 4px}
+/* A divider under the list makes the pinned footer read as pinned rather than
+   as the end of the content. */
+#worldsScreen #worldList+.row{margin-top:0;padding-top:14px;border-top:1px solid var(--border-quiet)}
+
+/* --thumb-w drives both the mini-map and the indent the wrapped action buttons
+   align to, so the two can never disagree (see .world-dup). */
+.world-row{--thumb-w:84px;display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;
   border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control);
   color:var(--text-primary);text-align:left;font-size:14px}
 .world-row:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 .world-row .wname{font-weight:600;font-size:15px}
 .world-row .meta{font-size:11px;color:var(--text-muted)}
 /* the mini-map drawn from the save, so a row answers "which garden was this?" */
-.world-thumb{width:84px;height:63px;flex:0 0 auto;border-radius:var(--radius-control);
+.world-thumb{width:var(--thumb-w);height:calc(var(--thumb-w) * .75);flex:0 0 auto;border-radius:var(--radius-control);
   background:#241a16;border:1px solid var(--border-quiet)}
 .world-del{background:var(--surface-danger);border:1px solid rgba(224,138,122,.50);color:var(--action-danger-text);
   font-size:11px;padding:4px 8px;border-radius:var(--radius-control);flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:5px;
@@ -403,9 +419,15 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
 .world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 @media(max-width:520px){
+  /* Two lines: thumbnail + name, then the three actions as one group indented
+     to line up under the name. The indent used to be a hardcoded 94px sized for
+     the 84px desktop thumbnail; on a phone the thumbnail is 64px, so those
+     stale 20px overflowed the row and wrapped Delete onto a THIRD line — 46px
+     of dead height on every garden. Deriving it from --thumb-w keeps them in
+     step, and the row drops 173px -> ~127px. */
   .world-row{flex-wrap:wrap;align-items:center}
-  .world-row>span{min-width:calc(100% - 94px)!important}
-  .world-dup{margin-left:94px}
+  .world-row>span{min-width:calc(100% - var(--thumb-w) - 10px)!important}
+  .world-dup{margin-left:calc(var(--thumb-w) + 10px)}
   .world-dup,.world-visit,.world-del{min-height:36px}
 }
 .handedness-preference{display:none}
@@ -951,7 +973,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
-  .world-thumb{width:64px;height:48px}
+  .world-row{--thumb-w:64px}   /* the indent below follows it automatically */
   #menuScreen{padding:14px 16px}
   .menu-shell{width:min(330px,calc(100vw - 32px));min-height:100%;gap:14px;padding:54px 0 24px}
   .menu-title-block{padding:0}
