@@ -107,6 +107,18 @@ const RAY_PROF = new Float64Array(RAY_N+1);
 for (let i=0;i<=RAY_N;i++){ const t=i/RAY_N;
   RAY_PROF[i] = t<0.16 ? 0.50+t/0.16*0.50
                        : 0.55+0.45*Math.pow(1-(t-0.16)/0.84, 0.42); }
+/* Emergent rays (RAY_FIT) start at the DISC EDGE, not at the centre. RAY_PROF
+   opens at half width because a ray converging on a centre has to — but a ray
+   that begins already out at the crowding radius does not, and starting it
+   narrow leaves wedges of background between neighbours. That is what made a
+   black-eyed Susan read as a cog even after the width cap was fixed: the rays
+   overlapped along their length but pulled apart at the base, where the
+   0.75 y-squash spreads them furthest. Full width from the base, rounding off
+   only at the tip. */
+const RAY_PROF_EM = new Float64Array(RAY_N+1);
+for (let i=0;i<=RAY_N;i++){ const t=i/RAY_N;
+  RAY_PROF_EM[i] = t<0.72 ? 0.95+0.05*(t/0.72)
+                          : 1-0.62*Math.pow((t-0.72)/0.28, 1.5); }
 
 /* One leaf: base -> tip, bowed sideways by `bow`, filled with a value gradient
    and finished with a midrib. `hw` is the half-width at its widest point. */
@@ -133,7 +145,7 @@ function drawRay(ctx, cx,cy, ang, len, hw, droop, col, opt){
   opt=opt||{};
   const ex=cx+Math.cos(ang)*len,     ey=cy+Math.sin(ang)*len*0.75+droop;
   const mx=cx+Math.cos(ang)*len*0.5, my=cy+Math.sin(ang)*len*0.38+droop*0.28;
-  ribbonPath(ctx, cx,cy, mx,my, ex,ey, RAY_PROF, hw, 0, 0);
+  ribbonPath(ctx, cx,cy, mx,my, ex,ey, opt.emergent?RAY_PROF_EM:RAY_PROF, hw, 0, 0);
   litFill(ctx,(cx+ex)/2,(cy+ey)/2, len*0.6, col,
           opt.lift===undefined?20:opt.lift, opt.drop===undefined?-26:opt.drop);
   // A vein is a whole extra path+stroke per ray, and there are dozens of rays
@@ -1111,6 +1123,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               ctx.stroke();
             } else {
               _rayOpt.vein = rsh!=='round';
+              _rayOpt.emergent = em>0;   // starts at the disc edge: full-width base
               const order=[];
               for(let p=0;p<rays;p++) order.push({p, s:Math.sin(p/rays*Math.PI*2)});
               order.sort((a,b)=>a.s-b.s);
