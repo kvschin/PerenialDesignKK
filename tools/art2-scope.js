@@ -16,6 +16,14 @@
  * So `base` loads a pre-change build in a second sandbox and diffs the
  * recorded draw-op STREAM (method + rounded args) with the flag OFF. Any
  * species that differs is a classic-path regression.
+ *
+ * CAVEAT: the op stream is STRICTER than the pixels. Moving a `SET fillStyle`
+ * from before beginPath to after the path is built (but still before fill)
+ * changes the stream and changes nothing on screen; batching N stroked
+ * subpaths into one stroke likewise. At the end of the woody audit `base`
+ * reported 35 movers while a pixel diff of all 525 refs x 4 seasons reported
+ * 0. So treat `base` as a TRIAGE tool: it will never miss a real regression,
+ * but confirm anything it flags against pixels before chasing it.
  */
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm'), cp = require('child_process');
@@ -211,9 +219,12 @@ if (mode === 'echinacea'){
 
 if (mode === 'diff'){
   const k=process.argv[3], v=process.argv[4]==='-'?undefined:process.argv[4], sea=process.argv[5]||'Spring';
+  // 6th arg picks the flag state: 'off' diffs the CLASSIC path, which is where
+  // a wave leaking rnd() calls outside its guard shows up.
+  const flag=process.argv[6]!=='off';
   const cur = build(null), old = build(BASE_REF);
-  const a = stream(old, k, v, true, [sea]).split('\n');
-  const b = stream(cur, k, v, true, [sea]).split('\n');
+  const a = stream(old, k, v, flag, [sea]).split('\n');
+  const b = stream(cur, k, v, flag, [sea]).split('\n');
   console.log('base ops', a.length, ' current ops', b.length);
   let shown=0;
   for (let i=0;i<Math.max(a.length,b.length) && shown<14;i++){

@@ -3114,10 +3114,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       if (a2) ctx.stroke();
     if (S.fol){
+        // Two spellings of the same fill, kept separate so the classic path
+        // emits its ops in the original ORDER (fillStyle, then beginPath).
+        // Nothing renders differently either way, but a baseline that drifts
+        // for cosmetic reasons hides the next real regression in the noise.
         ctx.save(); ctx.globalAlpha=0.20;
-        ctx.beginPath(); ctx.ellipse(sway, -H*0.42, cw*0.45, H*0.28, 0, 0, 7);
-        if (a2) litFill(ctx, sway, -H*0.42, Math.max(cw*0.45,H*0.28)*0.8, shade(S.fol,-24), 22, -20);
-        else { ctx.fillStyle=shade(S.fol,-24); ctx.fill(); }
+        if (a2){
+          ctx.beginPath(); ctx.ellipse(sway, -H*0.42, cw*0.45, H*0.28, 0, 0, 7);
+          litFill(ctx, sway, -H*0.42, Math.max(cw*0.45,H*0.28)*0.8, shade(S.fol,-24), 22, -20);
+        } else {
+          ctx.fillStyle=shade(S.fol,-24);
+          ctx.beginPath(); ctx.ellipse(sway, -H*0.42, cw*0.45, H*0.28, 0, 0, 7); ctx.fill();
+        }
         ctx.restore();
         // ART2 carries more leaves: shaped foliage is legible where a blur of
         // blobs was not, so 20 scattered leaves read as a bare armature with
@@ -3149,8 +3157,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                       bow:(L.leafBow===undefined?0.09:L.leafBow)*side,
                       rib:lw>=4.2});
           } else {
-            const px=Math.cos(a)*cw*0.5*r+sway*2, py=-H*(0.35+rnd()*0.55);
+            // rnd() ORDER is load-bearing on the classic path. The original
+            // drew the COLOUR before the Y position; hoisting py above the
+            // fillStyle swapped which random value fed which, and silently
+            // moved every classic shrub. Keep colour first.
+            const px=Math.cos(a)*cw*0.5*r+sway*2;
             ctx.fillStyle=shade(S.fol,(rnd()-0.5)*28);
+            const py=-H*(0.35+rnd()*0.55);
             ctx.beginPath();
             ctx.ellipse(px, py, 3.6, 2.6, a, 0, 7);
             ctx.fill();
@@ -3167,11 +3180,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         } else if (L.bloomStyle==='panicle'){ // upright conical trusses (lilac)
           const pr=L.clusterR||4.5;
           heads.forEach(([tx2,ty2])=>{ for (let k=0;k<14;k++){ const f=k/14, wr=pr*(1-f*0.85);
-            const fx=tx2+(rnd()-0.5)*2*wr, fy=ty2-pr*0.2-f*pr*1.9;
+            const fy=ty2-pr*0.2-f*pr*1.9;      // fy takes no rnd(); fx does
             // a lilac truss is hundreds of tiny lit florets; the highlight is
             // exactly what stops it reading as a solid lilac-coloured cone
-            if (a2) drawFloret(ctx, fx,fy, 1.9, shade(S.bloom,(rnd()-0.5)*14), {squash:0.94});
-            else { ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
+            if (a2){
+              const fx=tx2+(rnd()-0.5)*2*wr;
+              drawFloret(ctx, fx,fy, 1.9, shade(S.bloom,(rnd()-0.5)*14), {squash:0.94});
+            } else {                            // classic drew COLOUR before fx
+              ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
+              const fx=tx2+(rnd()-0.5)*2*wr;
               ctx.beginPath(); ctx.ellipse(fx, fy, 1.8,1.7,0,0,7); ctx.fill(); } } });
         } else if (L.bloomStyle==='spray'){ // flowers strung along arching canes (bridal wreath)
           // Ride the cane's actual curve, not the base->tip chord: the twig is
@@ -3180,9 +3197,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // IS the plant.
           heads.forEach(([tx2,ty2])=>{ for (let k=0;k<9;k++){ const t=0.30+k*0.075;
             const cx=tx2*(0.8*t+0.2*t*t), cy=ty2*(1.1*t-0.1*t*t);
-            const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
-            if (a2) drawFloret(ctx, fx,fy, 2.1, shade(S.bloom,(rnd()-0.5)*12), {squash:0.9});
-            else { ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
+            if (a2){
+              const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
+              drawFloret(ctx, fx,fy, 2.1, shade(S.bloom,(rnd()-0.5)*12), {squash:0.9});
+            } else {                            // classic drew COLOUR before fx/fy
+              ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
+              const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
               ctx.beginPath(); ctx.ellipse(fx, fy, 2.1,1.9,0,0,7); ctx.fill(); } } });
         } else if (L.bloomStyle==='cluster'){ // domed corymbs/cymes (ninebark, spirea, viburnum)
           const cr=L.clusterR||4.5;
@@ -3242,8 +3262,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.restore();
       const n=stemFor(22);
       for (let i=0;i<n;i++){ const a=rnd()*Math.PI*2, r=rnd();
-        const px=Math.cos(a)*cw*0.46*r+sway*2, py=-H*(0.30+rnd()*0.5);
+        // px carries no rnd() and is shared; py DOES, so each branch takes it
+        // in its own order — the classic path drew colour first and hoisting
+        // py above the branch swapped which random value fed which.
+        const px=Math.cos(a)*cw*0.46*r+sway*2;
         if (a2){
+          const py=-H*(0.30+rnd()*0.5);
           // Hydrangea foliage is the coarsest, most individually legible leaf
           // in the wave — big, broad ovate, strongly veined and toothed. This
           // is the species the spec names for full drawLeaf, and at 22 leaves
@@ -3257,6 +3281,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                     bow:Math.cos(dir)<0?-0.1:0.1, rib:lw>=4.2});
         } else {
           ctx.fillStyle=shade(S.fol,(rnd()-0.5)*26);
+          const py=-H*(0.30+rnd()*0.5);
           ctx.beginPath(); ctx.ellipse(px, py, 4.4,3.2,a,0,7); ctx.fill();
         }
       }
@@ -3266,10 +3291,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const r=headR*(scale||1);
       if (panicle){ for (let k=0;k<16;k++){ const f=k/16; // taper to a point
         const wr=r*(1-f)*0.9;
-        const fx=hx+(rnd()-0.5)*2*wr, fy=hy-r*0.3-f*r*1.7;
+        const fy=hy-r*0.3-f*r*1.7;         // fy takes no rnd(); fx does
         // a panicle is denser and paler toward its base; light it that way
-        if (a2) drawFloret(ctx, fx,fy, 2.0, shade(col,(1-f)*10-4+(rnd()-0.5)*12), {squash:0.95});
-        else { ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+        if (a2){
+          const fx=hx+(rnd()-0.5)*2*wr;
+          drawFloret(ctx, fx,fy, 2.0, shade(col,(1-f)*10-4+(rnd()-0.5)*12), {squash:0.95});
+        } else {                           // classic drew COLOUR before fx
+          ctx.fillStyle=shade(col,(rnd()-0.5)*16);
+          const fx=hx+(rnd()-0.5)*2*wr;
           ctx.beginPath(); ctx.ellipse(fx, fy, 1.9,1.9,0,0,7); ctx.fill(); } } }
       else if (lacecap){ // flat disc: tiny fertile center ringed by showy florets
         const cy=hy-r*0.4;
