@@ -2415,16 +2415,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       for (let i=0;i<pads;i++){
         const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*(L.upright?13:18);
         const px=Math.cos(a)*rr+sway*0.8, py=-4+Math.sin(a)*rr*0.35;
-        const pw=padW*(0.65+rnd()*0.25), ph=padH*(0.65+rnd()*0.25), prot=rnd()*0.4;
         if (art2On(L)){
           // a lily pad is big enough to carry a real gradient, and it is a flat
           // disc on water — the light falls across it, which is most of what
           // tells you it is lying down rather than standing up
+          const pw=padW*(0.65+rnd()*0.25), ph=padH*(0.65+rnd()*0.25), prot=rnd()*0.4;
           ctx.beginPath(); ctx.ellipse(px,py,pw,ph,prot,0,7);
           litFill(ctx,px,py,Math.max(pw,ph),fol);
         } else {
+          // NB: the rnd() calls here must stay in their original ORDER. Hoisting
+          // them above the branch changed which value fed which argument, which
+          // silently moved the classic render of every water plant.
           ctx.fillStyle=shade(fol,(rnd()-0.5)*20);
-          ctx.beginPath(); ctx.ellipse(px,py,pw,ph,prot,0,7); ctx.fill(); }
+          ctx.beginPath(); ctx.ellipse(px,py,padW*(0.65+rnd()*0.25),padH*(0.65+rnd()*0.25),rnd()*0.4,0,7); ctx.fill(); }
         ctx.fillStyle='rgba(25,40,25,0.16)';
         ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+padW*0.45,py-padH*0.12); ctx.lineTo(px+padW*0.12,py+padH*0.16); ctx.closePath(); ctx.fill();
       }
