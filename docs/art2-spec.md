@@ -111,6 +111,18 @@ fanIdx(k, n)  // outermost-first fan order: 0, n-1, 1, n-2, ... centre last
   // both edges makes it read as a dome, and because depth then tracks |side|
   // the recession is arithmetic — no {z} records, no comparator, no sort, so
   // the hot path stays allocation-free.
+// --- added by Wave A -------------------------------------------------------
+fcPush(x, y, r, squash)          // stage one blob in module-level scratch
+fcDraw(ctx, col, lift, drop)     // paint the staged cluster, then reset
+fcReset()                        // abandon a staged cluster
+  // Batched floret cluster: a whole same-coloured spray as TWO fills — every
+  // body, then the highlights of only the blobs big enough to resolve one.
+  // drawFloret is right for a head you can count on one hand; this is for a
+  // spray. A rough goldenrod draws ~360 panicle dots, an aromatic aster ~48
+  // disc florets, a moss phlox ~110 petals: at 2 fills per blob those are
+  // unaffordable, and at r≈1.2 the highlight is invisible anyway. Cost is 2
+  // fills for any n, so the value gradient arrives while the op count goes
+  // DOWN. Nothing allocates. Overflow past FC_MAX (96) is dropped, not grown.
 ```
 
 ### `LEAF_SHAPES`
@@ -188,6 +200,9 @@ Straight from `CLAUDE.md`; the art pass must not blur the line.
 | `leafRise` | how much the fan rises vs splays (default 0.74; raise for upright) |
 | `leafTeeth` / `leafTeethN` | serrated margin, and how many teeth |
 | `leafBow` | sideways curve of the leaf spine |
+| `leafRib` | **added, Wave A** — `false` suppresses the midrib. For anything thread-fine or grass-like: on a 2px blade the midrib is an invisible stroke charged every frame |
+| `floretR` | **added, Wave A** — umbel floret radius (default 1.5). A phlox floret is not a milkweed floret is not a *Zizia* floret |
+| `a2Spike` `a2Florets` `a2FloretR` `a2FloretSq` `a2Wobble` | **added, Wave A** — the unstyled `spike` raceme: length as a fraction of drawn height, floret count, radius, squash, and side-to-side wander. 20 species share that branch (salvia, camassia, muscari, astilbe, lizardtail…) and classic drew the same five stacked ellipses for all of them |
 
 Added by Wave B (grasses & sedges), all read only inside `art2On` branches so
 `?art2=0` renders exactly the classic art:
@@ -202,6 +217,14 @@ Added by Wave B (grasses & sedges), all read only inside `art2On` branches so
 | `plumeLen` | plume height as a fraction of drawn height |
 
 Add new keys only when a real species needs one, and document it here.
+
+> **`leafHW` means something different in the `shrub` form.** Everywhere else
+> it scales a stroke width. In `shrub` the habits site a leaf as an ellipse and
+> hand `drawLeaf` the *minor semi-axis*, while the leaf's length is twice the
+> major one — so the sane way to pick it is `leafHW = ratio * leafW / leafH`,
+> with ratio ≈ 0.24 linear, 0.32 lance, 0.42 ovate, 0.50 cordate. Set to the
+> 1.3–1.6 that works in the other forms, every leaf comes out wider than it is
+> long: a mound of perfect circles, i.e. exactly what classic already drew.
 
 ## 6. How to verify — required before reporting done
 
@@ -229,6 +252,19 @@ Add new keys only when a real species needs one, and document it here.
 
 Report actual measured numbers, not estimates. If a form comes in over budget,
 say so rather than quietly shipping it.
+
+### The proof the pixel hash cannot give you
+
+Hashing flag-off against flag-on answers *"does this species respond to the
+flag"*. It does **not** answer *"did my edits break the classic path for
+someone else"* — a regression there moves the off and the on render together
+and hashes clean. Wave A shipped exactly that bug: chaining the new branch onto
+the globe form's `if/else` chain put the shared ball in the final `else` and
+silently deleted the head of every classic sea holly and rattlesnake master.
+
+So there is a second check, `node tools/art2-scope.js base`: it loads the
+pre-wave build in a second `vm` sandbox and diffs the recorded draw-op stream
+with the flag OFF. Zero refs may move. Run both.
 
 ## 7. Scope-proof snippet
 
