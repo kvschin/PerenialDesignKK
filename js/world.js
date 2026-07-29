@@ -156,6 +156,8 @@ const game = {
   shrubFx:[],                                        // short-lived footprint pulses when shrubs block placement
   houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
   buildings:[],                                      // design-site footprints: {id,vertices,status,label,wall,roof,t}; independent of story houses
+  schemes:[],                                        // planting schemes over one site plan: [{id,name,t,plants,bulbs}] (see SCHEME_LAYERS)
+  schemeActive:null,                                 // id of the scheme whose maps are live in game.plants/game.bulbs
   houseDraft:null,                                   // settings for the next house the House tool places
   buildingDraft:null,                                // unfinished footprint only; never persisted
   buildingStyleDraft:{status:'existing',label:'House',wall:'#8a7a60',roof:'#9a5f3a'},
@@ -202,6 +204,62 @@ const GAME_LAYERS=[
   {k:'buildings', array:true, sync:()=>pushBuildings()},
 ];
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
+/* ---------- planting schemes: several plantings over one site plan ----------
+   A scheme owns only SCHEME_LAYERS.  Every other layer in GAME_LAYERS is the
+   shared site plan, so switching schemes leaves terrain/elevation/hardscape/
+   houses untouched — which is what keeps a switch cheap: the ground bake and
+   terrainLoopCache stay valid, and sceneStale() catches the swap by map
+   identity, so a switch costs exactly one buildScene().  That is also why
+   terrain is deliberately NOT per-scheme: it would invalidate the two most
+   expensive caches in the renderer on every comparison.
+
+   ONE invariant, mirrored in the save blob: the ACTIVE scheme's maps live in
+   game.plants/game.bulbs and NEVER in its list entry (which holds null).
+   stashActiveScheme() is the only thing that copies them back.  Runtime always
+   holds at least one scheme; storage omits the key entirely below two, so
+   single-scheme gardens save exactly as they always have. */
+const SCHEME_LAYERS=['plants','bulbs'];
+const MAX_SCHEMES=6;
+function newSchemeId(){ return 'sc'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36); }
+function schemeList(){ return Array.isArray(game.schemes)?game.schemes:(game.schemes=[]); }
+function schemeCount(){ return schemeList().length; }
+function multiScheme(){ return schemeCount()>1; }
+function activeSchemeIndex(){ return schemeList().findIndex(s=>s.id===game.schemeActive); }
+function activeScheme(){ const i=activeSchemeIndex(); return i<0?null:game.schemes[i]; }
+function schemeById(id){ return schemeList().find(s=>s.id===id)||null; }
+function activeSchemeName(){ const s=activeScheme(); return s?s.name:'Planting 1'; }
+// lowest unused "Planting N", so deleting the middle one doesn't leave a gap
+function nextSchemeName(){
+  const used=new Set(schemeList().map(s=>s.name));
+  for (let n=1;;n++){ const nm='Planting '+n; if (!used.has(nm)) return nm; }
+}
+function ensureSchemes(){
+  const list=schemeList();
+  if (!list.length){
+    list.push({id:newSchemeId(), name:'Planting 1', t:Date.now(), plants:null, bulbs:null});
+    game.schemeActive=list[0].id;
+  }
+  // the active entry must exist and must not hold maps (they're live in game.*)
+  const act=schemeById(game.schemeActive) ? game.schemeActive : (game.schemeActive=list[0].id, list[0].id);
+  const s=schemeById(act); if (s) for (const k of SCHEME_LAYERS) s[k]=null;
+}
+// Copy the live maps into the active scheme's entry. The ONLY writer of a
+// scheme's stored maps — everything else in the app reads game.plants/bulbs.
+function stashActiveScheme(){
+  const s=activeScheme(); if (!s) return;
+  for (const k of SCHEME_LAYERS) s[k]=game[k];
+}
+/* Switch schemes. Deliberately does NOT markGroundChanged(): shared layers did
+   not move, so the ground bake and terrain region trace stay valid. */
+function activateScheme(id){
+  const next=schemeById(id);
+  if (!next || id===game.schemeActive) return false;
+  stashActiveScheme();
+  game.schemeActive=id;
+  for (const k of SCHEME_LAYERS){ game[k]=next[k]||{}; next[k]=null; }
+  markModelChanged();
+  return true;
+}
 // Single write paths for the layer maps, so the bookkeeping every edit needs —
 // mark dirty for the renderer + bump the edit revision undo watches — can't be
 // forgotten at a call site. Ground-cache revisions are narrower than game.rev:

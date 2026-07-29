@@ -23,7 +23,7 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(confirmPop,e);
     return;
   }
-  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
+  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','schemeScreen','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){
@@ -39,9 +39,11 @@ addEventListener('keydown',e=>{
   const pauseOpen=!document.getElementById('pauseScreen').classList.contains('hidden');
   if (pauseOpen){ if (e.key==='Escape') closePause(); else trapOverlayFocus(document.getElementById('pauseScreen'),e); return; }
   const toolMenu=(game.toolMenu==='view'&&document.getElementById('viewToolsPop')) ||
-    (game.toolMenu==='layers'&&document.getElementById('layerPop'));
+    (game.toolMenu==='layers'&&document.getElementById('layerPop')) ||
+    (game.toolMenu==='schemes'&&document.getElementById('schemePop'));
   if (toolMenu){
-    const opener=game.toolMenu==='layers' && visibleEl(document.getElementById('btnLayersTool'))
+    const opener=game.toolMenu==='schemes' ? document.getElementById('schemeChip')
+      : (game.toolMenu==='layers' && visibleEl(document.getElementById('btnLayersTool')))
       ? document.getElementById('btnLayersTool') : document.getElementById('btnViewTools');
     if (e.key==='Escape' || e.key==='Tab'){
       e.preventDefault(); game.toolMenu=null; refreshCanvasTools();
@@ -83,6 +85,13 @@ addEventListener('keydown',e=>{
   }
   if (k==='e'||k===' '){ e.preventDefault(); withUndo(actHere); return; }
   if (k==='r'){ e.preventDefault(); rotateView(); return; }
+  // planting schemes: [ and ] cycle, 1-6 jump straight to one. This is the
+  // desktop A/B — flicking between schemes with the camera, zoom, rotation and
+  // season all held constant is the whole point of the feature.
+  if ((k==='['||k===']') && multiScheme()){ e.preventDefault(); cycleScheme(k===']'?1:-1); return; }
+  if (k>='1' && k<='6' && multiScheme() && !e.ctrlKey && !e.metaKey && !e.altKey){
+    e.preventDefault(); schemeAtIndex(+k-1); return;
+  }
   if (k==='+'||k==='='){ e.preventDefault(); zoomBy(1.12); return; }
   if (k==='-'){ e.preventDefault(); zoomBy(0.89); return; }
   /* keys move in SCREEN directions: D is right on screen, W is up, etc.

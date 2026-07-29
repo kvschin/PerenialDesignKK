@@ -63,6 +63,16 @@ run after every script has loaded). Each module begins with `'use strict';`
 (it's per-script). `git`-blame note: these were one `game.js` until the
 mid-2026 split — a clean cut, no logic moved.
 
+**Planting schemes** (`SCHEME_LAYERS`, world.js) let one garden hold several
+plantings over a single shared site plan. A scheme owns only `plants` + `bulbs`;
+every other layer in `GAME_LAYERS` — terrain, elevation, fences, lights,
+firepits, boulders, houses, buildings — plus `game.underlay` is shared and
+stored once. Terrain is deliberately NOT per-scheme: it would invalidate the
+ground bake and `terrainLoopCache` on every comparison, and keeping it shared is
+what makes a switch cost one `buildScene()` (measured 8.6ms vs 9.1ms for a
+single plant edit on a 549-plant stress garden; a terrain edit is 101ms).
+See §13a.
+
 ## Run / test
 
 - Open `index.html` in a browser, or serve the folder to avoid file:// quirks:
@@ -547,7 +557,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     world steps. Tapping the house walks to the door and sleeps on arrival.
 13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
-    each save lives at `hortus:world:<id>` (layer maps from `GAME_LAYERS` +
+    each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
+    the optional `schemes` block of §13a +
     gw/gh + rot + `siteNorthDeg` + houses + building polygons + name + `wv` walkway flag + current path/bed/water
     material choices, hardscape/light drafts, and the per-garden `discovery`
     lens). `hortus:plant-collections:v1` holds device-local Favorites and named
@@ -558,6 +569,62 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     silent; the Save button toasts. Host/join shared worlds via shared keys
     (meta carries gw/gh; houses and building polygons sync via their own keys, last-write-wins
     by timestamp), presence polling, and `mergeMap` for keyed layer maps.
+13a. **Planting schemes** — several plantings over one shared site plan, so a
+    designer compares schemes instead of forking gardens. `SCHEME_LAYERS`
+    (`['plants','bulbs']`, world.js) is the per-scheme subset of `GAME_LAYERS`;
+    everything else is shared. `game.schemes` is `[{id,name,t,plants,bulbs}]`
+    and `game.schemeActive` names the live one. **One invariant, mirrored in the
+    save blob: the ACTIVE scheme's maps live in `game.plants`/`game.bulbs` and
+    never in its list entry** (which holds `null`); `stashActiveScheme()` is the
+    only writer of a scheme's stored maps. `ensureSchemes()` keeps runtime at
+    ≥1 scheme; `activateScheme(id)` stashes the outgoing scheme, adopts the
+    incoming one, and calls `markModelChanged()` **but deliberately not
+    `markGroundChanged()`** — shared layers did not move, so the ground bake and
+    terrain region trace stay valid and `sceneStale`'s map-identity check
+    (renderer.js) does the invalidation for free, with no new cache key.
+    Commands live in commands.js: `switchScheme` (resets the selection, which
+    owns the outgoing scheme's plants), `cycleScheme`, `schemeAtIndex`,
+    `createScheme(copyCurrent)`, `renameScheme`, `deleteScheme`. Switching is
+    navigation, not an edit, so it pushes no undo snapshot.
+    **Storage** is additive: `blob.schemes` is `{active, list}` where the active
+    entry omits its maps because they are already at `blob.plants`/`blob.bulbs`,
+    exactly where they have always been — so `drawWorldThumb`, `worldSaveMeta`,
+    the import validator, `loadSolo`'s `GAME_MAPS` loop, `duplicateWorld` and
+    `shareCurrentGarden` all work untouched, and an older build just sees the
+    active scheme. Below two schemes the key is omitted entirely, so ordinary
+    gardens save byte-for-byte as before. `serializeSchemes`/`restoreSchemes`
+    (io.js) are the pure two halves — `restoreSchemes` is synchronous precisely
+    so it is testable without awaiting `loadSolo`. Inactive maps get
+    `compactSoloMap` on write, since they are never re-loaded-and-compacted
+    while idle and would otherwise accumulate tombstones forever.
+    **Undo** is one shared stack; `snapshotState()` tags each snapshot with
+    `scheme`, and `applySnapshot` re-enters that scheme before restoring layers.
+    Without the tag, editing in A, switching to B and undoing silently
+    overwrites B with A's plants. Per-scheme stacks were measured at ~73MB heap
+    on a quarter acre (and ~491MB at max plot), and cloning every scheme into
+    each snapshot would multiply an already-2.5ms per-pointerdown cost, so
+    neither is affordable — the tag is a string.
+    **Storage budget**: a planted tile is ~53 bytes; per-scheme cost is 21.9KB
+    (classic 46ft) to 108KB (quarter acre, realistic) of JSON, against 50.4KB of
+    shared layers and a 928KB `UNDERLAY_DATA_LIMIT` site photo that N schemes
+    share rather than multiply. `MAX_SCHEMES` is 6 and `saveHasRoomForScheme`
+    preflights `SAVE_BUDGET_CHARS` (2.4M, half of iOS Safari's ~5MB counted in
+    UTF-16) so creation is refused before the work, not after. This is where
+    schemes differ from **Duplicate garden**, which stays useful for forking
+    into a genuinely separate project: duplicates copy the whole blob including
+    the photo (3 duplicates of a photo-calibrated quarter acre = 3,259KB vs
+    1,303KB for 3 schemes), fork the site plan so moving a patio means moving it
+    three times, and can only be compared by quitting to the worlds list, which
+    loses camera, zoom, rotation and season.
+    **UI**: creation lives in the Garden Menu (`#btnSchemes` → `#schemeScreen`,
+    beside Plant filters); switching lives on `#schemeChip` in the top bar,
+    which is `hidden` until a garden has a second scheme — `.hud-top` is tight
+    enough that the season box already `flex-shrink`s to fit 360px, so a
+    permanent chip would cost every single-scheme garden width it does not have.
+    Below 360px the chip drops its name and keeps the index. `syncSchemeChip` /
+    `renderSchemeMenu` (tray.js) hang off `syncTopTools` and follow
+    `renderLayerMenu`'s fixed-dropdown pinning; `game.toolMenu==='schemes'`.
+    Desktop A/B is `[` / `]` to cycle and `1`–`6` to jump (input.js).
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders

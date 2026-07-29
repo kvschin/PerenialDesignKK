@@ -422,6 +422,31 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-dup{background:var(--surface-control);border:1px solid var(--border-control);color:var(--text-primary);
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
 .world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+/* planting-scheme manager: one row per scheme over the shared site plan */
+.scheme-panel{width:min(460px,92vw)}
+.scheme-list{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;max-height:46vh;overflow-y:auto}
+.scheme-row{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control)}
+.scheme-row.sel{border-color:var(--border-active);background:var(--surface-active)}
+.scheme-row-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.scheme-name{width:100%;min-width:0;background:none;border:1px solid transparent;border-radius:var(--radius-control);
+  color:var(--text-primary);font-family:inherit;font-size:14px;font-weight:600;padding:3px 5px}
+.scheme-name:hover{border-color:var(--border-control)}
+.scheme-name:focus{border-color:var(--border-active);background:var(--surface-control);outline:none}
+.scheme-row-meta{font-size:11px;color:var(--text-muted);padding-left:6px}
+.scheme-pick,.scheme-act{flex:0 0 auto;background:var(--surface-control);border:1px solid var(--border-control);
+  color:var(--text-primary);font-size:12px;font-weight:600;padding:6px 11px;border-radius:var(--radius-control);white-space:nowrap;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.scheme-pick:active:not(:disabled),.scheme-act:active:not(:disabled){transform:translateY(1px)}
+.scheme-pick:hover:not(:disabled),.scheme-act:hover:not(:disabled){border-color:var(--border-strong);background:var(--surface-control-hover)}
+.scheme-pick:disabled,.scheme-act:disabled{opacity:var(--disabled-opacity);pointer-events:none}
+.scheme-act.danger{background:var(--surface-danger);border-color:rgba(224,138,122,.50);color:var(--action-danger-text)}
+.scheme-act.danger:hover:not(:disabled){border-color:var(--action-danger);background:rgba(126,42,35,.60)}
+.scheme-actions{gap:8px}
+@media(max-width:520px){
+  .scheme-row{flex-wrap:wrap}
+  .scheme-row-copy{flex:1 0 100%}
+}
 @media(max-width:520px){
   /* Two lines: thumbnail + name, then the three actions as one group indented
      to line up under the name. The indent used to be a hardcoded 94px sized for
@@ -501,6 +526,20 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .top-tool{padding:0;color:var(--text-secondary)}
 .top-tool canvas{width:32px;height:24px;display:block}
 .top-tool.sel{border-color:var(--border-active);background:var(--surface-active);box-shadow:inset 0 0 0 1px rgba(var(--ink-rgb),.10)}
+/* Planting-scheme chip. Hidden until a garden actually has a second scheme
+   (syncSchemeChip), because .hud-top is tight enough that the season box
+   already flex-shrinks to fit a 360px phone — a permanent chip here would cost
+   every single-scheme garden width it does not have. It shrinks the same way,
+   and below 360px only the index survives. */
+.scheme-chip{display:flex;align-items:center;gap:6px;align-self:center;flex-shrink:1;min-width:0;height:34px;min-height:34px;
+  padding:3px 10px;background:var(--surface-input);border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);
+  color:var(--text-primary);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.scheme-chip:hover{border-color:var(--border-strong)}
+.scheme-chip:active{transform:translateY(1px)}
+.scheme-chip.sel{border-color:var(--border-active);background:var(--surface-active)}
+.scheme-chip-name{min-width:0;max-width:104px;overflow:hidden;text-overflow:ellipsis}
+.scheme-chip-count{flex:0 0 auto;font-size:10px;letter-spacing:.06em;color:var(--bronze)}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
@@ -624,6 +663,9 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .view-tools-popover{width:168px}
 .view-tools-popover button canvas{width:26px;height:20px;flex:0 0 auto}
 .layer-popover{top:auto;bottom:6px;width:172px;padding:6px;display:flex;flex-direction:column;gap:1px}
+/* must sit AFTER .tool-popover: same specificity, so source order decides the width */
+.scheme-popover{top:auto;width:190px;padding:6px;display:flex;flex-direction:column;gap:1px}
+.scheme-popover .scheme-mark{flex:0 0 18px;width:18px;text-align:center;font-size:10px;font-weight:700;color:var(--bronze)}
 .layer-section{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-disabled);
   padding:7px 9px 3px;font-weight:600}
 .layer-row{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;border-radius:var(--radius-control);
@@ -1161,6 +1203,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 @media(max-width:359px){
   .season-dial{gap:5px;padding:5px 6px}
   .season-box{width:116px;min-width:74px;padding:3px 7px}
+  /* the name is the first thing to go; the index still answers "which of how
+     many am I looking at", which is what the chip is for */
+  .scheme-chip{padding:3px 7px;gap:0}
+  .scheme-chip-name{display:none}
 }
 @media(min-width:1600px) and (min-height:800px){
   #trayTabs{padding:7px 10px 0;gap:3px}
@@ -1609,9 +1655,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    with a border and the system Highlight colour, which forced-colors keeps. */
 @media (forced-colors: active){
   .canvas-tool,.top-tool,.tool,.seg .seg-opt,.catalog-mode button,
-  .catalog-category-strip button,.plant-result-card{border:1px solid ButtonBorder!important}
+  .catalog-category-strip button,.plant-result-card,.scheme-chip,.scheme-row{border:1px solid ButtonBorder!important}
   .canvas-tool.sel,.top-tool.sel,.tool.sel,.seg .seg-opt.on,.catalog-mode button.sel,
   .catalog-category-strip button.sel,.plant-result-card.sel,.layer-row.sel,
+  .scheme-chip.sel,.scheme-row.sel,
   .discovery-source-item.sel,.cat-pop button.sel,.plant-result-heart.on{
     border:2px solid Highlight!important;outline:1px solid Highlight;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}

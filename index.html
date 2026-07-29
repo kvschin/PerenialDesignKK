@@ -180,6 +180,12 @@
           <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span><span id="timeState" class="time-state" role="status" aria-live="polite">Fast-forwarding</span></span>
         </span>
       </button>
+      <!-- planting-scheme switcher: hidden until a garden has a second scheme,
+           so single-scheme gardens keep the top bar exactly as it was -->
+      <button id="schemeChip" class="scheme-chip hidden" type="button" title="Switch planting scheme ([ and ])" aria-label="Switch planting scheme" aria-haspopup="menu" aria-controls="schemePop" aria-expanded="false">
+        <span class="scheme-chip-name" id="schemeChipName">Planting 1</span>
+        <span class="scheme-chip-count" id="schemeChipCount">1/2</span>
+      </button>
       <div class="top-tools-full" aria-label="View tools">
         <button id="btnSelectTool" class="top-tool" title="Select an area" aria-label="Select an area"><canvas id="btnSelectIcon" width="42" height="32" aria-hidden="true"></canvas></button>
         <button id="btnRotateTool" class="top-tool" title="Rotate view (R)" aria-label="Rotate view"><canvas id="btnRotateIcon" width="42" height="32" aria-hidden="true"></canvas></button>
@@ -298,6 +304,7 @@
     <p class="sub">Take something out of your garden — or head back.</p>
     <div class="pause-actions">
       <button class="btn" id="btnFilters">Plant filters &middot; <span id="filterLbl">Any</span></button>
+      <button class="btn" id="btnSchemes">Planting schemes &middot; <span id="schemeLbl">1</span></button>
       <button class="btn" id="btnExport">Planting list</button>
       <button class="btn" id="btnPlan">Design plan</button>
       <button class="btn" id="btnBloom">Bloom calendar</button>
@@ -309,6 +316,22 @@
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
+  </div>
+</div>
+
+<!-- PLANTING SCHEMES -->
+<div class="screen hidden" id="schemeScreen" role="dialog" aria-modal="true" aria-labelledby="schemeTitle">
+  <div class="panel scheme-panel" tabindex="-1">
+    <span class="eyebrow">One site plan</span>
+    <h2 id="schemeTitle">Planting schemes</h2>
+    <p class="sub">Beds, paths, grade, hardscape and buildings are shared. Each scheme is its own planting over them.</p>
+    <div id="schemeList" class="scheme-list"></div>
+    <p class="note" id="schemeNote"></p>
+    <div class="row scheme-actions">
+      <button class="btn" id="btnSchemeNewEmpty">New, empty</button>
+      <button class="btn primary" id="btnSchemeNewCopy">New, from this one</button>
+    </div>
+    <button class="btn" id="btnSchemeClose" style="margin-top:10px">Done</button>
   </div>
 </div>
 

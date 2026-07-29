@@ -193,7 +193,10 @@ function drawWorldThumb(cvs, s){
   g.strokeRect(ox+0.5,oy+0.5,gw*sc-1,gh*sc-1);
 }
 // live plant count + the garden's own season, from a save blob (pure — the
-// worlds list shows it so a row answers "which garden was this?" unopened)
+// worlds list shows it so a row answers "which garden was this?" unopened).
+// The counts read the top-level maps, which are the ACTIVE planting scheme —
+// so a row describes the scheme you left the garden in, and `schemes` just
+// says how many others are waiting inside.
 function worldSaveMeta(s){
   let plants=0;
   for (const k in (s.plants||{})) if (s.plants[k] && !s.plants[k].removed) plants++;
@@ -201,7 +204,8 @@ function worldSaveMeta(s){
   const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
   const yearDays=DAYS_PER_SEASON*4;
   const season=SEASONS[Math.floor((((day%yearDays)+yearDays)%yearDays)/DAYS_PER_SEASON)];
-  return {plants, season};
+  const schemes=(s.schemes && Array.isArray(s.schemes.list)) ? s.schemes.list.length : 1;
+  return {plants, season, schemes};
 }
 function startNewGarden(mode){
   if (mode==='design'){ pendingMode='design'; game.discovery=defaultDiscovery(); openDesignSetup(); }
@@ -239,6 +243,7 @@ async function openWorlds(filter){
       drawWorldThumb(thumb,s);
       const m=worldSaveMeta(s);
       meta.textContent+=` · ${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
+      if (m.schemes>1) meta.textContent+=` · ${m.schemes} schemes`;
     });
     const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
     dup.title='Make a separate copy of this garden';
@@ -436,6 +441,7 @@ function enterGarden(){
   if (!game.firepits) game.firepits={};
   if (!game.boulders) game.boulders={};
   if (!game.buildings) game.buildings=[];
+  ensureSchemes();   // every garden runs on at least one planting scheme
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
   game.buildingDraft=null;
   game.buildingStyleDraft=normalizeBuildingStyle(game.buildingStyleDraft);
@@ -760,6 +766,7 @@ function openPlotScreen(){
       game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
       game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+      game.schemes=[]; game.schemeActive=null;   // a new plot starts with one (unnamed-by-default) planting scheme
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
@@ -909,7 +916,7 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
-  syncHapticsButton(); syncHandednessButton(); syncThemeButton();
+  syncHapticsButton(); syncHandednessButton(); syncThemeButton(); syncSchemeLabel();
   const gm=openOverlay('gardenMenu','#btnFilters');
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
@@ -937,6 +944,62 @@ if ($('btnTheme')) $('btnTheme').onclick=()=>{
   toast(`Appearance: ${themeLabel()}.`);
 };
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
+/* ---------- planting schemes: several plantings over one shared site plan ----------
+   Creation lives here in the Garden Menu (an infrequent, garden-scoped action,
+   beside Plant filters and Design plan); switching lives on the top-bar chip,
+   which only exists once there is something to switch between. */
+function syncSchemeLabel(){ hudText('schemeLbl',String(schemeCount())); }
+function renderSchemeManager(){
+  const list=$('schemeList'); if (!list) return;
+  list.innerHTML='';
+  const only=schemeCount()<2;
+  schemeList().forEach(s=>{
+    const on=s.id===game.schemeActive;
+    const row=document.createElement('div'); row.className='scheme-row'+(on?' sel':'');
+    const copy=document.createElement('span'); copy.className='scheme-row-copy';
+    // rename in place: a text field inside a panel, like the plot and character
+    // screens — a native prompt() would read as a stray browser dialog
+    const nm=document.createElement('input'); nm.className='scheme-name'; nm.type='text';
+    nm.value=s.name; nm.maxLength=32; nm.setAttribute('aria-label',`Name of ${s.name}`);
+    nm.onchange=()=>{ if (renameScheme(s.id,nm.value)) syncSchemeLabel(); else nm.value=s.name; refreshCanvasTools(); };
+    const meta=document.createElement('span'); meta.className='scheme-row-meta';
+    // the active scheme's plants are live in game.plants; the others hold their own
+    const maps=on?[game.plants,game.bulbs]:[s.plants,s.bulbs];
+    let n=0; for (const m of maps) for (const k in (m||{})) if (m[k] && !m[k].removed) n++;
+    meta.textContent=`${n} plant${n===1?'':'s'}${on?' · showing':''}`;
+    copy.append(nm,meta);
+    const pick=document.createElement('button'); pick.className='scheme-pick'; pick.type='button';
+    pick.textContent=on?'Showing':'Show'; pick.disabled=on;
+    pick.title=on?`${s.name} is showing`:`Show ${s.name}`;
+    pick.onclick=()=>{ switchScheme(s.id); renderSchemeManager(); };
+    const del=document.createElement('button'); del.className='scheme-act danger'; del.type='button';
+    del.textContent='Delete'; del.title=only?'A garden keeps at least one scheme':`Delete ${s.name}`;
+    del.disabled=only;
+    del.onclick=()=>showConfirm(`Delete "${s.name}"?`,
+      'The plants in this scheme go with it. Your beds, paths and buildings are shared, so they stay.',
+      'Delete scheme',
+      ()=>{ if (deleteScheme(s.id)){ renderSchemeManager(); syncSchemeLabel(); } });
+    row.append(copy,pick,del);
+    list.appendChild(row);
+  });
+  const full=schemeCount()>=MAX_SCHEMES;
+  $('btnSchemeNewEmpty').disabled=full;
+  $('btnSchemeNewCopy').disabled=full;
+  $('schemeNote').textContent = full
+    ? `A garden holds up to ${MAX_SCHEMES} planting schemes.`
+    : 'Switch schemes from the chip beside the season box, or with [ and ].';
+  syncSchemeLabel();
+}
+function openSchemeManager(){
+  closeOverlay('gardenMenu');
+  ensureSchemes(); renderSchemeManager();
+  openOverlay('schemeScreen','.scheme-pick');
+}
+if ($('btnSchemes')) $('btnSchemes').onclick=openSchemeManager;
+if ($('btnSchemeClose')) $('btnSchemeClose').onclick=()=>closeOverlay('schemeScreen');
+if ($('btnSchemeNewEmpty')) $('btnSchemeNewEmpty').onclick=()=>{ if (createScheme(false)) renderSchemeManager(); };
+if ($('btnSchemeNewCopy')) $('btnSchemeNewCopy').onclick=()=>{ if (createScheme(true)) renderSchemeManager(); };
+$('schemeScreen').onclick=(e)=>{ if (e.target===$('schemeScreen')) closeOverlay('schemeScreen'); };
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
 function autosaveNow(){ if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; } }

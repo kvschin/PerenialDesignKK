@@ -635,8 +635,10 @@ function syncTopTools(){
     view.setAttribute('aria-expanded',(game.toolMenu==='view'||(!visibleEl(lay)&&game.toolMenu==='layers'))?'true':'false');
     view.onclick=()=>toggleViewToolsMenu();
     const c=document.getElementById('btnViewToolsIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'viewtools'); }
+  syncSchemeChip();
   renderViewToolsMenu();
   renderLayerMenu();
+  renderSchemeMenu();
 }
 function toggleViewToolsMenu(){
   const opening=game.toolMenu!=='view';
@@ -998,6 +1000,64 @@ function renderLayerMenu(){
   pop.style.bottom='auto'; pop.style.right='auto';
   document.body.appendChild(pop);
   const r=btn.getBoundingClientRect(), w=pop.offsetWidth||172;
+  let left=Math.min(Math.round(r.left), innerWidth-w-8); left=Math.max(8,left);
+  pop.style.top=Math.round(r.bottom+6)+'px';
+  pop.style.left=left+'px';
+}
+/* ---------- the planting-scheme chip ----------
+   Comparison is the whole point, so the switch has to be one tap while you are
+   looking at the garden — but .hud-top is already tight enough that the season
+   box flex-shrinks to fit a 360px phone. So the chip does not exist at all
+   until a garden has a second scheme: single-scheme gardens (every existing
+   one) keep the top bar unchanged. */
+function syncSchemeChip(){
+  const chip=document.getElementById('schemeChip'); if (!chip) return;
+  const show=multiScheme() && !game.visiting;
+  chip.classList.toggle('hidden',!show);
+  if (!show){ if (game.toolMenu==='schemes') game.toolMenu=null; return; }
+  hudText('schemeChipName',activeSchemeName());
+  hudText('schemeChipCount',(activeSchemeIndex()+1)+'/'+schemeCount());
+  chip.classList.toggle('sel',game.toolMenu==='schemes');
+  chip.setAttribute('aria-expanded',game.toolMenu==='schemes'?'true':'false');
+  chip.title=`Planting scheme: ${activeSchemeName()} — tap to switch ([ and ])`;
+  chip.onclick=()=>toggleSchemeMenu();
+}
+function toggleSchemeMenu(){
+  const opening=game.toolMenu!=='schemes';
+  game.toolMenu = opening ? 'schemes' : null;
+  refreshCanvasTools();
+  if (opening) focusToolMenu('schemePop');
+}
+function renderSchemeMenu(){
+  const old=document.getElementById('schemePop'); if (old) old.remove();
+  const btn=document.getElementById('schemeChip');
+  if (game.toolMenu!=='schemes' || !visibleEl(btn)) return;
+  const pop=document.createElement('div');
+  pop.id='schemePop'; pop.className='tool-popover scheme-popover';
+  pop.setAttribute('role','menu'); pop.setAttribute('aria-label','Planting schemes');
+  schemeList().forEach((s,i)=>{
+    const on=s.id===game.schemeActive;
+    const b=document.createElement('button');
+    b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',on?'true':'false');
+    b.className='layer-row'+(on?' sel':'');
+    b.title=on?`${s.name} is showing`:`Switch to ${s.name}`;
+    const mark=document.createElement('span'); mark.className='scheme-mark'; mark.textContent=String(i+1);
+    const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=s.name;
+    b.append(mark,nm);
+    b.onclick=ev=>{ ev.stopPropagation(); game.toolMenu=null; switchScheme(s.id); refreshCanvasTools(); };
+    pop.appendChild(b);
+  });
+  const sep=document.createElement('div'); sep.className='layer-section'; sep.setAttribute('role','presentation');
+  sep.textContent='Manage'; pop.appendChild(sep);
+  const man=document.createElement('button');
+  man.setAttribute('role','menuitem'); man.className='layer-row';
+  man.textContent='Planting schemes…'; man.title='Add, rename, or delete planting schemes';
+  man.onclick=ev=>{ ev.stopPropagation(); game.toolMenu=null; refreshCanvasTools(); openSchemeManager(); };
+  pop.appendChild(man);
+  pop.style.position='fixed'; pop.style.zIndex='40';
+  pop.style.bottom='auto'; pop.style.right='auto';
+  document.body.appendChild(pop);
+  const r=btn.getBoundingClientRect(), w=pop.offsetWidth||186;
   let left=Math.min(Math.round(r.left), innerWidth-w-8); left=Math.max(8,left);
   pop.style.top=Math.round(r.bottom+6)+'px';
   pop.style.left=left+'px';

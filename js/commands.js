@@ -1388,6 +1388,12 @@ function updateCanvasCursor(){
 function snapshotState(){
   const s={};
   for (const L of GAME_LAYERS) s[L.k]=JSON.parse(JSON.stringify(game[L.k]||(L.array?[]:{})));
+  // Which planting scheme these layers belong to. A string, so tagging costs
+  // nothing measurable — and it is what keeps one shared stack correct across
+  // schemes. Cloning every scheme into each snapshot was measured at 4x the
+  // per-pointerdown cost, and per-scheme stacks at ~73MB of heap on a quarter
+  // acre, so neither is affordable.
+  s.scheme=game.schemeActive;
   return s;
 }
 // a new action invalidates the redo chain (standard undo/redo semantics)
@@ -1406,21 +1412,98 @@ function withUndo(fn){ const rev=game.rev, snap=snapshotState(); fn();
   if (changedSince(rev)) pushUndo(snap); }
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
+  // A snapshot belongs to the scheme it was taken in. Undoing across a switch
+  // has to re-enter that scheme FIRST, or the restored plants land in whatever
+  // scheme happens to be active and silently overwrite it.
+  if (s.scheme && s.scheme!==game.schemeActive && schemeById(s.scheme)) activateScheme(s.scheme);
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
   markGroundChanged({terrain:true});
   markModelChanged(); updateUndoBtn();
   if (game.mode==='multi') for (const L of GAME_LAYERS) L.sync();
   buildToolTray();
 }
+// undo/redo can walk across a scheme boundary; say so rather than silently
+// swapping the garden under the gardener
+function historyNote(verb,before){
+  if (!multiScheme() || game.schemeActive===before) return verb+'.';
+  return `${verb} — now in "${activeSchemeName()}".`;
+}
 function doUndo(){
   if (!undoStack.length){ toast('Nothing to undo.'); return; }
   redoStack.push(snapshotState()); if (redoStack.length>30) redoStack.shift();
-  applySnapshot(undoStack.pop()); toast('Undone.');
+  const before=game.schemeActive;
+  applySnapshot(undoStack.pop()); toast(historyNote('Undone',before));
 }
 function doRedo(){
   if (!redoStack.length){ toast('Nothing to redo.'); return; }
   undoStack.push(snapshotState()); if (undoStack.length>30) undoStack.shift();
-  applySnapshot(redoStack.pop()); toast('Redone.');
+  const before=game.schemeActive;
+  applySnapshot(redoStack.pop()); toast(historyNote('Redone',before));
+}
+/* ---------- scheme commands (switching is navigation, not an edit) ----------
+   A switch does not push an undo snapshot: it is the same class of action as
+   rotating the view or changing season. Undo still crosses schemes safely via
+   the snapshot tag above. */
+function switchScheme(id){
+  if (!schemeById(id) || id===game.schemeActive) return false;
+  resetSelectionState(); game.focusPlantKey=null;   // the selection owns the outgoing scheme's plants
+  if (!activateScheme(id)) return false;
+  buildToolTray(); refreshCanvasTools(); updateHUD();
+  toast(`Now showing "${activeSchemeName()}".`);
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  return true;
+}
+function cycleScheme(dir){
+  const list=schemeList(); if (list.length<2) return false;
+  const i=activeSchemeIndex(), n=list.length;
+  return switchScheme(list[((i+dir)%n+n)%n].id);
+}
+function schemeAtIndex(i){
+  const list=schemeList();
+  return (i>=0 && i<list.length) ? switchScheme(list[i].id) : false;
+}
+function createScheme(copyCurrent){
+  const list=schemeList();
+  if (list.length>=MAX_SCHEMES){ toast(`A garden holds up to ${MAX_SCHEMES} planting schemes.`,'warn'); return null; }
+  // refuse before the work, rather than letting the save fail after it
+  if (!saveHasRoomForScheme(copyCurrent)){
+    toast('This garden is too large to hold another planting scheme.','warn'); return null;
+  }
+  const s={id:newSchemeId(), name:nextSchemeName(), t:Date.now(),
+    plants: copyCurrent?JSON.parse(JSON.stringify(game.plants||{})):{},
+    bulbs:  copyCurrent?JSON.parse(JSON.stringify(game.bulbs||{})):{}};
+  list.push(s);
+  resetSelectionState(); game.focusPlantKey=null;
+  activateScheme(s.id);                       // stashes the outgoing scheme on the way out
+  buildToolTray(); refreshCanvasTools(); updateHUD();
+  toast(copyCurrent?`"${s.name}" started from a copy.`:`"${s.name}" started empty.`);
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  return s;
+}
+function renameScheme(id,name){
+  const s=schemeById(id); if (!s) return false;
+  const clean=String(name||'').trim().slice(0,32);
+  if (!clean || clean===s.name) return false;
+  s.name=clean; s.t=Date.now();
+  refreshCanvasTools();
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  return true;
+}
+function deleteScheme(id){
+  const list=schemeList();
+  if (list.length<2){ toast('A garden keeps at least one planting scheme.','warn'); return false; }
+  const i=list.findIndex(s=>s.id===id); if (i<0) return false;
+  const name=list[i].name;
+  if (id===game.schemeActive){        // leave before deleting the ground under us
+    resetSelectionState(); game.focusPlantKey=null;
+    activateScheme(list[(i+1)%list.length].id);
+  }
+  list.splice(list.findIndex(s=>s.id===id),1);
+  markModelChanged();
+  buildToolTray(); refreshCanvasTools(); updateHUD();
+  toast(`Deleted "${name}".`);
+  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  return true;
 }
 function updateUndoBtn(){
   // Undo/Redo live in the canvas rail now; their greyed state is recomputed from

@@ -6,6 +6,7 @@ function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.mode = 'solo'; game.gameMode = 'design'; game.visiting = false;
   game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
+  game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
@@ -2826,4 +2827,179 @@ test('blobOnPlot excludes tiles outside a saved garden\'s own shape', () => {
   // the worlds-list drawer itself still runs against a shaped blob without throwing
   const cvs = document.createElement('canvas'); cvs.width = 168; cvs.height = 126;
   drawWorldThumb(cvs, { gw: 21, gh: 21, plotShape: shape, plants: {}, terrain: {} });
+});
+
+/* ---------- planting schemes: several plantings over one shared site plan ---------- */
+
+test('a scheme switch swaps only plants and bulbs; the site plan is shared', () => {
+  setup(21, 21);
+  setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
+  addHouse({ x: 2, y: 2, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
+  setTile('plants', '7,7', { s: 'bluestem', d: 0, t: 1 });
+  setTile('bulbs', '8,8', { s: 'crocus', d: 0, t: 1 });
+  const terrainRef = game.terrain, housesRef = game.houses;
+
+  const b = createScheme(false);
+  assert(b, 'a second scheme was created');
+  assertEqual(schemeCount(), 2, 'the garden now holds two schemes');
+  assertEqual(game.schemeActive, b.id, 'creating a scheme switches to it');
+  assertEqual(Object.keys(game.plants).length, 0, 'an empty scheme starts with no plants');
+  assertEqual(Object.keys(game.bulbs).length, 0, 'an empty scheme starts with no bulbs');
+  assert(game.terrain === terrainRef, 'terrain is the SAME object - beds are shared, not copied');
+  assert(game.houses === housesRef, 'houses are shared too');
+  assert(!!game.terrain['5,5'], 'the shared bed is still there in the new scheme');
+
+  setTile('plants', '9,9', { s: 'karl', d: 0, t: 1 });
+  switchScheme(schemeList()[0].id);
+  assert(!!game.plants['7,7'], 'switching back restores the first planting');
+  assert(!game.plants['9,9'], 'the second scheme planting did not leak into the first');
+  assert(!!game.bulbs['8,8'], 'bulbs travel with their scheme');
+  assert(!!game.terrain['5,5'], 'the shared bed survived both switches');
+});
+
+test('the active scheme never holds its own maps (the one invariant)', () => {
+  setup(21, 21);
+  setTile('plants', '4,4', { s: 'bluestem', d: 0, t: 1 });
+  createScheme(true);
+  const active = activeScheme(), idle = schemeList().find(s => s.id !== game.schemeActive);
+  assertEqual(active.plants, null, 'the active entry holds null - its maps are live in game.plants');
+  assertEqual(active.bulbs, null, 'the active entry holds null for bulbs too');
+  assert(idle.plants && !!idle.plants['4,4'], 'the inactive entry carries its own copy');
+  assert(idle.plants !== game.plants, 'copy-from-current deep-copies rather than aliasing');
+});
+
+test('undo across a scheme switch restores into the scheme the edit happened in', () => {
+  setup(21, 21);
+  const a = game.schemeActive;
+  withUndo(() => setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 }));
+  const b = createScheme(false);
+  withUndo(() => setTile('plants', '6,6', { s: 'karl', d: 0, t: 1 }));
+  assertEqual(game.schemeActive, b.id, 'sanity: editing happened in the second scheme');
+
+  doUndo();   // undo the edit made in b - stays in b
+  assertEqual(game.schemeActive, b.id, 'undoing an edit made here keeps us here');
+  assert(!game.plants['6,6'], 'the second scheme plant was undone');
+
+  doUndo();   // this snapshot was taken in a - must re-enter a first
+  assertEqual(game.schemeActive, a, 'undoing past the switch re-enters the scheme the snapshot came from');
+  assert(!game.plants['3,3'], 'the first scheme edit was undone in the right scheme');
+  // the real hazard: scheme b must not have been overwritten by a's layers
+  const bEntry = schemeList().find(s => s.id === b.id);
+  assert(!bEntry.plants['3,3'], 'the first scheme plants did NOT leak into the second');
+});
+
+test('switching schemes leaves the ground and terrain caches alone', () => {
+  setup(21, 21);
+  setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
+  createScheme(false);
+  const gKey = groundDataKey(), tRev = game.terrainRev, gRev = game.groundRev, rev = game.rev;
+  switchScheme(schemeList()[0].id);
+  assertEqual(groundDataKey(), gKey, 'the world-anchored ground bake is not invalidated by a scheme switch');
+  assertEqual(game.terrainRev, tRev, 'the organic terrain-region trace is not invalidated either');
+  assertEqual(game.groundRev, gRev, 'no ground rebake is requested');
+  assert(game.rev > rev, 'but game.rev bumps, so the scene list rebuilds');
+});
+
+test('schemes round-trip through save and load, active maps staying at the top level', () => {
+  setup(21, 21);
+  game.mode = 'solo'; game.worldId = 'test-schemes-roundtrip';
+  setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
+  renameScheme(game.schemeActive, 'Prairie matrix');
+  const b = createScheme(false);
+  renameScheme(b.id, 'Shade tolerant');
+  setTile('plants', '9,9', { s: 'karl', d: 0, t: 1 });
+  saveSolo(true);
+
+  const blob = JSON.parse(localStorage.getItem('hortus:world:test-schemes-roundtrip'));
+  assert(!!blob.plants['9,9'], 'the ACTIVE scheme plants sit at the blob top level, where every old reader looks');
+  assertEqual(blob.schemes.active, b.id, 'the blob records which scheme is active');
+  assertEqual(blob.schemes.list.length, 2, 'both schemes are stored');
+  const savedActive = blob.schemes.list.find(s => s.id === b.id);
+  const savedIdle = blob.schemes.list.find(s => s.id !== b.id);
+  assertEqual(savedActive.plants, undefined, 'the active entry does not duplicate its maps');
+  assert(!!savedIdle.plants['3,3'], 'the inactive scheme carries its own planting');
+  assertEqual(savedIdle.name, 'Prairie matrix', 'scheme names are saved');
+  // the worlds list reads the blob directly and must still describe it
+  assertEqual(worldSaveMeta(blob).plants, 1, 'the worlds-list count reads the active scheme');
+  assertEqual(worldSaveMeta(blob).schemes, 2, 'the worlds-list row reports how many schemes are inside');
+
+  // apply the blob the way loadSolo does (keyed layers, then restoreSchemes).
+  // loadSolo itself is async, so its body would not have run by the time these
+  // assertions execute; restoreSchemes is the pure, synchronous half.
+  setup(21, 21);
+  for (const L of GAME_MAPS) game[L.k] = compactSoloMap(blob[L.k] || {});
+  restoreSchemes(blob, 0);
+  assertEqual(schemeCount(), 2, 'both schemes came back');
+  assertEqual(game.schemeActive, b.id, 'the active scheme came back active');
+  assertEqual(activeSchemeName(), 'Shade tolerant', 'names survived the round trip');
+  assert(!!game.plants['9,9'], 'the active scheme planting is live');
+  assert(!!game.terrain['5,5'], 'the shared site plan came back');
+  switchScheme(schemeList().find(s => s.id !== b.id).id);
+  assert(!!game.plants['3,3'], 'the other scheme planting survived storage');
+});
+
+test('a single-scheme garden saves exactly as it always did', () => {
+  setup(21, 21);
+  game.mode = 'solo'; game.worldId = 'test-schemes-absent';
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
+  saveSolo(true);
+  const blob = JSON.parse(localStorage.getItem('hortus:world:test-schemes-absent'));
+  assertEqual(blob.schemes, undefined, 'below two schemes the key is omitted entirely');
+  assert(!!blob.plants['3,3'], 'plants stay exactly where they have always been');
+  assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
+});
+
+test('a save blob predating schemes loads as a single-scheme garden', () => {
+  setup(21, 21);
+  const legacy = { wv: 1, name: 'Old garden', mode: 'design', gw: 21, gh: 21,
+    plants: { '4,4': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {}, terrain: {}, houses: [] };
+  for (const L of GAME_MAPS) game[L.k] = compactSoloMap(legacy[L.k] || {});
+  restoreSchemes(legacy, 0);
+  assertEqual(schemeCount(), 1, 'a legacy save materializes exactly one scheme');
+  assert(!!game.schemeActive, 'and that scheme is active');
+  assert(!!game.plants['4,4'], 'its planting loads normally');
+  assertEqual(activeScheme().plants, null, 'the invariant holds on the legacy path too');
+});
+
+test('deleting schemes: never the last one, and never the ground underfoot', () => {
+  setup(21, 21);
+  const a = game.schemeActive;
+  assert(!deleteScheme(a), 'the only scheme cannot be deleted');
+  assertEqual(schemeCount(), 1, 'and it is still there');
+
+  const b = createScheme(false);
+  setTile('plants', '6,6', { s: 'karl', d: 0, t: 1 });
+  assert(deleteScheme(b.id), 'deleting the ACTIVE scheme is allowed when another exists');
+  assertEqual(schemeCount(), 1, 'one scheme remains');
+  assertEqual(game.schemeActive, a, 'and we were moved onto it');
+  assertEqual(activeScheme().plants, null, 'the invariant survives a delete');
+  assert(!game.plants['6,6'], 'the deleted scheme planting went with it');
+});
+
+test('scheme count is capped and cycling wraps both ways', () => {
+  setup(21, 21);
+  for (let i = 1; i < MAX_SCHEMES; i++) assert(createScheme(false), 'scheme ' + (i + 1) + ' created');
+  assertEqual(schemeCount(), MAX_SCHEMES, 'the cap is reachable');
+  assertEqual(createScheme(false), null, 'and creating past it is refused');
+
+  switchScheme(schemeList()[0].id);
+  cycleScheme(-1);
+  assertEqual(game.schemeActive, schemeList()[MAX_SCHEMES - 1].id, 'cycling back from the first wraps to the last');
+  cycleScheme(1);
+  assertEqual(game.schemeActive, schemeList()[0].id, 'and forward from the last wraps to the first');
+  schemeAtIndex(2);
+  assertEqual(game.schemeActive, schemeList()[2].id, 'a digit key jumps straight to that scheme');
+  assert(!schemeAtIndex(99), 'an out-of-range index is a no-op');
+});
+
+test('renaming a scheme is trimmed, bounded, and rejects empty', () => {
+  setup(21, 21);
+  const id = game.schemeActive;
+  assert(renameScheme(id, '  Gravel garden  '), 'a real name is accepted');
+  assertEqual(activeSchemeName(), 'Gravel garden', 'the name is trimmed');
+  assert(!renameScheme(id, '   '), 'a blank name is refused');
+  assertEqual(activeSchemeName(), 'Gravel garden', 'and the old name is kept');
+  renameScheme(id, 'x'.repeat(80));
+  assertEqual(activeSchemeName().length, 32, 'names are bounded so the chip cannot be overrun');
 });

@@ -49,10 +49,54 @@ async function migrateLegacyWorld(){
   try{ localStorage.removeItem('hortus:solo'); }catch(e){}
   return [entry];
 }
-async function saveSolo(silent){
-  if (game.visiting) return;                          // Visit Gardens is read-only — never overwrite the garden
-  if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
-  if (!game.worldId) game.worldId='w'+Date.now().toString(36);
+/* Planting schemes ride along as an OPTIONAL `schemes` key. The active
+   scheme's maps stay at the blob's top level (blob.plants/blob.bulbs) exactly
+   where they have always been, so drawWorldThumb, worldSaveMeta, the import
+   validator, loadSolo's GAME_MAPS loop, duplicateWorld and shareCurrentGarden
+   all keep working untouched — and an older build opening a new save just sees
+   the active scheme. Below two schemes the key is omitted entirely, so ordinary
+   gardens save byte-for-byte as before. */
+function serializeSchemes(){
+  const list=schemeList();
+  if (list.length<2) return null;
+  return {active:game.schemeActive,
+    list:list.map(s=> s.id===game.schemeActive
+      ? {id:s.id,name:s.name,t:s.t}                   // active: maps are at the top level
+      // inactive maps are never re-loaded-and-compacted while they sit here, so
+      // strip tombstones on the way out or {removed:true} accumulates forever
+      : {id:s.id,name:s.name,t:s.t,plants:compactSoloMap(s.plants),bulbs:compactSoloMap(s.bulbs)})};
+}
+/* iOS Safari caps localStorage near 5MB per origin and is the tightest target
+   this app ships to (Chromium measured ~50M chars). Quotas are counted in
+   UTF-16 code units there, so budget characters at half of 5MB with headroom. */
+const SAVE_BUDGET_CHARS=2400000;
+function saveHasRoomForScheme(copyCurrent){
+  try{
+    const base=JSON.stringify(buildSaveBlob()).length;
+    const added=copyCurrent
+      ? JSON.stringify(game.plants||{}).length+JSON.stringify(game.bulbs||{}).length
+      : 0;
+    return base+added < SAVE_BUDGET_CHARS;
+  }catch(e){ return true; }   // never block the gardener on a measurement failure
+}
+/* The load-side counterpart of serializeSchemes. Pure and synchronous — the
+   ACTIVE scheme's maps arrive separately, through loadSolo's GAME_MAPS loop,
+   because they live at the blob's top level; this only rebuilds the list around
+   them. shiftKeys is a no-op in practice (13x13-era saves predate schemes) but
+   applying it keeps the two paths honest if that ever stops being true. */
+function restoreSchemes(s,shift){
+  game.schemes=[]; game.schemeActive=null;
+  const sc=s&&s.schemes;
+  if (sc && Array.isArray(sc.list) && sc.list.length){
+    game.schemes=sc.list.map(e=>({
+      id:String(e.id||newSchemeId()), name:String(e.name||'Planting').slice(0,32), t:+e.t||Date.now(),
+      plants:compactSoloMap(shiftKeys(e.plants||{},shift)),
+      bulbs:compactSoloMap(shiftKeys(e.bulbs||{},shift))}));
+    if (game.schemes.some(x=>x.id===sc.active)) game.schemeActive=sc.active;
+  }
+  ensureSchemes();   // materializes a lone default and nulls the active entry's maps
+}
+function buildSaveBlob(){
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
     discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
@@ -65,6 +109,14 @@ async function saveSolo(silent){
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
+  const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
+  return blob;
+}
+async function saveSolo(silent){
+  if (game.visiting) return;                          // Visit Gardens is read-only — never overwrite the garden
+  if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
+  if (!game.worldId) game.worldId='w'+Date.now().toString(36);
+  const blob=buildSaveBlob();
   const stored=await sSet('hortus:world:'+game.worldId,blob);
   if (!stored){ if (!silent) toast('This garden could not be saved - device storage is full.','warn'); return false; }
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
@@ -107,6 +159,7 @@ async function loadSolo(id){
   game.underlay=normalizeUnderlay(s.underlay); game.photoEditing=false;
   game.siteNorthDeg=normalizeSiteNorthDeg(s.siteNorthDeg); game.siteNorthPreviewDeg=null;
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
+  restoreSchemes(s,shift);
   // houses: new saves store an array; migrate old single-house saves, and
   // give story gardens a starter house when the save predates houses entirely
   game.houses = s.houses ? s.houses
@@ -151,6 +204,7 @@ async function hostWorld(){
   game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.buildings=[]; game.freePlanting=false;
+  game.schemes=[]; game.schemeActive=null;   // shared gardens run one scheme; never inherit the last garden's
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); game.buildingsT=Date.now();
   setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
@@ -175,6 +229,7 @@ async function joinWorld(code){
     : Math.max(0,Date.now()-(meta.startTs||Date.now()));
   game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
   setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
+  game.schemes=[]; game.schemeActive=null;   // joined gardens run one scheme
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.siteNorthDeg=normalizeSiteNorthDeg(meta.siteNorthDeg); game.siteNorthPreviewDeg=null;
   const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
