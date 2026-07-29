@@ -96,10 +96,18 @@ function leafWidth(t, S){
    every ribbon of every plant of every frame, and a fractional Math.pow was the
    most expensive thing in that loop. The steps never change, so evaluate each
    profile once at load and index it thereafter. */
-const LEAF_N = 10, RAY_N = 7;
+/* Two resolutions. 10 samples is plenty for a 30px prairie leaf and visibly
+   POLYGONAL on a 110px hosta blade — the straight segments between samples
+   read as facets and the leaf comes out looking like broken glass. Big leaves
+   take the 18-sample table instead; the extra cost is 8 lineTo calls on the
+   few forms whose leaves are actually that large. */
+const LEAF_N = 10, LEAF_N_HI = 18, RAY_N = 7;
+const LEAF_HI_LEN = 26;                  // draw-units above which to use profHi
 for (const S of Object.values(LEAF_SHAPES)){
   S.prof = new Float64Array(LEAF_N+1);
   for (let i=0;i<=LEAF_N;i++) S.prof[i] = leafWidth(i/LEAF_N, S);
+  S.profHi = new Float64Array(LEAF_N_HI+1);
+  for (let i=0;i<=LEAF_N_HI;i++) S.profHi[i] = leafWidth(i/LEAF_N_HI, S);
 }
 // a ray is a STRAP, not a spear: it holds most of its width almost to the tip,
 // then rounds off. Taper it too early and the flower reads smaller.
@@ -128,8 +136,10 @@ function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
   const dx=tx-bx, dy=ty-by, bow=opt.bow||0;
   const cx=(bx+tx)/2 - dy*bow, cy=(by+ty)/2 + dx*bow;   // spine control point
   const teeth=opt.teeth?(opt.teeth===true?0.15:opt.teeth):0, tn=opt.teethN||6;
-  ribbonPath(ctx, bx,by, cx,cy, tx,ty, S.prof, hw, teeth, tn);
-  const L=Math.hypot(dx,dy)||1;
+  const L=Math.sqrt(dx*dx+dy*dy)||1;
+  // big leaves need the denser table or the sample segments read as facets
+  ribbonPath(ctx, bx,by, cx,cy, tx,ty,
+             L>LEAF_HI_LEN ? S.profHi : S.prof, hw, teeth, tn);
   litFill(ctx,(bx+tx)/2,(by+ty)/2, Math.max(hw,L*0.42), col, opt.lift, opt.drop);
   if (opt.rib!==false){                  // the midrib is the cue that says "leaf"
     ctx.strokeStyle=shade(col,-34); ctx.lineWidth=Math.max(0.5,hw*0.17);
@@ -1795,9 +1805,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       for(let i=0;i<leaves;i++){
         const side=i%2?-1:1, rank=Math.floor(i/2), spread=(rank/(Math.ceil(leaves/2)-1||1)-0.5)*fan;
         const len=H*(L.leafLen||0.70)*(0.72+rnd()*0.28), bx=side*(2+Math.abs(spread)*len*0.46)+sway*len*0.02;
-        ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=L.leafW||2;
-        ctx.beginPath(); ctx.moveTo(side*rank*0.22,0);
-        ctx.quadraticCurveTo(bx*0.42,-len*0.54,bx,-len); ctx.stroke();
+        if (art2On(L)){
+          // an iris fan is flat blades edge-on — drawBlade takes the explicit
+          // quadratic this branch already carries, and the lit sliver reads as
+          // the blade twisting toward the light
+          drawBlade(ctx, side*rank*0.22,0, bx*0.42,-len*0.54, bx,-len,
+                    (L.leafW||2)*(L.bladeHW||0.85), S.fol, rank<2);
+        } else {
+          ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=L.leafW||2;
+          ctx.beginPath(); ctx.moveTo(side*rank*0.22,0);
+          ctx.quadraticCurveTo(bx*0.42,-len*0.54,bx,-len); ctx.stroke(); }
       }
       ctx.lineCap='butt';
     }
@@ -1962,9 +1979,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const wy=-len*(0.18+w*0.14), leaves=5+(w%2);
           for(let j=0;j<leaves;j++){
             const a=j/leaves*Math.PI*2+(w*0.4), r=5.5-rnd()*1.2;
-            ctx.fillStyle=shade(S.fol,(rnd()-0.5)*22);
-            ctx.beginPath();
-            ctx.ellipse(ox+Math.cos(a)*r, wy+Math.sin(a)*r*0.35, 4.5, 1.5, a*0.4, 0, 7); ctx.fill();
+            const lx2=ox+Math.cos(a)*r, ly2=wy+Math.sin(a)*r*0.35;
+            if (art2On(L)){
+              // a martagon whorl is narrow leaves radiating in a ring; the lit
+              // sliver is what separates the near ones from the far ones
+              drawBlade(ctx, ox,wy, (ox+lx2)/2,(wy+ly2)/2-0.6, lx2,ly2,
+                        (L.whorlHW||1.5), S.fol, Math.sin(a)>-0.2);
+            } else {
+              ctx.fillStyle=shade(S.fol,(rnd()-0.5)*22);
+              ctx.beginPath();
+              ctx.ellipse(lx2, ly2, 4.5, 1.5, a*0.4, 0, 7); ctx.fill(); }
           }
         }
       }
@@ -2005,6 +2029,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.strokeStyle=shade(S.edge,(rnd()-0.5)*12); ctx.lineWidth=lw+2.2;
           ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,0);
           ctx.quadraticCurveTo(bx*0.34,by*0.55,bx,by); ctx.stroke();
+        }
+        if (art2On(L)){
+          drawBlade(ctx, (rnd()-0.5)*3,0, bx*0.34,by*0.55, bx,by,
+                    lw*(L.bladeHW||0.85), S.fol, true);
+          continue;
         }
         ctx.strokeStyle=shade(S.fol,(rnd()-0.5)*18); ctx.lineWidth=lw;
         ctx.beginPath(); ctx.moveTo((rnd()-0.5)*3,0);
@@ -2064,8 +2093,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const w=(L.leafW||3.2)*(0.9+0.2*dep);
       ctx.strokeStyle=shade(fol,-34); ctx.lineWidth=w+1.6;   // dark undershadow
       ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
-      ctx.strokeStyle=shade(fol,-10+dep*20+(rnd()-0.5)*8); ctx.lineWidth=w;   // leaf body
-      ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke();
+      if (art2On(L)){
+        // an agave leaf is a thick wedge tapering to its spine, not a strap.
+        // The dark undershadow stroke above stays — it is what separates
+        // overlapping leaves in a rosette this tight.
+        drawBlade(ctx, 0,cy, midX,midY, tipX,tipY,
+                  w*(L.bladeHW||0.62), shade(fol,-6+dep*20), dep>0.35);
+      } else {
+        ctx.strokeStyle=shade(fol,-10+dep*20+(rnd()-0.5)*8); ctx.lineWidth=w;   // leaf body
+        ctx.beginPath(); ctx.moveTo(0,cy); ctx.quadraticCurveTo(midX,midY,tipX,tipY); ctx.stroke(); }
       ctx.strokeStyle=spine; ctx.lineWidth=1.2;              // dark terminal spine
       ctx.beginPath(); ctx.moveTo(tipX,tipY); ctx.lineTo(tipX+lf.dx*2.2,tipY+lf.dy*squash*2.2); ctx.stroke();
     }
@@ -2335,8 +2371,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const n=stemFor(5);
       ctx.strokeStyle=S.fol; ctx.lineWidth=1.4;
       for (let i=0;i<n;i++){ const a=(i/(n-1)-0.5)*1.2+(rnd()-0.5)*0.2, l=H*(0.5+rnd()*0.4);
-        ctx.beginPath(); ctx.moveTo(0,0);
-        ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.6,Math.sin(a)*l*0.8,-l); ctx.stroke(); }
+        if (art2On(L2)){
+          // bulb straps are broad and fleshy, not wire — a tulip's foliage is
+          // half of what you see before the flower opens
+          drawLeaf(ctx, 0,0, Math.sin(a)*l*0.8+sway*0.4, -l,
+                   (L2.strapHW||2.1), S.fol, {shape:'linear', rib:false, bow:0.07});
+        } else {
+          ctx.beginPath(); ctx.moveTo(0,0);
+          ctx.quadraticCurveTo(Math.sin(a)*l*0.5,-l*0.6,Math.sin(a)*l*0.8,-l); ctx.stroke(); }
+      }
     }
     if (blooming){
       const sn=Math.max(1,Math.ceil((L2.stems||3)*blv)), cup=L2.cup||3;
@@ -2344,12 +2387,24 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const ox=(rnd()-0.5)*8, len=H*(0.7+rnd()*0.3);
         ctx.strokeStyle=shade(S.fol,-12); ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway,-len); ctx.stroke();
-        ctx.strokeStyle=S.bloom; ctx.lineWidth=1.8;
-        for (let p2=-1;p2<=1;p2++){ ctx.beginPath();
-          ctx.moveTo(ox+sway,-len);
-          ctx.lineTo(ox+sway+p2*cup*0.8,-len-cup*1.6); ctx.stroke(); }
-        if (S.eye){ ctx.fillStyle=S.eye;
-          ctx.beginPath(); ctx.arc(ox+sway,-len-cup*0.5,cup*0.45,0,7); ctx.fill(); }
+        if (art2On(L2)){
+          // the cup is three TEPALS, not three lines. Outer pair first so the
+          // near one overlaps them, which is how a tulip actually closes.
+          for (const p2 of [-1,1,0]){
+            drawLeaf(ctx, ox+sway, -len,
+                     ox+sway+p2*cup*0.85, -len-cup*(p2?1.55:1.75),
+                     cup*(L2.tepalHW||0.44), shade(S.bloom, p2*6),
+                     {shape:'lance', rib:false, bow:p2*0.05});
+          }
+          if (S.eye) drawFloret(ctx, ox+sway, -len-cup*0.55, cup*0.5, S.eye, {squash:0.92});
+        } else {
+          ctx.strokeStyle=S.bloom; ctx.lineWidth=1.8;
+          for (let p2=-1;p2<=1;p2++){ ctx.beginPath();
+            ctx.moveTo(ox+sway,-len);
+            ctx.lineTo(ox+sway+p2*cup*0.8,-len-cup*1.6); ctx.stroke(); }
+          if (S.eye){ ctx.fillStyle=S.eye;
+            ctx.beginPath(); ctx.arc(ox+sway,-len-cup*0.5,cup*0.45,0,7); ctx.fill(); }
+        }
       }
     }
   }
@@ -2360,8 +2415,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       for (let i=0;i<pads;i++){
         const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*(L.upright?13:18);
         const px=Math.cos(a)*rr+sway*0.8, py=-4+Math.sin(a)*rr*0.35;
-        ctx.fillStyle=shade(fol,(rnd()-0.5)*20);
-        ctx.beginPath(); ctx.ellipse(px,py,padW*(0.65+rnd()*0.25),padH*(0.65+rnd()*0.25),rnd()*0.4,0,7); ctx.fill();
+        const pw=padW*(0.65+rnd()*0.25), ph=padH*(0.65+rnd()*0.25), prot=rnd()*0.4;
+        if (art2On(L)){
+          // a lily pad is big enough to carry a real gradient, and it is a flat
+          // disc on water — the light falls across it, which is most of what
+          // tells you it is lying down rather than standing up
+          ctx.beginPath(); ctx.ellipse(px,py,pw,ph,prot,0,7);
+          litFill(ctx,px,py,Math.max(pw,ph),fol);
+        } else {
+          ctx.fillStyle=shade(fol,(rnd()-0.5)*20);
+          ctx.beginPath(); ctx.ellipse(px,py,pw,ph,prot,0,7); ctx.fill(); }
         ctx.fillStyle='rgba(25,40,25,0.16)';
         ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+padW*0.45,py-padH*0.12); ctx.lineTo(px+padW*0.12,py+padH*0.16); ctx.closePath(); ctx.fill();
       }
@@ -2395,7 +2458,38 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'fern'){ // arching fronds, leaflets tapering to the tip
-    if (S.fol){
+    const Lf=P.look||{};
+    if (S.fol && art2On(Lf)){
+      // A fern draws ~9 fronds x 6 leaflets. Shading each one would be 54
+      // fills; batching every leaflet into a dark pass and a lit pass is 2,
+      // and at leaflet scale that IS the shading. Rachis batches to one stroke.
+      const n=stemFor(9), rach=[];
+      for (let i=0;i<n;i++){
+        const a=(i/Math.max(1,n-1)-0.5)*1.9+(rnd()-0.5)*0.2, len=H*(0.65+rnd()*0.4);
+        rach.push({a, px:Math.sin(a)*len*0.8+sway*len*0.06, py:-Math.cos(a*0.55)*len});
+      }
+      ctx.strokeStyle=shade(S.fol,-20); ctx.lineWidth=1.1; ctx.beginPath();
+      for (const r of rach){ ctx.moveTo(0,0);
+        ctx.quadraticCurveTo(r.px*0.35, r.py*0.7, r.px, r.py); }
+      ctx.stroke();
+      for (let pass=0; pass<2; pass++){
+        ctx.fillStyle = pass ? shade(S.fol,30) : shade(S.fol,-12);
+        const k = pass ? 0.60 : 1, off = pass ? 0.34 : 0;
+        ctx.beginPath();
+        for (const r of rach){
+          const cxc=r.px*0.35, cyc=r.py*0.7, rot=r.a*0.5;
+          for (let f=0.25;f<=0.95;f+=0.14){
+            const u=1-f, bx=2*u*f*cxc+f*f*r.px, by=2*u*f*cyc+f*f*r.py;
+            const rr=((1-f)*4.2+0.8)*k, ry=1.1*k;
+            const ox2=bx+LIT.x*rr*off, oy2=by+LIT.y*ry*off;
+            ctx.moveTo(ox2+rr*Math.cos(rot), oy2+rr*Math.sin(rot));   // no join line
+            ctx.ellipse(ox2, oy2, rr, ry, rot, 0, 7);
+          }
+        }
+        ctx.fill();
+      }
+    }
+    else if (S.fol){
       const n=stemFor(9);
       for (let i=0;i<n;i++){
         const a=(i/(n-1)-0.5)*1.9+(rnd()-0.5)*0.2;
@@ -2420,8 +2514,27 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'leafmound'){ // hosta: broad overlapping leaves, scapes above
+    const Lm=P.look||{};
     if (S.fol){
       const n=stemFor(11);
+      if (art2On(Lm)){
+        // A hosta IS its leaves — broad, ribbed, overlapping, and the whole
+        // reason anyone plants one. Flat rotated ellipses made it a pile of
+        // coins; a cordate silhouette with a midrib is the entire species read.
+        const blades=[];
+        for (let i=0;i<n;i++) blades.push({
+          a:(i/Math.max(1,n-1)-0.5)*2.4+(rnd()-0.5)*0.25,
+          l:H*0.62*(0.6+rnd()*0.45), z:rnd() });
+        blades.sort((p,q)=>q.z-p.z);            // back leaves first
+        for (const b of blades){
+          const rec=0.84+0.16*(1-b.z);
+          const lx=Math.sin(b.a)*b.l*rec, ly=-Math.cos(b.a*0.5)*b.l*0.7*rec;
+          drawLeaf(ctx, 0, -b.z*2, lx*0.92+sway, ly*1.04,
+                   b.l*(Lm.moundHW||0.28)*rec, shade(S.fol,(b.z-0.5)*-24),
+                   {shape:Lm.leafShape||'cordate',
+                    bow:Lm.leafBow===undefined?0.10:Lm.leafBow});
+        }
+      } else
       for (let i=0;i<n;i++){
         const a=(i/(n-1)-0.5)*2.4+(rnd()-0.5)*0.25;
         const l=H*0.62*(0.6+rnd()*0.45);
@@ -2437,9 +2550,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const m=Math.max(1,Math.ceil(3*blv));
       for (let i=0;i<m;i++){ const ox=(rnd()-0.5)*10, len=H*(1.0+rnd()*0.2);
         ctx.beginPath(); ctx.moveTo(ox*0.4,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
-        ctx.fillStyle=S.bloom;
-        for (let s2=0;s2<4;s2++){ ctx.beginPath();
-          ctx.ellipse(ox+sway*2+(rnd()-0.5)*2,-len+s2*2.8,1.5,2,0,0,7); ctx.fill(); } }
+        if (art2On(Lm)){
+          for (let s2=0;s2<4;s2++)
+            drawFloret(ctx, ox+sway*2+(rnd()-0.5)*2, -len+s2*2.8, 1.8, S.bloom, {squash:1.3});
+        } else {
+          ctx.fillStyle=S.bloom;
+          for (let s2=0;s2<4;s2++){ ctx.beginPath();
+            ctx.ellipse(ox+sway*2+(rnd()-0.5)*2,-len+s2*2.8,1.5,2,0,0,7); ctx.fill(); }
+        } }
     }
   }
   else if (P.form === 'tree'){ // deciduous: trunk + branches always, canopy by season
