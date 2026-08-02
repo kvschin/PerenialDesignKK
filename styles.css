@@ -423,7 +423,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
 .world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 /* planting-scheme manager: one row per scheme over the shared site plan */
-.scheme-panel{width:min(460px,92vw)}
+.scheme-panel{width:min(520px,92vw)}
 .scheme-list{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;max-height:46vh;overflow-y:auto}
 .scheme-row{display:flex;align-items:center;gap:8px;padding:8px 10px;
   border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control)}
@@ -442,7 +442,11 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .scheme-pick:disabled,.scheme-act:disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .scheme-act.danger{background:var(--surface-danger);border-color:rgba(224,138,122,.50);color:var(--action-danger-text)}
 .scheme-act.danger:hover:not(:disabled){border-color:var(--action-danger);background:rgba(126,42,35,.60)}
+/* "Duplicate from existing" needs ~210px to stay on one line. Raising the shared
+   .row .btn min-width from 130px means the pair stacks full-width once it can no
+   longer sit side by side, instead of squeezing each label onto two lines. */
 .scheme-actions{gap:8px}
+.scheme-actions .btn{min-width:196px}
 @media(max-width:520px){
   .scheme-row{flex-wrap:wrap}
   .scheme-row-copy{flex:1 0 100%}
