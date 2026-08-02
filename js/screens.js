@@ -971,7 +971,10 @@ function renderSchemeManager(){
     const pick=document.createElement('button'); pick.className='scheme-pick'; pick.type='button';
     pick.textContent=on?'Showing':'Show'; pick.disabled=on;
     pick.title=on?`${s.name} is showing`:`Show ${s.name}`;
-    pick.onclick=()=>{ switchScheme(s.id); renderSchemeManager(); };
+    // close on the way out: you asked to look at this scheme, and the panel
+    // (with its scrim) sits over the garden you are trying to look at. Repeated
+    // A/B lives on the chip and the [ ] keys, so the manager is for setup.
+    pick.onclick=()=>{ switchScheme(s.id); closeOverlay('schemeScreen'); };
     const del=document.createElement('button'); del.className='scheme-act danger'; del.type='button';
     del.textContent='Delete'; del.title=only?'A garden keeps at least one scheme':`Delete ${s.name}`;
     del.disabled=only;
@@ -985,9 +988,12 @@ function renderSchemeManager(){
   const full=schemeCount()>=MAX_SCHEMES;
   $('btnSchemeNewEmpty').disabled=full;
   $('btnSchemeNewCopy').disabled=full;
+  // "Duplicate from existing" copies the ACTIVE scheme; on a list of six that is
+  // not obvious from the label, so name the source rather than rename the button
+  $('btnSchemeNewCopy').title=`Copy "${activeSchemeName()}" into a new scheme`;
   $('schemeNote').textContent = full
     ? `A garden holds up to ${MAX_SCHEMES} planting schemes.`
-    : 'Switch schemes from the chip beside the season box, or with [ and ].';
+    : `Duplicating copies "${activeSchemeName()}". Switch schemes from the chip beside the season box, or with [ and ].`;
   syncSchemeLabel();
 }
 function openSchemeManager(){

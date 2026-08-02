@@ -422,9 +422,18 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-dup{background:var(--surface-control);border:1px solid var(--border-control);color:var(--text-primary);
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
 .world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
-/* planting-scheme manager: one row per scheme over the shared site plan */
-.scheme-panel{width:min(520px,92vw)}
-.scheme-list{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;max-height:46vh;overflow-y:auto}
+/* planting-scheme manager: one row per scheme over the shared site plan.
+   Locked to the viewport with ONLY the list scrolling, exactly like
+   #worldsScreen .panel — otherwise a tall panel pushes Done off the bottom of a
+   short viewport (measured: 481px panel in a 390px phone-landscape viewport put
+   Done at y=411, unreachable). !important beats .modal-screen>.panel's own
+   overflow:auto so there is one scroller, not two nested ones — same approach
+   as .replace-plant-panel. */
+.scheme-panel{width:min(520px,92vw);display:flex;flex-direction:column;min-height:0;
+  max-height:calc(100dvh - 32px)!important;overflow:hidden!important}
+.scheme-panel>*{flex:0 0 auto}
+.scheme-list{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;
+  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .scheme-row{display:flex;align-items:center;gap:8px;padding:8px 10px;
   border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control)}
 .scheme-row.sel{border-color:var(--border-active);background:var(--surface-active)}
@@ -544,6 +553,10 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .scheme-chip.sel{border-color:var(--border-active);background:var(--surface-active)}
 .scheme-chip-name{min-width:0;max-width:104px;overflow:hidden;text-overflow:ellipsis}
 .scheme-chip-count{flex:0 0 auto;font-size:10px;letter-spacing:.06em;color:var(--bronze)}
+/* Same trigger anatomy as .discovery-source — the app's other label-that-opens-
+   a-menu — so the chip reads as openable rather than as a status readout. */
+.scheme-chip i{display:flex;flex:0 0 auto;color:var(--bronze)}
+.scheme-chip i .ui-icon{width:14px;height:14px}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
@@ -666,10 +679,18 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .tool-popover button.sel{background:var(--surface-active);color:var(--text-primary)}
 .view-tools-popover{width:168px}
 .view-tools-popover button canvas{width:26px;height:20px;flex:0 0 auto}
-.layer-popover{top:auto;bottom:6px;width:172px;padding:6px;display:flex;flex-direction:column;gap:1px}
+/* Both flyouts cap their height and scroll, like .discovery-source-menu: these
+   are pinned as fixed dropdowns from a top-bar button, so on a short viewport
+   the tail would otherwise sit below the fold with no way to reach it (the
+   Layers flyout overflowed a 390px-tall viewport by 92px). */
+.layer-popover{top:auto;bottom:6px;width:172px;padding:6px;display:flex;flex-direction:column;gap:1px;
+  max-height:min(54vh,330px);overflow-y:auto;overscroll-behavior:contain}
 /* must sit AFTER .tool-popover: same specificity, so source order decides the width */
-.scheme-popover{top:auto;width:190px;padding:6px;display:flex;flex-direction:column;gap:1px}
+.scheme-popover{top:auto;width:190px;padding:6px;display:flex;flex-direction:column;gap:1px;
+  max-height:min(54vh,330px);overflow-y:auto;overscroll-behavior:contain}
 .scheme-popover .scheme-mark{flex:0 0 18px;width:18px;text-align:center;font-size:10px;font-weight:700;color:var(--bronze)}
+/* ellipsis, not wrap — so a long name reads the same way here as on the chip */
+.scheme-popover .layer-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .layer-section{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-disabled);
   padding:7px 9px 3px;font-weight:600}
 .layer-row{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;border-radius:var(--radius-control);
@@ -1067,6 +1088,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .top-tools-full{display:none}
   #btnViewTools{display:flex}
   .season-dial .daynight,.top-tool{width:44px;height:44px;min-width:44px;min-height:44px}
+  /* the chip sits in this same row, so it takes the same touch height — width
+     stays auto because it is a label, not a square icon button */
+  .scheme-chip{height:44px;min-height:44px;min-width:44px}
+  /* scheme manager rows: Delete is destructive and was a 29px target */
+  .scheme-name,.scheme-pick,.scheme-act{min-height:44px}
   .top-tool canvas{width:34px;height:26px}
   .season-box{height:44px;min-height:44px}
   .pill.iconbar{min-height:44px;align-items:center}
@@ -1473,6 +1499,20 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #toolTray,#toolTray.discovery-results{min-height:120px;padding:10px 14px 12px}
   #brushBar{padding:8px 16px 9px;gap:6px}
   .placing-summary>canvas{width:38px;height:34px;flex-basis:38px}
+}
+/* The scheme manager is a dialog, so height alone decides its shape — no
+   min-width scoping like the docked-catalog rules above. Capping it to the
+   viewport (see .scheme-panel) is only half the job: with the full heading
+   stack in place, 200px of chrome plus margins left the LIST 29px on a 844x390
+   phone landscape, which is reachable but useless. Trim the same way the
+   catalog header does at this tier — drop the eyebrow and the explainer, shrink
+   the title — and the list gets its space back. */
+@media (max-height:700px){
+  .scheme-panel{padding:16px!important}
+  .scheme-panel .eyebrow,.scheme-panel .sub{display:none}
+  .scheme-panel h2{font-size:20px;margin-bottom:8px}
+  .scheme-list{margin:2px 0 4px}
+  #schemeNote{margin-top:8px}
 }
 /* Very short (phone landscape): the brush footer's two stacked rows cost more
    than they return, so collapse it to the single row that names what you are
