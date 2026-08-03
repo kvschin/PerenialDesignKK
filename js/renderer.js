@@ -103,7 +103,13 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
     if (water) col = waterFill(terrObj,amb.snow);
     else if (path) col = pathFill(terrObj,amb.snow);
     else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
-    else if (terr==='bed') col = shade(bedFill(terrObj,amb),(rs()-0.5)*12);
+    // A bed's base tone no longer varies per tile. The old +-12 was carrying
+    // all of a bed's unevenness, and it could get away with it because the tile
+    // bevel hid where one tile stopped; with the bevel gone under a material
+    // (see drawGroundTexture) any per-tile jitter reads as flat diamond
+    // patches, and the grain supplies the unevenness now. The rs() draw is kept
+    // so the grain scatter below sits at the same point in the tile's stream.
+    else if (terr==='bed'){ rs(); col = bedFill(terrObj,amb); }
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
     drawElevationSides(ctx,W,H,x,y,col);
     if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb,t);
@@ -400,7 +406,10 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       const [sx,sy]=screenOf(tx,ty,W,H);
       const rs=mulberry(tileSeed(tx,ty));
       if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,t);
-      else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o);
+      // skipBase: the region silhouette above already laid this material's base
+      // across every one of these tiles, so the per-tile base fill would only
+      // repaint it — a full-tile fill on every tile of every bed.
+      else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
     ctx.restore();
     // one continuous edge stroke (replaces the per-tile diamond strokes)

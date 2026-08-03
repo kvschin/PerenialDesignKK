@@ -117,9 +117,10 @@ logic is split across ordered modules. They map onto the section list below
 
 - **`core.js`** — constants, `AMBIENCE`, `COATS`, device preferences (haptics
   and left-handed mobile layout), shared color helpers such as `mixHex`, the
-  path/bed/water/fence/light/firepit/house data tables, and `plantDef`
-  (cultivar merge cache, including optional per-season `flowerColorFamilies`
-  overrides for catalog discovery).
+  path/bed/water/fence/light/firepit/house data tables (each ground material
+  carrying its own `texture` grain recipe + `tones` palette, §11a), and
+  `plantDef` (cultivar merge cache, including optional per-season
+  `flowerColorFamilies` overrides for catalog discovery).
 - **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
   `drawCritter`, and canvas drawing primitives for houses, fences, lights,
   firepits, plan symbols, and other rendered objects.
@@ -127,7 +128,8 @@ logic is split across ordered modules. They map onto the section list below
   `setTile`/`clearTile` mutation helpers, §9 time helpers + phenology, shade
   constants, immutable `DIRS`/`SUN_PATH` plus the per-garden true-north
   transform, house/world data, `cam`, terrain/elevation lookup, collision
-  helpers, iso/view math, and depth helpers.
+  helpers, iso/view math, depth helpers, and §11a the ground-material grain
+  primitives + `drawGroundTexture`.
 - **`view.js`** — active canvas sizing, viewport/PWA sizing probes, zoom state,
   active canvas switching, resize handling, and compass/map-edge direction
   updates.
@@ -336,8 +338,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `screenOfFlat` + terrace lift, and **`openPlan` uses the same function**
     projected to paper, so the plan sheet finally matches the garden (formal
     gardens keep crisp per-tile cells in both). The per-tile texture pass runs
-    **clipped** to the blob (gravel/mulch/ripples preserved) with one
-    continuous edge stroke — grass still shows in soft cut corners. Perf: organic tracks formal even on a pathological
+    **clipped** to the blob (grain/ripples preserved) with one
+    continuous edge stroke — grass still shows in soft cut corners; it passes
+    `skipBase` (§11a) because the region silhouette already filled the base.
+    Perf: organic tracks formal even on a pathological
     573-terrain-tile / 48-region stress rebuild; a still view just blits. **Dense gardens draw
     plants from a sprite cache** (`PSPRITE`, `drawPlantMaybeCached`): `drawPlant`
     was ~88% of a heavy frame, re-running each plant's procedural recipe every
@@ -392,6 +396,49 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     costs only that boolean check.
     Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
     math divides by it (`evPlacement`). Cost scales with screen size, not `GRID`.
+11a. **Ground material grain** (`drawMaterialGrain` + the `grain*` primitives,
+    world.js) — what makes gravel look like gravel and mulch like mulch rather
+    than like one speckle in different tints. Each material names a `texture`
+    recipe and a four-slot `tones` palette **in its data entry**
+    (`BED_STYLES` / `PATH_COLORS`, core.js); the draw code hardcodes no colour.
+    `tones:null` means "derive from the tile's base" and is for materials whose
+    base is seasonal (soil follows `AMBIENCE`). A `texture` is shared, so the
+    **Bark mulch path and the bark-mulch bed are the same material**, and the
+    six path colours — which used to differ only by tint — now get crushed
+    gravel, limestone fines, shredded bark, cut flagstone, crazed clay and dark
+    chip respectively.
+    A recipe stages its grains once into module-level scratch (`grainSite` /
+    `grainPush`, the fcPush/fcDraw pattern from draw.js) and paints them in
+    several tones with a **stride**. Painters: `grainGrit` (3-gon fines),
+    `grainChips` (5-gon crushed stone / leaves / flagstone), `grainPebble`
+    (6-gon water-worn cobble), `grainShreds` (tapered quad, bark). Silhouettes
+    are baked at load; there is deliberately **no ellipse painter**.
+    **The cost model is measured and counter-intuitive — read the block comment
+    before changing a recipe.** `fill()` is free (961 fills = 0.17ms), so tone
+    groups cost nothing; the currency is **shape instances** at ~0.4–1.8us each,
+    and polygon cost does not grow with radius while ellipse cost does. So
+    batching grains into one fill buys nothing on its own — what it buys is free
+    hue variety. Repainting a staged set a second time as a shadow or sheen
+    doubles the instance count and is the trap that put a first cut 2–3x over
+    (soil at 12.8x); where a material needs dark between its grains that is the
+    base colour showing through. Budget ~21us of grain per tile. Do not batch
+    across tiles — one path holding a 961-tile region measured 199ms vs 35ms.
+    Two artifacts this fixes and must not regress: a material tile draws a
+    **flat base with no bevel and no seam stroke** (that per-tile bevel was a
+    grid stamped across every bed; grass and the doorstep keep theirs, and so
+    does everything under snow, where the bevel is the only relief), and that
+    base is **bled 0.6px past the tile** so neighbouring antialiased fills
+    overlap instead of leaving a hairline of the layer beneath along every
+    shared edge. Grains are placed uniformly over the WHOLE tile diamond, inset
+    by `GRAIN_INSET` of their own radius — the old texture scattered inside a
+    box a quarter of the tile, which left a bare ring on every boundary.
+    Bed base tone no longer jitters per tile; the grain carries the unevenness.
+    Measured on the ground bake (the texture lands on REBAKE, never per frame):
+    a 62ft designed garden went 76.5ms → 58.7ms organic (the default — the
+    skipped per-tile base fill more than pays for the richer grain) and
+    28.0ms → 34.3ms formal; the all-terrain worst case 185ms → 159ms; lawn
+    unchanged. No new cache key: `texture`/`tones` are static data and the
+    material id is already in `groundDataSig()`.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
@@ -1109,8 +1156,9 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 ## Conventions
 
 - Vanilla JS, no framework, no bundler. Keep it that way unless explicitly asked.
-- All rendering is canvas 2D. Colors flow from `AMBIENCE` and `PLANTS`, not
-  hardcoded in draw functions — change the palette in data, not in code.
+- All rendering is canvas 2D. Colors flow from `AMBIENCE`, `PLANTS`, and the
+  material tables' `tones` (§11a), not hardcoded in draw functions — change the
+  palette in data, not in code.
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
 - Respect `prefers-reduced-motion` (already handled in CSS).

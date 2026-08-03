@@ -244,6 +244,59 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
+/* ---- ground materials ---------------------------------------------------
+   The grain recipes are data-driven, so the thing worth testing headlessly is
+   the contract between the data and the draw code: every material names a
+   recipe that exists, every palette has the four slots the recipes index, and
+   no recipe stages past the scratch it writes into (overflow is silently
+   dropped, so a too-dense recipe would just go quiet). */
+const GROUND_MATERIALS = () => BED_STYLES.map(b => ['bed', b]).concat(PATH_COLORS.map(p => ['path', p]));
+
+test('every ground material names a grain recipe with a four-slot palette', () => {
+  for (const [kind, m] of GROUND_MATERIALS()){
+    assert(typeof m.texture === 'string' && m.texture, `${kind} ${m.id} has no texture recipe`);
+    if (m.tones === null) continue;                 // seasonal base, derived at draw time
+    assert(Array.isArray(m.tones) && m.tones.length === 4, `${kind} ${m.id} needs 4 tones`);
+    for (const t of m.tones) assert(/^#[0-9a-f]{6}$/i.test(t), `${kind} ${m.id} tone ${t} is not a hex colour`);
+  }
+  assertEqual(materialTones(null, '#54402f').length, 4, 'a derived palette also fills four slots');
+  assert(materialTones(null, '#54402f').every(c => typeof c === 'string' && c),
+    'every derived tone resolves to a colour');
+});
+
+test('no grain recipe overflows the scratch it writes into', () => {
+  const ctx = document.createElement('canvas').getContext('2d');
+  const before = grainDropCount();
+  let drawn = 0;
+  for (const [kind, m] of GROUND_MATERIALS()){
+    for (const s of SEASONS){
+      const amb = AMBIENCE[s], rs = mulberry(4242);
+      const base = kind === 'path' ? pathFill({ c: m.id }, amb.snow) : bedFill({ c: m.id }, amb);
+      drawMaterialGrain(ctx, 100, 100, m.texture, m.tones, base, rs);
+      drawn++;
+    }
+  }
+  assertEqual(drawn, GROUND_MATERIALS().length * 4, 'every material drew in every season');
+  assertEqual(grainDropCount() - before, 0,
+    'a recipe staged past GRAIN_MAX and lost grains silently — raise it or thin the recipe');
+});
+
+test('a ground tile renders for every material, bed and path alike', () => {
+  setup();
+  const ctx = document.createElement('canvas').getContext('2d');
+  let n = 0;
+  for (const [kind, m] of GROUND_MATERIALS()){
+    for (const s of SEASONS){
+      const amb = AMBIENCE[s], o = { k: kind, c: m.id }, rs = mulberry(7);
+      const base = kind === 'path' ? pathFill(o, amb.snow) : bedFill(o, amb);
+      drawGroundTexture(ctx, 40, 40, 3, 3, kind === 'bed' ? 'bed' : null, kind === 'path', amb, base, rs, o);
+      drawGroundTexture(ctx, 40, 40, 3, 3, kind === 'bed' ? 'bed' : null, kind === 'path', amb, base, mulberry(7), o, true);
+      n++;
+    }
+  }
+  assertEqual(n, GROUND_MATERIALS().length * 4, 'both the per-tile and the region path drew every material');
+});
+
 test('plantFits applies zone and palette filters', () => {
   setup();
   const k = Object.keys(PLANTS).find(x => PLANTS[x].zones[0] >= 3 && PLANTS[x].zones[1] <= 9);

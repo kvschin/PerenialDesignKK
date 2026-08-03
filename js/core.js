@@ -191,13 +191,30 @@ const SEASON_LIGHT = {
   Winter:{sun:'rgba(228,236,246,0.18)', haze:'rgba(231,238,245,0.18)', beam:'rgba(210,228,245,0.08)', vignette:'rgba(35,42,54,0.18)'},
 };
 
+/* Ground materials carry their own GRAIN PALETTE, next to their base colour,
+   because a material's colour is data — `drawGroundTexture` reads these and
+   hardcodes none of them. `texture` names the grain recipe (the shape of the
+   stuff: angular chip, rounded cobble, shred, leaf…) and `tones` are the grain
+   colours painted over the base, listed dark-to-light.
+   The tones are what stopped every material reading as the same speckle: a
+   real aggregate varies in HUE, not just in value, and `shade()` — which adds
+   a constant to r/g/b — cannot produce that. Warm gravel really is buff stone
+   with grey and rust in it; limestone screenings really are one pale tone.
+   `null` tones mean "derive from the tile's own base" and are for materials
+   whose base is seasonal (soil follows AMBIENCE). */
 const PATH_COLORS = [
-  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa'},
-  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6'},
-  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68'},
-  {id:'slate', label:'Slate', fill:'#7a8386', plan:'#b8c0c2'},
-  {id:'clay', label:'Red clay', fill:'#a76543', plan:'#d3a184'},
-  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e'},
+  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa',
+   texture:'gravel', tones:['#8a7a5d','#ae9d80','#c4b596','#9a8765']},
+  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6',
+   texture:'fines', tones:['#aba189','#c3b99f','#ded5bd','#b9ad92']},
+  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68',
+   texture:'mulch', tones:['#4a3122','#7a5539','#96775a','#61402a']},
+  {id:'slate', label:'Slate', fill:'#7a8386', plan:'#b8c0c2',
+   texture:'flag', tones:['#5c6567','#7f888a','#98a1a2','#6d7678']},
+  {id:'clay', label:'Red clay', fill:'#a76543', plan:'#d3a184',
+   texture:'clay', tones:['#8a4f33','#b2704c','#c48a63','#96593a']},
+  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e',
+   texture:'gravel', tones:['#35332e','#5a574f','#726e64','#454239']},
 ];
 function pathColor(id){ return PATH_COLORS.find(c=>c.id===id)||PATH_COLORS[0]; }
 function pathColorId(id){ return pathColor(id).id; }
@@ -205,11 +222,20 @@ function pathFill(t,snow){ const p=pathColor(t&&t.c);
   return snow ? mixHex(p.fill,'#eef2f8',0.42) : p.fill; }
 function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
 const BED_STYLES = [
-  {id:'soil', label:'Soil', fill:null, plan:'#ebe2c9', texture:'soil'},
-  {id:'gravel', label:'Gravel', fill:'#a99f86', plan:'#d6ceb8', texture:'gravel'},
-  {id:'rock', label:'River rock', short:'Rock', fill:'#87877f', plan:'#c5c5bb', texture:'rock'},
-  {id:'leaf', label:'Leaf litter', short:'Leaf', fill:'#6d4d32', plan:'#b88c60', texture:'leaf'},
-  {id:'mulch', label:'Bark mulch', short:'Bark', fill:'#5b3526', plan:'#9d7558', texture:'mulch'},
+  // soil follows the season (fill:null -> AMBIENCE.soil), so its grains are
+  // derived from whatever that is rather than pinned to one brown
+  {id:'soil', label:'Soil', fill:null, plan:'#ebe2c9', texture:'soil', tones:null},
+  {id:'gravel', label:'Gravel', fill:'#a99f86', plan:'#d6ceb8', texture:'gravel',
+   tones:['#7d7461','#a89d84','#bdb296','#93856c']},
+  // A river bar is grey AND tan AND rust, never one grey — the fourth tone is
+  // doing real work here, and the light one stays close to the body tone
+  // because where two pale cobbles overlap they merge into one pale blob.
+  {id:'rock', label:'River rock', short:'Rock', fill:'#87877f', plan:'#c5c5bb', texture:'rock',
+   tones:['#4e4e4a','#82827a','#97968a','#8a7a63']},
+  {id:'leaf', label:'Leaf litter', short:'Leaf', fill:'#6d4d32', plan:'#b88c60', texture:'leaf',
+   tones:['#4a3524','#7d5836','#96784c','#66502f']},
+  {id:'mulch', label:'Bark mulch', short:'Bark', fill:'#5b3526', plan:'#9d7558', texture:'mulch',
+   tones:['#3a2016','#6d4028','#8a6446','#4e2c1d']},
 ];
 function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
 function bedStyleId(id){ return bedStyle(id).id; }

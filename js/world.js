@@ -1278,62 +1278,361 @@ function fillDiamondFace(ctx,sx,sy,points,fill){
   for (let i=1;i<points.length;i++) ctx.lineTo(points[i][0],points[i][1]);
   ctx.closePath(); ctx.fill();
 }
-function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj){
-  isoDiamondPath(ctx,sx,sy,0);
-  ctx.fillStyle=base; ctx.fill();
-  const top=toneColor(base,amb.snow?12:9), bottom=toneColor(base,-9);
-  fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],top);
-  fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],bottom);
-  ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1;
-  isoDiamondPath(ctx,sx,sy,0); ctx.stroke();
-  ctx.strokeStyle='rgba(255,255,255,0.06)';
-  ctx.beginPath(); ctx.moveTo(sx,sy+1); ctx.lineTo(sx+TILE_W/2-1,sy+TILE_H/2); ctx.stroke();
+/* ---------- ground grain: batched material texture ----------
+   A ground material reads as a material when its grains are DENSE, varied in
+   hue as well as value, shaped like the stuff actually is, and lit the same way
+   as everything else in the scene. The old texture was none of those: five to
+   ten randomly-rotated ellipses of flat white-or-black alpha, scattered inside
+   a small box around the tile centre. That is noise, and it made crushed gravel,
+   river cobble and bark mulch differ only by base tint.
+
+   THE COST MODEL, measured on this canvas at 961 tiles a bake. Do not design
+   against intuition here; the intuitive answer is wrong in both directions.
+
+     ctx.fill()          ~0.02us   — a fill of an EMPTY path is free, and 961
+                                     fills measured 0.17ms total
+     ctx.rect            ~0.42us   — special-cased in Skia, but see grainGrit
+     baked triangle      ~0.63us
+     baked quad          ~0.80us
+     baked pentagon      ~0.90us
+     ellipse r<=2        ~0.88us
+     ellipse r~4         ~1.15us   — ellipse cost rises with radius (tessellation)
+     ellipse r~6         ~1.76us
+     ellipse r~10        ~1.65us
+     baked hexagon r~6   ~1.09us   — polygons do NOT scale with radius
+
+   So the currency is SHAPE INSTANCES, not fills, and the old assumption that
+   "batching into one fill makes grains free" is false — grouping 60 shapes into
+   4 fills measured the same as 60 shapes in 1 fill (57.1ms vs 55.3ms). What
+   batching buys is TONE GROUPS AT NO COST: a recipe can split its grains into
+   four or six colours for nothing, and hue variety is most of what makes a
+   material read. So each recipe stages its grains once in module-level scratch
+   (as draw.js's fcPush/fcDraw do for florets) and paints them in several tones
+   with a stride.
+
+   The corollary is the expensive habit to avoid: painting the SAME staged set a
+   second time as a dropped shadow, or a third as a sheen, doubles or triples the
+   instance count. A first cut did that everywhere and came in 2-3x over — the
+   soil bed at 12.8x. Now only grains large enough to show one get a highlight,
+   and on a stride so it is a quarter-pass, not a whole one. Where a material
+   needs dark between its grains, that comes from the BASE COLOUR showing
+   through, which costs nothing at all.
+
+   Budget: ~21us of grain per tile, which lands each material at or under what
+   its flat speckle used to cost. Two more rules, both measured:
+   - Batch within a TILE, never across tiles. One path holding a whole 961-tile
+     region measured 199ms against 35ms per-tile: Skia degrades sharply past a
+     few hundred subpaths in one path.
+   - Nothing allocates. The scratch is reused and never grown; overflow past
+     GRAIN_MAX is dropped rather than reallocated, as fcPush does.
+
+   Colours come from BED_STYLES/PATH_COLORS `tones` (core.js), never from here. */
+const GRAIN_MAX = 64;    // the densest recipe stages 36; the rest is headroom
+const _gnX=new Float64Array(GRAIN_MAX), _gnY=new Float64Array(GRAIN_MAX),
+      _gnA=new Float64Array(GRAIN_MAX), _gnB=new Float64Array(GRAIN_MAX),
+      _gnC=new Float64Array(GRAIN_MAX), _gnD=new Float64Array(GRAIN_MAX);
+let _gnN=0, _gnDropped=0;
+function grainReset(){ _gnN=0; }
+function grainPush(a,b,c,d){    // x,y come from the last grainSite
+  if (_gnN>=GRAIN_MAX){ _gnDropped++; return; }   // counted, not grown: a recipe
+  _gnX[_gnN]=_gpx; _gnY[_gnN]=_gpy;               // that overflows would just go
+  _gnA[_gnN]=a; _gnB[_gnN]=b;                     // quiet, so a test watches this
+  _gnC[_gnN]=c||0; _gnD[_gnN]=d||0; _gnN++;
+}
+function grainDropCount(){ return _gnDropped; }
+/* Uniform point in the tile diamond. The map (u+v)/2, (u-v)/2 carries the unit
+   square exactly onto the diamond, so this is a fixed two rng draws per grain
+   with no rejection loop.
+
+   Covering the WHOLE diamond is most of why the old texture read as sparse: it
+   scattered inside a +-17 x +-6 box around the tile centre — under a quarter of
+   the tile — so every boundary wore a bare ring and the grid showed through the
+   material. The extent is inset by most of the grain's radius. Inset by ALL of
+   it no grain crosses the tile line and a band of thin coverage traces the grid
+   back in; inset by none, the per-tile path's next base fill slices every
+   overhang off along the tile edge, which is worse — a hard line rather than a
+   soft one. At 0.72 the overhang is small enough to be invisible where it is
+   cut, and the organic path does not cut it at all because there is no per-tile
+   base fill inside a region. */
+const GRAIN_INSET = 0.72;
+let _gpx=0, _gpy=0;
+function grainSite(sx,cy,rx,ry,rs){
+  const u=rs()*2-1, v=rs()*2-1;
+  _gpx = sx + (u+v)*0.5*(TILE_W*0.5-rx*GRAIN_INSET);
+  _gpy = cy + (u-v)*0.5*(TILE_H*0.5-ry*GRAIN_INSET);
+}
+/* Crushed stone and cut slate are SHARP; an ellipse reads as a pebble however
+   it is tinted. Three sets of unit silhouettes are baked at load — five-sided
+   chips for stone you can see the shape of, three-sided grits for the fines,
+   and the pebbles below — twelve of each, and each carries its own vertex
+   phase, so choosing a silhouette is also choosing a rotation.
+
+   The grit set exists because a triangle costs ~0.63us against ~0.90us for the
+   chip, which is what makes a dense fine material affordable. `ctx.rect` is
+   cheaper still at ~0.42us and was tried first: at two or three pixels it does
+   not read as a speck, it reads as a SQUARE, and a gravel path came out as
+   grey confetti in a scene where every other edge runs on the isometric
+   diagonal. The extra 0.2us buys the material back. */
+const CHIP_SIL=12, CHIP_V=5, GRIT_V=3, PEB_V=6;
+const _chipPt=new Float64Array(CHIP_SIL*CHIP_V*2);
+const _gritPt=new Float64Array(CHIP_SIL*GRIT_V*2);
+// Water-worn cobble: six sides with only a little wobble, so it reads as a
+// rounded stone with the slight flats a real one has. It exists mainly because
+// a baked hexagon costs ~1.09us at cobble size against ~1.76us for the ellipse
+// it replaced — polygon cost does not grow with radius and ellipse cost does.
+const _pebPt=new Float64Array(CHIP_SIL*PEB_V*2);
+(function bakeGrainSilhouettes(){
+  const r=mulberry(0x51ed270b);
+  const bake=(buf,n,wob,lo,hi)=>{
+    for (let s=0;s<CHIP_SIL;s++){
+      const phase=r()*6.283;
+      for (let v=0;v<n;v++){
+        const a=phase+(v/n)*6.283+(r()-0.5)*wob, rad=lo+r()*hi, j=(s*n+v)*2;
+        buf[j]=Math.cos(a)*rad; buf[j+1]=Math.sin(a)*rad;
+      }
+    }
+  };
+  bake(_chipPt,CHIP_V,0.72,0.60,0.55);
+  bake(_gritPt,GRIT_V,0.72,0.60,0.55);
+  bake(_pebPt, PEB_V, 0.22,0.88,0.22);
+})();
+/* Every grain is a baked polygon; there is no ellipse painter here. Ellipses
+   lost on both counts — dearer (and dearer still as they grow), and smoother
+   than any of these materials actually are.
+
+   Each painter walks the staged set with a stride, so one staged scatter splits
+   into tone groups without sorting or a second pass of placement maths:
+   (ph, md) = (0,3),(1,3),(2,3) paints thirds, and the default (0,1) paints all.
+   dx/dy offset the whole group (sheen, joint shadow) and k scales it. */
+function grainPoly(ctx,buf,n,col,dx,dy,k,ph,md){    // A=rx B=ry C=silhouette
+  if (!_gnN) return;
+  ctx.fillStyle=col; ctx.beginPath();
+  for (let i=ph||0;i<_gnN;i+=md||1){
+    const rx=_gnA[i]*k, ry=_gnB[i]*k, x=_gnX[i]+dx, y=_gnY[i]+dy;
+    const p=((_gnC[i]|0)%CHIP_SIL)*n*2;
+    ctx.moveTo(x+buf[p]*rx, y+buf[p+1]*ry);
+    for (let v=1;v<n;v++) ctx.lineTo(x+buf[p+v*2]*rx, y+buf[p+v*2+1]*ry);
+    ctx.closePath();
+  }
+  ctx.fill();
+}
+function grainChips (ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_chipPt,CHIP_V,col,dx,dy,k,ph,md); }
+function grainGrit  (ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_gritPt,GRIT_V,col,dx,dy,k,ph,md); }
+function grainPebble(ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_pebPt, PEB_V, col,dx,dy,k,ph,md); }
+/* Shredded bark is fibrous and directional — it lies the way it was raked — so
+   a shred is a tapered quad along its own axis, not a rotated ellipse. Four
+   corners, not six: the torn butt and frayed tip of the first cut cost a third
+   more per shred and are two pixels of detail nobody can see. */
+function grainShreds(ctx,col,dx,dy,k,ph,md){        // A=halfLen B=halfWid C,D=unit dir
+  if (!_gnN) return;
+  ctx.fillStyle=col; ctx.beginPath();
+  for (let i=ph||0;i<_gnN;i+=md||1){
+    const L=_gnA[i]*k, w=_gnB[i]*k, ux=_gnC[i], uy=_gnD[i];
+    const x=_gnX[i]+dx, y=_gnY[i]+dy, px=-uy*w, py=ux*w;
+    ctx.moveTo(x-ux*L+px*0.55, y-uy*L+py*0.55);
+    ctx.lineTo(x+ux*L+px*0.30, y+uy*L+py*0.30);
+    ctx.lineTo(x+ux*L-px*0.30, y+uy*L-py*0.30);
+    ctx.lineTo(x-ux*L-px*0.55, y-uy*L-py*0.55);
+    ctx.closePath();
+  }
+  ctx.fill();
+}
+/* Materials whose base follows the season (soil reads AMBIENCE) declare no
+   palette, so derive one from whatever the base currently is. shade() memoises,
+   so this is a map hit per tile rather than four colour parses. */
+const _derivedTones=['','','',''];
+function materialTones(tones,base){
+  if (tones) return tones;
+  _derivedTones[0]=shade(base,-26); _derivedTones[1]=shade(base,-6);
+  _derivedTones[2]=shade(base,22);  _derivedTones[3]=shade(base,-15);
+  return _derivedTones;
+}
+/* One recipe per material. `T` is [deep, body, light, accent] from data.
+   Sizes are real: the tile is 18in across and drawn 76x38, so an inch is
+   ~4.2px in x and ~2.1px in y, and a 3in river cobble really is ~12x6px. */
+function drawMaterialGrain(ctx,sx,cy,tex,tones,base,rs){
+  const T=materialTones(tones,base);
+  grainReset();
+  if (tex==='gravel'){
+    // Crushed stone is GRADED — a dominant fine size with a scatter of larger
+    // pieces — and packed, so the dark you see is between stones rather than
+    // under them. A handful of dark mottle grains carry that interstitial
+    // shadow for a fraction of what re-painting every grain as a shadow pass
+    // would cost.  (~23us)
+    for (let i=0;i<7;i++){
+      const rx=2.0+rs()*1.9; grainSite(sx,cy,rx,rx*0.56,rs); grainPush(rx,rx*0.56,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1);
+    grainReset();
+    for (let i=0;i<30;i++){
+      const rx=0.9+rs()*1.4; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[1],0,0,1,0,3);
+    grainGrit(ctx,T[2],0,0,1,1,3);
+    grainGrit(ctx,T[3],0,0,1,2,3);
+    grainReset();
+    for (let i=0;i<6;i++){
+      const rx=1.7+rs()*1.5; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[2],0,0,1,0,2);
+    grainChips(ctx,T[3],0,0,1,1,2);
+  } else if (tex==='fines'){
+    // Compacted screenings: mostly dust walked flat, with a few chips sitting
+    // proud of it. Quieter than gravel on purpose — a limestone path is a
+    // surface you notice the edge of, not the grain of.  (~21us)
+    for (let i=0;i<26;i++){
+      const rx=0.6+rs()*1.0; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,3);
+    grainGrit(ctx,T[2],0,0,1,1,3);
+    grainGrit(ctx,T[1],0,0,1,2,3);
+    grainReset();
+    for (let i=0;i<5;i++){
+      const rx=1.1+rs()*1.2; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[3],0,0,1);
+  } else if (tex==='rock'){
+    // Water-worn cobble, 2-4in: rounded, close packed, and MIXED — a river bar
+    // is grey and tan and rust together, which is why the accent tone earns its
+    // place here more than anywhere else. No shadow pass: at this size the base
+    // colour showing between the cobbles IS the gap, and re-painting the whole
+    // set to say so again costs more than every other tone put together. Four
+    // body tones on a stride of four rather than three, because grains this big
+    // merge into one pale mass when two neighbours share a tone — that merging
+    // is what read as popcorn.  (~22us)
+    for (let i=0;i<18;i++){
+      const rx=3.4+rs()*3.0, sq=0.44+rs()*0.16;
+      grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
+    }
+    grainPebble(ctx,T[1],0,0,1,0,4);
+    grainPebble(ctx,T[3],0,0,1,1,4);
+    grainPebble(ctx,T[2],0,0,1,2,4);
+    grainPebble(ctx,shade(T[0],26),0,0,1,3,4);        // the odd dark basalt cobble
+    grainPebble(ctx,T[2],LIT.x*2.6,LIT.y*2.2,0.22,0,3);   // wet-worn sheen, quarter pass
+  } else if (tex==='mulch'){
+    // Shredded hardwood, 1-3in shreds, raked into a common drift with the usual
+    // spread around it, laid deep enough that shreds are all you see. Fresh
+    // shreds are dark and the top layer weathers grey-tan; that value split is
+    // what makes a mulch bed read as mulch rather than as brown ground. The
+    // dark between them is the bed's own base colour.  (~21us)
+    const drift=rs()*6.283, dcx=Math.cos(drift), dsx=Math.sin(drift);
+    for (let i=0;i<34;i++){
+      const L=2.2+rs()*2.4, w=0.55+rs()*0.55, a=(rs()-0.5)*1.35;
+      const ca=Math.cos(a), sa=Math.sin(a);
+      grainSite(sx,cy,L,w+0.6,rs);
+      grainPush(L,w, dcx*ca-dsx*sa*0.42, (dsx*ca+dcx*sa)*0.42);   // flattened into the ground plane
+    }
+    grainShreds(ctx,T[1],0,0,1,0,4);
+    grainShreds(ctx,T[3],0,0,1,1,4);
+    grainShreds(ctx,T[2],0,0,1,2,4);
+    grainShreds(ctx,T[0],0,0,1,3,4);
+  } else if (tex==='leaf'){
+    // Fallen deciduous leaves, lying every which way and overlapping so heavily
+    // that what you actually see is edges and partial leaves, not whole ones.
+    // Angular silhouettes, NOT ellipses: a smooth oval with a midrib down it is
+    // a coffee bean, and no amount of recolouring fixed that. The irregular
+    // outline carries the leaf on its own, so the rib pass goes away with it —
+    // which also makes this the cheapest of the three big-grain materials at
+    // ~0.9us a leaf against ~1.4us for the ellipse it replaced.  (~22us)
+    for (let i=0;i<24;i++){
+      const rx=2.8+rs()*3.4, sq=0.46+rs()*0.24;
+      grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[1],0,0,1,0,4);
+    grainChips(ctx,T[3],0,0,1,1,4);
+    grainChips(ctx,T[2],0,0,1,2,4);
+    grainChips(ctx,shade(T[0],20),0,0,1,3,4);    // the odd wet, dark leaf
+  } else if (tex==='soil'){
+    // Worked soil is a CRUMB — aggregates a quarter-inch to an inch, each one
+    // shading the crevice behind it — but it is the quietest recipe here on
+    // purpose. Soil is the backdrop a planting is read against, and pushing the
+    // contrast further turns a seedbed into coffee grounds. Grit rather than
+    // chips throughout, because a crumb is 2px and this is the material most
+    // likely to cover a whole garden.
+    // (~20us; the first cut of this one measured 12.8x its old cost)
+    for (let i=0;i<36;i++){
+      const rx=0.9+rs()*1.5; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,3);               // crevices
+    grainGrit(ctx,T[1],0,0,1,1,3);
+    grainGrit(ctx,T[3],0,0,1,2,3);
+    grainGrit(ctx,T[2],LIT.x*0.8,LIT.y*0.7,0.55,0,4);   // lit crumb tops, quarter pass
+  } else if (tex==='clay'){
+    // Compacted clay: a smooth surface that crazes as it dries, with the odd
+    // pebble worked up out of it. The cracks are the identity, so they are a
+    // single batched stroke rather than a fill.  (~12us)
+    for (let i=0;i<12;i++){
+      const rx=1.8+rs()*2.6; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[1],0,0,1,0,2);               // damp/dry mottling, low contrast
+    grainGrit(ctx,T[2],0,0,1,1,2);
+    grainReset();
+    for (let i=0;i<5;i++){                       // the odd pebble worked up out of it
+      const rx=0.9+rs()*1.0; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[3],0,0,1);
+    // Crazing: fine and low-contrast. Drawn dark and heavy it stops reading as
+    // a dried surface and starts reading as twigs dropped on the path.
+    ctx.strokeStyle=shade(T[0],16); ctx.lineWidth=0.4; ctx.beginPath();
+    for (let i=0;i<4;i++){
+      const u=rs()*2-1, v=rs()*2-1;
+      const x=sx+(u+v)*0.5*30, y=cy+(u-v)*0.5*14, a=rs()*3.14, len=2.5+rs()*3.5;
+      ctx.moveTo(x-Math.cos(a)*len,y-Math.sin(a)*len*0.5);
+      ctx.lineTo(x+Math.cos(a)*len*0.4,y+Math.sin(a)*len*0.2);
+      ctx.lineTo(x+Math.cos(a)*len,y+Math.sin(a)*len*0.5);
+    }
+    ctx.stroke();
+  } else if (tex==='flag'){
+    // Cut flagstone: a couple of big plates per tile, overlapping so the base
+    // colour showing between them reads as the JOINT. The first cut used four
+    // plates a third this size, which floated as separate shards on a slab —
+    // laid stone is defined by its joints, so the plates have to be large
+    // enough to run off the tile and meet the neighbouring ones.
+    for (let i=0;i<3;i++){
+      const rx=15+rs()*10; grainSite(sx,cy,rx,rx*0.50,rs); grainPush(rx,rx*0.50,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[0],0.6,1.0,1.05);           // joint shadow
+    grainChips(ctx,T[1],0,0,1,0,3);
+    grainChips(ctx,T[2],0,0,1,1,3);
+    grainChips(ctx,T[3],0,0,1,2,3);
+  }
+}
+/* `skipBase` is set by the organic path, where paintTerrainBlobs has already
+   filled the whole region in one go: repainting the base per tile inside it
+   only re-covers ground that is already covered, and it is a full-tile fill —
+   the most expensive kind — on every tile of every bed. */
+function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase){
+  // The material's grain recipe and palette both come from its data entry, so a
+  // "Bark mulch" path and a bark-mulch bed are the same material rather than two
+  // tints of one generic speckle.
+  const mat = terr==='bed' ? bedStyle(terrObj&&terrObj.c)
+            : path ? pathColor(terrObj&&terrObj.c) : null;
+  // A material's base is bled half a pixel past the tile so neighbouring
+  // diamonds overlap. Two antialiased fills that merely ABUT leave a hairline
+  // of whatever is underneath along every shared edge — invisible while the
+  // bevel stroke below covered it, and a full tile grid the moment a material
+  // stopped drawing that stroke.
+  if (!skipBase){ isoDiamondPath(ctx,sx,sy,mat?-0.6:0); ctx.fillStyle=base; ctx.fill(); }
+  // Grass (and the flagstone doorstep) keep the bevelled tile: the lit facet,
+  // the shaded skirt and the seam are what give a lawn its isometric relief.
+  // A MATERIAL gets a flat base instead, because that bevel and seam are drawn
+  // per tile and a continuous gravel bed with a grid stamped across it does not
+  // read as gravel — it reads as a tilemap. Its relief comes from the grain,
+  // which does not know where the tile edges are. Under snow nothing else is
+  // visible, so the bevel is all the relief there is and every tile keeps it.
+  if (!mat || amb.snow){
+    const top=toneColor(base,amb.snow?12:9), bottom=toneColor(base,-9);
+    fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],top);
+    fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],bottom);
+    ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1;
+    isoDiamondPath(ctx,sx,sy,0); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.moveTo(sx,sy+1); ctx.lineTo(sx+TILE_W/2-1,sy+TILE_H/2); ctx.stroke();
+  }
   if (amb.snow) return;
   ctx.save();
-  if (terr==='bed'){
-    const bs=bedStyle(terrObj&&terrObj.c);
-    if (bs.texture==='gravel'){
-      for (let i=0;i<10;i++){ ctx.beginPath();
-        ctx.fillStyle=i%2?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.16)';
-        ctx.ellipse(sx+(rs()-0.5)*34, sy+TILE_H/2+(rs()-0.5)*13, 1.2+rs()*1.2, 0.7+rs()*0.8, rs()*3,0,7); ctx.fill(); }
-    } else if (bs.texture==='rock'){
-      for (let i=0;i<6;i++){
-        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12;
-        ctx.fillStyle=i%2?'rgba(240,236,224,0.18)':'rgba(30,28,25,0.20)';
-        ctx.beginPath(); ctx.ellipse(ox,oy,2.8+rs()*2.2,1.6+rs()*1.2,rs()*3,0,7); ctx.fill();
-        ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.7; ctx.stroke();
-      }
-    } else if (bs.texture==='leaf'){
-      const cols=['rgba(173,112,54,0.44)','rgba(91,56,31,0.42)','rgba(196,142,76,0.30)'];
-      for (let i=0;i<7;i++){
-        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12, a=rs()*Math.PI;
-        ctx.fillStyle=cols[i%cols.length];
-        ctx.beginPath(); ctx.ellipse(ox,oy,3.8,1.2,a,0,7); ctx.fill();
-        ctx.strokeStyle='rgba(40,26,16,0.20)'; ctx.lineWidth=0.6;
-        ctx.beginPath(); ctx.moveTo(ox-Math.cos(a)*3,oy-Math.sin(a)*1.1); ctx.lineTo(ox+Math.cos(a)*3,oy+Math.sin(a)*1.1); ctx.stroke();
-      }
-    } else if (bs.texture==='mulch'){
-      ctx.strokeStyle='rgba(30,16,10,0.34)'; ctx.lineWidth=2;
-      for (let i=0;i<8;i++){
-        const ox=sx+(rs()-0.5)*32, oy=sy+TILE_H/2+(rs()-0.5)*12;
-        ctx.beginPath(); ctx.moveTo(ox-3-rs()*2,oy); ctx.lineTo(ox+4+rs()*3,oy+(rs()-0.5)*4); ctx.stroke();
-      }
-    } else {
-      ctx.fillStyle='rgba(18,11,7,0.16)';
-      for (let i=0;i<5;i++){ ctx.beginPath();
-        ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*12, 2.2+rs()*1.4, 0.8+rs()*0.9, rs()*3,0,7); ctx.fill(); }
-      ctx.strokeStyle='rgba(239,230,211,0.05)';
-      for (let i=0;i<2;i++){ ctx.beginPath();
-        const ox=sx+(rs()-0.5)*28, oy=sy+TILE_H/2+(rs()-0.5)*11;
-        ctx.moveTo(ox-4,oy); ctx.lineTo(ox+5,oy+(rs()-0.5)*2); ctx.stroke(); }
-    }
-  } else if (path){
-    ctx.fillStyle='rgba(255,255,255,0.13)';
-    for (let i=0;i<6;i++){ ctx.beginPath();
-      ctx.ellipse(sx+(rs()-0.5)*34, sy+TILE_H/2+(rs()-0.5)*12, 1.3+rs()*1.2, 0.7+rs()*0.6, rs()*3,0,7); ctx.fill(); }
-    ctx.fillStyle='rgba(0,0,0,0.12)';
-    for (let i=0;i<3;i++){ ctx.beginPath();
-      ctx.ellipse(sx+(rs()-0.5)*32, sy+TILE_H/2+(rs()-0.5)*10, 1.3,0.8,rs()*3,0,7); ctx.fill(); }
+  if (mat){
+    drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat.texture,mat.tones,base,rs);
   } else {
     const blades=2+((x*17+y*11)&1);
     for (let i=0;i<blades;i++){
