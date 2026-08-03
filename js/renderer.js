@@ -206,18 +206,35 @@ function mergeCollinearClosed(pts){
   }
   return out.length>2?out:pts;
 }
-// Expand a traced loop (corners only) back to unit tile edges, classifying
-// each edge by what sits on its OUTSIDE: another region's material = HARD
-// (butt exactly), grass = SOFT (smooth organically). The plot boundary is
-// hard too — a bed painted to the edge of the plot runs exactly to it (leave
-// a grass tile if you want a margin). Orientation-free: of the two tiles
-// flanking an edge, the one not in the region is out.
-function terrainUnitEdges(loop, set, solid){
+/* Expand a traced loop (corners only) back to unit tile edges, classifying each
+   edge by what sits on its OUTSIDE. Grass = SOFT (smooth organically). The plot
+   boundary is hard — a bed painted to the edge of the plot runs exactly to it
+   (leave a grass tile if you want a margin). Orientation-free: of the two tiles
+   flanking an edge, the one not in the region is out.
+
+   Against another material the answer is TERRAIN_RANK, not a flat "hard":
+   - the neighbour outranks me  -> HARD and COVERED. It is painted after me and
+     its curve will land on my fill, so I stay exact and skip my stroke there;
+     stroking it would outline a staircase the fill no longer shows.
+   - same rank (bed vs bed, two path colours) -> HARD. Both stay exact and butt,
+     which is right and is what this has always done.
+   - I outrank the neighbour -> SOFT. A path laid through a bed keeps one
+     continuous organic edge for its whole run; anything the curve cuts away
+     reveals the bed underneath rather than a sliver of lawn.
+   That last case is the whole point: judging by "is the neighbour solid" made a
+   path smooth over grass and a raw tile staircase the moment it entered a bed,
+   flipping treatment four times along one run. */
+function terrainUnitEdges(loop, set, solid, myRank, rankAt){
   const edges=[];
-  const hardOut=(key)=>{
-    if (solid[key]) return true;
+  const SOFT=0, HARD=1, COVERED=2;
+  const classify=(key)=>{
+    if (solid[key]){
+      const r=rankAt[key];
+      if (r<myRank) return SOFT;                 // laid over it: draw organic, on top
+      return r>myRank ? COVERED : HARD;
+    }
     const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
-    return !onPlot(ox,oy);      // beyond the plot rectangle, or off an irregular lot shape
+    return onPlot(ox,oy) ? SOFT : HARD;          // grass smooths; the plot line does not
   };
   for (let i=0;i<loop.length;i++){
     const a=loop[i], b=loop[(i+1)%loop.length];
@@ -230,13 +247,21 @@ function terrainUnitEdges(loop, set, solid){
         out = set.has(t1) ? t2 : t1; }
       else { const ty=Math.min(y,ny), t1=`${x-1},${ty}`, t2=`${x},${ty}`;
         out = set.has(t1) ? t2 : t1; }
-      edges.push({a:[x,y], b:[nx,ny], hard:hardOut(out)});
+      const cls=classify(out);
+      // `over` marks the soft edges I get because I am LAID OVER the neighbour,
+      // as opposed to the soft edges I get because the neighbour is lawn. Those
+      // are the ones the bleed in terrainLoopArcs applies to, and `n` is the
+      // outward unit normal it moves along.
+      const over = cls===SOFT && !!solid[out];
+      const oc=out.indexOf(','), ox=+out.slice(0,oc), oy=+out.slice(oc+1);
+      const nrm = dx!==0 ? [0, oy===y ? 1 : -1] : [ox===x ? 1 : -1, 0];
+      edges.push({a:[x,y], b:[nx,ny], hard:cls!==SOFT, covered:cls===COVERED, over, n:nrm});
       x=nx; y=ny;
     }
   }
   return edges;
 }
-function finishTerrainArc(hard, pts){
+function finishTerrainArc(hard, pts, covered){
   pts=mergeCollinearOpen(pts);
   if (!hard && pts.length>2){
     // A pinch lobe's arc starts and ends on the SAME corner, so the DP chord
@@ -259,18 +284,51 @@ function finishTerrainArc(hard, pts){
     for (let i=1;i<pts.length-1;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
       pts[i]=[pts[i][0]+jx*0.55, pts[i][1]+jy*0.55]; }
   }
-  return {hard, pts};
+  return {hard, covered:!!covered, pts};
 }
 // Split one loop's unit edges into maximal same-hardness arcs, cutting also at
 // pinch corners so those corners stay exact and lobes kiss: same-region
 // pinches (useCount>=2: the boundary passes through the corner twice) and
 // cross-material saddles (two solid tiles meeting only at this corner across
 // grass — e.g. a soil bed corner touching a path corner diagonally).
+/* How far a region's edge is bled outward where it is LAID OVER a lower-ranked
+   one, in tiles. The loser stops exactly on the shared tile line, but the
+   winner's smoothed edge curves back INSIDE that line and the strip between
+   them is unpainted — a ribbon of lawn down both sides of every path that
+   crosses a bed. Bleeding the winner out by roughly what the smoothing then
+   cuts back (a Douglas-Peucker chord across a 45-degree staircase gives up
+   ~0.35) lands the curve on the tile line instead of inside it.
+
+   It is the WINNER that bleeds, not the loser. Skirting the loser under the
+   winner closes the same gap and was tried first, but it eats the winner from
+   both sides: a one-tile-wide path crossing a bed lost half a tile to each
+   skirt and broke into disconnected lozenges. The winner can always bleed
+   safely, because whatever it covers is the loser's fill by definition. */
+const LAID_OVER_BLEED = 0.45;
 function terrainLoopArcs(es, useCount, saddle){
   const n=es.length;
+  /* Bleed every lattice point that touches a laid-over edge. Doing it per POINT
+     rather than per arc is what keeps the silhouette closed: the corner where a
+     laid-over arc meets a lawn-facing one is a single point shared by both, so
+     both arcs move with it and no step opens between them. Components are
+     clamped to +-1 so a straight run moves by one normal and a right-angle
+     corner moves along the diagonal — the correct miter for a rectilinear loop. */
+  const off={};
+  for (const e of es){
+    if (!e.over) continue;
+    for (const p of [e.a,e.b]){
+      const k=p[0]+','+p[1], o=off[k]||(off[k]=[0,0]);
+      o[0]=Math.max(-1,Math.min(1,o[0]+e.n[0]));
+      o[1]=Math.max(-1,Math.min(1,o[1]+e.n[1]));
+    }
+  }
+  const P=p=>{ const o=off[p[0]+','+p[1]];
+    return o ? [p[0]+o[0]*LAID_OVER_BLEED, p[1]+o[1]*LAID_OVER_BLEED] : p; };
   const isCut=i=>{
     const prev=es[(i+n-1)%n];
-    if (prev.hard!==es[i].hard) return true;
+    // covered changes as well as hard: an arc has to be uniformly one or the
+    // other, because the stroke pass emits whole arcs
+    if (prev.hard!==es[i].hard || prev.covered!==es[i].covered) return true;
     const v=es[i].a;
     if (useCount[v.join(',')]>=2) return true;
     return !!(saddle && saddle(v[0],v[1]));
@@ -278,30 +336,44 @@ function terrainLoopArcs(es, useCount, saddle){
   const cuts=[];
   for (let i=0;i<n;i++) if (isCut(i)) cuts.push(i);
   if (!cuts.length){                       // uniform loop, no pins — closed treatment
-    const raw=es.map(e=>e.a), hard=es[0].hard;
+    const raw=es.map(e=>P(e.a)), hard=es[0].hard;
     let pts=mergeCollinearClosed(raw);
     if (!hard){
       pts=simplifyClosedLoop(pts, TERRAIN_SIMPLIFY_EPS)
         .map(([x,y])=>{ const [jx,jy]=planJitter(x,y); return [x+jx*0.55, y+jy*0.55]; });
     }
-    return {closed:true, hard, pts};
+    return {closed:true, hard, covered:!!es[0].covered, pts};
   }
   const arcs=[];
   for (let c=0;c<cuts.length;c++){
     const i0=cuts[c], i1=cuts[(c+1)%cuts.length];
     let len=(i1-i0+n)%n; if (len===0) len=n;
-    const pts=[]; for (let s=0;s<=len;s++) pts.push(es[(i0+s)%n].a);
-    arcs.push(finishTerrainArc(es[i0].hard, pts));
+    const pts=[]; for (let s=0;s<=len;s++) pts.push(P(es[(i0+s)%n].a));
+    arcs.push(finishTerrainArc(es[i0].hard, pts, es[i0].covered));
   }
   return {closed:false, arcs};
 }
+const _tlMid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+// One arc onto the current path. Hard arcs are exact lines; soft arcs are
+// midpoint-quadratic splines pinned to their endpoints.
+function terrainArcPath(ctx, arc, proj, moveFirst){
+  const pts=arc.pts.map(proj);
+  if (moveFirst) ctx.moveTo(pts[0][0],pts[0][1]);
+  if (arc.hard || pts.length<3){
+    for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  } else {
+    for (let i=1;i<pts.length-1;i++){
+      const end = i===pts.length-2 ? pts[i+1] : _tlMid(pts[i],pts[i+1]);
+      ctx.quadraticCurveTo(pts[i][0],pts[i][1], end[0],end[1]);
+    }
+  }
+}
 /* Append one cached region loop to the current ctx path through an arbitrary
    projector ([gx,gy] tile corners → canvas px) — the garden (iso + elevation
-   lift) and the plan sheet (flat paper) draw the SAME geometry. Hard arcs are
-   straight exact lines; soft arcs are midpoint-quadratic splines pinned to
-   their endpoints; fully-soft loops keep the original closed spline. */
+   lift) and the plan sheet (flat paper) draw the SAME geometry. This is the
+   SILHOUETTE, used for the fill and the clip: every arc, closed. */
 function terrainLoopPath(ctx, loop, proj){
-  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const mid=_tlMid;
   if (loop.closed){
     const pts=loop.pts.map(proj);
     if (loop.hard || pts.length<3){
@@ -313,19 +385,19 @@ function terrainLoopPath(ctx, loop, proj){
       ctx.quadraticCurveTo(pts[i][0],pts[i][1],nn[0],nn[1]); }
     ctx.closePath(); return;
   }
-  loop.arcs.forEach((arc,ai)=>{
-    const pts=arc.pts.map(proj);
-    if (ai===0) ctx.moveTo(pts[0][0],pts[0][1]);
-    if (arc.hard || pts.length<3){
-      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
-    } else {
-      for (let i=1;i<pts.length-1;i++){
-        const end = i===pts.length-2 ? pts[i+1] : mid(pts[i],pts[i+1]);
-        ctx.quadraticCurveTo(pts[i][0],pts[i][1], end[0],end[1]);
-      }
-    }
-  });
+  loop.arcs.forEach((arc,ai)=> terrainArcPath(ctx,arc,proj,ai===0));
   ctx.closePath();
+}
+/* The OUTLINE, used for the edge stroke: the same geometry minus the arcs a
+   higher-ranked region covers. A bed whose neighbour is a path stays exact
+   along that boundary so the path's curve has something to land on — but the
+   path is drawn over it, so stroking the bed there would outline a tile
+   staircase the fill no longer shows. Each surviving arc is its own subpath;
+   they still tile the loop end to end, so a fully-uncovered loop strokes
+   exactly as it did when this was one closed path. */
+function terrainLoopStroke(ctx, loop, proj){
+  if (loop.closed){ if (!loop.covered) terrainLoopPath(ctx,loop,proj); return; }
+  for (const arc of loop.arcs) if (!arc.covered) terrainArcPath(ctx,arc,proj,true);
 }
 function buildTerrainRegions(){
   const sig=terrainRegionKey();
@@ -333,10 +405,12 @@ function buildTerrainRegions(){
       terrainLoopCache.elevRef===game.elevation) return terrainLoopCache.regions;
   const solid={};  // every live terrain tile, any material — the hardness lookup
   const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
+  const rankAt={}; // "x,y" -> TERRAIN_RANK: which of two materials is laid on top
   for (const k in game.terrain){ const o=game.terrain[k];
     if (!o || o.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     solid[k]=true;
+    rankAt[k]=terrainRank(o.k);
     keyOf[k]=o.k+'|'+(o.c||'')+'|'+(elevationAt(x,y)||0);
   }
   const seen={}, regions=[];
@@ -358,7 +432,8 @@ function buildTerrainRegions(){
     }
     const o=game.terrain[k];
     const ci=k.indexOf(',');
-    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid));
+    const rank=terrainRank(o.k);
+    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt));
     const useCount={};
     for (const es of unit) for (const e of es){
       const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
@@ -369,10 +444,13 @@ function buildTerrainRegions(){
       const nw=sTile(x-1,y-1), ne=sTile(x,y-1), sw=sTile(x-1,y), se=sTile(x,y);
       return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
     };
-    regions.push({ kind:o.k, c:o.c, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
+    regions.push({ kind:o.k, c:o.c, rank, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
       loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle)) });
   }
-  regions.sort((a,b)=>a.elev-b.elev);   // higher terraces paint over lower edges
+  // Elevation first — higher terraces paint over lower edges — then rank, so a
+  // path lands on the bed it runs through rather than the other way round. The
+  // soft-edge classification above assumes exactly this order.
+  regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
   terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
   return regions;
 }
@@ -412,9 +490,10 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
     ctx.restore();
-    // one continuous edge stroke (replaces the per-tile diamond strokes)
+    // one continuous edge stroke (replaces the per-tile diamond strokes),
+    // skipping boundaries a higher-ranked region is about to cover
     ctx.beginPath();
-    for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
+    for (const loop of region.loops) terrainLoopStroke(ctx,loop,proj);
     ctx.strokeStyle = isWater ? (amb.snow?'rgba(255,255,255,0.5)':waterStyle(region.c).edge)
       : region.kind==='path' ? 'rgba(60,48,34,0.32)' : 'rgba(48,36,24,0.30)';
     ctx.lineWidth=1.6; ctx.stroke();

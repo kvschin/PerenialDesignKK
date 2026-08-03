@@ -809,6 +809,10 @@ function buildPlanMap(){
       ctx.beginPath();
       for (const loop of region.loops) terrainLoopPath(ctx,loop,planProj);
       ctx.fill('evenodd');
+      // outline separately: the silhouette fills, but a boundary a higher-ranked
+      // region covers must not be drawn as an edge on the sheet either
+      ctx.beginPath();
+      for (const loop of region.loops) terrainLoopStroke(ctx,loop,planProj);
       ctx.strokeStyle='rgba(88,70,52,0.5)'; ctx.lineWidth=1.1;
       ctx.stroke();
     }

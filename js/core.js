@@ -255,6 +255,17 @@ const WATER_STYLES = [
 ];
 function waterStyle(id){ return WATER_STYLES.find(c=>c.id===id)||WATER_STYLES[0]; }
 function waterStyleId(id){ return waterStyle(id).id; }
+/* Which material is laid ON which, when two of them meet. A path is laid over a
+   bed — you cut a path THROUGH planting, the bed does not stop and restart — so
+   a path outranks a bed, and a bed outranks the water it runs down to.
+   The organic renderer needs this because smoothing a boundary means pulling
+   the edge in off the tile line, and if BOTH sides do that a sliver of lawn
+   opens between them. Only one side has to stay exact, though: rank decides
+   which, the higher rank is painted last, and its curve lands on the other's
+   fill rather than on grass. Materials of equal rank (two bed styles, two path
+   colours) both stay exact and butt, which is what they should do. */
+const TERRAIN_RANK = { water:0, bed:1, path:2 };
+function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?1:r; }
 // terrain edge look: crisp tiles for the structured styles, smoothed curves
 // for the naturalistic ones. Seeds game.edgeStyle from the questionnaire.
 const FORMAL_EDGE_STYLES=['formal','modern','japanese'];

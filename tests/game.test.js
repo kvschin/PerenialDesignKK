@@ -1109,29 +1109,73 @@ test('organic terrain traces contiguous same-material tiles into regions', () =>
   assertEqual(buildTerrainRegions().length, 4, 'a different bed colour splits into its own region');
 });
 
-test('organic regions: material boundaries are hard, grass edges stay soft', () => {
+test('organic regions: peer materials butt exactly, grass edges stay soft', () => {
   setup(21, 21);
-  // a bed with a path butted against its east side
+  // two bed styles butted against each other — equal rank, so neither is laid
+  // over the other and both stay exact on the shared line
   for (let y = 5; y <= 8; y++) for (let x = 3; x <= 6; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch', t: 1 });
-  for (let y = 5; y <= 8; y++) for (let x = 7; x <= 9; x++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  for (let y = 5; y <= 8; y++) for (let x = 7; x <= 9; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'gravel', t: 1 });
   const regions = buildTerrainRegions();
-  assertEqual(regions.length, 2, 'bed and path are separate regions');
-  const bed = regions.find(r => r.kind === 'bed');
-  assert(!bed.loops[0].closed, 'a butted region splits into arcs');
-  const hard = bed.loops[0].arcs.filter(a => a.hard);
-  const soft = bed.loops[0].arcs.filter(a => !a.hard);
-  assert(hard.length >= 1 && soft.length >= 1, 'the loop has both hard and soft arcs');
-  // the shared boundary is the x=7 tile line, exact and unjittered
-  const sharedPts = hard.flatMap(a => a.pts);
-  assert(sharedPts.every(([x, y]) => Number.isInteger(x) && Number.isInteger(y)),
-    'hard arc points are exact tile corners (no jitter)');
-  assert(sharedPts.some(([x]) => x === 7), 'the hard arc lies on the shared tile line');
-  // soft arc endpoints stay pinned on the lattice so curves land on real corners
-  for (const a of soft){
-    const first = a.pts[0], last = a.pts[a.pts.length - 1];
-    assert(Number.isInteger(first[0]) && Number.isInteger(first[1]), 'soft arc start pinned');
-    assert(Number.isInteger(last[0]) && Number.isInteger(last[1]), 'soft arc end pinned');
+  assertEqual(regions.length, 2, 'the two bed styles are separate regions');
+  for (const r of regions){
+    assert(!r.loops[0].closed, 'a butted region splits into arcs');
+    const hard = r.loops[0].arcs.filter(a => a.hard);
+    const soft = r.loops[0].arcs.filter(a => !a.hard);
+    assert(hard.length >= 1 && soft.length >= 1, 'the loop has both hard and soft arcs');
+    assert(hard.every(a => !a.covered), 'neither peer is covered by the other');
+    const sharedPts = hard.flatMap(a => a.pts);
+    assert(sharedPts.every(([x, y]) => Number.isInteger(x) && Number.isInteger(y)),
+      'an uncovered hard arc keeps exact tile corners (no jitter, no skirt)');
+    assert(sharedPts.some(([x]) => x === 7), 'the hard arc lies on the shared tile line');
+    for (const a of soft){
+      const first = a.pts[0], last = a.pts[a.pts.length - 1];
+      assert(Number.isInteger(first[0]) && Number.isInteger(first[1]), 'soft arc start pinned');
+      assert(Number.isInteger(last[0]) && Number.isInteger(last[1]), 'soft arc end pinned');
+    }
   }
+});
+
+test('a path is laid over the bed it runs through, not butted against it', () => {
+  setup(21, 21);
+  // a bed with a path cut clean through it, grass -> bed -> path -> bed -> grass
+  for (let y = 4; y <= 12; y++) for (let x = 3; x <= 12; x++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch', t: 1 });
+  for (let y = 4; y <= 12; y++) for (let x = 7; x <= 8; x++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  const regions = buildTerrainRegions();
+  const path = regions.filter(r => r.kind === 'path');
+  const beds = regions.filter(r => r.kind === 'bed');
+  assertEqual(path.length, 1, 'one path region');
+  assertEqual(beds.length, 2, 'the path splits the bed in two');
+
+  // rank decides who is on top, and paint order has to agree with it
+  assert(terrainRank('path') > terrainRank('bed'), 'a path outranks a bed');
+  assertEqual(regions[regions.length - 1].kind, 'path', 'the path paints last');
+
+  // a loop is either one closed curve or a run of arcs; read both the same way
+  const loopParts = loop => loop.closed ? [loop] : loop.arcs;
+  const loopPts = loop => loopParts(loop).flatMap(a => a.pts);
+
+  // the path keeps ONE continuous organic edge for its whole run: nothing of it
+  // is hard except where it meets the plot boundary, which is nowhere here
+  const pathParts = loopParts(path[0].loops[0]);
+  assert(pathParts.every(a => !a.hard),
+    'the path has no hard edge — it does not turn into a tile staircase inside the bed');
+  assert(pathParts.every(a => !a.covered), 'and nothing is laid over the path');
+
+  // the bed stays exact along that boundary, so the path's edge has the bed's
+  // own fill to land on however far it curves
+  for (const bed of beds){
+    const covered = loopParts(bed.loops[0]).filter(a => a.covered);
+    assert(covered.length >= 1, 'the bed knows the path covers that boundary');
+    assert(covered.every(a => a.hard), 'a covered boundary stays exact');
+    assert(covered.flatMap(a => a.pts).every(([x, y]) => Number.isInteger(x) && Number.isInteger(y)),
+      'the loser does not move: bleeding it under the winner would eat a narrow winner alive');
+  }
+  // the path bleeds OUT past the shared lines, so smoothing cuts it back to
+  // roughly the tile line rather than to somewhere inside it
+  const px = loopPts(path[0].loops[0]).map(([x]) => x);
+  assert(px.some(x => x < 7), 'the path bleeds west past the x=7 line, into the bed');
+  assert(px.some(x => x > 9), 'the path bleeds east past the x=9 line, into the bed');
+  assert(px.every(x => x > 7 - 1 && x < 9 + 1), 'and the bleed stays under a tile, so it cannot reach lawn');
 });
 
 test('organic regions: diagonal same-material tiles join one region and pin the pinch', () => {

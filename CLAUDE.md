@@ -118,7 +118,8 @@ logic is split across ordered modules. They map onto the section list below
 - **`core.js`** — constants, `AMBIENCE`, `COATS`, device preferences (haptics
   and left-handed mobile layout), shared color helpers such as `mixHex`, the
   path/bed/water/fence/light/firepit/house data tables (each ground material
-  carrying its own `texture` grain recipe + `tones` palette, §11a), and
+  carrying its own `texture` grain recipe + `tones` palette, §11a, and its
+  `TERRAIN_RANK` — which material is laid on which, §11), and
   `plantDef` (cultivar merge cache, including optional per-season
   `flowerColorFamilies` overrides for catalog discovery).
 - **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
@@ -320,24 +321,45 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     each boundary, and the geometry is cached in world tile-corner space in
     `terrainLoopCache` keyed by `terrainRev` (elevation edits bump it too), so
     tracing runs only on edit, **never per pan frame**. Each boundary is
-    classified into **arcs** (`terrainUnitEdges`/`terrainLoopArcs`): **hard**
-    arcs — shared with another region (other material/colour/elevation) — draw
-    as exact tile lines with no jitter, so beds and paths **butt seamlessly**
-    and painted corners stay corners (the **plot boundary is hard too** — a bed
-    painted to the plot edge runs exactly into the plot corner; leave a grass
-    tile for a margin); **soft** arcs — facing grass — are
-    Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
+    classified into **arcs** (`terrainUnitEdges`/`terrainLoopArcs`), and what
+    decides the classification is **`TERRAIN_RANK`** (core.js) — which material
+    is laid ON which, `water:0 < bed:1 < path:2`:
+    **soft** arcs — facing grass, *or* facing a material this region outranks —
+    are Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
     pre-jittered inward (`planJitter`) on interiors only, and drawn as
-    midpoint-quadratic splines **pinned to their endpoints**; **pinch corners**
-    are pinned exact so lobes kiss instead of gapping — both same-region
-    8-connected diagonal touches (`useCount>=2`) and **cross-material saddles**
-    (a soil bed corner touching a path corner diagonally pins the shared
-    corner in BOTH regions, so different materials connect there too). `terrainLoopPath(ctx, loop, proj)` renders the
+    midpoint-quadratic splines **pinned to their endpoints**;
+    **hard** arcs — facing a peer (another bed style, another path colour) or the
+    **plot boundary** — draw as exact tile lines with no jitter, so peers **butt
+    seamlessly** and painted corners stay corners (a bed painted to the plot edge
+    runs exactly into the plot corner; leave a grass tile for a margin);
+    **covered** arcs are hard arcs facing a material that outranks this one —
+    exact, and **not stroked** (`terrainLoopStroke`), because the region above is
+    painted after and its curve lands on this fill.
+    Rank is why **a path crossing a bed stays one flowing ribbon**. Judging an
+    edge merely by "is the neighbour solid" made a path smooth over lawn and a
+    raw tile staircase the instant it entered a bed — one run flipping treatment
+    four times, which is the tilemap showing through exactly where the design is
+    most deliberate. Regions sort by `elev` then `rank`, so the winner paints
+    last, and the winner's laid-over edges bleed outward by `LAID_OVER_BLEED`
+    (≈0.45 tile, roughly what DP then cuts back) so its curve lands *on* the
+    tile line rather than inside it. Bleeding the LOSER under the winner closes
+    the same gap and was tried first: it eats the winner from both sides, and a
+    one-tile path crossing a bed broke into disconnected lozenges. The bleed is
+    applied per **point**, not per arc, so the corner where a laid-over arc meets
+    a lawn-facing one moves with both and no step opens between them.
+    **Pinch corners** are pinned exact so lobes kiss instead of gapping — both
+    same-region 8-connected diagonal touches (`useCount>=2`) and
+    **cross-material saddles** (a soil bed corner touching a path corner
+    diagonally pins the shared corner in BOTH regions).
+    `terrainLoopPath(ctx, loop, proj)` renders the
     cached arcs through an arbitrary projector — the garden uses
     `screenOfFlat` + terrace lift, and **`openPlan` uses the same function**
     projected to paper, so the plan sheet finally matches the garden (formal
-    gardens keep crisp per-tile cells in both). The per-tile texture pass runs
+    gardens keep crisp per-tile cells in both); `terrainLoopStroke` is the same
+    geometry minus covered arcs, and both surfaces stroke through it. Known
+    limitation, pre-dating all of this: a **one-tile-wide diagonal** region necks
+    into lozenges under the smoothing, on lawn as much as in a bed. The per-tile texture pass runs
     **clipped** to the blob (grain/ripples preserved) with one
     continuous edge stroke — grass still shows in soft cut corners; it passes
     `skipBase` (§11a) because the region silhouette already filled the base.
