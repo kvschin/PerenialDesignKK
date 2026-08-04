@@ -112,7 +112,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
     else if (terr==='bed'){ rs(); col = bedFill(terrObj,amb); }
     else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
     drawElevationSides(ctx,W,H,x,y,col);
-    if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb,t);
+    if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
     else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
     drawElevationRim(ctx,sx,sy,elevationAt(x,y));
     if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
@@ -473,7 +473,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.fillStyle=base; ctx.fill('evenodd');
-    // per-tile texture, clipped to the blob (gravel/mulch/ripples preserved)
+    // per-tile texture, clipped to the blob (grain/surface marks preserved)
     ctx.save();
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
@@ -483,7 +483,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
       const [sx,sy]=screenOf(tx,ty,W,H);
       const rs=mulberry(tileSeed(tx,ty));
-      if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,t);
+      if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
       // skipBase: the region silhouette above already laid this material's base
       // across every one of these tiles, so the per-tile base fill would only
       // repaint it — a full-tile fill on every tile of every bed.

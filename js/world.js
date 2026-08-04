@@ -1754,28 +1754,284 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   }
   ctx.restore();
 }
-function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,t){
+/* ---------- water ----------
+   Pond, river and lake used to be three tints of one thing: the same bevelled
+   tile, the same two ripple ellipses, and a `t` term that read as an animation
+   but could not be one — the ground is BAKED, so all it did was make each
+   rebake differ slightly from the last. It is gone.
+
+   What actually separates them is not colour, it is DEPTH and FLOW, and neither
+   is a property of a tile: depth is how far the tile is from the bank, and a
+   river's flow runs along its channel. So both are derived once per terrain
+   edit into a field cached on `terrainRev` — the same budget as the region
+   traces, never per frame — and the recipes read it.
+
+   Depth is a distance transform seeded from every water tile that touches a
+   bank. Flow is the axis along which water runs FURTHEST, probed a few tiles
+   each way: on a channel that is the channel, and on open water no axis wins,
+   which is the correct answer for a pond. Deriving flow from the gradient of
+   the depth field is tempting and wrong — the gradient vanishes along the
+   centreline, exactly where the flow matters most. */
+const WATER_PROBE = 7;                 // how far to look for the long axis, tiles
+const WATER_AXES = [[1,0],[1,1],[0,1],[1,-1]];
+let _waterField = {key:'', ref:null, depth:null, ax:null, max:0, any:false};
+function waterField(){
+  const key = game.terrainRev+'|'+GW+'x'+GH;
+  if (_waterField.key===key && _waterField.ref===game.terrain) return _waterField;
+  const n=GW*GH, raw=new Float32Array(n), depth=new Float32Array(n), ax=new Int8Array(n);
+  let any=false, max=0;
+  const isW=(x,y)=> x>=0&&y>=0&&x<GW&&y<GH && tileTerrain(x,y)==='water';
+  /* Two-pass chamfer, not a 4-connected flood. A flood measures MANHATTAN
+     distance, whose contours are diamonds, and once those are quantised into
+     colour bands a pond renders as a stepped pyramid with the tile grid running
+     through it. The (1, sqrt2) chamfer is near-Euclidean, so its contours
+     follow the bank. Out of bounds counts as bank. */
+  const D=1e9, SQ=1.41421356;
+  for (let i=0;i<n;i++) raw[i]=D;
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    if (isW(x,y)) any=true; else raw[y*GW+x]=0;
+  }
+  if (!any){ _waterField={key,ref:game.terrain,depth,ax,max:0,any:false}; return _waterField; }
+  const at=(x,y)=> (x<0||y<0||x>=GW||y>=GH) ? 0 : raw[y*GW+x];
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    const i=y*GW+x; if (raw[i]===0) continue;
+    let v=raw[i];
+    v=Math.min(v, at(x-1,y)+1, at(x,y-1)+1, at(x-1,y-1)+SQ, at(x+1,y-1)+SQ);
+    raw[i]=v;
+  }
+  for (let y=GH-1;y>=0;y--) for (let x=GW-1;x>=0;x--){
+    const i=y*GW+x; if (raw[i]===0) continue;
+    let v=raw[i];
+    v=Math.min(v, at(x+1,y)+1, at(x,y+1)+1, at(x+1,y+1)+SQ, at(x-1,y+1)+SQ);
+    raw[i]=v;
+  }
+  // one smoothing pass: rounds the last of the chamfer's corners off, so the
+  // band edges wander instead of turning at 45 degrees
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    const i=y*GW+x;
+    if (raw[i]===0){ depth[i]=0; continue; }
+    depth[i]=(raw[i]*2 + at(x-1,y)+at(x+1,y)+at(x,y-1)+at(x,y+1))/6;
+    if (depth[i]>max) max=depth[i];
+  }
+  // Only a river has a current, and probing four axes seven tiles each way is
+  // most of this function's cost — on a plot of solid water it was ~10ms of the
+  // 15 it took to build the whole field. Ponds and lakes skip it.
+  if (any) for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    const t=terrainAt(x,y);
+    if (!t || t.removed || t.k!=='water' || waterStyle(t.c).texture!=='river'){ ax[y*GW+x]=-1; continue; }
+    let best=-1, bestRun=0;
+    for (let a=0;a<4;a++){
+      const dx=WATER_AXES[a][0], dy=WATER_AXES[a][1];
+      let run=0;
+      for (let s=1;s<=WATER_PROBE;s++){ if (!isW(x+dx*s,y+dy*s)) break; run++; }
+      for (let s=1;s<=WATER_PROBE;s++){ if (!isW(x-dx*s,y-dy*s)) break; run++; }
+      if (run>bestRun){ bestRun=run; best=a; }
+    }
+    // a run that is not clearly longer than the others is open water, not a
+    // channel: leave it unset so the recipe knows there is no current
+    ax[y*GW+x] = bestRun>=4 ? best : -1;
+  }
+  _waterField={key,ref:game.terrain,depth,ax,max,any};
+  return _waterField;
+}
+function waterDepthAt(x,y){
+  const f=waterField();
+  if (!f.any||x<0||y<0||x>=GW||y>=GH) return 1;
+  return f.depth[y*GW+x]||1;
+}
+/* The flow axis as a SCREEN direction, through the current rotation, or null on
+   open water. Length is normalised in screen space so a streamline drawn along
+   it is the same length whichever way the camera is turned. */
+const _wFlow=[0,0];
+function waterFlowAt(x,y){
+  const f=waterField();
+  if (!f.any||x<0||y<0||x>=GW||y>=GH) return null;
+  const a=f.ax[y*GW+x];
+  if (a<0) return null;
+  const wd=WATER_AXES[a];
+  // world direction -> view (the linear part of worldToView) -> screen
+  let vx,vy;
+  switch(game.rot){
+    case 1:  vx= wd[1]; vy=-wd[0]; break;
+    case 2:  vx=-wd[0]; vy=-wd[1]; break;
+    case 3:  vx=-wd[1]; vy= wd[0]; break;
+    default: vx= wd[0]; vy= wd[1];
+  }
+  let ex=(vx-vy)*TILE_W*0.5, ey=(vx+vy)*TILE_H*0.5;
+  const L=Math.sqrt(ex*ex+ey*ey)||1;
+  _wFlow[0]=ex/L; _wFlow[1]=ey/L;
+  return _wFlow;
+}
+/* Depth ramp, resolved once per style+season rather than per tile: mixHex
+   builds a string, and a per-tile colour mix on every water tile of a lake is
+   exactly the kind of per-tile allocation the grain work went to some trouble
+   to remove. `reach` is how many tiles it takes to get from bank to full
+   depth — a pond shelves fast, a lake barely shelves at all. */
+/* The four diamond edges: view direction the edge faces, then its two endpoints
+   as multiples of the tile half-width/half-height from the tile centre. Baked,
+   because building it per water tile is an allocation per tile per bake. */
+const _WEDGE = new Float64Array([
+   0,-1,  0,-1,  1, 0,      // top -> right, faces view -y
+   1, 0,  1, 0,  0, 1,      // right -> bottom, faces view +x
+   0, 1,  0, 1, -1, 0,      // bottom -> left, faces view +y
+  -1, 0, -1, 0,  0,-1,      // left -> top, faces view -x
+]);
+const WATER_BANDS = 12;
+/* mixHex parses HEX only — it does `parseInt(a.slice(1),16)` — so feeding it
+   its own `rgb(...)` output silently yields NaN channels, which is how the
+   first frozen lake came out solid black. This one goes through colorParts,
+   which reads both forms, so ramps can be built from mixed colours. */
+function mixCol(a,b,t){
+  const p=colorParts(a), q=colorParts(b), u=1-t;
+  return `rgb(${Math.round(p[0]*u+q[0]*t)},${Math.round(p[1]*u+q[1]*t)},${Math.round(p[2]*u+q[2]*t)})`;
+}
+const _wRamp = new Map();
+function waterRamp(w,frozen){
+  const key=w.id+'|'+(frozen?1:0);
+  let cols=_wRamp.get(key);
+  if (cols) return cols;
+  const shallow = frozen ? mixCol(w.fill,'#e8f0f5',0.62) : w.fill;
+  const deep    = frozen ? mixCol(w.deep,'#d7e7f0',0.50) : w.deep;
+  cols=new Array(WATER_BANDS);
+  for (let i=0;i<WATER_BANDS;i++) cols[i]=mixCol(shallow,deep,i/(WATER_BANDS-1));
+  _wRamp.set(key,cols);
+  return cols;
+}
+/* `reach` is deliberately generous — several tiles more than a real bank would
+   shelve over. A tile holds one flat colour, so the depth ramp is only ever as
+   smooth as the number of TILES it is spread across, and stretching it is what
+   keeps the per-tile step under the eye's threshold.
+
+   The obvious alternative was tried and rejected on measurement: rasterise the
+   field to one pixel per tile and blit it through the isometric matrix, letting
+   the GPU interpolate. It looks marginally better — genuinely no tile anywhere
+   — and it cost 74ms a bake for one pond on a 62ft garden, because a drawImage
+   that is both SHEARED and upscaled ~76x is a slow path (~17ms on its own,
+   worse again inside the region clip) and bounding the source rect to the
+   region changed nothing. The per-tile fill costs 0.6ms. Not worth 100x. */
+function waterDepthK(w,d){ return Math.max(0, Math.min(1,(d-1)/Math.max(1,w.reach||3))); }
+/* `depthHint` is for swatches, which are not part of any body of water and
+   would otherwise all draw as the shallowest bank tile — where a pond has no
+   lily pads and a lake has no chop, i.e. where the three look alike again. */
+function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
   const w=waterStyle(tile&&tile.c), frozen=!!amb.snow;
-  const base=frozen ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill;
-  isoDiamondPath(ctx,sx,sy,0);
-  ctx.fillStyle=base; ctx.fill();
-  fillDiamondFace(ctx,sx,sy,[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H/2]],frozen?mixHex(w.fill,'#ffffff',0.72):mixHex(w.fill,'#9ed0d4',0.18));
-  fillDiamondFace(ctx,sx,sy,[[sx,sy+TILE_H/2],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]],frozen?mixHex(w.deep,'#d7e7f0',0.55):w.deep);
-  const nbs=[[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy])=>tileTerrain(x+dx,y+dy)==='water').length;
-  ctx.strokeStyle=frozen?'rgba(255,255,255,0.48)':w.edge;
-  ctx.lineWidth=nbs<3?1.8:0.8;
-  isoDiamondPath(ctx,sx,sy,1.5); ctx.stroke();
+  const cy=sy+TILE_H/2, HX=TILE_W*0.5, HY=TILE_H*0.5;
+  const ramp=waterRamp(w,frozen);
+  const d=depthHint||waterDepthAt(x,y);
   const rr=mulberry(tileSeed(x,y)^0x517cc1);
+  const k=waterDepthK(w,d);
+  /* The depth wash is NOT a base fill and is drawn either way — it is the whole
+     point of the recipe. Skipping it inside a region, as the ground materials
+     skip their base, left every pond the one flat colour the region silhouette
+     had already painted. Safe to fill a whole diamond here because
+     paintTerrainBlobs has the region clipped, so tile corners cannot square off
+     the smoothed shoreline. */
+  isoDiamondPath(ctx,sx,sy,-0.6);                         // bled, as the materials are
+  ctx.fillStyle=ramp[Math.min(WATER_BANDS-1,Math.round(k*(WATER_BANDS-1)))];
+  ctx.fill();
+  if (!inRegion){
+    /* Shoreline, on the sides that face a bank and only those. The old code
+       stroked the whole diamond on every tile, which drew the tile grid across
+       the middle of every pond. Inside a region the blob outline already draws
+       this, which is what inRegion means here. */
+    ctx.strokeStyle=frozen?'rgba(255,255,255,0.5)':w.edge;
+    ctx.lineWidth=1.6; ctx.beginPath();
+    let anyEdge=false;
+    for (let e=0;e<4;e++){                        // unrolled over a scratch table:
+      const dvx=_WEDGE[e*6], dvy=_WEDGE[e*6+1];   // a per-tile array literal here is
+      const wd=viewDirToWorld(dvx,dvy);           // one allocation per water tile
+      if (tileTerrain(x+wd[0],y+wd[1])==='water') continue;
+      anyEdge=true;
+      ctx.moveTo(sx+_WEDGE[e*6+2]*HX, cy+_WEDGE[e*6+3]*HY);
+      ctx.lineTo(sx+_WEDGE[e*6+4]*HX, cy+_WEDGE[e*6+5]*HY);
+    }
+    if (anyEdge) ctx.stroke();
+  }
   ctx.save();
   if (frozen){
-    ctx.strokeStyle='rgba(255,255,255,0.38)'; ctx.lineWidth=0.8;
-    for (let i=0;i<2;i++){ const ox=sx+(rr()-0.5)*24, oy=sy+TILE_H/2+(rr()-0.5)*9;
-      ctx.beginPath(); ctx.moveTo(ox-6,oy); ctx.lineTo(ox+6,oy+(rr()-0.5)*4); ctx.stroke(); }
+    // Ice: sheet cracks, and the thin white rime that forms first at the edge.
+    ctx.strokeStyle='rgba(255,255,255,0.34)'; ctx.lineWidth=0.8; ctx.beginPath();
+    for (let i=0;i<3;i++){
+      const ox=sx+(rr()-0.5)*40, oy=cy+(rr()-0.5)*16, a=rr()*3.14, L=5+rr()*9;
+      ctx.moveTo(ox-Math.cos(a)*L,oy-Math.sin(a)*L*0.5);
+      ctx.lineTo(ox+Math.cos(a)*L*0.3,oy+Math.sin(a)*L*0.16);
+      ctx.lineTo(ox+Math.cos(a)*L,oy+Math.sin(a)*L*0.5);
+    }
+    ctx.stroke();
+    ctx.restore(); return;
+  }
+  // Surface marks scatter through grainSite, the same allocation-free diamond
+  // sampler the ground materials use — a local closure here would be one
+  // allocation per water tile per bake.
+  const tex=w.texture, flow=waterFlowAt(x,y);
+  if (tex==='river'){
+    // Moving water: streamlines along the channel, and a broken riffle where it
+    // runs shallow over the bed. The flow axis comes from the cached field, so
+    // the lines follow the channel round its bends instead of pointing one way.
+    const fx=flow?flow[0]:0.89, fy=flow?flow[1]:0.45;
+    // Few, long and faint. The first cut drew seven bright lines a tile and the
+    // channel came out hatched like a pencil sketch; the depth blit underneath
+    // is carrying the read, and these only have to say which way it is going.
+    ctx.strokeStyle=`rgba(232,248,250,${0.10+0.10*(1-k)})`;
+    ctx.lineWidth=0.8; ctx.beginPath();
+    for (let i=0;i<3;i++){
+      const L=9+rr()*13; grainSite(sx,cy,L*0.5,3,rr);
+      ctx.moveTo(_gpx-fx*L,_gpy-fy*L); ctx.lineTo(_gpx+fx*L,_gpy+fy*L);
+    }
+    ctx.stroke();
+    if (d<=1.6){                                // riffle, at the true margin only
+      ctx.strokeStyle='rgba(255,255,255,0.26)'; ctx.lineWidth=1; ctx.beginPath();
+      for (let i=0;i<3;i++){ const L=2+rr()*2.5; grainSite(sx,cy,4,3,rr);
+        ctx.moveTo(_gpx-fy*L,_gpy+fx*L); ctx.lineTo(_gpx+fy*L,_gpy-fx*L); }
+      ctx.stroke();
+    }
+  } else if (tex==='lake'){
+    // Open water: wind chop, all of it running the same way, thickening as the
+    // fetch grows so the middle is busier than the shore. The count carries a
+    // random term as well as the depth one — stepping it purely by depth drew
+    // the chop in concentric rings, because every tile at a depth got the same
+    // number of marks.
+    const n=1+((rr()*3 + k*4)|0);
+    ctx.strokeStyle=`rgba(236,248,252,${0.10+0.13*k})`;
+    ctx.lineWidth=0.75; ctx.beginPath();
+    for (let i=0;i<n;i++){
+      const L=3+rr()*4; grainSite(sx,cy,L,2.5,rr);
+      ctx.moveTo(_gpx-L,_gpy+L*0.16);
+      ctx.lineTo(_gpx+L,_gpy-L*0.16);
+    }
+    ctx.stroke();
   } else {
-    ctx.strokeStyle='rgba(230,248,244,0.42)'; ctx.lineWidth=0.9;
-    for (let i=0;i<2;i++){
-      const phase=Math.sin(t*0.002+i+x*0.7+y*0.4), ox=sx+(rr()-0.5)*24, oy=sy+TILE_H/2+(rr()-0.5)*8;
-      ctx.beginPath(); ctx.ellipse(ox,oy,7+phase*1.4,2.2,0,0,7); ctx.stroke();
+    /* Still water: the surface is very nearly EMPTY, which is the point — what
+       makes a pond read as a pond is that it is a mirror, and the depth blit
+       already gives it that. Everything here lives at the MARGIN: reeds in the
+       first tile off the bank, lily pads floating just beyond them. Ripples
+       across the middle were tried and read as white wire scribbled over the
+       water; the only ones left are a couple of very faint ones near the edge. */
+    if (d<=1.7){
+      ctx.strokeStyle='rgba(88,124,78,0.60)'; ctx.lineWidth=1.1; ctx.beginPath();
+      for (let i=0;i<5;i++){ const h=5+rr()*7; grainSite(sx,cy,2,2,rr);
+        ctx.moveTo(_gpx,_gpy); ctx.lineTo(_gpx+(rr()-0.5)*4,_gpy-h); }
+      ctx.stroke();
+    }
+    if (d>1.4 && d<3.2){
+      const pads=1+((rr()*2.2)|0);
+      for (let i=0;i<pads;i++){
+        const r=4.6+rr()*3.2; grainSite(sx,cy,r,r*0.5,rr);
+        const px=_gpx, py=_gpy, a=rr()*6.283;
+        ctx.fillStyle=i&1?'#4a7546':'#59864f';
+        // the notch is what makes a disc read as a lily pad rather than a coin
+        ctx.beginPath(); ctx.ellipse(px,py,r,r*0.5,0,a+0.45,a+6.283-0.45);
+        ctx.lineTo(px,py); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.10)';
+        ctx.beginPath(); ctx.ellipse(px+LIT.x*r*0.3,py+LIT.y*r*0.2,r*0.42,r*0.20,0,0,7); ctx.fill();
+      }
+    }
+    if (d<=2.6){
+      ctx.strokeStyle='rgba(236,250,250,0.13)';
+      ctx.lineWidth=0.7; ctx.beginPath();
+      const r=6+rr()*5; grainSite(sx,cy,r,2.5,rr);
+      ctx.ellipse(_gpx,_gpy,r,r*0.30,0,0,7);
+      ctx.stroke();
     }
   }
   ctx.restore();

@@ -268,10 +268,20 @@ function bedFill(t,amb){
   return mixHex(fill,'#eef2f8',snowMix);
 }
 function bedPlanFill(t){ return bedStyle(t&&t.c).plan; }
+/* Water. `fill` is the SHALLOW colour at the bank and `deep` the colour at full
+   depth; `reach` is how many tiles it takes to shelve from one to the other, and
+   is most of what tells the three apart at a glance — a pond drops away almost
+   at once, a lake barely shelves inside a garden. `texture` picks the surface:
+   still (pond), flowing (river), wind chop (lake). See the water block in
+   world.js — depth and flow are read from a cached shore-distance field, not
+   from the tile. */
 const WATER_STYLES = [
-  {id:'pond', label:'Pond', fill:'#4f8491', deep:'#2f6578', edge:'#7da7a3', plan:'#9fc8d0'},
-  {id:'river', label:'River', fill:'#5d93a8', deep:'#336f8e', edge:'#8ab4b9', plan:'#a9d2df'},
-  {id:'lake', label:'Lake', fill:'#426f8d', deep:'#254f72', edge:'#789cae', plan:'#8fb7cf'},
+  {id:'pond', label:'Pond', fill:'#5f9099', deep:'#33636f', edge:'#7da7a3', plan:'#9fc8d0',
+   texture:'pond', reach:6},
+  {id:'river', label:'River', fill:'#6f9fb0', deep:'#417d97', edge:'#8ab4b9', plan:'#a9d2df',
+   texture:'river', reach:4},
+  {id:'lake', label:'Lake', fill:'#4c7c96', deep:'#22506f', edge:'#789cae', plan:'#8fb7cf',
+   texture:'lake', reach:12},
 ];
 function waterStyle(id){ return WATER_STYLES.find(c=>c.id===id)||WATER_STYLES[0]; }
 function waterStyleId(id){ return waterStyle(id).id; }

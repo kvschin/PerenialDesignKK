@@ -129,8 +129,9 @@ logic is split across ordered modules. They map onto the section list below
   `setTile`/`clearTile` mutation helpers, §9 time helpers + phenology, shade
   constants, immutable `DIRS`/`SUN_PATH` plus the per-garden true-north
   transform, house/world data, `cam`, terrain/elevation lookup, collision
-  helpers, iso/view math, depth helpers, and §11a the ground-material grain
-  primitives + `drawGroundTexture`.
+  helpers, iso/view math, depth helpers, §11a the ground-material grain
+  primitives + `drawGroundTexture`, and §11b the water depth/flow field +
+  `drawWaterTexture`.
 - **`view.js`** — active canvas sizing, viewport/PWA sizing probes, zoom state,
   active canvas switching, resize handling, and compass/map-edge direction
   updates.
@@ -484,6 +485,42 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     28.0ms → 34.3ms formal; the all-terrain worst case 185ms → 159ms; lawn
     unchanged. No new cache key: `texture`/`tones` are static data and the
     material id is already in `groundDataSig()`.
+11b. **Water** (`waterField` + `drawWaterTexture`, world.js) — pond, river and
+    lake used to be three tints of one thing: the same bevelled tile, the same
+    two ripple ellipses, and a `t` term that looked like an animation but could
+    not be one, because the ground is BAKED. All it did was make each rebake
+    differ slightly from the last. It is gone.
+    What separates them is **depth and flow**, and neither is a property of a
+    tile — depth is how far the tile is from the bank, a river's flow runs along
+    its channel. Both are derived into a field cached on `terrainRev`
+    (`waterField`), never per frame, and read by `waterDepthAt` / `waterFlowAt`.
+    Depth is a **two-pass chamfer** transform, not a 4-connected flood: a flood
+    measures Manhattan distance, whose contours are diamonds, and banded into
+    colours that renders a pond as a stepped pyramid with the tile grid running
+    through it. Flow is the axis along which water runs FURTHEST, probed a few
+    tiles each way — on a channel that is the channel, on open water no axis
+    wins, which is the right answer for a pond. (Deriving flow from the gradient
+    of the depth field is tempting and wrong: the gradient vanishes along the
+    centreline, exactly where the flow matters.) Only a river is probed; that
+    test alone took the field build on a solid-water quarter acre from 15ms
+    to 0.7ms.
+    Each style names a `texture` (still / flowing / wind chop) and a **`reach`**
+    — how many tiles it takes to shelve from `fill` to `deep` — and reach is
+    most of what tells them apart: a pond drops away at once, a lake barely
+    shelves inside a garden. Reach is deliberately more generous than reality
+    because a tile holds one flat colour, so the ramp is only as smooth as the
+    number of TILES it spreads across. Rasterising the field one pixel per tile
+    and blitting it through the isometric matrix looks marginally better and was
+    rejected on measurement: a `drawImage` that is both SHEARED and upscaled
+    ~76x is a slow path, 74ms a bake for one pond against 0.6ms for the per-tile
+    fill, and bounding the source rect changed nothing.
+    Water keeps the same two fixes as the materials — flat base, no bevel, and
+    a shoreline stroked only on the sides that face a bank (`inRegion` says the
+    region outline already drew it). Measured 31x31 all-water, same session:
+    pond 102ms → 39ms, lake 102ms → 43ms.
+    Note `mixHex` parses HEX ONLY, so feeding it its own `rgb(...)` output
+    yields NaN channels that clamp to black — that is what made the first frozen
+    lake solid black. `mixCol` goes through `colorParts` and takes either form.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the

@@ -373,7 +373,7 @@ function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   tc.save();
   materialIconPath(tc,cx,cy,hw,hh); tc.clip();
   const sx=cx, sy=cy-TILE_H/2;                 // drawGroundTexture takes the top corner
-  if (kind==='water') drawWaterTexture(tc,sx,sy,3,7,o,amb,0);
+  if (kind==='water') drawWaterTexture(tc,sx,sy,3,7,o,amb,false,3.4);
   else {
     const rs=mulberry(materialIconSeed(id));
     if (kind==='bed') rs();                    // paintGround spends one draw before the texture

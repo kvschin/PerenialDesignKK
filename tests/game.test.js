@@ -287,6 +287,55 @@ test('no grain recipe overflows the scratch it writes into', () => {
     'a recipe staged past GRAIN_MAX and lost grains silently — raise it or thin the recipe');
 });
 
+test('water depth is a distance to the bank, and only a river carries a flow', () => {
+  setup(21, 21);
+  // a 9x9 pond: the middle is as far from a bank as this water gets
+  for (let y = 4; y <= 12; y++) for (let x = 4; x <= 12; x++) setTile('terrain', `${x},${y}`, { k: 'water', c: 'pond', t: 1 });
+  assertEqual(waterDepthAt(4, 8), 1, 'a tile against the bank is depth 1');
+  assert(waterDepthAt(8, 8) > waterDepthAt(6, 8), 'the middle is deeper than halfway out');
+  assert(waterDepthAt(6, 8) > waterDepthAt(4, 8), 'and halfway out is deeper than the bank');
+  // Manhattan distance would put the diagonal corner at the same depth as a
+  // tile straight in from the edge; the chamfer transform must not
+  assert(waterDepthAt(5, 5) < waterDepthAt(5, 8), 'a corner is shallower than a mid-edge tile the same way in');
+  assert(!waterFlowAt(8, 8), 'open water has no current');
+
+  // a 3-wide channel running east-west: flow follows the channel
+  setup(21, 21);
+  for (let y = 9; y <= 11; y++) for (let x = 1; x < 20; x++) setTile('terrain', `${x},${y}`, { k: 'water', c: 'river', t: 1 });
+  const f = waterFlowAt(10, 10);
+  assert(f, 'a channel has a current');
+  assert(Math.abs(f[1]) < Math.abs(f[0]) || Math.abs(f[0]) > 0.4,
+    'the current runs along the channel, not across it');
+  // the same tiles as a pond have no current at all — flow is a river thing
+  for (let y = 9; y <= 11; y++) for (let x = 1; x < 20; x++) setTile('terrain', `${x},${y}`, { k: 'water', c: 'pond', t: 1 });
+  assert(!waterFlowAt(10, 10), 'a pond in a channel shape still has no current');
+});
+
+const lumOf = p => p[0] + p[1] + p[2];
+test('every water style names a surface recipe and shelves at its own rate', () => {
+  const reaches = new Set();
+  for (const w of WATER_STYLES){
+    assert(typeof w.texture === 'string' && w.texture, `${w.id} has no surface recipe`);
+    assert(Number.isFinite(w.reach) && w.reach > 0, `${w.id} needs a shelving reach`);
+    assert(/^#[0-9a-f]{6}$/i.test(w.fill) && /^#[0-9a-f]{6}$/i.test(w.deep), `${w.id} needs hex shallow/deep`);
+    reaches.add(w.reach);
+    /* The ramp mixes already-mixed colours, and a hex-only mix turns its own
+       `rgb(...)` output into NaN channels, which clamp to a solid black lake.
+       Checking the channels are "in range" does NOT catch that — 0 is in range.
+       What catches it is that ice has to be PALER than open water. */
+    const open = waterRamp(w, false).map(colorParts);
+    const ice = waterRamp(w, true).map(colorParts);
+    for (let i = 0; i < open.length; i++){
+      assert(open[i].every(v => Number.isFinite(v)), `${w.id} open ramp ${i} is not a colour`);
+      assert(ice[i].every(v => Number.isFinite(v)), `${w.id} ice ramp ${i} is not a colour`);
+      const lum = p => p[0] + p[1] + p[2];
+      assert(lum(ice[i]) > lum(open[i]) + 30, `${w.id} frozen band ${i} is not paler than open water — the ramp mixed to nothing`);
+    }
+    assert(lumOf(open[0]) > lumOf(open[open.length - 1]), `${w.id} shallow water should be lighter than deep`);
+  }
+  assertEqual(reaches.size, WATER_STYLES.length, 'the three shelve at three different rates, which is most of what tells them apart');
+});
+
 test('a ground tile renders for every material, bed and path alike', () => {
   setup();
   const ctx = document.createElement('canvas').getContext('2d');
