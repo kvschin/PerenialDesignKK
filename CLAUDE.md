@@ -426,15 +426,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `tones:null` means "derive from the tile's base" and is for materials whose
     base is seasonal (soil follows `AMBIENCE`). A `texture` is shared, so the
     **Bark mulch path and the bark-mulch bed are the same material**, and the
-    six path colours — which used to differ only by tint — now get crushed
-    gravel, limestone fines, shredded bark, cut flagstone, crazed clay and dark
-    chip respectively.
+    path colours — which used to differ only by tint — now get crushed gravel,
+    limestone fines, shredded bark, cut flagstone, crazed clay, dark chip,
+    brick and concrete paver respectively. Beds are soil / gravel / river rock /
+    leaf litter / bark mulch / **pine straw** / **pea gravel** — the aggregate
+    ones deliberately span three sizes (crushed fines, 3/8in rounded pea,
+    2–4in cobble) because that is the distinction a designer is actually making.
     A recipe stages its grains once into module-level scratch (`grainSite` /
     `grainPush`, the fcPush/fcDraw pattern from draw.js) and paints them in
     several tones with a **stride**. Painters: `grainGrit` (3-gon fines),
     `grainChips` (5-gon crushed stone / leaves / flagstone), `grainPebble`
-    (6-gon water-worn cobble), `grainShreds` (tapered quad, bark). Silhouettes
-    are baked at load; there is deliberately **no ellipse painter**.
+    (6-gon water-worn cobble), `grainShreds` (tapered quad — bark shreds, pine
+    needles), `grainUnits` (laid brick/paver). Silhouettes are baked at load;
+    there is deliberately **no ellipse painter**.
+    **Laid units** (`texture:'brick'`) read their size from `unit` in real
+    inches and are set out in **view space**, not tile-local, so the bond runs
+    continuously across tiles and turns with the garden rather than the screen.
+    A unit overhanging onto the next tile is exactly where that tile would draw
+    it, so the bond needs no per-tile clip to be seamless — but big units get one
+    anyway, because a 16in paver is larger than the tile it is drawn for and
+    unclipped it measured ~19x the tile area in overdraw (59ms vs 38ms). Brick
+    is small enough that the clip is pure overhead, so `bl>0.5||bw>0.5` gates it.
+    The mortar joint is the base colour showing between units, which is why a
+    laid material's `fill` is the JOINT tone rather than the unit tone.
     **The cost model is measured and counter-intuitive — read the block comment
     before changing a recipe.** `fill()` is free (961 fills = 0.17ms), so tone
     groups cost nothing; the currency is **shape instances** at ~0.4–1.8us each,
@@ -455,6 +469,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     by `GRAIN_INSET` of their own radius — the old texture scattered inside a
     box a quarter of the tile, which left a bare ring on every boundary.
     Bed base tone no longer jitters per tile; the grain carries the unevenness.
+    **Material swatches render the real tile.** `drawMaterialIcon` (tray.js)
+    clips to the icon's diamond and calls `drawGroundTexture` at TRUE tile scale,
+    cropped rather than scaled down — a 2px grain shrunk to fit is mud. The
+    library grid, the landscape search results, the brush swatch and the sheet
+    swatch all go through it, so a new material needs no icon code. They used to
+    keep a private copy of the texture recipes, which is how the library ended up
+    still drawing the pre-grain speckle, and every path COLOUR was drawn as
+    `gravel` whatever it actually was. Icons are pinned to Summer so a bed does
+    not read as snow while you are picking it.
     Measured on the ground bake (the texture lands on REBAKE, never per frame):
     a 62ft designed garden went 76.5ms → 58.7ms organic (the default — the
     skipped per-tile base fill more than pays for the richer grain) and
@@ -806,7 +829,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     manager rather than falling back to their base species. The
     planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select Path to reveal path colors, Bed to reveal bed
-    materials (soil, gravel, river rock, leaf litter, bark mulch), or Water
+    materials (soil, gravel, river rock, leaf litter, bark mulch, pine straw,
+    pea gravel — see §11a), or Water
     to reveal pond/river/lake styles. Its dedicated debounced search spans all
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather

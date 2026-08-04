@@ -1327,19 +1327,24 @@ function fillDiamondFace(ctx,sx,sy,points,fill){
      GRAIN_MAX is dropped rather than reallocated, as fcPush does.
 
    Colours come from BED_STYLES/PATH_COLORS `tones` (core.js), never from here. */
-const GRAIN_MAX = 64;    // the densest recipe stages 36; the rest is headroom
+const GRAIN_MAX = 64;    // the densest recipe stages 38; the rest is headroom
+// Mortar/sand joint between laid units, in real inches. Wider than a mason
+// would lay it, because much under this it stops reading as masonry at all.
+const JOINT_IN = 0.75;
 const _gnX=new Float64Array(GRAIN_MAX), _gnY=new Float64Array(GRAIN_MAX),
       _gnA=new Float64Array(GRAIN_MAX), _gnB=new Float64Array(GRAIN_MAX),
       _gnC=new Float64Array(GRAIN_MAX), _gnD=new Float64Array(GRAIN_MAX);
 let _gnN=0, _gnDropped=0;
 function grainReset(){ _gnN=0; }
-function grainPush(a,b,c,d){    // x,y come from the last grainSite
+function grainAt(x,y){ _gpx=x; _gpy=y; }   // place a grain directly, without grainSite's scatter
+function grainPush(a,b,c,d){    // x,y come from the last grainSite / grainAt
   if (_gnN>=GRAIN_MAX){ _gnDropped++; return; }   // counted, not grown: a recipe
   _gnX[_gnN]=_gpx; _gnY[_gnN]=_gpy;               // that overflows would just go
   _gnA[_gnN]=a; _gnB[_gnN]=b;                     // quiet, so a test watches this
   _gnC[_gnN]=c||0; _gnD[_gnN]=d||0; _gnN++;
 }
 function grainDropCount(){ return _gnDropped; }
+function grainStagedCount(){ return _gnN; }
 /* Uniform point in the tile diamond. The map (u+v)/2, (u-v)/2 carries the unit
    square exactly onto the diamond, so this is a fixed two rng draws per grain
    with no rejection loop.
@@ -1419,6 +1424,25 @@ function grainPoly(ctx,buf,n,col,dx,dy,k,ph,md){    // A=rx B=ry C=silhouette
 function grainChips (ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_chipPt,CHIP_V,col,dx,dy,k,ph,md); }
 function grainGrit  (ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_gritPt,GRIT_V,col,dx,dy,k,ph,md); }
 function grainPebble(ctx,col,dx,dy,k,ph,md){ grainPoly(ctx,_pebPt, PEB_V, col,dx,dy,k,ph,md); }
+/* Laid units — brick, paver. X,Y is the unit's CENTRE already projected to
+   screen; A,B are its half-length and half-width in TILES along the two ground
+   axes, so the quad lands on the iso plane rather than on the screen plane. */
+function grainUnits(ctx,col,dx,dy,k,ph,md){         // A=halfLen B=halfWid (tiles)
+  if (!_gnN) return;
+  const HX=TILE_W*0.5, HY=TILE_H*0.5;
+  ctx.fillStyle=col; ctx.beginPath();
+  for (let i=ph||0;i<_gnN;i+=md||1){
+    const ax=_gnA[i]*k*HX, ay=_gnA[i]*k*HY;         // along +u
+    const bx=-_gnB[i]*k*HX, by=_gnB[i]*k*HY;        // along +v
+    const x=_gnX[i]+dx, y=_gnY[i]+dy;
+    ctx.moveTo(x-ax-bx, y-ay-by);
+    ctx.lineTo(x+ax-bx, y+ay-by);
+    ctx.lineTo(x+ax+bx, y+ay+by);
+    ctx.lineTo(x-ax+bx, y-ay+by);
+    ctx.closePath();
+  }
+  ctx.fill();
+}
 /* Shredded bark is fibrous and directional — it lies the way it was raked — so
    a shred is a tapered quad along its own axis, not a rotated ellipse. Four
    corners, not six: the torn butt and frayed tip of the first cut cost a third
@@ -1447,11 +1471,14 @@ function materialTones(tones,base){
   _derivedTones[2]=shade(base,22);  _derivedTones[3]=shade(base,-15);
   return _derivedTones;
 }
-/* One recipe per material. `T` is [deep, body, light, accent] from data.
+/* One recipe per material. `mat` is the BED_STYLES / PATH_COLORS entry, so a
+   recipe can read anything the material declares — `tones`, and `unit` for the
+   laid ones. `T` is [deep, body, light, accent]. `wx,wy` are the world tile,
+   which only the laid units need (their bond has to line up across tiles).
    Sizes are real: the tile is 18in across and drawn 76x38, so an inch is
    ~4.2px in x and ~2.1px in y, and a 3in river cobble really is ~12x6px. */
-function drawMaterialGrain(ctx,sx,cy,tex,tones,base,rs){
-  const T=materialTones(tones,base);
+function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy){
+  const tex=mat&&mat.texture, T=materialTones(mat&&mat.tones,base);
   grainReset();
   if (tex==='gravel'){
     // Crushed stone is GRADED — a dominant fine size with a scatter of larger
@@ -1526,6 +1553,87 @@ function drawMaterialGrain(ctx,sx,cy,tex,tones,base,rs){
     grainShreds(ctx,T[3],0,0,1,1,4);
     grainShreds(ctx,T[2],0,0,1,2,4);
     grainShreds(ctx,T[0],0,0,1,3,4);
+  } else if (tex==='needle'){
+    // Pine straw: 4-6in needles in two- and three-needle fascicles, raked into
+    // a deep mat. Longer and far finer than a bark shred, and layered in more
+    // than one direction — a single drift reads as combed hair rather than as
+    // straw. The dark between them is the bed's own base.  (~24us)
+    const dA=rs()*6.283, dB=dA+1.1+rs()*0.9;
+    for (let i=0;i<38;i++){
+      const drift=(i%3)?dA:dB, a=drift+(rs()-0.5)*0.55;
+      const L=3.8+rs()*3.6, w=0.28+rs()*0.20;
+      const ca=Math.cos(a), sa=Math.sin(a);
+      grainSite(sx,cy,L,w+0.5,rs);
+      grainPush(L,w, ca, sa*0.42);               // flattened into the ground plane
+    }
+    grainShreds(ctx,T[1],0,0,1,0,4);
+    grainShreds(ctx,T[3],0,0,1,1,4);
+    grainShreds(ctx,T[2],0,0,1,2,4);
+    grainShreds(ctx,T[0],0,0,1,3,4);
+  } else if (tex==='pebble'){
+    // Pea gravel: 3/8in rounded stone, the size between crushed gravel and
+    // river cobble. Rounded like the cobble and small like the grit, packed
+    // tight enough that the base is a shadow rather than a background. (~23us)
+    for (let i=0;i<30;i++){
+      const rx=2.0+rs()*1.9; grainSite(sx,cy,rx,rx*0.52,rs); grainPush(rx,rx*0.52,(rs()*CHIP_SIL)|0);
+    }
+    grainPebble(ctx,T[1],0,0,1,0,4);
+    grainPebble(ctx,T[3],0,0,1,1,4);
+    grainPebble(ctx,T[2],0,0,1,2,4);
+    grainPebble(ctx,shade(T[0],16),0,0,1,3,4);
+  } else if (tex==='brick'){
+    // Laid units in running bond — brick at 8x4in, concrete paver at whatever
+    // `unit` says. Laid out in VIEW space, not tile-local: the courses have to
+    // run continuously from tile to tile, and taking the phase from view coords
+    // keeps every tile agreeing on where they fall (the bake is per-rotation,
+    // so the bond turns with the garden rather than with the screen). A unit
+    // that overhangs onto the next tile is exactly where that tile would draw
+    // it too, so the bond is seamless with no per-tile clip.
+    // The joint is the base colour showing between units — the same trick the
+    // loose materials use for the dark between their grains, and it costs
+    // nothing where an extra full-tile fill would have cost the most.
+    const U=(mat&&mat.unit)||[8,4];
+    const bl=U[0]/TILE_IN, bw=U[1]/TILE_IN;      // unit length / width, in tiles
+    // Joint width is a real dimension, and BOTH neighbours inset by half of it,
+    // or a 16in paver ends up grouted like a brick.
+    const jt=Math.min(JOINT_IN*0.5/TILE_IN, bl*0.14, bw*0.14);
+    const vv=worldToView(wx|0,wy|0), vx=vv[0], vy=vv[1];
+    const HX=TILE_W*0.5, HY=TILE_H*0.5;
+    // Big units get clipped to the tile. They are drawn whole so the bond stays
+    // continuous, but a 16in paver is larger than the tile it is being drawn
+    // for, so most of every fill lands outside it: unclipped the paver measured
+    // ~19x the tile's area in overdraw and cost 59ms against 38ms clipped.
+    // Brick is small enough that its fills mostly land on the tile anyway, and
+    // there the clip measured as pure overhead — so it is paid for only when a
+    // unit is a decent fraction of a tile.
+    const clipped = bl>0.5 || bw>0.5;
+    if (clipped){
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(sx,cy-HY-0.3); ctx.lineTo(sx+HX+0.6,cy);
+      ctx.lineTo(sx,cy+HY+0.3); ctx.lineTo(sx-HX-0.6,cy); ctx.closePath();
+      ctx.clip();
+    }
+    // margin of half a unit: that is exactly far enough for every unit that
+    // overlaps this tile, and a whole unit either side was a third more fills
+    const j0=Math.floor((vy-bw*0.5)/bw), j1=Math.floor((vy+1+bw*0.5)/bw);
+    for (let j=j0;j<=j1;j++){
+      const off=(j&1)?bl*0.5:0;
+      const i0=Math.floor((vx-bl*0.5-off)/bl), i1=Math.floor((vx+1+bl*0.5-off)/bl);
+      for (let i=i0;i<=i1;i++){
+        const ca=(i+0.5)*bl+off-(vx+0.5), cb=(j+0.5)*bw-(vy+0.5);
+        grainAt(sx+(ca-cb)*HX, cy+(ca+cb)*HY);
+        grainPush(bl*0.5-jt, bw*0.5-jt, 0);
+      }
+    }
+    // Four tones on a stride of four: units vary batch to batch, and each is
+    // drawn exactly once. A shrunk highlight pass was tried and stamps a dot in
+    // the middle of every unit, which reads as a maker's mark, not as wear.
+    grainUnits(ctx,T[1],0,0,1,0,4);
+    grainUnits(ctx,T[2],0,0,1,1,4);
+    grainUnits(ctx,T[3],0,0,1,2,4);
+    grainUnits(ctx,shade(T[2],9),0,0,1,3,4);
+    if (clipped) ctx.restore();
   } else if (tex==='leaf'){
     // Fallen deciduous leaves, lying every which way and overlapping so heavily
     // that what you actually see is edges and partial leaves, not whole ones.
@@ -1632,7 +1740,7 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   if (amb.snow) return;
   ctx.save();
   if (mat){
-    drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat.texture,mat.tones,base,rs);
+    drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat,base,rs,x,y);
   } else {
     const blades=2+((x*17+y*11)&1);
     for (let i=0;i<blades;i++){

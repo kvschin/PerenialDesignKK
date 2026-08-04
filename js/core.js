@@ -215,6 +215,18 @@ const PATH_COLORS = [
    texture:'clay', tones:['#8a4f33','#b2704c','#c48a63','#96593a']},
   {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e',
    texture:'gravel', tones:['#35332e','#5a574f','#726e64','#454239']},
+  /* Laid units. `unit` is the paver size in INCHES and the recipe lays them in
+     running bond; `fill` is the MORTAR, because the joint is the base showing
+     between units, so it stays a shade that still reads as paving from the
+     world thumbnail. */
+  {id:'brick', label:'Brick', fill:'#7a5a4e', plan:'#c98d72',
+   texture:'brick', unit:[8,4], tones:['#8a4633','#a85f45','#bd7358','#94503a']},
+  {id:'paver', label:'Concrete paver', short:'Paver', fill:'#7e7b74', plan:'#c7c4bc',
+   texture:'brick', unit:[16,16], tones:['#918e86','#a5a29a','#b5b2aa','#8a877f']},
+  // Slate covers the cool greys; a warm flagstone is a different design choice,
+  // not a tint of the same one.
+  {id:'sandstone', label:'Sandstone', fill:'#a58e6a', plan:'#dcc7a4',
+   texture:'flag', tones:['#8a7150','#b89c74','#cbb189','#a3855c']},
 ];
 function pathColor(id){ return PATH_COLORS.find(c=>c.id===id)||PATH_COLORS[0]; }
 function pathColorId(id){ return pathColor(id).id; }
@@ -236,6 +248,14 @@ const BED_STYLES = [
    tones:['#4a3524','#7d5836','#96784c','#66502f']},
   {id:'mulch', label:'Bark mulch', short:'Bark', fill:'#5b3526', plan:'#9d7558', texture:'mulch',
    tones:['#3a2016','#6d4028','#8a6446','#4e2c1d']},
+  // The default bed mulch across the whole Southeast, and nothing else in the
+  // list looks remotely like it — long rusty needles rather than chips.
+  {id:'pine', label:'Pine straw', short:'Pine', fill:'#5e3c22', plan:'#c9a173', texture:'needle',
+   tones:['#8a5a30','#a8703c','#c39257','#7a4a26']},
+  // The size between crushed gravel and river cobble, and the one most people
+  // actually mean by "gravel" in a bed or a patio.
+  {id:'pea', label:'Pea gravel', short:'Pea', fill:'#6f6a5c', plan:'#d4cfc0', texture:'pebble',
+   tones:['#9c9482','#bdb5a0','#cfc8b4','#a08a68']},
 ];
 function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
 function bedStyleId(id){ return bedStyle(id).id; }

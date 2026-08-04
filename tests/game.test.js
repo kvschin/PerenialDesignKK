@@ -265,6 +265,7 @@ test('every ground material names a grain recipe with a four-slot palette', () =
 });
 
 test('no grain recipe overflows the scratch it writes into', () => {
+  setup(21, 21);
   const ctx = document.createElement('canvas').getContext('2d');
   const before = grainDropCount();
   let drawn = 0;
@@ -272,7 +273,12 @@ test('no grain recipe overflows the scratch it writes into', () => {
     for (const s of SEASONS){
       const amb = AMBIENCE[s], rs = mulberry(4242);
       const base = kind === 'path' ? pathFill({ c: m.id }, amb.snow) : bedFill({ c: m.id }, amb);
-      drawMaterialGrain(ctx, 100, 100, m.texture, m.tones, base, rs);
+      grainReset();
+      drawMaterialGrain(ctx, 100, 100, m, base, rs, 5, 6);
+      // guards against the signature drifting out from under this test: hand it
+      // the wrong shape and every recipe branch silently misses, which would
+      // leave the overflow check below passing while checking nothing
+      assert(grainStagedCount() > 0, `${kind} ${m.id} staged no grains — did drawMaterialGrain's signature change?`);
       drawn++;
     }
   }

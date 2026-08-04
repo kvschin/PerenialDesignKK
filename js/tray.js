@@ -323,11 +323,10 @@ function drawBrushSwatchCanvas(c,includeLast){
     g.closePath(); g.fill();
     if (stroke){ g.strokeStyle=stroke; g.lineWidth=1.2; g.stroke(); }
   };
-  if (k==='path'){ diamond(pathColor(game.pathColor).fill,'rgba(239,230,211,.55)'); return true; }
-  if (k==='bed'){ diamond(bedStyle(game.bedStyle).fill||'#54402f','rgba(239,230,211,.42)'); return true; }
-  if (k==='water'){ const ws=waterStyle(game.waterStyle); diamond(ws.fill,'rgba(232,248,244,.55)');
-    g.strokeStyle='rgba(232,248,244,.8)'; g.lineWidth=1; g.beginPath();
-    g.ellipse(c.width/2,c.height/2+1,c.width*.22,2.2,0,0,7); g.stroke(); return true; }
+  const matIcon=(kind,id)=>{ drawMaterialIcon(g,c.width/2,c.height/2+1,c.width*.36,c.height*.24,kind,id); return true; };
+  if (k==='path') return matIcon('path',game.pathColor);
+  if (k==='bed') return matIcon('bed',game.bedStyle);
+  if (k==='water') return matIcon('water',game.waterStyle);
   if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
     g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
     g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
@@ -346,6 +345,47 @@ function drawBrushSwatchCanvas(c,includeLast){
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
   c.style.display='none';
   return false;
+}
+/* ---------- material icons ----------
+   Every swatch of a ground material — library grid, search result, brush swatch,
+   sheet swatch — renders the REAL tile through drawGroundTexture, clipped to the
+   icon's diamond. The tray used to keep its own copy of the texture recipes, so
+   when the garden's materials were rebuilt the library went on showing the old
+   flat speckle; worse, every path COLOUR was drawn as 'gravel' whatever it
+   actually was, so slate, clay and bark differed only by tint in the picker.
+   One source of truth: a new material now needs no icon code at all.
+
+   Drawn at true tile scale and cropped, rather than scaling a whole tile down to
+   fit. A two-pixel grain shrunk by half is mud, and the grain is the thing the
+   gardener is trying to judge. Icons are fixed to Summer so a bed does not read
+   as snow while you are picking it. */
+function materialIconSeed(id){
+  let h=2166136261; const s=String(id||'');
+  for (let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
+  return h>>>0;
+}
+function materialIconPath(tc,cx,cy,hw,hh){
+  tc.beginPath(); tc.moveTo(cx,cy-hh); tc.lineTo(cx+hw,cy);
+  tc.lineTo(cx,cy+hh); tc.lineTo(cx-hw,cy); tc.closePath();
+}
+function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
+  const amb=AMBIENCE.Summer, o={k:kind,c:id};
+  tc.save();
+  materialIconPath(tc,cx,cy,hw,hh); tc.clip();
+  const sx=cx, sy=cy-TILE_H/2;                 // drawGroundTexture takes the top corner
+  if (kind==='water') drawWaterTexture(tc,sx,sy,3,7,o,amb,0);
+  else {
+    const rs=mulberry(materialIconSeed(id));
+    if (kind==='bed') rs();                    // paintGround spends one draw before the texture
+    const base = kind==='path' ? pathFill(o,0) : bedFill(o,amb);
+    drawGroundTexture(tc,sx,sy,3,7,kind==='bed'?'bed':null,kind==='path',amb,base,rs,o);
+  }
+  tc.restore();
+  if (stroke!==false){
+    materialIconPath(tc,cx,cy,hw,hh);
+    tc.strokeStyle=kind==='water'?'rgba(232,248,244,.55)':'rgba(239,230,211,.45)';
+    tc.lineWidth=1.2; tc.stroke();
+  }
 }
 function drawPlantModeIcon(tc,drift){
   tc.clearRect(0,0,28,24);
@@ -1235,12 +1275,8 @@ function landscapeSearchItems(query){
 function drawSearchToolIcon(tc,item){
   tc.clearRect(0,0,48,44);
   if (item.tool==='path'||item.tool==='bed'||item.tool==='water'){
-    const fill=item.tool==='path'?pathColor(game.pathColor).fill
-      : item.tool==='bed'?(bedStyle(game.bedStyle).fill||'#54402f')
-      : waterStyle(game.waterStyle).fill;
-    tc.fillStyle=fill;
-    tc.beginPath(); tc.moveTo(24,9); tc.lineTo(42,22); tc.lineTo(24,35); tc.lineTo(6,22); tc.closePath(); tc.fill();
-    tc.strokeStyle='rgba(239,230,211,.48)'; tc.lineWidth=1.4; tc.stroke();
+    const id = item.tool==='path' ? game.pathColor : item.tool==='bed' ? game.bedStyle : game.waterStyle;
+    drawMaterialIcon(tc,24,22,18,13,item.tool,id);
     return;
   }
   tc.save(); tc.translate(3,6); drawCanvasIcon(tc,item.kind||'brush'); tc.restore();
@@ -2231,35 +2267,7 @@ function buildToolTray(){
     const pathCol=pathColor(game.pathColor);
     const bedCol=bedStyle(game.bedStyle);
     const waterCol=waterStyle(game.waterStyle);
-    const drawMat=(tc,opt)=>{
-      const seed=opt.seed||1, rs=mulberry(seed);
-      tc.fillStyle=opt.fill;
-      tc.beginPath(); tc.moveTo(24,12); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
-      tc.closePath(); tc.fill();
-      if (opt.deep){
-        tc.fillStyle=opt.deep;
-        tc.beginPath(); tc.moveTo(24,23); tc.lineTo(42,23); tc.lineTo(24,34); tc.lineTo(6,23);
-        tc.closePath(); tc.fill();
-      }
-      tc.strokeStyle='rgba(239,230,211,.45)'; tc.lineWidth=1.2; tc.stroke();
-      if (opt.texture==='water'){
-        tc.strokeStyle='rgba(232,248,244,.78)'; tc.lineWidth=1;
-        for (let r=0;r<2;r++){ tc.beginPath(); tc.ellipse(24,21+r*6,12-r*3,2.2,0,0,7); tc.stroke(); }
-      } else if (opt.texture==='leaf'){
-        const cols=['rgba(181,111,52,.75)','rgba(83,50,28,.72)','rgba(211,153,77,.55)'];
-        for (let i=0;i<6;i++){ tc.fillStyle=cols[i%cols.length]; tc.beginPath();
-          tc.ellipse(24+(rs()-0.5)*24,23+(rs()-0.5)*10,3.4,1.1,rs()*3,0,7); tc.fill(); }
-      } else if (opt.texture==='mulch'){
-        tc.strokeStyle='rgba(30,16,10,.55)'; tc.lineWidth=2;
-        for (let i=0;i<6;i++){ const ox=24+(rs()-0.5)*24, oy=23+(rs()-0.5)*10;
-          tc.beginPath(); tc.moveTo(ox-4,oy); tc.lineTo(ox+5,oy+(rs()-0.5)*3); tc.stroke(); }
-      } else {
-        tc.fillStyle=opt.texture==='rock'?'rgba(255,255,255,.20)':'rgba(0,0,0,.18)';
-        const n=opt.texture==='rock'?5:6;
-        for (let i=0;i<n;i++){ tc.beginPath();
-          tc.ellipse(24+(rs()-0.5)*22,23+(rs()-0.5)*10,opt.texture==='rock'?2.8:2,opt.texture==='rock'?1.6:1.2,rs()*3,0,7); tc.fill(); }
-      }
-    };
+    const drawMat=(tc,kind,id)=>drawMaterialIcon(tc,24,23,18,11,kind,id);
     const drawElev=(tc,kind)=>{
       const high=kind==='raise', low=kind==='lower';
       tc.fillStyle=low?'#6f7f83':'#8ba263';
@@ -2286,9 +2294,9 @@ function buildToolTray(){
       return b;
     };
     [
-      ['path','Path',tc=>drawMat(tc,{fill:pathCol.fill,texture:'gravel',seed:11}),`${pathCol.label} path: drag or act to lay paths.`],
-      ['bed','Bed',tc=>drawMat(tc,{fill:bedCol.fill||'#54402f',texture:bedCol.texture,seed:23}),`${bedCol.label} bed: drag or act to prepare planting beds.`],
-      ['water','Water',tc=>drawMat(tc,{fill:waterCol.fill,deep:waterCol.deep,texture:'water',seed:37}),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
+      ['path','Path',tc=>drawMat(tc,'path',pathCol.id),`${pathCol.label} path: drag or act to lay paths.`],
+      ['bed','Bed',tc=>drawMat(tc,'bed',bedCol.id),`${bedCol.label} bed: drag or act to prepare planting beds.`],
+      ['water','Water',tc=>drawMat(tc,'water',waterCol.id),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
       ['raise','Raise',tc=>drawElev(tc,'raise'),'Raise ground one step. Drag to build a berm or terrace.'],
       ['lower','Lower',tc=>drawElev(tc,'lower'),'Lower ground one step. Drag to shape a swale or basin.'],
       ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
@@ -2301,7 +2309,7 @@ function buildToolTray(){
       sep.textContent='Path color'; tray.appendChild(sep);
       PATH_COLORS.forEach((pc,i)=>materialBtn('path',pc.label.split(' ')[0],
         game.tool==='path'&&game.pathColor===pc.id,
-        tc=>drawMat(tc,{fill:pc.fill,texture:'gravel',seed:100+i}),
+        tc=>drawMat(tc,'path',pc.id),
         ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); },
         pc.label).dataset.pathColor=pc.id);
     }
@@ -2310,7 +2318,7 @@ function buildToolTray(){
       sep.textContent='Bed type'; tray.appendChild(sep);
       BED_STYLES.forEach((bs,i)=>materialBtn('bed',bs.short||bs.label,
         game.tool==='bed'&&game.bedStyle===bs.id,
-        tc=>drawMat(tc,{fill:bs.fill||'#54402f',texture:bs.texture,seed:150+i}),
+        tc=>drawMat(tc,'bed',bs.id),
         ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
         bs.label).dataset.bedStyle=bs.id);
     }
@@ -2319,7 +2327,7 @@ function buildToolTray(){
       sep.textContent='Water'; tray.appendChild(sep);
       WATER_STYLES.forEach((ws,i)=>materialBtn('water',ws.label,
         game.tool==='water'&&game.waterStyle===ws.id,
-        tc=>drawMat(tc,{fill:ws.fill,deep:ws.deep,texture:'water',seed:200+i}),
+        tc=>drawMat(tc,'water',ws.id),
         ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); },
         ws.label).dataset.waterStyle=ws.id);
     }
