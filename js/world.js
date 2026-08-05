@@ -2046,37 +2046,48 @@ function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
    what it is washing. Drawing the garden itself was a fifth of the frame.
 
    All six are a pure function of (season, canvas size), so they need not be
-   rebuilt per frame. HOW to exploit that is genuinely unobvious, and the two
-   obvious answers disagree depending on what you measure:
+   rebuilt per frame. Three ways to exploit that, all pixel-identical:
 
      'live'   — build the gradients every frame in DRAW units (the original).
      'cached' — build them ONCE in DEVICE pixels, still painted with fillRect.
-                No blit; only the per-frame gradient construction goes away.
      'baked'  — pre-render each to a canvas-sized bitmap and blit.
 
-   Measured static phase means got WORSE under 'baked' (light +57%, ground
-   +250%, frame +45%): a full-canvas drawImage costs ~4ms at 1.3MP here, about
-   what three gradient fillRects cost, so a gradient fill is a fast path and a
-   blit is not. But 'baked' measurably REMOVED the stutter when panning and
-   zooming, which the static means cannot see: in 'live' a zoom gesture changes
-   W and H every frame, so every gradient is rebuilt with new coordinates and
-   genuinely re-created rather than reused. Averages and stutter are different
-   quantities and this change moved them in opposite directions.
+   MEASURED, same garden (145 plants, 1490x863), switching mid-session:
 
-   'cached' exists because it should get both: no per-frame construction AND no
-   blit. Keyed on DEVICE pixels — every stop is a fraction of W/H and
-   W*DPR*ZOOM === canvas.width, so ZOOM cancels and a zoom gesture cannot
-   invalidate it. Building in DRAW units and painting at another zoom would NOT
-   cancel: canvas gradient coordinates resolve in user space at PAINT time, so
-   that variant is a rendering bug wearing an optimisation's clothes.
+                       light        sky       frame
+       'live'          5.5ms      5.4ms    17.6-18.6ms
+       'cached'        0.00ms     0.02ms    1.7-5.1ms
+       'baked'         9.0ms      4.1ms     22.5-24.4ms
 
-   Switch at runtime from the console — SEASON_WASH.mode='live' — so the three
-   can be A/B'd in ONE session on ONE garden, watching the `spacing` row while
-   panning and zooming, not just the phase means. All three are verified
-   pixel-identical. Do not delete the losers until that comparison is made.
+   ~11ms to ~0.1ms. THE COST WAS NEVER THE PIXELS. 'cached' changes exactly one
+   thing against 'live' — it reuses the gradient objects — and paints the same
+   three fillRects, so the whole 11ms was createLinearGradient/
+   createRadialGradient + addColorStop: five shader/LUT constructions a frame,
+   300 a second. The fills are nearly free once the shader exists.
 
-   'baked' costs three canvas-sized RGBA bitmaps (~5MB each at 1.3MP), rebuilt
-   only on a season change or a resize. */
+   That is why 'baked' read the way it did: it removed the construction (which
+   is why it visibly killed the pan/zoom stutter) but paid ~4ms of full-canvas
+   drawImage to do it, so the static means got worse while the feel got better.
+   Two true measurements pointing opposite ways, because they were measuring
+   different things and NEITHER of them was measuring the actual cost.
+
+   The inference that produced both wrong fixes: the wash scaled linearly with
+   canvas area, which was read as "per-pixel evaluation dominates". Gradient
+   LUT setup also scales with the gradient's extent, so linear-in-area never
+   distinguished construction from fill. Do not trust a scaling law to identify
+   a mechanism.
+
+   Keyed on DEVICE pixels — every stop is a fraction of W/H and
+   W*DPR*ZOOM === canvas.width, so ZOOM cancels and a gesture cannot invalidate
+   it. Building in DRAW units and painting at another zoom would NOT cancel:
+   canvas gradient coordinates resolve in user space at PAINT time, so that
+   variant is a rendering bug wearing an optimisation's clothes.
+
+   'live' stays as a one-word A/B reference (SEASON_WASH.mode='live') and as a
+   fallback if a browser ever regresses gradient reuse. 'baked' is a measured
+   loser on both counts and costs three canvas-sized RGBA bitmaps (~5MB each);
+   it stays only until 'cached' is confirmed to feel as smooth in the hand as
+   'baked' did, since that hands-on signal is what caught the last mistake. */
 const SEASON_WASH={mode:'cached'};
 let skyBake={key:'',cv:null}, washBake={key:'',beam:null,vg:null};
 let washGrad={key:''};

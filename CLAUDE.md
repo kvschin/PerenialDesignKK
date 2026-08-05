@@ -554,11 +554,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 11c. **The season wash** (`SEASON_WASH` / `seasonWashGradients` /
     `seasonSkyBake` / `drawSeasonSky` / `applySeasonLighting`, world.js) — the
     sky ramp + sun + haze before the frame and the tint + beam + vignette after
-    are **six full-screen gradient fills every frame**. Measured on a 117-plant
-    garden at 1490×863: ~11ms of a 15.5ms frame (65–71%), **flat across all four
-    seasons and independent of plant count**, because it is per-pixel work that
-    does not know what it is washing — drawing the garden itself was a fifth of
-    the frame. All six are a pure function of `(season, canvas size)`.
+    are **six full-screen gradient fills every frame**, and they were ~11ms of a
+    15.5ms frame (65–71%) — flat across all four seasons and independent of
+    plant count, while drawing the garden itself was a fifth of the frame.
+    All six are a pure function of `(season, canvas size)`.
     **`SEASON_WASH.mode` picks how that is exploited — `'live'` rebuilds the
     gradients every frame in draw units (the original), `'cached'` builds them
     once in DEVICE pixels and still paints with `fillRect`, `'baked'`
@@ -566,19 +565,32 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     verified **pixel-identical** (0 differing bytes of 5,143,480 across four
     seasons, both passes, the light pass diffed over a noisy backdrop so the
     `screen` blend was exercised). Switch at runtime from the console.
-    **This is unresolved on purpose, and the two obvious measurements
-    disagree.** Static phase means got WORSE under `'baked'` (light +57%,
-    ground +250%, frame +45%): a full-canvas `drawImage` costs ~4ms at 1.3MP,
-    about what three gradient `fillRect`s cost, so a gradient fill is a fast
-    path here and a blit is not. But `'baked'` measurably **removed the stutter
-    when panning and zooming**, which the means cannot see — under `'live'` a
-    zoom gesture changes W and H every frame, so every gradient is rebuilt with
-    new coordinates and genuinely re-created rather than reused. Averages and
-    stutter are different quantities and this moved them in opposite directions;
-    judge it on the `spacing` row during a gesture, not on the phase means.
-    `'cached'` exists to get both (no per-frame construction, no blit) and is
-    the current default, on one session's evidence — **do not delete the losers
-    until a three-way A/B on one machine says so.**
+    Measured mid-session on one garden (145 plants, 1490×863):
+
+    | mode | `light` | `sky` | `frame` |
+    | --- | --- | --- | --- |
+    | `live` | 5.5ms | 5.4ms | 17.6–18.6ms |
+    | **`cached`** | **0.00ms** | **0.02ms** | **1.7–5.1ms** |
+    | `baked` | 9.0ms | 4.1ms | 22.5–24.4ms |
+
+    **The cost was never the pixels.** `cached` changes exactly one thing
+    against `live` — it reuses the gradient objects — and paints the same three
+    `fillRect`s, so the whole ~11ms was `createLinearGradient` /
+    `createRadialGradient` + `addColorStop`: five shader/LUT constructions a
+    frame, 300 a second. The fills are nearly free once the shader exists.
+    That is why `baked` read as it did — it removed the construction, which is
+    why it visibly killed the pan/zoom stutter, but paid ~4ms of full-canvas
+    `drawImage` to do it, so the static means got worse while the feel got
+    better. Two true measurements pointing opposite ways because neither was
+    measuring the actual cost. **The inference that produced both wrong fixes:
+    the wash scaled linearly with canvas area, read as "per-pixel evaluation
+    dominates" — but gradient LUT setup also scales with the gradient's extent,
+    so linear-in-area never distinguished construction from fill. Don't trust a
+    scaling law to identify a mechanism.** `live` stays as a one-word A/B
+    reference and a fallback if a browser regresses gradient reuse; `baked` is a
+    measured loser on both counts and should go once `cached` is confirmed to
+    feel as smooth in the hand as `baked` did — that hands-on signal is what
+    caught the previous mistake.
     The **sky trio collapses to ONE opaque bitmap** under `'baked'`: it paints
     onto a cleared frame and its first fill is opaque, so nothing underneath can
     show through. The **light trio never collapses in any mode** — its order is
