@@ -3200,3 +3200,17 @@ test('frame-spacing tracking uses the raw gap and counts only over-budget frames
   assertEqual(dbg.gapLast, 8, 'last is the most recent spacing');
   dbg.on = wasOn;
 });
+
+test('a backgrounded tab resuming is counted as a suspend, not as jank', () => {
+  const wasOn = dbg.on;
+  dbg.on = true;
+  devReset();
+  dgap(35);                          // a real stall
+  dgap(1157.8);                      // rAF resuming after the tab was hidden
+  assertEqual(dbg.gapSusp, 1, 'the resume is counted separately');
+  assertEqual(dbg.gapMax, 35,
+    'and does not become the max — a suspend would bury every genuine stall under it');
+  assertEqual(dbg.gapOver, 1, 'nor does it inflate the over-budget count');
+  assertEqual(dbg.gapN, 2, 'it is still counted as a sampled frame');
+  dbg.on = wasOn;
+});

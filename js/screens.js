@@ -1331,7 +1331,8 @@ function updateGlassMode(dt){
    see where the frame actually goes, plus entity/tile counts and the canvas
    pixel budget. Works identically on desktop and tablet for side-by-side. */
 const dbg={on:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0,
-  ev:Object.create(null), gapLast:0, gapMax:0, gapOver:0, gapN:0, GAP_BUDGET:20};
+  ev:Object.create(null), gapLast:0, gapMax:0, gapOver:0, gapN:0, gapSusp:0,
+  GAP_BUDGET:20, GAP_SUSPEND:250};
 // Labelled phase timing with ~zero cost when off: dnow() reads the clock only
 // while on; dmark folds the elapsed delta into a named accumulator; dtime wraps
 // an ad-hoc call so any function can be timed (e.g. dtime('flood',()=>doFloodFill())).
@@ -1368,11 +1369,17 @@ function devTime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
 function dgap(raw){
   if (!dbg.on) return;
   dbg.gapLast=raw; dbg.gapN++;
+  /* A backgrounded tab stops rAF entirely and the first frame back reports the
+     whole hidden period as one gap — measured at 709ms and 1158ms in a session
+     where the worst REAL stall was under 40ms. That is a suspend, not jank, and
+     letting it set gapMax buries every genuine stall beneath it. Count them
+     separately so the resume is still visible but cannot pollute the signal. */
+  if (raw>dbg.GAP_SUSPEND){ dbg.gapSusp++; return; }
   if (raw>dbg.gapMax) dbg.gapMax=raw;
   if (raw>dbg.GAP_BUDGET) dbg.gapOver++;
 }
 function dbgReset(){ dbg.n=0; dbg.acc={}; }              // per-window phase averages
-function devReset(){ dbg.ev=Object.create(null); dbg.gapMax=0; dbg.gapOver=0; dbg.gapN=0; }
+function devReset(){ dbg.ev=Object.create(null); dbg.gapMax=0; dbg.gapOver=0; dbg.gapN=0; dbg.gapSusp=0; }
 function toggleDebug(){
   dbg.on=!dbg.on;
   if (dbg.on && !dbg.el){
@@ -1405,7 +1412,8 @@ function updateDebugHud(){
     : '';
   const gap=dbg.gapN
     ? `\nspacing  last ${dbg.gapLast.toFixed(1)}ms  max ${dbg.gapMax.toFixed(1)}ms`+
-      `  over-${dbg.GAP_BUDGET}ms ${dbg.gapOver}/${dbg.gapN}`
+      `  over-${dbg.GAP_BUDGET}ms ${dbg.gapOver}/${dbg.gapN}`+
+      (dbg.gapSusp?`  (+${dbg.gapSusp} suspend)`:'')
     : '';
   dbg.el.textContent=
     `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)\n`+
@@ -1488,8 +1496,16 @@ function perfBench(opts){
     if (dbg.ev.trace) traces.push(dbg.ev.trace.last);
   }
   dbg.on=wasOn;
+  /* performance.now() is clamped to 1ms without cross-origin isolation, which
+     is what this app ships as — every individual sample comes back a whole
+     number, so min/med/max are quantized and a sub-3ms cost is unreadable. The
+     MEAN is the way through: quantization error is roughly uniform, so it
+     cancels at ~quantum/sqrt(12N) — about 0.08ms over 15 rounds. Read `mean`
+     when comparing two builds; read min/max for the spread. */
   const stat=a=>{ if (!a.length) return null; const s=a.slice().sort((x,y)=>x-y);
-    return {min:+s[0].toFixed(1), med:+s[(s.length/2)|0].toFixed(1), max:+s[s.length-1].toFixed(1)}; };
+    let sum=0; for (const v of a) sum+=v;
+    return {mean:+(sum/a.length).toFixed(2), min:+s[0].toFixed(1),
+      med:+s[(s.length/2)|0].toFixed(1), max:+s[s.length-1].toFixed(1)}; };
   const out={plot:`${gw}x${gh}`, feet:`${Math.round(gw*TILE_IN/12)}x${Math.round(gh*TILE_IN/12)}ft`,
     edge, edit, rounds, tileIn:TILE_IN,
     terrainTiles:Object.keys(game.terrain).length, plants:Object.keys(game.plants).length,
@@ -1497,11 +1513,13 @@ function perfBench(opts){
     canvas:cnv?`${cnv.width}x${cnv.height}`:'?', dpr:DPR, zoom:+ZOOM.toFixed(2),
     compositing:!document.hidden};
   if (document.hidden) console.warn('perfBench: tab is HIDDEN — canvas timings here are not trustworthy.');
+  const line=(k,s)=>s?`mean ${s.mean}  (min ${s.min} med ${s.med} max ${s.max})`:'n/a';
   console.log(`perfBench ${out.plot} (${out.feet}) ${edge}${edit?' +edit':''}  `+
     `${out.terrainTiles} terrain tiles, ${out.plants} plants\n`+
-    `  bake  ${out.bakeMs?`min ${out.bakeMs.min}  med ${out.bakeMs.med}  max ${out.bakeMs.max}`:'n/a'} ms\n`+
-    `  trace ${out.traceMs?`min ${out.traceMs.min}  med ${out.traceMs.med}  max ${out.traceMs.max}`:'cached'} ms\n`+
-    `  canvas ${out.canvas} dpr ${out.dpr} zoom ${out.zoom}`);
+    `  bake  ${line('bake',out.bakeMs)} ms\n`+
+    `  trace ${out.traceMs?line('trace',out.traceMs):'cached'} ms\n`+
+    `  canvas ${out.canvas} dpr ${out.dpr} zoom ${out.zoom}`+
+    `   — compare on MEAN (the clock quantizes each sample to 1ms)`);
   return out;
 }
 // debug-only: pack the plot with a dense mix so the profiler sees worst-case.
