@@ -97,6 +97,7 @@ function restoreSchemes(s,shift){
   ensureSchemes();   // materializes a lone default and nulls the active entry's maps
 }
 function buildSaveBlob(){
+  const t0=dnow();   // autosave fires on day change / quit / pagehide: 'blob' in the debug HUD
   const blob={wv:1,name:game.worldName,
     mode:game.gameMode,design:game.design,
     discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
@@ -110,6 +111,7 @@ function buildSaveBlob(){
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
+  dev('blob',t0);
   return blob;
 }
 async function saveSolo(silent){

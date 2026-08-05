@@ -1330,7 +1330,8 @@ function updateGlassMode(dt){
    time breakdown — ground pass vs entity/plant pass vs the rest — so we can
    see where the frame actually goes, plus entity/tile counts and the canvas
    pixel budget. Works identically on desktop and tablet for side-by-side. */
-const dbg={on:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0};
+const dbg={on:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0,
+  ev:Object.create(null), gapLast:0, gapMax:0, gapOver:0, gapN:0, GAP_BUDGET:20};
 // Labelled phase timing with ~zero cost when off: dnow() reads the clock only
 // while on; dmark folds the elapsed delta into a named accumulator; dtime wraps
 // an ad-hoc call so any function can be timed (e.g. dtime('flood',()=>doFloodFill())).
@@ -1338,7 +1339,40 @@ function dnow(){ return dbg.on?performance.now():0; }
 function dmark(label,t0){ if (dbg.on) dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t0); }
 function dtime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
   try{ return fn(); } finally{ dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t); } }
-function dbgReset(){ dbg.n=0; dbg.acc={}; }
+/* ---- EVENT timers: the costs a per-frame average cannot show ----
+   The expensive work in this app is invalidation-triggered, not per-frame: a
+   ground bake, a region trace, a scene rebuild, an undo snapshot. Folded into
+   dbg.acc they are averaged over the ~500ms window and then reset, so a 70ms
+   bake either smears into +2ms across 35 frames or misses the window entirely
+   and reads 0.00 — which is exactly what the HUD showed while we were trying to
+   find it. Events are therefore reported as last/max/count and deliberately
+   SURVIVE dbgReset: the whole point is to catch something that happened once.
+   dev allocates one record per LABEL, never per call. */
+function dev(label,t0){
+  if (!dbg.on) return 0;
+  const ms=performance.now()-t0;
+  let e=dbg.ev[label];
+  if (!e) e=dbg.ev[label]={last:0,max:0,n:0,total:0};
+  e.last=ms; e.n++; e.total+=ms;
+  if (ms>e.max) e.max=ms;
+  return ms;   // callers subtract a rare event out of the phase it sits inside
+}
+function devTime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
+  try{ return fn(); } finally{ dev(label,t); } }
+/* Real rAF spacing. The phase timers can sum to 3ms while frames land 30ms
+   apart — GPU composite, backdrop-blur recomposite, GC and layout are all
+   outside them. That gap is what the glass governor trips on and what nothing
+   else could see. Fed the UNCLAMPED delta (loop's dt is capped at 50ms so a
+   long stall would read as 50) and only on interaction frames, since the idle
+   cadence is a deliberate 30fps and would otherwise read as constant jank. */
+function dgap(raw){
+  if (!dbg.on) return;
+  dbg.gapLast=raw; dbg.gapN++;
+  if (raw>dbg.gapMax) dbg.gapMax=raw;
+  if (raw>dbg.GAP_BUDGET) dbg.gapOver++;
+}
+function dbgReset(){ dbg.n=0; dbg.acc={}; }              // per-window phase averages
+function devReset(){ dbg.ev=Object.create(null); dbg.gapMax=0; dbg.gapOver=0; dbg.gapN=0; }
 function toggleDebug(){
   dbg.on=!dbg.on;
   if (dbg.on && !dbg.el){
@@ -1349,7 +1383,7 @@ function toggleDebug(){
     document.body.appendChild(dbg.el);
   }
   if (dbg.el) dbg.el.style.display=dbg.on?'block':'none';
-  dbg.fpsAt=performance.now(); dbgReset();
+  dbg.fpsAt=performance.now(); dbgReset(); devReset();   // each session starts on clean event stats
 }
 function updateDebugHud(){
   if (!dbg.el) return;
@@ -1361,11 +1395,114 @@ function updateDebugHud(){
     .sort((a,b)=>dbg.acc[b]-dbg.acc[a])
     .map(k=>`  ${k.padEnd(7)}${avg(dbg.acc[k]).toFixed(2).padStart(6)}ms ${(total?Math.round(dbg.acc[k]/total*100):0).toString().padStart(3)}%`)
     .join('\n');
+  // events: last/max/count, worst-max first. These persist across windows, so a
+  // bake that happened three seconds ago is still on screen to be read.
+  const evKeys=Object.keys(dbg.ev).sort((a,b)=>dbg.ev[b].max-dbg.ev[a].max);
+  const evRows=evKeys.length
+    ? '\nevents (last/max ×n)\n'+evKeys.map(k=>{ const e=dbg.ev[k];
+        return `  ${k.padEnd(7)}${e.last.toFixed(1).padStart(6)}/${e.max.toFixed(1).padStart(6)}ms ×${e.n}`;
+      }).join('\n')
+    : '';
+  const gap=dbg.gapN
+    ? `\nspacing  last ${dbg.gapLast.toFixed(1)}ms  max ${dbg.gapMax.toFixed(1)}ms`+
+      `  over-${dbg.GAP_BUDGET}ms ${dbg.gapOver}/${dbg.gapN}`
+    : '';
   dbg.el.textContent=
     `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)\n`+
-    rows+'\n'+
+    rows+evRows+gap+'\n'+
     `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`+
     `  glass ${GLASS.off?'OFF':'on'} (${GLASS.ema.toFixed(1)}ms)`;
+}
+/* ---- debug-only: repeatable ground-bake benchmark ----
+   Eyeballing the HUD cannot compare two builds: the bake fires on edit, the
+   numbers move with window size and zoom, and a single sample on a machine that
+   is doing anything else is noise. perfBench builds a DETERMINISTIC garden
+   (mulberry-seeded, so the same call gives the same layout every time), forces
+   `rounds` bakes, and reports min/median/max — min being the honest one, since
+   noise only ever adds time.
+
+     perfBench()                                  // 46ft plot, organic, 15 rounds
+     perfBench({gw:46, edge:'formal'})            // same real garden on a 12in grid
+     perfBench({gw:69, rounds:25, edit:false})    // settle-rebake only, no re-trace
+
+   `edit:true` (default) also invalidates terrainRev each round, so the region
+   trace is included — that is what a brush stroke actually costs. `edit:false`
+   measures a pan/zoom settle rebake, where the trace is cached.
+
+   Two things this cannot do for you: it needs a COMPOSITING window (a hidden or
+   backgrounded tab does not rasterize, and canvas timings taken there swing by
+   3x and can even show less work costing more), and it replaces whatever garden
+   is open. It parks itself on a scratch world id so autosave cannot overwrite a
+   real garden, but save your work first. */
+function perfBench(opts){
+  opts=opts||{};
+  const gw=Math.max(8,opts.gw||31), gh=Math.max(8,opts.gh||gw);
+  const edge=opts.edge==='formal'?'formal':'organic';
+  const rounds=Math.max(3,opts.rounds||15), edit=opts.edit!==false;
+  if (!game.mode){ console.warn('perfBench: open a garden first (it needs a live canvas).'); return null; }
+  const wasOn=dbg.on; dbg.on=true; devReset();
+  const rnd=mulberry(0x9E3779B9);
+  // --- deterministic garden: beds/path in NORMALIZED plot coords, so the same
+  // real layout lands on any grid size and two grids stay comparable ---
+  game.gameMode='design'; game.previewMode='established';
+  setWorldSize(gw,gh);
+  game.worldId='perfbench'; game.worldName='perfBench scratch';
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={};
+  game.fences={}; game.lights={}; game.firepits={}; game.boulders={};
+  game.houses=[]; game.buildings=[]; game.schemes=[]; game.schemeActive=null;
+  game.rot=0; game.edgeStyle=edge; game.bedStyle='soil'; game.pathColor='warm';
+  const keys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
+  const pool=t=>keys.filter(k=>PLANTS[k].type===t);
+  const herb=pool('grass').concat(pool('forb')), trees=pool('tree'), shrubs=pool('shrub');
+  const now=Date.now(), day=absDay();
+  for (let y=0;y<gh;y++) for (let x=0;x<gw;x++){
+    const u=(x+0.5)/gw, v=(y+0.5)/gh;
+    if (Math.abs(v-0.5-0.14*Math.sin(u*6))<0.045) setTile('terrain',x+','+y,{k:'path',c:'warm',t:now});
+    else if (Math.sin(u*5.1+1.3)*0.5+Math.cos(v*4.4)*0.5+u*0.3 > 0.0825)
+      setTile('terrain',x+','+y,{k:'bed',c:'soil',t:now});
+  }
+  const drop=(list,n,age)=>{ let placed=0,guard=0;
+    while (placed<n && guard++<n*400){
+      const x=(rnd()*gw)|0, y=(rnd()*gh)|0, k=x+','+y;
+      if (game.plants[k]) continue;
+      setTile('plants',k,{s:list[(rnd()*list.length)|0],d:day-age,t:now}); placed++; } };
+  if (trees.length) drop(trees,8,3650);
+  if (shrubs.length) drop(shrubs,22,1825);
+  for (let y=0;y<gh;y++) for (let x=0;x<gw;x++){
+    const k=x+','+y, tt=game.terrain[k];
+    if (!tt || tt.k!=='bed' || game.plants[k]) continue;
+    if (rnd()>0.8) continue;
+    setTile('plants',k,{s:herb[(rnd()*herb.length)|0],d:day-40,t:now});
+  }
+  enterGarden(); fitPlot();
+  game.edgeStyle=edge;                       // enterGarden re-normalizes it
+  const samples=[], traces=[];
+  buildTerrainRegions();                     // warm the region cache before the warmup bakes
+  for (let i=0;i<4;i++){ groundKey=''; render(performance.now()); }
+  devReset();                                // discard warmup
+  for (let i=0;i<rounds;i++){
+    if (edit) markGroundChanged({terrain:true});
+    groundKey='';
+    render(performance.now());
+    if (dbg.ev.bake) samples.push(dbg.ev.bake.last);
+    if (dbg.ev.trace) traces.push(dbg.ev.trace.last);
+  }
+  dbg.on=wasOn;
+  const stat=a=>{ if (!a.length) return null; const s=a.slice().sort((x,y)=>x-y);
+    return {min:+s[0].toFixed(1), med:+s[(s.length/2)|0].toFixed(1), max:+s[s.length-1].toFixed(1)}; };
+  const out={plot:`${gw}x${gh}`, feet:`${Math.round(gw*TILE_IN/12)}x${Math.round(gh*TILE_IN/12)}ft`,
+    edge, edit, rounds, tileIn:TILE_IN,
+    terrainTiles:Object.keys(game.terrain).length, plants:Object.keys(game.plants).length,
+    bakeMs:stat(samples), traceMs:stat(traces),
+    canvas:cnv?`${cnv.width}x${cnv.height}`:'?', dpr:DPR, zoom:+ZOOM.toFixed(2),
+    compositing:!document.hidden};
+  if (document.hidden) console.warn('perfBench: tab is HIDDEN — canvas timings here are not trustworthy.');
+  console.log(`perfBench ${out.plot} (${out.feet}) ${edge}${edit?' +edit':''}  `+
+    `${out.terrainTiles} terrain tiles, ${out.plants} plants\n`+
+    `  bake  ${out.bakeMs?`min ${out.bakeMs.min}  med ${out.bakeMs.med}  max ${out.bakeMs.max}`:'n/a'} ms\n`+
+    `  trace ${out.traceMs?`min ${out.traceMs.min}  med ${out.traceMs.med}  max ${out.traceMs.max}`:'cached'} ms\n`+
+    `  canvas ${out.canvas} dpr ${out.dpr} zoom ${out.zoom}`);
+  return out;
 }
 // debug-only: pack the plot with a dense mix so the profiler sees worst-case.
 function stressGarden(){
@@ -1388,7 +1525,8 @@ function stressGarden(){
   toast('Stress garden: '+Object.keys(game.plants).length+' plants, '+Object.keys(game.bulbs).length+' bulbs');
 }
 function loop(t){
-  const dt=Math.min(50,Math.max(0,t-prev)); prev=t;   // floor 0: a backward t must never rewind FF time
+  const rawGap=t-prev;                                // unclamped: stall detection needs the real spacing
+  const dt=Math.min(50,Math.max(0,rawGap)); prev=t;   // floor 0: a backward t must never rewind FF time
   if (game.mode){
     const tFrame=dnow();
     if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
@@ -1412,7 +1550,7 @@ function loop(t){
       // glass governor samples frame SPACING, but only while the user is
       // actively interacting — idle frames run at a deliberate 30fps cadence
       // and would read as jank.
-      if (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS) updateGlassMode(dt);
+      if (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS){ updateGlassMode(dt); dgap(rawGap); }
       if (dbg.on) dbg.acc.move=(dbg.acc.move||0)+moveMs;
       render(t);                                   // render adds its own phase marks
       lastGardenRender=t;

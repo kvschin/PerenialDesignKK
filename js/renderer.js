@@ -403,6 +403,7 @@ function buildTerrainRegions(){
   const sig=terrainRegionKey();
   if (terrainLoopCache.sig===sig && terrainLoopCache.terrainRef===game.terrain &&
       terrainLoopCache.elevRef===game.elevation) return terrainLoopCache.regions;
+  const tTrace=dnow();   // cache miss only: this is the per-EDIT trace, not per-frame
   const solid={};  // every live terrain tile, any material — the hardness lookup
   const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
   const rankAt={}; // "x,y" -> TERRAIN_RANK: which of two materials is laid on top
@@ -452,6 +453,7 @@ function buildTerrainRegions(){
   // soft-edge classification above assumes exactly this order.
   regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
   terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
+  dev('trace',tTrace);
   return regions;
 }
 function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
@@ -931,15 +933,18 @@ function render(t){
   const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+pad);
   // persistent scene list: rebuild only on edit / rot / layer toggle / day tick
   // (or when a load swapped the maps wholesale) — never on pan/zoom frames
-  const tScene=dnow();
-  if (sceneStale(sceneKey())) buildScene(W,H);
-  dmark('gather',tScene);
+  // Scene rebuilds are invalidation-triggered, not per-frame, so they are an
+  // EVENT: folded into the 'gather' average they made a rare O(all plants)
+  // rebuild indistinguishable from the cheap per-frame dynamic gather below,
+  // which shares that label.
+  if (sceneStale(sceneKey())){ const tScene=dnow(); buildScene(W,H); dev('scene',tScene); }
 
   const tG0=dnow();
   // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
   // then blit per frame (see the note at the top of this file).
   const gkey=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
     (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataKey();
+  let bakeMs=0;                                        // charged to the 'bake' event, not the 'ground' phase
   const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
   if (groundCanvas.width!==cnv.width+2*MD||groundCanvas.height!==cnv.height+2*MD){
@@ -955,6 +960,7 @@ function render(t){
     || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
   if (mustBake){
+    const tBake=dnow();                                // 'ground' below is the per-frame BLIT; this is the bake
     const Mu=MD/(DPR*ZOOM);                            // margin in draw units
     // expanded tile bbox: the viewport window plus the baked margin
     const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
@@ -967,6 +973,7 @@ function render(t){
     paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
     groundKey=gkey; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
     groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
+    bakeMs=dev('bake',tBake);
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
   // approximation mid-zoom-gesture that the settle rebake replaces crisp.
@@ -978,7 +985,11 @@ function render(t){
   cx.drawImage(groundCanvas,bdx,bdy,groundCanvas.width*k,groundCanvas.height*k);
   cx.restore();
   drawSiteUnderlay(cx,W,H);
-  dmark('ground',tG0);
+  // Offsetting the start by bakeMs charges 'ground' with the per-frame blit
+  // ALONE, so that row stays a stable ~0.1ms and a bake shows up where it can
+  // actually be read — as an event with its own last/max, not as a one-frame
+  // spike smeared across the window's average.
+  dmark('ground',tG0+bakeMs);
   const tShade=dnow();
   if (layerShown('woody')) for (const sh of scene.shrubs){
     if (sh.x+sh.cullR<x0 || sh.x-sh.cullR>x1 || sh.y+sh.cullR<y0 || sh.y-sh.cullR>y1) continue;

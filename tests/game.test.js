@@ -3155,3 +3155,48 @@ test('renaming a scheme is trimmed, bounded, and rejects empty', () => {
   renameScheme(id, 'x'.repeat(80));
   assertEqual(activeSchemeName().length, 32, 'names are bounded so the chip cannot be overrun');
 });
+
+test('event timers record last/max/count and survive the per-window reset', () => {
+  const wasOn = dbg.on;
+  dbg.on = true;
+  devReset();
+  const t0 = performance.now();
+  dev('probe', t0 - 50);          // the worst sample first...
+  dev('probe', performance.now()); // ...then a cheap one, so last !== max
+  const e = dbg.ev.probe;
+  assertEqual(e.n, 2, 'both samples counted');
+  assert(e.max >= 50, 'max holds the worst sample, not the latest');
+  assert(e.last < e.max, 'last is the most recent sample, independent of max');
+  dbgReset();
+  assert(dbg.ev.probe && dbg.ev.probe.n === 2,
+    'events survive dbgReset — a rare bake must stay readable after its window ends');
+  devReset();
+  assert(!dbg.ev.probe, 'devReset is the explicit way to clear them');
+  dbg.on = wasOn;
+});
+
+test('debug instrumentation is inert when the HUD is off', () => {
+  const wasOn = dbg.on;
+  dbg.on = false;
+  devReset();
+  assertEqual(dnow(), 0, 'dnow does not read the clock while off');
+  dev('probe', 0);
+  dgap(999);
+  assert(!dbg.ev.probe, 'dev records nothing while off');
+  assertEqual(dbg.gapMax, 0, 'dgap records nothing while off');
+  dbg.on = wasOn;
+});
+
+test('frame-spacing tracking uses the raw gap and counts only over-budget frames', () => {
+  const wasOn = dbg.on;
+  dbg.on = true;
+  devReset();
+  dgap(16);
+  dgap(dbg.GAP_BUDGET + 40);
+  dgap(8);
+  assertEqual(dbg.gapN, 3, 'every sampled frame is counted');
+  assertEqual(dbg.gapOver, 1, 'only the frame past budget counts as a stall');
+  assertEqual(dbg.gapMax, dbg.GAP_BUDGET + 40, 'max keeps the real stall, unclamped');
+  assertEqual(dbg.gapLast, 8, 'last is the most recent spacing');
+  dbg.on = wasOn;
+});

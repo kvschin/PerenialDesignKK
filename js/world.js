@@ -804,6 +804,7 @@ function ensureShadeMap(real){
   const cached = real ? shadeMapCacheReal : shadeMapCache;
   if (cached.key===key && cached.plantsRef===game.plants &&
       cached.activeScore && cached.activeScore.length===n) return cached;
+  const tMap=dnow();     // cache miss only: rebuilt per edit, and O(GW*GH) in allocation
   const activeScore=new Float32Array(n), activeAlpha=new Float32Array(n);
   const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
   const activeTree=new Array(n), futureTree=new Array(n);
@@ -838,6 +839,7 @@ function ensureShadeMap(real){
   const built={key, plantsRef:game.plants, activeScore, activeAlpha,
     futureScore, futureDrawScore, activeTree, futureTree, hasShade:trees>0};
   if (real) shadeMapCacheReal=built; else shadeMapCache=built;
+  dev(real?'shadeR':'shadeM',tMap);
   return built;
 }
 function shadeScoreAt(x,y){

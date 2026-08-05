@@ -1386,6 +1386,7 @@ function updateCanvasCursor(){
     : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick'||game.tool==='building') ? 'crosshair' : '';
 }
 function snapshotState(){
+  const t0=dnow();   // fires on EVERY pointerdown, and is O(all plants) — see 'snap' in the debug HUD
   const s={};
   for (const L of GAME_LAYERS) s[L.k]=JSON.parse(JSON.stringify(game[L.k]||(L.array?[]:{})));
   // Which planting scheme these layers belong to. A string, so tagging costs
@@ -1394,6 +1395,7 @@ function snapshotState(){
   // per-pointerdown cost, and per-scheme stacks at ~73MB of heap on a quarter
   // acre, so neither is affordable.
   s.scheme=game.schemeActive;
+  dev('snap',t0);
   return s;
 }
 // a new action invalidates the redo chain (standard undo/redo semantics)

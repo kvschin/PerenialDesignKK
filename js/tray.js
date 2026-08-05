@@ -539,6 +539,7 @@ function fillActive(){ return game.fillMode && toolMeta(game.tool).paints; }
 function groundMat(x,y){ return tileTerrain(x,y) || 'grass'; }
 function doFloodFill(sx,sy){
   if (!onPlot(sx,sy) || siteStructureAt(sx,sy) || isDoor(sx,sy)) return;
+  const tFill=dnow();   // one tap, unbounded region: 'fill' in the debug HUD
   const seed=groundMat(sx,sy);
   // BFS the 4-connected region sharing that ground material
   const region=[], seen=new Set([sx+','+sy]), q=[[sx,sy]];
@@ -563,6 +564,7 @@ function doFloodFill(sx,sy){
       : `${bedStyle(game.bedStyle).label} bed`;
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
   } else toast('Nothing here that fill can change.');
+  dev('fill',tFill);
 }
 /* eyedropper: sample whatever is on the tapped tile (plant > bulb > fence/light/firepit/boulder > terrain)
    and arm it as the brush, dropping straight into Plant mode so the next tap

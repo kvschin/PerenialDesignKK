@@ -387,7 +387,37 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     perf **debug HUD** (`dbg`, toggled by backtick or `?debug`, zero-cost off;
     `dnow`/`dmark`/`dtime` are the phase timers) shows FPS + a per-phase
     frame-time breakdown — ground / shade / cursor / gather / sort / draw / fx,
-    plus move / hud — sorted by cost. Ground drawn back-to-front, a single
+    plus move / hud — sorted by cost. **Phase averages are the wrong instrument
+    for this app's expensive work**, which is invalidation-triggered rather than
+    per-frame: folded into a bucket that is averaged over a ~500ms window and
+    then `dbgReset()`, a 70ms ground bake either smears into +2ms across 35
+    frames or misses the window and reads 0.00 — the HUD showing `ground 0.00ms`
+    while the bake was the thing under investigation is what motivated the split.
+    So rare work is timed as **events** instead (`dev(label,t0)`, which returns
+    its own ms; `devTime` wraps a call): `dbg.ev` holds `{last,max,n,total}` per
+    label, reported as last/max/×count, and it deliberately **survives
+    `dbgReset`** — `devReset()` is the explicit clear, also fired by
+    `toggleDebug`. Instrumented events: `bake` (ground bake), `trace`
+    (`buildTerrainRegions`), `scene` (`buildScene`), `shadeM`/`shadeR` (the two
+    `ensureShadeMap` slots), `snap` (`snapshotState`, every pointerdown),
+    `fill` (`doFloodFill`), `blob` (`buildSaveBlob`). The `ground` PHASE now
+    charges the per-frame blit alone (~0.02ms) — `dmark('ground',tG0+bakeMs)`
+    subtracts the bake back out — and `buildScene` no longer shares the `gather`
+    bucket with the cheap per-frame dynamic gather. `dgap(rawGap)` tracks real
+    rAF spacing (max + over-budget count), fed the UNCLAMPED delta and gated to
+    interaction frames exactly like `updateGlassMode`, because JS phases can sum
+    to 3ms while frames land 30ms apart — GPU composite, blur recomposite, GC
+    and layout are all outside every phase timer. Dev-only **`perfBench(opts)`**
+    (beside `stressGarden`) is the repeatable comparison: it builds a
+    mulberry-seeded deterministic garden in NORMALIZED plot coords (same real
+    layout at any grid size, so two plot sizes are comparable), forces `rounds`
+    bakes and reports min/median/max for `bake` and `trace` —
+    `perfBench({gw:46,edge:'formal',rounds:25,edit:false})`; `edit:true`
+    (default) also invalidates `terrainRev` so the trace is included, which is
+    what a brush stroke really costs. **Canvas timings taken in a hidden or
+    backgrounded tab are worthless** — it does not rasterize, readings swing 3x
+    and can show strictly less work costing more — so `perfBench` warns on
+    `document.hidden` and returns `compositing`. Ground drawn back-to-front, a single
     depth-sorted entity
     pass for the cottage + plants + critters (`houseDrawDepth()` uses the
     current-rotation max view depth over the footprint, so large houses sort
