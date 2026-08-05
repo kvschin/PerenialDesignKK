@@ -3241,3 +3241,25 @@ test('the season wash bakes once per season and size, and ignores zoom', () => {
   seasonSkyBake(800, 600, 'Summer', AMBIENCE.Summer);
   assertEqual(skyBake.key, key, 'and nothing about the camera can invalidate it');
 });
+
+test('the season wash has three interchangeable modes, all cached on device pixels', () => {
+  const was = SEASON_WASH.mode;
+  assert(['live', 'cached', 'baked'].indexOf(was) >= 0, 'the shipped mode is one of the three');
+
+  washGrad = { key: '' };
+  const ctx = document.createElement('canvas').getContext('2d');
+  const a = seasonWashGradients(ctx, 800, 600, 'Summer', AMBIENCE.Summer);
+  assert(a === seasonWashGradients(ctx, 800, 600, 'Summer', AMBIENCE.Summer),
+    'gradients are built once per season and size');
+  assert(a !== seasonWashGradients(ctx, 800, 600, 'Winter', AMBIENCE.Winter),
+    'a season change rebuilds them');
+  assert(seasonWashGradients(ctx, 801, 600, 'Winter', AMBIENCE.Winter) !== a,
+    'a resize rebuilds them');
+  /* Keyed on DEVICE pixels, never on zoom: canvas gradient coordinates resolve
+     in user space at PAINT time, so a gradient built in draw units and painted
+     at another zoom lands in the wrong place. This key is correctness, not
+     just speed — see the season-wash note in world.js. */
+  assert(washGrad.key.indexOf('801x600') >= 0, 'the key carries the device size, not the camera');
+
+  SEASON_WASH.mode = was;
+});

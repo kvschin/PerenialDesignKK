@@ -2038,34 +2038,68 @@ function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
   }
   ctx.restore();
 }
-/* ---------- the season wash, baked ----------
+/* ---------- the season wash ----------
    Sky ramp + sun + haze before the frame, tint + beam + vignette after: six
    full-screen gradient fills every frame. Measured on a 117-plant garden at
    1490x863 they were ~11ms of a 15.5ms frame (65-71%), FLAT across all four
    seasons and independent of plant count — per-pixel work that does not know
    what it is washing. Drawing the garden itself was a fifth of the frame.
 
-   All six are a pure function of (season, canvas size), so they bake once.
+   All six are a pure function of (season, canvas size), so they need not be
+   rebuilt per frame. HOW to exploit that is genuinely unobvious, and the two
+   obvious answers disagree depending on what you measure:
 
-   The SKY trio collapses to ONE opaque bitmap: it paints onto a cleared frame
-   and its first fill is opaque, so nothing underneath it can show through.
-   The LIGHT trio cannot collapse. Its order is tint (source-over) -> beam
-   ('screen') -> vignette (source-over), and a blend mode against the live
-   scene does not commute with the source-over passes around it, so folding
-   them would change the picture. It stays three passes with the two gradients
-   pre-rendered; the flat tint keeps its fillRect, because a solid fill is
-   already a fast path and a blit would be slower.
+     'live'   — build the gradients every frame in DRAW units (the original).
+     'cached' — build them ONCE in DEVICE pixels, still painted with fillRect.
+                No blit; only the per-frame gradient construction goes away.
+     'baked'  — pre-render each to a canvas-sized bitmap and blit.
 
-   Baked in DEVICE pixels and blitted with the transform reset. Every stop
-   here is a fraction of W/H and W*DPR*ZOOM === canvas.width, so ZOOM cancels
-   out of the geometry and a zoom gesture does not invalidate the bake. Note
-   that caching a gradient built in DRAW units and painting it at a different
-   zoom would NOT cancel — canvas gradient coordinates resolve in user space at
-   paint time, so that is a rendering bug wearing an optimisation's clothes.
+   Measured static phase means got WORSE under 'baked' (light +57%, ground
+   +250%, frame +45%): a full-canvas drawImage costs ~4ms at 1.3MP here, about
+   what three gradient fillRects cost, so a gradient fill is a fast path and a
+   blit is not. But 'baked' measurably REMOVED the stutter when panning and
+   zooming, which the static means cannot see: in 'live' a zoom gesture changes
+   W and H every frame, so every gradient is rebuilt with new coordinates and
+   genuinely re-created rather than reused. Averages and stutter are different
+   quantities and this change moved them in opposite directions.
 
-   Cost: three canvas-sized RGBA bitmaps (~5MB each at 1.3MP), rebuilt only on
-   a season change or a resize. */
+   'cached' exists because it should get both: no per-frame construction AND no
+   blit. Keyed on DEVICE pixels — every stop is a fraction of W/H and
+   W*DPR*ZOOM === canvas.width, so ZOOM cancels and a zoom gesture cannot
+   invalidate it. Building in DRAW units and painting at another zoom would NOT
+   cancel: canvas gradient coordinates resolve in user space at PAINT time, so
+   that variant is a rendering bug wearing an optimisation's clothes.
+
+   Switch at runtime from the console — SEASON_WASH.mode='live' — so the three
+   can be A/B'd in ONE session on ONE garden, watching the `spacing` row while
+   panning and zooming, not just the phase means. All three are verified
+   pixel-identical. Do not delete the losers until that comparison is made.
+
+   'baked' costs three canvas-sized RGBA bitmaps (~5MB each at 1.3MP), rebuilt
+   only on a season change or a resize. */
+const SEASON_WASH={mode:'cached'};
 let skyBake={key:'',cv:null}, washBake={key:'',beam:null,vg:null};
+let washGrad={key:''};
+// gradients built ONCE in device pixels; same geometry as the bakes, no bitmap
+function seasonWashGradients(ctx,cw,ch,season,amb){
+  const key=season+'|'+cw+'x'+ch;
+  if (washGrad.key===key) return washGrad;
+  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+  const sky=ctx.createLinearGradient(0,0,0,ch);
+  sky.addColorStop(0,amb.sky[0]); sky.addColorStop(1,amb.sky[1]);
+  const sun=ctx.createRadialGradient(cw*0.72,ch*0.14,0,cw*0.72,ch*0.14,ch*0.9);
+  sun.addColorStop(0,L.sun); sun.addColorStop(0.5,'rgba(255,255,255,0)'); sun.addColorStop(1,'rgba(255,255,255,0)');
+  const haze=ctx.createLinearGradient(0,ch*0.18,0,ch*0.62);
+  haze.addColorStop(0,'rgba(255,255,255,0)'); haze.addColorStop(1,L.haze);
+  const beam=ctx.createLinearGradient(cw*0.18,0,cw*0.92,ch*0.92);
+  beam.addColorStop(0,L.beam);
+  beam.addColorStop(0.45,'rgba(255,255,255,0.02)');
+  beam.addColorStop(1,'rgba(255,255,255,0)');
+  const vg=ctx.createRadialGradient(cw*0.50,ch*0.44,Math.min(cw,ch)*0.20,cw*0.50,ch*0.44,Math.max(cw,ch)*0.74);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,L.vignette);
+  washGrad={key,sky,sun,haze,beam,vg};
+  return washGrad;
+}
 function bakeWashLayer(cw,ch,paint){
   const cv=document.createElement('canvas');
   cv.width=cw; cv.height=ch;
@@ -2091,12 +2125,33 @@ function seasonSkyBake(cw,ch,season,amb){
   skyBake={key,cv};
   return cv;
 }
-// the whole sky pass: one opaque blit that replaces the previous frame
+// the whole sky pass — three fills, three cached fills, or one opaque blit
 function drawSeasonSky(ctx,W,H,season,amb){
+  amb=amb||AMBIENCE[season]||AMBIENCE.Summer;
+  if (SEASON_WASH.mode==='live'){                 // original: rebuilt every frame, in draw units
+    const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+    let g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    g=ctx.createRadialGradient(W*0.72,H*0.14,0,W*0.72,H*0.14,H*0.9);
+    g.addColorStop(0,L.sun); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    g=ctx.createLinearGradient(0,H*0.18,0,H*0.62);
+    g.addColorStop(0,'rgba(255,255,255,0)');
+    g.addColorStop(1,L.haze);
+    ctx.fillStyle=g; ctx.fillRect(0,H*0.18,W,H*0.46);
+    return;
+  }
   const cw=ctx.canvas.width, ch=ctx.canvas.height;
-  const cv=seasonSkyBake(cw,ch,season,amb||AMBIENCE[season]||AMBIENCE.Summer);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
-  ctx.drawImage(cv,0,0);
+  if (SEASON_WASH.mode==='baked'){
+    ctx.drawImage(seasonSkyBake(cw,ch,season,amb),0,0);
+  } else {
+    const g=seasonWashGradients(ctx,cw,ch,season,amb);
+    ctx.fillStyle=g.sky;  ctx.fillRect(0,0,cw,ch);
+    ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch);
+    ctx.fillStyle=g.haze; ctx.fillRect(0,ch*0.18,cw,ch*0.46);
+  }
   ctx.restore();
 }
 function seasonWashBake(cw,ch,season){
@@ -2119,14 +2174,44 @@ function seasonWashBake(cw,ch,season){
   washBake={key,beam,vg};
   return washBake;
 }
+/* tint (source-over) -> beam ('screen') -> vignette (source-over). The blend in
+   the middle is against the LIVE scene, so the three cannot be folded into one
+   layer in any mode. The flat tint always keeps its fillRect: a solid fill is
+   already a fast path and a blit would be slower. */
 function applySeasonLighting(ctx,W,H,amb,season){
-  const cw=ctx.canvas.width, ch=ctx.canvas.height, b=seasonWashBake(cw,ch,season);
+  if (SEASON_WASH.mode==='live'){
+    const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+    ctx.fillStyle=amb.tint; ctx.fillRect(0,0,W,H);
+    ctx.save();
+    ctx.globalCompositeOperation='screen';
+    const beam=ctx.createLinearGradient(W*0.18,0,W*0.92,H*0.92);
+    beam.addColorStop(0,L.beam);
+    beam.addColorStop(0.45,'rgba(255,255,255,0.02)');
+    beam.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=beam; ctx.fillRect(0,0,W,H);
+    ctx.restore();
+    const vg=ctx.createRadialGradient(W*0.50,H*0.44,Math.min(W,H)*0.20,W*0.50,H*0.44,Math.max(W,H)*0.74);
+    vg.addColorStop(0,'rgba(0,0,0,0)');
+    vg.addColorStop(1,L.vignette);
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+    return;
+  }
+  const cw=ctx.canvas.width, ch=ctx.canvas.height;
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle=amb.tint; ctx.fillRect(0,0,cw,ch);
-  ctx.globalCompositeOperation='screen';
-  ctx.drawImage(b.beam,0,0);
-  ctx.globalCompositeOperation='source-over';
-  ctx.drawImage(b.vg,0,0);
+  if (SEASON_WASH.mode==='baked'){
+    const b=seasonWashBake(cw,ch,season);
+    ctx.globalCompositeOperation='screen';
+    ctx.drawImage(b.beam,0,0);
+    ctx.globalCompositeOperation='source-over';
+    ctx.drawImage(b.vg,0,0);
+  } else {
+    const g=seasonWashGradients(ctx,cw,ch,season,amb);
+    ctx.globalCompositeOperation='screen';
+    ctx.fillStyle=g.beam; ctx.fillRect(0,0,cw,ch);
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
+  }
   ctx.restore();
 }
 function applyDuskLighting(ctx,W,H,season){

@@ -551,33 +551,47 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Note `mixHex` parses HEX ONLY, so feeding it its own `rgb(...)` output
     yields NaN channels that clamp to black — that is what made the first frozen
     lake solid black. `mixCol` goes through `colorParts` and takes either form.
-11c. **The season wash, baked** (`seasonSkyBake` / `seasonWashBake` /
-    `drawSeasonSky` / `applySeasonLighting`, world.js) — the sky ramp + sun +
-    haze before the frame and the tint + beam + vignette after were **six
-    full-screen gradient fills every frame**. Measured on a 117-plant garden at
-    1490×863: ~11ms of a 15.5ms frame (65–71%), **flat across all four seasons
-    and independent of plant count**, because it is per-pixel work that does not
-    know what it is washing — drawing the garden itself was a fifth of the frame.
-    All six are a pure function of `(season, canvas size)`, so they bake once.
-    The **sky trio collapses to ONE opaque bitmap**: it paints onto a cleared
-    frame and its first fill is opaque, so nothing underneath can show through.
-    The **light trio cannot collapse** — its order is tint (source-over) → beam
-    (**`screen`**) → vignette (source-over), and a blend mode against the live
-    scene does not commute with the source-over passes around it, so folding
-    them changes the picture; it stays three passes with the two gradients
-    pre-rendered, and the flat tint keeps its `fillRect` (a solid fill is
-    already a fast path; a blit would be slower).
-    Bakes are **device-pixel** and blitted with the transform reset. Every stop
-    is a fraction of W/H and `W*DPR*ZOOM === canvas.width`, so ZOOM cancels out
-    of the geometry and a zoom gesture does not invalidate them. Caching a
-    gradient built in DRAW units and painting it at another zoom would NOT
-    cancel — canvas gradient coordinates resolve in user space **at paint
-    time** — so that is a rendering bug wearing an optimisation's clothes, and
-    the test asserts the key carries the device size. Cost: three canvas-sized
-    RGBA bitmaps (~5MB each at 1.3MP), rebuilt only on a season change or a
-    resize. Verified **pixel-identical**: 0 differing bytes of 5,143,480 across
-    all four seasons for both passes, the light pass diffed over a noisy
-    backdrop so the `screen` blend was exercised.
+11c. **The season wash** (`SEASON_WASH` / `seasonWashGradients` /
+    `seasonSkyBake` / `drawSeasonSky` / `applySeasonLighting`, world.js) — the
+    sky ramp + sun + haze before the frame and the tint + beam + vignette after
+    are **six full-screen gradient fills every frame**. Measured on a 117-plant
+    garden at 1490×863: ~11ms of a 15.5ms frame (65–71%), **flat across all four
+    seasons and independent of plant count**, because it is per-pixel work that
+    does not know what it is washing — drawing the garden itself was a fifth of
+    the frame. All six are a pure function of `(season, canvas size)`.
+    **`SEASON_WASH.mode` picks how that is exploited — `'live'` rebuilds the
+    gradients every frame in draw units (the original), `'cached'` builds them
+    once in DEVICE pixels and still paints with `fillRect`, `'baked'`
+    pre-renders each to a canvas-sized bitmap and blits.** All three are
+    verified **pixel-identical** (0 differing bytes of 5,143,480 across four
+    seasons, both passes, the light pass diffed over a noisy backdrop so the
+    `screen` blend was exercised). Switch at runtime from the console.
+    **This is unresolved on purpose, and the two obvious measurements
+    disagree.** Static phase means got WORSE under `'baked'` (light +57%,
+    ground +250%, frame +45%): a full-canvas `drawImage` costs ~4ms at 1.3MP,
+    about what three gradient `fillRect`s cost, so a gradient fill is a fast
+    path here and a blit is not. But `'baked'` measurably **removed the stutter
+    when panning and zooming**, which the means cannot see — under `'live'` a
+    zoom gesture changes W and H every frame, so every gradient is rebuilt with
+    new coordinates and genuinely re-created rather than reused. Averages and
+    stutter are different quantities and this moved them in opposite directions;
+    judge it on the `spacing` row during a gesture, not on the phase means.
+    `'cached'` exists to get both (no per-frame construction, no blit) and is
+    the current default, on one session's evidence — **do not delete the losers
+    until a three-way A/B on one machine says so.**
+    The **sky trio collapses to ONE opaque bitmap** under `'baked'`: it paints
+    onto a cleared frame and its first fill is opaque, so nothing underneath can
+    show through. The **light trio never collapses in any mode** — its order is
+    tint (source-over) → beam (**`screen`**) → vignette (source-over), and a
+    blend mode against the live scene does not commute with the source-over
+    passes around it. The flat tint always keeps its `fillRect`.
+    Every cache is keyed on **device pixels**: each stop is a fraction of W/H
+    and `W*DPR*ZOOM === canvas.width`, so ZOOM cancels and a gesture cannot
+    invalidate them. Caching a gradient built in DRAW units and painting it at
+    another zoom would NOT cancel — canvas gradient coordinates resolve in user
+    space **at paint time** — so that variant is a rendering bug wearing an
+    optimisation's clothes, and the tests assert the key carries the device
+    size. `'baked'` costs three canvas-sized RGBA bitmaps (~5MB each at 1.3MP).
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
