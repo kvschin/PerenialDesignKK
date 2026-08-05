@@ -3215,36 +3215,11 @@ test('a backgrounded tab resuming is counted as a suspend, not as jank', () => {
   dbg.on = wasOn;
 });
 
-test('the season wash bakes once per season and size, and ignores zoom', () => {
-  skyBake = { key: '', cv: null };
-  washBake = { key: '', beam: null, vg: null };
-  const a = seasonSkyBake(800, 600, 'Summer', AMBIENCE.Summer);
-  assert(a === seasonSkyBake(800, 600, 'Summer', AMBIENCE.Summer),
-    'the same season at the same size reuses the bake');
-  const winter = seasonSkyBake(800, 600, 'Winter', AMBIENCE.Winter);
-  assert(winter !== a, 'a season change rebuilds it');
-  assert(seasonSkyBake(801, 600, 'Winter', AMBIENCE.Winter) !== winter,
-    'a resize rebuilds it');
-
-  const w = seasonWashBake(800, 600, 'Fall');
-  assert(w === seasonWashBake(800, 600, 'Fall'), 'the tint/beam/vignette bake is reused too');
-  assert(w !== seasonWashBake(800, 600, 'Spring'), 'and rebuilt per season');
-
-  /* The bake is keyed on DEVICE pixels, never on zoom. Canvas gradient
-     coordinates resolve in user space at paint time, so a gradient built in
-     draw units and painted at another zoom would land in the wrong place —
-     keying on the device size is what makes the cache correct, not just fast. */
-  skyBake = { key: '', cv: null };
-  seasonSkyBake(800, 600, 'Summer', AMBIENCE.Summer);
-  const key = skyBake.key;
-  assert(key.indexOf('800x600') >= 0, 'the key carries the device size');
-  seasonSkyBake(800, 600, 'Summer', AMBIENCE.Summer);
-  assertEqual(skyBake.key, key, 'and nothing about the camera can invalidate it');
-});
-
-test('the season wash has three interchangeable modes, all cached on device pixels', () => {
+test('the season wash caches its gradients on device pixels, never on zoom', () => {
   const was = SEASON_WASH.mode;
-  assert(['live', 'cached', 'baked'].indexOf(was) >= 0, 'the shipped mode is one of the three');
+  assert(['live', 'cached'].indexOf(was) >= 0, 'the shipped mode is one of the two');
+  assertEqual(typeof seasonSkyBake, 'undefined',
+    "the 'baked' path is gone — it was measured slower than both survivors");
 
   washGrad = { key: '' };
   const ctx = document.createElement('canvas').getContext('2d');

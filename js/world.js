@@ -2084,12 +2084,12 @@ function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
    variant is a rendering bug wearing an optimisation's clothes.
 
    'live' stays as a one-word A/B reference (SEASON_WASH.mode='live') and as a
-   fallback if a browser ever regresses gradient reuse. 'baked' is a measured
-   loser on both counts and costs three canvas-sized RGBA bitmaps (~5MB each);
-   it stays only until 'cached' is confirmed to feel as smooth in the hand as
-   'baked' did, since that hands-on signal is what caught the last mistake. */
+   fallback if a browser ever regresses gradient reuse — it is ~25 lines and
+   buys a free comparison in a system that has now mismeasured itself twice.
+   'baked' is GONE: a measured loser on both counts, and it carried three
+   canvas-sized RGBA bitmaps (~5MB each) to be slower than the two-line fix.
+   Its numbers are kept in the table above so nobody rebuilds it. */
 const SEASON_WASH={mode:'cached'};
-let skyBake={key:'',cv:null}, washBake={key:'',beam:null,vg:null};
 let washGrad={key:''};
 // gradients built ONCE in device pixels; same geometry as the bakes, no bitmap
 function seasonWashGradients(ctx,cw,ch,season,amb){
@@ -2111,32 +2111,7 @@ function seasonWashGradients(ctx,cw,ch,season,amb){
   washGrad={key,sky,sun,haze,beam,vg};
   return washGrad;
 }
-function bakeWashLayer(cw,ch,paint){
-  const cv=document.createElement('canvas');
-  cv.width=cw; cv.height=ch;
-  paint(cv.getContext('2d'),cw,ch);
-  return cv;
-}
-function seasonSkyBake(cw,ch,season,amb){
-  const key=season+'|'+cw+'x'+ch;
-  if (skyBake.key===key && skyBake.cv) return skyBake.cv;
-  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
-  const cv=bakeWashLayer(cw,ch,(c,W,H)=>{
-    let g=c.createLinearGradient(0,0,0,H);
-    g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
-    c.fillStyle=g; c.fillRect(0,0,W,H);
-    g=c.createRadialGradient(W*0.72,H*0.14,0,W*0.72,H*0.14,H*0.9);
-    g.addColorStop(0,L.sun); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
-    c.fillStyle=g; c.fillRect(0,0,W,H);
-    g=c.createLinearGradient(0,H*0.18,0,H*0.62);
-    g.addColorStop(0,'rgba(255,255,255,0)');
-    g.addColorStop(1,L.haze);
-    c.fillStyle=g; c.fillRect(0,H*0.18,W,H*0.46);
-  });
-  skyBake={key,cv};
-  return cv;
-}
-// the whole sky pass — three fills, three cached fills, or one opaque blit
+// the whole sky pass — three fills, rebuilt per frame or built once
 function drawSeasonSky(ctx,W,H,season,amb){
   amb=amb||AMBIENCE[season]||AMBIENCE.Summer;
   if (SEASON_WASH.mode==='live'){                 // original: rebuilt every frame, in draw units
@@ -2154,41 +2129,16 @@ function drawSeasonSky(ctx,W,H,season,amb){
     return;
   }
   const cw=ctx.canvas.width, ch=ctx.canvas.height;
+  const g=seasonWashGradients(ctx,cw,ch,season,amb);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
-  if (SEASON_WASH.mode==='baked'){
-    ctx.drawImage(seasonSkyBake(cw,ch,season,amb),0,0);
-  } else {
-    const g=seasonWashGradients(ctx,cw,ch,season,amb);
-    ctx.fillStyle=g.sky;  ctx.fillRect(0,0,cw,ch);
-    ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch);
-    ctx.fillStyle=g.haze; ctx.fillRect(0,ch*0.18,cw,ch*0.46);
-  }
+  ctx.fillStyle=g.sky;  ctx.fillRect(0,0,cw,ch);
+  ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch);
+  ctx.fillStyle=g.haze; ctx.fillRect(0,ch*0.18,cw,ch*0.46);
   ctx.restore();
-}
-function seasonWashBake(cw,ch,season){
-  const key=season+'|'+cw+'x'+ch;
-  if (washBake.key===key && washBake.beam) return washBake;
-  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
-  const beam=bakeWashLayer(cw,ch,(c,W,H)=>{
-    const g=c.createLinearGradient(W*0.18,0,W*0.92,H*0.92);
-    g.addColorStop(0,L.beam);
-    g.addColorStop(0.45,'rgba(255,255,255,0.02)');
-    g.addColorStop(1,'rgba(255,255,255,0)');
-    c.fillStyle=g; c.fillRect(0,0,W,H);
-  });
-  const vg=bakeWashLayer(cw,ch,(c,W,H)=>{
-    const g=c.createRadialGradient(W*0.50,H*0.44,Math.min(W,H)*0.20,W*0.50,H*0.44,Math.max(W,H)*0.74);
-    g.addColorStop(0,'rgba(0,0,0,0)');
-    g.addColorStop(1,L.vignette);
-    c.fillStyle=g; c.fillRect(0,0,W,H);
-  });
-  washBake={key,beam,vg};
-  return washBake;
 }
 /* tint (source-over) -> beam ('screen') -> vignette (source-over). The blend in
    the middle is against the LIVE scene, so the three cannot be folded into one
-   layer in any mode. The flat tint always keeps its fillRect: a solid fill is
-   already a fast path and a blit would be slower. */
+   layer. The flat tint needs no cached gradient — it is a solid colour. */
 function applySeasonLighting(ctx,W,H,amb,season){
   if (SEASON_WASH.mode==='live'){
     const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
@@ -2209,20 +2159,12 @@ function applySeasonLighting(ctx,W,H,amb,season){
   }
   const cw=ctx.canvas.width, ch=ctx.canvas.height;
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+  const g=seasonWashGradients(ctx,cw,ch,season,amb);
   ctx.fillStyle=amb.tint; ctx.fillRect(0,0,cw,ch);
-  if (SEASON_WASH.mode==='baked'){
-    const b=seasonWashBake(cw,ch,season);
-    ctx.globalCompositeOperation='screen';
-    ctx.drawImage(b.beam,0,0);
-    ctx.globalCompositeOperation='source-over';
-    ctx.drawImage(b.vg,0,0);
-  } else {
-    const g=seasonWashGradients(ctx,cw,ch,season,amb);
-    ctx.globalCompositeOperation='screen';
-    ctx.fillStyle=g.beam; ctx.fillRect(0,0,cw,ch);
-    ctx.globalCompositeOperation='source-over';
-    ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
-  }
+  ctx.globalCompositeOperation='screen';
+  ctx.fillStyle=g.beam; ctx.fillRect(0,0,cw,ch);
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
   ctx.restore();
 }
 function applyDuskLighting(ctx,W,H,season){

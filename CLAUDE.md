@@ -560,12 +560,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     All six are a pure function of `(season, canvas size)`.
     **`SEASON_WASH.mode` picks how that is exploited — `'live'` rebuilds the
     gradients every frame in draw units (the original), `'cached'` builds them
-    once in DEVICE pixels and still paints with `fillRect`, `'baked'`
-    pre-renders each to a canvas-sized bitmap and blits.** All three are
-    verified **pixel-identical** (0 differing bytes of 5,143,480 across four
-    seasons, both passes, the light pass diffed over a noisy backdrop so the
-    `screen` blend was exercised). Switch at runtime from the console.
-    Measured mid-session on one garden (145 plants, 1490×863):
+    once in DEVICE pixels and still paints with `fillRect`.** Both are verified
+    **pixel-identical** (0 differing bytes of 5,143,480 across four seasons,
+    both passes, the light pass diffed over a noisy backdrop so the `screen`
+    blend was exercised). Switch at runtime from the console. A third mode,
+    `'baked'` (pre-render each gradient to a canvas-sized bitmap and blit), was
+    built, measured, and **removed** — its numbers are kept below so nobody
+    rebuilds it. Measured mid-session on one garden (145 plants, 1490×863):
 
     | mode | `light` | `sky` | `frame` |
     | --- | --- | --- | --- |
@@ -587,13 +588,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     dominates" — but gradient LUT setup also scales with the gradient's extent,
     so linear-in-area never distinguished construction from fill. Don't trust a
     scaling law to identify a mechanism.** `live` stays as a one-word A/B
-    reference and a fallback if a browser regresses gradient reuse; `baked` is a
-    measured loser on both counts and should go once `cached` is confirmed to
-    feel as smooth in the hand as `baked` did — that hands-on signal is what
-    caught the previous mistake.
-    The **sky trio collapses to ONE opaque bitmap** under `'baked'`: it paints
-    onto a cleared frame and its first fill is opaque, so nothing underneath can
-    show through. The **light trio never collapses in any mode** — its order is
+    reference and a fallback if a browser regresses gradient reuse — it is ~25
+    lines and buys a free comparison in a system that has now mismeasured itself
+    twice. `baked` was deleted once `cached` was confirmed smooth in the hand,
+    that hands-on signal being the only thing that caught the previous mistake.
+    The **light trio never collapses** — its order is
     tint (source-over) → beam (**`screen`**) → vignette (source-over), and a
     blend mode against the live scene does not commute with the source-over
     passes around it. The flat tint always keeps its `fillRect`.
@@ -603,7 +602,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     another zoom would NOT cancel — canvas gradient coordinates resolve in user
     space **at paint time** — so that variant is a rendering bug wearing an
     optimisation's clothes, and the tests assert the key carries the device
-    size. `'baked'` costs three canvas-sized RGBA bitmaps (~5MB each at 1.3MP).
+    size.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
