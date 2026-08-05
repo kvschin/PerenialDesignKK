@@ -1309,11 +1309,20 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .season-box:hover{background:var(--surface-control-hover)}
 .season-box .season-name{font-family:var(--font-heading);font-weight:600}
 .season-sub{color:color-mix(in srgb,var(--color-text) 58%,transparent)}
-/* .18 washed the season colour out to almost nothing against the loam bar —
-   it read as grey, and you could not see where the season had got to. .44
-   keeps the season name well clear (6.8:1) while the band is actually legible
-   as a colour. */
-.season-fill{opacity:.44}
+/* .18 washed the season colour out to almost nothing against the loam bar — it
+   read as grey and you could not see where the season had got to; .44 fixed
+   that but still read muted. .55 is the season actually reading as its colour.
+
+   The binding constraint is DARK theme over SPRING — the lightest band under
+   the lightest text — and it is tighter than it looks: measured, the season
+   name holds 5.34:1 at .44, 4.66:1 at .50 and only 4.17:1 at .55, which fails
+   WCAG AA (the name is 15.5px/600, so it needs 4.5, not the 3.0 large-text
+   allowance). Every other band and the whole light theme have far more room
+   (light theme tolerates .71). So .55 is paid for by deepening SPRING's fill
+   5.5% in SEASON_FILL (#7fc24e -> #78b74a), which restores 4.52:1 and is not
+   perceptible as a colour change. Raise this past .55 and Spring goes under
+   again — re-measure both themes before touching either number. */
+.season-fill{opacity:.55}
 .top-tools-full{position:static;left:auto;top:auto;transform:none;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
 .hud-right{pointer-events:auto}
 .pill.iconbar .lbl,.pill.iconbar button{color:var(--color-text)}

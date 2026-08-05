@@ -660,9 +660,13 @@ function setActButton(){ // the big mobile do-it button, labeled by context
 }
 /* the time readout string. Design is a planner — real days are meaningless, so
    it shows season + how far through it; Story keeps the life-sim calendar. */
-// the season box fill colour — Kevin's palette: easter green, dark green,
-// the existing fall bronze, a darker winter blue
-const SEASON_FILL = { Spring:'#7fc24e', Summer:'#2f7d3a', Fall:'#c97f3f', Winter:'#3f6190' };
+/* the season box fill colour — Kevin's palette: easter green, dark green, the
+   existing fall bronze, a darker winter blue. Spring is 5.5% deeper than the
+   original #7fc24e: it is the lightest band, so in DARK theme it is the one
+   that decides how far .season-fill's opacity can be pushed, and this is what
+   buys the current .55 while the season name still clears WCAG AA (4.52:1).
+   See the .season-fill note in styles.css before changing either. */
+const SEASON_FILL = { Spring:'#78b74a', Summer:'#2f7d3a', Fall:'#c97f3f', Winter:'#3f6190' };
 // game-ms added per real-ms while holding the season box (~2 garden days/sec)
 const FF_RATE = 40;
 function clockMeta(){

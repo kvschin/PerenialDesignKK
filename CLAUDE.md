@@ -1017,11 +1017,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
-    buttons. The fill runs at `.44` opacity with a crisp 2px ink-channel
+    buttons. The fill runs at `.55` opacity with a crisp 2px ink-channel
     leading edge (`.season-fill::after`): at the old `.18` it washed out to
     grey and the season's end was invisible, and the edge is what makes "how
-    far through am I" legible rather than a soft gradient guess. Text stays
-    ≥4.7:1 over every season band in both themes. **Hold** the box for 360ms to
+    far through am I" legible rather than a soft gradient guess. **The opacity
+    is bounded by dark theme over Spring** — the lightest band under the
+    lightest text — which measures 5.34:1 at `.44`, 4.66:1 at `.50` and 4.17:1
+    at `.55`; the last fails WCAG AA, since the name is 15.5px/600 and gets no
+    large-text allowance. `.55` is therefore paid for by deepening Spring's
+    `SEASON_FILL` 5.5% (`#7fc24e` → `#78b74a`), restoring **4.52:1**, the floor
+    across every band in both themes (light theme would tolerate `.71`). The
+    fill also goes flat grey `#8c867c` while the clock is paused, which design
+    mode starts as. **Hold** the box for 360ms to
     fast-forward (`game.ffActive`; the loop adds `FF_RATE` game-ms per real-ms,
     ~2 garden days/sec): a **masked conic ring** (`.season-box::after`, animated
     through the registered `--hold-sweep` property) traces the hold and the
