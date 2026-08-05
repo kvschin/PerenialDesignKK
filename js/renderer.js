@@ -903,20 +903,15 @@ function drawSeasonFade(t){
   cx.restore();
 }
 function render(t){
-  /* The sky pass was the one stretch of render() no phase timer covered, and it
-     is not small: three full-screen gradient fills (this one plus the sun and
-     haze inside drawSeasonSky), three gradient objects allocated per frame. A
-     live session's rows summed to 31% short of `frame` at three different
-     canvas sizes, and the gap grew with pixel count exactly as these would. */
+  /* Sky: three full-screen gradient fills, now one opaque blit of a bake keyed
+     on (season, canvas size) — see the season-wash note in world.js. This
+     stretch used to be covered by no phase timer at all, which hid ~31% of the
+     frame; `sky` is what closed that. */
   const tSky=dnow();
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   maybeStartSeasonFade(t,cal.season);            // must run before the sky pass clears the frame
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
-  // sky
-  const g = cx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
-  cx.fillStyle=g; cx.fillRect(0,0,W,H);
-  drawSeasonSky(cx,W,H,cal.season);
+  drawSeasonSky(cx,W,H,cal.season,amb);
   dmark('sky',tSky);
 
   // camera eases toward the player in avatar modes; design mode keeps a free camera.

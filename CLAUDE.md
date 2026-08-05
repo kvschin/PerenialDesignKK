@@ -436,7 +436,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is integer-day) live in the records, and stunting is now computed against
     the FULL tree list (the old per-frame pass used the viewport-culled list,
     so an off-screen tree stopped stunting a visible plant). Planting
-    pulse fx (`game.fx`), season tint, snowfall, and — when `game.photo` is
+    pulse fx (`game.fx`), the baked season wash (§11c), snowfall, and — when `game.photo` is
     set — a golden-hour wash for `takePhoto()` (renders one washed frame,
     downloads the canvas PNG; the DOM HUD is excluded automatically).
     Full-sun plants under a tree canopy render stunted (growth × 0.45,
@@ -551,6 +551,33 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Note `mixHex` parses HEX ONLY, so feeding it its own `rgb(...)` output
     yields NaN channels that clamp to black — that is what made the first frozen
     lake solid black. `mixCol` goes through `colorParts` and takes either form.
+11c. **The season wash, baked** (`seasonSkyBake` / `seasonWashBake` /
+    `drawSeasonSky` / `applySeasonLighting`, world.js) — the sky ramp + sun +
+    haze before the frame and the tint + beam + vignette after were **six
+    full-screen gradient fills every frame**. Measured on a 117-plant garden at
+    1490×863: ~11ms of a 15.5ms frame (65–71%), **flat across all four seasons
+    and independent of plant count**, because it is per-pixel work that does not
+    know what it is washing — drawing the garden itself was a fifth of the frame.
+    All six are a pure function of `(season, canvas size)`, so they bake once.
+    The **sky trio collapses to ONE opaque bitmap**: it paints onto a cleared
+    frame and its first fill is opaque, so nothing underneath can show through.
+    The **light trio cannot collapse** — its order is tint (source-over) → beam
+    (**`screen`**) → vignette (source-over), and a blend mode against the live
+    scene does not commute with the source-over passes around it, so folding
+    them changes the picture; it stays three passes with the two gradients
+    pre-rendered, and the flat tint keeps its `fillRect` (a solid fill is
+    already a fast path; a blit would be slower).
+    Bakes are **device-pixel** and blitted with the transform reset. Every stop
+    is a fraction of W/H and `W*DPR*ZOOM === canvas.width`, so ZOOM cancels out
+    of the geometry and a zoom gesture does not invalidate them. Caching a
+    gradient built in DRAW units and painting it at another zoom would NOT
+    cancel — canvas gradient coordinates resolve in user space **at paint
+    time** — so that is a rendering bug wearing an optimisation's clothes, and
+    the test asserts the key carries the device size. Cost: three canvas-sized
+    RGBA bitmaps (~5MB each at 1.3MP), rebuilt only on a season change or a
+    resize. Verified **pixel-identical**: 0 differing bytes of 5,143,480 across
+    all four seasons for both passes, the light pass diffed over a noisy
+    backdrop so the `screen` blend was exercised.
 12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
     steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
     lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
