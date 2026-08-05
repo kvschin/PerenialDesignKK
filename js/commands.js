@@ -1385,10 +1385,30 @@ function updateCanvasCursor(){
     : (game.tool==='hand'||spaceHeld) ? 'grab'
     : (game.tool==='select'||game.tool==='ruler'||game.tool==='pick'||game.tool==='building') ? 'crosshair' : '';
 }
+/* Fires on EVERY pointerdown and is O(all plants) — see 'snap' in the debug HUD.
+   A JSON round-trip here measured 9.5ms on a fully planted quarter acre, which
+   is a visible hitch at the START of a gesture, before anything has been drawn.
+
+   It does not need a deep copy. Tile VALUES are replace-only by construction:
+   setTile assigns a new object, clearTile assigns a fresh tombstone, and
+   nothing anywhere mutates a stored tile in place (the only property writes on
+   tile-shaped objects are to local drafts — matureWoodyDraft, houseDraft). So a
+   shallow copy of a keyed layer is a correct snapshot: the entries it shares
+   can never change underneath it, only be replaced in the live map.
+
+   Nor is there an aliasing hazard from applySnapshot assigning the stored map
+   straight onto `game`. doUndo/doRedo push a FRESH snapshot before applying the
+   popped one, so the map that goes live is never still referenced by a stack.
+
+   Arrays (houses, buildings) keep the deep clone: their members ARE edited in
+   place on some paths, and there are only ever a handful of them. */
 function snapshotState(){
-  const t0=dnow();   // fires on EVERY pointerdown, and is O(all plants) — see 'snap' in the debug HUD
+  const t0=dnow();
   const s={};
-  for (const L of GAME_LAYERS) s[L.k]=JSON.parse(JSON.stringify(game[L.k]||(L.array?[]:{})));
+  for (const L of GAME_LAYERS){
+    const src=game[L.k]||(L.array?[]:{});
+    s[L.k]= L.array ? JSON.parse(JSON.stringify(src)) : Object.assign({},src);
+  }
   // Which planting scheme these layers belong to. A string, so tagging costs
   // nothing measurable — and it is what keeps one shared stack correct across
   // schemes. Cloning every scheme into each snapshot was measured at 4x the

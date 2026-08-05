@@ -3238,3 +3238,48 @@ test('the season wash caches its gradients on device pixels, never on zoom', () 
 
   SEASON_WASH.mode = was;
 });
+
+test('an undo snapshot shares tile entries but later edits cannot reach it', () => {
+  setup(21, 21);
+  const g = firstOfType('forb');
+  setTile('plants', '5,5', { s: g, d: 0, t: 1 });
+  const snap = snapshotState();
+  const held = snap.plants['5,5'];
+
+  /* The shallow copy is only correct because tile values are replace-only.
+     Placing elsewhere must not appear in the snapshot, and REPLACING a tile the
+     snapshot holds must leave the snapshot's entry untouched — if anything ever
+     starts mutating a stored tile in place, this is the test that fails. */
+  setTile('plants', '6,6', { s: g, d: 0, t: 2 });
+  assert(!snap.plants['6,6'], 'a tile placed after the snapshot is not in it');
+
+  clearTile('plants', '5,5');
+  assertEqual(snap.plants['5,5'], held, 'the snapshot keeps the original entry object');
+  assert(game.plants['5,5'].removed, 'while the live map holds the tombstone');
+});
+
+test('undo and redo round-trip without either stack corrupting the other', () => {
+  setup(21, 21);
+  const g = firstOfType('forb');
+  undoStack.length = 0; redoStack.length = 0;
+  const live = k => game.plants[k] && !game.plants[k].removed;
+
+  withUndo(() => setTile('plants', '3,3', { s: g, d: 0, t: 1 }));
+  withUndo(() => setTile('plants', '4,4', { s: g, d: 0, t: 2 }));
+  assert(live('3,3') && live('4,4'), 'both placements landed');
+
+  doUndo();
+  assert(live('3,3') && !live('4,4'), 'undo took back only the second');
+  doRedo();
+  assert(live('3,3') && live('4,4'), 'redo restored it');
+
+  /* applySnapshot assigns the stored map straight onto game, so the map that
+     goes live must never still be referenced by a stack. doUndo/doRedo push a
+     FRESH snapshot before applying the popped one, which is what makes that
+     safe — edit after an undo and the redo entry must not follow along. */
+  doUndo();
+  withUndo(() => setTile('plants', '7,7', { s: g, d: 0, t: 3 }));
+  assert(live('3,3') && live('7,7') && !live('4,4'), 'the new edit sits on the undone state');
+  doUndo();
+  assert(!live('7,7'), 'and undoes cleanly on its own');
+});

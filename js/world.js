@@ -2167,26 +2167,62 @@ function applySeasonLighting(ctx,W,H,amb,season){
   ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
   ctx.restore();
 }
-function applyDuskLighting(ctx,W,H,season){
-  const winter=season==='Winter';
-  ctx.save();
-  ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
-  ctx.fillRect(0,0,W,H);
-  ctx.globalCompositeOperation='screen';
-  let g=ctx.createRadialGradient(W*0.74,H*0.16,0,W*0.74,H*0.16,H*0.86);
-  g.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
-  g.addColorStop(0.38,'rgba(92,118,176,0.07)');
-  g.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  g=ctx.createLinearGradient(0,H*0.52,0,H);
-  g.addColorStop(0,'rgba(255,255,255,0)');
-  g.addColorStop(1,'rgba(186,116,72,0.08)');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  ctx.restore();
-  const vg=ctx.createRadialGradient(W*0.48,H*0.46,Math.min(W,H)*0.22,W*0.48,H*0.46,Math.max(W,H)*0.78);
+/* The same three-gradients-a-frame pattern as the day wash, on the night path.
+   It only runs under layerVis.night, which is why it survived the day fix — but
+   at night it runs IN ADDITION to applySeasonLighting, so the gardener paying
+   for it is paying twice. Cached identically: keyed on device pixels, painted
+   with the transform reset. See the season-wash note above for why the key is
+   correctness and not just speed. */
+let duskGrad={key:''};
+function duskGradients(ctx,cw,ch,winter){
+  const key=(winter?'w':'s')+'|'+cw+'x'+ch;
+  if (duskGrad.key===key) return duskGrad;
+  const moon=ctx.createRadialGradient(cw*0.74,ch*0.16,0,cw*0.74,ch*0.16,ch*0.86);
+  moon.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
+  moon.addColorStop(0.38,'rgba(92,118,176,0.07)');
+  moon.addColorStop(1,'rgba(255,255,255,0)');
+  const warm=ctx.createLinearGradient(0,ch*0.52,0,ch);
+  warm.addColorStop(0,'rgba(255,255,255,0)');
+  warm.addColorStop(1,'rgba(186,116,72,0.08)');
+  const vg=ctx.createRadialGradient(cw*0.48,ch*0.46,Math.min(cw,ch)*0.22,cw*0.48,ch*0.46,Math.max(cw,ch)*0.78);
   vg.addColorStop(0,'rgba(0,0,0,0)');
   vg.addColorStop(1,'rgba(5,10,20,0.26)');
-  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  duskGrad={key,moon,warm,vg};
+  return duskGrad;
+}
+function applyDuskLighting(ctx,W,H,season){
+  const winter=season==='Winter';
+  if (SEASON_WASH.mode==='live'){
+    ctx.save();
+    ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
+    ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation='screen';
+    let g=ctx.createRadialGradient(W*0.74,H*0.16,0,W*0.74,H*0.16,H*0.86);
+    g.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
+    g.addColorStop(0.38,'rgba(92,118,176,0.07)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    g=ctx.createLinearGradient(0,H*0.52,0,H);
+    g.addColorStop(0,'rgba(255,255,255,0)');
+    g.addColorStop(1,'rgba(186,116,72,0.08)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.restore();
+    const vg=ctx.createRadialGradient(W*0.48,H*0.46,Math.min(W,H)*0.22,W*0.48,H*0.46,Math.max(W,H)*0.78);
+    vg.addColorStop(0,'rgba(0,0,0,0)');
+    vg.addColorStop(1,'rgba(5,10,20,0.26)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+    return;
+  }
+  const cw=ctx.canvas.width, ch=ctx.canvas.height, g=duskGradients(ctx,cw,ch,winter);
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
+  ctx.fillRect(0,0,cw,ch);
+  ctx.globalCompositeOperation='screen';
+  ctx.fillStyle=g.moon; ctx.fillRect(0,0,cw,ch);
+  ctx.fillStyle=g.warm; ctx.fillRect(0,0,cw,ch);
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
+  ctx.restore();
 }
 function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(VH/ZOOM)*0.21; }
