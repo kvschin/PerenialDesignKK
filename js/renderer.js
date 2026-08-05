@@ -1152,6 +1152,8 @@ function render(t){
     cx.lineTo(sx, cyx+(TILE_H/2)*e2); cx.lineTo(sx-(TILE_W/2)*e2, cyx);
     cx.closePath(); cx.stroke();
   });
+  dmark('pulse',tFx);
+  const tOver=dnow();
 
   // selection tool: marquee, committed selection, and move/copy ghost
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
@@ -1159,6 +1161,8 @@ function render(t){
   drawToolDragMetric(cx,W,H);
   if (game.layerVis.edgeRulers && VW>640) drawSelectionMetrics(cx,W,H,{x0:0,y0:0,x1:GW-1,y1:GH-1});
   if (typeof positionSelectionActions==='function') positionSelectionActions();
+  dmark('over',tOver);
+  const tLight=dnow();
 
   // season light tint + falling snow
   applySeasonLighting(cx,W,H,amb,cal.season);
@@ -1190,7 +1194,14 @@ function render(t){
     cx.fillStyle=g2; cx.fillRect(0,0,W,H);
   }
   drawSeasonFade(t);                             // old season dissolves over the new one
-  dmark('fx',tFx);
+  /* Split three ways, because 'fx' was a catch-all for everything after the
+     entity pass and read as "planting pulses" when it was mostly a full-screen
+     lighting wash. A live session showed it at 31% of the frame while planting
+     and there was no way to tell which half was responsible.
+       pulse — the planting pulse diamonds (game.fx), transient
+       over   — selection/ruler/metric overlays, only when those tools are live
+       light  — season tint, snow, dusk/glow: full-screen work EVERY frame */
+  dmark('light',tLight);
 }
 
 function selDrawRect(cx,W,H,r,fill,stroke){
