@@ -738,8 +738,12 @@ function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
     (layerShown('bulbs')?4:0)|(layerShown('landscape')?8:0);
 }
+// sceneRev, not game.rev: this list holds plants, bulbs, hardscape, houses and
+// buildings — no terrain. Keyed on game.rev, every painted path tile rebuilt it
+// (O(all plants)) for a layer it does not contain. See LAYER_CACHES in world.js
+// for what bumps it, and why elevation still does.
 function sceneKey(){
-  return game.rev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
+  return game.sceneRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
     '|'+(establishedPreviewActive()?1:0);   // preview flips shade trees + stunting
 }
 function sceneStale(skey){

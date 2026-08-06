@@ -3324,3 +3324,68 @@ test('the shrub index refreshes when shrubs are planted, removed, or swapped who
   game.plants = {};
   assert(!shrubAt(ex, ey), 'a swapped-in map is picked up by identity, not by revision');
 });
+
+/* ---------- cache-revision narrowing (perf, and the invariants it rests on) ----------
+   game.rev bumps on every mutation. The scene list, the shade map and the shrub
+   index used to be keyed on it, so painting one path tile rebuilt all three.
+   LAYER_CACHES (world.js) narrows that. These lock down BOTH directions: what
+   must stop invalidating, and — the part that would be a rendering bug — what
+   must still invalidate. */
+
+test('a terrain edit no longer invalidates the scene list', () => {
+  setup(21, 21);
+  setTile('plants', '10,10', { s: 'buroak', d: -4000, t: 1 });
+  buildScene(800, 450);
+  const sceneBefore = sceneKey();
+  const groundBefore = groundDataKey(), traceBefore = game.terrainRev;
+
+  setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 2 });
+
+  assert(sceneKey() === sceneBefore, 'terrain holds no entity, so the scene list stands');
+  assert(!sceneStale(sceneKey()), 'and sceneStale agrees — no rebuild is scheduled');
+  assert(groundDataKey() !== groundBefore, 'the ground bake DOES retrace — that is the layer that changed');
+  assert(game.terrainRev > traceBefore, 'and so does the organic region trace');
+});
+
+test('plant edits still invalidate the scene list', () => {
+  setup(21, 21);
+  buildScene(800, 450);
+  const sceneBefore = sceneKey(), groundBefore = groundDataKey();
+  setTile('plants', '5,5', { s: 'buroak', d: -4000, t: 1 });
+  assert(sceneKey() !== sceneBefore, 'a new plant is a new entity');
+  assert(groundDataKey() === groundBefore, 'but planting never rebakes the ground');
+});
+
+test('elevation still bumps the scene: screenOf lifts, so baked hedge offsets move', () => {
+  /* Nothing in a scene record is elevation-SHAPED, but plantRenderDetail bakes
+     hedge/bamboo neighbour offsets in screen space and screenOf subtracts the
+     terrace lift. Depth (viewDepth) is elevation-free, so only the detail is at
+     risk — which is exactly why elevation is classified {trace,scene}. */
+  setup(21, 21);
+  buildScene(800, 450);
+  const sceneBefore = sceneKey();
+  setElevationAt(4, 4, 1);
+  assert(sceneKey() !== sceneBefore, 'a grade change moves baked screen-space offsets');
+});
+
+test('in-place array layers bump the scene revision that identity checks cannot see', () => {
+  setup(21, 21);
+  buildScene(800, 450);
+  // buildings push/splice the SAME array, so scene.refs.buildings never changes
+  const before = sceneKey(), arr = game.buildings;
+  addBuilding({ id: 'b1', vertices: [[2, 2], [6, 2], [6, 6], [2, 6]], status: 'existing', label: 'Shed', t: 1 });
+  assert(game.buildings === arr, 'the array identity really is unchanged (so the ref check is blind here)');
+  assert(sceneKey() !== before, 'the revision is what catches it');
+  const afterAdd = sceneKey();
+  removeBuildingAtIndex(0);
+  assert(sceneKey() !== afterAdd, 'and removal too');
+});
+
+test('an unclassified layer invalidates everything, so a new layer is safe by default', () => {
+  setup(21, 21);
+  buildScene(800, 450);
+  const scene0 = sceneKey(), ground0 = groundDataKey();
+  markLayerCacheChanged('somethingNobodyClassifiedYet');
+  assert(sceneKey() !== scene0 && groundDataKey() !== ground0,
+    'unknown layers fall back to invalidating every cache rather than silently going stale');
+});

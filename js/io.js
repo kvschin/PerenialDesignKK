@@ -305,8 +305,13 @@ function mergeMap(target,remote){ // last write wins, per tile
     if (!l || (r.t||0)>(l.t||0)){ target[k]=r; changed=true; } }
   if (changed){
     markModelChanged();
-    if (target===game.terrain) markLayerCacheChanged('terrain');
-    else if (target===game.elevation) markLayerCacheChanged('elevation');
+    // A merge mutates the map IN PLACE, so the renderer's identity checks stay
+    // happy and the cache revisions are the only signal a remote edit landed.
+    // This used to name only terrain/elevation, which was enough while every
+    // cache rode on game.rev; now that they are keyed per layer, a merged plant
+    // has to bump the plants revision or a remote planting casts no shade.
+    const L=GAME_MAPS.find(L2=>game[L2.k]===target);
+    if (L) markLayerCacheChanged(L.k);
   }
 }
 async function pushPresence(){

@@ -182,6 +182,8 @@ const game = {
   rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it
   groundRev:0,         // ground render cache revision: terrain, elevation, houses, or plot-size state changed
   terrainRev:0,        // organic terrain-region cache revision: terrain map changed
+  sceneRev:0,          // renderer scene-list revision: an entity moved/appeared/vanished (NOT terrain — see LAYER_CACHES)
+  plantsRev:0,         // plants-map revision: the shade map and the shrub index track trees/shrubs only
   plotRev:0,           // plot-shape mask revision: bumped by setPlotShape/setWorldSize; onPlot mask rebuilds on change
 };
 // The mutable layers a garden is made of, enumerated once so undo, save/load,
@@ -272,11 +274,48 @@ function markGroundChanged(opts){
   game.groundRev++;
   if (opts && opts.terrain) game.terrainRev++;
 }
+/* Which render caches a layer's edits invalidate.
+     scene  — the renderer's persistent depth-sorted entity list (renderer.js)
+     plants — the shade map + the shrub index, which track trees/shrubs only
+     trace  — the organic terrain-region cache (implies ground)
+     ground — the baked ground layer
+   These are all narrower than `game.rev`, which every mutation bumps. That is
+   right for undo and for "is the model dirty" and wrong for the render caches:
+   the ground bake ignores plants, the shade map only sees trees, and the scene
+   list holds no terrain at all — yet all three were keyed on game.rev, so
+   painting ONE path tile rebuilt every one of them. Measured on a quarter acre
+   (69x69, 1486 plants) that was 6.4ms per frame of pure waste for the whole
+   length of a brush drag, on top of the ground rebake.
+
+   Note elevation DOES bump `scene`, even though nothing in the scene list is
+   elevation-shaped: `screenOf` lifts by elevation, and hedge/bamboo records
+   bake neighbour offsets in SCREEN space (plantRenderDetail), so a raised tile
+   moves them. Depth is elevation-free (viewDepth), so the sort is safe either
+   way. Terrain is the hot path — painting path/bed/water — and it is genuinely
+   scene-independent, which is where the win is.
+
+   A layer NOT in this table invalidates everything, so adding a layer is
+   correct by default and only gets cheaper once deliberately classified. */
+const LAYER_CACHES={
+  plants:    {scene:1, plants:1},
+  bulbs:     {scene:1},
+  terrain:   {trace:1},
+  elevation: {trace:1, scene:1},
+  fences:    {scene:1},
+  lights:    {scene:1},
+  firepits:  {scene:1},
+  boulders:  {scene:1},
+  houses:    {scene:1, ground:1},
+  buildings: {scene:1},
+};
 function markLayerCacheChanged(layer){
+  const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1};   // unknown layer: assume the worst
+  if (c.scene) game.sceneRev++;
+  if (c.plants) game.plantsRev++;
   // elevation splits organic terrain regions (a raised bed is its own terrace
   // blob), so elevation edits retrace the region cache along with terrain edits
-  if (layer==='terrain' || layer==='elevation') markGroundChanged({terrain:true});
-  else if (layer==='houses') markGroundChanged();
+  if (c.trace) markGroundChanged({terrain:true});
+  else if (c.ground) markGroundChanged();
 }
 function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer); }
 function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer); }
@@ -286,10 +325,14 @@ function removeHouseAtIndex(i){
   game.houses.splice(i,1); markModelChanged(); markLayerCacheChanged('houses');
   return true;
 }
-function addBuilding(b){ game.buildings.push(b); markModelChanged(); }
+// Buildings mutate the array IN PLACE, so sceneStale's identity check cannot
+// see them — the scene-list revision is the only signal, and it has to be bumped
+// here (houses go through markLayerCacheChanged via addHouse and are covered).
+function addBuilding(b){ game.buildings.push(b); markModelChanged(); markLayerCacheChanged('buildings'); }
 function removeBuildingAtIndex(i){
   if (i<0 || i>=game.buildings.length) return false;
-  game.buildings.splice(i,1); markModelChanged(); return true;
+  game.buildings.splice(i,1); markModelChanged(); markLayerCacheChanged('buildings');
+  return true;
 }
 /* Solo saves persist to localStorage now that the game runs standalone.
    sGet/sSet keep their old async signatures so callers are unchanged.
@@ -459,13 +502,13 @@ function shrubInfoFromKey(k){
    terrain.
 
    So index the shrubs alone, with their reach, and reject on the bounding box
-   before the exact test. Keyed on the edit revision + the map identity
-   (wholesale swaps — load, undo, scheme switch — keep the same revision counter
-   but a new object). The radius is establishment-independent at `mature`, so
-   nothing here needs to track the day. Measured ~700x on the lookup. */
+   before the exact test. Keyed on plantsRev + the map identity (wholesale swaps
+   — load, undo, scheme switch — keep the same revision counter but a new
+   object). The radius is establishment-independent at `mature`, so nothing here
+   needs to track the day. Measured ~700x on the lookup. */
 let shrubIndexCache={rev:-1, ref:null, list:[]};
 function shrubIndex(){
-  if (shrubIndexCache.rev===game.rev && shrubIndexCache.ref===game.plants) return shrubIndexCache.list;
+  if (shrubIndexCache.rev===game.plantsRev && shrubIndexCache.ref===game.plants) return shrubIndexCache.list;
   const list=[];
   for (const k in game.plants){ const p=game.plants[k];
     if (!p || p.removed) continue;
@@ -473,7 +516,7 @@ function shrubIndex(){
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     list.push({key:k, p, x, y, reach:Math.ceil(woodyRadiusTiles(P))});
   }
-  shrubIndexCache={rev:game.rev, ref:game.plants, list};
+  shrubIndexCache={rev:game.plantsRev, ref:game.plants, list};
   return list;
 }
 function shrubAt(x,y,opts){

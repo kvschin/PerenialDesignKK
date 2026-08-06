@@ -205,6 +205,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 8. **`game`** — the single mutable state object (mode, player position,
    plants map, `bulbs` map — a second layer sharing tiles with plants —
    `terrain`, `houses`, `buildings`, `fences`, tool, multiplayer presence, timing).
+8a. **Cache revisions** (`LAYER_CACHES` + `markLayerCacheChanged`, world.js) —
+   `game.rev` bumps on EVERY mutation, which is right for undo and for "is the
+   model dirty" and wrong for the render caches. Each layer edit declares what
+   it actually invalidates: `scene` (`game.sceneRev`, the renderer's entity
+   list), `plants` (`game.plantsRev`, the shade map + the shrub index), `trace`
+   (`game.terrainRev`, the organic region cache — implies ground), `ground`
+   (`game.groundRev`, the baked ground layer). **A layer not in the table
+   invalidates everything**, so adding a layer is correct by default and only
+   gets cheaper once deliberately classified.
+   Before this, the scene list, the shade map and the shrub index were all keyed
+   on `game.rev`, so painting one path tile rebuilt an entity list holding no
+   terrain, a shade map fed only by trees, and an index of shrubs — measured
+   11.1ms → 4.6ms per edit frame on a quarter acre (69x69, 1486 plants), i.e.
+   ~6.4ms/frame of pure waste for the whole length of every brush drag, on top
+   of the ground rebake. The residue is the terrain trace, which genuinely did
+   change. Two traps this has to keep clearing: **elevation still bumps
+   `scene`** even though nothing in a scene record is elevation-shaped, because
+   `screenOf` subtracts the terrace lift and `plantRenderDetail` bakes
+   hedge/bamboo neighbour offsets in SCREEN space (depth is elevation-free, so
+   the sort was never at risk — only the baked detail); and **`addBuilding` /
+   `removeBuildingAtIndex` / `mergeMap` mutate their layer IN PLACE**, so
+   `sceneStale`'s object-identity check is blind to them and the revision is the
+   only signal — `mergeMap` therefore names its layer via `GAME_MAPS` rather
+   than special-casing terrain/elevation as it used to.
 9. **Time helpers + phenology** — `absDay()`, `calClock()`
    (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
    `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
@@ -424,8 +448,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     consistently from every side). That pass reads a **persistent scene list**
     (`scene` / `buildScene` / `sceneStale`): plain depth-sorted records built
     once per edit / rotation / layer toggle / game day — invalidated by
-    `game.rev` (bumped by `markModelChanged` in `setTile`/`clearTile`/
-    `addHouse`/`applySnapshot`/`mergeMap`) plus map object identity for
+    **`game.sceneRev`** (see `LAYER_CACHES`, §8a) plus map object identity for
     wholesale swaps (load / new garden) — so a frame only culls (numeric
     bounds compares) and draws, merging in the few per-frame dynamic entities
     (house ghost, avatar, other gardeners) by depth. The old gather allocated
@@ -1297,7 +1320,7 @@ Footprint rules are intentionally asymmetric:
 | --- | --- | --- |
 | Herbaceous grasses/sedges/forbs/water plants | One plant tile, or a stored sub-tile art offset when free planting is on. They do not reserve `spread`. | `space` drives matrix/export spacing; `spread` is mature-width metadata. |
 | Bulbs | One bulb-layer tile. They may share with non-woody plants, but not a woody trunk or mature shrub reservation. | Seasonal bulb art comes from `bulbEnvelope()` and `bloomDay`. |
-| Shrubs | Mature rounded footprint from `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from `spread`. Paths, water, structures, bulbs, and perennials refuse it; compatible hedges may connect edge-to-edge. | Faint base/hover/focus/pulse/ghost rings reuse the same mature footprint. |
+| Shrubs | Mature rounded footprint from `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from `spread`. Paths, water, structures, bulbs, and perennials refuse it; compatible hedges may connect edge-to-edge. Because that footprint overhangs its own tile, "is a shrub on this tile" cannot be a map lookup — `shrubAt` consults **`shrubIndex()`**, a list of the shrubs alone cached on `plantsRev` + map identity, and bounding-box rejects before the exact test. It used to scan every PLANT (1486 to consult 26 on a quarter acre, with two allocations each): instrumented, that scan was ~97% of the cost of painting terrain, and it also ran once per selected item per frame during a selection drag (50ms/frame on a 20x20 marquee) and once per disc tile inside the pointer handler on every paint stamp. Keep it O(shrubs). | Faint base/hover/focus/pulse/ghost rings reuse the same mature footprint. |
 | Trees | One hard trunk tile. Canopy area is deliberately open for underplanting except for the separate shade-suitability rule. | Shade, plan circles, placement ghosts, and the Mature Canopies overlay use `woodyRadiusTiles(P)` from `spread`; spacing is a soft warning from `space`. |
 
 `effectiveEstab(p)` is **display-only**: it equals true `plantEstab(p)` in
