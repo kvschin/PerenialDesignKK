@@ -259,6 +259,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    amber (red only where placement will actually refuse). `sceneKey` and
    `shadeMapKey` carry the preview flag so shade trees/stunting rebuild on
    toggle. The plant card reports establishment, not seasonal size.
+   `shadeMapKey` is keyed on **`game.plantsRev`, not `game.rev`** (§8a): shade
+   is cast by trees and nothing else in the model can change it. The rebuild is
+   O(trees x reach²) and a mature cottonwood's reach spans the whole plot, so
+   it is not cheap to redo for nothing — 5.35ms on a quarter acre, and design
+   mode's default Established preview forces every tree to maximum radius, i.e.
+   the default IS the worst case. (Measured with zero trees it is 0.00ms: the
+   cost is the sun-path math, not the six `GW*GH` arrays it allocates. Don't
+   "fix" the allocation.)
 10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
     looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`

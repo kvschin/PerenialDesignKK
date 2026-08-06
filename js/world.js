@@ -863,7 +863,14 @@ function emptyShadeCache(){
 }
 let shadeMapCache=emptyShadeCache(), shadeMapCacheReal=emptyShadeCache();
 function shadeMapIndex(x,y){ return y*GW+x; }
-function shadeMapKey(real){ return game.rev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
+/* plantsRev, not game.rev: shade is cast by TREES, and nothing else in the model
+   can change it. Keyed on game.rev, laying one path tile threw the whole map
+   away and rebuilt it — 5.35ms on a quarter acre, every frame of a brush drag,
+   for a layer that casts no shade. (The rebuild is O(trees x reach^2) and a
+   mature cottonwood's reach covers the entire plot, so it is not cheap to redo
+   for nothing. Measured with zero trees it is 0.00ms — the cost is the sun-path
+   math, not the arrays.) */
+function shadeMapKey(real){ return game.plantsRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
   ((!real && establishedPreviewActive())?'|est':''); }
 function resetShadeMapCache(){
   shadeMapCache=emptyShadeCache(); shadeMapCacheReal=emptyShadeCache();
