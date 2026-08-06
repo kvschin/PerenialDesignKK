@@ -3394,3 +3394,93 @@ test('the shrub index refreshes when shrubs are planted, removed, or swapped who
   game.plants = {};
   assert(!shrubAt(ex, ey), 'a swapped-in map is picked up by identity, not by revision');
 });
+
+/* ---------- ground bake: edit throttle + damage tracking ----------
+   The bake is viewport-wide and all-or-nothing, so a brush drag rebaked the
+   whole visible garden on every frame it painted a tile. groundEditThrottled
+   defers the burst to ~11Hz and drawGroundDamage covers the tiles at the brush
+   tip. render() itself needs a real canvas (gradients), so the policy is
+   extracted and tested directly. */
+
+function throttleFixture(){
+  setup(21, 21);
+  clearGroundDamage();
+  groundEditT = -1e9; groundDamageT = -1e9;
+}
+
+test('a discrete tap always bakes at once, at any cadence', () => {
+  throttleFixture();
+  let t = 1000;
+  for (let i = 0; i < 5; i++){
+    setTile('terrain', `${5 + i},5`, { k: 'bed', c: 'soil', t: 1 });
+    const deferred = groundEditThrottled(t, true, true);
+    assert(!deferred, `tap ${i + 1} bakes immediately rather than popping later`);
+    clearGroundDamage(); groundEditT = t;        // the bake this frame would do
+    t += 200;                                     // human tapping speed
+  }
+});
+
+test('a 60fps stroke is rate-limited to the settle interval', () => {
+  throttleFixture();
+  let t = 1000, bakes = 0;
+  for (let f = 0; f < 60; f++){                   // one second of painting
+    setTile('terrain', `${f % 21},7`, { k: 'bed', c: 'soil', t: 1 });
+    if (!groundEditThrottled(t, true, true)){ bakes++; clearGroundDamage(); groundEditT = t; }
+    t += 1000 / 60;
+  }
+  assert(bakes >= 9 && bakes <= 13, `~11Hz authoritative bakes, got ${bakes} (was 60 — one per frame)`);
+});
+
+test('the leading edge tracks the last EDIT, not the last bake', () => {
+  /* Anchoring it to the bake leaves a settle-long dead zone after every bake,
+     so an isolated tap landing inside one gets deferred and pops. */
+  throttleFixture();
+  const t0 = 1000;
+  setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 1 });
+  assert(!groundEditThrottled(t0, true, true), 'first edit bakes');
+  clearGroundDamage(); groundEditT = t0;
+  // quiet for well over a settle, then one tap — bake-anchored logic would
+  // still be inside its window if a bake had just happened
+  const tLate = t0 + 5000;
+  setTile('terrain', '4,4', { k: 'bed', c: 'soil', t: 1 });
+  groundEditT = tLate - 5;                        // pretend a bake just ran
+  assert(!groundEditThrottled(tLate, true, true), 'a tap after a quiet spell is a new burst, so it bakes');
+});
+
+test('only located edits can be deferred; everything else bakes now', () => {
+  const mid = () => { throttleFixture();
+    setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
+    groundEditThrottled(1000, true, true);        // open a window
+    groundEditT = 1000; clearGroundDamage(); };
+
+  mid(); setTile('terrain', '6,5', { k: 'bed', c: 'soil', t: 1 });
+  assert(groundEditThrottled(1010, true, true), 'a named terrain tile mid-burst defers');
+
+  mid(); setElevationAt(6, 5, 1);
+  assert(!groundEditThrottled(1010, true, true), 'elevation forces a bake: sides read neighbours');
+
+  mid(); markGroundChanged({ terrain: true });    // no tile named — undo/load/reshape
+  assert(!groundEditThrottled(1010, true, true), 'an unlocated ground change forces a bake');
+
+  mid(); for (let i = 0; i < GROUND_DAMAGE_CAP + 5; i++) setTile('terrain', `${i % 21},${(i / 21 | 0) + 10}`, { k: 'bed', c: 'soil', t: 1 });
+  assert(!groundEditThrottled(1010, true, true), 'past the cap the overlay stops being cheaper than the bake');
+
+  mid(); setTile('terrain', '7,5', { k: 'bed', c: 'soil', t: 1 });
+  assert(!groundEditThrottled(1010, true, false), 'a STRUCT change (rotation/season/resize) never waits');
+
+  mid();
+  assert(!groundEditThrottled(1010, false, true), 'nothing changed at all: no bake, no deferral');
+});
+
+test('ground damage records tiles and clears on the authoritative bake', () => {
+  throttleFixture();
+  setTile('terrain', '8,8', { k: 'bed', c: 'soil', t: 1 });
+  assert(groundDamage.has('8,8'), 'a painted tile is tracked by key');
+  clearTile('terrain', '8,8');
+  assert(groundDamage.has('8,8'), 'an erased tile is tracked too — the overlay repaints it as grass');
+  assert(!tileTerrain(8, 8), 'and the model really is clear, which is what the overlay reads');
+  clearGroundDamage();
+  assert(groundDamage.size === 0 && !groundDamageFull, 'the bake resets both the set and the full flag');
+  setTile('plants', '9,9', { s: 'littlebluestem', d: 0, t: 1 });
+  assert(groundDamage.size === 0 && !groundDamageFull, 'planting is not ground damage at all');
+});

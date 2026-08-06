@@ -270,9 +270,28 @@ function activateScheme(id){
 // erase/sync/merge paths expect. (Multiplayer sync still flushes at gesture
 // end via the existing syncToolLayer/endSweep paths.)
 function markModelChanged(){ game.dirty=true; game.rev++; }
+/* ---------- ground damage: which tiles changed since the last bake ----------
+   The bake is all-or-nothing and viewport-wide, so a brush drag rebakes the
+   whole visible garden every frame it paints a tile. The renderer throttles
+   that (GROUND_EDIT_SETTLE) and covers the not-yet-baked tiles with a transient
+   overlay — but only when it knows WHICH tiles those are.
+
+   So the contract is: name the tile you touched and you can be deferred;
+   say nothing and you force a full authoritative bake. Undo, load, plot
+   reshape, elevation and houses all take the second path deliberately —
+   elevation because `drawElevationSides` reads its neighbours and the sides are
+   drawn in back-to-front tile order, which a partial overlay cannot reproduce.
+
+   The overlay reads live model state per frame, so the SET can never go stale,
+   only grow: a tile painted and then erased inside one window redraws as
+   whatever it is now. */
+let groundDamage=new Set(), groundDamageFull=false;
+function clearGroundDamage(){ groundDamage.clear(); groundDamageFull=false; }
 function markGroundChanged(opts){
   game.groundRev++;
   if (opts && opts.terrain) game.terrainRev++;
+  if (opts && opts.tile!==undefined && opts.tile!==null) groundDamage.add(opts.tile);
+  else groundDamageFull=true;
 }
 /* Which render caches a layer's edits invalidate.
      scene  — the renderer's persistent depth-sorted entity list (renderer.js)
@@ -308,17 +327,19 @@ const LAYER_CACHES={
   houses:    {scene:1, ground:1},
   buildings: {scene:1},
 };
-function markLayerCacheChanged(layer){
+function markLayerCacheChanged(layer,key){
   const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1};   // unknown layer: assume the worst
   if (c.scene) game.sceneRev++;
   if (c.plants) game.plantsRev++;
   // elevation splits organic terrain regions (a raised bed is its own terrace
-  // blob), so elevation edits retrace the region cache along with terrain edits
-  if (c.trace) markGroundChanged({terrain:true});
+  // blob), so elevation edits retrace the region cache along with terrain edits.
+  // Only `terrain` names its tile: elevation deliberately forces a full bake
+  // (see the ground-damage note above).
+  if (c.trace) markGroundChanged({terrain:true, tile: layer==='terrain'?key:undefined});
   else if (c.ground) markGroundChanged();
 }
-function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer); }
-function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer); }
+function setTile(layer,key,val){ game[layer][key]=val; markModelChanged(); markLayerCacheChanged(layer,key); }
+function clearTile(layer,key){ game[layer][key]={removed:true,t:Date.now()}; markModelChanged(); markLayerCacheChanged(layer,key); }
 function addHouse(h){ game.houses.push(h); markModelChanged(); markLayerCacheChanged('houses'); }
 function removeHouseAtIndex(i){
   if (i<0 || i>=game.houses.length) return false;

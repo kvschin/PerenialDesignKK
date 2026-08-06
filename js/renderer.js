@@ -13,7 +13,7 @@ let snowFlakes = [];
    bake: briefly soft, never slow) and ~180ms after a pan ends (so a resting
    frame is always freshly rasterized, never a resampled blit). Trade-off:
    water ripples freeze except at rebakes (they already froze on a still view). */
-let groundCanvas=null, groundCtx=null, groundKey='', groundRefs={terrain:null,elevation:null,houses:null};
+let groundCanvas=null, groundCtx=null, groundKey='', groundKeyStruct='', groundRefs={terrain:null,elevation:null,houses:null};
 let underlayImage={src:null,img:null,ready:false,error:false};
 let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
 let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
@@ -22,6 +22,43 @@ const GROUND_MARGIN_CSS=200;    // pan headroom baked around the viewport, CSS p
 const GROUND_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
 const GROUND_PAN_SETTLE=180;    // ms after the last cam move before the crisp rebake
 const GROUND_ZOOM_DRIFT=0.18;   // mid-gesture rebake if scale drifts this far from the bake
+/* Edit settle: the shortest gap between two authoritative bakes while the
+   gardener is painting. 90ms is ~11 authoritative updates a second — fast
+   enough that organic edges look like they are following the brush, slow
+   enough to drop ~5 of every 6 bakes out of a 60fps stroke. Raising it makes
+   strokes cheaper and the smoothing laggier; that is the only trade here. */
+const GROUND_EDIT_SETTLE=90;
+/* Past this many pending tiles the overlay stops being cheaper than the bake it
+   is deferring, so bake instead. It is also what keeps a flood fill — thousands
+   of tiles in one gesture — on the immediate path. */
+const GROUND_DAMAGE_CAP=400;
+let groundEditT=-1e9;           // last data-driven bake — the rate-limit anchor
+let groundDamageT=-1e9;         // last frame that saw pending damage — the burst detector
+/* Should this frame DEFER its bake and let drawGroundDamage stand in?
+
+   Extracted from render so the policy has a name and can be unit-tested — the
+   test harness stubs the canvas, so anything that reaches a real gradient
+   cannot run headless, and this decision is the part worth pinning down.
+
+   The leading edge is anchored to the last EDIT, not the last bake. Anchoring
+   it to the bake looks equivalent and is not: it leaves a settle-long dead zone
+   after every bake, so an isolated tap landing inside one gets deferred and
+   pops ~90ms later. `newBurst` asks the question that actually matters — is
+   this the first edit after a quiet moment — so discrete taps stay immediate at
+   any cadence and only a genuine stroke is rate-limited.
+
+   Deferral needs every changed tile to be known and cheap to cover: nothing
+   unlocated (undo/load/elevation/houses set groundDamageFull), a non-empty set
+   under the cap, and an unchanged STRUCT key. Everything else bakes now — which
+   is also what keeps an external `groundKey=''` (stressGarden, perfBench)
+   forcing one. */
+function groundEditThrottled(t, keyChanged, structMatches){
+  const hasDamage = groundDamage.size>0 && !groundDamageFull;
+  const newBurst = hasDamage && t-groundDamageT>GROUND_EDIT_SETTLE;
+  if (hasDamage) groundDamageT=t;      // "the gardener is still painting"
+  return !!(keyChanged && hasDamage && groundDamage.size<=GROUND_DAMAGE_CAP
+    && structMatches && !newBurst && t-groundEditT<GROUND_EDIT_SETTLE);
+}
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
 function groundRefsChanged(){
@@ -81,6 +118,38 @@ function drawSiteUnderlay(ctx,W,H){
     }
   }
 }
+const smoothableTerrain = t2 => t2==='path'||t2==='bed'||t2==='water';
+/* One tile of ground. Extracted from paintGround's inner loop so the damage
+   overlay (drawGroundDamage) paints a pending tile through the SAME code the
+   bake will use for it a moment later — the two can't drift apart.
+   `organic` false forces the per-tile material rendering, which is what the
+   overlay wants: it is standing in for a blob that has not been traced yet. */
+function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
+  const [sx,sy]=screenOf(x,y,W,H);
+  const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
+  const terr = (organic && smoothableTerrain(terrRaw)) ? null : terrRaw;  // organic: grass base under blobs
+  const path=terr==='path';
+  const water=terr==='water';
+  const rs=mulberry(tileSeed(x,y));
+  let col;
+  if (water) col = waterFill(terrObj,amb.snow);
+  else if (path) col = pathFill(terrObj,amb.snow);
+  else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
+  // A bed's base tone no longer varies per tile. The old +-12 was carrying
+  // all of a bed's unevenness, and it could get away with it because the tile
+  // bevel hid where one tile stopped; with the bevel gone under a material
+  // (see drawGroundTexture) any per-tile jitter reads as flat diamond
+  // patches, and the grain supplies the unevenness now. The rs() draw is kept
+  // so the grain scatter below sits at the same point in the tile's stream.
+  else if (terr==='bed'){ rs(); col = bedFill(terrObj,amb); }
+  else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
+  drawElevationSides(ctx,W,H,x,y,col);
+  if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
+  else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
+  drawElevationRim(ctx,sx,sy,elevationAt(x,y));
+  if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
+    ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
+}
 function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   ex=ex||0;   // extra cull slack in draw units — the world-anchored bake paints a margin past the viewport
   const showLand=layerShown('landscape');
@@ -89,36 +158,36 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   // the curve can cut a corner and show grass under it. Formal edges keep the
   // crisp per-tile material rendering. Doorstep + elevation stay per-tile.
   const organic = showLand && game.edgeStyle==='organic';
-  const smoothable = t2 => t2==='path'||t2==='bed'||t2==='water';
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
-    const terrObj=showLand?terrainAt(x,y):null, terrRaw=terrObj&&terrObj.k;
-    const terr = (organic && smoothable(terrRaw)) ? null : terrRaw;  // organic: grass base under blobs
-    const path=terr==='path';
-    const water=terr==='water';
-    const rs=mulberry(tileSeed(x,y));
-    let col;
-    if (water) col = waterFill(terrObj,amb.snow);
-    else if (path) col = pathFill(terrObj,amb.snow);
-    else if (showLand && isDoor(x,y)) col = amb.snow?'#aaa49a':'#a89a80';   // flagstone doorstep
-    // A bed's base tone no longer varies per tile. The old +-12 was carrying
-    // all of a bed's unevenness, and it could get away with it because the tile
-    // bevel hid where one tile stopped; with the bevel gone under a material
-    // (see drawGroundTexture) any per-tile jitter reads as flat diamond
-    // patches, and the grain supplies the unevenness now. The rs() draw is kept
-    // so the grain scatter below sits at the same point in the tile's stream.
-    else if (terr==='bed'){ rs(); col = bedFill(terrObj,amb); }
-    else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
-    drawElevationSides(ctx,W,H,x,y,col);
-    if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
-    else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
-    drawElevationRim(ctx,sx,sy,elevationAt(x,y));
-    if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
-      ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
+    paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
+}
+/* The transient stand-in for tiles edited since the last authoritative bake.
+   Drawn onto the LIVE canvas every frame, never cached — so it cannot go stale
+   and needs no invalidation of its own. It reads current model state, so a tile
+   painted and then erased inside one settle window draws as grass.
+   Deliberately per-tile (organic=false): it is covering for a blob whose
+   contour has not been retraced yet, and a formal diamond at the brush tip for
+   ~90ms reads as wet paint, where a missing tile reads as a dropped input. */
+function drawGroundDamage(ctx,W,H,amb){
+  if (!groundDamage.size) return 0;
+  const showLand=layerShown('landscape');
+  if (!showLand) return 0;
+  let n=0;
+  for (const k of groundDamage){
+    const ci=k.indexOf(','); if (ci<0) continue;
+    const x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!Number.isFinite(x)||!Number.isFinite(y)||!onPlot(x,y)) continue;
+    const [sx,sy]=screenOf(x,y,W,H);
+    if (sx<-TILE_W||sx>W+TILE_W||sy<-TILE_H*2||sy>H+TILE_H*2) continue;   // off-screen: the bake will get it
+    paintGroundTile(ctx,x,y,W,H,amb,showLand,false);
+    n++;
+  }
+  return n;
 }
 /* ---------- organic terrain: smoothed region blobs (Wave 3 + Tier 1) ----------
    Reuses the plan sheet's traceOutlines pipeline. Contiguous same-material
@@ -948,8 +1017,13 @@ function render(t){
   const tG0=dnow();
   // world-anchored ground layer: bake viewport+margin keyed WITHOUT cam/zoom,
   // then blit per frame (see the note at the top of this file).
-  const gkey=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
-    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height+'|'+groundDataKey();
+  // The key splits in two: STRUCT (season/rotation/edge style/canvas — a whole
+  // new picture) and DATA (groundDataKey — the gardener edited a tile). Only a
+  // data change is eligible for the edit throttle below; a struct change always
+  // bakes at once, because there is nothing on screen worth keeping.
+  const gStruct=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
+    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height;
+  const gkey=gStruct+'|'+groundDataKey();
   let bakeMs=0;                                        // charged to the 'bake' event, not the 'ground' phase
   const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
@@ -960,7 +1034,26 @@ function render(t){
   const zoomStale=ZOOM!==groundZoom;
   const camStale=cam.x!==groundCamX||cam.y!==groundCamY;
   const panDev=Math.max(Math.abs(cam.x-groundCamX),Math.abs(cam.y-groundCamY))*DPR*ZOOM;
-  const mustBake = gkey!==groundKey
+  /* Edit throttle. A brush drag bumps groundRev on every tile it paints, so
+     `gkey!==groundKey` was true on every frame of the stroke and the whole
+     viewport rebaked each time — the one gesture the bake-once-blit-forever
+     design never covered. Now the burst behind the brush settles at ~11Hz while
+     drawGroundDamage stands in for the handful of tiles at the tip.
+
+     The leading edge is anchored to the last EDIT, not the last bake. Anchoring
+     it to the bake looks equivalent and is not: it leaves a settle-long dead
+     zone after every bake, so an isolated tap that happens to land inside one
+     gets deferred and pops ~90ms later. `newBurst` asks the question that
+     actually matters — is this the first edit after a quiet moment — so a tap
+     is always immediate and only a genuine stroke is rate-limited.
+
+     It engages only when every changed tile is known and cheap to cover: no
+     unlocated change (undo/load/elevation/houses set groundDamageFull), a
+     non-empty set under the cap, and the same STRUCT key. Anything else falls
+     through to an immediate bake, which is also what makes an external
+     `groundKey=''` (stressGarden, perfBench) still force one. */
+  const editThrottled = groundEditThrottled(t, gkey!==groundKey, groundKeyStruct===gStruct);
+  const mustBake = (gkey!==groundKey && !editThrottled)
     || groundRefsChanged()
     || panDev>=MD
     || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
@@ -977,8 +1070,11 @@ function render(t){
     groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
     groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
     paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
-    groundKey=gkey; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
+    groundKey=gkey; groundKeyStruct=gStruct; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
     groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
+    // this bake is authoritative for everything edited up to now, and it starts
+    // the next throttle window
+    clearGroundDamage(); groundEditT=t;
     bakeMs=dev('bake',tBake);
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
@@ -990,6 +1086,9 @@ function render(t){
   cx.save(); cx.setTransform(1,0,0,1,0,0);
   cx.drawImage(groundCanvas,bdx,bdy,groundCanvas.width*k,groundCanvas.height*k);
   cx.restore();
+  // tiles edited since that bake, painted live over it (ground, so it belongs
+  // under the site photo and everything else). Costs nothing when not editing.
+  if (dbg.on) dbg.gdmg=drawGroundDamage(cx,W,H,amb); else drawGroundDamage(cx,W,H,amb);
   drawSiteUnderlay(cx,W,H);
   // Offsetting the start by bakeMs charges 'ground' with the per-frame blit
   // ALONE, so that row stays a stable ~0.1ms and a bake shows up where it can

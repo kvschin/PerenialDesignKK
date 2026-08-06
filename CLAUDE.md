@@ -341,7 +341,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     key change, on leaving the baked margin, ~140ms after the last zoom tick
     (mid-gesture frames scale-blit the stale bake — briefly soft, never slow),
     and ~180ms after a pan ends (resting frames are freshly rasterized, never
-    resampled). Water ripples freeze except at rebakes. The canvas backing
+    resampled). Water ripples freeze except at rebakes.
+    **The edit throttle** (`groundEditThrottled` + `GROUND_EDIT_SETTLE` 90ms)
+    is the same trick for the one gesture the design never covered: a brush drag
+    bumps `groundRev` on every tile it paints, so the key changed every frame
+    and the whole viewport rebaked — the app's most common interaction was its
+    most expensive frame. Now a burst settles at ~11Hz and
+    **`drawGroundDamage`** paints the tiles edited since the last bake straight
+    onto the live canvas (per-tile, not blobs — it is standing in for a contour
+    that has not been retraced yet). Measured end to end through `render` on a
+    331-plant 41x41 garden, a half-second 7-wide bed drag: **30 bakes → 5, and
+    30 region traces → 5** — the trace falls with it because
+    `buildTerrainRegions` runs INSIDE `paintGround`, so the `bake` event
+    strictly contains the `trace` event and deferring one defers both. (That
+    nesting is also why `bake` and `trace` must never be added together;
+    `perfBench({edit:false})` is the arm that separates them.)
+    Two things the throttle has to keep right, both tested: it needs the tile
+    KEYS, so `markGroundChanged({tile})` names them and anything unlocated —
+    undo, load, plot reshape, **elevation** (its sides read neighbours and draw
+    in tile order, which a partial overlay cannot reproduce), houses — sets
+    `groundDamageFull` and bakes at once; and the leading edge is anchored to
+    the last EDIT, not the last bake, because a bake-anchored window leaves a
+    settle-long dead zone in which an isolated tap gets deferred and pops.
+    A flood fill exceeds `GROUND_DAMAGE_CAP` and takes the immediate path.
+    The overlay reads live model state every frame, so it cannot go stale — an
+    erased tile repaints as grass. The canvas backing
     scale is capped at `DPR = min(1.5, devicePixelRatio)` (view.js) — matching
     the sprite cache's cap, so sprite blits stay 1:1 and 4K/retina full-screen
     passes don't quadruple the pixel budget.
