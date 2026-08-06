@@ -3283,3 +3283,44 @@ test('undo and redo round-trip without either stack corrupting the other', () =>
   doUndo();
   assert(!live('7,7'), 'and undoes cleanly on its own');
 });
+
+test('the shrub index answers exactly as a full plant scan did', () => {
+  setup(25, 25);
+  // a wide shrub whose MATURE footprint overhangs well past its own tile,
+  // buried in a crowd of perennials the old scan had to walk every time
+  setTile('plants', '12,12', { s: 'cranberrybush', d: -4000, t: 1 });
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++){
+    if (x === 12 && y === 12) continue;
+    if ((x + y) % 3) continue;
+    setTile('plants', `${x},${y}`, { s: 'littlebluestem', d: 0, t: 1 });
+  }
+  const claimed = shrubFootprintTiles(12, 12, game.plants['12,12'], true);
+  assert(claimed.length > 1, 'this shrub really does reserve more than its own tile');
+  for (const [x, y] of claimed){
+    const hit = shrubAt(x, y);
+    assert(hit && hit.key === '12,12', `shrubAt finds the overhanging shrub at ${x},${y}`);
+  }
+  assert(shrubAt(12, 12).center, 'its own tile reports as the center');
+  assert(!shrubAt(0, 0), 'a tile far outside the footprint is clear');
+  assert(!shrubAt(12, 12, { ignoreKey: '12,12' }), 'ignoreKey still excludes it');
+  assert(!shrubAt(claimed[claimed.length - 1][0], claimed[claimed.length - 1][1],
+    { ignoreKeys: new Set(['12,12']) }), 'ignoreKeys still excludes it');
+});
+
+test('the shrub index refreshes when shrubs are planted, removed, or swapped wholesale', () => {
+  setup(21, 21);
+  const edge = () => { const t = shrubFootprintTiles(10, 10, { s: 'cranberrybush', d: -4000, t: 1 }, true);
+    return t.find(([x, y]) => x !== 10 || y !== 10); };
+  const [ex, ey] = edge();
+  assert(!shrubAt(ex, ey), 'clear to begin with');
+  setTile('plants', '10,10', { s: 'cranberrybush', d: -4000, t: 1 });
+  assert(shrubAt(ex, ey), 'the index sees a newly planted shrub');
+  clearTile('plants', '10,10');
+  assert(!shrubAt(ex, ey), 'and sees it lifted');
+  // a wholesale swap keeps the revision counter but replaces the object —
+  // load, undo and scheme switches all land here
+  setTile('plants', '10,10', { s: 'cranberrybush', d: -4000, t: 1 });
+  assert(shrubAt(ex, ey), 'replanted');
+  game.plants = {};
+  assert(!shrubAt(ex, ey), 'a swapped-in map is picked up by identity, not by revision');
+});

@@ -445,6 +445,37 @@ function shrubInfoFromKey(k){
   const [x,y]=k.split(',').map(Number);
   return {key:k,p,x,y,center:true};
 }
+/* A shrub reserves its MATURE footprint, so a tile can be claimed by a shrub
+   whose center sits several tiles away — which is why this cannot be a map
+   lookup and has to consider every shrub in the garden.
+
+   It used to consider every PLANT in the garden, which is a different thing:
+   on a quarter acre that is 1486 plants scanned to consult 26 shrubs, with a
+   `k.split(',').map(Number)` allocation each, measured at 0.14ms a call. The
+   call sites are the hot ones — once per selected item per frame while a
+   selection drags (51ms/frame on a 20x20 marquee), once per disc tile on every
+   paint stamp (5.1ms for a 7-wide brush, in the pointer handler), and once per
+   frame on hover. Instrumented, the scan was ~97% of the cost of painting
+   terrain.
+
+   So index the shrubs alone, with their reach, and reject on the bounding box
+   before the exact test. Keyed on the edit revision + the map identity
+   (wholesale swaps — load, undo, scheme switch — keep the same revision counter
+   but a new object). The radius is establishment-independent at `mature`, so
+   nothing here needs to track the day. Measured ~700x on the lookup. */
+let shrubIndexCache={rev:-1, ref:null, list:[]};
+function shrubIndex(){
+  if (shrubIndexCache.rev===game.rev && shrubIndexCache.ref===game.plants) return shrubIndexCache.list;
+  const list=[];
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p || p.removed) continue;
+    const P=plantDef(p.s,p.v); if (!isShrubDef(P)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    list.push({key:k, p, x, y, reach:Math.ceil(woodyRadiusTiles(P))});
+  }
+  shrubIndexCache={rev:game.rev, ref:game.plants, list};
+  return list;
+}
 function shrubAt(x,y,opts){
   opts=opts||{};
   const ignore=opts.ignoreKey||null;
@@ -455,15 +486,11 @@ function shrubAt(x,y,opts){
     const sh=shrubInfoFromKey(direct);
     if (sh) return sh;
   }
-  for (const k in game.plants){ if (k===ignore) continue;
-    if (ignored(k)) continue;
-    const p=game.plants[k]; if (!p||p.removed) continue;
-    if (!isShrubDef(plantDef(p.s,p.v))) continue;
-    const [cx2,cy2]=k.split(',').map(Number);
-    if (cx2===x && cy2===y) continue;
-    const r=woodyRadiusTiles(plantDef(p.s,p.v));
-    if (Math.abs(x-cx2)>Math.ceil(r) || Math.abs(y-cy2)>Math.ceil(r)) continue;
-    if (shrubClaimsTile(cx2,cy2,p,x,y,true)) return {key:k,p,x:cx2,y:cy2,center:false};
+  for (const s of shrubIndex()){
+    if (ignored(s.key)) continue;
+    if (s.x===x && s.y===y) continue;
+    if (Math.abs(x-s.x)>s.reach || Math.abs(y-s.y)>s.reach) continue;
+    if (shrubClaimsTile(s.x,s.y,s.p,x,y,true)) return {key:s.key,p:s.p,x:s.x,y:s.y,center:false};
   }
   return null;
 }
