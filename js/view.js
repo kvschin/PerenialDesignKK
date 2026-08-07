@@ -134,7 +134,16 @@ function sizeCanvas(c, opts){
   const w=Math.round(hostRect&&hostRect.width ? hostRect.width : (r.width||c.clientWidth||innerWidth));
   c.style.width=w+'px'; c.style.height=h+'px';
   if (active){ VW=w; VH=h; }   // the visible/active canvas owns render + pointer size
-  c.width=w*DPR; c.height=h*DPR;
+  // Assigning canvas.width RESETS the bitmap even when the value is unchanged,
+  // and cnv.width is part of the ground bake key — so an unguarded write here
+  // meant every spurious ResizeObserver fire (docking the library, an open
+  // dropdown reflowing) silently bought a full viewport rebake. Only pay when
+  // the backing store actually has to change size.
+  // `||1` also catches NaN (Math.max(1,NaN) is NaN): a non-finite measurement
+  // would both defeat the comparison below — NaN!==NaN, so it would rebake
+  // forever — and set canvas.width to NaN, which the spec clamps to 0.
+  const bw=(Math.max(1,Math.round(w*DPR))||1), bh=(Math.max(1,Math.round(h*DPR))||1);
+  if (c.width!==bw || c.height!==bh){ c.width=bw; c.height=bh; }
   c.getContext('2d').setTransform(DPR,0,0,DPR,0,0);
 }
 function setActiveCanvas(c){

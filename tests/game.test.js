@@ -3484,3 +3484,42 @@ test('ground damage records tiles and clears on the authoritative bake', () => {
   setTile('plants', '9,9', { s: 'littlebluestem', d: 0, t: 1 });
   assert(groundDamage.size === 0 && !groundDamageFull, 'planting is not ground damage at all');
 });
+
+/* ---------- closing the docked library ----------
+   Desktop close collapsed a grid column with no motion, so the panel blinked
+   out and nothing connected it to the launcher it reopens from. It now flies a
+   ghost into that launcher. The motion is browser-verified (a stubbed canvas
+   has no layout), but the geometry it depends on is pure and belongs here. */
+
+test('the closing library lands exactly on its launcher', () => {
+  const from = { left: 900, top: 56, width: 380, height: 700 };
+  const to   = { left: 1180, top: 760, width: 132, height: 44 };
+  const f = flyTransform(from, to);
+  // transform-origin is 0 0, so the mapped rect is (left+tx, top+ty, w*sx, h*sy)
+  assert(Math.abs((from.left + f.tx) - to.left) < 1e-9, 'left edge lands on the launcher');
+  assert(Math.abs((from.top + f.ty) - to.top) < 1e-9, 'top edge lands on the launcher');
+  assert(Math.abs(from.width * f.sx - to.width) < 1e-9, 'width matches the launcher');
+  assert(Math.abs(from.height * f.sy - to.height) < 1e-9, 'height matches the launcher');
+});
+
+test('the fly transform never collapses to nothing on a degenerate launcher', () => {
+  const from = { left: 0, top: 0, width: 400, height: 600 };
+  const f = flyTransform(from, { left: 10, top: 20, width: 0, height: 0 });
+  assert(f.sx >= 0.02 && f.sy >= 0.02, 'scale is floored rather than zero');
+  assert(f.tx === 10 && f.ty === 20, 'translation is still honoured');
+});
+
+test('sizeCanvas only reallocates when the backing store size really changes', () => {
+  /* Assigning canvas.width resets the bitmap even when the value is unchanged,
+     and cnv.width is in the ground bake key — so an unguarded write meant every
+     spurious ResizeObserver fire bought a full viewport rebake. */
+  const c = document.getElementById('gameCanvas');
+  sizeCanvas(c, { active: true });                 // settle
+  const w0 = c.width, h0 = c.height;
+  sizeCanvas(c, { active: true });
+  sizeCanvas(c, { active: true });
+  assert(c.width === w0 && c.height === h0, 'repeat calls at the same size leave the backing store alone');
+  c.width = w0 + 7;                                 // pretend the layout moved
+  sizeCanvas(c, { active: true });
+  assert(c.width === w0 && c.height === h0, 'a genuine size change is still applied');
+});

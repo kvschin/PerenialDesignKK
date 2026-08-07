@@ -1586,7 +1586,9 @@ function catalogMinimizeButton(){
   const b=document.createElement('button'); b.type='button'; b.className='catalog-minimize';
   b.title='Minimize the catalog'; b.setAttribute('aria-label','Minimize the catalog and show more of the plan');
   b.setAttribute('aria-expanded','true'); b.setAttribute('aria-controls','sheetCatalog'); setUiIcon(b,'chevron-down');
-  b.onclick=()=>{ game.catMenuOpen=false; closeDiscoverySourceMenu(); buildToolTray(); setSheetState('collapsed'); };
+  // Collapse FIRST so the flight starts on this click's frame; the catalog
+  // rebuild behind it is main-thread work the compositor-driven ghost ignores.
+  b.onclick=()=>{ game.catMenuOpen=false; closeDiscoverySourceMenu(); setSheetState('collapsed'); buildToolTray(); };
   return b;
 }
 function discoveryResultCountText(refs){
@@ -3083,6 +3085,54 @@ function sheetTargetHeight(hb,state){
   const old=hb.style.height; hb.style.height=state==='half'?'':'auto';
   const h=Math.ceil(hb.getBoundingClientRect().height); hb.style.height=old; return h;
 }
+/* The FLIP for the closing library: with transform-origin at 0 0, map the
+   panel's rect exactly onto the launcher's. Pure, because "does the ghost
+   actually land on the launcher" is the one thing here that can be silently
+   wrong and is invisible in a still screenshot. Scale is floored so a
+   zero-height launcher cannot collapse the ghost to nothing mid-flight. */
+function flyTransform(from,to){
+  return {
+    tx: to.left-from.left,
+    ty: to.top-from.top,
+    sx: Math.max(0.02, to.width/from.width),
+    sy: Math.max(0.02, to.height/from.height),
+  };
+}
+/* Desktop close: the library is a grid COLUMN, so collapsing it re-lays out the
+   canvas and the panel simply blinks out — nothing connects it to the launcher
+   in the corner it can be reopened from. Fly a ghost of the panel down into
+   that launcher so the destination is legible.
+
+   A ghost rather than the panel itself, because `.sheet-collapsed` is
+   `display:none` and the panel has to leave the grid immediately — that is what
+   keeps the canvas resize to ONE. And transform/opacity only, never width: see
+   the `.sheet-fly` note in styles.css for why animating the column would cost a
+   full ground rebake per frame. Being compositor-driven also means a catalog
+   rebuild on the same click cannot stutter it. */
+function flyLibraryToLauncher(from){
+  const launcher=document.getElementById('btnLibraryLauncher');
+  if (!launcher || typeof launcher.getBoundingClientRect!=='function') return;
+  const to=launcher.getBoundingClientRect();
+  if (!to.width || !to.height) return;                     // launcher not laid out — skip rather than fly to 0,0
+  const ghost=document.createElement('div');
+  ghost.className='sheet-fly';
+  ghost.setAttribute('aria-hidden','true');                // decoration; screen readers already heard the state change
+  ghost.style.left=from.left+'px';  ghost.style.top=from.top+'px';
+  ghost.style.width=from.width+'px'; ghost.style.height=from.height+'px';
+  (document.body||document.documentElement).appendChild(ghost);
+  const f=flyTransform(from,to);
+  // Force the start style to be computed, then set the end state SYNCHRONOUSLY.
+  // Deliberately not deferred to requestAnimationFrame: rAF does not fire in a
+  // backgrounded or non-compositing tab, and a ghost that never gets its end
+  // state would sit over the garden as a static slab until the cleanup timer.
+  // The reflow below is all a transition needs to have something to run from.
+  ghost.getBoundingClientRect();
+  ghost.style.transform=`translate(${f.tx}px,${f.ty}px) scale(${f.sx},${f.sy})`;
+  ghost.style.opacity='0.05';
+  const done=()=>{ if (ghost.parentNode) ghost.remove(); };
+  ghost.addEventListener('transitionend',done,{once:true});
+  setTimeout(done,600);   // a swallowed transitionend must never strand the ghost over the garden
+}
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
   const priorFocus=document.activeElement;
@@ -3097,6 +3147,11 @@ function applySheetState(){
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
   const reduced=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   const start=phone?hb.getBoundingClientRect().height:0;
+  // Desktop collapse flies a ghost of the panel into the launcher, so measure
+  // where the panel IS before the class swap takes it out of the grid.
+  const wasCollapsed=hb.classList.contains('sheet-collapsed');
+  const deskFrom=(!phone && !reduced && s==='collapsed' && !wasCollapsed)
+    ? hb.getBoundingClientRect() : null;
   if (hb._sheetEnd){ hb.removeEventListener('transitionend',hb._sheetEnd); hb._sheetEnd=null; }
   if (hb._sheetFrame) cancelAnimationFrame(hb._sheetFrame);
   if (hb._sheetTimer){ clearTimeout(hb._sheetTimer); hb._sheetTimer=null; }
@@ -3124,6 +3179,10 @@ function applySheetState(){
     }
   } else {
     hb.style.height=''; hb.dataset.sheetReady=''; hb.classList.remove('sheet-measuring','sheet-animating');
+    // The grid column has just collapsed, so the launcher is now laid out and
+    // can be measured as the destination. One resize has been scheduled; the
+    // flight itself adds no further layout.
+    if (deskFrom && deskFrom.width>1 && deskFrom.height>1) flyLibraryToLauncher(deskFrom);
   }
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const handle=document.getElementById('sheetHandle'); if (handle){
