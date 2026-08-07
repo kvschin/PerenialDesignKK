@@ -510,14 +510,19 @@ test('the category strip reports which side can still scroll', () => {
   assert(!strip.classList.contains('can-scroll-start'), 'no left fade at the start');
   assert(strip.classList.contains('can-scroll-end'), 'right fade shows more categories exist');
   assert(wrap.classList.contains('can-scroll-end'), 'the wrapper gets it too so the arrow can show');
+  assert(wrap.classList.contains('can-scroll'), 'the wrapper reserves both arrow gutters while it scrolls');
   strip.scrollLeft = 610;
   updateCatalogStripAffordance(strip);
   assert(strip.classList.contains('can-scroll-start'), 'left fade appears once scrolled');
   assert(!strip.classList.contains('can-scroll-end'), 'right fade clears at the end');
+  // The gutters must NOT come and go with the direction flags, or every chip
+  // shifts 28px sideways under the finger that scrolled to the end.
+  assert(wrap.classList.contains('can-scroll'), 'scrolling to the end keeps both gutters reserved');
   strip.scrollWidth = 300; strip.clientWidth = 330; strip.scrollLeft = 0;
   updateCatalogStripAffordance(strip);
   assert(!strip.classList.contains('can-scroll-start') && !strip.classList.contains('can-scroll-end'),
     'a strip that fits shows no affordance at all');
+  assert(!wrap.classList.contains('can-scroll'), 'a strip that fits reserves no gutters either');
 });
 
 test('plant category drag scrolling follows the pointer without changing selection', () => {

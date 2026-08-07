@@ -1380,21 +1380,40 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    meant 6 of 9 categories sat off-screen behind a hidden scrollbar with only
    cursor:grab hinting at it. Fades show more exists; the arrows give pointer
    users a target. Both appear only on the side that can actually scroll. */
-.catalog-category-nav{position:relative;display:flex;align-items:center;min-width:0;width:100%}
-.catalog-strip-arrow{position:absolute;z-index:2;display:none;align-items:center;justify-content:center;
+/* --strip-clear is the dead band above the chips, spent twice: once as the
+   nav's own margin and once as inert padding INSIDE the strip. The strip sat
+   4px under a 44px text input, and a chip tap aimed a few px high landed on
+   Find — which on iPad focuses a search field and throws the software keyboard
+   over the catalog. Half the clearance is inert strip background, so a high tap
+   is now a no-op rather than a keyboard. Coarse pointers aim wider and get
+   more; a mouse does not need it and does not pay for it. */
+.catalog-category-nav{--strip-clear:4px;display:flex;align-items:center;gap:4px;min-width:0;width:100%;margin-top:var(--strip-clear)}
+/* The arrows sit in their own gutters, in flow. Floated over the strip they put
+   a live 28px button on top of whichever chip was at the edge: measured on an
+   iPad-portrait dock, the last visible chip kept 38% of its own tap area and
+   the chevron took the middle of it. */
+.catalog-strip-arrow{flex:0 0 28px;display:none;align-items:center;justify-content:center;
   width:28px;height:28px;padding:0;border:1px solid var(--color-divider);border-radius:50%;
   background:var(--color-bg);color:var(--color-text);box-shadow:0 2px 8px rgba(0,0,0,.3);
   transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .catalog-strip-arrow:hover{background:var(--surface-control-hover);border-color:var(--color-accent)}
 .catalog-strip-arrow:active{transform:scale(.94)}
 .catalog-strip-arrow .ui-icon{width:15px;height:15px}
-.catalog-strip-arrow.start{left:0}.catalog-strip-arrow.start .ui-icon{transform:rotate(-90deg)}
-.catalog-strip-arrow.end{right:0}.catalog-strip-arrow.end .ui-icon{transform:rotate(90deg)}
+.catalog-strip-arrow.start .ui-icon{transform:rotate(-90deg)}
+.catalog-strip-arrow.end .ui-icon{transform:rotate(90deg)}
+/* Both gutters are reserved for as long as the strip scrolls at all (`can-scroll`),
+   and the directional flags only toggle visibility. Reserving them per-direction
+   would shunt every chip 28px sideways the moment you scrolled off either end —
+   under the finger that was scrolling. */
+.catalog-category-nav.can-scroll .catalog-strip-arrow{display:flex;visibility:hidden}
 .catalog-category-nav.can-scroll-start .catalog-strip-arrow.start,
-.catalog-category-nav.can-scroll-end .catalog-strip-arrow.end{display:flex}
+.catalog-category-nav.can-scroll-end .catalog-strip-arrow.end{visibility:visible}
 /* Touch scrolls natively and has no hover, so the fade alone carries it there. */
-@media (pointer:coarse){.catalog-strip-arrow{display:none!important}}
-.catalog-category-strip{display:none;min-width:0;overflow-x:auto;gap:7px;padding:0 0 7px;cursor:grab;overscroll-behavior-inline:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+@media (pointer:coarse){
+  .catalog-strip-arrow{display:none!important}
+  .catalog-category-nav{--strip-clear:9px}
+}
+.catalog-category-strip{display:none;flex:1 1 auto;min-width:0;overflow-x:auto;gap:7px;padding:6px 0 4px;cursor:grab;overscroll-behavior-inline:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
   --fade-start:transparent 0,#000 0;--fade-end:#000 calc(100% - 0px),transparent 100%;
   -webkit-mask-image:linear-gradient(90deg,var(--fade-start),var(--fade-end));mask-image:linear-gradient(90deg,var(--fade-start),var(--fade-end))}
 .catalog-category-strip.can-scroll-start{--fade-start:transparent 0,#000 34px}
@@ -1482,7 +1501,8 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .discovery-filter-row{flex:0 0 auto;width:auto}
   .discovery-filter-trigger{min-height:40px}.discovery-result-count{display:none}
   .cat-current,.discovery-filter-summary{display:none}
-  .catalog-category-strip{display:flex;width:100%}
+  /* width:100% would out-size the arrow gutters it now shares the nav with. */
+  .catalog-category-strip{display:flex}
   .plant-result-grid,.plant-variant-grid{grid-template-columns:minmax(0,1fr)}
   #brushBar{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0;width:100%;max-width:100%;margin:0;padding:13px 16px 15px;border:0;border-top:1px solid var(--color-divider);border-radius:0}
   #brushBar .brush-lab{display:none}
@@ -1557,7 +1577,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #trayTabs{padding:8px 12px 10px;border:0;border-bottom:1px solid var(--color-divider)}.discovery-controls{gap:6px}.catalog-mode{min-height:44px}
   .landscape-controls .catalog-search{width:100%;min-height:44px;flex:1 0 100%}
   .cat-current{display:none}
-  .catalog-category-strip{display:flex;order:4;flex:1 0 100%;width:100%;min-height:44px;padding:0 10px 2px 0}
+  /* `order:4;flex:1 0 100%` dates from when the strip was a direct child of
+     #trayTabs and wrapped to its own row. Inside .catalog-category-nav it is a
+     sibling of the two arrow gutters, and an unshrinkable 100% basis overflows
+     them; the nav already spans the row. */
+  .catalog-category-strip{display:flex;min-height:44px;padding-right:10px;padding-bottom:2px}
   .catalog-category-strip button{min-height:44px}
   .discovery-filter-trigger{order:3}
   .cat-current{border-radius:var(--radius-pill)}

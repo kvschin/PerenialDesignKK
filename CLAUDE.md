@@ -971,7 +971,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     honest by a `ResizeObserver`): `can-scroll-start`/`can-scroll-end` land on
     both the strip (mask-image edge fade) and its `.catalog-category-nav`
     wrapper (chevron buttons, pointer-only). Without it 6 of 9 categories sat
-    off-screen behind a hidden scrollbar with only `cursor:grab` to hint at it. The
+    off-screen behind a hidden scrollbar with only `cursor:grab` to hint at it.
+    **The chevrons sit in their own in-flow gutters, and the strip band is held
+    clear of the row above it** — both fixes for the same iPad symptom, tapping
+    between categories and landing on something else. The chevrons used to float
+    `position:absolute` over the strip, i.e. a live 28px button on top of
+    whichever chip was at the edge: measured by hit-sampling, the last visible
+    chip kept **38%** of its own tap area on an iPad-portrait dock and the
+    chevron took the middle of it. A third flag, **`can-scroll`** (`max>1`,
+    deliberately separate from the two directional ones), reserves BOTH gutters
+    for as long as the strip scrolls at all while the directional flags only
+    toggle `visibility` — reserving per-direction would shunt every chip 28px
+    sideways under the finger that scrolled to an end. Cost is ~64px of strip
+    width on pointers that have chevrons at all; touch hides them
+    (`pointer:coarse`) and keeps the full width. Separately, the strip sat
+    **4px** below the 44px Find input (8px docked), so a chip tap aimed a few px
+    high focused Find and threw the software keyboard over the catalog:
+    `--strip-clear` on the nav now spends the clearance twice, once as the nav's
+    margin and once as inert padding INSIDE the strip, so a high tap is a no-op
+    on strip background rather than a keyboard. Measured Find→chip distance goes
+    4→19px (sheet) and 8→23px (docked) on coarse pointers, 4→14 / 8→18 on a
+    mouse. Note the SHEET rules' `order:4;flex:1 0 100%` on the strip were stale
+    from when it was a direct child of `#trayTabs`; inside the nav an
+    unshrinkable 100% basis overflows the gutters, so it is `flex:1 1 auto`. The
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
     are Ground, Grade, Hardscape, Lighting, and Site. `#toolTray` is the primary

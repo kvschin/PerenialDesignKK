@@ -1665,10 +1665,16 @@ function catalogReducedMotion(){
 }
 function updateCatalogStripAffordance(strip){
   const max=strip.scrollWidth-strip.clientWidth, at=strip.scrollLeft;
-  const start=max>1&&at>1, end=max>1&&at<max-1;
+  const scrollable=max>1, start=scrollable&&at>1, end=scrollable&&at<max-1;
   // The fade lives on the strip; the arrows live on the wrapper, so both need it.
+  // `can-scroll` is deliberately separate from the two directional flags: the
+  // arrows sit in their own in-flow gutters now, and a gutter that appeared and
+  // vanished as you scrolled past either end would shunt the chips sideways
+  // mid-gesture. It reserves the gutters; the directional flags only decide
+  // whether an arrow is visible in one.
   [strip,strip.parentElement].forEach(el=>{
     if (!el||!el.classList) return;
+    el.classList.toggle('can-scroll',scrollable);
     el.classList.toggle('can-scroll-start',start);
     el.classList.toggle('can-scroll-end',end);
   });
