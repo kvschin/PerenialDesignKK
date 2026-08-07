@@ -472,8 +472,8 @@ function discoveryMatches(ref,d){
     return !wantsColor || families.some(c=>d.colorFamilies.includes(c));
   });
 }
-function discoveryRefsFor(discovery){
-  const d=normalizeDiscovery(discovery), seen=new Set();
+function discoveryRefsUncached(d){
+  const seen=new Set();
   const refs=discoverySourceRefs(d).filter(ref=>{
     const id=typeof plantRefId==='function' ? plantRefId(ref) : `${ref.s}|${ref.v||''}`;
     if (seen.has(id)||!discoveryMatches(ref,d)) return false; seen.add(id); return true;
@@ -484,6 +484,58 @@ function discoveryRefsFor(discovery){
     return plantRefDisplayName(a).localeCompare(plantRefDisplayName(b));
   });
   return refs;
+}
+/* ---------- per-rebuild memo (perf) ----------
+   Filtering discovery is O(catalog) and ends in a locale-collated sort, and one
+   tray rebuild ran it TWELVE times: once per category chip purely to print a
+   count, plus three identical discoveryRefs() calls for the header, the filter
+   row and the result list. Measured 6.2ms of a 21.5ms rebuild — 29% — and every
+   millisecond of it was the same work repeated.
+
+   The memo is deliberately scoped to ONE synchronous rebuild: buildToolTray
+   opens it on entry and closes it on exit, so identical calls inside a rebuild
+   are free and nothing survives to go stale afterwards. That sidesteps the
+   whole invalidation surface a persistent cache would have — garden filters,
+   favourites, palettes, the design style and the zone all feed this, and a
+   catalog showing yesterday's plants is a worse bug than a slow one. */
+let discoveryMemo=null, discoveryMemoDepth=0;   // depth-counted, so a nested rebuild cannot close it early
+function openDiscoveryMemo(){ if (!discoveryMemoDepth++) discoveryMemo=new Map(); }
+function closeDiscoveryMemo(){ if (discoveryMemoDepth>0 && !--discoveryMemoDepth) discoveryMemo=null; }
+function discoveryMemoKey(d){
+  return [d.source, d.collectionId||'', d.category||'', (d.query||'').trim().toLowerCase(),
+    (d.colorFamilies||[]).join(','), (d.bloomSeasons||[]).join(',')].join('|');
+}
+function discoveryRefsFor(discovery){
+  const d=normalizeDiscovery(discovery);
+  if (!discoveryMemo) return discoveryRefsUncached(d);
+  const k=discoveryMemoKey(d);
+  let v=discoveryMemo.get(k);
+  if (!v){ v=discoveryRefsUncached(d); discoveryMemo.set(k,v); }
+  return v;
+}
+/* Every plant category's count from ONE pass instead of one pass each.
+   Legitimate because the category test in discoveryMatches is independent of
+   every other predicate AND of the sort, so filtering the uncategorised result
+   by category is identical to re-running the whole filter per category — just
+   without paying for eligibility, search and bloom matching eight more times.
+   Counts are distinct SPECIES, matching what the chips show (group cards). */
+function discoveryCategoryCounts(discovery){
+  const d=normalizeDiscovery(discovery);
+  const refs=discoveryRefsFor(Object.assign({},d,{category:null}));
+  const cats=TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id));
+  const sets=new Map(cats.map(c=>[c.id,new Set()])), all=new Set();
+  for (const ref of refs){
+    const P=refDef(ref); if (!P) continue;
+    all.add(ref.s);
+    for (const c of cats){
+      if (!c.types.includes(P.type)) continue;
+      if (c.sunFilter && P.sun!==c.sunFilter) continue;
+      sets.get(c.id).add(ref.s);
+    }
+  }
+  const counts={};
+  cats.forEach(c=>{ counts[c.id]=sets.get(c.id).size; });
+  return {refs, all:all.size, counts};
 }
 function discoveryRefs(){ return discoveryRefsFor(activeDiscovery()); }
 /* Discovery remains exact-reference based for filtering, collections, and

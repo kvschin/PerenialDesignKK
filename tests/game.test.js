@@ -3632,3 +3632,87 @@ test('a viewport change that changes nothing moves nothing', () => {
   const bad = viewportAnchorDelta(380, 120, 0);
   assert(bad.dx === 0 && bad.dy === 0, 'a zero/invalid zoom cannot produce Infinity in the camera');
 });
+
+/* ---------- discovery: one filter pass per rebuild ----------
+   Filtering discovery is O(catalog) and ends in a locale-collated sort, and a
+   tray rebuild ran it twelve times — once per category chip just to print a
+   count, plus three identical discoveryRefs() calls. Counts now come from one
+   bucketed pass, and identical calls are memoised for the length of a single
+   rebuild. Both have to be exactly equivalent, not merely close. */
+
+const DISCOVERY_STATES = [
+  { source: 'recommended' },
+  { source: 'all' },
+  { source: 'all', query: 'blue' },
+  { source: 'all', query: 'aster' },
+  { source: 'all', query: 'zzzznotathing' },
+  { source: 'all', colorFamilies: ['purple'] },
+  { source: 'all', bloomSeasons: ['Summer'] },
+  { source: 'all', colorFamilies: ['yellow'], bloomSeasons: ['Fall'] },
+  { source: 'recommended', query: 'sedge' },
+];
+
+test('bucketed category counts equal filtering per category', () => {
+  setup(31, 31);
+  const cats = TRAY_CATS.filter(c => TRAY_GROUPS[0].cats.includes(c.id));
+  let checked = 0;
+  for (const state of DISCOVERY_STATES){
+    const d = normalizeDiscovery(Object.assign({}, defaultDiscovery(), state));
+    const tally = discoveryCategoryCounts(d);
+    const allOld = groupDiscoveryRefs(discoveryRefsUncached(Object.assign({}, d, { category: null }))).length;
+    assert(tally.all === allOld, `All count matches for ${JSON.stringify(state)}: ${tally.all} vs ${allOld}`);
+    checked++;
+    for (const c of cats){
+      const old = groupDiscoveryRefs(discoveryRefsUncached(Object.assign({}, d, { category: c.id }))).length;
+      assert((tally.counts[c.id] || 0) === old, `${c.id} count matches for ${JSON.stringify(state)}`);
+      checked++;
+    }
+  }
+  assert(checked >= 80, `covered a real spread of states and categories (${checked} checks)`);
+});
+
+test('the discovery memo returns exactly what an uncached filter would', () => {
+  setup(31, 31);
+  for (const state of DISCOVERY_STATES){
+    const d = normalizeDiscovery(Object.assign({}, defaultDiscovery(), state));
+    const plain = discoveryRefsUncached(d).map(r => r.s + '|' + (r.v || ''));
+    openDiscoveryMemo();
+    const first = discoveryRefsFor(d).map(r => r.s + '|' + (r.v || ''));
+    const second = discoveryRefsFor(d).map(r => r.s + '|' + (r.v || ''));
+    closeDiscoveryMemo();
+    assert(first.join() === plain.join(), 'memoised result matches the uncached filter, order included');
+    assert(second.join() === plain.join(), 'and a cache hit returns the same thing');
+  }
+});
+
+test('the memo distinguishes states that must not share a result', () => {
+  setup(31, 31);
+  const base = normalizeDiscovery(defaultDiscovery());
+  openDiscoveryMemo();
+  const all = discoveryRefsFor(Object.assign({}, base, { category: null })).length;
+  const grasses = discoveryRefsFor(Object.assign({}, base, { category: 'grasses' })).length;
+  const trees = discoveryRefsFor(Object.assign({}, base, { category: 'trees' })).length;
+  const queried = discoveryRefsFor(Object.assign({}, base, { category: null, query: 'zzzznotathing' })).length;
+  closeDiscoveryMemo();
+  assert(grasses < all && trees < all, 'category is part of the key, not collapsed into one entry');
+  assert(grasses !== trees, 'different categories get different results');
+  assert(queried === 0, 'query is part of the key too');
+});
+
+test('the memo never outlives a rebuild, even a nested or failed one', () => {
+  assert(discoveryMemo === null, 'starts closed');
+  openDiscoveryMemo();
+  openDiscoveryMemo();                 // nested rebuild
+  closeDiscoveryMemo();
+  assert(discoveryMemo !== null, 'an inner close does not tear down the outer memo');
+  closeDiscoveryMemo();
+  assert(discoveryMemo === null && discoveryMemoDepth === 0, 'the outer close does');
+  // buildToolTray wraps its body in try/finally, so a throwing builder still closes it
+  const real = updateCatalogHeader;
+  updateCatalogHeader = () => { throw new Error('boom'); };
+  let threw = false;
+  try { buildToolTray(); } catch (e) { threw = true; }
+  updateCatalogHeader = real;
+  assert(threw, 'the builder really did throw');
+  assert(discoveryMemo === null && discoveryMemoDepth === 0, 'and the memo was torn down anyway');
+});

@@ -2086,7 +2086,16 @@ function updateCatalogHeader(isPlantGroup){
 function plantTrayCategoryId(d=activeDiscovery(),currentId=game.trayCat){
   return trayGroupOf(currentId)==='plants'&&d.category ? d.category : currentId;
 }
+/* One rebuild asks discovery the same questions over and over — the header, the
+   filter row, the result list and every category chip. The memo makes those
+   identical calls free, and try/finally guarantees it is torn down even if a
+   builder throws, so nothing can leak into a later rebuild and go stale. */
 function buildToolTray(){
+  openDiscoveryMemo();
+  try { buildToolTrayInner(); }
+  finally { closeDiscoveryMemo(); }
+}
+function buildToolTrayInner(){
   saveTrayScroll();
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
   const syncedCategory=plantTrayCategoryId(); if (syncedCategory!==game.trayCat) game.trayCat=syncedCategory;
@@ -2139,16 +2148,18 @@ function buildToolTray(){
   categoryStrip.setAttribute('role','group');
   categoryStrip.setAttribute('aria-label',isPlantGroup?'Plant categories':'Landscape categories');
   if (isPlantGroup){
-    const allRefs=discoveryRefsFor(Object.assign({},discovery,{category:null}));
+    // every chip's count from ONE filter pass, bucketed — see
+    // discoveryCategoryCounts for why that is equivalent to filtering per category
+    const tally=discoveryCategoryCounts(discovery);
     const all=document.createElement('button'); all.type='button'; all.className=discovery.category?'':'sel';
     all.dataset.categoryId='all';
-    all.textContent=`All ${groupDiscoveryRefs(allRefs).length}`; all.setAttribute('aria-pressed',discovery.category?'false':'true');
+    all.textContent=`All ${tally.all}`; all.setAttribute('aria-pressed',discovery.category?'false':'true');
     all.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:'all'}; selectCat(null); }; categoryStrip.appendChild(all);
     TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)).forEach(c=>{
-      const refs=discoveryRefsFor(Object.assign({},discovery,{category:c.id})); if (!refs.length) return;
+      const n=tally.counts[c.id]||0; if (!n) return;
       const b=document.createElement('button'); b.type='button'; const selected=discovery.category===c.id;
       b.dataset.categoryId=c.id;
-      b.className=selected?'sel':''; b.textContent=`${c.label} ${groupDiscoveryRefs(refs).length}`;
+      b.className=selected?'sel':''; b.textContent=`${c.label} ${n}`;
       b.setAttribute('aria-pressed',selected?'true':'false'); b.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); }; categoryStrip.appendChild(b);
     });
   } else {
