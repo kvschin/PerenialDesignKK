@@ -200,11 +200,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    `droop`, `pads`/`density`, `needleLen`, etc.) carry species differences.
    `fullness` scales foliage reach and visual mass without changing `cw`,
    `space`, `spread`, or height; naturally open pines/cedars/hemlocks should
-   author a lower value instead of losing their characteristic gaps. Weeping
+   author a lower value instead of losing their characteristic gaps.
+   **The branch plates are texture on a crown, not the crown itself**
+   (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
+   alone, an upright conifer carried only 13-27% ink inside its crown box
+   (Atlas cedar 13%, hemlock 17%, white pine 19%, blue spruce 21%) — every
+   whorl had sky behind it and the tree read as a lattice, which is what
+   "evergreens look empty" is. Each habit now lays one filled, scalloped
+   underwash sampled off the SAME `coniferHalfWidth` profile the plates use, so
+   mass and silhouette cannot disagree; one path, one fill, no new cache key.
+   Its `inset` is load-bearing: a full-width cone took white pine to 61-99% and
+   Atlas cedar to 75-97% crown ink, i.e. it flattened the two species whose
+   openness IS the species, so pine and true cedar get a narrow core (~0.5) and
+   the airiness lives at the rim where the whorls stick out past the wash,
+   while spruce and scale sit near full width (0.86-0.90). Plate depth is also
+   floored against the gap between whorls rather than left to `padThick` alone
+   — free, since thickness costs no shape instance (§11a) — with the open
+   habits taking a smaller floor. Result: dense habits 73-102% crown ink, open
+   ones 38-69%, and luminance spread HELD or rose (Norway spruce 37.7→40.9), so
+   they are fuller without going flat. Weeping
    forms also use `leaderBend`, `scaffoldDroop`, `asymmetry`, and numeric
    `leaderDroop` so their bowed leader and pendant secondary branches are
-   structurally different from an upright conifer. Do not add per-species
-   renderer branches. Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
+   structurally different from an upright conifer — and both of their length
+   knobs are measured against **the ground**, not against `h`. Sizing a curtain
+   as a fraction of `h` made it ~1.2x the gap between whorls, so it only filled
+   the whorl it hung in: the tree measured 90% ink inside a plain cone, i.e. an
+   ordinary conifer wearing tassels, which is what "weeping trees don't look
+   weeping" is. Now `scaffoldDroop` is the fraction of its OWN length that an
+   arm falls (so the tip finishes below its origin) and `weepFall` the fraction
+   of the remaining drop to the ground a strand covers, which self-scales: a
+   low broad cascade and a tall narrow drape come out of the same numbers, the
+   upper limbs carry the long curtains because they have the room, and strands
+   now cross 3-5 whorls instead of 1-2. Curtains carry foliage down their whole
+   length (`drawConiferCurtain`, one tapering ribbon per strand — a needle
+   habit tufts instead, and thins by strand COUNT, since a fascicle is
+   `needleLen` long whatever the branch does and capping its radius just made
+   wisps). Weeping gets no crown mass at all: a conical underwash behind the
+   curtains is the exact silhouette the habit exists to avoid. Do not add
+   per-species renderer branches. Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
    present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
    staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
@@ -1769,9 +1802,21 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     safety**: `makePlantSprite` clamps giant bakes to ≤1024px instead of
     bailing (blit upscales slightly soft at high zoom); entries carry
     `want`/`capped` so resolution-capped giants never rebake while zooming
-    in. Its normal 18px below-grade allowance expands for
-    `look.coniferHabit:'weeping'` from `weepLength` plus the tuft radius, so
-    cached and live cascades keep the same silhouette. Stress A/B (562 plants, 35 mature trees + 59 mature shrubs):
+    in. **The below-grade allowance is `plantDrawBelow(P,growth,H)`** (draw.js)
+    — the cast ground shadow (`plantShadowR`, which `drawPlant` also paints
+    from, so the two cannot drift) or a weeping conifer's cascade
+    (`coniferWeepBelow`), whichever hangs lower. It used to be a flat 18px
+    floor that never asked what was drawn down there, and **76 of 335 species
+    guillotined their own shadow along the bottom edge of the bake** — a hard
+    dark line under every tree, fully opaque on sotol, while the ellipse wanted
+    29 (arborvitae) to 102 (cottonwood) units. Like a clipped curtain it
+    appeared only once the sprite governor engaged, i.e. on dense gardens and
+    never in the procedural path you would debug in, which is the whole reason
+    the bound and the drawing have to read one function. Cost: +7.9% sprite
+    memory across all species (74.6MB→80.5MB baked at full growth), zero change
+    in how many bakes hit the 1024px resolution clamp (none do), tallest sprite
+    870→962px. A test walks the real transform of every species at two growth
+    buckets and asserts the box contains the drawing. Stress A/B (562 plants, 35 mature trees + 59 mature shrubs):
     75ms procedural / 11.7ms sprites — statistically identical to the same
     garden un-aged (77/12.6), i.e. no stress regression; realistic mature
     design garden (200 perennials + 6 mature trees) runs 1.8ms/frame.

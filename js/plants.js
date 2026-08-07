@@ -50,9 +50,17 @@
            sprays), or weeping (pendulous curtains). Shared numeric knobs such
            as tiers, taper, columnar, droop, pads/density and needleLen tune
            species without adding species-specific renderer branches.
-           `fullness` expands foliage length/mass without changing real size.
+           `fullness` expands foliage length/mass without changing real size,
+           and `crownMass`/`crownMassW` open or close the crown underwash that
+           stops whorls reading as a lattice (pine and true cedar keep a narrow
+           core so their rim stays airy; set crownMass:0 for none).
            Weepers additionally use leaderBend, scaffoldDroop, asymmetry and
-           numeric leaderDroop to author the bowed leader and cascades.
+           numeric leaderDroop to author the bowed leader and cascades. Both
+           weeping length knobs are measured against THE GROUND, not against h:
+           `scaffoldDroop` is the fraction of its own length that a scaffold arm
+           falls, and `weepFall` the fraction of the remaining drop to the
+           ground that a hanging strand covers (slightly over 1 at its longest,
+           so the skirt breaks the ground line instead of hemming along it).
    h       px-art: mature render height, drawn through plantVisualH(P) — woody
            rescales by the compression factor, herbaceous scales by HERB_SCALE
            (~1.75, so drifts read as masses), bulbs pass through. Every
@@ -2530,8 +2538,8 @@ const PLANTS = {
     group:'cypress', groupLabel:'Cypress & Falsecypress', chip:'Blue Weeping Alaska',
     space:96, spread:144, zones:[4,7], native:false, sun:'part', moist:'moist', phen:'cool', grow:8,
     roles:['specimen','architectural','deerOk'],
-    look:{art2:true, coniferHabit:'weeping', tiers:9, taper:0.7, columnar:0.18, crownBase:0.18, curtains:5, weepLength:0.18,
-      branchLift:0.025, scaffoldDroop:0.07, leaderBend:0.1, leaderDroop:0.09, asymmetry:0.25, fullness:1.18, padThick:3.2, bark:'#675548'},
+    look:{art2:true, coniferHabit:'weeping', tiers:9, taper:0.7, columnar:0.18, crownBase:0.18, curtains:5, weepFall:0.82,
+      branchLift:0.025, scaffoldDroop:0.5, leaderBend:0.1, leaderDroop:0.09, asymmetry:0.25, fullness:1.18, padThick:3.2, bark:'#675548'},
     blurb:'A narrow specimen with an upright leader, bowed scaffold limbs, and dense vertical curtains of blue-green scale foliage. Keep the root zone evenly moist but drained.',
     sea:{Spring:{fol:'#668589'}, Summer:{fol:'#527277',seed:'#8b6c4e'}, Fall:{fol:'#4d6b70',seed:'#806348'}, Winter:{fol:'#48646a',seed:'#7a5e45'}}},
   greengiantarborvitae:{ name:'Green Giant Arborvitae', latin:"Thuja standishii x plicata 'Green Giant'", form:'conifer', type:'tree', h:118, cw:52, heightIn:600,
@@ -2615,8 +2623,8 @@ const PLANTS = {
     group:'pine', groupLabel:'Pine', chip:'Weeping White',
     space:120, spread:180, zones:[3,8], native:false, sun:'part', moist:'medium', phen:'cool', grow:7,
     roles:['specimen','architectural'],
-    look:{art2:true, coniferHabit:'weeping', tiers:7, taper:0.38, crownBase:0.2, curtains:4, weepLength:0.18,
-      branchLift:0.035, scaffoldDroop:0.11, leaderBend:0.15, leaderDroop:0.13, asymmetry:0.42, fullness:1.2,
+    look:{art2:true, coniferHabit:'weeping', tiers:7, taper:0.38, crownBase:0.2, curtains:5, weepFall:0.9,
+      branchLift:0.035, scaffoldDroop:0.62, leaderBend:0.15, leaderDroop:0.13, asymmetry:0.42, fullness:1.2,
       weepTufts:true, needleLen:8.8, softNeedles:true, bark:'#6b584b'},
     blurb:'A trained, twisting white pine whose branches travel horizontally before cascading to the ground. Its mature outline depends on staking and pruning, so use the displayed width as planning room, not a promise of symmetry.',
     sea:{Spring:{fol:'#829c91'}, Summer:{fol:'#638179',seed:'#9a744e'}, Fall:{fol:'#5d7971',seed:'#8d6948'}, Winter:{fol:'#55716a',seed:'#846244'}}},

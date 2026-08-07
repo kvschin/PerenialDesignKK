@@ -648,14 +648,12 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
     : P.form==='sotol' ? artH*1.05
     : H*1.12;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop)+26;
-  // Weeping conifers deliberately carry foliage below their placement point.
-  // Reserve that curtain/tuft extent in the cached sprite so the cached and
-  // live procedural versions do not change silhouette when the governor flips.
-  const coniferVs=(woodyVisualCw(P)||P.cw||80)/(P.cw||80);
-  const weepBot=P.form==='conifer' && L.coniferHabit==='weeping'
-    ? H*(L.weepLength||0.12)+(L.weepTufts?(L.needleLen||7)*coniferVs:0)+8
-    : 18;
-  const bot=Math.max(18,Number.isFinite(weepBot)?weepBot:18), want=pspriteScale();
+  // Everything a plant paints BELOW its placement point — the cast ground
+  // shadow, and a weeping conifer's cascade — so the cached and live procedural
+  // versions do not change silhouette when the governor flips. `growth` here is
+  // the same value drawPlant is handed, since the shadow scales with it.
+  const below=plantDrawBelow(P,growth,H)+8;
+  const bot=Math.max(18,Number.isFinite(below)?below:18), want=pspriteScale();
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
   // the bake RESOLUTION instead of bailing to per-frame procedural — the blit
   // scales it up slightly soft at high zoom, which reads fine on foliage and

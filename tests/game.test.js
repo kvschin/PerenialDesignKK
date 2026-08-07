@@ -296,6 +296,141 @@ test('weeping conifers bow their leaders and author low asymmetric cascades', ()
     'weeping white pine keeps the looser, stronger lean of the two weepers');
 });
 
+/* Watch the real drawing, not the data. The cascade and the sprite box are
+   sized by two different pieces of code that must agree — renderer.js reserves
+   `coniferWeepBelow` below the placement point — so anything that deepens the
+   curtain without teaching the bounds function about it clips the instant the
+   sprite governor engages, and only on dense gardens. */
+/* Track the real 2x3 transform. A conservative radius bound is not good enough
+   here: a conifer's branch plates are drawn as LONG shapes inside a frame
+   rotated a half turn, so bounding them by their own length reported an
+   arborvitae reaching 45 units below grade when it reaches 11, and the test
+   invented failures. Only the y row of the matrix matters. */
+function coniferDrawDepth(key,seed,growth,withShadow){
+  let m=[1,0,0,1,0,0], deepest=-1e9, armed=!!withShadow;
+  const stack=[];
+  const worldY=(x,y)=> m[1]*x + m[3]*y + m[5];
+  const yScale=()=> Math.hypot(m[1],m[3]);
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return () => ({addColorStop(){}});
+      return (...a) => {
+        const deep=v=>{ if (armed && v>deepest) deepest=v; };
+        const pt=(x,y)=> deep(worldY(x,y));
+        if (p==='save') stack.push(m.slice());
+        else if (p==='restore'){ const s=stack.pop(); if (s) m=s; }
+        else if (p==='translate'){ m[4]+=m[0]*a[0]+m[2]*a[1]; m[5]+=m[1]*a[0]+m[3]*a[1]; }
+        else if (p==='scale'){ m[0]*=a[0]; m[1]*=a[0]; m[2]*=a[1]; m[3]*=a[1]; }
+        else if (p==='rotate'){
+          const c=Math.cos(a[0]), s=Math.sin(a[0]);
+          m=[m[0]*c+m[2]*s, m[1]*c+m[3]*s, m[2]*c-m[0]*s, m[3]*c-m[1]*s, m[4], m[5]];
+        }
+        else if (p==='setTransform') m=a.slice(0,6);
+        else if (p==='moveTo'||p==='lineTo') pt(a[0],a[1]);
+        // a quadratic stays inside the hull of its control point and endpoints
+        else if (p==='quadraticCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); }
+        else if (p==='bezierCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); pt(a[4],a[5]); }
+        else if (p==='arc') deep(worldY(a[0],a[1])+a[2]*yScale());
+        else if (p==='ellipse'){
+          const [cx,cy,rx,ry,phi=0]=a;
+          const c=Math.cos(phi), s=Math.sin(phi);
+          const A=rx*(m[1]*c+m[3]*s), B=ry*(m[3]*c-m[1]*s);
+          deep(worldY(cx,cy)+Math.hypot(A,B));
+        }
+        else if (p==='rect') deep(worldY(a[0],a[1]+a[3]));
+        // The cast ground shadow is drawn before any stroke, so `withShadow`
+        // false measures the cascade alone and true measures everything the
+        // sprite box has to contain.
+        else if (p==='stroke') armed=true;
+      };
+    },
+    set(o,p,v){ o[p]=v; return true; },
+  });
+  drawPlant(ctx,0,0,key,growth===undefined?1:growth,'Summer',seed,0,undefined,1);
+  return deepest;
+}
+
+test('weeping curtains fall to the ground, and the sprite box reserves the fall', () => {
+  for (const key of ['blueweepingalaskacedar','weepingwhitepine']){
+    const P=plantDef(key), H=plantVisualH(P), budget=coniferWeepBelow(P,H);
+    assert(budget>0,`${key}: a weeper is granted room below its placement point`);
+    for (const seed of [7122,7123,4410,99]){
+      const deepest=coniferDrawDepth(key,seed);
+      assert(deepest<=budget+1,
+        `${key}: seed ${seed} draws to ${deepest.toFixed(1)} within the ${budget.toFixed(1)} the sprite reserves`);
+      // The habit, not the leader bend: foliage has to come down to the ground.
+      // Sized against H the first cut only crossed ~1 whorl and read as a cone.
+      assert(deepest>-H*0.08,
+        `${key}: seed ${seed} cascades to the ground rather than hemming inside the crown`);
+    }
+  }
+  // ...and an upright conifer of the same renderer still keeps its feet dry.
+  const spruce=plantDef('bluespruce');
+  assertEqual(coniferWeepBelow(spruce,plantVisualH(spruce)),0,
+    'an upright habit reserves nothing, so it keeps the default sprite margin');
+  assert(coniferDrawDepth('bluespruce',7122)<coniferDrawDepth('blueweepingalaskacedar',7122),
+    'the weeper hangs below the upright it shares a renderer with');
+});
+
+test('the sprite box reserves everything a plant paints below its own tile', () => {
+  /* 76 of 335 species used to guillotine their cast ground shadow along the
+     bottom edge of the bake — a hard dark line under every tree, and fully
+     opaque on sotol — because the box floored the allowance at 18 draw units
+     and never asked what was actually drawn down there. Like the weeping
+     cascade it only showed once the sprite governor engaged, i.e. on dense
+     gardens, and never in the procedural path you'd debug in. */
+  const bad=[];
+  for (const key of PLANT_KEYS){
+    const P=plantDef(key);
+    for (const growth of [1,0.4]){
+      // mirror makePlantSprite: it sizes from its own floored H, not drawPlant's
+      const spriteH=plantVisualH(P)*(0.25+0.75*growth);
+      const reserved=Math.max(18,plantDrawBelow(P,growth,spriteH)+8);   // as makePlantSprite does
+      const deepest=coniferDrawDepth(key,7122,growth,true);
+      if (deepest>reserved)
+        bad.push(`${key}@${growth} paints to ${deepest.toFixed(1)} vs ${reserved.toFixed(1)} reserved`);
+    }
+  }
+  assertEqual(bad.slice(0,6).join(' | '),'','every species draws inside its reserved box');
+  // The reserve has to be driven by the shadow, not just re-floored at 18.
+  const oak=plantDef('buroak');
+  assert(plantDrawBelow(oak,1,plantVisualH(oak))>18,
+    'a wide canopy asks for more room than the old flat floor gave it');
+  const cone=plantDef('echinacea');
+  assert(plantDrawBelow(cone,1,plantVisualH(cone))<
+         plantDrawBelow(oak,1,plantVisualH(oak))*0.5,
+    'and it scales with the canopy, so a perennial does not pay a tree tax');
+});
+
+test('the crown mass fills upright habits and is withheld from weeping ones', () => {
+  const massOps=(habit,look) => {
+    let n=0;
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient')
+          return () => ({addColorStop(){}});
+        return () => { if (p==='lineTo'||p==='moveTo') n++; };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawConiferCrownMass(ctx,look||{},habit,120,-300,-20,0,'#4f6f50',1.1);
+    return n;
+  };
+  assert(massOps('spruce')>0,'a spruce carries an underwash so its whorls are not a lattice');
+  assert(massOps('scale')>0,'a scale-spray column carries one too');
+  assertEqual(massOps('weeping'),0,
+    'a weeper does not, because a conical wash is the silhouette it exists to avoid');
+  assertEqual(massOps('spruce',{crownMass:0}),0,'a species can author the mass away');
+  // Open habits get a narrow core, not a filled cone — measured, the first cut
+  // took white pine from 13-41% crown ink to 61-99% and lost its character.
+  assert(CONIFER_MASS.pine.inset<CONIFER_MASS.spruce.inset &&
+         CONIFER_MASS.cedar.inset<CONIFER_MASS.scale.inset,
+    'pine and true cedar keep an airier rim than spruce and arborvitae');
+});
+
 test('conifer fullness changes foliage mass without changing plant sizing truth', () => {
   const P=PLANTS.bluespruce, before=[P.h,P.cw,P.heightIn,P.space,P.spread];
   const thin={...P,look:{...P.look,fullness:0.82}}, full={...P,look:{...P.look,fullness:1.22}};
