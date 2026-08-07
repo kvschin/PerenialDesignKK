@@ -118,6 +118,17 @@ function setViewportFill(color){
 // CSS height so the --loam body bg can't leak as a band behind the home bar.
 let VW=innerWidth, VH=innerHeight, activeCanvasId='menuCanvas';
 function activeCanvas(){ return document.getElementById(activeCanvasId)||cnv; }
+/* How far the camera must move to hold the view still when the viewport
+   resizes. viewScreen puts a tile at `VW/2 + ZOOM*(isoX - cam.x)` and
+   `VH*0.24 + ZOOM*(isoY - cam.y)`, so solving for "same screen position at the
+   new size" gives half the width delta and 0.24 of the height delta — in DRAW
+   units, hence the /zoom, because cam is not in CSS pixels. Pure, because the
+   invariant that matters ("the garden does not move when the library docks") is
+   arithmetic and worth pinning down without a real canvas. */
+function viewportAnchorDelta(dW,dH,zoom){
+  if (!(zoom>0) || (!dW && !dH)) return {dx:0,dy:0};
+  return { dx: dW/(2*zoom), dy: dH*0.24/zoom };
+}
 function sizeCanvas(c, opts){
   if (!c) return;
   const active=!!(opts&&opts.active);
@@ -133,7 +144,21 @@ function sizeCanvas(c, opts){
   const r=c.getBoundingClientRect();
   const w=Math.round(hostRect&&hostRect.width ? hostRect.width : (r.width||c.clientWidth||innerWidth));
   c.style.width=w+'px'; c.style.height=h+'px';
-  if (active){ VW=w; VH=h; }   // the visible/active canvas owns render + pointer size
+  if (active){
+    /* Keep the visible garden ANCHORED across a viewport change.
+       viewScreen puts a tile at `VW/2 + ZOOM*(isoX - cam.x)`, so widening the
+       canvas by dW slides the entire garden right by dW/2. That is what made
+       docking or undocking the plant library read as "the map resized and
+       jumped" instead of simply uncovering the strip the panel was sitting on.
+       Compensating cam by the same amount — in DRAW units, hence the /ZOOM —
+       spends the new pixels on more garden rather than on moving the garden.
+       This lives in sizeCanvas because it is the one place VW/VH change, so
+       every path (library dock, window resize, rotation, the rAF settles in
+       setActiveCanvas) is covered by construction. */
+    const d=viewportAnchorDelta(w-VW, h-VH, ZOOM);
+    if ((d.dx||d.dy) && typeof game!=='undefined' && game.mode){ cam.x+=d.dx; cam.y+=d.dy; }
+    VW=w; VH=h;   // the visible/active canvas owns render + pointer size
+  }
   // Assigning canvas.width RESETS the bitmap even when the value is unchanged,
   // and cnv.width is part of the ground bake key — so an unguarded write here
   // meant every spurious ResizeObserver fire (docking the library, an open
@@ -166,11 +191,25 @@ function repositionOpenChrome(){
 function settleViewportChange(){
   setActiveCanvas(activeCanvas());
   calcZoom();
-  if (game.mode && game.gameMode==='design') snapCam();
+  /* No snapCam here. It snaps to game.px/py — the AVATAR — and design mode has
+     no avatar, so every library dock/undock threw the designer's camera back to
+     the plot spawn. setUserZoom has always skipped it for exactly this reason
+     ("design keeps a free camera"); this path disagreed with it. The anchoring
+     in sizeCanvas is what the camera actually needed: hold the view still and
+     let the reclaimed width show more garden. */
   updateZoomPill();
   compassKey='';
   updateCompass();
   repositionOpenChrome();
+  /* Draw the new size in THIS frame. Resizing the backing store clears it, so
+     returning without drawing composites one blank frame — the grey flash as
+     the library docks or undocks. The bake is invalidated by the size change
+     anyway, so this is when that cost was always going to be paid; paying it
+     before the frame is composited is what makes it invisible. */
+  if (typeof game!=='undefined' && game.mode && activeCanvasId==='gameCanvas'
+      && !cnv.classList.contains('hidden') && typeof render==='function'){
+    render(performance.now());
+  }
 }
 function resizeCanvases(){
   settleViewportChange();
@@ -188,10 +227,10 @@ if (canvasStage && typeof ResizeObserver==='function'){
       canvasStageResizeFrame=0;
       // Docking/undocking the plant library resizes the stage without a window
       // resize. The partial list this used to inline re-measured the canvas but
-      // skipped snapCam() and repositionOpenChrome() — so a design-mode camera
-      // stayed clamped to the narrower column, and an open time/garden dropdown
-      // stayed pinned to coordinates that had just moved. settleViewportChange
-      // is the one path that does all of it.
+      // skipped repositionOpenChrome(), so an open time/garden dropdown stayed
+      // pinned to coordinates that had just moved. settleViewportChange is the
+      // one path that does all of it — measure, anchor the camera, reposition
+      // the chrome, and repaint before the frame is composited.
       settleViewportChange();
     });
   }).observe(canvasStage);

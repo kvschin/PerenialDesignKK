@@ -3569,3 +3569,66 @@ test('the card art cache is bounded and evicts least-recently-used', () => {
   assert(TRAY_ART.has(keep[0] + '||' + keep[1]), 'a recently used entry is not evicted before colder ones');
   TRAY_ART.clear();
 });
+
+/* ---------- viewport changes hold the view still ----------
+   Docking/undocking the library resizes the canvas. viewScreen places a tile at
+   `VW/2 + ZOOM*(isoX - cam.x)`, so a width change slides the whole garden
+   sideways unless cam absorbs it — which is what made closing the library read
+   as the map jumping rather than uncovering the strip the panel had been on. */
+
+// where a tile lands in CSS pixels at an arbitrary viewport, which is what the
+// eye actually tracks — computed from the real transform, not a copy of it
+function tileCssAt(x, y, vw, vh, zoom){
+  const p = screenOf(x, y, vw / zoom, vh / zoom);
+  return [p[0] * zoom, p[1] * zoom];
+}
+
+test('widening the viewport reveals more garden instead of moving it', () => {
+  setup(41, 41);
+  const zoom = 1, vw = 1280, vh = 800;
+  cam.x = 137.5; cam.y = -42.25;
+  const before = tileCssAt(10, 10, vw, vh, zoom);
+  const d = viewportAnchorDelta(380, 0, zoom);       // the library column comes back
+  cam.x += d.dx; cam.y += d.dy;
+  const after = tileCssAt(10, 10, vw + 380, vh, zoom);
+  assert(Math.abs(d.dx - 190) < 1e-9, 'cam absorbs exactly half the added width');
+  assert(Math.abs(after[0] - before[0]) < 1e-9, 'the tile holds its x on screen');
+  assert(Math.abs(after[1] - before[1]) < 1e-9, 'and its y');
+});
+
+test('the anchor is in draw units, so zoom does not break it', () => {
+  setup(41, 41);
+  const zoom = 1.6, vw = 1280, vh = 800;
+  cam.x = 40; cam.y = 12;
+  const before = tileCssAt(9, 9, vw, vh, zoom);
+  const d = viewportAnchorDelta(380, 0, zoom);
+  cam.x += d.dx; cam.y += d.dy;
+  const after = tileCssAt(9, 9, vw + 380, vh, zoom);
+  assert(Math.abs(d.dx - 380 / (2 * 1.6)) < 1e-9, 'compensation divided by ZOOM');
+  assert(Math.abs(after[0] - before[0]) < 1e-9, 'still anchored when zoomed in');
+});
+
+test('height changes anchor on the same 0.24 the renderer uses', () => {
+  setup(41, 41);
+  const zoom = 1, vw = 1000, vh = 700;
+  cam.x = 3; cam.y = 9;
+  const before = tileCssAt(5, 5, vw, vh, zoom);
+  const d = viewportAnchorDelta(0, 120, zoom);
+  cam.x += d.dx; cam.y += d.dy;
+  const after = tileCssAt(5, 5, vw, vh + 120, zoom);
+  assert(Math.abs(after[1] - before[1]) < 1e-9, 'a taller viewport does not slide the garden down');
+});
+
+test('opening and closing the library returns the camera exactly', () => {
+  const open = viewportAnchorDelta(-380, 0, 1.25);   // docks: canvas shrinks
+  const shut = viewportAnchorDelta(380, 0, 1.25);    // undocks: canvas grows back
+  assert(Math.abs(open.dx + shut.dx) < 1e-12, 'a round trip cancels to zero, so no drift accumulates');
+  assert(Math.abs(open.dy + shut.dy) < 1e-12, 'vertically too');
+});
+
+test('a viewport change that changes nothing moves nothing', () => {
+  const d = viewportAnchorDelta(0, 0, 1);
+  assert(d.dx === 0 && d.dy === 0, 'no size change, no camera movement');
+  const bad = viewportAnchorDelta(380, 120, 0);
+  assert(bad.dx === 0 && bad.dy === 0, 'a zero/invalid zoom cannot produce Infinity in the camera');
+});
