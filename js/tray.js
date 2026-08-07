@@ -3213,6 +3213,15 @@ function applySheetState(){
     // can be measured as the destination. One resize has been scheduled; the
     // flight itself adds no further layout.
     if (deskFrom && deskFrom.width>1 && deskFrom.height>1) flyLibraryToLauncher(deskFrom);
+    /* Resize the canvas NOW, in the same task as the class swap. The grid
+       column collapses the moment the class lands, but the backing store only
+       follows on the ResizeObserver's rAF a frame later — and in between the
+       browser stretches the old bitmap across the wider box. That one upscaled
+       frame is the soft grey smear you see as the library closes. Settling
+       synchronously means the layout change and the repaint are the same frame.
+       The observer still fires afterwards; sizeCanvas no-ops when the size
+       already matches, so that costs an ordinary frame, not a rebake. */
+    if (typeof settleViewportChange==='function') settleViewportChange();
   }
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   const handle=document.getElementById('sheetHandle'); if (handle){
