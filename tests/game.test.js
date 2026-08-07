@@ -3362,7 +3362,7 @@ test('the shrub index answers exactly as a full plant scan did', () => {
   for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++){
     if (x === 12 && y === 12) continue;
     if ((x + y) % 3) continue;
-    setTile('plants', `${x},${y}`, { s: 'littlebluestem', d: 0, t: 1 });
+    setTile('plants', `${x},${y}`, { s: 'bluestem', d: 0, t: 1 });
   }
   const claimed = shrubFootprintTiles(12, 12, game.plants['12,12'], true);
   assert(claimed.length > 1, 'this shrub really does reserve more than its own tile');
@@ -3481,7 +3481,7 @@ test('ground damage records tiles and clears on the authoritative bake', () => {
   assert(!tileTerrain(8, 8), 'and the model really is clear, which is what the overlay reads');
   clearGroundDamage();
   assert(groundDamage.size === 0 && !groundDamageFull, 'the bake resets both the set and the full flag');
-  setTile('plants', '9,9', { s: 'littlebluestem', d: 0, t: 1 });
+  setTile('plants', '9,9', { s: 'bluestem', d: 0, t: 1 });
   assert(groundDamage.size === 0 && !groundDamageFull, 'planting is not ground damage at all');
 });
 
@@ -3522,4 +3522,50 @@ test('sizeCanvas only reallocates when the backing store size really changes', (
   c.width = w0 + 7;                                 // pretend the layout moved
   sizeCanvas(c, { active: true });
   assert(c.width === w0 && c.height === h0, 'a genuine size change is still applied');
+});
+
+/* ---------- catalog card art cache ----------
+   Result cards redrew their species procedurally on every tray rebuild, and the
+   tray rebuilds on every tool arm and search keystroke. The art is a pure
+   function of species|variant|season, so it is baked once and blitted after. */
+
+test('catalog card art is baked once per species, variant and season', () => {
+  TRAY_ART.clear();
+  const D = plantDef('bluestem');
+  const a = trayPlantArt('bluestem', null, 'Summer', D);
+  const b = trayPlantArt('bluestem', null, 'Summer', D);
+  assert(a === b, 'the same card art is reused rather than redrawn');
+  assert(TRAY_ART.size === 1, 'and only one entry was made for it');
+  assert(trayPlantArt('bluestem', null, 'Fall', D) !== a, 'a different season is its own bake');
+  assert(trayPlantArt('bigbluestem', null, 'Summer', plantDef('bigbluestem')) !== a, 'a different species too');
+  assert(TRAY_ART.size === 3, 'species and season do not collide in the cache key');
+  TRAY_ART.clear();
+});
+
+test('the card art cache is bounded and evicts least-recently-used', () => {
+  TRAY_ART.clear();
+  // real species x real seasons — drawPlant reads P.sea[season], so invented
+  // keys are not a stand-in for cache pressure
+  const keys = PLANT_KEYS.filter(k => !PLANTS[k].hidden);
+  const combos = [];
+  for (const s of SEASONS) for (const k of keys) combos.push([k, s]);
+  assert(combos.length > TRAY_ART_MAX + 20, 'enough real combinations to overflow the cache');
+  const first = combos[0];
+  for (let i = 0; i < TRAY_ART_MAX + 10; i++){
+    const [k, s] = combos[i];
+    trayPlantArt(k, null, s, plantDef(k));
+  }
+  assert(TRAY_ART.size <= TRAY_ART_MAX, `cache stays within ${TRAY_ART_MAX}, got ${TRAY_ART.size}`);
+  assert(!TRAY_ART.has(first[0] + '||' + first[1]), 'the oldest entry was evicted');
+  const newest = combos[TRAY_ART_MAX + 9];
+  assert(TRAY_ART.has(newest[0] + '||' + newest[1]), 'the newest entry survived');
+  // touching an entry makes it most-recent, so it outlives colder arrivals
+  const keep = combos[TRAY_ART_MAX + 5];
+  trayPlantArt(keep[0], null, keep[1], plantDef(keep[0]));
+  for (let i = TRAY_ART_MAX + 10; i < TRAY_ART_MAX + 30; i++){
+    const [k, s] = combos[i];
+    trayPlantArt(k, null, s, plantDef(k));
+  }
+  assert(TRAY_ART.has(keep[0] + '||' + keep[1]), 'a recently used entry is not evicted before colder ones');
+  TRAY_ART.clear();
 });

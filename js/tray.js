@@ -1446,14 +1446,46 @@ function discoveryPlacingBadge(row,selected){
   if (!selected) return;
   const badge=document.createElement('span'); badge.className='placing-badge'; badge.textContent='Placing'; row.appendChild(badge);
 }
+/* ---------- catalog card art cache (perf) ----------
+   Every result card redrew its species from scratch on every tray rebuild, and
+   the tray rebuilds on every tool arm, search keystroke, source change and
+   category switch. Measured on a 36-card list: 36 drawPlant calls, 11.1ms —
+   33% of a 34ms rebuild — for art that is byte-identical every time (growth 1,
+   bloom 1, a fixed preview season, the fixed seed tileSeed(3,7)). Bake once and
+   blit after, the same trick PSPRITE plays for the garden.
+
+   The bitmap is a pure function of species|variant|season, so it never needs
+   invalidating: plant colour lives in PLANTS and is deliberately world art, not
+   themed, so a light/dark flip cannot change it (unlike the uiInk chrome icons,
+   which are rebuilt by applyTheme). Cards still get their OWN canvas element —
+   a cached element could only live in one place in the DOM at a time — and a
+   drawImage of a 112x124 bitmap is microseconds against a procedural redraw. */
+const TRAY_ART=new Map(), TRAY_ART_MAX=128;   // ~55KB each, so ~7MB at the cap
+const TRAY_ART_W=112, TRAY_ART_H=124;
+function trayPlantArt(species,variant,season,D){
+  const k=species+'|'+(variant||'')+'|'+season;
+  let cv=TRAY_ART.get(k);
+  if (cv){ TRAY_ART.delete(k); TRAY_ART.set(k,cv); return cv; }   // LRU: re-insert at the end
+  cv=document.createElement('canvas'); cv.width=TRAY_ART_W; cv.height=TRAY_ART_H;
+  const g=cv.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(D)||40));
+  g.scale(scale,scale);
+  drawPlant(g,56/scale,110/scale,species,1,season,tileSeed(3,7),0,variant||undefined,1);
+  TRAY_ART.set(k,cv);
+  if (TRAY_ART.size>TRAY_ART_MAX) TRAY_ART.delete(TRAY_ART.keys().next().value);
+  return cv;
+}
+function plantArtCanvas(species,variant,season,D){
+  const art=document.createElement('canvas');
+  art.className='plant-result-art'; art.width=TRAY_ART_W; art.height=TRAY_ART_H;
+  art.getContext('2d').drawImage(trayPlantArt(species,variant,season,D),0,0);
+  return art;
+}
 function discoveryResultCard(ref,d,opts={}){
   const P=refDef(ref), row=document.createElement('article'), selected=activePlantRef(ref); row.className='plant-result-card'+(selected?' sel':'');
   if (opts.variant) row.classList.add('plant-variant-card');
   const main=document.createElement('button'); main.type='button'; main.className='plant-result-main';
   main.title=`Choose ${P.name}`; main.setAttribute('aria-label',`Choose ${P.name}`); main.setAttribute('aria-pressed',selected?'true':'false');
-  const art=document.createElement('canvas'); art.className='plant-result-art'; art.width=112; art.height=124;
-  const tc=art.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(P)||40)); tc.scale(scale,scale);
-  drawPlant(tc,56/scale,110/scale,ref.s,1,previewSeasonForRef(ref,d),tileSeed(3,7),0,ref.v||undefined,1);
+  const art=plantArtCanvas(ref.s,ref.v,previewSeasonForRef(ref,d),P);
   const copy=document.createElement('span'); copy.className='plant-result-copy';
   const name=document.createElement('b'); name.textContent=P.name;
   const latin=document.createElement('em'); latin.textContent=P.latin||'';
@@ -1492,9 +1524,7 @@ function discoveryFamilyCard(group,d){
   const main=document.createElement('button'); main.type='button'; main.className='plant-result-main plant-family-main';
   main.title=`View ${base.name} varieties`; main.setAttribute('aria-label',`View ${base.name} varieties`);
   main.setAttribute('aria-expanded','false'); main.setAttribute('aria-controls',`plant-varieties-${group.s}`);
-  const art=document.createElement('canvas'); art.className='plant-result-art'; art.width=112; art.height=124;
-  const tc=art.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(R)||40)); tc.scale(scale,scale);
-  drawPlant(tc,56/scale,110/scale,group.s,1,previewSeasonForRef(rep,d),tileSeed(3,7),0,rep.v||undefined,1);
+  const art=plantArtCanvas(group.s,rep.v,previewSeasonForRef(rep,d),R);
   const copy=document.createElement('span'); copy.className='plant-result-copy';
   const name=document.createElement('b'); name.textContent=base.name;
   const latin=document.createElement('em'); latin.textContent=base.latin||'';
