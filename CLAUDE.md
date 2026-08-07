@@ -192,7 +192,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    red-tipped canes), `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
    woody shrub, `hydrangea` (`look.bloomShape` 'mop'|'lacecap'|'panicle';
    grouped in the tray by flower type — mophead/lacecap/panicle/oakleaf —
-   not by species), `tree` deciduous, `conifer`). Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
+   not by species), `tree` deciduous, `conifer`). Conifers use one data-driven
+   renderer with `look.coniferHabit`: `spruce` for whorled spruce/fir/hemlock
+   plates, `pine` for open limbs and needle tufts, `cedar` for shelf-like true
+   cedars, `scale` for arborvitae/juniper/cypress sprays, and `weeping` for
+   pendulous curtains. Shared `look` knobs (`tiers`, `taper`, `columnar`,
+   `droop`, `pads`/`density`, `needleLen`, etc.) carry species differences.
+   `fullness` scales foliage reach and visual mass without changing `cw`,
+   `space`, `spread`, or height; naturally open pines/cedars/hemlocks should
+   author a lower value instead of losing their characteristic gaps. Weeping
+   forms also use `leaderBend`, `scaffoldDroop`, `asymmetry`, and numeric
+   `leaderDroop` so their bowed leader and pendant secondary branches are
+   structurally different from an upright conifer. Do not add per-species
+   renderer branches. Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
    present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
    staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
@@ -1552,9 +1564,12 @@ live cross-device visiting is ever built.
   distinct from boxwood's smooth dome and yew's needle sprays). Still open: forsythia and witch hazel (both want a
   bloom-along-bare-stem style), elderberry, buttonbush, shrub roses,
   summersweet, Virginia sweetspire, fothergilla, beautyberry (`seedAlong`),
-  and a dwarf-conifer set (spreading juniper, bird's nest spruce, mugo,
-  arborvitae column) that should reuse the yew `needles` spray with new
-  colours and shapes. Further regional bulb expansion remains open.
+  The upright tree-conifer pass is landed (spruce/fir/hemlock, pine, true
+  cedar, arborvitae/juniper/cypress, and weeping habits). Still open is a
+  separate low/dwarf-conifer pass: spreading juniper, bird's nest spruce, and
+  mugo pine need ground-hugging architecture rather than an upright tree
+  squeezed into the yew renderer. Further regional bulb expansion remains
+  open.
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by
     drag-to-paint; the idea is a dedicated stroke tool).
@@ -1754,7 +1769,9 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     safety**: `makePlantSprite` clamps giant bakes to ≤1024px instead of
     bailing (blit upscales slightly soft at high zoom); entries carry
     `want`/`capped` so resolution-capped giants never rebake while zooming
-    in. Stress A/B (562 plants, 35 mature trees + 59 mature shrubs):
+    in. Its normal 18px below-grade allowance expands for
+    `look.coniferHabit:'weeping'` from `weepLength` plus the tuft radius, so
+    cached and live cascades keep the same silhouette. Stress A/B (562 plants, 35 mature trees + 59 mature shrubs):
     75ms procedural / 11.7ms sprites — statistically identical to the same
     garden un-aged (77/12.6), i.e. no stress regression; realistic mature
     design garden (200 perennials + 6 mature trees) runs 1.8ms/frame.

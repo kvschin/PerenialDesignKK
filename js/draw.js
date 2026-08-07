@@ -384,6 +384,74 @@ const _rayOpt = {vein:true};
 const RAY_FIT = { crowd: 2.2, emerge: 0.60, base: 0.78, disc: 0.83 };
 /* ===== end Wave A addition ================================================= */
 
+/* Conifers share one renderer, but not one silhouette. The data-facing
+   `look.coniferHabit` switch keeps the useful differences at the plant entry:
+   whorled spruce/fir, open pine tufts, shelf-like true cedar, flattened scale
+   sprays, and pendulous curtains. These helpers only draw reusable branch
+   material; species never get their own code path. */
+function coniferHalfWidth(L,cw,u){
+  const taper=Math.pow(Math.max(0.025,1-u),L.taper||0.72);
+  const column=L.columnar||0;
+  return cw*0.5*((1-column)*taper+column*(0.42+0.58*taper));
+}
+function coniferLeaderX(L,H,u,seed){
+  if (!L || L.coniferHabit!=='weeping') return 0;
+  const bendRate=L.leaderBend===undefined?0.11:L.leaderBend;
+  const side=(seed&1)?-1:1, bend=H*bendRate*side;
+  // Cubic-bezier x carriage: the leader bows strongly through its middle,
+  // then returns toward the crown instead of reading as a tilted pole.
+  const v=1-u;
+  return bend*(3*v*v*u*1.05+3*v*u*u*0.62+u*u*u*0.24);
+}
+function coniferLeaderUAtY(top,y){
+  if (!(top<1)) return 0;
+  return Math.max(0,Math.min(1,(y-1)/(top-1)));
+}
+function coniferLeaderAt(L,H,u,seed,ox){
+  return ox*u+coniferLeaderX(L,H,u,seed);
+}
+function coniferLeaderAtY(L,H,top,y,seed,ox){
+  return coniferLeaderAt(L,H,coniferLeaderUAtY(top,y),seed,ox);
+}
+// Weeping curtains cap at five per side. Reuse these buffers across draws so
+// a procedural preview or pre-cache frame does not allocate ~90 drop objects.
+const CONIFER_DROP_MAX=10;
+const _coniferDropX=new Float64Array(CONIFER_DROP_MAX);
+const _coniferDropY=new Float64Array(CONIFER_DROP_MAX);
+const _coniferDropLen=new Float64Array(CONIFER_DROP_MAX);
+const _coniferDropSide=new Int8Array(CONIFER_DROP_MAX);
+const _coniferDropJ=new Uint8Array(CONIFER_DROP_MAX);
+function drawConiferSpray(ctx,cx,cy,len,thick,ang,col,tone,rib){
+  if (!(len>0) || !(thick>0)) return;
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang||0);
+  ctx.fillStyle=shade(col,tone||0); ctx.beginPath();
+  ctx.moveTo(-len*0.18,0);
+  ctx.quadraticCurveTo(len*0.08,-thick*0.92,len*0.94,-thick*0.10);
+  ctx.quadraticCurveTo(len,0,len*0.94,thick*0.10);
+  ctx.quadraticCurveTo(len*0.08,thick*0.92,-len*0.18,0);
+  ctx.closePath(); ctx.fill();
+  if (rib && len>18){
+    ctx.strokeStyle=shade(col,-34); ctx.globalAlpha=0.46;
+    ctx.lineWidth=Math.max(0.55,thick*0.12); ctx.beginPath();
+    ctx.moveTo(-len*0.12,0); ctx.quadraticCurveTo(len*0.35,thick*0.08,len*0.86,0); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawConiferTuft(ctx,cx,cy,r,ang,col,rnd,soft){
+  if (!(r>0)) return;
+  const n=soft?9:7, fan=soft?1.22:0.88;
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang||0);
+  ctx.strokeStyle=col; ctx.lineCap='round'; ctx.lineWidth=Math.max(0.55,r*(soft?0.055:0.075));
+  ctx.beginPath();
+  for (let i=0;i<n;i++){
+    const a=-fan/2+fan*(i/(n-1))+(rnd()-0.5)*0.10;
+    const rr=r*(0.72+rnd()*0.32);
+    ctx.moveTo(-r*0.12,0); ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+  }
+  ctx.stroke(); ctx.fillStyle=shade(col,-30); ctx.beginPath(); ctx.arc(0,0,Math.max(0.8,r*0.11),0,7); ctx.fill();
+  ctx.restore();
+}
+
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail){
@@ -417,6 +485,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   ctx.scale(plantVisualWidthScale(P,key),1);
 
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
+  let snowAnchors=null;
 
   if (P.form === 'bunchgrass'){
     const L=P.look||{}, n = stemFor(L.leaves||13);
@@ -2751,70 +2820,207 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
-  else if (P.form === 'conifer'){ // stacked evergreen, dense at any season
-    const L=P.look||{};
-    const vs=(woodyVisualCw(P)||60)/(P.cw||60);
+  else if (P.form === 'conifer'){ // evergreen habits share primitives, not silhouettes
+    const L=P.look||{}, habit=S.fol?(L.coniferHabit||'spruce'):'bare';
+    const fol=S.fol||'#4f6f50', vs=(woodyVisualCw(P)||60)/(P.cw||60);
     const cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
-    ctx.strokeStyle='#5e4a38'; ctx.lineWidth=Math.max(2,4*vs*growth);
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H*0.18); ctx.stroke();
-    if (art2On(L)){
-      /* ART2 conifer. Three flat triangles was the most diagrammatic drawing
-         in the woody set — a 500px bald cypress shipped in 13 paint ops. The
-         tier COUNT and fill count are unchanged; what changes is that each
-         tier's skirt is scalloped into branch whorls (still one path, one
-         fill) and value-graded along the light axis, so the tree reads as
-         layered foliage catching light rather than stacked paper. One batched
-         stroke adds needle tips along all three skirts. */
+    const bark=L.bark||shade(fol,-72), top=-H*(L.crownTop||0.96), base=-H*(L.crownBase||0.08);
+    const crownH=Math.max(8,base-top), ox=sway*(L.sway||1.2);
+    const fullness=Math.max(0.75,L.fullness===undefined?1.12:L.fullness), mass=Math.sqrt(fullness);
+    const tierCount=stemFor(L.tiers||(habit==='cedar'?7:habit==='pine'?7:habit==='scale'?10:8));
+    ctx.strokeStyle=bark; ctx.lineCap='round'; ctx.lineWidth=Math.max(1.2,(L.trunkW||3.4)*vs*growth);
+    ctx.beginPath(); ctx.moveTo(0,1);
+    if (habit==='weeping'){
+      for (let i=1;i<=6;i++){
+        const u=i/6, mu=(i-0.5)/6;
+        ctx.quadraticCurveTo(coniferLeaderAt(L,H,mu,seed,ox),1+(top-1)*mu,
+          coniferLeaderAt(L,H,u,seed,ox),1+(top-1)*u);
+      }
+    } else ctx.quadraticCurveTo(ox*0.18,-H*0.55,ox,top);
+    ctx.stroke();
+    snowAnchors=[];
+
+    if (!art2On(L) && S.fol){
+      // Preserve the global ?art2=0 A/B and emergency performance fallback.
+      // The data-rich renderer is the normal path; this is deliberately the
+      // old low-cost three-tier silhouette.
       for (let t=0;t<3;t++){
         const w=cw*(0.95-t*0.27), yb=-H*(0.16+t*0.26), yt=-H*(0.46+t*0.27);
-        const ox=sway*(t+1)*0.6, apex=sway*(t+1.6), droop=(yb-yt)*0.065;
-        const scal=Math.max(3,Math.min(7,Math.round(w/22)));
-        ctx.beginPath(); ctx.moveTo(-w/2+ox,yb);
-        for (let s2=1;s2<=scal;s2++){
-          const x0=-w/2+ox+w*(s2-1)/scal, x1=-w/2+ox+w*s2/scal;
-          ctx.quadraticCurveTo((x0+x1)/2, yb+droop, x1, yb);
-        }
-        ctx.lineTo(apex,yt); ctx.closePath();
-        litFill(ctx, ox, yb+(yt-yb)*0.45, w*0.5, shade(S.fol,(t-1)*10), 27, -25);
+        ctx.fillStyle=shade(S.fol,(t-1)*10); ctx.beginPath();
+        ctx.moveTo(-w/2+sway*(t+1)*0.6,yb); ctx.lineTo(w/2+sway*(t+1)*0.6,yb);
+        ctx.lineTo(sway*(t+1.6),yt); ctx.closePath(); ctx.fill();
       }
-      // Needle tips hanging off the skirts: one path, one stroke for all three
-      // tiers. Gated on drawn size (rule 6) — on a young or small conifer these
-      // are sub-pixel. Note the honest measurement: trimming this pass moved
-      // bald cypress only 4.14x -> 3.96x of classic, so the needles are NOT
-      // where this branch's cost lives. It is the three big gradient fills:
-      // a flat fill of a 350x530 tier is close to a memset, a 3-stop gradient
-      // over the same area is per-pixel. That is the whole reason the conifer
-      // ratio is the wave's highest — classic was only 13 paint ops — and it
-      // is a deliberate trade, not an oversight. Absolute cost (0.41ms) sits
-      // beside the shipped Echinacea prototype's 0.38ms.
-      if (cw>90){
-        ctx.strokeStyle=shade(S.fol,-30); ctx.lineWidth=Math.max(0.6,vs*0.55);
-        ctx.lineCap='round'; ctx.globalAlpha=0.6; ctx.beginPath();
-        for (let t=0;t<3;t++){
-          const w=cw*(0.95-t*0.27), yb=-H*(0.16+t*0.26), ox=sway*(t+1)*0.6;
-          const nn=Math.max(3,Math.min(6,Math.round(w/26)));
-          for (let i=0;i<nn;i++){
-            const nx=-w/2+ox+w*((i+0.5)/nn)+(rnd()-0.5)*3;
-            ctx.moveTo(nx,yb); ctx.lineTo(nx+(rnd()-0.5)*2.5, yb+H*0.018+rnd()*H*0.012);
+    } else if (habit==='bare'){
+      // Deciduous conifers keep a fine, whorled winter skeleton instead of
+      // borrowing an evergreen foliage colour just to stay visible.
+      for (let t=0;t<tierCount;t++){
+        const u=t/Math.max(1,tierCount-1), y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        ctx.strokeStyle=shade(bark,4+(t%2)*8); ctx.lineWidth=Math.max(0.65,1.05*vs*(1-u*0.35)); ctx.beginPath();
+        for (const side of [-1,1]){
+          const ex=side*hw+ox*u, ey=y+H*(L.droop||0.025)*(1-u);
+          ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(side*hw*0.45,y-H*0.012,ex,ey);
+          for (let j=1;j<=3;j++){
+            const f=j/4, tx=side*hw*f+ox*u, ty=y+(ey-y)*f;
+            ctx.moveTo(tx,ty); ctx.lineTo(tx+side*H*0.018,ty-H*(0.025+0.008*j));
+          }
+          if (t%2===0) snowAnchors.push([ex,ey,Math.max(2.2,3.2*vs)]);
+        }
+        ctx.stroke();
+      }
+    } else if (habit==='pine'){
+      // Pines keep visible whorls and carry needles in tufts at branch tips.
+      // `softNeedles` opens the five-needle pines; a dense limber/stone pine
+      // stays shorter and stiffer without a new renderer branch.
+      for (let t=0;t<tierCount;t++){
+        const u=t/Math.max(1,tierCount-1), y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        const lift=(L.branchLift||0.02)*H, droop=(L.droop||0.02)*H*(1-u);
+        ctx.strokeStyle=shade(bark,8); ctx.lineWidth=Math.max(0.8,1.25*vs*(1-u*0.35)); ctx.beginPath();
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(-hw*0.42,y-lift,-hw,y+droop);
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(hw*0.42,y-lift,hw,y+droop); ctx.stroke();
+        const tufts=Math.max(2,Math.round((L.tufts||3)*(0.82+0.18*(1-u))));
+        for (const side of [-1,1]) for (let j=0;j<tufts;j++){
+          const f=(j+0.55)/tufts, tx=side*hw*f+ox*u, ty=y+droop*f-lift*4*f*(1-f);
+          const nr=Math.max(2.2,(L.needleLen||7)*vs*(0.72+0.28*(1-u))*fullness);
+          drawConiferTuft(ctx,tx,ty,nr,side<0?Math.PI:0,shade(fol,(side<0?-12:7)+(rnd()-0.5)*10),rnd,!!L.softNeedles);
+          if (j===tufts-1) snowAnchors.push([tx,ty-nr*0.25,nr*0.6]);
+        }
+      }
+      drawConiferTuft(ctx,ox,top,Math.max(3,(L.needleLen||7)*vs*fullness),-Math.PI/2,shade(fol,12),rnd,!!L.softNeedles);
+      snowAnchors.push([ox,top,Math.max(3,(L.needleLen||7)*vs*fullness)*0.55]);
+    } else if (habit==='cedar'){
+      // True cedars read as separated horizontal shelves with visible wood,
+      // not a Christmas-tree triangle. Deodar's drooping leader and Atlas
+      // cedar's stiffer plates are the same geometry at different droop/open.
+      for (let t=0;t<tierCount;t++){
+        const u=t/Math.max(1,tierCount-1), y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        const drop=(L.droop||0.05)*H*(0.35+0.65*(1-u)), pads=Math.max(2,Math.round((L.pads||4)*(1-u*0.28)));
+        ctx.strokeStyle=shade(bark,8); ctx.lineWidth=Math.max(0.8,1.35*vs*(1-u*0.4)); ctx.beginPath();
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(-hw*0.45,y-drop*0.15,-hw,y+drop);
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(hw*0.45,y-drop*0.15,hw,y+drop); ctx.stroke();
+        for (const side of [-1,1]) for (let j=0;j<pads;j++){
+          const f=(j+0.55)/pads, px=side*hw*f+ox*u, py=y+drop*f*f;
+          drawConiferSpray(ctx,px,py,Math.max(5,hw/pads*0.78*fullness),Math.max(1.7,(L.padThick||3.2)*vs*mass),side<0?Math.PI:0,
+            fol,(side<0?-12:10)+(rnd()-0.5)*8,true);
+          if (j===pads-1) snowAnchors.push([px,py,Math.max(2.5,hw/pads*0.45)]);
+        }
+      }
+      if (L.leaderDroop){
+        ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=Math.max(0.8,1.3*vs); ctx.beginPath();
+        ctx.moveTo(ox,top); ctx.quadraticCurveTo(ox+H*0.035,top-H*0.015,ox+H*0.045,top+H*0.045); ctx.stroke();
+      }
+    } else if (habit==='weeping'){
+      // A bowed leader carries low, asymmetric scaffold arms; foliage hangs
+      // from those arms in layered curtains. The leader bend and scaffold
+      // drop are what keep this from reading as a normal spire with tassels.
+      for (let t=0;t<tierCount;t++){
+        const u=t/Math.max(1,tierCount-1), y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        const cx=coniferLeaderAtY(L,H,top,y,seed,ox), arch=(L.branchLift||0.035)*H;
+        const scaffoldDrop=(L.scaffoldDroop||0.08)*H*(0.58+0.42*(1-u));
+        const curtains=Math.max(3,Math.min(5,Math.round(L.curtains||4)));
+        const asym=L.asymmetry===undefined?0.16:L.asymmetry, longSide=((t+(seed&1))&1)?1:-1;
+        const leftScale=longSide===-1?1-asym*0.12*rnd():1-asym*(0.65+0.35*rnd());
+        const rightScale=longSide===1?1-asym*0.12*rnd():1-asym*(0.65+0.35*rnd());
+        ctx.strokeStyle=shade(bark,5); ctx.lineWidth=Math.max(0.75,1.2*vs*(1-u*0.35)); ctx.beginPath();
+        for (let si=0;si<2;si++){
+          const side=si?1:-1, armScale=si?rightScale:leftScale;
+          const ex=cx+side*hw*armScale;
+          ctx.moveTo(cx,y); ctx.quadraticCurveTo(cx+side*hw*0.42,y-arch,ex,y+scaffoldDrop);
+        }
+        ctx.stroke();
+        let dropN=0;
+        for (let si=0;si<2;si++){
+          const side=si?1:-1, armScale=si?rightScale:leftScale;
+          for (let j=0;j<curtains;j++){
+            const f=(j+0.55)/curtains;
+            _coniferDropSide[dropN]=side; _coniferDropJ[dropN]=j;
+            _coniferDropX[dropN]=cx+side*hw*armScale*f;
+            _coniferDropY[dropN]=y-arch*4*f*(1-f)+scaffoldDrop*f*f;
+            _coniferDropLen[dropN]=H*(L.weepLength||0.12)*(0.7+0.45*rnd())*(0.72+0.28*(1-u));
+            dropN++;
           }
         }
-        ctx.stroke(); ctx.globalAlpha=1;
+        // All hanging secondary branches in a tier share one batched stroke.
+        ctx.strokeStyle=shade(bark,12); ctx.lineWidth=Math.max(0.55,0.75*vs*(1-u*0.3)); ctx.beginPath();
+        for (let i=0;i<dropN;i++){
+          const side=_coniferDropSide[i], px=_coniferDropX[i], py=_coniferDropY[i], len=_coniferDropLen[i];
+          ctx.moveTo(px,py); ctx.quadraticCurveTo(px+side*H*0.01,py+len*0.42,px,py+len);
+        }
+        ctx.stroke();
+        for (let i=0;i<dropN;i++){
+          const side=_coniferDropSide[i], j=_coniferDropJ[i];
+          const px=_coniferDropX[i], py=_coniferDropY[i], len=_coniferDropLen[i];
+          if (L.weepTufts){
+            const nr=Math.max(2.5,(L.needleLen||7)*vs*fullness), tipY=py+len;
+            if (j===curtains-1 || (t%2===0 && j===curtains-2))
+              drawConiferTuft(ctx,px,py+len*0.48,nr*0.74,Math.PI/2,
+                shade(fol,(side<0?-16:4)+(rnd()-0.5)*8),rnd,!!L.softNeedles);
+            drawConiferTuft(ctx,px,tipY,nr,Math.PI/2,
+              shade(fol,(side<0?-12:8)+(rnd()-0.5)*8),rnd,!!L.softNeedles);
+            snowAnchors.push([px,tipY,nr*0.5]);
+          } else {
+            if (j===curtains-1 || (t%2===0 && j===curtains-2))
+              drawConiferSpray(ctx,px-side*vs,py+len*0.18,Math.max(4,len*0.72),Math.max(1.5,(L.padThick||2.7)*vs*mass*0.78),Math.PI/2+side*0.10,
+                fol,(side<0?-17:3)+(rnd()-0.5)*7,true);
+            drawConiferSpray(ctx,px,py,Math.max(5,len),Math.max(1.6,(L.padThick||2.7)*vs*mass),Math.PI/2,
+              fol,(side<0?-12:8)+(rnd()-0.5)*8,true);
+            if (j===curtains-1) snowAnchors.push([px,py,Math.max(2.5,len*0.18)]);
+          }
+        }
       }
-      if (S.seed && mature){   // cones read as cones once they are lit and sized
-        for (let i=0;i<6;i++)
-          drawFloret(ctx, (rnd()-0.5)*cw*0.6, -H*(0.25+rnd()*0.5), Math.max(1.2,1.2*vs*0.8), S.seed, {squash:1.35});
+    } else if (habit==='scale'){
+      // Arborvitae, juniper and true/false cypresses are built from upright
+      // overlapping sprays. `fanFlat` keeps Thuja/Hinoki planar; a juniper's
+      // rounder, bristlier tufts use the same spray at a steeper fan angle.
+      const fans=Math.max(7,Math.min(22,Math.round(tierCount*(L.density||1.15)*fullness)));
+      for (let i=0;i<fans;i++){
+        const u=(i+0.35)/fans, y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        const across=(i%2?-1:1)*(0.25+0.65*rnd()), px=across*hw+ox*u;
+        const len=Math.max(8,H*(L.sprayLen||0.13)*(0.75+0.35*rnd())*fullness);
+        const ang=-Math.PI/2+across*(L.fanFlat?0.12:0.24)+(rnd()-0.5)*(L.sprayJitter||0.20);
+        drawConiferSpray(ctx,px,y,len,Math.max(2,(L.padThick||4.2)*vs*mass),ang,fol,
+          (across<0?-14:10)+(rnd()-0.5)*9,true);
+        if (i%2===0) snowAnchors.push([px,y-len*0.3,Math.max(2.5,len*0.18)]);
+        if (L.fanFlat && hw>20 && i%3===0)
+          drawConiferSpray(ctx,px*0.52,y+len*0.1,len*0.72,Math.max(1.5,(L.padThick||4.2)*vs*mass*0.72),ang*0.72,
+            fol,(across<0?-7:15),true);
       }
+      // Close the base without turning the whole plant back into one triangle.
+      for (const side of [-1,1]) drawConiferSpray(ctx,0,base,Math.max(8,cw*0.45),Math.max(2.5,(L.padThick||4.2)*vs*mass),side<0?Math.PI:0,
+        fol,side<0?-14:8,true);
     } else {
-    for (let t=0;t<3;t++){
-      const w=cw*(0.95-t*0.27), yb=-H*(0.16+t*0.26), yt=-H*(0.46+t*0.27);
-      ctx.fillStyle=shade(S.fol,(t-1)*10);
-      ctx.beginPath(); ctx.moveTo(-w/2+sway*(t+1)*0.6,yb);
-      ctx.lineTo(w/2+sway*(t+1)*0.6,yb); ctx.lineTo(sway*(t+1.6),yt);
-      ctx.closePath(); ctx.fill();
+      // Spruce/fir/hemlock: whorled branch plates with scalloped gaps. The
+      // number, droop, openness and columnar profile are all authored in data.
+      for (let t=0;t<tierCount;t++){
+        const u=t/Math.max(1,tierCount-1), y=base-crownH*u, hw=coniferHalfWidth(L,cw,u);
+        const drop=(L.droop||0.025)*H*(0.45+0.55*(1-u)), pads=Math.max(2,Math.round((L.pads||4)*(1-u*0.22)));
+        ctx.strokeStyle=shade(fol,-40); ctx.lineWidth=Math.max(0.65,0.95*vs); ctx.beginPath();
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(-hw*0.5,y-drop*0.15,-hw,y+drop);
+        ctx.moveTo(ox*u,y); ctx.quadraticCurveTo(hw*0.5,y-drop*0.15,hw,y+drop); ctx.stroke();
+        for (const side of [-1,1]) for (let j=0;j<pads;j++){
+          const f=(j+0.55)/pads, px=side*hw*f+ox*u, py=y+drop*f*f;
+          const plen=Math.max(4.5,hw/pads*(L.open||0.92)*fullness);
+          drawConiferSpray(ctx,px,py,plen,Math.max(1.8,(L.padThick||3.8)*vs*mass),side<0?Math.PI:0,
+            fol,(side<0?-15:9)+(rnd()-0.5)*8,true);
+          if (j===pads-1) snowAnchors.push([px,py,Math.max(2.5,plen*0.45)]);
+        }
+      }
     }
-    if (S.seed && mature){ ctx.fillStyle=S.seed;
-      for (let i=0;i<6;i++){ ctx.beginPath();
-        ctx.arc((rnd()-0.5)*cw*0.6, -H*(0.25+rnd()*0.5), 1.2, 0, 7); ctx.fill(); } }
+
+    if (L.leaderDroop && habit!=='cedar'){
+      const lx=coniferLeaderAt(L,H,1,seed,ox), side=(seed&1)?-1:1;
+      const hook=typeof L.leaderDroop==='number'?L.leaderDroop:0.065;
+      ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=Math.max(0.8,1.3*vs); ctx.beginPath();
+      ctx.moveTo(lx,top); ctx.quadraticCurveTo(lx+side*H*hook*0.62,top-H*0.012,lx+side*H*hook,top+H*hook); ctx.stroke();
+    }
+
+    if (S.seed && mature){
+      const seeds=L.seedN||6, round=!!L.roundSeed;
+      ctx.fillStyle=S.seed;
+      for (let i=0;i<seeds;i++){
+        const u=0.18+rnd()*0.62, hw=coniferHalfWidth(L,cw,u);
+        const sy=base-crownH*u, sx=coniferLeaderAtY(L,H,top,sy,seed,ox)+(rnd()-0.5)*hw*1.2;
+        ctx.beginPath(); ctx.ellipse(sx,sy,Math.max(1,1.15*vs),Math.max(1,1.15*vs*(round?1:1.7)),(rnd()-0.5)*0.35,0,7); ctx.fill();
+      }
     }
   }
   else if (P.form === 'bamboo'){ // linked cane grove / screen
@@ -3335,11 +3541,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // winter snow caps on mature structure (woody: spread across the drawn crown)
   if (AMBIENCE[season].snow && mature){
     ctx.fillStyle='rgba(240,244,250,0.85)';
-    const capW=P.cw?Math.max(18,(woodyVisualCw(P)||18)*0.5):18;
     const capS=P.cw?Math.max(1,(woodyVisualCw(P)||60)/60):1;
     const rs=mulberry(seed+9), caps=isTreeDef(P)?7:4;
-    for(let i=0;i<caps;i++){ ctx.beginPath();
-      ctx.ellipse((rs()-0.5)*capW,-H*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
+    if (snowAnchors && snowAnchors.length){
+      // Open pines, cedars and weepers have real gaps. Pin snow to foliage
+      // tops instead of scattering it through their empty crown rectangle.
+      for (let i=0;i<Math.min(caps,snowAnchors.length);i++){
+        const a=snowAnchors[(i*3+(rs()*snowAnchors.length|0))%snowAnchors.length], r=Math.max(2.2,a[2]||3.5*capS);
+        ctx.beginPath(); ctx.ellipse(a[0],a[1]-r*0.12,r,r*0.42,0,0,7); ctx.fill();
+      }
+    } else if (P.form!=='conifer' || S.fol){
+      const capW=P.cw?Math.max(18,(woodyVisualCw(P)||18)*0.5):18;
+      for(let i=0;i<caps;i++){ ctx.beginPath();
+        ctx.ellipse((rs()-0.5)*capW,-H*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
+    }
   }
   if (!AMBIENCE[season].snow && S.fol && growth>0.28){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);

@@ -244,6 +244,89 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
+test('conifer renderer is deterministic and gives each architecture a distinct paint trace', () => {
+  function trace(key){
+    const ops=[];
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='measureText') return () => ({width:0});
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+          return () => ({addColorStop(){}});
+        return (...args) => {
+          if (['moveTo','lineTo','quadraticCurveTo','arc','ellipse','rotate','translate','scale','fill','stroke'].includes(p))
+            ops.push([p,...args.map(v => typeof v==='number'?Math.round(v*100)/100:v)]);
+        };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawPlant(ctx,0,0,key,1,'Summer',7123,0,undefined,1);
+    return JSON.stringify(ops);
+  }
+  const blueAtlas=trace('blueatlascedar');
+  assertEqual(blueAtlas,trace('blueatlascedar'),'same tree and seed reproduce the same geometry');
+  const signatures=['bluespruce','whitepine','blueatlascedar','greengiantarborvitae','blueweepingalaskacedar'].map(trace);
+  assertEqual(new Set(signatures).size,signatures.length,'spruce, pine, cedar, scale-spray, and weeping habits paint differently');
+  const art2Was=ART2.on;
+  try{
+    ART2.on=false;
+    assert(trace('blueatlascedar')!==blueAtlas,'?art2=0 retains the low-cost classic conifer fallback');
+  } finally { ART2.on=art2Was; }
+});
+
+test('weeping conifers bow their leaders and author low asymmetric cascades', () => {
+  const alaska=PLANTS.blueweepingalaskacedar, pine=PLANTS.weepingwhitepine;
+  for (const [key,P] of [['blueweepingalaskacedar',alaska],['weepingwhitepine',pine]]){
+    const L=P.look, H=plantVisualH(P);
+    assertEqual(coniferLeaderX(L,H,0,7122),0,`${key}: leader still begins at the trunk base`);
+    assertEqual(coniferLeaderX(L,H,0.5,7122),-coniferLeaderX(L,H,0.5,7123),
+      `${key}: seed parity mirrors, rather than removes, the natural lean`);
+    assert(Math.abs(coniferLeaderX(L,H,0.5,7122))>=H*0.05,
+      `${key}: mid-leader bow is large enough to read as a weeper`);
+    const top=-H*(L.crownTop||0.96), base=-H*(L.crownBase||0.08);
+    const scaffoldU=coniferLeaderUAtY(top,base);
+    assert(scaffoldU>0.1,`${key}: lowest scaffold maps above the trunk base`);
+    assert(Math.abs(coniferLeaderX(L,H,scaffoldU,7122))>H*0.02,
+      `${key}: lowest scaffold origin follows the already-bowed visible leader`);
+    assert(L.scaffoldDroop>=0.06,`${key}: scaffold arms visibly descend before the curtains`);
+    assert(L.asymmetry>=0.2,`${key}: alternating scaffold lengths break the straight spire`);
+    assert(L.crownBase>=0.18,`${key}: cascades begin high enough to remain legible`);
+  }
+  assert(pine.look.leaderBend>alaska.look.leaderBend,
+    'weeping white pine keeps the looser, stronger lean of the two weepers');
+});
+
+test('conifer fullness changes foliage mass without changing plant sizing truth', () => {
+  const P=PLANTS.bluespruce, before=[P.h,P.cw,P.heightIn,P.space,P.spread];
+  const thin={...P,look:{...P.look,fullness:0.82}}, full={...P,look:{...P.look,fullness:1.22}};
+  PLANTS.__thinconifer=thin; PLANTS.__fullconifer=full;
+  const opsFor=key => {
+    const ops=[];
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+          return () => ({addColorStop(){}});
+        return (...args) => {
+          if (['moveTo','lineTo','quadraticCurveTo','arc','ellipse','rotate','translate','scale','fill','stroke'].includes(p))
+            ops.push([p,...args.map(v => typeof v==='number'?Math.round(v*100)/100:v)]);
+        };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawPlant(ctx,0,0,key,1,'Summer',8421,0,undefined,1);
+    return JSON.stringify(ops);
+  };
+  try{
+    assert(opsFor('__thinconifer')!==opsFor('__fullconifer'),
+      'the authored fullness value changes foliage geometry');
+    assertEqual([P.h,P.cw,P.heightIn,P.space,P.spread].join(','),before.join(','),
+      'fullness does not mutate px art, real height, spacing, or spread');
+  } finally {
+    delete PLANTS.__thinconifer; delete PLANTS.__fullconifer;
+  }
+});
+
 /* ---- ground materials ---------------------------------------------------
    The grain recipes are data-driven, so the thing worth testing headlessly is
    the contract between the data and the draw code: every material names a
@@ -2378,6 +2461,19 @@ test('woody visual rescale: trees draw larger, proportional, and below true scal
     `yew keeps its intended h:cw aspect at the widened size (got ${drawnAspect.toFixed(2)} vs ${(yew.h / yew.cw).toFixed(2)})`);
 });
 
+test('evergreen silhouettes retain authored proportions through the woody sizing seam', () => {
+  const taylor=PLANTS.taylorjuniper, spartan=PLANTS.spartanjuniper;
+  const atlas=PLANTS.blueatlascedar, serbian=PLANTS.serbianspruce;
+  assert(woodyVisualCw(taylor)<woodyVisualCw(spartan), 'Taylor juniper remains narrower than Spartan on screen');
+  assert(woodyVisualCw(atlas)>woodyVisualCw(serbian)*1.5, 'broad Atlas cedar separates from narrow Serbian spruce');
+  for (const P of [taylor,spartan,atlas,serbian,PLANTS.weepingwhitepine]){
+    const artAspect=P.h/P.cw, drawnAspect=plantVisualH(P)/woodyVisualCw(P);
+    assert(Math.abs(artAspect-drawnAspect)<0.03, `${P.name}: woody transform preserves authored aspect`);
+  }
+  assert(coniferHalfWidth({taper:.62,columnar:.68},100,.35)>
+    coniferHalfWidth({taper:.62,columnar:0},100,.35), 'columnar crowns hold their width higher up the spire');
+});
+
 test('herbaceous plants draw larger so drifts read as masses (H1)', () => {
   // every herbaceous form derives its geometry from the drawn height, so one
   // height factor scales the whole plant. Bulbs opt out (already read closed).
@@ -2505,6 +2601,14 @@ test('cloudgrass sprite bounds retain tall transparent panicles', () => {
   const tallestPanicle=H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)-2;
   assert(sprite && sprite.oy >= tallestPanicle+26,
     'Molinia sprite box must clear its tallest panicle cloud');
+});
+
+test('weeping conifer sprites reserve their below-grade curtains', () => {
+  for (const k of ['blueweepingalaskacedar','weepingwhitepine']){
+    const sprite=makePlantSprite(k,8,0,'Summer',12345,null,null);
+    const below=sprite.cv.height/sprite.s-sprite.oy;
+    assert(below>18,`${k}: cached sprite needs more than the generic below-grade allowance`);
+  }
 });
 
 test('glass governor: sustained interaction jank drops the blur, spikes do not', () => {

@@ -292,6 +292,52 @@ test('grouped species share one groupLabel per group', () => {
   }
 });
 
+test('evergreen tree expansion keeps resolved taxa, scale data, and distinct architecture', () => {
+  const expected = {
+    bluespruce:['Picea pungens','spruce'],
+    blueatlascedar:['Cedrus atlantica (Glauca Group)','cedar'],
+    himalayancedar:['Cedrus deodara','cedar'],
+    blueweepingalaskacedar:["Callitropsis nootkatensis 'Glauca Pendula'",'weeping'],
+    greengiantarborvitae:["Thuja standishii x plicata 'Green Giant'",'scale'],
+    arborvitae:['Thuja occidentalis','scale'],
+    spartanjuniper:["Juniperus chinensis 'Spartan'",'scale'],
+    taylorjuniper:["Juniperus virginiana 'Taylor'",'scale'],
+    arizonacypress:['Hesperocyparis arizonica','scale'],
+    sawaracypress:['Chamaecyparis pisifera','scale'],
+    hinokicypress:['Chamaecyparis obtusa','scale'],
+    leylandcypress:['x Hesperotropsis leylandii','scale'],
+    vanderwolfpine:["Pinus flexilis 'Vanderwolf's Pyramid'",'pine'],
+    whitepine:['Pinus strobus','pine'],
+    swissstonepine:['Pinus cembra','pine'],
+    weepingwhitepine:["Pinus strobus 'Pendula'",'weeping'],
+    dwarfalbertaspruce:["Picea glauca 'Conica'",'spruce'],
+    norwayspruce:['Picea abies','spruce'],
+    wellspirespruce:["Picea mariana 'Wellspire'",'spruce'],
+    bigbertaspruce:["Picea glauca 'Big Berta'",'spruce'],
+    serbianspruce:['Picea omorika','spruce'],
+    blackhillsspruce:['Picea glauca var. densata','spruce'],
+    whitefir:['Abies concolor','spruce'],
+    easternhemlock:['Tsuga canadensis','spruce'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: evergreen tree is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.look.coniferHabit, expected[k][1], `${k}: conifer architecture`);
+    assertEqual(P.form, 'conifer', `${k}: renderer form`);
+    assertEqual(P.type, 'tree', `${k}: catalog type`);
+    assert(P.heightIn>P.h && P.spread>=P.space, `${k}: real size stays separate from px-art hints`);
+    for (const s of SEASON_KEYS) assert(P.sea[s] && P.sea[s].fol, `${k}: evergreen foliage missing in ${s}`);
+  }
+  assert(PLANTS.taylorjuniper.spread < PLANTS.spartanjuniper.spread, 'Taylor stays narrower than Spartan');
+  assert(PLANTS.dwarfalbertaspruce.heightIn < PLANTS.norwayspruce.heightIn, 'Dwarf Alberta stays much shorter than Norway spruce');
+  assert(PLANTS.blueatlascedar.spread > PLANTS.serbianspruce.spread, 'Atlas cedar keeps a broad shelf crown');
+  assertEqual(PLANTS.swissstonepine.group, 'pine', 'Swiss stone is correctly resolved as a pine, not a spruce');
+  assertEqual(PLANTS.baldcypress.sea.Winter.fol, undefined, 'deciduous bald cypress drops its winter foliage');
+  for (const k of ['bluespruce','arizonacypress','whitefir'])
+    assertEqual(PLANTS[k].native,false,`${k}: western species must stay out of the central-US native filter`);
+});
+
 test('native landscape-gap additions retain their botanical identity and intended roles', () => {
   const expected = {
     purpleprairieclover:['Dalea purpurea','forb'], whiteprairieclover:['Dalea candida','forb'],

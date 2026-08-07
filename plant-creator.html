@@ -146,6 +146,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
     </div>
     <div class="row" id="pc-woody" style="display:none">
       <div><label>Canopy width cw (px, woody)</label><input type="number" id="pc-cw" value="120"></div>
+      <div><label>Mature height (in, trees)</label><input type="number" id="pc-height-in" value="360"></div>
       <div><label>Grow (years, trees)</label><input type="number" id="pc-grow" value="10"></div>
     </div>
 
@@ -305,7 +306,9 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
       eco:eco, sun:$('pc-sun').value, moist:$('pc-moist').value, phen:$('pc-phen').value,
       blurb:$('pc-blurb').value, sea:sea };
     var woody = (type==='shrub'||type==='tree'||WOODY_FORMS[form]);
-    if(woody){ d.cw=num('pc-cw',120); if(type==='tree'||form==='tree'||form==='conifer') d.grow=num('pc-grow',10); }
+    if(woody){ d.cw=num('pc-cw',120); if(type==='tree'||form==='tree'||form==='conifer'){
+      d.heightIn=num('pc-height-in',Math.max(96,d.h*6)); d.grow=num('pc-grow',10);
+    } }
     if($('pc-strat').value) d.strat=$('pc-strat').value;
     if($('pc-spreads').value) d.spreads=$('pc-spreads').value;
     if($('pc-growout').value) d.growOut=num('pc-growout',6);
@@ -324,7 +327,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
     // soft ground
     ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath();
     ctx.ellipse(W/2, H-12, W*0.28, 7, 0, 0, Math.PI*2); ctx.fill();
-    var drawH=(def.h||40)*1.3+14, sc=Math.min(1.5,(H-26)/drawH);
+    var drawH=(typeof plantArtTop==='function'?plantArtTop(def):(def.h||40))*1.08+14, sc=Math.min(1.5,(H-26)/drawH);
     ctx.save(); ctx.translate(W/2, H-12); ctx.scale(sc,sc);
     var key='__pcdraft';
     PLANTS[key]=def;
@@ -345,7 +348,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
   function genCode(){
     var d=buildDraft(), key=($('pc-key').value||'myplant').trim();
     var L=[];
-    L.push("  "+key+":{ name:"+col(d.name)+", latin:"+col(d.latin)+", form:"+col(d.form)+", type:"+col(d.type)+", h:"+d.h+",");
+    L.push("  "+key+":{ name:"+col(d.name)+", latin:"+col(d.latin)+", form:"+col(d.form)+", type:"+col(d.type)+", h:"+d.h+(d.heightIn!==undefined?", heightIn:"+d.heightIn:"")+",");
     var line2="    space:"+d.space+", spread:"+d.spread+", zones:["+d.zones[0]+","+d.zones[1]+"], native:"+d.native+", sun:"+col(d.sun)+", moist:"+col(d.moist)+", phen:"+col(d.phen)+",";
     L.push(line2);
     if(d.cw!==undefined){ var w="    cw:"+d.cw+(d.grow!==undefined?", grow:"+d.grow:"")+","; L.push(w); }
@@ -385,7 +388,9 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
       sea[s]=o; });
     var d={ name:form, latin:form, form:form, type:t, h:formH(form), space:18, spread:18,
       zones:[4,8], native:true, eco:[], sun:'full', moist:'medium', phen:'mid', sea:sea };
-    if(woody){ d.cw=form==='tree'?120:90; if(form==='tree'||form==='conifer') d.grow=10; }
+    if(woody){ d.cw=form==='tree'?120:90; if(form==='tree'||form==='conifer'){
+      d.heightIn=form==='conifer'?480:600; d.grow=10;
+    } }
     if(form==='cone') d.look={rays:14};
     return d;
   }
@@ -501,7 +506,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
   }
 
   // ---- wire all inputs ----
-  ['pc-key','pc-name','pc-latin','pc-form','pc-type','pc-h','pc-space','pc-spread','pc-cw','pc-grow',
+  ['pc-key','pc-name','pc-latin','pc-form','pc-type','pc-h','pc-space','pc-spread','pc-cw','pc-height-in','pc-grow',
    'pc-zmin','pc-zmax','pc-native','pc-sun','pc-moist','pc-phen','pc-eco','pc-strat','pc-spreads',
    'pc-growout','pc-wild','pc-blurb'].forEach(function(id){
     var el=$(id); if(el){ el.addEventListener('input',update); el.addEventListener('change',update); }
