@@ -4,7 +4,7 @@
 // fresh, predictable state for a test
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
-  game.mode = 'solo'; game.gameMode = 'design'; game.visiting = false;
+  game.inGarden = true;
   game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
@@ -33,8 +33,7 @@ function setup(gw, gh){
   game.ruler = null;
   game.underlay = null; game.photoEditing = false; game.underlayCalibration = null;
   game.sel = null; game.selItems = null; game.selMode = 'move';
-  game.px = SPAWNX; game.py = SPAWNY; game.tx = SPAWNX; game.ty = SPAWNY;
-  game.pathTarget = null; game.sleepOnArrive = false;
+  game.actX = SPAWNX; game.actY = SPAWNY;
   game.rev = 0; game.dirty = false;
   undoStack.length = 0; redoStack.length = 0; pendSnap = null;
 }
@@ -217,18 +216,18 @@ test('layer visibility migration adds mature canopies off and drops unknown flag
   assertEqual(vis.mystery, undefined, 'unknown layer visibility flags are not persisted');
 });
 
-test('hand tool pans only in design mode so visit taps can walk', () => {
+test('the hand tool pans and every other tap acts on the tapped tile', () => {
   setup(15, 15);
   game.tool = 'hand';
-  game.gameMode = 'design'; game.visiting = false;
-  assert(shouldStartPan({ button: 0 }), 'design hand tool still pans the canvas');
-  game.gameMode = 'story'; game.visiting = false;
-  assert(!shouldStartPan({ button: 0 }), 'legacy story hand tool should not swallow taps');
-  game.visiting = true;
-  assert(!shouldStartPan({ button: 0 }), 'visit hand tool should not swallow taps');
+  assert(shouldStartPan({ button: 0 }), 'hand tool pans the canvas');
+  const forb = firstOfType('forb');
+  game.tool = forb; game.toolVar = null;
+  assert(!shouldStartPan({ button: 0 }), 'an armed brush paints instead of panning');
+  assert(shouldStartPan({ button: 1 }), 'middle-drag always pans');
   tapAction(4, 4, {});
-  assertEqual(game.pathTarget[0], 4, 'visit tap chooses a walk target x');
-  assertEqual(game.pathTarget[1], 4, 'visit tap chooses a walk target y');
+  assertEqual(game.actX, 4, 'the tap addresses the tapped tile x');
+  assertEqual(game.actY, 4, 'the tap addresses the tapped tile y');
+  assertEqual(game.plants['4,4'].s, forb, 'the tap planted there directly — no avatar walks first');
 });
 
 test('drawPlant renders every species + cultivar across all seasons', () => {
@@ -990,7 +989,7 @@ test('full-sun plants under active canopy place with a warning and render strugg
   toast = (m, k) => { msg = m; kind = k; };
   try {
     game.tool = 'bluestem'; game.toolVar = null;
-    game.tx = x; game.ty = y;
+    game.actX = x; game.actY = y;
     actHere();
   } finally {
     toast = oldToast;
@@ -1546,7 +1545,7 @@ test('garden clock advances only while the garden is active', () => {
   Date.now = () => now;
   try {
     setup(11, 11);
-    game.mode = 'solo';
+    game.inGarden = true;
     game.startTs = now; game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
     now += DAY_MS * 2.4;
     assertEqual(absDay(), 2, 'open play advances days');
@@ -1635,18 +1634,13 @@ test('library mature size includes height for woody and herbaceous plants', () =
   }
 });
 
-test('entering design mode starts paused while visits keep time running', () => {
+test('entering a garden starts paused on the established preview', () => {
   setup(15, 15);
-  game.gameMode = 'design'; game.visiting = false; game.previewMode = 'established';
+  game.previewMode = 'established';
   enterGarden();
-  assert(game.pausedAt, 'design mode starts with time paused');
-  assertEqual(game.previewMode, 'established', 'design keeps the established preview');
-
-  setup(15, 15);
-  game.gameMode = 'story'; game.visiting = true; game.previewMode = 'established';
-  enterGarden();
-  assert(!game.pausedAt, 'visit/story mode does not start paused');
-  assertEqual(game.previewMode, 'today', 'visit/story mode uses today preview');
+  assert(game.pausedAt, 'the planner starts with time paused');
+  assertEqual(game.previewMode, 'established', 'the established preview is kept');
+  assertEqual(game.woodyAge, 'mature', 'woody brushes plant at mature size');
 });
 
 test('draw tool restores the last plant or material after other tools', () => {
@@ -2171,7 +2165,7 @@ test('building footprints rasterize, block placement, and erase as one site obje
   assertEqual(game.buildings.length, 1, 'one footprint stored as a polygon');
   assert(buildingAt(4, 4), 'interior tile resolves to the footprint');
   assert(!buildingAt(9, 4), 'outside tile is clear');
-  assert(!canStand(4, 4), 'footprint blocks movement');
+  assert(siteStructureAt(4, 4), 'footprint claims its tiles as a site structure');
   buildScene(900, 700);
   const buildingEnts=scene.ents.filter(e => e.kind === SCENE_K.BUILDING);
   assertEqual(buildingEnts.length, buildingTiles(game.buildings[0]).length,
@@ -2196,11 +2190,11 @@ test('fences place as blocking structures, gates stay walkable, and erase remove
   assertEqual(applyToolAt(5, 5), 'fence', 'fence placed');
   assertEqual(fenceAt(5, 5).style, 'wood', 'style saved');
   assertEqual(fenceAt(5, 5).height, 6, 'height saved');
-  assert(!canStand(5, 5), 'regular fence blocks movement');
+  assert(fenceBlocks(5, 5), 'a regular fence tile is solid');
 
   game.fenceDraft = { style: 'vinyl', height: 4, gate: true };
   assertEqual(applyToolAt(6, 5), 'gate', 'gate placed');
-  assert(canStand(6, 5), 'gate is walkable');
+  assert(!fenceBlocks(6, 5), 'a gate tile is an opening, not a solid run');
 
   game.tool = firstOfType('forb');
   assertEqual(applyToolAt(5, 5), null, 'plants refuse fence tiles');
@@ -2220,7 +2214,7 @@ test('lights place as one-tile structures, block plants, and erase with landscap
   assertEqual(applyToolAt(5, 5), 'light', 'light placed');
   assertEqual(lightAt(5, 5).type, 'lantern', 'light type saved');
   assertEqual(lightAt(5, 5).tone, 'eco', 'light tone saved');
-  assert(!canStand(5, 5), 'light occupies its tile');
+  assert(lightAt(5, 5), 'light occupies its tile');
   game.tool = forb; game.toolVar = null;
   assertEqual(applyToolAt(5, 5), null, 'plants refuse light tiles');
   game.tool = 'water';
@@ -2260,7 +2254,7 @@ test('fire pits reserve their footprint and erase as structures', () => {
   assertEqual(applyToolAt(5, 5), 'firepit', 'fire pit placed');
   assertEqual(firepitAt(5, 5).shape, 'round', 'shape saved');
   assertEqual(firepitAt(7, 7).size, 'round48', '48 inch fire pit spans three tiles');
-  assert(!canStand(6, 6), 'fire pit footprint blocks movement');
+  assert(firepitAt(6, 6), 'fire pit claims its whole footprint');
 
   game.tool = forb; game.toolVar = null;
   assertEqual(applyToolAt(6, 6), null, 'plants refuse fire pit footprint');
@@ -2293,7 +2287,7 @@ test('boulders reserve their footprint and erase as hardscape', () => {
   game.boulderDraft = { type: 'large32' };
   assertEqual(applyToolAt(5, 5), 'boulder', 'boulder placed');
   assertEqual(boulderAt(7, 6).type, 'large32', 'large boulder spans its footprint');
-  assert(!canStand(6, 5), 'boulder blocks movement');
+  assert(boulderAt(6, 5), 'boulder claims its whole footprint');
 
   game.tool = forb; game.toolVar = null;
   assertEqual(applyToolAt(6, 5), null, 'plants refuse boulder footprint');
@@ -2345,17 +2339,6 @@ test('water plants only plant into open water tiles', () => {
   assertEqual(game.plants['5,5'].s, waterPlant, 'water plant stored in plant layer');
   game.tool = 'water';
   assertEqual(applyToolAt(5, 5), null, 'water repaint refuses occupied water plant tile');
-});
-
-test('story mode refuses to place a blocking fence under the player', () => {
-  setup(21, 21);
-  game.gameMode = 'story';
-  game.px = game.tx = 7; game.py = game.ty = 7;
-  game.tool = 'fence';
-  game.fenceDraft = { style: 'black', height: 4, gate: false };
-  assertEqual(applyToolAt(7, 7), null, 'blocking fence under player refused');
-  game.fenceDraft.gate = true;
-  assertEqual(applyToolAt(7, 7), 'gate', 'gate under player is allowed');
 });
 
 test('plantLayerOf separates woody from perennial layers', () => {
@@ -2789,17 +2772,6 @@ test('toast clears the previous timer for informational messages', () => {
   assertEqual(el.style.opacity, 1, 'toast is visible after update');
 });
 
-test('remote map merge bumps revision only when it applies newer data', () => {
-  setup();
-  const grass = firstOfType('grass');
-  const rev = game.rev;
-  mergeMap(game.plants, { '2,2': { s: grass, d: 0, t: 2 } });
-  assert(game.rev > rev, 'accepted remote entry marks the model changed');
-  const revAfter = game.rev;
-  mergeMap(game.plants, { '2,2': { s: firstOfType('forb'), d: 0, t: 1 } });
-  assertEqual(game.rev, revAfter, 'older remote entry is ignored without dirtying');
-});
-
 test('solo map compaction drops removed tombstones and keeps live entries', () => {
   const grass = firstOfType('grass');
   const compacted = compactSoloMap({
@@ -3142,7 +3114,7 @@ test('saveSolo blob carries plotShape and applying it back round-trips the shape
   setup(31, 31);
   const shape = [[0, 0], [31, 0], [24, 31], [0, 31]];
   assert(setPlotShape(shape), 'shape accepted before saving');
-  game.mode = 'solo'; game.worldId = 'test-plotshape-roundtrip';
+  game.inGarden = true; game.worldId = 'test-plotshape-roundtrip';
   saveSolo(true); // sSet's localStorage.setItem runs synchronously, before saveSolo's own first await
   const raw = localStorage.getItem('hortus:world:test-plotshape-roundtrip');
   assert(raw, 'a garden blob was written to storage');
@@ -3172,7 +3144,7 @@ test('a save blob without plotShape loads as a full rectangle', () => {
 
 test('save blobs preserve a garden’s discovery lens without changing its eligibility rules', () => {
   setup(21, 21);
-  game.mode = 'solo'; game.worldId = 'test-discovery-roundtrip';
+  game.inGarden = true; game.worldId = 'test-discovery-roundtrip';
   game.filters = normalizeFilters({ zone: 6, nativesOnly: true });
   game.design = { zone: 6, type: 'any', nativesOnly: true, deer: false, rabbit: false, squirrel: false };
   game.discovery = normalizeDiscovery({ source: 'favorites', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'], limit: 72 });
@@ -3298,7 +3270,7 @@ test('switching schemes leaves the ground and terrain caches alone', () => {
 
 test('schemes round-trip through save and load, active maps staying at the top level', () => {
   setup(21, 21);
-  game.mode = 'solo'; game.worldId = 'test-schemes-roundtrip';
+  game.inGarden = true; game.worldId = 'test-schemes-roundtrip';
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
   setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
   renameScheme(game.schemeActive, 'Prairie matrix');
@@ -3337,7 +3309,7 @@ test('schemes round-trip through save and load, active maps staying at the top l
 
 test('a single-scheme garden saves exactly as it always did', () => {
   setup(21, 21);
-  game.mode = 'solo'; game.worldId = 'test-schemes-absent';
+  game.inGarden = true; game.worldId = 'test-schemes-absent';
   setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
   saveSolo(true);
   const blob = JSON.parse(localStorage.getItem('hortus:world:test-schemes-absent'));

@@ -28,7 +28,7 @@ function showCoachTip(text,key){
 }
 function showTimeCoachTip(){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
-  if (!tip || !txt || !game.mode || game.visiting || game.gameMode!=='design') return;
+  if (!tip || !txt || !game.inGarden) return;
   try{ if (localStorage.getItem(TIME_COACH_KEY)) return;
     localStorage.setItem(TIME_COACH_KEY,'1'); }catch(_){ if (tip.dataset.shown) return; }
   tip.dataset.shown='1';
@@ -280,7 +280,7 @@ function roleSummary(k,max=6){
 }
 function activeDesignType(){
   const d=game.design && game.design.type;
-  return (game.gameMode==='design' && d && STYLE_ROLE_WEIGHTS[d]) ? d : null;
+  return (d && STYLE_ROLE_WEIGHTS[d]) ? d : null;
 }
 function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
 function plantStyleScore(k,type=activeDesignType()){
@@ -366,7 +366,7 @@ function activeDiscovery(){
 }
 function setDiscovery(patch,save){
   game.discovery=normalizeDiscovery(Object.assign({},activeDiscovery(),patch||{}));
-  if (save && game.mode==='solo' && typeof saveSolo==='function') saveSolo(true);
+  if (save && game.inGarden && typeof saveSolo==='function') saveSolo(true);
   return game.discovery;
 }
 function plantRef(s,v){ return {s:String(s||''),v:v?String(v):null}; }
@@ -646,7 +646,7 @@ function applyGardenCriteria(next,{refresh=true,announce=true}={}){
   }
   sSet('hortus:filters',game.filters);
   updateFilterBtn();
-  if (refresh && game.mode) buildToolTray();
+  if (refresh && game.inGarden) buildToolTray();
   const visibleKeys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);
   const n=visibleKeys.filter(plantFits).length;
   if (announce) toast(`${n} of ${visibleKeys.length} species fit these filters.`);
@@ -685,10 +685,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
     lastAct='';
     return;
   }
-  const px3=Math.round(game.px), py3=Math.round(game.py);
   let label=null;
-  if (ENABLE_HOUSE_SLEEP && isDoor(px3,py3)) label='Sleep';
-  else if (game.tool==='hand') label=null;
+  if (game.tool==='hand') label=null;
   else if (game.tool==='shovel') label=game.brushSize>1?`Erase ${game.brushSize}-wide`:'Erase here';
   else if (game.tool==='path') label='Lay path';
   else if (game.tool==='bed') label='Dig bed';
@@ -710,8 +708,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
     document.getElementById('actionHint').classList.toggle('hidden',!!state||!ENABLE_ACTION_HINT);
   }
 }
-/* the time readout string. Design is a planner — real days are meaningless, so
-   it shows season + how far through it; Story keeps the life-sim calendar. */
+/* the time readout string. This is a planner — real days are meaningless (a
+   garden day is 20s), so it shows the season and how far through it we are. */
 /* the season box fill colour — Kevin's palette: easter green, dark green, the
    existing fall bronze, a darker winter blue. Spring is 5.5% deeper than the
    original #7fc24e: it is the lightest band, so in DARK theme it is the one
@@ -722,12 +720,8 @@ const SEASON_FILL = { Spring:'#78b74a', Summer:'#2f7d3a', Fall:'#c97f3f', Winter
 // game-ms added per real-ms while holding the season box (~2 garden days/sec)
 const FF_RATE = 40;
 function clockMeta(){
-  const cal=calClock();
-  if (game.gameMode==='design'){
-    const sf=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
-    return `${cal.season} · ${sf<0.34?'early':sf<0.67?'mid':'late'} season`;
-  }
-  return `${cal.season} · Year ${cal.year} · Day ${cal.day}`;
+  const cal=calClock(), sf=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
+  return `${cal.season} · ${sf<0.34?'early':sf<0.67?'mid':'late'} season`;
 }
 /* the top-bar day/night toggle: promoted out of the Layers overlay menu, it
    flips game.layerVis.night (which relights the world and switches lighting on).
@@ -743,9 +737,7 @@ function updateDayNightBtn(){
 }
 function updatePreviewToggle(){
   const wrap=document.getElementById('previewToggle'); if (!wrap) return;
-  const show=game.gameMode==='design';
-  wrap.classList.toggle('hidden',!show);
-  if (!show) return;
+  wrap.classList.remove('hidden');
   const today=document.getElementById('btnPreviewToday');
   const est=document.getElementById('btnPreviewEstablished');
   if (today) today.classList.toggle('on',game.previewMode!=='established');
@@ -764,7 +756,7 @@ function setPreviewMode(mode){
   game.previewMode=mode;
   game.dirty=true;
   updatePreviewToggle();
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
   toast(mode==='established'?'Previewing established plants.':'Previewing today.');
 }
 // updateHUD runs every rendered frame; assigning textContent replaces the text
@@ -778,17 +770,11 @@ function hudDisplay(id,disp){ const el=document.getElementById(id);
 function updateHUD(){
   const cal=calClock();
   hudText('seasonName',cal.season);
-  hudText('seasonYear',`Year ${cal.year}`);
-  hudText('seasonDay',`Day ${cal.day}`);
-  // Design is a planner: real days are meaningless (a day is 20s), so show the
-  // season + how far through it instead of a Year/Day count. Story keeps the
-  // life-sim calendar. The internal clock is unchanged either way.
-  const design=game.gameMode==='design';
+  // A planner: real days are meaningless (a day is 20s), so the readout shows
+  // the season + how far through it. The internal clock is unchanged.
   const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
   const phase=seasonFrac<0.34?'Early season':seasonFrac<0.67?'Mid-season':'Late season';
   hudText('seasonPhase',phase);
-  hudDisplay('seasonClkCal',design?'none':'');
-  hudDisplay('seasonPhase',design?'':'none');
   // the season box fills across the whole season, tinted by the season colour
   const fill=document.getElementById('seasonFill');
   if (fill){
@@ -815,9 +801,7 @@ function updateHUD(){
     ? `Drag to place ${lightLabel().toLowerCase()}`
     : game.tool==='firepit'
     ? `Tap clear ground to place a ${firepitLabel().toLowerCase()}`
-    : ENABLE_HOUSE_SLEEP && isDoor(Math.round(game.px),Math.round(game.py))
-    ? 'At the door — press E or tap here to sleep'
-    : 'Tap a tile to walk · drag selected plants or tools to place them — or WASD + E');
+    : 'Tap a tile to place · drag to paint a run');
   setActButton();
   const sd=absDay();
   if (sd!==game.lastDay){
@@ -826,15 +810,15 @@ function updateHUD(){
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
-    if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; }
+    if (game.inGarden&&hasStorage){ saveSolo(true); game.dirty=false; }
   }
 }
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','multiScreen','creatorScreen','codeScreen','plotScreen','worldsScreen','designScreen','libraryScreen','dailyScreen'].forEach(s=>
+function show(id){ ['menuScreen','plotScreen','worldsScreen','designScreen','libraryScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen'){ game.challenge=null; game.visiting=false; advanceMenuSeason(); refreshMenuCards(); }
+  if (id==='menuScreen'){ game.challenge=null; advanceMenuSeason(); refreshMenuCards(); }
 }
 function overlayController(id){ return document.querySelector(`[aria-controls="${id}"]`); }
 function overlayFocusables(el){
@@ -871,18 +855,18 @@ function trapOverlayFocus(el,e){
   return false;
 }
 function suspendClock(){
-  if (!game.mode || game.pausedAt || game.clockSuspended) return;
+  if (!game.inGarden || game.pausedAt || game.clockSuspended) return;
   game.elapsedMs=elapsedGameMs();
   game.clockSuspended=true;
   game.startTs=Date.now();
 }
 function resumeClockSession(){
-  if (!game.mode || !game.clockSuspended) return;
+  if (!game.inGarden || !game.clockSuspended) return;
   game.clockSuspended=false;
   game.startTs=Date.now();
 }
 function pauseClock(){
-  if (!game.mode || game.pausedAt) return;
+  if (!game.inGarden || game.pausedAt) return;
   game.elapsedMs=elapsedGameMs();
   game.pausedAt=Date.now();
   game.clockSuspended=false;
@@ -939,7 +923,7 @@ function skipToAbsDay(targetDay){
   const egm=elapsedGameMs(), rem=egm%DAY_MS;
   if (rem){ game.elapsedMs=egm-rem; game.startTs=Date.now(); }
   game.dirty=true;
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
 }
 function skipNextSeason(){
   const d=absDay();

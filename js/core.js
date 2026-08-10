@@ -59,13 +59,9 @@ function mixHex(a,b2,t){
 }
 
 /* UX feature flags for retired / optional interactions.
-   End Day stays as a deliberate HUD action, but house-door sleep is disabled so
-   the house feels like a planning landmark instead of a required daily chore.
    The mobile action button is hidden because drag-to-place made a large
    "Plant here" CTA redundant. The movement hint is hidden because the toolbar
    already carries the current task well enough on small screens. */
-const ENABLE_HUD_SLEEP_BUTTON = true;
-const ENABLE_HOUSE_SLEEP = false;
 const ENABLE_MOBILE_ACT_BUTTON = false;
 const ENABLE_ACTION_HINT = false;
 
@@ -158,7 +154,7 @@ function applyTheme(){
   // Sprite/ground caches key off season and zoom, not theme, so only the DOM
   // chrome and the canvas-drawn ICONS need rebuilding.
   if (typeof refreshCanvasTools==='function') refreshCanvasTools();
-  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.mode) buildToolTray();
+  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.inGarden) buildToolTray();
   if (typeof syncTopTools==='function') syncTopTools();
   if (typeof drawSheetSwatch==='function') drawSheetSwatch();
   return t;
@@ -476,14 +472,4 @@ function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;
   return null;
 }
-
-/* coat palettes for cats & dogs */
-const COATS = [
-  {n:'Marmalade', c:'#d98a4a', d:'#a35a2e'},
-  {n:'Charcoal',  c:'#4a4a52', d:'#2e2e34'},
-  {n:'Cream',     c:'#e8d9b8', d:'#c2a87e'},
-  {n:'Cocoa',     c:'#7a5236', d:'#54371f'},
-  {n:'Smoke',     c:'#9a9aa2', d:'#6e6e78'},
-  {n:'Birch',     c:'#f0ece2', d:'#c9c2b0'},
-];
 

@@ -92,7 +92,7 @@ function materialPerimeterFt(keys){
 }
 function persistLayerVis(){
   game.dirty=true;
-  if (game.mode==='solo' && hasStorage && typeof saveSolo==='function') saveSolo(true);
+  if (game.inGarden && hasStorage && typeof saveSolo==='function') saveSolo(true);
 }
 function setLayerVis(key,val,autosave){
   if (!game.layerVis) game.layerVis=defaultLayerVis();
@@ -103,8 +103,7 @@ function setLayerVis(key,val,autosave){
   return true;
 }
 const game = {
-  mode:null, code:null, playerId:null,
-  char:{species:'cat', coatIdx:0, coat:COATS[0].c, coatD:COATS[0].d, mark:'solid', name:''},
+  inGarden:false,    // a garden is open (menu screens leave it false)
   plants:{},          // "x,y" -> {s:key, d:absDayPlanted, t:ts} or {removed:true,t}
   bulbs:{},           // same shape — the layer under the plants
   terrain:{},         // "x,y" -> {k:'path'|'bed'|'water', t:ts} or {removed:true,t}
@@ -114,9 +113,8 @@ const game = {
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
-  px:15, py:15, tx:15, ty:15, moving:false, moveT:0, fromX:15, fromY:15,
-  moveDur:170, pathTarget:null, sleepOnArrive:false,
-  house:null, houseT:0,                              // per-garden house + sync stamp
+  actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
+  house:null,                                        // legacy single-house field; migrated into game.houses on load
   rot:0,                                             // view rotation, 90-degree steps
   siteNorthDeg:0,                                    // true north, degrees clockwise from plot-up; independent of view
   siteNorthPreviewDeg:null,                          // transient dialog preview; never persisted
@@ -124,8 +122,6 @@ const game = {
   hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
-  gameMode:'story',                                  // 'story' (avatar) | 'design' (direct)
-  visiting:false,                                    // Visit Gardens: read-only avatar stroll of a loaded garden
   design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit,squirrel}
   drift:false,                                       // plant in clusters, Oudolf style
   matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
@@ -142,7 +138,7 @@ const game = {
   catMenuOpen:false,                                 // mobile category dropdown in the bottom sheet
   sheetState:'half',                                 // mobile palette: collapsed | half | full
   sheetCollapsed:false,                              // legacy alias kept in sync with sheetState
-  previewMode:'today',                               // design view: today | established (visual only)
+  previewMode:'established',                         // design view: today | established (visual only)
   layerVis:defaultLayerVis(),                         // layer view: visibility + overlays
   layerFocus:'all',                                  // active editable layer: all|perennials|bulbs|woody|landscape
   ruler:null,                                        // tape measure {a:[x,y], b:[x,y]|null}
@@ -155,7 +151,7 @@ const game = {
   fillMode:false,                                    // bucket-fill: tap floods a connected same-material region
   shrubFx:[],                                        // short-lived footprint pulses when shrubs block placement
   houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
-  buildings:[],                                      // design-site footprints: {id,vertices,status,label,wall,roof,t}; independent of story houses
+  buildings:[],                                      // design-site footprints: {id,vertices,status,label,wall,roof,t}; independent of placed houses
   schemes:[],                                        // planting schemes over one site plan: [{id,name,t,plants,bulbs}] (see SCHEME_LAYERS)
   schemeActive:null,                                 // id of the scheme whose maps are live in game.plants/game.bulbs
   houseDraft:null,                                   // settings for the next house the House tool places
@@ -165,7 +161,6 @@ const game = {
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
-  buildingsT:0,                                         // last shared footprint revision
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -176,7 +171,6 @@ const game = {
   // matters when source==='palette'.  The rest restores per-garden browsing
   // context without ever changing what is legal to plant in that garden.
   discovery:{source:'recommended', collectionId:null, category:null, returnCategory:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36, filterOpen:false},
-  others:{},          // multiplayer presence
   pausedAt:0,
   lastDay:-1, dirty:false,
   rev:0,              // edit revision — bumped by every model mutation (see setTile/clearTile); undo watches it
@@ -186,24 +180,22 @@ const game = {
   plantsRev:0,         // plants-map revision: the shade map and the shrub index track trees/shrubs only
   plotRev:0,           // plot-shape mask revision: bumped by setPlotShape/setWorldSize; onPlot mask rebuilds on change
 };
-// The mutable layers a garden is made of, enumerated once so undo, save/load,
-// and multiplayer sync iterate this list instead of hand-listing every layer in
-// six different places (a missed entry was a recurring bug — see the reverted
-// `game.stock`). `array` marks the house/building lists (the rest are "x,y" maps);
-// `sync` flushes that layer to the shared world in multiplayer. The sync refs
-// are arrows so they resolve at call time — the functions live in io.js, which
-// loads after this file. `GAME_MAPS` is the keyed subset that load shifts.
+// The mutable layers a garden is made of, enumerated once so undo and
+// save/load iterate this list instead of hand-listing every layer in six
+// different places (a missed entry was a recurring bug — see the reverted
+// `game.stock`). `array` marks the house/building lists (the rest are "x,y"
+// maps); `GAME_MAPS` is the keyed subset that load shifts.
 const GAME_LAYERS=[
-  {k:'plants',    sync:()=>syncPlantsOut()},
-  {k:'bulbs',     sync:()=>syncBulbsOut()},
-  {k:'terrain',   sync:()=>syncTerrainOut()},
-  {k:'elevation', sync:()=>syncElevationOut()},
-  {k:'fences',    sync:()=>syncFencesOut()},
-  {k:'lights',    sync:()=>syncLightsOut()},
-  {k:'firepits',  sync:()=>syncFirepitsOut()},
-  {k:'boulders',  sync:()=>syncBouldersOut()},
-  {k:'houses', array:true, sync:()=>pushHouse()},
-  {k:'buildings', array:true, sync:()=>pushBuildings()},
+  {k:'plants'},
+  {k:'bulbs'},
+  {k:'terrain'},
+  {k:'elevation'},
+  {k:'fences'},
+  {k:'lights'},
+  {k:'firepits'},
+  {k:'boulders'},
+  {k:'houses', array:true},
+  {k:'buildings', array:true},
 ];
 const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
 /* ---------- planting schemes: several plantings over one site plan ----------
@@ -266,9 +258,8 @@ function activateScheme(id){
 // mark dirty for the renderer + bump the edit revision undo watches — can't be
 // forgotten at a call site. Ground-cache revisions are narrower than game.rev:
 // planting should not rebake terrain, but terrain/elevation/houses should.
-// setTile stores a value; clearTile writes the {removed} tombstone the
-// erase/sync/merge paths expect. (Multiplayer sync still flushes at gesture
-// end via the existing syncToolLayer/endSweep paths.)
+// setTile stores a value; clearTile writes the {removed} tombstone the erase
+// path expects and save-time compaction strips.
 function markModelChanged(){ game.dirty=true; game.rev++; }
 /* ---------- ground damage: which tiles changed since the last bake ----------
    The bake is all-or-nothing and viewport-wide, so a brush drag rebakes the
@@ -355,14 +346,12 @@ function removeBuildingAtIndex(i){
   game.buildings.splice(i,1); markModelChanged(); markLayerCacheChanged('buildings');
   return true;
 }
-/* Solo saves persist to localStorage now that the game runs standalone.
-   sGet/sSet keep their old async signatures so callers are unchanged.
-   `shared` keys land in the same localStorage, so shared gardens only
-   sync between tabs on this device until a real backend exists. */
+/* Saves persist to localStorage. sGet/sSet keep their async signatures from
+   the artifact era so a future storage backend can slot in unchanged. */
 const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
   localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
 
-function clockActive(){ return !!(game.mode && !game.pausedAt && !game.clockSuspended); }
+function clockActive(){ return !!(game.inGarden && !game.pausedAt && !game.clockSuspended); }
 function elapsedGameMs(){
   const base=game.elapsedMs||0;
   return base + (clockActive() ? Math.max(0, Date.now()-game.startTs) : 0);
@@ -436,7 +425,7 @@ function plantGrowth(p){
   return plantEstab(p)*seasonEnvelope(p.s);
 }
 function establishedPreviewActive(){
-  return game.gameMode==='design' && game.previewMode==='established';
+  return game.previewMode==='established';
 }
 function displayPlantGrowth(p){
   return establishedPreviewActive() ? 1 : plantGrowth(p);
@@ -586,13 +575,12 @@ function canPlaceShrubAt(x,y,np,opts){
   }
   return {ok:true};
 }
-function clearBulbsUnderShrub(x,y,p,autosync,removedKeys){
+function clearBulbsUnderShrub(x,y,p,removedKeys){
   let n=0;
   for (const [xx,yy] of shrubFootprintTiles(x,y,p,true)){
     const k=`${xx},${yy}`, b=game.bulbs[k];
     if (b && !b.removed){ clearTile('bulbs',k); if (removedKeys) removedKeys.add(k); n++; }
   }
-  if (n && autosync!==false) syncBulbsOut();
   return n;
 }
 function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
@@ -1001,7 +989,7 @@ function seedWalkway(){
   }
 }
 
-/* houses: per-garden footprints you can't walk through, each with a door
+/* houses: per-garden footprints nothing can be planted through, each with a door
    tile centered on its south side. Sleeping used to live there, but is
    feature-flagged off because it made the house feel like a daily chore and
    added HUD clutter. game.houses holds every placed house ({x,y,w,h,wall,
@@ -1019,7 +1007,7 @@ function defaultDraft(){ // settings for a freshly-armed House tool
   return {w: big?ftToTiles(24):2, h: big?ftToTiles(18):2,
           wall:'#8a7a60', roof:'#9a5f3a', sizeFt: big?[24,18]:[3,3]};
 }
-function defaultHouse(){ // a placed starter house (story mode), shed/cottage by plot size
+function defaultHouse(){ // a placed starter house, shed/cottage by plot size
   const d=defaultDraft();
   return {x:Math.max(0,Math.min(GW-d.w-1,SPAWNX+3)), y:Math.max(0,SPAWNY-6-(d.h-2)),
           w:d.w, h:d.h, wall:d.wall, roof:d.roof, sizeFt:d.sizeFt};
@@ -1158,22 +1146,6 @@ function setPlotShape(verts){
   markModelChanged();
   return true;
 }
-function canStand(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && tileTerrain(x,y)!=='water'; }
-/* a standable starting tile near plot center — the door if the house
-   sits on the spawn, else a spiral search outward, so re-entering a
-   garden never drops the player stuck inside their own walls */
-function safeSpawn(){
-  if (canStand(SPAWNX,SPAWNY)) return [SPAWNX,SPAWNY];
-  for (const h of game.houses){ const [dx,dy]=doorPos(h); if (canStand(dx,dy)) return [dx,dy]; }
-  for (let r=1;r<Math.max(GW,GH);r++)
-    for (let oy=-r;oy<=r;oy++) for (let ox=-r;ox<=r;ox++){
-      if (Math.max(Math.abs(ox),Math.abs(oy))!==r) continue;
-      const x=SPAWNX+ox, y=SPAWNY+oy;
-      if (canStand(x,y)) return [x,y];
-    }
-  return [0,0];
-}
-
 /* player-laid terrain (paths, beds, and water) on top of the built-in walkway */
 function terrainAt(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t:null; }
 function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
@@ -2322,7 +2294,10 @@ function applyDuskLighting(ctx,W,H,season){
   ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
   ctx.restore();
 }
-function snapCam(){ const [vx,vy]=worldToView(game.px,game.py);
+/* centre the camera on the plot. Design keeps a free camera afterwards, so this
+   only runs when the view has no continuity to preserve: entering a garden and
+   rotating it. */
+function snapCam(){ const [vx,vy]=worldToView(SPAWNX,SPAWNY);
   cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(VH/ZOOM)*0.21; }
 function rotateView(dir){
   game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;

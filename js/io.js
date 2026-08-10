@@ -1,8 +1,8 @@
 'use strict';
-/* ---------- storage: save / load / multiplayer ---------- */
-async function sGet(key,shared){ try{ const r=localStorage.getItem(key);
+/* ---------- storage: save / load ---------- */
+async function sGet(key){ try{ const r=localStorage.getItem(key);
   return r?JSON.parse(r):null; }catch(e){ return null; } }
-async function sSet(key,val,shared){ try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
+async function sSet(key,val){ try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
   catch(e){ console.error('storage',e); return false; } }
 
 async function prepareUnderlayFile(file){
@@ -27,13 +27,7 @@ async function prepareUnderlayFile(file){
   } finally { URL.revokeObjectURL(url); }
 }
 
-async function ensurePlayerId(){
-  if (!hasStorage){ game.playerId='p'+Math.random().toString(36).slice(2,8); return; }
-  let id=await sGet('hortus:pid');
-  if (!id){ id='p'+Math.random().toString(36).slice(2,10); await sSet('hortus:pid',id); }
-  game.playerId=id;
-}
-/* solo worlds live in named slots: 'hortus:worlds' is the index
+/* worlds live in named slots: 'hortus:worlds' is the index
    [{id,name,ts,gw,gh}], each save under 'hortus:world:<id>'. The old
    single 'hortus:solo' key migrates into the first slot once. */
 async function worldsIndex(){ return (await sGet('hortus:worlds'))||[]; }
@@ -99,7 +93,7 @@ function restoreSchemes(s,shift){
 function buildSaveBlob(){
   const t0=dnow();   // autosave fires on day change / quit / pagehide: 'blob' in the debug HUD
   const blob={wv:1,name:game.worldName,
-    mode:game.gameMode,design:game.design,
+    mode:'design',design:game.design,   // design is the only mode; kept so older builds read the save sanely
     discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
     gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
@@ -108,21 +102,20 @@ function buildSaveBlob(){
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
-    startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset,char:game.char};
+    startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
   dev('blob',t0);
   return blob;
 }
 async function saveSolo(silent){
-  if (game.visiting) return;                          // Visit Gardens is read-only — never overwrite the garden
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   const blob=buildSaveBlob();
   const stored=await sSet('hortus:world:'+game.worldId,blob);
   if (!stored){ if (!silent) toast('This garden could not be saved - device storage is full.','warn'); return false; }
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
-  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:game.gameMode});
+  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:'design'});
   await sSet('hortus:worlds',idx);
   if (!silent) toast('Garden saved.');
   return true;
@@ -149,23 +142,22 @@ async function loadSolo(id){
   setWorldSize(s.gw||s.grid||31, s.gh||s.grid||31);
   setPlotShape(s.plotShape||null);   // tolerates absence: legacy saves load as full rectangles
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
-  game.gameMode = s.mode==='design' ? 'design' : 'story';
+  // `mode` is vestigial: story gardens were retired with the avatar, so an old
+  // story save simply opens in the planner (its house and plants come along).
   game.design = s.design || null;
   // Old saves predate discovery lenses.  Garden criteria is still the source
   // of truth; the global filters value only supplies compatibility/defaults.
   if (game.design && typeof normalizeFilters==='function') game.filters=normalizeFilters(game.design);
   game.discovery=typeof normalizeDiscovery==='function' ? normalizeDiscovery(s.discovery) : (s.discovery||game.discovery);
-  game.previewMode = s.previewMode || (game.gameMode==='design' ? 'established' : 'today');
+  game.previewMode = s.previewMode==='today' ? 'today' : 'established';
   game.edgeStyle = (s.edgeStyle==='formal'||s.edgeStyle==='organic') ? s.edgeStyle : edgeStyleFromType(s.design&&s.design.type);
   game.layerVis = normalizeLayerVis(s.layerVis);
   game.underlay=normalizeUnderlay(s.underlay); game.photoEditing=false;
   game.siteNorthDeg=normalizeSiteNorthDeg(s.siteNorthDeg); game.siteNorthPreviewDeg=null;
   for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
   restoreSchemes(s,shift);
-  // houses: new saves store an array; migrate old single-house saves, and
-  // give story gardens a starter house when the save predates houses entirely
-  game.houses = s.houses ? s.houses
-    : (s.house ? [s.house] : (game.gameMode==='design' ? [] : [defaultHouse()]));
+  // houses: new saves store an array; migrate old single-house saves
+  game.houses = s.houses ? s.houses : (s.house ? [s.house] : []);
   if (shift) game.houses.forEach(h=>{ h.x+=shift; h.y+=shift; });
   game.buildings=Array.isArray(s.buildings) ? s.buildings.map(b=>{
     const out=Object.assign({},b,{vertices:Array.isArray(b.vertices)?b.vertices.map(p=>[+p[0]||0,+p[1]||0]):[]});
@@ -190,171 +182,12 @@ async function loadSolo(id){
   game.elapsedMs=migratedElapsed;
   game.startTs=Date.now();
   game.clockSuspended=false; game.pausedAt=0;
-  game.dayOffset=s.dayOffset||0; if (s.char) game.char=s.char;
+  game.dayOffset=s.dayOffset||0;
   game.worldName=s.name||'My garden';
   // saves from before the walkway became terrain get it seeded once,
   // so the old built-in path is finally shovel-able
   if (!s.wv) seedWalkway();
   return true;
-}
-async function saveChar(){ if (hasStorage) await sSet('hortus:char',game.char); }
-
-/* multiplayer: shared keys w:CODE:meta / :plants / :players (visible to all artifact users with the code) */
-function wkey(part){ return `hortus:w:${game.code}:${part}`; }
-let syncTimer=null, presenceThrottle=0;
-async function hostWorld(){
-  game.code=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join('');
-  game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.buildings=[]; game.freePlanting=false;
-  game.schemes=[]; game.schemeActive=null;   // shared gardens run one scheme; never inherit the last garden's
-  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); game.buildingsT=Date.now();
-  setWorldSize(31,31); game.houses=[defaultHouse()]; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses(); game.rot=0; game.houseT=Date.now();
-  seedWalkway();
-  await sSet(wkey('meta'),{startTs:game.startTs,elapsedMs:game.elapsedMs,gw:GW,gh:GH,siteNorthDeg:game.siteNorthDeg},true);
-  await sSet(wkey('plants'),{},true);
-  await sSet(wkey('bulbs'),{},true);
-  await sSet(wkey('terrain'),game.terrain,true);
-  await sSet(wkey('elevation'),game.elevation,true);
-  await sSet(wkey('fences'),game.fences,true);
-  await sSet(wkey('lights'),game.lights,true);
-  await sSet(wkey('firepits'),game.firepits,true);
-  await sSet(wkey('boulders'),game.boulders,true);
-  await sSet(wkey('house'),{h:game.houses,t:game.houseT},true);
-  await sSet(wkey('buildings'),{b:game.buildings,t:game.buildingsT},true);
-}
-async function joinWorld(code){
-  game.code=code;
-  const meta=await sGet(wkey('meta'),true);
-  if (!meta){ toast('No garden found with that code.'); game.code=null; return false; }
-  game.elapsedMs=meta.elapsedMs!==undefined ? Math.max(0,+meta.elapsedMs||0)
-    : Math.max(0,Date.now()-(meta.startTs||Date.now()));
-  game.startTs=Date.now(); game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  setWorldSize(meta.gw||31, meta.gh||31); game.rot=0;
-  game.schemes=[]; game.schemeActive=null;   // joined gardens run one scheme
-  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-  game.siteNorthDeg=normalizeSiteNorthDeg(meta.siteNorthDeg); game.siteNorthPreviewDeg=null;
-  const pl=await sGet(wkey('plants'),true); game.plants=pl||{};
-  const bl=await sGet(wkey('bulbs'),true); game.bulbs=bl||{};
-  const tr=await sGet(wkey('terrain'),true); game.terrain=tr||{};
-  const el=await sGet(wkey('elevation'),true); game.elevation=el||{};
-  const fn=await sGet(wkey('fences'),true); game.fences=fn||{};
-  const li=await sGet(wkey('lights'),true); game.lights=li||{};
-  const fp=await sGet(wkey('firepits'),true); game.firepits=fp||{};
-  const bo=await sGet(wkey('boulders'),true); game.boulders=bo||{};
-  const ho=await sGet(wkey('house'),true);
-  const hh=ho&&ho.h;
-  game.houses = Array.isArray(hh) ? hh : (hh ? [hh] : [defaultHouse()]);
-  const bu=await sGet(wkey('buildings'),true);
-  game.buildings=Array.isArray(bu&&bu.b) ? bu.b : []; game.buildingsT=(bu&&bu.t)||0;
-  markGroundChanged({terrain:true});
-  game.houseDraft=draftFromHouses(); game.houseT=(ho&&ho.t)||0; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle();
-  return true;
-}
-async function syncPlantsOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('plants'),true)||{};
-  mergeMap(game.plants,remote);
-  await sSet(wkey('plants'),game.plants,true);
-}
-async function syncTerrainOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('terrain'),true)||{};
-  mergeMap(game.terrain,remote);
-  await sSet(wkey('terrain'),game.terrain,true);
-}
-async function syncElevationOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('elevation'),true)||{};
-  mergeMap(game.elevation,remote);
-  await sSet(wkey('elevation'),game.elevation,true);
-}
-async function syncBulbsOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('bulbs'),true)||{};
-  mergeMap(game.bulbs,remote);
-  await sSet(wkey('bulbs'),game.bulbs,true);
-}
-async function syncFencesOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('fences'),true)||{};
-  mergeMap(game.fences,remote);
-  await sSet(wkey('fences'),game.fences,true);
-}
-async function syncLightsOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('lights'),true)||{};
-  mergeMap(game.lights,remote);
-  await sSet(wkey('lights'),game.lights,true);
-}
-async function syncFirepitsOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('firepits'),true)||{};
-  mergeMap(game.firepits,remote);
-  await sSet(wkey('firepits'),game.firepits,true);
-}
-async function syncBouldersOut(){
-  if (game.mode!=='multi') { return; }
-  const remote=await sGet(wkey('boulders'),true)||{};
-  mergeMap(game.boulders,remote);
-  await sSet(wkey('boulders'),game.boulders,true);
-}
-function mergeMap(target,remote){ // last write wins, per tile
-  let changed=false;
-  for (const k in remote){ const r=remote[k], l=target[k];
-    if (!l || (r.t||0)>(l.t||0)){ target[k]=r; changed=true; } }
-  if (changed){
-    markModelChanged();
-    // A merge mutates the map IN PLACE, so the renderer's identity checks stay
-    // happy and the cache revisions are the only signal a remote edit landed.
-    // This used to name only terrain/elevation, which was enough while every
-    // cache rode on game.rev; now that they are keyed per layer, a merged plant
-    // has to bump the plants revision or a remote planting casts no shade.
-    const L=GAME_MAPS.find(L2=>game[L2.k]===target);
-    if (L) markLayerCacheChanged(L.k);
-  }
-}
-async function pushPresence(){
-  if (game.mode!=='multi') return;
-  const now=Date.now(); if (now-presenceThrottle<1500) return; presenceThrottle=now;
-  const players=await sGet(wkey('players'),true)||{};
-  players[game.playerId]={n:game.char.name||'Gardener',sp:game.char.species,c:game.char.coat,
-    cd:game.char.coatD,m:game.char.mark,x:Math.round(game.px),y:Math.round(game.py),ts:now};
-  await sSet(wkey('players'),players,true);
-}
-async function pollWorld(){
-  if (game.mode!=='multi') return;
-  const remote=await sGet(wkey('plants'),true);
-  if (remote) mergeMap(game.plants,remote);
-  const remoteT=await sGet(wkey('terrain'),true);
-  if (remoteT) mergeMap(game.terrain,remoteT);
-  const remoteE=await sGet(wkey('elevation'),true);
-  if (remoteE) mergeMap(game.elevation,remoteE);
-  const remoteB=await sGet(wkey('bulbs'),true);
-  if (remoteB) mergeMap(game.bulbs,remoteB);
-  const remoteF=await sGet(wkey('fences'),true);
-  if (remoteF) mergeMap(game.fences,remoteF);
-  const remoteL=await sGet(wkey('lights'),true);
-  if (remoteL) mergeMap(game.lights,remoteL);
-  const remoteFP=await sGet(wkey('firepits'),true);
-  if (remoteFP) mergeMap(game.firepits,remoteFP);
-  const remoteBO=await sGet(wkey('boulders'),true);
-  if (remoteBO) mergeMap(game.boulders,remoteBO);
-  const ho=await sGet(wkey('house'),true);
-  if (ho && ho.h && (ho.t||0)>game.houseT){
-    game.houses = Array.isArray(ho.h) ? ho.h : [ho.h]; game.houseT=ho.t; markLayerCacheChanged('houses'); }
-  const bu=await sGet(wkey('buildings'),true);
-  if (bu && Array.isArray(bu.b) && (bu.t||0)>game.buildingsT){
-    game.buildings=bu.b; game.buildingsT=bu.t; markModelChanged(); }
-  const players=await sGet(wkey('players'),true)||{};
-  game.others={};
-  let live=0;
-  for (const id in players){ if (id===game.playerId) continue;
-    if (Date.now()-players[id].ts<30000){ game.others[id]=players[id]; live++; } }
-  const list=document.getElementById('playerList');
-  const names=[game.char.name||'You',...Object.values(game.others).map(o=>o.n)];
-  list.innerHTML='🌿 '+names.slice(0,4).join('<br>🌿 ');
-  if (live>=4) toast('This bed is full — 4 gardeners max.');
 }
 
 /* ---------- export: the planting list ----------
@@ -382,7 +215,7 @@ function exportRows(){
 }
 function openExport(){
   const rows=exportRows(), body=$('exportBody');
-  const where=game.mode==='multi'?`Garden ${game.code}`:'Solo garden';
+  const where=game.worldName||'My garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
   if (!rows.length){
     body.innerHTML='<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
@@ -494,7 +327,7 @@ function bloomMonthCellHtml(row,month){
 }
 function openBloomCalendar(){
   const rows=bloomRows(), body=$('bloomBody');
-  const where=game.mode==='multi'?`Garden ${game.code}`:(game.worldName||'My garden');
+  const where=game.worldName||'My garden';
   $('bloomMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · approximate real-world bloom months`;
   if (!rows.length){
     body.innerHTML='<p class="note">Nothing blooming is planted yet. Add flowering perennials or bulbs, then come back for the calendar.</p>';

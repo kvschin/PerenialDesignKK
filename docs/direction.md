@@ -18,8 +18,7 @@ Around that core:
   *suggests* a style + plant types and drops you into Design mode. Nothing is
   scored or enforced. Prompts live in `DAILY_CHALLENGES` (game.js).
 - **Plant Library** *(built)* — browse every species.
-- **View Gardens** *(built)* — open, manage, and **Visit** saved gardens
-  (read-only avatar stroll; Visit is offered here, not in the Design flow).
+- **View Gardens** *(built)* — open, duplicate, share, and manage saved gardens.
 
 ## The pivot (what was cut, and why)
 
@@ -36,27 +35,40 @@ you'd get for free in a real game engine (Godot/Unity) and hand-roll here. Not
 worth a months-long build or an engine switch for this project's goals.
 
 **The lesson that shapes the roadmap:** stay scoped to what the current engine
-does well. The engine is great at *rendering a tile garden and walking an
-avatar in it* — so lean into that, and skip the simulation-heavy systems.
+does well. The engine is great at *rendering a tile garden* — so lean into that,
+and skip the simulation-heavy systems.
 
-## What survives the avatar idea: "Visit Gardens" (planned)
+## The avatar's second life, and its end (Aug 2026)
 
-The charming part of Story Mode — a cat/dog walking a garden — survives as a
-**lightweight, read-only stroll**, not a build/tend sim. It reuses what already
-exists (the avatar `drawCritter`, tap-to-walk movement, the renderer, garden
-loading); only the heavy systems are dropped.
+For a while the charming part of Story Mode — a cat/dog walking a garden —
+survived as **Visit Gardens**: a read-only stroll through a saved or imported
+garden, reusing `drawCritter`, tap-to-walk movement and the renderer with the
+editing HUD hidden. It shipped, and it has now been **removed**.
 
-- **Visit your own gardens** as an avatar: load any saved garden and walk it,
-  read-only (editing HUD hidden). Nearly free — it's the existing avatar mode
-  with editing off.
-- **Visit a friend's garden** via **share-a-file**: a garden is just a JSON
-  blob, so export yours → a friend imports it → they stroll it. **No backend.**
-- **Live cross-device visiting** is deferred — that's the one piece that needs
-  the small backend (the `sGet`/`sSet` constraint in CLAUDE.md).
+Why: Visit was the last thing keeping the avatar alive, and the avatar was
+paying for itself in permanent complexity — a second game mode branching the
+renderer, camera, input, tap handling, placement rules and save format, all so
+one read-only feature could exist. Every design feature had to be written twice
+or guarded against a mode nobody starts in. The planner is the product; a garden
+is read by looking at it, not by walking a dog through it.
 
-Recommended build order: read-only "visit" of your own gardens first, then the
-export/import sharing. Whether this *replaces* the current Story Mode menu entry
-or sits alongside it is the open call to make when building it.
+What went with it: `gameMode` entirely, `drawCritter` and `COATS`, the character
+creator, tile-to-tile movement (`tryMove`/`stepMove`/`followPath`), door-sleep,
+multiplayer presence avatars, and `game.visiting`. Legacy story saves now open
+in the planner, keeping their house and plants.
+
+Multiplayer followed it out the same month. The shared-garden lobby had never
+worked across devices — "shared" keys were just localStorage, so two tabs of one
+browser was the whole feature — and once the avatar was gone there was nobody to
+see in a shared garden anyway. Removing it took the lobby and code screens,
+host/join, the polling merge, and the eight per-layer sync flushes that every
+editing gesture used to end with.
+
+What survives: **share-a-file**. A garden is just a JSON blob, so export yours
+→ a friend imports it → they open it in their own planner. **No backend**, and
+that is now the deliberate end state rather than a step toward one. If live
+collaboration is ever wanted it starts from a real server behind `sGet`/`sSet`,
+not from the tab-local scaffolding that was removed.
 
 ## Tooling
 
@@ -72,5 +84,6 @@ or sits alongside it is the open call to make when building it.
 
 - Story Mode's build-out: propagation, NPCs, town/shop, economy, multi-location
   world. (Parked, not deleted from history — this doc is the record.)
-- A multiplayer backend / live cross-device play.
+- Multiplayer of any kind: live cross-device play, or the tab-local lobby that
+  stood in for it (removed Aug 2026).
 - Anything that pushes toward needing a real game engine.

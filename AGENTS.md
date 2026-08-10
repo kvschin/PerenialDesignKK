@@ -18,11 +18,10 @@ Current product direction, for orientation:
 
 - Pocket Prairie Garden Design is a design-first, 2.5D naturalistic garden
   planner. The primary experience is **Design a Garden**.
-- New gardens start only in `gameMode: 'design'`: blank plot, direct placement,
-  free camera, and no avatar or house.
-- The old story flow is retired from the creation menu. `gameMode: 'story'`
-  remains only for read-only **Visit** of saved/imported gardens and legacy
-  story saves.
+- Every garden is a planner: blank plot, direct placement, free camera, and no
+  house. There is **no game mode switch** — the avatar story flow, the
+  read-only Visit stroll, and the cat/dog character were all removed, and
+  legacy story saves simply open in the planner.
 - The menu also provides Daily design challenge, Plant Library, and View
   Gardens. `plant-creator.html` is a dev-only, direct-entry plant-authoring
   tool and is not linked from the game.
@@ -36,8 +35,7 @@ Current product direction, for orientation:
   call later-module functions at load time.
 - Use the centralized state and tool pathways documented in `CLAUDE.md`:
   `setTile`/`clearTile` and related mutation helpers; `toolMeta()` as the tool
-  contract; `applyToolAt()` for placement/material dispatch; and batched sync
-  after gestures.
+  contract; and `applyToolAt()` for placement/material dispatch.
 - Mobile and deterministic canvas rendering are first-class constraints. Keep
   canvas touch handling intact, test gesture changes on a phone where possible,
   use seeded visual variation, and keep expensive work out of the frame loop.

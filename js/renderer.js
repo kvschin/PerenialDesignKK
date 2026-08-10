@@ -801,12 +801,12 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    computed at draw time from the live plant refs, so nothing visual goes stale;
    day-granular facts (tree shade reach/stunting — plantEstab is integer-day)
    sit in the key via absDay(). In-place edits invalidate via game.rev
-   (markModelChanged in setTile/clearTile/addHouse/applySnapshot/mergeMap);
+   (markModelChanged in setTile/clearTile/addHouse/applySnapshot);
    wholesale map swaps (load / new garden / legacy fixups) are caught by object
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,PLAYER:8,OTHER:9,BUILDING:10,BUILDING_OUTLINE:11};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -900,7 +900,7 @@ function buildScene(W,H){
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
-function drawSceneEnt(e,W,H,season,sway,useSprites,t){
+function drawSceneEnt(e,W,H,season,sway,useSprites){
   switch(e.kind){
     case SCENE_K.FENCE: drawFence(cx,W,H,season,e.f,e.x,e.y); return 0;
     case SCENE_K.LIGHT: drawLightFixture(cx,W,H,season,e.l,e.x,e.y,game.layerVis.night); return 0;
@@ -923,24 +923,6 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,t){
     }
     case SCENE_K.GHOST:
       cx.globalAlpha=0.55; drawHouse(cx,W,H,season,e.h); cx.globalAlpha=1; return 0;
-    case SCENE_K.PLAYER:{
-      const [sx,sy]=screenOf(e.x,e.y,W,H);
-      drawCritter(cx,sx,sy+TILE_H/2,game.char,t,game.moving,1);
-      cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
-      const nm=game.char.name||'You', wN=cx.measureText(nm).width;
-      cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
-      cx.fillStyle='#f3ecdd'; cx.textAlign='center'; cx.fillText(nm,sx,sy-31);
-      return 0;
-    }
-    case SCENE_K.OTHER:{
-      const o=e.o, [sx,sy]=screenOf(o.x,o.y,W,H);
-      drawCritter(cx,sx,sy+TILE_H/2,{species:o.sp,coat:o.c,coatD:o.cd,mark:o.m},t,false,1);
-      cx.fillStyle='rgba(25,18,15,0.6)'; cx.font='11px IBM Plex Sans';
-      const wN=cx.measureText(o.n).width;
-      cx.fillRect(sx-wN/2-5,sy-42,wN+10,15);
-      cx.fillStyle='#cfe3c2'; cx.textAlign='center'; cx.fillText(o.n,sx,sy-31);
-      return 0;
-    }
   }
   return 0;
 }
@@ -992,11 +974,6 @@ function render(t){
   drawSeasonSky(cx,W,H,cal.season,amb);
   dmark('sky',tSky);
 
-  // camera eases toward the player in avatar modes; design mode keeps a free camera.
-  if (game.gameMode!=='design'){
-    const [ptx,pty]=screenOf(game.px,game.py,W,H);
-    cam.x += (ptx-W/2)*0.06; cam.y += (pty-H*0.45)*0.06;
-  }
   const tCompass=dnow(); updateCompass(); dmark('compass',tCompass);
 
   const sway = Math.sin(t*0.0012);
@@ -1156,8 +1133,8 @@ function render(t){
     const sh=shrubInfoFromKey(f.key);
     if (sh && layerShown('woody')) drawShrubFootprint(cx,W,H,sh,'pulse',t-f.t0);
   });
-  // hover/selection cursor on player's tile
-  const [hx,hy]=screenOf(game.tx,game.ty,W,H);
+  // cursor on the tile the last action addressed (where E acts again)
+  const [hx,hy]=screenOf(game.actX,game.actY,W,H);
   cx.strokeStyle='rgba(243,236,221,0.85)'; cx.lineWidth=2;
   cx.beginPath(); cx.moveTo(hx,hy+2); cx.lineTo(hx+TILE_W/2-3,hy+TILE_H/2);
   cx.lineTo(hx,hy+TILE_H-2); cx.lineTo(hx-TILE_W/2+3,hy+TILE_H/2); cx.closePath(); cx.stroke();
@@ -1193,16 +1170,13 @@ function render(t){
   }
 
   // RTS-style placement ghost while the House tool is armed: tinted
-  // footprint (red when you're standing in it) under a translucent house
+  // footprint (red where it would overlap another house) under a translucent house
   let ghost=null;
   if (game.tool==='house' && game.hoverTile && game.houseDraft){
     const h=game.houseDraft;
     const gx=Math.max(0,Math.min(GW-h.w,game.hoverTile[0]));
     const gy=Math.max(0,Math.min(GH-h.h-1,game.hoverTile[1]));
-    const ppx=Math.round(game.px), ppy=Math.round(game.py);
-    const onAvatar = game.gameMode!=='design' && ppx>=gx&&ppx<gx+h.w&&ppy>=gy&&ppy<gy+h.h;
-    const onHouse = game.houses.some(o=>gx<o.x+o.w&&gx+h.w>o.x&&gy<o.y+o.h&&gy+h.h>o.y);
-    const blocked = onAvatar || onHouse;
+    const blocked = game.houses.some(o=>gx<o.x+o.w&&gx+h.w>o.x&&gy<o.y+o.h&&gy+h.h>o.y);
     ghost=Object.assign({},h,{x:gx,y:gy,blocked});
     cx.fillStyle = blocked ? 'rgba(220,90,70,0.34)' : 'rgba(140,205,125,0.30)';
     for (let yy=gy; yy<gy+h.h; yy++) for (let xx=gx; xx<gx+h.w; xx++){
@@ -1217,18 +1191,12 @@ function render(t){
   }
 
   // depth-sorted entities: the persistent scene list is already sorted, so a
-  // frame only culls each record (numeric compares) and merges in the handful
-  // of per-frame dynamic entities (house ghost, avatar, other gardeners).
+  // frame only culls each record (numeric compares) and merges in the one
+  // per-frame dynamic entity, the house ghost.
   dmark('cursor',tCursor);
   const tGather=dnow();
   const dyn=[];
   if (ghost) dyn.push({d:houseDrawDepth(ghost)+0.01, kind:SCENE_K.GHOST, h:ghost});
-  if (game.gameMode!=='design')
-    dyn.push({d:viewDepth(game.px,game.py)+0.5, kind:SCENE_K.PLAYER, x:game.px, y:game.py});
-  for (const id in game.others){ const o=game.others[id];
-    if (Date.now()-o.ts > 30000) continue;
-    dyn.push({d:viewDepth(o.x,o.y)+0.5, kind:SCENE_K.OTHER, o});
-  }
   dmark('gather',tGather);
   const tSort=dnow(); if (dyn.length>1) dyn.sort((a,b)=>a.d-b.d); dmark('sort',tSort);
   const useSprites = PSPRITE.active;   // set by the governor at last frame's end
@@ -1238,13 +1206,13 @@ function render(t){
   for (let i=0;i<sents.length;i++){
     const e=sents[i];
     while (di<dyn.length && dyn[di].d<=e.d){
-      plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites,t); drawn++; }
+      plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
     if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
-    plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites,t);
+    plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites);
     drawn++;
   }
   while (di<dyn.length){
-    plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites,t); drawn++; }
+    plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   dmark('draw',tDraw);
   drawBuildingDraftOverlay(cx,W,H);
   updateSpriteMode(performance.now()-tDrawWall, plantCount);

@@ -1,5 +1,4 @@
 'use strict';
-let pendingMode=null;
 
 /* ---------- daily design challenge ----------
    A prompt-only design brief that rotates once a day. Date-seeded so everyone
@@ -79,12 +78,12 @@ function openDaily(){
 // plot is a random 40–100 ft rectangle (width/length independent), and the
 // palette is left broad so any prompt can be met.
 function startDailyChallenge(){
-  const c=todaysChallenge(); game.challenge=c; pendingMode='design';
+  const c=todaysChallenge(); game.challenge=c;
   const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
   setWorldSize(ftToTiles(rnd(40,100)), ftToTiles(rnd(40,100)));
   game.worldId='w'+Date.now().toString(36);
   game.worldName=`Daily: "${c.title}"`;
-  game.mode='solo'; game.gameMode='design'; game.visiting=false;
+  game.inGarden=true;
   game.previewMode='established';
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.rot=0; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
@@ -108,21 +107,17 @@ async function refreshMenuCards(){
   const idx=hasStorage ? await migrateLegacyWorld() : [];
   g.querySelector('small').textContent=idx.length
     ? `${idx.length} saved garden${idx.length>1?'s':''}`
-    : 'Open, visit, and manage saved gardens';
+    : 'Open and manage saved gardens';
 }
 
-$('btnDesign').onclick=()=>{ pendingMode='design'; openWorlds('design'); };
+$('btnDesign').onclick=openWorlds;
 $('btnDaily').onclick=openDaily;
 $('btnDailyStart').onclick=startDailyChallenge;
 $('btnLibrary').onclick=openLibrary;
 $('btnLibraryClose').onclick=()=>show('menuScreen');
 $('librarySearch').oninput=applyLibrarySearch;
-$('btnGardens').onclick=()=>{ pendingMode=null; openWorlds('all'); };
+$('btnGardens').onclick=openWorlds;
 
-/* the worlds screen — filtered by game mode. Legacy saves with no
-   `mode` are Story gardens (they had an avatar). */
-let worldsFilter='all';
-function worldMode(w){ return w.mode==='design'?'design':'story'; }
 /* Worlds-list thumbnails: a tiny top-down map drawn straight from the save
    blob — always current (no stored screenshot to go stale), zero localStorage,
    and it works retroactively for every existing save. Grass checker + terrain
@@ -207,35 +202,24 @@ function worldSaveMeta(s){
   const schemes=(s.schemes && Array.isArray(s.schemes.list)) ? s.schemes.list.length : 1;
   return {plants, season, schemes};
 }
-function startNewGarden(mode){
-  if (mode==='design'){ pendingMode='design'; game.discovery=defaultDiscovery(); openDesignSetup(); }
-  else { pendingMode='story'; openCreator(); }
+function startNewGarden(){
+  game.discovery=defaultDiscovery(); openDesignSetup();
 }
-async function openWorlds(filter){
-  worldsFilter=filter||'all';
-  const all=await migrateLegacyWorld();
-  const idx=worldsFilter==='all' ? all : all.filter(w=>worldMode(w)===worldsFilter);
-  if (!idx.length && worldsFilter!=='all'){ startNewGarden(worldsFilter); return; } // none yet → create
-  const titles={design:'Design gardens', story:'Story gardens', all:'View gardens'};
-  const subs={
-    design:'Continue a planting plan, or start a new one.',
-    story:'Continue tending, or start a new garden.',
-    all:'Every garden saved on this device.'};
-  $('worldsTitle').textContent=titles[worldsFilter];
-  $('worldsSub').textContent=subs[worldsFilter];
-  $('btnNewWorld').textContent = worldsFilter==='story' ? 'Start a new garden' : 'Design a new garden';
+async function openWorlds(){
+  const idx=await migrateLegacyWorld();
+  if (!idx.length){ startNewGarden(); return; }   // none yet → straight into the questionnaire
+  $('worldsTitle').textContent='Your gardens';
+  $('worldsSub').textContent='Continue a planting plan, or start a new one.';
+  $('btnNewWorld').textContent='Design a new garden';
   const list=$('worldList'); list.innerHTML='';
-  if (!idx.length){ const e=document.createElement('p'); e.className='note';
-    e.textContent='No gardens yet — start one below.'; list.appendChild(e); }
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
     const row=document.createElement('button'); row.className='world-row';
     const thumb=document.createElement('canvas'); thumb.className='world-thumb';
     thumb.width=168; thumb.height=126;   // 2x the CSS box, crisp on retina
     const info=document.createElement('span'); info.style.flex='1'; info.style.minWidth='0';
     const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
-    const badge=worldMode(w)==='design'?' · Design':' · Story';
     const meta=document.createElement('span'); meta.className='meta';
-    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft${badge} · ${new Date(w.ts).toLocaleDateString()}`;
+    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft · ${new Date(w.ts).toLocaleDateString()}`;
     info.append(nm,document.createElement('br'),meta);
     // the save blob fills in the picture + living details (async, per row)
     sGet('hortus:world:'+w.id).then(s=>{
@@ -253,43 +237,25 @@ async function openWorlds(filter){
     del.onclick=e=>{ e.stopPropagation();
       if (del.dataset.arm){ deleteWorld(w.id); }
       else { del.dataset.arm='1'; del.textContent='Sure?'; } };
-    // Visit (read-only stroll) lives in View Gardens, not the Design-a-Garden flow
-    if (worldsFilter!=='design'){
-      const visit=document.createElement('button'); visit.className='world-visit'; visit.textContent='Visit';
-      visit.title='Walk this garden as your avatar (read-only)';
-      visit.onclick=e=>{ e.stopPropagation(); visitWorld(w.id); };
-      row.append(thumb,info,dup,visit,del);
-    } else {
-      row.append(thumb,info,dup,del);
-    }
+    row.append(thumb,info,dup,del);
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });
   show('worldsScreen');
 }
 async function enterWorld(id){
-  game.worldId=id; game.mode='solo'; game.visiting=false;
-  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.mode=null; return; }
-  enterGarden();
-}
-// Visit Gardens: load any saved garden and walk it as a read-only avatar. We
-// force story mode (so the avatar/movement/camera all work, even on a Design
-// garden) and set game.visiting, which hides the editing chrome, makes taps
-// walk-only, and turns saveSolo into a no-op so the garden is never altered.
-async function visitWorld(id){
-  game.worldId=id; game.mode='solo';
-  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.mode=null; return; }
-  game.gameMode='story'; game.visiting=true;
+  game.worldId=id; game.inGarden=true;
+  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.inGarden=false; return; }
   enterGarden();
 }
 /* share-a-file: a garden is just a JSON blob, so export it to a file a friend
    can import (no backend). Export wraps the stored world in a small envelope;
    import validates the envelope, writes it as a fresh local world, and lists
-   it so it can be Opened or Visited. */
+   it so it can be opened. */
 async function shareCurrentGarden(){
   closeOverlay('gardenMenu');
-  if (game.mode!=='solo' || !game.worldId){ toast('Save the garden first, then share it.'); return; }
-  if (!game.visiting) await saveSolo(true);            // store the latest (no-op while visiting)
+  if (!game.inGarden || !game.worldId){ toast('Save the garden first, then share it.'); return; }
+  await saveSolo(true);                               // store the latest
   const w=await sGet('hortus:world:'+game.worldId);
   if (!w){ toast('That garden could not be read.'); return; }
   const env=JSON.stringify({ pocketPrairie:1, v:1, exported:Date.now(), world:w });
@@ -311,10 +277,10 @@ function importWorldFile(file){
     w.name=(w.name||'Shared garden').replace(/ \(shared\)$/,'')+' (shared)';
     await sSet('hortus:world:'+id, w);
     const idx=(await worldsIndex()).filter(x=>x.id!==id);
-    idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:w.mode==='design'?'design':'story' });
+    idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
     await sSet('hortus:worlds', idx);
-    toast(`Imported "${w.name}". Open or Visit it below.`);
-    openWorlds(worldsFilter);
+    toast(`Imported "${w.name}". Open it below.`);
+    openWorlds();
   };
   reader.readAsText(file);
 }
@@ -322,7 +288,7 @@ async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
   await sSet('hortus:worlds',idx);
   try{ localStorage.removeItem('hortus:world:'+id); }catch(e){}
-  openWorlds(worldsFilter);
+  openWorlds();
 }
 async function duplicateWorld(id){
   const src=await sGet('hortus:world:'+id);
@@ -339,79 +305,16 @@ async function duplicateWorld(id){
   await sSet('hortus:world:'+newId,copy);
   const next=idx.filter(w=>w.id!==newId);
   next.push({id:newId,name,ts:Date.now(),gw:copy.gw||copy.grid||31,gh:copy.gh||copy.grid||31,
-    mode:copy.mode==='design'?'design':'story'});
+    mode:'design'});
   await sSet('hortus:worlds',next);
   toast(`Duplicated "${base}".`);
-  openWorlds(worldsFilter);
+  openWorlds();
 }
-$('btnNewWorld').onclick=()=>startNewGarden(worldsFilter==='story'?'story':'design');
+$('btnNewWorld').onclick=startNewGarden;
 if ($('btnImport')) $('btnImport').onclick=()=>$('importFile').click();
 if ($('importFile')) $('importFile').onchange=e=>{ importWorldFile(e.target.files&&e.target.files[0]); e.target.value=''; };
-$('btnHost').onclick=async()=>{ pendingMode='multi-host'; await hostWorld();
-  $('codeDisplay').textContent=game.code; show('codeScreen'); };
-$('btnCodeContinue').onclick=()=>openCreator();
-$('btnJoin').onclick=async()=>{
-  const code=$('joinCode').value.trim().toUpperCase();
-  if (code.length<4){ toast('Enter the 5-character garden code.'); return; }
-  if (await joinWorld(code)){ pendingMode='multi-join'; openCreator(); }
-};
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ show('menuScreen'); });
 
-/* creator */
-function openCreator(){
-  // coat swatches
-  const row=$('coatRow'); row.innerHTML='';
-  COATS.forEach((c,i)=>{ const b=document.createElement('button');
-    b.className='swatch'+(i===game.char.coatIdx?' sel':''); b.style.background=c.c; b.title=c.n;
-    b.onclick=()=>{ game.char.coatIdx=i; game.char.coat=c.c; game.char.coatD=c.d;
-      document.querySelectorAll('.swatch').forEach((s,j)=>s.classList.toggle('sel',j===i)); };
-    row.appendChild(b); });
-  $('petName').value=game.char.name||'';
-  show('creatorScreen');
-}
-$('speciesRow').onclick=e=>{ const b=e.target.closest('[data-species]'); if(!b)return;
-  game.char.species=b.dataset.species;
-  $('speciesRow').querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
-$('markRow').onclick=e=>{ const b=e.target.closest('[data-mark]'); if(!b)return;
-  game.char.mark=b.dataset.mark;
-  $('markRow').querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
-
-/* live preview */
-const pcv=$('previewCanvas'), pcx=pcv.getContext('2d');
-function previewLoop(t){
-  if (!$('creatorScreen').classList.contains('hidden')){
-    pcx.clearRect(0,0,340,380);
-    pcx.save(); pcx.scale(2,2);
-    drawPlant(pcx,40,168,'karl',1,'Fall',7,Math.sin(t*0.001),undefined,1);
-    drawPlant(pcx,132,172,'echinacea',1,'Summer',13,Math.sin(t*0.001),undefined,1);
-    drawCritter(pcx,86,168,game.char,t,false,2.1);
-    pcx.restore();
-  }
-  requestAnimationFrame(previewLoop);
-}
-requestAnimationFrame(previewLoop);
-
-$('btnStartGame').onclick=async()=>{
-  game.char.name=$('petName').value.trim()||'Bramble';
-  await saveChar();
-  if (pendingMode==='story'){ game.mode='solo'; game.gameMode='story'; game.worldId=null;
-    openPlotScreen(); return;  // always a new garden: lay out the plot first
-  } else {
-    game.mode='multi';
-    $('playersPill').classList.remove('hidden');
-    syncTimer=setInterval(pollWorld,4000); pollWorld(); pushPresence();
-  }
-  enterGarden();
-};
-function starterDrift(){ // a welcoming drift near spawn so the world isn't empty
-  const SX=SPAWNX, SY=SPAWNY;
-  const picks=[['karl',SX-3,SY-3],['karl',SX-2,SY-3],['bluestem',SX-3,SY-2],
-               ['echinacea',SX+3,SY+3],['echinacea',SX+4,SY+3],['dropseed',SX+3,SY+4]];
-  // backdated 26 days = 10 growing days last fall + the winter between,
-  // so the drift arrives established and wakes with the player's first spring
-  picks.forEach(([s,x,y])=>{ if(tileTerrain(x,y)!=='path'&&!inHouse(x,y))
-    setTile('plants',`${x},${y}`,{s,d:absDay()-26,t:Date.now()}); });
-}
 function enterGarden(){
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
@@ -421,18 +324,11 @@ function enterGarden(){
   game.ruler=null;
   resetSeasonFade();   // never crossfade from a previous garden's last frame
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
-  if (game.gameMode==='design' && !game.visiting){
-    game.previewMode=game.previewMode||'established';
-    game.woodyAge='mature';                     // designers plan around existing/mature trees
-    game.pausedAt=Date.now();
-  } else {
-    game.previewMode='today';
-    game.woodyAge='new';                        // the avatar path grows things for real
-    game.pausedAt=0;
-  }
-  document.body.classList.toggle('design-mode', game.gameMode==='design');
-  document.body.classList.toggle('visiting', !!game.visiting);
-  userZoom = game.visiting ? 1.7 : 1; calcZoom(); // visits zoom in on the avatar (closer view + fewer tiles → smoother)
+  game.previewMode=game.previewMode||'established';
+  game.woodyAge='mature';                       // designers plan around existing/mature trees
+  game.pausedAt=Date.now();                     // a planner opens with the clock held
+  document.body.classList.add('design-mode');
+  userZoom=1; calcZoom();
   let groundReset=false;
   if (!Array.isArray(game.houses)){ game.houses=[]; groundReset=true; }
   if (!game.elevation){ game.elevation={}; groundReset=true; }
@@ -451,16 +347,8 @@ function enterGarden(){
   game.boulderDraft=normalizeBoulderDraft(game.boulderDraft);
   game.edgeStyle=edgeStyleId(game.edgeStyle);
   game.bedStyle=bedStyleId(game.bedStyle);
-  if (game.gameMode==='design'){
-    // free camera centered on the plot; no avatar, no forced house
-    game.px=game.tx=SPAWNX; game.py=game.ty=SPAWNY; game.moving=false;
-    snapCam();
-  } else {
-    if (!game.houses.length && !game.visiting){ game.houses=[defaultHouse()]; groundReset=true; }
-    const [spx,spy]=safeSpawn();   // never start stuck inside the house
-    game.px=game.tx=spx; game.py=game.ty=spy;
-    snapCam();
-  }
+  game.actX=SPAWNX; game.actY=SPAWNY;   // free camera centred on the plot
+  snapCam();
   if (groundReset) markGroundChanged();
   game.lastDay=absDay();
   undoStack=[]; redoStack=[]; updateUndoBtn();
@@ -468,17 +356,14 @@ function enterGarden(){
   buildCanvasTools();
   updateCompass();
   syncHapticsButton(); syncHandednessButton(); syncThemeButton();
-  $('worldLabel').textContent = game.mode==='multi'
-    ? `Garden ${game.code}` : (game.worldName||'Solo garden');
-  if (game.challenge && game.gameMode==='design')
+  $('worldLabel').textContent = game.worldName||'My garden';
+  if (game.challenge)
     setTimeout(()=>{ if (game.challenge){
       const n=challengePaletteSize(game.challenge), total=speciesCount();
       const pal = n<total ? `${n} of ${total} plants fit this challenge` : 'full palette — design freely';
       toast(`${game.challenge.title} — ${pal}.`);
     } }, 450);
-  if (game.visiting)
-    setTimeout(()=>{ if (game.visiting) toast(`Visiting ${game.worldName||'this garden'} — read-only. Tap to walk around.`); }, 450);
-  else if (game.gameMode==='design') setTimeout(showTimeCoachTip,900);
+  setTimeout(showTimeCoachTip,900);
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
@@ -531,7 +416,7 @@ function applySiteNorthEditor(){
   } else if (context==='garden'){
     const changed=setSiteNorthDeg(siteNorthEditorDraft);
     buildToolTray(); refreshCanvasTools();
-    if (changed && game.mode==='solo') saveSolo(true);
+    if (changed && game.inGarden) saveSolo(true);
     toast('North set. Sun and shade directions updated.');
   }
   siteNorthEditorContext=null; closeOverlay('siteNorthScreen');
@@ -770,16 +655,15 @@ function openPlotScreen(){
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
-      if (pendingMode==='design'){            // serious design: blank plot, no avatar, no house
-        game.mode='solo'; game.gameMode='design'; game.previewMode='established'; game.houses=[]; game.buildings=[]; game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle(); markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
-      } else {                                // story: avatar garden with a house + welcome drift
-        game.gameMode='story'; game.previewMode='today'; game.houses=[defaultHouse()]; game.buildings=[]; game.buildingDraft=null; markGroundChanged({terrain:true}); game.houseDraft=draftFromHouses();
-        seedWalkway(); starterDrift();
-      }
+      // a blank plot: no house, nothing planted, the whole site yours to draw
+      game.inGarden=true; game.previewMode='established';
+      game.houses=[]; game.buildings=[]; game.buildingDraft=null;
+      game.buildingStyleDraft=normalizeBuildingStyle();
+      markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
       enterGarden();
       saveSolo(true); // claim the slot right away
     };
-    $('btnPlotBack').onclick=()=>{ if (pendingMode==='design'){ openDesignSetup(); } else { game.mode=null; show('menuScreen'); } };
+    $('btnPlotBack').onclick=openDesignSetup;
   }
   $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
   pendingPlotShape=null; plotShapeDrag=null;               // every new plot starts rectangular
@@ -893,16 +777,14 @@ function openDesignSetup(){
     sSet('hortus:filters',game.filters); updateFilterBtn();
     openPlotScreen();
   };
-  $('btnDesignBack').onclick=()=>{ game.mode=null; show('menuScreen'); };
+  $('btnDesignBack').onclick=()=>{ game.inGarden=false; show('menuScreen'); };
   show('designScreen');
 }
 function quitToMenu(){
   if (game.photoEditing) closeSitePhotoEdit(false);
   suspendClock();
-  if (game.mode==='solo'&&hasStorage) saveSolo();
-  if (syncTimer){ clearInterval(syncTimer); syncTimer=null; }
-  game.mode=null; game.pausedAt=0; game.clockSuspended=false;
-  game.others={}; game.pathTarget=null; game.sleepOnArrive=false;
+  if (game.inGarden&&hasStorage) saveSolo();
+  game.inGarden=false; game.pausedAt=0; game.clockSuspended=false;
   document.body.classList.remove('design-mode');
   closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);
   closeOverlay('planScreen',false); closeOverlay('bloomScreen',false);
@@ -910,7 +792,7 @@ function quitToMenu(){
   closeOverlay('gardenMenu',false);
   dismissCoachTip();
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
-  mcnv.classList.remove('hidden'); $('playersPill').classList.add('hidden');
+  mcnv.classList.remove('hidden');
   setActiveCanvas(mcnv);
   setMenuViewportFill();
   show('menuScreen');
@@ -1008,13 +890,12 @@ if ($('btnSchemeNewCopy')) $('btnSchemeNewCopy').onclick=()=>{ if (createScheme(
 $('schemeScreen').onclick=(e)=>{ if (e.target===$('schemeScreen')) closeOverlay('schemeScreen'); };
 /* no Save button: autosave covers day changes, quitting, and the tab
    being hidden or closed mid-session */
-function autosaveNow(){ if (game.mode==='solo'&&hasStorage){ saveSolo(true); game.dirty=false; } }
+function autosaveNow(){ if (game.inGarden&&hasStorage){ saveSolo(true); game.dirty=false; } }
 addEventListener('visibilitychange',()=>{
   if (document.hidden){ suspendClock(); autosaveNow(); }
   else { resumeClockSession(); updateHUD(); }
 });
 addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
-if ($('btnSleep')){ $('btnSleep').classList.toggle('hidden',!ENABLE_HUD_SLEEP_BUTTON); $('btnSleep').onclick=doSleep; }
 if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.layerVis.night);
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
@@ -1239,7 +1120,7 @@ const MENU_FRAME_MS=1000/30;
 const IDLE_FRAME_MS=1000/30;
 const IDLE_GRACE_MS=700;
 const HUD_IDLE_MS=500;
-let prev=performance.now(), keyCooldown=0, lastMenuRender=-Infinity, lastGardenRender=-Infinity, lastHudUpdate=0;
+let prev=performance.now(), lastMenuRender=-Infinity, lastGardenRender=-Infinity, lastHudUpdate=0;
 let lastMeaningfulChange=performance.now(), lastRenderSig='';
 
 function markLoopActivity(){ lastMeaningfulChange=performance.now(); }
@@ -1274,9 +1155,6 @@ function renderStateSig(){
     game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig()
   ].join('|');
 }
-function hasHeldMovement(){
-  return typeof heldKeys!=='undefined' && Object.keys(heldKeys).length>0;
-}
 function hasActiveGesture(){
   return (typeof activePtrs!=='undefined' && activePtrs.size>0)
     || (typeof pinch!=='undefined' && !!pinch)
@@ -1289,7 +1167,7 @@ function hasActiveGesture(){
     || (typeof sweep!=='undefined' && !!sweep);
 }
 function hasTransientGardenWork(){
-  return !!(game.ffActive || game.moving || game.pathTarget || hasHeldMovement() || hasActiveGesture()
+  return !!(game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
     || seasonFadeActive());   // the season crossfade needs live frames for ~1s
 }
@@ -1447,12 +1325,12 @@ function perfBench(opts){
   const gw=Math.max(8,opts.gw||31), gh=Math.max(8,opts.gh||gw);
   const edge=opts.edge==='formal'?'formal':'organic';
   const rounds=Math.max(3,opts.rounds||15), edit=opts.edit!==false;
-  if (!game.mode){ console.warn('perfBench: open a garden first (it needs a live canvas).'); return null; }
+  if (!game.inGarden){ console.warn('perfBench: open a garden first (it needs a live canvas).'); return null; }
   const wasOn=dbg.on; dbg.on=true; devReset();
   const rnd=mulberry(0x9E3779B9);
   // --- deterministic garden: beds/path in NORMALIZED plot coords, so the same
   // real layout lands on any grid size and two grids stay comparable ---
-  game.gameMode='design'; game.previewMode='established';
+  game.previewMode='established';
   setWorldSize(gw,gh);
   game.worldId='perfbench'; game.worldName='perfBench scratch';
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={};
@@ -1545,31 +1423,15 @@ function stressGarden(){
 function loop(t){
   const rawGap=t-prev;                                // unclamped: stall detection needs the real spacing
   const dt=Math.min(50,Math.max(0,rawGap)); prev=t;   // floor 0: a backward t must never rewind FF time
-  if (game.mode){
+  if (game.inGarden){
     const tFrame=dnow();
     if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
-    const tMove=dnow();
-    if (game.gameMode!=='design'){ // story mode: avatar movement
-      keyCooldown-=dt;
-      if (keyCooldown<=0 && !game.moving){
-        const vecs=Object.values(heldKeys);
-        if (vecs.length){
-          let mx=0,my=0; vecs.forEach(v=>{mx+=v[0];my+=v[1];});
-          mx=Math.sign(mx); my=Math.sign(my);
-          if (mx||my){ const [wx,wy]=viewDirToWorld(mx,my);
-            tryMove(Math.round(game.px)+wx,Math.round(game.py)+wy); keyCooldown=40; }
-        }
-      }
-      followPath(); stepMove(dt);
-    }
-    const moveMs=dbg.on ? performance.now()-tMove : 0;
     const shouldDraw=shouldRenderGarden(t);
     if (shouldDraw){
       // glass governor samples frame SPACING, but only while the user is
       // actively interacting — idle frames run at a deliberate 30fps cadence
       // and would read as jank.
       if (hasTransientGardenWork() || t-lastMeaningfulChange<IDLE_GRACE_MS){ updateGlassMode(dt); dgap(rawGap); }
-      if (dbg.on) dbg.acc.move=(dbg.acc.move||0)+moveMs;
       render(t);                                   // render adds its own phase marks
       lastGardenRender=t;
       const tHud=dnow(); updateHUD(); lastHudUpdate=t; dmark('hud',tHud);
@@ -1586,9 +1448,7 @@ function loop(t){
   requestAnimationFrame(loop);
 }
 (async function init(){
-  await ensurePlayerId();
   if (hasStorage){
-    const c=await sGet('hortus:char'); if (c) game.char=c;
     const f=await sGet('hortus:filters'); if (f) game.filters=normalizeFilters(f);
     await loadPlantCollections();
   }

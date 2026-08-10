@@ -25,7 +25,7 @@ function calcZoom(){
 }
 function setUserZoom(z){
   userZoom = Math.max(0.4, Math.min(2.2, z));
-  calcZoom(); if (game.mode && game.gameMode!=='design') snapCam(); // design keeps a free camera
+  calcZoom();   // no snapCam: the designer's camera is free and stays where it is
   updateZoomPill();
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
@@ -71,7 +71,7 @@ function usableCanvasRect(){
   return out;
 }
 function fitPlot(){
-  if (!game.mode) return;
+  if (!game.inGarden) return;
   calcZoom();
   const corners=[[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]].map(([x,y])=>worldToView(x,y));
   const xs=corners.map(p=>isoX(p[0],p[1])), ys=corners.map(p=>isoY(p[0],p[1]));
@@ -156,7 +156,7 @@ function sizeCanvas(c, opts){
        every path (library dock, window resize, rotation, the rAF settles in
        setActiveCanvas) is covered by construction. */
     const d=viewportAnchorDelta(w-VW, h-VH, ZOOM);
-    if ((d.dx||d.dy) && typeof game!=='undefined' && game.mode){ cam.x+=d.dx; cam.y+=d.dy; }
+    if ((d.dx||d.dy) && typeof game!=='undefined' && game.inGarden){ cam.x+=d.dx; cam.y+=d.dy; }
     VW=w; VH=h;   // the visible/active canvas owns render + pointer size
   }
   // Assigning canvas.width RESETS the bitmap even when the value is unchanged,
@@ -191,12 +191,11 @@ function repositionOpenChrome(){
 function settleViewportChange(){
   setActiveCanvas(activeCanvas());
   calcZoom();
-  /* No snapCam here. It snaps to game.px/py — the AVATAR — and design mode has
-     no avatar, so every library dock/undock threw the designer's camera back to
-     the plot spawn. setUserZoom has always skipped it for exactly this reason
-     ("design keeps a free camera"); this path disagreed with it. The anchoring
-     in sizeCanvas is what the camera actually needed: hold the view still and
-     let the reclaimed width show more garden. */
+  /* No snapCam here. It recentres on the plot, so every library dock/undock
+     threw the designer's camera back to the middle of the garden. setUserZoom
+     skips it for the same reason ("design keeps a free camera"); this path used
+     to disagree with it. The anchoring in sizeCanvas is what the camera actually
+     needed: hold the view still and let the reclaimed width show more garden. */
   updateZoomPill();
   compassKey='';
   updateCompass();
@@ -206,7 +205,7 @@ function settleViewportChange(){
      the library docks or undocks. The bake is invalidated by the size change
      anyway, so this is when that cost was always going to be paid; paying it
      before the frame is composited is what makes it invisible. */
-  if (typeof game!=='undefined' && game.mode && activeCanvasId==='gameCanvas'
+  if (typeof game!=='undefined' && game.inGarden && activeCanvasId==='gameCanvas'
       && !cnv.classList.contains('hidden') && typeof render==='function'){
     render(performance.now());
   }
@@ -285,10 +284,10 @@ function compassBlockedByChrome(p,rects){
 function updateCompass(){
   const dom=compassElements(); if (!dom) return;
   const chromeKey=compassChromeStateKey();
-  const key=[game.mode?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,game.plotRev,chromeKey].join('|');
+  const key=[game.inGarden?1:0,game.rot,effectiveSiteNorthDeg(),VW,VH,ZOOM.toFixed(3),cam.x.toFixed(2),cam.y.toFixed(2),GW,GH,game.plotRev,chromeKey].join('|');
   if (key===compassKey) return;
   compassKey=key;
-  if (!game.mode){ dom.labels.forEach(el=>el.classList.add('off')); return; }
+  if (!game.inGarden){ dom.labels.forEach(el=>el.classList.add('off')); return; }
   const W=VW/ZOOM, H=VH/ZOOM, pad=42;
   const chromeRects=compassChromeRects(chromeKey);
   const project=(x,y)=>{ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx*ZOOM,sy*ZOOM]; };

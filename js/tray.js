@@ -553,10 +553,10 @@ function doFloodFill(sx,sy){
       seen.add(key); q.push([nx,ny]);
     }
   }
-  let placed=0, what=null;
-  withUndo(()=>{ region.forEach(([x,y])=>{ const r=applyToolAt(x,y); if (r){ placed++; what=r; } }); });
+  let placed=0;
+  withUndo(()=>{ region.forEach(([x,y])=>{ if (applyToolAt(x,y)) placed++; }); });
   if (placed){
-    syncToolLayer(what);
+    hapticFeedback('place');
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     const label = def ? def.name : game.tool==='path'?`${pathColor(game.pathColor).label} path`
       : game.tool==='water'?`${waterStyle(game.waterStyle).label} water`
@@ -762,22 +762,18 @@ function renderViewToolsMenu(){
   },'Fit the whole plot in the clear canvas area'));
   pop.appendChild(popButton('Zoom out',null,false,()=>{ zoomBy(0.89); },'Zoom out'));
   pop.appendChild(popButton('Zoom in',null,false,()=>{ zoomBy(1.12); },'Zoom in'));
-  if (!game.visiting){
-    pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
-      setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
-    },'Select an area'));
-  }
+  pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
+    setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
+  },'Select an area'));
   pop.appendChild(popButton('Rotate','rotate',false,()=>{
     rotateView(1); game.toolMenu=null; refreshCanvasTools();
   },'Rotate view 90 degrees'));
   pop.appendChild(popButton('Layers','layers',layerViewActive(),()=>{
     game.toolMenu='layers'; refreshCanvasTools(); focusToolMenu('layerPop');
   },'Show or hide garden layers'));
-  if (!game.visiting){
-    pop.appendChild(popButton('Ruler','ruler',game.tool==='ruler',()=>{
-      setTool('ruler'); game.toolMenu=null; refreshCanvasTools();
-    },'Tape measure'));
-  }
+  pop.appendChild(popButton('Ruler','ruler',game.tool==='ruler',()=>{
+    setTool('ruler'); game.toolMenu=null; refreshCanvasTools();
+  },'Tape measure'));
   anchorPopover(pop,btn);
 }
 // Arm Erase. Its layer + size options live in the brush bar (renderBrushBar),
@@ -905,7 +901,7 @@ function promptRevealLayer(layer,x,y){
       setLayerVis(layer,true); refreshCanvasTools();
       withUndo(()=>{
         if (game.tool==='house'){ placeHouse(x,y); }
-        else { game.tx=x; game.ty=y; actHere(); }
+        else { game.actX=x; game.actY=y; actHere(); }
       });
     });
 }
@@ -994,7 +990,7 @@ function closeSitePhotoEdit(commit){
   const restore=prior&&prior.sheet; sitePhotoEditState=null;
   if (restore) setSheetState(restore); else applySheetState();
   refreshCanvasTools(); buildToolTray();
-  if (game.mode==='solo') saveSolo(true).then(ok=>{ if (commit&&ok===false) toast('The site photo could not be saved - device storage is full.','warn'); });
+  if (game.inGarden) saveSolo(true).then(ok=>{ if (commit&&ok===false) toast('The site photo could not be saved - device storage is full.','warn'); });
 }
 function fitSitePhotoToPlot(){
   const u=game.underlay; if (!u) return;
@@ -1054,7 +1050,7 @@ function renderLayerMenu(){
    one) keep the top bar unchanged. */
 function syncSchemeChip(){
   const chip=document.getElementById('schemeChip'); if (!chip) return;
-  const show=multiScheme() && !game.visiting;
+  const show=multiScheme();
   chip.classList.toggle('hidden',!show);
   if (!show){ if (game.toolMenu==='schemes') game.toolMenu=null; return; }
   hudText('schemeChipName',activeSchemeName());
@@ -1184,7 +1180,7 @@ function buildLayerPopover(){
   row(()=>!!game.layerVis.edgeRulers, v=>{ setLayerVis('edgeRulers',v); }, 'Edge Rulers');
   section('Reference');
   if (game.underlay){
-    row(()=>!!game.underlay.visible, v=>{ game.underlay.visible=v; markUnderlayChanged(); if (game.mode==='solo') saveSolo(true); }, 'Site Photo');
+    row(()=>!!game.underlay.visible, v=>{ game.underlay.visible=v; markUnderlayChanged(); if (game.inGarden) saveSolo(true); }, 'Site Photo');
     const edit=document.createElement('button'); edit.className='layer-row'; edit.setAttribute('role','menuitem');
     const mark=document.createElement('span'); mark.className='layer-eye'; mark.textContent='+';
     const label=document.createElement('span'); label.className='layer-name'; label.textContent='Edit site photo\u2026'; edit.append(mark,label);
@@ -2687,9 +2683,8 @@ function buildToolTrayInner(){
     LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
   }
   if (cat.tools.includes('house')){
-    // the House tab works like the plant tray: icon buttons in labeled
-    // sections — Place, House size, Wall color, Roof color
-    const hc=game.houseDraft||(game.houseDraft=defaultDraft());
+    // the Site tab works like the plant tray: icon buttons in labeled sections
+    // — site photo, true north, Draw footprint, then its status and colours
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
     const toolBtn=(label,sel,draw,fn)=>{
@@ -2700,92 +2695,51 @@ function buildToolTrayInner(){
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
     };
-    const miniHouse=(tc,wf,df,wall,roof)=>{
-      const w2=Math.min(40,13+wf*0.55), h2=Math.min(20,7+df*0.3);
-      const x0=24-w2/2, y0=36-h2;
-      tc.fillStyle=wall; tc.fillRect(x0,y0,w2,h2);
-      tc.fillStyle=roof; tc.beginPath();
-      tc.moveTo(x0-3,y0); tc.lineTo(24,y0-6-wf*0.14); tc.lineTo(x0+w2+3,y0);
-      tc.closePath(); tc.fill();
-      tc.fillStyle=HOUSE_TRIM.door; tc.fillRect(22,36-Math.min(9,h2-1),4,Math.min(9,h2-1));
+    const bd=buildingStyleDraft();
+    const miniFootprint=(tc,style)=>{
+      tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':style.roof;
+      tc.strokeStyle=style.status==='proposed'?'#e5b36e':uiInk('--icon-ink'); tc.lineWidth=1.8;
+      tc.setLineDash(style.status==='proposed'?[3,2]:[]);
+      tc.beginPath(); tc.moveTo(7,10); tc.lineTo(31,10); tc.lineTo(31,18); tc.lineTo(40,18);
+      tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
+      tc.setLineDash([]);
     };
-    if (game.gameMode==='design'){
-      const bd=buildingStyleDraft();
-      const miniFootprint=(tc,style)=>{
-        tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':style.roof;
-        tc.strokeStyle=style.status==='proposed'?'#e5b36e':uiInk('--icon-ink'); tc.lineWidth=1.8;
-        tc.setLineDash(style.status==='proposed'?[3,2]:[]);
-        tc.beginPath(); tc.moveTo(7,10); tc.lineTo(31,10); tc.lineTo(31,18); tc.lineTo(40,18);
-        tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
-        tc.setLineDash([]);
-      };
-      const photo=toolBtn(game.underlay?'Edit site photo':'Add site photo',false,tc=>{
-        tc.fillStyle='#8ca39a'; tc.fillRect(7,9,34,26);
-        tc.fillStyle='#d8c98c'; tc.beginPath(); tc.arc(32,16,4,0,7); tc.fill();
-        tc.fillStyle='#526d55'; tc.beginPath(); tc.moveTo(8,34); tc.lineTo(18,22); tc.lineTo(24,28); tc.lineTo(31,20); tc.lineTo(41,34); tc.closePath(); tc.fill();
-        tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
-      },()=>{ if (game.underlay) beginSitePhotoEdit(); else chooseSitePhoto(); });
-      photo.dataset.k='site-photo'; photo.title=game.underlay?'Edit the calibrated site-photo reference':'Add a calibrated site-photo reference';
-      const northDeg=normalizeSiteNorthDeg(game.siteNorthDeg);
-      const north=toolBtn(`North ${northDeg}°`,false,tc=>{
-        tc.strokeStyle='rgba(239,230,211,.42)'; tc.lineWidth=1.3; tc.beginPath(); tc.arc(24,23,16,0,Math.PI*2); tc.stroke();
-        tc.save(); tc.translate(24,23); tc.rotate(northDeg*Math.PI/180);
-        tc.strokeStyle='#c97f3f'; tc.fillStyle='#c97f3f'; tc.lineWidth=2.5;
-        tc.beginPath(); tc.moveTo(0,12); tc.lineTo(0,-11); tc.stroke();
-        tc.beginPath(); tc.moveTo(0,-15); tc.lineTo(-5,-7); tc.lineTo(5,-7); tc.closePath(); tc.fill(); tc.restore();
-      },()=>openSiteNorthEditor('garden'));
-      north.dataset.k='site-north'; north.title='Set true north for sun, shade, compass markers, and the design plan';
-      const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
+    const photo=toolBtn(game.underlay?'Edit site photo':'Add site photo',false,tc=>{
+      tc.fillStyle='#8ca39a'; tc.fillRect(7,9,34,26);
+      tc.fillStyle='#d8c98c'; tc.beginPath(); tc.arc(32,16,4,0,7); tc.fill();
+      tc.fillStyle='#526d55'; tc.beginPath(); tc.moveTo(8,34); tc.lineTo(18,22); tc.lineTo(24,28); tc.lineTo(31,20); tc.lineTo(41,34); tc.closePath(); tc.fill();
+      tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=1.4; tc.strokeRect(7,9,34,26);
+    },()=>{ if (game.underlay) beginSitePhotoEdit(); else chooseSitePhoto(); });
+    photo.dataset.k='site-photo'; photo.title=game.underlay?'Edit the calibrated site-photo reference':'Add a calibrated site-photo reference';
+    const northDeg=normalizeSiteNorthDeg(game.siteNorthDeg);
+    const north=toolBtn(`North ${northDeg}°`,false,tc=>{
+      tc.strokeStyle='rgba(239,230,211,.42)'; tc.lineWidth=1.3; tc.beginPath(); tc.arc(24,23,16,0,Math.PI*2); tc.stroke();
+      tc.save(); tc.translate(24,23); tc.rotate(northDeg*Math.PI/180);
+      tc.strokeStyle='#c97f3f'; tc.fillStyle='#c97f3f'; tc.lineWidth=2.5;
+      tc.beginPath(); tc.moveTo(0,12); tc.lineTo(0,-11); tc.stroke();
+      tc.beginPath(); tc.moveTo(0,-15); tc.lineTo(-5,-7); tc.lineTo(5,-7); tc.closePath(); tc.fill(); tc.restore();
+    },()=>openSiteNorthEditor('garden'));
+    north.dataset.k='site-north'; north.title='Set true north for sun, shade, compass markers, and the design plan';
+    const place=toolBtn('Draw footprint',game.tool==='building',tc=>miniFootprint(tc,bd),()=>{
+      setTool('building',null); buildToolTray();
+    });
+    place.dataset.k='building'; place.title='Draw an orthogonal exterior building footprint';
+    sep('Status');
+    ['existing','proposed'].forEach(status=>toolBtn(status==='existing'?'Existing':'Proposed',bd.status===status,
+      tc=>miniFootprint(tc,Object.assign({},bd,{status})),()=>{
+        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{status}));
         setTool('building',null); buildToolTray();
-      });
-      place.dataset.k='building'; place.title='Draw an orthogonal exterior building footprint';
-      sep('Status');
-      ['existing','proposed'].forEach(status=>toolBtn(status==='existing'?'Existing':'Proposed',bd.status===status,
-        tc=>miniFootprint(tc,Object.assign({},bd,{status})),()=>{
-          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{status}));
-          setTool('building',null); buildToolTray();
-        }));
-      sep('Wall color');
-      WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.wall===c2,
-        tc=>{ tc.fillStyle=c2; tc.fillRect(12,12,24,21); tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(12,12,24,21); },()=>{
-          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{wall:c2})); setTool('building',null); buildToolTray();
-        }));
-      sep('Roof color');
-      ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.roof===c2,
-        tc=>{ tc.fillStyle=c2; tc.beginPath(); tc.moveTo(7,31); tc.lineTo(24,12); tc.lineTo(41,31); tc.closePath(); tc.fill(); },()=>{
-          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{roof:c2})); setTool('building',null); buildToolTray();
-        }));
-    } else {
-    const pb=toolBtn('Place', game.tool==='house',
-      tc=>{ miniHouse(tc,24,18,hc.wall,hc.roof);
-        tc.strokeStyle=uiInk('--icon-ink'); tc.setLineDash([3,3]); tc.lineWidth=1.2;
-        tc.strokeRect(3,8,42,32); },
-      ()=>{ setTool('house',null); buildToolTray();
-      });
-    pb.dataset.k='house';
-    sep('House size');
-    HOUSE_SIZES.forEach(([label,wf,df])=>{
-      const sel=hc.w===ftToTiles(wf) && hc.h===ftToTiles(df);
-      toolBtn(`${label} ${wf}'×${df}'`, sel,
-        tc=>miniHouse(tc,wf,df,hc.wall,hc.roof),
-        ()=>{ applyHouseSize(wf,df,label); setTool('house',null); buildToolTray(); });
-    });
+      }));
     sep('Wall color');
-    WALL_COLS.forEach(([n,c2])=>{
-      toolBtn(n, hc.wall===c2,
-        tc=>{ tc.fillStyle=c2; tc.fillRect(13,11,22,22);
-          tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(13,11,22,22); },
-        ()=>{ paintHouse('wall',c2,n); setTool('house',null); buildToolTray(); });
-    });
+    WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.wall===c2,
+      tc=>{ tc.fillStyle=c2; tc.fillRect(12,12,24,21); tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(12,12,24,21); },()=>{
+        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{wall:c2})); setTool('building',null); buildToolTray();
+      }));
     sep('Roof color');
-    ROOF_COLS.forEach(([n,c2])=>{
-      toolBtn(n, hc.roof===c2,
-        tc=>{ tc.fillStyle=c2; tc.beginPath();
-          tc.moveTo(8,32); tc.lineTo(24,12); tc.lineTo(40,32);
-          tc.closePath(); tc.fill(); },
-        ()=>{ paintHouse('roof',c2,n); setTool('house',null); buildToolTray(); });
-    });
-    }
+    ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.roof===c2,
+      tc=>{ tc.fillStyle=c2; tc.beginPath(); tc.moveTo(7,31); tc.lineTo(24,12); tc.lineTo(41,31); tc.closePath(); tc.fill(); },()=>{
+        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{roof:c2})); setTool('building',null); buildToolTray();
+      }));
   }
   finishToolTrayRender();
 }

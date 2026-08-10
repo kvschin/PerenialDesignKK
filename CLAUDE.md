@@ -12,28 +12,38 @@ scoring — that drops you into Design mode; `DAILY_CHALLENGES` /
 `todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried in
 as `game.challenge` and toasted on entry, cleared whenever the main menu shows),
 **Plant Library** (browse every species: list + seasonal images + facts +
-cultivars), and **View Gardens** (open/manage saved gardens; each row also
-offers a read-only **Visit** that strolls the garden as a cat/dog avatar — Visit
-is shown only here, not in the Design-a-Garden flow). A dev-only
+cultivars), and **View Gardens** (open/duplicate/share/manage saved gardens).
+Design a Garden and View Gardens open the SAME list — one `openWorlds()`, no
+filter, no per-mode badge. A dev-only
 **Plant Creator** (`plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
 
-`game.gameMode` is `'design'` | `'story'`, saved per garden and on the world
-index entry. **Design is the only mode you can start** — the old avatar **Story
-Mode** was retired from the menu, and the story-creation / character-creator
-paths (`startNewGarden('story')` / `openCreator`) are now unreachable from the
-UI. The `'story'` value survives for exactly two things: the read-only **Visit**
-feature (`visitWorld` forces `gameMode='story'` + `game.visiting`, so the
-avatar/movement/camera all work while editing chrome is hidden and saves are
-no-ops) and **legacy story saves** (older saves with no `mode` load as story).
-Design vs story branches live in `enterGarden`, `render` (avatar + camera easing
-skipped for design), the loop (movement skipped), `tapAction` (design taps route
-straight to `actHere` on the tapped tile), the two-finger pointer handler (adds
-camera pan in design), `setUserZoom`/snapCam (design keeps its free camera), and
-the `btnPlotStart`/save/load plumbing (design = blank plot, `houses:[]`,
-`buildings:[]`).
-Design panning: two fingers on touch; on PC, middle-mouse drag or
+**There is one mode: the planner.** `game.gameMode` is gone, and with it the
+avatar **Story Mode** and the read-only **Visit** stroll that was its last
+living user (Aug 2026 — see `docs/direction.md` for the why). Removed wholesale:
+`drawCritter`/`COATS`/`game.char` and the character creator, tile-to-tile
+movement (`tryMove`/`stepMove`/`followPath`/`pathTarget`/`game.px,py,tx,ty`),
+`canStand`/`safeSpawn`, door-sleep (`doSleep`, `ENABLE_HOUSE_SLEEP`), WASD
+movement keys, and `game.visiting` with its `body.visiting` chrome-hiding CSS.
+**Multiplayer went next (Aug 2026)**: the shared-garden lobby and code screen,
+`hostWorld`/`joinWorld`/`pollWorld`/`mergeMap`, the eight `sync*Out` flushes and
+`syncToolLayer`, `pushHouse`/`pushBuildings`, presence, `game.code`/`playerId`,
+and the `shared` flag on `sGet`/`sSet`. It had never worked across devices —
+only between tabs of one browser — and it was the reason `GAME_LAYERS` carried
+a `sync` hook, every gesture ended in a fan-out of eight flushes, and
+`game.mode` was a string. **`game.mode` is now `game.inGarden`, a boolean**: the
+only question left was whether a garden is open. The one thing `syncToolLayer`
+did besides sync was fire `hapticFeedback('place')`, so its call sites call that
+directly and the once-per-completed-gesture haptic rule is unchanged.
+**Legacy story saves open in the planner** — `loadSolo` ignores the blob's
+`mode` (still written as `'design'` so an older build reads a new save sanely),
+and the garden keeps whatever house and plants it had. The renderer's camera no
+longer eases toward anything: `snapCam` centres on the plot and runs only on
+`enterGarden`/`rotateView`. **`game.actX`/`actY` is what the movement target
+became** — simply the tile the last tap or E keypress addressed, drawn as the
+cream cursor diamond.
+Panning: two fingers on touch; on PC, middle-mouse drag or
 hold Space + drag (`panDrag`). Rotate is the R key or the ⟳ button
 (two-finger twist was removed — it fought the pan/zoom gesture). **Undo/redo**
 (`undoStack`/`redoStack`, buttons + Ctrl/Cmd-Z, redo via Ctrl/Cmd-Shift-Z
@@ -97,16 +107,14 @@ See §13a.
   `assert(...)` to the matching file when you add a feature; the runner exits
   non-zero on any failure.
 
-## Known constraints (read before touching save/multiplayer)
+## Known constraints (read before touching save)
 
-- **Storage is `localStorage` now.** `sGet`/`sSet` kept their original async
-  signatures from the artifact era but read/write `localStorage`, so solo saves
-  persist. The `shared` flag is accepted and ignored — "shared" gardens only
-  sync between tabs **on the same device**. For real cross-device multiplayer,
-  stand up a tiny backend (e.g. a WebSocket server or a hosted key-value store)
-  and reimplement `sGet`/`sSet` against it; keep the signatures so the rest of
-  the code is unchanged.
-- Mobile is a first-class target: tap-to-walk, tap-own-tile-to-act. Keep
+- **Storage is `localStorage`, single-device, single-player.** `sGet`/`sSet`
+  kept their original async signatures from the artifact era but read/write
+  `localStorage`, so saves persist. Keep those signatures async: they are the
+  seam a future storage backend would slot into. Sharing a garden is
+  file-based (export/import a JSON blob), not live — see the direction note.
+- Mobile is a first-class target: tap a tile to act on it. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
 ## Architecture
@@ -115,16 +123,16 @@ Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game
 logic is split across ordered modules. They map onto the section list below
 (which is also the load order, top to bottom):
 
-- **`core.js`** — constants, `AMBIENCE`, `COATS`, device preferences (haptics
+- **`core.js`** — constants, `AMBIENCE`, device preferences (haptics
   and left-handed mobile layout), shared color helpers such as `mixHex`, the
   path/bed/water/fence/light/firepit/house data tables (each ground material
   carrying its own `texture` grain recipe + `tones` palette, §11a, and its
   `TERRAIN_RANK` — which material is laid on which, §11), and
   `plantDef` (cultivar merge cache, including optional per-season
   `flowerColorFamilies` overrides for catalog discovery).
-- **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), §7
-  `drawCritter`, and canvas drawing primitives for houses, fences, lights,
-  firepits, plan symbols, and other rendered objects.
+- **`draw.js`** — §5 `mulberry`, §6 `drawPlant` (+ every form branch), and
+  canvas drawing primitives for houses, fences, lights, firepits, plan symbols,
+  and other rendered objects.
 - **`world.js`** — §8 the `game` state object, the `GAME_LAYERS` registry +
   `setTile`/`clearTile` mutation helpers, §9 time helpers + phenology, shade
   constants, immutable `DIRS`/`SUN_PATH` plus the per-garden true-north
@@ -142,9 +150,9 @@ logic is split across ordered modules. They map onto the section list below
   erase, selection mutation, saved-area paste/fill, house/fence/light/firepit
   placement, undo/redo, and toasts.
 - **`input.js`** — keyboard and canvas input wiring: pointer/touch/wheel
-  handlers, pinch protection, panning, brush drags, shovel sweeps, tap-to-act/
-  walk, and `followPath()`.
-- **`io.js`** — §13 storage `sGet`/`sSet` + save/load + multiplayer sync,
+  handlers, pinch protection, panning, brush drags, shovel sweeps, and
+  tap-to-act (`tapAction`).
+- **`io.js`** — §13 storage `sGet`/`sSet` + save/load,
   §14 export sheet (`exportRows`), §14b design plan (`openPlan`), §14c bloom
   calendar (`openBloomCalendar`).
 - **`collections.js`** — versioned device-local Favorites and named plant
@@ -163,7 +171,7 @@ logic is split across ordered modules. They map onto the section list below
   `==='house'||==='fence'||…` chains, and `applyToolAt` dispatches through its
   `apply` hook.
 - **`library.js`** — the Plant Library browser (`openLibrary`).
-- **`screens.js`** — §16 screens (menu, worlds, creator, plot, design setup),
+- **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE.
 
@@ -179,8 +187,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    flag. This is what makes the world *look* like each season.
 3. **`PLANTS`** — in `plants.js`, the data model for every species (see
    below). The heart of the game's Oudolf character.
-4. **`COATS`** — cat/dog coat color pairs (base + shadow).
-5. **`mulberry(seed)`** — tiny seeded RNG. Used so each plant clump looks unique
+4. **`mulberry(seed)`** — tiny seeded RNG. Used so each plant clump looks unique
    but renders identically every frame. Never use `Math.random()` for anything
    that must be stable across frames — derive a seed and use `mulberry`.
 6. **`drawPlant(ctx, x, y, key, growth, season, seed, sway, variant,
@@ -245,11 +252,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    flower pass thins to that fraction of stems. Tray icons/previews pass
    `bloomLvl=1` to force full bloom. Adds snow caps when
    `AMBIENCE[season].snow`.
-7. **`drawCritter(...)`** — round-bodied cat/dog avatar, with walk bob, tail,
-   ears that differ by species, and tuxedo/patch markings.
-8. **`game`** — the single mutable state object (mode, player position,
-   plants map, `bulbs` map — a second layer sharing tiles with plants —
-   `terrain`, `houses`, `buildings`, `fences`, tool, multiplayer presence, timing).
+7. **`game`** — the single mutable state object (mode, plants map, `bulbs` map — a second layer sharing tiles with plants —
+   `terrain`, `houses`, `buildings`, `fences`, tool, timing).
 8a. **Cache revisions** (`LAYER_CACHES` + `markLayerCacheChanged`, world.js) —
    `game.rev` bumps on EVERY mutation, which is right for undo and for "is the
    model dirty" and wrong for the render caches. Each layer edit declares what
@@ -269,11 +273,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    `scene`** even though nothing in a scene record is elevation-shaped, because
    `screenOf` subtracts the terrace lift and `plantRenderDetail` bakes
    hedge/bamboo neighbour offsets in SCREEN space (depth is elevation-free, so
-   the sort was never at risk — only the baked detail); and **`addBuilding` /
-   `removeBuildingAtIndex` / `mergeMap` mutate their layer IN PLACE**, so
-   `sceneStale`'s object-identity check is blind to them and the revision is the
-   only signal — `mergeMap` therefore names its layer via `GAME_MAPS` rather
-   than special-casing terrain/elevation as it used to.
+   the sort was never at risk — only the baked detail); and **`addBuilding` and
+   `removeBuildingAtIndex` mutate their layer IN PLACE**, so `sceneStale`'s
+   object-identity check is blind to them and the revision is the only signal.
+   (The removed multiplayer `mergeMap` was the third such mutator and the reason
+   this trap was found — any new in-place layer edit has to bump its revision
+   itself.)
 9. **Time helpers + phenology** — `absDay()`, `calClock()`
    (day/season/year/frac). Drawn plant size = `plantGrowth(p)` =
    `plantEstab(p)` (0..1 over 10 *growing* days — `growingDays()` skips
@@ -319,16 +324,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (view->screen), `viewDepth` (depth-sort key), `tileAt` (screen->world).
     World logic never rotates — only the mapping. `rotateView(dir)` also
     fires from a two-finger twist (~40° per 90° step, alongside pinch-zoom).
-    `safeSpawn()` returns a standable tile near plot center (door, else a
-    spiral search) so re-entering a garden never drops the player stuck
-    inside the house. **Irregular lots**: `game.plotShape` (optional, saved;
+    **Irregular lots**: `game.plotShape` (optional, saved;
     null = full rectangle) is a 4-vertex polygon on the tile-corner lattice
     masking the GW×GH rectangle into the player's real lot. `setPlotShape`
     validates (4 clamped integer verts, non-self-intersecting, ≥9 enclosed
     tiles) and rebuilds the derived `plotMask`; `onPlot(x,y)` is the ONE
-    legality predicate every placement/collision/walkability guard funnels
+    legality predicate every placement guard funnels
     through (`applyToolAt`, shrub/house/fence/firepit/boulder/building
-    placement, `selValidDest`, flood fill, erase, `canStand`). `setWorldSize`
+    placement, `selValidDest`, flood fill, erase). `setWorldSize`
     always clears the shape. Rendering agrees with the mask: `paintGround`
     skips off-lot tiles (void draws nothing — styling deliberately deferred),
     organic terrain edges treat the lot line as HARD (beds butt exactly into
@@ -342,13 +345,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     it seeded once on load). Houses live in `game.houses` — an array, so a
     garden can hold any number (each `{x,y,w,h,wall,roof,sizeFt}`, sized in
     real feet via `HOUSE_SIZES`). `houseAt(x,y)` finds the house on a tile;
-    `inHouse`/`isDoor`/`canStand` iterate the array; `doorPos(h)` takes a
-    specific house (door tile centered on its south side). The House tab's
-    size/wall/roof chips edit `game.houseDraft` — the settings the **Place**
-    tool stamps the next house with; placing adds a house (overlaps with
-    another house or the avatar are refused), and the **Erase** tool on the
+    `inHouse`/`isDoor` iterate the array; `doorPos(h)` takes a
+    specific house (door tile centered on its south side). `game.houseDraft`
+    holds the settings the **Place** tool stamps the next house with; placing
+    adds a house (overlaps with another house are refused), and the **Erase**
+    tool on the
     *landscape* layer removes any house it sweeps (`eraseBrush`). Existing
-    houses are recoloured/resized by erasing and re-placing.
+    houses are recoloured/resized by erasing and re-placing. **No tray arms the
+    House tool any more** — its size/wall/roof chips lived in the story-mode
+    branch of the Site tab, which the design branch (site photo / north / Draw
+    footprint) always shadowed; houses now reach a garden through a legacy save
+    or a shared one, and `placeHouse` waits for a UI to re-expose it.
     `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
     on big ones; legacy single-house saves (`house`) migrate to the array.
     **Design-site footprints are separate from houses.** `game.buildings` is
@@ -520,15 +527,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and can show strictly less work costing more — so `perfBench` warns on
     `document.hidden` and returns `compositing`. Ground drawn back-to-front, a single
     depth-sorted entity
-    pass for the cottage + plants + critters (`houseDrawDepth()` uses the
+    pass for the cottage + plants (`houseDrawDepth()` uses the
     current-rotation max view depth over the footprint, so large houses sort
     consistently from every side). That pass reads a **persistent scene list**
     (`scene` / `buildScene` / `sceneStale`): plain depth-sorted records built
     once per edit / rotation / layer toggle / game day — invalidated by
     **`game.sceneRev`** (see `LAYER_CACHES`, §8a) plus map object identity for
     wholesale swaps (load / new garden) — so a frame only culls (numeric
-    bounds compares) and draws, merging in the few per-frame dynamic entities
-    (house ghost, avatar, other gardeners) by depth. The old gather allocated
+    bounds compares) and draws, merging in the one per-frame dynamic entity
+    (the house ghost) by depth. The old gather allocated
     a `{depth, draw:closure}` per visible entity and re-sorted EVERY frame —
     thousands of objects/frame of pure GC churn (stutter). Growth/sway/bloom
     are computed at draw time from live plant refs so nothing visual goes
@@ -735,8 +742,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a centered **disc brush** of `game.brushSize` tiles (the shared
     paint/erase size — `brushOffsets`, see the disc-brush note below) that clears
     the layers `game.eraseMode` selects: `all` wipes plant+bulb+landscape on
-    each tile in one pass, or `plant`/`bulb`/`terrain` (Landscape) only; one toast +
-    per-layer sync at pointerup via `endSweep`), tap and keyboard input.
+    each tile in one pass, or `plant`/`bulb`/`terrain` (Landscape) only; one
+    toast at pointerup via `endSweep`), tap and keyboard input.
     The top-bar **Layers** button opens a flyout (`buildLayerPopover` builds
     it, `renderLayerMenu` pins it as a `position:fixed` dropdown under the
     button — measured from its rect like the garden/time menus — and rebuilds
@@ -821,8 +828,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     mid-drag instead of freezing where the gesture began. **Drag-to-plant**: pointerdown with a
     plant/bulb/path/bed/water/fence armed defers; crossing a tile line turns the
     gesture into a paint-drag that applies the tool to every tile crossed
-    (one toast + sync at pointerup via `finishToolDrag`), while a plain
-    tap resolves at pointerup to the classic walk/act (`tapAction`). With
+    (one toast at pointerup via `finishToolDrag`), while a plain
+    tap resolves at pointerup to acting on the tapped tile (`tapAction`). With
     the Drift toggle on, single planting calls `stampDrift()` — a loose
     shuffled cluster sized by spacing (`driftCount`: ≤6" → 9, ≤12" → 7,
     ≤18" → 5, ≤30" → 3); woody plants always plant singly.
@@ -862,11 +869,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     "Erase" `brush-lab`, no Draw/Grid/Fill segs); the bar's `paints` gate lets
     shovel through. There is no erase rail popover (the old `renderErasePopover`
     /`renderEraseTray` were removed) — so on a collapsed phone sheet the erase
-    width/layer stay visible because the brush bar persists. **Keys map to SCREEN directions**
-    regardless of rotation: one key is a screen-cardinal step (a view
-    diagonal); two keys combine into view axes; `viewDirToWorld` converts to
-    world steps. Tapping the house walks to the door and sleeps on arrival.
-13. **Storage / multiplayer** — `sGet`/`sSet` over localStorage. Solo worlds
+    width/layer stay visible because the brush bar persists. The WASD/arrow
+    movement keys went with the avatar; the keyboard now carries E (act on the
+    last-addressed tile), R (rotate), Space-hold (pan), +/- (zoom), undo/redo,
+    and the scheme keys.
+13. **Storage** — `sGet`/`sSet` over localStorage. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
     the optional `schemes` block of §13a +
@@ -877,9 +884,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     garden's plant criteria. The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
     square; 13x13-era saves recenter from (6,6). Autosave on day change is
-    silent; the Save button toasts. Host/join shared worlds via shared keys
-    (meta carries gw/gh; houses and building polygons sync via their own keys, last-write-wins
-    by timestamp), presence polling, and `mergeMap` for keyed layer maps.
+    silent; the Save button toasts. Sharing is file-based: `shareCurrentGarden`
+    writes the stored blob inside a small envelope, `importWorldFile` validates
+    it and writes a fresh local slot. Nothing syncs in the background.
 13a. **Planting schemes** — several plantings over one shared site plan, so a
     designer compares schemes instead of forking gardens. `SCHEME_LAYERS`
     (`['plants','bulbs']`, world.js) is the per-scheme subset of `GAME_LAYERS`;
@@ -1083,15 +1090,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     drill in for shape/size like a grouped species). Fire pits live in
     `game.firepits` keyed by origin tile (`{shape,size,t}` or `{removed:true}`),
     reserve a mature footprint via `firepitFootprint`/`canPlaceFirepit`
-    (refused under house/door/water/plants/bulbs/fences/lights/shrubs and the
-    avatar when one is present), block movement (`canStand`/`firepitAt`), and render
+    (refused under house/door/water/plants/bulbs/fences/lights/shrubs),
+    claim their whole footprint (`firepitAt`), and render
     through `drawFirepit` (stone rim + coals + flames, snow cap in winter).
     Boulders live in `game.boulders` keyed by origin tile (`{type,t}` or
     `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
-    rectangular, and oblong footprints, block movement/planting, render through
-    `drawBoulder`, export to the design plan, and sync via `syncBouldersOut`.
+    rectangular, and oblong footprints, block planting, render through
+    `drawBoulder`, and export to the design plan.
     Fire pits and boulders erase as Landscape, move/rotate/copy in selections,
-    eyedrop with Pick, and sync through their layer-specific sync helpers. The House tab
+    and eyedrop with Pick. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)
@@ -1134,8 +1141,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **season dial**: a local stroke-icon sun/moon day/night toggle (`#btnDayNight`/
     `updateDayNightBtn`, promoted out of the Layers menu — it flips
     `layerVis.night` to relight the world and switch lighting on) next to the
-    **season box** (`#btnSeasonBox`): a compact readout (season name + early/mid/late
-    phase in design, season + Year/Day on the avatar path) whose interior `#seasonFill`
+    **season box** (`#btnSeasonBox`): a compact readout (season name +
+    early/mid/late phase) whose interior `#seasonFill`
     fills left-to-right with the season's progress, tinted by `SEASON_FILL`
     (Spring easter green, Summer dark green, Fall the bronze, Winter a darker
     blue) — this replaced the old thin progress line and the Advance/Pause
@@ -1194,10 +1201,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     just under the Menu icon, right-aligned to it (`position:fixed`, JS-set
     `top`/`right`); clicking the transparent backdrop dismisses it. So it drops
     from the corner over the still-visible garden instead of covering the
-    screen. In **design** mode the readout drops the meaningless
-    Year/Day (a day is 20s real time) for the season + early/mid/late phase
-    (`clockMeta`/`seasonPhase`); the avatar path
-    (Visit / legacy saves) keeps the full calendar + End Day. At 767px and below
+    screen. The readout shows the season + early/mid/late phase
+    (`clockMeta`/`seasonPhase`), never a Year/Day count — a garden day is 20s of
+    real time, so the calendar was meaningless to a planner and its markup is
+    gone along with End Day. At 767px and below
     the library has collapsed/half/full states: `#sheetHandle` moves among them
     while you paint (`applySheetState`, `game.sheetCollapsed`). The half state is
     capped at 55dvh (480px maximum) and gives its remaining height to the result
@@ -1261,13 +1268,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     protect canvas space; the one-time Time coach also teaches pinch zoom.
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
-    drift / Erase here / Lay path / Dig bed / End Day; hidden for the House
+    drift / Erase here / Lay path / Dig bed; hidden for the House
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). Plant filters persist as `hortus:filters`.
-16. **Screens** — menu, worlds list (`#worldsScreen`: continue/delete saved
-    gardens or start a new one; reached via Design a Garden and View Gardens —
-    the Design entry hides the per-row Visit button, View Gardens shows it.
+16. **Screens** — menu, worlds list (`#worldsScreen`: continue/duplicate/delete
+    saved gardens or start a new one; Design a Garden and View Gardens both open
+    it, unfiltered and identical.
     Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
     map drawn from the save blob at list-open time: grass checker, real
     terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
@@ -1319,10 +1326,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     are reassigned in place over the existing meadow slots — same positions, so
     the backdrop reads as being replanted, not teleporting (Prairie → grasses,
     Cottage → forbs, Shade → ferns/sedges; 'Any garden' keeps the curated
-    seasonal meadow). Going Back to the menu re-seeds the season default. Still in
-    the markup but no longer reached from the menu (legacy, tied to the retired
-    story / multiplayer paths): the multiplayer lobby, character creator (with
-    live preview), and code display. Plain DOM, toggled by `show()`. The planting-list
+    seasonal meadow). Going Back to the menu re-seeds the season default.
+    Plain DOM, toggled by `show()`. The planting-list
     (`#exportScreen`), plant filters (`#filterScreen`), design plan
     (`#planScreen`), and bloom calendar (`#bloomScreen`) overlays sit outside
     `show()` — in-game overlays toggled directly; the
@@ -1556,25 +1561,29 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 
 ## Direction & backlog
 
-**Scope pivot (current direction).** The project is **Design-first**: the
-planner plus the **Daily design challenge**. The avatar **Story Mode** — the
-cozy Animal-Crossing-ish original — had a heavy build-out (seed propagation,
-NPCs, a town/shop, an economy, a multi-location world) that was explored and
-**cut** as too big for a no-framework canvas app (the propagation feature was
-built, then reverted in "Remove Story-mode seed propagation"); the mode itself
-is now **retired from the menu** — you can't start one, and the
-creation/character-creator paths are unreachable. Its avatar/movement code lives
-on for the two lightweight, **backend-free** features that replaced it, both now
-**built**: **Visit Gardens** (stroll your saved or imported gardens as the
-cat/dog avatar, read-only — the `Visit` button on each **View Gardens** row;
-the Design-a-Garden list omits it) and
-**share-a-file** garden export/import (`btnShare` / `btnImport`). Live
-cross-device multiplayer stays deferred. (Fuller record: `docs/direction.md`.)
+**Scope pivot (settled).** The project is **Design-only**: the planner plus the
+**Daily design challenge**. The avatar **Story Mode** — the cozy
+Animal-Crossing-ish original — had a heavy build-out (seed propagation, NPCs, a
+town/shop, an economy, a multi-location world) that was explored and **cut** as
+too big for a no-framework canvas app (the propagation feature was built, then
+reverted in "Remove Story-mode seed propagation"). The mode was then retired
+from the menu, and in **Aug 2026 the avatar itself was deleted** along with
+**Visit Gardens**, the read-only stroll that had been keeping it alive. The
+reason was carrying cost, not the feature: one read-only view was branching the
+renderer, camera, input, tap handling, placement rules and save format, so every
+design feature had to be written twice or guarded against a mode nobody starts
+in. What survives from that lineage is the **backend-free share-a-file** garden
+export/import (`btnShare` / `btnImport`) — a friend imports your JSON and opens
+it in their own planner. The shared-garden lobby that had sat unreachable
+behind it was deleted in the same pass. (Fuller record: `docs/direction.md`.)
 
 Still open: woody follow-up — tree canopies rendering across tile boundaries
-with their own depth slices. A real multiplayer backend (reimplement
-`sGet`/`sSet` against a small server — see Known constraints) is only needed if
-live cross-device visiting is ever built.
+with their own depth slices. Re-exposing a **House placement tool** — the model,
+renderer, ghost and `placeHouse` are all intact, but the tray that armed them
+was story-mode-only and went with it, so a design garden can currently only
+receive a house from a legacy or an imported save. Live collaboration is not on
+the roadmap; if it ever returns it starts from `sGet`/`sSet` and a real server,
+not from the tab-local scaffolding that was just removed.
 
 - **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
 - **Plant health / water** — establishment can fail; watering during dry spells.
@@ -1796,7 +1805,7 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     (New/Young/Mature) replaces the no-op Grid/Free for woody brushes:
     `game.woodyAge` + `chooseWoodyAge` + `woodyPlantedDay(def,age)` backdate
     `d` by whole `YEAR_DAYS` (growing-day exact: Mature = full `grow` years
-    → estab 1, Young ≈ half); design mode defaults Mature, story New. A
+    → estab 1, Young ≈ half); entering a garden defaults it to Mature. A
     mature-placed tree drives TRUE-establishment shade at once, and (per T9)
     full-sun underplanting still places with the amber warn. **Sprite
     safety**: `makePlantSprite` clamps giant bakes to ≤1024px instead of

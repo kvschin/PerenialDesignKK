@@ -1,7 +1,6 @@
 'use strict';
 
 /* keyboard */
-const heldKeys={};
 addEventListener('keydown',e=>{
   const northScreen=document.getElementById('siteNorthScreen');
   if (northScreen&&!northScreen.classList.contains('hidden')){
@@ -80,7 +79,7 @@ addEventListener('keydown',e=>{
   if (e.key==='Escape' && normalizedSheetState(game.sheetState)!=='collapsed'){
     e.preventDefault(); setSheetState('collapsed'); return;
   }
-  if (k===' ' && game.gameMode==='design'){ // hold space to pan the design canvas (PC)
+  if (k===' '){ // hold space to pan the canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
   if (k==='e'||k===' '){ e.preventDefault(); withUndo(actHere); return; }
@@ -94,15 +93,8 @@ addEventListener('keydown',e=>{
   }
   if (k==='+'||k==='='){ e.preventDefault(); zoomBy(1.12); return; }
   if (k==='-'){ e.preventDefault(); zoomBy(0.89); return; }
-  /* keys move in SCREEN directions: D is right on screen, W is up, etc.
-     One key = a screen-cardinal step (a view diagonal); holding two keys
-     combines into the view axes. The loop converts view direction to
-     world direction per the current rotation. */
-  const map={w:[-1,-1],arrowup:[-1,-1],s:[1,1],arrowdown:[1,1],
-             a:[-1,1],arrowleft:[-1,1],d:[1,-1],arrowright:[1,-1]};
-  if (map[k]){ e.preventDefault(); heldKeys[k]=map[k]; }
 });
-addEventListener('keyup',e=>{ delete heldKeys[e.key.toLowerCase()];
+addEventListener('keyup',e=>{
   if (e.key===' '){ spaceHeld=false; updateCanvasCursor(); } });
 
 
@@ -158,8 +150,7 @@ function buildingPointerDown(place){
   addBuildingCorner(place);
 }
 function shouldStartPan(e){
-  return (game.tool==='hand' && game.gameMode==='design' && !game.visiting)
-    || (game.gameMode==='design' && (e.button===1 || spaceHeld));
+  return game.tool==='hand' || e.button===1 || spaceHeld;
 }
 function showGestureCancel(msg){
   const el=document.getElementById('gestureCancel'); if (!el) return;
@@ -174,7 +165,6 @@ function cancelCanvasGesture(restore,notice){
   sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
   game.hoverTile=null;
   if (game.tool==='building' && game.buildingDraft) cancelBuildingDraft();
-  game.pathTarget=null; game.sleepOnArrive=false;
   if (notice) showGestureCancel(notice);
   updateCanvasCursor();
 }
@@ -293,7 +283,7 @@ cnv.addEventListener('pointerdown',e=>{
     sweepLift(x,y); return;
   }
   // plant/bulb/path/bed/water/elevation/fence/light/firepit: press-and-drag paints tiles like the shovel
-  // sweeps them; a plain tap (resolved at pointerup) walks or acts. (house already returned above.)
+  // sweeps them; a plain tap (resolved at pointerup) acts. (house already returned above.)
   if (isBrushTool(game.tool)){
     toolDrag={sx:x, sy:y, cx:x, cy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null,
       lastX:x,lastY:y,trace:[[x,y]],edgeSeen:new Set(),affected:new Set(),runInches:0};
@@ -302,39 +292,14 @@ cnv.addEventListener('pointerdown',e=>{
   }
   tapAction(x,y,place);
 });
-function tapAction(x,y,opts){ // the classic tap: walk there, act on your own tile
-  if (game.visiting){ // read-only stroll: walk to walkable tiles, never edit
-    if (x<0||y<0||x>=GW||y>=GH) return;
-    if (siteStructureAt(x,y)||tileTerrain(x,y)==='water'||fenceBlocks(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)) return;
-    game.sleepOnArrive=false; game.pathTarget=[x,y]; return;
-  }
-  if (game.gameMode==='design'){ // no avatar — act directly on the tapped tile
-    if (x<0||y<0||x>=GW||y>=GH) return;
-    game.tx=x; game.ty=y; actHere(opts); return;
-  }
-  if (inHouse(x,y)){
-    if (ENABLE_HOUSE_SLEEP){ // old flow: tapping the house walked to the door, then slept
-      const [dx2,dy2]=doorPos(houseAt(x,y));
-      game.pathTarget=[dx2,dy2]; game.sleepOnArrive=true;
-    } else {
-      game.sleepOnArrive=false;
-      toast('The house is just scenery for now.');
-    }
-    return;
-  }
-  game.sleepOnArrive=false;
-  if (tileTerrain(x,y)==='water'){ toast('Water blocks the way.'); return; }
-  if (fenceBlocks(x,y)){ toast('The fence blocks the way. Use a gate.'); return; }
-  if (lightAt(x,y)){ toast('The light blocks the way.'); return; }
-  if (firepitAt(x,y)){ toast('The fire pit blocks the way.'); return; }
-  if (boulderAt(x,y)){ toast('The boulder blocks the way.'); return; }
-  if (x===Math.round(game.px)&&y===Math.round(game.py)&&!game.moving){ actHere(opts); return; }
-  game.pathTarget=[x,y];
+function tapAction(x,y,opts){ // a plain tap acts directly on the tapped tile
+  if (x<0||y<0||x>=GW||y>=GH) return;
+  game.actX=x; game.actY=y; actHere(opts);
 }
 function finishToolDrag(){
   if (!toolDrag || !toolDrag.active) return;
   if (toolDrag.count){
-    syncToolLayer(toolDrag.what);
+    hapticFeedback('place');
     const changed=toolDrag.affected&&toolDrag.affected.size?toolDrag.affected.size:toolDrag.count;
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     let msg;
@@ -400,12 +365,10 @@ cnv.addEventListener('pointermove',e=>{
     const d=Math.hypot(a[0]-b2[0],a[1]-b2[1])||1;
     if (Math.abs(d-pinch.d0)>8) multiTouch && (multiTouch.moved=true);
     setUserZoom(pinch.z0*d/pinch.d0);
-    // two-finger drag pans the canvas (design mode has a free camera)
-    if (game.gameMode==='design'){
-      const cx=(a[0]+b2[0])/2, cy=(a[1]+b2[1])/2;
-      cam.x=pinch.camx0-(cx-pinch.cx0)/ZOOM;
-      cam.y=pinch.camy0-(cy-pinch.cy0)/ZOOM;
-    }
+    // two-finger drag pans the canvas (the camera is free)
+    const cx=(a[0]+b2[0])/2, cy=(a[1]+b2[1])/2;
+    cam.x=pinch.camx0-(cx-pinch.cx0)/ZOOM;
+    cam.y=pinch.camy0-(cy-pinch.cy0)/ZOOM;
     // (two-finger twist-to-rotate removed — rotate via the ⟳ button or R key)
     return;
   }
@@ -440,7 +403,7 @@ cnv.addEventListener('pointermove',e=>{
   }
 });
 cnv.addEventListener('wheel',e=>{
-  if (!game.mode) return;
+  if (!game.inGarden) return;
   if (game.photoEditing&&game.underlayCalibration){ e.preventDefault(); return; }
   if (game.photoEditing&&game.underlay){ e.preventDefault(); game.underlay.widthTiles=Math.max(.5,Math.min(Math.max(GW,GH)*8,game.underlay.widthTiles*(e.deltaY<0?1.06:.94)));
     markUnderlayChanged(); if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor(); return; }
@@ -461,16 +424,6 @@ function endSweep(){
   if (sweep.building) parts.push(`${sweep.building} building footprint${sweep.building>1?'s':''}`);
   if (parts.length){
     toast(`Erased ${parts.join(' and ')}.`);
-    if (sweep.plants) syncPlantsOut();
-    if (sweep.bulbs) syncBulbsOut();
-    if (sweep.terr) syncTerrainOut();
-    if (sweep.elev) syncElevationOut();
-    if (sweep.fence) syncFencesOut();
-    if (sweep.light) syncLightsOut();
-    if (sweep.firepit) syncFirepitsOut();
-    if (sweep.boulder) syncBouldersOut();
-    if (sweep.house) pushHouse();
-    if (sweep.building) pushBuildings();
   }
   else toast('Nothing to erase there.');
   sweep=null;
@@ -512,20 +465,3 @@ cnv.addEventListener('pointercancel',e=>{
 });
 cnv.addEventListener('auxclick',e=>{ if (e.button===1) e.preventDefault(); }); // no middle-click autoscroll
 cnv.addEventListener('pointerleave',()=>{ game.hoverTile=null; buildingHover=null; });
-function followPath(){
-  if (!game.pathTarget||game.moving) return;
-  const [gx,gy]=game.pathTarget;
-  const cxp=Math.round(game.px), cyp=Math.round(game.py);
-  if (cxp===gx&&cyp===gy){
-    game.pathTarget=null;
-    if (ENABLE_HOUSE_SLEEP && game.sleepOnArrive&&isDoor(gx,gy)) doSleep();
-    game.sleepOnArrive=false; return; }
-  const sx=Math.sign(gx-cxp), sy=Math.sign(gy-cyp);
-  // prefer a diagonal step when both axes differ; slide along one axis
-  // when the diagonal is blocked (e.g. by the cottage)
-  const opts = (sx&&sy) ? [[sx,sy],[sx,0],[0,sy]] : (sx?[[sx,0]]:[[0,sy]]);
-  for (const [ox,oy] of opts){
-    if (canStand(cxp+ox,cyp+oy)){ tryMove(cxp+ox,cyp+oy); return; }
-  }
-  game.pathTarget=null; // boxed in — give up rather than spin
-}

@@ -57,7 +57,7 @@
       <button class="menu-action primary" id="btnDesign" type="button">
         <span>
           <strong>Design a Garden</strong>
-          <small>Plan a real planting — no avatar, place by hand</small>
+          <small>Plan a real planting, placed by hand</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
@@ -78,78 +78,12 @@
       <button class="menu-action" id="btnGardens" type="button">
         <span>
           <strong>View Gardens</strong>
-          <small>Open, visit, and manage saved gardens</small>
+          <small>Open and manage saved gardens</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
     </div>
     <a class="menu-foot" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.2 · credits</a>
-  </div>
-</div>
-
-<!-- MULTIPLAYER LOBBY -->
-<div class="screen hidden" id="multiScreen">
-  <div class="panel">
-    <h2>Garden together</h2>
-    <p class="sub">One person starts a garden and shares its code. Up to 4 gardeners can work the same beds.</p>
-    <p class="note" style="margin:0 0 16px">For now, shared gardens only sync between tabs in the <b>same browser on one device</b> — a proper cross-device server is on the roadmap. Codes won't work between two phones yet.</p>
-    <div class="row">
-      <button class="btn primary" id="btnHost">Start a shared garden</button>
-    </div>
-    <div class="field" style="margin-top:16px">
-      <label for="joinCode">Or join with a garden code</label>
-      <input id="joinCode" maxlength="5" placeholder="e.g. PRARI" autocomplete="off" style="text-transform:uppercase">
-    </div>
-    <div class="row">
-      <button class="btn" id="btnJoin">Join garden</button>
-    </div>
-    <button class="back-link" data-back>Back</button>
-  </div>
-</div>
-
-<!-- CHARACTER CREATOR -->
-<div class="screen hidden" id="creatorScreen">
-  <div class="panel" style="max-width:640px">
-    <h2>Who's gardening today?</h2>
-    <p class="sub">Pick your animal, coat, and name. You can always come back and change it.</p>
-    <div class="creator-grid">
-      <canvas id="previewCanvas" class="creator-preview" width="340" height="380"></canvas>
-      <div class="creator-opts">
-        <div class="field"><label>Animal</label>
-          <div class="chip-row" id="speciesRow">
-            <button class="chip sel" data-species="cat">Cat</button>
-            <button class="chip" data-species="dog">Dog</button>
-          </div>
-        </div>
-        <div class="field"><label>Coat</label><div class="chip-row" id="coatRow"></div></div>
-        <div class="field"><label>Marking</label>
-          <div class="chip-row" id="markRow">
-            <button class="chip sel" data-mark="solid">Solid</button>
-            <button class="chip" data-mark="tuxedo">Tuxedo</button>
-            <button class="chip" data-mark="patch">Eye patch</button>
-          </div>
-        </div>
-        <div class="field"><label for="petName">Name</label>
-          <input id="petName" maxlength="14" placeholder="Bramble" autocomplete="off">
-        </div>
-      </div>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" id="btnStartGame">Into the garden</button>
-    </div>
-    <button class="back-link" data-back>Back</button>
-  </div>
-</div>
-
-<!-- GARDEN CODE SHOW -->
-<div class="screen hidden" id="codeScreen">
-  <div class="panel" style="text-align:center">
-    <h2>Your garden code</h2>
-    <div class="code-display" id="codeDisplay">·····</div>
-    <p class="note">Joiners choose Garden together, then Join, and enter this code. For now that only works from another tab in this same browser — cross-device sharing needs the server that's still on the roadmap.</p>
-    <div class="row" style="margin-top:14px">
-      <button class="btn primary" id="btnCodeContinue">Continue</button>
-    </div>
   </div>
 </div>
 
@@ -177,7 +111,7 @@
         <span class="season-fill" id="seasonFill"></span>
         <span class="season-box-inner">
           <span class="season-head"><span class="season-name" id="seasonName">Spring</span></span>
-          <span class="season-sub"><span id="seasonClkCal"><span id="seasonYear">Year 1</span> · <span id="seasonDay">Day 1</span></span><span id="seasonPhase" style="display:none">Early season</span><span id="timeState" class="time-state" role="status" aria-live="polite">Fast-forwarding</span></span>
+          <span class="season-sub"><span id="seasonPhase">Early season</span><span id="timeState" class="time-state" role="status" aria-live="polite">Fast-forwarding</span></span>
         </span>
       </button>
       <!-- planting-scheme switcher: hidden until a garden has a second scheme,
@@ -199,7 +133,6 @@
       <div class="pill iconbar" id="actionBar">
         <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span class="lbl">Menu</span></button>
       </div>
-      <div class="pill hidden" id="playersPill"><div id="playerList"></div></div>
     </div>
   </div>
   <main id="canvasStage" class="canvas-stage">

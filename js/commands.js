@@ -49,40 +49,24 @@ function plantPlacementToastKind(def,x,y,k,shadeWarn){
 }
 function rejectPlacement(msg){ hapticFeedback('invalid'); toast(msg); }
 
-/* ---------- movement & actions ---------- */
-function tryMove(nx,ny){
-  if (!canStand(nx,ny)||game.moving) return;
-  game.fromX=game.px; game.fromY=game.py;
-  game.tx=nx; game.ty=ny; game.moving=true; game.moveT=0;
-  // diagonal grid steps cover more screen, so they take a bit longer
-  game.moveDur = (Math.abs(nx-game.fromX)+Math.abs(ny-game.fromY)>1)?255:170;
-}
-function stepMove(dt){
-  if (!game.moving) return;
-  game.moveT += dt/game.moveDur;
-  if (game.moveT>=1){ game.px=game.tx; game.py=game.ty; game.moving=false; pushPresence(); }
-  else { game.px=game.fromX+(game.tx-game.fromX)*game.moveT;
-         game.py=game.fromY+(game.ty-game.fromY)*game.moveT; }
-}
+/* ---------- actions ----------
+   The tile a tap or the E key addresses. There is no avatar: game.actX/actY is
+   simply the last tile the canvas pointed at. */
 function actHere(opts){
-  const x=Math.round(game.tx), y=Math.round(game.ty), k=`${x},${y}`;
+  const x=Math.round(game.actX), y=Math.round(game.actY), k=`${x},${y}`;
   if (isPlacementTool(game.tool)){
     const layer=toolTargetLayer(game.tool);
     if (blockIfWrongEditLayer(layer)) return;
     if (layer && !layerShown(layer)){ promptRevealLayer(layer,x,y); return; }
   }
-  if (isDoor(x,y)){
-    if (ENABLE_HOUSE_SLEEP) doSleep();
-    else toast('The doorstep is just scenery for now.');
-    return;
-  }
+  if (isDoor(x,y)){ toast('The doorstep is just scenery for now.'); return; }
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   if (game.tool==='building'){ toast('Tap exterior corners, then close the outline.'); return; }
   if (game.tool==='fence'){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Fence needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
-    if (r){ syncToolLayer(r); toast(`${fenceLabel()} placed.`); }
+    if (r){ hapticFeedback('place'); toast(`${fenceLabel()} placed.`); }
     else rejectPlacement('Fence needs clear dry ground.');
     return;
   }
@@ -90,7 +74,7 @@ function actHere(opts){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Lighting needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
-    if (r){ syncToolLayer(r); toast(`${lightLabel()} placed.`); }
+    if (r){ hapticFeedback('place'); toast(`${lightLabel()} placed.`); }
     else rejectPlacement('Lighting needs a clear dry tile.');
     return;
   }
@@ -98,7 +82,7 @@ function actHere(opts){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Fire pits need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
-    if (r){ syncToolLayer(r); toast(`${firepitLabel()} placed.`); }
+    if (r){ hapticFeedback('place'); toast(`${firepitLabel()} placed.`); }
     else rejectPlacement('Fire pit needs clear dry ground.');
     return;
   }
@@ -106,14 +90,14 @@ function actHere(opts){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Boulders need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
-    if (r){ syncToolLayer(r); toast(`${boulderLabel()} placed.`); }
+    if (r){ hapticFeedback('place'); toast(`${boulderLabel()} placed.`); }
     else rejectPlacement('Boulder needs clear dry ground.');
     return;
   }
   if (isElevationTool(game.tool)){
     const before=elevationAt(x,y);
     if (stampBrushAt(x,y)){
-      syncToolLayer('elevation');
+      hapticFeedback('place');
       const after=elevationAt(x,y);
       toast(game.tool==='level' ? 'Leveled ground.' : `Elevation ${after>before?'raised':'lowered'} to ${after}.`);
     } else {
@@ -143,16 +127,6 @@ function actHere(opts){
     if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
       toast(`Erased ${parts.join(' and ')}.`);
-      if (counts.plants) syncPlantsOut();
-      if (counts.bulbs) syncBulbsOut();
-      if (counts.terr) syncTerrainOut();
-      if (counts.elev) syncElevationOut();
-      if (counts.fence) syncFencesOut();
-      if (counts.light) syncLightsOut();
-      if (counts.firepit) syncFirepitsOut();
-      if (counts.boulder) syncBouldersOut();
-      if (counts.house) pushHouse();
-      if (counts.building) pushBuildings();
     } else toast('Nothing to erase here.');
     return;
   }
@@ -164,13 +138,10 @@ function actHere(opts){
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
-    if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)){
-      toast('Step aside before making water.'); return;
-    }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
     if (r){
-      syncToolLayer(r);
+      hapticFeedback('place');
       toast(game.tool==='path'
         ? (wasSame?`${pathColor(game.pathColor).label} path color applied.`:`${pathColor(game.pathColor).label} path laid.`)
         : game.tool==='water'
@@ -202,7 +173,7 @@ function actHere(opts){
     const shadeWarn=canopyShadeSoftWarning(def,x,y);
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
-    if (applyToolAt(x,y,opts)){ syncToolLayer('plant'); toast(plantPlacedMessage(def,x,y,k,shadeWarn,true),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
+    if (applyToolAt(x,y,opts)){ hapticFeedback('place'); toast(plantPlacedMessage(def,x,y,k,shadeWarn,true),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
     else rejectPlacement('No open water here.');
     return;
   }
@@ -218,7 +189,7 @@ function actHere(opts){
       toast('No bulbs under trees or shrubs — their roots claim that ground.'); return; }
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
-    if (applyToolAt(x,y,opts)){ syncToolLayer('bulb');
+    if (applyToolAt(x,y,opts)){ hapticFeedback('place');
       toast(`Tucked in ${def.name} — it shows at first thaw.`); }
     else rejectPlacement('No spot for a bulb here.');
     return;
@@ -239,7 +210,7 @@ function actHere(opts){
   const shadeWarn=canopyShadeSoftWarning(def,x,y);
   const n=game.drift?driftCount(def):1;
   if (n>1){ stampDrift(x,y,n,opts); return; }
-  if (applyToolAt(x,y,opts)){ syncToolLayer('plant');
+  if (applyToolAt(x,y,opts)){ hapticFeedback('place');
     toast(plantPlacedMessage(def,x,y,k,shadeWarn,false),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
   else rejectPlacement('No room here.');
 }
@@ -312,7 +283,6 @@ function placeTerrainAt(x,y){
   if (firepitAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
-  if (game.tool==='water' && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return null;
   if (terr===game.tool){
     if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
       setTile('terrain',k,{k:'water',c:game.waterStyle,t:Date.now()});
@@ -391,20 +361,8 @@ function placePlantAt(x,y,opts){
   // a tree or shrub claims the ground — any bulb tucked under it is lost
   if (isShrubDef(def)) clearBulbsUnderShrub(x,y,np);
   else if (isTreeDef(def)){ const eb=game.bulbs[k];
-    if (eb && !eb.removed){ clearTile('bulbs',k); syncBulbsOut(); } }
+    if (eb && !eb.removed) clearTile('bulbs',k); }
   return 'plant';
-}
-function syncToolLayer(what){
-  if (what==='path'||what==='bed'||what==='water') syncTerrainOut();
-  else if (what==='elevation') syncElevationOut();
-  else if (what==='fence'||what==='gate') syncFencesOut();
-  else if (what==='light') syncLightsOut();
-  else if (what==='firepit') syncFirepitsOut();
-  else if (what==='boulder') syncBouldersOut();
-  else if (what==='building') pushBuildings();
-  else if (what==='bulb') syncBulbsOut();
-  else syncPlantsOut();
-  hapticFeedback('place');
 }
 function stampDrift(cx0,cy0,n,opts){
   const offs=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
@@ -413,23 +371,15 @@ function stampDrift(cx0,cy0,n,opts){
   for (let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0;
     [rest[i],rest[j]]=[rest[j],rest[i]]; }
   const def=plantDef(game.tool,game.toolVar);
-  let placed=0, what=null;
+  let placed=0;
   for (const [ox,oy] of [offs[0],...rest]){
     if (placed>=n) break;
-    const r=applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null);
-    if (r){ placed++; what=r; }
+    if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)) placed++;
   }
-  if (placed){ syncToolLayer(what);
+  if (placed){ hapticFeedback('place');
     toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
   else toast('No room for a drift here.');
 }
-function doSleep(){
-  if (!ENABLE_HUD_SLEEP_BUTTON && !ENABLE_HOUSE_SLEEP){ toast('End Day is tucked away for now.'); return; }
-  game.dayOffset++; game.dirty=true;
-  if (game.mode==='multi') toast('Day advanced here — a shared garden keeps its own clock.');
-  else toast('A new garden day begins.');
-}
-
 /* ---------- fence / structure placement ---------- */
 function fenceDraft(){ return game.fenceDraft=normalizeFenceDraft(game.fenceDraft); }
 function fenceLabel(f){
@@ -441,7 +391,6 @@ function canPlaceFence(x,y){
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
-  if (!d.gate && game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -458,7 +407,6 @@ function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
-  if (game.gameMode!=='design' && x===Math.round(game.px) && y===Math.round(game.py)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -510,7 +458,6 @@ function canPlaceFirepit(x,y,ignoreKey){
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
-    if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
   }
@@ -554,7 +501,6 @@ function canPlaceBoulder(x,y,ignoreKey){
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy)) return false;
     const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
-    if (game.gameMode!=='design' && xx===Math.round(game.px) && yy===Math.round(game.py)) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
   }
@@ -571,18 +517,12 @@ function placeBoulderAt(x,y){
 }
 
 /* ---------- house placement / sizing / paint ---------- */
-function pushHouse(){ game.houseT=Date.now();
-  if (game.mode==='multi') sSet(wkey('house'),{h:game.houses,t:game.houseT},true); }
 function normalizeBuildingStyle(d){
   d=d&&typeof d==='object'?d:{};
   return {status:d.status==='proposed'?'proposed':'existing',label:String(d.label||'House').slice(0,32),
     wall:d.wall||'#8a7a60',roof:d.roof||'#9a5f3a'};
 }
 function buildingStyleDraft(){ return game.buildingStyleDraft=normalizeBuildingStyle(game.buildingStyleDraft); }
-function pushBuildings(){
-  game.buildingsT=Date.now();
-  if (game.mode==='multi') sSet(wkey('buildings'),{b:game.buildings,t:game.buildingsT},true);
-}
 function buildingSignedArea(vs){
   let a=0; for (let i=0;i<vs.length;i++){ const p=vs[i],q=vs[(i+1)%vs.length]; a+=p[0]*q[1]-q[0]*p[1]; }
   return a/2;
@@ -631,15 +571,13 @@ function commitBuildingFootprint(vertices){
   if (!check.ok){ hapticFeedback('invalid'); toast(check.msg,'warn'); return false; }
   const style=buildingStyleDraft();
   addBuilding(Object.assign({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),vertices:vs,t:Date.now()},style));
-  pushBuildings();
   hapticFeedback('success');
   toast(`${style.status==='existing'?'Existing':'Proposed'} building footprint added.`);
   return true;
 }
 function removeBuildingAt(x,y){
   const b=buildingAt(x,y); if (!b) return false;
-  const i=game.buildings.indexOf(b); if (!removeBuildingAtIndex(i)) return false;
-  pushBuildings(); return true;
+  const i=game.buildings.indexOf(b); return removeBuildingAtIndex(i);
 }
 function displacePlants(x,y,w,h){ // a house can't share ground with plants
   let n=0;
@@ -650,7 +588,6 @@ function displacePlants(x,y,w,h){ // a house can't share ground with plants
     const overlaps=isShrubDef(plantDef(p.s,p.v)) && shrubFootprintOverlapsRect(px2,py2,p,x,y,w,h);
     if (inside || overlaps){ clearTile('plants',k); n++; }
   }
-  if (n) syncPlantsOut();
   return n;
 }
 function clearTerrainForHouse(x,y,w,h){
@@ -668,7 +605,6 @@ function clearTerrainForHouse(x,y,w,h){
   };
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
   clear(x+((w-1)>>1),y+h); // keep the doorstep standable
-  if (n){ syncTerrainOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut(); }
   return n;
 }
 // every footprint tile plus the doorstep must sit on the lot — mirrors the
@@ -682,14 +618,10 @@ function placeHouse(x,y){
   const d=game.houseDraft || (game.houseDraft=defaultDraft());
   const nx=Math.max(0,Math.min(GW-d.w,x)), ny=Math.max(0,Math.min(GH-d.h-1,y));
   if (!houseFootprintOnPlot(nx,ny,d.w,d.h)){ rejectPlacement('The lot line cuts through there.'); return; }
-  const ppx=Math.round(game.px), ppy=Math.round(game.py);
-  if (game.gameMode!=='design' && ppx>=nx&&ppx<nx+d.w&&ppy>=ny&&ppy<ny+d.h){
-    rejectPlacement("You're standing in the way."); return; }
   if (game.houses.some(o=>nx<o.x+o.w&&nx+d.w>o.x&&ny<o.y+o.h&&ny+d.h>o.y)
     || game.buildings.some(b=>buildingTiles(b).some(([bx,by])=>bx>=nx&&bx<nx+d.w&&by>=ny&&by<ny+d.h))){
     rejectPlacement('That overlaps another building.'); return; }
   addHouse({x:nx,y:ny,w:d.w,h:d.h,wall:d.wall,roof:d.roof,sizeFt:d.sizeFt});
-  pushHouse();
   const n=displacePlants(nx,ny,d.w,d.h);
   clearTerrainForHouse(nx,ny,d.w,d.h);
   hapticFeedback('success');
@@ -769,7 +701,7 @@ function showPlantCard(p,px2,py2){
     fb.onclick=()=>{ toggleFavorite(ref); fb.textContent=isFavorite(ref)?'Remove from Favorites':'Add to Favorites'; };
     el.appendChild(fb);
   }
-  if (!game.visiting && px2!==undefined && py2!==undefined){
+  if (px2!==undefined && py2!==undefined){
     const rb=document.createElement('button'); rb.type='button'; rb.className='card-action'; rb.textContent='Replace\u2026';
     rb.title=`Replace ${P.name} here or across the garden`;
     rb.onclick=()=>{ close(); openReplacePlant(p,px2,py2); };
@@ -788,7 +720,7 @@ function toast(msg,kind){
 
 
 
-/* tap / click: first tap walks, tap on own tile acts */
+/* tap / click: the tapped tile is acted on directly */
 let sweep=null; // shovel drag-lift in progress: {plants, terr}
 /* the eraser: clears a disc brush (game.brushSize, shared with the paint
    brushes) centered on the tile, removing the layers selected by
@@ -1124,12 +1056,9 @@ function replacePlantInstances(ctx,target){
   const clearedBulbs=new Set();
   withUndo(()=>{ check.valid.forEach(item=>{
     if (item.layer==='plants'&&isShrubDef(plantDef(item.next.s,item.next.v)))
-      clearBulbsUnderShrub(item.x,item.y,item.next,false,clearedBulbs);
+      clearBulbsUnderShrub(item.x,item.y,item.next,clearedBulbs);
     setTile(item.layer,item.key,item.next);
   }); });
-  const layers=new Set(check.valid.map(item=>item.layer));
-  if (layers.has('plants')) syncPlantsOut();
-  if (layers.has('bulbs')||clearedBulbs.size) syncBulbsOut();
   updateReplacementSelection(check.valid,clearedBulbs);
   hapticFeedback('success');
   return Object.assign(check,{changed:check.valid.length});
@@ -1193,9 +1122,6 @@ function clearRectLayers(r){
     if (bo) clearTile('boulders',bo.key);
   }
 }
-function syncSelectionLayers(){
-  syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut();
-}
 function pasteSavedArea(){
   const area=storedArea();
   if (!area || !area.items || !area.items.length){ toast('No saved area yet.'); return; }
@@ -1204,7 +1130,6 @@ function pasteSavedArea(){
   if (!rectFits(target)){ toast('Saved area would run off the plot or into a house.'); return; }
   const items=area.items.map(c=>{ const out=cloneCell(c); out.x=target.x0+c.x; out.y=target.y0+c.y; return out; });
   withUndo(()=>{ clearRectLayers(target); selWrite(items,c=>[c.x,c.y],false); });
-  syncSelectionLayers();
   game.sel=target;
   game.selItems=selectionPayload(game.sel);
   buildToolTray();
@@ -1229,8 +1154,7 @@ function fillSelectionWithPlant(){
       } else if (def) {
         if (oldPlant && !oldPlant.removed){ clearTile('plants',k); clearedPlant=true; }
       }
-      const r=applyToolAt(x,y);
-      if (r){ placed++; what=r; }
+      if (applyToolAt(x,y)) placed++;
       else if (def) {
         if (clearedPlant) setTile('plants',k,oldPlant);
         if (clearedBulb) setTile('bulbs',k,oldBulb);
@@ -1240,7 +1164,7 @@ function fillSelectionWithPlant(){
   });
   game.tool=oldTool; game.toolVar=oldVar; game.drift=oldDrift;
   if (placed){
-    syncToolLayer(what);
+    hapticFeedback('place');
     game.selItems=selectionPayload(game.sel);
     toast(`Filled ${placed} tile${placed>1?'s':''} with ${brush.label}.`);
   } else toast(`No open spots for ${brush.label} in that selection.`);
@@ -1272,15 +1196,6 @@ function selWrite(items, getDst, clearSource){
     if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
     if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
   }
-  const layers=items.reduce((a,c)=>{ if(c.plant)a.p=1; if(c.bulb)a.b=1; if(c.terr)a.t=1; if(c.elev)a.e=1; if(c.fence)a.f=1; if(c.light)a.l=1; if(c.firepit)a.fp=1; if(c.boulder)a.bo=1; return a;},{});
-  if (layers.p) syncPlantsOut();
-  if (layers.b) syncBulbsOut();
-  if (layers.t) syncTerrainOut();
-  if (layers.e) syncElevationOut();
-  if (layers.f) syncFencesOut();
-  if (layers.l) syncLightsOut();
-  if (layers.fp) syncFirepitsOut();
-  if (layers.bo) syncBouldersOut();
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
 // the selection's OWNED items (game.selItems), not whatever is in the rect now
@@ -1331,8 +1246,7 @@ function eraseSelection(){
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
       if (c.boulder) clearTile('boulders',k);
-    }
-    syncPlantsOut(); syncBulbsOut(); syncTerrainOut(); syncElevationOut(); syncFencesOut(); syncLightsOut(); syncFirepitsOut(); syncBouldersOut(); });
+    } });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
@@ -1441,7 +1355,6 @@ function applySnapshot(s){ // restore every layer + refresh UI
   for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
   markGroundChanged({terrain:true});
   markModelChanged(); updateUndoBtn();
-  if (game.mode==='multi') for (const L of GAME_LAYERS) L.sync();
   buildToolTray();
 }
 // undo/redo can walk across a scheme boundary; say so rather than silently
@@ -1472,7 +1385,7 @@ function switchScheme(id){
   if (!activateScheme(id)) return false;
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(`Now showing "${activeSchemeName()}".`);
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
   return true;
 }
 function cycleScheme(dir){
@@ -1499,7 +1412,7 @@ function createScheme(copyCurrent){
   activateScheme(s.id);                       // stashes the outgoing scheme on the way out
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(copyCurrent?`"${s.name}" started from a copy.`:`"${s.name}" started empty.`);
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
   return s;
 }
 function renameScheme(id,name){
@@ -1508,7 +1421,7 @@ function renameScheme(id,name){
   if (!clean || clean===s.name) return false;
   s.name=clean; s.t=Date.now();
   refreshCanvasTools();
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
   return true;
 }
 function deleteScheme(id){
@@ -1524,7 +1437,7 @@ function deleteScheme(id){
   markModelChanged();
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(`Deleted "${name}".`);
-  if (game.mode==='solo'&&hasStorage) saveSolo(true);
+  if (game.inGarden&&hasStorage) saveSolo(true);
   return true;
 }
 function updateUndoBtn(){

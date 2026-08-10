@@ -12,8 +12,8 @@ rendered procedurally on an isometric prairie plot.
 
 The menu opens onto four entries:
 
-- **Design a Garden** — a serious planner for your actual yard. No avatar, no
-  movement: a free pan / pinch / twist camera and direct tap-to-place,
+- **Design a Garden** — a serious planner for your actual yard: a free
+  pan / pinch / twist camera and direct tap-to-place,
   drag-to-paint editing à la Procreate. Size the plot in feet or acres, set it
   up from a short questionnaire (zone, style, natives-only, deer/rabbit), then
   build with the full tool set below.
@@ -23,8 +23,8 @@ The menu opens onto four entries:
   a new brief.
 - **Plant Library** — browse every species with seasonal images, facts, and
   cultivars (you can drop in your own photos).
-- **View Gardens** — open and manage your saved gardens, share one to a file, or
-  **Visit** any of them to stroll it as a cat or dog avatar (read-only).
+- **View Gardens** — open and manage your saved gardens, duplicate one, or share
+  one to a file for a friend to import.
 
 ## Design tools
 

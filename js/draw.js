@@ -3750,57 +3750,6 @@ function shade(col, amt){
   _shadeCache.set(key,out); return out;
 }
 
-/* ---------- character renderer: round-bodied cats & dogs ---------- */
-function drawCritter(ctx, x, y, ch, t, walking, scale){
-  const s = scale||1, coat = ch.coat, dark = ch.coatD;
-  const bob = walking ? Math.sin(t*0.02)*1.6*s : Math.sin(t*0.004)*0.7*s;
-  ctx.save(); ctx.translate(x, y+bob);
-  ctx.scale(s,s);
-  // shadow
-  ctx.fillStyle='rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(0,3,13,5,0,0,7); ctx.fill();
-  // tail
-  ctx.strokeStyle=dark; ctx.lineWidth=4; ctx.lineCap='round';
-  ctx.beginPath();
-  if (ch.species==='cat'){ ctx.moveTo(8,-6);
-    ctx.quadraticCurveTo(17,-10,15,-22+Math.sin(t*0.005)*2); }
-  else { ctx.moveTo(9,-7); ctx.quadraticCurveTo(16,-12+Math.sin(t*0.012)*3,13,-16); }
-  ctx.stroke();
-  // body
-  ctx.fillStyle=coat;
-  ctx.beginPath(); ctx.ellipse(0,-9,11,10,0,0,7); ctx.fill();
-  if (ch.mark==='tuxedo'){ ctx.fillStyle='#f3ecdd';
-    ctx.beginPath(); ctx.ellipse(0,-7,5.5,7,0,0,7); ctx.fill(); }
-  // legs hint
-  ctx.fillStyle=dark;
-  const lp = walking? Math.sin(t*0.02)*2 : 0;
-  ctx.fillRect(-7,-2+lp*0.4,3.4,4); ctx.fillRect(3.6,-2-lp*0.4,3.4,4);
-  // head
-  ctx.fillStyle=coat;
-  ctx.beginPath(); ctx.arc(0,-22,8.6,0,7); ctx.fill();
-  if (ch.mark==='patch'){ ctx.fillStyle=dark;
-    ctx.beginPath(); ctx.arc(-3.4,-24,3.6,0,7); ctx.fill(); }
-  // ears
-  ctx.fillStyle=coat;
-  if (ch.species==='cat'){
-    ctx.beginPath(); ctx.moveTo(-7,-26); ctx.lineTo(-5,-34); ctx.lineTo(-1.5,-28); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(7,-26); ctx.lineTo(5,-34); ctx.lineTo(1.5,-28); ctx.closePath(); ctx.fill();
-    ctx.fillStyle=dark;
-    ctx.beginPath(); ctx.moveTo(-6,-27.5); ctx.lineTo(-5,-31.5); ctx.lineTo(-3,-28.5); ctx.closePath(); ctx.fill();
-  } else { // floppy dog ears
-    ctx.fillStyle=dark;
-    ctx.beginPath(); ctx.ellipse(-8,-22,3.2,6,0.4,0,7); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(8,-22,3.2,6,-0.4,0,7); ctx.fill();
-  }
-  // face
-  ctx.fillStyle='#19120f';
-  ctx.beginPath(); ctx.arc(-3,-23,1.2,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(3,-23,1.2,0,7); ctx.fill();
-  if (ch.species==='dog'){ ctx.beginPath(); ctx.ellipse(0,-19.5,2.2,1.7,0,0,7); ctx.fill(); }
-  else { ctx.beginPath(); ctx.moveTo(-1.4,-20); ctx.lineTo(1.4,-20); ctx.lineTo(0,-18.6); ctx.closePath(); ctx.fill(); }
-  ctx.restore();
-}
-
 /* ---------- building footprints ----------
    The planning mass is translucent and depth-sliced by tile: its footprint
    stays unmistakable without hiding planting context in front of or behind a

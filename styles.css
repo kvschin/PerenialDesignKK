@@ -270,7 +270,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .btn small{display:block;font-weight:400;font-size:12px;opacity:.75;margin-top:2px}
 .btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 
-/* ---------- panels (multiplayer / creator) ---------- */
+/* ---------- panels ---------- */
 .panel{background:var(--surface-dialog);border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);
   padding:var(--space-5);max-width:560px;width:100%}
 .panel h2{font-family:'Fraunces',serif;font-weight:600;font-size:28px;line-height:1.08;margin-bottom:6px}
@@ -317,8 +317,6 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 }
 .row{display:flex;gap:var(--space-3);flex-wrap:wrap}
 .row .btn{flex:1;min-width:130px}
-.code-display{font-family:'Fraunces',serif;font-size:40px;letter-spacing:.3em;text-align:center;
-  color:var(--bronze);padding:10px 0 4px}
 .note{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:12px}
 .back-link{min-height:40px;margin-top:12px;padding:8px 2px;background:none;border:none;color:var(--text-muted);font-size:13px;text-decoration:underline}
 .back-link:hover{color:var(--seedhead)}
@@ -416,9 +414,6 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .world-del:active{transform:translateY(1px)}
 .world-del .ui-icon{width:15px;height:15px}
 .world-del:hover{border-color:var(--action-danger);background:rgba(126,42,35,.60)}
-.world-visit{background:none;border:1px solid var(--border-control);color:var(--text-primary);
-  font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
-.world-visit:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 .world-dup{background:var(--surface-control);border:1px solid var(--border-control);color:var(--text-primary);
   font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
 .world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
@@ -470,7 +465,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .world-row{flex-wrap:wrap;align-items:center}
   .world-row>span{min-width:calc(100% - var(--thumb-w) - 10px)!important}
   .world-dup{margin-left:calc(var(--thumb-w) + 10px)}
-  .world-dup,.world-visit,.world-del{min-height:36px}
+  .world-dup,.world-del{min-height:36px}
 }
 .handedness-preference{display:none}
 @media(max-width:640px), (pointer:coarse){
@@ -485,26 +480,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 }
 @keyframes railEnterRight{from{opacity:.35;transform:translateX(12px)}to{opacity:1;transform:none}}
 @keyframes railEnterLeft{from{opacity:.35;transform:translateX(-12px)}to{opacity:1;transform:none}}
-/* Visit Gardens: a read-only stroll hides all the editing chrome (the left
-   tool rail, the catalog/brush tray, the mobile act button, and the Select
-   tool — Rotate and Layers stay, they only change the view). */
-body.visiting #canvasTools, body.visiting .hud-bottom, body.visiting .library-launcher, body.visiting #btnAct,
-body.visiting #zoomPill, body.visiting #selectionActions{display:none!important}
-body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important}
-
-/* ---------- character creator ---------- */
-.creator-grid{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
-.creator-preview{width:170px;height:190px;background:linear-gradient(#4a3a50,#2c4030);border-radius:var(--radius-panel);
-  border:1.5px solid var(--border-subtle);flex-shrink:0;margin:0 auto}
-.creator-opts{flex:1;min-width:240px}
 .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
 .chip{padding:8px 14px;border-radius:var(--radius-control);border:1.5px solid var(--border-control);background:var(--surface-input);
   color:var(--text-primary);font-size:14px;font-weight:500;
   transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .chip:active{transform:translateY(1px)}
 .chip.sel{background:var(--bronze);border-color:var(--bronze);color:var(--ink)}
-.swatch{width:34px;height:34px;border-radius:50%;border:2px solid var(--border-control);padding:0}
-.swatch.sel{border-color:var(--seedhead);box-shadow:0 0 0 2px var(--bronze)}
 
 /* ---------- HUD ---------- */
 /* absolute (not fixed) so the HUD lives in the full-height document and its
@@ -600,7 +581,7 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .season-box.fast-forwarding{border-color:#ffd39e;background:rgba(201,127,63,.18)}
 .season-box.fast-forwarding::after{opacity:1;--hold-sweep:100%}
 .time-state{display:none;color:#fff3df;font-weight:700}
-.season-box.fast-forwarding #seasonClkCal,.season-box.fast-forwarding #seasonPhase{display:none!important}
+.season-box.fast-forwarding #seasonPhase{display:none!important}
 .season-box.fast-forwarding .time-state{display:inline}
 .hud-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0}
 .pill{pointer-events:auto;padding:2px;font-size:12px;color:var(--seedhead)}
@@ -617,9 +598,6 @@ body.visiting #btnSelectTool, body.visiting #btnRulerTool{display:none!important
 .pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
 .pill.iconbar .ic-emoji{display:none;font-size:15px}
 .pill.iconbar .bar-div{width:1px;align-self:stretch;background:rgba(var(--ink-rgb),.2);margin:2px 4px}
-#btnSleep,#btnPause{background:none;border:1px solid rgba(var(--ink-rgb),.35);
-  color:var(--text-primary);font-size:11px;padding:4px 10px;border-radius:var(--radius-control);white-space:nowrap}
-#btnSleep:hover,#btnPause:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
 /* garden direction labels: cardinal marks attach to the visible plot edge,
    replacing the old round compass so the tool rail has more breathing room. */
 #compassEdges{position:absolute;inset:0;pointer-events:none;z-index:6}
@@ -707,7 +685,6 @@ canvas.layer-eye{display:block}
   border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control)}
 .preview-toggle>span{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--bronze);font-weight:700}
 .preview-toggle small{font-size:11px;line-height:1.35;color:var(--text-muted)}
-#playerList{font-size:12px;line-height:1.6}
 .hud-bottom{--catalog-width:clamp(760px,72vw,1440px);position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:50%;z-index:10;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:100%;padding:0 var(--space-2)}
 #sheetHandle{display:flex;align-items:center;gap:8px;justify-content:center;pointer-events:auto;touch-action:none;
   width:var(--catalog-width);max-width:calc(100vw - 24px);height:44px;min-height:44px;box-sizing:border-box;padding:3px 4px 3px 12px;
@@ -1074,7 +1051,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .menu-action strong{font-size:20px}
   .menu-action small{font-size:12.5px}
   .menu-foot{font-size:10.5px}
-  .creator-grid{flex-direction:column;align-items:center}
   .season-dial{padding:7px 9px;gap:9px;align-items:center}
   .season-box{width:132px;min-width:84px;padding:3px 9px}
   .season-box .season-name{font-size:14.5px}
@@ -1097,7 +1073,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .season-box{height:44px;min-height:44px}
   .pill.iconbar{min-height:44px;align-items:center}
   .pill.iconbar button{min-width:44px;min-height:44px;justify-content:center}
-  #btnSleep,#btnPause{width:100%;padding:5px 8px;font-size:11px;border-color:rgba(var(--ink-rgb),.28)}
   /* tools have to clear the bottom tray, so compact the rail: smaller
      icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
   #canvasTools{--rail-top:150px;left:8px;padding:3px;gap:2px}
