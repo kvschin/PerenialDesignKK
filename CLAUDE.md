@@ -896,6 +896,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     else on its tile. Pets erase as **Landscape**, move/rotate/copy in
     selections, and eyedrop with Pick — though Pick prefers a plant sharing the
     tile, since the planting is the work and the pet is the ornament.
+    **Tap-only** (`brush:false`), alone among the placers: a drag laid 24
+    identical cats across the plot, which nobody wants and which is also the
+    only route to a measurable cost. Measured on a 562-plant stress garden,
+    **registering the layer is free** — `snapshotState` (the per-pointerdown
+    clone, the hot path) 115.0µs without it vs 115.5µs with it and zero pets,
+    `buildScene` unchanged at 400µs, and 73 chars of save against a 2.4M budget.
+    What is NOT free is drawing them: a pet is deliberately **not
+    sprite-cached** the way plants are, so it redraws procedurally every frame
+    at ~37µs (measured as a frame delta; 18µs for the draw calls alone, the
+    rest being its scene record, cull and `screenOf`). One or two pets cost
+    0.04ms/frame and 200 would cost 7.4ms — which tap-only puts out of casual
+    reach. If a reason ever appears to allow many, sprite-cache them first.
     **Deliberately absent from the client-facing documents**: no line in
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a

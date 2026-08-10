@@ -2336,6 +2336,7 @@ test('a garden pet places as one-tile decoration, erases as landscape, and is ey
   assertEqual(petAt(5, 5).coat, 'cocoa', 'coat saved by id, not hex');
   assertEqual(petAt(5, 5).mark, 'tuxedo', 'marking saved');
   assert(!petAt(6, 5), 'a pet claims exactly one tile — no footprint');
+  assert(!isBrushTool('pet'), 'tap-only: a drag must not lay a row of identical pets');
 
   // a pet claims NOTHING: adding one must never change what the design takes
   game.tool = forb; game.toolVar = null;

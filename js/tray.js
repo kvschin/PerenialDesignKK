@@ -76,7 +76,11 @@ const TOOLS={
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
   boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
-  pet:     {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placePetAt(x,y)},
+  // brush:false — tap-only on purpose. Every other placer drags out a run,
+  // but a drag laid 24 identical cats across the plot, which nobody wants and
+  // which is the only way to reach a measurable frame cost (a pet is not
+  // sprite-cached, so it redraws procedurally every frame at ~37us each).
+  pet:     {layer:'landscape', brush:false, placement:true,  paints:false, material:false, apply:(x,y,o)=>placePetAt(x,y)},
 };
 // plant tools are keyed by species id; their layer + placer follow the plant type
 const TOOL_PLANT={

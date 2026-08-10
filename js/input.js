@@ -311,7 +311,6 @@ function finishToolDrag(){
     else if (toolDrag.what==='light') msg=`Placed ${changed} ${lightLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='firepit') msg=`Placed ${changed} ${firepitLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='boulder') msg=`Placed ${changed} ${boulderLabel().toLowerCase()}${changed>1?'s':''}.`;
-    else if (toolDrag.what==='pet') msg=changed>1?`${changed} pets settle in.`:`A ${petLabel()} settles in.`;
     else msg=`Planted ${changed} - ${def.name}.`;
     toast(msg);
   } else toast('Nothing would take along that line.');
