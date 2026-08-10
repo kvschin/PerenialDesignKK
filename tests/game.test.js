@@ -5,7 +5,7 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
@@ -2324,6 +2324,99 @@ test('planting plan includes boulders in the key', () => {
     document.getElementById = oldGet;
   }
   assert(labels.some(t => t.includes('BOULDER - stone feature (1)')), 'plan key lists boulders');
+});
+
+test('a garden pet places as one-tile decoration, erases as landscape, and is eyedroppable', () => {
+  setup(13, 13);
+  const forb = firstOfType('forb');
+  game.tool = 'pet';
+  game.petDraft = { species: 'dog', coat: 'cocoa', mark: 'tuxedo' };
+  assertEqual(applyToolAt(5, 5), 'pet', 'pet placed');
+  assertEqual(petAt(5, 5).species, 'dog', 'species saved');
+  assertEqual(petAt(5, 5).coat, 'cocoa', 'coat saved by id, not hex');
+  assertEqual(petAt(5, 5).mark, 'tuxedo', 'marking saved');
+  assert(!petAt(6, 5), 'a pet claims exactly one tile — no footprint');
+
+  // a pet claims NOTHING: adding one must never change what the design takes
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), 'plant', 'a plant goes in right where the pet sits');
+  assert(petAt(5, 5), 'and the pet stays put');
+  game.tool = 'pet';
+  assertEqual(applyToolAt(7, 7), 'pet', 'a pet settles on bare ground');
+  game.tool = forb;
+  assertEqual(applyToolAt(7, 7), 'plant', 'planting is unaffected either way round');
+  game.tool = 'water';
+  assertEqual(applyToolAt(5, 5), null, 'water still refuses to flood a pet');
+
+  // a gate is a fine place for a cat to sit; a solid fence run is not
+  game.tool = 'fence'; game.fenceDraft = { style: 'wood', height: 4, gate: false };
+  applyToolAt(9, 9);
+  game.fenceDraft = { style: 'wood', height: 4, gate: true };
+  applyToolAt(10, 9);
+  game.tool = 'pet';
+  assertEqual(applyToolAt(9, 9), null, 'a solid fence run refuses a pet');
+  assertEqual(applyToolAt(10, 9), 'pet', 'a gate opening takes one');
+
+  // Pick prefers the planting over the ornament, so a cat lying in a drift
+  // still eyedrops the plant; a pet on its own is sampled directly.
+  game.tool = 'pick';
+  pickAt(5, 5);
+  assertEqual(game.tool, forb, 'eyedropper prefers the plant sharing the tile');
+  game.petDraft = { species: 'cat', coat: 'birch', mark: 'solid' };
+  game.tool = 'pet'; applyToolAt(3, 11);
+  game.petDraft = { species: 'dog', coat: 'smoke', mark: 'solid' };
+  game.tool = 'pick';
+  pickAt(3, 11);
+  assertEqual(game.tool, 'pet', 'eyedropper arms the pet tool');
+  assertEqual(game.petDraft.species, 'cat', 'eyedropper copies the species');
+  assertEqual(game.petDraft.coat, 'birch', 'eyedropper copies the coat');
+  game.petDraft = { species: 'dog', coat: 'cocoa', mark: 'tuxedo' };
+
+  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0, firepit: 0, boulder: 0, pet: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(5, 5, counts);
+  assertEqual(counts.pet, 1, 'Landscape erase counts the pet');
+  assert(!petAt(5, 5), 'pet removed');
+});
+
+test('pets ride along in saves and selections but never reach the plan or the planting list', () => {
+  setup(13, 13);
+  game.pets['4,4'] = { species: 'cat', coat: 'smoke', mark: 'patch', t: 1 };
+  const grass = firstOfType('grass');
+  game.plants['4,5'] = { s: grass, d: 0, t: 1 };
+
+  // the save blob carries them: GAME_LAYERS is the single source of truth
+  assert(GAME_LAYERS.some(L => L.k === 'pets'), 'pets are a registered layer');
+  const blob = buildSaveBlob();
+  assert(blob.pets && blob.pets['4,4'], 'the pet is in the save blob');
+
+  // ...but the client-facing documents do not
+  assert(!exportRows().some(r => /cat|pet/i.test(r.name)), 'the planting list has no pets');
+  const oldGet = document.getElementById;
+  const labels = [];
+  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
+    get(o, p){ return p in o ? o[p] : () => {}; },
+    set(o, p, v){ o[p] = v; return true; }
+  });
+  document.getElementById = id => id === 'planCanvas'
+    ? { getContext(){ return ctx; }, style: {} }
+    : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  assert(!labels.some(t => /pet|cat|dog/i.test(t)), 'the design plan never draws a pet');
+
+  // selections carry them like any other placed object
+  game.sel = { x0: 4, y0: 4, x1: 5, y1: 5 };
+  game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.some(c => c.pet), 'the marquee owns the pet');
+  assert(commitSelectionOffset(2, 0, false), 'the selection moves');
+  assert(petAt(6, 4), 'the pet moved with it');
+  assert(!petAt(4, 4), 'and left its old tile');
+
+  // and undo restores it, because pets are in GAME_LAYERS
+  withUndo(() => { clearTile('pets', '6,4'); });
+  assert(!petAt(6, 4), 'pet cleared');
+  doUndo();
+  assert(petAt(6, 4), 'undo brings the pet back');
 });
 
 test('water plants only plant into open water tiles', () => {

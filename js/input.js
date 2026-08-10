@@ -278,7 +278,7 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0};
+    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -311,6 +311,7 @@ function finishToolDrag(){
     else if (toolDrag.what==='light') msg=`Placed ${changed} ${lightLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='firepit') msg=`Placed ${changed} ${firepitLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='boulder') msg=`Placed ${changed} ${boulderLabel().toLowerCase()}${changed>1?'s':''}.`;
+    else if (toolDrag.what==='pet') msg=changed>1?`${changed} pets settle in.`:`A ${petLabel()} settles in.`;
     else msg=`Planted ${changed} - ${def.name}.`;
     toast(msg);
   } else toast('Nothing would take along that line.');

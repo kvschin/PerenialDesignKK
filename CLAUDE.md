@@ -29,7 +29,9 @@ movement keys, and `game.visiting` with its `body.visiting` chrome-hiding CSS.
 **Multiplayer went next (Aug 2026)**: the shared-garden lobby and code screen,
 `hostWorld`/`joinWorld`/`pollWorld`/`mergeMap`, the eight `sync*Out` flushes and
 `syncToolLayer`, `pushHouse`/`pushBuildings`, presence, `game.code`/`playerId`,
-and the `shared` flag on `sGet`/`sSet`. It had never worked across devices —
+and the `shared` flag on `sGet`/`sSet`. **The cat and dog came back as
+decoration** — see `game.pets` in §12a; the art is the old `drawCritter`
+resolved to a resting pose, and that is all that survives of the avatar. It had never worked across devices —
 only between tabs of one browser — and it was the reason `GAME_LAYERS` carried
 a `sync` hook, every gesture ended in a fan-out of eight flushes, and
 `game.mode` was a string. **`game.mode` is now `game.inGarden`, a boolean**: the
@@ -710,11 +712,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     space **at paint time** — so that variant is a rendering bug wearing an
     optimisation's clothes, and the tests assert the key carries the device
     size.
-12. **Movement / actions** — `tryMove`/`stepMove` (tile-to-tile lerp; diagonal
-    steps take longer), `actHere` (sleep at door, lay/lift terrain, plant or
-    lift on current tile), `placeHouse`/`applyHouseSize`/`paintHouse` (the
-    House tool: hover draws an RTS-style ghost — tinted footprint, red when
-    the player stands in it, translucent house via `drawHouse` override —
+12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
+    `game.actX`/`actY` names — the last one a tap or the E key addressed),
+    `placeHouse`/`applyHouseSize`/`paintHouse` (the
+    House tool: hover draws an RTS-style ghost — tinted footprint, red where it
+    would overlap another house, translucent house via `drawHouse` override —
     and click/tap places; placing or resizing onto planted tiles
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
@@ -873,6 +875,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     movement keys went with the avatar; the keyboard now carries E (act on the
     last-addressed tile), R (rotate), Space-hold (pan), +/- (zoom), undo/redo,
     and the scheme keys.
+12a. **Garden pets** — the cat and dog, back as ornament after the avatar was
+    retired. `game.pets` is an ordinary keyed layer (`"x,y"` ->
+    `{species,coat,mark,t}`) registered in `GAME_LAYERS`, so undo, save/load and
+    schemes-adjacent plumbing come for free; `LAYER_CACHES` classifies it
+    `{scene:1}` — one sprite in the depth pass, no ground bake, no shade map.
+    `PET_SPECIES`/`PET_COATS`/`PET_MARKS` + `normalizePetDraft` (core.js) are the
+    data; `game.petDraft` is what the **Decor** tray arms, and every chip in that
+    tray previews the real `drawPet` so you pick by looking. `drawPet` (draw.js)
+    is the recovered `drawCritter` with its animation **folded to the t=0
+    resting pose**: a breathing pet would have to join `hasTransientGardenWork`,
+    which keeps the whole garden repainting forever for a 0.7px bob.
+    **A pet is the one placeable thing that claims nothing.** `canPlacePet`
+    refuses only water, hardscape, the house/door and off-lot ground — it does
+    NOT reserve its tile, so a cat may sit in the middle of a drift or under a
+    shrub, and adding one can never change what the design will take. The
+    asymmetry is deliberate: planting over a pet is fine, flooding it is not
+    (`placeTerrainAt` refuses water on a pet tile, and a house clears one the
+    way it clears terrain). It sorts at `viewDepth+0.42`, in front of everything
+    else on its tile. Pets erase as **Landscape**, move/rotate/copy in
+    selections, and eyedrop with Pick — though Pick prefers a plant sharing the
+    tile, since the planting is the work and the pet is the ornament.
+    **Deliberately absent from the client-facing documents**: no line in
+    `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
+    `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
+    test asserts it.
 13. **Storage** — `sGet`/`sSet` over localStorage. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
@@ -1048,7 +1075,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     unshrinkable 100% basis overflows the gutters, so it is `flex:1 1 auto`. The
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
-    are Ground, Grade, Hardscape, Lighting, and Site. `#toolTray` is the primary
+    are Ground, Grade, Hardscape, Lighting, Decor, and Site. `#toolTray` is the primary
     scroller so the header, discovery controls, and footer stay visible; below
     `max-height:700px` the control stack becomes a scroller too, because
     `#sheetCatalog` is `overflow:hidden` and used to simply swallow the overflow
@@ -1098,7 +1125,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rectangular, and oblong footprints, block planting, render through
     `drawBoulder`, and export to the design plan.
     Fire pits and boulders erase as Landscape, move/rotate/copy in selections,
-    and eyedrop with Pick. The House tab
+    and eyedrop with Pick. The **Decor** tab holds **garden pets** (§12a). The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)

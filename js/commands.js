@@ -94,6 +94,12 @@ function actHere(opts){
     else rejectPlacement('Boulder needs clear dry ground.');
     return;
   }
+  if (game.tool==='pet'){
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`A ${petLabel()} settles in.`); }
+    else rejectPlacement('Not a spot a pet would settle — try clear ground.');
+    return;
+  }
   if (isElevationTool(game.tool)){
     const before=elevationAt(x,y);
     if (stampBrushAt(x,y)){
@@ -112,7 +118,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -123,6 +129,7 @@ function actHere(opts){
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
+    if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
@@ -136,6 +143,7 @@ function actHere(opts){
     if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
     if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
+    if (game.tool==='water' && petAt(x,y)){ toast('Move your pet before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
@@ -280,6 +288,7 @@ function placeTerrainAt(x,y){
   if (shrubAt(x,y)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
+  if (game.tool==='water' && petAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
@@ -424,6 +433,35 @@ function lightDraft(){ return game.lightDraft=normalizeLightDraft(game.lightDraf
 function lightLabel(l){
   const d=l||lightDraft();
   return `${lightTone(d.tone).label} ${lightType(d.type).label}`;
+}
+/* Garden pets. A pet is pure ornament and the one placeable thing that claims
+   NOTHING: no footprint, no shade, no spacing, no line on the plan or the
+   planting list, and — deliberately — no hold on its own tile. Planting is
+   unaffected by where the cat is sitting, which is the whole point: adding a
+   pet can never change what the design will take. The rule is only "somewhere
+   it could plausibly sit" — on the lot, out of the water, off the hardscape.
+   It refuses a solid fence run but is happy in a gate opening, hence
+   `fenceBlocks` rather than `fenceAt`, and it may curl up under a shrub or in
+   the middle of a drift. */
+function canPlacePet(x,y){
+  if (!onPlot(x,y)) return false;
+  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
+  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y);
+}
+function placePetAt(x,y){
+  if (!canPlacePet(x,y)) return null;
+  const d=normalizePetDraft(petDraft()), k=`${x},${y}`;
+  const cur=petAt(x,y);
+  if (cur && cur.species===d.species && cur.coat===d.coat && cur.mark===d.mark) return null;
+  setTile('pets',k,Object.assign({},d,{t:Date.now()}));
+  return 'pet';
+}
+function petAt(x,y){ const p=game.pets&&game.pets[`${x},${y}`]; return (p&&!p.removed)?p:null; }
+function petDraft(){ return game.petDraft=normalizePetDraft(game.petDraft); }
+function petLabel(p){
+  const d=normalizePetDraft(p||petDraft());
+  const mark=d.mark==='solid' ? '' : `${petMark(d.mark).label.toLowerCase()} `;
+  return `${petCoat(d.coat).label.toLowerCase()} ${mark}${petSpecies(d.species).label.toLowerCase()}`;
 }
 function firepitShapeName(f){
   const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
@@ -602,6 +640,7 @@ function clearTerrainForHouse(x,y,w,h){
     if (fp){ clearTile('firepits',fp.key); n++; }
     const bo=boulderAt(xx,yy);
     if (bo){ clearTile('boulders',bo.key); n++; }
+    if (petAt(xx,yy)){ clearTile('pets',k); n++; }
   };
   for (let yy=y;yy<y+h;yy++) for (let xx=x;xx<x+w;xx++) clear(xx,yy);
   clear(x+((w-1)>>1),y+h); // keep the doorstep standable
@@ -759,6 +798,7 @@ function eraseBrush(cx,cy,counts){
       if (fp){ clearTile('firepits',fp.key); counts.firepit=(counts.firepit||0)+1; }
       const bo=boulderAt(x,y);
       if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }
+      if (petAt(x,y)){ clearTile('pets',k); counts.pet=(counts.pet||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -786,7 +826,7 @@ function selValidDest(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !isDo
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
 function selectionEmptySets(){
   return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
-    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set()};
+    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set()};
 }
 function selectionSourceSets(items,copy){
   const out=selectionEmptySets();
@@ -801,12 +841,13 @@ function selectionSourceSets(items,copy){
     if (c.light) out.lights.add(k);
     if (c.firepit) out.firepits.add(k);
     if (c.boulder) out.boulders.add(k);
+    if (c.pet) out.pets.add(k);
   });
   return out;
 }
 function selectionDestMaps(items,dst){
   const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
-    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map()};
+    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map()};
   items.forEach(c=>{
     const [x,y]=dst(c), k=`${x},${y}`;
     if (c.plant) out.plants.set(k,Object.assign({x,y},c.plant));
@@ -817,6 +858,7 @@ function selectionDestMaps(items,dst){
     if (c.light) out.lights.set(k,c.light);
     if (c.firepit) out.firepits.set(k,Object.assign({x,y},c.firepit));
     if (c.boulder) out.boulders.set(k,Object.assign({x,y},c.boulder));
+    if (c.pet) out.pets.set(k,c.pet);
   });
   return out;
 }
@@ -942,7 +984,7 @@ function selectionPayload(r){
   const items=[];
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k];
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k];
     const cell={x,y};
     if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
     if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
@@ -952,7 +994,8 @@ function selectionPayload(r){
     if (l && !l.removed) cell.light=JSON.parse(JSON.stringify(l));
     if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
     if (bo && !bo.removed) cell.boulder=JSON.parse(JSON.stringify(bo));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder) items.push(cell);
+    if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet) items.push(cell);
   }
   return items;
 }
@@ -1120,6 +1163,7 @@ function clearRectLayers(r){
     if (fp) clearTile('firepits',fp.key);
     const bo=boulderAt(x,y);
     if (bo) clearTile('boulders',bo.key);
+    if (petAt(x,y)) clearTile('pets',k);
   }
 }
 function pasteSavedArea(){
@@ -1183,6 +1227,7 @@ function selWrite(items, getDst, clearSource){
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
       if (c.boulder) clearTile('boulders',k);
+      if (c.pet)   clearTile('pets',k);
     }
   }
   const now=Date.now();
@@ -1195,6 +1240,7 @@ function selWrite(items, getDst, clearSource){
     if (c.light) setTile('lights',k,Object.assign({},c.light,{t:now}));
     if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
     if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
+    if (c.pet)   setTile('pets',k,Object.assign({},c.pet,{t:now}));
   }
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
@@ -1246,6 +1292,7 @@ function eraseSelection(){
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
       if (c.boulder) clearTile('boulders',k);
+      if (c.pet)   clearTile('pets',k);
     } });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();

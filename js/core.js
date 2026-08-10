@@ -383,6 +383,37 @@ function boulderTileSize(b){
   return {w:Math.max(1,spec.w||1), h:Math.max(1,spec.h||1), spec};
 }
 
+/* ---------- garden pets: a cat or dog as ornament ----------
+   All that survives of the retired avatar. A pet is a one-tile decoration with
+   no behaviour: it never moves, casts no shade, and is deliberately left OFF
+   the design plan and the planting list, which are the documents a client
+   sees. Coats are stored by ID (not hex) so the palette can be retuned without
+   rewriting saves — same contract as fence styles and path colours. */
+const PET_SPECIES = [
+  {id:'cat', label:'Cat'},
+  {id:'dog', label:'Dog'},
+];
+const PET_COATS = [
+  {id:'marmalade', label:'Marmalade', c:'#d98a4a', d:'#a35a2e'},
+  {id:'charcoal',  label:'Charcoal',  c:'#4a4a52', d:'#2e2e34'},
+  {id:'cream',     label:'Cream',     c:'#e8d9b8', d:'#c2a87e'},
+  {id:'cocoa',     label:'Cocoa',     c:'#7a5236', d:'#54371f'},
+  {id:'smoke',     label:'Smoke',     c:'#9a9aa2', d:'#6e6e78'},
+  {id:'birch',     label:'Birch',     c:'#f0ece2', d:'#c9c2b0'},
+];
+const PET_MARKS = [
+  {id:'solid',  label:'Solid'},
+  {id:'tuxedo', label:'Tuxedo'},
+  {id:'patch',  label:'Eye patch'},
+];
+function petSpecies(id){ return PET_SPECIES.find(s=>s.id===id)||PET_SPECIES[0]; }
+function petCoat(id){ return PET_COATS.find(c=>c.id===id)||PET_COATS[0]; }
+function petMark(id){ return PET_MARKS.find(m=>m.id===id)||PET_MARKS[0]; }
+function normalizePetDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  return {species:petSpecies(d.species).id, coat:petCoat(d.coat).id, mark:petMark(d.mark).id};
+}
+
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,
    which index.html loads before this file. */
 

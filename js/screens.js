@@ -88,8 +88,8 @@ function startDailyChallenge(){
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.rot=0; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.freePlanting=false;
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
   game.houses=[]; game.houseDraft=defaultDraft();
   markGroundChanged({terrain:true});
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
@@ -336,6 +336,7 @@ function enterGarden(){
   if (!game.lights) game.lights={};
   if (!game.firepits) game.firepits={};
   if (!game.boulders) game.boulders={};
+  if (!game.pets) game.pets={};
   if (!game.buildings) game.buildings=[];
   ensureSchemes();   // every garden runs on at least one planting scheme
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
@@ -345,6 +346,7 @@ function enterGarden(){
   game.lightDraft=normalizeLightDraft(game.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(game.firepitDraft);
   game.boulderDraft=normalizeBoulderDraft(game.boulderDraft);
+  game.petDraft=normalizePetDraft(game.petDraft);
   game.edgeStyle=edgeStyleId(game.edgeStyle);
   game.bedStyle=bedStyleId(game.bedStyle);
   game.actX=SPAWNX; game.actY=SPAWNY;   // free camera centred on the plot
@@ -650,9 +652,9 @@ function openPlotScreen(){
       game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
       game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.freePlanting=false;
+      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.freePlanting=false;
       game.schemes=[]; game.schemeActive=null;   // a new plot starts with one (unnamed-by-default) planting scheme
-      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'};
+      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       // a blank plot: no house, nothing planted, the whole site yours to draw
@@ -1334,7 +1336,7 @@ function perfBench(opts){
   setWorldSize(gw,gh);
   game.worldId='perfbench'; game.worldName='perfBench scratch';
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={};
-  game.fences={}; game.lights={}; game.firepits={}; game.boulders={};
+  game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={};
   game.houses=[]; game.buildings=[]; game.schemes=[]; game.schemeActive=null;
   game.rot=0; game.edgeStyle=edge; game.bedStyle='soil'; game.pathColor='warm';
   const keys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);

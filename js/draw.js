@@ -3750,6 +3750,59 @@ function shade(col, amt){
   _shadeCache.set(key,out); return out;
 }
 
+/* ---------- garden pets: round-bodied cats & dogs ----------
+   Recovered from the retired avatar renderer, with the animation resolved to
+   its resting pose. The old one took (t, walking) and breathed; a decoration
+   that breathed would have to be added to hasTransientGardenWork, which keeps
+   the whole garden repainting forever for a 0.7px bob. So the sine terms are
+   folded to their t=0 values and this draws one deterministic sprite. */
+function drawPet(ctx, x, y, p, scale){
+  const s=scale||1, C=petCoat(p&&p.coat), coat=C.c, dark=C.d;
+  const species=petSpecies(p&&p.species).id, mark=petMark(p&&p.mark).id;
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(0,3,13,5,0,0,7); ctx.fill();
+  // tail — a cat's stands up, a dog's curls
+  ctx.strokeStyle=dark; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath();
+  if (species==='cat'){ ctx.moveTo(8,-6); ctx.quadraticCurveTo(17,-10,15,-22); }
+  else { ctx.moveTo(9,-7); ctx.quadraticCurveTo(16,-12,13,-16); }
+  ctx.stroke();
+  // body
+  ctx.fillStyle=coat;
+  ctx.beginPath(); ctx.ellipse(0,-9,11,10,0,0,7); ctx.fill();
+  if (mark==='tuxedo'){ ctx.fillStyle='#f3ecdd';
+    ctx.beginPath(); ctx.ellipse(0,-7,5.5,7,0,0,7); ctx.fill(); }
+  // legs hint
+  ctx.fillStyle=dark;
+  ctx.fillRect(-7,-2,3.4,4); ctx.fillRect(3.6,-2,3.4,4);
+  // head
+  ctx.fillStyle=coat;
+  ctx.beginPath(); ctx.arc(0,-22,8.6,0,7); ctx.fill();
+  if (mark==='patch'){ ctx.fillStyle=dark;
+    ctx.beginPath(); ctx.arc(-3.4,-24,3.6,0,7); ctx.fill(); }
+  // ears
+  ctx.fillStyle=coat;
+  if (species==='cat'){
+    ctx.beginPath(); ctx.moveTo(-7,-26); ctx.lineTo(-5,-34); ctx.lineTo(-1.5,-28); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(7,-26); ctx.lineTo(5,-34); ctx.lineTo(1.5,-28); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=dark;
+    ctx.beginPath(); ctx.moveTo(-6,-27.5); ctx.lineTo(-5,-31.5); ctx.lineTo(-3,-28.5); ctx.closePath(); ctx.fill();
+  } else { // floppy dog ears
+    ctx.fillStyle=dark;
+    ctx.beginPath(); ctx.ellipse(-8,-22,3.2,6,0.4,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(8,-22,3.2,6,-0.4,0,7); ctx.fill();
+  }
+  // face
+  ctx.fillStyle='#19120f';
+  ctx.beginPath(); ctx.arc(-3,-23,1.2,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(3,-23,1.2,0,7); ctx.fill();
+  if (species==='dog'){ ctx.beginPath(); ctx.ellipse(0,-19.5,2.2,1.7,0,0,7); ctx.fill(); }
+  else { ctx.beginPath(); ctx.moveTo(-1.4,-20); ctx.lineTo(1.4,-20); ctx.lineTo(0,-18.6); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+
 /* ---------- building footprints ----------
    The planning mass is translucent and depth-sliced by tile: its footprint
    stays unmistakable without hiding planting context in front of or behind a

@@ -697,6 +697,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='fence') label=fenceDraft().gate?'Place gate':'Place fence';
   else if (game.tool==='light') label='Place light';
   else if (game.tool==='firepit') label='Place fire pit';
+  else if (game.tool==='pet') label='Place pet';
   else if (game.tool==='house'||game.tool==='building') label=null; // site objects place by direct canvas tap
   else if (PLANTS[game.tool]) label=game.drift?'Plant a drift':'Plant here';
   const state=(baseZoom<1 && label) ? label : '';
@@ -765,8 +766,6 @@ function setPreviewMode(mode){
 // element — the same pattern the season fill below has always used.
 function hudText(id,txt){ const el=document.getElementById(id);
   if (el && el._t!==txt){ el._t=txt; el.textContent=txt; } }
-function hudDisplay(id,disp){ const el=document.getElementById(id);
-  if (el && el._d!==disp){ el._d=disp; el.style.display=disp; } }
 function updateHUD(){
   const cal=calClock();
   hudText('seasonName',cal.season);
@@ -801,6 +800,8 @@ function updateHUD(){
     ? `Drag to place ${lightLabel().toLowerCase()}`
     : game.tool==='firepit'
     ? `Tap clear ground to place a ${firepitLabel().toLowerCase()}`
+    : game.tool==='pet'
+    ? `Tap a clear spot to settle your ${petLabel()}`
     : 'Tap a tile to place · drag to paint a run');
   setActButton();
   const sd=absDay();

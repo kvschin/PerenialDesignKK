@@ -70,6 +70,15 @@ that is now the deliberate end state rather than a step toward one. If live
 collaboration is ever wanted it starts from a real server behind `sGet`/`sSet`,
 not from the tab-local scaffolding that was removed.
 
+## The cat and dog came back (as furniture)
+
+The avatar art was the one part of Story Mode people actually liked, so it
+returned as a **garden pet**: a one-tile decoration you place, in either
+species with six coats and three markings. It never moves and it claims
+nothing — you can plant right where it sits — which is the point. It is also
+deliberately kept off the **design plan and the planting list**, the two
+documents a client sees; a cat is for the gardener, not for the drawing.
+
 ## Tooling
 
 - **Plant Creator** (`plant-creator.html`) — a dev-only tool (not linked from

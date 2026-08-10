@@ -112,6 +112,7 @@ const game = {
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
+  pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
   house:null,                                        // legacy single-house field; migrated into game.houses on load
@@ -161,6 +162,7 @@ const game = {
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
+  petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -194,6 +196,7 @@ const GAME_LAYERS=[
   {k:'lights'},
   {k:'firepits'},
   {k:'boulders'},
+  {k:'pets'},
   {k:'houses', array:true},
   {k:'buildings', array:true},
 ];
@@ -315,6 +318,7 @@ const LAYER_CACHES={
   lights:    {scene:1},
   firepits:  {scene:1},
   boulders:  {scene:1},
+  pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   houses:    {scene:1, ground:1},
   buildings: {scene:1},
 };
