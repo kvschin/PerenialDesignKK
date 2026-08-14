@@ -1588,21 +1588,20 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    header 70 + controls 210 + brush 114) and show 0.63 of a plant card. This
    compaction was previously gated on (max-height:640px), so it never fired on
    an ordinary phone. Half now keeps only what you browse WITH — the category
-   strip, the results, and the brush footer; the title, mode switch and search
-   belong to full. */
+   strip, the results, and the brush footer; the title, mode switch, search and
+   filters belong to full, one tap up.
+   Hide the two control STACKS, not their contents one by one: both carry a 44px
+   min-height, so emptying them left a band of nothing across the state whose
+   whole point is seeing the garden. Filters went with them — a lone full-width
+   trigger was the last 50px of chrome standing between the strip and the
+   results, and .discovery-filter-summary would have re-opened the same band the
+   moment a filter was active. The strip's own counts already report the
+   narrowed set. */
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
   .hud-bottom.sheet-half .catalog-header,
-  .hud-bottom.sheet-half .catalog-mode,
-  .hud-bottom.sheet-half .discovery-source-wrap,
-  .hud-bottom.sheet-half #trayFind,
-  .hud-bottom.sheet-half .catalog-search{display:none}
-  /* Landscape's row holds only those two, so hiding them left a 44px empty
-     band (min-height) in the one state whose point is seeing the garden. */
-  .hud-bottom.sheet-half .landscape-controls{display:none}
-  /* With the pair partners hidden, the survivor should span the row. */
-  .hud-bottom.sheet-half .catalog-control-row{gap:0}
-  .hud-bottom.sheet-half .discovery-filter-row{flex:1 1 100%}
-  .hud-bottom.sheet-half .discovery-filter-trigger{width:100%}
+  .hud-bottom.sheet-half .discovery-controls,
+  .hud-bottom.sheet-half .landscape-controls,
+  .hud-bottom.sheet-half .discovery-filter-summary{display:none}
 }
 
 /* ---------- Docked application shell ---------- */

@@ -1262,10 +1262,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the library has collapsed/half/full states: `#sheetHandle` moves among them
     while you paint (`applySheetState`, `game.sheetCollapsed`). The half state is
     capped at 55dvh (480px maximum) and gives its remaining height to the result
-    scroller so it cannot quietly become a nearly full-screen sheet. On phone
-    viewports 640px tall or shorter, half state omits its redundant catalog title,
-    mode switch, and search field; source/filter/category controls and results stay
-    usable there, while full state retains the complete hierarchy. **The sheet has
+    scroller so it cannot quietly become a nearly full-screen sheet. **Half state
+    keeps only what you browse WITH** — the counted category strip, the results and
+    the brush footer. The title, the Plants/Landscape switch, the source picker,
+    Find, **and Filters** (trigger and `.discovery-filter-summary` alike) belong to
+    full, one tap up. Hide the two control STACKS rather than their contents one at
+    a time: `.discovery-controls` and `.landscape-controls` each carry a 44px
+    `min-height`, so emptying them leaves a band of nothing across the one state
+    whose point is seeing the garden. That is also why the filter row went — a lone
+    full-width trigger was the last 50px of chrome between the strip and the
+    results, and the summary chip would have re-opened the same band whenever a
+    filter was active (the strip's own counts already report the narrowed set).
+    Half `#trayTabs` measures 73px (plants) / 80px (landscape), against 227px at
+    full. **The sheet has
     no in-header close control** — the handle's down/up chevrons already own sheet
     state, so the round `.catalog-close` is `display:none` below the dock and a
     second, differently shaped collapse control no longer sits one row under them.
@@ -1276,8 +1285,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     had no way back to the plant library. The switch is content-sized
     (`flex:0 0 auto`, buttons at basis `auto` so "Landscape" isn't measured at the
     shared zero basis and clipped) and the search takes the remainder; both fit at
-    320px. Half state hides that whole row rather than leaving its 44px min-height
-    band empty. Collapsed leaves
+    320px. Collapsed leaves
     only a compact context label + swatch of the armed plant
     (`drawSheetSwatch`); the brush bar returns in half/full. The mobile palette is full-bleed
     (edge-to-edge, 28px top corners, docked to `bottom:0` with
