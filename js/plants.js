@@ -2275,11 +2275,137 @@ const PLANTS = {
         h:64, cw:42, look:{art2:true, trunks:1, trunkW:4.8, bark:'#766f63', branches:5, branchSpread:1.15, flowerN:18, flowerSize:1.7, seedN:8},
         sea:{Spring:{bloom:'#f2efe6'}, Summer:{fol:'#5d7a4c',seed:'#3f3248'}, Fall:{fol:'#d8783e'}}},
     }},
+
+  /* ---- flowering trees ----
+     The catalog had shade trees and conifers in depth but almost no tree grown
+     FOR its flowers: ten of fifty-three bloomed, and the small flowering trees a
+     designer actually reaches for came down to serviceberry, redbud and cherry.
+     In a small garden the flowering tree is usually the largest single decision,
+     so this pass fills the gap — natives first, then the two genera any
+     homeowner searches for before anything else (crabapple and magnolia).
+     Bloom months live in BLOOM_MONTHS, not here; `bloom` is declared in EVERY
+     season a species' months span, because bloomMonthColor resolves a month's
+     colour through its season and otherwise falls back to the plan colour. */
+
+  floweringdogwood:{ name:'Flowering Dogwood', latin:'Cornus florida', form:'tree', type:'tree', h:56, cw:74, heightIn:300,
+    space:240, spread:300, zones:[5,9], native:true, sun:'part', moist:'medium', phen:'cool', grow:7,
+    look:{art2:true, trunkW:4.4, bark:'#6f6659', branches:5, branchSpread:2.05, branchReach:0.44,
+      flowerN:30, flowerSize:2.2, leafN:26, leafW:0.13, leafH:0.09, seedN:10, seedR:1.3},
+    blurb:'The native woodland-edge dogwood: white bracts on horizontal tiers in April, red fruit for birds, and deep wine-red fall color. Wants afternoon shade and even moisture.',
+    sea:{Spring:{bloom:'#f6f2e6'}, Summer:{fol:'#4f7048'}, Fall:{fol:'#9c2f42',seed:'#b7332f'}, Winter:{seed:'#6b5a4a'}}},
+
+  fringetree:{ name:'White Fringetree', latin:'Chionanthus virginicus', form:'tree', type:'tree', h:52, cw:60, heightIn:240,
+    space:180, spread:240, zones:[3,9], native:true, sun:'part', moist:'medium', phen:'warm', grow:7,
+    look:{art2:true, trunks:2, trunkSpread:4, trunkW:4.2, bark:'#6c6255', branches:5, branchSpread:1.7,
+      flowerN:34, flowerSize:2.4, leafN:24, leafW:0.15, leafH:0.10, seedN:8, seedR:1.4},
+    blurb:'Clouds of fleecy white fringe in late May, and one of the last trees to leaf out — do not give up on it in April. Blue drupes on female plants, clear yellow in fall.',
+    sea:{Spring:{fol:'#8aa86a',bloom:'#f2f0e2'}, Summer:{fol:'#54744a',bloom:'#eeece0',seed:'#2f3f5c'}, Fall:{fol:'#dcb544',seed:'#33415e'}, Winter:{seed:'#6b5f4e'}}},
+
+  hawthorn:{ name:'Washington Hawthorn', latin:'Crataegus phaenopyrum', form:'tree', type:'tree', h:60, cw:66, heightIn:300,
+    space:240, spread:300, zones:[4,8], native:true, sun:'full', moist:'medium', phen:'mid', grow:6,
+    look:{art2:true, trunkW:4.6, bark:'#6a5d4e', branches:6, branchSpread:1.8,
+      flowerN:32, flowerSize:1.8, leafN:28, leafW:0.12, leafH:0.09, seedN:14, seedR:1.3},
+    blurb:'Late white corymbs, then glossy red haws that hold well past leaf drop and feed birds through winter. Thorny — keep it off paths.',
+    sea:{Spring:{fol:'#87a468',bloom:'#f3f0e5'}, Summer:{fol:'#4f6f45',bloom:'#efece1'}, Fall:{fol:'#c4552f',seed:'#a8262a'}, Winter:{seed:'#9c2a26'}}},
+
+  americanplum:{ name:'American Plum', latin:'Prunus americana', form:'tree', type:'tree', h:48, cw:58, heightIn:216,
+    space:180, spread:240, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'cool', grow:4,
+    look:{art2:true, trunks:2, trunkSpread:5, trunkW:4.0, bark:'#5f5348', branches:5, branchSpread:1.85,
+      flowerN:36, flowerSize:1.6, leafN:24, leafW:0.12, leafH:0.08, seedN:10, seedR:1.5},
+    blurb:'A thicket-forming native plum that fogs the fence line with fragrant white bloom before the leaves, then drops red-gold fruit. Good for a wild edge, not a tidy lawn specimen.',
+    sea:{Spring:{bloom:'#f4f1e7'}, Summer:{fol:'#5d7a4c',seed:'#a8452f'}, Fall:{fol:'#d1922f',seed:'#993c2a'}, Winter:{seed:'#5e4c3e'}}},
+
+  sourwood:{ name:'Sourwood', latin:'Oxydendrum arboreum', form:'tree', type:'tree', h:64, cw:56, heightIn:336,
+    space:200, spread:240, zones:[5,9], native:true, sun:'part', moist:'medium', phen:'mid', grow:9,
+    look:{art2:true, trunkW:4.4, bark:'#6a5b4c', branches:5, branchSpread:1.5, branchLift:0.2,
+      flowerN:28, flowerSize:1.9, leafN:28, leafW:0.11, leafH:0.10, seedN:12, seedR:1.2},
+    blurb:'Sprays of white lily-of-the-valley bells in midsummer, then about the most brilliant scarlet fall color of any native tree. Slow, and it wants acid soil.',
+    sea:{Spring:{fol:'#84a266'}, Summer:{fol:'#4d6f47',bloom:'#f3f1e6'}, Fall:{fol:'#a82733',seed:'#c9bda4'}, Winter:{seed:'#6d6152'}}},
+
+  yellowwood:{ name:'Kentucky Yellowwood', latin:'Cladrastis kentukea', form:'tree', type:'tree', h:86, cw:100, heightIn:480,
+    space:360, spread:480, zones:[4,8], native:true, sun:'full', moist:'medium', phen:'mid', grow:9,
+    look:{art2:true, trunkW:5.6, bark:'#8a8175', branches:6, branchSpread:1.9, branchReach:0.4,
+      flowerN:26, flowerSize:2.3, leafN:30, leafW:0.13, leafH:0.09, seedN:8},
+    blurb:'Hanging white wisteria-like chains in late spring — heavily only every second or third year — over smooth gray beech-like bark. Clear yellow in fall.',
+    sea:{Spring:{fol:'#93ab6e',bloom:'#f4f2e8'}, Summer:{fol:'#55744a',bloom:'#eeece2'}, Fall:{fol:'#e0bb46'}, Winter:{seed:'#867d70'}}},
+
+  tuliptree:{ name:'Tuliptree', latin:'Liriodendron tulipifera', form:'tree', type:'tree', h:134, cw:124, heightIn:1080,
+    space:480, spread:540, zones:[4,9], native:true, sun:'full', moist:'medium', phen:'mid', grow:8,
+    look:{art2:true, trunkW:6.8, bark:'#6b6459', branches:6, branchSpread:1.5, branchLift:0.3,
+      flowerN:18, flowerSize:2.2, leafN:32, leafW:0.14, leafH:0.11, seedN:10},
+    blurb:'Straight as a mast, with green-and-orange tulip flowers held high in the canopy in June — you often meet them first as fallen petals. Clear gold in fall. Needs real room.',
+    sea:{Spring:{fol:'#8fae6c',bloom:'#cfc063'}, Summer:{fol:'#557a4a',bloom:'#cfc063'}, Fall:{fol:'#e5c144'}, Winter:{seed:'#6f675a'}}},
+
+  ohiobuckeye:{ name:'Ohio Buckeye', latin:'Aesculus glabra', form:'tree', type:'tree', h:88, cw:94, heightIn:480,
+    space:360, spread:420, zones:[3,7], native:true, sun:'part', moist:'medium', phen:'cool', grow:8,
+    look:{art2:true, trunkW:5.8, bark:'#5f574b', branches:6, branchSpread:1.7,
+      flowerN:22, flowerSize:2.5, leafN:26, leafW:0.16, leafH:0.11, seedN:9, seedR:1.7},
+    blurb:'First native tree to leaf out and among the first to color, with upright yellow-green candles in April and glossy buckeyes in fall. Expect it to drop its leaves early in a dry year.',
+    sea:{Spring:{fol:'#8fae6a',bloom:'#d8d472'}, Summer:{fol:'#4f6f45'}, Fall:{fol:'#dd8a35',seed:'#6b4a2e'}, Winter:{seed:'#5c5145'}}},
+
+  basswood:{ name:'American Basswood', latin:'Tilia americana', form:'tree', type:'tree', h:120, cw:122, heightIn:900,
+    space:420, spread:600, zones:[3,8], native:true, sun:'full', moist:'medium', phen:'mid', grow:8,
+    look:{art2:true, trunkW:6.4, bark:'#645d52', branches:6, branchSpread:1.85, branchReach:0.4,
+      flowerN:24, flowerSize:1.7, leafN:32, leafW:0.16, leafH:0.12, seedN:12, seedR:1.2},
+    blurb:'A big-leaved native shade tree that hums — the pale fragrant flowers in early July are one of the best bee trees in North America. Yellow fall, heavy shade beneath.',
+    sea:{Spring:{fol:'#8fae6c'}, Summer:{fol:'#4d6d44',bloom:'#e6dfae'}, Fall:{fol:'#dcbe4c',seed:'#8e8168'}, Winter:{seed:'#6b6153'}}},
+
+  crabapple:{ name:'Flowering Crabapple', latin:'Malus hybrids', form:'tree', type:'tree', h:58, cw:74, heightIn:240,
+    group:'crabapple', groupLabel:'Flowering Crabapple', chip:'Prairifire',
+    space:200, spread:240, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'cool', grow:5,
+    look:{art2:true, trunkW:4.6, bark:'#63564a', branches:6, branchSpread:2.0,
+      flowerN:40, flowerSize:2.0, leafN:26, leafW:0.12, leafH:0.09, seedN:16, seedR:1.3},
+    blurb:'The default small flowering tree of the northern yard, and the modern disease-resistant selections earn it. Choose by fruit as much as flower: the small persistent kinds feed birds and never need sweeping.',
+    sea:{Spring:{bloom:'#d4577e'}, Summer:{fol:'#57704a'}, Fall:{fol:'#d08a35',seed:'#96262c'}, Winter:{seed:'#8e232a'}},
+    cv:{
+      prairifire:{name:"'Prairifire'", note:'deep pink-red bloom, red-tinged new leaves, small dark persistent fruit',
+        sea:{Spring:{bloom:'#c33a68'}, Summer:{fol:'#4f5c45'}, Fall:{fol:'#c8762f',seed:'#7d1f26'}, Winter:{seed:'#751d24'}}},
+      donaldwyman:{name:"'Donald Wyman'", note:'white bloom and bright red fruit that holds all winter',
+        h:60, cw:80, sea:{Spring:{bloom:'#f5f0e6'}, Summer:{fol:'#57704a'}, Fall:{fol:'#d29038',seed:'#b02a26'}, Winter:{seed:'#ac2823'}}},
+      sargent:{name:"Sargent Crabapple", note:'low wide shrubby crab, white bloom, tiny dark red fruit', latin:'Malus sargentii',
+        h:36, cw:78, heightIn:96, space:180, spread:216, grow:5,
+        sea:{Spring:{bloom:'#f4efe4'}, Summer:{fol:'#57704a'}, Fall:{fol:'#cf8c34',seed:'#8a2029'}, Winter:{seed:'#821e26'}}},
+      royalraindrops:{name:"'Royal Raindrops'", note:'magenta bloom over cutleaf purple foliage',
+        sea:{Spring:{bloom:'#b83a72'}, Summer:{fol:'#5b3247'}, Fall:{fol:'#b8562f',seed:'#7d1f26'}, Winter:{seed:'#751d24'}}},
+    }},
+
+  magnolia:{ name:'Star Magnolia', latin:'Magnolia stellata', form:'tree', type:'tree', h:50, cw:56, heightIn:192,
+    group:'magnolia', groupLabel:'Magnolia', chip:'Star',
+    space:168, spread:192, zones:[4,8], native:false, sun:'full', moist:'medium', phen:'cool', grow:6,
+    look:{art2:true, trunks:2, trunkSpread:4, trunkW:4.2, bark:'#6e675c', branches:5, branchSpread:1.75,
+      flowerN:26, flowerSize:2.8, leafN:24, leafW:0.15, leafH:0.10},
+    blurb:'Strappy white stars on bare wood in March, weeks before anything else. Site it away from an early-morning east wall — a late frost browns the open flowers, and that is the one real risk.',
+    sea:{Spring:{bloom:'#f6f3ea'}, Summer:{fol:'#54724a'}, Fall:{fol:'#c9a749'}, Winter:{seed:'#6f6659'}},
+    cv:{
+      royalstar:{name:"'Royal Star'", note:'fuller white flowers, a little later and hardier in bud',
+        sea:{Spring:{bloom:'#f7f5ee'}, Summer:{fol:'#54724a'}, Fall:{fol:'#cbab4c'}, Winter:{seed:'#6f6659'}}},
+      janemagnolia:{name:"'Jane'", note:'late-blooming Little Girl hybrid, purple-pink outside and pale within — the frost-dodger',
+        h:52, cw:52, heightIn:180, sea:{Spring:{bloom:'#b0668f'}, Summer:{fol:'#54724a'}, Fall:{fol:'#c9a749'}, Winter:{seed:'#6f6659'}}},
+    }},
+
+  /* Saucer magnolia is a SPECIES beside star magnolia in the same group, not a
+     cultivar of it: M. x soulangeana is genuinely a different, larger plant, and
+     the data contract rightly refuses a cultivar taller than its species. This
+     is the same shape as the four maples in `namaple`. */
+  saucermagnolia:{ name:'Saucer Magnolia', latin:'Magnolia x soulangeana', form:'tree', type:'tree', h:64, cw:76, heightIn:288,
+    group:'magnolia', groupLabel:'Magnolia', chip:'Saucer',
+    space:216, spread:288, zones:[4,9], native:false, sun:'full', moist:'medium', phen:'cool', grow:7,
+    look:{art2:true, trunks:2, trunkSpread:5, trunkW:4.8, bark:'#6e675c', branches:6, branchSpread:1.85,
+      flowerN:24, flowerSize:3.2, leafN:26, leafW:0.16, leafH:0.11},
+    blurb:'Big pink-purple goblets on bare branches in April, a couple of weeks behind the star types — which is often just enough to clear the last hard frost. Wide and low-branched; give it the room it will take.',
+    sea:{Spring:{bloom:'#d9a3bf'}, Summer:{fol:'#54724a'}, Fall:{fol:'#c9a749'}, Winter:{seed:'#6f6659'}}},
+
+  treelilac:{ name:'Japanese Tree Lilac', latin:'Syringa reticulata', form:'tree', type:'tree', h:66, cw:72, heightIn:300,
+    space:240, spread:300, zones:[3,7], native:false, sun:'full', moist:'medium', phen:'mid', grow:6,
+    look:{art2:true, trunkW:4.8, bark:'#7b6a58', barkStripe:true, branches:6, branchSpread:1.8,
+      flowerN:30, flowerSize:2.6, leafN:26, leafW:0.14, leafH:0.10, seedN:10},
+    blurb:'Big creamy panicles in June, a month after the shrub lilacs are done, on a tough street-tolerant small tree with glossy cherry-like bark. Scent is more privet than lilac — plant it for the timing.',
+    sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#55744a',bloom:'#f0ead0'}, Fall:{fol:'#c9b45a',seed:'#8a7c62'}, Winter:{seed:'#7b6a58'}}},
+
   japanesemaple:{ name:'Japanese Maple', latin:'Acer palmatum', form:'tree', type:'tree', h:54, cw:66, heightIn:216,
     group:'japanesemaple', groupLabel:'Japanese Maple', chip:'Green',
     space:180, spread:240, zones:[5,8], native:false, sun:'part', moist:'medium', phen:'cool', grow:6,
     look:{art2:true, trunkW:4.5, bark:'#6a5a4c', branches:6, branchSpread:1.95, leafN:32, leafW:0.12, leafH:0.08},
-    bloomMonths:[4,5],
     blurb:'Small ornamental maple for layered shade and fine foliage. Small red-purple flowers hang under the new leaves. Best protected from hot afternoon sun and drying wind.',
     sea:{Spring:{fol:'#8aa86a',bloom:'#8f4b58'}, Summer:{fol:'#5d7a4c'}, Fall:{fol:'#d8583a'}, Winter:{seed:'#7a6a52'}},
     cv:{
@@ -2349,7 +2475,6 @@ const PLANTS = {
     group:'namaple', groupLabel:'North American Maple', chip:'Sugar',
     space:480, spread:720, zones:[3,8], native:true, sun:'part', moist:'medium', phen:'cool', grow:8,
     look:{art2:true, trunkW:6.6, bark:'#665f55', branches:6, branchSpread:1.8, leafN:32, leafW:0.14, leafH:0.09},
-    bloomMonths:[4],
     blurb:'Classic shade maple with dense summer canopy and yellow, orange, or red fall color. Likes cooler, richer soil.',
     sea:{Spring:{fol:'#88a866',bloom:'#c3c169'}, Summer:{fol:'#4f6f45'}, Fall:{fol:'#dc9532'}, Winter:{seed:'#6b5b47'}}},
   silvermaple:{ name:'Silver Maple', latin:'Acer saccharinum', form:'tree', type:'tree', h:126, cw:155, heightIn:840,
@@ -2362,7 +2487,6 @@ const PLANTS = {
     group:'namaple', groupLabel:'North American Maple', chip:'Autumn Blaze',
     space:420, spread:660, zones:[3,8], native:false, sun:'full', moist:'medium', phen:'cool', grow:7,
     look:{art2:true, trunkW:6.2, bark:'#635b52', branches:6, branchSpread:1.75, leafN:32, leafW:0.13, leafH:0.09},
-    bloomMonths:[3,4],
     blurb:'Hybrid red x silver maple, represented by the familiar fast-growing Autumn Blaze type. Red flowers open on bare wood before the leaves.',
     sea:{Spring:{fol:'#8aa86a',bloom:'#b94a42'}, Summer:{fol:'#58774c'}, Fall:{fol:'#d34b2d'}, Winter:{seed:'#6b5b47'}}},
   blackgum:{ name:'Black Gum', latin:'Nyssa sylvatica', form:'tree', type:'tree', h:96, cw:105, heightIn:540,
@@ -2992,6 +3116,15 @@ const BLOOM_MONTHS = {
   panniclehydrangea:[7,8,9], oakleafhydrangea:[6,7],
   serviceberry:[4], redmaple:[3,4], silvermaple:[3,4],
   floweringcherry:[4], redbud:[4],
+
+  // flowering trees. Sugar and Freeman maple sit here because their own group
+  // already bloomed: red and silver maple flower on bare wood in March, and
+  // Freeman maple IS their hybrid, so a group disagreeing with itself was a data
+  // bug rather than a judgement call.
+  sugarmaple:[4], freemanmaple:[3,4], japanesemaple:[4,5],
+  magnolia:[3,4], saucermagnolia:[4], americanplum:[4], floweringdogwood:[4,5], crabapple:[4,5],
+  ohiobuckeye:[4,5], hawthorn:[5,6], fringetree:[5,6], yellowwood:[5,6],
+  tuliptree:[5,6], treelilac:[6], basswood:[6,7], sourwood:[6,7],
 
   // water plants
   waterlotus:[6,7,8], fragrantwaterlily:[6,7,8,9], pickerelweed:[6,7,8,9],

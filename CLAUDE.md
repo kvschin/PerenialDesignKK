@@ -1760,6 +1760,24 @@ not from the tab-local scaffolding that was just removed.
   distinct from boxwood's smooth dome and yew's needle sprays). Still open: forsythia and witch hazel (both want a
   bloom-along-bare-stem style), elderberry, buttonbush, shrub roses,
   summersweet, Virginia sweetspire, fothergilla, beautyberry (`seedAlong`),
+  A **flowering-tree pass** is landed (Aug 2026): flowering dogwood, white
+  fringetree, Washington hawthorn, American plum, sourwood, Kentucky
+  yellowwood, tuliptree, Ohio buckeye and American basswood as natives, plus a
+  Crabapple group, a Magnolia group (star + saucer as sibling species, since a
+  cultivar may not exceed its species' `heightIn`) and Japanese tree lilac.
+  The catalog previously had shade trees and conifers in depth but almost no
+  tree grown FOR its flowers — ten of fifty-three bloomed — which in a small
+  garden is the largest single planting decision. Bloom now runs unbroken
+  March (star magnolia, the maples) through July (basswood, sourwood).
+  **Bloom months belong in `BLOOM_MONTHS`, not on the entry**: line ~3016
+  copies that table over `PLANTS`, so an inline `bloomMonths` survives only
+  while the key is absent from the table and is silently overwritten the day
+  someone adds it. Note also that the 4-season `sea` model and the 12-month
+  calendar deliberately do NOT line up — an aster's flower is authored as a
+  Fall event because that is when it reads in the garden, though its calendar
+  bloom starts in August, and forcing a Summer `bloom` colour to match would
+  make it flower in the game's summer. `planColor` already resolves a bloom
+  colour from any season, so the calendar is correct without that.
   The upright tree-conifer pass is landed (spruce/fir/hemlock, pine, true
   cedar, arborvitae/juniper/cypress, and weeping habits). Still open is a
   separate low/dwarf-conifer pass: spreading juniper, bird's nest spruce, and

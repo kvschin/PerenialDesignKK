@@ -126,6 +126,28 @@ test('real-world bloom month metadata is valid when present', () => {
   }
 });
 
+test('anything that blooms has an authored flower colour somewhere', () => {
+  // Deliberately NOT "declare bloom in every season your months touch". The
+  // 4-season render model and the 12-month calendar do not line up, and they
+  // should not be forced to: New England aster's flower is authored as a Fall
+  // event because that is when it reads in the garden, while its real bloom
+  // starts in August. Requiring a Summer bloom colour to match the calendar
+  // would make it flower in the game's summer — a render bug traded for a
+  // calendar tidiness nobody asked for. 39 species are in that position and
+  // all of them are right.
+  //
+  // What IS worth pinning: planColor's last resort is a grey '#8a8a70', and a
+  // plant reaching it has simply never been given a flower colour at all. The
+  // calendar and the plan sheet would both draw it as mud.
+  for (const k of keys){
+    const P = PLANTS[k];
+    if (!Array.isArray(P.bloomMonths) || !P.bloomMonths.length) continue;
+    const s = P.sea.Summer || {}, f = P.sea.Fall || {}, sp = P.sea.Spring || {};
+    const resolved = s.bloom || sp.bloom || f.bloom || f.seed || s.fol || sp.fol;
+    assert(resolved, `${k}: has bloom months but no colour for planColor to find`);
+  }
+});
+
 test('cultivars (cv) are well-formed', () => {
   for (const k of keys){
     const cv = PLANTS[k].cv;

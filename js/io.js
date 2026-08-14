@@ -437,11 +437,17 @@ function bloomMonthsFor(def){
   const ranged=bloomMonthsFromRange(def.bloomStart,def.bloomEnd);
   return ranged.length ? ranged : fallbackBloomMonths(def);
 }
+/* Falls back to the season's SEEDHEAD before the generic plan colour, because a
+   grass that flowers in August is showing seed by September — its own data says
+   so — and the month it crosses into fall should read as bronze rather than as
+   whatever colour the plan sheet happens to use for it. Northern sea oats,
+   molinia and the fountain grasses all span that boundary. */
 function bloomMonthColor(def,month){
   const season = (month>=3 && month<=5) ? 'Spring' :
     (month>=6 && month<=8) ? 'Summer' :
     (month>=9 && month<=11) ? 'Fall' : 'Winter';
-  return (def.sea && def.sea[season] && def.sea[season].bloom) || planColor(def);
+  const s = def.sea && def.sea[season];
+  return (s && (s.bloom || s.seed)) || planColor(def);
 }
 function bloomMonthSeasonClass(month){
   return (month>=3 && month<=5) ? 'spring' :
