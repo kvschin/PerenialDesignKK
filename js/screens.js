@@ -287,7 +287,7 @@ function importWorldFile(file){
 async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
   await sSet('hortus:worlds',idx);
-  try{ localStorage.removeItem('hortus:world:'+id); }catch(e){}
+  await sDel('hortus:world:'+id);       // reclaims the quota in whichever home it sits
   openWorlds();
 }
 async function duplicateWorld(id){
@@ -1422,7 +1422,102 @@ function stressGarden(){
   groundKey='';
   toast('Stress garden: '+Object.keys(game.plants).length+' plants, '+Object.keys(game.bulbs).length+' bulbs');
 }
+/* ---------- crash recovery ----------
+   rAF swallows nothing, so an uncaught throw inside render() used to leave a
+   black canvas with no way back, no save, and no report — the app was simply
+   dead until the tab was closed, taking the session's work with it.
+
+   Two different failures get two different responses, deliberately. A throw in
+   the render loop IS fatal (the frame never completes, the garden is frozen),
+   so it banks the work and shows a way out. A throw anywhere else — a click
+   handler, a rejected promise — leaves a working app, so it is recorded for the
+   report and otherwise left alone; panelling the screen over a stray rejection
+   would be worse than the bug.
+
+   The panel builds its own DOM with inline styles and calls no app function
+   beyond the save: whatever broke the frame may equally break showConfirm or a
+   token lookup, and a recovery screen that needs a working app is not one. */
+let crashed=false;
+const errLog=[];                                   // ring buffer, joins the report
+function noteError(err,where){
+  errLog.push({where, msg:(err&&err.message)||String(err),
+    stack:(err&&err.stack)||'', t:Date.now()});
+  if (errLog.length>12) errLog.shift();
+  try{ console.error('[pocket-prairie]',where,err); }catch(_){ }
+}
+function reportCrash(err,where){
+  if (crashed) return;                             // a throwing frame would
+  crashed=true;                                    // otherwise storm the report
+  noteError(err,where);
+  const panel=buildCrashPanel(err,where);
+  // Bank the garden before anything else can go wrong. saveSolo is async, so
+  // the panel says "saving" and tells the truth once the write actually lands.
+  let p=null;
+  try{ if (game.inGarden&&hasStorage) p=saveSolo(true); }catch(e){ noteError(e,'crash-save'); }
+  if (p&&p.then) p.then(ok=>panel.setSave(ok?'saved':'failed'),()=>panel.setSave('failed'));
+  else panel.setSave(game.inGarden?'failed':'none');
+}
+function buildCrashPanel(err,where){
+  const wrap=document.createElement('div');
+  wrap.setAttribute('role','alertdialog');
+  wrap.setAttribute('aria-label','Pocket Prairie stopped');
+  wrap.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'background:rgba(20,14,11,.88);color:#ece3d4;'+
+    "font-family:'IBM Plex Sans',system-ui,sans-serif";
+  const card=document.createElement('div');
+  card.style.cssText='max-width:440px;width:100%;background:#2f231d;'+
+    'border:1px solid #40312a;border-radius:9px;padding:22px 24px;'+
+    'box-shadow:0 12px 40px rgba(0,0,0,.5)';
+  const h=document.createElement('h2');
+  h.textContent='Pocket Prairie stopped';
+  h.style.cssText="margin:0 0 8px;font-family:'Fraunces',Georgia,serif;"+
+    'font-size:24px;font-weight:600;color:#ece3d4';
+  const body=document.createElement('p');
+  body.textContent='Something went wrong while drawing the garden. This is a bug, not something you did.';
+  body.style.cssText='margin:0 0 14px;font-size:15px;line-height:1.5;color:#b3a692';
+  const save=document.createElement('p');
+  save.textContent='Saving your garden…';
+  save.style.cssText='margin:0 0 18px;font-size:14px;line-height:1.5;color:#c97f3f';
+  const row=document.createElement('div');
+  row.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+  const mk=(label,primary)=>{ const b=document.createElement('button');
+    b.type='button'; b.textContent=label;
+    b.style.cssText='flex:1 1 auto;min-width:120px;padding:11px 14px;font:inherit;'+
+      'font-size:14px;font-weight:500;border-radius:5px;cursor:pointer;'+
+      (primary?'background:#c97f3f;color:#1b1310;border:1px solid #c97f3f'
+             :'background:transparent;color:#ece3d4;border:1px solid #5a4a40');
+    row.appendChild(b); return b; };
+  mk('Reload',true).onclick=()=>location.reload();
+  const copy=mk('Copy error details',false);
+  copy.onclick=()=>{
+    const txt=['Pocket Prairie '+(APP_VERSION||'?')+' — '+where,
+      navigator.userAgent, '',
+      ...errLog.map(e=>e.where+': '+e.msg+'\n'+e.stack)].join('\n');
+    try{ navigator.clipboard.writeText(txt).then(
+      ()=>{ copy.textContent='Copied'; },
+      ()=>{ copy.textContent='Press Ctrl+C'; window.prompt('Copy this:',txt); }); }
+    catch(_){ window.prompt('Copy this:',txt); }
+  };
+  card.append(h,body,save,row); wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  return { setSave(state){
+    save.textContent = state==='saved' ? 'Your garden was saved. Reloading is safe.'
+      : state==='none' ? 'No garden was open, so nothing was lost.'
+      : 'Your garden could not be saved automatically. Reloading may lose recent changes.';
+    save.style.color = state==='failed' ? '#d9645a' : '#c97f3f';
+  } };
+}
+window.addEventListener('error', e=>noteError(e.error||e.message,'window'));
+window.addEventListener('unhandledrejection', e=>noteError(e.reason,'promise'));
+
 function loop(t){
+  if (crashed) return;                             // the frame that threw is not
+  try{ frame(t); }                                 // going to succeed on a retry
+  catch(err){ reportCrash(err,'render-loop'); return; }
+  requestAnimationFrame(loop);
+}
+function frame(t){
   const rawGap=t-prev;                                // unclamped: stall detection needs the real spacing
   const dt=Math.min(50,Math.max(0,rawGap)); prev=t;   // floor 0: a backward t must never rewind FF time
   if (game.inGarden){
@@ -1447,7 +1542,6 @@ function loop(t){
     menuRender(t);
     lastMenuRender=t;
   }
-  requestAnimationFrame(loop);
 }
 (async function init(){
   if (hasStorage){

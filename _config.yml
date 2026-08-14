@@ -1,0 +1,34 @@
+# GitHub Pages build configuration.
+#
+# Pages runs Jekyll over the repository root, so anything committed here is
+# published unless it is excluded. `exclude` keeps the development surface —
+# authoring tools, internal design notes, tests — out of the deployed app
+# without moving it out of version control.
+#
+# This list is also the closest thing the project has to a manifest of what is
+# NOT the product, so keep it in step with the packaging file list when the
+# store builds are set up.
+
+exclude:
+  # Dev-only authoring tools. plant-creator.html loads the real modules and is
+  # deliberately not linked from the game; it is not part of the product.
+  - dev/
+  # Test harness — never served.
+  - tests/
+  - package.json
+  # Internal documentation. The repository is public, so this hides nothing;
+  # it keeps them off the deployed site's URL space, which is what a store
+  # reviewer and a search crawler see.
+  - CLAUDE.md
+  - AGENTS.md
+  - docs/
+  - photos/
+  - resize-photos.ps1
+  # Source art for the icons, far larger than the icons themselves.
+  - icons/app-icon-source.png
+  - icons/app-icon-1024.png
+  - icons/README.md
+  - fonts/README.md
+
+# Nothing in this project uses Jekyll templating; index.html and the two policy
+# pages are plain HTML and pass straight through.

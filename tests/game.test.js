@@ -3210,12 +3210,12 @@ test('setPlotShape rounds and clamps vertices onto the lattice', () => {
   assertEqual(JSON.stringify(v2), JSON.stringify([16, 21]), 'fractional coordinates round to the nearest integer');
 });
 
-test('saveSolo blob carries plotShape and applying it back round-trips the shape', () => {
+test('saveSolo blob carries plotShape and applying it back round-trips the shape', async () => {
   setup(31, 31);
   const shape = [[0, 0], [31, 0], [24, 31], [0, 31]];
   assert(setPlotShape(shape), 'shape accepted before saving');
   game.inGarden = true; game.worldId = 'test-plotshape-roundtrip';
-  saveSolo(true); // sSet's localStorage.setItem runs synchronously, before saveSolo's own first await
+  await saveSolo(true);
   const raw = localStorage.getItem('hortus:world:test-plotshape-roundtrip');
   assert(raw, 'a garden blob was written to storage');
   const blob = JSON.parse(raw);
@@ -3242,13 +3242,13 @@ test('a save blob without plotShape loads as a full rectangle', () => {
   assert(onPlot(0, 0) && onPlot(20, 20), 'every corner is on-plot with no shape');
 });
 
-test('save blobs preserve a garden’s discovery lens without changing its eligibility rules', () => {
+test('save blobs preserve a garden’s discovery lens without changing its eligibility rules', async () => {
   setup(21, 21);
   game.inGarden = true; game.worldId = 'test-discovery-roundtrip';
   game.filters = normalizeFilters({ zone: 6, nativesOnly: true });
   game.design = { zone: 6, type: 'any', nativesOnly: true, deer: false, rabbit: false, squirrel: false };
   game.discovery = normalizeDiscovery({ source: 'favorites', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'], limit: 72 });
-  saveSolo(true);
+  await saveSolo(true);
   const blob = JSON.parse(localStorage.getItem('hortus:world:test-discovery-roundtrip'));
   assertEqual(blob.design.zone, 6, 'the hard garden zone stays in the save payload');
   assertEqual(blob.discovery.source, 'favorites', 'the soft catalog source saves separately');
@@ -3368,7 +3368,7 @@ test('switching schemes leaves the ground and terrain caches alone', () => {
   assert(game.rev > rev, 'but game.rev bumps, so the scene list rebuilds');
 });
 
-test('schemes round-trip through save and load, active maps staying at the top level', () => {
+test('schemes round-trip through save and load, active maps staying at the top level', async () => {
   setup(21, 21);
   game.inGarden = true; game.worldId = 'test-schemes-roundtrip';
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
@@ -3377,7 +3377,7 @@ test('schemes round-trip through save and load, active maps staying at the top l
   const b = createScheme(false);
   renameScheme(b.id, 'Shade tolerant');
   setTile('plants', '9,9', { s: 'karl', d: 0, t: 1 });
-  saveSolo(true);
+  await saveSolo(true);
 
   const blob = JSON.parse(localStorage.getItem('hortus:world:test-schemes-roundtrip'));
   assert(!!blob.plants['9,9'], 'the ACTIVE scheme plants sit at the blob top level, where every old reader looks');
@@ -3407,15 +3407,79 @@ test('schemes round-trip through save and load, active maps staying at the top l
   assert(!!game.plants['3,3'], 'the other scheme planting survived storage');
 });
 
-test('a single-scheme garden saves exactly as it always did', () => {
+test('a single-scheme garden saves exactly as it always did', async () => {
   setup(21, 21);
   game.inGarden = true; game.worldId = 'test-schemes-absent';
   setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
-  saveSolo(true);
+  await saveSolo(true);
   const blob = JSON.parse(localStorage.getItem('hortus:world:test-schemes-absent'));
   assertEqual(blob.schemes, undefined, 'below two schemes the key is omitted entirely');
   assert(!!blob.plants['3,3'], 'plants stay exactly where they have always been');
   assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
+});
+
+/* ---------- storage: IndexedDB for documents, localStorage for preferences ---------- */
+
+test('the storage split keeps documents and device preferences apart', () => {
+  // Load-bearing boundary: everything IDB_KEYS matches moves to IndexedDB, and
+  // everything it does not stays synchronously readable in localStorage. The
+  // theme bootstrap in index.html's <head> has to read its key before the first
+  // paint, which IndexedDB cannot do — so a key drifting across this line is a
+  // dark-flash on every cold start, or worse, a garden that never migrates.
+  for (const k of ['hortus:worlds', 'hortus:world:w123', 'hortus:solo',
+                   'hortus:filters', 'hortus:plant-collections:v1'])
+    assert(IDB_KEYS.test(k), `${k} is a document and belongs in IndexedDB`);
+  for (const k of ['hortus:theme', 'hortus:haptics', 'hortus:leftHanded',
+                   'hortus:menuSeasonIdx', 'hortus:probe'])
+    assert(!IDB_KEYS.test(k), `${k} is a device preference and must stay synchronous`);
+});
+
+test('save blobs carry an explicit schema version', async () => {
+  setup(21, 21);
+  game.inGarden = true; game.worldId = 'test-save-version';
+  await saveSolo(true);
+  const blob = JSON.parse(localStorage.getItem('hortus:world:test-save-version'));
+  assertEqual(blob.v, SAVE_VERSION, 'the blob states its schema version');
+  assertEqual(blob.app, APP_VERSION, 'and the build that wrote it');
+  // A pre-versioning save is version 0 by absence, not by being unreadable.
+  const legacy = { wv: 1, name: 'Old', gw: 21, gh: 21, plants: {}, bulbs: {} };
+  assertEqual(legacy.v || 0, 0, 'an unversioned blob reads as version 0');
+});
+
+test('sDel clears a garden from storage', async () => {
+  setup(21, 21);
+  game.inGarden = true; game.worldId = 'test-delete-me';
+  await saveSolo(true);
+  assert(localStorage.getItem('hortus:world:test-delete-me'), 'the garden was stored');
+  await sDel('hortus:world:test-delete-me');
+  assert(!localStorage.getItem('hortus:world:test-delete-me'),
+    'and deleting it reclaims the space rather than orphaning the blob');
+});
+
+test('a failing autosave reports once, not on every day change', async () => {
+  setup(21, 21);
+  game.inGarden = true; game.worldId = 'test-save-fails';
+  const realSet = localStorage.setItem;
+  const toasts = [];
+  const realToast = toast;
+  // eslint-disable-next-line no-global-assign
+  toast = (msg, kind) => { toasts.push({ msg, kind }); };
+  localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  try {
+    await saveSolo(true); await saveSolo(true); await saveSolo(true);
+    assertEqual(toasts.length, 1, 'three failed autosaves say it once');
+    assertEqual(toasts[0].kind, 'warn', 'and say it as a warning');
+    assert(/export/i.test(toasts[0].msg), 'the message names the way out');
+    localStorage.setItem = realSet;
+    await saveSolo(true);                       // a success re-arms the warning
+    localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+    await saveSolo(true);
+    assertEqual(toasts.length, 2, 'after a save works again, a new failure speaks up');
+  } finally {
+    localStorage.setItem = realSet;
+    // eslint-disable-next-line no-global-assign
+    toast = realToast;
+  }
 });
 
 test('a save blob predating schemes loads as a single-scheme garden', () => {

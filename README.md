@@ -62,8 +62,16 @@ npx http-server -p 8642 -c-1      # or: npm run serve
 
 `index.html` (markup) and `styles.css` sit at the repo root; the JavaScript
 lives in `js/` — `plants.js` (species data) plus the game logic, split for
-navigability across nine small modules (no bundler; load order matters).
+navigability across thirteen small modules (no bundler; load order matters).
 GitHub Pages serves `master` as-is, so every push redeploys.
+
+Nothing loads over the network. The typefaces are self-hosted in `fonts/`
+(Fraunces and IBM Plex Sans, both SIL OFL 1.1), and `sw.js` precaches the whole
+shell, so the app installs and runs completely offline and talks to no third
+party. Gardens are kept in IndexedDB on your own device; preferences in
+localStorage. Note that the service worker caches hard — while editing, turn on
+your browser's "Update on reload" or unregister it, or your changes will seem
+not to land.
 
 ## Tests
 

@@ -350,10 +350,20 @@ function removeBuildingAtIndex(i){
   game.buildings.splice(i,1); markModelChanged(); markLayerCacheChanged('buildings');
   return true;
 }
-/* Saves persist to localStorage. sGet/sSet keep their async signatures from
-   the artifact era so a future storage backend can slot in unchanged. */
-const hasStorage = (()=>{ try{ localStorage.setItem('hortus:probe','1');
-  localStorage.removeItem('hortus:probe'); return true; }catch(e){ return false; } })();
+/* Gardens persist to IndexedDB, device preferences to localStorage (see the
+   storage block at the top of io.js for which goes where and why). The async
+   signatures sGet/sSet carried from the artifact era are what let that swap
+   happen without touching the call sites.
+
+   The probe still asks localStorage first because it is synchronous and a
+   truthful answer here is worth more than a precise one — but a browser that
+   blocks localStorage while allowing IndexedDB can still keep a garden, so it
+   falls through rather than declaring the session unsaveable. */
+const hasStorage = (()=>{
+  try{ localStorage.setItem('hortus:probe','1');
+    localStorage.removeItem('hortus:probe'); return true; }
+  catch(e){ try{ return !!window.indexedDB; }catch(_){ return false; } }
+})();
 
 function clockActive(){ return !!(game.inGarden && !game.pausedAt && !game.clockSuspended); }
 function elapsedGameMs(){

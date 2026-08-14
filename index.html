@@ -12,8 +12,12 @@
 <link rel="manifest" href="site.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Typefaces are self-hosted under fonts/ and declared at the top of
+     styles.css. Preload the two latin faces: they are discovered inside a
+     stylesheet, so without this the browser cannot start fetching them until
+     the CSS has parsed. -->
+<link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <script>
 /* Resolve the theme before first paint so the app never flashes loam-dark on a
@@ -24,6 +28,16 @@
   if(p!=='light'&&p!=='dark') p=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
   document.documentElement.setAttribute('data-theme',p);
 }catch(e){}})();
+/* Register the offline worker after load, so it never competes with the first
+   paint for bandwidth. A failure here is not worth reporting to the gardener —
+   the app runs perfectly well without it, just not offline. Registered with a
+   relative path so it also works under a subpath (GitHub Pages). */
+if ('serviceWorker' in navigator)
+  addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(e){
+      console.warn('offline support unavailable', e);
+    });
+  });
 </script>
 </head>
 <body>
@@ -83,7 +97,14 @@
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
     </div>
-    <a class="menu-foot" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.2 · credits</a>
+    <!-- Both stores expect the policy pages to be reachable from inside the
+         app, not only from the listing. They are plain static pages with no
+         dependency on the game, so they open fine offline too. -->
+    <p class="menu-foot">
+      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.3 · credits</a>
+      · <a href="privacy.html">Privacy</a>
+      · <a href="terms.html">Terms</a>
+    </p>
   </div>
 </div>
 

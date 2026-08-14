@@ -1,9 +1,138 @@
 'use strict';
-/* ---------- storage: save / load ---------- */
-async function sGet(key){ try{ const r=localStorage.getItem(key);
+/* ---------- storage: save / load ----------
+   sGet/sSet kept their async signatures from the artifact era even while they
+   read localStorage synchronously. That foresight is what makes this change
+   cheap: the seam was already the right shape, so the call sites barely move.
+
+   Gardens now live in IndexedDB. Three measured reasons, in order of how much
+   they hurt: localStorage is capped near 5MB per origin on iOS Safari and a
+   site-photo garden is ~1MB of it (roughly four gardens before the wall, against
+   ~21 on desktop Chrome — a platform asymmetry the app could neither see nor
+   report); it is synchronous, so every autosave serialised a whole garden on the
+   main thread; and it is evicted first under storage pressure. IndexedDB gets
+   the device quota instead of a fixed 5MB, stores structured clones so there is
+   no JSON round-trip, and can be marked persistent.
+
+   DEVICE PREFERENCES DELIBERATELY STAY IN localStorage — theme, haptics,
+   handedness, coach flags, the menu season. They are bytes rather than
+   documents, and the theme bootstrap in index.html's <head> must read one
+   synchronously before the first paint, which IndexedDB cannot do at any price.
+   IDB_KEYS is the exact list that moves; anything else keeps working through
+   the localStorage fallback below without being touched. */
+const DB_NAME='hortus', DB_STORE='kv', DB_VERSION=1;
+const IDB_KEYS=/^hortus:(worlds$|world:|solo$|filters$|plant-collections)/;
+const DB_OPEN_TIMEOUT=3000;
+let dbPromise=null, dbBroken=false;
+
+function lsGet(key){ try{ const r=localStorage.getItem(key);
   return r?JSON.parse(r):null; }catch(e){ return null; } }
-async function sSet(key,val){ try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
+function lsSet(key,val){ try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
   catch(e){ console.error('storage',e); return false; } }
+
+/* One transaction per call, resolved on tx.oncomplete rather than
+   request.onsuccess: a put's request succeeds while the transaction is still
+   in flight, so reporting success there would tell the gardener their garden
+   was saved before it durably was. */
+function idbRun(db,mode,fn){
+  return new Promise((resolve,reject)=>{
+    let tx;
+    try{ tx=db.transaction(DB_STORE,mode); }catch(e){ return reject(e); }
+    let req; try{ req=fn(tx.objectStore(DB_STORE)); }catch(e){ return reject(e); }
+    tx.oncomplete=()=>resolve(req?req.result:undefined);
+    tx.onerror=()=>reject(tx.error||new Error('indexeddb'));
+    tx.onabort=()=>reject(tx.error||new Error('indexeddb aborted'));
+  });
+}
+function openDB(){
+  if (dbBroken) return Promise.resolve(null);
+  if (dbPromise) return dbPromise;
+  /* A hung open (private modes, corrupt profiles, a blocked upgrade) must not
+     hang the app at boot, so the race degrades to localStorage instead of
+     waiting forever. If the real open lands after the timeout it is simply
+     unused for the session. */
+  dbPromise=Promise.race([
+    new Promise(resolve=>{
+      let req;
+      try{ req=indexedDB.open(DB_NAME,DB_VERSION); }catch(e){ return resolve(null); }
+      req.onupgradeneeded=()=>{ const db=req.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE); };
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>resolve(null);
+      req.onblocked=()=>resolve(null);
+    }),
+    new Promise(resolve=>setTimeout(()=>resolve(null),DB_OPEN_TIMEOUT))
+  ]).then(async db=>{
+    if (!db){ dbBroken=true; return null; }
+    try{ await migrateLocalToIdb(db); }catch(e){ console.warn('storage migration',e); }
+    return db;
+  /* openDB must never REJECT. Every read and write awaits it, so a rejected
+     dbPromise is cached forever and poisons all storage for the session — the
+     one failure mode worse than having no IndexedDB at all. Anything unexpected
+     degrades to the localStorage path instead. */
+  }).catch(e=>{ console.warn('storage open',e); dbBroken=true; return null; });
+  return dbPromise;
+}
+/* Copy the document keys across once, then free the localStorage cap. The
+   removal is what actually buys back the 5MB on iOS — a copy that leaves the
+   original in place doubles the footprint instead of relieving it — so it runs
+   only after the value is confirmed in IndexedDB. An existing IDB value always
+   wins: a half-finished earlier migration must not be overwritten by the stale
+   localStorage copy it already superseded. */
+async function migrateLocalToIdb(db){
+  let moved=0, keys=[];
+  try{ for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i);
+    if (k&&IDB_KEYS.test(k)) keys.push(k); } }
+  catch(e){ return 0; }
+  for (const k of keys){
+    let val; try{ val=JSON.parse(localStorage.getItem(k)); }catch(_){ continue; }
+    if (val==null) continue;
+    try{
+      const existing=await idbRun(db,'readonly',s=>s.get(k));
+      if (existing===undefined) await idbRun(db,'readwrite',s=>s.put(val,k));
+      try{ localStorage.removeItem(k); }catch(_){ }
+      moved++;
+    }catch(e){ console.warn('storage migration',k,e); }
+  }
+  return moved;
+}
+async function sGet(key){
+  const db=await openDB();
+  if (db){
+    try{ const v=await idbRun(db,'readonly',s=>s.get(key));
+      if (v!==undefined) return v; }
+    catch(e){ console.warn('storage read',key,e); }
+  }
+  return lsGet(key);                 // fallback, and the pre-migration path
+}
+async function sSet(key,val){
+  const db=await openDB();
+  if (db){
+    try{ await idbRun(db,'readwrite',s=>s.put(val,key)); return true; }
+    catch(e){ console.error('storage write',key,e); return false; }
+  }
+  return lsSet(key,val);
+}
+async function sDel(key){
+  const db=await openDB();
+  if (db){ try{ await idbRun(db,'readwrite',s=>s.delete(key)); }
+    catch(e){ console.warn('storage delete',key,e); } }
+  try{ localStorage.removeItem(key); }catch(_){ }   // clear both homes
+  return true;
+}
+/* Persistence is granted on engagement heuristics, so asking at boot on a
+   first visit is the request most likely to be refused. Called instead after
+   the first garden actually saves — the point at which the browser has a real
+   signal and the gardener has something worth keeping. */
+let persistenceAsked=false;
+async function requestPersistence(){
+  if (persistenceAsked) return null;
+  persistenceAsked=true;
+  try{
+    if (!navigator.storage||!navigator.storage.persist) return null;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  }catch(_){ return null; }
+}
 
 async function prepareUnderlayFile(file){
   if (!file || !['image/jpeg','image/png','image/webp'].includes(file.type))
@@ -40,7 +169,7 @@ async function migrateLegacyWorld(){
     gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
   await sSet('hortus:world:'+entry.id, legacy);
   await sSet('hortus:worlds',[entry]);
-  try{ localStorage.removeItem('hortus:solo'); }catch(e){}
+  await sDel('hortus:solo');            // may live in either home after migration
   return [entry];
 }
 /* Planting schemes ride along as an OPTIONAL `schemes` key. The active
@@ -92,7 +221,13 @@ function restoreSchemes(s,shift){
 }
 function buildSaveBlob(){
   const t0=dnow();   // autosave fires on day change / quit / pagehide: 'blob' in the debug HUD
-  const blob={wv:1,name:game.worldName,
+  /* `v` is the schema number, `app` the build that wrote it. Migrations used to
+     be feature detection ("if the blob has a `house` key it is old"), which was
+     fine while every save in existence was one of ours. An explicit version is
+     what lets loadSolo make decisions rather than guesses once strangers own the
+     data. Absent `v` means a pre-versioning save, which is version 0. */
+  const blob={v:SAVE_VERSION,app:APP_VERSION,
+    wv:1,name:game.worldName,
     mode:'design',design:game.design,   // design is the only mode; kept so older builds read the save sanely
     discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
     gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
@@ -108,15 +243,29 @@ function buildSaveBlob(){
   dev('blob',t0);
   return blob;
 }
+/* A silent autosave that fails silently is exactly how a session's work
+   disappears with nobody noticing — autosave fires on every day change, so the
+   old code could fail two hundred times without a word. It now speaks once and
+   then stays quiet until a save succeeds again; a toast per day change would be
+   its own bug. The message names the way out (export) rather than the cause. */
+let saveFailureReported=false;
 async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   if (!game.worldId) game.worldId='w'+Date.now().toString(36);
   const blob=buildSaveBlob();
   const stored=await sSet('hortus:world:'+game.worldId,blob);
-  if (!stored){ if (!silent) toast('This garden could not be saved - device storage is full.','warn'); return false; }
+  if (!stored){
+    if (!silent || !saveFailureReported){
+      saveFailureReported=true;
+      toast('This garden could not be saved — device storage may be full. Export it from the menu to keep it.','warn');
+    }
+    return false;
+  }
   const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
   idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:'design'});
   await sSet('hortus:worlds',idx);
+  saveFailureReported=false;
+  requestPersistence();               // first real save is the strongest signal
   if (!silent) toast('Garden saved.');
   return true;
 }

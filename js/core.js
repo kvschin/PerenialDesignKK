@@ -4,6 +4,16 @@
 'use strict';
 
 /* ---------- core constants ---------- */
+/* One version string, three consumers: the crash report (so a stack from a
+   stranger names the build it came from), the service worker's cache name (a
+   bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
+   Keep it in step with package.json. */
+const APP_VERSION = '0.3.0';
+/* Save blob schema. Migrations used to be feature detection — "if the blob has
+   a `house` key it is old" — which worked only while every save in existence
+   was one of ours. An explicit number is what lets a save written today be
+   read confidently by a build shipped in two years. */
+const SAVE_VERSION = 1;
 const SEASONS = ['Spring','Summer','Fall','Winter'];
 const DAYS_PER_SEASON = 16;
 const DAY_MS = 20000;                 // 20 real seconds per garden day

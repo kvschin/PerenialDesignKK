@@ -64,8 +64,24 @@ repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
 the game logic, split for navigability across ordered app modules: `core.js`,
 `draw.js`, `world.js`, `view.js`, `renderer.js`, `commands.js`, `input.js`,
 `io.js`, `collections.js`, `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step,
-no npm dependencies, no framework. Fonts load from Google Fonts over the
-network; everything else is local. The modules share one global scope (plain
+no npm dependencies, no framework. **Nothing loads over the network** — the
+typefaces are self-hosted under `fonts/` (Fraunces and IBM Plex Sans, both SIL
+OFL 1.1, licences shipped alongside), and a **service worker** (`sw.js`)
+precaches the whole 1.7MB shell, so the app runs entirely offline and makes zero
+third-party requests. That is three things at once: an installed app that needed
+a network to look right was not an app; a render-blocking round trip sat in front
+of every cold start; and a CDN that sees the user's IP is a third-party data
+disclosure on both store privacy labels, for an app that otherwise collects
+nothing. Google serves **one variable file per family per subset** — the three
+weights the old CDN request named were byte-identical downloads (checksum
+verified), so twelve files collapse to four and 606KB to 208KB, and `styles.css`
+declares the real weight *range* rather than static instances (weight 650 now
+renders true instead of snapping to 700). `sw.js` names its cache from
+`APP_VERSION`; **bumping that version is what ships an update**, so keep it in
+step with `package.json` and with `PRECACHE`. It deliberately does **not**
+`skipWaiting()` — a new worker taking over a running tab would let a session that
+started on one build fetch assets from the next, and this app holds a garden in
+memory for the whole session. The modules share one global scope (plain
 `<script>` tags, no bundler), so **load order matters**: `index.html` loads
 `js/plants.js` first, then the modules in the order above — keep that order. Function declarations hoist only *within* a
 file, so the bottom-of-file button wiring and `init` live in `screens.js` (last,
@@ -92,6 +108,16 @@ See §13a.
   runs the same server via `.claude/launch.json`, which uses `autoPort` (the
   harness assigns a free port) rather than a hard-coded `-p`, so it doesn't
   collide with anything already holding 8642.
+- **The service worker caches aggressively, which will bite you while
+  developing.** `sw.js` is cache-first for every static asset, so an edit to a
+  module can appear not to have happened. During a session use the browser's
+  "Bypass for network"/"Update on reload" devtools toggle, or unregister the
+  worker. `http-server -c-1` disables *HTTP* caching only — it has no effect on
+  the service worker's own cache.
+- **Verifying offline for real**: load the app, then stop the server and reload.
+  It should boot fully — all 14 modules, both typefaces, and any saved garden
+  out of IndexedDB. That is the only check that actually proves the precache
+  list is complete; a green `caches.keys()` does not.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
@@ -107,15 +133,54 @@ See §13a.
   functions run headless. The runner concatenates, so it won't catch cross-file
   load-order/hoisting bugs — only the browser will. Add a `test(name,fn)` with
   `assert(...)` to the matching file when you add a feature; the runner exits
-  non-zero on any failure.
+  non-zero on any failure. **`test()` queues rather than runs**, and `drain()`
+  awaits each in turn, so a test may be `async` — storage is genuinely
+  asynchronous now that gardens live in IndexedDB. The queue is not stylistic:
+  tests share one mutable `game` and every test resets it through `setup()`, so
+  an async test that ran on declaration would suspend at its first `await`, let
+  the next declaration reset the world underneath it, and resume against someone
+  else's garden. Two tests failed exactly that way before the queue landed.
 
 ## Known constraints (read before touching save)
 
-- **Storage is `localStorage`, single-device, single-player.** `sGet`/`sSet`
-  kept their original async signatures from the artifact era but read/write
-  `localStorage`, so saves persist. Keep those signatures async: they are the
-  seam a future storage backend would slot into. Sharing a garden is
-  file-based (export/import a JSON blob), not live — see the direction note.
+- **Storage is single-device, single-player, and split by kind.** Gardens live
+  in **IndexedDB**; device preferences stay in **localStorage**. `sGet`/`sSet`/
+  `sDel` are the whole API and are genuinely async now — those signatures,
+  carried unused from the artifact era, are exactly what made the swap cheap, so
+  keep them async. `IDB_KEYS` (io.js) is the boundary: it matches
+  `hortus:worlds`, `hortus:world:*`, `hortus:solo`, `hortus:filters` and
+  `hortus:plant-collections*`, and **anything it does not match stays
+  synchronous in localStorage** — theme, haptics, handedness, coach flags, the
+  menu season. That is load-bearing in one direction specifically: the theme
+  bootstrap in `index.html`'s `<head>` has to read its key before the first
+  paint, which IndexedDB cannot do at any price. A test asserts both halves.
+  Why it moved: localStorage caps near **5MB on iOS Safari** and a
+  site-photo garden is ~1MB of it — roughly four gardens before the wall,
+  against ~21 on desktop Chrome (measured), an asymmetry the app could neither
+  see nor report. It is also synchronous (every autosave serialised a whole
+  garden on the main thread) and is evicted first under pressure. Migration runs
+  once inside `openDB()` and **removes the localStorage copy only after the
+  value is confirmed in IDB** — the removal is what actually buys the 5MB back;
+  copying without it doubles the footprint. An existing IDB value always wins,
+  so a half-finished earlier migration is never overwritten by the stale copy it
+  superseded. `openDB()` **must never reject**: every read and write awaits it,
+  so a rejected `dbPromise` is cached forever and poisons all storage for the
+  session — worse than having no IndexedDB at all. It races a 3s timeout and
+  catches everything, degrading to localStorage. `requestPersistence()`
+  (`navigator.storage.persist()`) fires after the **first successful save**, not
+  at boot: the grant is engagement-heuristic, so asking on a cold first visit is
+  the request most likely to be refused. Sharing a garden is file-based
+  (export/import a JSON blob), not live — see the direction note.
+- **A failed save must reach the gardener.** `saveSolo(silent)` used to return
+  `false` and say nothing, and autosave fires on every day change — so a full
+  device could fail two hundred times in silence and lose the session. It now
+  warns **once** and stays quiet until a save succeeds again (`saveFailureReported`);
+  a toast per day change would be its own bug. The message names the way out
+  (export), not the cause.
+- **Save blobs carry `v` (`SAVE_VERSION`) and `app` (`APP_VERSION`).** Migrations
+  used to be feature detection — "if the blob has a `house` key it is old" —
+  which was fine only while every save in existence was one of ours. Absent `v`
+  means a pre-versioning save, i.e. version 0.
 - Mobile is a first-class target: tap a tile to act on it. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
@@ -175,7 +240,22 @@ logic is split across ordered modules. They map onto the section list below
 - **`library.js`** — the Plant Library browser (`openLibrary`).
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
-  `init` IIFE.
+  `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper
+  that try/catches `frame(t)` (the old loop body, renamed): rAF swallows
+  nothing, so an uncaught throw inside `render()` used to leave a black canvas
+  with no way back, no save and no report, killing the session's work. Two
+  failures get two deliberately different responses — a throw in the render
+  loop IS fatal (the frame never completes, the garden is frozen), so
+  `reportCrash` banks the garden via `saveSolo(true)` and shows a way out; a
+  throw anywhere else (a click handler, a rejected promise) leaves a working
+  app, so `noteError` records it into the `errLog` ring buffer for the report
+  and otherwise leaves it alone — panelling the screen over a stray rejection
+  would be worse than the bug. `crashed` latches so a throwing frame reports
+  once rather than storming. **`buildCrashPanel` builds raw DOM with inline
+  styles and calls no app function**: whatever broke the frame may equally break
+  `showConfirm` or a token lookup, and a recovery screen that needs a working
+  app is not a recovery screen. The save is async, so the panel says "Saving…"
+  and tells the truth once the write actually lands rather than guessing.
 
 Rough order of the logic, top to bottom (the numbering predates the split):
 
