@@ -3759,6 +3759,7 @@ function shade(col, amt){
 function drawPet(ctx, x, y, p, scale){
   const s=scale||1, C=petCoat(p&&p.coat), coat=C.c, dark=C.d;
   const species=petSpecies(p&&p.species).id, mark=petMark(p&&p.mark).id;
+  const sock=petPaw(p&&p.paws).c;
   ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
   // shadow
   ctx.fillStyle='rgba(0,0,0,0.22)';
@@ -3769,19 +3770,23 @@ function drawPet(ctx, x, y, p, scale){
   if (species==='cat'){ ctx.moveTo(8,-6); ctx.quadraticCurveTo(17,-10,15,-22); }
   else { ctx.moveTo(9,-7); ctx.quadraticCurveTo(16,-12,13,-16); }
   ctx.stroke();
+  // legs, drawn before the body so only the feet show below it. A sock is the
+  // whole visible portion rather than a band: below the body there are barely
+  // two units of leg, and a band inside that reads as noise, not as socks.
+  ctx.fillStyle=dark;
+  ctx.fillRect(-7,-2,3.4,5); ctx.fillRect(3.6,-2,3.4,5);
+  if (sock){ ctx.fillStyle=sock;
+    ctx.fillRect(-7,0.4,3.4,2.6); ctx.fillRect(3.6,0.4,3.4,2.6); }
   // body
-  ctx.fillStyle=coat;
-  ctx.beginPath(); ctx.ellipse(0,-9,11,10,0,0,7); ctx.fill();
+  ctx.fillStyle=coat; ctx.strokeStyle=dark; ctx.lineWidth=0.9;
+  ctx.beginPath(); ctx.ellipse(0,-9,11,10,0,0,7); ctx.fill(); ctx.stroke();
   if (mark==='tuxedo'){ ctx.fillStyle='#f3ecdd';
     ctx.beginPath(); ctx.ellipse(0,-7,5.5,7,0,0,7); ctx.fill(); }
-  // legs hint
-  ctx.fillStyle=dark;
-  ctx.fillRect(-7,-2,3.4,4); ctx.fillRect(3.6,-2,3.4,4);
-  // head
+  // head — outlined for the same reason as the body: a pale coat needs an edge
   ctx.fillStyle=coat;
-  ctx.beginPath(); ctx.arc(0,-22,8.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(0,-22,8.6,0,7); ctx.fill(); ctx.stroke();
   if (mark==='patch'){ ctx.fillStyle=dark;
-    ctx.beginPath(); ctx.arc(-3.4,-24,3.6,0,7); ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(-3.6,-23.4,4.3,3.9,-0.25,0,7); ctx.fill(); }
   // ears
   ctx.fillStyle=coat;
   if (species==='cat'){
@@ -3794,10 +3799,16 @@ function drawPet(ctx, x, y, p, scale){
     ctx.beginPath(); ctx.ellipse(-8,-22,3.2,6,0.4,0,7); ctx.fill();
     ctx.beginPath(); ctx.ellipse(8,-22,3.2,6,-0.4,0,7); ctx.fill();
   }
-  // face
+  // face. The catchlight is load-bearing, not decoration: without it a dark
+  // eye on an eye patch (or on the Ink coat) vanishes, and the patch reads as
+  // a monocle instead of a marking.
   ctx.fillStyle='#19120f';
-  ctx.beginPath(); ctx.arc(-3,-23,1.2,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(3,-23,1.2,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-3,-23,1.35,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(3,-23,1.35,0,7); ctx.fill();
+  ctx.fillStyle='rgba(255,252,245,0.92)';
+  ctx.beginPath(); ctx.arc(-3.5,-23.5,0.5,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5,-23.5,0.5,0,7); ctx.fill();
+  ctx.fillStyle='#19120f';
   if (species==='dog'){ ctx.beginPath(); ctx.ellipse(0,-19.5,2.2,1.7,0,0,7); ctx.fill(); }
   else { ctx.beginPath(); ctx.moveTo(-1.4,-20); ctx.lineTo(1.4,-20); ctx.lineTo(0,-18.6); ctx.closePath(); ctx.fill(); }
   ctx.restore();

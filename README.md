@@ -36,9 +36,10 @@ A left-hand toolbar drives the planner:
 - **Plant** — draw single plants or natural **drifts**; the catalog filters to
   your zone and ecoregion, grouped by grasses / sun & shade perennials / bulbs /
   shrubs / trees.
-- **Decor** — set a cat or dog down somewhere sunny. Pure ornament: pick the
-  species, coat and markings; it never moves, never blocks planting, and never
-  shows up on the design plan or the planting list.
+- **Decor** — set a cat or dog down somewhere sunny. Pure ornament: nine coats,
+  three markings, and socks, so you can build the one asleep on your sofa. It
+  never moves, never blocks planting, and never shows up on the design plan or
+  the planting list.
 - **Erase** — a sized brush (1 / 3×3 / 5×5) that clears all layers or just
   plants, bulbs, or landscape.
 - **Fill** — bucket-fill a connected area of one material: carpet a bed with one

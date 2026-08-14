@@ -877,12 +877,27 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and the scheme keys.
 12a. **Garden pets** — the cat and dog, back as ornament after the avatar was
     retired. `game.pets` is an ordinary keyed layer (`"x,y"` ->
-    `{species,coat,mark,t}`) registered in `GAME_LAYERS`, so undo, save/load and
-    schemes-adjacent plumbing come for free; `LAYER_CACHES` classifies it
+    `{species,coat,mark,paws,t}`) registered in `GAME_LAYERS`, so undo, save/load
+    and schemes-adjacent plumbing come for free; `LAYER_CACHES` classifies it
     `{scene:1}` — one sprite in the depth pass, no ground bake, no shade map.
-    `PET_SPECIES`/`PET_COATS`/`PET_MARKS` + `normalizePetDraft` (core.js) are the
-    data; `game.petDraft` is what the **Decor** tray arms, and every chip in that
-    tray previews the real `drawPet` so you pick by looking. `drawPet` (draw.js)
+    `PET_SPECIES`/`PET_COATS`/`PET_MARKS`/`PET_PAWS` + `normalizePetDraft`
+    (core.js) are the data; `game.petDraft` is what the **Decor** tray arms.
+    That tray is **contextual like the Ground tab**: Cat/Dog are always up and
+    the coat, marking and sock rows only unfold once a pet is armed, the same
+    shape as picking Bed and getting bed materials. Every chip previews the real
+    `drawPet`, so you choose by looking rather than by reading a label.
+    In `PET_COATS`, **`d` (the shadow tone) is what gives a coat its
+    structure** — it draws the tail, legs, dog ears and eye patch — so a pale
+    coat needs a far deeper `d` than its body colour suggests. Birch shipped
+    with `d:'#c9c2b0'` and read as a featureless blob on grass; it is
+    `#a1957f` now. Two other legibility fixes ride with it: the body and head
+    are **stroked in `d`**, which gives every coat a crisp edge instead of only
+    rescuing the pale ones, and the eyes carry a **catchlight** — without it a
+    dark eye sitting on an eye patch (or on the Ink coat) disappeared and the
+    patch read as a monocle. `PET_PAWS` is socks, `c:null` meaning "same as the
+    coat's shadow"; a sock is the whole visible leg below the body rather than
+    a band, because there are barely two units of leg down there and a band
+    inside that reads as noise. `drawPet` (draw.js)
     is the recovered `drawCritter` with its animation **folded to the t=0
     resting pose**: a breathing pet would have to join `hasTransientGardenWork`,
     which keeps the whole garden repainting forever for a 0.7px bob.

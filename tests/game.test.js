@@ -2330,11 +2330,17 @@ test('a garden pet places as one-tile decoration, erases as landscape, and is ey
   setup(13, 13);
   const forb = firstOfType('forb');
   game.tool = 'pet';
-  game.petDraft = { species: 'dog', coat: 'cocoa', mark: 'tuxedo' };
+  game.petDraft = { species: 'dog', coat: 'ink', mark: 'tuxedo', paws: 'brown' };
   assertEqual(applyToolAt(5, 5), 'pet', 'pet placed');
   assertEqual(petAt(5, 5).species, 'dog', 'species saved');
-  assertEqual(petAt(5, 5).coat, 'cocoa', 'coat saved by id, not hex');
+  assertEqual(petAt(5, 5).coat, 'ink', 'coat saved by id, not hex');
   assertEqual(petAt(5, 5).mark, 'tuxedo', 'marking saved');
+  assertEqual(petAt(5, 5).paws, 'brown', 'socks saved — a black dog with brown feet');
+  assert(/brown socks/.test(petLabel(petAt(5, 5))), `the label mentions the socks: ${petLabel(petAt(5, 5))}`);
+  // pets saved before socks existed must still load and draw
+  assertEqual(normalizePetDraft({ species: 'cat', coat: 'smoke', mark: 'solid' }).paws, 'match',
+    'a pre-socks pet normalizes to no socks');
+  assertEqual(petPaw('match').c, null, 'no socks means the legs keep the coat shadow');
   assert(!petAt(6, 5), 'a pet claims exactly one tile — no footprint');
   assert(!isBrushTool('pet'), 'tap-only: a drag must not lay a row of identical pets');
 
@@ -2371,7 +2377,7 @@ test('a garden pet places as one-tile decoration, erases as landscape, and is ey
   assertEqual(game.tool, 'pet', 'eyedropper arms the pet tool');
   assertEqual(game.petDraft.species, 'cat', 'eyedropper copies the species');
   assertEqual(game.petDraft.coat, 'birch', 'eyedropper copies the coat');
-  game.petDraft = { species: 'dog', coat: 'cocoa', mark: 'tuxedo' };
+  game.petDraft = { species: 'dog', coat: 'cocoa', mark: 'tuxedo', paws: 'match' };
 
   const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0, light: 0, firepit: 0, boulder: 0, pet: 0 };
   game.tool = 'shovel'; game.eraseMode = 'terrain';

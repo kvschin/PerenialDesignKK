@@ -393,25 +393,43 @@ const PET_SPECIES = [
   {id:'cat', label:'Cat'},
   {id:'dog', label:'Dog'},
 ];
+/* `d` is the shadow tone: it draws the tail, the legs, the dog's ears and the
+   eye patch, so it is what gives a coat its structure. A pale coat needs a
+   MUCH deeper `d` than its body colour suggests, or the animal reads as a
+   featureless blob against light grass — that is what was wrong with Birch. */
 const PET_COATS = [
   {id:'marmalade', label:'Marmalade', c:'#d98a4a', d:'#a35a2e'},
-  {id:'charcoal',  label:'Charcoal',  c:'#4a4a52', d:'#2e2e34'},
-  {id:'cream',     label:'Cream',     c:'#e8d9b8', d:'#c2a87e'},
+  {id:'russet',    label:'Russet',    c:'#b4562c', d:'#7d3418'},
   {id:'cocoa',     label:'Cocoa',     c:'#7a5236', d:'#54371f'},
-  {id:'smoke',     label:'Smoke',     c:'#9a9aa2', d:'#6e6e78'},
-  {id:'birch',     label:'Birch',     c:'#f0ece2', d:'#c9c2b0'},
+  {id:'fawn',      label:'Fawn',      c:'#cfa871', d:'#9a7440'},
+  {id:'cream',     label:'Cream',     c:'#e8d9b8', d:'#b99a63'},
+  {id:'birch',     label:'Birch',     c:'#f2ede1', d:'#a1957f'},
+  {id:'smoke',     label:'Smoke',     c:'#9a9aa2', d:'#66666f'},
+  {id:'charcoal',  label:'Charcoal',  c:'#4a4a52', d:'#2e2e34'},
+  {id:'ink',       label:'Ink',       c:'#2c2b30', d:'#141317'},
 ];
 const PET_MARKS = [
   {id:'solid',  label:'Solid'},
   {id:'tuxedo', label:'Tuxedo'},
   {id:'patch',  label:'Eye patch'},
 ];
+/* Socks. `c:null` means "same as the coat's shadow", i.e. no socks at all.
+   Small, and entirely the point: somebody's black dog has brown feet. */
+const PET_PAWS = [
+  {id:'match', label:'No socks', c:null},
+  {id:'brown', label:'Brown',    c:'#7d5533'},
+  {id:'tan',   label:'Tan',      c:'#c9a271'},
+  {id:'white', label:'White',    c:'#f4efe4'},
+  {id:'black', label:'Black',    c:'#1d1c20'},
+];
 function petSpecies(id){ return PET_SPECIES.find(s=>s.id===id)||PET_SPECIES[0]; }
 function petCoat(id){ return PET_COATS.find(c=>c.id===id)||PET_COATS[0]; }
 function petMark(id){ return PET_MARKS.find(m=>m.id===id)||PET_MARKS[0]; }
+function petPaw(id){ return PET_PAWS.find(p=>p.id===id)||PET_PAWS[0]; }
 function normalizePetDraft(d){
   d=d&&typeof d==='object'?d:{};
-  return {species:petSpecies(d.species).id, coat:petCoat(d.coat).id, mark:petMark(d.mark).id};
+  return {species:petSpecies(d.species).id, coat:petCoat(d.coat).id,
+    mark:petMark(d.mark).id, paws:petPaw(d.paws).id};
 }
 
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,

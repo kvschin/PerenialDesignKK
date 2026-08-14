@@ -2695,10 +2695,12 @@ function buildToolTrayInner(){
     LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
   }
   if (cat.tools.includes('pet')){
-    // Every chip previews the pet you would actually place: the button art is
-    // the real drawPet, so species / coat / marking are chosen by looking at
-    // them rather than by reading a label.
-    const pd=petDraft();
+    // Contextual like the Ground tab: Cat / Dog are always up, and the coat,
+    // marking and sock rows only unfold once a pet is armed — the same shape
+    // as picking Bed and then getting bed materials. Every chip previews the
+    // pet you would actually place (the button art is the real drawPet), so
+    // you choose by looking rather than by reading a label.
+    const pd=petDraft(), armed=game.tool==='pet';
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
     const toolBtn=(label,sel,draftPatch,tip)=>{
@@ -2713,13 +2715,17 @@ function buildToolTrayInner(){
         setTool('pet',null); buildToolTray(); };
       tray.appendChild(b); return b;
     };
-    sep('Who');
-    PET_SPECIES.forEach(s2=>toolBtn(s2.label, game.tool==='pet'&&pd.species===s2.id, {species:s2.id},
+    PET_SPECIES.forEach(s2=>toolBtn(s2.label, armed&&pd.species===s2.id, {species:s2.id},
       `Place a ${s2.label.toLowerCase()} in the garden`));
-    sep('Coat');
-    PET_COATS.forEach(c2=>toolBtn(c2.label, game.tool==='pet'&&pd.coat===c2.id, {coat:c2.id}, `${c2.label} coat`));
-    sep('Marking');
-    PET_MARKS.forEach(m2=>toolBtn(m2.label, game.tool==='pet'&&pd.mark===m2.id, {mark:m2.id}, m2.label));
+    if (armed){
+      sep('Coat');
+      PET_COATS.forEach(c2=>toolBtn(c2.label, pd.coat===c2.id, {coat:c2.id}, `${c2.label} coat`));
+      sep('Marking');
+      PET_MARKS.forEach(m2=>toolBtn(m2.label, pd.mark===m2.id, {mark:m2.id}, m2.label));
+      sep('Socks');
+      PET_PAWS.forEach(p2=>toolBtn(p2.label, pd.paws===p2.id, {paws:p2.id},
+        p2.c?`${p2.label} feet`:'Feet the same colour as the coat'));
+    }
   }
   if (cat.tools.includes('house')){
     // the Site tab works like the plant tray: icon buttons in labeled sections
@@ -2796,7 +2802,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
-    if (k==='pet') hay+=' decor pet cat dog animal ornament '+PET_COATS.map(c2=>c2.label).join(' ')+' '+PET_MARKS.map(m2=>m2.label).join(' ');
+    if (k==='pet') hay+=' decor pet cat dog animal ornament socks paws feet '+PET_COATS.map(c2=>c2.label).join(' ')+' '+PET_MARKS.map(m2=>m2.label).join(' ')+' '+PET_PAWS.map(p2=>p2.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
       if (P.group) PLANT_KEYS.forEach(k2=>{ if (PLANTS[k2].group===P.group)
         hay+=' '+PLANTS[k2].name+' '+PLANTS[k2].latin+' '+roleSummary(k2,12); }); }
@@ -2834,6 +2840,8 @@ function refreshTray(){
       ? game.tool==='pet' && petDraft().coat===el.dataset.petCoat
       : el.dataset.petMark
       ? game.tool==='pet' && petDraft().mark===el.dataset.petMark
+      : el.dataset.petPaws
+      ? game.tool==='pet' && petDraft().paws===el.dataset.petPaws
       : el.dataset.group
       ? !!(cur && cur.group===el.dataset.group)
       : el.dataset.k===game.tool;

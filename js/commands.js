@@ -461,7 +461,9 @@ function petDraft(){ return game.petDraft=normalizePetDraft(game.petDraft); }
 function petLabel(p){
   const d=normalizePetDraft(p||petDraft());
   const mark=d.mark==='solid' ? '' : `${petMark(d.mark).label.toLowerCase()} `;
-  return `${petCoat(d.coat).label.toLowerCase()} ${mark}${petSpecies(d.species).label.toLowerCase()}`;
+  const paw=petPaw(d.paws);
+  const socks=paw.c ? ` with ${paw.label.toLowerCase()} socks` : '';
+  return `${petCoat(d.coat).label.toLowerCase()} ${mark}${petSpecies(d.species).label.toLowerCase()}${socks}`;
 }
 function firepitShapeName(f){
   const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
