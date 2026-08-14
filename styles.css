@@ -1547,10 +1547,24 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #sheetHandle{background:var(--color-bg);border-color:var(--color-divider);color:var(--color-text);border-radius:var(--radius-pill)}
   #sheetHandle .sheet-ctx{color:var(--color-text);font-family:var(--font-heading);font-weight:600}
   #sheetHandle .sheet-actions{border-color:var(--color-divider)}
-  .catalog-header{padding:15px 16px 11px}.catalog-header h2{font-size:23px}.catalog-header p{font-size:11px}.catalog-close{width:40px;height:40px;flex-basis:40px}
+  .catalog-header{padding:15px 16px 11px}.catalog-header h2{font-size:23px}.catalog-header p{font-size:11px}
+  /* No close control on the sheet: the handle owns sheet state here, and its
+     down/up chevrons already collapse and expand the library. A second, differently
+     shaped way to do the same thing sat one row below them. */
+  .catalog-close{display:none}
   #trayTabs,#toolTray{background:var(--color-bg);border-color:var(--color-divider)}
   #trayTabs{padding:8px 12px 10px;border:0;border-bottom:1px solid var(--color-divider)}.discovery-controls{gap:6px}.catalog-mode{min-height:44px}
-  .landscape-controls .catalog-search{width:100%;min-height:44px;flex:1 0 100%}
+  /* `flex:1 0 100%` dates from when the search owned a full row of its own.
+     Paired with the mode switch inside a .catalog-control-row it claimed the
+     whole row and crushed its partner to 8px, so the sheet's Landscape view had
+     no usable way back to the plant library — the same trap the .catalog-mode
+     comment above describes. The switch sizes to its two labels (never
+     truncating them, down to 320px) and the search takes what is left. */
+  .landscape-controls .catalog-mode{flex:0 0 auto;width:auto}
+  /* basis auto, not the shared `flex:1`: a content-sized switch measured at the
+     zero basis gives both labels the same 70px and "Landscape" spills 4px. */
+  .landscape-controls .catalog-mode button{flex:1 1 auto}
+  .landscape-controls .catalog-search{width:auto;min-height:44px;flex:1 1 auto}
   .cat-current{display:none}
   /* `order:4;flex:1 0 100%` dates from when the strip was a direct child of
      #trayTabs and wrapped to its own row. Inside .catalog-category-nav it is a
@@ -1582,6 +1596,9 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .hud-bottom.sheet-half .discovery-source-wrap,
   .hud-bottom.sheet-half #trayFind,
   .hud-bottom.sheet-half .catalog-search{display:none}
+  /* Landscape's row holds only those two, so hiding them left a 44px empty
+     band (min-height) in the one state whose point is seeing the garden. */
+  .hud-bottom.sheet-half .landscape-controls{display:none}
   /* With the pair partners hidden, the survivor should span the row. */
   .hud-bottom.sheet-half .catalog-control-row{gap:0}
   .hud-bottom.sheet-half .discovery-filter-row{flex:1 1 100%}

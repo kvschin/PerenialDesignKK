@@ -1265,7 +1265,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     scroller so it cannot quietly become a nearly full-screen sheet. On phone
     viewports 640px tall or shorter, half state omits its redundant catalog title,
     mode switch, and search field; source/filter/category controls and results stay
-    usable there, while full state retains the complete hierarchy. Collapsed leaves
+    usable there, while full state retains the complete hierarchy. **The sheet has
+    no in-header close control** — the handle's down/up chevrons already own sheet
+    state, so the round `.catalog-close` is `display:none` below the dock and a
+    second, differently shaped collapse control no longer sits one row under them.
+    The **Plants / Landscape switch stays usable in the Landscape catalog** on the
+    sheet: its `.catalog-control-row` pairs the switch with the landscape search,
+    and the search's old `flex:1 0 100%` (from when it owned a full row) claimed
+    the whole row and crushed the switch to 8px — i.e. the sheet's Landscape view
+    had no way back to the plant library. The switch is content-sized
+    (`flex:0 0 auto`, buttons at basis `auto` so "Landscape" isn't measured at the
+    shared zero basis and clipped) and the search takes the remainder; both fit at
+    320px. Half state hides that whole row rather than leaving its 44px min-height
+    band empty. Collapsed leaves
     only a compact context label + swatch of the armed plant
     (`drawSheetSwatch`); the brush bar returns in half/full. The mobile palette is full-bleed
     (edge-to-edge, 28px top corners, docked to `bottom:0` with
@@ -1284,8 +1296,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     collapsed returns it to a compact inset bar. At 768px and above `.hud-bottom`
     is the right-docked dark library; desktop/tablet deliberately have only
     two levels: the expanded browser and a compact **Plant library** launcher on
-    the lower-right edge. The round close control in the library header minimizes
-    directly; the launcher reopens directly to the browser, and Escape also
+    the lower-right edge. The round close control in the library header (dock only)
+    minimizes directly; the launcher reopens directly to the browser, and Escape also
     minimizes. Zoom/Fit sits in a dark loam pill at the bottom-left on these sizes.
     The active plant result card uses the same terracotta selected treatment independently of
     its Favorite heart. **Canvas full-bleed under
