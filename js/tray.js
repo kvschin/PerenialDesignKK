@@ -882,7 +882,11 @@ function positionSelectionActions(){
 }
 /* a small themed yes/no modal, built on the fly (matches the .screen panels).
    Returns nothing; calls onOk only if the user confirms. */
-function showConfirm(title, body, okLabel, onOk){
+/* cancelLabel/onCancel are optional and default to the old behaviour ("Cancel",
+   dismiss and do nothing), so every existing call site is untouched. The first-run
+   welcome needs them because there declining is a real choice with its own words,
+   not an escape hatch. */
+function showConfirm(title, body, okLabel, onOk, cancelLabel, onCancel){
   const old=document.getElementById('confirmPop'); if (old) old.remove();
   const scr=document.createElement('div');
   scr.id='confirmPop'; scr.className='screen modal-screen hidden'; scr.setAttribute('role','alertdialog');
@@ -893,12 +897,13 @@ function showConfirm(title, body, okLabel, onOk){
     '<button class="btn" data-x></button><button class="btn primary" data-ok></button></div></div>';
   scr.querySelector('h2').textContent=title;
   scr.querySelector('p').textContent=body||'';
-  scr.querySelector('[data-x]').textContent='Cancel';
+  scr.querySelector('[data-x]').textContent=cancelLabel||'Cancel';
   scr.querySelector('[data-ok]').textContent=okLabel||'OK';
   const close=()=>{ closeOverlay('confirmPop'); scr.remove(); };
-  scr.querySelector('[data-x]').onclick=close;
+  const cancel=()=>{ close(); onCancel&&onCancel(); };
+  scr.querySelector('[data-x]').onclick=cancel;
   scr.querySelector('[data-ok]').onclick=()=>{ close(); onOk&&onOk(); };
-  scr.addEventListener('click',e=>{ if (e.target===scr) close(); });
+  scr.addEventListener('click',e=>{ if (e.target===scr) cancel(); });
   document.body.appendChild(scr);
   openOverlay('confirmPop','[data-x]');
 }

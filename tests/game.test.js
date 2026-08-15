@@ -3418,6 +3418,54 @@ test('a single-scheme garden saves exactly as it always did', async () => {
   assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
 });
 
+/* ---------- first run: the demo garden offer ---------- */
+
+test('installWorldBlob accepts a real envelope and refuses anything else', async () => {
+  setup(21, 21);
+  const good = { pocketPrairie: 1, v: 1, world: { wv: 1, name: 'Whatever', gw: 27, gh: 27,
+    plants: { '3,3': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {}, terrain: {} } };
+  const id = await installWorldBlob(good, 'Demo garden');
+  assert(id, 'a valid envelope installs');
+  const stored = await sGet('hortus:world:' + id);
+  assertEqual(stored.name, 'Demo garden', 'the caller names it, not the file');
+  assert(!!stored.plants['3,3'], 'its planting came across');
+  const idx = await worldsIndex();
+  assert(idx.some(w => w.id === id), 'and it is listed so it can be opened');
+
+  // the shared validator is the only gate, so junk must not reach storage
+  for (const bad of [null, {}, { world: {} }, { pocketPrairie: 1 },
+                     { pocketPrairie: 1, world: { plants: 'not a map' } }])
+    assertEqual(await installWorldBlob(bad, 'Nope'), null,
+      'a malformed envelope installs nothing');
+});
+
+test('the demo garden is offered once, and never to someone who already gardens', async () => {
+  setup(21, 21);
+  localStorage.removeItem('hortus:welcomed');
+  await sSet('hortus:worlds', []);
+  assertEqual(welcomeSeen(), false, 'a fresh device has not been welcomed');
+
+  // an existing gardener is never greeted as new, even with the flag clear —
+  // having gardens is the stronger signal
+  await sSet('hortus:worlds', [{ id: 'w1', name: 'My garden', ts: 1, gw: 31, gh: 31 }]);
+  assertEqual(await maybeOfferDemoGarden(), false, 'not offered when gardens exist');
+  assertEqual(welcomeSeen(), true, 'and the flag is set so it stops asking');
+
+  // a genuinely new device gets the offer exactly once
+  localStorage.removeItem('hortus:welcomed');
+  await sSet('hortus:worlds', []);
+  assertEqual(await maybeOfferDemoGarden(), true, 'offered on a truly first run');
+  markWelcomeSeen();
+  assertEqual(await maybeOfferDemoGarden(), false, 'and not a second time');
+});
+
+test('the welcome flag is a device preference, not a document', () => {
+  // It must stay in localStorage: IDB is async, and the offer is decided during
+  // init. A key that drifted into IDB_KEYS would be read after the menu paints.
+  assert(!IDB_KEYS.test('hortus:welcomed'),
+    'the welcome flag stays synchronous alongside theme and haptics');
+});
+
 /* ---------- storage: IndexedDB for documents, localStorage for preferences ---------- */
 
 test('the storage split keeps documents and device preferences apart', () => {

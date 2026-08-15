@@ -117,7 +117,20 @@ See §13a.
 - **Verifying offline for real**: load the app, then stop the server and reload.
   It should boot fully — all 14 modules, both typefaces, and any saved garden
   out of IndexedDB. That is the only check that actually proves the precache
-  list is complete; a green `caches.keys()` does not.
+  list is complete; a green `caches.keys()` does not. Note that `fetch()`
+  SUCCEEDING with the server down is not evidence the server is up — the worker
+  is serving it, which is the whole point. Probe a URL that is *not* precached:
+  if that fails while `js/core.js` returns 200, the worker is doing its job.
+- **A version bump does not take effect in the tab that installs it.** `sw.js`
+  deliberately omits `skipWaiting()`, so a new worker precaches and then sits in
+  `waiting` until every client on the origin is gone. Mid-session you will see
+  two caches and the OLD one still serving; that is correct, not a bug. Reading
+  `caches.keys()[0]` during that window inspects the stale cache and will
+  convince you the precache failed.
+- `node dev/make-demo-garden.js` regenerates `demo-garden.json` (see
+  `docs/demo-garden.md`). Prefer authoring the demo garden by hand in the app
+  and exporting over the top of it — the generator exists so the file can be
+  rebuilt, not because arithmetic plants a better garden.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
@@ -125,7 +138,10 @@ See §13a.
   catch syntax errors before reloading the browser.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
   loads `plants.js` and the app modules (in load order) inside a `vm`
-  sandbox with light DOM stubs. `tests/plants.test.js` checks the species data
+  sandbox with light DOM stubs. The sandbox lives in **`tests/sandbox.js`**,
+  shared with `dev/make-demo-garden.js` so the demo-garden generator builds its
+  file by calling the app's own `buildSaveBlob()` rather than reimplementing the
+  save format, which would drift from it silently. `tests/plants.test.js` checks the species data
   contract; `tests/game.test.js` smoke-renders every species and unit-tests the
   pure logic (iso math, flood fill, selection ownership, bulb/woody rules, the
   house array). The modules concatenate into one sandbox script and the DOM
@@ -256,6 +272,26 @@ logic is split across ordered modules. They map onto the section list below
   `showConfirm` or a token lookup, and a recovery screen that needs a working
   app is not a recovery screen. The save is async, so the panel says "Saving…"
   and tells the truth once the write actually lands rather than guessing.
+  Also the **first-run offer**: `maybeOfferDemoGarden` fires from `init` (after
+  the loop starts, so the meadow is already drawing behind it) when
+  `hortus:welcomed` is unset AND the device has no saved gardens — **having
+  gardens is the stronger signal**, so someone who cleared their preferences is
+  not greeted as new. Either answer sets the flag, so it asks exactly once;
+  declining lands on the menu. That key is a device preference and must stay
+  OUT of `IDB_KEYS`: the offer is decided during `init`, and IndexedDB would
+  answer after the menu had already painted (a test pins this).
+  `openDemoGarden` fetches `demo-garden.json` and hands it to
+  **`installWorldBlob`** — the same validator a friend's shared file goes
+  through, extracted out of `importWorldFile` so the two cannot disagree about
+  what a valid garden is. The demo garden is therefore an ordinary exported
+  garden file: no bundled format, no seeding code, no special loader, which
+  makes replacing it a gardening job rather than a programming one (author it
+  in the app, Share, drop the file over the top — `docs/demo-garden.md`).
+  Why it exists: a stranger's first path through the app was the questionnaire
+  — zone, style, natives, deer, rabbit, then a plot to name, size and shape —
+  about eleven decisions before a single plant existed, opening on a USDA zone
+  question the app already ships two fallbacks for because most people cannot
+  answer it cold.
 
 Rough order of the logic, top to bottom (the numbering predates the split):
 

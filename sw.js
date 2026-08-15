@@ -20,7 +20,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -32,6 +32,10 @@ const PRECACHE = [
   // They are plain static pages, so offline costs nothing to support.
   './privacy.html',
   './terms.html',
+  // The first-run demo garden. Precached because the offer fires on launch and
+  // a first launch is exactly when someone might have no connection — an
+  // onboarding path that needs the network is not one.
+  './demo-garden.json',
   // Load order matters in the browser; it does not here, but the list mirrors
   // index.html so a missing module is easy to spot against it.
   './js/plants.js',

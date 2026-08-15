@@ -266,23 +266,56 @@ async function shareCurrentGarden(){
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   toast('Garden file downloaded — send it to a friend to share.');
 }
+/* One validator and one writer for every garden that arrives from outside this
+   device — a friend's exported file and the bundled demo garden are the same
+   envelope, so they should not be able to disagree about what a valid garden is.
+   Returns the new slot id, or null if the envelope is not one of ours. */
+async function installWorldBlob(env, name){
+  const w = env && env.pocketPrairie && env.world;
+  if (!w || typeof w!=='object' || typeof w.plants!=='object') return null;
+  const id='w'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
+  w.name=name;
+  if (!(await sSet('hortus:world:'+id, w))) return null;
+  const idx=(await worldsIndex()).filter(x=>x.id!==id);
+  idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
+  await sSet('hortus:worlds', idx);
+  return id;
+}
 function importWorldFile(file){
   if (!file) return;
   const reader=new FileReader();
   reader.onload=async()=>{
     let env; try{ env=JSON.parse(reader.result); }catch(e){ toast('That file is not a garden.'); return; }
-    const w=env && env.pocketPrairie && env.world;
-    if (!w || typeof w!=='object' || typeof w.plants!=='object'){ toast('That does not look like a Pocket Prairie garden.'); return; }
-    const id='w'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
-    w.name=(w.name||'Shared garden').replace(/ \(shared\)$/,'')+' (shared)';
-    await sSet('hortus:world:'+id, w);
-    const idx=(await worldsIndex()).filter(x=>x.id!==id);
-    idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
-    await sSet('hortus:worlds', idx);
-    toast(`Imported "${w.name}". Open it below.`);
+    const raw=(env && env.world && env.world.name)||'Shared garden';
+    const id=await installWorldBlob(env, raw.replace(/ \(shared\)$/,'')+' (shared)');
+    if (!id){ toast('That does not look like a Pocket Prairie garden.'); return; }
+    toast(`Imported "${raw.replace(/ \(shared\)$/,'')} (shared)". Open it below.`);
     openWorlds();
   };
   reader.readAsText(file);
+}
+/* The demo garden ships as an ordinary exported garden file. That is the whole
+   trick: it needs no bundled format, no separate loader and no seeding code —
+   it is authored IN the app, exported, and committed, so replacing it is a
+   design job rather than a programming one. See docs/demo-garden.md. */
+async function openDemoGarden(){
+  let env;
+  try{
+    const res=await fetch('demo-garden.json',{cache:'no-cache'});
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    env=await res.json();
+  }catch(e){
+    noteError(e,'demo-garden');
+    toast('The demo garden could not be opened. Start a garden from the menu instead.');
+    return false;
+  }
+  const id=await installWorldBlob(env,'Demo garden');
+  if (!id){
+    toast('The demo garden could not be opened. Start a garden from the menu instead.');
+    return false;
+  }
+  await enterWorld(id);                 // same path the worlds list uses
+  return true;
 }
 async function deleteWorld(id){
   const idx=(await worldsIndex()).filter(w=>w.id!==id);
@@ -1543,6 +1576,43 @@ function frame(t){
     lastMenuRender=t;
   }
 }
+/* ---------- first run ----------
+   A stranger's first path through this app was the questionnaire: zone, style,
+   natives, deer, rabbit, then a plot to name, size and shape — about eleven
+   decisions before a single plant existed, opening on "what is your USDA
+   hardiness zone?", a question the app already ships two fallbacks for because
+   most people cannot answer it cold.
+
+   So offer the finished garden first. Somebody who says yes is planting inside
+   ten seconds; somebody who says no has spent one tap and is on the menu, which
+   is where they were headed anyway. The key is device-local (it is a
+   preference, not a document, so it stays out of IDB_KEYS and reads
+   synchronously). */
+const WELCOME_KEY='hortus:welcomed';
+function welcomeSeen(){
+  // A broken localStorage reads as "already seen": greeting someone on every
+  // single launch is a worse failure than never greeting them at all.
+  try{ return localStorage.getItem(WELCOME_KEY)==='1'; }catch(_){ return true; }
+}
+function markWelcomeSeen(){ try{ localStorage.setItem(WELCOME_KEY,'1'); }catch(_){ } }
+async function maybeOfferDemoGarden(){
+  if (welcomeSeen()) return false;
+  /* Having gardens is the stronger signal of a returning gardener than the flag
+     is of a new one — someone who cleared their preferences, or arrived from a
+     build that predates this, should not be greeted as though they were new. */
+  let idx=[]; try{ idx=await worldsIndex(); }catch(_){ }
+  if (idx.length){ markWelcomeSeen(); return false; }
+  showConfirm(
+    'First time here?',
+    'There is a small finished garden you can open and play with — plant into it, wind it through a year, and watch what the planting does. It is a copy, so nothing you do to it can spoil anything.',
+    'Open the demo garden',
+    ()=>{ markWelcomeSeen(); openDemoGarden(); },
+    'Start from scratch',
+    ()=>{ markWelcomeSeen(); show('menuScreen'); }
+  );
+  return true;
+}
+
 (async function init(){
   if (hasStorage){
     const f=await sGet('hortus:filters'); if (f) game.filters=normalizeFilters(f);
@@ -1554,4 +1624,6 @@ function frame(t){
   if (location.search.includes('debug')) toggleDebug();
   if (location.search.includes('noglass')){ GLASS.off=true; document.body.classList.add('no-glass'); }
   requestAnimationFrame(loop);
+  // after the loop, so the meadow is already drawing behind the dialog
+  maybeOfferDemoGarden();
 })();
