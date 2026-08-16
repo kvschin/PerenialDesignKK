@@ -36,7 +36,12 @@ const AUTHOR = `
   game.design={zone:5,type:'prairie',nativesOnly:false,deer:false,rabbit:false,squirrel:false};
   game.filters=normalizeFilters({zone:5,nativesOnly:false});
   game.worldName='Demo garden';
-  game.dayOffset=120;                  // open in high summer, not on bare spring ground
+  /* Open in late summer, not on bare spring ground. DAYS_PER_SEASON is 16, so
+     the seasons run Spring 0-15, Summer 16-31, Fall 32-47, Winter 48-63 — day
+     28 is late Summer, with the coneflowers and bergamot still going and the
+     grasses starting to colour. (120 would be Winter of year 2, which is how
+     the first cut of this shipped for about ten minutes.) */
+  game.dayOffset=28;
 
   var R=mulberry(20260815);            // seeded: the same garden every rebuild
   var K=function(x,y){ return x+','+y; };
@@ -112,9 +117,17 @@ if (!env || !env.world || !env.world.plants){
   console.error('Authoring produced no garden.'); process.exit(1);
 }
 
-/* `exported` is zeroed and the file is written with stable key order so a
-   rebuild that changes nothing produces no diff. A timestamp here would make
-   every regeneration look like a change. */
+/* Every clock reading is pinned so a rebuild that changes no code produces no
+   diff — otherwise each regeneration churns three fields and the real change is
+   buried. `exported` is zeroed, and buildSaveBlob's own Date.now() stamps are
+   overwritten here: the garden's clock runs off `elapsedMs` and `dayOffset`, so
+   these two are inert on load, and a demo garden has no meaningful "saved at"
+   in any case. The app version is left as written, so the file records which
+   build authored it. */
+env.exported = 0;
+env.world.startTs = 0;
+env.world.savedAt = 0;
+
 const out = path.join(root, 'demo-garden.json');
 fs.writeFileSync(out, JSON.stringify(env) + '\n');
 

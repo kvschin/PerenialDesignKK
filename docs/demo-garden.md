@@ -42,7 +42,11 @@ the app's shop window.
 
 ## What the current one is trying to do
 
-A 41 ft square, 323 plants across 21 species, opening in high summer:
+A 41 ft square, 323 plants across 21 species, opening in **late summer** with
+about 43% of the planting in flower — coneflower, bergamot, rattlesnake master,
+phlox, yarrow, mountain mint, allium, stonecrop and moor grass all going at
+once. (`dayOffset` is 28; `DAYS_PER_SEASON` is 16, so Spring is 0–15, Summer
+16–31, Fall 32–47, Winter 48–63. It is easy to overshoot into the wrong year.)
 
 - **A path that bends**, sweeping in from the south edge — so the plot reads as
   something you walk into, not a rectangle of planting.
@@ -77,3 +81,34 @@ localStorage.removeItem('hortus:welcomed')
 ```
 
 …and delete any saved gardens, or the second condition suppresses it.
+
+## The three coach beats
+
+Showing the prompt also sets `hortus:coach:armed`, which is what turns on the
+three onboarding tips in `js/ui.js`. They fire on what the gardener does, not on
+a timer:
+
+| Beat | Fires when | Says |
+| --- | --- | --- |
+| 1 | entering a garden | pick a plant, tap the ground |
+| 2 | the **first** plant is placed | drag to plant several; Drift scatters them |
+| 3 | the **fifth** plant is placed | hold the season box and run the year |
+
+Beat 3 is the point of the whole app, so it deliberately waits until there is a
+planting worth watching change. It is the pre-existing time coach, re-timed —
+it used to fire 900 ms after entering a garden, where it named a control
+attached to nothing yet.
+
+The counter comes from `plantFx`, which only `placePlantAt`'s success path
+calls. Undo, paste and loading a garden do not, so opening the 323-plant demo
+garden starts the gardener at zero rather than skipping straight past beat 3.
+
+Arming on the *prompt* rather than on its answer is deliberate: someone who
+declines the demo and starts from scratch is exactly as new. To replay them:
+
+```js
+Object.keys(localStorage).filter(k=>/^hortus:coach/.test(k)).forEach(k=>localStorage.removeItem(k))
+```
+
+then re-arm with `armCoach()`, or clear `hortus:welcomed` and reload to get the
+whole first run.

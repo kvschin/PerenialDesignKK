@@ -3459,6 +3459,59 @@ test('the demo garden is offered once, and never to someone who already gardens'
   assertEqual(await maybeOfferDemoGarden(), false, 'and not a second time');
 });
 
+test('the coach beats fire in order, on doing, and only for a new device', () => {
+  setup(21, 21);
+  const shown = [];
+  const realCoach = showCoachTip, realTime = showTimeCoachTip;
+  // eslint-disable-next-line no-global-assign
+  showCoachTip = (text, key) => { shown.push(key); };
+  // eslint-disable-next-line no-global-assign
+  showTimeCoachTip = () => { shown.push('time'); };
+  try {
+    // An established gardener is never coached, however much they plant.
+    localStorage.removeItem('hortus:coach:armed');
+    coachBeatEnter();
+    for (let i = 0; i < 10; i++) coachNotePlanting();
+    assertEqual(shown.length, 0, 'an unarmed device gets no beats at all');
+
+    // A new device gets them threaded off real placements, in order.
+    armCoach();
+    coachPlanted = 0;
+    coachBeatEnter();
+    assertEqual(shown.join(','), 'first-plant', 'beat 1 names the core loop on arrival');
+    coachNotePlanting();
+    assertEqual(shown.join(','), 'first-plant,plant-drag', 'beat 2 waits for the first plant');
+    for (let i = 0; i < 3; i++) coachNotePlanting();          // 4 planted
+    assertEqual(shown.join(','), 'first-plant,plant-drag', 'beat 3 has not fired yet');
+    coachNotePlanting();                                      // 5th
+    assertEqual(shown.join(','), 'first-plant,plant-drag,time',
+      'beat 3 waits until there is a planting worth running a year over');
+    for (let i = 0; i < 20; i++) coachNotePlanting();
+    assertEqual(shown.length, 3, 'and nothing repeats afterwards');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    showCoachTip = realCoach; showTimeCoachTip = realTime;
+    localStorage.removeItem('hortus:coach:armed');
+  }
+});
+
+test('planting is what advances the beats — not undo, paste or loading', () => {
+  setup(21, 21);
+  armCoach();
+  coachPlanted = 0;
+  try {
+    // plantFx is the choke point, and only placePlantAt's success path calls it
+    const src = String(plantFx);
+    assert(/coachNotePlanting/.test(src), 'plantFx notes the planting');
+    // restoring a garden must not count as the gardener planting anything
+    const before = coachPlanted;
+    applySnapshot(snapshotState());
+    assertEqual(coachPlanted, before, 'undo restores plants without coaching');
+    for (const L of GAME_MAPS) game[L.k] = compactSoloMap({ '4,4': { s: 'bluestem', d: 0, t: 1 } });
+    assertEqual(coachPlanted, before, 'loading a garden does not either');
+  } finally { localStorage.removeItem('hortus:coach:armed'); }
+});
+
 test('the welcome flag is a device preference, not a document', () => {
   // It must stay in localStorage: IDB is async, and the offer is decided during
   // init. A key that drifted into IDB_KEYS would be read after the menu paints.

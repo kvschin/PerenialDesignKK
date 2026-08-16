@@ -291,7 +291,21 @@ logic is split across ordered modules. They map onto the section list below
   — zone, style, natives, deer, rabbit, then a plot to name, size and shape —
   about eleven decisions before a single plant existed, opening on a USDA zone
   question the app already ships two fallbacks for because most people cannot
-  answer it cold.
+  answer it cold. Onboarding proper is **three coach beats** (ui.js), fired by
+  DOING rather than by a step counter, and reusing the existing one-shot
+  `showCoachTip` instead of introducing a tour: beat 1 names the core loop on
+  entering a garden (`coachBeatEnter`), beat 2 names drag-to-plant once the
+  FIRST plant is in, and beat 3 is the season box — the actual pitch — once
+  five are. `coachNotePlanting` counts from **`plantFx`**, the one choke point
+  every planting route funnels through (tap, drag, drift, fill, matrix) and
+  which undo, paste and loading a garden deliberately never call, so opening
+  the 323-plant demo garden leaves the counter at zero. Beat 3 IS the old time
+  coach, re-timed: it used to fire 900ms after `enterGarden`, naming a control
+  attached to nothing the gardener cared about yet. All three are **armed only
+  for a device that saw the first-run offer** (`hortus:coach:armed`, set when
+  the prompt is shown rather than on its answer — someone who declines the demo
+  and starts from scratch is exactly as new), so a gardener of six months is
+  never told how to plant.
 
 Rough order of the logic, top to bottom (the numbering predates the split):
 

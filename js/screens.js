@@ -398,7 +398,9 @@ function enterGarden(){
       const pal = n<total ? `${n} of ${total} plants fit this challenge` : 'full palette — design freely';
       toast(`${game.challenge.title} — ${pal}.`);
     } }, 450);
-  setTimeout(showTimeCoachTip,900);
+  // Beat 1. The time coach used to fire here too, 900ms in; it is beat 3 now
+  // and waits until there is a planting worth running a year over.
+  setTimeout(coachBeatEnter,900);
 }
 /* the plot screen: size a brand-new solo garden in real feet */
 const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
@@ -1602,6 +1604,9 @@ async function maybeOfferDemoGarden(){
      build that predates this, should not be greeted as though they were new. */
   let idx=[]; try{ idx=await worldsIndex(); }catch(_){ }
   if (idx.length){ markWelcomeSeen(); return false; }
+  /* Arm the coach beats here, not on the answer: someone who declines the demo
+     and starts from scratch is exactly as new as someone who accepts it. */
+  armCoach();
   showConfirm(
     'First time here?',
     'There is a small finished garden you can open and play with — plant into it, wind it through a year, and watch what the planting does. It is a copy, so nothing you do to it can spoil anything.',

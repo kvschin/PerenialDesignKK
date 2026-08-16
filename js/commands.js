@@ -234,7 +234,12 @@ function treePlacedMessage(def,x,y,k){
     ? `Planted ${def.name} — but it crowds another ${def.name}. They want about ${wantFt} ft apart at maturity.`
     : `Planted ${def.name} — it will crowd the nearby ${other.name.toLowerCase()}. Give large trees about ${wantFt} ft of room.`;
 }
-function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()}); }
+/* Fires once per successfully placed plant or bulb, and only there — undo,
+   paste and loading a garden never call it. That makes it the one honest place
+   to count what the gardener has actually planted, which the coach beats
+   (ui.js) thread their timing off. */
+function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()});
+  coachNotePlanting(); }
 function freePlantable(def){ return !!(game.freePlanting && def && def.type!=='bulb' && !isWoodyDef(def)); }
 function clampPlantOffset(v){ return Math.max(-0.44,Math.min(0.44,Number.isFinite(+v)?+v:0)); }
 function roundedOffset(v){ return Math.round(clampPlantOffset(v)*100)/100; }

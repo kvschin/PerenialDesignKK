@@ -33,11 +33,47 @@ function showTimeCoachTip(){
     localStorage.setItem(TIME_COACH_KEY,'1'); }catch(_){ if (tip.dataset.shown) return; }
   tip.dataset.shown='1';
   const touch=typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches;
+  /* Leads with the payoff rather than the control. This used to fire 900ms
+     after entering a garden, where "hold to fast-forward" named a button
+     attached to nothing the gardener cared about yet; it is now the third coach
+     beat and waits until there is a planting worth watching change. */
   txt.textContent=touch
-    ? 'Tap Time for controls, or hold it to fast-forward. Pinch the garden to zoom.'
-    : 'Tap Time for controls, or hold it to fast-forward.';
+    ? 'Hold the season box to run the year — your planting will bloom, seed and stand through winter. Pinch to zoom.'
+    : 'Hold the season box to run the year — your planting will bloom, seed and stand through winter.';
   tip.classList.remove('hidden');
   clearTimeout(tip._timer); tip._timer=setTimeout(dismissCoachTip,7500);
+}
+
+/* ---------- the three coach beats ----------
+   Onboarding is three tips fired by DOING, not a tour with a step counter: name
+   the core loop on arrival, name the gesture that makes it feel like this app
+   once one plant is in, and only then point at the season box — which is the
+   whole pitch, and meaningless before there is a planting to watch.
+
+   Each beat is one-shot forever via showCoachTip's own localStorage key. On top
+   of that they are ARMED only for a device that saw the first-run offer, so a
+   gardener who has been using this for months is not told how to plant. The
+   arming is deliberately not "has no gardens": someone who declines the demo
+   and starts from scratch is still new and still wants the beats. */
+const COACH_ARMED_KEY='hortus:coach:armed';
+function armCoach(){ try{ localStorage.setItem(COACH_ARMED_KEY,'1'); }catch(_){ } }
+function coachArmed(){ try{ return localStorage.getItem(COACH_ARMED_KEY)==='1'; }catch(_){ return false; } }
+const COACH_DRIFT_AT=1, COACH_TIME_AT=5;
+let coachPlanted=0;
+function coachBeatEnter(){
+  if (!coachArmed()) return;
+  showCoachTip('Pick a plant from the library, then tap the ground to plant it.','first-plant');
+}
+/* Called once per successfully placed plant or bulb, from plantFx — the one
+   choke point every route funnels through (tap, drag, drift, fill, matrix), and
+   one that undo and loading a garden deliberately do not touch. */
+function coachNotePlanting(){
+  if (!coachArmed()) return;
+  const was=coachPlanted; coachPlanted++;
+  if (was<COACH_DRIFT_AT && coachPlanted>=COACH_DRIFT_AT)
+    showCoachTip('Drag across the ground to plant several at once. The Drift chip scatters them naturally.','plant-drag');
+  else if (was<COACH_TIME_AT && coachPlanted>=COACH_TIME_AT)
+    showTimeCoachTip();
 }
 function syncHapticsButton(){
   const b=document.getElementById('btnHaptics'); if (!b) return;
