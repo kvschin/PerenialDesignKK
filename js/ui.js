@@ -16,7 +16,10 @@ function dismissCoachTip(){
   const tip=document.getElementById('coachTip'); if (!tip) return;
   tip.classList.add('hidden'); clearTimeout(tip._timer);
 }
-function showCoachTip(text,key){
+/* `action` makes the tip itself tappable — a tip that names a thing the
+   gardener has never found should be able to take them there, rather than
+   asking them to go hunting through a menu from memory. */
+function showCoachTip(text,key,action){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
   if (!tip||!txt||!text) return;
   const storeKey=key?`hortus:coach:${key}-v1`:null;
@@ -24,8 +27,21 @@ function showCoachTip(text,key){
   try{ if (storeKey&&localStorage.getItem(storeKey)) return; if (storeKey) localStorage.setItem(storeKey,'1'); }
   catch(_){ if (seenAttr&&tip.hasAttribute(seenAttr)) return; }
   if (seenAttr) tip.setAttribute(seenAttr,'1'); txt.textContent=text; tip.classList.remove('hidden');
+  tip._action=action||null;
+  tip.classList.toggle('actionable',!!action);
   clearTimeout(tip._timer); tip._timer=setTimeout(dismissCoachTip,7500);
 }
+/* Wired once. The close button lives inside the tip, so it has to be excluded
+   or dismissing would also fire the action. */
+(function wireCoachTipAction(){
+  const tip=document.getElementById('coachTip'); if (!tip) return;
+  tip.addEventListener('click',e=>{
+    if (e.target.closest('#coachTipClose')) return;
+    const act=tip._action; if (!act) return;
+    dismissCoachTip(); tip._action=null;
+    try{ act(); }catch(err){ if (typeof noteError==='function') noteError(err,'coach-action'); }
+  });
+})();
 function showTimeCoachTip(){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
   if (!tip || !txt || !game.inGarden) return;
@@ -56,13 +72,46 @@ function showTimeCoachTip(){
    arming is deliberately not "has no gardens": someone who declines the demo
    and starts from scratch is still new and still wants the beats. */
 const COACH_ARMED_KEY='hortus:coach:armed';
-function armCoach(){ try{ localStorage.setItem(COACH_ARMED_KEY,'1'); }catch(_){ } }
-function coachArmed(){ try{ return localStorage.getItem(COACH_ARMED_KEY)==='1'; }catch(_){ return false; } }
-const COACH_DRIFT_AT=1, COACH_TIME_AT=5;
-let coachPlanted=0;
+/* Storage can be unavailable (private mode, blocked cookies) — a real iOS
+   cohort. The session fallback keeps the beats working there instead of
+   silently disabling onboarding for exactly the users least likely to have
+   seen the app before. It also has to match welcomeSeen()'s degraded
+   behaviour, or a device gets the first-run prompt and then no beats at all. */
+let coachArmedSession=false;
+function armCoach(){
+  coachArmedSession=true;
+  try{ localStorage.setItem(COACH_ARMED_KEY,'1'); }catch(_){ }
+}
+function coachArmed(){
+  if (coachArmedSession) return true;
+  try{ return localStorage.getItem(COACH_ARMED_KEY)==='1'; }catch(_){ return false; }
+}
+const COACH_DRIFT_AT=1, COACH_TIME_AT=5, COACH_LIST_AT=15;
+/* A garden that arrives already planted — the demo, or a shared file — is
+   something to look at before it is something to edit. */
+const COACH_READY_GARDEN=20, COACH_LOOK_MS=45000;
+let coachPlanted=0, coachLookTimer=null;
+
+function livePlantCount(){
+  let n=0; for (const k in game.plants){ const p=game.plants[k]; if (p && !p.removed) n++; }
+  return n;
+}
 function coachBeatEnter(){
+  clearTimeout(coachLookTimer); coachLookTimer=null;
   if (!coachArmed()) return;
-  showCoachTip('Pick a plant from the library, then tap the ground to plant it.','first-plant');
+  if (livePlantCount()>=COACH_READY_GARDEN){
+    /* Beat 1 used to tell someone who had just opened a finished 323-plant
+       garden to "pick a plant and tap the ground" — i.e. to deface the example
+       they were given to admire. Orient them instead, and let the season beat
+       arrive on its own once they have had a look. */
+    showCoachTip('This planting is already done — have a look around. Anything here can be moved, replaced or added to.','ready-garden');
+    /* And beat 3 is keyed to PLANTING, so a gardener who opens the demo purely
+       to look would never meet the seasonal loop — the one thing this app does
+       that nothing else does. Time gets them there instead. */
+    coachLookTimer=setTimeout(()=>{ coachLookTimer=null; showTimeCoachTip(); }, COACH_LOOK_MS);
+  } else {
+    showCoachTip('Pick a plant from the library, then tap the ground to plant it.','first-plant');
+  }
 }
 /* Called once per successfully placed plant or bulb, from plantFx — the one
    choke point every route funnels through (tap, drag, drift, fill, matrix), and
@@ -74,6 +123,13 @@ function coachNotePlanting(){
     showCoachTip('Drag across the ground to plant several at once. The Drift chip scatters them naturally.','plant-drag');
   else if (was<COACH_TIME_AT && coachPlanted>=COACH_TIME_AT)
     showTimeCoachTip();
+  else if (was<COACH_LIST_AT && coachPlanted>=COACH_LIST_AT)
+    /* The planting list is the thing this app is worth money for — it turns a
+       drawing into a nursery order with real quantities — and nothing anywhere
+       told anyone it existed. Tapping the tip opens it, because a tip naming a
+       buried menu row and then leaving is barely better than silence. */
+    showCoachTip('Your planting list turns this into a nursery order with real quantities. Tap to see it.',
+      'planting-list', ()=>{ if (typeof openExport==='function') openExport(); });
 }
 function syncHapticsButton(){
   const b=document.getElementById('btnHaptics'); if (!b) return;

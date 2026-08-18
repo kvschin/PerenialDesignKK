@@ -892,6 +892,15 @@ canvas.layer-eye{display:block}
 .coach-tip::before{content:'';position:absolute;top:-6px;left:76px;width:10px;height:10px;background:var(--surface-dialog);
   border-left:1.5px solid var(--border-active);border-top:1.5px solid var(--border-active);transform:rotate(45deg)}
 .coach-tip span{position:relative;z-index:1}
+/* A tip that can take you somewhere has to look like it can. The accent border
+   and pointer are the whole affordance — the close button keeps its own cursor
+   so the two targets stay distinguishable. */
+.coach-tip.actionable{cursor:pointer;border-color:var(--color-accent)}
+.coach-tip.actionable::before{border-left-color:var(--color-accent);border-top-color:var(--color-accent)}
+.coach-tip.actionable:hover{background:var(--surface-control-hover)}
+.coach-tip.actionable span{text-decoration:underline;text-decoration-color:var(--color-accent);
+  text-underline-offset:2px;text-decoration-thickness:1px}
+.coach-tip.actionable button{cursor:default}
 .coach-tip button{position:relative;z-index:1;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:0 0 30px;
   border:0;border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary)}
 .coach-tip button:hover{background:var(--surface-control-hover);color:var(--text-primary)}

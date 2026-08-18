@@ -103,20 +103,21 @@ function startDailyChallenge(){
 
 async function refreshMenuCards(){
   const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
-  const g=$('btnGardens'); if (!g) return;
+  const g=$('btnDesign'); if (!g) return;
   const idx=hasStorage ? await migrateLegacyWorld() : [];
   g.querySelector('small').textContent=idx.length
-    ? `${idx.length} saved garden${idx.length>1?'s':''}`
-    : 'Open and manage saved gardens';
+    ? `${idx.length} saved garden${idx.length>1?'s':''} — continue or start another`
+    : 'Design your first planting';
 }
 
 $('btnDesign').onclick=openWorlds;
 $('btnDaily').onclick=openDaily;
 $('btnDailyStart').onclick=startDailyChallenge;
 $('btnLibrary').onclick=openLibrary;
+// btnGardens is gone: it ran this same handler, so each label was wrong in one
+// of the two states the shared screen has.
 $('btnLibraryClose').onclick=()=>show('menuScreen');
 $('librarySearch').oninput=applyLibrarySearch;
-$('btnGardens').onclick=openWorlds;
 
 /* Worlds-list thumbnails: a tiny top-down map drawn straight from the save
    blob — always current (no stored screenshot to go stale), zero localStorage,
@@ -207,9 +208,14 @@ function startNewGarden(){
 }
 async function openWorlds(){
   const idx=await migrateLegacyWorld();
-  if (!idx.length){ startNewGarden(); return; }   // none yet → straight into the questionnaire
   $('worldsTitle').textContent='Your gardens';
-  $('worldsSub').textContent='Continue a planting plan, or start a new one.';
+  /* An empty list SHOWS this screen rather than skipping it. Bouncing straight
+     into the questionnaire hid "Import a garden" — the only import control in
+     the app — behind a screen a fresh device never reached, so a garden a
+     friend shared could not be opened by the person it was sent to. */
+  $('worldsSub').textContent=idx.length
+    ? 'Continue a planting plan, or start a new one.'
+    : 'Nothing planted yet. Start a garden, or import one someone shared with you.';
   $('btnNewWorld').textContent='Design a new garden';
   const list=$('worldList'); list.innerHTML='';
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
@@ -1591,12 +1597,21 @@ function frame(t){
    preference, not a document, so it stays out of IDB_KEYS and reads
    synchronously). */
 const WELCOME_KEY='hortus:welcomed';
+/* Storage can be unavailable — private mode, blocked cookies — and this used to
+   read that as "already seen", which suppressed the offer AND (because
+   coachArmed degraded the other way) every coach beat with it. A whole cohort
+   got no onboarding at all. The session flag keeps both working: they are asked
+   once per launch rather than never, which is the same way showCoachTip's own
+   one-shot already degrades. */
+let welcomeSeenSession=false;
 function welcomeSeen(){
-  // A broken localStorage reads as "already seen": greeting someone on every
-  // single launch is a worse failure than never greeting them at all.
-  try{ return localStorage.getItem(WELCOME_KEY)==='1'; }catch(_){ return true; }
+  if (welcomeSeenSession) return true;
+  try{ return localStorage.getItem(WELCOME_KEY)==='1'; }catch(_){ return false; }
 }
-function markWelcomeSeen(){ try{ localStorage.setItem(WELCOME_KEY,'1'); }catch(_){ } }
+function markWelcomeSeen(){
+  welcomeSeenSession=true;
+  try{ localStorage.setItem(WELCOME_KEY,'1'); }catch(_){ }
+}
 async function maybeOfferDemoGarden(){
   if (welcomeSeen()) return false;
   /* Having gardens is the stronger signal of a returning gardener than the flag

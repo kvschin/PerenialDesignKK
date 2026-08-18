@@ -3442,6 +3442,7 @@ test('installWorldBlob accepts a real envelope and refuses anything else', async
 test('the demo garden is offered once, and never to someone who already gardens', async () => {
   setup(21, 21);
   localStorage.removeItem('hortus:welcomed');
+  welcomeSeenSession = false;          // the session flag survives between tests
   await sSet('hortus:worlds', []);
   assertEqual(welcomeSeen(), false, 'a fresh device has not been welcomed');
 
@@ -3453,6 +3454,7 @@ test('the demo garden is offered once, and never to someone who already gardens'
 
   // a genuinely new device gets the offer exactly once
   localStorage.removeItem('hortus:welcomed');
+  welcomeSeenSession = false;
   await sSet('hortus:worlds', []);
   assertEqual(await maybeOfferDemoGarden(), true, 'offered on a truly first run');
   markWelcomeSeen();
@@ -3470,6 +3472,7 @@ test('the coach beats fire in order, on doing, and only for a new device', () =>
   try {
     // An established gardener is never coached, however much they plant.
     localStorage.removeItem('hortus:coach:armed');
+    coachArmedSession = false;         // the session flag survives between tests
     coachBeatEnter();
     for (let i = 0; i < 10; i++) coachNotePlanting();
     assertEqual(shown.length, 0, 'an unarmed device gets no beats at all');
@@ -3477,6 +3480,7 @@ test('the coach beats fire in order, on doing, and only for a new device', () =>
     // A new device gets them threaded off real placements, in order.
     armCoach();
     coachPlanted = 0;
+    game.plants = {};                  // an EMPTY garden takes the plant-me beat
     coachBeatEnter();
     assertEqual(shown.join(','), 'first-plant', 'beat 1 names the core loop on arrival');
     coachNotePlanting();
@@ -3486,12 +3490,45 @@ test('the coach beats fire in order, on doing, and only for a new device', () =>
     coachNotePlanting();                                      // 5th
     assertEqual(shown.join(','), 'first-plant,plant-drag,time',
       'beat 3 waits until there is a planting worth running a year over');
+    for (let i = 0; i < 9; i++) coachNotePlanting();           // 14 planted
+    assertEqual(shown.length, 3, 'nothing fires between the thresholds');
+    coachNotePlanting();                                      // 15th
+    assertEqual(shown.join(','), 'first-plant,plant-drag,time,planting-list',
+      'beat 4 points at the planting list once there is a list worth ordering');
     for (let i = 0; i < 20; i++) coachNotePlanting();
-    assertEqual(shown.length, 3, 'and nothing repeats afterwards');
+    assertEqual(shown.length, 4, 'and nothing repeats afterwards');
   } finally {
     // eslint-disable-next-line no-global-assign
     showCoachTip = realCoach; showTimeCoachTip = realTime;
-    localStorage.removeItem('hortus:coach:armed');
+    localStorage.removeItem('hortus:coach:armed'); coachArmedSession = false;
+  }
+});
+
+test('a garden that arrives already planted is offered to look at, not to dig up', () => {
+  setup(21, 21);
+  const shown = [];
+  const realCoach = showCoachTip;
+  // eslint-disable-next-line no-global-assign
+  showCoachTip = (text, key) => { shown.push({ key, text }); };
+  try {
+    armCoach();
+    // the demo garden: opening it and being told to "tap the ground to plant"
+    // instructs the gardener to deface the example they were given to admire
+    game.plants = {};
+    for (let i = 0; i < 25; i++) game.plants[`${i},1`] = { s: 'bluestem', d: 0, t: 1 };
+    coachBeatEnter();
+    assertEqual(shown[0].key, 'ready-garden', 'a stocked garden gets the look-around beat');
+    assert(!/tap the ground/i.test(shown[0].text), 'and is not told to plant into it');
+
+    // tombstones are not a planting: an emptied garden is an empty garden
+    shown.length = 0;
+    for (const k in game.plants) game.plants[k] = { removed: true };
+    coachBeatEnter();
+    assertEqual(shown[0].key, 'first-plant', 'removed plants do not count as a planting');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    showCoachTip = realCoach;
+    localStorage.removeItem('hortus:coach:armed'); coachArmedSession = false;
   }
 });
 

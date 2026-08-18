@@ -67,18 +67,17 @@ if ('serviceWorker' in navigator)
       <div class="eyebrow">Pocket prairie garden design</div>
       <h1 class="title">Pocket<br><em>Prairie</em></h1>
     </div>
+    <!-- Three entries, not four. "Design a Garden" and "View Gardens" used to
+         run the SAME handler (openWorlds), so each label was wrong in one of the
+         two states: on a fresh device View Gardens started a new garden, and on
+         a stocked one Design a Garden showed a list. One door, honestly named.
+         Plant Library sits above the daily challenge deliberately — 348 species
+         with real spacing and zone data is what a sceptical buyer opens first. -->
     <div class="menu-card" aria-label="Main menu">
       <button class="menu-action primary" id="btnDesign" type="button">
         <span>
-          <strong>Design a Garden</strong>
-          <small>Plan a real planting, placed by hand</small>
-        </span>
-        <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
-      </button>
-      <button class="menu-action" id="btnDaily" type="button">
-        <span>
-          <strong>Daily design challenge</strong>
-          <small>A fresh planting prompt each day</small>
+          <strong>Your gardens</strong>
+          <small>Design your first planting</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
@@ -89,10 +88,10 @@ if ('serviceWorker' in navigator)
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
-      <button class="menu-action" id="btnGardens" type="button">
+      <button class="menu-action" id="btnDaily" type="button">
         <span>
-          <strong>View Gardens</strong>
-          <small>Open and manage saved gardens</small>
+          <strong>Daily design challenge</strong>
+          <small>A fresh planting prompt each day</small>
         </span>
         <svg class="ui-icon menu-chevron" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
       </button>
@@ -101,7 +100,7 @@ if ('serviceWorker' in navigator)
          app, not only from the listing. They are plain static pages with no
          dependency on the game, so they open fine offline too. -->
     <p class="menu-foot">
-      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.3.2 · credits</a>
+      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.3.3 · credits</a>
       · <a href="privacy.html">Privacy</a>
       · <a href="terms.html">Terms</a>
     </p>

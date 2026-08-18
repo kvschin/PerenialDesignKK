@@ -82,22 +82,37 @@ localStorage.removeItem('hortus:welcomed')
 
 …and delete any saved gardens, or the second condition suppresses it.
 
-## The three coach beats
+## The coach beats
 
 Showing the prompt also sets `hortus:coach:armed`, which is what turns on the
-three onboarding tips in `js/ui.js`. They fire on what the gardener does, not on
-a timer:
+onboarding tips in `js/ui.js`. They fire on what the gardener does, not on a
+step counter:
 
 | Beat | Fires when | Says |
 | --- | --- | --- |
-| 1 | entering a garden | pick a plant, tap the ground |
+| 1 | entering an EMPTY garden | pick a plant, tap the ground |
+| 1b | entering a garden that already has ≥20 plants | this planting is done — have a look around |
 | 2 | the **first** plant is placed | drag to plant several; Drift scatters them |
-| 3 | the **fifth** plant is placed | hold the season box and run the year |
+| 3 | the **fifth** plant placed, **or** 45s in an already-planted garden | hold the season box and run the year |
+| 4 | the **fifteenth** plant is placed | the planting list is a nursery order — tap to open it |
 
-Beat 3 is the point of the whole app, so it deliberately waits until there is a
-planting worth watching change. It is the pre-existing time coach, re-timed —
-it used to fire 900 ms after entering a garden, where it named a control
-attached to nothing yet.
+Beat 1 has two forms because the demo path is the primary first run. Telling
+someone who just opened a finished 323-plant garden to "tap the ground to plant"
+instructs them to deface the example they were handed to admire — so a garden
+that arrives with ≥20 live plants gets the look-around wording instead.
+
+Beat 3 is the point of the whole app, so it waits until there is a planting
+worth watching change. It is the pre-existing time coach, re-timed — it used to
+fire 900 ms after entering a garden, where it named a control attached to
+nothing yet. Its **second trigger matters as much as the first**: the counter
+only moves on planting, so a gardener who opened the demo purely to look would
+otherwise never meet the seasonal loop, which is the one thing this app does
+that nothing else does.
+
+Beat 4 is the commercial one. Nothing anywhere told anyone the planting list
+existed, and it is the feature that turns a drawing into a nursery order — the
+thing worth paying for. The tip is **tappable** and opens the list, because
+naming a buried menu row and then vanishing is barely better than silence.
 
 The counter comes from `plantFx`, which only `placePlantAt`'s success path
 calls. Undo, paste and loading a garden do not, so opening the 323-plant demo
