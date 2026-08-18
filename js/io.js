@@ -181,6 +181,59 @@ async function worldsIndex(){ return (await sGet('hortus:worlds'))||[]; }
    The callback may be async, and returns the array to store, or null to
    decline (a failed blob write, nothing to do). It must not call back into
    updateWorldsIndex: the chain is not re-entrant and would deadlock. */
+const WORLD_KEY_PREFIX='hortus:world:';
+/* The only key enumeration in the app. sGet/sSet are a key-value API on
+   purpose, but reconciling the index against reality means asking what is
+   actually stored rather than what the index claims. Scans both homes: a garden
+   written before the IndexedDB move may still be sitting in localStorage. */
+async function storedWorldIds(){
+  const out=new Set();
+  const db=await openDB();
+  if (db){
+    try{
+      for (const k of await idbRun(db,'readonly',s=>s.getAllKeys()))
+        if (typeof k==='string' && k.startsWith(WORLD_KEY_PREFIX)) out.add(k.slice(WORLD_KEY_PREFIX.length));
+    }catch(e){ console.warn('storage scan',e); }
+  }
+  try{
+    for (let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if (k && k.startsWith(WORLD_KEY_PREFIX)) out.add(k.slice(WORLD_KEY_PREFIX.length));
+    }
+  }catch(_){ }
+  return out;
+}
+/* An orphan is a stored garden with no row pointing at it: absent from the list
+   and still occupying quota, with no way for the gardener to see or reclaim it.
+   The index race that produced them is fixed, so none can be created now — but
+   a device that already has some would carry them forever, and on iOS's ~5MB
+   ceiling a lost site-photo garden is a fifth of the budget. Adopt them back.
+
+   Runs from openWorlds, so it is self-healing rather than a one-shot migration:
+   whatever put a garden in storage without a row, the list will find it. */
+async function adoptOrphanedWorlds(){
+  let adopted=[];
+  const stored=await storedWorldIds();
+  if (!stored.size) return adopted;
+  await updateWorldsIndex(async fresh=>{
+    const listed=new Set(fresh.map(w=>w.id));
+    const orphans=[...stored].filter(id=>!listed.has(id));
+    if (!orphans.length) return null;
+    const out=fresh.slice();
+    for (const id of orphans){
+      const blob=await sGet(WORLD_KEY_PREFIX+id);
+      // Only adopt something that really is a garden — a stray key of another
+      // shape would otherwise become an un-openable row in the list.
+      if (!blob || typeof blob!=='object' || !blob.plants || typeof blob.plants!=='object') continue;
+      out.push({id, name:blob.name||'Recovered garden', ts:blob.savedAt||Date.now(),
+        gw:blob.gw||blob.grid||31, gh:blob.gh||blob.grid||31, mode:'design'});
+      adopted.push(blob.name||'Recovered garden');
+    }
+    return adopted.length?out:null;
+  });
+  return adopted;
+}
+
 let worldsIndexChain=Promise.resolve();
 function updateWorldsIndex(mutate){
   const run=worldsIndexChain.then(async()=>{

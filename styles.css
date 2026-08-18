@@ -884,19 +884,35 @@ canvas.layer-eye{display:block}
   border:1.5px solid var(--border-subtle);border-radius:var(--radius-pill);padding:10px 16px;color:var(--text-primary);
   font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif;opacity:0;transition:opacity .18s ease}
 .gesture-cancel.show{opacity:1}
-.coach-tip{position:absolute;left:max(12px,env(safe-area-inset-left));top:calc(58px + env(safe-area-inset-top));z-index:24;
-  display:flex;align-items:center;gap:10px;max-width:min(330px,calc(100vw - 24px));pointer-events:auto;
-  padding:9px 9px 9px 12px;border:1.5px solid var(--border-active);border-radius:var(--radius-panel);
-  background:var(--surface-dialog);box-shadow:var(--shadow-overlay);color:var(--text-primary);font-size:12px;line-height:1.35;
+/* Centred, and clear of the toast band. It used to sit hard against the left
+   edge at 58px, which put it straight over the tool rail — covering the Plant
+   button it was telling you to press.
+
+   Centring uses `left:0;right:0` + `margin-inline:auto` rather than
+   translateX(-50%), because panelEnter animates `transform` and the two fight.
+   That also means it centres inside #hud, which in the docked layout is the
+   GARDEN column rather than the window — so on desktop it lands over the middle
+   of the plot instead of drifting under the plant library. That is the wanted
+   behaviour, not an accident of the grid: measured 455 of a 910px canvas at
+   1280 wide, and 16px margins either side at 375.
+
+   116px is not arbitrary either: #toast is centred at 70px and stands ~39px
+   tall, and the beats that fire on planting fire in the same instant as the
+   placement toast, so anything higher collides with it. The ::before arrow is
+   gone — it pointed at a fixed 76px, and the beats refer to different controls
+   (the library, the rail, the season box), so no one arrow can be honest. */
+.coach-tip{position:absolute;left:0;right:0;margin-inline:auto;width:fit-content;
+  top:calc(116px + env(safe-area-inset-top));z-index:24;
+  display:flex;align-items:center;gap:10px;max-width:min(420px,calc(100vw - 32px));pointer-events:auto;
+  padding:11px 11px 11px 15px;border:1.5px solid var(--border-active);border-radius:var(--radius-panel);
+  background:var(--surface-dialog);box-shadow:var(--shadow-overlay);color:var(--text-primary);
+  font-size:13.5px;line-height:1.5;font-weight:500;
   animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
-.coach-tip::before{content:'';position:absolute;top:-6px;left:76px;width:10px;height:10px;background:var(--surface-dialog);
-  border-left:1.5px solid var(--border-active);border-top:1.5px solid var(--border-active);transform:rotate(45deg)}
-.coach-tip span{position:relative;z-index:1}
+.coach-tip span{position:relative;z-index:1;text-align:left}
 /* A tip that can take you somewhere has to look like it can. The accent border
    and pointer are the whole affordance — the close button keeps its own cursor
    so the two targets stay distinguishable. */
 .coach-tip.actionable{cursor:pointer;border-color:var(--color-accent)}
-.coach-tip.actionable::before{border-left-color:var(--color-accent);border-top-color:var(--color-accent)}
 .coach-tip.actionable:hover{background:var(--surface-control-hover)}
 .coach-tip.actionable span{text-decoration:underline;text-decoration-color:var(--color-accent);
   text-underline-offset:2px;text-decoration-thickness:1px}

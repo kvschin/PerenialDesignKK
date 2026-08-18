@@ -203,7 +203,14 @@ See §13a.
   unqueued. Where a new id, a blob write and the row all belong together
   (`installWorldBlob`, `duplicateWorld`), all three happen inside the one
   callback. Measured after: 10 concurrent duplicates + 5 installs = 16 rows,
-  16 blobs, 0 orphans.
+  16 blobs, 0 orphans. **`adoptOrphanedWorlds` (io.js) reconciles the other
+  direction** from `openWorlds`: `storedWorldIds()` — the app's only key
+  enumeration, scanning BOTH homes — finds gardens with no index row and adopts
+  them back with their own name, date and plot size, toasting what it recovered.
+  New orphans can no longer be made, but a device that already has one would
+  carry it forever, so this is self-healing rather than a one-shot migration. It
+  adopts only values that really look like a garden, or a stray key of another
+  shape would become an un-openable row.
 - **Ids come from `newId`/`newWorldId` (core.js), never from `Date.now()` alone.**
   A world id is the key its garden is stored under, so a repeat overwrites a
   saved garden. The old form was `Date.now().toString(36)` plus at most two

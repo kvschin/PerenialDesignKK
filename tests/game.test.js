@@ -3494,9 +3494,17 @@ test('installWorldBlob accepts a real envelope and refuses anything else', async
       'a malformed envelope installs nothing');
 });
 
+/* setup() resets `game`, not storage, and the sandbox keeps one store for the
+   whole run — so tests that SCAN storage have to start from a known floor or
+   they see every garden written by every earlier test. */
+async function clearStoredWorlds(){
+  for (const id of await storedWorldIds()) await sDel('hortus:world:' + id);
+  await sSet('hortus:worlds', []);
+}
+
 test('concurrent index writes do not lose each other', async () => {
   setup(21, 21);
-  await sSet('hortus:worlds', []);
+  await clearStoredWorlds();
   // Six writers started in the same tick. Unserialised, each reads the same
   // empty array and writes back only its own row, so five rows vanish.
   await Promise.all([1, 2, 3, 4, 5, 6].map(n =>
@@ -3519,7 +3527,7 @@ test('concurrent index writes do not lose each other', async () => {
 
 test('two gardens installed at once both survive, with no orphaned blob', async () => {
   setup(21, 21);
-  await sSet('hortus:worlds', []);
+  await clearStoredWorlds();
   const env = () => ({ pocketPrairie: 1, v: 1, world: { wv: 1, name: 'X', gw: 27, gh: 27,
     plants: { '3,3': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {}, terrain: {} } });
   // the double-tap: both calls start before either finishes
@@ -3532,12 +3540,49 @@ test('two gardens installed at once both survive, with no orphaned blob', async 
   assertEqual(idx.length, 2, 'both rows are in the index');
 
   // An orphan is a stored garden with no row pointing at it: invisible to the
-  // gardener, and still occupying the device quota.
+  // gardener, and still occupying the device quota. Asked through the app's own
+  // scan — Object.keys(localStorage) enumerates the stub's METHODS, not its
+  // contents, so that form of this check passed without testing anything.
   const listed = new Set(idx.map(w => w.id));
-  const stored = Object.keys(localStorage).filter(k => k.startsWith('hortus:world:'))
-    .map(k => k.slice('hortus:world:'.length));
+  const stored = [...await storedWorldIds()];
+  assert(stored.length >= 2, 'the scan really sees the stored gardens');
   assertEqual(stored.filter(id => !listed.has(id)).length, 0, 'no blob is left orphaned');
   for (const id of listed) assert(await sGet('hortus:world:' + id), 'every row has its garden');
+});
+
+test('a garden stored without an index row is adopted back, not stranded', async () => {
+  setup(21, 21);
+  await clearStoredWorlds();
+  // exactly what the old index race left behind: a blob, no row
+  await sSet('hortus:world:w-orphan-1', { wv: 1, name: 'Lost border', gw: 41, gh: 41,
+    plants: { '5,5': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {}, terrain: {}, savedAt: 1700000000000 });
+  // and a listed garden alongside it, which must be left exactly as it is
+  await sSet('hortus:world:w-listed', { wv: 1, name: 'Kept', gw: 31, gh: 31, plants: {}, bulbs: {} });
+  await sSet('hortus:worlds', [{ id: 'w-listed', name: 'Kept', ts: 5, gw: 31, gh: 31 }]);
+
+  const recovered = await adoptOrphanedWorlds();
+  assertEqual(recovered.length, 1, 'one garden was recovered');
+  assertEqual(recovered[0], 'Lost border', 'and it kept its own name');
+  const idx = await worldsIndex();
+  assertEqual(idx.length, 2, 'the list now holds both');
+  const row = idx.find(w => w.id === 'w-orphan-1');
+  assertEqual(row.gw, 41, 'plot size came from the garden, not a default');
+  assertEqual(row.ts, 1700000000000, 'and so did its date');
+
+  // idempotent: opening the list again must not duplicate the row
+  assertEqual((await adoptOrphanedWorlds()).length, 0, 'a second pass finds nothing');
+  assertEqual((await worldsIndex()).length, 2, 'and adds nothing');
+});
+
+test('adoption refuses keys that are not gardens', async () => {
+  setup(21, 21);
+  await clearStoredWorlds();
+  // a stray key of the right shape but the wrong contents would otherwise
+  // become a row in the list that cannot be opened
+  await sSet('hortus:world:w-junk', { note: 'not a garden' });
+  await sSet('hortus:world:w-alsojunk', 'a string');
+  assertEqual((await adoptOrphanedWorlds()).length, 0, 'nothing is adopted');
+  assertEqual((await worldsIndex()).length, 0, 'and the list stays empty');
 });
 
 test('the demo garden is offered once, and never to someone who already gardens', async () => {

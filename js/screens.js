@@ -207,7 +207,12 @@ function startNewGarden(){
   game.discovery=defaultDiscovery(); openDesignSetup();
 }
 async function openWorlds(){
-  const idx=await migrateLegacyWorld();
+  await migrateLegacyWorld();
+  /* Reconcile before listing: a garden stored without an index row is invisible
+     here and still eating the device's quota, and this screen is the only place
+     that can hand it back. Normally finds nothing and costs one key scan. */
+  const recovered=await adoptOrphanedWorlds();
+  const idx=await worldsIndex();
   $('worldsTitle').textContent='Your gardens';
   /* An empty list SHOWS this screen rather than skipping it. Bouncing straight
      into the questionnaire hid "Import a garden" — the only import control in
@@ -248,6 +253,10 @@ async function openWorlds(){
     list.appendChild(row);
   });
   show('worldsScreen');
+  // Say so, rather than silently growing the list by one.
+  if (recovered.length) toast(recovered.length===1
+    ? `Recovered "${recovered[0]}" — it had lost its place in this list.`
+    : `Recovered ${recovered.length} gardens that had lost their place in this list.`);
 }
 async function enterWorld(id){
   game.worldId=id; game.inGarden=true;

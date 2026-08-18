@@ -68,10 +68,20 @@ const documentStub = {
   addEventListener(){}, removeEventListener(){}, hidden: false,
   fonts: { ready: Promise.resolve(), add(){}, load(){ return Promise.resolve(); } },
 };
+/* key() and length are REAL. They used to be `() => null` and `0`, which is a
+   harness that lies: any code enumerating storage saw an empty store, so the
+   localStorage->IndexedDB migration and the orphaned-garden scan were both
+   untestable, and an assertion written against them passed vacuously. */
 function makeStorage(){
   const m = new Map();
-  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)),
-           removeItem: k => m.delete(k), clear: () => m.clear(), key: () => null, length: 0 };
+  return {
+    getItem: k => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => { m.set(String(k), String(v)); },
+    removeItem: k => { m.delete(String(k)); },
+    clear: () => m.clear(),
+    key: i => { const keys = [...m.keys()]; return (i >= 0 && i < keys.length) ? keys[i] : null; },
+    get length(){ return m.size; }
+  };
 }
 
 /* `extras` is whatever the consumer wants visible inside the sandbox — the test
