@@ -138,7 +138,18 @@ See §13a.
   catch syntax errors before reloading the browser.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
   loads `plants.js` and the app modules (in load order) inside a `vm`
-  sandbox with light DOM stubs. The sandbox lives in **`tests/sandbox.js`**,
+  sandbox with light DOM stubs. **A stub that lies is worse than a missing
+  feature, because the suite goes green either way** — three have now been caught
+  reporting a convenient fiction (`getRandomValues` handing back an unfilled
+  buffer, `localStorage` claiming to be empty however much you wrote,
+  `getElementById` returning a fresh element every call so nothing written could
+  be read back), and each one made a real assertion pass without testing
+  anything. `docs/test-sandbox.md` is the record: which stubs answer honestly,
+  which decline (geometry, selectors, pixels, rAF — verify those in the browser),
+  and which were fixed. Three tests under "the harness itself" pin the contract,
+  each verified by reintroducing the lie and watching exactly one fail.
+  `node dev/audit-stubs.js` prints what every stub actually does; run it after
+  touching the sandbox. The sandbox lives in **`tests/sandbox.js`**,
   shared with `dev/make-demo-garden.js` so the demo-garden generator builds its
   file by calling the app's own `buildSaveBlob()` rather than reimplementing the
   save format, which would drift from it silently. `tests/plants.test.js` checks the species data

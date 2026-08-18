@@ -127,3 +127,11 @@ Object.keys(localStorage).filter(k=>/^hortus:coach/.test(k)).forEach(k=>localSto
 
 then re-arm with `armCoach()`, or clear `hortus:welcomed` and reload to get the
 whole first run.
+
+## A note on regenerating
+
+`buildSaveBlob()` stamps `app` with the current `APP_VERSION`, so re-running the
+generator restamps the file even when the planting is byte-for-byte the same.
+That stamp means "which build authored this garden", so **only regenerate when
+the garden actually changes** — otherwise every version bump produces a one-line
+diff that claims a change that did not happen.

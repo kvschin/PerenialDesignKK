@@ -3418,6 +3418,68 @@ test('a single-scheme garden saves exactly as it always did', async () => {
   assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
 });
 
+/* ---------- the harness itself ----------
+   Three stubs in this sandbox have now been caught reporting a convenient
+   fiction, and each one made a real assertion pass for the wrong reason:
+   getRandomValues handed back an unfilled buffer, localStorage claimed to be
+   empty however much you put in it, and getElementById returned a fresh element
+   every call so nothing written could be read back. A stub that lies is worse
+   than a missing feature, because the suite goes green either way. These pin the
+   contract so the next well-meaning simplification fails loudly. */
+
+test('the sandbox does not lie about the DOM', () => {
+  const a = document.getElementById('probe-el');
+  assert(a === document.getElementById('probe-el'), 'the same id is the same element');
+  a.setAttribute('data-probe', '1');
+  assertEqual(document.getElementById('probe-el').getAttribute('data-probe'), '1',
+    'an attribute written can be read back');
+  assert(document.getElementById('probe-el').hasAttribute('data-probe'), 'and hasAttribute agrees');
+  assert(document.querySelector('#probe-el') === a, 'querySelector agrees with getElementById');
+
+  // The element Proxy answers unknown props with a no-op function, which is
+  // truthy — so anything real code branches on must be declared falsy.
+  const el = document.createElement('div');
+  for (const p of ['hidden', 'disabled', 'readOnly', 'open'])
+    assertEqual(!!el[p], false, `el.${p} is falsy, so a branch on it is not always taken`);
+  for (const p of ['offsetWidth', 'clientHeight', 'scrollWidth', 'scrollLeft'])
+    assertEqual(el[p], 0, `el.${p} is a number, not a function`);
+});
+
+test('the sandbox does not lie about storage, randomness, clocks or timers', () => {
+  localStorage.setItem('probe:a', '1'); localStorage.setItem('probe:b', '2');
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+  assert(keys.includes('probe:a') && keys.includes('probe:b'), 'storage is enumerable');
+  localStorage.removeItem('probe:a'); localStorage.removeItem('probe:b');
+
+  const buf = new Uint8Array(16); crypto.getRandomValues(buf);
+  assert(buf.some(b => b !== 0), 'getRandomValues actually randomises');
+
+  const t0 = performance.now();
+  for (let i = 0; i < 2e5; i++);
+  assert(performance.now() > t0, 'the clock advances, so elapsed time is not always zero');
+
+  assert(!!setTimeout(() => {}, 0), 'a timer handle is truthy, so `if (handle)` is not inverted');
+  assert(document.createElement('canvas').getContext('2d').measureText('wwwwwwwwww').width > 0,
+    'measureText scales with the string');
+});
+
+test('the sheet/dock breakpoint is answerable, and matches the stylesheet', () => {
+  // SHEET_UI_MQ must equal the CSS string verbatim (CLAUDE.md), and matchMedia
+  // used to answer false to everything — so this branch was untestable and the
+  // phone layout was never exercised here at all.
+  const at = (w, h) => { innerWidth = w; innerHeight = h; return mobileSheetUi(); };
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    assertEqual(at(390, 844), true, 'a phone gets the sheet');
+    assertEqual(at(820, 1180), true, 'a portrait tablet gets the sheet too — the reason for the OR');
+    assertEqual(at(1180, 820), false, 'a landscape tablet gets the dock');
+    assertEqual(at(1440, 900), false, 'and so does a desktop');
+    assertEqual(at(767, 500), true, 'the 767 edge is inclusive');
+    assertEqual(at(768, 500), false, 'and 768 lands on the other side');
+  } finally { innerWidth = w0; innerHeight = h0; }
+});
+
 /* ---------- identifiers ---------- */
 
 test('ids minted in the same millisecond are still distinct', () => {
