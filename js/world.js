@@ -217,7 +217,7 @@ const GAME_MAPS=GAME_LAYERS.filter(L=>!L.array);
    single-scheme gardens save exactly as they always have. */
 const SCHEME_LAYERS=['plants','bulbs'];
 const MAX_SCHEMES=6;
-function newSchemeId(){ return 'sc'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36); }
+function newSchemeId(){ return newId('sc'); }
 function schemeList(){ return Array.isArray(game.schemes)?game.schemes:(game.schemes=[]); }
 function schemeCount(){ return schemeList().length; }
 function multiScheme(){ return schemeCount()>1; }

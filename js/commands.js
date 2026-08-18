@@ -615,7 +615,7 @@ function commitBuildingFootprint(vertices){
   const vs=vertices.map(p=>[p[0],p[1]]), check=validateBuildingFootprint(vs);
   if (!check.ok){ hapticFeedback('invalid'); toast(check.msg,'warn'); return false; }
   const style=buildingStyleDraft();
-  addBuilding(Object.assign({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),vertices:vs,t:Date.now()},style));
+  addBuilding(Object.assign({id:newId('b'),vertices:vs,t:Date.now()},style));
   hapticFeedback('success');
   toast(`${style.status==='existing'?'Existing':'Proposed'} building footprint added.`);
   return true;

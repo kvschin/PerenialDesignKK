@@ -3418,6 +3418,61 @@ test('a single-scheme garden saves exactly as it always did', async () => {
   assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
 });
 
+/* ---------- identifiers ---------- */
+
+test('ids minted in the same millisecond are still distinct', () => {
+  // The old form was Date.now() plus at most two base-36 characters, and on
+  // four of the six world paths nothing random at all — so a burst inside one
+  // millisecond produced repeats. A repeated WORLD id overwrites a saved
+  // garden, which is why this is pinned rather than trusted.
+  const realNow = Date.now;
+  Date.now = () => 1786800000000;          // freeze the clock: worst case
+  try {
+    for (const mint of [() => newId('w'), () => newWorldId(), () => newSchemeId()]) {
+      const seen = new Set();
+      for (let i = 0; i < 4000; i++) seen.add(mint());
+      assertEqual(seen.size, 4000, 'every id in a 4000-strong burst is unique');
+    }
+  } finally { Date.now = realNow; }
+});
+
+test('a random source that does not randomise cannot mint a constant id', () => {
+  // A getRandomValues that returns the buffer untouched looks like it worked
+  // and yields all-zeros — the same id every time. Fall through to Math.random
+  // rather than trust it.
+  const realCrypto = globalThis.crypto, realNow = Date.now;
+  Date.now = () => 1786800000000;
+  try {
+    globalThis.crypto = { getRandomValues: a => a };      // the no-op stub
+    const seen = new Set();
+    for (let i = 0; i < 500; i++) seen.add(newId('w'));
+    assert(seen.size > 400, `a no-op random source still yields distinct ids (got ${seen.size})`);
+
+    globalThis.crypto = { getRandomValues: () => { throw new Error('blocked'); } };
+    const thrown = new Set();
+    for (let i = 0; i < 500; i++) thrown.add(newId('w'));
+    assert(thrown.size > 400, 'and so does one that throws');
+  } finally { globalThis.crypto = realCrypto; Date.now = realNow; }
+});
+
+test('world ids are minted around the ones already taken', () => {
+  const taken = new Set(['wtaken1', 'wtaken2']);
+  for (let i = 0; i < 200; i++) assert(!taken.has(newWorldId(taken)), 'never reuses a taken id');
+  // and the guard holds even when the random source is degenerate
+  const realCrypto = globalThis.crypto, realRandom = Math.random, realNow = Date.now;
+  Date.now = () => 1786800000000;
+  try {
+    globalThis.crypto = { getRandomValues: a => a };
+    Math.random = () => 0;                                // every id identical
+    const collider = newWorldId();
+    const forced = newWorldId(new Set([collider]));
+    // Eight attempts all collide, so the fallback appends more characters. It
+    // must terminate, and must not hand back the id it was told was taken.
+    assert(forced !== collider, "never returns an id it was told is already taken");
+    assert(forced.startsWith(collider), "the fallback extends rather than replaces");
+  } finally { globalThis.crypto = realCrypto; Math.random = realRandom; Date.now = realNow; }
+});
+
 /* ---------- first run: the demo garden offer ---------- */
 
 test('installWorldBlob accepts a real envelope and refuses anything else', async () => {

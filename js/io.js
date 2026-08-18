@@ -165,7 +165,7 @@ async function migrateLegacyWorld(){
   if (idx.length) return idx;
   const legacy=await sGet('hortus:solo');
   if (!legacy) return idx;
-  const entry={id:'w'+Date.now().toString(36), name:'My garden', ts:Date.now(),
+  const entry={id:newWorldId(new Set(idx.map(w=>w.id))), name:'My garden', ts:Date.now(),
     gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
   await sSet('hortus:world:'+entry.id, legacy);
   await sSet('hortus:worlds',[entry]);
@@ -251,7 +251,10 @@ function buildSaveBlob(){
 let saveFailureReported=false;
 async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
-  if (!game.worldId) game.worldId='w'+Date.now().toString(36);
+  // First save of a garden that has never had an id. The index is read below
+  // anyway, so minting against it costs nothing and closes the one path where a
+  // fresh garden could land on top of an existing one.
+  if (!game.worldId) game.worldId=newWorldId(new Set((await worldsIndex()).map(w=>w.id)));
   const blob=buildSaveBlob();
   const stored=await sSet('hortus:world:'+game.worldId,blob);
   if (!stored){

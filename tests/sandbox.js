@@ -93,7 +93,15 @@ function makeSandbox(withDom, extras){
       performance: { now: () => 0 },
       matchMedia: () => ({ matches: false, addEventListener(){}, removeEventListener(){}, addListener(){}, removeListener(){} }),
       location: { href: '', search: '', hash: '' }, navigator: { userAgent: 'node', language: 'en' },
-      crypto: { randomUUID: () => 'test-uuid-0000', getRandomValues: a => a },
+      /* getRandomValues must actually RANDOMISE. The old stub returned the
+         buffer untouched, which is a harness that lies: any id built from it
+         came out all-zeros and identical, so the suite would have reported
+         collisions that the real browser never has — and, worse, could have
+         passed code that silently depended on the buffer being filled. */
+      crypto: {
+        randomUUID: () => 'test-uuid-0000',
+        getRandomValues: a => { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); return a; }
+      },
       Image: function(){ return makeEl('img'); }, Audio: function(){ return { play(){}, pause(){} }; },
       fetch: () => Promise.reject(new Error('no network here')),
       getComputedStyle: () => ({ getPropertyValue: () => '' }),

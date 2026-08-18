@@ -8,12 +8,62 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.3.4';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
    read confidently by a build shipped in two years. */
 const SAVE_VERSION = 1;
+
+/* ---------- identifiers ----------
+   Ids used to be `Date.now().toString(36)` plus, on a good day, two base-36
+   characters of Math.random — and on four of the six world paths, plus nothing
+   at all. Two ids minted in the same millisecond were then simply equal.
+
+   For a scheme that means switching to the wrong planting. For a WORLD it means
+   `sSet('hortus:world:'+id)` writing over somebody's saved garden, which makes
+   this a data-loss bug rather than an untidiness. A double-tap on "Start a new
+   garden" is enough to reach it by hand, and any loop reaches it instantly.
+
+   Eight random base-36 characters is 36^8 ≈ 2.8e12 within a single millisecond,
+   which puts collision below the level worth reasoning about. crypto is used
+   where it exists and Math.random is the fallback, because an id must never
+   depend on an API being present.
+
+   EXISTING ids are untouched — they are the key a saved garden is stored under,
+   so rewriting them would lose exactly the data this protects. */
+const ID_ALPHABET='0123456789abcdefghijklmnopqrstuvwxyz';
+function randomIdPart(n){
+  let out='';
+  try{
+    const buf=new Uint8Array(n);
+    (globalThis.crypto||globalThis.msCrypto).getRandomValues(buf);
+    /* A getRandomValues that hands the buffer back untouched is indistinguish-
+       able from one that filled it with zeros, and would mint the SAME id every
+       time — the exact failure this function exists to prevent, hidden behind an
+       API that looked like it worked. All-zero is a legitimate random draw at
+       odds of 256^-n, so rejecting it costs nothing and catches a no-op stub.
+       The test sandbox shipped precisely that stub, and these ids collided. */
+    let filled=false;
+    for (let i=0;i<n;i++) if (buf[i]!==0){ filled=true; break; }
+    if (filled){
+      for (let i=0;i<n;i++) out+=ID_ALPHABET[buf[i]%36];
+      return out;
+    }
+    out='';
+  }catch(_){ out=''; }
+  for (let i=0;i<n;i++) out+=ID_ALPHABET[Math.floor(Math.random()*36)];
+  return out;
+}
+function newId(prefix){ return prefix+Date.now().toString(36)+randomIdPart(8); }
+/* `taken` is optional and only passed where the index is already in hand. The
+   entropy alone is sufficient; this is the guard for a browser whose random
+   source turns out to be neither random nor available. */
+function newWorldId(taken){
+  for (let i=0;i<8;i++){ const id=newId('w'); if (!taken || !taken.has(id)) return id; }
+  return newId('w')+randomIdPart(6);
+}
+
 const SEASONS = ['Spring','Summer','Fall','Winter'];
 const DAYS_PER_SEASON = 16;
 const DAY_MS = 20000;                 // 20 real seconds per garden day
