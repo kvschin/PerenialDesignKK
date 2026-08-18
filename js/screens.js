@@ -279,15 +279,19 @@ async function shareCurrentGarden(){
 async function installWorldBlob(env, name){
   const w = env && env.pocketPrairie && env.world;
   if (!w || typeof w!=='object' || typeof w.plants!=='object') return null;
-  /* Mint against the existing index: this writes a whole garden to
-     hortus:world:<id>, so a repeat id would overwrite one. */
-  const existing=await worldsIndex();
-  const id=newWorldId(new Set(existing.map(x=>x.id)));
-  w.name=name;
-  if (!(await sSet('hortus:world:'+id, w))) return null;
-  const idx=existing.filter(x=>x.id!==id);
-  idx.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
-  await sSet('hortus:worlds', idx);
+  /* Mint, store the blob, and add the row as ONE critical section. The id is
+     minted against a fresh index (this writes a whole garden to
+     hortus:world:<id>, so a repeat would overwrite one), and the row cannot be
+     lost to a concurrent write. */
+  let id=null;
+  await updateWorldsIndex(async fresh=>{
+    id=newWorldId(new Set(fresh.map(x=>x.id)));
+    w.name=name;
+    if (!(await sSet('hortus:world:'+id, w))){ id=null; return null; }
+    const out=fresh.filter(x=>x.id!==id);
+    out.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
+    return out;
+  });
   return id;
 }
 function importWorldFile(file){
@@ -327,8 +331,7 @@ async function openDemoGarden(){
   return true;
 }
 async function deleteWorld(id){
-  const idx=(await worldsIndex()).filter(w=>w.id!==id);
-  await sSet('hortus:worlds',idx);
+  await updateWorldsIndex(fresh=>fresh.filter(w=>w.id!==id));
   await sDel('hortus:world:'+id);       // reclaims the quota in whichever home it sits
   openWorlds();
 }
@@ -337,21 +340,25 @@ async function duplicateWorld(id){
   if (!src){ toast('That garden could not be duplicated.'); return; }
   const copy=JSON.parse(JSON.stringify(src));
   const base=(copy.name||'My garden').replace(/ copy(?: \d+)?$/i,'');
-  const idx=await worldsIndex();
-  const siblingNames=new Set(idx.map(w=>(w.name||'').toLowerCase()));
-  let name=base+' copy', n=2;
-  while (siblingNames.has(name.toLowerCase())) name=`${base} copy ${n++}`;
-  // Duplicate is the easiest place to reach a same-millisecond collision by
-  // hand — the button can be double-tapped — and the loser would be the garden
-  // being copied FROM.
-  const newIdv=newWorldId(new Set(idx.map(w=>w.id)));
-  copy.name=name;
-  copy.savedAt=Date.now();
-  await sSet('hortus:world:'+newIdv,copy);
-  const next=idx.filter(w=>w.id!==newIdv);
-  next.push({id:newIdv,name,ts:Date.now(),gw:copy.gw||copy.grid||31,gh:copy.gh||copy.grid||31,
-    mode:'design'});
-  await sSet('hortus:worlds',next);
+  /* Duplicate is the one control a gardener can realistically double-tap, so
+     the whole operation — the sibling-name count, the id, the blob and the row
+     — runs against a single fresh read. Reading names outside this section is
+     what made two rapid duplicates come out identically titled. */
+  let name=null;
+  await updateWorldsIndex(async fresh=>{
+    const siblingNames=new Set(fresh.map(w=>(w.name||'').toLowerCase()));
+    name=base+' copy';
+    for (let n=2; siblingNames.has(name.toLowerCase()); n++) name=`${base} copy ${n}`;
+    const newIdv=newWorldId(new Set(fresh.map(w=>w.id)));
+    copy.name=name;
+    copy.savedAt=Date.now();
+    if (!(await sSet('hortus:world:'+newIdv,copy))){ name=null; return null; }
+    const next=fresh.filter(w=>w.id!==newIdv);
+    next.push({id:newIdv,name,ts:Date.now(),gw:copy.gw||copy.grid||31,gh:copy.gh||copy.grid||31,
+      mode:'design'});
+    return next;
+  });
+  if (!name){ toast('That garden could not be duplicated.'); return; }
   toast(`Duplicated "${base}".`);
   openWorlds();
 }

@@ -3494,6 +3494,52 @@ test('installWorldBlob accepts a real envelope and refuses anything else', async
       'a malformed envelope installs nothing');
 });
 
+test('concurrent index writes do not lose each other', async () => {
+  setup(21, 21);
+  await sSet('hortus:worlds', []);
+  // Six writers started in the same tick. Unserialised, each reads the same
+  // empty array and writes back only its own row, so five rows vanish.
+  await Promise.all([1, 2, 3, 4, 5, 6].map(n =>
+    updateWorldsIndex(fresh => {
+      const out = fresh.slice();
+      out.push({ id: 'w-race-' + n, name: 'Garden ' + n, ts: n, gw: 31, gh: 31 });
+      return out;
+    })));
+  const idx = await worldsIndex();
+  assertEqual(idx.length, 6, 'every concurrent addition survives');
+  assertEqual(new Set(idx.map(w => w.id)).size, 6, 'and none overwrote another');
+
+  // a mutation that declines writes nothing, and does not wedge the chain
+  await updateWorldsIndex(() => null);
+  assertEqual((await worldsIndex()).length, 6, 'declining changes nothing');
+  await updateWorldsIndex(() => { throw new Error('boom'); }).catch(() => {});
+  await updateWorldsIndex(fresh => fresh.filter(w => w.id !== 'w-race-1'));
+  assertEqual((await worldsIndex()).length, 5, 'a throwing mutation does not block later ones');
+});
+
+test('two gardens installed at once both survive, with no orphaned blob', async () => {
+  setup(21, 21);
+  await sSet('hortus:worlds', []);
+  const env = () => ({ pocketPrairie: 1, v: 1, world: { wv: 1, name: 'X', gw: 27, gh: 27,
+    plants: { '3,3': { s: 'bluestem', d: 0, t: 1 } }, bulbs: {}, terrain: {} } });
+  // the double-tap: both calls start before either finishes
+  const [a, b] = await Promise.all([
+    installWorldBlob(env(), 'Demo garden'),
+    installWorldBlob(env(), 'Demo garden')
+  ]);
+  assert(a && b && a !== b, 'each install got its own id');
+  const idx = await worldsIndex();
+  assertEqual(idx.length, 2, 'both rows are in the index');
+
+  // An orphan is a stored garden with no row pointing at it: invisible to the
+  // gardener, and still occupying the device quota.
+  const listed = new Set(idx.map(w => w.id));
+  const stored = Object.keys(localStorage).filter(k => k.startsWith('hortus:world:'))
+    .map(k => k.slice('hortus:world:'.length));
+  assertEqual(stored.filter(id => !listed.has(id)).length, 0, 'no blob is left orphaned');
+  for (const id of listed) assert(await sGet('hortus:world:' + id), 'every row has its garden');
+});
+
 test('the demo garden is offered once, and never to someone who already gardens', async () => {
   setup(21, 21);
   localStorage.removeItem('hortus:welcomed');

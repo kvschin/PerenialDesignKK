@@ -160,15 +160,53 @@ async function prepareUnderlayFile(file){
    [{id,name,ts,gw,gh}], each save under 'hortus:world:<id>'. The old
    single 'hortus:solo' key migrates into the first slot once. */
 async function worldsIndex(){ return (await sGet('hortus:worlds'))||[]; }
+
+/* ---------- the one writer of hortus:worlds ----------
+   Every mutation of the index is read-modify-write, and nothing kept two of
+   them from interleaving. Both read the same array, each wrote back only its
+   own change, and the later write erased the earlier one's row — while the
+   garden BLOB it pointed at had already been stored. The result was an orphan:
+   a garden invisible in the list and still occupying the device's quota, which
+   on iOS is about 5MB. Two duplicates started in the same tick also both read
+   the same names, so they came out identically titled.
+
+   Reproduced with two duplicateWorld calls back to back: three index rows
+   against five stored blobs.
+
+   Every writer now goes through here. The chain serialises them, and the
+   callback is handed a FRESH read taken inside the critical section, so a
+   mutation can never act on an index that has already moved underneath it.
+   Reads stay unqueued — only writers need ordering.
+
+   The callback may be async, and returns the array to store, or null to
+   decline (a failed blob write, nothing to do). It must not call back into
+   updateWorldsIndex: the chain is not re-entrant and would deadlock. */
+let worldsIndexChain=Promise.resolve();
+function updateWorldsIndex(mutate){
+  const run=worldsIndexChain.then(async()=>{
+    const idx=await worldsIndex();
+    const next=await mutate(idx.slice());
+    if (!next) return null;
+    return (await sSet('hortus:worlds',next)) ? next : null;
+  });
+  // A throwing mutation must not wedge every later write behind a rejection.
+  worldsIndexChain=run.then(()=>{},()=>{});
+  return run;
+}
 async function migrateLegacyWorld(){
   let idx=await worldsIndex();
   if (idx.length) return idx;
   const legacy=await sGet('hortus:solo');
   if (!legacy) return idx;
-  const entry={id:newWorldId(new Set(idx.map(w=>w.id))), name:'My garden', ts:Date.now(),
-    gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
-  await sSet('hortus:world:'+entry.id, legacy);
-  await sSet('hortus:worlds',[entry]);
+  let entry=null;
+  await updateWorldsIndex(async fresh=>{
+    if (fresh.length) return null;                 // someone migrated first
+    entry={id:newWorldId(new Set(fresh.map(w=>w.id))), name:'My garden', ts:Date.now(),
+      gw:legacy.gw||legacy.grid||31, gh:legacy.gh||legacy.grid||31};
+    if (!(await sSet('hortus:world:'+entry.id, legacy))){ entry=null; return null; }
+    return [entry];
+  });
+  if (!entry) return await worldsIndex();
   await sDel('hortus:solo');            // may live in either home after migration
   return [entry];
 }
@@ -264,9 +302,11 @@ async function saveSolo(silent){
     }
     return false;
   }
-  const idx=(await worldsIndex()).filter(w=>w.id!==game.worldId);
-  idx.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:'design'});
-  await sSet('hortus:worlds',idx);
+  await updateWorldsIndex(fresh=>{
+    const out=fresh.filter(w=>w.id!==game.worldId);
+    out.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:'design'});
+    return out;
+  });
   saveFailureReported=false;
   requestPersistence();               // first real save is the strongest signal
   if (!silent) toast('Garden saved.');

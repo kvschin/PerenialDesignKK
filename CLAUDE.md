@@ -187,6 +187,34 @@ See §13a.
   at boot: the grant is engagement-heuristic, so asking on a cold first visit is
   the request most likely to be refused. Sharing a garden is file-based
   (export/import a JSON blob), not live — see the direction note.
+- **`hortus:worlds` has exactly one writer: `updateWorldsIndex` (io.js).** Every
+  mutation of the index is read-modify-write, and nothing used to keep two of
+  them from interleaving — both read the same array, each wrote back only its
+  own change, and the later write erased the earlier row while the garden BLOB
+  it pointed at stayed in storage. That is an **orphan**: a garden invisible in
+  the list and still occupying quota, which matters at iOS's ~5MB. Two
+  `duplicateWorld` calls in one tick reproduced it (three rows against five
+  blobs), and they also came out identically named because both read the same
+  sibling names. `updateWorldsIndex` serialises writers on a promise chain and
+  hands the callback a **fresh read taken inside the critical section**, so a
+  mutation can never act on an index that has already moved. The callback may be
+  async and returns the array to store or `null` to decline; **it must not call
+  back into `updateWorldsIndex`** (not re-entrant, would deadlock). Reads stay
+  unqueued. Where a new id, a blob write and the row all belong together
+  (`installWorldBlob`, `duplicateWorld`), all three happen inside the one
+  callback. Measured after: 10 concurrent duplicates + 5 installs = 16 rows,
+  16 blobs, 0 orphans.
+- **Ids come from `newId`/`newWorldId` (core.js), never from `Date.now()` alone.**
+  A world id is the key its garden is stored under, so a repeat overwrites a
+  saved garden. The old form was `Date.now().toString(36)` plus at most two
+  base-36 characters — and on four of six world paths nothing random at all;
+  frozen to one millisecond, 200 mints gave 184 distinct ids on the weak form
+  and **1** on the bare ones. Eight random base-36 chars now, `crypto` where it
+  exists and `Math.random` where it does not. `randomIdPart` **checks the buffer
+  was actually filled**: a `getRandomValues` that returns it untouched is
+  indistinguishable from one that wrote zeros, and would mint a constant id
+  behind an API that looked like it worked (the test sandbox shipped exactly
+  that stub). Existing ids are never rewritten — they are the storage key.
 - **A failed save must reach the gardener.** `saveSolo(silent)` used to return
   `false` and say nothing, and autosave fires on every day change — so a full
   device could fail two hundred times in silence and lose the session. It now
