@@ -949,6 +949,10 @@ const seasonFadeRMQ=(typeof matchMedia==='function') ? matchMedia('(prefers-redu
 function seasonFadeActive(){ return seasonFade.active; }
 function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; }
 function maybeStartSeasonFade(t,season){
+  /* Counted on the season CHANGE, not on the crossfade — reduced-motion skips
+     the fade but still saw the year turn, and that is the differentiator the
+     funnel is asking about. */
+  if (seasonFade.last && seasonFade.last!==season) funnel(FUNNEL_EVENTS.seasonTurned);
   if (seasonFade.last && seasonFade.last!==season && !game.photo &&
       !(seasonFadeRMQ && seasonFadeRMQ.matches)){
     if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');

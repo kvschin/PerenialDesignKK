@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.3.6';
+const APP_VERSION = '0.4.0';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -62,6 +62,96 @@ function newId(prefix){ return prefix+Date.now().toString(36)+randomIdPart(8); }
 function newWorldId(taken){
   for (let i=0;i<8;i++){ const id=newId('w'); if (!taken || !taken.has(id)) return id; }
   return newId('w')+randomIdPart(6);
+}
+
+/* ---------- funnel instrumentation ----------
+   You cannot fix a conversion rate you cannot see. The four moments that matter
+   commercially are: someone opened the app, they placed a plant, they watched a
+   season turn (the thing no competitor does), and they reached the planting list
+   (the thing worth paying for). Anything that goes wrong between those is
+   invisible without counting them.
+
+   THIS SENDS NOTHING. No network, no third party, no identifier. Counts live on
+   the device and go nowhere, which is what keeps the privacy policy literally
+   true and the app's zero-external-request property intact — both of which are
+   selling points, and neither of which survives a tracking pixel.
+
+   Understand what that means: this shows YOUR funnel on YOUR device (and rides
+   along in a crash report, where it says what the gardener was doing). It cannot
+   show a stranger's. Answering "why is conversion bad" across a user base needs
+   a transport, a policy change and a store-label disclosure — a deliberate
+   decision, not something to smuggle in behind an instrumentation commit.
+   `funnelExport()` is the seam if that decision is ever made.
+
+   The key is a device preference, so it stays out of IDB_KEYS and reads
+   synchronously. */
+const FUNNEL_KEY='hortus:funnel';
+const FUNNEL_EVENTS={
+  appOpen:'app:open',                 // a session started
+  demoOffered:'demo:offered',         // the first-run prompt was shown
+  demoAccepted:'demo:accepted',
+  demoDeclined:'demo:declined',
+  gardenCreated:'garden:created',     // finished the plot screen
+  gardenOpened:'garden:opened',
+  plantPlaced:'plant:placed',         // counted, so the first is the milestone
+  seasonTurned:'season:turned',       // saw the differentiator
+  listOpened:'list:opened',           // reached the planting list
+  listExported:'list:exported',       // took the CSV away
+  planOpened:'plan:opened',
+  planDownloaded:'plan:downloaded',
+  gardenShared:'garden:shared',
+};
+let funnelState=null, funnelDirty=false;
+function funnelLoad(){
+  if (funnelState) return funnelState;
+  let raw=null;
+  try{ raw=JSON.parse(localStorage.getItem(FUNNEL_KEY)); }catch(_){ }
+  funnelState = (raw && typeof raw==='object' && raw.events && typeof raw.events==='object')
+    ? raw : {v:1, installed:Date.now(), sessions:0, events:{}};
+  if (typeof funnelState.sessions!=='number') funnelState.sessions=0;
+  return funnelState;
+}
+/* Deliberately cheap: one property bump and a flag. plantPlaced fires from
+   plantFx, which runs once per placed TILE — a fat drag is dozens in a frame —
+   so this must never serialise. funnelFlush does that, debounced. */
+function funnel(name,n){
+  if (!name) return;
+  const s=funnelLoad(), e=s.events[name] || (s.events[name]={n:0, first:0, last:0});
+  e.n+=(n||1);
+  const now=Date.now();
+  if (!e.first) e.first=now;
+  e.last=now;
+  funnelDirty=true;
+}
+function funnelFlush(){
+  if (!funnelDirty || !funnelState) return false;
+  funnelDirty=false;
+  try{ localStorage.setItem(FUNNEL_KEY,JSON.stringify(funnelState)); return true; }
+  catch(_){ return false; }
+}
+/* Whether a milestone has ever happened, and when — the shape a funnel question
+   actually takes ("did they ever reach the list?"). */
+function funnelSaw(name){ return !!(funnelLoad().events[name]||{}).n; }
+/* One line per event, for the crash report and the console. Ordered by the
+   funnel rather than alphabetically, so a drop-off reads as a drop-off. */
+function funnelSummary(){
+  const s=funnelLoad(), order=Object.values(FUNNEL_EVENTS);
+  const days=Math.max(1,Math.round((Date.now()-(s.installed||Date.now()))/86400000));
+  const lines=[`sessions ${s.sessions} over ${days}d`];
+  for (const k of order){
+    const e=s.events[k];
+    lines.push(`  ${e?'x':'-'} ${k}${e?' n='+e.n:''}`);
+  }
+  return lines.join('\n');
+}
+function funnelReport(){ console.log(funnelSummary()); return funnelLoad(); }
+/* The seam. Returns the whole record so it can be inspected, attached to a bug
+   report by hand, or one day posted somewhere — which would be a policy
+   decision, and would need privacy.html changed in the same commit. */
+function funnelExport(){ return JSON.parse(JSON.stringify(funnelLoad())); }
+function funnelReset(){
+  funnelState={v:1, installed:Date.now(), sessions:0, events:{}};
+  funnelDirty=true; funnelFlush();
 }
 
 const SEASONS = ['Spring','Summer','Fall','Winter'];

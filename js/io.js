@@ -460,6 +460,7 @@ function exportRows(){
   }).sort((a,b)=>b.count-a.count);
 }
 function openExport(){
+  funnel(FUNNEL_EVENTS.listOpened);     // the conversion moment, if the paywall lands here
   const rows=exportRows(), body=$('exportBody');
   const where=game.worldName||'My garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
@@ -481,6 +482,7 @@ function openExport(){
 function exportCsv(){
   const rows=exportRows();
   if (!rows.length){ toast('Nothing planted yet.'); return; }
+  funnel(FUNNEL_EVENTS.listExported);   // took the order away — the deepest step
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
   const lines=[['Common name','Latin name','Native','Tiles planted','Bed area (sq ft)','Spacing (in)','Plants to order'].map(esc).join(',')];
   rows.forEach(r=>lines.push([r.name,r.latin,r.native?'yes':'no',r.count,r.areaFt,r.space,r.order].map(esc).join(',')));
@@ -1123,8 +1125,9 @@ function buildPlanMap(){
   ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
   ctx.fillText('10 ft', bx2+ftPx*5, by2-8);
 }
-function openPlan(){ buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
+function openPlan(){ funnel(FUNNEL_EVENTS.planOpened); buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
 function downloadPlan(){
+  funnel(FUNNEL_EVENTS.planDownloaded);
   $('planCanvas').toBlob(b2=>{
     if (!b2) return;
     const a=document.createElement('a');

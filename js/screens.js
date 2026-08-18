@@ -261,6 +261,7 @@ async function openWorlds(){
 async function enterWorld(id){
   game.worldId=id; game.inGarden=true;
   if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.inGarden=false; return; }
+  funnel(FUNNEL_EVENTS.gardenOpened);
   enterGarden();
 }
 /* share-a-file: a garden is just a JSON blob, so export it to a file a friend
@@ -279,6 +280,7 @@ async function shareCurrentGarden(){
   a.href=URL.createObjectURL(new Blob([env],{type:'application/json'}));
   a.download=fname+'.prairie.json'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  funnel(FUNNEL_EVENTS.gardenShared);
   toast('Garden file downloaded — send it to a friend to share.');
 }
 /* One validator and one writer for every garden that arrives from outside this
@@ -711,6 +713,7 @@ function openPlotScreen(){
       if (pendingPlotShape && !setPlotShape(pendingPlotShape))     // sized first — setWorldSize clears any shape
         toast('That lot shape was too tight — starting rectangular.');
       game.worldId=newWorldId();
+      funnel(FUNNEL_EVENTS.gardenCreated);   // cleared the whole setup flow
       game.worldName=$('plotName').value.trim()||'My garden';
       game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
       game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
@@ -1554,9 +1557,14 @@ function buildCrashPanel(err,where){
   mk('Reload',true).onclick=()=>location.reload();
   const copy=mk('Copy error details',false);
   copy.onclick=()=>{
+    /* The funnel rides along. A stack alone says what broke; the counters say
+       what the gardener had actually done by then, which is usually the
+       difference between a reproducible report and a guess. It is device-local
+       either way — this is the gardener choosing to paste it. */
+    let fn=''; try{ fn='\n\n'+funnelSummary(); }catch(_){ }
     const txt=['Pocket Prairie '+(APP_VERSION||'?')+' — '+where,
       navigator.userAgent, '',
-      ...errLog.map(e=>e.where+': '+e.msg+'\n'+e.stack)].join('\n');
+      ...errLog.map(e=>e.where+': '+e.msg+'\n'+e.stack)].join('\n')+fn;
     try{ navigator.clipboard.writeText(txt).then(
       ()=>{ copy.textContent='Copied'; },
       ()=>{ copy.textContent='Press Ctrl+C'; window.prompt('Copy this:',txt); }); }
@@ -1644,18 +1652,27 @@ async function maybeOfferDemoGarden(){
   /* Arm the coach beats here, not on the answer: someone who declines the demo
      and starts from scratch is exactly as new as someone who accepts it. */
   armCoach();
+  funnel(FUNNEL_EVENTS.demoOffered);
   showConfirm(
     'First time here?',
     'There is a small finished garden you can open and play with — plant into it, wind it through a year, and watch what the planting does. It is a copy, so nothing you do to it can spoil anything.',
     'Open the demo garden',
-    ()=>{ markWelcomeSeen(); openDemoGarden(); },
+    ()=>{ markWelcomeSeen(); funnel(FUNNEL_EVENTS.demoAccepted); openDemoGarden(); },
     'Start from scratch',
-    ()=>{ markWelcomeSeen(); show('menuScreen'); }
+    ()=>{ markWelcomeSeen(); funnel(FUNNEL_EVENTS.demoDeclined); show('menuScreen'); }
   );
   return true;
 }
 
 (async function init(){
+  /* Count the session, and arrange for the counters to reach storage. funnel()
+     only bumps memory — it is called from plantFx, once per placed tile — so the
+     serialising happens here: on the way out, and on the same visibility change
+     the garden autosaves on, which is the one event a closing tab reliably gets. */
+  funnelLoad().sessions++;
+  funnel(FUNNEL_EVENTS.appOpen);
+  addEventListener('visibilitychange',()=>{ if (document.hidden) funnelFlush(); });
+  addEventListener('pagehide',funnelFlush);
   if (hasStorage){
     const f=await sGet('hortus:filters'); if (f) game.filters=normalizeFilters(f);
     await loadPlantCollections();

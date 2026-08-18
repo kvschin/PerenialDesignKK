@@ -233,6 +233,25 @@ See §13a.
   indistinguishable from one that wrote zeros, and would mint a constant id
   behind an API that looked like it worked (the test sandbox shipped exactly
   that stub). Existing ids are never rewritten — they are the storage key.
+- **The funnel counters (`funnel`/`FUNNEL_EVENTS`, core.js) SEND NOTHING, and
+  that is a product constraint rather than an unfinished feature.** `privacy.html`
+  states the app makes no requests to anyone, the zero-external-request property
+  is verified (and is a store-privacy-label and marketing asset), and neither
+  survives a tracking pixel. Thirteen events cover the commercial funnel — session,
+  the first-run offer and its answer, garden created/opened, plants placed, the
+  season turning (the differentiator), and the planting list / plan / share
+  (the paid-tier moment). What this buys is YOUR funnel on YOUR device plus a
+  summary riding along in the crash report, which is what turns a bug report into
+  a reproducible one. It cannot show a stranger's: answering "why is conversion
+  bad" across a user base needs a transport, a privacy-policy change and a store
+  disclosure — a deliberate decision, and `funnelExport()` is the seam for it.
+  **`funnel()` must never serialise**: it is called from `plantFx`, once per
+  placed TILE, so a fat drag is dozens inside one frame. Measured 0.081µs per
+  call (a 50-tile drag = 0.004ms) with zero storage writes across a 2000-event
+  burst; `funnelFlush` does the writing on visibilitychange/pagehide at 0.1ms,
+  and the whole record is ~400 bytes. `hortus:funnel` is a device preference and
+  stays out of `IDB_KEYS` — the calls are synchronous and some come from the
+  render path, so an IndexedDB round trip is not affordable there.
 - **A failed save must reach the gardener.** `saveSolo(silent)` used to return
   `false` and say nothing, and autosave fires on every day change — so a full
   device could fail two hundred times in silence and lose the session. It now

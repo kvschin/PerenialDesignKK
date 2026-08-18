@@ -239,7 +239,11 @@ function treePlacedMessage(def,x,y,k){
    to count what the gardener has actually planted, which the coach beats
    (ui.js) thread their timing off. */
 function plantFx(x,y,p){ const o=plantOffset(p); game.fx.push({x,y,ox:o.ox,oy:o.oy,t0:performance.now()});
-  coachNotePlanting(); }
+  coachNotePlanting();
+  /* Counted here rather than per gesture, so the number is plants and not taps.
+     This runs once per placed TILE — a fat drag is dozens inside one frame — so
+     funnel() only bumps a counter; funnelFlush does the serialising, later. */
+  funnel(FUNNEL_EVENTS.plantPlaced); }
 function freePlantable(def){ return !!(game.freePlanting && def && def.type!=='bulb' && !isWoodyDef(def)); }
 function clampPlantOffset(v){ return Math.max(-0.44,Math.min(0.44,Number.isFinite(+v)?+v:0)); }
 function roundedOffset(v){ return Math.round(clampPlantOffset(v)*100)/100; }

@@ -3480,6 +3480,83 @@ test('the sheet/dock breakpoint is answerable, and matches the stylesheet', () =
   } finally { innerWidth = w0; innerHeight = h0; }
 });
 
+/* ---------- funnel instrumentation ---------- */
+
+test('funnel counts events, remembers the first, and sends nothing', () => {
+  funnelReset();
+  assertEqual(funnelSaw(FUNNEL_EVENTS.plantPlaced), false, 'nothing seen yet');
+  funnel(FUNNEL_EVENTS.plantPlaced);
+  const first = funnelExport().events[FUNNEL_EVENTS.plantPlaced].first;
+  assert(first > 0, 'the first occurrence is stamped');
+  for (let i = 0; i < 40; i++) funnel(FUNNEL_EVENTS.plantPlaced);
+  const e = funnelExport().events[FUNNEL_EVENTS.plantPlaced];
+  assertEqual(e.n, 41, 'every occurrence is counted');
+  assertEqual(e.first, first, 'and the first stamp never moves');
+  assert(funnelSaw(FUNNEL_EVENTS.plantPlaced), 'the milestone reads as seen');
+
+  // There is no transport, and that is the point: the privacy policy says the
+  // app makes no requests, and a funnel that phoned home would make it false.
+  assertEqual(typeof globalThis.fetch, 'function', 'fetch exists in the sandbox');
+  const src = String(funnel) + String(funnelFlush) + String(funnelExport);
+  assert(!/fetch|XMLHttpRequest|sendBeacon|WebSocket|image|src\s*=/i.test(src),
+    'no funnel function reaches for the network');
+});
+
+test('funnel does not write to storage on the hot path', () => {
+  // plantFx calls funnel() once per placed TILE — a fat drag is dozens inside
+  // one frame — so bumping a counter must never serialise. Only flush does.
+  funnelReset();
+  const realSet = localStorage.setItem;
+  let writes = 0;
+  localStorage.setItem = function(k, v){ if (String(k) === 'hortus:funnel') writes++; return realSet.call(this, k, v); };
+  try {
+    for (let i = 0; i < 500; i++) funnel(FUNNEL_EVENTS.plantPlaced);
+    assertEqual(writes, 0, '500 events write to storage exactly zero times');
+    assert(funnelFlush(), 'and the explicit flush does write');
+    assertEqual(writes, 1, 'once');
+    assertEqual(funnelFlush(), false, 'a second flush with nothing dirty does nothing');
+    assertEqual(writes, 1, 'and does not write again');
+  } finally { localStorage.setItem = realSet; }
+});
+
+test('funnel survives a reload, and a corrupt record', async () => {
+  funnelReset();
+  funnel(FUNNEL_EVENTS.listOpened);
+  funnelFlush();
+  // simulate a fresh page: drop the in-memory copy and read it back
+  funnelState = null;
+  assert(funnelSaw(FUNNEL_EVENTS.listOpened), 'the record came back from storage');
+
+  for (const junk of ['not json at all', 'null', '[]', '{"events":"nope"}']) {
+    funnelState = null;
+    localStorage.setItem('hortus:funnel', junk);
+    const fresh = funnelExport();
+    assert(fresh && fresh.events && typeof fresh.events === 'object',
+      `a corrupt record (${junk}) rebuilds rather than throwing`);
+  }
+  funnelReset();
+});
+
+test('the funnel key is a device preference, not a garden document', () => {
+  // It must stay in localStorage: funnel() is synchronous and called from the
+  // render path, and an IndexedDB round trip there is not affordable.
+  assert(!IDB_KEYS.test('hortus:funnel'), 'the funnel stays out of the async document store');
+});
+
+test('the funnel summary reads as a funnel, in order', () => {
+  funnelReset();
+  funnel(FUNNEL_EVENTS.appOpen);
+  funnel(FUNNEL_EVENTS.gardenOpened);
+  funnel(FUNNEL_EVENTS.plantPlaced);
+  const s = funnelSummary();
+  const at = k => s.indexOf(k);
+  assert(at('app:open') < at('garden:opened') && at('garden:opened') < at('plant:placed'),
+    'events are listed in funnel order, so a drop-off reads as one');
+  assert(/x app:open/.test(s) && /- season:turned/.test(s),
+    'reached steps are marked and unreached ones are visibly absent');
+  funnelReset();
+});
+
 /* ---------- identifiers ---------- */
 
 test('ids minted in the same millisecond are still distinct', () => {
