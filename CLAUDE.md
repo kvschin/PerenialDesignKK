@@ -578,7 +578,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `tileTerrain()` reads player-laid terrain from `game.terrain`.
     Fences live in `game.fences` as tile structures (`{style,height,gate}`):
     normal fence tiles block movement, gate tiles are walkable, and adjacent
-    fence/gate tiles visually connect.
+    fence/gate tiles visually connect. **They are drawn at `PX_PER_FT`
+    (§11d)** — a real height in feet, not the hand-picked 26/36px they carried
+    before, which made a 6 ft privacy fence the drawn height of a 22-inch
+    sedge. `FENCE_STYLES` names a `infill` panel recipe per material and
+    `fencePanel` is the one painter (see §11d); `FENCE_HEIGHTS` is
+    3/4/5/6/8 ft with a per-material `heights` range, and `fenceHeightFor`
+    snaps rather than resets when you switch material.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
     only those tiles/entities draw. The ground (grass / walkway / laid path /
@@ -911,6 +917,59 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     space **at paint time** — so that variant is a rendering bug wearing an
     optimisation's clothes, and the tests assert the key carries the device
     size.
+11d. **Built height + the fence renderer** (`PX_PER_FT`, core.js;
+    `fencePanel`/`drawFence`/`drawGate`, draw.js) — **`PX_PER_FT` (21) is the
+    one place a structure's real height leaves real units.** Ground distance
+    and height are separate scales in this projection, and it is
+    `HERB_SCALE * 12` by construction (a test pins them), because herbaceous
+    `h` is px≈inches drawn at `h*HERB_SCALE` — so a 6 ft fence and a 6 ft
+    viburnum arrive at the same height, which is the whole point of a planner.
+    Measured before it existed: herbaceous drew at **1.67–1.78 px/inch** and
+    shrubs at 1.61, while a fence drew at **0.53–0.59**, i.e. a 6 ft privacy
+    fence was 38px — the drawn height of a 22-inch sedge — and the entire
+    4→6 ft range was 10px. Houses are deliberately NOT on this scale: like a
+    mature oak they are big enough to need the log compression `woodyVisualCw`
+    gives trees; 3–8 ft is inside the range that draws true.
+    **One panel painter, no per-style branches.** `FENCE_STYLES` rows name an
+    `infill` recipe the way a plant names its `form` — `bar`, `picket`,
+    `privacy`, `slat`, `rail`, `mesh`, `chain`, `masonry`, `woven`, `screen` —
+    plus `cap`, `gateLeaf` (a brick wall's gate is an iron gate, not a brick
+    slab), `header`, and a `heights` range. `fencePanel(ctx,x1,y1,x2,y2,h,st,
+    infill,seed)` walks a panel as `P(t,u)`: t along the run, u up. Height is a
+    straight screen offset — the projection has no vanishing point — which is
+    why **an open gate leaf reuses the same function** by handing it a
+    foreshortened segment, and why the tray chips (`miniFence`) paint through
+    it too and cannot advertise a fence the canvas does not draw.
+    Two things the recipes must keep right. **Vertical members divide the run
+    (always the same 9-inch half-tile, so a constant count); horizontal members
+    divide the HEIGHT and must be derived from real feet** via `over(inches)`,
+    or a 6-inch slat board becomes a 19-inch plank the moment the fence goes
+    4 ft → 8 ft. And `over`'s upper caps are a **budget, not tidiness**: a tile
+    is 18 INCHES, so a run redraws every horizontal member once per tile —
+    uncapped, a 6 ft brick wall's true ~24 courses measured 45 shape instances
+    a tile and 4.80ms for a 112-tile perimeter, against 12 and 1.34ms for the
+    fence this replaced. Capped it is 27 and 2.78ms. Instances are the currency
+    (§11a) and fences are **not** sprite-cached. The plain wood/vinyl/privacy/
+    aluminium fences came out *cheaper* than the old ones (10.6–13/tile)
+    despite far richer panels, because posts went from one per tile to one per
+    `FENCE_POST_TILES` (4 tiles = 6 ft on centre — a post every 18 inches is a
+    stockade), with `fencePostHere` always posting ends, corners, tees and gate
+    jambs.
+    **A gate is an opening, not a decal.** `fenceRunAxis` gives the run through
+    the tile — the old gate drew on a fixed screen-horizontal axis, so a gate
+    in a north-south fence faced sideways — and the gate tile paints nothing
+    between its two posts; the neighbours' half-segments already stop at 0.48,
+    which lands on the jamb. Over it goes an arched header (an arbor, or a real
+    voussoired masonry arch) or a squared `lintel` where an arch would be a lie
+    — no rose arbor over a chainlink gate — and the leaf stands ~55° open,
+    its far foot a WORLD offset through the same anchor so the swing
+    foreshortens at any camera rotation. Because a tile is 18 inches, one gate
+    tile is an 18-inch opening and anyone wanting a real 3–4 ft gate paints two
+    or three: **`fenceGateSpan` makes a contiguous run of gate tiles ONE
+    opening**, drawn by its leading tile (the rest draw nothing) rather than
+    three arches stacked on each other, and the arch deepens with the span.
+    `openPlan` applies the same span rule, breaking the plan line and drawing
+    one leaf-plus-swing-arc symbol across the real run.
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
     `placeHouse`/`applyHouseSize`/`paintHouse` (the
@@ -1342,8 +1401,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather
     than the legacy horizontal strip. The Hardscape tab draws fences and
-    gates from `game.fenceDraft` with 4 ft/6 ft heights
-    and Black Aluminum/Wood/Vinyl/Chainlink/Brick materials, plus **fire
+    gates from `game.fenceDraft` at 3/4/5/6/8 ft in twelve materials —
+    Black Aluminum, Wood Picket, Cedar Privacy, Horizontal Slat, Split Rail,
+    Vinyl, Chainlink, Garden Wire, Brick, Stone Wall, Woven Hurdle and Bamboo
+    Screen — the height chips showing only the spans that material is really
+    built at (`fenceStyleHeights`). Its chips paint through the garden's own
+    `fencePanel`, so a chip cannot advertise a fence the canvas does not draw,
+    and the chip height tracks the real feet. Plus **fire
     pits** from `game.firepitDraft` (Round/Square shape + size — round
     24/36/48 in, square 36 in or 24x48 in — `FIREPIT_SIZES`/`firepitTileSize`;
     drill in for shape/size like a grouped species). Fire pits live in
@@ -1749,6 +1813,7 @@ may read px-art fields. Do not let those two paths drift together again.
 | `cw` | pixels | Woody canopy/twig drawing width, via `woodyVisualCw(P)` (T10: trees blend `cw` toward true screen width in log space, so the stored value is the shape signal, not the on-screen size). It must not define shade reach, shrub reservations, plan circles, or mature canopy overlays. |
 | `look.topScale` | display multiplier | Optional extra sprite/canvas headroom for a plant whose flowering structure rises materially above its foliage mass (for example sotol). `plantArtTop(P)` applies it only to bounds and icon scaling; it must not change physical dimensions or placement footprint. |
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
+| `PX_PER_FT` | px per real foot | Not a plant field — the **built-height** scale (§11d), used by fences and anything else drawn from a real height in feet. It equals `HERB_SCALE * 12` so structures and planting share one vertical scale; a test pins them together. Houses are exempt (they take tree-style compression). |
 
 Footprint rules are intentionally asymmetric:
 

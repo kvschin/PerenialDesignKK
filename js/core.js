@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.6.4';
+const APP_VERSION = '0.6.5';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -167,6 +167,21 @@ function setWorldSize(gw,gh){ GW=gw; GH=gh;
 }
 const TILE_W = 76, TILE_H = 38;
 const TILE_IN = 18;                   // real-world inches per tile side (export + plot math)
+/* Screen px per real FOOT of drawn HEIGHT. Ground distance and height are
+   separate scales in this projection, so this is the one place a built
+   structure's real height leaves real units.
+
+   It is HERB_SCALE * 12 by construction, and a test pins the two together.
+   Herbaceous `h` is px≈inches and is drawn at h*HERB_SCALE, so 21px/ft is
+   exactly the scale the planting is drawn at — which is the whole point: a
+   6 ft fence and a 6 ft viburnum have to arrive at the same height or the
+   garden is lying about the one thing a planner is for. Measured before this
+   existed, a 6 ft fence drew 38px, the same as a 22-inch sedge, because the
+   fence carried a hand-picked 26/36px and never followed the H1 rescale.
+   Houses are deliberately NOT on this scale — like a mature oak they are big
+   enough to need the log compression trees get (see woodyVisualCw); a fence at
+   3-8 ft is inside the range that draws true. */
+const PX_PER_FT = 21;
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
 const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
@@ -452,24 +467,75 @@ function waterFill(t,snow){ const w=waterStyle(t&&t.c);
 function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
 const ELEV_TOOLS = ['raise','lower','level'];
 function isElevationTool(t){ return ELEV_TOOLS.includes(t); }
+/* Fence materials. `infill` names the panel recipe drawFence paints between
+   posts, exactly as a plant's `form` names its drawing branch — one
+   data-driven painter, no per-style `f.style==='brick'` chains, so a new
+   material is a data row. `post`/`rail`/`fill` are structure / horizontal
+   member / panel; `cap` is the post top; `gateLeaf` overrides the infill for a
+   gate's swinging leaf (a brick wall's gate is an iron gate, not a brick slab);
+   `header` is what spans a gate opening; `heights` limits the material to the
+   spans it is really built at — a split rail fence is not 8 ft tall and a
+   privacy fence is not 3 ft. Omit `heights` to allow all of FENCE_HEIGHTS. */
 const FENCE_STYLES = [
-  {id:'black', label:'Black Aluminum', post:'#1e1d1b', rail:'#2f312f', fill:'#151514'},
-  {id:'wood', label:'Wood', post:'#7b5636', rail:'#9a7148', fill:'#6a4529'},
-  {id:'vinyl', label:'Vinyl', post:'#eee8dc', rail:'#f8f3e8', fill:'#d8d0c2'},
-  {id:'chainlink', label:'Chainlink', post:'#68757a', rail:'#aab5b5', fill:'#d5dddd'},
-  {id:'brick', label:'Brick', post:'#8f4e3a', rail:'#a85f45', fill:'#6f382d'},
+  {id:'black', label:'Black Aluminum', short:'Black', infill:'bar', cap:'spear',
+   header:'lintel', post:'#1e1d1b', rail:'#2f312f', fill:'#151514', heights:[3,4,5,6]},
+  {id:'wood', label:'Wood Picket', short:'Picket', infill:'picket', cap:'point',
+   post:'#7b5636', rail:'#9a7148', fill:'#6a4529', heights:[3,4,5]},
+  {id:'privacy', label:'Cedar Privacy', short:'Privacy', infill:'privacy', cap:'flat',
+   post:'#6b4a2f', rail:'#8a6440', fill:'#9d7247', heights:[5,6,8]},
+  {id:'slat', label:'Horizontal Slat', short:'Slat', infill:'slat', cap:'flat',
+   post:'#4a423a', rail:'#7d6b55', fill:'#6a5b49', heights:[4,5,6,8]},
+  {id:'rail', label:'Split Rail', short:'Split rail', infill:'rail', cap:'flat',
+   post:'#8a7355', rail:'#9c8465', fill:'#7d674c', heights:[3,4]},
+  {id:'vinyl', label:'Vinyl', short:'Vinyl', infill:'picket', cap:'ball',
+   post:'#eee8dc', rail:'#f8f3e8', fill:'#d8d0c2', heights:[3,4,5,6]},
+  {id:'chainlink', label:'Chainlink', short:'Chainlink', infill:'chain', cap:'flat',
+   header:'lintel', gateLeaf:'chain', post:'#68757a', rail:'#aab5b5', fill:'#d5dddd'},
+  {id:'mesh', label:'Garden Wire', short:'Wire', infill:'mesh', cap:'flat',
+   header:'lintel', post:'#6b5a44', rail:'#8a7a62', fill:'#b9bfb8'},
+  {id:'brick', label:'Brick', short:'Brick', infill:'masonry', cap:'coping', coursed:true,
+   gateLeaf:'bar', post:'#8f4e3a', rail:'#a85f45', fill:'#6f382d', heights:[3,4,5,6]},
+  {id:'stone', label:'Stone Wall', short:'Stone', infill:'masonry', cap:'coping', coursed:false,
+   gateLeaf:'bar', post:'#8d8a80', rail:'#9d9a90', fill:'#7c7a72', heights:[3,4,5,6]},
+  {id:'woven', label:'Woven Hurdle', short:'Hurdle', infill:'woven', cap:'flat',
+   post:'#8a7550', rail:'#a08a5f', fill:'#b39a6b', heights:[3,4,5]},
+  {id:'screen', label:'Bamboo Screen', short:'Bamboo', infill:'screen', cap:'flat',
+   post:'#7a6a4a', rail:'#8f7c56', fill:'#c2a86a', heights:[4,5,6,8]},
 ];
-const FENCE_HEIGHTS = [4,6];
+/* 3 ft low boundary, 4 ft the common yard/pool minimum, 5 ft semi-privacy (and
+   the pool-barrier height a lot of municipalities actually require), 6 ft
+   privacy, 8 ft deer. The 5 ft step is only worth having because the fence
+   now draws at PX_PER_FT: at the old 26/36px hand-picked heights the whole
+   4->6 ft range was 10px, so a 5 ft option would have differed from its
+   neighbours by five pixels. It is a ~21px step now. */
+const FENCE_HEIGHTS = [3,4,5,6,8];
 function fenceStyle(id){ return FENCE_STYLES.find(f=>f.id===id)||FENCE_STYLES[0]; }
 function fenceStyleId(id){ return fenceStyle(id).id; }
+// the heights this material is really built at, in FENCE_HEIGHTS order
+function fenceStyleHeights(id){
+  const st=fenceStyle(id);
+  return st.heights ? FENCE_HEIGHTS.filter(h=>st.heights.includes(h)) : FENCE_HEIGHTS.slice();
+}
+/* Snap a height onto what the material offers, nearest wins — so switching
+   from a 3 ft split rail to Cedar Privacy lands on its shortest real height
+   rather than silently resetting to the default. */
+function fenceHeightFor(styleId,h){
+  const opts=fenceStyleHeights(styleId);
+  if (opts.includes(h)) return h;
+  const want=FENCE_HEIGHTS.includes(h)?h:4;
+  return opts.reduce((a,b)=>Math.abs(b-want)<Math.abs(a-want)?b:a, opts[0]);
+}
 function normalizeFenceDraft(d){
   d=d||{};
+  const style=fenceStyleId(d.style);
   return {
-    style:fenceStyleId(d.style),
-    height:FENCE_HEIGHTS.includes(d.height)?d.height:4,
+    style,
+    height:fenceHeightFor(style,d.height),
     gate:!!d.gate
   };
 }
+// drawn height of a placed fence, in screen px above its tile
+function fenceDrawH(f){ return Math.round(fenceHeightFor(fenceStyleId(f&&f.style), f&&f.height)*PX_PER_FT); }
 const LIGHT_TYPES = [
   {id:'path', label:'Path light', short:'Path', h:18, kind:'path'},
   {id:'lantern', label:'Lantern post', short:'Lantern', h:42, kind:'post'},

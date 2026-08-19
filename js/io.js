@@ -961,15 +961,34 @@ function buildPlanMap(){
     if (f.removed) continue;
     const [x,y]=k.split(',').map(Number), st=fenceStyle(f.style);
     const cx2=X(x)+cell/2, cy2=Y(y)+cell/2;
-    ctx.strokeStyle=st.post; ctx.lineWidth=f.style==='brick'?3:1.6;
+    const run=f.gate?fenceRunAxis(x,y):null;
+    ctx.strokeStyle=st.post; ctx.lineWidth=st.infill==='masonry'?3:1.6;
     [[1,0],[0,1]].forEach(([dx,dy])=>{
       if (!fenceAt(x+dx,y+dy)) return;
+      // a gate is a break in the wall on the plan too: the run stops at its posts
+      if (run && dx===run[0] && dy===run[1]) return;
       ctx.beginPath(); ctx.moveTo(cx2,cy2); ctx.lineTo(X(x+dx)+cell/2,Y(y+dy)+cell/2); ctx.stroke();
     });
-    ctx.fillStyle=f.gate?'#f7f3e8':st.post;
-    ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2,cell*0.16),0,7); ctx.fill();
-    if (f.gate){ ctx.strokeStyle=st.post; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(3,cell*0.24),0.2,Math.PI*1.3); ctx.stroke(); }
+    if (f.gate){
+      // one symbol per contiguous gate run, matching the garden (see fenceGateSpan)
+      const span=fenceGateSpan(x,y,run);
+      if (span.a) continue;
+      // standard plan gate: leaf plus swing arc, drawn across the actual run
+      const r=Math.max(4,cell*0.42), a0=Math.atan2(run[1],run[0]);
+      const len=r*2*0.94+span.b*cell, hx=cx2-Math.cos(a0)*r, hy=cy2-Math.sin(a0)*r;
+      ctx.strokeStyle=st.post; ctx.lineWidth=1.6;
+      ctx.beginPath();
+      ctx.moveTo(hx,hy);
+      ctx.lineTo(hx+Math.cos(a0+Math.PI/2)*len, hy+Math.sin(a0+Math.PI/2)*len);
+      ctx.stroke();
+      ctx.strokeStyle='rgba(92,84,69,0.5)'; ctx.lineWidth=0.8;
+      ctx.setLineDash([2,2]);
+      ctx.beginPath(); ctx.arc(hx,hy,len,a0,a0+Math.PI/2);
+      ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle=st.post;
+      ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2,cell*0.16),0,7); ctx.fill();
+    }
   }
   // lighting fixtures
   lightsLive.forEach(k=>{

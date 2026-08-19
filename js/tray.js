@@ -2425,37 +2425,35 @@ function buildToolTrayInner(){
     const fd=fenceDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
+    /* The chip paints through the garden's own fencePanel, so a material can
+       never advertise a fence the canvas does not draw — and, because the chip
+       height tracks the real feet, 3 ft and 8 ft are visibly different
+       pictures rather than the same icon with a different caption. */
     const miniFence=(tc,d)=>{
-      const st=fenceStyle(d.style), h=d.height>=6?25:18, y=34;
+      d=normalizeFenceDraft(d);
+      const st=fenceStyle(d.style), y=36;
+      const h=Math.round(Math.min(d.gate?21:30, (d.gate?2.5:3.4)*d.height));
+      const pw=st.infill==='masonry'?5:3;
       tc.lineCap='round'; tc.lineJoin='round';
-      if (d.style==='black'){
-        tc.strokeStyle='rgba(239,230,211,.34)'; tc.lineWidth=5;
-        [12,24,36].forEach(x=>{ tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x,y-h); tc.stroke(); });
-        [h*.35,h*.72].forEach(off=>{ tc.beginPath(); tc.moveTo(10,y-off); tc.lineTo(38,y-off); tc.stroke(); });
-      }
-      tc.strokeStyle=st.post; tc.lineWidth=d.style==='brick'?5:3;
-      [12,24,36].forEach(x=>{ tc.beginPath(); tc.moveTo(x,y); tc.lineTo(x,y-h); tc.stroke(); });
-      tc.strokeStyle=st.rail; tc.lineWidth=d.style==='brick'?7:2;
-      [h*.35,h*.72].forEach(off=>{ tc.beginPath(); tc.moveTo(10,y-off); tc.lineTo(38,y-off); tc.stroke(); });
-      if (d.style==='chainlink'){
-        tc.strokeStyle=st.fill; tc.lineWidth=0.8;
-        for (let x=14;x<=34;x+=6){ tc.beginPath(); tc.moveTo(x-4,y-h*.22); tc.lineTo(x+4,y-h*.72); tc.stroke(); }
-      }
-      if (d.gate){ tc.strokeStyle=st.fill; tc.lineWidth=1.5;
-        tc.beginPath(); tc.moveTo(15,y-h*.25); tc.lineTo(33,y-h*.72);
-        tc.moveTo(15,y-h*.72); tc.lineTo(33,y-h*.25); tc.stroke();
-        const gateCol=d.style==='black'?uiInk('--icon-ink'):(d.style==='vinyl'?'#6f6458':shade(st.fill,30));
-        tc.strokeStyle=gateCol; tc.lineWidth=2;
-        tc.beginPath(); tc.moveTo(13,y-h*.1); tc.lineTo(13,y-h*.82);
-        tc.moveTo(35,y-h*.1); tc.lineTo(35,y-h*.82);
-        tc.moveTo(13,y-h*.82); tc.lineTo(35,y-h*.82);
-        tc.moveTo(13,y-h*.48); tc.lineTo(35,y-h*.48);
-        tc.moveTo(13,y-h*.1); tc.lineTo(35,y-h*.82);
+      const post=(px,ph)=>{ tc.strokeStyle=st.post; tc.lineWidth=pw;
+        tc.beginPath(); tc.moveTo(px,y); tc.lineTo(px,y-ph); tc.stroke(); };
+      if (d.gate){
+        const ph=h*1.14, arch=(st.header||'arch')==='arch';
+        post(10,ph); post(38,ph);
+        tc.strokeStyle=st.rail; tc.lineWidth=arch?2.4:3;
+        tc.beginPath(); tc.moveTo(10,y-ph);
+        if (arch) tc.quadraticCurveTo(24,y-ph-h*0.5,38,y-ph); else tc.lineTo(38,y-ph);
         tc.stroke();
-        tc.strokeStyle='rgba(239,230,211,.55)'; tc.lineWidth=1;
-        tc.beginPath(); tc.arc(14,y-h*.14,16,-1.2,-0.08); tc.stroke();
-        tc.fillStyle=d.style==='black'?'#c97f3f':uiInk('--icon-ink');
-        tc.beginPath(); tc.arc(31,y-h*.48,1.8,0,7); tc.fill();
+        fencePanel(tc,10,y,25,y+4,h*0.84,st,st.gateLeaf||st.infill,7);   // leaf standing open
+        tc.strokeStyle=shade(st.post,14); tc.lineWidth=1.8;
+        tc.beginPath();
+        tc.moveTo(25,y+4); tc.lineTo(25,y+4-h*0.84);
+        tc.moveTo(10,y-h*0.84); tc.lineTo(25,y+4-h*0.84);
+        tc.moveTo(10,y); tc.lineTo(25,y+4-h*0.84);
+        tc.stroke();
+      } else {
+        fencePanel(tc,9,y,39,y,h,st,st.infill,7);
+        post(9,h); post(39,h);
       }
     };
     const backBtn=()=>{
@@ -2503,9 +2501,12 @@ function buildToolTrayInner(){
       toolBtn('Fence', game.tool==='fence'&&!fd.gate, {gate:false}, 'Draw connected fence tiles');
       toolBtn('Gate', game.tool==='fence'&&!!fd.gate, {gate:true}, 'Draw walkable fence doors / gates');
       sep('Height');
-      FENCE_HEIGHTS.forEach(h=>toolBtn(`${h} ft`, fd.height===h, {height:h}, `${h} foot tall fence`));
+      // only the spans this material is really built at (see FENCE_STYLES.heights)
+      fenceStyleHeights(fd.style).forEach(h=>
+        toolBtn(`${h} ft`, fd.height===h, {height:h}, `${h} foot tall ${fenceStyle(fd.style).label.toLowerCase()}`));
       sep('Material');
-      FENCE_STYLES.forEach(st=>toolBtn(st.label.split(' ')[0], fd.style===st.id, {style:st.id}, st.label));
+      FENCE_STYLES.forEach(st=>toolBtn(st.short||st.label, fd.style===st.id, {style:st.id},
+        `${st.label} — built at ${fenceStyleHeights(st.id).map(h=>h+' ft').join(', ')}`));
     }
   }
   if (cat.tools.includes('firepit')){
@@ -2815,7 +2816,8 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.bedStyle) hay+=' '+bedStyle(b.dataset.bedStyle).label+' bed gravel rock leaf litter mulch soil';
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
-    if (k==='fence') hay+=' hardscape structures fence gate door '+FENCE_STYLES.map(f=>f.label).join(' ');
+    if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
+      +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');

@@ -2300,9 +2300,9 @@ test('building footprints rasterize, block placement, and erase as one site obje
 test('fences place as blocking structures, gates stay walkable, and erase removes them', () => {
   setup(21, 21);
   game.tool = 'fence';
-  game.fenceDraft = { style: 'wood', height: 6, gate: false };
+  game.fenceDraft = { style: 'privacy', height: 6, gate: false };
   assertEqual(applyToolAt(5, 5), 'fence', 'fence placed');
-  assertEqual(fenceAt(5, 5).style, 'wood', 'style saved');
+  assertEqual(fenceAt(5, 5).style, 'privacy', 'style saved');
   assertEqual(fenceAt(5, 5).height, 6, 'height saved');
   assert(fenceBlocks(5, 5), 'a regular fence tile is solid');
 
@@ -2318,6 +2318,140 @@ test('fences place as blocking structures, gates stay walkable, and erase remove
   eraseBrush(5, 5, counts);
   assertEqual(counts.fence, 1, 'erase counted the fence');
   assert(!fenceAt(5, 5), 'fence removed');
+});
+
+/* drawFence and everything it calls work in absolute screen coordinates — no
+   translate, scale or rotate — so the top of the drawing is just the smallest y
+   any path touches. */
+function fenceTop(f, x, y, W, H){
+  let minY = Infinity;
+  const pt = (px, py) => { if (isFinite(py) && py < minY) minY = py; };
+  const ctx = new Proxy({}, {
+    get(o, p){
+      if (p === 'measureText') return t => ({ width: String(t || '').length * 6.2 });
+      return (...a) => {
+        if (p === 'moveTo' || p === 'lineTo') pt(a[0], a[1]);
+        else if (p === 'quadraticCurveTo'){ pt(a[0], a[1]); pt(a[2], a[3]); }
+        else if (p === 'arc') pt(a[0], a[1] - a[2]);
+        else if (p === 'ellipse') pt(a[0], a[1] - a[3]);
+      };
+    },
+    set(){ return true; },
+  });
+  drawFence(ctx, W, H, 'Summer', f, x, y);
+  return minY;
+}
+
+test('a fence is drawn at the height scale the planting is drawn at', () => {
+  assertEqual(PX_PER_FT, HERB_SCALE * 12, 'the structure scale IS the plant scale');
+  /* The claim in one line: a 6 ft fence and a 6 ft (72 in) perennial have to
+     arrive at the same drawn height. Before PX_PER_FT the fence drew 38px —
+     the height of a 22-inch sedge — because it carried a hand-picked 26/36. */
+  assertEqual(fenceDrawH({ style: 'privacy', height: 6 }),
+    Math.round(plantVisualH({ h: 72, type: 'forb' })), 'a 6 ft fence == a 6 ft plant');
+
+  setup(21, 21);
+  game.fences = {};
+  const W = 1200, H = 800, base = fenceAnchor(10, 10, W, H)[1];
+  for (const h of FENCE_HEIGHTS){
+    const f = { style: 'chainlink', height: h };
+    game.fences['10,10'] = f;                       // isolated: no neighbour panels
+    const drawn = base - fenceTop(f, 10, 10, W, H);
+    assert(Math.abs(drawn - h * PX_PER_FT) <= 6,
+      `${h} ft draws ${Math.round(drawn)}px, want ~${h * PX_PER_FT}px`);
+  }
+  // the steps have to be legible, which is the whole reason 5 ft is worth having
+  const px = FENCE_HEIGHTS.map(h => fenceDrawH({ style: 'chainlink', height: h }));
+  for (let i = 1; i < px.length; i++)
+    assert(px[i] - px[i - 1] >= 20, `${FENCE_HEIGHTS[i - 1]}->${FENCE_HEIGHTS[i]} ft is a visible step`);
+});
+
+test('fence materials offer only the heights they are really built at', () => {
+  const recipes = ['bar', 'picket', 'privacy', 'slat', 'rail', 'mesh', 'chain', 'masonry', 'woven', 'screen'];
+  FENCE_STYLES.forEach(st => {
+    const hs = fenceStyleHeights(st.id);
+    assert(hs.length, `${st.id} offers at least one height`);
+    hs.forEach(h => assert(FENCE_HEIGHTS.includes(h), `${st.id} height ${h} is a real step`));
+    assert(recipes.includes(st.infill), `${st.id} names a panel recipe (${st.infill})`);
+    if (st.gateLeaf) assert(recipes.includes(st.gateLeaf), `${st.id} gate leaf ${st.gateLeaf} is a recipe`);
+    assert(st.short, `${st.id} carries a chip label`);
+  });
+  // switching material SNAPS the height rather than silently resetting to 4 ft
+  assertEqual(normalizeFenceDraft({ style: 'rail', height: 8 }).height, 4, 'split rail tops out at 4 ft');
+  assertEqual(normalizeFenceDraft({ style: 'privacy', height: 3 }).height, 5, 'privacy starts at 5 ft');
+  assertEqual(normalizeFenceDraft({ style: 'chainlink', height: 8 }).height, 8, 'chainlink keeps 8 ft');
+  // and a placed fence can never carry a height its material does not offer
+  setup(13, 13);
+  game.tool = 'fence';
+  game.fenceDraft = { style: 'rail', height: 8, gate: false };
+  applyToolAt(5, 5);
+  assertEqual(fenceAt(5, 5).height, 4, 'placement clamps to the material');
+});
+
+test('a gate opens along the run it sits in, not along the screen', () => {
+  setup(21, 21);
+  game.tool = 'fence';
+  const run = (gx, gy) => fenceRunAxis(gx, gy).join(',');
+  game.fenceDraft = { style: 'wood', height: 4, gate: false };
+  applyToolAt(5, 4); applyToolAt(5, 6);            // a run along y
+  game.fenceDraft = { style: 'wood', height: 4, gate: true };
+  applyToolAt(5, 5);
+  assertEqual(run(5, 5), '0,1', 'a gate in a north-south run faces along it');
+
+  game.fences = {};
+  game.fenceDraft = { style: 'wood', height: 4, gate: false };
+  applyToolAt(9, 9); applyToolAt(11, 9);           // a run along x
+  game.fenceDraft = { style: 'wood', height: 4, gate: true };
+  applyToolAt(10, 9);
+  assertEqual(run(10, 9), '1,0', 'a gate in an east-west run faces along it');
+  assertEqual(run(18, 18), '1,0', 'an isolated gate falls back to one axis');
+
+  /* A gate is an opening: it stands taller than its fence (posts plus header),
+     which is what stops it reading as a decal painted on a continuous run. */
+  const W = 1200, H = 800;
+  const gate = fenceAt(10, 9), plain = fenceAt(9, 9);
+  const gateH = fenceAnchor(10, 9, W, H)[1] - fenceTop(gate, 10, 9, W, H);
+  const plainH = fenceAnchor(9, 9, W, H)[1] - fenceTop(plain, 9, 9, W, H);
+  assert(gateH > plainH + 8, `the gate (${Math.round(gateH)}px) rises over its fence (${Math.round(plainH)}px)`);
+});
+
+test('a run of gate tiles is one opening, not a stack of gates', () => {
+  setup(21, 21);
+  game.tool = 'fence';
+  game.fenceDraft = { style: 'wood', height: 4, gate: false };
+  for (let x = 5; x <= 14; x++) applyToolAt(x, 8);
+  game.fenceDraft = { style: 'wood', height: 4, gate: true };
+  // a 3-tile gate: 4.5 ft, which is what a real garden gate needs
+  for (const x of [9, 10, 11]) applyToolAt(x, 8);
+
+  const run = fenceRunAxis(9, 8);
+  assertEqual(run.join(','), '1,0', 'the gate run is east-west');
+  assertEqual(JSON.stringify(fenceGateSpan(9, 8, run)), '{"a":0,"b":2}', 'the first tile sees the whole span');
+  assertEqual(JSON.stringify(fenceGateSpan(11, 8, run)), '{"a":2,"b":0}', 'the last tile sees itself as trailing');
+
+  /* Only the leading tile draws the opening; the other two draw nothing but
+     their (absent) perpendicular panels, so three arches never stack. */
+  const W = 1200, H = 800;
+  const ink = gx => {
+    let n = 0;
+    const ctx = new Proxy({}, {
+      get(o, p){
+        if (p === 'measureText') return t => ({ width: String(t || '').length * 6.2 });
+        if (p === 'fill' || p === 'stroke') return () => { n++; };
+        return () => {};
+      }, set(){ return true; },
+    });
+    drawFence(ctx, W, H, 'Summer', fenceAt(gx, 8), gx, 8);
+    return n;
+  };
+  assert(ink(9) > 8, 'the leading gate tile draws the opening');
+  assertEqual(ink(10), 0, 'a following gate tile draws nothing');
+  assertEqual(ink(11), 0, 'the trailing gate tile draws nothing');
+
+  // and the opening really is 3 tiles wide, not 1
+  const wide = fenceAnchor(9 + 2 + 0.48, 8, W, H)[0] - fenceAnchor(9 - 0.48, 8, W, H)[0];
+  const oneTile = fenceAnchor(0.48, 0, W, H)[0] - fenceAnchor(-0.48, 0, W, H)[0];
+  assert(wide > oneTile * 2.5, 'a 3-tile gate spans ~3 tiles of opening');
 });
 
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {

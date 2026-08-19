@@ -415,7 +415,7 @@ function canPlaceFence(x,y){
 function placeFenceAt(x,y){
   if (!canPlaceFence(x,y)) return null;
   const d=normalizeFenceDraft(fenceDraft()), k=`${x},${y}`, now=Date.now();
-  const next={style:fenceStyleId(d.style),height:FENCE_HEIGHTS.includes(d.height)?d.height:4,gate:!!d.gate,t:now};
+  const next={style:d.style,height:d.height,gate:!!d.gate,t:now};
   const cur=fenceAt(x,y);
   if (cur && cur.style===next.style && cur.height===next.height && !!cur.gate===next.gate) return null;
   setTile('fences',k,next);

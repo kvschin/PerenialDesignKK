@@ -4336,86 +4336,319 @@ function drawHouse(ctx, W, H, season, hOv){
     quad(backRoof[0],backRoof[1],backRoof[2],backRoof[3],'rgba(240,244,250,0.45)');
   }
 }
+/* ---------- fences ----------
+   Every material paints through ONE panel recipe (`fencePanel`) rather than a
+   chain of `f.style==='brick'` tests, so adding a material is a data row in
+   FENCE_STYLES. The tray's material chips paint through the same function, so a
+   chip cannot show a fence the garden does not draw. */
 function fenceAnchor(x,y,W,H){
   const [sx,sy]=screenOf(x,y,W,H);
   return [sx,sy+TILE_H/2];
 }
-function drawFence(ctx,W,H,season,f,x,y){
-  const st=fenceStyle(f.style), tall=f.height>=6, h=tall?36:26;
-  const [ax,ay]=fenceAnchor(x,y,W,H);
-  const drawPost=(px,py,w=3.8)=>{
-    ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=w+1.6;
-    ctx.beginPath(); ctx.moveTo(px,py+1); ctx.lineTo(px,py-h-2); ctx.stroke();
-    ctx.strokeStyle=st.post; ctx.lineWidth=w;
-    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px,py-h); ctx.stroke();
+/* Which way the run goes through this tile. A gate has to know: its leaf, its
+   posts and its header all sit ON the run, and the old gate drew on a fixed
+   screen-horizontal axis, so a gate in a north-south fence faced sideways. */
+function fenceRunAxis(x,y){
+  const ex=(fenceNeighbor(x+1,y)?1:0)+(fenceNeighbor(x-1,y)?1:0);
+  const ey=(fenceNeighbor(x,y+1)?1:0)+(fenceNeighbor(x,y-1)?1:0);
+  return ey>ex ? [0,1] : [1,0];
+}
+/* A tile is 18 INCHES, so one gate tile is an 18-inch opening — too narrow to
+   push a barrow through, and anybody who wants a real 3 or 4 ft gate paints two
+   or three. Contiguous gate tiles on the run are therefore ONE opening: the
+   first tile draws the whole thing (both posts, one header, one leaf) and the
+   rest draw nothing, instead of stacking three arches on top of each other.
+   Returns how many gate tiles lie before and after this one. */
+function fenceGateSpan(x,y,run){
+  const [rx,ry]=run;
+  let a=0,b=0,f;
+  while ((f=fenceAt(x-(a+1)*rx,y-(a+1)*ry)) && f.gate) a++;
+  while ((f=fenceAt(x+(b+1)*rx,y+(b+1)*ry)) && f.gate) b++;
+  return {a,b};
+}
+/* A tile is 18 inches, so a post on every tile is a stockade — real posts are
+   6 to 8 feet apart. Post the ends, the corners, either side of a gate, and
+   then every FENCE_POST_TILES along the run; the panel spans the rest. */
+const FENCE_POST_TILES = 4;                        // 4 x 18in = 6 ft on centre
+function fencePostHere(x,y){
+  const [rx,ry]=fenceRunAxis(x,y);
+  const ahead=fenceAt(x+rx,y+ry), behind=fenceAt(x-rx,y-ry);
+  if (!ahead || !behind) return true;              // an end of the run
+  if (fenceNeighbor(x+ry,y+rx) || fenceNeighbor(x-ry,y-rx)) return true;   // a corner or a tee
+  if (ahead.gate || behind.gate) return true;      // the gate's own jamb is its post
+  return ((rx?x:y) % FENCE_POST_TILES)===0;
+}
+/* The panel between two posts. (x1,y1)/(x2,y2) are the post feet in SCREEN
+   space and h the drawn height in px, so P(t,u) walks the panel: t along the
+   run, u up. Height is a straight screen offset — the projection has no
+   vanishing point — which is why an open gate leaf can reuse this function
+   just by handing it a foreshortened segment. */
+function fencePanel(ctx,x1,y1,x2,y2,h,st,infill,seed){
+  const P=(t,u)=>[x1+(x2-x1)*t, y1+(y2-y1)*t - h*u];
+  const line=(t1,u1,t2,u2,col,w)=>{
+    const a=P(t1,u1), b=P(t2,u2);
+    ctx.strokeStyle=col; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
   };
-  const drawRail=(x1,y1,x2,y2,off,width,col)=>{
-    ctx.strokeStyle=col; ctx.lineWidth=width; ctx.beginPath();
-    ctx.moveTo(x1,y1-off); ctx.lineTo(x2,y2-off); ctx.stroke();
+  const band=(u0,u1,col)=>{
+    const a=P(0,u0), b=P(1,u0), c=P(1,u1), d=P(0,u1);
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(c[0],c[1]); ctx.lineTo(d[0],d[1]);
+    ctx.closePath(); ctx.fill();
   };
-  const drawPickets=(x1,y1,x2,y2)=>{
-    const steps=4;
-    ctx.strokeStyle=st.fill; ctx.lineWidth=f.style==='chainlink'?0.8:1.5;
-    for (let i=1;i<steps;i++){
-      const t=i/steps, px=x1+(x2-x1)*t, py=y1+(y2-y1)*t;
-      if (f.style==='chainlink'){
-        ctx.beginPath(); ctx.moveTo(px-4,py-h*.18); ctx.lineTo(px+4,py-h*.76); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(px+4,py-h*.18); ctx.lineTo(px-4,py-h*.76); ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.moveTo(px,py-h*.12); ctx.lineTo(px,py-h*.82); ctx.stroke();
+  const uprights=(n,u0,u1,col,w)=>{ for (let i=1;i<=n;i++) line(i/(n+1),u0,i/(n+1),u1,col,w); };
+  const rails=(offs,col,w)=>offs.forEach(u=>line(0,u,1,u,col,w));
+  /* Members are spaced in REAL inches, not in fixed counts. A vertical member
+     divides the RUN, which is always the same 9 inches of half-tile, so its
+     count is a constant; a horizontal member divides the HEIGHT, so its count
+     has to follow the fence's real feet or a 6-inch slat board becomes a
+     19-inch plank the moment the fence goes from 4 ft to 8 ft.
+
+     The upper caps in `over` are a real budget, not tidiness. A tile is 18
+     INCHES, so a run redraws every horizontal member once per tile: uncapped,
+     a 6 ft brick wall's true ~24 courses measured 45 shape instances a tile
+     and 4.80ms for a 112-tile perimeter, against 12 and 1.34ms for the fence
+     this replaced. Capped it is 27 and 2.78ms, and a suggestion of coursing
+     reads as coursing at 18 inches to the tile. Instances are the currency
+     here (§11a), and fences are not sprite-cached. The plain wood/vinyl/
+     privacy/aluminium fences come out CHEAPER than the old ones (10.6-13 a
+     tile) despite far richer panels, because posts went from one per tile to
+     one per FENCE_POST_TILES. */
+  const ft=h/PX_PER_FT;
+  const over=(inches,lo,hi)=>Math.max(lo,Math.min(hi,Math.round(ft*12/inches)));
+  const evenly=(n,u0,u1,col,w)=>{ for (let i=0;i<n;i++) line(0,u0+(u1-u0)*(i/(n-1||1)),1,u0+(u1-u0)*(i/(n-1||1)),col,w); };
+  switch (infill){
+    case 'bar':                                   // aluminium / iron pickets
+      rails([0.28,0.82],st.rail,2);
+      uprights(2,0.04,0.97,st.fill,1.6);
+      break;
+    case 'picket':                                // spaced boards on two rails
+      rails([0.30,0.74],st.rail,2.4);
+      uprights(2,0.03,0.93,st.fill,3.4);
+      break;
+    case 'privacy':                               // solid boards, capped
+      band(0.02,0.93,st.fill);
+      uprights(2,0.04,0.93,shade(st.fill,-15),0.9);
+      rails([0.93],st.rail,2.8);
+      break;
+    case 'slat': {                                // horizontal boards, thin reveals
+      const n=over(7,4,9);                        // ~6in board + reveal, capped (see the budget note)
+      for (let i=0;i<n;i++) line(0,0.06+0.88*i/(n-1),1,0.06+0.88*i/(n-1),i%2?st.fill:st.rail,Math.max(2.6,h*0.7/n));
+      break;
+    }
+    case 'rail':                                  // split rail: 2 rails low, 3 at 4 ft
+      evenly(ft>=4?3:2,0.30,0.80,st.rail,4.4);
+      break;
+    case 'mesh':                                  // welded garden wire on posts
+      rails([0.95],st.rail,1.8);
+      uprights(3,0.02,0.95,st.fill,0.7);
+      evenly(over(6,3,7),0.10,0.90,st.fill,0.7);
+      break;
+    case 'chain':                                 // chainlink weave under a top rail
+      rails([0.95],st.rail,1.6);
+      for (let i=1;i<=3;i++){
+        const t=i/4;
+        line(t-0.13,0.12,t+0.13,0.88,st.fill,0.8);
+        line(t+0.13,0.12,t-0.13,0.88,st.fill,0.8);
       }
+      break;
+    case 'masonry': {                             // brick courses or random rubble
+      band(0,0.94,st.rail);
+      const r=mulberry((seed||1)>>>0), joint='rgba(0,0,0,0.18)';
+      const n=st.coursed?over(3,4,7):over(8,3,5);
+      if (st.coursed){
+        for (let i=1;i<n;i++) line(0,i*0.94/n,1,i*0.94/n,joint,1);
+        for (let i=1;i<n;i+=2) line((i%2)?0.34:0.66,(i-1)*0.94/n,(i%2)?0.34:0.66,i*0.94/n,joint,0.9);
+      } else {
+        for (let i=1;i<n;i++){
+          const u=i*0.94/n+(r()-0.5)*0.04;
+          line(0,u,1,u+(r()-0.5)*0.04,joint,1);
+        }
+        for (let i=0;i<n;i+=2) line(0.15+r()*0.7,i*0.94/n,0.15+r()*0.7,(i+1)*0.94/n,joint,0.9);
+      }
+      line(0,0.94,1,0.94,shade(st.rail,20),2.6);  // coping course
+      break;
+    }
+    case 'woven': {                               // hazel hurdle: withies over uprights
+      band(0.03,0.88,st.fill);
+      const n=over(4,4,7);
+      for (let i=0;i<n;i++){
+        const u=0.05+0.82*i/(n-1||1), a=P(0,u), m=P(0.5,u+(i%2?0.02:-0.02)), b=P(1,u);
+        ctx.strokeStyle=i%2?shade(st.fill,-18):shade(st.fill,14);
+        ctx.lineWidth=Math.max(2.2,h*0.8/n);
+        ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.quadraticCurveTo(m[0],m[1],b[0],b[1]); ctx.stroke();
+      }
+      uprights(2,0,0.92,shade(st.post,-12),2);
+      break;
+    }
+    case 'screen':                                // bamboo canes on two bindings
+      band(0.02,0.94,st.fill);
+      uprights(5,0.02,0.96,shade(st.fill,-20),1.1);
+      evenly(over(30,2,4),0.18,0.86,st.rail,2.2);
+      break;
+    default:
+      rails([0.30,0.74],st.rail,2.4);
+      uprights(2,0.03,0.93,st.fill,3.4);
+  }
+}
+function drawFence(ctx,W,H,season,f,x,y){
+  const st=fenceStyle(f.style), h=fenceDrawH(f), seed=tileSeed(x,y);
+  const [ax,ay]=fenceAnchor(x,y,W,H);
+  const masonry=st.infill==='masonry';
+  const postW=masonry?9:st.infill==='rail'?5.6:4;
+  const drawPost=(px,py,ph,w,cap)=>{
+    ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=w+1.6;
+    ctx.beginPath(); ctx.moveTo(px,py+1); ctx.lineTo(px,py-ph-2); ctx.stroke();
+    ctx.strokeStyle=st.post; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px,py-ph); ctx.stroke();
+    if (cap==='spear'){
+      ctx.fillStyle=st.post; ctx.beginPath();
+      ctx.moveTo(px-w*0.7,py-ph); ctx.lineTo(px,py-ph-w*1.8); ctx.lineTo(px+w*0.7,py-ph);
+      ctx.closePath(); ctx.fill();
+    } else if (cap==='ball'){
+      ctx.fillStyle=st.post; ctx.beginPath(); ctx.arc(px,py-ph-w*0.5,w*0.75,0,7); ctx.fill();
+    } else if (cap==='point'){
+      ctx.fillStyle=st.post; ctx.beginPath();
+      ctx.moveTo(px-w*0.6,py-ph); ctx.lineTo(px,py-ph-w*1.1); ctx.lineTo(px+w*0.6,py-ph);
+      ctx.closePath(); ctx.fill();
+    } else if (cap==='coping'){
+      ctx.strokeStyle=shade(st.rail,20); ctx.lineWidth=3.4;
+      ctx.beginPath(); ctx.moveTo(px-w*0.8,py-ph-1); ctx.lineTo(px+w*0.8,py-ph-1); ctx.stroke();
     }
   };
+  const segEnd=(dx,dy)=>fenceAnchor(x+dx*0.48,y+dy*0.48,W,H);
   const drawSegment=(dx,dy,force)=>{
     if (!force && !fenceNeighbor(x+dx,y+dy)) return false;
-    const [ex,ey]=fenceAnchor(x+dx*0.48,y+dy*0.48,W,H);
-    if (f.style==='brick'){
-      drawRail(ax,ay,ex,ey,h*.24,11,shade(st.rail,-20));
-      drawRail(ax,ay,ex,ey,h*.42,11,st.rail);
-      drawRail(ax,ay,ex,ey,h*.60,9,shade(st.rail,18));
-      ctx.strokeStyle='rgba(76,38,28,0.35)'; ctx.lineWidth=1;
-      for (let i=1;i<4;i++){ const t=i/4, px=ax+(ex-ax)*t, py=ay+(ey-ay)*t;
-        ctx.beginPath(); ctx.moveTo(px,py-h*.16); ctx.lineTo(px,py-h*.68); ctx.stroke(); }
-    } else {
-      const lw=f.style==='chainlink'?1.2:(f.style==='black'?2:2.6);
-      drawRail(ax,ay,ex,ey,h*.30,lw,st.rail);
-      drawRail(ax,ay,ex,ey,h*.68,lw,st.rail);
-      drawPickets(ax,ay,ex,ey);
-    }
+    const [ex,ey]=segEnd(dx,dy);
+    // contact shadow: one stroke, and the difference between a fence standing
+    // on the lawn and a fence floating over it
+    ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=masonry?7:4;
+    ctx.beginPath(); ctx.moveTo(ax,ay+1.5); ctx.lineTo(ex,ey+1.5); ctx.stroke();
+    fencePanel(ctx,ax,ay,ex,ey,h,st,st.infill,seed);
     return true;
   };
   ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
   const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-  let connected=false;
-  dirs.forEach(([dx,dy])=>{ if (drawSegment(dx,dy,false)) connected=true; });
-  if (!connected){ drawSegment(1,0,true); drawSegment(-1,0,true); }
-  drawPost(ax,ay,f.style==='brick'?7:3.8);
+  const run=f.gate?fenceRunAxis(x,y):null;
+  let connected=false, snowTop=h;
   if (f.gate){
-    const gateCol=f.style==='vinyl'?'#6f6458':f.style==='black'?'#efe6d3':shade(st.fill,28);
-    const hingeX=ax-13, latchX=ax+13, base=ay, top=ay-h*.72, mid=ay-h*.43;
-    ctx.strokeStyle='rgba(0,0,0,0.28)'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.moveTo(hingeX,base-3); ctx.lineTo(hingeX,top);
-    ctx.moveTo(latchX,base-3); ctx.lineTo(latchX,top); ctx.stroke();
-    ctx.strokeStyle=gateCol; ctx.lineWidth=2.6;
-    ctx.beginPath(); ctx.moveTo(hingeX,base-3); ctx.lineTo(hingeX,top);
-    ctx.moveTo(latchX,base-3); ctx.lineTo(latchX,top); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(hingeX,top); ctx.lineTo(latchX,top);
-    ctx.moveTo(hingeX,mid); ctx.lineTo(latchX,mid);
-    ctx.moveTo(hingeX,base-h*.16); ctx.lineTo(latchX,base-h*.16);
-    ctx.moveTo(hingeX,base-h*.16); ctx.lineTo(latchX,top);
-    ctx.moveTo(hingeX,top); ctx.lineTo(latchX,base-h*.16);
-    ctx.stroke();
-    ctx.strokeStyle='rgba(239,230,211,0.55)'; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.arc(hingeX+2,base-h*.18,22,-1.15,-0.12); ctx.stroke();
-    ctx.fillStyle=f.style==='black'?'#c97f3f':'#efe6d3';
-    ctx.beginPath(); ctx.arc(latchX-4,mid,2.5,0,7); ctx.fill();
+    /* A gate is an OPENING, not a decal on a continuous run: nothing is painted
+       between its two posts. Neighbouring fence tiles already stop their own
+       half-segments at 0.48, which lands exactly on the gate post. */
+    dirs.forEach(([dx,dy])=>{
+      if (dx===run[0] && dy===run[1]) return;
+      if (dx===-run[0] && dy===-run[1]) return;
+      if (drawSegment(dx,dy,false)) connected=true;
+    });
+    const span=fenceGateSpan(x,y,run);
+    // one opening per contiguous run of gate tiles; the first tile owns it
+    if (span.a) { ctx.restore(); return; }
+    snowTop=drawGate(ctx,W,H,f,st,x,y,h,run,seed,span.b);
+  } else {
+    dirs.forEach(([dx,dy])=>{ if (drawSegment(dx,dy,false)) connected=true; });
+    if (!connected){ drawSegment(1,0,true); drawSegment(-1,0,true); }
+    if (!connected || fencePostHere(x,y)) drawPost(ax,ay,h,postW,st.cap);
   }
   if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.66)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(ax-8,ay-h-1); ctx.lineTo(ax+8,ay-h-1); ctx.stroke();
+    ctx.strokeStyle='rgba(240,244,250,0.66)'; ctx.lineWidth=masonry?4:2.4;
+    const cap=(x1,y1,x2,y2)=>{ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+    if (f.gate) cap(ax-9,ay-snowTop-1,ax+9,ay-snowTop-1);
+    else {
+      let any=false;
+      dirs.forEach(([dx,dy])=>{
+        if (!fenceNeighbor(x+dx,y+dy)) return;
+        const [ex,ey]=segEnd(dx,dy);
+        cap(ax,ay-h-1,ex,ey-h-1); any=true;
+      });
+      if (!any) cap(ax-8,ay-h-1,ax+8,ay-h-1);
+    }
   }
   ctx.restore();
+}
+/* The gate opening: two taller posts on the run, a header spanning them, and
+   the leaf standing open into the garden. Returns the drawn height of the
+   structure so snow lands on the header rather than in mid-air. */
+function drawGate(ctx,W,H,f,st,x,y,h,run,seed,extra){
+  const [rx,ry]=run, [px,py]=[ry,rx];            // perpendicular = swing direction
+  const far=0.48+(extra||0);                     // the opening spans the whole gate run
+  const A=fenceAnchor(x-rx*0.48,y-ry*0.48,W,H);  // hinge post foot
+  const B=fenceAnchor(x+rx*far,y+ry*far,W,H);    // latch post foot
+  const postH=h*1.14, pw=st.infill==='masonry'?9:4.6;
+  const post=(p)=>{
+    ctx.strokeStyle='rgba(0,0,0,0.24)'; ctx.lineWidth=pw+1.8;
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]+1); ctx.lineTo(p[0],p[1]-postH-2); ctx.stroke();
+    ctx.strokeStyle=st.post; ctx.lineWidth=pw;
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-postH); ctx.stroke();
+  };
+  // threshold: the walkable gap, drawn on the ground between the posts
+  ctx.strokeStyle='rgba(247,243,232,0.30)'; ctx.lineWidth=2.6;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke();
+  ctx.setLineDash([]);
+  post(A); post(B);
+  /* Header: an arch over the opening (an arbor, or a real masonry arch) or a
+     squared lintel where an arch would be a lie — you do not put a rose arbor
+     over a chainlink gate. A masonry arch is struck at the wall's own weight;
+     at the arbor's 3.4px it read as a wire springing off a 9px stone pier. */
+  const hdr=st.header||'arch', masonry=st.infill==='masonry';
+  const at=[A[0],A[1]-postH], bt=[B[0],B[1]-postH];
+  // a wider opening needs a deeper arch, or a 3-tile gate reads as a flat bow
+  const rise=hdr==='arch'?h*0.26*(1+Math.min(2,extra||0)*0.18):0;
+  ctx.strokeStyle=st.rail; ctx.lineWidth=hdr==='arch'?(masonry?7.5:3.4):4.2;
+  ctx.beginPath(); ctx.moveTo(at[0],at[1]);
+  if (hdr==='arch'){
+    const mid=[(at[0]+bt[0])/2,(at[1]+bt[1])/2-rise*2];
+    ctx.quadraticCurveTo(mid[0],mid[1],bt[0],bt[1]);
+  } else ctx.lineTo(bt[0],bt[1]);
+  ctx.stroke();
+  if (hdr==='arch'){
+    const arcAt=t=>[at[0]+(bt[0]-at[0])*t,
+                    at[1]+(bt[1]-at[1])*t-rise*2*2*t*(1-t)];   // the arc's height at t
+    if (masonry){
+      // voussoirs: the joints that make a stone arch an arch
+      ctx.strokeStyle='rgba(0,0,0,0.20)'; ctx.lineWidth=1;
+      for (let i=1;i<=5;i++){
+        const p=arcAt(i/6);
+        ctx.beginPath(); ctx.moveTo(p[0],p[1]-4); ctx.lineTo(p[0],p[1]+4); ctx.stroke();
+      }
+    } else {
+      // a second, thinner arc plus ribs, so it reads as an arbor and not a wire
+      ctx.strokeStyle=shade(st.rail,16); ctx.lineWidth=1.6;
+      const mid2=[(at[0]+bt[0])/2,(at[1]+bt[1])/2-rise*2-5];
+      ctx.beginPath(); ctx.moveTo(at[0],at[1]-5);
+      ctx.quadraticCurveTo(mid2[0],mid2[1],bt[0],bt[1]-5); ctx.stroke();
+      for (let i=1;i<=3;i++){
+        const p=arcAt(i/4);
+        ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-5); ctx.stroke();
+      }
+    }
+  }
+  /* The leaf, hinged at A and standing ~55 degrees open into the garden. Its
+     far foot is a WORLD offset put through the same anchor, so the swing
+     foreshortens correctly at any camera rotation, and fencePanel paints it in
+     the fence's own material — an open gate is the same fence, turned. */
+  const th=55*Math.PI/180, L=far+0.48;           // the leaf is as wide as the opening
+  const fx=x-rx*0.48+L*(Math.cos(th)*rx+Math.sin(th)*px);
+  const fy=y-ry*0.48+L*(Math.cos(th)*ry+Math.sin(th)*py);
+  const F=fenceAnchor(fx,fy,W,H), leafH=h*0.84;
+  ctx.save(); ctx.globalAlpha=0.96;
+  fencePanel(ctx,A[0],A[1],F[0],F[1],leafH,st,st.gateLeaf||st.infill,(seed^0x51ed)>>>0);
+  // stile, top rail and brace: the frame that says "gate" rather than "panel"
+  ctx.strokeStyle=shade(st.post,14); ctx.lineWidth=2.6;
+  ctx.beginPath();
+  ctx.moveTo(F[0],F[1]); ctx.lineTo(F[0],F[1]-leafH);
+  ctx.moveTo(A[0],A[1]-leafH); ctx.lineTo(F[0],F[1]-leafH);
+  ctx.moveTo(A[0],A[1]); ctx.lineTo(F[0],F[1]-leafH);
+  ctx.stroke();
+  ctx.restore();
+  // latch plate on the standing post, hinges on the hung one
+  ctx.fillStyle=st.id==='black'?'#c97f3f':'#efe6d3';
+  ctx.beginPath(); ctx.arc(B[0],B[1]-leafH*0.55,2.6,0,7); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=2;
+  [0.28,0.78].forEach(u=>{
+    ctx.beginPath(); ctx.moveTo(A[0]-3,A[1]-leafH*u); ctx.lineTo(A[0]+3,A[1]-leafH*u); ctx.stroke();
+  });
+  return postH+rise+6;
 }
 function drawLightFixture(ctx,W,H,season,l,x,y,lit){
   const typ=lightType(l.type), tone=lightTone(l.tone);
