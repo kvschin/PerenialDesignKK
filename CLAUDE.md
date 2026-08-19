@@ -1700,6 +1700,12 @@ changes rendered or recommended size (`h`, `cw`, `space`, or `spread`) must
 declare both its exact `heightIn` and `spread`; otherwise it silently inherits
 the base plant's mature dimensions.
 
+Shared herbaceous morphology stays data-driven. Shrub-form forbs can use
+`look.flowerStyle:'double'` with `flowerR`/`flowerPetals` for large layered
+flowers; leafmounds can tune `leaves`, `scapes`, `florets`, `floretR`, and
+`floretGap`; rosettes can use `flowerStyle:'daylily'` for branched scapes with
+open six-tepal flowers. Omitted values preserve the original defaults.
+
 ### Units and footprint policy
 
 The plant model deliberately separates **inches-truth** from **px-art**. If a

@@ -2247,7 +2247,31 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const tip=ox+sway*len*0.025;
         ctx.strokeStyle=shade(S.fol||'#7d8f80',-24); ctx.lineWidth=1.5;
         ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.55,tip,-len); ctx.stroke();
-        if (blooming && S.bloom){
+        if (blooming && S.bloom && L.flowerStyle==='daylily'){
+          const flowers=Math.max(1,Math.ceil((L.blooms||2)*blv));
+          for(let b=0;b<flowers;b++){
+            const side=(b+st)%2?-1:1, reach=(L.branchReach||5)*(0.75+b*0.25);
+            const fx=tip+side*reach, fy=-len+b*3.5;
+            ctx.strokeStyle=shade(S.fol,-18); ctx.lineWidth=0.9;
+            ctx.beginPath(); ctx.moveTo(tip,-len+5); ctx.quadraticCurveTo(tip+side*reach*0.45,-len+2,fx,fy); ctx.stroke();
+            const pl=L.petalLen||5.2, pw=L.petalW||1.6;
+            if (art2On(L)){
+              for(let p=0;p<6;p++){
+                const a=-Math.PI/2+p/6*Math.PI*2;
+                drawLeaf(ctx,fx,fy,fx+Math.cos(a)*pl,fy+Math.sin(a)*pl*0.72,
+                  pw,shade(S.bloom,(p%2?5:-4)),{shape:'lance',rib:false,bow:0.05});
+              }
+            } else {
+              ctx.fillStyle=S.bloom;
+              for(let p=0;p<6;p++){
+                const a=-Math.PI/2+p/6*Math.PI*2;
+                ctx.beginPath(); ctx.ellipse(fx+Math.cos(a)*pl*0.48,fy+Math.sin(a)*pl*0.34,
+                  pl*0.52,pw,a,0,7); ctx.fill();
+              }
+            }
+            if(S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(fx,fy,pw*0.75,0,7); ctx.fill(); }
+          }
+        } else if (blooming && S.bloom){
           ctx.fillStyle=S.bloom;
           const shown=Math.max(2,Math.ceil(bells*blv));
           for (let b=0;b<shown;b++){
@@ -2545,6 +2569,30 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             }
           }
         }
+        else if (L.flowerStyle==='double'&&blooming){
+          const cx=ox+sway*2, cy=-len, rad=L.flowerR||5.5;
+          const petals=Math.max(10,Math.round(L.flowerPetals||14));
+          if (a2){
+            for(let p=0;p<petals;p++){
+              const a=p/petals*Math.PI*2, pr=rad*(0.68+(p%2)*0.08);
+              fcPush(cx+Math.cos(a)*rad*0.56,cy+Math.sin(a)*rad*0.34,pr,0.46);
+            }
+            for(let p=0;p<Math.ceil(petals*0.62);p++){
+              const a=p/Math.ceil(petals*0.62)*Math.PI*2;
+              fcPush(cx+Math.cos(a)*rad*0.27,cy+Math.sin(a)*rad*0.17,rad*0.48,0.52);
+            }
+            fcDraw(ctx,col,28,-18);
+            drawFloret(ctx,cx,cy,rad*0.28,shade(col,-10),{lift:24});
+          } else {
+            ctx.fillStyle=col;
+            for(let p=0;p<petals;p++){
+              const a=p/petals*Math.PI*2;
+              ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*rad*0.55,cy+Math.sin(a)*rad*0.32,
+                rad*0.68,rad*0.31,a,0,7); ctx.fill();
+            }
+            ctx.fillStyle=shade(col,-10); ctx.beginPath(); ctx.arc(cx,cy,rad*0.28,0,7); ctx.fill();
+          }
+        }
         else if (a2){
           // The unstyled head is a mint/milkweed cyme: a single flat disc in
           // classic. ART2 makes it a small dome of florets instead — still
@@ -2710,10 +2758,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox+sway*2,-H*(0.5+rnd()*0.2)); ctx.stroke(); }
     }
   }
-  else if (P.form === 'leafmound'){ // hosta: broad overlapping leaves, scapes above
+  else if (P.form === 'leafmound'){ // hosta and shade mounds: broad overlapping leaves, scapes above
     const Lm=P.look||{};
     if (S.fol){
-      const n=stemFor(11);
+      const n=stemFor(Lm.leaves||11);
       if (art2On(Lm)){
         // A hosta IS its leaves — broad, ribbed, overlapping, and the whole
         // reason anyone plants one. Flat rotated ellipses made it a pile of
@@ -2744,16 +2792,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
     if (blooming && mature){
       ctx.strokeStyle=shade(S.fol||'#6f8f5a',-18); ctx.lineWidth=1.1;
-      const m=Math.max(1,Math.ceil(3*blv));
+      const m=Math.max(1,Math.ceil((Lm.scapes||3)*blv));
       for (let i=0;i<m;i++){ const ox=(rnd()-0.5)*10, len=H*(1.0+rnd()*0.2);
         ctx.beginPath(); ctx.moveTo(ox*0.4,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         if (art2On(Lm)){
-          for (let s2=0;s2<4;s2++)
-            drawFloret(ctx, ox+sway*2+(rnd()-0.5)*2, -len+s2*2.8, 1.8, S.bloom, {squash:1.3});
+          for (let s2=0;s2<(Lm.florets||4);s2++)
+            drawFloret(ctx, ox+sway*2+(rnd()-0.5)*2, -len+s2*(Lm.floretGap||2.8), Lm.floretR||1.8, S.bloom, {squash:Lm.floretSquash||1.3});
         } else {
           ctx.fillStyle=S.bloom;
-          for (let s2=0;s2<4;s2++){ ctx.beginPath();
-            ctx.ellipse(ox+sway*2+(rnd()-0.5)*2,-len+s2*2.8,1.5,2,0,0,7); ctx.fill(); }
+          const rr=Lm.floretR||1.8;
+          for (let s2=0;s2<(Lm.florets||4);s2++){ ctx.beginPath();
+            ctx.ellipse(ox+sway*2+(rnd()-0.5)*2,-len+s2*(Lm.floretGap||2.8),rr*0.84,rr*(Lm.floretSquash||1.3),0,0,7); ctx.fill(); }
         } }
     }
   }

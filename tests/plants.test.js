@@ -521,6 +521,73 @@ test('requested sun and shade catalog expansion retains distinct taxa and cultiv
   assertEqual(PLANTS.sandlovegrass.form, 'cloudgrass', 'sand lovegrass uses the airy cloud silhouette');
 });
 
+test('high-priority perennial gaps keep exact taxa, origins, and starter cultivars', () => {
+  const expected = {
+    lentenrose:['Helleborus × hybridus','forb'],
+    rozanne:["Geranium 'Gerwat' ROZANNE",'forb'],
+    peony:['Paeonia lactiflora','forb'],
+    daylily:['Hemerocallis hybrids','forb'],
+    japaneseanemone:['Anemone × hybrida','forb'],
+    brunnera:['Brunnera macrophylla','forb'],
+    russiansage:['Salvia yangii','forb'],
+    shastadaisy:['Leucanthemum × superbum','forb'],
+    creepingphlox:['Phlox stolonifera','forb'],
+    obedientplant:['Physostegia virginiana','forb'],
+    foamflower:['Tiarella cordifolia','forb'],
+    grayheadedconeflower:['Ratibida pinnata','forb'],
+    blackcohosh:['Actaea racemosa','forb'],
+    ladysmantle:['Alchemilla mollis','forb'],
+    barrenwort:['Epimedium × versicolor','forb'],
+    jerusalemsage:['Phlomis russeliana','forb'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: high-priority perennial is missing`);
+    assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
+    assertEqual(P.type, expected[k][1], `${k}: catalog type`);
+    assert(Array.isArray(P.bloomMonths)&&P.bloomMonths.length, `${k}: needs real bloom months`);
+  }
+
+  for (const k of ['creepingphlox','obedientplant','foamflower','grayheadedconeflower','blackcohosh'])
+    assert(PLANTS[k].nativeTo.includes('north-america'), `${k}: North American range`);
+  for (const k of ['lentenrose','rozanne','daylily','japaneseanemone','shastadaisy','barrenwort']){
+    assertEqual(PLANTS[k].provenance,'hybrid',`${k}: garden hybrid provenance`);
+    assertEqual(PLANTS[k].nativeTo.length,0,`${k}: garden hybrid has no wild native range`);
+  }
+  for (const k of ['peony','brunnera','russiansage','jerusalemsage'])
+    assert(PLANTS[k].nativeTo.includes('asia'), `${k}: Asian range`);
+  assert(PLANTS.ladysmantle.nativeTo.includes('europe')&&PLANTS.ladysmantle.nativeTo.includes('asia'),
+    "lady's mantle records its southeastern European and western Asian range");
+
+  for (const v of ['sarahbernhardt','karlrosenfield','duchessedenemours'])
+    assert(PLANTS.peony.cv[v], `peony.${v}: starter cultivar`);
+  for (const v of ['stelladeoro','happyreturns','catherinewoodbery'])
+    assert(PLANTS.daylily.cv[v], `daylily.${v}: starter cultivar`);
+  for (const ref of [
+    ['japaneseanemone','honorinejobert'], ['brunnera','jackfrost'],
+    ['russiansage','bluespire'], ['russiansage','littlespire'],
+    ['shastadaisy','becky'], ['creepingphlox','sherwoodpurple'],
+    ['obedientplant','missmanners'], ['obedientplant','pinkmanners'], ['barrenwort','sulphureum'],
+  ]) assert(PLANTS[ref[0]].cv[ref[1]], `${ref[0]}.${ref[1]}: starter cultivar`);
+  assertEqual(PLANTS.russiansage.cv.bluespire.provenance,'hybrid','Blue Spire keeps its hybrid ancestry');
+  assertEqual(PLANTS.russiansage.cv.bluespire.nativeTo.length,0,'Blue Spire has no wild native range');
+  assertEqual(PLANTS.russiansage.cv.littlespire.provenance,'selection','Little Spire remains a Salvia yangii selection');
+  assertEqual(PLANTS.grayheadedconeflower.group,'ratibida','gray-headed coneflower shares the Ratibida picker');
+  assertEqual(PLANTS.mexicanhat.group,'ratibida','Mexican hat shares the Ratibida picker');
+  assertEqual(PLANTS.peony.look.flowerStyle,'double','peony keeps its large double-flower silhouette');
+  assertEqual(PLANTS.daylily.look.flowerStyle,'daylily','daylily keeps open six-tepal flowers instead of yucca bells');
+  assert(PLANTS.lentenrose.look.floretR>2.5,'hellebore flowers stay visible above the evergreen leaf mound');
+  assert(PLANTS.creepingphlox.roles.includes('groundcover')&&PLANTS.creepingphlox.roles.includes('matrix'),
+    'creeping phlox stays discoverable as a woodland groundcover matrix');
+  assert(PLANTS.foamflower.roles.includes('groundcover')&&PLANTS.foamflower.roles.includes('matrix'),
+    'foamflower stays discoverable as a woodland groundcover matrix');
+  assertEqual(PLANTS.creepingphlox.zones[0],5,'straight creeping phlox keeps its conservative species hardiness');
+  assertEqual(PLANTS.creepingphlox.cv.sherwoodpurple.zones[0],2,'Sherwood Purple keeps its exact colder cultivar range');
+  assertEqual(PLANTS.foamflower.zones[0],4,'foamflower keeps its verified species hardiness');
+  assert(PLANTS.brunnera.nativeTo.includes('europe')&&PLANTS.brunnera.nativeTo.includes('asia'),
+    'brunnera records its trans-Caucasian European and Asian range');
+});
+
 test('landscape shrub expansion keeps botanical identity and grouping', () => {
   const expected = {
     ninebark:      ['Physocarpus opulifolius', true],
