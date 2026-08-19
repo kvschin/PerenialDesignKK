@@ -37,6 +37,26 @@ const LIT = {x:-0.55, y:-0.83};          // direction TO the light: upper left
    alone wrongly stripped snow from 26 species that DO draw stems.
    Bulbs never reach here: they sit at growth 0 and fail the mature check. */
 const SNOW_BARE_FORMS = {fern:1, leafmound:1, rosette:1};
+/* Where a plant's drawn mass actually tops out, as a fraction of H. The cap
+   scatter below assumed foliage fills the whole H box, which is true for a
+   coneflower (measured drawn top 1.01H) and false for anything whose H is set
+   by a flower scape it does not carry in winter: a heuchera is a low leaf
+   mound at 0.45H, Solomon's seal 0.49H, a moss phlox mat 0.28H. Twelve species
+   put every cap ABOVE their own highest pixel — snow floating over the plant
+   rather than lying on it.
+   Keyed on form, not height: the two do not correlate. Heuchera (H42) and
+   Solomon's seal (H67) detach while pussytoes and dwarf crested iris (H14)
+   are fine, so a "short plant" rule would have missed the worst cases and
+   moved snow on plants that were already right. Anything absent scores 1 and
+   is untouched, which is 241 of the 253 herbaceous species measured. */
+const SNOW_CROWN = {leafmound:0.45, archbell:0.50, waterleaf:0.45};
+function snowCrownFrac(P){
+  const L=P.look||{};
+  // mat-forming shrub-form perennials: the mass is a runner carpet, not a mound
+  if (P.form==='shrub' && (L.habit==='mossphlox' || L.habit==='matflower')) return 0.30;
+  if (P.form==='bunchgrass' && L.mound) return 0.45;   // low dome sedges
+  return SNOW_CROWN[P.form] || 1;
+}
 function catchesSnow(P, S){
   return !SNOW_BARE_FORMS[P.form] || !!(S.fol || S.seed || S.bloom);
 }
@@ -4027,9 +4047,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.ellipse(a[0],a[1]-r*0.12,r,r*0.42,0,0,7); ctx.fill();
       }
     } else if (P.form!=='conifer' || S.fol){
+      // Widening the scatter to shR for low crowns was tried and dropped: shR
+      // is the ground-shadow radius, which runs wider than the drawn foliage,
+      // so it pushed snow out past the edge of 12 species instead of onto them.
+      const crown=snowCrownFrac(P);
       const capW=P.cw?Math.max(18,(woodyVisualCw(P)||18)*0.5):18;
       for(let i=0;i<caps;i++){ ctx.beginPath();
-        ctx.ellipse((rs()-0.5)*capW,-H*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
+        ctx.ellipse((rs()-0.5)*capW,-H*crown*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
     }
   }
   if (!AMBIENCE[season].snow && S.fol && growth>0.28){

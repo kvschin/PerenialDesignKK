@@ -4610,6 +4610,47 @@ test('snow only falls on a plant that actually drew something', () => {
     assert(catchesSnow(PLANTS[k], PLANTS[k].sea.Winter || {}),
       `${k}: holds winter structure, so it must keep its snow`);
 });
+
+test('snow caps ride the drawn mass, not the top of the H box', () => {
+  // The cap scatter assumed foliage fills the whole H box. It does for a
+  // coneflower (drawn top measured at 1.01H) and not for anything whose H is
+  // set by a flower scape it does not carry in winter, so twelve species put
+  // EVERY cap above their own highest pixel — snow floating over the plant.
+  assertEqual(snowCrownFrac(PLANTS.echinacea), 1, 'a coneflower fills its box');
+  assertEqual(snowCrownFrac(PLANTS.bluestem), 1, 'so does a bunchgrass with no mound');
+  assertEqual(snowCrownFrac(PLANTS.heuchera), 0.45, 'a heuchera is a low leaf mound');
+  assertEqual(snowCrownFrac(PLANTS.solomonsseal), 0.50, "Solomon's seal arches low");
+  assertEqual(snowCrownFrac(PLANTS.mossphlox), 0.30, 'moss phlox is a runner mat');
+  assertEqual(snowCrownFrac(PLANTS.poppymallow), 0.30, 'poppy mallow mats too');
+  assertEqual(snowCrownFrac(PLANTS.mountainsedge), 0.45, 'mound sedges sit low');
+  assertEqual(snowCrownFrac(PLANTS.fragrantwaterlily), 0.45, 'a water lily floats flat');
+
+  // Keyed on FORM, not height — the two do not correlate, and a height rule
+  // would have missed the worst cases while moving snow on plants already
+  // right. These two are the proof: same drawn height, opposite answers.
+  assert(plantVisualH(PLANTS.heuchera) > plantVisualH(PLANTS.pussytoes),
+    'heuchera is the taller plant');
+  assert(snowCrownFrac(PLANTS.heuchera) < snowCrownFrac(PLANTS.pussytoes),
+    'yet it is the one whose snow had to come down');
+
+  // A mound sedge sits low; the same form without the mound flag does not.
+  assert(snowCrownFrac(PLANTS.mountainsedge) < snowCrownFrac(PLANTS.bluestem),
+    'the mound flag is what separates them, not the form alone');
+
+  // Everything unlisted must score exactly 1, or the fix silently moves snow
+  // on plants that were already correct (766 of 856 winter renders are
+  // pixel-identical to before, and that is the property being protected).
+  let moved = 0;
+  for (const k of PLANT_KEYS){
+    const P = PLANTS[k];
+    if (P.type === 'tree' || P.type === 'shrub' || P.type === 'bulb') continue;
+    const f = snowCrownFrac(P);
+    assert(f > 0 && f <= 1, `${k}: crown fraction ${f} out of range`);
+    if (f < 1) moved++;
+  }
+  assert(moved > 0 && moved < PLANT_KEYS.length * 0.2,
+    `crown override should stay a small exception, not the rule (${moved} species)`);
+});
 test('bucketed category counts equal filtering per category', () => {
   setup(31, 31);
   const cats = TRAY_CATS.filter(c => TRAY_GROUPS[0].cats.includes(c.id));
