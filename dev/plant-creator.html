@@ -154,14 +154,15 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
     <div class="row">
       <div><label>Zone min</label><input type="number" id="pc-zmin" value="4"></div>
       <div><label>Zone max</label><input type="number" id="pc-zmax" value="8"></div>
-      <div class="inline" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="pc-native" checked><label for="pc-native">Native</label></div>
+      <div><label>Native range / origin</label><select id="pc-native-range"><option value="north-america">North America</option><option value="europe">Europe</option><option value="asia">Asia</option><option value="africa">Africa</option><option value="central-america">Mexico / Central America</option><option value="south-america">South America</option><option value="australasia">Australasia</option><option value="">Garden origin</option></select></div>
+      <div><label>Provenance</label><select id="pc-provenance"><option value="species">Straight species</option><option value="selection">Named selection</option><option value="hybrid">Garden hybrid</option></select></div>
     </div>
     <div class="row">
       <div><label>Sun</label><select id="pc-sun"><option>full</option><option>part</option></select></div>
       <div><label>Moisture</label><select id="pc-moist"><option>dry</option><option selected>medium</option><option>moist</option></select></div>
       <div><label>Phenology (spring wake)</label><select id="pc-phen"><option>cool</option><option selected>mid</option><option>warm</option></select></div>
     </div>
-    <label>Ecoregions (comma-separated; for the natives filter)</label>
+    <label>Ecoregion notes (comma-separated; descriptive only)</label>
     <input type="text" id="pc-eco" value="Flint Hills, Central Great Plains">
 
     <h2>Propagation (Story mode — optional)</h2>
@@ -302,7 +303,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
     var eco=$('pc-eco').value.split(',').map(function(x){return x.trim();}).filter(Boolean);
     var d={ name:$('pc-name').value, latin:$('pc-latin').value, form:form, type:type,
       h:num('pc-h',44), space:num('pc-space',18), spread:num('pc-spread',18),
-      zones:[num('pc-zmin',4),num('pc-zmax',8)], native:$('pc-native').checked,
+      zones:[num('pc-zmin',4),num('pc-zmax',8)], nativeTo:$('pc-native-range').value?[$('pc-native-range').value]:[], provenance:$('pc-provenance').value,
       eco:eco, sun:$('pc-sun').value, moist:$('pc-moist').value, phen:$('pc-phen').value,
       blurb:$('pc-blurb').value, sea:sea };
     var woody = (type==='shrub'||type==='tree'||WOODY_FORMS[form]);
@@ -349,7 +350,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
     var d=buildDraft(), key=($('pc-key').value||'myplant').trim();
     var L=[];
     L.push("  "+key+":{ name:"+col(d.name)+", latin:"+col(d.latin)+", form:"+col(d.form)+", type:"+col(d.type)+", h:"+d.h+(d.heightIn!==undefined?", heightIn:"+d.heightIn:"")+",");
-    var line2="    space:"+d.space+", spread:"+d.spread+", zones:["+d.zones[0]+","+d.zones[1]+"], native:"+d.native+", sun:"+col(d.sun)+", moist:"+col(d.moist)+", phen:"+col(d.phen)+",";
+    var line2="    space:"+d.space+", spread:"+d.spread+", zones:["+d.zones[0]+","+d.zones[1]+"], nativeTo:["+d.nativeTo.map(col).join(",")+"], provenance:"+col(d.provenance)+", sun:"+col(d.sun)+", moist:"+col(d.moist)+", phen:"+col(d.phen)+",";
     L.push(line2);
     if(d.cw!==undefined){ var w="    cw:"+d.cw+(d.grow!==undefined?", grow:"+d.grow:"")+","; L.push(w); }
     var prop=[];
@@ -387,7 +388,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
       if(s==='Fall' && GRASS_FORMS[form]) o.seed='#e3d6b0';
       sea[s]=o; });
     var d={ name:form, latin:form, form:form, type:t, h:formH(form), space:18, spread:18,
-      zones:[4,8], native:true, eco:[], sun:'full', moist:'medium', phen:'mid', sea:sea };
+      zones:[4,8], nativeTo:['north-america'], provenance:'species', eco:[], sun:'full', moist:'medium', phen:'mid', sea:sea };
     if(woody){ d.cw=form==='tree'?120:90; if(form==='tree'||form==='conifer'){
       d.heightIn=form==='conifer'?480:600; d.grow=10;
     } }
@@ -507,7 +508,7 @@ window.addEventListener = window.__realAdd; document.addEventListener = document
 
   // ---- wire all inputs ----
   ['pc-key','pc-name','pc-latin','pc-form','pc-type','pc-h','pc-space','pc-spread','pc-cw','pc-height-in','pc-grow',
-   'pc-zmin','pc-zmax','pc-native','pc-sun','pc-moist','pc-phen','pc-eco','pc-strat','pc-spreads',
+   'pc-zmin','pc-zmax','pc-native-range','pc-provenance','pc-sun','pc-moist','pc-phen','pc-eco','pc-strat','pc-spreads',
    'pc-growout','pc-wild','pc-blurb'].forEach(function(id){
     var el=$(id); if(el){ el.addEventListener('input',update); el.addEventListener('change',update); }
   });

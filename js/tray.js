@@ -1506,7 +1506,11 @@ function discoveryResultCard(ref,d,opts={}){
   const family=resultFlowerFamily(ref,d);
   if (family){ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); }
   const bloom=document.createElement('span'); bloom.textContent=discoveryBloomLabel(P); meta.appendChild(bloom);
-  const kind=document.createElement('small'); kind.textContent=ref.v?'Cultivar':(opts.variant?'Straight species':''); if (kind.textContent) meta.appendChild(kind);
+  const kind=document.createElement('small'); kind.textContent=provenanceLabel(P); meta.appendChild(kind);
+  const relation=nativeRelation(P,activeFilters().nativeRegion);
+  if (activeFilters().nativeMode==='any' && relation.regional){
+    const nativeTag=document.createElement('small'); nativeTag.textContent='Regional native'; meta.appendChild(nativeTag);
+  }
   copy.append(name,latin,meta);
   const timeline=discoveryBloomTimeline(P); if (timeline) copy.appendChild(timeline);
   copy.appendChild(discoverySiteMeta(P)); main.append(art,copy);
@@ -1833,7 +1837,7 @@ function openDiscoveryFilters(opener){
   discoveryFilterDraft=normalizeDiscovery(activeDiscovery());
   discoveryCriteriaDraft=activeFilters();
   renderDiscoveryFilterScreen();
-  const screen=openOverlay('discoveryFilterScreen','#discoveryNative'); if (screen) screen._returnFocus=opener||screen._returnFocus;
+  const screen=openOverlay('discoveryFilterScreen','#discoveryNativeMode'); if (screen) screen._returnFocus=opener||screen._returnFocus;
 }
 function readDiscoveryCriteria(){
   const current=discoveryCriteriaDraft||activeFilters();
@@ -1841,7 +1845,8 @@ function readDiscoveryCriteria(){
     // Zone is selected when a garden begins. It remains an eligibility gate,
     // but is intentionally not editable from the in-garden discovery lens.
     zone:current.zone,
-    nativesOnly:$('discoveryNative').checked,
+    nativeMode:$('discoveryNativeMode').value,
+    nativeRegion:$('discoveryNativeRegion').value,
     deer:$('discoveryDeer').checked,
     rabbit:$('discoveryRabbit').checked,
     squirrel:$('discoverySquirrel').checked
@@ -1849,11 +1854,17 @@ function readDiscoveryCriteria(){
 }
 function renderDiscoveryCriteria(){
   const f=discoveryCriteriaDraft||activeFilters();
-  $('discoveryNative').checked=!!f.nativesOnly;
+  const mode=$('discoveryNativeMode'), region=$('discoveryNativeRegion'), regionRow=$('discoveryNativeRegionRow');
+  mode.value=f.nativeMode;
+  region.innerHTML=''; NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
+    const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===f.nativeRegion; region.appendChild(o);
+  });
+  regionRow.classList.toggle('hidden',f.nativeMode==='any');
+  $('discoveryNativeHint').textContent=nativeCriteriaText(f);
   $('discoveryDeer').checked=!!f.deer;
   $('discoveryRabbit').checked=!!f.rabbit;
   $('discoverySquirrel').checked=!!f.squirrel;
-  [$('discoveryNative'),$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
+  [mode,region,$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
     discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen();
   });
 }
@@ -1906,7 +1917,7 @@ function savedRefAvailabilityReason(ref){
   if (!P) return 'Retired plant';
   if (!challengeAllows(ref.s)) return 'Unavailable in this challenge';
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
-  if (f.nativesOnly && !P.native) return 'Excluded by natives-only criteria';
+  if (!passesNativeFilter(P,f)) return `Excluded by ${f.nativeMode==='straight'?'straight-species':'regional-native'} criteria`;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P) && f.deer && !roles.includes('deerOk')) return 'Not deer resistant';
   if (!isTreeDef(P) && f.rabbit && !roles.includes('rabbitOk')) return 'Not rabbit resistant';
@@ -1987,7 +1998,8 @@ function replaceOptionList(source,q){
   trayKeys().forEach(k=>{
     const P=PLANTS[k], add=v=>{
       const D=plantDef(k,v), hay=`${P.name} ${P.latin} ${D.name||''} ${D.note||''}`.toLowerCase();
-      if (replacementGroup(D)===group && (!q||hay.includes(q))) out.push({s:k,v:v||null,D});
+      const ref={s:k,v:v||null};
+      if (plantRefFits(ref) && replacementGroup(D)===group && (!q||hay.includes(q))) out.push({s:k,v:v||null,D});
     };
     add(null); Object.keys(P.cv||{}).forEach(add);
   });
@@ -2895,9 +2907,9 @@ function renderDrillIn(tray, drillKey, members){
   };
   members.forEach(k=>{
     const M=PLANTS[k];
-    mk(k, null, M.group ? (M.chip||M.name.split(' ').slice(0,2).join(' '))
+    if (plantRefFits({s:k,v:null})) mk(k, null, M.group ? (M.chip||M.name.split(' ').slice(0,2).join(' '))
                         : M.name.split(' ').slice(0,2).join(' '));
-    for (const v in (M.cv||{})) mk(k, v, M.cv[v].name);
+    for (const v in (M.cv||{})) if (plantRefFits({s:k,v})) mk(k, v, M.cv[v].name);
   });
 }
 /* Brush styles dock in the palette instead of a floating flyout. Plant brushes

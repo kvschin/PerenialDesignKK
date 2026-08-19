@@ -51,11 +51,44 @@ test('zones are a sane USDA range', () => {
   }
 });
 
-test('native flag is a boolean', () => {
+test('native range and provenance replace the legacy boolean on every exact plant', () => {
+  const ranges=new Set(['north-america','europe','asia','africa','central-america','south-america','australasia']);
   for (const k of keys){
     const P = PLANTS[k];
-    assert(typeof P.native === 'boolean', `${k}: native not boolean`);
+    assertEqual(P.native, undefined, `${k}: legacy native boolean must be removed`);
+    assert(Array.isArray(P.nativeTo), `${k}: nativeTo must be an array`);
+    P.nativeTo.forEach(r=>assert(ranges.has(r), `${k}: unknown native range ${r}`));
+    assert(['species','selection','hybrid'].includes(P.provenance), `${k}: invalid provenance ${P.provenance}`);
+    for (const v in (P.cv||{})){
+      const C=P.cv[v];
+      assert(Array.isArray(C.nativeTo), `${k}.${v}: nativeTo must resolve explicitly`);
+      assert(['species','selection','hybrid'].includes(C.provenance), `${k}.${v}: invalid provenance`);
+      assertEqual(C.native, undefined, `${k}.${v}: legacy native boolean must be removed`);
+    }
   }
+});
+
+test('native migration pins corrected ranges and cultivar provenance sentinels', () => {
+  assert(PLANTS.oakleafhydrangea.nativeTo.includes('north-america'), 'oakleaf hydrangea is southeastern North American');
+  assert(PLANTS.babyjoe.nativeTo.includes('north-america'), 'Eutrochium dubium is eastern North American');
+  assertEqual(PLANTS.babyjoe.provenance,'selection','Baby Joe is the named selection, not the straight species');
+  assert(PLANTS.molinia.nativeTo.includes('europe')&&!PLANTS.molinia.nativeTo.includes('north-america'), 'Molinia is European here');
+  assert(PLANTS.miscanthus.nativeTo.includes('asia'), 'Miscanthus records its Asian origin');
+  assert(PLANTS.freemanmaple.nativeTo.includes('north-america'), 'the naturally occurring Freeman maple hybrid keeps its range');
+  assertEqual(PLANTS.freemanmaple.provenance,'hybrid','Freeman maple still records hybrid provenance');
+  assertEqual(PLANTS.bluestem.cv.standingovation.provenance,'selection','ordinary named cultivars resolve as selections');
+  assertEqual(PLANTS.agastache.cv.bluefortune.provenance,'hybrid','Blue Fortune is not treated as a native selection');
+  assertEqual(PLANTS.agastache.cv.bluefortune.nativeTo.length,0,'a garden hybrid has no wild native range');
+  assertEqual(PLANTS.serviceberry.cv.autumnbrilliance.provenance,'hybrid','Autumn Brilliance records its hybrid parentage');
+  assert(PLANTS.serviceberry.cv.autumnbrilliance.nativeTo.includes('north-america'),'the naturally occurring serviceberry hybrid keeps its North American range');
+  assertEqual(PLANTS.crabapple.cv.sargent.provenance,'species','Sargent crabapple is an exact species entry');
+  assert(PLANTS.crabapple.cv.sargent.nativeTo.includes('asia'),'Sargent crabapple records its East Asian origin');
+  ['mountainsedge','greatburnet','claudeshride','smokebush'].forEach(k=>
+    assert(PLANTS[k].nativeTo.includes('asia'),`${k} records its Asian range`));
+  assert(PLANTS.eryngiumbourgatii.nativeTo.includes('africa'),'Eryngium bourgatii records its North African range');
+  assert(!PLANTS.serbianspruce.nativeTo.includes('asia'),'Serbian spruce is European, not Asian');
+  assertEqual(PLANTS.smokebush.cv.grace.nativeTo.length,0,'both Grace smoketree records are garden hybrids');
+  assertEqual(PLANTS.smoketree.cv.grace.nativeTo.length,0,'duplicate Grace smoketree records agree on origin');
 });
 
 test('seasonal appearance (sea) is well-formed', () => {
@@ -202,7 +235,7 @@ test('native sedge collection is complete, distinct, and within herbaceous size 
     assert(P, `${k}: phase-one sedge missing`);
     assertEqual(P.latin, phaseOne[k], `${k}: botanical name`);
     assertEqual(P.type, 'sedge', `${k}: must remain a sedge`);
-    assert(P.native, `${k}: should be a North American native`);
+    assert(P.nativeTo.includes('north-america'), `${k}: should be a North American native`);
     assert(P.h >= 10 && P.h <= 52, `${k}: height ${P.h} outside sedge range`);
     assert(P.space >= 10 && P.space <= 36, `${k}: spacing ${P.space} outside sedge range`);
     assert(P.spread >= 12 && P.spread <= 48, `${k}: spread ${P.spread} outside sedge range`);
@@ -357,7 +390,7 @@ test('evergreen tree expansion keeps resolved taxa, scale data, and distinct arc
   assertEqual(PLANTS.swissstonepine.group, 'pine', 'Swiss stone is correctly resolved as a pine, not a spruce');
   assertEqual(PLANTS.baldcypress.sea.Winter.fol, undefined, 'deciduous bald cypress drops its winter foliage');
   for (const k of ['bluespruce','arizonacypress','whitefir'])
-    assertEqual(PLANTS[k].native,false,`${k}: western species must stay out of the central-US native filter`);
+    assert(PLANTS[k].nativeTo.includes('north-america'),`${k}: western species belongs in the continental North American range`);
 });
 
 test('native landscape-gap additions retain their botanical identity and intended roles', () => {
@@ -374,7 +407,7 @@ test('native landscape-gap additions retain their botanical identity and intende
     assert(P, `${k}: recommended native landscape addition is missing`);
     assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
     assertEqual(P.type, expected[k][1], `${k}: type`);
-    assert(P.native, `${k}: should remain a North American native`);
+    assert(P.nativeTo.includes('north-america'), `${k}: should remain a North American native`);
     assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
   }
   assertEqual(PLANTS.purpleprairieclover.group, 'prairieclover', 'both prairie clovers share a picker');
@@ -396,12 +429,13 @@ test('second-wave native additions keep their distinct form and cultivar policy'
     assert(P, `${k}: second-wave plant is missing`);
     assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
     assertEqual(P.form, expected[k][1], `${k}: renderer form`);
-    assert(P.native, `${k}: straight species should be native`);
+    assert(P.nativeTo.includes('north-america'), `${k}: straight species should be native`);
     assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
   }
   assertEqual(PLANTS.largebeardtongue.look.spikeStyle, 'bell', 'large beardtongue needs tubular bells');
   assertEqual(PLANTS.roughgoldenrod.look.spikeStyle, 'goldenrodPanicle', 'rough goldenrod needs arching panicles');
-  assertEqual(PLANTS.roughgoldenrod.cv.fireworks.native, false, 'Fireworks remains a garden cultivar');
+  assertEqual(PLANTS.roughgoldenrod.cv.fireworks.provenance, 'selection', 'Fireworks remains a named selection');
+  assert(PLANTS.roughgoldenrod.cv.fireworks.nativeTo.includes('north-america'), 'a selection keeps its species range');
   assertEqual(PLANTS.mossphlox.look.habit, 'mossphlox', 'moss phlox needs a low evergreen mat');
 });
 
@@ -419,7 +453,7 @@ test('European Oudolf additions retain their design roles and distinct renderer 
     assert(P, `${k}: European/Oudolf addition is missing`);
     assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
     assertEqual(P.form, expected[k][1], `${k}: renderer form`);
-    assertEqual(P.native, false, `${k}: should not be marked North American native`);
+    assert(!P.nativeTo.includes('north-america'), `${k}: should not be marked North American native`);
     assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length, `${k}: needs real bloom months`);
   }
   assertEqual(PLANTS.rattlesnake.group, 'eryngium', 'rattlesnake master anchors the Eryngium picker');
@@ -493,7 +527,7 @@ test('landscape shrub expansion keeps botanical identity and grouping', () => {
     assert(P, `${k}: landscape shrub is missing`);
     assertEqual(P.latin, expected[k][0], `${k}: botanical name`);
     assertEqual(P.type, 'shrub', `${k}: must remain a shrub`);
-    assertEqual(P.native, expected[k][1],
+    assertEqual(P.nativeTo.includes('north-america'), expected[k][1],
       `${k}: native status — the garden exotics must not be sold as North American natives`);
   }
   for (const k of ['arrowwood','cranberrybush','koreanspice','doublefile','blackhaw'])

@@ -123,7 +123,7 @@ const game = {
   hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
-  design:null,                                       // design-garden answers {zone,type,nativesOnly,deer,rabbit,squirrel}
+  design:null,                                       // answers {zone,type,nativeRegion,nativeMode,deer,rabbit,squirrel}
   drift:false,                                       // plant in clusters, Oudolf style
   matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
   woodyAge:'new',                                    // age trees/shrubs plant at: new | young | mature (design defaults mature)
@@ -167,7 +167,7 @@ const game = {
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
   trayCat:'grasses',                                 // active tool-tray category
-  filters:{zone:null, nativesOnly:false, deer:false, rabbit:false, squirrel:false}, // palette filters, persisted
+  filters:{zone:null, nativeRegion:'north-america', nativeMode:'any', deer:false, rabbit:false, squirrel:false}, // palette filters, persisted
   // Garden rules above stay separate from these reversible catalog lenses.
   // `source` is recommended | all | favorites | palette; a palette id only
   // matters when source==='palette'.  The rest restores per-garden browsing

@@ -15,7 +15,7 @@ function setup(gw, gh){
   game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
   game.bedStyle = 'soil';
   game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
-  game.filters = { zone: null, nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.filters = { zone: null, nativeRegion: 'north-america', nativeMode: 'any', deer: false, rabbit: false, squirrel: false };
   game.discovery = defaultDiscovery();
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
@@ -577,13 +577,41 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits(k), 'should fit at its lower zone');
   game.filters = normalizeFilters({ zone: z[0] - 1 });
   assert(!plantFits(k), 'should be excluded below its range');
-  const nonNative = Object.keys(PLANTS).find(x => !PLANTS[x].native);
-  game.filters = normalizeFilters({ nativesOnly: true });
-  assert(!plantFits(nonNative), 'natives-only hides cultivars/non-natives');
+  const nonNative = Object.keys(PLANTS).find(x => !PLANTS[x].nativeTo.includes('north-america'));
+  game.filters = normalizeFilters({ nativeRegion:'north-america', nativeMode:'regional' });
+  assert(!plantFits(nonNative), 'regional-native mode hides plants native elsewhere');
   game.filters = normalizeFilters({ squirrel: true });
   assert(plantFits('daffodil'), 'squirrel-resistant bulbs stay visible');
   assert(!plantFits('tulip'), 'tulips are hidden by the squirrel bulb filter');
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
+});
+
+test('native eligibility is range-aware and distinguishes species, selections, and hybrids', () => {
+  setup();
+  const north={nativeRegion:'north-america',nativeMode:'regional'};
+  const northStraight={nativeRegion:'north-america',nativeMode:'straight'};
+  const europe={nativeRegion:'europe',nativeMode:'regional'};
+  assert(passesNativeFilter(plantDef('bluestem'),north), 'a North American straight species qualifies');
+  assert(passesNativeFilter(plantDef('bluestem','standingovation'),north), 'regional mode includes selections of a native species');
+  assert(!passesNativeFilter(plantDef('bluestem','standingovation'),northStraight), 'straight mode excludes named selections');
+  assert(!passesNativeFilter(plantDef('agastache','bluefortune'),north), 'garden hybrids are excluded even when the base species is native');
+  assert(!passesNativeFilter(plantDef('serviceberry','autumnbrilliance'),north), 'native-range hybrids are excluded from regional mode');
+  assert(!passesNativeFilter(plantDef('serviceberry','autumnbrilliance'),northStraight), 'native-range hybrids are excluded from straight mode');
+  assert(passesNativeFilter(plantDef('salvia'),europe), 'a European species qualifies for Europe');
+  assert(!passesNativeFilter(plantDef('salvia'),north), 'the same species does not qualify for North America');
+  assert(plantRoles('salvia',europe).includes('native'), 'roles use the requested range');
+  assert(!plantRoles('salvia',north).includes('native'), 'regional roles do not leak from the cache');
+});
+
+test('legacy native-only criteria migrate deterministically', () => {
+  const strict=normalizeFilters({zone:6,nativesOnly:true});
+  assertEqual(strict.nativeMode,'straight','legacy true becomes the strict mode');
+  assertEqual(strict.nativeRegion,'north-america','legacy saves receive the supported North American range');
+  const open=normalizeFilters({zone:6,nativesOnly:false});
+  assertEqual(open.nativeMode,'any','legacy false remains unrestricted');
+  const design=normalizeDesign({zone:5,type:'prairie',nativesOnly:true,deer:true});
+  assertEqual(design.nativeMode,'straight','saved design migration uses the same rule');
+  assertEqual(design.nativesOnly,undefined,'the normalized design drops the legacy field');
 });
 
 test('plant discovery resolves exact cultivars and applies flower filters after garden eligibility', () => {
@@ -762,11 +790,13 @@ test('landscape search spans every landscape category', () => {
 
 test('applying garden criteria leaves the discovery lens intact', () => {
   setup();
-  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
   game.discovery = normalizeDiscovery({ source: 'all', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'] });
-  applyGardenCriteria({ zone: 7, nativesOnly: true, deer: true, rabbit: false, squirrel: false }, { refresh: false, announce: false });
+  applyGardenCriteria({ zone: 7, nativeRegion:'europe', nativeMode:'straight', deer: true, rabbit: false, squirrel: false }, { refresh: false, announce: false });
   assertEqual(game.filters.zone, 7, 'the garden criterion updates');
-  assert(game.filters.nativesOnly && game.filters.deer, 'the requested eligibility toggles update');
+  assertEqual(game.filters.nativeMode,'straight','the requested native mode updates');
+  assertEqual(game.filters.nativeRegion,'europe','the requested native range updates');
+  assert(game.filters.deer, 'the requested browse toggle updates');
   assertEqual(game.design.zone, 7, 'the saved garden design keeps the changed zone');
   assertEqual(game.discovery.query, 'aster', 'the discovery query survives a criteria change');
   assertEqual(game.discovery.bloomSeasons[0], 'Fall', 'the discovery bloom lens remains independent');
@@ -774,11 +804,11 @@ test('applying garden criteria leaves the discovery lens intact', () => {
 
 test('the fixed setup zone stays out of discovery filter summaries', () => {
   setup();
-  game.filters = normalizeFilters({ zone: 6, nativesOnly: true, deer: false, rabbit: false, squirrel: false });
+  game.filters = normalizeFilters({ zone: 6, nativeRegion:'north-america', nativeMode:'regional', deer: false, rabbit: false, squirrel: false });
   game.discovery = normalizeDiscovery({ colorFamilies: ['pink'], bloomSeasons: [] });
   const labels = discoveryCriteriaLabels();
   assert(!labels.some(label => /^Zone/.test(label)), 'the setup zone is not repeated in the in-garden catalog');
-  assert(labels.includes('Native'), 'an active garden criterion still has a concise summary label');
+  assert(labels.includes('North America natives'), 'an active garden criterion names its comparison range');
   assertEqual(discoveryFilterCount(), 2, 'the filter badge counts the visible criterion and flower lens, not zone');
 });
 
@@ -3018,7 +3048,7 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
 test('zone 6 grass palette includes Mexican feather grass', () => {
   setup();
   game.filters = normalizeFilters({ zone: 6 });
-  game.design = { zone: 6, type: 'any', nativesOnly: false, deer: false, rabbit: false, squirrel: false };
+  game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
   assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
 });
@@ -3099,7 +3129,7 @@ test('paletteCount tracks zone/native/deer/rabbit/squirrel without touching game
   const z8 = paletteCount({ zone: 8 });
   assert(all > 0, 'some plants exist');
   assert(z4 <= all && z8 <= all, 'a zone filter never grows the palette');
-  assert(paletteCount({ zone: 6, nativesOnly: true }) <= paletteCount({ zone: 6 }),
+  assert(paletteCount({ zone: 6, nativeRegion:'north-america', nativeMode:'regional' }) <= paletteCount({ zone: 6 }),
     'natives-only narrows or holds');
   assert(paletteCount({ zone: 6, deer: true }) < paletteCount({ zone: 6 }),
     'deer pressure removes browsed species');
@@ -3245,12 +3275,15 @@ test('a save blob without plotShape loads as a full rectangle', () => {
 test('save blobs preserve a garden’s discovery lens without changing its eligibility rules', async () => {
   setup(21, 21);
   game.inGarden = true; game.worldId = 'test-discovery-roundtrip';
-  game.filters = normalizeFilters({ zone: 6, nativesOnly: true });
-  game.design = { zone: 6, type: 'any', nativesOnly: true, deer: false, rabbit: false, squirrel: false };
+  game.filters = normalizeFilters({ zone: 6, nativeRegion:'north-america', nativeMode:'straight' });
+  game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'straight', deer: false, rabbit: false, squirrel: false };
   game.discovery = normalizeDiscovery({ source: 'favorites', query: 'aster', colorFamilies: ['purple'], bloomSeasons: ['Fall'], limit: 72 });
   await saveSolo(true);
   const blob = JSON.parse(localStorage.getItem('hortus:world:test-discovery-roundtrip'));
   assertEqual(blob.design.zone, 6, 'the hard garden zone stays in the save payload');
+  assertEqual(blob.design.nativeRegion,'north-america','the native range round-trips');
+  assertEqual(blob.design.nativeMode,'straight','the native mode round-trips');
+  assertEqual(blob.design.nativesOnly,undefined,'new saves do not write the legacy boolean');
   assertEqual(blob.discovery.source, 'favorites', 'the soft catalog source saves separately');
   assertEqual(blob.discovery.query, 'aster', 'the catalog query round-trips');
   assertEqual(blob.discovery.colorFamilies[0], 'purple', 'flower-color lens round-trips');

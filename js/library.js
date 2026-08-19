@@ -123,7 +123,8 @@ function showLibraryDetail(key){
     ['Bloom', libraryBloomText(P)],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
     ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
-    ['Origin', P.native?'Native':'Garden plant (non-native)'],
+    ['Origin', nativeOriginText(P)],
+    ['Plant status', provenanceLabel(P)],
     ['Roles', roleSummary(key)],
   ];
   const cvKeys=Object.keys(P.cv||{}), libraryCultivars=P.libraryCultivars||[];

@@ -319,7 +319,7 @@ function buildSaveBlob(){
      data. Absent `v` means a pre-versioning save, which is version 0. */
   const blob={v:SAVE_VERSION,app:APP_VERSION,
     wv:1,name:game.worldName,
-    mode:'design',design:game.design,   // design is the only mode; kept so older builds read the save sanely
+    mode:'design',design:typeof normalizeDesign==='function'?normalizeDesign(game.design):game.design, // design is the only mode
     discovery:typeof normalizeDiscovery==='function' ? normalizeDiscovery(game.discovery) : game.discovery,
     gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
@@ -389,7 +389,7 @@ async function loadSolo(id){
   const shift = (s.gw||s.grid) ? 0 : SPAWNX-6;
   // `mode` is vestigial: story gardens were retired with the avatar, so an old
   // story save simply opens in the planner (its house and plants come along).
-  game.design = s.design || null;
+  game.design = typeof normalizeDesign==='function' ? normalizeDesign(s.design) : (s.design||null);
   // Old saves predate discovery lenses.  Garden criteria is still the source
   // of truth; the global filters value only supplies compatibility/defaults.
   if (game.design && typeof normalizeFilters==='function') game.filters=normalizeFilters(game.design);
@@ -453,7 +453,9 @@ function exportRows(){
   });
   return Object.keys(counts).map(ck=>{
     const [s,v]=ck.split('|'), P=plantDef(s,v||null), n=counts[ck];
-    return {name:P.name, latin:P.latin, native:P.native, count:n,
+    const region=activeFilters().nativeRegion;
+    return {name:P.name, latin:P.latin, origin:nativeOriginText(P),
+      nativeStatus:nativeStatusText(P,region), provenance:provenanceLabel(P), count:n,
       areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
       space:P.space,
       order:Math.ceil(n*TILE_IN*TILE_IN/(P.space*P.space))};
@@ -467,7 +469,7 @@ function openExport(){
   if (!rows.length){
     body.innerHTML='<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
   } else {
-    const tr=rows.map(r=>`<tr><td>${r.name}${r.native?'':' *'}<div class="latin">${r.latin}</div></td>
+    const tr=rows.map(r=>`<tr><td>${r.name}<div class="latin">${r.latin}</div><small>${r.nativeStatus} · ${r.provenance}</small></td>
       <td>${r.count}</td><td>${r.areaFt}</td><td>${r.space}"</td><td><b>${r.order}</b></td></tr>`).join('');
     const tot=rows.reduce((a,r)=>({c:a.c+r.count,f:a.f+r.areaFt,o:a.o+r.order}),{c:0,f:0,o:0});
     body.innerHTML=`<div class="export-wrap"><table class="export-table"><thead><tr>
@@ -475,7 +477,7 @@ function openExport(){
       <tbody>${tr}</tbody>
       <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
       <p class="note">"To order" converts planted ground to plants at each species' recommended
-      spacing — buy that many to fill the same area. * marks garden cultivars of non-native origin.</p>`;
+      spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>`;
   }
   openOverlay('exportScreen','#btnPrint');
 }
@@ -484,8 +486,8 @@ function exportCsv(){
   if (!rows.length){ toast('Nothing planted yet.'); return; }
   funnel(FUNNEL_EVENTS.listExported);   // took the order away — the deepest step
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
-  const lines=[['Common name','Latin name','Native','Tiles planted','Bed area (sq ft)','Spacing (in)','Plants to order'].map(esc).join(',')];
-  rows.forEach(r=>lines.push([r.name,r.latin,r.native?'yes':'no',r.count,r.areaFt,r.space,r.order].map(esc).join(',')));
+  const lines=[['Common name','Latin name','Origin','Native relationship','Provenance','Tiles planted','Bed area (sq ft)','Spacing (in)','Plants to order'].map(esc).join(',')];
+  rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,r.areaFt,r.space,r.order].map(esc).join(',')));
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   a.download='hortus-planting-list.csv'; a.click();

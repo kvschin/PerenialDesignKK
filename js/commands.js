@@ -729,13 +729,13 @@ function showPlantCard(p,px2,py2){
   const status=establishedPreviewActive()
     ? (g>=100?'Shown at maturity.':`Shown at maturity - ${g}% established today.`)
     : (g>=100?'Fully established':`Establishing - ${g}% grown`);
+  const nativeRelationHere=nativeRelation(P,activeFilters().nativeRegion);
+  const nativeText=nativeStatusText(P,activeFilters().nativeRegion);
   el.innerHTML=`<h3>${P.name}</h3><div class="latin">${P.latin}</div>
     <p>${P.blurb}</p>
     <p style="margin-top:6px;color:var(--text-secondary)">${detailBits.join(' - ')}</p>
-    <p style="color:${P.native?'var(--color-accent-2-700)':'var(--icon-warm)'}">${P.native
-      ? 'Native'
-      : 'Garden cultivar (non-native)'}</p>
-    <p style="color:var(--text-muted)">Roles: ${roleSummary(p.s)}</p>
+    <p style="color:${nativeRelationHere.regional?'var(--color-accent-2-700)':'var(--icon-warm)'}">${nativeText} · ${provenanceLabel(P)}</p>
+    <p style="color:var(--text-muted)">Roles: ${roleSummary(p.s,6,p.v||null)}</p>
     ${bloomInfo&&bloomInfo!=='No bloom time recorded'?`<p style="color:var(--text-secondary)">Blooms ${bloomInfo}${bloomFamily?` \u00b7 ${bloomFamily}`:''}</p>`:''}
     ${shaded?`<p style="color:var(--icon-warm)">Struggling — active canopy shade from ${PLANTS[shaded.p.s].name} and it wants full sun.</p>`:''}
     <p style="margin-top:6px;color:var(--text-primary)">${status}</p>`;
@@ -1050,6 +1050,8 @@ function replacementPreflight(ctx,target){
   const from=plantDef(ctx.source.s,ctx.source.v), to=plantDef(target.s,target.v);
   const targets=replacementScopeTargets(ctx);
   if (!from||!to||replacementGroup(from)!==replacementGroup(to)) return {valid:[],blocked:targets,reason:'Choose a compatible plant type.'};
+  if (!plantRefFitsCriteria({s:target.s,v:target.v||null},activeFilters()))
+    return {valid:[],blocked:targets,reason:'That plant does not fit this garden\'s active criteria.'};
   const candidates=[], ignoredShrubs=isShrubDef(to)?new Set(targets.map(item=>item.key)):null;
   for (const item of targets){
     const [x,y]=item.key.split(',').map(Number), np=Object.assign({},item.p,{s:target.s,t:Date.now()});

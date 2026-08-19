@@ -8,12 +8,12 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
    read confidently by a build shipped in two years. */
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 /* ---------- identifiers ----------
    Ids used to be `Date.now().toString(36)` plus, on a good day, two base-36
@@ -603,6 +603,80 @@ function plantDef(key,v){
   }
   return _defCache[ck]=d;
 }
+
+/* Native-plant data is relational: a plant is native TO a region, and a
+   named garden selection is not the same thing as the straight species.
+   The first selectable ranges are deliberately continental: they are honest
+   at this catalog's source resolution and useful on both sides of the
+   Atlantic without inventing local boundaries. `nativeTo` lives on every resolved plant definition and
+   `provenance` is species | selection | hybrid. */
+const NATIVE_REGIONS=Object.freeze([
+  {id:'north-america', label:'North America', short:'North America'},
+  {id:'europe', label:'Europe', short:'Europe'},
+  {id:'asia', label:'Asia', short:'Asia', selectable:false},
+  {id:'africa', label:'Africa', short:'Africa', selectable:false},
+  {id:'central-america', label:'Mexico and Central America', short:'Mexico/Central America', selectable:false},
+  {id:'south-america', label:'South America', short:'South America', selectable:false},
+  {id:'australasia', label:'Australasia', short:'Australasia', selectable:false},
+]);
+const NATIVE_REGION_IDS=new Set(NATIVE_REGIONS.filter(r=>r.selectable!==false).map(r=>r.id));
+const DEFAULT_NATIVE_REGION='north-america';
+const NATIVE_MODES=Object.freeze([
+  {id:'any',label:'Any origin'},
+  {id:'regional',label:'Regional natives + selections'},
+  {id:'straight',label:'Straight regional species only'},
+]);
+const NATIVE_MODE_IDS=new Set(NATIVE_MODES.map(m=>m.id));
+function normalizeNativeRegion(value){ return NATIVE_REGION_IDS.has(value)?value:DEFAULT_NATIVE_REGION; }
+function normalizeNativeMode(value){ return NATIVE_MODE_IDS.has(value)?value:'any'; }
+function nativeRegionLabel(id,short){
+  const r=NATIVE_REGIONS.find(x=>x.id===id) || NATIVE_REGIONS.find(x=>x.id===DEFAULT_NATIVE_REGION);
+  return short?r.short:r.label;
+}
+function nativeRelation(P,region=DEFAULT_NATIVE_REGION){
+  const nativeTo=Array.isArray(P&&P.nativeTo)?P.nativeTo:[];
+  const provenance=P&&['species','selection','hybrid'].includes(P.provenance)?P.provenance:'hybrid';
+  const nativeHere=nativeTo.includes(normalizeNativeRegion(region));
+  const kind=nativeHere
+    ? (provenance==='species'?'native':provenance==='selection'?'selection':'hybrid')
+    : (provenance==='hybrid'?'hybrid':nativeTo.length?'elsewhere':'garden');
+  return {kind,nativeHere,nativeTo,provenance,
+    regional:nativeHere&&provenance!=='hybrid',
+    straight:nativeHere&&provenance==='species'};
+}
+function passesNativeFilter(P,criteria){
+  const f=criteria||{}, mode=normalizeNativeMode(f.nativeMode), relation=nativeRelation(P,f.nativeRegion);
+  return mode==='any' || (mode==='regional'?relation.regional:relation.straight);
+}
+function nativeCriteriaText(criteria){
+  const f=criteria||{}, mode=normalizeNativeMode(f.nativeMode), place=nativeRegionLabel(f.nativeRegion);
+  if (mode==='regional') return `Plants native to ${place}; named selections included, garden hybrids excluded.`;
+  if (mode==='straight') return `${place} natives only; named selections and garden hybrids excluded.`;
+  return 'No native-origin limit.';
+}
+function nativeStatusText(P,region=DEFAULT_NATIVE_REGION){
+  const r=nativeRelation(P,region), place=nativeRegionLabel(region);
+  if (r.kind==='native') return `Native to ${place}`;
+  if (r.kind==='selection') return `Selection of a species native to ${place}`;
+  if (r.kind==='hybrid') return r.nativeHere
+    ? `Hybrid taxon recorded from ${place} (excluded by native filters)`
+    : (r.nativeTo.length?`Hybrid taxon; not native to ${place}`:'Garden hybrid');
+  if (r.kind==='garden') return 'Garden-origin plant';
+  return `Not native to ${place}`;
+}
+function nativeOriginText(P){
+  const r=nativeRelation(P);
+  if (r.provenance==='hybrid' && !r.nativeTo.length) return 'Garden hybrid';
+  if (!r.nativeTo.length) return r.provenance==='selection'?'Garden selection':'Origin not assigned';
+  const names=r.nativeTo.map(id=>nativeRegionLabel(id));
+  const origin=names.length>3?`${names.slice(0,3).join(', ')} +${names.length-3}`:names.join(', ');
+  if (r.provenance==='selection') return `Selection of a species native to ${origin}`;
+  if (r.provenance==='hybrid') return `Hybrid taxon; native range includes ${origin}`;
+  return `Native to ${origin}`;
+}
+function provenanceLabel(P){
+  return P&&P.provenance==='species'?'Straight species':P&&P.provenance==='selection'?'Named selection':'Hybrid';
+}
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }
 function isWoodyDef(P){ return isShrubDef(P) || isTreeDef(P); }
@@ -671,4 +745,3 @@ function plantKeyOf(p){
   for (const k in game.plants) if (game.plants[k]===p) return k;
   return null;
 }
-

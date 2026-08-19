@@ -3,9 +3,9 @@
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
 no movement, a free pan/pinch/twist camera and direct tap-to-place/drag-to-paint
-à la Procreate; no house at start; created via a chip-based questionnaire of
+à la Procreate; no house at start; created via a chip-led questionnaire of
 climate (zone chips, or a ZIP→zone / plain-language winter-cold picker behind a
-"don't know your zone?" flip)/style/natives/deer/rabbit, with a live palette
+"don't know your zone?" flip)/style/native mode + range/deer/rabbit, with a live palette
 count. The menu has four entries: Design a Garden,
 **Daily design challenge** (a date-seeded planting prompt — prompt-only, no
 scoring — that drops you into Design mode; `DAILY_CHALLENGES` /
@@ -258,7 +258,11 @@ See §13a.
   warns **once** and stays quiet until a save succeeds again (`saveFailureReported`);
   a toast per day change would be its own bug. The message names the way out
   (export), not the cause.
-- **Save blobs carry `v` (`SAVE_VERSION`) and `app` (`APP_VERSION`).** Migrations
+- **Save blobs carry `v` (`SAVE_VERSION`) and `app` (`APP_VERSION`).** Version 2
+  replaces the old `nativesOnly` Boolean with `nativeRegion` + `nativeMode`;
+  `normalizeDesign` removes the legacy field before a loaded garden is saved
+  again (`true` migrates to straight North American species, false/missing to
+  unrestricted). Migrations
   used to be feature detection — "if the blob has a `house` key it is old" —
   which was fine only while every save in existence was one of ours. Absent `v`
   means a pre-versioning save, i.e. version 0.
@@ -1226,7 +1230,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     considered only in an authored bloom season, so foliage or plan colors never
     create false flower-color matches.
 15. **Plant eligibility, discovery + HUD** - `plantFits()` is the hard garden
-    gate (zone range, native-only, deer/rabbit-resistant plants, and
+    gate (zone range, range-aware native mode, deer/rabbit-resistant plants, and
     squirrel-resistant bulbs). `game.discovery` is a reversible saved browsing
     lens over that gate: source (`recommended`, all eligible, Favorites, or one
     named palette), category, common/Latin/cultivar search, flower-color family,
@@ -1368,7 +1372,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (The Landscape tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
     — next to the path/bed/water swatches.) New garden entries start on
     Hand so accidental painting is harder. The single **Plant filters** modal
-    contains garden eligibility toggles (native/browse) and flower discovery
+    contains garden eligibility controls (native range/mode and browse) and flower discovery
     (color/bloom season); it is opened from either the garden menu or the tray.
     The dedicated Plants Find field is debounced and searches common name,
     Latin name, cultivar name, roles, and category across every plant category;
@@ -1575,17 +1579,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `btnPlotStart` applies it AFTER `setWorldSize` via `setPlotShape` since
     sizing always clears any shape), the design questionnaire (`#designScreen` /
     `openDesignSetup`), and the daily-challenge panel (`#dailyScreen`). The
-    questionnaire is all chips, not native selects/checkboxes (which read as a
-    stray HTML form inside the drawn world): **climate** shows the 3–9 zone
+    questionnaire uses chips for its compact choices, with one deliberate
+    native-range `<select>` exception: a geographic list is factual reference
+    data, not a toggle, and a select stays readable and accessible on a phone.
+    **Climate** shows the 3–9 zone
     chips face up, with a "Don't know your zone?" link that flips
     (`sel.zoneHelp`) to a ZIP field (`zoneFromZip`, a 3-digit-prefix→zone band
     table in core.js, clamped to the palette's 3–9, device-local) plus a
     plain-language "how cold does winter get?" chip fallback (`WINTER_BANDS`) —
     every path writes one `sel.zone`, echoed by a teaching readout (`ZONE_LOWS`)
-    that stays visible in both views; **style** is a chip grid; **constraints**
-    are toggle chips.
+    that stays visible in both views; **style** is a chip grid; **native mode**
+    is Any / Regional / Straight chips and reveals the range selector only when
+    constrained; animal-resistance constraints are toggle chips.
     A live **palette count** (`paletteCount` in ui.js — a pure mirror of
-    `plantFits`' zone/native/deer/rabbit/squirrel gates that never touches game state)
+    `plantFits`' zone/native-range/deer/rabbit/squirrel gates that never touches game state)
     updates under every knob so each choice visibly does something. Selections
     commit to `game.design`/`game.filters` on Next, unchanged. Setup panels
     rise-fade in (`.panel-enter`) and sit more translucent over the meadow, which
@@ -1634,7 +1641,8 @@ key: {
   space: 18,                   // inches-truth: on-center planting distance
   spread: 18,                  // inches-truth: mature clump/crown width
   zones: [3,9],                // USDA hardiness range
-  native: true,                // straight species native to the central US?
+  nativeTo: ['north-america'], // explicit broad wild native ranges
+  provenance: 'species',       // species | selection | hybrid
   sun: 'full',                 // full | part
   moist: 'dry',                // dry | medium | moist
   phen: 'warm',                // cool | mid | warm — spring wake order
@@ -1669,6 +1677,21 @@ that declares only `twig` draws bare coloured stems and nothing else, which is
 exactly the red-twig dogwood effect. `bloomMonths` drives the real-world Bloom Calendar and,
 unless a precise `bloomDay` is set, the continuous live bloom window. Keep
 `bloomDay` for intentionally staggered within-season animation.
+
+Native status is relational, never inferred from hardiness: `nativeRelation`
+compares a resolved species/cultivar's `nativeTo` with the garden's
+`nativeRegion`, while `passesNativeFilter` also applies provenance. The first
+selectable ranges are `north-america` and `europe`; Asia, Africa, Mexico/Central
+America, South America, and Australasia remain valid non-selectable origin
+values so cards do not mislabel introduced species as garden-origin. `any`
+places no origin restriction, `regional` includes straight taxa plus named
+selections of a taxon native to the chosen range, and `straight` admits only
+`provenance:'species'`. Hybrids are excluded from both native modes even when a
+natural hybrid has a recorded wild range. Every base and `cv` resolves explicit
+`nativeTo` and `provenance`; ordinary cultivars default to `selection`, with
+explicit exact-species and hybrid overrides. Keep regional facts out of
+`ROLE_CACHE`: `plantRoles` adds native/naturalistic roles after resolving the
+active/requested range and exact cultivar.
 
 ### Units and footprint policy
 

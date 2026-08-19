@@ -33,8 +33,8 @@ const AUTHOR = `
   game.houses=[]; game.buildings=[]; game.underlay=null;
   game.edgeStyle='organic';            // prairie style seeds organic edges
   game.siteNorthDeg=0;
-  game.design={zone:5,type:'prairie',nativesOnly:false,deer:false,rabbit:false,squirrel:false};
-  game.filters=normalizeFilters({zone:5,nativesOnly:false});
+  game.design={zone:5,type:'prairie',nativeRegion:'north-america',nativeMode:'any',deer:false,rabbit:false,squirrel:false};
+  game.filters=normalizeFilters(game.design);
   game.worldName='Demo garden';
   /* Open in late summer, not on bare spring ground. DAYS_PER_SEASON is 16, so
      the seasons run Spring 0-15, Summer 16-31, Fall 32-47, Winter 48-63 — day

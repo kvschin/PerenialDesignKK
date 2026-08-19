@@ -93,9 +93,9 @@ function startDailyChallenge(){
   game.houses=[]; game.houseDraft=defaultDraft();
   markGroundChanged({terrain:true});
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
-  const zone=(game.filters&&game.filters.zone)||6;        // keep the user's zone, drop style/native filters
-  game.design={zone,type:'any',nativesOnly:false,deer:false,rabbit:false,squirrel:false};
-  game.filters=normalizeFilters({zone}); updateFilterBtn();
+  const prior=normalizeFilters(game.filters), zone=prior.zone||6; // keep zone/region, drop eligibility limits
+  game.design={zone,type:'any',nativeRegion:prior.nativeRegion,nativeMode:'any',deer:false,rabbit:false,squirrel:false};
+  game.filters=normalizeFilters(game.design); updateFilterBtn();
   enterGarden();
   game.trayCat=firstStockedTrayCat(); buildToolTray();   // open on a populated sub-tab for this prompt
   saveSolo(true);
@@ -774,15 +774,18 @@ const WINTER_BANDS=[
 const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'15°F',9:'25°F'};
 function openDesignSetup(){
   const d=game.design||{};
+  const nativeDefaults=normalizeFilters(Object.keys(d).length?d:game.filters);
   const sel={zone:d.zone||6, type:d.type||'any',
-    nativesOnly:!!d.nativesOnly, deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
+    nativeRegion:nativeDefaults.nativeRegion, nativeMode:nativeDefaults.nativeMode,
+    deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
     startSource:activeDiscovery().source, startPaletteId:activeDiscovery().collectionId};
   const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
     b.type='button'; b.className='chip'+(extra?' '+extra:'')+(on?' sel':'');
     b.textContent=label; b.onclick=fn; return b; };
   const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
-    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette');
-  const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone);  // replant the backdrop to match
+    consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette'),
+    nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), nativeRegionWrap=$('dgnNativeRegionWrap');
+  const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone, sel);  // replant the backdrop to match
   function updateReadout(){
     $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
       `We'll only offer plants that can take that.`;
@@ -814,10 +817,26 @@ function openDesignSetup(){
       $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===id)||[])[2]||''; })));
     $('dgnTypeNote').textContent=(GARDEN_TYPES.find(g=>g[0]===sel.type)||[])[2]||'';
   }
+  function renderNative(){
+    nativeModeEl.innerHTML='';
+    NATIVE_MODES.forEach(mode=>{
+      const on=sel.nativeMode===mode.id, b=mkChip(mode.id==='any'?'Any':mode.id==='regional'?'Regional':'Straight',on,()=>{
+        sel.nativeMode=mode.id; renderNative(); updateCount(); syncMeadow();
+      });
+      b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); nativeModeEl.appendChild(b);
+    });
+    nativeRegionWrap.classList.toggle('hidden',sel.nativeMode==='any');
+    nativeRegionEl.innerHTML='';
+    NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
+      const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===sel.nativeRegion; nativeRegionEl.appendChild(o);
+    });
+    nativeRegionEl.onchange=()=>{ sel.nativeRegion=normalizeNativeRegion(nativeRegionEl.value); $('dgnNativeHint').textContent=nativeCriteriaText(sel); updateCount(); syncMeadow(); };
+    $('dgnNativeHint').textContent=nativeCriteriaText(sel);
+  }
   function renderConstraints(){ consEl.innerHTML='';
     const t=(label,key)=>consEl.appendChild(mkChip(label,sel[key],()=>{
       sel[key]=!sel[key]; renderConstraints(); updateCount(); },'toggle'));
-    t('Natives only','nativesOnly'); t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
+    t('Deer resistant','deer'); t('Rabbit resistant','rabbit');
     t('Squirrel resistant bulbs','squirrel');
   }
   function selectionCount(refs){ return (refs||[]).filter(ref=>plantRefFitsCriteria(ref,sel)).length; }
@@ -832,14 +851,14 @@ function openDesignSetup(){
   const zipEl=$('dgnZip'); zipEl.value='';
   zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
   zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
-  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderConstraints(); renderStartPalette();
+  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderNative(); renderConstraints(); renderStartPalette();
   updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
-    game.design={zone:sel.zone, type:sel.type, nativesOnly:sel.nativesOnly,
+    game.design={zone:sel.zone, type:sel.type, nativeRegion:sel.nativeRegion, nativeMode:sel.nativeMode,
       deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel};
     // tune the live palette: filters apply, style ranks the tray
-    game.filters=normalizeFilters({zone:sel.zone, nativesOnly:sel.nativesOnly,
+    game.filters=normalizeFilters({zone:sel.zone, nativeRegion:sel.nativeRegion, nativeMode:sel.nativeMode,
       deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel});
     game.discovery=normalizeDiscovery({source:sel.startSource,collectionId:sel.startPaletteId,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36});
     sSet('hortus:filters',game.filters); updateFilterBtn();
@@ -1123,18 +1142,19 @@ function seedMenuMeadow(){
    curated seasonal meadow. applyMeadowPalette reassigns species IN PLACE over
    the existing slots — same positions/seeds, so it reads as the meadow being
    replanted rather than teleporting. */
-function styleMeadowKeys(type, zone){
+function styleMeadowKeys(type, zone, criteria){
   if (!type || !STYLE_ROLE_WEIGHTS[type]) return null;
   const herb=k=>{ const t=PLANTS[k].type; return t==='grass'||t==='sedge'||t==='forb'||t==='bulb'; };
-  const fits=k=>!PLANTS[k].hidden && herb(k) &&
+  const f=normalizeFilters(Object.assign({},criteria||{},{zone}));
+  const fits=k=>!PLANTS[k].hidden && herb(k) && passesNativeFilter(PLANTS[k],f) &&
     (!zone || (PLANTS[k].zones[0]<=zone && PLANTS[k].zones[1]>=zone));
   const ranked=PLANT_KEYS.filter(fits)
-    .map(k=>[k,plantStyleScore(k,type)]).filter(e=>e[1]>0)
+    .map(k=>[k,plantStyleScore(k,type,null,f)]).filter(e=>e[1]>0)
     .sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
   return ranked.length>=4 ? ranked : null;
 }
-function applyMeadowPalette(type, zone){
-  const keys=styleMeadowKeys(type,zone) || (MENU_SCENES[menuSeason]||MENU_SCENES.Fall).keys;
+function applyMeadowPalette(type, zone, criteria){
+  const keys=styleMeadowKeys(type,zone,criteria) || (MENU_SCENES[menuSeason]||MENU_SCENES.Fall).keys;
   if (!meadow.length) seedMenuMeadow();
   for (let i=0;i<meadow.length;i++) meadow[i].k=keys[i%keys.length];
 }

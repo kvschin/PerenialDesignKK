@@ -288,22 +288,18 @@ const SQUIRREL_RESIST_KEYS=new Set([
 // readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
 // New Jersey tea, doublefile viburnum, ninebark, red-twig dogwood, both
 // spireas) — left off the resistant list on purpose.
-function plantRoles(k){
+function staticPlantRoles(k){
   if (ROLE_CACHE[k]) return ROLE_CACHE[k];
   const P=PLANTS[k]; if (!P) return [];
   const roles=new Set(P.roles||[]);
   const text=`${P.name} ${P.latin} ${P.group||''} ${P.form||''}`.toLowerCase();
   const group=P.group||'';
   roles.add(P.type);
-  if (P.native) roles.add('native');
   if (P.sun==='part') roles.add('shade'), roles.add('woodland');
   if (P.moist==='dry') roles.add('dry');
   if (P.moist==='moist') roles.add('wet');
   if (hasSeasonProp(P,'bloom')) roles.add('flower'), roles.add('pollinator'), roles.add('seasonal');
   if (hasSeasonProp(P,'seed')) roles.add('winter'), roles.add('seedhead');
-  if (P.native && ['grass','sedge','forb','bulb','water'].includes(P.type))
-    roles.add('prairie'), roles.add('naturalistic');
-  if (P.native && isWoodyDef(P)) roles.add('naturalistic');
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
   if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
   if (P.type==='bulb') roles.add('bulbLayer'), roles.add('early'), roles.add('seasonal');
@@ -361,9 +357,20 @@ function plantRoles(k){
     roles.add('squirrelOk');
   return ROLE_CACHE[k]=[...roles].sort();
 }
+function plantRoles(k,criteria,v){
+  const P=plantDef(k,v||null); if (!P) return [];
+  const roles=new Set(staticPlantRoles(k));
+  const source=criteria || (typeof game!=='undefined'&&game.filters) || {};
+  const relation=nativeRelation(P,normalizeFilters(source).nativeRegion);
+  if (relation.regional){
+    roles.add('native'); roles.add('naturalistic');
+    if (['grass','sedge','forb','bulb','water'].includes(P.type)) roles.add('prairie');
+  }
+  return [...roles].sort();
+}
 function roleLabel(role){ return ROLE_LABELS[role] || cap(role); }
-function roleSummary(k,max=6){
-  const roles=plantRoles(k).filter(r=>ROLE_LABELS[r]);
+function roleSummary(k,max=6,v=null,criteria=null){
+  const roles=plantRoles(k,criteria,v).filter(r=>ROLE_LABELS[r]);
   roles.sort((a,b)=>{
     const ai=ROLE_DISPLAY_ORDER.indexOf(a), bi=ROLE_DISPLAY_ORDER.indexOf(b);
     return (ai<0?999:ai)-(bi<0?999:bi) || roleLabel(a).localeCompare(roleLabel(b));
@@ -375,9 +382,9 @@ function activeDesignType(){
   return (d && STYLE_ROLE_WEIGHTS[d]) ? d : null;
 }
 function designTypeName(type){ return DESIGN_STYLE_LABELS[type] || cap(type||'design'); }
-function plantStyleScore(k,type=activeDesignType()){
+function plantStyleScore(k,type=activeDesignType(),v=null,criteria=null){
   const weights=STYLE_ROLE_WEIGHTS[type]; if (!weights) return 0;
-  return plantRoles(k).reduce((n,r)=>n+(weights[r]||0),0);
+  return plantRoles(k,criteria,v).reduce((n,r)=>n+(weights[r]||0),0);
 }
 function plantStyleRecommended(k,type=activeDesignType()){
   return plantStyleScore(k,type)>=(STYLE_RECOMMEND_MIN[type]||1);
@@ -416,13 +423,24 @@ function challengePaletteSize(c){
    squirrels mostly affect planted bulbs, not established perennials. */
 function normalizeFilters(src){
   src=src||{};
+  const nativeMode=NATIVE_MODE_IDS.has(src.nativeMode)
+    ? src.nativeMode
+    : (src.nativesOnly?'straight':'any');
   return {
     zone:src.zone?+src.zone:null,
-    nativesOnly:!!src.nativesOnly,
+    nativeRegion:normalizeNativeRegion(src.nativeRegion),
+    nativeMode,
     deer:!!src.deer,
     rabbit:!!src.rabbit,
     squirrel:!!src.squirrel
   };
+}
+function normalizeDesign(src){
+  if (!src || typeof src!=='object') return null;
+  const f=normalizeFilters(src);
+  return {zone:f.zone,type:typeof src.type==='string'?src.type:'any',
+    nativeRegion:f.nativeRegion,nativeMode:f.nativeMode,
+    deer:f.deer,rabbit:f.rabbit,squirrel:f.squirrel};
 }
 function activeFilters(){ return normalizeFilters(game.filters); }
 
@@ -517,7 +535,7 @@ function bloomRangeText(P){
 function plantRefFitsCriteria(ref,criteria){
   const P=refDef(ref), f=normalizeFilters(criteria); if (!P) return false;
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
-  if (f.nativesOnly && !P.native) return false;
+  if (!passesNativeFilter(P,f)) return false;
   if (!challengeAllows(ref.s)) return false;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P)){
@@ -537,7 +555,7 @@ function allPlantRefs(){
 let discoverySearchIndex=null;
 function discoverySearchText(ref){
   const P=refDef(ref); if (!P) return '';
-  return [ref.s,ref.v||'',P.name,P.latin,PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',roleSummary(ref.s,12),trayCatLabel(plantCategoryFor(ref.s))]
+  return [ref.s,ref.v||'',P.name,P.latin,PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',staticPlantRoles(ref.s).map(roleLabel).join(' '),trayCatLabel(plantCategoryFor(ref.s))]
     .join(' ').toLowerCase();
 }
 function ensureDiscoverySearchIndex(){
@@ -572,7 +590,7 @@ function discoveryRefsUncached(d){
   });
   const design=activeDesignType();
   refs.sort((a,b)=>{
-    if (d.source==='recommended' && design){ const score=plantStyleScore(b.s,design)-plantStyleScore(a.s,design); if (score) return score; }
+    if (d.source==='recommended' && design){ const score=plantStyleScore(b.s,design,b.v)-plantStyleScore(a.s,design,a.v); if (score) return score; }
     return plantRefDisplayName(a).localeCompare(plantRefDisplayName(b));
   });
   return refs;
@@ -651,7 +669,9 @@ function groupDiscoveryRefs(refs){
 }
 function discoveryCriteriaLabels(f=activeFilters()){
   const out=[];
-  if (f.nativesOnly) out.push('Native');
+  if (f.nativeMode!=='any') out.push(f.nativeMode==='straight'
+    ? `Straight ${nativeRegionLabel(f.nativeRegion)} natives`
+    : `${nativeRegionLabel(f.nativeRegion)} natives`);
   if (f.deer) out.push('Deer');
   if (f.rabbit) out.push('Rabbit');
   if (f.squirrel) out.push('Squirrel');
@@ -667,7 +687,7 @@ function collectionAvailability(refs){ const total=(refs||[]).length, available=
 function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
-  if (f.nativesOnly && !P.native) return false;
+  if (!passesNativeFilter(P,f)) return false;
   if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
   const roles=plantRoles(k);
   if (!isTreeDef(P)){
@@ -683,12 +703,12 @@ function plantFits(k){
    zone/native/deer/rabbit/squirrel gates. Style only ranks the tray, so it
    does not change this count. */
 function paletteCount(sel){
-  sel=sel||{};
+  sel=normalizeFilters(sel);
   let n=0;
   for (const k of PLANT_KEYS){
     const P=PLANTS[k]; if (P.hidden) continue;
     if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
-    if (sel.nativesOnly && !P.native) continue;
+    if (!passesNativeFilter(P,sel)) continue;
     const roles=plantRoles(k);
     if (!isTreeDef(P)){
       if (sel.deer && !roles.includes('deerOk')) continue;
@@ -731,7 +751,9 @@ function applyGardenCriteria(next,{refresh=true,announce=true}={}){
   game.filters=normalizeFilters(next);
   if (game.design){
     game.design.zone=game.filters.zone;
-    game.design.nativesOnly=game.filters.nativesOnly;
+    game.design.nativeRegion=game.filters.nativeRegion;
+    game.design.nativeMode=game.filters.nativeMode;
+    delete game.design.nativesOnly;
     game.design.deer=game.filters.deer;
     game.design.rabbit=game.filters.rabbit;
     game.design.squirrel=game.filters.squirrel;
@@ -751,7 +773,7 @@ function applyFilters(){
 function updateFilterBtn(){
   const f=activeFilters(), bits=[];
   if (f.zone) bits.push('z'+f.zone);
-  if (f.nativesOnly) bits.push('Native');
+  if (f.nativeMode!=='any') bits.push((f.nativeMode==='straight'?'Straight':'Regional')+' · '+nativeRegionLabel(f.nativeRegion,true));
   if (f.deer) bits.push('Deer');
   if (f.rabbit) bits.push('Rabbit');
   if (f.squirrel) bits.push('Squirrel');

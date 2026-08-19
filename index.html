@@ -100,7 +100,7 @@ if ('serviceWorker' in navigator)
          app, not only from the listing. They are plain static pages with no
          dependency on the game, so they open fine offline too. -->
     <p class="menu-foot">
-      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.4.0 · credits</a>
+      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.5.0 · credits</a>
       · <a href="privacy.html">Privacy</a>
       · <a href="terms.html">Terms</a>
     </p>
@@ -405,7 +405,15 @@ if ('serviceWorker' in navigator)
       <div class="chip-row chip-grid" id="dgnTypeChips"></div>
       <p class="field-hint" id="dgnTypeNote"></p>
     </div>
-    <div class="field"><label>Keep out browsers &amp; pick natives</label>
+    <div class="field"><label>Native planting</label>
+      <div class="chip-row native-mode" id="dgnNativeMode" role="radiogroup" aria-label="Native planting mode"></div>
+      <div id="dgnNativeRegionWrap" class="native-region-row hidden">
+        <label for="dgnNativeRegion">Native to</label>
+        <select id="dgnNativeRegion"></select>
+      </div>
+      <p class="field-hint" id="dgnNativeHint"></p>
+    </div>
+    <div class="field"><label>Animal resistance</label>
       <div class="chip-row" id="dgnConstraints"></div>
     </div>
     <p class="palette-count" id="dgnCount"></p>
@@ -428,8 +436,19 @@ if ('serviceWorker' in navigator)
     <p class="sub">Garden criteria decide what can be planted. Flower filters narrow the view without changing that eligibility.</p>
     <div class="field discovery-criteria">
       <label>Garden criteria</label>
+      <div class="native-criteria">
+        <span class="criteria-label">Native planting</span>
+        <select id="discoveryNativeMode" aria-describedby="discoveryNativeHint">
+          <option value="any">Any origin</option>
+          <option value="regional">Regional natives + selections</option>
+          <option value="straight">Straight regional species only</option>
+        </select>
+        <label id="discoveryNativeRegionRow" for="discoveryNativeRegion">Native to
+          <select id="discoveryNativeRegion"></select>
+        </label>
+        <p class="field-hint" id="discoveryNativeHint"></p>
+      </div>
       <div class="discovery-criteria-checks">
-        <label class="check-row"><input type="checkbox" id="discoveryNative"> Native plants only</label>
         <label class="check-row"><input type="checkbox" id="discoveryDeer"> Deer resistant</label>
         <label class="check-row"><input type="checkbox" id="discoveryRabbit"> Rabbit resistant</label>
         <label class="check-row"><input type="checkbox" id="discoverySquirrel"> Squirrel resistant bulbs</label>
