@@ -586,6 +586,17 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
+test('cultivar definitions deep-merge rendering look without mutating the base', () => {
+  const base=plantDef('hebe'), cv=plantDef('hebe','andersoniivariegata');
+  assertEqual(base.look.leafEdge,undefined,'base hebe stays plain green');
+  assertEqual(cv.look.art2,true,'cultivar inherits the shared art renderer');
+  assertEqual(cv.look.bloomStyle,'shortSpike','cultivar inherits flower architecture');
+  assertEqual(cv.look.leafEdge,'#e4dcc5','cultivar adds its cream leaf margin');
+  const snow=plantDef('mockorange','snowbelle');
+  assertEqual(snow.look.bloomStyle,'looseCluster','Snowbelle keeps mock-orange flower placement');
+  assertEqual(snow.look.flowerShape,'doubleCup','Snowbelle adds a double corolla');
+});
+
 test('high-priority shrub flower and habit families paint distinct traces', () => {
   function trace(key,season){
     const ops=[];

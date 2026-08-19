@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.6.1';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -586,8 +586,8 @@ function normalizePetDraft(d){
    which index.html loads before this file. */
 
 /* Resolve a species key + optional cultivar into an effective plant def:
-   the cultivar's overrides merge over the straight species, per-season
-   colors included. Cached — render asks every frame. */
+   the cultivar's overrides merge over the straight species, including nested
+   look knobs and per-season colors. Cached — render asks every frame. */
 const _defCache={};
 function plantDef(key,v){
   const base=PLANTS[key];
@@ -595,7 +595,8 @@ function plantDef(key,v){
   const ck=key+'|'+v;
   if (_defCache[ck]) return _defCache[ck];
   const c=base.cv[v];
-  const d=Object.assign({},base,c,{name:base.name+' '+c.name,sea:{}});
+  const d=Object.assign({},base,c,{name:base.name+' '+c.name,
+    look:Object.assign({},base.look||{},c.look||{}),sea:{}});
   for (const s of SEASONS) d.sea[s]=Object.assign({},base.sea[s],(c.sea||{})[s]);
   if (base.flowerColorFamilies || c.flowerColorFamilies){
     d.flowerColorFamilies={};

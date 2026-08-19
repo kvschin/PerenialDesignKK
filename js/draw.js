@@ -18,9 +18,9 @@ function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
    TWO gates, and both must pass. ART2.on is the master switch (off with
    ?art2=0, which is how you A/B it in the real app). look.art2 is the
    PER-SPECIES opt-in: without it a species keeps the classic art, so rolling
-   this out is one data key at a time rather than a flag day. Note the
-   cultivar trap — plantDef does Object.assign({},base,cv), so a cultivar
-   declaring its own `look` REPLACES the base's and must repeat these keys. */
+   this out is one data key at a time rather than a flag day. Cultivar look
+   overrides merge over the base look in plantDef, so a dwarf habit or leaf
+   treatment can stay a small data-only override. */
 const ART2 = { on: typeof location==='undefined' || !/[?&]art2=0(&|$)/.test(location.search) };
 const LIT = {x:-0.55, y:-0.83};          // direction TO the light: upper left
 function art2On(L){ return ART2.on && !!(L && L.art2); }
@@ -138,8 +138,12 @@ function drawLeaf(ctx, bx,by, tx,ty, hw, col, opt){
   const teeth=opt.teeth?(opt.teeth===true?0.15:opt.teeth):0, tn=opt.teethN||6;
   const L=Math.sqrt(dx*dx+dy*dy)||1;
   // big leaves need the denser table or the sample segments read as facets
-  ribbonPath(ctx, bx,by, cx,cy, tx,ty,
-             L>LEAF_HI_LEN ? S.profHi : S.prof, hw, teeth, tn);
+  const prof=L>LEAF_HI_LEN ? S.profHi : S.prof;
+  ribbonPath(ctx,bx,by,cx,cy,tx,ty,prof,hw,teeth,tn);
+  if (opt.edge){
+    litFill(ctx,(bx+tx)/2,(by+ty)/2,Math.max(hw,L*0.42),opt.edge,opt.lift,opt.drop);
+    ribbonPath(ctx,bx,by,cx,cy,tx,ty,prof,hw*0.72,0,tn);
+  }
   litFill(ctx,(bx+tx)/2,(by+ty)/2, Math.max(hw,L*0.42), col, opt.lift, opt.drop);
   if (opt.rib!==false){                  // the midrib is the cue that says "leaf"
     ctx.strokeStyle=shade(col,-34); ctx.lineWidth=Math.max(0.5,hw*0.17);
@@ -189,7 +193,7 @@ function drawFloret(ctx, cx,cy, r, col, opt){
 /* Shared shrub flowers. At shrub scale the placement and petal language carry
    more identity than botanical detail: a ribbon witch-hazel flower, a rose
    rosette and a four-petal mock-orange cup must not collapse to the same dot. */
-function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang){
+function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent){
   shape=shape||'single'; ang=ang||0;
   if (shape==='ribbon'){
     ctx.strokeStyle=shade(col,8); ctx.lineWidth=Math.max(0.75,r*0.38); ctx.lineCap='round';
@@ -205,15 +209,15 @@ function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang){
     ctx.quadraticCurveTo(0,-r*1.05,r*1.05,-r*0.55); ctx.quadraticCurveTo(r*0.9,0,r*0.45,r*0.85); ctx.closePath(); ctx.fill();
     ctx.fillStyle=shade(col,24); ctx.beginPath(); ctx.ellipse(0,-r*0.5,r*0.78,r*0.36,0,0,7); ctx.fill(); ctx.restore(); return;
   }
-  const petals=shape==='star'?4:shape==='cup'?4:shape==='calico'?5:
+  const petals=shape==='star'?4:shape==='cup'?4:shape==='doubleCup'?8:shape==='calico'?5:
     shape==='camellia'?10:shape==='rosette'?9:5;
-  const rings=(shape==='camellia'||shape==='rosette')?2:1;
+  const rings=(shape==='camellia'||shape==='rosette'||shape==='doubleCup')?2:1;
   for (let ring=0;ring<rings;ring++) for (let p=0;p<petals;p++){
     const a=ang+p*Math.PI*2/petals+(ring?Math.PI/petals:0), rr=r*(ring?0.52:0.78);
     drawFloret(ctx,cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.72,r*(ring?0.46:0.58),
       shade(col,ring?12:0),{squash:shape==='star'?0.56:0.76,rot:a});
   }
-  drawFloret(ctx,cx,cy,r*(shape==='calico'?0.34:0.3),shape==='calico'?shade(col,-34):shade(col,20),{squash:1});
+  drawFloret(ctx,cx,cy,r*(shape==='calico'?0.34:0.3),accent||(shape==='calico'?shade(col,-34):shade(col,20)),{squash:1});
 }
 
 /* The cone: a domed, bristly head instead of a flat ellipse. Radial gradient
@@ -3547,7 +3551,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const leafCol=L.newGrowth && season!=='Winter' && t>0.72 ? L.newGrowth : S.fol;
             drawLeaf(ctx, px,py, px+Math.sin(dir)*ll, py+Math.cos(dir)*ll*0.42-ll*0.12,
                      lw, shade(leafCol, u*20+(rnd()-0.5)*14),
-                     {shape:L.leafShape||'ovate', teeth:L.leafTeeth, teethN:L.leafTeethN,
+                     {shape:L.leafShape||'ovate', teeth:L.leafTeeth, teethN:L.leafTeethN, edge:L.leafEdge,
                       bow:(L.leafBow===undefined?0.09:L.leafBow)*side,
                       rib:lw>=4.2});
             if (L.compound){
@@ -3583,7 +3587,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const cr=L.clusterR||5, shape=L.flowerShape||'cup', n=L.bloomStyle==='truss'?9:(L.flowerN||5);
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<n;p++){ const a=p/n*Math.PI*2, ring=L.bloomStyle==='truss'?(p%3?0.75:0.32):0.7+rnd()*0.25;
             drawShrubFlower(ctx,tx2+Math.cos(a)*cr*ring,ty2-cr*0.35+Math.sin(a)*cr*ring*0.58,
-              shape==='funnel'||shape==='calico'?2.1:1.8,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a); }
+              shape==='funnel'||shape==='calico'?2.1:1.8,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a,S.eye); }
           });
         } else if (L.bloomStyle==='rose'||L.bloomStyle==='scattered'){
           const n=stemFor(L.flowerN||12), shape=L.flowerShape||'single';

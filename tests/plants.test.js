@@ -133,6 +133,23 @@ test('trees declare a real mature height (heightIn)', () => {
   }
 });
 
+test('shrubs declare explicit real dimensions and exact resized cultivars do too', () => {
+  for (const k of keys){
+    const P=PLANTS[k];
+    if (P.type!=='shrub') continue;
+    assert(typeof P.heightIn==='number'&&P.heightIn>=12&&P.heightIn<=360,
+      `${k}: shrub heightIn ${P.heightIn} outside 1-30 ft`);
+    assert(typeof P.spread==='number'&&P.spread>=12&&P.spread<=360,
+      `${k}: shrub spread ${P.spread} outside 1-30 ft`);
+    for (const [v,C] of Object.entries(P.cv||{})){
+      const resized=['h','cw','space','spread'].some(f=>Object.hasOwn(C,f));
+      if (!resized) continue;
+      assert(typeof C.heightIn==='number'&&typeof C.spread==='number',
+        `${k}.${v}: a resized shrub cultivar needs exact heightIn and spread`);
+    }
+  }
+});
+
 test('bulb-only fields are valid when present', () => {
   for (const k of keys){
     const P = PLANTS[k];
@@ -562,6 +579,39 @@ test('high-priority transatlantic shrub gaps are complete and morphology-led', (
   assertEqual(PLANTS.photinia.look.newGrowth,'#c33d36','Red Robin carries a red shoot-tip cue');
   assertEqual(PLANTS.pieris.look.habit,'layered','pieris retains layered evergreen architecture');
   assertEqual(PLANTS.americanelder.look.compound,'pinnate','elderberry does not render as simple-leaved viburnum');
+});
+
+test('new shrubs have a restrained set of size- or appearance-distinct cultivars', () => {
+  const expected={
+    forsythia:'courtasol', weigela:'alexandra', mockorange:'snowbelle', cinquefoil:'abbotswood',
+    europeanelder:'eva', commonwitchhazel:'littlesuzie', summersweet:'hummingbird',
+    virginiasweetspire:'sprich', buttonbush:'smcoss', fothergilla:'bluemist', choisya:'londaz',
+    japanesecamellia:'nucciosgem', skimmia:'temptation', pieris:'cavatine',
+    mountainlaurel:'minuet', laurustinus:'eveprice', cherrylaurel:'ottoluyken',
+    hebe:'andersoniivariegata',
+  };
+  for (const [k,v] of Object.entries(expected)){
+    const C=PLANTS[k]&&PLANTS[k].cv&&PLANTS[k].cv[v];
+    assert(C,`${k}.${v}: curated cultivar is missing`);
+    assert(C.heightIn>0&&C.spread>0,`${k}.${v}: exact mature size`);
+  }
+  assert(PLANTS.littleredrobinphotinia,'Little Red Robin stays a standalone exact cultivar record');
+  assertEqual(PLANTS.littleredrobinphotinia.group,'photinia','both exact photinia cultivars share one tray family');
+  assertEqual(PLANTS.mockorange.cv.snowbelle.provenance,'hybrid','Snowbelle does not inherit a species range');
+  assertEqual(PLANTS.mockorange.cv.snowbelle.nativeTo.length,0,'Snowbelle has no wild native range');
+  assertEqual(PLANTS.choisya.cv.londaz.provenance,'hybrid','White Dazzler records its hybrid parentage');
+  assertEqual(PLANTS.choisya.cv.londaz.nativeTo.length,0,'White Dazzler has no wild native range');
+});
+
+test('audited shrub sizes pin the former inheritance errors', () => {
+  const size=(k,v)=>{ const P=v?PLANTS[k].cv[v]:PLANTS[k]; return [P.heightIn,P.spread]; };
+  assertEqual(size('ninebark','summerwine').join(','),'60,60','Summer Wine mature size');
+  assertEqual(size('smokebush').join(','),'144,144','straight smokebush mature size');
+  assertEqual(size('smokebush','younglady').join(','),'60,60','Young Lady mature size');
+  assertEqual(size('panniclehydrangea').join(','),'120,96','panicle hydrangea species size');
+  assertEqual(size('panniclehydrangea','bobo').join(','),'34,42','Bobo mature size');
+  assertEqual(size('oakleafhydrangea').join(','),'84,84','oakleaf hydrangea species size');
+  assertEqual(size('oakleafhydrangea','peewee').join(','),'42,36','Pee Wee mature size');
 });
 
 test('new shrub ranges and horticultural provenance remain relational', () => {
