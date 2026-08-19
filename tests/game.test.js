@@ -586,6 +586,27 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
+test('high-priority shrub flower and habit families paint distinct traces', () => {
+  function trace(key,season){
+    const ops=[];
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return (...args)=>{ if (['moveTo','lineTo','quadraticCurveTo','arc','ellipse','rotate','translate','fill','stroke'].includes(p))
+          ops.push([p,...args.map(v=>typeof v==='number'?Math.round(v*100)/100:v)]); };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawPlant(ctx,0,0,key,1,season||'Spring',8127,0,undefined,1);
+    return JSON.stringify(ops);
+  }
+  const keys=['forsythia','arnoldwitchhazel','bonicarose','americanelder','buttonbush','fothergilla','pieris','beautyberry'];
+  const sig=keys.map(k=>trace(k,k==='beautyberry'?'Fall':'Spring'));
+  assertEqual(new Set(sig).size,sig.length,'bare-stem stars, ribbons, roses, corymbs, globes, brushes, bells, and stem-whorl fruit stay visually distinct');
+  assertEqual(trace('forsythia'),trace('forsythia'),'shrub morphology stays deterministic for cached cards and canvas');
+});
+
 test('native eligibility is range-aware and distinguishes species, selections, and hybrids', () => {
   setup();
   const north={nativeRegion:'north-america',nativeMode:'regional'};

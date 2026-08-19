@@ -1895,9 +1895,22 @@ not from the tab-local scaffolding that was just removed.
   `panicle` lilac trusses, `spray` arching canes), `twigN`, `berryN`, the
   per-season `twig` colour, and `broadleaf` (an informal evergreen leafy mound
   in the `clip` family, used by inkberry — NOT a smooth clipped topiary ball;
-  distinct from boxwood's smooth dome and yew's needle sprays). Still open: forsythia and witch hazel (both want a
-  bloom-along-bare-stem style), elderberry, buttonbush, shrub roses,
-  summersweet, Virginia sweetspire, fothergilla, beautyberry (`seedAlong`),
+  distinct from boxwood's smooth dome and yew's needle sprays). A second
+  **transatlantic high-priority shrub pass** is also landed: rhododendron and
+  deciduous azalea, shrub rose, forsythia, weigela, mock orange, shrubby
+  cinquefoil, American and European elder, common and hybrid witch hazel,
+  summersweet, Virginia sweetspire, buttonbush, fothergilla, American
+  beautyberry, Choisya, two camellias, skimmia, pieris, blue holly, mountain
+  laurel, Photinia 'Red Robin', laurustinus, cherry and Portuguese laurels,
+  hebe, and sweet box. They remain on the shared `bush` renderer and extend its
+  data grammar rather than adding species branches: `habit` controls low mound,
+  arching/fountain, vase, upright, open, and layered armatures; bloom placement
+  adds `bareStem`, `stemAxil`, `truss`, `rose`, `scattered`, `looseCluster`,
+  `flatCorymb`, raceme variants, `bottlebrush`, `globe`, and `shortSpike`;
+  `flowerShape` distinguishes stars, cups, trumpets, bells, ribbons, rosettes,
+  camellias, and calico cups; `seedAlong` makes beautyberry's stem collars;
+  `compound` and `newGrowth` carry elder/Choisya leaf structure and red-tipped
+  Photinia/Pieris growth. Evergreen foliage is independent of clipped topiary.
   A **flowering-tree pass** is landed (Aug 2026): flowering dogwood, white
   fringetree, Washington hawthorn, American plum, sourwood, Kentucky
   yellowwood, tuliptree, Ohio buckeye and American basswood as natives, plus a

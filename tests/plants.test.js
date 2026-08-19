@@ -538,6 +538,46 @@ test('landscape shrub expansion keeps botanical identity and grouping', () => {
     assertEqual(PLANTS[k].group, 'spirea', `${k}: the spireas share one tray button`);
 });
 
+test('high-priority transatlantic shrub gaps are complete and morphology-led', () => {
+  const expected=[
+    'catawbarhododendron','swampazalea','bonicarose','forsythia','weigela','mockorange','cinquefoil',
+    'americanelder','europeanelder','commonwitchhazel','arnoldwitchhazel','summersweet',
+    'virginiasweetspire','buttonbush','fothergilla','beautyberry','choisya','japanesecamellia',
+    'williamscamellia','skimmia','pieris','blueholly','mountainlaurel','photinia','laurustinus',
+    'cherrylaurel','portugueselaurel','hebe','sweetbox',
+  ];
+  for (const k of expected){
+    const P=PLANTS[k];
+    assert(P,`${k}: high-priority shrub is missing`);
+    assertEqual(P.type,'shrub',`${k}: catalog type`);
+    assertEqual(P.form,'bush',`${k}: shared woody shrub renderer`);
+    assert(P.look&&P.look.art2,`${k}: authored morphology is required`);
+    assert(P.heightIn>0&&P.spread>0&&P.grow>0,`${k}: real woody size data`);
+  }
+  const styles=new Set(expected.map(k=>PLANTS[k].look.bloomStyle).filter(Boolean));
+  for (const style of ['bareStem','truss','rose','stemAxil','looseCluster','scattered','flatCorymb',
+    'raceme','droopingRaceme','bottlebrush','globe','pendantRaceme','shortSpike'])
+    assert(styles.has(style),`shared shrub morphology includes ${style}`);
+  assertEqual(PLANTS.beautyberry.look.seedAlong,true,'beautyberry fruits in collars along its stems');
+  assertEqual(PLANTS.photinia.look.newGrowth,'#c33d36','Red Robin carries a red shoot-tip cue');
+  assertEqual(PLANTS.pieris.look.habit,'layered','pieris retains layered evergreen architecture');
+  assertEqual(PLANTS.americanelder.look.compound,'pinnate','elderberry does not render as simple-leaved viburnum');
+});
+
+test('new shrub ranges and horticultural provenance remain relational', () => {
+  for (const k of ['catawbarhododendron','swampazalea','americanelder','commonwitchhazel',
+    'summersweet','virginiasweetspire','buttonbush','fothergilla','beautyberry','mountainlaurel'])
+    assert(PLANTS[k].nativeTo.includes('north-america'),`${k}: North American range`);
+  for (const k of ['bonicarose','forsythia','arnoldwitchhazel','williamscamellia','blueholly','photinia','hebe']){
+    assertEqual(PLANTS[k].provenance,'hybrid',`${k}: garden hybrid provenance`);
+    assertEqual(PLANTS[k].nativeTo.length,0,`${k}: garden hybrid has no wild native range`);
+  }
+  assert(['north-america','europe','asia'].every(r=>PLANTS.cinquefoil.nativeTo.includes(r)),'cinquefoil records its circumboreal range');
+  assert(['europe','asia'].every(r=>PLANTS.cherrylaurel.nativeTo.includes(r)),'cherry laurel records Europe and Asia');
+  assert(['europe','africa'].every(r=>PLANTS.laurustinus.nativeTo.includes(r)),'laurustinus records Europe and North Africa');
+  assert(PLANTS.choisya.nativeTo.includes('north-america')&&PLANTS.choisya.nativeTo.includes('central-america'),'Choisya records Mexico within both broad origin views');
+});
+
 /* Months -> the season slot the renderer would have to paint for that bloom to
    show up in the garden.  Bloom Calendar columns are real calendar months. */
 const BLOOM_MONTH_SEASON = {
