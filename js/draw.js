@@ -593,7 +593,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const rnd = mulberry(seed);
   // how far into its bloom window this species is (1 = forced full bloom,
   // used by tray icons / previews); gates and thins the flower pass
-  const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key) : 0);
+  const blv = bloomLvl!==undefined ? bloomLvl : (S.bloom ? bloomLevel(key,variant) : 0);
   const blooming = !!S.bloom && blv>0.08;
   // trees: display-rescaled height (T10) — and a LOWER growth floor, because
   // 25% of a rescaled oak (~480px) reads as a 20-ft "sapling"; day-one trees
@@ -1294,7 +1294,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             // rayShape is real botany and stays load-bearing: a spoon ray
             // (rudbeckia) is a broad blunt paddle, a round ray (desert daisies)
             // is short and broad, a notched ray (helenium, coreopsis) ends in
-            // teeth. drawRay already gives the blunt-tipped strap the first two
+            // teeth, and a poppy is four overlapping petals with basal marks.
+            // drawRay already gives the blunt-tipped strap the first two
             // want; the teeth are a batched second pass, gated on being big
             // enough to see at all.
             const rsh=L.rayShape;
@@ -1305,7 +1306,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             // one flat annulus, so the width is capped by how much the rays may
             // overlap AT THE DISC EDGE, where they actually crowd. See RAY_FIT.
             const dEdge = Math.max(dw, rl*0.30);
-            const rw2 = Math.min(rw*hwK, RAY_FIT.crowd*Math.PI*dEdge/Math.max(3,rays));
+            const rw2 = rsh==='poppy' ? rw*1.25
+              : Math.min(rw*hwK, RAY_FIT.crowd*Math.PI*dEdge/Math.max(3,rays));
             // and where the disc buries the profile's shoulder, start the
             // ribbon at the disc edge so the petal reads as a paddle
             const em = (rays >= 9 && dw >= rl*RAY_FIT.emerge) ? dw*RAY_FIT.base : 0;
@@ -1353,6 +1355,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               }
               ctx.stroke();
             }
+            if (rsh==='poppy'){
+              ctx.fillStyle=S.eye||shade(S.bloom,-45); ctx.beginPath();
+              for(let p=0;p<rays;p++){
+                const pa=p/rays*Math.PI*2;
+                ctx.ellipse(cx+Math.cos(pa)*rl*0.24,
+                  cy+Math.sin(pa)*rl*0.18+dr*0.22,
+                  rw2*0.58,rw2*0.30,pa,0,7);
+              }
+              ctx.fill();
+            }
             // drawConeDome throws its bristle rim out to 1.20/1.24 of the
             // radii it is given, so a dome drawn at the classic disc size
             // occupies ~45% more area than the flat ellipse it replaced. On the
@@ -1379,6 +1391,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             } else {
               ctx.lineTo(ex,ey); ctx.stroke();
             } }
+          if (L.rayShape==='poppy'){
+            ctx.fillStyle=S.eye||shade(S.bloom,-45); ctx.beginPath();
+            for(let p=0;p<rays;p++){
+              const pa=p/rays*Math.PI*2;
+              ctx.ellipse(cx+Math.cos(pa)*rl*0.24,
+                cy+Math.sin(pa)*rl*0.18+dr*0.22,
+                rw*0.56,rw*0.28,pa,0,7);
+            }
+            ctx.fill();
+          }
           ctx.fillStyle=S.eye||'#b5651d';
           ctx.beginPath(); ctx.ellipse(cx,cy+dy,dw,dh,0,0,7); ctx.fill();
           ctx.lineCap='butt';
@@ -1547,7 +1569,36 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const col=(headOn?S.bloom:null)||S.seed;
         const a2=art2On(L);
         if (col){
-          if (L.spikeStyle==='bell'){
+          if (L.spikeStyle==='poker'){
+            const spikeLen=L.spikeLen||18, florets=Math.max(6,Math.round(L.florets||13));
+            const pokerBloom=headOn&&!!S.bloom;
+            const shown=pokerBloom?Math.max(2,Math.ceil(florets*blv)):florets;
+            for(let f=0;f<shown;f++){
+              const u=florets===1?0:f/(florets-1), yy=hy+u*spikeLen, xx=hx+(f%2?-0.45:0.45);
+              const flowerCol=pokerBloom
+                ? shade(u<0.48?(S.eye||col):col,(rnd()-0.5)*10)
+                : shade(col,(rnd()-0.5)*10);
+              drawFloret(ctx,xx,yy,L.floretR||2.0,flowerCol,
+                {squash:0.72,rot:(f%2?-0.10:0.10),lift:22,drop:-12});
+            }
+          } else if (L.spikeStyle==='delphinium'){
+            const spikeLen=L.spikeLen||24, florets=Math.max(7,Math.round(L.florets||12));
+            const delphBloom=headOn&&!!S.bloom;
+            const shown=delphBloom?Math.max(2,Math.ceil(florets*blv)):florets;
+            for(let f=0;f<shown;f++){
+              const u=florets===1?0:f/(florets-1), side=f%2?-1:1;
+              const fx=hx+side*(1.1+rnd()*1.6), fy=hy+u*spikeLen+(rnd()-0.5)*1.2;
+              if (delphBloom){
+                drawFloret(ctx,fx,fy,L.floretR||2.5,shade(col,(rnd()-0.5)*13),
+                  {squash:0.92,lift:26,drop:-16});
+                if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath();
+                  ctx.arc(fx,fy,(L.floretR||2.5)*0.28,0,7); ctx.fill(); }
+              } else {
+                ctx.fillStyle=shade(col,(rnd()-0.5)*10); ctx.beginPath();
+                ctx.ellipse(fx,fy,1.1,2.1,side*0.16,0,7); ctx.fill();
+              }
+            }
+          } else if (L.spikeStyle==='bell'){
             const bells=Math.max(2,Math.round(L.bellCount||5)), bellW=L.bellW||2.8, bellH=L.bellH||4.2;
             // The pedicels all share a style, so ART2 draws them as one path.
             if (a2){
@@ -2125,7 +2176,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
   }
-  else if (P.form === 'archbell'){ // Solomon's seal: arched stems, alternating leaves, pendant bells
+  else if (P.form === 'archbell'){ // arched stems with Solomon's seal bells or bleeding-heart flowers
     const L=P.look||{}, sn=stemFor(L.stems||4);
     for (let i=0;i<sn;i++){
       const ox=(i/(sn-1)-0.5)*12+(rnd()-0.5)*2;
@@ -2154,6 +2205,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.fillStyle=(headOn?S.bloom:null)||S.seed;
         for (let b=0;b<bells;b++){
           const f=0.36+b*0.1, p=bez(f);
+          if (L.archStyle==='bleedingHeart' && headOn){
+            const cx=p[0]+3, cy=p[1]+2.4, hw=L.heartW||2.8, hh=L.heartH||3.8;
+            ctx.strokeStyle=stemCol; ctx.lineWidth=0.7;
+            ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.quadraticCurveTo(cx-1,p[1]+1,cx,cy-hh*0.42); ctx.stroke();
+            ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*12);
+            ctx.beginPath(); ctx.moveTo(cx,cy+hh*0.62);
+            ctx.bezierCurveTo(cx-hw*0.95,cy+hh*0.06,cx-hw*0.95,cy-hh*0.55,cx-hw*0.38,cy-hh*0.58);
+            ctx.bezierCurveTo(cx-hw*0.08,cy-hh*0.60,cx,cy-hh*0.34,cx,cy-hh*0.18);
+            ctx.bezierCurveTo(cx,cy-hh*0.34,cx+hw*0.08,cy-hh*0.60,cx+hw*0.38,cy-hh*0.58);
+            ctx.bezierCurveTo(cx+hw*0.95,cy-hh*0.55,cx+hw*0.95,cy+hh*0.06,cx,cy+hh*0.62);
+            ctx.closePath(); ctx.fill();
+            if (S.eye){ ctx.fillStyle=S.eye; ctx.beginPath();
+              ctx.ellipse(cx,cy+hh*0.50,hw*0.25,hh*0.35,0,0,7); ctx.fill(); }
+            continue;
+          }
           ctx.beginPath();
           ctx.ellipse(p[0]+3, p[1]+4, headOn?2.1:1.8, headOn?3.3:2.1, -0.2, 0, 7); ctx.fill();
         }
@@ -2774,10 +2840,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         for (const b of blades){
           const rec=0.84+0.16*(1-b.z);
           const lx=Math.sin(b.a)*b.l*rec, ly=-Math.cos(b.a*0.5)*b.l*0.7*rec;
-          drawLeaf(ctx, 0, -b.z*2, lx*0.92+sway, ly*1.04,
+          const sx=0, sy=-b.z*2, ex=lx*0.92+sway, ey=ly*1.04;
+          drawLeaf(ctx, sx, sy, ex, ey,
                    b.l*(Lm.moundHW||0.28)*rec, shade(S.fol,(b.z-0.5)*-24),
                    {shape:Lm.leafShape||'cordate',
                     bow:Lm.leafBow===undefined?0.10:Lm.leafBow});
+          if (Lm.spots && S.edge){
+            const spots=Math.max(1,Math.round(Lm.spots)), sr=(Lm.spotR||0.72)*rec;
+            ctx.fillStyle=shade(S.edge,(b.z-0.5)*-12);
+            for(let s2=0;s2<spots;s2++){
+              const f=0.40+(s2+1)/(spots+1)*0.42;
+              const px=sx+(ex-sx)*f+(s2%2?-1:1)*sr*0.45, py=sy+(ey-sy)*f;
+              ctx.beginPath();
+              ctx.ellipse(px,py,sr,sr*0.62,Math.atan2(ey-sy,ex-sx),0,7); ctx.fill();
+            }
+          }
         }
       } else
       for (let i=0;i<n;i++){
@@ -2792,7 +2869,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
     if (blooming && mature){
       ctx.strokeStyle=shade(S.fol||'#6f8f5a',-18); ctx.lineWidth=1.1;
-      const m=Math.max(1,Math.ceil((Lm.scapes||3)*blv));
+      const scapeBase=Lm.scapes===undefined?3:Lm.scapes;
+      const m=Math.max(0,Math.ceil(scapeBase*blv));
       for (let i=0;i<m;i++){ const ox=(rnd()-0.5)*10, len=H*(1.0+rnd()*0.2);
         ctx.beginPath(); ctx.moveTo(ox*0.4,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         if (art2On(Lm)){

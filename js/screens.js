@@ -1097,7 +1097,7 @@ const MENU_SCENES={
     sky:['#6f8795','#cfdac3','#1c1813'],
     glow:['rgba(202,213,132,.30)','rgba(96,132,78,.18)'],
     ground:'rgba(30,46,29,.30)', pageBg:'#1d1f16', alpha:.72, bloom:1,
-    keys:['crocus','daffodil','muscari','camassia','baptisia','creamindigo','amsonia','sedge','karl']
+    keys:['crocus','daffodil','muscari','camassia','baptisia','amsonia','sedge','karl']
   },
   Summer:{
     sky:['#627d83','#9ebd91','#1d1812'],

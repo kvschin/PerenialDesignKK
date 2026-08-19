@@ -448,9 +448,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    per-species renderer branches. Reads the season's `fol`/`bloom`/`seed`/`eye` colors; woody
    forms draw trunk/twigs every season and leaf out only when `fol` is
    present (redbud blooms on bare branches: `bloom` without `fol`). Bloom
-   staggering: `bloomLevel(key)` rises/peaks/fades across the 16-day season
-   (cool species peak ~day 5, mid ~8, warm ~11, per-species jitter); the
-   flower pass thins to that fraction of stems. Tray icons/previews pass
+   staggering: `bloomLevel(key,variant)` resolves the exact cultivar and
+   rises/holds/fades across its authored month window; the flower pass thins
+   to that fraction of stems. Tray icons/previews pass
    `bloomLvl=1` to force full bloom. Adds snow caps when
    `AMBIENCE[season].snow`.
 7. **`game`** — the single mutable state object (mode, plants map, `bulbs` map — a second layer sharing tiles with plants —
@@ -1140,6 +1140,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     silent; the Save button toasts. Sharing is file-based: `shareCurrentGarden`
     writes the stored blob inside a small envelope, `importWorldFile` validates
     it and writes a fresh local slot. Nothing syncs in the background.
+    Retired plant identities are canonicalized through `PLANT_REF_ALIASES` on
+    load in the active plant/bulb maps, every inactive planting scheme, and the
+    device-local Favorites/palettes. Alias sources are retired keys only; a
+    canonical target must never itself be an alias source, so migration is
+    idempotent and does not need a save-version branch.
 13a. **Planting schemes** — several plantings over one shared site plan, so a
     designer compares schemes instead of forking gardens. `SCHEME_LAYERS`
     (`['plants','bulbs']`, world.js) is the per-scheme subset of `GAME_LAYERS`;
@@ -1222,8 +1227,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     bulbs, groups them by species/cultivar, and maps `bloomMonths` to
     real-world Jan-Dec columns; missing month data falls back to conservative
     season-to-month estimates. The renderer also turns each consecutive
-    `bloomMonths` run into one continuous year-relative window, so a bloom
-    does not restart at a visual season boundary. `bloomDay` remains the
+    resolved species/cultivar `bloomMonths` run into one continuous
+    year-relative window, so a bloom does not restart at a visual season
+    boundary and a cultivar can carry its own window. `bloomDay` remains the
     exact within-season override for deliberately staggered bulbs and onions.
     `openBloomCalendar()` renders the in-game `#bloomScreen` table. The catalog
     reuses the same `bloomMonths` timing for discovery; renderer bloom color is
@@ -1698,13 +1704,34 @@ each seasonal `sea` slot over the base, so a compact habit or variegated leaf
 edge does not have to copy the species renderer contract. A shrub cultivar that
 changes rendered or recommended size (`h`, `cw`, `space`, or `spread`) must
 declare both its exact `heightIn` and `spread`; otherwise it silently inherits
-the base plant's mature dimensions.
+the base plant's mature dimensions. `fullName` is reserved for the rare nested
+exact-species choice whose common name should replace, rather than append to,
+the base name. `synonyms` is an array of accepted or recent botanical names;
+discovery search indexes it while `latin` remains the canonical display name.
+
+`group` is presentation identity, not botanical identity. Discovery collapses
+matching base species and nested cultivars with the same `group` into one
+family card and retains every exact `{s,v}` choice in the drill-in. This lets
+different Hylotelephium lineages, Joe Pye species, burnets, and the two Molinia
+subspecies share a useful family without pretending one is a cultivar of
+another.
+
+Some repeated base taxa are architectural aliases and are excluded from a
+botanical species count: `Iris versicolor` has separate perennial and water
+placement records; hydrangea mophead/lacecap pairs, single-/multistem river
+birch, and the boxwood/yew shape records preserve different renderer or tool
+contracts. Tests keep this allowlist explicit. Other duplicate base taxa are a
+catalog defect, not a precedent for another pseudo-species.
 
 Shared herbaceous morphology stays data-driven. Shrub-form forbs can use
 `look.flowerStyle:'double'` with `flowerR`/`flowerPetals` for large layered
 flowers; leafmounds can tune `leaves`, `scapes`, `florets`, `floretR`, and
-`floretGap`; rosettes can use `flowerStyle:'daylily'` for branched scapes with
-open six-tepal flowers. Omitted values preserve the original defaults.
+`floretGap`, set `scapes:0`, and add `spots`; rosettes can use
+`flowerStyle:'daylily'` for branched scapes with open six-tepal flowers.
+Archbells can select `archStyle:'bleedingHeart'`, while spikes can select
+`spikeStyle:'poker'` or `'delphinium'`; cone forms can use
+`rayShape:'poppy'` for four broad petals with basal marks. Omitted values
+preserve the defaults.
 
 ### Units and footprint policy
 

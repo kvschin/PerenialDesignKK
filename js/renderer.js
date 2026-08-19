@@ -671,7 +671,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites){
   if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
   const P=plantDef(key,variant), bloomS=bloomAppearanceFor(P,season);
-  const gB=gbucket(growth,9), bB=bloomS?gbucket(bloomLevel(key),4):0;
+  const gB=gbucket(growth,9), bB=bloomS?gbucket(bloomLevel(key,variant),4):0;
   const kk=seed+'|'+key+'|'+(variant||'')+'|'+season+'|'+gB+'|'+bB+'|'+(detail?JSON.stringify(detail):'');
   let e=PSPRITE.map.get(kk);
   // A sprite baked at a very different zoom blits soft, so re-render it (budget

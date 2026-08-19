@@ -83,12 +83,73 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
   assert(PLANTS.serviceberry.cv.autumnbrilliance.nativeTo.includes('north-america'),'the naturally occurring serviceberry hybrid keeps its North American range');
   assertEqual(PLANTS.crabapple.cv.sargent.provenance,'species','Sargent crabapple is an exact species entry');
   assert(PLANTS.crabapple.cv.sargent.nativeTo.includes('asia'),'Sargent crabapple records its East Asian origin');
-  ['mountainsedge','greatburnet','claudeshride','smokebush'].forEach(k=>
+  ['mountainsedge','greatburnet','smokebush'].forEach(k=>
     assert(PLANTS[k].nativeTo.includes('asia'),`${k} records its Asian range`));
+  assertEqual(PLANTS.claudeshride.provenance,'hybrid','Claude Shride is a Martagon hybrid, not the straight species');
+  assertEqual(PLANTS.claudeshride.nativeTo.length,0,'Claude Shride has no wild range');
   assert(PLANTS.eryngiumbourgatii.nativeTo.includes('africa'),'Eryngium bourgatii records its North African range');
   assert(!PLANTS.serbianspruce.nativeTo.includes('asia'),'Serbian spruce is European, not Asian');
-  assertEqual(PLANTS.smokebush.cv.grace.nativeTo.length,0,'both Grace smoketree records are garden hybrids');
-  assertEqual(PLANTS.smoketree.cv.grace.nativeTo.length,0,'duplicate Grace smoketree records agree on origin');
+  assertEqual(PLANTS.smokebush.cv.grace.nativeTo.length,0,'Grace smokebush is a garden hybrid');
+  assertEqual(PLANTS.smoketree.cv,undefined,'American smoketree does not repeat Cotinus coggygria cultivars');
+});
+
+test('catalog cleanup leaves only intentional base-taxon aliases', () => {
+  assertEqual(PLANT_KEYS.length,405,'canonical base-record count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),267,
+    'canonical nested-choice count');
+  for (const retired of ['creamindigo','salvia','salviaspecies'])
+    assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
+
+  const expectedAliases={
+    'creamindigo|':'baptisia|creamwild',
+    'salvia|':'meadowsage|caradonna',
+    'salviaspecies|':'meadowsage|',
+    'smoketree|grace':'smokebush|grace',
+  };
+  for (const [from,to] of Object.entries(expectedAliases)){
+    assertEqual(PLANT_REF_ALIASES[from],to,`${from}: durable migration`);
+    assertEqual(PLANT_REF_ALIASES[to],undefined,`${to}: canonical refs never alias again`);
+  }
+
+  const allowed=new Map([
+    ['Iris versicolor','northernblueflag,waterblueflag'],
+    ['Hydrangea macrophylla','bigleaflace,hydrangea'],
+    ['Hydrangea arborescens','smoothhydrangea,smoothlace'],
+    ['Betula nigra','riverbirch,riverbirchmulti'],
+    ['Buxus sempervirens / hybrids','boxwoodcolumn,boxwoodcone,boxwoodlow,boxwoodround,boxwoodsquare'],
+    ['Taxus x media','yewlow,yewmedium,yewtall'],
+  ]);
+  const byLatin=new Map();
+  for (const key of PLANT_KEYS){
+    const list=byLatin.get(PLANTS[key].latin)||[]; list.push(key); byLatin.set(PLANTS[key].latin,list);
+  }
+  const duplicates=[...byLatin].filter(([,list])=>list.length>1);
+  assertEqual(duplicates.length,allowed.size,'only renderer/layer aliases duplicate a base Latin');
+  for (const [latin,list] of duplicates)
+    assertEqual(list.sort().join(','),allowed.get(latin),`${latin}: intentional architectural alias`);
+});
+
+test('cleaned exact selections keep accepted names and provenance', () => {
+  const latin={
+    karl:"Calamagrostis × acutiflora 'Karl Foerster'",
+    molinia:"Molinia caerulea subsp. arundinacea 'Transparent'",
+    phlox:"Phlox paniculata 'Jeana'",
+    joepye:"Eutrochium maculatum 'Gateway'",
+    persicaria:"Bistorta amplexicaulis 'Firetail'",
+    stachys:"Betonica officinalis 'Hummelo'",
+    lilacsquirrel:"Sanguisorba hakusanensis 'Lilac Squirrel'",
+    claudeshride:"Lilium 'Claude Shride'",
+  };
+  for (const [key,name] of Object.entries(latin)) assertEqual(PLANTS[key].latin,name,`${key}: exact Latin`);
+  assert(['europe','asia','africa'].every(r=>PLANTS.stachys.nativeTo.includes(r)),'Hummelo keeps the Betonica species range');
+  assert(!PLANTS.greatburnet.nativeTo.includes('north-america'),'introduced great burnet is not a North American native');
+  assertEqual(PLANTS.rudbeckia.cv.americangoldrush.provenance,'hybrid','American Gold Rush does not inherit the wrong species');
+  assertEqual(PLANTS.rudbeckia.cv.americangoldrush.nativeTo.length,0,'American Gold Rush has no asserted wild range');
+  assertEqual(PLANTS.meadowsage.cv.maynight.nativeTo.join(','),'europe','May Night keeps the Salvia x sylvestris range');
+  assertEqual(PLANTS.meadowsage.cv.bluehill.nativeTo.join(','),'europe','Blue Hill keeps the Salvia x sylvestris range');
+  assertEqual(PLANTS.autumnfire.provenance,'hybrid','Autumn Fire follows its hybrid lineage');
+  assertEqual(PLANTS.purpleemperor.provenance,'selection','Purple Emperor remains a species selection');
 });
 
 test('seasonal appearance (sea) is well-formed', () => {
@@ -458,12 +519,12 @@ test('second-wave native additions keep their distinct form and cultivar policy'
 
 test('European Oudolf additions retain their design roles and distinct renderer styles', () => {
   const expected = {
-    molinia:['Molinia caerulea subsp. arundinacea','cloudgrass'],
+    molinia:["Molinia caerulea subsp. arundinacea 'Transparent'",'cloudgrass'],
     knautia:['Knautia macedonica','pincushion'],
     astrantia:['Astrantia major','pincushion'],
     eryngiumbourgatii:['Eryngium bourgatii','globe'],
     matrona:["Hylotelephium 'Matrona'",'umbel'],
-    persicaria:['Persicaria amplexicaulis','spike'],
+    persicaria:["Bistorta amplexicaulis 'Firetail'",'spike'],
   };
   for (const k in expected){
     const P=PLANTS[k];
@@ -586,6 +647,75 @@ test('high-priority perennial gaps keep exact taxa, origins, and starter cultiva
   assertEqual(PLANTS.foamflower.zones[0],4,'foamflower keeps its verified species hardiness');
   assert(PLANTS.brunnera.nativeTo.includes('europe')&&PLANTS.brunnera.nativeTo.includes('asia'),
     'brunnera records its trans-Caucasian European and Asian range');
+});
+
+test('second-wave perennial staples keep exact lineages, origins, and morphology', () => {
+  const expected = {
+    bleedingheart:['Lamprocapnos spectabilis','forb'],
+    lambsear:['Stachys byzantina','forb'],
+    redhotpoker:['Kniphofia hybrids','forb'],
+    orientalpoppy:['Papaver orientale','forb'],
+    delphinium:['Delphinium hybrids','forb'],
+    spikespeedwell:['Veronica spicata','forb'],
+    peachbellflower:['Campanula persicifolia','forb'],
+    blanketflower:['Gaillardia aristata','forb'],
+    arizonasun:["Gaillardia 'Arizona Sun'",'forb'],
+    goatsbeard:['Aruncus dioicus','forb'],
+    dianaclarelungwort:["Pulmonaria 'Diana Clare'",'forb'],
+    blueensignlungwort:["Pulmonaria 'Blue Ensign'",'forb'],
+    sissinghurstlungwort:["Pulmonaria 'Sissinghurst White'",'forb'],
+  };
+  for (const k in expected){
+    const P=PLANTS[k];
+    assert(P, `${k}: second-wave perennial is missing`);
+    assertEqual(P.latin,expected[k][0],`${k}: botanical name`);
+    assertEqual(P.type,expected[k][1],`${k}: catalog type`);
+    assert(Array.isArray(P.bloomMonths)&&P.bloomMonths.length,`${k}: needs real bloom months`);
+  }
+
+  for (const k of ['bleedingheart','lambsear','orientalpoppy','spikespeedwell','peachbellflower','goatsbeard'])
+    assert(PLANTS[k].nativeTo.includes('asia'),`${k}: Asian range`);
+  for (const k of ['spikespeedwell','peachbellflower','goatsbeard'])
+    assert(PLANTS[k].nativeTo.includes('europe'),`${k}: European range`);
+  for (const k of ['blanketflower','goatsbeard'])
+    assert(PLANTS[k].nativeTo.includes('north-america'),`${k}: North American range`);
+  for (const k of ['redhotpoker','delphinium','arizonasun','blueensignlungwort','sissinghurstlungwort']){
+    assertEqual(PLANTS[k].provenance,'hybrid',`${k}: hybrid provenance`);
+    assertEqual(PLANTS[k].nativeTo.length,0,`${k}: garden hybrid has no wild range`);
+  }
+  assertEqual(PLANTS.dianaclarelungwort.provenance,'hybrid','Diana Clare keeps its unresolved garden lineage');
+  assertEqual(PLANTS.dianaclarelungwort.nativeTo.length,0,'Diana Clare does not inherit a disputed species range');
+
+  const cultivars = {
+    bleedingheart:['alba','goldheart'],
+    lambsear:['bigears','silvercarpet'],
+    redhotpoker:['royalstandard','beessunset'],
+    orientalpoppy:['beautyoflivermere','pattysplum'],
+    delphinium:['blackknight','bluebird'],
+    spikespeedwell:['glory','icicle','rotfuchs'],
+    peachbellflower:['telhambeauty','alba'],
+    goatsbeard:['kneiffii'],
+  };
+  for (const k in cultivars) for (const v of cultivars[k])
+    assert(PLANTS[k].cv[v],`${k}.${v}: starter cultivar`);
+
+  assertEqual(PLANTS.bleedingheart.look.archStyle,'bleedingHeart','bleeding heart keeps heart-shaped flowers');
+  assertEqual(PLANTS.redhotpoker.look.spikeStyle,'poker','Kniphofia keeps a bicolor torch');
+  assertEqual(PLANTS.delphinium.look.spikeStyle,'delphinium','delphinium keeps an open-floret raceme');
+  assertEqual(PLANTS.delphinium.cv.blackknight.latin,'Delphinium Black Knight Group',
+    'Black Knight keeps its accepted Pacific-hybrid group identity');
+  assertEqual(PLANTS.delphinium.cv.bluebird.latin,"Delphinium 'Blue Bird'",
+    'Blue Bird does not inherit the wrong Elatum Group identity');
+  assertEqual(PLANTS.peachbellflower.look.spikeStyle,'bell','Campanula keeps pendant open bells');
+  assertEqual(PLANTS.orientalpoppy.look.rays,4,'Oriental poppy keeps four broad petals');
+  assertEqual(PLANTS.orientalpoppy.look.rayShape,'poppy','Oriental poppy keeps basal blotches instead of daisy rays');
+  assertEqual(PLANTS.lambsear.cv.silvercarpet.look.scapes,0,'Silver Carpet stays effectively non-flowering');
+  assert(PLANTS.dianaclarelungwort.look.spots>0&&PLANTS.sissinghurstlungwort.look.spots>0,
+    'spotted lungwort foliage stays visually distinct');
+  assertEqual(PLANTS.blanketflower.group,'gaillardia','straight and hybrid blanket flowers share a picker');
+  assertEqual(PLANTS.arizonasun.group,'gaillardia','Arizona Sun stays a separate exact hybrid in the picker');
+  for (const k of ['dianaclarelungwort','blueensignlungwort','sissinghurstlungwort'])
+    assertEqual(PLANTS[k].group,'lungwort',`${k}: exact lungwort records share a picker`);
 });
 
 test('landscape shrub expansion keeps botanical identity and grouping', () => {

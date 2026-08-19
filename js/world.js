@@ -727,8 +727,8 @@ function bloomWindowLevel(day,start,end){
 /* Within a single, deliberately staggered bloom season, retain the familiar
    rise/peak/fade. Across a month- or season-spanning run, use one annual
    rise/hold/fade instead, so it cannot blink off at a seasonal boundary. */
-function bloomLevel(key){
-  const P=PLANTS[key]||{};
+function bloomLevel(key,variant){
+  const P=plantDef(key,variant)||{};
   const seasonDay=(((absDay()%DAYS_PER_SEASON)+DAYS_PER_SEASON)%DAYS_PER_SEASON)+calClock().frac;
   if (P.bloomDay!==undefined){
     const t2=Math.max(0,1-Math.abs(seasonDay-P.bloomDay)/7);

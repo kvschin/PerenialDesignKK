@@ -590,12 +590,13 @@ function normalizePetDraft(d){
    look knobs and per-season colors. Cached — render asks every frame. */
 const _defCache={};
 function plantDef(key,v){
+  const canonical=canonicalPlantRef(key,v); key=canonical.s; v=canonical.v;
   const base=PLANTS[key];
   if (!v || !base || !base.cv || !base.cv[v]) return base;
   const ck=key+'|'+v;
   if (_defCache[ck]) return _defCache[ck];
   const c=base.cv[v];
-  const d=Object.assign({},base,c,{name:base.name+' '+c.name,
+  const d=Object.assign({},base,c,{name:c.fullName||base.name+' '+c.name,
     look:Object.assign({},base.look||{},c.look||{}),sea:{}});
   for (const s of SEASONS) d.sea[s]=Object.assign({},base.sea[s],(c.sea||{})[s]);
   if (base.flowerColorFamilies || c.flowerColorFamilies){

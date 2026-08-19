@@ -1537,17 +1537,17 @@ function discoveryFamilyCard(group,d){
   if (group.refs.length===1) return discoveryResultCard(group.refs[0],d);
   const base=PLANTS[group.s], active=group.refs.find(activePlantRef), rep=active||group.representativeRef;
   const R=refDef(rep)||base, row=document.createElement('article');
-  row.className='plant-result-card plant-family-card'+(active?' sel':''); row.id=`plant-family-${group.s}`;
+  row.className='plant-result-card plant-family-card'+(active?' sel':''); row.id=`plant-family-${group.domId}`;
   const main=document.createElement('button'); main.type='button'; main.className='plant-result-main plant-family-main';
-  main.title=`View ${base.name} varieties`; main.setAttribute('aria-label',`View ${base.name} varieties`);
-  main.setAttribute('aria-expanded','false'); main.setAttribute('aria-controls',`plant-varieties-${group.s}`);
-  const art=plantArtCanvas(group.s,rep.v,previewSeasonForRef(rep,d),R);
+  main.title=`View ${group.label} choices`; main.setAttribute('aria-label',`View ${group.label} choices`);
+  main.setAttribute('aria-expanded','false'); main.setAttribute('aria-controls',`plant-varieties-${group.domId}`);
+  const art=plantArtCanvas(rep.s,rep.v,previewSeasonForRef(rep,d),R);
   const copy=document.createElement('span'); copy.className='plant-result-copy';
-  const name=document.createElement('b'); name.textContent=base.name;
-  const latin=document.createElement('em'); latin.textContent=base.latin||'';
+  const name=document.createElement('b'); name.textContent=group.label;
+  const latin=document.createElement('em'); latin.textContent=group.crossSpecies?'Grouped species and cultivars':base.latin||'';
   const meta=document.createElement('span'); meta.className='plant-result-meta';
   discoveryGroupFamilies(group,d).forEach(family=>{ const dot=document.createElement('i'); dot.className='plant-result-dot'; dot.style.background=discoverySwatch(family); dot.setAttribute('aria-hidden','true'); meta.appendChild(dot); });
-  const varieties=document.createElement('span'); varieties.textContent=`${group.cultivarRefs.length} variet${group.cultivarRefs.length===1?'y':'ies'}`;
+  const varieties=document.createElement('span'); varieties.textContent=`${group.refs.length} choice${group.refs.length===1?'':'s'}`;
   const groupBloom=discoveryGroupBloomText(group);
   const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
   varieties.className='plant-variety-tag';
@@ -1558,7 +1558,7 @@ function discoveryFamilyCard(group,d){
   main.appendChild(open);
   main.onclick=()=>{
     const tray=document.getElementById('toolTray'); discoveryReturnScroll=tray?tray.scrollTop:0;
-    discoveryOpenSpecies=group.s; setSheetState('full'); buildToolTray();
+    discoveryOpenSpecies=group.id; setSheetState('full'); buildToolTray();
     setTimeout(()=>{ const head=document.querySelector('.cultivar-drill-back'); if (head) head.focus({preventScroll:true}); },0);
   };
   row.appendChild(main); discoveryPlacingBadge(row,!!active); return row;
@@ -1639,8 +1639,8 @@ function catalogMinimizeButton(){
   return b;
 }
 function discoveryResultCountText(refs){
-  const groups=groupDiscoveryRefs(refs), varieties=groups.reduce((n,group)=>n+group.cultivarRefs.length,0);
-  return `${groups.length} plant${groups.length===1?'':'s'}${varieties?` \u00b7 ${varieties} variet${varieties===1?'y':'ies'}`:''}`;
+  const groups=groupDiscoveryRefs(refs), choices=groups.reduce((n,group)=>n+Math.max(0,group.refs.length-1),0);
+  return `${groups.length} plant${groups.length===1?'':'s'}${choices?` \u00b7 ${choices} additional choice${choices===1?'':'s'}`:''}`;
 }
 function discoverySearchSelection(d,query){
   const q=String(query||'');
@@ -1808,19 +1808,19 @@ function renderDiscoveryTray(tray){
     reset.onclick=()=>{ setDiscovery({source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36},true); buildToolTray(); };
     empty.appendChild(reset); tray.appendChild(empty); return;
   }
-  const openGroup=discoveryOpenSpecies&&groups.find(group=>group.s===discoveryOpenSpecies);
+  const openGroup=discoveryOpenSpecies&&groups.find(group=>group.id===discoveryOpenSpecies);
   if (openGroup){
     tray.classList.add('cultivar-drill');
-    const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.s}`;
+    const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.domId}`;
     const back=document.createElement('button'); back.type='button'; back.className='cultivar-drill-back'; setUiIcon(back,'chevron-left');
     const backText=document.createElement('span'); backText.textContent='Back to plants'; back.appendChild(backText);
     back.onclick=()=>{ const species=discoveryOpenSpecies; discoveryOpenSpecies=null; buildToolTray();
-      setTimeout(()=>{ const next=document.getElementById(`plant-family-${species}`), nextTray=document.getElementById('toolTray');
+      setTimeout(()=>{ const next=document.getElementById(`plant-family-${openGroup.domId}`), nextTray=document.getElementById('toolTray');
         if (nextTray) nextTray.scrollTop=discoveryReturnScroll;
         const focus=next&&next.querySelector('.plant-family-main'); if (focus) focus.focus({preventScroll:true}); },0); };
     const title=document.createElement('div'); title.className='cultivar-drill-title';
-    const strong=document.createElement('strong'); strong.textContent=base.name;
-    const small=document.createElement('small'); small.textContent=`${openGroup.refs.length} matching choice${openGroup.refs.length===1?'':'s'} · ${base.latin||''}`;
+    const strong=document.createElement('strong'); strong.textContent=openGroup.label;
+    const small=document.createElement('small'); small.textContent=`${openGroup.refs.length} matching choice${openGroup.refs.length===1?'':'s'} · ${openGroup.crossSpecies?'grouped taxa':base.latin||''}`;
     title.append(strong,small); head.append(back,title); tray.appendChild(head);
     const variants=document.createElement('div'); variants.className='plant-variant-grid';
     openGroup.refs.forEach(ref=>variants.appendChild(discoveryResultCard(ref,d,{variant:true}))); tray.appendChild(variants);

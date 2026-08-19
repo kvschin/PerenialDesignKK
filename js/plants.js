@@ -104,15 +104,18 @@
            leaf count, fan, mound/cloud/plume density; cone forms use
            rays (count), rayLen, rayW, droop (how hard the rays fall),
            stems, leaves, leafW, leafLen — leafy purpurea vs wispy
-           pallida vs hard-reflexed atrorubens
+           pallida vs hard-reflexed atrorubens; `rayShape:'poppy'` gives
+           four broad petals their dark basal marks
            Spike forms may select `spikeStyle:'liatris'|'bell'|'penstemon'|
-           'culvers'|'prairieClover'|'goldenrodPanicle'`; pincushion forms may select
+           'culvers'|'prairieClover'|'goldenrodPanicle'|'poker'|'delphinium'`;
+           pincushion forms may select
            `pincushionStyle:'astrantia'`; globe forms may select
            `globeStyle:'seaHolly'`; shrub forms may select
            `habit:'mossphlox'` for a low evergreen runner mat instead of a
            generic mound, or `flowerStyle:'double'` plus flowerR/flowerPetals
            for large layered blooms. Leafmounds may tune leaves/scapes/florets/
-           floretR/floretGap while preserving the hosta defaults.
+           floretR/floretGap, set scapes to zero, and add foliage spots.
+           Archbells may use `archStyle:'bleedingHeart'` for heart flowers.
            Rosettes may select `flowerStyle:'daylily'` for branched scapes
            carrying open, six-tepal flowers instead of the yucca bell tower.
            Sedges stay on the `bunchgrass` form: use mound/leaves/fan/
@@ -221,7 +224,7 @@ const PLANTS = {
       stemLen:0.74, heads:2, teeth:9, headLen:10, toothLen:2.4, headTilt:0.1},
     blurb:'A shortgrass-prairie workhorse: fine blue-green tufts with tiny eyelash seed combs, built for lean dry ground.',
     sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#6f8f5a',bloom:'#9c8288',seed:'#a49a68'}, Fall:{fol:'#b89a5e',seed:'#d0bc88'}, Winter:{fol:'#aa9670',seed:'#c8b890'}}},
-  karl:{ name:"Feather Reed Grass 'Karl Foerster'", latin:'Calamagrostis × acutiflora', form:'vertgrass', type:'grass', h:62,
+  karl:{ name:"Feather Reed Grass 'Karl Foerster'", latin:"Calamagrostis × acutiflora 'Karl Foerster'", form:'vertgrass', type:'grass', h:62,
     space:24, spread:24, zones:[4,9], _legacyNative:false, sun:'full', moist:'medium', phen:'cool',
     look:{art2:true, plumeStyle:'spike', plumeLen:0.20},
     blurb:'The exclamation point. Vertical wheat-colored plumes by June that stand straight through snow.',
@@ -357,13 +360,15 @@ const PLANTS = {
     look:{art2:true},
     blurb:'A tall, airy Mediterranean stipa with golden oat-like panicles held well above a basal mound.',
     sea:{Spring:{fol:'#7d9a6a'}, Summer:{fol:'#7a8f62',seed:'#d7b45f'}, Fall:{fol:'#b89a5e',seed:'#d8bd78'}, Winter:{fol:'#a89068',seed:'#d0bd8a'}}},
-  molinia:{ name:"Purple Moor Grass 'Transparent'", latin:'Molinia caerulea subsp. arundinacea', form:'cloudgrass', type:'grass', h:72,
+  molinia:{ name:"Purple Moor Grass 'Transparent'", latin:"Molinia caerulea subsp. arundinacea 'Transparent'", form:'cloudgrass', type:'grass', h:72,
+    group:'molinia', groupLabel:'Purple Moor Grass', chip:'Transparent',
     space:36, spread:48, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'warm',
     look:{art2:true, leaves:18, leafFan:1, leafLen:0.31, bladeSpread:0.52, leafW:1.2, stems:8, stemFan:0.75,
       stemBase:10, stemLean:0.03, panicle:true, cloudDots:6, cloudWidth:22, cloudHeight:28, cloudRadius:0.55, cloudTop:1.12},
     blurb:'A low green tussock sending a transparent veil of purple-then-straw panicles high above it. The quiet late-season matrix grass.',
     sea:{Spring:{fol:'#6f8f5a'}, Summer:{fol:'#5d7a4c',bloom:'#9f8eaa'}, Fall:{fol:'#b49d62',seed:'#c5b38a'}, Winter:{fol:'#a68b68',seed:'#c4ae88'}}},
   moorhexe:{ name:"Purple Moor Grass 'Moorhexe'", latin:"Molinia caerulea subsp. caerulea 'Moorhexe'", form:'moorgrass', type:'grass', h:18,
+    group:'molinia', groupLabel:'Purple Moor Grass', chip:'Moorhexe',
     space:15, spread:18, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'cool',
     look:{art2:true, leaves:19, stems:7, fan:1.15, leafLen:0.74, seedBeads:7},
     blurb:'A compact purple moor grass: dense upright foliage, dark purple flower stems in late summer, and warm orange-brown fall color.',
@@ -645,9 +650,11 @@ const PLANTS = {
     blurb:'Long-lived wild indigo: shrub-like blue-green foliage, pea flowers in spring, and charcoal pods for winter.',
     sea:{Spring:{fol:'#6f8f6e',bloom:'#4a5d9e'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}},
     cv:{
-      creamwild:{name:'Cream Wild', note:'low, early cream flowers on Baptisia bracteata',
+      creamwild:{name:'Cream Wild Indigo', fullName:'Cream Wild Indigo', note:'low, early cream flowers on Baptisia bracteata',
         latin:'Baptisia bracteata', _legacyNative:true,
         h:30, space:30, spread:36,
+        look:{habit:'baptisia', stems:9, baseW:17, leafWhorls:3, raceme:5, flowerStems:6, flowerW:22, flowerLen:0.72,
+          art2:true, leafShape:'ovate', leafHW:0.88},
         sea:{Spring:{fol:'#7d9a6e',bloom:'#e8e0b8'}, Summer:{fol:'#6f8f6e'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}}},
       carolinamoonlight:{name:"'Carolina Moonlight'", note:'soft butter-yellow spikes',
         sea:{Spring:{fol:'#6f8f6e',bloom:'#eadb82'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#7a7052',seed:'#2c2620'}}},
@@ -658,13 +665,6 @@ const PLANTS = {
       solarflare:{name:"'Solar Flare'", note:'yellow flowers aging warm apricot',
         sea:{Spring:{fol:'#6f8f6e',bloom:'#e6c34a'}, Summer:{fol:'#5d7a5c',bloom:'#d88a4a'}, Fall:{fol:'#7a7052',seed:'#2c2620'}}},
     }},
-  creamindigo:{ name:'Cream Wild Indigo', latin:'Baptisia bracteata', form:'shrub', type:'forb', h:30,
-    hidden:true,
-    space:30, spread:36, zones:[3,8], _legacyNative:true, sun:'full', moist:'dry', phen:'cool',
-    look:{habit:'baptisia', stems:9, baseW:17, leafWhorls:3, raceme:5, flowerStems:6, flowerW:22, flowerLen:0.72,
-      art2:true, leafShape:'ovate', leafHW:0.88},
-    blurb:'Cream pea-flowers low to the ground in April, before the grasses wake. Slow but permanent.',
-    sea:{Spring:{fol:'#7d9a6e',bloom:'#e8e0b8'}, Summer:{fol:'#6f8f6e'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}}},
   purpleprairieclover:{ name:'Purple Prairie Clover', latin:'Dalea purpurea', form:'spike', type:'forb', h:30,
     group:'prairieclover', groupLabel:'Prairie Clover', chip:'Purple',
     space:18, spread:18, zones:[3,8], _legacyNative:true, sun:'full', moist:'dry', phen:'mid',
@@ -764,7 +764,7 @@ const PLANTS = {
       moonshine:{name:"'Moonshine'", note:'sulphur-yellow over silver leaves',
         sea:{Spring:{fol:'#9aa890'}, Summer:{fol:'#8a9a80',bloom:'#e8c23a'}, Fall:{fol:'#9a9a78',seed:'#c2b482'}}},
     }},
-  sedum:{ name:"Stonecrop 'Autumn Joy'", latin:'Hylotelephium', form:'umbel', type:'forb', h:28,
+  sedum:{ name:"Stonecrop 'Autumn Joy'", latin:"Hylotelephium (Herbstfreude Group) 'Herbstfreude'", form:'umbel', type:'forb', h:28,
     group:'hylotelephium', groupLabel:'Stonecrop', chip:'Autumn Joy',
     space:18, spread:24, zones:[3,9], _legacyNative:false, sun:'full', moist:'dry', phen:'mid',
     look:{head:6.5, dome:0.6, stems:7, leaves:6, leafW:2.6, leafLen:0.36,
@@ -778,34 +778,34 @@ const PLANTS = {
       art2:true, leafShape:'ovate', leafHW:1.80, leafFan:1.50, leafRise:0.76, leafTeeth:0.08, leafTeethN:6, floretR:1.35},
     blurb:'Dusky ruby stems and gray-green leaves carry broad pale-pink plates into autumn, then hold a dark, handsome silhouette.',
     sea:{Spring:{fol:'#7f987e'}, Summer:{fol:'#778d76',bloom:'#c9c9c1'}, Fall:{fol:'#866f68',bloom:'#cf8995'}, Winter:{fol:'#6b5a50',seed:'#875867'}}},
-  autumnfire:{ name:"Stonecrop 'Autumn Fire'", latin:"Hylotelephium spectabile 'Autumn Fire'", form:'umbel', type:'forb', h:22,
+  autumnfire:{ name:"Stonecrop 'Autumn Fire'", latin:"Hylotelephium × mottramianum 'Autumn Fire'", form:'umbel', type:'forb', h:22,
     group:'hylotelephium', groupLabel:'Stonecrop', chip:'Autumn Fire',
     space:18, spread:24, zones:[3,9], _legacyNative:false, sun:'full', moist:'dry', phen:'mid',
     look:{head:6.8, dome:0.62, stems:8, leaves:7, leafW:2.7, leafLen:0.38,
       art2:true, leafShape:'ovate', leafHW:1.75, leafFan:1.55, leafRise:0.74, leafTeeth:0.08, leafTeethN:6, floretR:1.35},
     blurb:'A sturdier, redder Autumn Joy type with bright raspberry flower plates and reliable burnt-copper winter heads.',
     sea:{Spring:{fol:'#8aa681'}, Summer:{fol:'#7b9876',bloom:'#ddb1b7'}, Fall:{fol:'#927060',bloom:'#ce687d'}, Winter:{fol:'#7b5d4d',seed:'#94503e'}}},
-  purpleemperor:{ name:"Stonecrop 'Purple Emperor'", latin:"Hylotelephium telephium 'Purple Emperor'", form:'umbel', type:'forb', h:20,
+  purpleemperor:{ name:"Stonecrop 'Purple Emperor'", latin:"Hylotelephium telephium (Atropurpureum Group) 'Purple Emperor'", form:'umbel', type:'forb', h:20,
     group:'hylotelephium', groupLabel:'Stonecrop', chip:'Purple Emperor',
     space:18, spread:24, zones:[3,9], _legacyNative:false, sun:'full', moist:'dry', phen:'mid', stem:'#563b49',
     look:{head:6.4, dome:0.55, stems:7, leaves:7, leafW:2.8, leafLen:0.40,
       art2:true, leafShape:'ovate', leafHW:1.80, leafFan:1.60, leafRise:0.74, leafTeeth:0.08, leafTeethN:6, floretR:1.30},
     blurb:'Deep plum foliage and rose-pink flower plates make a dark, graphic stonecrop for late-season combinations.',
     sea:{Spring:{fol:'#684a5a'}, Summer:{fol:'#5a3d50',bloom:'#cf8ca2'}, Fall:{fol:'#674958',bloom:'#c66f8c'}, Winter:{fol:'#59434a',seed:'#704b52'}}},
-  autumncharm:{ name:"Stonecrop 'Autumn Charm'", latin:"Hylotelephium 'Lajos' AUTUMN CHARM", form:'umbel', type:'forb', h:15,
+  autumncharm:{ name:"Stonecrop 'Autumn Charm'", latin:"Hylotelephium × mottramianum 'Lajos'", form:'umbel', type:'forb', h:15,
     group:'hylotelephium', groupLabel:'Stonecrop', chip:'Autumn Charm',
     space:15, spread:18, zones:[3,9], _legacyNative:false, sun:'full', moist:'dry', phen:'mid',
     look:{head:5.8, dome:0.50, stems:6, leaves:7, leafW:2.5, leafLen:0.34,
       art2:true, leafShape:'ovate', leafHW:1.70, leafFan:1.60, leafRise:0.76, leafTeeth:0.08, leafTeethN:6, floretR:1.30},
     blurb:'A compact variegated stonecrop with cream-edged foliage and soft pink-to-red flower plates for the sunny front edge.',
     sea:{Spring:{fol:'#a8ae83'}, Summer:{fol:'#9ca979',bloom:'#d8b2ba'}, Fall:{fol:'#aa8a6c',bloom:'#c97986'}, Winter:{fol:'#856e58',seed:'#986355'}}},
-  phlox:{ name:"Garden Phlox 'Jeana'", latin:'Phlox paniculata', form:'umbel', type:'forb', h:50,
+  phlox:{ name:"Garden Phlox 'Jeana'", latin:"Phlox paniculata 'Jeana'", form:'umbel', type:'forb', h:50,
     space:18, spread:24, zones:[4,8], _legacyNative:true, sun:'full', moist:'medium', phen:'mid',
     look:{head:5.5, dome:0.5, stems:5, leaves:7, leafLen:0.3,
       art2:true, leafShape:'lance', leafHW:1.60, leafFan:1.50, leafRise:0.80, floretR:1.95},
     blurb:'Mildew-proof and butterfly-mobbed — lavender-pink trusses scenting the July border. The Mt Cuba champion.',
     sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#d07aa8'}, Fall:{fol:'#7a7a55',seed:'#6e5f48'}, Winter:{fol:'#6b6150',seed:'#4a4234'}}},
-  joepye:{ name:"Joe Pye Weed 'Gateway'", latin:'Eutrochium maculatum', form:'umbel', type:'forb', h:72,
+  joepye:{ name:"Joe Pye Weed 'Gateway'", latin:"Eutrochium maculatum 'Gateway'", form:'umbel', type:'forb', h:72,
     group:'joepye', groupLabel:'Joe Pye Weed', chip:'Gateway',
     space:30, spread:36, zones:[3,8], _legacyNative:true, sun:'full', moist:'moist', phen:'warm', stem:'#5a3a44',
     look:{head:8, dome:0.6, stems:5, leaves:6, leafLen:0.3,
@@ -819,7 +819,7 @@ const PLANTS = {
       art2:true, leafShape:'lance', leafHW:1.50, leafFan:1.50, leafRise:0.84, leafTeeth:0.12, leafTeethN:8, floretR:1.30},
     blurb:'A compact Joe Pye selection for the front of a moist sunny border: dusky pink domes, dark stems, and much less height than Gateway.',
     sea:{Spring:{fol:'#728d70'}, Summer:{fol:'#5e7b60',bloom:'#bd829b'}, Fall:{fol:'#7b6c5b',seed:'#806070'}, Winter:{fol:'#6a5e52',seed:'#705464'}}},
-  persicaria:{ name:"Mountain Fleece 'Firetail'", latin:'Persicaria amplexicaulis', form:'spike', type:'forb', h:48,
+  persicaria:{ name:"Mountain Fleece 'Firetail'", latin:"Bistorta amplexicaulis 'Firetail'", synonyms:["Persicaria amplexicaulis 'Firetail'"], form:'spike', type:'forb', h:48,
     space:36, spread:42, zones:[4,7], _legacyNative:false, sun:'part', moist:'moist', phen:'mid', stem:'#874d4b',
     look:{spikeStyle:'liatris', stems:10, stemSpread:22, lenBase:0.72, lenJitter:0.2, wildLean:4,
       leaves:12, leafW:2.8, leafLen:0.42, stemLeaves:5, stemLeafW:1.6, stemLeafLen:9,
@@ -841,7 +841,7 @@ const PLANTS = {
       art2:true, leafShape:'lance', leafHW:1.45, leafFan:1.50, leafRise:0.84, leafTeeth:0.12, leafTeethN:8, floretR:1.25},
     blurb:'Baldwin’s ironweed: broad late-purple corymbs over sturdy stems, useful in sunny clay and dry-to-medium prairie plantings.',
     sea:{Spring:{fol:'#6e8d59'}, Summer:{fol:'#5b7949',bloom:'#70418b'}, Fall:{fol:'#6d7250',bloom:'#663d7e',seed:'#90728d'}, Winter:{fol:'#726657',seed:'#806b7c'}}},
-  stachys:{ name:"Betony 'Hummelo'", latin:'Stachys monnieri', form:'spike', type:'forb', h:24,
+  stachys:{ name:"Betony 'Hummelo'", latin:"Betonica officinalis 'Hummelo'", synonyms:["Stachys officinalis 'Hummelo'","Stachys monieri 'Hummelo'"], form:'spike', type:'forb', h:24,
     space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
     look:{art2:true, leafShape:'ovate', leafHW:1.90, leafFan:1.70, leafRise:0.74, leafTeeth:0.12, leafTeethN:7, a2Spike:0.26, a2Florets:8, a2FloretR:2.1, a2FloretSq:0.95, a2Wobble:1.4},
     blurb:'Tidy rosettes throwing up rosy-violet bottlebrushes for weeks — the 2019 Perennial of the Year, and earns it.',
@@ -995,24 +995,20 @@ const PLANTS = {
       art2:true, leafShape:'cordate', leafHW:1.60, leafFan:1.60, leafRise:0.82, leafTeeth:0.12, leafTeethN:7},
     blurb:'A woodland-edge goldenrod with arching late-yellow sprays. Give its rhizomes room, or use it as a generous sunny drift.',
     sea:{Spring:{fol:'#71905d'}, Summer:{fol:'#617d50'}, Fall:{fol:'#787858',bloom:'#e5ba2b',seed:'#b58d60'}, Winter:{fol:'#766858',seed:'#aa8968'}}},
-  salvia:{ name:"Salvia 'Caradonna'", latin:'Salvia nemorosa', form:'spike', type:'forb', h:38,
-    group:'salvia', groupLabel:'Salvia', chip:'Caradonna',
-    space:18, spread:15, zones:[4,8], _legacyNative:false, sun:'full', moist:'dry', phen:'cool', stem:'#3a3038',
-    look:{art2:true, leafShape:'ovate', leafHW:1.55, leafFan:1.70, leafRise:0.78, leafTeeth:0.12, leafTeethN:8, a2Spike:0.34, a2Florets:9, a2FloretR:1.7, a2FloretSq:1.05, a2Wobble:2.2},
-    blurb:'Near-black stems with violet spikes in waves from May. Cut nothing; the dark stems hold.',
-    sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
-  salviaspecies:{ name:'Salvia', latin:'Salvia nemorosa', form:'spike', type:'forb', h:34,
-    group:'salvia', groupLabel:'Salvia', chip:'Straight',
+  meadowsage:{ name:'Meadow Sage', latin:'Salvia nemorosa', form:'spike', type:'forb', h:34,
+    group:'salvia', groupLabel:'Salvia', chip:'Meadow',
     space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'full', moist:'dry', phen:'cool',
     look:{art2:true, leafShape:'ovate', leafHW:1.55, leafFan:1.70, leafRise:0.78, leafTeeth:0.12, leafTeethN:8, a2Spike:0.34, a2Florets:9, a2FloretR:1.7, a2FloretSq:1.05, a2Wobble:2.2},
     blurb:'The meadow sage baseline: violet-blue spires, aromatic foliage, and a clean early-summer vertical line.',
     sea:{Spring:{fol:'#5d7a4c',bloom:'#6a58a8'}, Summer:{fol:'#5d7a4c',bloom:'#6a58a8'}, Fall:{fol:'#6b6248',seed:'#5a4a44'}, Winter:{fol:'#5e574a',seed:'#3a302c'}},
     cv:{
-      maynight:{name:"'May Night'", note:'deep violet-blue, compact and early',
+      caradonna:{name:"'Caradonna'", latin:"Salvia nemorosa 'Caradonna'", note:'near-black stems with violet spikes in repeated waves', h:38, spread:15, stem:'#3a3038',
+        sea:{Spring:{fol:'#5d7a4c',bloom:'#5a3a8e'}, Summer:{fol:'#5d7a4c',bloom:'#6a4a9e'}, Fall:{fol:'#6b6248',seed:'#3a3030'}, Winter:{fol:'#5e574a',seed:'#2c2624'}}},
+      maynight:{name:"'May Night'", latin:"Salvia × sylvestris 'Mainacht'", note:'deep violet-blue, compact and early',
         sea:{Spring:{fol:'#5d7a4c',bloom:'#4d408e'}, Summer:{fol:'#5d7a4c',bloom:'#5a469a'}}},
-      bluehill:{name:"'Blue Hill'", note:'softer clear blue flowers',
+      bluehill:{name:"'Blue Hill'", latin:"Salvia × sylvestris 'Blauhügel'", note:'softer clear blue flowers',
         sea:{Spring:{fol:'#5d7a4c',bloom:'#6f86c8'}, Summer:{fol:'#5d7a4c',bloom:'#7892d0'}}},
-      amethyst:{name:"'Amethyst'", note:'rose-lavender spires',
+      amethyst:{name:"'Amethyst'", latin:"Salvia nemorosa 'Amethyst'", note:'rose-lavender spires',
         sea:{Spring:{fol:'#5d7a4c',bloom:'#b06a9e'}, Summer:{fol:'#5d7a4c',bloom:'#b878a8'}}},
     }},
   echinops:{ name:'Blue Echinops', latin:'Echinops ritro', form:'globe', type:'forb', h:46,
@@ -1093,7 +1089,7 @@ const PLANTS = {
     sea:{Spring:{fol:'#5f7f4d'}, Summer:{fol:'#58784a',bloom:'#e3aa2e',eye:'#3a2518'}, Fall:{fol:'#6f7048',bloom:'#d99a2e',eye:'#2c1c14',seed:'#3a2a20'}, Winter:{fol:'#625a45',seed:'#2a2018'}},
     cv:{
       americangoldrush:{name:"'American Gold Rush'", note:'disease-resistant dome with golden rays and dark cones',
-        h:30, space:18, spread:30, look:{rays:11, rayLen:5.0, droop:0.8, rayW:2.5, rayShape:'spoon', discW:3.9, discH:4.3, discY:-0.2, seedW:3.8, seedH:4.2, leaves:13, leafW:1.9, leafLen:0.34, stems:14, heads:2, headSpread:5, headDrop:2.4, sideHeadScale:0.84,
+        latin:"Rudbeckia 'American Gold Rush'", h:30, space:18, spread:30, look:{rays:11, rayLen:5.0, droop:0.8, rayW:2.5, rayShape:'spoon', discW:3.9, discH:4.3, discY:-0.2, seedW:3.8, seedH:4.2, leaves:13, leafW:1.9, leafLen:0.34, stems:14, heads:2, headSpread:5, headDrop:2.4, sideHeadScale:0.84,
           art2:true, leafShape:'lance', leafHW:1.50, leafFan:1.60, leafRise:0.82, leafTeeth:0.10, leafTeethN:7},
         sea:{Summer:{fol:'#637f55',bloom:'#efb928',eye:'#2f2118'}, Fall:{fol:'#77724a',bloom:'#d99d30',eye:'#2a1c14'}}},
     }},
@@ -1133,9 +1129,9 @@ const PLANTS = {
       art2:true, leafShape:'lance', leafHW:1.50, leafFan:1.80, leafRise:0.62, leafTeeth:0.22, leafTeethN:6},
     blurb:'Tiny oxblood drumsticks floating on airy branched stems — pure Oudolf scatter through the grasses.',
     sea:{Spring:{fol:'#6f8f6e'}, Summer:{fol:'#5d7a5c',bloom:'#7a2e3a'}, Fall:{fol:'#7a6a55',bloom:'#5e2430',seed:'#4a2a2e'}, Winter:{fol:'#5e574a',seed:'#3a2024'}}},
-  lilacsquirrel:{ name:"Burnet 'Lilac Squirrel'", latin:'Sanguisorba hakusanensis', form:'drumstick', type:'forb', h:34,
+  lilacsquirrel:{ name:"Burnet 'Lilac Squirrel'", latin:"Sanguisorba hakusanensis 'Lilac Squirrel'", synonyms:["Sanguisorba obtusa 'Lilac Squirrel'"], form:'drumstick', type:'forb', h:42,
     group:'burnet', chip:'Lilac Squirrel',
-    space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
+    space:36, spread:48, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
     look:{stems:6, button:2.3, buttonLen:5.8,
       art2:true, leafShape:'ovate', leafHW:1.60, leafFan:1.75, leafRise:0.64, leafTeeth:0.20, leafTeethN:6},
     blurb:'Long fuzzy mauve-pink catkins drooping like bottle-brush tails over blue-green leaves. A conversation piece.',
@@ -1568,6 +1564,150 @@ const PLANTS = {
     blurb:'Bold felted basal foliage and tiered soft-yellow flower whorls for dry sun, followed by exceptionally durable brown winter seedheads.',
     sea:{Spring:{fol:'#84927a'}, Summer:{fol:'#75856d',bloom:'#d8bc52',bract:'#bda755'}, Fall:{fol:'#8a8065',seed:'#806949',bract:'#8d7550'}, Winter:{fol:'#766f5d',seed:'#6f5b43',bract:'#786249'}}},
 
+  /* ---------- second-wave mixed-border and woodland staples ---------- */
+  bleedingheart:{ name:'Bleeding Heart', latin:'Lamprocapnos spectabilis', form:'archbell', type:'forb', h:30,
+    space:24, spread:24, zones:[3,9], _legacyNative:false, sun:'part', moist:'medium', phen:'cool',
+    look:{art2:true, archStyle:'bleedingHeart', stems:5, leaves:8, bells:7},
+    blurb:'The classic spring shade perennial, formerly Dicentra spectabilis: arching stems carry rose-pink hearts above divided foliage, which may go dormant in a dry summer.',
+    sea:{Spring:{fol:'#68805a',bloom:'#cf6f8f',eye:'#f1e5df'}, Summer:{fol:'#6e7655'}, Fall:{}, Winter:{}},
+    cv:{
+      alba:{name:"'Alba'", note:'white heart-shaped flowers over fresh green foliage',
+        sea:{Spring:{fol:'#68805a',bloom:'#eee9df',eye:'#f8f4ec'}, Summer:{fol:'#6e7655'}}},
+      goldheart:{name:"'Gold Heart'", note:'chartreuse foliage with rose-pink flowers', h:24, space:24, spread:30,
+        sea:{Spring:{fol:'#b2b84f',bloom:'#cb6688',eye:'#f1e5df'}, Summer:{fol:'#a1a84a'}}},
+    }},
+  lambsear:{ name:"Lamb's Ear", latin:'Stachys byzantina', form:'leafmound', type:'forb', h:15,
+    roles:['groundcover','matrix'],
+    space:18, spread:24, zones:[4,9], _legacyNative:false, sun:'full', moist:'dry', phen:'cool',
+    look:{art2:true, leafShape:'ovate', moundHW:0.24, leafBow:0.08,
+      leaves:15, scapes:4, florets:8, floretR:1.25, floretGap:1.7, floretSquash:1.05},
+    blurb:'A tactile western Asian groundcover with woolly silver leaves and soft pink-purple summer spikes. Sharp drainage keeps the mat dense and clean.',
+    sea:{Spring:{fol:'#a8ada0',bloom:'#b783aa'}, Summer:{fol:'#9fa79c',bloom:'#aa789d'}, Fall:{fol:'#9b9989',seed:'#887568'}, Winter:{fol:'#8e9186'}},
+    cv:{
+      bigears:{name:"'Big Ears'", note:'very large silver leaves and sparse flower stalks', h:10, space:24, spread:36,
+        look:{leaves:12, scapes:1, moundHW:0.31},
+        sea:{Spring:{fol:'#b2b6aa'}, Summer:{fol:'#a8aea5',bloom:'#ad7d9f'}, Fall:{fol:'#9d9c90',seed:'#887568'}, Winter:{fol:'#92958b'}}},
+      silvercarpet:{name:"'Silver Carpet'", note:'low, effectively non-flowering silver foliage groundcover', h:8, space:24, spread:36,
+        bloomMonths:[], look:{leaves:17, scapes:0, moundHW:0.29},
+        sea:{Spring:{fol:'#b7bbb1'}, Summer:{fol:'#adb2aa'}, Fall:{fol:'#a19f94'}, Winter:{fol:'#969990'}}},
+    }},
+  redhotpoker:{ name:'Red-hot Poker', latin:'Kniphofia hybrids', form:'spike', type:'forb', h:39,
+    space:24, spread:24, zones:[5,9], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
+    look:{art2:true, spikeStyle:'poker', stems:4, stemSpread:18, lenBase:0.82, lenJitter:0.16,
+      leaves:18, leafShape:'linear', leafW:1.15, leafHW:1.5, leafLen:0.48, leafFan:2.0, leafRise:0.62,
+      spikeLen:18, florets:13, floretR:2.0},
+    blurb:'Strap-leaved clumps lift dense bicolor torches through early and midsummer. These familiar border cultivars have mixed Kniphofia ancestry rather than belonging to one straight species.',
+    sea:{Spring:{fol:'#64804c'}, Summer:{fol:'#587447',bloom:'#e0aa32',eye:'#cf4d29'}, Fall:{fol:'#87794d',seed:'#755f47'}, Winter:{fol:'#6d6d55',seed:'#665643'}},
+    cv:{
+      royalstandard:{name:"'Royal Standard'", note:'scarlet buds opening yellow on sturdy midsummer torches', h:36, space:24, spread:24,
+        bloomMonths:[6,7,8], sea:{Spring:{fol:'#64804c'}, Summer:{fol:'#587447',bloom:'#e5b63b',eye:'#d54f29'}, Fall:{fol:'#87794d',seed:'#755f47'}, Winter:{fol:'#6d6d55',seed:'#665643'}}},
+      beessunset:{name:"'Bees\' Sunset'", note:'coppery-orange flowers aging yellow', h:42, space:24, spread:24,
+        bloomMonths:[5,6,7], sea:{Spring:{fol:'#64804c',bloom:'#e5aa3b',eye:'#c85b32'}, Summer:{fol:'#587447',bloom:'#dfa038',eye:'#bd4f2d'}, Fall:{fol:'#87794d',seed:'#755f47'}, Winter:{fol:'#6d6d55',seed:'#665643'}}},
+    }},
+  orientalpoppy:{ name:'Oriental Poppy', latin:'Papaver orientale', form:'cone', type:'forb', h:36,
+    space:24, spread:24, zones:[3,8], _legacyNative:false, sun:'full', moist:'dry', phen:'cool',
+    look:{art2:true, rays:4, rayLen:8.2, rayW:5.4, rayShape:'poppy', droop:0.7, discW:2.7, discH:2.3,
+      leaves:11, leafShape:'lance', leafW:2.0, leafHW:1.65, leafLen:0.34, leafFan:1.8, leafRise:0.68,
+      leafTeeth:0.22, leafTeethN:7, stems:5, heads:1},
+    blurb:'Huge papery late-spring flowers with black basal blotches rise above bristly foliage, which commonly rests through summer after flowering.',
+    sea:{Spring:{fol:'#71805a',bloom:'#dd6039',eye:'#302b2a'}, Summer:{fol:'#777858',bloom:'#d95735',eye:'#2e2928'}, Fall:{seed:'#77614c'}, Winter:{}},
+    cv:{
+      beautyoflivermere:{name:"'Beauty of Livermere'", note:'deep scarlet flowers with bold black blotches', h:40,
+        sea:{Spring:{fol:'#71805a',bloom:'#b62f31',eye:'#272426'}, Summer:{fol:'#777858',bloom:'#aa292c',eye:'#272426'}, Fall:{seed:'#77614c'}}},
+      pattysplum:{name:"'Patty\'s Plum'", note:'dusky plum-purple flowers with black blotches', h:32,
+        sea:{Spring:{fol:'#71805a',bloom:'#8d5572',eye:'#29262a'}, Summer:{fol:'#777858',bloom:'#834c68',eye:'#29262a'}, Fall:{seed:'#77614c'}}},
+    }},
+  delphinium:{ name:'Garden Delphinium', latin:'Delphinium hybrids', form:'spike', type:'forb', h:66,
+    space:24, spread:24, zones:[3,7], _legacyNative:false, sun:'full', moist:'medium', phen:'cool',
+    look:{art2:true, spikeStyle:'delphinium', stems:5, stemSpread:16, lenBase:0.84, lenJitter:0.15,
+      leaves:13, leafShape:'lance', leafW:1.7, leafHW:1.5, leafLen:0.28, leafFan:1.65, leafRise:0.76,
+      spikeLen:25, florets:12, floretR:2.5},
+    blurb:'Tall garden-hybrid spires give a classic early-summer vertical and may rebloom after cutting back. Stake in exposed sites and keep the crown evenly moist but drained.',
+    sea:{Spring:{fol:'#627c50'}, Summer:{fol:'#557147',bloom:'#5366b8',eye:'#292e5b'}, Fall:{fol:'#77704d',bloom:'#5969ad',eye:'#30345f',seed:'#74604e'}, Winter:{seed:'#635343'}},
+    cv:{
+      blackknight:{name:'Black Knight Group', latin:'Delphinium Black Knight Group', note:'Pacific-hybrid group with very dark violet-blue flowers and a dark bee', h:66, space:24, spread:24,
+        sea:{Spring:{fol:'#627c50'}, Summer:{fol:'#557147',bloom:'#403d88',eye:'#22233d'}, Fall:{fol:'#77704d',bloom:'#48448d',eye:'#252640',seed:'#74604e'}, Winter:{seed:'#635343'}}},
+      bluebird:{name:"'Blue Bird'", latin:"Delphinium 'Blue Bird'", note:'Pacific-hybrid selection with clear blue flowers and a contrasting white bee', h:66, space:24, spread:24,
+        sea:{Spring:{fol:'#627c50'}, Summer:{fol:'#557147',bloom:'#537fc4',eye:'#e8e6dc'}, Fall:{fol:'#77704d',bloom:'#5c82ba',eye:'#e8e6dc',seed:'#74604e'}, Winter:{seed:'#635343'}}},
+    }},
+  spikespeedwell:{ name:'Spike Speedwell', latin:'Veronica spicata', form:'spike', type:'forb', h:27,
+    space:15, spread:18, zones:[3,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
+    look:{art2:true, stems:8, stemSpread:16, lenBase:0.76, lenJitter:0.18,
+      leaves:12, leafShape:'lance', leafW:1.35, leafHW:1.5, leafLen:0.34, leafFan:1.55, leafRise:0.74,
+      a2Spike:0.45, a2Florets:14, a2FloretR:1.45, a2FloretSq:1.0, a2Wobble:1.8},
+    blurb:'A compact European and Asian border perennial with narrow violet-blue tapers through summer; deadheading encourages another flush.',
+    sea:{Spring:{fol:'#678250'}, Summer:{fol:'#597647',bloom:'#5f66b2'}, Fall:{fol:'#77704d',seed:'#735f50'}, Winter:{seed:'#625244'}},
+    cv:{
+      glory:{name:"'Glory'", note:'deep blue-purple compact selection sold as ROYAL CANDLES', h:12, space:12, spread:9,
+        sea:{Spring:{fol:'#678250'}, Summer:{fol:'#597647',bloom:'#4f4d9f'}, Fall:{fol:'#77704d',seed:'#735f50'}, Winter:{seed:'#625244'}}},
+      icicle:{name:"'Icicle'", note:'slender pure-white flower spikes', h:24, space:15, spread:18,
+        sea:{Spring:{fol:'#678250'}, Summer:{fol:'#597647',bloom:'#eeeae0'}, Fall:{fol:'#77704d',seed:'#735f50'}, Winter:{seed:'#625244'}}},
+      rotfuchs:{name:"'Rotfuchs'", note:'rosy red-pink compact spikes, sold as RED FOX', h:15, space:15, spread:18,
+        sea:{Spring:{fol:'#678250'}, Summer:{fol:'#597647',bloom:'#b84f71'}, Fall:{fol:'#77704d',seed:'#735f50'}, Winter:{seed:'#625244'}}},
+    }},
+  peachbellflower:{ name:'Peach-leaved Bellflower', latin:'Campanula persicifolia', form:'spike', type:'forb', h:30,
+    space:15, spread:18, zones:[3,7], _legacyNative:false, sun:'part', moist:'medium', phen:'cool',
+    look:{art2:true, spikeStyle:'bell', stems:7, stemSpread:15, lenBase:0.80, lenJitter:0.18,
+      leaves:10, leafShape:'lance', leafW:1.2, leafHW:1.35, leafLen:0.34, leafFan:1.5, leafRise:0.78,
+      bellCount:5, bellW:3.1, bellH:4.0, bellLean:3.2},
+    blurb:'Open blue bells rise on wiry stems above a neat basal clump, bringing a light early-summer vertical to sunny or partly shaded borders.',
+    sea:{Spring:{fol:'#64804e'}, Summer:{fol:'#567348',bloom:'#6c77bd'}, Fall:{fol:'#746f4f',seed:'#746050'}, Winter:{seed:'#635244'}},
+    cv:{
+      telhambeauty:{name:"'Telham Beauty'", note:'tall stems with large pale lavender-blue bells', h:36,
+        sea:{Spring:{fol:'#64804e'}, Summer:{fol:'#567348',bloom:'#8191cf'}, Fall:{fol:'#746f4f',seed:'#746050'}, Winter:{seed:'#635244'}}},
+      alba:{name:"'Alba'", note:'pure-white open bells', h:30,
+        sea:{Spring:{fol:'#64804e'}, Summer:{fol:'#567348',bloom:'#eeeae1'}, Fall:{fol:'#746f4f',seed:'#746050'}, Winter:{seed:'#635244'}}},
+    }},
+  blanketflower:{ name:'Blanket Flower', latin:'Gaillardia aristata', form:'cone', type:'forb', h:24,
+    group:'gaillardia', groupLabel:'Blanket Flower', chip:'Species',
+    space:18, spread:18, zones:[3,8], _legacyNative:true, sun:'full', moist:'dry', phen:'mid',
+    look:{art2:true, rays:12, rayLen:4.8, rayW:1.8, rayShape:'notched', droop:0.4,
+      discW:2.5, discH:2.5, leaves:11, leafShape:'lance', leafW:1.4, leafHW:1.5, leafLen:0.36,
+      leafFan:1.65, leafRise:0.74, stems:9, heads:1},
+    blurb:'A long-blooming western North American species for lean sunny soil, with warm yellow rays often brushed red around a persistent round seedhead.',
+    sea:{Spring:{fol:'#68804d',bloom:'#d9ad32',eye:'#8f4b2d'}, Summer:{fol:'#597345',bloom:'#d7a52f',eye:'#824127'}, Fall:{fol:'#7b704a',bloom:'#c9972b',eye:'#774027',seed:'#68513d'}, Winter:{seed:'#594839'}}},
+  arizonasun:{ name:"Blanket Flower 'Arizona Sun'", latin:"Gaillardia 'Arizona Sun'", form:'cone', type:'forb', h:10,
+    group:'gaillardia', groupLabel:'Blanket Flower', chip:'Arizona Sun',
+    space:15, spread:18, zones:[3,10], _legacyNative:false, sun:'full', moist:'dry', phen:'mid',
+    look:{art2:true, rays:12, rayLen:4.4, rayW:1.8, rayShape:'notched', droop:0.3,
+      discW:2.4, discH:2.4, leaves:9, leafShape:'lance', leafW:1.3, leafHW:1.5, leafLen:0.36,
+      leafFan:1.7, leafRise:0.72, stems:8, heads:1},
+    blurb:'A compact garden-hybrid blanket flower with orange-red rays tipped gold. Its mixed ancestry is kept separate from the straight Gaillardia aristata species.',
+    sea:{Spring:{fol:'#68804d',bloom:'#cf5931',eye:'#813824'}, Summer:{fol:'#597345',bloom:'#c9502d',eye:'#753423'}, Fall:{fol:'#7b704a',seed:'#68513d'}, Winter:{seed:'#594839'}}},
+  goatsbeard:{ name:"Goat's Beard", latin:'Aruncus dioicus', form:'spike', type:'forb', h:60,
+    space:42, spread:48, zones:[3,7], _legacyNative:true, sun:'part', moist:'moist', phen:'cool',
+    look:{art2:true, spikeStyle:'culvers', stems:7, stemSpread:24, lenBase:0.80, lenJitter:0.18,
+      leaves:16, leafShape:'lance', leafW:2.0, leafHW:1.55, leafLen:0.36, leafFan:1.7, leafRise:0.75,
+      candelabraArms:8, candelabraBuds:7, candelabraReach:11, candelabraLift:8, candelabraSpike:12},
+    blurb:'A broad circumboreal woodland perennial with creamy early-summer plumes above ferny foliage; give its mature clump room and reliable moisture.',
+    sea:{Spring:{fol:'#5f7950',bloom:'#eee8da'}, Summer:{fol:'#526d48',bloom:'#e6dfd0'}, Fall:{fol:'#7e734e',seed:'#806b56'}, Winter:{seed:'#6c5a49'}},
+    cv:{
+      kneiffii:{name:"'Kneiffii'", note:'compact form with finely dissected foliage and white plumes', h:30, space:24, spread:24,
+        look:{stems:6, stemSpread:18, leaves:18, leafW:1.15, candelabraReach:8},
+        sea:{Spring:{fol:'#637d52',bloom:'#eee8da'}, Summer:{fol:'#566f4a',bloom:'#e6dfd0'}, Fall:{fol:'#7e734e',seed:'#806b56'}, Winter:{seed:'#6c5a49'}}},
+    }},
+  dianaclarelungwort:{ name:"Lungwort 'Diana Clare'", latin:"Pulmonaria 'Diana Clare'", form:'leafmound', type:'forb', h:12,
+    group:'lungwort', groupLabel:'Lungwort', chip:'Diana Clare', roles:['groundcover','matrix'],
+    space:18, spread:24, zones:[4,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool',
+    look:{art2:true, leafShape:'ovate', moundHW:0.28, leafBow:0.08, leaves:12, spots:3,
+      scapes:5, florets:5, floretR:1.2, floretGap:1.6, floretSquash:1.0},
+    blurb:'A low shade matrix with narrow silvered leaves and violet-blue flowers from late winter into spring. The accepted name stays at genus level because its species lineage is unresolved.',
+    sea:{Spring:{fol:'#6c7c69',edge:'#b7beb5',bloom:'#596fbd'}, Summer:{fol:'#647666',edge:'#aeb7ae'}, Fall:{fol:'#6e705d',edge:'#9da399'}, Winter:{fol:'#637063',edge:'#a6afa7',bloom:'#6375b8'}}},
+  blueensignlungwort:{ name:"Lungwort 'Blue Ensign'", latin:"Pulmonaria 'Blue Ensign'", form:'leafmound', type:'forb', h:12,
+    group:'lungwort', groupLabel:'Lungwort', chip:'Blue Ensign', roles:['groundcover','matrix'],
+    space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool',
+    look:{art2:true, leafShape:'ovate', moundHW:0.27, leafBow:0.08, leaves:12,
+      scapes:5, florets:5, floretR:1.2, floretGap:1.6, floretSquash:1.0},
+    blurb:'Intense cobalt-blue spring flowers above dark, mostly unspotted leaves. Its uncertain garden parentage is retained as a cultivar-only hybrid name.',
+    sea:{Spring:{fol:'#536c57',bloom:'#4568bc'}, Summer:{fol:'#4f6854'}, Fall:{fol:'#646955'}, Winter:{fol:'#536253'} }},
+  sissinghurstlungwort:{ name:"Lungwort 'Sissinghurst White'", latin:"Pulmonaria 'Sissinghurst White'", form:'leafmound', type:'forb', h:10,
+    group:'lungwort', groupLabel:'Lungwort', chip:'Sissinghurst White', roles:['groundcover','matrix'],
+    space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'part', moist:'medium', phen:'cool',
+    look:{art2:true, leafShape:'ovate', moundHW:0.29, leafBow:0.08, leaves:12, spots:3,
+      scapes:5, florets:5, floretR:1.2, floretGap:1.6, floretSquash:1.0},
+    blurb:'White spring flowers brighten a low mound of green leaves marked with silver. Its garden parentage is uncertain, so it remains a cultivar-only hybrid record.',
+    sea:{Spring:{fol:'#61745f',edge:'#b2b9af',bloom:'#eeeae1'}, Summer:{fol:'#5b6f5b',edge:'#aab2a8'}, Fall:{fol:'#6b6c59',edge:'#9ca297'}, Winter:{fol:'#5d685b',edge:'#a1aaa1'} }},
+
   /* ---------- bulbs: the layer under everything ----------
      They share tiles with perennials and bloom while the upper layer
      is still cut back — the Oudolf bulb lasagne. */
@@ -1686,7 +1826,7 @@ const PLANTS = {
       blueMelody:{name:"'Blue Melody'", note:'variegated foliage with blue flowers',
         sea:{Spring:{fol:'#8fa85a',bloom:'#6876c8'}}},
     }},
-  claudeshride:{ name:"Martagon Lily 'Claude Shride'", latin:'Lilium martagon', form:'martagon', type:'bulb', h:60,
+  claudeshride:{ name:"Martagon Lily 'Claude Shride'", latin:"Lilium 'Claude Shride'", form:'martagon', type:'bulb', h:60,
     space:12, spread:12, zones:[2,7], _legacyNative:false, sun:'part', moist:'medium', phen:'cool', bloomDay:5, bulbSeason:'summer',
     look:{/*D*/art2:true, whorlHW:1.5, stems:1, whorls:5, flowers:7},
     blurb:'A martagon lily with whorled leaves and dark mahogany-red recurved bells. More woodland-edge than prairie, but excellent vertical punctuation.',
@@ -2680,15 +2820,7 @@ const PLANTS = {
     space:180, spread:240, zones:[4,8], _legacyNative:true, sun:'full', moist:'dry', phen:'mid', grow:6,
     look:{art2:true, trunkW:5.8, bark:'#6a5544', branches:6, branchSpread:1.75, leafN:30, leafW:0.14, leafH:0.10, smoke:true, flowerN:24},
     blurb:'A small native smoketree with round leaves, airy summer plumes, and excellent orange-red fall color. Use as a specimen or limbed-up shrub.',
-    sea:{Spring:{fol:'#8aa466'}, Summer:{fol:'#5f7a4e',bloom:'#caa0a4'}, Fall:{fol:'#d05e38',seed:'#a87882'}, Winter:{seed:'#6b5548'}},
-    cv:{
-      royalpurple:{name:"'Royal Purple'", note:'purple-leaved smoketree trained as a small ornamental tree',
-        _legacyNative:false, sea:{Spring:{fol:'#7a2d42'}, Summer:{fol:'#512d3f',bloom:'#b98398'}, Fall:{fol:'#a83e3a',seed:'#a87882'}}},
-      goldenspirit:{name:"'Golden Spirit'", note:'gold foliage smoketree trained as a small tree',
-        _legacyNative:false, sea:{Spring:{fol:'#d4bd4b'}, Summer:{fol:'#a8b856',bloom:'#d2b5a0'}, Fall:{fol:'#df7a3d',seed:'#bd9272'}}},
-      grace:{name:"'Grace'", note:'vigorous hybrid smoketree with burgundy foliage',
-        _legacyNative:false, h:96, cw:112, sea:{Spring:{fol:'#8a3345'}, Summer:{fol:'#5a3246',bloom:'#b98295'}, Fall:{fol:'#d05d38',seed:'#a87882'}}},
-    }},
+    sea:{Spring:{fol:'#8aa466'}, Summer:{fol:'#5f7a4e',bloom:'#caa0a4'}, Fall:{fol:'#d05e38',seed:'#a87882'}, Winter:{seed:'#6b5548'}}},
   serviceberry:{ name:'Serviceberry', latin:'Amelanchier laevis', form:'tree', type:'tree', h:58, cw:62, heightIn:240,
     group:'serviceberry', groupLabel:'Serviceberry', chip:'Allegheny',
     space:180, spread:240, zones:[4,8], _legacyNative:true, sun:'part', moist:'medium', phen:'cool', grow:4,
@@ -3480,6 +3612,44 @@ const PLANTS = {
     sea:{Spring:{fol:'#a2a48e'}, Summer:{fol:'#9a9c86',bloom:'#f0ece0'}, Fall:{fol:'#9a9078',bloom:'#d8a890',seed:'#a8785a'}, Winter:{fol:'#8c8672',seed:'#9a6e54'}}},
 };
 
+/* Durable plant identities appear in gardens, inactive planting schemes,
+   Favorites, and named palettes. These aliases cover catalog records that
+   were genuinely duplicated or attached to the wrong taxon. They are
+   intentionally unambiguous: no canonical key below is also an alias source,
+   so old imports can be normalized on every load without a save-version guess. */
+const PLANT_REF_ALIASES=Object.freeze({
+  'creamindigo|':'baptisia|creamwild',
+  'salvia|':'meadowsage|caradonna',
+  'salviaspecies|':'meadowsage|',
+  'salviaspecies|maynight':'meadowsage|maynight',
+  'salviaspecies|bluehill':'meadowsage|bluehill',
+  'salviaspecies|amethyst':'meadowsage|amethyst',
+  'smoketree|royalpurple':'smokebush|royalpurple',
+  'smoketree|goldenspirit':'smokebush|goldenspirit',
+  'smoketree|grace':'smokebush|grace',
+});
+function canonicalPlantRef(s,v){
+  const source=String(s||'').trim(), variant=v==null?'':String(v).trim();
+  const mapped=PLANT_REF_ALIASES[source+'|'+variant];
+  if (!mapped) return {s:source,v:variant||null};
+  const bar=mapped.indexOf('|');
+  return {s:mapped.slice(0,bar),v:mapped.slice(bar+1)||null};
+}
+function canonicalizePlantMap(map){
+  const source=map&&typeof map==='object'?map:{};
+  let out=source, copied=false;
+  for (const key in source){
+    const cell=source[key]; if (!cell||!cell.s) continue;
+    const ref=canonicalPlantRef(cell.s,cell.v);
+    if (ref.s===cell.s && (ref.v||null)===(cell.v||null)) continue;
+    if (!copied){ out=Object.assign({},source); copied=true; }
+    const next=Object.assign({},cell,{s:ref.s});
+    if (ref.v) next.v=ref.v; else delete next.v;
+    out[key]=next;
+  }
+  return out;
+}
+
 /* ---------- native ranges + horticultural provenance ----------
    The old catalog stored a central-US Boolean on each base record and often
    let named cultivars inherit it. Preserve that fact only as migration input,
@@ -3489,9 +3659,10 @@ const PLANTS = {
    and European gardeners without deriving geography from a hardiness zone. */
 const EUROPE_NATIVE_KEYS=new Set(`
   karl sesleria tuftedhair bluefescue giantstipa molinia moorhexe mountainsedge
-  eryngiumbourgatii yarrow purpleemperor salvia salviaspecies echinops calamint scabiosa knautia
+  eryngiumbourgatii yarrow purpleemperor meadowsage stachys echinops calamint scabiosa knautia
   greatburnet siberianiris sanguineumgeranium bigrootgeranium pasqueflower ladysmantle brunnera
-  ladyfern ostrichfern crocus daffodil muscari claudeshride scillaperuviana
+  spikespeedwell peachbellflower goatsbeard
+  ladyfern ostrichfern crocus daffodil muscari scillaperuviana
   snowdrop winteraconite anemoneblanda leucojum fritillaria colchicum
   alliumAtropurpureum alliumcarinatum astrantia lilac smokebush swissstonepine
   norwayspruce serbianspruce mockorange cinquefoil europeanelder laurustinus
@@ -3500,14 +3671,15 @@ const EUROPE_NATIVE_KEYS=new Set(`
 const NORTH_AMERICA_ADDITIONS=new Set(`
   mexicanfeather babyjoe oakleafhydrangea bluespruce blueweepingalaskacedar
   taylorjuniper arizonacypress vanderwolfpine weepingwhitepine dwarfalbertaspruce
-  wellspirespruce bigbertaspruce whitefir freemanmaple greatburnet
+  wellspirespruce bigbertaspruce whitefir freemanmaple
 `.trim().split(/\s+/));
 const NORTH_AMERICA_EXCLUSIONS=new Set('pasqueflower ostrichfern ladyfern yarrow'.split(' '));
 const ASIA_NATIVE_KEYS=new Set(`
   miscanthus fountaingrass orientalfountain hakone mountainsedge greatburnet
-  claudeshride smokebush alliumPurpleSensation
-  autumnfire persicaria stachys lilacsquirrel siberianiris silvermound
+  smokebush alliumPurpleSensation
+  persicaria stachys lilacsquirrel siberianiris silvermound
   peony brunnera russiansage ladysmantle jerusalemsage
+  bleedingheart lambsear orientalpoppy spikespeedwell peachbellflower goatsbeard meadowsage purpleemperor
   tulip tulipatarda tuliplinifolia puschkinia lycoris alliumAtropurpureum
   alliumChristophii alliumcarinatum alliumcaeruleum astilbe koreanspice
   doublefile misskimlilac japanesespirea hydrangea bigleaflace serratahydrangea
@@ -3516,13 +3688,15 @@ const ASIA_NATIVE_KEYS=new Set(`
   weigela mockorange cinquefoil europeanelder japanesecamellia skimmia pieris
   cherrylaurel sweetbox
 `.trim().split(/\s+/));
-const AFRICA_NATIVE_KEYS=new Set('giantstipa echinops scabiosa eryngiumbourgatii blueatlascedar europeanelder laurustinus portugueselaurel'.split(' '));
+const AFRICA_NATIVE_KEYS=new Set('giantstipa echinops scabiosa eryngiumbourgatii stachys greatburnet blueatlascedar europeanelder laurustinus portugueselaurel'.split(' '));
 const CENTRAL_AMERICA_NATIVE_KEYS=new Set('mexicanfeather choisya'.split(' '));
 const SOUTH_AMERICA_NATIVE_KEYS=new Set('mexicanfeather ipheion'.split(' '));
 const AUSTRALASIA_NATIVE_KEYS=new Set('fountaingrass'.split(' '));
 const BASE_HYBRID_KEYS=new Set(`
   karl allium alliumGlobemaster alliumGladiator sedum matrona autumncharm catmint
   lentenrose rozanne daylily japaneseanemone shastadaisy barrenwort
+  redhotpoker delphinium arizonasun dianaclarelungwort blueensignlungwort sissinghurstlungwort
+  autumnfire claudeshride
   germaniris gardentulip lycoris dahlia alliumPinkJewel alliumRedMohican hosta
   bloomeranglilac bridalwreath boxwoodround boxwoodsquare boxwoodcone boxwoodcolumn
   boxwoodlow yewlow yewmedium yewtall bamboo crabapple saucermagnolia freemanmaple
@@ -3533,22 +3707,22 @@ const CV_SPECIES_REFS=new Set('baptisia|creamwild crabapple|sargent'.split(' '))
 const CV_HYBRID_REFS=new Set(`
   baptisia|carolinamoonlight baptisia|purplesmoke baptisia|pinklemonade baptisia|solarflare
   yarrow|terracotta yarrow|moonshine penstemon|darktowers agastache|bluefortune
+  meadowsage|maynight meadowsage|bluehill rudbeckia|americangoldrush
   helenium|moerheim heuchera|caramel astilbe|fanal astilbe|bridalveil
-  snowdrop|atkinsii smokebush|grace smoketree|grace magnolia|janemagnolia
+  snowdrop|atkinsii smokebush|grace magnolia|janemagnolia
   mockorange|snowbelle choisya|londaz
   serviceberry|autumnbrilliance russiansage|bluespire
   americanelm|accolade floweringcherry|yoshino floweringcherry|okame
   floweringcherry|autumnalis floweringcherry|snowfountains
 `.trim().split(/\s+/));
 const CV_RANGE_OVERRIDES={
+  'meadowsage|maynight':['europe'],
+  'meadowsage|bluehill':['europe'],
   'heuchera|palacepurple':['north-america'],
   'heuchera|caramel':[],
   'astilbe|visions':['asia'],
   'colchicum|waterlily':['asia'],
-  'smoketree|royalpurple':['europe','asia'],
-  'smoketree|goldenspirit':['europe','asia'],
   'smokebush|grace':[],
-  'smoketree|grace':[],
   'mockorange|snowbelle':[],
   'choisya|londaz':[],
   'crabapple|sargent':['asia'],
@@ -3559,6 +3733,7 @@ const CV_RANGE_OVERRIDES={
   'americanelm|accolade':[],
   'agastache|bluefortune':[],
   'russiansage|bluespire':[],
+  'rudbeckia|americangoldrush':[],
 };
 for (const [key,P] of Object.entries(PLANTS)){
   const ranges=[];
@@ -3595,7 +3770,7 @@ const BLOOM_MONTHS = {
   // prairie forb backbone
   echinacea:[6,7,8], pallida:[6,7], topeka:[6,7], angustifolia:[6,7], paradoxa:[6,7],
   rattlesnake:[7,8,9], eryngiumbourgatii:[7,8], yucca:[6,7], monarda:[7,8], spottedbeebalm:[7,8],
-  allium:[7,8], baptisia:[5,6], creamindigo:[5,6], purpleprairieclover:[6,7,8], whiteprairieclover:[5,6,7], mountainmint:[7,8,9],
+  allium:[7,8], baptisia:[5,6], purpleprairieclover:[6,7,8], whiteprairieclover:[5,6,7], mountainmint:[7,8,9],
   amsonia:[4,5], ozarkamsonia:[4,5], willowamsonia:[5,6], culvers:[6,7], yarrow:[6,7,8,9],
   sedum:[8,9,10], matrona:[8,9,10], autumnfire:[8,9,10], purpleemperor:[8,9,10], autumncharm:[8,9,10],
   phlox:[7,8,9], joepye:[7,8,9], babyjoe:[7,8,9], persicaria:[6,7,8,9,10], prairieironweed:[7,8,9], baldwinsironweed:[7,8,9,10], stachys:[6,7],
@@ -3604,7 +3779,7 @@ const BLOOM_MONTHS = {
   whorledmilkweed:[6,7,8], greenmilkweed:[6,7],
   liatris:[8,9], liatrispycnostachya:[7,8,9], liatriscylindracea:[7,8],
   liatrisspicata:[7,8], goldenrod:[8,9,10], bluestemmedgoldenrod:[8,9], roughgoldenrod:[8,9,10], autumnGoldenrod:[8,9,10],
-  salvia:[5,6,7], salviaspecies:[5,6,7], echinops:[7,8], calamint:[7,8,9],
+  meadowsage:[5,6,7], echinops:[7,8], calamint:[7,8,9],
   agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9], knautia:[6,7,8,9],
   helenium:[8,9,10], rudbeckia:[7,8,9], rudbeckiatriloba:[8,9,10],
   rudbeckiamaxima:[7,8,9], falsesunflower:[6,7,8], sanguisorba:[7,8,9,10], greatburnet:[7,8,9],
@@ -3627,6 +3802,11 @@ const BLOOM_MONTHS = {
   shastadaisy:[7,8,9], creepingphlox:[4,5], obedientplant:[7,8,9],
   foamflower:[4,5], grayheadedconeflower:[6,7,8,9], blackcohosh:[6,7,8],
   ladysmantle:[6,7,8], barrenwort:[4,5], jerusalemsage:[6,7,8],
+  bleedingheart:[4,5], lambsear:[5,6,7], redhotpoker:[6,7,8],
+  orientalpoppy:[5,6], delphinium:[6,7,9], spikespeedwell:[6,7,8],
+  peachbellflower:[6,7], blanketflower:[5,6,7,8,9], arizonasun:[5,6,7,8],
+  goatsbeard:[5,6], dianaclarelungwort:[2,3,4,5],
+  blueensignlungwort:[3,4,5], sissinghurstlungwort:[3,4,5],
 
   // asters and late season composites
   aster:[8,9,10], newengland:[8,9,10], smoothaster:[8,9,10], whitewoodaster:[8,9],

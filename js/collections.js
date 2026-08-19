@@ -42,6 +42,7 @@ function normalizePlantRef(ref){
     v=ref.v==null ? '' : String(ref.v);
   }
   s=s.trim(); v=v.trim();
+  if (s){ const canonical=canonicalPlantRef(s,v); s=canonical.s; v=canonical.v||''; }
   return s ? {s,v:v||null} : null;
 }
 function plantRefId(ref){

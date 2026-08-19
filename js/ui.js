@@ -268,7 +268,7 @@ const BROWSE_RESIST_GROUPS=new Set([
 ]);
 const BROWSE_RESIST_KEYS=new Set([
   // toxic or bitter forbs
-  'creamindigo','helenium','culvers','penstemon','largebeardtongue','columbine','wildgeranium',
+  'helenium','culvers','penstemon','largebeardtongue','columbine','wildgeranium',
   'bluebells','heuchera','astilbe','solomonsseal','shootingstar',
   'greatstjohnswort','filipendula','goldenrod','joepye','gaura','poppymallow',
   'pasqueflower','prairiesmoke','goldenalexander','heartleafalexander',
@@ -479,9 +479,11 @@ function setDiscovery(patch,save){
   if (save && game.inGarden && typeof saveSolo==='function') saveSolo(true);
   return game.discovery;
 }
-function plantRef(s,v){ return {s:String(s||''),v:v?String(v):null}; }
+function plantRef(s,v){ return canonicalPlantRef(s,v); }
 function refDef(ref){
-  if (!ref || !PLANTS[ref.s]) return null;
+  if (!ref) return null;
+  ref=canonicalPlantRef(ref.s,ref.v);
+  if (!PLANTS[ref.s]) return null;
   // `plantDef` intentionally falls back to a species for ordinary renderer
   // callers. Discovery must be stricter: a saved retired cultivar is not its
   // parent species, and must never appear selectable as that parent by mistake.
@@ -555,7 +557,7 @@ function allPlantRefs(){
 let discoverySearchIndex=null;
 function discoverySearchText(ref){
   const P=refDef(ref); if (!P) return '';
-  return [ref.s,ref.v||'',P.name,P.latin,PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',staticPlantRoles(ref.s).map(roleLabel).join(' '),trayCatLabel(plantCategoryFor(ref.s))]
+  return [ref.s,ref.v||'',P.name,P.latin,(P.synonyms||[]).join(' '),PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',staticPlantRoles(ref.s).map(roleLabel).join(' '),trayCatLabel(plantCategoryFor(ref.s))]
     .join(' ').toLowerCase();
 }
 function ensureDiscoverySearchIndex(){
@@ -628,43 +630,51 @@ function discoveryRefsFor(discovery){
    every other predicate AND of the sort, so filtering the uncategorised result
    by category is identical to re-running the whole filter per category — just
    without paying for eligibility, search and bloom matching eight more times.
-   Counts are distinct SPECIES, matching what the chips show (group cards). */
+   Counts are distinct presentation groups, matching the family cards. The
+   expensive eligibility/search pass is still shared; only the cheap grouping
+   step runs once per category bucket. */
 function discoveryCategoryCounts(discovery){
   const d=normalizeDiscovery(discovery);
   const refs=discoveryRefsFor(Object.assign({},d,{category:null}));
   const cats=TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id));
-  const sets=new Map(cats.map(c=>[c.id,new Set()])), all=new Set();
+  const buckets=new Map(cats.map(c=>[c.id,[]]));
   for (const ref of refs){
     const P=refDef(ref); if (!P) continue;
-    all.add(ref.s);
     for (const c of cats){
       if (!c.types.includes(P.type)) continue;
       if (c.sunFilter && P.sun!==c.sunFilter) continue;
-      sets.get(c.id).add(ref.s);
+      buckets.get(c.id).push(ref);
     }
   }
   const counts={};
-  cats.forEach(c=>{ counts[c.id]=sets.get(c.id).size; });
-  return {refs, all:all.size, counts};
+  cats.forEach(c=>{ counts[c.id]=groupDiscoveryRefs(buckets.get(c.id)).length; });
+  return {refs, all:groupDiscoveryRefs(refs).length, counts};
 }
 function discoveryRefs(){ return discoveryRefsFor(activeDiscovery()); }
 /* Discovery remains exact-reference based for filtering, collections, and
    planting. Grouping is a presentation-only view model built after that
    pipeline, so a cultivar never loses its `{s,v}` identity. */
 function groupDiscoveryRefs(refs){
-  const groups=[], bySpecies=new Map();
+  const groups=[], byPresentationGroup=new Map();
   (refs||[]).forEach(ref=>{
     if (!ref||!ref.s) return;
-    let group=bySpecies.get(ref.s);
+    const exact=plantRef(ref.s,ref.v||null), P=PLANTS[exact.s]; if (!P) return;
+    const id=P.group ? `group:${P.group}` : `species:${exact.s}`;
+    let group=byPresentationGroup.get(id);
     if (!group){
-      group={s:ref.s,refs:[],baseRef:null,cultivarRefs:[]};
-      bySpecies.set(ref.s,group); groups.push(group);
+      group={id,domId:id.replace(/[^a-z0-9_-]+/gi,'-'),s:exact.s,label:P.groupLabel||P.name,
+        refs:[],baseRefs:[],baseRef:null,cultivarRefs:[],crossSpecies:false};
+      byPresentationGroup.set(id,group); groups.push(group);
     }
-    const exact=plantRef(ref.s,ref.v||null);
     group.refs.push(exact);
-    if (exact.v) group.cultivarRefs.push(exact); else group.baseRef=exact;
+    if (exact.v) group.cultivarRefs.push(exact); else group.baseRefs.push(exact);
   });
-  groups.forEach(group=>{ group.representativeRef=group.baseRef||group.refs[0]||null; });
+  groups.forEach(group=>{
+    group.baseRef=group.baseRefs[0]||null;
+    group.representativeRef=group.baseRef||group.refs[0]||null;
+    group.s=group.representativeRef?group.representativeRef.s:group.s;
+    group.crossSpecies=new Set(group.refs.map(ref=>ref.s)).size>1;
+  });
   return groups;
 }
 function discoveryCriteriaLabels(f=activeFilters()){

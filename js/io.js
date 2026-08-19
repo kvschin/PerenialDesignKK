@@ -304,8 +304,8 @@ function restoreSchemes(s,shift){
   if (sc && Array.isArray(sc.list) && sc.list.length){
     game.schemes=sc.list.map(e=>({
       id:String(e.id||newSchemeId()), name:String(e.name||'Planting').slice(0,32), t:+e.t||Date.now(),
-      plants:compactSoloMap(shiftKeys(e.plants||{},shift)),
-      bulbs:compactSoloMap(shiftKeys(e.bulbs||{},shift))}));
+      plants:canonicalizePlantMap(compactSoloMap(shiftKeys(e.plants||{},shift))),
+      bulbs:canonicalizePlantMap(compactSoloMap(shiftKeys(e.bulbs||{},shift)))}));
     if (game.schemes.some(x=>x.id===sc.active)) game.schemeActive=sc.active;
   }
   ensureSchemes();   // materializes a lone default and nulls the active entry's maps
@@ -399,7 +399,10 @@ async function loadSolo(id){
   game.layerVis = normalizeLayerVis(s.layerVis);
   game.underlay=normalizeUnderlay(s.underlay); game.photoEditing=false;
   game.siteNorthDeg=normalizeSiteNorthDeg(s.siteNorthDeg); game.siteNorthPreviewDeg=null;
-  for (const L of GAME_MAPS) game[L.k]=compactSoloMap(shiftKeys(s[L.k]||{},shift));   // keyed layers, without solo tombstones
+  for (const L of GAME_MAPS){
+    const compact=compactSoloMap(shiftKeys(s[L.k]||{},shift));
+    game[L.k]=(L.k==='plants'||L.k==='bulbs') ? canonicalizePlantMap(compact) : compact;
+  }   // keyed layers, without solo tombstones; retired plant refs converge here
   restoreSchemes(s,shift);
   // houses: new saves store an array; migrate old single-house saves
   game.houses = s.houses ? s.houses : (s.house ? [s.house] : []);

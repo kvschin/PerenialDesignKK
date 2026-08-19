@@ -629,10 +629,10 @@ test('native eligibility is range-aware and distinguishes species, selections, a
   assert(!passesNativeFilter(plantDef('agastache','bluefortune'),north), 'garden hybrids are excluded even when the base species is native');
   assert(!passesNativeFilter(plantDef('serviceberry','autumnbrilliance'),north), 'native-range hybrids are excluded from regional mode');
   assert(!passesNativeFilter(plantDef('serviceberry','autumnbrilliance'),northStraight), 'native-range hybrids are excluded from straight mode');
-  assert(passesNativeFilter(plantDef('salvia'),europe), 'a European species qualifies for Europe');
-  assert(!passesNativeFilter(plantDef('salvia'),north), 'the same species does not qualify for North America');
-  assert(plantRoles('salvia',europe).includes('native'), 'roles use the requested range');
-  assert(!plantRoles('salvia',north).includes('native'), 'regional roles do not leak from the cache');
+  assert(passesNativeFilter(plantDef('meadowsage'),europe), 'a European species qualifies for Europe');
+  assert(!passesNativeFilter(plantDef('meadowsage'),north), 'the same species does not qualify for North America');
+  assert(plantRoles('meadowsage',europe).includes('native'), 'roles use the requested range');
+  assert(!plantRoles('meadowsage',north).includes('native'), 'regional roles do not leak from the cache');
 });
 
 test('legacy native-only criteria migrate deterministically', () => {
@@ -909,11 +909,21 @@ test('catalog grouping collapses cultivars without losing exact references', () 
   assert(groups[0].baseRef && !groups[0].baseRef.v, 'the straight species remains available');
   assertEqual(groups[0].cultivarRefs.length, exact.length - 1, 'cultivars remain exact drill-in choices');
   const cultivar = exact.find(ref => ref.v);
-  assert(/1 variety/.test(discoveryResultCountText([cultivar])), 'a cultivar-only result still reports one variety');
+  assertEqual(discoveryResultCountText([cultivar]),'1 plant','a cultivar-only result is one exact plant choice');
   const matches = discoveryRefsFor(normalizeDiscovery({ source: 'all', query: cultivar.v }));
   const matchGroups = groupDiscoveryRefs(matches);
   assert(matchGroups.some(group => group.refs.some(ref => ref.s === cultivar.s && ref.v === cultivar.v)),
     'an exact cultivar search still surfaces its exact reference');
+});
+
+test('catalog grouping also collapses sibling taxa that share a presentation group', () => {
+  const stonecrops=allPlantRefs().filter(ref=>PLANTS[ref.s].group==='hylotelephium');
+  const grouped=groupDiscoveryRefs(stonecrops);
+  assertEqual(grouped.length,1,'the five exact stonecrop lineages share one family card');
+  assert(grouped[0].crossSpecies,'the family records that its choices cross base keys');
+  assertEqual(grouped[0].refs.length,5,'every exact stonecrop choice reaches the drill-in');
+  const moorGrasses=allPlantRefs().filter(ref=>PLANTS[ref.s].group==='molinia');
+  assertEqual(groupDiscoveryRefs(moorGrasses).length,1,'Transparent and Moorhexe share one purple-moor-grass card');
 });
 
 test('the active discovery card tracks the exact selected cultivar', () => {
@@ -955,6 +965,39 @@ test('favorites and named palettes preserve exact cultivar references', () => {
   assert(deletePlantPalette(palette.id), 'the named palette can be removed');
   toggleFavorite(cultivar);
   if (originallyFavorite) toggleFavorite(cultivar);
+});
+
+test('retired plant refs converge in gardens, schemes, Favorites, and palettes', async () => {
+  const cell={s:'salvia',d:7,t:11,ox:0.25,oy:-0.2};
+  const mapped=canonicalizePlantMap({'2,3':cell,'4,5':{s:'retired-species',d:1,t:2}});
+  assertEqual(mapped['2,3'].s,'meadowsage','old Caradonna base moves to meadow sage');
+  assertEqual(mapped['2,3'].v,'caradonna','old Caradonna identity becomes exact');
+  assertEqual(mapped['2,3'].d,7,'planting day survives migration');
+  assertEqual(mapped['2,3'].ox,0.25,'free-placement offsets survive migration');
+  assertEqual(mapped['4,5'].s,'retired-species','unknown retired refs remain untouched');
+
+  const collections=normalizePlantCollections({
+    favorites:[{s:'creamindigo'},{s:'baptisia',v:'creamwild'}],
+    palettes:[{id:'legacy',name:'Legacy',items:[{s:'smoketree',v:'grace'},{s:'salviaspecies',v:'bluehill'}]}]
+  });
+  assertEqual(collections.favorites.length,1,'aliases deduplicate after canonicalization');
+  assertEqual(plantRefId(collections.favorites[0]),'baptisia|creamwild','Cream Wild Indigo remains exact');
+  assertEqual(plantRefId(collections.palettes[0].items[0]),'smokebush|grace','misplaced Grace moves to smokebush');
+  assertEqual(plantRefId(collections.palettes[0].items[1]),'meadowsage|bluehill','old sage cultivar moves to the canonical family');
+
+  setup(13,13);
+  const a=game.schemeActive;
+  restoreSchemes({schemes:{active:a,list:[{id:a,name:'Active',t:1},{id:'legacy-scheme',name:'Legacy',t:1,
+    plants:{'6,6':{s:'smoketree',v:'royalpurple',d:3,t:4}},bulbs:{}}]}},0);
+  const idle=schemeList().find(s=>s.id==='legacy-scheme');
+  assert(idle&&idle.plants['6,6'],'inactive scheme survives restoration');
+  assertEqual(plantRefId(idle.plants['6,6']),'smokebush|royalpurple','inactive scheme refs migrate too');
+
+  const id='cleanup-alias-load';
+  await sSet('hortus:world:'+id,{v:SAVE_VERSION,gw:13,gh:13,name:'Legacy refs',plants:{'3,3':cell},bulbs:{}});
+  assert(await loadSolo(id),'legacy-ref garden loads');
+  assertEqual(plantRefId(game.plants['3,3']),'meadowsage|caradonna','active garden refs migrate on load');
+  await sDel('hortus:world:'+id);
 });
 
 test('saved lists retain unavailable plants and expose them for removal', () => {
@@ -1009,6 +1052,15 @@ test('long-blooming perennials carry one bloom across a season boundary', () => 
   const earlyFall = bloomLevel('gaura');
   assert(lateSummer > 0.9 && earlyFall > 0.9,
     `gaura remains in full flower on both sides of the boundary (${lateSummer}/${earlyFall})`);
+});
+
+test('cultivar bloom windows drive live phenology instead of the base plant window', () => {
+  setup();
+  game.dayOffset = Math.round(bloomMonthPhase(5) + YEAR_DAYS/24);
+  const royalMay = bloomLevel('redhotpoker','royalstandard');
+  const beesMay = bloomLevel('redhotpoker','beessunset');
+  assertEqual(royalMay,0,'Royal Standard waits until its June bloom window');
+  assert(beesMay>0.2,`Bees' Sunset is already flowering in May (${beesMay})`);
 });
 
 test('exact bloom-day species stay gated to their authored season', () => {
@@ -2998,7 +3050,7 @@ test('deer/rabbit resistance tags the right plants', () => {
   const deer = k => plantRoles(k).includes('deerOk');
   const rabbit = k => plantRoles(k).includes('rabbitOk');
   // broadly avoided: grasses, ferns, aromatic mints, toxic forbs/bulbs, tough shrubs
-  ['bluestem', 'ladyfern', 'monarda', 'mountainmint', 'salvia', 'yarrow', 'baptisia',
+  ['bluestem', 'ladyfern', 'monarda', 'mountainmint', 'meadowsage', 'yarrow', 'baptisia',
     'butterfly', 'daffodil', 'siberianiris', 'boxwoodround', 'sumac', 'goldenrod', 'rudbeckia']
     .forEach(k => assert(deer(k) && rabbit(k), `${k} should be browse-resistant`));
   // readily browsed: kept off the list on purpose (honest data)
