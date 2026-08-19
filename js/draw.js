@@ -23,6 +23,23 @@ function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
    treatment can stay a small data-only override. */
 const ART2 = { on: typeof location==='undefined' || !/[?&]art2=0(&|$)/.test(location.search) };
 const LIT = {x:-0.55, y:-0.83};          // direction TO the light: upper left
+
+/* Snow needs something to land on. Most forms run an UNCONDITIONAL stem pass,
+   so a spiderwort, gaura, iris or lobelia whose winter slot is empty still
+   stands brown dead stems through the snow — measured rgb(80,64,48) — and
+   those rightly keep their caps. These three forms gate everything on the
+   season colours, so with an empty winter they put NOTHING on the tile, while
+   the cap block below still scattered four ellipses at 50-95% of the plant's
+   height: snow hanging in mid-air over bare ground. That is the ferns that die
+   down (lady, maidenhair, hay-scented, New York, Japanese painted), plus hosta,
+   brunnera and daylily. Verified by rendering all 428 species in Winter and
+   counting ink above the crown — a broader rule keyed on the season colours
+   alone wrongly stripped snow from 26 species that DO draw stems.
+   Bulbs never reach here: they sit at growth 0 and fail the mature check. */
+const SNOW_BARE_FORMS = {fern:1, leafmound:1, rosette:1};
+function catchesSnow(P, S){
+  return !SNOW_BARE_FORMS[P.form] || !!(S.fol || S.seed || S.bloom);
+}
 function art2On(L){ return ART2.on && !!(L && L.art2); }
 
 /* Fill the current path with a value gradient along the light axis. `r` is the
@@ -3998,7 +4015,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   // winter snow caps on mature structure (woody: spread across the drawn crown)
-  if (AMBIENCE[season].snow && mature){
+  if (AMBIENCE[season].snow && mature && catchesSnow(P,S)){
     ctx.fillStyle='rgba(240,244,250,0.85)';
     const capS=P.cw?Math.max(1,(woodyVisualCw(P)||60)/60):1;
     const rs=mulberry(seed+9), caps=isTreeDef(P)?7:4;

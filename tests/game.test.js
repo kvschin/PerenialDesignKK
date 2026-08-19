@@ -4572,6 +4572,44 @@ const DISCOVERY_STATES = [
   { source: 'recommended', query: 'sedge' },
 ];
 
+
+test('snow only falls on a plant that actually drew something', () => {
+  // A fern that has died down puts NOTHING on its tile in winter, but the cap
+  // block scattered four ellipses at 50-95% of its height regardless — snow
+  // hanging in mid-air over bare ground. Kevin caught it in a winter garden.
+  const bare = { Winter: {} };
+  for (const form of ['fern','leafmound','rosette'])
+    assert(!catchesSnow({form}, bare.Winter), `${form}: nothing drawn, so nothing to land on`);
+
+  // The same forms DO hold snow the moment they declare winter presence —
+  // an evergreen fern, a hosta that has not gone over.
+  for (const form of ['fern','leafmound','rosette']){
+    assert(catchesSnow({form}, {fol:'#4e7a48'}), `${form}: evergreen keeps its caps`);
+    assert(catchesSnow({form}, {seed:'#6e4a32'}), `${form}: fertile structure keeps its caps`);
+  }
+
+  // And the fix must NOT reach the forms that run an unconditional stem pass.
+  // Spiderwort, gaura, iris and the lobelias declare an empty winter yet stand
+  // brown dead stems through it; a rule keyed on the season colours alone
+  // stripped snow from 26 such species before this was narrowed to three forms.
+  for (const form of ['cone','spike','umbel','globe','iris','airywand','archbell',
+                      'bunchgrass','shrub','forestgrass'])
+    assert(catchesSnow({form}, bare.Winter), `${form}: dead stems still catch snow`);
+
+  // Woody forms put trunk and twigs on the tile in every season.
+  for (const form of ['bush','tree','conifer','hydrangea'])
+    assert(catchesSnow({form}, bare.Winter), `${form}: woody structure always catches snow`);
+
+  // The species the report was actually about, resolved through real data.
+  for (const k of ['ladyfern','maidenhairfern','hayscentedfern','newyorkfern',
+                   'japanesepaintedfern','hosta','brunnera','daylily'])
+    assert(!catchesSnow(PLANTS[k], PLANTS[k].sea.Winter || {}),
+      `${k}: dies down, so it must not wear snow`);
+  for (const k of ['christmasfern','hartstonguefern','hollyfern','autumnfern','malefern',
+                   'ostrichfern','cinnamonfern','sensitivefern','bluestem','echinacea'])
+    assert(catchesSnow(PLANTS[k], PLANTS[k].sea.Winter || {}),
+      `${k}: holds winter structure, so it must keep its snow`);
+});
 test('bucketed category counts equal filtering per category', () => {
   setup(31, 31);
   const cats = TRAY_CATS.filter(c => TRAY_GROUPS[0].cats.includes(c.id));
