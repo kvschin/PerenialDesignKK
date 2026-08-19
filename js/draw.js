@@ -2769,29 +2769,78 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
   }
   else if (P.form === 'fern'){ // arching fronds, leaflets tapering to the tip
+    // Every knob here used to be a literal, so the whole fern cabinet drew as
+    // one plant in four colours. What actually separates ferns is the carriage
+    // of the frond — how many, how wide the vase opens, how far the tip falls,
+    // how finely it is cut — so those are data. `frondStyle:'strap'` is the one
+    // architecture branch: hart's tongue has no leaflets to place, and no
+    // amount of pinna tuning turns a divided frond into an undivided one.
+    // Verified against the pre-refactor renderer by FNV-1a hashing every pixel
+    // of 18 species x 4 seasons x 2 seeds: every default here reproduces the
+    // old output byte for byte (0/144 differing) EXCEPT the pinna series. The
+    // old loop was `for(f=0.25; f<=0.95; f+=0.14)`, which accumulates float
+    // error and lands its last step on 0.9500000000000001 — so it silently drew
+    // FIVE leaflets ending at 0.81 of the frond, leaving every frond in the game
+    // bare-tipped. Stepping from a count reaches the tip, which is what the old
+    // code reads as and what a pinnate frond actually does. Do not "restore" the
+    // accumulating loop. The default stays at FIVE, spanning the same 0.25-0.95:
+    // that fixes the bare tip for free, since the cost here is shape instances
+    // (§11a) and six leaflets measured +15.1% against the old renderer while the
+    // parameterisation itself measured +0.6%. Species that want a finer cut buy
+    // it explicitly with pinnaN, which is a design decision rather than a
+    // default nobody chose.
     const Lf=P.look||{};
-    if (S.fol && art2On(Lf)){
+    const fn=Lf.fronds||9, fan=Lf.spread===undefined?1.9:Lf.spread;
+    const arch=Lf.arch===undefined?0.55:Lf.arch, reach=Lf.reach===undefined?0.8:Lf.reach;
+    const base=Lf.frondLen===undefined?0.65:Lf.frondLen, vary=Lf.frondVar===undefined?0.4:Lf.frondVar;
+    const bowX=Lf.bow===undefined?0.35:Lf.bow, bowY=Lf.bowY===undefined?0.7:Lf.bowY;
+    const stipeCol=Lf.stipe||null, stipeW=Lf.stipeW||1.1;
+    const strap=Lf.frondStyle==='strap';
+    // Rachis layout is shared by both styles and by classic — one place to
+    // change how a species stands, whatever it hangs off that stem.
+    const layout=(n)=>{
+      const out=[];
+      for (let i=0;i<n;i++){
+        const a=(i/Math.max(1,n-1)-0.5)*fan+(rnd()-0.5)*0.2, len=H*(base+rnd()*vary);
+        out.push({a, len, px:Math.sin(a)*len*reach+sway*len*0.06, py:-Math.cos(a*arch)*len});
+      }
+      return out;
+    };
+    if (S.fol && strap){
+      // Undivided straps: one tapering ribbon per frond, drawn back-to-front so
+      // the near blades overlap rather than interleave.
+      const rach=layout(stemFor(fn)).sort((p,q)=>q.py-p.py);
+      for (const r of rach)
+        drawLeaf(ctx, 0,0, r.px, r.py, (Lf.pinnaW||3.4)*(Lf.strapHW||1.0),
+                 shade(S.fol,(rnd()-0.5)*20),
+                 {shape:Lf.leafShape||'linear', bow:Lf.leafBow===undefined?0.05:Lf.leafBow,
+                  teeth:Lf.leafTeeth, teethN:Lf.leafTeethN, rib:true});
+    }
+    else if (S.fol && art2On(Lf)){
       // A fern draws ~9 fronds x 6 leaflets. Shading each one would be 54
       // fills; batching every leaflet into a dark pass and a lit pass is 2,
       // and at leaflet scale that IS the shading. Rachis batches to one stroke.
-      const n=stemFor(9), rach=[];
-      for (let i=0;i<n;i++){
-        const a=(i/Math.max(1,n-1)-0.5)*1.9+(rnd()-0.5)*0.2, len=H*(0.65+rnd()*0.4);
-        rach.push({a, px:Math.sin(a)*len*0.8+sway*len*0.06, py:-Math.cos(a*0.55)*len});
-      }
-      ctx.strokeStyle=shade(S.fol,-20); ctx.lineWidth=1.1; ctx.beginPath();
+      const n=stemFor(fn), rach=layout(n);
+      const pinnaN=Math.max(3,Math.round(Lf.pinnaN||5)), from=Lf.pinnaFrom===undefined?0.25:Lf.pinnaFrom;
+      const to=Lf.pinnaTo===undefined?0.95:Lf.pinnaTo, step=(to-from)/(pinnaN-1);
+      const pLen=Lf.pinnaLen===undefined?4.2:Lf.pinnaLen, pTip=Lf.pinnaTip===undefined?0.8:Lf.pinnaTip;
+      const pW=Lf.pinnaW===undefined?1.1:Lf.pinnaW, both=Lf.taper==='both';
+      ctx.strokeStyle=stipeCol||shade(S.fol,-20); ctx.lineWidth=stipeW; ctx.beginPath();
       for (const r of rach){ ctx.moveTo(0,0);
-        ctx.quadraticCurveTo(r.px*0.35, r.py*0.7, r.px, r.py); }
+        ctx.quadraticCurveTo(r.px*bowX, r.py*bowY, r.px, r.py); }
       ctx.stroke();
       for (let pass=0; pass<2; pass++){
         ctx.fillStyle = pass ? shade(S.fol,30) : shade(S.fol,-12);
         const k = pass ? 0.60 : 1, off = pass ? 0.34 : 0;
         ctx.beginPath();
         for (const r of rach){
-          const cxc=r.px*0.35, cyc=r.py*0.7, rot=r.a*0.5;
-          for (let f=0.25;f<=0.95;f+=0.14){
-            const u=1-f, bx=2*u*f*cxc+f*f*r.px, by=2*u*f*cyc+f*f*r.py;
-            const rr=((1-f)*4.2+0.8)*k, ry=1.1*k;
+          const cxc=r.px*bowX, cyc=r.py*bowY, rot=r.a*0.5;
+          for (let j=0;j<pinnaN;j++){
+            const f=from+step*j, u=1-f, bx=2*u*f*cxc+f*f*r.px, by=2*u*f*cyc+f*f*r.py;
+            // A wood fern is widest at the base and tapers to the tip; New York
+            // fern narrows at BOTH ends, which is how you tell it in the field.
+            const t=both ? Math.sin(f*Math.PI) : 1-f;
+            const rr=(t*pLen+pTip)*k, ry=pW*k;
             const ox2=bx+LIT.x*rr*off, oy2=by+LIT.y*ry*off;
             ctx.moveTo(ox2+rr*Math.cos(rot), oy2+rr*Math.sin(rot));   // no join line
             ctx.ellipse(ox2, oy2, rr, ry, rot, 0, 7);
@@ -2801,27 +2850,47 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
     }
     else if (S.fol){
-      const n=stemFor(9);
-      for (let i=0;i<n;i++){
-        const a=(i/(n-1)-0.5)*1.9+(rnd()-0.5)*0.2;
-        const len=H*(0.65+rnd()*0.4);
-        const p1x=Math.sin(a)*len*0.8+sway*len*0.06, p1y=-Math.cos(a*0.55)*len;
-        const cxc=p1x*0.35, cyc=p1y*0.7;
+      const rach=layout(stemFor(fn));
+      const pinnaN=Math.max(3,Math.round(Lf.pinnaN||5)), from=Lf.pinnaFrom===undefined?0.25:Lf.pinnaFrom;
+      const to=Lf.pinnaTo===undefined?0.95:Lf.pinnaTo, step=(to-from)/(pinnaN-1);
+      const pLen=Lf.pinnaLen===undefined?4.2:Lf.pinnaLen, pTip=Lf.pinnaTip===undefined?0.8:Lf.pinnaTip;
+      const pW=Lf.pinnaW===undefined?1.1:Lf.pinnaW, both=Lf.taper==='both';
+      for (const r of rach){
+        const cxc=r.px*bowX, cyc=r.py*bowY;
         const col=shade(S.fol,(rnd()-0.5)*22);
-        ctx.strokeStyle=col; ctx.lineWidth=1.1;
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(cxc,cyc,p1x,p1y); ctx.stroke();
+        ctx.strokeStyle=stipeCol||col; ctx.lineWidth=stipeW;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(cxc,cyc,r.px,r.py); ctx.stroke();
         ctx.fillStyle=col;
-        for (let f=0.25;f<=0.95;f+=0.14){ // leaflets along the rachis
-          const u=1-f;
-          const bx=2*u*f*cxc+f*f*p1x, by=2*u*f*cyc+f*f*p1y;
-          ctx.beginPath(); ctx.ellipse(bx,by,(1-f)*4.2+0.8,1.1,a*0.5,0,7); ctx.fill();
+        for (let j=0;j<pinnaN;j++){ // leaflets along the rachis
+          const f=from+step*j, u=1-f;
+          const bx=2*u*f*cxc+f*f*r.px, by=2*u*f*cyc+f*f*r.py;
+          const t=both ? Math.sin(f*Math.PI) : 1-f;
+          ctx.beginPath(); ctx.ellipse(bx,by,t*pLen+pTip,pW,r.a*0.5,0,7); ctx.fill();
         }
       }
     }
     if (S.seed && (mature||!S.fol)){ // ostrich fern's stiff fertile fronds hold all winter
-      ctx.strokeStyle=S.seed; ctx.lineWidth=1.8;
-      for (let i=0;i<3;i++){ const ox=(rnd()-0.5)*6;
-        ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox+sway*2,-H*(0.5+rnd()*0.2)); ctx.stroke(); }
+      // Three treatments, because the fertile frond is the whole identity of
+      // the ferns that carry one: cinnamon fern's woolly central clubs, the
+      // sensitive fern's persistent bead-sticks, and the plain stiff spike.
+      const kind=Lf.fertileStyle||'stick', fCount=Math.max(1,Math.round(Lf.fertileN||3));
+      const fLen=Lf.fertileLen===undefined?0.5:Lf.fertileLen;
+      ctx.strokeStyle=S.seed; ctx.lineWidth=kind==='spike'?2.6:1.8;
+      for (let i=0;i<fCount;i++){
+        const ox=(rnd()-0.5)*(Lf.fertileSpread||6), top=-H*(fLen+rnd()*0.2);
+        ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox+sway*2,top); ctx.stroke();
+        if (kind==='spike'){ // woolly club on the upper third
+          ctx.fillStyle=shade(S.seed,10); ctx.beginPath();
+          ctx.ellipse(ox+sway*1.6, top*0.82, Lf.fertileW||2.4, Math.abs(top)*0.20, 0,0,7); ctx.fill();
+        } else if (kind==='bead'){ // paired beads up the stalk
+          ctx.fillStyle=S.seed; ctx.beginPath();
+          for (let b=0;b<6;b++){
+            const f=0.35+b*0.12, bx=ox+sway*2*f, by=top*f, br=Lf.fertileW||1.5;
+            ctx.moveTo(bx+br,by); ctx.ellipse(bx,by,br,br*0.9,0,0,7);
+          }
+          ctx.fill();
+        }
+      }
     }
   }
   else if (P.form === 'leafmound'){ // hosta and shade mounds: broad overlapping leaves, scapes above

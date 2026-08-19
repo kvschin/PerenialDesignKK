@@ -1975,6 +1975,37 @@ not from the tab-local scaffolding that was just removed.
   mugo pine need ground-hugging architecture rather than an upright tree
   squeezed into the yew renderer. Further regional bulb expansion remains
   open.
+  A **fern pass** is landed (Aug 2026), and like the shrub passes it extended
+  the data grammar rather than adding species branches. The `fern` form had no
+  `look` knobs at all — nine fronds, one fan angle, one leaflet size baked in
+  as literals — so the four ferns in the catalog differed only in colour. Frond
+  carriage is now data (`fronds`, `spread`, `arch`, `reach`, `frondLen`,
+  `bow`/`bowY`), so is the cut (`pinnaN`/`pinnaLen`/`pinnaTip`/`pinnaW`,
+  `taper:'both'` for New York fern's twice-tapered blade), and so is the stipe
+  (`stipe`/`stipeW` — maidenhair's near-black wire, 'Lady in Red'). Two
+  architecture switches carry what numbers cannot: `frondStyle:'strap'` for
+  undivided fronds (hart's tongue, drawn through `drawLeaf`), and
+  `fertileStyle` `'stick'`/`'spike'`/`'bead'` for the fertile frond, which is
+  the entire winter identity of the ferns that hold one — cinnamon fern's
+  woolly clubs, the sensitive fern's black bead-sticks. Added: cinnamon, royal,
+  interrupted, northern maidenhair, sensitive, hay-scented, New York and
+  Goldie's wood fern as natives, plus the garden staples the catalog had none
+  of — Japanese painted fern (with 'Ghost'), autumn fern, male fern, soft
+  shield fern, hart's tongue and Japanese holly fern.
+  Two things the pass measured and that are worth not re-litigating. The old
+  pinna loop `for(f=0.25; f<=0.95; f+=0.14)` accumulated float error onto
+  0.9500000000000001 and so drew FIVE leaflets stopping at 0.81 — **every frond
+  in the game was bare-tipped**. Stepping from a count fixes it; the default
+  stays at five so the fix is free, because cost here is shape instances (§11a)
+  and going to six measured +15.1% while the parameterisation itself measured
+  +0.6% (FNV-1a pixel hashing of 18 species x 4 seasons x 2 seeds confirms every
+  other default reproduces the old renderer byte for byte, 0/144 differing).
+  And the retuned ferns ARE more expensive — the four originals go 180 to 307
+  pinna instances — but that is a return to normal, not a regression: measured
+  across all 294 herbaceous species the fern median is 138us against a catalog
+  median of 119us, and the priciest fern (hay-scented, 247us) ranks 42/294,
+  far below shipped species like switchgrass at 654us. They were cheap because
+  they were all the same plant.
 - **Procreate-style editing tools** (planned, not yet built — design mode):
   - **Pencil** — freehand draw a single layer (already mostly covered by
     drag-to-paint; the idea is a dedicated stroke tool).

@@ -94,9 +94,9 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,405,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,428,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),267,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),288,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -838,6 +838,118 @@ const BLOOM_MONTH_SEASON = {
    (The four grasses/sedges that once painted only a `seed` seedhead —
    bluegrama, northernseaoats, graysedge, mountainsedge — have since been
    fixed, so this contract now covers the whole catalog with no exceptions.) */
+
+test('requested perennial gaps keep exact taxa, lineage and grouping', () => {
+  const expected = {
+    easternbluestar:['Amsonia tabernaemontana','amsonia'],
+    fringedbluestar:['Amsonia ciliata','amsonia'],
+    scarletbeebalm:['Monarda didyma','monarda'],
+    easternbeebalm:['Monarda bradburiana','monarda'],
+    lemonbeebalm:['Monarda citriodora','monarda'],
+    giantironweed:['Vernonia gigantea subsp. gigantea','ironweed'],
+    narrowleafironweed:['Vernonia lettermannii','ironweed'],
+    swansongironweed:["Vernonia 'Summer's Swan Song'",'ironweed'],
+    bigflowertickseed:['Coreopsis grandiflora','coreopsis'],
+  };
+  for (const [key,[latin,group]] of Object.entries(expected)){
+    const P = PLANTS[key];
+    assert(P, `${key}: requested species missing`);
+    assertEqual(P.latin,latin,`${key}: exact Latin`);
+    assertEqual(P.group,group,`${key}: joins the existing family card`);
+    assert(Array.isArray(P.bloomMonths) && P.bloomMonths.length,`${key}: needs calendar months`);
+  }
+  // Amsonia illustris IS A. tabernaemontana var. illustris. It was already in
+  // the catalog under its accepted name, so the request for the variety is a
+  // synonym to index, never a second base record for one taxon.
+  assert((PLANTS.ozarkamsonia.synonyms||[]).includes('Amsonia tabernaemontana var. illustris'),
+    'Ozark bluestar indexes the tabernaemontana varietal synonym');
+  assertEqual(PLANTS.ozarkamsonia.latin,'Amsonia illustris','accepted name stays canonical');
+
+  // Bradbury's is the early bee balm and the whole reason to grow it; if it
+  // ever shares fistulosa's window the group has lost its sequence.
+  assert(Math.min(...PLANTS.easternbeebalm.bloomMonths) < Math.min(...PLANTS.monarda.bloomMonths),
+    'eastern bee balm opens before wild bergamot');
+  // Lettermann's ironweed is the fine-textured one: it must not inherit the
+  // prairie species' coarse leaf or there is no reason for it to exist.
+  assert(PLANTS.narrowleafironweed.look.leaves > PLANTS.prairieironweed.look.leaves * 2 &&
+         PLANTS.narrowleafironweed.look.leafW < PLANTS.prairieironweed.look.leafW * 0.5,
+    'narrowleaf ironweed keeps its threadleaf foliage');
+  assert(PLANTS.giantironweed.h > PLANTS.narrowleafironweed.h * 2,
+    'giant ironweed towers over the narrowleaf one');
+});
+
+test('named hybrids among the new perennials never claim a wild range', () => {
+  const hybrids = [['swansongironweed',null],['echinacea','tikitorch'],
+                   ['echinacea','cheyennespirit'],['scarletbeebalm','marshallsdelight'],
+                   ['japanesepaintedfern','ghost']];
+  for (const [s,v] of hybrids){
+    const D = v ? PLANTS[s].cv[v] : PLANTS[s];
+    assert(D, `${s}|${v}: missing`);
+    assertEqual(D.provenance,'hybrid',`${s}|${v}: hybrid lineage`);
+    assertEqual(D.nativeTo.length,0,`${s}|${v}: no asserted wild range`);
+  }
+  // The straight species around them must NOT get swept up in that.
+  assertEqual(PLANTS.narrowleafironweed.provenance,'species','Lettermann is a straight species');
+  assert(PLANTS.narrowleafironweed.nativeTo.includes('north-america'),'and a North American native');
+  // Orange coneflowers are garden hybrids, so they must carry their own Latin
+  // rather than inheriting E. purpurea from the base record.
+  for (const v of ['tikitorch','cheyennespirit'])
+    assert(PLANTS.echinacea.cv[v].latin && PLANTS.echinacea.cv[v].latin !== PLANTS.echinacea.latin,
+      `${v}: hybrid coneflower states its own name`);
+});
+
+test('the fern cabinet is data-driven, not one plant in many colours', () => {
+  const ferns = keys.filter(k => PLANTS[k].form === 'fern');
+  assert(ferns.length >= 18, `only ${ferns.length} ferns`);
+  for (const k of ferns){
+    const P = PLANTS[k];
+    assertEqual(P.type,'forb',`${k}: ferns are forbs`);
+    assertEqual(P.sun,'part',`${k}: ferns belong to the shade category`);
+    assert(P.look && P.look.art2,`${k}: fern needs the ART2 look`);
+    assert(!P.bloomMonths,`${k}: ferns do not flower`);
+  }
+  // The renderer knobs only earn their place if the species actually differ.
+  // Two fronds-and-cut signatures colliding means a species was authored by
+  // copying another and changing the colour, which is the thing this replaced.
+  const sig = new Map();
+  for (const k of ferns){
+    const L = P => [P.frondStyle||'pinnate',P.fronds||9,P.spread||1.9,P.arch||0.55,
+                    P.reach||0.8,P.pinnaN||6,P.pinnaLen||4.2,P.pinnaW||1.1].join('/');
+    const s = L(PLANTS[k].look);
+    assert(!sig.has(s),`${k}: identical frond geometry to ${sig.get(s)}`);
+    sig.set(s,k);
+  }
+  // Architecture the knobs exist to express, pinned by the species that need it.
+  assertEqual(PLANTS.hartstonguefern.look.frondStyle,'strap',"hart's tongue is undivided");
+  assertEqual(PLANTS.newyorkfern.look.taper,'both','New York fern tapers at both ends');
+  assert(PLANTS.maidenhairfern.look.arch > 1 && PLANTS.maidenhairfern.look.stipe,
+    'maidenhair is a flat fan on a dark wiry stipe');
+  assertEqual(PLANTS.cinnamonfern.look.fertileStyle,'spike','cinnamon fern has its cinnamon clubs');
+  assertEqual(PLANTS.sensitivefern.look.fertileStyle,'bead','sensitive fern keeps its bead sticks');
+  // A fertile treatment draws from sea.seed, so authoring one without a seed
+  // colour is a knob that silently does nothing.
+  for (const k of ferns){
+    const L = PLANTS[k].look;
+    if (!L.fertileStyle) continue;
+    const S = PLANTS[k].sea;
+    assert(SEASON_KEYS.some(s => S[s] && S[s].seed),
+      `${k}: declares fertileStyle but no season gives it a seed colour`);
+  }
+});
+
+test('evergreen ferns hold winter foliage and deciduous ones hold structure', () => {
+  // Winter must show something. For a fern that means either evergreen fronds
+  // or the persistent fertile stalk — a fern with neither is a bare tile.
+  const evergreen = ['christmasfern','marginalwoodfern','autumnfern','malefern',
+                     'softshieldfern','hartstonguefern','hollyfern'];
+  for (const k of evergreen)
+    assert(PLANTS[k].sea.Winter && PLANTS[k].sea.Winter.fol,`${k}: evergreen fern needs winter foliage`);
+  const structural = ['ostrichfern','cinnamonfern','royalfern','interruptedfern','sensitivefern'];
+  for (const k of structural){
+    assert(PLANTS[k].sea.Winter && PLANTS[k].sea.Winter.seed,`${k}: needs its winter fertile structure`);
+    assert(PLANTS[k].look.fertileStyle,`${k}: and a treatment to draw it with`);
+  }
+});
 test('every species blooming in the calendar also blooms in a season slot', () => {
   for (const k of keys){
     const P = PLANTS[k];
