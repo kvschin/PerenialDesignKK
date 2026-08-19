@@ -311,9 +311,14 @@ function finishToolDrag(){
     else if (toolDrag.what==='light') msg=`Placed ${changed} ${lightLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='firepit') msg=`Placed ${changed} ${firepitLabel().toLowerCase()}${changed>1?'s':''}.`;
     else if (toolDrag.what==='boulder') msg=`Placed ${changed} ${boulderLabel().toLowerCase()}${changed>1?'s':''}.`;
+    else if (toolDrag.what==='building') msg=`${buildingEditMode()==='remove'?'Trimmed':'Added'} ${changed} tile${changed>1?'s':''}.`;
     else msg=`Planted ${changed} - ${def.name}.`;
     toast(msg);
-  } else toast('Nothing would take along that line.');
+  } else if (!(game.tool==='building-edit' && buildingEditMode()==='rename')){
+    // Rename acts on a tap, so a stray drag in that mode changed nothing on
+    // purpose — "nothing would take along that line" would be a lie about it.
+    toast('Nothing would take along that line.');
+  }
 }
 function strokeLineTiles(x0,y0,x1,y1){
   const out=[], dx=Math.abs(x1-x0), sx=x0<x1?1:-1, dy=-Math.abs(y1-y0), sy=y0<y1?1:-1;

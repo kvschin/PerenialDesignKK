@@ -62,6 +62,19 @@ function actHere(opts){
   if (isDoor(x,y)){ toast('The doorstep is just scenery for now.'); return; }
   if (game.tool==='house'){ toast('Tap the spot where the house should stand.'); return; }
   if (game.tool==='building'){ toast('Tap exterior corners, then close the outline.'); return; }
+  if (game.tool==='building-edit'){
+    const mode=buildingEditMode();
+    if (mode==='rename'){ renameBuildingAt(x,y); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(mode==='remove'?'Trimmed the footprint.':'Added to the footprint.'); }
+    else if (mode==='remove') rejectPlacement(buildingAt(x,y)
+      ? 'That would leave a hole or split the building in two.'
+      : 'Tap a building footprint to trim it.');
+    else rejectPlacement(buildingAt(x,y) ? 'That tile is already part of the footprint.'
+      : buildingToExtendAt(x,y) ? 'Clear that tile first, or it would leave a hole.'
+      : 'Tap ground touching a footprint to extend it.');
+    return;
+  }
   if (game.tool==='fence'){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Fence needs clear ground outside the shrub spread.'); return; }
@@ -267,8 +280,13 @@ function driftCount(def){
    inherits them; tools without a hook (hand/select/pick/erase/house) no-op. */
 function applyToolAt(x,y,opts){
   if (!onPlot(x,y)) return null;
-  if (siteStructureAt(x,y) || isDoor(x,y)) return null;
   const meta=toolMeta(game.tool);
+  /* "Nothing goes on top of a building" is right for every tool except the one
+     whose job IS the building — the footprint editor has to reach the tiles a
+     footprint already owns in order to trim them. `overSite` says so in the
+     TOOLS table rather than naming the tool here; its hook re-checks houses,
+     doors and occupancy itself, so the exemption is not a hole. */
+  if (!meta.overSite && (siteStructureAt(x,y) || isDoor(x,y))) return null;
   return meta.apply ? meta.apply(x,y,opts) : null;
 }
 /* stamp the armed brush across its disc footprint (game.brushSize) for the
@@ -280,7 +298,18 @@ function applyToolAt(x,y,opts){
    directly — they already cover an area, so the brush disc doesn't apply. */
 function toolBrushSize(){ return toolMeta(game.tool).sizable ? normalizeBrushSize(game.brushSize) : 1; }
 function stampBrushAt(x,y,opts){
-  const size=toolBrushSize();
+  const meta=toolMeta(game.tool), size=toolBrushSize();
+  /* A `stamp` hook takes the WHOLE disc at once. Per-tile is right for the
+     paint tools, where each tile is an independent write, and wrong for the
+     footprint editor, where every tile rebuilds and re-traces the entire
+     polygon: measured 6.11ms for one 7-wide stamp on a 280-tile footprint,
+     which is a drag that stutters. Batched it is one rebuild. It is also more
+     correct — a disc applied tile-by-tile can transiently look like a hole and
+     be refused, when the disc as a whole is fine. */
+  if (meta.stamp){
+    const tiles = size===1 ? [[x,y]] : brushOffsets(size).map(([dx,dy])=>[x+dx,y+dy]);
+    return meta.stamp(tiles,opts);
+  }
   if (size===1) return applyToolAt(x,y,opts);
   let what=null;
   for (const [dx,dy] of brushOffsets(size)){
@@ -566,11 +595,21 @@ function placeBoulderAt(x,y){
 }
 
 /* ---------- house placement / sizing / paint ---------- */
+/* A footprint is a DIAGRAM, not a building. What the gardener sees is the area
+   it covers and the thin extruded edge around it, so "wall colour" and "roof
+   colour" — inherited wholesale from the house model, which really does have
+   walls and a roof — named the code rather than the picture: the "roof" was the
+   whole shape and the "wall" was a few pixels of rim. They are `fill` and
+   `edge` now, read through the old keys so an existing garden or a shared file
+   keeps exactly the colours it had. Houses keep wall/roof; they have them. */
 function normalizeBuildingStyle(d){
   d=d&&typeof d==='object'?d:{};
-  return {status:d.status==='proposed'?'proposed':'existing',label:String(d.label||'House').slice(0,32),
-    wall:d.wall||'#8a7a60',roof:d.roof||'#9a5f3a'};
+  return {status:d.status==='proposed'?'proposed':'existing',label:buildingLabel(d.label),
+    edge:d.edge||d.wall||'#8a7a60', fill:d.fill||d.roof||'#9a5f3a'};
 }
+// what a footprint is called on the canvas and the plan. Empty falls back at
+// draw time, so clearing the field is "unnamed", not a literal empty label.
+function buildingLabel(s){ return String(s==null?'House':s).replace(/\s+/g,' ').trim().slice(0,24); }
 function buildingStyleDraft(){ return game.buildingStyleDraft=normalizeBuildingStyle(game.buildingStyleDraft); }
 function buildingSignedArea(vs){
   let a=0; for (let i=0;i<vs.length;i++){ const p=vs[i],q=vs[(i+1)%vs.length]; a+=p[0]*q[1]-q[0]*p[1]; }
@@ -586,7 +625,13 @@ function orthSegmentsTouch(a,b,c,d){
     return false;
   }
   const h=abH?[a,b]:[c,d], v=abH?[c,d]:[a,b];
-  return between(v[0],h[0][0],h[1][0])&&between(h[0],v[0][1],v[1][1]);
+  /* h is the horizontal pair and v the vertical one, so the test is "does the
+     vertical's X fall inside the horizontal's X span, and the horizontal's Y
+     inside the vertical's Y span". Both arguments used to be the POINTS rather
+     than their coordinates — `between([6,2], 2, 9)` coerces the array to NaN
+     and is always false, so the perpendicular case, which is every real
+     self-crossing, never fired and a bow-tie outline committed happily. */
+  return between(v[0][0],h[0][0],h[1][0]) && between(h[0][1],v[0][1],v[1][1]);
 }
 function buildingOutlineValid(vs){
   if (!Array.isArray(vs)||vs.length<3) return 'Use at least three corners.';
@@ -627,6 +672,131 @@ function commitBuildingFootprint(vertices){
 function removeBuildingAt(x,y){
   const b=buildingAt(x,y); if (!b) return false;
   const i=game.buildings.indexOf(b); return removeBuildingAtIndex(i);
+}
+
+/* ---------- editing a placed footprint ----------
+   A footprint drawn corner-by-corner is rarely right first time — a bay was
+   missed, the garage is a foot too deep — and redrawing the whole outline to
+   fix a corner is the kind of thing that makes people not bother.
+
+   The model does NOT change. `vertices` stays the single source of truth and
+   the save format is untouched; an edit rasterises the polygon to tiles, adds
+   or removes the brushed tiles, and traces the result straight back to a
+   polygon with `traceOutlines` — the same function the plan sheet and the
+   organic terrain edges already use. So the outline after an edit is the same
+   kind of object as the outline before it, and an older build reading the file
+   sees an ordinary footprint.
+
+   The price is that a footprint stays ONE simply-connected polygon: an edit
+   that would punch a hole or split the building in two is refused, because a
+   single vertex ring cannot express either. traceOutlines returns one loop per
+   boundary, so both cases are just `loops.length!==1`. */
+function buildingVerticesFromTiles(keys){
+  if (!keys.size) return null;
+  const loops=traceOutlines(keys);
+  // 2+ loops is a hole or a separate island; neither fits one vertex ring
+  if (loops.length!==1) return null;
+  const vs=loops[0].map(p=>[p[0],p[1]]);
+  return buildingOutlineValid(vs) ? null : vs;      // also catches a pinched figure-eight
+}
+// replace rather than mutate: buildingGeometry caches on object identity, and
+// an in-place edit is exactly the kind sceneStale cannot see (see LAYER_CACHES)
+function replaceBuilding(b,patch){
+  const i=game.buildings.indexOf(b); if (i<0) return null;
+  const next=Object.assign({},b,patch);
+  game.buildings[i]=next;
+  markModelChanged(); markLayerCacheChanged('buildings');
+  return next;
+}
+function buildingEditMode(){
+  return ['add','remove','rename'].includes(game.buildingEditMode) ? game.buildingEditMode : 'add';
+}
+// the footprint a new tile would join: the one it already touches edge-on
+function buildingToExtendAt(x,y){
+  for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const b=buildingAt(x+dx,y+dy); if (b) return b;
+  }
+  return null;
+}
+// ground a footprint may grow onto: on the lot, and holding nothing else
+function buildingTileFree(x,y){
+  if (!onPlot(x,y) || buildingAt(x,y) || houseAt(x,y) || isDoor(x,y)) return false;
+  const k=`${x},${y}`, p=game.plants[k], bl=game.bulbs[k];
+  return !((p&&!p.removed)||(bl&&!bl.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)
+    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y));
+}
+function tilesTouch(x,y,keys){
+  return keys.has(`${x+1},${y}`)||keys.has(`${x-1},${y}`)||keys.has(`${x},${y+1}`)||keys.has(`${x},${y-1}`);
+}
+/* Both halves take a LIST of tiles, because the brush hands over a whole disc
+   and the polygon is rebuilt once for the lot rather than once per tile. */
+function extendBuildingTiles(tiles){
+  let target=null;
+  for (const [x,y] of tiles){
+    if (buildingAt(x,y)) continue;
+    const b=buildingToExtendAt(x,y); if (b){ target=b; break; }
+  }
+  if (!target) return null;
+  const keys=new Set(buildingTiles(target).map(t=>t[0]+','+t[1]));
+  /* Grow to a fixed point: a disc tile two cells out becomes adjacent once its
+     neighbour joins, so one pass would leave ragged holes in a fat brush. */
+  let added=0, grew=true;
+  while (grew){
+    grew=false;
+    for (const [x,y] of tiles){
+      const k=`${x},${y}`;
+      if (keys.has(k) || !tilesTouch(x,y,keys) || !buildingTileFree(x,y)) continue;
+      keys.add(k); added++; grew=true;
+    }
+  }
+  if (!added) return null;
+  const vs=buildingVerticesFromTiles(keys); if (!vs) return null;
+  return replaceBuilding(target,{vertices:vs}) ? 'building' : null;
+}
+function trimBuildingTiles(tiles){
+  const byBuilding=new Map();
+  for (const [x,y] of tiles){
+    const b=buildingAt(x,y); if (!b) continue;
+    if (!byBuilding.has(b)) byBuilding.set(b,new Set());
+    byBuilding.get(b).add(`${x},${y}`);
+  }
+  let what=null;
+  for (const [b,cut] of byBuilding){
+    const keys=new Set(buildingTiles(b).map(t=>t[0]+','+t[1]));
+    for (const k of cut) keys.delete(k);
+    if (!keys.size){                                 // trimmed away to nothing
+      if (removeBuildingAtIndex(game.buildings.indexOf(b))) what='building';
+      continue;
+    }
+    const vs=buildingVerticesFromTiles(keys);
+    if (vs && replaceBuilding(b,{vertices:vs})) what='building';
+  }
+  return what;
+}
+function extendBuildingAt(x,y){ return extendBuildingTiles([[x,y]]); }
+function trimBuildingAt(x,y){ return trimBuildingTiles([[x,y]]); }
+function applyBuildingEdit(x,y){ return applyBuildingEditTiles([[x,y]]); }
+function applyBuildingEditTiles(tiles){
+  const mode=buildingEditMode();
+  if (mode==='rename') return null;                  // tap-only, handled in actHere
+  return mode==='remove' ? trimBuildingTiles(tiles) : extendBuildingTiles(tiles);
+}
+/* Rename is a dialog, so it cannot ride the brush path (a drag would open one
+   prompt per tile). It fires from the tap handler instead. */
+function renameBuildingAt(x,y){
+  const b=buildingAt(x,y);
+  if (!b){ toast('Tap a building footprint to rename it.'); return false; }
+  showPrompt('Name this footprint',
+    'What is this building? The name shows on the plan and on the canvas.',
+    b.label||'', 'Save',
+    name=>{
+      const label=buildingLabel(name);
+      if (label===(b.label||'')) return;
+      withUndo(()=>{ replaceBuilding(b,{label}); });
+      toast(label?`Renamed to ${label}.`:'Name cleared.');
+      refreshCanvasTools();
+    });
+  return true;
 }
 function displacePlants(x,y,w,h){ // a house can't share ground with plants
   let n=0;

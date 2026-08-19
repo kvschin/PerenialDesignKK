@@ -539,7 +539,9 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     // region's terrace (screenOfFlat + explicit lift: the old screenOf call
     // missed elevation entirely for fractional corners, so raised beds drew flat)
     const lift=region.elev*ELEV_STEP;
-    const proj=([gx,gy])=>{ const p=screenOfFlat(gx,gy,W,H); return [p[0],p[1]-lift]; };
+    // traceOutlines works on the tile-CORNER lattice, so it needs the corner
+    // transform, not the tile one (they only agree at rot 0 — see cornerToView)
+    const proj=([gx,gy])=>{ const p=screenOfCorner(gx,gy,W,H); return [p[0],p[1]-lift]; };
     // fill the silhouette
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);

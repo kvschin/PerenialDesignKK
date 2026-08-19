@@ -1238,9 +1238,97 @@ test('tool guidance explains the next canvas action', () => {
   assertEqual(JSON.stringify(snapBuildingCorner([9, 5], [6, 2])), JSON.stringify([9, 2]),
     'building preview snaps a loose pointer to its dominant orthogonal axis');
   assertEqual(buildingEdgeFeetLabel([2, 2], [7, 2]), '7.5 ft', 'building edges report feet from the site scale');
-  const latticePoint=screenOfFlat(7, 4, 900, 700);
+  const latticePoint=screenOfCorner(7, 4, 900, 700);
   assertEqual(JSON.stringify(buildingCornerScreenPoint([7, 4], 900, 700, 0)), JSON.stringify(latticePoint),
     'building draft points project onto the exact visible tile-corner lattice');
+});
+
+/* The tile-corner lattice is NOT the tile lattice, and only agrees with it at
+   rot 0 — which is exactly why this shipped broken: worldToView reflects around
+   tile indices (GW-1-x) and a corner needs GW-cx, so every corner-space drawing
+   (building outlines, organic terrain blobs) sat a whole tile height off its
+   own tiles at rot 1/2/3. */
+test('tile-corner geometry lands on its tiles at every rotation', () => {
+  setup(31, 31);
+  const W = 1200, H = 800;
+  const key = pts => pts.map(p => Math.round(p[0]) + ':' + Math.round(p[1])).sort().join('|');
+  for (const rot of [0, 1, 2, 3]){
+    game.rot = rot;
+    for (const [x, y] of [[0, 0], [6, 9], [30, 30], [12, 3]]){
+      const [sx, sy] = screenOf(x, y, W, H);
+      const diamond = [[sx, sy], [sx + TILE_W / 2, sy + TILE_H / 2],
+        [sx, sy + TILE_H], [sx - TILE_W / 2, sy + TILE_H / 2]];
+      const corners = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]]
+        .map(c => screenOfCorner(c[0], c[1], W, H));
+      assertEqual(key(corners), key(diamond),
+        `rot ${rot}: tile ${x},${y} corners are its diamond`);
+    }
+  }
+  // the traced boundary of a tile set has to sit on that set, not beside it
+  const set = new Set();
+  for (let x = 5; x <= 7; x++) for (let y = 5; y <= 7; y++) set.add(x + ',' + y);
+  const loops = traceOutlines(set);
+  for (const rot of [0, 1, 2, 3]){
+    game.rot = rot;
+    let bx = Infinity, by = Infinity, tx = Infinity, ty = Infinity;
+    for (const loop of loops) for (const p of loop){
+      const s = screenOfCorner(p[0], p[1], W, H);
+      bx = Math.min(bx, s[0]); by = Math.min(by, s[1]);
+    }
+    for (const k of set){
+      const [x, y] = k.split(',').map(Number), [sx, sy] = screenOf(x, y, W, H);
+      tx = Math.min(tx, sx - TILE_W / 2); ty = Math.min(ty, sy);
+    }
+    assert(Math.abs(bx - tx) < 0.001 && Math.abs(by - ty) < 0.001,
+      `rot ${rot}: traced outline sits on its tiles (off by ${Math.round(bx - tx)},${Math.round(by - ty)})`);
+  }
+  game.rot = 0;
+});
+
+/* The footprint's extruded rim is drawn on the two faces the CAMERA sees, so
+   its "is my neighbour missing" test has to ask the view directions. Asking
+   world +x/+y agreed at rot 0 and was backwards at rot 2, which struck a rim
+   across the middle of the shape. drawElevationSides already did this right. */
+test('a footprint extrudes its rim on the camera-facing sides at every rotation', () => {
+  setup(21, 21);
+  assert(commitBuildingFootprint([[4, 4], [9, 4], [9, 9], [4, 9]]), '5x5 footprint commits');
+  const b = game.buildings[0];
+  const fills = (x, y) => {
+    let n = 0;
+    const ctx = new Proxy({}, {
+      get(o, p){
+        if (p === 'measureText') return t => ({ width: 0 });
+        if (p === 'fill') return () => { n++; };
+        return () => {};
+      }, set(){ return true; },
+    });
+    drawBuildingTile(ctx, 1200, 800, b, x, y);
+    return n;
+  };
+  for (const rot of [0, 1, 2, 3]){
+    game.rot = rot;
+    // the centre tile has all four neighbours: top face only, never a rim
+    assertEqual(fills(6, 6), 1, `rot ${rot}: an interior tile draws no rim`);
+    // exactly the two camera-facing edges carry a rim: 5 + 5 - 1 shared corner
+    let rimmed = 0;
+    for (let x = 4; x <= 8; x++) for (let y = 4; y <= 8; y++) if (fills(x, y) > 1) rimmed++;
+    assertEqual(rimmed, 9, `rot ${rot}: the rim follows two edges of the square`);
+  }
+  game.rot = 0;
+});
+
+test('a self-crossing footprint outline is refused', () => {
+  setup(31, 31);
+  // a bow-tie: two edges genuinely cross. between() used to be handed the
+  // POINTS instead of their coordinates, which coerces to NaN and is always
+  // false, so the perpendicular case — every real crossing — never fired.
+  assert(orthSegmentsTouch([2, 5], [9, 5], [6, 2], [6, 9]), 'crossing perpendiculars touch');
+  assert(!orthSegmentsTouch([2, 5], [4, 5], [9, 2], [9, 9]), 'separated perpendiculars do not');
+  assert(buildingOutlineValid([[4, 4], [10, 4], [10, 10], [7, 10], [7, 2], [12, 2], [12, 12], [4, 12]]),
+    'a bow-tie outline is rejected');
+  assertEqual(buildingOutlineValid([[4, 4], [10, 4], [10, 10], [4, 10]]), '', 'a rectangle still passes');
+  assertEqual(buildingOutlineValid([[4, 4], [12, 4], [12, 8], [8, 8], [8, 12], [4, 12]]), '',
+    'an L still passes');
 });
 
 test('mobile sheet supports collapsed, half, and full recovery states', () => {
@@ -2295,6 +2383,62 @@ test('building footprints rasterize, block placement, and erase as one site obje
   eraseBrush(4, 4, counts);
   assertEqual(counts.building, 1, 'one footprint erased despite multiple covered tiles');
   assertEqual(game.buildings.length, 0, 'footprint removed as a whole');
+});
+
+test('a placed footprint can be extended and trimmed, and stays one polygon', () => {
+  setup(21, 21);
+  assert(commitBuildingFootprint([[3, 3], [8, 3], [8, 6], [3, 6]]), 'footprint commits');
+  const tiles0 = buildingTiles(game.buildings[0]).length;
+  game.tool = 'building-edit'; game.buildingEditMode = 'add';
+
+  assertEqual(applyToolAt(8, 4), 'building', 'a tile touching the footprint joins it');
+  assertEqual(buildingTiles(game.buildings[0]).length, tiles0 + 1, 'the footprint grew by one tile');
+  assert(buildingAt(8, 4), 'the new tile belongs to the building');
+  assertEqual(game.buildings.length, 1, 'still one building, not two');
+  assertEqual(applyToolAt(15, 15), null, 'ground touching nothing is refused');
+  assertEqual(applyToolAt(4, 4), null, 'a tile already inside is refused');
+  game.plants['8,5'] = { s: firstOfType('forb'), d: 0, t: 1 };
+  assertEqual(applyToolAt(8, 5), null, 'an occupied tile is refused');
+  delete game.plants['8,5'];
+
+  game.buildingEditMode = 'remove';
+  assertEqual(applyToolAt(8, 4), 'building', 'the added tile trims back off');
+  assertEqual(buildingTiles(game.buildings[0]).length, tiles0, 'back to the original size');
+  /* The model is one vertex ring, so a hole or a split cannot be expressed —
+     both come back from traceOutlines as 2+ loops and are refused rather than
+     silently mangling the outline. */
+  assertEqual(applyToolAt(5, 4), null, 'punching an interior hole is refused');
+  assertEqual(buildingTiles(game.buildings[0]).length, tiles0, 'the refused trim changed nothing');
+
+  // trimming the last tile removes the building outright
+  assert(commitBuildingFootprint([[12, 12], [13, 12], [13, 13], [12, 13]]), 'a one-tile footprint commits');
+  assertEqual(game.buildings.length, 2, 'two buildings now');
+  assertEqual(applyToolAt(12, 12), 'building', 'its only tile trims');
+  assertEqual(game.buildings.length, 1, 'a footprint trimmed to nothing is removed');
+});
+
+test('a footprint carries a name, and its colours are the area and the edge', () => {
+  // wall/roof came from the house model; a footprint has neither, and what the
+  // two actually control is the shape's fill and the thin rim around it
+  const legacy = normalizeBuildingStyle({ wall: '#111111', roof: '#222222' });
+  assertEqual(legacy.edge, '#111111', 'a saved wall colour reads as the edge');
+  assertEqual(legacy.fill, '#222222', 'a saved roof colour reads as the area');
+  assertEqual(normalizeBuildingStyle({ edge: '#333333', wall: '#111111' }).edge, '#333333',
+    'the new key wins where both exist');
+
+  assertEqual(buildingLabel('  Garden   Shed '), 'Garden Shed', 'names are trimmed and collapsed');
+  assertEqual(buildingLabel('x'.repeat(60)).length, 24, 'names are bounded');
+  assertEqual(buildingLabel(undefined), 'House', 'the default is still House');
+  assertEqual(buildingLabel(''), '', 'an empty name is allowed — it means unnamed');
+
+  setup(21, 21);
+  game.buildingStyleDraft = normalizeBuildingStyle({ label: 'Shed', status: 'proposed' });
+  assert(commitBuildingFootprint([[3, 3], [6, 3], [6, 6], [3, 6]]), 'named footprint commits');
+  assertEqual(game.buildings[0].label, 'Shed', 'the draft name lands on the building');
+  // and Pick adopts it, so the next shed is a shed
+  game.buildingStyleDraft = normalizeBuildingStyle({ label: 'House' });
+  pickAt(4, 4);
+  assertEqual(buildingStyleDraft().label, 'Shed', 'the eyedropper picks up the name too');
 });
 
 test('fences place as blocking structures, gates stay walkable, and erase removes them', () => {

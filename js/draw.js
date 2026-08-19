@@ -4177,18 +4177,24 @@ function drawPet(ctx, x, y, p, scale){
 function drawBuildingTile(ctx,W,H,b,x,y){
   if (!b) return;
   const set=buildingTileSet(b);
-  const proposed=b.status==='proposed', roof=b.roof||'#9a5f3a', wall=b.wall||'#8a7a60';
+  const proposed=b.status==='proposed', roof=b.fill||b.roof||'#9a5f3a', wall=b.edge||b.wall||'#8a7a60';
   const lift=10, baseAlpha=ctx.globalAlpha;
   ctx.save();
   ctx.lineJoin='round'; ctx.lineWidth=1.15;
   const [sx,sy0]=screenOf(x,y,W,H), sy=sy0-lift;
   const top=[[sx,sy],[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2]];
+  /* The two extruded faces are the two the CAMERA can see — screen lower-right
+     and lower-left — so the "is my neighbour missing" test has to ask about the
+     view directions, not about world +x/+y. They coincide at rot 0; at rot 2
+     they are opposite, so the rim was drawn on the far side of the footprint
+     and every edge tile struck a face across the shape's interior. */
+  const [rx,ry]=viewDirToWorld(1,0), [dx,dy]=viewDirToWorld(0,1);
   ctx.globalAlpha=baseAlpha*(proposed?0.42:0.56);
-  if (!set.has((x+1)+','+y)){
+  if (!set.has((x+rx)+','+(y+ry))){
     ctx.fillStyle=shade(wall,-12); ctx.beginPath(); ctx.moveTo(...top[1]); ctx.lineTo(...top[2]);
     ctx.lineTo(top[2][0],top[2][1]+lift); ctx.lineTo(top[1][0],top[1][1]+lift); ctx.closePath(); ctx.fill();
   }
-  if (!set.has(x+','+(y+1))){
+  if (!set.has((x+dx)+','+(y+dy))){
     ctx.fillStyle=shade(wall,-24); ctx.beginPath(); ctx.moveTo(...top[2]); ctx.lineTo(...top[3]);
     ctx.lineTo(top[3][0],top[3][1]+lift); ctx.lineTo(top[2][0],top[2][1]+lift); ctx.closePath(); ctx.fill();
   }
@@ -4213,7 +4219,9 @@ function drawBuildingOutline(ctx,W,H,b){
   if (bounds){
     const [lx,ly]=screenOf((bounds.x0+bounds.x1)/2,(bounds.y0+bounds.y1)/2,W,H);
     ctx.fillStyle='rgba(35,24,18,.78)'; ctx.font='700 9px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
-    ctx.fillText(proposed?'PROPOSED':(b.label||'EXISTING').toUpperCase(),lx,ly+TILE_H/2-lift+3);
+    // the NAME wins over the status: the dashed amber outline already says
+    // proposed, and a garden with a shed and a garage has to tell them apart
+    ctx.fillText((b.label||(proposed?'PROPOSED':'BUILDING')).toUpperCase(),lx,ly+TILE_H/2-lift+3);
   }
   ctx.restore();
 }
@@ -4228,7 +4236,8 @@ function buildingEdgeFeetLabel(a,b){
   return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
 }
 function buildingCornerScreenPoint(p,W,H,lift){
-  const q=screenOfFlat(p[0],p[1],W,H);
+  // vertices are on the tile-CORNER lattice, which rotates as its own space
+  const q=screenOfCorner(p[0],p[1],W,H);
   return [q[0],q[1]-(lift||0)];
 }
 function drawBuildingDraftOverlay(ctx,W,H){

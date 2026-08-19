@@ -72,6 +72,11 @@ const TOOLS={
   level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
+  // add/remove tiles on an already-placed footprint. sizable so a whole wing
+  // comes on in one drag; Rename is tap-only and handled in tapAction.
+  'building-edit':{layer:'landscape', brush:true, placement:true, paints:false, material:false,
+    sizable:true, overSite:true, apply:(x,y,o)=>applyBuildingEdit(x,y),
+    stamp:(tiles,o)=>applyBuildingEditTiles(tiles)},
   fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
@@ -906,6 +911,34 @@ function showConfirm(title, body, okLabel, onOk, cancelLabel, onCancel){
   scr.addEventListener('click',e=>{ if (e.target===scr) cancel(); });
   document.body.appendChild(scr);
   openOverlay('confirmPop','[data-x]');
+}
+/* showConfirm with a text field. Same panel, same overlay/focus path, so a
+   name prompt behaves like every other stop in the app rather than falling
+   back to window.prompt (which the DOM stubs decline and iOS styles itself). */
+function showPrompt(title, body, value, okLabel, onOk){
+  const old=document.getElementById('confirmPop'); if (old) old.remove();
+  const scr=document.createElement('div');
+  scr.id='confirmPop'; scr.className='screen modal-screen hidden'; scr.setAttribute('role','dialog');
+  scr.setAttribute('aria-modal','true'); scr.setAttribute('aria-labelledby','confirmPopTitle');
+  scr.style.zIndex='60';
+  scr.innerHTML='<div class="panel pause-panel" tabindex="-1"><h2 id="confirmPopTitle"></h2><p class="sub"></p>'+
+    '<input id="promptPopField" type="text" maxlength="24" autocomplete="off" spellcheck="false">'+
+    '<div class="row" style="margin-top:14px">'+
+    '<button class="btn" data-x>Cancel</button><button class="btn primary" data-ok></button></div></div>';
+  scr.querySelector('h2').textContent=title;
+  scr.querySelector('p').textContent=body||'';
+  const field=scr.querySelector('#promptPopField');
+  field.value=value==null?'':String(value);
+  scr.querySelector('[data-ok]').textContent=okLabel||'Save';
+  const close=()=>{ closeOverlay('confirmPop'); scr.remove(); };
+  const ok=()=>{ const v=field.value; close(); onOk&&onOk(v); };
+  scr.querySelector('[data-x]').onclick=close;
+  scr.querySelector('[data-ok]').onclick=ok;
+  field.addEventListener('keydown',e=>{ if (e.key==='Enter'){ e.preventDefault(); ok(); } });
+  scr.addEventListener('click',e=>{ if (e.target===scr) close(); });
+  document.body.appendChild(scr);
+  openOverlay('confirmPop','#promptPopField');
+  if (field.select) field.select();
 }
 /* the layer is hidden but the gardener is trying to draw on it: offer to
    reveal it, and honor their click by placing once they say yes. */
@@ -2759,12 +2792,19 @@ function buildToolTrayInner(){
       b.append(c,sp); b.onclick=fn; tray.appendChild(b); return b;
     };
     const bd=buildingStyleDraft();
-    const miniFootprint=(tc,style)=>{
-      tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':style.roof;
-      tc.strokeStyle=style.status==='proposed'?'#e5b36e':uiInk('--icon-ink'); tc.lineWidth=1.8;
-      tc.setLineDash(style.status==='proposed'?[3,2]:[]);
+    const footprintPath=tc=>{
       tc.beginPath(); tc.moveTo(7,10); tc.lineTo(31,10); tc.lineTo(31,18); tc.lineTo(40,18);
-      tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath(); tc.fill(); tc.stroke();
+      tc.lineTo(40,33); tc.lineTo(17,33); tc.lineTo(17,25); tc.lineTo(7,25); tc.closePath();
+    };
+    const miniFootprint=(tc,style,edgeOnly)=>{
+      tc.fillStyle=style.status==='proposed'?'rgba(201,127,63,.34)':(style.fill||style.roof);
+      tc.strokeStyle=edgeOnly ? (style.edge||style.wall)
+        : (style.status==='proposed'?'#e5b36e':uiInk('--icon-ink'));
+      tc.lineWidth=edgeOnly?4:1.8;
+      tc.setLineDash(style.status==='proposed'&&!edgeOnly?[3,2]:[]);
+      footprintPath(tc);
+      if (edgeOnly){ tc.fillStyle='rgba(239,230,211,.16)'; }
+      tc.fill(); tc.stroke();
       tc.setLineDash([]);
     };
     const photo=toolBtn(game.underlay?'Edit site photo':'Add site photo',false,tc=>{
@@ -2787,21 +2827,47 @@ function buildToolTrayInner(){
       setTool('building',null); buildToolTray();
     });
     place.dataset.k='building'; place.title='Draw an orthogonal exterior building footprint';
+    // Edit an already-placed footprint: the shape is rarely right first time,
+    // and redrawing the whole outline to fix one bay is why people don't bother.
+    const edit=toolBtn('Edit footprint',game.tool==='building-edit',tc=>{
+      tc.strokeStyle=uiInk('--icon-ink'); tc.lineWidth=1.6; tc.setLineDash([3,2]);
+      footprintPath(tc); tc.stroke(); tc.setLineDash([]);
+      tc.strokeStyle='#c97f3f'; tc.lineWidth=2.4;
+      tc.beginPath(); tc.moveTo(24,15); tc.lineTo(24,29); tc.moveTo(17,22); tc.lineTo(31,22); tc.stroke();
+    },()=>{ setTool('building-edit',null); buildToolTray(); });
+    edit.dataset.k='building-edit'; edit.title='Add to, trim, or rename a placed footprint';
+    // The name a new footprint gets. A garden has sheds and garages, not just
+    // houses, and the model has carried `label` all along with no way to set it.
+    const nameBtn=toolBtn(bd.label||'Unnamed',false,tc=>{
+      tc.strokeStyle=uiInk('--icon-ink-soft'); tc.lineWidth=1.5;
+      footprintPath(tc); tc.stroke();
+      tc.fillStyle=uiInk('--icon-ink'); tc.font='700 11px IBM Plex Sans, sans-serif'; tc.textAlign='center';
+      tc.fillText('Aa',24,26);
+    },()=>{
+      showPrompt('Name new footprints','Sheds, garages, a greenhouse — whatever you are drawing next.',
+        bd.label||'','Save',v=>{
+          game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{label:v}));
+          buildToolTray();
+        });
+    });
+    nameBtn.dataset.k='building-name'; nameBtn.title='Name the next footprint you draw';
     sep('Status');
     ['existing','proposed'].forEach(status=>toolBtn(status==='existing'?'Existing':'Proposed',bd.status===status,
       tc=>miniFootprint(tc,Object.assign({},bd,{status})),()=>{
         game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{status}));
         setTool('building',null); buildToolTray();
       }));
-    sep('Wall color');
-    WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.wall===c2,
-      tc=>{ tc.fillStyle=c2; tc.fillRect(12,12,24,21); tc.strokeStyle='rgba(0,0,0,.3)'; tc.strokeRect(12,12,24,21); },()=>{
-        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{wall:c2})); setTool('building',null); buildToolTray();
+    // "Area"/"Edge", not "Roof"/"Wall": a footprint has no roof, and what these
+    // two actually control is the shape's fill and the thin rim around it.
+    sep('Area color');
+    ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.fill===c2,
+      tc=>miniFootprint(tc,Object.assign({},bd,{status:'existing',fill:c2})),()=>{
+        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{fill:c2})); setTool('building',null); buildToolTray();
       }));
-    sep('Roof color');
-    ROOF_COLS.forEach(([n,c2])=>toolBtn(n,bd.roof===c2,
-      tc=>{ tc.fillStyle=c2; tc.beginPath(); tc.moveTo(7,31); tc.lineTo(24,12); tc.lineTo(41,31); tc.closePath(); tc.fill(); },()=>{
-        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{roof:c2})); setTool('building',null); buildToolTray();
+    sep('Edge color');
+    WALL_COLS.forEach(([n,c2])=>toolBtn(n,bd.edge===c2,
+      tc=>miniFootprint(tc,Object.assign({},bd,{status:'existing',edge:c2}),true),()=>{
+        game.buildingStyleDraft=normalizeBuildingStyle(Object.assign({},bd,{edge:c2})); setTool('building',null); buildToolTray();
       }));
   }
   finishToolTrayRender();
@@ -2922,12 +2988,12 @@ function renderBrushBar(){
   const bar=document.getElementById('brushBar'); if (!bar) return;
   bar.innerHTML='';
   const meta=toolMeta(game.tool), P=PLANTS[game.tool];
-  const erasing = game.tool==='shovel';
+  const erasing = game.tool==='shovel', editingBuilding = game.tool==='building-edit';
   // Erase is "just another brush": its layer + size options ride the brush bar
   // exactly where path/bed options do, so the erase size dots ARE the paint size
   // dots (one control, can't drift). No rail popover, and on a collapsed phone
   // sheet the width/layer stay visible because the brush bar persists.
-  if (!meta.paints && !erasing){
+  if (!meta.paints && !erasing && !editingBuilding){
     bar.classList.add('hidden'); return;
   }
   bar.classList.remove('hidden');
@@ -2945,7 +3011,7 @@ function renderBrushBar(){
     return s;
   };
   const lab=document.createElement('span');
-  lab.className='brush-lab'+(erasing?' danger':''); lab.textContent=erasing?'Erase':'Brush';
+  lab.className='brush-lab'+(erasing?' danger':''); lab.textContent=erasing?'Erase':editingBuilding?'Footprint':'Brush';
   const parts=[lab];
   const placing=document.createElement('div'); placing.className='placing-summary';
   const placingSwatch=document.createElement('canvas'); placingSwatch.width=48; placingSwatch.height=44; placingSwatch.setAttribute('aria-hidden','true');
@@ -2972,6 +3038,26 @@ function renderBrushBar(){
       title:`Erase ${sz} tile${sz>1?'s':''} wide`, draw:tc=>drawBrushSizeIcon(tc,sz),
       click:()=>{ setBrushSize(sz); renderBrushBar();
         updateActiveToolStatus(); }}))));
+    appendFooter();
+    return;
+  }
+  if (editingBuilding){
+    /* Same shape as Erase: what the tool does, then the shared disc size —
+       and Rename borrows the mode seg rather than becoming a third tool,
+       because all three answer "what does a tap on a footprint do". */
+    const mode=buildingEditMode();
+    parts.push(seg([['add','Add'],['remove','Remove'],['rename','Rename']]
+      .map(([m,lbl])=>({label:lbl, on:mode===m,
+        title:m==='add'?'Extend a footprint onto ground it touches'
+          :m==='remove'?'Trim tiles off a footprint'
+          :'Tap a footprint to name it',
+        click:()=>{ game.buildingEditMode=m; renderBrushBar(); updateActiveToolStatus(); }}))));
+    if (mode!=='rename'){
+      const curB=normalizeBrushSize(game.brushSize);
+      parts.push(seg(BRUSH_SIZES.map(sz=>({label:String(sz), on:curB===sz,
+        title:`${sz} tile${sz>1?'s':''} wide`, draw:tc=>drawBrushSizeIcon(tc,sz),
+        click:()=>{ setBrushSize(sz); renderBrushBar(); updateActiveToolStatus(); }}))));
+    }
     appendFooter();
     return;
   }
@@ -3045,6 +3131,8 @@ function sheetContextLabel(){
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='house') return 'House';
   if (game.tool==='building') return 'Building footprint';
+  if (game.tool==='building-edit') return 'Footprint · '+buildingEditMode();
+  if (game.tool==='building-edit') return 'Footprint · '+buildingEditMode();
   if (game.tool==='shovel') return 'Erase';
   if (game.tool==='select') return 'Select';
   if (game.tool==='pick') return 'Eyedropper';
@@ -3058,6 +3146,14 @@ function toolGuide(){
     return {k:'Building footprint',v:n
       ? `${n} corner${n===1?'':'s'} set — move or drag to preview the next wall in feet, then tap to place it`
       : 'Tap the first corner, then move or drag to preview each wall in feet'};
+  }
+  if (game.tool==='building-edit'){
+    const m=buildingEditMode();
+    return {k:'Edit footprint', v:m==='rename'
+      ? 'Tap a footprint to name it'
+      : m==='remove'
+      ? `Tap or drag to trim tiles off a footprint — ${game.brushSize}-tile brush`
+      : `Tap or drag ground touching a footprint to extend it — ${game.brushSize}-tile brush`};
   }
   if (P){
     const D=plantDef(game.tool,game.toolVar), mode=game.matrix?'Matrix':game.drift?'Drift':'Draw';

@@ -130,6 +130,7 @@ const game = {
   freePlanting:false,                                // herbaceous plants can sit off the tile center
   edgeStyle:'organic',                               // terrain edge look: organic (smoothed) | formal (crisp tiles)
   eraseMode:'all',                                   // erase: all | plant | bulb | terrain
+  buildingEditMode:'add',                            // footprint editor: add | remove | rename
   brushSize:1,                                       // shared paint/erase brush diameter in tiles (BRUSH_SIZES)
   fx:[],                                             // short-lived planting pulses
   tool:'hand', toolVar:null,                         // active canvas tool or species + optional cultivar
@@ -157,7 +158,7 @@ const game = {
   schemeActive:null,                                 // id of the scheme whose maps are live in game.plants/game.bulbs
   houseDraft:null,                                   // settings for the next house the House tool places
   buildingDraft:null,                                // unfinished footprint only; never persisted
-  buildingStyleDraft:{status:'existing',label:'House',wall:'#8a7a60',roof:'#9a5f3a'},
+  buildingStyleDraft:{status:'existing',label:'House',edge:'#8a7a60',fill:'#9a5f3a'},
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
@@ -1068,7 +1069,13 @@ function buildingAt(x,y,ignoreId){
   for (const b of game.buildings||[]){
     if (!b || b.id===ignoreId) continue;
     const r=buildingBounds(b); if (!r || x<r.x0||x>r.x1||y<r.y0||y>r.y1) continue;
-    if (buildingTiles(b).some(p=>p[0]===x&&p[1]===y)) return b;
+    /* The tileSet is built and cached in the same pass as the tile list, so the
+       membership test is a hash lookup — it used to `.some()` down the array,
+       i.e. up to one compare per tile of the building. buildingAt sits under
+       siteStructureAt, which every applyToolAt calls, so a 136-tile footprint
+       cost ~136 compares per painted tile and a 7-wide brush stamp multiplied
+       that by 37. Same lesson as shrubIndex: keep it O(1) in the footprint. */
+    if (buildingTileSet(b).has(x+','+y)) return b;
   }
   return null;
 }
@@ -1206,6 +1213,26 @@ function viewToWorld(vx,vy){
     default: return [vx,vy];
   }
 }
+/* Tile-CORNER lattice, which is a different space from the tile lattice and
+   rotates differently. `worldToView` reflects around tile INDICES (`GW-1-x`),
+   and tile x owns corners {x, x+1} — so putting a corner through the tile
+   transform lands on the corner set of the NEXT tile over. It happens to be
+   right at rot 0, because `screenOfFlat(tileIndex)` is the tile's top corner
+   and the two lattices coincide there; at rot 1/2/3 the geometry was measured
+   38px (a whole tile height) out of place, which is the building outline
+   floating off its own footprint and the organic terrain blob sliding off its
+   tiles. The corner lattice has GW+1 points, so its reflection is `GW-cx`.
+   Equivalently: worldToView(c-0.5) + 0.5, since a corner is a tile shifted half
+   a tile and the reflection turns that +0.5 into a -0.5. */
+function cornerToView(cx,cy){
+  switch(game.rot){
+    case 1:  return [cy, GW-cx];
+    case 2:  return [GW-cx, GH-cy];
+    case 3:  return [GH-cy, cx];
+    default: return [cx,cy];
+  }
+}
+function screenOfCorner(cx,cy,W,H){ const [vx,vy]=cornerToView(cx,cy); return viewScreen(vx,vy,W,H); }
 function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWorld
   switch(game.rot){
     case 1:  return [-dvy, dvx];

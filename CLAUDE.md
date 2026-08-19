@@ -523,6 +523,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
     snaps the camera). `screenOf` (world->screen via view), `viewScreen`
     (view->screen), `viewDepth` (depth-sort key), `tileAt` (screen->world).
+    **The tile-CORNER lattice is a second space and rotates differently:**
+    `worldToView` reflects around tile INDICES (`GW-1-x`) and tile x owns
+    corners {x, x+1}, so putting a corner through the tile transform lands on
+    the next tile's corners. It happens to be right at rot 0 — `screenOfFlat`
+    of a tile index IS that tile's top corner, so the two lattices coincide —
+    which is exactly why this shipped broken: at rot 1/2/3 every corner-space
+    drawing sat a whole tile height (38px) off its own tiles, visible as the
+    building outline floating away from its footprint and the organic terrain
+    blob sliding off its bed. **`cornerToView`/`screenOfCorner` is the corner
+    transform** (`GW-cx`, since the lattice has GW+1 points; equivalently
+    `worldToView(c-0.5)+0.5`), and anything holding tile-corner geometry —
+    building `vertices`, `traceOutlines` loops in `paintGround` — must project
+    through it. A test walks all four rotations. Separately, a screen-space
+    face drawn from a neighbour test must ask **view** directions via
+    `viewDirToWorld`: `drawElevationSides` always did, `drawBuildingTile` did
+    not, and struck its extruded rim across the footprint's interior at rot 2.
     World logic never rotates — only the mapping. `rotateView(dir)` also
     fires from a two-finger twist (~40° per 90° step, alongside pinch-zoom).
     **Irregular lots**: `game.plotShape` (optional, saved;
@@ -560,10 +576,41 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
     on big ones; legacy single-house saves (`house`) migrate to the array.
     **Design-site footprints are separate from houses.** `game.buildings` is
-    an array of `{id,vertices,status,label,wall,roof,t}` polygons whose
-    vertices sit on the tile-corner lattice. `buildingTiles()` derives (and
-    WeakMap-caches) their occupied tiles; `buildingAt`/`siteStructureAt` make
-    them non-walkable and non-plantable without adding an interior model.
+    an array of `{id,vertices,status,label,fill,edge,t}` polygons whose
+    vertices sit on the tile-corner lattice (see the corner-transform note in
+    §10 — they must project through `screenOfCorner`). `buildingTiles()`
+    derives (and WeakMap-caches) their occupied tiles;
+    `buildingAt`/`siteStructureAt` make them non-walkable and non-plantable
+    without adding an interior model. `buildingAt` tests the cached
+    **`buildingTileSet`**, not the tile array — it sits under every
+    `applyToolAt`, so a `.some()` down a 280-tile footprint was ~280 compares
+    per painted tile (same lesson as `shrubIndex`).
+    **`fill`/`edge`, not `roof`/`wall`.** Those names came wholesale from the
+    house model, which really does have a roof and walls; a footprint is a
+    diagram, where the "roof" was the entire shape and the "wall" was a few
+    pixels of rim. `normalizeBuildingStyle` reads the old keys, so existing
+    gardens and shared files keep their colours, and the tray says Area / Edge.
+    **A placed footprint is editable** (`building-edit`, the Site tray's *Edit
+    footprint*): a brush-bar seg picks Add / Remove / Rename, the first two
+    take the shared disc size. The MODEL does not change — an edit rasterises
+    the polygon to tiles, applies the brushed tiles, and traces the result
+    straight back to a polygon with `traceOutlines`, the same function the plan
+    sheet and organic terrain edges use. So the save format is untouched and an
+    older build just sees an ordinary footprint. The price: a footprint stays
+    ONE simply-connected ring, so an edit that would punch a hole or split the
+    building is refused — both are `loops.length!==1`. Two supporting seams in
+    the `TOOLS` table: **`overSite`** exempts this one tool from
+    `applyToolAt`'s "nothing goes on top of a building" guard (its hook
+    re-checks houses, doors and occupancy itself), and **`stamp`** hands it the
+    WHOLE brush disc at once — per-tile is right for paint, where each tile is
+    an independent write, and wrong here, where every tile rebuilds and
+    re-traces the polygon: measured **6.11ms → 1.33ms** for one 7-wide stamp on
+    a 280-tile footprint. Batching is also more correct, since a disc applied
+    tile-by-tile can transiently look like a hole and be refused. Rename is
+    tap-only (a drag would open one dialog per tile) and goes through
+    `showPrompt`, showConfirm's panel with a text field. The canvas label is
+    the NAME, falling back to the status — a garden has sheds and a garage, and
+    `label` had been in the model all along with no way to set it.
     The Site tray's **Draw footprint** tool collects orthogonal corners, closes
     at the first corner or the on-canvas action, and validates a clear, flat
     site before `commitBuildingFootprint` stores it. Drafts are transient;
