@@ -1267,6 +1267,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `TILE_IN` inches on a SIDE, so that width spans the tile's DIAGONAL — sizing
     a 24 in pot as `(24/18)*TILE_W/2` drew it root-2 too wide, visibly a barrel
     (`inchesToTiles` plus the root-2 in the ellipse semi-axes is the fix). And
+    A round vessel's foot is the FRONT of its base ellipse — `pi -> pi/2 -> 0`,
+    which is decreasing angle, i.e. anticlockwise, since canvas +y is down.
+    Sweeping the other way draws the BACK of the base, leaving the pot open
+    underneath and standing a foot above its own shadow: it reads as floating
+    and cut off. A test measures the lowest point of the body's PARTIAL arcs —
+    partial is what makes it a real guard, because the soft shadow and the soil
+    disc are full rings drawn either way, and measuring those made a base drawn
+    backwards indistinguishable from a correct one.
+    Seating and troughs carry a `face` (0-3 quarter turns of the OBJECT, nothing
+    to do with the camera's `game.rot`): `turnAxes` rotates the drawing basis and
+    `seatTileSize`/`potTileSize` swap the footprint to match, so the claim always
+    follows the drawing. The tray offers one **Turn** chip rather than four
+    compass chips — the chip preview shows the result, and the plot has no fixed
+    on-screen north once the view is rotated.
     `isoBox` picks its two visible faces from **the ground corner lowest on
     screen**, not by testing each edge against the centre — the latter drew one,
     three or no faces depending on rotation, which is what turned a sun lounger

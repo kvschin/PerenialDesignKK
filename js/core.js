@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.7.1';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -696,13 +696,16 @@ function potSizeFor(styleId,sizeId){
 // footprint in tiles; only the troughs are wider than one
 function potTileSize(d){
   const s=potSizeDef(potSizeFor(potStyleId(d&&d.style), d&&d.size));
-  return {w:Math.max(1,Math.round(s.wIn/TILE_IN)), h:1};
+  const w=Math.max(1,Math.round(s.wIn/TILE_IN));
+  return normalizeFacing(d&&d.face)%2 ? {w:1,h:w} : {w,h:1};
 }
 function potStyleId(id){ return potStyle(id).id; }
 function normalizePotDraft(d){
   d=d&&typeof d==='object'?d:{};
   const style=potStyleId(d.style);
-  return {style, size:potSizeFor(style,d.size)};
+  // only a trough is directional, but carrying the field for every vessel keeps
+  // one placement path rather than two
+  return {style, size:potSizeFor(style,d.size), face:normalizeFacing(d.face)};
 }
 function potLabelFor(d){
   d=normalizePotDraft(d);
@@ -734,11 +737,15 @@ function seatType(id){ return SEAT_TYPES.find(s=>s.id===id)||SEAT_TYPES[0]; }
 function seatFinish(id){ return SEAT_FINISHES.find(f=>f.id===id)||SEAT_FINISHES[0]; }
 function seatTileSize(d){
   const t=seatType(d&&d.type);
-  return {w:Math.max(1,Math.round(t.wIn/TILE_IN)), h:Math.max(1,Math.round(t.dIn/TILE_IN))};
+  const w=Math.max(1,Math.round(t.wIn/TILE_IN)), h=Math.max(1,Math.round(t.dIn/TILE_IN));
+  // a quarter turn swaps the footprint, so the claim follows the drawing
+  return normalizeFacing(d&&d.face)%2 ? {w:h,h:w} : {w,h};
 }
+// quarter turns of the object itself, independent of the camera's game.rot
+function normalizeFacing(f){ f=Math.round(Number(f)||0)%4; return f<0?f+4:f; }
 function normalizeSeatDraft(d){
   d=d&&typeof d==='object'?d:{};
-  return {type:seatType(d.type).id, finish:seatFinish(d.finish).id};
+  return {type:seatType(d.type).id, finish:seatFinish(d.finish).id, face:normalizeFacing(d.face)};
 }
 function seatLabelFor(d){
   d=normalizeSeatDraft(d);

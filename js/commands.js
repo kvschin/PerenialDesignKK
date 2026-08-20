@@ -574,7 +574,7 @@ function placePotAt(x,y){
   if (!game.pots) game.pots={};
   const d=normalizePotDraft(potDraft()), k=`${x},${y}`;
   const cur=game.pots[k];
-  if (cur && !cur.removed && cur.style===d.style && cur.size===d.size) return null;
+  if (cur && !cur.removed && cur.style===d.style && cur.size===d.size && normalizeFacing(cur.face)===d.face) return null;
   if (!canPlacePot(x,y,k)) return null;
   setTile('pots',k,Object.assign({},d,{t:Date.now()}));
   return 'pot';
@@ -639,7 +639,7 @@ function placeSeatAt(x,y){
   if (!game.seats) game.seats={};
   const d=normalizeSeatDraft(seatDraft()), k=`${x},${y}`;
   const cur=game.seats[k];
-  if (cur && !cur.removed && cur.type===d.type && cur.finish===d.finish) return null;
+  if (cur && !cur.removed && cur.type===d.type && cur.finish===d.finish && normalizeFacing(cur.face)===d.face) return null;
   if (!canPlaceSeat(x,y,k)) return null;
   setTile('seats',k,Object.assign({},d,{t:Date.now()}));
   return 'seat';

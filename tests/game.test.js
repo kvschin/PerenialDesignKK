@@ -2700,6 +2700,112 @@ test('seating claims a real footprint and keeps plants out of it', () => {
   });
 });
 
+/* drawPotArt/drawSeatArt work in absolute screen coordinates, so the drawn
+   extent is just the min/max of every path point. */
+function artBounds(fn){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,fills=0;
+  const pt=(x,y)=>{ if (!isFinite(x)||!isFinite(y)) return;
+    if (x<x0)x0=x; if (x>x1)x1=x; if (y<y0)y0=y; if (y>y1)y1=y; };
+  const ctx=new Proxy({},{ get(o,p){
+    if (p==='measureText') return () => ({ width: 0 });
+    return (...a)=>{
+      if (p==='moveTo'||p==='lineTo') pt(a[0],a[1]);
+      else if (p==='quadraticCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); }
+      else if (p==='ellipse'){
+        /* Sample the arc's actual SWEEP. Taking the full bounding box would make
+           a base drawn backwards measure identically to one drawn correctly,
+           which is exactly the bug below, so the guard has to respect the
+           direction flag. */
+        const [ex,ey,erx,ery,,s0,s1,acw]=a;
+        if (s0===undefined){ pt(ex-erx,ey-ery); pt(ex+erx,ey+ery); }
+        else {
+          let d=s1-s0;
+          if (acw){ while (d>0) d-=Math.PI*2; } else { while (d<0) d+=Math.PI*2; }
+          for (let i=0;i<=16;i++){ const th=s0+d*(i/16);
+            pt(ex+Math.cos(th)*erx, ey+Math.sin(th)*ery); }
+        }
+      }
+      else if (p==='arc') pt(a[0]-a[2],a[1]-a[2]), pt(a[0]+a[2],a[1]+a[2]);
+      /* fillRect is deliberately NOT measured: in these painters it is only
+         ever a shading wash inside an active clip, so counting it measures the
+         clip rectangle rather than the silhouette. */
+      else if (p==='fill') fills++;
+    };
+  }, set(){ return true; } });
+  fn(ctx);
+  return {x0,y0,x1,y1,fills};
+}
+
+/* The front of a vessel's foot: the lowest point of any PARTIAL ellipse arc.
+   Partial is what makes this a real guard — the soft shadow and the soil disc
+   are full rings drawn either way, and measuring those made a base drawn
+   backwards indistinguishable from one drawn correctly. */
+function potFootFront(pot){
+  let y1=-Infinity;
+  const ctx=new Proxy({},{ get(o,p){
+    if (p==='measureText') return () => ({ width: 0 });
+    return (...a)=>{
+      if (p!=='ellipse') return;
+      const [ex,ey,erx,ery,,s0,s1,acw]=a;
+      if (s0===undefined) return;
+      let d=s1-s0;
+      if (acw){ while (d>0) d-=Math.PI*2; } else { while (d<0) d+=Math.PI*2; }
+      if (Math.abs(d) > Math.PI*2-0.01) return;      // a full ring, not the foot
+      for (let i=0;i<=16;i++){ const th=s0+d*(i/16);
+        const y=ey+Math.sin(th)*ery; if (y>y1) y1=y; }
+    };
+  }, set(){ return true; } });
+  drawPotArt(ctx,0,0,pot,'Summer',ISO_AXES_FLAT);
+  return y1;
+}
+
+test('a pot stands on the ground with a closed bottom', () => {
+  setup(21,21);
+  const dia=inchesToTiles(24), ry=(dia/2)*Math.SQRT2*TILE_H/2;
+  /* The base arc used to sweep pi -> 2pi, i.e. the BACK of the foot, so the
+     vessel was open underneath and its lowest ink sat above its own shadow —
+     it read as floating and cut off at the bottom. */
+  for (const style of ['terracotta','glazed','metal','timber']){
+    const st=potStyle(style);
+    if (st.form==='square'||st.form==='crate'||st.form==='trough') continue;
+    const front=potFootFront({style,size:'p24'});
+    assert(front >= ry*0.55,
+      `${style}: the foot front reaches ${front.toFixed(1)}, wanted at least ${(ry*0.55).toFixed(1)}`);
+  }
+  /* The urn is deliberately different: its bowl sits ON a pedestal, so the
+     bowl's own arc is above the ground and the pedestal carries it down. */
+  assert(potFootFront({style:'urn',size:'p24'}) < ry*0.55, 'an urn bowl is lifted onto its pedestal');
+  assert(potStyle('urn').form==='urn', 'and it says so in the data');
+});
+
+test('seating turns, and every chair keeps its legs', () => {
+  setup(21,21);
+  // a quarter turn swaps the footprint so the claim follows the drawing
+  const flat=seatTileSize({type:'bench6',face:0}), turned=seatTileSize({type:'bench6',face:1});
+  assertEqual(flat.w, turned.h, 'width becomes depth');
+  assertEqual(flat.h, turned.w, 'and depth becomes width');
+  assertEqual(normalizeFacing(-1), 3, 'facing wraps');
+  assertEqual(normalizeFacing(4), 0, 'and stays in range');
+
+  game.tool='seat';
+  game.seatDraft={type:'bench6',finish:'teak',face:1};
+  assertEqual(applyToolAt(5,5),'seat','a turned bench places');
+  assert(seatAt(5,8),'it claims four tiles along y, not x');
+  assert(!seatAt(8,5),'and only one across');
+  // re-placing with a different facing is a real change, not a no-op
+  game.seatDraft={type:'bench6',finish:'teak',face:0};
+  assertEqual(applyToolAt(5,5),'seat','turning in place counts as a change');
+
+  /* The bistro and dining chairs were a seat and a back floating 18 inches up
+     on nothing. Each chair is 4 legs + seat + back = 18 quads, so the fill
+     count is a blunt but honest guard against them being dropped again. */
+  const chairFills=form=>artBounds(c=>drawSeatArt(c,0,0,{type:form,finish:'teak',face:0},'Summer',ISO_AXES_FLAT)).fills;
+  assert(chairFills('dining')>=55, `dining draws its four chairs whole (${chairFills('dining')})`);
+  assert(chairFills('bistro')>=35, `bistro draws its two chairs whole (${chairFills('bistro')})`);
+  // and a lone chair still has its own legs
+  assert(chairFills('chair')>=18, `an Adirondack chair has legs (${chairFills('chair')})`);
+});
+
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {
   setup(13, 13);
   const forb = firstOfType('forb');

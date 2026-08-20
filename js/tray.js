@@ -2767,11 +2767,12 @@ function buildToolTrayInner(){
     const cd=potDraft(), armed=game.tool==='pot';
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
+    /* One scale for every chip, sized so the biggest vessel fits: the sizes
+       then differ on screen the way they differ in the garden. Normalising per
+       size made all five size chips the same picture. */
     const miniPot=(tc,d)=>{
-      const sz=potSizeDef(potSizeFor(d.style,d.size));
-      const k=Math.min(1.05,26/sz.wIn);          // fit the widest vessel in the chip
-      tc.save(); tc.translate(24,40); tc.scale(k,k);
-      drawPotArt(tc,0,0,d,'Summer');
+      tc.save(); tc.translate(24,33); tc.scale(0.44,0.44);
+      drawPotArt(tc,0,0,d,'Summer',ISO_AXES_FLAT);
       tc.restore();
     };
     const toolBtn=(label,sel,draftPatch,tip)=>{
@@ -2779,6 +2780,7 @@ function buildToolTrayInner(){
       b.dataset.k='pot';
       if (draftPatch.style!==undefined) b.dataset.potStyle=draftPatch.style;
       if (draftPatch.size!==undefined) b.dataset.potSize=draftPatch.size;
+      if (draftPatch.face!==undefined) b.dataset.potFace=String(draftPatch.face);
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniPot(c.getContext('2d'),normalizePotDraft(Object.assign({},cd,draftPatch)));
       const sp=document.createElement('span'); sp.textContent=label;
@@ -2793,6 +2795,11 @@ function buildToolTrayInner(){
       sep('Size');
       potStyleSizes(cd.style).forEach(sz=>toolBtn(sz.label, cd.size===sz.id, {size:sz.id},
         `${sz.label} across, ${sz.hIn} in tall`));
+      // only a trough has a long axis to point
+      if (potTileSize(cd).w!==potTileSize(cd).h){
+        sep('Facing');
+        toolBtn('Turn',false,{face:(cd.face+1)%4},'Turn the trough a quarter');
+      }
     }
   }
   if (cat.tools.includes('seat')){
@@ -2810,6 +2817,7 @@ function buildToolTrayInner(){
       b.dataset.k='seat';
       if (draftPatch.type!==undefined) b.dataset.seatType=draftPatch.type;
       if (draftPatch.finish!==undefined) b.dataset.seatFinish=draftPatch.finish;
+      if (draftPatch.face!==undefined) b.dataset.seatFace=String(draftPatch.face);
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniSeat(c.getContext('2d'),normalizeSeatDraft(Object.assign({},sd,draftPatch)));
       const sp=document.createElement('span'); sp.textContent=label;
@@ -2823,9 +2831,21 @@ function buildToolTrayInner(){
     if (armed){
       sep('Finish');
       SEAT_FINISHES.forEach(f=>toolBtn(f.label, sd.finish===f.id, {finish:f.id}, `${f.label} finish`));
+      /* One Turn chip rather than four compass chips: the preview shows the
+         result, so tapping until it points the right way needs no legend, and
+         the plot has no fixed "north" on screen once the view is rotated. */
+      sep('Facing');
+      toolBtn('Turn',false,{face:(sd.face+1)%4},'Turn the seat a quarter');
     }
   }
   if (cat.tools.includes('pet')){
+    /* Its own heading. Sharing the Decor tab with containers, the Cat and Dog
+       chips sat straight under the pot Size row with nothing between them and
+       read as two more pot sizes. */
+    if (cat.tools.includes('pot')){
+      const s2=document.createElement('span'); s2.className='tray-sep';
+      s2.textContent='Pets'; tray.appendChild(s2);
+    }
     // Contextual like the Ground tab: Cat / Dog are always up, and the coat,
     // marking and sock rows only unfold once a pet is armed — the same shape
     // as picking Bed and then getting bed materials. Every chip previews the

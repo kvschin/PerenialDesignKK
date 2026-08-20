@@ -4793,6 +4793,18 @@ function isoAxes(){
   }
 }
 const ISO_AXES_FLAT=[[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
+/* Turn an object a quarter at a time in WORLD space. Its own width always runs
+   along its local x, so rotating the basis is all a bench needs to face the
+   other way — and seatTileSize swaps the footprint to match. */
+function turnAxes(axes,face){
+  const [ax,ay]=axes, neg=v=>[-v[0],-v[1]];
+  switch(((face|0)%4+4)%4){
+    case 1:  return [ay,neg(ax)];
+    case 2:  return [neg(ax),neg(ay)];
+    case 3:  return [neg(ay),ax];
+    default: return [ax,ay];
+  }
+}
 // a cuboid on the ground, sized in TILES along the two world axes
 /* `y0` is the height of the box's UNDERSIDE. Without it every part had to
    stand on the ground, which is why a bench came out a solid crate instead of a
@@ -4835,7 +4847,7 @@ function drawPot(ctx,W,H,season,pot,x,y){
 function drawPotArt(ctx,cx,cy,pot,season,axes){
   if (!pot) return;
   season=season||'Summer';
-  const [ax,ay]=axes||ISO_AXES_FLAT;
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,pot.face);
   const st=potStyle(pot.style), sz=potSizeDef(potSizeFor(pot.style,pot.size));
   const dia=inchesToTiles(sz.wIn), r=dia/2;             // radius in tiles
   /* A world circle of radius r projects to an ellipse with semi-axes
@@ -4862,7 +4874,11 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
     ctx.fillStyle=body; ctx.beginPath();
     ctx.moveTo(cx-rx,topY);
     ctx.quadraticCurveTo(cx-rx*(1+prof.belly),topY+bodyH*0.55,cx-brx,baseY);
-    ctx.ellipse(cx,baseY,brx,bry,0,Math.PI,0,false);
+    /* The FRONT of the foot: pi -> pi/2 -> 0 is decreasing angle, i.e.
+       anticlockwise, and canvas +y is down so pi/2 is the near edge. Sweeping
+       the other way drew the BACK of the base, which left the vessel open at
+       the bottom and standing a foot above its own shadow. */
+    ctx.ellipse(cx,baseY,brx,bry,0,Math.PI,0,true);
     ctx.quadraticCurveTo(cx+rx*(1+prof.belly),topY+bodyH*0.55,cx+rx,topY);
     ctx.ellipse(cx,topY,rx,ry,0,0,Math.PI,true);
     ctx.closePath(); ctx.fill();
@@ -4904,7 +4920,7 @@ function drawSeat(ctx,W,H,season,seat,x,y){
 function drawSeatArt(ctx,cx,cy,seat,season,axes){
   if (!seat) return;
   season=season||'Summer';
-  const [ax,ay]=axes||ISO_AXES_FLAT;
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,seat.face);
   const t=seatType(seat.type), fin=seatFinish(seat.finish);
   const hw=inchesToTiles(t.wIn)/2, hd=inchesToTiles(t.dIn)/2;
   const sitH=feetToPx(18/12);                       // a seat is 18in off the ground
@@ -4923,6 +4939,15 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
   const legs=(lw,ld,h)=>[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
     box(lw*u*0.86,ld*v*0.80,lw*0.10,ld*0.14,0,h,metal));
   const plank=(lw,ld,h,col)=>box(0,0,lw,ld,h-feetToPx(2.2/12),h,col||wood);
+  /* A whole chair at an offset, LEGS INCLUDED — the bistro and dining chairs
+     were a seat and a back floating 18 inches up on nothing. `bv` is which side
+     the back sits on, so a chair at a table faces the table. */
+  const chair=(u,v,lw,ld,bv)=>{
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([su,sv])=>
+      box(u+lw*su*0.72,v+ld*sv*0.72,lw*0.16,ld*0.16,0,sitH,metal));
+    box(u,v,lw,ld,sitH-feetToPx(2/12),sitH,wood);
+    box(u,v+ld*0.86*bv,lw,ld*0.12,sitH,sitH*1.92,wood);
+  };
   switch (t.form){
     case 'bench':
       legs(hw,hd,sitH);
@@ -4951,11 +4976,7 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
       ctx.beginPath(); ctx.ellipse(cx,cy-deckH+3,erx,ery,0,0,Math.PI*2); ctx.fill();
       ctx.fillStyle=wood;
       ctx.beginPath(); ctx.ellipse(cx,cy-deckH,erx,ery,0,0,Math.PI*2); ctx.fill();
-      [[-1,0.25],[1,-0.25]].forEach(([u,v])=>{
-        legs(hw*0.18,hd*0.18,sitH);                              // (chair legs are tiny)
-        box(hw*0.78*u,hd*0.78*v,hw*0.20,hd*0.20,sitH-feetToPx(2/12),sitH,wood);
-        box(hw*0.78*u,hd*0.78*v-hd*0.18,hw*0.20,hd*0.06,sitH,sitH*1.9,wood);
-      });
+      [[-1,0],[1,0]].forEach(([u,v])=>chair(hw*0.80*u,hd*0.80*v,hw*0.21,hd*0.21,u));
       break;
     }
     case 'picnic':
@@ -4969,10 +4990,8 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
     default:                                                      // dining
       legs(hw*0.74,hd*0.66,deckH);
       plank(hw*0.82,hd*0.70,deckH);
-      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([u,v])=>{
-        box(hw*0.50*u,hd*1.10*v,hw*0.18,hd*0.20,sitH-feetToPx(2/12),sitH,wood);
-        box(hw*0.50*u,hd*1.10*v+hd*0.16*v,hw*0.18,hd*0.05,sitH,sitH*1.85,wood);
-      });
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([u,v])=>
+        chair(hw*0.48*u,hd*1.12*v,hw*0.19,hd*0.21,v));
       break;
   }
   if (AMBIENCE[season].snow){
