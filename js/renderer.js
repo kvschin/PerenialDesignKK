@@ -808,7 +808,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -890,6 +890,20 @@ function buildScene(W,H){
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       ents.push({d:viewDepth(x,y)+0.42, kind:SCENE_K.PET, bx0:x,bx1:x,by0:y,by1:y, x,y,p});
     }
+    /* The vessel sorts just BEHIND the plant standing in it, so foliage always
+       draws over its own rim. */
+    for (const k in game.pots||{}){ const p=game.pots[k];
+      if (!p || p.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=potTileSize(p);
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.30, kind:SCENE_K.POT,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,p});
+    }
+    for (const k in game.seats||{}){ const s2=game.seats[k];
+      if (!s2 || s2.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=seatTileSize(s2);
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.39, kind:SCENE_K.SEAT,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,s:s2});
+    }
     for (const b of game.buildings||[]){
       const r=buildingBounds(b); if (!r) continue;
       for (const p of buildingTiles(b)) ents.push({d:viewDepth(p[0],p[1])+0.345,kind:SCENE_K.BUILDING,
@@ -903,7 +917,7 @@ function buildScene(W,H){
   }
   ents.sort((a,b)=>a.d-b.d);
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,houses:game.houses,buildings:game.buildings},
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
@@ -918,6 +932,8 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
       drawPet(cx,sx,sy+TILE_H/2,e.p,1);
       return 0;
     }
+    case SCENE_K.POT: drawPot(cx,W,H,season,e.p,e.x,e.y); return 0;
+    case SCENE_K.SEAT: drawSeat(cx,W,H,season,e.s,e.x,e.y); return 0;
     case SCENE_K.BUILDING: drawBuildingTile(cx,W,H,e.b,e.x,e.y); return 0;
     case SCENE_K.BUILDING_OUTLINE: drawBuildingOutline(cx,W,H,e.b); return 0;
     case SCENE_K.HOUSE: drawHouse(cx,W,H,season,e.h); return 0;

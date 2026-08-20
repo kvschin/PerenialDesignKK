@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.6.6';
+const APP_VERSION = '0.7.0';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -646,6 +646,103 @@ function normalizePetDraft(d){
   d=d&&typeof d==='object'?d:{};
   return {species:petSpecies(d.species).id, coat:petCoat(d.coat).id,
     mark:petMark(d.mark).id, paws:petPaw(d.paws).id};
+}
+
+/* ---------- containers ----------
+   A pot is the only thing in the app that makes PAVING plantable. Every
+   planting route refuses `path` terrain — correctly, you cannot dig a gravel
+   drive — so before containers a courtyard, patio or roof terrace was a garden
+   this app could draw and not plant. That is the reason they exist; the
+   ornament is a bonus.
+
+   Style and size are independent the way a fence's material and height are, so
+   terracotta comes in every size rather than each combination being its own
+   row. `hIn` is a real height and the pot draws through PX_PER_FT (§11d); its
+   rim is what lifts the plant's draw anchor. `form` names the silhouette the
+   way a plant names its `form` — one painter, no per-style branches. */
+const POT_STYLES = [
+  {id:'terracotta', label:'Terracotta',   short:'Terracotta', form:'taper',  body:'#b4633f', rim:'#c97a53', soil:'#4a3a2a'},
+  {id:'glazed',     label:'Glazed Blue',  short:'Glazed',     form:'belly',  body:'#3f6f86', rim:'#54889e', soil:'#4a3a2a'},
+  {id:'concrete',   label:'Cast Stone',   short:'Stone',      form:'square', body:'#9a9789', rim:'#aeab9d', soil:'#4a3a2a'},
+  {id:'timber',     label:'Timber Box',   short:'Timber',     form:'crate',  body:'#7d6142', rim:'#96774f', soil:'#4a3a2a'},
+  {id:'metal',      label:'Galvanised',   short:'Metal',      form:'tub',    body:'#8e949a', rim:'#a9afb5', soil:'#4a3a2a'},
+  {id:'urn',        label:'Classical Urn',short:'Urn',        form:'urn',    body:'#8b8478', rim:'#a09889', soil:'#4a3a2a'},
+  {id:'trough',     label:'Long Trough',  short:'Trough',     form:'trough', body:'#8a8175', rim:'#9d9488', soil:'#4a3a2a', sizes:['trough36','trough54']},
+];
+/* Real diameters. Everything up to 24in claims a single tile — a tile is 18
+   inches, so a big pot overhangs its own tile the way a shrub's canopy does,
+   which is honest and keeps placement a one-tile question. The troughs are
+   genuinely long, so they take a real multi-tile footprint like a fire pit. */
+const POT_SIZES = [
+  {id:'p10', label:'10 in', wIn:10, hIn:9,  round:true},
+  {id:'p14', label:'14 in', wIn:14, hIn:13, round:true},
+  {id:'p18', label:'18 in', wIn:18, hIn:16, round:true},
+  {id:'p24', label:'24 in', wIn:24, hIn:21, round:true},
+  {id:'p30', label:'30 in', wIn:30, hIn:26, round:true},
+  {id:'trough36', label:'36 in', wIn:36, hIn:16, round:false},
+  {id:'trough54', label:'54 in', wIn:54, hIn:16, round:false},
+];
+function potStyle(id){ return POT_STYLES.find(p=>p.id===id)||POT_STYLES[0]; }
+function potSizeDef(id){ return POT_SIZES.find(p=>p.id===id)||POT_SIZES[2]; }
+// the sizes a vessel is really made in — a trough is not a 10in pot
+function potStyleSizes(id){
+  const st=potStyle(id);
+  return st.sizes ? POT_SIZES.filter(s=>st.sizes.includes(s.id)) : POT_SIZES.filter(s=>s.round);
+}
+function potSizeFor(styleId,sizeId){
+  const opts=potStyleSizes(styleId);
+  return opts.some(s=>s.id===sizeId) ? sizeId : opts[Math.min(2,opts.length-1)].id;
+}
+// footprint in tiles; only the troughs are wider than one
+function potTileSize(d){
+  const s=potSizeDef(potSizeFor(potStyleId(d&&d.style), d&&d.size));
+  return {w:Math.max(1,Math.round(s.wIn/TILE_IN)), h:1};
+}
+function potStyleId(id){ return potStyle(id).id; }
+function normalizePotDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  const style=potStyleId(d.style);
+  return {style, size:potSizeFor(style,d.size)};
+}
+function potLabelFor(d){
+  d=normalizePotDraft(d);
+  return `${potSizeDef(d.size).label} ${potStyle(d.style).label.toLowerCase()}`;
+}
+
+/* ---------- seating ----------
+   A plan with nowhere to sit is a plant list, not a garden. Seating also drives
+   layout — you plant TOWARD the view from a bench — so it belongs in the model
+   even though it grows nothing. Sizes are real inches; the footprint follows
+   the fire-pit pattern. `form` picks the drawing branch. */
+const SEAT_FINISHES = [
+  {id:'teak',   label:'Teak',    wood:'#a97f4e', dark:'#7a5730', metal:'#6b6156'},
+  {id:'painted',label:'Painted', wood:'#e6e0d2', dark:'#b3ab99', metal:'#8d8677'},
+  {id:'black',  label:'Black',   wood:'#3a3a3e', dark:'#232327', metal:'#2b2b2f'},
+  {id:'stone',  label:'Stone',   wood:'#9d998c', dark:'#7b776b', metal:'#8b8779'},
+];
+const SEAT_TYPES = [
+  {id:'bench4',  label:'Garden Bench 4 ft', short:'Bench 4ft', form:'bench',  wIn:48, dIn:22, hIn:34},
+  {id:'bench6',  label:'Garden Bench 6 ft', short:'Bench 6ft', form:'bench',  wIn:72, dIn:22, hIn:34},
+  {id:'chair',   label:'Adirondack Chair',  short:'Chair',     form:'chair',  wIn:30, dIn:32, hIn:38},
+  {id:'stool',   label:'Garden Stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18},
+  {id:'bistro',  label:'Bistro Set',        short:'Bistro',    form:'bistro', wIn:44, dIn:44, hIn:30},
+  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:40, hIn:30},
+  {id:'picnic',  label:'Picnic Table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30},
+  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:16},
+];
+function seatType(id){ return SEAT_TYPES.find(s=>s.id===id)||SEAT_TYPES[0]; }
+function seatFinish(id){ return SEAT_FINISHES.find(f=>f.id===id)||SEAT_FINISHES[0]; }
+function seatTileSize(d){
+  const t=seatType(d&&d.type);
+  return {w:Math.max(1,Math.round(t.wIn/TILE_IN)), h:Math.max(1,Math.round(t.dIn/TILE_IN))};
+}
+function normalizeSeatDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  return {type:seatType(d.type).id, finish:seatFinish(d.finish).id};
+}
+function seatLabelFor(d){
+  d=normalizeSeatDraft(d);
+  return `${seatFinish(d.finish).label} ${seatType(d.type).label.toLowerCase()}`;
 }
 
 /* The Oudolf palette — PLANTS and PLANT_KEYS — lives in plants.js,

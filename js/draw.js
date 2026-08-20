@@ -4761,6 +4761,228 @@ function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
   }
   ctx.closePath();
 }
+/* ---------- containers and seating ----------
+   Both draw at real size: ground extent comes from the tile scale (a tile is
+   TILE_IN inches across a TILE_W-wide diamond) and HEIGHT from PX_PER_FT, the
+   same constant the fences use, so a 34-inch bench back and a 34-inch grass
+   arrive at the same height. */
+function groundCenterOf(x,y,sz,W,H){
+  const [ax,ay]=screenOf(x,y,W,H);
+  const w=(sz&&sz.w)||1, h=(sz&&sz.h)||1;
+  // centre of the footprint rectangle, in screen space
+  const cx=ax+((w-1)-(h-1))*TILE_W/4;
+  const cy=ay+TILE_H/2+((w-1)+(h-1))*TILE_H/4;
+  return [cx,cy];
+}
+/* Ground extent, in TILES not pixels. The trap here: the tile diamond is
+   TILE_W wide but a tile is TILE_IN inches on a SIDE, so that width spans the
+   tile's DIAGONAL. Sizing a 24-inch pot as (24/18)*TILE_W/2 therefore drew it
+   root-2 too wide — visibly a barrel. */
+function inchesToTiles(inches){ return inches/TILE_IN; }
+function feetToPx(feet){ return feet*PX_PER_FT; }
+/* The screen delta of one tile step along world x and world y at the CURRENT
+   rotation. Everything below is drawn from these two vectors, so a bench
+   points the right way after the map is turned, and the tray chips get the
+   rot-0 pair explicitly. */
+function isoAxes(){
+  switch(game.rot){
+    case 1:  return [[-TILE_W/2,TILE_H/2],[TILE_W/2,TILE_H/2]];
+    case 2:  return [[-TILE_W/2,-TILE_H/2],[TILE_W/2,-TILE_H/2]];
+    case 3:  return [[TILE_W/2,-TILE_H/2],[-TILE_W/2,-TILE_H/2]];
+    default: return [[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
+  }
+}
+const ISO_AXES_FLAT=[[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
+// a cuboid on the ground, sized in TILES along the two world axes
+/* `y0` is the height of the box's UNDERSIDE. Without it every part had to
+   stand on the ground, which is why a bench came out a solid crate instead of a
+   thin plank on four legs. */
+function isoBox(ctx,cx,cy,ax,ay,hw,hd,hh,top,left,right,y0){
+  y0=y0||0;
+  const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-y0];
+  const A=P(-hw,-hd), B=P(hw,-hd), C=P(hw,hd), D=P(-hw,hd);
+  const up=p=>[p[0],p[1]-(hh-y0)];
+  const quad=(a2,b2,c2,d2,col)=>{ ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(a2[0],a2[1]); ctx.lineTo(b2[0],b2[1]); ctx.lineTo(c2[0],c2[1]); ctx.lineTo(d2[0],d2[1]);
+    ctx.closePath(); ctx.fill(); };
+  /* The corner nearest the camera is simply the lowest on screen, and the two
+     faces meeting there are the two the camera can see — always exactly two,
+     at any rotation. Testing each edge against the centre instead drew one,
+     three or none, which is what turned a sun lounger into a kite. */
+  const c=[A,B,C,D];
+  let f=0; for (let i=1;i<4;i++) if (c[i][1]>c[f][1]) f=i;
+  const prev=c[(f+3)%4], cur=c[f], next=c[(f+1)%4];
+  quad(prev,cur,up(cur),up(prev),left);
+  quad(cur,next,up(next),up(cur),right);
+  quad(up(A),up(B),up(C),up(D),top);
+}
+// a flat top at height hh, sized in tiles
+function isoSlab(ctx,cx,cy,ax,ay,hw,hd,hh,col){
+  const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-hh];
+  const A=P(-hw,-hd), B=P(hw,-hd), C=P(hw,hd), D=P(-hw,hd);
+  ctx.fillStyle=col; ctx.beginPath();
+  ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.lineTo(C[0],C[1]); ctx.lineTo(D[0],D[1]);
+  ctx.closePath(); ctx.fill();
+}
+/* The vessel at a ground point, independent of the camera — so the garden and
+   the tray chips paint through ONE function and a chip cannot advertise a pot
+   the canvas does not draw (the fencePanel lesson). */
+function drawPot(ctx,W,H,season,pot,x,y){
+  if (!pot) return;
+  const [cx,cy]=groundCenterOf(x,y,potTileSize(pot),W,H);
+  drawPotArt(ctx,cx,cy,pot,season,isoAxes());
+}
+function drawPotArt(ctx,cx,cy,pot,season,axes){
+  if (!pot) return;
+  season=season||'Summer';
+  const [ax,ay]=axes||ISO_AXES_FLAT;
+  const st=potStyle(pot.style), sz=potSizeDef(potSizeFor(pot.style,pot.size));
+  const dia=inchesToTiles(sz.wIn), r=dia/2;             // radius in tiles
+  /* A world circle of radius r projects to an ellipse with semi-axes
+     r*root2*TILE_W/2 and r*root2*TILE_H/2 — the root2 is the tile diagonal the
+     diamond width actually spans, and dropping it is what drew barrels. */
+  const rx=r*Math.SQRT2*TILE_W/2, ry=r*Math.SQRT2*TILE_H/2;
+  const hh=feetToPx(sz.hIn/12);
+  const body=st.body, dark=shade(body,-26), light=shade(body,16);
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  drawSoftShadow(ctx,cx,cy+ry*0.30,rx*0.92,ry*0.80,0.20);
+  const boxy = st.form==='square'||st.form==='crate'||st.form==='trough';
+  if (!boxy){
+    /* One painter for every round vessel: `waist` is how far the foot pulls in,
+       `belly` how far the flank bulges and `foot` how much of the height is a
+       pedestal — so terracotta, a bellied jar, a straight tub and a classical
+       urn are four sets of numbers rather than four branches. */
+    const prof = st.form==='belly' ? {waist:0.66, belly:0.13, foot:0}
+      : st.form==='tub' ? {waist:0.92, belly:0.0,  foot:0}
+      : st.form==='urn' ? {waist:0.40, belly:0.10, foot:0.28}
+      : {waist:0.74, belly:0.03, foot:0};
+    const footH=hh*prof.foot, bodyH=hh-footH;
+    const baseY=cy-footH, brx=rx*prof.waist, bry=ry*prof.waist;
+    const topY=baseY-bodyH;
+    ctx.fillStyle=body; ctx.beginPath();
+    ctx.moveTo(cx-rx,topY);
+    ctx.quadraticCurveTo(cx-rx*(1+prof.belly),topY+bodyH*0.55,cx-brx,baseY);
+    ctx.ellipse(cx,baseY,brx,bry,0,Math.PI,0,false);
+    ctx.quadraticCurveTo(cx+rx*(1+prof.belly),topY+bodyH*0.55,cx+rx,topY);
+    ctx.ellipse(cx,topY,rx,ry,0,0,Math.PI,true);
+    ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.clip();                              // round it with light
+    ctx.fillStyle='rgba(0,0,0,0.20)';
+    ctx.fillRect(cx+rx*0.20,topY-ry,rx*1.2,hh+ry*2);
+    ctx.fillStyle='rgba(255,255,255,0.12)';
+    ctx.fillRect(cx-rx*1.1,topY-ry,rx*0.55,hh+ry*2);
+    ctx.restore();
+    if (footH>0) isoBox(ctx,cx,cy,ax,ay,r*0.34,r*0.34,footH,light,dark,shade(body,-12));
+    ctx.strokeStyle=st.rim; ctx.lineWidth=Math.max(2,hh*0.09);
+    ctx.beginPath(); ctx.ellipse(cx,topY,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle=st.soil; ctx.beginPath();
+    ctx.ellipse(cx,topY,rx*0.80,ry*0.80,0,0,Math.PI*2); ctx.fill();
+  } else {
+    const hw = st.form==='trough' ? inchesToTiles(sz.wIn)/2 : r;
+    const hd = st.form==='trough' ? inchesToTiles(14)/2 : r;
+    isoBox(ctx,cx,cy,ax,ay,hw,hd,hh,shade(body,12),shade(body,-26),shade(body,-8));
+    if (st.form==='crate'){                              // Versailles corner posts
+      const post=shade(body,-34);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>{
+        const px=cx+ax[0]*hw*u*0.92+ay[0]*hd*v*0.92, py=cy+ax[1]*hw*u*0.92+ay[1]*hd*v*0.92;
+        isoBox(ctx,px,py,ax,ay,hw*0.16,hd*0.16,hh*1.14,shade(body,6),post,shade(post,12));
+      });
+    }
+    isoSlab(ctx,cx,cy,ax,ay,hw*0.82,hd*0.82,hh,st.soil);
+  }
+  if (AMBIENCE[season].snow){
+    ctx.fillStyle='rgba(240,244,250,0.72)';
+    ctx.beginPath(); ctx.ellipse(cx,cy-hh,rx*0.8,ry*0.8,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawSeat(ctx,W,H,season,seat,x,y){
+  if (!seat) return;
+  const [cx,cy]=groundCenterOf(x,y,seatTileSize(seat),W,H);
+  drawSeatArt(ctx,cx,cy,seat,season,isoAxes());
+}
+function drawSeatArt(ctx,cx,cy,seat,season,axes){
+  if (!seat) return;
+  season=season||'Summer';
+  const [ax,ay]=axes||ISO_AXES_FLAT;
+  const t=seatType(seat.type), fin=seatFinish(seat.finish);
+  const hw=inchesToTiles(t.wIn)/2, hd=inchesToTiles(t.dIn)/2;
+  const sitH=feetToPx(18/12);                       // a seat is 18in off the ground
+  const fullH=feetToPx(t.hIn/12);
+  const deckH=feetToPx(30/12);                      // table height
+  const wood=fin.wood, dark=fin.dark, metal=fin.metal;
+  const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v];
+  const box=(u,v,lw,ld,y0,y1,col)=>{
+    const p=P(u,v);
+    isoBox(ctx,p[0],p[1],ax,ay,lw,ld,y1,col,shade(col,-30),shade(col,-14),y0);
+  };
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  drawSoftShadow(ctx,cx,cy,Math.max(hw,hd)*Math.SQRT2*TILE_W/2*0.9,
+    Math.max(hw,hd)*Math.SQRT2*TILE_H/2*0.85,0.18);
+  // four thin legs under a top at height h
+  const legs=(lw,ld,h)=>[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
+    box(lw*u*0.86,ld*v*0.80,lw*0.10,ld*0.14,0,h,metal));
+  const plank=(lw,ld,h,col)=>box(0,0,lw,ld,h-feetToPx(2.2/12),h,col||wood);
+  switch (t.form){
+    case 'bench':
+      legs(hw,hd,sitH);
+      plank(hw,hd*0.82,sitH);
+      box(0,-hd*0.78,hw,hd*0.10,sitH,fullH,wood);      // back
+      break;
+    case 'chair':
+      legs(hw*0.82,hd*0.72,sitH);
+      plank(hw*0.82,hd*0.62,sitH);
+      box(0,-hd*0.62,hw*0.82,hd*0.10,sitH,fullH,wood);
+      break;
+    case 'stool':
+      legs(hw*0.72,hd*0.72,sitH);
+      plank(hw*0.86,hd*0.86,sitH);
+      break;
+    case 'lounger':
+      legs(hw*0.72,hd*0.86,sitH*0.62);
+      plank(hw*0.88,hd*0.90,sitH*0.62);
+      box(0,-hd*0.66,hw*0.88,hd*0.10,sitH*0.62,sitH*1.7,wood);   // raised head
+      break;
+    case 'bistro': {
+      const tr=hw*0.52;
+      box(0,0,tr*0.14,tr*0.18,0,deckH,metal);                    // pedestal
+      const erx=tr*Math.SQRT2*TILE_W/2, ery=tr*Math.SQRT2*TILE_H/2;
+      ctx.fillStyle=shade(wood,-22);
+      ctx.beginPath(); ctx.ellipse(cx,cy-deckH+3,erx,ery,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=wood;
+      ctx.beginPath(); ctx.ellipse(cx,cy-deckH,erx,ery,0,0,Math.PI*2); ctx.fill();
+      [[-1,0.25],[1,-0.25]].forEach(([u,v])=>{
+        legs(hw*0.18,hd*0.18,sitH);                              // (chair legs are tiny)
+        box(hw*0.78*u,hd*0.78*v,hw*0.20,hd*0.20,sitH-feetToPx(2/12),sitH,wood);
+        box(hw*0.78*u,hd*0.78*v-hd*0.18,hw*0.20,hd*0.06,sitH,sitH*1.9,wood);
+      });
+      break;
+    }
+    case 'picnic':
+      legs(hw*0.60,hd*0.30,deckH);
+      plank(hw*0.70,hd*0.32,deckH);
+      [-1,1].forEach(v=>{
+        box(0,hd*0.70*v,hw*0.70,hd*0.13,0,sitH,metal);           // bench end frames
+        box(0,hd*0.70*v,hw*0.70,hd*0.15,sitH-feetToPx(2.2/12),sitH,wood);
+      });
+      break;
+    default:                                                      // dining
+      legs(hw*0.74,hd*0.66,deckH);
+      plank(hw*0.82,hd*0.70,deckH);
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([u,v])=>{
+        box(hw*0.50*u,hd*1.10*v,hw*0.18,hd*0.20,sitH-feetToPx(2/12),sitH,wood);
+        box(hw*0.50*u,hd*1.10*v+hd*0.16*v,hw*0.18,hd*0.05,sitH,sitH*1.85,wood);
+      });
+      break;
+  }
+  if (AMBIENCE[season].snow){
+    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=2.4;
+    const a2=P(-hw*0.8,0), b2=P(hw*0.8,0);
+    ctx.beginPath(); ctx.moveTo(a2[0],a2[1]-sitH-2); ctx.lineTo(b2[0],b2[1]-sitH-2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawBoulder(ctx,W,H,season,b,x,y){
   const d=normalizeBoulderDraft(b), sz=boulderTileSize(d), spec=sz.spec;
   const footprint=footprintScreenPoly(W,H,x,y,sz,0.86), center=polyCenter(footprint), bounds=polyBounds(footprint);

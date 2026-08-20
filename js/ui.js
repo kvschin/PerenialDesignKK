@@ -822,6 +822,10 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='light') label='Place light';
   else if (game.tool==='firepit') label='Place fire pit';
   else if (game.tool==='pet') label='Place pet';
+  else if (game.tool==='pot') label='Set down a pot';
+  else if (game.tool==='seat') label='Place seating';
+  else if (game.tool==='pot') label='Set down a pot';
+  else if (game.tool==='seat') label='Place seating';
   else if (game.tool==='building-edit') label=buildingEditMode()==='remove'?'Trim footprint'
     :buildingEditMode()==='rename'?'Name footprint':'Extend footprint';
   else if (game.tool==='building-edit') label=buildingEditMode()==='remove'?'Trim footprint'
@@ -932,6 +936,10 @@ function updateHUD(){
     ? (buildingEditMode()==='rename' ? 'Tap a footprint to name it'
       : buildingEditMode()==='remove' ? `Tap or drag to trim tiles off a footprint (${game.brushSize}-wide)`
       : `Tap or drag ground touching a footprint to extend it (${game.brushSize}-wide)`)
+    : game.tool==='pot'
+    ? `Tap or drag to set down ${potLabel().toLowerCase()} — paving is fine`
+    : game.tool==='seat'
+    ? `Tap or drag to place ${seatLabel().toLowerCase()}`
     : game.tool==='pet'
     ? `Tap a clear spot to settle your ${petLabel()}`
     : 'Tap a tile to place · drag to paint a run');

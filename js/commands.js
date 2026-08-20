@@ -107,6 +107,22 @@ function actHere(opts){
     else rejectPlacement('Boulder needs clear dry ground.');
     return;
   }
+  if (game.tool==='pot'){
+    const sh=shrubAt(x,y);
+    if (sh){ pulseShrubFootprint(sh); toast('A pot needs clear ground outside the shrub spread.'); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`${potLabel()} set down — now plant it.`); }
+    else rejectPlacement(potAt(x,y)?'A pot is already standing there.':'A pot needs a clear, dry tile — paving is fine.');
+    return;
+  }
+  if (game.tool==='seat'){
+    const sh=shrubAt(x,y);
+    if (sh){ pulseShrubFootprint(sh); toast('Seating needs clear ground outside the shrub spread.'); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`${seatLabel()} placed.`); }
+    else rejectPlacement('Seating needs a clear, dry patch that size.');
+    return;
+  }
   if (game.tool==='pet'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`A ${petLabel()} settles in.`); }
@@ -131,7 +147,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -143,6 +159,8 @@ function actHere(opts){
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
+    if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
+    if (counts.seat) parts.push(`${counts.seat} seat${counts.seat>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
@@ -200,7 +218,7 @@ function actHere(opts){
   }
   if (def.type==='bulb'){ // bulbs go UNDER perennials — but not under trees or shrubs
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
-    if (terr==='path'||terr==='water'){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first.'); return; }
+    if (!potAt(x,y) && (terr==='path'||terr==='water')){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first, or stand a pot on it.'); return; }
     if (shrubHit){
       pulseShrubFootprint(shrubHit);
       toast(`No bulbs under ${plantDef(shrubHit.p.s,shrubHit.p.v).name.toLowerCase()} — the shrub claims that ground.`);
@@ -215,7 +233,9 @@ function actHere(opts){
     else rejectPlacement('No spot for a bulb here.');
     return;
   }
-  if (terr==='path'||terr==='water'){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree.'); return; }
+  const potHere=potAt(x,y);
+  if (potHere && isTreeDef(def)){ rejectPlacement('A tree needs open ground, not a container.'); return; }
+  if (!potHere && (terr==='path'||terr==='water')){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree, unless you stand a pot on it.'); return; }
   if (shrubHit && !isShrubDef(def) && (!hasPlant || shrubHit.key!==k)){
     pulseShrubFootprint(shrubHit);
     showPlantCard(shrubHit.p,shrubHit.x,shrubHit.y);
@@ -232,8 +252,10 @@ function actHere(opts){
   const n=game.drift?driftCount(def):1;
   if (n>1){ stampDrift(x,y,n,opts); return; }
   if (applyToolAt(x,y,opts)){ hapticFeedback('place');
-    toast(plantPlacedMessage(def,x,y,k,shadeWarn,false),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
-  else rejectPlacement('No room here.');
+    const fit=potHere?potFitWarning(def,potHere):'';
+    if (fit) toast(`Planted ${def.name}. ${fit}`,'warn');
+    else toast(plantPlacedMessage(def,x,y,k,shadeWarn,false),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
+  else rejectPlacement(potHere?'That pot is already planted.':'No room here.');
 }
 /* soft tree-spacing feedback (T3): the trunk placed fine (occupancy guaranteed
    its tile was clear); if it landed inside a nearby tree's spacing, say so in
@@ -371,10 +393,17 @@ function matrixSpacingBlocks(x,y,def){
 function placePlantAt(x,y,opts){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   const def=plantDef(game.tool,game.toolVar);
+  /* A container is the ONE thing that makes paving plantable, and it also
+     lifts the plant out of the ground rules it would otherwise obey: no bed
+     spacing, no shrub reservation, no drift jitter. It is not a hardiness
+     exemption — the library still only offers what suits the zone. */
+  const pot=potAt(x,y);
   if (fenceAt(x,y)) return null;
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
+  if (seatAt(x,y)) return null;
+  if (pot && isTreeDef(def)) return null;          // a tree needs open ground
   const np={s:game.tool,d:woodyPlantedDay(def,game.woodyAge),t:Date.now()};   // woody: age-at-placement (T10)
   if (game.toolVar) np.v=game.toolVar;
   if (def.type==='water'){
@@ -387,7 +416,7 @@ function placePlantAt(x,y,opts){
     setTile('plants',k,np); plantFx(x,y,np);
     return 'plant';
   }
-  if (terr==='path'||terr==='water') return null;
+  if (terr==='water' || (!pot && terr==='path')) return null;
   if (def.type==='bulb'){ // bulbs tuck in under perennials — but not under trees/shrubs
     const eb=game.bulbs[k];
     if (eb && !eb.removed) return null;
@@ -399,11 +428,12 @@ function placePlantAt(x,y,opts){
   }
   const ex=game.plants[k];
   if (ex && !ex.removed) return null;
-  if (game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
+  if (!pot && game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
   if (!isShrubDef(def) && shrubAt(x,y)) return null;
-  if (isShrubDef(def) && !canPlaceShrubAt(x,y,np).ok) return null;
+  if (isShrubDef(def) && !pot && !canPlaceShrubAt(x,y,np).ok) return null;
   if (canopyShadeHardBlock(def,x,y)) return null;
-  if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
+  // a plant in a container stands in the middle of it, not wherever you tapped
+  if (!pot && freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
   setTile('plants',k,np); plantFx(x,y,np);
   // a tree or shrub claims the ground — any bulb tucked under it is lost
   if (isShrubDef(def)) clearBulbsUnderShrub(x,y,np);
@@ -496,6 +526,124 @@ function placePetAt(x,y){
 }
 function petAt(x,y){ const p=game.pets&&game.pets[`${x},${y}`]; return (p&&!p.removed)?p:null; }
 function petDraft(){ return game.petDraft=normalizePetDraft(game.petDraft); }
+
+/* ---------- containers ----------
+   The pot is a keyed layer and its planting stays an ORDINARY plant in
+   game.plants on the same tile. That is deliberate: everything that iterates
+   the plant layers — the planting list, the bloom calendar, the plan sheet,
+   discovery counts, the coach beats — keeps working untouched, where a pot
+   that owned its own plant would need a second iteration path in every one of
+   them and would become a second source of truth for "what is planted".
+   `potAt(x,y)` is the predicate that changes the RULES, and because the
+   vessel's presence IS the flag there is no field to fall out of sync. */
+function potDraft(){ return game.potDraft=normalizePotDraft(game.potDraft); }
+function potLabel(p){ return potLabelFor(p||potDraft()); }
+function potAt(x,y){
+  if (!game.pots) return null;
+  for (const k in game.pots){
+    const p=game.pots[k]; if (!p || p.removed) continue;
+    const [px,py]=k.split(',').map(Number), sz=potTileSize(p);
+    if (x>=px && x<px+sz.w && y>=py && y<py+sz.h) return Object.assign({key:k,x:px,y:py},p);
+  }
+  return null;
+}
+function potFootprint(x,y,p){
+  const sz=potTileSize(p), tiles=[];
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  return tiles;
+}
+// how far a pot's rim lifts the plant standing in it, in screen px
+function potLiftPx(p){ return p ? Math.round(potSizeDef(p.size).hIn/12*PX_PER_FT*0.86) : 0; }
+function canPlacePot(x,y,ignoreKey){
+  const d=potDraft(), sz=potTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of potFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
+    // paving is FINE — that is the whole point. Water and structures are not.
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
+        || seatAt(xx,yy) || shrubAt(xx,yy)) return false;
+    const p=potAt(xx,yy); if (p && p.key!==ignoreKey) return false;
+    // an in-ground plant already here would be standing in the pot by accident
+    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
+    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
+  }
+  return true;
+}
+function placePotAt(x,y){
+  if (!game.pots) game.pots={};
+  const d=normalizePotDraft(potDraft()), k=`${x},${y}`;
+  const cur=game.pots[k];
+  if (cur && !cur.removed && cur.style===d.style && cur.size===d.size) return null;
+  if (!canPlacePot(x,y,k)) return null;
+  setTile('pots',k,Object.assign({},d,{t:Date.now()}));
+  return 'pot';
+}
+/* Lifting a pot takes its planting with it — the plant was never in the
+   ground, and leaving it behind would silently turn a container specimen into
+   an in-ground one that breaks the spacing it was exempt from. */
+function clearPotAndPlanting(pot){
+  if (!pot) return 0;
+  let n=0;
+  for (const [xx,yy] of potFootprint(pot.x,pot.y,pot)){
+    const k=`${xx},${yy}`;
+    const pl=game.plants[k]; if (pl && !pl.removed){ clearTile('plants',k); n++; }
+    const bl=game.bulbs[k];  if (bl && !bl.removed){ clearTile('bulbs',k); n++; }
+  }
+  clearTile('pots',pot.key);
+  return n;
+}
+/* Horticulture, not physics, so it warns rather than refuses (the T9 policy).
+   A 6 ft miscanthus in a 12in pot is a real mistake worth naming. */
+function potFitWarning(def,pot){
+  if (!def || !pot) return '';
+  const dia=potSizeDef(pot.size).wIn, tall=def.heightIn||def.h||0;
+  if (isTreeDef(def)) return '';
+  if (tall>=dia*3.5) return `${def.name} wants a bigger pot than ${dia} in.`;
+  if (isShrubDef(def) && (def.spread||0)>dia*2.2) return `${def.name} will outgrow a ${dia} in pot.`;
+  return '';
+}
+
+/* ---------- seating ---------- */
+function seatDraft(){ return game.seatDraft=normalizeSeatDraft(game.seatDraft); }
+function seatLabel(s){ return seatLabelFor(s||seatDraft()); }
+function seatAt(x,y){
+  if (!game.seats) return null;
+  for (const k in game.seats){
+    const s=game.seats[k]; if (!s || s.removed) continue;
+    const [sx,sy]=k.split(',').map(Number), sz=seatTileSize(s);
+    if (x>=sx && x<sx+sz.w && y>=sy && y<sy+sz.h) return Object.assign({key:k,x:sx,y:sy},s);
+  }
+  return null;
+}
+function seatFootprint(x,y,s){
+  const sz=seatTileSize(s), tiles=[];
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  return tiles;
+}
+function canPlaceSeat(x,y,ignoreKey){
+  const d=seatDraft(), sz=seatTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of seatFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
+        || potAt(xx,yy) || shrubAt(xx,yy)) return false;
+    const s=seatAt(xx,yy); if (s && s.key!==ignoreKey) return false;
+    const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
+    if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
+  }
+  return true;
+}
+function placeSeatAt(x,y){
+  if (!game.seats) game.seats={};
+  const d=normalizeSeatDraft(seatDraft()), k=`${x},${y}`;
+  const cur=game.seats[k];
+  if (cur && !cur.removed && cur.type===d.type && cur.finish===d.finish) return null;
+  if (!canPlaceSeat(x,y,k)) return null;
+  setTile('seats',k,Object.assign({},d,{t:Date.now()}));
+  return 'seat';
+}
 function petLabel(p){
   const d=normalizePetDraft(p||petDraft());
   const mark=d.mark==='solid' ? '' : `${petMark(d.mark).label.toLowerCase()} `;
@@ -980,6 +1128,11 @@ function eraseBrush(cx,cy,counts){
       const bo=boulderAt(x,y);
       if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }
       if (petAt(x,y)){ clearTile('pets',k); counts.pet=(counts.pet||0)+1; }
+      const po=potAt(x,y);
+      // a lifted pot takes its planting with it — see clearPotAndPlanting
+      if (po){ counts.plants+=clearPotAndPlanting(po); counts.pot=(counts.pot||0)+1; }
+      const se=seatAt(x,y);
+      if (se){ clearTile('seats',se.key); counts.seat=(counts.seat||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -1007,7 +1160,8 @@ function selValidDest(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !isDo
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
 function selectionEmptySets(){
   return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
-    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set()};
+    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set(),
+    pots:new Set(),seats:new Set()};
 }
 function selectionSourceSets(items,copy){
   const out=selectionEmptySets();
@@ -1023,12 +1177,15 @@ function selectionSourceSets(items,copy){
     if (c.firepit) out.firepits.add(k);
     if (c.boulder) out.boulders.add(k);
     if (c.pet) out.pets.add(k);
+    if (c.pot) out.pots.add(k);
+    if (c.seat) out.seats.add(k);
   });
   return out;
 }
 function selectionDestMaps(items,dst){
   const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
-    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map()};
+    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map(),
+    pots:new Map(),seats:new Map()};
   items.forEach(c=>{
     const [x,y]=dst(c), k=`${x},${y}`;
     if (c.plant) out.plants.set(k,Object.assign({x,y},c.plant));
@@ -1040,6 +1197,8 @@ function selectionDestMaps(items,dst){
     if (c.firepit) out.firepits.set(k,Object.assign({x,y},c.firepit));
     if (c.boulder) out.boulders.set(k,Object.assign({x,y},c.boulder));
     if (c.pet) out.pets.set(k,c.pet);
+    if (c.pot) out.pots.set(k,Object.assign({x,y},c.pot));
+    if (c.seat) out.seats.set(k,Object.assign({x,y},c.seat));
   });
   return out;
 }
@@ -1165,7 +1324,7 @@ function selectionPayload(r){
   const items=[];
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k];
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k], po=(game.pots||{})[k], se=(game.seats||{})[k];
     const cell={x,y};
     if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
     if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
@@ -1176,7 +1335,9 @@ function selectionPayload(r){
     if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
     if (bo && !bo.removed) cell.boulder=JSON.parse(JSON.stringify(bo));
     if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet) items.push(cell);
+    if (po && !po.removed) cell.pot=JSON.parse(JSON.stringify(po));
+    if (se && !se.removed) cell.seat=JSON.parse(JSON.stringify(se));
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat) items.push(cell);
   }
   return items;
 }
@@ -1411,6 +1572,8 @@ function selWrite(items, getDst, clearSource){
       if (c.firepit) clearTile('firepits',k);
       if (c.boulder) clearTile('boulders',k);
       if (c.pet)   clearTile('pets',k);
+      if (c.pot)   clearTile('pots',k);
+      if (c.seat)  clearTile('seats',k);
     }
   }
   const now=Date.now();
@@ -1424,6 +1587,8 @@ function selWrite(items, getDst, clearSource){
     if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
     if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
     if (c.pet)   setTile('pets',k,Object.assign({},c.pet,{t:now}));
+    if (c.pot)   setTile('pots',k,Object.assign({},c.pot,{t:now}));
+    if (c.seat)  setTile('seats',k,Object.assign({},c.seat,{t:now}));
   }
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
@@ -1476,6 +1641,8 @@ function eraseSelection(){
       if (c.firepit) clearTile('firepits',k);
       if (c.boulder) clearTile('boulders',k);
       if (c.pet)   clearTile('pets',k);
+      if (c.pot)   clearTile('pots',k);
+      if (c.seat)  clearTile('seats',k);
     } });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();

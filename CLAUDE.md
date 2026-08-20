@@ -1232,6 +1232,54 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
     test asserts it.
+12b. **Containers** (`game.pots`, `POT_STYLES`/`POT_SIZES`, `drawPotArt`) —
+    **a pot is the one thing that makes PAVING plantable.** Every planting route
+    refuses `path` terrain (five call sites, and correctly — you cannot dig a
+    gravel drive), so before containers a courtyard, patio or roof terrace was a
+    garden the app could draw and could not plant. That is why they exist; the
+    ornament is a bonus.
+    **The vessel is a keyed layer and its planting stays an ORDINARY plant in
+    `game.plants` on the same tile.** That is the load-bearing decision: the
+    planting list, the bloom calendar, the plan sheet, discovery counts and the
+    coach beats all iterate the plant layers and keep working untouched, where a
+    pot that owned its own plant would need a second iteration path in every one
+    of them and would become a second source of truth for "what is planted".
+    `potAt(x,y)` is the predicate that changes the RULES, and because the
+    vessel's presence IS the flag there is no field to fall out of sync.
+    A pot exempts its plant from the in-GROUND rules — bed spacing, matrix
+    thinning, the shrub mature reservation, the free-planting jitter — and from
+    nothing else. **Hardiness is deliberately NOT relaxed**: the library is
+    filtered by `plantFits`, so a tender plant is not reachable to put in a pot
+    in the first place, and surfacing one only inside containers would need a
+    parallel browsing mode, which is confusion bought with a feature nobody
+    asked for. `potFitWarning` is horticulture, so it warns (T9) rather than
+    refusing; trees are refused outright — a tree needs open ground, and a
+    dwarfed one casting a full mature canopy shade map would be worse than the
+    omission. Lifting a pot takes its planting with it (`clearPotAndPlanting`),
+    because leaving it would silently turn a container specimen into an
+    in-ground one breaking the spacing it was exempt from.
+    Seven vessels — terracotta, glazed, cast stone, timber, galvanised, urn and a
+    multi-tile trough — with `form` naming the silhouette the way a plant names
+    its `form`. Everything to 30 in claims ONE tile and overhangs it the way a
+    shrub canopy does; only the troughs take a multi-tile footprint.
+    **Both pots and seating draw at real size**, and the geometry has two traps
+    worth not rediscovering. The tile diamond is `TILE_W` wide but a tile is
+    `TILE_IN` inches on a SIDE, so that width spans the tile's DIAGONAL — sizing
+    a 24 in pot as `(24/18)*TILE_W/2` drew it root-2 too wide, visibly a barrel
+    (`inchesToTiles` plus the root-2 in the ellipse semi-axes is the fix). And
+    `isoBox` picks its two visible faces from **the ground corner lowest on
+    screen**, not by testing each edge against the centre — the latter drew one,
+    three or no faces depending on rotation, which is what turned a sun lounger
+    into a kite. It also takes a base height `y0`, without which every part
+    stood on the ground and a bench came out a solid crate rather than a plank
+    on four legs. `drawPotArt`/`drawSeatArt` take a ground point and the
+    rotation axes, so the garden and the tray chips paint through one function
+    (the `fencePanel` lesson).
+    Unlike the pets, containers and seating **do** appear on the client-facing
+    documents: a ring at its real diameter and a hatched footprint on the plan,
+    and a Containers & seating table on the planting list — a pot is one plant,
+    one vessel and a bag of compost, which is a different line from an area at a
+    spacing.
 13. **Storage** — `sGet`/`sSet` over localStorage. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
@@ -1468,7 +1516,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rectangular, and oblong footprints, block planting, render through
     `drawBoulder`, and export to the design plan.
     Fire pits and boulders erase as Landscape, move/rotate/copy in selections,
-    and eyedrop with Pick. The **Decor** tab holds **garden pets** (§12a). The House tab
+    and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
+    (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
+    stool, bistro set, dining table, picnic table and sun lounger in four
+    finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint. The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)

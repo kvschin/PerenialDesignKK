@@ -113,6 +113,8 @@ const game = {
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
+  pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
+  seats:{},           // "x,y" origin -> {type,finish,t} or {removed:true,t}
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
   house:null,                                        // legacy single-house field; migrated into game.houses on load
@@ -164,6 +166,8 @@ const game = {
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
   petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
+  potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
+  seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -198,6 +202,8 @@ const GAME_LAYERS=[
   {k:'firepits'},
   {k:'boulders'},
   {k:'pets'},
+  {k:'pots'},
+  {k:'seats'},
   {k:'houses', array:true},
   {k:'buildings', array:true},
 ];
@@ -320,6 +326,8 @@ const LAYER_CACHES={
   firepits:  {scene:1},
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
+  pots:      {scene:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
+  seats:     {scene:1},
   houses:    {scene:1, ground:1},
   buildings: {scene:1},
 };
@@ -1250,7 +1258,12 @@ function plantOffset(p){
 }
 function plantScreenOf(x,y,p,W,H){
   const o=plantOffset(p);
-  return screenOf(x+o.ox,y+o.oy,W,H);
+  const s=screenOf(x+o.ox,y+o.oy,W,H);
+  /* A plant standing in a container starts at the rim, not the ground. This is
+     the one choke point the plant AND bulb passes share, so lifting here is
+     what keeps a pot of tulips and a pot of sedge agreeing. */
+  const pot=typeof potAt==='function' && potAt(x,y);
+  return pot ? [s[0], s[1]-potLiftPx(pot)] : s;
 }
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);

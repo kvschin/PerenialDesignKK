@@ -13,9 +13,9 @@ const TRAY_CATS=[
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'landscape',label:'Ground',           tools:['path','bed','water']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level']},
-  {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder']},
+  {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
-  {id:'decor',    label:'Decor',            tools:['pet']},
+  {id:'decor',    label:'Decor',            tools:['pot','pet']},
   {id:'house',    label:'Site',             tools:['building','house']},
 ];
 // two-tier tab grouping: a top-level Plants / Build toggle decides which set
@@ -86,6 +86,11 @@ const TOOLS={
   // which is the only way to reach a measurable frame cost (a pet is not
   // sprite-cached, so it redraws procedurally every frame at ~37us each).
   pet:     {layer:'landscape', brush:false, placement:true,  paints:false, material:false, apply:(x,y,o)=>placePetAt(x,y)},
+  /* Pots and seats DO drag: unlike a pet, a run of them along a wall or a path
+     is a thing people actually want, and each refuses to overlap the last, so a
+     drag lays a neat row rather than 24 copies on one spot. */
+  pot:     {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placePotAt(x,y)},
+  seat:    {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeSeatAt(x,y)},
 };
 // plant tools are keyed by species id; their layer + placer follow the plant type
 const TOOL_PLANT={
@@ -585,7 +590,7 @@ function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
@@ -594,6 +599,16 @@ function pickAt(x,y){
     game.fillMode=false; game.trayCat='bulbs';
     setTool(b.s, b.v||null); buildToolTray();
     toast(`Picked ${plantDef(b.s,b.v).name}.`);
+  } else if (po){
+    game.fillMode=false; game.trayCat='decor';
+    game.potDraft=normalizePotDraft(po);
+    setTool('pot', null); buildToolTray();
+    toast(`Picked the ${potLabel(po)}.`);
+  } else if (se){
+    game.fillMode=false; game.trayCat='structures';
+    game.seatDraft=normalizeSeatDraft(se);
+    setTool('seat', null); buildToolTray();
+    toast(`Picked the ${seatLabel(se)}.`);
   } else if (pet){
     game.fillMode=false; game.trayCat='decor';
     game.petDraft=normalizePetDraft(pet);
@@ -2745,6 +2760,71 @@ function buildToolTrayInner(){
     sep('Light');
     LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
   }
+  if (cat.tools.includes('pot')){
+    /* Contextual like the Ground tab: the vessels are always up and the size
+       row unfolds once one is armed. Every chip paints through the garden's own
+       drawPot, so a chip cannot advertise a pot the canvas does not draw. */
+    const cd=potDraft(), armed=game.tool==='pot';
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const miniPot=(tc,d)=>{
+      const sz=potSizeDef(potSizeFor(d.style,d.size));
+      const k=Math.min(1.05,26/sz.wIn);          // fit the widest vessel in the chip
+      tc.save(); tc.translate(24,40); tc.scale(k,k);
+      drawPotArt(tc,0,0,d,'Summer');
+      tc.restore();
+    };
+    const toolBtn=(label,sel,draftPatch,tip)=>{
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='pot';
+      if (draftPatch.style!==undefined) b.dataset.potStyle=draftPatch.style;
+      if (draftPatch.size!==undefined) b.dataset.potSize=draftPatch.size;
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniPot(c.getContext('2d'),normalizePotDraft(Object.assign({},cd,draftPatch)));
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label;
+      b.onclick=()=>{ game.potDraft=normalizePotDraft(Object.assign({},potDraft(),draftPatch));
+        setTool('pot',null); buildToolTray(); };
+      tray.appendChild(b); return b;
+    };
+    POT_STYLES.forEach(st=>toolBtn(st.short||st.label, armed&&cd.style===st.id, {style:st.id},
+      `${st.label} — plant it anywhere, including paving`));
+    if (armed){
+      sep('Size');
+      potStyleSizes(cd.style).forEach(sz=>toolBtn(sz.label, cd.size===sz.id, {size:sz.id},
+        `${sz.label} across, ${sz.hIn} in tall`));
+    }
+  }
+  if (cat.tools.includes('seat')){
+    const sd=seatDraft(), armed=game.tool==='seat';
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    const miniSeat=(tc,d)=>{
+      const t=seatType(d.type), k=Math.min(1.0,34/Math.max(t.wIn,t.dIn));
+      tc.save(); tc.translate(24,33); tc.scale(k,k);
+      drawSeatArt(tc,0,0,d,'Summer');
+      tc.restore();
+    };
+    const toolBtn=(label,sel,draftPatch,tip)=>{
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='seat';
+      if (draftPatch.type!==undefined) b.dataset.seatType=draftPatch.type;
+      if (draftPatch.finish!==undefined) b.dataset.seatFinish=draftPatch.finish;
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniSeat(c.getContext('2d'),normalizeSeatDraft(Object.assign({},sd,draftPatch)));
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label;
+      b.onclick=()=>{ game.seatDraft=normalizeSeatDraft(Object.assign({},seatDraft(),draftPatch));
+        setTool('seat',null); buildToolTray(); };
+      tray.appendChild(b); return b;
+    };
+    SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, armed&&sd.type===t.id, {type:t.id},
+      `${t.label} — ${Math.round(t.wIn/12*10)/10} ft wide`));
+    if (armed){
+      sep('Finish');
+      SEAT_FINISHES.forEach(f=>toolBtn(f.label, sd.finish===f.id, {finish:f.id}, `${f.label} finish`));
+    }
+  }
   if (cat.tools.includes('pet')){
     // Contextual like the Ground tab: Cat / Dog are always up, and the coat,
     // marking and sock rows only unfold once a pet is armed — the same shape
@@ -2886,6 +2966,8 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
+    if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ');
+    if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
     if (k==='pet') hay+=' decor pet cat dog animal ornament socks paws feet '+PET_COATS.map(c2=>c2.label).join(' ')+' '+PET_MARKS.map(m2=>m2.label).join(' ')+' '+PET_PAWS.map(p2=>p2.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);
@@ -3129,6 +3211,8 @@ function sheetContextLabel(){
   if (game.tool==='light') return 'Lighting';
   if (game.tool==='firepit') return firepitLabel();
   if (game.tool==='boulder') return boulderLabel();
+  if (game.tool==='pot') return potLabel();
+  if (game.tool==='seat') return seatLabel();
   if (game.tool==='house') return 'House';
   if (game.tool==='building') return 'Building footprint';
   if (game.tool==='building-edit') return 'Footprint · '+buildingEditMode();
@@ -3177,6 +3261,8 @@ function toolGuide(){
     light:{k:lightLabel(),v:'Tap or drag on clear, dry ground'},
     firepit:{k:firepitLabel(),v:'Tap clear, dry ground to place'},
     boulder:{k:boulderLabel(),v:'Tap clear, dry ground to place'},
+    pot:{k:cap(potLabel()),v:'Tap or drag to set it down — paving is fine, then plant it'},
+    seat:{k:cap(seatLabel()),v:'Tap or drag to place seating on clear, dry ground'},
     pet:{k:cap(petLabel()),v:'Tap a clear spot — decoration only, never on the plan'},
     house:{k:'Legacy house',v:'Tap the map to place the current size and finish'}
   };

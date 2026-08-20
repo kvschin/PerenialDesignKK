@@ -5,13 +5,15 @@
 function setup(gw, gh){
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
   game.lightDraft = { type: 'path', tone: 'warm' };
   game.firepitDraft = { shape: 'round', size: 'round36' };
   game.boulderDraft = { type: 'round1' };
+  game.potDraft = { style: 'terracotta', size: 'p18' };
+  game.seatDraft = { type: 'bench4', finish: 'teak' };
   game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
   game.bedStyle = 'soil';
   game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
@@ -2596,6 +2598,106 @@ test('a run of gate tiles is one opening, not a stack of gates', () => {
   const wide = fenceAnchor(9 + 2 + 0.48, 8, W, H)[0] - fenceAnchor(9 - 0.48, 8, W, H)[0];
   const oneTile = fenceAnchor(0.48, 0, W, H)[0] - fenceAnchor(-0.48, 0, W, H)[0];
   assert(wide > oneTile * 2.5, 'a 3-tile gate spans ~3 tiles of opening');
+});
+
+/* The reason containers exist: every planting route refuses `path` terrain, so
+   before pots a courtyard, patio or roof terrace was a garden this app could
+   draw and could not plant. */
+test('a pot is the one thing that makes paving plantable', () => {
+  setup(21, 21);
+  const forb = firstOfType('forb');
+  game.tool = 'path'; game.pathColor = 'warm';
+  applyToolAt(5, 5); applyToolAt(6, 5);
+  assertEqual(tileTerrain(5, 5), 'path', 'the terrace is paved');
+
+  game.tool = forb;
+  assertEqual(applyToolAt(5, 5), null, 'bare paving still refuses a plant');
+
+  game.tool = 'pot'; game.potDraft = { style: 'terracotta', size: 'p18' };
+  assertEqual(applyToolAt(5, 5), 'pot', 'a pot stands on paving');
+  assert(potAt(5, 5), 'the tile carries a pot');
+
+  game.tool = forb;
+  assertEqual(applyToolAt(5, 5), 'plant', 'the pot makes that paving plantable');
+  /* The planting stays an ORDINARY plant on an ordinary tile, which is what
+     keeps the planting list, bloom calendar and plan sheet working untouched. */
+  assert(game.plants['5,5'] && !game.plants['5,5'].removed, 'it lives in game.plants');
+  assert(exportRows().some(r => r.count > 0), 'a potted plant still reaches the planting list');
+
+  // water is still water, pot or no pot
+  game.tool = 'water'; game.waterStyle = 'pond';
+  assertEqual(applyToolAt(9, 9), 'water', 'a pond');
+  game.tool = 'pot';
+  assertEqual(applyToolAt(9, 9), null, 'a pot does not float');
+});
+
+test('a potted plant skips the in-ground rules but not the hardiness gate', () => {
+  setup(21, 21);
+  const forb = firstOfType('forb'), tree = firstOfType('tree');
+  game.tool = 'pot'; game.potDraft = { style: 'glazed', size: 'p18' };
+  applyToolAt(4, 4); applyToolAt(5, 4);
+
+  // matrix thinning is an in-GROUND spacing rule; a pot is not in the ground
+  game.tool = forb; game.matrix = true;
+  assertEqual(applyToolAt(4, 4), 'plant', 'first pot planted');
+  assertEqual(applyToolAt(5, 4), 'plant', 'the pot beside it plants too, despite matrix spacing');
+  game.matrix = false;
+
+  // but a tree is not a container plant
+  game.tool = 'pot'; applyToolAt(8, 8);
+  game.tool = tree;
+  assertEqual(applyToolAt(8, 8), null, 'a tree needs open ground');
+
+  /* Hardiness is deliberately NOT relaxed: the library only offers what suits
+     the zone, so a tender plant is not reachable to put in a pot in the first
+     place, and pretending otherwise would need a parallel browsing mode. */
+  const before = plantFits(forb, null);
+  assertEqual(plantFits(forb, null), before, 'a pot changes nothing about what fits the zone');
+
+  // and the fit advice is horticulture, so it warns rather than refusing
+  const big = { name: 'Big Thing', heightIn: 120, h: 120, spread: 60 };
+  assert(potFitWarning(big, { style: 'terracotta', size: 'p10' }), 'a 10ft plant in a 10in pot is called out');
+  assert(!potFitWarning({ name: 'Small', heightIn: 14, h: 14, spread: 12 },
+    { style: 'terracotta', size: 'p18' }), 'a small plant in a big pot is fine');
+});
+
+test('lifting a pot takes its planting with it', () => {
+  setup(21, 21);
+  game.tool = 'pot'; game.potDraft = { style: 'metal', size: 'p18' };
+  applyToolAt(6, 6);
+  game.tool = firstOfType('forb');
+  assertEqual(applyToolAt(6, 6), 'plant', 'planted the pot');
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0, pot: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(6, 6, counts);
+  assertEqual(counts.pot, 1, 'the pot lifted');
+  assertEqual(counts.plants, 1, 'and took its plant');
+  assert(!game.plants['6,6'] || game.plants['6,6'].removed,
+    'no orphan left standing in mid-air breaking the spacing it was exempt from');
+});
+
+test('seating claims a real footprint and keeps plants out of it', () => {
+  setup(21, 21);
+  game.tool = 'seat'; game.seatDraft = { type: 'bench6', finish: 'teak' };
+  assertEqual(applyToolAt(5, 5), 'seat', 'a 6 ft bench places');
+  const sz = seatTileSize(game.seats['5,5']);
+  assertEqual(sz.w, 4, 'six feet is four tiles at 18 in to the tile');
+  assert(seatAt(8, 5), 'the far end of the bench is claimed');
+  assert(!seatAt(9, 5), 'and no further');
+  game.tool = firstOfType('forb');
+  assertEqual(applyToolAt(7, 5), null, 'nothing plants through a bench');
+  game.tool = 'seat';
+  assertEqual(applyToolAt(6, 5), null, 'seating will not overlap seating');
+  // every type names a form the painter implements, and a real size
+  const forms = ['bench', 'chair', 'stool', 'lounger', 'bistro', 'picnic', 'dining'];
+  SEAT_TYPES.forEach(t => {
+    assert(forms.includes(t.form), `${t.id} names an implemented form (${t.form})`);
+    assert(t.wIn > 0 && t.dIn > 0 && t.hIn > 0, `${t.id} has real dimensions`);
+  });
+  POT_STYLES.forEach(p => {
+    assert(potStyleSizes(p.id).length, `${p.id} is made in at least one size`);
+    assertEqual(normalizePotDraft({ style: p.id, size: 'nonsense' }).style, p.id, `${p.id} normalises`);
+  });
 });
 
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {

@@ -88,7 +88,7 @@ function startDailyChallenge(){
   game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
   game.rot=0; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
   game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.freePlanting=false;
+  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={}; game.freePlanting=false;
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
   game.houses=[]; game.houseDraft=defaultDraft();
   markGroundChanged({terrain:true});
@@ -400,6 +400,8 @@ function enterGarden(){
   if (!game.firepits) game.firepits={};
   if (!game.boulders) game.boulders={};
   if (!game.pets) game.pets={};
+  if (!game.pots) game.pots={};
+  if (!game.seats) game.seats={};
   if (!game.buildings) game.buildings=[];
   ensureSchemes();   // every garden runs on at least one planting scheme
   if (!game.houseDraft) game.houseDraft=draftFromHouses();
@@ -718,7 +720,7 @@ function openPlotScreen(){
       game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
       game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
       game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.freePlanting=false;
+      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={}; game.freePlanting=false;
       game.schemes=[]; game.schemeActive=null;   // a new plot starts with one (unnamed-by-default) planting scheme
       game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
@@ -1422,7 +1424,7 @@ function perfBench(opts){
   setWorldSize(gw,gh);
   game.worldId='perfbench'; game.worldName='perfBench scratch';
   game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={};
-  game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={};
+  game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={};
   game.houses=[]; game.buildings=[]; game.schemes=[]; game.schemeActive=null;
   game.rot=0; game.edgeStyle=edge; game.bedStyle='soil'; game.pathColor='warm';
   const keys=PLANT_KEYS.filter(k=>!PLANTS[k].hidden);

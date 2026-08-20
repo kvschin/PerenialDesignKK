@@ -325,7 +325,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -424,6 +424,8 @@ async function loadSolo(id){
   game.firepitDraft=normalizeFirepitDraft(s.firepitDraft);
   game.boulderDraft=normalizeBoulderDraft(s.boulderDraft);
   game.petDraft=normalizePetDraft(s.petDraft);
+  game.potDraft=normalizePotDraft(s.potDraft);
+  game.seatDraft=normalizeSeatDraft(s.seatDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
     ? Math.max(0,+s.elapsedMs||0)
@@ -464,13 +466,38 @@ function exportRows(){
       order:Math.ceil(n*TILE_IN*TILE_IN/(P.space*P.space))};
   }).sort((a,b)=>b.count-a.count);
 }
+/* Containers and seating are real things to buy, and a pot is a different line
+   from a bed: one plant, one vessel, a bag of compost — not an area at a
+   spacing. The plants inside pots still count as plants (they are ordinary
+   plants on ordinary tiles), so this is a SUMMARY beside the species table
+   rather than a change to it. */
+function hardscapeRows(){
+  const pots={}, seats={};
+  for (const k in game.pots||{}){ const p=game.pots[k]; if (!p||p.removed) continue;
+    const id=potStyleId(p.style)+'|'+potSizeFor(p.style,p.size);
+    pots[id]=(pots[id]||0)+1; }
+  for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
+    const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
+    seats[id]=(seats[id]||0)+1; }
+  const rows=[];
+  for (const id in pots){ const [st,sz]=id.split('|');
+    rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
+  for (const id in seats){ const [ty,fi]=id.split('|');
+    rows.push({kind:'Seating', name:`${seatFinish(fi).label} ${seatType(ty).label}`, count:seats[id]}); }
+  return rows.sort((a2,b2)=>a2.kind===b2.kind?b2.count-a2.count:a2.kind<b2.kind?-1:1);
+}
 function openExport(){
   funnel(FUNNEL_EVENTS.listOpened);     // the conversion moment, if the paywall lands here
-  const rows=exportRows(), body=$('exportBody');
+  const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows();
   const where=game.worldName||'My garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
+  const hardHtml = hard.length ? `<h3 class="export-sub">Containers &amp; seating</h3>`+
+    `<div class="export-wrap"><table class="export-table"><thead><tr>`+
+    `<th>Item</th><th>Type</th><th>Count</th></tr></thead><tbody>`+
+    hard.map(r=>`<tr><td>${r.name}</td><td>${r.kind}</td><td><b>${r.count}</b></td></tr>`).join('')+
+    `</tbody></table></div>` : '';
   if (!rows.length){
-    body.innerHTML='<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
+    body.innerHTML=hardHtml+'<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
   } else {
     const tr=rows.map(r=>`<tr><td>${r.name}<div class="latin">${r.latin}</div><small>${r.nativeStatus} · ${r.provenance}</small></td>
       <td>${r.count}</td><td>${r.areaFt}</td><td>${r.space}"</td><td><b>${r.order}</b></td></tr>`).join('');
@@ -480,7 +507,7 @@ function openExport(){
       <tbody>${tr}</tbody>
       <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
       <p class="note">"To order" converts planted ground to plants at each species' recommended
-      spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>`;
+      spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>${hardHtml}`;
   }
   openOverlay('exportScreen','#btnPrint');
 }
@@ -989,6 +1016,34 @@ function buildPlanMap(){
       ctx.fillStyle=st.post;
       ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2,cell*0.16),0,7); ctx.fill();
     }
+  }
+  /* Containers and seating are site objects a contractor sets out, so unlike
+     the pets they DO belong on the plan. A pot is a ring at its real diameter;
+     seating is its real footprint with a hatched fill. */
+  for (const k in game.pots||{}){
+    const p=game.pots[k]; if (!p||p.removed) continue;
+    const [x,y]=k.split(',').map(Number), sz=potTileSize(p);
+    const dia=potSizeDef(potSizeFor(p.style,p.size)).wIn;
+    const cx2=X(x)+cell*sz.w/2, cy2=Y(y)+cell/2;
+    const r=Math.max(2.5,(dia/TILE_IN)*cell/2);
+    ctx.save();
+    ctx.fillStyle='rgba(247,243,232,0.85)'; ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(92,84,69,0.55)'; ctx.lineWidth=0.9;
+    ctx.beginPath(); ctx.arc(cx2,cy2,r*0.62,0,7); ctx.stroke();
+    ctx.restore();
+  }
+  for (const k in game.seats||{}){
+    const s2=game.seats[k]; if (!s2||s2.removed) continue;
+    const [x,y]=k.split(',').map(Number), sz=seatTileSize(s2);
+    const x0=X(x), y0=Y(y), w=cell*sz.w, h=cell*sz.h;
+    ctx.save();
+    ctx.fillStyle='rgba(140,128,104,0.20)'; ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.2;
+    ctx.fillRect(x0,y0,w,h); ctx.strokeRect(x0,y0,w,h);
+    ctx.strokeStyle='rgba(92,84,69,0.45)'; ctx.lineWidth=0.7;
+    for (let i=1;i<4;i++){ const t=i/4;
+      ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
+    ctx.restore();
   }
   // lighting fixtures
   lightsLive.forEach(k=>{
