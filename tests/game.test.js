@@ -3813,6 +3813,36 @@ test('a single-scheme garden saves exactly as it always did', async () => {
   assertEqual(worldSaveMeta(blob).schemes, 1, 'a schemeless blob reports one scheme');
 });
 
+/* ---------- shipping the update ----------
+   The version lives in THREE files and nothing but this test connects them.
+   Bumping js/core.js alone leaves sw.js byte-identical, and the browser's
+   update check compares that script's bytes — so no new worker is installed,
+   the old cache is never retired, and every visitor keeps being served the
+   previous build indefinitely. That is not hypothetical: 0.6.5 and 0.6.6 both
+   shipped that way and neither reached the live site. */
+test('the service worker ships the version it was built with', () => {
+  const read = readRepoFile;
+  const swVersion = (read('sw.js').match(/^const VERSION\s*=\s*'([^']+)'/m) || [])[1];
+  const pkgVersion = JSON.parse(read('package.json')).version;
+  assert(swVersion, 'sw.js declares a VERSION');
+  assertEqual(swVersion, APP_VERSION, 'sw.js VERSION matches APP_VERSION in js/core.js');
+  assertEqual(pkgVersion, APP_VERSION, 'package.json version matches APP_VERSION');
+
+  /* The other half of the same footgun: a version bump with a stale PRECACHE
+     ships a half-updated app, because anything missing from the list is fetched
+     from the network and then cached under the NEW name — fine online, absent
+     offline. Every module index.html loads has to be in it. */
+  const sw = read('sw.js'), html = read('index.html');
+  const precache = (sw.match(/const PRECACHE\s*=\s*\[([\s\S]*?)\]/) || ['', ''])[1];
+  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m => m[1])
+    .filter(s => !/^https?:/.test(s));
+  for (const s of scripts){
+    const bare = s.replace(/^\.?\//, '');
+    assert(precache.includes(bare), `PRECACHE is missing ${bare}, which index.html loads`);
+  }
+  assert(scripts.length >= 13, `expected the full module list, found ${scripts.length}`);
+});
+
 /* ---------- the harness itself ----------
    Three stubs in this sandbox have now been caught reporting a convenient
    fiction, and each one made a real assertion pass for the wrong reason:

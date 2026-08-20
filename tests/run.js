@@ -37,7 +37,11 @@ function assert(cond, msg){ if (!cond) throw new Error(msg || 'assertion failed'
 function assertEqual(a, b, msg){ if (a !== b) throw new Error(`${msg || 'not equal'}: ${JSON.stringify(a)} !== ${JSON.stringify(b)}`); }
 
 
-const inject = { test, assert, assertEqual };
+/* readRepoFile hands a test the real bytes of a repo file. Everything else in
+   the sandbox is a stub, and a stub can lie; this cannot, which is the point —
+   it exists so the version/PRECACHE test reads sw.js and package.json as they
+   will actually ship rather than as the sandbox imagines them. */
+const inject = { test, assert, assertEqual, readRepoFile: read };
 
 // ---------- Tier 1: plants.js data contract (no DOM needed) ----------
 currentFile = 'plants.test.js';

@@ -5,7 +5,14 @@
    matter of holding the shell. Everything it needs is precached on install and
    served cache-first afterwards.
 
-   CACHE is named from APP_VERSION in js/core.js. Bumping that version is what
+   CACHE is named from VERSION below, which MUST equal APP_VERSION in js/core.js
+   and the version in package.json. It is a hand-kept copy — a worker cannot
+   importScripts js/core.js (that file touches document at load), and making the
+   version a file sw.js imports would defeat the update check, which compares
+   THIS script's bytes. A test pins all three together, because bumping core.js
+   alone leaves sw.js byte-identical: the browser then never installs a new
+   worker and every visitor keeps being served the old cache forever. That is
+   exactly what happened between 0.6.4 and 0.6.6. Bumping this is what
    ships an update: the new worker precaches into a new cache, and the old one is
    deleted on activate. Keep the two in step — a version bump with a stale
    PRECACHE list ships a half-updated app.
@@ -20,7 +27,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.6.4';
+const VERSION = '0.6.6';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
