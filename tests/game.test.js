@@ -2689,7 +2689,7 @@ test('seating claims a real footprint and keeps plants out of it', () => {
   game.tool = 'seat';
   assertEqual(applyToolAt(6, 5), null, 'seating will not overlap seating');
   // every type names a form the painter implements, and a real size
-  const forms = ['bench', 'chair', 'stool', 'lounger', 'bistro', 'picnic', 'dining'];
+  const forms = ['bench', 'chair', 'adirondack', 'stool', 'lounger', 'bistro', 'picnic', 'dining'];
   SEAT_TYPES.forEach(t => {
     assert(forms.includes(t.form), `${t.id} names an implemented form (${t.form})`);
     assert(t.wIn > 0 && t.dIn > 0 && t.hIn > 0, `${t.id} has real dimensions`);
@@ -2796,14 +2796,18 @@ test('seating turns, and every chair keeps its legs', () => {
   game.seatDraft={type:'bench6',finish:'teak',face:0};
   assertEqual(applyToolAt(5,5),'seat','turning in place counts as a change');
 
-  /* The bistro and dining chairs were a seat and a back floating 18 inches up
-     on nothing. Each chair is 4 legs + seat + back = 18 quads, so the fill
-     count is a blunt but honest guard against them being dropped again. */
-  const chairFills=form=>artBounds(c=>drawSeatArt(c,0,0,{type:form,finish:'teak',face:0},'Summer',ISO_AXES_FLAT)).fills;
-  assert(chairFills('dining')>=55, `dining draws its four chairs whole (${chairFills('dining')})`);
-  assert(chairFills('bistro')>=35, `bistro draws its two chairs whole (${chairFills('bistro')})`);
-  // and a lone chair still has its own legs
-  assert(chairFills('chair')>=18, `an Adirondack chair has legs (${chairFills('chair')})`);
+  /* Tables come WITHOUT chairs: one object cannot depth-sort against itself,
+     so bundled chairs drew over the table top, and the footprint claimed
+     ground the table does not occupy. A chair is its own placeable. */
+  const fills=type=>artBounds(c=>drawSeatArt(c,0,0,{type,finish:'teak',face:0},'Summer',ISO_AXES_FLAT)).fills;
+  const table=fills('dining'), seat=fills('dchair');
+  assert(table < seat*2, `a dining table is a table, not a table and four chairs (${table} vs ${seat})`);
+  assert(fills('bistro') < seat*2, `and so is the bistro table (${fills('bistro')})`);
+  // every standalone chair keeps its legs: 4 legs + seat + back
+  assert(seat>=18, `a dining chair has legs (${seat})`);
+  assert(fills('adirondack')>=18, `an Adirondack has legs (${fills('adirondack')})`);
+  // a picnic table's benches ARE bolted to it, so those stay
+  assert(fills('picnic') > fills('dining'), 'a picnic table still carries its benches');
 });
 
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {

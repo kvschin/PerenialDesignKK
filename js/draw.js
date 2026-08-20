@@ -4871,6 +4871,24 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
     const footH=hh*prof.foot, bodyH=hh-footH;
     const baseY=cy-footH, brx=rx*prof.waist, bry=ry*prof.waist;
     const topY=baseY-bodyH;
+    /* The pedestal goes on BEFORE the bowl, and it is round. It used to be a
+       square isoBox drawn after, so a block sat in front of the vessel and
+       read as an unrelated object rather than as the stem holding it up. */
+    if (footH>0){
+      const prx=rx*0.60, pry=ry*0.60;                 // the spreading foot
+      ctx.fillStyle=shade(body,-18);
+      ctx.beginPath(); ctx.ellipse(cx,cy,prx,pry,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=body;
+      ctx.beginPath();
+      ctx.moveTo(cx-prx,cy);
+      ctx.quadraticCurveTo(cx-rx*0.19,cy-footH*0.60,cx-rx*0.23,baseY);
+      ctx.ellipse(cx,baseY,rx*0.23,ry*0.23,0,Math.PI,0,true);
+      ctx.quadraticCurveTo(cx+rx*0.19,cy-footH*0.60,cx+prx,cy);
+      ctx.ellipse(cx,cy,prx,pry,0,0,Math.PI,true);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle=shade(body,10);
+      ctx.beginPath(); ctx.ellipse(cx,baseY,rx*0.23,ry*0.23,0,0,Math.PI*2); ctx.fill();
+    }
     ctx.fillStyle=body; ctx.beginPath();
     ctx.moveTo(cx-rx,topY);
     ctx.quadraticCurveTo(cx-rx*(1+prof.belly),topY+bodyH*0.55,cx-brx,baseY);
@@ -4888,7 +4906,6 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
     ctx.fillStyle='rgba(255,255,255,0.12)';
     ctx.fillRect(cx-rx*1.1,topY-ry,rx*0.55,hh+ry*2);
     ctx.restore();
-    if (footH>0) isoBox(ctx,cx,cy,ax,ay,r*0.34,r*0.34,footH,light,dark,shade(body,-12));
     ctx.strokeStyle=st.rim; ctx.lineWidth=Math.max(2,hh*0.09);
     ctx.beginPath(); ctx.ellipse(cx,topY,rx,ry,0,0,Math.PI*2); ctx.stroke();
     ctx.fillStyle=st.soil; ctx.beginPath();
@@ -4926,72 +4943,125 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
   const sitH=feetToPx(18/12);                       // a seat is 18in off the ground
   const fullH=feetToPx(t.hIn/12);
   const deckH=feetToPx(30/12);                      // table height
+  const thin=feetToPx(2.2/12);                      // a board's thickness
   const wood=fin.wood, dark=fin.dark, metal=fin.metal;
   const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v];
   const box=(u,v,lw,ld,y0,y1,col)=>{
     const p=P(u,v);
     isoBox(ctx,p[0],p[1],ax,ay,lw,ld,y1,col,shade(col,-30),shade(col,-14),y0);
   };
+  /* A board that LEANS: the same box, but its top face is offset along v, so a
+     back can rake and a lounger can recline. Nothing else in the app tilts, and
+     an Adirondack that does not lean back is just a chair. */
+  const rake=(u,v,lw,ld,y0,y1,dv,col)=>{
+    const a=P(u-lw,v-ld), b=P(u+lw,v-ld), c=P(u+lw,v+ld), d=P(u-lw,v+ld);
+    const o=P(u-lw+dv,v-ld), o2=P(u+lw+dv,v-ld);     // rake is along the run's v
+    const shift=[o[0]-a[0],o[1]-a[1]];
+    const lo=p=>[p[0],p[1]-y0], hi=p=>[p[0]+shift[0],p[1]-y1+shift[1]];
+    const quad=(p1,p2,p3,p4,col2)=>{ ctx.fillStyle=col2; ctx.beginPath();
+      ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]);
+      ctx.lineTo(p3[0],p3[1]); ctx.lineTo(p4[0],p4[1]); ctx.closePath(); ctx.fill(); };
+    quad(lo(d),lo(c),hi(c),hi(d),shade(col,-14));    // the face toward the camera
+    quad(lo(a),lo(d),hi(d),hi(a),shade(col,-30));
+    quad(hi(a),hi(b),hi(c),hi(d),col);               // the leaning board itself
+    void o2;
+  };
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
   drawSoftShadow(ctx,cx,cy,Math.max(hw,hd)*Math.SQRT2*TILE_W/2*0.9,
     Math.max(hw,hd)*Math.SQRT2*TILE_H/2*0.85,0.18);
-  // four thin legs under a top at height h
   const legs=(lw,ld,h)=>[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
     box(lw*u*0.86,ld*v*0.80,lw*0.10,ld*0.14,0,h,metal));
-  const plank=(lw,ld,h,col)=>box(0,0,lw,ld,h-feetToPx(2.2/12),h,col||wood);
-  /* A whole chair at an offset, LEGS INCLUDED — the bistro and dining chairs
-     were a seat and a back floating 18 inches up on nothing. `bv` is which side
-     the back sits on, so a chair at a table faces the table. */
-  const chair=(u,v,lw,ld,bv)=>{
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([su,sv])=>
-      box(u+lw*su*0.72,v+ld*sv*0.72,lw*0.16,ld*0.16,0,sitH,metal));
-    box(u,v,lw,ld,sitH-feetToPx(2/12),sitH,wood);
-    box(u,v+ld*0.86*bv,lw,ld*0.12,sitH,sitH*1.92,wood);
+  const plank=(lw,ld,h,col)=>box(0,0,lw,ld,h-thin,h,col||wood);
+  // slats across a seat or a back, so timber reads as timber
+  const slats=(u,v,lw,ld,y0,y1,n,col)=>{
+    for (let i=0;i<n;i++){
+      const f=(i+0.5)/n-0.5;
+      box(u+lw*2*f,v,lw/n*0.72,ld,y0,y1,i%2?col:shade(col,-8));
+    }
   };
   switch (t.form){
     case 'bench':
       legs(hw,hd,sitH);
       plank(hw,hd*0.82,sitH);
-      box(0,-hd*0.78,hw,hd*0.10,sitH,fullH,wood);      // back
+      slats(0,-hd*0.78,hw,hd*0.09,sitH,fullH,5,wood);          // slatted back
       break;
-    case 'chair':
-      legs(hw*0.82,hd*0.72,sitH);
-      plank(hw*0.82,hd*0.62,sitH);
-      box(0,-hd*0.62,hw*0.82,hd*0.10,sitH,fullH,wood);
+    /* An Adirondack is a low RAKED seat under a tall fanned back, with wide
+       flat arms — that silhouette is the whole point of the chair, and a plain
+       box with a vertical back is any chair at all. */
+    case 'adirondack': {
+      const seatFront=feetToPx(13/12), seatBack=feetToPx(10/12);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
+        box(hw*u*0.80,hd*v*0.74,hw*0.12,hd*0.12,0,seatBack,dark));
+      // the seat slopes down toward the back
+      rake(0,hd*0.06,hw*0.82,hd*0.66,seatBack,seatFront,0,wood);
+      // tall back, raked away from the sitter, in visible slats
+      for (let i=0;i<5;i++){
+        const f=(i+0.5)/5-0.5, taper=1-Math.abs(f)*0.5;
+        box(hw*1.5*f, -hd*0.62 - hd*0.20*Math.abs(f),
+          hw*0.13, hd*0.07, seatBack, seatBack+(fullH-seatBack)*taper, i%2?wood:shade(wood,-8));
+      }
+      // the wide flat arms an Adirondack is known for
+      [-1,1].forEach(u=>box(hw*0.84*u,hd*0.02,hw*0.16,hd*0.60,
+        seatFront+feetToPx(4/12),seatFront+feetToPx(4/12)+thin,shade(wood,8)));
+      break;
+    }
+    case 'chair':                                             // a plain dining chair
+      legs(hw,hd,sitH);
+      plank(hw*0.92,hd*0.88,sitH);
+      slats(0,-hd*0.80,hw*0.92,hd*0.10,sitH,fullH,3,wood);
       break;
     case 'stool':
       legs(hw*0.72,hd*0.72,sitH);
       plank(hw*0.86,hd*0.86,sitH);
       break;
-    case 'lounger':
-      legs(hw*0.72,hd*0.86,sitH*0.62);
-      plank(hw*0.88,hd*0.90,sitH*0.62);
-      box(0,-hd*0.66,hw*0.88,hd*0.10,sitH*0.62,sitH*1.7,wood);   // raised head
-      break;
-    case 'bistro': {
-      const tr=hw*0.52;
-      box(0,0,tr*0.14,tr*0.18,0,deckH,metal);                    // pedestal
-      const erx=tr*Math.SQRT2*TILE_W/2, ery=tr*Math.SQRT2*TILE_H/2;
-      ctx.fillStyle=shade(wood,-22);
-      ctx.beginPath(); ctx.ellipse(cx,cy-deckH+3,erx,ery,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle=wood;
-      ctx.beginPath(); ctx.ellipse(cx,cy-deckH,erx,ery,0,0,Math.PI*2); ctx.fill();
-      [[-1,0],[1,0]].forEach(([u,v])=>chair(hw*0.80*u,hd*0.80*v,hw*0.21,hd*0.21,u));
+    /* A lounger is a long, low, RECLINED deck: flat from the foot to about
+       two-thirds, then a raked back. Drawn as a flat platform with a stub it
+       read as a ramp, which is what it looked like. */
+    case 'lounger': {
+      const deck=feetToPx(14/12);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
+        box(hw*u*0.72,hd*v*0.82,hw*0.14,hd*0.07,0,deck,metal));
+      box(0,hd*0.22,hw*0.86,hd*0.74,deck-thin,deck,wood);      // the flat deck
+      rake(0,-hd*0.60,hw*0.86,hd*0.32,deck,fullH,0,wood);      // the reclined back
+      // slat lines DOWN the back, not a plate across its top — the plate read as
+      // a separate panel hovering behind the lounger
+      for (let i=0;i<4;i++){
+        const f=(i+0.5)/4-0.5;
+        box(hw*1.6*f,-hd*0.60,hw*0.055,hd*0.33,deck+thin,fullH+0.5,shade(wood,i%2?10:-10));
+      }
       break;
     }
-    case 'picnic':
+    case 'bistro': {                                          // the TABLE only
+      const tr=hw*0.94;
+      box(0,0,tr*0.16,tr*0.20,0,deckH,metal);                 // pedestal
+      box(0,0,tr*0.62,tr*0.62,0,thin*0.8,metal);              // foot plate
+      const erx=tr*Math.SQRT2*TILE_W/2, ery=tr*Math.SQRT2*TILE_H/2;
+      ctx.fillStyle=shade(wood,-26);
+      ctx.beginPath(); ctx.ellipse(cx,cy-deckH+thin,erx,ery,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=wood;
+      ctx.beginPath(); ctx.ellipse(cx,cy-deckH,erx,ery,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=dark; ctx.lineWidth=1.2; ctx.stroke();
+      break;
+    }
+    case 'picnic': {
+      /* The benches ARE the table here, so they cannot be separate objects —
+         which means this one form has to sort against itself: the far bench
+         before the table, the near bench after. */
+      const far=P(0,-hd*0.70), near=P(0,hd*0.70);
+      const bench=v=>{
+        box(0,hd*0.70*v,hw*0.70,hd*0.13,0,sitH-thin,metal);
+        box(0,hd*0.70*v,hw*0.72,hd*0.15,sitH-thin,sitH,wood);
+      };
+      const farFirst = far[1] <= near[1];
+      bench(farFirst?-1:1);
       legs(hw*0.60,hd*0.30,deckH);
       plank(hw*0.70,hd*0.32,deckH);
-      [-1,1].forEach(v=>{
-        box(0,hd*0.70*v,hw*0.70,hd*0.13,0,sitH,metal);           // bench end frames
-        box(0,hd*0.70*v,hw*0.70,hd*0.15,sitH-feetToPx(2.2/12),sitH,wood);
-      });
+      bench(farFirst?1:-1);
       break;
-    default:                                                      // dining
-      legs(hw*0.74,hd*0.66,deckH);
-      plank(hw*0.82,hd*0.70,deckH);
-      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([u,v])=>
-        chair(hw*0.48*u,hd*1.12*v,hw*0.19,hd*0.21,v));
+    }
+    default:                                                  // dining TABLE only
+      legs(hw*0.80,hd*0.72,deckH);
+      plank(hw*0.88,hd*0.80,deckH);
       break;
   }
   if (AMBIENCE[season].snow){

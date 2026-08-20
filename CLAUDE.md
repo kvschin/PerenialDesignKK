@@ -1275,6 +1275,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     partial is what makes it a real guard, because the soft shadow and the soil
     disc are full rings drawn either way, and measuring those made a base drawn
     backwards indistinguishable from a correct one.
+    **Tables come WITHOUT chairs, and a chair is its own placeable.** Bundling
+    them looked like a convenience and was three problems at once: one object
+    cannot depth-sort against itself, so the chairs drew over the table top;
+    the footprint claimed ground the table does not occupy; and you could
+    neither seat three people nor turn one chair to face the view. A picnic
+    table keeps its benches because they really are bolted to it — and it is
+    therefore the one form that has to sort against itself, drawing the far
+    bench, then the table, then the near one.
+    Two silhouettes carry their whole identity and are worth not flattening:
+    an **Adirondack** is a low RAKED seat under a tall fanned back with wide
+    flat arms, and a **lounger** is a long low deck that reclines at one end.
+    Drawn as ordinary boxes they were just a chair and a ramp. `rake()` is the
+    shared primitive — a box whose top face is offset along its own depth —
+    and it is the only thing in the app that tilts.
     Seating and troughs carry a `face` (0-3 quarter turns of the OBJECT, nothing
     to do with the camera's `game.rot`): `turnAxes` rotates the drawing basis and
     `seatTileSize`/`potTileSize` swap the footprint to match, so the claim always

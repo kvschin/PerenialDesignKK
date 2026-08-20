@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.7.1';
+const APP_VERSION = '0.7.2';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -723,15 +723,22 @@ const SEAT_FINISHES = [
   {id:'black',  label:'Black',   wood:'#3a3a3e', dark:'#232327', metal:'#2b2b2f'},
   {id:'stone',  label:'Stone',   wood:'#9d998c', dark:'#7b776b', metal:'#8b8779'},
 ];
+/* Tables come WITHOUT chairs and chairs are placed individually. Bundling
+   them looked like a convenience and was three problems: the chairs drew over
+   the table top because one object cannot depth-sort against itself, the
+   footprint claimed ground the table does not actually occupy, and you could
+   not seat three people or turn one chair to face the view. A picnic table
+   keeps its benches because they are genuinely bolted to it. */
 const SEAT_TYPES = [
   {id:'bench4',  label:'Garden Bench 4 ft', short:'Bench 4ft', form:'bench',  wIn:48, dIn:22, hIn:34},
   {id:'bench6',  label:'Garden Bench 6 ft', short:'Bench 6ft', form:'bench',  wIn:72, dIn:22, hIn:34},
-  {id:'chair',   label:'Adirondack Chair',  short:'Chair',     form:'chair',  wIn:30, dIn:32, hIn:38},
+  {id:'chair',   label:'Adirondack Chair',  short:'Adirondack',form:'adirondack', wIn:32, dIn:34, hIn:38},
+  {id:'dchair',  label:'Dining Chair',      short:'Chair',     form:'chair',  wIn:20, dIn:20, hIn:35},
   {id:'stool',   label:'Garden Stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18},
-  {id:'bistro',  label:'Bistro Set',        short:'Bistro',    form:'bistro', wIn:44, dIn:44, hIn:30},
-  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:40, hIn:30},
+  {id:'bistro',  label:'Bistro Table',      short:'Bistro',    form:'bistro', wIn:26, dIn:26, hIn:30},
+  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:36, hIn:30},
   {id:'picnic',  label:'Picnic Table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30},
-  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:16},
+  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:36},
 ];
 function seatType(id){ return SEAT_TYPES.find(s=>s.id===id)||SEAT_TYPES[0]; }
 function seatFinish(id){ return SEAT_FINISHES.find(f=>f.id===id)||SEAT_FINISHES[0]; }
