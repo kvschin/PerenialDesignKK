@@ -2820,8 +2820,8 @@ test('a retaining wall needs a level change to hold up', () => {
   game.tool = 'raise'; setBrushSize(1);
   for (let n = 0; n < 3; n++) for (let x = 4; x <= 8; x++) for (let y = 4; y <= 8; y++) applyToolAt(x, y);
   assertEqual(elevationAt(6, 8), 3, 'a three-level terrace');
-  assert(stepDropDirs(6, 8).length, 'its front edge falls away');
-  assert(!stepDropDirs(6, 6).length, 'its middle does not');
+  assert(elevationDropDirs(6, 8).length, 'its front edge falls away');
+  assert(!elevationDropDirs(6, 6).length, 'its middle does not');
 
   game.tool = 'wall';
   assertEqual(applyToolAt(6, 8), 'wall', 'the edge takes a wall');
@@ -2852,34 +2852,6 @@ test('a retaining wall needs a level change to hold up', () => {
       `${w.id} names an implemented face (${w.face})`);
     assert(w.courseIn > 0, `${w.id} states a real course height`);
   });
-});
-
-test('steps climb a level change, and snap to a side that falls away', () => {
-  setup(21, 21);
-  game.tool = 'steps'; game.stepDraft = { style: 'stone', face: 0 };
-  assertEqual(applyToolAt(5, 5), null, 'flat ground has nothing to climb');
-
-  game.tool = 'raise'; setBrushSize(1);
-  for (let n = 0; n < 3; n++) for (let x = 4; x <= 8; x++) for (let y = 4; y <= 8; y++) applyToolAt(x, y);
-  /* The terrace falls away to +y at its front edge, and the draft was set to
-     +x. Rather than refuse, placement snaps onto a side that really drops —
-     the same courtesy fenceHeightFor does for an unavailable height. */
-  game.tool = 'steps';
-  assertEqual(applyToolAt(6, 8), 'step', 'the front edge takes a flight');
-  assertEqual(normalizeFacing(game.steps['6,8'].face), 1, 'it snapped to the side that falls');
-  assertEqual(applyToolAt(6, 6), null, 'the middle of the terrace has no drop');
-
-  // the geometry is real: 5.14in risers and an 11in going
-  assert(Math.abs(ELEV_RISER_IN - 5.14) < 0.02, 'one level is a real step riser');
-  assert(2 * ELEV_RISER_IN + STEP_GOING_IN > 19 && 2 * ELEV_RISER_IN + STEP_GOING_IN < 25,
-    `2R+G = ${(2*ELEV_RISER_IN+STEP_GOING_IN).toFixed(1)}in is a comfortable step`);
-
-  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0, step: 0 };
-  game.tool = 'shovel'; game.eraseMode = 'terrain';
-  eraseBrush(6, 8, counts);
-  assertEqual(counts.step, 1, 'erase lifts the flight');
-  assert(!stepAt(6, 8), 'and it is gone');
-  assertEqual(elevationAt(6, 8), 0, 'along with the earthwork it climbed');
 });
 
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {

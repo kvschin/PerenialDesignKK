@@ -110,15 +110,8 @@ function actHere(opts){
   if (game.tool==='wall'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(wallDraft()==='none'?'Back to bare earth.':`${wallLabel()} faced.`); }
-    else rejectPlacement(stepDropDirs(x,y).length?'Already faced in that material.'
+    else rejectPlacement(elevationDropDirs(x,y).length?'Already faced in that material.'
       :'A wall needs a level change to hold up — raise or lower the ground first.');
-    return;
-  }
-  if (game.tool==='steps'){
-    const r=applyToolAt(x,y,opts);
-    if (r){ hapticFeedback('place'); toast(`${stepLabel()} cut in.`); }
-    else rejectPlacement(stepDropDirs(x,y).length?'Steps are already there.'
-      :'Steps need a level change to climb — raise or lower the ground first.');
     return;
   }
   if (game.tool==='pot'){
@@ -161,7 +154,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,step:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -175,7 +168,6 @@ function actHere(opts){
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
     if (counts.seat) parts.push(`${counts.seat} seat${counts.seat>1?'s':''}`);
-    if (counts.step) parts.push(`${counts.step} step${counts.step>1?'s':''}`);
     if (counts.house) parts.push(`${counts.house} house${counts.house>1?'s':''}`);
     if (counts.building) parts.push(`${counts.building} building footprint${counts.building>1?'s':''}`);
     if (parts.length){
@@ -628,38 +620,11 @@ function wallLabel(id){ return wallLabelFor(id||wallDraft()); }
 function paintWallAt(x,y){
   const k=`${x},${y}`, e=game.elevation && game.elevation[k];
   // a wall holds a level change up; with no exposed face there is nothing to hold
-  if (!e || e.removed || !stepDropDirs(x,y).length) return null;
+  if (!e || e.removed || !elevationDropDirs(x,y).length) return null;
   const want=wallDraft();
   if (wallStyleId(e.w)===want) return null;
   setTile('elevation',k,Object.assign({},e,{w:want,t:Date.now()}));
   return 'wall';
-}
-function stepDraft(){ return game.stepDraft=normalizeStepDraft(game.stepDraft); }
-function stepLabel(d){ return stepLabelFor(d||stepDraft()); }
-/* Snap the facing onto a direction the ground actually falls in, rather than
-   refusing — the same courtesy fenceHeightFor does for a material that is not
-   built at the height you had selected. */
-function stepFacingFor(x,y,face){
-  const drops=stepDropDirs(x,y);
-  if (!drops.length) return -1;
-  const want=normalizeFacing(face);
-  return drops.includes(want) ? want : drops[0];
-}
-function canPlaceStep(x,y){
-  if (!onPlot(x,y)) return false;
-  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||potAt(x,y)||seatAt(x,y)) return false;
-  return stepFacingFor(x,y,stepDraft().face)>=0;
-}
-function placeStepAt(x,y){
-  if (!game.steps) game.steps={};
-  if (!canPlaceStep(x,y)) return null;
-  const d=normalizeStepDraft(stepDraft()), k=`${x},${y}`;
-  const face=stepFacingFor(x,y,d.face);
-  const cur=game.steps[k];
-  if (cur && !cur.removed && cur.style===d.style && normalizeFacing(cur.face)===face) return null;
-  setTile('steps',k,{style:d.style,face,t:Date.now()});
-  return 'step';
 }
 
 /* ---------- seating ---------- */
@@ -1191,7 +1156,6 @@ function eraseBrush(cx,cy,counts){
       if (po){ counts.plants+=clearPotAndPlanting(po); counts.pot=(counts.pot||0)+1; }
       const se=seatAt(x,y);
       if (se){ clearTile('seats',se.key); counts.seat=(counts.seat||0)+1; }
-      if (stepAt(x,y)){ clearTile('steps',k); counts.step=(counts.step||0)+1; }
     }
     if (terrOK){ const hh=houseAt(x,y);     // landscape erase also lifts a whole house
       if (hh){ const i=game.houses.indexOf(hh);
@@ -1220,7 +1184,7 @@ function liveSelectionValue(v){ return v && !v.removed ? v : null; }
 function selectionEmptySets(){
   return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
     fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set(),
-    pots:new Set(),seats:new Set(),steps:new Set()};
+    pots:new Set(),seats:new Set()};
 }
 function selectionSourceSets(items,copy){
   const out=selectionEmptySets();
@@ -1238,14 +1202,13 @@ function selectionSourceSets(items,copy){
     if (c.pet) out.pets.add(k);
     if (c.pot) out.pots.add(k);
     if (c.seat) out.seats.add(k);
-    if (c.step) out.steps.add(k);
   });
   return out;
 }
 function selectionDestMaps(items,dst){
   const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
     fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map(),
-    pots:new Map(),seats:new Map(),steps:new Map()};
+    pots:new Map(),seats:new Map()};
   items.forEach(c=>{
     const [x,y]=dst(c), k=`${x},${y}`;
     if (c.plant) out.plants.set(k,Object.assign({x,y},c.plant));
@@ -1259,7 +1222,6 @@ function selectionDestMaps(items,dst){
     if (c.pet) out.pets.set(k,c.pet);
     if (c.pot) out.pots.set(k,Object.assign({x,y},c.pot));
     if (c.seat) out.seats.set(k,Object.assign({x,y},c.seat));
-    if (c.step) out.steps.set(k,c.step);
   });
   return out;
 }
@@ -1385,7 +1347,7 @@ function selectionPayload(r){
   const items=[];
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
     const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k], po=(game.pots||{})[k], se=(game.seats||{})[k], stp=(game.steps||{})[k];
+    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k], po=(game.pots||{})[k], se=(game.seats||{})[k];
     const cell={x,y};
     if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
     if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
@@ -1398,8 +1360,7 @@ function selectionPayload(r){
     if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
     if (po && !po.removed) cell.pot=JSON.parse(JSON.stringify(po));
     if (se && !se.removed) cell.seat=JSON.parse(JSON.stringify(se));
-    if (stp && !stp.removed) cell.step=JSON.parse(JSON.stringify(stp));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat||cell.step) items.push(cell);
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat) items.push(cell);
   }
   return items;
 }
@@ -1636,7 +1597,6 @@ function selWrite(items, getDst, clearSource){
       if (c.pet)   clearTile('pets',k);
       if (c.pot)   clearTile('pots',k);
       if (c.seat)  clearTile('seats',k);
-      if (c.step)  clearTile('steps',k);
     }
   }
   const now=Date.now();
@@ -1652,7 +1612,6 @@ function selWrite(items, getDst, clearSource){
     if (c.pet)   setTile('pets',k,Object.assign({},c.pet,{t:now}));
     if (c.pot)   setTile('pots',k,Object.assign({},c.pot,{t:now}));
     if (c.seat)  setTile('seats',k,Object.assign({},c.seat,{t:now}));
-    if (c.step)  setTile('steps',k,Object.assign({},c.step,{t:now}));
   }
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
@@ -1707,7 +1666,6 @@ function eraseSelection(){
       if (c.pet)   clearTile('pets',k);
       if (c.pot)   clearTile('pots',k);
       if (c.seat)  clearTile('seats',k);
-      if (c.step)  clearTile('steps',k);
     } });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();

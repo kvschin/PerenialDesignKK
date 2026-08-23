@@ -1232,38 +1232,36 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
     test asserts it.
-12c. **Retaining walls + steps** (`WALL_STYLES`/`STEP_STYLES`, `drawWallFace`/
-    `drawStepRun`) — the elevation system could raise ground and gave you no
-    way to hold it back or to get onto it, so a terrace read as a modelling
-    error. Both live on the exposed FACE of a level change, and that face
-    belongs to the HIGHER tile — it is the higher tile `drawElevationSides`
-    paints — so both are stored there.
+12c. **Retaining walls** (`WALL_STYLES`, `drawWallFace`) — the elevation tools
+    could raise ground and gave no way to hold it back, so a terrace read as
+    bare earth. A wall lives on the exposed FACE of a level change, and that
+    face belongs to the HIGHER tile — it is the higher tile
+    `drawElevationSides` paints — so the material is stored there.
     **The scale was already in the file.** `ELEV_STEP`/`PX_PER_FT` makes one
-    level **5.14 inches** (`ELEV_RISER_IN`), which is a genuine step riser and
-    about one course of walling, so a flight and the wall beside it are
-    derived from the same number and cannot disagree. `STEP_GOING_IN` is 11,
-    giving 2R+G = 21in.
-    **A wall is a material on the elevation record** (`{h, w}`), not a layer:
-    it rides the ground-bake invalidation that elevation edits already
-    trigger. It is PAINTED, not automatic — a grass bank and a dry-stone wall
-    are both real answers to the same terrace. Painting the `none` material
-    strips a facing and keeps the terrace; the Landscape erase removes the
-    earthwork, and the facing goes with it because it lives on that record.
-    `face` names the coursing recipe the way a fence names its `infill`, and
-    `courseIn` is a real course height, so a brick course stays 3 inches
-    whatever it is holding back.
-    **Steps are their own layer and are painted in a SECOND PASS**, after
-    every ground tile. A flight runs past its own tile — 11 inches of going
-    against an 18-inch tile — so painted inside the tile loop the very next
-    tile covered it and the treads showed as one flat slab against the wall.
-    Each tread is a HORIZONTAL surface projecting out of the bank (painting
-    them on the wall plane gives horizontal bands, which is what a staircase
-    drawn flat looks like), and what makes a flight read is the SHADOW each
-    nosing casts on the riser below — grey stone steps cut into a grey stone
-    wall are the same colour by definition. Placement snaps the facing onto a
-    side that really falls away rather than refusing, the same courtesy
-    `fenceHeightFor` does. Known limitation: `drawElevationSides` bails on
-    `h<=0`, so a SUNKEN area shows no face and therefore takes no wall.
+    level **5.14 inches** (`ELEV_RISER_IN`), about one course of walling, so
+    `courseIn` counts real courses against a real drop.
+    **The material rides the elevation record** (`{h, w}`) rather than being a
+    layer of its own, so it inherits the ground-bake invalidation that
+    elevation edits already trigger — no new cache key, no new signature.
+    It is PAINTED, not automatic: a grass bank and a dry-stone wall are both
+    real answers to the same terrace. Painting the `none` material strips a
+    facing and keeps the terrace; the Landscape ERASE removes the earthwork,
+    and the facing goes with it because it lives on that record — so a
+    wall-stripping branch in `eraseBrush` is dead code, which is exactly what
+    the first attempt shipped before a test caught it. `face` names the
+    coursing recipe the way a fence names its `infill`. Linear feet reach the
+    planting list; a heavy line reaches the plan.
+    **Steps were built here and then cut** (0.8.1), and the reasoning is worth
+    keeping: nothing in this app walks — the avatar went in Aug 2026 — so they
+    were purely decorative, and `ELEV_MIN`/`ELEV_MAX` caps a level change at
+    **20.6 inches**, four risers, with one or two being typical. A flight-and-
+    cheeks apparatus for something that is almost never more than two treads
+    was over-built, and it was the fiddliest thing in the file to draw well.
+    If access ever needs showing, the idea to start from is a PATH that renders
+    as treads where it crosses a level change: no tool, no facing, no placement
+    rules, and it matches how paths already flow through beds by `TERRAIN_RANK`.
+    Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
+    SUNKEN area shows no face and therefore takes no wall.
 
 12b. **Containers** (`game.pots`, `POT_STYLES`/`POT_SIZES`, `drawPotArt`) —
     **a pot is the one thing that makes PAVING plantable.** Every planting route

@@ -12,7 +12,7 @@ const TRAY_CATS=[
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'landscape',label:'Ground',           tools:['path','bed','water']},
-  {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall','steps']},
+  {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'decor',    label:'Decor',            tools:['pot','pet']},
@@ -74,7 +74,6 @@ const TOOLS={
   // the universal guard would otherwise refuse nothing about — it is sizable
   // because a terrace edge is a run, not a spot
   wall:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>paintWallAt(x,y)},
-  steps:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeStepAt(x,y)},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
   // add/remove tiles on an already-placed footprint. sizable so a whole wing
@@ -410,16 +409,6 @@ function drawWallIcon(tc,id){
   tc.fillStyle='#6f8a50';
   tc.beginPath(); tc.moveTo(27,27); tc.lineTo(45,17); tc.lineTo(45,32); tc.lineTo(27,42);
   tc.closePath(); tc.fill();
-}
-function drawStepIcon(tc,d){
-  const f=gradeChipFace(), st=stepStyle((d||{}).style);
-  tc.fillStyle='#7d9358';
-  tc.beginPath(); tc.moveTo(9,17); tc.lineTo(27,27); tc.lineTo(45,17); tc.lineTo(27,7);
-  tc.closePath(); tc.fill();
-  tc.fillStyle='#6b5a44';
-  tc.beginPath(); tc.moveTo(9,17); tc.lineTo(27,27); tc.lineTo(27,42); tc.lineTo(9,32);
-  tc.closePath(); tc.fill();
-  drawStepRun(tc,f.a,f.b,f.drop,3,st);
 }
 function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   const amb=AMBIENCE.Summer, o={k:kind,c:id};
@@ -2461,7 +2450,6 @@ function buildToolTrayInner(){
       ['lower','Lower',tc=>drawElev(tc,'lower'),'Lower ground one step. Drag to shape a swale or basin.'],
       ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
       ['wall','Wall',tc=>drawWallIcon(tc,wallDraft()),'Face a terrace with a retaining wall. Drag along the edge.'],
-      ['steps','Steps',tc=>drawStepIcon(tc,stepDraft()),'Cut a flight of steps into a level change.'],
     ].filter(([k])=>cat.tools.includes(k))
     .forEach(([k,label,draw,hint])=>{
       materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); },hint);
@@ -2473,21 +2461,6 @@ function buildToolTrayInner(){
         wallDraft()===ws.id, tc=>drawWallIcon(tc,ws.id),
         ()=>{ game.wallDraft=wallStyleId(ws.id); setTool('wall',null); buildToolTray(); },
         ws.id==='none'?'Strip the facing back to bare earth':ws.label));
-    }
-    if (game.tool==='steps' && cat.tools.includes('steps')){
-      const sd=stepDraft();
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Tread'; tray.appendChild(sep);
-      STEP_STYLES.forEach(ss=>materialBtn('steps',ss.short||ss.label,
-        sd.style===ss.id, tc=>drawStepIcon(tc,{style:ss.id,face:sd.face}),
-        ()=>{ game.stepDraft=normalizeStepDraft(Object.assign({},sd,{style:ss.id}));
-          setTool('steps',null); buildToolTray(); }, ss.label));
-      const s2=document.createElement('span'); s2.className='tray-sep';
-      s2.textContent='Facing'; tray.appendChild(s2);
-      materialBtn('steps','Turn',false,tc=>drawStepIcon(tc,{style:sd.style,face:(sd.face+1)%4}),
-        ()=>{ game.stepDraft=normalizeStepDraft(Object.assign({},sd,{face:(sd.face+1)%4}));
-          setTool('steps',null); buildToolTray(); },
-        'Which way the flight descends. It snaps to a side that actually falls away.');
     }
     if (game.tool==='path' && cat.tools.includes('path')){
       const sep=document.createElement('span'); sep.className='tray-sep';
@@ -3044,7 +3017,6 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='wall') hay+=' grade retaining wall terrace bank sleeper gabion drystone dry stone facing '+WALL_STYLES.map(w=>w.label).join(' ');
-    if (k==='steps') hay+=' grade steps stair stairs flight tread riser access '+STEP_STYLES.map(t=>t.label).join(' ');
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
@@ -3295,7 +3267,6 @@ function sheetContextLabel(){
   if (game.tool==='firepit') return firepitLabel();
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='wall') return wallLabel();
-  if (game.tool==='steps') return stepLabel();
   if (game.tool==='pot') return potLabel();
   if (game.tool==='seat') return seatLabel();
   if (game.tool==='house') return 'House';
@@ -3340,7 +3311,6 @@ function toolGuide(){
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     wall:{k:wallLabel(),v:`Drag along a terrace edge — ${game.brushSize}-tile brush`},
-    steps:{k:stepLabel(),v:'Tap the high side of a level change'},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     level:{k:'Level grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
