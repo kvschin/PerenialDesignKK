@@ -11,7 +11,7 @@ const TRAY_CATS=[
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'landscape',label:'Ground',           tools:['path','bed','water']},
+  {id:'landscape',label:'Ground',           tools:['path','bed','water','edging']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
@@ -74,6 +74,7 @@ const TOOLS={
   // the universal guard would otherwise refuse nothing about — it is sizable
   // because a terrace edge is a run, not a spot
   wall:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>paintWallAt(x,y)},
+  edging:  {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>paintEdgingAt(x,y)},
   house:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false}, // no apply — placed via placeHouse
   building:{layer:'landscape', brush:false, placement:true,  paints:false, material:false}, // corner-by-corner polygon input
   // add/remove tiles on an already-placed footprint. sizable so a whole wing
@@ -394,6 +395,18 @@ function materialIconPath(tc,cx,cy,hw,hh){
    (the fencePanel lesson). */
 function gradeChipFace(){
   return {a:[9,17], b:[27,27], drop:15};            // a terrace corner, in chip space
+}
+function drawEdgingIcon(tc,id){
+  const st=edgingStyle(id);
+  tc.fillStyle='#7d9358';                            // lawn
+  tc.beginPath(); tc.moveTo(24,6); tc.lineTo(44,17); tc.lineTo(24,28); tc.lineTo(4,17);
+  tc.closePath(); tc.fill();
+  tc.fillStyle='#6b5a44';                            // the bed it edges
+  tc.beginPath(); tc.moveTo(24,16); tc.lineTo(44,27); tc.lineTo(24,38); tc.lineTo(4,27);
+  tc.closePath(); tc.fill();
+  if (!st.w) return;
+  drawEdgingRun(tc,[[4,17],[24,6]],st,1);            // one edge of the boundary
+  drawEdgingRun(tc,[[24,6],[44,17]],st,2);
 }
 function drawWallIcon(tc,id){
   const f=gradeChipFace(), st=wallStyle(id);
@@ -2446,6 +2459,7 @@ function buildToolTrayInner(){
       ['path','Path',tc=>drawMat(tc,'path',pathCol.id),`${pathCol.label} path: drag or act to lay paths.`],
       ['bed','Bed',tc=>drawMat(tc,'bed',bedCol.id),`${bedCol.label} bed: drag or act to prepare planting beds.`],
       ['water','Water',tc=>drawMat(tc,'water',waterCol.id),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
+      ['edging','Edging',tc=>drawEdgingIcon(tc,edgingDraft()),'Edge a bed or path against the lawn. Fill the whole bed — it only draws where it meets grass.'],
       ['raise','Raise',tc=>drawElev(tc,'raise'),'Raise ground one step. Drag to build a berm or terrace.'],
       ['lower','Lower',tc=>drawElev(tc,'lower'),'Lower ground one step. Drag to shape a swale or basin.'],
       ['level','Level',tc=>drawElev(tc,'level'),'Return ground to level grade.'],
@@ -2454,6 +2468,14 @@ function buildToolTrayInner(){
     .forEach(([k,label,draw,hint])=>{
       materialBtn(k,label,game.tool===k,draw,()=>{ setTool(k,null); buildToolTray(); },hint);
     });
+    if (game.tool==='edging' && cat.tools.includes('edging')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Edging'; tray.appendChild(sep);
+      EDGING_STYLES.forEach(es=>materialBtn('edging',es.short||es.label,
+        edgingDraft()===es.id, tc=>drawEdgingIcon(tc,es.id),
+        ()=>{ game.edgingDraft=edgingStyleId(es.id); setTool('edging',null); buildToolTray(); },
+        es.id==='none'?'Lift the edging back off':es.label));
+    }
     if (game.tool==='wall' && cat.tools.includes('wall')){
       const sep=document.createElement('span'); sep.className='tray-sep';
       sep.textContent='Wall material'; tray.appendChild(sep);
@@ -3017,6 +3039,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='wall') hay+=' grade retaining wall terrace bank sleeper gabion drystone dry stone facing '+WALL_STYLES.map(w=>w.label).join(' ');
+    if (k==='edging') hay+=' ground edging edge restraint mowing strip lawn border spade steel corten setts soldier course '+EDGING_STYLES.map(e=>e.label).join(' ');
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
@@ -3266,6 +3289,7 @@ function sheetContextLabel(){
   if (game.tool==='light') return 'Lighting';
   if (game.tool==='firepit') return firepitLabel();
   if (game.tool==='boulder') return boulderLabel();
+  if (game.tool==='edging') return edgingLabel();
   if (game.tool==='wall') return wallLabel();
   if (game.tool==='pot') return potLabel();
   if (game.tool==='seat') return seatLabel();
@@ -3310,6 +3334,7 @@ function toolGuide(){
     path:{k:`${pathColor(game.pathColor).label} path`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     bed:{k:`${bedStyle(game.bedStyle).label} bed`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
     water:{k:`${waterStyle(game.waterStyle).label} water`,v:game.fillMode?'Tap a connected region to fill it':'Tap or drag to paint; use Fill for a connected region'},
+    edging:{k:edgingLabel(),v:`Fill the bed — it draws only where it meets lawn`},
     wall:{k:wallLabel(),v:`Drag along a terrace edge — ${game.brushSize}-tile brush`},
     raise:{k:'Raise grade',v:`Tap or drag — ${game.brushSize}-tile brush`},
     lower:{k:'Lower grade',v:`Tap or drag — ${game.brushSize}-tile brush`},

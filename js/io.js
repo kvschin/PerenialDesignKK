@@ -325,7 +325,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -427,6 +427,7 @@ async function loadSolo(id){
   game.potDraft=normalizePotDraft(s.potDraft);
   game.seatDraft=normalizeSeatDraft(s.seatDraft);
   game.wallDraft=wallStyleId(s.wallDraft);
+  game.edgingDraft=edgingStyleId(s.edgingDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
     ? Math.max(0,+s.elapsedMs||0)
@@ -488,7 +489,12 @@ function hardscapeRows(){
     if (!faces) continue;
     wallBy[w]=(wallBy[w]||0)+faces; wallTiles+=faces; wallCourses+=elevationAt(x,y);
   }
+  const edgingFt=edgingRunFeet();
   const rows=[];
+  for (const id in edgingFt){
+    rows.push({kind:'Edging', name:edgingLabelFor(id),
+      count:`${Math.round(edgingFt[id])} ft`});
+  }
   for (const id in wallBy){
     // a face is one tile long; height comes from the level it holds
     rows.push({kind:'Retaining wall', name:wallLabelFor(id),
@@ -1057,6 +1063,22 @@ function buildPlanMap(){
     ctx.strokeStyle='rgba(92,84,69,0.45)'; ctx.lineWidth=0.7;
     for (let i=1;i<4;i++){ const t=i/4;
       ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
+    ctx.restore();
+  }
+  /* Edging on the plan is a heavier line on the sides that carry it — the
+     same sides the garden draws, so the two documents agree. */
+  for (const k in game.terrain){
+    const t=game.terrain[k]; if (!t||t.removed) continue;
+    const es=edgingStyle(t.e); if (!es.w) continue;
+    const [x,y]=k.split(',').map(Number);
+    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=Math.max(1.4,cell*0.10); ctx.lineCap='butt';
+    ELEV_DIRS.forEach(([dx,dy])=>{
+      if (tileTerrain(x+dx,y+dy)) return;
+      const cx2=X(x)+cell/2+dx*cell/2, cy2=Y(y)+cell/2+dy*cell/2;
+      ctx.beginPath();
+      ctx.moveTo(cx2-dy*cell/2,cy2-dx*cell/2); ctx.lineTo(cx2+dy*cell/2,cy2+dx*cell/2);
+      ctx.stroke();
+    });
     ctx.restore();
   }
   for (const k in game.elevation||{}){

@@ -1232,6 +1232,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
     test asserts it.
+11e. **Edging** (`EDGING_STYLES`, `drawEdgingRun`) — the strip that separates a
+    bed or a path from the LAWN, and the last thing the Wave 5 estimator could
+    measure and the app could not draw: `materialPerimeterFt` had been
+    reporting exposed bed edge in feet for a material that did not exist.
+    **It rides the terrain record** (`{k, c, e}`) exactly as a retaining wall
+    rides the elevation record, so it inherits the ground-bake and
+    region-trace invalidation terrain edits already trigger — no new layer, no
+    new cache key.
+    **It draws only where the tile meets lawn**, which makes FILLING the bed
+    the natural gesture rather than tracing its outline by hand: an edge that
+    later becomes interior stops drawing, and stops being billed, on its own.
+    `edgingRunFeet` counts exactly the sides that draw, and a test pins it
+    against `materialPerimeterFt` so the planting list and the estimator can
+    never drift apart.
+    **Each edge style draws it its own way, because each draws its bed edge a
+    different way.** Organic strokes the region's **soft** arcs — the ones the
+    blob renderer already classified as facing grass — sampling the same
+    midpoint spline the fill used, since edging drawn on the control polygon
+    sits visibly outside the bed. Hard arcs (a bed butting a path) get none:
+    that joint already reads, and it is not where a restraint goes. Formal
+    draws per-tile strips on the sides facing lawn, matching its crisp cells.
+    A closed loop is a WRAPPING spline that starts halfway along its last
+    segment; treating it as an open polyline left one side of every bed
+    unedged with a tail hanging off the start.
+    Widths are the real thing seen from above — a steel strip is a line, a
+    brick soldier course is 4 in — and `unitIn` marks the laid materials, whose
+    joints are spaced along the real run so the units stay one size however
+    long the edge is.
+
 12c. **Retaining walls** (`WALL_STYLES`, `drawWallFace`) — the elevation tools
     could raise ground and gave no way to hold it back, so a terrace read as
     bare earth. A wall lives on the exposed FACE of a level change, and that

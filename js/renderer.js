@@ -148,6 +148,7 @@ function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
   if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
   else drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,col,rs,terrObj);
   drawElevationRim(ctx,sx,sy,elevationAt(x,y));
+  if (!organic && terr) drawTileEdging(ctx,W,H,x,y);   // (ctx,W,H,x,y) like every other painter
   if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
     ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
 }
@@ -571,7 +572,68 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     ctx.strokeStyle = isWater ? (amb.snow?'rgba(255,255,255,0.5)':waterStyle(region.c).edge)
       : region.kind==='path' ? 'rgba(60,48,34,0.32)' : 'rgba(48,36,24,0.30)';
     ctx.lineWidth=1.6; ctx.stroke();
+    /* Edging goes on the SOFT arcs only — the ones facing lawn. A hard arc is
+       where this material butts a peer (a bed meeting a path), which already
+       reads as a joint and wants no restraint drawn on it, and a covered arc
+       is about to be painted over. So the arc classification the blob renderer
+       already does is exactly the question edging needed answered. */
+    const edging=edgingStyle(regionEdging(region));
+    if (edging.w){
+      for (const loop of region.loops){
+        if (loop.closed){ if (!loop.covered && !loop.hard) strokeEdgingArc(ctx,loop,proj,edging); continue; }
+        for (const arc of loop.arcs) if (!arc.covered && !arc.hard) strokeEdgingArc(ctx,arc,proj,edging);
+      }
+    }
   }
+}
+/* The region's material: the first tile in it that carries one. Edging is not
+   part of the region flood key on purpose — splitting a bed into two blobs
+   because half of it is edged would be a much worse artifact than resolving
+   one material for the whole outline, and filling the bed is the gesture the
+   tool is built around anyway. */
+function regionEdging(region){
+  for (const k of region.tiles){
+    const t=game.terrain[k];
+    if (t && !t.removed){ const e=edgingStyleId(t.e); if (e!=='none') return e; }
+  }
+  return 'none';
+}
+/* Edging follows the SAME curve the fill drew, sampled into a polyline. Two
+   things have to match or the strip sits visibly off its own bed: a closed
+   loop is a midpoint spline that WRAPS (it starts halfway along the last
+   segment, not at a corner), and an open arc runs corner to corner. Treating
+   a closed ring as an open polyline left one side of every bed unedged and a
+   tail hanging off the start. */
+function edgingCurvePoints(arc, proj){
+  const pts=arc.pts.map(proj);
+  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const SEG=5;
+  const quad=(out,a,c,b)=>{
+    for (let s=1;s<=SEG;s++){
+      const t=s/SEG, u=1-t;
+      out.push([u*u*a[0]+2*u*t*c[0]+t*t*b[0], u*u*a[1]+2*u*t*c[1]+t*t*b[1]]);
+    }
+  };
+  if (arc.closed){
+    if (arc.hard || pts.length<3) return pts.concat([pts[0]]);
+    const out=[mid(pts[pts.length-1],pts[0])];
+    for (let k=0;k<pts.length;k++){
+      const nn=mid(pts[k],pts[(k+1)%pts.length]);
+      quad(out,out[out.length-1],pts[k],nn);
+    }
+    return out;
+  }
+  if (arc.hard || pts.length<3) return pts;
+  const out=[pts[0]];
+  for (let k=1;k<pts.length-1;k++){
+    const end = k===pts.length-2 ? pts[k+1] : mid(pts[k],pts[k+1]);
+    quad(out,out[out.length-1],pts[k],end);
+  }
+  return out;
+}
+function strokeEdgingArc(ctx,arc,proj,st){
+  const pts=edgingCurvePoints(arc,proj);
+  if (pts.length>=2) drawEdgingRun(ctx,pts,st,1);
 }
 /* ---------- plant sprite cache (perf) ----------
    drawPlant re-runs a plant's whole procedural recipe every frame, which is

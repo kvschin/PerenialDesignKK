@@ -107,6 +107,13 @@ function actHere(opts){
     else rejectPlacement('Boulder needs clear dry ground.');
     return;
   }
+  if (game.tool==='edging'){
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(edgingDraft()==='none'?'Edging lifted.':`${edgingLabel()} laid.`); }
+    else rejectPlacement(tileTerrain(x,y)?'Already edged in that material.'
+      :'Edging runs along a bed or a path — lay one first.');
+    return;
+  }
   if (game.tool==='wall'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(wallDraft()==='none'?'Back to bare earth.':`${wallLabel()} faced.`); }
@@ -611,7 +618,23 @@ function potFitWarning(def,pot){
   return '';
 }
 
-/* ---------- retaining walls + steps ----------
+/* ---------- edging ----------
+   A material on the terrain record, painted with the shared disc brush. It
+   only DRAWS where the tile meets lawn, so filling a whole bed with it is
+   the natural gesture — you do not have to trace the outline by hand, and
+   an edge that later becomes interior stops drawing on its own. */
+function edgingDraft(){ return game.edgingDraft=edgingStyleId(game.edgingDraft); }
+function edgingLabel(id){ return edgingLabelFor(id||edgingDraft()); }
+function paintEdgingAt(x,y){
+  const k=`${x},${y}`, t=game.terrain && game.terrain[k];
+  if (!t || t.removed) return null;                 // edging edges something
+  const want=edgingDraft();
+  if (edgingStyleId(t.e)===want) return null;
+  setTile('terrain',k,Object.assign({},t,{e:want,t:Date.now()}));
+  return 'edging';
+}
+
+/* ---------- retaining walls ----------
    The wall is a material painted onto a terrace FACE, so it rides the elevation
    record rather than becoming a layer of its own — which also means a repaint
    invalidates the ground bake through machinery that already exists. */

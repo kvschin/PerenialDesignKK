@@ -2810,6 +2810,59 @@ test('seating turns, and every chair keeps its legs', () => {
   assert(fills('picnic') > fills('dining'), 'a picnic table still carries its benches');
 });
 
+/* Edging is the last thing the Wave 5 estimator could measure and the app
+   could not draw — materialPerimeterFt has been reporting exposed bed edge in
+   feet for a material that did not exist. */
+test('edging runs where a bed meets lawn, and only there', () => {
+  setup(21, 21);
+  game.tool = 'edging'; game.edgingDraft = 'steel';
+  assertEqual(applyToolAt(5, 5), null, 'edging needs something to edge');
+
+  game.tool = 'bed'; game.bedStyle = 'mulch'; setBrushSize(1);
+  for (let x = 4; x <= 6; x++) for (let y = 4; y <= 6; y++) applyToolAt(x, y);
+  game.tool = 'edging';
+  for (let x = 4; x <= 6; x++) for (let y = 4; y <= 6; y++) applyToolAt(x, y);
+  assertEqual(edgingAt(5, 5), 'steel', 'the whole bed carries the material');
+  assertEqual(applyToolAt(5, 5), null, 'painting the same material again is a no-op');
+
+  /* The count is the edges that DRAW, not the tiles that carry the material:
+     a 3x3 bed has 9 edged tiles but only 12 exposed sides, and the middle one
+     contributes nothing. That is what makes filling the bed the right gesture
+     rather than tracing its outline by hand. */
+  const ft = edgingRunFeet();
+  assertEqual(Math.round(ft.steel), Math.round(12 * TILE_IN / 12),
+    `a 3x3 bed exposes 12 tile sides (${ft.steel})`);
+  assertEqual(Math.round(ft.steel), Math.round(materialPerimeterFt(
+    ['4,4','5,4','6,4','4,5','5,5','6,5','4,6','5,6','6,6'])),
+    'and it agrees with the estimator that has been reporting this all along');
+
+  // a tile that stops being an edge stops being billed
+  game.tool = 'bed';
+  for (let y = 4; y <= 6; y++) applyToolAt(7, y);
+  game.tool = 'edging';
+  for (let y = 4; y <= 6; y++) applyToolAt(7, y);
+  const ft2 = edgingRunFeet();
+  assert(ft2.steel > ft.steel, 'a wider bed has a longer edge');
+  assertEqual(Math.round(ft2.steel), Math.round(14 * TILE_IN / 12),
+    `a 4x3 bed exposes 14 sides (${ft2.steel})`);
+
+  // 'none' lifts it, and erasing the bed takes it along
+  game.edgingDraft = 'none';
+  assertEqual(applyToolAt(5, 5), 'edging', 'painting none lifts the edging');
+  assertEqual(edgingAt(5, 5), 'none', 'and it is gone from that tile');
+  assert(tileTerrain(5, 5), 'while the bed itself stays');
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0 };
+  game.tool = 'shovel'; game.eraseMode = 'terrain';
+  eraseBrush(4, 4, counts);
+  assertEqual(edgingAt(4, 4), 'none', 'erasing the bed takes its edging with it');
+
+  // every material states a real width, and 'none' draws nothing
+  EDGING_STYLES.forEach(e => {
+    assert(e.id === 'none' ? !e.w : e.w > 0, `${e.id} states a width`);
+    if (e.unitIn) assert(e.unitIn > 0, `${e.id} states a real unit size`);
+  });
+});
+
 /* Steps and retaining walls both live on the exposed face of a level change,
    and that face belongs to the HIGHER tile. */
 test('a retaining wall needs a level change to hold up', () => {

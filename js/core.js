@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.2';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -491,6 +491,28 @@ function edgeStyleId(s){ return s==='formal'?'formal':'organic'; }
 function waterFill(t,snow){ const w=waterStyle(t&&t.c);
   return snow ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill; }
 function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
+/* Edging is the strip that separates a bed or a path from the LAWN. It is
+   the last thing the Wave 5 estimator could measure and the app could not
+   draw — `materialPerimeterFt` has been reporting exposed bed edge in feet
+   for a material that did not exist.
+   It rides the terrain record (`{k, c, e}`) exactly as a retaining wall rides
+   the elevation record, so it inherits the ground-bake and region-trace
+   invalidation that terrain edits already trigger. Widths are the real thing
+   seen from above: a steel strip is a line, a brick soldier course is 4in.
+   `unitIn` marks the laid materials, whose units are counted along the run. */
+const EDGING_STYLES = [
+  {id:'none',   label:'No edging',      short:'None',   w:0},
+  {id:'spade',  label:'Cut Spade Edge', short:'Spade',  w:2.6, col:'#3f3222', soil:true},
+  {id:'steel',  label:'Steel Edging',   short:'Steel',  w:2.0, col:'#43443f'},
+  {id:'alu',    label:'Aluminium Edge', short:'Alu',    w:1.9, col:'#9ba1a3'},
+  {id:'corten', label:'Corten Strip',   short:'Corten', w:2.3, col:'#8d5134'},
+  {id:'timber', label:'Timber Board',   short:'Timber', w:3.6, col:'#7d6142'},
+  {id:'brick',  label:'Brick Soldier',  short:'Brick',  w:5.0, col:'#a35c43', unitIn:8},
+  {id:'setts',  label:'Stone Setts',    short:'Setts',  w:5.0, col:'#96928a', unitIn:5},
+];
+function edgingStyle(id){ return EDGING_STYLES.find(e=>e.id===id)||EDGING_STYLES[0]; }
+function edgingStyleId(id){ return edgingStyle(id).id; }
+function edgingLabelFor(id){ return edgingStyle(id).label; }
 const ELEV_TOOLS = ['raise','lower','level'];
 function isElevationTool(t){ return ELEV_TOOLS.includes(t); }
 /* Fence materials. `infill` names the panel recipe drawFence paints between

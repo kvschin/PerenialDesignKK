@@ -80,6 +80,23 @@ function plantsForTiles(n,spaceIn){
   const cells=Math.max(0,+n||0), spacing=Math.max(1,+spaceIn||TILE_IN);
   return Math.ceil(cells*TILE_IN*TILE_IN/(spacing*spacing));
 }
+/* Linear feet of edging, by material. It counts exactly the edges that DRAW
+   — a tile side facing lawn — so the number on the planting list is the
+   number of feet you can see, and an edge that becomes interior stops being
+   billed the moment it stops being drawn. */
+function edgingRunFeet(){
+  const out={};
+  for (const k in game.terrain){
+    const t=game.terrain[k]; if (!t || t.removed) continue;
+    const e=edgingStyleId(t.e); if (e==='none') continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    let n=0;
+    for (const [dx,dy] of ELEV_DIRS) if (!tileTerrain(x+dx,y+dy)) n++;
+    if (n) out[e]=(out[e]||0)+n;
+  }
+  for (const e in out) out[e]=out[e]*TILE_IN/12;
+  return out;
+}
 function materialPerimeterFt(keys){
   const set=keys instanceof Set?keys:new Set(keys||[]); let edges=0;
   set.forEach(k=>{ const [x,y]=k.split(',').map(Number);
@@ -169,6 +186,7 @@ const game = {
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
   seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
+  edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -1194,6 +1212,10 @@ function setElevationAt(x,y,h){
    belongs to the HIGHER tile — it is the higher tile drawElevationSides paints.
    So the material is stored there, on the elevation record itself. */
 const ELEV_DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+function edgingAt(x,y){
+  const t=game.terrain && game.terrain[`${x},${y}`];
+  return (t && !t.removed) ? edgingStyleId(t.e) : 'none';
+}
 function wallStyleAt(x,y){
   const e=game.elevation && game.elevation[`${x},${y}`];
   return (e && !e.removed) ? wallStyleId(e.w) : 'none';
@@ -1393,6 +1415,65 @@ function tileDiamond(ctx,sx,sy,fill,stroke,dash){
 function wallCourses(drop,st){
   const inches=drop/ELEV_STEP*ELEV_RISER_IN;
   return Math.max(1,Math.min(8,Math.round(inches/(st.courseIn||6))));
+}
+/* One run of edging between two screen points. `w` is a real width seen from
+   above, so a steel strip reads as a line and a brick soldier course as a
+   band. A laid material (`unitIn`) gets its joints counted along the run, so
+   the units stay the same size however long the edge is. */
+function drawEdgingRun(ctx,pts,st,seed){
+  if (!st || !st.w || pts.length<2) return;
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='butt';
+  if (st.soil){
+    // a cut spade edge is a shadow in the turf, not a manufactured strip
+    ctx.strokeStyle='rgba(38,28,16,0.42)'; ctx.lineWidth=st.w;
+  } else {
+    ctx.strokeStyle=st.col; ctx.lineWidth=st.w;
+  }
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.stroke();
+  if (!st.soil){
+    // a highlight along the top arris — what makes a strip read as standing
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=Math.max(0.7,st.w*0.30);
+    ctx.stroke();
+  }
+  if (st.unitIn){
+    // joints, spaced along the real run rather than a fixed count
+    let len=0;
+    for (let i=1;i<pts.length;i++) len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+    const per=(st.unitIn/TILE_IN)*(TILE_W/2)/Math.SQRT2;   // one unit in screen px
+    const n=Math.max(1,Math.min(40,Math.round(len/Math.max(3,per))));
+    ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=Math.max(0.6,st.w*0.22);
+    for (let i=1;i<n;i++){
+      const t=i/n; let want=len*t, acc=0, p=pts[0], q=pts[1];
+      for (let j=1;j<pts.length;j++){
+        const d=Math.hypot(pts[j][0]-pts[j-1][0],pts[j][1]-pts[j-1][1]);
+        if (acc+d>=want){ p=pts[j-1]; q=pts[j]; want-=acc; acc=d; break; }
+        acc+=d;
+      }
+      const f=acc?want/acc:0;
+      const jx=p[0]+(q[0]-p[0])*f, jy=p[1]+(q[1]-p[1])*f;
+      const nx=-(q[1]-p[1]), ny=(q[0]-p[0]);
+      const m=Math.hypot(nx,ny)||1, hw=st.w*0.5;
+      ctx.beginPath();
+      ctx.moveTo(jx-nx/m*hw,jy-ny/m*hw); ctx.lineTo(jx+nx/m*hw,jy+ny/m*hw);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  void seed;
+}
+/* The formal edge style draws crisp per-tile cells rather than a traced blob,
+   so its edging is per-tile too: a strip along each side that faces lawn. */
+function drawTileEdging(ctx,W,H,x,y){
+  const st=edgingStyle(edgingAt(x,y));
+  if (!st.w) return;
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  const N=[sx,sy], E=[sx+TILE_W/2,cy], S=[sx,sy+TILE_H], Wp=[sx-TILE_W/2,cy];
+  [[[1,0],E,S],[[0,1],S,Wp],[[-1,0],Wp,N],[[0,-1],N,E]].forEach(([[dx,dy],a,b])=>{
+    if (tileTerrain(x+dx,y+dy)) return;             // only where it meets lawn
+    drawEdgingRun(ctx,[a,b],st,tileSeed(x,y));
+  });
 }
 function drawWallFace(ctx,a,b,drop,st,seed){
   const P=(t,u)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t + drop*u];
