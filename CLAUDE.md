@@ -1253,6 +1253,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sits visibly outside the bed. Hard arcs (a bed butting a path) get none:
     that joint already reads, and it is not where a restraint goes. Formal
     draws per-tile strips on the sides facing lawn, matching its crisp cells.
+    **The plan sheet strokes the same arcs** through its paper projector, so
+    the two documents agree — drawn per tile there it came out as a staircase
+    running alongside a smooth bed, which is exactly the mismatch
+    `terrainLoopPath` exists to prevent. `TILE_EDGE_PX` is the seam: one tile
+    SIDE as a screen segment, so widths and joint spacing scale from the garden
+    to the sheet (`cell`) through one painter.
     A closed loop is a WRAPPING spline that starts halfway along its last
     segment; treating it as an open polyline left one side of every bed
     unedged with a tail hanging off the start.

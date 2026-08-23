@@ -961,6 +961,17 @@ function buildPlanMap(){
       for (const loop of region.loops) terrainLoopStroke(ctx,loop,planProj);
       ctx.strokeStyle='rgba(88,70,52,0.5)'; ctx.lineWidth=1.1;
       ctx.stroke();
+      /* Edging on the sheet follows the same soft arcs the garden strokes,
+         through the paper projector — drawn per tile it came out as a
+         staircase running alongside a smooth bed, which is exactly the
+         mismatch terrainLoopPath exists to prevent. */
+      const es=edgingStyle(regionEdging(region));
+      if (es.w){
+        for (const loop of region.loops){
+          if (loop.closed){ if (!loop.covered && !loop.hard) strokeEdgingArc(ctx,loop,planProj,es,cell); continue; }
+          for (const arc of loop.arcs) if (!arc.covered && !arc.hard) strokeEdgingArc(ctx,arc,planProj,es,cell);
+        }
+      }
     }
   } else {
     for (const k in game.terrain){ const t2=game.terrain[k];
@@ -1065,21 +1076,17 @@ function buildPlanMap(){
       ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
     ctx.restore();
   }
-  /* Edging on the plan is a heavier line on the sides that carry it — the
-     same sides the garden draws, so the two documents agree. */
-  for (const k in game.terrain){
+  /* Formal gardens keep crisp per-tile cells on the sheet, so their edging is
+     per-tile too. The organic branch above strokes the smoothed arcs instead. */
+  if (game.edgeStyle!=='organic') for (const k in game.terrain){
     const t=game.terrain[k]; if (!t||t.removed) continue;
     const es=edgingStyle(t.e); if (!es.w) continue;
     const [x,y]=k.split(',').map(Number);
-    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=Math.max(1.4,cell*0.10); ctx.lineCap='butt';
     ELEV_DIRS.forEach(([dx,dy])=>{
       if (tileTerrain(x+dx,y+dy)) return;
       const cx2=X(x)+cell/2+dx*cell/2, cy2=Y(y)+cell/2+dy*cell/2;
-      ctx.beginPath();
-      ctx.moveTo(cx2-dy*cell/2,cy2-dx*cell/2); ctx.lineTo(cx2+dy*cell/2,cy2+dx*cell/2);
-      ctx.stroke();
+      drawEdgingRun(ctx,[[cx2-dy*cell/2,cy2-dx*cell/2],[cx2+dy*cell/2,cy2+dx*cell/2]],es,1,cell);
     });
-    ctx.restore();
   }
   for (const k in game.elevation||{}){
     const e=game.elevation[k]; if (!e||e.removed) continue;

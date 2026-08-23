@@ -631,9 +631,9 @@ function edgingCurvePoints(arc, proj){
   }
   return out;
 }
-function strokeEdgingArc(ctx,arc,proj,st){
+function strokeEdgingArc(ctx,arc,proj,st,edgePx){
   const pts=edgingCurvePoints(arc,proj);
-  if (pts.length>=2) drawEdgingRun(ctx,pts,st,1);
+  if (pts.length>=2) drawEdgingRun(ctx,pts,st,1,edgePx);
 }
 /* ---------- plant sprite cache (perf) ----------
    drawPlant re-runs a plant's whole procedural recipe every frame, which is

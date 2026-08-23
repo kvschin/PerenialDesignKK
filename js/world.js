@@ -1420,30 +1420,36 @@ function wallCourses(drop,st){
    above, so a steel strip reads as a line and a brick soldier course as a
    band. A laid material (`unitIn`) gets its joints counted along the run, so
    the units stay the same size however long the edge is. */
-function drawEdgingRun(ctx,pts,st,seed){
+/* One tile SIDE — 18 real inches — as a screen segment. Everything about a
+   run scales off it, so the same painter serves the garden and the plan
+   sheet, where a tile is `cell` px instead. */
+const TILE_EDGE_PX = Math.hypot(TILE_W/2, TILE_H/2);
+function drawEdgingRun(ctx,pts,st,seed,edgePx){
   if (!st || !st.w || pts.length<2) return;
+  edgePx = edgePx || TILE_EDGE_PX;
+  const k = edgePx / TILE_EDGE_PX;
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='butt';
   if (st.soil){
     // a cut spade edge is a shadow in the turf, not a manufactured strip
-    ctx.strokeStyle='rgba(38,28,16,0.42)'; ctx.lineWidth=st.w;
+    ctx.strokeStyle='rgba(38,28,16,0.42)'; ctx.lineWidth=st.w*k;
   } else {
-    ctx.strokeStyle=st.col; ctx.lineWidth=st.w;
+    ctx.strokeStyle=st.col; ctx.lineWidth=st.w*k;
   }
   ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
   for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
   ctx.stroke();
   if (!st.soil){
     // a highlight along the top arris — what makes a strip read as standing
-    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=Math.max(0.7,st.w*0.30);
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=Math.max(0.7,st.w*k*0.30);
     ctx.stroke();
   }
   if (st.unitIn){
     // joints, spaced along the real run rather than a fixed count
     let len=0;
     for (let i=1;i<pts.length;i++) len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
-    const per=(st.unitIn/TILE_IN)*(TILE_W/2)/Math.SQRT2;   // one unit in screen px
+    const per=(st.unitIn/TILE_IN)*edgePx;                  // one unit, in px
     const n=Math.max(1,Math.min(40,Math.round(len/Math.max(3,per))));
-    ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=Math.max(0.6,st.w*0.22);
+    ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=Math.max(0.6,st.w*k*0.22);
     for (let i=1;i<n;i++){
       const t=i/n; let want=len*t, acc=0, p=pts[0], q=pts[1];
       for (let j=1;j<pts.length;j++){
@@ -1454,7 +1460,7 @@ function drawEdgingRun(ctx,pts,st,seed){
       const f=acc?want/acc:0;
       const jx=p[0]+(q[0]-p[0])*f, jy=p[1]+(q[1]-p[1])*f;
       const nx=-(q[1]-p[1]), ny=(q[0]-p[0]);
-      const m=Math.hypot(nx,ny)||1, hw=st.w*0.5;
+      const m=Math.hypot(nx,ny)||1, hw=st.w*k*0.5;
       ctx.beginPath();
       ctx.moveTo(jx-nx/m*hw,jy-ny/m*hw); ctx.lineTo(jx+nx/m*hw,jy+ny/m*hw);
       ctx.stroke();
