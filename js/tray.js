@@ -114,29 +114,30 @@ function toolMeta(t){ t=t||game.tool;
 function isPlacementTool(t){ return toolMeta(t).placement; }
 function toolTargetLayer(t){ return toolMeta(t).layer; }
 function isBrushTool(k){ return toolMeta(k).brush; }
+/* Which tab a tool is browsed on. Read it off TRAY_CATS rather than restating
+   it: this was a hand-written chain duplicating the table, and every tool added
+   to a tab after it was written got missed. All four of them — 'wall' answered
+   'landscape' because it is a material and the chain tested that before it
+   tested which tab it is actually on, and 'pot', 'seat' and 'pet' answered null,
+   which made rememberBrushMenu bail and leave lastBrushTrayCat pointing at
+   whatever was browsed before. Arming a pot and then restoring it from the rail
+   opened the Grasses catalog with a pot on the brush. The table is the fact;
+   asking it means a tool added to a tab is routed right without touching this. */
 function brushTrayCatForTool(k){
   if (PLANTS[k]) return plantCategoryFor(k);
-  if (isElevationTool(k)) return 'leveling';
-  if (toolMeta(k).material) return 'landscape';
-  if (k==='fence'||k==='firepit'||k==='boulder') return 'structures';
-  if (k==='light') return 'lighting';
-  if (k==='house'||k==='building') return 'house';
-  return null;
+  const c=TRAY_CATS.find(c=>c.tools && c.tools.includes(k));
+  return c ? c.id : null;
 }
 function isBrushTrayCat(id){
   const c=TRAY_CATS.find(c=>c.id===id);
   return !!(c && (c.types || (c.tools && c.tools.some(t=>isBrushTool(t)))));
 }
+// the same question the other way round, off the same table
 function toolFitsBrushTray(k,catId){
   const c=TRAY_CATS.find(c=>c.id===catId);
   if (!c) return false;
   if (PLANTS[k]) return !!(c.types && c.types.includes(PLANTS[k].type) && (!c.sunFilter || PLANTS[k].sun===c.sunFilter));
-  if (isElevationTool(k)) return catId==='leveling';
-  if (toolMeta(k).material) return catId==='landscape';
-  if (k==='fence'||k==='firepit'||k==='boulder') return catId==='structures';
-  if (k==='light') return catId==='lighting';
-  if (k==='house'||k==='building') return catId==='house';
-  return false;
+  return !!(c.tools && c.tools.includes(k));
 }
 function drillFitsTray(drill,catId){
   const P=PLANTS[drill], c=TRAY_CATS.find(c=>c.id===catId);

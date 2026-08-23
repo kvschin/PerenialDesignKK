@@ -1687,7 +1687,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sit in the top bar beside the season dial, and Fill lives in the Select
     tray. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
-    not overwrite that memory); its style toggles — Draw/Drift/Matrix and
+    not overwrite that memory).
+    **`brushTrayCatForTool`/`toolFitsBrushTray` answer which TAB a tool is
+    browsed on, and both read `TRAY_CATS` rather than restating it.** They were
+    hand-written `k==='fence'||k==='firepit'||…` chains duplicating that table,
+    so every tool added to a tab after they were written was missed — four of
+    seventeen. `wall` answered `landscape`, because the chain asked "is it a
+    material" before it asked which tab it is on; `pot`, `seat` and `pet`
+    answered `null`, which makes `rememberBrushMenu` bail and leave
+    `lastBrushTrayCat` pointing at whatever was browsed before, so arming a pot
+    and restoring it from the rail opened the **Grasses** catalog with a pot on
+    the brush. The table is the fact — asking it is both shorter and correct by
+    default for the next tool that joins a tab. A test pins all seventeen.
+    Its style toggles — Draw/Drift/Matrix and
     Grid/Free for herbaceous plants, an **Age** seg (New/Young/Mature →
     `game.woodyAge`/`chooseWoodyAge`, T10) in their place for woody brushes,
     plus the shared disc **size** dots for the sizable

@@ -3005,6 +3005,42 @@ test('the eyedropper lands on the page that shows what it picked', () => {
   assertEqual(game.drill, 'boulder', 'and so does the boulder');
 });
 
+/* brushTrayCatForTool and toolFitsBrushTray answer "which tab is this tool
+   browsed on". They were hand-written chains restating TRAY_CATS, so every tool
+   added to a tab after they were written got missed — four of the seventeen.
+   'wall' answered 'landscape', because the chain asked "is it a material"
+   before it asked which tab it is on; 'pot', 'seat' and 'pet' answered null,
+   which made rememberBrushMenu bail and leave lastBrushTrayCat pointing at
+   whatever had been browsed before, so arming a pot and restoring it from the
+   rail opened the Grasses catalog with a pot on the brush. Both read the table
+   now; pin the whole table, so the next tool added to a tab cannot drift. */
+test('every tray tool is routed to the tab it actually lives on', () => {
+  setup(21, 21);
+  TRAY_CATS.filter(c => c.tools).forEach(c => c.tools.forEach(k => {
+    assertEqual(brushTrayCatForTool(k), c.id, `${k} is browsed on ${c.id}`);
+    assert(toolFitsBrushTray(k, c.id), `${k} fits the ${c.id} tab`);
+  }));
+  assert(!toolFitsBrushTray('pot', 'structures'), 'a pot is not Hardscape');
+  assert(!toolFitsBrushTray('seat', 'decor'), 'a seat is not Decor');
+  assert(!toolFitsBrushTray('wall', 'landscape'), 'a wall is Grade, not Ground');
+
+  /* The symptom it was found by: the rail restores the last brush, and used the
+     same mapping to decide which catalog to open behind it. */
+  const rail = (cat, tool) => {
+    game.trayCat = cat; game.traySearch = ''; game.drill = null;
+    setTool(tool, null);
+    setTool('hand', null);
+    armPlantToolFromRail(false);
+    return { tool: game.tool, cat: game.trayCat };
+  };
+  assertEqual(rail('decor', 'pot').cat, 'decor', 'a pot comes back to Decor, not the grasses');
+  assertEqual(rail('structures', 'seat').cat, 'structures', 'a seat comes back to Hardscape');
+  assertEqual(rail('leveling', 'wall').cat, 'leveling', 'a wall comes back to Grade');
+  const grass = PLANT_KEYS.find(k => PLANTS[k].type === 'grass');
+  assertEqual(rail(plantCategoryFor(grass), grass).cat, plantCategoryFor(grass),
+    'and a plant is unaffected by any of it');
+});
+
 /* Steps and retaining walls both live on the exposed face of a level change,
    and that face belongs to the HIGHER tile. */
 test('a retaining wall needs a level change to hold up', () => {
