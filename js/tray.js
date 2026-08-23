@@ -2511,10 +2511,17 @@ function buildToolTrayInner(){
         ()=>{ game.waterStyle=ws.id; setTool('water',null); buildToolTray(); },
         ws.label).dataset.waterStyle=ws.id);
     }
-    // edge look for beds/paths/water — organic curves vs crisp tile edges
-    // (per-garden, defaulted from the questionnaire style). Rebuilds the ground
-    // cache so the change shows immediately.
-    if (game.tool==='path'||game.tool==='bed'||game.tool==='water'){
+    /* Edge look for the whole garden — organic curves vs crisp tile edges
+       (per-garden, defaulted from the questionnaire style, and it governs how
+       edging draws as much as beds and paths). Rebuilds the ground cache so the
+       change shows immediately.
+       It hangs off the Ground TAB, not off an armed tool. Gated on
+       game.tool==='path'||'bed'||'water' it vanished the moment you armed
+       Edging — and, because entering a garden arms Hand, it was simply absent
+       every time you reopened one, with no hint that arming Path was the way
+       back to a garden-wide setting. */
+    if (cat.tools.includes('path')||cat.tools.includes('bed')||
+        cat.tools.includes('water')||cat.tools.includes('edging')){
       const sep=document.createElement('span'); sep.className='tray-sep'; sep.textContent='Edge'; tray.appendChild(sep);
       [['organic','Organic'],['formal','Formal']].forEach(([id,label])=>{
         materialBtn('edge_'+id, label, game.edgeStyle===id,

@@ -80,6 +80,18 @@ function plantsForTiles(n,spaceIn){
   const cells=Math.max(0,+n||0), spacing=Math.max(1,+spaceIn||TILE_IN);
   return Math.ceil(cells*TILE_IN*TILE_IN/(spacing*spacing));
 }
+/* How much of a tile's edging DRAWS: the number of its four sides facing
+   lawn. One predicate, because three surfaces have to agree about it — the
+   planting list bills these sides, the formal renderer draws them per tile,
+   and the organic renderer asks which tiles in a region carry edging worth
+   drawing at all. The organic path used to answer that last question its own
+   way and the two drifted; see regionEdging. */
+function edgingSidesAt(x,y){
+  let n=0;
+  for (const [dx,dy] of ELEV_DIRS) if (!tileTerrain(x+dx,y+dy)) n++;
+  return n;
+}
+function edgingDrawsAt(x,y){ return edgingSidesAt(x,y)>0; }
 /* Linear feet of edging, by material. It counts exactly the edges that DRAW
    — a tile side facing lawn — so the number on the planting list is the
    number of feet you can see, and an edge that becomes interior stops being
@@ -90,8 +102,7 @@ function edgingRunFeet(){
     const t=game.terrain[k]; if (!t || t.removed) continue;
     const e=edgingStyleId(t.e); if (e==='none') continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    let n=0;
-    for (const [dx,dy] of ELEV_DIRS) if (!tileTerrain(x+dx,y+dy)) n++;
+    const n=edgingSidesAt(x,y);
     if (n) out[e]=(out[e]||0)+n;
   }
   for (const e in out) out[e]=out[e]*TILE_IN/12;

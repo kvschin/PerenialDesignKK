@@ -110,8 +110,9 @@ function actHere(opts){
   if (game.tool==='edging'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(edgingDraft()==='none'?'Edging lifted.':`${edgingLabel()} laid.`); }
-    else rejectPlacement(tileTerrain(x,y)?'Already edged in that material.'
-      :'Edging runs along a bed or a path — lay one first.');
+    else rejectPlacement(!tileTerrain(x,y) ? 'Edging runs along a bed or a path — lay one first.'
+      : edgingDraft()==='none' ? 'No edging there to lift.'
+      : 'Already edged in that material.');
     return;
   }
   if (game.tool==='wall'){

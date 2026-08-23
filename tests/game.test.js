@@ -2863,6 +2863,79 @@ test('edging runs where a bed meets lawn, and only there', () => {
   });
 });
 
+/* The organic renderer resolves ONE edging material for a whole region, and it
+   used to ask every tile in it — so a tile buried in the middle of a bed, which
+   draws no edging and is billed for none, decided the outline. Lifting the
+   edging off the edge you can SEE then emptied the planting list and changed
+   nothing on screen; the bug read as "the edging cannot be removed". The two
+   surfaces may disagree about which material wins a mixed region, but never
+   about whether there is any edging at all. */
+test('lifting the edging a bed shows also stops it being drawn', () => {
+  setup(21, 21);
+  const bedRegion = () => {
+    const rs = buildTerrainRegions().filter(r => r.kind === 'bed');
+    assertEqual(rs.length, 1, 'the bed is one region');
+    return rs[0];
+  };
+  const billed = () => { const f = edgingRunFeet(); return Object.keys(f).length ? f : null; };
+  const fillBed = () => {
+    game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+    for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) applyToolAt(x, y);
+  };
+
+  fillBed();
+  game.tool = 'edging'; game.edgingDraft = 'steel';
+  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++) applyToolAt(x, y);
+  assertEqual(regionEdging(bedRegion()), 'steel', 'a filled bed draws its edging');
+  assert(billed(), 'and is billed for it');
+
+  // lift only the ring that actually draws — the gesture that reported the bug
+  game.edgingDraft = 'none';
+  for (let x = 5; x <= 9; x++) for (let y = 5; y <= 9; y++)
+    if (x === 5 || x === 9 || y === 5 || y === 9) applyToolAt(x, y);
+  assertEqual(billed(), null, 'the bill goes to zero');
+  assertEqual(regionEdging(bedRegion()), 'none', 'and so does what is drawn');
+  assertEqual(edgingAt(7, 7), 'steel', 'the buried tiles keep it, and still draw nothing');
+
+  // the same rule in reverse: edging that never reaches lawn never draws
+  setup(21, 21);
+  fillBed();
+  game.tool = 'edging'; game.edgingDraft = 'brick';
+  for (let x = 6; x <= 8; x++) for (let y = 6; y <= 8; y++) applyToolAt(x, y);
+  assertEqual(billed(), null, 'an interior tile is billed for nothing');
+  assertEqual(regionEdging(bedRegion()), 'none', 'so it draws nothing');
+
+  // one exposed tile brings it back — the answer is memoised onto the cached
+  // region, and that memo must not outlive the edit that changed it
+  assertEqual(applyToolAt(5, 5), 'edging', 'laying it on an exposed tile takes');
+  assertEqual(regionEdging(bedRegion()), 'brick', 'and the region picks it up at once');
+});
+
+/* Organic vs Formal is a per-GARDEN setting governing beds, paths and edging
+   alike. Gated on the armed tool it vanished the moment you armed Edging —
+   which it governs — and, because entering a garden arms Hand, it was simply
+   absent every time you reopened one, with no hint that arming Path was the
+   way back to it. */
+test('the edge-style chips belong to the Ground tab, not to an armed tool', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  /* The sandbox's innerHTML is inert (docs/test-sandbox.md), so buildToolTray's
+     own clear leaves `children` alone — without emptying it here, chips built by
+     an earlier pass would answer for this one and the test would still pass with
+     the gate put back. */
+  const chips = (cat, tool) => {
+    setTool(tool, null);
+    game.trayCat = cat; game.traySearch = ''; game.drill = null;
+    tray.children.length = 0;
+    buildToolTray();
+    return tray.children.filter(c => c.dataset && /^edge_/.test(c.dataset.k || '')).length;
+  };
+  assertEqual(chips('landscape', 'hand'), 2, 'reopening a garden lands on Hand and must still offer them');
+  assertEqual(chips('landscape', 'edging'), 2, 'and arming Edging must not hide the setting that draws it');
+  assertEqual(chips('landscape', 'bed'), 2, 'as with a paint tool armed');
+  assertEqual(chips('leveling', 'raise'), 0, 'the Grade tab has no bed or path edge to style');
+});
+
 /* Steps and retaining walls both live on the exposed face of a level change,
    and that face belongs to the HIGHER tile. */
 test('a retaining wall needs a level change to hold up', () => {

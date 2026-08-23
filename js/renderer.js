@@ -586,17 +586,37 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     }
   }
 }
-/* The region's material: the first tile in it that carries one. Edging is not
-   part of the region flood key on purpose — splitting a bed into two blobs
-   because half of it is edged would be a much worse artifact than resolving
-   one material for the whole outline, and filling the bed is the gesture the
-   tool is built around anyway. */
+/* The region's material: the first tile in it that carries one AND actually
+   draws it — a tile with a side facing lawn (edgingDrawsAt, the same predicate
+   the planting list bills by and the formal renderer draws by).
+   Asking EVERY tile let a buried interior tile — which draws no edging and is
+   billed for none — decide the whole outline. Lifting the edging off a bed's
+   visible edge then emptied the planting list and changed nothing on screen,
+   because one tile in the middle of the bed still carried steel: the bug read
+   as "the edging cannot be removed".
+   Edging is still not part of the region flood key on purpose — splitting a bed
+   into two blobs because half of it is edged would be a much worse artifact
+   than resolving one material for the whole outline, and filling the bed is the
+   gesture the tool is built around anyway. */
 function regionEdging(region){
+  if (region.edging!=null) return region.edging;
+  let out='none';
   for (const k of region.tiles){
     const t=game.terrain[k];
-    if (t && !t.removed){ const e=edgingStyleId(t.e); if (e!=='none') return e; }
+    if (!t || t.removed) continue;
+    const e=edgingStyleId(t.e); if (e==='none') continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (edgingDrawsAt(x,y)){ out=e; break; }       // an interior tile draws none
   }
-  return 'none';
+  /* Memoised onto the region, which rides terrainLoopCache and is therefore
+     rebuilt by exactly the edits that could change the answer (terrainRev
+     covers a repainted edging as much as a moved tile) — no new cache key, the
+     same trick a retaining wall plays on the elevation record. It matters
+     because the scan can run the whole region before answering 'none': every
+     bake that REUSES the cached trace — a pan settle, a zoom settle, a season
+     turn, a rotation — would otherwise pay for it again. Measured on a solid
+     39x39 bed edged only in its interior: 2.4ms a call. */
+  return (region.edging=out);
 }
 /* Edging follows the SAME curve the fill drew, sampled into a polyline. Two
    things have to match or the strip sits visibly off its own bed: a closed

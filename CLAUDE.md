@@ -1043,6 +1043,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `edgingRunFeet` counts exactly the sides that draw, and a test pins it
     against `materialPerimeterFt` so the planting list and the estimator can
     never drift apart.
+    **`edgingDrawsAt` is that "meets lawn" test, and all three surfaces have to
+    ask it** — the list bills those sides, the formal renderer draws them per
+    tile, and the organic renderer resolves ONE material for a whole traced
+    region and so must ask which of its tiles carry edging that draws at all.
+    `regionEdging` used to ask every tile in the region, which let a tile
+    buried in the middle of a bed — drawing nothing, billed for nothing —
+    decide the outline: lifting the edging off the edge you can SEE emptied
+    the planting list and changed nothing on screen, and the bug read as *the
+    edging cannot be removed* (0.8.3). Its answer is memoised onto the region,
+    which rides `terrainLoopCache` and is therefore rebuilt by exactly the
+    edits that could change it, so the bakes that reuse a cached trace — a pan
+    or zoom settle, a season turn, a rotation — no longer re-scan (2.4ms a call
+    on a solid 39x39 bed edged only in its interior). One material still wins a
+    mixed region on purpose: edging is deliberately NOT part of the region
+    flood key, since splitting a bed into two blobs because half of it is edged
+    would be a far worse artifact. Per-ARC material is the available follow-up
+    if partial edges are ever wanted, and it is not free — an arc would have to
+    be cut at every material change, and a cut pins an endpoint, so painting
+    edging would then slightly change the bed's own silhouette.
     **Each edge style draws it its own way, because each draws its bed edge a
     different way.** Organic strokes the region's **soft** arcs — the ones the
     blob renderer already classified as facing grass — sampling the same
@@ -1658,8 +1677,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Now placing** name, contextual **Grid/Free** placement toggle for
     herbaceous plants, and the remaining tool-contract controls below. It is a
     real layout row rather than an overlay, so the last result card stays visible.
-    (The Landscape tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
-    — next to the path/bed/water swatches.) New garden entries start on
+    (The Ground tab adds an **Edge** Organic/Formal chip pair — `game.edgeStyle`
+    — after the path/bed/water swatches. It hangs off the TAB, not off an armed
+    tool: gated on `game.tool==='path'||'bed'||'water'` it vanished the moment
+    you armed Edging, which it governs, and — since entering a garden arms Hand
+    — was simply absent every time you reopened one, with no hint that arming
+    Path was the way back to a garden-wide setting.) New garden entries start on
     Hand so accidental painting is harder. The single **Plant filters** modal
     contains garden eligibility controls (native range/mode and browse) and flower discovery
     (color/bloom season); it is opened from either the garden menu or the tray.
