@@ -76,9 +76,21 @@ nothing. Google serves **one variable file per family per subset** — the three
 weights the old CDN request named were byte-identical downloads (checksum
 verified), so twelve files collapse to four and 606KB to 208KB, and `styles.css`
 declares the real weight *range* rather than static instances (weight 650 now
-renders true instead of snapping to 700). `sw.js` names its cache from
-`APP_VERSION`; **bumping that version is what ships an update**, so keep it in
-step with `package.json` and with `PRECACHE`. It deliberately does **not**
+renders true instead of snapping to 700). **The version lives in THREE files and nothing but a test connects them**:
+`APP_VERSION` in `js/core.js`, `version` in `package.json`, and a hand-kept
+`VERSION` literal at the top of `sw.js` that names the cache. Bumping the
+first two and not `sw.js` leaves that script **byte-identical**, and the
+browser's service-worker update check compares exactly those bytes — so no
+new worker installs, the old cache is never retired, and every returning
+visitor keeps being served the previous build indefinitely. That is not
+hypothetical: 0.6.5 and 0.6.6 both shipped that way and neither reached the
+live site. It has to be a copy — a worker cannot `importScripts` js/core.js
+(that file touches `document` at load), and moving the constant into a file
+`sw.js` imports would defeat the byte comparison that triggers the update in
+the first place. The test `the service worker ships the version it was built
+with` pins all three, and also pins the other half of the same footgun: every
+script `index.html` loads must appear in `PRECACHE`, or a bump ships an app
+that works online and is half-missing offline. `sw.js` deliberately does **not**
 `skipWaiting()` — a new worker taking over a running tab would let a session that
 started on one build fetch assets from the next, and this app holds a garden in
 memory for the whole session. The modules share one global scope (plain
@@ -94,8 +106,8 @@ mid-2026 split — a clean cut, no logic moved.
 **Planting schemes** (`SCHEME_LAYERS`, world.js) let one garden hold several
 plantings over a single shared site plan. A scheme owns only `plants` + `bulbs`;
 every other layer in `GAME_LAYERS` — terrain, elevation, fences, lights,
-firepits, boulders, houses, buildings — plus `game.underlay` is shared and
-stored once. Terrain is deliberately NOT per-scheme: it would invalidate the
+firepits, boulders, pets, pots, seats, houses, buildings — plus `game.underlay`
+is shared and stored once. Terrain is deliberately NOT per-scheme: it would invalidate the
 ground bake and `terrainLoopCache` on every comparison, and keeping it shared is
 what makes a switch cost one `buildScene()` (measured 8.6ms vs 9.1ms for a
 single plant edit on a 549-plant stress garden; a terrain edit is 101ms).
@@ -1017,6 +1029,41 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     three arches stacked on each other, and the arch deepens with the span.
     `openPlan` applies the same span rule, breaking the plan line and drawing
     one leaf-plus-swing-arc symbol across the real run.
+11e. **Edging** (`EDGING_STYLES`, `drawEdgingRun`) — the strip that separates a
+    bed or a path from the LAWN, and the last thing the Wave 5 estimator could
+    measure and the app could not draw: `materialPerimeterFt` had been
+    reporting exposed bed edge in feet for a material that did not exist.
+    **It rides the terrain record** (`{k, c, e}`) exactly as a retaining wall
+    rides the elevation record, so it inherits the ground-bake and
+    region-trace invalidation terrain edits already trigger — no new layer, no
+    new cache key.
+    **It draws only where the tile meets lawn**, which makes FILLING the bed
+    the natural gesture rather than tracing its outline by hand: an edge that
+    later becomes interior stops drawing, and stops being billed, on its own.
+    `edgingRunFeet` counts exactly the sides that draw, and a test pins it
+    against `materialPerimeterFt` so the planting list and the estimator can
+    never drift apart.
+    **Each edge style draws it its own way, because each draws its bed edge a
+    different way.** Organic strokes the region's **soft** arcs — the ones the
+    blob renderer already classified as facing grass — sampling the same
+    midpoint spline the fill used, since edging drawn on the control polygon
+    sits visibly outside the bed. Hard arcs (a bed butting a path) get none:
+    that joint already reads, and it is not where a restraint goes. Formal
+    draws per-tile strips on the sides facing lawn, matching its crisp cells.
+    **The plan sheet strokes the same arcs** through its paper projector, so
+    the two documents agree — drawn per tile there it came out as a staircase
+    running alongside a smooth bed, which is exactly the mismatch
+    `terrainLoopPath` exists to prevent. `TILE_EDGE_PX` is the seam: one tile
+    SIDE as a screen segment, so widths and joint spacing scale from the garden
+    to the sheet (`cell`) through one painter.
+    A closed loop is a WRAPPING spline that starts halfway along its last
+    segment; treating it as an open polyline left one side of every bed
+    unedged with a tail hanging off the start.
+    Widths are the real thing seen from above — a steel strip is a line, a
+    brick soldier course is 4 in — and `unitIn` marks the laid materials, whose
+    joints are spaced along the real run so the units stay one size however
+    long the edge is.
+
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
     `placeHouse`/`applyHouseSize`/`paintHouse` (the
@@ -1232,72 +1279,6 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
     test asserts it.
-11e. **Edging** (`EDGING_STYLES`, `drawEdgingRun`) — the strip that separates a
-    bed or a path from the LAWN, and the last thing the Wave 5 estimator could
-    measure and the app could not draw: `materialPerimeterFt` had been
-    reporting exposed bed edge in feet for a material that did not exist.
-    **It rides the terrain record** (`{k, c, e}`) exactly as a retaining wall
-    rides the elevation record, so it inherits the ground-bake and
-    region-trace invalidation terrain edits already trigger — no new layer, no
-    new cache key.
-    **It draws only where the tile meets lawn**, which makes FILLING the bed
-    the natural gesture rather than tracing its outline by hand: an edge that
-    later becomes interior stops drawing, and stops being billed, on its own.
-    `edgingRunFeet` counts exactly the sides that draw, and a test pins it
-    against `materialPerimeterFt` so the planting list and the estimator can
-    never drift apart.
-    **Each edge style draws it its own way, because each draws its bed edge a
-    different way.** Organic strokes the region's **soft** arcs — the ones the
-    blob renderer already classified as facing grass — sampling the same
-    midpoint spline the fill used, since edging drawn on the control polygon
-    sits visibly outside the bed. Hard arcs (a bed butting a path) get none:
-    that joint already reads, and it is not where a restraint goes. Formal
-    draws per-tile strips on the sides facing lawn, matching its crisp cells.
-    **The plan sheet strokes the same arcs** through its paper projector, so
-    the two documents agree — drawn per tile there it came out as a staircase
-    running alongside a smooth bed, which is exactly the mismatch
-    `terrainLoopPath` exists to prevent. `TILE_EDGE_PX` is the seam: one tile
-    SIDE as a screen segment, so widths and joint spacing scale from the garden
-    to the sheet (`cell`) through one painter.
-    A closed loop is a WRAPPING spline that starts halfway along its last
-    segment; treating it as an open polyline left one side of every bed
-    unedged with a tail hanging off the start.
-    Widths are the real thing seen from above — a steel strip is a line, a
-    brick soldier course is 4 in — and `unitIn` marks the laid materials, whose
-    joints are spaced along the real run so the units stay one size however
-    long the edge is.
-
-12c. **Retaining walls** (`WALL_STYLES`, `drawWallFace`) — the elevation tools
-    could raise ground and gave no way to hold it back, so a terrace read as
-    bare earth. A wall lives on the exposed FACE of a level change, and that
-    face belongs to the HIGHER tile — it is the higher tile
-    `drawElevationSides` paints — so the material is stored there.
-    **The scale was already in the file.** `ELEV_STEP`/`PX_PER_FT` makes one
-    level **5.14 inches** (`ELEV_RISER_IN`), about one course of walling, so
-    `courseIn` counts real courses against a real drop.
-    **The material rides the elevation record** (`{h, w}`) rather than being a
-    layer of its own, so it inherits the ground-bake invalidation that
-    elevation edits already trigger — no new cache key, no new signature.
-    It is PAINTED, not automatic: a grass bank and a dry-stone wall are both
-    real answers to the same terrace. Painting the `none` material strips a
-    facing and keeps the terrace; the Landscape ERASE removes the earthwork,
-    and the facing goes with it because it lives on that record — so a
-    wall-stripping branch in `eraseBrush` is dead code, which is exactly what
-    the first attempt shipped before a test caught it. `face` names the
-    coursing recipe the way a fence names its `infill`. Linear feet reach the
-    planting list; a heavy line reaches the plan.
-    **Steps were built here and then cut** (0.8.1), and the reasoning is worth
-    keeping: nothing in this app walks — the avatar went in Aug 2026 — so they
-    were purely decorative, and `ELEV_MIN`/`ELEV_MAX` caps a level change at
-    **20.6 inches**, four risers, with one or two being typical. A flight-and-
-    cheeks apparatus for something that is almost never more than two treads
-    was over-built, and it was the fiddliest thing in the file to draw well.
-    If access ever needs showing, the idea to start from is a PATH that renders
-    as treads where it crosses a level change: no tool, no facing, no placement
-    rules, and it matches how paths already flow through beds by `TERRAIN_RANK`.
-    Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
-    SUNKEN area shows no face and therefore takes no wall.
-
 12b. **Containers** (`game.pots`, `POT_STYLES`/`POT_SIZES`, `drawPotArt`) —
     **a pot is the one thing that makes PAVING plantable.** Every planting route
     refuses `path` terrain (five call sites, and correctly — you cannot dig a
@@ -1382,6 +1363,37 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and a Containers & seating table on the planting list — a pot is one plant,
     one vessel and a bag of compost, which is a different line from an area at a
     spacing.
+12c. **Retaining walls** (`WALL_STYLES`, `drawWallFace`) — the elevation tools
+    could raise ground and gave no way to hold it back, so a terrace read as
+    bare earth. A wall lives on the exposed FACE of a level change, and that
+    face belongs to the HIGHER tile — it is the higher tile
+    `drawElevationSides` paints — so the material is stored there.
+    **The scale was already in the file.** `ELEV_STEP`/`PX_PER_FT` makes one
+    level **5.14 inches** (`ELEV_RISER_IN`), about one course of walling, so
+    `courseIn` counts real courses against a real drop.
+    **The material rides the elevation record** (`{h, w}`) rather than being a
+    layer of its own, so it inherits the ground-bake invalidation that
+    elevation edits already trigger — no new cache key, no new signature.
+    It is PAINTED, not automatic: a grass bank and a dry-stone wall are both
+    real answers to the same terrace. Painting the `none` material strips a
+    facing and keeps the terrace; the Landscape ERASE removes the earthwork,
+    and the facing goes with it because it lives on that record — so a
+    wall-stripping branch in `eraseBrush` is dead code, which is exactly what
+    the first attempt shipped before a test caught it. `face` names the
+    coursing recipe the way a fence names its `infill`. Linear feet reach the
+    planting list; a heavy line reaches the plan.
+    **Steps were built here and then cut** (0.8.1), and the reasoning is worth
+    keeping: nothing in this app walks — the avatar went in Aug 2026 — so they
+    were purely decorative, and `ELEV_MIN`/`ELEV_MAX` caps a level change at
+    **20.6 inches**, four risers, with one or two being typical. A flight-and-
+    cheeks apparatus for something that is almost never more than two treads
+    was over-built, and it was the fiddliest thing in the file to draw well.
+    If access ever needs showing, the idea to start from is a PATH that renders
+    as treads where it crosses a level change: no tool, no facing, no placement
+    rules, and it matches how paths already flow through beds by `TERRAIN_RANK`.
+    Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
+    SUNKEN area shows no face and therefore takes no wall.
+
 13. **Storage** — `sGet`/`sSet` over localStorage. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
@@ -1460,8 +1472,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 14. **Export / planting list** — `exportRows()` tallies planted tiles per
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
-    the overlay table, `exportCsv()` downloads it. Print CSS in `styles.css`
-    strips everything but the sheet.
+    the overlay table, `exportCsv()` downloads it. `hardscapeRows()` builds a
+    second table beside it — containers, seating, linear feet of edging and of
+    retaining wall — because those are bought by the item or by the foot, not by
+    area at a spacing. Print CSS in `styles.css` strips everything but the sheet.
 14b. **Design plan** — `openPlan()` draws an Oudolf-style top-down drift
     map to `#planCanvas`. `planComponents()` flood-fills contiguous
     same-species/cultivar tiles (8-connectivity) into drifts;
@@ -1473,7 +1487,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sized to `canopyRadius()` through the display lens: Today shows current
     reach, Established preview shows mature reach, and the legend says
     "Dashed = mature crown". Shrub plan blobs use `woodyRadiusTiles(P)` from
-    `spread`; bulbs -> scatter rings; building footprints, house, fences/gates, paths/beds, title block,
+    `spread`; bulbs -> scatter rings; building footprints, house, fences/gates, paths/beds,
+    edging (§11e, following the same smoothed arcs the garden strokes) and
+    retaining walls (§12c) as heavier lines, title block,
     true-north arrow (rotated within the fixed plan), legend with `planCodes` (short genus/epithet abbreviations,
     unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
     Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
@@ -1593,8 +1609,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select Path to reveal path colors, Bed to reveal bed
     materials (soil, gravel, river rock, leaf litter, bark mulch, pine straw,
-    pea gravel — see §11a), or Water
-    to reveal pond/river/lake styles. Its dedicated debounced search spans all
+    pea gravel — see §11a), Water
+    to reveal pond/river/lake styles, or **Edging** for the strip that
+    separates either from the lawn (§11e). The **Grade** tab carries
+    raise/lower/level and **Wall**, the retaining-wall facing painted onto a
+    terrace face (§12c). Its dedicated debounced search spans all
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather
     than the legacy horizontal strip. The Hardscape tab draws fences and
