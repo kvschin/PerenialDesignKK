@@ -325,7 +325,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,stepDraft:game.stepDraft,wallDraft:game.wallDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -426,6 +426,8 @@ async function loadSolo(id){
   game.petDraft=normalizePetDraft(s.petDraft);
   game.potDraft=normalizePotDraft(s.potDraft);
   game.seatDraft=normalizeSeatDraft(s.seatDraft);
+  game.stepDraft=normalizeStepDraft(s.stepDraft);
+  game.wallDraft=wallStyleId(s.wallDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined
     ? Math.max(0,+s.elapsedMs||0)
@@ -479,7 +481,26 @@ function hardscapeRows(){
   for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
     const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
     seats[id]=(seats[id]||0)+1; }
+  let wallTiles=0, wallCourses=0; const wallBy={};
+  for (const k in game.elevation||{}){
+    const e=game.elevation[k]; if (!e||e.removed) continue;
+    const w=wallStyleId(e.w); if (w==='none') continue;
+    const [x,y]=k.split(',').map(Number), faces=stepDropDirs(x,y).length;
+    if (!faces) continue;
+    wallBy[w]=(wallBy[w]||0)+faces; wallTiles+=faces; wallCourses+=elevationAt(x,y);
+  }
+  const stepsBy={};
+  for (const k in game.steps||{}){
+    const s2=game.steps[k]; if (!s2||s2.removed) continue;
+    stepsBy[stepStyleId(s2.style)]=(stepsBy[stepStyleId(s2.style)]||0)+1;
+  }
   const rows=[];
+  for (const id in wallBy){
+    // a face is one tile long; height comes from the level it holds
+    rows.push({kind:'Retaining wall', name:wallLabelFor(id),
+      count:`${Math.round(wallBy[id]*TILE_IN/12)} ft`});
+  }
+  for (const id in stepsBy) rows.push({kind:'Steps', name:stepStyle(id).label, count:stepsBy[id]});
   for (const id in pots){ const [st,sz]=id.split('|');
     rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
   for (const id in seats){ const [ty,fi]=id.split('|');
@@ -1043,6 +1064,36 @@ function buildPlanMap(){
     ctx.strokeStyle='rgba(92,84,69,0.45)'; ctx.lineWidth=0.7;
     for (let i=1;i<4;i++){ const t=i/4;
       ctx.beginPath(); ctx.moveTo(x0,y0+h*t); ctx.lineTo(x0+w,y0+h*t); ctx.stroke(); }
+    ctx.restore();
+  }
+  for (const k in game.elevation||{}){
+    const e=game.elevation[k]; if (!e||e.removed) continue;
+    if (wallStyleId(e.w)==='none') continue;
+    const [x,y]=k.split(',').map(Number);
+    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=2.6; ctx.lineCap='butt';
+    STEP_DIRS.forEach(([dx,dy])=>{
+      if (elevationAt(x,y)-elevationAt(x+dx,y+dy)<=0) return;
+      const x0=X(x)+cell/2+dx*cell/2, y0=Y(y)+cell/2+dy*cell/2;
+      ctx.beginPath();
+      ctx.moveTo(x0-dy*cell/2,y0-dx*cell/2); ctx.lineTo(x0+dy*cell/2,y0+dx*cell/2);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+  for (const k in game.steps||{}){
+    const s2=game.steps[k]; if (!s2||s2.removed) continue;
+    const [x,y]=k.split(',').map(Number);
+    const [dx,dy]=STEP_DIRS[normalizeFacing(s2.face)];
+    const n=Math.max(1,elevationAt(x,y)-elevationAt(x+dx,y+dy));
+    ctx.save(); ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    for (let i=0;i<=n;i++){                        // tread lines across the run
+      const f=i/n;
+      const cx2=X(x)+cell/2+dx*cell*(f-0.5)*1.6, cy2=Y(y)+cell/2+dy*cell*(f-0.5)*1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx2-dy*cell*0.34,cy2-dx*cell*0.34);
+      ctx.lineTo(cx2+dy*cell*0.34,cy2+dx*cell*0.34);
+      ctx.stroke();
+    }
     ctx.restore();
   }
   // lighting fixtures

@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.7.3';
+const APP_VERSION = '0.8.0';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -184,6 +184,48 @@ const TILE_IN = 18;                   // real-world inches per tile side (export
 const PX_PER_FT = 21;
 const ELEV_STEP = 9;                   // pixels per elevation step in the isometric view
 const ELEV_MIN = -2, ELEV_MAX = 4;     // first-pass earthwork range: shallow swales to low berms
+/* A level change is ELEV_STEP px, and PX_PER_FT turns that into a real
+   height: 9/21*12 = 5.14 inches. That is a genuine step riser (real ones run
+   4-7in) and about one course of walling, so steps and the wall beside them
+   are derived from the same number and cannot disagree. */
+const ELEV_RISER_IN = ELEV_STEP/PX_PER_FT*12;
+// the tread depth of one step; with the 5.14in riser that is 2R+G = 21in
+const STEP_GOING_IN = 11;
+/* Retaining walls hold a level change up. They are painted rather than
+   automatic: a grass bank and a dry-stone wall are both legitimate answers to
+   the same terrace, and the app should not decide which one you meant. The
+   material rides the elevation record (`{h, w}`), so a repaint invalidates the
+   ground bake through machinery that already exists.
+   `face` names the coursing recipe the way a fence names its `infill`, and
+   `courseIn` is the real height of one course — a brick course is 3 inches
+   whatever the wall is holding back. */
+const WALL_STYLES = [
+  {id:'none',     label:'Bare earth',      short:'None',     face:null},
+  {id:'drystone', label:'Dry-stone Wall',  short:'Dry stone',face:'rubble',  courseIn:6,  tone:'#918d83', line:'rgba(48,44,38,0.34)'},
+  {id:'stone',    label:'Mortared Stone',  short:'Stone',    face:'coursed', courseIn:7,  tone:'#9d998e', line:'rgba(52,48,42,0.30)'},
+  {id:'brick',    label:'Brick',           short:'Brick',    face:'brick',   courseIn:3,  tone:'#a35c43', line:'rgba(60,32,24,0.34)'},
+  {id:'sleeper',  label:'Timber Sleeper',  short:'Sleeper',  face:'sleeper', courseIn:9,  tone:'#7f6343', line:'rgba(40,28,16,0.40)'},
+  {id:'gabion',   label:'Gabion Basket',   short:'Gabion',   face:'gabion',  courseIn:12, tone:'#8d8e86', line:'rgba(38,40,36,0.46)'},
+  {id:'concrete', label:'Poured Concrete', short:'Concrete', face:'smooth',  courseIn:24, tone:'#aaa79e', line:'rgba(60,58,52,0.20)'},
+  {id:'corten',   label:'Corten Steel',    short:'Corten',   face:'plate',   courseIn:36, tone:'#8d5134', line:'rgba(56,28,16,0.34)'},
+];
+function wallStyle(id){ return WALL_STYLES.find(w=>w.id===id)||WALL_STYLES[0]; }
+function wallStyleId(id){ return wallStyle(id).id; }
+function wallLabelFor(id){ return wallStyle(id).label; }
+// treads climbing a level change; the riser is always ELEV_RISER_IN
+const STEP_STYLES = [
+  {id:'stone',    label:'Stone Steps',    short:'Stone',    tread:'#b3afa3', riser:'#6e6a62'},
+  {id:'timber',   label:'Timber Steps',   short:'Timber',   tread:'#9d7a4f', riser:'#54401f'},
+  {id:'brick',    label:'Brick Steps',    short:'Brick',    tread:'#b96a4e', riser:'#6d3a25'},
+  {id:'concrete', label:'Concrete Steps', short:'Concrete', tread:'#c2bfb5', riser:'#7d7a72'},
+];
+function stepStyle(id){ return STEP_STYLES.find(s2=>s2.id===id)||STEP_STYLES[0]; }
+function stepStyleId(id){ return stepStyle(id).id; }
+function normalizeStepDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  return {style:stepStyleId(d.style), face:normalizeFacing(d.face)};
+}
+function stepLabelFor(d){ return stepStyle((d||{}).style).label; }
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* Approximate USDA hardiness zone from a US ZIP, by 3-digit prefix. Coarse on

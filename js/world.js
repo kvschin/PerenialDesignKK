@@ -115,6 +115,7 @@ const game = {
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
   seats:{},           // "x,y" origin -> {type,finish,t} or {removed:true,t}
+  steps:{},           // "x,y" -> {style,face,t} or {removed:true,t} — treads up a level change
   startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
   actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
   house:null,                                        // legacy single-house field; migrated into game.houses on load
@@ -168,6 +169,8 @@ const game = {
   petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
   seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
+  stepDraft:{style:'stone',face:0},                  // settings for the next flight of steps
+  wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
@@ -204,6 +207,7 @@ const GAME_LAYERS=[
   {k:'pets'},
   {k:'pots'},
   {k:'seats'},
+  {k:'steps'},
   {k:'houses', array:true},
   {k:'buildings', array:true},
 ];
@@ -328,6 +332,9 @@ const LAYER_CACHES={
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   pots:      {scene:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
   seats:     {scene:1},
+  // steps are GROUND, not an object: they are baked with the terrace face they
+  // climb, so a plant standing in front of them draws over them, as it should
+  steps:     {ground:1},
   houses:    {scene:1, ground:1},
   buildings: {scene:1},
 };
@@ -1189,6 +1196,32 @@ function setElevationAt(x,y,h){
   if (n===0) clearTile('elevation',k); else setTile('elevation',k,{h:n,t:Date.now()});
   return true;
 }
+/* A wall and a flight of steps both live on the exposed face of a level
+   change, and that face belongs to the HIGHER tile — it is the higher tile that
+   drawElevationSides paints. So both are stored on the high tile, and a step's
+   `face` names which lower neighbour it descends toward. */
+const STEP_DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+function wallStyleAt(x,y){
+  const e=game.elevation && game.elevation[`${x},${y}`];
+  return (e && !e.removed) ? wallStyleId(e.w) : 'none';
+}
+function stepAt(x,y){
+  const s2=game.steps && game.steps[`${x},${y}`];
+  return (s2 && !s2.removed) ? s2 : null;
+}
+function stepFaceMatches(step,x,y,dx,dy){
+  const d=STEP_DIRS[normalizeFacing(step&&step.face)];
+  return d[0]===dx && d[1]===dy;
+}
+// the directions this tile actually falls away in — where steps can go
+function stepDropDirs(x,y){
+  const h=elevationAt(x,y), out=[];
+  STEP_DIRS.forEach(([dx,dy],i)=>{
+    if (x+dx<0||y+dy<0||x+dx>=GW||y+dy>=GH) return;
+    if (h-elevationAt(x+dx,y+dy) > 0) out.push(i);
+  });
+  return out;
+}
 function applyElevationTool(x,y){
   const h=elevationAt(x,y);
   if (game.tool==='raise') return setElevationAt(x,y,h+1);
@@ -1367,11 +1400,149 @@ function tileDiamond(ctx,sx,sy,fill,stroke,dash){
   if (stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke(); }
   if (dash) ctx.restore();
 }
+/* ---------- retaining walls + steps ----------
+   Both live on the exposed FACE of a level change, which is a parallelogram in
+   screen space: `a` and `b` are the two ends of its top edge and `drop` is how
+   far it falls. Everything is derived from ELEV_RISER_IN, so a wall course and
+   a step riser on the same terrace agree by construction. */
+function wallCourses(drop,st){
+  const inches=drop/ELEV_STEP*ELEV_RISER_IN;
+  return Math.max(1,Math.min(8,Math.round(inches/(st.courseIn||6))));
+}
+function drawWallFace(ctx,a,b,drop,st,seed){
+  const P=(t,u)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t + drop*u];
+  const quad=(t0,u0,t1,u1,col)=>{
+    const p=[P(t0,u0),P(t1,u0),P(t1,u1),P(t0,u1)];
+    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(p[0][0],p[0][1]);
+    for (let i=1;i<4;i++) ctx.lineTo(p[i][0],p[i][1]);
+    ctx.closePath(); ctx.fill();
+  };
+  const line=(t0,u0,t1,u1,col,w)=>{
+    const p0=P(t0,u0), p1=P(t1,u1);
+    ctx.strokeStyle=col; ctx.lineWidth=w||1;
+    ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
+  };
+  quad(0,0,1,1,st.tone);                                   // the wall itself
+  const n=wallCourses(drop,st), r=mulberry((seed||1)>>>0);
+  switch (st.face){
+    case 'rubble':                                          // dry stone: no straight joint
+      for (let i=1;i<n;i++){
+        const u=i/n;
+        line(0,u+(r()-0.5)*0.06,1,u+(r()-0.5)*0.06,st.line,1);
+      }
+      for (let i=0;i<n;i++){                                // broken vertical joints
+        const u0=i/n, u1=(i+1)/n, k=2+((r()*2)|0);
+        for (let j=1;j<k;j++) line(j/k+(r()-0.5)*0.12,u0,j/k+(r()-0.5)*0.12,u1,st.line,0.9);
+      }
+      break;
+    case 'coursed':
+    case 'brick':
+      for (let i=1;i<n;i++) line(0,i/n,1,i/n,st.line,1);
+      for (let i=0;i<n;i++){                                // staggered perpends
+        const u0=i/n, u1=(i+1)/n, off=(i%2)?0.25:0;
+        for (let j=0;j<2;j++) line(0.25+off+j*0.5,u0,0.25+off+j*0.5,u1,st.line,0.85);
+      }
+      break;
+    case 'sleeper':                                         // stacked timbers
+      for (let i=1;i<n;i++){
+        line(0,i/n,1,i/n,st.line,1.6);
+        quad(0,i/n-0.03,1,i/n,'rgba(255,255,255,0.05)');
+      }
+      break;
+    case 'gabion':                                          // a wire cage of stone
+      for (let i=1;i<n;i++) line(0,i/n,1,i/n,st.line,1.4);
+      for (let j=1;j<4;j++) line(j/4,0,j/4,1,st.line,1.4);
+      for (let i=0;i<10;i++){                               // rubble showing through
+        const t=r(), u=r();
+        quad(t,u,Math.min(1,t+0.09),Math.min(1,u+0.13),r()>0.5?shade(st.tone,10):shade(st.tone,-12));
+      }
+      break;
+    case 'plate':                                           // corten: one sheet, one seam
+      line(0.5,0,0.5,1,st.line,1.2);
+      quad(0,0,1,0.10,shade(st.tone,12));                   // weathered top edge
+      break;
+    default:                                                // smooth concrete
+      quad(0,0,1,0.08,shade(st.tone,10));
+      break;
+  }
+  // shade the foot so the wall sits into the ground rather than on top of it
+  quad(0,0.86,1,1,'rgba(0,0,0,0.14)');
+  ctx.strokeStyle='rgba(35,28,20,0.22)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+  ctx.lineTo(b[0],b[1]+drop); ctx.lineTo(a[0],a[1]+drop);
+  ctx.closePath(); ctx.stroke();
+}
+/* Treads climbing that same face. A flight cannot be painted ON the wall
+   plane — that gives horizontal bands, which is what a staircase drawn flat
+   looks like. Each tread is a HORIZONTAL surface projecting out of the bank
+   toward the low side, so `out` is the screen delta of one whole tile in the
+   direction the ground falls, and one tread's going is that over the number
+   of steps: 18 inches of tile divided by the levels it drops. */
+function drawStepRun(ctx,a,b,drop,levels,st,out){
+  const n=Math.max(1,levels|0), rise=drop/n;
+  const o=out||[0,rise];                            // chips pass none
+  /* The GOING is a real 11 inches, not the tile divided by the number of
+     risers. Dividing the tile crammed four treads into 18 inches — 4.5in each,
+     which is not a stair anybody could climb and did not read as one either.
+     A real flight therefore runs PAST its own tile, the way a shrub canopy
+     overhangs: it is drawn over the lower ground without claiming it. With the
+     5.14in riser this gives 2R+G = 21in, a comfortable garden step. */
+  const going=STEP_GOING_IN/TILE_IN;
+  const gx=o[0]*going, gy=o[1]*going;
+  const t0=0.15, t1=0.85;                           // inset, so the bank shows either side
+  // a point at fraction t across the flight, `i` treads down, `e` goings out
+  const V=(t,i,e)=>[a[0]+(b[0]-a[0])*t + gx*(i+e), a[1]+(b[1]-a[1])*t + gy*(i+e) + rise*i];
+  const quad=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(pts[0][0],pts[0][1]);
+    for (let k=1;k<pts.length;k++) ctx.lineTo(pts[k][0],pts[k][1]);
+    ctx.closePath(); ctx.fill(); };
+  for (let i=0;i<n;i++){
+    // the riser, in shadow — this is what actually reads as a step
+    quad([V(t0,i,1),V(t1,i,1),V(t1,i+1,0),V(t0,i+1,0)],st.riser);
+    // the tread, a horizontal slab out of the bank
+    quad([V(t0,i,0),V(t1,i,0),V(t1,i,1),V(t0,i,1)],st.tread);
+    ctx.strokeStyle='rgba(24,18,12,0.45)'; ctx.lineWidth=0.9;
+    const l=V(t0,i,1), r=V(t1,i,1);
+    ctx.beginPath(); ctx.moveTo(l[0],l[1]); ctx.lineTo(r[0],r[1]); ctx.stroke();
+  }
+  // the cheeks, so the flight is cut INTO the bank rather than stuck on it
+  ctx.strokeStyle='rgba(24,18,12,0.5)'; ctx.lineWidth=1.2;
+  [t0,t1].forEach(t=>{
+    ctx.beginPath();
+    for (let i=0;i<=n;i++){
+      const top=V(t,i,0);
+      if (!i) ctx.moveTo(top[0],top[1]); else ctx.lineTo(top[0],top[1]);
+      // the last point is the landing, not another going — carrying on past it
+      // left two stray lines trailing off the bottom of every flight
+      if (i<n) { const outp=V(t,i,1); ctx.lineTo(outp[0],outp[1]); }
+    }
+    ctx.stroke();
+  });
+}
+/* Flights are painted in their own pass, after every ground tile — they run
+   past their own tile, so painting them in the tile loop let the next tile
+   cover them. Only the camera-facing sides are considered, exactly as the wall
+   faces are: a flight on the far side of a bank is not visible. */
+function drawStepsAt(ctx,W,H,x,y){
+  const step=stepAt(x,y); if (!step) return;
+  const h=elevationAt(x,y); if (h<=0) return;
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
+  const [iax,iay]=isoAxes();
+  [[1,0,right,bottom],[0,1,bottom,left]].forEach(([dvx,dvy,a,b])=>{
+    const [dx,dy]=viewDirToWorld(dvx,dvy), diff=h-elevationAt(x+dx,y+dy);
+    if (diff<=0 || !stepFaceMatches(step,x,y,dx,dy)) return;
+    const out=[dx*iax[0]+dy*iay[0], dx*iax[1]+dy*iay[1]];
+    drawStepRun(ctx,a,b,diff*ELEV_STEP,diff,stepStyle(step.style),out);
+  });
+}
 function drawElevationSides(ctx,W,H,x,y,base){
   const h=elevationAt(x,y);
   if (h<=0) return;
   const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
   const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
+  const wall=wallStyle(wallStyleAt(x,y));
   const side=(a,b,dy,fill)=>{
     ctx.fillStyle=fill;
     ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
@@ -1380,7 +1551,14 @@ function drawElevationSides(ctx,W,H,x,y,base){
   };
   [[1,0,right,bottom,-18],[0,1,bottom,left,-28]].forEach(([dvx,dvy,a,b,shadeAmt])=>{
     const [dx,dy]=viewDirToWorld(dvx,dvy), nh=elevationAt(x+dx,y+dy), diff=h-nh;
-    if (diff>0) side(a,b,diff*ELEV_STEP,toneColor(base,shadeAmt));
+    if (diff<=0) return;
+    const drop=diff*ELEV_STEP;
+    /* Bare earth is still the default — a grass bank is a real answer to a
+       terrace, so a wall is something you paint on, not something the app
+       assumes you wanted. */
+    if (wall.face) drawWallFace(ctx,a,b,drop,wall,tileSeed(x,y));
+    else side(a,b,drop,toneColor(base,shadeAmt));
+    // and the flight, if this face is the one the steps climb
   });
 }
 function drawElevationRim(ctx,sx,sy,h){

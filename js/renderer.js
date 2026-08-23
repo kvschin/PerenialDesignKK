@@ -13,7 +13,7 @@ let snowFlakes = [];
    bake: briefly soft, never slow) and ~180ms after a pan ends (so a resting
    frame is always freshly rasterized, never a resampled blit). Trade-off:
    water ripples freeze except at rebakes (they already froze on a still view). */
-let groundCanvas=null, groundCtx=null, groundKey='', groundKeyStruct='', groundRefs={terrain:null,elevation:null,houses:null};
+let groundCanvas=null, groundCtx=null, groundKey='', groundKeyStruct='', groundRefs={terrain:null,elevation:null,houses:null,steps:null};
 let underlayImage={src:null,img:null,ready:false,error:false};
 let groundCamX=0, groundCamY=0, groundZoom=1;          // camera/zoom at bake time
 let groundZoomPrev=-1, groundZoomT=-1e9;               // last zoom tick, for settle
@@ -62,7 +62,8 @@ function groundEditThrottled(t, keyChanged, structMatches){
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
 function groundRefsChanged(){
-  return groundRefs.terrain!==game.terrain || groundRefs.elevation!==game.elevation || groundRefs.houses!==game.houses;
+  return groundRefs.terrain!==game.terrain || groundRefs.elevation!==game.elevation
+    || groundRefs.houses!==game.houses || groundRefs.steps!==game.steps;
 }
 function currentUnderlayImage(){
   const u=game.underlay;
@@ -158,13 +159,23 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
   // the curve can cut a corner and show grass under it. Formal edges keep the
   // crisp per-tile material rendering. Doorstep + elevation stay per-tile.
   const organic = showLand && game.edgeStyle==='organic';
+  /* A flight of steps runs PAST its own tile — 11 inches of going per riser
+     against an 18-inch tile — so it has to be painted after every tile, not
+     during the one it belongs to. Painted in the loop, the very next tile in
+     the y order covered it up, which is why the treads showed as one flat slab
+     against the wall. Collected here and drawn below. */
+  const flights=[];
   for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
     if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
+    if (showLand && stepAt(x,y)) flights.push([x,y]);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
+  // back to front, so a lower flight overlaps the one behind it
+  flights.sort((p,q)=>viewDepth(p[0],p[1])-viewDepth(q[0],q[1]))
+    .forEach(([x,y])=>drawStepsAt(ctx,W,H,x,y));
 }
 /* The transient stand-in for tiles edited since the last authoritative bake.
    Drawn onto the LIVE canvas every frame, never cached — so it cannot go stale
@@ -1085,7 +1096,7 @@ function render(t){
     groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
     paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
     groundKey=gkey; groundKeyStruct=gStruct; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
-    groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
+    groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses,steps:game.steps};
     // this bake is authoritative for everything edited up to now, and it starts
     // the next throttle window
     clearGroundDamage(); groundEditT=t;

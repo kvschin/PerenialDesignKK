@@ -822,6 +822,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='light') label='Place light';
   else if (game.tool==='firepit') label='Place fire pit';
   else if (game.tool==='pet') label='Place pet';
+  else if (game.tool==='wall') label='Face the terrace';
+  else if (game.tool==='steps') label='Cut steps';
   else if (game.tool==='pot') label='Set down a pot';
   else if (game.tool==='seat') label='Place seating';
   else if (game.tool==='pot') label='Set down a pot';
