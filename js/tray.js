@@ -643,7 +643,10 @@ function pickAt(x,y){
     setTool('pot', null); buildToolTray();
     toast(`Picked the ${potLabel(po)}.`);
   } else if (se){
-    game.fillMode=false; game.trayCat='structures';
+    // seating lives on the TOP level of Hardscape (it is the one section there
+    // that does not drill in), so a stale sub-page would hide the seat we just
+    // armed. Fire pit and boulder set theirs for the same reason, downward.
+    game.fillMode=false; game.trayCat='structures'; game.drill=null;
     game.seatDraft=normalizeSeatDraft(se);
     setTool('seat', null); buildToolTray();
     toast(`Picked the ${seatLabel(se)}.`);
@@ -2865,7 +2868,13 @@ function buildToolTrayInner(){
       }
     }
   }
-  if (cat.tools.includes('seat')){
+  /* Skipped while another Hardscape tool is drilled in. Seating is the one
+     section on this tab that is not itself drillable — fence, fire pit and
+     boulder each collapse to a summary button and hand the whole tray over to
+     their own options — so without this guard the nine seat chips hung off the
+     bottom of whichever sub-page you had opened, underneath the Back button
+     that is supposed to be the way out of it. */
+  if (cat.tools.includes('seat') && !game.drill){
     const sd=seatDraft(), armed=game.tool==='seat';
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
@@ -2889,6 +2898,10 @@ function buildToolTrayInner(){
         setTool('seat',null); buildToolTray(); };
       tray.appendChild(b); return b;
     };
+    /* Its own heading, for the reason the pets have one: the chips ran straight
+       on from Boulder with nothing between them, so a bench read as one more
+       kind of rock. */
+    if (cat.tools.some(k=>k!=='seat')) sep('Seating');
     SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, armed&&sd.type===t.id, {type:t.id},
       `${t.label} — ${Math.round(t.wIn/12*10)/10} ft wide`));
     if (armed){

@@ -2936,6 +2936,39 @@ test('the edge-style chips belong to the Ground tab, not to an armed tool', () =
   assertEqual(chips('leveling', 'raise'), 0, 'the Grade tab has no bed or path edge to style');
 });
 
+/* Hardscape mixes two tray idioms: fence, fire pit and boulder each collapse to
+   a summary button and hand the whole tray over to their own options, while
+   seating stays expanded at the top level. Seating had no drill guard, so its
+   nine chips hung off the bottom of whichever sub-page you had opened —
+   underneath the Back button that is supposed to be the way out of it. */
+test('opening a Hardscape sub-page leaves the seating behind', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  // the sandbox's innerHTML is inert (docs/test-sandbox.md), so clear by hand
+  const seatChips = (drill) => {
+    game.trayCat = 'structures'; game.traySearch = ''; game.drill = drill || null;
+    tray.children.length = 0;
+    buildToolTray();
+    return tray.children.filter(c => c.dataset && c.dataset.k === 'seat').length;
+  };
+  assertEqual(seatChips(null), SEAT_TYPES.length, 'the top level offers every seat');
+  assertEqual(seatChips('fence'), 0, 'the fence page is only fence');
+  assertEqual(seatChips('firepit'), 0, 'the fire pit page is only fire pit');
+  assertEqual(seatChips('boulder'), 0, 'the boulder page is only boulder');
+  assertEqual(seatChips(null), SEAT_TYPES.length, 'and Back brings them straight back');
+
+  /* The one route that arms a seat from outside the tray has to land on the page
+     that shows it, or the guard above would hide what you just picked. */
+  game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 };
+  game.tool = 'seat'; applyToolAt(10, 10);
+  assertEqual(Object.keys(game.seats).length, 1, 'a bench to pick');
+  game.drill = 'firepit';                        // a sub-page left open behind it
+  pickAt(10, 10);
+  assertEqual(game.tool, 'seat', 'picking the bench arms it');
+  assertEqual(seatDraft().type, 'bench6', 'as the bench it actually is');
+  assertEqual(game.drill, null, 'and drops the stale sub-page that would hide it');
+});
+
 /* Steps and retaining walls both live on the exposed face of a level change,
    and that face belongs to the HIGHER tile. */
 test('a retaining wall needs a level change to hold up', () => {

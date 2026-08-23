@@ -1659,7 +1659,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
     (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
     stool, bistro set, dining table, picnic table and sun lounger in four
-    finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint. The House tab
+    finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint.
+    **Hardscape mixes two tray idioms and seating is the odd one**: fence, fire
+    pit and boulder each collapse to a summary button and hand the whole tray
+    over to their own options behind `game.drill`, while seating stays expanded
+    at the top level (contextual like Ground — the finish and Turn rows unfold
+    once one is armed). So the seat section has to carry `!game.drill`, or its
+    nine chips hang off the bottom of whichever sub-page you opened, underneath
+    the Back button that is supposed to be the way out of it. Its `Seating`
+    heading is there for the reason the pets have one — the chips ran straight
+    on from Boulder and a bench read as one more kind of rock. The guard has one
+    consequence worth knowing: `pickAt` must clear `game.drill` when the
+    eyedropper arms a seat, since a stale sub-page would now hide what you just
+    picked (fire pit and boulder set theirs downward for the same reason). The
+    House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)
