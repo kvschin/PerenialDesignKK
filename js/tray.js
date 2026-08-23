@@ -656,7 +656,13 @@ function pickAt(x,y){
     setTool('pet', null); buildToolTray();
     toast(`Picked the ${petLabel(pet)}.`);
   } else if (f){
-    game.fillMode=false; game.trayCat='structures';
+    /* Its own sub-page, like the fire pit and the boulder below: the picked
+       material, height and gate are chips on that page, so landing anywhere
+       else shows you nothing about what you just picked. Set BEFORE setTool --
+       rememberBrushTool reads game.drill from inside it, and leaving a stale
+       one there filed the fence brush under another tool's page, so the rail
+       would restore it onto the wrong sub-page later. */
+    game.fillMode=false; game.trayCat='structures'; game.drill='fence';
     game.fenceDraft=normalizeFenceDraft(f);
     setTool('fence', null); buildToolTray();
     toast(`Picked ${fenceLabel(f)}.`);

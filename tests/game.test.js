@@ -2969,6 +2969,42 @@ test('opening a Hardscape sub-page leaves the seating behind', () => {
   assertEqual(game.drill, null, 'and drops the stale sub-page that would hide it');
 });
 
+/* Every Hardscape pick has to land on the page that shows what it picked. Fire
+   pit and boulder always set their sub-page; fence did not, so eyedropping a
+   fence with another sub-page open left you looking at that other tool, with
+   nothing on screen about the material you just picked. It also filed the fence
+   brush under that page — rememberBrushTool reads game.drill from inside
+   setTool — so the rail would later restore the fence onto it. */
+test('the eyedropper lands on the page that shows what it picked', () => {
+  setup(21, 21);
+  game.trayCat = 'structures';
+
+  game.fenceDraft = { style: 'brick', height: 6, gate: false };
+  game.tool = 'fence'; applyToolAt(10, 10);
+  assert(fenceAt(10, 10), 'a fence to pick');
+
+  game.drill = 'firepit';                        // a different sub-page left open
+  pickAt(10, 10);
+  assertEqual(game.tool, 'fence', 'picking the fence arms it');
+  assertEqual(fenceDraft().style, 'brick', 'as the material it actually is');
+  assertEqual(game.drill, 'fence', 'and opens the page those chips live on');
+  assertEqual(game.lastBrushDrill, 'fence',
+    'the brush memory follows, so the rail restores it to that page too');
+
+  // its two siblings already did this — pin them so the three cannot drift apart
+  game.firepitDraft = { shape: 'round', size: 'round36' };
+  game.tool = 'firepit'; applyToolAt(5, 5);
+  game.drill = 'fence';
+  pickAt(5, 5);
+  assertEqual(game.drill, 'firepit', 'the fire pit opens its own page');
+
+  game.boulderDraft = { type: 'round1' };
+  game.tool = 'boulder'; applyToolAt(15, 15);
+  game.drill = 'fence';
+  pickAt(15, 15);
+  assertEqual(game.drill, 'boulder', 'and so does the boulder');
+});
+
 /* Steps and retaining walls both live on the exposed face of a level change,
    and that face belongs to the HIGHER tile. */
 test('a retaining wall needs a level change to hold up', () => {

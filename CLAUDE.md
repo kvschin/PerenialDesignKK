@@ -1668,11 +1668,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     nine chips hang off the bottom of whichever sub-page you opened, underneath
     the Back button that is supposed to be the way out of it. Its `Seating`
     heading is there for the reason the pets have one — the chips ran straight
-    on from Boulder and a bench read as one more kind of rock. The guard has one
-    consequence worth knowing: `pickAt` must clear `game.drill` when the
-    eyedropper arms a seat, since a stale sub-page would now hide what you just
-    picked (fire pit and boulder set theirs downward for the same reason). The
-    House tab
+    on from Boulder and a bench read as one more kind of rock.
+    **Every Hardscape branch of `pickAt` therefore has to name its own
+    destination**, because the eyedropper is the one route that arms these tools
+    from outside the tray: fence, fire pit and boulder each set `game.drill` to
+    their own sub-page (that is where the picked material, height, shape or size
+    is a visible selected chip), and seating clears it, because seating lives at
+    the top level. Fence used to set nothing and inherit whatever page was open,
+    so eyedropping a brick fence while the Fire Pit page was up left you looking
+    at fire pit chips. Set it BEFORE `setTool` — `rememberBrushTool` reads
+    `game.drill` from inside it, so a stale one is also written into
+    `lastBrushDrill` and the rail restores the brush onto the wrong page later.
+    The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)
