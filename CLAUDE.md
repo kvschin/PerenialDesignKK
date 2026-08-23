@@ -1286,6 +1286,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Two silhouettes carry their whole identity and are worth not flattening:
     an **Adirondack** is a low RAKED seat under a tall fanned back with wide
     flat arms, and a **lounger** is a long low deck that reclines at one end.
+    **Every member is sized in REAL INCHES, not as a fraction of the piece.**
+    Sized proportionally, a big object got fat members: the sun lounger's
+    backrest measured 24 inches thick and its legs 10 inches deep, which is
+    exactly why the furniture read as stacked blocks. `inH(n)` is the seam —
+    legs 1.6in, boards 1in, slats 3.4in, tops 3in — and it is the same lesson
+    as the fence panels: a 6-inch board is 6 inches whatever it is bolted to.
+    A seating surface is BOARDS WITH GAPS rather than one slab, because at
+    this size the gaps are most of what makes timber read as timber.
     Drawn as ordinary boxes they were just a chair and a ramp. `rake()` is the
     shared primitive — a box whose top face is offset along its own depth —
     and it is the only thing in the app that tilts.
