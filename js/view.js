@@ -19,12 +19,23 @@ let DPR = Math.min(1.5, window.devicePixelRatio||1);
    garden) times the player's own zoom - pinch, wheel, +/- keys, or the
    zoom pill. All drawing and input math runs through ZOOM. */
 let ZOOM = 1, baseZoom = 1, userZoom = 1;
+/* Two different ceilings, and they were three copied literals before this.
+   ZOOM_MAX is the on-screen scale the pill reports; USER_ZOOM_MAX is the
+   multiplier applied BEFORE baseZoom, so it has to be bigger or a phone can
+   never reach the top of the range: baseZoom is 0.75 there, so 200% on screen
+   needs userZoom 2.67. The old pair (1.8 / 2.2) capped the display at 180% and
+   a phone at 165% — which is why small plants were hard to read on exactly the
+   device where they are smallest. Zooming IN is cheap: fewer tiles are visible,
+   so the ground bake and entity list shrink, and the sprite cache is already
+   capped at 1.5x DPR. */
+const ZOOM_MIN=0.4, ZOOM_MAX=2.0;
+const USER_ZOOM_MIN=0.4, USER_ZOOM_MAX=2.8;
 function calcZoom(){
   baseZoom = Math.min(innerWidth,innerHeight)<760 ? 0.75 : 1;
-  ZOOM = Math.max(0.4, Math.min(1.8, baseZoom*userZoom));
+  ZOOM = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, baseZoom*userZoom));
 }
 function setUserZoom(z){
-  userZoom = Math.max(0.4, Math.min(2.2, z));
+  userZoom = Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
   calcZoom();   // no snapCam: the designer's camera is free and stays where it is
   updateZoomPill();
 }
@@ -82,7 +93,7 @@ function fitPlot(){
   const availW=Math.max(180,safe.right-safe.left);
   const availH=Math.max(180,safe.bottom-safe.top);
   const targetZoom=Math.max(0.42,Math.min(1.45,Math.min(availW/worldW,availH/worldH)));
-  userZoom=Math.max(0.4,Math.min(2.2,targetZoom/baseZoom));
+  userZoom=Math.max(USER_ZOOM_MIN,Math.min(USER_ZOOM_MAX,targetZoom/baseZoom));
   calcZoom();
   const W=VW/ZOOM, H=VH/ZOOM;
   const wantX=(safe.left+safe.right)/(2*ZOOM), wantY=(safe.top+safe.bottom)/(2*ZOOM);

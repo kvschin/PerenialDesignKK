@@ -695,6 +695,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    so on a short viewport (phone landscape at 390px tall) its last rows — Undo
    and Redo — fell past the bottom edge with no way to reach them. */
 #canvasTools{--rail-top:106px;pointer-events:auto;position:absolute;left:10px;top:var(--rail-top);z-index:10;display:flex;flex-direction:column;gap:var(--space-1);
+  /* pan-y, not the inherited pan-x pan-y: the rail only ever scrolls
+     vertically, and a horizontal drag starting on it should do nothing rather
+     than nudge anything. Pinch-zoom is off here either way. */
+  touch-action:pan-y;
   max-height:calc(100% - var(--rail-top) - 12px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
   scrollbar-width:none;background:var(--surface-workspace);
   border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);padding:var(--space-1);box-shadow:var(--shadow-control)}
@@ -1378,7 +1382,24 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    legacy --bronze/--seedhead aliases pointing at the --color-* palette, the
    HUD's own color-mix text ramp, and the radius/shadow it deliberately differs
    on. Everything else now inherits and themes for free. */
+/* PINCHING THE CHROME MUST NOT ZOOM THE PAGE.
+   Only the canvases carried a touch-action, so every other surface in the
+   planner — the tool rail, the top bar, the zoom pill, the catalog — was
+   `auto`, and a pinch that started on any of them zoomed the BROWSER. That is
+   easy to do by accident on a phone (the rail is a thumb-width strip down the
+   edge of the drawing area) and unpleasant to undo, because the app is a
+   fixed full-viewport layout with nothing to scroll back to a 1.0 scale.
+   `pan-x pan-y` keeps every scroll in the planner working — the rail scrolls
+   vertically, the category strip horizontally, the catalog vertically — while
+   removing pinch-zoom and double-tap-zoom from all of it. The canvas keeps its
+   own `touch-action:none`, and since the effective value is the intersection
+   down the tree, its JS pinch-to-zoom-the-GARDEN is unaffected.
+   Deliberately scoped to #hud and not to the document: the reading surfaces —
+   Plant Library, planting list, design plan, bloom calendar — are separate
+   .screen elements outside it and keep normal browser zoom, so text can still
+   be enlarged where enlarging text is the point (WCAG 1.4.4). */
 #hud{
+  touch-action:pan-x pan-y;
   --bronze:var(--color-accent);--seedhead:var(--color-text);
   --surface-control-active:var(--surface-active);
   --text-primary:var(--color-text);--text-secondary:color-mix(in srgb,var(--color-text) 68%,transparent);
@@ -1393,6 +1414,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   --radius-control:10px;--radius-panel:20px;
   font-family:var(--font-body);color:var(--color-text)
 }
+/* The #hud rule above already covers these by ancestor intersection, but the
+   two big touch surfaces state it themselves so the guarantee does not rest on
+   one rule three hundred lines away — and so removing that rule cannot quietly
+   hand pinch-zoom back to the bar and the catalog. */
+.hud-top,.hud-bottom{touch-action:pan-x pan-y}
 .hud-top{background:var(--color-bg);border:0;border-bottom:1px solid var(--color-divider);padding:9px 14px;pointer-events:auto;box-shadow:0 8px 22px rgba(0,0,0,.18)}
 .season-dial,.hud-right .pill.iconbar{pointer-events:auto;background:transparent;border:0;border-radius:0;box-shadow:none}
 .season-dial{padding:0;gap:7px}

@@ -1924,6 +1924,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     userZoom`, driven by pinch (two-pointer tracking in the canvas
     handlers), mouse wheel, and +/- keys. The phone zoom pill stays hidden to
     protect canvas space; the one-time Time coach also teaches pinch zoom.
+    **Two ceilings, and they are not the same number**: `ZOOM_MAX` (2.0) is the
+    on-screen scale the pill reports, `USER_ZOOM_MAX` (2.8) the multiplier
+    applied before `baseZoom` — which has to be larger or a phone can never
+    reach the top, since 200% on screen there needs `userZoom` 2.67. They were
+    1.8/2.2 as three copied literals, which capped the display at 180% and a
+    phone at 165%, i.e. the least magnification on the device with the smallest
+    plants. Named constants now, so the three clamp sites cannot drift.
+    Zooming IN is cheap — fewer tiles are visible, so the ground bake and the
+    entity list shrink, and the sprite cache is already capped at 1.5x DPR.
+    **Pinching the chrome must not zoom the PAGE.** Only the canvases carried a
+    `touch-action`, so the rail, top bar, zoom pill and catalog were all `auto`
+    and a pinch starting on any of them zoomed the browser — easy to do by
+    accident, since the rail is a thumb-width strip down the edge of the
+    drawing area, and unpleasant to undo in a fixed full-viewport layout with
+    nothing to scroll back. `#hud` (plus `.hud-top`/`.hud-bottom` explicitly, so
+    the guarantee does not rest on one distant rule) is `pan-x pan-y`: every
+    scroll still works, pinch-zoom and double-tap-zoom do not. `#canvasTools` is
+    `pan-y` — it only ever scrolls vertically. The canvas keeps `touch-action:
+    none`, and because the effective value is the intersection down the tree,
+    its own JS pinch-to-zoom-the-garden is untouched. Scoped to `#hud`
+    deliberately: the reading surfaces — Plant Library, planting list, design
+    plan, bloom calendar — are `.screen` elements OUTSIDE it and keep normal
+    browser zoom, so text can still be enlarged where that is the point.
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
     drift / Erase here / Lay path / Dig bed; hidden for the House
