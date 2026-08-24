@@ -1953,7 +1953,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). Plant filters persist as `hortus:filters`.
-16. **Screens** — menu, worlds list (`#worldsScreen`: continue/duplicate/delete
+16. **Screens** — menu, worlds list (`#worldsScreen`: continue/rename/duplicate/delete
     saved gardens or start a new one; Design a Garden and View Gardens both open
     it, unfiltered and identical.
     Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
@@ -2380,6 +2380,32 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   narrow; the switch navigates). Hiding the stack's CONTENTS rather than the
   stack is safe here only because the switch then fills the 44px min-height
   band that the note above warns about leaving empty.
+- **A garden can be renamed** (`renameWorld`, screens.js). The name is the title
+  block on the printed plan, the planting list header, the garden-menu heading
+  and the share filename, and it used to be written once at `btnPlotStart` and
+  never again — while planting schemes and building footprints both already had
+  rename idioms, applied to the two nouns that matter least. It lives in BOTH
+  the blob and the index row, so both are written inside ONE
+  `updateWorldsIndex` callback against a fresh read, the same critical-section
+  discipline `duplicateWorld` uses; and `game.worldName` is updated too when the
+  renamed garden is the open one.
+- **A daily challenge must say it is narrowing the catalog.** `challengeAllows`
+  sits inside `plantFits`, so a challenge silently removes species from every
+  catalog surface — and the only notice was a toast that cleared after 2.6s.
+  Open Plant filters and nothing looks unusual; clear every filter and the
+  plant is still gone; the app reads as broken. The catalog now renders a
+  `.discovery-challenge` line under `.discovery-summary` naming the challenge,
+  with a **Design freely** action that nulls `game.challenge`. It is deliberately
+  placed BEFORE the empty-state early return, so it is visible in exactly the
+  state that used to be most confusing — no results and no explanation.
+  Quitting to the menu was previously the only exit.
+- **The result card compacts on short viewports** (`max-height:700px`). At
+  1366x620 the results region is 343px against a 4401px list, so a 104px card
+  showed TWO plants out of 259. Tightening the art and padding takes it to 96px
+  and the visible count to three, with a partial fourth as the scroll
+  affordance. The card's height is set by its TEXT block, not its art, so
+  reaching four would mean shaving 1-2px off five separate rows or dropping the
+  Latin name — information the card exists to carry. Stop at three.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 

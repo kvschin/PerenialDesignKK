@@ -240,6 +240,10 @@ async function openWorlds(){
       meta.textContent+=` · ${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
       if (m.schemes>1) meta.textContent+=` · ${m.schemes} schemes`;
     });
+    const ren=document.createElement('button'); ren.className='world-dup'; ren.textContent='Rename';
+    ren.title='Rename this garden';
+    ren.setAttribute('aria-label',`Rename ${w.name||'this garden'}`);
+    ren.onclick=e=>{ e.stopPropagation(); renameWorld(w.id); };
     const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
     dup.title='Make a separate copy of this garden';
     dup.onclick=e=>{ e.stopPropagation(); duplicateWorld(w.id); };
@@ -248,7 +252,7 @@ async function openWorlds(){
     del.onclick=e=>{ e.stopPropagation();
       if (del.dataset.arm){ deleteWorld(w.id); }
       else { del.dataset.arm='1'; del.textContent='Sure?'; } };
-    row.append(thumb,info,dup,del);
+    row.append(thumb,info,ren,dup,del);
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });
@@ -345,6 +349,38 @@ async function deleteWorld(id){
   await updateWorldsIndex(fresh=>fresh.filter(w=>w.id!==id));
   await sDel('hortus:world:'+id);       // reclaims the quota in whichever home it sits
   openWorlds();
+}
+/* A garden's name is the title block on its printed plan, the header of its
+   planting list, the heading in the garden menu and the filename when it is
+   shared — and it was written once at btnPlotStart and never again. Meanwhile
+   planting schemes rename inline and building footprints rename through
+   showPrompt, so the app already had two rename idioms, applied to the two
+   nouns that matter least.
+   The name lives in BOTH the blob and the index row, so both are written
+   inside one updateWorldsIndex callback against a fresh read — the same
+   critical-section discipline duplicateWorld uses, and for the same reason. */
+async function renameWorld(id){
+  const src=await sGet('hortus:world:'+id);
+  if (!src){ toast('That garden could not be renamed.'); return; }
+  showPrompt('Rename garden','What should this garden be called?',
+    src.name||'My garden','Rename', async(raw)=>{
+    const name=(raw||'').trim().slice(0,60);
+    if (!name || name===(src.name||'')) return;
+    let ok=false;
+    await updateWorldsIndex(async fresh=>{
+      const row=fresh.find(w=>w.id===id); if (!row) return null;
+      const blob=await sGet('hortus:world:'+id); if (!blob) return null;
+      blob.name=name;
+      if (!(await sSet('hortus:world:'+id,blob))) return null;
+      row.name=name; ok=true;
+      return fresh;
+    });
+    if (!ok){ toast('That garden could not be renamed.'); return; }
+    // the open garden holds its own copy of the name for the plan/list headers
+    if (game.worldId===id) game.worldName=name;
+    toast(`Renamed to "${name}".`);
+    openWorlds();
+  });
 }
 async function duplicateWorld(id){
   const src=await sGet('hortus:world:'+id);

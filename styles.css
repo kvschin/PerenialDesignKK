@@ -820,6 +820,16 @@ canvas.layer-eye{display:block}
 #toolTray.landscape-results .tray-sep{grid-column:1/-1;justify-content:flex-start;max-width:none;margin:5px 0 0;padding:5px 2px 2px;border-left:0;border-bottom:1px solid var(--color-divider);text-align:left}
 .landscape-search-summary,.landscape-search-empty{grid-column:1/-1}.landscape-search-summary{padding:1px 2px 3px;color:var(--text-muted);font-size:11px}.landscape-search-empty{white-space:normal;text-align:center;padding:28px 10px}
 .discovery-summary{font-size:11px;color:var(--text-muted);margin:0 0 8px;padding:0 2px}
+/* Says the catalog is deliberately narrowed, and offers the way out. Bronze
+   because it is a live constraint on what you can plant, not a status line. */
+.discovery-challenge{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+  margin:0 0 9px;padding:7px 9px;border:1px solid var(--border-active);border-radius:var(--radius-control);
+  background:var(--surface-active);font-size:11px;color:var(--text-primary);line-height:1.3}
+.discovery-challenge-clear{flex:0 0 auto;padding:4px 9px;border:1px solid var(--border-subtle);
+  border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);
+  font:600 11px/1 var(--font-body);cursor:pointer}
+.discovery-challenge-clear:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+@media (pointer:coarse){ .discovery-challenge-clear{min-height:44px;min-width:44px} }
 .plant-result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:8px}
 .plant-result-card{position:relative;display:flex;min-width:0;min-height:106px;border:1.5px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);overflow:hidden}
 .plant-result-card:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
@@ -1694,6 +1704,17 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    catalog header does at this tier — drop the eyebrow and the explainer, shrink
    the title — and the list gets its space back. */
 @media (max-height:700px){
+  /* Compact result row. At 1366x620 the results region measures 343px against
+     a 4401px list, so a 104px card shows TWO plants out of 259 — browsing a
+     348-species catalog two at a time is the practical ceiling on a very
+     common laptop window. Shrinking the art and tightening the padding takes
+     the card to ~72px and the visible count from 2 to 4. The bloom timeline
+     and the size/sun line stay: they are what the card is FOR. It is the
+     generous whitespace that goes, and only on viewports that cannot afford
+     it. */
+  .plant-result-card{min-height:0}
+  .plant-result-main{padding:4px 60px 4px 4px;gap:3px}
+  .plant-result-art{width:54px;height:58px;flex-basis:54px}
   .scheme-panel{padding:16px!important}
   .scheme-panel .eyebrow,.scheme-panel .sub{display:none}
   .scheme-panel h2{font-size:20px;margin-bottom:8px}

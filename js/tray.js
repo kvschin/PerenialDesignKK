@@ -1940,6 +1940,24 @@ function renderDiscoveryTray(tray){
     const a=collectionAvailability(sourceRefs); summary.textContent=`${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`;
   } else summary.textContent=`${discoverySourceLabel(d)} · ${discoveryResultCountText(refs)}`;
   tray.appendChild(summary);
+  /* A daily challenge narrows the catalog from inside plantFits, so species
+     simply vanish. The only notice was a toast that cleared after 2.6s: open
+     Plant filters and nothing looks unusual, clear every filter and the plant
+     is still missing, and the app reads as broken. The restriction is real and
+     wanted — it is the challenge — so it is announced where the narrowing is
+     already reported, with the way out beside it. Quitting to the menu was
+     previously the only exit. */
+  if (game.challenge){
+    const ch=document.createElement('div'); ch.className='discovery-challenge';
+    const txt=document.createElement('span');
+    txt.textContent=`Challenge palette · ${game.challenge.title||"today's prompt"}`;
+    const free=document.createElement('button'); free.type='button'; free.className='discovery-challenge-clear';
+    free.textContent='Design freely';
+    free.title='Stop limiting the catalog to the challenge palette';
+    free.onclick=()=>{ game.challenge=null; buildToolTray(); updateFilterBtn&&updateFilterBtn();
+      toast('Challenge palette cleared — the whole catalog is back.'); };
+    ch.append(txt,free); tray.appendChild(ch);
+  }
   if (!refs.length){
     discoveryOpenSpecies=null;
     const empty=document.createElement('div'); empty.className='discovery-empty';
