@@ -598,13 +598,19 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   background:var(--surface-input);border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);
   color:var(--text-primary);font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap;
   transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
-.preview-chip::before{content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;
-  background:rgba(var(--ink-rgb),.34);transition:background var(--motion-control)}
+/* The icon replaced a plain dot. The dot said "on/off" and nothing else, which
+   is no use at all in the one state where the label is hidden. */
+#previewChipIcon{flex:0 0 auto;width:26px;height:26px;display:block}
 .preview-chip[aria-pressed="true"]{border-color:var(--border-active);background:var(--surface-active)}
-.preview-chip[aria-pressed="true"]::before{background:var(--bronze)}
 .preview-chip:hover{border-color:var(--border-strong)}
 .preview-chip:active{transform:translateY(1px)}
-@media (max-width:400px){ .preview-chip .preview-chip-label{display:none} .preview-chip{padding:3px 8px} }
+/* Phones only (not portrait tablets, which have room): the label costs ~72px
+   in a bar that ends at 352 of 360 with it. The icon carries the state there —
+   which is exactly why it had to stop being a dot. */
+@media (max-width:767px){
+  .preview-chip .preview-chip-label{display:none}
+  .preview-chip{padding:3px 7px;gap:0}
+}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
@@ -1743,7 +1749,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
   .hud-top{padding:max(8px,env(safe-area-inset-top)) 8px 8px}.season-dial{padding:0}.hud-right .pill.iconbar{padding:0}
-  #canvasTools{border-radius:18px;padding:4px;--rail-top:112px}.zoom-pill{display:none}
+  /* --rail-top was a flat 112px, chosen to clear a notched phone's taller bar.
+     That is exactly the bar height on such a device, so the rail sat FLUSH
+     against it with no gap — and on a phone without a notch it left 51px of
+     dead space instead. Derive it from the bar the rail actually has to clear
+     (--hud-top-h, written by syncHudTopHeight) and the gap is 12px on both. */
+  #canvasTools{border-radius:18px;padding:4px;--rail-top:calc(var(--hud-top-h,61px) + 12px)}.zoom-pill{display:none}
   .hud-bottom{background:var(--color-bg);border-radius:28px 28px 0 0;box-shadow:0 -14px 36px rgba(0,0,0,.30);overflow:hidden}
   .hud-bottom.sheet-collapsed{overflow:visible;background:transparent;box-shadow:none}
   .hud-bottom.sheet-half #sheetHandle,.hud-bottom.sheet-full #sheetHandle{border:0;border-bottom:1px solid var(--color-divider);border-radius:28px 28px 0 0;background:var(--color-bg)}
@@ -1985,7 +1996,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 
 @media (pointer:coarse){
+  /* .preview-chip and .season-box are here because they were NOT, and both came
+     out 34px tall in a bar where every neighbour is 44 — visibly the odd ones
+     out, and under the touch minimum. Width stays auto on both: they are
+     labels, not square icon buttons. */
   .season-dial .daynight,.top-tool,.pill.iconbar button{width:44px;min-width:44px;height:44px;min-height:44px}
+  .preview-chip,.season-box{height:44px;min-height:44px}
   .plant-result-heart,.plant-result-add,.catalog-close,
   .catalog-category-strip button,.discovery-source,.discovery-filter-trigger,
   .discovery-filter-summary,.palette-unavailable-row button,.palette-rename button,

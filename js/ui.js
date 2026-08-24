@@ -890,9 +890,40 @@ function updateDayNightBtn(){
 /* The top-bar chip is the lens's real home; the Time-menu seg is its mirror.
    Kept in sync from one place so the two can never disagree about which view
    the garden is being drawn in. */
+/* The lens icon: ONE species drawn at two ages, so the chip demonstrates the
+   concept rather than symbolising it — the same idea as the Decor tray chips
+   previewing the real drawPlant. Purple coneflower because its silhouette and
+   its flower both survive 26px, and because the bloom is PURPLE: a bronze one
+   would sit inches from the season box's bronze progress fill and merge with it.
+   Three things make it read at this size, and all three are easy to lose:
+   - ONE scale for both states, computed from the mature plant. Fitting each to
+     the box would normalise away the size difference, which IS the message.
+   - Colour carries it before silhouette does, so Established gets the bloom and
+     Today is foliage only (bloomLvl 0).
+   - A ground line, or "small plant" and "distant plant" look identical. */
+const PREVIEW_ICON_SPECIES='echinacea';
+function drawPreviewChipIcon(c,established){
+  if (!c || !c.getContext || typeof drawPlant!=='function') return;
+  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  const P=plantDef(PREVIEW_ICON_SPECIES);
+  const base=c.height-3.5;
+  // the baseline both states stand on
+  g.strokeStyle=uiInk('--icon-ink-dim'); g.lineWidth=1; g.globalAlpha=.55;
+  g.beginPath(); g.moveTo(3,base+1.5); g.lineTo(c.width-3,base+1.5); g.stroke();
+  g.globalAlpha=1;
+  const sc=Math.min(0.4,(c.height-6)/(plantArtTop(P)||40));
+  g.save(); g.scale(sc,sc);
+  drawPlant(g,(c.width/2)/sc,base/sc,PREVIEW_ICON_SPECIES,
+    established?1:0.5,           // mature vs half-grown, at the SAME scale
+    'Summer',tileSeed(3,7),0,undefined,
+    established?1:0);            // bloom only when the lens says mature
+  g.restore();
+}
 function syncPreviewChip(){
   const chip=document.getElementById('previewChip'); if (!chip) return;
   const est=game.previewMode==='established';
+  const ic=document.getElementById('previewChipIcon');
+  if (ic && ic._est!==est){ ic._est=est; drawPreviewChipIcon(ic,est); }
   chip.classList.toggle('hidden',!game.inGarden);
   chip.setAttribute('aria-pressed',est?'true':'false');
   const lab=document.getElementById('previewChipLabel');

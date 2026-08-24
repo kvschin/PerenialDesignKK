@@ -142,6 +142,7 @@ if ('serviceWorker' in navigator)
            it gets a chip that always states which view you are in. The seg in
            #pauseScreen stays as a mirror, with the explanatory copy. -->
       <button id="previewChip" class="preview-chip" type="button" aria-label="Plant preview" aria-pressed="false">
+        <canvas id="previewChipIcon" width="26" height="26" aria-hidden="true"></canvas>
         <span class="preview-chip-label" id="previewChipLabel">Established</span>
       </button>
       <!-- planting-scheme switcher: hidden until a garden has a second scheme,

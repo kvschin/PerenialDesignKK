@@ -2338,6 +2338,33 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   `hortus:haptics`, and fire once per completed placement/success or throttled
   invalid action — never for every tile in a continuous paint gesture. The
   left-handed rail preference is likewise device-local (`hortus:leftHanded`).
+- **The plant-preview chip (`#previewChip`) is icon + label, and the icon is a
+  real plant.** `drawPreviewChipIcon` (ui.js) draws ONE species — purple
+  coneflower — at two ages, so the chip demonstrates the lens rather than
+  symbolising it, the same idea as the Decor tray chips previewing the real
+  `drawPlant`. Three things make it read at 26px and all three are easy to lose:
+  **one scale for both states**, computed from the mature plant (fitting each to
+  the box would normalise away the size difference, which IS the message —
+  measured 22px drawn height established vs 14px today); **colour before
+  silhouette**, so Established carries the bloom and Today is foliage only
+  (`bloomLvl` 0 — measured 25 saturated pixels vs 0); and a **ground line**, or
+  "small plant" and "distant plant" look identical. The bloom must NOT be
+  bronze: it would sit inches from the season box's bronze progress fill and
+  merge with it. The label is hidden at `max-width:767px` — phones only, not
+  portrait tablets, which have the room — and that is precisely why the icon had
+  to replace the old dot, which said "on/off" and nothing else in the one state
+  where the label is gone. It stays AFTER the season box: day/night and the
+  season are one time-and-light unit that `.season-dial` already groups, and the
+  lens is deliberately not time — filing it under the clock was the original bug.
+- **`--rail-top` derives from `--hud-top-h`, never a flat number.** It was
+  112px, chosen to clear a notched phone's taller bar — which is exactly that
+  bar's height, so the rail sat FLUSH against it on the device the number was
+  picked for, while leaving 51px of dead space on a phone without a notch.
+  `calc(var(--hud-top-h,61px) + 12px)` gives the same 12px gap on both.
+- **A new top-bar control must be added to the `pointer:coarse` block**
+  (styles.css) or it comes out 34px in a bar where every neighbour is 44 —
+  visibly the odd one out and under the touch minimum. `.preview-chip` and
+  `.season-box` both shipped that way before being added to it.
 - **A control must look like a control at REST, not only on hover.** The
   planner's chrome used to be styled `border:0;background:transparent` inside
   the `#hud` block, so the top bar read as one connected surface and every
