@@ -1787,13 +1787,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     dismisses the dropdown); dismissal is a document-level capture
     `pointerdown` outside the panel (`pauseOutsidePress`), not a backdrop
     click, so the press also acts on whatever it hit. Crossing a season
-    boundary — naturally, mid-fast-forward, or via the menu's Skip — runs a
-    **season crossfade** (renderer.js `seasonFade`): the last frame of the
+    boundary naturally or mid-fast-forward runs a **season crossfade**
+    (renderer.js `seasonFade`): the last frame of the
     old season is snapshotted once and dissolves over the new season's live
     frames for ~1.1s (one `drawImage`/frame; the season-keyed ground bake
     and sprite caches are untouched; skipped under `prefers-reduced-motion`
     and reset by `enterGarden`; `hasTransientGardenWork` keeps frames live
-    while it runs). After the
+    while it runs). The menu's explicit Skip suppresses this once so it lands
+    on the destination palette immediately; Skip doubles as the gardener's
+    seasonal-colour comparison control, and blending old green foliage over
+    new burgundy creates a misleading olive/bronze transient. After the
     box sit the three **view tools** — Select, Rotate, Layers
     (`#btnSelectTool`/`#btnRotateTool`/`#btnLayersTool`, the non-painting tools,
     kept in sync by `syncTopTools`); the season box `flex-shrink`s (explicit
@@ -2026,7 +2029,8 @@ key: {
 `grass`, `sedge`, `forb`, `bulb`, `water`, `shrub`, and `tree`. Per-season keys:
 `fol` (foliage), `folTip` (optional contrasting last third of a grass blade),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
-present in fall/winter is what makes it Oudolf), `eye` (cone center,
+present in fall/winter is what makes it Oudolf), `panicle` (optional branch
+colour when an airy seedhead needs a different scaffold and seed colour), `eye` (cone center,
 coneflowers only), `twig` (bare-stem colour for the `bush` form — the winter
 red/yellow of the dogwoods, ninebark's cinnamon bark; defaults to a neutral
 brown when absent, so only declare it where the stem IS the show). A winter

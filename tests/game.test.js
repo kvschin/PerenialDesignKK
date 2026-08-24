@@ -47,6 +47,30 @@ test('core constants are sane', () => {
   assert(DAYS_PER_SEASON > 0 && TILE_IN > 0 && TILE_W > 0 && TILE_H > 0, 'tile/season constants');
 });
 
+test('explicit season skip shows the destination palette without a crossfade', () => {
+  setup(21,21);
+  game.inGarden=false;                    // no persistence side effect in this unit test
+  resetSeasonFade();
+  const before=calClock().season;
+  seasonFade.last=before;
+  const d=absDay();
+  skipToAbsDay((Math.floor(d/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON);
+  const after=calClock().season;
+  assert(after!==before, 'test skip must cross a season boundary');
+  assert(seasonFade.suppressOnce, 'manual skip should suppress the old-season overlay');
+  maybeStartSeasonFade(Date.now(),after);
+  assert(!seasonFade.active && !seasonFade.suppressOnce,
+    'destination season should render settled immediately and consume one-shot suppression');
+
+  resetSeasonFade();
+  seasonFade.last='Summer';
+  maybeStartSeasonFade(Date.now(),'Fall');
+  assert(seasonFade.active, 'a natural season boundary should retain the normal crossfade');
+  suppressNextSeasonFade();
+  assert(!seasonFade.active && seasonFade.suppressOnce,
+    'a manual skip should cancel any crossfade already in progress');
+});
+
 test('mulberry RNG is deterministic and in [0,1)', () => {
   const a = mulberry(12345), b = mulberry(12345);
   for (let i = 0; i < 5; i++){

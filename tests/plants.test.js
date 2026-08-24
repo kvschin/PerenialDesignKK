@@ -6,7 +6,7 @@ const SUNS   = ['full', 'part'];
 const MOISTS = ['dry', 'medium', 'moist'];
 const PHENS  = ['cool', 'mid', 'warm'];
 const SEASON_KEYS = ['Spring', 'Summer', 'Fall', 'Winter'];
-const COLOR_KEYS  = ['fol', 'folTip', 'bloom', 'seed', 'eye', 'bract', 'edge', 'twig'];
+const COLOR_KEYS  = ['fol', 'folTip', 'bloom', 'seed', 'panicle', 'eye', 'bract', 'edge', 'twig'];
 const keys = Object.keys(PLANTS);
 
 test('PLANTS is a non-empty object', () => {
@@ -490,7 +490,7 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
   assert(shenandoah.spread > northwind.spread && northwind.spread > heavyMetal.spread,
     'Shenandoah should be broader than Northwind, which should be broader than Heavy Metal');
   const hm=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol);
-  assert(hm.g > hm.b && hm.b-hm.r >= 25,
+  assert(hm.g > hm.b && hm.b-hm.r >= 15,
     `Heavy Metal should read as cool steel blue-green, not slate blue (${PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol})`);
   const hmFall=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.seed);
   const hmFallFol=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.fol);
@@ -498,8 +498,27 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     'Heavy Metal burgundy fruit stays darker than its amber fall foliage');
   assert(effective('switchgrass','cloudnine').h > northwind.h,
     'Cloud Nine should be the tallest curated switchgrass');
-  assert(effective('switchgrass','prairiesky').sea.Summer.fol !== heavyMetal.sea.Summer.fol,
-    'Prairie Sky keeps a distinct silvery-blue palette from Heavy Metal');
+  for (const v of ['northwind','heavymetal','prairiesky','dallasblues','cloudnine','purpletears']){
+    const c=rgb(PLANTS.switchgrass.cv[v].sea.Summer.fol);
+    assert(c.g > c.b && c.g > c.r && c.b-c.r <= 24,
+      `${v} foliage should read green first with no more than a slight blue cast (${PLANTS.switchgrass.cv[v].sea.Summer.fol})`);
+  }
+  const prairieSky=rgb(PLANTS.switchgrass.cv.prairiesky.sea.Summer.fol);
+  assert(prairieSky.g-prairieSky.b >= 12,
+    'Prairie Sky must stay visibly green at sprite scale instead of reading cyan');
+  const shenandoahBloom=rgb(PLANTS.switchgrass.cv.shenandoah.sea.Summer.bloom);
+  assert(shenandoahBloom.r > shenandoahBloom.g*1.7 && shenandoahBloom.r > shenandoahBloom.b*1.35,
+    'Shenandoah panicles should read as wine red rather than pink');
+  const shenandoahFall=rgb(PLANTS.switchgrass.cv.shenandoah.sea.Fall.fol);
+  assert(shenandoahFall.r > shenandoahFall.b && shenandoahFall.b > shenandoahFall.g &&
+    shenandoahFall.r-shenandoahFall.g >= 65,
+    'Shenandoah fall foliage must stay cool burgundy, unlike golden switchgrass cultivars');
+  const shenandoahWinter=rgb(PLANTS.switchgrass.cv.shenandoah.sea.Winter.fol);
+  assert(shenandoahWinter.r > shenandoahWinter.g && shenandoahWinter.g-shenandoahWinter.b < 20,
+    'Shenandoah should dry to muted red-brown rather than the other switchgrasses\' ochre');
+  const purpleTearsFall=PLANTS.switchgrass.cv.purpletears.sea.Fall;
+  assert(purpleTearsFall.panicle && purpleTearsFall.panicle !== purpleTearsFall.seed,
+    'Purple Tears needs a pale panicle scaffold distinct from its dark purple seed beads');
   assert(PLANTS.switchgrass.cv.dallasblues.look.cloudDots > PLANTS.switchgrass.look.cloudDots,
     'Dallas Blues needs its unusually full panicle cloud');
   for (const v of ['carousel','jazz','prairiemunchkin'])
@@ -513,6 +532,12 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     'prairie dropseed needs separate low foliage and airy panicle layers');
   assert(PLANTS.dropseed.look.panicle && PLANTS.dropseed.sea.Winter.seed,
     'prairie dropseed keeps airy panicles as winter structure');
+  assert(PLANTS.dropseed.sea.Fall.panicle && PLANTS.dropseed.sea.Fall.panicle !== PLANTS.dropseed.sea.Fall.seed,
+    'prairie dropseed needs golden-brown panicle branches distinct from its darker seeds');
+  assert(PLANTS.bluestem.cv.hahatonka.sea.Summer.folTip && PLANTS.bluestem.cv.hahatonka.sea.Fall.folTip,
+    'Ha Ha Tonka needs red-gray summer segments and burgundy fall accents');
+  assert(PLANTS.bigbluestem.cv.redoctober.sea.Spring.folTip,
+    'Red October needs red spring accents before its full fall display');
   for (const ref of [
     PLANTS.bluestem.cv.standingovation,
     PLANTS.bigbluestem.cv.blackhawks,

@@ -1043,18 +1043,20 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
    menu's Skip. Blending colors per frame would defeat the season-keyed ground
    bake and sprite caches, so instead the LAST frame of the old season is
    snapshotted once and faded out over the new season's live frames: one
-   drawImage per frame for ~1.1s, no cache touched. */
+   drawImage per frame for ~1.1s, no cache touched. Explicit season skips
+   suppress that blend so the new palette is immediately accurate to compare. */
 const SEASON_FADE_MS=1100;
-const seasonFade={cv:null, t0:0, active:false, last:null};
+const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false};
 const seasonFadeRMQ=(typeof matchMedia==='function') ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 function seasonFadeActive(){ return seasonFade.active; }
-function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; }
+function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; seasonFade.suppressOnce=false; }
+function suppressNextSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.suppressOnce=true; }
 function maybeStartSeasonFade(t,season){
   /* Counted on the season CHANGE, not on the crossfade — reduced-motion skips
      the fade but still saw the year turn, and that is the differentiator the
      funnel is asking about. */
   if (seasonFade.last && seasonFade.last!==season) funnel(FUNNEL_EVENTS.seasonTurned);
-  if (seasonFade.last && seasonFade.last!==season && !game.photo &&
+  if (seasonFade.last && seasonFade.last!==season && !seasonFade.suppressOnce && !game.photo &&
       !(seasonFadeRMQ && seasonFadeRMQ.matches)){
     if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');
     if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
@@ -1064,6 +1066,7 @@ function maybeStartSeasonFade(t,season){
     fcx.drawImage(cnv,0,0);                     // canvas still shows the OLD season here
     seasonFade.t0=t; seasonFade.active=true;
   }
+  seasonFade.suppressOnce=false;
   seasonFade.last=season;
 }
 function drawSeasonFade(t){

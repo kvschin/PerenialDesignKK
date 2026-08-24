@@ -1055,7 +1055,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.quadraticCurveTo(bx*0.4,-len*leafArch,bx,by); ctx.stroke();
       }
     }
-    const sn = stemFor(L.stems||6), cloud=S.seed||(blooming?S.bloom:null);
+    const sn = stemFor(L.stems||6), cloud=S.seed||(blooming?S.bloom:null), panicle=S.panicle||cloud;
     const stemFan=L.stemFan!==undefined?L.stemFan:null, topF=L.cloudTop||0.92;
     for (let i=0;i<sn;i++){
       const u=sn>1?i/(sn-1):0.5, side=u-0.5;
@@ -1077,7 +1077,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
           if (L.panicle){                    // every branch in ONE stroke
             const oldAlpha=ctx.globalAlpha; ctx.globalAlpha=0.42;
-            ctx.strokeStyle=shade(cloud,-6); ctx.lineWidth=0.45;
+            ctx.strokeStyle=shade(panicle,-6); ctx.lineWidth=0.45;
             ctx.beginPath();
             for (let d2=0;d2<nd;d2++){ ctx.moveTo(tip,-len*topF+1); ctx.lineTo(_cloudX[d2],_cloudY[d2]); }
             ctx.stroke(); ctx.globalAlpha=oldAlpha;
@@ -1092,7 +1092,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const px=tip+(rnd()-0.5)*cloudW, py=-len*topF+2-rnd()*cloudH;
           if (L.panicle){
             const oldAlpha=ctx.globalAlpha;
-            ctx.globalAlpha=0.45; ctx.strokeStyle=shade(cloud,(rnd()-0.5)*18); ctx.lineWidth=0.45;
+            ctx.globalAlpha=0.45; ctx.strokeStyle=shade(panicle,(rnd()-0.5)*18); ctx.lineWidth=0.45;
             ctx.beginPath(); ctx.moveTo(tip,-len*topF+1); ctx.lineTo(px,py); ctx.stroke();
             ctx.globalAlpha=oldAlpha; ctx.fillStyle=cloud;
           }

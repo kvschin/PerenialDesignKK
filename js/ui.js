@@ -1082,6 +1082,9 @@ function skipToAbsDay(targetDay){
   // restart the running segment from zero — correct whether paused or running.
   const egm=elapsedGameMs(), rem=egm%DAY_MS;
   if (rem){ game.elapsedMs=egm-rem; game.startTs=Date.now(); }
+  // Skip is also the palette-comparison control. Do not blend the old green
+  // season over the new one: green + burgundy briefly reads muddy yellow-brown.
+  suppressNextSeasonFade();
   game.dirty=true;
   if (game.inGarden&&hasStorage) saveSolo(true);
 }
