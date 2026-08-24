@@ -3468,10 +3468,39 @@ function toolGuide(){
   };
   return guides[game.tool]||{k:'Choose a tool',v:'Select a plant or build tool from the palette'};
 }
+/* Park the status clear of the tool rail.
+   Its left was a hardcoded 70px (8px on the sheet tier) chosen for a rail of a
+   different width, and the rail is z-index 10 against the status's 9 — so at
+   375px the rail sat at x 8-62 and buried 54px of the panel, taking the start
+   of the sentence with it. Measure the rail instead, and mirror to the right
+   edge when the left-handed layout moves it, so the two can never disagree
+   again. `usableCanvasRect()` caps the width so a long line cannot run under
+   the docked library either. */
+function placeActiveToolStatus(el){
+  const rail=document.getElementById('canvasTools');
+  if (!rail || !rail.getBoundingClientRect || !el.style) return;   // headless: no geometry
+  const host=el.offsetParent||document.body;
+  if (!host || !host.getBoundingClientRect) return;
+  if (getComputedStyle(rail).display==='none'){ el.style.left=''; el.style.right=''; el.style.maxWidth=''; return; }
+  const hr=host.getBoundingClientRect();
+  const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : null;
+  const lefty=document.body.classList.contains('left-handed-layout');
+  const rr=rail.getBoundingClientRect(), gap=8;
+  if (lefty){
+    el.style.left='auto';
+    el.style.right=Math.round(hr.right-rr.left+gap)+'px';
+    if (safe) el.style.maxWidth=Math.round(rr.left-gap-safe.left)+'px';
+  } else {
+    el.style.right='auto';
+    el.style.left=Math.round(rr.right-hr.left+gap)+'px';
+    if (safe) el.style.maxWidth=Math.round(safe.right-(rr.right+gap))+'px';
+  }
+}
 function updateActiveToolStatus(){
   const el=document.getElementById('activeToolStatus'); if (!el) return;
   const info=toolGuide();
   el.innerHTML=`<b>${info.k}</b>${info.v?`<span>${info.v}</span>`:''}`;
+  placeActiveToolStatus(el);
   const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
   el.classList.add('show');
   clearTimeout(el._hideTimer);
