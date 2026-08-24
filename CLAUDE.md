@@ -1132,10 +1132,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     boundary, then projects those geographic edge markers through the current
     camera rotation. The same bearing rotates the cached derived sun path and
     exported plan arrow; Rotate View never changes site orientation. The
-    non-painting view/select tools — **Select**,
-    Rotate, **Layers** — live in the top bar beside the season dial instead
-    (`syncTopTools` keeps their icons/state in sync; Fill moved into the Select
-    tray). `game.tool` uses `'hand'` for safe panning and keeps `'shovel'` for
+    non-painting view tools — Rotate, **Layers**, Ruler — live in the top bar
+    beside the season dial (`syncTopTools` keeps their icons/state in sync).
+    **Select is NOT among them: it lives on the canvas rail**, because it is
+    the only control in that group that sets `game.tool`, and arming it disarms
+    Plant/Erase/Pick. Beside Rotate (a one-shot action) and Layers (a menu) the
+    one genuinely modal control was the odd one out, and arming it silently
+    un-highlighted the rail on the other side of the screen. Fill moved into
+    the Select tray. `game.tool` uses `'hand'` for safe panning and keeps `'shovel'` for
     Erase back-compat; the mobile rail shrinks the icons/rows so all clear the
     bottom tray). The device-local **Left-handed layout** preference in the
     Garden Menu mirrors only this rail to the right, moves dependent transient
@@ -1713,10 +1717,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     The House tab
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
-    The left canvas toolbar owns the paint/edit tools (Hand/Plant/Erase/Pick)
-    plus Undo/Redo below a divider; the view/select tools (Select/Rotate/Layers)
-    sit in the top bar beside the season dial, and Fill lives in the Select
-    tray. Plant
+    The left canvas toolbar owns every tool that sets `game.tool` —
+    Hand/Select/Plant/Erase/Pick — plus Undo/Redo below a divider; the view
+    tools that do NOT (Rotate, Layers, Ruler) sit in the top bar beside the
+    season dial, and Fill lives in the Select tray. On a 390px-tall viewport
+    the seventh row pushes Undo/Redo past the fold and the rail scrolls for
+    them; that is accepted rather than shrinking rows below the 44px touch
+    minimum, and both also have Ctrl+Z and the two-finger tap. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
     not overwrite that memory).
     **`brushTrayCatForTool`/`toolFitsBrushTray` answer which TAB a tool is
@@ -1815,9 +1822,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     on the destination palette immediately; Skip doubles as the gardener's
     seasonal-colour comparison control, and blending old green foliage over
     new burgundy creates a misleading olive/bronze transient. After the
-    box sit the three **view tools** — Select, Rotate, Layers
-    (`#btnSelectTool`/`#btnRotateTool`/`#btnLayersTool`, the non-painting tools,
-    kept in sync by `syncTopTools`); the season box `flex-shrink`s (explicit
+    box sit the **view tools** — Rotate, Layers, Ruler
+    (`#btnRotateTool`/`#btnLayersTool`/`#btnRulerTool`, the controls that do not
+    set `game.tool`, kept in sync by `syncTopTools`; Select moved to the rail); the season box `flex-shrink`s (explicit
     `width` + lower `min-width`, not `flex-basis` — a content-sized parent
     ignores the basis) so the box + tools + Menu all fit a 360px phone, with a
     `≤359px` query tightening gaps/buttons for legacy widths. Right =

@@ -749,10 +749,8 @@ function refreshCanvasTools(){ buildCanvasTools(); }
 function visibleEl(el){ return !!(el && getComputedStyle(el).display!=='none'); }
 function syncTopTools(){
   syncPreviewChip();
-  const sel=document.getElementById('btnSelectTool');
-  if (sel){ sel.classList.toggle('sel',game.tool==='select');
-    sel.onclick=()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools(); };
-    const c=document.getElementById('btnSelectIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'select'); }
+  // Select moved to the canvas rail (see buildCanvasTools) — it sets game.tool,
+  // so it belongs with the other modal tools rather than beside Rotate and Layers.
   const rot=document.getElementById('btnRotateTool');
   if (rot){ rot.onclick=()=>rotateView(1);
     const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
@@ -795,6 +793,18 @@ function buildCanvasTools(){
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
+  /* Select lives HERE, not in the top bar, because it is a tool in the only
+     sense that matters to the canvas: it sets game.tool, and arming it disarms
+     Plant/Erase/Pick. Up in the top bar it sat beside Rotate (a one-shot
+     action) and Layers (a menu) — neither of which touches game.tool — so the
+     one genuinely modal control in that group was the odd one out, and arming
+     it silently un-highlighted the rail across the screen, which is the classic
+     "why did my tool change" confusion. Every canvas editor this app is
+     measured against puts select at the top of the one tool column.
+     It sits after Hand rather than before it: entering a garden arms Hand
+     deliberately, and Hand -> Select is least-destructive first. */
+  add('Select','select',{active:game.tool==='select',title:'Select an area to move, copy, rotate or fill',
+    onClick:()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); }});
   add('Plant','brush',{active:isBrushTool(game.tool),
     swatch:true,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
@@ -855,9 +865,9 @@ function renderViewToolsMenu(){
   },'Fit the whole plot in the clear canvas area'));
   pop.appendChild(popButton('Zoom out',null,false,()=>{ zoomBy(0.89); },'Zoom out'));
   pop.appendChild(popButton('Zoom in',null,false,()=>{ zoomBy(1.12); },'Zoom in'));
-  pop.appendChild(popButton('Select','select',game.tool==='select',()=>{
-    setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools();
-  },'Select an area'));
+  // Select is not listed here: it moved to the canvas rail, which exists at
+  // every breakpoint, and offering it in two places would make the rail's
+  // armed state look wrong from the popover.
   pop.appendChild(popButton('Rotate','rotate',false,()=>{
     rotateView(1); game.toolMenu=null; refreshCanvasTools();
   },'Rotate view 90 degrees'));

@@ -152,7 +152,9 @@ if ('serviceWorker' in navigator)
         <i aria-hidden="true"><svg class="ui-icon"><use href="#ui-chevron-down"></use></svg></i>
       </button>
       <div class="top-tools-full" aria-label="View tools">
-        <button id="btnSelectTool" class="top-tool" title="Select an area" aria-label="Select an area"><canvas id="btnSelectIcon" width="42" height="32" aria-hidden="true"></canvas></button>
+<!-- Select used to sit here. It moved to the canvas tool rail: it is the only
+             control in this group that sets game.tool, so it belongs with the other
+             modal tools rather than beside Rotate (a one-shot action) and Layers (a menu). -->
         <button id="btnRotateTool" class="top-tool" title="Rotate view (R)" aria-label="Rotate view"><canvas id="btnRotateIcon" width="42" height="32" aria-hidden="true"></canvas></button>
         <button id="btnLayersTool" class="top-tool" title="Show or hide garden layers and overlays" aria-label="Garden layers and overlays" aria-haspopup="menu" aria-controls="layerPop" aria-expanded="false"><canvas id="btnLayersIcon" width="42" height="32" aria-hidden="true"></canvas></button>
         <button id="btnRulerTool" class="top-tool" title="Tape measure" aria-label="Tape measure"><canvas id="btnRulerIcon" width="42" height="32" aria-hidden="true"></canvas></button>
