@@ -2124,7 +2124,20 @@ function renderPaletteManager(){
     const info=document.createElement('div'); info.className='palette-assignment-name';
     const strong=document.createElement('b'); strong.textContent=p.name; const small=document.createElement('small'); small.textContent=`${a.available} eligible / ${a.total} saved`; info.append(strong,small); row.appendChild(info);
     const rename=document.createElement('button'); rename.type='button'; rename.className='palette-row-action'; rename.textContent='Rename'; rename.onclick=()=>{ paletteRenameId=p.id; renderPaletteManager(); }; row.appendChild(rename);
-    const del=document.createElement('button'); del.type='button'; del.className='palette-row-action danger'; del.textContent='Delete'; del.onclick=()=>{ if (!confirm(`Delete the "${p.name}" palette? This cannot be undone.`)) return; deletePlantPalette(p.id); if (d.source==='palette'&&d.collectionId===p.id) setDiscovery({source:'recommended',collectionId:null},true); paletteRenameId=null; renderPaletteManager(); buildToolTray(); }; row.appendChild(del); list.appendChild(row);
+    const del=document.createElement('button'); del.type='button'; del.className='palette-row-action danger'; del.textContent='Delete'; /* showConfirm, not the native confirm() this used to call — it was the last
+   browser dialog left in the app, and every other destructive stop (site photo
+   removal, scheme deletion, deleting a garden) uses the themed panel with the
+   shared openOverlay focus path. Inside an installed PWA a native alert reads
+   as a stray piece of browser chrome. The copy says what is NOT lost, because
+   "cannot be undone" on its own overstates it: the plants stay in the catalog,
+   only the saved list goes. */
+    del.onclick=()=>{ showConfirm(`Delete the "${p.name}" palette?`,
+      'The plants stay in the catalog — only this saved list goes.',
+      'Delete palette', ()=>{
+        deletePlantPalette(p.id);
+        if (d.source==='palette'&&d.collectionId===p.id) setDiscovery({source:'recommended',collectionId:null},true);
+        paletteRenameId=null; renderPaletteManager(); buildToolTray();
+      }); }; row.appendChild(del); list.appendChild(row);
     if (paletteRenameId===p.id){ const edit=document.createElement('div'); edit.className='palette-rename';
       const input=document.createElement('input'); input.type='text'; input.maxLength=30; input.value=p.name; input.setAttribute('aria-label',`Rename ${p.name}`);
       const save=document.createElement('button'); save.type='button'; save.textContent='Save'; save.onclick=()=>{ if ((input.value||'').trim()) renamePlantPalette(p.id,input.value); paletteRenameId=null; renderPaletteManager(); buildToolTray(); };

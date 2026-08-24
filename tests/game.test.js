@@ -4572,6 +4572,27 @@ test('the service worker ships the version it was built with', () => {
     assert(precache.includes(bare), `PRECACHE is missing ${bare}, which index.html loads`);
   }
   assert(scripts.length >= 13, `expected the full module list, found ${scripts.length}`);
+
+  /* The version had a FOURTH copy that nothing pinned: the menu footer, typed
+     into index.html. It reached "v0.6.1" against an APP_VERSION of 0.8.20 — and
+     it is the only version a user ever reads, so bug reports cited a build from
+     months earlier. It is written from APP_VERSION at boot now; this asserts the
+     markup carries no hardcoded version to drift. */
+  const footer = (html.match(/<a id="menuVersion"[^>]*>([^<]*)<\/a>/) || [])[1];
+  assert(footer !== undefined, 'index.html has the #menuVersion footer link');
+  assert(!/v\s*\d+\.\d+/i.test(footer),
+    `#menuVersion must not hardcode a version (found "${footer}") — syncMenuVersion writes it`);
+});
+
+test('the menu footer shows the running version', () => {
+  setup();
+  const a = document.getElementById('menuVersion');
+  assert(a, 'the footer link exists');
+  a.textContent = 'Pocket Prairie v0.0.1 · credits';   // simulate a stale/blank boot
+  syncMenuVersion();
+  assert(a.textContent.includes(APP_VERSION),
+    `footer names the running version (got "${a.textContent}")`);
+  assert(!a.textContent.includes('v0.0.1'), 'the stale string is replaced');
 });
 
 /* ---------- the harness itself ----------

@@ -2361,6 +2361,19 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   bar's height, so the rail sat FLUSH against it on the device the number was
   picked for, while leaving 51px of dead space on a phone without a notch.
   `calc(var(--hud-top-h,61px) + 12px)` gives the same 12px gap on both.
+- **The version has FOUR copies, not three.** `APP_VERSION` (core.js),
+  `package.json`, the `VERSION` literal in `sw.js` — and the menu footer, which
+  is the only one a user ever reads. That fourth one was typed into the markup
+  and nothing pinned it, so it reached **"v0.6.1" against an APP_VERSION of
+  0.8.20**: bug reports cited a build months old, and anyone checking whether
+  the app had updated was told it had not. `syncMenuVersion` (screens.js) writes
+  it from `APP_VERSION` at boot, and the version test now also asserts
+  `#menuVersion` carries no hardcoded version to drift.
+- **No native `confirm()`/`alert()`/`prompt()` anywhere.** Every destructive
+  stop goes through `showConfirm` (or `showPrompt`), which builds the themed
+  panel on the shared `openOverlay` focus path — inside an installed PWA a
+  browser dialog reads as stray chrome. Palette deletion was the last call site
+  still using the native one; there are now zero in `js/`.
 - **Touch target size follows the POINTER, not the width.** Most of the app's
   44px rules lived in the SHEET query, which is gated on width — so a tablet in
   LANDSCAPE, which is DOCK and still a finger, got mouse-sized targets for the

@@ -104,7 +104,12 @@ if ('serviceWorker' in navigator)
          app, not only from the listing. They are plain static pages with no
          dependency on the game, so they open fine offline too. -->
     <p class="menu-foot">
-      <a href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie v0.6.1 · credits</a>
+      <!-- Text is written from APP_VERSION at boot (syncMenuVersion, screens.js).
+           It read "v0.6.1" against an APP_VERSION of 0.8.20 — thirteen releases
+           stale — because it was a FOURTH hand-kept copy of the version that the
+           three-file test did not pin. It is also the only version any user ever
+           sees, so a bug report cited a build from months earlier. -->
+      <a id="menuVersion" href="https://github.com/kvschin/PerenialDesignKK" target="_blank" rel="noreferrer">Pocket Prairie · credits</a>
       · <a href="privacy.html">Privacy</a>
       · <a href="terms.html">Terms</a>
     </p>

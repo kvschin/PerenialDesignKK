@@ -101,7 +101,17 @@ function startDailyChallenge(){
   saveSolo(true);
 }
 
+/* The menu footer is the only place a user ever reads a version number, so it
+   has to come from APP_VERSION rather than being typed into the markup — as a
+   fourth hand-kept copy it drifted thirteen releases behind. The crash panel
+   already did this correctly (screens.js, reportCrash). */
+function syncMenuVersion(){
+  const a=document.getElementById('menuVersion'); if (!a) return;
+  const txt=`Pocket Prairie v${APP_VERSION} · credits`;
+  if (a.textContent!==txt) a.textContent=txt;
+}
 async function refreshMenuCards(){
+  syncMenuVersion();
   const dc=$('btnDaily'); if (dc) dc.querySelector('small').textContent='Today · '+todaysChallenge().title;
   const g=$('btnDesign'); if (!g) return;
   const idx=hasStorage ? await migrateLegacyWorld() : [];
