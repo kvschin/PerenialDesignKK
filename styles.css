@@ -924,6 +924,12 @@ canvas.layer-eye{display:block}
   border:0;border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary)}
 .coach-tip button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .coach-tip button .ui-icon{width:15px;height:15px}
+/* Reads as "hide the pill on a coarse pointer at any width", which would strand
+   a touchscreen laptop with no Fit-plot control. It does not: the DOCK query
+   below re-declares `#zoomPill{display:flex}` at equal specificity and later in
+   the file, so DOCK always keeps the pill and only SHEET actually hides it
+   (where #btnViewTools carries Fit instead). Checked Aug 2026 — leave the
+   override in place if you touch this. */
 @media(max-width:1024px), (pointer:coarse){
   #zoomPill{display:none}
 }
@@ -1235,7 +1241,16 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   /* full-bleed palette: edge to edge, square corners, docked to the bottom.
      The catalog's own bottom padding lifts it clear of the home indicator
      while the tray background runs to the screen edge behind it. */
-  .hud-bottom{--catalog-width:100%;--sheet-safe-top:max(12px,calc(env(safe-area-inset-top) + 8px));left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px;
+  /* --sheet-safe-top is what the full-height sheet must NOT cover. It used to
+     reserve only the notch, so on a device with no inset it resolved to 12px
+     while .hud-top is ~61px tall — and since both are z-index:10 and the sheet
+     comes later in the DOM, the sheet painted over 49px of the top bar and took
+     its taps with it (pressing "Menu" fired the sheet's own Expand control).
+     The obstruction is the BAR, whose measured height already includes the
+     safe-area padding it takes at this tier (see .hud-top below), so
+     --hud-top-h (written by syncHudTopHeight in view.js) is the real figure;
+     the env() arm stays as a floor for the frame before JS has measured. */
+  .hud-bottom{--catalog-width:100%;--sheet-safe-top:max(var(--hud-top-h,61px),calc(env(safe-area-inset-top) + 8px));left:0;transform:none;width:100%;bottom:0;padding:0;gap:6px;
     box-sizing:border-box;transition:height var(--motion-panel) var(--ease-emphasized)}
   .hud-bottom.sheet-half,.hud-bottom.sheet-full{gap:0}
   .hud-bottom.sheet-half #sheetHandle,.hud-bottom.sheet-full #sheetHandle{width:100%;max-width:100%;border-left:0;border-right:0;border-bottom:0;border-radius:0;flex-basis:48px}

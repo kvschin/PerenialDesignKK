@@ -129,8 +129,23 @@ function viewportAnchorDelta(dW,dH,zoom){
   if (!(zoom>0) || (!dW && !dH)) return {dx:0,dy:0};
   return { dx: dW/(2*zoom), dy: dH*0.24/zoom };
 }
+/* Publish the top bar's real height so the full-height catalog sheet can
+   reserve it (--sheet-safe-top, styles.css). It has to be measured rather than
+   hardcoded: the bar is 56px in the docked shell and taller on a phone, where
+   it takes max(8px, env(safe-area-inset-top)) of top padding, so the one
+   number covers both the chrome and the notch. Cheap — one rect read per
+   resize, never per frame. */
+function syncHudTopHeight(){
+  const bar=document.querySelector('.hud-top'); if (!bar) return;
+  const h=Math.round(bar.getBoundingClientRect().height);
+  if (h>0 && h!==syncHudTopHeight._last){
+    syncHudTopHeight._last=h;
+    document.documentElement.style.setProperty('--hud-top-h',h+'px');
+  }
+}
 function sizeCanvas(c, opts){
   if (!c) return;
+  syncHudTopHeight();
   const active=!!(opts&&opts.active);
   const host=c.id==='gameCanvas'&&c.parentElement&&c.parentElement.classList.contains('canvas-stage') ? c.parentElement : null;
   const hostRect=host&&host.getBoundingClientRect ? host.getBoundingClientRect() : null;
@@ -189,6 +204,7 @@ function repositionOpenChrome(){
   if (shown('gardenMenu') && typeof openGardenMenu==='function') openGardenMenu();
 }
 function settleViewportChange(){
+  syncHudTopHeight();   // tier changes resize the bar; the sheet reserves it
   setActiveCanvas(activeCanvas());
   calcZoom();
   /* No snapCam here. It recentres on the plot, so every library dock/undock

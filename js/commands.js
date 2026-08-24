@@ -52,6 +52,28 @@ function rejectPlacement(msg){ hapticFeedback('invalid'); toast(msg); }
 /* ---------- actions ----------
    The tile a tap or the E key addresses. There is no avatar: game.actX/actY is
    simply the last tile the canvas pointed at. */
+/* Tap-to-inspect for the Hand tool.
+   The plant card was reachable only through actHere, which returns early
+   unless PLANTS[game.tool] resolves — i.e. only while a plant brush is armed.
+   But enterGarden arms 'hand', so in the state every garden opens in, tapping a
+   clump just panned the map and there was no way to ask what a plant is. That
+   also hid the card's Replace… action, and the Struggling/establishment
+   readouts, behind arming an unrelated species.
+   Lookup order matches actHere's: the plant on the tile, then a shrub whose
+   mature footprint overhangs it (so tapping the visible edge of a big shrub
+   finds it), then a bulb. A plant on a hidden layer is deliberately skipped —
+   you cannot see it, so a card for it would come from nowhere. */
+function inspectPlantAt(x,y){
+  if (x<0||y<0||x>=GW||y>=GH) return false;
+  const k=`${x},${y}`;
+  const p=game.plants[k];
+  if (p && !p.removed && layerShown(plantLayerOf(p))){ showPlantCard(p,x,y); return true; }
+  const hit=shrubAt(x,y);
+  if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); return true; }
+  const b=game.bulbs[k];
+  if (b && !b.removed && layerShown('bulbs')){ showPlantCard(b,x,y); return true; }
+  return false;
+}
 function actHere(opts){
   const x=Math.round(game.actX), y=Math.round(game.actY), k=`${x},${y}`;
   if (isPlacementTool(game.tool)){

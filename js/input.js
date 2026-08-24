@@ -152,6 +152,10 @@ function buildingPointerDown(place){
 function shouldStartPan(e){
   return game.tool==='hand' || e.button===1 || spaceHeld;
 }
+/* How far a Hand press may travel and still count as a tap rather than a pan.
+   Generous enough for a finger on glass, tight enough that a deliberate drag
+   never opens a plant card behind the panned view. */
+const TAP_SLOP_PX=6;
 function showGestureCancel(msg){
   const el=document.getElementById('gestureCancel'); if (!el) return;
   el.textContent=msg||'Placement cancelled';
@@ -245,7 +249,14 @@ cnv.addEventListener('pointerdown',e=>{
   // Hand tool pans the map; design mode also supports middle mouse / Space-drag.
   if (shouldStartPan(e)){
     e.preventDefault();
-    panDrag={sx:e.clientX, sy:e.clientY, camx0:cam.x, camy0:cam.y};
+    /* A Hand press is ambiguous until it ends: drag pans, but a plain tap is
+       how you ask what a plant is (inspectPlantAt, resolved at pointerup).
+       Middle-mouse and Space-drag are unambiguously panning, so they opt out
+       and keep behaving exactly as before. */
+    const handTap = game.tool==='hand' && e.button!==1 && !spaceHeld;
+    const pl = handTap ? evPlacement(e) : null;
+    panDrag={sx:e.clientX, sy:e.clientY, camx0:cam.x, camy0:cam.y,
+             tap:handTap, tx:pl?pl.x:0, ty:pl?pl.y:0};
     updateCanvasCursor();
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
@@ -442,7 +453,18 @@ cnv.addEventListener('pointerup',e=>{
   }
   if (activePtrs.size<2) pinch=null;
   finishMultiTouch();
-  if (panDrag){ panDrag=null; updateCanvasCursor(); return; }
+  if (panDrag){
+    const pd=panDrag; panDrag=null; updateCanvasCursor();
+    /* Did the Hand press turn out to be a tap? A pinch can't reach here — the
+       second pointer runs cancelCanvasGesture, which nulls panDrag — and
+       activePtrs.size guards a finger still being down. */
+    if (pd.tap && activePtrs.size===0 &&
+        Math.abs(e.clientX-pd.sx)<=TAP_SLOP_PX && Math.abs(e.clientY-pd.sy)<=TAP_SLOP_PX){
+      game.actX=pd.tx; game.actY=pd.ty;   // move the cursor diamond to the tapped tile
+      inspectPlantAt(pd.tx,pd.ty);
+    }
+    return;
+  }
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
   if (rulerDrag){
     const r=rulerDrag; rulerDrag=null;

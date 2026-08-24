@@ -4383,7 +4383,7 @@ test('a scheme switch swaps only plants and bulbs; the site plan is shared', () 
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
   addHouse({ x: 2, y: 2, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
   setTile('plants', '7,7', { s: 'bluestem', d: 0, t: 1 });
-  setTile('bulbs', '8,8', { s: 'crocus', d: 0, t: 1 });
+  setTile('bulbs', '8,8', { s: 'alliumGlobemaster', d: 0, t: 1 });
   const terrainRef = game.terrain, housesRef = game.houses;
 
   const b = createScheme(false);
@@ -5706,4 +5706,44 @@ test('the memo never outlives a rebuild, even a nested or failed one', () => {
   updateCatalogHeader = real;
   assert(threw, 'the builder really did throw');
   assert(discoveryMemo === null && discoveryMemoDepth === 0, 'and the memo was torn down anyway');
+});
+
+/* Hand is what enterGarden arms, and the plant card used to hang off actHere,
+   which returns early unless a plant brush is armed — so in the default tool
+   there was no way to ask what a plant is. inspectPlantAt is that door. */
+test('Hand tap inspects the plant under it, including a shrub overhanging the tile', () => {
+  setup(20, 20);
+  assert(!inspectPlantAt(-1, 5), 'off-plot tile inspects nothing');
+  assert(!inspectPlantAt(5, 5), 'bare ground inspects nothing');
+
+  game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
+  game.focusPlantKey = null;
+  assert(inspectPlantAt(5, 5), 'a plant on the tile is inspected');
+  assertEqual(game.focusPlantKey, '5,5', 'the card focuses the tapped plant');
+
+  // a shrub reserves a mature footprint, so tapping its visible edge — a tile
+  // its canopy overhangs but does not sit on — must still find it
+  setup(20, 20);
+  game.plants['10,10'] = { s: 'sumac', d: 0, t: 1 };
+  const hit = shrubAt(11, 10);
+  assert(hit, 'sumac footprint reaches the neighbouring tile');
+  game.focusPlantKey = null;
+  assert(inspectPlantAt(11, 10), 'tapping the shrub canopy inspects the shrub');
+  assertEqual(game.focusPlantKey, '10,10', 'the card focuses the shrub trunk tile, not the tapped tile');
+
+  // a plant you cannot see must not produce a card out of nowhere
+  setup(20, 20);
+  game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
+  game.layerVis.perennials = false;
+  game.focusPlantKey = null;
+  assert(!inspectPlantAt(5, 5), 'a hidden layer inspects nothing');
+  game.layerVis.perennials = true;
+
+  // bulbs share tiles with perennials; the perennial wins, as actHere does
+  setup(20, 20);
+  game.bulbs['6,6'] = { s: 'alliumGlobemaster', d: 0, t: 1 };
+  game.focusPlantKey = null;
+  assert(inspectPlantAt(6, 6), 'a bulb alone on the tile is inspected');
+  // (no focusPlantKey check: plantKeyOf resolves against game.plants, so a bulb
+  //  legitimately has none — that is showPlantCard's pre-existing behaviour)
 });

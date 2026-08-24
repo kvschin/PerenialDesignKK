@@ -1098,6 +1098,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
+    **`inspectPlantAt(x,y)`** (the Hand tool's tap-to-inspect). The plant card
+    used to hang off `actHere` alone, which returns early unless
+    `PLANTS[game.tool]` resolves — i.e. only while a plant brush is armed. But
+    `enterGarden` arms `'hand'`, so in the state every garden OPENS in, tapping
+    a clump merely panned and there was no way to ask what a plant is; that
+    also put the card's Replace… action, its Struggling warning and its
+    establishment readout behind arming an unrelated species. Inspecting and
+    planting were literally the same gesture, distinguished only by whether the
+    tile was occupied. So a Hand press is now ambiguous until it ends:
+    `pointerdown` records the tile on `panDrag` (`tap`/`tx`/`ty`), and
+    `pointerup` calls `inspectPlantAt` if the pointer travelled under
+    `TAP_SLOP_PX` (6). Middle-mouse and Space-drag opt out — they are
+    unambiguously panning — and a pinch cannot reach it because the second
+    pointer runs `cancelCanvasGesture`, which nulls `panDrag`. Lookup order
+    matches `actHere`'s: plant on the tile, then a shrub whose mature footprint
+    OVERHANGS it (so tapping the visible edge of a big shrub finds it), then a
+    bulb; a plant on a hidden layer is skipped, since a card for something you
+    cannot see comes from nowhere.
     `placeHouse`/`applyHouseSize`/`paintHouse` (the
     House tool: hover draws an RTS-style ghost — tinted footprint, red where it
     would overlap another house, translucent house via `drawHouse` override —
@@ -2260,8 +2278,23 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   restore the opener on close, and use the dialog surface/scrim tokens. Compact
   view and layer flyouts expose menu state through ARIA. The mobile palette has
   collapsed, half, and full states reachable by swipe and explicit down/up
-  controls; its full height stays below the top safe area and scrolls the
-  catalog internally.
+  controls; its full height stays below **the top bar**, not merely the top
+  safe area, and scrolls the catalog internally. That distinction is the whole
+  bug `--sheet-safe-top` was written to avoid and then didn't: it resolved to
+  `max(12px, env(safe-area-inset-top)+8px)`, i.e. 12px on any device without a
+  notch, while `.hud-top` is ~61px tall — and since both are `z-index:10` with
+  `.hud-bottom` later in the DOM, the full sheet painted over 49 of those 61px
+  and, because `#sheetHandle` is opaque with `pointer-events:auto`, took their
+  taps too. Pressing where **Menu** appeared fired the sheet's own *Expand
+  plant palette*; presses over the tool rail landed on catalog children, so
+  Erase focused the Find field and threw up the keyboard. The reservation is
+  now `max(var(--hud-top-h,61px), calc(env(safe-area-inset-top) + 8px))`, where
+  `--hud-top-h` is written by **`syncHudTopHeight`** (view.js, called from
+  `sizeCanvas` and `settleViewportChange`). It must be MEASURED rather than
+  hardcoded: the bar is 56px in the docked shell and 61px on the sheet tier,
+  where it takes `max(8px, env(safe-area-inset-top))` of top padding — so the
+  one number covers the chrome and the notch together. Collapsed (48px) and
+  half (`min(55dvh,480px)`) never had the problem.
   Gesture-only affordances get a one-time contextual coach rather than a
   permanent help wall. Haptics are capability-gated, default off, stored as
   `hortus:haptics`, and fire once per completed placement/success or throttled
