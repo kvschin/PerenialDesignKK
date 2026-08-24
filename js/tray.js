@@ -759,10 +759,6 @@ function syncTopTools(){
     lay.setAttribute('aria-expanded',game.toolMenu==='layers'?'true':'false');
     lay.onclick=()=>toggleLayerMenu();
     const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
-  const rul=document.getElementById('btnRulerTool');
-  if (rul){ rul.classList.toggle('sel',game.tool==='ruler');
-    rul.onclick=()=>setTool('ruler');
-    const c=document.getElementById('btnRulerIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'ruler'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
     view.setAttribute('aria-expanded',(game.toolMenu==='view'||(!visibleEl(lay)&&game.toolMenu==='layers'))?'true':'false');
@@ -805,6 +801,13 @@ function buildCanvasTools(){
      deliberately, and Hand -> Select is least-destructive first. */
   add('Select','select',{active:game.tool==='select',title:'Select an area to move, copy, rotate or fill',
     onClick:()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); }});
+  /* Ruler is modal too (game.tool==='ruler'), so it followed Select down here.
+     It sits next to Select rather than at the end: Hand/Select/Ruler are the
+     three tools that never change the planting, and the adjacency says so
+     without spending another 18px divider on a rail that already scrolls at
+     390px tall. */
+  add('Ruler','ruler',{active:game.tool==='ruler',title:'Tape measure: drag, or tap two points',
+    onClick:()=>{ setTool('ruler'); game.toolMenu=null; }});
   add('Plant','brush',{active:isBrushTool(game.tool),
     swatch:true,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
@@ -874,9 +877,7 @@ function renderViewToolsMenu(){
   pop.appendChild(popButton('Layers','layers',layerViewActive(),()=>{
     game.toolMenu='layers'; refreshCanvasTools(); focusToolMenu('layerPop');
   },'Show or hide garden layers'));
-  pop.appendChild(popButton('Ruler','ruler',game.tool==='ruler',()=>{
-    setTool('ruler'); game.toolMenu=null; refreshCanvasTools();
-  },'Tape measure'));
+  // Ruler, like Select, is a modal tool and lives on the canvas rail now.
   anchorPopover(pop,btn);
 }
 // Arm Erase. Its layer + size options live in the brush bar (renderBrushBar),

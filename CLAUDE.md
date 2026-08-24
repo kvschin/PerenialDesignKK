@@ -1132,7 +1132,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     boundary, then projects those geographic edge markers through the current
     camera rotation. The same bearing rotates the cached derived sun path and
     exported plan arrow; Rotate View never changes site orientation. The
-    non-painting view tools — Rotate, **Layers**, Ruler — live in the top bar
+    non-painting view tools — Rotate and **Layers** — live in the top bar
     beside the season dial (`syncTopTools` keeps their icons/state in sync).
     **Select is NOT among them: it lives on the canvas rail**, because it is
     the only control in that group that sets `game.tool`, and arming it disarms
@@ -1718,8 +1718,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     is its own icon tray: Place tool + size/wall/roof buttons in labeled
     sections (`.tray-sep`, now a horizontal small-caps label, not rotated).
     The left canvas toolbar owns every tool that sets `game.tool` —
-    Hand/Select/Plant/Erase/Pick — plus Undo/Redo below a divider; the view
-    tools that do NOT (Rotate, Layers, Ruler) sit in the top bar beside the
+    Hand/Select/Ruler/Plant/Erase/Pick — plus Undo/Redo below a divider; the
+    view tools that do NOT (Rotate, Layers) sit in the top bar beside the
     season dial, and Fill lives in the Select tray. On a 390px-tall viewport
     the seventh row pushes Undo/Redo past the fold and the rail scrolls for
     them; that is accepted rather than shrinking rows below the 44px touch
@@ -1822,9 +1822,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     on the destination palette immediately; Skip doubles as the gardener's
     seasonal-colour comparison control, and blending old green foliage over
     new burgundy creates a misleading olive/bronze transient. After the
-    box sit the **view tools** — Rotate, Layers, Ruler
-    (`#btnRotateTool`/`#btnLayersTool`/`#btnRulerTool`, the controls that do not
-    set `game.tool`, kept in sync by `syncTopTools`; Select moved to the rail); the season box `flex-shrink`s (explicit
+    box sit the **view tools** — Rotate and Layers
+    (`#btnRotateTool`/`#btnLayersTool`, the controls that do not set
+    `game.tool`; Select and Ruler moved to the rail); the season box `flex-shrink`s (explicit
     `width` + lower `min-width`, not `flex-basis` — a content-sized parent
     ignores the basis) so the box + tools + Menu all fit a 360px phone, with a
     `≤359px` query tightening gaps/buttons for legacy widths. Right =
