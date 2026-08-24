@@ -4595,6 +4595,273 @@ test('the menu footer shows the running version', () => {
   assert(!a.textContent.includes('v0.0.1'), 'the stale string is replaced');
 });
 
+/* ---------- plant photographs + image attribution (js/photos.js) ----------
+   A photograph carries licence terms, so these are not cosmetic tests. Each
+   one pins a conclusion from the compliance review recorded in
+   docs/plant-photos.md, and the ones that look pedantic are the ones that
+   caught somebody out in the wild. The suite has to fail CLOSED: the premise
+   of the whole feature is that a wrong credit is worse than no photograph, so
+   an incomplete record must break the build rather than ship quietly. */
+
+test('every plant photograph record is complete and on the licence allowlist', () => {
+  const bad = [];
+  for (const k of PLANT_KEYS){
+    const rec = PLANTS[k] && PLANTS[k].photo;
+    if (!rec) continue;                       // no photograph is the normal case
+    bad.push(...photoRecordProblems(k, rec));
+  }
+  assert(!bad.length, 'incomplete photo records:\n  ' + bad.join('\n  '));
+});
+
+test('no species ships demonstration photo data', () => {
+  /* The ?photodemo placard exists so the component can be seen without
+     inventing a photographer. It must never reach a build: a placeholder
+     credit is indistinguishable from a real one after a month in the file. */
+  for (const k of PLANT_KEYS){
+    const rec = PLANTS[k] && PLANTS[k].photo;
+    assert(!photoIsSample(rec), `${k} carries sample photo data`);
+  }
+  assert(photoIsSample(PHOTO_DEMO_RECORD), 'the demo record identifies itself as a sample');
+  assert(!PHOTO_LICENSES[PHOTO_DEMO_RECORD.license],
+    'the demo licence must not resolve to a real licence name or URL');
+});
+
+test('a plant with no photograph renders nothing at all', () => {
+  /* Not an empty frame, not a disabled credit button, not a "coming soon"
+     plate. The seasonal illustrations stand alone and the card looks exactly
+     as it always has. */
+  const noPhoto = PLANT_KEYS.filter(k => !PLANTS[k].photo);
+  assert(noPhoto.length, 'expected most species to have no photograph');
+  assertEqual(plantPhotoRecord(noPhoto[0]), null, 'no record');
+  assertEqual(buildPlantPhoto(noPhoto[0]), null, 'no DOM');
+});
+
+test('refused licences are refused, with the reason', () => {
+  const base = {
+    file:'x.jpg', creator:'A Person', title:'T', sourceName:'Wikimedia Commons',
+    sourceUrl:'https://commons.wikimedia.org/wiki/File:X.jpg', commonsFileName:'File:X.jpg',
+    verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  const why = id => photoRecordProblems('x', Object.assign({}, base, {license:id})).join(' ');
+  assert(/NonCommercial/.test(why('cc-by-nc')), 'NC is named as non-commercial');
+  assert(/NoDerivatives/.test(why('cc-by-nd')), 'ND is named as no-derivatives');
+  assert(/GFDL/.test(why('gfdl')), 'GFDL is refused by name');
+  assert(/Free Art/.test(why('fal')), 'the Free Art License is refused by name');
+  assert(/not on the allowlist/.test(why('cc-by-7.0')),
+    'an unknown licence is refused rather than assumed');
+  assertEqual(photoRecordProblems('x', Object.assign({}, base, {license:'cc-by-4.0'})).length, 0,
+    'CC BY 4.0 passes');
+});
+
+test('a Wikipedia page is never accepted as an image source', () => {
+  /* English Wikipedia hosts NON-FREE files locally under fair use. Appearing
+     in an article is not permission, and this is the easiest way to take an
+     unusable image in complete good faith. */
+  const rec = {
+    file:'x.jpg', creator:'A Person', title:'T', license:'cc-by-4.0',
+    sourceName:'Wikimedia Commons', commonsFileName:'File:X.jpg',
+    sourceUrl:'https://en.wikipedia.org/wiki/Schizachyrium_scoparium',
+    verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  assert(/NON-FREE/.test(photoRecordProblems('x', rec).join(' ')),
+    'a wikipedia.org source URL is rejected and says why');
+  rec.sourceUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/12/X.jpg';
+  assert(/FILE PAGE/.test(photoRecordProblems('x', rec).join(' ')),
+    'a raw upload URL is rejected — the file page is what carries the licensing');
+});
+
+test('the image title is required exactly where the licence requires it', () => {
+  /* Mandatory in CC 3.0 and earlier, optional only in 4.0 — and Commons is
+     version-mixed, so this is a real per-file difference, not a formality. */
+  const base = {
+    file:'x.jpg', creator:'A Person', sourceName:'Wikimedia Commons',
+    sourceUrl:'https://commons.wikimedia.org/wiki/File:X.jpg', commonsFileName:'File:X.jpg',
+    verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  const missing = id => photoRecordProblems('x', Object.assign({}, base, {license:id}))
+    .some(p => /requires the image title/.test(p));
+  assert(missing('cc-by-sa-3.0'), 'CC BY-SA 3.0 needs the title');
+  assert(missing('cc-by-2.0'), 'CC BY 2.0 needs the title');
+  assert(!missing('cc-by-sa-4.0'), 'CC BY-SA 4.0 does not');
+});
+
+test('the credit keeps creator, source, licence and modification separate', () => {
+  /* Never one opaque attribution string: each surface lays the fields out in
+     its own idiom, and the Credits page has to be generatable from them. */
+  const rec = {
+    file:'x.jpg', title:'Little bluestem in October', creator:'A Person',
+    copyrightNotice:'(c) 2024 A Person',
+    sourceName:'Wikimedia Commons', sourceUrl:'https://commons.wikimedia.org/wiki/File:X.jpg',
+    commonsFileName:'File:X.jpg', license:'cc-by-sa-4.0',
+    isModified:true, verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  const p = photoCreditParts(rec);
+  assertEqual(p.creator, 'A Person', 'creator stands alone');
+  assertEqual(p.sourceName, 'Wikimedia Commons', 'source stands alone');
+  assertEqual(p.licenseName, 'CC BY-SA 4.0', 'licence name resolves from the allowlist');
+  assertEqual(p.licenseUrl, 'https://creativecommons.org/licenses/by-sa/4.0/', 'licence URL too');
+  assert(p.shareAlike, 'ShareAlike is flagged');
+  assert(p.warrantyDisclaimer, 'the warranty-disclaimer notice is required');
+  assert(/not otherwise modified/.test(p.modificationNote),
+    'the default note must not claim a crop — framing is done in CSS, not on disk');
+  const line = photoCreditLine(rec);
+  for (const bit of ['Little bluestem in October', 'A Person', 'Wikimedia Commons',
+                     'CC BY-SA 4.0', 'https://commons.wikimedia.org/wiki/File:X.jpg',
+                     'Provided without warranties']){
+    assert(line.includes(bit), `the flat credit line carries "${bit}"`);
+  }
+});
+
+test('an author-specified credit string is reproduced verbatim', () => {
+  /* Where the photographer asked for particular wording on the file page, that
+     wording is what the licence asks for. Generating our own over the top of
+     it is the commonest way a technically-complete attribution still fails. */
+  const rec = {
+    file:'x.jpg', title:'T', creator:'Derek Ramsey',
+    attributionOverride:'(c) Derek Ramsey / derekramsey.com',
+    sourceName:'Wikimedia Commons', sourceUrl:'https://commons.wikimedia.org/wiki/File:X.jpg',
+    commonsFileName:'File:X.jpg', license:'cc-by-sa-4.0',
+    verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  const line = photoCreditLine(rec);
+  assert(line.includes('(c) Derek Ramsey / derekramsey.com'), 'the specified string appears');
+  assert(!line.includes('by Derek Ramsey'), 'and is not shadowed by a generated one');
+});
+
+test('photo alt text describes the plant, never the licence', () => {
+  const P = PLANTS.bluestem;
+  const alt = photoAltText('bluestem', {file:'x.jpg', creator:'A Person', license:'cc0'});
+  assert(alt.includes(P.name) && alt.includes(P.latin), 'it names the plant');
+  for (const w of ['cc', 'licen', 'copyright', 'commons', 'a person']){
+    assert(!alt.toLowerCase().includes(w), `alt text must not carry "${w}"`);
+  }
+  assertEqual(photoAltText('bluestem', {alt:'Little Bluestem in late summer'}),
+    'Little Bluestem in late summer', 'an authored alt wins');
+});
+
+/* The stub tree has no querySelector worth trusting, so walk children. */
+function photoTestNodes(root){
+  const out = [];
+  (function walk(n){
+    if (!n || typeof n !== 'object' || !n.children) return;
+    out.push(n); n.children.forEach(walk);
+  })(root);
+  return out;
+}
+
+test('outbound links open safely and announce themselves', () => {
+  /* rel=noopener, or the new document gets a handle on ours; rel=noreferrer
+     keeps the no-third-party-disclosure property honest. And a screen reader
+     reads the link TEXT, not the decorative arrow, so "opens in a new tab"
+     has to exist as text. */
+  const refs = buildPlantReferences('bluestem');
+  assert(refs, 'bluestem carries a Wikipedia reference');
+  const nodes = photoTestNodes(refs);
+  const links = nodes.filter(n => n.tagName === 'A');
+  assert(links.length, 'there is a link');
+  for (const a of links){
+    assertEqual(a.target, '_blank', 'opens in a new tab');
+    assert(/noopener/.test(a.rel || ''), 'rel carries noopener');
+    assert(/noreferrer/.test(a.rel || ''), 'rel carries noreferrer');
+    assert(a.children.some(c => c && c.classList && c.classList.contains('sr-only')),
+      'and says so in text, not only with a glyph');
+  }
+  /* Offline the link is a dead end, so the URL is printed beside it. */
+  assert(nodes.some(n => n.classList && n.classList.contains('ld-photo-url')),
+    'the full URL is printed as transcribable text');
+});
+
+test('the photo-info control is a real keyboard control wired to its panel', () => {
+  /* Not hover-only and not colour-only: a button with an accessible name,
+     aria-expanded, and aria-controls pointing at the panel it reveals. */
+  const saved = PLANTS.bluestem.photo;
+  PLANTS.bluestem.photo = {
+    file:'bluestem.jpg', title:'T', creator:'A Person', license:'cc-by-4.0',
+    sourceName:'Wikimedia Commons', sourceUrl:'https://commons.wikimedia.org/wiki/File:X.jpg',
+    commonsFileName:'File:X.jpg', verifiedBy:'kvschin', verifiedOn:'2026-08-24',
+  };
+  try {
+    const fig = buildPlantPhoto('bluestem');
+    assert(fig, 'a declared photograph renders');
+    const all = photoTestNodes(fig);
+    const btn = all.find(n => n.classList && n.classList.contains('ld-photo-info'));
+    const panel = all.find(n => n.classList && n.classList.contains('ld-photo-credit'));
+    assert(btn && panel, 'the control and the panel both exist');
+    assertEqual(btn.tagName, 'BUTTON', 'it is a button, so it is keyboard reachable');
+    assert(btn.getAttribute('aria-label'), 'it has an accessible name');
+    assertEqual(btn.getAttribute('aria-controls'), panel.id, 'wired to the panel it reveals');
+    assertEqual(btn.getAttribute('aria-expanded'), 'false', 'starts collapsed');
+    assert(panel.classList.contains('hidden'), 'and the panel starts hidden');
+    btn.onclick();
+    assertEqual(btn.getAttribute('aria-expanded'), 'true', 'activating expands it');
+    assert(!panel.classList.contains('hidden'), 'and shows the panel');
+    btn.onclick();
+    assertEqual(btn.getAttribute('aria-expanded'), 'false', 'and it toggles back');
+
+    const img = all.find(n => n.tagName === 'IMG');
+    assert(img, 'the image is a DOM element, never a canvas draw');
+    assertEqual(img.loading, 'lazy', 'lazy-loaded');
+    assert(String(img.src).startsWith('photos/'), 'self-hosted, never hotlinked');
+    assert(img.alt && img.alt.includes(PLANTS.bluestem.latin), 'and carries plant alt text');
+  } finally { PLANTS.bluestem.photo = saved; }
+});
+
+test('bluestem carries a real Wikipedia reference and no invented photograph', () => {
+  const P = PLANTS.bluestem;
+  assert(!P.photo, 'no photograph is declared until a person has verified one');
+  assert(P.externalLinks && /^https:\/\/en\.wikipedia\.org\/wiki\//.test(P.externalLinks.wikipedia),
+    'the Wikipedia reference is a real article URL');
+});
+
+test('every plant photograph is precached', () => {
+  /* A photograph and its credit have to ship together: the credit is only
+     complete offline if the picture is there offline too. Leaving photos to
+     the runtime cache means the first person to open the Library with no
+     connection gets neither. */
+  const sw = readRepoFile('sw.js');
+  const precache = (sw.match(/const PRECACHE\s*=\s*\[([\s\S]*?)\n\];/) || ['', ''])[1];
+  assert(precache, 'the PRECACHE list parses');
+  for (const k of PLANT_KEYS){
+    const rec = PLANTS[k] && PLANTS[k].photo;
+    if (!rec || !rec.file) continue;
+    assert(precache.includes(`photos/${rec.file}`),
+      `PRECACHE is missing photos/${rec.file}, which ${k} declares`);
+  }
+  assert(precache.includes('credits.html'), 'the Credits page is precached');
+  assert(precache.includes('js/photos.js'), 'the attribution module is precached');
+});
+
+test('a photograph never reaches the game canvas', () => {
+  /* Framing happens in CSS at render time and the stored file stays the
+     licensor's unmodified work, so no question of having produced an adapted
+     version can arise. Drawing one into the sprite cache, a ground bake or
+     takePhoto()'s exported PNG would undo that — and would put an unbounded
+     JPEG inside the renderer's cost model as well. */
+  for (const f of ['js/renderer.js', 'js/draw.js', 'js/world.js', 'js/commands.js']){
+    const src = readRepoFile(f);
+    for (const banned of ['plantPhotoRecord', 'buildPlantPhoto', 'photoSrc', 'PHOTO_DIR']){
+      assert(!src.includes(banned), `${f} must not reference ${banned} — photos are DOM only`);
+    }
+  }
+});
+
+test('the Credits page is generated from plant data, not a second list', () => {
+  const html = readRepoFile('credits.html');
+  assert(/<script src="js\/plants\.js">/.test(html), 'it loads the real plant data');
+  assert(/<script src="js\/photos\.js">/.test(html), "and the app's own attribution reader");
+  assert(html.includes('plantsWithPhotos()'), 'it enumerates photographs from that data');
+  assert(html.includes('photoCreditParts('), 'and formats them with the shared reader');
+  /* The failure this guards is a hand-copied credit that silently goes stale.
+     No licence name may be typed into the page: they come from PHOTO_LICENSES. */
+  for (const lic of Object.values(PHOTO_LICENSES)){
+    if (!lic.name.startsWith('CC ')) continue;
+    assert(!html.includes(lic.name),
+      `credits.html hardcodes "${lic.name}" — it must read PHOTO_LICENSES`);
+  }
+  assert(html.includes('not affiliated with'), 'it disclaims endorsement');
+  assert(html.includes('PHOTO_PARALLEL_SOURCE'), 'and names the unrestricted parallel source');
+});
+
 /* ---------- the harness itself ----------
    Three stubs in this sandbox have now been caught reporting a convenient
    fiction, and each one made a real assertion pass for the wrong reason:
@@ -4603,6 +4870,27 @@ test('the menu footer shows the running version', () => {
    every call so nothing written could be read back. A stub that lies is worse
    than a missing feature, because the suite goes green either way. These pin the
    contract so the next well-meaning simplification fails loudly. */
+
+test('the sandbox does not let className and classList disagree', () => {
+  /* They are two views of ONE fact in a browser. The stub used to let them
+     part company: after el.className='x', classList.contains('x') answered
+     false, which no browser does. Both idioms are in live use across js/, so
+     whichever one a test happened to read decided whether it saw the truth —
+     and an assertion about a class set the other way round passed or failed
+     for no reason connected to the code. Verified by reintroducing the split
+     and watching exactly this test fail. */
+  const el = document.createElement('div');
+  el.className = 'alpha beta';
+  assert(el.classList.contains('alpha'), 'className writes reach classList');
+  assert(el.classList.contains('beta'), 'including every class in the string');
+  el.classList.add('gamma');
+  assert(el.classList.contains('gamma'), 'and classList.add still works');
+  el.className = 'delta';
+  assert(el.classList.contains('delta'), 'a later write replaces');
+  assert(!el.classList.contains('alpha'), 'rather than accumulating');
+  el.className = '';
+  assert(!el.classList.contains('delta'), 'and clearing really clears');
+});
 
 test('the sandbox does not lie about the DOM', () => {
   const a = document.getElementById('probe-el');

@@ -7,7 +7,7 @@ lying.
 
 ## Caught lying (all fixed)
 
-Three stubs reported a convenient fiction, and each made a real assertion pass
+Four stubs reported a convenient fiction, and each made a real assertion pass
 without testing anything:
 
 | Stub | The lie | What it hid |
@@ -15,6 +15,7 @@ without testing anything:
 | `crypto.getRandomValues` | `a => a` — returned the buffer unfilled | Every id came out all-zeros and identical. Six scheme tests failed only once the ids were *supposed* to be unique. |
 | `localStorage.key` / `.length` | `() => null` and `0` | Storage looked empty however much you wrote. The localStorage→IndexedDB migration was untestable, and an orphan check written against `Object.keys(localStorage)` compared an empty list to zero. |
 | `document.getElementById` | a fresh element every call | Nothing written could be read back. "The button is not disabled" passed trivially, and `showCoachTip`'s `hasAttribute` fallback — its behaviour when localStorage throws — was permanently dead. |
+| `className` vs `classList` | the two disagreed: after `el.className='x'`, `classList.contains('x')` was `false` | Both idioms are live in `js/`, so whichever a test read decided whether it saw the truth. Found while asserting that an outbound link carries its visually-hidden "opens in a new tab" span. |
 
 Four more were the same shape, found by audit rather than by a failing test:
 
@@ -32,7 +33,7 @@ Four more were the same shape, found by audit rather than by a failing test:
   branch on the desktop path. `SHEET_UI_MQ` — the string CLAUDE.md requires to
   match the stylesheet verbatim — could not be exercised at all.
 
-`tests/game.test.js` now pins all of this in three tests under "the harness
+`tests/game.test.js` now pins all of this in four tests under "the harness
 itself". Each was verified by reintroducing the lie and confirming exactly one
 test fails.
 
@@ -54,7 +55,8 @@ and they are documented rather than faked:
 ## Answers honestly
 
 `localStorage` (a real Map, enumerable), `crypto.getRandomValues`,
-`performance.now` (real monotonic), attributes, `classList`, `matchMedia` for
+`performance.now` (real monotonic), attributes, `classList` (and `className`,
+which writes through to it), `matchMedia` for
 `min-width` / `max-width` / `orientation` including comma alternatives,
 `measureText` (scales with the string — an approximation, not a zero).
 

@@ -7,6 +7,7 @@ const probe = src => { try { return vm.runInContext(src, sb); } catch (e) { retu
 const rows = [
   ['getElementById identity', "document.getElementById('x')===document.getElementById('x')"],
   ['  ...so attributes persist?', "(()=>{const a=document.getElementById('x');a.setAttribute('data-k','1');return document.getElementById('x').getAttribute('data-k');})()"],
+  ['className -> classList', "(()=>{const e=document.createElement('div');e.className='alpha beta';return e.classList.contains('alpha')&&e.classList.contains('beta');})()"],
   ['unknown element prop', "typeof document.createElement('div').totallyMadeUpProperty"],
   ['  ...is it truthy?', "!!document.createElement('div').totallyMadeUpProperty"],
   ['el.hidden', "!!document.createElement('div').hidden"],

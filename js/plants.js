@@ -154,6 +154,41 @@
            seed (persistent seedhead/structure — fall/winter presence is
            the whole point), panicle (optional airy branch colour when it
            differs from the florets), eye (cone center, coneflowers only)
+   photo   optional real photograph, shown in the Plant Library BELOW the four
+           seasonal illustrations. It answers a different question from them —
+           what does it look like in a real garden — and never replaces them,
+           which is why it is optional and why most species will never have
+           one. See js/photos.js for the reader, the licence allowlist and the
+           validator, and docs/plant-photos.md for the human checklist that has
+           to be completed before a record is written here.
+
+           A photograph carries licence terms, and those terms are only met if
+           the credit travels with the file. So this is STRUCTURED — never one
+           opaque attribution string — and every field is separately readable:
+
+             photo:{
+               file:'bluestem.jpg',            // bare name under photos/
+               alt:'...',                      // optional; describes the PLANT
+               title:'...',                    // the file's title on Commons
+               creator:'Jane Smith',           // required, always
+               sourceName:'Wikimedia Commons', // or 'Own photograph'
+               sourceUrl:'https://commons.wikimedia.org/wiki/File:...',
+               commonsFileName:'File:...',
+               license:'cc-by-sa-4.0',         // key into PHOTO_LICENSES
+               isModified:true,
+               modificationNote:'Resized and cropped for display',
+             }
+
+           `file` is local because the app self-hosts every asset and makes
+           zero third-party requests — a privacy-policy claim, not a
+           preference — while `sourceUrl` keeps the ORIGINAL file page, which
+           is the only evidence the licence claim can be re-checked against.
+           Those are two different facts, and collapsing them would cost
+           either offline use or the provenance.
+   externalLinks optional outbound references, currently { wikipedia }. A
+           secondary reference at the foot of the Library card, never a
+           description source: the `blurb` above is the editorial voice and
+           stays the main content.
 
    Footprint policy:
    - Herbaceous plants occupy one plant tile; `space` drives matrix/export
@@ -180,6 +215,7 @@ const PLANTS = {
   /* ---------- grasses & sedges: the matrix ---------- */
   bluestem:{ name:'Little Bluestem', latin:'Schizachyrium scoparium', form:'bunchgrass', type:'grass', h:46,
     space:18, spread:24, zones:[3,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
+    externalLinks:{wikipedia:'https://en.wikipedia.org/wiki/Schizachyrium_scoparium'},
     look:{art2:true, bladeShade:15, seedStyle:'fluffyRaceme', seedTufts:5, seedSpan:0.28, seedAwn:4.6, seedFan:0.48},
     blurb:'Blue-green all summer, then the best copper in the prairie. Backlit in November it glows.',
     sea:{Spring:{fol:'#7b9874'}, Summer:{fol:'#688b84',bloom:'#8d626b'}, Fall:{fol:'#bd623f',seed:'#e8ddc7'}, Winter:{fol:'#9e593e',seed:'#eee4d2'}},

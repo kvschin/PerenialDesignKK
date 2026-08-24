@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Credits — Pocket Prairie Garden Design</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<style>
+  :root{
+    --ground:#eeece6; --raise:#e4e1d7; --ink:#262019; --ink-soft:#5a5245;
+    --rule:#cdc8ba; --accent:#9a5a22;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --ground:#241a16; --raise:#2f231d; --ink:#ece3d4; --ink-soft:#b3a692;
+           --rule:#40312a; --accent:#c97f3f; }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0 auto;padding:3rem 1.25rem 5rem;max-width:44rem;
+    background:var(--ground);color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    font-size:1rem;line-height:1.65;
+  }
+  h1{font-family:'Fraunces',Georgia,serif;font-size:2.1rem;line-height:1.15;margin:0 0 .4rem;font-weight:700}
+  h2{font-family:'Fraunces',Georgia,serif;font-size:1.35rem;margin:2.4rem 0 .6rem;font-weight:600}
+  .updated{color:var(--ink-soft);font-size:.9rem;margin:0 0 2rem}
+  p,li{color:var(--ink-soft)}
+  p{margin:0 0 1rem}
+  ul{margin:0 0 1rem;padding-left:1.2rem}
+  li{margin-bottom:.45rem}
+  li::marker{color:var(--accent)}
+  strong{color:var(--ink);font-weight:600}
+  a{color:var(--accent)}
+  code{font-size:.9em}
+
+  .lede{
+    font-size:1.1rem;color:var(--ink);
+    border-left:3px solid var(--accent);padding-left:1rem;margin:0 0 2rem;
+  }
+  footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--rule);font-size:.88rem}
+
+  /* Image credits. A card per photograph rather than a table: the fields wrap
+     unpredictably — a creator name, an image title and a Commons filename are
+     all long and all unbounded — and a six-column table has nowhere to go on a
+     phone. Each card is one credit and reads top to bottom at any width. */
+  .credit-list{list-style:none;margin:0;padding:0}
+  .credit{
+    background:var(--raise);border:1px solid var(--rule);border-radius:9px;
+    padding:1rem 1.1rem;margin-bottom:.75rem;
+  }
+  .credit-plant{color:var(--ink);font-weight:600;margin:0 0 .1rem}
+  .credit-latin{font-style:italic;color:var(--accent);font-size:.9rem;margin:0 0 .7rem}
+  .credit-fields{display:grid;grid-template-columns:auto 1fr;gap:.25rem .9rem;margin:0;font-size:.9rem}
+  .credit-fields dt{color:var(--accent)}
+  /* Creator names, image titles and Commons filenames run long and the column
+     is narrow on a phone, so they wrap mid-token rather than overflowing. */
+  .credit-fields dd{margin:0;color:var(--ink-soft);min-width:0;overflow-wrap:anywhere}
+  /* The full URL, printed. This page has to be usable on paper and offline,
+     where a link is something to transcribe rather than follow — so every URL
+     appears as readable text as well as being a link. Never shortened. */
+  .credit-url{margin:.1rem 0 0;font-size:.78rem;line-height:1.45;color:var(--ink-soft);
+    opacity:.85;overflow-wrap:anywhere;user-select:all}
+  .credit-orig{margin:.8rem 0 0;font-size:.9rem}
+  .credit-note{margin:.6rem 0 0;font-size:.82rem;opacity:.85}
+  .empty{
+    background:var(--raise);border:1px dashed var(--rule);border-radius:9px;
+    padding:1.1rem;color:var(--ink-soft);
+  }
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+  /* This page is a legal notice, so it has to survive being printed — that is
+     one of the ways a reviewer or a user will read it. Cards must not be split
+     down the middle across a page break. */
+  @media print{
+    body{background:#fff;color:#000;max-width:none;padding:0}
+    p,li,.credit-fields dd{color:#222}
+    .credit{background:#fff;break-inside:avoid;page-break-inside:avoid}
+    a{color:#000}
+    footer{display:none}
+  }
+</style>
+</head>
+<body>
+
+<h1>Credits</h1>
+<p class="updated">Pocket Prairie Garden Design</p>
+
+<p class="lede">Pocket Prairie is built from original work, two open-licensed
+typefaces, and — where one exists — a photograph somebody else was generous
+enough to share. This page names all of it.</p>
+
+<h2>Design and code</h2>
+<p>Written and drawn by <strong>Kevin Schindler</strong>. The plant data is
+compiled from field experience and standard horticultural references; any error
+in it is ours, not theirs.</p>
+
+<h2>Botanical illustrations</h2>
+<p>Every plant in the Plant Library is <strong>drawn by the app itself</strong>,
+live, four times over — once for each season. They are not stock artwork and not
+photographs: each one is a procedural recipe for that species' habit, seedhead
+and seasonal colour, rendered to canvas at the moment you look at it. They are
+original to Pocket Prairie.</p>
+
+<h2>Typefaces</h2>
+<p>Both families are self-hosted so the app renders correctly offline and
+discloses nothing to a third party. Both are licensed under the
+<a href="https://scripts.sil.org/OFL" target="_blank" rel="noopener noreferrer">SIL Open Font
+License 1.1<span class="sr-only"> (opens in a new tab)</span></a>, which permits
+embedding and redistribution inside a paid application.</p>
+<ul>
+  <li><strong>Fraunces</strong> — Copyright 2018 The Fraunces Project Authors.
+      <a href="fonts/OFL-Fraunces.txt">Licence</a></li>
+  <li><strong>IBM Plex Sans</strong> — Copyright © 2017 IBM Corp., with Reserved
+      Font Name “Plex”. <a href="fonts/OFL-IBMPlexSans.txt">Licence</a></li>
+</ul>
+
+<h2 id="images">Image credits</h2>
+<p>Photographs shown in the Plant Library, with the creator, source and licence
+each one was published under. They remain the property of their creators. This
+list is <strong>generated from the same plant data the Library reads</strong> —
+there is no second copy of it to fall out of date.</p>
+
+<div id="imageCredits">
+  <!-- Filled by the script below. If scripting is off the fallback here stands,
+       so the page is never silently missing its legal section. -->
+  <p class="empty">Image credits are listed here. If you are reading this
+  message, scripting is disabled — the credit for every photograph is also
+  recorded in the plant data file <code>js/plants.js</code> in the application
+  bundle.</p>
+</div>
+
+<footer>
+  <p><a href="./">← Back to Pocket Prairie</a> ·
+     <a href="privacy.html">Privacy</a> ·
+     <a href="terms.html">Terms of Use</a></p>
+</footer>
+
+<!-- The plant data and the photo/attribution module, and nothing else. Both are
+     free of DOM access at load, which is what lets this page reuse the app's own
+     reader rather than restating any of it. Anything this page had to restate
+     would be a second source of truth for a legal obligation. -->
+<script src="js/plants.js"></script>
+<script src="js/photos.js"></script>
+<script>
+(function(){
+  'use strict';
+  var host = document.getElementById('imageCredits');
+  var rows = plantsWithPhotos();
+
+  /* No photographs yet is a real and correct state — the Library's seasonal
+     illustrations stand alone — so say so plainly rather than printing an
+     empty heading or, far worse, placeholder credits. */
+  if (!rows.length){
+    host.innerHTML = '';
+    var none = document.createElement('p');
+    none.className = 'empty';
+    none.textContent = 'No third-party photographs are currently included in ' +
+      'Pocket Prairie. The Plant Library’s seasonal illustrations are drawn ' +
+      'by the app itself. When photographs are added, every one of them will be ' +
+      'credited here.';
+    host.appendChild(none);
+    return;
+  }
+
+  function ext(href, label){
+    var a = document.createElement('a');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.appendChild(document.createTextNode(label));
+    var sr = document.createElement('span');
+    sr.className = 'sr-only';
+    sr.textContent = ' (opens in a new tab)';
+    a.appendChild(sr);
+    return a;
+  }
+  function urlText(url, cls){
+    var p = document.createElement('p');
+    p.className = cls || 'credit-url';
+    p.textContent = url;
+    return p;
+  }
+
+  var list = document.createElement('ul');
+  list.className = 'credit-list';
+  var anyCommons = false;
+
+  rows.forEach(function(row){
+    /* photoCreditParts is the app's own reader. Presentation differs from the
+       in-app panel by design — dark chrome there, paper here — but the FACTS
+       come from one function, so the two can never make different claims
+       about the same photograph. */
+    var p = photoCreditParts(row.photo);
+    if (!p.isOwn && p.sourceName === 'Wikimedia Commons') anyCommons = true;
+
+    var li = document.createElement('li');
+    li.className = 'credit';
+
+    var nm = document.createElement('p');
+    nm.className = 'credit-plant';
+    nm.textContent = row.plant.name;
+    li.appendChild(nm);
+
+    var la = document.createElement('p');
+    la.className = 'credit-latin';
+    la.textContent = row.plant.latin;
+    li.appendChild(la);
+
+    var dl = document.createElement('dl');
+    dl.className = 'credit-fields';
+    function field(term, value, extra){
+      if (!value) return;
+      var dt = document.createElement('dt'); dt.textContent = term;
+      var dd = document.createElement('dd');
+      if (value.nodeType) dd.appendChild(value); else dd.textContent = value;
+      if (extra) dd.appendChild(extra);
+      dl.appendChild(dt); dl.appendChild(dd);
+    }
+    field('Title', p.title);
+    /* Where the author specified their own credit string on Commons, it is
+       reproduced verbatim in place of a generated "by <creator>". */
+    if (p.attributionOverride) field('Credit', p.attributionOverride);
+    else field('Photograph', p.creator);
+    field('Copyright', p.copyrightNotice);
+    field('Source', p.isOwn ? 'Pocket Prairie' : p.sourceName);
+    if (!p.isOwn && p.licenseName){
+      field('Licence',
+        p.licenseUrl ? ext(p.licenseUrl, p.licenseName) : p.licenseName,
+        p.licenseUrl ? urlText(p.licenseUrl) : null);
+    }
+    field('Elected', p.licenseElected);
+    field('File', p.commonsFileName);
+    field('Changes', p.modificationNote || 'Unmodified.');
+    li.appendChild(dl);
+
+    if (p.sourceUrl){
+      var foot = document.createElement('p');
+      foot.className = 'credit-orig';
+      foot.appendChild(ext(p.sourceUrl, 'View the original file'));
+      li.appendChild(foot);
+      li.appendChild(urlText(p.sourceUrl));
+    }
+
+    var notes = [];
+    if (p.warrantyDisclaimer) notes.push('Provided without warranties.');
+    if (!p.requiresAttribution) notes.push('Attribution is not required by this licence; it is offered as a courtesy.');
+    if (notes.length){
+      var n = document.createElement('p');
+      n.className = 'credit-note';
+      n.textContent = notes.join(' ');
+      li.appendChild(n);
+    }
+    list.appendChild(li);
+  });
+
+  host.innerHTML = '';
+  host.appendChild(list);
+
+  if (anyCommons){
+    /* Two separate obligations, stated together because they are about the
+       same relationship. Naming Wikimedia Commons as a source is a factual
+       credit and is what the licences ask for; saying it as though it were a
+       partnership is not, and the licences separately forbid implying the
+       PHOTOGRAPHERS endorse us. */
+    var dis = document.createElement('p');
+    dis.className = 'credit-note';
+    dis.style.marginTop = '1.4rem';
+    dis.textContent = 'Photographs are sourced from Wikimedia Commons and reused ' +
+      'under the licences their creators chose. Pocket Prairie Garden Design is ' +
+      'not affiliated with, sponsored by, or endorsed by the Wikimedia Foundation ' +
+      'or by the photographers credited above.';
+    host.appendChild(dis);
+
+    /* Several of these licences restrict applying technological measures that
+       would stop a recipient exercising the licensed rights — an open question
+       where an app store wraps the binary in DRM. The standard answer is to
+       also distribute the files without any such restriction, which is already
+       true: the project site serves this repository as-is. Saying so is free
+       and is the strongest card available. */
+    var par = document.createElement('p');
+    par.className = 'credit-note';
+    par.appendChild(document.createTextNode(
+      'The image files above are also available unmodified and without any ' +
+      'technological restriction, together with the rest of this application’s ' +
+      'source, at '));
+    par.appendChild(ext(PHOTO_PARALLEL_SOURCE, PHOTO_PARALLEL_SOURCE));
+    par.appendChild(document.createTextNode('.'));
+    host.appendChild(par);
+  }
+})();
+</script>
+
+</body>
+</html>

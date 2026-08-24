@@ -27,7 +27,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.22';
+const VERSION = '0.8.23';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -39,6 +39,11 @@ const PRECACHE = [
   // They are plain static pages, so offline costs nothing to support.
   './privacy.html',
   './terms.html',
+  // Reached from the same footer, and the place every image licence is
+  // recorded. It builds its list from js/plants.js at load, so it is only
+  // correct offline if the data file is cached too — which it already is,
+  // below, as the app's own first script.
+  './credits.html',
   // The first-run demo garden. Precached because the offer fires on launch and
   // a first launch is exactly when someone might have no connection — an
   // onboarding path that needs the network is not one.
@@ -57,6 +62,7 @@ const PRECACHE = [
   './js/collections.js',
   './js/ui.js',
   './js/tray.js',
+  './js/photos.js',
   './js/library.js',
   './js/screens.js',
   './fonts/fraunces-latin.woff2',
@@ -66,7 +72,20 @@ const PRECACHE = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  './icons/favicon-32.png'
+  './icons/favicon-32.png',
+  /* ---- plant photographs ----
+     Every photograph declared in js/plants.js belongs in this list, and a test
+     asserts it (see "every plant photograph is precached"). That is not
+     tidiness: a photograph carries licence terms, its credit must be readable
+     wherever the picture is, and the credit is only complete offline if both
+     shipped together. Leaving photos to the runtime cache below would mean the
+     first person to open the Plant Library on a plane sees neither.
+
+     There are none yet, deliberately — no image enters the product before a
+     person has worked through the checklist in docs/plant-photos.md. Add each
+     one here as './photos/<file>' when it does. Watch the budget while you do:
+     the shell is ~1.7MB and photographs will dwarf it, so the size of the photo
+     set is a product decision to take on purpose rather than discover. */
 ];
 
 self.addEventListener('install', e => {

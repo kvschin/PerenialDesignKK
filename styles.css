@@ -261,6 +261,20 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
 .modal-screen>.panel{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;
   box-shadow:var(--shadow-dialog);padding:clamp(19px,3vw,26px)}
 .hidden{display:none!important}
+/* Text for assistive tech only. Outbound links carry a decorative arrow glyph,
+   and a glyph is not an announcement — a screen reader reads the link TEXT, so
+   "opens in a new tab" has to exist as text or it does not exist at all. */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+/* Outbound links, in the app's own palette. Deliberately not the browser blue:
+   accent-700 is the higher-contrast step against the surface in BOTH themes
+   (lighter on loam, darker on paper), and the underline carries the meaning
+   where colour alone would not. */
+.ext-link{color:var(--color-accent-700);text-decoration:underline;text-underline-offset:2px;
+  text-decoration-thickness:1px;border-radius:var(--radius-control)}
+.ext-link:hover{color:var(--action-primary-hover)}
+.ext-link:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+.ext-arrow{margin-left:.25em;font-size:.9em;opacity:.8}
 
 #menuScreen{background:transparent}
 #menuCanvas{position:absolute;top:0;left:0;width:100%;height:100vh;
@@ -410,8 +424,6 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .lib-item .li-latin{display:block;font-style:italic;font-size:11px;color:var(--text-muted)}
 .library-detail{flex:1;overflow-y:auto;padding:22px 26px}
 .ld-card{max-width:560px;margin:0 auto}
-.ld-photo{margin-bottom:14px;border-radius:var(--radius-panel);overflow:hidden;background:#26331f;line-height:0}
-.ld-photo img{width:100%;max-height:300px;object-fit:cover;display:block}
 .ld-img{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;background:linear-gradient(#3a4a3a,#26331f);
   border-radius:var(--radius-panel);padding:10px;margin-bottom:16px}
 .ld-img figure{margin:0;text-align:center}
@@ -427,6 +439,61 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .ld-cv{padding:5px 0;border-top:1px solid rgba(var(--ink-rgb),.12);color:#ddd0ba}
 .ld-cv b{color:var(--seedhead);font-style:italic}
 .ld-cv span{color:var(--bronze);font-size:12px}
+/* ---------- the real photograph + its credit (js/photos.js) ----------
+   The four seasonal illustrations above are what this app knows and a
+   photograph cannot say, so the photograph is corroboration and is sized to
+   stay corroboration — a restrained ratio and a hard height cap, never a hero
+   banner.
+
+   aspect-ratio + max-height is also what makes it shift-free without knowing
+   the file's intrinsic size. Both terms resolve from the column width alone,
+   so the box is at its final height before a byte of JPEG has arrived and a
+   decoding image can never push the plant's name down the page. width/height
+   attributes on the <img> would do it too, but only by making every record
+   carry the pixel size of a file resize-photos.ps1 is free to change. */
+.ld-photo{margin:0 0 16px}
+.ld-photo-frame{position:relative;width:100%;aspect-ratio:3/2;max-height:280px;
+  border-radius:var(--radius-panel);overflow:hidden;background:var(--surface-input);
+  border:1px solid var(--border-quiet);line-height:0}
+.ld-photo-frame img{width:100%;height:100%;object-fit:cover;display:block}
+.ld-photo-frame.missing{display:flex;align-items:center;justify-content:center;aspect-ratio:5/2}
+.ld-photo-missing{margin:0;line-height:1.4;font-size:12px;letter-spacing:.06em;color:var(--text-muted)}
+/* The credit control sits over an arbitrary photograph, so it needs an opaque
+   plate rather than a tint — the same reason the compass marks got one. A
+   translucent chip is legible over foliage and invisible against a bright sky,
+   and which one a given species gets is not knowable from here. It also has to
+   look like a control at REST: hover does not exist on touch, which is most of
+   this audience. */
+.ld-photo-info{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;
+  padding:7px 10px;border-radius:var(--radius-control);line-height:1;
+  background:var(--surface-workspace);border:1px solid var(--border-control);
+  color:var(--text-primary);font-family:inherit;font-size:11px;letter-spacing:.06em;
+  box-shadow:var(--shadow-control);
+  transition:border-color var(--motion-control),background var(--motion-control),color var(--motion-control)}
+.ld-photo-info:hover{background:var(--surface-dialog);border-color:var(--border-active);color:var(--color-accent-700)}
+.ld-photo-info .ui-icon{width:14px;height:14px}
+/* A disclosure in normal flow, not a floating popover. That is what makes
+   "must not overflow the viewport" true by construction — there is no anchor
+   to measure and nothing to reposition on a narrow screen. */
+.ld-photo-credit{margin-top:8px;padding:12px 14px;border:1px solid var(--border-quiet);
+  border-radius:var(--radius-panel);background:var(--surface-control);font-size:12px;line-height:1.5}
+.ld-photo-credit dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}
+.ld-photo-credit dt{color:var(--color-accent-700);letter-spacing:.04em}
+/* A creator name or a Commons filename runs long and the column is narrow on a
+   phone, so it wraps mid-token rather than widening the card. */
+.ld-photo-credit dd{margin:0;color:var(--text-secondary);min-width:0;overflow-wrap:anywhere}
+.ld-photo-credit-foot{margin:10px 0 0}
+/* The full URL, printed under its own link. Offline — which is how this app
+   is meant to be used — a link is not something to follow, it is something to
+   transcribe, and the attribution has to be complete without a network. So it
+   is never shortened and never a redirector. Small, muted, and allowed to
+   break anywhere, because a Commons file URL is longer than a phone is wide. */
+.ld-photo-url{margin:2px 0 0;font-size:10.5px;line-height:1.4;color:var(--text-muted);
+  overflow-wrap:anywhere;user-select:all}
+.ld-photo-credit dd .ld-photo-url{margin-top:1px}
+.ld-photo-credit-note{margin:8px 0 0;font-size:11px;color:var(--text-muted)}
+.ld-refs{margin-top:16px;padding-top:12px;border-top:1px solid var(--border-quiet)}
+.ld-refs h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin:0 0 6px}
 .library-empty{padding:40px;text-align:center;color:var(--text-muted)}
 @media(max-width:640px){
   .library-body{flex-direction:column}
@@ -474,6 +541,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    1.8 (the .ui-icon default) renders them at ~1.35px on screen — a smudge. */
 .world-more .ui-icon{width:20px;height:20px;stroke-width:3.2}
 @media (pointer:coarse){ .world-more{width:44px;height:44px} }
+@media (pointer:coarse){ .ld-photo-info{min-height:44px;padding:0 12px} }
 /* planting-scheme manager: one row per scheme over the shared site plan.
    Locked to the viewport with ONLY the list scrolling, exactly like
    #worldsScreen .panel — otherwise a tall panel pushes Done off the bottom of a

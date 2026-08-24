@@ -50,19 +50,14 @@ function libCanvas(key,variant,season,w,h){
   ctx.restore();
   return c;
 }
-/* a real photo for the species, if one has been added to photos/.
-   Tries .jpg → .jpeg → .png, then quietly removes itself (renders
-   below remain the fallback). Drop a file at photos/<key>.jpg. */
-function plantPhoto(key){
-  const wrap=document.createElement('div'); wrap.className='ld-photo';
-  const img=document.createElement('img'); img.alt='';
-  const exts=['jpg','jpeg','png']; let i=0;
-  img.onerror=()=>{ i++; if (i<exts.length) img.src=`photos/${key}.${exts[i]}`; else wrap.remove(); };
-  img.onload=()=>{ wrap.classList.add('has'); };
-  img.src=`photos/${key}.${exts[0]}`;
-  wrap.appendChild(img);
-  return wrap;
-}
+/* The real photograph, its credit, and the outbound references all live in
+   js/photos.js — buildPlantPhoto / buildPlantReferences. They used to be a
+   filename guess here: try photos/<key>.jpg, then .jpeg, then .png, and
+   delete the element when the third one 404s. That worked while a photo was
+   just a picture, and stopped working the moment a photo carried licence
+   terms, because a guessed file has no creator, no source and no licence to
+   display beside it. It also cost up to three failed requests per plant
+   viewed. A photograph is now declared in the data or it does not exist. */
 let libSel=null;
 function openLibrary(){ buildLibraryList(''); show('libraryScreen');
   if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
@@ -131,8 +126,12 @@ function showLibraryDetail(key){
   const cvKeys=Object.keys(P.cv||{}), libraryCultivars=P.libraryCultivars||[];
   d.innerHTML='';
   const card=document.createElement('div'); card.className='ld-card';
-  card.append(plantPhoto(key));   // real photo if photos/<key>.jpg exists, else nothing
+  /* Order is deliberate: the four seasonal illustrations are what this app
+     knows that a photograph cannot say, so they lead. The photograph follows
+     as corroboration — what it looks like in a real garden — and is absent
+     for most species, which is a normal state and renders as nothing. */
   card.append(imgs);
+  const photo=buildPlantPhoto(key); if (photo) card.append(photo);
   const nm=document.createElement('div'); nm.className='ld-name'; nm.textContent=P.name; card.append(nm);
   const la=document.createElement('div'); la.className='ld-latin'; la.textContent=P.latin; card.append(la);
   const bl=document.createElement('p'); bl.className='ld-blurb'; bl.textContent=P.blurb; card.append(bl);
@@ -152,6 +151,7 @@ function showLibraryDetail(key){
       row.innerHTML=`<b>${c.name}</b>${size} - ${c.note||''}`; cvs.append(row); });
     card.append(cvs);
   }
+  const refs=buildPlantReferences(key); if (refs) card.append(refs);
   d.append(card); d.scrollTop=0;
 }
 function applyLibrarySearch(){

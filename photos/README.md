@@ -1,20 +1,53 @@
 # Plant photos
 
-Drop a photo here named after the plant and the Plant Library shows it
-(no photo, it falls back to the rendered illustration). Add as many or
-as few as you like — nothing breaks while a photo is missing.
+A photograph here shows what a species looks like in a real garden. It appears
+in the Plant Library **below** the four seasonal illustrations, which stay the
+primary art — they show how a plant behaves across the year, which is what the
+app is for and what a photograph cannot say. Most species will never have a
+photo, and that is a normal state: the card renders exactly as it always has.
+
+## Dropping a file here is no longer enough
+
+The Library used to guess: it tried `photos/<key>.jpg`, then `.jpeg`, then
+`.png`, and gave up quietly. That worked while a photo was just a picture, and
+stopped working the moment a photo carried licence terms — a guessed file has no
+creator, no source and no licence to show beside it.
+
+A photograph is now **declared in `js/plants.js`** with its full credit, and a
+file with no record is never displayed. See **`docs/plant-photos.md`** for the
+checklist that has to be completed first, and:
+
+```bash
+node dev/commons-photo.js <plantKey> "File:Something.jpg"
+```
+
+which fetches the licensing metadata from Wikimedia Commons, refuses anything
+off the allowlist, and prints the record to paste in.
 
 ## Rules
 
-- **Name** the file exactly as listed below, e.g. `echinacea.jpg`.
-- **Format:** JPEG (`.jpg` preferred; `.jpeg` and `.png` also work).
+- **Name** the file after the plant key, e.g. `echinacea.jpg` — the list below
+  is the naming reference. The record's `file` field is what actually resolves.
+- **Format:** JPEG (`.jpg` preferred; `.jpeg`, `.png` and `.webp` also work).
   iPhones save HEIC by default and browsers can NOT show HEIC — set
   Settings -> Camera -> Formats -> **Most Compatible**, or convert on export.
 - **Size:** keep them small (~1000px, under ~250 KB). Run
-  `resize-photos.ps1` after dropping full-size phone photos in — it
-  shrinks and recompresses every JPEG here in place.
-- **Only use photos you own** (your own garden) or that are public-domain/
-  CC0/CC-BY. Avoid anything marked non-commercial (NC).
+  `resize-photos.ps1` after dropping full-size photos in — it shrinks and
+  recompresses every JPEG here in place.
+- **Downscale and re-encode only. Never save a cropped version.** The Library
+  frames the picture with `aspect-ratio` + `object-fit` in CSS at render time,
+  so the stored file stays the licensor's own work. That is a licensing
+  decision, not a layout one — `docs/plant-photos.md` explains why.
+- **Strip EXIF**, including GPS. Home-garden coordinates are common in plant
+  photography and redistributing them is a privacy harm we would be creating.
+- **Add the file to `PRECACHE` in `sw.js`.** A test fails until you do: the app
+  ships offline, and a credit is only complete offline if the picture is there
+  too.
+- **Sourcing:** your own photographs, or Wikimedia Commons under a licence on
+  the allowlist in `js/photos.js` — CC0, public domain, CC BY, CC BY-SA. Prefer
+  CC0 and CC BY where you have a choice. Never NonCommercial, never
+  NoDerivatives, never GFDL, and never an image taken from a Wikipedia article
+  rather than from Commons (Wikipedia hosts non-free files locally).
 
 ## Filenames (146 species)
 

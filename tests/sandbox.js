@@ -21,7 +21,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
    browser will. */
 const GAME_MODULES = [
   'core.js','draw.js','world.js','view.js','renderer.js','commands.js','input.js',
-  'io.js','collections.js','ui.js','tray.js','library.js','screens.js'
+  'io.js','collections.js','ui.js','tray.js','photos.js','library.js','screens.js'
 ];
 const gameSources = () => [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f))];
 
@@ -85,7 +85,19 @@ function makeEl(tag){
   };
   return new Proxy(el, {
     get(o, p){ if (p in o) return o[p]; if (typeof p === 'symbol') return undefined; return () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
+    /* className and classList are two views of ONE fact in a browser, and the
+       stub used to let them disagree: after el.className='x',
+       classList.contains('x') answered false, which no browser does. Both
+       idioms are in use across js/, so whichever a test happened to read
+       decided whether it saw the truth — a stub reporting a convenient
+       fiction, which is the failure this file keeps being caught by. Write
+       through so the two views agree. */
+    set(o, p, v){
+      if (p === 'className'){
+        o.classList._s = new Set(String(v || '').split(' ').filter(Boolean));
+      }
+      o[p] = v; return true;
+    }
   });
 }
 /* getElementById MEMOISES. It used to hand back a brand-new element on every

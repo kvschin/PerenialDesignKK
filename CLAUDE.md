@@ -63,7 +63,8 @@ The game is plain HTML/CSS/JS — `index.html` (markup) and `styles.css` at the
 repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
 the game logic, split for navigability across ordered app modules: `core.js`,
 `draw.js`, `world.js`, `view.js`, `renderer.js`, `commands.js`, `input.js`,
-`io.js`, `collections.js`, `ui.js`, `tray.js`, `library.js`, `screens.js` — with no build step,
+`io.js`, `collections.js`, `ui.js`, `tray.js`, `photos.js`, `library.js`,
+`screens.js` — with no build step,
 no npm dependencies, no framework. **Nothing loads over the network** — the
 typefaces are self-hosted under `fonts/` (Fraunces and IBM Plex Sans, both SIL
 OFL 1.1, licences shipped alongside), and a **service worker** (`sw.js`)
@@ -127,7 +128,7 @@ See §13a.
   worker. `http-server -c-1` disables *HTTP* caching only — it has no effect on
   the service worker's own cache.
 - **Verifying offline for real**: load the app, then stop the server and reload.
-  It should boot fully — all 14 modules, both typefaces, and any saved garden
+  It should boot fully — all 15 modules, both typefaces, and any saved garden
   out of IndexedDB. That is the only check that actually proves the precache
   list is complete; a green `caches.keys()` does not. Note that `fetch()`
   SUCCEEDING with the server down is not evidence the server is up — the worker
@@ -334,6 +335,11 @@ logic is split across ordered modules. They map onto the section list below
   `fillActive` and the path/bed/water guards all read it instead of re-deriving
   `==='house'||==='fence'||…` chains, and `applyToolAt` dispatches through its
   `apply` hook.
+- **`photos.js`** — §14d real plant photographs and image attribution: the
+  licence allowlist, the record reader/validator, and the DOM builders for
+  the photo frame, the `ⓘ` credit disclosure and the Learn-more row. Loaded
+  by `index.html` **and, standalone beside `plants.js`, by `credits.html`**,
+  so it touches no DOM at load and assumes no other module exists at load.
 - **`library.js`** — the Plant Library browser (`openLibrary`).
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
@@ -1561,6 +1567,71 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     reuses the same `bloomMonths` timing for discovery; renderer bloom color is
     considered only in an authored bloom season, so foliage or plan colors never
     create false flower-color matches.
+14d. **Plant photographs + image attribution** (`photos.js`, `credits.html`) —
+    the Plant Library's four seasonal illustrations say how a plant BEHAVES
+    across a year, which is what this app is for and what a photograph cannot
+    show. A photograph answers a different question — what it looks like in a
+    real garden — so it sits BELOW them, capped, and is absent for most species,
+    which is a normal state rather than a degraded one. Card order is
+    illustrations → photo → name → latin → blurb → facts → cultivars → Learn more.
+    **It replaced a filename GUESS.** `plantPhoto(key)` used to try
+    `photos/<key>.jpg`, then `.jpeg`, then `.png`, and delete itself when the
+    third 404'd — fine while a photo was just a picture, useless the moment one
+    carried licence terms, because a guessed file has no creator, no source and
+    no licence to show beside it. It also cost up to three failed requests per
+    plant viewed (now zero, measured). A photograph is now **declared in
+    `plants.js`** as a structured `photo` record — never one opaque attribution
+    string — and a file with no record is never displayed.
+    **The record is structured because the fields are separately load-bearing**:
+    `file` is local (the app self-hosts everything and makes zero third-party
+    requests — a privacy-policy and store-label claim, so never hotlink
+    `upload.wikimedia.org`) while `sourceUrl` keeps the ORIGINAL Commons file
+    page, which is the only evidence the licence claim can be re-checked
+    against. Collapsing those two costs either offline use or the provenance.
+    `attributionOverride` is reproduced verbatim where the author specified
+    their own credit string; `copyrightNotice` survives the EXIF strip;
+    `warrantyDisclaimer` is the notice everyone forgets.
+    **Three engineering rules come from the compliance review**
+    (`docs/plant-photos.md`) and are easy to undo by accident, so each is
+    tested. (1) **Never write a modified derivative to disk** — downscale and
+    re-encode only; framing is `aspect-ratio` + `object-fit` in CSS at render
+    time, so the stored file stays the licensor's unmodified work and no
+    "Adapted Material" question can arise to drag ShareAlike toward the app.
+    (2) **A photograph never reaches the game canvas** — not a texture, not the
+    sprite cache, not `takePhoto()`'s PNG; a test greps the renderer modules
+    for the reader's names. (3) **The credit is complete OFFLINE**, so every URL
+    is printed as transcribable text as well as being a link.
+    `PHOTO_LICENSES` is an ALLOWLIST (CC0/PD/CC BY/CC BY-SA, prefer the first
+    three) and `PHOTO_LICENSES_REFUSED` names why for NC, ND, GFDL, the Free Art
+    License and CC 1.0. That it is machine-enforced is the point: **quality
+    signals on Commons are uncorrelated with usability** — the most decorated
+    *Echinacea purpurea* image there is GFDL-only — so a human's eye cannot
+    overrule it. The validator also rejects a `wikipedia.org` source URL
+    outright, because English Wikipedia hosts non-free files LOCALLY and
+    appearing in an article is not permission.
+    The `ⓘ` is a **disclosure in normal flow, not a floating popover** — which
+    is what makes "must not overflow the viewport" true by construction rather
+    than by arithmetic — with `aria-expanded`/`aria-controls`, 44px at a coarse
+    pointer, and an opaque plate (it sits over an arbitrary photograph, the same
+    reason the compass marks got one). Alt text describes the PLANT, never the
+    licence.
+    **`credits.html` is generated from `PLANTS`**, loading `plants.js` +
+    `photos.js` and formatting through the same `photoCreditParts`; a second
+    hand-kept attribution list is the specific failure being avoided, since a
+    stale credit is a licence breach rather than a typo. A test asserts no
+    licence NAME is typed into that page. Its "credits" link used to be a word
+    inside the version anchor pointing at the GitHub repo, so there was nowhere
+    to credit an image at all.
+    **Every declared photo must be in `PRECACHE`** (a test fails until it is):
+    the credit is only complete offline if the picture is there offline too.
+    Watch the shell budget — it is ~1.7MB and photographs will dwarf it.
+    **`?photodemo`** renders the component with an unmistakable SAMPLE placard
+    rather than a fabricated credit; `photoIsSample` gates it, it lives in
+    `photos.js` rather than `plants.js`, and a test asserts no species ships it.
+    `dev/commons-photo.js` drafts a record from the Commons API (refusing
+    off-allowlist licences) and `--verify` re-checks every shipped record before
+    a release — the only defence against a file being deleted from Commons after
+    we shipped it offline.
 15. **Plant eligibility, discovery + HUD** - `plantFits()` is the hard garden
     gate (zone range, range-aware native mode, deer/rabbit-resistant plants, and
     squirrel-resistant bulbs). `game.discovery` is a reversible saved browsing

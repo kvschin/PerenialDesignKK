@@ -107,7 +107,7 @@ function startDailyChallenge(){
    already did this correctly (screens.js, reportCrash). */
 function syncMenuVersion(){
   const a=document.getElementById('menuVersion'); if (!a) return;
-  const txt=`Pocket Prairie v${APP_VERSION} · credits`;
+  const txt=`Pocket Prairie v${APP_VERSION}`;   // Credits is its own footer link now (credits.html)
   if (a.textContent!==txt) a.textContent=txt;
 }
 async function refreshMenuCards(){
