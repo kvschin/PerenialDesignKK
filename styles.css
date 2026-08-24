@@ -169,6 +169,13 @@
   --surface-selection:rgba(74,110,140,.20);
   --surface-danger:rgba(168,58,44,.13);
   --surface-scrim:rgba(46,34,26,.42);
+  /* The raw accent needs deepening on paper exactly as --action-primary and
+     --border-active below already do. #c97f3f reads 5.3:1 on loam but only
+     2.9:1 on paper, which failed in both directions at once: as small-caps
+     label text ON paper, and as the fill UNDER the near-white --ink of every
+     primary button and armed chip. #a2581f measures 4.96:1 both ways. Canvas
+     icons read their own --icon-* tokens, so nothing in the garden moves. */
+  --bronze:#a2581f;
   --border-active:var(--color-accent);
   --action-primary:#a2581f;
   --action-primary-hover:#8c4a16;
@@ -220,6 +227,16 @@
   --text-disabled:#7b6a58;
 }
 [data-theme="light"] .season-sub{color:#4d3d31}
+/* Chrome that sits on the meadow canvas rather than on a panel. The backdrop
+   is world art and never flips, so neither may the ink on top of it. */
+[data-theme="light"] .menu-title-block,
+[data-theme="light"] .menu-foot{
+  --seedhead:#efe6d3;
+  --text-secondary:#cdbfa9;
+  --bronze:#c97f3f;
+  --color-accent-700:#d59a63;
+  --ink-rgb:239,230,211;
+}
 /* An armed tool paints its canvas icon flat against the accent fill. On loam
    the accent is light enough to take a black icon; on paper the accent is a
    deep bronze, so the same icon has to go white instead. */
@@ -340,7 +357,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .panel h2{font-family:'Fraunces',serif;font-weight:600;font-size:28px;line-height:1.08;margin-bottom:6px}
 .panel .sub{color:var(--text-muted);font-size:13px;line-height:1.45;margin-bottom:18px}
 .field{margin-bottom:var(--space-4)}
-.field label{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
+.field label{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:6px}
 .field input{width:100%;padding:11px 12px;font-size:16px;font-family:inherit;border-radius:var(--radius-control);
   border:1.5px solid var(--border-control);background:var(--surface-input);color:var(--text-primary)}
 .field input:focus{outline:none;border-color:var(--focus-ring)}
@@ -352,7 +369,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .check-row input{width:16px;height:16px;accent-color:var(--bronze)}
 /* questionnaire chips: compact choices use chips/segs. The native range is the
    deliberate exception: it is reference geography, so a real select is clearer. */
-.field-hint{font-size:11.5px;color:var(--text-muted);line-height:1.45;margin:6px 0 0}
+/* A form hint is instructions, not decoration — on the translucent setup
+   panel --text-muted measured 4.49:1, a hair under AA. */
+.field-hint{font-size:11.5px;color:var(--text-secondary);line-height:1.45;margin:6px 0 0}
 .chip-grid{gap:7px}
 .chip.toggle::before{content:'';width:13px;height:13px;border-radius:var(--radius-control);border:1.5px solid var(--border-strong);
   margin-right:2px;flex:0 0 auto;transition:background .12s,border-color .12s}
@@ -362,12 +381,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .native-mode .chip{justify-content:center;min-width:0;text-align:center}
 .native-region-row{margin-top:9px}.native-region-row label{margin-bottom:5px}
 .zone-readout{font-size:12.5px;color:var(--seedhead);line-height:1.5;margin:10px 0 0;min-height:1.4em}
-.zone-readout b{color:var(--bronze);font-weight:600}
+.zone-readout b{color:var(--color-accent-700);font-weight:600}
 .link-toggle{display:inline-block;margin-top:8px;background:none;border:none;padding:4px 0;
   color:var(--text-muted);font-size:12px;font-family:inherit;text-decoration:underline;cursor:pointer}
 .link-toggle:hover{color:var(--seedhead)}
 .palette-count{font-size:13px;color:var(--seedhead);margin:16px 0 0;letter-spacing:.01em}
-.palette-count b{color:var(--bronze);font-weight:600}
+.palette-count b{color:var(--color-accent-700);font-weight:600}
 /* setup panels rise + fade in so a screen change feels intentional, not a swap
    (prefers-reduced-motion strips all animation globally at the bottom) */
 @keyframes panelEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -427,16 +446,16 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .ld-img{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;background:linear-gradient(#3a4a3a,#26331f);
   border-radius:var(--radius-panel);padding:10px;margin-bottom:16px}
 .ld-img figure{margin:0;text-align:center}
-.ld-img figcaption{font-size:10px;color:var(--text-secondary);margin-top:2px;letter-spacing:.08em}
+.ld-img figcaption{font-size:10px;color:#cdbfa9;margin-top:2px;letter-spacing:.08em}
 .ld-name{font-family:'Fraunces',serif;font-size:28px;font-weight:600;line-height:1.05}
 .ld-latin{font-style:italic;color:var(--bronze);font-size:14px;margin-bottom:10px}
-.ld-blurb{font-size:14px;color:#ddd0ba;line-height:1.55;margin-bottom:14px}
+.ld-blurb{font-size:14px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px}
 .ld-facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13px;margin-bottom:14px}
 .ld-facts dt{color:var(--bronze);letter-spacing:.04em}
 .ld-facts dd{margin:0;color:var(--seedhead)}
 .ld-cvs{font-size:13px}
 .ld-cvs h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
-.ld-cv{padding:5px 0;border-top:1px solid rgba(var(--ink-rgb),.12);color:#ddd0ba}
+.ld-cv{padding:5px 0;border-top:1px solid rgba(var(--ink-rgb),.12);color:var(--text-secondary)}
 .ld-cv b{color:var(--seedhead);font-style:italic}
 .ld-cv span{color:var(--bronze);font-size:12px}
 /* ---------- the real photograph + its credit (js/photos.js) ----------
@@ -768,7 +787,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   background:var(--surface-overlay);border:1px solid var(--border-quiet);
   border-radius:var(--radius-control);padding:3px 5px;
   box-shadow:0 2px 6px rgba(25,18,15,.35)}
-.compass-edge-label[data-dir="N"] b{color:var(--bronze)}
+.compass-edge-label[data-dir="N"] b{color:var(--color-accent-700)}
 .compass-edge-label.off{opacity:0}
 /* max-height + scroll: the rail is a fixed ~350px column pinned near the top,
    so on a short viewport (phone landscape at 390px tall) its last rows — Undo
@@ -845,7 +864,7 @@ canvas.layer-eye{display:block}
 .layer-row.off .layer-name{text-decoration:line-through}
 .preview-toggle{display:flex;flex-direction:column;gap:7px;margin:0 0 12px;padding:10px;
   border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control)}
-.preview-toggle>span{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--bronze);font-weight:700}
+.preview-toggle>span{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700}
 .preview-toggle small{font-size:11px;line-height:1.35;color:var(--text-muted)}
 .hud-bottom{--catalog-width:clamp(760px,72vw,1440px);position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:50%;z-index:10;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:100%;padding:0 var(--space-2)}
 #sheetHandle{display:flex;align-items:center;gap:8px;justify-content:center;pointer-events:auto;touch-action:none;
@@ -929,7 +948,7 @@ canvas.layer-eye{display:block}
 .palette-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}.palette-manager-row{display:flex;align-items:stretch;gap:5px}.palette-row-action{min-width:58px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif}.palette-row-action:hover{background:var(--surface-control-hover);color:var(--text-primary)}.palette-row-action.add{color:#dff2d2;border-color:rgba(133,186,108,.7);background:rgba(79,127,67,.36)}.palette-row-action.remove,.palette-row-action.danger{color:var(--action-danger-text);border-color:rgba(224,138,122,.4);background:var(--surface-danger)}.palette-assignment-name{display:flex;flex:1;flex-direction:column;justify-content:center;min-width:0;padding:8px 10px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary)}.palette-assignment-name b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palette-assignment-name small{margin-top:2px;color:var(--text-muted);font-size:10px}
 .palette-create{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-quiet)}.palette-create>label{display:block;margin-bottom:6px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--bronze)}.palette-create input{min-width:0;flex:1;padding:10px 11px;border:1.5px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:14px}.palette-create .row{flex-wrap:nowrap}.palette-create .btn{min-width:84px;padding:10px 12px;font-size:13px}
 .palette-unavailable{display:flex;flex-direction:column;gap:5px;padding:9px 10px;border:1px dashed var(--border-quiet);border-radius:var(--radius-control);background:rgba(34,24,19,.28)}.palette-unavailable>p{margin:0;color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.palette-unavailable-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--text-secondary)}.palette-unavailable-info{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.palette-unavailable-info>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.palette-unavailable-info>small{color:var(--text-muted);font-size:9px;line-height:1.2}.palette-unavailable-row button,.palette-rename button{min-height:30px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 10px/1 'IBM Plex Sans',system-ui,sans-serif;padding:0 9px}.palette-rename{display:flex;gap:5px;padding:7px 0}.palette-rename input{min-width:0;flex:1;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:12px;padding:7px 9px}
-.design-start-field{margin-top:12px}.design-start-palette{display:grid;gap:7px}.design-start-choice{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:10px 12px;border:1.5px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);text-align:left}.design-start-choice:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}.design-start-choice.sel{border-color:var(--bronze);background:rgba(201,127,63,.15)}.design-start-choice b{font-size:13px}.design-start-choice small{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.design-start-field{margin-top:12px}.design-start-palette{display:grid;gap:7px}.design-start-choice{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:10px 12px;border:1.5px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);text-align:left}.design-start-choice:hover{background:var(--surface-control-hover);border-color:var(--border-strong)}.design-start-choice.sel{border-color:var(--bronze);background:rgba(201,127,63,.15)}.design-start-choice b{font-size:13px}.design-start-choice small{font-size:11px;color:var(--text-secondary);white-space:nowrap}
 .tray-empty{font-size:12px;color:var(--text-muted);padding:4px 10px;white-space:nowrap}
 .search-count{align-self:center;flex:0 0 auto;padding:5px 8px;border-radius:var(--radius-pill);background:var(--surface-control);
   color:var(--text-muted);font-size:10px;font-weight:700;white-space:nowrap}
@@ -1204,7 +1223,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   background:rgba(var(--ink-rgb),.035)}
 .bloom-name b{display:block;color:var(--seedhead);font-size:13px;line-height:1.15}
 .bloom-name small{display:block;margin-top:2px;color:var(--text-muted);font-size:10.5px;font-style:italic}
-.bloom-name em{display:block;margin-top:4px;color:var(--text-disabled);font-size:10px;font-style:normal}
+.bloom-name em{display:block;margin-top:4px;color:var(--text-muted);font-size:10px;font-style:normal}
 .bloom-cell{position:relative;min-height:44px;padding:7px 6px;border-bottom:1px solid rgba(var(--ink-rgb),.1);
   border-left:1px solid rgba(var(--ink-rgb),.07);display:flex;align-items:center;justify-content:center}
 .bloom-cell.spring{background:rgba(138,160,118,.035)}

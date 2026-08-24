@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.23';
+const APP_VERSION = '0.8.24';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be

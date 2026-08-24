@@ -4551,6 +4551,43 @@ test('a single-scheme garden saves exactly as it always did', async () => {
    the old cache is never retired, and every visitor keeps being served the
    previous build indefinitely. That is not hypothetical: 0.6.5 and 0.6.6 both
    shipped that way and neither reached the live site. */
+test('light mode deepens the accent and keeps no cream ink on paper', () => {
+  /* Two shapes of the same bug, both of which shipped. The sandbox has no
+     layout engine and getComputedStyle answers '' (docs/test-sandbox.md), so a
+     real contrast ratio can only be measured in a browser — what CAN be pinned
+     here is the source condition that produced the failures.
+
+     (1) --bronze is used as TEXT in ~40 rules and as the FILL under the
+     near-white --ink of every primary control. #c97f3f reads 5.3:1 on loam and
+     2.9:1 on paper, so on paper it failed in both directions at once. Light
+     mode had already deepened the accent for --action-primary and
+     --border-active; this is the copy that was missed.
+
+     (2) The Plant Library card carried literal cream inks that predate the
+     theme and never followed it, measured at 1.38:1 on paper — the plant
+     description and the entire cultivar list were invisible in light mode. */
+  const css = readRepoFile('styles.css');
+  const light = (css.match(/\[data-theme="light"\]\{([\s\S]*?)\n\}/) || ['', ''])[1];
+  assert(light, 'styles.css has a [data-theme="light"] token block');
+  assert(/--bronze\s*:/.test(light),
+    'light mode must deepen --bronze; #c97f3f measures 2.9:1 on paper as text and under --ink');
+
+  /* The literals that were there. Neither may come back anywhere outside the
+     print block, which deliberately forces black on white for the paper sheet. */
+  const body = css.replace(/@media print\{[\s\S]*?\n\}/g, '');
+  assert(!/#ddd0ba/i.test(body),
+    'the library card must not hardcode cream ink — it does not follow the theme');
+
+  /* Chrome that sits on the meadow CANVAS cannot follow the theme either: the
+     meadow is world art and never flips, so light mode painted dark ink onto a
+     dark meadow at 1.03:1. Everything between them is inside .menu-card, which
+     carries a themed paper plate. */
+  assert(/\[data-theme="light"\][^{]*\.menu-title-block/.test(css),
+    'the menu title block must keep its dark-theme inks in light mode');
+  assert(/\[data-theme="light"\][^{]*\.menu-foot/.test(css),
+    'the menu footer must keep its dark-theme inks in light mode');
+});
+
 test('the service worker ships the version it was built with', () => {
   const read = readRepoFile;
   const swVersion = (read('sw.js').match(/^const VERSION\s*=\s*'([^']+)'/m) || [])[1];

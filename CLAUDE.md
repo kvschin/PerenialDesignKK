@@ -2338,15 +2338,45 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
     '--icon-warm' | '--icon-halo')` in core.js, which caches the computed values
     and is invalidated by `applyTheme()` (which then rebuilds the icons). A new
     canvas icon that hardcodes a light neutral will be invisible in light mode.
-  - Accents move between themes: bronze `#c97f3f` reads 5.3:1 on loam but only
-    3.2:1 on paper, so light mode uses a deeper `--color-accent` and
-    `--color-accent-700` is "the higher-contrast step against the surface" in
-    *both* directions (lighter on loam, darker on paper) — reach for it on small
-    caps rather than plain accent.
+  - **Accents move between themes, and `--bronze` itself is one of them.**
+    `#c97f3f` reads 5.3:1 on loam and only 2.9:1 on paper, so light mode
+    deepens it to `#a2581f` (4.96:1). That token failed in BOTH directions at
+    once and the second one is easy to miss: it is text in ~40 rules, and it is
+    also the FILL under the near-white `--ink` of every primary button and armed
+    chip, so on paper the label on a bronze button was as bad as bronze label
+    text on paper. Light mode had already deepened the accent for
+    `--action-primary` and `--border-active`; the raw token was the copy nobody
+    updated. `--color-accent-700` remains "the higher-contrast step against the
+    surface" in *both* directions (lighter on loam, darker on paper) — reach for
+    it on small caps and on anything sitting on a TRANSLUCENT panel over the
+    garden, where even the deepened bronze only reaches 3.3-3.8:1.
+  - **Text on the meadow canvas must not follow the theme.** The menu's title
+    block and footer are the only chrome sitting directly on `#menuCanvas`;
+    everything between them is inside `.menu-card`, which carries a themed
+    translucent paper plate. The meadow is world art and never flips, so light
+    mode painted dark ink onto a dark meadow at 1.03:1. `[data-theme="light"]
+    .menu-title-block, .menu-foot` re-declare the inks locally rather than
+    rewriting five rules. Same reasoning pins `.ld-img figcaption`: the Plant
+    Library's illustration panel is a fixed dark plate, because the plants'
+    greens and blooms are authored to sit on one.
   - The HUD's `color-mix(--color-text N%, transparent)` text ramp is **not**
     symmetric (52% seedhead over loam is bright; 52% loam over paper is washed
     to 3.25:1), so `[data-theme="light"] #hud` overrides it with solid inks.
-    Both themes are verified at 0 contrast failures across 23 sampled elements.
+  - **Verified at 0 WCAG AA failures in both themes**, measured across every
+    reachable surface — menu, design questionnaire, plot setup, worlds list,
+    daily challenge, Plant Library, garden HUD/rail/top bar, catalog, garden
+    menu, plant filters, planting list, bloom calendar, time menu: ~3,900
+    elements on paper and 3,739 on loam. Two things make that measurement
+    trustworthy and both cost a wrong answer first: composite the effective
+    background by **painting each colour onto a 1x1 canvas over known black and
+    known white** (a regex parser reads `color(srgb .94 .90 .83 / .52)` — what
+    `color-mix` returns — as an almost-black triple, and reads a `gradient` as
+    no background at all, which reported the entire title screen as failing);
+    and **load the page in the theme rather than toggling `data-theme` at
+    runtime**, because `getComputedStyle` hands back stale backgrounds for
+    subtrees that have not been re-styled, which invents symmetric failures in
+    whichever theme you did not start in. A test pins the source conditions —
+    it cannot pin a ratio, since the sandbox has no layout engine.
 - **Forced colors.** `@media (forced-colors: active)` is load-bearing here, not
   a nicety: ~54 buttons draw their icons to `<canvas>`, and forced-colors does
   not recolour canvas bitmaps, so without it the whole tool system renders as
