@@ -461,10 +461,17 @@ function bulbEnvelope(key){ // spring ephemerals by default; onions can carry su
     return 0;
   }
   if (P.bulbSeason==='fall'){
+    // Colchicum and ivy-leaved cyclamen flower in fall but carry a separate
+    // spring leaf season. Only taxa that author winterFoliage remain above
+    // ground between those phases.
+    if (P.springFoliage && ydf<DAYS_PER_SEASON){
+      if (ydf<10) return 1;
+      return Math.max(0,(DAYS_PER_SEASON-ydf)/6);
+    }
     if (ydf<24) return 0;
     if (ydf<32) return (ydf-24)/8;
-    if (ydf<60) return 1;
-    return Math.max(0,(YEAR_DAYS-ydf)/4);
+    if (ydf<YEAR_DAYS-DAYS_PER_SEASON) return 1;
+    return P.winterFoliage ? 1 : 0;
   }
   if (ydf>=DAYS_PER_SEASON) return 0;          // underground from summer on
   if (ydf<1.5) return ydf/1.5;

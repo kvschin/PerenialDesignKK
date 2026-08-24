@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,467,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,473,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),376,
     'canonical nested-choice count');
@@ -283,6 +283,76 @@ test('bulb-only fields are valid when present', () => {
     // a bulbSeason only makes sense on an actual bulb
     if (P.bulbSeason !== undefined) assert(P.type === 'bulb', `${k}: bulbSeason on a non-bulb`);
   }
+});
+
+test('the bulb audit keeps a complete morphology and catalog contract', () => {
+  const additions={
+    alliumsphaerocephalon:['Allium sphaerocephalon','globe',[6,7]],
+    crocuschrysanthus:['Crocus chrysanthus','bulbcup',[2,3]],
+    liliummartagon:['Lilium martagon','martagon',[6,7]],
+    liliumsuperbum:['Lilium superbum','martagon',[7,8]],
+    englishbluebell:['Hyacinthoides non-scripta','spike',[4,5]],
+    cyclamenhederifolium:['Cyclamen hederifolium','cone',[9,10]],
+  };
+  for(const [k,[latin,form,months]] of Object.entries(additions)){
+    const P=PLANTS[k];
+    assert(P,`${k}: audited bulb addition is missing`);
+    assertEqual(P.latin,latin,`${k}: botanical name`);
+    assertEqual(P.form,form,`${k}: renderer form`);
+    assertEqual(P.type,'bulb',`${k}: stays in the bulb layer`);
+    assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),`${k}: bloom calendar`);
+  }
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,39,'audited base bulb count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')
+    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),82,'audited exact bulb count');
+
+  assertEqual(PLANTS.alliumChristophii.latin,'Allium cristophii','Star of Persia uses the accepted spelling');
+  assertEqual(PLANTS.alliumcarinatum.latin,'Allium cirrhosum','Pretty garlic uses the accepted taxon');
+  assertEqual(PLANTS.puschkinia.latin,'Puschkinia scilloides','striped squill uses the accepted species');
+  assertEqual(PLANTS.lycoris.provenance,'species','surprise lily no longer masquerades as a hybrid');
+  assert(PLANTS.scillaperuviana.nativeTo.includes('africa'),'Portuguese squill records its North African range');
+  assertEqual(PLANTS.scillaperuviana.bulbSeason,'summer','Portuguese squill survives into its early-summer bloom');
+  assert(PLANTS.colchicum.springFoliage,'colchicum exposes its separate spring leaf season');
+  assert(PLANTS.cyclamenhederifolium.springFoliage,'ivy-leaved cyclamen exposes its winter-spring leaf season');
+  assert(PLANTS.cyclamenhederifolium.winterFoliage,'ivy-leaved cyclamen keeps its winter leaf carpet');
+  assert(!PLANTS.colchicum.winterFoliage,'colchicum remains underground in winter');
+
+  const styles={
+    crocus:['bulbcup','bulbStyle','crocus'], daffodil:['bulbcup','bulbStyle','daffodil'],
+    tulip:['bulbcup','bulbStyle','tulip'], snowdrop:['bulbcup','bulbStyle','snowdrop'],
+    winteraconite:['bulbcup','bulbStyle','aconite'], leucojum:['bulbcup','bulbStyle','snowflake'],
+    muscari:['spike','spikeStyle','bulbRaceme'], camassia:['spike','spikeStyle','bulbRaceme'],
+    yellowtroutlily:['martagon','lilyStyle','trout'], fritillaria:['martagon','lilyStyle','fritillary'],
+    lycoris:['martagon','lilyStyle','lycoris'], alliumAtropurpureum:['globe','globeStyle','allium'],
+  };
+  for(const [k,[form,field,value]] of Object.entries(styles)){
+    assertEqual(PLANTS[k].form,form,`${k}: base form`);
+    assertEqual(PLANTS[k].look[field],value,`${k}: audited morphology style`);
+  }
+  assertEqual(PLANTS.gardentulip.cv.angelique.look.flowerStyle,'double','Angelique is visibly double');
+  assertEqual(PLANTS.dahlia.cv.bishopOfLlandaff.look.flowerStyle,'peonySemiDouble','Bishop retains a visible disc');
+  assertEqual(PLANTS.dahlia.cv.cornelBronze.look.flowerStyle,'ball','Cornel Brons retains its ball class');
+  assertEqual(PLANTS.daffodil.cv.icefollies.look.corona,'largeCup','Ice Follies keeps its broad large cup');
+  assertEqual(PLANTS.muscari.cv.blueSpike.look.doubleFlorets,true,'Blue Spike carries doubled florets');
+  assertEqual(PLANTS.alliumsphaerocephalon.look.headAccent,'lower','Drumstick Allium keeps its green lower florets');
+  assertEqual(PLANTS.cyclamenhederifolium.look.bloomStemsOnly,true,'Cyclamen scapes are confined to bloom');
+  const rgb=c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
+  for(const k of PLANT_KEYS.filter(k=>PLANTS[k].group==='alliumbulb')){
+    for(const season of ['Fall','Winter']){
+      const seed=PLANTS[k].sea[season]&&PLANTS[k].sea[season].seed;
+      if(!seed) continue;
+      const [r,g,b]=rgb(seed);
+      assert(r>=g&&g>=b&&(r-g)<=g-b+4,
+        `${k} ${season} seedhead must dry to straw/tan instead of retaining bloom color (${seed})`);
+    }
+  }
+  assertEqual(PLANTS.camassialeichtlinii.cv.blueMelody.look.leafStripe,'#e6dfc9','Blue Melody carries real leaf variegation');
+  for(const v of ['kingalfred','dutchmaster','icefollies','carlton','tetatete','thalia','mountHood']){
+    assertEqual(PLANTS.daffodil.cv[v].provenance,'hybrid',`${v}: garden daffodil provenance`);
+    assertEqual(PLANTS.daffodil.cv[v].nativeTo.length,0,`${v}: garden daffodil claims no wild range`);
+  }
+  assertEqual(PLANTS.daffodil.cv.actaea.provenance,'selection','Actaea remains a selection');
+  assert(PLANTS.daffodil.cv.actaea.nativeTo.includes('europe'),'Actaea retains its European species range');
 });
 
 test('real-world bloom month metadata is valid when present', () => {
@@ -640,7 +710,7 @@ test('European Oudolf additions retain their design roles and distinct renderer 
 
 test('requested sun and shade catalog expansion retains distinct taxa and cultivars', () => {
   const expected = {
-    alliumcarinatum:['Allium carinatum subsp. pulchellum','bulb'],
+    alliumcarinatum:['Allium cirrhosum','bulb'],
     alliumcaeruleum:['Allium caeruleum','bulb'],
     graysedge:['Carex grisea','sedge'],
     mountainsedge:['Carex montana','sedge'],

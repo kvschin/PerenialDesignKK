@@ -278,6 +278,7 @@ const BROWSE_RESIST_KEYS=new Set([
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
+  'englishbluebell','cyclamenhederifolium',
   // tough shrubs — berried natives and the resistant viburnums, listed by key
   // rather than by group because doublefile shares group:'viburnum' and is browsed
   'sumac','coralberry','smokebush','winterberry','inkberry','chokeberry',
@@ -309,7 +310,10 @@ function staticPlantRoles(k){
   }
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
   if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
-  if (P.type==='bulb') roles.add('bulbLayer'), roles.add('early'), roles.add('seasonal');
+  if (P.type==='bulb'){
+    roles.add('bulbLayer'); roles.add('seasonal');
+    if ((P.bloomMonths||[]).some(m=>m<=4)) roles.add('early');
+  }
   if (P.type==='water') roles.add('wet'), roles.add('water'), roles.add('naturalistic');
   if (isShrubDef(P)) roles.add('structure');
   if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');

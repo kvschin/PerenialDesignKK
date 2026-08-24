@@ -245,6 +245,115 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
+test('a dormant bulb paints no detached shadow', () => {
+  let ops=0;
+  const ctx=new Proxy({}, {get(){ return ()=>{ ops++; }; },set(){ return true; }});
+  drawPlant(ctx,0,0,'colchicum',0,'Summer',12,0,undefined,0);
+  assertEqual(ops,0,'growth-zero geophytes leave no canvas operations behind');
+});
+
+test('bulbs paint no orphan organs in empty seasonal slots', () => {
+  for(const key of PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')){
+    for(const variant of [undefined,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,variant);
+      for(const season of SEASONS){
+        const S=P.sea[season]||{};
+        if(S.fol||S.seed||S.bloom) continue;
+        let ops=0;
+        const ctx=new Proxy({}, {get(){ return ()=>{ ops++; }; },set(){ return true; }});
+        drawPlant(ctx,0,0,key,1,season,12,0,variant,0);
+        assertEqual(ops,0,`${key}${variant?`:${variant}`:''} ${season} has no authored visible organ`);
+      }
+    }
+  }
+});
+
+test('growth-zero non-bulbs retain their establishment rendering', () => {
+  let ops=0;
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o) return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return ()=>{ ops++; };
+    },
+    set(o,p,v){ o[p]=v; return true; },
+  });
+  drawPlant(ctx,0,0,firstOfType('forb'),0,'Summer',12,0,undefined,0);
+  assert(ops>0,'newly placed non-bulbs still paint at their renderer growth floor');
+});
+
+test('audited bulb morphologies are deterministic and visibly distinct', () => {
+  function trace(key,season,variant){
+    const ops=[];
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o) return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return (...args)=>{
+          if(['moveTo','lineTo','quadraticCurveTo','bezierCurveTo','arc','ellipse','fillRect','rotate','translate','scale','fill','stroke'].includes(p))
+            ops.push([p,...args.map(v=>typeof v==='number'?Math.round(v*100)/100:v)]);
+        };
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawPlant(ctx,0,0,key,1,season,9137,0,variant,1);
+    return JSON.stringify(ops);
+  }
+  const representatives=[
+    ['daffodil','Spring'],['tulip','Spring'],['snowdrop','Spring'],['winteraconite','Spring'],
+    ['muscari','Spring'],['camassia','Spring'],['puschkinia','Spring'],
+    ['claudeshride','Summer'],['yellowtroutlily','Spring'],['fritillaria','Spring'],['lycoris','Summer'],
+    ['alliumAtropurpureum','Summer'],['alliumsphaerocephalon','Summer'],['dahlia','Summer'],
+  ];
+  const signatures=representatives.map(([k,s])=>trace(k,s));
+  assertEqual(new Set(signatures).size,signatures.length,
+    'trumpet, goblet, pendant, collar, bead, star-raceme, striped, lily, trout, checker, naked-scape, allium, and dahlia grammars differ');
+  assertEqual(trace('lycoris','Summer'),trace('lycoris','Summer'),'bulb geometry is stable for cached cards and canvas');
+  assertEqual(new Set(['angelique','springGreen','ballerina'].map(v=>trace('gardentulip','Spring',v))).size,3,
+    'double, green-flamed, and lily-flowered tulips keep distinct traces');
+  assertEqual(new Set([undefined,'icefollies','actaea'].map(v=>trace('daffodil','Spring',v))).size,3,
+    'trumpet, broad large-cup, and small-disc daffodils keep distinct traces');
+  assert(trace('colchicum','Fall','waterlily')!==trace('colchicum','Fall'),
+    'Waterlily adds a third inner tepal ring instead of reusing the single goblet');
+  assertEqual(new Set(['cafeAuLait','bishopOfLlandaff','cornelBronze'].map(v=>trace('dahlia','Summer',v))).size,3,
+    'decorative, peony, and ball dahlia classes keep distinct traces');
+});
+
+test('ball dahlias batch dense florets into a bounded fill budget', () => {
+  let fills=0;
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o) return o[p];
+      if(p==='fill') return ()=>{ fills++; };
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return ()=>{};
+    },
+    set(o,p,v){ o[p]=v; return true; },
+  });
+  drawPlant(ctx,0,0,'dahlia',1,'Summer',9137,0,'cornelBronze',1);
+  assert(fills<160,`Cornel Brons stays within a bounded paint budget (${fills} fills)`);
+});
+
+test('Allium flower accents do not survive into dried seedheads', () => {
+  function paintedColors(season,bloomLvl){
+    const colors=[];
+    const ctx=new Proxy({fillStyle:''}, {
+      get(o,p){
+        if(p==='fill') return ()=>colors.push(o.fillStyle);
+        if(p in o) return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return ()=>{};
+      },
+      set(o,p,v){ o[p]=v; return true; },
+    });
+    drawPlant(ctx,0,0,'alliumRedMohican',1,season,9137,0,undefined,bloomLvl);
+    return colors;
+  }
+  const flowerAccent=shade(PLANTS.alliumRedMohican.look.topknot,-8);
+  assert(paintedColors('Summer',1).includes(flowerAccent),'Red Mohican shows its pale topknot while flowering');
+  assert(!paintedColors('Fall',0).includes(flowerAccent),'the pale topknot is absent from its dried fall seedhead');
+});
+
 test('grass blade-tip colour adds one optional tip pass', () => {
   const fills=[];
   const ctx={
@@ -1113,6 +1222,30 @@ test('exact bloom-day species stay gated to their authored season', () => {
     'prairie onion cannot borrow its Fall flower color into Summer');
   assert(bloomAppearanceFor(PLANTS.gaura, 'Fall'),
     'month-window plants retain their boundary color bridge');
+});
+
+test('fall geophytes can carry a separate winter-spring leaf season', () => {
+  setup();
+  game.dayOffset=4;
+  assert(bulbEnvelope('colchicum')>0.9,'colchicum spring leaves reach the renderer');
+  assert(bulbEnvelope('cyclamenhederifolium')>0.9,'cyclamen keeps its spring leaf carpet');
+  game.dayOffset=20;
+  assertEqual(bulbEnvelope('colchicum'),0,'colchicum is dormant in summer');
+  game.dayOffset=36;
+  assert(bulbEnvelope('colchicum')>0.9,'colchicum returns for naked fall flowers');
+  game.dayOffset=52;
+  assertEqual(bulbEnvelope('colchicum'),0,'colchicum is fully dormant after its fall flowers');
+  assert(bulbEnvelope('cyclamenhederifolium')>0.9,'cyclamen foliage persists through winter');
+  assertEqual(PLANTS.dahlia.bloomDay,undefined,'dahlia uses one July-to-October bloom window instead of restarting each season');
+  assertEqual(bloomWindowsFor(PLANTS.dahlia).length,1,'dahlia has one continuous annual bloom run');
+});
+
+test('winter-dormant Colchicum paints no orphan shadow', () => {
+  setup(); game.dayOffset=52;
+  let ops=0;
+  const ctx=new Proxy({}, {get(){ return ()=>{ ops++; }; },set(){ return true; }});
+  drawPlant(ctx,0,0,'colchicum',bulbEnvelope('colchicum'),'Winter',12,0,undefined,0);
+  assertEqual(ops,0,'winter Colchicum has neither organs nor a detached ground shadow');
 });
 
 test('bulbs cannot be planted under a tree trunk or shrub footprint', () => {

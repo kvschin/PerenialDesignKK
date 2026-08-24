@@ -507,10 +507,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    warm 7/28 — full through fall, winter holds full-size dead structure).
    Woody plants (`type` shrub/tree) skip the envelope entirely — no spring
    cutback — and establish over `grow` *years* of growing days instead of
-   10 days. Bulbs (`type` bulb) use `bulbEnvelope()`: up at spring day 0,
-   full by day 1.5, yellowing away by day 15, underground (growth 0,
-   render-culled) the rest of the year; `bloomDay` sequences their bloom
-   (crocus 1 → camassia 9) and overrides the phen center in `bloomLevel`. `canopyRadius()`/`shadeAt()`: trees shade `woodyRadiusTiles(P)`
+   10 days. Bulbs (`type` bulb) use `bulbEnvelope()`: spring bulbs are up at
+   spring day 0, full by day 1.5, yellowing away by day 15, and underground
+   (growth 0, render-culled) the rest of the year. `bulbSeason:'summer'|'fall'`
+   moves that envelope for later geophytes. A fall bulb may opt into
+   `springFoliage:true` when its leaves are a separate spring event (Colchicum
+   and ivy-leaved cyclamen), and `winterFoliage:true` when that leaf carpet also
+   persists through winter (ivy-leaved cyclamen only); the seasonal `sea` slots
+   keep those leaves separate from the naked fall flowers. `bloomDay` sequences compact,
+   single-season bloom (crocus 1 → camassia 9) and overrides the phen center in
+   `bloomLevel`; long-running bulbs such as Dahlia omit it and use one continuous
+   `bloomMonths` window. `canopyRadius()`/`shadeAt()`: trees shade `woodyRadiusTiles(P)`
    tiles, derived from real `spread` inches and scaled by establishment; never
    use `cw` for shade or footprint radius. Planting in active true-establishment
    shade is refused unless the plant is `sun:'part'` (T9 may soften that into a
@@ -2077,6 +2084,20 @@ Archbells can select `archStyle:'bleedingHeart'`, while spikes can select
 `rayShape:'poppy'` for four broad petals with basal marks. Omitted values
 preserve the defaults.
 
+Bulb morphology uses the same data-first rule. `bulbcup` selects
+`look.bulbStyle:'crocus'|'tulip'|'daffodil'|'snowdrop'|'snowflake'|'aconite'|
+'colchicum'` and optional `flowerStyle`, `pattern`, `flowersPerStem`, or
+`doubleFlower`; bulb racemes use `spikeStyle:'bulbRaceme'` with star, grape-bell,
+striped-star, or one-sided nodding-bell florets. `martagon` uses `lilyStyle` for
+recurved lilies, trout lily, checked fritillary, and naked-scape Lycoris.
+Allium globes author `globeStyle:'allium'` plus sphere, hemisphere, ovoid, or
+loose-pendant head shape; Dahlias author decorative-double, peony-semidouble,
+or ball flower classes. These are shared silhouette grammars, never species-key
+branches. Summer-flowering Alliums use warm straw/tan `seed` colors in Fall and
+Winter rather than carrying their purple, red, pink, or blue bloom hue forward;
+flower accents such as a topknot are bloom-only. Omitted values preserve the
+pre-audit renderer for unrelated plants.
+
 Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
 'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded
 `fruitCluster` of 1–4. `seedN` remains the total fruit-glyph budget and `seedR`
@@ -2109,7 +2130,7 @@ Footprint rules are intentionally asymmetric:
 | Plant/object | Hard footprint | Soft or visual reach |
 | --- | --- | --- |
 | Herbaceous grasses/sedges/forbs/water plants | One plant tile, or a stored sub-tile art offset when free planting is on. They do not reserve `spread`. | `space` drives matrix/export spacing; `spread` is mature-width metadata. |
-| Bulbs | One bulb-layer tile. They may share with non-woody plants, but not a woody trunk or mature shrub reservation. | Seasonal bulb art comes from `bulbEnvelope()` and `bloomDay`. |
+| Bulbs | One bulb-layer tile. They may share with non-woody plants, but not a woody trunk or mature shrub reservation. | Seasonal bulb art comes from `bulbEnvelope()`, `bloomDay`/`bloomMonths`, and optional split `springFoliage`. |
 | Shrubs | Mature rounded footprint from `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from `spread`. Paths, water, structures, bulbs, and perennials refuse it; compatible hedges may connect edge-to-edge. Because that footprint overhangs its own tile, "is a shrub on this tile" cannot be a map lookup — `shrubAt` consults **`shrubIndex()`**, a list of the shrubs alone cached on `plantsRev` + map identity, and bounding-box rejects before the exact test. It used to scan every PLANT (1486 to consult 26 on a quarter acre, with two allocations each): instrumented, that scan was ~97% of the cost of painting terrain, and it also ran once per selected item per frame during a selection drag (50ms/frame on a 20x20 marquee) and once per disc tile inside the pointer handler on every paint stamp. Keep it O(shrubs). | Faint base/hover/focus/pulse/ghost rings reuse the same mature footprint. |
 | Trees | One hard trunk tile. Canopy area is deliberately open for underplanting except for the separate shade-suitability rule. | Shade, plan circles, placement ghosts, and the Mature Canopies overlay use `woodyRadiusTiles(P)` from `spread`; spacing is a soft warning from `space`. |
 
@@ -2327,8 +2348,13 @@ not from the tab-local scaffolding that was just removed.
   cedar, arborvitae/juniper/cypress, and weeping habits). Still open is a
   separate low/dwarf-conifer pass: spreading juniper, bird's nest spruce, and
   mugo pine need ground-hugging architecture rather than an upright tree
-  squeezed into the yew renderer. Further regional bulb expansion remains
-  open.
+  squeezed into the yew renderer. A focused bulb audit is landed (Aug 2026):
+  shared goblet/trumpet/bell/lily/raceme/allium/Dahlia grammars now separate the
+  former six generic silhouettes; drumstick allium, golden crocus, straight
+  martagon lily, American Turk's-cap lily, English bluebell, and ivy-leaved
+  cyclamen fill the strongest naturalistic and regional gaps. Future bulb work
+  should stay restrained: oriental hyacinth, white Allium 'Mount Everest', and
+  snowdrop 'S. Arnott' are the next candidates only after another balance pass.
   A **fern pass** is landed (Aug 2026), and like the shrub passes it extended
   the data grammar rather than adding species branches. The `fern` form had no
   `look` knobs at all — nine fronds, one fan angle, one leaflet size baked in
