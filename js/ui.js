@@ -186,6 +186,7 @@ const ROLE_LABELS={
   fern:'Fern layer',
   flower:'Flower color',
   formal:'Formal',
+  fruit:'Fruit tree',
   gravel:'Gravel garden',
   groundcover:'Groundcover',
   hedge:'Hedge',
@@ -199,6 +200,8 @@ const ROLE_LABELS={
   native:'Native',
   naturalistic:'Naturalistic',
   nectar:'Nectar',
+  nut:'Nut crop',
+  orchard:'Orchard',
   pollinator:'Pollinator',
   prairie:'Prairie',
   rabbitOk:'Rabbit-resistant',
@@ -216,7 +219,7 @@ const ROLE_LABELS={
   woodland:'Woodland',
 };
 const ROLE_DISPLAY_ORDER=[
-  'prairie','matrix','pollinator','nectar','host','shade','woodland','groundcover',
+  'orchard','fruit','nut','prairie','matrix','pollinator','nectar','host','shade','woodland','groundcover',
   'structure','hedge','evergreen','architectural','modern','formal','japanese',
   'cottage','romantic','bulbLayer','early','dry','gravel','mediterranean',
   'coastal','wind','winter','seedhead','native','flower','seasonal','water','wet',
@@ -299,7 +302,11 @@ function staticPlantRoles(k){
   if (P.moist==='dry') roles.add('dry');
   if (P.moist==='moist') roles.add('wet');
   if (hasSeasonProp(P,'bloom')) roles.add('flower'), roles.add('pollinator'), roles.add('seasonal');
-  if (hasSeasonProp(P,'seed')) roles.add('winter'), roles.add('seedhead');
+  if (hasSeasonProp(P,'seed')){
+    const crop=roles.has('fruit')||roles.has('nut');
+    if (!crop) roles.add('winter'), roles.add('seedhead');
+    else if (P.sea&&P.sea.Winter&&P.sea.Winter.seed) roles.add('winter');
+  }
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
   if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');
   if (P.type==='bulb') roles.add('bulbLayer'), roles.add('early'), roles.add('seasonal');
@@ -531,7 +538,13 @@ function flowerFamiliesFor(P,season){
 function bloomRangeText(P){
   const months=bloomMonthsFor(P); if (!months.length) return 'No bloom time recorded';
   const labels=CAL_MONTH_LABELS||['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const first=months[0], last=months[months.length-1];
+  if (months.length===12) return `${labels[0]}\u2013${labels[11]}`;
+  let gapAt=0, maxGap=-1;
+  for (let i=0;i<months.length;i++){
+    const next=i===months.length-1?months[0]+12:months[i+1], gap=next-months[i];
+    if (gap>maxGap){ maxGap=gap; gapAt=i; }
+  }
+  const first=months[(gapAt+1)%months.length], last=months[gapAt];
   return first===last ? labels[first-1] : `${labels[first-1]}\u2013${labels[last-1]}`;
 }
 function plantRefFitsCriteria(ref,criteria){
@@ -1082,4 +1095,3 @@ function skipNextYear(){
   $('pauseMeta').textContent=clockMeta();
   toast(`Year ${cal.year} begins.`);
 }
-

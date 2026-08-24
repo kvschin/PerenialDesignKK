@@ -6,7 +6,7 @@ const SUNS   = ['full', 'part'];
 const MOISTS = ['dry', 'medium', 'moist'];
 const PHENS  = ['cool', 'mid', 'warm'];
 const SEASON_KEYS = ['Spring', 'Summer', 'Fall', 'Winter'];
-const COLOR_KEYS  = ['fol', 'bloom', 'seed', 'eye', 'bract', 'edge', 'twig'];
+const COLOR_KEYS  = ['fol', 'folTip', 'bloom', 'seed', 'eye', 'bract', 'edge', 'twig'];
 const keys = Object.keys(PLANTS);
 
 test('PLANTS is a non-empty object', () => {
@@ -94,9 +94,9 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,428,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,467,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),288,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),376,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -192,6 +192,68 @@ test('trees declare a real mature height (heightIn)', () => {
           `${k}.${cvk}: cultivar heightIn should be a plausible height at or under the species`);
     }
   }
+});
+
+test('resized orchard-tree cultivars declare exact real dimensions', () => {
+  for (const k of keys){
+    const P=PLANTS[k]; if (P.type!=='tree'||!(P.roles||[]).includes('orchard')) continue;
+    for (const [v,C] of Object.entries(P.cv||{})){
+      const resized=['h','cw','space','spread'].some(f=>Object.hasOwn(C,f));
+      if (!resized) continue;
+      assert(typeof C.heightIn==='number'&&typeof C.spread==='number',
+        `${k}.${v}: a resized tree cultivar needs exact heightIn and spread`);
+    }
+  }
+});
+
+test('home-orchard expansion covers common temperate and zone-9 fruit and nut groups', () => {
+  const fruit=['apple','europeanpear','asianpear','sweetcherry','sourcherry','americanplum','europeanplum','japaneseplum',
+    'hybridplum','peach','apricot','americanpersimmon','asianpersimmon','pawpaw','quince','fig',
+    'redmulberry','jujube','pomegranate','olive','loquat','sweetorange','mandarin','lemon','persianlime',
+    'keylime','grapefruit','avocado'];
+  const nuts=['almond','pecan','blackwalnut','englishwalnut','butternut','americanchestnut',
+    'chinesechestnut','americanhazel','europeanhazel','shagbarkhickory','pistachio','macadamia'];
+  for (const k of fruit){
+    assert(PLANTS[k],`${k}: missing common fruit tree`);
+    assert((PLANTS[k].roles||[]).includes('orchard')&&(PLANTS[k].roles||[]).includes('fruit'),
+      `${k}: missing orchard/fruit discovery roles`);
+  }
+  for (const k of nuts){
+    assert(PLANTS[k],`${k}: missing common nut tree`);
+    assert((PLANTS[k].roles||[]).includes('orchard')&&(PLANTS[k].roles||[]).includes('nut'),
+      `${k}: missing orchard/nut discovery roles`);
+  }
+  assertEqual(PLANTS.apple.provenance,'hybrid','domesticated apple does not claim a wild species range');
+  assertEqual(PLANTS.hybridplum.provenance,'hybrid','cold-climate hybrid plum records its lineage');
+  assert(PLANTS.pawpaw.nativeTo.includes('north-america'),'pawpaw records its North American range');
+  assert(PLANTS.europeanpear.nativeTo.includes('europe'),'European pear records its European range');
+  assert(PLANTS.asianpear.nativeTo.includes('asia'),'Asian pear records its Asian range');
+  assertEqual(PLANTS.sweetorange.provenance,'hybrid','sweet orange records its cultivated hybrid origin');
+  assert(PLANTS.avocado.nativeTo.includes('central-america'),'avocado records its Mesoamerican range');
+  assert(PLANTS.macadamia.nativeTo.includes('australasia'),'macadamia records its Australian range');
+  assertEqual(PLANTS.redmulberry.cv.illinoiseverbearing.provenance,'hybrid',
+    'Illinois Everbearing does not inherit red mulberry species provenance');
+  assertEqual(PLANTS.redmulberry.cv.illinoiseverbearing.nativeTo.length,0,
+    'the interspecific mulberry hybrid claims no wild range');
+});
+
+test('tree-fruit rendering metadata stays bounded and seasonal', () => {
+  const shapes=new Set(['round','pear','fig','oval','pod','nut','husk','bur','pomegranate']);
+  const orchardTrees=keys.filter(k=>PLANTS[k].type==='tree'&&(PLANTS[k].roles||[]).includes('orchard'));
+  assert(orchardTrees.length>=25,'expected a substantial home-orchard tree palette');
+  for (const k of orchardTrees){
+    const P=PLANTS[k];
+    assert(shapes.has(P.look.fruitShape),`${k}: invalid or missing tree fruit shape`);
+    assert(Number.isInteger(P.look.seedN)&&P.look.seedN>=0&&P.look.seedN<=16,
+      `${k}: seedN must remain a bounded total fruit budget`);
+    if (P.look.fruitCluster!==undefined)
+      assert(P.look.fruitCluster>=1&&P.look.fruitCluster<=4,`${k}: fruitCluster outside 1-4`);
+  }
+  assertEqual(PLANTS.pistachio.cv.peters.look.seedN,0,'male pistachio deliberately suppresses nuts');
+  assertEqual(PLANTS.olive.cv.littleollie.look.seedN,0,'fruitless olive deliberately suppresses fruit');
+  for (const k of ['apple','europeanpear','asianpear','sweetcherry','sourcherry','europeanplum',
+    'japaneseplum','hybridplum','peach','pawpaw','quince','fig','redmulberry','jujube','pomegranate'])
+    assertEqual(PLANTS[k].sea.Winter.seed,undefined,`${k}: harvested fruit must not turn into winter bark dots`);
 });
 
 test('shrubs declare explicit real dimensions and exact resized cultivars do too', () => {
@@ -349,6 +411,7 @@ test('sedges carry visual archetypes and preserve signature seedheads', () => {
 
 test('signature grass cultivars keep their real-world size hierarchy', () => {
   const effective = (k, v) => Object.assign({}, PLANTS[k], PLANTS[k].cv[v]);
+  const rgb = c => ({r:parseInt(c.slice(1,3),16),g:parseInt(c.slice(3,5),16),b:parseInt(c.slice(5,7),16)});
   const northwind = effective('switchgrass', 'northwind');
   const heavyMetal = effective('switchgrass', 'heavymetal');
   const shenandoah = effective('switchgrass', 'shenandoah');
@@ -356,6 +419,39 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     'Northwind should be taller than Heavy Metal, which should be taller than Shenandoah');
   assert(shenandoah.spread > northwind.spread && northwind.spread > heavyMetal.spread,
     'Shenandoah should be broader than Northwind, which should be broader than Heavy Metal');
+  const hm=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol);
+  assert(hm.g > hm.b && hm.b-hm.r >= 25,
+    `Heavy Metal should read as cool steel blue-green, not slate blue (${PLANTS.switchgrass.cv.heavymetal.sea.Summer.fol})`);
+  const hmFall=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.seed);
+  const hmFallFol=rgb(PLANTS.switchgrass.cv.heavymetal.sea.Fall.fol);
+  assert(hmFall.r+hmFall.g+hmFall.b < hmFallFol.r+hmFallFol.g+hmFallFol.b,
+    'Heavy Metal burgundy fruit stays darker than its amber fall foliage');
+  assert(effective('switchgrass','cloudnine').h > northwind.h,
+    'Cloud Nine should be the tallest curated switchgrass');
+  assert(effective('switchgrass','prairiesky').sea.Summer.fol !== heavyMetal.sea.Summer.fol,
+    'Prairie Sky keeps a distinct silvery-blue palette from Heavy Metal');
+  assert(PLANTS.switchgrass.cv.dallasblues.look.cloudDots > PLANTS.switchgrass.look.cloudDots,
+    'Dallas Blues needs its unusually full panicle cloud');
+  for (const v of ['carousel','jazz','prairiemunchkin'])
+    assert(PLANTS.bluestem.cv[v], `little bluestem needs ${v}`);
+  assert(PLANTS.bigbluestem.cv.dancingwind, 'big bluestem needs Dancing Wind');
+  assert(PLANTS.indiangrass.cv.indiansteel && PLANTS.indiangrass.cv.stlouis,
+    'Indiangrass needs Indian Steel and St. Louis');
+  assert(PLANTS.dropseed.cv.tara && PLANTS.dropseed.cv.tara.name==="'Tara'",
+    "prairie dropseed needs the correctly spelled 'Tara' cultivar");
+  assertEqual(PLANTS.dropseed.form,'cloudgrass',
+    'prairie dropseed needs separate low foliage and airy panicle layers');
+  assert(PLANTS.dropseed.look.panicle && PLANTS.dropseed.sea.Winter.seed,
+    'prairie dropseed keeps airy panicles as winter structure');
+  for (const ref of [
+    PLANTS.bluestem.cv.standingovation,
+    PLANTS.bigbluestem.cv.blackhawks,
+    PLANTS.bigbluestem.cv.redoctober,
+    PLANTS.switchgrass.cv.shenandoah,
+  ]) assert(ref.sea.Summer.folTip, `${ref.name}: needs an authentic contrasting blade tip`);
+  for (const k of ['bluestem','bigbluestem','dropseed','indiangrass'])
+    assert(Array.isArray(PLANTS[k].bloomMonths) && PLANTS[k].bloomMonths.length,
+      `${k}: needs its real flowering window`);
   assert(effective('bigbluestem', 'blackhawks').h < PLANTS.bigbluestem.h,
     'Blackhawks should stay shorter than straight big bluestem');
   assert(effective('pinkmuhly', 'whitecloud').h > PLANTS.pinkmuhly.h,

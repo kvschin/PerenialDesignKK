@@ -93,7 +93,8 @@ function buildLibraryList(q){
     keys.forEach(k=>{
       const P=PLANTS[k];
       const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
-      const cvHay=(P.libraryCultivars||[]).map(c=>(c.name||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
+      const cvHay=[...Object.values(P.cv||{}),...(P.libraryCultivars||[])]
+        .map(c=>(c.name||'')+' '+(c.latin||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
       b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
       b.append(libCanvas(k,null,libraryPreviewSeason(P),30,36));
       const t=document.createElement('span');

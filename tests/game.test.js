@@ -245,6 +245,46 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
+test('grass blade-tip colour adds one optional tip pass', () => {
+  const fills=[];
+  const ctx={
+    fillStyle:'', beginPath(){}, moveTo(){}, lineTo(){}, closePath(){},
+    fill(){ fills.push(this.fillStyle); },
+  };
+  drawBlade(ctx,0,0,2,-8,1,-16,1.2,'#66806b',true);
+  assertEqual(fills.length,2,'an ordinary blade keeps its body and highlight passes');
+  fills.length=0;
+  drawBlade(ctx,0,0,2,-8,1,-16,1.2,'#66806b',true,'#8a4652');
+  assertEqual(fills.length,3,'an authored foliage tip adds exactly one fill');
+  assertEqual(fills[2],shade('#8a4652',-4),'the final pass uses the authored tip family');
+});
+
+test('orchard fruit uses a deterministic bounded glyph budget and respects fruitless cultivars', () => {
+  const original=drawTreeFruit, calls=[];
+  try{
+    drawTreeFruit=(...args)=>calls.push(args.slice(1));
+    drawPlant(document.createElement('canvas').getContext('2d'),24,42,'apple',1,'Fall',12345,0,undefined,1);
+    assertEqual(calls.length,PLANTS.apple.look.seedN,'fruitCluster never multiplies the authored total');
+    const first=JSON.stringify(calls);
+    calls.length=0;
+    drawPlant(document.createElement('canvas').getContext('2d'),24,42,'apple',1,'Fall',12345,0,undefined,1);
+    assertEqual(JSON.stringify(calls),first,'fruit positions are stable for the same plant seed');
+    calls.length=0;
+    drawPlant(document.createElement('canvas').getContext('2d'),24,42,'pistachio',1,'Fall',12345,0,'peters',1);
+    assertEqual(calls.length,0,'a male pistachio paints no nuts even though it inherits the base fall palette');
+    drawPlant(document.createElement('canvas').getContext('2d'),24,42,'olive',1,'Winter',12345,0,'littleollie',1);
+    assertEqual(calls.length,0,'a fruitless olive paints no inherited winter fruit');
+  } finally { drawTreeFruit=original; }
+  assert(roleSummary('apple',12).includes('Orchard'),'orchard roles are readable and searchable');
+  assert(roleSummary('pecan',12).includes('Nut crop'),'nut-crop roles are readable and searchable');
+  assert(!roleSummary('apple',12).includes('Seedheads'),'orchard fruit is not mislabeled as a seedhead plant');
+  assertEqual(bloomRangeText(PLANTS.loquat),'Oct–Feb','year-wrapping orchard bloom reads as one continuous range');
+  assertEqual(plantDef('redmulberry','illinoiseverbearing').name,"'Illinois Everbearing' Mulberry",
+    'the interspecific mulberry hybrid does not resolve as a Red Mulberry cultivar');
+  assertEqual(plantDef('sweetorange','moro').name,"'Moro' Blood Orange",
+    'a blood orange replacement name is not redundantly prefixed with Sweet Orange');
+});
+
 test('conifer renderer is deterministic and gives each architecture a distinct paint trace', () => {
   function trace(key){
     const ops=[];
@@ -1796,7 +1836,7 @@ test('plant cards lead with woody mature size and keep herbaceous inches', () =>
     game.plants = { '6,6': bluestem };
     game.previewMode = 'today';
     showPlantCard(bluestem, 6, 6);
-    assert(card.innerHTML.includes('<b>Mature size:</b> 46&Prime; H &times; 18&Prime; W'),
+    assert(card.innerHTML.includes('<b>Mature size:</b> 46&Prime; H &times; 24&Prime; W'),
       'little bluestem card keeps inch units');
     assert(!card.innerHTML.includes('crown covers'), 'little bluestem card does not get woody crown copy');
     assert(!card.innerHTML.includes('yrs to size'), 'little bluestem card does not get woody years copy');
@@ -1831,7 +1871,7 @@ test('library mature size includes height for woody and herbaceous plants', () =
       'library white oak mature size uses the real heightIn in feet');
     detail.children = [];
     showLibraryDetail('bluestem');
-    assertEqual(fact('Mature size'), '46" H x 18" W',
+    assertEqual(fact('Mature size'), '46" H x 24" W',
       'library little bluestem mature size includes height and stays in inches');
   } finally {
     document.getElementById = oldGet;

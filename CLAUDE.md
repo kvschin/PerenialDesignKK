@@ -421,6 +421,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    `fullness` scales foliage reach and visual mass without changing `cw`,
    `space`, `spread`, or height; naturally open pines/cedars/hemlocks should
    author a lower value instead of losing their characteristic gaps.
+   Broadleaf orchard trees opt into a bounded fruit grammar with
+   `look.fruitShape`; `look.fruitCluster` groups the authored `seedN` total
+   without multiplying the glyph budget. Fruit uses a separate seeded RNG so
+   bloom-count changes do not make it jump, and entries without `fruitShape`
+   preserve the older seed/fruit rendering path. `seedN:0` deliberately
+   suppresses fruit for male pollinizers and fruitless selections.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2011,7 +2017,7 @@ key: {
 `drawPlant` uses `form`/`h`/`cw`/`sea`/`stem`; planner/rules features use
 `type`/`space`/`spread`/`grow` plus the site data. Valid `type` values are
 `grass`, `sedge`, `forb`, `bulb`, `water`, `shrub`, and `tree`. Per-season keys:
-`fol` (foliage),
+`fol` (foliage), `folTip` (optional contrasting last third of a grass blade),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `eye` (cone center,
 coneflowers only), `twig` (bare-stem colour for the `bush` form — the winter
@@ -2070,6 +2076,15 @@ Archbells can select `archStyle:'bleedingHeart'`, while spikes can select
 `spikeStyle:'poker'` or `'delphinium'`; cone forms can use
 `rayShape:'poppy'` for four broad petals with basal marks. Omitted values
 preserve the defaults.
+
+Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
+'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded
+`fruitCluster` of 1–4. `seedN` remains the total fruit-glyph budget and `seedR`
+the px-art fruit radius. The seasonal `sea.*.seed` color remains the single
+source for whether and when fruit is visible. Home-orchard pome and stone-fruit
+records use an explicitly stated semi-dwarf rootstock assumption; rootstock and
+training often affect mature size more than the fruiting cultivar, so cultivar
+size overrides are reserved for genuinely columnar or compact choices.
 
 ### Units and footprint policy
 
