@@ -2087,6 +2087,14 @@ exactly the red-twig dogwood effect. `bloomMonths` drives the real-world Bloom C
 unless a precise `bloomDay` is set, the continuous live bloom window. Keep
 `bloomDay` for intentionally staggered within-season animation.
 
+For non-mound `bunchgrass`, `look.seedStyle:'fluffyRaceme'` replaces the
+default terminal oval with alternating hairy spikelets along a separate,
+upright fertile culm. `seedTufts`, `seedSpan` (fraction of rendered height),
+`seedAwn`, and `seedFan` tune that shared grammar. Little bluestem authors it
+on the base record so every cultivar inherits the species-correct seedhead.
+Its hairs lengthen as the August–October bloom window fades, giving late fall
+and winter a fluffier read without adding more visual seasons or month palettes.
+
 Native status is relational, never inferred from hardiness: `nativeRelation`
 compares a resolved species/cultivar's `nativeTo` with the garden's
 `nativeRegion`, while `passesNativeFilter` also applies provenance. The first

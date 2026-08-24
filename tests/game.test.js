@@ -392,6 +392,25 @@ test('grass blade-tip colour adds one optional tip pass', () => {
   assertEqual(fills[2],shade('#8a4652',-4),'the final pass uses the authored tip family');
 });
 
+test('little bluestem seedheads are elongated feathery racemes, not oval buttons', () => {
+  const ops=[];
+  const ctx=new Proxy({globalAlpha:1}, {
+    get(o,p){
+      if(p in o) return o[p];
+      return (...args)=>{ if(['moveTo','lineTo','quadraticCurveTo','ellipse','fill','stroke'].includes(p)) ops.push([p,...args]); };
+    },
+    set(o,p,v){ o[p]=v; return true; },
+  });
+  drawFluffyRaceme(ctx,2,-18,0.25,20,'#e8ddc7',4,mulberry(9137),3.8);
+  const ellipses=ops.filter(x=>x[0]==='ellipse');
+  const hairs=ops.filter(x=>x[0]==='lineTo');
+  assertEqual(PLANTS.bluestem.look.seedStyle,'fluffyRaceme','little bluestem opts into the feathery seed grammar');
+  assertEqual(ellipses.length,0,'the feathery style never falls back to a filled oval or seed ball');
+  assert(hairs.length>=16,'each node carries one narrow spikelet and several fine hairs');
+  const ys=ops.filter(x=>x[0]==='moveTo').map(x=>x[2]);
+  assert(Math.max(...ys)-Math.min(...ys)>15,'tufts spread vertically along the upper stem');
+});
+
 test('orchard fruit uses a deterministic bounded glyph budget and respects fruitless cultivars', () => {
   const original=drawTreeFruit, calls=[];
   try{

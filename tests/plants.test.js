@@ -536,6 +536,10 @@ test('signature grass cultivars keep their real-world size hierarchy', () => {
     'prairie dropseed needs golden-brown panicle branches distinct from its darker seeds');
   assert(PLANTS.bluestem.cv.hahatonka.sea.Summer.folTip && PLANTS.bluestem.cv.hahatonka.sea.Fall.folTip,
     'Ha Ha Tonka needs red-gray summer segments and burgundy fall accents');
+  assertEqual(PLANTS.bluestem.look.seedStyle,'fluffyRaceme',
+    'little bluestem species and cultivars share their characteristic fluffy racemes');
+  assert(PLANTS.bluestem.look.seedTufts>=4 && PLANTS.bluestem.look.seedSpan>=0.25,
+    'little bluestem racemes need several tufts spread down the upper stem');
   assert(PLANTS.bigbluestem.cv.redoctober.sea.Spring.folTip,
     'Red October needs red spring accents before its full fall display');
   for (const ref of [

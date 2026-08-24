@@ -145,6 +145,9 @@
            meadow, woodland, and wetland habits. `sedgeHabit:'palm'`
            gives Palm Sedge ranked leaves; `seedStyle` may be `mace`,
            `brush`, or `pendant` for a shared distinctive fruiting habit.
+           Non-mound bunchgrasses may use `seedStyle:'fluffyRaceme'` plus
+           seedTufts/seedSpan/seedAwn/seedFan for repeated hairy spikelets
+           along a narrow upright fertile culm.
    sea     per-season appearance, the Oudolf heart of the game:
            fol (foliage), folTip (optional contrasting last third of a grass
            blade), bloom (flower this season, omit for none),
@@ -177,7 +180,7 @@ const PLANTS = {
   /* ---------- grasses & sedges: the matrix ---------- */
   bluestem:{ name:'Little Bluestem', latin:'Schizachyrium scoparium', form:'bunchgrass', type:'grass', h:46,
     space:18, spread:24, zones:[3,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
-    look:{art2:true, bladeShade:15},
+    look:{art2:true, bladeShade:15, seedStyle:'fluffyRaceme', seedTufts:5, seedSpan:0.28, seedAwn:4.6, seedFan:0.48},
     blurb:'Blue-green all summer, then the best copper in the prairie. Backlit in November it glows.',
     sea:{Spring:{fol:'#7b9874'}, Summer:{fol:'#688b84',bloom:'#8d626b'}, Fall:{fol:'#bd623f',seed:'#e8ddc7'}, Winter:{fol:'#9e593e',seed:'#eee4d2'}},
     cv:{
