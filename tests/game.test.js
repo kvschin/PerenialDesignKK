@@ -990,9 +990,37 @@ test('plant category drag scrolling follows the pointer without changing selecti
 test('landscape search spans every landscape category', () => {
   setup();
   assert(landscapeSearchItems('pond').some(item => item.tool === 'water'), 'water vocabulary finds the Water tool');
-  assert(landscapeSearchItems('wall').some(item => item.tool === 'building'), 'site vocabulary finds Building Footprint');
+  assert(landscapeSearchItems('footprint').some(item => item.tool === 'building'), 'site vocabulary finds Building Footprint');
   assert(landscapeSearchItems('gate').some(item => item.tool === 'fence'), 'hardscape vocabulary finds Fence / Gate');
+  // "wall" used to find the building footprint, because its hay still carried
+  // the legacy roof/wall style keys that normalizeBuildingStyle renamed to
+  // fill/edge. There is a real retaining-wall tool now, so that match was
+  // actively wrong — a footprint is a diagram, not a wall.
+  assert(landscapeSearchItems('wall').some(item => item.tool === 'wall'), 'wall vocabulary finds the retaining wall');
+  assert(!landscapeSearchItems('wall').some(item => item.tool === 'building'), 'wall no longer finds the building footprint');
   assertEqual(landscapeSearchItems('').length, 0, 'an empty query keeps the current landscape category visible');
+});
+
+/* The list of searchable tools is derived from TRAY_CATS rather than restated,
+   so a tool added to a tab can never be missing from the search that is
+   supposed to find it. Six were, before this: edging, wall, seat, pot, pet and
+   the Site tools. */
+test('every landscape tool in TRAY_CATS is reachable from the landscape search', () => {
+  setup();
+  const items = searchToolItems();
+  const listed = new Set(items.map(i => i.tool));
+  TRAY_CATS.filter(c => c.tools).forEach(c => c.tools.forEach(tool => {
+    assert(listed.has(tool), `${tool} (${c.label}) is in the landscape search index`);
+  }));
+  assertEqual(items.length, TRAY_CATS.filter(c => c.tools)
+    .reduce((n, c) => n + c.tools.length, 0), 'the index holds exactly the table\'s tools');
+  // and each one is findable by its own name, not just present in the array
+  ['edging', 'seat', 'pot', 'pet', 'boulder'].forEach(tool => {
+    assert(landscapeSearchItems(tool).some(i => i.tool === tool), `searching "${tool}" finds it`);
+  });
+  assert(landscapeSearchItems('bench').some(i => i.tool === 'seat'), 'a bench is found under seating');
+  assert(landscapeSearchItems('planter').some(i => i.tool === 'pot'), 'a planter is found under containers');
+  assert(landscapeSearchItems('cat').some(i => i.tool === 'pet'), 'a cat is found under pets');
 });
 
 test('applying garden criteria leaves the discovery lens intact', () => {

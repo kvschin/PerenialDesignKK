@@ -1039,6 +1039,9 @@ $('btnSkipSeason').onclick=skipNextSeason;   // skip straight away — no confir
 $('btnSkipYear').onclick=skipNextYear;
 if ($('btnPreviewToday')) $('btnPreviewToday').onclick=()=>setPreviewMode('today');
 if ($('btnPreviewEstablished')) $('btnPreviewEstablished').onclick=()=>setPreviewMode('established');
+// the top-bar chip is the same control, one tap instead of four
+if ($('previewChip')) $('previewChip').onclick=()=>
+  setPreviewMode(game.previewMode==='established'?'today':'established');
 $('btnExport').onclick=()=>{ closeOverlay('gardenMenu'); openExport(); };
 $('btnExportClose').onclick=()=>closeOverlay('exportScreen');
 $('btnPrint').onclick=()=>window.print();

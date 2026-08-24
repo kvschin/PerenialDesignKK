@@ -366,6 +366,18 @@ function drawBrushSwatchCanvas(c,includeLast){
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
+  /* Generic fallback for the placement tools with no bespoke swatch — boulder,
+     pot, seat, edging, wall, building. Hiding the canvas (what used to happen
+     here) left the brush bar with a name and no mark, so the armed tool had no
+     visual at all. A tinted tile with the tool's initial is not art, but it is
+     an unmistakable "this is armed", which is the job. */
+  if (isPlacementTool(k)){
+    diamond('#6d6154','rgba(239,230,211,.38)');
+    g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans';
+    g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(cap(k)[0],c.width/2,c.height/2+1);
+    return true;
+  }
   c.style.display='none';
   return false;
 }
@@ -736,6 +748,7 @@ function refreshCanvasTools(){ buildCanvasTools(); }
 // buttons; phones collapse them into the compact View Tools menu.
 function visibleEl(el){ return !!(el && getComputedStyle(el).display!=='none'); }
 function syncTopTools(){
+  syncPreviewChip();
   const sel=document.getElementById('btnSelectTool');
   if (sel){ sel.classList.toggle('sel',game.tool==='select');
     sel.onclick=()=>{ setTool('select'); game.toolMenu=null; buildToolTray(); refreshCanvasTools(); };
@@ -1351,33 +1364,53 @@ function plantSearchHay(k){
   });
   return hay.toLowerCase();
 }
+/* Per-tool search metadata. The LIST of tools is NOT written here — it is
+   derived from TRAY_CATS below, which is the same lesson brushTrayCatForTool
+   was already rewritten for (see its comment): the table is the fact, and a
+   hand-kept restatement of it silently misses whatever is added next. This one
+   had missed six — edging, wall, seat, pot, pet and building-edit — so typing
+   "bench", "planter", "edging", "retaining wall" or "cat" into the Landscape
+   search, the one control that promises to find things, answered "No landscape
+   tools match" for tools that were sitting two taps away. */
+const TOOL_SEARCH={
+  path:   {label:'Path',kind:'fill',   hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
+  bed:    {label:'Bed',kind:'fill',    hay:'bed beds soil gravel rock river rock leaf litter mulch bark pine straw pea gravel planting area landscape'},
+  water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet landscape'},
+  edging: {label:'Edging',kind:'fill', hay:'edging edge restraint mowing strip lawn border spade cut steel corten brick setts soldier course ground'},
+  raise:  {label:'Raise',kind:'layers',hay:'raise elevation grade berm terrace hill leveling'},
+  lower:  {label:'Lower',kind:'layers',hay:'lower elevation grade swale basin depression leveling'},
+  level:  {label:'Level',kind:'layers',hay:'level elevation grade flatten reset leveling'},
+  wall:   {label:'Retaining Wall',kind:'layers',
+           hay:'wall retaining wall terrace bank sleeper gabion drystone dry stone facing grade leveling'},
+  fence:  {label:'Fence / Gate',kind:'layers',drill:'fence',
+           hay:'fence gate door arbor screen privacy deer hardscape structures black aluminum wood vinyl chainlink brick stone 4 foot 6 foot'},
+  firepit:{label:'Fire Pit',kind:'fill',drill:'firepit',
+           hay:'fire pit firepit hardscape structure round square rectangle 24 36 48 patio'},
+  boulder:{label:'Boulder',kind:'fill',drill:'boulder',
+           hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
+  seat:   {label:'Seating',kind:'fill',
+           hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture'},
+  light:  {label:'Lighting',kind:'dropper',
+           hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
+  pot:    {label:'Container',kind:'fill',
+           hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor'},
+  pet:    {label:'Garden Pet',kind:'fill',
+           hay:'pet pets cat dog animal ornament decor coat marking socks paws'},
+  building:{label:'Building Footprint',kind:'building',
+           hay:'building footprint house site exterior outline existing proposed shed garage area edge'},
+  house:  {label:'House',kind:'brush',hay:'house home building wall roof size color site'}
+};
 function searchToolItems(){
-  return [
-    {cat:'landscape',tool:'path',label:'Path',kind:'fill',
-      hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
-    {cat:'landscape',tool:'bed',label:'Bed',kind:'fill',
-      hay:'bed beds soil gravel rock river rock leaf litter mulch bark planting area landscape'},
-    {cat:'landscape',tool:'water',label:'Water',kind:'fill',
-      hay:'water pond river lake stream creek wet landscape'},
-    {cat:'leveling',tool:'raise',label:'Raise',kind:'layers',
-      hay:'raise elevation grade berm terrace hill leveling'},
-    {cat:'leveling',tool:'lower',label:'Lower',kind:'layers',
-      hay:'lower elevation grade swale basin depression leveling'},
-    {cat:'leveling',tool:'level',label:'Level',kind:'layers',
-      hay:'level elevation grade flatten reset leveling'},
-    {cat:'structures',tool:'fence',drill:'fence',label:'Fence / Gate',kind:'layers',
-      hay:'fence gate door hardscape structures black aluminum wood vinyl chainlink brick 4 foot 6 foot'},
-    {cat:'structures',tool:'firepit',drill:'firepit',label:'Fire Pit',kind:'fill',
-      hay:'fire pit firepit hardscape structure round square rectangle 24 36 48 patio'},
-    {cat:'structures',tool:'boulder',drill:'boulder',label:'Boulder',kind:'fill',
-      hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
-    {cat:'lighting',tool:'light',label:'Lighting',kind:'dropper',
-      hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
-    {cat:'house',tool:'building',label:'Building Footprint',kind:'building',
-      hay:'building footprint house site exterior outline existing proposed wall roof bed area'},
-    {cat:'house',tool:'house',label:'House',kind:'brush',
-      hay:'house home building wall roof size color'}
-  ];
+  const out=[];
+  // TRAY_CATS holds the plant categories too; those carry `types`, not `tools`
+  TRAY_CATS.filter(c=>c.tools).forEach(c=>c.tools.forEach(tool=>{
+    const m=TOOL_SEARCH[tool]||{};
+    out.push({cat:c.id, tool,
+      label:m.label||cap(tool), kind:m.kind||'fill', drill:m.drill,
+      // the category label rides along so "hardscape"/"grade"/"decor" find their tools
+      hay:((m.hay||tool)+' '+tool+' '+c.label+' '+(m.label||'')).toLowerCase()});
+  }));
+  return out;
 }
 function landscapeSearchItems(query){
   const q=String(query||'').toLowerCase().trim();
@@ -3180,7 +3213,17 @@ function renderBrushBar(){
   // exactly where path/bed options do, so the erase size dots ARE the paint size
   // dots (one control, can't drift). No rail popover, and on a collapsed phone
   // sheet the width/layer stay visible because the brush bar persists.
-  if (!meta.paints && !erasing && !editingBuilding){
+  /* Gated on `placement`, not `paints`. `paints` is false for fence, light,
+     firepit, boulder, pot, seat, pet, house and building — nine of the
+     seventeen placement tools — so for exactly those the brush bar, which
+     carries the swatch and the "Now placing" name, was hidden. Arm a bench,
+     look away, and nothing on screen said what a tap would do: the rail swatch
+     has no branch for several of them, the sheet handle that carries the same
+     label is display:none on the dock tier, and the status line fades at 4s.
+     The seg blocks below are individually conditional and simply no-op when a
+     tool has nothing contextual to offer, so the bar degrades to swatch + name
+     — which is the part that was missing. */
+  if (!meta.placement && !erasing && !editingBuilding){
     bar.classList.add('hidden'); return;
   }
   bar.classList.remove('hidden');
@@ -3288,6 +3331,12 @@ function renderBrushBar(){
       click:()=>{ setBrushSize(sz); renderBrushBar(); updateActiveToolStatus(); }
     }))));
   }
+  /* Fill only belongs to the tools that can actually flood one — the same
+     `paints` predicate fillActive() gates on. The bar itself is now shown for
+     every PLACEMENT tool so a bench or a pot can say what it is placing, and
+     without this guard that also handed a bench a Fill chip that would have
+     done nothing (chooseFillMode sets a flag fillActive() then refuses). */
+  if (!meta.paints && !erasing){ appendFooter(); return; }
   const fillSeg=document.createElement('div'); fillSeg.className='seg';
   const fillBtn=document.createElement('button');
   fillBtn.className='seg-opt'+(game.fillMode?' on':'');

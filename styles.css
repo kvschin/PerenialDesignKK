@@ -586,6 +586,25 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    a-menu — so the chip reads as openable rather than as a status readout. */
 .scheme-chip i{display:flex;flex:0 0 auto;color:var(--bronze)}
 .scheme-chip i .ui-icon{width:14px;height:14px}
+/* Plant-preview lens chip. Sits beside the season box because that is where
+   the other "what am I looking at" state lives, and it always NAMES the
+   current lens rather than being a mute toggle — the whole failure it fixes is
+   people not knowing the garden is drawn at maturity. Bronze when the view is
+   the mature preview (the non-literal state, worth flagging), quiet when it is
+   showing today. Below 400px the label drops and the dot carries it, the same
+   trick .scheme-chip uses, so the 360px bar still fits. */
+.preview-chip{display:flex;align-items:center;gap:6px;align-self:center;flex-shrink:0;
+  height:34px;min-height:34px;padding:3px 10px;
+  background:var(--surface-input);border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);
+  color:var(--text-primary);font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap;
+  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.preview-chip::before{content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;
+  background:rgba(var(--ink-rgb),.34);transition:background var(--motion-control)}
+.preview-chip[aria-pressed="true"]{border-color:var(--border-active);background:var(--surface-active)}
+.preview-chip[aria-pressed="true"]::before{background:var(--bronze)}
+.preview-chip:hover{border-color:var(--border-strong)}
+.preview-chip:active{transform:translateY(1px)}
+@media (max-width:400px){ .preview-chip .preview-chip-label{display:none} .preview-chip{padding:3px 8px} }
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
@@ -656,8 +675,20 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   transform:rotate(var(--compass-arrow,0deg));transform-origin:center}
 .compass-edge-label i::after{content:"";position:absolute;right:-2px;top:50%;transform:translateY(-50%);
   border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--bronze)}
+/* These letters are the only chrome text in the app drawn straight onto the
+   canvas with no plate behind them, and their colour follows the THEME while
+   the garden under them follows the SEASON — two independent axes, so neither
+   theme is safe. Measured against the app's own AMBIENCE palette: cream on
+   spring sky is 1.19:1, on winter sky 1.22:1; ink on autumn soil is 1.50:1.
+   The marks pin to the plot edge, exactly where sky meets ground, so those are
+   the common cases rather than corner ones. A blurred text-shadow does not
+   establish a contrast ratio, so they now get the same answer #toast already
+   uses — an opaque plate — and the ratio becomes a property of the chrome
+   palette instead of a lottery on what the season painted underneath. */
 .compass-edge-label b{font:800 12px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.1em;color:var(--seedhead);
-  text-shadow:0 2px 5px rgba(25,18,15,.7)}
+  background:var(--surface-overlay);border:1px solid var(--border-quiet);
+  border-radius:var(--radius-control);padding:3px 5px;
+  box-shadow:0 2px 6px rgba(25,18,15,.35)}
 .compass-edge-label[data-dir="N"] b{color:var(--bronze)}
 .compass-edge-label.off{opacity:0}
 /* max-height + scroll: the rail is a fixed ~350px column pinned near the top,
@@ -1365,11 +1396,43 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .hud-top{background:var(--color-bg);border:0;border-bottom:1px solid var(--color-divider);padding:9px 14px;pointer-events:auto;box-shadow:0 8px 22px rgba(0,0,0,.18)}
 .season-dial,.hud-right .pill.iconbar{pointer-events:auto;background:transparent;border:0;border-radius:0;box-shadow:none}
 .season-dial{padding:0;gap:7px}
-.season-dial .daynight,.top-tool{border:0;background:transparent;color:var(--color-text)}
-.season-dial .daynight:hover,.top-tool:hover{background:var(--surface-control-hover);border-color:transparent}
+/* RESTING AFFORDANCE.
+   These rules used to be `border:0;background:transparent`, which made the
+   whole top bar read as one connected surface — and cost every control in it
+   any sign that it was a control. Measured: at rest the day/night button
+   computed to border 0, background rgba(0,0,0,0), box-shadow none, so the
+   button WAS its icon and nothing else. The only resting signal was :hover at
+   rgba(239,230,211,.11) = 1.33:1 against the loam bar, against the 3:1 WCAG
+   1.4.11 wants for a perceivable non-text state — and :hover does not exist on
+   touch at all, so on a phone all eleven chrome controls were permanently
+   flat. (Users reported exactly this: "the light doesn't look like a button
+   and the season doesn't look pressable".)
+   The fix keeps the bar reading as one surface — the resting fill is only a
+   whisper over it — while giving every control a boundary you can see, and
+   takes hover to ~3:1 so the state change is unmistakable on a pointer. The
+   armed state stays as it was (solid accent, 5.34:1) and is still the loudest
+   thing in the bar, which is correct.
+   Alphas are measured against the bar's own #241a16, not guessed: the resting
+   border lands 2.14:1 and hover 3.14:1 (WCAG 1.4.11's bar for a state change).
+   Resting deliberately stops short of 3:1 — five outlined squares in a row at
+   that weight is a ladder of boxes, and the bar is meant to read as one
+   surface — so the resting job is done by a boundary you can clearly see while
+   the armed state carries the strong signal. */
+.season-dial .daynight,.top-tool{
+  border:1px solid rgba(var(--ink-rgb),.26);
+  background:rgba(var(--ink-rgb),.07);
+  color:var(--color-text)}
+.season-dial .daynight:hover,.top-tool:hover{
+  background:rgba(var(--ink-rgb),.38);border-color:rgba(var(--ink-rgb),.46)}
 .season-dial .daynight{color:var(--color-accent)}
-.season-box{border:0;background:transparent;color:var(--color-text)}
-.season-box:hover{background:var(--surface-control-hover)}
+/* The season box is a container with content, so a real border is what stops
+   it reading as a status display — it was the control users most often failed
+   to recognise as pressable. NOT --surface-input for the fill: that token is a
+   DARK overlay (rgba(8,5,4,.3)), which is right on a pale surface and nearly
+   invisible here — measured 1.08:1 against the bar it sits on. A light overlay
+   reads as raised on loam, the same direction as the buttons beside it. */
+.season-box{border:1.5px solid rgba(var(--ink-rgb),.28);background:rgba(var(--ink-rgb),.07);color:var(--color-text)}
+.season-box:hover{background:rgba(var(--ink-rgb),.30);border-color:var(--border-strong)}
 .season-box .season-name{font-family:var(--font-heading);font-weight:600}
 .season-sub{color:color-mix(in srgb,var(--color-text) 58%,transparent)}
 /* .18 washed the season colour out to almost nothing against the loam bar — it
@@ -1390,8 +1453,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .hud-right{pointer-events:auto}
 .pill.iconbar .lbl,.pill.iconbar button{color:var(--color-text)}
 #canvasTools{background:var(--color-bg);border-color:var(--color-divider);border-radius:22px;padding:7px 6px;gap:4px;box-shadow:var(--shadow-control)}
-.canvas-tool{background:transparent;color:color-mix(in srgb,var(--color-text) 74%,transparent);border-radius:16px}
-.canvas-tool:hover:not(.disabled){background:var(--surface-control-hover);border-color:transparent}
+/* Same resting-affordance problem as the top bar (see .season-dial above): the
+   rail's five tools were transparent, so only the ARMED one had any fill and
+   the rest read as flat art on the rail's background. A whisper of fill gives
+   each one a shape without stacking five outlined boxes down the edge — the
+   armed tool keeps solid accent and stays the loudest thing here. */
+.canvas-tool{background:rgba(var(--ink-rgb),.06);color:color-mix(in srgb,var(--color-text) 74%,transparent);border-radius:16px}
+.canvas-tool:hover:not(.disabled){background:rgba(var(--ink-rgb),.30);border-color:transparent}
 .canvas-tool.sel{background:var(--color-accent);border-color:var(--color-accent);color:var(--ink);box-shadow:none}
 /* Anything sitting on the SOLID accent fill has to flip its canvas icon to the
    on-accent ink. The label already did (var(--ink)), but the icon did not — a
@@ -1687,9 +1755,23 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    narrowed set. */
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
   .hud-bottom.sheet-half .catalog-header,
-  .hud-bottom.sheet-half .discovery-controls,
-  .hud-bottom.sheet-half .landscape-controls,
   .hud-bottom.sheet-half .discovery-filter-summary{display:none}
+  /* Half keeps exactly ONE thing from the control stack: the Plants/Landscape
+     switch. It is built inside .discovery-controls (tray.js), so hiding that
+     whole stack — which is what used to happen — took the switch with it. And
+     the sheet opens at HALF on phones, so on a phone the Landscape library
+     (paths, beds, fences, edging, pots, seating, the whole Site tab) had no
+     door at all in the state every garden starts in. The title and source
+     picker genuinely do belong to full — they are narrowing, not navigation —
+     but the mode switch is navigation.
+     The stacks' 44px min-height is why the comment above says to hide the
+     STACK rather than its contents: emptied, it leaves a band of nothing
+     across the one state whose point is seeing the garden. Here the band is
+     not empty — it holds the switch — so hiding the contents is safe. */
+  .hud-bottom.sheet-half .discovery-controls>*,
+  .hud-bottom.sheet-half .landscape-controls>*{display:none}
+  .hud-bottom.sheet-half .catalog-control-row:has(>.catalog-mode){display:flex}
+  .hud-bottom.sheet-half .catalog-control-row:has(>.catalog-mode)>*:not(.catalog-mode){display:none}
 }
 
 /* ---------- Docked application shell ---------- */

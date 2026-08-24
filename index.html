@@ -134,6 +134,16 @@ if ('serviceWorker' in navigator)
           <span class="season-sub"><span id="seasonPhase">Early season</span><span id="timeState" class="time-state" role="status" aria-live="polite">Fast-forwarding</span></span>
         </span>
       </button>
+      <!-- The rendering lens every visual judgement in the planner is made
+           through. enterGarden defaults it to 'established', so a one-year-old
+           shrub opens drawn at full mature size — and the only control used to
+           live inside the Time menu, behind a box whose tooltip advertises
+           time-of-day. A lens filed under the clock is a lens nobody finds, so
+           it gets a chip that always states which view you are in. The seg in
+           #pauseScreen stays as a mirror, with the explanatory copy. -->
+      <button id="previewChip" class="preview-chip" type="button" aria-label="Plant preview" aria-pressed="false">
+        <span class="preview-chip-label" id="previewChipLabel">Established</span>
+      </button>
       <!-- planting-scheme switcher: hidden until a garden has a second scheme,
            so single-scheme gardens keep the top bar exactly as it was -->
       <button id="schemeChip" class="scheme-chip hidden" type="button" title="Switch planting scheme ([ and ])" aria-label="Switch planting scheme" aria-haspopup="menu" aria-controls="schemePop" aria-expanded="false">

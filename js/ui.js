@@ -887,7 +887,23 @@ function updateDayNightBtn(){
   b.classList.toggle('on',night);
   b.title=night?'Switch to day':'Switch to night (preview lighting)';
 }
+/* The top-bar chip is the lens's real home; the Time-menu seg is its mirror.
+   Kept in sync from one place so the two can never disagree about which view
+   the garden is being drawn in. */
+function syncPreviewChip(){
+  const chip=document.getElementById('previewChip'); if (!chip) return;
+  const est=game.previewMode==='established';
+  chip.classList.toggle('hidden',!game.inGarden);
+  chip.setAttribute('aria-pressed',est?'true':'false');
+  const lab=document.getElementById('previewChipLabel');
+  if (lab && lab.textContent!==(est?'Established':'Today')) lab.textContent=est?'Established':'Today';
+  const t=est
+    ? 'Showing the mature design — full sizes, canopies and shade. Tap for today.'
+    : "Showing today's growth. Tap for the mature design.";
+  if (chip.title!==t){ chip.title=t; chip.setAttribute('aria-label','Plant preview — '+(est?'Established':'Today')); }
+}
 function updatePreviewToggle(){
+  syncPreviewChip();
   const wrap=document.getElementById('previewToggle'); if (!wrap) return;
   wrap.classList.remove('hidden');
   const today=document.getElementById('btnPreviewToday');

@@ -2300,6 +2300,48 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   `hortus:haptics`, and fire once per completed placement/success or throttled
   invalid action — never for every tile in a continuous paint gesture. The
   left-handed rail preference is likewise device-local (`hortus:leftHanded`).
+- **A control must look like a control at REST, not only on hover.** The
+  planner's chrome used to be styled `border:0;background:transparent` inside
+  the `#hud` block, so the top bar read as one connected surface and every
+  control in it read as flat art: measured, `#btnDayNight` computed to border
+  0, background `rgba(0,0,0,0)`, box-shadow none — the button WAS its icon. The
+  only resting signal was `:hover` at **1.33:1** against the loam bar, against
+  the 3:1 WCAG 1.4.11 wants for a perceivable state, and `:hover` does not
+  exist on touch, so on a phone all eleven chrome controls were permanently
+  flat. Users reported it as "the light doesn't look like a button and the
+  season doesn't look pressable". Resting fill + border now land the boundary
+  at **2.13:1** (season box 2.27) and hover at **3.10:1**; the armed state
+  keeps solid accent at 5.34:1 and stays the loudest thing in the bar. Resting
+  deliberately stops short of 3:1 — five outlined squares in a row is a ladder
+  of boxes and the bar is meant to read as one surface. **Measure against the
+  surface the control actually sits on**: `--surface-input` is a DARK overlay
+  (`rgba(8,5,4,.3)`), correct on a pale surface and only 1.08:1 on the loam
+  bar, which is why the season box uses a light overlay instead.
+- **`#toolTray`'s brush bar is gated on `placement`, not `paints`.** `paints`
+  is false for fence, light, firepit, boulder, pot, seat, pet, house and
+  building — nine of seventeen placement tools — so the row carrying the
+  swatch and the "Now placing" name was hidden for exactly the tools whose
+  armed state is hardest to guess. The **Fill chip inside it** stays gated on
+  `paints` (the same predicate `fillActive()` uses), or a bench gets a Fill
+  control that does nothing. `drawBrushSwatchCanvas` has a generic
+  tinted-tile-plus-initial fallback so a tool with no bespoke swatch still
+  shows something rather than hiding its canvas.
+- **Chrome text drawn over the canvas needs an opaque plate.** Its colour
+  follows the THEME while the garden under it follows the SEASON — two
+  independent axes, so neither theme is safe. The compass cardinal marks were
+  the only such text with no plate: measured against the app's own `AMBIENCE`
+  palette, cream on spring sky is **1.19:1** and ink on autumn soil **1.50:1**,
+  and they pin to the plot edge where sky meets ground, so those are the common
+  cases. A blurred `text-shadow` is not a contrast mechanism. They now take the
+  same `--surface-overlay` plate `#toast` uses.
+- **The catalog's Plants/Landscape switch survives `sheet-half`.** It is built
+  inside `.discovery-controls`, and the sheet opens at half on phones, so
+  hiding that whole stack meant the Landscape library — paths, beds, fences,
+  edging, pots, seating, the Site tab — had no door at all in the state every
+  phone garden starts in. Title and source picker still belong to full (they
+  narrow; the switch navigates). Hiding the stack's CONTENTS rather than the
+  stack is safe here only because the switch then fills the 44px min-height
+  band that the note above warns about leaving empty.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 
