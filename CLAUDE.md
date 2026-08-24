@@ -2365,6 +2365,18 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   (styles.css) or it comes out 34px in a bar where every neighbour is 44 —
   visibly the odd one out and under the touch minimum. `.preview-chip` and
   `.season-box` both shipped that way before being added to it.
+- **Only announce a cancellation that actually cancelled something.** A second
+  finger landing cancels the running canvas gesture, and it used to say so
+  unconditionally — so an ordinary pinch-zoom, by far the commonest two-finger
+  gesture and normally made with nothing in progress, reported the cancellation
+  of something that never started. `canvasGestureWouldLoseWork()` (input.js) is
+  the gate. What it deliberately does NOT count is the interesting part:
+  `panDrag`, because the Hand tool sets it on the FIRST finger, so counting it
+  would make every pinch announce — which is the bug itself; `toolDrag` unless
+  `active`, since it exists from pointerdown but paints nothing until the
+  pointer crosses a tile line; `fillTap`, because a flood fill commits on
+  pointerup; and `rulerDrag` unless `moved`. `sweep` DOES count, because
+  `sweepLift` runs on contact and has already erased something.
 - **A control must look like a control at REST, not only on hover.** The
   planner's chrome used to be styled `border:0;background:transparent` inside
   the `#hud` block, so the top bar read as one connected surface and every

@@ -164,6 +164,27 @@ function showGestureCancel(msg){
   clearTimeout(el._t);
   el._t=setTimeout(()=>{ el.classList.remove('show'); el.classList.add('hidden'); },900);
 }
+/* Would cancelling right now actually LOSE the gardener something?
+   A second finger landing cancels whatever gesture was running, and that used
+   to announce itself unconditionally — so an ordinary pinch-zoom, by far the
+   most common two-finger gesture and usually made with nothing in progress at
+   all, reported the cancellation of something that never started.
+   Excluded on purpose:
+   - panDrag: the Hand tool sets it on the FIRST finger, so counting it would
+     make every single pinch announce, which is the bug.
+   - toolDrag unless `active`: it is created on pointerdown but paints nothing
+     until the pointer crosses a tile line.
+   - fillTap: a flood fill commits on pointerup, so nothing has happened yet.
+   - rulerDrag unless `moved`: an unmoved ruler has no measurement to lose.
+   sweep counts because sweepLift runs on contact — a shovel touch has already
+   erased something by the time the second finger lands. */
+function canvasGestureWouldLoseWork(){
+  if (sweep || selDrag || selMove) return true;
+  if (toolDrag && toolDrag.active) return true;
+  if (rulerDrag && rulerDrag.moved) return true;
+  if (game.tool==='building' && game.buildingDraft) return true;
+  return false;
+}
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
   sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
@@ -233,7 +254,7 @@ cnv.addEventListener('pointerdown',e=>{
   if (activePtrs.size>=3){
     startMultiTouch(3);
     pinch=null;
-    cancelCanvasGesture(true,'Gesture shortcut');
+    cancelCanvasGesture(true,canvasGestureWouldLoseWork()?'Placement cancelled':null);
     return;
   }
   if (activePtrs.size===2){
@@ -242,7 +263,8 @@ cnv.addEventListener('pointerdown',e=>{
            cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
            camx0:cam.x, camy0:cam.y};
     startMultiTouch(2);
-    cancelCanvasGesture(true,'Zooming - placement cancelled');
+    // silent unless the pinch really interrupted something (see the helper)
+    cancelCanvasGesture(true,canvasGestureWouldLoseWork()?'Placement cancelled':null);
     return;
   }
   if (activePtrs.size>1) return;
