@@ -240,19 +240,16 @@ async function openWorlds(){
       meta.textContent+=` · ${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
       if (m.schemes>1) meta.textContent+=` · ${m.schemes} schemes`;
     });
-    const ren=document.createElement('button'); ren.className='world-dup'; ren.textContent='Rename';
-    ren.title='Rename this garden';
-    ren.setAttribute('aria-label',`Rename ${w.name||'this garden'}`);
-    ren.onclick=e=>{ e.stopPropagation(); renameWorld(w.id); };
-    const dup=document.createElement('button'); dup.className='world-dup'; dup.textContent='Duplicate';
-    dup.title='Make a separate copy of this garden';
-    dup.onclick=e=>{ e.stopPropagation(); duplicateWorld(w.id); };
-    const del=document.createElement('button'); del.className='world-del'; setUiIcon(del,'trash');
-    del.title='Delete this garden'; del.setAttribute('aria-label',`Delete ${w.name||'this garden'}`);
-    del.onclick=e=>{ e.stopPropagation();
-      if (del.dataset.arm){ deleteWorld(w.id); }
-      else { del.dataset.arm='1'; del.textContent='Sure?'; } };
-    row.append(thumb,info,ren,dup,del);
+    /* Three buttons per row cost more width than the garden's own name had, and
+       every one of them needed stopPropagation to avoid opening the garden they
+       sit on. One overflow control instead. */
+    const more=document.createElement('button'); more.className='world-more'; more.type='button';
+    setUiIcon(more,'ellipsis');
+    more.title='Rename, duplicate or delete this garden';
+    more.setAttribute('aria-label',`Actions for ${w.name||'this garden'}`);
+    more.setAttribute('aria-haspopup','menu'); more.setAttribute('aria-expanded','false');
+    more.onclick=e=>{ e.stopPropagation(); showWorldMenu(more,w); };
+    row.append(thumb,info,more);
     row.onclick=()=>enterWorld(w.id);
     list.appendChild(row);
   });
@@ -345,7 +342,61 @@ async function openDemoGarden(){
   await enterWorld(id);                 // same path the worlds list uses
   return true;
 }
+/* Row overflow menu. Delete is the reason this needs care: it used to be a
+   two-step arm on the button itself (first press swapped the label to "Sure?",
+   second press deleted). That pattern cannot survive a menu, because the menu
+   closes on the first press and takes the armed state with it — a naive move
+   would leave a Delete that silently does nothing. So the confirmation moves
+   into showConfirm, which is the app's idiom for a destructive action anyway,
+   and names the garden so you can see which one you are about to lose. */
+function closeWorldMenu(){
+  const old=document.getElementById('worldMenu'); if (old) old.remove();
+  document.querySelectorAll('.world-more[aria-expanded="true"]')
+    .forEach(b=>b.setAttribute('aria-expanded','false'));
+  document.removeEventListener('pointerdown',worldMenuOutside,true);
+  removeEventListener('keydown',worldMenuKey,true);
+}
+function worldMenuOutside(e){
+  const pop=document.getElementById('worldMenu');
+  if (!pop) return;
+  if (pop.contains(e.target) || (e.target.closest && e.target.closest('.world-more'))) return;
+  closeWorldMenu();
+}
+function worldMenuKey(e){ if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closeWorldMenu(); } }
+function showWorldMenu(anchor,w){
+  const open=document.getElementById('worldMenu');
+  closeWorldMenu();
+  if (open && open.dataset.for===w.id) return;   // second press on the same row closes it
+  const pop=document.createElement('div');
+  pop.id='worldMenu'; pop.className='selection-more world-menu';
+  pop.dataset.for=w.id; pop.setAttribute('role','menu');
+  pop.setAttribute('aria-label',`Actions for ${w.name||'this garden'}`);
+  const add=(label,fn,cls)=>{
+    const b=document.createElement('button'); b.type='button'; b.textContent=label;
+    b.setAttribute('role','menuitem'); if (cls) b.className=cls;
+    b.onclick=e=>{ e.stopPropagation(); closeWorldMenu(); fn(); };
+    pop.appendChild(b);
+  };
+  const name=w.name||'this garden';
+  add('Rename…',()=>renameWorld(w.id));
+  add('Duplicate',()=>duplicateWorld(w.id));
+  add('Delete…',()=>{
+    showConfirm('Delete this garden?',
+      `"${name}" and everything planted in it will be removed. This cannot be undone.`,
+      'Delete', ()=>{ deleteWorld(w.id); });
+  },'danger');
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect(), w2=pop.offsetWidth||190, h=pop.offsetHeight||140;
+  let top=r.bottom+6; if (top+h>innerHeight-8) top=Math.max(8,r.top-h-6);
+  pop.style.left=Math.max(8,Math.min(innerWidth-w2-8,r.right-w2))+'px';
+  pop.style.top=Math.round(top)+'px';
+  anchor.setAttribute('aria-expanded','true');
+  document.addEventListener('pointerdown',worldMenuOutside,true);
+  addEventListener('keydown',worldMenuKey,true);
+  const first=pop.querySelector('button'); if (first) first.focus({preventScroll:true});
+}
 async function deleteWorld(id){
+  closeWorldMenu();
   await updateWorldsIndex(fresh=>fresh.filter(w=>w.id!==id));
   await sDel('hortus:world:'+id);       // reclaims the quota in whichever home it sits
   openWorlds();

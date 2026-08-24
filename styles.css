@@ -445,8 +445,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    as the end of the content. */
 #worldsScreen #worldList+.row{margin-top:0;padding-top:14px;border-top:1px solid var(--border-quiet)}
 
-/* --thumb-w drives both the mini-map and the indent the wrapped action buttons
-   align to, so the two can never disagree (see .world-dup). */
+/* --thumb-w drives the mini-map. It used to drive the indent that the wrapped
+   action buttons aligned to as well; the row no longer wraps, because it no
+   longer has three buttons in it (see the 520px block). */
 .world-row{--thumb-w:84px;display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;
   border:1.5px solid var(--border-control);background:var(--surface-input);border-radius:var(--radius-control);
   color:var(--text-primary);text-align:left;font-size:14px}
@@ -456,15 +457,18 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* the mini-map drawn from the save, so a row answers "which garden was this?" */
 .world-thumb{width:var(--thumb-w);height:calc(var(--thumb-w) * .75);flex:0 0 auto;border-radius:var(--radius-control);
   background:#241a16;border:1px solid var(--border-quiet)}
-.world-del{background:var(--surface-danger);border:1px solid rgba(224,138,122,.50);color:var(--action-danger-text);
-  font-size:11px;padding:4px 8px;border-radius:var(--radius-control);flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:5px;
+/* One overflow control per row, replacing Rename/Duplicate/Delete inline. */
+.world-more{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;background:var(--surface-control);border:1px solid var(--border-control);
+  color:var(--text-primary);border-radius:var(--radius-control);
   transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
-.world-del:active{transform:translateY(1px)}
-.world-del .ui-icon{width:15px;height:15px}
-.world-del:hover{border-color:var(--action-danger);background:rgba(126,42,35,.60)}
-.world-dup{background:var(--surface-control);border:1px solid var(--border-control);color:var(--text-primary);
-  font-size:12px;font-weight:600;padding:6px 12px;border-radius:var(--radius-control);white-space:nowrap}
-.world-dup:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+.world-more:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+.world-more:active{transform:translateY(1px)}
+.world-more[aria-expanded="true"]{border-color:var(--border-active);background:var(--surface-active)}
+/* The sprite's dots are zero-length strokes, so their SIZE is the stroke width.
+   1.8 (the .ui-icon default) renders them at ~1.35px on screen — a smudge. */
+.world-more .ui-icon{width:20px;height:20px;stroke-width:3.2}
+@media (pointer:coarse){ .world-more{width:44px;height:44px} }
 /* planting-scheme manager: one row per scheme over the shared site plan.
    Locked to the viewport with ONLY the list scrolling, exactly like
    #worldsScreen .panel — otherwise a tall panel pushes Done off the bottom of a
@@ -504,16 +508,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
   .scheme-row-copy{flex:1 0 100%}
 }
 @media(max-width:520px){
-  /* Two lines: thumbnail + name, then the three actions as one group indented
-     to line up under the name. The indent used to be a hardcoded 94px sized for
-     the 84px desktop thumbnail; on a phone the thumbnail is 64px, so those
-     stale 20px overflowed the row and wrapped Delete onto a THIRD line — 46px
-     of dead height on every garden. Deriving it from --thumb-w keeps them in
-     step, and the row drops 173px -> ~127px. */
-  .world-row{flex-wrap:wrap;align-items:center}
-  .world-row>span{min-width:calc(100% - var(--thumb-w) - 10px)!important}
-  .world-dup{margin-left:calc(var(--thumb-w) + 10px)}
-  .world-dup,.world-del{min-height:36px}
+  /* The row used to wrap onto two lines here, because three action buttons
+     could not sit beside the thumbnail and the name — and the indent they
+     aligned to had to be derived from --thumb-w to stop Delete landing on a
+     THIRD line. A single overflow control fits on one line even at 320px, so
+     the wrap and the indent are both gone. */
+  .world-row{flex-wrap:nowrap;align-items:center}
 }
 .handedness-preference{display:none}
 @media(max-width:640px), (pointer:coarse){
@@ -2002,6 +2002,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      labels, not square icon buttons. */
   .season-dial .daynight,.top-tool,.pill.iconbar button{width:44px;min-width:44px;height:44px;min-height:44px}
   .preview-chip,.season-box{height:44px;min-height:44px}
+  /* popover menu items: .selection-more sets 40px, which is under the minimum.
+     Covers the selection More menu and the worlds-list row menu, which share
+     the class. */
+  .selection-more button{min-height:44px}
   .plant-result-heart,.plant-result-add,.catalog-close,
   .catalog-category-strip button,.discovery-source,.discovery-filter-trigger,
   .discovery-filter-summary,.palette-unavailable-row button,.palette-rename button,

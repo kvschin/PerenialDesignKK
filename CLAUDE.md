@@ -1953,7 +1953,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). Plant filters persist as `hortus:filters`.
-16. **Screens** — menu, worlds list (`#worldsScreen`: continue/rename/duplicate/delete
+16. **Screens** — menu, worlds list (`#worldsScreen`: continue, plus rename/duplicate/delete behind a per-row overflow menu
     saved gardens or start a new one; Design a Garden and View Gardens both open
     it, unfiltered and identical.
     Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
@@ -2419,6 +2419,20 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   narrow; the switch navigates). Hiding the stack's CONTENTS rather than the
   stack is safe here only because the switch then fills the 44px min-height
   band that the note above warns about leaving empty.
+- **The worlds row's actions live in a `…` overflow menu** (`showWorldMenu`,
+  screens.js), not as three inline buttons — which cost more width than the
+  garden's own name had, and each needed `stopPropagation` to avoid opening the
+  garden they sat on. **Delete is the part that needed care**: it used to be a
+  two-step arm on the button itself (first press swapped the label to "Sure?",
+  second press deleted), and that cannot survive a menu, because the menu closes
+  on the first press and takes the armed state with it — a naive port leaves a
+  Delete that silently does nothing. The confirmation moved to `showConfirm`,
+  which is the app's idiom for a destructive action anyway and can name the
+  garden. Verified end to end: nothing is removed before confirming, and after
+  confirming the index row, the blob (so the quota is reclaimed) and the
+  on-screen row all go. The row also stopped wrapping at 520px — the wrap and
+  its `--thumb-w`-derived indent existed only to fit three buttons, so a phone
+  row drops ~127px to 81px.
 - **A garden can be renamed** (`renameWorld`, screens.js). The name is the title
   block on the printed plan, the planting list header, the garden-menu heading
   and the share filename, and it used to be written once at `btnPlotStart` and
