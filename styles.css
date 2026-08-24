@@ -301,7 +301,12 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    anchor, so the colour and hover move to the children. */
 .menu-foot{align-self:center;color:rgba(var(--ink-rgb),.80);font-size:11px;margin:auto 0 0;
   padding-top:10px;letter-spacing:.03em;text-align:center}
-.menu-foot a{color:inherit;text-decoration:none}
+/* Credits/Privacy/Terms measured 14px tall. They are inline links inside a
+   sentence, so WCAG 2.2's target-size rule grants them the inline exception and
+   the 44px minimum would break the line — but 14px is still a poor tap. An
+   inline-block with padding takes them to 24px, which is the AA floor that
+   actually applies here, without disturbing the sentence. */
+.menu-foot a{color:inherit;text-decoration:none;display:inline-block;padding:5px 3px}
 .menu-foot a:hover{color:var(--seedhead)}
 .btn{border:1.5px solid var(--border-control);background:var(--surface-workspace);color:var(--text-primary);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:var(--radius-control);letter-spacing:.02em;
@@ -2012,5 +2017,28 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .discovery-load-more,.catalog-mode button,.modal-screen .chip,.modal-screen .back-link{min-width:44px;min-height:44px}
   .palette-row-action{min-height:44px}
   .discovery-criteria-checks .check-row{min-height:44px}
+  /* Swept Aug 2026 by walking every reachable surface at a coarse pointer and
+     measuring each interactive element, rather than fixing them as they were
+     noticed one at a time. Measured heights before: .card-x 23 (a CLOSE button,
+     the worst in the app), .card-action 27, .selection-actions button 31,
+     .lib-cat 36, #librarySearch 38, .back-link 40, .preview-chip 42 wide. */
+  .card-x{width:44px;min-width:44px;height:44px;min-height:44px}
+  .card-action{min-height:44px}
+  .selection-actions button{min-height:44px;min-width:44px}
+  .lib-cat{min-height:44px}
+  #librarySearch{min-height:44px}
+  /* min-WIDTH too: the worlds "Back" is full-width so it never showed the
+     problem, but the library's "Menu" is content-sized and came out 36.5 wide. */
+  .back-link{min-height:44px;min-width:44px}
+  .preview-chip{min-width:44px}
+  /* These already had 44px rules — but inside the SHEET query, which is gated on
+     WIDTH. A tablet in landscape is DOCK and still a finger, so it was getting
+     mouse-sized targets for all of them. Touch size follows the POINTER. */
+  .tool-popover button,.layer-row{min-height:44px}
+  .seg .seg-opt{min-height:44px}
+  .scheme-chip{min-height:44px;min-width:44px}
+  .scheme-name,.scheme-pick,.scheme-act{min-height:44px}
+  .bloom-cell{min-height:44px}
+  #cvRow .chip{min-height:44px}
   .discovery-criteria-checks .check-row input{width:20px;height:20px}
 }

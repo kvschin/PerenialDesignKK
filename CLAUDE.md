@@ -2361,6 +2361,28 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   bar's height, so the rail sat FLUSH against it on the device the number was
   picked for, while leaving 51px of dead space on a phone without a notch.
   `calc(var(--hud-top-h,61px) + 12px)` gives the same 12px gap on both.
+- **Touch target size follows the POINTER, not the width.** Most of the app's
+  44px rules lived in the SHEET query, which is gated on width — so a tablet in
+  LANDSCAPE, which is DOCK and still a finger, got mouse-sized targets for the
+  whole tool popover, the layer rows, the seg options, the scheme manager and
+  the bloom cells. Those are mirrored into `@media (pointer:coarse)` now. When
+  you add a control, put its touch sizing in that block; put only LAYOUT in the
+  SHEET query.
+  A full sweep (Aug 2026) walked every reachable surface at a coarse pointer
+  and measured each interactive element rather than fixing them as they were
+  noticed. Found: `.card-x` **23px** — a CLOSE button, the worst in the app —
+  `.card-action` 27, `.selection-actions button` 31, `.lib-cat` 36,
+  `#librarySearch` 38, `.back-link` 40 (and 36.5 WIDE in the library, where it
+  is content-sized rather than full-width), `.preview-chip` 42 wide. All at 44
+  now, verified across menu, worlds list and row menu, plot screen, design
+  questionnaire, garden (all three sheet states), every plants and landscape
+  tray category plus the fence/firepit/boulder drill-ins, garden menu, time
+  menu, view-tools and layers popovers, selection pill and its More menu, plant
+  card, plant filters, planting list, bloom calendar, design plan and the Plant
+  Library. The menu's credits/Privacy/Terms links are the one deliberate
+  exception: they are inline links in a sentence, so WCAG 2.2 grants them the
+  inline exception and 44px would break the line — they went 14px to **24px**,
+  which is the AA floor that actually applies.
 - **A new top-bar control must be added to the `pointer:coarse` block**
   (styles.css) or it comes out 34px in a bar where every neighbour is 44 —
   visibly the odd one out and under the touch minimum. `.preview-chip` and
