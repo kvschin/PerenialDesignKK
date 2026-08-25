@@ -1183,3 +1183,48 @@ test('clipped evergreen shrubs do not claim a bloom in the calendar', () => {
     assert(!PLANTS[k].bloomMonths,
       `${k}: clipped evergreens have no bloom pass in the renderer, so they must not list bloom months`);
 });
+
+/* ---------- Wikipedia references ---------- */
+
+test('every species carries a Wikipedia article, and every one is well formed', () => {
+  /* Resolved and verified against the API by dev/wikipedia-links.js, never
+     built from `latin` — roughly one species in ten has no article under its
+     own binomial. Cultivars and Groups have none at all, reclassified taxa are
+     filed under a newer genus (Calylophus berlandieri -> Oenothera
+     berlandieri), and a genus that doubles as a given name resolves to a
+     disambiguation page (Rosa -> Rose, Veronica -> Veronica (plant)). This
+     pins the SHAPE; only the tool can re-check that the articles still exist. */
+  const missing = [], malformed = [];
+  for (const k of keys){
+    const links = PLANTS[k].externalLinks;
+    const url = links && links.wikipedia;
+    if (!url){ missing.push(k); continue; }
+    const m = /^https:\/\/en\.wikipedia\.org\/wiki\/(\S+)$/.exec(url);
+    if (!m){ malformed.push(`${k}: ${url}`); continue; }
+    const title = m[1];
+    if (title.length < 3) malformed.push(`${k}: article title too short (${title})`);
+    // A raw space would break the link; the table stores titles and the loop
+    // that copies it over PLANTS is the only place that encodes them.
+    if (/\s/.test(title)) malformed.push(`${k}: unencoded space in ${title}`);
+  }
+  assert(!malformed.length, 'malformed Wikipedia links:\n  ' + malformed.join('\n  '));
+  assert(!missing.length,
+    `${missing.length} species have no Wikipedia article: ${missing.slice(0, 8).join(', ')}` +
+    ' - run `node dev/wikipedia-links.js --write`');
+});
+
+test('the article table has no entry for a species that no longer exists', () => {
+  /* Same failure BLOOM_MONTHS can have: a key that was renamed or removed
+     leaves a row behind that silently does nothing, and the next reader
+     assumes the plant is covered. */
+  const table = typeof WIKIPEDIA_ARTICLES !== 'undefined' ? WIKIPEDIA_ARTICLES : null;
+  assert(table, 'plants.js defines WIKIPEDIA_ARTICLES');
+  const orphans = Object.keys(table).filter(k => !PLANTS[k]);
+  assert(!orphans.length, `WIKIPEDIA_ARTICLES has rows for unknown species: ${orphans.join(', ')}`);
+  for (const [k, title] of Object.entries(table)){
+    assert(typeof title === 'string' && title.trim().length >= 3,
+      `${k}: article title is not a usable string`);
+    assert(!/^https?:/.test(title),
+      `${k}: store the article TITLE, not a URL - the loop builds the URL`);
+  }
+});

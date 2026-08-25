@@ -1632,6 +1632,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     off-allowlist licences) and `--verify` re-checks every shipped record before
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
+    **The "Learn more" Wikipedia reference is generated, not authored**
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 473
+    species carry one. It is a table copied over `PLANTS` at load, exactly like
+    `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
+    inline `externalLinks`, so put the article there, not on the entry.
+    **Do not string-build `/wiki/<latin>`.** It is trivially tempting and wrong
+    for about one species in ten: a cultivar epithet, a nothospecies ×, a Group
+    name or a subsp./var. usually has no article of its own; a reclassified
+    taxon is filed under a newer genus (*Calylophus berlandieri* →
+    `Oenothera berlandieri`, *Thelypteris noveboracensis* →
+    `Amauropelta noveboracensis`); and a genus that doubles as a given name
+    resolves to a DISAMBIGUATION page, so *Rosa* → `Rose` and *Veronica* →
+    `Veronica (plant)`. The tool walks a ladder — exact taxon, binomial,
+    declared synonym, `Genus (plant)`/`Genus (genus)`, then a qualified search
+    — and accepts a page only if it exists, is not a disambiguation, and its
+    opening sentences mention the genus **or** the species epithet (the epithet
+    survives a genus change, which is what rescues the reclassified taxa).
+    Two API details cost real accuracy and are easy to hit again: `prop=extracts`
+    silently caps `exlimit` at **20** pages, so batching titles higher returns
+    half of them with no text and quietly demotes good species articles to a
+    genus fallback; and a bare genus search is useless for these names — "Rosa"
+    returns Rosa Parks — so the search is qualified with "plant genus" and the
+    result must contain both the word *genus* and the genus name.
+    `--verify` re-checks every shipped article before a release.
 15. **Plant eligibility, discovery + HUD** - `plantFits()` is the hard garden
     gate (zone range, range-aware native mode, deer/rabbit-resistant plants, and
     squirrel-resistant bulbs). `game.discovery` is a reversible saved browsing
