@@ -871,7 +871,57 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     what a brush stroke really costs. **Canvas timings taken in a hidden or
     backgrounded tab are worthless** — it does not rasterize, readings swing 3x
     and can show strictly less work costing more — so `perfBench` warns on
-    `document.hidden` and returns `compositing`. Ground drawn back-to-front, a single
+    `document.hidden` and returns `compositing`.
+    **`perfBench` builds the hardscape too (`furnish`, default on).** It used to
+    build plants, bulbs and terrain — the whole app as it stood in July — so
+    every layer added after the ground-bake work landed in a bench garden
+    containing none of it, and the bench reported a fortnight of new hardscape
+    as free. `furnishGarden(opts)` is the shared populator (perimeter fence,
+    one faced terrace, edging on the beds, containers, seating, one building
+    footprint), mulberry-seeded so two builds are comparable; `furnish:false`
+    restores the bare comparison and the console line says BARE so the two
+    cannot be confused. Edging and the wall facing are the two that matter most
+    here — both land INSIDE the bake, so a bench without them cannot see them
+    at all (measured on a 69ft garden: edging +1.4ms, wall facing +1.4ms,
+    elevation entirely +3.9ms of a 27ms bake).
+    **The phase timers were measuring command SUBMISSION, not execution — and
+    still are, unless you ask otherwise.** A canvas 2D call queues work the
+    backend rasterizes later, outside every `dmark`. Measured on a furnished
+    69ft garden the phases summed to 7.0ms against a 10.4ms frame, and the
+    missing third sat almost entirely in the three FULL-SCREEN passes the HUD
+    was reporting at 0.00-0.15ms: `sky`, the `ground` blit and the `light`
+    wash. `dbg.flush` (toggle: `toggleFlushProfiling()`) forces a 1px readback
+    at each phase boundary so the backend finishes the queue before the clock
+    is read; the same frame then attributes 29.17ms of 29.25ms, and those three
+    read 3.9 / 6.9 / 3.5ms. The readback STALLS the pipeline, so every absolute
+    inflates (~3x) — **read this mode for SHARES and for deciding what to
+    cache, never as a frame budget**, which is why the HUD stamps
+    `[FLUSH: shares only]` while it is on. `dflush` is guarded on `dbg.on` and
+    `dbg.flush` both, so it costs one boolean when off; `dev(label,t0,ctx)`
+    flushes only when handed a context, because flushing a pure-JS event
+    (`trace`, `scene`, `snap`) would bill it for whatever was queued behind it.
+    So the standing note that `ground` charges the per-frame blit alone at
+    ~0.02ms is true of SUBMISSION; the blit's raster is real and is the second
+    largest block in the frame.
+    **`drawProfile(opts)` splits the `draw` phase by entity class**, which is
+    the other thing the HUD could not do: plants are sprite-cached and every
+    other kind — fence, building, pot, seat, boulder, firepit, pet, house — is
+    re-run procedurally on every frame forever, yet they interleave in ONE
+    depth-sorted pass, so there is nowhere to hang a per-class timer that does
+    not cost something every frame. It ablates instead: render the scene
+    holding one class against an empty-scene baseline, min over several rounds,
+    with a readback so it is not measuring submission either.
+    `drawProfile({sprites:'off'})` pins the procedural worst case. The `us`
+    column is what comparisons want — what one more chair, or one more tile of
+    footprint, costs on every future frame. Measured on a modestly furnished
+    69ft garden (651 plants, 85 fence tiles, a 195-tile garage, 14 pots, 10
+    seats): **uncached structures are 43% of the frame**, as much as all the
+    sprite-cached planting — fence 42us/tile, building 14us/tile, pot 53us,
+    seat 100us, against 13us for a blitted plant. None of them animate: they
+    are a pure function of (record, season, rot, camera), i.e. exactly as
+    cacheable as the ground, and not cached. That is the standing lead for the
+    next round of render work, and `drawProfile` is how to judge it.
+    Ground drawn back-to-front, a single
     depth-sorted entity
     pass for the cottage + plants (`houseDrawDepth()` uses the
     current-rotation max view depth over the footprint, so large houses sort

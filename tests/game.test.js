@@ -6622,3 +6622,100 @@ test('wall feet are what the list bills, and do not depend on the camera', () =>
   const ridge = buildElevationRuns().reduce((a, r) => a + wallRunFeet(r), 0);
   assert(ridge > 12 && ridge < 20, `a 10-tile (15 ft) freestanding wall bills about its own length (${ridge.toFixed(1)} ft)`);
 });
+
+/* ---------- the profiler's own blind spots ----------
+   Both of these exist because a measurement that quietly omits something is
+   worse than no measurement: the phase timers summed to 7.0ms against a 10.4ms
+   frame and nobody could see the missing third, and the bench built a garden
+   with no hardscape in it and reported a fortnight of new hardscape as free. */
+
+test('flush attribution is off by default and inert when it is', () => {
+  const wasOn = dbg.on, wasFlush = dbg.flush;
+  let reads = 0;
+  const probe = { getImageData(){ reads++; return { data: [] }; } };
+
+  dbg.flush = false;
+  dbg.on = true;
+  dflush(probe);
+  assertEqual(reads, 0, 'no readback while flush attribution is off');
+  dev('probe', 0, probe);
+  assertEqual(reads, 0, 'and none from an event either');
+
+  /* The readback is what makes a phase carry its own raster, and it is also a
+     pipeline stall — so it must never happen unless it was asked for. */
+  dbg.flush = true;
+  dflush(probe);
+  assertEqual(reads, 1, 'flush mode reads back to force the queue');
+
+  dbg.on = false;
+  dflush(probe);
+  assertEqual(reads, 1, 'nothing is read while the HUD itself is off');
+
+  dbg.flush = wasFlush; dbg.on = wasOn;
+});
+
+test('only a drawing event is flush-attributed', () => {
+  const wasOn = dbg.on, wasFlush = dbg.flush;
+  let reads = 0;
+  const probe = { getImageData(){ reads++; return { data: [] }; } };
+  dbg.on = true; dbg.flush = true; devReset();
+
+  /* A pure-JS event (trace, scene, snap) passes no context. Flushing it would
+     bill it for whatever canvas work happened to be queued behind it — the
+     exact misattribution this whole mode exists to remove. */
+  dev('trace', 0);
+  assertEqual(reads, 0, 'a JS-only event is never stalled');
+  dev('bake', 0, probe);
+  assertEqual(reads, 1, 'a drawing event is');
+
+  dbg.flush = wasFlush; dbg.on = wasOn; devReset();
+});
+
+test('the bench garden contains the layers added after the ground-bake work', () => {
+  setup(31, 31);
+  const now = Date.now();
+  for (let y = 8; y < 20; y++) for (let x = 8; x < 20; x++)
+    setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: now });
+
+  const before = {
+    fences: Object.keys(game.fences).length,
+    pots: Object.keys(game.pots || {}).length,
+    seats: Object.keys(game.seats || {}).length,
+    elevation: Object.keys(game.elevation).length,
+    buildings: (game.buildings || []).length,
+  };
+  assertEqual(before.fences + before.pots + before.seats + before.elevation + before.buildings, 0,
+    'the bench garden starts with no hardscape at all — which is the bug');
+
+  const out = furnishGarden();
+
+  assert(out.fenceTiles > 0, 'a perimeter fence is laid');
+  assert(out.pots > 0 && out.seats > 0, 'containers and seating are placed');
+  assert(out.terraceTiles > 0, 'a terrace is raised and faced');
+  assert(out.footprintTiles > 0, 'a building footprint is drawn');
+  assert(out.edgedTiles > 0, 'the beds are edged');
+
+  /* Edging and the wall facing land INSIDE the ground bake, so they are the two
+     that a bake benchmark could not otherwise see. Assert they are really on the
+     records the bake reads, not merely counted. */
+  const edged = Object.keys(game.terrain).filter(k => game.terrain[k] && game.terrain[k].e).length;
+  assertEqual(edged, out.edgedTiles, 'edging rides the terrain record the bake reads');
+  const faced = Object.keys(game.elevation).filter(k => {
+    const e = game.elevation[k];
+    return e && !e.removed && e.w && e.w !== 'none';
+  }).length;
+  assert(faced > 0, 'the terrace carries a wall facing, not bare earth');
+
+  // one polygon becomes one scene entity per TILE — the class most able to surprise
+  assert(out.footprintTiles > 10, 'the footprint is many tiles, not one entity');
+});
+
+test('furnishing is deterministic, so two builds are comparable', () => {
+  const sig = () => JSON.stringify([
+    Object.keys(game.pots || {}).sort(),
+    Object.keys(game.seats || {}).sort(),
+  ]);
+  setup(31, 31); furnishGarden(); const a = sig();
+  setup(31, 31); furnishGarden(); const b = sig();
+  assertEqual(a, b, 'the same seed lays out the same furniture');
+});

@@ -1398,14 +1398,40 @@ function updateGlassMode(dt){
    time breakdown — ground pass vs entity/plant pass vs the rest — so we can
    see where the frame actually goes, plus entity/tile counts and the canvas
    pixel budget. Works identically on desktop and tablet for side-by-side. */
-const dbg={on:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0,
+const dbg={on:false, flush:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0,
   ev:Object.create(null), gapLast:0, gapMax:0, gapOver:0, gapN:0, gapSusp:0,
   GAP_BUDGET:20, GAP_SUSPEND:250};
 // Labelled phase timing with ~zero cost when off: dnow() reads the clock only
 // while on; dmark folds the elapsed delta into a named accumulator; dtime wraps
 // an ad-hoc call so any function can be timed (e.g. dtime('flood',()=>doFloodFill())).
-function dnow(){ return dbg.on?performance.now():0; }
-function dmark(label,t0){ if (dbg.on) dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t0); }
+/* ---- flush attribution: the phase timers were measuring the wrong thing ----
+   A canvas 2D call SUBMITS a command; the backend rasterizes later. Every
+   dmark therefore closed over submission time alone, and the raster landed
+   outside all of them. Measured on a furnished 69ft garden the phases summed
+   to 7.0ms against a 10.4ms frame — a third of the frame attributed to
+   nothing, and the missing third sat almost entirely in the three full-screen
+   passes (sky, the ground blit, the light wash) that the breakdown was
+   reporting at 0.00-0.15ms.
+
+   Forcing a 1px readback at each phase boundary makes the backend finish the
+   queue before the clock is read, so a phase carries its own raster: the same
+   frame then attributes 29.17ms of 29.25ms. The readback STALLS the pipeline,
+   so every number inflates (~3x here) — this mode is for SHARES and for
+   deciding what to cache, never for a frame budget. Off by default, and one
+   boolean read when off. */
+function dflush(ctx2){
+  if (!dbg.on || !dbg.flush) return;   // dbg.on so the helper is safe to call from anywhere
+  const c=ctx2||(typeof cx!=='undefined'?cx:null);
+  if (!c || typeof c.getImageData!=='function') return;
+  try{ c.getImageData(0,0,1,1); }catch(_){ }
+}
+function toggleFlushProfiling(){
+  dbg.flush=!dbg.flush; dbgReset();
+  console.log('flush attribution '+(dbg.flush?'ON — phases now carry their raster; absolutes inflate, read shares':'off'));
+  return dbg.flush;
+}
+function dnow(){ if (!dbg.on) return 0; dflush(); return performance.now(); }
+function dmark(label,t0){ if (!dbg.on) return; dflush(); dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t0); }
 function dtime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
   try{ return fn(); } finally{ dbg.acc[label]=(dbg.acc[label]||0)+(performance.now()-t); } }
 /* ---- EVENT timers: the costs a per-frame average cannot show ----
@@ -1417,8 +1443,11 @@ function dtime(label,fn){ if (!dbg.on) return fn(); const t=performance.now();
    find it. Events are therefore reported as last/max/count and deliberately
    SURVIVE dbgReset: the whole point is to catch something that happened once.
    dev allocates one record per LABEL, never per call. */
-function dev(label,t0){
+function dev(label,t0,ctx2){
   if (!dbg.on) return 0;
+  // Only an event that DRAWS passes a context. Flushing a pure-JS event (trace,
+  // scene, snap) would bill it for whatever canvas work happened to be pending.
+  if (ctx2) dflush(ctx2);
   const ms=performance.now()-t0;
   let e=dbg.ev[label];
   if (!e) e=dbg.ev[label]={last:0,max:0,n:0,total:0};
@@ -1465,6 +1494,9 @@ function updateDebugHud(){
   const c=document.getElementById('gameCanvas'), n=dbg.n||1, avg=ms=>ms/n;
   const mp=c?(c.width*c.height/1e6).toFixed(2):'?';
   const total=dbg.acc.frame||0;
+  // flush mode inflates every absolute, so say so on the HUD rather than letting
+  // a 3x number be read as a frame budget
+  const flushNote=dbg.flush?'  [FLUSH: shares only]':'';
   // every measured phase, biggest first, with its share of the frame
   const rows=Object.keys(dbg.acc).filter(k=>k!=='frame')
     .sort((a,b)=>dbg.acc[b]-dbg.acc[a])
@@ -1484,7 +1516,7 @@ function updateDebugHud(){
       (dbg.gapSusp?`  (+${dbg.gapSusp} suspend)`:'')
     : '';
   dbg.el.textContent=
-    `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)\n`+
+    `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)${flushNote}\n`+
     rows+evRows+gap+'\n'+
     `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`+
     `  glass ${GLASS.off?'OFF':'on'} (${GLASS.ema.toFixed(1)}ms)`;
@@ -1515,6 +1547,11 @@ function perfBench(opts){
   const gw=Math.max(8,opts.gw||31), gh=Math.max(8,opts.gh||gw);
   const edge=opts.edge==='formal'?'formal':'organic';
   const rounds=Math.max(3,opts.rounds||15), edit=opts.edit!==false;
+  /* Furnish the bench garden with the layers added after the ground-bake
+     work. Edging and the wall facing land INSIDE the bake, so a bench that
+     builds neither measures a July garden and reports a fortnight of new
+     hardscape as free. Pass furnish:false for the old bare comparison. */
+  const furnish=opts.furnish!==false;
   if (!game.inGarden){ console.warn('perfBench: open a garden first (it needs a live canvas).'); return null; }
   const wasOn=dbg.on; dbg.on=true; devReset();
   const rnd=mulberry(0x9E3779B9);
@@ -1550,6 +1587,7 @@ function perfBench(opts){
     if (rnd()>0.8) continue;
     setTile('plants',k,{s:herb[(rnd()*herb.length)|0],d:day-40,t:now});
   }
+  if (furnish) furnishGarden(typeof opts.furnish==='object'?opts.furnish:{});
   enterGarden(); fitPlot();
   game.edgeStyle=edge;                       // enterGarden re-normalizes it
   const samples=[], traces=[];
@@ -1575,7 +1613,9 @@ function perfBench(opts){
     return {mean:+(sum/a.length).toFixed(2), min:+s[0].toFixed(1),
       med:+s[(s.length/2)|0].toFixed(1), max:+s[s.length-1].toFixed(1)}; };
   const out={plot:`${gw}x${gh}`, feet:`${Math.round(gw*TILE_IN/12)}x${Math.round(gh*TILE_IN/12)}ft`,
-    edge, edit, rounds, tileIn:TILE_IN,
+    edge, edit, rounds, tileIn:TILE_IN, furnished:furnish,
+    fences:Object.keys(game.fences).length, pots:Object.keys(game.pots||{}).length,
+    seats:Object.keys(game.seats||{}).length, elevation:Object.keys(game.elevation).length,
     terrainTiles:Object.keys(game.terrain).length, plants:Object.keys(game.plants).length,
     bakeMs:stat(samples), traceMs:stat(traces),
     canvas:cnv?`${cnv.width}x${cnv.height}`:'?', dpr:DPR, zoom:+ZOOM.toFixed(2),
@@ -1583,11 +1623,165 @@ function perfBench(opts){
   if (document.hidden) console.warn('perfBench: tab is HIDDEN — canvas timings here are not trustworthy.');
   const line=(k,s)=>s?`mean ${s.mean}  (min ${s.min} med ${s.med} max ${s.max})`:'n/a';
   console.log(`perfBench ${out.plot} (${out.feet}) ${edge}${edit?' +edit':''}  `+
-    `${out.terrainTiles} terrain tiles, ${out.plants} plants\n`+
+    `${out.terrainTiles} terrain tiles, ${out.plants} plants`+
+    (furnish?`, ${out.fences} fence, ${out.elevation} terrace, ${out.pots} pots, ${out.seats} seats`:` (BARE: no hardscape — pass furnish:true for the shipping app)`)+`\n`+
     `  bake  ${line('bake',out.bakeMs)} ms\n`+
     `  trace ${out.traceMs?line('trace',out.traceMs):'cached'} ms\n`+
     `  canvas ${out.canvas} dpr ${out.dpr} zoom ${out.zoom}`+
     `   — compare on MEAN (the clock quantizes each sample to 1ms)`);
+  return out;
+}
+/* ---- debug-only: where the DRAW phase goes, by entity class ----
+   The breakdown stops at `draw`, which on a furnished garden is half the frame
+   and holds a dozen unrelated kinds of object. Plants have a sprite cache;
+   fences, buildings, pots, seats, boulders, firepits, pets and houses do not —
+   every one of them re-runs its procedural recipe on every frame forever. So
+   "draw 6.5ms" could be 640 plants or it could be one 224-tile building
+   footprint, and nothing on the HUD could tell you which.
+
+   They interleave in ONE depth-sorted pass, so there is nowhere to hang a
+   per-class timer that does not cost something on every frame. Ablation is the
+   way through: render the scene holding only one class, against an empty-scene
+   baseline, and take the min over several rounds.
+
+     drawProfile()                       // as the sprite governor has it now
+     drawProfile({sprites:'off'})        // procedural plants — the honest worst case
+     drawProfile({frames:30, rounds:8})  // longer, for a quieter machine
+
+   `us` — microseconds per entity — is the number comparisons want: it says what
+   one more chair, or one more tile of footprint, costs on every future frame. */
+function drawProfile(opts){
+  opts=opts||{};
+  if (typeof scene==='undefined' || !cnv){ console.warn('drawProfile: needs a live canvas.'); return null; }
+  if (document.hidden) console.warn('drawProfile: tab is HIDDEN — canvas timings here are not trustworthy.');
+  const frames=Math.max(4,opts.frames||20), rounds=Math.max(3,opts.rounds||5);
+  const wasOff=PSPRITE.off, wasActive=PSPRITE.active, wasDbg=dbg.on;
+  dbg.on=false;                       // the phase timers would tax every ablation
+  const pinOff = opts.sprites==='off', pinOn = opts.sprites==='on';
+  if (pinOff) PSPRITE.off=true;
+  if (pinOn) PSPRITE.off=false;
+  buildScene(VW/ZOOM,VH/ZOOM);        // measure the scene as it really stands
+  const all=scene.ents.slice();
+  const names={}; for (const k in SCENE_K) names[SCENE_K[k]]=k;
+  const groups={};
+  for (const e of all) (groups[e.kind]||(groups[e.kind]=[])).push(e);
+  /* One readback after the batch forces the backend to finish what it queued.
+     Without it this measures command SUBMISSION and every class reads as nearly
+     free — the same blind spot dbg.flush exists for. */
+  const flush=()=>{ try{ cx.getImageData(0,0,1,1); }catch(_){ } };
+  const run=(ents)=>{
+    let best=Infinity;
+    for (let r=0;r<rounds;r++){
+      scene.ents=ents; render(performance.now()); flush();          // warm
+      const t0=performance.now();
+      for (let i=0;i<frames;i++){
+        scene.ents=ents;                                            // re-pin: render may rebuild
+        if (pinOn) PSPRITE.active=true; else if (pinOff) PSPRITE.active=false;
+        render(performance.now());
+      }
+      flush();
+      const v=(performance.now()-t0)/frames;
+      if (v<best) best=v;
+    }
+    return best;
+  };
+  const base=run([]), full=run(all);
+  const rows=[];
+  for (const k in groups){
+    const n=groups[k].length, ms=run(groups[k])-base;
+    rows.push({kind:names[k]||k, n, ms:+ms.toFixed(2), us:+((ms/n)*1000).toFixed(1),
+      pct:full>0?Math.round(ms/full*100):0});
+  }
+  rows.sort((a,b)=>b.ms-a.ms);
+  scene.ents=all; game.sceneRev++;    // never leave an ablated scene behind
+  PSPRITE.off=wasOff; PSPRITE.active=wasActive; dbg.on=wasDbg;
+  const cached=new Set(['PLANT','BULB']);
+  const uncached=rows.filter(r=>!cached.has(r.kind)).reduce((acc,r)=>acc+r.ms,0);
+  const out={frameMs:+full.toFixed(2), baselineMs:+base.toFixed(2), entities:all.length,
+    sprites:pinOff?'off':pinOn?'on':(wasActive?'auto-on':'auto-off'),
+    rows, uncachedMs:+uncached.toFixed(2),
+    uncachedPct:full>0?Math.round(uncached/full*100):0,
+    canvas:cnv?cnv.width+'x'+cnv.height:'?', dpr:DPR, zoom:+ZOOM.toFixed(2),
+    compositing:!document.hidden};
+  console.log('drawProfile  frame '+out.frameMs+'ms  ('+out.entities+' ents, sprites '+out.sprites+
+      ', '+out.canvas+' dpr '+out.dpr+')\n'+
+    '  baseline (no entities) '+out.baselineMs+'ms — sky + ground blit + shade + light\n'+
+    rows.map(r=>'  '+r.kind.padEnd(16)+String(r.ms).padStart(6)+'ms '+String(r.pct).padStart(3)+
+      '%  x'+String(r.n).padStart(4)+'  '+String(r.us).padStart(6)+'us each').join('\n')+
+    '\n  uncached structures '+out.uncachedMs+'ms ('+out.uncachedPct+
+      '% of frame) — redrawn every frame, never cached');
+  return out;
+}
+/* ---- debug-only: the layers the bench could not see ----
+   perfBench and stressGarden build plants, bulbs and terrain — which was the
+   whole app as it stood in July. Everything added since (edging, faced
+   retaining walls, real-height fences, containers, seating, editable building
+   footprints) lands in a bench garden containing none of it, so the bench kept
+   reporting a garden that got no more expensive while the frame filled up with
+   objects it never created. This furnishes the CURRENT garden deterministically,
+   so both dev tools measure the app that actually ships.
+
+   Deliberately mirrors a real design rather than packing the plot: a perimeter
+   fence, one terrace faced in stone, edging on the beds, a handful of pots and
+   chairs, one garage footprint. Pass counts to push any one of them. */
+function furnishGarden(opts){
+  opts=opts||{};
+  const rnd=mulberry(opts.seed||0x5EED1234), now=Date.now();
+  const num=(v,d)=>v==null?d:v;
+  if (!game.pots) game.pots={};
+  if (!game.seats) game.seats={};
+  // edging rides the terrain record, so it is a region-trace cost, not a layer
+  let edged=0;
+  if (opts.edging!==false) for (const k in game.terrain){
+    const e=game.terrain[k];
+    if (e && !e.removed && e.k==='bed'){ e.e=(typeof opts.edging==='string')?opts.edging:'steel'; edged++; }
+  }
+  // one raised terrace with a faced wall
+  let terraced=0;
+  if (opts.walls!==false){
+    const x0=Math.max(1,(GW*0.55)|0), y0=Math.max(1,(GH*0.18)|0);
+    const w=Math.max(3,(GW*0.30)|0), h=Math.max(3,(GH*0.26)|0);
+    for (let y=y0;y<Math.min(GH-1,y0+h);y++) for (let x=x0;x<Math.min(GW-1,x0+w);x++){
+      setTile('elevation',x+','+y,{h:1,w:(typeof opts.walls==='string')?opts.walls:'drystone',t:now});
+      terraced++; }
+  }
+  // perimeter fence — the commonest hardscape gesture there is
+  let fenced=0;
+  if (opts.fences!==false){
+    const st=(typeof opts.fences==='string')?opts.fences:'privacy', hgt=num(opts.fenceFt,6);
+    const put=(x,y)=>{ if (canPlaceFence(x,y)){
+      setTile('fences',x+','+y,{style:st,height:hgt,gate:false,t:now}); fenced++; } };
+    for (let x=0;x<GW;x++){ put(x,0); put(x,GH-1); }
+    for (let y=1;y<GH-1;y++){ put(0,y); put(GW-1,y); }
+  }
+  const scatter=(layer,n,make)=>{ let placed=0,guard=0;
+    while (placed<n && guard++<n*300){
+      const x=(rnd()*GW)|0, y=(rnd()*GH)|0, k=x+','+y;
+      if (!onPlot(x,y) || game[layer][k] || game.pots[k] || game.seats[k]) continue;
+      setTile(layer,k,make()); placed++; }
+    return placed; };
+  const potStyles=POT_STYLES.map(p=>p.id), potSizes=POT_SIZES.map(p=>p.id);
+  const seatTypes=SEAT_TYPES.map(t2=>t2.id), fins=SEAT_FINISHES.map(t2=>t2.id);
+  const pots=scatter('pots',num(opts.pots,14),()=>({style:potStyles[(rnd()*potStyles.length)|0],
+    size:potSizes[(rnd()*potSizes.length)|0],t:now}));
+  const seats=scatter('seats',num(opts.seats,10),()=>({type:seatTypes[(rnd()*seatTypes.length)|0],
+    finish:fins[(rnd()*fins.length)|0],face:(rnd()*4)|0,t:now}));
+  /* One building footprint. It is the class most able to surprise you: the
+     polygon becomes one scene entity per TILE, so a garage is 200+ entities. */
+  let footprint=0;
+  if (opts.building!==false){
+    const w=Math.max(4,num(opts.buildingW,(GW*0.34)|0)), h=Math.max(4,num(opts.buildingH,(GH*0.30)|0));
+    const x0=Math.max(1,(GW*0.10)|0), y0=Math.max(1,(GH*0.10)|0);
+    const x1=Math.min(GW-1,x0+w), y1=Math.min(GH-1,y0+h);
+    game.buildings=(game.buildings||[]).concat([{id:'bench-'+now, status:'existing', label:'Garage',
+      vertices:[[x0,y0],[x1,y0],[x1,y1],[x0,y1]], fill:'#8b8378', edge:'#5a544c', t:now}]);
+    markModelChanged(); markLayerCacheChanged('buildings');
+    footprint=buildingTiles(game.buildings[game.buildings.length-1]).length;
+  }
+  markGroundChanged({terrain:true}); markModelChanged(); game.sceneRev++;
+  groundKey='';
+  const out={edgedTiles:edged, terraceTiles:terraced, fenceTiles:fenced, pots, seats, footprintTiles:footprint};
+  console.log('furnishGarden '+JSON.stringify(out));
   return out;
 }
 // debug-only: pack the plot with a dense mix so the profiler sees worst-case.

@@ -1419,7 +1419,7 @@ function render(t){
     // this bake is authoritative for everything edited up to now, and it starts
     // the next throttle window
     clearGroundDamage(); groundEditT=t;
-    bakeMs=dev('bake',tBake);
+    bakeMs=dev('bake',tBake,groundCtx);   // the bake DRAWS, so flush mode attributes its raster
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
   // approximation mid-zoom-gesture that the settle rebake replaces crisp.
