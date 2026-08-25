@@ -1244,7 +1244,14 @@ function setElevationAt(x,y,h){
   const k=`${x},${y}`, n=Math.max(ELEV_MIN,Math.min(ELEV_MAX,+h|0));
   if (n===elevationAt(x,y)) return false;
   if (!game.elevation) game.elevation={};
-  if (n===0) clearTile('elevation',k); else setTile('elevation',k,{h:n,t:Date.now()});
+  /* Merge, never replace: the retaining-wall facing rides this record (w), so
+     writing a bare {h,t} silently stripped the wall off a terrace the moment its
+     height changed — raise a walled bank one more course and the stone was gone,
+     with nothing said. Levelling to 0 does drop it, and should: there is no
+     exposed face left to hold anything up. */
+  const cur=game.elevation && game.elevation[k];
+  if (n===0) clearTile('elevation',k);
+  else setTile('elevation',k,Object.assign({},(cur&&!cur.removed)?cur:null,{h:n,t:Date.now()}));
   return true;
 }
 /* A retaining wall lives on the exposed face of a level change, and that face

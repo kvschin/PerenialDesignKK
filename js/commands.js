@@ -337,9 +337,31 @@ function driftCount(def){
    ('plant'|'bulb'|'path'|'bed'|'water'|'fence'|'gate'|'light'|'elevation') or
    null. The universal guards (off-plot, house/door) live here so every hook
    inherits them; tools without a hook (hand/select/pick/erase/house) no-op. */
+/* Raise and lower are the only tools whose apply INCREMENTS rather than writes,
+   so stamping a tile twice moves it two levels. A drag stamps the whole disc at
+   every tile the pointer crosses, so a 3-wide brush dragged once across six
+   tiles asked for one level everywhere and produced 1,2,3,3,3,3,2,1 — a cliff
+   with sloped ends, at ELEV_MAX after a second pass, and drawn lifted by
+   elev*ELEV_STEP so the terrace and its wall face then cover the tiles in front
+   and the pointer reads as off. Everything else writes a value (bed, path,
+   plant, wall, edging, and level, which sets 0), so re-stamping is a no-op and
+   needs no guard — hence a flag on the two tools rather than a rule for all.
+   The bracket is the gesture's own: beginUndo on pointerdown, commitUndo or
+   cancelPendingUndo at pointerup. Outside a gesture the set is null and every
+   call is a first touch, which is what the E key and the flood fill want. */
+let gestureTouched=null;
+function beginGestureTouches(){ gestureTouched=new Set(); }
+function endGestureTouches(){ gestureTouched=null; }
+function firstTouchThisGesture(x,y){
+  if (!gestureTouched) return true;
+  const k=x+','+y;
+  if (gestureTouched.has(k)) return false;
+  gestureTouched.add(k); return true;
+}
 function applyToolAt(x,y,opts){
   if (!onPlot(x,y)) return null;
   const meta=toolMeta(game.tool);
+  if (meta.once && !firstTouchThisGesture(x,y)) return null;
   /* "Nothing goes on top of a building" is right for every tool except the one
      whose job IS the building — the footprint editor has to reach the tiles a
      footprint already owns in order to trim them. `overSite` says so in the
@@ -389,26 +411,32 @@ function placeTerrainAt(x,y){
   if (firepitAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
+  /* Merge over whatever the tile already carried, never replace it: edging rides
+     this same record (e), so writing a bare {k,c,t} silently lifted a restraint
+     the gardener had painted and paid for — switching a bed from soil to gravel
+     wiped its steel edge, with nothing said. Edging is lifted by painting
+     'none', which is a deliberate act. */
+  const keep=v=>Object.assign({},terrObj,v,{t:Date.now()});
   if (terr===game.tool){
     if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
-      setTile('terrain',k,{k:'water',c:game.waterStyle,t:Date.now()});
+      setTile('terrain',k,keep({k:'water',c:game.waterStyle}));
       return 'water';
     }
     if (game.tool==='path' && pathColorId(terrObj.c)!==game.pathColor){
-      setTile('terrain',k,{k:'path',c:game.pathColor,t:Date.now()});
+      setTile('terrain',k,keep({k:'path',c:game.pathColor}));
       return 'path';
     }
     if (game.tool==='bed' && bedStyleId(terrObj.c)!==game.bedStyle){
-      setTile('terrain',k,{k:'bed',c:game.bedStyle,t:Date.now()});
+      setTile('terrain',k,keep({k:'bed',c:game.bedStyle}));
       return 'bed';
     }
     return null;
   }
   setTile('terrain',k, game.tool==='path'
-    ? {k:'path',c:game.pathColor,t:Date.now()}
+    ? keep({k:'path',c:game.pathColor})
     : game.tool==='water'
-    ? {k:'water',c:game.waterStyle,t:Date.now()}
-    : {k:'bed',c:game.bedStyle,t:Date.now()});
+    ? keep({k:'water',c:game.waterStyle})
+    : keep({k:'bed',c:game.bedStyle}));
   return game.tool;
 }
 // Matrix scatter: keep new plantings of the SAME species at least their real
@@ -1804,11 +1832,11 @@ function pushUndo(snap){ undoStack.push(snap); if (undoStack.length>30) undoStac
 // Model mutations go through helpers that bump game.rev, so undo change
 // detection is an O(1) revision comparison instead of a full-layer hash.
 function changedSince(rev){ return game.rev!==rev; }
-function beginUndo(){ pendRev=game.rev; pendSnap=snapshotState(); }
-function commitUndo(){ if (pendSnap && changedSince(pendRev)) pushUndo(pendSnap); pendSnap=null; }
+function beginUndo(){ pendRev=game.rev; pendSnap=snapshotState(); beginGestureTouches(); }
+function commitUndo(){ if (pendSnap && changedSince(pendRev)) pushUndo(pendSnap); pendSnap=null; endGestureTouches(); }
 function cancelPendingUndo(restore){
   if (restore && pendSnap && changedSince(pendRev)) applySnapshot(pendSnap);
-  pendSnap=null;
+  pendSnap=null; endGestureTouches();
 }
 function withUndo(fn){ const rev=game.rev, snap=snapshotState(); fn();
   if (changedSince(rev)) pushUndo(snap); }

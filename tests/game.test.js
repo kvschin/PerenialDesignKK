@@ -6442,3 +6442,83 @@ test('a path laid over a bed keeps the straight edge it was painted with', () =>
   for (const p of walk) if (p[1] > 15 && p[1] < 19 && Math.abs(p[0] - 8) < 2.5) retreat = Math.max(retreat, p[0] - 8);
   assert(retreat < 0.05, `the path reaches the bed's tile line and does not retreat inside it (${retreat.toFixed(3)} tiles)`);
 });
+
+/* Raise and lower INCREMENT, where every other brush writes a value. The disc
+   is stamped at every tile the pointer crosses, so a tile inside the disc of
+   several crossings was raised once per crossing: one drag of a 3-wide brush
+   across six tiles asked for one level everywhere and built 1,2,3,3,3,3,2,1 —
+   a cliff, at ELEV_MAX after a second pass. And because a terrace draws lifted
+   by elev*ELEV_STEP with its wall face covering the tiles in front, the taller
+   it got the more the pointer read as landing somewhere else. */
+test('one raise drag raises each tile exactly one level', () => {
+  const drag = (tool, size, x0, y0, x1, y1) => {
+    game.tool = tool; setBrushSize(size);
+    beginUndo();
+    const d = { sx:x0, sy:y0, cx:x0, cy:y0, active:true, count:0, what:null, lastX:x0, lastY:y0,
+                trace:[[x0,y0]], edgeSeen:new Set(), affected:new Set(), runInches:0 };
+    stampBrushAt(x0, y0, null);
+    for (const [xx, yy] of strokeLineTiles(x0, y0, x1, y1).slice(1)) paintToolDragLine(d, xx, yy, null);
+    commitUndo();
+  };
+
+  setup(21, 21);
+  drag('raise', 3, 7, 10, 12, 10);
+  const row = [];
+  for (let x = 6; x <= 13; x++) row.push(elevationAt(x, 10));
+  assert(row.every(h => h === 1), `every tile under a 3-wide drag rose one level (${row.join(',')})`);
+
+  // a second pass over the same ground is a second deliberate gesture, and
+  // SHOULD raise it again — the guard is per-gesture, not a global latch
+  drag('raise', 3, 7, 10, 12, 10);
+  assertEqual(elevationAt(9, 10), 2, 'a second drag raises it again');
+
+  // and the whole drag is still one undo step
+  doUndo();
+  assertEqual(elevationAt(9, 10), 1, 'undo takes back the whole second drag');
+
+  // level writes 0 rather than incrementing, so it needs no guard and gets none
+  setup(21, 21);
+  drag('raise', 3, 7, 10, 12, 10);
+  drag('level', 3, 7, 10, 12, 10);
+  assertEqual(elevationAt(9, 10), 0, 'levelling is idempotent and unaffected');
+
+  // outside a gesture every call is a first touch: the flood fill and the E key
+  // both drive applyToolAt directly and must still work
+  setup(21, 21);
+  game.tool = 'raise'; setBrushSize(1);
+  applyToolAt(5, 5); applyToolAt(5, 5);
+  assertEqual(elevationAt(5, 5), 2, 'two discrete actions raise two levels');
+});
+
+/* Two layers carry a second property on the same record — the retaining-wall
+   facing on the elevation record (w) and the edging on the terrain record (e).
+   Both writers replaced the record instead of merging over it, so changing the
+   thing the record is NAMED for silently destroyed the thing riding along. */
+test('changing a level keeps its wall, and changing a material keeps its edging', () => {
+  setup(21, 21);
+  game.tool = 'raise'; setBrushSize(1); applyToolAt(10, 10);
+  game.tool = 'wall'; game.wallDraft = 'stone'; applyToolAt(10, 10);
+  assertEqual(wallStyleAt(10, 10), 'stone', 'the terrace is faced');
+  game.tool = 'raise'; applyToolAt(10, 10);
+  assertEqual(elevationAt(10, 10), 2, 'and raised again');
+  assertEqual(wallStyleAt(10, 10), 'stone', 'the facing survives the raise');
+  game.tool = 'lower'; applyToolAt(10, 10);
+  assertEqual(wallStyleAt(10, 10), 'stone', 'and the lower');
+  // levelling to grade legitimately drops it: no exposed face, nothing to hold up
+  game.tool = 'level'; applyToolAt(10, 10);
+  assertEqual(elevationAt(10, 10), 0, 'levelled');
+  assertEqual(wallStyleAt(10, 10), 'none', 'and the facing goes with the earthwork');
+
+  setup(21, 21);
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1); applyToolAt(10, 10);
+  game.tool = 'edging'; game.edgingDraft = 'steel'; applyToolAt(10, 10);
+  assertEqual(edgingAt(10, 10), 'steel', 'the bed is edged');
+  game.tool = 'bed'; game.bedStyle = 'gravel'; applyToolAt(10, 10);
+  assertEqual((terrainAt(10, 10) || {}).c, 'gravel', 'the material changed');
+  assertEqual(edgingAt(10, 10), 'steel', 'the edging survives it');
+  game.tool = 'path'; game.pathColor = 'warm'; applyToolAt(10, 10);
+  assertEqual(edgingAt(10, 10), 'steel', 'and survives becoming a path');
+  // painting 'none' is the deliberate way to lift it
+  game.tool = 'edging'; game.edgingDraft = 'none'; applyToolAt(10, 10);
+  assertEqual(edgingAt(10, 10), 'none', "and 'none' still lifts it");
+});

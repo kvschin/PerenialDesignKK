@@ -67,8 +67,10 @@ const TOOLS={
   path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
   bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
   water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
-  raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
-  lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  // once: raise/lower INCREMENT, so a disc re-stamping a tile mid-drag would
+  // move it several levels — see applyToolAt. level writes 0 and is exempt.
+  raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, once:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
+  lower:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, once:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   level:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
   // the wall brush paints a face that already exists, so it may sit on a tile
   // the universal guard would otherwise refuse nothing about — it is sizable
