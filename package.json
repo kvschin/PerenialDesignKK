@@ -1,6 +1,6 @@
 {
   "name": "pocket-prairie-garden-design",
-  "version": "0.8.26",
+  "version": "0.8.27",
   "private": true,
   "description": "A 2.5D Oudolf-style perennial garden planner and game. Plain HTML/CSS/JS, no build step.",
   "scripts": {

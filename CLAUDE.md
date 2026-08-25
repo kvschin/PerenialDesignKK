@@ -733,8 +733,38 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **soft** arcs — facing grass, *or* facing a material this region outranks —
     are Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
-    pre-jittered inward (`planJitter`) on interiors only, and drawn as
-    midpoint-quadratic splines **pinned to their endpoints**;
+    jittered inward (`planJitter`) on interiors only, and drawn as **bounded-fillet**
+    curves **pinned to their endpoints**. Two things about that are load-bearing.
+    **The corner radius is CLAMPED (`TERRAIN_FILLET`, 1 tile)**: the old form used
+    each vertex as a quadratic control point, which cuts a corner by
+    `|(A-B)+(C-B)|/4` — a fraction of the runs either side, so the smoothing scaled
+    with the shape and the more deliberate the geometry the more of it was
+    destroyed. On a real garden an 11x12 tile gravel patio lost **3.76 ft** at its
+    corners and bowed **2.34 ft** off a straight 10-tile run, while a wandering
+    3-tile bed lost 0.5 ft — exactly backwards. Clamped, a one-tile jog is bound by
+    its own half-length and rounds precisely as it always did, while a long run
+    stays straight and turns a real corner (patio: 0.57 ft / 0.58 ft; beds' mean
+    softening 0.55 → 0.46 ft, i.e. essentially unchanged). The clamp is computed in
+    TILE space and applied as a FRACTION of the projected segment — in projected
+    units the radius would mean pixels and change with zoom and between the garden
+    and the plan sheet.
+    **And `LAID_OVER_BLEED` is applied AFTER simplification**, not to the lattice
+    points going in. Bled first, a run whose neighbour changes material partway
+    along — a path crossing a bed, the case rank exists for — got a 0.45-tile step
+    in its middle, which pushed the run's real corner off the chord DP measures
+    against: the patio's west edge came out as a diagonal. Applied last it is also
+    strictly *better* at the job it exists for — across every laid-over tile side
+    of that garden, 0.000 tiles of retreat inside the shared line, against 0.138
+    (0.21 ft) on 2 of 5 sides when bled first. The jitter is still seeded from the
+    UNBLED integer lattice point, which is what planJitter's "neighbouring blobs
+    nest" property depends on.
+    **`terrainCurveWalk` is the single definition of that curve**, walked by three
+    consumers through an emitter: the fill path, the outline stroke, and
+    `edgingCurvePoints` (the sampled polyline the edging strip follows). They were
+    three copies of one spline and had drifted once already; a test now pins them
+    together. Splitting arcs at long-run corners before simplifying was also built,
+    measured at **zero** difference on both the real garden and a synthetic
+    reconstruction, and removed rather than shipped as an untested tuning constant;
     **hard** arcs — facing a peer (another bed style, another path colour), the
     **plot boundary**, or a **house/building wall** — draw as exact tile lines
     with no jitter, so peers **butt seamlessly** and painted corners stay corners
@@ -747,9 +777,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     first. It used to ask only "does the neighbour carry terrain?", so a house
     answered the same as open lawn and **a bed curved away from its own
     foundation** — measured on a real 70x39 garden, 54 ft of terrain ran along the
-    house sitting 0.50 ft off it on average and 3.17 ft at worst, with 43% of
-    pixels sampled just inside the wall line coming back lawn green. Nobody builds
-    a rounded bed edge against a house. A fence is deliberately NOT in the
+    house sitting 0.50 ft off it on average and 3.17 ft at worst (0.01 / 0.07 ft
+    after). Nobody builds a rounded bed edge against a house. Measure this on the
+    GEOMETRY — flatten terrainLoopPath through an identity projector and compare
+    against the tile lattice. A canvas pixel probe was tried first and reported a
+    confident 43% before/0% after that turned out to be sampling the wrong points:
+    the main canvas backing store is not always DPR*ZOOM times the draw units, so
+    derive the scale as cnv.width/VW rather than assuming it. Re-run correctly,
+    that probe does not discriminate at all. A fence is deliberately NOT in the
     predicate: `canPlaceFence` allows terrain under a fence tile, so painting the
     bed under the fence line already gives a straight edge, whereas a house tile
     refuses terrain outright and leaves the wall as the only boundary available;

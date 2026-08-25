@@ -6201,7 +6201,7 @@ test('a bed runs exactly to a house wall, and still wanders against lawn', () =>
   assert(against, 'the bed traced a region');
   // tiles x5..14 y8..11, so the painted south corners are (5,12) and (15,12)
   const wallGap = Math.max(cornerCut(against, [5, 12]), cornerCut(against, [15, 12]));
-  assert(wallGap < 0.25, `the bed runs into the foundation corners (off by ${wallGap.toFixed(3)} tiles)`);
+  assert(wallGap < 0.1, `the bed runs into the foundation corners (off by ${wallGap.toFixed(3)} tiles)`);
 
   // ---- the SAME bed shape against open lawn: still organic
   /* Without this half the test would pass just as well if the smoothing were
@@ -6211,8 +6211,8 @@ test('a bed runs exactly to a house wall, and still wanders against lawn', () =>
   game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
   for (let x = 5; x <= 14; x++) for (let y = 8; y <= 11; y++) applyToolAt(x, y);
   const lawnGap = Math.max(cornerCut(bedRegion(), [5, 12]), cornerCut(bedRegion(), [15, 12]));
-  assert(lawnGap > 1, `the same corners against lawn are still rounded away (${lawnGap.toFixed(3)} tiles)`);
-  assert(lawnGap > wallGap * 4, 'and markedly more than they are against the wall');
+  assert(lawnGap > 0.25, `the same corners against lawn are still rounded away (${lawnGap.toFixed(3)} tiles)`);
+  assert(lawnGap > wallGap * 3, 'and markedly more than they are against the wall');
 
   // the plot boundary was always hard; a wall now reads the same way
   assert(!isLawnTile(-1, 5), 'off the plot is not lawn');
@@ -6265,4 +6265,180 @@ test('edging is not billed along a wall it is no longer drawn against', () => {
   }
   assertEqual(softRun, 0, 'no soft arc runs along the foundation');
   assert(hardRun > 0, 'and the foundation edge is drawn by a hard arc');
+});
+
+/* The organic edge used each polyline vertex as a quadratic CONTROL point, so a
+   corner was cut by |(A-B)+(C-B)|/4 — proportional to the runs either side.
+   The smoothing therefore scaled with the shape, and the more deliberate the
+   geometry the more of it was destroyed: on a real garden an 11x12 tile gravel
+   patio lost 3.76 ft at its corners and bowed 2.34 ft off a straight 10-tile
+   run, while a wandering 3-tile bed lost 0.5 ft. Exactly backwards. */
+test('organic edges: a long run stays straight and its corner is bounded', () => {
+  const curve = (region) => {
+    const pts = []; let cur = null;
+    const ctx = {
+      beginPath(){}, closePath(){},
+      moveTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+      lineTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+      quadraticCurveTo(cx, cy, x, y){ const a = cur;
+        for (let i = 1; i <= 20; i++){ const t = i / 20, u = 1 - t;
+          pts.push([u*u*a[0] + 2*u*t*cx + t*t*x, u*u*a[1] + 2*u*t*cy + t*t*y]); }
+        cur = [x, y]; }
+    };
+    for (const loop of region.loops) terrainLoopPath(ctx, loop, p => p);
+    // walk it at a fixed step: a straight run is a lineTo and emits only its ends
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++){
+      const a = pts[i], b = pts[i + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 8));
+      for (let j = 0; j < n; j++) out.push([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]);
+    }
+    if (pts.length) out.push(pts[pts.length - 1]);
+    return out;
+  };
+
+  setup(30, 30);
+  game.edgeStyle = 'organic';
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  // tiles x6..17, y6..15 -> a 12x10 rectangle, corners on (6,6) (18,6) (18,16) (6,16)
+  for (let x = 6; x <= 17; x++) for (let y = 6; y <= 15; y++) applyToolAt(x, y);
+  const pts = curve(buildTerrainRegions().find(r => r.kind === 'bed'));
+
+  /* 1. the straight runs are straight. Sample the middle 60% of the south run,
+        clear of both corner fillets. Not exactly zero: a uniform closed loop
+        jitters every point including its corners (planJitter at 0.55, so up to
+        0.1375 tiles), which tilts the run very slightly — that is the intended
+        lattice wobble and it does NOT grow with the run, which is the whole
+        point. It was 1.56 tiles here before. */
+  let bow = 0;
+  for (const p of pts) if (p[0] > 8.4 && p[0] < 15.6 && Math.abs(p[1] - 16) < 2) bow = Math.max(bow, Math.abs(p[1] - 16));
+  assert(bow < 0.15, `a 12-tile run draws straight to within the jitter (bowed ${bow.toFixed(3)} tiles)`);
+
+  // 2. the corner is rounded, but BOUNDED — and the bound is what is new, so
+  //    the assertion names what the old unbounded form would have produced for
+  //    these very runs rather than a magic number.
+  let cut = Infinity;
+  for (const p of pts) cut = Math.min(cut, Math.hypot(p[0] - 18, p[1] - 16));
+  const unbounded = Math.hypot(12 / 2, 10 / 2) / 4;   // |(A-B)+(C-B)|/4 at the midpoints
+  assert(cut > 0.15, `the corner is still softened, not square (${cut.toFixed(3)})`);
+  assert(cut < 0.5, `and bounded near the fillet radius (${cut.toFixed(3)})`);
+  assert(unbounded > 1.9 && cut < unbounded / 3,
+    `far tighter than the run-proportional cut it replaced (${cut.toFixed(2)} vs ${unbounded.toFixed(2)})`);
+
+  // 3. a genuine one-tile jog is UNCHANGED: its own half-length binds the
+  //    fillet, so small wobbles round exactly as they always did.
+  setup(30, 30);
+  game.edgeStyle = 'organic';
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  for (let x = 6; x <= 11; x++) for (let y = 6; y <= 9; y++) applyToolAt(x, y);
+  applyToolAt(12, 7);                              // a single tile sticking out
+  const jog = curve(buildTerrainRegions().find(r => r.kind === 'bed'));
+  let jogCut = Infinity;
+  for (const p of jog) jogCut = Math.min(jogCut, Math.hypot(p[0] - 13, p[1] - 7));
+  assert(jogCut > 0.15 && jogCut < 0.8, `a one-tile lobe still rounds softly (${jogCut.toFixed(3)})`);
+});
+
+/* Three consumers draw this curve: the fill path, the outline stroke, and the
+   sampled polyline the edging strip follows. They were three copies of the same
+   spline, and the file already carries the scar of them drifting once. They are
+   one walk now, and this is what says so. */
+test('the edging strip follows exactly the curve the bed was filled with', () => {
+  setup(26, 26);
+  game.edgeStyle = 'organic';
+  game.tool = 'bed'; game.bedStyle = 'mulch'; setBrushSize(1);
+  // a shape with both long runs and short jogs, so fillets clamp both ways
+  for (let x = 5; x <= 16; x++) for (let y = 5; y <= 12; y++) applyToolAt(x, y);
+  for (let y = 13; y <= 14; y++) for (let x = 7; x <= 9; x++) applyToolAt(x, y);
+  const region = buildTerrainRegions().find(r => r.kind === 'bed');
+
+  const fillPts = [];
+  let cur = null;
+  const ctx = {
+    beginPath(){}, closePath(){},
+    moveTo(x, y){ cur = [x, y]; fillPts.push([x, y]); },
+    lineTo(x, y){ cur = [x, y]; fillPts.push([x, y]); },
+    quadraticCurveTo(cx, cy, x, y){ const a = cur;
+      for (let i = 1; i <= 20; i++){ const t = i / 20, u = 1 - t;
+        fillPts.push([u*u*a[0] + 2*u*t*cx + t*t*x, u*u*a[1] + 2*u*t*cy + t*t*y]); }
+      cur = [x, y]; }
+  };
+  for (const loop of region.loops) terrainLoopPath(ctx, loop, p => p);
+
+  let worst = 0, n = 0;
+  for (const loop of region.loops){
+    for (const arc of (loop.closed ? [loop] : loop.arcs)){
+      for (const p of edgingCurvePoints(arc, q => q)){
+        let best = Infinity;
+        for (const q of fillPts) best = Math.min(best, Math.hypot(p[0] - q[0], p[1] - q[1]));
+        worst = Math.max(worst, best); n++;
+      }
+    }
+  }
+  assert(n > 20, `the strip really was sampled (${n} points)`);
+  assert(worst < 0.06, `every edging point lies on the filled silhouette (worst ${worst.toFixed(4)} tiles)`);
+});
+
+/* LAID_OVER_BLEED pushes a region's edge out over the lower-ranked material it
+   covers, and it used to be applied to the lattice points on the way IN to the
+   simplifier. A run whose neighbour changes material partway along — a path
+   crossing a bed, which is the case the rank system exists for — therefore
+   acquired a 0.45-tile step in its middle, and the simplifier then measured the
+   run's real corner against a chord skewed by that step. Applying the bleed
+   after simplifying costs nothing and keeps the run straight. */
+test('a path laid over a bed keeps the straight edge it was painted with', () => {
+  setup(30, 30);
+  game.edgeStyle = 'organic'; setBrushSize(1);
+  // a bed against the LOWER half of the patio's west side only: the rank change
+  // lands partway along one otherwise straight run
+  game.tool = 'bed'; game.bedStyle = 'soil';
+  for (let x = 6; x <= 7; x++) for (let y = 14; y <= 19; y++) applyToolAt(x, y);
+  // a peer path colour to the north gives the patio a hard arc there, so the
+  // rest of its boundary is ONE long open soft arc — the shape the real garden has
+  game.tool = 'path'; game.pathColor = 'paver';
+  for (let x = 9; x <= 18; x++) applyToolAt(x, 7);
+  game.pathColor = 'warm';
+  for (let x = 9; x <= 18; x++) applyToolAt(x, 8);          // the one-tile chamfer
+  for (let x = 8; x <= 18; x++) for (let y = 9; y <= 20; y++) applyToolAt(x, y);
+
+  const rg = buildTerrainRegions().find(r => r.kind === 'path' && r.c === 'warm');
+  assert(rg, 'the patio traced a region');
+  assert(rg.loops.some(l => !l.closed && l.arcs.some(a => a.hard) && l.arcs.some(a => !a.hard)),
+    'and it really is the mixed hard/soft arc case this is about');
+
+  const pts = []; let cur = null;
+  const ctx = {
+    beginPath(){}, closePath(){},
+    moveTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+    lineTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+    quadraticCurveTo(cx, cy, x, y){ const a = cur;
+      for (let i = 1; i <= 20; i++){ const t = i / 20, u = 1 - t;
+        pts.push([u*u*a[0] + 2*u*t*cx + t*t*x, u*u*a[1] + 2*u*t*cy + t*t*y]); }
+      cur = [x, y]; }
+  };
+  for (const loop of rg.loops) terrainLoopPath(ctx, loop, p => p);
+  const walk = [];
+  for (let i = 0; i < pts.length - 1; i++){
+    const a = pts[i], b = pts[i + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 8));
+    for (let j = 0; j < n; j++) walk.push([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]);
+  }
+
+  // the LAWN-facing upper half of the west run (y 10..14) must sit on x=8. The
+  // lower half is bled out over the bed on purpose and is not measured here.
+  let bow = 0;
+  for (const p of walk) if (p[1] > 10 && p[1] < 14 && Math.abs(p[0] - 8) < 2.5) bow = Math.max(bow, Math.abs(p[0] - 8));
+  assert(bow < 0.2, `the lawn-facing half of the run stays on its tile line (bowed ${bow.toFixed(3)} tiles)`);
+
+  /* And the joint stays CLOSED, which is the property LAID_OVER_BLEED actually
+     exists for: along the bed-facing half the path must reach the shared tile
+     line and never retreat inside it, or an unpainted strip shows down the
+     joint. Note this is what the bleed buys, not the bleed itself — a straight
+     run lands on the line without needing to be pushed, and the offset survives
+     where the fillet would otherwise pull the edge back, at the corners.
+     Measured over every laid-over tile side of a real garden: 0.000 tiles of
+     retreat now, against 0.138 (0.21 ft) with the bleed applied before
+     simplifying, on 2 of 5 sides. */
+  let retreat = -Infinity;
+  for (const p of walk) if (p[1] > 15 && p[1] < 19 && Math.abs(p[0] - 8) < 2.5) retreat = Math.max(retreat, p[0] - 8);
+  assert(retreat < 0.05, `the path reaches the bed's tile line and does not retreat inside it (${retreat.toFixed(3)} tiles)`);
 });

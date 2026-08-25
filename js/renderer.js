@@ -335,7 +335,18 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt){
   }
   return edges;
 }
-function finishTerrainArc(hard, pts, covered){
+/* `P` is the laid-over bleed, and it is applied HERE — after simplification —
+   rather than to the lattice points on the way in. Bled first, it put a
+   0.45-tile step into the middle of any run that changes neighbour material
+   partway along (a path crossing a bed), which manufactured a fake corner
+   there and pushed the real one off the chord the simplifier measures against.
+   Measured on a real garden's patio: the straight west run bowed 1.08 ft with
+   the bleed applied first and 0.58 ft with it applied last, and 0.58 is the
+   bleed itself — the intended half-tile the winner spreads over the bed it
+   covers. The jitter is still seeded from the UNBLED integer lattice point,
+   which is what planJitter's "neighbouring blobs nest" property depends on. */
+function finishTerrainArc(hard, pts, covered, P){
+  P = P || (p=>p);
   pts=mergeCollinearOpen(pts);
   if (!hard && pts.length>2){
     // A pinch lobe's arc starts and ends on the SAME corner, so the DP chord
@@ -352,12 +363,25 @@ function finishTerrainArc(hard, pts, covered){
       pts=dpOpen(pts.slice(0,far+1),TERRAIN_SIMPLIFY_EPS).slice(0,-1)
         .concat(dpOpen(pts.slice(far),TERRAIN_SIMPLIFY_EPS));
     }
+    /* One DP over the whole arc is enough, and it is worth recording why the
+       obvious extra guard is not here. A real 90-degree corner between two long
+       runs is design, not noise, and DP measures it against a chord that may
+       span the entire L — the patio corner above came to 0.9054 against eps 0.9,
+       i.e. it survived by four thousandths of a tile. Splitting the polyline at
+       long-run corners before simplifying was built to protect exactly that, and
+       measured ZERO difference on the garden that motivated it and on a
+       synthetic reconstruction of the same shape: once the bleed stops
+       corrupting the input, real corners clear the tolerance on their own. It
+       was removed rather than shipped as an untested tuning constant. If a
+       corner ever IS lost, the cause is the eps, not the chord. */
     else pts=dpOpen(pts, TERRAIN_SIMPLIFY_EPS);
   }
+  const outPts=pts.map(P);
   if (!hard){   // inward-bounded lattice jitter, interiors only — endpoints stay pinned
-    for (let i=1;i<pts.length-1;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
-      pts[i]=[pts[i][0]+jx*0.55, pts[i][1]+jy*0.55]; }
+    for (let i=1;i<outPts.length-1;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
+      outPts[i]=[outPts[i][0]+jx*0.55, outPts[i][1]+jy*0.55]; }
   }
+  pts=outPts;
   return {hard, covered:!!covered, pts};
 }
 // Split one loop's unit edges into maximal same-hardness arcs, cutting also at
@@ -410,53 +434,110 @@ function terrainLoopArcs(es, useCount, saddle){
   const cuts=[];
   for (let i=0;i<n;i++) if (isCut(i)) cuts.push(i);
   if (!cuts.length){                       // uniform loop, no pins — closed treatment
-    const raw=es.map(e=>P(e.a)), hard=es[0].hard;
+    const raw=es.map(e=>e.a), hard=es[0].hard;
     let pts=mergeCollinearClosed(raw);
-    if (!hard){
-      pts=simplifyClosedLoop(pts, TERRAIN_SIMPLIFY_EPS)
-        .map(([x,y])=>{ const [jx,jy]=planJitter(x,y); return [x+jx*0.55, y+jy*0.55]; });
-    }
-    return {closed:true, hard, covered:!!es[0].covered, pts};
+    if (!hard) pts=simplifyClosedLoop(pts, TERRAIN_SIMPLIFY_EPS);
+    const outPts=pts.map(P);                       // bleed AFTER simplifying — see finishTerrainArc
+    if (!hard) for (let i=0;i<outPts.length;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
+      outPts[i]=[outPts[i][0]+jx*0.55, outPts[i][1]+jy*0.55]; }
+    return {closed:true, hard, covered:!!es[0].covered, pts:outPts};
   }
   const arcs=[];
   for (let c=0;c<cuts.length;c++){
     const i0=cuts[c], i1=cuts[(c+1)%cuts.length];
     let len=(i1-i0+n)%n; if (len===0) len=n;
-    const pts=[]; for (let s=0;s<=len;s++) pts.push(P(es[(i0+s)%n].a));
-    arcs.push(finishTerrainArc(es[i0].hard, pts, es[i0].covered));
+    const pts=[]; for (let s=0;s<=len;s++) pts.push(es[(i0+s)%n].a);
+    arcs.push(finishTerrainArc(es[i0].hard, pts, es[i0].covered, P));
   }
   return {closed:false, arcs};
 }
-const _tlMid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+/* How far a corner may be rounded, in TILES. 18 inches is a real bed-edge
+   radius and, more to the point, a BOUND: the old renderer used each vertex as
+   a quadratic control point, which cuts a corner by |(A-B)+(C-B)|/4 — a
+   fraction of the adjacent run lengths, so the smoothing scaled with the shape
+   and the more deliberate the geometry the more of it was destroyed. Measured
+   on a real garden, an 11x12 tile gravel patio lost 3.76 ft at its corners and
+   bowed 2.34 ft off a straight 10-tile run, while a wandering bed 3 tiles
+   across lost 0.5 ft — exactly backwards. Clamping to a radius makes the
+   smoothing scale-free: a one-tile jog is bound by its own half-length and so
+   rounds precisely as it always did, while a long run stays straight and turns
+   a real corner. */
+const TERRAIN_FILLET = 1.0;
+/* The clamp is computed on the TILE-space points and applied as a FRACTION of
+   the projected segment, never in projected units — otherwise the radius would
+   mean pixels, changing with zoom and differing between the garden and the plan
+   sheet. Every projector here is affine, so a fraction along a tile segment is
+   the same fraction along its projection. */
+function filletFractions(tilePts, closed){
+  const n=tilePts.length, out=new Array(n).fill(null);
+  const seg=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);
+  for (let i=0;i<n;i++){
+    const prev = closed ? tilePts[(i+n-1)%n] : tilePts[i-1];
+    const next = closed ? tilePts[(i+1)%n] : tilePts[i+1];
+    if (!prev || !next) continue;
+    const la=seg(prev,tilePts[i]), lc=seg(tilePts[i],next);
+    out[i]=[ la?Math.min(TERRAIN_FILLET,la/2)/la:0, lc?Math.min(TERRAIN_FILLET,lc/2)/lc:0 ];
+  }
+  return out;
+}
+const _tlLerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+/* ONE definition of the smoothed edge, walked by three consumers: the fill
+   path, the outline stroke, and the sampled polyline the edging strip follows
+   (edgingCurvePoints). They have to agree exactly or the strip sits visibly off
+   its own bed, so this is a walk with an emitter rather than three copies of
+   the same spline. `emit.quad` is handed its own start point so a sampling
+   consumer does not have to track the pen. */
+function terrainCurveWalk(tilePts, projPts, closed, emit){
+  const n=projPts.length, f=filletFractions(tilePts,closed);
+  if (closed){
+    const startOf=i=>_tlLerp(projPts[i], projPts[(i+n-1)%n], f[i][0]);
+    let cur=startOf(0); emit.move(cur);
+    for (let i=0;i<n;i++){
+      const to=_tlLerp(projPts[i], projPts[(i+1)%n], f[i][1]);
+      emit.quad(cur, projPts[i], to);
+      cur=startOf((i+1)%n); emit.line(cur);
+    }
+    return;
+  }
+  emit.move(projPts[0]);                       // endpoints are PINNED: arcs must still tile the loop
+  let cur=projPts[0];
+  for (let i=1;i<n-1;i++){
+    cur=_tlLerp(projPts[i], projPts[i-1], f[i][0]); emit.line(cur);
+    const to=_tlLerp(projPts[i], projPts[i+1], f[i][1]);
+    emit.quad(cur, projPts[i], to); cur=to;
+  }
+  emit.line(projPts[n-1]);
+}
+function ctxEmitter(ctx, moveFirst){
+  return {
+    move:p=>{ if (moveFirst!==false) ctx.moveTo(p[0],p[1]); },
+    line:p=>ctx.lineTo(p[0],p[1]),
+    quad:(from,c,p)=>ctx.quadraticCurveTo(c[0],c[1],p[0],p[1]),
+  };
+}
 // One arc onto the current path. Hard arcs are exact lines; soft arcs are
-// midpoint-quadratic splines pinned to their endpoints.
+// bounded-fillet curves pinned to their endpoints.
 function terrainArcPath(ctx, arc, proj, moveFirst){
   const pts=arc.pts.map(proj);
-  if (moveFirst) ctx.moveTo(pts[0][0],pts[0][1]);
   if (arc.hard || pts.length<3){
+    if (moveFirst) ctx.moveTo(pts[0][0],pts[0][1]);
     for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
-  } else {
-    for (let i=1;i<pts.length-1;i++){
-      const end = i===pts.length-2 ? pts[i+1] : _tlMid(pts[i],pts[i+1]);
-      ctx.quadraticCurveTo(pts[i][0],pts[i][1], end[0],end[1]);
-    }
+    return;
   }
+  terrainCurveWalk(arc.pts, pts, false, ctxEmitter(ctx, !!moveFirst));
 }
 /* Append one cached region loop to the current ctx path through an arbitrary
    projector ([gx,gy] tile corners → canvas px) — the garden (iso + elevation
    lift) and the plan sheet (flat paper) draw the SAME geometry. This is the
    SILHOUETTE, used for the fill and the clip: every arc, closed. */
 function terrainLoopPath(ctx, loop, proj){
-  const mid=_tlMid;
   if (loop.closed){
     const pts=loop.pts.map(proj);
     if (loop.hard || pts.length<3){
       pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
       ctx.closePath(); return;
     }
-    let m=mid(pts[pts.length-1],pts[0]); ctx.moveTo(m[0],m[1]);
-    for (let i=0;i<pts.length;i++){ const nn=mid(pts[i],pts[(i+1)%pts.length]);
-      ctx.quadraticCurveTo(pts[i][0],pts[i][1],nn[0],nn[1]); }
+    terrainCurveWalk(loop.pts, pts, true, ctxEmitter(ctx, true));
     ctx.closePath(); return;
   }
   loop.arcs.forEach((arc,ai)=> terrainArcPath(ctx,arc,proj,ai===0));
@@ -629,29 +710,14 @@ function regionEdging(region){
    tail hanging off the start. */
 function edgingCurvePoints(arc, proj){
   const pts=arc.pts.map(proj);
-  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
-  const SEG=5;
-  const quad=(out,a,c,b)=>{
-    for (let s=1;s<=SEG;s++){
-      const t=s/SEG, u=1-t;
-      out.push([u*u*a[0]+2*u*t*c[0]+t*t*b[0], u*u*a[1]+2*u*t*c[1]+t*t*b[1]]);
-    }
-  };
-  if (arc.closed){
-    if (arc.hard || pts.length<3) return pts.concat([pts[0]]);
-    const out=[mid(pts[pts.length-1],pts[0])];
-    for (let k=0;k<pts.length;k++){
-      const nn=mid(pts[k],pts[(k+1)%pts.length]);
-      quad(out,out[out.length-1],pts[k],nn);
-    }
-    return out;
-  }
-  if (arc.hard || pts.length<3) return pts;
-  const out=[pts[0]];
-  for (let k=1;k<pts.length-1;k++){
-    const end = k===pts.length-2 ? pts[k+1] : mid(pts[k],pts[k+1]);
-    quad(out,out[out.length-1],pts[k],end);
-  }
+  if (arc.hard || pts.length<3) return arc.closed ? pts.concat([pts[0]]) : pts;
+  const SEG=5, out=[];
+  terrainCurveWalk(arc.pts, pts, !!arc.closed, {
+    move:p=>out.push(p),
+    line:p=>out.push(p),
+    quad:(from,c,p)=>{ for (let s=1;s<=SEG;s++){ const t=s/SEG, u=1-t;
+      out.push([u*u*from[0]+2*u*t*c[0]+t*t*p[0], u*u*from[1]+2*u*t*c[1]+t*t*p[1]]); } },
+  });
   return out;
 }
 function strokeEdgingArc(ctx,arc,proj,st,edgePx){
