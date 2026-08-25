@@ -278,10 +278,13 @@ function mergeCollinearClosed(pts){
   return out.length>2?out:pts;
 }
 /* Expand a traced loop (corners only) back to unit tile edges, classifying each
-   edge by what sits on its OUTSIDE. Grass = SOFT (smooth organically). The plot
-   boundary is hard — a bed painted to the edge of the plot runs exactly to it
-   (leave a grass tile if you want a margin). Orientation-free: of the two tiles
-   flanking an edge, the one not in the region is out.
+   edge by what sits on its OUTSIDE. Lawn = SOFT (smooth organically). Anything
+   that is not lawn is hard — the plot boundary, and a house or building wall,
+   which is the same kind of line and used to read as lawn here because the only
+   question asked was whether the neighbour carried terrain. A bed painted to
+   either runs exactly to it (leave a grass tile if you want a margin);
+   isLawnTile (world.js) is the shared predicate. Orientation-free: of the two
+   tiles flanking an edge, the one not in the region is out.
 
    Against another material the answer is TERRAIN_RANK, not a flat "hard":
    - the neighbour outranks me  -> HARD and COVERED. It is painted after me and
@@ -305,7 +308,7 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt){
       return r>myRank ? COVERED : HARD;
     }
     const ci=key.indexOf(','), ox=+key.slice(0,ci), oy=+key.slice(ci+1);
-    return onPlot(ox,oy) ? SOFT : HARD;          // grass smooths; the plot line does not
+    return isLawnTile(ox,oy) ? SOFT : HARD;      // lawn smooths; a wall or the plot line does not
   };
   for (let i=0;i<loop.length;i++){
     const a=loop[i], b=loop[(i+1)%loop.length];

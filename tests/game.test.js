@@ -6140,3 +6140,129 @@ test('Hand tap inspects the plant under it, including a shrub overhanging the ti
   // (no focusPlantKey check: plantKeyOf resolves against game.plants, so a bulb
   //  legitimately has none — that is showPlantCard's pre-existing behaviour)
 });
+
+/* A house wall is not lawn. classify() in terrainUnitEdges used to ask only
+   whether the neighbour carried terrain, so a house or building footprint fell
+   through to the same SOFT answer as an open lawn and the bed curved away from
+   the foundation. Measured on a real garden (E and S, 70x39): 54 ft of terrain
+   ran along the house, sitting 0.50 ft off it on average and 3.17 ft at worst.
+   Nobody builds a rounded bed edge against their house. */
+test('a bed runs exactly to a house wall, and still wanders against lawn', () => {
+  // Flatten a region's drawn silhouette in tile-corner space (identity
+  // projector) so the assertion measures the CURVE, not the control polygon.
+  const drawnEdge = (region) => {
+    const pts = []; let cur = null;
+    const ctx = {
+      beginPath(){}, closePath(){},
+      moveTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+      lineTo(x, y){ cur = [x, y]; pts.push([x, y]); },
+      quadraticCurveTo(cx, cy, x, y){
+        const a = cur;
+        for (let i = 1; i <= 16; i++){ const t = i / 16, mt = 1 - t;
+          pts.push([mt*mt*a[0] + 2*mt*t*cx + t*t*x, mt*mt*a[1] + 2*mt*t*cy + t*t*y]); }
+        cur = [x, y];
+      }
+    };
+    for (const loop of region.loops) terrainLoopPath(ctx, loop, p => p);
+    return pts;
+  };
+  // a hard arc is a lineTo, so it emits only its endpoints — walk the polyline
+  // at a fixed step before measuring anything against it
+  const densify = (pts) => {
+    const o = [];
+    for (let i = 0; i < pts.length - 1; i++){
+      const a = pts[i], b = pts[i + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 8));
+      for (let j = 0; j < n; j++) o.push([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]);
+    }
+    if (pts.length) o.push(pts[pts.length - 1]);
+    return o;
+  };
+  /* How far the drawn curve misses a corner the gardener actually painted.
+     This is the honest measure of "does the edge wander": mid-edge, a spline
+     over a long straight run sits close to the line whatever it does at the
+     ends, so sampling the middle would report a rounded rectangle as square. */
+  const cornerCut = (region, corner) => {
+    let best = Infinity;
+    for (const p of densify(drawnEdge(region)))
+      best = Math.min(best, Math.hypot(p[0] - corner[0], p[1] - corner[1]));
+    return best;
+  };
+  const bedRegion = () => buildTerrainRegions().find(r => r.kind === 'bed');
+
+  // ---- against a building footprint: exact
+  setup(24, 24);
+  game.edgeStyle = 'organic';
+  addBuilding({ id: 'h1', vertices: [[4, 12], [16, 12], [16, 18], [4, 18]],
+    status: 'existing', label: 'House', t: 1 });
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  for (let x = 5; x <= 14; x++) for (let y = 8; y <= 11; y++) applyToolAt(x, y);
+  const against = bedRegion();
+  assert(against, 'the bed traced a region');
+  // tiles x5..14 y8..11, so the painted south corners are (5,12) and (15,12)
+  const wallGap = Math.max(cornerCut(against, [5, 12]), cornerCut(against, [15, 12]));
+  assert(wallGap < 0.25, `the bed runs into the foundation corners (off by ${wallGap.toFixed(3)} tiles)`);
+
+  // ---- the SAME bed shape against open lawn: still organic
+  /* Without this half the test would pass just as well if the smoothing were
+     switched off altogether, which is the failure it is meant to catch. */
+  setup(24, 24);
+  game.edgeStyle = 'organic';
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  for (let x = 5; x <= 14; x++) for (let y = 8; y <= 11; y++) applyToolAt(x, y);
+  const lawnGap = Math.max(cornerCut(bedRegion(), [5, 12]), cornerCut(bedRegion(), [15, 12]));
+  assert(lawnGap > 1, `the same corners against lawn are still rounded away (${lawnGap.toFixed(3)} tiles)`);
+  assert(lawnGap > wallGap * 4, 'and markedly more than they are against the wall');
+
+  // the plot boundary was always hard; a wall now reads the same way
+  assert(!isLawnTile(-1, 5), 'off the plot is not lawn');
+  setup(24, 24);
+  addBuilding({ id: 'h2', vertices: [[4, 4], [8, 4], [8, 8], [4, 8]], status: 'existing', label: 'Shed', t: 1 });
+  assert(!isLawnTile(5, 5), 'a building footprint is not lawn');
+  game.houses = [{ x: 12, y: 12, w: 3, h: 3, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [4, 4] }];
+  assert(!isLawnTile(13, 13), 'a placed house is not lawn');
+  assert(isLawnTile(2, 2), 'and open ground still is');
+});
+
+/* One predicate, four surfaces. The planting list bills the sides that draw,
+   the formal renderer draws them per tile, regionEdging asks which tiles carry
+   edging worth drawing, and terrainUnitEdges asks whether the arc is soft.
+   Splitting that question is how the organic and formal paths drifted before
+   (see regionEdging); a wall would have re-split it — edging billed along a
+   foundation the organic renderer had just stopped drawing. */
+test('edging is not billed along a wall it is no longer drawn against', () => {
+  setup(24, 24);
+  game.tool = 'bed'; game.bedStyle = 'mulch'; setBrushSize(1);
+  for (let x = 5; x <= 8; x++) for (let y = 8; y <= 10; y++) applyToolAt(x, y);
+  game.tool = 'edging'; game.edgingDraft = 'steel';
+  for (let x = 5; x <= 8; x++) for (let y = 8; y <= 10; y++) applyToolAt(x, y);
+  const openFt = edgingRunFeet().steel;
+  assertEqual(Math.round(openFt), Math.round(14 * TILE_IN / 12), `a 4x3 bed in lawn exposes 14 sides (${openFt})`);
+  assertEqual(edgingSidesAt(6, 10), 1, 'a south-edge tile has one side facing lawn');
+
+  // drop a house along the bed's south side: those 4 sides stop drawing
+  addBuilding({ id: 'h3', vertices: [[4, 11], [10, 11], [10, 16], [4, 16]],
+    status: 'existing', label: 'House', t: 1 });
+  assertEqual(edgingSidesAt(6, 10), 0, 'the same tile now faces a wall, not lawn');
+  const walledFt = edgingRunFeet().steel;
+  assertEqual(Math.round(walledFt), Math.round(10 * TILE_IN / 12),
+    `the four foundation sides stop being billed (${walledFt})`);
+  assert(!edgingDrawsAt(6, 10), 'and that tile draws no edging for regionEdging to find');
+
+  /* The region's own arcs agree. An arc ENDPOINT may sit on the wall line —
+     that is the pin where the lawn-facing side stops, and pinned means exact.
+     What must not exist is a soft arc RUNNING along the foundation. */
+  const bed = buildTerrainRegions().find(r => r.kind === 'bed');
+  const onWall = p => Math.abs(p[1] - 11) < 0.01;
+  let softRun = 0, hardRun = 0;
+  for (const loop of bed.loops){
+    for (const a of (loop.closed ? [loop] : loop.arcs)){
+      for (let i = 0; i < a.pts.length - 1; i++){
+        if (!onWall(a.pts[i]) || !onWall(a.pts[i + 1])) continue;
+        if (a.hard) hardRun++; else softRun++;
+      }
+    }
+  }
+  assertEqual(softRun, 0, 'no soft arc runs along the foundation');
+  assert(hardRun > 0, 'and the foundation edge is drawn by a hard arc');
+});

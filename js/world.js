@@ -80,15 +80,29 @@ function plantsForTiles(n,spaceIn){
   const cells=Math.max(0,+n||0), spacing=Math.max(1,+spaceIn||TILE_IN);
   return Math.ceil(cells*TILE_IN*TILE_IN/(spacing*spacing));
 }
-/* How much of a tile's edging DRAWS: the number of its four sides facing
-   lawn. One predicate, because three surfaces have to agree about it — the
-   planting list bills these sides, the formal renderer draws them per tile,
-   and the organic renderer asks which tiles in a region carry edging worth
-   drawing at all. The organic path used to answer that last question its own
-   way and the two drifted; see regionEdging. */
+/* Is this tile plain LAWN — the one thing a bed or path edge is free to wander
+   into? Everything else is a line the design has to run up to exactly: the
+   deeded plot boundary, and a wall you cannot paint terrain through.
+   A house used to answer "lawn" here, because the only question asked was
+   whether the neighbour carried terrain. So a bed against the foundation
+   curved away from it and left a sliver of unmowable grass — measured 0.5 ft
+   on average and 3.2 ft at its worst on a real garden, along 54 ft of wall.
+   Nobody builds a rounded bed edge against their house. The escape hatch is
+   the one the plot boundary already documents: want a mown strip along the
+   foundation, leave a lawn tile.
+   ONE predicate, because FOUR surfaces have to agree about it — the planting
+   list bills these sides, the formal renderer draws them per tile, the organic
+   renderer asks which tiles in a region carry edging worth drawing at all, and
+   terrainUnitEdges asks whether the blob's edge there is soft or hard. The
+   organic path used to answer the hardness question its own way and the two
+   drifted; see regionEdging. */
+function isLawnTile(x,y){
+  return onPlot(x,y) && !siteStructureAt(x,y) && !tileTerrain(x,y);
+}
+/* How much of a tile's edging DRAWS: the number of its four sides facing lawn. */
 function edgingSidesAt(x,y){
   let n=0;
-  for (const [dx,dy] of ELEV_DIRS) if (!tileTerrain(x+dx,y+dy)) n++;
+  for (const [dx,dy] of ELEV_DIRS) if (isLawnTile(x+dx,y+dy)) n++;
   return n;
 }
 function edgingDrawsAt(x,y){ return edgingSidesAt(x,y)>0; }
@@ -358,8 +372,15 @@ const LAYER_CACHES={
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   pots:      {scene:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
   seats:     {scene:1},
-  houses:    {scene:1, ground:1},
-  buildings: {scene:1},
+  /* Both structure layers carry `trace`, not merely `ground`, because a wall is
+     now part of the organic edge classification: isLawnTile refuses a house or
+     building tile, so terrainUnitEdges asks about them and the region cache has
+     to be retraced when one appears, moves or is erased. Classified cheap, a
+     footprint drawn against an existing bed would leave that bed's arcs soft
+     until the next unrelated terrain edit — the fix would look like it had not
+     worked. `trace` implies ground, so houses no longer name it separately. */
+  houses:    {scene:1, trace:1},
+  buildings: {scene:1, trace:1},
 };
 function markLayerCacheChanged(layer,key){
   const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1};   // unknown layer: assume the worst
@@ -1495,7 +1516,7 @@ function drawTileEdging(ctx,W,H,x,y){
   const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
   const N=[sx,sy], E=[sx+TILE_W/2,cy], S=[sx,sy+TILE_H], Wp=[sx-TILE_W/2,cy];
   [[[1,0],E,S],[[0,1],S,Wp],[[-1,0],Wp,N],[[0,-1],N,E]].forEach(([[dx,dy],a,b])=>{
-    if (tileTerrain(x+dx,y+dy)) return;             // only where it meets lawn
+    if (!isLawnTile(x+dx,y+dy)) return;             // only where it meets lawn
     drawEdgingRun(ctx,[a,b],st,tileSeed(x,y));
   });
 }

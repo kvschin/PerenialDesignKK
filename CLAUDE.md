@@ -488,6 +488,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    (`game.groundRev`, the baked ground layer). **A layer not in the table
    invalidates everything**, so adding a layer is correct by default and only
    gets cheaper once deliberately classified.
+   **`houses` and `buildings` carry `trace`, not merely `ground`**, because
+   `isLawnTile` put walls into the organic edge classification (§11): a footprint
+   drawn against an existing bed has to retrace that bed's arcs, or they stay
+   soft until the next unrelated terrain edit and the fix looks like it never
+   ran. That is this table's trap in reverse — both were deliberately classified
+   cheap BEFORE they mattered to the trace. Cost is one retrace plus one full
+   bake per structure mutation (retrace measured 2.7ms on a 1072-tile, 8-region
+   garden), and it lands only on footprint editing, house placement and structure
+   erase — never on planting, painting or panning. The footprint editor mutates
+   per brush STAMP, so a long edit drag pays it repeatedly; if that bites, route
+   structure damage through the located `groundDamage` path so
+   `GROUND_EDIT_SETTLE` can absorb the burst.
    Before this, the scene list, the shade map and the shrub index were all keyed
    on `game.rev`, so painting one path tile rebuilt an entity list holding no
    terrain, a shade map fed only by trees, and an index of shrubs — measured
@@ -723,10 +735,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
     pre-jittered inward (`planJitter`) on interiors only, and drawn as
     midpoint-quadratic splines **pinned to their endpoints**;
-    **hard** arcs — facing a peer (another bed style, another path colour) or the
-    **plot boundary** — draw as exact tile lines with no jitter, so peers **butt
-    seamlessly** and painted corners stay corners (a bed painted to the plot edge
-    runs exactly into the plot corner; leave a grass tile for a margin);
+    **hard** arcs — facing a peer (another bed style, another path colour), the
+    **plot boundary**, or a **house/building wall** — draw as exact tile lines
+    with no jitter, so peers **butt seamlessly** and painted corners stay corners
+    (a bed painted to the plot edge or to the house runs exactly into it; leave a
+    grass tile for a margin). **`isLawnTile` (world.js) is the one predicate that
+    answers "is the neighbour lawn"**, and FOUR surfaces ask it: this
+    classification, `edgingSidesAt` (which bills edging AND, through
+    `edgingDrawsAt`, decides whether a tile's edging draws at all),
+    `drawTileEdging` (the formal per-tile renderer), and the planting list via the
+    first. It used to ask only "does the neighbour carry terrain?", so a house
+    answered the same as open lawn and **a bed curved away from its own
+    foundation** — measured on a real 70x39 garden, 54 ft of terrain ran along the
+    house sitting 0.50 ft off it on average and 3.17 ft at worst, with 43% of
+    pixels sampled just inside the wall line coming back lawn green. Nobody builds
+    a rounded bed edge against a house. A fence is deliberately NOT in the
+    predicate: `canPlaceFence` allows terrain under a fence tile, so painting the
+    bed under the fence line already gives a straight edge, whereas a house tile
+    refuses terrain outright and leaves the wall as the only boundary available;
     **covered** arcs are hard arcs facing a material that outranks this one —
     exact, and **not stroked** (`terrainLoopStroke`), because the region above is
     painted after and its curve lands on this fill.
