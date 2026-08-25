@@ -893,10 +893,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     wash. `dbg.flush` (toggle: `toggleFlushProfiling()`) forces a 1px readback
     at each phase boundary so the backend finishes the queue before the clock
     is read; the same frame then attributes 29.17ms of 29.25ms, and those three
-    read 3.9 / 6.9 / 3.5ms. The readback STALLS the pipeline, so every absolute
-    inflates (~3x) — **read this mode for SHARES and for deciding what to
-    cache, never as a frame budget**, which is why the HUD stamps
-    `[FLUSH: shares only]` while it is on. `dflush` is guarded on `dbg.on` and
+    read 3.9 / 6.9 / 3.5ms. **Read that as SHARES, never as a frame budget** —
+    the HUD stamps `[FLUSH: shares only]` while it is on — and the reason is
+    sharper than "the readback costs something": a bare readback on an empty
+    queue measures **1.7us**, so the floor is nothing. What it costs is
+    PIPELINING. The ground blit is 33.5us amortised across 200 back-to-back
+    calls and **4.8ms** when you wait for one to land, because normally it
+    overlaps the next frame's JS and under a readback it cannot. So flush mode
+    tells you WHERE the GPU work is and overstates what removing it would give
+    back; when you need a number you can subtract, use `drawProfile`, which
+    A/Bs whole frames differing only in which entities are present, so the
+    pipelining is identical on both sides and the delta is real.
+    (A hypothesis this killed: the ground blit copies the whole baked canvas,
+    margin included, so source-cropping it to the viewport should be ~2.3x
+    cheaper. Measured, 1.39MP -> 0.60MP of source changed the blit by **-1.5us**,
+    i.e. nothing — the browser already clips to the destination. Op counts are
+    not a cost model, same lesson as the season wash.) `dflush` is guarded on `dbg.on` and
     `dbg.flush` both, so it costs one boolean when off; `dev(label,t0,ctx)`
     flushes only when handed a context, because flushing a pure-JS event
     (`trace`, `scene`, `snap`) would bill it for whatever was queued behind it.

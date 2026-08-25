@@ -1415,9 +1415,20 @@ const dbg={on:false, flush:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, 
 
    Forcing a 1px readback at each phase boundary makes the backend finish the
    queue before the clock is read, so a phase carries its own raster: the same
-   frame then attributes 29.17ms of 29.25ms. The readback STALLS the pipeline,
-   so every number inflates (~3x here) — this mode is for SHARES and for
-   deciding what to cache, never for a frame budget. Off by default, and one
+   frame then attributes 29.17ms of 29.25ms, and those three read 3.9 / 6.9 /
+   3.5ms against the 0.00-0.15ms they reported before.
+
+   Read those as SHARES, never as a frame budget, and the reason is sharper
+   than "the readback costs something" — measured, a bare readback on an empty
+   queue is 1.7us, so the floor is nothing.  What it costs is PIPELINING: the
+   ground blit is 33.5us amortised across 200 back-to-back calls and 4.8ms
+   when you wait for one to land, because normally it overlaps the next
+   frame's JS and here it cannot.  So flush mode tells you WHERE the GPU work
+   is, and overstates what removing it would give you back.
+
+   When you need a number you can subtract, use drawProfile: it A/Bs whole
+   frames that differ only in which entities are present, so the pipelining is
+   identical on both sides and the delta is real.  Off by default, and one
    boolean read when off. */
 function dflush(ctx2){
   if (!dbg.on || !dbg.flush) return;   // dbg.on so the helper is safe to call from anywhere
