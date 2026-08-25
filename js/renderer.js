@@ -167,6 +167,7 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
+  if (showLand) paintWallRuns(ctx,W,H);
 }
 /* The transient stand-in for tiles edited since the last authoritative bake.
    Drawn onto the LIVE canvas every frame, never cached — so it cannot go stale
@@ -553,6 +554,180 @@ function terrainLoopPath(ctx, loop, proj){
 function terrainLoopStroke(ctx, loop, proj){
   if (loop.closed){ if (!loop.covered) terrainLoopPath(ctx,loop,proj); return; }
   for (const arc of loop.arcs) if (!arc.covered) terrainArcPath(ctx,arc,proj,true);
+}
+/* ---------- retaining walls as CONTOURS, not per-tile faces ----------
+   A wall lives on the exposed face of a level change, and it used to be drawn
+   one tile at a time: two screen parallelograms per raised tile, meeting at 90
+   degrees. So a curved terrace came out as a staircase of blocks — and worse,
+   the terrace TOP was smoothed (paintTerrainBlobs traces and splines it) while
+   the face below it kept the tile lattice, so the two documents of the same
+   edge disagreed on screen: a flowing cap sitting on square steps.
+   This traces the ELEVATION lattice the way buildTerrainRegions traces the
+   material lattice. Each unit edge of a level's outline is a face if the ground
+   outside it is lower; contiguous faces sharing a drop, a facing and a material
+   become one RUN, and a run is one wall — its courses are laid along its whole
+   length instead of restarting every 18 inches.
+   Camera facing is baked in (only the two view-facing sides of a level change
+   are visible, exactly as the per-tile version chose), so game.rot is part of
+   the key; rotation is rare and this way the draw pass has no work to do. */
+let wallRunCache={sig:null, elevRef:null, runs:[]};
+/* Rotation is deliberately NOT in this key. Camera facing decides what is
+   DRAWN, and it used to be baked in here — which made the runs, and therefore
+   the linear feet the planting list bills from them, change when the gardener
+   turned the view: 24.2 / 24.7 / 25.9 / 25.6 ft for one wall at the four
+   rotations. A materials estimate cannot depend on where you are standing. So
+   the contour is traced once and paintWallRuns splits it by facing at bake
+   time instead. */
+function wallRunKey(){ return game.terrainRev+'|'+GW+'x'+GH+'|'+game.edgeStyle; }
+/* Walk one traced outline of a level, emitting its unit edges with what sits
+   outside each. Mirrors terrainUnitEdges — of the two tiles flanking an edge,
+   the one not in the set is out — but the question asked is the drop, not the
+   hardness. */
+function elevationUnitEdges(loop, set, h){
+  const out=[];
+  for (let i=0;i<loop.length;i++){
+    const a=loop[i], b=loop[(i+1)%loop.length];
+    const dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]);
+    let x=a[0], y=a[1];
+    while (x!==b[0] || y!==b[1]){
+      const nx=x+dx, ny=y+dy;
+      let inK, outX, outY;
+      if (dx!==0){ const tx=Math.min(x,nx);
+        if (set.has(tx+','+(y-1))){ inK=tx+','+(y-1); outX=tx; outY=y; }
+        else { inK=tx+','+y; outX=tx; outY=y-1; } }
+      else { const ty=Math.min(y,ny);
+        if (set.has((x-1)+','+ty)){ inK=(x-1)+','+ty; outX=x; outY=ty; }
+        else { inK=x+','+ty; outX=x-1; outY=ty; } }
+      const drop=h-elevationAt(outX,outY);
+      const ci=inK.indexOf(','), ix=+inK.slice(0,ci), iy=+inK.slice(ci+1);
+      const n=[outX-ix, outY-iy];
+      /* A RIDGE face: the far side of this same tile also falls away, so the
+         two faces are the two sides of ONE wall and the run is billed for one
+         of them. That is the difference between a terrace, whose contour IS its
+         wall, and a wall painted one tile wide, whose contour runs up one side
+         and back down the other. */
+      const ridge=elevationAt(ix-n[0], iy-n[1])<h;
+      out.push({a:[x,y], b:[nx,ny], drop, n, ridge, wall:wallStyleAt(ix,iy), seed:tileSeed(ix,iy)});
+      x=nx; y=ny;
+    }
+  }
+  return out;
+}
+function buildElevationRuns(){
+  const sig=wallRunKey();
+  if (wallRunCache.sig===sig && wallRunCache.elevRef===game.elevation) return wallRunCache.runs;
+  const t0=dnow();
+  const runs=[];
+  /* Only ground ABOVE grade shows a face, which is what drawElevationSides has
+     always done — a SUNKEN area shows none. That is a known limitation carried
+     over deliberately, not a new one (see the note in world.js). */
+  const byLevel={};
+  for (const k in game.elevation||{}){
+    const e=game.elevation[k]; if (!e||e.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    const h=elevationAt(x,y); if (h<=0) continue;
+    (byLevel[h]||(byLevel[h]=new Set())).add(k);
+  }
+  for (const hs of Object.keys(byLevel).sort((p,q)=>p-q)){
+    const h=+hs, set=byLevel[hs];
+    for (const loop of traceOutlines(set)){
+      const es=elevationUnitEdges(loop,set,h);
+      const n=es.length;
+      const drawable=e=>e.drop>0;
+      // a run breaks where the face stops, changes depth, or changes material
+      const breaks=i=>{
+        const prev=es[(i+n-1)%n], cur=es[i];
+        if (!drawable(cur) || !drawable(prev)) return true;
+        return prev.drop!==cur.drop || prev.wall!==cur.wall;
+      };
+      let start=-1;
+      for (let i=0;i<n;i++) if (breaks(i)){ start=i; break; }
+      if (start<0){                                   // the whole loop is one wall
+        if (!drawable(es[0])) continue;
+        runs.push(makeWallRun(es.slice(),h));
+        continue;
+      }
+      let pend=null;
+      const flush=()=>{ if (pend && pend.length) runs.push(makeWallRun(pend,h)); pend=null; };
+      for (let s2=0;s2<n;s2++){
+        const i=(start+s2)%n, e=es[i];
+        if (!drawable(e)){ flush(); continue; }
+        if (pend && (pend[0].drop!==e.drop || pend[0].wall!==e.wall)) flush();
+        if (!pend) pend=[];
+        pend.push(e);
+      }
+      flush();
+    }
+  }
+  runs.sort((p,q)=>p.h-q.h);      // low terraces first, so a higher one paints over
+  wallRunCache={sig, elevRef:game.elevation, runs};
+  dev('wallrun',t0);
+  return runs;
+}
+/* Shape a contiguous stretch of face into a polyline. Smoothed the same way a
+   soft terrain arc is, and with the same jitter SEED, so where a terrace's
+   material outline and its level outline coincide the cap and the face land on
+   the same curve. Formal edges keep the exact tile line, because that is what
+   the ground above them draws too. */
+function wallRunPoints(edges){
+  let p=mergeCollinearOpen(edges.map(e=>e.a).concat([edges[edges.length-1].b]));
+  if (game.edgeStyle==='organic' && p.length>2){
+    p=dpOpen(p, TERRAIN_SIMPLIFY_EPS);
+    p=p.map((q,i)=>{ if (i===0||i===p.length-1) return q;
+      const [jx,jy]=planJitter(q[0],q[1]); return [q[0]+jx*0.55, q[1]+jy*0.55]; });
+  }
+  return p;
+}
+function polyTiles(p){
+  let d=0; for (let i=1;i<p.length;i++) d+=Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1]);
+  return d;
+}
+function makeWallRun(edges,h){
+  const p=wallRunPoints(edges), e=edges[0], tiles=polyTiles(p);
+  let weight=0; for (const q of edges) weight+=q.ridge?0.5:1;
+  return {pts:p, edges, h, drop:e.drop, wall:e.wall, seed:e.seed, tiles,
+          billTiles:tiles*(weight/edges.length)};
+}
+/* Linear feet the planting list bills — the traced contour, not a count of
+   exposed tile faces. Faces double-count a diagonal (every step contributes
+   both of its sides), so the wall in the garden that prompted this was billed
+   at 54 ft for a run of about 24. It is a number somebody quotes from. */
+function wallRunFeet(run){ return run.billTiles*TILE_IN/12; }
+/* The faced runs, drawn after the ground and its material blobs. A wall hangs
+   DOWN from its terrace edge, so it has to come after the surface it belongs to
+   or the blob would paint over its own coping; runs are ordered low terrace
+   first so a higher one in front covers a lower one behind. (Known limit, the
+   same one the blob pass has: a much higher terrace standing in front of a low
+   wall can still overdraw it.)
+   Facing is applied HERE rather than in the trace, so the cached contour — and
+   the feet billed from it — do not change when the camera turns. */
+function paintWallRuns(ctx,W,H){
+  const runs=buildElevationRuns();
+  if (!runs.length) return;
+  const face=viewDirToWorld(1,0), side=viewDirToWorld(0,1);
+  const shown=e=>(e.n[0]===face[0]&&e.n[1]===face[1])||(e.n[0]===side[0]&&e.n[1]===side[1]);
+  for (const run of runs){
+    const st=wallStyle(run.wall);
+    if (!st.face) continue;                       // bare earth: drawn per tile above
+    const lift=run.h*ELEV_STEP, fall=run.drop*ELEV_STEP;
+    let piece=[];
+    const emit=()=>{
+      if (piece.length>0){
+        const p=wallRunPoints(piece);
+        let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+        const pts=p.map(([gx,gy])=>{
+          const q=screenOfCorner(gx,gy,W,H), r=[q[0],q[1]-lift];
+          if (r[0]<minX) minX=r[0]; if (r[0]>maxX) maxX=r[0];
+          if (r[1]<minY) minY=r[1]; if (r[1]>maxY) maxY=r[1];
+          return r; });
+        if (!(maxX<-TILE_W || minX>W+TILE_W || maxY+fall<-TILE_H || minY>H+TILE_H*2))
+          drawWallRun(ctx,pts,fall,st,run.seed,polyTiles(p));
+      }
+      piece=[];
+    };
+    for (const e of run.edges){ if (shown(e)) piece.push(e); else emit(); }
+    emit();
+  }
 }
 function buildTerrainRegions(){
   const sig=terrainRegionKey();

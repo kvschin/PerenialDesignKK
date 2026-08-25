@@ -6522,3 +6522,103 @@ test('changing a level keeps its wall, and changing a material keeps its edging'
   game.tool = 'edging'; game.edgingDraft = 'none'; applyToolAt(10, 10);
   assertEqual(edgingAt(10, 10), 'none', "and 'none' still lifts it");
 });
+
+/* A retaining wall lives on the exposed face of a level change and used to be
+   drawn one tile at a time — two screen parallelograms per raised tile, meeting
+   at 90 degrees. So a curved terrace came out as a staircase of blocks, and the
+   terrace TOP (which paintTerrainBlobs traces and splines) disagreed with the
+   face below it: a flowing cap sitting on square steps. The elevation lattice is
+   traced now, the way the material lattice already was. */
+test('a wall traces as continuous runs, not one face per tile', () => {
+  const wallAll = (tiles, style) => {
+    setup(30, 30);
+    game.edgeStyle = 'organic'; setBrushSize(1);
+    game.tool = 'raise';
+    for (const [x, y] of tiles) applyToolAt(x, y);
+    game.tool = 'wall'; game.wallDraft = style || 'stone';
+    for (const [x, y] of tiles) applyToolAt(x, y);
+    wallRunCache.sig = null;
+    return buildElevationRuns();
+  };
+
+  /* A rectangular terrace is ONE closed run — its whole perimeter drops, at one
+     height, in one material — so the polyline is its four corners, not its
+     thirty tile edges. That count IS the fix: the old renderer emitted a
+     separate parallelogram for every one of those edges. */
+  const straight = [];
+  for (let x = 6; x <= 13; x++) for (let y = 9; y <= 11; y++) straight.push([x, y]);
+  let runs = wallAll(straight);
+  const longest = runs.reduce((a, r) => r.tiles > a.tiles ? r : a, runs[0]);
+  const edges = longest.edges.length;
+  assertEqual(edges, 22, 'the terrace has 22 dropping tile edges');
+  assert(longest.pts.length <= 6,
+    `and draws as its corners, not its edges (${longest.pts.length} points for ${edges} edges)`);
+  // every side is one straight segment: the longest spans the full 8 tiles
+  let span = 0;
+  for (let i = 1; i < longest.pts.length; i++)
+    span = Math.max(span, Math.hypot(longest.pts[i][0]-longest.pts[i-1][0], longest.pts[i][1]-longest.pts[i-1][1]));
+  assert(span > 7, `the long side is a single 8-tile run (${span.toFixed(2)})`);
+
+  // a DIAGONAL bank: the whole point. Per tile this is a stair of right angles;
+  // traced and simplified it is a line running the diagonal.
+  const diag = [];
+  for (let i = 0; i < 8; i++) { diag.push([6 + i, 6 + i]); diag.push([7 + i, 6 + i]); }
+  runs = wallAll(diag);
+  const diagLongest = runs.reduce((a, r) => r.tiles > a.tiles ? r : a, runs[0]);
+  assert(diagLongest.pts.length < diagLongest.edges.length / 3,
+    `a diagonal bank simplifies toward a line, not a stair (${diagLongest.pts.length} points for ${diagLongest.edges.length} edges)`);
+  // a stair of N steps walks 2N tile edges along a diagonal of N*sqrt(2)
+  assert(diagLongest.tiles < diagLongest.edges.length * 0.85,
+    `and measures nearer the diagonal than the steps (${diagLongest.tiles.toFixed(2)} vs ${diagLongest.edges.length} edges)`);
+
+  // formal edges keep the exact tile line — the ground above them does too
+  game.edgeStyle = 'formal'; wallRunCache.sig = null;
+  const formal = buildElevationRuns();
+  assert(formal.every(r => r.pts.every(p => p[0] === Math.round(p[0]) && p[1] === Math.round(p[1]))),
+    'formal mode stays on the lattice');
+});
+
+/* The linear feet on the planting list is a number somebody quotes from, so it
+   must not move when the gardener turns the view. Camera facing was baked into
+   the trace at first and did exactly that — 24.2 / 24.7 / 25.9 / 25.6 ft for one
+   wall at the four rotations. */
+test('wall feet are what the list bills, and do not depend on the camera', () => {
+  setup(30, 30);
+  game.edgeStyle = 'organic'; setBrushSize(1);
+  game.tool = 'raise';
+  for (let x = 6; x <= 15; x++) for (let y = 8; y <= 12; y++) applyToolAt(x, y);
+  game.tool = 'wall'; game.wallDraft = 'stone';
+  for (let x = 6; x <= 15; x++) for (let y = 8; y <= 12; y++) applyToolAt(x, y);
+
+  const feetAt = (rot) => {
+    game.rot = rot; wallRunCache.sig = null;
+    return buildElevationRuns().reduce((a, r) => a + wallRunFeet(r), 0);
+  };
+  const f0 = feetAt(0);
+  for (const rot of [1, 2, 3]) {
+    assert(Math.abs(feetAt(rot) - f0) < 0.01,
+      `rotation ${rot} bills the same feet (${feetAt(rot).toFixed(2)} vs ${f0.toFixed(2)})`);
+  }
+  game.rot = 0; wallRunCache.sig = null;
+
+  // a 10x5 terrace has a 30-tile perimeter = 45 ft of drop
+  assert(Math.abs(f0 - 45) < 4, `a 10x5 terrace bills about 45 ft (${f0.toFixed(1)})`);
+
+  // and the planting list reports exactly that, not a count of tile faces
+  const row = hardscapeRows().find(r => r.kind === 'Retaining wall');
+  assert(row, 'the list carries a wall row');
+  assertEqual(row.count, `${Math.round(f0)} ft`, 'the row is the traced contour');
+
+  /* A wall painted ONE TILE WIDE is a different object from a terrace: its
+     contour runs up one side and back down the other, so counting every face
+     bills it twice. Those are the two sides of one wall. */
+  setup(30, 30);
+  game.edgeStyle = 'organic'; setBrushSize(1);
+  game.tool = 'raise';
+  for (let x = 6; x <= 15; x++) applyToolAt(x, 10);
+  game.tool = 'wall'; game.wallDraft = 'stone';
+  for (let x = 6; x <= 15; x++) applyToolAt(x, 10);
+  wallRunCache.sig = null;
+  const ridge = buildElevationRuns().reduce((a, r) => a + wallRunFeet(r), 0);
+  assert(ridge > 12 && ridge < 20, `a 10-tile (15 ft) freestanding wall bills about its own length (${ridge.toFixed(1)} ft)`);
+});

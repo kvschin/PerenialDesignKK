@@ -481,13 +481,16 @@ function hardscapeRows(){
   for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
     const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
     seats[id]=(seats[id]||0)+1; }
+  /* Linear feet of wall, measured along the TRACED CONTOUR rather than by
+     counting exposed tile faces. Faces double-count a diagonal — every step
+     contributes both of its sides — and count the far side of a wall you can
+     only build once, so the wall in the garden that prompted this was billed at
+     54 ft for a run of 24. It is a number somebody quotes from. */
   let wallTiles=0, wallCourses=0; const wallBy={};
-  for (const k in game.elevation||{}){
-    const e=game.elevation[k]; if (!e||e.removed) continue;
-    const w=wallStyleId(e.w); if (w==='none') continue;
-    const [x,y]=k.split(',').map(Number), faces=elevationDropDirs(x,y).length;
-    if (!faces) continue;
-    wallBy[w]=(wallBy[w]||0)+faces; wallTiles+=faces; wallCourses+=elevationAt(x,y);
+  for (const run of buildElevationRuns()){
+    const w=wallStyleId(run.wall); if (w==='none') continue;
+    const ft=wallRunFeet(run);
+    wallBy[w]=(wallBy[w]||0)+ft; wallTiles+=ft; wallCourses=Math.max(wallCourses,run.h);
   }
   const edgingFt=edgingRunFeet();
   const rows=[];
@@ -496,9 +499,8 @@ function hardscapeRows(){
       count:`${Math.round(edgingFt[id])} ft`});
   }
   for (const id in wallBy){
-    // a face is one tile long; height comes from the level it holds
     rows.push({kind:'Retaining wall', name:wallLabelFor(id),
-      count:`${Math.round(wallBy[id]*TILE_IN/12)} ft`});
+      count:`${Math.round(wallBy[id])} ft`});
   }
   for (const id in pots){ const [st,sz]=id.split('|');
     rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
@@ -1088,18 +1090,22 @@ function buildPlanMap(){
       drawEdgingRun(ctx,[[cx2-dy*cell/2,cy2-dx*cell/2],[cx2+dy*cell/2,cy2+dx*cell/2]],es,1,cell);
     });
   }
-  for (const k in game.elevation||{}){
-    const e=game.elevation[k]; if (!e||e.removed) continue;
-    if (wallStyleId(e.w)==='none') continue;
-    const [x,y]=k.split(',').map(Number);
-    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=2.6; ctx.lineCap='butt';
-    ELEV_DIRS.forEach(([dx,dy])=>{
-      if (elevationAt(x,y)-elevationAt(x+dx,y+dy)<=0) return;
-      const x0=X(x)+cell/2+dx*cell/2, y0=Y(y)+cell/2+dy*cell/2;
-      ctx.beginPath();
-      ctx.moveTo(x0-dy*cell/2,y0-dx*cell/2); ctx.lineTo(x0+dy*cell/2,y0+dx*cell/2);
+  /* Retaining walls: the SAME traced contours the garden draws, projected to
+     paper through the sheet's own projector. Drawn per tile here they came out
+     as a staircase running alongside a bed the sheet had already drawn as a
+     smooth curve — the exact mismatch terrainLoopPath exists to prevent, one
+     system over. Unlike the garden this shows every face, front and back: a
+     plan is read from above and has no camera to hide behind. */
+  {
+    ctx.save(); ctx.strokeStyle='#4a423a'; ctx.lineWidth=2.6;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    for (const run of buildElevationRuns()){
+      if (wallStyleId(run.wall)==='none' || run.pts.length<2) continue;
+      const pts=run.pts.map(([gx,gy])=>[X(gx),Y(gy)]);   // the sheet projector the blobs use
+      ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
       ctx.stroke();
-    });
+    }
     ctx.restore();
   }
   // lighting fixtures

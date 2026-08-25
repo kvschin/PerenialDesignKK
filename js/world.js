@@ -1527,19 +1527,51 @@ function drawTileEdging(ctx,W,H,x,y){
     drawEdgingRun(ctx,[a,b],st,tileSeed(x,y));
   });
 }
-function drawWallFace(ctx,a,b,drop,st,seed){
-  const P=(t,u)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t + drop*u];
-  const quad=(t0,u0,t1,u1,col)=>{
-    const p=[P(t0,u0),P(t1,u0),P(t1,u1),P(t0,u1)];
-    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(p[0][0],p[0][1]);
-    for (let i=1;i<4;i++) ctx.lineTo(p[i][0],p[i][1]);
-    ctx.closePath(); ctx.fill();
+/* A wall as a SURFACE: `pts` is its top edge in screen space, `drop` how far it
+   falls, and P(t,u) walks it — t along the run, u down the face. Every coursing
+   recipe below is therefore written once and serves a straight tray chip, a
+   single tile edge and a whole curved contour alike. Same idea as fencePanel.
+   `units` is the run's length in tile edges (18 in each), and it is what keeps
+   the masonry the right SIZE: a perpend every half tile is right whether the
+   wall is one tile long or twelve, so the joints are laid out per unit rather
+   than as fixed fractions of the run. Drawn per tile they were fractions of a
+   tile and it never came up. */
+function wallGeom(pts, units){
+  const cum=[0];
+  for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  const total=cum[cum.length-1]||1;
+  const at=t=>{
+    const d=Math.max(0,Math.min(1,t))*total;
+    let i=1; while (i<pts.length-1 && cum[i]<d) i++;
+    const seg=(cum[i]-cum[i-1])||1, f=(d-cum[i-1])/seg;
+    return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*f, pts[i-1][1]+(pts[i][1]-pts[i-1][1])*f];
   };
+  // the run's own bends strictly inside (t0,t1): a band or a course has to
+  // FOLLOW them, not cut the corner off its own wall
+  const between=(t0,t1)=>{ const out=[], d0=t0*total, d1=t1*total;
+    for (let i=1;i<pts.length-1;i++) if (cum[i]>d0+1e-6 && cum[i]<d1-1e-6) out.push(pts[i]);
+    return out; };
+  return {at, between, total, units:Math.max(1,Math.round(units||1))};
+}
+function drawWallSurface(ctx, g, drop, st, seed){
+  const lift=(p,u)=>[p[0], p[1]+drop*u];
+  const P=(t,u)=>lift(g.at(t),u);
+  const ring=(t0,u0,t1,u1)=>{
+    const mid=g.between(t0,t1);
+    return [P(t0,u0)].concat(mid.map(p=>lift(p,u0)), [P(t1,u0)],
+                             [P(t1,u1)], mid.slice().reverse().map(p=>lift(p,u1)), [P(t0,u1)]);
+  };
+  const trace=pts=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+    for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); };
+  const quad=(t0,u0,t1,u1,col)=>{ ctx.fillStyle=col; trace(ring(t0,u0,t1,u1)); ctx.fill(); };
   const line=(t0,u0,t1,u1,col,w)=>{
-    const p0=P(t0,u0), p1=P(t1,u1);
-    ctx.strokeStyle=col; ctx.lineWidth=w||1;
-    ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
+    ctx.strokeStyle=col; ctx.lineWidth=w||1; ctx.beginPath();
+    const p0=P(t0,u0); ctx.moveTo(p0[0],p0[1]);
+    if (u0===u1) for (const p of g.between(t0,t1)) ctx.lineTo(p[0],p[1]+drop*u0);
+    const p1=P(t1,u1); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
   };
+  const U=g.units, tu=(m,f)=>(m+f)/U;                    // fraction f within unit m
+
   quad(0,0,1,1,st.tone);                                   // the wall itself
   const n=wallCourses(drop,st), r=mulberry((seed||1)>>>0);
   switch (st.face){
@@ -1549,8 +1581,9 @@ function drawWallFace(ctx,a,b,drop,st,seed){
         line(0,u+(r()-0.5)*0.06,1,u+(r()-0.5)*0.06,st.line,1);
       }
       for (let i=0;i<n;i++){                                // broken vertical joints
-        const u0=i/n, u1=(i+1)/n, k=2+((r()*2)|0);
-        for (let j=1;j<k;j++) line(j/k+(r()-0.5)*0.12,u0,j/k+(r()-0.5)*0.12,u1,st.line,0.9);
+        const u0=i/n, u1=(i+1)/n;
+        for (let m=0;m<U;m++){ const k=2+((r()*2)|0);
+          for (let j=1;j<k;j++){ const t=tu(m,j/k+(r()-0.5)*0.12); line(t,u0,t,u1,st.line,0.9); } }
       }
       break;
     case 'coursed':
@@ -1558,7 +1591,8 @@ function drawWallFace(ctx,a,b,drop,st,seed){
       for (let i=1;i<n;i++) line(0,i/n,1,i/n,st.line,1);
       for (let i=0;i<n;i++){                                // staggered perpends
         const u0=i/n, u1=(i+1)/n, off=(i%2)?0.25:0;
-        for (let j=0;j<2;j++) line(0.25+off+j*0.5,u0,0.25+off+j*0.5,u1,st.line,0.85);
+        for (let m=0;m<U;m++) for (let j=0;j<2;j++){
+          const t=tu(m,0.25+off+j*0.5); if (t<1) line(t,u0,t,u1,st.line,0.85); }
       }
       break;
     case 'sleeper':                                         // stacked timbers
@@ -1569,14 +1603,14 @@ function drawWallFace(ctx,a,b,drop,st,seed){
       break;
     case 'gabion':                                          // a wire cage of stone
       for (let i=1;i<n;i++) line(0,i/n,1,i/n,st.line,1.4);
-      for (let j=1;j<4;j++) line(j/4,0,j/4,1,st.line,1.4);
-      for (let i=0;i<10;i++){                               // rubble showing through
-        const t=r(), u=r();
-        quad(t,u,Math.min(1,t+0.09),Math.min(1,u+0.13),r()>0.5?shade(st.tone,10):shade(st.tone,-12));
+      for (let m=0;m<U;m++) for (let j=1;j<4;j++) line(tu(m,j/4),0,tu(m,j/4),1,st.line,1.4);
+      for (let m=0;m<U;m++) for (let i=0;i<10;i++){         // rubble showing through
+        const t=tu(m,r()), u=r();
+        quad(t,u,Math.min(1,t+0.09/U),Math.min(1,u+0.13),r()>0.5?shade(st.tone,10):shade(st.tone,-12));
       }
       break;
-    case 'plate':                                           // corten: one sheet, one seam
-      line(0.5,0,0.5,1,st.line,1.2);
+    case 'plate':                                           // corten: one seam per panel
+      for (let m=0;m<U;m++) line(tu(m,0.5),0,tu(m,0.5),1,st.line,1.2);
       quad(0,0,1,0.10,shade(st.tone,12));                   // weathered top edge
       break;
     default:                                                // smooth concrete
@@ -1586,10 +1620,14 @@ function drawWallFace(ctx,a,b,drop,st,seed){
   // shade the foot so the wall sits into the ground rather than on top of it
   quad(0,0.86,1,1,'rgba(0,0,0,0.14)');
   ctx.strokeStyle='rgba(35,28,20,0.22)'; ctx.lineWidth=1;
-  ctx.beginPath();
-  ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
-  ctx.lineTo(b[0],b[1]+drop); ctx.lineTo(a[0],a[1]+drop);
-  ctx.closePath(); ctx.stroke();
+  trace(ring(0,0,1,1)); ctx.stroke();
+}
+// one tile edge (or a tray chip): the degenerate two-point run
+function drawWallFace(ctx,a,b,drop,st,seed){ drawWallSurface(ctx, wallGeom([a,b],1), drop, st, seed); }
+// a whole traced contour, laid as ONE wall with continuous coursing
+function drawWallRun(ctx,pts,drop,st,seed,units){
+  if (!pts || pts.length<2) return;
+  drawWallSurface(ctx, wallGeom(pts,units), drop, st, seed);
 }
 /* Treads climbing that same face. A flight cannot be painted ON the wall
    plane — that gives horizontal bands, which is what a staircase drawn flat
@@ -1619,9 +1657,12 @@ function drawElevationSides(ctx,W,H,x,y,base){
     const drop=diff*ELEV_STEP;
     /* Bare earth is still the default — a grass bank is a real answer to a
        terrace, so a wall is something you paint on, not something the app
-       assumes you wanted. */
-    if (wall.face) drawWallFace(ctx,a,b,drop,wall,tileSeed(x,y));
-    else side(a,b,drop,toneColor(base,shadeAmt));
+       assumes you wanted. It stays per TILE because it is tinted from each
+       tile's own ground colour and reads as a bank rather than as masonry; a
+       faced wall is drawn afterwards as one continuous run (paintWallRuns), so
+       it follows the contour instead of stepping around the tile lattice. */
+    if (wall.face) return;
+    side(a,b,drop,toneColor(base,shadeAmt));
     // and the flight, if this face is the one the steps climb
   });
 }

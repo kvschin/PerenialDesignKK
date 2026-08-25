@@ -1484,11 +1484,51 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and a Containers & seating table on the planting list — a pot is one plant,
     one vessel and a bag of compost, which is a different line from an area at a
     spacing.
-12c. **Retaining walls** (`WALL_STYLES`, `drawWallFace`) — the elevation tools
+12c. **Retaining walls** (`WALL_STYLES`, `drawWallSurface`) — the elevation tools
     could raise ground and gave no way to hold it back, so a terrace read as
     bare earth. A wall lives on the exposed FACE of a level change, and that
-    face belongs to the HIGHER tile — it is the higher tile
-    `drawElevationSides` paints — so the material is stored there.
+    face belongs to the HIGHER tile — so the material is stored there.
+    **A wall is drawn as a traced CONTOUR, not as one face per tile.**
+    `buildElevationRuns` (renderer.js) traces the elevation lattice the way
+    `buildTerrainRegions` traces the material lattice: flood by level, walk each
+    outline with `elevationUnitEdges`, and cut a RUN wherever the drop, the
+    material or the continuity of the face changes. Each run is smoothed by the
+    same `dpOpen` + `planJitter` the soft terrain arcs use, **with the same jitter
+    seed**, so where a terrace's material outline and its level outline coincide
+    the cap and the face land on the same curve; `edgeStyle:'formal'` keeps the
+    exact lattice, because the ground above it does too. Before this the terrace
+    TOP was smoothed and the face below it was not, which is visible in any
+    screenshot of a curved terrace as a flowing cap sitting on square steps —
+    measured on a real garden, a wall that draws as 3 runs (longest a single
+    12.1 ft segment) was 22 separate parallelograms.
+    Two things the split has to keep right. **Camera facing is applied in
+    `paintWallRuns`, never in the trace**: baked into the trace it made the runs,
+    and therefore the linear feet the planting list bills from them, change when
+    the gardener turned the view — 24.2 / 24.7 / 25.9 / 25.6 ft for one wall at
+    the four rotations. A materials estimate cannot depend on where you are
+    standing. **And `billTiles` halves a RIDGE face**, where the far side of the
+    same tile also falls away: a terrace's contour IS its wall, but a wall
+    painted one tile wide runs up one side and back down the other, so counting
+    every face bills it twice. That is most of why the old per-tile tally read
+    54 ft for a 24 ft wall (the rest is a diagonal step contributing both sides).
+    `drawWallSurface` takes a `wallGeom` — `P(t,u)`, t along the run and u down
+    the face — so every coursing recipe is written once and serves a tray chip, a
+    single tile edge and a whole curved contour alike (the `fencePanel` idiom).
+    Its `units` is the run's length in tile edges, and it is what keeps the
+    masonry the right SIZE: joints are laid out per unit, not as fractions of the
+    run, or a perpend every half tile would stretch to every six feet on a long
+    wall. Drawn per tile they were fractions of a tile and it never came up.
+    **Bare earth banks stay per tile** (`drawElevationSides`) — they are tinted
+    from each tile's own ground colour and read as a bank rather than as masonry.
+    Ordering: runs paint after the ground and after `paintTerrainBlobs`, low
+    terrace first. Known limit, shared with the blob pass: a much higher terrace
+    standing in front of a low wall can still overdraw it.
+    The plan sheet (`openPlan`) and the planting list (`hardscapeRows`) read the
+    SAME runs, so all three documents agree — the sheet drew its own per-tile
+    staircase alongside a bed it had already drawn as a curve, which is the
+    mismatch `terrainLoopPath` exists to prevent, one system over. Unlike the
+    garden the sheet draws every face: a plan is read from above and has no
+    camera to hide behind.
     **The scale was already in the file.** `ELEV_STEP`/`PX_PER_FT` makes one
     level **5.14 inches** (`ELEV_RISER_IN`), about one course of walling, so
     `courseIn` counts real courses against a real drop.
