@@ -7137,3 +7137,92 @@ test('the tray signature carries each control the catalog draws', () => {
   game.discovery = d;
   assertEqual(trayStateSig(), before, 'and restoring it returns');
 });
+
+/* ---------- the plant sprite cache retires its own stale buckets ----------
+   The key carries a growth and a bloom bucket read off the clock, so the moment
+   either moves the sprite at the old key is dead — nothing will ever ask for it
+   again. Leaving it for the memory ceiling to notice took a 282-plant garden to
+   3522 cached sprites at 30.5MB over a game year, against 996 at 13.4MB once
+   each clump retires its own predecessor.
+
+   Measured honestly: this is a MEMORY fix and not a frame-time one. Eviction
+   only ever discards sprites that were not drawn last frame, so sitting on the
+   ceiling costs bytes, not milliseconds — at the ceiling (47.9MB) versus clear
+   of it (41.6MB) the frame measured 39.0ms against 40.1ms, which is noise. */
+
+test('a plant retires its own superseded sprite', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+  PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d');
+
+  // the same clump drawn at three different growths — three buckets, one plant
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.20, 'Summer', 12345, 0, null, undefined, true);
+  const afterOne = PSPRITE.map.size;
+  assert(afterOne >= 1, 'the first draw caches something');
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.55, 'Summer', 12345, 0, null, undefined, true);
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.95, 'Summer', 12345, 0, null, undefined, true);
+
+  assertEqual(PSPRITE.map.size, afterOne,
+    'growing through three buckets leaves ONE sprite, not three');
+  assertEqual(PSPRITE.slot.size, 1, 'and one slot for the clump');
+  assert(PSPRITE.bytes > 0, 'the byte count still tracks the sprite it holds');
+});
+
+test('a clump keeps one sprite per season, because comparing seasons is the point', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+  PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d');
+
+  for (const s of SEASONS) drawPlantMaybeCached(ctx, 0, 0, key, 0.7, s, 999, 0, null, undefined, true);
+  assertEqual(PSPRITE.map.size, SEASONS.length,
+    'four seasons, four sprites — season supersedes nothing');
+  assertEqual(PSPRITE.slot.size, SEASONS.length, 'each season is its own slot');
+
+  /* Re-baking every plant on a season change would land in the middle of the
+     1.1s crossfade, which is exactly when the garden must not stutter. */
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.7, SEASONS[0], 999, 0, null, undefined, true);
+  assertEqual(PSPRITE.map.size, SEASONS.length, 'coming back to a season is a hit, not a bake');
+});
+
+test('two clumps of one species never share a slot', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+  PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d');
+  /* The seed is per-tile and is what makes every clump unique, so it has to be
+     IN the slot: share one and planting a second clump would evict the first
+     on every frame, forever. */
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', tileSeed(3, 3), 0, null, undefined, true);
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', tileSeed(9, 9), 0, null, undefined, true);
+  assertEqual(PSPRITE.map.size, 2, 'two clumps, two sprites');
+  assertEqual(PSPRITE.slot.size, 2, 'two slots');
+});
+
+test('the slot index does not outlive the sprites it points at', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+  PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d');
+  const wasMem = PSPRITE.MEM;
+  for (let i = 0; i < 12; i++)
+    drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', 1000 + i, 0, null, undefined, true);
+  const held = PSPRITE.map.size;
+  assert(held > 1, 'several clumps are cached');
+
+  // squeeze the budget and age them, so the sweep runs on off-screen sprites
+  PSPRITE.MEM = 1;
+  PSPRITE.frame += 5;
+  pspriteFrame();
+  PSPRITE.MEM = wasMem;
+
+  assert(PSPRITE.map.size < held, 'the sweep evicted something');
+  assert(PSPRITE.slot.size <= PSPRITE.map.size,
+    'and no slot is left pointing at a sprite that is gone (' +
+    PSPRITE.slot.size + ' slots vs ' + PSPRITE.map.size + ' sprites)');
+});

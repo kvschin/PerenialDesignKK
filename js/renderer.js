@@ -910,7 +910,7 @@ function strokeEdgingArc(ctx,arc,proj,st,edgePx){
    and is evicted LRU under a memory budget. It only kicks in once a frame is
    heavy enough that the bucketing is imperceptible — light gardens keep the
    pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
-const PSPRITE={ map:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
+const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
   MEM:48*1024*1024, BUDGET:160, off:false, active:false,
   FLOOR:40, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
   /* What the STRUCTURES in the draw pass cost, so the governor can take them
@@ -1000,9 +1000,15 @@ function pspriteFrame(){                        // once per render: age the cach
   // flickering when the working set is large (e.g. a dense garden on retina):
   // memory may overshoot to hold everything on screen, but it never re-renders
   // a visible plant it just discarded.
+  /* An evicted sprite has to clear its slot, or the index outlives the cache:
+     the stale pointer is harmless on lookup (nothing sits at that key any
+     more) but it would accumulate one dead string per eviction, forever. The
+     slot is carried ON the entry rather than parsed back out of the key — the
+     key's last field is JSON and may contain the separator. */
   if (PSPRITE.bytes>PSPRITE.MEM) for (const [k,e] of PSPRITE.map){
     if (PSPRITE.bytes<=PSPRITE.MEM || e.used>=PSPRITE.frame-1) break;
     PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k);
+    if (e.slot!==undefined && PSPRITE.slot.get(e.slot)===k) PSPRITE.slot.delete(e.slot);
   }
 }
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
@@ -1056,6 +1062,25 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   const P=plantDef(key,variant), bloomS=bloomAppearanceFor(P,season);
   const gB=gbucket(growth,9), bB=bloomS?gbucket(bloomLevel(key,variant),4):0;
   const kk=seed+'|'+key+'|'+(variant||'')+'|'+season+'|'+gB+'|'+bB+'|'+(detail?JSON.stringify(detail):'');
+  /* This clump's own SLOT — what identifies the plant rather than the moment.
+
+     Growth and bloom are bucketed off the clock, so the instant either moves,
+     the sprite at the old key is dead: nothing will ever ask for it again.
+     Leaving it for the memory ceiling to notice is what took a 285-plant
+     garden to 2020 cached sprites sitting exactly on the 48MB budget — about
+     seven stale buckets per plant — where the cache then evicts and re-bakes
+     continuously. Spring is the worst of it, because everything is regrowing
+     and the buckets churn; the same garden settled in Fall held 284.
+
+     Season stays IN the slot rather than superseding. Flipping between seasons
+     to compare a planting is the thing this app is for, so a clump keeps at
+     most one sprite per season it has actually been seen in — four rather than
+     one, against re-baking every plant on every season change, which would
+     land in the middle of the 1.1s crossfade.
+
+     `detail` is deliberately NOT in the slot either: it is a neighbour-derived
+     bake, so an old one is as dead as an old growth bucket. */
+  const slot=seed+'|'+key+'|'+(variant||'')+'|'+season;
   let e=PSPRITE.map.get(kk);
   // A sprite baked at a very different zoom blits soft, so re-render it (budget
   // permitting) at the current scale. But to keep zooming smooth, reuse the old
@@ -1072,8 +1097,17 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
     }
     if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
   }
+  /* Retire whatever this clump was cached as before. Only now — if the bake
+     above was refused for budget we are still holding the OLD sprite, and
+     dropping it would buy a procedural draw for nothing. */
+  const wasKey=PSPRITE.slot.get(slot);
+  if (wasKey!==undefined && wasKey!==kk){
+    const dead=PSPRITE.map.get(wasKey);
+    if (dead){ PSPRITE.bytes-=dead.bytes; PSPRITE.map.delete(wasKey); }
+  }
+  if (wasKey!==kk) PSPRITE.slot.set(slot,kk);
   if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
-  e.used=PSPRITE.frame;
+  e.used=PSPRITE.frame; e.slot=slot;   // carried so eviction can clear the index
   PSPRITE.map.set(kk,e);
   const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
   if (sway){

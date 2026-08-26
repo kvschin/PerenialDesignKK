@@ -833,6 +833,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sprites make draw fast, disengaging reads the *predicted* procedural cost
     (plant count × a per-plant ms learned while procedural) rather than the live
     number, and releases only when that stays under ~2.5ms for ~45 frames.
+    **A clump retires its own superseded sprite** (`PSPRITE.slot`). The key
+    carries a growth and a bloom BUCKET read off the clock, so the moment either
+    moves the sprite at the old key is dead — nothing will ever ask for it again
+    — and leaving it for the memory ceiling to notice took a real 282-plant
+    garden to **3522 sprites at 30.5MB** over a game year, against **996 at
+    13.4MB** once each clump drops its predecessor on the spot (+3% bakes, since
+    a re-visited bucket is no longer a hit). A live session was seen at 2020
+    sprites sitting exactly on the 48MB budget. The slot is
+    `seed|species|variant|SEASON`: season stays in it rather than superseding,
+    because flipping between seasons to compare a planting is what this app is
+    for, so a clump keeps at most one sprite per season it has been seen in —
+    against re-baking every plant on every season change, which would land in
+    the middle of the 1.1s crossfade. The seed must stay in it too, or two
+    clumps of one species would evict each other every frame. `detail` is
+    deliberately OUT: it is a neighbour-derived bake, as dead as an old bucket
+    when it changes. The slot is carried ON the cache entry so eviction can
+    clear the index — parsing it back out of the key would be wrong, the key's
+    last field is JSON and may contain the separator.
+    **It is a MEMORY fix and not a frame-time one, measured.** Eviction only
+    ever discards sprites that were not drawn last frame, so sitting on the
+    ceiling costs bytes rather than milliseconds: at the ceiling (47.9MB) against
+    clear of it (41.6MB) the same garden measured 39.0ms and 40.1ms a frame,
+    which is noise, and four configurations were tried before accepting that.
+    Worth having anyway on a phone target — but do not reach for it expecting
+    frames back.
     Eviction runs once per frame and only on off-screen sprites
     (never the visible set, so the cache can't thrash/flicker), sprite scale is
     capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
