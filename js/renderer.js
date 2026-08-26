@@ -404,7 +404,7 @@ function finishTerrainArc(hard, pts, covered, P){
    skirt and broke into disconnected lozenges. The winner can always bleed
    safely, because whatever it covers is the loser's fill by definition. */
 const LAID_OVER_BLEED = 0.45;
-function terrainLoopArcs(es, useCount, saddle){
+function terrainLoopArcs(es, useCount, saddle, fillet){
   const n=es.length;
   /* Bleed every lattice point that touches a laid-over edge. Doing it per POINT
      rather than per arc is what keeps the silhouette closed: the corner where a
@@ -441,7 +441,7 @@ function terrainLoopArcs(es, useCount, saddle){
     const outPts=pts.map(P);                       // bleed AFTER simplifying — see finishTerrainArc
     if (!hard) for (let i=0;i<outPts.length;i++){ const [jx,jy]=planJitter(pts[i][0],pts[i][1]);
       outPts[i]=[outPts[i][0]+jx*0.55, outPts[i][1]+jy*0.55]; }
-    return {closed:true, hard, covered:!!es[0].covered, pts:outPts};
+    return {closed:true, hard, covered:!!es[0].covered, pts:outPts, fillet};
   }
   const arcs=[];
   for (let c=0;c<cuts.length;c++){
@@ -450,26 +450,21 @@ function terrainLoopArcs(es, useCount, saddle){
     const pts=[]; for (let s=0;s<=len;s++) pts.push(es[(i0+s)%n].a);
     arcs.push(finishTerrainArc(es[i0].hard, pts, es[i0].covered, P));
   }
+  arcs.forEach(a=>{ a.fillet=fillet; });
   return {closed:false, arcs};
 }
-/* How far a corner may be rounded, in TILES. 18 inches is a real bed-edge
-   radius and, more to the point, a BOUND: the old renderer used each vertex as
-   a quadratic control point, which cuts a corner by |(A-B)+(C-B)|/4 — a
-   fraction of the adjacent run lengths, so the smoothing scaled with the shape
-   and the more deliberate the geometry the more of it was destroyed. Measured
-   on a real garden, an 11x12 tile gravel patio lost 3.76 ft at its corners and
-   bowed 2.34 ft off a straight 10-tile run, while a wandering bed 3 tiles
-   across lost 0.5 ft — exactly backwards. Clamping to a radius makes the
-   smoothing scale-free: a one-tile jog is bound by its own half-length and so
-   rounds precisely as it always did, while a long run stays straight and turns
-   a real corner. */
-const TERRAIN_FILLET = 1.0;
-/* The clamp is computed on the TILE-space points and applied as a FRACTION of
+/* The corner radius comes from TERRAIN_FILLET (core.js) — per MATERIAL, because
+   a bed edge and a paving edge want opposite things. Unbounded reproduces the
+   original renderer exactly: each vertex is the spline's control point, cutting
+   the corner by |(A-B)+(C-B)|/4, which grows with the runs either side.
+   The clamp is computed on the TILE-space points and applied as a FRACTION of
    the projected segment, never in projected units — otherwise the radius would
    mean pixels, changing with zoom and differing between the garden and the plan
    sheet. Every projector here is affine, so a fraction along a tile segment is
    the same fraction along its projection. */
-function filletFractions(tilePts, closed){
+const TERRAIN_FILLET_DEFAULT = 1.0;
+function filletFractions(tilePts, closed, R){
+  R = R===undefined ? TERRAIN_FILLET_DEFAULT : R;
   const n=tilePts.length, out=new Array(n).fill(null);
   const seg=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);
   for (let i=0;i<n;i++){
@@ -477,7 +472,7 @@ function filletFractions(tilePts, closed){
     const next = closed ? tilePts[(i+1)%n] : tilePts[i+1];
     if (!prev || !next) continue;
     const la=seg(prev,tilePts[i]), lc=seg(tilePts[i],next);
-    out[i]=[ la?Math.min(TERRAIN_FILLET,la/2)/la:0, lc?Math.min(TERRAIN_FILLET,lc/2)/lc:0 ];
+    out[i]=[ la?Math.min(R,la/2)/la:0, lc?Math.min(R,lc/2)/lc:0 ];
   }
   return out;
 }
@@ -488,8 +483,8 @@ const _tlLerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
    its own bed, so this is a walk with an emitter rather than three copies of
    the same spline. `emit.quad` is handed its own start point so a sampling
    consumer does not have to track the pen. */
-function terrainCurveWalk(tilePts, projPts, closed, emit){
-  const n=projPts.length, f=filletFractions(tilePts,closed);
+function terrainCurveWalk(tilePts, projPts, closed, emit, R){
+  const n=projPts.length, f=filletFractions(tilePts,closed,R);
   if (closed){
     const startOf=i=>_tlLerp(projPts[i], projPts[(i+n-1)%n], f[i][0]);
     let cur=startOf(0); emit.move(cur);
@@ -525,7 +520,7 @@ function terrainArcPath(ctx, arc, proj, moveFirst){
     for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
     return;
   }
-  terrainCurveWalk(arc.pts, pts, false, ctxEmitter(ctx, !!moveFirst));
+  terrainCurveWalk(arc.pts, pts, false, ctxEmitter(ctx, !!moveFirst), arc.fillet);
 }
 /* Append one cached region loop to the current ctx path through an arbitrary
    projector ([gx,gy] tile corners → canvas px) — the garden (iso + elevation
@@ -538,7 +533,7 @@ function terrainLoopPath(ctx, loop, proj){
       pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
       ctx.closePath(); return;
     }
-    terrainCurveWalk(loop.pts, pts, true, ctxEmitter(ctx, true));
+    terrainCurveWalk(loop.pts, pts, true, ctxEmitter(ctx, true), loop.fillet);
     ctx.closePath(); return;
   }
   loop.arcs.forEach((arc,ai)=> terrainArcPath(ctx,arc,proj,ai===0));
@@ -776,7 +771,7 @@ function buildTerrainRegions(){
       return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
     };
     regions.push({ kind:o.k, c:o.c, rank, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
-      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle)) });
+      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle,terrainFillet(o.k))) });
   }
   // Elevation first — higher terraces paint over lower edges — then rank, so a
   // path lands on the bed it runs through rather than the other way round. The
@@ -892,7 +887,7 @@ function edgingCurvePoints(arc, proj){
     line:p=>out.push(p),
     quad:(from,c,p)=>{ for (let s=1;s<=SEG;s++){ const t=s/SEG, u=1-t;
       out.push([u*u*from[0]+2*u*t*c[0]+t*t*p[0], u*u*from[1]+2*u*t*c[1]+t*t*p[1]]); } },
-  });
+  }, arc.fillet);
   return out;
 }
 function strokeEdgingArc(ctx,arc,proj,st,edgePx){

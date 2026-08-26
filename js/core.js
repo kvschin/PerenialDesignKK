@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.36';
+const APP_VERSION = '0.8.37';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -485,6 +485,22 @@ function waterStyleId(id){ return waterStyle(id).id; }
    colours) both stay exact and butt, which is what they should do. */
 const TERRAIN_RANK = { water:0, bed:1, path:2 };
 function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?1:r; }
+/* How far a material's edge may be rounded at a corner, in TILES. This is one
+   number per material because the two kinds of edge want opposite things and a
+   single global value cannot serve both.
+   A BED or a POND edge is a sweeping curve, and the amount it sweeps IS the
+   look: left unbounded, a corner is cut by |(A-B)+(C-B)|/4, which grows with
+   the runs either side, so a long lazy bed edge rounds three times as hard as a
+   one-tile wobble (measured on a real garden: 1.38 ft against 0.54 ft). That
+   gradient is what reads as naturalistic, and clamping it to a constant ~0.4 ft
+   everywhere made beds look cut out with scissors.
+   PAVING is the opposite. A patio is set out with straight runs and real
+   corners, and letting the rounding grow with the shape is exactly what took
+   3.76 ft off the corners of an 11x12 tile gravel patio and bowed 2.34 ft out of
+   a straight 10-tile run. One tile — 18 inches — is a real edge radius and, more
+   to the point, a bound. */
+const TERRAIN_FILLET = { bed:Infinity, water:Infinity, path:1.0 };
+function terrainFillet(kind){ const r=TERRAIN_FILLET[kind]; return r===undefined?1.0:r; }
 // terrain edge look: crisp tiles for the structured styles, smoothed curves
 // for the naturalistic ones. Seeds game.edgeStyle from the questionnaire.
 const FORMAL_EDGE_STYLES=['formal','modern','japanese'];

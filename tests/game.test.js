@@ -6297,12 +6297,16 @@ test('organic edges: a long run stays straight and its corner is bounded', () =>
     return out;
   };
 
+  /* PAVING, not a bed: the bound is a property of the material now
+     (TERRAIN_FILLET, core.js). A patio is set out with straight runs and real
+     corners; a bed edge is a sweeping curve and is deliberately unbounded. The
+     second half of this test pins that difference. */
   setup(30, 30);
   game.edgeStyle = 'organic';
-  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  game.tool = 'path'; game.pathColor = 'warm'; setBrushSize(1);
   // tiles x6..17, y6..15 -> a 12x10 rectangle, corners on (6,6) (18,6) (18,16) (6,16)
   for (let x = 6; x <= 17; x++) for (let y = 6; y <= 15; y++) applyToolAt(x, y);
-  const pts = curve(buildTerrainRegions().find(r => r.kind === 'bed'));
+  const pts = curve(buildTerrainRegions().find(r => r.kind === 'path'));
 
   /* 1. the straight runs are straight. Sample the middle 60% of the south run,
         clear of both corner fillets. Not exactly zero: a uniform closed loop
@@ -6312,7 +6316,7 @@ test('organic edges: a long run stays straight and its corner is bounded', () =>
         point. It was 1.56 tiles here before. */
   let bow = 0;
   for (const p of pts) if (p[0] > 8.4 && p[0] < 15.6 && Math.abs(p[1] - 16) < 2) bow = Math.max(bow, Math.abs(p[1] - 16));
-  assert(bow < 0.15, `a 12-tile run draws straight to within the jitter (bowed ${bow.toFixed(3)} tiles)`);
+  assert(bow < 0.15, `a 12-tile paved run draws straight to within the jitter (bowed ${bow.toFixed(3)} tiles)`);
 
   // 2. the corner is rounded, but BOUNDED — and the bound is what is new, so
   //    the assertion names what the old unbounded form would have produced for
@@ -6329,13 +6333,29 @@ test('organic edges: a long run stays straight and its corner is bounded', () =>
   //    fillet, so small wobbles round exactly as they always did.
   setup(30, 30);
   game.edgeStyle = 'organic';
-  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  game.tool = 'path'; game.pathColor = 'warm'; setBrushSize(1);
   for (let x = 6; x <= 11; x++) for (let y = 6; y <= 9; y++) applyToolAt(x, y);
   applyToolAt(12, 7);                              // a single tile sticking out
-  const jog = curve(buildTerrainRegions().find(r => r.kind === 'bed'));
+  const jog = curve(buildTerrainRegions().find(r => r.kind === 'path'));
   let jogCut = Infinity;
   for (const p of jog) jogCut = Math.min(jogCut, Math.hypot(p[0] - 13, p[1] - 7));
   assert(jogCut > 0.15 && jogCut < 0.8, `a one-tile lobe still rounds softly (${jogCut.toFixed(3)})`);
+
+  /* And the other half of the contract: the SAME rectangle painted as a bed
+     sweeps. The rounding grows with the run there, which is what makes a bed
+     edge read as drawn rather than cut — clamping it everywhere is what made
+     beds look like they had been trimmed with scissors. */
+  setup(30, 30);
+  game.edgeStyle = 'organic';
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  for (let x = 6; x <= 17; x++) for (let y = 6; y <= 15; y++) applyToolAt(x, y);
+  const bedPts = curve(buildTerrainRegions().find(r => r.kind === 'bed'));
+  let bedCut = Infinity;
+  for (const p of bedPts) bedCut = Math.min(bedCut, Math.hypot(p[0] - 18, p[1] - 16));
+  assert(bedCut > cut * 2,
+    `the same corner sweeps as a bed (${bedCut.toFixed(2)}) where it is crisp as paving (${cut.toFixed(2)})`);
+  assertEqual(terrainFillet('path'), 1.0, 'paving is bounded');
+  assertEqual(terrainFillet('bed'), Infinity, 'a bed edge is not');
 });
 
 /* Three consumers draw this curve: the fill path, the outline stroke, and the

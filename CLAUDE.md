@@ -755,19 +755,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
     jittered inward (`planJitter`) on interiors only, and drawn as **bounded-fillet**
     curves **pinned to their endpoints**. Two things about that are load-bearing.
-    **The corner radius is CLAMPED (`TERRAIN_FILLET`, 1 tile)**: the old form used
-    each vertex as a quadratic control point, which cuts a corner by
-    `|(A-B)+(C-B)|/4` — a fraction of the runs either side, so the smoothing scaled
-    with the shape and the more deliberate the geometry the more of it was
-    destroyed. On a real garden an 11x12 tile gravel patio lost **3.76 ft** at its
-    corners and bowed **2.34 ft** off a straight 10-tile run, while a wandering
-    3-tile bed lost 0.5 ft — exactly backwards. Clamped, a one-tile jog is bound by
-    its own half-length and rounds precisely as it always did, while a long run
-    stays straight and turns a real corner (patio: 0.57 ft / 0.58 ft; beds' mean
-    softening 0.55 → 0.46 ft, i.e. essentially unchanged). The clamp is computed in
-    TILE space and applied as a FRACTION of the projected segment — in projected
-    units the radius would mean pixels and change with zoom and between the garden
-    and the plan sheet.
+    **The corner radius is per MATERIAL (`TERRAIN_FILLET`, core.js)**, because the
+    two kinds of edge want opposite things and one global number cannot serve
+    both. The spline uses each vertex as a quadratic control point, which cuts a
+    corner by `|(A-B)+(C-B)|/4` — a fraction of the runs either side — so the
+    rounding GROWS with the shape.
+    For **paving that is the bug**: an 11x12 tile gravel patio lost **3.76 ft** at
+    its corners and bowed **2.34 ft** off a straight 10-tile run. `path` is
+    therefore clamped to **1 tile** (0.57 ft / 0.58 ft after), which makes the
+    smoothing scale-free there — a one-tile jog is bound by its own half-length
+    and rounds as it always did, a long run stays straight and turns a real corner.
+    For a **bed or a pond that same growth IS the look**, and clamping it was a
+    real regression, reported as "the bed doesn't curve like it used to": measured
+    on the same garden, corner softening by run length went 0.54 / 0.68 / **1.38**
+    ft (short / mid / long runs) to a flat ~0.4 ft everywhere. The gradient — a
+    long lazy edge rounding three times as hard as a one-tile wobble — is what
+    reads as drawn rather than cut out with scissors, so `bed` and `water` are
+    `Infinity`, byte-identical to the pre-clamp renderer.
+    The clamp is computed in TILE space and applied as a FRACTION of the projected
+    segment — in projected units the radius would mean pixels and change with zoom
+    and between the garden and the plan sheet. The trace stamps each loop/arc with
+    its material's radius (`terrainLoopArcs(...,fillet)`) so the three curve
+    consumers below all agree without re-deriving it.
     **And `LAID_OVER_BLEED` is applied AFTER simplification**, not to the lattice
     points going in. Bled first, a run whose neighbour changes material partway
     along — a path crossing a bed, the case rank exists for — got a 0.45-tile step
