@@ -711,31 +711,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (mid-gesture frames scale-blit the stale bake — briefly soft, never slow),
     and ~180ms after a pan ends (resting frames are freshly rasterized, never
     resampled). Water ripples freeze except at rebakes.
-    **"On leaving the baked margin" no longer applies when the bake already
-    holds the whole plot** (`groundBakeComplete` / `bakeCoversWholePlot` /
-    `groundPanForcesBake`). `panDev>=MD` re-baked the instant the camera left
-    the margin, with no throttle of any kind — the edit path got a settle and
-    the pan path got nothing — and on a desktop that was the dominant cost of
-    using the app: simulated on a real 70×39 garden, ONE SECOND of ordinary
-    mouse-drag panning forced **2 bakes at a slow drag, 5 at a normal one and 9
-    at a fast one**, each ~30ms. Nearly all of it redid work that changed
-    nothing, because the bake window is CLAMPED to the plot: once the whole plot
-    is inside it there is no further ground anywhere, `paintGround` skips
-    off-lot tiles, and the world-anchored blit keeps sliding correctly however
-    far you go. Measured after: **1 bake per gesture at every drag speed** — the
-    `GROUND_PAN_SETTLE` one, deliberately kept so a resting frame is still
-    freshly rasterized and the blit's half-pixel rounding is still corrected.
-    Verified pixel-identical to the old behaviour at rest (0% differing on a
-    600px horizontal pan, a 500×420 diagonal and a 1200px pan; control 0%).
-    **The trap is judging completeness on the CLAMPED window**: it reports
-    `0..GW-1` as soon as `pad` alone carries it there, which happens even when
-    the plot runs off the edge of the canvas and is being clipped — so it must
-    be judged on the RAW corner range, requiring a full `pad` of skirt beyond
-    the plot on every side. That substitution passes every unit test, so a
-    source test pins the call site. Zoomed in far enough that the plot no longer
-    fits the canvas, `groundBakeComplete` is false and the guard is inert
-    (verified) — only an incremental strip re-bake would help there, and that is
-    the open follow-up.
+    **The margin rebake looks wasteful and is not — do not "optimise" it the way
+    0.8.39 did (shipped, broke the garden, reverted in 0.8.40).** Panning is the
+    dominant desktop cost: measured on a real 70×39 garden, ONE SECOND of
+    mouse-drag panning forces 2 bakes at a slow drag, 5 at a normal one and 9 at
+    a fast one, each ~30ms. The tempting inference is that the bake window is
+    CLAMPED to the plot, so once the whole plot is inside it a pan can reveal
+    nothing new and the `panDev>=MD` rebake can be skipped. **The containment
+    test is the trap.** Asking it in TILE space — does the tile bbox of the four
+    canvas corners contain `0..GW-1 × 0..GH-1` — is wrong, because the preimage
+    of a screen rectangle under this projection is a **diamond**, and the bbox of
+    its corners is far larger than the diamond itself. So the bbox contains the
+    plot while the plot's own corners sit outside the canvas, get drawn past its
+    edge and are clipped away; skipping the rebake then slides that clipped edge
+    into view as a hard vertical line with fence and plants drawing over bare
+    sky. Measured on that garden: the tile-bbox test said "complete" at **every**
+    zoom including fully zoomed out, while the plot's real screen span (4066 draw
+    units) never fit the canvas (3275 at best) at **any** of them. So the
+    premise is not merely mis-tested, it is false in practice — a correct
+    screen-space test returns false always here, and the optimisation buys
+    nothing. Two lessons rather than one: ask a containment question in the space
+    the containment happens in, and note that the 0.8.39 pixel verification
+    passed (0% differing over 600px, 1200px and diagonal pans) because it
+    photographed the frame AFTER `GROUND_PAN_SETTLE` had re-baked, which is the
+    one frame where both arms necessarily agree. **The artifact lives in the
+    frames DURING the gesture** — verify those, or a pan test proves nothing.
     **The edit throttle** (`groundEditThrottled` + `GROUND_EDIT_SETTLE` 90ms)
     is the same trick for the one gesture the design never covered: a brush drag
     bumps `groundRev` on every tile it paints, so the key changed every frame

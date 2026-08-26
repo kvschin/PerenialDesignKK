@@ -59,59 +59,6 @@ function groundEditThrottled(t, keyChanged, structMatches){
   return !!(keyChanged && hasDamage && groundDamage.size<=GROUND_DAMAGE_CAP
     && structMatches && !newBurst && t-groundEditT<GROUND_EDIT_SETTLE);
 }
-/* ---------- a pan cannot invalidate a bake that already holds the whole plot ----------
-   `panDev>=MD` re-bakes the instant the camera leaves the baked margin, with no
-   throttle of any kind — the edit path got GROUND_EDIT_SETTLE and the pan path
-   got nothing. On a desktop that is the dominant cost of using the app:
-   simulated on a real 70x39 garden, ONE SECOND of ordinary mouse-drag panning
-   forced 2 bakes at a slow drag, 6 at a normal one and 10 at a fast one, each
-   ~30ms of submission alone.
-
-   Almost all of it is redoing work that changes nothing. The bake window is
-   CLAMPED to the plot, so once the whole plot is inside it there is no further
-   ground anywhere: `paintGround` skips off-lot tiles, so beyond the deeded
-   boundary the bake is transparent and the sky shows through, which is exactly
-   what a pan should reveal. The blit is world-anchored and slides by the camera
-   delta, so it keeps being right however far you go. Verified rather than
-   argued: with the bake FROZEN outright and the camera panned 600 device px —
-   three times the 200px margin — the frame came out pixel-identical to one that
-   re-baked freely (0% of pixels differing, against 0% for the control of
-   rendering the same frame twice).
-
-   `groundBakeComplete` is that fact about the bake being held. It deliberately
-   suppresses only the mid-gesture forced bake; the GROUND_PAN_SETTLE bake still
-   fires ~180ms after the camera stops, so a resting frame is still freshly
-   rasterized and the blit's half-pixel rounding is still corrected. Net: a pan
-   goes from 2-10 bakes per second to one at the end of the gesture.
-
-   The limit worth knowing: this only helps while the whole plot fits in the
-   baked canvas, i.e. zoomed out far enough to see the garden. Zoomed into a
-   bed, `panDev` still forces bakes, and only an incremental strip re-bake would
-   help there. */
-let groundBakeComplete=false;
-/* Did that bake reach `pad` tiles BEYOND the plot on every side?
-
-   The test is on the UNPADDED corner range — the tiles that genuinely project
-   into the canvas — because the clamped-and-padded window reports 0..GW-1 as
-   soon as `pad` alone carries it there, which it does even when the plot runs
-   several tiles off the edge of the canvas and is being clipped away. Reading
-   completeness off the clamped window would call that bake complete, skip the
-   pan re-bake, and slide a clipped edge into view. Requiring a full `pad` of
-   skirt is deliberately conservative: the ground bake's tallest content is a
-   retaining-wall face (~20 inches), so 5 tiles of clearance is far more than
-   anything can overhang. */
-function bakeCoversWholePlot(rx0,rx1,ry0,ry1,padTiles){
-  return rx0<=-padTiles && rx1>=GW-1+padTiles && ry0<=-padTiles && ry1>=GH-1+padTiles;
-}
-/* Does leaving the baked margin force a bake THIS frame? Named and extracted
-   for the same reason groundEditThrottled is: this is the policy, and the test
-   harness cannot reach it through a real paintGround. A zoom in flight is
-   deliberately excluded — the blit resamples at k!==1, so a complete bake is no
-   longer a sufficient answer, and the zoom disjunct owns that case anyway. */
-function groundPanForcesBake(panDev, marginDev, zoomStale){
-  if (panDev<marginDev) return false;
-  return zoomStale || !groundBakeComplete;
-}
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
 function groundRefsChanged(){
@@ -1968,7 +1915,7 @@ function render(t){
   const editThrottled = groundEditThrottled(t, gkey!==groundKey, groundKeyStruct===gStruct);
   const mustBake = (gkey!==groundKey && !editThrottled)
     || groundRefsChanged()
-    || groundPanForcesBake(panDev,MD,zoomStale)
+    || panDev>=MD
     || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
   if (mustBake){
@@ -1976,17 +1923,10 @@ function render(t){
     const Mu=MD/(DPR*ZOOM);                            // margin in draw units
     // expanded tile bbox: the viewport window plus the baked margin
     const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
-    // the UNCLAMPED, UNPADDED range is what actually projects into the canvas —
-    // it is what groundBakeComplete has to be judged on (see bakeCoversWholePlot)
-    const rx0=Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0]);
-    const rx1=Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0]);
-    const ry0=Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1]);
-    const ry1=Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1]);
-    const bx0=Math.max(0,rx0-pad);
-    const bx1=Math.min(GW-1,rx1+pad);
-    const by0=Math.max(0,ry0-pad);
-    const by1=Math.min(GH-1,ry1+pad);
-    groundBakeComplete=bakeCoversWholePlot(rx0,rx1,ry0,ry1,pad);
+    const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
+    const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
+    const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
+    const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
     groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
     groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
     paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
