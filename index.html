@@ -34,7 +34,12 @@
    relative path so it also works under a subpath (GitHub Pages). */
 if ('serviceWorker' in navigator)
   addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(e){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      /* The update PROMPT lives in the app (screens.js), not here: by the time
+         this load handler runs every module is defined, and the bootstrap has
+         no business owning UI. */
+      if (typeof watchForAppUpdate === 'function') watchForAppUpdate(reg);
+    }).catch(function(e){
       console.warn('offline support unavailable', e);
     });
   });
@@ -575,6 +580,14 @@ if ('serviceWorker' in navigator)
 
 <div id="plantCard"></div>
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- Offered only when a new build is genuinely installed and waiting. Not a
+     modal: an update is neither urgent nor destructive, and blocking the
+     garden over one would be worse than the problem it solves. -->
+<div id="updateBar" role="status" aria-live="polite" hidden>
+  <span id="updateBarText">A new version is ready.</span>
+  <button type="button" id="btnUpdateNow" class="primary">Reload</button>
+  <button type="button" id="btnUpdateLater" aria-label="Dismiss until next launch">Later</button>
+</div>
 
 <!-- PLANT LIBRARY -->
 <div class="screen hidden" id="libraryScreen">

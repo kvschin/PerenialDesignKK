@@ -92,9 +92,29 @@ the first place. The test `the service worker ships the version it was built
 with` pins all three, and also pins the other half of the same footgun: every
 script `index.html` loads must appear in `PRECACHE`, or a bump ships an app
 that works online and is half-missing offline. `sw.js` deliberately does **not**
-`skipWaiting()` — a new worker taking over a running tab would let a session that
-started on one build fetch assets from the next, and this app holds a garden in
-memory for the whole session. The modules share one global scope (plain
+`skipWaiting()` ON INSTALL — a new worker taking over a running tab would let a
+session that started on one build fetch assets from the next, and this app holds
+a garden in memory for the whole session. **But "it takes effect on the next
+visit" was an assumption that only held on a desktop.** A waiting worker
+activates when every client on the origin is gone, and on a phone that can
+simply never happen: an installed PWA's web view survives being swiped out of
+the app switcher, any Safari tab left open on the origin is another client, and
+a PWA is resumed rather than navigated so the update check itself fires rarely.
+Observed: a phone pinned on an old build across several shipped versions while
+the same commits were live and fine on a desktop the whole time — the two-caches
+state below, entered permanently rather than for a session.
+So the takeover is **message-driven**: `watchForAppUpdate` (screens.js) notices
+`registration.waiting`, `#updateBar` offers it, and only once the gardener
+accepts does the page post `SKIP_WAITING` and reload on `controllerchange`. The
+invariant is intact — no session ever silently mixes two builds — and the update
+stops waiting for a moment that never comes. It is a dismissible bar and never a
+modal, because an update is neither urgent nor destructive. `registration.update()`
+also runs on `visibilitychange` (throttled to a minute) so a resumed PWA actually
+checks. Verified end to end in a browser: a first visit offers nothing; a new
+build while the client stays open gives waiting + two caches + the offer;
+accepting takes over, reloads and leaves one cache; dismissing leaves the old
+build running with the update still waiting. A test asserts the single
+`skipWaiting()` sits in the message handler and not in `install`. The modules share one global scope (plain
 `<script>` tags, no bundler), so **load order matters**: `index.html` loads
 `js/plants.js` first, then the modules in the order above — keep that order. Function declarations hoist only *within* a
 file, so the bottom-of-file button wiring and `init` live in `screens.js` (last,

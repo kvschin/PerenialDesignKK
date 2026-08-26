@@ -1079,6 +1079,21 @@ canvas.layer-eye{display:block}
 #toast{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:var(--surface-overlay);border:1.5px solid var(--border-active);
   color:var(--text-primary);padding:10px 18px;border-radius:var(--radius-control);font-size:13px;z-index:30;transition:opacity .4s;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
 #toast.warn{background:var(--surface-warn);border-color:#c9843f;color:var(--text-warn)}
+/* The update offer shares the toast's band. It is persistent and interactive,
+   so the toast steps down out of its way while it is up rather than the two
+   stacking on the same line. */
+#updateBar{position:fixed;top:calc(70px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:31;display:flex;align-items:center;gap:10px;max-width:min(92vw,460px);
+  padding:9px 10px 9px 16px;border:1.5px solid var(--border-active);border-radius:var(--radius-panel);
+  background:var(--surface-dialog);color:var(--text-primary);box-shadow:var(--shadow-overlay);
+  font-size:13px}
+#updateBar[hidden]{display:none}
+#updateBar button{min-height:32px;padding:7px 12px;border-radius:var(--radius-control);
+  border:1px solid var(--border-quiet);background:var(--surface-control);color:var(--text-primary);
+  font:700 12px/1 'IBM Plex Sans',system-ui,sans-serif}
+#updateBar button.primary{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
+body.has-update #toast{top:calc(124px + env(safe-area-inset-top))}
+@media (pointer:coarse){ #updateBar button{min-height:44px;padding:11px 16px} }
 #buildingActions{position:absolute;z-index:18;display:flex;gap:5px;pointer-events:auto;
   transform:translate(-50%,-100%);padding:5px;border:1px solid var(--border-active);
   border-radius:var(--radius-panel);background:var(--surface-overlay);box-shadow:var(--shadow-overlay)}

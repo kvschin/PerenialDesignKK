@@ -7226,3 +7226,68 @@ test('the slot index does not outlive the sprites it points at', () => {
     'and no slot is left pointing at a sprite that is gone (' +
     PSPRITE.slot.size + ' slots vs ' + PSPRITE.map.size + ' sprites)');
 });
+
+/* ---------- shipping an update to a phone ----------
+   sw.js installs a new build and waits, because taking over a live session
+   would let it fetch assets from a build the session did not start on. That
+   assumed the wait ends at the next visit — true on a desktop, false on a
+   phone, where an installed PWA's client can outlive being swiped away and a
+   waiting worker can sit there indefinitely. Verified end to end in a browser:
+   first visit offers nothing; a new build on the server while the client stays
+   open produces waiting + two caches + the offer; accepting it takes over,
+   reloads, and leaves one cache; dismissing it leaves the old build running
+   with the update still waiting. These pin the contract that made that work. */
+
+test('the worker takes over only when asked, never on install', () => {
+  const sw = readRepoFile('sw.js');
+  const code = sw.replace(/\/\*[\s\S]*?\*\//g, '');      // strip comments: they discuss it
+
+  assert(/addEventListener\(\s*'message'/.test(code),
+    'sw.js listens for the page asking it to step forward');
+  assert(/SKIP_WAITING/.test(code), 'and the message it honours is named');
+
+  /* The dangerous regression is an unconditional skipWaiting() in install or at
+     top level: that is the thing the no-skipWaiting design exists to refuse, and
+     it would swap assets under a running session. Every occurrence must be
+     guarded by the message. */
+  const calls = code.match(/self\.skipWaiting\(\)/g) || [];
+  assertEqual(calls.length, 1, 'exactly one skipWaiting call');
+  const at = code.indexOf('self.skipWaiting()');
+  const msgAt = code.indexOf("addEventListener('message'");
+  const installAt = code.indexOf("addEventListener('install'");
+  assert(msgAt >= 0 && at > msgAt, 'it lives in the message handler');
+  assert(!(installAt >= 0 && at > installAt && at < code.indexOf("addEventListener('activate'")),
+    'and not inside install');
+});
+
+test('the page offers the update rather than the bootstrap owning it', () => {
+  const html = readRepoFile('index.html');
+
+  assert(/watchForAppUpdate/.test(html),
+    'the registration hands its registration to the app');
+  assert(/id="updateBar"/.test(html), 'the offer has markup');
+  assert(/id="updateBar"[^>]*\bhidden\b/.test(html),
+    'and it ships hidden — an update is offered, never announced unprompted');
+  assert(/id="btnUpdateNow"/.test(html) && /id="btnUpdateLater"/.test(html),
+    'both answers exist: taking it now, and not yet');
+
+  /* Not a modal. An update is neither urgent nor destructive, and blocking the
+     garden over one would be worse than the problem it solves. */
+  assert(!/id="updateBar"[^>]*role="dialog"/.test(html), 'it is not a dialog');
+});
+
+test('an update offer is refused without a worker to step forward to', () => {
+  /* The first visit on an origin has no controller: the worker installs and
+     activates with nothing to wait for, so there is no update and saying there
+     is would be nonsense. offerAppUpdate is the guard that cannot be reached in
+     that state — assert it declines rather than throwing or half-showing. */
+  assertEqual(offerAppUpdate(null), false, 'no waiting worker, no offer');
+  assertEqual(offerAppUpdate(undefined), false, 'and nothing to postMessage to');
+});
+
+test('watchForAppUpdate survives a browser with no service worker at all', () => {
+  // it runs at load on every device, including ones that never register one
+  watchForAppUpdate(null);
+  watchForAppUpdate(undefined);
+  assert(true, 'no throw with nothing to watch');
+});

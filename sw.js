@@ -17,17 +17,29 @@
    deleted on activate. Keep the two in step — a version bump with a stale
    PRECACHE list ships a half-updated app.
 
-   Deliberately NO skipWaiting(). A new worker taking over a running tab would
-   let a session that started on one build start fetching assets from the next
-   one, and this app holds a garden in memory across the whole session. The
-   update installs quietly and takes effect on the next visit, which for a
-   design tool is the right trade.
+   Deliberately NO skipWaiting() ON INSTALL. A new worker taking over a running
+   tab would let a session that started on one build start fetching assets from
+   the next one, and this app holds a garden in memory across the whole session.
+
+   But "takes effect on the next visit" was an assumption that only held on a
+   desktop. A waiting worker activates when every client on the origin is gone,
+   and on a phone that can simply never happen: an installed PWA's web view
+   survives being swiped out of the app switcher, any Safari tab left open on
+   the origin is another client, and a PWA is resumed rather than navigated so
+   the update check itself fires rarely. The observed result is a phone pinned
+   on an old build indefinitely with no way to know — while the same commits
+   were live and fine on a desktop the whole time.
+
+   So the takeover is MESSAGE-DRIVEN instead of automatic: the page offers the
+   update, and only once the gardener accepts does it ask for skipWaiting. The
+   invariant is intact — no session ever silently mixes two builds — and the
+   update stops waiting for a moment that never comes.
 
    Paths are relative so the worker works both at a domain root and under a
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.35';
+const VERSION = '0.8.36';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -88,6 +100,11 @@ const PRECACHE = [
      set is a product decision to take on purpose rather than discover. */
 ];
 
+/* The page asks for this only after the gardener has agreed to reload, so it
+   is not the skipWaiting() the comment above refuses. */
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);

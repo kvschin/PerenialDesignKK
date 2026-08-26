@@ -1392,6 +1392,74 @@ function updateGlassMode(dt){
     if (document.body && document.body.classList) document.body.classList.add('no-glass');
   }
 }
+/* ---------- app updates ----------
+   sw.js installs a new build and then WAITS, because taking over a live
+   session would let it start fetching assets from a build the session did not
+   start on. That was written assuming the wait ends at the next visit, which
+   is true on a desktop and false on a phone: an installed PWA's client can
+   outlive being swiped away, another tab on the origin is another client, and
+   a resumed PWA rarely runs an update check at all. A phone could therefore
+   sit on an old build indefinitely with nothing to indicate it — observed,
+   across several shipped versions.
+
+   So the app offers the update and the gardener decides. That keeps the
+   original invariant (no session silently mixes two builds) and ends the wait.
+   Nothing here is urgent or destructive, so it is a dismissible bar and never
+   a modal. */
+let updateTakingOver=false, lastUpdateCheck=0;
+const UPDATE_CHECK_GAP=60000;   // at most one check a minute on resume
+function offerAppUpdate(worker){
+  const bar=document.getElementById('updateBar'), go=document.getElementById('btnUpdateNow'),
+        later=document.getElementById('btnUpdateLater');
+  if (!bar || !go || !worker || updateTakingOver) return false;
+  bar.hidden=false;
+  if (document.body) document.body.classList.add('has-update');
+  later.onclick=()=>{ bar.hidden=true;
+    if (document.body) document.body.classList.remove('has-update'); };
+  go.onclick=()=>{
+    if (updateTakingOver) return;
+    updateTakingOver=true;
+    go.disabled=true; later.disabled=true;
+    hudText('updateBarText','Updating…');
+    /* Bank the garden first. A reload is a session boundary and this app holds
+       the garden in memory; pagehide would save anyway, but not being sure is
+       not good enough for the one action whose whole purpose is to reload. */
+    const go2=()=>{ try{ worker.postMessage({type:'SKIP_WAITING'}); }catch(_){ }
+      /* controllerchange normally does the reload. If the worker never claims
+         — an edge nobody should be stranded by — reload anyway. */
+      setTimeout(()=>{ try{ location.reload(); }catch(_){ } }, 2000); };
+    let p=null;
+    try{ if (game.inGarden && hasStorage) p=saveSolo(true); }catch(e){ noteError(e,'update-save'); }
+    if (p && p.then) p.then(go2,go2); else go2();
+  };
+  return true;
+}
+function watchForAppUpdate(reg){
+  if (!reg || !navigator.serviceWorker) return;
+  /* No controller means this is the first visit on this origin: the worker
+     installs and activates with nothing to wait for, so there is no update to
+     offer and saying so would be nonsense. */
+  const offer=()=>{ if (reg.waiting && navigator.serviceWorker.controller) offerAppUpdate(reg.waiting); };
+  offer();
+  reg.addEventListener('updatefound',()=>{
+    const w=reg.installing; if (!w) return;
+    w.addEventListener('statechange',()=>{ if (w.state==='installed') offer(); });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if (!updateTakingOver) return;      // never reload out from under a session that did not ask
+    updateTakingOver=false;             // guard the reload against firing twice
+    try{ location.reload(); }catch(_){ }
+  });
+  /* An installed PWA is resumed rather than navigated, so left alone it may go
+     a day between update checks. Ask on resume, throttled. */
+  document.addEventListener('visibilitychange',()=>{
+    if (document.hidden) return;
+    const now=Date.now();
+    if (now-lastUpdateCheck < UPDATE_CHECK_GAP) return;
+    lastUpdateCheck=now;
+    try{ reg.update().then(offer,()=>{}); }catch(_){ }
+  });
+}
 /* ---- debug HUD: perf diagnostics, off by default ----
    Toggle with the backtick key (`) or add ?debug to the URL. Costs nothing
    when off (every measurement is guarded by dbg.on). Shows FPS + a per-frame
