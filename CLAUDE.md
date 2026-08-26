@@ -979,12 +979,43 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Net on a furnished 69ft garden: **frame 21.5ms -> 12.7ms (41%)**,
     structures 8.9ms -> 1.9ms, for 3.1MB against a 24MB budget. `SSPRITE.off`
     A/Bs it and the debug HUD carries a `sprites` line for both caches.
-    Two things this leaves open. A structure that ever starts animating must
-    leave `drawStructEnt` or the cache will freeze it. And `updateSpriteMode`
-    is still handed the WHOLE entity-pass time but divides by plant count
-    alone, so `PSPRITE.plantMs` is contaminated by structure time — much
-    smaller now that structures blit, but still wrong, and it is why a
-    hardscape-heavy courtyard with few plants may never engage plant sprites.
+    One thing this leaves open: a structure that ever starts animating must
+    leave `drawStructEnt`, or the cache will freeze it.
+    **`updateSpriteMode` takes the structures back out of the pass it is
+    handed.** It gets the WHOLE entity-pass time and used to divide it by plant
+    count alone, charging every fence, footprint tile, pot and seat to the
+    planting. That went wrong in both directions. A courtyard — light planting
+    under heavy hardscape — pushed the pass over `HI_MS` on structures alone
+    and engaged the plant cache for planting that did not need it: measured on
+    a 60-plant, 481-structure garden, the old governor engaged at frame 2 and
+    baked 60 sprites (0.59MB) for a planting costing 4ms, where the fixed one
+    never engages. And the per-plant cost it learned was inflated by the
+    structure share (7.0ms charged against a directly measured 5.2ms, **+35%**;
+    1.9% after) — a constant that outlives the frame, since the disengage
+    predictor is `plantCount x plantMs`, so an inflated one means the cache
+    never releases for the rest of the session.
+    The split is **sampled**, one frame in `PSPRITE.SAMPLE`: a `performance.now`
+    pair costs 0.358us, so splitting ~400 structures exactly would be 0.14ms on
+    every frame, and at the 0.1ms clock resolution this app ships with (no
+    cross-origin isolation) a single ~3us structure rounds to zero anyway. It
+    also samples unconditionally **until the first measurement lands**, because
+    `hot` engages after 3 frames and a purely periodic sample can arrive on the
+    8th — a garden could otherwise commit to the cache having never subtracted
+    its structures once, which is the whole bug narrowed to the frames that
+    decide it. That was a real defect in the first cut of this fix, caught by
+    measuring rather than by reading.
+    **The estimator is a MEDIAN of the last 8 samples, and both obvious
+    choices are biased — both were tried.** A mean is dragged UP by real spikes
+    (one 11ms frame took it from 1.8 to 2.65ms and it stayed there); a MINIMUM
+    is dragged DOWN by quantization luck, latching onto whichever sample had
+    the most roundings fall downward (1.0ms against a directly measured 1.5).
+    The median is unbiased against the rounding, which is symmetric, and a
+    spike cannot carry it — it lands at 1.7ms against a measured 1.9ms, and
+    slightly under is the safe side, since under-subtracting only makes the
+    planting read heavier and errs toward engaging. Over-estimating is the
+    dangerous direction: it under-states the planting, so the cache fails to
+    engage on a garden that needs it, which is the jank the governor exists to
+    prevent. Sorting eight numbers once every eight frames is nothing.
     Ground drawn back-to-front, a single
     depth-sorted entity
     pass for the cottage + plants (`houseDrawDepth()` uses the

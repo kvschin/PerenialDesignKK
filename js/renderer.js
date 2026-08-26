@@ -912,7 +912,15 @@ function strokeEdgingArc(ctx,arc,proj,st,edgePx){
    pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
 const PSPRITE={ map:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
   MEM:48*1024*1024, BUDGET:160, off:false, active:false,
-  FLOOR:40, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0 };
+  FLOOR:40, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
+  /* What the STRUCTURES in the draw pass cost, so the governor can take them
+     back out — see the note on updateSpriteMode. Sampled rather than measured
+     every frame: a clock pair costs 0.358us, so splitting ~400 structures
+     exactly would be 0.14ms on EVERY frame, and at the 0.1ms clock resolution
+     this app ships with (no cross-origin isolation) a single ~7us structure
+     rounds to zero anyway. Sampling one frame in SAMPLE and smoothing is both
+     cheaper and no less accurate. */
+  structMs:0, SAMPLE:8, structRing:[], RING:8 };
 /* sprite-mode governor: engage the cache when the DRAW PHASE is measured
    heavy, not at a fixed plant count — the old 300-plant threshold left a
    typical 150–250 plant design fully procedural forever, even on a window
@@ -922,15 +930,57 @@ const PSPRITE={ map:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
    decision can't read the live number (it would flap): it predicts what
    procedural WOULD cost — plantCount × a per-plant ms learned (EMA) while
    procedural was last active — and disengages only when that stays cheap.
-   The 40-plant floor keeps genuinely light gardens procedural regardless. */
-function updateSpriteMode(drawMs, plantCount){
+   The 40-plant floor keeps genuinely light gardens procedural regardless.
+
+   IT IS HANDED THE WHOLE ENTITY PASS AND MUST TAKE THE STRUCTURES BACK OUT.
+   `drawMs` covers fences, building tiles, pots, seats, boulders, fire pits,
+   pets and houses as well as the planting, and dividing that by plantCount
+   alone charged every one of them to the plants. Two things went wrong with
+   that, in opposite directions. A garden with light planting and heavy
+   hardscape — a courtyard, 60 plants against 400 footprint and fence tiles —
+   could push the whole pass over HI_MS on structures alone and engage the
+   plant cache for 60 plants that cost about a millisecond: pointless bakes and
+   memory. And the per-plant cost it learned from that frame was inflated by
+   roughly the structure share, so the disengage predictor (plantCount x
+   plantMs) then over-estimated procedural cost and the cache never released —
+   a wrong constant that outlives the frame that produced it and poisons every
+   later decision in the session.
+   Subtracting a SAMPLED absolute rather than a fraction is deliberate: the
+   structures cost about the same each frame whether or not the plants are
+   sprited, so an absolute stays valid across the flip a fraction would jump
+   at. It is floored at zero because a noisy sample can exceed a cheap frame. */
+function updateSpriteMode(drawMs, plantCount, structMs){
   if (PSPRITE.off){ PSPRITE.active=false; PSPRITE.hot=0; PSPRITE.calm=0; return; }
+  if (structMs!==undefined && structMs!==null && structMs>=0){
+    /* A MEDIAN of the last few samples. Both obvious estimators are biased
+       here, in opposite directions, and both were tried:
+         a mean is dragged UP by real spikes — one 11ms frame (a GC, a ground
+         bake landing on the sampled frame) took the estimate from 1.8 to
+         2.65ms and it stayed there;
+         a minimum is dragged DOWN by quantization luck — this app ships
+         without cross-origin isolation, so performance.now() rounds to 100us
+         while a single structure costs about 3, and the min just picks the
+         sample where the most roundings fell downward (1.0ms against a
+         directly measured 1.5).
+       The median is unbiased against the rounding, which is symmetric, and a
+       spike cannot carry it. Eight samples at one frame in SAMPLE is about a
+       second of history, and sorting eight numbers once every eight frames is
+       nothing. Over-estimating is the more dangerous direction — it
+       under-states the planting, so the cache fails to engage on a garden that
+       needs it, which is the jank this governor exists to prevent. */
+    const r=PSPRITE.structRing;
+    r.push(structMs); if (r.length>PSPRITE.RING) r.shift();
+    const sorted=r.slice().sort((p,q)=>p-q);
+    PSPRITE.structMs = sorted[(sorted.length/2)|0];
+  }
+  // the planting alone — what this governor is actually deciding about
+  const plantMs = Math.max(0, drawMs - PSPRITE.structMs);
   if (!PSPRITE.active){
-    if (plantCount>20 && drawMs>0){
-      const per=drawMs/plantCount;
+    if (plantCount>20 && plantMs>0){
+      const per=plantMs/plantCount;
       PSPRITE.plantMs = PSPRITE.plantMs ? PSPRITE.plantMs*0.9+per*0.1 : per;
     }
-    PSPRITE.hot = (plantCount>PSPRITE.FLOOR && drawMs>PSPRITE.HI_MS) ? PSPRITE.hot+1 : 0;
+    PSPRITE.hot = (plantCount>PSPRITE.FLOOR && plantMs>PSPRITE.HI_MS) ? PSPRITE.hot+1 : 0;
     if (PSPRITE.hot>=3){ PSPRITE.active=true; PSPRITE.hot=0; PSPRITE.calm=0; }
   } else {
     const predicted=plantCount*(PSPRITE.plantMs||0.02);
@@ -938,6 +988,10 @@ function updateSpriteMode(drawMs, plantCount){
     if (PSPRITE.calm>=45){ PSPRITE.active=false; PSPRITE.calm=0; }
   }
 }
+/* Set for one frame in PSPRITE.SAMPLE, read by drawSceneEnt's structure branch.
+   Module-level rather than threaded through the draw call because it changes
+   once a frame and the entity loop is the hottest code in the app. */
+let structSampling=false, structSampleMs=0;
 function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
 function pspriteFrame(){                        // once per render: age the cache
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
@@ -1607,7 +1661,12 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.BUILDING:
     case SCENE_K.BUILDING_OUTLINE:
     case SCENE_K.HOUSE:
-      drawStructMaybeCached(e,W,H,season,game.layerVis.night); return 0;
+      if (structSampling){
+        const t0=performance.now();
+        drawStructMaybeCached(e,W,H,season,game.layerVis.night);
+        structSampleMs+=performance.now()-t0;
+      } else drawStructMaybeCached(e,W,H,season,game.layerVis.night);
+      return 0;
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
@@ -1906,6 +1965,16 @@ function render(t){
   dmark('gather',tGather);
   const tSort=dnow(); if (dyn.length>1) dyn.sort((a,b)=>a.d-b.d); dmark('sort',tSort);
   const useSprites = PSPRITE.active;   // set by the governor at last frame's end
+  /* One frame in SAMPLE pays for an exact structure/plant split; the rest
+     reuse the smoothed absolute. Deliberately NOT gated on dbg.on — the
+     governor runs for every user, so this cannot be debug-only.
+     It also samples unconditionally until the first measurement lands: `hot`
+     engages after 3 frames and a purely periodic sample can arrive as late as
+     the 8th, so a garden could commit to the cache having never subtracted its
+     structures even once — which is the whole bug, just narrowed to the frames
+     that decide it. */
+  structSampling = !PSPRITE.structMs || (PSPRITE.frame % PSPRITE.SAMPLE)===0;
+  structSampleMs=0;
   const tDraw=dnow(), tDrawWall=performance.now();
   const sents=scene.ents;
   let plantCount=0, drawn=0, di=0;
@@ -1921,7 +1990,9 @@ function render(t){
     plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   dmark('draw',tDraw);
   drawBuildingDraftOverlay(cx,W,H);
-  updateSpriteMode(performance.now()-tDrawWall, plantCount);
+  updateSpriteMode(performance.now()-tDrawWall, plantCount,
+    structSampling ? structSampleMs : null);
+  structSampling=false;
   if (dbg.on){ dbg.ents=drawn; dbg.tiles=(x1-x0+1)*(y1-y0+1); }
   const tFx=dnow();
 

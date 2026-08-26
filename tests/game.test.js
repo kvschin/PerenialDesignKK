@@ -6846,3 +6846,96 @@ test('structures are cacheable because none of them animate', () => {
   const plant = String(globalThis[animated[0]]);
   assert(plant.indexOf('sway') >= 0, 'drawPlant does animate — it is the contrast');
 });
+
+/* ---------- the sprite governor's inputs ----------
+   It is handed the whole entity pass and has to take the structures back out.
+   These drive updateSpriteMode directly, which is the only way to pin a
+   controller whose behaviour lives in what it does over many frames. */
+
+function govReset(){
+  PSPRITE.off = false; PSPRITE.active = false;
+  PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
+  PSPRITE.structMs = 0; PSPRITE.structRing.length = 0;
+}
+// feed n frames of (total draw ms, plants drawn, sampled structure ms)
+function govFeed(n, drawMs, plantCount, structMs){
+  for (let i = 0; i < n; i++) updateSpriteMode(drawMs, plantCount, structMs);
+}
+
+test('the governor judges the planting, not the whole entity pass', () => {
+  govReset();
+  /* A courtyard: light planting, heavy hardscape. The pass is 7ms, over HI_MS,
+     but 5 of that is fences and footprint tiles and the 60 plants are under the
+     threshold on their own. Charging the structures to the plants engaged the
+     cache for planting that did not need it — pointless bakes and memory. */
+  govFeed(10, 7, 60, 5);
+  assert(!PSPRITE.active, 'light planting under heavy hardscape stays procedural');
+
+  govReset();
+  // the same 7ms pass, but it really is the planting
+  govFeed(10, 7, 60, 0.2);
+  assert(PSPRITE.active, 'heavy planting still engages');
+});
+
+test('the per-plant cost it learns has the structures taken out', () => {
+  govReset();
+  /* Learning happens only while procedural, so hold it there by keeping the
+     plant share under HI_MS while the pass as a whole is well over it. */
+  govFeed(40, 8, 100, 5.5);
+  assert(!PSPRITE.active, 'still procedural, so it is still learning');
+  const perPlantUs = PSPRITE.plantMs * 1000;
+  /* 8ms - 5.5ms = 2.5ms across 100 plants = 25us each. Charged the whole pass
+     it would have learned 80us — and that constant outlives the frame, because
+     the disengage predictor is plantCount x plantMs, so an inflated one means
+     the cache never releases for the rest of the session. */
+  assert(perPlantUs > 20 && perPlantUs < 32,
+    'learns about 25us a plant, not the 80us the whole pass would give (' + perPlantUs.toFixed(1) + ')');
+});
+
+test('the structure estimate is a median, so neither a spike nor a lucky sample carries it', () => {
+  govReset();
+  // a steady 2ms of structures...
+  govFeed(1, 9, 100, 2); govFeed(1, 9, 100, 2); govFeed(1, 9, 100, 2);
+  govFeed(1, 9, 100, 2); govFeed(1, 9, 100, 2);
+  assertEqual(PSPRITE.structMs, 2, 'settles on the steady value');
+
+  /* ...then one frame where a GC or a ground bake landed on the sample. A mean
+     would carry that upward and stay there, and an over-estimate under-states
+     the planting, so the cache fails to engage on a garden that needs it. */
+  govFeed(1, 20, 100, 14);
+  assertEqual(PSPRITE.structMs, 2, 'one spike does not move the median');
+
+  /* And the opposite bias: performance.now() rounds to 100us here while a single
+     structure costs about 3, so individual samples round down as often as up.
+     A minimum would latch onto the luckiest one. */
+  govFeed(1, 9, 100, 0.1);
+  assert(PSPRITE.structMs >= 2, 'nor does one low sample (' + PSPRITE.structMs + ')');
+});
+
+test('a garden that loses its structures follows the estimate down', () => {
+  govReset();
+  govFeed(8, 9, 100, 4);
+  assertEqual(PSPRITE.structMs, 4, 'settled on the furnished cost');
+  // the gardener erases the hardscape: the ring refills at the new floor
+  govFeed(8, 5, 100, 0.1);
+  assert(PSPRITE.structMs < 1,
+    'the estimate follows the scene down rather than sticking high (' + PSPRITE.structMs + ')');
+});
+
+test('the estimate is floored, so a noisy sample cannot invent negative plant time', () => {
+  govReset();
+  govFeed(8, 9, 100, 4);
+  // a frame cheaper than the standing structure estimate
+  updateSpriteMode(1, 100, null);
+  assert(PSPRITE.plantMs >= 0, 'per-plant cost never goes negative');
+  assert(Number.isFinite(PSPRITE.plantMs), 'and never NaN');
+});
+
+test('an unsampled frame passes null and leaves the estimate alone', () => {
+  govReset();
+  govFeed(8, 9, 100, 3);
+  const held = PSPRITE.structMs;
+  govFeed(20, 9, 100, null);
+  assertEqual(PSPRITE.structMs, held, 'only a sampled frame updates it');
+  assertEqual(PSPRITE.structRing.length, 8, 'and only a sampled frame fills the ring');
+});
