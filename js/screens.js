@@ -1675,6 +1675,15 @@ function drawProfile(opts){
   if (document.hidden) console.warn('drawProfile: tab is HIDDEN — canvas timings here are not trustworthy.');
   const frames=Math.max(4,opts.frames||20), rounds=Math.max(3,opts.rounds||5);
   const wasOff=PSPRITE.off, wasActive=PSPRITE.active, wasDbg=dbg.on;
+  const wasEnts=scene.ents;
+  /* Everything below PINS renderer state, and an interrupted or throwing run
+     used to leave it pinned. One aborted drawProfile({sprites:'off'}) left
+     PSPRITE.off true and silently disabled the plant cache for the rest of
+     the session: a 4.7ms garden then measured 143ms and the governor could
+     not turn it back on, because `off` is exactly the flag that tells it not
+     to. An instrument that leaves its subject in a different state than it
+     found it is worse than no instrument. */
+  try{
   dbg.on=false;                       // the phase timers would tax every ablation
   const pinOff = opts.sprites==='off', pinOn = opts.sprites==='on';
   if (pinOff) PSPRITE.off=true;
@@ -1712,8 +1721,6 @@ function drawProfile(opts){
       pct:full>0?Math.round(ms/full*100):0});
   }
   rows.sort((a,b)=>b.ms-a.ms);
-  scene.ents=all; game.sceneRev++;    // never leave an ablated scene behind
-  PSPRITE.off=wasOff; PSPRITE.active=wasActive; dbg.on=wasDbg;
   const cached=new Set(['PLANT','BULB']);
   const uncached=rows.filter(r=>!cached.has(r.kind)).reduce((acc,r)=>acc+r.ms,0);
   const out={frameMs:+full.toFixed(2), baselineMs:+base.toFixed(2), entities:all.length,
@@ -1722,14 +1729,23 @@ function drawProfile(opts){
     uncachedPct:full>0?Math.round(uncached/full*100):0,
     canvas:cnv?cnv.width+'x'+cnv.height:'?', dpr:DPR, zoom:+ZOOM.toFixed(2),
     compositing:!document.hidden};
+  /* An ablation of ONE entity measures a frame against a frame, so its
+     per-entity figure is whatever the frame-to-frame noise happened to be —
+     on the demo garden a lone pet read 140us on one run and -87us on the
+     next. Say so instead of printing a confident microsecond number. */
+  const NOISY=8;
   console.log('drawProfile  frame '+out.frameMs+'ms  ('+out.entities+' ents, sprites '+out.sprites+
       ', '+out.canvas+' dpr '+out.dpr+')\n'+
     '  baseline (no entities) '+out.baselineMs+'ms — sky + ground blit + shade + light\n'+
     rows.map(r=>'  '+r.kind.padEnd(16)+String(r.ms).padStart(6)+'ms '+String(r.pct).padStart(3)+
-      '%  x'+String(r.n).padStart(4)+'  '+String(r.us).padStart(6)+'us each').join('\n')+
+      '%  x'+String(r.n).padStart(4)+'  '+(r.n<NOISY?'   (n too small to time)':String(r.us).padStart(6)+'us each')).join('\n')+
     '\n  uncached structures '+out.uncachedMs+'ms ('+out.uncachedPct+
       '% of frame) — redrawn every frame, never cached');
   return out;
+  } finally {
+    scene.ents=wasEnts; game.sceneRev++;   // restore on every path out
+    PSPRITE.off=wasOff; PSPRITE.active=wasActive; dbg.on=wasDbg;
+  }
 }
 /* ---- debug-only: the layers the bench could not see ----
    perfBench and stressGarden build plants, bulbs and terrain — which was the

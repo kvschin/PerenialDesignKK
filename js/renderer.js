@@ -1370,7 +1370,11 @@ function verifyStructureSprites(opts){
   opts=opts||{};
   if (!cnv || typeof cx.getImageData!=='function'){ console.warn('verifyStructureSprites: needs a live canvas.'); return null; }
   const rots=opts.rot?[0,1,2,3]:[game.rot];
-  const wasRot=game.rot, wasOff=SSPRITE.off;
+  const wasRot=game.rot, wasOff=SSPRITE.off, wasEnts=scene.ents, wasBudget=SSPRITE.BUDGET;
+  /* This TURNS the garden and pins the cache off, so an interrupted run left
+     the camera rotated and the structures uncached — the same trap
+     drawProfile had, and a louder one. Restore on every path out. */
+  try{
   const names={}; for (const k in SCENE_K) names[SCENE_K[k]]=k;
   const out=[];
   const shot=()=>{ const d=cx.getImageData(0,0,cnv.width,cnv.height).data; return d; };
@@ -1423,6 +1427,10 @@ function verifyStructureSprites(opts){
         clipped.slice(0,6).map(c=>'    '+c.key+'  '+c.w+'x'+c.h+'  t'+c.top+' b'+c.bot+' l'+c.left+' r'+c.right).join('\n')
       : '  no sprite draws to its own border — every box contains its drawing'));
   return {rows:out, clipped, sprites, mb};
+  } finally {
+    game.rot=wasRot; SSPRITE.off=wasOff; SSPRITE.BUDGET=wasBudget;
+    scene.ents=wasEnts; game.sceneRev++;
+  }
 }
 // cursor footprint: tint each tile of the brush disc so the stamp/erase area
 // reads before commit. Reuses the same brushOffsets the paint/erase paths use,

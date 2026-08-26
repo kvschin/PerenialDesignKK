@@ -923,7 +923,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     not cost something every frame. It ablates instead: render the scene
     holding one class against an empty-scene baseline, min over several rounds,
     with a readback so it is not measuring submission either.
-    `drawProfile({sprites:'off'})` pins the procedural worst case. The `us`
+    `drawProfile({sprites:'off'})` pins the procedural worst case.
+    **Both it and `verifyStructureSprites` restore what they pinned in a
+    `finally`.** They were written without one, and an interrupted run left the
+    pin behind: one aborted `drawProfile({sprites:'off'})` left `PSPRITE.off`
+    true and silently disabled the plant cache for the rest of the session, so
+    the demo garden measured 143ms instead of 4.7ms and the governor could not
+    turn it back on — `off` is precisely the flag telling it not to. verify is
+    the louder one, since it also TURNS the garden. An instrument that leaves
+    its subject in a different state than it found it is worse than none.
+    It also refuses to print a per-entity figure below `NOISY` (8): an ablation
+    of ONE entity measures a frame against a frame, so on the demo garden a lone
+    pet read 140us on one run and -87us on the next. The `us`
     column is what comparisons want — what one more chair, or one more tile of
     footprint, costs on every future frame. Measured on a modestly furnished
     69ft garden (651 plants, 85 fence tiles, a 195-tile garage, 14 pots, 10
