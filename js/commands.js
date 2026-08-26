@@ -1840,16 +1840,97 @@ function cancelPendingUndo(restore){
 }
 function withUndo(fn){ const rev=game.rev, snap=snapshotState(); fn();
   if (changedSince(rev)) pushUndo(snap); }
+/* Which tiles an undo actually moves on the two LOCATED ground layers.
+
+   applySnapshot used to say nothing, and saying nothing means groundDamageFull:
+   a full viewport bake AND a full region retrace. Measured on a real 105ft
+   garden that is 87ms of bake and 9.7ms of trace on every undo — for an action
+   whose commonest form, undoing a planting, changes no ground whatsoever.
+
+   Record IDENTITY is an exact detector here, and cheaply: snapshotState
+   SHALLOW-copies each layer (Object.assign({},src)), so a tile nobody wrote is
+   the same record object on both sides, and every writer — placeTerrainAt,
+   paintEdgingAt, paintWallAt, setElevationAt — builds a fresh object and goes
+   through setTile. That is the invariant this rests on: mutate a terrain or
+   elevation record in place and the diff silently stops seeing it. */
+function locatedGroundDiff(prev,next,out){
+  prev=prev||{}; next=next||{};
+  for (const k in next) if (prev[k]!==next[k]){ if (out.size>=GROUND_DAMAGE_CAP) return false; out.add(k); }
+  for (const k in prev) if (!(k in next)){ if (out.size>=GROUND_DAMAGE_CAP) return false; out.add(k); }
+  return true;
+}
+function applySnapshotGround(before){
+  /* Houses and building footprints are UNLOCATED. A footprint joins the organic
+     edge classification (isLawnTile refuses a building tile), so adding or
+     removing one re-classifies arcs over an area no tile list describes — they
+     keep the full bake. snapshotState deep-clones the arrays, so identity always
+     differs and the comparison has to be on content. Both are tiny. */
+  if (JSON.stringify(before.houses)!==JSON.stringify(game.houses) ||
+      JSON.stringify(before.buildings)!==JSON.stringify(game.buildings)){
+    markGroundChanged({terrain:true}); return 'full';
+  }
+  const tiles=new Set();
+  if (!locatedGroundDiff(before.terrain,game.terrain,tiles) ||
+      !locatedGroundDiff(before.elevation,game.elevation,tiles)){
+    markGroundChanged({terrain:true}); return 'full';   // past the cap the overlay stops being cheaper
+  }
+  // Nothing on the ground moved, so the bake and the traced contours still
+  // stand — this is the planting undo, and it is the common case.
+  if (!tiles.size) return 0;
+  for (const k of tiles) markGroundChanged({terrain:true, tile:k});
+  return tiles.size;
+}
+/* Restore a keyed layer WITHOUT replacing the object.
+
+   The ground bake also rebakes when the layer object itself is swapped
+   (groundRefsChanged), which is there to catch a load or a new garden — and
+   applySnapshot swapped all four ground layers on every undo, so naming the
+   changed tiles bought nothing: the identity check forced the full bake
+   regardless. Restoring the CONTENT in place keeps identity stable, so the
+   located damage decides the bake, which is the whole point.
+
+   Only the ground layers get this. plants/bulbs/fences and the rest are still
+   swapped wholesale on purpose: sceneStale and ensureShadeMap detect a restore
+   BY that identity change, and restoring them in place would make an undo
+   invisible to both. */
+function restoreLayerInPlace(dst,src){
+  for (const k in dst) if (!(k in src)) delete dst[k];
+  for (const k in src) dst[k]=src[k];
+  return dst;
+}
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
   // A snapshot belongs to the scheme it was taken in. Undoing across a switch
   // has to re-enter that scheme FIRST, or the restored plants land in whatever
   // scheme happens to be active and silently overwrite it.
   if (s.scheme && s.scheme!==game.schemeActive && schemeById(s.scheme)) activateScheme(s.scheme);
-  for (const L of GAME_LAYERS) game[L.k]=s[L.k]||(L.array?[]:{});
-  markGroundChanged({terrain:true});
-  markModelChanged(); updateUndoBtn();
+  /* Shallow-copy the two maps we are about to restore IN PLACE, or the diff
+     below would compare an object with itself and never see a change. */
+  const before={terrain:Object.assign({},game.terrain), elevation:Object.assign({},game.elevation),
+    houses:game.houses, buildings:game.buildings};
+  const GROUND_MAPS={terrain:1, elevation:1};
+  for (const L of GAME_LAYERS){
+    const src=s[L.k]||(L.array?[]:{});
+    if (!L.array && GROUND_MAPS[L.k] && game[L.k]) restoreLayerInPlace(game[L.k],src);
+    else game[L.k]=src;
+  }
+  /* The structure arrays keep their identity too when nothing in them moved,
+     for the same reason — and when something DID move they are swapped and
+     applySnapshotGround forces the full bake that a footprint change needs. */
+  if (JSON.stringify(before.houses)===JSON.stringify(game.houses)) game.houses=before.houses;
+  if (JSON.stringify(before.buildings)===JSON.stringify(game.buildings)) game.buildings=before.buildings;
+  /* Returned so a test can read the decision. It cannot be read off
+     groundDamage afterwards: the very next bake consumes the set, and in the
+     test sandbox the rAF stub runs that frame inside buildToolTray below. */
+  const groundResult=applySnapshotGround(before);
+  markModelChanged();
+  /* The scene list holds every layer this just replaced. sceneStale's map
+     identity check catches it today, but pots and seats are not in that check,
+     so say it outright rather than relying on the layers that happen to be. */
+  game.sceneRev++;
+  updateUndoBtn();
   buildToolTray();
+  return groundResult;
 }
 // undo/redo can walk across a scheme boundary; say so rather than silently
 // swapping the garden under the gardener

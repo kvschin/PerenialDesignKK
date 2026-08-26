@@ -143,6 +143,9 @@ async function loadPlantCollections(){
   return _plantCollectionsLoading;
 }
 
+// The tray's rebuild guard needs to know when Favorites or a palette moved:
+// every card carries a heart, so the catalog is a function of this too.
+function plantCollectionsRevision(){ return _plantCollectionsRevision; }
 function favoriteRefs(){ return _plantCollections.favorites.map(copyPlantRef); }
 function isFavorite(ref){
   const id=plantRefId(ref);

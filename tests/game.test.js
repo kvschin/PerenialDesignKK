@@ -6939,3 +6939,201 @@ test('an unsampled frame passes null and leaves the estimate alone', () => {
   assertEqual(PSPRITE.structMs, held, 'only a sampled frame updates it');
   assertEqual(PSPRITE.structRing.length, 8, 'and only a sampled frame fills the ring');
 });
+
+/* ---------- undo no longer rebakes the whole garden ----------
+   applySnapshot said nothing about what it changed, and saying nothing means
+   groundDamageFull: a full viewport bake plus a full region retrace, measured
+   at 87ms + 9.7ms on a real 105ft garden — on every undo, including the
+   commonest one, which is undoing a planting and touches no ground at all. */
+
+test('undoing a planting leaves the ground bake alone', () => {
+  setup(24, 24);
+  const now = Date.now();
+  for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++)
+    setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: now });
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+
+  const terrainRef = game.terrain, elevRef = game.elevation;
+  const traceRev = game.terrainRev;
+  withUndo(() => setTile('plants', '6,6', { s: key, d: absDay() - 30, t: now }));
+  clearGroundDamage();
+  const groundRev = game.groundRev, terrainRev = game.terrainRev;
+
+  doUndo();
+
+  assert(!groundDamageFull, 'no unlocated damage — the bake is not forced');
+  assertEqual(groundDamage.size, 0, 'and no tiles are named either: none moved');
+  assertEqual(game.groundRev, groundRev, 'the ground revision does not move');
+  assertEqual(game.terrainRev, terrainRev, 'nor does the region trace revision');
+  /* The bake ALSO rebakes when the layer object is swapped (groundRefsChanged),
+     which is what made naming the tiles worthless on its own. */
+  assert(game.terrain === terrainRef, 'the terrain map keeps its identity');
+  assert(game.elevation === elevRef, 'so does elevation');
+  assert(!game.plants['6,6'], 'and the planting really was undone');
+  assertEqual(traceRev, traceRev, 'sanity');
+});
+
+test('undoing a terrain edit names the tiles it moved', () => {
+  setup(24, 24);
+  const now = Date.now();
+  withUndo(() => { for (let i = 0; i < 4; i++) setTile('terrain', (5 + i) + ',5', { k: 'path', c: 'warm', t: now }); });
+  clearGroundDamage();
+
+  const named = applySnapshot(undoStack.pop());
+
+  assertEqual(named, 4, 'it names exactly the four tiles it restored');
+  assert(!game.terrain['5,5'], 'and the terrain really was undone');
+});
+
+test('a footprint change still forces the full bake, because it is unlocated', () => {
+  setup(24, 24);
+  const now = Date.now();
+  withUndo(() => {
+    game.buildings = game.buildings.concat([{ id: 'b', status: 'existing',
+      vertices: [[4, 4], [10, 4], [10, 10], [4, 10]], fill: '#888', edge: '#555', t: now }]);
+    markModelChanged(); markLayerCacheChanged('buildings');
+  });
+  clearGroundDamage();
+
+  const named = applySnapshot(undoStack.pop());
+
+  /* A footprint joins the organic edge classification — isLawnTile refuses a
+     building tile — so adding or removing one re-classifies arcs over an area
+     no tile list describes. */
+  assertEqual(named, 'full', 'a building change takes the unlocated path');
+  assertEqual(game.buildings.length, 0, 'and the footprint really was undone');
+});
+
+test('an undo past the damage cap falls back to the full bake', () => {
+  setup(40, 40);
+  const now = Date.now();
+  withUndo(() => { let n = 0;
+    for (let y = 0; y < 40 && n <= GROUND_DAMAGE_CAP + 20; y++)
+      for (let x = 0; x < 40 && n <= GROUND_DAMAGE_CAP + 20; x++){
+        setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: now }); n++; } });
+  clearGroundDamage();
+
+  const named = applySnapshot(undoStack.pop());
+
+  // past the cap the per-tile overlay stops being cheaper than the bake it defers
+  assertEqual(named, 'full', 'a very large undo bakes instead of naming thousands of tiles');
+});
+
+test('undo restores every layer exactly, in place or not', () => {
+  setup(24, 24);
+  const now = Date.now();
+  for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++)
+    setTile('terrain', x + ',' + y, { k: 'bed', c: 'soil', t: now });
+  setTile('elevation', '6,6', { h: 1, w: 'stone', t: now });
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const snap = () => JSON.stringify(GAME_LAYERS.map(L => game[L.k]));
+
+  const cases = [
+    ['planting',  () => setTile('plants', '7,7', { s: key, d: absDay() - 30, t: now })],
+    ['terrain',   () => setTile('terrain', '5,5', { k: 'path', c: 'lime', t: now })],
+    ['erase',     () => clearTile('terrain', '6,7')],
+    ['edging',    () => { const t = game.terrain['8,8'];
+                          setTile('terrain', '8,8', Object.assign({}, t, { e: 'timber', t: now })); }],
+    ['elevation', () => setTile('elevation', '9,9', { h: 1, t: now })],
+    ['wall',      () => { const e = game.elevation['6,6'];
+                          setTile('elevation', '6,6', Object.assign({}, e, { w: 'brick', t: now })); }],
+    ['fence',     () => setTile('fences', '10,10', { style: 'wood', height: 4, gate: false, t: now })],
+    ['pot',       () => setTile('pots', '11,11', { style: 'urn', size: 'p18', t: now })],
+  ];
+  for (const [label, mutate] of cases){
+    const before = snap();
+    withUndo(mutate);
+    assert(snap() !== before, label + ': the edit took effect');
+    doUndo();
+    assertEqual(snap(), before, label + ': undo restores the layers exactly');
+  }
+});
+
+test('the tile diff sees a record rewritten in place as unchanged — the invariant', () => {
+  /* Record IDENTITY is what makes the diff cheap and exact, and it holds only
+     because every writer builds a NEW record and goes through setTile. Pin the
+     consequence so the reason is visible if someone ever mutates one in place. */
+  const a = { k: 'bed', c: 'soil', t: 1 }, b = { k: 'bed', c: 'soil', t: 1 };
+  const same = new Set(), diff = new Set();
+  locatedGroundDiff({ '1,1': a }, { '1,1': a }, same);
+  assertEqual(same.size, 0, 'the same record object reads as unchanged');
+  locatedGroundDiff({ '1,1': a }, { '1,1': b }, diff);
+  assertEqual(diff.size, 1, 'an equal-but-new record reads as changed — writers make new ones');
+  const gone = new Set();
+  locatedGroundDiff({ '2,2': a }, {}, gone);
+  assertEqual(gone.size, 1, 'a removed key is named too');
+});
+
+/* ---------- the tray rebuild guard ----------
+   buildToolTray rebuilds the whole catalog — 948 DOM nodes and 36 card canvases,
+   38ms on a real 105ft garden — and about ninety call sites reach it, most of
+   which cannot change a pixel of it. The browser-side proof that the signature
+   is COMPLETE is verifyTrayCache(), which permutes each input and diffs the
+   rendered DOM; a stubbed canvas has no layout, so what belongs here is the
+   other half: that the signature moves for the things that matter and holds
+   still for the things that do not. */
+
+test('the tray signature ignores the garden and follows the tools', () => {
+  setup(24, 24);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const base = trayStateSig();
+
+  /* This is the whole reason an undo or a scheme switch can skip the rebuild:
+     the tray renders from UI and tool state and reads no garden layer. (The one
+     game.plants read in tray.js is pickAt's — the eyedropper, not rendering.) */
+  setTile('plants', '6,6', { s: key, d: absDay() - 30, t: Date.now() });
+  setTile('terrain', '7,7', { k: 'bed', c: 'soil', t: Date.now() });
+  setTile('fences', '8,8', { style: 'wood', height: 4, gate: false, t: Date.now() });
+  setTile('pots', '9,9', { style: 'urn', size: 'p18', t: Date.now() });
+  assertEqual(trayStateSig(), base, 'planting, terrain, fences and pots do not touch the catalog');
+
+  /* Arming one DOES — that card gains its Placing badge. Written DIRECTLY
+     rather than through setTool, which also moves lastBrushTool and the sheet
+     state: routed through setTool this passed even with game.tool removed from
+     the signature entirely, i.e. it proved nothing about the field it names. */
+  const wasTool = game.tool;
+  game.tool = key;
+  assert(trayStateSig() !== base, 'the armed tool alone moves the signature');
+  game.tool = wasTool;
+  assertEqual(trayStateSig(), base, 'and disarming it returns');
+
+  const wasVar = game.toolVar;
+  game.toolVar = 'somecultivar';
+  assert(trayStateSig() !== base, 'so does the armed cultivar alone');
+  game.toolVar = wasVar;
+});
+
+test('the tray signature carries each control the catalog draws', () => {
+  setup(24, 24);
+  const moves = (label, read, write, a, b) => {
+    const from = read(), to = (from === a ? b : a);   // never a no-op write
+    const before = trayStateSig();
+    write(to);
+    const after = trayStateSig();
+    write(from);
+    assert(after !== before, label + ' moves the signature');
+    assertEqual(trayStateSig(), before, label + ' restores it');
+  };
+  moves('the open category', () => game.trayCat, v => { game.trayCat = v; }, 'grasses', 'landscape');
+  moves('a drill-in page', () => game.drill, v => { game.drill = v; }, 'fence', null);
+  moves('the brush size', () => game.brushSize, v => { game.brushSize = v; }, 7, 1);
+  moves('the erase layer', () => game.eraseMode, v => { game.eraseMode = v; }, 'bulb', 'all');
+  moves('the edge style', () => game.edgeStyle, v => { game.edgeStyle = v; }, 'formal', 'organic');
+  moves('a bed material', () => game.bedStyle, v => { game.bedStyle = v; }, 'gravel', 'soil');
+  moves('a path colour', () => game.pathColor, v => { game.pathColor = v; }, 'lime', 'warm');
+  moves('the wall facing', () => game.wallDraft, v => { game.wallDraft = v; }, 'brick', 'stone');
+  moves('the edging', () => game.edgingDraft, v => { game.edgingDraft = v; }, 'timber', 'steel');
+  moves('a selection', () => game.sel, v => { game.sel = v; }, { x0: 1, y0: 1, x1: 3, y1: 3 }, null);
+  moves('the challenge', () => game.challenge, v => { game.challenge = v; }, { id: 'x', title: 'X' }, null);
+  moves('the sheet state', () => game.sheetState, v => { game.sheetState = v; }, 'collapsed', 'full');
+  moves('the fence draft', () => game.fenceDraft, v => { game.fenceDraft = v; },
+    { style: 'brick', height: 6, gate: false }, { style: 'black', height: 4, gate: false });
+
+  // discovery is an object the tray filters from, so it goes in whole
+  const d = JSON.parse(JSON.stringify(game.discovery));
+  const before = trayStateSig();
+  setDiscovery({ limit: (game.discovery.limit || 36) + 36 });
+  assert(trayStateSig() !== before, 'discovery state moves the signature');
+  game.discovery = d;
+  assertEqual(trayStateSig(), before, 'and restoring it returns');
+});

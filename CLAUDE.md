@@ -2876,6 +2876,50 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   affordance. The card's height is set by its TEXT block, not its art, so
   reaching four would mean shaving 1-2px off five separate rows or dropping the
   Latin name — information the card exists to carry. Stop at three.
+- **`buildToolTray()` is guarded by a signature, and the catalog reads no garden
+  layer.** It rebuilds ~948 DOM nodes and 36 card canvases — measured **38ms** on
+  the plant tab of a real 105ft garden (6ms on Landscape, 24ms collapsed) — and
+  about ninety call sites reach it, most of which cannot change a pixel of it.
+  Undo was the worst: `applySnapshot` rebuilt the tray, so an undo cost ~120ms
+  before the frame it triggered had even started. `trayStateSig()` lists what the
+  tray actually reads and `buildToolTray()` returns early when it has not moved
+  (0.014ms against 38ms); `buildToolTray(true)` forces one, which `applyTheme`
+  must use because the icons are canvas bitmaps the signature cannot see inside.
+  What makes this tractable is that the tray renders from UI and tool state ONLY
+  — the single `game.plants` read in tray.js is `pickAt`'s, the eyedropper — so
+  planting, painting, undo and a scheme switch legitimately change nothing there.
+  A scheme switch went 50ms to 1.4ms on that measurement, and `activateScheme`,
+  the actual scheme work, was **0ms** all along: schemes never cost anything, the
+  catalog rebuild did. **The failure mode is a stale catalog**, so
+  `verifyTrayCache()` permutes each input, diffs the rendered DOM and names any
+  input that moved the DOM without moving the signature (0 of 33). Add an input
+  to the tray, add it to the signature and to that list.
+- **An undo names the tiles it moved.** `applySnapshot` used to say nothing, and
+  saying nothing means `groundDamageFull` — a full viewport bake AND a full
+  region retrace, 87ms + 9.7ms on that garden, on every undo including the
+  commonest one, which is undoing a planting and touches no ground at all.
+  `locatedGroundDiff` compares terrain and elevation by record IDENTITY, which is
+  exact and O(1) per tile because `snapshotState` SHALLOW-copies each layer and
+  every writer (`placeTerrainAt`, `paintEdgingAt`, `paintWallAt`, `setElevationAt`)
+  builds a fresh record and goes through `setTile`. **Mutate a terrain or
+  elevation record in place and the diff silently stops seeing it** — that is the
+  invariant, and a test pins it. Houses and building footprints stay unlocated: a
+  footprint joins the organic edge classification, so adding one re-classifies
+  arcs over an area no tile list describes.
+  Naming the tiles was worth nothing on its own, because the bake ALSO rebakes
+  when the layer OBJECT is swapped (`groundRefsChanged`, there to catch a load),
+  and `applySnapshot` swapped all four ground layers every time. So terrain and
+  elevation are now restored IN PLACE (`restoreLayerInPlace`) and the structure
+  arrays keep their identity when their content did not move. Only those:
+  plants/bulbs/fences and the rest are still swapped wholesale on purpose,
+  because `sceneStale` and `ensureShadeMap` detect a restore BY that identity
+  change and would go blind to an undo without it.
+  Result on that garden: undoing a planting went **120ms + a 226ms frame** to
+  **2ms + 27ms, with no bake at all**. Undoing a terrain edit still bakes at once
+  — an isolated edit is a `newBurst`, exactly like painting one tile.
+  `applySnapshot` RETURNS its decision (tile count, or 'full') because the count
+  cannot be read off `groundDamage` afterwards: the next bake consumes the set,
+  and in the test sandbox the rAF stub runs that bake inside `buildToolTray`.
 - Copy style: plain, gardener-facing, a little dry. Errors/empty states give
   direction, not mood. (e.g. "Nothing here to lift." not "Oops!")
 

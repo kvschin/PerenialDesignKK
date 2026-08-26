@@ -2294,10 +2294,170 @@ function plantTrayCategoryId(d=activeDiscovery(),currentId=game.trayCat){
    filter row, the result list and every category chip. The memo makes those
    identical calls free, and try/finally guarantees it is torn down even if a
    builder throws, so nothing can leak into a later rebuild and go stale. */
-function buildToolTray(){
+/* ---------- the tray rebuild guard ----------
+   buildToolTray rebuilds the entire catalog from scratch — measured 948 DOM
+   nodes and 36 card canvases, 38ms on the plant tab of a real 105ft garden
+   (6ms on Landscape, 24ms with the sheet collapsed) — and it is called from
+   about ninety places, most of which cannot change a pixel of what it renders.
+   Undo was the worst of them: applySnapshot rebuilds the tray, so an undo cost
+   ~120ms before the frame it triggered had even started.
+
+   So skip the rebuild when nothing the tray reads has moved.
+
+   WHAT MAKES THIS TRACTABLE: the tray renders from UI and tool state ONLY. It
+   touches no garden layer — the single `game.plants` read in this file is
+   pickAt's, which is the eyedropper, not rendering — so planting, erasing,
+   painting terrain, undo and a scheme switch legitimately change nothing here.
+   (The scheme CHIP is not part of this: it lives in syncTopTools, which
+   switchScheme reaches through refreshCanvasTools.) That is also why the
+   signature can be a list of scalars rather than a hash of the model.
+
+   THE FAILURE MODE IS A STALE CATALOG, so the signature has to be complete, and
+   `verifyTrayCache()` is the guard: it permutes each input, asks whether the
+   rendered DOM changed, and reports any input that moved the DOM without moving
+   the signature. Add an input to the tray, add it here. */
+let trayCacheSig=null;
+function trayStateSig(){
+  const g=game;
+  const j=v=>{ try{ return JSON.stringify(v===undefined?null:v); }catch(_){ return '?'; } };
+  return [
+    g.inGarden?1:0, g.trayCat, g.drill||'', g.tool, g.toolVar||'',
+    g.toolMenu||'', g.catMenuOpen?1:0, g.searchOpen?1:0, g.traySearch||'',
+    g.sheetState||'', g.sheetCollapsed?1:0,
+    g.fillMode?1:0, g.matrix?1:0, g.drift?1:0, g.freePlanting?1:0,
+    g.brushSize, g.eraseMode||'', g.woodyAge||'', g.edgeStyle||'',
+    g.pathColor||'', g.bedStyle||'', g.waterStyle||'',
+    g.sel?1:0, g.selMode||'', g.selItems?g.selItems.length:-1,
+    g.layerFocus||'', typeof layerVisibilitySig==='function'?layerVisibilitySig():'',
+    g.photoEditing?1:0, g.buildingEditMode||'',
+    normalizeSiteNorthDeg?normalizeSiteNorthDeg(g.siteNorthDeg):g.siteNorthDeg,
+    // the site photo: identity by length + the knobs the Site tab shows
+    g.underlay?[g.underlay.visible?1:0,g.underlay.opacity,g.underlay.rotation,
+      g.underlay.data?g.underlay.data.length:0].join(',') : '-',
+    j(g.underlayCalibration),
+    j(g.discovery), j(g.filters),
+    g.challenge?(g.challenge.id||g.challenge.title||'1'):'-',
+    // every draft the tray paints a chip from
+    j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.boulderDraft,g.petDraft,g.potDraft,
+       g.seatDraft,g.edgingDraft,g.wallDraft,g.buildingStyleDraft,g.buildingDraft,
+       g.houseDraft]),
+    g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
+    // tray-module state that changes what is drawn
+    discoveryOpenSpecies||'', sourceMenuOpen?1:0, paletteRenameId||'',
+    j(palettePendingRef), j(catalogCategoryFocus), j(lastCatByGroup),
+    replacePlantContext?1:0, sitePhotoEditState?1:0,
+    j(discoveryFilterDraft), j(discoveryCriteriaDraft),
+    // Favorites and palettes live outside `game`, and the heart on every card
+    // reads them.
+    typeof plantCollectionsRevision==='function'?plantCollectionsRevision():0,
+    // Theme repaints every canvas icon in the tray (uiInk is theme-cached), and
+    // the layout changes across the sheet/dock breakpoint.
+    (document.documentElement&&document.documentElement.getAttribute('data-theme'))||'',
+    typeof mobileSheetUi==='function'?(mobileSheetUi()?1:0):0,
+    VW, VH,
+  ].join('|');
+}
+/* The DOM can be emptied under us — a screen change, a crash panel — and the
+   signature would happily say "unchanged". Cheap insurance. */
+function trayDomIntact(){
+  const tabs=document.getElementById('trayTabs');
+  return !!(tabs && tabs.firstChild);
+}
+function buildToolTray(force){
+  if (!force && trayCacheSig!==null && trayDomIntact() && trayStateSig()===trayCacheSig) return false;
   openDiscoveryMemo();
   try { buildToolTrayInner(); }
   finally { closeDiscoveryMemo(); }
+  // AFTER, not before: buildToolTrayInner normalises game.trayCat and writes
+  // lastCatByGroup, so the signature it settles on is the one to remember.
+  trayCacheSig=trayStateSig();
+  return true;
+}
+/* ---- dev-only: prove the signature is complete ----
+   A missed input shows up as a catalog that does not update, which is the kind
+   of bug that survives a long time because it looks like "I must have mis-clicked".
+   So drive it: for each input, change it, ask whether the DOM moved, and report
+   any input that moved the DOM without moving the signature.
+
+     verifyTrayCache()
+
+   Each case is {set, restore}. Anything that changes what the tray draws
+   belongs here as well as in trayStateSig. */
+function verifyTrayCache(){
+  if (!document.getElementById('trayTabs')){ console.warn('verifyTrayCache: no tray in the DOM.'); return null; }
+  const dom=()=>{ const t=document.getElementById('trayTabs'), b=document.getElementById('toolTray');
+    return (t?t.innerHTML:'')+' '+(b?b.innerHTML:''); };
+  const g=game;
+  const cases=[
+    /* Arm a species that is actually IN the open category. 'shovel' looked like
+       a fine probe and was a no-op: entering a garden arms Hand, so no card was
+       selected before or after and the DOM never moved — the case passed while
+       testing nothing. */
+    ['tool',        ()=>{ const o=g.tool, ov=g.toolVar;
+                          const cat=TRAY_CATS.find(c=>c.id===g.trayCat), keys=trayKeys();
+                          const inCat=keys.filter(k=>cat&&cat.types&&cat.types.includes(PLANTS[k].type)
+                            &&(!cat.sunFilter||PLANTS[k].sun===cat.sunFilter));
+                          g.tool=inCat[0]||keys[0]||'shovel'; g.toolVar=null;
+                          return ()=>{ g.tool=o; g.toolVar=ov; }; }],
+    ['toolVar',     ()=>{ const o=g.toolVar; g.toolVar='zzz'; return ()=>{ g.toolVar=o; }; }],
+    ['trayCat',     ()=>{ const o=g.trayCat; g.trayCat='landscape'; return ()=>{ g.trayCat=o; }; }],
+    ['drill',       ()=>{ const o=g.drill; g.drill='fence'; return ()=>{ g.drill=o; }; }],
+    ['catMenuOpen', ()=>{ const o=g.catMenuOpen; g.catMenuOpen=!o; return ()=>{ g.catMenuOpen=o; }; }],
+    ['traySearch',  ()=>{ const o=g.traySearch; g.traySearch='sedge'; return ()=>{ g.traySearch=o; }; }],
+    ['fillMode',    ()=>{ const o=g.fillMode; g.fillMode=!o; return ()=>{ g.fillMode=o; }; }],
+    ['matrix',      ()=>{ const o=g.matrix; g.matrix=!o; return ()=>{ g.matrix=o; }; }],
+    ['drift',       ()=>{ const o=g.drift; g.drift=!o; return ()=>{ g.drift=o; }; }],
+    ['brushSize',   ()=>{ const o=g.brushSize; g.brushSize=(o===5?3:5); return ()=>{ g.brushSize=o; }; }],
+    ['eraseMode',   ()=>{ const o=g.eraseMode; g.eraseMode=(o==='all'?'plant':'all'); return ()=>{ g.eraseMode=o; }; }],
+    ['woodyAge',    ()=>{ const o=g.woodyAge; g.woodyAge=(o==='mature'?'new':'mature'); return ()=>{ g.woodyAge=o; }; }],
+    ['edgeStyle',   ()=>{ const o=g.edgeStyle; g.edgeStyle=(o==='organic'?'formal':'organic'); return ()=>{ g.edgeStyle=o; }; }],
+    ['pathColor',   ()=>{ const o=g.pathColor; g.pathColor=(o==='warm'?'lime':'warm'); return ()=>{ g.pathColor=o; }; }],
+    ['bedStyle',    ()=>{ const o=g.bedStyle; g.bedStyle=(o==='soil'?'gravel':'soil'); return ()=>{ g.bedStyle=o; }; }],
+    ['waterStyle',  ()=>{ const o=g.waterStyle; g.waterStyle=(o==='pond'?'lake':'pond'); return ()=>{ g.waterStyle=o; }; }],
+    ['sel',         ()=>{ const o=g.sel; g.sel=o?null:{x0:1,y0:1,x1:3,y1:3}; return ()=>{ g.sel=o; }; }],
+    ['selMode',     ()=>{ const o=g.selMode; g.selMode=(o==='copy'?'move':'copy'); return ()=>{ g.selMode=o; }; }],
+    ['layerFocus',  ()=>{ const o=g.layerFocus; g.layerFocus=(o==='bulbs'?'all':'bulbs'); return ()=>{ g.layerFocus=o; }; }],
+    ['layerVis',    ()=>{ const o=g.layerVis.bulbs; g.layerVis.bulbs=!o; return ()=>{ g.layerVis.bulbs=o; }; }],
+    ['photoEditing',()=>{ const o=g.photoEditing; g.photoEditing=!o; return ()=>{ g.photoEditing=o; }; }],
+    ['siteNorthDeg',()=>{ const o=g.siteNorthDeg; g.siteNorthDeg=((+o||0)+37)%360; return ()=>{ g.siteNorthDeg=o; }; }],
+    ['discovery',   ()=>{ const o=JSON.parse(JSON.stringify(g.discovery||{}));
+                          setDiscovery({limit:(g.discovery&&g.discovery.limit||36)+36});
+                          return ()=>{ g.discovery=o; }; }],
+    ['challenge',   ()=>{ const o=g.challenge; g.challenge=o?null:{id:'probe',title:'Probe'}; return ()=>{ g.challenge=o; }; }],
+    ['fenceDraft',  ()=>{ const o=g.fenceDraft; g.fenceDraft=Object.assign({},o,{height:(o&&o.height)===6?4:6}); return ()=>{ g.fenceDraft=o; }; }],
+    ['potDraft',    ()=>{ const o=g.potDraft; g.potDraft=Object.assign({},o,{style:(o&&o.style)==='urn'?'timber':'urn'}); return ()=>{ g.potDraft=o; }; }],
+    ['seatDraft',   ()=>{ const o=g.seatDraft; g.seatDraft=Object.assign({},o,{face:(((o&&o.face)|0)+1)%4}); return ()=>{ g.seatDraft=o; }; }],
+    ['petDraft',    ()=>{ const o=g.petDraft; g.petDraft=Object.assign({},o,{species:(o&&o.species)==='cat'?'dog':'cat'}); return ()=>{ g.petDraft=o; }; }],
+    ['edgingDraft', ()=>{ const o=g.edgingDraft; g.edgingDraft=(o==='steel'?'timber':'steel'); return ()=>{ g.edgingDraft=o; }; }],
+    ['wallDraft',   ()=>{ const o=g.wallDraft; g.wallDraft=(o==='stone'?'brick':'stone'); return ()=>{ g.wallDraft=o; }; }],
+    ['discoveryOpenSpecies',()=>{ const o=discoveryOpenSpecies; discoveryOpenSpecies=o?null:'coneflower'; return ()=>{ discoveryOpenSpecies=o; }; }],
+    ['sourceMenuOpen',()=>{ const o=sourceMenuOpen; sourceMenuOpen=!o; return ()=>{ sourceMenuOpen=o; }; }],
+    ['collections', ()=>{ const ref=allPlantRefs&&allPlantRefs()[0];
+                          if (!ref) return ()=>{};
+                          toggleFavorite(ref); return ()=>{ toggleFavorite(ref); }; }],
+  ];
+  buildToolTray(true);
+  const misses=[], inert=[];
+  for (const [name,mutate] of cases){
+    const sigBefore=trayStateSig(), domBefore=dom();
+    let restore;
+    try{ restore=mutate(); }catch(e){ misses.push({input:name, error:String(e&&e.message||e)}); continue; }
+    const sigAfter=trayStateSig();
+    buildToolTray(true);                       // force: what the tray SHOULD look like
+    const domAfter=dom();
+    const domMoved=domAfter!==domBefore, sigMoved=sigAfter!==sigBefore;
+    if (domMoved && !sigMoved) misses.push({input:name, why:'DOM changed but the signature did not — STALE TRAY'});
+    else if (!domMoved && sigMoved) inert.push(name);   // harmless: an extra rebuild, never a stale one
+    try{ restore(); }catch(_){ }
+    buildToolTray(true);
+  }
+  console.log('verifyTrayCache — '+cases.length+' inputs permuted\n'+
+    (misses.length
+      ? '  MISSING FROM THE SIGNATURE (stale tray):\n'+misses.map(m=>'    '+m.input+' — '+(m.why||m.error)).join('\n')
+      : '  no input moved the DOM without moving the signature')+
+    (inert.length ? '\n  in the signature but did not move the DOM here: '+inert.join(', ')+
+                    '\n    (safe — costs an extra rebuild, never a stale one)' : ''));
+  return {misses, inert, checked:cases.length};
 }
 function buildToolTrayInner(){
   saveTrayScroll();

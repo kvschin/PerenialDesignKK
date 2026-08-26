@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.33';
+const APP_VERSION = '0.8.34';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -345,7 +345,9 @@ function applyTheme(){
   // Sprite/ground caches key off season and zoom, not theme, so only the DOM
   // chrome and the canvas-drawn ICONS need rebuilding.
   if (typeof refreshCanvasTools==='function') refreshCanvasTools();
-  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.inGarden) buildToolTray();
+  // force: the icons are canvas bitmaps repainted from the theme's uiInk cache,
+  // and the tray guard cannot see a colour that is baked into a canvas
+  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.inGarden) buildToolTray(true);
   if (typeof syncTopTools==='function') syncTopTools();
   if (typeof drawSheetSwatch==='function') drawSheetSwatch();
   return t;
