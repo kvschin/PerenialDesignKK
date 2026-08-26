@@ -1521,6 +1521,14 @@ function updateDebugHud(){
         return `  ${k.padEnd(7)}${e.last.toFixed(1).padStart(6)}/${e.max.toFixed(1).padStart(6)}ms ×${e.n}`;
       }).join('\n')
     : '';
+  /* The two sprite caches decide whether a dense garden is affordable, and
+     neither had a readout. The distinct count is the one to watch for
+     structures: it is how much SHARING the content keys are winning — a
+     195-tile building footprint should be about four sprites, not 195. */
+  const sspr=(typeof SSPRITE!=='undefined')
+    ? '\nsprites  plant '+PSPRITE.map.size+' ('+(PSPRITE.bytes/1048576).toFixed(1)+'MB'+(PSPRITE.active?', on':', off')+')'
+      +'  struct '+SSPRITE.map.size+' ('+(SSPRITE.bytes/1048576).toFixed(1)+'MB)'+(SSPRITE.off?' OFF':'')
+    : '';
   const gap=dbg.gapN
     ? `\nspacing  last ${dbg.gapLast.toFixed(1)}ms  max ${dbg.gapMax.toFixed(1)}ms`+
       `  over-${dbg.GAP_BUDGET}ms ${dbg.gapOver}/${dbg.gapN}`+
@@ -1528,7 +1536,7 @@ function updateDebugHud(){
     : '';
   dbg.el.textContent=
     `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)${flushNote}\n`+
-    rows+evRows+gap+'\n'+
+    rows+evRows+sspr+gap+'\n'+
     `canvas ${c?c.width+'×'+c.height:'?'} (${mp}MP)  dpr ${devicePixelRatio}  zoom ${ZOOM.toFixed(2)}`+
     `  glass ${GLASS.off?'OFF':'on'} (${GLASS.ema.toFixed(1)}ms)`;
 }

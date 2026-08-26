@@ -929,10 +929,62 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     69ft garden (651 plants, 85 fence tiles, a 195-tile garage, 14 pots, 10
     seats): **uncached structures are 43% of the frame**, as much as all the
     sprite-cached planting — fence 42us/tile, building 14us/tile, pot 53us,
-    seat 100us, against 13us for a blitted plant. None of them animate: they
-    are a pure function of (record, season, rot, camera), i.e. exactly as
-    cacheable as the ground, and not cached. That is the standing lead for the
-    next round of render work, and `drawProfile` is how to judge it.
+    seat 100us, against 13us for a blitted plant.
+    **`SSPRITE` is the answer to that reading** (renderer.js, beside `PSPRITE`).
+    None of those draws animates — unlike `drawPlant` they take no `t` and no
+    `sway` (a test asserts it) — so a structure is a pure function of
+    (record, season, rot, camera) and is exactly as cacheable as the ground.
+    It has to be per-ENTITY rather than one baked layer because structures
+    depth-sort INTERLEAVED with plants, so a single blit would break the sort;
+    the shape is `PSPRITE`'s — bake small, blit in sorted position.
+    **The key is the CONTENT, not the position, and that is what makes it pay.**
+    A key names everything the drawing reads and nothing else, so identical
+    tiles SHARE a sprite: measured, 318 structure entities collapse to **39
+    distinct sprites** — a 195-tile garage is 4 (only the two camera-facing
+    edges are conditional) and 85 fence tiles are 9. It also means there is no
+    invalidation machinery at all: edit a fence and its own key moves, and so
+    do its neighbours' masks, and the stale sprites fall out by LRU. Keying on
+    a layer revision instead looks equivalent and is **strictly worse than no
+    cache** — every stamp of a drag would invalidate every fence sprite, so the
+    drag would pay the full procedural cost plus a bake. Measured on a 30-tile
+    fence drag as built: **36 bakes, 6744 hits / 36 misses**, and the drag frame
+    is faster than procedural (23.3ms vs 28.9ms), not slower.
+    Correctness rests on those keys being complete, so the record is serialised
+    WHOLESALE (`structRecordSig`, everything but `t`/`removed`) rather than
+    field by field — hand-listing is how a `face` added to a pot later starts
+    silently sharing a sprite with an unturned one. Only the two draws that
+    read outside their own record name it explicitly: the fence (4-neighbour
+    mask, `fenceRunAxis`, `fencePostHere`, five elevation samples, and the seed
+    ONLY for masonry, the one infill that reads it) and the building tile (its
+    two view-direction neighbours). **Ask `fencePostHere` rather than restating
+    it** — it folds in run ends, corners, tees, gate jambs AND
+    `coord % FENCE_POST_TILES`, and restating it is how a cached fence loses its
+    posts. A GATE is deliberately not cached: it spans a contiguous run, so its
+    key would have to carry the whole run, for something a garden has one of.
+    **`verifyStructureSprites({rot:true})` is the proof, and it is two tests,
+    because the pixel diff alone is weak exactly where this fails.** A clipped
+    box is localised — a fence post shaved off the top rounds to nothing as a
+    share of the canvas — so `ssprClippedSprites` asks each sprite whether its
+    drawing reached its own border (0 across all four rotations). The diff then
+    catches staleness, and it needs a CONTROL to be readable at all: procedural
+    against procedural with the camera nudged a third of a pixel. Fences come
+    in BELOW that control (0.15% vs 1.27%); pots and seats sat at ~2x it until
+    the bake was supersampled, because their fine members — a chair leg is
+    1.6in, about 2px — were being rasterised onto the sprite grid and resampled
+    back. **`SSPRITE.SS` is 1.5 on measurement, not taste**: pots 0.203% ->
+    0.047% and seats 0.270% -> 0.112%, while 2.0x measured NO better for 1.8x
+    the memory. It also costs nothing in time (interleaved min-of-rounds:
+    9.2ms at 1.5x against 10.2ms at 1.0x — the naive sequential reading that
+    said otherwise was drift).
+    Net on a furnished 69ft garden: **frame 21.5ms -> 12.7ms (41%)**,
+    structures 8.9ms -> 1.9ms, for 3.1MB against a 24MB budget. `SSPRITE.off`
+    A/Bs it and the debug HUD carries a `sprites` line for both caches.
+    Two things this leaves open. A structure that ever starts animating must
+    leave `drawStructEnt` or the cache will freeze it. And `updateSpriteMode`
+    is still handed the WHOLE entity-pass time but divides by plant count
+    alone, so `PSPRITE.plantMs` is contaminated by structure time — much
+    smaller now that structures blit, but still wrong, and it is why a
+    hardscape-heavy courtyard with few plants may never engage plant sprites.
     Ground drawn back-to-front, a single
     depth-sorted entity
     pass for the cottage + plants (`houseDrawDepth()` uses the

@@ -6719,3 +6719,130 @@ test('furnishing is deterministic, so two builds are comparable', () => {
   setup(31, 31); furnishGarden(); const b = sig();
   assertEqual(a, b, 'the same seed lays out the same furniture');
 });
+
+/* ---------- the structure sprite cache ----------
+   The whole design rests on ONE property: a key names everything its drawing
+   reads and nothing else. Get that wrong in one direction and identical tiles
+   stop sharing (the cache buys nothing); wrong in the other and two things that
+   look different share a sprite (the garden draws wrong). The pixel proof lives
+   in verifyStructureSprites(), which needs a rasteriser; these pin the key. */
+
+test('a structure sprite is keyed on its content, so identical tiles share one', () => {
+  setup(31, 31);
+  const now = Date.now();
+  // a straight run: the tiles between the ends are genuinely identical
+  for (let x = 6; x <= 17; x++) setTile('fences', x + ',10', { style: 'privacy', height: 6, gate: false, t: now });
+
+  const keyAt = (x, y) => {
+    const spec = structSpriteSpec({ kind: SCENE_K.FENCE, f: game.fences[x + ',' + y], x, y });
+    return spec && spec.key;
+  };
+  /* Two mid-run tiles that are not post positions draw the same picture, so
+     they must land on the same key — this is what turns 180 fence tiles into a
+     handful of sprites. */
+  const a = keyAt(9, 10), b = keyAt(10, 10);
+  const post9 = fencePostHere(9, 10), post10 = fencePostHere(10, 10);
+  if (post9 === post10) assertEqual(a, b, 'two identical mid-run tiles share a sprite');
+
+  // an END of the run draws a post and a stopped panel: it must NOT share
+  assert(keyAt(6, 10) !== keyAt(9, 10), 'the end of a run is its own sprite');
+
+  // and a different material is a different picture
+  setTile('fences', '9,10', { style: 'brick', height: 6, gate: false, t: now });
+  assert(keyAt(9, 10) !== a, 'changing the material changes the key');
+});
+
+test('a fence key carries the neighbours its drawing consults', () => {
+  setup(31, 31);
+  const now = Date.now(), f = { style: 'wood', height: 4, gate: false, t: now };
+  for (let x = 6; x <= 16; x++) setTile('fences', x + ',10', Object.assign({}, f));
+  const at = (x, y) => structSpriteSpec({ kind: SCENE_K.FENCE, f: game.fences[x + ',' + y], x, y }).key;
+
+  /* This tile is chosen so that ONLY the neighbour mask can move. At a
+     multiple of FENCE_POST_TILES in a straight east-west run it already draws
+     a post, and adding a fence to the north makes it a tee — which gains a
+     whole segment but leaves fencePostHere true (it was already true) and
+     leaves fenceRunAxis east-west (two along, one across). So if the mask is
+     not in the key, this tile keeps its straight-run sprite and the arm the
+     gardener just painted never appears.
+     Verified by mutation: dropping `nb` from the key fails exactly here, and
+     an earlier version of this test picked a tile where fencePostHere also
+     flipped, so it passed against that mutation and pinned nothing. */
+  const x = 12;                                   // 12 % FENCE_POST_TILES === 0
+  assertEqual(x % FENCE_POST_TILES, 0, 'the chosen tile is a post position');
+  const postBefore = fencePostHere(x, 10), axisBefore = fenceRunAxis(x, 10).join();
+  const before = at(x, 10);
+
+  setTile('fences', x + ',9', Object.assign({}, f));
+
+  assertEqual(fencePostHere(x, 10), postBefore, 'the post term did not move');
+  assertEqual(fenceRunAxis(x, 10).join(), axisBefore, 'nor did the run axis');
+  assert(at(x, 10) !== before, 'so only the neighbour mask can have changed the key');
+
+  clearTile('fences', x + ',9');
+  assertEqual(at(x, 10), before, 'removing it again returns to the shared sprite');
+});
+test('a gate is deliberately not cached', () => {
+  setup(31, 31);
+  const now = Date.now();
+  for (let x = 6; x <= 12; x++) setTile('fences', x + ',10', { style: 'wood', height: 4, gate: false, t: now });
+  setTile('fences', '9,10', { style: 'wood', height: 4, gate: true, t: now });
+  /* Its drawing spans a contiguous run of gate tiles, so it reaches outside its
+     own tile by an unbounded amount and its key would have to carry the run.
+     A garden has one or two: not worth the surface area. */
+  assertEqual(structSpriteSpec({ kind: SCENE_K.FENCE, f: game.fences['9,10'], x: 9, y: 10 }), null,
+    'a gate tile returns no spec and draws procedurally');
+});
+
+test('a building footprint collapses to a handful of sprites', () => {
+  setup(31, 31);
+  const now = Date.now();
+  const b = {
+    id: 'g1', status: 'existing', label: 'Garage',
+    vertices: [[6, 6], [18, 6], [18, 16], [6, 16]], fill: '#8b8378', edge: '#5a544c', t: now,
+  };
+  game.buildings = [b]; markModelChanged(); markLayerCacheChanged('buildings');
+  const tiles = buildingTiles(b);
+  assert(tiles.length > 100, 'the footprint really is many tiles (' + tiles.length + ')');
+
+  const keys = new Set();
+  for (const [x, y] of tiles) keys.add(structSpriteSpec({ kind: SCENE_K.BUILDING, b, x, y }).key);
+  /* Only the two faces the camera can see are conditional, so a rectangular
+     footprint is at most four pictures however large it is. This is the whole
+     reason the per-tile entity count stopped mattering. */
+  assert(keys.size <= 4, tiles.length + ' footprint tiles need only ' + keys.size + ' sprites');
+});
+
+test('the record is serialised wholesale, so a new field cannot be missed', () => {
+  /* Hand-listing fields is how a cache starts sharing sprites between things
+     that look different: add `face` to a pot and forget the key, and every
+     turned trough silently draws in its original orientation. */
+  const a = structRecordSig({ style: 'urn', size: 'p24', t: 1 });
+  const b = structRecordSig({ style: 'urn', size: 'p24', t: 999999 });
+  assertEqual(a, b, 'a timestamp cannot change how something draws');
+  const c = structRecordSig({ style: 'urn', size: 'p24', face: 2, t: 1 });
+  assert(c !== a, 'a field the drawing DOES read lands in the signature untouched');
+  const d = structRecordSig({ size: 'p24', style: 'urn', t: 1 });
+  assertEqual(d, a, 'key order does not matter — the signature is sorted');
+});
+
+test('structures are cacheable because none of them animate', () => {
+  /* This is the premise the whole cache rests on. drawPlant takes `t`-derived
+     sway and a live growth value; every structure draw takes neither, which is
+     what makes it a pure function of (record, season, rot, camera) and so
+     exactly as cacheable as the ground. If a structure ever starts breathing,
+     it has to leave drawStructEnt or the cache will freeze it. */
+  const animated = ['drawPlant'];
+  const still = ['drawFence', 'drawPot', 'drawSeat', 'drawBoulder', 'drawFirepit',
+    'drawLightFixture', 'drawBuildingTile', 'drawHouse'];
+  for (const name of still) {
+    const fn = globalThis[name];
+    assert(typeof fn === 'function', name + ' exists');
+    const params = String(fn).slice(0, String(fn).indexOf(')')).split('(')[1] || '';
+    const names = params.split(',').map(s => s.trim());
+    assert(names.indexOf('t') < 0 && names.indexOf('sway') < 0,
+      name + ' takes no time or sway argument (' + params + ')');
+  }
+  const plant = String(globalThis[animated[0]]);
+  assert(plant.indexOf('sway') >= 0, 'drawPlant does animate — it is the contrast');
+});

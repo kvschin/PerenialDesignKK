@@ -1027,6 +1027,349 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
     ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
   } else ctx.drawImage(e.cv,lx,ly,dw,dh);
 }
+/* ---------- structure sprite cache ----------
+   Everything in the depth pass that is NOT a plant — fence, building tile,
+   pot, seat, boulder, fire pit, pet, light, house — re-ran its whole procedural
+   recipe on every frame, forever. Measured with drawProfile on a modestly
+   furnished 69ft garden (651 plants, 85 fence tiles, a 195-tile garage, 14
+   pots, 10 seats) that was 8.2ms of a 20.3ms frame: 40%, as much as all the
+   sprite-cached planting put together, at 42us a fence tile, 14us a footprint
+   tile, 52us a pot and 103us a seat against 11us for a blitted plant.
+
+   None of them animate. Unlike drawPlant they take no `t` and no `sway`, so a
+   structure is a pure function of its record, the season, the rotation and the
+   zoom — which makes it exactly as cacheable as the ground, and it was the one
+   large body of per-frame-constant drawing with no cache in front of it.
+
+   Why this is per-ENTITY and not one baked layer: structures depth-sort
+   INTERLEAVED with plants (a fence in front of a clump draws over it, a clump
+   in front of a fence draws over that), so a single blitted layer would break
+   the sort. Same shape as PSPRITE: bake small, blit in sorted position.
+
+   THE KEY IS THE CONTENT, NOT THE POSITION, and that is what makes this pay.
+   A key names everything the drawing reads — the record, the neighbours the
+   drawing consults, the season, the rotation — and nothing else, so:
+     - identical tiles SHARE one sprite. A 180-tile perimeter fence is a
+       handful of distinct sprites (run, corner, end, post/no-post), and a
+       195-tile building footprint is at most four (interior, two edges, both).
+     - it needs no invalidation machinery at all. Edit a fence and its own key
+       changes, and so do its neighbours' masks; the stale sprites fall out by
+       LRU. No revision counter to bump, nothing to forget to bump, and no
+       thrash while dragging — a long run of identical tiles is still one bake.
+   The trap this avoids: keying on a layer revision looks equivalent and is
+   not. Every stamp of a fence drag would invalidate every fence sprite, so the
+   drag would pay the full procedural cost PLUS a bake — strictly worse than
+   having no cache.
+
+   Correctness rests on the keys being complete, so the record is serialised
+   WHOLESALE (structRecordSig) rather than field by field: a field added to a
+   pot or a seat later is in the key automatically, where a hand-listed key
+   would silently start sharing sprites between different-looking objects. Only
+   the two draws that read outside their own record — the fence and the
+   building tile — name those reads explicitly. verifyStructureSprites() pixel-
+   diffs the cached path against the procedural one for exactly this reason. */
+const SSPRITE={ map:new Map(), frame:0, rendered:0, bytes:0,
+  MEM:24*1024*1024,        // half the plant budget: far fewer, far smaller sprites
+  BUDGET:24,               // bakes per frame; the rest fall through to procedural
+  off:false, active:true, scale:-1, hits:0, misses:0, fell:0,
+  /* Bake at 1.5x the scale the blit needs. A structure carries detail as fine
+     as a chair leg (1.6in, about 2px), and rasterising that onto the sprite's
+     own grid and resampling it back softened exactly those members. Measured
+     as the share of canvas pixels differing from the procedural draw: pots
+     0.203% -> 0.047% and seats 0.270% -> 0.112% at rot 0, and roughly halved
+     at rot 3. 2.0x measured NO better than 1.5x (0.065 / 0.141) for 1.8x the
+     memory, so 1.5 is the knee rather than a taste. Costs area, i.e. 2.25x
+     the bytes — 1.4MB to 3.1MB on a furnished garden, against a 24MB budget. */
+  SS:1.5 };
+// The scale the blit needs — the retina cap plants use.
+function ssprBlitScale(){ return Math.min(DPR,1.5)*ZOOM; }
+// ...and the scale we actually bake at (see SS above).
+function ssprScale(){ return ssprBlitScale()*SSPRITE.SS; }
+function ssprFrame(){
+  SSPRITE.frame++; SSPRITE.rendered=0; SSPRITE.scale=ssprScale();
+  // evict only what was NOT drawn last frame, oldest first — never the visible
+  // set, so the cache cannot thrash or flicker (the PSPRITE rule)
+  if (SSPRITE.bytes>SSPRITE.MEM) for (const [k,e] of SSPRITE.map){
+    if (SSPRITE.bytes<=SSPRITE.MEM || e.used>=SSPRITE.frame-1) break;
+    SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k);
+  }
+}
+/* The whole record, minus the bookkeeping that cannot change how it draws.
+   Deliberately not a hand-listed field set — see the note above. */
+function structRecordSig(rec){
+  if (!rec) return '-';
+  let out='';
+  for (const k of Object.keys(rec).sort()){
+    if (k==='t' || k==='removed') continue;
+    const v=rec[k];
+    out+=k+':'+(v&&typeof v==='object'?JSON.stringify(v):v)+';';
+  }
+  return out;
+}
+/* The screen point every one of these draws positions itself from. Recomputed
+   per frame, so the camera cancels out of the bake and a pan is a pure blit. */
+function structAnchor(e,W,H){
+  if (e.kind===SCENE_K.HOUSE) return screenOf(e.h.x,e.h.y,W,H);
+  if (e.kind===SCENE_K.BUILDING_OUTLINE){
+    const r=buildingBounds(e.b);
+    return r?screenOf(r.x0,r.y0,W,H):screenOf(0,0,W,H);
+  }
+  return screenOf(e.x,e.y,W,H);
+}
+/* One definition of "draw this entity procedurally", so the bake and the
+   fallback cannot drift apart (the terrainCurveWalk rule). */
+function drawStructEnt(ctx,e,W,H,season,lit){
+  switch(e.kind){
+    case SCENE_K.FENCE:   drawFence(ctx,W,H,season,e.f,e.x,e.y); return;
+    case SCENE_K.LIGHT:   drawLightFixture(ctx,W,H,season,e.l,e.x,e.y,lit); return;
+    case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y); return;
+    case SCENE_K.BOULDER: drawBoulder(ctx,W,H,season,e.b,e.x,e.y); return;
+    case SCENE_K.PET:{
+      const [sx,sy]=screenOf(e.x,e.y,W,H);
+      drawPet(ctx,sx,sy+TILE_H/2,e.p,1); return;
+    }
+    case SCENE_K.POT:  drawPot(ctx,W,H,season,e.p,e.x,e.y); return;
+    case SCENE_K.SEAT: drawSeat(ctx,W,H,season,e.s,e.x,e.y); return;
+    case SCENE_K.BUILDING: drawBuildingTile(ctx,W,H,e.b,e.x,e.y); return;
+    case SCENE_K.BUILDING_OUTLINE: drawBuildingOutline(ctx,W,H,e.b); return;
+    case SCENE_K.HOUSE: drawHouse(ctx,W,H,season,e.h); return;
+  }
+}
+/* What this entity's sprite is keyed on, how many tiles it spans and how far
+   it reaches above the ground. `up` is deliberately generous — a clipped
+   sprite is a visible bug and the memory is bounded by the LRU anyway — and
+   verifyStructureSprites() is what proves each of these numbers covers its
+   drawing. Returning null means "never cache this one". */
+function structSpriteSpec(e){
+  switch(e.kind){
+    case SCENE_K.FENCE:{
+      const f=e.f;
+      /* A gate is not cached. It spans a contiguous run of gate tiles, so its
+         drawing reaches arbitrarily far outside its own tile and its key would
+         have to carry the whole run — for something a garden has one or two
+         of. Not worth the surface area. */
+      if (f.gate) return null;
+      const x=e.x, y=e.y, st=fenceStyle(f.style);
+      const nb=(fenceNeighbor(x+1,y)?1:0)|(fenceNeighbor(x-1,y)?2:0)|
+               (fenceNeighbor(x,y+1)?4:0)|(fenceNeighbor(x,y-1)?8:0);
+      const ax=fenceRunAxis(x,y);
+      /* The half-segments end at ±0.48 of a tile, and screenOf lifts by
+         elevation, so a fence on a terrace edge is a different shape. Five
+         samples cover every point the drawing can reach. */
+      const ev=elevationAt(x,y)+'.'+elevationAt(x+1,y)+'.'+elevationAt(x-1,y)+
+               '.'+elevationAt(x,y+1)+'.'+elevationAt(x,y-1);
+      /* fencePostHere folds in the run ends, corners, tees, gate jambs AND
+         `coord % FENCE_POST_TILES`, so ASK it rather than restating it —
+         restating it is how a cached fence loses its posts. */
+      const post=fencePostHere(x,y)?1:0;
+      // the seed reaches the drawing through one path only: masonry joints
+      const seed=st.infill==='masonry'?tileSeed(x,y):0;
+      return {key:'F|'+structRecordSig(f)+'|'+nb+'|'+ax[0]+','+ax[1]+'|'+post+'|'+ev+'|'+seed,
+        w:1, h:1, up:fenceDrawH(f)*1.5+52, pad:TILE_W*0.62, down:16};
+    }
+    case SCENE_K.BUILDING:{
+      /* Only the two faces the CAMERA can see are conditional, and they depend
+         on whether the footprint continues that way — so a whole garage is at
+         most four distinct sprites. */
+      const set=buildingTileSet(e.b);
+      const [rx,ry]=viewDirToWorld(1,0), [dx,dy]=viewDirToWorld(0,1);
+      const r=set.has((e.x+rx)+','+(e.y+ry))?1:0, d=set.has((e.x+dx)+','+(e.y+dy))?1:0;
+      const b=e.b;
+      return {key:'U|'+(b.fill||b.roof||'')+'|'+(b.edge||b.wall||'')+'|'+(b.status||'')+'|'+r+d,
+        w:1, h:1, up:26, pad:8, down:20};
+    }
+    case SCENE_K.BUILDING_OUTLINE:{
+      const r=buildingBounds(e.b); if (!r) return null;
+      const b=e.b;
+      return {key:'V|'+structRecordSig(b), w:r.x1-r.x0+1, h:r.y1-r.y0+1,
+        up:26, pad:14, down:24};
+    }
+    case SCENE_K.POT:{
+      const sz=potTileSize(e.p);
+      return {key:'P|'+structRecordSig(e.p), w:sz.w, h:sz.h,
+        up:feetToPx(46/12)+30, pad:TILE_W*0.35, down:22};
+    }
+    case SCENE_K.SEAT:{
+      const sz=seatTileSize(e.s);
+      return {key:'S|'+structRecordSig(e.s), w:sz.w, h:sz.h,
+        up:feetToPx(52/12)+30, pad:TILE_W*0.55, down:24};
+    }
+    case SCENE_K.BOULDER:{
+      const sz=boulderTileSize(e.b);
+      // shape comes from tileSeed, so two boulders of one type differ
+      return {key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y), w:sz.w, h:sz.h,
+        up:TILE_H*2.6+24, pad:TILE_W*0.35, down:20};
+    }
+    case SCENE_K.FIREPIT:{
+      const sz=firepitTileSize(e.f);
+      return {key:'R|'+structRecordSig(e.f), w:sz.w, h:sz.h,
+        up:TILE_H*2.4+24, pad:TILE_W*0.35, down:20};
+    }
+    case SCENE_K.PET:
+      return {key:'T|'+structRecordSig(e.p), w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
+    case SCENE_K.LIGHT:
+      return {key:'L|'+structRecordSig(e.l), w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
+    case SCENE_K.HOUSE:{
+      const h=e.h;
+      return {key:'H|'+structRecordSig(h), w:h.w, h:h.h,
+        up:TILE_H*h.h*1.2+240, pad:TILE_W*0.7, down:26};
+    }
+  }
+  return null;
+}
+/* The sprite's rect in draw units, relative to the anchor. The footprint's
+   screen extent comes from screenDeltaForWorld, so it is correct at every
+   rotation rather than assuming rot 0. */
+function structSpriteBox(spec){
+  let minX=-TILE_W/2, maxX=TILE_W/2, minY=0, maxY=TILE_H;
+  const corners=[[0,0],[spec.w-1,0],[0,spec.h-1],[spec.w-1,spec.h-1]];
+  for (const [dx,dy] of corners){
+    const [px,py]=screenDeltaForWorld(dx,dy);
+    if (px-TILE_W/2<minX) minX=px-TILE_W/2;
+    if (px+TILE_W/2>maxX) maxX=px+TILE_W/2;
+    if (py<minY) minY=py;
+    if (py+TILE_H>maxY) maxY=py+TILE_H;
+  }
+  return {left:minX-spec.pad, right:maxX+spec.pad,
+          top:minY-spec.up, bottom:maxY+(spec.down||16)};
+}
+function makeStructSprite(e,spec,season,W,H,lit){
+  const b=structSpriteBox(spec);
+  const bw=b.right-b.left, bh=b.bottom-b.top;
+  if (!(bw>0&&bh>0)) return null;
+  const want=ssprScale();
+  // clamp the RESOLUTION of a giant (a house) rather than refusing to cache it
+  const s=Math.min(want, 1024/Math.max(bw,bh));
+  const pw=Math.max(1,Math.ceil(bw*s)), ph=Math.max(1,Math.ceil(bh*s));
+  if (pw>2200||ph>2200) return null;
+  const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+  const c2=cv.getContext('2d'); if (!c2) return null;
+  const [sx,sy]=structAnchor(e,W,H);
+  /* Bake with the CURRENT camera and translate it back out: the draws compute
+     their own screen position through screenOf, so shifting the origin by the
+     anchor is what makes the result camera-independent. */
+  c2.setTransform(s,0,0,s,-b.left*s,-b.top*s);
+  c2.translate(-sx,-sy);
+  drawStructEnt(c2,e,W,H,season,lit);
+  return {cv, ox:b.left, oy:b.top, s, want, capped:s<want, bytes:pw*ph*4};
+}
+// blit a cached structure if we can, else draw it live — never drop one
+function drawStructMaybeCached(e,W,H,season,lit){
+  if (SSPRITE.off || !SSPRITE.active){ drawStructEnt(cx,e,W,H,season,lit); return; }
+  const spec=structSpriteSpec(e);
+  if (!spec){ drawStructEnt(cx,e,W,H,season,lit); return; }
+  const kk=spec.key+'|'+season+'|'+game.rot+'|'+(lit?1:0);
+  let sp=SSPRITE.map.get(kk);
+  // a sprite baked at a very different zoom blits soft: rebake it, budget
+  // permitting, but keep using the old one this frame rather than dropping to
+  // a slow procedural draw mid-gesture (the PSPRITE rule)
+  const had=!!sp, eScale=sp&&(sp.want!==undefined?sp.want:sp.s);
+  if (!sp || (Math.abs(eScale-SSPRITE.scale)>SSPRITE.scale*0.12 &&
+              !(sp.capped && SSPRITE.scale>sp.s))){
+    if (SSPRITE.rendered<SSPRITE.BUDGET){
+      const ns=makeStructSprite(e,spec,season,W,H,lit);
+      if (ns){ if (sp) SSPRITE.bytes-=sp.bytes; sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
+    }
+    if (!sp){ SSPRITE.fell++; drawStructEnt(cx,e,W,H,season,lit); return; }
+  }
+  if (had) SSPRITE.hits++; else SSPRITE.misses++;
+  if (SSPRITE.map.has(kk)) SSPRITE.map.delete(kk);   // LRU: re-insert at the end
+  sp.used=SSPRITE.frame;
+  SSPRITE.map.set(kk,sp);
+  const [ax,ay]=structAnchor(e,W,H);
+  cx.drawImage(sp.cv, ax+sp.ox, ay+sp.oy, sp.cv.width/sp.s, sp.cv.height/sp.s);
+}
+/* ---- dev-only: prove the cached path draws the same picture ----
+   The whole design rests on a key naming everything its drawing reads, and the
+   failure mode of getting that wrong is silent: a sprite that is subtly stale,
+   or a box that clips a fence post off the top. So diff the two paths pixel by
+   pixel rather than trusting the reasoning.
+
+     verifyStructureSprites()            // every kind present in the garden
+     verifyStructureSprites({rot:true})  // and at all four rotations
+
+   `diff` is the share of canvas pixels that differ at all and `worst` the
+   largest single-channel difference. Small numbers are antialiasing — the
+   sprite rasterises on its own pixel grid and blits back at a fractional
+   offset, so edges land a fraction differently. A CLIPPED sprite or a stale
+   key does not look like that: it shows as a large diff share. */
+/* Did any sprite draw right up to its own edge? This is the direct test for a
+   box that is too small, and the pixel diff is a poor substitute for it: a
+   clipped fence post is a few hundred pixels, which rounds to nothing as a
+   share of the canvas. Non-transparent pixels on the border row or column
+   mean the drawing wanted more room than structSpriteSpec gave it. */
+function ssprClippedSprites(){
+  const out=[];
+  for (const [k,sp] of SSPRITE.map){
+    const c=sp.cv.getContext('2d'); if (!c || typeof c.getImageData!=='function') continue;
+    const w=sp.cv.width, h=sp.cv.height;
+    let d; try{ d=c.getImageData(0,0,w,h).data; }catch(_){ continue; }
+    const A=(x,y)=>d[(y*w+x)*4+3];
+    let top=0,bot=0,left=0,right=0;
+    for (let x=0;x<w;x++){ if (A(x,0)>8) top++; if (A(x,h-1)>8) bot++; }
+    for (let y=0;y<h;y++){ if (A(0,y)>8) left++; if (A(w-1,y)>8) right++; }
+    if (top+bot+left+right>0) out.push({key:k.slice(0,60), w, h, top, bot, left, right});
+  }
+  return out;
+}
+function verifyStructureSprites(opts){
+  opts=opts||{};
+  if (!cnv || typeof cx.getImageData!=='function'){ console.warn('verifyStructureSprites: needs a live canvas.'); return null; }
+  const rots=opts.rot?[0,1,2,3]:[game.rot];
+  const wasRot=game.rot, wasOff=SSPRITE.off;
+  const names={}; for (const k in SCENE_K) names[SCENE_K[k]]=k;
+  const out=[];
+  const shot=()=>{ const d=cx.getImageData(0,0,cnv.width,cnv.height).data; return d; };
+  for (const rot of rots){
+    game.rot=rot; game.sceneRev++;
+    buildScene(VW/ZOOM,VH/ZOOM);
+    const all=scene.ents.slice(), groups={};
+    for (const e of all) (groups[e.kind]||(groups[e.kind]=[])).push(e);
+    for (const k in groups){
+      const kind=names[k]||k;
+      if (kind==='PLANT'||kind==='BULB'||kind==='GHOST') continue;
+      scene.ents=groups[k];
+      SSPRITE.off=true;  render(performance.now()); const a=shot();
+      SSPRITE.map.clear(); SSPRITE.bytes=0;      // force a cold bake, not a stale hit
+      SSPRITE.off=false;
+      // several frames: the per-frame bake budget may not cover them all at once
+      for (let i=0;i<8;i++){ scene.ents=groups[k]; render(performance.now()); }
+      const b=shot();
+      let diff=0, worst=0;
+      for (let i=0;i<a.length;i+=4){
+        const dr=Math.abs(a[i]-b[i]), dg=Math.abs(a[i+1]-b[i+1]), db=Math.abs(a[i+2]-b[i+2]);
+        const m=dr>dg?(dr>db?dr:db):(dg>db?dg:db);
+        if (m>8){ diff++; if (m>worst) worst=m; }
+      }
+      out.push({rot, kind, n:groups[k].length,
+        diffPct:+(diff/(a.length/4)*100).toFixed(3), worst});
+    }
+    scene.ents=all;
+  }
+  /* Now force a COLD bake of every sprite the garden needs (lifting the
+     per-frame budget, which would otherwise leave most of them un-baked) and
+     ask each one whether its drawing reached its own border. */
+  game.rot=wasRot; SSPRITE.off=false; game.sceneRev++;
+  buildScene(VW/ZOOM,VH/ZOOM);
+  SSPRITE.map.clear(); SSPRITE.bytes=0;
+  const budget=SSPRITE.BUDGET; SSPRITE.BUDGET=1e9;
+  for (let i=0;i<6;i++) render(performance.now());
+  SSPRITE.BUDGET=budget;
+  const clipped=ssprClippedSprites();
+  const sprites=SSPRITE.map.size, mb=+(SSPRITE.bytes/1048576).toFixed(2);
+  SSPRITE.off=wasOff;
+  out.sort((p,q)=>q.diffPct-p.diffPct);
+  console.log('verifyStructureSprites — sprite vs procedural, % of canvas pixels differing by >8/255\n'+
+    out.map(r=>'  rot'+r.rot+' '+r.kind.padEnd(17)+String(r.diffPct).padStart(7)+'%  worst '+
+      String(r.worst).padStart(3)+'  x'+r.n).join('\n')+
+    '\n  (small = antialiasing on a fractional blit offset; large = a clipped box or a stale key)\n'+
+    '  '+sprites+' distinct sprites for '+out.reduce((a,r)=>a+r.n,0)+' entities, '+mb+'MB\n'+
+    (clipped.length
+      ? '  CLIPPED: '+clipped.length+' sprite(s) draw to their own border — widen up/pad in structSpriteSpec\n'+
+        clipped.slice(0,6).map(c=>'    '+c.key+'  '+c.w+'x'+c.h+'  t'+c.top+' b'+c.bot+' l'+c.left+' r'+c.right).join('\n')
+      : '  no sprite draws to its own border — every box contains its drawing'));
+  return {rows:out, clipped, sprites, mb};
+}
 // cursor footprint: tint each tile of the brush disc so the stamp/erase area
 // reads before commit. Reuses the same brushOffsets the paint/erase paths use,
 // so the preview can't disagree with what actually gets placed.
@@ -1250,20 +1593,21 @@ function buildScene(W,H){
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
 function drawSceneEnt(e,W,H,season,sway,useSprites){
   switch(e.kind){
-    case SCENE_K.FENCE: drawFence(cx,W,H,season,e.f,e.x,e.y); return 0;
-    case SCENE_K.LIGHT: drawLightFixture(cx,W,H,season,e.l,e.x,e.y,game.layerVis.night); return 0;
-    case SCENE_K.FIREPIT: drawFirepit(cx,W,H,season,e.f,e.x,e.y); return 0;
-    case SCENE_K.BOULDER: drawBoulder(cx,W,H,season,e.b,e.x,e.y); return 0;
-    case SCENE_K.PET:{
-      const [sx,sy]=screenOf(e.x,e.y,W,H);
-      drawPet(cx,sx,sy+TILE_H/2,e.p,1);
-      return 0;
-    }
-    case SCENE_K.POT: drawPot(cx,W,H,season,e.p,e.x,e.y); return 0;
-    case SCENE_K.SEAT: drawSeat(cx,W,H,season,e.s,e.x,e.y); return 0;
-    case SCENE_K.BUILDING: drawBuildingTile(cx,W,H,e.b,e.x,e.y); return 0;
-    case SCENE_K.BUILDING_OUTLINE: drawBuildingOutline(cx,W,H,e.b); return 0;
-    case SCENE_K.HOUSE: drawHouse(cx,W,H,season,e.h); return 0;
+    /* Every structure goes through one cached blitter. They are pure
+       functions of (record, season, rot, camera) — no `t`, no `sway` — so
+       they are as cacheable as the ground, and this is where they stopped
+       being redrawn from scratch on every frame. */
+    case SCENE_K.FENCE:
+    case SCENE_K.LIGHT:
+    case SCENE_K.FIREPIT:
+    case SCENE_K.BOULDER:
+    case SCENE_K.PET:
+    case SCENE_K.POT:
+    case SCENE_K.SEAT:
+    case SCENE_K.BUILDING:
+    case SCENE_K.BUILDING_OUTLINE:
+    case SCENE_K.HOUSE:
+      drawStructMaybeCached(e,W,H,season,game.layerVis.night); return 0;
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
@@ -1339,7 +1683,7 @@ function render(t){
   const tCompass=dnow(); updateCompass(); dmark('compass',tCompass);
 
   const sway = Math.sin(t*0.0012);
-  pspriteFrame();
+  pspriteFrame(); ssprFrame();
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen
