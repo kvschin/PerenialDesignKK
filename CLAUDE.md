@@ -711,6 +711,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (mid-gesture frames scale-blit the stale bake — briefly soft, never slow),
     and ~180ms after a pan ends (resting frames are freshly rasterized, never
     resampled). Water ripples freeze except at rebakes.
+    **"On leaving the baked margin" no longer applies when the bake already
+    holds the whole plot** (`groundBakeComplete` / `bakeCoversWholePlot` /
+    `groundPanForcesBake`). `panDev>=MD` re-baked the instant the camera left
+    the margin, with no throttle of any kind — the edit path got a settle and
+    the pan path got nothing — and on a desktop that was the dominant cost of
+    using the app: simulated on a real 70×39 garden, ONE SECOND of ordinary
+    mouse-drag panning forced **2 bakes at a slow drag, 5 at a normal one and 9
+    at a fast one**, each ~30ms. Nearly all of it redid work that changed
+    nothing, because the bake window is CLAMPED to the plot: once the whole plot
+    is inside it there is no further ground anywhere, `paintGround` skips
+    off-lot tiles, and the world-anchored blit keeps sliding correctly however
+    far you go. Measured after: **1 bake per gesture at every drag speed** — the
+    `GROUND_PAN_SETTLE` one, deliberately kept so a resting frame is still
+    freshly rasterized and the blit's half-pixel rounding is still corrected.
+    Verified pixel-identical to the old behaviour at rest (0% differing on a
+    600px horizontal pan, a 500×420 diagonal and a 1200px pan; control 0%).
+    **The trap is judging completeness on the CLAMPED window**: it reports
+    `0..GW-1` as soon as `pad` alone carries it there, which happens even when
+    the plot runs off the edge of the canvas and is being clipped — so it must
+    be judged on the RAW corner range, requiring a full `pad` of skirt beyond
+    the plot on every side. That substitution passes every unit test, so a
+    source test pins the call site. Zoomed in far enough that the plot no longer
+    fits the canvas, `groundBakeComplete` is false and the guard is inert
+    (verified) — only an incremental strip re-bake would help there, and that is
+    the open follow-up.
     **The edit throttle** (`groundEditThrottled` + `GROUND_EDIT_SETTLE` 90ms)
     is the same trick for the one gesture the design never covered: a brush drag
     bumps `groundRev` on every tile it paints, so the key changed every frame
