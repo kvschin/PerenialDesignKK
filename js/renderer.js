@@ -987,6 +987,68 @@ function updateSpriteMode(drawMs, plantCount, structMs){
    Module-level rather than threaded through the draw call because it changes
    once a frame and the entity loop is the hottest code in the app. */
 let structSampling=false, structSampleMs=0;
+/* ---------- zoom heat: don't re-bake a sprite while the zoom is still moving ----------
+   Both sprite caches re-bake an entry whose baked scale has drifted 12% from
+   the current one, so the blit stays 1:1 and crisp. At rest that is right. In
+   the MIDDLE of a zoom it is a storm: a mouse wheel is a stream of discrete
+   ticks, ~6% each, so the threshold is crossed every other tick and every
+   visible plant re-bakes — up to PSPRITE.BUDGET (160) of them inside one frame.
+   Measured on a real 70x39 garden (220 plants, 150 fence tiles, a 196-tile
+   footprint): one 15-tick wheel zoom did 780 plant bakes and 17 structure
+   bakes before this, and does 270 and 4 with it — the counts are deterministic
+   and reproduced exactly across five interleaved passes. Gesture frame time
+   fell from a 1046ms median to 438ms, and neither cache ever fell through to a
+   procedural draw. This is a PC-shaped bug: a pinch is one gesture that ends,
+   a wheel is seven threshold crossings.
+
+   Do NOT tune this against a worst-frame number without a compositing tab.
+   Capping the settle burst so it spreads over several frames was tried at 12,
+   24 and 48 and measured WORSE than the uncapped 160, with run-to-run variance
+   larger than the effect — so no such constant ships. The bake COUNT is the
+   signal that survives measurement here; the millisecond totals drift 30-40%.
+
+   The ground bake already solved exactly this, and this is its pattern:
+   GROUND_ZOOM_SETTLE defers the crisp bake until ~140ms after the last zoom
+   tick and blits the stale bake meanwhile — "briefly soft, never slow". The
+   sprite caches had the same 12% threshold and no settle at all.
+
+   SPRITE_ZOOM_DRIFT is the ground's GROUND_ZOOM_DRIFT escape: past a large
+   drift, re-bake even mid-gesture, or a long continuous zoom would blit a
+   sprite baked at a sixth of its current size for the whole gesture. 0.6 means
+   at most a 1.6x resample before it refreshes — a handful of re-bakes across a
+   big zoom instead of one every two wheel ticks.
+
+   It is a RATIO of the two scales, not the difference-over-current form the
+   12% rest threshold uses, because that form is asymmetric in the wrong
+   direction: |baked-now| > 0.6*now needs a 2.5x zoom IN to fire but only a
+   1.6x zoom OUT, and zooming in is the case that upscales a stale sprite into
+   mush. Zooming out merely minifies it, which looks fine. A ratio is 1.6x
+   either way.
+
+   Shared by PSPRITE and SSPRITE because it is one fact about the camera, and
+   deliberately separate from groundZoomT: the ground stamps its tick later in
+   render(), after both caches have already been aged for the frame. */
+let spriteZoomPrev=-1, spriteZoomT=-1e9, spriteZoomSettled=true;
+const SPRITE_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
+const SPRITE_ZOOM_DRIFT=0.6;    // rebake mid-gesture once the scale has drifted this far
+function noteSpriteZoom(t){
+  const s=pspriteScale();
+  if (s!==spriteZoomPrev){ spriteZoomT=t; spriteZoomPrev=s; }
+  /* game.photo renders ONE frame straight into a downloaded PNG, so softness
+     there outlives the gesture that caused it. It is not a gesture and cannot
+     stutter — always give it the crisp bake. */
+  spriteZoomSettled = (t-spriteZoomT)>SPRITE_ZOOM_SETTLE || !!game.photo;
+}
+/* Should a cached sprite that has drifted off the current scale re-bake NOW?
+   Shared by both caches. A non-finite or non-positive scale on either side
+   cannot be reasoned about, so re-bake rather than strand the sprite stale
+   forever behind a NaN comparison. */
+function spriteRescaleDue(baked,current){
+  if (spriteZoomSettled) return true;
+  if (!(baked>0) || !(current>0)) return true;
+  const ratio = baked>current ? baked/current : current/baked;
+  return ratio > 1+SPRITE_ZOOM_DRIFT;
+}
 function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
 function pspriteFrame(){                        // once per render: age the cache
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
@@ -1083,9 +1145,16 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   // draw — the cache converges back to crisp within a few frames after a zoom.
   // Resolution-capped giants (T10) compare on the REQUESTED scale and never
   // rebake while zooming further in — the bake would come out identical.
+  // The rescale also waits for the gesture to settle (see noteSpriteZoom); a
+  // genuine MISS (!e) never waits, or a plant entering the viewport mid-zoom
+  // would fall through to a procedural draw, which is what this cache exists
+  // to avoid.
   const eScale=e&&(e.want!==undefined?e.want:e.s);
-  if (!e || (Math.abs(eScale-PSPRITE.scale) > PSPRITE.scale*0.12 &&
-             !(e.capped && PSPRITE.scale>e.s))){
+  const drift=e?Math.abs(eScale-PSPRITE.scale):0;
+  const rescale = !!e && drift>PSPRITE.scale*0.12
+    && !(e.capped && PSPRITE.scale>e.s)
+    && spriteRescaleDue(eScale,PSPRITE.scale);
+  if (!e || rescale){
     if (PSPRITE.rendered<PSPRITE.BUDGET){
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
       if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes; }
@@ -1345,10 +1414,16 @@ function drawStructMaybeCached(e,W,H,season,lit){
   let sp=SSPRITE.map.get(kk);
   // a sprite baked at a very different zoom blits soft: rebake it, budget
   // permitting, but keep using the old one this frame rather than dropping to
-  // a slow procedural draw mid-gesture (the PSPRITE rule)
+  // a slow procedural draw mid-gesture (the PSPRITE rule) — and, also as
+  // PSPRITE does, wait for the zoom gesture to settle before rescaling at all.
+  // Far fewer sprites here (39 for 318 entities on a furnished garden), so this
+  // is the smaller half of the win; it is here so the two caches cannot drift.
   const had=!!sp, eScale=sp&&(sp.want!==undefined?sp.want:sp.s);
-  if (!sp || (Math.abs(eScale-SSPRITE.scale)>SSPRITE.scale*0.12 &&
-              !(sp.capped && SSPRITE.scale>sp.s))){
+  const sDrift=sp?Math.abs(eScale-SSPRITE.scale):0;
+  const sRescale = !!sp && sDrift>SSPRITE.scale*0.12
+    && !(sp.capped && SSPRITE.scale>sp.s)
+    && spriteRescaleDue(eScale,SSPRITE.scale);
+  if (!sp || sRescale){
     if (SSPRITE.rendered<SSPRITE.BUDGET){
       const ns=makeStructSprite(e,spec,season,W,H,lit);
       if (ns){ if (sp) SSPRITE.bytes-=sp.bytes; sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
@@ -1779,6 +1854,7 @@ function render(t){
   const tCompass=dnow(); updateCompass(); dmark('compass',tCompass);
 
   const sway = Math.sin(t*0.0012);
+  noteSpriteZoom(t);            // must precede both: it decides whether they may rescale
   pspriteFrame(); ssprFrame();
 
   // visible tile window: invert the four screen corners to world tiles

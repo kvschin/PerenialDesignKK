@@ -890,7 +890,41 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Eviction runs once per frame and only on off-screen sprites
     (never the visible set, so the cache can't thrash/flicker), sprite scale is
     capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
-    few frames rather than wiping (the blit auto-scales). ~2.7–3.4× on dense
+    few frames rather than wiping (the blit auto-scales).
+    **But that re-bake must wait for the gesture to END** (`noteSpriteZoom` /
+    `SPRITE_ZOOM_SETTLE` / `spriteRescaleDue`, shared by both caches). A sprite
+    whose baked scale drifts 12% off the current one re-bakes so the blit stays
+    1:1 — right at rest, a storm mid-zoom: a **mouse wheel is a stream of
+    discrete ~6% ticks**, so the threshold is crossed every other tick and every
+    visible sprite re-bakes, up to `BUDGET` (160) of them in one frame. Measured
+    on a real 70×39 garden (220 plants, 150 fence tiles, a 196-tile footprint),
+    one 15-tick wheel zoom did **780 plant bakes and 17 structure bakes**;
+    with the settle it does **270 and 4**, and the gesture's total frame time
+    fell from a 1046ms median to 438ms. Neither cache ever fell through to a
+    procedural draw. This is a **PC-shaped** bug and is most of why the desktop
+    stutters where a phone does not — a pinch is one gesture that ends, a wheel
+    is seven threshold crossings. The pattern is the ground bake's, one system
+    over: `GROUND_ZOOM_SETTLE` already deferred the crisp bake ~140ms past the
+    last tick and blitted the stale one meanwhile ("briefly soft, never slow");
+    the sprite caches had the identical 12% threshold and no settle at all.
+    Three things the guard must keep right, each mutation-tested: a genuine
+    cache **MISS never waits** (a plant entering the viewport mid-zoom would
+    otherwise fall to a procedural draw, which is the cost this cache exists to
+    avoid); `game.photo` overrides it, because `takePhoto` renders ONE frame
+    straight into a downloaded PNG, where softness outlives the gesture and
+    there is no next frame to stutter; and `SPRITE_ZOOM_DRIFT` (0.6) re-bakes
+    mid-gesture anyway past a large drift, as a **ratio** of the two scales
+    rather than the difference-over-current form the 12% test uses — that form
+    is asymmetric in the wrong direction (a 2.5× zoom IN to fire, but only
+    1.6× OUT, and zooming in is the case that upscales a stale sprite into
+    mush). Side effect, verified by comparing cache contents rather than
+    pixels: the settle rebake lands on the EXACT current scale, where the old
+    path stopped at its last threshold crossing and blitted a ~5.4% upscale at
+    rest — legal under the 12% tolerance either way, but the new one is
+    crisper. Do not chase a worst-frame number here without a compositing tab:
+    capping the settle burst to spread it over several frames measured *worse*
+    and the run-to-run variance exceeded the effect, so no such constant ships.
+    ~2.7–3.4× on dense
     frames; `PSPRITE.off` A/Bs it, dev-only `stressGarden()` packs the plot. A
     perf **debug HUD** (`dbg`, toggled by backtick or `?debug`, zero-cost off;
     `dnow`/`dmark`/`dtime` are the phase timers) shows FPS + a per-phase

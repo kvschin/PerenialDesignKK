@@ -7247,6 +7247,150 @@ test('the slot index does not outlive the sprites it points at', () => {
     PSPRITE.slot.size + ' slots vs ' + PSPRITE.map.size + ' sprites)');
 });
 
+/* ---------- a zoom gesture must not re-bake the whole cache, repeatedly ----------
+   Both sprite caches re-bake an entry whose baked scale drifts 12% off the
+   current one. A mouse wheel is a stream of ~6% ticks, so that threshold is
+   crossed every other tick and every visible sprite re-bakes, up to 160 of them
+   in a single frame. Measured on a real 70x39 garden (220 plants, 150 fence
+   tiles, a 196-tile footprint): one 15-tick wheel zoom did 512 re-bakes for 146
+   cached plants. Ablated by freezing the scale (min of 3 interleaved passes,
+   submission-only) the gesture went 154ms -> 81ms, worst frame 30.0 -> 17.2ms.
+
+   The ground bake already had the answer — GROUND_ZOOM_SETTLE blits the stale
+   bake mid-gesture and re-bakes crisp ~140ms after the last tick. These pin the
+   same deal for the sprites, plus the two cases the deferral must NOT swallow:
+   a genuine cache miss, and a drift so large that the stale blit would be mush. */
+
+// One "frame" at a given zoom: stamp the heat, age the cache, draw the clump,
+// and report how many bakes that frame did.
+function zoomFrameBakes(ctx, key, zoom, t, seed){
+  ZOOM = zoom;
+  noteSpriteZoom(t);
+  pspriteFrame();
+  drawPlantMaybeCached(ctx, 0, 0, key, 0.7, 'Summer', seed, 0, null, undefined, true);
+  return PSPRITE.rendered;
+}
+
+test('a zoom gesture reuses stale sprites and re-bakes once it settles', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasZoom = ZOOM;
+  try {
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let t = 10000;
+
+    // settled at zoom 1: the first draw is a MISS, so it bakes
+    assertEqual(zoomFrameBakes(ctx, key, 1, t, 4242), 1, 'the cold draw bakes');
+    t += SPRITE_ZOOM_SETTLE + 1;
+    assertEqual(zoomFrameBakes(ctx, key, 1, t, 4242), 0, 'a settled hit bakes nothing');
+    const baked = PSPRITE.map.values().next().value.want;
+    assertEqual(baked, 1, 'baked at the scale it was drawn at');
+
+    // one wheel tick past the 12% threshold, gesture still moving
+    t += 16;
+    assertEqual(zoomFrameBakes(ctx, key, 1.2, t, 4242), 0,
+      'a rescale mid-gesture reuses the stale sprite instead of re-baking');
+    t += 16;
+    assertEqual(zoomFrameBakes(ctx, key, 1.25, t, 4242), 0, 'and keeps reusing it as the wheel spins');
+    assertEqual(PSPRITE.map.values().next().value.want, baked,
+      'the cached sprite really is the old one, not a quietly re-baked replacement');
+
+    // gesture ends
+    t += SPRITE_ZOOM_SETTLE + 1;
+    assertEqual(zoomFrameBakes(ctx, key, 1.25, t, 4242), 1, 'settling re-bakes it crisp');
+    assertEqual(PSPRITE.map.values().next().value.want, 1.25, 'at the scale now on screen');
+  } finally { ZOOM = wasZoom; }
+});
+
+test('deferring a rescale never defers a cache MISS', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasZoom = ZOOM;
+  try {
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let t = 20000;
+    zoomFrameBakes(ctx, key, 1, t, 7001);
+    t += 16;
+    /* A plant scrolling into the viewport mid-zoom has no entry at all. If the
+       settle guard swallowed that too it would fall through to a procedural
+       draw — the exact cost this cache exists to avoid, arriving in the middle
+       of the gesture that can least afford it. */
+    assertEqual(zoomFrameBakes(ctx, key, 1.2, t, 7002), 1,
+      'a brand-new clump bakes at once, gesture or no gesture');
+  } finally { ZOOM = wasZoom; }
+});
+
+test('a big zoom jump re-bakes at once rather than blitting mush', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasZoom = ZOOM;
+  try {
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let t = 30000;
+    zoomFrameBakes(ctx, key, 1, t, 8080);
+    t += SPRITE_ZOOM_SETTLE + 1;
+    zoomFrameBakes(ctx, key, 1, t, 8080);
+    t += 16;
+    /* Past SPRITE_ZOOM_DRIFT the stale sprite would be upscaled beyond what
+       "briefly soft" can cover, so the escape fires even though the gesture is
+       still moving — the ground bake's GROUND_ZOOM_DRIFT, one system over. */
+    const jump = 1 + SPRITE_ZOOM_DRIFT + 0.1;
+    assertEqual(zoomFrameBakes(ctx, key, jump, t, 8080), 1,
+      'a drift past SPRITE_ZOOM_DRIFT re-bakes mid-gesture');
+  } finally { ZOOM = wasZoom; }
+});
+
+/* The three tests above call noteSpriteZoom themselves, because the sandbox has
+   no canvas to render into. That leaves the one thing they cannot see: whether
+   render() still calls it, and calls it BEFORE the two caches are aged for the
+   frame. Deleting that one line makes the whole guard inert and every test above
+   still passes — verified by doing exactly that. So pin the call site the way
+   the sw.js skipWaiting test pins its handler: on the source. */
+test('render arms the zoom guard before either cache ages', () => {
+  const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');  // comments discuss it
+  const body = src.slice(src.indexOf('function render(t){'));
+  assert(body.startsWith('function render(t){'), 'found the render body');
+
+  const noteAt = body.indexOf('noteSpriteZoom(');
+  const pAt = body.indexOf('pspriteFrame()');
+  const sAt = body.indexOf('ssprFrame()');
+  assert(noteAt >= 0, 'render still stamps the zoom heat');
+  assert(pAt >= 0 && sAt >= 0, 'and still ages both caches');
+  /* Ordering is the load-bearing half: pspriteFrame/ssprFrame latch the frame's
+     scale, and every rescale decision that frame reads spriteZoomSettled. Stamp
+     it after them and the guard is a frame late on the tick that matters most —
+     the first one of the gesture. */
+  assert(noteAt < pAt, 'zoom heat is stamped before the plant cache ages');
+  assert(noteAt < sAt, 'and before the structure cache ages');
+});
+
+test('a photo frame always gets the crisp bake', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasZoom = ZOOM, wasPhoto = game.photo;
+  try {
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.bytes = 0;
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let t = 40000;
+    zoomFrameBakes(ctx, key, 1, t, 9090);
+    t += 16;
+    assertEqual(zoomFrameBakes(ctx, key, 1.2, t, 9090), 0, 'mid-gesture defers, as usual');
+    /* takePhoto renders ONE frame straight into a downloaded PNG, so softness
+       there outlives the gesture. It cannot stutter — there is no next frame. */
+    game.photo = true;
+    t += 16;
+    assertEqual(zoomFrameBakes(ctx, key, 1.2, t, 9090), 1,
+      'game.photo overrides the settle guard');
+  } finally { ZOOM = wasZoom; game.photo = wasPhoto; }
+});
+
 /* ---------- shipping an update to a phone ----------
    sw.js installs a new build and waits, because taking over a live session
    would let it fetch assets from a build the session did not start on. That
