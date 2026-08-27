@@ -590,14 +590,17 @@ if ('serviceWorker' in navigator)
 </div>
 
 <!-- PLANT LIBRARY -->
-<div class="screen hidden" id="libraryScreen">
+<div class="screen hidden" id="libraryScreen" data-libview="cats">
   <div class="library-wrap">
     <div class="library-head">
+      <button class="library-back" type="button" id="btnLibraryBack" aria-label="Back to the menu"></button>
       <h2>Plant Library</h2>
+      <span class="library-head-title" id="libraryHeadTitle"></span>
       <input id="librarySearch" type="search" placeholder="Search name or latin…" autocomplete="off">
       <button class="back-link" id="btnLibraryClose">Menu</button>
     </div>
     <div class="library-body">
+      <div class="library-cats" id="libraryCats"></div>
       <div class="library-list" id="libraryList"></div>
       <div class="library-detail" id="libraryDetail"></div>
     </div>

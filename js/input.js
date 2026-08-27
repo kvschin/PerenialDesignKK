@@ -8,6 +8,19 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(northScreen,e);
     return;
   }
+  /* The library opens from the MENU, where the HUD is hidden — so the guard
+     on the next line returned before any Escape branch could run, and Escape
+     did nothing at all on this screen. It has to be handled ABOVE that line. */
+  const libraryScreen=document.getElementById('libraryScreen');
+  if (libraryScreen&&!libraryScreen.classList.contains('hidden')){
+    if (e.key==='Escape'){
+      e.preventDefault();
+      const search=document.getElementById('librarySearch');
+      if (e.target===search && search.value){ search.value=''; applyLibrarySearch(); }
+      else libraryBack();
+    }
+    return;
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }

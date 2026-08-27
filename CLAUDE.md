@@ -360,7 +360,53 @@ logic is split across ordered modules. They map onto the section list below
   the photo frame, the `ⓘ` credit disclosure and the Learn-more row. Loaded
   by `index.html` **and, standalone beside `plants.js`, by `credits.html`**,
   so it touches no DOM at load and assumes no other module exists at load.
-- **`library.js`** — the Plant Library browser (`openLibrary`).
+- **`library.js`** — the Plant Library browser (`openLibrary`). **DOCK is a
+  master-detail split; SHEET is three VIEWS of one screen** — `libView`
+  (`cats` → `list` → `detail`), `libraryBack` walking it in reverse, read only
+  through `[data-libview]` selectors inside the SHEET query so DOCK can never
+  reach a state that hides one of its own panes. The split's premise is that
+  the list is cheap peripheral context you keep while reading, which holds at
+  1200px and measured badly at 375x812: a **135px two-row header** (the h2, the
+  search field and the back-link stopped fitting one line, and `flex-wrap`
+  turned that into a second row), a **276px** list and a **401px** detail pane
+  — **51% of the screen was navigation**. And the list did not fit its own box:
+  eight **collapsed** category headers are **371px** inside that 276px, so
+  Shrubs and Trees sat below the fold of a box whose entire job is to fit. The
+  detail pane then held a 1086px card whose four seasonal canvases wrapped 2x2
+  (280px) and pushed the plant's own **name to y=723**. After: header 71px,
+  eight category cards all on screen at 320px width and up, seasons in one row
+  (`librarySeasonTile` derives the tile from the column, so `nowrap` cannot
+  overflow), name at y=236.
+  Three things this fixed that are easy to undo. **`#libraryScreen{padding:0}`
+  wiped `.screen`'s `max(18px,env(safe-area-inset-top))`** and it was the ONLY
+  full-screen surface that did — measured, worlds/plot/planting-list/plan/bloom
+  all resolve 18px there (59px on a notched phone) and the library resolved 0,
+  so the title and search drew under the Dynamic Island. Keep `padding:0` —
+  full-bleed is right — and pad `.library-head` instead, `+8px` past the inset
+  the way `--sheet-safe-top` does; unlike `--hud-top-h` there is no other
+  element's height to measure here, so `env()` is the honest expression and no
+  JS is involved. **The breakpoint was `max-width:640px`, not the SHEET tier**,
+  so a portrait tablet (820x1180, verified) and a landscape phone got the
+  desktop split — the exact failure the tier strings exist to prevent. And
+  **`openLibrary` never cleared the search field** before calling
+  `applyLibrarySearch`, so a query survived a menu round-trip: type "oak", go
+  to Menu, reopen the Library, and you are looking at 7 of 473 plants with
+  nothing on screen saying why.
+  **Building the list is the cost, so SHEET builds it lazily.**
+  `buildLibraryList` makes a row per species, each running `drawPlant` into its
+  own canvas: measured **156ms** (median of 5) for all 473 on a desktop, paid
+  on *every* open. The `cats` view builds **none**, a category builds 24-151
+  (Sun Perennials, the largest, is 42ms), and search builds only its matches —
+  which is why the SHEET search cannot reuse DOCK's hide-the-non-matching-rows
+  pass, since that needs the 473-row list to exist first. `libraryMatches` is
+  therefore the shared predicate over `libraryAllKeys` (a test pins both paths
+  to it and to the same universe, so a species can never surface in the results
+  and be unreachable by browsing), and the input is debounced at 120ms to match
+  the tray's Find. **Escape had never worked here**: the library opens from the
+  menu, where the HUD is hidden, and `input.js` returns on that before any
+  Escape branch — so the library block has to sit ABOVE that guard.
+  `libCollapsed`, the accordion, the card order, `js/photos.js` and the
+  illustration plate's deliberately-dark theming are all untouched.
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper

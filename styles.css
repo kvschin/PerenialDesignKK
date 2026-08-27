@@ -412,25 +412,49 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 #libraryScreen{padding:0;align-items:stretch;justify-content:stretch}
 .library-wrap{display:flex;flex-direction:column;width:100%;height:100%;
   background:var(--surface-dialog);backdrop-filter:blur(4px)}
-.library-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  padding:16px 20px;border-bottom:1.5px solid var(--border-quiet)}
-.library-head h2{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-right:auto}
+/* #libraryScreen keeps padding:0 — full-bleed is right, the --surface-dialog
+   plate should reach the edges the way the canvas does under viewport-fit=cover.
+   But .screen's own padding carries max(18px,env(safe-area-inset-top)) and this
+   was the ONE screen that zeroed it: measured, every other full-screen surface
+   (worlds, plot, planting list, plan, bloom) resolves 18px here and 59px on a
+   notched phone, while the library resolved 0 and drew its title and search
+   under the Dynamic Island. So paint to the edge and pad the CONTENT.
+
+   The +8px matches the --sheet-safe-top idiom: a bare env() puts text flush
+   AGAINST the island rather than clear of it. Nothing sits above this header,
+   so unlike --hud-top-h there is no other element's height to measure — env()
+   is the honest expression and no JS is involved.
+
+   flex-wrap is gone: it was what made the header two rows (135px, 16.6% of a
+   375x812 phone) once the h2, the search field and the back-link stopped
+   fitting one line. */
+.library-head{display:flex;align-items:center;gap:14px;
+  padding:max(16px,calc(env(safe-area-inset-top) + 8px)) max(20px,env(safe-area-inset-right))
+          12px max(20px,env(safe-area-inset-left));
+  border-bottom:1.5px solid var(--border-quiet)}
+.library-head h2{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-right:auto;
+  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .library-head input{flex:1;min-width:160px;max-width:320px;padding:9px 12px;font-size:14px;font-family:inherit;
   border-radius:var(--radius-control);border:1.5px solid var(--border-control);background:var(--surface-input);color:var(--text-primary)}
 .library-head input:focus{outline:none;border-color:var(--focus-ring)}
 .library-head .back-link{margin:0}
 .library-body{display:flex;flex:1;min-height:0}
-.library-list{width:38%;max-width:360px;overflow-y:auto;border-right:1.5px solid var(--border-quiet);padding:6px}
+.library-list{width:38%;max-width:360px;overflow-y:auto;border-right:1.5px solid var(--border-quiet);
+  padding:6px 6px max(6px,env(safe-area-inset-bottom))}
 .lib-section{border-bottom:1px solid rgba(var(--ink-rgb),.08)}
 .lib-section:last-child{border-bottom:none}
 .lib-cat{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:none;
   font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);
   padding:12px 10px 8px;position:sticky;top:0;background:var(--surface-dialog);z-index:1;text-align:left}
-.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-primary-hover)}
+button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-primary-hover)}
 .lib-cat:focus-visible{outline:2px solid var(--bronze);outline-offset:-2px}
 .lib-cat::before{content:'-';display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
   margin-right:2px;border:1px solid rgba(201,127,63,.45);border-radius:2px;color:var(--seedhead);font-size:12px;line-height:1}
 .lib-section.collapsed:not(.search-open) .lib-cat::before{content:'+'}
+/* The phone list shows ONE category, so its heading is a heading and not a
+   collapse control — there is nothing left to collapse it against. */
+.lib-cat-static{margin:0}
+.lib-cat-static::before{display:none}
 .lib-cat span{flex:1}
 .lib-cat small{font-size:10px;letter-spacing:0;color:var(--text-muted)}
 .lib-cat-items{padding-bottom:4px}
@@ -441,7 +465,39 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .lib-item.sel{background:var(--surface-active)}
 .lib-item canvas{flex-shrink:0}
 .lib-item .li-latin{display:block;font-style:italic;font-size:11px;color:var(--text-muted)}
-.library-detail{flex:1;overflow-y:auto;padding:22px 26px}
+/* Search spans every category, so a result has to say which one it came from —
+   it is the only row in the app whose neighbours are not its siblings. */
+.lib-item .li-cat{margin-left:auto;flex-shrink:0;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-muted)}
+.library-detail{flex:1;overflow-y:auto;padding:22px 26px max(22px,env(safe-area-inset-bottom))}
+
+/* Phone navigation chrome. All three are DOCK-invisible: the split-pane has
+   nowhere to go back to and no category view to reach. */
+.library-back,.library-head-title,.library-cats{display:none}
+.library-back{width:44px;min-width:44px;height:44px;align-items:center;justify-content:center;
+  border:1.5px solid var(--border-control);border-radius:var(--radius-control);
+  background:var(--surface-control);color:var(--text-primary);
+  transition:background var(--motion-control) var(--ease-standard),border-color var(--motion-control)}
+.library-back:hover{background:var(--surface-control-hover);border-color:var(--border-active)}
+/* There is no ui-chevron-left in the sprite; the right one turned around is
+   the same drawing and does not grow the icon set. */
+.library-back .ui-icon{transform:rotate(180deg)}
+.library-head-title{flex:1;min-width:0;font-family:'Fraunces',serif;font-size:17px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Eight categories, all eight on screen at once, and — unlike the accordion it
+   replaces — no plant canvases built to show them. */
+.library-cats{grid-template-columns:1fr 1fr;gap:10px;align-content:start;overflow-y:auto;
+  padding:16px 16px max(16px,env(safe-area-inset-bottom))}
+.lib-catcard{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  min-height:56px;padding:12px 14px;text-align:left;
+  border:1.5px solid var(--border-quiet);border-radius:var(--radius-panel);
+  background:var(--surface-control);color:var(--text-primary);
+  transition:background var(--motion-control) var(--ease-standard),border-color var(--motion-control)}
+.lib-catcard:hover{background:var(--surface-control-hover);border-color:var(--border-active)}
+.lib-catcard:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+.lib-catcard-name{font-size:13.5px;font-weight:600;line-height:1.25}
+.lib-catcard small{font-size:12px;color:var(--bronze);font-variant-numeric:tabular-nums}
+.ld-back{display:none;width:100%;margin-top:20px;text-align:center}
 .ld-card{max-width:560px;margin:0 auto}
 .ld-img{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;background:linear-gradient(#3a4a3a,#26331f);
   border-radius:var(--radius-panel);padding:10px;margin-bottom:16px}
@@ -514,11 +570,49 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .ld-refs{margin-top:16px;padding-top:12px;border-top:1px solid var(--border-quiet)}
 .ld-refs h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent-700);margin:0 0 6px}
 .library-empty{padding:40px;text-align:center;color:var(--text-muted)}
-@media(max-width:640px){
+/* The library switched at max-width:640px, which is NOT this project's SHEET
+   tier — so a portrait tablet and a landscape phone both got the desktop
+   split-pane. Measured at 820x1180: the SHEET tier matched, the library's own
+   query did not, and .library-body was still flex-direction:row with a 312px
+   list beside a 508px detail. Use the tier verbatim (see the Responsive tiers
+   comment below; SHEET_UI_MQ in tray.js is the JS copy). */
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
   .library-body{flex-direction:column}
-  .library-list{width:100%;max-width:none;max-height:34vh;border-right:none;border-bottom:1.5px solid var(--border-quiet)}
-  .library-detail{padding:16px}
+  /* The 34vh cap goes with the split. It was a third of the screen holding
+     371px of collapsed category headers, so Shrubs and Trees sat below the
+     fold of a box whose entire purpose was to fit. */
+  .library-list,.library-detail{width:100%;max-width:none;max-height:none;
+    border-right:none;border-bottom:none}
+  .library-detail{padding:16px 16px max(16px,env(safe-area-inset-bottom))}
   .ld-name{font-size:22px}
+  /* Four seasons in ONE row: the row IS the comparison. At 390px the 14px gap
+     wrapped them 2x2, which cost 280px and pushed the plant's own name to
+     y=723 inside a pane that started at y=411. librarySeasonTile sizes the
+     canvases from the column so nowrap cannot overflow. */
+  .ld-img{gap:8px;padding:8px;flex-wrap:nowrap}
+  .ld-back{display:block}
+
+  /* One 44px header row. The h2 restates the button pressed one screen ago, so
+     it goes to the screen reader and the placeholder names the screen instead. */
+  .library-head{gap:10px;padding-bottom:10px}
+  .library-head h2{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+  .library-head input{min-width:0;max-width:none}
+  #btnLibraryClose{display:none}
+  .library-back{display:flex}
+  .library-cats{display:grid}
+
+  /* Three views of one screen. data-libview is read ONLY here, so DOCK cannot
+     reach a state that hides one of its panes. */
+  #libraryScreen[data-libview="cats"] .library-list,
+  #libraryScreen[data-libview="cats"] .library-detail,
+  #libraryScreen[data-libview="list"] .library-cats,
+  #libraryScreen[data-libview="list"] .library-detail,
+  #libraryScreen[data-libview="detail"] .library-cats,
+  #libraryScreen[data-libview="detail"] .library-list{display:none}
+  #libraryScreen[data-libview="detail"] #librarySearch{display:none}
+  #libraryScreen[data-libview="detail"] .library-head-title{display:block}
+  .lib-section.solo{border-bottom:none}
 }
 
 /* ---------- worlds list ----------
@@ -2096,6 +2190,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .plant-bloom-timeline i{forced-color-adjust:none;border:1px solid ButtonBorder;background:Canvas!important}
   .plant-bloom-timeline i.on{background:Highlight!important}
   .catalog-strip-arrow,.plant-result-heart,.plant-result-add,.catalog-close{border:1px solid ButtonBorder!important}
+  /* The library list row signals selection with background alone, and its
+     preview is a canvas — so in forced colors the selected plant was invisible
+     and every row was a blank box. Same treatment as the tray's cards. */
+  .lib-catcard,.lib-item{border:1px solid ButtonBorder!important}
+  .lib-item.sel{border:2px solid Highlight!important;outline:1px solid Highlight;
+    forced-color-adjust:none;background:Highlight!important;color:HighlightText!important}
+  .lib-item canvas{forced-color-adjust:none;border:1px solid ButtonBorder;border-radius:3px}
   /* Fades hide content outright when backgrounds are forced. */
   .catalog-category-strip{-webkit-mask-image:none!important;mask-image:none!important}
   .placing-badge{border:1px solid ButtonBorder;forced-color-adjust:none}
@@ -2129,6 +2230,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .selection-actions button{min-height:44px;min-width:44px}
   .lib-cat{min-height:44px}
   #librarySearch{min-height:44px}
+  /* The phone library's own controls. A new header control that misses this
+     block comes out ~34px next to 44px neighbours — .preview-chip and
+     .season-box both shipped that way before they were added here. */
+  .lib-catcard{min-height:56px}
+  .library-back{min-height:44px;min-width:44px}
+  .lib-item{min-height:44px}
   /* min-WIDTH too: the worlds "Back" is full-width so it never showed the
      problem, but the library's "Menu" is content-sized and came out 36.5 wide. */
   .back-link{min-height:44px;min-width:44px}

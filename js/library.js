@@ -26,6 +26,19 @@ function libraryCatKeys(cat){
     return P && !P.hidden && cat.types.includes(P.type) && (!cat.sunFilter || P.sun===cat.sunFilter);
   });
 }
+function libraryCatById(id){ return LIB_CATS.find(c=>c.id===id)||null; }
+function libraryCatFor(key){
+  const P=PLANTS[key]; if (!P) return null;
+  return LIB_CATS.find(c=>c.types.includes(P.type) && (!c.sunFilter || P.sun===c.sunFilter))||null;
+}
+/* Every key the library can show, in category order. The search result set is
+   built from THIS rather than from PLANT_KEYS, so a species belonging to no
+   category cannot surface in the results and then be unreachable by browsing. */
+function libraryAllKeys(){
+  const out=[], seen=new Set();
+  LIB_CATS.forEach(c=>libraryCatKeys(c).forEach(k=>{ if (!seen.has(k)){ seen.add(k); out.push(k); } }));
+  return out;
+}
 function libSeed(key){ let h=0; for(let i=0;i<key.length;i++) h=(h*31+key.charCodeAt(i))>>>0; return h||7; }
 function libraryBloomText(P){
   const months=bloomMonthsFor(P);
@@ -58,57 +71,271 @@ function libCanvas(key,variant,season,w,h){
    terms, because a guessed file has no creator, no source and no licence to
    display beside it. It also cost up to three failed requests per plant
    viewed. A photograph is now declared in the data or it does not exist. */
+
+/* ---------- phone navigation ----------
+   The DOCK layout is a master-detail split, whose premise is that the list is
+   cheap peripheral context you keep while reading. That holds at 1200px. At
+   375x812 the same premise measured: a 135px two-row header, a 34vh (276px)
+   list and a 401px detail pane — 51% of the screen is navigation. And the list
+   still did not fit: eight category headers COLLAPSED are 371px inside that
+   276px box, so Shrubs and Trees sat below the fold of a box whose whole job
+   is to fit. The detail pane then held a 1086px card whose four seasonal
+   canvases wrapped 2x2 and pushed the plant's own NAME to y=723.
+
+   So on SHEET the three surfaces become three VIEWS of one screen —
+   cats -> list -> detail, back walking it in reverse. Nothing is co-visible,
+   so nothing has to be budgeted against anything else and each view gets the
+   whole screen.
+
+   It is also what makes opening the library cheap. buildLibraryList builds a
+   row per species, each running drawPlant into its own canvas: measured 156ms
+   (median of 5) for all 473 on a desktop, paid on every single open. One
+   category is 24-151 rows (Sun Perennials, the largest, is 42ms of canvas)
+   and the cats view builds none at all.
+
+   libView is a string because it is genuinely three-valued, and it is read
+   ONLY through the [data-libview] attribute selectors inside the SHEET query,
+   so DOCK can never reach a state that hides one of its own panes. */
 let libSel=null;
-function openLibrary(){ buildLibraryList(''); show('libraryScreen');
-  if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
-  applyLibrarySearch(); }
-function buildLibraryList(q){
-  const list=$('libraryList'); list.innerHTML='';
-  LIB_CATS.forEach(cat=>{
-    const keys=libraryCatKeys(cat);
-    if (!keys.length) return;
-    const section=document.createElement('section'); section.className='lib-section';
-    section.dataset.catId=cat.id;
-    const head=document.createElement('button'); head.type='button'; head.className='lib-cat';
-    head.dataset.cat='1'; head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
-    const title=document.createElement('span'); title.textContent=cat.label;
-    const count=document.createElement('small'); count.textContent=keys.length;
-    head.append(title,count);
-    const items=document.createElement('div'); items.className='lib-cat-items';
-    items.id=`lib-cat-${cat.id}`;
-    head.setAttribute('aria-controls', items.id);
-    if (libCollapsed[cat.id]) section.classList.add('collapsed');
-    head.onclick=()=>{
-      libCollapsed[cat.id]=!libCollapsed[cat.id];
-      saveLibraryCollapsed();
-      section.classList.toggle('collapsed', !!libCollapsed[cat.id]);
-      head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
-    };
-    section.append(head,items);
-    keys.forEach(k=>{
+let libView='cats';      // cats | list | detail — SHEET only
+let libCat=null;         // the category the gardener chose, or null
+let libListMode='none';  // what #libraryList currently HOLDS: none|sections|results
+let libListCat=null;     // if sections: one category id, or null for all of them
+let libTierSheet=null;   // the tier the open library was last built for
+let libHay=null;
+let librarySearchTimer=null;
+
+/* One predicate, both tiers. DOCK hides non-matching rows in a list that
+   already exists; SHEET builds a result list from scratch, because it has no
+   full list to hide and building one in order to hide it would cost the 156ms
+   this whole thing exists to avoid. Different presentation, same answer — a
+   test pins the two sets equal. The haystack is rebuilt per open rather than
+   cached for the session because roleSummary resolves native roles against the
+   active range, which a garden can change. */
+function libraryHay(key){
+  if (!libHay){
+    libHay=Object.create(null);
+    libraryAllKeys().forEach(k=>{
       const P=PLANTS[k];
-      const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
       const cvHay=[...Object.values(P.cv||{}),...(P.libraryCultivars||[])]
         .map(c=>(c.name||'')+' '+(c.latin||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
-      b.dataset.hay=(P.name+' '+P.latin+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
-      b.append(libCanvas(k,null,libraryPreviewSeason(P),30,36));
-      const t=document.createElement('span');
-      t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
-      b.append(t);
-      b.onclick=()=>showLibraryDetail(k);
-      items.appendChild(b);
+      libHay[k]=(P.name+' '+P.latin+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
     });
+  }
+  return libHay[key]||'';
+}
+function libraryMatches(key,q){ return !q || libraryHay(key).includes(q); }
+function libraryQuery(){ const s=$('librarySearch'); return ((s&&s.value)||'').toLowerCase().trim(); }
+
+function setLibView(v){
+  libView=v;
+  const s=$('libraryScreen'); if (s) s.dataset.libview=v;
+  renderLibraryHead();
+}
+function renderLibraryHead(){
+  const back=$('btnLibraryBack'), title=$('libraryHeadTitle');
+  if (title) title.textContent=(libView==='detail'&&libSel&&PLANTS[libSel])?PLANTS[libSel].name:'';
+  if (back) back.setAttribute('aria-label',
+    libView==='detail' ? 'Back to the list'
+    : libView==='list' ? 'Back to the categories'
+    : 'Back to the menu');
+}
+function libraryBack(){
+  /* On DOCK both panes are visible, so there is nowhere to go back TO — back
+     is close. Keeping the tier check here means Escape, the header chevron and
+     the card's trailing link all agree without each restating it. */
+  if (!mobileSheetUi()){ show('menuScreen'); return; }
+  if (libView==='detail'){ setLibView(libListMode==='none'?'cats':'list'); return; }
+  if (libView==='list'){
+    const s=$('librarySearch'); if (s) s.value='';
+    libCat=null; libListMode='none'; libListCat=null;
+    const list=$('libraryList'); if (list) list.innerHTML='';
+    libraryEmptyState(false,'');
+    setLibView('cats');
+    return;
+  }
+  show('menuScreen');
+}
+
+function buildLibraryCats(){
+  const wrap=$('libraryCats'); if (!wrap) return;
+  wrap.innerHTML='';
+  LIB_CATS.forEach(cat=>{
+    const n=libraryCatKeys(cat).length; if (!n) return;
+    const b=document.createElement('button'); b.type='button'; b.className='lib-catcard';
+    b.dataset.cat=cat.id;
+    const label=document.createElement('span'); label.className='lib-catcard-name'; label.textContent=cat.label;
+    const count=document.createElement('small'); count.textContent=n;
+    b.append(label,count);
+    b.onclick=()=>openLibraryCategory(cat.id);
+    wrap.appendChild(b);
+  });
+}
+function openLibraryCategory(id){
+  libCat=id;
+  const s=$('librarySearch'); if (s) s.value='';
+  buildLibraryList(id);
+  libraryEmptyState(false,'');
+  setLibView('list');
+  const list=$('libraryList'); if (list) list.scrollTop=0;
+}
+function libItemButton(k,showCat){
+  const P=PLANTS[k];
+  const b=document.createElement('button'); b.className='lib-item'+(libSel===k?' sel':''); b.dataset.k=k;
+  b.dataset.hay=libraryHay(k);
+  b.append(libCanvas(k,null,libraryPreviewSeason(P),30,36));
+  const t=document.createElement('span');
+  t.innerHTML=`${P.name}<span class="li-latin">${P.latin}</span>`;
+  b.append(t);
+  if (showCat){
+    const cat=libraryCatFor(k);
+    if (cat){ const c=document.createElement('small'); c.className='li-cat'; c.textContent=cat.label; b.append(c); }
+  }
+  b.onclick=()=>showLibraryDetail(k);
+  return b;
+}
+/* catId null builds every section — the DOCK accordion, behaving exactly as it
+   always has, libCollapsed included. A catId builds that one category under a
+   plain sticky heading instead of a collapse control: there is nothing to
+   collapse it against when it is the only thing on the screen. */
+function buildLibraryList(catId){
+  const list=$('libraryList'); if (!list) return;
+  list.innerHTML='';
+  libListCat=catId==null?null:catId;
+  libListMode='sections';
+  const solo=libListCat!=null;
+  const cats=solo?LIB_CATS.filter(c=>c.id===libListCat):LIB_CATS;
+  cats.forEach(cat=>{
+    const keys=libraryCatKeys(cat);
+    if (!keys.length) return;
+    const section=document.createElement('section'); section.className='lib-section'+(solo?' solo':'');
+    section.dataset.catId=cat.id;
+    const title=document.createElement('span'); title.textContent=cat.label;
+    const count=document.createElement('small'); count.textContent=keys.length;
+    const items=document.createElement('div'); items.className='lib-cat-items';
+    items.id=`lib-cat-${cat.id}`;
+    let head;
+    if (solo){
+      head=document.createElement('h3'); head.className='lib-cat lib-cat-static';
+      head.append(title,count);
+    } else {
+      head=document.createElement('button'); head.type='button'; head.className='lib-cat';
+      head.dataset.cat='1'; head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
+      head.append(title,count);
+      head.setAttribute('aria-controls', items.id);
+      if (libCollapsed[cat.id]) section.classList.add('collapsed');
+      head.onclick=()=>{
+        libCollapsed[cat.id]=!libCollapsed[cat.id];
+        saveLibraryCollapsed();
+        section.classList.toggle('collapsed', !!libCollapsed[cat.id]);
+        head.setAttribute('aria-expanded', libCollapsed[cat.id]?'false':'true');
+      };
+    }
+    section.append(head,items);
+    keys.forEach(k=>items.appendChild(libItemButton(k,false)));
     list.appendChild(section);
   });
+}
+function buildLibraryResults(q){
+  const list=$('libraryList'); if (!list) return 0;
+  list.innerHTML='';
+  libListMode='results'; libListCat=null;
+  const keys=libraryAllKeys().filter(k=>libraryMatches(k,q));
+  const wrap=document.createElement('div'); wrap.className='lib-cat-items lib-results';
+  keys.forEach(k=>wrap.appendChild(libItemButton(k,true)));
+  list.appendChild(wrap);
+  return keys.length;
+}
+function libraryEmptyState(show,q){
+  let empty=document.querySelector('.library-empty');
+  if (show){
+    if (!empty){
+      empty=document.createElement('div');
+      empty.className='library-empty';
+      $('libraryList').appendChild(empty);
+    }
+    empty.textContent=q ? 'No plants match that search.' : 'No plants in the library yet.';
+  } else if (empty) empty.remove();
+}
+
+/* On SHEET the four seasonal canvases have to fit ONE row — four seasons side
+   by side IS the comparison, and a 2x2 block breaks the temporal read. Derived
+   from the column rather than hardcoded, so it holds from 320px up to a
+   portrait tablet. Falls back to the authored 80x104 wherever there is no
+   layout to measure: DOCK, and the test sandbox, which reports no clientWidth. */
+function librarySeasonTile(d){
+  const W=(d&&d.clientWidth)||0;
+  if (!W || !mobileSheetUi()) return {w:80,h:104};
+  const card=Math.min(560,W-32);        // .library-detail padding
+  const inner=card-16-24;               // .ld-img padding + three 8px gaps
+  const w=Math.max(56,Math.min(80,Math.floor(inner/4)));
+  return {w,h:Math.round(w*104/80)};
+}
+
+function openLibrary(){
+  libHay=null;
+  const search=$('librarySearch');
+  if (search){
+    /* Reset the query. openLibrary called applyLibrarySearch() without ever
+       clearing the field, so a query survived a menu round-trip: type "oak",
+       go to Menu, reopen the Library, and you are looking at 7 of 473 plants
+       with nothing on screen saying why. */
+    search.value='';
+    search.placeholder=`Search ${libraryAllKeys().length} plants…`;
+  }
+  show('libraryScreen');
+  libTierSheet=mobileSheetUi();
+  buildLibraryCats();
+  if (libTierSheet){
+    libCat=null; libListMode='none'; libListCat=null;
+    const list=$('libraryList'); if (list) list.innerHTML='';
+    libraryEmptyState(false,'');
+    setLibView('cats');
+  } else {
+    buildLibraryList(null);
+    setLibView('cats');
+    if (!libSel) showLibraryDetail(PLANT_KEYS[0]);
+    applyLibrarySearch();
+  }
+}
+/* Crossing the tier with the library open — a rotation — has to rebuild the
+   body for the layout that is now on screen: the DOCK split needs every
+   section AND a filled detail pane, SHEET needs a view state. Only act on an
+   actual crossing; a resize within one tier changes nothing here. */
+function syncLibraryTier(){
+  const s=$('libraryScreen');
+  if (!s || s.classList.contains('hidden')) return;
+  const sheet=mobileSheetUi();
+  if (sheet===libTierSheet) return;
+  libTierSheet=sheet;
+  if (sheet){
+    if (libCat){ buildLibraryList(libCat); setLibView('list'); }
+    else {
+      libListMode='none'; libListCat=null;
+      const list=$('libraryList'); if (list) list.innerHTML='';
+      libraryEmptyState(false,'');
+      setLibView('cats');
+    }
+  } else {
+    buildLibraryList(null);
+    setLibView('cats');
+    showLibraryDetail(libSel||PLANT_KEYS[0]);
+    applyLibrarySearch();
+  }
 }
 function showLibraryDetail(key){
   libSel=key;
   document.querySelectorAll('.lib-item').forEach(el=>el.classList.toggle('sel',el.dataset.k===key));
+  const sheet=mobileSheetUi();
+  /* Set the view BEFORE measuring: in the list view .library-detail is
+     display:none and reports a clientWidth of 0. */
+  if (sheet) setLibView('detail');
   const P=PLANTS[key], d=$('libraryDetail');
   const seasons=['Spring','Summer','Fall','Winter'];
+  const tile=librarySeasonTile(d);
   const imgs=document.createElement('div'); imgs.className='ld-img';
   seasons.forEach(s=>{ const fig=document.createElement('figure');
-    fig.append(libCanvas(key,null,s,80,104));
+    fig.append(libCanvas(key,null,s,tile.w,tile.h));
     const cap=document.createElement('figcaption'); cap.textContent=s; fig.append(cap);
     imgs.append(fig); });
   const facts=[
@@ -152,30 +379,62 @@ function showLibraryDetail(key){
     card.append(cvs);
   }
   const refs=buildPlantReferences(key); if (refs) card.append(refs);
+  /* A trailing exit, because after ~1100px of card the next action belongs
+     where the thumb already is rather than back at the top of the screen. The
+     header chevron stays for the platform convention; both call one function,
+     and between them the card's exit is reachable in either hand — which is
+     why this screen does not need the planner's left-handed mirror. */
+  if (sheet){
+    const cat=libCat?libraryCatById(libCat):null;
+    const back=document.createElement('button'); back.type='button'; back.className='back-link ld-back';
+    back.textContent=cat?`Back to ${cat.label}`:'Back to the list';
+    back.onclick=libraryBack;
+    card.append(back);
+  }
   d.append(card); d.scrollTop=0;
 }
+function libraryQueryInput(){
+  /* Debounced to match the tray's Find (120ms). SHEET builds a row per match,
+     so an undebounced first keystroke would build a canvas for most of the
+     catalog before the second character landed. */
+  clearTimeout(librarySearchTimer);
+  librarySearchTimer=setTimeout(applyLibrarySearch,120);
+}
 function applyLibrarySearch(){
-  const q=($('librarySearch').value||'').toLowerCase().trim();
+  const q=libraryQuery();
+  if (mobileSheetUi()) applyLibrarySearchSheet(q);
+  else applyLibrarySearchDock(q);
+}
+function applyLibrarySearchSheet(q){
+  if (q){
+    const n=buildLibraryResults(q);
+    libraryEmptyState(!n,q);
+    if (libView!=='detail') setLibView('list');
+    const list=$('libraryList'); if (list) list.scrollTop=0;
+    return;
+  }
+  libraryEmptyState(false,'');
+  if (libCat){ buildLibraryList(libCat); setLibView('list'); }
+  else {
+    libListMode='none'; libListCat=null;
+    const list=$('libraryList'); if (list) list.innerHTML='';
+    setLibView('cats');
+  }
+}
+function applyLibrarySearchDock(q){
   let total=0;
   document.querySelectorAll('.lib-section').forEach(section=>{
     let any=false;
     section.querySelectorAll('.lib-item').forEach(b=>{
-      const show=!q || b.dataset.hay.includes(q);
+      const show=libraryMatches(b.dataset.k,q);
       b.style.display=show?'':'none';
       if (show){ any=true; total++; }
     });
     const head=section.querySelector('.lib-cat');
     section.style.display=any?'':'none';
     section.classList.toggle('search-open', !!q && any);
-    if (head) head.setAttribute('aria-expanded', (!libCollapsed[section.dataset.catId] || (!!q && any))?'true':'false');
+    if (head && head.tagName==='BUTTON')
+      head.setAttribute('aria-expanded', (!libCollapsed[section.dataset.catId] || (!!q && any))?'true':'false');
   });
-  let empty=document.querySelector('.library-empty');
-  if (!total){
-    if (!empty){
-      empty=document.createElement('div');
-      empty.className='library-empty';
-      $('libraryList').appendChild(empty);
-    }
-    empty.textContent=q ? 'No plants match that search.' : 'No plants in the library yet.';
-  } else if (empty) empty.remove();
+  libraryEmptyState(!total,q);
 }

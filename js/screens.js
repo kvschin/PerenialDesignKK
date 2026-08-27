@@ -127,7 +127,15 @@ $('btnLibrary').onclick=openLibrary;
 // btnGardens is gone: it ran this same handler, so each label was wrong in one
 // of the two states the shared screen has.
 $('btnLibraryClose').onclick=()=>show('menuScreen');
-$('librarySearch').oninput=applyLibrarySearch;
+$('librarySearch').oninput=libraryQueryInput;
+setUiIcon($('btnLibraryBack'),'chevron-right');
+$('btnLibraryBack').onclick=libraryBack;
+/* A rotation can cross the SHEET/DOCK tier with the library open, and the two
+   layouts want different bodies built — the split needs every section and a
+   filled detail pane, the phone needs a view state. syncLibraryTier no-ops
+   unless the tier actually changed. */
+addEventListener('resize', syncLibraryTier);
+addEventListener('orientationchange', syncLibraryTier);
 
 /* Worlds-list thumbnails: a tiny top-down map drawn straight from the save
    blob — always current (no stored screenshot to go stale), zero localStorage,

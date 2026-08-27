@@ -7455,3 +7455,187 @@ test('watchForAppUpdate survives a browser with no service worker at all', () =>
   watchForAppUpdate(undefined);
   assert(true, 'no throw with nothing to watch');
 });
+
+/* ---------- plant library: the phone layout ----------
+   Measured at 375x812 before this landed: a 135px two-row header (the h2, the
+   search field and the back-link stopped fitting one line), a 276px list and a
+   401px detail pane — 51% of the screen was navigation. The list held 371px of
+   COLLAPSED category headers inside 276px, so two categories sat below the fold
+   of a box whose whole job was to fit, and the detail pane held a 1086px card
+   whose four seasonal canvases wrapped 2x2 and pushed the plant's own name to
+   y=723. Separately, #libraryScreen{padding:0} wiped .screen's safe-area
+   padding, and it was the ONLY full-screen surface that did: every sibling
+   resolved 18px there (59px on a notched phone) and the library resolved 0.
+
+   The sandbox has no layout engine and no selector engine, so the geometry and
+   the 44px targets are browser work. What is pinned here is the source
+   conditions that regress silently and the pure state machine. */
+
+test('the library switches on the project SHEET tier, not its own breakpoint', () => {
+  const css = readRepoFile('styles.css');
+  const block = css.slice(css.indexOf('/* ---------- plant library ----------'),
+                          css.indexOf('/* ---------- worlds list ----------'));
+  assert(block.length > 500, 'found the plant library CSS block');
+  assert(block.includes('@media (max-width:767px), (max-width:1024px) and (orientation:portrait)'),
+    'the library uses the SHEET tier verbatim (SHEET_UI_MQ is the JS copy)');
+  /* Ask the DECLARATIONS, not the prose. The comments in this block name both
+     the old breakpoint and the old cap in order to explain why they went, so a
+     naive search finds them and reports the fix as un-applied. */
+  const lib = block.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert(!/@media\s*\(max-width:640px\)/.test(lib),
+    'the 640px breakpoint is gone: it handed portrait tablets the desktop split');
+  assert(!/34vh/.test(lib),
+    'the 34vh list cap is gone — eight collapsed headers are 371px inside 276px');
+  const head = lib.slice(lib.indexOf('.library-head{'), lib.indexOf('.library-head input'));
+  assert(/env\(safe-area-inset-top\)/.test(head),
+    'the header reserves the top inset itself, since #libraryScreen zeroes .screen padding');
+  assert(!/flex-wrap:wrap/.test(head),
+    'and no longer wraps to a second row');
+});
+
+test('the phone library walks detail -> list -> cats -> menu', () => {
+  setup();
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    innerWidth = 390; innerHeight = 844;
+    assertEqual(mobileSheetUi(), true, 'a phone is on the sheet tier');
+    libSel = null; libCat = 'shrubs'; libListMode = 'sections';
+    setLibView('detail');
+    libraryBack();
+    assertEqual(libView, 'list', 'detail goes back to the list it came from');
+    libraryBack();
+    assertEqual(libView, 'cats', 'the list goes back to the categories');
+    assertEqual(libCat, null, 'and forgets the category it was showing');
+    document.getElementById('libraryScreen').classList.remove('hidden');
+    libraryBack();
+    assert(document.getElementById('libraryScreen').classList.contains('hidden'),
+      'and the categories go back to the menu');
+  } finally { innerWidth = w0; innerHeight = h0; libCat = null; libListMode = 'none'; }
+});
+
+test('on the dock there is nowhere to go back to, so back closes the library', () => {
+  setup();
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    innerWidth = 1440; innerHeight = 900;
+    setLibView('detail');
+    document.getElementById('libraryScreen').classList.remove('hidden');
+    libraryBack();
+    assert(document.getElementById('libraryScreen').classList.contains('hidden'),
+      'the split-pane closes rather than hiding one of its own two panes');
+  } finally { innerWidth = w0; innerHeight = h0; setLibView('cats'); }
+});
+
+test('opening the library clears the query it was left with', () => {
+  setup();
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    innerWidth = 390; innerHeight = 844;
+    const search = document.getElementById('librarySearch');
+    /* openLibrary called applyLibrarySearch() without clearing the field, so a
+       query survived a menu round-trip: type "oak", go to Menu, reopen the
+       Library, and you are looking at 7 of 473 plants with nothing on screen
+       saying why. Reproduced in a browser before this test was written. */
+    search.value = 'oak';
+    openLibrary();
+    assertEqual(search.value, '', 'a query does not survive a menu round-trip');
+    assertEqual(libView, 'cats', 'and the phone library opens on the categories');
+    assertEqual(search.placeholder, `Search ${libraryAllKeys().length} plants…`,
+      'the placeholder names the screen, derived — the h2 is sr-only on a phone');
+  } finally { innerWidth = w0; innerHeight = h0; }
+});
+
+test('both tiers share one library search predicate', () => {
+  const src = readRepoFile('js/library.js');
+  const dock = src.slice(src.indexOf('function applyLibrarySearchDock'));
+  const results = src.slice(src.indexOf('function buildLibraryResults'),
+                            src.indexOf('function libraryEmptyState'));
+  assert(/libraryMatches\(/.test(dock), 'the dock filter asks libraryMatches');
+  assert(/libraryMatches\(/.test(results), 'the phone result builder asks the same one');
+  assert(!/dataset\.hay\.includes/.test(src),
+    'and neither re-implements the match against the haystack');
+  /* They also have to search the same universe, or a species could surface in
+     the phone results and be unreachable by browsing. */
+  const browsable = PLANT_KEYS.filter(k => PLANTS[k] && !PLANTS[k].hidden && libraryCatFor(k));
+  assertEqual(libraryAllKeys().length, browsable.length,
+    'the searchable set is exactly the browsable set');
+});
+
+test('the category cards count what their category actually holds', () => {
+  setup();
+  const wrap = document.getElementById('libraryCats');
+  wrap.children.length = 0;
+  buildLibraryCats();
+  assertEqual(wrap.children.length, LIB_CATS.length, 'one card per category');
+  LIB_CATS.forEach((cat, i) => {
+    assertEqual(String(wrap.children[i].children[1].textContent),
+      String(libraryCatKeys(cat).length),
+      `the ${cat.label} card counts its own keys rather than a typed number`);
+  });
+});
+
+test('the dock accordion is untouched by the phone views', () => {
+  setup();
+  const list = document.getElementById('libraryList');
+  list.children.length = 0;
+  buildLibraryList(null);
+  assertEqual(list.children.length, LIB_CATS.length, 'all eight sections, as before');
+  assertEqual(list.children[0].children[0].tagName, 'BUTTON',
+    'and each is still headed by its collapse control');
+  const solo = LIB_CATS[6].id;
+  list.children.length = 0;
+  buildLibraryList(solo);
+  assertEqual(list.children.length, 1, 'a category builds only itself');
+  assertEqual(list.children[0].children[0].tagName, 'H3',
+    'under a heading, not a collapse control — nothing is left to collapse it against');
+  libCollapsed[solo] = true; saveLibraryCollapsed();
+  assertEqual(loadLibraryCollapsed()[solo], true, 'libCollapsed still persists under its own key');
+  delete libCollapsed[solo]; saveLibraryCollapsed();
+});
+
+test('the phone fits four seasons in one row; the dock keeps the authored size', () => {
+  const w0 = innerWidth, h0 = innerHeight;
+  try {
+    innerWidth = 390; innerHeight = 844;
+    const tile = librarySeasonTile({ clientWidth: 390 });
+    const column = Math.min(560, 390 - 32);
+    assert(tile.w * 4 + 24 + 16 <= column,
+      'four tiles, three 8px gaps and the plate padding fit the column');
+    assert(tile.w >= 56, 'and never shrink below legibility');
+    assertEqual(tile.h, Math.round(tile.w * 104 / 80), 'the authored aspect is preserved');
+    innerWidth = 1440; innerHeight = 900;
+    const dock = librarySeasonTile({ clientWidth: 700 });
+    assertEqual(dock.w, 80, 'the dock keeps the authored 80 wide');
+    assertEqual(dock.h, 104, 'and 104 tall');
+    assertEqual(librarySeasonTile(null).w, 80, 'and nothing measurable falls back to it');
+  } finally { innerWidth = w0; innerHeight = h0; }
+});
+
+test('Escape reaches the library, above the hidden-HUD guard', () => {
+  const src = readRepoFile('js/input.js');
+  const lib = src.indexOf("getElementById('libraryScreen')");
+  const guard = src.indexOf("getElementById('hud').classList.contains('hidden')");
+  assert(lib > -1, 'the keyboard handler knows about the library');
+  assert(guard > -1, 'the hidden-HUD guard is still there');
+  assert(lib < guard,
+    'the library opens from the MENU, where the HUD is hidden — below that guard Escape never runs');
+});
+
+test('the phone library chrome exists and is wired', () => {
+  const html = readRepoFile('index.html');
+  assert(/id="btnLibraryBack"/.test(html), 'the header back control exists');
+  assert(/id="libraryCats"/.test(html), 'the category grid container exists');
+  assert(/id="libraryHeadTitle"/.test(html), 'the detail view has a header title to fill');
+  const screens = readRepoFile('js/screens.js');
+  assert(/btnLibraryBack'\)\.onclick\s*=\s*libraryBack/.test(screens), 'back is wired');
+  assert(/librarySearch'\)\.oninput\s*=\s*libraryQueryInput/.test(screens),
+    'the search is debounced — the phone builds a row per match');
+  assert(/syncLibraryTier/.test(screens),
+    'a rotation across the tier rebuilds the body for the layout now on screen');
+  /* Touch sizing follows the POINTER, not the width (CLAUDE.md): a new control
+     that misses this block comes out ~34px beside 44px neighbours. */
+  const css = readRepoFile('styles.css');
+  const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
+  assert(/\.lib-catcard\{min-height/.test(coarse), 'the category cards are touch-sized');
+  assert(/\.library-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
+});
