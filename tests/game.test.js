@@ -1664,6 +1664,58 @@ test('desktop catalog moves directly between expanded and compact states', () =>
   assertEqual(game.sheetState, 'full', 'legacy desktop half state normalizes to expanded');
 });
 
+test('the Plants/Landscape switch is the same box in either catalog', () => {
+  /* It is the control your finger is still on when the catalog changes under
+     it, so its box must not depend on which catalog is open. Two rules made it
+     depend on exactly that, and they compounded:
+
+     (1) `.catalog-mode` grew to fill its row (`flex:1 1 auto`) everywhere
+         EXCEPT `.landscape-controls`, which overrode it to content width. Since
+         its row partner differs by catalog — the source picker under Plants,
+         the search under Landscape — the switch measured 249px vs 147px at
+         375px full, 359 vs 147 at half, and the "Plants" segment went 121px to
+         56px. Content-sized in both, it is 174px with 83px halves everywhere.
+     (2) `#trayTabs.has-discovery` re-declared the tray padding, and being
+         id+class it out-specified the later SHEET `#trayTabs` block — so the
+         padding itself changed with the catalog (8px sides / 5+6 ends under
+         Plants, 12px / 8+10 under Landscape) and the switch shifted 4px across
+         and 3px down on top of resizing.
+
+     The sandbox has no layout engine, so pin the source conditions. */
+  const css = readRepoFile('styles.css');
+
+  /* Nothing may make the switch flexible again. `flex:0 0 auto` is the whole
+     point: a content-sized box cannot be moved by its partner. */
+  const modeRules = [...css.matchAll(/^[^\n{}]*\.catalog-mode(?![-\w])[^\n{}]*\{([^}]*)\}/gm)]
+    .map(m => ({ sel: m[0].slice(0, m[0].indexOf('{')).trim(), body: m[1] }));
+  assert(modeRules.length >= 3, `expected the .catalog-mode rules, found ${modeRules.length}`);
+  for (const r of modeRules){
+    const flex = (r.body.match(/(?:^|;)\s*flex\s*:\s*([^;]+)/) || [])[1];
+    if (flex !== undefined)
+      assertEqual(flex.trim(), '0 0 auto',
+        `.catalog-mode must stay content-sized, but "${r.sel}" sets flex:${flex.trim()}`);
+  }
+
+  /* One rule for both catalogs. A `.landscape-controls .catalog-mode` override
+     is how the two came to disagree in the first place. */
+  assert(!/\.(landscape|discovery)-controls\s+\.catalog-mode(?![-\w])\s*\{/.test(css),
+    'the switch must not be sized per catalog — one .catalog-mode rule serves both');
+
+  /* Equal segments, so the label under the finger does not resize either.
+     grid-auto-columns rather than repeat(2,1fr): TRAY_GROUPS decides how many
+     there are. */
+  assert(/\.catalog-mode\{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr/.test(css),
+    'the switch lays its segments out as equal auto columns');
+  assertEqual(TRAY_GROUPS.length, 2, 'the switch has two groups (the CSS handles any number)');
+
+  /* And the tray around it must not re-pad itself per catalog. */
+  const hasDiscovery = [...css.matchAll(/#trayTabs\.has-discovery\{([^}]*)\}/g)].map(m => m[1]);
+  assert(hasDiscovery.length, 'found the #trayTabs.has-discovery rules');
+  for (const body of hasDiscovery)
+    assert(!/(?:^|;)\s*padding\s*:/.test(body),
+      `#trayTabs.has-discovery must not set padding (found "${body}") — it out-specifies the tier rule`);
+});
+
 test('mobile canvas recovery avoids visible editing chrome', () => {
   const oldVW=VW, oldVH=VH, oldQuery=document.querySelector, oldGet=document.getElementById;
   const top=document.createElement('div'), tools=document.createElement('div'), sheet=document.createElement('div');

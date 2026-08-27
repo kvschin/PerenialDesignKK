@@ -988,7 +988,7 @@ canvas.layer-eye{display:block}
 #trayTabs .tab:active{transform:translateY(1px)}
 #trayTabs .tab:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 #trayTabs .tab.sel{background:var(--surface-active);color:var(--text-primary)}
-.catalog-mode{display:inline-flex;align-items:stretch;min-height:34px;border:1px solid var(--border-control);border-radius:var(--radius-control);overflow:hidden;flex:0 0 auto}.catalog-mode button{border:0;background:transparent;color:var(--text-secondary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;padding:0 10px}.catalog-mode button+button{border-left:1px solid var(--border-quiet)}.catalog-mode button.sel{background:var(--surface-active);color:var(--text-primary)}.catalog-mode button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
+.catalog-mode{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:stretch;min-height:34px;border:1px solid var(--border-control);border-radius:var(--radius-control);overflow:hidden;flex:0 0 auto}.catalog-mode button{border:0;background:transparent;color:var(--text-secondary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;padding:0 10px}.catalog-mode button+button{border-left:1px solid var(--border-quiet)}.catalog-mode button.sel{background:var(--surface-active);color:var(--text-primary)}.catalog-mode button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:148px;min-height:34px;margin:0 0 1px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}.cat-current span{overflow:hidden;text-overflow:ellipsis}.cat-current i{font-style:normal;color:var(--bronze);display:flex}.cat-current i .ui-icon{width:14px;height:14px}
 .cat-pop{position:absolute;left:8px;top:calc(100% + 6px);z-index:42;display:flex;gap:10px;max-width:min(96vw,660px);padding:9px;background:var(--surface-dialog);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay);animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}.cat-pop-group{min-width:260px}.cat-pop-group>p{margin:0 0 5px;color:var(--bronze);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.cat-pop-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.cat-pop button{min-height:34px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 11px/1.1 'IBM Plex Sans',system-ui,sans-serif;padding:6px 8px}.cat-pop button:hover{background:var(--surface-control-hover);color:var(--text-primary)}.cat-pop button.sel{background:var(--surface-active);border-color:var(--border-active);color:var(--text-primary)}
 #toolTray{pointer-events:auto;display:flex;gap:var(--space-2);background:var(--surface-workspace);border:1.5px solid var(--border-subtle);
@@ -1452,13 +1452,21 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   /* The dock keeps its mode switch, find field, and one category chooser in
      one connected stack; it never spills separate Plants/Build tab rows. */
   #trayTabs{flex-wrap:wrap;row-gap:4px;gap:4px;min-height:48px;flex:0 0 auto;align-items:center;overflow:visible;padding:5px 8px 6px}
-  #trayTabs.has-discovery{align-items:center;gap:4px;padding:5px 8px 6px;overflow:visible}
+  /* No padding here. It duplicated the rule above, so its only live effect was
+     to out-specify the later SHEET `#trayTabs` block — which meant the tray
+     padding changed with the CATALOG: 8px sides and 5/6 ends under Plants,
+     12px and 8/10 under Landscape. Toggling therefore shifted the mode switch
+     4px across and 3px down as well as resizing it. */
+  #trayTabs.has-discovery{align-items:center;gap:4px;overflow:visible}
   .discovery-controls{order:-2;flex-wrap:wrap;gap:5px;padding:0;min-height:44px}
   .landscape-controls{order:-2;gap:5px;padding:0;min-height:44px}
-  /* flex:1 0 100% dates from when each control owned a full row. Inside a
-     .catalog-control-row pair it would claim the whole row and shove its
-     partner off the edge, so the pair members share instead. */
-  .catalog-mode{flex:1 1 auto;width:auto;min-height:44px}.catalog-mode button{min-height:44px;padding:0 9px}
+  /* The switch NAVIGATES between the two catalogs, so its box must not depend
+     on which one is open — it is the control your finger is still on. Growing
+     to fill the row made it exactly that: measured at 375px it was 249px in
+     Plants against 147px in Landscape at full, and 359 against 147 at half,
+     with the "Plants" segment going 121px -> 56px. Content-sized, it is 174px
+     with 83px halves in all four, and its partner takes the remainder. */
+  .catalog-mode{flex:0 0 auto;width:auto;min-height:44px}.catalog-mode button{min-height:44px;padding:0 9px}
   .discovery-source-wrap{flex:1 1 0;min-width:0;max-width:none}.discovery-source{width:100%;min-width:0;max-width:none;min-height:44px;padding:0 10px}
   .discovery-source-menu{min-width:min(250px,calc(100vw - 26px));max-width:calc(100vw - 26px)}
   .discovery-filter-summary{max-width:120px;min-height:44px;padding:0 8px}
@@ -1729,10 +1737,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .catalog-close:hover{background:var(--surface-control-hover);color:var(--color-text)}.catalog-close:active{transform:scale(.96)}
 #trayTabs{background:var(--color-bg);border-color:var(--color-divider);font-family:var(--font-body)}
 #toolTray{background:var(--color-bg);border-color:var(--color-divider);font-family:var(--font-body);scrollbar-color:var(--color-neutral-400) transparent;scrollbar-width:thin}
-/* Shares a .catalog-control-row with the source picker now, so it sizes to its
-   share of the row rather than claiming the full width. */
-.catalog-mode{flex:1 1 auto;width:auto;min-height:44px;padding:4px;border:0;border-radius:var(--radius-pill);background:var(--color-surface)}
-.catalog-mode button{flex:1;border:0!important;border-radius:var(--radius-pill);color:var(--text-secondary);font:700 13px/1 var(--font-body);transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard),box-shadow var(--motion-control)}
+/* Shares a .catalog-control-row with the source picker (Plants) or the search
+   (Landscape), and sizes to its own labels rather than to whichever partner is
+   there — see the SHEET note. */
+.catalog-mode{flex:0 0 auto;width:auto;min-height:44px;padding:4px;border:0;border-radius:var(--radius-pill);background:var(--color-surface)}
+.catalog-mode button{border:0!important;border-radius:var(--radius-pill);color:var(--text-secondary);font:700 13px/1 var(--font-body);transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard),box-shadow var(--motion-control)}
 .catalog-mode button.sel{background:var(--color-neutral-100);color:var(--color-text);box-shadow:0 2px 7px rgba(0,0,0,.22)}
 .catalog-mode button:active{transform:scale(.98)}
 .discovery-source,.discovery-filter-trigger,.discovery-filter-summary,.cat-current{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
@@ -1867,7 +1876,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .catalog-control-row{order:1;flex:0 0 auto}
   .catalog-control-row+.catalog-control-row{order:2}
   .catalog-category-nav{order:3;flex:0 0 auto}
-  .catalog-mode{flex:1 1 auto;width:auto;min-height:40px}
+  .catalog-mode{flex:0 0 auto;width:auto;min-height:40px}
   .discovery-source-wrap{flex:1 1 auto;max-width:none}
   .discovery-source{width:100%;max-width:none;min-height:40px}
   #trayFind{flex:1 1 auto;min-height:40px;width:auto}
@@ -1968,17 +1977,16 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      shaped way to do the same thing sat one row below them. */
   .catalog-close{display:none}
   #trayTabs,#toolTray{background:var(--color-bg);border-color:var(--color-divider)}
-  #trayTabs{padding:8px 12px 10px;border:0;border-bottom:1px solid var(--color-divider)}.discovery-controls{gap:6px}.catalog-mode{min-height:44px}
+  /* Padding is set once for this tier further up; declaring it again here only
+     reached the catalog WITHOUT .has-discovery. */
+  #trayTabs{border:0;border-bottom:1px solid var(--color-divider)}.discovery-controls{gap:6px}.catalog-mode{min-height:44px}
   /* `flex:1 0 100%` dates from when the search owned a full row of its own.
      Paired with the mode switch inside a .catalog-control-row it claimed the
      whole row and crushed its partner to 8px, so the sheet's Landscape view had
-     no usable way back to the plant library — the same trap the .catalog-mode
-     comment above describes. The switch sizes to its two labels (never
-     truncating them, down to 320px) and the search takes what is left. */
-  .landscape-controls .catalog-mode{flex:0 0 auto;width:auto}
-  /* basis auto, not the shared `flex:1`: a content-sized switch measured at the
-     zero basis gives both labels the same 70px and "Landscape" spills 4px. */
-  .landscape-controls .catalog-mode button{flex:1 1 auto}
+     no usable way back to the plant library. The switch is content-sized for
+     both catalogs now (see .catalog-mode above — the override that used to live
+     here is why the two disagreed), and the search takes what is left: 174px
+     and 122px at 320px, neither label truncating. */
   .landscape-controls .catalog-search{width:auto;min-height:44px;flex:1 1 auto}
   .cat-current{display:none}
   /* `order:4;flex:1 0 100%` dates from when the strip was a direct child of

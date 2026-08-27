@@ -2377,10 +2377,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sheet: its `.catalog-control-row` pairs the switch with the landscape search,
     and the search's old `flex:1 0 100%` (from when it owned a full row) claimed
     the whole row and crushed the switch to 8px — i.e. the sheet's Landscape view
-    had no way back to the plant library. The switch is content-sized
-    (`flex:0 0 auto`, buttons at basis `auto` so "Landscape" isn't measured at the
-    shared zero basis and clipped) and the search takes the remainder; both fit at
-    320px. Collapsed leaves
+    had no way back to the plant library.
+    **The switch is content-sized (`flex:0 0 auto`) in BOTH catalogs, and that is
+    load-bearing rather than incidental: it is the control your finger is still
+    on when the catalog changes under it, so its box must not depend on which
+    catalog is open.** It used to — `.catalog-mode` grew to fill its row
+    everywhere except `.landscape-controls`, and since the row partner differs by
+    catalog (source picker vs search) the switch measured **249px in Plants
+    against 147px in Landscape** at 375px full, **359 against 147** at half, with
+    the *Plants* segment going 121px to 56px. A second rule compounded it:
+    `#trayTabs.has-discovery` re-declared the tray padding, and being id+class it
+    out-specified the later SHEET `#trayTabs` block, so the padding ALSO changed
+    with the catalog (8px sides / 5+6 ends under Plants, 12px / 8+10 under
+    Landscape) and the switch shifted 4px across and 3px down as well as
+    resizing. Both are gone: one `.catalog-mode` rule serves both catalogs, and
+    `has-discovery` no longer pads. Segments are equal because the control is an
+    `inline-grid` with `grid-auto-flow:column;grid-auto-columns:1fr` — equal
+    columns sized to the widest label, for any number of `TRAY_GROUPS`, where
+    `repeat(2,1fr)` would break silently on a third. Measured after: **174px with
+    83px halves** in all four sheet cases (Plants/Landscape × half/full) at 320,
+    359, 375 and 820px, and 178px with 85px halves everywhere on the dock, which
+    had a milder version of the same jump (170.2 vs 157.7). Neither label
+    truncates at 320px, where the partner still gets 122px.
+    Collapsed leaves
     only a compact context label + swatch of the armed plant
     (`drawSheetSwatch`); the brush bar returns in half/full. The mobile palette is full-bleed
     (edge-to-edge, 28px top corners, docked to `bottom:0` with
