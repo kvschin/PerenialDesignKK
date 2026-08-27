@@ -3719,19 +3719,34 @@ function nudgeCatalogHandle(dir){
   // Desktop/tablet have one unambiguous destination in each direction.
   setSheetState(dir<0?'collapsed':'full');
 }
-function sheetSafeTopPx(hb){
-  const p=document.createElement('i'); p.setAttribute('aria-hidden','true');
-  p.style.cssText='position:absolute;visibility:hidden;pointer-events:none;height:var(--sheet-safe-top);width:0';
-  hb.appendChild(p); const h=p.getBoundingClientRect().height||12; p.remove(); return h;
-}
+/* The height the sheet will REST at once the inline height is cleared — which
+   is the only legal FLIP target, because `finish()` below drops that inline
+   height the moment the transition ends. Answer it by MEASURING the CSS, never
+   by re-deriving it from viewport rulers: all three resting heights are
+   CSS-governed (`100dvh - --sheet-safe-top` at full, `min(55dvh,480px)` at
+   half, content at collapsed) and no ruler JS can read reproduces all three.
+
+   Full used to be `min(trueViewH(), visualViewport.height) - safe top`, and the
+   visualViewport arm is exactly what a soft keyboard moves. Measured at
+   375x812: the sheet rests at 751px, while that expression returned 451px for
+   as long as the keyboard was up — within 5px of the half state's 447px. And
+   renderCvRow calls applySheetState on EVERY buildToolTray, so the debounced
+   Find rebuild ran one per keystroke: the full sheet animated down to
+   half-height and then snapped back to full when the inline height was
+   dropped, once per letter typed. The clamp never bought the keyboard
+   clearance it looks like it is buying — it only ever held for the 200ms of
+   the transition. It also never agreed with the CSS on iOS Safari with the URL
+   bar expanded, where trueViewH() is the largest ruler (100lvh) and the CSS is
+   100dvh; measuring is right in that case too.
+
+   Runs under `.sheet-measuring`, which kills transitions, so the temporary
+   height cannot itself animate — the trick half and collapsed already relied
+   on. 'auto' for collapsed, which has no CSS height and must size to its
+   content; '' for the two that do, so their own rule wins. */
 function sheetTargetHeight(hb,state){
-  if (state==='full'){
-    const full=typeof trueViewH==='function'?trueViewH():innerHeight;
-    const visible=window.visualViewport&&window.visualViewport.height?window.visualViewport.height:full;
-    return Math.max(180,Math.min(full,visible)-sheetSafeTopPx(hb));
-  }
-  const old=hb.style.height; hb.style.height=state==='half'?'':'auto';
-  const h=Math.ceil(hb.getBoundingClientRect().height); hb.style.height=old; return h;
+  const old=hb.style.height; hb.style.height=state==='collapsed'?'auto':'';
+  const h=Math.ceil(hb.getBoundingClientRect().height); hb.style.height=old;
+  return Math.max(48,h);   // floor: a sheet that is not laid out must not animate to nothing
 }
 /* The FLIP for the closing library: with transform-origin at 0 0, map the
    panel's rect exactly onto the launcher's. Pure, because "does the ghost

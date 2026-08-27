@@ -2393,6 +2393,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     full resting heights are CSS-governed;
     this makes all six directed collapsed/half/full transitions reversible,
     including rapid interruptions. Reduced motion skips the interpolation.
+    **Because that inline height is cleared the moment the transition ends,
+    `sheetTargetHeight` must return where the CSS will REST the sheet — so it
+    MEASURES (clear the inline height under `.sheet-measuring`, which kills
+    transitions, and read the rect) rather than re-deriving a number from
+    viewport rulers.** `full` used to be
+    `min(trueViewH(), visualViewport.height) - --sheet-safe-top`, and a soft
+    keyboard shrinks `visualViewport` while `100dvh` — what the CSS actually
+    uses — does not move: measured at 375x812 the sheet rests at **751px** while
+    that expression returned **451px**, within 5px of the half state's 447. And
+    `renderCvRow` calls `applySheetState` on EVERY `buildToolTray`, so the
+    debounced catalog Find rebuild ran one per keystroke — **typing in the
+    search collapsed the full sheet to half height and snapped it back, once
+    per letter** (0.8.41; both the plants Find and the landscape one). The clamp
+    never bought the keyboard clearance it looked like it was buying, since it
+    only ever held for the 200ms of the transition. It also disagreed with the
+    CSS on iOS Safari with the URL bar expanded, where `trueViewH()` is the
+    largest ruler (100lvh) and the CSS is 100dvh — so measuring is right in both
+    cases. Consequence to know: with the keyboard up the full sheet keeps its
+    751px and the keyboard overlays its lower third (the Find field sits at
+    y=243, well clear, and the results scroll internally). Making the sheet
+    genuinely sit above the keyboard is a separate job and has to be done in
+    CSS — a `--sheet-vv-h` the JS keeps in sync with `visualViewport` — or the
+    two sources of truth diverge again and the flicker comes back.
     Only the collapsed state clips its content
     (half/full must let the category popover escape above the sheet). In phone
     half/full states the handle spans and visually joins the full-width sheet;

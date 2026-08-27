@@ -1599,6 +1599,60 @@ test('mobile sheet supports collapsed, half, and full recovery states', () => {
   } finally { matchMedia=oldMatchMedia; }
 });
 
+test('the sheet animates to where the CSS will rest it, keyboard or not', () => {
+  /* applySheetState is a FLIP: it pins a concrete start height, transitions to
+     a target, and CLEARS the inline height when the transition ends. So the
+     target has to be where the CSS will REST the sheet — animate anywhere else
+     and the sheet snaps back the instant the inline height is dropped.
+
+     `full` used to be derived from viewport rulers instead:
+     min(trueViewH(), visualViewport.height) - safe top. A soft keyboard shrinks
+     visualViewport while 100dvh — what the CSS actually uses — does not move.
+     Measured at 375x812 the sheet rests at 751px and that expression returned
+     451px, within 5px of the half state's 447. And renderCvRow calls
+     applySheetState on EVERY buildToolTray, so the debounced Find rebuild ran
+     one per keystroke: typing in the catalog search collapsed the full sheet to
+     half height and snapped it back, once per letter. The same expression also
+     disagreed with the CSS on iOS Safari with the URL bar expanded, where
+     trueViewH() is the largest ruler (100lvh) and the CSS is 100dvh.
+
+     The sandbox has no layout engine, so the stub below IS the CSS: what is
+     under test is which number the function chooses, not the number itself. */
+  const REST = { collapsed: 48, half: 447, full: 751 }; // content / min(55dvh,480px) / 100dvh - --sheet-safe-top
+  const hb = document.createElement('div');
+  let state = 'full';
+  hb.getBoundingClientRect = () => {
+    const inline = hb.style.height;
+    const h = !inline ? REST[state] : inline === 'auto' ? REST.collapsed : parseFloat(inline);
+    return { left: 0, top: 0, right: 375, bottom: h, width: 375, height: h };
+  };
+  const oldVV = window.visualViewport;
+  try {
+    for (const kb of [812, 512]){                        // keyboard down, then up
+      window.visualViewport = { height: kb, width: 375, addEventListener(){}, removeEventListener(){} };
+      for (const s of ['collapsed', 'half', 'full']){
+        state = s;
+        assertEqual(sheetTargetHeight(hb, s), REST[s],
+          `${s} targets its CSS resting height with the visual viewport at ${kb}`);
+      }
+    }
+    /* It borrows the inline height to measure, so it has to hand it back — a
+       mid-transition call would otherwise drop the sheet to its resting height
+       on the spot. */
+    state = 'full'; hb.style.height = '123px';
+    sheetTargetHeight(hb, 'full');
+    assertEqual(hb.style.height, '123px', 'the measure restores the inline height it borrowed');
+  } finally { window.visualViewport = oldVV; hb.style.height = ''; }
+
+  /* The behavioural half of this rests on a stub, so pin the source condition
+     too: the resting height is MEASURED, never re-derived from a viewport
+     ruler. Reading either of these back is the whole regression. */
+  const src = sheetTargetHeight.toString();
+  assert(!/visualViewport/.test(src), 'sheetTargetHeight must not read visualViewport');
+  assert(!/trueViewH|innerHeight/.test(src), 'sheetTargetHeight must not re-derive the height from viewport rulers');
+  assert(/getBoundingClientRect/.test(src), 'sheetTargetHeight measures the sheet');
+});
+
 test('desktop catalog moves directly between expanded and compact states', () => {
   setup(21, 21);
   setSheetState('collapsed');
