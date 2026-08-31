@@ -499,6 +499,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    bloom-count changes do not make it jump, and entries without `fruitShape`
    preserve the older seed/fruit rendering path. `seedN:0` deliberately
    suppresses fruit for male pollinizers and fruitless selections.
+   **West Coast phases 1A/1B:** 22 species plus 'Howard McMinn' bring the
+   catalog to 495 base records / 377 nested choices. Botanical source reviews
+   and authoring decisions live in `docs/plant-data/phase1-implementation.md`.
+   This expansion does not change the zone picker, continental native model,
+   or seasonal growth rules (regional Phase 0 is deferred). Library and tray
+   search include botanical synonyms, as exact discovery already does.
+   New shared, opt-in drawing controls: `vertgrass` uses `foliageHeight` and
+   `plumeW`; mound `bunchgrass` uses `seedStems` with `seedStyle:'openPanicle'`
+   for fine grass panicles, or existing sedge seed styles. `bush` supports
+   bounded `pinnatePairs`/`pinnateLen`/`pinnateLeafW`, `exposedBranching` with
+   `twigW`/`leafStart`, `bloomStyle:'whorls'` with `whorls`/`whorlGap`/`whorlR`,
+   and matte `seedStyle:'dryCluster'`. `leafmound` supports `compoundLeaves`
+   with `leafletHW` and `floretStyle:'reflexed'`. Defaults preserve previous
+   seeded geometry; no species-key branches. `dev/west-coast-review.html`
+   provides both renderer modes, four-season previews, and sprite-edge checks.
+   Low Oregon grape and salal remain woody shrubs with mature reservations.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2049,7 +2065,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 473
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 495
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.

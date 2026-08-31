@@ -269,6 +269,94 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
   assert(rendered === Object.keys(PLANTS).length * 4, `rendered ${rendered}`);
 });
 
+const westCoastKeys=['phase1a-sources.json','phase1b-sources.json'].flatMap(file=>
+  JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
+
+test('West Coast plants are reachable by category, exact discovery, and botanical synonyms', () => {
+  setup();
+  const library=new Set(libraryAllKeys()),refs=new Set(allPlantRefs().map(r=>plantRefId(r)));
+  for(const key of westCoastKeys){
+    assert(library.has(key)&&libraryCatFor(key),`${key}: reachable library category`);
+    assert(refs.has(key+'|'),`${key}: exact discovery reference`);
+    for(const synonym of PLANTS[key].synonyms||[]){
+      const q=synonym.toLowerCase();
+      assert(libraryMatches(key,q),`${key}: library finds ${synonym}`);
+      assert(plantSearchHay(key).includes(q),`${key}: tray finds ${synonym}`);
+      assert(discoverySearchText(plantRef(key)).includes(q),`${key}: discovery finds ${synonym}`);
+    }
+  }
+  assert(refs.has('vinehillmanzanita|howardmcminn'),'named manzanita selection is separately discoverable');
+  assertEqual(libraryCatFor('sloughsedge').id,'sedges','wet sedge stays in the one Sedge category');
+});
+
+test('western woody groundcovers reserve mature shrub space and vine maple allows underplanting', () => {
+  for(const key of ['salal','loworegongrape','vinehillmanzanita']){
+    setup(31,31); game.tool=key;
+    assertEqual(applyToolAt(15,15),'plant',`${key}: places through normal tool dispatch`);
+    const tiles=shrubFootprintTiles(15,15,game.plants['15,15'],true);
+    const neighbor=tiles.find(([x,y])=>x!==15||y!==15);
+    assert(neighbor,`${key}: has mature ground reservation`);
+    game.tool='insideoutflower';
+    assertEqual(applyToolAt(...neighbor),null,`${key}: groundcover role does not bypass woody occupancy`);
+  }
+  setup(31,31); game.tool='vinemaple';
+  assertEqual(applyToolAt(15,15),'plant','vine maple places as a tree');
+  game.tool='westernswordfern';
+  assertEqual(applyToolAt(15,15),null,'trunk tile stays occupied');
+  assertEqual(applyToolAt(16,15),'plant','fern can be planted beneath open maple canopy');
+});
+
+test('new West Coast drawing options stay finite and deterministic in both renderers', () => {
+  function trace(key,season){
+    const ops=[],ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key} ${season}: finite ${p}`);
+          ops.push([p,...a]); };
+      },set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,season,101,0,null,1);return JSON.stringify(ops);
+  }
+  const before=ART2.on;
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of westCoastKeys)for(const season of SEASONS)
+      assertEqual(trace(key,season),trace(key,season),`${key} ${season}: stable seed`);
+    for(const key of ['roemersfescue','sloughsedge']){
+      const old=PLANTS[key].look.seedStems,withHeads=trace(key,'Summer');
+      try { PLANTS[key].look.seedStems=0;
+        assert(withHeads!==trace(key,'Summer'),`${key}: authored flowering stems are actually drawn`);
+      } finally { PLANTS[key].look.seedStems=old; }
+    }
+  } } finally { ART2.on=before; }
+});
+
+test('inside-out flowers preserve the green stroke on every flower scape', () => {
+  const colors=[],stack=[];let path=[];
+  const state={strokeStyle:'#000',lineWidth:1};
+  const ctx=new Proxy(state,{
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+      return (...a)=>{
+        if(p==='save')stack.push({strokeStyle:o.strokeStyle,lineWidth:o.lineWidth});
+        if(p==='restore')Object.assign(o,stack.pop());
+        if(p==='beginPath')path=[];
+        if(['moveTo','lineTo','quadraticCurveTo','bezierCurveTo','ellipse','arc'].includes(p))path.push([p,...a]);
+        if(p==='stroke'&&path.length===2&&path[0][0]==='moveTo'&&path[0][2]===0&&path[1][0]==='lineTo'&&path[1][2]<-20)
+          colors.push([o.strokeStyle,o.lineWidth]);
+      };
+    },set(o,p,v){o[p]=v;return true;}
+  });
+  drawPlant(ctx,0,0,'insideoutflower',1,'Spring',101,0,null,1);
+  assertEqual(colors.length,4,'all four main scapes were observed');
+  for(const [color,width] of colors){
+    assertEqual(color,shade(PLANTS.insideoutflower.sea.Spring.fol,-18),'florets do not recolor later stems');
+    assertEqual(width,1.1,'pedicels do not thin later stems');
+  }
+});
+
 test('a dormant bulb paints no detached shadow', () => {
   let ops=0;
   const ctx=new Proxy({}, {get(){ return ()=>{ ops++; }; },set(){ return true; }});

@@ -1,0 +1,258 @@
+{
+  "phase": "1B — Pacific Northwest",
+  "reviewedOn": "2026-08-30",
+  "scope": "Botanical review for the ten PNW roadmap species; proposed values for main-agent integration, not automatic catalog imports.",
+  "conventions": {
+    "units": "heightIn, spread, space and all dimension evidence use real inches, never renderer pixels.",
+    "heightIn": "Representative cultivated overall height, including flowering stems where applicable; not the largest wild specimen.",
+    "space": "Suggested on-center garden spacing. Unless explicitly attributed, a design estimate based on crown size, not a measured botanical trait.",
+    "grow": "Woody-only planning horizon in years to the stated design size; not root establishment time, lifespan, or a guarantee of maximum maturity.",
+    "zones": "Conservative USDA cultivation ranges. Hardiness alone does not establish heat, humidity, summer-water, local-native, or legal suitability.",
+    "bloomMonths": "Approximate regional flowering window; flowering varies with elevation and year. Update the canonical bloom-month table during integration. Ferns have no flowers.",
+    "persistence": "Biological information for authoring seasonal colors and descriptions; this artifact does not authorize changing seasonal infrastructure.",
+    "taxonomy": "Species-level records, no cultivar expansion. Empty synonyms means none recommended for catalog discovery, not an exhaustive taxonomic statement.",
+    "limits": "No Phase 0 climate, native-origin, legal-filter, or seasonal-engine changes. All ten species use nativeTo north-america and provenance species under the existing contract. Do not infer deer or rabbit ratings from this review."
+  },
+  "plants": [
+    {
+      "id": "PNW-01",
+      "suggestedKey": "westernswordfern",
+      "proposed": {
+        "name": "Western Sword Fern", "latin": "Polystichum munitum", "synonyms": [],
+        "type": "forb", "form": "fern", "heightIn": 48, "spread": 48, "space": 36,
+        "zones": [6, 9], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "Hardy Fern Foundation gives 36–60 in and a large height/spread category exceeding 36 in in five years. OSU describes 12–48 in fronds; frond length is not upright height. Proposed 48-in crown is representative.",
+        "foliageVsFlower": "All displayed height is fronds; sori/spores are not blooms. No flower calendar entry.",
+        "hardiness": "Direct horticultural range 6–9 from Hardy Fern Foundation. OSU gives a colder minimum of 4; conservative range avoids promising that all stock behaves identically.",
+        "persistence": "Evergreen perennial fern, dense crown with renewing spring fronds; no woody grow field.",
+        "spacingConfidence": "Moderate design estimate: 36-in spacing allows neighboring mature arching fronds to overlap."
+      },
+      "sources": [
+        {"url": "https://hardyferns.org/ferns/polystichum-munitum/", "supports": "USDA6–9, size, evergreen habit, shade and established drought tolerance"},
+        {"url": "https://landscapeplants.oregonstate.edu/plants/polystichum-munitum", "supports": "frond morphology, moist organic woodland culture, minimum hardiness"}
+      ],
+      "caveats": ["Dry-shade tolerance follows establishment; regular moisture gives fuller growth. Not a pond fern.", "Do not add Polystichum imbricans as a synonym merely because older treatments used a P. munitum variety."]
+    },
+    {
+      "id": "PNW-02",
+      "suggestedKey": "roemersfescue",
+      "proposed": {
+        "name": "Roemer's Fescue", "latin": "Festuca roemeri", "synonyms": ["Festuca idahoensis subsp. roemeri"],
+        "type": "grass", "form": "bunchgrass", "heightIn": 36, "spread": 18, "space": 18,
+        "zones": [6, 9], "sun": "full", "moist": "medium", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "USDA Willamette germplasm flowering stems average 28–45 in; basal crown width is only 4–7 in. UW species account gives overall 35–100 cm (about 14–39 in). Proposed spread is the foliage envelope, not the basal crown.",
+        "foliageVsFlower": "Fine basal leaves sit below upright airy flowering stems. A 12–18-in foliage mound is an authoring estimate, not a verified separate foliage-height range.",
+        "hardiness": "Yamhill SWCD lists USDA4–9; 6–9 is a deliberately cautious range for this maritime representation. Cold tolerance and growth form depend on seed source; no controlled hardiness trial was found.",
+        "persistence": "Long-lived cool-season perennial bunchgrass, without running rhizomes; Yamhill reports potential lifespan to 20 years. Flowering/seed stems turn straw-colored.",
+        "spacingConfidence": "Weak-to-moderate numerical evidence for garden envelope and on-center distance. USDA 12–14-in seed-production row spacing is not a garden spacing rule."
+      },
+      "sources": [
+        {"url": "https://nrcs.usda.gov/plantmaterials/orpmcrb11336.pdf", "supports": "flowering height, basal crown, seed timing, cool-season habit, locally adapted germplasm and drainage"},
+        {"url": "https://depts.washington.edu/propplnt/Plants/Festuca%20idahoensis%20subsp.htm", "supports": "legacy name, long-lived bunchgrass habit, overall height"},
+        {"url": "https://yamhillswcd.org/services/roemers-fescue/", "supports": "cultivation hardiness range, seasonal drought tolerance and lifespan"},
+        {"url": "https://burkeherbarium.org/imagecollection/plantquest/PlantQuest_King.html", "supports": "regional May–July flowering window"}
+      ],
+      "caveats": ["Do not merge with existing Festuca idahoensis: this is a distinct regional taxon.", "Use local seed sources for restoration. USDA describes moderately moist positions within summer-dry prairies; primary moist medium is intentional, despite established drought tolerance.", "Do not render the entire 36-in plant as a dense foliage ball or claim the 4–7-in basal crown is mature foliage spread."]
+    },
+    {
+      "id": "PNW-03",
+      "suggestedKey": "redfloweringcurrant",
+      "proposed": {
+        "name": "Red-flowering Currant", "latin": "Ribes sanguineum", "synonyms": [],
+        "type": "shrub", "form": "bush", "heightIn": 120, "spread": 120, "space": 120, "grow": 8,
+        "zones": [6, 8], "sun": "full", "moist": "medium", "phen": "cool", "bloomMonths": [3, 4, 5],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU gives 96–120-in height; NCSU gives 60–144 in tall and wide. Proposed 120 by 120 in represents a substantial untrimmed species shrub, not a compact cultivar.",
+        "foliageVsFlower": "Pendant flower racemes appear on woody branches in early spring around leaf emergence, not on a separate tall flowering stalk.",
+        "hardiness": "NCSU explicitly lists USDA6–8; OSU minimum6 agrees.",
+        "persistence": "Deciduous perennial woody shrub with arching multiple stems; blue-black fruit follows flowering.",
+        "growConfidence": "Moderate estimate of eight years within RHS 5–10-year maturity interval; site, starting size and pruning alter growth.",
+        "spacingConfidence": "Design estimate matching the selected untrimmed crown diameter."
+      },
+      "sources": [
+        {"url": "https://landscapeplants.oregonstate.edu/plants/ribes-sanguineum", "supports": "species size, habit, early flowers and minimum hardiness"},
+        {"url": "https://plants.ces.ncsu.edu/plants/ribes-sanguineum/", "supports": "crown size, USDA range, drainage, drought tolerance and humid Southeast limitations"},
+        {"url": "https://www.rhs.org.uk/plants/15885/ribes-sanguineum/details", "supports": "5–10-year cultivation maturity interval"},
+        {"url": "https://andrewsforest.oregonstate.edu/pubs/pdf/pub4949.pdf", "supports": "Oregon April–May flowering; proposed March includes earlier lowland garden flowering reported by OSU"},
+        {"url": "https://www.ncagr.gov/plant-industry-white-pine-blister-rust", "supports": "current North Carolina import/growing prohibition for genus Ribes"}
+      ],
+      "caveats": ["Must carry a visible note: Ribes cannot legally be imported into or grown in North Carolina; verify local restrictions before planting elsewhere.", "PNW-oriented species, poorly suited to hot humid Southeast despite any overlapping hardiness zone.", "Keep straight-species dimensions distinct from compact or named cultivars; do not casually alias Ribes glutinosum without a taxonomic-scope decision."]
+    },
+    {
+      "id": "PNW-04",
+      "suggestedKey": "salal",
+      "proposed": {
+        "name": "Salal", "latin": "Gaultheria shallon", "synonyms": [],
+        "type": "shrub", "form": "bush", "heightIn": 60, "spread": 60, "space": 60, "grow": 8,
+        "zones": [6, 9], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU: under 24 in on poor sunny sites but 48–120 in in shade and good soil, with similar width. A 60-in cultivated module is representative, not a limit to its eventual colony.",
+        "foliageVsFlower": "Evergreen leafy woody framework bears hanging small white/pink urn flowers; flowers do not materially increase total height.",
+        "hardiness": "OSU minimum6; NCSU USDA5–9. Proposed6–9 is the conservative overlap.",
+        "persistence": "Evergreen woody shrub spreading into thickets by underground stems and rooting branches; not an herbaceous matrix plant.",
+        "growConfidence": "Moderate estimate of eight years within RHS 5–10-year maturity range, distinct from continuing colony expansion.",
+        "spacingConfidence": "Design estimate matching the chosen woody crown; denser restoration planting and future thinning are separate specifications."
+      },
+      "sources": [
+        {"url": "https://landscapeplants.oregonstate.edu/plants/gaultheria-shallon", "supports": "strong size plasticity, spread, acidity, evergreen habit and USDA minimum"},
+        {"url": "https://plants.ces.ncsu.edu/plants/gaultheria-shallon/", "supports": "USDA range, woodland culture, evergreen thickets and eastern climate caution"},
+        {"url": "https://www.rhs.org.uk/plants/7686/gaultheria-shallon/details", "supports": "5–10-year maturity estimate"},
+        {"url": "https://andrewsforest.oregonstate.edu/pubs/pdf/pub4949.pdf", "supports": "May–July flowers and spring growth timing"}
+      ],
+      "caveats": ["Acid woodland soils preferred; established plants tolerate dry shade, but young transplants need establishment water.", "Colonies can grow beyond a single modeled crown. Keep shrub hard reservations under the current app policy.", "Maritime western species; matching a USDA zone does not promise successful growth in the humid East."]
+    },
+    {
+      "id": "PNW-05",
+      "suggestedKey": "oregoniris",
+      "proposed": {
+        "name": "Oregon Iris", "latin": "Iris tenax", "synonyms": ["Limniris tenax"],
+        "type": "forb", "form": "iris", "heightIn": 16, "spread": 24, "space": 18,
+        "zones": [6, 9], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [4, 5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU ecology account: clumps about 12–16 in across, leaves to 16 in, flowering stems to 14 in. A local seed-growing nursery reports older clumps to 30 in across; proposed24-in garden spread allows expansion.",
+        "foliageVsFlower": "Leaves can be longer than the flowering stems. Narrow fans and visible purple iris flowers, not a tall flower spike over tiny foliage.",
+        "hardiness": "Yamhill SWCD directly lists USDA6–9. More extreme nursery or UK ratings are not used.",
+        "persistence": "Rhizomatous herbaceous perennial; local Oregon seed-grown material is winter deciduous and can lose foliage in severe summer drought. Some horticultural references label it evergreen, so persistence is climate-dependent.",
+        "spacingConfidence": "Moderate garden estimate; 18 in is wider than the smaller wild clumps but permits older garden clumps to overlap."
+      },
+      "sources": [
+        {"url": "https://andrewsforest.oregonstate.edu/pubs/pdf/pub4949.pdf", "supports": "separate leaf/stem dimensions, clump size, April–June flowering and rhizomatous persistence"},
+        {"url": "https://yamhillswcd.org/services/oregon-iris/", "supports": "USDA6–9, perennial habit, drainage and established drought tolerance"},
+        {"url": "https://xeraplants.com/plants/iris-tenax/", "supports": "first-hand local nursery observations of older clump width and deciduous seed-grown material; supplemental cultivation evidence"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:439169-1", "supports": "accepted species and Limniris tenax synonym"}
+      ],
+      "caveats": ["Use the forb layer, not spring-ephemeral bulb behavior; the plant remains as a rhizomatous clump after flowering.", "Summer-dry, well-drained soil is important; not interchangeable with wetland yellow flag or Louisiana irises.", "Avoid winter-evergreen guarantees and frequent division advice; local growers report sensitivity to root disturbance."]
+    },
+    {
+      "id": "PNW-06",
+      "suggestedKey": "oregonsunshine",
+      "proposed": {
+        "name": "Oregon Sunshine", "latin": "Eriophyllum lanatum", "synonyms": [],
+        "type": "forb", "form": "cone", "heightIn": 24, "spread": 24, "space": 24,
+        "zones": [6, 9], "sun": "full", "moist": "dry", "phen": "mid", "bloomMonths": [5, 6, 7, 8],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU describes variable low cushions through plants about24 in high; Ask Extension gives cultivated spread20–24 in. The24-in proposed height represents a taller local form, not every geographic variety.",
+        "foliageVsFlower": "Low green/gray woolly foliage under branching yellow daisies; exact foliage-only height was not established. Avoid an Echinacea-like raised cone even if reusing a daisy renderer.",
+        "hardiness": "OSU Garden Ecology Lab gives species-level USDA5–10; proposed6–9 is conservative. Variety-specific hardiness and dimensions were not verified.",
+        "persistence": "Herbaceous perennial with a persistent crown and sometimes woody base; longevity and leaf retention vary with site. Do not promise a fixed lifespan or year-round foliage.",
+        "spacingConfidence": "Moderate design estimate matching cultivated spread; OSU/NRCS hedgerow guidance uses a wider36-in spacing for larger planting systems."
+      },
+      "sources": [
+        {"url": "https://extension.oregonstate.edu/catalog/em-9485-profile-oregon-sunshine-eriophyllum-lanatum", "supports": "variable height, habitat, late spring–early summer native flowering"},
+        {"url": "https://ask.extension.org/kb/faq.php?id=836037", "supports": "garden spread, variable longevity and overwatering warning"},
+        {"url": "https://blogs.oregonstate.edu/gardenecologylab/2021/11/29/top-10-oregon-native-plants-for-pollinators-week-2/", "supports": "species USDA5–10 and longer June–September garden flowering; indexed source text also available on /page/5/"},
+        {"url": "https://burkeherbarium.org/imagecollection/taxon.php?Taxon=Eriophyllum+lanatum+var.+leucophyllum", "supports": "current west-of-Cascades variety and May–August regional flowering"},
+        {"url": "https://agsci.oregonstate.edu/sites/agscid7/files/ippc/hedgerow_plants_western_orwa.pdf", "supports": "36-in hedgerow spacing as a context-specific alternative"}
+      ],
+      "caveats": ["Retain the roadmap's species-level taxon. Choose local stock: current UW Burke places var. leucophyllum west of the Cascades; var. lanatum is chiefly inland, unlike older broad usage.", "Size and bloom are representative species estimates, not a verified exact-variety specification. May–August is a regional window, not a guarantee of four continuous months per plant.", "Full sun and drainage; overwatering can shorten persistence. Renderer should show low foliage with flat yellow daisies."]
+    },
+    {
+      "id": "PNW-07",
+      "suggestedKey": "loworegongrape",
+      "proposed": {
+        "name": "Low Oregon Grape", "latin": "Mahonia nervosa", "synonyms": ["Berberis nervosa"],
+        "type": "shrub", "form": "bush", "heightIn": 24, "spread": 48, "space": 48, "grow": 10,
+        "zones": [6, 9], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [4, 5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "Great Plant Picks provides an explicit ten-year size of24 by48 in and an eventual mature size of36 by72 in. Proposed fields intentionally use its ten-year design horizon; do not present48 in as an absolute colony limit.",
+        "foliageVsFlower": "Long compound evergreen leaves and upright yellow racemes; OSU gives April–June flowers. Flowers sit over the low woody framework rather than forming a tall separate perennial stem.",
+        "hardiness": "Great Plant Picks USDA6–9; OSU gives minimum5. Proposed range is the directly documented conservative range.",
+        "persistence": "Evergreen woody, slowly stoloniferous shrub; can bronze/purple in winter and sun.",
+        "growConfidence": "High for matching an explicitly cited ten-year reference size; not a claim that the colony stops at ten years.",
+        "spacingConfidence": "Design estimate matching ten-year width; retain room for later colony expansion."
+      },
+      "sources": [
+        {"url": "https://www.greatplantpicks.org/plantlists/view/980", "supports": "ten-year and ultimate dimensions, USDA6–9, evergreen habit, cultivation and established drought tolerance"},
+        {"url": "https://landscapeplants.oregonstate.edu/plants/mahonia-nervosa", "supports": "Berberis synonym, compound foliage, slow stolons, April–June flowers"}
+      ],
+      "caveats": ["This is a woody groundcover, so shrub reservation rules apply. Do not silently give it herbaceous interplanting behavior.", "Allow the blurb to describe continuing colony spread. If catalog policy requires ultimate rather than ten-year size, use heightIn36/spread72 and a separately estimated longer horizon instead.", "Mahonia nervosa is retained to match the roadmap and regional horticultural sources; keep Berberis nervosa searchable. Never merge with tall Oregon grape or nonnative leatherleaf mahonia."]
+    },
+    {
+      "id": "PNW-08",
+      "suggestedKey": "sloughsedge",
+      "proposed": {
+        "name": "Slough Sedge", "latin": "Carex obnupta", "synonyms": ["Carex magnifica"],
+        "type": "sedge", "form": "bunchgrass", "heightIn": 48, "spread": 36, "space": 24,
+        "zones": [6, 9], "sun": "full", "moist": "moist", "phen": "cool", "bloomMonths": [4, 5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "WNPS gives overall height12–59 in; Tacoma's published plant list gives24–60 in tall and broad. Proposed48-in height and36-in planting module are representative; a colony can expand indefinitely.",
+        "foliageVsFlower": "Tall persistent straplike leaves with slender separate staminate/pistillate sedge spikes. No source quantified a separate foliage-height range.",
+        "hardiness": "Tacoma's Filterra plant list explicitly specifies USDA6–9; WNPS does not provide hardiness numbers.",
+        "persistence": "Evergreen perennial graminoid with long creeping rhizomes; vigorous colony, not a tidy isolated ornamental-grass clump.",
+        "spacingConfidence": "Design estimate for establishment of a wet matrix, intentionally smaller than mature module width; not a verified manufacturer or restoration specification."
+      },
+      "sources": [
+        {"url": "https://www.wnps.org/native-plant-directory/78:carex-obnupta", "supports": "height, evergreen rhizomes, April–July flowers, synonym, moisture and brackish tolerance"},
+        {"url": "https://www.cityoftacoma.org/UserFiles/Servers/Server_6/File/cms/Surfacewater/SSP_SWPPP%20Templates%202021/Filterra%20Plant%20List_2021.pdf", "supports": "published cultivation range6–9 and mature planting dimensions"}
+      ],
+      "caveats": ["Use moist under the existing schema so it remains in the rain-garden/wet-site sedge group.", "Requires adequate moisture even in shade; reserve broad areas where rhizome spread is welcome. The static spread field cannot simulate its eventual colony.", "Do not advertise as a dry lawn substitute or a low nonspreading edge."]
+    },
+    {
+      "id": "PNW-09",
+      "suggestedKey": "insideoutflower",
+      "proposed": {
+        "name": "Inside-out Flower", "latin": "Vancouveria hexandra", "synonyms": [],
+        "type": "forb", "form": "shrub", "heightIn": 18, "spread": 24, "space": 18,
+        "zones": [6, 9], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU overall10–20 in tall; Great Plant Picks provides18 by24 in as its ten-year reference size. Proposed24-in spread describes a patch, not a fixed limit to rhizome growth.",
+        "foliageVsFlower": "Leafy groundcover below wiry upright panicles of small white strongly reflexed flowers. OSU gives leaf lengths8–25 cm, not a separate foliage-height range.",
+        "hardiness": "Great Plant Picks USDA5–9; OSU minimum6. Proposed6–9 is conservative overlap.",
+        "persistence": "Herbaceous rhizomatous perennial; deciduous to nearly evergreen in mild sites, yellowing by fall/winter. Not woody despite proposed renderer form shrub.",
+        "spacingConfidence": "Design estimate allowing gentle overlap of24-in groundcover modules."
+      },
+      "sources": [
+        {"url": "https://landscapeplants.oregonstate.edu/plants/vancouveria-hexandra", "supports": "height, herbaceous habit, shade/organic soil, flower morphology and minimum hardiness"},
+        {"url": "https://www.greatplantpicks.org/plantlists/view/1615", "supports": "reference dimensions, USDA5–9, deciduous groundcover and established drought tolerance"},
+        {"url": "https://s3.wp.wsu.edu/uploads/sites/403/2015/03/WPA.pdf", "supports": "June flowering in native woodland planting guidance; May–June is the proposed late-spring garden window"}
+      ],
+      "caveats": ["Best groundcover development with moisture and organic woodland soil; established drought tolerance does not mean a sunny xeric plant.", "Use type forb. The existing herbaceous shrub rendering archetype is not a botanical woody classification.", "Keep white reflexed flowers small and airy; do not depict oversized cup-shaped flowers or winter-evergreen certainty."]
+    },
+    {
+      "id": "PNW-10",
+      "suggestedKey": "vinemaple",
+      "proposed": {
+        "name": "Vine Maple", "latin": "Acer circinatum", "synonyms": [],
+        "type": "tree", "form": "tree", "heightIn": 240, "spread": 240, "space": 240, "grow": 15,
+        "zones": [5, 8], "sun": "part", "moist": "moist", "phen": "cool", "bloomMonths": [4, 5],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "dimensions": "OSU commonly120–240 in high; NCSU120–300 in high and180–240 in broad. OSU EC1438 gives240-in crown spread. Proposed20-ft tree fits a substantial garden crown, not every old wild maximum.",
+        "foliageVsFlower": "Small red-sepaled pale flowers occur among emerging leaves on the woody canopy; paired red samaras follow. Flower height does not exceed crown height.",
+        "hardiness": "OSU EC1438 gives USDA4–8 and landscape page minimum(4)5. Proposed5–8 conservative; no direct primary support for9 was confirmed. NCSU lists4–7, emphasizing regional differences.",
+        "persistence": "Deciduous small tree/large shrub, often multistemmed and horizontally tiered, with colored autumn foliage.",
+        "growConfidence": "Weak numerical evidence:15 years is a garden design-horizon estimate to20 ft from nursery stock. RHS gives20–50 years to ultimate4–8-m maturity; avoid promising complete maturity in15 years.",
+        "spacingConfidence": "Design estimate matching selected crown diameter; actual composition may intentionally overlap canopies."
+      },
+      "sources": [
+        {"url": "https://landscapeplants.oregonstate.edu/plants/acer-circinatum", "supports": "habit, typical height, moist shady culture and minimum hardiness"},
+        {"url": "https://plants.ces.ncsu.edu/plants/acer-circinatum/", "supports": "crown dimensions, deciduous tree classification and hot/dry-site limitation"},
+        {"url": "https://extension.oregonstate.edu/sites/extd8/files/documents/ec1438.pdf", "supports": "20-ft crown spread and USDA4–8"},
+        {"url": "https://www.treesandshrubsonline.org/articles/acer/acer-circinatum/", "supports": "April–May flowers, canopy habit and moist cool conditions"},
+        {"url": "https://www.rhs.org.uk/plants/180/acer-circinatum/details", "supports": "20–50-year ultimate maturity range"}
+      ],
+      "caveats": ["Keep tree behavior so woodland underplanting remains available; do not classify as shrub merely because it has multiple stems.", "Needs cool/moist conditions and protection from hot dry sites; full sun is only appropriate with suitable climate and moisture.", "Explicitly distinguish the fifteen-year design target from ultimate lifespan/maturity. Regional seed provenance and pruning affect the final form."]
+    }
+  ]
+}

@@ -1,0 +1,999 @@
+{
+  "phase": "1A",
+  "reviewedAt": "2026-08-30",
+  "scope": "Botanical research for CA-01 through CA-12 only. This file is an authoring aid; it does not change the app, existing native data, or Phase 0.",
+  "interpretation": [
+    "Proposed heightIn is representative mature overall height, including flowers when they rise above foliage. Spread is mature garden width; spreading colonies can exceed it.",
+    "Space is proposed on-center design spacing, not a independently established biological constant. All grow values are approximate planning years to the represented woody size, not published age-to-maturity measurements.",
+    "Numeric USDA bands are cultivation screening ranges, not native ranges or guarantees of heat, humidity, or drainage suitability. Several upper endpoints remain explicitly provisional; do not mistake Sunset zones or occurrence-map zones for USDA cultivation evidence.",
+    "Bloom months are representative California windows, not local forecasts. Persistent dried flowers and seedheads are not additional bloom months.",
+    "Current app categories treat woody-based, regularly rejuvenated perennials as forb. Botanical subshrub qualifications are retained below; evergreen shrubs with a persistent woody framework remain shrub.",
+    "Lifespan is recorded qualitatively unless a source documents more. No unsupported numerical survival promise, deer resistance, or rabbit resistance is proposed.",
+    "CNPS Calscape pages returned 403 during this review. Accessible UC ANR, university arboreta, NRCS, CNPS chapters, AHS, and firsthand native-plant growers supplied the evidence."
+  ],
+  "sources": {
+    "ucDeer": {
+      "url": "https://arboretum.ucdavis.edu/all-stars/deergrass",
+      "organization": "UC Davis Arboretum",
+      "supports": "Garden size 4–5 ft high × 5–7 ft wide; June–July flowers; sun/part shade; moderate to very low irrigation."
+    },
+    "usdaDeer": {
+      "url": "https://plants.usda.gov/DocumentLibrary/factsheet/pdf/fs_muri2.pdf",
+      "organization": "USDA NRCS",
+      "supports": "Warm-season bunchgrass, approximately 5 ft in flower; basal tufts can reach 6 ft across. Good drainage; southwestern North American origin."
+    },
+    "mbgDeer": {
+      "url": "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?lang=id&taxonid=285283",
+      "organization": "Missouri Botanical Garden",
+      "supports": "Header zones 6–9; discussion reports common nursery ranges 7–10 and uncertain cold-edge hardiness. September–November bloom differs from California observations."
+    },
+    "cnpsGrass": {
+      "url": "https://www.cnps.org/gardening/native-grass-alternatives-to-lawns-31226",
+      "organization": "California Native Plant Society",
+      "supports": "Deergrass is evergreen with sun/light-shade and low-water use."
+    },
+    "ucNativeSale": {
+      "url": "https://www.ucanr.edu/site/uc-master-gardeners-santa-clara-county/native-plant-sales",
+      "organization": "UC ANR Santa Clara County",
+      "supports": "Purple needlegrass approximately 3 ft × 1.5 ft, March–May, full sun, hardy to 5°F. Hummingbird sage flowering stems 1–3 ft; runners, evergreen in suitable conditions."
+    },
+    "usdaNeedle": {
+      "url": "https://www.nrcs.usda.gov/plantmaterials/capmcpg8968.pdf",
+      "organization": "USDA NRCS",
+      "supports": "Purple needlegrass under Nassella pulchra; long-lived perennial bunchgrass useful in California restoration."
+    },
+    "calfloraNeedle": {
+      "url": "https://www.calflora.org/app/taxon?crn=12067",
+      "organization": "Calflora",
+      "supports": "Stipa pulchra accepted; Nassella pulchra retained as alternative name. California/western North American origin."
+    },
+    "ucNeedle": {
+      "url": "https://ucanr.edu/site/mg-sonoma/native-grasses",
+      "organization": "UC ANR Sonoma County",
+      "supports": "Purple needlegrass foliage clumps approximately 1–2 ft wide; flowering stems 2–3 ft. Seasonal growth follows rainfall."
+    },
+    "nrscFuchsia": {
+      "url": "https://www.nrcs.usda.gov/plantmaterials/capmcpg12898.pdf",
+      "organization": "USDA NRCS",
+      "supports": "Epilobium canum is a rhizomatous herbaceous perennial/subshrub, 1–3 ft high, usually flowering August–October. Subspecies differ in geographic and elevational adaptation."
+    },
+    "ucFuchsia": {
+      "url": "https://www.arboretum.ucdavis.edu/all-stars/california-fuchsia",
+      "organization": "UC Davis Arboretum",
+      "supports": "Species/cultivar group spans 6 inches–4 ft high; spreads; sun/part shade and low water. Annual winter cutback. Very broad bloom window explicitly depends on cultivar."
+    },
+    "cnpsSouth": {
+      "url": "https://chapters.cnps.org/southcoast/2024/10/07/ca-native-plants-for-the-s-ca-habitat-garden/",
+      "organization": "CNPS South Coast Chapter",
+      "supports": "California fuchsia approximately 1–2 ft × 3+ ft; California buckwheat approximately 4 ft × 4+ ft; seaside daisy approximately 1 ft × 3 ft."
+    },
+    "ahsFuchsia": {
+      "url": "https://ahsgardening.org/wp-content/pdfs/2010-01r.pdf",
+      "organization": "American Horticultural Society",
+      "supports": "Planting-zone index lists Epilobium canum USDA 8–11; its second numeric pair is AHS heat zones, not USDA."
+    },
+    "osuBuckwheat": {
+      "url": "https://landscapeplants.oregonstate.edu/plants/eriogonum-fasciculatum",
+      "organization": "Oregon State University",
+      "supports": "Evergreen low shrub; sun and well-drained gravelly conditions; hardy to USDA 7; flowers late spring into early fall."
+    },
+    "growerBuckwheat": {
+      "url": "https://www.calfloranursery.com/plants/eriogonum-fasciculatum/",
+      "organization": "California Flora Nursery",
+      "supports": "Species garden dimensions approximately 3–4 ft high × 4–5 ft wide."
+    },
+    "cnpsBuckwheat": {
+      "url": "https://www.cnps.org/gardening/buckwheats-in-the-garden-528",
+      "organization": "California Native Plant Society",
+      "supports": "Evergreen California buckwheat tolerates dry conditions; aging coppery flower heads provide lasting structure."
+    },
+    "ucCleveland": {
+      "url": "https://ccmg.ucanr.edu/files/172570.pdf",
+      "organization": "UC ANR Contra Costa County",
+      "supports": "Cleveland sage evergreen shrub, 3–5 ft high × 5–8 ft wide, full sun/little water, late spring–early summer flowers, cold tolerance reported to 20°F."
+    },
+    "ucClevelandCold": {
+      "url": "https://ucanr.edu/node/166882/printable/print",
+      "organization": "UC ANR Tuolumne County",
+      "supports": "Cleveland sage approximately 3 ft with flower spikes above; hardy USDA 8 and above, spring flowering, low irrigation."
+    },
+    "cnpsCleveland": {
+      "url": "https://www.cnps.org/gardening/fragrant-natives-for-the-garden-5684",
+      "organization": "California Native Plant Society",
+      "supports": "Southern California chaparral sage for dry sunny gardens; aromatic foliage."
+    },
+    "ucPenstemon": {
+      "url": "https://ucanr.edu/node/124921/printable/print",
+      "organization": "UC ANR Sonoma County",
+      "supports": "Foothill penstemon evergreen perennial, 1–3 ft, spring/summer flowering; drainage and restrained irrigation matter."
+    },
+    "ohioPenstemon": {
+      "url": "https://wolfelab.asc.ohio-state.edu/database/penstemon-heterophyllus-var-heterophyllus.php",
+      "organization": "Ohio State University Wolfe Lab",
+      "supports": "Variety heterophyllus is suffrutescent/woody based, described as long-lived; April–July flowers."
+    },
+    "growerPenstemon": {
+      "url": "https://www.laspilitas.com/nature-of-california/plants/470--penstemon-heterophyllus",
+      "organization": "Las Pilitas Nursery",
+      "supports": "Firsthand species cultivation: USDA 7–10; height 0.5–1 m, width 0.5–1.5 m; flower spikes approximately 3 ft, April–August. Sun, drainage, drought tolerance. Reports some parent plants exceeding 20 years but this is not a universal lifespan."
+    },
+    "calfloraPenstemon": {
+      "url": "https://www.calflora.org/app/taxon?crn=6176",
+      "organization": "Calflora",
+      "supports": "Penstemon heterophyllus is accepted and California endemic; multiple botanical varieties."
+    },
+    "ucMilkweed": {
+      "url": "https://www.arboretum.ucdavis.edu/all-stars/asclepias-fascicularis",
+      "organization": "UC Davis Arboretum",
+      "supports": "Narrowleaf milkweed 3 ft × 3 ft; June–September bloom; sun/part shade, moderate/low water, winter dormancy and spread by runners/seed."
+    },
+    "ucMilkweedZones": {
+      "url": "https://arboretum.ucdavis.edu/sites/g/files/dgvnsk1546/files/inline-files/Pollinator%20Garden%20Plan%20Habitat%20Function%2010.29.20.pdf",
+      "organization": "UC Davis Arboretum",
+      "supports": "Narrowleaf milkweed listed with USDA 6–10, deciduous perennial, approximately 3 ft × 2 ft."
+    },
+    "usdaMilkweed": {
+      "url": "https://plants.usda.gov/DocumentLibrary/plantguide/pdf/cs_asfa.pdf",
+      "organization": "USDA NRCS",
+      "supports": "Asclepias fascicularis identity and western habitat; local-origin material advised. Milkweed ingestion can be toxic."
+    },
+    "ucHummingbird": {
+      "url": "https://ucanr.edu/blog/uc-master-gardeners-diggin-it-slo/article/salvia-spathacea",
+      "organization": "UC ANR San Luis Obispo County",
+      "supports": "Herbaceous spreading perennial, foliage 1–2 ft high × 3+ ft wide, March–June flowers; sun/part shade, drought tolerance and occasional irrigation. Reports 20°F hardiness."
+    },
+    "cnpsHummingbird": {
+      "url": "https://chapters.cnps.org/montereybay/local-heroes-salvias/",
+      "organization": "CNPS Monterey Bay Chapter",
+      "supports": "Semi-evergreen herbaceous hummingbird sage forms 1–2 ft mounds with taller spikes, can spread to 6 ft. Can become summer dormant without irrigation; dry-shade use."
+    },
+    "ahsHummingbird": {
+      "url": "https://ahsgardening.org/wp-content/pdfs/2017-07r.pdf",
+      "organization": "American Horticultural Society",
+      "supports": "Salvia spathacea listed USDA 8–11. Local California sources are preferable for flowering calendar."
+    },
+    "ucSeaside": {
+      "url": "https://ucanr.edu/blog/uc-master-gardeners-diggin-it-slo/article/erigeron-glaucus",
+      "organization": "UC ANR San Luis Obispo County",
+      "supports": "Seaside daisy 1 ft × 3 ft, spring/summer flowering with possible later repeat; full sun/light shade, burns in hot inland sun. Low water on coast, more inland. Cold tolerance reported to -5°F."
+    },
+    "kpuSeaside": {
+      "url": "https://plantdatabase.kpu.ca/PlantPrint/ergl",
+      "organization": "Kwantlen Polytechnic University",
+      "supports": "Herbaceous perennial; flowers April–July, full sun and drainage. Height 0.2–0.4 m, spread 0.3–0.6 m; smaller dimensions than California garden source."
+    },
+    "osuBlueblossom": {
+      "url": "https://landscapeplants.oregonstate.edu/plants/ceanothus-thyrsiflorus",
+      "organization": "Oregon State University",
+      "supports": "Evergreen upright shrub approximately 4–12 ft; USDA (7)8, occasional freeze damage in Corvallis; sun and drainage. Native California/Oregon."
+    },
+    "ncBlueblossom": {
+      "url": "https://plants.ces.ncsu.edu/plants/ceanothus-thyrsiflorus/",
+      "organization": "NC State Extension",
+      "supports": "Dimensions 4–14 ft high × 5–14 ft wide with larger unpruned plants discussed; rapid growth; mid-May–mid-June bloom. Zone listing 5–9 conflicts with OSU cold guidance and is not accepted wholesale here."
+    },
+    "osuManzanita": {
+      "url": "https://landscapeplants.oregonstate.edu/plants/arctostaphylos-densiflora",
+      "organization": "Oregon State University",
+      "supports": "True species is low, prostrate evergreen shrub to approximately 2 ft, not the larger Howard McMinn stature; sun/light shade, drainage, USDA 7. Sonoma County restricted native origin."
+    },
+    "growerManzanita": {
+      "url": "https://www.calfloranursery.com/plants/arctostaphylos-densiflora/",
+      "organization": "California Flora Nursery",
+      "supports": "Explicitly pure true species: typical 3 ft × 6 ft, winter pink/white flowers, evergreen, sun/light shade, occasional/no summer irrigation; best in native sandy soils."
+    },
+    "osuHoward": {
+      "url": "https://landscapeplants.oregonstate.edu/plants/arctostaphylos-densiflora-howard-mcminn",
+      "organization": "Oregon State University",
+      "supports": "Exact cultivar independently measured 4–8 ft high × 6–10 ft wide; evergreen mounding habit; sun/light shade, USDA (6)7, long-lived in suitable sites."
+    },
+    "ucHoward": {
+      "url": "https://ucanr.edu/blog/garden-notes/article/manzanita-little-apple",
+      "organization": "UC ANR",
+      "supports": "Exact Howard McMinn cultivar 4–6 ft × 5–7 ft; January–March bloom in Central Valley; more tolerant of moderate irrigation, shade, and clay than many manzanitas."
+    },
+    "osuCoffeeberry": {
+      "url": "https://landscapeplants.oregonstate.edu/plants/frangula-californica",
+      "organization": "Oregon State University",
+      "supports": "Frangula californica, synonym Rhamnus californica; evergreen shrub/small tree, highly variable height; hardy USDA 7, sun/shade, limited to no irrigation."
+    },
+    "cnpsCoffeeberry": {
+      "url": "https://chapters.cnps.org/milobaker/wp-content/uploads/sites/9/2022/12/Frangula-californica.pdf",
+      "organization": "CNPS Milo Baker Chapter",
+      "supports": "Coffeeberry approximately 8–10 ft × 4–8 ft; evergreen, April–July bloom; sun/light shade and occasional irrigation."
+    }
+  },
+  "plants": [
+    {
+      "id": "CA-01",
+      "suggestedKey": "deergrass",
+      "name": "Deergrass",
+      "latin": "Muhlenbergia rigens",
+      "synonyms": [],
+      "proposed": {
+        "type": "grass",
+        "heightIn": 60,
+        "spread": 72,
+        "space": 60,
+        "zones": [
+          7,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          6,
+          7
+        ]
+      },
+      "botanical": {
+        "growthForm": "Large nonwoody perennial bunchgrass",
+        "woody": false,
+        "persistence": "Evergreen in mild California conditions; foliage may brown with cold or stress.",
+        "lifespan": "Perennial; numeric lifespan not established.",
+        "foliageHeightIn": [
+          24,
+          48
+        ],
+        "floweringHeightIn": [
+          48,
+          72
+        ],
+        "matureSpreadIn": [
+          60,
+          84
+        ]
+      },
+      "evidence": [
+        "ucDeer",
+        "usdaDeer",
+        "mbgDeer",
+        "cnpsGrass"
+      ],
+      "confidence": {
+        "dimensions": "high",
+        "zones": "medium: conservative overlap of conflicting published bands",
+        "bloomMonths": "medium: California-local window conflicts with MBG fall calendar",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Use UC Davis June–July as the representative California flowering window; do not mark persistent late-season seed stems as continuously flowering.",
+        "Warm-season classification follows NRCS; MBG calls it cool-season, an unresolved source discrepancy.",
+        "Allow space for a genuinely large clump. Good drainage matters more than the dry label alone."
+      ]
+    },
+    {
+      "id": "CA-02",
+      "suggestedKey": "purpleneedlegrass",
+      "name": "Purple Needlegrass",
+      "latin": "Stipa pulchra",
+      "synonyms": [
+        "Nassella pulchra"
+      ],
+      "proposed": {
+        "type": "grass",
+        "heightIn": 36,
+        "spread": 24,
+        "space": 18,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          3,
+          4,
+          5
+        ]
+      },
+      "botanical": {
+        "growthForm": "Nonwoody perennial bunchgrass",
+        "woody": false,
+        "persistence": "Cool wet-season growth; can turn dormant in the dry summer. Evergreen descriptions depend on water and climate.",
+        "lifespan": "Long-lived perennial; no fixed lifespan proposed.",
+        "foliageHeightIn": [
+          12,
+          18
+        ],
+        "floweringHeightIn": [
+          24,
+          36
+        ],
+        "matureSpreadIn": [
+          18,
+          24
+        ]
+      },
+      "evidence": [
+        "ucNativeSale",
+        "usdaNeedle",
+        "calfloraNeedle",
+        "ucNeedle"
+      ],
+      "confidence": {
+        "dimensions": "high",
+        "zones": "low: cold threshold 5°F supports conservative whole-zone 8; upper 10 is provisional",
+        "bloomMonths": "high for Santa Clara representative calendar",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Do not confuse this native bunchgrass with existing Stipa/Nassella tenuissima.",
+        "The proposed zone band is incomplete evidence, not a verified nationwide suitability band.",
+        "Do not use the UC landscape list's numbered Sunset zones as USDA zones."
+      ]
+    },
+    {
+      "id": "CA-03",
+      "suggestedKey": "californiafuchsia",
+      "name": "California Fuchsia",
+      "latin": "Epilobium canum",
+      "synonyms": [
+        "Zauschneria californica"
+      ],
+      "proposed": {
+        "type": "forb",
+        "heightIn": 24,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [
+          8,
+          9,
+          10
+        ]
+      },
+      "botanical": {
+        "growthForm": "Rhizomatous herbaceous perennial/subshrub; some persistent woody basal tissue",
+        "woody": "woody-based subshrub, not a large persistent woody framework",
+        "persistence": "Perennial; tops can be winter dormant or semi-evergreen by site. Often cut back after bloom.",
+        "lifespan": "Perennial colony; no fixed lifespan proposed.",
+        "foliageHeightIn": [
+          12,
+          24
+        ],
+        "floweringHeightIn": [
+          12,
+          36
+        ],
+        "matureSpreadIn": [
+          36,
+          48
+        ]
+      },
+      "evidence": [
+        "nrscFuchsia",
+        "ucFuchsia",
+        "cnpsSouth",
+        "ahsFuchsia"
+      ],
+      "confidence": {
+        "dimensions": "medium: species/subspecies variable, colony spread unbounded",
+        "zones": "medium: proposed subset of AHS 8–11",
+        "bloomMonths": "high for NRCS general species window",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Forb follows the maintained-perennial app convention, while retaining the botanical subshrub qualification.",
+        "Do not import the June–January aggregate UC cultivar bloom window into a single straight-species record.",
+        "Do not transfer cold-hardiness of montane subspecies to unspecified lowland stock."
+      ]
+    },
+    {
+      "id": "CA-04",
+      "suggestedKey": "californiabuckwheat",
+      "name": "California Buckwheat",
+      "latin": "Eriogonum fasciculatum",
+      "synonyms": [],
+      "proposed": {
+        "type": "shrub",
+        "heightIn": 48,
+        "spread": 60,
+        "space": 60,
+        "grow": 3,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "mid",
+        "bloomMonths": [
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "botanical": {
+        "growthForm": "True woody evergreen shrub/subshrub",
+        "woody": true,
+        "persistence": "Evergreen; dried rust-colored flower heads persist after bloom.",
+        "lifespan": "Perennial shrub; no fixed lifespan proposed.",
+        "matureHeightIn": [
+          36,
+          48
+        ],
+        "matureSpreadIn": [
+          48,
+          60
+        ]
+      },
+      "evidence": [
+        "osuBuckwheat",
+        "growerBuckwheat",
+        "cnpsBuckwheat",
+        "cnpsSouth"
+      ],
+      "confidence": {
+        "dimensions": "high for a medium upright garden form",
+        "zones": "medium-low: USDA lower 7 sourced; upper 10 provisional",
+        "bloomMonths": "medium: translation of late spring–early fall",
+        "grow": "planning estimate",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Growth forms differ among varieties and selections; this is not a prostrate cultivar.",
+        "Reserve the full woody spread. Dried flowers remain structure, not continuing fresh bloom.",
+        "Needs drainage; avoid assuming tolerance of humid, irrigated eastern gardens from USDA alone."
+      ]
+    },
+    {
+      "id": "CA-05",
+      "suggestedKey": "clevelandsage",
+      "name": "Cleveland Sage",
+      "latin": "Salvia clevelandii",
+      "synonyms": [],
+      "proposed": {
+        "type": "shrub",
+        "heightIn": 60,
+        "spread": 72,
+        "space": 72,
+        "grow": 3,
+        "zones": [
+          9,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "mid",
+        "bloomMonths": [
+          5,
+          6
+        ]
+      },
+      "botanical": {
+        "growthForm": "True woody aromatic shrub",
+        "woody": true,
+        "persistence": "Evergreen to stress-thinned foliage; persistent woody stems.",
+        "lifespan": "Perennial shrub; no fixed lifespan proposed.",
+        "matureHeightIn": [
+          36,
+          60
+        ],
+        "matureSpreadIn": [
+          60,
+          96
+        ]
+      },
+      "evidence": [
+        "ucCleveland",
+        "ucClevelandCold",
+        "cnpsCleveland"
+      ],
+      "confidence": {
+        "dimensions": "high",
+        "zones": "medium-low: conservative lower 9 from 20°F report; other UC source allows 8; upper 10 provisional",
+        "bloomMonths": "medium: representative late-spring/early-summer translation",
+        "grow": "planning estimate",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Flower stalks project above the rounded leafy framework; avoid rendering the entire plant as one solid flower dome.",
+        "Keep the species separate from interspecific Cleveland-sage hybrids.",
+        "Warm-season irrigation and drainage constraints are not expressed fully by the app moisture label."
+      ]
+    },
+    {
+      "id": "CA-06",
+      "suggestedKey": "foothillpenstemon",
+      "name": "Foothill Penstemon",
+      "latin": "Penstemon heterophyllus",
+      "synonyms": [],
+      "proposed": {
+        "type": "forb",
+        "heightIn": 36,
+        "spread": 36,
+        "space": 30,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "mid",
+        "bloomMonths": [
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "botanical": {
+        "growthForm": "Woody-based perennial/subshrub (suffrutescent)",
+        "woody": "woody base; conventionally grown as a flowering perennial",
+        "persistence": "Perennial, evergreen or partly deciduous depending on site; sources differ.",
+        "lifespan": "Can persist for many years in suitable dry sites; cultivar lifespan must not be generalized.",
+        "floweringHeightIn": [
+          20,
+          40
+        ],
+        "matureSpreadIn": [
+          20,
+          60
+        ]
+      },
+      "evidence": [
+        "ucPenstemon",
+        "ohioPenstemon",
+        "growerPenstemon",
+        "calfloraPenstemon"
+      ],
+      "confidence": {
+        "dimensions": "medium: representative within a broad species range",
+        "zones": "medium: explicit firsthand grower range 7–10",
+        "bloomMonths": "medium-high: April–July matches botanical variety account and lies within grower April–August",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Forb follows the existing woody-based penstemon convention; retain the woody-base qualification in descriptions.",
+        "Drainage and avoidance of excess fertilizer/irrigation are central to persistence.",
+        "No Margarita BOP or other cultivar dimensions/hardiness were silently assigned to the straight species."
+      ]
+    },
+    {
+      "id": "CA-07",
+      "suggestedKey": "narrowleafmilkweed",
+      "name": "Narrowleaf Milkweed",
+      "latin": "Asclepias fascicularis",
+      "synonyms": [],
+      "proposed": {
+        "type": "forb",
+        "heightIn": 36,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          6,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "botanical": {
+        "growthForm": "Rhizomatous herbaceous perennial",
+        "woody": false,
+        "persistence": "Winter dormant; foliage dies down and regrows from perennial roots.",
+        "lifespan": "Perennial; colony spread by runners and seed.",
+        "floweringHeightIn": [
+          24,
+          36
+        ],
+        "matureSpreadIn": [
+          24,
+          36
+        ]
+      },
+      "evidence": [
+        "ucMilkweed",
+        "ucMilkweedZones",
+        "usdaMilkweed"
+      ],
+      "confidence": {
+        "dimensions": "high",
+        "zones": "high for published UC cultivation band",
+        "bloomMonths": "high for UC Davis representative calendar",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Medium is a primary garden moisture setting; established plants also tolerate low water. This is not swamp milkweed.",
+        "Spread is a representative patch width, not a hard limit on runners.",
+        "Use locally appropriate nursery-grown material; milkweed sap/ingestion requires normal toxicity caution."
+      ]
+    },
+    {
+      "id": "CA-08",
+      "suggestedKey": "hummingbirdsage",
+      "name": "Hummingbird Sage",
+      "latin": "Salvia spathacea",
+      "synonyms": [],
+      "proposed": {
+        "type": "forb",
+        "heightIn": 36,
+        "spread": 48,
+        "space": 30,
+        "zones": [
+          8,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "botanical": {
+        "growthForm": "Rhizomatous herbaceous perennial sage, not a woody Cleveland-type shrub",
+        "woody": false,
+        "persistence": "Semi-evergreen; may become summer dormant without irrigation. Occasional water maintains foliage.",
+        "lifespan": "Perennial spreading colony; no fixed lifespan proposed.",
+        "foliageHeightIn": [
+          12,
+          24
+        ],
+        "floweringHeightIn": [
+          24,
+          36
+        ],
+        "matureSpreadIn": [
+          36,
+          72
+        ]
+      },
+      "evidence": [
+        "ucHummingbird",
+        "cnpsHummingbird",
+        "ahsHummingbird",
+        "ucNativeSale"
+      ],
+      "confidence": {
+        "dimensions": "high for representative colony",
+        "zones": "medium: AHS 8–11 supports proposed subset; UC temperature thresholds conflict",
+        "bloomMonths": "high for California primary local window",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Do not classify all Salvia as shrubs; this species is herbaceous and spreading.",
+        "Dry partial shade is an important role, but complete summer dormancy can occur without supplemental water.",
+        "Some sites/cultivars flower outside March–June; no year-round bloom claim."
+      ]
+    },
+    {
+      "id": "CA-09",
+      "suggestedKey": "seasidedaisy",
+      "name": "Seaside Daisy",
+      "latin": "Erigeron glaucus",
+      "synonyms": [],
+      "proposed": {
+        "type": "forb",
+        "heightIn": 12,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "botanical": {
+        "growthForm": "Low herbaceous perennial with leafy basal/branching mound",
+        "woody": false,
+        "persistence": "Perennial; foliage persistence depends on climate and stress.",
+        "lifespan": "Perennial; no fixed lifespan proposed.",
+        "floweringHeightIn": [
+          8,
+          16
+        ],
+        "matureSpreadIn": [
+          24,
+          36
+        ]
+      },
+      "evidence": [
+        "ucSeaside",
+        "kpuSeaside",
+        "cnpsSouth"
+      ],
+      "confidence": {
+        "dimensions": "high for California garden source",
+        "zones": "low: conservative whole-zone 7 from -5°F tolerance; upper 10 provisional",
+        "bloomMonths": "medium-high: documented April–July primary spring/summer period",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Full sun/dry reflects coastal conditions; inland heat calls for light shade and more water.",
+        "Do not extrapolate coastal tolerance to hot inland/desert full-sun sites.",
+        "Fall repeat may follow pruning but should not become a guaranteed bloom window."
+      ]
+    },
+    {
+      "id": "CA-10",
+      "suggestedKey": "blueblossom",
+      "name": "Blueblossom",
+      "latin": "Ceanothus thyrsiflorus",
+      "synonyms": [],
+      "proposed": {
+        "type": "shrub",
+        "heightIn": 144,
+        "spread": 144,
+        "space": 144,
+        "grow": 5,
+        "zones": [
+          8,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "mid",
+        "bloomMonths": [
+          5,
+          6
+        ]
+      },
+      "botanical": {
+        "growthForm": "Large true woody evergreen shrub; can become tree-like",
+        "woody": true,
+        "persistence": "Broadleaf evergreen; persistent woody framework.",
+        "lifespan": "Perennial shrub; repeated hard pruning and unsuitable sites can shorten life.",
+        "matureHeightIn": [
+          48,
+          168
+        ],
+        "matureSpreadIn": [
+          60,
+          168
+        ]
+      },
+      "evidence": [
+        "osuBlueblossom",
+        "ncBlueblossom"
+      ],
+      "confidence": {
+        "dimensions": "medium-high: representative upright form, wild/unpruned plants may exceed it",
+        "zones": "medium: conservative overlap; rejects NC's much colder lower bound",
+        "bloomMonths": "high for published mid-May–mid-June window, geography still matters",
+        "grow": "planning estimate informed by rapid growth",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "This record represents upright blueblossom, not a creeping/prostrate selection or var. repens.",
+        "NC's USDA 5 lower bound conflicts strongly with OSU's (7)8 and cold-damage discussion; do not use it.",
+        "A 12-ft footprint is substantial. Do not imply perpetual small size through routine pruning."
+      ]
+    },
+    {
+      "id": "CA-11",
+      "suggestedKey": "vinehillmanzanita",
+      "name": "Vine Hill Manzanita",
+      "latin": "Arctostaphylos densiflora",
+      "synonyms": [],
+      "proposed": {
+        "type": "shrub",
+        "heightIn": 36,
+        "spread": 72,
+        "space": 72,
+        "grow": 5,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [
+          1,
+          2,
+          3
+        ]
+      },
+      "botanical": {
+        "growthForm": "Low spreading true woody evergreen shrub",
+        "woody": true,
+        "persistence": "Evergreen foliage and persistent dark reddish woody framework.",
+        "lifespan": "Perennial shrub; no fixed lifespan proposed.",
+        "matureHeightIn": [
+          24,
+          36
+        ],
+        "matureSpreadIn": [
+          48,
+          72
+        ]
+      },
+      "evidence": [
+        "osuManzanita",
+        "growerManzanita"
+      ],
+      "confidence": {
+        "dimensions": "high: explicit true-species grower dimensions; OSU somewhat shorter",
+        "zones": "medium-low: lower 7 sourced; upper 10 provisional",
+        "bloomMonths": "medium: winter/spring mapped to representative January–March",
+        "grow": "planning estimate",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "The true species has a narrowly restricted Sonoma origin; North American provenance must not imply statewide local nativity.",
+        "Source nursery-propagated plants; never suggest collection from the wild.",
+        "The true species prefers its native sandy, drained conditions and is not automatically as adaptable as Howard McMinn."
+      ],
+      "cultivars": [
+        {
+          "suggestedKey": "howardmcminn",
+          "name": "Howard McMinn",
+          "latin": "Arctostaphylos densiflora 'Howard McMinn'",
+          "proposed": {
+            "type": "shrub",
+            "heightIn": 72,
+            "spread": 84,
+            "space": 84,
+            "grow": 5,
+            "zones": [
+              7,
+              10
+            ],
+            "nativeTo": [
+              "north-america"
+            ],
+            "provenance": "selection",
+            "sun": "full",
+            "moist": "dry",
+            "phen": "cool",
+            "bloomMonths": [
+              1,
+              2,
+              3
+            ]
+          },
+          "evidence": [
+            "osuHoward",
+            "ucHoward"
+          ],
+          "confidence": {
+            "dimensions": "high: exact cultivar independently confirmed by OSU and UC",
+            "zones": "medium-low: lower 7 explicit, upper 10 provisional",
+            "grow": "planning estimate"
+          },
+          "caveats": [
+            "Use a distinct taller mounding preview and dimensions from the low species.",
+            "OSU 4–8 × 6–10 ft and UC 4–6 × 5–7 ft overlap around the proposed 6 × 7 ft; some mature plants become larger.",
+            "Cultivar is a named selection, not a claim of locally sourced wild provenance."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CA-12",
+      "suggestedKey": "californiacoffeeberry",
+      "name": "California Coffeeberry",
+      "latin": "Frangula californica",
+      "synonyms": [
+        "Rhamnus californica"
+      ],
+      "proposed": {
+        "type": "shrub",
+        "heightIn": 120,
+        "spread": 96,
+        "space": 96,
+        "grow": 7,
+        "zones": [
+          7,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "sun": "part",
+        "moist": "dry",
+        "phen": "mid",
+        "bloomMonths": [
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "botanical": {
+        "growthForm": "True woody evergreen shrub; occasionally a small tree",
+        "woody": true,
+        "persistence": "Evergreen leaves and persistent woody framework.",
+        "lifespan": "Perennial shrub; no fixed lifespan proposed.",
+        "matureHeightIn": [
+          96,
+          120
+        ],
+        "matureSpreadIn": [
+          48,
+          96
+        ]
+      },
+      "evidence": [
+        "osuCoffeeberry",
+        "cnpsCoffeeberry"
+      ],
+      "confidence": {
+        "dimensions": "high for selected representative garden range; species very variable",
+        "zones": "medium-low: lower 7 sourced; upper 10 provisional",
+        "bloomMonths": "high for CNPS April–July",
+        "grow": "planning estimate",
+        "spacing": "design estimate"
+      },
+      "caveats": [
+        "Primary part-shade setting fills the understory role; species also grows in sun with an altered, often denser habit.",
+        "Some populations/selections exceed this typical garden size; do not substitute dwarf cultivar dimensions.",
+        "Use current Frangula name and searchable Rhamnus synonym; berries are ornamental/wildlife value, not a food recommendation."
+      ]
+    }
+  ]
+}

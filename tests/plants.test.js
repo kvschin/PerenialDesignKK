@@ -94,9 +94,9 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,473,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,495,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),376,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -128,6 +128,28 @@ test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(duplicates.length,allowed.size,'only renderer/layer aliases duplicate a base Latin');
   for (const [latin,list] of duplicates)
     assertEqual(list.sort().join(','),allowed.get(latin),`${latin}: intentional architectural alias`);
+});
+
+test('West Coast batches preserve reviewed taxa, woody identities, and regional caveats', () => {
+  const rows=['phase1a-sources.json','phase1b-sources.json'].flatMap(file=>
+    JSON.parse(readRepoFile('docs/plant-data/'+file)).plants);
+  assertEqual(rows.length,22,'the two approved batches contain 22 base taxa');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], reviewed=row.proposed;
+    assert(P,`${row.id}: missing species`);
+    assertEqual(P.latin,row.latin||reviewed.latin,`${row.id}: exact reviewed taxon`);
+    assertEqual(P.type,reviewed.type,`${row.id}: biological placement category`);
+    assertEqual(P.nativeTo.join(','),'north-america',`${row.id}: retains existing continental range contract`);
+    assertEqual(P.provenance,'species',`${row.id}: straight species`);
+    assert(P.heightIn>0,`${row.id}: real height is explicit, not inferred from art`);
+  }
+  const base=PLANTS.vinehillmanzanita, cv=base.cv.howardmcminn;
+  assert(cv.heightIn>base.heightIn&&cv.spread>base.spread,'Howard McMinn must not donate its larger dimensions to the low species');
+  assertEqual(cv.provenance,'selection','Howard McMinn is a named selection');
+  assert(!PLANTS.westernswordfern.bloomMonths,'a fern has no flowering calendar');
+  assert(!Object.values(PLANTS.westernswordfern.sea).some(s=>s.bloom||s.seed),'fern spores are not flowers or decorative seed spikes');
+  assert(!PLANTS.oregoniris.sea.Winter.fol,'winter-deciduous Oregon iris is not evergreen bearded iris');
+  assert(/North Carolina/.test(PLANTS.redfloweringcurrant.blurb),'Ribes restriction remains visible without a regional legal filter');
 });
 
 test('cleaned exact selections keep accepted names and provenance', () => {

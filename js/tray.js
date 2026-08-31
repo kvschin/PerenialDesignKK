@@ -1367,7 +1367,7 @@ function traySep(tray,label,title){
 function plantSearchHay(k){
   const P=PLANTS[k];
   if (!P) return '';
-  let hay=[k,P.name,P.latin,P.group||'',P.chip||'',roleSummary(k,12),trayCatLabel(plantCategoryFor(k))].join(' ');
+  let hay=[k,P.name,P.latin,(P.synonyms||[]).join(' '),P.group||'',P.chip||'',roleSummary(k,12),trayCatLabel(plantCategoryFor(k))].join(' ');
   for (const v in (P.cv||{})){
     const C=P.cv[v];
     hay+=' '+v+' '+(C.name||'')+' '+(C.latin||'');
