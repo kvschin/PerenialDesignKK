@@ -391,7 +391,7 @@ function drawTreeFruit(ctx,cx,cy,r,col,shape='round',rot=0){
 /* Shared shrub flowers. At shrub scale the placement and petal language carry
    more identity than botanical detail: a ribbon witch-hazel flower, a rose
    rosette and a four-petal mock-orange cup must not collapse to the same dot. */
-function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent){
+function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount){
   shape=shape||'single'; ang=ang||0;
   if (shape==='ribbon'){
     ctx.strokeStyle=shade(col,8); ctx.lineWidth=Math.max(0.75,r*0.38); ctx.lineCap='round';
@@ -399,6 +399,43 @@ function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent){
     for (let p=0;p<4;p++){ const a=ang+p*Math.PI/2+(rnd? (rnd()-0.5)*0.35:0), ex=cx+Math.cos(a)*r*2.4, ey=cy+Math.sin(a)*r*1.45;
       ctx.moveTo(cx,cy); ctx.quadraticCurveTo(cx+Math.cos(a+0.8)*r,cy+Math.sin(a+0.8)*r*0.75,ex,ey); }
     ctx.stroke(); drawFloret(ctx,cx,cy,Math.max(0.8,r*0.42),shade(col,-18),{squash:1}); return;
+  }
+  if (shape==='turkscap'){
+    // A Malvaviscus-style flower stays furled instead of opening into a flat
+    // hibiscus disc. Five rolled petals surround one protruding staminal
+    // column; any shrub can opt into the same side-view grammar.
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
+    for(let p=0;p<5;p++){
+      const a=(p/5-0.5)*1.55, px=Math.sin(a)*r*0.48, py=Math.abs(a)*r*0.16;
+      ctx.fillStyle=shade(col,(p-2)*4); ctx.beginPath();
+      ctx.ellipse(px,py,r*0.42,r*1.02,a*0.34,0,7); ctx.fill();
+    }
+    ctx.strokeStyle=accent||shade(col,-30); ctx.lineWidth=Math.max(0.65,r*0.24); ctx.beginPath();
+    ctx.moveTo(0,-r*0.48); ctx.lineTo(0,-r*2.25); ctx.stroke();
+    ctx.fillStyle=accent||shade(col,28);
+    for(let s=-2;s<=2;s++){ ctx.beginPath(); ctx.arc(s*r*0.22,-r*(1.72+Math.abs(s)*0.07),Math.max(0.45,r*0.18),0,7); ctx.fill(); }
+    ctx.restore(); return;
+  }
+  if (shape==='daisy'){
+    const petals=Math.max(6,Math.min(21,Math.round(petalCount||12)));
+    for(let p=0;p<petals;p++){
+      const a=ang+p/petals*Math.PI*2, rr=r*0.82;
+      drawFloret(ctx,cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.66,r*0.66,
+        shade(col,(p%3-1)*4),{squash:0.36,rot:a});
+    }
+    drawFloret(ctx,cx,cy,r*0.62,accent||shade(col,-32),{squash:0.88,lift:20}); return;
+  }
+  if (shape==='pea'){
+    // A fixed banner, paired wings and keel keep Fabaceae racemes distinct
+    // from bells and five-petal cups without tying the grammar to one taxon.
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
+    ctx.fillStyle=shade(col,12); ctx.beginPath(); ctx.ellipse(0,-r*0.48,r*0.88,r*0.62,0,0,7); ctx.fill();
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.ellipse(-r*0.66,r*0.02,r*0.58,r*0.36,-0.35,0,7);
+    ctx.ellipse(r*0.66,r*0.02,r*0.58,r*0.36,0.35,0,7); ctx.fill();
+    ctx.fillStyle=shade(col,-16); ctx.beginPath(); ctx.ellipse(0,r*0.48,r*0.34,r*0.72,0,0,7); ctx.fill();
+    ctx.fillStyle=accent||shade(col,28); ctx.beginPath(); ctx.arc(0,-r*0.02,Math.max(0.45,r*0.18),0,7); ctx.fill();
+    ctx.restore(); return;
   }
   if (shape==='trumpet'||shape==='funnel'||shape==='bell'){
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
@@ -3758,6 +3795,23 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.quadraticCurveTo(bx*0.35,-trunkH-H*(L.branchY||0.12),bx,by); ctx.stroke();
       tips.push([bx,by]);
     }
+    if (L.twigCanopy){
+      // Palo-verde and other airy desert trees carry much of their visual
+      // mass in photosynthetic twigs. A bounded secondary fan exposes that
+      // structure without inventing a separate tree renderer.
+      const twigs=Math.max(1,Math.min(5,Math.round(L.twigCanopy)));
+      const twigReach=Math.max(0.06,Math.min(0.30,L.twigReach||0.16));
+      const twigLift=Math.max(0.05,Math.min(0.22,L.twigLift||0.10));
+      ctx.strokeStyle=L.twigColor||L.bark||'#5e4a38';
+      ctx.lineWidth=Math.max(0.65,(L.twigW||1.15)*vs*growth); ctx.beginPath();
+      tips.forEach(([bx,by],rank)=>{ for(let q=0;q<twigs;q++){
+        const side=twigs===1?0:q/(twigs-1)-0.5;
+        const ex=bx+side*cw*twigReach+(rnd()-0.5)*cw*0.04;
+        const ey=by-H*twigLift*(0.72+0.28*(1-Math.abs(side)))+(rnd()-0.5)*H*0.035;
+        ctx.moveTo(bx,by); ctx.quadraticCurveTo((bx+ex)*0.5,by-H*twigLift*0.48,ex,ey);
+      } });
+      ctx.stroke();
+    }
     if (S.fol){ // leaf canopy
       // T10: leaf blobs are cw-relative, so a rescaled giant would read as a
       // few huge lobes — trade blob size for blob count (coverage constant)
@@ -3781,11 +3835,13 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
            The classic +22 highlight pass is folded in (the lit side now falls
            out of the same loop), and those ~16 saved fills pay for the one
            gradient the underwash costs. Net: fewer ops than classic. */
-        ctx.save(); ctx.globalAlpha=0.30;
-        ctx.beginPath();
-        ctx.ellipse(sway*2, cy+H*0.06, cwv*0.94, chv*0.90, 0, 0, 7);
-        litFill(ctx, sway*2, cy+H*0.06, Math.max(cwv,chv)*0.85, shade(S.fol,-30), 24, -22);
-        ctx.restore();
+        if (L.canopyWash!==false){
+          ctx.save(); ctx.globalAlpha=0.30;
+          ctx.beginPath();
+          ctx.ellipse(sway*2, cy+H*0.06, cwv*0.94, chv*0.90, 0, 0, 7);
+          litFill(ctx, sway*2, cy+H*0.06, Math.max(cwv,chv)*0.85, shade(S.fol,-30), 24, -22);
+          ctx.restore();
+        }
         const lobes=Math.max(4,Math.min(8,Math.round(3+vs*0.9)));
         const per=Math.max(2,Math.round(n/lobes));
         let left=n;
@@ -3823,13 +3879,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
       } else {
-      ctx.save();
-      ctx.globalAlpha=0.24;
-      ctx.fillStyle=shade(S.fol,-26);
-      ctx.beginPath();
-      ctx.ellipse(sway*2, cy+H*0.06, cw*(L.canopyW||0.48)*0.92, H*(L.canopyH||0.26)*0.88, 0, 0, 7);
-      ctx.fill();
-      ctx.restore();
+      if (L.canopyWash!==false){
+        ctx.save();
+        ctx.globalAlpha=0.24;
+        ctx.fillStyle=shade(S.fol,-26);
+        ctx.beginPath();
+        ctx.ellipse(sway*2, cy+H*0.06, cw*(L.canopyW||0.48)*0.92, H*(L.canopyH||0.26)*0.88, 0, 0, 7);
+        ctx.fill();
+        ctx.restore();
+      }
       for (let i=0;i<n;i++){
         const a=rnd()*Math.PI*2, r=Math.sqrt(rnd());
         ctx.fillStyle=shade(S.fol,(rnd()-0.5)*30);
@@ -4597,21 +4655,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           heads.forEach(tip=>{ const [tx2,ty2,cx1,cy1]=tip;
             for (let k=0;k<count;k++){ const t=0.28+k*(0.64/Math.max(1,count-1)), q=2*(1-t)*t;
               const fx=tx2*(q*cx1+t*t)+(rnd()-0.5)*2.4, fy=ty2*(q*cy1+t*t)+(rnd()-0.5)*2;
-              drawShrubFlower(ctx,fx,fy,shape==='ribbon'?2.0:shape==='trumpet'?2.5:1.9,
-                shade(S.bloom,(rnd()-0.5)*10),shape,rnd,tx2<0?-0.6:0.6); }
+              drawShrubFlower(ctx,fx,fy,shape==='ribbon'?2.0:shape==='trumpet'||shape==='turkscap'?2.5:1.9,
+                shade(S.bloom,(rnd()-0.5)*10),shape,rnd,tx2<0?-0.6:0.6,S.eye,L.flowerPetals); }
           });
         } else if (L.bloomStyle==='truss'||L.bloomStyle==='looseCluster'){
           const cr=L.clusterR||5, shape=L.flowerShape||'cup', n=L.bloomStyle==='truss'?9:(L.flowerN||5);
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<n;p++){ const a=p/n*Math.PI*2, ring=L.bloomStyle==='truss'?(p%3?0.75:0.32):0.7+rnd()*0.25;
             drawShrubFlower(ctx,tx2+Math.cos(a)*cr*ring,ty2-cr*0.35+Math.sin(a)*cr*ring*0.58,
-              shape==='funnel'||shape==='calico'?2.1:1.8,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a,S.eye); }
+              shape==='funnel'||shape==='calico'?2.1:1.8,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a,S.eye,L.flowerPetals); }
           });
         } else if (L.bloomStyle==='rose'||L.bloomStyle==='scattered'){
           const n=stemFor(L.flowerN||12), shape=L.flowerShape||'single';
           for (let k=0;k<n;k++){ const tip=tips[k%tips.length], [tx2,ty2,cx1,cy1]=tip, t=0.45+rnd()*0.5, q=2*(1-t)*t;
             const fx=tx2*(q*cx1+t*t)+(rnd()-0.5)*cw*0.08, fy=ty2*(q*cy1+t*t)+(rnd()-0.5)*H*0.05;
             drawShrubFlower(ctx,fx,fy,shape==='camellia'?3.4:shape==='rosette'?2.8:2.2,
-              shade(S.bloom,(rnd()-0.5)*12),shape,rnd,rnd()*Math.PI); }
+              shade(S.bloom,(rnd()-0.5)*12),shape,rnd,rnd()*Math.PI,S.eye,L.flowerPetals); }
         } else if (L.bloomStyle==='flatCorymb'){
           const cr=L.clusterR||8;
           heads.slice(0,Math.max(2,Math.ceil(heads.length*0.45))).forEach(([tx2,ty2])=>{
@@ -4625,7 +4683,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           heads.forEach(([tx2,ty2])=>{ ctx.strokeStyle=shade(S.bloom,-35); ctx.lineWidth=0.9; ctx.beginPath();
             ctx.moveTo(tx2,ty2); ctx.quadraticCurveTo(tx2+(down?3:0),ty2+(down?len*0.5:-len*0.5),tx2+(down?2:0),ty2+(down?len:-len)); ctx.stroke();
             for (let k=0;k<n;k++){ const f=k/Math.max(1,n-1), fy=ty2+(down?1:-1)*(2+f*len), side=k%2?-1:1;
-              drawShrubFlower(ctx,tx2+side*(2.2+f*1.8),fy,1.25,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,down?Math.PI:0); }
+              drawShrubFlower(ctx,tx2+side*(2.2+f*1.8),fy,1.25,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,down?Math.PI:0,S.eye,L.flowerPetals); }
           });
         } else if (L.bloomStyle==='bottlebrush'){
           heads.forEach(([tx2,ty2])=>{ ctx.strokeStyle=shade(S.bloom,-28); ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(tx2,ty2); ctx.lineTo(tx2,ty2-16); ctx.stroke();
@@ -4640,6 +4698,24 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               drawFloret(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.78,1.35,shade(S.bloom,(rnd()-0.5)*8),{}); }
             ctx.strokeStyle=shade(S.bloom,-12); ctx.lineWidth=0.55; ctx.beginPath();
             for (let p=0;p<10;p++){ const a=p/10*Math.PI*2; ctx.moveTo(tx2+Math.cos(a)*gr*0.7,ty2+Math.sin(a)*gr*0.55); ctx.lineTo(tx2+Math.cos(a)*gr*1.3,ty2+Math.sin(a)*gr); } ctx.stroke();
+          });
+        } else if (L.bloomStyle==='powderpuff'){
+          const pr=Math.max(2.5,Math.min(8,L.clusterR||5));
+          const rays=Math.max(10,Math.min(28,Math.round(L.puffRays||18)));
+          heads.forEach(([tx2,ty2])=>{
+            ctx.strokeStyle=shade(S.bloom,-5); ctx.lineWidth=Math.max(0.45,L.filamentW||0.55); ctx.beginPath();
+            for(let p=0;p<rays;p++){
+              const a=p/rays*Math.PI*2+(rnd()-0.5)*0.12, rr=pr*(0.78+rnd()*0.28);
+              ctx.moveTo(tx2,ty2); ctx.lineTo(tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.72);
+            }
+            ctx.stroke();
+            const tipCol=S.eye||shade(S.bloom,22); ctx.fillStyle=tipCol; ctx.beginPath();
+            for(let p=0;p<rays;p++){
+              const a=p/rays*Math.PI*2, rr=pr*(0.84+(p%3)*0.08);
+              ctx.moveTo(tx2+Math.cos(a)*rr+0.7,ty2+Math.sin(a)*rr*0.72);
+              ctx.arc(tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.72,0.7,0,7);
+            }
+            ctx.fill();
           });
         } else if (L.smoke){
           ctx.save(); ctx.globalAlpha=0.52;

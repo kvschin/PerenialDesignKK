@@ -273,6 +273,8 @@ const westCoastKeys=['phase1a-sources.json','phase1b-sources.json'].flatMap(file
   JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
 const floridaKeys=JSON.parse(readRepoFile('docs/plant-data/phase2-sources.json')).plants.map(p=>p.suggestedKey);
 const coloradoKeys=JSON.parse(readRepoFile('docs/plant-data/phase3-sources.json')).plants.map(p=>p.suggestedKey);
+const phase4Keys=['phase4a-sources.json','phase4b-sources.json'].flatMap(file=>
+  JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
 
 test('West Coast plants are reachable by category, exact discovery, and botanical synonyms', () => {
   setup();
@@ -447,6 +449,63 @@ test('season-derived roles distinguish berries from persistent winter seedheads'
   assert(!currant.includes('seedhead')&&!currant.includes('winter'),'summer currant berries do not imply seedheads or winter interest');
   const mahogany=staticPlantRoles('mountainmahogany');
   assert(mahogany.includes('seedhead')&&mahogany.includes('winter'),'winter mountain-mahogany plumes remain searchable');
+});
+
+test('Texas and Arizona plants are reachable by category, discovery, and botanical synonyms', () => {
+  setup();
+  const library=new Set(libraryAllKeys()),refs=new Set(allPlantRefs().map(r=>plantRefId(r)));
+  for(const key of phase4Keys){
+    assert(library.has(key)&&libraryCatFor(key),`${key}: reachable library category`);
+    assert(refs.has(key+'|'),`${key}: exact discovery reference`);
+    for(const synonym of PLANTS[key].synonyms||[]){
+      const q=synonym.toLowerCase();
+      assert(libraryMatches(key,q),`${key}: library finds ${synonym}`);
+      assert(plantSearchHay(key).includes(q),`${key}: tray finds ${synonym}`);
+      assert(discoverySearchText(plantRef(key)).includes(q),`${key}: discovery finds ${synonym}`);
+    }
+  }
+  assertEqual(libraryCatFor('lindheimersmuhly').id,'grasses',"Lindheimer's muhly stays in grasses");
+  assertEqual(libraryCatFor('heartleafskullcap').id,'shadeper','heartleaf skullcap stays with shade perennials');
+  assertEqual(libraryCatFor('bluepaloverde').id,'trees','blue palo verde stays in trees');
+});
+
+test('Phase 4 woody plants reserve reviewed mature footprints', () => {
+  const shrubs=['turkscap','texasrockrose','cenizo','texasmountainlaurel',
+    'trailingindigobush','brittlebush','jojoba','pinkfairyduster'];
+  for(const key of shrubs){
+    setup(61,61); game.tool=key;
+    assertEqual(applyToolAt(30,30),'plant',`${key}: places through normal tool dispatch`);
+    const tiles=shrubFootprintTiles(30,30,game.plants['30,30'],true);
+    const neighbor=tiles.find(([x,y])=>x!==30||y!==30);
+    assert(neighbor,`${key}: mature spread reserves more than its centre tile`);
+    game.tool='blueflax';
+    assertEqual(applyToolAt(...neighbor),null,`${key}: hard woody occupancy blocks ground-layer planting`);
+  }
+  assert(woodyRadiusTiles(PLANTS.texasmountainlaurel)>=3,'ten-foot Texas mountain laurel keeps a shrub-scale planning radius');
+});
+
+test('Phase 4 morphology stays finite, deterministic, and distinct in both renderers', () => {
+  function trace(key,season,seed=613){
+    const ops=[],ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key} ${season}: finite ${p}`);
+          if(['moveTo','lineTo','quadraticCurveTo','bezierCurveTo','ellipse','arc','fill','stroke'].includes(p))
+            ops.push([p,...a.map(v=>typeof v==='number'?Math.round(v*100)/100:v)]); };
+      },set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,season,seed,0,null,1);return JSON.stringify(ops);
+  }
+  const before=ART2.on;
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of phase4Keys)for(const season of SEASONS)
+      assertEqual(trace(key,season),trace(key,season),`${key} ${season}: stable seed`);
+    assert(trace('turkscap','Summer')!==trace('cenizo','Summer'),'furled Turk cap flowers remain distinct from cenizo trumpets');
+    assert(trace('brittlebush','Spring')!==trace('texasrockrose','Spring'),'brittlebush daisies remain distinct from rock-rose mallows');
+    assert(trace('pinkfairyduster','Spring')!==trace('trailingindigobush','Spring'),'powder-puff filaments remain distinct from indigo flower heads');
+  } } finally { ART2.on=before; }
 });
 
 test('inside-out flowers preserve the green stroke on every flower scape', () => {

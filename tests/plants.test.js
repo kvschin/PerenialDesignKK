@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,515,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,527,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
     'canonical nested-choice count');
@@ -204,6 +204,38 @@ test('Colorado/Rockies batch preserves reviewed data and regional qualifications
   assert(/not evergreen curlleaf/i.test(PLANTS.mountainmahogany.blurb),'mountain mahogany stays distinct from curlleaf mountain mahogany');
   assert(/white pine blister rust/i.test(PLANTS.goldencurrant.blurb)&&/state and local Ribes rules/i.test(PLANTS.goldencurrant.blurb),'golden currant keeps host-risk and legal caveats');
   assert(/provenance/i.test(PLANTS.prairiejunegrass.blurb)&&/elevation/i.test(PLANTS.indianricegrass.blurb),'elevation-sensitive grass sourcing remains visible');
+});
+
+test('Texas and Arizona Phase 4 batches preserve reviewed data and regional limits', () => {
+  const rows=['phase4a-sources.json','phase4b-sources.json'].flatMap(file=>
+    JSON.parse(readRepoFile('docs/plant-data/'+file)).plants);
+  assertEqual(rows.length,12,'Phase 4 contains exactly the twelve approved Texas and Arizona taxa');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], reviewed=row.proposed;
+    assert(P,`${row.id}: missing species`);
+    assertEqual(P.name,reviewed.name,`${row.id}: reviewed common name`);
+    assertEqual(P.latin,reviewed.latin,`${row.id}: exact reviewed taxon`);
+    assertEqual(P.type,reviewed.type,`${row.id}: biological placement category`);
+    for(const field of ['heightIn','spread','space','sun','moist','phen'])
+      assertEqual(P[field],reviewed[field],`${row.id}: reviewed ${field}`);
+    assertEqual(P.zones.join(','),reviewed.zones.join(','),`${row.id}: reviewed zone range`);
+    if(reviewed.grow) assertEqual(P.grow,reviewed.grow,`${row.id}: planning years to represented woody size`);
+    assertEqual((P.synonyms||[]).join('|'),(reviewed.synonyms||[]).join('|'),`${row.id}: reviewed searchable synonyms`);
+    assertEqual(P.nativeTo.join(','),'north-america',`${row.id}: retains existing continental range contract`);
+    assertEqual(P.provenance,'species',`${row.id}: straight species`);
+  }
+  assertEqual(PLANTS.lindheimersmuhly.moist,'medium','Lindheimer muhly is not reduced to a generic dry grass');
+  assertEqual(PLANTS.heartleafskullcap.sun,'part','heartleaf skullcap remains a woodland filler');
+  assert(/not Turk's-cap lily/i.test(PLANTS.turkscap.blurb)&&/kills the top/i.test(PLANTS.turkscap.blurb),'Turk cap identity and cold dieback remain visible');
+  assert(/three to six years/i.test(PLANTS.texasrockrose.blurb)&&/powdery mildew/i.test(PLANTS.texasrockrose.blurb),'Texas rock rose keeps its short life and mildew caveats');
+  assert(/Leucophyllum, not a Salvia/i.test(PLANTS.cenizo.blurb)&&/persistent humidity/i.test(PLANTS.cenizo.blurb),'cenizo keeps its identity and humid-site warning');
+  assert(/All parts are poisonous/i.test(PLANTS.texasmountainlaurel.blurb)&&/children and pets/i.test(PLANTS.texasmountainlaurel.blurb),'Texas mountain laurel seed danger remains explicit');
+  assert(PLANTS.texasmountainlaurel.latin!==PLANTS.mountainlaurel.latin,'Texas and eastern mountain laurels remain separate taxa');
+  assert(/not an Arizona native/i.test(PLANTS.trailingindigobush.blurb),'Dalea is an Arizona garden option, not an Arizona-native claim');
+  assert(/not a generic dry-slope grass/i.test(PLANTS.alkalisacaton.blurb),'alkali sacaton retains its drainage-flat role');
+  assert(/separate plants/i.test(PLANTS.jojoba.blurb)&&/does not promise/i.test(PLANTS.jojoba.blurb),'jojoba dioecy remains visible');
+  assert(/Calliandra californica/.test(PLANTS.pinkfairyduster.blurb),'pink fairy duster stays distinct from the Baja species');
+  assert(/25-foot crown/i.test(PLANTS.bluepaloverde.blurb)&&/borers/i.test(PLANTS.bluepaloverde.blurb),'blue palo verde keeps mature-space and maintenance limits');
 });
 
 test('cleaned exact selections keep accepted names and provenance', () => {

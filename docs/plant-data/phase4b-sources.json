@@ -1,0 +1,451 @@
+{
+  "phase": "4B — Arizona low desert and selected arid Southwest sites",
+  "reviewedOn": "2026-09-01",
+  "scope": "Botanical-data, landscape-role, seasonal-presentation and reusable-morphology review for the six AZ-01 through AZ-06 roadmap taxa. Phase 0 remains deferred.",
+  "conventions": {
+    "units": "heightIn, spread and space are real inches. h and cw are renderer pixels only and are deliberately capped for readable art.",
+    "heightIn": "Representative cultivated overall height, including grass inflorescences and woody crowns. It is not the largest wild specimen.",
+    "space": "Suggested on-center garden spacing. It normally matches the representative mature crown; rooting stems, rhizomes and seedlings can travel beyond one modeled module.",
+    "grow": "Woody-only estimated years to the stated design size, not root establishment time, lifespan or guaranteed ultimate maturity. Every grow value below is identified as a planning estimate.",
+    "zones": "Conservative whole-zone USDA planning ranges synthesized from cited cold-tolerance and extension evidence. Sources often state a minimum temperature rather than a complete zone range, and the app cannot express 8a versus 8b. Zone overlap alone does not establish low-desert heat, drainage, elevation, rainfall pattern or regional provenance suitability.",
+    "bloomMonths": "Representative low-desert Arizona display windows. Rainfall can strongly change flowering, especially for brittlebush and pink fairy duster; these months are not a forecast.",
+    "taxonomy": "The latin field retains the accepted species-level roadmap target. Synonyms are selected scientific discovery aliases, not exhaustive nomenclature.",
+    "schema": "Alkali sacaton uses the existing cloudgrass form. The five woody plants use the existing bush or tree forms and therefore reserve their real mature spread. Trailing indigo bush remains a shrub in the app so its five-foot design patch is not treated like a one-tile herbaceous filler.",
+    "limits": "No Phase 0 climate, local-origin, legal-filter or seasonal-engine change is authorized by this file. nativeTo and provenance use the current broad contract only. Arizona low desert, high desert, sky-island, Chihuahuan and Sonoran qualifications remain descriptive rather than automatic filters."
+  },
+  "rendererReview": {
+    "duplicateAudit": "No existing PLANTS key or exact latin value duplicates any of the six proposed records. Existing pink muhly and Elliott's lovegrass provide the cloudgrass grammar; low Oregon grape and golden currant provide data-driven bush leaves and blooms; desert willow provides a comparable airy desert-tree scale.",
+    "sharedAddition": "Brittlebush needs one small reusable drawShrubFlower shape: flowerShape:'daisy' with a bounded flowerPetals value and the existing seasonal eye color. The current bush 'single' flower always has five petals and does not communicate an Encelia head with 11–21 rays. This must be data-gated and shared, never a brittlebush key check.",
+    "existingGrammar": "The existing bush bloomStyle:'globe' already gives pink fairy duster and trailing indigo bush radial/fuzzy heads; pinnatePairs gives a serviceable fine compound-leaf impression. The existing tree form can express blue palo verde with multiple trunks, an open canopy, small leaf blobs, profuse spring flowers, pod glyphs and green bark. No new form and no cactus renderer are needed.",
+    "footprintDecision": "Use type:'shrub'/form:'bush' for trailing indigo bush, with a modeled 60-in spread and spacing. Its low pixel art should not bypass the woody reservation: stems root where they touch and a design patch commonly reaches 4–6 ft across.",
+    "blockers": []
+  },
+  "plants": [
+    {
+      "id": "AZ-01",
+      "suggestedKey": "alkalisacaton",
+      "proposed": {
+        "name": "Alkali Sacaton",
+        "latin": "Sporobolus airoides",
+        "synonyms": [],
+        "form": "cloudgrass",
+        "type": "grass",
+        "h": 54,
+        "heightIn": 60,
+        "spread": 24,
+        "space": 24,
+        "zones": [4, 10],
+        "sun": "full",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [4, 5],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["matrix", "movement", "structure", "wet"],
+        "look": {
+          "art2": true,
+          "leaves": 24,
+          "leafFan": 1.5,
+          "leafLen": 0.56,
+          "bladeSpread": 0.63,
+          "leafW": 0.84,
+          "stems": 12,
+          "stemFan": 0.74,
+          "stemBase": 13,
+          "stemLean": 0.05,
+          "panicle": true,
+          "cloudTop": 0.9,
+          "cloudDots": 28,
+          "cloudWidth": 25,
+          "cloudHeight": 19,
+          "cloudRadius": 0.56,
+          "cloudSquash": 1.55
+        },
+        "blurb": "A robust warm-season grass with blue-green leaves and a broad airy panicle. Use it where desert water collects or soils run alkaline or saline; established plants tolerate drought, but this is not a generic dry-slope grass. Rhizomes can widen a stand beyond the modeled two-foot crown.",
+        "sea": {
+          "Spring": {"fol": "#76928a", "bloom": "#c9b98f"},
+          "Summer": {"fol": "#6f8c7f", "seed": "#b9a77d"},
+          "Fall": {"fol": "#9b8b66", "seed": "#b8a374"},
+          "Winter": {"fol": "#aa9878", "seed": "#c0ad85"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Sporobolus airoides. No obscure historic synonym is needed as a primary discovery alias.",
+        "dimensions": "USDA reports 20–60 in and an 8–20-in open pyramidal panicle. CSU and its El Paso County plant list give 36–60 in overall and a 24-in cultivated crown. Proposed 60 by 24 in preserves the large inflorescence and direct landscape width.",
+        "spacing": "Proposed 24 in matches the direct cultivated crown width. It represents one planted clump, not the limit of a strongly tillering or rhizomatous stand.",
+        "hardinessAndCulture": "USDA documents a western range from northern states to Mexico, full open exposure, dry-to-moist sand or gravel, alkaline flats, drainages, salinity tolerance, inundation tolerance after establishment and drought tolerance. Full/medium encodes the roadmap's alkaline or seasonally moist flat role rather than presenting it as another upland xeric grass. Zones 4–10 are a broad moderate-confidence whole-zone synthesis, not a direct species trial table.",
+        "floweringAndPersistence": "USDA gives April–May bloom in the Southwest and later windows farther north. It is a perennial warm-season grass whose seedheads and straw foliage can hold into winter.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high for one clump", "zones": "moderate", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://plants.usda.gov/DocumentLibrary/factsheet/pdf/fs_spai.pdf", "supports": "20–60-in height, open pyramidal panicle, April–May Southwest bloom, full-sun intolerance of shade, salinity, drought and inundation tolerance"},
+        {"url": "https://plants.usda.gov/DocumentLibrary/plantguide/pdf/cs_spai.pdf", "supports": "perennial clumping habit, 2–3.5-ft typical height, dry-to-moist sand/gravel, alkaline flats and desert drainage habitat"},
+        {"url": "https://extension.colostate.edu/resource/native-grasses-for-use-in-colorado-landscapes/", "supports": "36–60-in landscape height, warm-season timing, fine blue foliage, airy inflorescence, low water and broad soil tolerance"},
+        {"url": "https://elpaso.extension.colostate.edu/wp-content/uploads/sites/44/2022/09/Final-Native-Plant-List-Birds-05-9-2022.pdf", "supports": "direct 36–60 by 24-in cultivated dimensions and full-sun/adaptable landscape use"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30088883-2", "supports": "accepted Sporobolus airoides name and broad western North American distribution"}
+      ],
+      "caveats": [
+        "Do not market it as a universally dry upland grass. Its distinctive design role is a large grass for alkaline, saline or seasonally wet flats and drainage edges, though an established plant withstands drought.",
+        "Sources differ between 'large bunches' and strongly rhizomatous landscape behavior. The app should warn that a stand can spread beyond the two-foot modeled crown.",
+        "Southwest seedheads can appear in April–May; northern bloom timing is much later, so the calendar remains a low-desert representative window.",
+        "Zones 4–10 are moderate-confidence whole-zone planning values. Local moisture regime and provenance matter more than the zone span suggests."
+      ]
+    },
+    {
+      "id": "AZ-02",
+      "suggestedKey": "trailingindigobush",
+      "proposed": {
+        "name": "Trailing Indigo Bush",
+        "latin": "Dalea greggii",
+        "synonyms": ["Parosela greggii", "Dalea fulvosericea"],
+        "form": "bush",
+        "type": "shrub",
+        "h": 14,
+        "cw": 54,
+        "heightIn": 12,
+        "spread": 60,
+        "space": 60,
+        "grow": 3,
+        "zones": [8, 10],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [3, 4, 5, 6],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["groundcover", "silver", "nectar", "dry", "gravel"],
+        "look": {
+          "art2": true,
+          "habit": "lowMound",
+          "twigN": 12,
+          "twigW": 1.05,
+          "leafN": 42,
+          "pinnatePairs": 4,
+          "pinnateLen": 20,
+          "pinnateLeafW": 0.85,
+          "leafShape": "ovate",
+          "leafHW": 0.42,
+          "bloomStyle": "globe",
+          "clusterR": 3.5
+        },
+        "blurb": "A one-foot woody groundcover whose silver stems can root into a five-foot patch, with fuzzy lavender flower heads in spring and early summer. It is a Chihuahuan species native to Texas, New Mexico, and Mexico, not an Arizona native; use it in sharply drained Arizona landscapes and avoid overwatering.",
+        "sea": {
+          "Spring": {"fol": "#9da49a", "bloom": "#9b79b7", "twig": "#7d7466"},
+          "Summer": {"fol": "#929a8f", "bloom": "#9170ad", "twig": "#796f61"},
+          "Fall": {"fol": "#898d80", "twig": "#7a7062"},
+          "Winter": {"fol": "#7f8175", "twig": "#786e61"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Dalea greggii and lists Parosela greggii and Dalea fulvosericea as synonyms. Kew's native range is Texas, New Mexico and Mexico; Arizona is not native range evidence.",
+        "dimensions": "The Arizona-Sonora Desert Museum gives 1 ft high by 4–6 ft wide. UA groundcover guidance describes a 1-ft mound that spreads rapidly where stems touch soil and recommends roughly 4–5-ft spacing. Proposed 12 by 60 in is a representative design patch within those direct values.",
+        "spacing": "Proposed 60 in matches UA's 4–5-ft recommendation and the middle of the direct 4–6-ft spread. Rooting stems can move beyond it.",
+        "hardinessAndCulture": "The Desert Museum reports full to part-day sun, low water after establishment, loose/sandy or freely drained soil, rot risk when mixed with water-loving plants and hardiness to about 15 F. Full/dry expresses its intended reflected-heat, bank and gravel use. Zones 8–10 are moderate-confidence because 15 F falls near the warm edge of zone 8 and the source does not supply a full zone table.",
+        "floweringAndPersistence": "The Desert Museum gives spring and early-summer fuzzy purple flower heads. UA calls it an evergreen groundcover, while pruning guidance recognizes winter dormancy in Arizona and cold can reduce foliage; the seasonal palette therefore shows muted winter foliage without claiming universal evergreen performance.",
+        "growConfidence": "Weak-to-moderate three-year design estimate to a five-foot rooted patch. UA calls it fast and describes rapid rooting along stems, but no controlled time-to-width trial was found.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak-to-moderate", "ArizonaNativeStatus": "high"}
+      },
+      "sources": [
+        {"url": "https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=1044", "supports": "evergreen groundcover landscape use, fast growth and Chihuahuan origin"},
+        {"url": "https://www.desertmuseum.org/visit/sheets/Dalgre.pdf", "supports": "direct 1 by 4–6-ft dimensions, rooting stems, spring/early-summer heads, low water, drainage/rot caution and 15-F hardiness"},
+        {"url": "https://extension.arizona.edu/sites/extension.arizona.edu/files/pubs/az1110.pdf", "supports": "one-foot mound, soft gray foliage, spring lavender flowers, rapid rooting spread and 4–5-ft groundcover spacing"},
+        {"url": "https://extension.arizona.edu/publication/pruning-shrubs-low-and-mid-elevation-deserts-arizona", "supports": "woody-shrub treatment and winter-dormancy pruning practice in low/mid-elevation Arizona landscapes"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:490685-1", "supports": "accepted name, selected synonyms, subshrub habit and native range excluding Arizona"}
+      ],
+      "caveats": [
+        "This is an Arizona-cultivated Chihuahuan option, not an Arizona native. Do not label a state palette entry as locally native.",
+        "Reserve shrub-scale space even though the canopy is only about one foot tall; stems root where they contact soil and can cross the modeled five-foot patch.",
+        "Overwatering or combining it with a high-water hydrozone can rot it out. Prioritize sharp drainage.",
+        "Evergreen appearance varies with frost and dormancy. Three-year grow and zones 8–10 remain planning values."
+      ]
+    },
+    {
+      "id": "AZ-03",
+      "suggestedKey": "brittlebush",
+      "proposed": {
+        "name": "Brittlebush",
+        "latin": "Encelia farinosa",
+        "synonyms": ["Encelia radians"],
+        "form": "bush",
+        "type": "shrub",
+        "h": 34,
+        "cw": 42,
+        "heightIn": 36,
+        "spread": 36,
+        "space": 36,
+        "grow": 2,
+        "zones": [9, 11],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [1, 2, 3, 4, 5, 6],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["silver", "nectar", "dry", "gravel", "early"],
+        "look": {
+          "art2": true,
+          "habit": "lowMound",
+          "twigN": 9,
+          "twigW": 1.35,
+          "leafN": 50,
+          "leafShape": "ovate",
+          "leafHW": 0.72,
+          "leafLong": 2.3,
+          "bloomStyle": "scattered",
+          "flowerShape": "daisy",
+          "flowerPetals": 13,
+          "flowerN": 18
+        },
+        "blurb": "A rounded silver warm-desert shrub lifted by yellow daisies after cool-season rain, usually peaking in March and April. It can shed its larger winter leaves and even go dormant in severe heat or drought, reseeds readily, and is frost-sensitive; use it for Sonoran and Mojave warmth rather than Arizona high country.",
+        "sea": {
+          "Spring": {"fol": "#aaa993", "bloom": "#e3b82f", "eye": "#89672d", "twig": "#80715f"},
+          "Summer": {"fol": "#999b88", "twig": "#7b6d5b"},
+          "Fall": {"fol": "#979584", "twig": "#7d6e5c"},
+          "Winter": {"fol": "#a6a590", "bloom": "#dfb22b", "eye": "#86642b", "twig": "#7f705e"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Encelia farinosa and treats Encelia radians and its varietal combination as synonyms. The species is native in Arizona, California, Nevada and northern Mexico and introduced in Hawaii.",
+        "dimensions": "The 2024 Forest Service review gives a typical 0.3–1.0 m rounded shrub, with robust plants to 1.5 m. A UA landscape list gives 3 by 3 ft. Proposed 36 by 36 in uses the direct landscape size rather than exceptional wild individuals.",
+        "spacing": "No controlled ornamental spacing trial was found. Proposed 36 in matches the direct mature landscape width and has moderate confidence; favorable disturbed ground can also receive seedlings outside the crown.",
+        "hardinessAndCulture": "The Forest Service characterizes it as drought tolerant, frost intolerant and tied to warm desert scrub, rocky slopes, hillsides and upper bajadas. UA lists full sun, very low water and damage below 28 F. Zones 9–11 acknowledge warm-desert cultivation but have only moderate whole-zone confidence; colder zone-9 events can damage foliage or stems.",
+        "floweringAndPersistence": "UA's low-desert pollinator calendar lists January–June. Forest Service evidence says flowering is rainfall-sensitive, usually February–May with an Arizona peak from early March through April, and sometimes responds to later monsoon rain. Larger cool-season leaves fall as heat and drought increase; smaller drought-tolerant leaves may remain, but extreme heat/drought can cause dormancy.",
+        "growConfidence": "Moderate two-year design estimate. UA calls it fast-growing and Forest Service evidence documents flowering and seed set within one year; no direct time-to-three-foot trial was found.",
+        "safetyAndBehavior": "UA horticultural material flags allergenic potential and easy reseeding. The Forest Service calls the species noninvasive at the continental level but documents dense post-disturbance stands; avoid translating that into either an invasive label or a promise that seedlings stay put.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high for low desert", "grow": "moderate", "seasonalPersistence": "high"}
+      },
+      "sources": [
+        {"url": "https://research.fs.usda.gov/feis/species-reviews/encfar", "supports": "current 2024 synthesis of taxonomy, 0.3–1.0-m typical size, warm-desert range, frost sensitivity, rainfall-driven bloom, March–April Arizona peak, leaf dimorphism/drought dormancy and reseeding ecology"},
+        {"url": "https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=1072", "supports": "full-sun very-low-water Arizona cultivation, frost injury below 28 F, fast growth, spring bloom and reseeding/allergen cautions"},
+        {"url": "https://extension.arizona.edu/sites/extension.arizona.edu/files/programs/Siesta-Del-Sol-Plant-List.pdf", "supports": "direct 3-by-3-ft Arizona landscape dimensions, full sun, very low water and spring yellow bloom"},
+        {"url": "https://extension.arizona.edu/sites/extension.arizona.edu/files/pubs/az2060-2023.pdf", "supports": "January–June low-desert Arizona pollinator bloom window"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:203119-1", "supports": "accepted Encelia farinosa name, selected synonymy and Southwest/northern Mexico distribution"}
+      ],
+      "caveats": [
+        "Keep the Sonoran/Mojave warm-desert focus explicit. This is not a Flagstaff or broadly high-country Arizona default.",
+        "Bloom depends on cool-season rain and may be sparse or shortened in dry years; January–June is a possible low-desert window, not continuous guaranteed color.",
+        "Do not render a generic five-petal shrub flower. Use the shared data-driven daisy shape with a bounded ray count.",
+        "The plant can reseed and form dense disturbed-site stands while remaining classified as native/noninvasive. Three-foot spacing, two-year grow and zones 9–11 are planning values."
+      ]
+    },
+    {
+      "id": "AZ-04",
+      "suggestedKey": "jojoba",
+      "proposed": {
+        "name": "Jojoba",
+        "latin": "Simmondsia chinensis",
+        "synonyms": ["Simmondsia californica", "Buxus chinensis"],
+        "form": "bush",
+        "type": "shrub",
+        "h": 48,
+        "cw": 58,
+        "heightIn": 72,
+        "spread": 72,
+        "space": 72,
+        "grow": 10,
+        "zones": [8, 10],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [3, 4, 5],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["evergreen", "structure", "hedge", "dry"],
+        "look": {
+          "art2": true,
+          "evergreen": true,
+          "habit": "round",
+          "twigN": 10,
+          "twigW": 1.7,
+          "leafN": 56,
+          "leafShape": "ovate",
+          "leafHW": 1.05,
+          "leafLong": 2.2,
+          "bloomStyle": "stemAxil",
+          "flowerShape": "star",
+          "flowerN": 2,
+          "fruitStyle": "globe",
+          "berryN": 1
+        },
+        "blurb": "A slow, long-lived Sonoran shrub with rigid branches and leathery gray-green evergreen leaves. Jojoba is most characteristic of well-drained rocky slopes and upper bajadas, not every low valley. Male and female flowers occur on separate plants, so one unsexed plant does not promise the seed capsules shown in a fruiting season.",
+        "sea": {
+          "Spring": {"fol": "#788875", "bloom": "#a9a86d", "twig": "#756c5d"},
+          "Summer": {"fol": "#6f8170", "seed": "#9a7952", "twig": "#72695b"},
+          "Fall": {"fol": "#738274", "seed": "#8f704c", "twig": "#746b5d"},
+          "Winter": {"fol": "#788578", "twig": "#766d5f"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Simmondsia chinensis, the only species in its genus, and lists Simmondsia californica and Buxus chinensis among its synonyms.",
+        "dimensions": "UA Campus Arboretum gives a common landscape crown of 4–6 ft tall and 6 ft wide, while wild plants can range from low mounds to 10 ft. Proposed 72 by 72 in represents an unpruned, useful landscape framework without using the largest wild form.",
+        "spacing": "Proposed 72 in matches the direct six-foot crown. UA pruning guidance says an informal hedge needs enough room to reach mature size and that jojoba needs little regular pruning.",
+        "hardinessAndCulture": "UA and Forest Service sources support full sun, low water, coarse well-drained rocky/gravelly soil, salinity tolerance, Sonoran uplands/upper bajadas and mature cold tolerance around 15 F. Young plants are more freeze-sensitive. Zones 8–10 are moderate-confidence and should be read as warm-zone planning, not a promise for every zone-8 site.",
+        "floweringAndPersistence": "Forest Service seed guidance gives March–May flowers after winter rain; Yavapai observations span December–July, illustrating site/year variability. The foliage is evergreen but may shed under severe drought. Jojoba is dioecious and wind-pollinated; female plants need male pollen to produce seed, and seed maturation takes about six to seven months.",
+        "growConfidence": "Weak ten-year design estimate to a six-foot framework. UA labels the plant slow-growing and Forest Service evidence emphasizes great longevity, but no direct time-to-six-foot trial was found.",
+        "safetyAndSex": "Male plants produce wind-borne pollen and UA flags allergenic potential. The app has no sex field, so the record must not promise fruit from a single plant or imply that every rendered plant is female.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak", "sexCaveat": "high"}
+      },
+      "sources": [
+        {"url": "https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=897", "supports": "direct 4–6 by 6-ft landscape crown, evergreen leathery leaves, dioecy, full sun, drainage, 15-F hardiness, low water, slow growth and allergy flag"},
+        {"url": "https://yavapaiplants.extension.arizona.edu/simmondsia-chinensis", "supports": "Arizona native habitat, seven-foot wild height, 1,000–5,000-ft rocky slope/outwash/arroyo context, evergreen leaves, separate sexes and broad observed bloom span"},
+        {"url": "https://research.fs.usda.gov/feis/species-reviews/simchi", "supports": "Sonoran upper-bajada/site limits, 15-F mature tolerance and seedling sensitivity, evergreen/drought response, dioecy, flowering variability, six-to-seven-month seed maturation and long lifespan"},
+        {"url": "https://research.fs.usda.gov/download/treesearch/32661.pdf", "supports": "one-species family treatment, 2-m representative shrub, dioecy, wind pollination and March–May flowers after winter rain"},
+        {"url": "https://extension.arizona.edu/publication/pruning-shrubs-low-and-mid-elevation-deserts-arizona", "supports": "little-pruning framework and formal/informal hedge use only when enough mature space is provided"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:236600-2", "supports": "accepted Simmondsia chinensis name, synonymy and Southwest/northern Mexico range"}
+      ],
+      "caveats": [
+        "Do not present jojoba as a universal low-desert valley shrub. In Arizona it is especially associated with well-drained slopes, pediments and upper bajadas, often around 2,000–4,000 ft.",
+        "Male and female flowers are on separate plants. Fruit/seed requires a female plant and nearby pollen; the current schema cannot encode sex.",
+        "Mature plants can tolerate about 15 F, but seedlings and young plants are more vulnerable. The app's whole-zone 8 cannot distinguish warmer 8b sites.",
+        "Ten-year grow and zones 8–10 are planning estimates."
+      ]
+    },
+    {
+      "id": "AZ-05",
+      "suggestedKey": "pinkfairyduster",
+      "proposed": {
+        "name": "Pink Fairy Duster",
+        "latin": "Calliandra eriophylla",
+        "synonyms": ["Anneslia eriophylla"],
+        "form": "bush",
+        "type": "shrub",
+        "h": 32,
+        "cw": 44,
+        "heightIn": 36,
+        "spread": 48,
+        "space": 48,
+        "grow": 4,
+        "zones": [8, 10],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [2, 3, 4, 5, 10, 11],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["early", "nectar", "dry", "gravel"],
+        "look": {
+          "art2": true,
+          "habit": "lowMound",
+          "twigN": 10,
+          "twigW": 1.2,
+          "leafN": 40,
+          "pinnatePairs": 5,
+          "pinnateLen": 22,
+          "pinnateLeafW": 0.8,
+          "leafShape": "linear",
+          "leafHW": 0.35,
+          "bloomStyle": "globe",
+          "clusterR": 5.4
+        },
+        "blurb": "A compact, fine-leaved desert shrub with pale-to-deep pink powder puffs, strongest after late-winter or spring rain and often again in fall. It is drought- and cold-deciduous, despite sporadic bloom in other seasons. Keep this Arizona-native species distinct from larger, redder Baja fairy duster, Calliandra californica.",
+        "sea": {
+          "Spring": {"fol": "#6f8b62", "bloom": "#d989aa", "twig": "#796b5b"},
+          "Summer": {"fol": "#66805a", "twig": "#756757"},
+          "Fall": {"fol": "#71805e", "bloom": "#d37f9f", "twig": "#776959"},
+          "Winter": {"bloom": "#d68aa3", "twig": "#776959"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Calliandra eriophylla and lists Anneslia eriophylla as a homotypic synonym. It is native from southern California to Texas and Mexico, including Arizona.",
+        "dimensions": "Arizona Extension gives 3 by 3 ft; the Arizona-Sonora Desert Museum gives 3 ft tall by 4 ft wide and notes it is easy to keep smaller. Proposed 36 by 48 in follows the fuller direct landscape envelope.",
+        "spacing": "No controlled ornamental spacing trial was found. Proposed 48 in matches the direct mature width and has high design confidence.",
+        "hardinessAndCulture": "University of Arizona and Desert Museum sources support sun for compact form and flowering, dry/gravelly soil, low water after establishment, moderate growth and hardiness near 15 F. Zones 8–10 are moderate-confidence because a whole zone-8 label includes sites colder than the stated threshold.",
+        "floweringAndPersistence": "The Desert Museum gives main bloom in late winter/early spring and fall; UA Yavapai observations span October–May, and other sources describe occasional late-summer/autumn response. Proposed February–May and October–November conveys the two main displays without claiming uninterrupted flowers. It is drought- and cold-deciduous.",
+        "growConfidence": "Weak-to-moderate four-year design estimate to 3 by 4 ft. Sources describe moderate or slow growth and long-term Tucson field trials show variable 1.5–4-ft plants, but no controlled time-to-crown value was found.",
+        "identity": "This record must remain distinct from Baja fairy duster, Calliandra californica, a larger Baja California plant with redder flowers and lower cold tolerance, and from named interspecific hybrids.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak-to-moderate", "identity": "high"}
+      },
+      "sources": [
+        {"url": "https://cales.arizona.edu/desertlegumeprogram/legume-taxa/calliandra-eriophylla.html", "supports": "native Arizona shrub/subshrub identity, 3.5-ft height, bipinnate fine foliage, spring and occasional late-summer/fall bloom, moderate growth, drought tolerance and 10-F reported hardiness"},
+        {"url": "https://yavapaiplants.extension.arizona.edu/calliandra-eriophylla", "supports": "direct 3-by-3-ft Arizona dimensions, rocky/gravelly habitat, deciduous habit, powder-puff stamens and October–May observed bloom span"},
+        {"url": "https://www.desertmuseum.org/visit/sheets/Caleri.pdf", "supports": "direct 3-by-4-ft landscape dimensions, moderate and drought/cold-deciduous habit, main late-winter/spring and fall bloom, 15-F hardiness and sunny-site performance"},
+        {"url": "https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=926", "supports": "three-foot compact shrub, ferny bipinnate leaves, spring-through-summer variability, full-sun dry-drained cultivation and wildlife value"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:42149-2", "supports": "accepted Calliandra eriophylla name, Anneslia synonym and native Southwest-to-Texas/Mexico distribution"}
+      ],
+      "caveats": [
+        "Do not merge it with Baja fairy duster, Calliandra californica, or with bright-red nursery hybrids. This record is the smaller Arizona-native pink species.",
+        "Its powder puffs are stamens rather than petals. The existing data-driven bush globe style is the correct shared grammar.",
+        "Foliage can drop in drought or cold. Do not tag it evergreen even though irrigated mild-climate plants may retain leaves.",
+        "Flowering responds to rainfall; February–May and October–November are representative display windows, not guaranteed continuous bloom."
+      ]
+    },
+    {
+      "id": "AZ-06",
+      "suggestedKey": "bluepaloverde",
+      "proposed": {
+        "name": "Blue Palo Verde",
+        "latin": "Parkinsonia florida",
+        "synonyms": ["Cercidium floridum"],
+        "form": "tree",
+        "type": "tree",
+        "h": 68,
+        "cw": 94,
+        "heightIn": 300,
+        "spread": 300,
+        "space": 300,
+        "grow": 10,
+        "zones": [8, 11],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [3, 4, 5],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["architectural", "canopy", "nectar", "dry"],
+        "look": {
+          "art2": true,
+          "trunks": 3,
+          "trunkSpread": 4.5,
+          "trunkLean": 3.2,
+          "trunkH": 0.36,
+          "trunkW": 3.8,
+          "bark": "#4f8864",
+          "branches": 8,
+          "branchSpread": 2.15,
+          "branchReach": 0.46,
+          "branchLift": 0.13,
+          "leafN": 16,
+          "leafW": 0.07,
+          "leafH": 0.035,
+          "canopyW": 0.54,
+          "canopyH": 0.2,
+          "flowerN": 34,
+          "flowerSize": 1.65,
+          "seedN": 7,
+          "seedR": 2,
+          "fruitShape": "pod"
+        },
+        "blurb": "A broad Sonoran wash tree with blue-green photosynthetic bark, a fine short-lived leaf canopy, and a brilliant yellow spring bloom. Reserve its full 25-foot crown. Short thorns, flower and pod litter, pruning needs, borers, mistletoe, and witches' broom make it a poor choice tight against walks or buildings.",
+        "sea": {
+          "Spring": {"fol": "#6d9871", "bloom": "#e8c42d"},
+          "Summer": {"seed": "#8a704b"},
+          "Fall": {"seed": "#806746"},
+          "Winter": {}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Parkinsonia florida and lists Cercidium floridum as its homotypic synonym. UA also records the older Cercidium name. The species is distinct from foothill/yellow palo verde, Parkinsonia microphylla.",
+        "dimensions": "UA Yavapai gives 20–40 ft wild height. A current Arizona Master Gardener landscape list gives 25 by 25 ft and calls it the largest native palo verde used there. Proposed 25 by 25 ft is the direct representative landscape crown rather than the 40-ft wild upper end.",
+        "spacing": "Proposed 300 in matches the direct 25-ft crown and the app's mature-canopy/woody-footprint contract. This is tree-scale structure, never a small patio shrub.",
+        "hardinessAndCulture": "UA gives Sonoran washes and deep-soil plains from sea level to about 4,000 ft, full desert adaptation, moderate growth, benefit from one or two deep hot-season irrigations and cold hardiness near 10 F. Arizona Extension maps it to USDA zones 8–11. Full/dry expresses low-water established use; wash origin and occasional deep irrigation remain in the description.",
+        "floweringAndPersistence": "Yavapai gives March–May bloom; UA calls it mid-spring and about three weeks earlier than foothill palo verde. Tiny leaves are shed for much of the year while blue-green twigs and branches photosynthesize. Flat pods follow bloom and can create litter.",
+        "growConfidence": "Weak-to-moderate ten-year design estimate to the proposed 25-ft crown. UA calls growth moderate but supplies no direct time-to-size study.",
+        "safetyAndMaintenance": "UA warns of short thorns near walks, heavy flower/pod litter, greater pruning need than other palo verdes, palo verde borer, mistletoe and witches' broom. These are placement and maintenance caveats, not reasons to exclude a correctly sited tree.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "high", "culture": "high", "bloomMonths": "high", "grow": "weak-to-moderate", "maintenance": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.arizona.edu/publication/mesquite-and-palo-verde-trees-urban-landscape", "supports": "species identity, Sonoran range/elevation, wash/deep-soil ecology, open fine foliage, mid-spring timing, moderate growth, irrigation, 10-F hardiness, thorns, litter, pruning, borers, mistletoe and witches' broom"},
+        {"url": "https://yavapaiplants.extension.arizona.edu/parkinsonia-florida", "supports": "20–40-ft native tree, March–May yellow bloom, wash/plain/canyon habitat, leafless photosynthetic blue-green branches, thorns, pods and distinction from P. microphylla"},
+        {"url": "https://extension.arizona.edu/sites/extension.arizona.edu/files/programs/Siesta-Del-Sol-Plant-List.pdf", "supports": "direct 25-by-25-ft Arizona landscape dimensions, full sun, very low water, spring bloom and multitrunk blue-green form"},
+        {"url": "https://extension.arizona.edu/publication/arizona-climate-zones-and-their-application-growing-plants", "supports": "direct USDA zones 8–11 Arizona Extension table"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:512245-1", "supports": "accepted Parkinsonia florida name, Cercidium floridum synonym and Sonoran Southwest/northern Mexico range"}
+      ],
+      "caveats": [
+        "Reserve the full 25-foot crown and keep thorny twigs away from walks, entries and play areas. The tree also produces substantial flower and pod litter.",
+        "Distinguish it from foothill/yellow palo verde, Parkinsonia microphylla: blue palo verde is bluer, broader, associated more with washes/deeper soils and flowers earlier.",
+        "Although drought-adapted, native wash ecology and UA guidance support occasional deep hot-season irrigation in urban landscapes. Avoid frequent shallow watering and weak crowded growth.",
+        "Witches' broom, palo verde borer and mistletoe are regionally material maintenance issues. Ten-year grow remains a planning estimate."
+      ]
+    }
+  ]
+}

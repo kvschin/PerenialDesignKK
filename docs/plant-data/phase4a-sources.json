@@ -1,0 +1,457 @@
+{
+  "phase": "4A — Texas regional structure and shade",
+  "reviewedOn": "2026-09-01",
+  "scope": "Botanical, landscape-design and visual-morphology review for exactly TX-01 through TX-06 in the US regional plant roadmap; proposed production values for main-agent review, not an automatic catalog import.",
+  "conventions": {
+    "units": "heightIn, spread, space and dimension evidence are real inches. h and cw are only proposed pixel-art extents and do not replace the real dimensions.",
+    "heightIn": "Representative cultivated overall height, including inflorescences or the woody crown. It is not the tallest documented wild or heavily irrigated specimen.",
+    "space": "Suggested on-center garden spacing. Woody records reserve the representative mature crown; spreading herbaceous records can move beyond one module by rhizomes, seedlings or colonies.",
+    "grow": "Woody-only estimated years to the stated design size, not establishment time, flowering age, lifespan or guaranteed ultimate maturity. Indirect estimates are explicitly labeled weak or moderate.",
+    "zones": "Conservative whole-zone USDA cultivation ranges synthesized from cited extension sources. Zone overlap does not make a plant native or suitable throughout Texas; ecoregion, heat, humidity, drainage and provenance remain separate qualifications.",
+    "bloomMonths": "Approximate Texas display windows. Rainfall pulses, microclimate and latitude can shift bloom; a grass panicle is represented as bloom while it is visibly flowering and as seed after maturation.",
+    "taxonomy": "The latin field retains the exact roadmap taxon. Search synonyms are selected discovery aliases, not exhaustive nomenclature. Texas mountain laurel remains separate from eastern mountain laurel, Kalmia latifolia.",
+    "schema": "Muhlenbergia lindheimeri is grass/vertgrass; Scutellaria ovata is forb/spike. Malvaviscus arboreus var. drummondii, Pavonia lasiopetala, Leucophyllum frutescens and Dermatophyllum secundiflorum are woody shrub/bush records and include grow plus full mature footprints, even where cold causes top dieback.",
+    "limits": "Phase 0 remains deferred. No automatic Texas-native, ecoregion, heat, humidity, toxicity or local-provenance filter is authorized by this file; those limits stay explicit in blurbs and caveats.",
+    "regionalScope": "This is not one statewide palette. Lindheimer's muhly and rock rose center on limestone-country and Edwards Plateau contexts; cenizo and Texas mountain laurel favor dry central, south or west Texas conditions; heartleaf skullcap and Turk's cap supply protected or woodland roles. Humid East Texas and the Panhandle require different site judgments."
+  },
+  "rendererReview": {
+    "blockers": [],
+    "existingReusableGrammar": [
+      "vertgrass with foliageHeight and plumeStyle:'open' for Lindheimer's muhly",
+      "spikeStyle:'penstemon' with cordate leaves for the short, lipped skullcap racemes",
+      "bush habit, shaped leaves, stemAxil/scattered blooms and the shared flowerShape:'turkscap' path for the two mallows",
+      "evergreen bush plus stemAxil trumpets for cenizo",
+      "pinnatePairs plus pendantRaceme for Texas mountain laurel"
+    ],
+    "recommendedReusableAdditions": [
+      "Add a data-gated drawShrubFlower shape 'pea' using a banner, two wings and a keel. Texas mountain laurel can opt in through look.flowerShape; the grammar can also serve other Fabaceae and must not inspect a plant key.",
+      "Pass S.eye as the accent argument in the bush bareStem/stemAxil and rose/scattered flower calls. This exposes already-authored seasonal throat or staminal-column color without changing records that omit eye."
+    ],
+    "performance": "All proposed counts remain within the current bounded bush, spike and vertgrass loops. The pea flower should use a fixed small number of paths per floret and no allocations or per-frame randomness outside the existing seeded stream."
+  },
+  "plants": [
+    {
+      "id": "TX-01",
+      "suggestedKey": "lindheimersmuhly",
+      "proposed": {
+        "name": "Lindheimer's Muhly",
+        "latin": "Muhlenbergia lindheimeri",
+        "synonyms": ["Epicampes gracilis"],
+        "type": "grass",
+        "form": "vertgrass",
+        "h": 48,
+        "heightIn": 60,
+        "spread": 48,
+        "space": 36,
+        "zones": [6, 9],
+        "sun": "full",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [5, 6, 7, 8, 9, 10, 11],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["matrix", "movement", "prairie", "structure"],
+        "look": {
+          "art2": true,
+          "leaves": 24,
+          "fan": 1.7,
+          "bladeHW": 0.58,
+          "foliageHeight": 0.62,
+          "plumeStyle": "open",
+          "plumeLen": 0.28,
+          "plumeW": 1.05
+        },
+        "sea": {
+          "Spring": {"fol": "#71866d", "bloom": "#b9b8aa"},
+          "Summer": {"fol": "#687f68", "bloom": "#c9c7b6"},
+          "Fall": {"fol": "#827d68", "bloom": "#d7d2bd", "seed": "#c9c1aa"},
+          "Winter": {"fol": "#a09278", "seed": "#c3b79e"}
+        },
+        "blurbRequirements": "Identify a large warm-season central/southwest Texas limestone-country bunchgrass with a blue-green fountain and silvery panicles. Say that the selected 5-by-4-ft envelope includes flowers, that established plants tolerate drought but the primary data value remains medium water, and that hard shearing can recover slowly. Do not imply statewide Texas origin or equate it with pampas grass or pink muhly."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Muhlenbergia lindheimeri and gives Central and Southwest Texas to northeastern Mexico as its native range. Epicampes gracilis is retained as a useful historical discovery alias.",
+        "dimensions": "NPSOT gives 3–6 ft tall and 1–2 ft spread, while the City of Austin gives 3–4 ft tall and wide and NC State gives 2–5 ft by 3–4 ft. The proposed 60-in flowering height and 48-in crown use the broad cultivated envelope without selecting the 6-ft extreme.",
+        "spacing": "NPSOT propagation guidance says approximately 2–3 ft between divisions and an older NPSOT guide says 3 ft. Proposed 36-in on center follows that direct guidance while the 48-in spread lets mature neighboring fountains overlap visually.",
+        "hardinessAndCulture": "NC State gives zones 6–9, full sun, good drainage and heat/drought resistance. NPSOT supports full sun, medium water, calcareous rocky or sandy well-drained sites and a central/south Texas ecoregion pattern. Medium moisture avoids presenting a limestone-draw grass as an interchangeable low-desert xerophyte.",
+        "floweringAndPersistence": "NPSOT gives May–November and describes warm-season, semi-evergreen growth with silvery seedheads; City of Austin and other NPSOT material emphasize the primary fall plume display and winter persistence. Leave foliage standing and rake dead blades rather than assuming an annual hard cut.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "high", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:164816-2", "supports": "accepted name, Epicampes gracilis synonym, perennial bunchgrass morphology and Central/Southwest Texas to northeastern Mexico native range"},
+        {"url": "https://www.npsot.org/posts/native-plant/muhlenbergia-lindheimeri/", "supports": "Texas ecoregions, 3–6-ft height, 1–2-ft spread, semi-evergreen warm-season habit, full sun, medium water, May–November panicles, winter-standing guidance and 2–3-ft spacing"},
+        {"url": "https://www.austintexas.gov/ur-in/watershed-protection/plant-guide/muhly-big", "supports": "3–4-ft height and spread, full sun/part shade, medium water, fall white flowers, deciduous treatment and fountain form"},
+        {"url": "https://plants.ces.ncsu.edu/plants/muhlenbergia-lindheimeri/common-name/lindheimers-muhly/", "supports": "2–5-ft by 3–4-ft cultivated dimensions, zones 6–9, full sun, good drainage, semi-evergreen winter foliage and heat/drought performance"},
+        {"url": "https://www.npsot.org/posts/july-august-2010/", "supports": "three-foot landscape spacing, fall seedheads, established low supplemental-water need and warning that winter foliage becomes dormant"}
+      ],
+      "caveats": [
+        "The species is native to a restricted central and southwestern Texas/northeastern Mexico range, not every Texas ecoregion.",
+        "Source widths vary because some measure the basal clump and others the full arching fountain; spread 48 and spacing 36 deliberately encode that distinction.",
+        "NPSOT lists medium water even though established plants are drought tolerant. Do not market it as a low-desert grass or place it in persistently wet soil.",
+        "Do not routinely shear it like a generic ornamental grass; multiple Texas sources warn that it recovers slowly from hard cutting."
+      ]
+    },
+    {
+      "id": "TX-02",
+      "suggestedKey": "heartleafskullcap",
+      "proposed": {
+        "name": "Heartleaf Skullcap",
+        "latin": "Scutellaria ovata",
+        "synonyms": [],
+        "type": "forb",
+        "form": "spike",
+        "h": 24,
+        "heightIn": 24,
+        "spread": 18,
+        "space": 18,
+        "zones": [4, 9],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "bloomMonths": [4, 5, 6, 7],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["early", "groundcover", "nectar", "woodland"],
+        "look": {
+          "art2": true,
+          "spikeStyle": "penstemon",
+          "stems": 7,
+          "stemSpread": 18,
+          "lenBase": 0.67,
+          "lenJitter": 0.22,
+          "leaves": 12,
+          "leafLen": 0.4,
+          "leafShape": "cordate",
+          "leafHW": 1.65,
+          "leafFan": 1.75,
+          "leafRise": 0.65,
+          "leafTeeth": 0.18,
+          "leafTeethN": 5,
+          "stemLeaves": 4,
+          "stemLeafW": 1.0,
+          "stemLeafLen": 7,
+          "tubeCount": 6,
+          "tubeLen": 3.5,
+          "tubeW": 1.8,
+          "tubeLean": 2.1,
+          "tubeSpan": 9
+        },
+        "sea": {
+          "Spring": {"fol": "#658052", "bloom": "#6976b7", "eye": "#e7e4dd"},
+          "Summer": {"fol": "#5d774f", "bloom": "#6571aa", "eye": "#e4e1dc"},
+          "Fall": {"seed": "#75614b"},
+          "Winter": {"fol": "#5d7151"}
+        },
+        "blurbRequirements": "Describe a heart-leaved, rhizomatous woodland filler with blue-purple lipped spikes, useful cool-season foliage and possible hottest-summer dormancy. Note that it can colonize and reseed. Preserve part shade/medium as the Texas design default despite broader range sources allowing sun and dry soil, and avoid medicinal claims based only on the common name or genus."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Scutellaria ovata and recognizes substantial infraspecific variation. No historical synonym is necessary for app discovery; Scutellaria versicolor and other names can attach to narrower infraspecific concepts and would create ambiguity.",
+        "dimensions": "NPSOT gives 1–2 ft high and 1–1.5 ft spread. Missouri Botanical Garden gives 1–2 ft by 0.75–1.5 ft, and NC State reports a broader 1–3-ft height. Proposed 24 by 18 in follows the direct Texas envelope.",
+        "spacing": "No controlled spacing trial was verified. Eighteen inches matches the upper Texas crown width and allows a rhizomatous woodland patch to close; it is a moderate-confidence design value, not a colony limit.",
+        "hardinessAndCulture": "Missouri Botanical Garden lists zones 4–9 and dry-to-medium culture. NPSOT gives part shade/shade, low-to-medium water, limestone/loam/clay and woodland habitat. The proposed part/medium values prioritize its Texas shade-filler role and summer foliage over maximum drought exposure.",
+        "floweringAndPersistence": "NPSOT gives April–July, semi-evergreen cool-season foliage, possible dormancy in the hottest months, rhizomes and easy reseeding. More northern sources can flower later; the production calendar deliberately reflects the reviewed Texas batch.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "high", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30012472-2", "supports": "accepted name, perennial status, broad central/eastern US to northeastern Mexico range and infraspecific complexity"},
+        {"url": "https://www.npsot.org/posts/native-plant/scutellaria-ovata/", "supports": "Texas ecoregions, 1–2-ft by 1–1.5-ft size, semi-evergreen habit, part shade/shade, low-medium water, April–July bloom, rhizomes, reseeding and hottest-month dormancy"},
+        {"url": "https://www.missouribotanicalgarden.org/PlantFinder/PlantFinderDetails.aspx?bt=9&taxonid=281522", "supports": "zones 4–9, 1–2-ft by 0.75–1.5-ft dimensions, dry-medium drainage, rhizomes, self-seeding and hot-dry summer dormancy"},
+        {"url": "https://plants.ces.ncsu.edu/plants/scutellaria-ovata/", "supports": "variable species, 1–3-ft height, 8–18-in width, zones 4a–8b, lipped tubular flowers, cordate serrate leaves and deer/rabbit resistance"}
+      ],
+      "caveats": [
+        "The species is geographically and infraspecifically variable. Use material of known local or regional provenance instead of assuming every Scutellaria ovata selection is equivalent.",
+        "It can spread by rhizomes and seed, then disappear temporarily in a hot dry summer; the modeled 18-in module is not a permanent boundary.",
+        "Part shade and medium moisture are intentional Texas palette defaults. The plant can tolerate drier or sunnier sites in parts of its broad range, but those settings can increase dormancy.",
+        "Do not imply medicinal interchangeability with other plants called skullcap."
+      ]
+    },
+    {
+      "id": "TX-03",
+      "suggestedKey": "turkscap",
+      "proposed": {
+        "name": "Turk's Cap",
+        "latin": "Malvaviscus arboreus var. drummondii",
+        "synonyms": ["Malvaviscus drummondii", "Hibiscus drummondii", "Pavonia drummondii"],
+        "type": "shrub",
+        "form": "bush",
+        "h": 52,
+        "cw": 58,
+        "heightIn": 72,
+        "spread": 60,
+        "space": 60,
+        "grow": 4,
+        "zones": [8, 11],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [6, 7, 8, 9, 10, 11],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["host", "nectar", "woodland"],
+        "look": {
+          "art2": true,
+          "habit": "upright",
+          "twigN": 11,
+          "leafN": 58,
+          "leafShape": "cordate",
+          "leafHW": 1.35,
+          "leafLong": 2.7,
+          "leafTeeth": 0.2,
+          "leafTeethN": 5,
+          "bloomStyle": "stemAxil",
+          "flowerShape": "turkscap",
+          "flowerN": 7,
+          "fruitStyle": "cluster",
+          "berryN": 3
+        },
+        "sea": {
+          "Spring": {"fol": "#5f7c51", "twig": "#745b4a"},
+          "Summer": {"fol": "#526f47", "bloom": "#c84432", "eye": "#e0bd54", "seed": "#b84f3b", "twig": "#705544"},
+          "Fall": {"fol": "#5c7149", "bloom": "#c33e30", "eye": "#ddb74e", "seed": "#ab4938", "twig": "#735746"},
+          "Winter": {"twig": "#6b584b"}
+        },
+        "blurbRequirements": "Use the accepted Texas variety name and distinguish it from Turk's-cap lily. Describe a shade-tolerant, colony-forming shrub or subshrub with furled red flowers and protruding staminal columns, summer-to-frost nectar, red fruit and a representative 6-by-5-ft warm-site crown. State that cold often kills the top to the ground and roots resprout; do not present the four-year grow value as annual regrowth time."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Malvaviscus arboreus var. drummondii, native from Texas to Mexico, and lists Malvaviscus drummondii, Hibiscus drummondii and Pavonia drummondii as homotypic synonyms. The infraspecific name matters because the broader tropical species can become substantially larger.",
+        "dimensions": "NPSOT gives 2–6 ft by 3–5 ft. Texas Tech gives 2.5–3.5 ft by 3–5 ft, while University of Texas herbarium material says favorable plants can reach 10 ft. Proposed 72 by 60 in reserves a representative vigorous Texas crown without modeling the exceptional warm-site height.",
+        "spacing": "No direct on-center trial was verified. Proposed 60 in equals the selected mature crown because this is a woody colony-forming record; roots and shoots can still extend beyond it.",
+        "hardinessAndCulture": "Texas Tech gives zones 8–11, partial shade, medium moisture, drainage and drought tolerance. NPSOT allows sun through shade and low-to-medium water, with woodland-edge and riparian associations. Part/medium is the most useful primary shade-shrub value and avoids turning broad tolerance into a dry-exposed default.",
+        "floweringAndPersistence": "NPSOT gives June–November and documents deciduous growth, colonies and chambered red fruit. Texas A&M Master Gardener and Central Texas Gardener sources document winter top dieback and root resprouting. Four years to the selected crown is a weak planning estimate; no direct time-to-size study was found.",
+        "growConfidence": "Weak four-year estimate to a representative 6-by-5-ft crown. The plant regrows quickly after winter topkill, but that annual shoot recovery is not the same as time for a young root system to occupy the full reservation.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "high", "culture": "high", "bloomMonths": "high", "grow": "weak"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:150445-2", "supports": "accepted varietal name, Texas-to-Mexico range, shrub habit and the three selected homotypic synonyms"},
+        {"url": "https://www.npsot.org/posts/native-plant/malvaviscus-arboreus/", "supports": "Texas ecoregions, 2–6-ft by 3–5-ft dimensions, sun-through-shade and low-medium water tolerance, June–November bloom, colonies, furled flowers, fruit and White Skipper host role"},
+        {"url": "https://www.depts.ttu.edu/plantresources/Pages/directories/landscape-info-sheets/herbaceous-info/Malvaviscus_arboreusvardrummondii.php", "supports": "2.5–3.5-ft by 3–5-ft dimensions, woody spreading stems, turbinate flowers with extended stamens, partial shade, medium moisture, drought tolerance and zones 8–11"},
+        {"url": "https://w3.biosci.utexas.edu/prc/wildflowers/flower/malvaviscus-arboreus-var-drummondii", "supports": "Texas distribution, usual 3–6-ft shrub with favorable-site 10-ft potential, long hot-season bloom and diagnostic flower/fruit morphology"},
+        {"url": "https://agrilifeextension.tamu.edu/wp-content/uploads/2026/03/Plant-List-2026-3-25-2026.pdf", "supports": "semi-woody perennial treatment, early-summer-to-fall bloom and winter dieback/cutback guidance"},
+        {"url": "https://www.centraltexasgardener.org/resource/turks-cap/", "supports": "Central Texas winter ground dieback, root return, late-spring-to-first-frost bloom, shade role, low established water and 6-ft height potential"}
+      ],
+      "caveats": [
+        "Keep the accepted var. drummondii label. Straight Malvaviscus arboreus material from outside this variety can have a different native range and much larger stature.",
+        "Do not confuse it with Turk's-cap lily, Lilium superbum, or imply that every common-name plant sold as Turk's cap is the Texas variety.",
+        "The modeled bush keeps dormant canes for winter structure, but many central and north Texas plants are killed to the ground and resprout from roots in spring.",
+        "It can form expanding colonies and is described as potentially weedy in managed beds. Five-foot spacing does not stop underground or seed movement.",
+        "The four-year grow estimate is weak."
+      ]
+    },
+    {
+      "id": "TX-04",
+      "suggestedKey": "texasrockrose",
+      "proposed": {
+        "name": "Texas Rock Rose",
+        "latin": "Pavonia lasiopetala",
+        "synonyms": ["Pavonia wrightii"],
+        "type": "shrub",
+        "form": "bush",
+        "h": 36,
+        "cw": 42,
+        "heightIn": 48,
+        "spread": 48,
+        "space": 48,
+        "grow": 3,
+        "zones": [8, 11],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [4, 5, 6, 7, 8, 9, 10, 11],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["cottage", "dry", "nectar"],
+        "look": {
+          "art2": true,
+          "habit": "open",
+          "twigN": 9,
+          "leafN": 46,
+          "leafShape": "cordate",
+          "leafHW": 1.2,
+          "leafLong": 2.4,
+          "leafTeeth": 0.22,
+          "leafTeethN": 5,
+          "bloomStyle": "scattered",
+          "flowerShape": "single",
+          "flowerN": 18,
+          "berryN": 3
+        },
+        "sea": {
+          "Spring": {"fol": "#73845d", "bloom": "#d76591", "eye": "#e1bb3d", "twig": "#765e4c"},
+          "Summer": {"fol": "#687b54", "bloom": "#d55b89", "eye": "#ddb334", "twig": "#705846"},
+          "Fall": {"fol": "#747b55", "bloom": "#cc5681", "eye": "#d6aa31", "seed": "#79634b", "twig": "#735a48"},
+          "Winter": {"twig": "#6f5b4c"}
+        },
+        "blurbRequirements": "Describe an open, short-lived woody perennial from Edwards Plateau/Trans-Pecos contexts with velvety heart-shaped leaves and small morning-opening pink mallow flowers. Include 3–6-year lifespan, ready reseeding, winter dormancy and unavoidable powdery mildew that may improve with more sun. Distinguish it from unrelated Cistus and Helianthemum plants also sold as rock rose."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Pavonia lasiopetala, native from Texas to northeastern Mexico, and lists Pavonia wrightii as a synonym. The shared common name rock rose is horticulturally ambiguous, so the scientific identity must remain prominent.",
+        "dimensions": "NPSOT gives 3–4 ft high and wide. A 2026 Denton County Master Gardener/AgriLife fact sheet gives 2–4 ft by 2–3 ft. Proposed 48 by 48 in follows NPSOT's straight-species envelope while acknowledging that pruning can keep it narrower.",
+        "spacing": "No direct spacing trial was verified. Proposed 48 in reserves the full selected woody crown; self-sown replacements can occur outside it.",
+        "hardinessAndCulture": "The Denton source gives zone 8 upward, full/part sun, low water, high heat tolerance and drainage. NPSOT supports low water, dry caliche/rocky or adaptable soils and sun/part shade. Full/dry emphasizes flowering and reduces, but does not eliminate, mildew.",
+        "floweringAndPersistence": "NPSOT gives April–November; the Denton source gives spring through frost, winter dormancy, a 3–6-year life and ready reseeding. Three years to the proposed crown is a moderate planning estimate consistent with a short-lived, pruning-responsive shrub, but no time-to-size trial was found.",
+        "growConfidence": "Moderate three-year estimate to a 4-ft open crown. Direct sources establish short 3–6-year life and easy landscape growth but not an exact time-to-size curve.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "moderate"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:185932-2", "supports": "accepted name, Pavonia wrightii synonym, shrub status and Texas-to-northeastern-Mexico range"},
+        {"url": "https://www.npsot.org/posts/native-plant/pavonia-lasiopetala/", "supports": "Edwards Plateau distribution, 3–4-ft equal dimensions, deciduous shrub habit, sun/part shade, low water, April–November bloom, open woodland habitat, legginess and mildew"},
+        {"url": "https://www.dcmga.com/wp-content/uploads/docs/plant-facts-trees-shrubs/pf-texas-rock-rose.pdf", "supports": "2026 AgriLife program guidance for 2–4-ft by 2–3-ft size, zone 8 upward, low water, spring-to-frost bloom, winter dormancy, 3–6-year lifespan, ready reseeding, morning flowers and mildew"},
+        {"url": "https://bexar-tx.tamu.edu/earth-kind-horticulture/best-plants-for-bexar-county-south-texas/perennial-plants-for-south-texas-landscapes/", "supports": "three-foot shrubby South Texas landscape form, sun, drought tolerance and long bloom"}
+      ],
+      "caveats": [
+        "This is a short-lived woody perennial rather than a permanent four-foot foundation shrub. Self-sown replacements are part of its persistence.",
+        "Powdery mildew is expected, especially in shade. More sun can improve the foliage but does not make the disease impossible.",
+        "Use mulch or other winter protection near its cold edge. Zone 8–11 is a conservative app range distilled from broader extension claims, not a guarantee in every microclimate.",
+        "Rock rose is a shared common name. Do not merge this Texas mallow with Cistus or Helianthemum records."
+      ]
+    },
+    {
+      "id": "TX-05",
+      "suggestedKey": "cenizo",
+      "proposed": {
+        "name": "Cenizo",
+        "latin": "Leucophyllum frutescens",
+        "synonyms": ["Terania frutescens"],
+        "type": "shrub",
+        "form": "bush",
+        "h": 52,
+        "cw": 60,
+        "heightIn": 72,
+        "spread": 60,
+        "space": 60,
+        "grow": 6,
+        "zones": [8, 10],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [5, 6, 7, 8, 9, 10],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["dry", "evergreen", "hedge", "host", "nectar", "silver"],
+        "look": {
+          "art2": true,
+          "evergreen": true,
+          "habit": "round",
+          "twigN": 10,
+          "leafN": 68,
+          "leafShape": "ovate",
+          "leafHW": 0.5,
+          "leafLong": 2.0,
+          "bloomStyle": "stemAxil",
+          "flowerShape": "trumpet",
+          "flowerN": 6
+        },
+        "sea": {
+          "Spring": {"fol": "#a1a59f", "bloom": "#b982b9", "eye": "#744b73", "twig": "#786a59"},
+          "Summer": {"fol": "#989f98", "bloom": "#b77cb5", "eye": "#70466f", "twig": "#746655"},
+          "Fall": {"fol": "#9f9b90", "bloom": "#ae72ad", "eye": "#684063", "twig": "#756756"},
+          "Winter": {"fol": "#969991", "twig": "#776958"}
+        },
+        "blurbRequirements": "Lead with a silver, rain-responsive evergreen or semi-evergreen shrub of dry South/West/Central Texas settings. Say it is Leucophyllum, not a Salvia; it needs full sun, very good drainage, no overwatering or fertilizer, and performs poorly with wet feet or persistent humidity. Preserve the 6-by-5-ft straight-species reservation and distinguish it from compact or green-leaved cultivars."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Leucophyllum frutescens and gives southwestern Texas to Mexico as its native range. NPSOT records Terania frutescens as a previous scientific name, useful as a search alias.",
+        "dimensions": "NPSOT gives 5–8 ft by 4–5 ft; Texas Tech gives 3–5 ft equal dimensions; Texas A&M rangeland material gives up to 8 ft. Proposed 72 by 60 in represents a medium straight-species shrub without using either a compact cultivar or the largest wild individual.",
+        "spacing": "No direct hedge trial was verified. Proposed 60 in equals the selected crown width and retains the natural rounded form rather than requiring frequent shearing.",
+        "hardinessAndCulture": "Texas Tech lists zones 7–9, and NC State lists 8–11; proposed 8–10 is a conservative overlap for the regional batch. Texas sources agree on full sun, drought tolerance, calcareous/rocky well-drained soil and harm from wet feet, fertilization or excessive humidity. Its Texas native distribution is concentrated in Rio Grande Plain, Chihuahuan Desert and Edwards Plateau ecoregions.",
+        "floweringAndPersistence": "Texas A&M gives May–October and rain-triggered flower flushes; NPSOT notes intermittent bloom can occur whenever rain and humidity cues align. The proposed May–October calendar represents the reliable warm-season display rather than promising continuous flowers. Six years to the selected crown is a moderate estimate based on a documented medium growth rate, not a direct trial.",
+        "growConfidence": "Moderate six-year estimate to a 6-by-5-ft crown. NC State calls the growth rate medium, but no direct Texas time-to-size study was found.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "moderate"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:139187-2", "supports": "accepted name, shrub habit, dry-shrubland ecology and southwestern Texas-to-Mexico native range"},
+        {"url": "https://www.npsot.org/posts/native-plant/leucophyllum-frutescens/", "supports": "Texas ecoregions, 5–8-ft by 4–5-ft size, evergreen habit, full sun/part shade, low water, drainage, cotton-root-rot/overwatering warning, intermittent rain response and Terania synonym"},
+        {"url": "https://rangeplants.tamu.edu/plant/ceniza-purplesage-texas-silverleaf/", "supports": "up-to-8-ft woody shrub, silver hairy leaves, evergreen behavior, May–October rain-responsive bloom, poor well-drained limestone/caliche habitat and Texas distribution"},
+        {"url": "https://www.depts.ttu.edu/plantresources/Pages/directories/landscape-info-sheets/woody-info/Leucophyllum_frutescens.php", "supports": "3–5-ft equal dimensions, evergreen/semi-evergreen foliage, summer bloom, zones 7–9, drought tolerance, drainage and low-humidity/no-overfertilization requirements"},
+        {"url": "https://plants.ces.ncsu.edu/plants/leucophyllum-frutescens/", "supports": "medium growth rate, broader 6–12-ft straight-species potential, zones 8–11, evergreen silver foliage, axillary tubular flowers, heat/drought response and cultivar distinction"},
+        {"url": "https://extension.arizona.edu/publication/pruning-shrubs-low-and-mid-elevation-deserts-arizona", "supports": "Texas ranger needs no pruning when given appropriate space; supports natural-form spacing rather than routine shearing"}
+      ],
+      "caveats": [
+        "Cenizo is not a true sage or Salvia despite the common names Texas sage and purple sage.",
+        "It is not a default for wet, humid East Texas. Wet feet, excess irrigation, fertilization and persistent humidity increase failure and disease risk.",
+        "Straight species material can exceed the selected 6-by-5-ft envelope; compact cultivars should not silently redefine this record.",
+        "Zone sources disagree at the edges. The app's 8–10 range is conservative, while exposure and drainage remain decisive.",
+        "Rain-responsive means episodic flushes, not constant year-round bloom."
+      ]
+    },
+    {
+      "id": "TX-06",
+      "suggestedKey": "texasmountainlaurel",
+      "proposed": {
+        "name": "Texas Mountain Laurel",
+        "latin": "Dermatophyllum secundiflorum",
+        "synonyms": ["Sophora secundiflora", "Calia secundiflora"],
+        "type": "shrub",
+        "form": "bush",
+        "h": 82,
+        "cw": 92,
+        "heightIn": 180,
+        "spread": 120,
+        "space": 120,
+        "grow": 20,
+        "zones": [7, 10],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "cool",
+        "bloomMonths": [2, 3, 4],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["architectural", "dry", "early", "evergreen", "hedge", "host", "nectar"],
+        "look": {
+          "art2": true,
+          "evergreen": true,
+          "habit": "upright",
+          "exposedBranching": true,
+          "twigN": 10,
+          "twigW": 2.0,
+          "leafStart": 0.34,
+          "leafN": 44,
+          "leafShape": "ovate",
+          "leafHW": 0.72,
+          "leafLong": 2.4,
+          "pinnatePairs": 4,
+          "pinnateLen": 32,
+          "pinnateLeafW": 1.7,
+          "bloomStyle": "pendantRaceme",
+          "flowerShape": "pea",
+          "flowerN": 10,
+          "fruitStyle": "cluster",
+          "berryN": 2
+        },
+        "sea": {
+          "Spring": {"fol": "#496d48", "bloom": "#7653a5", "eye": "#eee7d5", "twig": "#705948"},
+          "Summer": {"fol": "#426641", "seed": "#b8aa91", "twig": "#6c5444"},
+          "Fall": {"fol": "#466846", "seed": "#aa483b", "twig": "#6e5646"},
+          "Winter": {"fol": "#456445", "seed": "#9d4137", "twig": "#705847"}
+        },
+        "blurbRequirements": "Identify a very slow, evergreen multi-trunk shrub/small tree with glossy pinnate leaves, fragrant purple spring racemes and conspicuous pods/red seeds. Reserve a representative 15-by-10-ft crown, acknowledge that sources span 10–25 ft, and require dry, well-drained limestone or comparable soil. State clearly that all parts are poisonous and the hard red seeds are especially dangerous to children and pets. Distinguish it from eastern mountain laurel, Kalmia latifolia, and retain Sophora/Calia search names."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Dermatophyllum secundiflorum and lists both Sophora secundiflora and Calia secundiflora as homotypic synonyms. The accepted species is native from southeastern New Mexico through south Texas and Mexico and is unrelated to Kalmia latifolia.",
+        "dimensions": "NPSOT gives 12–20 ft high by 8–12 ft wide. Arizona Extension gives 10–25 ft, while the University of Arizona campus arboretum gives a common 6–15-ft cultivated range with a slightly narrower crown. Proposed 15 by 10 ft is a representative screen/small-tree reservation.",
+        "spacing": "No direct hedge-spacing trial was verified. Proposed 120 in equals the selected mature crown and is intentionally much larger than a clipped screen spacing.",
+        "hardinessAndCulture": "University of Arizona recommends zones 7–9; other extension sources support warm-zone cultivation beyond that. Proposed 7–10 retains the useful US envelope but does not imply Panhandle or humid-East-Texas fit. NPSOT and Arizona Extension agree on full sun, low water, heat, slow growth and excellent drainage; limestone/caliche habitats define the core Texas use.",
+        "floweringAndPersistence": "NPSOT gives February–April in Texas; Arizona Extension gives late February through early March in Phoenix. It is evergreen, very slow and may take at least ten years from seed to first bloom in untended Hill Country conditions. Twenty years to the selected 15-ft crown is a weak design estimate, not a measured maturity curve.",
+        "safety": "NPSOT warns that all parts are poisonous to humans, and Arizona Extension warns that the shrub and seeds are poisonous around children and pets. The red seeds require a prominent catalog warning rather than only a role tag.",
+        "growConfidence": "Weak twenty-year estimate to a 15-by-10-ft design crown. Sources directly establish very slow growth and at least ten years from seed to bloom under untended Hill Country conditions, but not time to 15 ft.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak", "toxicity": "high"}
+      },
+      "sources": [
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:77116898-1", "supports": "accepted Dermatophyllum secundiflorum name, Sophora and Calia homotypic synonyms, shrub/tree habit and southeastern New Mexico-to-south-Texas-and-Mexico native range"},
+        {"url": "https://www.npsot.org/posts/native-plant/dermatophyllum-secundiflorum/", "supports": "Texas ecoregions, 12–20-ft by 8–12-ft dimensions, evergreen shrub/tree form, full sun/part shade, low water, drainage, February–April bloom, pinnate leaflets, pendant racemes, slow growth, Genista caterpillar host and whole-plant poison warning"},
+        {"url": "https://extension.arizona.edu/sites/extension.arizona.edu/files/attachment/Texas%20Mountain%20Laurel.pdf", "supports": "10–25-ft slow evergreen shrub, full sun, well-drained low-water culture, late-February/early-March bloom, poisonous shrub/seeds and Sophora/Calia former names"},
+        {"url": "https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=822", "supports": "very slow 6–15-ft typical cultivated height, slightly narrower crown, zones 7–9, non-spreading habit and toxic-seed caution"},
+        {"url": "https://www.npsot.org/posts/native-plant/sophora-secundiflora/", "supports": "legacy route to the accepted NPSOT record and explicit former-name discovery behavior"},
+        {"url": "https://w3.biosci.utexas.edu/prc/DigFlora/SOSE3/MtL-propagation.html", "supports": "Hill Country seed propagation and at-least-ten-year first-bloom observation used to bound grow confidence"}
+      ],
+      "caveats": [
+        "This is Dermatophyllum secundiflorum, not eastern mountain laurel, Kalmia latifolia. Keep both the common-name warning and botanical name visible.",
+        "All parts are poisonous; the hard red seeds demand an explicit child/pet warning. Do not frame their ethnobotanical history as an invitation to ingest them.",
+        "The modeled 15-by-10-ft crown is representative. Favorable old plants can reach 20–25 ft, and compact nursery forms should not redefine the species record.",
+        "Give full drainage and avoid excess irrigation or fertilizer. Zone overlap alone does not make it appropriate for wet East Texas, the Panhandle or every USDA 7–10 site.",
+        "Genista caterpillars can defoliate plants rapidly; preserve the host role without promising a pest-free screen.",
+        "Twenty-year grow is explicitly weak."
+      ]
+    }
+  ]
+}

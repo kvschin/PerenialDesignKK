@@ -1,10 +1,10 @@
 # US regional plant expansion roadmap
 
-Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, and 3**: 42 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Phases 4–6 remain a backlog.
+Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, 3, and 4**: 54 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Phases 5–6 remain a backlog.
 
-**The next regional gaps are Texas/Arizona, the humid Southeast, and an initial Alaska/Hawaii audit.** The implemented West Coast, Florida, and Colorado batches improve those regions without claiming automatic state-level suitability. The Carolinas can build on a much deeper eastern US catalog.
+**The next regional gaps are the humid Southeast and an initial Alaska/Hawaii audit.** The implemented West Coast, Florida, Colorado, Texas, and Arizona batches improve those regions without claiming automatic state-level suitability. The Carolinas can build on a much deeper eastern US catalog.
 
-The original roadmap contains **68 candidate taxa**; 42 are now implemented and 26 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), and [phase 3](plant-data/phase3-implementation.md) notes. Later batches still require production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
+The original roadmap contains **68 candidate taxa**; 54 are now implemented and 14 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), and [phase 4](plant-data/phase4-implementation.md) notes. Later batches still require production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
 
 | Phase | Work | Candidate taxa |
 | --- | --- | ---: |
@@ -12,7 +12,7 @@ The original roadmap contains **68 candidate taxa**; 42 are now implemented and 
 | 1 | California + Pacific Northwest — implemented locally | 22 |
 | 2 | Florida — implemented locally | 10 |
 | 3 | Colorado/Rockies — implemented locally | 10 |
-| 4 | Texas + Arizona/arid Southwest | 12 |
+| 4 | Texas + Arizona/arid Southwest — implemented locally | 12 |
 | 5 | Carolinas/humid Southeast | 8 |
 | 6 | Nationwide gap audit + Alaska/Hawaii starters | 6 |
 
@@ -20,7 +20,7 @@ Phases express priority, not a requirement to finish every region before startin
 
 ## What the catalog currently covers
 
-The initial audit counted **473 base records and 376 nested choices**. Through Phase 3, the local catalog contains **515 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
+The initial audit counted **473 base records and 376 nested choices**. Through Phase 4, the local catalog contains **527 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
 
 | Area | Assessment | Existing examples to reuse | Main gaps |
 | --- | --- | --- | --- |
@@ -145,6 +145,15 @@ This batch complements the existing shortgrass and dry-flower catalog. Start wit
 **Implementation:** primarily data and shared morphology tuning. Preserve differences between cool-season grasses and warm-season blue grama. Verify seed/flower silhouettes rather than recoloring the nearest existing flower. Front Range, Western Slope, foothill, and high-elevation recommendations need separate qualifiers.
 
 ## Phase 4 — Texas and Arizona/arid Southwest: 12 candidates
+
+**Implemented locally:** all TX-01–TX-06 and AZ-01–AZ-06 with independently
+reviewed data, searchable botanical synonyms, representative regional bloom
+windows, and reusable flower and airy-canopy morphology. The eight shrubs use
+the normal mature woody reservation path, including trailing indigo bush's
+five-foot spread. Phase 0 remains deferred, so Texas subregions, Arizona low
+desert versus high country, rainfall response, drainage, humidity, local
+origin, and safety limits stay explicit in descriptions rather than becoming
+automatic regional filters.
 
 ### 4A. Texas regional structure and shade: 6 candidates
 

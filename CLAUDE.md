@@ -547,6 +547,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    interest only when a Winter seed color is authored. The dev-only
    `dev/colorado-review.html` contact sheet covers both renderer modes, all
    seasons, and sprite-edge checks.
+   **Texas/Arizona Phase 4:** twelve straight species bring the catalog to 527
+   base records / 377 nested choices. The independent Texas and Arizona source
+   reviews and implementation decisions live in
+   `docs/plant-data/phase4-implementation.md`. Phase 0 remains deferred, so
+   Texas subregions, Arizona low desert versus high country, local origin,
+   rainfall response, drainage, humidity, and safety limitations stay visible
+   in descriptions rather than becoming automatic regional claims. Eight
+   shrubs reserve their authored mature woody footprints; blue palo verde uses
+   normal tree placement with a 25-foot planning crown. Reusable data-gated
+   drawing options add rolled `flowerShape:'turkscap'`, bounded `daisy` and
+   `pea` flowers, filament `bloomStyle:'powderpuff'`, propagated shrub flower
+   `eye` colors, and broadleaf-tree `twigCanopy`/`canopyWash:false` controls for
+   an airy green-barked canopy. No renderer checks a Phase 4 species key.
+   `dev/phase4-review.html` covers the Texas and Arizona batches in both
+   renderer modes, all seasons, and sprite-edge checks.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2097,7 +2112,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 515
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 527
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.

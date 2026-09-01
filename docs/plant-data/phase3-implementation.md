@@ -55,6 +55,9 @@ renderers. `dev/colorado-review.html` is an offline dev-only contact sheet with
 four-season previews, renderer selection, and sprite-edge checks; it is not
 linked from the app or service-worker precache.
 
-Final browser and sprite-edge verification results are recorded here after the
-contact sheet and live library passes complete. The work remains local; no
-commit, push, or deployment was performed.
+Final verification completed September 1, 2026: the automated suite passed all
+436 tests at the end of Phase 3, and `npm run check` passed. The contact sheet
+completed 120 sprite checks in ART2 and 120 in classic with no painted edges;
+the rendered Colorado ground-layer and woody batches were inspected in the
+browser with no console errors. The work remains local; no commit, push, or
+deployment was performed.

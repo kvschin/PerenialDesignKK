@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Colorado and Rocky Mountain plant review</title>
+<title>Texas and Arizona plant review</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:70px;height:105px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:70px;height:105px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
 </style><body>
 <script>
 (function(){
@@ -38,29 +38,32 @@
   window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
 })();
 </script>
-<script src="../js/plants.js?v=0.8.46-phase3"></script>
-<script src="../js/core.js?v=0.8.46-phase3"></script>
-<script src="../js/draw.js?v=0.8.46-phase3"></script>
-<script src="../js/world.js?v=0.8.46-phase3"></script>
-<script src="../js/view.js?v=0.8.46-phase3"></script>
-<script src="../js/renderer.js?v=0.8.46-phase3"></script>
-<script src="../js/commands.js?v=0.8.46-phase3"></script>
-<script src="../js/input.js?v=0.8.46-phase3"></script>
-<script src="../js/io.js?v=0.8.46-phase3"></script>
-<script src="../js/collections.js?v=0.8.46-phase3"></script>
-<script src="../js/ui.js?v=0.8.46-phase3"></script>
-<script src="../js/tray.js?v=0.8.46-phase3"></script>
-<script src="../js/photos.js?v=0.8.46-phase3"></script>
-<script src="../js/library.js?v=0.8.46-phase3"></script>
-<script src="../js/screens.js?v=0.8.46-phase3"></script>
+<script src="../js/plants.js?v=0.8.47-phase4"></script>
+<script src="../js/core.js?v=0.8.47-phase4"></script>
+<script src="../js/draw.js?v=0.8.47-phase4"></script>
+<script src="../js/world.js?v=0.8.47-phase4"></script>
+<script src="../js/view.js?v=0.8.47-phase4"></script>
+<script src="../js/renderer.js?v=0.8.47-phase4"></script>
+<script src="../js/commands.js?v=0.8.47-phase4"></script>
+<script src="../js/input.js?v=0.8.47-phase4"></script>
+<script src="../js/io.js?v=0.8.47-phase4"></script>
+<script src="../js/collections.js?v=0.8.47-phase4"></script>
+<script src="../js/ui.js?v=0.8.47-phase4"></script>
+<script src="../js/tray.js?v=0.8.47-phase4"></script>
+<script src="../js/photos.js?v=0.8.47-phase4"></script>
+<script src="../js/library.js?v=0.8.47-phase4"></script>
+<script src="../js/screens.js?v=0.8.47-phase4"></script>
 <script>
 window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
 window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
 </script>
-<header><h1>Colorado and Rockies — phase 3</h1><label>Batch <select id="batch"><option value="ground">Grasses and perennials</option><option value="structure">Foothill shrubs</option></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
+<header><h1>Texas and Arizona — phase 4</h1><label>Batch <select id="batch"><option value="texas">Texas</option><option value="arizona">Arizona / arid Southwest</option></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
 <p id="status">Loading…</p><main id="plants"></main>
 <script>
-const batches={ground:['prairiejunegrass','indianricegrass','rockymountainpenstemon','blueflax','sulphurbuckwheat','coloradobluecolumbine','fringedsage'],structure:['rubberrabbitbrush','mountainmahogany','goldencurrant']};
+const batches={
+  texas:['lindheimersmuhly','heartleafskullcap','turkscap','texasrockrose','cenizo','texasmountainlaurel'],
+  arizona:['alkalisacaton','trailingindigobush','brittlebush','jojoba','pinkfairyduster','bluepaloverde']
+};
 function renderReview(){
   ART2.on=document.getElementById('art').value==='1';
   const host=document.getElementById('plants');host.replaceChildren();
@@ -79,7 +82,7 @@ function renderReview(){
 }
 function checkEdges(){
   const bad=[];let count=0;
-  for(const k of [...batches.ground,...batches.structure])for(const v of [null,...Object.keys(PLANTS[k].cv||{})])for(const season of ['Spring','Summer','Fall','Winter'])for(const seed of [7,101,4410]){
+  for(const k of [...batches.texas,...batches.arizona])for(const v of [null,...Object.keys(PLANTS[k].cv||{})])for(const season of ['Spring','Summer','Fall','Winter'])for(const seed of [7,101,4410]){
     const s=makePlantSprite(k,8,3,season,seed,v),c=s.cv,w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;
     let edge=false;for(let x=0;x<w;x++)if(d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8)edge=true;
     for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
