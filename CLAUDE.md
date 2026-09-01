@@ -530,6 +530,23 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    toxicity, regulated-stock, and lookalike limits that the deferred regional
    metadata/filter work cannot yet enforce. `dev/florida-review.html` provides
    both renderer modes, four-season previews, and sprite-edge checks.
+   **Colorado/Rockies Phase 3:** ten straight species bring the catalog to 515
+   base records / 377 nested choices. Source reviews and authoring decisions
+   live in `docs/plant-data/phase3-implementation.md`. Phase 0 remains deferred,
+   so elevation, ecotype, provenance, drainage, host-risk, and local legal
+   qualifications stay visible in the plant descriptions rather than becoming
+   automatic regional claims. Prairie Junegrass and Indian ricegrass keep
+   their cool-season identities; Colorado blue columbine remains part/medium
+   and outside the dry matrix roles. The three shrubs reserve mature woody
+   footprints. Reusable data-gated drawing options add `cloudAwn`, radial
+   `airywand` flowers, `globeStyle:'columbine'`, small `shrub` flowers through
+   `flowerR`, and `seedStyle:'plumedAchenes'`; existing plants keep their
+   previous paths unless they opt in. Wild columbine now shares the reusable
+   columbine flower grammar. `staticPlantRoles()` treats a declared
+   `look.fruitStyle` as fruit rather than a dry seedhead and assigns winter
+   interest only when a Winter seed color is authored. The dev-only
+   `dev/colorado-review.html` contact sheet covers both renderer modes, all
+   seasons, and sprite-edge checks.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2080,7 +2097,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 505
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 515
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.

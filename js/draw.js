@@ -1198,6 +1198,16 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           for (let d2=0;d2<nd;d2++)
             drawFloret(ctx,_cloudX[d2],_cloudY[d2],_cloudR[d2],
                        shade(cloud,(_cloudS[d2]-0.45)*20),{squash:L.cloudSquash||1});
+          if (L.cloudAwn){
+            const awn=Math.max(0,Math.min(7,L.cloudAwn));
+            ctx.strokeStyle=shade(cloud,-24); ctx.lineWidth=0.42; ctx.beginPath();
+            for (let d2=0;d2<nd;d2++){
+              const dir=d2%2?-1:1, lift=0.58+(d2%3)*0.13;
+              ctx.moveTo(_cloudX[d2],_cloudY[d2]);
+              ctx.lineTo(_cloudX[d2]+dir*awn*0.72,_cloudY[d2]-awn*lift);
+            }
+            ctx.stroke();
+          }
         } else
         for (let d2=0;d2<dots;d2++){
           const px=tip+(rnd()-0.5)*cloudW, py=-len*topF+2-rnd()*cloudH;
@@ -1208,6 +1218,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.globalAlpha=oldAlpha; ctx.fillStyle=cloud;
           }
           ctx.beginPath(); ctx.arc(px, py, dotR, 0, 7); ctx.fill();
+          if (L.cloudAwn){
+            const awn=Math.max(0,Math.min(7,L.cloudAwn)), dir=d2%2?-1:1;
+            ctx.strokeStyle=shade(cloud,-24); ctx.lineWidth=0.42; ctx.beginPath();
+            ctx.moveTo(px,py); ctx.lineTo(px+dir*awn*0.72,py-awn*(0.58+(d2%3)*0.13)); ctx.stroke();
+            ctx.fillStyle=cloud;
+          }
         } }
     }
   }
@@ -1384,7 +1400,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
         // fine bristles are what make it a BOTTLEBRUSH — one batched stroke
-        if (a2){
+        if (a2 && L.flowerStyle==='radial'){
+          const pl=L.petalLen||2.5, pw=L.petalW||1.25, pn=Math.max(3,Math.round(L.petals||5));
+          for(let p=0;p<pn;p++){
+            const a=p/pn*Math.PI*2-Math.PI/2;
+            fcPush(bx+Math.cos(a)*pl*0.54,by+Math.sin(a)*pl*0.54,pl*0.72,pw/pl);
+          }
+          fcDraw(ctx,S.bloom,26,-14);
+          if (S.eye) drawFloret(ctx,bx,by,L.eyeR||0.7,S.eye,{lift:28});
+        } else if (a2){
           ctx.strokeStyle=shade(brush,20); ctx.lineWidth=0.4;
           const oa=ctx.globalAlpha; ctx.globalAlpha=0.55; ctx.beginPath();
           for (let b=0;b<shown;b++){ const by2=topY-b*2.1;
@@ -1758,7 +1782,57 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.beginPath(); ctx.moveTo(hx,hy);
             ctx.quadraticCurveTo(hx+2,hy+3,ghx,ghy-hr*0.45); ctx.stroke();
           }
-          if (art2On(L)){
+          if (L.globeStyle==='columbine'){
+            const sepals=Math.max(4,Math.min(7,Math.round(L.sepals||5)));
+            if (headOn){
+              const sepalLen=L.sepalLen||4.4, spurLen=L.spurLen||5.5;
+              // Five tapered spurs sit behind five broad sepals; the smaller
+              // contrasting inner petals form the characteristic columbine
+              // cup. This path is shared by any Aquilegia that opts in.
+              ctx.strokeStyle=shade(col,-18); ctx.lineWidth=1.0; ctx.beginPath();
+              for(let p=0;p<sepals;p++){
+                const a=-Math.PI/2+p/sepals*Math.PI*2;
+                const sx=ghx+Math.cos(a)*sepalLen*0.28, sy=ghy+Math.sin(a)*sepalLen*0.22;
+                const tx=ghx-Math.cos(a)*spurLen, ty=ghy-Math.sin(a)*spurLen*0.72+spurLen*0.18;
+                ctx.moveTo(sx,sy); ctx.quadraticCurveTo(ghx-Math.cos(a)*spurLen*0.28,ghy-Math.sin(a)*spurLen*0.22,tx,ty);
+              }
+              ctx.stroke();
+              if (art2On(L)){
+                for(let p=0;p<sepals;p++){
+                  const a=-Math.PI/2+p/sepals*Math.PI*2;
+                  fcPush(ghx+Math.cos(a)*sepalLen*0.42,ghy+Math.sin(a)*sepalLen*0.32,
+                         sepalLen*0.66,0.42);
+                }
+                fcDraw(ctx,col,26,-14);
+              } else {
+                ctx.fillStyle=col;
+                for(let p=0;p<sepals;p++){
+                  const a=-Math.PI/2+p/sepals*Math.PI*2;
+                  ctx.beginPath(); ctx.ellipse(ghx+Math.cos(a)*sepalLen*0.42,ghy+Math.sin(a)*sepalLen*0.32,
+                    sepalLen*0.66,sepalLen*0.28,a,0,7); ctx.fill();
+                }
+              }
+              const innerCol=S.eye||shade(col,30), innerR=L.innerR||2;
+              for(let p=0;p<sepals;p++){
+                const a=-Math.PI/2+p/sepals*Math.PI*2;
+                drawFloret(ctx,ghx+Math.cos(a)*innerR*0.62,ghy+Math.sin(a)*innerR*0.48,
+                  innerR*0.62,innerCol,{squash:0.68,rot:a,lift:24,drop:-8});
+              }
+              drawFloret(ctx,ghx,ghy,Math.max(0.65,innerR*0.34),shade(innerCol,-18),{lift:20});
+            } else if (S.seed){
+              ctx.strokeStyle=shade(col,-24); ctx.lineWidth=0.72; ctx.beginPath();
+              for(let p=0;p<sepals;p++){
+                const a=-Math.PI/2+p/sepals*Math.PI*2, px=ghx+Math.cos(a)*2.6, py=ghy+Math.sin(a)*1.8;
+                ctx.moveTo(ghx,ghy+1); ctx.lineTo(px,py-3.6);
+              }
+              ctx.stroke(); ctx.fillStyle=col;
+              for(let p=0;p<sepals;p++){
+                const a=-Math.PI/2+p/sepals*Math.PI*2, px=ghx+Math.cos(a)*2.6, py=ghy+Math.sin(a)*1.8;
+                ctx.beginPath(); ctx.ellipse(px,py-3.7,0.85,2.5,a*0.24,0,7); ctx.fill();
+              }
+            }
+          }
+          else if (art2On(L)){
             // ART2 globe: the head stops being a flat disc and becomes a lit
             // sphere carrying separate florets. An allium is not a ball — it is
             // an umbel of pedicels each ending in a star — so the spokes stay
@@ -2549,7 +2623,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         } else {
         ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
         for(let p=0;p<(L.petals||4);p++){ const a=p/(L.petals||4)*Math.PI*2;
-          ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*(L.petalLen||2.5)*0.44,by+Math.sin(a)*(L.petalLen||2.5)*0.30,L.petalLen||2.5,L.petalW||1.25,a,0,7); ctx.fill(); } }
+          ctx.beginPath(); ctx.ellipse(bx+Math.cos(a)*(L.petalLen||2.5)*0.44,by+Math.sin(a)*(L.petalLen||2.5)*0.30,L.petalLen||2.5,L.petalW||1.25,a,0,7); ctx.fill(); }
+        if (L.flowerStyle==='radial'&&S.eye){ ctx.fillStyle=S.eye; ctx.beginPath(); ctx.arc(bx,by,L.eyeR||0.7,0,7); ctx.fill(); } }
       }
       if (S.seed && !blooming){ ctx.fillStyle=S.seed; ctx.beginPath(); ctx.ellipse(tip,-len,1.25,2.2,0,0,7); ctx.fill(); }
     }
@@ -4609,10 +4684,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             else { ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
               ctx.beginPath(); ctx.ellipse(fx, fy, 1.7,1.6,0,0,7); ctx.fill(); } } });
         } else if (a2){
-          heads.forEach(([tx2,ty2])=>drawFloret(ctx,tx2,ty2-2,2.6,S.bloom,{squash:1.35}));
+          heads.forEach(([tx2,ty2])=>drawFloret(ctx,tx2,ty2-2,L.flowerR||2.6,S.bloom,{squash:1.35}));
         } else { ctx.fillStyle=S.bloom;
           heads.forEach(([tx2,ty2])=>{
-            ctx.beginPath(); ctx.ellipse(tx2,ty2-2,2.2,3.2,0,0,7); ctx.fill(); }); }
+            const fr=L.flowerR||2.6;
+            ctx.beginPath(); ctx.ellipse(tx2,ty2-2,fr*0.85,fr*1.23,0,0,7); ctx.fill(); }); }
       }
       if (S.seed && mature){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
         // Own RNG stream (the mulberry(seed+N) convention the snow caps use):
@@ -4627,7 +4703,40 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         // A berry is a small glossy sphere, and the specular dot is the entire
         // reason winterberry reads as fruit rather than as red confetti — the
         // one place on a shrub where a second fill per shape is clearly earned.
-        if (L.seedStyle==='dryCluster'){
+        if (L.seedStyle==='plumedAchenes'){
+          if (!blooming){
+            const n=Math.max(2,Math.min(10,Math.round(L.acheneN||4)));
+            const tailLen=Math.max(2,Math.min(18,L.tailLen||8));
+            const tailCurl=Math.max(0,Math.min(0.8,L.tailCurl||0.2));
+            const tailW=Math.max(0.3,Math.min(1.2,L.tailW||0.5));
+            const spread=Math.min(5,L.clusterR||4.2), trnd=mulberry(seed+17);
+            ctx.strokeStyle=shade(S.seed,-12); ctx.lineWidth=tailW; ctx.lineCap='round'; ctx.beginPath();
+            tips.forEach(([tx2,ty2])=>{ for(let a=0;a<n;a++){
+              const side=n>1?a/(n-1)-0.5:0;
+              const bx=tx2+(trnd()-0.5)*spread*1.5, by=ty2+(trnd()-0.5)*spread*0.7;
+              const lean=side*0.95+(trnd()-0.5)*0.18, ex=bx+Math.sin(lean)*tailLen;
+              const ey=by-tailLen*(0.88-Math.abs(side)*0.08), cx1=bx+Math.sin(lean)*tailLen*0.44+side*tailLen*tailCurl;
+              const cy1=by-tailLen*0.48;
+              ctx.moveTo(bx,by); ctx.quadraticCurveTo(cx1,cy1,ex,ey);
+              for(let rank=1;rank<=3;rank++){
+                const t=rank*0.22+0.14, u=1-t;
+                const px=u*u*bx+2*u*t*cx1+t*t*ex, py=u*u*by+2*u*t*cy1+t*t*ey;
+                const dx=2*u*(cx1-bx)+2*t*(ex-cx1), dy=2*u*(cy1-by)+2*t*(ey-cy1);
+                const mag=Math.max(0.1,Math.hypot(dx,dy)), barb=tailW*(2.0+rank*0.25);
+                ctx.moveTo(px,py); ctx.lineTo(px-dy/mag*barb,py+dx/mag*barb);
+                ctx.moveTo(px,py); ctx.lineTo(px+dy/mag*barb,py-dx/mag*barb);
+              }
+            } });
+            ctx.stroke(); ctx.lineCap='butt';
+            const arnd=mulberry(seed+17); ctx.fillStyle=shade(S.seed,-24); ctx.beginPath();
+            tips.forEach(([tx2,ty2])=>{ for(let a=0;a<n;a++){
+              const bx=tx2+(arnd()-0.5)*spread*1.5, by=ty2+(arnd()-0.5)*spread*0.7;
+              arnd();
+              ctx.moveTo(bx+1,by); ctx.ellipse(bx,by,0.95,1.45,0.12,0,7);
+            } });
+            ctx.fill();
+          }
+        } else if (L.seedStyle==='dryCluster'){
           // Persistent dry flower heads are matte, irregular small nutlets,
           // never the shiny berries this branch draws by default. Do not
           // paint dry heads over their own flowers during a bloom slot.

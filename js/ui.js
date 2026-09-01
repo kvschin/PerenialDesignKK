@@ -304,9 +304,9 @@ function staticPlantRoles(k){
   if (P.moist==='moist') roles.add('wet');
   if (hasSeasonProp(P,'bloom')) roles.add('flower'), roles.add('pollinator'), roles.add('seasonal');
   if (hasSeasonProp(P,'seed')){
-    const crop=roles.has('fruit')||roles.has('nut');
-    if (!crop) roles.add('winter'), roles.add('seedhead');
-    else if (P.sea&&P.sea.Winter&&P.sea.Winter.seed) roles.add('winter');
+    const crop=roles.has('fruit')||roles.has('nut')||(P.look&&P.look.fruitStyle);
+    if (!crop) roles.add('seedhead');
+    if (P.sea&&P.sea.Winter&&P.sea.Winter.seed) roles.add('winter');
   }
   if (P.type==='grass') roles.add('matrix'), roles.add('movement'), roles.add('wind');
   if (P.type==='sedge') roles.add('matrix'), roles.add('groundcover'), roles.add('woodland');

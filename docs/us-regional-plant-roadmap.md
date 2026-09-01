@@ -1,17 +1,17 @@
 # US regional plant expansion roadmap
 
-Prepared August 30, 2026. Updated after local implementation of phases **1A/1B**: 22 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Later phases remain a backlog.
+Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, and 3**: 42 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Phases 4–6 remain a backlog.
 
-**The largest gaps are California, the Pacific Northwest, and subtropical Florida.** Colorado and the desert Southwest have useful foundations already; their next additions should emphasize regional grasses, groundcovers, and woody structure. The Carolinas can build on a much deeper eastern US catalog.
+**The next regional gaps are Texas/Arizona, the humid Southeast, and an initial Alaska/Hawaii audit.** The implemented West Coast, Florida, and Colorado batches improve those regions without claiming automatic state-level suitability. The Carolinas can build on a much deeper eastern US catalog.
 
-The original roadmap contains **68 candidate taxa**; 22 are now implemented and 46 remain. Source reviews and implementation decisions for the first batch are in [plant-data/phase1-implementation.md](plant-data/phase1-implementation.md). Later batches still require production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
+The original roadmap contains **68 candidate taxa**; 42 are now implemented and 26 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), and [phase 3](plant-data/phase3-implementation.md) notes. Later batches still require production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
 
 | Phase | Work | Candidate taxa |
 | --- | --- | ---: |
 | 0 | Climate, local-origin, site, and seasonal accuracy — deferred | Existing-data/platform work |
 | 1 | California + Pacific Northwest — implemented locally | 22 |
-| 2 | Florida | 10 |
-| 3 | Colorado/Rockies | 10 |
+| 2 | Florida — implemented locally | 10 |
+| 3 | Colorado/Rockies — implemented locally | 10 |
 | 4 | Texas + Arizona/arid Southwest | 12 |
 | 5 | Carolinas/humid Southeast | 8 |
 | 6 | Nationwide gap audit + Alaska/Hawaii starters | 6 |
@@ -20,7 +20,7 @@ Phases express priority, not a requirement to finish every region before startin
 
 ## What the catalog currently covers
 
-The initial audit counted **473 base records and 376 nested choices**. With 1A/1B, the local catalog contains **495 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
+The initial audit counted **473 base records and 376 nested choices**. Through Phase 3, the local catalog contains **515 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
 
 | Area | Assessment | Existing examples to reuse | Main gaps |
 | --- | --- | --- | --- |
@@ -120,6 +120,12 @@ Prioritize the persistent ground layer and warm-climate structure. FL-01 through
 Do not present beach sunflower as permanently perennial in cold gardens. Distinguish short-lived plants and spreading groundcovers from stable long-lived clumps. Do not generalize an Atlantic-coast subspecies to Gulf-coast habitat plantings.
 
 ## Phase 3 — Colorado and Rocky Mountain gardens: 10 candidates
+
+**Implemented locally:** all CO-01–CO-10 with reviewed synonyms, dimensions,
+season windows, reusable cool-season grass and flower morphology, and mature
+reservations for the three woody shrubs. Phase 0 remains deferred, so ecotype,
+elevation, provenance, drainage, host-risk, and local-rule limits remain in the
+plant descriptions rather than being presented as automatic Colorado filters.
 
 This batch complements the existing shortgrass and dry-flower catalog. Start with CO-01 through CO-07, then the three shrubs. Keep the blue columbine in a cooler/moister palette, separate from the driest sunny matrix.
 

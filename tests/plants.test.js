@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,505,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,515,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
     'canonical nested-choice count');
@@ -177,6 +177,33 @@ test('Florida batch preserves reviewed dimensions, taxa, and safety caveats', ()
   assert(/saw-toothed/i.test(PLANTS.sawpalmetto.blurb),'saw-palmetto petiole hazard remains visible');
   for(const key of ['sunshinemimosa','dwarffakahatcheegrass','firebush'])
     assert(!PLANTS[key].roles.includes('coastal'),`${key}: salt-intolerant species is not recommended for exposed coastal use`);
+});
+
+test('Colorado/Rockies batch preserves reviewed data and regional qualifications', () => {
+  const rows=JSON.parse(readRepoFile('docs/plant-data/phase3-sources.json')).plants;
+  assertEqual(rows.length,10,'Phase 3 contains exactly the ten approved Colorado/Rockies taxa');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], reviewed=row.proposed;
+    assert(P,`${row.id}: missing species`);
+    assertEqual(P.name,reviewed.name,`${row.id}: reviewed common name`);
+    assertEqual(P.latin,reviewed.latin,`${row.id}: exact reviewed taxon`);
+    assertEqual(P.type,reviewed.type,`${row.id}: biological placement category`);
+    for(const field of ['heightIn','spread','space','sun','moist','phen'])
+      assertEqual(P[field],reviewed[field],`${row.id}: reviewed ${field}`);
+    assertEqual(P.zones.join(','),reviewed.zones.join(','),`${row.id}: reviewed zone range`);
+    if(reviewed.grow) assertEqual(P.grow,reviewed.grow,`${row.id}: planning years to represented woody size`);
+    assertEqual((P.synonyms||[]).join('|'),(reviewed.synonyms||[]).join('|'),`${row.id}: reviewed searchable synonyms`);
+    assertEqual(P.nativeTo.join(','),'north-america',`${row.id}: retains existing continental range contract`);
+    assertEqual(P.provenance,'species',`${row.id}: straight species`);
+  }
+  assertEqual(PLANTS.coloradobluecolumbine.sun,'part','blue columbine stays in its cool part-shade palette');
+  assertEqual(PLANTS.coloradobluecolumbine.moist,'medium','blue columbine is not recast as a dryland forb');
+  for(const role of ['dry','matrix','gravel'])
+    assert(!PLANTS.coloradobluecolumbine.roles.includes(role),`blue columbine excludes the ${role} role`);
+  assert(/Linum perenne/.test(PLANTS.blueflax.blurb)&&/'Appar'/.test(PLANTS.blueflax.blurb),'blue flax warns about nursery-name confusion');
+  assert(/not evergreen curlleaf/i.test(PLANTS.mountainmahogany.blurb),'mountain mahogany stays distinct from curlleaf mountain mahogany');
+  assert(/white pine blister rust/i.test(PLANTS.goldencurrant.blurb)&&/state and local Ribes rules/i.test(PLANTS.goldencurrant.blurb),'golden currant keeps host-risk and legal caveats');
+  assert(/provenance/i.test(PLANTS.prairiejunegrass.blurb)&&/elevation/i.test(PLANTS.indianricegrass.blurb),'elevation-sensitive grass sourcing remains visible');
 });
 
 test('cleaned exact selections keep accepted names and provenance', () => {

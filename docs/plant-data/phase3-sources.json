@@ -1,0 +1,324 @@
+{
+  "phase": "3 — Colorado and Rocky Mountain gardens",
+  "reviewedOn": "2026-08-31",
+  "scope": "Botanical review for exactly CO-01 through CO-10 in the US regional plant roadmap; proposed production values for main-agent review, not an automatic catalog import.",
+  "conventions": {
+    "units": "heightIn, spread, space and dimension evidence are real inches, never renderer pixels.",
+    "heightIn": "Representative cultivated overall height including flowers, seedheads or the woody crown. It is not foliage-only height or the largest documented wild specimen.",
+    "space": "Suggested on-center garden spacing. It is a design value unless a source explicitly supplies spacing; matting, rhizomatous and reseeding plants can move beyond one modeled module.",
+    "grow": "Woody-only estimated years to the stated design size, not root establishment time, lifespan or guaranteed ultimate maturity. Each value is explicitly labeled as a planning estimate in evidence.",
+    "zones": "Conservative whole-zone USDA cultivation ranges synthesized from cited extension and botanical sources. Direct species-level zone tables were not available for every taxon, so confidence is called out per record. Zone overlap alone does not establish Colorado life-zone, aspect, drainage or provenance suitability.",
+    "bloomMonths": "Approximate Colorado flowering windows spanning plains, foothills and montane cultivation. Elevation, exposure and snowmelt can shift these dates; a grass seedhead is represented as bloom when sources support its display period.",
+    "taxonomy": "The latin field retains the exact species-level roadmap target. Synonyms are selected discovery aliases, not exhaustive nomenclature; infraspecific and orthographic cautions remain explicit.",
+    "schema": "Forms are suggestions using current renderer vocabulary. Artemisia frigida and Eriogonum umbellatum are botanically woody-based subshrubs but are proposed as type forb/form shrub to match the existing Artemisia and small Eriogonum schema treatment; the three persistent woody footprint plants use type shrub/form bush and include grow.",
+    "limits": "No Phase 0 climate, regional-origin, legal-filter or seasonal-engine change is authorized by this file. NativeTo and provenance use the current broad contract only. Front Range, Western Slope, foothill and high-elevation qualifications remain descriptive data, not automatic suitability rules."
+  },
+  "plants": [
+    {
+      "id": "CO-01",
+      "suggestedKey": "prairiejunegrass",
+      "proposed": {
+        "name": "Prairie Junegrass", "latin": "Koeleria macrantha", "synonyms": ["Koeleria cristata"],
+        "type": "grass", "form": "vertgrass", "heightIn": 18, "spread": 12, "space": 12,
+        "zones": [3, 8], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Koeleria macrantha. Koeleria cristata is retained only as a useful legacy North American catalog alias; historic uses of K. cristata were broad and should not replace the accepted label.",
+        "dimensions": "CSU gives 12–24 in overall height. USDA separates roughly 7-in foliage from flowering culms up to 24 in; proposed 18 in deliberately represents the flowering plant rather than only the basal leaves. A 12-in crown is a moderate-confidence cultivated bunchgrass estimate.",
+        "spacing": "No direct ornamental on-center trial value was verified. Proposed 12 in matches the modeled crown and is a moderate-confidence matrix spacing; a looser dryland planting may use more room.",
+        "hardinessAndCulture": "CSU places it through roughly 11,000 ft and describes low water use, tolerance of somewhat wetter sites, most soils and light shade. USDA supports cool-season, drought-tolerant performance on rocky, sandy, low-fertility soils. Full and dry encode the primary Colorado matrix role. The 3–8 zone range is conservative but not backed by a single species-level CSU zone table.",
+        "floweringAndPersistence": "Utah State gives May–June flowering and notes slow development; USDA describes a perennial cool-season bunchgrass. It greens early and can become less active or brown in summer heat.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for height; moderate for spread", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-grasses-for-use-in-colorado-landscapes/", "supports": "12–24-in height, cool-season bunchgrass, elevation qualification, low water, soil and light tolerance"},
+        {"url": "https://plants.usda.gov/DocumentLibrary/factsheet/pdf/fs_koma.pdf", "supports": "perennial bunchgrass habit, foliage versus flowering height, cool-season timing, drought and soil adaptation"},
+        {"url": "https://cwelwnp.usu.edu/westernnativeplants/plantlist_view.php?id=83&name=koeleriamacrantha", "supports": "May–June flowers, compact foliage, dry well-drained culture and slow development"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:406615-1", "supports": "accepted Koeleria macrantha name and nomenclature"}
+      ],
+      "caveats": [
+        "Keep it visually distinct from the existing warm-season blue grama: this is an early-green cool-season bunchgrass with narrow upright panicles.",
+        "Its high-elevation occurrence does not make every lowland seed source interchangeable; use Colorado or Intermountain provenance suited to the site's elevation and precipitation.",
+        "Twelve-inch spread and spacing are planning values with only moderate numerical evidence."
+      ]
+    },
+    {
+      "id": "CO-02",
+      "suggestedKey": "indianricegrass",
+      "proposed": {
+        "name": "Indian Ricegrass", "latin": "Eriocoma hymenoides", "synonyms": ["Achnatherum hymenoides", "Oryzopsis hymenoides", "Stipa hymenoides"],
+        "type": "grass", "form": "cloudgrass", "heightIn": 24, "spread": 24, "space": 18,
+        "zones": [3, 9], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Eriocoma hymenoides. CSU and the USDA plant guide use the former accepted name Achnatherum hymenoides; Oryzopsis hymenoides and Stipa hymenoides are useful older discovery aliases.",
+        "dimensions": "CSU gives 12–24 in and USDA gives 8–30 in. Proposed 24 by 24 in represents the airy mature seedhead envelope while avoiding the largest wild extreme; the basal bunch is substantially smaller.",
+        "spacing": "No direct ornamental spacing was verified. Proposed 18 in allows airy panicles to overlap while retaining visible bunches and is a moderate-confidence design estimate.",
+        "hardinessAndCulture": "USDA describes a very winter-hardy cool-season bunchgrass for sunny dry loamy, sandy or gravelly sites, including hot south-facing slopes, but not shade, poor drainage or inundation. CSU lists planting through about 9,000 ft and very low water use. Zones 3–9 translate that broad cold-dry cultivation envelope and remain moderate confidence.",
+        "floweringAndPersistence": "USDA describes early spring growth and seed maturation by mid-summer; the May–July display window is a broad elevation-sensitive translation and has moderate month-level evidence. It is short- to medium-lived and often establishes slowly from dormant seed.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for height; moderate for spread", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "moderate"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-grasses-for-use-in-colorado-landscapes/", "supports": "12–24-in height, cool-season bunchgrass, high-elevation qualification, very low water and short-lived persistence"},
+        {"url": "https://plants.usda.gov/DocumentLibrary/plantguide/pdf/pg_achy.pdf", "supports": "older scientific names, 8–30-in height, cold and drought tolerance, drainage/light limits, spring growth, mid-summer seed and ecotype establishment caveats"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:94498-2", "supports": "accepted Eriocoma hymenoides name and former-name synonyms"}
+      ],
+      "caveats": [
+        "Do not render it as a dense cloudgrass dome: the key form is a small basal bunch with delicate, widely branched seed panicles.",
+        "Seed-source elevation matters. USDA describes Paloma material for lower Southwestern sites and Nezpar for colder higher sites; those examples support provenance caution and are not cultivar additions.",
+        "The plant may take two to five years to establish a stand from seed and is not a fast-closing stable lawn matrix.",
+        "Bloom months, spread and spacing have moderate numerical support."
+      ]
+    },
+    {
+      "id": "CO-03",
+      "suggestedKey": "rockymountainpenstemon",
+      "proposed": {
+        "name": "Rocky Mountain Penstemon", "latin": "Penstemon strictus", "synonyms": [],
+        "type": "forb", "form": "spike", "heightIn": 30, "spread": 24, "space": 24,
+        "zones": [4, 8], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Penstemon strictus. No obsolete scientific alias is useful enough to add to catalog discovery.",
+        "dimensions": "CSU gives 12–30 in; the USDA Forest Service guide gives roughly 14–28 in. CSU's El Paso County list supplies a 30-by-24-in landscape envelope, supporting the proposed overall height and spread.",
+        "spacing": "Proposed 24 in matches the CSU landscape width. CSU warns of powdery mildew when crowded, so reducing on-center spacing below the selected spread would be a poor default.",
+        "hardinessAndCulture": "CSU places the species to about 10,000 ft in sun or part shade with low-to-medium water and well-drained soil. USDA supports rocky or sandy loam and roughly 6,000–10,500-ft habitat. Full and dry encode the roadmap's open dry accent role; zones 4–8 are conservative but rely partly on cultivated horticultural summaries rather than a CSU species zone trial.",
+        "floweringAndPersistence": "Utah State gives May–July bloom. USDA describes a semi-evergreen perennial forb; CSU Western Slope trial notes show it can reseed in gravel mulch. Phen cool encodes early-summer activity rather than summer heat preference.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "moderate", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-herbaceous-perennials-for-colorado-landscapes/", "supports": "12–30-in height, mid-season bloom class, sun/part sun, low-medium water, elevation, drainage and crowding caveat"},
+        {"url": "https://research.fs.usda.gov/download/treesearch/49683.pdf", "supports": "14–28-in overall height, perennial/semi-evergreen habit, rocky and sandy soils and high-elevation range"},
+        {"url": "https://extension.usu.edu/ecorestore/assessment-tool?plant=53", "supports": "May–July bloom and perennial habit"},
+        {"url": "https://elpaso.extension.colostate.edu/wp-content/uploads/sites/44/2022/09/Pollinator-Native-Plant-List-final.pdf", "supports": "30-by-24-in Colorado landscape dimensions and dry well-drained culture"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:808306-1", "supports": "accepted species name"}
+      ],
+      "caveats": [
+        "Keep it distinct from existing low-desert Penstemon records: this is a Rocky Mountain and high-plains species for well-drained sites, not a generic Arizona low-desert recommendation.",
+        "Allow airflow and drainage; CSU specifically reports powdery mildew when crowded.",
+        "The whole-zone range has moderate rather than direct species-trial evidence."
+      ]
+    },
+    {
+      "id": "CO-04",
+      "suggestedKey": "blueflax",
+      "proposed": {
+        "name": "Blue Flax", "latin": "Linum lewisii", "synonyms": ["Linum perenne var. lewisii", "Linum perenne subsp. lewisii"],
+        "type": "forb", "form": "cone", "heightIn": 24, "spread": 12, "space": 12,
+        "zones": [3, 8], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Linum lewisii and lists L. perenne var. lewisii and L. perenne subsp. lewisii as synonyms. Bare Linum perenne is not a synonym and must not be used as the accepted catalog name.",
+        "dimensions": "CSU gives 12–24 in; the USDA plant guide describes selected material from 12–36 in. Proposed 24 in is representative overall flower height. A 12-in airy crown is supported by Colorado landscape-list dimensions but is less strongly documented than height.",
+        "spacing": "No controlled ornamental spacing trial was verified. Proposed 12 in matches the selected airy crown and supports a fine flowering filler; reseeding can fill beyond the original modules.",
+        "hardinessAndCulture": "CSU supports sun to part shade, low-to-medium water, well-drained soil and cultivation to about 9,500 ft. USDA places it on open sunny slopes and dry well-drained sites and rejects poorly drained or flooded conditions. Full/dry encodes the primary filler role. Zones 3–8 are a conservative horticultural translation with moderate evidence.",
+        "floweringAndPersistence": "USDA reports about six weeks of bloom beginning in mid-May; May–July accommodates elevation shifts. It is a relatively short-lived perennial that reseeds readily rather than a permanent tight clump.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for height; moderate for spread", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-herbaceous-perennials-for-colorado-landscapes/", "supports": "12–24-in height, mid-season bloom, sun/part shade, low-medium water, well-drained soil, reseeding and elevation"},
+        {"url": "https://plants.usda.gov/DocumentLibrary/plantguide/pdf/pg_lile3.pdf", "supports": "overall height range, roughly six-week bloom from mid-May, open dry culture, short-lived persistence and Appar misidentification"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:140855-2", "supports": "accepted Linum lewisii name and exact infraspecific synonyms under L. perenne"}
+      ],
+      "caveats": [
+        "Do not substitute European Linum perenne. USDA reports that Appar, long marketed as a native L. lewisii release, was later determined to be L. perenne.",
+        "Treat this as an airy, short-lived, reseeding filler. The static spread field does not predict seedling recruitment.",
+        "The cone form needs species tuning for fine branching stems and small five-petaled blue flowers; it must not read as a coarse coneflower.",
+        "Spread, spacing and whole-zone range have moderate numerical evidence."
+      ]
+    },
+    {
+      "id": "CO-05",
+      "suggestedKey": "sulphurbuckwheat",
+      "proposed": {
+        "name": "Sulphur Buckwheat", "latin": "Eriogonum umbellatum", "synonyms": [],
+        "type": "forb", "form": "shrub", "heightIn": 12, "spread": 36, "space": 24,
+        "zones": [4, 8], "sun": "full", "moist": "dry", "phen": "mid", "bloomMonths": [6, 7, 8],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Eriogonum umbellatum and recognizes extensive infraspecific diversity. No single obsolete synonym is useful enough for catalog discovery at the broad species level.",
+        "dimensions": "CSU gives 6–12 in overall height. NCSU gives 6–12 in high by 12–36 in wide for the low spreading semievergreen subshrub. Proposed 12 by 36 in therefore represents the upper low-mat envelope, including flowers.",
+        "spacing": "No direct ornamental spacing trial was verified. Proposed 24 in intentionally overlaps the selected 36-in mat to form a dry ground layer and is a moderate-confidence design value.",
+        "hardinessAndCulture": "CSU supports full sun, low water, well-drained soil and cultivation to roughly 10,500 ft. NCSU supplies zones 4a–8b and dry, sharply drained culture, directly supporting proposed zones 4–8, full and dry.",
+        "floweringAndPersistence": "CSU's mid-season category translates to June through mid-August; NCSU gives summer into fall. June–August is the conservative Colorado display. The low leathery foliage can be semievergreen and redden in fall, but snow cover and exposure affect winter visibility.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "high", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-herbaceous-perennials-for-colorado-landscapes/", "supports": "6–12-in height, mid-season bloom, full sun, low water, drainage, high-elevation cultivation and fall foliage"},
+        {"url": "https://plants.ces.ncsu.edu/plants/eriogonum-umbellatum/common-name/umbrella-plant/", "supports": "6–12 by 12–36-in dimensions, zones 4a–8b, semievergreen spreading habit, dry full-sun culture and broad summer flowering"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30010704-2", "supports": "accepted species name, subshrub habit and extensive infraspecific variation"}
+      ],
+      "caveats": [
+        "This is highly variable across many recognized infraspecific taxa. The 12-by-36-in record represents low spreading Colorado horticultural material and cannot describe every wild form.",
+        "Use type forb/form shrub for current schema consistency with Wright's buckwheat. Botanically it is a woody-based subshrub, so the authoring blurb should retain semievergreen persistent structure.",
+        "Use local or ecologically matched provenance for restoration-like planting; do not imply that one cultivar or variety is native to every Colorado site.",
+        "Twenty-four-inch on-center spacing is a design estimate."
+      ]
+    },
+    {
+      "id": "CO-06",
+      "suggestedKey": "coloradobluecolumbine",
+      "proposed": {
+        "name": "Colorado Blue Columbine", "latin": "Aquilegia coerulea", "synonyms": ["Aquilegia caerulea"],
+        "type": "forb", "form": "globe", "heightIn": 30, "spread": 24, "space": 18,
+        "zones": [3, 8], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Aquilegia coerulea. Aquilegia caerulea is a common orthographic variant used by CSU and is retained as a discovery alias, not the accepted label.",
+        "dimensions": "CSU's perennial guide gives 18–30 in. Colorado Master Gardener material gives 12–36 in and moist-rocky shade habitat; a state nursery guide gives roughly 18–24-in spread. Proposed 30 by 24 in is a representative flowering plant rather than the 36-in extreme.",
+        "spacing": "No direct species spacing trial was verified. Proposed 18 in lets 24-in crowns interlace in a cool woodland or montane drift and is a moderate-confidence design value.",
+        "hardinessAndCulture": "Colorado sources support zones 3–8, part shade, medium moisture, drainage and montane to alpine occurrence, often in aspen understory or moist rocky sites. Part/medium deliberately keeps it outside the driest sunny matrix even though some garden sources allow sun.",
+        "floweringAndPersistence": "CSU garden material gives May–June, while higher-elevation Colorado material gives June–August. May–July is a useful cultivated range but altitude and snowmelt can move bloom later. It is a short-lived perennial, often about four to five years, that commonly perpetuates by reseeding.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "high", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/herbaceous-perennials/", "supports": "May–June bloom, 18–30-in height, sun to part shade and well-drained garden culture under the orthographic variant A. caerulea"},
+        {"url": "https://cmg.extension.colostate.edu/wp-content/uploads/sites/9/2018/10/Wildflower-Selection-Tips-Chart.pdf", "supports": "Colorado blue columbine identity, June–August montane bloom, shade, medium moisture, 12–36-in height, high-elevation occurrence and short-lived/reseeding persistence"},
+        {"url": "https://park.extension.colostate.edu/wp-content/uploads/sites/51/2018/11/Perinnials-Grasses-buyers-guide.pdf", "supports": "zones 3–8 and representative 18–24-in garden envelope for Rocky Mountain columbine material"},
+        {"url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprd3798303.pdf", "supports": "montane through alpine habitat and aspen-understory association"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:60438279-2", "supports": "accepted Aquilegia coerulea spelling and taxonomic range"}
+      ],
+      "caveats": [
+        "Keep this record out of the dry plains/foothill matrix. It belongs in cooler roots, part shade and medium-moisture mountain, ravine or protected garden settings.",
+        "A hot exposed Western Slope bed is not equivalent to a moist montane Western Slope habitat; elevation and aspect must remain visible qualifications.",
+        "The species includes geographic variation and crosses readily with garden columbines. Do not imply that seed of unknown ornamental parentage is local Colorado provenance.",
+        "Eighteen-inch spacing is a design estimate, and individual plants are relatively short-lived."
+      ]
+    },
+    {
+      "id": "CO-07",
+      "suggestedKey": "fringedsage",
+      "proposed": {
+        "name": "Fringed Sage", "latin": "Artemisia frigida", "synonyms": [],
+        "type": "forb", "form": "shrub", "heightIn": 24, "spread": 24, "space": 18,
+        "zones": [3, 8], "sun": "full", "moist": "dry", "phen": "mid", "bloomMonths": [8, 9],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Artemisia frigida and classifies it as a subshrub. It has a broad circumboreal native range; north-america is the current app's coarse native-origin value, not an endemic claim.",
+        "dimensions": "Utah State gives 12–24 in and roughly equal spread for the low evergreen woody-based plant. Proposed 24 by 24 in includes flowering growth rather than only the silver foliage cushion.",
+        "spacing": "No direct ornamental spacing trial was verified. Proposed 18 in allows moderate rhizomatous crowns to overlap into a silver dry-ground layer and is a moderate-confidence design value.",
+        "hardinessAndCulture": "CSU recommends hot, dry, sunny sites. Utah State supports full sun, dry well-drained slopes from foothills to high elevations and avoidance of clay or excess irrigation. The proposed 3–8 range is conservative but lacks a direct CSU species-level whole-zone table.",
+        "floweringAndPersistence": "CSU gives inconspicuous yellow flowers in August–September. Utah State describes an evergreen subshrub and moderate rhizomatous spread; exposed plants can still lose visible top growth in severe winter or drought.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/ground-cover-plants/", "supports": "hot dry sunny groundcover use, silver foliage and August–September flowers"},
+        {"url": "https://cwelwnp.usu.edu/westernnativeplants/plantlist_view.php?id=17&name=artemisiafrigida", "supports": "12–24-in evergreen subshrub dimensions, rhizomatous habit, foothill-to-high-elevation habitat, full sun, drainage and irrigation limits"},
+        {"url": "https://extension.usu.edu/cwel/research/selection-and-culture-of-landscape-plants-in-utah", "supports": "compact silver evergreen landscape habit, full sun and growth character"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:302292-2", "supports": "accepted species name, subshrub life form and broad native range"}
+      ],
+      "caveats": [
+        "Use type forb/form shrub to match existing small Artemisia records and preserve a soft ground-layer footprint. Botanically this is an evergreen woody-based subshrub, which the blurb and seasonal colors should acknowledge.",
+        "Avoid rich wet or heavy-clay assumptions. It is a dry, open plains-to-mountain plant whose crown can thin or move by rhizomes.",
+        "The flowers are visually secondary; the catalog role is persistent silver texture rather than a showy bloom block.",
+        "Spacing and whole-zone range have moderate numerical evidence."
+      ]
+    },
+    {
+      "id": "CO-08",
+      "suggestedKey": "rubberrabbitbrush",
+      "proposed": {
+        "name": "Rubber Rabbitbrush", "latin": "Ericameria nauseosa", "synonyms": ["Chrysothamnus nauseosus"],
+        "type": "shrub", "form": "bush", "heightIn": 48, "spread": 48, "space": 48, "grow": 4,
+        "zones": [4, 9], "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [8, 9, 10],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Ericameria nauseosa and lists Chrysothamnus nauseosus as a synonym. Kew recognizes many infraspecific taxa, matching USDA's warning that form and phenology vary strongly by ecotype.",
+        "dimensions": "CSU treats common Colorado landscape material as a small shrub under 4 ft, while USDA documents an overall 1–8-ft species range. Utah State gives 3–5 ft high and wide for typical material. Proposed 48 by 48 in represents a modest local shrub, not a dwarf cultivar or the largest wild form.",
+        "spacing": "No direct on-center trial was verified. Proposed 48 in matches the selected crown width and has moderate design confidence; aggressive local forms or unpruned old plants may require more room.",
+        "hardinessAndCulture": "CSU places it across Upper Sonoran, plains and foothill life zones at roughly 5,000–10,000 ft with low water. USDA supports dry open plains, valleys, foothills and mountains over a broad cold-desert range. Full/dry is strong; zones 4–9 are a conservative cultivation proposal but have moderate direct evidence.",
+        "floweringAndPersistence": "USDA gives late July at cool montane sites through October in hot desert sites; August–October fits a broad Colorado record. It is a deciduous late-flowering shrub. USDA reports two to four years to mature plants and a roughly five-to-twenty-year lifespan in revegetation literature.",
+        "growConfidence": "Moderate four-year design estimate to the proposed 4-ft crown. USDA directly reports two to four years to reproductive maturity, but maturity is not identical to a guaranteed 4-ft ornamental size.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for representative envelope", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "moderate"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-shrubs-for-colorado-landscapes/", "supports": "Colorado small-shrub size class, elevation/life-zone qualification, low water, deciduous habit, late bloom and subspecies/aggressiveness cautions under Chrysothamnus nauseosus"},
+        {"url": "https://plants.usda.gov/DocumentLibrary/plantguide/pdf/pg_erna10.pdf", "supports": "1–8-ft variable shrub, dry habitat, elevation range, July–October phenology, two-to-four-year maturity and lifespan evidence"},
+        {"url": "https://cwelwnp.usu.edu/westernnativeplants/plantlist_view.php?id=21&name=ericamerianauseosasspnauseosa", "supports": "representative 3–5-ft equal dimensions, full sun, very dry culture, September–October bloom and moderate growth"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:973775-1", "supports": "accepted Ericameria nauseosa name, Chrysothamnus synonym and infraspecific complexity"}
+      ],
+      "caveats": [
+        "Straight species material is highly variable. The 4-by-4-ft record should be described as representative Colorado landscape material, not a universal ultimate size.",
+        "Plains/foothill, Western Slope and high-elevation plants may differ in stature and bloom timing; use a locally adapted seed source rather than assuming one ecotype works statewide.",
+        "Some forms seed or spread aggressively in open disturbed ground. Give it room and do not place it as a tidy foundation shrub by default.",
+        "Four-year grow and zones 4–9 remain planning values with moderate evidence."
+      ]
+    },
+    {
+      "id": "CO-09",
+      "suggestedKey": "mountainmahogany",
+      "proposed": {
+        "name": "Mountain Mahogany", "latin": "Cercocarpus montanus", "synonyms": ["Cercocarpus parvifolius"],
+        "type": "shrub", "form": "bush", "heightIn": 120, "spread": 120, "space": 120, "grow": 15,
+        "zones": [3, 8], "sun": "full", "moist": "dry", "phen": "cool", "bloomMonths": [5, 6, 7],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Cercocarpus montanus and lists Cercocarpus parvifolius as a synonym. This record is not curlleaf mountain mahogany, Cercocarpus ledifolius.",
+        "dimensions": "CSU gives a 6–10-ft mature landscape class. USDA Forest Service documents a much broader 3–20-ft wild range, and Utah State reports roughly 15-ft spread and occasional 20-ft height. Proposed 10 by 10 ft is a representative open foothill shrub while acknowledging that favorable old plants can be larger or tree-like.",
+        "spacing": "No direct ornamental spacing trial was verified. Proposed 120 in matches the representative selected crown and preserves its open architecture; it is a moderate-confidence design value rather than a hedge spacing.",
+        "hardinessAndCulture": "CSU places it primarily in foothill to montane settings at about 4,000–8,500 ft with low-to-medium water. USDA supports dry rocky slopes, foothills and canyon sides. Full/dry encodes the roadmap's open foothill role. Zones 3–8 are a conservative proposal with moderate direct species-zone evidence.",
+        "floweringAndPersistence": "USDA gives April to early July across the range and May–July for typical C. montanus; May–July accommodates Colorado elevation shifts. The distinctive feathery seed tails persist after small spring flowers. It is a long-lived deciduous to locally semi-evergreen shrub with slow initial growth.",
+        "growConfidence": "Weak fifteen-year design estimate to the proposed 10-ft crown. Extension sources establish slow initial growth and a long-lived large shrub, but no direct time-to-10-ft study was found.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for representative envelope", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-shrubs-for-colorado-landscapes/", "supports": "6–10-ft Colorado landscape class, foothill/montane and elevation qualification, low-medium water, deciduous open habit and feathery seeds"},
+        {"url": "https://research.fs.usda.gov/feis/species-reviews/cermon", "supports": "3–20-ft wild range, dry foothill habitat, Colorado elevation, longevity and April–July/May–July reproductive timing"},
+        {"url": "https://extension.usu.edu/cache/files/Plant-Propagation-Workshop-Complete-Workbook-2016.pdf", "supports": "large shrub dimensions, dry well-drained culture, April–June flowering and slow initial growth"},
+        {"url": "https://extension.usu.edu/cwel/native-mountain-mahogany", "supports": "deciduous to semi-evergreen true mountain-mahogany habit and distinction from curlleaf mountain mahogany"},
+        {"url": "https://powo.science.kew.org/taxon/30056319-2", "supports": "accepted Cercocarpus montanus name and C. parvifolius synonym"}
+      ],
+      "caveats": [
+        "Use it as open foothill and canyon structure, especially Front Range and comparable Western Slope sites. It is not a high-alpine shrub and does not imply suitability for every mountain elevation.",
+        "Do not substitute evergreen curlleaf mountain mahogany. C. montanus is normally deciduous to semi-evergreen and has a different crown and habitat pattern.",
+        "Old favorable plants can exceed the modeled 10-by-10-ft crown and become small trees.",
+        "Fifteen-year grow is explicitly weak; ten-foot spacing and zones 3–8 are moderate-confidence planning values."
+      ]
+    },
+    {
+      "id": "CO-10",
+      "suggestedKey": "goldencurrant",
+      "proposed": {
+        "name": "Golden Currant", "latin": "Ribes aureum", "synonyms": [],
+        "type": "shrub", "form": "bush", "heightIn": 72, "spread": 60, "space": 60, "grow": 6,
+        "zones": [3, 8], "sun": "part", "moist": "medium", "phen": "cool", "bloomMonths": [4, 5],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Ribes aureum and recognizes infraspecific taxa. Ribes odoratum is not entered as a synonym because taxonomic and nursery treatments vary; Crandall-type eastern var. villosum material must not silently replace western straight-species provenance.",
+        "dimensions": "CSU gives 4–6 ft mature height, and its El Paso County list gives 6 by 5 ft. Utah State gives 4–8 ft high and similar or slightly narrower spread for western var. aureum. Proposed 72 by 60 in follows the direct Colorado landscape envelope.",
+        "spacing": "No direct ornamental spacing trial was verified. Proposed 60 in matches the Colorado list's mature crown width and has moderate design confidence.",
+        "hardinessAndCulture": "CSU places golden currant in plains, foothill and Upper Sonoran settings from roughly 4,000–10,000 ft, with low-to-medium water and well-drained soil. Colorado and Utah sources allow sun to part shade and adaptable moisture. Part/medium represents a flowering/fruiting edge shrub rather than putting it in the driest matrix. Zones 3–8 are conservative but have moderate direct species-zone support.",
+        "floweringAndPersistence": "Utah State gives April–May bloom and notes flowering by about the third year. It is a deciduous, long-lived, moderately fast shrub that can spread slowly by rhizomes.",
+        "growConfidence": "Weak-to-moderate six-year design estimate to the proposed 6-by-5-ft crown. Sources support moderately fast growth and flowering by year three but do not give direct time to the selected mature size.",
+        "healthAndLegal": "Ribes aureum can act as an alternate host for white pine blister rust, Cronartium ribicola. A Colorado/New Mexico Forest Service guide says it can matter near planted white pines in irrigated urban settings. Ribes possession and planting restrictions vary in some US states; no Colorado-specific prohibition was verified in this review, so the app must not make a national legality promise.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "moderate", "zones": "moderate", "culture": "high", "bloomMonths": "high", "grow": "weak-to-moderate", "hostRisk": "high"}
+      },
+      "sources": [
+        {"url": "https://extension.colostate.edu/resource/native-shrubs-for-colorado-landscapes/", "supports": "4–6-ft mature class, plains/foothill/Upper Sonoran and elevation qualification, low-medium water, deciduous arching habit, late-spring flowers and fruit"},
+        {"url": "https://elpaso.extension.colostate.edu/wp-content/uploads/sites/44/2022/09/Pollinator-Native-Plant-List-final.pdf", "supports": "direct 6-by-5-ft Colorado landscape dimensions, full/part sun, low-medium water and adaptable soil"},
+        {"url": "https://cwelwnp.usu.edu/westernnativeplants/plantlist_view.php?id=77&name=ribesaureumvaraureum", "supports": "western var. aureum dimensions, sun/shade and moisture range, April–May bloom, moderate growth, year-three flowering, rhizomes and var. villosum cultivar distinction"},
+        {"url": "https://research.fs.usda.gov/feis/species-reviews/ribaur", "supports": "ecology, broad persistence and white pine blister rust alternate-host status"},
+        {"url": "https://research.fs.usda.gov/download/treesearch/66502.pdf", "supports": "Colorado and New Mexico Ribes identification plus R. aureum blister-rust relevance near irrigated planted white pines"},
+        {"url": "https://extension.umaine.edu/gardening/2024/05/24/are-red-currant-plants-allowed-in-maine/", "supports": "example of state and county Ribes planting restrictions outside Colorado; supports national legal caveat only"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:220870-2", "supports": "accepted Ribes aureum name and infraspecific complexity"}
+      ],
+      "caveats": [
+        "Keep a host-risk note: do not site or irrigate it casually beside susceptible five-needle white pines where local forestry guidance warns of white pine blister rust.",
+        "Ribes legality varies outside Colorado. Tell users to check current state and local rules; do not encode no-restriction as a nationwide claim.",
+        "Use locally appropriate western provenance for Colorado habitat-style planting. Do not fold Crandall or other Ribes odoratum/var. villosum nursery material into this straight-species record.",
+        "It accepts full sun in suitable Colorado sites, but part/medium is the safer primary palette for flowering/fruiting performance than the driest exposed matrix.",
+        "Six-year grow, five-foot spacing and zones 3–8 remain planning values where evidence is indirect."
+      ]
+    }
+  ]
+}

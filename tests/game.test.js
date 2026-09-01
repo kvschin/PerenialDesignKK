@@ -272,6 +272,7 @@ test('drawPlant renders every species + cultivar across all seasons', () => {
 const westCoastKeys=['phase1a-sources.json','phase1b-sources.json'].flatMap(file=>
   JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
 const floridaKeys=JSON.parse(readRepoFile('docs/plant-data/phase2-sources.json')).plants.map(p=>p.suggestedKey);
+const coloradoKeys=JSON.parse(readRepoFile('docs/plant-data/phase3-sources.json')).plants.map(p=>p.suggestedKey);
 
 test('West Coast plants are reachable by category, exact discovery, and botanical synonyms', () => {
   setup();
@@ -386,6 +387,66 @@ test('Florida morphology stays finite, deterministic, and distinct in both rende
     assert(trace('coontie','Summer')!==trace('westernswordfern','Summer'),'cycad crowns do not collapse to the fern trace');
     assert(trace('sawpalmetto','Summer')!==trace('yucca','Summer'),'palm fans do not collapse to the yucca trace');
   } } finally { ART2.on=before; }
+});
+
+test('Colorado/Rockies plants are reachable by category, discovery, and botanical synonyms', () => {
+  setup();
+  const library=new Set(libraryAllKeys()),refs=new Set(allPlantRefs().map(r=>plantRefId(r)));
+  for(const key of coloradoKeys){
+    assert(library.has(key)&&libraryCatFor(key),`${key}: reachable library category`);
+    assert(refs.has(key+'|'),`${key}: exact discovery reference`);
+    for(const synonym of PLANTS[key].synonyms||[]){
+      const q=synonym.toLowerCase();
+      assert(libraryMatches(key,q),`${key}: library finds ${synonym}`);
+      assert(plantSearchHay(key).includes(q),`${key}: tray finds ${synonym}`);
+      assert(discoverySearchText(plantRef(key)).includes(q),`${key}: discovery finds ${synonym}`);
+    }
+  }
+  assertEqual(libraryCatFor('prairiejunegrass').id,'grasses','prairie Junegrass stays in grasses');
+  assertEqual(libraryCatFor('fringedsage').id,'sunper','soft-layer fringed sage stays placeable with sunny perennials');
+});
+
+test('Colorado/Rockies woody plants reserve reviewed mature footprints', () => {
+  for(const key of ['rubberrabbitbrush','mountainmahogany','goldencurrant']){
+    setup(41,41); game.tool=key;
+    assertEqual(applyToolAt(20,20),'plant',`${key}: places through normal tool dispatch`);
+    const tiles=shrubFootprintTiles(20,20,game.plants['20,20'],true);
+    const neighbor=tiles.find(([x,y])=>x!==20||y!==20);
+    assert(neighbor,`${key}: mature spread reserves more than its centre tile`);
+    game.tool='blueflax';
+    assertEqual(applyToolAt(...neighbor),null,`${key}: hard woody occupancy blocks ground-layer planting`);
+  }
+  assert(woodyRadiusTiles(PLANTS.mountainmahogany)>=3,'ten-foot mountain mahogany keeps a shrub-scale planning radius');
+});
+
+test('Colorado/Rockies morphology stays finite and deterministic in both renderers', () => {
+  function trace(key,season,seed=431){
+    const ops=[],ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key} ${season}: finite ${p}`);
+          if(['moveTo','lineTo','quadraticCurveTo','bezierCurveTo','ellipse','arc','fill','stroke'].includes(p))
+            ops.push([p,...a.map(v=>typeof v==='number'?Math.round(v*100)/100:v)]); };
+      },set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,season,seed,0,null,1);return JSON.stringify(ops);
+  }
+  const before=ART2.on;
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of coloradoKeys)for(const season of SEASONS)
+      assertEqual(trace(key,season),trace(key,season),`${key} ${season}: stable seed`);
+    assert(trace('coloradobluecolumbine','Spring')!==trace('sulphurbuckwheat','Summer'),'columbine and buckwheat retain distinct flower structures');
+    assert(trace('mountainmahogany','Winter')!==trace('rubberrabbitbrush','Winter'),'long mahogany plumes remain distinct from rabbitbrush seed tufts');
+  } } finally { ART2.on=before; }
+});
+
+test('season-derived roles distinguish berries from persistent winter seedheads', () => {
+  const currant=staticPlantRoles('goldencurrant');
+  assert(!currant.includes('seedhead')&&!currant.includes('winter'),'summer currant berries do not imply seedheads or winter interest');
+  const mahogany=staticPlantRoles('mountainmahogany');
+  assert(mahogany.includes('seedhead')&&mahogany.includes('winter'),'winter mountain-mahogany plumes remain searchable');
 });
 
 test('inside-out flowers preserve the green stroke on every flower scape', () => {
