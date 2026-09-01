@@ -1807,7 +1807,10 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
    suppress that blend so the new palette is immediately accurate to compare. */
 const SEASON_FADE_MS=1100;
 const seasonFade={cv:null, t0:0, active:false, last:null, suppressOnce:false};
-const seasonFadeRMQ=(typeof matchMedia==='function') ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+/* Reads the app's own motion preference, not the media query directly: the
+   season crossfade is the one animation here that carries information, so
+   Settings can keep it while the OS switch is on (and drop it while the OS
+   switch is off). reducedMotion() folds both in. */
 function seasonFadeActive(){ return seasonFade.active; }
 function resetSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.last=null; seasonFade.suppressOnce=false; }
 function suppressNextSeasonFade(){ seasonFade.active=false; seasonFade.cv=null; seasonFade.suppressOnce=true; }
@@ -1817,7 +1820,7 @@ function maybeStartSeasonFade(t,season){
      funnel is asking about. */
   if (seasonFade.last && seasonFade.last!==season) funnel(FUNNEL_EVENTS.seasonTurned);
   if (seasonFade.last && seasonFade.last!==season && !seasonFade.suppressOnce && !game.photo &&
-      !(seasonFadeRMQ && seasonFadeRMQ.matches)){
+      !reducedMotion()){
     if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');
     if (seasonFade.cv.width!==cnv.width || seasonFade.cv.height!==cnv.height){
       seasonFade.cv.width=cnv.width; seasonFade.cv.height=cnv.height; }

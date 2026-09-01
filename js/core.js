@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.47';
+const APP_VERSION = '0.8.48';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -100,6 +100,14 @@ const FUNNEL_EVENTS={
   planOpened:'plan:opened',
   planDownloaded:'plan:downloaded',
   gardenShared:'garden:shared',
+  /* Settings and the paid tier, when it exists. Kept in the same record as the
+     rest of the funnel so 'reached the planting list, then looked at premium,
+     then did not buy' reads as one sequence rather than two systems to
+     reconcile. */
+  settingsOpened:'settings:opened',
+  premiumViewed:'premium:viewed',
+  premiumStarted:'premium:started',
+  premiumRestored:'premium:restored',
 };
 let funnelState=null, funnelDirty=false;
 function funnelLoad(){
@@ -357,13 +365,110 @@ function setThemePref(pref){
   try{ localStorage.setItem(THEME_KEY,themePref); }catch(_){ }
   return applyTheme();
 }
-function cycleThemePref(){ return setThemePref(THEME_CHOICES[(THEME_CHOICES.indexOf(themePref)+1)%THEME_CHOICES.length]); }
+/* cycleThemePref used to live here, for the garden menu's one-button
+   "Appearance · Auto" row. Settings shows all three choices at once, so there
+   is nothing left to cycle and a wrap-around order nobody can see is a rule
+   waiting to disagree with the UI. setThemePref is the whole API. */
 function themeLabel(){ return themePref==='auto'?`Auto (${resolvedTheme()})`:themePref==='light'?'Light':'Dark'; }
 if (typeof matchMedia==='function'){
   const mq=matchMedia('(prefers-color-scheme: light)');
   const onChange=()=>{ if (themePref==='auto') applyTheme(); };
   if (mq.addEventListener) mq.addEventListener('change',onChange);
   else if (mq.addListener) mq.addListener(onChange);
+}
+
+/* ---------- Motion (device preference, like the theme) ----------
+   'auto' follows prefers-reduced-motion; 'reduce'/'full' pin it. An OS-level
+   setting is the wrong granularity for this app on its own: someone who turns
+   the system switch on for a phone full of bouncing chat apps still wants the
+   season crossfade, which is the one animation here carrying information rather
+   than decoration — and the reverse case (a shared or managed device where the
+   OS switch cannot be reached) had no route at all.
+
+   The resolved value is stamped on <html> as data-motion by the bootstrap in
+   index.html's <head>, and styles.css keys its reduce block on that attribute
+   ALONE. So the attribute must always be present: it is the only thing that
+   turns motion down, and losing it silently un-reduces motion for someone who
+   asked for less. This code owns it from load onward, including following the
+   OS while set to 'auto'. */
+const MOTION_KEY='hortus:motion';
+const MOTION_CHOICES=['auto','reduce','full'];
+let motionPref='auto';
+try{ const v=localStorage.getItem(MOTION_KEY); if (MOTION_CHOICES.includes(v)) motionPref=v; }catch(_){ }
+function systemReducedMotion(){
+  return typeof matchMedia==='function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+/* The one predicate every motion decision reads — CSS through data-motion, and
+   the three JS sites (season crossfade, catalog strip scroll, sheet flight)
+   that used to call matchMedia directly and so could not see the pref. */
+function reducedMotion(){
+  return motionPref==='auto' ? systemReducedMotion() : motionPref==='reduce';
+}
+function applyMotionPref(){
+  if (typeof document==='undefined'||!document.documentElement) return reducedMotion();
+  document.documentElement.setAttribute('data-motion',reducedMotion()?'reduce':'full');
+  return reducedMotion();
+}
+function setMotionPref(pref){
+  motionPref=MOTION_CHOICES.includes(pref)?pref:'auto';
+  try{ localStorage.setItem(MOTION_KEY,motionPref); }catch(_){ }
+  applyMotionPref();
+  return motionPref;
+}
+function motionLabel(){
+  return motionPref==='auto' ? `Auto (${reducedMotion()?'reduced':'full'})` : motionPref==='reduce'?'Reduced':'Full';
+}
+applyMotionPref();
+if (typeof matchMedia==='function'){
+  const mq=matchMedia('(prefers-reduced-motion: reduce)');
+  const onChange=()=>{ if (motionPref==='auto') applyMotionPref(); };
+  if (mq.addEventListener) mq.addEventListener('change',onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+}
+
+/* ---------- Language ----------
+   Nothing is translated yet, and this is deliberately the whole seam rather
+   than a dead dropdown: LANGUAGES is the list, the preference is stored, and
+   <html lang> follows it — which is what a screen reader and the browser's own
+   hyphenation read, so the one entry already does real work. The settings
+   screen renders a picker only when there is more than one row here, so adding
+   a translation is a data change plus a string table, not a UI change. */
+const LANG_KEY='hortus:lang';
+const LANGUAGES=[{id:'en', label:'English', native:'English'}];
+let langPref='en';
+try{ const v=localStorage.getItem(LANG_KEY); if (LANGUAGES.some(l=>l.id===v)) langPref=v; }catch(_){ }
+function languageDef(id=langPref){ return LANGUAGES.find(l=>l.id===id)||LANGUAGES[0]; }
+function languageLabel(){ return languageDef().native; }
+function applyLangPref(){
+  if (typeof document!=='undefined'&&document.documentElement)
+    document.documentElement.setAttribute('lang',langPref);
+  return langPref;
+}
+function setLangPref(id){
+  if (LANGUAGES.some(l=>l.id===id)) langPref=id;
+  try{ localStorage.setItem(LANG_KEY,langPref); }catch(_){ }
+  return applyLangPref();
+}
+applyLangPref();
+
+/* ---------- Premium ----------
+   The placement is decided and built; the storefront is not, because there is
+   no store to talk to yet and a button that cannot take money is worse than no
+   button. PREMIUM_ENABLED is the single switch — off, the settings screen
+   renders no premium section at all and the app is exactly as it was.
+
+   isPremium() is the gate every future paid surface should read, so entitlement
+   has ONE definition from the start. It is device-local, like every other
+   preference here: a real purchase eventually replaces the body of this
+   function with a receipt check, and nothing else has to move. Deliberately not
+   wired to anything that hides existing behaviour — everything the app does
+   today stays free, or the first release after this one takes features away
+   from people who already have them. */
+const PREMIUM_ENABLED=false;
+const PREMIUM_KEY='hortus:premium';
+function isPremium(){
+  if (!PREMIUM_ENABLED) return true;   // nothing is gated while the tier is off
+  try{ return localStorage.getItem(PREMIUM_KEY)==='1'; }catch(_){ return false; }
 }
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */

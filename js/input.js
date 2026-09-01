@@ -21,6 +21,17 @@ addEventListener('keydown',e=>{
     }
     return;
   }
+  /* Above the hidden-HUD guard for the same reason the library block is: the
+     settings dialog opens from the MAIN MENU as well as from a garden, and the
+     HUD is hidden there — so an Escape branch below this line would never run
+     on half the routes into it. It also takes precedence over every other
+     overlay while open, which is what modal means. */
+  const settingsScreenEl=document.getElementById('settingsScreen');
+  if (settingsScreenEl&&!settingsScreenEl.classList.contains('hidden')){
+    if (e.key==='Escape'){ e.preventDefault(); closeSettings(); }
+    else trapOverlayFocus(settingsScreenEl,e);
+    return;
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }

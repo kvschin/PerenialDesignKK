@@ -20,14 +20,30 @@
 <link rel="preload" href="fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <script>
-/* Resolve the theme before first paint so the app never flashes loam-dark on a
-   light desktop (or the reverse). core.js owns it from load onward — this only
-   has to be right for the first frame, so it stays tiny and dependency-free. */
+/* Resolve the theme and the motion level before first paint, so the app never
+   flashes loam-dark on a light desktop (or the reverse) and never plays one
+   frame of an animation somebody asked not to see. core.js owns both from load
+   onward — this only has to be right for the first frame, so it stays tiny and
+   dependency-free.
+
+   data-motion is stamped UNCONDITIONALLY, including in the catch: styles.css
+   keys its reduce block on that attribute alone, so a missing attribute means
+   full motion for someone who asked for less. Falling back to the OS query is
+   the same answer the old bare media query gave. */
 (function(){try{
   var p=localStorage.getItem('hortus:theme');
   if(p!=='light'&&p!=='dark') p=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
   document.documentElement.setAttribute('data-theme',p);
 }catch(e){}})();
+(function(){
+  var osReduce=function(){try{return !!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){return false;}};
+  var m='full';
+  try{
+    var p=localStorage.getItem('hortus:motion');
+    m=(p==='reduce'||p==='full') ? p : (osReduce()?'reduce':'full');
+  }catch(e){ m=osReduce()?'reduce':'full'; }
+  document.documentElement.setAttribute('data-motion',m);
+})();
 /* Register the offline worker after load, so it never competes with the first
    paint for bandwidth. A failure here is not worth reporting to the gardener —
    the app runs perfectly well without it, just not offline. Registered with a
@@ -61,6 +77,7 @@ if ('serviceWorker' in navigator)
   <symbol id="ui-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
   <symbol id="ui-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
   <symbol id="ui-moon" viewBox="0 0 24 24"><path d="M19.4 15.7A8 8 0 0 1 8.3 4.6a8 8 0 1 0 11.1 11.1Z"/></symbol>
+  <symbol id="ui-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.3 13.5a7.6 7.6 0 0 0 0-3l2-1.5-1.9-3.3-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.1h-4l-.4 2.9a7.6 7.6 0 0 0-2.6 1.5l-2.4-1L2.7 9l2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 1.9 3.3 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.9h4l.4-2.9a7.6 7.6 0 0 0 2.6-1.5l2.4 1 1.9-3.3Z"/></symbol>
   <symbol id="ui-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v7M12 10v7M16 10v7M6.5 7l.8 13h9.4l.8-13"/></symbol>
   <!-- Zero-length segments, drawn as dots by the sprite's round linecaps. Circles
        would need fill, and .ui-icon sets fill:none, which a presentation
@@ -72,6 +89,17 @@ if ('serviceWorker' in navigator)
 
 <!-- MAIN MENU -->
 <div class="screen" id="menuScreen">
+  <!-- Top-right, the place people already hunt for settings, and carrying its
+       LABEL: an unlabelled gear is the classic discoverability tax, and this is
+       the one control someone opens the app specifically to find. It is
+       deliberately outside .menu-card so the three core entries stay the
+       hierarchy — settings is a destination, not a step in the loop. It also
+       needs the opaque plate every piece of chrome over the meadow needs: the
+       canvas follows the SEASON and the chrome follows the THEME, so neither
+       theme is safe over bare sky. -->
+  <button class="menu-settings" id="btnSettings" type="button" aria-haspopup="dialog" aria-expanded="false">
+    <svg class="ui-icon" aria-hidden="true"><use href="#ui-settings"></use></svg><span>Settings</span>
+  </button>
   <div class="menu-shell">
     <div class="menu-title-block">
       <div class="eyebrow">Pocket prairie garden design</div>
@@ -292,12 +320,33 @@ if ('serviceWorker' in navigator)
       <button class="btn" id="btnBloom">Bloom calendar</button>
       <button class="btn" id="btnPhoto">Golden-hour photo</button>
       <button class="btn" id="btnShare">Share garden</button>
-      <button class="btn" id="btnTheme">Appearance · Auto</button>
-      <button class="btn hidden" id="btnHaptics" aria-pressed="false">Haptic feedback · Off</button>
-      <button class="btn handedness-preference" id="btnHandedness" aria-pressed="false" title="Moves the mobile canvas tool rail to the right edge">Left-handed layout · Off</button>
+      <!-- Appearance, haptics and the rail side used to be three rows here.
+           They are DEVICE preferences, not garden actions, so they were in the
+           wrong menu twice over: they sat among the planting list, the plan and
+           Share in a 236px dropdown, and they were unreachable from the main
+           menu, where somebody who has not opened a garden yet would look for
+           dark mode. One row, one settings surface, reachable from both. -->
+      <button class="btn" id="btnGardenSettings" aria-haspopup="dialog">Settings</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
     <button class="btn" id="btnGmClose" style="margin-top:10px">Close</button>
+  </div>
+</div>
+
+<!-- SETTINGS
+     A modal rather than a screen, because it opens from two places — the main
+     menu and the garden menu — and a garden must never be closed to change the
+     theme. Sections are rendered by renderSettings() (screens.js) from one
+     declarative table, so adding a setting is one entry rather than markup plus
+     wiring plus a sync function. -->
+<div class="screen modal-screen hidden" id="settingsScreen" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="panel settings-panel" tabindex="-1">
+    <div class="settings-head">
+      <div><span class="eyebrow">Pocket Prairie</span><h2 id="settingsTitle">Settings</h2></div>
+      <button id="btnSettingsX" class="settings-x" type="button" aria-label="Close settings"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <div id="settingsBody" class="settings-body"></div>
+    <button class="back-link" id="btnSettingsClose" type="button">Done</button>
   </div>
 </div>
 

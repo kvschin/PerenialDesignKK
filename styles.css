@@ -388,7 +388,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .palette-count{font-size:13px;color:var(--seedhead);margin:16px 0 0;letter-spacing:.01em}
 .palette-count b{color:var(--color-accent-700);font-weight:600}
 /* setup panels rise + fade in so a screen change feels intentional, not a swap
-   (prefers-reduced-motion strips all animation globally at the bottom) */
+   (data-motion="reduce" strips all animation globally at the bottom) */
 @keyframes panelEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .panel-enter,.modal-screen:not(.hidden)>.panel{animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
 /* the setup panels sit over the live meadow — lean on the blur and let a little
@@ -1576,13 +1576,25 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .canvas-tool canvas{width:46px;height:35px}
   .canvas-tool span{font-size:8.5px}
 }
-@media (prefers-reduced-motion: reduce){
-  body.handedness-changing #canvasTools{animation:none!important}
-  html{scroll-behavior:auto}
-  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
-    transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
-  .menu-action:hover,.menu-action:active,.btn:active{transform:none!important}
-}
+/* Reduced motion is keyed on data-motion, NOT on the media query it replaced.
+   The OS switch is the wrong granularity on its own: it is usually turned on
+   for a phone full of bouncing chat apps, and the one animation here that
+   carries information rather than decoration is the season crossfade — the
+   whole point of the app. Settings offers Auto / Reduced / Full, and Auto is
+   the old behaviour exactly.
+
+   The attribute is stamped before first paint by the bootstrap in index.html
+   (which falls back to the same media query, including if storage throws), so
+   it is always present. If you ever find it absent, motion is FULL — that is
+   the failure mode this attribute has to be defended against, not a missing
+   rule here. */
+[data-motion="reduce"] body.handedness-changing #canvasTools{animation:none!important}
+[data-motion="reduce"]{scroll-behavior:auto}
+[data-motion="reduce"] *,[data-motion="reduce"] *::before,[data-motion="reduce"] *::after{
+  animation-duration:.01ms!important;animation-iteration-count:1!important;
+  transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+[data-motion="reduce"] .menu-action:hover,[data-motion="reduce"] .menu-action:active,
+[data-motion="reduce"] .btn:active{transform:none!important}
 
 /* ---------- Responsive tiers ----------
    Two complementary tiers decide the planner's shape. They were previously a
@@ -2064,7 +2076,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   transition:transform var(--motion-panel) var(--ease-emphasized),
              opacity var(--motion-panel) var(--ease-emphasized);
 }
-@media (prefers-reduced-motion:reduce){ .sheet-fly{display:none} }
+[data-motion="reduce"] .sheet-fly{display:none}
 
 @media (min-width:1025px), (min-width:768px) and (orientation:landscape){ /* DOCK */
   #hud{
@@ -2259,3 +2271,129 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #cvRow .chip{min-height:44px}
   .discovery-criteria-checks .check-row input{width:20px;height:20px}
 }
+
+/* ---------- settings ----------
+   The gear sits at the top-right of the MENU SCREEN's padding box, so it takes
+   the same max(18px, safe-area) inset .screen already pads by rather than a
+   second, drifting copy of that number. It keeps its LABEL: an unlabelled gear
+   is the classic discoverability tax, and this is the one control somebody
+   opens the app specifically to find. Chrome over the meadow needs an opaque
+   plate — the canvas follows the SEASON while the chrome follows the THEME, so
+   neither theme is safe over bare sky. */
+.menu-settings{position:absolute;z-index:2;
+  top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));
+  display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
+  border:1.5px solid var(--border-quiet);border-radius:var(--radius-pill);
+  background:var(--surface-overlay);color:var(--text-primary);
+  font-size:13px;font-weight:600;letter-spacing:.02em;
+  box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px);
+  transition:transform var(--motion-control) var(--ease-standard),
+             background var(--motion-control),border-color var(--motion-control)}
+.menu-settings .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
+.menu-settings:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+.menu-settings:active{transform:translateY(1px)}
+.menu-settings:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+
+.settings-panel{width:min(520px,100%)}
+.settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.settings-head .eyebrow{display:block;margin-bottom:4px}
+.settings-head h2{margin:0}
+.settings-x{width:40px;height:40px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--border-quiet);border-radius:var(--radius-control);
+  background:var(--surface-control);color:var(--text-secondary)}
+.settings-x:hover{border-color:var(--border-strong);color:var(--text-primary)}
+.settings-x .ui-icon{width:18px;height:18px}
+.settings-body{display:flex;flex-direction:column;gap:var(--space-4)}
+
+/* A section heading, not a card: grouping by a rule and a small-caps label
+   keeps the whole screen scannable in one pass, where a stack of bordered
+   cards turns eight settings into eight visual objects. */
+.set-section h3{font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--color-accent-700);font-family:inherit;font-weight:700;
+  margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border-quiet)}
+.set-row{padding:10px 0}
+.set-row+.set-row{border-top:1px solid rgba(var(--ink-rgb),.09)}
+.set-row-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px}
+.set-label{font-size:14.5px;font-weight:600;color:var(--text-primary)}
+.set-value{font-size:12.5px;color:var(--text-secondary);text-align:right;margin-left:auto}
+/* The hint carries the reasoning ("the garden keeps its own seasonal colours"),
+   which is what stops somebody flipping a setting to find out what it does. */
+.set-hint{font-size:11.5px;line-height:1.45;color:var(--text-secondary);margin:5px 0 0;max-width:46ch}
+
+/* A padded TRACK with inset pills, the idiom .catalog-mode already uses —
+   rather than flush cells inside a bordered box with overflow:hidden, where the
+   selected end cell paints over the parent's own border (overflow clips to the
+   padding box, not the border box) and reads as a misaligned block. */
+.set-choice{display:inline-flex;gap:2px;margin-top:8px;padding:3px;
+  border:1px solid var(--border-control);border-radius:var(--radius-control);
+  background:var(--surface-input)}
+.set-choice-opt{min-height:32px;padding:0 14px;border:0;background:transparent;
+  border-radius:calc(var(--radius-control) - 2px);
+  color:var(--text-secondary);font:600 12.5px/1 inherit;letter-spacing:.02em;
+  transition:background var(--motion-control),color var(--motion-control)}
+.set-choice-opt:hover{background:var(--surface-control-hover);color:var(--text-primary)}
+.set-choice-opt.on{background:var(--bronze);color:var(--ink)}
+.set-choice-opt:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+
+/* Position, not colour, is what a switch means — the knob has to travel, or the
+   state is background alone and vanishes under forced colors. */
+.set-switch{position:relative;flex:0 0 auto;width:50px;height:30px;padding:0;
+  border:1px solid var(--border-control);border-radius:var(--radius-pill);
+  background:var(--surface-input);transition:background var(--motion-control),border-color var(--motion-control)}
+.set-switch .set-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:var(--text-secondary);
+  transition:transform var(--motion-control) var(--ease-standard),background var(--motion-control)}
+.set-switch.on{background:var(--bronze);border-color:var(--bronze)}
+.set-switch.on .set-knob{transform:translateX(20px);background:var(--ink)}
+.set-switch:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+
+.set-action{min-height:36px;padding:0 13px;border:1px solid var(--border-control);
+  border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);
+  font:600 12.5px/1 inherit;white-space:nowrap;flex:0 0 auto}
+.set-action:hover{border-color:var(--border-strong);background:var(--surface-control-hover)}
+.set-action:disabled{opacity:var(--disabled-opacity);cursor:progress}
+.set-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:7px;font-size:13px}
+
+@media (pointer:coarse){
+  .menu-settings{min-height:44px;padding:0 15px 0 13px}
+  /* The OPTION is the target, not the track around it, so 44 is on the
+     option and the track grows to 52. */
+  .set-choice-opt,.set-action{min-height:44px}
+  .settings-x{width:44px;height:44px}
+  .set-switch{width:56px;height:34px}
+  .set-switch .set-knob{width:26px;height:26px}
+  .set-switch.on .set-knob{transform:translateX(22px)}
+}
+/* Wrap rather than squeeze on a phone. Deliberately NOT "every value on its
+   own line": that is what set-value-block is for, and applying it to all of
+   them stacked "Version / v0.8.47 / Check for updates" three rows deep for two
+   short strings that fit side by side at 375px. */
+@media (max-width:420px){
+  .set-row-head{flex-wrap:wrap;row-gap:6px}
+}
+/* Below the legacy-width step the pill collapses to a 44px gear — but the label
+   is CLIPPED, not display:none. A button whose only text is display:none has no
+   accessible name at all, so hiding it that way would trade the visual label
+   for an unnamed control, which is the worse half of the same problem. */
+@media (max-width:359px){
+  .menu-settings span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+    overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .menu-settings{padding:0;width:44px;justify-content:center}
+}
+@media (forced-colors: active){
+  /* Both selected states are background-only, which forced colors discards. */
+  .set-choice-opt,.set-action,.settings-x,.menu-settings{border:1px solid ButtonBorder!important}
+  .set-choice-opt.on{border:2px solid Highlight!important;forced-color-adjust:none;
+    background:Highlight!important;color:HighlightText!important}
+  .set-switch{border:1px solid ButtonBorder!important;forced-color-adjust:none;background:Canvas!important}
+  .set-switch .set-knob{background:CanvasText!important}
+  .set-switch.on{background:Highlight!important}
+  .set-switch.on .set-knob{background:HighlightText!important}
+}
+/* A sentence-length value gets its own line: on the right of the label it
+   squeezed "On this device" onto two lines and read as a collision. It is the
+   DATA, so it takes the primary ink and the hint under it stays secondary —
+   otherwise the two run together as one two-tone paragraph. */
+.set-value-block{width:100%;order:3;text-align:left;margin:6px 0 0;color:var(--text-primary)}
+.set-row-head:has(.set-value-block){flex-wrap:wrap}
+.set-row-head:has(.set-value-block)+.set-hint{margin-top:8px}

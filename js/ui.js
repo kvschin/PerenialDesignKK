@@ -86,6 +86,44 @@ function coachArmed(){
   if (coachArmedSession) return true;
   try{ return localStorage.getItem(COACH_ARMED_KEY)==='1'; }catch(_){ return false; }
 }
+/* Settings' "Show tips again". Every beat is one-shot FOREVER via a
+   localStorage key, which is right the first time and wrong the second: a
+   gardener coming back after a season away, or handing the app to someone else,
+   had no way to see the three sentences that explain the core loop.
+
+   It ENUMERATES rather than naming keys, so a tip added later is covered
+   without anyone remembering this function exists — the prefix is the contract.
+   It then re-ARMS, because the beats are gated on having seen the first-run
+   offer and a long-time gardener never did: without that, the button would
+   clear six keys and still show nothing, which is the worst kind of setting.
+   In-memory state is reset too — the planted counter and the tip element's own
+   attribute fallback (the path taken when storage throws). */
+const COACH_PREFIX='hortus:coach:';
+function resetCoachTips(){
+  let n=0;
+  try{
+    const doomed=[];
+    for (let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if (k && k.indexOf(COACH_PREFIX)===0) doomed.push(k);
+    }
+    doomed.forEach(k=>{ localStorage.removeItem(k); n++; });
+  }catch(_){ }
+  coachPlanted=0;
+  clearTimeout(coachLookTimer); coachLookTimer=null;
+  const tip=document.getElementById('coachTip');
+  if (tip){
+    delete tip.dataset.shown;
+    /* The attribute fallback is per-key and there is no attribute list to walk,
+       so clear the ones the tips actually set. Storage is the live path; this
+       only matters on a device where it throws. */
+    ['site-photo-calibrate','site-photo-edit','ready-garden','first-plant','plant-drag','planting-list']
+      .forEach(k=>tip.removeAttribute('data-coach-'+k));
+    dismissCoachTip();
+  }
+  armCoach();            // re-arm AFTER the sweep, which deletes the armed key
+  return n;
+}
 const COACH_DRIFT_AT=1, COACH_TIME_AT=5, COACH_LIST_AT=15;
 /* A garden that arrives already planted — the demo, or a shared file — is
    something to look at before it is something to edit. */
@@ -131,27 +169,12 @@ function coachNotePlanting(){
     showCoachTip('Your planting list turns this into a nursery order with real quantities. Tap to see it.',
       'planting-list', ()=>{ if (typeof openExport==='function') openExport(); });
 }
-function syncHapticsButton(){
-  const b=document.getElementById('btnHaptics'); if (!b) return;
-  const supported=supportsHaptics();
-  b.classList.toggle('hidden',!supported);
-  if (!supported) return;
-  b.textContent=`Haptic feedback · ${hapticsOn?'On':'Off'}`;
-  b.setAttribute('aria-pressed',hapticsOn?'true':'false');
-}
-function syncHandednessButton(){
-  const b=document.getElementById('btnHandedness'); if (!b) return;
-  b.textContent=`Left-handed layout · ${leftHandedLayout?'On':'Off'}`;
-  b.setAttribute('aria-pressed',leftHandedLayout?'true':'false');
-  b.title='Moves the mobile canvas tool rail to the right edge';
-}
-/* Cycles Auto -> Light -> Dark. Auto shows what it resolved to, so the label
-   always answers "what am I looking at" as well as "what did I pick". */
-function syncThemeButton(){
-  const b=document.getElementById('btnTheme'); if (!b) return;
-  b.textContent=`Appearance · ${themeLabel()}`;
-  b.title='Switches the interface between light and dark. The garden keeps its own seasonal colours.';
-}
+/* The three per-device preference buttons that used to live in the garden menu
+   — Appearance, Haptic feedback, Left-handed layout — moved to the settings
+   screen, and their label-syncing helpers went with them: a settings row
+   renders its own state from the preference every time the screen opens, so
+   there is nothing left to keep in sync. themeLabel() (core.js) survives
+   because the settings row still reads it. */
 /* ---------- plant roles ----------
    Designer mode uses roles to push the right plants forward for the
    chosen garden style. Roles are computed from the plant data so the

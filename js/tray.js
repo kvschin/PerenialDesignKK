@@ -1819,9 +1819,7 @@ function wrapCategoryStrip(strip){
   wrap.append(arrow(-1,'chevron-up','Scroll categories left'),strip,arrow(1,'chevron-up','Scroll categories right'));
   return wrap;
 }
-function catalogReducedMotion(){
-  return typeof matchMedia==='function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+function catalogReducedMotion(){ return reducedMotion(); }
 function updateCatalogStripAffordance(strip){
   const max=strip.scrollWidth-strip.clientWidth, at=strip.scrollLeft;
   const scrollable=max>1, start=scrollable&&at>1, end=scrollable&&at<max-1;
@@ -3808,7 +3806,7 @@ function applySheetState(){
   // move directly between the browser and the compact current-tool bar.
   if (!phone&&s==='half') s='full';
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
-  const reduced=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced=reducedMotion();
   const start=phone?hb.getBoundingClientRect().height:0;
   // Desktop collapse flies a ghost of the panel into the launcher, so measure
   // where the panel IS before the class swap takes it out of the grid.

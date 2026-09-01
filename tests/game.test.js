@@ -1164,11 +1164,13 @@ test('theme preference resolves auto against the OS and pins light/dark', () => 
   assertEqual(setThemePref('nonsense'), 'dark', 'junk falls back to auto (dark OS here)');
   assertEqual(localStorage.getItem('hortus:theme'), 'auto', 'junk is stored as auto, not as junk');
 
+  /* Settings shows all three choices at once, so each one is set directly —
+     there is no cycle order left to pin, and asserting one would be asserting
+     a rule nothing implements. */
   setThemePref('auto');
-  assertEqual(cycleThemePref(), 'light', 'cycle goes auto -> light');
-  assertEqual(cycleThemePref(), 'dark', 'cycle goes light -> dark');
-  assertEqual(cycleThemePref(), 'dark', 'cycle wraps dark -> auto (dark OS resolves to dark)');
-  assertEqual(localStorage.getItem('hortus:theme'), 'auto', 'the wrap stored auto, not dark');
+  assertEqual(localStorage.getItem('hortus:theme'), 'auto', 'auto is stored as auto');
+  assertEqual(typeof globalThis.cycleThemePref, 'undefined',
+    'the one-button cycle went with the garden-menu row it served');
 
   globalThis.matchMedia = realMM;
   setThemePref('auto');
@@ -8008,4 +8010,188 @@ test('the phone library chrome exists and is wired', () => {
   const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
   assert(/\.lib-catcard\{min-height/.test(coarse), 'the category cards are touch-sized');
   assert(/\.library-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
+});
+
+/* ---------- settings ---------- */
+
+test('settings is one surface, reached from the menu and from a garden', () => {
+  const html = readRepoFile('index.html');
+  assert(/id="btnSettings"/.test(html), 'the main menu has a settings button');
+  assert(/id="settingsScreen"/.test(html), 'the settings dialog exists');
+  assert(/id="btnGardenSettings"/.test(html), 'the garden menu has a settings row');
+  /* The three device preferences it replaced must be GONE from the markup, not
+     merely unlinked: leaving them behind leaves three buttons whose label-sync
+     helpers were deleted, so they would sit in the garden menu reading
+     "Appearance · Auto" forever whatever the preference actually is. */
+  for (const dead of ['btnTheme', 'btnHaptics', 'btnHandedness'])
+    assert(!html.includes(`id="${dead}"`), `${dead} moved into settings and its markup should be gone`);
+  const screens = readRepoFile('js/screens.js');
+  for (const dead of ['syncThemeButton', 'syncHapticsButton', 'syncHandednessButton'])
+    assert(!screens.includes(dead), `${dead} has no button left to sync`);
+});
+
+test('Escape reaches settings, above the hidden-HUD guard', () => {
+  /* Same trap the library block sits above: settings opens from the MAIN MENU,
+     where the HUD is hidden, so an Escape branch below that guard never runs. */
+  const src = readRepoFile('js/input.js');
+  const set = src.indexOf("getElementById('settingsScreen')");
+  const guard = src.indexOf("getElementById('hud').classList.contains('hidden')");
+  assert(set > -1, 'the keyboard handler knows about settings');
+  assert(guard > -1, 'the hidden-HUD guard is still there');
+  assert(set < guard, 'settings opens from the menu, so its Escape branch must be above the guard');
+});
+
+test('the settings screen describes itself before it renders itself', () => {
+  const titles = settingsSections().map(s => s.title);
+  for (const want of ['Appearance', 'Language', 'Controls & accessibility', 'Storage', 'About'])
+    assert(titles.includes(want), `settings carries a ${want} section`);
+  const rows = settingsSections().flatMap(s => s.rows);
+  const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+  assert(byId.theme && byId.theme.kind === 'choice', 'theme is a choice');
+  assert(byId.motion && byId.motion.kind === 'choice', 'motion is a choice');
+  assert(byId.handed && byId.handed.kind === 'switch', 'the rail side is a switch');
+  assert(byId.tips && byId.tips.kind === 'action', 'tips reset is an action');
+  // every row must be renderable: settingsRowEl only knows these four kinds
+  const kinds = new Set(['choice', 'switch', 'action', 'note', 'links']);
+  for (const r of rows) assert(kinds.has(r.kind), `settingsRowEl can render a ${r.kind} row`);
+});
+
+test('a settings row reads and writes the real preference', () => {
+  const before = themePref, beforeMotion = motionPref;
+  try {
+    const row = settingsSections()[0].rows[0];
+    setThemePref('dark');
+    assertEqual(row.get(), 'dark', 'the row reports the live preference, not a copy');
+    row.set('light');
+    assertEqual(themePref, 'light', 'setting the row sets the preference');
+    assertEqual(localStorage.getItem('hortus:theme'), 'light', 'and persists it');
+
+    const m = settingsSections()[0].rows[1];
+    m.set('reduce');
+    assertEqual(motionPref, 'reduce', 'motion writes through too');
+    assertEqual(document.documentElement.getAttribute('data-motion'), 'reduce',
+      'and stamps the attribute the stylesheet keys on');
+  } finally { setThemePref(before); setMotionPref(beforeMotion); }
+});
+
+test('the haptics row is capability-gated, not shown-and-disabled', () => {
+  /* A desktop has no vibration motor, and a switch that cannot do anything is
+     worse than an absent one. The sandbox's matchMedia answers pointer queries
+     honestly, so this exercises the real predicate. */
+  const has = supportsHaptics();
+  const ids = settingsSections().flatMap(s => s.rows).map(r => r.id);
+  assertEqual(ids.includes('haptics'), has,
+    'the haptics row appears exactly when the device can vibrate');
+});
+
+test('the premium section is absent while the tier is off', () => {
+  assertEqual(PREMIUM_ENABLED, false, 'the paid tier ships off');
+  const titles = settingsSections().map(s => s.title);
+  assert(!titles.some(t => /premium/i.test(t)),
+    'no premium section renders while there is no store to talk to');
+  /* And nothing is gated behind it, so flipping it on cannot take a feature
+     away from somebody who already had it. */
+  assertEqual(isPremium(), true, 'with the tier off, everything is unlocked');
+});
+
+test('reduced motion is one predicate, and the stylesheet keys on the attribute', () => {
+  const before = motionPref;
+  try {
+    setMotionPref('reduce');
+    assertEqual(reducedMotion(), true, 'the pref pins it on');
+    assertEqual(document.documentElement.getAttribute('data-motion'), 'reduce', 'and stamps it');
+    setMotionPref('full');
+    assertEqual(reducedMotion(), false, 'and pins it off, overriding the OS');
+    assertEqual(document.documentElement.getAttribute('data-motion'), 'full', 'and stamps that too');
+    setMotionPref('auto');
+    assertEqual(reducedMotion(), systemReducedMotion(), 'auto is exactly the old behaviour');
+  } finally { setMotionPref(before); }
+
+  /* The media query is GONE from styles.css on purpose: with both, an OS switch
+     turned on for a phone full of bouncing chat apps would still strip the
+     season crossfade even after somebody chose Full here. The attribute is the
+     only gate, which is why the head bootstrap must always stamp it. */
+  const css = readRepoFile('styles.css');
+  assert(!/prefers-reduced-motion/.test(css),
+    'styles.css keys reduced motion on data-motion, not on the media query it replaced');
+  assert(/\[data-motion="reduce"\]/.test(css), 'and the reduce block exists');
+  const html = readRepoFile('index.html');
+  const boot = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
+  assert(/setAttribute\('data-motion'/.test(boot),
+    'the head bootstrap stamps data-motion before first paint');
+  assert(/prefers-reduced-motion/.test(boot),
+    'and falls back to the OS query, including when storage throws');
+
+  /* No module may ask the media query directly any more, or that site silently
+     stops following the preference. */
+  for (const f of ['js/renderer.js', 'js/tray.js', 'js/screens.js', 'js/ui.js'])
+    assert(!readRepoFile(f).includes('prefers-reduced-motion'),
+      `${f} goes through reducedMotion() rather than asking matchMedia itself`);
+});
+
+test('show-tips-again clears every coach key and re-arms', () => {
+  /* Enumerate through key()/length, not Object.keys — the sandbox's
+     localStorage is a closure over a Map, so Object.keys returns its METHOD
+     names and a sweep written that way silently clears nothing. */
+  const coachKeys = () => {
+    const out = [];
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if (k && k.startsWith('hortus:coach:')) out.push(k);
+    }
+    return out;
+  };
+  // Start from a known state: earlier tests fire coach beats, so the count
+  // assertion below would otherwise depend on test order.
+  coachKeys().forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('hortus:coach:first-plant-v1', '1');
+  localStorage.setItem('hortus:coach:plant-drag-v1', '1');
+  localStorage.setItem('hortus:coach:time-v1', '1');
+  localStorage.setItem('hortus:theme', 'dark');       // a neighbour it must not touch
+
+  const cleared = resetCoachTips();
+  assertEqual(cleared, 3, 'it swept the three seen-flags');
+  const left = coachKeys();
+  assertEqual(left.join(','), 'hortus:coach:armed',
+    'only the re-armed flag remains — it enumerates, so a tip added later is covered too');
+  /* Re-arming is the half that is easy to miss: the beats are gated on having
+     seen the first-run offer, and a long-time gardener never did — without this
+     the button clears six keys and still shows nothing. */
+  assertEqual(coachArmed(), true, 'and the beats are armed to actually fire');
+  assertEqual(localStorage.getItem('hortus:theme'), 'dark', 'neighbouring preferences are untouched');
+});
+
+test('the language seam does real work with one language in it', () => {
+  assert(LANGUAGES.length >= 1, 'there is a language list to grow');
+  assert(LANGUAGES.every(l => l.id && l.native), 'every entry can be rendered');
+  assertEqual(document.documentElement.getAttribute('lang'), langPref,
+    '<html lang> follows the preference — what a screen reader reads');
+  /* With one language the row is a note, not a picker: a dropdown holding a
+     single option is a control that cannot be operated. */
+  const row = settingsSections().find(s => s.title === 'Language').rows[0];
+  assertEqual(row.kind, LANGUAGES.length > 1 ? 'choice' : 'note',
+    'it becomes a real picker the moment a second language lands');
+});
+
+test('the settings preferences stay in localStorage, out of IndexedDB', () => {
+  /* Same rule as the theme: these are read synchronously during boot (the head
+     bootstrap reads the motion key before first paint), which IndexedDB cannot
+     answer at any price. */
+  for (const k of ['hortus:motion', 'hortus:lang', 'hortus:premium'])
+    assert(!IDB_KEYS.test(k), `${k} is a device preference and must read synchronously`);
+});
+
+test('settings controls are touch-sized', () => {
+  const css = readRepoFile('styles.css');
+  const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
+  assert(/\.set-choice-opt,\.set-action\{min-height:44px\}/.test(coarse),
+    'the choice options and action buttons meet the touch minimum');
+  assert(/\.menu-settings\{min-height:44px/.test(coarse), 'and so does the menu gear');
+  /* The label is CLIPPED when it collapses, never display:none — a button whose
+     only text is display:none has no accessible name at all. */
+  const narrow = css.slice(css.indexOf('@media (max-width:359px)'));
+  assert(!/\.menu-settings span\{display:none/.test(css),
+    'the collapsed gear keeps its accessible name');
+  assert(/\.menu-settings span\{position:absolute/.test(narrow),
+    'it is visually clipped instead');
 });

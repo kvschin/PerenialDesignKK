@@ -2390,8 +2390,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (renderer.js `seasonFade`): the last frame of the
     old season is snapshotted once and dissolves over the new season's live
     frames for ~1.1s (one `drawImage`/frame; the season-keyed ground bake
-    and sprite caches are untouched; skipped under `prefers-reduced-motion`
-    and reset by `enterGarden`; `hasTransientGardenWork` keeps frames live
+    and sprite caches are untouched; skipped when `reducedMotion()` says so
+    — the app's own Motion preference, not the raw media query — and reset by
+    `enterGarden`; `hasTransientGardenWork` keeps frames live
     while it runs). The menu's explicit Skip suppresses this once so it lands
     on the destination palette immediately; Skip doubles as the gardener's
     seasonal-colour comparison control, and blending old green foliage over
@@ -2843,7 +2844,26 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   palette in data, not in code.
 - Stable visuals use `mulberry(seed)`, never `Math.random()`. Tile seed is
   `tileSeed(x,y)`.
-- Respect `prefers-reduced-motion` (already handled in CSS).
+- **Motion is a device preference, and `reducedMotion()` (core.js) is the one
+  predicate.** `hortus:motion` is `auto`|`reduce`|`full` — auto follows
+  `prefers-reduced-motion` exactly as before, and the other two pin it. The OS
+  switch is the wrong granularity on its own: it is usually turned on for a
+  phone full of bouncing chat apps, and the one animation here that carries
+  information rather than decoration is the **season crossfade**, which is the
+  whole pitch of the app. Settings offers all three.
+  - The resolved value is stamped on `<html>` as `data-motion`, and
+    **`styles.css` keys its reduce block on that attribute ALONE** — the
+    `@media (prefers-reduced-motion: reduce)` block is gone, because with both
+    an OS switch turned on elsewhere would still strip the crossfade after
+    somebody chose Full. So the attribute has to always be present: the
+    bootstrap in `index.html`'s `<head>` stamps it before first paint
+    **including in its catch**, falling back to the OS query, which is the same
+    answer the old media query gave. A missing attribute means FULL motion for
+    somebody who asked for less, which is the failure this is defended against.
+  - No module may ask `matchMedia('(prefers-reduced-motion: reduce)')` itself.
+    Three did — the season crossfade, the catalog strip's scroll, the sheet
+    flight — and each would silently stop following the preference. A test greps
+    for it.
 - **Responsive tiers.** Two complementary media conditions decide the planner's
   shape, defined once at the top of the "Responsive tiers" comment in
   `styles.css`:
@@ -2938,6 +2958,70 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   down 1px on press; panels rise/fade by 8px; menus use a short directional
   reveal. Keep motion out of the garden renderer and preserve the global
   reduced-motion override.
+- **Settings is ONE surface with two doors** (`#settingsScreen`,
+  `settingsSections`/`renderSettings`/`openSettings` in screens.js): the
+  labelled gear at the top-right of the main menu, and a single **Settings** row
+  in the garden menu. Appearance, Haptic feedback and Left-handed layout used to
+  be three rows *inside* the garden menu, which was wrong twice over — they are
+  DEVICE preferences sitting among the planting list, the plan and Share in a
+  236px dropdown, and somebody who had not opened a garden yet could not find
+  dark mode at all. It is a **modal, not a `show()` screen**, so changing the
+  theme never closes a garden.
+  - **`settingsSections()` is a PURE description** — the rows, their live
+    values and what each does — and `renderSettings()` is a thin loop over it.
+    That split is deliberate: the sandbox has no selector engine, so a test that
+    counted rendered rows would pass without testing anything, whereas the table
+    and its `get`/`set` closures are where the behaviour lives. Adding a
+    setting is one entry. Five row kinds: `choice` (a radiogroup with real
+    arrow-key roving), `switch` (`role="switch"`, and the knob TRAVELS so the
+    state is not background alone — background is what forced-colors discards),
+    `action`, `note` (with an optional async `fill`, so the storage estimate
+    does not block the open), and `links`.
+  - **Escape has to be handled ABOVE input.js's hidden-HUD guard**, the same
+    trap the library block sits above: settings opens from the MAIN MENU, where
+    the HUD is hidden, so a branch below that line never runs.
+  - **Neither opener carries `aria-controls`.** `overlayController(id)` takes
+    the FIRST match, so with two doors it would leave the wrong one claiming to
+    be expanded; `openSettings`/`closeSettings` own `aria-expanded` instead.
+  - Contents today: Theme and Motion; Language; Left-handed layout, Haptic
+    feedback (**capability-gated** — a desktop has no vibration motor and a
+    switch that cannot do anything is worse than an absent one) and **Show tips
+    again**; a storage readout; version + **Check for updates** and the
+    Credits/Privacy/Terms links, which were previously reachable only from the
+    main menu footer and so absent from inside a garden — a store-compliance
+    problem as much as a UX one.
+  - **`resetCoachTips()` (ui.js) ENUMERATES rather than naming keys**, so a tip
+    added later is covered without anyone remembering the function exists — the
+    `hortus:coach:` prefix is the contract. It then **re-arms**, because the
+    beats are gated on having seen the first-run offer and a long-time gardener
+    never did: without that the button clears six keys and still shows nothing.
+  - **Language is a seam, not a dead dropdown.** `LANGUAGES` (core.js) has one
+    entry, `hortus:lang` is stored and `<html lang>` follows it — which a
+    screen reader and the browser's hyphenation both read, so the one entry
+    already does real work. The row renders as a picker only when
+    `LANGUAGES.length > 1`; a dropdown with a single option is a control that
+    cannot be operated. **The big missing setting is UNITS** (feet/inches vs
+    metric): ~25 formatting sites across commands/draw/io/renderer/screens plus
+    the plot screen's foot inputs and the plan sheet's scale bar, and
+    `TILE_IN` is 18 so a tile is an awkward 45.7cm. It is its own pass, not a
+    settings row.
+- **The paid tier's PLACEMENT is decided and built, behind `PREMIUM_ENABLED`
+  (core.js, false).** Off, no premium section renders and the app is unchanged —
+  an Upgrade button that cannot take money is worse than no button. `isPremium()`
+  is the gate every future paid surface should read so entitlement has ONE
+  definition from the start; it returns **true** while the tier is off, so
+  turning it on cannot take a feature away from somebody who already had it.
+  `startPremiumPurchase`/`restorePremiumPurchase` are the only two functions a
+  store integration has to fill in.
+  - **Settings is the RESTORE surface, not the conversion surface.** Apple
+    requires a restore path for any app with a purchase and this is where people
+    look for it. Conversion belongs at the **moment of value** — the planting
+    list, the plan sheet, Share, which `FUNNEL_EVENTS` already names as the
+    paid-tier moment — and on the main menu; three rows into a preferences
+    screen is where nobody in a buying mood is looking.
+  - Four funnel events were added alongside: `settings:opened`,
+    `premium:viewed`, `premium:started`, `premium:restored`. They still send
+    nothing anywhere, for the reasons in the funnel note above.
 - Keep application chrome on the semantic design tokens in `styles.css`.
   `--surface-overlay`, `--surface-workspace`, and `--surface-dialog` express
   information over the canvas, persistent editing controls, and deliberate

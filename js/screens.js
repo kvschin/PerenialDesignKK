@@ -527,7 +527,6 @@ function enterGarden(){
   buildToolTray();
   buildCanvasTools();
   updateCompass();
-  syncHapticsButton(); syncHandednessButton(); syncThemeButton();
   $('worldLabel').textContent = game.worldName||'My garden';
   if (game.challenge)
     setTimeout(()=>{ if (game.challenge){
@@ -992,7 +991,7 @@ function quitToMenu(){
   show('menuScreen');
 }
 function openGardenMenu(){
-  syncHapticsButton(); syncHandednessButton(); syncThemeButton(); syncSchemeLabel();
+  syncSchemeLabel();
   const gm=openOverlay('gardenMenu','#btnFilters');
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
@@ -1006,20 +1005,335 @@ if ($('coachTipClose')) $('coachTipClose').onclick=dismissCoachTip;
 $('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
 if ($('btnShare')) $('btnShare').onclick=shareCurrentGarden;
-if ($('btnHaptics')) $('btnHaptics').onclick=()=>{
-  const on=setHapticsEnabled(!hapticsOn); syncHapticsButton();
-  if (on) hapticFeedback('success');
-  toast(`Haptic feedback ${on?'on':'off'}.`);
-};
-if ($('btnHandedness')) $('btnHandedness').onclick=()=>{
-  const on=setLeftHandedLayout(!leftHandedLayout,true); syncHandednessButton();
-  toast(`Left-handed layout ${on?'on':'off'}.`);
-};
-if ($('btnTheme')) $('btnTheme').onclick=()=>{
-  cycleThemePref(); syncThemeButton();
-  toast(`Appearance: ${themeLabel()}.`);
+if ($('btnGardenSettings')) $('btnGardenSettings').onclick=()=>{
+  /* A dropdown that spawns a modal should get out of the way: leaving the
+     garden menu open behind the scrim puts two dismissable layers on screen and
+     makes Escape ambiguous. Focus does not go back to it either — openSettings
+     owns the return, and the row it would return to is gone. */
+  closeOverlay('gardenMenu',false);
+  openSettings($('btnGardenSettings'));
 };
 $('btnGmClose').onclick=()=>closeOverlay('gardenMenu');
+
+/* ---------- settings ----------
+   One surface for every DEVICE preference, reachable from the main menu (the
+   gear, top-right) and from an open garden (Menu -> Settings). Appearance,
+   haptics and the rail side used to be three rows inside the garden menu, which
+   meant somebody who had not opened a garden yet could not find dark mode at
+   all, and that the 236px garden dropdown was carrying preferences among the
+   planting list, the plan and Share.
+
+   settingsSections() is a PURE description of the screen — the rows, their
+   current values and what each one does — and renderSettings() is a thin loop
+   over it. That split is deliberate: the sandbox has no selector engine, so a
+   test that counted rendered rows would pass without testing anything, whereas
+   the table and its get/set closures are exactly where the behaviour lives.
+   Adding a setting is one entry here. */
+function settingsSwitchRow(id,label,hint,get,set){
+  return {kind:'switch', id, label, hint, get, set};
+}
+function settingsSections(){
+  const sections=[];
+
+  sections.push({title:'Appearance', rows:[
+    {kind:'choice', id:'theme', label:'Theme',
+     hint:'The garden keeps its own seasonal colours in both — a meadow at midday is not dark mode.',
+     options:THEME_CHOICES.map(id=>({id, label:id==='auto'?'Auto':id==='light'?'Light':'Dark'})),
+     get:()=>themePref,
+     set:id=>{ setThemePref(id); return `Theme: ${themeLabel()}.`; }},
+    {kind:'choice', id:'motion', label:'Motion',
+     hint:'Reduced removes panel and menu animation, and the season crossfade. Auto follows your device.',
+     options:[{id:'auto',label:'Auto'},{id:'reduce',label:'Reduced'},{id:'full',label:'Full'}],
+     get:()=>motionPref,
+     set:id=>{ setMotionPref(id); return `Motion: ${motionLabel()}.`; }},
+  ]});
+
+  /* One language today, so no picker: a dropdown with a single option is a
+     control that cannot be operated. The row still states what the app is in
+     and that more are coming, which is the question somebody opening this
+     section is actually asking. The moment LANGUAGES grows it becomes a real
+     picker with no other change. */
+  sections.push({title:'Language', rows:[
+    LANGUAGES.length>1
+      ? {kind:'choice', id:'lang', label:'Language', hint:'',
+         options:LANGUAGES.map(l=>({id:l.id, label:l.native})),
+         get:()=>langPref, set:id=>{ setLangPref(id); return `Language: ${languageLabel()}.`; }}
+      : {kind:'note', id:'lang', label:'Language', value:languageLabel(),
+         hint:'Pocket Prairie is English-only today. More languages are planned — botanical Latin names stay as they are either way.'},
+  ]});
+
+  const controls=[
+    settingsSwitchRow('handed','Left-handed layout',
+      'Moves the canvas tool rail to the right edge, and the chrome that hangs off it with it.',
+      ()=>leftHandedLayout,
+      on=>{ setLeftHandedLayout(on,true); return `Left-handed layout ${on?'on':'off'}.`; }),
+  ];
+  /* Capability-gated rather than shown-and-disabled: a desktop has no vibration
+     motor, and a switch that cannot do anything is worse than an absent one. */
+  if (supportsHaptics())
+    controls.push(settingsSwitchRow('haptics','Haptic feedback',
+      'A short pulse when a placement lands or is refused. Never once per tile in a drag.',
+      ()=>hapticsOn,
+      on=>{ const got=setHapticsEnabled(on); if (got) hapticFeedback('success');
+            return `Haptic feedback ${got?'on':'off'}.`; }));
+  controls.push({kind:'action', id:'tips', label:'Show tips again',
+    hint:'Replays the short tips that explain planting, drag-to-plant and running the year.',
+    action:'Reset tips',
+    run:()=>{ resetCoachTips(); return 'Tips will show again the next time you open a garden.'; }});
+  sections.push({title:'Controls & accessibility', rows:controls});
+
+  sections.push({title:'Storage', rows:[
+    {kind:'note', id:'storage', label:'On this device', value:'Checking…', block:true,
+     hint:'Gardens live in this browser. Share a garden from its own menu to keep a copy you can move.',
+     fill:settingsStorageLine},
+  ]});
+
+  sections.push({title:'About', rows:[
+    {kind:'action', id:'version', label:'Version', value:`v${APP_VERSION}`,
+     hint:'A new build installs in the background and waits until you accept it.',
+     action:'Check for updates', run:checkForAppUpdate},
+    {kind:'links', id:'legal', label:'Credits and policies', links:[
+      {href:'credits.html', text:'Credits'},
+      {href:'privacy.html', text:'Privacy'},
+      {href:'terms.html', text:'Terms'},
+    ], hint:'Pocket Prairie makes no network requests and sends nothing anywhere.'},
+  ]});
+
+  /* The paid tier's PLACEMENT, decided and built, behind one constant. Off, this
+     section does not exist and the app is unchanged — an Upgrade button that
+     cannot take money is worse than no button.
+
+     Settings is deliberately the RESTORE surface rather than the conversion
+     surface. Apple requires a restore path for any app with a purchase and this
+     is where people look for it; conversion belongs at the moment of value (the
+     planting list, the plan sheet, Share) and on the main menu, not three rows
+     into a preferences screen where nobody in a buying mood is looking. */
+  if (PREMIUM_ENABLED) sections.push({title:'Pocket Prairie Premium', rows:[
+    {kind:'note', id:'premium-state', label:'Status',
+     value:isPremium()?'Premium':'Free',
+     hint:isPremium()
+       ? 'Everything is unlocked on this device.'
+       : PREMIUM_FEATURES.map(f=>'· '+f).join('\n')},
+    ...(isPremium() ? [] : [{kind:'action', id:'premium-buy', label:'Upgrade',
+      hint:'One purchase, this device.', action:'See pricing', run:startPremiumPurchase}]),
+    {kind:'action', id:'premium-restore', label:'Already bought it?',
+     hint:'Restores a purchase made with the same store account.',
+     action:'Restore purchase', run:restorePremiumPurchase},
+  ]});
+
+  return sections;
+}
+
+/* Origin-wide usage, which includes the ~1.7MB offline shell — that IS what the
+   app occupies on the device, so reporting only the gardens would understate
+   it. Persistence is worth naming: without it a browser under pressure may
+   evict the whole origin, which is the difference between "saved" and "saved
+   unless the phone needs the space". */
+function formatBytes(n){
+  if (!(n>0)) return '0 KB';
+  if (n<1024*1024) return `${Math.max(1,Math.round(n/1024))} KB`;
+  return `${(n/(1024*1024)).toFixed(n<10*1024*1024?1:0)} MB`;
+}
+async function settingsStorageLine(){
+  const parts=[];
+  try{ const idx=await worldsIndex();
+    parts.push(`${idx.length} garden${idx.length===1?'':'s'} saved`); }catch(_){ }
+  try{
+    if (navigator.storage && navigator.storage.estimate){
+      const e=await navigator.storage.estimate();
+      if (e && e.usage) parts.push(`${formatBytes(e.usage)} used`);
+    }
+  }catch(_){ }
+  try{
+    if (navigator.storage && navigator.storage.persisted)
+      parts.push(await navigator.storage.persisted()
+        ? 'kept until you delete it'
+        : 'the browser may clear it if space runs short');
+  }catch(_){ }
+  return parts.length ? parts.join(' · ') : 'Storage is unavailable in this browser.';
+}
+
+/* The manual half of the update path. sw.js installs a new build and then
+   waits, and an installed PWA is resumed rather than navigated — so the
+   automatic check fires rarely on exactly the device where staleness bites.
+   This answers "am I on the latest?" on demand. */
+async function checkForAppUpdate(){
+  if (!('serviceWorker' in navigator)) return 'Offline updates are not available in this browser.';
+  try{
+    const reg=await navigator.serviceWorker.getRegistration();
+    if (!reg) return 'Offline updates are not set up on this device.';
+    await reg.update();
+    /* Same guard watchForAppUpdate uses: no controller means this is a first
+       visit, where the worker activates with nothing to wait for and there is
+       no update to offer. */
+    if (reg.waiting && navigator.serviceWorker.controller){
+      offerAppUpdate(reg.waiting);
+      closeSettings();
+      return 'A new version is ready — see the bar at the top.';
+    }
+    return `You are on the latest version (v${APP_VERSION}).`;
+  }catch(e){ noteError(e,'update-check'); return 'Could not check for updates just now.'; }
+}
+
+/* The two functions a store integration has to fill in, and the only two.
+   Unreachable while PREMIUM_ENABLED is false. */
+const PREMIUM_FEATURES=[
+  'Unlimited saved gardens and planting schemes',
+  'The printable design plan and the nursery-ready planting list',
+  'The full species library, with cultivars and photographs',
+];
+function startPremiumPurchase(){
+  funnel(FUNNEL_EVENTS.premiumStarted);
+  return 'Purchasing is not available in this build yet.';
+}
+function restorePremiumPurchase(){
+  funnel(FUNNEL_EVENTS.premiumRestored);
+  return 'No purchase found on this device.';
+}
+
+/* ---- rendering ---- */
+function settingsHint(text){
+  const p=document.createElement('p'); p.className='set-hint';
+  String(text).split('\n').forEach((line,i)=>{
+    if (i) p.appendChild(document.createElement('br'));
+    p.appendChild(document.createTextNode(line));
+  });
+  return p;
+}
+/* Arrow keys move within a radiogroup — a real expectation of the role, and the
+   difference between "keyboard reachable" and "keyboard usable" when a group
+   holds three options and Tab treats the whole group as one stop. */
+function settingsChoiceGroup(row,announce){
+  const g=document.createElement('div');
+  g.className='set-choice'; g.setAttribute('role','radiogroup');
+  g.setAttribute('aria-label',row.label);
+  const current=row.get();
+  const btns=row.options.map(o=>{
+    const b=document.createElement('button'); b.type='button';
+    b.className='set-choice-opt'+(o.id===current?' on':'');
+    b.setAttribute('role','radio');
+    b.setAttribute('aria-checked',o.id===current?'true':'false');
+    b.tabIndex=o.id===current?0:-1;
+    b.textContent=o.label;
+    b.onclick=()=>{ announce(row.set(o.id)); renderSettings(); };
+    g.appendChild(b);
+    return b;
+  });
+  g.onkeydown=e=>{
+    const i=btns.indexOf(document.activeElement);
+    if (i<0) return;
+    let j=-1;
+    if (e.key==='ArrowRight'||e.key==='ArrowDown') j=(i+1)%btns.length;
+    else if (e.key==='ArrowLeft'||e.key==='ArrowUp') j=(i-1+btns.length)%btns.length;
+    else if (e.key==='Home') j=0;
+    else if (e.key==='End') j=btns.length-1;
+    if (j<0) return;
+    e.preventDefault(); btns[j].focus(); btns[j].click();
+  };
+  return g;
+}
+function settingsRowEl(row,announce){
+  const el=document.createElement('div');
+  el.className='set-row set-row-'+row.kind;
+  const head=document.createElement('div'); head.className='set-row-head';
+  const lab=document.createElement('span'); lab.className='set-label'; lab.textContent=row.label;
+  head.appendChild(lab);
+
+  if (row.kind==='switch'){
+    const on=row.get();
+    const sw=document.createElement('button'); sw.type='button';
+    sw.className='set-switch'+(on?' on':'');
+    sw.setAttribute('role','switch'); sw.setAttribute('aria-checked',on?'true':'false');
+    sw.setAttribute('aria-label',row.label);
+    const knob=document.createElement('span'); knob.className='set-knob'; sw.appendChild(knob);
+    sw.onclick=()=>{ announce(row.set(!row.get())); renderSettings(); };
+    head.appendChild(sw);
+  } else if (row.kind==='action'){
+    if (row.value){
+      const v=document.createElement('span'); v.className='set-value'; v.textContent=row.value;
+      head.appendChild(v);
+    }
+    const b=document.createElement('button'); b.type='button';
+    b.className='set-action'; b.textContent=row.action;
+    b.onclick=async()=>{
+      b.disabled=true;
+      try{ announce(await row.run()); }
+      catch(err){ noteError(err,'settings-'+row.id); announce('That did not work.'); }
+      b.disabled=false;
+    };
+    head.appendChild(b);
+  } else if (row.kind==='note'){
+    /* A one-word value ("English") sits on the right of its label; a sentence
+       ("0 gardens saved · 4.7 MB used · the browser may clear it…") squeezes
+       the label into two lines and reads as a collision. block:true gives the
+       value its own line under the label instead. */
+    const v=document.createElement('span');
+    v.className='set-value'+(row.block?' set-value-block':'');
+    v.textContent=row.value;
+    /* Async values fill in place rather than blocking the open: the storage
+       estimate is a round trip and settings must appear at once. */
+    if (row.fill){
+      v.id='setNote-'+row.id;
+      Promise.resolve(row.fill()).then(t=>{
+        const live=document.getElementById(v.id); if (live) live.textContent=t;
+      },()=>{});
+    }
+    head.appendChild(v);
+  }
+  el.appendChild(head);
+  if (row.kind==='choice') el.appendChild(settingsChoiceGroup(row,announce));
+  if (row.kind==='links'){
+    const nav=document.createElement('div'); nav.className='set-links';
+    row.links.forEach(l=>{
+      const a=document.createElement('a'); a.className='ext-link';
+      a.href=l.href; a.textContent=l.text; nav.appendChild(a);
+    });
+    el.appendChild(nav);
+  }
+  if (row.hint) el.appendChild(settingsHint(row.hint));
+  return el;
+}
+function renderSettings(){
+  const body=$('settingsBody'); if (!body) return;
+  const announce=msg=>{ if (msg) toast(msg); };
+  const frag=document.createDocumentFragment();
+  settingsSections().forEach(sec=>{
+    const s=document.createElement('section'); s.className='set-section';
+    const h=document.createElement('h3'); h.textContent=sec.title; s.appendChild(h);
+    sec.rows.forEach(r=>s.appendChild(settingsRowEl(r,announce)));
+    frag.appendChild(s);
+  });
+  body.replaceChildren(frag);
+}
+/* aria-expanded is managed here rather than through openOverlay's controller
+   lookup: two buttons open this dialog (the menu gear and the garden menu's
+   row), and that lookup takes the FIRST [aria-controls] match, which would
+   leave the wrong one claiming to be expanded. Neither carries aria-controls,
+   so the lookup finds nothing and this owns it. */
+let settingsOpener=null;
+function openSettings(opener){
+  funnel(FUNNEL_EVENTS.settingsOpened);
+  /* Counted per OPEN rather than from settingsSections(), which is pure and is
+     re-run on every row change — three theme taps would otherwise read as three
+     views of a section nobody scrolled to. */
+  if (PREMIUM_ENABLED) funnel(FUNNEL_EVENTS.premiumViewed);
+  settingsOpener=opener||null;
+  renderSettings();
+  if (settingsOpener) settingsOpener.setAttribute('aria-expanded','true');
+  openOverlay('settingsScreen','.set-choice-opt');
+}
+function closeSettings(){
+  closeOverlay('settingsScreen');
+  if (settingsOpener) settingsOpener.setAttribute('aria-expanded','false');
+  settingsOpener=null;
+}
+if ($('btnSettings')) $('btnSettings').onclick=()=>openSettings($('btnSettings'));
+if ($('btnSettingsClose')) $('btnSettingsClose').onclick=closeSettings;
+if ($('btnSettingsX')) $('btnSettingsX').onclick=closeSettings;
+if ($('settingsScreen')) $('settingsScreen').onclick=e=>{
+  if (e.target===$('settingsScreen')) closeSettings();
+};
+
 /* ---------- planting schemes: several plantings over one shared site plan ----------
    Creation lives here in the Garden Menu (an infrequent, garden-scoped action,
    beside Plant filters and Design plan); switching lives on the top-bar chip,
