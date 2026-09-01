@@ -36,7 +36,7 @@ const LIT = {x:-0.55, y:-0.83};          // direction TO the light: upper left
    counting ink above the crown — a broader rule keyed on the season colours
    alone wrongly stripped snow from 26 species that DO draw stems.
    Bulbs never reach here: they sit at growth 0 and fail the mature check. */
-const SNOW_BARE_FORMS = {fern:1, leafmound:1, rosette:1};
+const SNOW_BARE_FORMS = {fern:1, leafmound:1, rosette:1, cycad:1, fanpalm:1};
 /* Where a plant's drawn mass actually tops out, as a fraction of H. The cap
    scatter below assumed foliage fills the whole H box, which is true for a
    coneflower (measured drawn top 1.01H) and false for anything whose H is set
@@ -2969,7 +2969,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.beginPath(); ctx.moveTo((rnd()-0.5)*4,0); ctx.quadraticCurveTo(ex*0.42,y-matH*0.40,ex,y); ctx.stroke();
         const leafN=L.runnerLeaves||3;
         for(let l=0;l<leafN;l++){ const f=(l+1)/(leafN+1), px=ex*f, py=y*f-matH*0.20;
-          leafDot(px+side*(1+rnd()*1.4),py,1.6,0.8,side*0.32,fol); }
+          if (L.compound==='pinnate'){
+            const bx=px+side*0.6, by=py+0.6, leafLen=L.compoundLen||4.6;
+            drawPinnateLeaf(ctx,bx,by,bx+side*leafLen,by-leafLen*0.34,
+              L.leafHW||0.62,fol,L);
+          } else leafDot(px+side*(1+rnd()*1.4),py,1.6,0.8,side*0.32,fol); }
       }
       ctx.lineCap='butt';
     } else {
@@ -3041,6 +3045,34 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               ctx.stroke();
             } else
             for(let p=0;p<5;p++){ const a=p/5*Math.PI*2; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*1.5,cy+Math.sin(a)*1.1); ctx.stroke(); }
+          } else if (L.matHeadStyle==='button'){
+            const florets=Math.max(5,Math.min(14,Math.round(L.florets||8)));
+            const headR=Math.max(1.4,Math.min(5,L.headR||2.5));
+            for(let f=0;f<florets;f++){
+              const a=f/florets*Math.PI*2, rr=headR*(0.28+0.64*((f%3)+1)/3);
+              fcPush(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.58,Math.max(0.65,headR*0.34),0.72);
+            }
+            fcDraw(ctx,col,24,-16);
+            if (S.eye) drawFloret(ctx,cx,cy,Math.max(0.75,headR*0.3),S.eye);
+          } else if (L.matHeadStyle==='puff'){
+            const rays=Math.max(8,Math.min(24,Math.round(L.puffRays||16)));
+            const puffR=Math.max(2.5,Math.min(8,L.puffR||5.2));
+            ctx.strokeStyle=shade(col,-10); ctx.lineWidth=0.55; ctx.beginPath();
+            for(let f=0;f<rays;f++){ const a=f/rays*Math.PI*2, rr=puffR*(0.72+rnd()*0.28);
+              ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.72); }
+            ctx.stroke();
+            for(let f=0;f<rays;f++){ const a=f/rays*Math.PI*2;
+              fcPush(cx+Math.cos(a)*puffR,cy+Math.sin(a)*puffR*0.72,0.72); }
+            fcDraw(ctx,col,30,-12);
+          } else if (L.matHeadStyle==='spike'){
+            const spikeLen=Math.max(5,Math.min(18,L.spikeLen||10));
+            const florets=Math.max(3,Math.min(10,Math.round(L.spikeFlorets||6)));
+            ctx.strokeStyle=shade(fol,-28); ctx.lineWidth=0.8; ctx.beginPath();
+            ctx.moveTo(cx,cy+1); ctx.lineTo(cx,cy-spikeLen); ctx.stroke();
+            for(let f=0;f<florets;f++){
+              const yy=cy-spikeLen*(0.18+f/(florets+1)*0.72), side=f%2?-1:1;
+              drawFloret(ctx,cx+side*(1.2+(f%3)*0.3),yy,1.2,col,{squash:0.62,rot:side*0.34});
+            }
           } else {
             if (a2){
               for(let p=0;p<petals;p++){ const a=p/petals*Math.PI*2;
@@ -3257,6 +3289,152 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (L.upright){ ctx.strokeStyle=shade(fol,-22); ctx.lineWidth=1.2;
           ctx.beginPath(); ctx.moveTo(px*0.25,0); ctx.lineTo(px,py+4); ctx.stroke(); }
         ctx.beginPath(); ctx.ellipse(px,py,3.6,2.6,0,0,7); ctx.fill();
+      }
+    }
+  }
+  else if (P.form === 'cycad'){ // low woody crowns with rigid pinnate fronds and cones
+    const L=P.look||{}, fol=S.fol||'#4f7650';
+    const crowns=Math.max(1,Math.min(4,Math.round((L.crowns||1)*(0.45+0.55*growth))));
+    const cw=(woodyVisualCw(P)||P.cw||60)*(0.35+0.65*growth);
+    const crownSpread=L.crownSpread===undefined?0.42:L.crownSpread;
+    const fronds=stemFor(Math.max(5,Math.min(13,L.fronds||9)));
+    const fan=L.spread===undefined?2.15:L.spread, reach=L.reach===undefined?0.9:L.reach;
+    const baseLen=L.frondLen===undefined?0.82:L.frondLen, arch=L.arch===undefined?0.28:L.arch;
+    const pinnaN=Math.max(5,Math.min(14,Math.round(L.pinnaN||10)));
+    const pinnaLen=L.pinnaLen||3.2, pinnaW=L.pinnaW||1.0;
+    for(let c=0;c<crowns;c++){
+      const crownX=crowns===1?0:(c/(crowns-1)-0.5)*cw*crownSpread;
+      const crownY=-(c%2)*H*0.035;
+      if (S.fol){
+        for(let k=0;k<fronds;k++){
+          const i=fanIdx(k,fronds), u=fronds>1?i/(fronds-1):0.5;
+          const a=(u-0.5)*fan+(rnd()-0.5)*0.12;
+          const len=H*baseLen*(0.78+rnd()*0.24);
+          const tx=crownX+Math.sin(a)*len*reach+sway*len*0.025;
+          const ty=crownY-Math.cos(a*arch)*len;
+          const qx=crownX+(tx-crownX)*0.42;
+          const qy=crownY-len*(0.52+arch*0.22);
+          const col=shade(fol,(rnd()-0.5)*18);
+          ctx.strokeStyle=shade(col,-24); ctx.lineWidth=L.stipeW||1.25;
+          ctx.beginPath(); ctx.moveTo(crownX,crownY); ctx.quadraticCurveTo(qx,qy,tx,ty); ctx.stroke();
+          for(let p=0;p<pinnaN;p++){
+            const f=0.17+p/Math.max(1,pinnaN-1)*0.72, om=1-f;
+            const bx=om*om*crownX+2*om*f*qx+f*f*tx;
+            const by=om*om*crownY+2*om*f*qy+f*f*ty;
+            const dx=2*om*(qx-crownX)+2*f*(tx-qx);
+            const dy=2*om*(qy-crownY)+2*f*(ty-qy), dl=Math.sqrt(dx*dx+dy*dy)||1;
+            const nx=-dy/dl, ny=dx/dl, taper=0.56+0.44*Math.sin(f*Math.PI);
+            for(let side=-1;side<=1;side+=2)
+              drawLeaf(ctx,bx,by,bx+nx*side*pinnaLen*taper+dx/dl*0.7,
+                by+ny*side*pinnaLen*taper+dy/dl*0.7,pinnaW*taper,col,
+                {shape:'linear',rib:false,bow:side*0.04});
+          }
+        }
+        ctx.fillStyle=shade(fol,-18); ctx.beginPath();
+        ctx.ellipse(crownX,crownY,Math.max(2,pinnaW*2.2),Math.max(1.2,pinnaW*1.25),0,0,7); ctx.fill();
+      }
+      if (S.seed && mature){
+        const coneN=Math.max(1,Math.min(3,Math.round(L.coneN||1)));
+        const coneW=L.coneW||3.2, coneH=L.coneH||6.5;
+        for(let n=0;n<coneN;n++){
+          const cx=crownX+(n-(coneN-1)/2)*coneW*1.3, cy=crownY-coneH*0.48;
+          ctx.fillStyle=shade(S.seed,(rnd()-0.5)*12); ctx.beginPath();
+          ctx.ellipse(cx,cy,coneW,coneH*0.5,0,0,7); ctx.fill();
+          ctx.strokeStyle=shade(S.seed,-24); ctx.lineWidth=0.55; ctx.beginPath();
+          for(let row=-1;row<=1;row++){
+            ctx.moveTo(cx-coneW*0.72,cy+row*coneH*0.16);
+            ctx.lineTo(cx+coneW*0.72,cy+row*coneH*0.16);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  else if (P.form === 'fanpalm'){ // clonal low palms with segmented palmate blades
+    const L=P.look||{}, fol=S.fol||'#587a50';
+    const crowns=Math.max(1,Math.min(5,Math.round((L.crowns||1)*(0.45+0.55*growth))));
+    const cw=(woodyVisualCw(P)||P.cw||72)*(0.35+0.65*growth);
+    const crownSpread=L.crownSpread===undefined?0.62:L.crownSpread;
+    const fans=stemFor(Math.max(3,Math.min(8,L.fansPerCrown||5)));
+    const petioleFan=L.petioleFan===undefined?2.0:L.petioleFan;
+    const segments=Math.max(7,Math.min(16,Math.round(L.segments||12)));
+    const fanSquash=L.fanSquash===undefined?0.66:L.fanSquash;
+    const verticalScale=Math.max(0.7,Math.min(1.6,L.verticalScale||1));
+    for(let c=0;c<crowns;c++){
+      const crownX=crowns===1?0:(c/(crowns-1)-0.5)*cw*crownSpread;
+      const crownY=-(c%2)*H*0.025;
+      if (S.fol){
+        for(let k=0;k<fans;k++){
+          const i=fanIdx(k,fans), u=fans>1?i/(fans-1):0.5;
+          const a=(u-0.5)*petioleFan+(rnd()-0.5)*0.12;
+          const len=H*(L.petioleLen||0.43)*(0.84+rnd()*0.22);
+          const tx=crownX+Math.sin(a)*len*0.88+sway*len*0.025;
+          const ty=crownY-Math.cos(a*0.58)*len*verticalScale;
+          const col=shade(fol,(rnd()-0.5)*18);
+          ctx.strokeStyle=shade(col,-28); ctx.lineWidth=L.petioleW||1.45;
+          ctx.beginPath(); ctx.moveTo(crownX,crownY); ctx.quadraticCurveTo((crownX+tx)*0.5,crownY-len*0.42,tx,ty); ctx.stroke();
+          const teeth=Math.max(0,Math.min(7,Math.round(L.petioleTeeth||0)));
+          if (teeth){
+            ctx.strokeStyle=shade(col,-38); ctx.lineWidth=0.55; ctx.beginPath();
+            for(let t=0;t<teeth;t++){
+              const f=0.18+t/Math.max(1,teeth-1)*0.58;
+              const px=crownX+(tx-crownX)*f, py=crownY+(ty-crownY)*f, side=t%2?-1:1;
+              ctx.moveTo(px,py); ctx.lineTo(px+side*2.1,py+0.7);
+            }
+            ctx.stroke();
+          }
+          const r=H*(L.fanR||0.25)*(0.86+rnd()*0.18);
+          // A palmetto blade is a joined fan before it splits into ribbons.
+          // Paint that bounded half-disc first so overlapping segment strokes
+          // still read as one leaf at tray scale instead of a comb of grass.
+          ctx.save(); ctx.globalAlpha=0.42; ctx.fillStyle=shade(col,-8); ctx.beginPath();
+          ctx.moveTo(tx,ty);
+          for(let q=0;q<segments;q++){
+            const s=q/(segments-1)-0.5, sa=s*Math.PI+a*0.22;
+            const droop=Math.abs(s)*r*(L.segmentDroop||0.12);
+            ctx.lineTo(tx+Math.sin(sa)*r,ty-Math.cos(sa)*r*fanSquash*verticalScale+droop*verticalScale);
+          }
+          ctx.closePath(); ctx.fill(); ctx.restore();
+          ctx.fillStyle=shade(col,-12); ctx.beginPath();
+          ctx.ellipse(tx,ty-r*0.04,r*0.28,r*0.16,0,0,7); ctx.fill();
+          for(let q=0;q<segments;q++){
+            // A palmate blade occupies one upright half-disc. Wider angular
+            // sweeps wrap the outer segments below the petiole and make a row
+            // of overlapping fans read as grass. Let the petiole turn the fan
+            // slightly without turning it into a radial yucca star.
+            const s=q/(segments-1)-0.5, sa=s*Math.PI+a*0.22;
+            const droop=Math.abs(s)*r*(L.segmentDroop||0.12);
+            const ex=tx+Math.sin(sa)*r, ey=ty-Math.cos(sa)*r*fanSquash*verticalScale+droop*verticalScale;
+            const mx=tx+(ex-tx)*(L.segmentSplit||0.82)*0.52;
+            const my=ty+(ey-ty)*(L.segmentSplit||0.82)*0.52-r*0.04;
+            drawBlade(ctx,tx,ty,mx,my,ex,ey,Math.max(0.65,r*0.055),col,Math.cos(sa)>0.1);
+          }
+        }
+        ctx.fillStyle=shade(fol,-20); ctx.beginPath();
+        ctx.ellipse(crownX,crownY,2.8,1.5,0,0,7); ctx.fill();
+      }
+      if (mature && blooming && S.bloom){
+        const n=Math.max(1,Math.min(3,Math.round(L.inflorescences||2)));
+        for(let inf=0;inf<n;inf++){
+          const side=inf%2?-1:1, len=H*(0.30+inf*0.035), bx=crownX+side*(4+inf*2), by=crownY-len;
+          ctx.strokeStyle=shade(S.bloom,-26); ctx.lineWidth=0.9; ctx.beginPath();
+          ctx.moveTo(crownX,crownY); ctx.lineTo(bx,by);
+          for(let rank=0;rank<4;rank++){
+            const yy=by+rank*len*0.12, reach=(4-rank)*1.7;
+            ctx.moveTo(bx,yy); ctx.lineTo(bx+side*reach,yy-2);
+          }
+          ctx.stroke();
+          for(let rank=0;rank<4;rank++) drawFloret(ctx,bx+side*(4-rank)*1.7,by+rank*len*0.12-2,0.9,S.bloom);
+        }
+      }
+      if (mature && S.seed){
+        const fruitRnd=mulberry(seed+0x5a17+c*97), n=Math.max(2,Math.min(9,Math.round(L.fruitN||5)));
+        const bx=crownX+H*0.10, by=crownY-H*0.28;
+        ctx.strokeStyle=shade(fol,-34); ctx.lineWidth=0.8; ctx.beginPath();
+        ctx.moveTo(crownX,crownY); ctx.lineTo(bx,by); ctx.stroke();
+        ctx.fillStyle=S.seed;
+        for(let f=0;f<n;f++){ ctx.beginPath();
+          ctx.ellipse(bx+(fruitRnd()-0.5)*9,by+(fruitRnd()-0.5)*9,1.5,1.8,0,0,7); ctx.fill(); }
       }
     }
   }

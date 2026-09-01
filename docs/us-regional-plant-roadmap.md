@@ -94,6 +94,12 @@ This fills woodland, upland meadow, and wet-site roles. It does not substitute f
 
 ## Phase 2 — Florida: 10 candidates
 
+**Implemented locally:** all FL-01–FL-10 with reviewed warm-site calendars,
+searchable synonyms, mature shrub footprints, and distinct reusable cycad and
+fan-palm forms. Phase 0 infrastructure remains deferred, so north/central/south
+Florida, freeze, provenance, spreading, and sourcing limits remain explicit in
+plant descriptions rather than being presented as automatic filters.
+
 Prioritize the persistent ground layer and warm-climate structure. FL-01 through FL-06 and FL-08/FL-10 can be a first batch using existing morphology families with tuning. FL-07 and FL-09 need distinct cycad and fan-palm treatment. Florida's north/central/south differences must remain visible in recommendations.
 
 | ID | Plant | Role and qualification | Source |

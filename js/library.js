@@ -57,7 +57,9 @@ function libCanvas(key,variant,season,w,h){
   const c=document.createElement('canvas'); c.width=w*2; c.height=h*2;
   c.style.width=w+'px'; c.style.height=h+'px';
   const ctx=c.getContext('2d'); ctx.scale(2,2);
-  const P=plantDef(key,variant), drawH=(plantArtTop(P)||40)*1.3+12, sc=Math.min(1.15,h/drawH);
+  const P=plantDef(key,variant), L=P.look||{}, drawH=(plantArtTop(P)||40)*1.3+12;
+  const authoredW=(plantVisualH(P)||40)*Math.max(0,L.sideScale||0)*2+8;
+  const sc=Math.min(1.15,h/drawH,authoredW>8?w/authoredW:1.15);
   ctx.save(); ctx.translate(w/2,h-5); ctx.scale(sc,sc);
   drawPlant(ctx,0,0,key,1,season,libSeed(key),0,variant,1);
   ctx.restore();

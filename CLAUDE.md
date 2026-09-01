@@ -480,7 +480,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    (cultivar overrides merged over the species, cached) and branches on its
    `form` (`bunchgrass`,
    `vertgrass`, `turkeyfoot`, `cloudgrass`, `oatgrass`, `cone`, `globe`,
-   `spike`, `agave` (symmetric succulent rosette), `ocotillo` (fan of
+   `spike`, `agave` (symmetric succulent rosette), `cycad` (low multi-crown
+   pinnate fronds), `fanpalm` (clonal segmented fan leaves), `ocotillo` (fan of
    red-tipped canes), `shrub` herbaceous mound, `fern`, `leafmound` hosta, `bush`
    woody shrub, `hydrangea` (`look.bloomShape` 'mop'|'lacecap'|'panicle';
    grouped in the tray by flower type — mophead/lacecap/panicle/oakleaf —
@@ -515,6 +516,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    seeded geometry; no species-key branches. `dev/west-coast-review.html`
    provides both renderer modes, four-season previews, and sprite-edge checks.
    Low Oregon grape and salal remain woody shrubs with mature reservations.
+   **Florida Phase 2:** ten straight species bring the catalog to 505 base
+   records / 377 nested choices. Source reviews and authoring decisions live
+   in `docs/plant-data/phase2-implementation.md`. Phase 0 remains deferred.
+   Coontie and saw palmetto are shrubs for mature-footprint purposes and use
+   reusable `cycad` and `fanpalm` forms; neither renderer checks a species key.
+   Low `shrub`/`matflower` plants can opt into `matHeadStyle:'button'|'puff'|
+   'spike'`, and runner leaves can opt into `compound:'pinnate'`. Defaults keep
+   existing mat geometry unchanged. `look.sideScale` reserves and fits unusually
+   wide low architecture in sprites and library previews; `fanpalm.verticalScale`
+   keeps the fan crown at its authored real-world aspect. Florida bloom calendars describe the
+   reviewed warm-site display; blurbs retain freeze, provenance, spreading,
+   toxicity, regulated-stock, and lookalike limits that the deferred regional
+   metadata/filter work cannot yet enforce. `dev/florida-review.html` provides
+   both renderer modes, four-season previews, and sprite-edge checks.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2065,7 +2080,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 495
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 505
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.

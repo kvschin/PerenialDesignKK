@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,495,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,505,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
     'canonical nested-choice count');
@@ -150,6 +150,33 @@ test('West Coast batches preserve reviewed taxa, woody identities, and regional 
   assert(!Object.values(PLANTS.westernswordfern.sea).some(s=>s.bloom||s.seed),'fern spores are not flowers or decorative seed spikes');
   assert(!PLANTS.oregoniris.sea.Winter.fol,'winter-deciduous Oregon iris is not evergreen bearded iris');
   assert(/North Carolina/.test(PLANTS.redfloweringcurrant.blurb),'Ribes restriction remains visible without a regional legal filter');
+});
+
+test('Florida batch preserves reviewed dimensions, taxa, and safety caveats', () => {
+  const rows=JSON.parse(readRepoFile('docs/plant-data/phase2-sources.json')).plants;
+  assertEqual(rows.length,10,'Phase 2 contains exactly the ten approved Florida taxa');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], reviewed=row.proposed;
+    assert(P,`${row.id}: missing species`);
+    assertEqual(P.latin,reviewed.latin,`${row.id}: exact reviewed taxon`);
+    assertEqual(P.type,reviewed.type,`${row.id}: biological placement category`);
+    for(const field of ['heightIn','spread','space','sun','moist','phen'])
+      assertEqual(P[field],reviewed[field],`${row.id}: reviewed ${field}`);
+    assertEqual(P.zones.join(','),reviewed.zones.join(','),`${row.id}: reviewed zone range`);
+    if(reviewed.grow) assertEqual(P.grow,reviewed.grow,`${row.id}: planning years to represented woody size`);
+    assertEqual(P.nativeTo.join(','),'north-america',`${row.id}: retains existing continental range contract`);
+    assertEqual(P.provenance,'species',`${row.id}: straight species`);
+  }
+  assertEqual(PLANTS.coontie.form,'cycad','coontie has a cycad crown, not the fern grammar');
+  assertEqual(PLANTS.sawpalmetto.form,'fanpalm','saw palmetto has a segmented fan-palm grammar');
+  assert(!PLANTS.coontie.bloomMonths,'coontie has cones, not a flowering calendar');
+  assert(/toxic/i.test(PLANTS.coontie.blurb)&&/nursery/i.test(PLANTS.coontie.blurb),'coontie safety and sourcing remain visible');
+  assert(/jamaicensis/.test(PLANTS.nativeblueporterweed.blurb)&&/cayennensis/.test(PLANTS.nativeblueporterweed.blurb),'porterweed exact-species warning remains visible');
+  assert(/subsp\. debilis/.test(PLANTS.beachsunflower.blurb)&&/do not mix ecotypes/i.test(PLANTS.beachsunflower.blurb),'beach-sunflower provenance remains visible');
+  assert(/state-listed/i.test(PLANTS.dwarffakahatcheegrass.blurb),'threatened Fakahatchee sourcing remains visible');
+  assert(/saw-toothed/i.test(PLANTS.sawpalmetto.blurb),'saw-palmetto petiole hazard remains visible');
+  for(const key of ['sunshinemimosa','dwarffakahatcheegrass','firebush'])
+    assert(!PLANTS[key].roles.includes('coastal'),`${key}: salt-intolerant species is not recommended for exposed coastal use`);
 });
 
 test('cleaned exact selections keep accepted names and provenance', () => {

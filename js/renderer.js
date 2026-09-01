@@ -1081,10 +1081,11 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const canopy=(woodyVisualCw(P)||80)*(0.3+0.7*growth);
   const grassW=plantVisualWidthScale(P,key);
   const L=P.look||{};
+  const authoredHalf=H*Math.max(0,L.sideScale||0);
   const herbHalf=P.form==='sotol'
     ? Math.max(H*0.62,H*(L.leafLen||0.82)*1.1)
     : H*0.62*Math.max(1,grassW);
-  const halfW=(woody?Math.max(canopy*0.62,H*0.5):herbHalf)+18;
+  const halfW=(woody?Math.max(canopy*0.62,H*0.5,authoredHalf):Math.max(herbHalf,authoredHalf))+18;
   // Cloud grasses can throw a seed veil substantially above their nominal
   // height. Size its sprite for the tallest panicle plus cloud rather than
   // clipping tall, airy forms such as Molinia 'Transparent'.

@@ -319,7 +319,7 @@ function staticPlantRoles(k){
   if (isTreeDef(P)) roles.add('structure'), roles.add('canopy');
   if (P.form==='fern') roles.add('fern'), roles.add('shade'), roles.add('woodland');
   if (P.form==='leafmound') roles.add('groundcover'), roles.add('shade'), roles.add('woodland');
-  if (['globe','spike','drumstick','rosette','agave','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer'].includes(P.form))
+  if (['globe','spike','drumstick','rosette','agave','cycad','fanpalm','ocotillo','vertgrass','fountaingrass','cloudgrass','conifer'].includes(P.form))
     roles.add('architectural');
   if (['umbel','cone','pincushion','bractstack'].includes(P.form)) roles.add('flower');
   if (P.form==='hydrangea') roles.add('hydrangea'), roles.add('cottage'), roles.add('romantic'), roles.add('shade');

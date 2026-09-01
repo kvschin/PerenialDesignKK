@@ -1,0 +1,314 @@
+{
+  "phase": "2 — Florida",
+  "reviewedOn": "2026-08-31",
+  "scope": "Botanical review for exactly FL-01 through FL-10 in the US regional plant roadmap; proposed production values for main-agent review, not an automatic catalog import.",
+  "conventions": {
+    "units": "heightIn, spread, space and dimension evidence are real inches, never renderer pixels.",
+    "heightIn": "Representative cultivated overall height including flowers, seedheads, fronds or the woody crown. It is not a foliage-only height or the largest documented wild specimen.",
+    "space": "Suggested on-center garden spacing. It is a design value unless a source explicitly supplies spacing; colonizing plants can spread far beyond one modeled module.",
+    "grow": "Woody-only estimated years to the stated design size, not root establishment time, lifespan or guaranteed ultimate maturity. Every value is labeled as a planning estimate in evidence.",
+    "zones": "Conservative whole-zone USDA cultivation ranges synthesized from the cited Florida horticultural sources. Zone overlap alone does not establish heat, humidity, local provenance or legal suitability.",
+    "bloomMonths": "Approximate Florida flowering windows. Year-round means a warm, frost-free setting; cooler Florida sites can have shorter windows. A grass seedhead is represented as bloom only when a seasonal source supports it; cycads have cones and bloomMonths is empty.",
+    "taxonomy": "The latin field retains the exact species-level roadmap target. Synonyms are selected discovery aliases, not exhaustive nomenclature; infraspecific and lookalike cautions remain explicit.",
+    "persistence": "Biological information for authoring descriptions and seasonal colors. No Phase 0 climate, native-origin, legal-filter or seasonal-engine change is authorized by this file.",
+    "limits": "Do not turn Florida occurrence into a statewide-local claim. NativeTo and provenance use the current broad contract only; county/ecotype suitability remains text. Do not infer deer, rabbit, human-edibility or pet-safety ratings from this review."
+  },
+  "plants": [
+    {
+      "id": "FL-01",
+      "suggestedKey": "frogfruit",
+      "proposed": {
+        "name": "Frogfruit", "latin": "Phyla nodiflora", "synonyms": ["Lippia nodiflora", "Verbena nodiflora"],
+        "type": "forb", "form": "shrub", "heightIn": 6, "spread": 36, "space": 12,
+        "zones": [8, 11], "sun": "full", "moist": "medium", "phen": "warm", "bloomMonths": [5, 6, 7, 8, 9, 10],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Phyla nodiflora and lists Lippia nodiflora and Verbena nodiflora as homotypic synonyms; its recognized varieties have much broader geography than a Florida-local claim.",
+        "dimensions": "UF/IFAS separates foliage to 3 in from flowers to 6 in. Long stolons root at nodes and one unrestricted plant may extend 8–10 ft; proposed 36-in spread is a modeled garden patch, not a biological colony limit.",
+        "spacing": "UF/IFAS directly recommends transplant divisions 12 in apart, so the space value has strong numerical support.",
+        "hardinessAndCulture": "UF/IFAS gives 8A–11, full sun to partial shade, and moist through not-extremely-dry soils with drought tolerance after establishment. Full and medium are the primary authoring choices.",
+        "floweringAndPersistence": "UF Gardening Solutions gives May–October; the lawn-plant review notes favorable sites can flower longer. Long-lived stoloniferous herbaceous perennial, with winter or drought dormancy possible and warm-season return.",
+        "numericalConfidence": "High for height, spacing and zones; moderate for the deliberately bounded spread module."
+      },
+      "sources": [
+        {"url": "https://edis.ifas.ufl.edu/publication/FR459/pdf", "supports": "separate 3-in foliage and 6-in flower height, long-lived herbaceous habit, 12-in division spacing, zones 8A–11, light and moisture"},
+        {"url": "https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/frogfruit/", "supports": "rooting stolons, potential 8–10-ft extension, May–October flowers and dormancy behavior"},
+        {"url": "https://powo.science.kew.org/taxon/194567-2", "supports": "accepted name, selected homotypic synonyms and infraspecific complexity"}
+      ],
+      "caveats": [
+        "Keep barriers or regular edging in the blurb: the static spread field cannot represent continuing stolon spread into beds.",
+        "Traffic guidance varies among UF sources; describe tolerance as occasional to moderate, not as a durable heavy-traffic lawn.",
+        "Do not claim every Phyla nodiflora sold is locally sourced Florida var. reptans or another particular variety."
+      ]
+    },
+    {
+      "id": "FL-02",
+      "suggestedKey": "sunshinemimosa",
+      "proposed": {
+        "name": "Sunshine Mimosa", "latin": "Mimosa strigillosa", "synonyms": [],
+        "type": "forb", "form": "shrub", "heightIn": 8, "spread": 48, "space": 36,
+        "zones": [8, 11], "sun": "full", "moist": "medium", "phen": "warm", "bloomMonths": [3, 4, 5, 6, 7, 8, 9, 10, 11],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Mimosa strigillosa. No obsolete scientific alias is needed for catalog discovery; powderpuff and herbaceous mimosa are common names.",
+        "dimensions": "USDA describes a 6–8-in stoloniferous plant. FNPS reports 3–6-in mats capable of spreading roughly 100 ft; proposed 48-in spread is a design module rather than a mature colony endpoint.",
+        "spacing": "FNPS cultivation guidance places potted plants 2–4 ft apart and reports rapid fill; proposed 36 in is the midpoint and has moderate support because plug size and desired closure time vary.",
+        "hardinessAndCulture": "UF's native-bee guide gives 8–11. Full sun is primary; the plant accepts part sun and typically moist soils, becoming drought tolerant after establishment.",
+        "floweringAndPersistence": "FNPS gives spring through fall and long-lived perennial persistence. Foliage may remain but becomes sparse from late fall into early spring; another UF account describes disappearance in the coolest months, so cold exposure controls the visible result.",
+        "numericalConfidence": "High for overall height and zones; moderate for spacing; spread is a bounded colony module."
+      },
+      "sources": [
+        {"url": "https://www.nrcs.usda.gov/plantmaterials/etpmcpu8052.pdf", "supports": "6–8-in overall height, warm-season perennial, stolons, flowers and established drought tolerance"},
+        {"url": "https://www.fnps.org/plant/mimosa-strigillosa", "supports": "long-lived spreading habit, spring–fall bloom, primary moisture, seasonal sparseness and zones through 10B"},
+        {"url": "https://www.fnps.org/assets/pdf/palmetto_issues/Palmetto_36-3.pdf", "supports": "2–4-ft on-center planting guidance, 3–6-in mat and rapid summer spread"},
+        {"url": "https://edis.ifas.ufl.edu/publication/IN1255/pdf", "supports": "Florida cultivation range 8–11 and broad bloom-season use"},
+        {"url": "https://powo.science.kew.org/taxon/313006-2", "supports": "accepted species name and subshrub/perennial taxonomy"}
+      ],
+      "caveats": [
+        "Not a tidy nonspreading lawn substitute: stems root and can enter adjacent beds; heavy traffic is unsuitable.",
+        "Do not promise winter cover. Evergreen, sparse, or apparently dormant behavior varies within Florida.",
+        "Do not confuse this thornless low groundcover with tree-form mimosa or thorny sensitive-briar species."
+      ]
+    },
+    {
+      "id": "FL-03",
+      "suggestedKey": "beachsunflower",
+      "proposed": {
+        "name": "Beach Sunflower", "latin": "Helianthus debilis", "synonyms": [],
+        "type": "forb", "form": "cone", "heightIn": 18, "spread": 48, "space": 24,
+        "zones": [9, 11], "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Helianthus debilis and five subspecies. Florida horticulture includes subsp. debilis on the east coast, subsp. vestitus on the west coast and subsp. cucumerifolius in other sandy settings; the roadmap remains species-level.",
+        "dimensions": "UF gives a broad species value of 24–48 in tall and wide, but specifically reports about 18 in in its beach-groundcover use. Proposed 18 by 48 in represents that roadmap role; some forms can be taller and east-coast colonies much wider.",
+        "spacing": "UF directly gives 18–24 in; proposed 24 in favors a looser, drought-adapted planting.",
+        "hardinessAndCulture": "FNPS gives subsp. debilis 8B–11; proposed whole-zone 9–11 is a conservative rounding. Full sun, sharply drained sand and dry primary moisture are well supported; overwatering can cause decline.",
+        "floweringAndPersistence": "UF calls flowering year-round and semi-evergreen in suitable Florida sites. FNPS calls east-coast material deciduous and short-lived, blooming most of the year in its natural range; freezing sites can treat it as an annual/reseeder.",
+        "numericalConfidence": "High for spacing; moderate for the role-specific height and whole-zone rounding because the species aggregates distinct subspecies."
+      },
+      "sources": [
+        {"url": "https://edis.ifas.ufl.edu/publication/FP245/pdf", "supports": "species dimensions, 18-in beach use, 18–24-in spacing, full sun, dry sand, year-round flowers, semi-evergreen and freeze behavior"},
+        {"url": "https://www.fnps.org/plant/helianthus-debilis-debilis", "supports": "east-coast subspecies dimensions, short-lived/deciduous persistence, 8B–11, wide colony and introgression warning"},
+        {"url": "https://www.fnps.org/plant", "supports": "Florida database recognition of debilis, vestitus and cucumerifolius subspecies"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:119090-2", "supports": "accepted species name and five accepted infraspecific taxa"}
+      ],
+      "caveats": [
+        "Source locally appropriate, correctly identified stock. FNPS explicitly warns not to common-garden Helianthus debilis subspecies because of introgression.",
+        "Year-round bloom is a frost-free Florida representation, not a nationwide promise. Cooler sites can lose plants and rely on seedlings.",
+        "Do not turn species-level dimensions into a claim that every subspecies remains 18 in high."
+      ]
+    },
+    {
+      "id": "FL-04",
+      "suggestedKey": "elliottslovegrass",
+      "proposed": {
+        "name": "Elliott's Lovegrass", "latin": "Eragrostis elliottii", "synonyms": [],
+        "type": "grass", "form": "bunchgrass", "heightIn": 36, "spread": 24, "space": 18,
+        "zones": [8, 10], "sun": "full", "moist": "medium", "phen": "warm", "bloomMonths": [9, 10, 11],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Eragrostis elliottii; obsolete Poa nitida and Eragrostis nitida are illegitimate names and are not useful catalog aliases.",
+        "dimensions": "FNPS gives 12–36 in high by 12–24 in wide. Kew's GrassBase description gives flowering culms about 16–31 in; proposed 36 in captures the airy top of a vigorous cultivated clump.",
+        "spacing": "No primary source supplied garden on-center spacing. Proposed 18 in is a moderate-confidence design estimate within the mature 12–24-in crown width.",
+        "hardinessAndCulture": "FNPS lists 8A–10B, full sun and usually-moist through not-extremely-dry soils. Medium is primary even though established plants tolerate dry intervals.",
+        "floweringAndPersistence": "FNPS describes a short-lived perennial dense clump, winter dormant, with fall bloom. September–November is a calendar translation of fall, not month-level field data.",
+        "numericalConfidence": "High for overall size and zones; moderate for spacing; weak-to-moderate for exact bloom months."
+      },
+      "sources": [
+        {"url": "https://www.fnps.org/plant/eragrostis-elliottii", "supports": "overall dimensions, short-lived clump, winter dormancy, fall bloom, light, moisture and zones 8A–10B"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:93090-2", "supports": "accepted name, perennial bunchgrass habit, culm dimensions and obsolete synonyms"}
+      ],
+      "caveats": [
+        "Render a low blue-green/silver foliage clump with a fine airy flowering haze; 36 in is the flower/seedhead envelope, not a solid foliage ball.",
+        "Short-lived means renewal or reseeding may be needed; do not describe it as an indefinitely permanent isolated tussock.",
+        "High salt-spray tolerance does not mean tolerance of brackish inundation."
+      ]
+    },
+    {
+      "id": "FL-05",
+      "suggestedKey": "dwarffakahatcheegrass",
+      "proposed": {
+        "name": "Dwarf Fakahatchee Grass", "latin": "Tripsacum floridanum", "synonyms": ["Tripsacum dactyloides var. floridanum"],
+        "type": "grass", "form": "vertgrass", "heightIn": 36, "spread": 36, "space": 36,
+        "zones": [8, 10], "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [6, 7, 8],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Tripsacum floridanum and gives Tripsacum dactyloides var. floridanum as its homotypic synonym. It must remain distinct from the much larger T. dactyloides.",
+        "dimensions": "FNPS and UF give 24–36 in high and wide. That overall value includes the modest terminal flower/seed structures; separate foliage-only and flowering heights were not verified.",
+        "spacing": "No primary source supplied an on-center value. Proposed 36 in matches the mature clump width and is a moderate design estimate.",
+        "hardinessAndCulture": "FNPS lists 8A–10B, full to part sun, lime-rock or sandy sites and somewhat moist through very dry conditions. Full and dry fit the pine-rockland roadmap role, but this species is adaptable rather than strictly xeric.",
+        "floweringAndPersistence": "FNPS calls it an evergreen, clump-forming, short-lived perennial that can look messy after cold spells. UF discusses its brown flower stalks in a summer-perennial feature; June–August is a weak calendar translation rather than exact phenology data.",
+        "numericalConfidence": "High for size and zones; moderate for spacing; weak for exact bloom months."
+      },
+      "sources": [
+        {"url": "https://www.fnps.org/plant/tripsacum-floridanum", "supports": "dimensions, short-lived evergreen clump, cold damage, light, moisture, zones and threatened status"},
+        {"url": "https://ask.ifas.ufl.edu/publication/EP348", "supports": "24–36-in cultivated clump and insignificant flowers"},
+        {"url": "https://blogs.ifas.ufl.edu/waltonco/2017/07/05/four-must-have-native-perennials-for-summer/", "supports": "summer context for brown flower stalks and adaptable cultivation"},
+        {"url": "https://regionalconservation.org/ircs/database/plants/PlantPage.asp?TXCODE=Tripflor", "supports": "South Florida range, pine-rockland context and current threatened/imperiled reporting"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:424996-1", "supports": "accepted name, homotypic synonym and perennial/rhizomatous habit"}
+      ],
+      "caveats": [
+        "Florida lists this species as threatened. Specify propagated native-nursery stock and never recommend wild collection.",
+        "Its documented Florida natural range is concentrated in far southern counties with an outlier; successful cultivation farther north is not proof of local provenance.",
+        "June–August bloomMonths is the weakest numeric field in this record and should be replaced if herbarium or field phenology data become available."
+      ]
+    },
+    {
+      "id": "FL-06",
+      "suggestedKey": "nativeblueporterweed",
+      "proposed": {
+        "name": "Native Blue Porterweed", "latin": "Stachytarpheta jamaicensis", "synonyms": ["Stachytarpheta indica var. jamaicensis"],
+        "type": "forb", "form": "spike", "heightIn": 12, "spread": 48, "space": 36,
+        "zones": [9, 11], "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Stachytarpheta jamaicensis. Florida's 2026 flora separately recognizes S. cayennensis, S. urticifolia and named hybrids, including S. ×intercedens (jamaicensis × urticifolia); they are not aliases.",
+        "dimensions": "FNPS gives the native trailing form 6–12 in high by 36–48 in wide. Florida Museum allows up to 36 in, reflecting variable material; proposed 12 in deliberately represents the low native groundcover target rather than tall retail porterweed.",
+        "spacing": "UF gives 36–60-in spacing in a fact sheet whose 4–8-ft size appears inconsistent with low native material. Proposed 36 in uses only the lower direct spacing bound; confidence is moderate.",
+        "hardinessAndCulture": "FNPS gives 8B–11; UF Orange County gives 9B–11 for the low native groundcover. Proposed 9–11 is conservative. Full sun and dry, freely draining soil are primary, with part sun and establishment irrigation possible.",
+        "floweringAndPersistence": "FNPS and Florida Museum report all-year bloom in warm conditions. FNPS calls it evergreen and short-lived at roughly five years; a UF Pinellas guide reports winter dormancy, so foliage persistence depends on cold exposure.",
+        "numericalConfidence": "High for the low-form height/spread and zones; moderate for spacing because the available direct spacing source may contain mixed horticultural material."
+      },
+      "sources": [
+        {"url": "https://www.fnps.org/plant/stachytarpheta-jamaicensis", "supports": "native low form, size, short lifespan, evergreen/year-round bloom, light, moisture and 8B–11"},
+        {"url": "https://www.floridamuseum.ufl.edu/wildflowers/flowers/blue-porterweed/", "supports": "all-year bloom, herbaceous/sprawling habit, full sun and well-drained soil"},
+        {"url": "https://blogs.ifas.ufl.edu/orangeco/2022/07/02/pollinator-plants-for-full-sun/", "supports": "9B–11 low native groundcover and retail confusion with cayennensis and urticifolia"},
+        {"url": "https://www.floridamuseum.ufl.edu/wp-content/uploads/sites/67/2026/02/Flora-of-Florida-Franck-2026.pdf", "supports": "current separation of S. jamaicensis, nonnative congeners and interspecific hybrids"},
+        {"url": "https://powo.science.kew.org/taxon/1092351-2", "supports": "accepted name and selected synonym"}
+      ],
+      "caveats": [
+        "Require a label naming Stachytarpheta jamaicensis from a native-plant nursery. Common-name 'blue porterweed' often refers to nonnative S. urticifolia or S. cayennensis and hybrids occur.",
+        "Do not use UF/IFAS FP559's 4–8-ft dimensions for this low native record; its text conflicts with FNPS and low-form UF guidance and likely reflects mixed horticultural material.",
+        "Year-round flowering and evergreen foliage are warm-site behavior. Cooler sites may go dormant or die back."
+      ]
+    },
+    {
+      "id": "FL-07",
+      "suggestedKey": "coontie",
+      "proposed": {
+        "name": "Coontie", "latin": "Zamia integrifolia", "synonyms": ["Zamia floridana", "Zamia pumila"],
+        "type": "shrub", "form": "cycad", "heightIn": 36, "spread": 60, "space": 48, "grow": 10,
+        "zones": [8, 11], "sun": "part", "moist": "dry", "phen": "warm", "bloomMonths": [],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Zamia integrifolia with several accepted varieties. FNPS lists Z. floridana and Z. pumila as horticultural synonyms, but modern treatments split or rank this complex differently; keep them as searchable legacy aliases, not proof that all Caribbean Z. pumila is the same plant.",
+        "dimensions": "FNPS gives 24–36 in high by 36–60 in wide; proposed 36 by 60 in uses the full straight-species crown. Height is evergreen fronds from a mostly subterranean caudex. This gymnosperm bears cones, not flowers.",
+        "spacing": "No direct garden spacing was verified. Proposed 48 in allows mature fronds to overlap within the 60-in crown and is a moderate design estimate.",
+        "hardinessAndCulture": "UF gives 8B–11 and FNPS gives 8A–11. Part sun and dry, well-drained soil are primary; established plants tolerate full sun and need little irrigation.",
+        "floweringAndPersistence": "Evergreen, long-lived, dioecious cycad; bloomMonths must remain empty because the reproductive structures are male and female cones.",
+        "growConfidence": "Moderate ten-year design estimate. UF describes very slow growth and reports roughly a decade to a harvestable plant, but that is not a controlled time-to-36-by-60-in trial."
+      },
+      "sources": [
+        {"url": "https://www.fnps.org/plant/zamia-integrifolia", "supports": "dimensions, evergreen cycad form, selected horticultural synonyms, zones and commercially exploited status"},
+        {"url": "https://edis.ifas.ufl.edu/publication/FP617/pdf", "supports": "some-shade preference, drainage, drought tolerance and very slow growth under the legacy Z. floridana name"},
+        {"url": "https://edis.ifas.ufl.edu/publication/EP648/pdf", "supports": "8B–11, woody subterranean stem, cones and severe toxicity of all parts/seeds"},
+        {"url": "https://www.fdacs.gov/Consumer-Resources/Protect-Our-Environment/Botany/Florida-s-Endangered-Plants/Endangered-Threatened-and-Commercially-Exploited-Plants-of-Florida", "supports": "current Florida regulated-plant index and commercially exploited category"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:270527-2", "supports": "accepted species and current infraspecific complexity"}
+      ],
+      "caveats": [
+        "All parts are poisonous and the seeds are especially toxic; do not present historical starch use as household food preparation advice.",
+        "Florida regulates native Zamia as commercially exploited. Use propagated nursery stock; do not collect wild plants or plant parts without applicable permits.",
+        "Needs a cycad morphology. Keep type shrub for its persistent hard crown/footprint; it is neither a palm nor a flowering fern.",
+        "The ten-year grow field is an explicit planning estimate with weaker numerical evidence than the mature dimensions."
+      ]
+    },
+    {
+      "id": "FL-08",
+      "suggestedKey": "firebush",
+      "proposed": {
+        "name": "Firebush", "latin": "Hamelia patens", "synonyms": ["Hamelia erecta"],
+        "type": "shrub", "form": "bush", "heightIn": 144, "spread": 96, "space": 96, "grow": 4,
+        "zones": [9, 11], "sun": "full", "moist": "medium", "phen": "warm", "bloomMonths": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Hamelia patens and lists Hamelia erecta as a synonym. Florida straight native material is commonly treated as H. patens var. patens; H. patens var. glabra and plants sold as Compacta/Dwarf require separate provenance review.",
+        "dimensions": "UF gives 72–144 in high by 60–96 in wide; FNPS records an ultimate potential near 240 by 120 in. Proposed 144 by 96 in is a representative unpruned landscape shrub rather than the wild maximum or a compact cultivar.",
+        "spacing": "No direct spacing was verified. Proposed 96 in matches the selected crown width and is a moderate design estimate.",
+        "hardinessAndCulture": "UF and FNPS support 9–11, full to part sun and well-drained medium-to-dry soil. Full sun is primary for the strongest flowering.",
+        "floweringAndPersistence": "FNPS reports semi-evergreen and all-year bloom unless frozen; zone-9 plants can die back and usually resprout. The year-round calendar is therefore a frost-free representation.",
+        "growConfidence": "Moderate four-year design estimate. UF calls growth fast and documents roughly 1-ft nursery plants reaching 5 ft in one warm season; no direct time-to-12-ft study was found."
+      },
+      "sources": [
+        {"url": "https://edis.ifas.ufl.edu/publication/FP237/pdf", "supports": "72–144 by 60–96-in cultivated size, fast growth, zones 9–11 and evergreen shrub habit"},
+        {"url": "https://www.fnps.org/plant/hamelia-patens", "supports": "ultimate size potential, long-lived semi-evergreen habit, year-round bloom, freeze dieback, light and moisture"},
+        {"url": "https://blogs.ifas.ufl.edu/duvalco/2025/06/13/4-flowering-shrubs-for-your-florida-friendly-yard/", "supports": "South Florida provenance and warning that glabra/Compacta retail plants can be nonnative"},
+        {"url": "https://blogs.ifas.ufl.edu/wakullaco/2017/08/03/firebush-is-striking-and-easy-to-grow/", "supports": "rapid first-season growth and large unpruned habit in north Florida cultivation"},
+        {"url": "https://powo.science.kew.org/taxon/752194-1", "supports": "accepted name, shrub/tree habit and selected synonym"}
+      ],
+      "caveats": [
+        "Specify straight, locally appropriate H. patens material with red to red-orange flowers. Yellow-orange smooth-leaved plants sold as Dwarf/Compacta may be nonnative var. glabra or mixed stock.",
+        "Do not call this locally native throughout Florida. FNPS notes cold sensitivity, observations beyond its natural range and possible naturalization farther north.",
+        "Year-round bloom and semi-evergreen foliage collapse after freezes; cooler users need a dieback/resprout blurb.",
+        "Four-year grow is a planning estimate, not ultimate maturity."
+      ]
+    },
+    {
+      "id": "FL-09",
+      "suggestedKey": "sawpalmetto",
+      "proposed": {
+        "name": "Saw Palmetto", "latin": "Serenoa repens", "synonyms": ["Serenoa serrulata"],
+        "type": "shrub", "form": "palm", "heightIn": 72, "spread": 144, "space": 120, "grow": 20,
+        "zones": [8, 11], "sun": "full", "moist": "dry", "phen": "warm", "bloomMonths": [3, 4, 5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Serenoa repens and lists Serenoa serrulata among its synonyms. Naturally blue-green or silver foliage is intraspecific variation, not a reason to create an undocumented cultivar record.",
+        "dimensions": "UF's palm guide gives a typical 72 by 144-in clump; its species sheet gives 36–72-in height with 36–60-in fan leaves. FNPS notes larger old plants. Proposed dimensions represent a substantial landscape clump, not the indefinite rhizomatous colony.",
+        "spacing": "No direct ornamental spacing was verified. Proposed 120 in allows some fan overlap within the 144-in clump and is a weak-to-moderate design estimate.",
+        "hardinessAndCulture": "UF's species sheet gives 8A–11A, moderate-to-high light, wide soil adaptability and high drought tolerance. Full and dry are primary while part sun and periodically moist habitats remain possible.",
+        "floweringAndPersistence": "UF reports spring bloom, with 24–36-in inflorescences intertwined within the leaves rather than extending overall height. March–June is a broad Florida calendar translation and lacks exact month-level field evidence. Evergreen, creeping-rhizomatous, very slow and exceptionally long-lived.",
+        "growConfidence": "Weak twenty-year design estimate to a 6-by-12-ft represented clump. Sources establish very slow growth and extreme longevity but do not provide time-to-size; old clonal expansion continues far beyond this horizon."
+      },
+      "sources": [
+        {"url": "https://edis.ifas.ufl.edu/publication/FP547/pdf", "supports": "shrub classification, 36–72-in height, 8A–11A, spring bloom within leaves, slow growth, rhizomes, drought and spine hazard"},
+        {"url": "https://edis.ifas.ufl.edu/publication/EP020/pdf", "supports": "typical 72-by-144-in ornamental clump and high salt-spray tolerance"},
+        {"url": "https://www.fnps.org/plant/serenoa-repens", "supports": "evergreen long-lived clonal habit, broader old-plant dimensions, full/part sun and wide moisture tolerance"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:941782-1", "supports": "accepted species name and Serenoa serrulata synonym"}
+      ],
+      "caveats": [
+        "Needs a low fan-palm morphology with creeping/subterranean trunks. Keep type shrub so the persistent clump reserves its footprint; this is not an underplantable single-trunk tree.",
+        "Backward-pointing petiole teeth are a physical hazard and should appear in the blurb.",
+        "Colonies can outlive and outgrow one modeled crown. The 20-year grow and 120-in spacing fields have weak numerical support and are planning estimates.",
+        "Do not turn medicinal fruit use into a health claim or harvest recommendation."
+      ]
+    },
+    {
+      "id": "FL-10",
+      "suggestedKey": "simpsonsstopper",
+      "proposed": {
+        "name": "Simpson's Stopper", "latin": "Myrcianthes fragrans", "synonyms": ["Eugenia fragrans", "Myrcianthes simpsonii"],
+        "type": "shrub", "form": "bush", "heightIn": 144, "spread": 60, "space": 60, "grow": 12,
+        "zones": [10, 11], "sun": "part", "moist": "medium", "phen": "warm", "bloomMonths": [3, 4, 5, 6],
+        "nativeTo": ["north-america"], "provenance": "species"
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Myrcianthes fragrans and lists Eugenia fragrans and Myrcianthes simpsonii as synonyms. Straight species values must not be replaced by the separate Compacta cultivar.",
+        "dimensions": "UF gives 60–144 in high by 36–60 in wide for a landscape shrub and elsewhere reports occasional 20-ft specimens; FNPS gives 60–240 by 36–180 in. Proposed 144 by 60 in follows UF's representative straight-species screen rather than the largest tree-form crown.",
+        "spacing": "No direct on-center spacing was verified. Proposed 60 in matches the selected mature shrub width and has moderate design confidence.",
+        "hardinessAndCulture": "FNPS lists 10A–11, full to part sun and somewhat moist through not-extremely-dry soils, often on limestone/calcareous substrate. Part and medium are primary for the hammock-screen role.",
+        "floweringAndPersistence": "FNPS reports evergreen, long-lived growth and sporadic flowers throughout the year, strongest in spring and early summer. March–June encodes the primary display rather than every incidental flower.",
+        "growConfidence": "Weak-to-moderate twelve-year design estimate. UF reports slow to moderate growth, but no direct time-to-12-ft maturity study was found."
+      },
+      "sources": [
+        {"url": "https://edis.ifas.ufl.edu/publication/EP348/pdf", "supports": "representative 60–144 by 36–60-in size, evergreen screen habit and slow-to-moderate growth"},
+        {"url": "https://www.fnps.org/plant/myrcianthes-fragrans", "supports": "larger ultimate range, long-lived evergreen habit, sporadic year-round/main spring–early summer flowering, zones 10A–11, light and moisture"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:166091-2", "supports": "accepted species and Eugenia fragrans synonym"},
+        {"url": "https://powo.science.kew.org/taxon/599295-1", "supports": "Myrcianthes simpsonii synonym"}
+      ],
+      "caveats": [
+        "This is primarily a tropical South Florida hammock/rockland species in the roadmap. Zone 10–11 does not imply statewide or nationwide suitability.",
+        "The 12-by-5-ft record is a representative screen. Unpruned old plants can become much larger or tree-like, while Compacta is a separate cultivar.",
+        "March–June represents the strongest bloom display; descriptions may mention sporadic flowers at other times without marking all 12 months.",
+        "Twelve-year grow is an explicit planning estimate with limited numerical evidence."
+      ]
+    }
+  ]
+}
