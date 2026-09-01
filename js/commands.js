@@ -300,11 +300,11 @@ function actHere(opts){
 function treePlacedMessage(def,x,y,k){
   const crowd=nearestTreeCrowder(x,y,def,k);
   if (!crowd) return `Planted ${def.name}.`;
-  const wantFt=Math.max(1,Math.round(crowd.wantTiles*TILE_IN/12));
+  const wantFt=Math.max(1,crowd.wantTiles*TILE_IN/12);
   const other=plantDef(crowd.p.s,crowd.p.v);
   return crowd.p.s===game.tool
-    ? `Planted ${def.name} — but it crowds another ${def.name}. They want about ${wantFt} ft apart at maturity.`
-    : `Planted ${def.name} — it will crowd the nearby ${other.name.toLowerCase()}. Give large trees about ${wantFt} ft of room.`;
+    ? `Planted ${def.name} — but it crowds another ${def.name}. They want about ${fmtFeet(wantFt)} apart at maturity.`
+    : `Planted ${def.name} — it will crowd the nearby ${other.name.toLowerCase()}. Give large trees about ${fmtFeet(wantFt)} of room.`;
 }
 /* Fires once per successfully placed plant or bulb, and only there — undo,
    paste and loading a garden never call it. That makes it the one honest place
@@ -1107,10 +1107,13 @@ function paintHouse(part,col,label){
   toast(part==='wall'?`Walls set ${label.toLowerCase()}. Tap to place.`
                      :`Roof set ${label.toLowerCase()}. Tap to place.`);
 }
+/* The plant card's and the Library's measurement. Switches to feet later than
+   a general dimension does (96 in, not 24) because a gardener reads spacing and
+   plant height in inches well past two feet — "30 in apart", not "2.5 ft". The
+   metric side switches at 1 m for the same reason in reverse: "45 cm apart",
+   "1.5 m tall". */
 function plantMeasure(v,html){
-  v=Number(v)||0;
-  if (v>=96) return `${Math.max(1,Math.round(v/12))} ft`;
-  return `${Math.max(1,Math.round(v))}${html?'&Prime;':'"'}`;
+  return fmtLengthIn(v,{ftAt:96,ftDp:0,glyph:true,html,min:1});
 }
 function matureSizeText(P,html){
   // heightIn is real inches (trees declare it — px h under-reads them ~8x);

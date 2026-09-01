@@ -2183,25 +2183,18 @@ function selDrawRect(cx,W,H,r,fill,stroke){
     tileDiamond(cx,sx,sy,fill,stroke);
   }
 }
-function selMetricLabel(n){
-  const inches=n*TILE_IN;
-  if (inches<24) return `${inches} in`;
-  const feet=inches/12;
-  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
-}
+/* "Metric" here has always meant "a measurement", not the metric system —
+   these are the on-canvas readouts for the marquee, the ruler and a paint drag.
+   All three were the same rule written three times, differing only in what they
+   convert to inches first; they are wrappers over fmtLengthIn (core.js) now, so
+   the ruler and the selection cannot disagree about what 30 inches is called,
+   and one change taught all three the metric system. */
+function selMetricLabel(n){ return fmtLengthIn(n*TILE_IN); }
 function distanceMetricLabel(a,b){
   const dx=(b[0]-a[0]), dy=(b[1]-a[1]);
-  const inches=Math.max(TILE_IN,Math.round(Math.hypot(dx,dy)*TILE_IN));
-  if (inches<24) return `${inches} in`;
-  const feet=inches/12;
-  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+  return fmtLengthIn(Math.max(TILE_IN,Math.round(Math.hypot(dx,dy)*TILE_IN)));
 }
-function inchesMetricLabel(inches){
-  inches=Math.max(0,+inches||0);
-  if (inches<24) return `${Math.round(inches)} in`;
-  const feet=inches/12;
-  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
-}
+function inchesMetricLabel(inches){ return fmtLengthIn(inches); }
 function tileCenterScreen(x,y,W,H){
   const [sx,sy]=screenOf(x,y,W,H);
   return [sx,sy+TILE_H/2];
@@ -2243,8 +2236,8 @@ function drawToolDragMetric(cx,W,H){
   const b=tileCenterScreen(toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy,W,H);
   let label;
   if (toolDrag.what==='bed'||toolDrag.what==='water'){
-    const n=toolDrag.affected?toolDrag.affected.size:0, area=tileAreaSqFt(n);
-    label=`${area<10?area.toFixed(1):Math.round(area)} sq ft`;
+    const n=toolDrag.affected?toolDrag.affected.size:0;
+    label=fmtAreaSqFt(tileAreaSqFt(n));
   } else {
     label=inchesMetricLabel(toolDrag.runInches||TILE_IN);
     if (toolDrag.what==='path' && toolBrushSize()>1) label+=` x ${selMetricLabel(toolBrushSize())} wide`;

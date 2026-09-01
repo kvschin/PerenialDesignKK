@@ -5144,8 +5144,7 @@ function drawBuilding(ctx,W,H,season,b){
   drawBuildingOutline(ctx,W,H,b);
 }
 function buildingEdgeFeetLabel(a,b){
-  const feet=Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN/12;
-  return `${Number.isInteger(feet)?feet:feet.toFixed(1)} ft`;
+  return fmtFeet(Math.hypot(b[0]-a[0],b[1]-a[1])*TILE_IN/12, 1);
 }
 function buildingCornerScreenPoint(p,W,H,lift){
   // vertices are on the tile-CORNER lattice, which rotates as its own space

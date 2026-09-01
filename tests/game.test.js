@@ -8043,7 +8043,7 @@ test('Escape reaches settings, above the hidden-HUD guard', () => {
 
 test('the settings screen describes itself before it renders itself', () => {
   const titles = settingsSections().map(s => s.title);
-  for (const want of ['Appearance', 'Language', 'Controls & accessibility', 'Storage', 'About'])
+  for (const want of ['Appearance', 'Language & units', 'Controls & accessibility', 'Storage', 'About'])
     assert(titles.includes(want), `settings carries a ${want} section`);
   const rows = settingsSections().flatMap(s => s.rows);
   const byId = Object.fromEntries(rows.map(r => [r.id, r]));
@@ -8168,7 +8168,7 @@ test('the language seam does real work with one language in it', () => {
     '<html lang> follows the preference — what a screen reader reads');
   /* With one language the row is a note, not a picker: a dropdown holding a
      single option is a control that cannot be operated. */
-  const row = settingsSections().find(s => s.title === 'Language').rows[0];
+  const row = settingsSections().find(s => s.title === 'Language & units').rows.find(r => r.id === 'lang');
   assertEqual(row.kind, LANGUAGES.length > 1 ? 'choice' : 'note',
     'it becomes a real picker the moment a second language lands');
 });
@@ -8194,4 +8194,170 @@ test('settings controls are touch-sized', () => {
     'the collapsed gear keeps its accessible name');
   assert(/\.menu-settings span\{position:absolute/.test(narrow),
     'it is visually clipped instead');
+});
+
+/* ---------- units ---------- */
+
+function withUnits(pref, fn){
+  const was = unitsPref;
+  try { setUnitsPref(pref); return fn(); } finally { setUnitsPref(was); }
+}
+
+test('the unit formatters convert against known values', () => {
+  withUnits('imperial', () => {
+    assertEqual(fmtLengthIn(18), '18 in', 'under two feet stays in inches');
+    assertEqual(fmtLengthIn(54), '4.5 ft', 'and past it reads in feet');
+    assertEqual(fmtLengthIn(24), '2 ft', 'a whole number drops its decimal');
+    assertEqual(fmtFeet(24.4), '24 ft', 'a linear run rounds to the foot');
+    assertEqual(fmtFeet(24.4, 1), '24.4 ft', 'unless asked for a decimal');
+    assertEqual(fmtAreaSqFt(270), '270 sq ft', 'area passes through');
+    assertEqual(fmtVolumeCuYd(2.5), '2.5 cu yd', 'so does volume');
+    assertEqual(plantMeasure(54), '54"', 'a plant reads in inches well past two feet');
+    assertEqual(plantMeasure(120), '10 ft', 'and switches at eight');
+  });
+  withUnits('metric', () => {
+    // 18 in = 45.72 cm; 54 in = 137.16 cm; 24.4 ft = 7.44 m; 270 sq ft = 25.08 sq m
+    assertEqual(fmtLengthIn(18), '46 cm', 'under a metre stays in centimetres');
+    assertEqual(fmtLengthIn(54), '1.4 m', 'and past it reads in metres');
+    assertEqual(fmtFeet(24.4), '7.4 m', 'a linear run converts');
+    assertEqual(fmtAreaSqFt(270), '25 sq m', 'area converts');
+    assertEqual(fmtVolumeCuYd(2.5), '1.9 cu m', 'volume converts');
+    assertEqual(plantMeasure(54), '1.4 m', 'a plant switches at one metre, the metric idiom');
+    assertEqual(plantMeasure(18), '46 cm', 'and reads in centimetres below it');
+    assert(!plantMeasure(18, true).includes('&Prime;'),
+      'the inch glyph is imperial-only — the export table asks for html');
+  });
+});
+
+test('a measurement never reads as 24.0 ft', () => {
+  /* trimNum's whole job: a planting list that says "24.0 ft" and "2.0 cu yd"
+     reads like a measurement error rather than a round number. */
+  assertEqual(trimNum(24, 1), '24');
+  assertEqual(trimNum(24.4, 1), '24.4');
+  assertEqual(trimNum(100, 1), '100', 'the trailing zero goes, the significant ones stay');
+  assertEqual(trimNum(0, 1), '0');
+  assertEqual(trimNum(2.04, 1), '2', '2.0 after rounding is still 2');
+  assertEqual(trimNum(1000.5, 0), '1001', 'dp 0 rounds and never trims a digit');
+});
+
+test('units are DISPLAY ONLY — no rule, quantity or footprint moves', () => {
+  /* The load-bearing invariant of this whole feature, and the reason it is a
+     formatter pass rather than a migration: `space`/`spread` stay inches,
+     TILE_IN stays 18, and every derivation from them is untouched. If this ever
+     fails, a metric gardener is being sold a different number of plants. */
+  setup();
+  const P = plantDef('switchgrass') || plantDef(PLANT_KEYS[0]);
+  const sample = () => ({
+    tiles: ftToTiles(46),
+    area: tileAreaSqFt(120),
+    order: plantsForTiles(120, P.space),
+    mulch: mulchYards(270, 3),
+    radius: woodyRadiusTiles(plantDef('whiteoak') || P),
+    inTiles: inchesToTiles(24),
+    riser: ELEV_RISER_IN,
+    tileIn: TILE_IN,
+  });
+  const imp = withUnits('imperial', sample), met = withUnits('metric', sample);
+  assertEqual(JSON.stringify(met), JSON.stringify(imp),
+    'every geometry and quantity derivation is identical in both units');
+});
+
+test('the three canvas measurement labels are one rule', () => {
+  /* They were three copies that differed only in what they converted first, so
+     the ruler and the marquee could disagree about what 30 inches is called.
+     Same distance in, same string out — in both unit systems. */
+  for (const u of ['imperial', 'metric']) withUnits(u, () => {
+    const oneTile = TILE_IN;
+    assertEqual(selMetricLabel(1), inchesMetricLabel(oneTile), `${u}: selection == raw inches`);
+    assertEqual(distanceMetricLabel([0, 0], [1, 0]), inchesMetricLabel(oneTile), `${u}: ruler agrees too`);
+    assertEqual(selMetricLabel(4), fmtLengthIn(4 * TILE_IN), `${u}: and all of them are fmtLengthIn`);
+  });
+});
+
+test('the plot fields round-trip through the display unit', () => {
+  /* FT_MIN/FT_MAX and the whole model stay in feet; only the field converts.
+     A round trip has to land back within a rounding step or a plot silently
+     resizes every time somebody opens the screen. */
+  for (const u of ['imperial', 'metric']) withUnits(u, () => {
+    for (const ft of [24, 46, 104, 200]){
+      const back = displayToFt(ftToDisplay(ft));
+      assert(Math.abs(back - ft) < (metricUnits() ? 0.2 : 0.01),
+        `${u}: ${ft} ft survives the trip (got ${back.toFixed(2)})`);
+    }
+  });
+  assert(Number.isNaN(displayToFt('')), 'an empty field is not zero feet');
+  assert(Number.isNaN(displayToFt('abc')), 'and neither is junk — plotFt falls back');
+});
+
+test('the CSV names its units and stays ASCII', () => {
+  /* The header carries the unit so a bare number in a spreadsheet is never
+     ambiguous, and "sq m" is spelled out rather than m² because this CSV has no
+     BOM — Excel would read a superscript in the system codepage and hand
+     somebody a mojibake nursery order. */
+  const io = readRepoFile('js/io.js');
+  assert(/Bed area \(\$\{areaUnit\(\)\}\)/.test(io), 'the area header is generated');
+  assert(/Spacing \(\$\{smallLengthUnit\(\)\}\)/.test(io), 'and so is the spacing header');
+  withUnits('metric', () => {
+    assertEqual(areaUnit(), 'sq m');
+    assertEqual(volumeUnit(), 'cu m');
+    for (const s of [areaUnit(), volumeUnit(), smallLengthUnit(), lengthUnit(), lengthUnitWord()])
+      assert(!/[^\x00-\x7F]/.test(s), `"${s}" is ASCII, safe in a BOM-less CSV`);
+  });
+});
+
+test('feet-per-tile is never written as 1.5 again', () => {
+  /* It was a literal in three places — the worlds-list row and twice on the
+     plan sheet — so those three would have started lying the day the tile size
+     became a setting, while everything else followed TILE_IN. */
+  for (const f of ['js/io.js', 'js/screens.js']){
+    const src = readRepoFile(f);
+    assert(!/\*\s*1\.5\)/.test(src), `${f} derives feet-per-tile from TILE_IN, not a literal`);
+    assert(!/cell\s*\/\s*1\.5/.test(src), `${f}: the plan's scale bar too`);
+  }
+});
+
+test('the units default is seeded from the locale, but only on a fresh device', () => {
+  /* Three countries do not use metric, so everywhere else a planner opening in
+     feet is wrong on sight. But an existing gardener has been reading feet
+     since they started, and flipping their planting list on an update is worse
+     than making them choose — any hortus: key means "this device has run
+     before" and the historical default stands. */
+  const realNav = globalThis.navigator;
+  const withLangs = (langs, fn) => {
+    globalThis.navigator = Object.assign(Object.create(null), realNav, { languages: langs, language: langs[0] });
+    try { return fn(); } finally { globalThis.navigator = realNav; }
+  };
+  assertEqual(withLangs(['en-US'], localeUsesImperial), true, 'the US is imperial');
+  assertEqual(withLangs(['de-DE'], localeUsesImperial), false, 'Germany is not');
+  assertEqual(withLangs(['en-GB'], localeUsesImperial), false, 'nor is the UK');
+  assertEqual(withLangs(['fr'], localeUsesImperial), true,
+    'a language with no region tells us nothing — keep the historical default');
+  assertEqual(withLangs([''], localeUsesImperial), true, 'and so does an empty one');
+
+  localStorage.setItem('hortus:theme', 'dark');
+  assertEqual(deviceHasRunBefore(), true, 'any hortus: key means this device has run the app');
+});
+
+test('the units preference stays synchronous, out of IndexedDB', () => {
+  /* fmtLengthIn is called from the render path and from every label builder;
+     an IndexedDB round trip is not affordable there, and syncUnitLabels runs
+     during init before the first screen paints. */
+  assert(!IDB_KEYS.test('hortus:units'), 'units is a device preference');
+});
+
+test('the units row is in settings and says what it does not change', () => {
+  const row = settingsSections().find(s => s.title === 'Language & units')
+    .rows.find(r => r.id === 'units');
+  assert(row, 'settings carries a Measurements row');
+  assertEqual(row.kind, 'choice');
+  assertEqual(row.options.length, 2);
+  assert(/spacing|quantity/i.test(row.hint),
+    'the hint says the calculation does not change — the question somebody asks before flipping it');
+  const was = unitsPref;
+  try {
+    setUnitsPref('imperial');
+    row.set('metric');
+    assertEqual(unitsPref, 'metric', 'the row writes the real preference');
+    assertEqual(localStorage.getItem('hortus:units'), 'metric', 'and persists it');
+  } finally { setUnitsPref(was); }
 });

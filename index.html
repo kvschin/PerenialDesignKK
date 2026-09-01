@@ -268,7 +268,7 @@ if ('serviceWorker' in navigator)
     </div>
     <p class="site-photo-help" id="sitePhotoHelp" role="status">Drag the photo to move it. Pinch to scale and rotate, or use the controls below.</p>
     <div class="site-photo-fields">
-      <label>Full photo width <span><input id="sitePhotoWidth" type="number" min="3" max="1000" step="0.5" inputmode="decimal"> ft</span></label>
+      <label>Full photo width <span><input id="sitePhotoWidth" type="number" min="3" max="1000" step="0.5" inputmode="decimal"> <span id="sitePhotoWidthUnit">ft</span></span></label>
       <label>Opacity <span id="sitePhotoOpacityValue">35%</span><input id="sitePhotoOpacity" type="range" min="10" max="85" step="1" value="35"></label>
       <label>Rotation <span id="sitePhotoRotationValue">0&deg;</span><input id="sitePhotoRotation" type="range" min="-180" max="180" step="1" value="0"></label>
     </div>
@@ -298,7 +298,7 @@ if ('serviceWorker' in navigator)
       <span class="eyebrow">Photo scale</span>
       <h2 id="sitePhotoCalibrateTitle">Enter the known distance</h2>
       <p class="sub">Use the real distance between the two points you marked.</p>
-      <label class="site-photo-known-distance">Known distance <span><input id="sitePhotoKnownDistance" type="number" min="0.5" max="2000" step="0.5" inputmode="decimal"> ft</span></label>
+      <label class="site-photo-known-distance">Known distance <span><input id="sitePhotoKnownDistance" type="number" min="0.5" max="2000" step="0.5" inputmode="decimal"> <span id="sitePhotoKnownUnit">ft</span></span></label>
       <div class="row site-photo-calibrate-actions">
         <button id="btnSitePhotoCalibrateCancel" class="btn" type="button">Pick again</button>
         <button id="btnSitePhotoCalibrateApply" class="btn primary" type="button">Set scale</button>
@@ -406,7 +406,9 @@ if ('serviceWorker' in navigator)
 <div class="screen hidden" id="plotScreen">
   <div class="panel panel-enter">
     <h2>Lay out the plot</h2>
-    <p class="sub">How much ground are we working? One tile is 18 inches square. You can always start small — the house and beds move later.</p>
+    <!-- The tile size is written by syncUnitLabels; it is the one sentence on
+         this screen that states a real dimension. -->
+    <p class="sub">How much ground are we working? One tile is <span id="plotTileSize">18&quot; &times; 18&quot;</span>. You can always start small &mdash; the house and beds move later.</p>
     <div class="field"><label for="plotName">Garden name</label>
       <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off">
     </div>
@@ -414,10 +416,13 @@ if ('serviceWorker' in navigator)
       <div class="chip-row" id="plotPresets"></div>
       <div id="plotShapeEditor" class="lot-shape-editor">
         <div class="row plot-dims">
-          <div class="field"><label for="plotW">Width, feet</label>
-            <input id="plotW" type="number" min="24" max="200" value="46"></div>
-          <div class="field"><label for="plotL">Length, feet</label>
-            <input id="plotL" type="number" min="24" max="200" value="46"></div>
+          <!-- The unit word, the min/max and the step are all written by
+               syncUnitLabels (screens.js) from the units preference. The model
+               side stays feet whatever these say. -->
+          <div class="field"><label for="plotW" id="plotWLabel">Width, feet</label>
+            <input id="plotW" type="number" min="24" max="200" value="46" inputmode="decimal"></div>
+          <div class="field"><label for="plotL" id="plotLLabel">Length, feet</label>
+            <input id="plotL" type="number" min="24" max="200" value="46" inputmode="decimal"></div>
         </div>
         <canvas id="plotShapeCanvas"></canvas>
         <p class="field-hint" id="plotShapeHint">Drag a square edge to resize, a corner to shape the lot, or the N dial to set north.</p>

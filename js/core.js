@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.48';
+const APP_VERSION = '0.8.49';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -450,6 +450,169 @@ function setLangPref(id){
   return applyLangPref();
 }
 applyLangPref();
+/* ---------- Units (device preference) ----------
+   Imperial or metric, and it is a DISPLAY preference only. Nothing in the
+   model moves: `space` and `spread` stay inches, `TILE_IN` stays 18, every
+   tile/footprint/spacing derivation is untouched. That separation is the
+   inches-truth / px-art split doing its job — see the units table in
+   CLAUDE.md — and it is why this is a formatter pass rather than a migration.
+   The rule for a new measurement: compute in inches, feet, square feet or
+   cubic yards as the app always has, and format it through one of the fmt*
+   helpers below. Never build a unit string inline.
+
+   The default is seeded from the LOCALE, but only on a device that has never
+   run the app. Three countries do not use metric; everywhere else a garden
+   planner opening in feet is wrong on first sight, and hunting for a setting
+   to fix it is a poor first minute. But an existing gardener has been reading
+   feet since they started, and flipping their planting list under them on an
+   update is worse than making them choose — so any `hortus:` key at all means
+   "this device has run before" and the historical default stands. The derived
+   value is written, or the same device would answer differently on its second
+   visit (it now has keys) and silently change units. */
+const UNITS_KEY='hortus:units';
+const UNIT_CHOICES=['imperial','metric'];
+/* One place for the factors. Exact by definition: 1 in = 2.54 cm. */
+const CM_PER_IN=2.54, M_PER_FT=0.3048, SQM_PER_SQFT=0.09290304, CUM_PER_CUYD=0.764554857984;
+function localeUsesImperial(){
+  try{
+    const langs=(typeof navigator!=='undefined' && navigator.languages && navigator.languages.length)
+      ? navigator.languages : [(typeof navigator!=='undefined' && navigator.language)||''];
+    for (const l of langs){
+      const m=/[-_]([A-Za-z]{2})\b/.exec(l||'');
+      if (m) return ['US','LR','MM'].includes(m[1].toUpperCase());
+    }
+  }catch(_){ }
+  return true;    // no region to read: keep the app's historical behaviour
+}
+function deviceHasRunBefore(){
+  try{
+    for (let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if (k && k.indexOf('hortus:')===0) return true;
+    }
+  }catch(_){ }
+  return false;
+}
+let unitsPref=null;
+try{ const v=localStorage.getItem(UNITS_KEY); if (UNIT_CHOICES.includes(v)) unitsPref=v; }catch(_){ }
+if (!unitsPref){
+  unitsPref=(!deviceHasRunBefore() && !localeUsesImperial()) ? 'metric' : 'imperial';
+  try{ localStorage.setItem(UNITS_KEY,unitsPref); }catch(_){ }
+}
+function metricUnits(){ return unitsPref==='metric'; }
+function setUnitsPref(id){
+  unitsPref=UNIT_CHOICES.includes(id)?id:'imperial';
+  try{ localStorage.setItem(UNITS_KEY,unitsPref); }catch(_){ }
+  /* Units reach the plan sheet, the planting list, the tray's plant cards, the
+     marquee pill and three input fields, so a change has to reach whatever is
+     open NOW — nothing here re-reads the preference on its own. Each call
+     no-ops when its surface is closed.
+
+     The three input fields are the ones that could go stale, because their
+     value is a NUMBER in the old unit rather than a re-derived string. The plot
+     screen is safe by construction (settings is reachable only from the menu
+     and from inside a garden, so it can never be open over the plot setup, and
+     openPlotScreen writes both fields fresh anyway); the site photo's width and
+     its calibration field are re-derived from the model here. */
+  if (typeof syncUnitLabels==='function') syncUnitLabels();
+  if (typeof buildToolTray==='function' && typeof game!=='undefined' && game.inGarden) buildToolTray(true);
+  if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor();
+  if (typeof renderSelectionActions==='function') renderSelectionActions();
+  if (typeof renderSelectionEstimate==='function') renderSelectionEstimate();
+  if (typeof updatePlotNote==='function') updatePlotNote();
+  if (typeof drawPlotShapeEditor==='function') drawPlotShapeEditor();
+  return unitsPref;
+}
+function unitsLabel(){ return metricUnits()?'Metric':'Imperial'; }
+/* Unit words, so a label never hardcodes one. `word` forms go in field labels
+   ("Width, metres"); `short` forms go beside a number. */
+function lengthUnit(){ return metricUnits()?'m':'ft'; }
+function lengthUnitWord(){ return metricUnits()?'metres':'feet'; }
+function smallLengthUnit(){ return metricUnits()?'cm':'in'; }
+function areaUnit(){ return metricUnits()?'sq m':'sq ft'; }
+function volumeUnit(){ return metricUnits()?'cu m':'cu yd'; }
+
+/* "1.5" not "1.5000"; "2" not "2.0". dp is the maximum, not a fixed width —
+   a planting list reading "24.0 ft" looks like a measurement error. */
+function trimNum(n,dp){
+  const s=(+n||0).toFixed(Math.max(0,dp|0));
+  return dp>0 ? s.replace(/\.?0+$/,'') : s;
+}
+
+/* THE length formatter. Everything that has a distance in inches goes through
+   here — it replaced four near-identical functions (the plant card's
+   measurement, the selection's, the ruler's and the drag readout's) that
+   differed only in where they switched from inches to feet and whether they
+   used the ″ glyph. Four copies of one rule is how the plant card and the
+   ruler end up disagreeing about what 30 inches is called.
+     ftAt  imperial only: switch to feet at this many inches (metric always
+           switches at 1 m, which is the metric idiom for both height and
+           spacing — nobody says "150 cm apart")
+     ftDp  decimals on the imperial feet value
+     glyph render inches as ″ rather than " in" (the plant card's idiom)
+     html  with glyph, use the HTML entity */
+function fmtLengthIn(inches,opts){
+  opts=opts||{};
+  const v=Math.max(0,+inches||0), min=opts.min||0;
+  if (metricUnits()){
+    const cm=v*CM_PER_IN;
+    return cm<100 ? `${Math.max(min,Math.round(cm))} cm` : `${trimNum(cm/100,1)} m`;
+  }
+  const ftAt=opts.ftAt===undefined?24:opts.ftAt;
+  if (v>=ftAt) return `${trimNum(v/12,opts.ftDp===undefined?1:opts.ftDp)} ft`;
+  const n=Math.max(min,Math.round(v));
+  return opts.glyph ? `${n}${opts.html?'&Prime;':'"'}` : `${n} in`;
+}
+/* A length the app already holds in FEET — edging runs, wall runs, spacing
+   advice. dp is the imperial precision; metric drops to whole metres past 10,
+   where a decimetre is noise on a garden dimension. */
+function fmtFeet(ft,dp){
+  const v=Math.max(0,+ft||0);
+  if (metricUnits()){ const m=v*M_PER_FT; return `${trimNum(m,m<10?1:0)} m`; }
+  return `${trimNum(v,dp===undefined?0:dp)} ft`;
+}
+function fmtAreaSqFt(sqFt,dp){
+  const v=Math.max(0,+sqFt||0);
+  const n=metricUnits()?v*SQM_PER_SQFT:v;
+  return `${trimNum(n,dp===undefined?(n<10?1:0):dp)} ${areaUnit()}`;
+}
+function fmtVolumeCuYd(cuYd){
+  const v=Math.max(0,+cuYd||0);
+  return `${trimNum(metricUnits()?v*CUM_PER_CUYD:v,1)} ${volumeUnit()}`;
+}
+/* A bare NUMBER in the display unit, for a table cell whose column header
+   already carries the unit — repeating "sq ft" down forty rows is noise. */
+function areaNumberText(sqFt){
+  const v=Math.max(0,+sqFt||0), n=metricUnits()?v*SQM_PER_SQFT:v;
+  return trimNum(n, n<10?1:0);
+}
+/* One tile, stated in the reader's units. It appears on the planting list and
+   the plan sheet, which are the two documents somebody scales off, so it reads
+   from TILE_IN rather than restating 18 — the plan carried a hardcoded 1.5
+   (feet per tile) in two places and would have started lying the day the tile
+   size became a setting. */
+function tileSizeText(){
+  return metricUnits()
+    ? `${Math.round(TILE_IN*CM_PER_IN)} × ${Math.round(TILE_IN*CM_PER_IN)} cm`
+    : `${TILE_IN}" × ${TILE_IN}"`;
+}
+/* The bidirectional pair, for the three fields that take a real dimension from
+   the gardener: the plot's width/length, the site photo's true width, and the
+   calibration distance. The MODEL side of all three is feet, so these are the
+   only conversion either direction needs. */
+function ftToDisplay(ft,dp){ return +trimNum(metricUnits()?(+ft||0)*M_PER_FT:(+ft||0), dp===undefined?1:dp); }
+/* An EMPTY field is not zero feet. `+''` is 0, which is finite, so a naive
+   conversion made plotFt clamp a half-typed field to FT_MIN and snap the plot
+   diagram to its smallest size mid-keystroke — the old `+value||46` fell back
+   to the default instead. Blank is NaN here so every caller takes its own
+   not-a-number branch: plotFt returns 46, the site-photo width bails, and the
+   calibration says "enter a distance greater than zero". */
+function displayToFt(v){
+  if (v===null||v===undefined) return NaN;
+  if (typeof v==='string' && !v.trim()) return NaN;
+  const n=+v;
+  return Number.isFinite(n) ? (metricUnits()?n/M_PER_FT:n) : NaN;
+}
 
 /* ---------- Premium ----------
    The placement is decided and built; the storefront is not, because there is

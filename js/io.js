@@ -496,11 +496,11 @@ function hardscapeRows(){
   const rows=[];
   for (const id in edgingFt){
     rows.push({kind:'Edging', name:edgingLabelFor(id),
-      count:`${Math.round(edgingFt[id])} ft`});
+      count:fmtFeet(edgingFt[id])});
   }
   for (const id in wallBy){
     rows.push({kind:'Retaining wall', name:wallLabelFor(id),
-      count:`${Math.round(wallBy[id])} ft`});
+      count:fmtFeet(wallBy[id])});
   }
   for (const id in pots){ const [st,sz]=id.split('|');
     rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
@@ -512,7 +512,7 @@ function openExport(){
   funnel(FUNNEL_EVENTS.listOpened);     // the conversion moment, if the paywall lands here
   const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows();
   const where=game.worldName||'My garden';
-  $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${TILE_IN}" × ${TILE_IN}"`;
+  $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${tileSizeText()}`;
   const hardHtml = hard.length ? `<h3 class="export-sub">Containers &amp; seating</h3>`+
     `<div class="export-wrap"><table class="export-table"><thead><tr>`+
     `<th>Item</th><th>Type</th><th>Count</th></tr></thead><tbody>`+
@@ -521,13 +521,16 @@ function openExport(){
   if (!rows.length){
     body.innerHTML=hardHtml+'<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
   } else {
+    /* areaFt stays SQUARE FEET on the row — it is what the CSV writes and
+       what the total is summed from — and only the cell is converted. Summing
+       formatted strings is how a total stops matching its own column. */
     const tr=rows.map(r=>`<tr><td>${r.name}<div class="latin">${r.latin}</div><small>${r.nativeStatus} · ${r.provenance}</small></td>
-      <td>${r.count}</td><td>${r.areaFt}</td><td>${r.space}"</td><td><b>${r.order}</b></td></tr>`).join('');
+      <td>${r.count}</td><td>${areaNumberText(r.areaFt)}</td><td>${plantMeasure(r.space,true)}</td><td><b>${r.order}</b></td></tr>`).join('');
     const tot=rows.reduce((a,r)=>({c:a.c+r.count,f:a.f+r.areaFt,o:a.o+r.order}),{c:0,f:0,o:0});
     body.innerHTML=`<div class="export-wrap"><table class="export-table"><thead><tr>
-      <th>Species</th><th>Planted</th><th>Sq ft</th><th>Spacing</th><th>To order</th></tr></thead>
+      <th>Species</th><th>Planted</th><th>${areaUnit()}</th><th>Spacing</th><th>To order</th></tr></thead>
       <tbody>${tr}</tbody>
-      <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${Math.round(tot.f*10)/10}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
+      <tfoot><tr><td>Total</td><td>${tot.c}</td><td>${areaNumberText(tot.f)}</td><td></td><td>${tot.o}</td></tr></tfoot></table></div>
       <p class="note">"To order" converts planted ground to plants at each species' recommended
       spacing. Native status is compared with ${nativeRegionLabel(activeFilters().nativeRegion)}; origin and horticultural provenance remain separate facts.</p>${hardHtml}`;
   }
@@ -538,8 +541,16 @@ function exportCsv(){
   if (!rows.length){ toast('Nothing planted yet.'); return; }
   funnel(FUNNEL_EVENTS.listExported);   // took the order away — the deepest step
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
-  const lines=[['Common name','Latin name','Origin','Native relationship','Provenance','Tiles planted','Bed area (sq ft)','Spacing (in)','Plants to order'].map(esc).join(',')];
-  rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,r.areaFt,r.space,r.order].map(esc).join(',')));
+  /* The header NAMES the unit and the values follow it, so a bare number in a
+     spreadsheet is never ambiguous. Deliberately "sq m" rather than m²: this
+     CSV carries no BOM, Excel reads such a file in the system codepage, and a
+     superscript is exactly the character that comes back as mojibake in
+     somebody's nursery order. */
+  const areaHdr=`Bed area (${areaUnit()})`, spaceHdr=`Spacing (${smallLengthUnit()})`;
+  const areaVal=v=>metricUnits()?+(v*SQM_PER_SQFT).toFixed(1):v;
+  const spaceVal=v=>metricUnits()?Math.round(v*CM_PER_IN):v;
+  const lines=[['Common name','Latin name','Origin','Native relationship','Provenance','Tiles planted',areaHdr,spaceHdr,'Plants to order'].map(esc).join(',')];
+  rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,areaVal(r.areaFt),spaceVal(r.space),r.order].map(esc).join(',')));
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   a.download='hortus-planting-list.csv'; a.click();
@@ -909,7 +920,8 @@ function buildPlanMap(){
   ctx.fillText(game.worldName||'Design plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
   ctx.fillText(`Design plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
-  ctx.fillText(`1 tile = ${TILE_IN}" · plot ${Math.round(GW*1.5)} × ${Math.round(GH*1.5)} ft`, padL, 70);
+  const ftPerTile=TILE_IN/12;
+  ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`, padL, 70);
   // True north rotates inside the plan; the garden drawing itself stays in
   // the user's plot coordinates so labels and saved tile positions never move.
   const nd=siteDirections(game.siteNorthDeg).N, nc=[W2-48,52], perp=[-nd[1],nd[0]];
@@ -1258,14 +1270,18 @@ function buildPlanMap(){
     ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
     ctx.fillText('Dashed = mature crown in Established preview; Today shows current reach.', cx2+28, cy2);
   }
-  // scale bar: 10 ft
-  const ftPx=cell/1.5, bx2=W2-padL-ftPx*10, by2=H2-18;
+  /* Scale bar. 10 ft imperial, 3 m metric — a round number in the reader's
+     own units, because a bar labelled "3.05 m" is a bar nobody trusts. The
+     pixels-per-foot came from a hardcoded 1.5 (feet per tile); it reads TILE_IN
+     now, so the bar cannot drift from the drawing it measures. */
+  const barFt=metricUnits()?3/M_PER_FT:10;
+  const ftPx=cell/(TILE_IN/12), barPx=ftPx*barFt, bx2=W2-padL-barPx, by2=H2-18;
   ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;
-  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+ftPx*10,by2); ctx.stroke();
-  for (let f=0;f<=10;f+=5){ ctx.beginPath();
-    ctx.moveTo(bx2+ftPx*f,by2-4); ctx.lineTo(bx2+ftPx*f,by2+4); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+barPx,by2); ctx.stroke();
+  for (const f of [0,0.5,1]){ ctx.beginPath();
+    ctx.moveTo(bx2+barPx*f,by2-4); ctx.lineTo(bx2+barPx*f,by2+4); ctx.stroke(); }
   ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
-  ctx.fillText('10 ft', bx2+ftPx*5, by2-8);
+  ctx.fillText(fmtFeet(barFt), bx2+barPx/2, by2-8);
 }
 function openPlan(){ funnel(FUNNEL_EVENTS.planOpened); buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
 function downloadPlan(){

@@ -2802,6 +2802,11 @@ may read px-art fields. Do not let those two paths drift together again.
 | `grow` | years | Woody establishment horizon. `plantEstab(p)` scales real age; `effectiveEstab(p)` is the visual lens described below. |
 | `PX_PER_FT` | px per real foot | Not a plant field — the **built-height** scale (§11d), used by fences and anything else drawn from a real height in feet. It equals `HERB_SCALE * 12` so structures and planting share one vertical scale; a test pins them together. Houses are exempt (they take tree-style compression). |
 
+Every one of the real-unit rows above is **displayed** through the formatters in
+§18 (`fmtLengthIn`, `fmtFeet`, `fmtAreaSqFt`, `fmtVolumeCuYd`, `plantMeasure`),
+never printed with a unit string built at the call site. The stored value does
+not change with the units preference — only the caption does.
+
 Footprint rules are intentionally asymmetric:
 
 | Plant/object | Hard footprint | Soft or visual reach |
@@ -2942,6 +2947,65 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
     subtrees that have not been re-styled, which invents symmetric failures in
     whichever theme you did not start in. A test pins the source conditions —
     it cannot pin a ratio, since the sandbox has no layout engine.
+- **Units are DISPLAY ONLY, and that is the whole design (§18).**
+  `hortus:units` is `imperial`|`metric`. Nothing in the model moves: `space`
+  and `spread` stay inches, `TILE_IN` stays 18, and every tile, footprint,
+  spacing and order-quantity derivation is byte-identical in both. That is the
+  inches-truth / px-art split (see the units table) paying for itself — it is
+  why this was a formatter pass and not a save migration. **A test asserts the
+  invariance directly** (`ftToTiles`, `tileAreaSqFt`, `plantsForTiles`,
+  `mulchYards`, `woodyRadiusTiles`, `inchesToTiles`, `ELEV_RISER_IN` compared
+  across both settings) and it is mutation-tested; if it ever fails, a metric
+  gardener is being sold a different number of plants.
+  - **The rule for new code: compute in inches, feet, square feet or cubic
+    yards as the app always has, then format through `fmtLengthIn` /
+    `fmtFeet` / `fmtAreaSqFt` / `fmtVolumeCuYd` / `plantMeasure` (core.js).
+    Never build a unit string inline.** The conversion factors live in exactly
+    one place.
+  - `fmtLengthIn` **replaced four near-identical functions** — the plant card's
+    measurement, the marquee's, the ruler's and the paint-drag readout's —
+    which differed only in where they switched from inches to feet and whether
+    they used the ″ glyph. Four copies of one rule is how the plant card and
+    the ruler end up disagreeing about what 30 inches is called; a test pins
+    all three canvas labels to the same function. The imperial switch is
+    per-caller (`ftAt`: 24 in general, 96 on a plant, because a gardener reads
+    "30 in apart" not "2.5 ft"); metric always switches at 1 m, which is the
+    metric idiom for height and spacing alike.
+  - **Three fields take a real dimension FROM the gardener** — the plot's
+    width/length, the site photo's true width, the calibration distance — and
+    each needs its word, its min/max and its step kept in step with the
+    preference. `syncUnitLabels` (screens.js) owns every unit word typed into
+    `index.html`; the model side of all three is FEET, so `ftToDisplay` /
+    `displayToFt` are the only conversions either direction needs.
+    **`displayToFt('')` is NaN, not 0**: `+''` is 0 and finite, so a naive
+    conversion made `plotFt` clamp a half-typed field to `FT_MIN` and snap the
+    plot diagram to its smallest size mid-keystroke, where the old
+    `+value||46` fell back to the default. A test pins it.
+  - **`setUnitsPref` refreshes every open surface**, because nothing re-reads
+    the preference on its own: the tray (a forced `buildToolTray`, since plant
+    cards carry mature sizes), the site-photo editor, the marquee pill, the
+    materials estimate, the plot note and its diagram. The plot SCREEN is safe
+    by construction — settings opens only from the menu and from inside a
+    garden, so it can never be up over the plot setup.
+  - The default is **seeded from the locale, but only on a device that has
+    never run the app**. Three countries do not use metric, so everywhere else
+    a planner opening in feet is wrong on sight; but an existing gardener has
+    been reading feet since they started and flipping their planting list on an
+    update is worse than making them choose. Any `hortus:` key at all means
+    "this device has run before" and imperial stands. The derived value is
+    WRITTEN, or the same device answers differently on its second visit (it now
+    has keys) and silently changes units.
+  - **The CSV spells out `sq m`, not m².** It carries no BOM, so Excel reads it
+    in the system codepage and a superscript comes back as mojibake in
+    somebody's nursery order. The header names the unit and the values follow
+    it; `areaFt` stays square feet on the row so the total is summed from the
+    truth rather than from formatted strings.
+  - **The plan sheet's scale bar is 10 ft or 3 m** — a round number in the
+    reader's own units, because a bar labelled "3.05 m" is a bar nobody trusts.
+    Its pixels-per-foot now reads `TILE_IN`; **feet-per-tile had been written
+    as a literal `1.5` in three places** (the worlds-list row and twice on the
+    plan), which would have started lying the day the tile size became a
+    setting while everything else followed the constant. A test greps for it.
 - **Forced colors.** `@media (forced-colors: active)` is load-bearing here, not
   a nicety: ~54 buttons draw their icons to `<canvas>`, and forced-colors does
   not recolour canvas bitmaps, so without it the whole tool system renders as
@@ -3000,11 +3064,9 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
     screen reader and the browser's hyphenation both read, so the one entry
     already does real work. The row renders as a picker only when
     `LANGUAGES.length > 1`; a dropdown with a single option is a control that
-    cannot be operated. **The big missing setting is UNITS** (feet/inches vs
-    metric): ~25 formatting sites across commands/draw/io/renderer/screens plus
-    the plot screen's foot inputs and the plan sheet's scale bar, and
-    `TILE_IN` is 18 so a tile is an awkward 45.7cm. It is its own pass, not a
-    settings row.
+    cannot be operated.
+  - **Units** (§18) shipped in the same section, because both answer "what does
+    this app speak" where Theme answers "what does it look like".
 - **The paid tier's PLACEMENT is decided and built, behind `PREMIUM_ENABLED`
   (core.js, false).** Off, no premium section renders and the app is unchanged —
   an Upgrade button that cannot take money is worse than no button. `isPremium()`

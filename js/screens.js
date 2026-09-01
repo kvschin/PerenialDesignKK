@@ -248,7 +248,11 @@ async function openWorlds(){
     const info=document.createElement('span'); info.style.flex='1'; info.style.minWidth='0';
     const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
     const meta=document.createElement('span'); meta.className='meta';
-    meta.textContent=`${Math.round((w.gw||31)*1.5)} × ${Math.round((w.gh||31)*1.5)} ft · ${new Date(w.ts).toLocaleDateString()}`;
+    /* 1.5 was feet-per-tile written as a literal in three places (here and
+       twice on the plan sheet). It reads TILE_IN now, so the row cannot start
+       lying about a garden's size the day the tile becomes a setting. */
+    const ftPerTile=TILE_IN/12;
+    meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile)} × ${fmtFeet((w.gh||31)*ftPerTile)} · ${new Date(w.ts).toLocaleDateString()}`;
     info.append(nm,document.createElement('br'),meta);
     // the save blob fills in the picture + living details (async, per row)
     sGet('hortus:world:'+w.id).then(s=>{
@@ -538,8 +542,20 @@ function enterGarden(){
   // and waits until there is a planting worth running a year over.
   setTimeout(coachBeatEnter,900);
 }
-/* the plot screen: size a brand-new solo garden in real feet */
-const PLOT_PRESETS=[['Classic',46,46],['1/10 acre',66,66],['1/5 acre',93,93],['1/4 acre',104,104]];
+/* the plot screen: size a brand-new solo garden in real-world dimensions.
+   Everything here is FEET internally — see plotFt/setPlotField — whatever unit
+   the fields are labelled in. */
+/* Width and length in FEET — the model side, whatever the gardener reads.
+   The imperial name is the fraction of an acre; the metric name is the area in
+   square metres, because "1/5 acre" is not a size anybody outside the US can
+   picture and converting it ("0.08 ha") is worse. */
+const PLOT_PRESETS=[
+  {label:'Classic', metric:'Classic', w:46, l:46},
+  {label:'1/10 acre', metric:'400 sq m', w:66, l:66},
+  {label:'1/5 acre',  metric:'800 sq m', w:93, l:93},
+  {label:'1/4 acre',  metric:'1,000 sq m', w:104, l:104},
+];
+function plotPresetLabel(p){ return metricUnits()?p.metric:p.label; }
 const FT_MIN=24, FT_MAX=200; // 16..134 tiles per side
 let plotNorthDraft=0, siteNorthEditorContext=null, siteNorthEditorDraft=0;
 function siteNorthEdgeName(value){
@@ -594,7 +610,47 @@ function applySiteNorthEditor(){
   }
   siteNorthEditorContext=null; closeOverlay('siteNorthScreen');
 }
-function plotFt(id){ return Math.max(FT_MIN,Math.min(FT_MAX,+$(id).value||46)); }
+/* FT_MIN/FT_MAX are the clamp in FEET and stay that way — the plot is a
+   number of tiles and the tile is 18 inches, so the real limits do not move
+   when the label does. Only the field is converted. */
+/* Every unit word, bound and step that is typed into index.html rather than
+   produced by a formatter. Three fields take a real dimension FROM the
+   gardener, and each needs three things kept in step with the preference: the
+   word beside it, the min/max (which live in feet in the model and have to be
+   restated in the field's own unit), and a step coarse enough to be usable and
+   fine enough to reach a real size. Called on load, on a units change, and
+   whenever a screen carrying one of these opens. */
+function syncUnitLabels(){
+  const metric=metricUnits();
+  const set=(id,txt)=>{ const el=$(id); if (el && el.textContent!==txt) el.textContent=txt; };
+  const attrs=(id,min,max,step)=>{ const el=$(id); if (!el) return;
+    el.min=String(min); el.max=String(max); el.step=String(step); };
+
+  set('plotWLabel',`Width, ${lengthUnitWord()}`);
+  set('plotLLabel',`Length, ${lengthUnitWord()}`);
+  /* FT_MIN/FT_MAX are the real limits; the field just restates them. Rounding
+     INWARD matters — a metric max of 61 m rounded up to 62 would let the field
+     offer a plot plotFt then silently clamps back, which reads as the app
+     ignoring what you typed. */
+  attrs('plotW', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), metric?0.5:1);
+  attrs('plotL', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), metric?0.5:1);
+
+  set('plotTileSize',tileSizeText());
+  set('sitePhotoWidthUnit',lengthUnit());
+  attrs('sitePhotoWidth', metric?1:3, metric?300:1000, metric?0.1:0.5);
+  set('sitePhotoKnownUnit',lengthUnit());
+  attrs('sitePhotoKnownDistance', metric?0.2:0.5, metric?600:2000, metric?0.1:0.5);
+
+  /* The preset chips are built once and cached in the row, so a units change
+     has to relabel them in place rather than waiting for a rebuild. */
+  const row=$('plotPresets');
+  if (row) row.querySelectorAll('.chip').forEach(b=>{
+    const p=PLOT_PRESETS[+b.dataset.presetIdx];
+    if (p) b.textContent=plotPresetLabel(p);
+  });
+}
+function plotFt(id){ const ft=displayToFt($(id).value); return Math.max(FT_MIN,Math.min(FT_MAX,Number.isFinite(ft)?ft:46)); }
+function setPlotField(id,ft){ $(id).value=ftToDisplay(ft, metricUnits()?1:0); }
 /* ---------- lot-shape editor (plot setup) ----------
    A pending 4-corner shape drafted BEFORE the world exists — btnPlotStart
    applies it via setPlotShape only after setWorldSize (which always clears
@@ -603,6 +659,8 @@ function plotFt(id){ return Math.max(FT_MIN,Math.min(FT_MAX,+$(id).value||46)); 
    plotEdgesCross/polygonContains the world-side validator uses. */
 let pendingPlotShape=null, plotShapeDrag=null;
 function defaultPlotShapeVerts(gw,gh){ return [[0,0],[gw,0],[gw,gh],[0,gh]]; }
+/* FEET, still — the canvas formats them at draw time. Kept numeric because
+   the shape validator and the tests read these as lengths, not as captions. */
 function plotShapeSideLengthsFt(verts){
   return verts.map((v,i)=>{ const w=verts[(i+1)%verts.length];
     return Math.round(Math.hypot(w[0]-v[0],w[1]-v[1])*TILE_IN/12); });
@@ -676,8 +734,9 @@ function drawPlotShapeEditor(){
     const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
     const nx=dy/len, ny=-dx/len;               // outward for clockwise winding
     const lx=mx+nx*13, ly=my+ny*13;
-    g.strokeStyle=uiInk('--icon-halo'); g.lineWidth=3; g.strokeText(fts[i]+' ft',lx,ly);
-    g.fillStyle=uiInk('--icon-ink'); g.fillText(fts[i]+' ft',lx,ly);
+    const cap=fmtFeet(fts[i]);
+    g.strokeStyle=uiInk('--icon-halo'); g.lineWidth=3; g.strokeText(cap,lx,ly);
+    g.fillStyle=uiInk('--icon-ink'); g.fillText(cap,lx,ly);
   }
   // edge-resize handles: small squares at the right/bottom box midpoints —
   // squares resize the plot, circles shape it
@@ -711,7 +770,7 @@ function drawPlotShapeEditor(){
 }
 function setPlotShapeHint(text){
   const hint=$('plotShapeHint');
-  if (hint) hint.textContent=text||'Drag a corner. Side lengths are real feet.';
+  if (hint) hint.textContent=text||`Drag a corner. Side lengths are real ${lengthUnitWord()}.`;
 }
 function resetPendingPlotShape(fromResize){
   const had=!!pendingPlotShape;
@@ -767,11 +826,11 @@ function wirePlotShapeEditor(){
       if (d.edge===0){
         const maxT=Math.floor((m.cssW-44-m.ox)/m.sc);
         const t=Math.min(plotEdgeResizeTiles((px-m.ox)/m.sc), Math.max(ftToTiles(FT_MIN),maxT));
-        $('plotW').value=Math.round(t*TILE_IN/12);
+        setPlotField('plotW', t*TILE_IN/12);
       } else {
         const maxT=Math.floor((m.cssH-18-m.oy)/m.sc);
         const t=Math.min(plotEdgeResizeTiles((py-m.oy)/m.sc), Math.max(ftToTiles(FT_MIN),maxT));
-        $('plotL').value=Math.round(t*TILE_IN/12);
+        setPlotField('plotL', t*TILE_IN/12);
       }
       updatePlotNote();
       document.querySelectorAll('#plotPresets .chip').forEach(c=>c.classList.remove('sel'));
@@ -797,17 +856,23 @@ function wirePlotShapeEditor(){
   cvs.addEventListener('pointercancel',finish);
 }
 function updatePlotNote(){
-  const w=plotFt('plotW'), l=plotFt('plotL');
-  $('plotNote').textContent=
-    `${ftToTiles(w)} × ${ftToTiles(l)} tiles · ${(w*l).toLocaleString()} sq ft · ${(w*l/43560).toFixed(2)} acres`;
+  const w=plotFt('plotW'), l=plotFt('plotL'), sqFt=w*l;
+  /* Acres are dropped in metric rather than converted: a garden is 0.04 ha,
+     which is a number nobody can hold, and square metres already answer the
+     question the acre figure was there for. */
+  const area=metricUnits()
+    ? `${Math.round(sqFt*SQM_PER_SQFT).toLocaleString()} sq m`
+    : `${Math.round(sqFt).toLocaleString()} sq ft · ${(sqFt/43560).toFixed(2)} acres`;
+  $('plotNote').textContent=`${ftToTiles(w)} × ${ftToTiles(l)} tiles · ${area}`;
 }
 function openPlotScreen(){
   const row=$('plotPresets');
   if (!row.children.length){
-    PLOT_PRESETS.forEach(([n,w,l],i)=>{
+    PLOT_PRESETS.forEach((p,i)=>{
       const b=document.createElement('button');
-      b.className='chip'+(i===0?' sel':''); b.textContent=n;
-      b.onclick=()=>{ $('plotW').value=w; $('plotL').value=l; updatePlotNote(); resetPendingPlotShape(true);
+      b.className='chip'+(i===0?' sel':''); b.textContent=plotPresetLabel(p);
+      b.dataset.presetIdx=String(i);
+      b.onclick=()=>{ setPlotField('plotW',p.w); setPlotField('plotL',p.l); updatePlotNote(); resetPendingPlotShape(true);
         row.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c===b)); };
       row.appendChild(b);
     });
@@ -839,7 +904,9 @@ function openPlotScreen(){
     };
     $('btnPlotBack').onclick=openDesignSetup;
   }
-  $('plotW').value=46; $('plotL').value=46; $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
+  syncUnitLabels();
+  setPlotField('plotW',46); setPlotField('plotL',46);
+  $('plotName').value=''; plotNorthDraft=0; updatePlotNorthSummary(); updatePlotNote();
   pendingPlotShape=null; plotShapeDrag=null;               // every new plot starts rectangular
   setPlotShapeHint();
   show('plotScreen');
@@ -1048,12 +1115,15 @@ function settingsSections(){
      set:id=>{ setMotionPref(id); return `Motion: ${motionLabel()}.`; }},
   ]});
 
-  /* One language today, so no picker: a dropdown with a single option is a
-     control that cannot be operated. The row still states what the app is in
-     and that more are coming, which is the question somebody opening this
-     section is actually asking. The moment LANGUAGES grows it becomes a real
-     picker with no other change. */
-  sections.push({title:'Language', rows:[
+  /* Units sits with Language rather than with Theme: both answer "what does
+     this app speak", where Theme answers "what does it look like". It is also
+     the row a gardener outside the US is most likely to have come here for. */
+  sections.push({title:'Language & units', rows:[
+    {kind:'choice', id:'units', label:'Measurements',
+     hint:'Changes what is DISPLAYED — the planting list, the plan sheet, the ruler and the plot setup. Plant spacing and every quantity are calculated the same way either way.',
+     options:[{id:'imperial',label:'Feet & inches'},{id:'metric',label:'Metric'}],
+     get:()=>unitsPref,
+     set:id=>{ setUnitsPref(id); return `Measurements: ${unitsLabel()}.`; }},
     LANGUAGES.length>1
       ? {kind:'choice', id:'lang', label:'Language', hint:'',
          options:LANGUAGES.map(l=>({id:l.id, label:l.native})),
@@ -2421,6 +2491,7 @@ async function maybeOfferDemoGarden(){
   updateFilterBtn();
   advanceMenuSeason();
   refreshMenuCards();
+  syncUnitLabels();     // the unit words typed into index.html default to imperial
   if (location.search.includes('debug')) toggleDebug();
   if (location.search.includes('noglass')){ GLASS.off=true; document.body.classList.add('no-glass'); }
   requestAnimationFrame(loop);

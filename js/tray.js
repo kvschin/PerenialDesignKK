@@ -904,8 +904,9 @@ function renderSelectionActions(){
   };
   const est=selectionEstimate(game.sel,3,game.selItems);
   const summary=document.createElement('span'); summary.className='selection-summary';
-  const feet=n=>Number.isInteger(n)?String(n):n.toFixed(1);
-  summary.textContent=`${feet(est.widthFt)} x ${feet(est.heightFt)} ft - ${Math.round(est.areaSqFt)} sq ft`;
+  /* widthFt/heightFt are FEET on the estimate — the model side — so the pill
+     formats them rather than the estimator pre-baking a unit into its result. */
+  summary.textContent=`${fmtFeet(est.widthFt,1)} x ${fmtFeet(est.heightFt,1)} - ${fmtAreaSqFt(est.areaSqFt,0)}`;
   el.appendChild(summary);
   btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); updateActiveToolStatus(); });
   btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); updateActiveToolStatus(); });
@@ -944,17 +945,17 @@ function renderSelectionEstimate(){
   const est=selectionEstimate(game.sel,depth,game.selItems), body=document.getElementById('estimateBody');
   if (!est||!body) return;
   const row=(label,value)=>`<div><span>${label}</span><strong>${value}</strong></div>`;
-  let html=row('Selected area',`Approx. ${Math.round(est.areaSqFt)} sq ft`);
+  let html=row('Selected area',`Approx. ${fmtAreaSqFt(est.areaSqFt,0)}`);
   if (est.bedTiles){
-    html+=row('Bed area',`Approx. ${Math.round(est.bedAreaSqFt)} sq ft`);
-    html+=row('Exposed bed edge',`Approx. ${est.edgeFt.toFixed(1)} ft`);
-    html+=row(`Mulch at ${depth} in`,`Approx. ${est.mulchCuYd.toFixed(1)} cu yd`);
+    html+=row('Bed area',`Approx. ${fmtAreaSqFt(est.bedAreaSqFt,0)}`);
+    html+=row('Exposed bed edge',`Approx. ${fmtFeet(est.edgeFt,1)}`);
+    html+=row(`Mulch at ${fmtLengthIn(depth)}`,`Approx. ${fmtVolumeCuYd(est.mulchCuYd)}`);
     if (est.approxPlants) html+=row(`${est.armedName} at spacing`,`Approx. ${est.approxPlants} plants`);
   }
   if (est.plants||est.bulbs) html+=row('Already placed',`${est.plants} plants${est.bulbs?` + ${est.bulbs} bulbs`:''}`);
   if (!est.bedTiles) html+=row('Bed materials','No bed tiles in this selection');
   body.innerHTML=html;
-  const v=document.getElementById('estimateDepthValue'); if (v) v.textContent=`${depth} in`;
+  const v=document.getElementById('estimateDepthValue'); if (v) v.textContent=fmtLengthIn(depth);
 }
 function openSelectionEstimate(){
   if (!game.sel){ toast('Select an area first.'); return; }
@@ -1060,7 +1061,8 @@ function chooseSitePhoto(){
 function syncSitePhotoEditor(){
   const u=game.underlay; if (!u) return;
   const width=document.getElementById('sitePhotoWidth'), opacity=document.getElementById('sitePhotoOpacity'), rotation=document.getElementById('sitePhotoRotation');
-  if (width && document.activeElement!==width) width.value=(u.widthTiles*TILE_IN/12).toFixed(1);
+  syncUnitLabels();
+  if (width && document.activeElement!==width) width.value=ftToDisplay(u.widthTiles*TILE_IN/12);
   if (opacity) opacity.value=Math.round(u.opacity*100);
   if (rotation) rotation.value=Math.round(u.rotation);
   const ov=document.getElementById('sitePhotoOpacityValue'); if (ov) ov.textContent=`${Math.round(u.opacity*100)}%`;
@@ -1097,14 +1099,17 @@ function recordSitePhotoCalibrationPoint(point){
   const input=document.getElementById('sitePhotoKnownDistance');
   if (input){
     input.value='';
-    input.placeholder=(Math.hypot(point[0]-c.points[0][0],point[1]-c.points[0][1])*TILE_IN/12).toFixed(1);
+    input.placeholder=String(ftToDisplay(Math.hypot(point[0]-c.points[0][0],point[1]-c.points[0][1])*TILE_IN/12));
   }
   openOverlay('sitePhotoCalibrateScreen','#sitePhotoKnownDistance');
   return true;
 }
 function applySitePhotoCalibration(){
   const c=game.underlayCalibration, input=document.getElementById('sitePhotoKnownDistance');
-  const next=c&&c.points.length===2?calibrateUnderlayDistance(game.underlay,c.points[0],c.points[1],input&&input.value):null;
+  /* The field is in the gardener's unit; calibrateUnderlayDistance takes feet,
+     and world.js stays free of any unit question. */
+  const knownFt=input?displayToFt(input.value):NaN;
+  const next=c&&c.points.length===2?calibrateUnderlayDistance(game.underlay,c.points[0],c.points[1],knownFt):null;
   if (!next){ toast('Enter a distance greater than zero.','warn'); if (input) input.focus(); return; }
   game.underlay=next; markUnderlayChanged(); cancelSitePhotoCalibration(); syncSitePhotoEditor();
   toast('Photo scale calibrated.');
@@ -3902,7 +3907,7 @@ const estimateClose=document.getElementById('btnEstimateClose'); if (estimateClo
 const estimateScreen=document.getElementById('estimateScreen'); if (estimateScreen) estimateScreen.onclick=e=>{ if (e.target===estimateScreen) closeOverlay('estimateScreen'); };
 const siteFile=document.getElementById('sitePhotoFile'); if (siteFile) siteFile.onchange=()=>{ const f=siteFile.files&&siteFile.files[0]; if (f) importSitePhoto(f); };
 const siteWidth=document.getElementById('sitePhotoWidth'); if (siteWidth) siteWidth.onchange=()=>{ if (!game.underlay) return;
-  const feet=+siteWidth.value; if (!Number.isFinite(feet)||feet<=0){ syncSitePhotoEditor(); return; }
+  const feet=displayToFt(siteWidth.value); if (!Number.isFinite(feet)||feet<=0){ syncSitePhotoEditor(); return; }
   game.underlay.widthTiles=Math.max(.5,Math.min(Math.max(GW,GH)*8,feet*12/TILE_IN)); markUnderlayChanged(); syncSitePhotoEditor(); };
 const siteOpacity=document.getElementById('sitePhotoOpacity'); if (siteOpacity) siteOpacity.oninput=()=>{ if (!game.underlay) return;
   game.underlay.opacity=Math.max(.1,Math.min(.85,+siteOpacity.value/100)); markUnderlayChanged(); syncSitePhotoEditor(); };
