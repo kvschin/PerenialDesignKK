@@ -750,7 +750,6 @@ function refreshCanvasTools(){ buildCanvasTools(); }
 // buttons; phones collapse them into the compact View Tools menu.
 function visibleEl(el){ return !!(el && getComputedStyle(el).display!=='none'); }
 function syncTopTools(){
-  syncPreviewChip();
   // Select moved to the canvas rail (see buildCanvasTools) — it sets game.tool,
   // so it belongs with the other modal tools rather than beside Rotate and Layers.
   const rot=document.getElementById('btnRotateTool');

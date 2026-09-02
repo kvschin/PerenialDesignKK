@@ -800,31 +800,6 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
    a-menu — so the chip reads as openable rather than as a status readout. */
 .scheme-chip i{display:flex;flex:0 0 auto;color:var(--bronze)}
 .scheme-chip i .ui-icon{width:14px;height:14px}
-/* Plant-preview lens chip. Sits beside the season box because that is where
-   the other "what am I looking at" state lives, and it always NAMES the
-   current lens rather than being a mute toggle — the whole failure it fixes is
-   people not knowing the garden is drawn at maturity. Bronze when the view is
-   the mature preview (the non-literal state, worth flagging), quiet when it is
-   showing today. Below 400px the label drops and the dot carries it, the same
-   trick .scheme-chip uses, so the 360px bar still fits. */
-.preview-chip{display:flex;align-items:center;gap:6px;align-self:center;flex-shrink:0;
-  height:34px;min-height:34px;padding:3px 10px;
-  background:var(--surface-input);border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);
-  color:var(--text-primary);font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap;
-  transition:background var(--motion-control),border-color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
-/* The icon replaced a plain dot. The dot said "on/off" and nothing else, which
-   is no use at all in the one state where the label is hidden. */
-#previewChipIcon{flex:0 0 auto;width:26px;height:26px;display:block}
-.preview-chip[aria-pressed="true"]{border-color:var(--border-active);background:var(--surface-active)}
-.preview-chip:hover{border-color:var(--border-strong)}
-.preview-chip:active{transform:translateY(1px)}
-/* Phones only (not portrait tablets, which have room): the label costs ~72px
-   in a bar that ends at 352 of 360 with it. The icon carries the state there —
-   which is exactly why it had to stop being a dot. */
-@media (max-width:767px){
-  .preview-chip .preview-chip-label{display:none}
-  .preview-chip{padding:3px 7px;gap:0}
-}
 /* the season box: a label that fills left-to-right with the season's colour
    as time passes (replaces the thin progress line). Hold to speed time up,
    tap to open the time menu. */
@@ -2263,12 +2238,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 
 @media (pointer:coarse){
-  /* .preview-chip and .season-box are here because they were NOT, and both came
-     out 34px tall in a bar where every neighbour is 44 — visibly the odd ones
-     out, and under the touch minimum. Width stays auto on both: they are
-     labels, not square icon buttons. */
+  /* .season-box is here because it was NOT, and came out 34px tall in a bar
+     where every neighbour is 44 — visibly the odd one out, and under the touch
+     minimum. Width stays auto: it is a label, not a square icon button. */
   .season-dial .daynight,.top-tool,.pill.iconbar button{width:44px;min-width:44px;height:44px;min-height:44px}
-  .preview-chip,.season-box{height:44px;min-height:44px}
+  .season-box{height:44px;min-height:44px}
   /* popover menu items: .selection-more sets 40px, which is under the minimum.
      Covers the selection More menu and the worlds-list row menu, which share
      the class. */
@@ -2283,22 +2257,21 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      measuring each interactive element, rather than fixing them as they were
      noticed one at a time. Measured heights before: .card-x 23 (a CLOSE button,
      the worst in the app), .card-action 27, .selection-actions button 31,
-     .lib-cat 36, #librarySearch 38, .back-link 40, .preview-chip 42 wide. */
+     .lib-cat 36, #librarySearch 38, .back-link 40. */
   .card-x{width:44px;min-width:44px;height:44px;min-height:44px}
   .card-action{min-height:44px}
   .selection-actions button{min-height:44px;min-width:44px}
   .lib-cat{min-height:44px}
   #librarySearch{min-height:44px}
   /* The phone library's own controls. A new header control that misses this
-     block comes out ~34px next to 44px neighbours — .preview-chip and
-     .season-box both shipped that way before they were added here. */
+     block comes out ~34px next to 44px neighbours — .season-box shipped that
+     way before it was added here. */
   .lib-catcard{min-height:56px}
   .library-back{min-height:44px;min-width:44px}
   .lib-item{min-height:44px}
   /* min-WIDTH too: the worlds "Back" is full-width so it never showed the
      problem, but the library's "Menu" is content-sized and came out 36.5 wide. */
   .back-link{min-height:44px;min-width:44px}
-  .preview-chip{min-width:44px}
   /* These already had 44px rules — but inside the SHEET query, which is gated on
      WIDTH. A tablet in landscape is DOCK and still a finger, so it was getting
      mouse-sized targets for all of them. Touch size follows the POINTER. */

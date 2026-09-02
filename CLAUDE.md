@@ -3161,24 +3161,15 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   `hortus:haptics`, and fire once per completed placement/success or throttled
   invalid action — never for every tile in a continuous paint gesture. The
   left-handed rail preference is likewise device-local (`hortus:leftHanded`).
-- **The plant-preview chip (`#previewChip`) is icon + label, and the icon is a
-  real plant.** `drawPreviewChipIcon` (ui.js) draws ONE species — purple
-  coneflower — at two ages, so the chip demonstrates the lens rather than
-  symbolising it, the same idea as the Decor tray chips previewing the real
-  `drawPlant`. Three things make it read at 26px and all three are easy to lose:
-  **one scale for both states**, computed from the mature plant (fitting each to
-  the box would normalise away the size difference, which IS the message —
-  measured 22px drawn height established vs 14px today); **colour before
-  silhouette**, so Established carries the bloom and Today is foliage only
-  (`bloomLvl` 0 — measured 25 saturated pixels vs 0); and a **ground line**, or
-  "small plant" and "distant plant" look identical. The bloom must NOT be
-  bronze: it would sit inches from the season box's bronze progress fill and
-  merge with it. The label is hidden at `max-width:767px` — phones only, not
-  portrait tablets, which have the room — and that is precisely why the icon had
-  to replace the old dot, which said "on/off" and nothing else in the one state
-  where the label is gone. It stays AFTER the season box: day/night and the
-  season are one time-and-light unit that `.season-dial` already groups, and the
-  lens is deliberately not time — filing it under the clock was the original bug.
+- **The plant-preview lens (Today / Established) lives in the Time menu and
+  nowhere else** — the `#previewToggle` seg inside `#pauseScreen`, driven by
+  `updatePreviewToggle`/`setPreviewMode` (ui.js). It briefly also had a top-bar
+  chip beside the season box (`#previewChip`, with a coneflower drawn at two
+  ages so it demonstrated the lens rather than symbolising it); that was removed
+  in Sep 2026 as clutter face-up in a bar that is already tight at 360px. The
+  seg keeps the explanatory copy, which is the part the chip could never carry.
+  Don't re-add a duplicate control without a reason to: two homes for one lens
+  is two things to keep in sync.
 - **`--rail-top` derives from `--hud-top-h`, never a flat number.** It was
   112px, chosen to clear a notched phone's taller bar — which is exactly that
   bar's height, so the rail sat FLUSH against it on the device the number was
@@ -3209,7 +3200,7 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   noticed. Found: `.card-x` **23px** — a CLOSE button, the worst in the app —
   `.card-action` 27, `.selection-actions button` 31, `.lib-cat` 36,
   `#librarySearch` 38, `.back-link` 40 (and 36.5 WIDE in the library, where it
-  is content-sized rather than full-width), `.preview-chip` 42 wide. All at 44
+  is content-sized rather than full-width). All at 44
   now, verified across menu, worlds list and row menu, plot screen, design
   questionnaire, garden (all three sheet states), every plants and landscape
   tray category plus the fence/firepit/boulder drill-ins, garden menu, time
@@ -3221,8 +3212,8 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   which is the AA floor that actually applies.
 - **A new top-bar control must be added to the `pointer:coarse` block**
   (styles.css) or it comes out 34px in a bar where every neighbour is 44 —
-  visibly the odd one out and under the touch minimum. `.preview-chip` and
-  `.season-box` both shipped that way before being added to it.
+  visibly the odd one out and under the touch minimum. `.season-box` (and the
+  retired `.preview-chip`) both shipped that way before being added to it.
 - **Only announce a cancellation that actually cancelled something.** A second
   finger landing cancels the running canvas gesture, and it used to say so
   unconditionally — so an ordinary pinch-zoom, by far the commonest two-finger
