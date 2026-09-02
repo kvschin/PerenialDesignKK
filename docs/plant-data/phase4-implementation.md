@@ -63,3 +63,9 @@ library was checked at desktop and 390 x 844: all four seasons stay visible,
 the 527-record count and version 0.8.47 are current, and the legacy names
 *Sophora secundiflora* and *Cercidium floridum* find the correct details. The
 work remains local; no commit, push, or deployment was performed.
+
+The final read-only QA pass also verified adjacent-season discovery: February
+Texas mountain-laurel flowers remain available to the Winter purple filter,
+and June brittlebush flowers remain available to the Summer yellow filter even
+though their representative whole-season illustrations stay visually
+conservative.

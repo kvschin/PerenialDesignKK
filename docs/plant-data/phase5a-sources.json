@@ -1,0 +1,550 @@
+{
+  "phase": "5A — Carolinas and humid Southeast woodland layers",
+  "reviewedOn": "2026-09-01",
+  "scope": "Botanical data review for exactly SE-01 through SE-04 in the US regional plant roadmap: green-and-gold, Indian pink, Carolina wild petunia and blue mistflower. Values are production proposals for main-agent review, not an automatic catalog import.",
+  "conventions": {
+    "units": "heightIn, spread, space and dimension evidence are real inches. h is only a proposed pixel-art height and does not replace the real dimensions.",
+    "heightIn": "Representative cultivated flowering height. Green-and-gold's value includes its flower stalks rather than only its one- to two-inch foliage mat.",
+    "space": "Suggested on-center garden spacing. Rhizomes, seedlings and naturalized colonies may extend beyond one module; spread records a representative mature individual or design patch rather than a permanent colony limit.",
+    "zones": "Conservative whole-zone USDA cultivation ranges synthesized from cited extension sources. Zone overlap does not establish local native status or site suitability.",
+    "bloomMonths": "Approximate southeastern display windows. Latitude, shade, moisture and heat can shift bloom, and green-and-gold may pause in summer heat before a light fall rebloom.",
+    "taxonomy": "The latin field uses the currently accepted species name from Plants of the World Online. Synonyms retain only useful botanical discovery aliases. Common-name-only records must not be substituted for the named species.",
+    "schema": "All four are herbaceous forb records. Green-and-gold uses the existing low matflower grammar, Indian pink and Carolina wild petunia use the shared spike/penstemon tube grammar, and blue mistflower reuses the umbel grammar already used by Gregg's mistflower.",
+    "limits": "Phase 0 remains deferred. No automatic Carolina, southeastern, state-conservation, invasive-lookalike, toxicity or nursery-origin filter is authorized by this file; those qualifications remain explicit in blurbs and caveats.",
+    "regionalScope": "This is a humid-eastern palette, not a claim that every species is native throughout the Southeast. Kew restricts green-and-gold's accepted native range to the Mid-Atlantic through North Carolina, while the other three have broader central/eastern or southeastern ranges. Local ecotype and nursery provenance still matter."
+  },
+  "rendererReview": {
+    "blockers": [],
+    "existingReusableGrammar": [
+      "shrub with habit:'matflower', shaped leaves, five rays and a seasonal eye for green-and-gold's low leafy carpet and yellow daisy heads",
+      "spikeStyle:'penstemon' for both Indian pink's one-sided tubular display and Carolina wild petunia's axillary lavender tubes",
+      "umbel with small dense florets, several stems and toothed ovate foliage for blue mistflower; Gregg's mistflower already proves this species-neutral form"
+    ],
+    "recommendedReusableAdditions": [
+      "Add a data-gated penstemon-tube throat option that paints the terminal lip from S.eye while leaving the tube S.bloom. Indian pink's red tube and yellow star-like mouth are diagnostic; the option should not inspect a species key and should preserve existing penstemon output unless explicitly enabled.",
+      "A one-sided tube flag would improve both Indian pink's terminal cyme and axillary Ruellia carriage, but it is a refinement rather than an implementation blocker. Keep it data-gated if added."
+    ],
+    "performance": "All proposed counts remain within current bounded matflower, spike and umbel loops. The optional contrasting tube throat should reuse existing penstemon lip geometry and add no unbounded paths or random work."
+  },
+  "plants": [
+    {
+      "id": "SE-01",
+      "suggestedKey": "greenandgold",
+      "proposed": {
+        "name": "Green-and-Gold",
+        "latin": "Chrysogonum virginianum",
+        "synonyms": [
+          "Chrysogonum virginianum var. dentatum"
+        ],
+        "type": "forb",
+        "form": "shrub",
+        "h": 10,
+        "heightIn": 10,
+        "spread": 18,
+        "space": 12,
+        "zones": [
+          5,
+          9
+        ],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "bloomMonths": [
+          3,
+          4,
+          5,
+          6
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "roles": [
+          "early",
+          "groundcover",
+          "nectar",
+          "shade",
+          "woodland"
+        ],
+        "look": {
+          "art2": true,
+          "habit": "matflower",
+          "runners": 14,
+          "matW": 22,
+          "foliageH": 0.18,
+          "runnerLeaves": 4,
+          "leafShape": "ovate",
+          "leafHW": 1.2,
+          "leafTeeth": 0.16,
+          "leafTeethN": 5,
+          "flowers": 10,
+          "flowerW": 22,
+          "flowerLen": 0.62,
+          "flowerJitter": 0.16,
+          "petals": 5,
+          "petalLen": 3.8,
+          "petalW": 2.3
+        },
+        "sea": {
+          "Spring": {
+            "fol": "#638454",
+            "bloom": "#e2b92e",
+            "eye": "#b98222"
+          },
+          "Summer": {
+            "fol": "#58784e",
+            "bloom": "#dfb42b",
+            "eye": "#ad771f",
+            "seed": "#827056"
+          },
+          "Fall": {
+            "fol": "#637653"
+          },
+          "Winter": {
+            "fol": "#526b4e"
+          }
+        },
+        "blurbRequirements": "Describe a low, rhizomatous, semi-evergreen woodland groundcover whose one- to two-inch foliage mat sends yellow daisy-like flowers to roughly 8–10 inches. Specify part shade and medium, well-drained moisture as the design default; full sun needs consistently moist soil. Say it spreads moderately by rhizomes and may self-seed, can develop minor mildew, and flowers chiefly March–June with heat-related summer pause and possible light fall rebloom. Do not imply native status south or west of its documented Mid-Atlantic-to-Carolina range, and keep named varieties or cultivars from silently redefining the species record."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Chrysogonum virginianum and records Chrysogonum virginianum var. dentatum as a synonym. Its accepted native distribution is District of Columbia, Maryland, North Carolina, Pennsylvania, Virginia and West Virginia; broader southeastern retail claims should not be converted into an automatic native-region claim.",
+        "dimensions": "NC State distinguishes a one- to two-inch foliage mat from 8–10-inch flowering stems and gives a 12–24-inch width. Maryland Extension gives 6–12 inches high and up to 18 inches spread. Proposed 10 by 18 inches represents the flowering plant rather than only its leaves.",
+        "spacing": "No controlled spacing trial was verified. Proposed 12 inches is a groundcover module inside the documented 12–24-inch spread and reflects NC State's less-than-12-inch to three-foot available-space guidance. Rhizomes and seedlings can close the gaps.",
+        "hardinessAndCulture": "NC State gives zones 5–9, part to full shade, medium moisture, acidic humus-rich well-drained soil and full sun only with consistent moisture. Maryland and Tennessee Extension support light shade, medium moisture, low maintenance and semi-evergreen behavior.",
+        "floweringAndPersistence": "NC State gives March–June, notes that hot-summer bloom becomes sparse or stops and may lightly recur in fall, and describes moderate-to-rapid rhizomatous growth plus self-seeding. The four-month calendar represents the reliable primary display rather than promising continuous summer flowers.",
+        "lifespanAndSafety": "Sources consistently describe a perennial, but no finite lifespan trial was found. The cited extension profiles do not identify a specific human-toxicity concern; that absence is not an edibility claim.",
+        "confidence": {
+          "taxonomy": "high",
+          "dimensions": "high",
+          "spacing": "moderate",
+          "zones": "high",
+          "culture": "high",
+          "bloomMonths": "high",
+          "regionalQualification": "high"
+        }
+      },
+      "sources": [
+        {
+          "url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:274580-2",
+          "supports": "accepted name, Chrysogonum virginianum var. dentatum synonym, perennial status and documented Mid-Atlantic-through-North-Carolina native distribution"
+        },
+        {
+          "url": "https://plants.ces.ncsu.edu/plants/chrysogonum-virginianum/",
+          "supports": "mat versus flowering height, 12–24-inch spread, zones 5–9, shade and moisture culture, semi-evergreen rhizomatous habit, March–June bloom, heat pause, fall rebloom, self-seeding, pollinator value and mildew qualification"
+        },
+        {
+          "url": "https://extension.umd.edu/resource/green-and-gold",
+          "supports": "6–12-inch flowering height, up-to-18-inch spread, spring-to-early-summer bloom, part-sun-to-shade use, dry-to-moist tolerance and semi-evergreen mild-winter foliage"
+        },
+        {
+          "url": "https://tnyards.utk.edu/chrysogonum-virginianum/",
+          "supports": "part sun/light shade, medium moisture, 6–12-inch height, spring bloom with light rebloom, rhizomes, self-seeding, naturalizing behavior and Tennessee conservation qualification"
+        }
+      ],
+      "caveats": [
+        "The modeled 10-inch height includes flowers. The persistent foliage mat itself may be only one or two inches tall.",
+        "Full sun is conditional on consistent moisture; part shade and medium moisture are the safer catalog defaults.",
+        "Semi-evergreen does not mean unchanged foliage in every zone. Cold exposure, drought and leaf litter can reduce the winter display.",
+        "Kew's accepted native range is narrower than generic eastern-US marketing. Do not advertise it as native throughout the humid Southeast.",
+        "Nursery stock may be a named variety, cultivar or selected clone. Verify the label and local provenance instead of assuming every plant sold as green-and-gold is the straight local species.",
+        "No specific human-toxicity warning was found in the cited extension profiles, but the plant should not be presented as edible or medicinal."
+      ]
+    },
+    {
+      "id": "SE-02",
+      "suggestedKey": "indianpink",
+      "proposed": {
+        "name": "Indian Pink",
+        "latin": "Spigelia marilandica",
+        "synonyms": [
+          "Lonicera marilandica",
+          "Spigelia lonicera"
+        ],
+        "type": "forb",
+        "form": "spike",
+        "h": 26,
+        "heightIn": 24,
+        "spread": 18,
+        "space": 18,
+        "zones": [
+          5,
+          9
+        ],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "bloomMonths": [
+          5,
+          6
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "roles": [
+          "early",
+          "nectar",
+          "shade",
+          "woodland"
+        ],
+        "look": {
+          "art2": true,
+          "spikeStyle": "penstemon",
+          "stems": 6,
+          "stemSpread": 14,
+          "lenBase": 0.74,
+          "lenJitter": 0.14,
+          "leaves": 10,
+          "leafLen": 0.38,
+          "leafShape": "ovate",
+          "leafHW": 1.75,
+          "leafFan": 1.5,
+          "leafRise": 0.78,
+          "stemLeaves": 5,
+          "stemLeafW": 1.25,
+          "stemLeafLen": 7,
+          "tubeCount": 8,
+          "tubeLen": 5.8,
+          "tubeW": 2.0,
+          "tubeLean": 2.3,
+          "tubeSpan": 10,
+          "tubeThroat": true
+        },
+        "sea": {
+          "Spring": {
+            "fol": "#4f7650",
+            "bloom": "#c83f37",
+            "eye": "#e9c63d"
+          },
+          "Summer": {
+            "fol": "#486d49",
+            "bloom": "#c63b34",
+            "eye": "#e7c038",
+            "seed": "#71644d"
+          },
+          "Fall": {
+            "fol": "#667052"
+          },
+          "Winter": {}
+        },
+        "blurbRequirements": "Lead with an upright, clump-forming woodland perennial about 1–2 feet tall and 18 inches wide, carrying one-sided clusters of red tubes with a diagnostic yellow flared throat in May–June. Use part shade and medium, organic, well-drained moisture as the default while acknowledging broader sun and moisture tolerance after establishment. State that every part contains poisonous alkaloids and must not be used medicinally. Require nursery-propagated stock rather than wild collection, note its North Carolina threatened status without implying range-wide endangerment, and retain Lonicera/Spigelia historical names for search."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Spigelia marilandica and records Lonicera marilandica and Spigelia lonicera as synonyms. Its native range is east-central and southeastern United States, including both Carolinas, while Kew currently treats Maryland as introduced despite the epithet.",
+        "dimensions": "NC State gives 12–24 inches tall and 6–18 inches wide, with 24 by 18 inches as its mature summary. Oklahoma and Arkansas Extension independently describe a roughly two-foot clump, about 12–18 inches wide. Proposed 24 by 18 inches follows that shared cultivated envelope.",
+        "spacing": "No controlled spacing trial was verified. Proposed 18 inches equals the selected clump width, is inside NC State's 12-inch-to-three-foot available-space guidance and avoids crowding this species with aggressive neighbors.",
+        "hardinessAndCulture": "NC State and Oklahoma State give zones 5–9 and favor part/full shade with moist, organic, well-drained soil; Oklahoma notes greater sun and drought tolerance after establishment. Part/medium is the conservative southeastern woodland default.",
+        "floweringAndPersistence": "NC State gives May–June and a roughly one-month bloom sequence, followed by seed release in June–July. The plant is a deciduous perennial and gradually forms a clump rather than an aggressive colony.",
+        "lifespan": "Sources establish perennial clump formation but do not provide a reliable finite garden lifespan. Do not describe it as short-lived or permanent beyond that evidence.",
+        "safetyAndStock": "NC State identifies poisonous alkaloid spigiline in all parts and lists neurological and gastrointestinal symptoms. United Plant Savers recommends nursery-cultivated stock and records conservation pressure and state-level rarity. These are mandatory catalog qualifications, not decorative notes.",
+        "confidence": {
+          "taxonomy": "high",
+          "dimensions": "high",
+          "spacing": "moderate",
+          "zones": "high",
+          "culture": "high",
+          "bloomMonths": "high",
+          "toxicity": "high",
+          "nurseryStock": "high"
+        }
+      },
+      "sources": [
+        {
+          "url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:546966-1",
+          "supports": "accepted name, Lonicera marilandica and Spigelia lonicera synonyms, perennial status and state-level native distribution"
+        },
+        {
+          "url": "https://plants.ces.ncsu.edu/plants/spigelia-marilandica/",
+          "supports": "12–24-inch height, 6–18-inch width, zones 5–9, woodland shade/medium-moist culture, May–June one-sided red-and-yellow tubes, June–July capsules, North Carolina threatened status and all-parts alkaloid toxicity"
+        },
+        {
+          "url": "https://extension.okstate.edu/programs/oklahoma-proven/plant-profiles/indian-pink",
+          "supports": "1–2-ft by 18-inch clump, zones 5–9, late-spring/early-summer bloom, sun-to-shade and moist-to-dry tolerance, hummingbird value and rain/woodland garden use"
+        },
+        {
+          "url": "https://www.uaex.uada.edu/yard-garden/resource-library/plant-week/indian-pink.aspx",
+          "supports": "two-foot height, gradual foot-wide clumping, bright red exterior/yellow interior, mid-summer regional timing, zone-5 cold tolerance, organic well-drained indirect-light culture, toxicity and limited nursery availability"
+        },
+        {
+          "url": "https://unitedplantsavers.org/pinkroot-spigelia-marilandica/",
+          "supports": "perennial woodland habitat, June bloom, range and state conservation qualifications, all-parts spigiline warning and explicit nursery-cultivated-stock recommendation"
+        }
+      ],
+      "caveats": [
+        "All parts are poisonous. Historical wormgrass/pinkroot use is not a medicinal recommendation, and the blurb must not soften the ingestion warning.",
+        "Use nursery-propagated stock. Do not collect plants or roots from wild populations.",
+        "North Carolina lists the species as threatened and Indiana as endangered, but status varies by state; do not describe it as federally endangered or uniformly rare across its range.",
+        "The selected May–June window follows Carolina data. Southern and western populations may flower later, and deadheading can modestly extend display.",
+        "The red tube with yellow flared mouth is visually diagnostic; a single-color generic spike materially misrepresents it."
+      ]
+    },
+    {
+      "id": "SE-03",
+      "suggestedKey": "carolinawildpetunia",
+      "proposed": {
+        "name": "Carolina Wild Petunia",
+        "latin": "Ruellia caroliniensis",
+        "synonyms": [
+          "Pattersonia caroliniensis"
+        ],
+        "type": "forb",
+        "form": "spike",
+        "h": 26,
+        "heightIn": 24,
+        "spread": 12,
+        "space": 12,
+        "zones": [
+          6,
+          10
+        ],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "warm",
+        "bloomMonths": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "roles": [
+          "host",
+          "matrix",
+          "nectar",
+          "woodland"
+        ],
+        "look": {
+          "art2": true,
+          "spikeStyle": "penstemon",
+          "stems": 7,
+          "stemSpread": 15,
+          "lenBase": 0.7,
+          "lenJitter": 0.2,
+          "wildLean": 2,
+          "leaves": 12,
+          "leafLen": 0.4,
+          "leafShape": "ovate",
+          "leafHW": 1.55,
+          "leafFan": 1.55,
+          "leafRise": 0.76,
+          "stemLeaves": 5,
+          "stemLeafW": 1.15,
+          "stemLeafLen": 7,
+          "tubeCount": 5,
+          "tubeLen": 5.0,
+          "tubeW": 2.4,
+          "tubeLean": 3.0,
+          "tubeSpan": 13
+        },
+        "sea": {
+          "Spring": {
+            "fol": "#668452",
+            "bloom": "#7f74c7",
+            "eye": "#c9b8df"
+          },
+          "Summer": {
+            "fol": "#58784a",
+            "bloom": "#776fc2",
+            "eye": "#c4b4dc"
+          },
+          "Fall": {
+            "fol": "#66704d",
+            "bloom": "#7b72ba",
+            "seed": "#6e5f47"
+          },
+          "Winter": {}
+        },
+        "blurbRequirements": "Describe an upright, usually narrow, short-lived southeastern perennial with crowded opposite leaves and one-day lavender trumpet flowers opening from leaf axils over a long spring-to-early-fall season. Use a representative 2-ft by 1-ft individual, part shade and medium moisture, while acknowledging dry-to-moist woodland and broader Florida sun tolerance. Say it reseeds readily and can behave like a lawn wildflower. Distinguish it explicitly from nonnative invasive Mexican petunia, Ruellia simplex, and advise checking the botanical label because wild petunia is a shared common name."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Ruellia caroliniensis and lists Pattersonia caroliniensis as its homotypic synonym. The accepted species is native across central and eastern United States, including Florida and both Carolinas.",
+        "dimensions": "NC State and the South Carolina Native Plant Society give 12–36 inches tall by 6–12 inches wide. UF/IFAS gives up to 24 inches tall and wide for an unmown plant. Proposed 24 by 12 inches represents the common upright woodland individual rather than the widest reseeded patch.",
+        "spacing": "UF/IFAS recommends divisions 6–9 inches apart, while the South Carolina source recommends up to 12 inches. Proposed 12 inches equals the selected individual width and leaves reseeding, rather than one record, to express colony expansion.",
+        "hardinessAndCulture": "UF/IFAS gives zones 6A–11, full sun to full shade and moist-to-moderately-dry tolerance. South Carolina gives zones 6–10, part shade and dry-to-medium well-drained soil. Proposed 6–10 and part/medium are the conservative Carolina-centered intersection.",
+        "floweringAndPersistence": "NC State gives May–September; UF/IFAS and the Florida Museum describe early spring through late summer or spring to fall. April–September captures the humid-southeastern design window without promising year-round flowers. UF/IFAS calls it short-lived and readily reseeding; NC State likewise notes one-day flowers and ready seed.",
+        "lookalike": "UF/IFAS distinguishes scattered native R. caroliniensis from the dense, invasive nonnative R. simplex and advises against wild-type Mexican petunia throughout Florida. The common-name distinction belongs in the catalog because both are sold or discussed as petunia despite not being Petunia.",
+        "lifespanAndSafety": "UF/IFAS calls Carolina wild petunia short-lived and readily reseeding. The South Carolina Native Plant Society reports no known toxicity; the app should make no edible or medicinal claim.",
+        "confidence": {
+          "taxonomy": "high",
+          "dimensions": "high",
+          "spacing": "high",
+          "zones": "high",
+          "culture": "high",
+          "bloomMonths": "moderate",
+          "lookalike": "high"
+        }
+      },
+      "sources": [
+        {
+          "url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30014408-2",
+          "supports": "accepted name, Pattersonia caroliniensis synonym, perennial status and central/eastern-US native distribution"
+        },
+        {
+          "url": "https://plants.ces.ncsu.edu/plants/ruellia-caroliniensis/",
+          "supports": "12–36-inch height, 6–12-inch width, part-shade dry-to-moist woodland habitat, May–September axillary trumpet flowers, one-day flower behavior and ready reseeding"
+        },
+        {
+          "url": "https://ask.ifas.ufl.edu/publication/FR459",
+          "supports": "short-lived reseeding habit, unmown 24-by-24-inch potential, zones 6A–11, broad light/moisture tolerance, early-spring-to-late-summer bloom, direct 6–9-inch division spacing, winter dormancy and common-buckeye/white-peacock host value"
+        },
+        {
+          "url": "https://www.floridamuseum.ufl.edu/wildflowers/flowers/carolina-wild-petunia/",
+          "supports": "upright form, lavender-blue tubes, spring-to-fall bloom, two-foot maximum height, moist well-drained sun/part-shade culture, reseeding and native-nursery availability"
+        },
+        {
+          "url": "https://scnps.org/plants/ruellia-caroliniensis/",
+          "supports": "12–36 by 6–12-inch Carolina form, direct up-to-12-inch spacing, zones 6–10, part shade, dry/medium drainage, host and nectar roles, and South Carolina native status"
+        },
+        {
+          "url": "https://ask.ifas.ufl.edu/publication/EP415",
+          "supports": "native R. caroliniensis versus nonnative R. simplex distinction, widespread but scattered Florida native behavior, Mexican-petunia invasive status and current UF/IFAS recommendation"
+        }
+      ],
+      "caveats": [
+        "Carolina wild petunia is Ruellia caroliniensis, not Mexican petunia, Ruellia simplex. The latter is a nonnative invasive in Florida even though sterile cultivars may receive separate assessments.",
+        "Wild petunia is a shared common name, and neither Ruellia species is a true Petunia. Keep the botanical name visible at purchase and in search.",
+        "The plant may be short-lived but reseeds readily. Spread 12 inches describes one upright individual, not the limit of a self-sown patch.",
+        "The 6–10 range is a conservative Carolina-centered intersection. UF/IFAS documents the species through zone 11, but that does not erase local provenance or site requirements.",
+        "One-day flowers are normal; the long season comes from successive flowers rather than each corolla persisting.",
+        "Use botanically labeled native-nursery stock or seed. A generic 'wild petunia' label is not enough to exclude invasive R. simplex."
+      ]
+    },
+    {
+      "id": "SE-04",
+      "suggestedKey": "bluemistflower",
+      "proposed": {
+        "name": "Blue Mistflower",
+        "latin": "Conoclinium coelestinum",
+        "synonyms": [
+          "Eupatorium coelestinum"
+        ],
+        "type": "forb",
+        "form": "umbel",
+        "h": 38,
+        "heightIn": 36,
+        "spread": 36,
+        "space": 24,
+        "zones": [
+          5,
+          10
+        ],
+        "sun": "part",
+        "moist": "moist",
+        "phen": "warm",
+        "bloomMonths": [
+          7,
+          8,
+          9,
+          10
+        ],
+        "nativeTo": [
+          "north-america"
+        ],
+        "provenance": "species",
+        "roles": [
+          "groundcover",
+          "late",
+          "nectar",
+          "rainGarden",
+          "wet"
+        ],
+        "stem": "#71536f",
+        "look": {
+          "art2": true,
+          "head": 6.4,
+          "dome": 0.32,
+          "stems": 9,
+          "stemSpread": 22,
+          "lenBase": 0.72,
+          "lenJitter": 0.22,
+          "leaves": 12,
+          "leafLen": 0.36,
+          "leafShape": "ovate",
+          "leafHW": 1.7,
+          "leafFan": 1.65,
+          "leafRise": 0.78,
+          "leafTeeth": 0.24,
+          "leafTeethN": 7,
+          "stemLeaves": 4,
+          "stemLeafW": 1.2,
+          "stemLeafLen": 8,
+          "floretR": 1.15
+        },
+        "sea": {
+          "Spring": {
+            "fol": "#658356"
+          },
+          "Summer": {
+            "fol": "#58794f",
+            "bloom": "#8ca4d5"
+          },
+          "Fall": {
+            "fol": "#687452",
+            "bloom": "#849bce",
+            "seed": "#978a76"
+          },
+          "Winter": {
+            "seed": "#817561"
+          }
+        },
+        "blurbRequirements": "Identify a rapid, rhizomatous, self-seeding eastern perennial with toothed triangular leaves, purplish stems and flat clusters of fluffy blue-violet disk flowers from July to October. Reserve a representative 3-by-3-ft patch but say clearly that the colony can spread beyond it. Use moist soil and sun to part shade, placing it in naturalized beds, rain gardens, pond edges or other spaces where its roots cannot overwhelm smaller neighbors. Distinguish it from annual ageratum and from dry southwestern Gregg's mistflower, and retain Eupatorium coelestinum for search."
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Conoclinium coelestinum, retains Eupatorium coelestinum as the principal homotypic synonym and documents a broad southeastern-Canadian, central/eastern-US and Cuban native range. This eastern wet-site species remains separate from southwestern Conoclinium greggii already in the app.",
+        "dimensions": "NC State gives 18–36 inches tall and wide; Maryland Extension gives 18–36 inches tall by 18–30 inches wide; LSU gives 24–36 inches tall and wide. Proposed 36 by 36 inches uses the upper common cultivated patch rather than pretending an aggressive colony has a fixed ultimate width.",
+        "spacing": "No direct spacing trial was verified. Proposed 24 inches is a moderate naturalized-bed module inside the 18–36-inch crown, allowing neighboring stems to knit while keeping the documented spread as the plant's individual design footprint.",
+        "hardinessAndCulture": "NC State and LSU give zones 5–10. Extension sources agree on full sun to part shade, consistent moisture, good drainage to occasional wetness, and best use in naturalized or waterside settings. Part/moist is the safer app default because full sun increases water demand.",
+        "floweringAndPersistence": "NC State gives July–October and late summer to frost; Maryland and LSU extend regional observations from June or July to frost/November. July–October is the conservative Carolinas calendar. Dried heads can persist into winter and feed birds, but spring division or containment may be necessary because both rhizomes and seed spread strongly.",
+        "lifespanAndSafety": "The species is a deciduous perennial whose colony can persist and expand through rhizomes and seed. No specific human-toxicity warning was found in the cited extension profiles; that is not an invitation to ingest it or use it medicinally.",
+        "confidence": {
+          "taxonomy": "high",
+          "dimensions": "high",
+          "spacing": "moderate",
+          "zones": "high",
+          "culture": "high",
+          "bloomMonths": "high",
+          "spreading": "high"
+        }
+      },
+      "sources": [
+        {
+          "url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:197044-1",
+          "supports": "accepted name, Eupatorium coelestinum synonym, perennial status and broad central/eastern-US native distribution"
+        },
+        {
+          "url": "https://plants.ces.ncsu.edu/plants/conoclinium-coelestinum/",
+          "supports": "18–36-inch height and width, zones 5–10, full-sun/part-shade moist culture, rapid rhizomatous/self-seeding spread, July–October bloom, fluffy rayless corymbs, persistent dried heads, deer/pollinator value and small-garden warning"
+        },
+        {
+          "url": "https://extension.umd.edu/sites/extension.umd.edu/files/2023-09/23Sep22L.pdf",
+          "supports": "18–36 by 18–30-inch form, moist-to-wet sun/part shade culture, up-to-eight-week late display, fluffy tubular disk flowers, flat-topped clusters, purple stems, strong seed/rhizome spread and winter bird value"
+        },
+        {
+          "url": "https://extension.umd.edu/resource/groundcovers",
+          "supports": "explicit aggressive-rhizome and self-seeding warning and recommendation for wet-tolerant sunny groundcover use"
+        },
+        {
+          "url": "https://www.lsuagcenter.com/profiles/lblack/articles/page1725487174586",
+          "supports": "zones 5–10, up-to-three-foot height and one-foot individual width, part shade/full sun with moisture, rich well-drained soil, June-to-frost regional bloom, quick spread and colonizing-groundcover use"
+        },
+        {
+          "url": "https://www.lsuagcenter.com/~/media/system/5/5/6/4/55646c0ef9404ad2073c46b006e13b51/native%20plant%20cultural%20info%20pelicanpdf.pdf",
+          "supports": "24–36-inch equal dimensions, deciduous habit, moist sun/part shade culture, July–November Louisiana bloom and explicit can-become-a-pest warning"
+        }
+      ],
+      "caveats": [
+        "The 36-inch spread is a representative design patch, not a containment promise. Rhizomes and self-sown seedlings can move well beyond it.",
+        "Do not use it beside small or slow woodland plants unless the colony can be edged, divided or allowed to naturalize.",
+        "Blue mistflower is Conoclinium coelestinum, not annual floss flower/ageratum and not dry southwestern Gregg's mistflower, Conoclinium greggii.",
+        "Full sun is suitable only with adequate moisture. Part shade and moist soil are the conservative catalog defaults.",
+        "Dried winter heads are useful structure and bird food; they do not mean the deciduous foliage remains evergreen.",
+        "Straight species is available from native or specialty nurseries in parts of its range. Verify Conoclinium coelestinum on the label so annual ageratum or Gregg's mistflower is not substituted."
+      ]
+    }
+  ]
+}

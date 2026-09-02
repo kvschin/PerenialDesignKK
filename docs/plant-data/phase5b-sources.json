@@ -1,0 +1,328 @@
+{
+  "phase": "5B — Southeast coastal plain and lower South",
+  "reviewedOn": "2026-09-01",
+  "scope": "Botanical-data, landscape-role, seasonal-presentation and reusable-morphology review for SE-05 through SE-08 only: swamp sunflower, slender Indiangrass, yaupon holly and sweetbay magnolia. Phase 0 remains deferred.",
+  "conventions": {
+    "units": "heightIn, spread and space are real inches. h and cw are renderer pixels only and are deliberately capped for readable art.",
+    "heightIn": "Representative cultivated overall height, including herbaceous inflorescences and woody crowns. It is not the largest wild specimen.",
+    "space": "Suggested on-center garden spacing. It normally matches a representative mature crown or colony module; rhizomes, suckers and seedlings can travel beyond one modeled module.",
+    "grow": "Woody-only estimated years to the stated design size, not root establishment time, lifespan or guaranteed ultimate maturity. Every grow value below is identified as a planning estimate.",
+    "zones": "Conservative whole-zone USDA planning ranges synthesized from cited extension evidence. The app cannot express zone letters, and zone overlap alone does not establish coastal exposure, soil acidity, moisture regime, provenance or cultivar suitability.",
+    "bloomMonths": "Representative garden display windows across the Southeast. Latitude, winter temperature, rainfall and cultivar can shift or extend them; these months are not a forecast.",
+    "taxonomy": "The latin field retains the accepted species-level roadmap target. Synonyms are selected scientific discovery aliases, not exhaustive nomenclature. Accepted infraspecific taxa are not flattened into synonyms.",
+    "schema": "Swamp sunflower uses the existing cone form, slender Indiangrass uses vertgrass, yaupon holly uses bush and sweetbay magnolia uses tree. Woody plants reserve their real mature spread; herbaceous records remain one-tile placements with real spacing metadata.",
+    "limits": "No Phase 0 climate, local-origin, legal-filter, sex-selection, cultivar-selection or seasonal-engine change is authorized by this file. nativeTo and provenance use the current broad contract only. Coastal-plain, northern-versus-southern provenance and sex qualifications remain descriptive rather than automatic filters."
+  },
+  "rendererReview": {
+    "duplicateAudit": "No existing PLANTS key or exact latin value duplicates any of these four proposed records. Existing common Indiangrass is Sorghastrum nutans, a related but morphologically and ecologically distinct species; other Helianthus, evergreen holly shrubs and flowering trees provide reusable drawing grammar rather than duplicate taxa.",
+    "sharedAddition": "Slender Indiangrass needs one small reusable vertgrass parameter, plumeNod, to bend the upper flowering axis by a bounded number of renderer pixels. Its weak, conspicuously nodding panicle is the clearest visual distinction from existing Sorghastrum nutans. This must be optional, data-gated and useful to other nodding grasses, never an S. elliottii key check.",
+    "existingGrammar": "The cone form already expresses a tall, narrow-leaved sunflower with several daisy heads; the bush form expresses yaupon's fine evergreen texture, axillary flowers and berry clusters; and the tree form expresses sweetbay's multiple trunks, open oval crown, creamy flowers and clustered red fruit. The tree form's existing oval fruit is a serviceable abstraction of sweetbay's aggregate fruit with exposed red seeds. A specialized magnolia fruit primitive would improve fidelity but is not required for this phase.",
+    "footprintDecision": "Model swamp sunflower as a 48-in mature colony with 36-in planting centers, while warning that rhizomes can exceed it. Model slender Indiangrass as a 36-in clump. Yaupon reserves a representative 12-ft shrub crown, and sweetbay uses one hard trunk tile with a 20-ft soft canopy reservation under the shared woody-footprint policy.",
+    "blockers": []
+  },
+  "plants": [
+    {
+      "id": "SE-05",
+      "suggestedKey": "swampsunflower",
+      "proposed": {
+        "name": "Swamp Sunflower",
+        "latin": "Helianthus angustifolius",
+        "synonyms": ["Coreopsis angustifolia", "Helianthus angustifolius var. planifolius"],
+        "form": "cone",
+        "type": "forb",
+        "h": 72,
+        "heightIn": 72,
+        "spread": 48,
+        "space": 36,
+        "zones": [5, 9],
+        "sun": "full",
+        "moist": "moist",
+        "phen": "warm",
+        "bloomMonths": [8, 9, 10, 11],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["late", "nectar", "wet", "structure"],
+        "look": {
+          "art2": true,
+          "rays": 15,
+          "rayLen": 4.8,
+          "droop": 0.4,
+          "rayW": 1.35,
+          "discW": 2.8,
+          "discH": 3,
+          "seedW": 2.8,
+          "seedH": 3.1,
+          "leaves": 14,
+          "leafW": 0.85,
+          "leafLen": 0.48,
+          "stems": 10,
+          "stemLeaves": 5,
+          "stemLeafW": 0.7,
+          "stemLeafLen": 10,
+          "heads": 3,
+          "headSpread": 5,
+          "headDrop": 2.5,
+          "sideHeadScale": 0.82,
+          "leafShape": "linear",
+          "leafHW": 1.3,
+          "leafFan": 1.45,
+          "leafRise": 0.84,
+          "leafRib": false
+        },
+        "blurb": "A tall, rhizomatous late-season sunflower for sunny, moist, acidic ground and rain-garden edges. Its yellow flowers support late pollinators and its seeds feed birds, but a species planting can spread aggressively, self-sow and need staking; compact cultivars do not share this six-by-four-foot species module.",
+        "sea": {
+          "Spring": {"fol": "#72905a"},
+          "Summer": {"fol": "#5c7b4c", "bloom": "#e6b729", "eye": "#5a3b24"},
+          "Fall": {"fol": "#6f744e", "bloom": "#e4b326", "eye": "#523520", "seed": "#554536"},
+          "Winter": {"seed": "#514638"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Helianthus angustifolius and lists Coreopsis angustifolia and H. angustifolius var. planifolius among its synonyms. The species is native across the south-central and eastern United States, including Texas, Florida and the Carolinas, with disjunct northern occurrences; it is not native throughout every part of app zone 5.",
+        "dimensions": "NC State gives a direct cultivated range of 5–8 ft tall by 2.5–4 ft wide. Proposed 72 by 48 in represents a substantial species plant without using the eight-foot upper height.",
+        "spacing": "Proposed 36-in centers fall within the direct 2.5–4-ft crown and make a useful connected drift. The 48-in spread records mature colony width; rhizomes and seedlings can move farther and are not constrained by the footprint.",
+        "hardinessAndCulture": "NC State supplies zones 5a–9b, full sun to part shade, moist to occasionally wet acidic loam, clay or sand, and flooding and salt tolerance. Full/moist encodes the strongest flowering and characteristic wet-site role; partial shade is tolerated but generally reduces flowering or increases flopping.",
+        "floweringAndPersistence": "NC State describes yellow heads from summer until frost and fruits from September to November; Florida sources emphasize late-summer and fall or September–October. August–November is a representative Southeast display window. The perennial dies to the ground in winter, while retained stems and seedheads can provide structure and bird food.",
+        "behaviorAndSafety": "NC State describes aggressive rhizomatous spread and weak stems that may need support. Florida Extension also reports vegetative spread, fast growth and self-sowing. NC State lists the plant as non-toxic to cats, dogs and horses, but this review found no authoritative basis for marketing it as edible or universally pet-safe in quantity.",
+        "lifespanAndStock": "It is a perennial and persists by rhizomes, but no defensible species-level lifespan in years was found. Shorter named cultivars are common; nursery cultivar dimensions must override this species record rather than inherit it.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high for one colony module", "zones": "high", "culture": "high", "bloomMonths": "high", "spreading": "high", "lifespanYears": "unknown"}
+      },
+      "sources": [
+        {"url": "https://plants.ces.ncsu.edu/plants/helianthus-angustifolius/", "supports": "direct 5–8 by 2.5–4-ft dimensions, zones 5a–9b, sun and moist-acid culture, rhizomatous spread, weak stems, summer-to-frost flowers, fall fruit, wildlife value and non-toxic animal listing"},
+        {"url": "https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/swamp-sunflower/", "supports": "Florida nativity, 4–6-ft garden scale, full sun, salt and flooding tolerance, late-summer/fall bloom, cool-season dormancy and June pruning guidance"},
+        {"url": "https://ask.ifas.ufl.edu/publication/EP061.pdf", "supports": "wet-habitat ecology, growth to about six feet, vegetative spread and September–October Florida bloom"},
+        {"url": "https://ask.ifas.ufl.edu/publication/EP348", "supports": "fast garden growth, self-sowing, wet-site tolerance and 3–5-ft Florida landscape height"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:315752-2", "supports": "accepted Helianthus angustifolius name, selected synonymy and state-level south-central/eastern native range"}
+      ],
+      "caveats": [
+        "Do not imply statewide or nationwide nativity from the broad nativeTo tag. This is chiefly a coastal-plain and southeastern wetland species with a documented but discontinuous wider eastern range.",
+        "A 48-in module is not containment. Rhizomes and seedlings can make a colony substantially larger, so it may be unsuitable for a small mixed border without division or edging.",
+        "Tall species stems can lean or flop, especially in shade or rich sites; cutting back in early summer or staking changes the displayed height and bloom timing.",
+        "Compact named cultivars require their own dimensions. Do not sell the six-foot species representation as a promise for every nursery selection."
+      ]
+    },
+    {
+      "id": "SE-06",
+      "suggestedKey": "slenderindiangrass",
+      "proposed": {
+        "name": "Slender Indiangrass",
+        "latin": "Sorghastrum elliottii",
+        "synonyms": ["Chrysopogon elliottii", "Sorghastrum apalachicolense"],
+        "form": "vertgrass",
+        "type": "grass",
+        "h": 72,
+        "heightIn": 72,
+        "spread": 36,
+        "space": 36,
+        "zones": [4, 9],
+        "sun": "full",
+        "moist": "dry",
+        "phen": "warm",
+        "bloomMonths": [8, 9, 10],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["movement", "structure", "prairie", "dry"],
+        "look": {
+          "art2": true,
+          "leaves": 12,
+          "fan": 1.45,
+          "bladeHW": 0.72,
+          "foliageHeight": 0.62,
+          "plumeStyle": "open",
+          "plumeLen": 0.25,
+          "plumeW": 0.8,
+          "plumeNod": 5.5
+        },
+        "blurb": "A warm-season southeastern grass for sunny, dry sandy soil and open woodland edges, with tall stems ending in loose, chestnut-brown, distinctly nodding panicles. Unlike common Indiangrass, its flowering axes are slender and weak; unlike lopsided Indiangrass, the inflorescence is open rather than one-sided. Dry seedheads can hold useful winter movement.",
+        "sea": {
+          "Spring": {"fol": "#718a65"},
+          "Summer": {"fol": "#5f7d59", "bloom": "#b69b62"},
+          "Fall": {"fol": "#ad7844", "seed": "#7f563c"},
+          "Winter": {"fol": "#9c8364", "seed": "#7a6452"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Sorghastrum elliottii and lists Chrysopogon elliottii and Sorghastrum apalachicolense as synonyms. Its native range is the central and southeastern United States, including Texas, Florida and the Carolinas; Kew records it as introduced rather than native in Indiana.",
+        "dimensions": "NC State gives a direct landscape range of 4–6 ft tall by 1–3 ft wide, while noting occasional taller plants in description. Proposed 72 by 36 in uses the upper direct landscape size so the nodding flower stems remain legible and distinct.",
+        "spacing": "Proposed 36-in centers match the direct three-foot crown. USDA Forest Service treatment says slender Indiangrass lacks rhizomes, so this is a clump module rather than a rhizomatous colony; seeds can still establish outside it.",
+        "hardinessAndCulture": "NC State supplies zones 4a–9b, full sun, rapid growth, moist to occasionally dry soil, and dry sandy roadsides and open-woodland habitat. Full/dry distinguishes its characteristic drought-tolerant sandy-site role, though establishment and natural communities can include medium-moisture sites.",
+        "floweringAndPersistence": "NC State gives late-summer to early-fall flowers, fall-to-winter seed and a deciduous warm-season habit with winter interest. August–October is a representative Southeast display window. Dry culms and panicles may persist through winter if not cut.",
+        "identityAndBehavior": "USDA Forest Service separates it from common Indiangrass by weak, nodding flower stalks, chestnut-brown panicles, long twice-bent awns and absence of rhizomes. These features justify a separate catalog record rather than treating it as a color variant of S. nutans.",
+        "lifespanAndSafety": "It is perennial, but no authoritative fixed lifespan in years or material poisoning concern was found in the reviewed sources. Do not infer forage safety, palatability or pet safety from that absence.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high", "zones": "high", "culture": "high", "bloomMonths": "high", "rhizomeStatus": "high", "lifespanYears": "unknown", "toxicity": "no material concern found"}
+      },
+      "sources": [
+        {"url": "https://plants.ces.ncsu.edu/plants/sorghastrum-elliottii/", "supports": "direct 4–6 by 1–3-ft dimensions, zones 4a–9b, full-sun dry-sandy/open-woodland culture, warm-season habit, nodding panicles, fall/winter seed and winter interest"},
+        {"url": "https://www.srs.fs.usda.gov/pubs/rp/rp_so210.pdf", "supports": "southern sandy-site distribution, weak nodding chestnut-brown flower stalks, twice-bent awns, distinction from common and lopsided Indiangrass, and lack of rhizomes"},
+        {"url": "https://auth1.dpr.ncparks.gov/flora/species_account.php?id=3989", "supports": "North Carolina state-botany account, 3–6-ft perennial habit, slender arching-to-nodding panicle, dry woodland and roadbank habitat, and southeastern range"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:240815-2", "supports": "accepted Sorghastrum elliottii name, selected synonymy and native central/southeastern state range"}
+      ],
+      "caveats": [
+        "Keep it distinct from existing common Indiangrass, Sorghastrum nutans, and from lopsided Indiangrass, S. secundum. The loose, weak, nodding panicle is the key visual cue.",
+        "The proposed plumeNod renderer value depends on a new shared optional vertgrass parameter. Without it, the app can add the plant but will understate the most diagnostic habit.",
+        "Dry is a catalog simplification for sandy uplands and open woodland; the species also occurs in medium-moisture sites and benefits from water during establishment.",
+        "Zone 4 hardiness comes from NC State cultivation guidance, but the documented native range is centered much farther south. Zone suitability must not be presented as local nativity."
+      ]
+    },
+    {
+      "id": "SE-07",
+      "suggestedKey": "yauponholly",
+      "proposed": {
+        "name": "Yaupon Holly",
+        "latin": "Ilex vomitoria",
+        "synonyms": ["Ilex ligustrina"],
+        "form": "bush",
+        "type": "shrub",
+        "h": 82,
+        "cw": 92,
+        "heightIn": 180,
+        "spread": 144,
+        "space": 144,
+        "grow": 10,
+        "zones": [7, 9],
+        "sun": "part",
+        "moist": "medium",
+        "phen": "cool",
+        "bloomMonths": [3, 4, 5],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["evergreen", "structure", "hedge", "coastal", "nectar"],
+        "look": {
+          "art2": true,
+          "evergreen": true,
+          "habit": "upright",
+          "exposedBranching": true,
+          "twigN": 11,
+          "twigW": 1.55,
+          "leafN": 62,
+          "leafShape": "ovate",
+          "leafHW": 0.62,
+          "leafLong": 2.2,
+          "leafTeeth": 0.12,
+          "leafTeethN": 6,
+          "bloomStyle": "stemAxil",
+          "flowerShape": "star",
+          "flowerN": 2,
+          "fruitStyle": "cluster",
+          "berryN": 7
+        },
+        "blurb": "A durable evergreen coastal-plain holly that can be clipped as a screen or trained as a small multistem tree. The species can sucker into a thicket and tolerates sun or shade, drought, salt and occasional flooding, but dense growth and heavy fruit are strongest in sun. Plants are male or female: red winter fruit requires a female clone and compatible male pollen.",
+        "sea": {
+          "Spring": {"fol": "#4f7346", "bloom": "#e9eadc", "twig": "#756550"},
+          "Summer": {"fol": "#41683f", "twig": "#72614d"},
+          "Fall": {"fol": "#42633e", "seed": "#bd342f", "twig": "#74614d"},
+          "Winter": {"fol": "#445f3d", "seed": "#b92f2b", "twig": "#75624f"}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Ilex vomitoria. Kew treats Ilex ligustrina as a synonym of the nominotypical subspecies, and NC State records it as a former scientific name. The native range covers the lower Southeast and Gulf Coast from Virginia and the Carolinas through Florida to Texas and Oklahoma, with Arkansas also documented; it is not native throughout all zone-7-to-9 states.",
+        "dimensions": "NC State gives 10–20.5 ft tall by 8–12 ft wide. UF describes a typical species tree 15–25 ft tall with a similar spread. Proposed 15 by 12 ft intentionally models a manageable unpruned shrub/small-tree crown within both sources, not the largest tree-form specimen or a dwarf cultivar.",
+        "spacing": "Proposed 144 in matches NC State's direct upper crown width. A plant allowed to reach UF's 15–25-ft tree form needs more space; repeated hedge plants may be set closer only with an explicit pruning plan.",
+        "hardinessAndCulture": "NC State gives zones 7a–9b, sun through deep shade, medium growth, adaptable soils, drought and salt tolerance, occasional-flooding tolerance and better fruit/thicker growth in sun. Part/medium expresses its broad garden baseline; it must not imply identical performance at every light or moisture extreme.",
+        "floweringAndPersistence": "NC State gives March–May inconspicuous white flowers and evergreen foliage. Female plants bear red drupes in fall that can persist through winter and feed birds. The year-round fine texture and fruit season justify evergreen and winter-interest roles.",
+        "sexFruitAndStock": "The species is dioecious. Fruit requires a female plant plus overlapping male bloom. UF advises buying a berried or cutting-propagated known female where fruit matters; seed-grown sex is uncertain, and several dwarf or male cultivars do not fruit. Nursery labels and cultivar identity must override a generic fruit preview.",
+        "behaviorSafetyAndPersistence": "NC State reports root suckers and thicket formation, high flammability, and low-severity gastrointestinal poisoning from fruit containing holly toxic principles. Leaves contain caffeine and have a documented traditional beverage history, but that is not a cue to market unsourced landscape foliage for consumption. It is a long-lived woody evergreen, but no defensible fixed lifespan was found.",
+        "growConfidence": "Moderate ten-year planning estimate to a 15-ft design plant. UF's tree fact sheet states a vase form can develop in about ten years, while final size depends strongly on cultivar, training and site.",
+        "confidence": {"taxonomy": "high", "dimensions": "high", "spacing": "high for proposed shrub form", "zones": "high", "culture": "high", "bloomMonths": "high", "sexAndFruit": "high", "toxicity": "high", "grow": "moderate", "lifespanYears": "unknown"}
+      },
+      "sources": [
+        {"url": "https://plants.ces.ncsu.edu/plants/ilex-vomitoria/", "supports": "direct 10–20.5 by 8–12-ft dimensions, zones 7a–9b, evergreen habit, broad sun/moisture tolerance, dioecy, March–May flowers, fall/winter fruit, suckering, thicket formation, flammability and low-severity fruit toxicity"},
+        {"url": "https://edis.ifas.ufl.edu/publication/ST311/pdf", "supports": "direct 15–25-ft species tree scale, zones 7A–9B, vase form at about ten years, dioecy and known-female nursery-stock guidance"},
+        {"url": "https://edis.ifas.ufl.edu/publication/MG021/pdf", "supports": "15–25 by 15–25-ft mature species size and cultivar differences in form, size and sex"},
+        {"url": "https://ask.ifas.ufl.edu/publication/SG172", "supports": "caffeine in leaves, nursery propagation and the need for genetic and sex diversity in restoration material"},
+        {"url": "https://edis.ifas.ufl.edu/publication/EP618/pdf", "supports": "female-plus-male fruit requirement, landscape adaptability and nonfruiting dwarf-cultivar caveat"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:83863-1", "supports": "accepted Ilex vomitoria name and lower-southeastern/Gulf native distribution"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:83448-1", "supports": "Ilex ligustrina as a selected historical synonym of Ilex vomitoria subsp. vomitoria"}
+      ],
+      "caveats": [
+        "Do not promise berries on every plant. A fruiting design requires a known female clone and compatible male pollen; a rendered fruit season represents female potential, not plant sex.",
+        "Species yaupon is much larger than common dwarf cultivars. Preserve the 12-ft reservation for this record and create separate cultivar records if compact forms are needed.",
+        "Suckers can create a broad thicket. In fire-prone settings, NC State's high-flammability warning makes it unsuitable immediately beside structures in defensible space.",
+        "The berries can cause nausea, vomiting and diarrhea. Leaves contain caffeine, but the app should not encourage consumption of unidentified or treated nursery stock."
+      ]
+    },
+    {
+      "id": "SE-08",
+      "suggestedKey": "sweetbaymagnolia",
+      "proposed": {
+        "name": "Sweetbay Magnolia",
+        "latin": "Magnolia virginiana",
+        "synonyms": ["Magnolia glauca"],
+        "form": "tree",
+        "type": "tree",
+        "h": 82,
+        "cw": 82,
+        "heightIn": 480,
+        "spread": 240,
+        "space": 240,
+        "grow": 20,
+        "zones": [5, 10],
+        "sun": "part",
+        "moist": "moist",
+        "phen": "mid",
+        "bloomMonths": [5, 6, 7, 8, 9],
+        "nativeTo": ["north-america"],
+        "provenance": "species",
+        "roles": ["canopy", "structure", "wet", "woodland", "nectar"],
+        "look": {
+          "art2": true,
+          "trunks": 2,
+          "trunkSpread": 4,
+          "trunkLean": 2.2,
+          "trunkH": 0.42,
+          "trunkW": 4.8,
+          "bark": "#71665a",
+          "branches": 7,
+          "branchSpread": 1.55,
+          "branchReach": 0.38,
+          "branchLift": 0.2,
+          "leafN": 30,
+          "leafW": 0.13,
+          "leafH": 0.08,
+          "canopyW": 0.42,
+          "canopyH": 0.22,
+          "flowerN": 14,
+          "flowerSize": 2.4,
+          "seedN": 6,
+          "seedR": 1.65,
+          "fruitShape": "oval",
+          "fruitCluster": 3
+        },
+        "blurb": "A fragrant-flowered coastal-plain tree for moist, acidic soil, rain gardens and woodland edges, modeled here at forty by twenty feet. Size and winter foliage vary sharply: northern plants are usually shorter and deciduous, while Deep South provenances, var. australis and selected cultivars can grow much taller and remain evergreen. Red seeds follow the creamy flowers.",
+        "sea": {
+          "Spring": {"fol": "#5e7c57", "bloom": "#f1eee1"},
+          "Summer": {"fol": "#4f714f", "bloom": "#efe9d8"},
+          "Fall": {"fol": "#65745a", "bloom": "#ece6d8", "seed": "#c64c3e"},
+          "Winter": {}
+        }
+      },
+      "evidence": {
+        "taxonomy": "Kew accepts Magnolia virginiana and recognizes accepted infraspecific taxa, including var. australis, rather than treating them as synonyms of the species. Magnolia glauca is a historical synonym associated in Kew with the nominotypical northern subspecies and is retained only as a discovery alias, not as a claim that northern and southern material are identical.",
+        "dimensions": "UF gives a representative landscape tree of 40–50 ft tall by 15–25 ft wide, while NC State gives 10–35 ft with an equally broad crown and notes Deep South trees can reach 100 ft. Proposed 40 by 20 ft follows the direct UF landscape range and avoids both a small northern shrub form and exceptional southern forest trees.",
+        "spacing": "Proposed 240 in matches the midpoint of UF's direct 15–25-ft width. The app reserves that as a soft tree canopy; broad northern forms and larger southern provenances may ultimately need more room.",
+        "hardinessAndCulture": "NC State gives zones 5a–10b, sun or part shade, consistently moist to wet acidic organic soil and winter damage risk in the cold end. UF gives zones 5A–10A, low drought tolerance and suitability for wet or well-drained acidic soil. Part/moist expresses its woodland-edge and wet-garden baseline; dry or alkaline placement is inappropriate.",
+        "floweringAndPersistence": "UF gives creamy flowers from June through September; NC State describes a main mid-spring bloom with sporadic flowers until frost; Forest Service records geographic flower timing from March to July. May–September is a moderate-confidence garden display span rather than continuous full bloom. Red seeds mature from clustered cone-like fruits in late summer and fall.",
+        "regionalPersistenceAndProvenance": "Foliage ranges from deciduous through semi-evergreen to evergreen with climate and provenance. UF says species plants are deciduous in zones 7–8 and more evergreen farther south, while var. australis and cultivars such as 'Henry Hicks' are selected for evergreen behavior. The generic winter palette omits foliage so it does not promise evergreen performance in the Carolinas or farther north.",
+        "behaviorLifespanAndHealth": "Forest Service reports a native, noninvasive wetland tree that can sprout strongly after topkill and sometimes root stems, with an estimated lifespan near 130 years. NC State and UF report few serious pests but note alkaline-soil chlorosis, scale, weevil or leaf-spot issues and drought sensitivity. Thin bark and surface roots make mechanical damage relevant near hardscape.",
+        "growConfidence": "Weak-to-moderate twenty-year planning estimate to the proposed 40-ft tree. UF calls growth moderate, Forest Service sources vary between slow growth and full size in under 30 years, and no cultivar-independent time-to-40-ft trial was found.",
+        "safetyAndStock": "No material human, dog, cat or livestock poisoning concern was found in the reviewed authoritative sources; absence of a warning is not an edibility claim. Nursery provenance and cultivar are material because mature size, stem count, cold hardiness and leaf persistence vary greatly.",
+        "confidence": {"taxonomy": "high", "dimensions": "high for representative Southeast landscape form", "spacing": "high for proposed form", "zones": "high", "culture": "high", "bloomMonths": "moderate", "regionalLeafPersistence": "high", "lifespan": "moderate", "grow": "weak-to-moderate", "toxicity": "no material concern found"}
+      },
+      "sources": [
+        {"url": "https://plants.ces.ncsu.edu/plants/magnolia-virginiana/", "supports": "zones 5a–10b, northern 10–35-ft scale and larger Deep South potential, sun/part-shade moist-acid culture, deciduous-to-semievergreen habit, creamy flowers, red seeds, cultivar/provenance variation and health cautions"},
+        {"url": "https://edis.ifas.ufl.edu/publication/ST384/pdf", "supports": "direct 40–50 by 15–25-ft landscape dimensions, zones 5A–10A, moderate growth, full/part sun, wet acidic soil, low drought tolerance, June–September flowers, fruit, multitrunk form and north-south evergreen variation"},
+        {"url": "https://edis.ifas.ufl.edu/publication/EP348/pdf", "supports": "Florida landscape use, 25–40 by 15–20-ft alternative size, fast-to-moderate growth and moist-site role"},
+        {"url": "https://research.fs.usda.gov/feis/species-reviews/magvir", "supports": "native wet acidic-swamp ecology, deciduous-to-evergreen geographic pattern, March–July flower range, fruit timing, sprouting and rooting behavior, noninvasive status and approximate 130-year lifespan"},
+        {"url": "https://research.fs.usda.gov/silvics/sweetbay", "supports": "slow-growing small-to-medium tree treatment and wet acidic coastal-swamp habitat"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30016308-2", "supports": "accepted Magnolia virginiana species name, accepted infraspecific taxa and eastern-US-to-Texas/Cuba native range"},
+        {"url": "https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:77170516-1", "supports": "Magnolia glauca as a selected historical synonym associated with Magnolia virginiana subsp. virginiana"}
+      ],
+      "caveats": [
+        "Do not promise one universal mature size or winter foliage state. Northern plants are commonly shorter and deciduous; southern provenances, var. australis and selected evergreen cultivars can be much larger and retain leaves.",
+        "Keep soil moist and acidic. Alkaline soil can cause chlorosis, and the species has low drought tolerance despite tolerating ordinary well-drained sites when moisture is reliable.",
+        "May–September represents a broad potential display with a main flush and scattered later flowers, not five months of continuous full bloom.",
+        "Twenty-year grow is a planning estimate. Nursery provenance, cultivar, stem training and site can change growth rate, ultimate crown and cold performance substantially."
+      ]
+    }
+  ]
+}

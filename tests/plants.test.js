@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,527,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,535,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
     'canonical nested-choice count');
@@ -236,6 +236,39 @@ test('Texas and Arizona Phase 4 batches preserve reviewed data and regional limi
   assert(/separate plants/i.test(PLANTS.jojoba.blurb)&&/does not promise/i.test(PLANTS.jojoba.blurb),'jojoba dioecy remains visible');
   assert(/Calliandra californica/.test(PLANTS.pinkfairyduster.blurb),'pink fairy duster stays distinct from the Baja species');
   assert(/25-foot crown/i.test(PLANTS.bluepaloverde.blurb)&&/borers/i.test(PLANTS.bluepaloverde.blurb),'blue palo verde keeps mature-space and maintenance limits');
+});
+
+test('Carolinas and humid Southeast Phase 5 batches preserve reviewed data and limits', () => {
+  const rows=['phase5a-sources.json','phase5b-sources.json'].flatMap(file=>
+    JSON.parse(readRepoFile('docs/plant-data/'+file)).plants);
+  assertEqual(rows.length,8,'Phase 5 contains exactly the eight approved southeastern taxa');
+  for(const row of rows){
+    const P=PLANTS[row.suggestedKey], reviewed=row.proposed;
+    assert(P,`${row.id}: missing species`);
+    assertEqual(P.name,reviewed.name,`${row.id}: reviewed common name`);
+    assertEqual(P.latin,reviewed.latin,`${row.id}: exact reviewed taxon`);
+    assertEqual(P.type,reviewed.type,`${row.id}: biological placement category`);
+    assertEqual(P.form,reviewed.form,`${row.id}: reviewed renderer form`);
+    for(const field of ['heightIn','spread','space','sun','moist','phen'])
+      assertEqual(P[field],reviewed[field],`${row.id}: reviewed ${field}`);
+    assertEqual(P.zones.join(','),reviewed.zones.join(','),`${row.id}: reviewed zone range`);
+    if(reviewed.grow) assertEqual(P.grow,reviewed.grow,`${row.id}: planning years to represented woody size`);
+    assertEqual((P.synonyms||[]).join('|'),(reviewed.synonyms||[]).join('|'),`${row.id}: reviewed searchable synonyms`);
+    assertEqual(P.bloomMonths.join(','),reviewed.bloomMonths.join(','),`${row.id}: reviewed bloom window`);
+    assertEqual(P.nativeTo.join(','),'north-america',`${row.id}: retains existing continental range contract`);
+    assertEqual(P.provenance,'species',`${row.id}: straight species`);
+  }
+  assert(/native range is narrower/i.test(PLANTS.greenandgold.blurb)&&/semievergreen/i.test(PLANTS.greenandgold.blurb),'green-and-gold keeps range and winter limits');
+  assert(/All parts contain poisonous alkaloids/i.test(PLANTS.indianpink.blurb)&&/nursery-propagated/i.test(PLANTS.indianpink.blurb)&&/threatened/i.test(PLANTS.indianpink.blurb),'Indian pink keeps toxicity, stock, and state-status caveats');
+  assert(/Ruellia simplex/.test(PLANTS.carolinawildpetunia.blurb)&&/short-lived/i.test(PLANTS.carolinawildpetunia.blurb),'Carolina wild petunia keeps its invasive-lookalike and lifespan distinctions');
+  assert(/not a containment promise/i.test(PLANTS.bluemistflower.blurb)&&/overwhelm/i.test(PLANTS.bluemistflower.blurb),'blue mistflower keeps its colony warning');
+  assert(/rhizomatous/i.test(PLANTS.swampsunflower.blurb)&&/staking/i.test(PLANTS.swampsunflower.blurb)&&/compact cultivars/i.test(PLANTS.swampsunflower.blurb),'swamp sunflower keeps its spread, support, and cultivar limits');
+  assert(/lacks spreading rhizomes/i.test(PLANTS.slenderindiangrass.blurb)&&/Sorghastrum nutans/.test(PLANTS.slenderindiangrass.blurb),'slender Indiangrass stays distinct from common Indiangrass');
+  assert(/highly flammable/i.test(PLANTS.yauponholly.blurb)&&/male or female/i.test(PLANTS.yauponholly.blurb)&&/gastrointestinal/i.test(PLANTS.yauponholly.blurb),'yaupon keeps fire, sex, and fruit-safety caveats');
+  assert(/northern plants are usually shorter and deciduous/i.test(PLANTS.sweetbaymagnolia.blurb)&&/var\. australis/i.test(PLANTS.sweetbaymagnolia.blurb)&&/not continuous full bloom/i.test(PLANTS.sweetbaymagnolia.blurb),'sweetbay keeps size, persistence, and bloom qualifications');
+  assertEqual(PLANTS.greggmistflower.group,PLANTS.bluemistflower.group,'eastern and southwestern mistflowers share a mobile catalog group');
+  assertEqual(PLANTS.swampsunflower.group,'sunflower','swamp sunflower joins the existing sunflower group');
+  assertEqual(PLANTS.sweetbaymagnolia.group,'magnolia','sweetbay joins the existing magnolia group');
 });
 
 test('cleaned exact selections keep accepted names and provenance', () => {

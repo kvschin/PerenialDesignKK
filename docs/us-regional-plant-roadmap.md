@@ -1,10 +1,10 @@
 # US regional plant expansion roadmap
 
-Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, 3, and 4**: 54 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Phases 5–6 remain a backlog.
+Prepared August 30, 2026. Updated through local implementation of phases **1A/1B, 2, 3, 4, and 5**: 62 species plus the independently sized 'Howard McMinn' manzanita selection. Phase 0 remains deferred at the user's request. Phase 6 remains a backlog.
 
-**The next regional gaps are the humid Southeast and an initial Alaska/Hawaii audit.** The implemented West Coast, Florida, Colorado, Texas, and Arizona batches improve those regions without claiming automatic state-level suitability. The Carolinas can build on a much deeper eastern US catalog.
+**The next regional gap is an initial Alaska/Hawaii and nationwide audit.** The implemented West Coast, Florida, Colorado, Texas, Arizona, and humid Southeast batches improve those regions without claiming automatic state-level suitability.
 
-The original roadmap contains **68 candidate taxa**; 54 are now implemented and 14 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), and [phase 4](plant-data/phase4-implementation.md) notes. Later batches still require production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
+The original roadmap contains **68 candidate taxa**; 62 are now implemented and 6 remain. Source reviews and implementation decisions are in [phase 1](plant-data/phase1-implementation.md), [phase 2](plant-data/phase2-implementation.md), [phase 3](plant-data/phase3-implementation.md), [phase 4](plant-data/phase4-implementation.md), and [phase 5](plant-data/phase5-implementation.md) notes. The last batch still requires production verification of dimensions, hardiness, local distribution, bloom timing, provenance, and nursery availability. A recommendation for a region is not a claim that the plant is native throughout it.
 
 | Phase | Work | Candidate taxa |
 | --- | --- | ---: |
@@ -13,14 +13,14 @@ The original roadmap contains **68 candidate taxa**; 54 are now implemented and 
 | 2 | Florida — implemented locally | 10 |
 | 3 | Colorado/Rockies — implemented locally | 10 |
 | 4 | Texas + Arizona/arid Southwest — implemented locally | 12 |
-| 5 | Carolinas/humid Southeast | 8 |
+| 5 | Carolinas/humid Southeast — implemented locally | 8 |
 | 6 | Nationwide gap audit + Alaska/Hawaii starters | 6 |
 
 Phases express priority, not a requirement to finish every region before starting another. The user chose to implement 1A/1B before Phase 0; these plants use existing filters and seasonal rules, with site caveats in their descriptions. They do not introduce automatic regional suitability claims. The first five plant phases contain 62 candidates for the areas requested; the final six begin the remaining nationwide work.
 
 ## What the catalog currently covers
 
-The initial audit counted **473 base records and 376 nested choices**. Through Phase 4, the local catalog contains **527 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
+The initial audit counted **473 base records and 376 nested choices**. Through Phase 5, the local catalog contains **535 base records and 377 nested choices**. Those are not unique-species counts: some records preserve different shapes or placement layers, and nested choices include both cultivars and exact species. The table below records the starting gaps, before this expansion.
 
 | Area | Assessment | Existing examples to reuse | Main gaps |
 | --- | --- | --- | --- |
@@ -187,6 +187,8 @@ These are separate site options, not one interchangeable Arizona/west Texas nati
 
 ## Phase 5 — Carolinas and humid Southeast: 8 candidates
 
+**Implemented locally:** all SE-01–SE-08 in two independently reviewed four-plant batches. The records retain narrower-range, nursery-propagation, reseeding, spreading, wet-site, dioecious-fruit, regional leaf-persistence, and mature-size qualifications in their descriptions because Phase 0 remains deferred. Green-and-gold and Indian pink strengthen the woodland layer; Carolina wild petunia and blue mistflower add long and late flower windows; swamp sunflower and slender Indiangrass add tall wet-meadow structure; yaupon holly and sweetbay magnolia add evergreen or seasonally persistent woody structure where climate permits.
+
 Focus on shaded ground layers, late-season flowers, and coastal woody structure. Existing Cherokee/blue wood sedges, Southern blue flag, cardinal flower, sweetspire, summersweet, and oakleaf hydrangea already supply useful companions where locally suitable.
 
 | ID | Plant | Role and qualification | Source |
@@ -200,7 +202,7 @@ Focus on shaded ground layers, late-season flowers, and coastal woody structure.
 | SE-07 | Yaupon holly — *Ilex vomitoria* | Evergreen screen/small tree; Texas crossover, sex matters for fruit | [NC State](https://plants.ces.ncsu.edu/plants/ilex-vomitoria/) |
 | SE-08 | Sweetbay magnolia — *Magnolia virginiana* | Flowering tree for moist acidic sites; size/leaf persistence vary regionally | [NC State](https://plants.ces.ncsu.edu/plants/magnolia-virginiana/) |
 
-**Implementation:** one eight-plant batch or two four-plant batches. Prioritize low groundcover rendering and the distinctive Indian-pink flower. Distinguish Carolina mountain, Piedmont, and coastal suitability. Southern evergreen or semi-evergreen appearance must not be extrapolated to every northern location.
+**Implementation:** the two four-plant batches reuse data-gated mat, spike, mistflower, sunflower, vertical-grass, shrub, and broadleaf-tree architecture. New reusable controls lift mat flowers above foliage, shape Indian-pink star tubes, add optional trumpet throats and magnolia flowers, and bend nodding grass plumes. Blue mistflower and swamp sunflower join their existing presentation groups without losing exact species records. The dev-only `dev/phase5-review.html` contact sheet covers both renderer modes, all seasons, and sprite-edge checks. Southern evergreen or semi-evergreen appearance is not extrapolated to every northern location.
 
 ## Phase 6 — national coverage audit and Alaska/Hawaii starter batches: 6 candidates
 

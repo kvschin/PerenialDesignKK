@@ -275,6 +275,8 @@ const floridaKeys=JSON.parse(readRepoFile('docs/plant-data/phase2-sources.json')
 const coloradoKeys=JSON.parse(readRepoFile('docs/plant-data/phase3-sources.json')).plants.map(p=>p.suggestedKey);
 const phase4Keys=['phase4a-sources.json','phase4b-sources.json'].flatMap(file=>
   JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
+const phase5Keys=['phase5a-sources.json','phase5b-sources.json'].flatMap(file=>
+  JSON.parse(readRepoFile('docs/plant-data/'+file)).plants.map(p=>p.suggestedKey));
 
 test('West Coast plants are reachable by category, exact discovery, and botanical synonyms', () => {
   setup();
@@ -467,6 +469,10 @@ test('Texas and Arizona plants are reachable by category, discovery, and botanic
   assertEqual(libraryCatFor('lindheimersmuhly').id,'grasses',"Lindheimer's muhly stays in grasses");
   assertEqual(libraryCatFor('heartleafskullcap').id,'shadeper','heartleaf skullcap stays with shade perennials');
   assertEqual(libraryCatFor('bluepaloverde').id,'trees','blue palo verde stays in trees');
+  assert(flowerFamiliesFor(PLANTS.texasmountainlaurel,'Winter').includes('purple'),
+    'February Texas mountain-laurel bloom remains discoverable through the Winter purple filter');
+  assert(flowerFamiliesFor(PLANTS.brittlebush,'Summer').includes('yellow'),
+    'June brittlebush bloom remains discoverable through the Summer yellow filter');
 });
 
 test('Phase 4 woody plants reserve reviewed mature footprints', () => {
@@ -505,6 +511,81 @@ test('Phase 4 morphology stays finite, deterministic, and distinct in both rende
     assert(trace('turkscap','Summer')!==trace('cenizo','Summer'),'furled Turk cap flowers remain distinct from cenizo trumpets');
     assert(trace('brittlebush','Spring')!==trace('texasrockrose','Spring'),'brittlebush daisies remain distinct from rock-rose mallows');
     assert(trace('pinkfairyduster','Spring')!==trace('trailingindigobush','Spring'),'powder-puff filaments remain distinct from indigo flower heads');
+  } } finally { ART2.on=before; }
+});
+
+test('Carolinas and humid Southeast plants are reachable by category, discovery, and botanical synonyms', () => {
+  setup();
+  const library=new Set(libraryAllKeys()),refs=new Set(allPlantRefs().map(r=>plantRefId(r)));
+  for(const key of phase5Keys){
+    assert(library.has(key)&&libraryCatFor(key),`${key}: reachable library category`);
+    assert(refs.has(key+'|'),`${key}: exact discovery reference`);
+    for(const synonym of PLANTS[key].synonyms||[]){
+      const q=synonym.toLowerCase();
+      assert(libraryMatches(key,q),`${key}: library finds ${synonym}`);
+      assert(plantSearchHay(key).includes(q),`${key}: tray finds ${synonym}`);
+      assert(discoverySearchText(plantRef(key)).includes(q),`${key}: discovery finds ${synonym}`);
+    }
+    for(const season of SEASONS){
+      if(bloomMonthsInSeason(PLANTS[key],season).length)
+        assert(flowerFamiliesFor(PLANTS[key],season).length,`${key}: ${season} calendar bloom has a flower filter colour`);
+    }
+  }
+  assertEqual(libraryCatFor('greenandgold').id,'shadeper','green-and-gold stays with shade perennials');
+  assertEqual(libraryCatFor('slenderindiangrass').id,'grasses','slender Indiangrass stays in grasses');
+  assertEqual(libraryCatFor('yauponholly').id,'shrubs','yaupon holly stays in shrubs');
+  assertEqual(libraryCatFor('sweetbaymagnolia').id,'trees','sweetbay magnolia stays in trees');
+  assertEqual(PLANTS.bluemistflower.group,'mistflower','blue mistflower joins the shared mistflower group');
+  assertEqual(PLANTS.swampsunflower.group,'sunflower','swamp sunflower joins the shared sunflower group');
+});
+
+test('Phase 5 woody plants reserve mature footprints while sweetbay permits canopy underplanting', () => {
+  setup(81,81);game.tool='yauponholly';
+  assertEqual(applyToolAt(40,40),'plant','yaupon holly places through normal tool dispatch');
+  const tiles=shrubFootprintTiles(40,40,game.plants['40,40'],true);
+  const neighbor=tiles.find(([x,y])=>x!==40||y!==40);
+  assert(neighbor,'yaupon holly reserves more than its centre tile');
+  game.tool='greenandgold';
+  assertEqual(applyToolAt(...neighbor),null,'yaupon holly hard occupancy blocks ground-layer planting');
+
+  setup(81,81);game.tool='sweetbaymagnolia';
+  assertEqual(applyToolAt(40,40),'plant','sweetbay magnolia places as a tree');
+  game.tool='greenandgold';
+  assertEqual(applyToolAt(40,40),null,'sweetbay magnolia trunk stays occupied');
+  assertEqual(applyToolAt(41,40),'plant','green-and-gold can be planted beneath the open magnolia canopy');
+});
+
+test('Phase 5 morphology stays finite, deterministic, distinct, and data gated in both renderers', () => {
+  function trace(key,season,seed=719){
+    const ops=[],ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key} ${season}: finite ${p}`);
+          if(['moveTo','lineTo','quadraticCurveTo','bezierCurveTo','ellipse','arc','fill','stroke'].includes(p))
+            ops.push([p,...a.map(v=>typeof v==='number'?Math.round(v*100)/100:v)]); };
+      },set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,season,seed,0,null,1);return JSON.stringify(ops);
+  }
+  function gateChanges(key,season,field,off){
+    const look=PLANTS[key].look,authored=look[field],on=trace(key,season);
+    try { look[field]=off; assert(on!==trace(key,season),`${key}: ${field} controls its authored morphology`); }
+    finally { look[field]=authored; }
+  }
+  const before=ART2.on;
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of phase5Keys)for(const season of SEASONS)
+      assertEqual(trace(key,season),trace(key,season),`${key} ${season}: stable seed`);
+    assert(trace('indianpink','Spring')!==trace('carolinawildpetunia','Spring'),'Indian pink tubes remain distinct from wild-petunia trumpets');
+    assert(trace('bluemistflower','Fall')!==trace('greggmistflower','Fall'),'blue mistflower remains distinct from Gregg mistflower');
+    assert(trace('swampsunflower','Fall')!==trace('sawtoothsunflower','Fall'),'swamp sunflower remains distinct from sawtooth sunflower');
+    assert(trace('slenderindiangrass','Fall')!==trace('indiangrass','Fall'),'slender Indiangrass keeps its nodding flower head');
+    assert(trace('sweetbaymagnolia','Summer')!==trace('magnolia','Summer'),'sweetbay flower geometry remains distinct from the existing magnolia');
+    gateChanges('greenandgold','Spring','matHeadRise',0);
+    gateChanges('slenderindiangrass','Fall','plumeNod',0);
+    gateChanges('sweetbaymagnolia','Summer','flowerShape',null);
   } } finally { ART2.on=before; }
 });
 

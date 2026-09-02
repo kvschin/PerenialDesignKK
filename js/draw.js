@@ -437,6 +437,33 @@ function drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount){
     ctx.fillStyle=accent||shade(col,28); ctx.beginPath(); ctx.arc(0,-r*0.02,Math.max(0.45,r*0.18),0,7); ctx.fill();
     ctx.restore(); return;
   }
+  if (shape==='starTube'){
+    // A long tubular corolla ending in five contrasting lobes. This is useful
+    // for Spigelia and other bicolored hummingbird flowers without teaching
+    // the spike renderer a species name.
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
+    ctx.fillStyle=shade(col,-5); ctx.beginPath();
+    ctx.ellipse(0,0,r*0.58,r*1.48,0,0,7); ctx.fill();
+    const mouthY=-r*1.35, mouth=accent||shade(col,28);
+    for(let p=0;p<5;p++){
+      const a=-Math.PI/2+p/5*Math.PI*2;
+      drawFloret(ctx,Math.cos(a)*r*0.46,mouthY+Math.sin(a)*r*0.34,
+        r*0.48,mouth,{squash:0.42,rot:a});
+    }
+    drawFloret(ctx,0,mouthY,r*0.28,shade(mouth,-18),{squash:0.9});
+    ctx.restore(); return;
+  }
+  if (shape==='magnolia'){
+    // Broad waxy tepals in two offset rings keep a large magnolia flower from
+    // collapsing to the generic tree-blossom dot.
+    for(let ring=0;ring<2;ring++)for(let p=0;p<(ring?3:6);p++){
+      const count=ring?3:6, a=ang+p/count*Math.PI*2+(ring?Math.PI/6:0);
+      const rr=r*(ring?0.35:0.62);
+      drawFloret(ctx,cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.72,
+        r*(ring?0.58:0.72),shade(col,ring?4:-2),{squash:0.46,rot:a});
+    }
+    drawFloret(ctx,cx,cy,r*0.30,accent||'#c9a548',{squash:1.25,lift:18}); return;
+  }
   if (shape==='trumpet'||shape==='funnel'||shape==='bell'){
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang);
     ctx.fillStyle=shade(col,-12); ctx.beginPath();
@@ -1111,8 +1138,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // indiangrass a loose open panicle. Rays batch into a single stroke.
           const st=L.plumeStyle||'spike', ph=Math.max(9,H*(L.plumeLen||0.17));
           const py0=-len, lean=a*2.4+sway*0.6;
+          const plumeNod=Math.max(-10,Math.min(10,L.plumeNod||0));
+          const nodDir=tip===baseX?(i%2?1:-1):Math.sign(tip-baseX);
+          const nodX=nodDir*Math.abs(plumeNod), nodY=Math.abs(plumeNod)*0.42;
           if (st!=='fan'){                                  // lit tapered axis
-            drawBlade(ctx, tip,py0, tip+lean*0.4,py0-ph*0.5, tip+lean,py0-ph,
+            drawBlade(ctx, tip,py0, tip+lean*0.4+nodX*0.18,py0-ph*0.5+nodY*0.12, tip+lean+nodX,py0-ph+nodY,
                       st==='spike'?(L.plumeW===undefined?2.5:Math.max(0.45,Math.min(4,L.plumeW))):1.5, plume);
           }
           const rays=st==='fan'?8:(st==='open'?6:5);
@@ -1128,14 +1158,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const rl=ph*(st==='fan'?(0.52+rnd()*0.40):(0.3+rnd()*0.26));
             const ry=py0-ph*(st==='fan'?0.12:(0.34+r2/rays*0.5));
             ctx.moveTo(tip+lean*0.1,ry);
-            ctx.lineTo(tip+lean+Math.sin(ra)*rl*0.80, ry-Math.cos(ra)*rl);
+            const nf=(r2+1)/rays;
+            ctx.lineTo(tip+lean+nodX*nf+Math.sin(ra)*rl*0.80, ry-Math.cos(ra)*rl+nodY*nf);
           }
           ctx.stroke(); ctx.lineCap='butt';
           if (st==='fan'){                                  // silky core
             drawFloret(ctx,tip+lean*0.25,py0-ph*0.20,1.9,plume,{squash:1.7});
           }
         } else { ctx.fillStyle=plume;
-          ctx.beginPath(); ctx.ellipse(tip,-len-4,L.plumeW===undefined?2.6:Math.max(0.45,Math.min(4,L.plumeW)),9,a*0.5+sway*0.05,0,7); ctx.fill(); }
+          const plumeNod=Math.max(-10,Math.min(10,L.plumeNod||0));
+          const nodDir=tip===baseX?(i%2?1:-1):Math.sign(tip-baseX);
+          ctx.beginPath(); ctx.ellipse(tip+nodDir*Math.abs(plumeNod)*0.55,-len-4+Math.abs(plumeNod)*0.25,
+            L.plumeW===undefined?2.6:Math.max(0.45,Math.min(4,L.plumeW)),9,
+            a*0.5+sway*0.05+nodDir*plumeNod*0.055,0,7); ctx.fill(); }
       }
     }
   }
@@ -2163,14 +2198,25 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
                            {squash:tubeW/(tubeLen*0.58), rot:side*0.10, lift:22, drop:-16});
                 fcPush(tx+side*tubeLen*0.40,ty-tubeW*0.34,tubeW*0.72,0.66);
                 fcPush(tx+side*tubeLen*0.40,ty+tubeW*0.34,tubeW*0.80,0.60);
-                fcDraw(ctx,shade(col,18),18,-4);
+                fcDraw(ctx,L.tubeThroat&&S.eye?S.eye:shade(col,18),18,-4);
                 continue;
               }
               ctx.fillStyle=shade(col,(rnd()-0.5)*14);
               ctx.beginPath(); ctx.ellipse(tx,ty,tubeLen*0.58,tubeW,side*0.10,0,7); ctx.fill();
-              ctx.fillStyle=shade(col,18);
+              ctx.fillStyle=L.tubeThroat&&S.eye?S.eye:shade(col,18);
               ctx.beginPath(); ctx.ellipse(tx+side*tubeLen*0.40,ty-tubeW*0.34,tubeW*0.72,tubeW*0.48,side*0.12,0,7); ctx.fill();
               ctx.beginPath(); ctx.ellipse(tx+side*tubeLen*0.40,ty+tubeW*0.34,tubeW*0.80,tubeW*0.48,side*0.12,0,7); ctx.fill();
+            }
+          } else if (L.spikeStyle==='starTube'){
+            const tubes=Math.max(2,Math.min(8,Math.round(L.tubeCount||5)));
+            const tubeR=Math.max(1.4,Math.min(4,L.tubeR||2.3));
+            const span=L.tubeSpan||H*0.23, lean=L.tubeLean||3.2;
+            for(let t=0;t<tubes;t++){
+              const u=tubes===1?0.5:t/(tubes-1), side=t%2?-1:1;
+              const rootY=hy+u*span, tx=hx+side*(lean+rnd()*1.4), ty=rootY+(rnd()-0.5)*0.9;
+              ctx.strokeStyle=shade(S.fol||col,-24); ctx.lineWidth=0.75; ctx.beginPath();
+              ctx.moveTo(hx,rootY+tubeR*0.55); ctx.quadraticCurveTo(hx+side*1.4,rootY,tx,ty+tubeR*1.15); ctx.stroke();
+              drawShrubFlower(ctx,tx,ty,tubeR,shade(col,(rnd()-0.5)*10),'starTube',rnd,side*0.18,S.eye);
             }
           } else if (L.spikeStyle==='culvers'){
             const arms=Math.max(3,Math.round(L.candelabraArms||5)), buds=Math.max(3,Math.round(L.candelabraBuds||5));
@@ -3106,7 +3152,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // that sites each stem also sites its flower — a second pass would put
       // the flowers somewhere else entirely. The florets are where the ops are.
       for (let i=0;i<m;i++){
-        const ox=(rnd()-0.5)*(L.flowerW||20), len=H*((L.flowerLen||0.85)+rnd()*(L.flowerJitter||0.2));
+        const ox=(rnd()-0.5)*(L.flowerW||20), liftRnd=rnd();
+        const raisedMat=habit==='matflower'&&Number.isFinite(L.matHeadRise)&&L.matHeadRise>0;
+        const matRise=Math.max(0.04,Math.min(0.65,L.matHeadRise||0));
+        const len=H*(raisedMat
+          ? (L.foliageH||0.18)+matRise*(0.78+liftRnd*0.22)
+          : (L.flowerLen||0.85)+liftRnd*(L.flowerJitter||0.2));
         ctx.strokeStyle=shade(fol,-25); ctx.lineWidth=habit==='baptisia'?1.5:1.1;
         ctx.beginPath(); ctx.moveTo(ox*0.5,0); ctx.lineTo(ox+sway*2,-len); ctx.stroke();
         ctx.fillStyle=col;
@@ -3146,7 +3197,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         }
         else if (habit==='matflower'){
           const petals=L.petals||5, petalLen=L.petalLen||4.8, petalW=L.petalW||2.9;
-          const cx=ox+sway*2+(rnd()-0.5)*(L.matW||25)*0.42, cy=-H*(0.08+rnd()*(L.foliageH||0.18))-1;
+          const cx=ox+sway*2+(rnd()-0.5)*(raisedMat?2.5:(L.matW||25)*0.42);
+          const cy=raisedMat?-len:-H*(0.08+rnd()*(L.foliageH||0.18))-1;
           if (!blooming && S.seed){
             ctx.fillStyle=shade(col,-14); ctx.beginPath(); ctx.ellipse(cx,cy,1.35,2.15,0.18,0,7); ctx.fill();
             ctx.strokeStyle=shade(col,-28); ctx.lineWidth=0.55;
@@ -3945,17 +3997,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
-          drawFloret(ctx, sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f,
-                     fr, shade(S.bloom,(rnd()-0.5)*10), {squash:0.92});
+          const fx=sway*1.4+(tx2-sway*1.4)*f, fy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
+          if (L.flowerShape) drawShrubFlower(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),
+            L.flowerShape,rnd,(rnd()-0.5)*0.45,S.eye,L.flowerPetals);
+          else drawFloret(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),{squash:0.92});
         }
       } else {
         ctx.fillStyle=S.bloom;
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
-          ctx.beginPath();
-          ctx.arc(sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f, (L.flowerSize||1.8)*vs, 0, 7);
-          ctx.fill();
+          const fx=sway*1.4+(tx2-sway*1.4)*f, fy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
+          if (L.flowerShape) drawShrubFlower(ctx,fx,fy,(L.flowerSize||1.8)*vs,S.bloom,
+            L.flowerShape,rnd,(rnd()-0.5)*0.45,S.eye,L.flowerPetals);
+          else { ctx.beginPath(); ctx.arc(fx,fy,(L.flowerSize||1.8)*vs,0,7); ctx.fill(); }
         }
       }
     }

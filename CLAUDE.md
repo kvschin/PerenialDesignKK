@@ -562,6 +562,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    an airy green-barked canopy. No renderer checks a Phase 4 species key.
    `dev/phase4-review.html` covers the Texas and Arizona batches in both
    renderer modes, all seasons, and sprite-edge checks.
+   **Carolinas/humid Southeast Phase 5:** eight straight species bring the
+   catalog to 535 base records / 377 nested choices. The independent woodland
+   and meadow/woody source reviews and implementation decisions live in
+   `docs/plant-data/phase5-implementation.md`. Phase 0 remains deferred, so
+   Carolina mountain/Piedmont/coast distinctions, local origin, propagation,
+   spreading, wet-site, sex/fruit, leaf-persistence, and regional mature-size
+   limits remain explicit in descriptions instead of automatic claims.
+   Yaupon holly reserves its mature shrub footprint; sweetbay magnolia uses
+   normal tree placement and permits ground-layer planting beneath its canopy.
+   Blue mistflower joins the existing mistflower presentation group and swamp
+   sunflower joins the sunflower group while both remain exact species in
+   search and saved references. Reusable, data-gated drawing controls add
+   raised mat flower heads (`matHeadRise`), five-lobed tubular spikes
+   (`spikeStyle:'starTube'`), optional trumpet throats (`tubeThroat`), nodding
+   vertical-grass plumes (`plumeNod`), and broadleaf magnolia flowers
+   (`flowerShape:'magnolia'`). No renderer checks a Phase 5 species key.
+   `dev/phase5-review.html` covers both four-plant batches in both renderer
+   modes, all seasons, and sprite-edge checks.
    **The branch plates are texture on a crown, not the crown itself**
    (`drawConiferCrownMass` + `CONIFER_MASS`): measured on the plate passes
    alone, an upright conifer carried only 13-27% ink inside its crown box
@@ -2112,7 +2130,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 527
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 535
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.
@@ -2695,8 +2713,8 @@ key: {
 `fol` (foliage), `folTip` (optional contrasting last third of a grass blade),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `panicle` (optional branch
-colour when an airy seedhead needs a different scaffold and seed colour), `eye` (cone center,
-coneflowers only), `twig` (bare-stem colour for the `bush` form — the winter
+colour when an airy seedhead needs a different scaffold and seed colour), `eye`
+(cone center or other authored flower-center/accent colour), `twig` (bare-stem colour for the `bush` form — the winter
 red/yellow of the dogwoods, ninebark's cinnamon bark; defaults to a neutral
 brown when absent, so only declare it where the stem IS the show). A winter
 that declares only `twig` draws bare coloured stems and nothing else, which is
