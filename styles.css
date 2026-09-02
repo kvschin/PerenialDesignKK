@@ -339,6 +339,34 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    actually applies here, without disturbing the sentence. */
 .menu-foot a{color:inherit;text-decoration:none;display:inline-block;padding:5px 3px}
 .menu-foot a:hover{color:var(--seedhead)}
+/* The settings gear, top-right of the MENU SCREEN's padding box — so it takes
+   the same max(18px, safe-area) inset .screen already pads by, rather than a
+   second, drifting copy of that number. Chrome over the meadow needs an opaque
+   plate: the canvas follows the SEASON while the chrome follows the THEME, so
+   neither theme is safe over bare sky.
+
+   It lives HERE, with .menu-shell and .menu-foot, and not down in the settings
+   block at the end of the file. It is menu chrome, and its mobile override sits
+   in the SHEET tier ~900 lines below — a base rule of equal specificity further
+   down the file silently wins over its own responsive override, which is
+   exactly the bug this move fixes.
+
+   On a desktop it keeps its LABEL: an unlabelled gear is the classic
+   discoverability tax, and this is the control people open an app specifically
+   to find. On SHEET it collapses to the gear alone — see the tier block. */
+.menu-settings{position:absolute;z-index:2;
+  top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));
+  display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
+  border:1.5px solid var(--border-quiet);border-radius:var(--radius-pill);
+  background:var(--surface-overlay);color:var(--text-primary);
+  font-size:13px;font-weight:600;letter-spacing:.02em;
+  box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px);
+  transition:transform var(--motion-control) var(--ease-standard),
+             background var(--motion-control),border-color var(--motion-control)}
+.menu-settings .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
+.menu-settings:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+.menu-settings:active{transform:translateY(1px)}
+.menu-settings:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
 .btn{border:1.5px solid var(--border-control);background:var(--surface-workspace);color:var(--text-primary);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:var(--radius-control);letter-spacing:.02em;
   transition:border-color var(--motion-control),background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
@@ -1377,6 +1405,17 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .menu-shell{width:min(330px,calc(100vw - 32px));min-height:100%;gap:14px;padding:54px 0 24px}
   .menu-title-block{padding:0}
   h1.title{font-size:clamp(54px,17vw,76px)}
+  /* Gear only. The label earns its place on a desktop, where the pill sits in
+     empty space beside a wide title block; on a phone it is 106px of chrome
+     over the meadow for a control every user already knows by its icon.
+     The label is CLIPPED, never display:none — a button whose only text is
+     display:none has no accessible name at all, which would trade a visible
+     label for an unnamed control. And the icon grows: at 18px it was sized to
+     sit BESIDE a word, and it is now carrying the whole meaning. */
+  .menu-settings{padding:0;width:44px;min-height:44px;justify-content:center}
+  .menu-settings span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+    overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .menu-settings .ui-icon{width:21px;height:21px}
   .menu-card{padding:12px;gap:9px}
   .menu-action{min-height:74px;padding:15px 16px}
   .menu-action strong{font-size:20px}
@@ -2273,27 +2312,8 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 }
 
 /* ---------- settings ----------
-   The gear sits at the top-right of the MENU SCREEN's padding box, so it takes
-   the same max(18px, safe-area) inset .screen already pads by rather than a
-   second, drifting copy of that number. It keeps its LABEL: an unlabelled gear
-   is the classic discoverability tax, and this is the one control somebody
-   opens the app specifically to find. Chrome over the meadow needs an opaque
-   plate — the canvas follows the SEASON while the chrome follows the THEME, so
-   neither theme is safe over bare sky. */
-.menu-settings{position:absolute;z-index:2;
-  top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));
-  display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
-  border:1.5px solid var(--border-quiet);border-radius:var(--radius-pill);
-  background:var(--surface-overlay);color:var(--text-primary);
-  font-size:13px;font-weight:600;letter-spacing:.02em;
-  box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px);
-  transition:transform var(--motion-control) var(--ease-standard),
-             background var(--motion-control),border-color var(--motion-control)}
-.menu-settings .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
-.menu-settings:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
-.menu-settings:active{transform:translateY(1px)}
-.menu-settings:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
-
+   The menu gear that opens this lives up with the rest of the menu chrome; see
+   .menu-settings beside .menu-foot. What follows is the dialog itself. */
 .settings-panel{width:min(520px,100%)}
 .settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
 .settings-head .eyebrow{display:block;margin-bottom:4px}
@@ -2355,7 +2375,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .set-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:7px;font-size:13px}
 
 @media (pointer:coarse){
-  .menu-settings{min-height:44px;padding:0 15px 0 13px}
+  /* Height only. The SHEET rule makes this a 44px circle, and re-adding side
+     padding here would stretch it into a lozenge on every touch phone; the
+     base rule already pads it where the label still shows (a landscape
+     tablet). */
+  .menu-settings{min-height:44px}
   /* The OPTION is the target, not the track around it, so 44 is on the
      option and the track grows to 52. */
   .set-choice-opt,.set-action{min-height:44px}
@@ -2371,15 +2395,9 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 @media (max-width:420px){
   .set-row-head{flex-wrap:wrap;row-gap:6px}
 }
-/* Below the legacy-width step the pill collapses to a 44px gear — but the label
-   is CLIPPED, not display:none. A button whose only text is display:none has no
-   accessible name at all, so hiding it that way would trade the visual label
-   for an unnamed control, which is the worse half of the same problem. */
-@media (max-width:359px){
-  .menu-settings span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
-    overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
-  .menu-settings{padding:0;width:44px;justify-content:center}
-}
+/* The pill collapses to a bare gear on the whole SHEET tier now (see the menu
+   block in the responsive tiers), so the old 359px last-moment version is gone
+   — it only ever fired on legacy widths that were already inside SHEET. */
 @media (forced-colors: active){
   /* Both selected states are background-only, which forced colors discards. */
   .set-choice-opt,.set-action,.settings-x,.menu-settings{border:1px solid ButtonBorder!important}

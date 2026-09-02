@@ -8187,13 +8187,32 @@ test('settings controls are touch-sized', () => {
   assert(/\.set-choice-opt,\.set-action\{min-height:44px\}/.test(coarse),
     'the choice options and action buttons meet the touch minimum');
   assert(/\.menu-settings\{min-height:44px/.test(coarse), 'and so does the menu gear');
-  /* The label is CLIPPED when it collapses, never display:none — a button whose
-     only text is display:none has no accessible name at all. */
-  const narrow = css.slice(css.indexOf('@media (max-width:359px)'));
+  /* On the SHEET tier the pill collapses to a bare gear, and its label is
+     CLIPPED rather than display:none — a button whose only text is
+     display:none has no accessible name at all, which would trade a visible
+     label for an unnamed control. */
   assert(!/\.menu-settings span\{display:none/.test(css),
     'the collapsed gear keeps its accessible name');
-  assert(/\.menu-settings span\{position:absolute/.test(narrow),
-    'it is visually clipped instead');
+  const collapse = css.indexOf('.menu-settings{padding:0;width:44px');
+  assert(collapse > -1, 'the gear-only rule exists');
+  assert(/\.menu-settings span\{position:absolute/.test(css.slice(collapse)),
+    'and the label beside it is visually clipped');
+
+  /* It collapses on the project's SHEET tier — phones and portrait tablets —
+     not at a private breakpoint of its own. */
+  const before = css.slice(0, collapse);
+  const tier = before.slice(before.lastIndexOf('@media')).split('{')[0].replace('@media','').trim();
+  assertEqual(tier, SHEET_UI_MQ, 'the collapse sits inside the SHEET tier, verbatim');
+
+  /* And the BASE rule has to come FIRST. Media queries add no specificity, so a
+     base rule of equal specificity further down the file silently beats its own
+     responsive override — which is exactly what happened when the settings CSS
+     was appended to the end of the file and the tier block sat 900 lines above
+     it: the gear kept its pill padding on every phone. */
+  const base = css.indexOf('.menu-settings{position:absolute');
+  assert(base > -1, 'the base rule exists');
+  assert(base < collapse,
+    'the base .menu-settings must precede its SHEET override or source order defeats it');
 });
 
 /* ---------- units ---------- */

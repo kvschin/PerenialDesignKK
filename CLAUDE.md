@@ -3023,9 +3023,22 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
   reveal. Keep motion out of the garden renderer and preserve the global
   reduced-motion override.
 - **Settings is ONE surface with two doors** (`#settingsScreen`,
-  `settingsSections`/`renderSettings`/`openSettings` in screens.js): the
-  labelled gear at the top-right of the main menu, and a single **Settings** row
-  in the garden menu. Appearance, Haptic feedback and Left-handed layout used to
+  `settingsSections`/`renderSettings`/`openSettings` in screens.js): the gear
+  at the top-right of the main menu, and a single **Settings** row in the garden
+  menu. The gear carries its LABEL on DOCK — an unlabelled icon is the classic
+  discoverability tax, and this is the control people open an app specifically
+  to find — and collapses to a bare 44px gear on SHEET, where the pill was 106px
+  of chrome over the meadow at 375px. Two things about that collapse:
+  the label is **clipped, never `display:none`** (a button whose only text is
+  `display:none` has no accessible name at all, which trades a visible label
+  for an unnamed control), and the icon grows 18 → 21px because it stops sitting
+  beside a word and starts carrying the whole meaning.
+  **`.menu-settings` therefore lives with `.menu-shell`/`.menu-foot`, not in
+  the settings block at the end of styles.css.** Media queries add no
+  specificity, so a base rule of equal specificity further down the file
+  silently beats its own responsive override — the settings CSS was appended to
+  the end while the SHEET tier block sits ~900 lines above it, and the gear kept
+  its pill padding on every phone. A test pins the source order. Appearance, Haptic feedback and Left-handed layout used to
   be three rows *inside* the garden menu, which was wrong twice over — they are
   DEVICE preferences sitting among the planting list, the plan and Share in a
   236px dropdown, and somebody who had not opened a garden yet could not find
