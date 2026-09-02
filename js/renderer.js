@@ -1819,6 +1819,12 @@ function maybeStartSeasonFade(t,season){
      the fade but still saw the year turn, and that is the differentiator the
      funnel is asking about. */
   if (seasonFade.last && seasonFade.last!==season) funnel(FUNNEL_EVENTS.seasonTurned);
+  /* The tour's season step, for the reason directly above: the CHANGE is the
+     thing, not the crossfade that renders it. It used to fire the instant the
+     hold threshold passed, so the callout vanished at 360ms — before anything
+     on screen had moved. Fast-forward, Skip and the natural clock all arrive
+     here, so every route out of that step counts. */
+  if (seasonFade.last && seasonFade.last!==season) tourNote('season');
   if (seasonFade.last && seasonFade.last!==season && !seasonFade.suppressOnce && !game.photo &&
       !reducedMotion()){
     if (!seasonFade.cv) seasonFade.cv=document.createElement('canvas');

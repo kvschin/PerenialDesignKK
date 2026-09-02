@@ -475,7 +475,21 @@ logic is split across ordered modules. They map onto the section list below
   every callout** and taking it never asks again. `hortus:coach:tour` rides
   `COACH_PREFIX`, so Settings' *Show tips again* replays it; a **Tour the
   controls** row offers it on demand, in-garden only.
-  Five things it must keep right. It **advances on DOING** — `tourNote(evt)` is
+  Five things it must keep right. It **advances on DOING**, and specifically on
+  the action the step's copy TEACHES, after that action has produced its result
+  — not on a setup step along the way. Two were wired to the wrong point and
+  made the tour feel like it was running ahead of the gardener: **drift**
+  completed on arming the Drift chip, so it moved on having never shown a
+  drift (it now completes in `stampDrift`, on a cluster of >1 actually landing),
+  and **season** completed the instant the 360ms hold threshold passed, before
+  anything on screen had moved (it now completes in `maybeStartSeasonFade`, on
+  the season genuinely turning — the same point, and for the same reason, as
+  that function's existing funnel event). A test stringifies the real function
+  behind every step and asserts the fire lives there, so "somewhere in js/ fires
+  this" is no longer enough. Where an instruction has two parts, `body` may be a
+  **function** so the callout can say which part is done — turning Drift on
+  otherwise looked like a no-op, since the step deliberately no longer completes
+  there. `tourNote(evt)` is
   called from the one choke point per event, and a LATER step's gesture
   advances past it while an earlier one is ignored, so it cannot rewind.
   `tourSteps()` is a **pure table** (the `settingsSections()` split, and for the

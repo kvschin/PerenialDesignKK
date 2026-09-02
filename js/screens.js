@@ -1510,9 +1510,7 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
     box.classList.add('hold-arming');
     try{ box.setPointerCapture(e.pointerId); }catch(_){ }
     holdTimer=setTimeout(()=>{
-      // the tour asks them to RUN the year, so it advances when the hold
-      // actually fires — an aborted press has run nothing
-      holdTimer=null; game.ffActive=true; ffStarted=true; closePause(); tourNote('season');
+      holdTimer=null; game.ffActive=true; ffStarted=true; closePause();
       box.classList.remove('hold-arming'); box.classList.add('fast-forwarding');
       box.setAttribute('aria-label','Time — fast-forwarding while held');
       hapticFeedback('success');

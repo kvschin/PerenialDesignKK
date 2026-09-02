@@ -714,13 +714,11 @@ function pickAt(x,y){
   } else toast('Nothing here to pick — tap a plant or material.');
 }
 function choosePlantMode(drift){
-  if (drift) tourNote('drift');
   game.drift=!!drift; game.matrix=false;   // Draw/Drift and Matrix are exclusive patterns
   armPlantToolFromRail(false);
   updateActiveToolStatus();
 }
 function chooseMatrixMode(){
-  tourNote('drift');   // Matrix answers the same step: one gesture, many plants
   game.matrix=true; game.drift=false;
   armPlantToolFromRail(false);
   updateActiveToolStatus();

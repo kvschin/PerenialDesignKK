@@ -518,6 +518,10 @@ function stampDrift(cx0,cy0,n,opts){
     if (placed>=n) break;
     if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)) placed++;
   }
+  /* The tour's drift step: arming the chip is only the setup the copy names
+     first — a cluster actually landing is what the step teaches, and >1 is
+     what makes it a drift rather than an ordinary planting. */
+  if (placed>1) tourNote('drift');
   if (placed){ hapticFeedback('place');
     toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
   else toast('No room for a drift here.');

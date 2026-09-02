@@ -304,8 +304,14 @@ function tourSteps(){
      title:'Run the year',
      /* The pitch — and it used to sit behind planting five things, so the one
         thing this app does that nothing else does was gated behind a chore. In
-        a garden that already holds 323 plants there is nothing to wait for. */
-     body:'Hold this to run the year — the planting blooms, seeds, and stands through winter.'},
+        a garden that already holds 323 plants there is nothing to wait for.
+        Completes on the season actually TURNING (see maybeStartSeasonFade), so
+        the copy has to say what to hold for — it used to complete the instant
+        the 360ms hold threshold passed, which took the callout away before
+        anything on screen had moved. */
+     body:()=>game.ffActive
+       ? 'Keep holding — watch the planting change as the season turns.'
+       : 'Press and hold this until the season changes. The planting blooms, seeds, and stands through winter.'},
     {id:'plant', on:'plant', sheet:'half',
      anchor:['[data-tour="plant"]'],
      title:'Add something',
@@ -320,8 +326,17 @@ function tourSteps(){
         gesture and undersold the feature. With Drift armed a SINGLE tap runs
         stampDrift, which places driftCount() plants (9 at 6in spacing down to 3
         at 30in) in a shuffled cluster around the tapped tile. Dragging is a
-        bigger sweep, not the price of admission. */
-     body:'Turn on Drift, then one tap plants a whole cluster — three to nine, scattered the way they would seed themselves.',
+        bigger sweep, not the price of admission.
+
+        Two-part instruction, so it tracks which part is done. Arming the chip
+        used to COMPLETE this step, which is the bug that made the tour feel
+        like it was running ahead of the gardener: it moved on the moment Drift
+        was switched on, having never shown them a drift. Now the chip is only
+        the setup and the step waits for a cluster to land — so the copy has to
+        acknowledge the switch, or it reads as though the tap did nothing. */
+     body:()=>game.drift
+       ? 'Drift is on. Now tap open ground once — a whole cluster of three to nine goes in, scattered the way they would seed themselves.'
+       : 'Turn on Drift, then one tap plants a whole cluster — three to nine, scattered the way they would seed themselves.',
      /* The Drift chip lives in the brush bar, and the brush bar is hidden
         outright unless a placement tool is armed — so a gardener who reached
         this step without a plant on the brush (skipped ahead, or armed Hand in
@@ -334,12 +349,14 @@ function tourSteps(){
     {id:'landscape', on:'landscape', sheet:'half',
      anchor:['.catalog-mode'],
      title:'The other half',
-     /* Reads as a filter and is actually a door. Nobody finds it. */
-     body:'Landscape has the paths, beds, fences, walls and furniture.'},
+     /* Reads as a filter and is actually a door. Nobody finds it. Every other
+        step names the gesture that completes it; this one stated a fact and
+        left the gardener to guess that switching was the way on. */
+     body:'Tap Landscape — the paths, beds, fences, walls and furniture live there.'},
     {id:'list', on:'list', sheet:null,
      anchor:['#btnMenu'],
      title:'Turn it into an order',
-     body:'The planting list counts every species into real nursery quantities. It is in the Menu.'},
+     body:'Open the Menu and tap Planting list — every species counted into real nursery quantities.'},
   ];
   return steps.filter(s=>!(s.skip&&s.skip()));
 }
@@ -370,6 +387,14 @@ function tourStored(){
 function tourSave(v){
   tourSession=v;
   try{ localStorage.setItem(TOUR_KEY,v); }catch(_){ }
+}
+/* A step whose instruction has two parts resolves its body live, so it can
+   say which part is done. Without that, turning Drift on looked like a
+   no-op: the step no longer completes there (a cluster has to land), so an
+   unchanged sentence reads as the tap having been ignored. */
+function tourBody(step){
+  if (!step) return '';
+  return typeof step.body==='function' ? step.body() : step.body;
 }
 function tourRunning(){ return tourStep!=null; }
 function tourFinished(){ return tourStored()===TOUR_DONE; }
@@ -599,7 +624,7 @@ function tourRender(){
   const count=document.createElement('span'); count.className='tour-count';
   count.textContent=`${prog.at} of ${prog.of}`;
   head.append(h,count);
-  const body=document.createElement('p'); body.textContent=step.body;
+  const body=document.createElement('p'); body.textContent=tourBody(step);
   const foot=document.createElement('div'); foot.className='tour-foot';
   const skip=document.createElement('button'); skip.type='button'; skip.className='tour-skip';
   skip.textContent='Skip tour';

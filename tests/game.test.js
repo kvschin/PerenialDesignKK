@@ -5820,8 +5820,28 @@ test('the tour table is well formed, and every step is completable', () => {
     seen.add(s.on);
     assert(s.sheet === null || s.sheet === undefined || SHEET_STATES.includes(s.sheet),
       `step ${s.id} names a real sheet state`);
-    assert(!/\bnext\b/i.test(s.body),
-      `step ${s.id} names a gesture, not a button — the tour advances on doing`);
+
+    /* A step whose instruction has two parts resolves its body live so it can
+       say which part is done. BOTH readings have to be authored — the whole
+       point is that the second one acknowledges the first action, so an
+       unresolved or empty variant is the bug. game.drift and game.ffActive are
+       what the dynamic steps branch on today. */
+    const readings = [tourBody(s)];
+    if (typeof s.body === 'function'){
+      const d = game.drift, ff = game.ffActive;
+      try {
+        game.drift = !d; game.ffActive = !ff;
+        readings.push(tourBody(s));
+      } finally { game.drift = d; game.ffActive = ff; }
+      assert(readings[0] !== readings[1],
+        `step ${s.id} really does read differently once its first part is done`);
+    }
+    for (const text of readings){
+      assert(typeof text === 'string' && text.trim().length > 20,
+        `step ${s.id} has a written body in every state`);
+      assert(!/\bnext\b/i.test(text),
+        `step ${s.id} names a gesture, not a button — the tour advances on doing`);
+    }
   }
 });
 
@@ -5832,7 +5852,7 @@ test('the drift step describes what Drift actually does', () => {
      string, so retuning the spacing bands fails here instead of quietly making
      the tour lie. */
   setup(21, 21);
-  const body = tourSteps().find(s => s.id === 'drift').body;
+  const body = tourBody(tourSteps().find(s => s.id === 'drift'));
   assert(/\btap\b/i.test(body), 'the copy names the tap, which is the whole point');
 
   // The numbers it quotes have to be the ones a gardener will actually get.
@@ -5848,17 +5868,44 @@ test('the drift step describes what Drift actually does', () => {
   assert(quoted.includes(hi), `the copy quotes the real upper count (${hi})`);
 });
 
-test('every tour step is wired to a live call site', () => {
-  // The real failure mode: a step whose event nothing ever fires strands the
-  // gardener on it forever. Same shape as the plantFx check above — grep the
-  // modules rather than trusting the table.
+test('every tour step completes on the action its copy teaches', () => {
+  /* Two failure modes, and the second is the one that actually bit. A step
+     whose event nothing fires strands the gardener on it forever — but a step
+     wired to the WRONG point is worse, because the tour runs ahead of them: the
+     drift step completed on ARMING the Drift chip, so it moved on having never
+     shown a drift, and the season step completed the instant the 360ms hold
+     threshold passed, before anything on screen had moved.
+
+     So this pins the exact function that completes each step, not merely that
+     somewhere in js/ does. Stringifying the real function is exact and cannot
+     drift from a hand-kept module list. */
   setup(21, 21);
-  const src = ['ui', 'tray', 'view', 'input', 'io', 'commands', 'screens']
+  const firedBy = {
+    sheet:     setSheetState,          // the library moving off the garden
+    look:      setUserZoom,            // (input.js also fires it on a real pan)
+    identify:  inspectPlantAt,         // a plant card actually opened
+    season:    maybeStartSeasonFade,   // the season actually TURNED
+    plant:     coachNotePlanting,      // a plant actually landed
+    drift:     stampDrift,             // a CLUSTER landed, not the chip arming
+    landscape: buildToolTrayInner,     // switchGroup lives inside it
+    list:      openExport,             // the list actually opened
+  };
+  const anySrc = ['ui', 'tray', 'view', 'input', 'io', 'commands', 'screens', 'renderer']
     .map(m => readRepoFile('js/' + m + '.js')).join('\n');
   for (const s of tourSteps()){
     const call = new RegExp(`tourNote\\(\\s*['"]${s.on}['"]\\s*\\)`);
-    assert(call.test(src), `something in the app fires tourNote('${s.on}')`);
+    assert(call.test(anySrc), `something fires tourNote('${s.on}')`);
+    const fn = firedBy[s.on];
+    assert(fn, `step '${s.id}' declares where it is completed`);
+    assert(call.test(String(fn)),
+      `step '${s.id}' completes inside ${fn.name} — the point its copy teaches`);
   }
+
+  // And the two that were wrong must NOT fire from the setup step any more.
+  assert(!/tourNote\(\s*['"]drift['"]\s*\)/.test(String(choosePlantMode)),
+    'arming the Drift chip is setup, not completion');
+  assert(!/tourNote\(\s*['"]drift['"]\s*\)/.test(String(chooseMatrixMode)),
+    'nor is arming Matrix');
 });
 
 test('the tour advances on doing, skips ahead, and never rewinds', () => {
