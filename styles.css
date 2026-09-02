@@ -1208,16 +1208,48 @@ canvas.layer-eye{display:block}
    the element's own border-radius, so declaring one squares off every capsule
    it touches. An outline also draws outside the border box without needing a
    stacking context, so nothing is lost by leaving both alone. */
-.tour-target{outline:2px solid var(--color-accent);outline-offset:2px;
-  animation:tourPulse 1.9s var(--ease-standard) infinite}
-@keyframes tourPulse{
-  0%,100%{box-shadow:0 0 0 0 rgba(201,127,63,.46)}
-  55%{box-shadow:0 0 0 7px rgba(201,127,63,0)}
+.tour-target{outline:2px solid var(--color-accent);outline-offset:2px}
+
+/* The emphasis, and the reason it is a SEPARATE element rather than an
+   animation on the target.
+
+   This started as `animation:tourPulse` cycling a box-shadow on .tour-target,
+   which cost real frames: box-shadow is a PAINT property, so every frame the
+   browser repainted that element and recomposited its region — over the
+   animating garden canvas, forever, for as long as a step was on screen. It is
+   the same cost the glass governor further down exists to fight ("the
+   compositor re-blurs every backdrop-filter region over the animating canvas
+   each frame"), except unconditional. The targets make it worse: most of them
+   sit inside #hud, whose panels ARE backdrop-filtered, so the pulse dirtied a
+   blurred region on every frame.
+
+   #tourHalo animates `transform` and `opacity` only. Both are compositor-only —
+   no repaint, no canvas recomposite — and `will-change` gives the halo its own
+   layer so the pulse never touches the garden's. The static ring and glow below
+   are painted ONCE; it was never the shadow that was expensive, only animating
+   it.
+
+   It is a separate element rather than a ::before on the target because the
+   target's own pseudo-elements are already spoken for — .season-box::after is
+   the conic hold-to-fast-forward sweep, and the season box is one of the steps.
+   Positioned from the target's rect by tourRender, which already re-pins on
+   every rebuild and viewport settle. */
+#tourHalo{position:fixed;z-index:39;pointer-events:none;
+  border:2.5px solid var(--color-accent);border-radius:var(--radius-control);
+  box-shadow:0 0 0 3px rgba(201,127,63,.18),0 0 18px 2px rgba(201,127,63,.28)}
+#tourHalo::before{content:'';position:absolute;inset:-3px;
+  border:2.5px solid var(--color-accent);border-radius:inherit;
+  will-change:transform,opacity;
+  animation:tourHaloPulse 1.8s var(--ease-standard) infinite}
+@keyframes tourHaloPulse{
+  0%   {transform:scale(1);    opacity:.7}
+  70%  {transform:scale(1.22); opacity:0}
+  100% {transform:scale(1.22); opacity:0}
 }
 /* The app's own Motion preference, not the raw media query — see reducedMotion()
-   in core.js. A pulsing ring is decoration; the ring itself carries the meaning
-   and stays. */
-[data-motion="reduce"] .tour-target{animation:none}
+   in core.js. The expanding ring is decoration; the static ring and glow carry
+   the meaning and stay. */
+[data-motion="reduce"] #tourHalo::before{animation:none;opacity:0}
 [data-motion="reduce"] .tour-pop{animation:none}
 
 @media (pointer:coarse){
@@ -1232,6 +1264,9 @@ canvas.layer-eye{display:block}
      tour points at nothing. */
   .tour-pop{border:1px solid CanvasText}
   .tour-target{outline:3px solid Highlight}
+  /* the halo signals with accent colour and a glow, both discarded here */
+  #tourHalo{border-color:Highlight;box-shadow:none}
+  #tourHalo::before{border-color:Highlight}
   .tour-foot .tour-next{background:Highlight;color:HighlightText;border-color:Highlight}
 }
 

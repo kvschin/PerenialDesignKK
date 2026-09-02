@@ -466,12 +466,16 @@ logic is split across ordered modules. They map onto the section list below
   measured, 45s in the demo produced exactly two tips and neither named a
   control. Seven anchored callouts (eight on SHEET) in the order **read → run →
   edit → payoff** — camera, tap-to-identify, the season box, plant, drift, the
-  Plants/**Landscape** switch, the planting list. It is **offered**, never
-  forced: it rides `ready-garden`'s own `action`, so taking it is one tap and
-  declining is doing nothing. `hortus:coach:tour` rides `COACH_PREFIX`, so
-  Settings' *Show tips again* replays it; a **Tour the controls** row offers it
-  on demand, in-garden only.
-  Four things it must keep right. It **advances on DOING** — `tourNote(evt)` is
+  Plants/**Landscape** switch, the planting list. It **starts** on entering a
+  planted garden rather than being offered. It rode `ready-garden`'s `action`
+  first and that was too easy to miss: the tip auto-dismisses at 7.5s, looks
+  like the five other tips that are pure prose, and was distinguished only by an
+  underline, so a gardener who glanced at the garden for eight seconds never
+  learned there was a tour. Forcing it is fair only because **Skip is one tap on
+  every callout** and taking it never asks again. `hortus:coach:tour` rides
+  `COACH_PREFIX`, so Settings' *Show tips again* replays it; a **Tour the
+  controls** row offers it on demand, in-garden only.
+  Five things it must keep right. It **advances on DOING** — `tourNote(evt)` is
   called from the one choke point per event, and a LATER step's gesture
   advances past it while an earlier one is ignored, so it cannot rewind.
   `tourSteps()` is a **pure table** (the `settingsSections()` split, and for the
@@ -488,12 +492,34 @@ logic is split across ordered modules. They map onto the section list below
   ran. And the **ambient beats stand down while it runs** (`TOUR_COVERS`,
   suppressed *and* marked seen) — every beat is a tour step without an anchor,
   so both firing put the same advice in two widgets a few pixels apart.
+  And the emphasis ring is a **separate `#tourHalo` element animating `transform`
+  and `opacity` only**. It began as `animation:tourPulse` cycling a `box-shadow`
+  on the target, which cost real frames: `box-shadow` is a PAINT property, so
+  every frame repainted chrome sitting over the animating garden canvas, forever
+  — the same cost the glass governor exists to fight ("the compositor re-blurs
+  every backdrop-filter region over the animating canvas each frame"), except
+  unconditional, and worse because most targets sit inside the backdrop-filtered
+  `#hud`. Transform and opacity are compositor-only; the static ring and glow are
+  painted once. It is a separate element rather than a `::before` on the target
+  because the targets' own pseudo-elements are spoken for — `.season-box::after`
+  is the hold-to-fast-forward sweep, and the season box is step 3.
   It is never modal: no scrim, no focus trap, nothing blocking input, because
   every step is completed by using the app. `.tour-target` sets **neither
   `position` nor `border-radius`** — a `position:relative` there re-ran the
   cascade on `#zoomPill` and threw it from bottom-left to the top corner, and an
   outline already follows the element's own radius. `tourRender` also bails on
   `!game.inGarden`, or the callout follows the gardener out to the title screen.
+  Two traps in anchoring, both hit: `visibleEl` alone is not enough, because a
+  control inside a CLOSED library has a display and a **0x0 box** — that
+  resolved as the anchor and pinned the callout to the top-left corner, so
+  `tourAnchorVisible` rejects zero-size (falling back to accepting when the
+  environment has no layout at all, or the sandbox would reject everything). And
+  `step.sheet` is read per tier: literal on SHEET, but on DOCK the library only
+  has to be OPEN, and a canvas step must NOT close it — gated on
+  `mobileSheetUi()` alone, DOCK never opened it and steps 5-7 anchored into a
+  minimised library. Opening it is an animated FLIP, so `tourRepin` re-pins two
+  frames and one `--motion-panel` later; measuring straight after the drive puts
+  the halo where the control was passing through.
 
 Rough order of the logic, top to bottom (the numbering predates the split):
 

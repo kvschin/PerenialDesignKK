@@ -166,27 +166,27 @@ function coachBeatEnter(){
   clearTimeout(coachLookTimer); coachLookTimer=null;
   if (!coachArmed()) return;
   if (livePlantCount()>=COACH_READY_GARDEN){
-    /* Beat 1 used to tell someone who had just opened a finished 323-plant
-       garden to "pick a plant and tap the ground" — i.e. to deface the example
-       they were given to admire. Orient them instead, and let the season beat
-       arrive on its own once they have had a look.
+    /* A finished garden is the one entry where the tour makes sense — it is the
+       only one with something already on screen worth pointing at, and every
+       step assumes plants to identify and a year worth running.
 
-       This is also where the controls tour is OFFERED, because a finished
-       garden is the only place it makes sense: it is the one entry with
-       something already on screen worth pointing at, and its steps assume
-       plants exist to identify and a year worth running. The offer rides the
-       tip's own `action` — tapping it starts the tour — rather than a third
-       button on the first-run dialog or a modal of its own. Declining is doing
-       nothing, which is the right cost for an offer nobody asked for. */
-    if (!tourFinished() && !tourRunning())
-      showCoachTip('This planting is already done — have a look around. Tap here and I will show you the controls.',
-        'ready-garden', startTour);
-    else
-      showCoachTip('This planting is already done — have a look around. Anything here can be moved, replaced or added to.','ready-garden');
-    /* And beat 3 is keyed to PLANTING, so a gardener who opens the demo purely
-       to look would never meet the seasonal loop — the one thing this app does
-       that nothing else does. Time gets them there instead. The tour reaches it
-       at step 4, so this only has to cover somebody who declined the tour. */
+       The tour STARTS here; it is not offered. It was offered first, riding
+       this beat's own `action`, and that was too easy to miss: the tip
+       auto-dismisses after 7.5s, it looks exactly like the five other tips that
+       are pure prose, and the one thing distinguishing it was an underline. A
+       gardener who glanced at the garden for eight seconds — which is what a
+       finished garden invites — never saw there was a tour at all.
+
+       Forced is defensible here only because leaving is one tap: every callout
+       carries Skip, and taking it never asks again. That is a better trade than
+       an offer nobody notices. It still fires once per device (tourFinished
+       latches), and only for a device that saw the first-run offer. */
+    if (!tourFinished() && !tourRunning() && startTour()) return;
+    showCoachTip('This planting is already done — have a look around. Anything here can be moved, replaced or added to.','ready-garden');
+    /* Beat 3 is keyed to PLANTING, so a gardener who opens the demo purely to
+       look would never meet the seasonal loop — the one thing this app does
+       that nothing else does. Time gets them there instead. Only reached when
+       the tour did not start, since the tour covers the season at step 3. */
     coachLookTimer=setTimeout(()=>{ coachLookTimer=null;
       if (!tourRunning()) showTimeCoachTip(); }, COACH_LOOK_MS);
   } else {
@@ -316,7 +316,12 @@ function tourSteps(){
     {id:'drift', on:'drift', sheet:'half',
      anchor:['[data-tour="drift"]','#brushBar','[data-tour="plant"]'],
      title:'Plant a drift',
-     body:'Drag to plant several at once. Drift scatters them the way they would seed themselves.',
+     /* The old wording — "drag to plant several at once" — described the wrong
+        gesture and undersold the feature. With Drift armed a SINGLE tap runs
+        stampDrift, which places driftCount() plants (9 at 6in spacing down to 3
+        at 30in) in a shuffled cluster around the tapped tile. Dragging is a
+        bigger sweep, not the price of admission. */
+     body:'Turn on Drift, then one tap plants a whole cluster — three to nine, scattered the way they would seed themselves.',
      /* The Drift chip lives in the brush bar, and the brush bar is hidden
         outright unless a placement tool is armed — so a gardener who reached
         this step without a plant on the brush (skipped ahead, or armed Hand in
@@ -443,18 +448,84 @@ let tourArming=false;   // re-entry guard: step.arm() rebuilds the tray, which r
 function tourClearTarget(){
   const prev=document.querySelector('.'+TOUR_TARGET_CLASS);
   if (prev) prev.classList.remove(TOUR_TARGET_CLASS);
+  const halo=document.getElementById('tourHalo');
+  if (halo) halo.remove();
+}
+/* Lay the emphasis ring over the target's rect. A separate fixed element, not a
+   pseudo-element on the target: the targets' own pseudo-elements are spoken for
+   (.season-box::after is the hold-to-fast-forward sweep), and keeping it apart
+   is also what lets the pulse animate transform/opacity on its own compositor
+   layer instead of repainting chrome over the garden every frame. */
+function tourPlaceHalo(anchor){
+  if (!anchor || !anchor.getBoundingClientRect) return null;
+  const r=anchor.getBoundingClientRect();
+  if (!r.width && !r.height) return null;      // headless, or mid-rebuild
+  const halo=document.createElement('div');
+  halo.id='tourHalo';
+  halo.setAttribute('aria-hidden','true');
+  const pad=5;
+  halo.style.left=Math.round(r.left-pad)+'px';
+  halo.style.top=Math.round(r.top-pad)+'px';
+  halo.style.width=Math.round(r.width+pad*2)+'px';
+  halo.style.height=Math.round(r.height+pad*2)+'px';
+  /* Follow the target's own corner radius where it has one, so ringing a
+     capsule (the zoom pill) does not draw a rectangle around it. */
+  const cs=typeof getComputedStyle==='function' ? getComputedStyle(anchor) : null;
+  const br=cs && cs.borderRadius;
+  if (br && br!=='0px' && br!=='') halo.style.borderRadius=`calc(${br.split(' ')[0]} + ${pad}px)`;
+  document.body.appendChild(halo);
+  return halo;
 }
 /* First VISIBLE candidate wins. visibleEl() is the same display check
    syncTopTools uses to decide whether the top bar or the compact View Tools
    menu is on screen, so the tour and the chrome agree about which tier is up. */
+/* visibleEl() alone is not enough here. It asks `display!=='none'`, which is the
+   right question for the tier swaps it was written for (the zoom pill really is
+   display:none on a phone) and the wrong one for a control inside a CLOSED
+   container: the Drift chip in a minimised library has a display, an offset
+   parent and a box of 0x0. That resolved as the anchor, so the halo could not
+   be drawn and anchorPopover pinned the callout to a zero rect in the top-left
+   corner, over the season box. A control with no box cannot be pointed at.
+   Zero-size also covers the mid-rebuild case for free. */
+function tourAnchorVisible(el){
+  if (!el) return false;
+  if (typeof visibleEl==='function' && !visibleEl(el)) return false;
+  if (!el.getBoundingClientRect) return true;          // headless: no geometry to judge
+  const r=el.getBoundingClientRect();
+  return !!(r.width || r.height) || !hasLayout();
+}
+/* The sandbox returns an all-zero rect for everything, so a size test there
+   would reject every anchor and the tour would never render at all. Ask once
+   whether rects mean anything in this environment. */
+function hasLayout(){
+  if (typeof document==='undefined' || !document.body || !document.body.getBoundingClientRect) return false;
+  const r=document.body.getBoundingClientRect();
+  return !!(r.width || r.height);
+}
 function tourAnchorEl(step){
   if (!step || !step.anchor) return null;
   for (const sel of step.anchor){
     let el=null;
     try{ el=document.querySelector(sel); }catch(_){ }
-    if (el && (typeof visibleEl!=='function' || visibleEl(el))) return el;
+    if (tourAnchorVisible(el)) return el;
   }
   return null;
+}
+/* Re-pin after a layout that is still moving. Two frames then a timeout past
+   --motion-panel: the rAF pair is the idiom sizeCanvas already uses for the
+   same reason, and the timeout covers the sheet's own transition, which is
+   longer than a frame. `tourRepinning` keeps a burst to one in flight —
+   tourRender is called from several places and each would otherwise queue its
+   own — and every re-entry is an ordinary render, so a settled layout simply
+   re-pins to the same place and stops. */
+let tourRepinning=false;
+function tourRepin(){
+  if (tourRepinning) return;
+  tourRepinning=true;
+  const again=()=>{ tourRepinning=false; if (tourRunning()) tourRender(); };
+  if (typeof requestAnimationFrame==='function')
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ tourRepinning=false; if (tourRunning()) tourRender(); }));
+  setTimeout(again,240);
 }
 function tourRender(){
   const old=document.getElementById('tourPop');
@@ -465,13 +536,31 @@ function tourRender(){
      selector there. The tour is not ENDED, only hidden: the step is already
      saved, so re-entering a garden picks it up exactly where it was left. */
   if (!step || !game.inGarden){ if (old) old.remove(); tourClearTarget(); return; }
-  /* Put the sheet where the step can be seen BEFORE resolving the anchor: on a
-     phone the library opens at full and covers the garden, the rail and every
-     tool, so a step pointing at the canvas resolves to something behind it. */
-  if (step.sheet && typeof mobileSheetUi==='function' && mobileSheetUi()
-      && typeof normalizedSheetState==='function' && typeof setSheetState==='function'
-      && normalizedSheetState(game.sheetState)!==step.sheet){
-    setSheetState(step.sheet);
+  /* Put the library where the step can be seen BEFORE resolving the anchor.
+     `sheet` names the state the step wants, and the two tiers read it
+     differently because the library means different things on them.
+
+     On SHEET it is literal: the library sits ON the garden, so a step about the
+     canvas needs it collapsed and a step about a plant card needs it open.
+
+     On DOCK it only has to be OPEN or not — there is no half — and it sits
+     BESIDE the garden rather than over it, so a canvas step must not close it
+     (that would be gratuitous, and it is where the gardener was reading). This
+     gate used to be `mobileSheetUi()` only, which meant DOCK never opened it
+     at all: with the library minimised to its launcher, steps 5-7 anchored to
+     controls that still had a display but a 0x0 box, and the callout pinned
+     itself to the top-left corner over the season box. */
+  if (step.sheet && typeof normalizedSheetState==='function' && typeof setSheetState==='function'){
+    const sheetUi=typeof mobileSheetUi==='function' && mobileSheetUi();
+    const now=normalizedSheetState(game.sheetState);
+    let drove=false;
+    if (sheetUi){ if (now!==step.sheet){ setSheetState(step.sheet); drove=true; } }
+    else if (step.sheet!=='collapsed' && now==='collapsed'){ setSheetState('full'); drove=true; }
+    /* Opening the library is an ANIMATION (applySheetState runs a measured
+       FLIP), so the rect a few lines below is mid-flight — the halo landed on
+       where the Drift chip was passing through rather than where it came to
+       rest. Re-pin once it settles. */
+    if (drove) tourRepin();
   }
   let anchor=tourAnchorEl(step);
   /* A step that can put its own control on screen gets one chance to, and only
@@ -526,6 +615,7 @@ function tourRender(){
 
   tourClearTarget();
   anchor.classList.add(TOUR_TARGET_CLASS);
+  tourPlaceHalo(anchor);
   if (typeof anchorPopover==='function') anchorPopover(pop,anchor);
   else if (!pop.isConnected) document.body.appendChild(pop);
 }

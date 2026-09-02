@@ -5752,6 +5752,10 @@ test('a garden that arrives already planted is offered to look at, not to dig up
   showCoachTip = (text, key) => { shown.push({ key, text }); };
   try {
     armCoach();
+    /* With the tour unseen, a stocked garden STARTS it and this beat never
+       runs — so put the device past the tour to reach the beat itself, which is
+       the state a returning gardener is in and what this test is about. */
+    tourSave(TOUR_DONE);
     // the demo garden: opening it and being told to "tap the ground to plant"
     // instructs the gardener to deface the example they were given to admire
     game.plants = {};
@@ -5769,6 +5773,7 @@ test('a garden that arrives already planted is offered to look at, not to dig up
     // eslint-disable-next-line no-global-assign
     showCoachTip = realCoach;
     localStorage.removeItem('hortus:coach:armed'); coachArmedSession = false;
+    tourReset();
   }
 });
 
@@ -5818,6 +5823,29 @@ test('the tour table is well formed, and every step is completable', () => {
     assert(!/\bnext\b/i.test(s.body),
       `step ${s.id} names a gesture, not a button — the tour advances on doing`);
   }
+});
+
+test('the drift step describes what Drift actually does', () => {
+  /* It said "drag to plant several at once", which named the wrong gesture and
+     undersold the feature: with Drift armed a SINGLE tap runs stampDrift and
+     places driftCount() plants. Pinned against driftCount rather than against a
+     string, so retuning the spacing bands fails here instead of quietly making
+     the tour lie. */
+  setup(21, 21);
+  const body = tourSteps().find(s => s.id === 'drift').body;
+  assert(/\btap\b/i.test(body), 'the copy names the tap, which is the whole point');
+
+  // The numbers it quotes have to be the ones a gardener will actually get.
+  const counts = Object.keys(PLANTS)
+    .map(k => PLANTS[k])
+    .filter(P => P && !isWoodyDef(P) && P.type !== 'bulb' && typeof P.space === 'number')
+    .map(P => driftCount(P));
+  const lo = Math.min(...counts), hi = Math.max(...counts);
+  assertEqual(hi, 9, 'the tightest spacing still drifts nine');
+  assert(lo <= 3, 'and the loosest still drifts a few');
+  const quoted = (body.match(/\b(one|two|three|four|five|six|seven|eight|nine|\d+)\b/gi) || [])
+    .map(w => ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 })[w.toLowerCase()] ?? +w);
+  assert(quoted.includes(hi), `the copy quotes the real upper count (${hi})`);
 });
 
 test('every tour step is wired to a live call site', () => {
@@ -6040,7 +6068,7 @@ test('the ambient beats stand down while the tour is running', () => {
   }
 });
 
-test('the tour is offered on a finished garden, and only once', () => {
+test('a finished garden starts the tour rather than offering it', () => {
   setup(21, 21);
   tourReset();
   const shown = [];
@@ -6049,28 +6077,32 @@ test('the tour is offered on a finished garden, and only once', () => {
   showCoachTip = (text, key, action) => { shown.push({ key, text, action }); };
   try {
     armCoach();
+    /* It STARTS rather than offering. Offering rode this beat's `action`, and
+       that was too easy to miss: the tip auto-dismisses after 7.5s, looks like
+       the five other tips that are pure prose, and was distinguished only by an
+       underline — so someone who glanced at the garden for eight seconds never
+       learned there was a tour. Forced is fair only because Skip is one tap. */
     for (let i = 0; i < 25; i++) game.plants[`${i},1`] = { s: 'bluestem', d: 0, t: 1 };
     coachBeatEnter();
-    assertEqual(shown[0].key, 'ready-garden', 'it rides the look-around beat');
-    assert(typeof shown[0].action === 'function',
-      'and is an offer you can take, not a sentence naming a menu');
-    assert(!/tap the ground/i.test(shown[0].text), 'still not told to deface the example');
+    assert(tourRunning(), 'a finished garden starts the tour');
+    assertEqual(shown.length, 0, 'and says nothing else over the top of it');
 
-    // An empty garden gets no offer: every step assumes plants to identify and
-    // a year worth running.
-    shown.length = 0;
+    // An empty garden never starts it: every step assumes plants to identify
+    // and a year worth running.
+    endTour(false); tourReset();
     game.plants = {};
     coachBeatEnter();
-    assertEqual(shown[0].key, 'first-plant', 'an empty garden gets the plant-me beat');
-    assert(!shown[0].action, 'and carries no tour offer — every step assumes a planting');
+    assert(!tourRunning(), 'an empty garden does not');
+    assertEqual(shown[0].key, 'first-plant', 'it gets the plant-me beat instead');
 
-    // Once taken, never offered again.
+    // Once seen, never again — the beat takes over for a returning gardener.
     shown.length = 0;
     for (let i = 0; i < 25; i++) game.plants[`${i},1`] = { s: 'bluestem', d: 0, t: 1 };
-    endTour(true);
+    tourSave(TOUR_DONE);
     coachBeatEnter();
-    assertEqual(shown[0].key, 'ready-garden', 'the beat still fires');
-    assert(!shown[0].action, 'but the tour is not offered a second time');
+    assert(!tourRunning(), 'a device that has seen it is not made to sit through it again');
+    assertEqual(shown[0].key, 'ready-garden', 'and gets the look-around beat');
+    assert(!shown[0].action, 'with nothing to tap');
   } finally {
     // eslint-disable-next-line no-global-assign
     showCoachTip = realCoach;
