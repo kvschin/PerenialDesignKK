@@ -38,6 +38,7 @@ function setUserZoom(z){
   userZoom = Math.max(USER_ZOOM_MIN, Math.min(USER_ZOOM_MAX, z));
   calcZoom();   // no snapCam: the designer's camera is free and stays where it is
   updateZoomPill();
+  tourNote('look');   // the tour camera step: every zoom route funnels here
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
 function updateZoomPill(){
@@ -213,6 +214,7 @@ function repositionOpenChrome(){
     return el && !el.classList.contains('hidden'); };
   if (shown('pauseScreen') && typeof openPause==='function') openPause();
   if (shown('gardenMenu') && typeof openGardenMenu==='function') openGardenMenu();
+  if (typeof tourRender==='function') tourRender();
 }
 function settleViewportChange(){
   syncHudTopHeight();   // tier changes resize the bar; the sheet reserves it

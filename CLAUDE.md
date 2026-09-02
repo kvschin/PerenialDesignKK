@@ -459,6 +459,41 @@ logic is split across ordered modules. They map onto the section list below
   the prompt is shown rather than on its answer — someone who declines the demo
   and starts from scratch is exactly as new), so a gardener of six months is
   never told how to plant.
+- **The controls tour** (`tourSteps`/`tourNote`/`tourRender`, ui.js) is the
+  explicit half of the same system, and it exists because in the DEMO garden the
+  ambient beats mostly do not run: beats 2 and 4 are gated on planting, and
+  `coachBeatEnter` deliberately steers a finished garden AWAY from planting, so
+  measured, 45s in the demo produced exactly two tips and neither named a
+  control. Seven anchored callouts (eight on SHEET) in the order **read → run →
+  edit → payoff** — camera, tap-to-identify, the season box, plant, drift, the
+  Plants/**Landscape** switch, the planting list. It is **offered**, never
+  forced: it rides `ready-garden`'s own `action`, so taking it is one tap and
+  declining is doing nothing. `hortus:coach:tour` rides `COACH_PREFIX`, so
+  Settings' *Show tips again* replays it; a **Tour the controls** row offers it
+  on demand, in-garden only.
+  Four things it must keep right. It **advances on DOING** — `tourNote(evt)` is
+  called from the one choke point per event, and a LATER step's gesture
+  advances past it while an earlier one is ignored, so it cannot rewind.
+  `tourSteps()` is a **pure table** (the `settingsSections()` split, and for the
+  same reason: the sandbox has no selector engine, so a test counting rendered
+  callouts would pass without testing anything) — but `startTour` **freezes it
+  as `tourPlan` for the run** and persists the **step ID, not an index**,
+  because the table is a live function of the tier: rotating a tablet across
+  SHEET/DOCK adds or drops the sheet step and would renumber the tour under the
+  gardener. A step declares the `sheet` state it needs and may declare `arm` to
+  put its own control on screen (the Drift chip lives in the brush bar, which is
+  hidden outright unless a placement tool is armed — without it that step was a
+  dead end); `arm` is keyed on the PREFERRED anchor being missing, since testing
+  the whole candidate list let the fallback always catch first and `arm` never
+  ran. And the **ambient beats stand down while it runs** (`TOUR_COVERS`,
+  suppressed *and* marked seen) — every beat is a tour step without an anchor,
+  so both firing put the same advice in two widgets a few pixels apart.
+  It is never modal: no scrim, no focus trap, nothing blocking input, because
+  every step is completed by using the app. `.tour-target` sets **neither
+  `position` nor `border-radius`** — a `position:relative` there re-ran the
+  cascade on `#zoomPill` and threw it from bottom-left to the top corner, and an
+  outline already follows the element's own radius. `tourRender` also bails on
+  `!game.inGarden`, or the callout follows the gardener out to the title screen.
 
 Rough order of the logic, top to bottom (the numbering predates the split):
 

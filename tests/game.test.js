@@ -5789,6 +5789,296 @@ test('planting is what advances the beats — not undo, paste or loading', () =>
   } finally { localStorage.removeItem('hortus:coach:armed'); }
 });
 
+/* ---------- the controls tour ----------
+   tourSteps() is a PURE table and tourNote() a pure state machine over it, for
+   the same reason settingsSections() is: the sandbox has no selector engine and
+   no layout, so a test that counted rendered callouts would pass without
+   testing anything. Everything below runs headless; the callout's placement is
+   browser-verified. */
+function tourReset(){
+  tourStep = null; tourPlan = null; tourSession = null;
+  try { localStorage.removeItem(TOUR_KEY); } catch (_) { }
+}
+
+test('the tour table is well formed, and every step is completable', () => {
+  setup(21, 21);
+  tourReset();
+  const steps = tourSteps();
+  assert(steps.length >= 5 && steps.length <= 9,
+    'short enough to finish — a fifteen-step tour is a tour nobody finishes');
+  const seen = new Set();
+  for (const s of steps){
+    assert(s.id && s.on && s.title && s.body, `step ${s.id} is fully authored`);
+    assert(Array.isArray(s.anchor) && s.anchor.length,
+      `step ${s.id} names at least one anchor — a callout with nothing to point at is the bug this exists to fix`);
+    assert(!seen.has(s.on), `step ${s.id}'s event is its own`);
+    seen.add(s.on);
+    assert(s.sheet === null || s.sheet === undefined || SHEET_STATES.includes(s.sheet),
+      `step ${s.id} names a real sheet state`);
+    assert(!/\bnext\b/i.test(s.body),
+      `step ${s.id} names a gesture, not a button — the tour advances on doing`);
+  }
+});
+
+test('every tour step is wired to a live call site', () => {
+  // The real failure mode: a step whose event nothing ever fires strands the
+  // gardener on it forever. Same shape as the plantFx check above — grep the
+  // modules rather than trusting the table.
+  setup(21, 21);
+  const src = ['ui', 'tray', 'view', 'input', 'io', 'commands', 'screens']
+    .map(m => readRepoFile('js/' + m + '.js')).join('\n');
+  for (const s of tourSteps()){
+    const call = new RegExp(`tourNote\\(\\s*['"]${s.on}['"]\\s*\\)`);
+    assert(call.test(src), `something in the app fires tourNote('${s.on}')`);
+  }
+});
+
+test('the tour advances on doing, skips ahead, and never rewinds', () => {
+  setup(21, 21);
+  tourReset();
+  startTour();
+  const steps = tourSteps();
+  const at = () => steps.findIndex(s => s.id === tourCurrent().id);
+
+  assertEqual(at(), 0, 'it starts at the beginning');
+  assertEqual(tourNote(steps[0].on), true, 'the first step completes on its own gesture');
+  assertEqual(at(), 1, 'and hands over to the second');
+
+  // Doing a LATER step's gesture advances past it. Someone who reaches for the
+  // season box during the camera step has already learned the camera step, and
+  // a tour that insists on its own order is a tour people quit.
+  tourNote(steps[3].on);
+  assertEqual(at(), 4, 'jumping ahead lands after the step that was satisfied');
+
+  // An EARLIER one is ignored, or wandering back to pan would rewind them.
+  assertEqual(tourNote(steps[1].on), false, 'an earlier gesture is not an event');
+  assertEqual(at(), 4, 'and does not move the tour');
+
+  // Running off the end finishes rather than throwing.
+  for (const s of steps) tourNote(s.on);
+  assertEqual(tourRunning(), false, 'the last step ends the tour');
+  assert(tourFinished(), 'and marks it done so it is not offered again');
+  assertEqual(tourNote(steps[0].on), false, 'a finished tour ignores every event');
+  tourReset();
+});
+
+test('tourNote costs nothing when no tour is running', () => {
+  // It sits in inspectPlantAt, setUserZoom, openExport and five more — several
+  // on paths that run per gesture. The guard is the first line for that reason.
+  setup(21, 21);
+  tourReset();
+  assertEqual(tourRunning(), false, 'no tour by default');
+  for (const evt of ['look', 'identify', 'season', 'plant', 'drift', 'landscape', 'list', 'sheet'])
+    assertEqual(tourNote(evt), false, `${evt} is a no-op with no tour running`);
+  assertEqual(tourStep, null, 'and starts nothing');
+});
+
+test('the tour resumes on the same STEP, not the same number', () => {
+  setup(21, 21);
+  tourReset();
+  const w = innerWidth, h = innerHeight;
+  try {
+    // Leave the tour part-way through on a phone, where the plan is longest.
+    innerWidth = 375; innerHeight = 812;
+    game.sheetState = 'full';            // so the sheet step is in the plan
+    startTour();
+    tourNote('look'); tourNote('identify');
+    const was = tourCurrent().id;
+    assertEqual(was, 'season', 'part-way through');
+    assertEqual(localStorage.getItem(TOUR_KEY), 'season',
+      'the saved position is the step ID, not its number');
+
+    // Come back on a DOCK-shaped viewport, where the plan is one step shorter.
+    // An index would land them on the wrong step; an ID cannot.
+    tourStep = null; tourPlan = null; tourSession = null;
+    innerWidth = 1440; innerHeight = 900;
+    startTour();
+    assertEqual(tourCurrent().id, was, 'the same step, on a differently shaped plan');
+    assertEqual(tourProgress().of, tourSteps().length, 'counted against the plan it is actually running');
+  } finally { innerWidth = w; innerHeight = h; game.sheetState = 'half'; tourReset(); }
+});
+
+test('the plan is frozen for the run, and skips what is already true', () => {
+  setup(21, 21);
+  tourReset();
+  const w = innerWidth, h = innerHeight;
+  try {
+    innerWidth = 375; innerHeight = 812;
+
+    // A garden opens at `half`, so the "your garden is under here" step is
+    // describing a screen nobody is looking at. It stands aside — and the
+    // counter must not then open at "2 of 8".
+    game.sheetState = 'half';
+    startTour();
+    assertEqual(tourCurrent().id, 'look', 'the satisfied opener stands aside');
+    assertEqual(tourProgress().at, 1, 'and the tour opens on step 1');
+    assertEqual(tourProgress().of, tourSteps().length - 1, 'counted without it');
+
+    // But it is not deleted: the state is reachable, and then it earns its place.
+    // (A fresh start, not a resume — the saved position would otherwise, and
+    // correctly, put us back on the step we just left.)
+    endTour(false); tourReset();
+    game.sheetState = 'full';
+    startTour();
+    assertEqual(tourCurrent().id, 'sheet', 'with the library over the garden it leads');
+
+    /* Frozen for the run: rotating a tablet across the tier boundary changes
+       what tourSteps() returns, and with a live list every later step would
+       shift by one underneath the gardener. */
+    const planned = tourProgress().of;
+    innerWidth = 1440; innerHeight = 900;
+    assert(tourSteps().length !== planned, 'the live table really did change');
+    assertEqual(tourProgress().of, planned, 'the running plan did not');
+    assertEqual(tourCurrent().id, 'sheet', 'and the gardener is still on their step');
+  } finally { innerWidth = w; innerHeight = h; game.sheetState = 'half'; tourReset(); }
+});
+
+test('the collapse step belongs to the sheet tier only', () => {
+  setup(21, 21);
+  tourReset();
+  const w = innerWidth, h = innerHeight;
+  try {
+    // A phone: the library opens at full and covers the garden, the rail and
+    // every tool, so the first thing to explain is how to get the garden back.
+    innerWidth = 375; innerHeight = 812;
+    assert(mobileSheetUi(), 'the sandbox agrees this is the sheet tier');
+    assertEqual(tourSteps()[0].id, 'sheet', 'the phone starts by clearing the sheet');
+
+    // A desktop: the library sits BESIDE the garden, so there is nothing in the
+    // way and nothing to explain.
+    innerWidth = 1440; innerHeight = 900;
+    assert(!mobileSheetUi(), 'and that this is the dock tier');
+    const ids = tourSteps().map(s => s.id);
+    assert(!ids.includes('sheet'), 'the dock drops the step wholesale');
+    assertEqual(ids[0], 'look', 'and opens on the camera instead');
+  } finally { innerWidth = w; innerHeight = h; tourReset(); }
+});
+
+test('"Show tips again" replays the tour', () => {
+  setup(21, 21);
+  tourReset();
+  startTour();
+  endTour(true);
+  assert(tourFinished(), 'the tour is done');
+  resetCoachTips();
+  // The key rides COACH_PREFIX so the sweep finds it without naming it — but
+  // tourSession is the live value when storage throws, and a stale one would
+  // keep reporting "done" for a key that is gone.
+  assert(TOUR_KEY.indexOf(COACH_PREFIX) === 0, 'the key rides the coach prefix');
+  assert(!tourFinished(), 'and the reset genuinely replays it');
+  assertEqual(tourRunning(), false, 'without starting it on the spot');
+  tourReset();
+});
+
+test('the tour does not follow the gardener out to the menu', () => {
+  // Every step points at a control that only exists inside a garden. Observed
+  // before this: quitting mid-tour left the callout on the title screen, ringing
+  // whatever shared a selector there.
+  setup(21, 21);
+  tourReset();
+  /* Asserted through anchorPopover rather than by looking for #tourPop: the
+     sandbox MEMOISES getElementById, so it hands back an element for any id
+     whether or not one was ever built, and `remove()` on it is a no-op — an
+     assertion on that would pass in both directions. Pinning the pin itself is
+     the honest question, and it is the whole of what the guard prevents. */
+  const realAnchor = anchorPopover;
+  let pinned = 0;
+  // eslint-disable-next-line no-global-assign
+  anchorPopover = () => { pinned++; };
+  try {
+    startTour();
+    const step = tourCurrent().id;
+    pinned = 0;
+
+    game.inGarden = false;
+    tourRender();
+    assertEqual(pinned, 0, 'nothing is pinned once the garden is closed');
+    // Hidden, not ended — the saved step is what makes re-entry resume.
+    assert(tourRunning(), 'the tour is still running underneath');
+    assertEqual(tourCurrent().id, step, 'on the step it was left on');
+
+    game.inGarden = true;
+    tourRender();
+    assertEqual(pinned, 1, 'and it comes back on re-entry');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    anchorPopover = realAnchor;
+    game.inGarden = true; tourReset();
+  }
+});
+
+test('the ambient beats stand down while the tour is running', () => {
+  // Every beat is a tour step without an anchor, so both firing means the same
+  // advice twice in two widgets a few pixels apart. Observed before this: the
+  // first plant placed during the tour put "Drag across the ground… the Drift
+  // chip scatters them" in a banner over the garden while the tour's own "Plant
+  // a drift" callout was pointing at the actual chip.
+  setup(21, 21);
+  tourReset();
+  for (const k of [...TOUR_COVERS]) localStorage.removeItem(`hortus:coach:${k}-v1`);
+  localStorage.removeItem(TIME_COACH_KEY);
+  const tip = document.getElementById('coachTip');
+  try {
+    startTour();
+    showCoachTip('drag to plant several', 'plant-drag');
+    assert(tip.classList.contains('hidden'), 'the duplicated beat does not show');
+    assertEqual(localStorage.getItem('hortus:coach:plant-drag-v1'), '1',
+      'but is marked seen — the tour covered it better, so it must not replay after');
+    showTimeCoachTip();
+    assert(tip.classList.contains('hidden'), 'nor does the time beat');
+    assertEqual(localStorage.getItem(TIME_COACH_KEY), '1', 'and it is marked seen too');
+
+    // A tip the tour does NOT cover still shows: swallowing one of those would
+    // lose it for good, since suppression also marks it seen.
+    localStorage.removeItem('hortus:coach:site-photo-edit-v1');
+    showCoachTip('drag the photo to move it', 'site-photo-edit');
+    assert(!tip.classList.contains('hidden'), 'an unrelated tip is untouched by the tour');
+    assert(!TOUR_COVERS.has('site-photo-edit'), 'and is not in the covered set');
+  } finally {
+    endTour(true); tourReset(); tip.classList.add('hidden');
+    localStorage.removeItem('hortus:coach:site-photo-edit-v1');
+  }
+});
+
+test('the tour is offered on a finished garden, and only once', () => {
+  setup(21, 21);
+  tourReset();
+  const shown = [];
+  const realCoach = showCoachTip;
+  // eslint-disable-next-line no-global-assign
+  showCoachTip = (text, key, action) => { shown.push({ key, text, action }); };
+  try {
+    armCoach();
+    for (let i = 0; i < 25; i++) game.plants[`${i},1`] = { s: 'bluestem', d: 0, t: 1 };
+    coachBeatEnter();
+    assertEqual(shown[0].key, 'ready-garden', 'it rides the look-around beat');
+    assert(typeof shown[0].action === 'function',
+      'and is an offer you can take, not a sentence naming a menu');
+    assert(!/tap the ground/i.test(shown[0].text), 'still not told to deface the example');
+
+    // An empty garden gets no offer: every step assumes plants to identify and
+    // a year worth running.
+    shown.length = 0;
+    game.plants = {};
+    coachBeatEnter();
+    assertEqual(shown[0].key, 'first-plant', 'an empty garden gets the plant-me beat');
+    assert(!shown[0].action, 'and carries no tour offer — every step assumes a planting');
+
+    // Once taken, never offered again.
+    shown.length = 0;
+    for (let i = 0; i < 25; i++) game.plants[`${i},1`] = { s: 'bluestem', d: 0, t: 1 };
+    endTour(true);
+    coachBeatEnter();
+    assertEqual(shown[0].key, 'ready-garden', 'the beat still fires');
+    assert(!shown[0].action, 'but the tour is not offered a second time');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    showCoachTip = realCoach;
+    localStorage.removeItem('hortus:coach:armed'); coachArmedSession = false;
+    tourReset();
+  }
+});
+
 test('the welcome flag is a device preference, not a document', () => {
   // It must stay in localStorage: IDB is async, and the offer is decided during
   // init. A key that drifted into IDB_KEYS would be read after the menu paints.

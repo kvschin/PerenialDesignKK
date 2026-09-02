@@ -19,11 +19,28 @@ function dismissCoachTip(){
 /* `action` makes the tip itself tappable — a tip that names a thing the
    gardener has never found should be able to take them there, rather than
    asking them to go hunting through a menu from memory. */
+/* Every ambient beat is a tour step without an anchor — beat 2 IS the drift
+   step, beat 3 the season step, beat 4 the planting list — so while the tour is
+   running they would fire the same advice a second time, in a second widget, a
+   few pixels away. Observed: placing the first plant during the tour put "Drag
+   across the ground… the Drift chip scatters them" in a banner over the garden
+   while the tour's own "Plant a drift" callout pointed at the actual chip.
+
+   Suppressed AND marked seen, deliberately: the tour covers this ground better
+   (it points), so replaying the banner version afterwards is noise. Only the
+   keys the tour really duplicates — the site-photo tips are not part of it, and
+   swallowing one of those would lose it for good. */
+const TOUR_COVERS=new Set(['first-plant','plant-drag','planting-list']);
 function showCoachTip(text,key,action){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
   if (!tip||!txt||!text) return;
   const storeKey=key?`hortus:coach:${key}-v1`:null;
   const seenAttr=key?`data-coach-${String(key).toLowerCase().replace(/[^a-z0-9-]/g,'-')}`:null;
+  if (key && TOUR_COVERS.has(key) && typeof tourRunning==='function' && tourRunning()){
+    try{ if (storeKey) localStorage.setItem(storeKey,'1'); }catch(_){ }
+    if (seenAttr) tip.setAttribute(seenAttr,'1');
+    return;
+  }
   try{ if (storeKey&&localStorage.getItem(storeKey)) return; if (storeKey) localStorage.setItem(storeKey,'1'); }
   catch(_){ if (seenAttr&&tip.hasAttribute(seenAttr)) return; }
   if (seenAttr) tip.setAttribute(seenAttr,'1'); txt.textContent=text; tip.classList.remove('hidden');
@@ -45,6 +62,11 @@ function showCoachTip(text,key,action){
 function showTimeCoachTip(){
   const tip=document.getElementById('coachTip'), txt=document.getElementById('coachTipText');
   if (!tip || !txt || !game.inGarden) return;
+  // the tour's season step says this while pointing at the box — see TOUR_COVERS
+  if (typeof tourRunning==='function' && tourRunning()){
+    try{ localStorage.setItem(TIME_COACH_KEY,'1'); }catch(_){ tip.dataset.shown='1'; }
+    return;
+  }
   try{ if (localStorage.getItem(TIME_COACH_KEY)) return;
     localStorage.setItem(TIME_COACH_KEY,'1'); }catch(_){ if (tip.dataset.shown) return; }
   tip.dataset.shown='1';
@@ -111,6 +133,12 @@ function resetCoachTips(){
   }catch(_){ }
   coachPlanted=0;
   clearTimeout(coachLookTimer); coachLookTimer=null;
+  /* The tour rides COACH_PREFIX, so the sweep above already deleted its key —
+     but tourSession is the live value whenever storage throws, and a stale one
+     would report "done" for a tour whose key is gone. Clearing the step too
+     tears down any callout currently on screen. */
+  tourSession=null; tourStep=null;
+  if (typeof tourRender==='function') tourRender();
   const tip=document.getElementById('coachTip');
   if (tip){
     delete tip.dataset.shown;
@@ -141,12 +169,26 @@ function coachBeatEnter(){
     /* Beat 1 used to tell someone who had just opened a finished 323-plant
        garden to "pick a plant and tap the ground" — i.e. to deface the example
        they were given to admire. Orient them instead, and let the season beat
-       arrive on its own once they have had a look. */
-    showCoachTip('This planting is already done — have a look around. Anything here can be moved, replaced or added to.','ready-garden');
+       arrive on its own once they have had a look.
+
+       This is also where the controls tour is OFFERED, because a finished
+       garden is the only place it makes sense: it is the one entry with
+       something already on screen worth pointing at, and its steps assume
+       plants exist to identify and a year worth running. The offer rides the
+       tip's own `action` — tapping it starts the tour — rather than a third
+       button on the first-run dialog or a modal of its own. Declining is doing
+       nothing, which is the right cost for an offer nobody asked for. */
+    if (!tourFinished() && !tourRunning())
+      showCoachTip('This planting is already done — have a look around. Tap here and I will show you the controls.',
+        'ready-garden', startTour);
+    else
+      showCoachTip('This planting is already done — have a look around. Anything here can be moved, replaced or added to.','ready-garden');
     /* And beat 3 is keyed to PLANTING, so a gardener who opens the demo purely
        to look would never meet the seasonal loop — the one thing this app does
-       that nothing else does. Time gets them there instead. */
-    coachLookTimer=setTimeout(()=>{ coachLookTimer=null; showTimeCoachTip(); }, COACH_LOOK_MS);
+       that nothing else does. Time gets them there instead. The tour reaches it
+       at step 4, so this only has to cover somebody who declined the tour. */
+    coachLookTimer=setTimeout(()=>{ coachLookTimer=null;
+      if (!tourRunning()) showTimeCoachTip(); }, COACH_LOOK_MS);
   } else {
     showCoachTip('Pick a plant from the library, then tap the ground to plant it.','first-plant');
   }
@@ -155,6 +197,10 @@ function coachBeatEnter(){
    choke point every route funnels through (tap, drag, drift, fill, matrix), and
    one that undo and loading a garden deliberately do not touch. */
 function coachNotePlanting(){
+  // plantFx is the one route every planting funnels through, so the tour hangs
+  // off it for the same reason the beats do — and BEFORE the armed check, since
+  // the tour is opt-in and runs whether or not the ambient beats are armed
+  tourNote('plant');
   if (!coachArmed()) return;
   const was=coachPlanted; coachPlanted++;
   if (was<COACH_DRIFT_AT && coachPlanted>=COACH_DRIFT_AT)
@@ -169,6 +215,321 @@ function coachNotePlanting(){
     showCoachTip('Your planting list turns this into a nursery order with real quantities. Tap to see it.',
       'planting-list', ()=>{ if (typeof openExport==='function') openExport(); });
 }
+/* ---------- the controls tour ----------
+   The beats above are ambient: they fire when you happen to do a thing, and
+   they name what you just did. They cannot answer "where is that", because a
+   centred banner at top:116px points at nothing — and in the DEMO garden most
+   of them never run at all. Beats 2 and 4 are gated on planting, and
+   coachBeatEnter deliberately steers a finished garden AWAY from planting
+   ("have a look around"), so the shop window ships with two sentences, neither
+   of which names a control.
+
+   So this is the explicit, opt-in half: a short chain of callouts ANCHORED to
+   the real element, offered once on entering a garden that is already planted.
+   Three rules keep it from becoming the tour this file's header argues against.
+
+   It advances on DOING, never on a Next button — every step names a gesture and
+   waits for it, so a step cannot be completed without learning it. It is ALWAYS
+   skippable and never modal: no scrim, no focus trap, no blocked input, because
+   a scrim over the garden would hide the thing being explained, which is the
+   mistake the centred tip already makes. And it is SHORT — seven steps that
+   stop at the payoff, leaving Select, Ruler, Pick, Grade, Site, schemes and
+   rotation to toolGuide(), which already names each one the moment it is armed.
+   The tour's whole job is getting you to arm a tool the first time.
+
+   `hortus:coach:tour` rides the coach prefix on purpose, so Settings' "Show
+   tips again" replays it without having to name it (see resetCoachTips). */
+const TOUR_KEY=COACH_PREFIX+'tour';
+const TOUR_DONE='done';
+/* Storage can be unavailable — the same private-mode cohort welcomeSeen() and
+   coachArmed() both degrade for. Memory is the live value there, so the tour
+   runs once per launch rather than never. */
+let tourStep=null, tourSession=null;
+
+/* The steps. A PURE description — the anchor, the words, and the one event that
+   completes each — with tourRender() a thin loop over it: exactly the split
+   settingsSections() uses, and for the same reason. The test sandbox has no
+   selector engine and no layout, so a test that counted rendered callouts would
+   pass without testing anything. The table and its predicates are where the
+   behaviour lives, and those run headless.
+
+     on      the event that completes the step. tourNote(evt) is called from the
+             one choke point for each — the discipline coachNotePlanting follows
+             by counting from plantFx rather than from five call sites.
+     anchor  candidate selectors, first VISIBLE one wins. Several controls move
+             between tiers (the zoom pill becomes the View Tools menu on a
+             phone), so a single selector would leave a step pointing at
+             display:none on one of them.
+     sheet   the sheet state the step needs on SHEET. Steps 1-3 explain the
+             garden and need it out of the way; 4-6 point INTO the library. Get
+             this wrong and half the tour anchors to hidden elements on a phone
+             — which is exactly what the measured 375x812 first screen is: the
+             sheet opens at full, and the garden, the rail and every tool are
+             behind it.
+     skip    optional: drop the step where it cannot apply. */
+function tourSteps(){
+  const sheetUi=typeof mobileSheetUi==='function' && mobileSheetUi();
+  const steps=[
+    {id:'sheet', on:'sheet', sheet:null,
+     anchor:['#btnSheetDown','#sheetHandle'],
+     title:'Your garden is under here',
+     body:'Tap the chevron — the plant library slides down and gives the garden back.',
+     /* The one step that is not about a tool, and the only one dropped
+        wholesale: on the dock the library sits BESIDE the garden rather than on
+        top of it, so there is nothing in the way to explain. */
+     skip:()=>!sheetUi,
+     /* And on a phone it only earns its place when the library really is over
+        the garden. A garden opens at `half` (game.sheetState's default, and
+        nothing on the entry path changes it), so asking this on entry describes
+        a screen the gardener is not looking at — it also spends the opening
+        beat and starts the counter at "2 of 8". The state is genuinely
+        reachable, though (drilling into a species group sets full, and the
+        sheet can be dragged there), so the step stands aside rather than being
+        deleted. Read once, when startTour freezes the plan. */
+     satisfied:()=>typeof normalizedSheetState!=='function'
+       || normalizedSheetState(game.sheetState)!=='full'},
+    {id:'look', on:'look', sheet:'collapsed',
+     anchor:['#zoomPill','#btnViewTools'],
+     title:'Move around',
+     body:'Drag the garden to move it. Two fingers or the scroll wheel zoom; Fit frames the whole plot.'},
+    {id:'identify', on:'identify', sheet:'collapsed',
+     anchor:['[data-tour="hand"]'],
+     title:'What is that one?',
+     /* The highest-value undiscovered gesture in the app: the demo holds 21
+        species and inspectPlantAt returns a full card for every one of them —
+        name, latin, blurb, mature size — with nothing anywhere saying so. */
+     body:'With the Hand, tap any plant to find out what it is.'},
+    {id:'season', on:'season', sheet:'collapsed',
+     anchor:['#btnSeasonBox'],
+     title:'Run the year',
+     /* The pitch — and it used to sit behind planting five things, so the one
+        thing this app does that nothing else does was gated behind a chore. In
+        a garden that already holds 323 plants there is nothing to wait for. */
+     body:'Hold this to run the year — the planting blooms, seeds, and stands through winter.'},
+    {id:'plant', on:'plant', sheet:'half',
+     anchor:['[data-tour="plant"]'],
+     title:'Add something',
+     /* "Add to it", never "plant a garden": the first-run offer already
+        promised this is a copy that cannot be spoiled, and naming undo in the
+        same breath is what converts a looker into an editor. */
+     body:'Pick a plant from the library, then tap the ground. Undo takes back anything.'},
+    {id:'drift', on:'drift', sheet:'half',
+     anchor:['[data-tour="drift"]','#brushBar','[data-tour="plant"]'],
+     title:'Plant a drift',
+     body:'Drag to plant several at once. Drift scatters them the way they would seed themselves.',
+     /* The Drift chip lives in the brush bar, and the brush bar is hidden
+        outright unless a placement tool is armed — so a gardener who reached
+        this step without a plant on the brush (skipped ahead, or armed Hand in
+        between) got a running tour with no callout and no way forward. The step
+        prepares its own surface, exactly as `sheet` does one field up, and it is
+        only ever called when the anchor is genuinely missing. Arming the plant
+        brush is also what step 4 just asked for, so this restores the expected
+        state rather than surprising anyone. */
+     arm:()=>{ if (typeof armPlantToolFromRail==='function') armPlantToolFromRail(false); }},
+    {id:'landscape', on:'landscape', sheet:'half',
+     anchor:['.catalog-mode'],
+     title:'The other half',
+     /* Reads as a filter and is actually a door. Nobody finds it. */
+     body:'Landscape has the paths, beds, fences, walls and furniture.'},
+    {id:'list', on:'list', sheet:null,
+     anchor:['#btnMenu'],
+     title:'Turn it into an order',
+     body:'The planting list counts every species into real nursery quantities. It is in the Menu.'},
+  ];
+  return steps.filter(s=>!(s.skip&&s.skip()));
+}
+
+/* ---------- the run ----------
+   startTour FREEZES the step list for the whole run (`tourPlan`), and the saved
+   position is a step ID rather than an index. Both are fixes for the same class
+   of bug: tourSteps() is a live function of the tier and of what the step can
+   apply to, and it is recomputed on every call — so with an index into a
+   recomputed list, anything that changed the list mid-run renumbered the tour
+   underneath the gardener. Rotating a tablet across the SHEET/DOCK boundary
+   does exactly that: the sheet step appears or vanishes and every later step
+   shifts by one, silently moving them a step forward or back.
+
+   Freezing also makes it safe to drop steps that are already satisfied when the
+   tour starts, which is what `satisfied` is for. That matters most for the very
+   first step: a garden opens with the sheet at `half`, not `full`, so on a
+   phone "your garden is under here" is usually a lie, and asking it anyway both
+   wastes the opening beat and starts the counter at "2 of 8". It is not deleted
+   outright because the state it describes is genuinely reachable — drilling
+   into a species group sets the sheet to full, and the gardener can drag it
+   there — so the step stays and simply stands aside when it does not apply. */
+let tourPlan=null;
+function tourStored(){
+  if (tourSession!=null) return tourSession;
+  try{ return localStorage.getItem(TOUR_KEY); }catch(_){ return null; }
+}
+function tourSave(v){
+  tourSession=v;
+  try{ localStorage.setItem(TOUR_KEY,v); }catch(_){ }
+}
+function tourRunning(){ return tourStep!=null; }
+function tourFinished(){ return tourStored()===TOUR_DONE; }
+function tourCurrent(){
+  if (tourStep==null || !tourPlan) return null;
+  return tourPlan[tourStep]||null;
+}
+// what the callout shows as "3 of 7" — the frozen plan, not the live table
+function tourProgress(){
+  if (tourStep==null || !tourPlan) return null;
+  return {at:tourStep+1, of:tourPlan.length};
+}
+
+/* Resume at the stored step rather than restarting — the difference between an
+   aid and a punishment for reloading. Resolved by ID, so a plan that came out
+   different (a rotated tablet, a step that no longer applies) lands the
+   gardener on the same STEP rather than on whatever now sits at that number. */
+function startTour(){
+  const plan=tourSteps().filter(s=>!(s.satisfied&&s.satisfied()));
+  if (!plan.length) return false;
+  tourPlan=plan;
+  const at=plan.findIndex(s=>s.id===tourStored());
+  tourStep=at>0 ? at : 0;
+  dismissCoachTip();                       // one voice at a time
+  tourSave(tourPlan[tourStep].id);
+  tourRender();
+  return true;
+}
+function endTour(complete){
+  const was=tourStep;
+  tourStep=null; tourPlan=null;
+  if (complete!==false) tourSave(TOUR_DONE);
+  tourRender();
+  return was;
+}
+function tourAdvance(){
+  if (tourStep==null || !tourPlan) return;
+  if (tourStep+1>=tourPlan.length){
+    endTour(true);
+    if (typeof toast==='function') toast('That is the tour. Every other tool names itself when you arm it.');
+    return;
+  }
+  tourStep++;
+  tourSave(tourPlan[tourStep].id);
+  tourRender();
+}
+/* The one entry point the rest of the app calls. Doing a LATER step's gesture
+   advances PAST it rather than being ignored: someone who reaches for the
+   season box during the camera step has already learned the camera step, and a
+   tour that insists on its own order is a tour people quit. An EARLIER step's
+   gesture is ignored, or wandering back to pan the camera would rewind them. */
+function tourNote(evt){
+  if (tourStep==null || !tourPlan) return false;
+  const at=tourPlan.findIndex(s=>s.on===evt);
+  if (at<0 || at<tourStep) return false;
+  tourStep=at;
+  tourAdvance();
+  return true;
+}
+
+/* ---------- the callout ----------
+   Anchoring is the whole point of this half of the onboarding, and the app
+   already knows how: anchorPopover() measures the anchor's rect, flips above or
+   below when there is no room, and clamps into usableCanvasRect() so a callout
+   cannot land under the docked library or off a phone. It is reused verbatim
+   rather than reimplemented — the layer menu, the view tools and the discovery
+   source menu all pin themselves that way, and a second copy of that arithmetic
+   would drift from the tier rules the first one respects.
+
+   Deliberately NOT a modal: no scrim, no focus trap, no inert background. Every
+   step is completed by using the app, so anything blocking input would block
+   the only way forward. The ring on the target is the whole pointing
+   affordance — a dimming overlay would hide the garden the step is about. */
+const TOUR_TARGET_CLASS='tour-target';
+let tourArming=false;   // re-entry guard: step.arm() rebuilds the tray, which renders
+function tourClearTarget(){
+  const prev=document.querySelector('.'+TOUR_TARGET_CLASS);
+  if (prev) prev.classList.remove(TOUR_TARGET_CLASS);
+}
+/* First VISIBLE candidate wins. visibleEl() is the same display check
+   syncTopTools uses to decide whether the top bar or the compact View Tools
+   menu is on screen, so the tour and the chrome agree about which tier is up. */
+function tourAnchorEl(step){
+  if (!step || !step.anchor) return null;
+  for (const sel of step.anchor){
+    let el=null;
+    try{ el=document.querySelector(sel); }catch(_){ }
+    if (el && (typeof visibleEl!=='function' || visibleEl(el))) return el;
+  }
+  return null;
+}
+function tourRender(){
+  const old=document.getElementById('tourPop');
+  const step=tourCurrent();
+  /* Every step points at a control that only exists inside a garden, so quitting
+     to the menu has to take the callout with it — otherwise it follows the
+     gardener onto the title screen and rings whatever happens to share a
+     selector there. The tour is not ENDED, only hidden: the step is already
+     saved, so re-entering a garden picks it up exactly where it was left. */
+  if (!step || !game.inGarden){ if (old) old.remove(); tourClearTarget(); return; }
+  /* Put the sheet where the step can be seen BEFORE resolving the anchor: on a
+     phone the library opens at full and covers the garden, the rail and every
+     tool, so a step pointing at the canvas resolves to something behind it. */
+  if (step.sheet && typeof mobileSheetUi==='function' && mobileSheetUi()
+      && typeof normalizedSheetState==='function' && typeof setSheetState==='function'
+      && normalizedSheetState(game.sheetState)!==step.sheet){
+    setSheetState(step.sheet);
+  }
+  let anchor=tourAnchorEl(step);
+  /* A step that can put its own control on screen gets one chance to, and only
+     when the control is actually missing — calling it every render would fight
+     whatever the gardener is doing. It re-enters tourRender through the tray
+     rebuild, so the guard also stops that recursing.
+
+     Keyed on the PREFERRED anchor, not on having found any: the later
+     candidates are the safety net for when arming fails, and testing the whole
+     list meant the net always caught first and `arm` never ran at all — the
+     drift step settled for ringing the Plant button rather than revealing the
+     Drift chip it is actually about. */
+  if (!tourAnchorEl({anchor:step.anchor.slice(0,1)}) && step.arm && !tourArming){
+    tourArming=true;
+    try{ step.arm(); }catch(err){ if (typeof noteError==='function') noteError(err,'tour-arm'); }
+    finally{ tourArming=false; }
+    anchor=tourAnchorEl(step);
+  }
+  /* Still nothing means the control genuinely is not on screen — a tier changed
+     under us, or a rebuild is mid-flight. Drop the callout rather than pinning
+     it to the corner and pointing at nothing; the next refreshCanvasTools will
+     bring it back. The step is NOT skipped: losing sight of a control is not
+     the same as having learned it. */
+  if (!anchor){ if (old) old.remove(); tourClearTarget(); return; }
+
+  const prog=tourProgress();
+  const pop=old||document.createElement('div');
+  pop.id='tourPop';
+  pop.className='tour-pop';
+  pop.setAttribute('role','status');
+  pop.setAttribute('aria-live','polite');
+  pop.replaceChildren();
+
+  const head=document.createElement('div'); head.className='tour-head';
+  const h=document.createElement('b'); h.textContent=step.title;
+  const count=document.createElement('span'); count.className='tour-count';
+  count.textContent=`${prog.at} of ${prog.of}`;
+  head.append(h,count);
+  const body=document.createElement('p'); body.textContent=step.body;
+  const foot=document.createElement('div'); foot.className='tour-foot';
+  const skip=document.createElement('button'); skip.type='button'; skip.className='tour-skip';
+  skip.textContent='Skip tour';
+  skip.onclick=()=>{ endTour(true); toast('Tour closed. Settings can replay it.'); };
+  /* An explicit way past a step you cannot perform right now — a trackpad with
+     no pinch, a control the tier moved. Without it a tour that waits for one
+     gesture is a tour that can strand someone on step 2. */
+  const next=document.createElement('button'); next.type='button'; next.className='tour-next';
+  next.textContent=prog.at>=prog.of?'Done':'Next';
+  next.onclick=()=>tourAdvance();
+  foot.append(skip,next);
+  pop.append(head,body,foot);
+
+  tourClearTarget();
+  anchor.classList.add(TOUR_TARGET_CLASS);
+  if (typeof anchorPopover==='function') anchorPopover(pop,anchor);
+  else if (!pop.isConnected) document.body.appendChild(pop);
+}
+
 /* The three per-device preference buttons that used to live in the garden menu
    — Appearance, Haptic feedback, Left-handed layout — moved to the settings
    screen, and their label-syncing helpers went with them: a settings row

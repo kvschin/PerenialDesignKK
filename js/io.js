@@ -509,6 +509,7 @@ function hardscapeRows(){
   return rows.sort((a2,b2)=>a2.kind===b2.kind?b2.count-a2.count:a2.kind<b2.kind?-1:1);
 }
 function openExport(){
+  tourNote('list');   // the tour ends on the payoff, and this is its only opener
   funnel(FUNNEL_EVENTS.listOpened);     // the conversion moment, if the paywall lands here
   const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows();
   const where=game.worldName||'My garden';

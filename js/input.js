@@ -508,7 +508,7 @@ cnv.addEventListener('pointerup',e=>{
         Math.abs(e.clientX-pd.sx)<=TAP_SLOP_PX && Math.abs(e.clientY-pd.sy)<=TAP_SLOP_PX){
       game.actX=pd.tx; game.actY=pd.ty;   // move the cursor diamond to the tapped tile
       inspectPlantAt(pd.tx,pd.ty);
-    }
+    } else tourNote('look');   // it travelled: that was a pan, which is the camera step
     return;
   }
   if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }

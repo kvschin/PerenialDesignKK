@@ -67,11 +67,11 @@ function inspectPlantAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
   const k=`${x},${y}`;
   const p=game.plants[k];
-  if (p && !p.removed && layerShown(plantLayerOf(p))){ showPlantCard(p,x,y); return true; }
+  if (p && !p.removed && layerShown(plantLayerOf(p))){ showPlantCard(p,x,y); tourNote('identify'); return true; }
   const hit=shrubAt(x,y);
-  if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); return true; }
+  if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); tourNote('identify'); return true; }
   const b=game.bulbs[k];
-  if (b && !b.removed && layerShown('bulbs')){ showPlantCard(b,x,y); return true; }
+  if (b && !b.removed && layerShown('bulbs')){ showPlantCard(b,x,y); tourNote('identify'); return true; }
   return false;
 }
 function actHere(opts){

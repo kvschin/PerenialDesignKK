@@ -1164,6 +1164,77 @@ canvas.layer-eye{display:block}
   border:0;border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary)}
 .coach-tip button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 .coach-tip button .ui-icon{width:15px;height:15px}
+/* ---------- the controls tour ----------
+   Anchored to a real control by anchorPopover(), which sets position/top/left
+   and z-index:40 inline — so everything positional is deliberately absent here.
+   No scrim and no backdrop: every step is completed by USING the app, so
+   anything covering the garden would hide the thing the step is about and
+   anything blocking input would block the only way forward. */
+.tour-pop{width:min(272px,calc(100vw - 24px));padding:12px 13px 11px;
+  border:1.5px solid var(--color-accent);border-radius:var(--radius-panel);
+  background:var(--surface-dialog);box-shadow:var(--shadow-overlay);color:var(--text-primary);
+  font-size:13px;line-height:1.5;
+  animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
+.tour-head{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.tour-head b{font-family:var(--font-heading);font-size:15px;font-weight:600;flex:1 1 auto}
+/* "3 of 8" is the one thing that makes a tour feel finite. --color-accent-700 is
+   the higher-contrast step against the surface in BOTH themes, which is what
+   this needs at 11px. */
+.tour-count{flex:0 0 auto;font-size:11px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--color-accent-700)}
+.tour-pop p{margin:0 0 10px;color:var(--text-secondary)}
+.tour-foot{display:flex;align-items:center;gap:8px}
+.tour-foot button{flex:1 1 auto;min-height:34px;padding:7px 10px;font-size:12.5px;font-weight:600;
+  border-radius:var(--radius-control);border:1px solid var(--border-subtle);
+  background:var(--surface-control);color:var(--text-secondary);
+  transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+.tour-foot button:active{transform:translateY(1px)}
+.tour-foot button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
+/* Next is the primary because Skip is the destructive-ish one, but Skip stays a
+   real labelled button rather than an X: a tour you cannot obviously leave is
+   the thing people complain about. */
+.tour-foot .tour-next{background:var(--action-primary);border-color:var(--action-primary);color:var(--ink)}
+.tour-foot .tour-next:hover{background:var(--action-primary-hover);border-color:var(--action-primary-hover);color:var(--ink)}
+.tour-foot .tour-skip{flex:0 0 auto}
+
+/* The whole pointing affordance. A ring on the control itself, not a hole cut
+   in a dim layer — the garden stays fully visible, which is the point.
+
+   It sets NEITHER position NOR border-radius, and both omissions are
+   load-bearing. The targets are ordinary chrome that already positions itself:
+   a `position:relative` here re-ran the cascade on #zoomPill, whose own
+   `position:fixed` bottom-left is what puts it over the garden, so ringing the
+   pill threw it up into the top-left corner. And an `outline` already follows
+   the element's own border-radius, so declaring one squares off every capsule
+   it touches. An outline also draws outside the border box without needing a
+   stacking context, so nothing is lost by leaving both alone. */
+.tour-target{outline:2px solid var(--color-accent);outline-offset:2px;
+  animation:tourPulse 1.9s var(--ease-standard) infinite}
+@keyframes tourPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(201,127,63,.46)}
+  55%{box-shadow:0 0 0 7px rgba(201,127,63,0)}
+}
+/* The app's own Motion preference, not the raw media query — see reducedMotion()
+   in core.js. A pulsing ring is decoration; the ring itself carries the meaning
+   and stays. */
+[data-motion="reduce"] .tour-target{animation:none}
+[data-motion="reduce"] .tour-pop{animation:none}
+
+@media (pointer:coarse){
+  /* Touch sizing belongs here rather than in the SHEET query: a tablet in
+     landscape is DOCK and still a finger. */
+  .tour-foot button{min-height:44px}
+}
+@media (forced-colors: active){
+  /* Canvas-drawn icons aside, this whole component signals with colour: the
+     accent border on the callout and the accent ring on the target. Both are
+     discarded under forced colours, so re-signal with system colours or the
+     tour points at nothing. */
+  .tour-pop{border:1px solid CanvasText}
+  .tour-target{outline:3px solid Highlight}
+  .tour-foot .tour-next{background:Highlight;color:HighlightText;border-color:Highlight}
+}
+
 /* Reads as "hide the pill on a coarse pointer at any width", which would strand
    a touchscreen laptop with no Fit-plot control. It does not: the DOCK query
    below re-declares `#zoomPill{display:flex}` at equal specificity and later in

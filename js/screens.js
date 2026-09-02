@@ -1150,6 +1150,16 @@ function settingsSections(){
     hint:'Replays the short tips that explain planting, drag-to-plant and running the year.',
     action:'Reset tips',
     run:()=>{ resetCoachTips(); return 'Tips will show again the next time you open a garden.'; }});
+  /* Its own row rather than only riding the tips reset: the tour is the thing
+     someone comes here looking for when they cannot find a control, and burying
+     it inside a button labelled "Reset tips" means they never do. Only offered
+     from inside a garden — every step points at a control that does not exist
+     on the menu, so from there it would start by pointing at nothing. */
+  if (game.inGarden) controls.push({kind:'action', id:'tour', label:'Tour the controls',
+    hint:'Seven short steps: moving around, identifying a plant, running the year, planting, and the planting list.',
+    action:tourFinished()?'Run it again':'Start tour',
+    run:()=>{ closeSettings(); tourSession=null;
+      return startTour() ? 'Tour started.' : 'Nothing to tour here.'; }});
   sections.push({title:'Controls & accessibility', rows:controls});
 
   sections.push({title:'Storage', rows:[
@@ -1500,7 +1510,9 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
     box.classList.add('hold-arming');
     try{ box.setPointerCapture(e.pointerId); }catch(_){ }
     holdTimer=setTimeout(()=>{
-      holdTimer=null; game.ffActive=true; ffStarted=true; closePause();
+      // the tour asks them to RUN the year, so it advances when the hold
+      // actually fires — an aborted press has run nothing
+      holdTimer=null; game.ffActive=true; ffStarted=true; closePause(); tourNote('season');
       box.classList.remove('hold-arming'); box.classList.add('fast-forwarding');
       box.setAttribute('aria-label','Time — fast-forwarding while held');
       hapticFeedback('success');

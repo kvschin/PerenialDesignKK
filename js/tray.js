@@ -307,6 +307,8 @@ function makeCanvasTool(label,kind,opts){
   b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
   b.title=opts&&opts.title || label;
   b.setAttribute('aria-pressed',opts&&opts.active?'true':'false');
+  // a stable hook for the controls tour, which has to point at a real element
+  if (opts&&opts.tour) b.dataset.tour=opts.tour;
   const c=document.createElement('canvas'); c.width=42; c.height=32;
   drawCanvasIcon(c.getContext('2d'),kind);
   const s=document.createElement('span'); s.textContent=label;
@@ -712,11 +714,13 @@ function pickAt(x,y){
   } else toast('Nothing here to pick — tap a plant or material.');
 }
 function choosePlantMode(drift){
+  if (drift) tourNote('drift');
   game.drift=!!drift; game.matrix=false;   // Draw/Drift and Matrix are exclusive patterns
   armPlantToolFromRail(false);
   updateActiveToolStatus();
 }
 function chooseMatrixMode(){
+  tourNote('drift');   // Matrix answers the same step: one gesture, many plants
   game.matrix=true; game.drift=false;
   armPlantToolFromRail(false);
   updateActiveToolStatus();
@@ -788,7 +792,7 @@ function buildCanvasTools(){
   rail.innerHTML='';
   const add=(label,kind,opts)=>{ const b=makeCanvasTool(label,kind,opts||{}); rail.appendChild(b); return b; };
   const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
-  add('Hand','hand',{active:game.tool==='hand',title:'Hand / safe select: drag the map to pan',
+  add('Hand','hand',{active:game.tool==='hand',tour:'hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
   /* Select lives HERE, not in the top bar, because it is a tool in the only
      sense that matters to the canvas: it sets game.tool, and arming it disarms
@@ -809,7 +813,7 @@ function buildCanvasTools(){
      390px tall. */
   add('Ruler','ruler',{active:game.tool==='ruler',title:'Tape measure: drag, or tap two points',
     onClick:()=>{ setTool('ruler'); game.toolMenu=null; }});
-  add('Plant','brush',{active:isBrushTool(game.tool),
+  add('Plant','brush',{active:isBrushTool(game.tool),tour:'plant',
     swatch:true,
     title:'Plant: pick a species below; set Draw/Drift and Grid/Free in the brush bar',
     onClick:()=>armPlantToolFromRail(false)});
@@ -826,6 +830,9 @@ function buildCanvasTools(){
   renderViewToolsMenu();
   renderLayerMenu();
   renderSelectionActions();
+  // the rail is rebuilt wholesale, so a callout anchored into it is pointing at
+  // a detached node until this re-pins it
+  tourRender();
 }
 function popButton(label,kind,sel,fn,title,extra){
   const b=document.createElement('button');
@@ -2373,6 +2380,7 @@ function buildToolTray(force){
   // AFTER, not before: buildToolTrayInner normalises game.trayCat and writes
   // lastCatByGroup, so the signature it settles on is the one to remember.
   trayCacheSig=trayStateSig();
+  tourRender();   // the tray was replaced; re-pin any callout anchored into it
   return true;
 }
 /* ---- dev-only: prove the signature is complete ----
@@ -2485,6 +2493,7 @@ function buildToolTrayInner(){
   const switchGroup=(groupId)=>{
     if (groupId===activeGroup) return;
     const group=TRAY_GROUPS.find(g=>g.id===groupId); if (!group) return;
+    if (groupId==='build') tourNote('landscape');
     saveTrayScroll(); game.trayCat=lastCatByGroup[groupId]||group.cats[0]; game.drill=null; game.catMenuOpen=false; closeDiscoverySourceMenu();
     const d=activeDiscovery();
     setDiscovery({category:groupId==='plants'?(discoveryCollectionView(d)||d.query.trim()?null:game.trayCat):null,limit:36});
@@ -3439,6 +3448,7 @@ function renderBrushBar(){
       const b=document.createElement('button');
       b.className='seg-opt'+(o.on?' on':''); b.title=o.title||o.label;
       b.setAttribute('aria-pressed',o.on?'true':'false');
+      if (o.tour) b.dataset.tour=o.tour;
       if (o.draw){ const c=document.createElement('canvas'); c.width=28; c.height=24;
         o.draw(c.getContext('2d')); b.appendChild(c); }   // layer chips are text-only
       const sp=document.createElement('span'); sp.textContent=o.label;
@@ -3503,7 +3513,7 @@ function renderBrushBar(){
   if (P && !woody) parts.push(seg([
     {label:'Draw', on:!game.drift&&!game.matrix, title:'Paint one plant at a time',
       draw:tc=>drawPlantModeIcon(tc,false), click:()=>choosePlantMode(false)},
-    {label:'Drift',on:game.drift,  title:'Paint natural clusters',
+    {label:'Drift',on:game.drift, tour:'drift', title:'Paint natural clusters',
       draw:tc=>drawPlantModeIcon(tc,true),  click:()=>choosePlantMode(true)},
     {label:'Matrix',on:game.matrix, title:'Scatter across a painted region at real spacing (flows around what’s there)',
       draw:tc=>drawMatrixModeIcon(tc),  click:()=>chooseMatrixMode()},
@@ -3701,6 +3711,14 @@ function setSheetState(s){
   game.sheetState=normalizedSheetState(s);
   game.sheetCollapsed=game.sheetState==='collapsed';
   applySheetState();
+  /* The tour's opening step asks for the garden back, and ANY state but full
+     gives it back — the half sheet is capped at 55dvh. Testing for 'collapsed'
+     made one tap of the chevron (full -> half) not count, so the step sat there
+     asking again for something the gardener had just done.
+     The tour's own steps also drive the sheet, but every one of those is a LATER
+     step than this, and tourNote ignores an event it has already passed, so a
+     driven change can never rewind anyone. */
+  if (game.sheetState!=='full') tourNote('sheet');
 }
 function cycleSheetState(){
   const s=normalizedSheetState(game.sheetState);
