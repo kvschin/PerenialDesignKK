@@ -8462,6 +8462,51 @@ test('the phone library chrome exists and is wired', () => {
   assert(/\.library-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
 });
 
+/* ---------- the icon sprite ----------
+   uiIcon builds <use href="#ui-NAME">, and a name with no <symbol> renders
+   NOTHING — silently, with no console error and no missing-image box. That is
+   survivable wherever the icon sits beside a word and invisible where it does
+   not: .cultivar-drill-back asked for 'chevron-left', which the sprite has
+   never had, and the SHEET tier hides that button's label, so the varieties
+   back button was a blank 34x44 box on every phone while desktop read fine.
+   The sprite deliberately carries no chevron-left — .library-back rotates the
+   right one, and so does the drill-in now — so this pins the reference, not
+   the drawing. */
+
+test('every icon name the app asks for exists in the sprite', () => {
+  const html = readRepoFile('index.html');
+  const symbols = new Set([...html.matchAll(/<symbol\s+id="ui-([a-z0-9-]+)"/g)].map(m => m[1]));
+  assert(symbols.size > 10, `found the sprite (${symbols.size} symbols)`);
+  const missing = new Set();
+  for (const file of ['js/ui.js', 'js/tray.js', 'js/screens.js', 'js/library.js',
+                      'js/io.js', 'js/collections.js', 'js/commands.js', 'js/photos.js']) {
+    const src = readRepoFile(file);
+    /* Both call shapes, and both arms of the ternaries they are usually written
+       as — setUiIcon(el, open ? 'chevron-up' : 'chevron-down'). */
+    for (const call of src.matchAll(/(?:setUiIcon\([^,)]+,|uiIcon\()([^)]*)\)/g))
+      for (const lit of call[1].matchAll(/'([a-z][a-z0-9-]*)'/g))
+        if (!symbols.has(lit[1])) missing.add(`${file}: ${lit[1]}`);
+  }
+  assert(missing.size === 0,
+    `icon names with no <symbol> in the sprite: ${[...missing].join(', ')}`);
+});
+
+test('the varieties back button is legible with its label hidden', () => {
+  const tray = readRepoFile('js/tray.js');
+  const back = tray.slice(tray.indexOf("className='cultivar-drill-back'"), tray.indexOf("className='cultivar-drill-back'") + 700);
+  assert(/setUiIcon\(back,'chevron-right'\)/.test(back),
+    'it draws the chevron the sprite actually has');
+  /* display:none on the label strips the accessible name with it, so the
+     icon-only state needs one of its own. */
+  assert(/aria-label','Back to plants'/.test(back),
+    'and carries a name for the state where the label is hidden');
+  const css = readRepoFile('styles.css');
+  assert(/\.cultivar-drill-back \.ui-icon\{[^}]*rotate\(180deg\)/.test(css),
+    'turned around, the way .library-back does it');
+  assert(/\.cultivar-drill-back span\{display:none\}/.test(css),
+    'the label is still what SHEET hides — which is why the icon has to carry it');
+});
+
 /* ---------- settings ---------- */
 
 test('settings is one surface, reached from the menu and from a garden', () => {

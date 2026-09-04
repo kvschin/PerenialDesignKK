@@ -1979,7 +1979,12 @@ function renderDiscoveryTray(tray){
   if (openGroup){
     tray.classList.add('cultivar-drill');
     const base=PLANTS[openGroup.s], head=document.createElement('div'); head.className='cultivar-drill-head'; head.id=`plant-varieties-${openGroup.domId}`;
-    const back=document.createElement('button'); back.type='button'; back.className='cultivar-drill-back'; setUiIcon(back,'chevron-left');
+    const back=document.createElement('button'); back.type='button'; back.className='cultivar-drill-back'; setUiIcon(back,'chevron-right');
+    /* The sprite has no chevron-left and the SHEET tier hides this button's
+       label, so 'chevron-left' drew nothing at all and the back button came out
+       blank on a phone. Rotated right chevron + a real label, the way
+       .library-back already does it. */
+    back.title='Back to plants'; back.setAttribute('aria-label','Back to plants');
     const backText=document.createElement('span'); backText.textContent='Back to plants'; back.appendChild(backText);
     back.onclick=()=>{ const species=discoveryOpenSpecies; discoveryOpenSpecies=null; buildToolTray();
       setTimeout(()=>{ const next=document.getElementById(`plant-family-${openGroup.domId}`), nextTray=document.getElementById('toolTray');
