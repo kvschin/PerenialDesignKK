@@ -8462,6 +8462,74 @@ test('the phone library chrome exists and is wired', () => {
   assert(/\.library-back\{min-height:44px;min-width:44px\}/.test(coarse), 'and so is the back control');
 });
 
+/* ---------- the variety card says the mature size once ----------
+   Every one of the 377 cultivar rows printed its size twice: once at the end
+   of the site line and again leading .plant-variant-details, which is meant to
+   carry the cultivar's own note. Worse, measured in a browser the site line
+   overflows its 197px box on 44% of them and the part the ellipsis eats is
+   ALWAYS the size — so the duplicate below was doing the real work and the
+   first copy read as broken. The size stays on the site line, in its own
+   nowrap span so a wrapped line breaks before it and never mid-measurement,
+   and the details row carries the note alone. */
+
+test('a variety card prints the mature size exactly once', () => {
+  const refs = allPlantRefs().filter(r => r.v);
+  assert(refs.length > 100, `found the cultivar rows (${refs.length})`);
+  const d = activeDiscovery();
+  const texts = el => { const out = []; const walk = e =>
+    (e.children || []).forEach(c => { if (c) { if (c.textContent) out.push(String(c.textContent)); walk(c); } });
+    walk(el); return out; };
+  let checked = 0, twice = [], loose = [], missing = [];
+  for (const ref of refs) {
+    const P = refDef(ref); if (!P) continue;
+    const size = matureSizeText(P); if (!size) continue;
+    checked++;
+    const card = discoveryResultCard(ref, d, { variant: true });
+    const all = texts(card);
+    const hits = all.filter(t => t.includes(size));
+    /* The stub does not fold a child's text into its parent, so one hit is
+       exactly one element carrying the size. */
+    if (hits.length > 1) twice.push(`${P.name}: ${hits.length}`);
+    if (hits.length === 0) missing.push(P.name);
+    const sizeEls = [];
+    const walk = e => (e.children || []).forEach(c => { if (c) { if (c.className === 'plant-site-size') sizeEls.push(c); walk(c); } });
+    walk(card);
+    if (sizeEls.length !== 1 || String(sizeEls[0].textContent) !== size) loose.push(P.name);
+  }
+  assert(checked > 100, `measured ${checked} cultivar cards`);
+  assert(missing.length === 0, `cards with no mature size at all: ${missing.slice(0, 3).join(', ')}`);
+  assert(twice.length === 0, `cards printing the size twice: ${twice.slice(0, 3).join(', ')}`);
+  assert(loose.length === 0,
+    `the size must sit alone in .plant-site-size so a wrap cannot split it: ${loose.slice(0, 3).join(', ')}`);
+});
+
+test('the variety details row carries the note and nothing else', () => {
+  const ref = allPlantRefs().find(r => r.v && (refDef(r) || {}).note);
+  assert(ref, 'found a cultivar with a note');
+  const P = refDef(ref);
+  const card = discoveryResultCard(ref, activeDiscovery(), { variant: true });
+  let details = null;
+  const walk = e => (e.children || []).forEach(c => { if (c) { if (c.className === 'plant-variant-details') details = c; walk(c); } });
+  walk(card);
+  assert(details, 'the details row is built');
+  assertEqual(String(details.textContent), P.note, 'it is the note verbatim — no size prefix');
+});
+
+test('only the variety card wraps its site line; the browse list still truncates', () => {
+  /* The sandbox has no layout engine, so the wrap itself is browser work
+     (measured: 0 of 377 sizes clipped or split at 320, 375, 820 and 1440px).
+     What is pinned here is the pair of rules that decide it, and that the
+     family card — the 259-row browse list whose height is tuned for how many
+     fit a screen — was deliberately left alone. */
+  const css = readRepoFile('styles.css');
+  assert(/\.plant-site-meta\{[^}]*white-space:nowrap/.test(css),
+    'the browse list still ellipsises rather than growing every card');
+  assert(/\.plant-site-size\{white-space:nowrap\}/.test(css),
+    'the size is one unbreakable unit');
+  assert(/\.plant-variant-card \.plant-site-meta\{white-space:normal\}/.test(css),
+    'and the variety card wraps instead of eating it');
+});
+
 /* ---------- the icon sprite ----------
    uiIcon builds <use href="#ui-NAME">, and a name with no <symbol> renders
    NOTHING — silently, with no console error and no missing-image box. That is

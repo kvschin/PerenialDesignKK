@@ -1603,7 +1603,12 @@ function discoverySiteMeta(P){
   const sun=P.sun==='full'?'Full sun':P.sun==='part'?'Part shade':'Shade';
   const moisture=P.moist==='dry'?'Low water':P.moist==='moist'?'Moist':'Average water';
   const size=typeof matureSizeText==='function'?matureSizeText(P):'';
-  meta.textContent=[sun,moisture,size].filter(Boolean).join(' \u00b7 ');
+  meta.textContent=[sun,moisture].filter(Boolean).join(' \u00b7 ');
+  /* The size gets its own span so a card that lets this line WRAP (the variant
+     card does) breaks before it rather than inside it — "10 ft H x / 15 ft W"
+     is not a measurement anyone can read. */
+  if (size){ const s=document.createElement('span'); s.className='plant-site-size'; s.textContent=size;
+    meta.append(meta.textContent?' \u00b7 ':'',s); }
   return meta;
 }
 function discoveryPlacingBadge(row,selected){
@@ -1666,9 +1671,12 @@ function discoveryResultCard(ref,d,opts={}){
   const timeline=discoveryBloomTimeline(P); if (timeline) copy.appendChild(timeline);
   copy.appendChild(discoverySiteMeta(P)); main.append(art,copy);
   if (opts.variant){
+    /* The note ALONE. This used to lead with matureSizeText(P), which the site
+       line one row above already carries — every one of the 377 cultivars
+       printed its size twice, and on the 44% whose site line overflows it was
+       the size that got ellipsised, so the duplicate read as the only copy. */
     const details=document.createElement('span'); details.className='plant-variant-details';
-    const size=typeof matureSizeText==='function'?matureSizeText(P):'';
-    details.textContent=[size,P.note||''].filter(Boolean).join(' \u00b7 ');
+    details.textContent=P.note||'';
     if (details.textContent) copy.appendChild(details);
   }
   main.onclick=()=>{ game.drill=null; setTool(ref.s,ref.v||null); buildToolTray(); toast(`${P.name} selected.`); };
