@@ -282,8 +282,17 @@ async function openWorlds(){
     : `Recovered ${recovered.length} gardens that had lost their place in this list.`);
 }
 async function enterWorld(id){
+  /* Adopt the id and the contents together. Assigning game.worldId first and
+     awaiting the read second left a window in which an autosave wrote the
+     PREVIOUS garden under this id — see the loadingWorld note in io.js.
+     loadSolo mutates nothing before its own early return, so a failed load
+     leaves the current garden exactly as it was. */
+  beginWorldLoad();
+  let ok=false;
+  try{ ok=await loadSolo(id); }
+  finally{ endWorldLoad(); }
+  if (!ok){ toast('That garden failed to load.'); return; }
   game.worldId=id; game.inGarden=true;
-  if (!(await loadSolo(id))){ toast('That garden failed to load.'); game.inGarden=false; return; }
   funnel(FUNNEL_EVENTS.gardenOpened);
   enterGarden();
 }
@@ -294,9 +303,15 @@ async function enterWorld(id){
 async function shareCurrentGarden(){
   closeOverlay('gardenMenu');
   if (!game.inGarden || !game.worldId){ toast('Save the garden first, then share it.'); return; }
-  await saveSolo(true);                               // store the latest
-  const w=await sGet('hortus:world:'+game.worldId);
-  if (!w){ toast('That garden could not be read.'); return; }
+  /* Export what is ON SCREEN, not what is in storage. This used to save and
+     then read the stored copy back, discarding saveSolo's result — so on a
+     full device it shared the last blob that HAD saved, silently omitting
+     the session's work. That is the path the storage-full warning tells
+     people to use to rescue exactly that work, so it is the one that must
+     not quietly lie. The save is still attempted, and still warns on its
+     own if it fails; the share no longer depends on it. */
+  await saveSolo(true);
+  const w=buildSaveBlob();
   const env=JSON.stringify({ pocketPrairie:1, v:1, exported:Date.now(), world:w });
   const fname=((game.worldName||w.name||'garden').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase())||'garden';
   const a=document.createElement('a');

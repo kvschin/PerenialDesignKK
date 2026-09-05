@@ -353,23 +353,42 @@ function tapAction(x,y,opts){ // a plain tap acts directly on the tapped tile
   if (x<0||y<0||x>=GW||y>=GH) return;
   game.actX=x; game.actY=y; actHere(opts);
 }
+/* What a completed drag reports. Keyed on the apply hook's own return value,
+   which is finer-grained than the tool id (a fence run reports 'gate' when the
+   draft is a gate), so a tool whose noun is missing here falls to the generic
+   line below instead of the plant branch. It used to be an if-chain ending in
+   an unguarded `def.name`, and pot/seat/edging/wall reached it: def is
+   undefined for a non-plant tool, so dragging any of the four threw — after
+   the tiles were placed and before commitUndo() ran, so the work stuck with
+   no undo step and the gesture stayed armed. boulder was in the chain, which
+   is why exactly those four broke. */
+const DRAG_DONE={
+  path:      n=>`Updated ${n} path tile${n>1?'s':''}.`,
+  bed:       n=>`Dug ${n} bed tile${n>1?'s':''}.`,
+  water:     n=>`Laid ${n} water tile${n>1?'s':''}.`,
+  elevation: n=>`Adjusted ${n} elevation tile${n>1?'s':''}.`,
+  fence:     n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
+  gate:      n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
+  light:     n=>`Placed ${n} ${lightLabel().toLowerCase()}${n>1?'s':''}.`,
+  firepit:   n=>`Placed ${n} ${firepitLabel().toLowerCase()}${n>1?'s':''}.`,
+  boulder:   n=>`Placed ${n} ${boulderLabel().toLowerCase()}${n>1?'s':''}.`,
+  pot:       n=>`Placed ${n} container${n>1?'s':''} - ${potLabel()}.`,
+  seat:      n=>`Placed ${n} seat${n>1?'s':''} - ${seatLabel()}.`,
+  edging:    n=>`Laid ${n} edging tile${n>1?'s':''}.`,
+  wall:      n=>`Faced ${n} wall tile${n>1?'s':''}.`,
+  building:  n=>`${buildingEditMode()==='remove'?'Trimmed':'Added'} ${n} tile${n>1?'s':''}.`,
+};
 function finishToolDrag(){
   if (!toolDrag || !toolDrag.active) return;
   if (toolDrag.count){
     hapticFeedback('place');
     const changed=toolDrag.affected&&toolDrag.affected.size?toolDrag.affected.size:toolDrag.count;
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
+    const done=DRAG_DONE[toolDrag.what];
     let msg;
-    if (toolDrag.what==='path') msg=`Updated ${changed} path tile${changed>1?'s':''}.`;
-    else if (toolDrag.what==='bed') msg=`Dug ${changed} bed tile${changed>1?'s':''}.`;
-    else if (toolDrag.what==='water') msg=`Laid ${changed} water tile${changed>1?'s':''}.`;
-    else if (toolDrag.what==='elevation') msg=`Adjusted ${changed} elevation tile${changed>1?'s':''}.`;
-    else if (toolDrag.what==='fence'||toolDrag.what==='gate') msg=`Placed ${changed} ${fenceLabel().toLowerCase()} tile${changed>1?'s':''}.`;
-    else if (toolDrag.what==='light') msg=`Placed ${changed} ${lightLabel().toLowerCase()}${changed>1?'s':''}.`;
-    else if (toolDrag.what==='firepit') msg=`Placed ${changed} ${firepitLabel().toLowerCase()}${changed>1?'s':''}.`;
-    else if (toolDrag.what==='boulder') msg=`Placed ${changed} ${boulderLabel().toLowerCase()}${changed>1?'s':''}.`;
-    else if (toolDrag.what==='building') msg=`${buildingEditMode()==='remove'?'Trimmed':'Added'} ${changed} tile${changed>1?'s':''}.`;
-    else msg=`Planted ${changed} - ${def.name}.`;
+    if (done) msg=done(changed);
+    else if (def) msg=`Planted ${changed} - ${def.name}.`;
+    else msg=`Placed ${changed} tile${changed>1?'s':''}.`;
     toast(msg);
   } else if (!(game.tool==='building-edit' && buildingEditMode()==='rename')){
     // Rename acts on a tap, so a stray drag in that mode changed nothing on
@@ -521,13 +540,21 @@ cnv.addEventListener('pointerup',e=>{
     return;
   }
   if (fillTap){ const f=fillTap; fillTap=null; doFloodFill(f.x,f.y); return; }
-  if (toolDrag){
-    if (toolDrag.active) finishToolDrag();
-    else tapAction(toolDrag.sx,toolDrag.sy,toolDrag);
+  /* try/finally: a throw while REPORTING the gesture must not cost the
+     gesture. finishToolDrag threw for four landscape brushes, and because
+     the cleanup sat on the lines after it, the tiles stayed placed with no
+     undo step and toolDrag stayed armed. The error still reaches
+     window.onerror -> noteError; only the cleanup is made unconditional. */
+  try{
+    if (toolDrag){
+      if (toolDrag.active) finishToolDrag();
+      else tapAction(toolDrag.sx,toolDrag.sy,toolDrag);
+    }
+  } finally {
     toolDrag=null;
+    endSweep();
+    commitUndo();   // push the pre-gesture snapshot only if something changed
   }
-  endSweep();
-  commitUndo();   // push the pre-gesture snapshot only if something changed
 });
 cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);

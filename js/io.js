@@ -334,6 +334,16 @@ function buildSaveBlob(){
   dev('blob',t0);
   return blob;
 }
+/* game.worldId is the key a save writes under, so a garden being loaded must
+   not be saveable until its contents have actually arrived: opening garden B
+   used to adopt B's id first and await the read second, and any autosave in
+   that window (a day change is 20s, and backgrounding the app fires one)
+   wrote garden A's still-loaded layers under B's id. The guard lives in
+   saveSolo because there are eighteen call sites and one of them is a render-
+   adjacent helper; guarding the callers is how the next one gets missed. */
+let loadingWorld=false;
+function beginWorldLoad(){ loadingWorld=true; }
+function endWorldLoad(){ loadingWorld=false; }
 /* A silent autosave that fails silently is exactly how a session's work
    disappears with nobody noticing — autosave fires on every day change, so the
    old code could fail two hundred times without a word. It now speaks once and
@@ -342,6 +352,9 @@ function buildSaveBlob(){
 let saveFailureReported=false;
 async function saveSolo(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
+  // A load is in flight: game.* still holds the OUTGOING garden. Silent by
+  // design — nothing has gone wrong, and the load will save when it lands.
+  if (loadingWorld) return false;
   // First save of a garden that has never had an id. The index is read below
   // anyway, so minting against it costs nothing and closes the one path where a
   // fresh garden could land on top of an existing one.

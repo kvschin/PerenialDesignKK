@@ -1910,7 +1910,15 @@ function applySnapshot(s){ // restore every layer + refresh UI
   // A snapshot belongs to the scheme it was taken in. Undoing across a switch
   // has to re-enter that scheme FIRST, or the restored plants land in whatever
   // scheme happens to be active and silently overwrite it.
-  if (s.scheme && s.scheme!==game.schemeActive && schemeById(s.scheme)) activateScheme(s.scheme);
+  /* ...and a scheme can be deleted while its snapshots are still stacked.
+     The guard below used to gate only the activateScheme call, so a snapshot
+     tagged with a deleted scheme skipped the switch and then restored that
+     dead scheme's layers over whichever scheme WAS active: measured, one
+     Ctrl+Z replaced a 323-plant garden with the empty planting that had just
+     been deleted. deleteScheme now drops those snapshots, and this refuses
+     any that reach here by another path. */
+  if (s.scheme && !schemeById(s.scheme)) return null;
+  if (s.scheme && s.scheme!==game.schemeActive) activateScheme(s.scheme);
   /* Shallow-copy the two maps we are about to restore IN PLACE, or the diff
      below would compare an object with itself and never see a change. */
   const before={terrain:Object.assign({},game.terrain), elevation:Object.assign({},game.elevation),
@@ -1945,17 +1953,27 @@ function historyNote(verb,before){
   if (!multiScheme() || game.schemeActive===before) return verb+'.';
   return `${verb} — now in "${activeSchemeName()}".`;
 }
+/* Undo and redo skip snapshots whose scheme is gone rather than restoring
+   them (see applySnapshot). Popping happens BEFORE the opposite stack is
+   pushed, so discarding a dead snapshot cannot leave the two out of step. */
+function popLiveSnapshot(stack){
+  while (stack.length && stack[stack.length-1] && stack[stack.length-1].scheme
+         && !schemeById(stack[stack.length-1].scheme)) stack.pop();
+  return stack.length ? stack.pop() : null;
+}
 function doUndo(){
-  if (!undoStack.length){ toast('Nothing to undo.'); return; }
+  const snap=popLiveSnapshot(undoStack);
+  if (!snap){ updateUndoBtn(); toast('Nothing to undo.'); return; }
   redoStack.push(snapshotState()); if (redoStack.length>30) redoStack.shift();
   const before=game.schemeActive;
-  applySnapshot(undoStack.pop()); toast(historyNote('Undone',before));
+  applySnapshot(snap); toast(historyNote('Undone',before));
 }
 function doRedo(){
-  if (!redoStack.length){ toast('Nothing to redo.'); return; }
+  const snap=popLiveSnapshot(redoStack);
+  if (!snap){ updateUndoBtn(); toast('Nothing to redo.'); return; }
   undoStack.push(snapshotState()); if (undoStack.length>30) undoStack.shift();
   const before=game.schemeActive;
-  applySnapshot(redoStack.pop()); toast(historyNote('Redone',before));
+  applySnapshot(snap); toast(historyNote('Redone',before));
 }
 /* ---------- scheme commands (switching is navigation, not an edit) ----------
    A switch does not push an undo snapshot: it is the same class of action as
@@ -2016,6 +2034,13 @@ function deleteScheme(id){
     activateScheme(list[(i+1)%list.length].id);
   }
   list.splice(list.findIndex(s=>s.id===id),1);
+  /* Its history goes with it. A snapshot tagged with this scheme can no
+     longer be restored into anything (applySnapshot refuses it), so leaving
+     them stacked would only make undo appear to do nothing. */
+  const live=s=>!s || s.scheme!==id;
+  undoStack=undoStack.filter(live); redoStack=redoStack.filter(live);
+  if (pendSnap && pendSnap.scheme===id) pendSnap=null;
+  updateUndoBtn();
   markModelChanged();
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(`Deleted "${name}".`);

@@ -4939,6 +4939,128 @@ test('undo across a scheme switch restores into the scheme the edit happened in'
   assert(!bEntry.plants['3,3'], 'the first scheme plants did NOT leak into the second');
 });
 
+/* Phase 0 regressions. Each of these shipped, and each was reproduced in a
+   browser before it was fixed — the numbers in the comments are measured. */
+
+test('deleting a scheme takes its undo history with it', () => {
+  setup(21, 21);
+  const a = game.schemeActive;
+  for (let i = 0; i < 5; i++) setTile('plants', '3,' + i, { s: 'bluestem', d: 0, t: 1 });
+  const survivors = Object.keys(game.plants).length;
+
+  const b = createScheme(false);                       // empty planting, switches to it
+  withUndo(() => setTile('plants', '6,6', { s: 'karl', d: 0, t: 1 }));
+  switchScheme(a);
+  assertEqual(Object.keys(game.plants).length, survivors, 'sanity: the first scheme still has its planting');
+  assert(undoStack.length > 0, 'sanity: b\'s edit is on the shared stack');
+
+  deleteScheme(b.id);
+  assert(!undoStack.some(s => s.scheme === b.id), 'the deleted scheme\'s snapshots left the undo stack');
+  assert(!redoStack.some(s => s.scheme === b.id), 'and the redo stack');
+
+  /* The bug: the guard in applySnapshot gated activateScheme and not the
+     restore, so this undo wrote the deleted scheme's empty maps over the
+     surviving one. Measured on the demo garden, one Ctrl+Z took 323 plants
+     to 0. */
+  doUndo();
+  assertEqual(game.schemeActive, a, 'undo stayed in the surviving scheme');
+  assertEqual(Object.keys(game.plants).length, survivors, 'and did NOT wipe it with the deleted scheme');
+});
+
+test('a snapshot whose scheme is gone is refused rather than restored', () => {
+  setup(21, 21);
+  const a = game.schemeActive;
+  setTile('plants', '4,4', { s: 'bluestem', d: 0, t: 1 });
+  const snap = snapshotState();
+  snap.scheme = 'a-scheme-that-was-deleted';
+  snap.plants = {};                                    // what it would wipe with
+  assertEqual(applySnapshot(snap), null, 'applySnapshot refuses a snapshot from a scheme that no longer exists');
+  assertEqual(game.schemeActive, a, 'the active scheme is unchanged');
+  assert(!!game.plants['4,4'], 'and the live planting was not overwritten');
+});
+
+test('every placement tool has a completion message, and none can reach the plant branch', () => {
+  /* finishToolDrag ended in an unguarded def.name. pot, seat, edging and wall
+     returned nouns the if-chain did not handle, so def was undefined and the
+     drag threw — after the tiles were placed and before commitUndo() ran, so
+     the work stuck with no undo step. boulder WAS handled, which is why
+     exactly those four broke. */
+  const nouns = ['path', 'bed', 'water', 'elevation', 'fence', 'gate', 'light',
+    'firepit', 'boulder', 'pot', 'seat', 'edging', 'wall', 'building'];
+  for (const n of nouns) {
+    assert(typeof DRAG_DONE[n] === 'function', n + ' has a completion message');
+    const one = DRAG_DONE[n](1), many = DRAG_DONE[n](3);
+    assert(typeof one === 'string' && one.length > 0, n + ' reports a single tile');
+    assert(typeof many === 'string' && many.length > 0, n + ' reports several');
+  }
+  const src = readRepoFile('js/input.js');
+  const body = src.slice(src.indexOf('function finishToolDrag'), src.indexOf('function strokeLineTiles'));
+  assert(/else if \(def\) msg=/.test(body),
+    'the plant branch is reached only when the armed tool really is a plant');
+  assert(/else msg=/.test(body.slice(body.indexOf('else if (def)'))),
+    'and an unknown noun still gets a message rather than a TypeError');
+});
+
+test('a gesture that throws while reporting still clears and still commits', () => {
+  /* The cleanup used to sit on the lines AFTER finishToolDrag(), so a throw
+     inside it left toolDrag armed, skipped endSweep() and — the damage —
+     skipped commitUndo(), losing the undo step for work that had already
+     landed. */
+  const src = readRepoFile('js/input.js');
+  const up = src.slice(src.indexOf("cnv.addEventListener('pointerup'"));
+  const block = up.slice(0, up.indexOf("cnv.addEventListener('pointercancel'"));
+  const fin = block.indexOf('} finally {');
+  assert(fin > -1, 'the pointerup tail runs its cleanup in a finally');
+  const cleanup = block.slice(fin);
+  assert(/toolDrag=null;/.test(cleanup), 'toolDrag is cleared there');
+  assert(/endSweep\(\);/.test(cleanup), 'endSweep runs there');
+  assert(/commitUndo\(\);/.test(cleanup), 'and commitUndo runs there, so a failed toast cannot cost the undo step');
+});
+
+test('a save is refused while a garden is loading', async () => {
+  setup(21, 21);
+  game.inGarden = true; game.worldId = 'test-load-race';
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
+  await saveSolo(true);
+  const onDisk = await sGet('hortus:world:test-load-race');
+  assertEqual(Object.keys(onDisk.plants).length, 1, 'sanity: the garden reached storage');
+
+  /* game.worldId used to be adopted before the load was awaited, so an
+     autosave in that window wrote the OUTGOING garden under the incoming id. */
+  beginWorldLoad();
+  setTile('plants', '4,4', { s: 'karl', d: 0, t: 1 });   // the outgoing garden, still in memory
+  assertEqual(await saveSolo(true), false, 'saveSolo refuses while a load is in flight');
+  const during = await sGet('hortus:world:test-load-race');
+  assertEqual(Object.keys(during.plants).length, 1, 'and wrote nothing');
+  endWorldLoad();
+  assertEqual(await saveSolo(true), true, 'once the load lands, saving works again');
+  const after = await sGet('hortus:world:test-load-race');
+  assertEqual(Object.keys(after.plants).length, 2, 'and stores what is actually in memory');
+});
+
+test('enterWorld adopts the id and the contents together', () => {
+  const src = readRepoFile('js/screens.js');
+  const fn = src.slice(src.indexOf('async function enterWorld'));
+  const body = fn.slice(0, fn.indexOf('async function shareCurrentGarden'));
+  const idAt = body.indexOf('game.worldId=id');
+  const loadAt = body.indexOf('await loadSolo(id)');
+  assert(idAt > -1 && loadAt > -1, 'sanity: both statements are there');
+  assert(loadAt < idAt, 'the load is awaited BEFORE the id is adopted');
+  assert(/beginWorldLoad\(\)/.test(body) && /endWorldLoad\(\)/.test(body),
+    'and saving is held off for the duration');
+});
+
+test('sharing exports what is on screen, not what reached storage', () => {
+  /* It saved, discarded saveSolo's result, then read the stored copy back — so
+     on a full device it shared the last blob that HAD saved, silently dropping
+     the session's work. That is the path the storage-full warning recommends. */
+  const src = readRepoFile('js/screens.js');
+  const fn = src.slice(src.indexOf('async function shareCurrentGarden'));
+  const body = fn.slice(0, fn.indexOf('function importWorldFile'));
+  assert(/const w=buildSaveBlob\(\)/.test(body), 'the envelope is built from the live garden');
+  assert(!/sGet\('hortus:world:'/.test(body), 'and never from the stored copy');
+});
+
 test('switching schemes leaves the ground and terrain caches alone', () => {
   setup(21, 21);
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
