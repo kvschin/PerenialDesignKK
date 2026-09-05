@@ -6836,6 +6836,191 @@ test('an unclassified layer invalidates everything, so a new layer is safe by de
     'unknown layers fall back to invalidating every cache rather than silently going stale');
 });
 
+test('the sprite spec takes its geometry from the shared draw box', () => {
+  /* structDrawBox feeds two things that must not drift: the sprite bake and the
+     viewport cull. A box too small clips a sprite; the SAME box too small in
+     the cull drops the structure early. So the spec has to be built FROM the
+     box rather than restating its numbers. */
+  setup(21, 21);
+  const now = 1;
+  const cases = [
+    { kind: SCENE_K.FENCE,   f: { style:'privacy', height:6, gate:false, t:now } },
+    { kind: SCENE_K.POT,     p: { style:'terracotta', size:'md', face:0, t:now } },
+    { kind: SCENE_K.SEAT,    s: { type:'bench6', finish:'teak', face:2, t:now } },
+    { kind: SCENE_K.BOULDER, b: { type: BOULDER_TYPES[0].id, t:now } },
+    { kind: SCENE_K.FIREPIT, f: { shape:'round', size: FIREPIT_SIZES[0].id, t:now } },
+    { kind: SCENE_K.PET,     p: { species:'cat', coat: PET_COATS[0].id, t:now } },
+    { kind: SCENE_K.LIGHT,   l: { type:'lantern', tone:'warm', t:now } },
+  ];
+  for (const base of cases){
+    const e = Object.assign({ x:8, y:8 }, base);
+    const box = structDrawBox(e), spec = structSpriteSpec(e);
+    assert(box, 'every drawn kind has a draw box');
+    assert(spec, 'and a sprite spec');
+    for (const k of ['w','h','up','pad','down'])
+      assertEqual(spec[k], box[k], `spec.${k} comes from the shared box (kind ${e.kind})`);
+  }
+  // a gate draws but is deliberately not cached — it still needs a box
+  const gate = { kind: SCENE_K.FENCE, x:8, y:8, f:{ style:'picket', height:4, gate:true, t:now } };
+  assertEqual(structSpriteSpec(gate), null, 'a gate is not sprite-cached');
+  assert(structDrawBox(gate), 'but it still gets a box, because it still draws');
+});
+
+test('every scene record carries screen bounds that contain its own drawing', () => {
+  /* The entity pass rejects in SCREEN space now — the tile bounding box of the
+     four inverted screen corners is the bbox of a DIAMOND, and was 60-71% slop.
+     The bounds are baked once per scene build, camera-free, so this checks the
+     baking rather than the camera: every record has finite bounds, and they
+     reach at least as far as the drawing they stand for. */
+  setup(25, 25);
+  const now = 1;
+  setTile('plants', '12,12', { s:'buroak', d:-40000, t:now });     // the tallest thing there is
+  setTile('plants', '4,4',   { s:'bluestem', d:0, t:now });
+  setTile('bulbs',  '6,6',   { s:'crocus', d:0, t:now });
+  setTile('fences', '2,2',   { style:'privacy', height:8, gate:false, t:now });
+  setTile('pots',   '16,16', { style:'terracotta', size:'md', face:0, t:now });
+  setTile('seats',  '18,4',  { type:'lounger', finish:'teak', face:1, t:now });
+  setTile('boulders','20,20',{ type: BOULDER_TYPES[0].id, t:now });
+  setTile('pets',   '9,9',   { species:'cat', coat: PET_COATS[0].id, t:now });
+  buildScene(800, 450);
+  assert(scene.ents.length >= 8, 'the scene holds every kind placed above');
+  for (const e of scene.ents){
+    for (const k of ['ox0','ox1','oy0','oy1'])
+      assert(Number.isFinite(e[k]), `record ${e.kind} has a finite ${k}`);
+    assert(e.ox1 > e.ox0 && e.oy1 > e.oy0, `record ${e.kind} has a non-empty box`);
+    // the anchor's own camera-free screen point must sit inside its box
+    const [vx, vy] = worldToView(e.x !== undefined ? e.x : e.bx0, e.y !== undefined ? e.y : e.by0);
+    const ax = isoX(vx, vy), ay = isoY(vx, vy);
+    assert(ax >= e.ox0 && ax <= e.ox1, `record ${e.kind} contains its own anchor in x`);
+    assert(ay >= e.oy0 && ay <= e.oy1, `record ${e.kind} contains its own anchor in y`);
+    /* And the box is a SUM of the tile diamond and the drawing's reach, not a
+       max of the two — taking the max let seats out of their boxes and they
+       drew visibly from off screen. */
+    if (e.kind === SCENE_K.PLANT || e.kind === SCENE_K.BULB){
+      const b = plantDrawBox(plantDef(e.p.s, e.p.v), e.p.s, 1);
+      assert(ax - e.ox0 > b.halfW && e.ox1 - ax > b.halfW,
+        `${e.p.s} reserves more than its own half-width either side`);
+      assert(ay - e.oy0 > b.top, `${e.p.s} reserves more than its own drawn height above`);
+    } else {
+      const b = structDrawBox(e);
+      if (b) assert(ax - e.ox0 >= b.pad + TILE_W*0.5 - 0.01,
+        `kind ${e.kind} reserves the tile diamond AND its drawing's reach`);
+    }
+  }
+  // a mature oak must reserve far more room than a grass — otherwise the box is
+  // not tracking the drawing at all
+  const oak = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.p.s === 'buroak');
+  const grass = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.p.s === 'bluestem');
+  assert(oak && grass, 'both plants made it into the scene');
+  assert((oak.oy1 - oak.oy0) > (grass.oy1 - grass.oy0) * 2,
+    'the oak reserves a far taller box than the grass');
+});
+
+test('the pot index answers exactly as a full pots scan did', () => {
+  /* potAt sits under plantScreenOf, which every drawn plant calls once per
+     FRAME to ask whether it is standing on a rim. It used to scan the whole
+     pots layer with a string split per pot — O(plants x pots), measured 2.99us
+     a call against screenOf's 0.097, i.e. 2.2ms a frame at 14 pots and 14.4ms
+     at 60, which is the courtyard containers exist for. It is a tile index now,
+     and this pins the ANSWER, not the speed. */
+  setup(21, 21);
+  const scan = (x, y) => {              // the old implementation, verbatim
+    for (const k in game.pots){
+      const p = game.pots[k]; if (!p || p.removed) continue;
+      const [px, py] = k.split(',').map(Number), sz = potTileSize(p);
+      if (x >= px && x < px + sz.w && y >= py && y < py + sz.h) return k;
+    }
+    return null;
+  };
+  const trough = POT_STYLES.find(p => potTileSize({style:p.id, size:'lg'}).w > 1) || POT_STYLES[0];
+  setTile('pots', '4,4', { style:'terracotta', size:'md', t:1 });
+  setTile('pots', '9,3', { style:trough.id, size:'lg', face:0, t:1 });   // multi-tile
+  setTile('pots', '9,9', { style:trough.id, size:'lg', face:1, t:1 });   // ...turned
+  setTile('pots', '2,7', { style:'glazed', size:'sm', t:1 });
+  clearTile('pots', '2,7');                                              // removed: still a miss
+  for (let y = -1; y <= GH; y++) for (let x = -1; x <= GW; x++){
+    const want = scan(x, y), got = potAt(x, y);
+    assertEqual(got ? got.key : null, want, `potAt(${x},${y}) matches the old scan`);
+  }
+  // a fractional coordinate belongs to the tile it sits inside, as `x>=px && x<px+w` did
+  assertEqual(potAt(4.6, 4.2) && potAt(4.6, 4.2).key, '4,4', 'a sub-tile offset still lands in its pot');
+  // and the index has to notice an edit, not serve the answer it cached
+  setTile('pots', '4,4', { style:'urn', size:'lg', t:2 });
+  assertEqual(potAt(4, 4).style, 'urn', 'replacing a pot is visible immediately');
+  clearTile('pots', '4,4');
+  assertEqual(potAt(4, 4), null, 'and so is lifting one');
+});
+
+test('the shade map is keyed on the trees, so planting a forb does not rebuild it', () => {
+  /* shadeMapKey rode plantsRev, which bumps for ANY plant edit — so a
+     drag-to-plant stroke threw the map away on every stamped tile, and a
+     groundcover casts no shade. Measured on 63 trees that was 3.92ms a frame
+     of a 13.13ms drag frame, producing a byte-identical map. */
+  setup(25, 25);
+  setTile('plants', '12,12', { s:'buroak', d:-40000, t:1 });      // a real shade caster
+  const key0 = shadeMapKey(false);
+  assert(ensureShadeMap().hasShade, 'the oak casts shade to begin with');
+
+  setTile('plants', '3,3', { s:'bluestem', d:0, t:1 });           // a grass
+  setTile('plants', '4,3', { s:'echinacea', d:0, t:1 });          // a forb
+  setTile('bulbs',  '5,3', { s:'crocus', d:0, t:1 });
+  assert(game.plantsRev > 0, 'those edits really did bump the plants revision');
+  assertEqual(shadeMapKey(false), key0, 'planting things that cast no shade leaves the shade key alone');
+
+  clearTile('plants', '3,3');
+  assertEqual(shadeMapKey(false), key0, 'and so does lifting them again');
+
+  // but anything that CAN change the map still moves the key
+  setTile('plants', '18,18', { s:'buroak', d:-40000, t:1 });
+  assert(shadeMapKey(false) !== key0, 'a second tree moves it');
+  const key1 = shadeMapKey(false);
+  clearTile('plants', '18,18');
+  assert(shadeMapKey(false) !== key1, 'and so does removing one');
+  setTile('plants', '12,12', { s:'redbud', d:-40000, t:1 });      // same tile, different species
+  assert(shadeMapKey(false) !== key0, 'so does swapping one tree for another');
+});
+
+test('an unclassified layer still invalidates the shade map', () => {
+  /* The tree signature is what makes the fix above safe for the layers we know
+     about. A layer nobody has classified yet might cast shade — a pergola, an
+     awning — so the unknown-layer fallback has to reach the shade map by a
+     route the tree index cannot see. */
+  setup(21, 21);
+  const before = shadeMapKey(false);
+  markLayerCacheChanged('somethingNobodyClassifiedYet');
+  assert(shadeMapKey(false) !== before,
+    'an unknown layer is assumed to cast shade until somebody classifies it');
+});
+
+test('elevationAt reads the same heights through its grid as through the map', () => {
+  /* screenOf calls elevationAt on every lookup — ~2,600 times a frame — and the
+     template-string tile key was 85% of its cost. The grid must agree with the
+     object exactly, including Math.round (a plant's sub-tile offset must round,
+     not truncate) and the empty-layer short circuit. */
+  setup(19, 19);
+  const raw = (x, y) => {                 // the old implementation, verbatim
+    const e = game.elevation && game.elevation[`${Math.round(x)},${Math.round(y)}`];
+    return (e && !e.removed && Number.isFinite(+e.h)) ? Math.max(ELEV_MIN, Math.min(ELEV_MAX, +e.h|0)) : 0;
+  };
+  for (let y = -1; y <= GH; y++) for (let x = -1; x <= GW; x++)
+    assertEqual(elevationAt(x, y), raw(x, y), `empty layer reads 0 at ${x},${y}`);
+  setElevationAt(5, 5, 2);
+  setElevationAt(6, 5, 1);
+  setElevationAt(5, 6, -1);
+  setTile('elevation', '7,7', { h: 99, t: 1 });        // out of range: clamped, not trusted
+  setTile('elevation', '8,8', { h: 'nonsense', t: 1 });
+  clearTile('elevation', '6,5');
+  for (let y = -1; y <= GH; y++) for (let x = -1; x <= GW; x++)
+    assertEqual(elevationAt(x, y), raw(x, y), `grid matches the map at ${x},${y}`);
+  // fractional coordinates ROUND, which is what a free-planted clump relies on
+  assertEqual(elevationAt(5.4, 5.4), raw(5.4, 5.4), 'a coordinate that rounds down');
+  assertEqual(elevationAt(4.6, 4.6), raw(4.6, 4.6), 'a coordinate that rounds up');
+  assertEqual(elevationAt(4.6, 4.6), 2, '...and rounds UP onto the raised tile, not down off it');
+  // and an edit has to be visible at once
+  setElevationAt(5, 5, 3);
+  assertEqual(elevationAt(5, 5), 3, 'raising a tile is visible immediately');
+});
+
 test('the shrub index answers exactly as a full plant scan did', () => {
   setup(25, 25);
   // a wide shrub whose MATURE footprint overhangs well past its own tile,

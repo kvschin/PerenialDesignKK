@@ -1069,8 +1069,12 @@ function pspriteFrame(){                        // once per render: age the cach
   }
 }
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
-function makePlantSprite(key,gB,bB,season,seed,variant,detail){
-  const P=plantDef(key,variant), growth=gB/8;
+/* The box a plant's drawing occupies around its placement point, in draw units.
+   Two callers, and they must not disagree: makePlantSprite sizes the bake from
+   it, and buildScene sizes the viewport cull from it at FULL growth (a superset
+   of whatever any frame draws). A box that is too small clips a sprite; the
+   same box too small in the cull pops the plant in at the screen edge. */
+function plantDrawBox(P,key,growth){
   // trees: display-rescaled (T10). The 0.25/0.3 floors here are deliberately
   // LARGER than draw.js's tree sapling floor (0.12) — the box only has to
   // contain the drawing, so young trees just get a bit of empty margin.
@@ -1100,7 +1104,12 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   // versions do not change silhouette when the governor flips. `growth` here is
   // the same value drawPlant is handed, since the shadow scales with it.
   const below=plantDrawBelow(P,growth,H)+8;
-  const bot=Math.max(18,Number.isFinite(below)?below:18), want=pspriteScale();
+  return {halfW, top, bot:Math.max(18,Number.isFinite(below)?below:18)};
+}
+function makePlantSprite(key,gB,bB,season,seed,variant,detail){
+  const P=plantDef(key,variant), growth=gB/8;
+  const box=plantDrawBox(P,key,growth);
+  const halfW=box.halfW, top=box.top, bot=box.bot, want=pspriteScale();
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
   // the bake RESOLUTION instead of bailing to per-frame procedural — the blit
   // scales it up slightly soft at high zoom, which reads fine on foliage and
@@ -1293,7 +1302,60 @@ function drawStructEnt(ctx,e,W,H,season,lit){
    sprite is a visible bug and the memory is bounded by the LRU anyway — and
    verifyStructureSprites() is what proves each of these numbers covers its
    drawing. Returning null means "never cache this one". */
+/* How many tiles a structure spans and how far its drawing reaches beyond
+   them, in draw units. Split out of structSpriteSpec because the viewport cull
+   needs the same numbers and a second copy of them would drift: a box too small
+   here clips a sprite, and the identical box too small in the cull pops the
+   structure in at the screen edge. Returning null means "no box" — only for a
+   footprint with no bounds, which draws nothing either. */
+function structDrawBox(e){
+  switch(e.kind){
+    case SCENE_K.FENCE:{
+      /* A GATE spans a contiguous run of gate tiles and is drawn by its leading
+         tile, so its reach is the run's, not its own. The span is cheap to ask
+         for and gardens have one or two of them. */
+      let span=0;
+      if (e.f.gate){ const g=fenceGateSpan(e.x,e.y,fenceRunAxis(e.x,e.y)); span=g.a+g.b; }
+      return {w:1, h:1, up:fenceDrawH(e.f)*1.5+52, pad:TILE_W*0.62+span*TILE_W*0.5, down:16+span*TILE_H*0.5};
+    }
+    case SCENE_K.BUILDING: return {w:1, h:1, up:26, pad:8, down:20};
+    case SCENE_K.BUILDING_OUTLINE:{
+      const r=buildingBounds(e.b); if (!r) return null;
+      return {w:r.x1-r.x0+1, h:r.y1-r.y0+1, up:26, pad:14, down:24};
+    }
+    /* The three sideways-reaching kinds. Their pad and down are wider than they
+       look because a piece's drawn LENGTH is its real length along its own
+       axis, which projects past the diagonal span of the tiles it claims — and
+       by different amounts at each camera rotation, since the object turns with
+       the view. Measured against the actual ink at all four rotations
+       (measureStructBoxes, dev), the old numbers were escaped by up to 79px on
+       a seat, 47 on a pot and 12 on a boulder: sprites clipped at rot 1/2/3 and
+       the viewport cull, which shares this box, dropped them early. */
+    case SCENE_K.POT:{
+      const sz=potTileSize(e.p);
+      return {w:sz.w, h:sz.h, up:feetToPx(46/12)+30, pad:TILE_W*1.05, down:48};
+    }
+    case SCENE_K.SEAT:{
+      const sz=seatTileSize(e.s);
+      return {w:sz.w, h:sz.h, up:feetToPx(52/12)+30, pad:TILE_W*1.7, down:72};
+    }
+    case SCENE_K.BOULDER:{
+      const sz=boulderTileSize(e.b);
+      return {w:sz.w, h:sz.h, up:TILE_H*2.6+24, pad:TILE_W*0.55, down:24};
+    }
+    case SCENE_K.FIREPIT:{
+      const sz=firepitTileSize(e.f);
+      return {w:sz.w, h:sz.h, up:TILE_H*2.4+24, pad:TILE_W*0.35, down:20};
+    }
+    case SCENE_K.PET:   return {w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
+    case SCENE_K.LIGHT: return {w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
+    case SCENE_K.HOUSE: return {w:e.h.w, h:e.h.h, up:TILE_H*e.h.h*1.2+240, pad:TILE_W*0.7, down:26};
+  }
+  return null;
+}
 function structSpriteSpec(e){
+  const box=structDrawBox(e);
+  if (!box) return null;
   switch(e.kind){
     case SCENE_K.FENCE:{
       const f=e.f;
@@ -1317,8 +1379,7 @@ function structSpriteSpec(e){
       const post=fencePostHere(x,y)?1:0;
       // the seed reaches the drawing through one path only: masonry joints
       const seed=st.infill==='masonry'?tileSeed(x,y):0;
-      return {key:'F|'+structRecordSig(f)+'|'+nb+'|'+ax[0]+','+ax[1]+'|'+post+'|'+ev+'|'+seed,
-        w:1, h:1, up:fenceDrawH(f)*1.5+52, pad:TILE_W*0.62, down:16};
+      return Object.assign({key:'F|'+structRecordSig(f)+'|'+nb+'|'+ax[0]+','+ax[1]+'|'+post+'|'+ev+'|'+seed}, box);
     }
     case SCENE_K.BUILDING:{
       /* Only the two faces the CAMERA can see are conditional, and they depend
@@ -1328,45 +1389,25 @@ function structSpriteSpec(e){
       const [rx,ry]=viewDirToWorld(1,0), [dx,dy]=viewDirToWorld(0,1);
       const r=set.has((e.x+rx)+','+(e.y+ry))?1:0, d=set.has((e.x+dx)+','+(e.y+dy))?1:0;
       const b=e.b;
-      return {key:'U|'+(b.fill||b.roof||'')+'|'+(b.edge||b.wall||'')+'|'+(b.status||'')+'|'+r+d,
-        w:1, h:1, up:26, pad:8, down:20};
+      return Object.assign({key:'U|'+(b.fill||b.roof||'')+'|'+(b.edge||b.wall||'')+'|'+(b.status||'')+'|'+r+d}, box);
     }
-    case SCENE_K.BUILDING_OUTLINE:{
-      const r=buildingBounds(e.b); if (!r) return null;
-      const b=e.b;
-      return {key:'V|'+structRecordSig(b), w:r.x1-r.x0+1, h:r.y1-r.y0+1,
-        up:26, pad:14, down:24};
-    }
-    case SCENE_K.POT:{
-      const sz=potTileSize(e.p);
-      return {key:'P|'+structRecordSig(e.p), w:sz.w, h:sz.h,
-        up:feetToPx(46/12)+30, pad:TILE_W*0.35, down:22};
-    }
-    case SCENE_K.SEAT:{
-      const sz=seatTileSize(e.s);
-      return {key:'S|'+structRecordSig(e.s), w:sz.w, h:sz.h,
-        up:feetToPx(52/12)+30, pad:TILE_W*0.55, down:24};
-    }
-    case SCENE_K.BOULDER:{
-      const sz=boulderTileSize(e.b);
+    case SCENE_K.BUILDING_OUTLINE:
+      return Object.assign({key:'V|'+structRecordSig(e.b)}, box);
+    case SCENE_K.POT:
+      return Object.assign({key:'P|'+structRecordSig(e.p)}, box);
+    case SCENE_K.SEAT:
+      return Object.assign({key:'S|'+structRecordSig(e.s)}, box);
+    case SCENE_K.BOULDER:
       // shape comes from tileSeed, so two boulders of one type differ
-      return {key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y), w:sz.w, h:sz.h,
-        up:TILE_H*2.6+24, pad:TILE_W*0.35, down:20};
-    }
-    case SCENE_K.FIREPIT:{
-      const sz=firepitTileSize(e.f);
-      return {key:'R|'+structRecordSig(e.f), w:sz.w, h:sz.h,
-        up:TILE_H*2.4+24, pad:TILE_W*0.35, down:20};
-    }
+      return Object.assign({key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y)}, box);
+    case SCENE_K.FIREPIT:
+      return Object.assign({key:'R|'+structRecordSig(e.f)}, box);
     case SCENE_K.PET:
-      return {key:'T|'+structRecordSig(e.p), w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
+      return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
-      return {key:'L|'+structRecordSig(e.l), w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
-    case SCENE_K.HOUSE:{
-      const h=e.h;
-      return {key:'H|'+structRecordSig(h), w:h.w, h:h.h,
-        up:TILE_H*h.h*1.2+240, pad:TILE_W*0.7, down:26};
-    }
+      return Object.assign({key:'L|'+structRecordSig(e.l)}, box);
+    case SCENE_K.HOUSE:
+      return Object.assign({key:'H|'+structRecordSig(e.h)}, box);
   }
   return null;
 }
@@ -1457,6 +1498,157 @@ function drawStructMaybeCached(e,W,H,season,lit){
    clipped fence post is a few hundred pixels, which rounds to nothing as a
    share of the canvas. Non-transparent pixels on the border row or column
    mean the drawing wanted more room than structSpriteSpec gave it. */
+/* ---- dev-only: are the structure boxes big enough? ----
+   structDrawBox feeds two things — the sprite bake and the viewport cull — and
+   the failure of a box that is too small is different in each: a clipped sprite,
+   and a structure that pops in at the screen edge. Both are silent.
+
+   So measure the drawing rather than reasoning about it: paint each kind into a
+   big offscreen canvas centred on its anchor, find the ink, and compare against
+   what the box allows. AT ALL FOUR ROTATIONS — a piece turns with the camera and
+   its drawn length projects past the diagonal span of the tiles it claims by a
+   different amount at each one, which is exactly what the first cut of this got
+   wrong (seat 79px, pot 47px, boulder 12px out, at rot 1-3 only).
+
+     measureStructBoxes()   // {} means every box contains its drawing */
+function measureStructBoxes(){
+  const PAD=700, rot0=game.rot;
+  const cv=document.createElement('canvas'); cv.width=PAD*2; cv.height=PAD*2;
+  const c2=cv.getContext('2d',{willReadFrequently:true});
+  if (!c2 || typeof c2.getImageData!=='function') return {unavailable:true};
+  const W=VW/ZOOM, H=VH/ZOOM, season=calClock().season, x=23, y=23;
+  const inkOf=(fn,ax,ay)=>{
+    c2.setTransform(1,0,0,1,0,0); c2.clearRect(0,0,cv.width,cv.height);
+    c2.setTransform(1,0,0,1,PAD-ax,PAD-ay); fn(c2); c2.setTransform(1,0,0,1,0,0);
+    let d; try{ d=c2.getImageData(0,0,cv.width,cv.height).data; }catch(_){ return null; }
+    let l=1e9,r=-1e9,t=1e9,b=-1e9;
+    for (let i=3;i<d.length;i+=4){ if (d[i]<8) continue;
+      const p=(i-3)/4, px=p%cv.width, py=(p/cv.width)|0;
+      if (px<l)l=px; if (px>r)r=px; if (py<t)t=py; if (py>b)b=py; }
+    return l>r ? null : {left:l-PAD, right:r-PAD, top:t-PAD, bottom:b-PAD};
+  };
+  const cases=[];
+  for (const st of SEAT_TYPES) for (let f=0;f<4;f++)
+    cases.push({name:'SEAT:'+st.id+'/f'+f, kind:SCENE_K.SEAT, field:'s', rec:{type:st.id,finish:'teak',face:f,t:1},
+      size:s=>seatTileSize(s), draw:(c,s)=>drawSeat(c,W,H,season,s,x,y)});
+  for (const p of POT_STYLES) for (let f=0;f<4;f++) for (const sz of POT_SIZES)
+    cases.push({name:'POT:'+p.id+'/'+sz.id+'/f'+f, kind:SCENE_K.POT, field:'p',
+      rec:{style:p.id,size:potSizeFor(p.id,sz.id),face:f,t:1},
+      size:s=>potTileSize(s), draw:(c,s)=>drawPot(c,W,H,season,s,x,y)});
+  for (const b of BOULDER_TYPES)
+    cases.push({name:'BOULDER:'+b.id, kind:SCENE_K.BOULDER, field:'b', rec:{type:b.id,t:1},
+      size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
+  for (const fp of FIREPIT_SIZES) for (const shp of ['round','square'])
+    cases.push({name:'FIREPIT:'+shp+'/'+fp.id, kind:SCENE_K.FIREPIT, field:'f', rec:{shape:shp,size:fp.id,t:1},
+      size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y)});
+  for (const fs of FENCE_STYLES) for (const h of fenceStyleHeights(fs.id))
+    cases.push({name:'FENCE:'+fs.id+'/'+h, kind:SCENE_K.FENCE, field:'f', rec:{style:fs.id,height:h,gate:false,t:1},
+      size:()=>({w:1,h:1}), draw:(c,s)=>drawFence(c,W,H,season,s,x,y)});
+  for (const lt of LIGHT_TYPES)
+    cases.push({name:'LIGHT:'+lt.id, kind:SCENE_K.LIGHT, field:'l', rec:{type:lt.id,tone:'warm',t:1},
+      size:()=>({w:1,h:1}), draw:(c,s)=>drawLightFixture(c,W,H,season,s,x,y,false)});
+  for (const sp of PET_SPECIES)
+    cases.push({name:'PET:'+sp.id, kind:SCENE_K.PET, field:'p', rec:{species:sp.id,coat:PET_COATS[0].id,t:1},
+      size:()=>({w:1,h:1}), draw:(c,s)=>{ const [sx,sy]=screenOf(x,y,W,H); drawPet(c,sx,sy+TILE_H/2,s,1); }});
+  const worst={}, escaping=[];
+  try{
+    for (let r=0;r<4;r++){
+      game.rot=r;
+      for (const cse of cases){
+        const rec=cse.rec, sz=cse.size(rec);
+        const e={kind:cse.kind, x, y, bx0:x, bx1:x+sz.w-1, by0:y, by1:y+sz.h-1};
+        e[cse.field]=rec;
+        const box=structDrawBox(e); if (!box) continue;
+        const [ax,ay]=screenOf(x,y,W,H);
+        const ink=inkOf(c=>cse.draw(c,rec),ax,ay); if (!ink) continue;
+        let ox0=Infinity,ox1=-Infinity,oy0=Infinity,oy1=-Infinity;
+        for (let yy=e.by0; yy<=e.by1; yy++) for (let xx=e.bx0; xx<=e.bx1; xx++){
+          const [vx,vy]=worldToView(xx,yy), px=isoX(vx,vy), py=isoY(vx,vy);
+          if (px<ox0)ox0=px; if (px>ox1)ox1=px; if (py<oy0)oy0=py; if (py>oy1)oy1=py;
+        }
+        const [v0x,v0y]=worldToView(x,y), a0x=isoX(v0x,v0y), a0y=isoY(v0x,v0y);
+        const esc={
+          left:  Math.max(0, ((ox0-(TILE_W*0.5+box.pad))-a0x) - ink.left),
+          right: Math.max(0, ink.right - ((ox1+(TILE_W*0.5+box.pad))-a0x)),
+          top:   Math.max(0, ((oy0-box.up)-a0y) - ink.top),
+          bottom:Math.max(0, ink.bottom - ((oy1+TILE_H+box.down)-a0y)) };
+        if (!(esc.left||esc.right||esc.top||esc.bottom)) continue;
+        const kind=cse.name.split(':')[0];
+        const w=worst[kind]||(worst[kind]={left:0,right:0,top:0,bottom:0});
+        for (const k in esc) if (esc[k]>w[k]) w[k]=esc[k];
+        escaping.push({rot:r, name:cse.name, esc});
+      }
+    }
+  } finally { game.rot=rot0; game.sceneRev++; groundKey=''; }
+  console.log('measureStructBoxes: '+escaping.length+' of '+(cases.length*4)+' escape their box');
+  return {worstByKind:worst, escaping:escaping.length, cases:escaping.slice(0,12)};
+}
+/* ---- dev-only: does the viewport cull ever drop something visible? ----
+   The cull rejects roughly half the entity pass, and the failure mode is a
+   structure or a clump that pops in at the screen edge — localised, brief, and
+   camera-dependent, which is to say almost impossible to notice by looking. So
+   diff the frame against one rendered with the cull disabled entirely.
+
+     verifySceneCull()             // several cameras, all four rotations
+     verifySceneCull({rot:false})  // just the current rotation
+
+   Three things make the comparison honest, each of which cost a wrong answer
+   first. Both sprite caches are pinned OFF, because the no-cull arm draws ~700
+   more entities and perturbs the bake budget and the LRU, which changes whether
+   an ON-screen plant is blitted or drawn live — a 1-6 level difference smeared
+   over the whole canvas. The clock is paused, because sceneKey carries absDay()
+   and a long run ticks the day and rebuilds the scene underneath the harness.
+   And each arm renders until two consecutive frames are byte-identical, since
+   the frame after a camera move is a warm-up. */
+function verifySceneCull(opts){
+  opts=opts||{};
+  if (!cx || typeof cx.getImageData!=='function') return {unavailable:true};
+  const p0=PSPRITE.off, s0=SSPRITE.off, rot0=game.rot, cx0=cam.x, cy0=cam.y,
+        pa0=game.pausedAt, pv0=game.previewMode, T=12345.678;
+  try{
+    PSPRITE.off=true; SSPRITE.off=true;
+    if (!game.pausedAt) game.pausedAt=Date.now();
+    game.previewMode='established';        // full-size plants: the worst case for overhang
+    game.sceneRev++; groundKey='';
+    const grab=()=>cx.getImageData(0,0,cnv.width,cnv.height).data;
+    const diff=(p,q)=>{ let n=0,w=0;
+      for (let i=0;i<p.length;i+=4){
+        const m=Math.max(Math.abs(p[i]-q[i]),Math.abs(p[i+1]-q[i+1]),Math.abs(p[i+2]-q[i+2]));
+        if (m>0){ n++; if (m>w) w=m; } }
+      return {n,w}; };
+    const settle=()=>{ let prev=null;
+      for (let i=0;i<40;i++){ render(T); const c=grab(); if (prev && diff(prev,c).n===0) return c; prev=c; }
+      return prev; };
+    const cams=opts.cams||[[0,0],[-380,-260],[420,300],[-700,180],[640,-240],[900,520],[-980,-560]];
+    const rots=opts.rot===false?[game.rot]:[0,1,2,3];
+    const out=[];
+    for (const r of rots){
+      if (game.rot!==r){ game.rot=r; game.sceneRev++; groundKey=''; }
+      for (const [dx,dy] of cams){
+        snapCam(); cam.x+=dx; cam.y+=dy;
+        const a=settle(), ctrl=settle();
+        const ents=scene.ents, saved=ents.map(e=>[e.ox0,e.ox1,e.oy0,e.oy1]);
+        const W=VW/ZOOM, H=VH/ZOOM, offX=W/2-cam.x, offY=H*0.24-cam.y;
+        let culled=0;
+        for (const e of ents){
+          if (e.ox1+offX<0||e.ox0+offX>W||e.oy1+offY<0||e.oy0+offY>H) culled++;
+          e.ox0=-1e9; e.ox1=1e9; e.oy0=-1e9; e.oy1=1e9;
+        }
+        const b=settle();
+        ents.forEach((e,i)=>{ e.ox0=saved[i][0]; e.ox1=saved[i][1]; e.oy0=saved[i][2]; e.oy1=saved[i][3]; });
+        const d=diff(a,b), c=diff(a,ctrl);
+        out.push({rot:r, cam:dx+','+dy, culled, kept:ents.length-culled, diff:d.n, worst:d.w, control:c.n});
+      }
+    }
+    const bad=out.filter(o=>o.diff>o.control);
+    console.log('verifySceneCull: '+bad.length+' of '+out.length+' cases lost visible pixels');
+    return {cases:out.length, failing:bad.length, bad, all:out};
+  } finally {
+    PSPRITE.off=p0; SSPRITE.off=s0; game.pausedAt=pa0; game.previewMode=pv0;
+    game.rot=rot0; game.sceneRev++; groundKey=''; cam.x=cx0; cam.y=cy0;
+    render(performance.now());
+  }
+}
 function ssprClippedSprites(){
   const out=[];
   for (const [k,sp] of SSPRITE.map){
@@ -1665,6 +1857,76 @@ function sceneStale(skey){
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
     r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings;
 }
+/* ---- camera-free screen bounds, for the viewport cull ----
+   The entity pass used to reject on the TILE bounding box of the four inverted
+   screen corners. Under this projection the preimage of a screen rectangle is a
+   DIAMOND, and the bbox of a diamond's corners is far larger than the diamond —
+   the same trap the ground bake's margin note records one system over, and the
+   same conclusion: ask a containment question in the space the containment
+   happens in. Measured, the surplus was 60% of the pass on a 375x812 phone and
+   71% on a quarter acre; every one of those entities had its sprite key built,
+   its cache looked up and a drawImage issued before the browser clipped it away.
+
+   The camera is a pure screen translation (viewScreen subtracts cam) and W/H
+   only shift the origin, so a record's screen box is stable for the life of the
+   scene list once both are taken out: bake isoX/isoY of the tile corners here,
+   add W/2-cam.x and H*0.24-cam.y at frame time. Elevation is baked too — it
+   bumps sceneRev, so a terrace edit rebuilds this. */
+function setEntScreenBounds(e){
+  const x0=e.bx0!==undefined?e.bx0:e.x, x1=e.bx1!==undefined?e.bx1:e.x;
+  const y0=e.by0!==undefined?e.by0:e.y, y1=e.by1!==undefined?e.by1:e.y;
+  let ox0=Infinity, ox1=-Infinity, oy0=Infinity, oy1=-Infinity;
+  for (let yy=y0; yy<=y1; yy++) for (let xx=x0; xx<=x1; xx++){
+    const [vx,vy]=worldToView(xx,yy);
+    const sx=isoX(vx,vy), sy=isoY(vx,vy)-elevationAt(xx,yy)*ELEV_STEP;
+    if (sx<ox0) ox0=sx; if (sx>ox1) ox1=sx;
+    if (sy<oy0) oy0=sy; if (sy>oy1) oy1=sy;
+  }
+  /* The tile diamond, PLUS whatever the drawing reaches past it — a sum, not a
+     max, exactly as structSpriteBox composes the same numbers for the sprite
+     bake. Taking the max instead let two seats out of their boxes and they drew
+     visibly from off screen; verifySceneCull found them by bisection. */
+  let pad=TILE_W*0.5, up=0, down=TILE_H;
+  if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB){
+    /* Full growth, so the box is a superset of whatever any frame draws, and
+       the plant's draw point is TILE_H/2 below this anchor. `slip` covers the
+       free-planting sub-tile offset; POT_LIFT_MAX covers standing on a rim; and
+       SWAY_SKEW is the wind, which leans the drawing sideways by up to that
+       fraction of its own height (the same 0.05 the blit skews by, and what
+       drawPlant bends its stems with). Leaving the wind out is what the last
+       16-41px of cull error turned out to be. */
+    const b=plantDrawBox(plantDef(e.p.s,e.p.v),e.p.s,1), o=plantOffset(e.p);
+    const slip=(Math.abs(o.ox)+Math.abs(o.oy)+1)*TILE_W*0.5;
+    pad+=b.halfW+slip+b.top*SWAY_SKEW+SCENE_CULL_SLACK;
+    up+=b.top+slip+POT_LIFT_MAX+SCENE_CULL_SLACK; down+=b.bot+slip+SCENE_CULL_SLACK;
+  } else {
+    const b=structDrawBox(e);
+    if (b){ pad+=b.pad; up+=b.up; down+=b.down; }
+    else { pad+=TILE_W*2; up+=TILE_H*8; down+=TILE_H*3; }   // no box: keep it generously
+  }
+  e.ox0=ox0-pad; e.ox1=ox1+pad; e.oy0=oy0-up; e.oy1=oy1+down;
+}
+/* The tallest rim any container lifts a plant by, so a potted plant's box
+   covers the lift without asking which vessel it is standing in. */
+const POT_LIFT_MAX=(typeof POT_SIZES!=='undefined' && POT_SIZES.length)
+  ? Math.max(...POT_SIZES.map(s=>Math.round(s.hIn/12*PX_PER_FT*0.86))) : 90;
+// the wind's horizontal lean, as a fraction of the drawing's height — the same
+// 0.05 drawPlantMaybeCached skews the blit by
+const SWAY_SKEW=0.05;
+/* Slack on the cull box, and only on the cull box. The sprite bake wants its box
+   tight, because that box is memory; this one only has to answer "cannot
+   possibly be visible", where being generous costs one entity's bookkeeping and
+   being tight costs a plant popping in at the screen edge.
+   Sized from measurement rather than taste: across every species in a planted
+   garden, drawn at full growth and compared against its real ink, exactly one
+   (slender indiangrass) exceeds plantDrawBox at all, by 1.9px. This covers that
+   and the antialiased fringe several times over, and it is nothing against the
+   ~1700px of bounding-box slop the screen cull replaces. Do not raise it to
+   chase the handful of isolated pixels verifySceneCull still reports: those do
+   not respond to it, they are rasteriser batching (two draw sequences, ±1-8 of
+   255 on scattered single pixels), and a genuinely dropped entity shows up as a
+   contiguous blob of hundreds instead. */
+const SCENE_CULL_SLACK=24;
 function buildScene(W,H){
   const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[];
   const plantRecs=[];
@@ -1753,6 +2015,7 @@ function buildScene(W,H){
         bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
   }
   ents.sort((a,b)=>a.d-b.d);
+  for (const e of ents) setEntScreenBounds(e);
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
     lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
@@ -2100,12 +2363,15 @@ function render(t){
   structSampleMs=0;
   const tDraw=dnow(), tDrawWall=performance.now();
   const sents=scene.ents;
+  // SCREEN-space reject, not the tile bbox — see setEntScreenBounds. Same four
+  // numeric compares as before; they just answer the question that was asked.
+  const offX=W/2-cam.x, offY=H*0.24-cam.y;
   let plantCount=0, drawn=0, di=0;
   for (let i=0;i<sents.length;i++){
     const e=sents[i];
     while (di<dyn.length && dyn[di].d<=e.d){
       plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
-    if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+    if (e.ox1+offX<0 || e.ox0+offX>W || e.oy1+offY<0 || e.oy0+offY>H) continue;
     plantCount+=drawSceneEnt(e,W,H,cal.season,sway,useSprites);
     drawn++;
   }

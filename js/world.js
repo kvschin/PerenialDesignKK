@@ -229,6 +229,8 @@ const game = {
   terrainRev:0,        // organic terrain-region cache revision: terrain map changed
   sceneRev:0,          // renderer scene-list revision: an entity moved/appeared/vanished (NOT terrain — see LAYER_CACHES)
   plantsRev:0,         // plants-map revision: the shade map and the shrub index track trees/shrubs only
+  potsRev:0,           // pots-map revision: the pot tile index (potIndex) rebuilds on change, not on every scene edit
+  shadeRev:0,          // "something unclassified may cast shade" — only the unknown-layer fallback bumps it
   plotRev:0,           // plot-shape mask revision: bumped by setPlotShape/setWorldSize; onPlot mask rebuilds on change
 };
 // The mutable layers a garden is made of, enumerated once so undo and
@@ -370,7 +372,11 @@ const LAYER_CACHES={
   firepits:  {scene:1},
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
-  pots:      {scene:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
+  /* `pots` names its own revision for the same reason `plants` does: potIndex()
+     answers "is this tile potted" for EVERY drawn plant on every frame, and
+     keying it on sceneRev would rebuild it on every stamp of a planting drag —
+     an unrelated edit paying for a cache it cannot have invalidated. */
+  pots:      {scene:1, pots:1},   // the vessel is one sprite; its plant is an ordinary plant on the same tile
   seats:     {scene:1},
   /* Both structure layers carry `trace`, not merely `ground`, because a wall is
      now part of the organic edge classification: isLawnTile refuses a house or
@@ -383,9 +389,17 @@ const LAYER_CACHES={
   buildings: {scene:1, trace:1},
 };
 function markLayerCacheChanged(layer,key){
-  const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1};   // unknown layer: assume the worst
+  const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1, pots:1, shade:1};   // unknown layer: assume the worst
   if (c.scene) game.sceneRev++;
   if (c.plants) game.plantsRev++;
+  if (c.pots) game.potsRev++;
+  /* `shade` means "this edit may have changed the shade map by a route the tree
+     index cannot see". No classified layer sets it — the shade map is keyed on
+     a signature of the TREES, and every layer in the table above is either not
+     a plant or is covered by that signature. It exists for the unclassified
+     fallback: a layer nobody has thought about yet might cast shade (a pergola,
+     an awning), and a new layer must be safe by default. */
+  if (c.shade) game.shadeRev++;
   // elevation splits organic terrain regions (a raised bed is its own terrace
   // blob), so elevation edits retrace the region cache along with terrain edits.
   // Only `terrain` names its tile: elevation deliberately forces a full bake
@@ -953,14 +967,41 @@ function emptyShadeCache(){
 }
 let shadeMapCache=emptyShadeCache(), shadeMapCacheReal=emptyShadeCache();
 function shadeMapIndex(x,y){ return y*GW+x; }
-/* plantsRev, not game.rev: shade is cast by TREES, and nothing else in the model
-   can change it. Keyed on game.rev, laying one path tile threw the whole map
-   away and rebuilt it — 5.35ms on a quarter acre, every frame of a brush drag,
-   for a layer that casts no shade. (The rebuild is O(trees x reach^2) and a
-   mature cottonwood's reach covers the entire plot, so it is not cheap to redo
-   for nothing. Measured with zero trees it is 0.00ms — the cost is the sun-path
-   math, not the arrays.) */
-function shadeMapKey(real){ return game.plantsRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
+/* The trees, and a counter that moves only when the trees do.
+
+   shadeMapKey used to ride plantsRev, which is the right LAYER but the wrong
+   granularity: plantsRev bumps for any plant edit, so a drag-to-plant stroke
+   threw the map away on every stamped tile — and a groundcover casts no shade.
+   Measured on a 46x46 garden with 63 trees, a forb drag frame cost 13.13ms of
+   which 3.92ms was this rebuild producing a byte-identical map. (Same garden
+   with the trees removed: 0.14ms. The cost is the sun-path math, not the six
+   GW*GH arrays — don't "fix" the allocation.)
+
+   So the index scans the plants once per plantsRev and compares a signature of
+   what actually feeds the map: which trees exist, where, of what species and
+   cultivar, planted when. Everything else the map depends on — rotation, true
+   north, the day, the plot, the Established preview — is already in the key.
+   The signature is compared HERE and turned into a small integer, because
+   shadeMapKey is rebuilt on every ensureShadeMap call (~690 of them per frame
+   from buildScene) and a 2KB key would cost more than it saves.
+
+   This is the LAYER_CACHES idea one level in: the layer was classified, but not
+   the kind of edit within it. */
+let treeIndexCache={rev:-1, ref:null, list:[], sig:'', treesRev:0};
+function treeIndex(){
+  if (treeIndexCache.rev===game.plantsRev && treeIndexCache.ref===game.plants) return treeIndexCache;
+  const list=[]; let sig='';
+  for (const k in game.plants){ const p=game.plants[k];
+    if (!p || p.removed) continue;
+    if (!isTreeDef(plantDef(p.s,p.v))) continue;   // the same predicate treeShadeInfo uses
+    list.push({k,p});
+    sig+=k+':'+p.s+':'+(p.v||'')+':'+(p.d||0)+';';
+  }
+  const treesRev = sig===treeIndexCache.sig ? treeIndexCache.treesRev : treeIndexCache.treesRev+1;
+  treeIndexCache={rev:game.plantsRev, ref:game.plants, list, sig, treesRev};
+  return treeIndexCache;
+}
+function shadeMapKey(real){ return treeIndex().treesRev+'.'+game.shadeRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
   ((!real && establishedPreviewActive())?'|est':''); }
 function resetShadeMapCache(){
   shadeMapCache=emptyShadeCache(); shadeMapCacheReal=emptyShadeCache();
@@ -976,9 +1017,10 @@ function ensureShadeMap(real){
   const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
   const activeTree=new Array(n), futureTree=new Array(n);
   let trees=0;   // hasShade lets the render wash loop skip treeless gardens entirely
-  for (const k in game.plants){ const p=game.plants[k];
-    if (!p || p.removed) continue;
-    const sh=treeShadeInfo(k,p,real);
+  // the tree index already knows which plants these are — no second scan of the
+  // whole planting, and one definition of "casts shade"
+  for (const t of treeIndex().list){
+    const sh=treeShadeInfo(t.k,t.p,real);
     if (!sh || sh.r<1) continue;
     trees++;
     const reach=treeShadeReach(sh);
@@ -1236,8 +1278,46 @@ function setPlotShape(verts){
 /* player-laid terrain (paths, beds, and water) on top of the built-in walkway */
 function terrainAt(x,y){ const t=game.terrain[`${x},${y}`]; return (t&&!t.removed)?t:null; }
 function tileTerrain(x,y){ const t=terrainAt(x,y); return t?t.k:null; }
+/* Elevation as a flat grid, so a lookup is an array index instead of a
+   template-string key. screenOf calls elevationAt on every lookup, which makes
+   it one of the two or three hottest functions in the renderer: measured 2,600
+   calls a frame at 0.0485us each, of which the STRING was ~85% — screenOf cost
+   0.0965us and screenOfFlat, the identical maths without this call, cost
+   0.0075us. Most gardens have no elevation at all and were paying it in full.
+
+   Keyed on terrainRev, which is exactly the signal an elevation edit already
+   raises (LAYER_CACHES gives `elevation` a `trace`, and trace bumps it) and
+   which a planting edit never raises — so a paint drag does not rebuild this.
+   Object identity and the plot size ride along to catch a wholesale swap.
+   Int8Array is enough: ELEV_MIN/MAX are +-4. */
+let elevGrid={rev:-1, ref:null, gw:-1, gh:-1, g:null, empty:true};
+function elevationGrid(){
+  const src=game.elevation;
+  if (elevGrid.rev===game.terrainRev && elevGrid.ref===src && elevGrid.gw===GW && elevGrid.gh===GH)
+    return elevGrid;
+  const g=new Int8Array(GW*GH); let empty=true;
+  for (const k in src||{}){
+    const e=src[k]; if (!e || e.removed) continue;
+    const h=+e.h; if (!Number.isFinite(h)) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (!(x>=0 && y>=0 && x<GW && y<GH)) continue;   // off-grid: the slow path below still finds it
+    const v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,h|0));
+    g[y*GW+x]=v; if (v) empty=false;
+  }
+  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty};
+  return elevGrid;
+}
 function elevationAt(x,y){
-  const e=game.elevation && game.elevation[`${Math.round(x)},${Math.round(y)}`];
+  const src=game.elevation;
+  if (!src) return 0;
+  const gx=Math.round(x), gy=Math.round(y);        // Math.round, not |0: a plant's
+  if (gx>=0 && gy>=0 && gx<GW && gy<GH){           // sub-tile offset must round, not truncate
+    const E=elevationGrid();
+    return E.empty ? 0 : E.g[gy*GW+gx];
+  }
+  // outside the grid — vanishingly rare (a neighbour probe at the plot edge),
+  // and the only way a legacy blob's off-plot record stays visible
+  const e=src[gx+','+gy];
   return (e && !e.removed && Number.isFinite(+e.h)) ? Math.max(ELEV_MIN,Math.min(ELEV_MAX,+e.h|0)) : 0;
 }
 function setElevationAt(x,y,h){

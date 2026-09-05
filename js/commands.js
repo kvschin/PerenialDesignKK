@@ -607,14 +607,43 @@ function petDraft(){ return game.petDraft=normalizePetDraft(game.petDraft); }
    vessel's presence IS the flag there is no field to fall out of sync. */
 function potDraft(){ return game.potDraft=normalizePotDraft(game.potDraft); }
 function potLabel(p){ return potLabelFor(p||potDraft()); }
-function potAt(x,y){
-  if (!game.pots) return null;
-  for (const k in game.pots){
+/* Tile -> vessel, so potAt is a hash lookup rather than a scan of the layer.
+   This is shrubIndex()'s shape, and it is here for the same reason: potAt sits
+   under plantScreenOf, which every drawn plant and bulb calls once per FRAME to
+   ask whether it is standing on a rim. Scanning the layer made that O(plants x
+   pots) with a string split and two array allocations per pot per plant —
+   measured 2.99us a call against screenOf's 0.097, i.e. 2.2ms a frame at 14
+   pots and 14.4ms at 60, which is the courtyard this feature exists for.
+   Keyed on potsRev + the map identity, so a wholesale swap (load, undo, scheme
+   switch) is caught even though the counter did not move. */
+let potIndexCache={rev:-1, ref:null, gw:-1, map:new Map()};
+function potIndex(){
+  if (potIndexCache.rev===game.potsRev && potIndexCache.ref===game.pots && potIndexCache.gw===GW)
+    return potIndexCache.map;
+  const map=new Map();
+  for (const k in game.pots||{}){
     const p=game.pots[k]; if (!p || p.removed) continue;
-    const [px,py]=k.split(',').map(Number), sz=potTileSize(p);
-    if (x>=px && x<px+sz.w && y>=py && y<py+sz.h) return Object.assign({key:k,x:px,y:py},p);
+    const ci=k.indexOf(','), px=+k.slice(0,ci), py=+k.slice(ci+1), sz=potTileSize(p);
+    const rec={key:k, x:px, y:py, p};
+    // NUMERIC key, so a lookup allocates nothing at all — which is the point,
+    // since the misses outnumber the hits by the whole planting.
+    for (let yy=py; yy<py+sz.h; yy++) for (let xx=px; xx<px+sz.w; xx++) map.set(yy*GW+xx,rec);
   }
-  return null;
+  potIndexCache={rev:game.potsRev, ref:game.pots, gw:GW, map};
+  return map;
+}
+function potAt(x,y){
+  const idx=potIndex();
+  if (!idx.size) return null;
+  /* Floor rather than round: the old scan tested `x>=px && x<px+w`, so a
+     fractional coordinate belonged to the tile it sat inside. The bounds test
+     is what makes the flattened key safe — without it a negative x aliases
+     onto the previous row. */
+  const xi=Math.floor(x), yi=Math.floor(y);
+  if (xi<0 || yi<0 || xi>=GW || yi>=GH) return null;
+  const e=idx.get(yi*GW+xi);
+  // the flattened record callers have always had — built per HIT, not per pot
+  return e ? Object.assign({key:e.key,x:e.x,y:e.y},e.p) : null;
 }
 function potFootprint(x,y,p){
   const sz=potTileSize(p), tiles=[];

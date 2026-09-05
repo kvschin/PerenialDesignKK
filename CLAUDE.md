@@ -707,11 +707,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    `game.rev` bumps on EVERY mutation, which is right for undo and for "is the
    model dirty" and wrong for the render caches. Each layer edit declares what
    it actually invalidates: `scene` (`game.sceneRev`, the renderer's entity
-   list), `plants` (`game.plantsRev`, the shade map + the shrub index), `trace`
-   (`game.terrainRev`, the organic region cache — implies ground), `ground`
-   (`game.groundRev`, the baked ground layer). **A layer not in the table
-   invalidates everything**, so adding a layer is correct by default and only
-   gets cheaper once deliberately classified.
+   list), `plants` (`game.plantsRev`, the shrub index), `pots` (`game.potsRev`,
+   the pot tile index), `trace` (`game.terrainRev`, the organic region cache —
+   implies ground; it also keys the elevation grid), `ground` (`game.groundRev`,
+   the baked ground layer), and `shade` (`game.shadeRev`). **A layer not in the
+   table invalidates everything**, so adding a layer is correct by default and
+   only gets cheaper once deliberately classified.
+   **`shade` is set by nothing in the table — only by the unclassified
+   fallback.** The shade map is keyed on a signature of the TREES (§9), which
+   covers every layer above by construction; the flag exists so that a layer
+   nobody has classified yet — a pergola, an awning — cannot silently leave the
+   map stale. A test pins that.
    **`houses` and `buildings` carry `trace`, not merely `ground`**, because
    `isLawnTile` put walls into the organic edge classification (§11): a footprint
    drawn against an existing bed has to retrace that bed's arcs, or they stay
@@ -777,14 +783,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    amber (red only where placement will actually refuse). `sceneKey` and
    `shadeMapKey` carry the preview flag so shade trees/stunting rebuild on
    toggle. The plant card reports establishment, not seasonal size.
-   `shadeMapKey` is keyed on **`game.plantsRev`, not `game.rev`** (§8a): shade
-   is cast by trees and nothing else in the model can change it. The rebuild is
-   O(trees x reach²) and a mature cottonwood's reach spans the whole plot, so
-   it is not cheap to redo for nothing — 5.35ms on a quarter acre, and design
-   mode's default Established preview forces every tree to maximum radius, i.e.
-   the default IS the worst case. (Measured with zero trees it is 0.00ms: the
-   cost is the sun-path math, not the six `GW*GH` arrays it allocates. Don't
-   "fix" the allocation.)
+   `shadeMapKey` is keyed on **`treeIndex().treesRev`, not `game.plantsRev`**:
+   shade is cast by trees and nothing else in the model can change it. The
+   rebuild is O(trees x reach²) and a mature cottonwood's reach spans the whole
+   plot, so it is not cheap to redo for nothing — 5.35ms on a quarter acre, and
+   design mode's default Established preview forces every tree to maximum
+   radius, i.e. the default IS the worst case. (Measured with zero trees it is
+   0.14ms: the cost is the sun-path math, not the six `GW*GH` arrays it
+   allocates. Don't "fix" the allocation.)
+   **`plantsRev` was the right LAYER and the wrong granularity.** It bumps for
+   any plant edit, so a drag-to-plant stroke threw the map away on every stamped
+   tile — and a groundcover casts no shade. Measured on a 46x46 garden with 63
+   trees, a forb drag frame cost 13.13ms of which **3.92ms was this rebuild
+   producing a byte-identical map**. `treeIndex()` (world.js) scans the plants
+   once per `plantsRev` and compares a signature of what actually feeds the map
+   — which trees exist, where, of what species and cultivar, planted when — then
+   turns that into a small integer. The signature is compared THERE and not in
+   the key, because `shadeMapKey` is rebuilt on every `ensureShadeMap` call
+   (~690 of them a frame from `buildScene`, via `shadeScoreAt`) and a 2KB key
+   would cost more than it saves. `ensureShadeMap` iterates the index too, so
+   there is one definition of "casts shade" and no second scan of the planting.
+   This is the `LAYER_CACHES` idea one level in: the layer was classified, but
+   not the kind of edit within it.
 10. **Iso math + view rotation + world layout** — `isoX/isoY`; the camera
     looks at VIEW space: `worldToView`/`viewToWorld`/`viewDirToWorld` rotate
     world<->view per `game.rot` (90° steps, R key / ⟳ button; `rotateView()`
@@ -891,6 +911,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     behind remain legible, while the building still clearly defines bed edges.
     Erase removes a whole footprint.
     `tileTerrain()` reads player-laid terrain from `game.terrain`.
+    **`elevationAt` reads a flat `Int8Array` grid, not the keyed map**
+    (`elevationGrid`, world.js). `screenOf` calls it on every lookup — ~2,600
+    times a frame — and the `` `${Math.round(x)},${Math.round(y)}` `` key was
+    ~85% of its cost: `screenOf` measured 0.0965µs against `screenOfFlat`'s
+    0.0075µs, the identical maths without this call. Most gardens have no
+    elevation at all and were paying it in full. The grid rides `terrainRev`,
+    which an elevation edit already raises (`elevation` carries a `trace`) and a
+    planting edit never does, plus map identity and the plot size. Two things it
+    must keep: `Math.round`, not `|0` — a free-planted clump passes a sub-tile
+    offset and must round onto its tile rather than truncate off it — and the
+    keyed map as a fallback for coordinates outside the grid, which is the only
+    way a legacy blob's off-plot record stays visible. A test compares the two
+    paths tile by tile, fractional coordinates included.
     Fences live in `game.fences` as tile structures (`{style,height,gate}`):
     normal fence tiles block movement, gate tiles are walkable, and adjacent
     fence/gate tiles visually connect. **They are drawn at `PX_PER_FT`
@@ -902,7 +935,49 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     snaps rather than resets when you switch material.
 11. **`render(t)`** — sky, then a camera-windowed pass: the four screen
     corners invert (via `tileAt`) to a padded world-tile bounding box, and
-    only those tiles/entities draw. The ground (grass / walkway / laid path /
+    only those tiles draw.
+    **The ENTITY pass culls in screen space instead**, because that tile bbox is
+    the bounding box of a DIAMOND — the same trap the ground bake's margin note
+    records below, and the same conclusion: ask a containment question in the
+    space the containment happens in. Measured, the surplus was 60% of the pass
+    on a 375x812 phone and 71% on a quarter acre, and every one of those
+    entities had its sprite key built, its cache looked up and a `drawImage`
+    issued before the browser clipped it away. `setEntScreenBounds` (renderer.js)
+    bakes each record's camera-free screen box once per `buildScene` — the camera
+    is a pure translation and W/H only shift the origin, so the frame adds
+    `W/2-cam.x` and `H*0.24-cam.y` and rejects with the same four numeric
+    compares as before. Elevation is baked in too, which is safe because it bumps
+    `sceneRev`.
+    Three things that box has to keep right, each of which cost a wrong answer
+    first. It is the tile diamond **plus** the drawing's reach, not the max of
+    the two — taking the max let two seats out of their boxes and they drew
+    visibly from off screen. It allows for the **wind**: `drawPlantMaybeCached`
+    skews the blit by `sway*0.05` of the drawing's height, and leaving that out
+    was the last 16-41px of error. And the reach comes from `plantDrawBox` /
+    `structDrawBox`, which the SPRITE bakes also use — one definition, so a box
+    cannot be right for the cache and wrong for the cull.
+    **`structDrawBox` also fixed a live rendering bug it inherited**: measured
+    against the real ink at all four rotations, a seat escaped its box by 79px,
+    a pot by 47 and a boulder by 12 — so those sprites were being clipped at
+    rot 1/2/3 today. A piece's drawn LENGTH is its real length along its own
+    axis, which projects past the diagonal span of the tiles it claims by a
+    different amount at each rotation; one rotation proves nothing.
+    Two dev-only verifiers hold this up, beside `verifyStructureSprites`:
+    `measureStructBoxes()` (does every box contain its drawing, at all four
+    rotations) and `verifySceneCull()` (diff the frame against one rendered with
+    the cull disabled). The latter needs three things to be honest, each of
+    which cost a wrong answer: both sprite caches pinned OFF (the no-cull arm
+    draws ~700 more entities, which perturbs the bake budget and the LRU, so an
+    ON-screen plant lands procedural in one arm and blitted in the other — a 1-6
+    level difference smeared over the whole canvas); the clock PAUSED (`sceneKey`
+    carries `absDay()`, and a long run ticks the day and rebuilds the scene
+    underneath the harness); and each arm rendered until two consecutive frames
+    are byte-identical, since the frame after a camera move is a warm-up. It
+    still reports a handful of isolated pixels at ±1-8 of 255 — that is
+    rasteriser batching between two draw sequences, does not respond to the
+    slack, and is not what a dropped entity looks like (that is a contiguous
+    blob of hundreds).
+    The ground (grass / walkway / laid path /
     bed / flagstone doorstep) was the whole frame cost — 961 tiles of
     fills/strokes/blades redrawn every frame — so it's **cached in a
     world-anchored layer**: `paintGround` bakes viewport + a 200-CSS-px margin
@@ -1888,6 +1963,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     of them and would become a second source of truth for "what is planted".
     `potAt(x,y)` is the predicate that changes the RULES, and because the
     vessel's presence IS the flag there is no field to fall out of sync.
+    **It goes through `potIndex()`, a tile->vessel Map, and must stay O(1).**
+    It sits under `plantScreenOf`, which every drawn plant and bulb calls once
+    per FRAME to ask whether it is standing on a rim, so scanning the layer made
+    it O(plants x pots) with a string split and two array allocations per pot
+    per plant: measured 2.99µs a call against `screenOf`'s 0.097, i.e. 2.2ms a
+    frame at 14 pots and **14.4ms at 60** — which is the courtyard this feature
+    exists for. Same shape as `shrubIndex()`, keyed on `potsRev` + map identity,
+    with a NUMERIC `y*GW+x` key so a miss allocates nothing (the misses
+    outnumber the hits by the whole planting). The bounds test is what makes
+    that flattened key safe — without it a negative x aliases onto the previous
+    row — and the lookup floors rather than rounds, because the old scan tested
+    `x>=px && x<px+w`. A test pins the answer against the old scan, tile by
+    tile. `seatAt`, `firepitAt` and `boulderAt` are still the old shape; they
+    are in the per-tile paint path rather than the per-frame one, and want the
+    same treatment when it bites.
     A pot exempts its plant from the in-GROUND rules — bed spacing, matrix
     thinning, the shrub mature reservation, the free-planting jitter — and from
     nothing else. **Hardiness is deliberately NOT relaxed**: the library is
