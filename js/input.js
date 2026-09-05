@@ -512,19 +512,26 @@ cnv.addEventListener('wheel',e=>{
     markUnderlayChanged(); if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor(); return; }
   e.preventDefault(); zoomBy(e.deltaY<0?1.12:0.89);
 },{passive:false});
+/* One entry per counter eraseBrush can raise. It used to be ten hand-written
+   lines against thirteen counters: erasing only a pet, an empty pot or a
+   seat raised a count nobody read, so a successful erase reported "Nothing
+   to erase there." A PLANTED pot still reported, because lifting it clears
+   its planting and that does count — which is most of why this hid. */
+const SWEEP_NOUNS=[
+  ['plants','plant'], ['bulbs','bulb'],
+  ['terr','terrain tile'], ['elev','elevation tile'],
+  ['fence','fence'], ['light','light'],
+  ['firepit','fire pit'], ['boulder','boulder'],
+  ['pet','pet'], ['pot','container'], ['seat','seat'],
+  ['house','house'], ['building','building footprint'],
+];
 function endSweep(){
   if (!sweep) return;
   const parts=[];
-  if (sweep.plants) parts.push(`${sweep.plants} plant${sweep.plants>1?'s':''}`);
-  if (sweep.bulbs) parts.push(`${sweep.bulbs} bulb${sweep.bulbs>1?'s':''}`);
-  if (sweep.terr) parts.push(`${sweep.terr} terrain tile${sweep.terr>1?'s':''}`);
-  if (sweep.elev) parts.push(`${sweep.elev} elevation tile${sweep.elev>1?'s':''}`);
-  if (sweep.fence) parts.push(`${sweep.fence} fence${sweep.fence>1?'s':''}`);
-  if (sweep.light) parts.push(`${sweep.light} light${sweep.light>1?'s':''}`);
-  if (sweep.firepit) parts.push(`${sweep.firepit} fire pit${sweep.firepit>1?'s':''}`);
-  if (sweep.boulder) parts.push(`${sweep.boulder} boulder${sweep.boulder>1?'s':''}`);
-  if (sweep.house) parts.push(`${sweep.house} house${sweep.house>1?'s':''}`);
-  if (sweep.building) parts.push(`${sweep.building} building footprint${sweep.building>1?'s':''}`);
+  for (const [k,noun] of SWEEP_NOUNS){
+    const n=sweep[k];
+    if (n) parts.push(`${n} ${noun}${n>1?'s':''}`);
+  }
   if (parts.length){
     toast(`Erased ${parts.join(' and ')}.`);
   }

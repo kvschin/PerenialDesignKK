@@ -61,6 +61,36 @@ const DAILY_CHALLENGES = [
     match:{roles:['aromatic','silver','movement']} },
 ];
 function todaysChallenge(){ return DAILY_CHALLENGES[Math.floor(Date.now()/864e5) % DAILY_CHALLENGES.length]; }
+/* Everything a brand-new garden starts from. Both routes in — the plot
+   screen and the daily challenge — kept their own copy of this list, and
+   the daily one was missing `buildings` and `schemes`: starting a challenge
+   after a garden with a shed inherited the shed, and switching schemes
+   inside it loaded the previous garden's plantings.
+
+   The layer maps come from GAME_LAYERS rather than being named here, so a
+   layer added later is cleared by default instead of waiting to be noticed
+   in whichever copy someone remembers to update. What each caller still
+   owns is what genuinely differs: the name, the plot, true north, the edge
+   style and the plant criteria. */
+function resetNewGardenState(){
+  for (const L of GAME_LAYERS) game[L.k]=L.array?[]:{};
+  game.schemes=[]; game.schemeActive=null;
+  game.freePlanting=false;
+  game.buildingDraft=null; game.buildingStyleDraft=normalizeBuildingStyle();
+  game.houseDraft=defaultDraft();
+  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
+  game.rot=0; game.siteNorthPreviewDeg=null;
+  game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0;
+  game.clockSuspended=false; game.pausedAt=0;
+  game.previewMode='established';
+  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond';
+  game.fenceDraft={style:'black',height:4,gate:false};
+  game.lightDraft={type:'path',tone:'warm'};
+  game.firepitDraft={shape:'round',size:'round36'};
+  game.boulderDraft={type:'round1'};
+  game.petDraft=normalizePetDraft();
+  markGroundChanged({terrain:true});
+}
 function openDaily(){
   const c=todaysChallenge();
   $('dailyDate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
@@ -84,14 +114,8 @@ function startDailyChallenge(){
   game.worldId=newWorldId();
   game.worldName=`Daily: "${c.title}"`;
   game.inGarden=true;
-  game.previewMode='established';
-  game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-  game.rot=0; game.siteNorthDeg=0; game.siteNorthPreviewDeg=null;
-  game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-  game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={}; game.freePlanting=false;
-  game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
-  game.houses=[]; game.houseDraft=defaultDraft();
-  markGroundChanged({terrain:true});
+  resetNewGardenState();
+  game.siteNorthDeg=0;
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
   const prior=normalizeFilters(game.filters), zone=prior.zone||6; // keep zone/region, drop eligibility limits
   game.design={zone,type:'any',nativeRegion:prior.nativeRegion,nativeMode:'any',deer:false,rabbit:false,squirrel:false};
@@ -901,19 +925,12 @@ function openPlotScreen(){
       game.worldId=newWorldId();
       funnel(FUNNEL_EVENTS.gardenCreated);   // cleared the whole setup flow
       game.worldName=$('plotName').value.trim()||'My garden';
-      game.rot=0; game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft); game.siteNorthPreviewDeg=null;
-      game.startTs=Date.now(); game.elapsedMs=0; game.dayOffset=0; game.clockSuspended=false; game.pausedAt=0;
-      game.layerVis=defaultLayerVis(); game.underlay=null; game.photoEditing=false;
-      game.plants={}; game.bulbs={}; game.terrain={}; game.elevation={}; game.fences={}; game.lights={}; game.firepits={}; game.boulders={}; game.pets={}; game.pots={}; game.seats={}; game.freePlanting=false;
-      game.schemes=[]; game.schemeActive=null;   // a new plot starts with one (unnamed-by-default) planting scheme
-      game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond'; game.fenceDraft={style:'black',height:4,gate:false}; game.lightDraft={type:'path',tone:'warm'}; game.firepitDraft={shape:'round',size:'round36'}; game.boulderDraft={type:'round1'}; game.petDraft=normalizePetDraft();
+      resetNewGardenState();
+      game.siteNorthDeg=normalizeSiteNorthDeg(plotNorthDraft);
       // naturalistic styles get smoothed bed/path edges; structured styles stay crisp
       game.edgeStyle=edgeStyleFromType(game.design&&game.design.type);
       // a blank plot: no house, nothing planted, the whole site yours to draw
-      game.inGarden=true; game.previewMode='established';
-      game.houses=[]; game.buildings=[]; game.buildingDraft=null;
-      game.buildingStyleDraft=normalizeBuildingStyle();
-      markGroundChanged({terrain:true}); game.houseDraft=defaultDraft();
+      game.inGarden=true;
       enterGarden();
       saveSolo(true); // claim the slot right away
     };

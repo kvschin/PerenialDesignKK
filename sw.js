@@ -39,7 +39,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.61';
+const VERSION = '0.8.62';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -136,20 +136,41 @@ self.addEventListener('fetch', e => {
   /* A navigation must never hard-fail offline. Try the network first so a
      deployed update is picked up promptly, and fall back to the cached shell —
      which is also what makes a deep link work with no connection. */
+  /* Pages are cache-first like every other versioned asset, and each is
+     cached under ITS OWN url.
+
+     Two bugs lived in the network-first version this replaces. It wrote
+     every successful navigation to './index.html' whatever page had been
+     asked for, so one visit to privacy.html put the privacy page in the
+     shell's slot and the app opened as the privacy page offline. And
+     network-first HTML in front of cache-first scripts is precisely the
+     mixed release this worker's deliberate lack of skipWaiting exists to
+     prevent: a fresh index.html would load against the previous build's
+     js/. Serving pages from the same cache generation as their scripts is
+     what makes "no session ever silently mixes two builds" true.
+
+     Updates still arrive the same way they already did for every script:
+     the update check installs a new worker, it precaches a new generation,
+     and #updateBar hands the takeover to the gardener.
+
+     ignoreSearch, because ?debug / ?vp / ?noglass / ?photodemo are read by
+     the page from location.search and must not each be a cache miss. */
   if (req.mode === 'navigate') {
     e.respondWith((async () => {
+      const hit = await caches.match(req, { ignoreSearch: true });
+      if (hit) return hit;
       try {
         const fresh = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put('./index.html', fresh.clone());
+        if (fresh && fresh.ok && fresh.type === 'basic') {
+          const cache = await caches.open(CACHE);
+          cache.put(req, fresh.clone());   // under its own url, never the shell's
+        }
         return fresh;
       } catch (_) {
-        /* Match the requested page FIRST. Falling straight through to the shell
-           would serve the game at /privacy.html the moment the network was
-           gone — the app has more than one navigable page, so index.html is the
-           last resort, not the offline answer for every URL. */
-        return (await caches.match(req)) ||
-               (await caches.match('./index.html')) ||
+        /* A page we have never seen and no network. The shell is the last
+           resort, not the answer for every url — that ordering was already
+           right here and is kept. */
+        return (await caches.match('./index.html')) ||
                (await caches.match('./')) ||
                Response.error();
       }

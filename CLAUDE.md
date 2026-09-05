@@ -2,19 +2,21 @@
 
 A 2.5D perennial-gardening game in the spirit of Piet Oudolf's naturalistic
 planting style. **Design a Garden** is the core: a serious planner — no avatar,
-no movement, a free pan/pinch/twist camera and direct tap-to-place/drag-to-paint
+no movement, a free pan/pinch camera and direct tap-to-place/drag-to-paint
 à la Procreate; no house at start; created via a chip-led questionnaire of
 climate (zone chips, or a ZIP→zone / plain-language winter-cold picker behind a
 "don't know your zone?" flip)/style/native mode + range/deer/rabbit, with a live palette
-count. The menu has four entries: Design a Garden,
-**Daily design challenge** (a date-seeded planting prompt — prompt-only, no
-scoring — that drops you into Design mode; `DAILY_CHALLENGES` /
-`todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried in
-as `game.challenge` and toasted on entry, cleared whenever the main menu shows),
-**Plant Library** (browse every species: list + seasonal images + facts +
-cultivars), and **View Gardens** (open/duplicate/share/manage saved gardens).
-Design a Garden and View Gardens open the SAME list — one `openWorlds()`, no
-filter, no per-mode badge. A dev-only
+count. The menu has three entries, in this order: **Your gardens**
+(`btnDesign` — the single `openWorlds()` list, where a saved garden is
+opened, renamed, duplicated, shared or deleted and a new one is started;
+it used to be two entries, Design a Garden and View Gardens, opening that
+same unfiltered list), **Plant Library** (`btnLibrary` — browse every
+species: list + seasonal images + facts + cultivars), and **Daily design
+challenge** (`btnDaily` — a date-seeded planting prompt, prompt-only and
+unscored, that drops you straight into a garden; `DAILY_CHALLENGES` /
+`todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried
+in as `game.challenge` and toasted on entry, cleared whenever the main menu
+shows). A dev-only
 **Plant Creator** (`plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
@@ -805,7 +807,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `viewDirToWorld`: `drawElevationSides` always did, `drawBuildingTile` did
     not, and struck its extruded rim across the footprint's interior at rot 2.
     World logic never rotates — only the mapping. `rotateView(dir)` also
-    fires from a two-finger twist (~40° per 90° step, alongside pinch-zoom).
+    fires from the R key or the ⟳ button. (Two-finger twist was removed — it
+    fought the pan/zoom gesture; see the note above.)
     **Irregular lots**: `game.plotShape` (optional, saved;
     null = full rectangle) is a 4-vertex polygon on the tile-corner lattice
     masking the GW×GH rectangle into the player's real lot. `setPlotShape`

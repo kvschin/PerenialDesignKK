@@ -5198,6 +5198,98 @@ test('a confirm raised from the menu can still be escaped', () => {
   assert(settings < guard, 'as settings already was');
 });
 
+test('a navigation is cached under its own url, and pages match their scripts', () => {
+  /* The old branch wrote EVERY successful navigation to './index.html'
+     whatever page had been asked for, so one visit to privacy.html put the
+     privacy page in the shell's slot. Reproduced live before the fix: while on
+     privacy.html the './index.html' entry was 5791 bytes of privacy against
+     the shell's 41076.
+
+     And it was network-first, in front of cache-first scripts — a fresh
+     index.html loading against the previous build's js/, which is the mixed
+     release the missing skipWaiting exists to prevent. */
+  const sw = readRepoFile('sw.js');
+  const nav = sw.slice(sw.indexOf("if (req.mode === 'navigate')"));
+  const branch = nav.slice(0, nav.indexOf('/* Everything else'));
+  assert(!/cache\.put\('\.\/index\.html'/.test(branch),
+    'a navigation never writes itself into the shell slot');
+  assert(/cache\.put\(req,/.test(branch), 'it caches under the requested url');
+  const hit = branch.indexOf('await caches.match(req');
+  const net = branch.indexOf('await fetch(req)');
+  assert(hit > -1 && net > -1 && hit < net,
+    'and it is cache-first, so a page comes from the same release as its scripts');
+  assert(/ignoreSearch/.test(branch),
+    '?debug / ?vp / ?photodemo must not each be a cache miss');
+  /* The shell stays the LAST resort for a page we have never seen offline —
+     that ordering was already right and must not be lost. */
+  const fallback = branch.slice(branch.indexOf('catch'));
+  assert(fallback.indexOf("caches.match('./index.html')") < fallback.indexOf("caches.match('./')"),
+    'index.html then ./ then error');
+});
+
+test('both new-garden routes share one reset', () => {
+  /* startDailyChallenge kept its own copy of the reset and was missing
+     buildings and schemes: a challenge started after a garden with a shed
+     inherited the shed, and switching schemes inside it loaded the previous
+     garden's plantings. Reproduced, then fixed by sharing the list. */
+  setup(21, 21);
+  setTile('plants', '3,3', { s: 'bluestem', d: 0, t: 1 });
+  setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
+  addHouse({ x: 2, y: 2, w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] });
+  game.buildings.push({ id: 'b1', vertices: [[8, 8], [10, 8], [10, 10], [8, 10]], status: 'existing', t: 1 });
+  createScheme(false);
+  assert(schemeCount() === 2 && game.buildings.length === 1 && game.houses.length === 1,
+    'sanity: the outgoing garden has all of it');
+
+  resetNewGardenState();
+  for (const L of GAME_LAYERS) {
+    const v = game[L.k];
+    assertEqual(L.array ? v.length : Object.keys(v).length, 0,
+      L.k + ' is cleared — the layer list comes from GAME_LAYERS, so a new layer is cleared by default');
+  }
+  assertEqual(game.schemes.length, 0, 'and the planting schemes go with it');
+  assertEqual(game.schemeActive, null, 'with no scheme left active');
+
+  const src = readRepoFile('js/screens.js');
+  const daily = src.slice(src.indexOf('function startDailyChallenge'));
+  assert(/resetNewGardenState\(\)/.test(daily.slice(0, daily.indexOf('function ', 10))),
+    'the daily challenge uses the shared reset');
+  assert(/resetNewGardenState\(\)/.test(src.slice(src.indexOf("$('btnPlotStart').onclick"), src.indexOf("$('btnPlotBack')"))),
+    'and so does the plot screen');
+});
+
+test('the erase report covers every counter eraseBrush can raise', () => {
+  /* It phrased ten of thirteen. Erasing only a pet, an EMPTY pot or a seat
+     raised a counter nobody read, so a successful erase said "Nothing to erase
+     there." A planted pot still reported, because lifting it clears its
+     planting and that does count — which is most of why this hid. */
+  const src = readRepoFile('js/commands.js');
+  const fn = src.slice(src.indexOf('function eraseBrush'));
+  const body = fn.slice(0, fn.indexOf('\nfunction '));
+  const raised = new Set((body.match(/counts\.([a-zA-Z]+)\s*(?:=|\+\+|\+=)/g) || [])
+    .map(m => m.replace(/counts\./, '').replace(/\s*(?:=|\+\+|\+=)/, '')));
+  assert(raised.size >= 13, 'sanity: eraseBrush raises the counters we think it does (' + raised.size + ')');
+  const phrased = new Set(SWEEP_NOUNS.map(([k]) => k));
+  for (const k of raised) assert(phrased.has(k), 'the erase report phrases counts.' + k);
+  for (const [k, noun] of SWEEP_NOUNS) {
+    assert(raised.has(k), 'SWEEP_NOUNS has no dead entry: ' + k);
+    assert(typeof noun === 'string' && noun.length, k + ' has a noun');
+  }
+});
+
+test('npm run check covers every module index.html loads', () => {
+  /* It listed thirteen and omitted collections.js and photos.js, so a syntax
+     error in either passed the check the workflow tells you to run. */
+  const pkg = JSON.parse(readRepoFile('package.json'));
+  const check = pkg.scripts.check;
+  const html = readRepoFile('index.html');
+  const loaded = (html.match(/<script[^>]+src="(js\/[^"]+)"/g) || [])
+    .map(t => t.match(/src="(js\/[^"]+)"/)[1]);
+  assert(loaded.length >= 14, 'sanity: index.html loads the module list (' + loaded.length + ')');
+  for (const m of loaded) assert(check.indexOf(m) > -1, 'npm run check checks ' + m);
+  assert(check.indexOf('sw.js') > -1, 'and the service worker, which no page loads as a script');
+});
+
 test('switching schemes leaves the ground and terrain caches alone', () => {
   setup(21, 21);
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
