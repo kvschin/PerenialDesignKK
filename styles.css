@@ -288,6 +288,7 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
    (lighter on loam, darker on paper), and the underline carries the meaning
    where colour alone would not. */
 .ext-link{color:var(--color-accent-700);text-decoration:underline;text-underline-offset:2px;
+  display:inline-block;padding:5px 3px;
   text-decoration-thickness:1px;border-radius:var(--radius-control)}
 .ext-link:hover{color:var(--action-primary-hover)}
 .ext-link:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
@@ -2486,6 +2487,23 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .set-choice-opt,.set-action{min-height:44px}
   .settings-x{width:44px;height:44px}
   .set-switch{width:56px;height:34px}
+  /* The track stays 56x34 — a taller one reads as a slab rather than a
+     switch — so the TARGET is grown instead, with a transparent overlay
+     centred on it. The row around it is 92px tall but is not itself a
+     target, so before this the only thing a finger could hit was 34px.
+     Note this rule lives INSIDE the coarse block that is supposed to
+     raise controls to 44: the height above is what pinned it under. */
+  .set-switch::after{content:'';position:absolute;left:0;right:0;top:50%;
+    transform:translateY(-50%);height:44px}
+  /* The garden menu is the most-used menu on a phone and every row in it
+     was 39px, its Close 36px — the dropdown re-pads .btn for a 236px panel
+     and there was no coarse override to put the floor back. */
+  #gardenMenu .pause-actions .btn,#gardenMenu #btnGmClose{min-height:44px}
+  /* "Don't know your zone?" is a standalone button, not an inline link, so
+     it gets no WCAG inline exception. It is also the first-run escape hatch
+     for the one question the questionnaire knows most people cannot answer
+     cold, and it was the smallest thing on that screen at 23px. */
+  .link-toggle{min-height:44px;display:inline-flex;align-items:center}
   .set-switch .set-knob{width:26px;height:26px}
   .set-switch.on .set-knob{transform:translateX(22px)}
 }

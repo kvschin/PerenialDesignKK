@@ -32,6 +32,16 @@ addEventListener('keydown',e=>{
     else trapOverlayFocus(settingsScreenEl,e);
     return;
   }
+  /* Above the hidden-HUD guard, exactly like the settings block: a confirm
+     can be raised from the MAIN MENU and from the worlds list (Delete
+     garden is one), where the HUD is hidden — so an Escape branch below
+     this line never ran on those routes, and focus was not trapped. */
+  const confirmPop=document.getElementById('confirmPop');
+  if (confirmPop){
+    if (e.key==='Escape'){ closeOverlay('confirmPop'); confirmPop.remove(); }
+    else trapOverlayFocus(confirmPop,e);
+    return;
+  }
   if (document.getElementById('hud').classList.contains('hidden')) return;
   if (game.photoEditing && e.key==='Escape'){ e.preventDefault();
     if (game.underlayCalibration) cancelSitePhotoCalibration(); else closeSitePhotoEdit(false); return; }
@@ -40,12 +50,6 @@ addEventListener('keydown',e=>{
   if (selectionMore && e.key==='Escape'){ e.preventDefault(); selectionMore.remove();
     const more=document.querySelector('#selectionActions button[aria-haspopup="menu"]'); if (more) more.focus(); return; }
   if (e.key==='`'){ toggleDebug(); return; }
-  const confirmPop=document.getElementById('confirmPop');
-  if (confirmPop){
-    if (e.key==='Escape'){ closeOverlay('confirmPop'); confirmPop.remove(); }
-    else trapOverlayFocus(confirmPop,e);
-    return;
-  }
   const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','schemeScreen','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
@@ -103,6 +107,7 @@ addEventListener('keydown',e=>{
   if (e.key==='Escape' && normalizedSheetState(game.sheetState)!=='collapsed'){
     e.preventDefault(); setSheetState('collapsed'); return;
   }
+  if ((e.key===' '||e.key==='Enter') && focusHoldsKeys(document.activeElement)) return;
   if (k===' '){ // hold space to pan the canvas (PC)
     e.preventDefault(); spaceHeld=true; updateCanvasCursor(); return;
   }
@@ -349,6 +354,23 @@ cnv.addEventListener('pointerdown',e=>{
   }
   tapAction(x,y,place);
 });
+/* Space and Enter activate whatever the keyboard is on, so the canvas must not
+   swallow them there. It did: Space was taken for the pan before any focused
+   control saw it, and the season box — wired on pointer events, because a HOLD
+   fast-forwards — got neither key, so the control that opens the time menu,
+   pause/resume and the Today/Established lens could not be operated at all.
+
+   :focus-visible rather than :focus is the whole subtlety. Clicking a rail tool
+   with a MOUSE leaves it focused, and a desktop user expects to keep holding
+   Space to pan after that; only a keyboard-focused control should claim the key.
+   Kept as a predicate rather than inlined so the rule can be tested — a real
+   :focus-visible needs real keyboard input, which a headless run has not got. */
+function focusHoldsKeys(el){
+  if (!el || el===document.body) return false;
+  const role=el.getAttribute&&el.getAttribute('role');
+  if (!(el.tagName==='BUTTON'||el.tagName==='A'||role==='switch'||role==='button')) return false;
+  return !el.matches || el.matches(':focus-visible');
+}
 function tapAction(x,y,opts){ // a plain tap acts directly on the tapped tile
   if (x<0||y<0||x>=GW||y>=GH) return;
   game.actX=x; game.actY=y; actHere(opts);

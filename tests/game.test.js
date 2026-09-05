@@ -5107,6 +5107,97 @@ test('the rail reserves what sits below it, not only the bar above', () => {
     'and applySheetState, on both the immediate and the animated path — the sheet rests at three heights');
 });
 
+test('every settings row kind is touch-sized, not just the two that were listed', () => {
+  /* The old assertion named .set-choice-opt and .set-action and stopped there.
+     Settings renders five row kinds, and the two it did not name — switch and
+     links — were exactly the two that were undersized: .set-switch measured
+     56x34 at a coarse pointer, pinned to 34 by a rule INSIDE the coarse block
+     whose job is to raise controls to 44, and the Credits/Privacy/Terms links
+     measured 17px against the identical links in the menu footer at 24.
+
+     Derived from settingsSections() so a row kind added later fails here until
+     it is sized, rather than being silently skipped the way these two were. */
+  const css = readRepoFile('styles.css');
+  const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
+  const kinds = new Set(settingsSections().flatMap(sec => (sec.rows || []).map(r => r.kind)));
+  assert(kinds.size >= 4, 'sanity: settingsSections still describes several row kinds');
+  for (const kind of kinds) {
+    if (kind === 'note') continue;                       // prose, not a target
+    if (kind === 'choice')  assert(/\.set-choice-opt,\.set-action\{min-height:44px\}/.test(coarse), 'choice options are 44');
+    if (kind === 'action')  assert(/\.set-choice-opt,\.set-action\{min-height:44px\}/.test(coarse), 'action rows are 44');
+    if (kind === 'switch')  assert(/\.set-switch::after\{content:''/.test(coarse.replace(/\s+/g, '')) ||
+      /\.set-switch::after\{content:'';position:absolute/.test(coarse.replace(/\n\s*/g, '')),
+      'the switch grows its TARGET to 44 while the track stays 34');
+    if (kind === 'links')   assert(/\.ext-link\{[^}]*padding:5px 3px/.test(css.replace(/\n\s*/g, '')),
+      'the settings links get the same padding the menu footer links have');
+  }
+  /* The track must NOT be stretched to 44 — a 56x44 track reads as a slab. */
+  assert(/\.set-switch\{width:56px;height:34px\}/.test(coarse), 'the visible track is unchanged');
+});
+
+test('the garden menu and the zone escape hatch meet the touch minimum', () => {
+  /* The garden menu is the most-used menu on a phone: nine rows at 208x39 and
+     a 59x36 Close, because #gardenMenu re-pads .btn for its 236px panel and no
+     coarse rule put the floor back. #dgnZoneToggle is a standalone button, so
+     it gets no WCAG inline exception — and it is the first-run escape hatch to
+     the ZIP lookup and the plain-language winter-cold picker, at 121x23. */
+  const css = readRepoFile('styles.css');
+  const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
+  assert(/#gardenMenu \.pause-actions \.btn,#gardenMenu #btnGmClose\{min-height:44px\}/.test(coarse),
+    'every garden-menu row and its Close are 44');
+  assert(/\.link-toggle\{min-height:44px;display:inline-flex/.test(coarse),
+    'and so is "Don\'t know your zone?" — inline-flex, or min-height does nothing to an inline-block');
+});
+
+test('Space and Enter reach a keyboard-focused control instead of the canvas', () => {
+  /* Space was taken for the canvas pan before any focused control saw it, and
+     the season box is wired on pointer events only, so it answered neither key.
+     :focus-visible rather than :focus is the point: a mouse click on a rail
+     tool leaves it focused, and holding Space should still pan after that. */
+  const btn = tag => ({ tagName: tag, getAttribute: () => null, matches: sel => sel === ':focus-visible' });
+  const notVisible = { tagName: 'BUTTON', getAttribute: () => null, matches: () => false };
+  assert(focusHoldsKeys(btn('BUTTON')) === true, 'a keyboard-focused button claims Space and Enter');
+  assert(focusHoldsKeys(btn('A')) === true, 'so does a link');
+  assert(focusHoldsKeys({ tagName: 'DIV', getAttribute: r => r === 'role' ? 'switch' : null, matches: () => true }) === true,
+    'and anything with role=switch');
+  assert(focusHoldsKeys(notVisible) === false,
+    'a MOUSE-focused button does not — Space keeps panning, which is the desktop behaviour');
+  assert(focusHoldsKeys({ tagName: 'DIV', getAttribute: () => null, matches: () => true }) === false,
+    'a plain div never claims them');
+  assert(focusHoldsKeys(null) === false && focusHoldsKeys(document.body) === false,
+    'and neither does nothing-focused');
+
+  const src = readRepoFile('js/input.js');
+  assert(/if \(\(e\.key===' '\|\|e\.key==='Enter'\) && focusHoldsKeys\(document\.activeElement\)\) return;/.test(src),
+    'the keydown handler asks the predicate before it takes Space for the pan');
+  const pan = src.indexOf("if (k===' '){ // hold space to pan");
+  assert(src.indexOf('focusHoldsKeys(document.activeElement)') < pan,
+    'and it asks BEFORE the pan branch, not after');
+
+  /* A <button> fires no pointer events for Enter, and the season box has only
+     pointer handlers. detail===0 is a keyboard-activated click, so the new
+     handler cannot double-fire after the pointerup beside it. */
+  const screens = readRepoFile('js/screens.js');
+  const box = screens.slice(screens.indexOf('function wireSeasonBox'));
+  const body = box.slice(0, box.indexOf('})();'));
+  assert(/addEventListener\('click'/.test(body), 'the season box answers a click at all');
+  assert(/e\.detail!==0\) return;/.test(body), 'and only a keyboard one, so a mouse tap cannot fire it twice');
+});
+
+test('a confirm raised from the menu can still be escaped', () => {
+  /* showConfirm's Escape and focus trap sat BELOW the hidden-HUD return, so on
+     every route where the HUD is hidden — the main menu, the worlds list, where
+     Delete garden lives — neither ran. The settings block was moved above that
+     guard for this exact reason and this one was not moved with it. */
+  const src = readRepoFile('js/input.js');
+  const guard = src.indexOf("if (document.getElementById('hud').classList.contains('hidden')) return;");
+  const confirm = src.indexOf("const confirmPop=document.getElementById('confirmPop');");
+  const settings = src.indexOf("const settingsScreenEl=document.getElementById('settingsScreen');");
+  assert(guard > -1 && confirm > -1 && settings > -1, 'sanity: all three are present');
+  assert(confirm < guard, 'the confirm dialog is handled above the hidden-HUD return');
+  assert(settings < guard, 'as settings already was');
+});
+
 test('switching schemes leaves the ground and terrain caches alone', () => {
   setup(21, 21);
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });

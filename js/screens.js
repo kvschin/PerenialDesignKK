@@ -1540,6 +1540,10 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
       else openPause();
     }
   });
+  box.addEventListener('click',e=>{
+    if (e.detail!==0) return;          // pointer clicks are handled above
+    if (!$('pauseScreen').classList.contains('hidden')) closePause(); else openPause();
+  });
   box.addEventListener('pointerleave',cancelFF);
   box.addEventListener('pointercancel',cancelFF);
   box.addEventListener('lostpointercapture',()=>{ if (pressActive) cancelFF(); });
