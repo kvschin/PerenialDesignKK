@@ -635,7 +635,7 @@ for (let i=0;i<=BLADE_N;i++){ const t=i/BLADE_N;
    `lit` false skips the highlight pass. Callers pass the blade's depth, so the
    skirt of a clump — which is in the mass's own shadow and has no lit face to
    show — costs one fill instead of two. Cheaper AND more correct. */
-function drawBlade(ctx, bx,by, cx,cy, tx,ty, hw, col, lit, tipCol){
+function drawBlade(ctx, bx,by, cx,cy, tx,ty, hw, col, lit, tipCol, stripe, stripeW){
   ribbonPath(ctx, bx,by, cx,cy, tx,ty, BLADE_PROF, hw, 0, 0);
   ctx.fillStyle = shade(col, -14); ctx.fill();
   if (lit!==false && hw > 0.6){     // below this the sliver is sub-pixel noise
@@ -646,6 +646,14 @@ function drawBlade(ctx, bx,by, cx,cy, tx,ty, hw, col, lit, tipCol){
     ribbonPath(ctx, bx,by, cx,cy, tx,ty, BLADE_TIP, hw, 0, 0);
     ctx.fillStyle = shade(tipCol,-4); ctx.fill();
   }
+  if (stripe) drawBladeStripe(ctx,bx,by,cx,cy,tx,ty,stripe,stripeW);
+}
+
+// A tapered central band shares the blade's exact curve and stays inside its
+// outline. Opt-in variegation adds one fill and consumes no random numbers.
+function drawBladeStripe(ctx,bx,by,cx,cy,tx,ty,col,width){
+  ribbonPath(ctx,bx,by,cx,cy,tx,ty,BLADE_PROF,Math.max(0.1,Math.min(0.6,(width||0.65)*0.5)),0,0);
+  ctx.fillStyle=col; ctx.fill();
 }
 
 /* Draw order for a fan: outermost blades first, centre last. The classic loop
@@ -1050,11 +1058,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const z=arc*0.78+rnd()*0.22;
           drawBlade(ctx, baseX,-(1-z)*H*0.02, baseX+bx*0.22,-len*0.46, bx,by,
                     (L.leafW||1.2)*(L.bladeHW||0.85)*(0.84+z*0.16),
-                    shade(S.fol, jit-(1-z)*(L.bladeShade||17)), z>0.42, S.folTip);
+                    shade(S.fol, jit-(1-z)*(L.bladeShade||17)), z>0.42, S.folTip, L.stripe, L.stripeW);
         } else {
           ctx.strokeStyle = shade(S.fol, jit);
           ctx.lineWidth = L.leafW||1.2; ctx.beginPath(); ctx.moveTo(baseX,0);
           ctx.quadraticCurveTo(baseX+bx*0.22, -len*0.46, bx, by); ctx.stroke();
+          if(L.stripe) drawBladeStripe(ctx,baseX,0,baseX+bx*0.22,-len*0.46,bx,by,L.stripe,L.stripeW);
         }
         if (moundHead && mature && seedEvery && i%seedEvery===0){
           const sx=baseX+(rnd()-0.5)*4, sy=-H*(0.82+rnd()*0.22);
@@ -1119,10 +1128,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const z=Math.max(0,1-Math.abs(i/(n-1)-0.5)*2)*0.78+rnd()*0.22;
         drawBlade(ctx, baseX,-(1-z)*H*0.02, (baseX+tip)*0.5,-len*0.62*folH, tip,-len*folH,
                   1.6*(L.bladeHW||0.85)*(0.86+z*0.14),
-                  shade(S.fol, jit-(1-z)*(L.bladeShade||16)), z>0.42, S.folTip);
+                  shade(S.fol, jit-(1-z)*(L.bladeShade||16)), z>0.42, S.folTip, L.stripe, L.stripeW);
       } else {
         ctx.strokeStyle = shade(S.fol,jit); ctx.lineWidth=1.6;
         ctx.beginPath(); ctx.moveTo(baseX,0); ctx.quadraticCurveTo((baseX+tip)*0.5,-len*0.62*folH,tip,-len*folH); ctx.stroke();
+        if(L.stripe) drawBladeStripe(ctx,baseX,0,(baseX+tip)*0.5,-len*0.62*folH,tip,-len*folH,L.stripe,L.stripeW);
       }
       if (plume && mature){
         if (folH<1){
@@ -2465,7 +2475,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const headOn=blooming && i < Math.max(1,Math.ceil(sn*blv));
       const col=(headOn?S.bloom:null)||S.seed;
       if (col){
-        const r=L.headR||4.6;
+        const r=L.headR||4.6, aspect=L.headAspect===undefined?0.78:Math.max(0.5,Math.min(1.4,L.headAspect));
+        if(L.pincushionStyle==='thistle'){
+          const collar=headOn?shade(S.fol,-14):shade(col,-14);
+          ctx.fillStyle=collar; ctx.beginPath();
+          ctx.ellipse(tip,-len+r*0.62,r*0.78,r*0.66,0,0,7); ctx.fill();
+          ctx.strokeStyle=collar; ctx.lineWidth=L.bractW||1; ctx.beginPath();
+          const count=Math.max(5,Math.min(14,L.bracts||9));
+          for(let b=0;b<count;b++){
+            const a=b/count*Math.PI*2, span=r+(L.bractLen||2.4);
+            ctx.moveTo(tip+Math.cos(a)*r*0.55,-len+r*0.62+Math.sin(a)*r*0.28);
+            ctx.lineTo(tip+Math.cos(a)*span,-len+r*0.62+Math.sin(a)*r*0.65);
+          }
+          ctx.stroke();
+        }
         if (L.pincushionStyle==='astrantia'){
           const bracts=Math.max(10,Math.round(L.bracts||16)), bractLen=L.bractLen||3.8, bractW=L.bractW||1;
           if (a2){
@@ -2492,11 +2515,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // The name of the form is the thing classic never drew: a pincushion
           // is a domed cushion studded with florets, not a flat disc. Lit dome,
           // batched radial florets, then the pins.
-          ctx.beginPath(); ctx.ellipse(tip,-len,r,r*0.78,0,0,7);
+          ctx.beginPath(); ctx.ellipse(tip,-len,r,r*aspect,0,0,7);
           litFill(ctx,tip,-len,r,col,24,-28);
           const pins=Math.max(6,Math.round(r*2.2));
           for(let p=0;p<pins;p++){ const pa=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r*0.80;
-            fcPush(tip+Math.cos(pa)*rr,-len+Math.sin(pa)*rr*0.78,r*0.20*(0.8+rnd()*0.4),0.9); }
+            fcPush(tip+Math.cos(pa)*rr,-len+Math.sin(pa)*rr*aspect,r*0.20*(0.8+rnd()*0.4),0.9); }
           fcDraw(ctx,col,28,-4);
           ctx.strokeStyle=shade(col,-25); ctx.lineWidth=0.7; ctx.beginPath();
           for(let p=0;p<8;p++){ const pa=p/8*Math.PI*2;
@@ -2505,7 +2528,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.stroke();
         } else {
         ctx.fillStyle=col;
-        ctx.beginPath(); ctx.ellipse(tip,-len,r,r*0.78,0,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(tip,-len,r,r*aspect,0,0,7); ctx.fill();
         ctx.strokeStyle=shade(col,-25); ctx.lineWidth=0.7;
         for(let p=0;p<8;p++){ const pa=p/8*Math.PI*2;
           ctx.beginPath(); ctx.moveTo(tip,-len);

@@ -2205,7 +2205,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a release — the only defence against a file being deleted from Commons after
     we shipped it offline.
     **The "Learn more" Wikipedia reference is generated, not authored**
-    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 535
+    (`WIKIPEDIA_ARTICLES` in plants.js, `dev/wikipedia-links.js`). All 545
     species carry one. It is a table copied over `PLANTS` at load, exactly like
     `BLOOM_MONTHS` and with the same footgun — a key in the table WINS over an
     inline `externalLinks`, so put the article there, not on the entry.
@@ -2933,6 +2933,21 @@ headings; `moist:'moist'` is the rain-garden classification (the schema has no
 separate carpet, meadow, broad woodland, wet upright, and arching sedges. Palm
 Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`,
 `pendant`) communicate distinctive fruit without bespoke image assets.
+
+**European garden additions (0.8.58):** ten base records and four nested
+cultivars bring the catalog to 545 base records / 381 nested choices. Exact
+selections of feather reed grass, asters, Sesleria, and masterwort share
+presentation groups; 'Overdam' and hybrid Astrantia 'Roma' retain their own
+botanical records. Helenium 'Sahin's Early Flowerer' has explicit hybrid
+provenance and an earlier cultivar bloom window. European garden popularity
+does not assign European native status to Asian or North American taxa.
+Snowy woodrush uses the Sedge browsing category and shared mound renderer.
+Mound `bunchgrass` and `vertgrass` support `look.stripe` (color) and `stripeW`
+(pixel band width) for tapered central variegation. `pincushionStyle:'thistle'`
+adds a spiny involucre; `headAspect` controls the flower's height/width ratio.
+Both controls are opt-in in classic and ART2 rendering. Source and authoring
+notes are in `docs/plant-data/european-implementation.md`; the dev-only
+`dev/european-review.html` covers all 14 choices and all four seasons.
 
 ## Conventions
 

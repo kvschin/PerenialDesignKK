@@ -735,6 +735,10 @@ test('grass blade-tip colour adds one optional tip pass', () => {
   drawBlade(ctx,0,0,2,-8,1,-16,1.2,'#66806b',true,'#8a4652');
   assertEqual(fills.length,3,'an authored foliage tip adds exactly one fill');
   assertEqual(fills[2],shade('#8a4652',-4),'the final pass uses the authored tip family');
+  fills.length=0;
+  drawBlade(ctx,0,0,2,-8,1,-16,1.2,'#66806b',true,undefined,'#d7cf67',0.65);
+  assertEqual(fills.length,3,'variegation adds one tapered fill');
+  assertEqual(fills[2],'#d7cf67','stripe uses the authored color');
 });
 
 test('little bluestem seedheads are elongated feathery racemes, not oval buttons', () => {

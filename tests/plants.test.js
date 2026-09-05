@@ -94,9 +94,9 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,535,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,545,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),377,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),381,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -291,6 +291,39 @@ test('cleaned exact selections keep accepted names and provenance', () => {
   assertEqual(PLANTS.meadowsage.cv.bluehill.nativeTo.join(','),'europe','Blue Hill keeps the Salvia x sylvestris range');
   assertEqual(PLANTS.autumnfire.provenance,'hybrid','Autumn Fire follows its hybrid lineage');
   assertEqual(PLANTS.purpleemperor.provenance,'selection','Purple Emperor remains a species selection');
+});
+
+test('European garden additions preserve botanical identity and exact choices', () => {
+  for(const key of ['cirsiumatropurpureum','cenolophium','bluemoorgrass','snowywoodrush'])
+    assert(PLANTS[key].nativeTo.includes('europe'),`${key}: European wild range`);
+  for(const key of ['evergoldsedge','koreanfeatherreed','kalimerisbluestar']){
+    assert(PLANTS[key].nativeTo.includes('asia'),`${key}: Asian origin`);
+    assert(!PLANTS[key].nativeTo.includes('europe'),`${key}: European garden use is not wild origin`);
+  }
+  for(const key of ['frikartaster','astrantiaroma']){
+    assertEqual(PLANTS[key].provenance,'hybrid',`${key}: hybrid identity`);
+    assertEqual(PLANTS[key].nativeTo.length,0,`${key}: no asserted wild range`);
+  }
+  const sahin=PLANTS.helenium.cv.sahinsearlyflowerer;
+  assertEqual(sahin.latin,"Helenium 'Sahin's Early Flowerer'",'hybrid does not inherit autumnale');
+  assertEqual(sahin.provenance,'hybrid','Sahin hybrid provenance');
+  assertEqual(sahin.nativeTo.length,0,'Sahin hybrid has no wild range');
+  assert(sahin.bloomMonths[0]<PLANTS.helenium.bloomMonths[0],'early cultivar starts before straight sneezeweed');
+  assertEqual(PLANTS.culvers.cv.fascination.nativeTo.join(','),'north-america','Fascination retains species origin');
+  for(const [s,v] of [['greatburnet','tanna'],['culvers','fascination'],['tuftedhair','goldtau']])
+    assertEqual(PLANTS[s].cv[v].provenance,'selection',`${s}.${v}: species selection`);
+  assert(PLANTS.cenolophium.synonyms.includes('Cenolophium denudatum'),'Baltic parsley remains searchable under nursery synonym');
+  assert(PLANTS.frikartaster.synonyms.some(s=>s.includes('Monch')),'ASCII cultivar spelling remains searchable');
+  for(const [a,b] of [['karl','overdam'],['karl','koreanfeatherreed'],['sesleria','bluemoorgrass'],['astrantia','astrantiaroma'],['aster','frikartaster'],['aster','kalimerisbluestar']]){
+    assertEqual(PLANTS[a].group,PLANTS[b].group,`${a}/${b}: shared presentation group`);
+    assertEqual(PLANTS[a].groupLabel,PLANTS[b].groupLabel,`${a}/${b}: consistent label`);
+    assert(PLANTS[a].latin!==PLANTS[b].latin,`${a}/${b}: retain exact botanical choices`);
+  }
+  for(const key of ['evergoldsedge','snowywoodrush']){
+    assertEqual(PLANTS[key].type,'sedge',`${key}: sedge browsing category`);
+    assertEqual(PLANTS[key].form,'bunchgrass',`${key}: shared mound renderer`);
+    assert(PLANTS[key].roles.includes('evergreen'),`${key}: winter foliage role`);
+  }
 });
 
 test('seasonal appearance (sea) is well-formed', () => {
