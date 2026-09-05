@@ -3858,6 +3858,7 @@ function applySheetState(){
     hb.dataset.sheetReady='1';
     if (!ready||reduced||Math.abs(start-target)<1){
       hb.style.height=''; hb.classList.remove('sheet-measuring');
+      if (typeof syncRailBottom==='function') syncRailBottom();
     } else {
       hb.style.height=`${start}px`; hb.getBoundingClientRect();
       hb.classList.remove('sheet-measuring'); hb.classList.add('sheet-animating');
@@ -3866,7 +3867,12 @@ function applySheetState(){
       const finish=()=>{ if (hb._sheetToken!==token) return;
         if (hb._sheetEnd) hb.removeEventListener('transitionend',hb._sheetEnd);
         hb._sheetEnd=null; if (hb._sheetTimer) clearTimeout(hb._sheetTimer); hb._sheetTimer=null;
-        hb.classList.remove('sheet-animating'); hb.style.height=''; };
+        hb.classList.remove('sheet-animating'); hb.style.height='';
+        /* The sheet has finished moving, so the rail can be re-bounded
+           against where it actually came to rest. During the ~200ms flight
+           the rail is briefly over-long, behind a sheet that is animating
+           over it — invisible, and cheaper than measuring every frame. */
+        if (typeof syncRailBottom==='function') syncRailBottom(); };
       hb._sheetEnd=ev=>{ if (ev.target!==hb||ev.propertyName!=='height') return; finish(); };
       hb.addEventListener('transitionend',hb._sheetEnd);
       hb._sheetTimer=setTimeout(finish,700); // cleanup even if rotation/display changes swallow transitionend

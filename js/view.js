@@ -155,9 +155,47 @@ function syncHudTopHeight(){
     document.documentElement.style.setProperty('--hud-top-h',h+'px');
   }
 }
+/* ...and the same for what sits BELOW it. --rail-top reserves the top bar;
+   there was no counterpart underneath, so #canvasTools reserved the bar and
+   nothing else and ran straight under the catalog sheet: on every phone
+   shorter than ~910px its last two rows (Undo, Redo) sat behind the sheet,
+   where a tap hit the sheet handle and the catalog instead. On DOCK the
+   sheet is side-docked and the thing in the way is the zoom pill, whose
+   Zoom out and Fit were being taken by the rail on viewports under ~540px.
+
+   Geometric rather than tier-keyed, so it cannot disagree with the layout:
+   reserve for anything visible that overlaps the rail's own column AND
+   starts below the rail's top. The side-docked library starts above it and
+   is skipped; a bottom sheet and the zoom pill are not. Reading only the
+   rail's top and x-range keeps this free of feedback — neither moves when
+   the reservation changes its height. */
+function syncRailBottom(){
+  const rail=document.getElementById('canvasTools'); if (!rail) return;
+  const rr=rail.getBoundingClientRect(); if (!rr.width) return;
+  const H=trueViewH();
+  let reserve=0;
+  const consider=el=>{
+    if (!el) return;
+    const cs=getComputedStyle(el);
+    if (cs.display==='none'||cs.visibility==='hidden') return;
+    const r=el.getBoundingClientRect();
+    if (!r.width||!r.height) return;
+    if (r.top<=rr.top) return;                    // beside or behind, not beneath
+    if (r.right<=rr.left||r.left>=rr.right) return;  // different column
+    reserve=Math.max(reserve,H-r.top);
+  };
+  consider(document.querySelector('.hud-bottom'));
+  consider(document.querySelector('.zoom-pill'));
+  const px=Math.max(0,Math.round(reserve));
+  if (px!==syncRailBottom._last){
+    syncRailBottom._last=px;
+    document.documentElement.style.setProperty('--rail-bottom-h',px+'px');
+  }
+}
 function sizeCanvas(c, opts){
   if (!c) return;
   syncHudTopHeight();
+  syncRailBottom();
   const active=!!(opts&&opts.active);
   const host=c.id==='gameCanvas'&&c.parentElement&&c.parentElement.classList.contains('canvas-stage') ? c.parentElement : null;
   const hostRect=host&&host.getBoundingClientRect ? host.getBoundingClientRect() : null;
@@ -218,6 +256,7 @@ function repositionOpenChrome(){
 }
 function settleViewportChange(){
   syncHudTopHeight();   // tier changes resize the bar; the sheet reserves it
+  syncRailBottom();     // ...and the sheet/zoom pill are what the RAIL reserves
   setActiveCanvas(activeCanvas());
   calcZoom();
   /* No snapCam here. It recentres on the plot, so every library dock/undock

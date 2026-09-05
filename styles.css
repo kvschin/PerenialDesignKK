@@ -894,7 +894,7 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
      vertically, and a horizontal drag starting on it should do nothing rather
      than nudge anything. Pinch-zoom is off here either way. */
   touch-action:pan-y;
-  max-height:calc(100% - var(--rail-top) - 12px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+  max-height:calc(100% - var(--rail-top) - var(--rail-bottom-h,0px) - 12px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
   scrollbar-width:none;background:var(--surface-workspace);
   border:1.5px solid var(--border-subtle);border-radius:var(--radius-control);padding:var(--space-1);box-shadow:var(--shadow-control)}
 #canvasTools::-webkit-scrollbar{display:none}
@@ -1524,9 +1524,11 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .season-box{height:44px;min-height:44px}
   .pill.iconbar{min-height:44px;align-items:center}
   .pill.iconbar button{min-width:44px;min-height:44px;justify-content:center}
-  /* tools have to clear the bottom tray, so compact the rail: smaller
-     icons + shorter rows, dividers dropped. Any .todo placeholders hide. */
-  #canvasTools{--rail-top:150px;left:8px;padding:3px;gap:2px}
+  /* Compact the rail on this tier: smaller icons + shorter rows, dividers
+     dropped. Any .todo placeholders hide. (Clearing the bottom tray is
+     --rail-bottom-h's job now; the dead rail-top override that used to try
+     it from here was overridden by the later block and never applied.) */
+  #canvasTools{left:8px;gap:2px}
   .active-tool-status{left:8px;top:calc(62px + env(safe-area-inset-top));max-width:calc(100vw - 16px);font-size:10px;padding:5px 8px}
   .canvas-tool{width:44px;min-width:44px;min-height:44px;flex:0 0 auto}
   .canvas-tool canvas{width:34px;height:26px;top:2px}

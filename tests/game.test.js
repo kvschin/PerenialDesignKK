@@ -5061,6 +5061,52 @@ test('sharing exports what is on screen, not what reached storage', () => {
   assert(!/sGet\('hortus:world:'/.test(body), 'and never from the stored copy');
 });
 
+test('the rail reserves what sits below it, not only the bar above', () => {
+  /* #canvasTools reserved --rail-top and nothing else, so it ran under whatever
+     was beneath it. Measured: on a 375x812 phone in the default half sheet the
+     rail ended at 463 against a sheet starting at 365, and its last two rows
+     were not merely hidden — a tap on Undo hit the sheet's grip bar and a tap
+     on Redo hit the catalog's Plants segment. Every SHEET viewport shorter than
+     ~910px was affected. On DOCK the sheet is side-docked and the obstruction
+     is the zoom pill instead: under ~540px tall the rail took Zoom out (arming
+     a tool) and Fit plot (a dead tap).
+
+     The sandbox has no layout engine, so what is pinned here is the source
+     condition — the same thing the tier and touch-target tests pin. The
+     geometry itself was verified in a browser at 375x812, 844x390, 1024x500,
+     1024x600 and 1440x900, right- and left-handed. */
+  const css = readRepoFile('styles.css');
+  const rail = css.slice(css.indexOf('#canvasTools{--rail-top'));
+  const decl = rail.slice(0, rail.indexOf('}'));
+  assert(/max-height:calc\(100% - var\(--rail-top\) - var\(--rail-bottom-h,0px\) - 12px\)/.test(decl),
+    'the rail reserves the top bar AND whatever sits beneath it');
+
+  /* The 150px was overridden by the later SHEET block and never applied, while
+     its comment claimed to be clearing the bottom tray — which it could not do
+     by pushing the rail DOWN. */
+  assert(!/--rail-top:150px/.test(css), 'the dead --rail-top:150px is gone');
+
+  const view = readRepoFile('js/view.js');
+  assert(/function syncRailBottom\(\)/.test(view), 'the reservation is measured, not hardcoded');
+  /* It must be geometric rather than tier-keyed, or it can disagree with the
+     layout the way a width-only breakpoint disagreed with the sheet tier. */
+  assert(/r\.top<=rr\.top/.test(view), 'it skips anything that is not actually beneath the rail');
+  assert(/r\.right<=rr\.left\|\|r\.left>=rr\.right/.test(view), 'and anything in a different column');
+  assert(/\.hud-bottom/.test(view) && /\.zoom-pill/.test(view),
+    'both obstructions are considered');
+
+  /* Re-measured wherever the things it measures can move. */
+  const sized = view.slice(view.indexOf('function sizeCanvas'));
+  assert(/syncRailBottom\(\)/.test(sized.slice(0, sized.indexOf('function '))) || /syncRailBottom\(\);/.test(view.slice(view.indexOf('function sizeCanvas'), view.indexOf('function sizeCanvas') + 400)),
+    'sizeCanvas re-measures it');
+  const settle = view.slice(view.indexOf('function settleViewportChange'));
+  assert(/syncRailBottom\(\)/.test(settle.slice(0, 400)), 'and so does settleViewportChange');
+  const tray = readRepoFile('js/tray.js');
+  const sheet = tray.slice(tray.indexOf('function applySheetState'));
+  assert((sheet.slice(0, sheet.indexOf('function ', 10)).match(/syncRailBottom\(\)/g) || []).length >= 2,
+    'and applySheetState, on both the immediate and the animated path — the sheet rests at three heights');
+});
+
 test('switching schemes leaves the ground and terrain caches alone', () => {
   setup(21, 21);
   setTile('terrain', '5,5', { k: 'bed', c: 'soil', t: 1 });
