@@ -2077,19 +2077,73 @@ test('mobile canvas recovery avoids visible editing chrome', () => {
     VW=390; VH=844;
     document.querySelector=sel=>sel==='.hud-top'?top:sel==='.hud-bottom'?sheet:oldQuery.call(document,sel);
     document.getElementById=id=>id==='canvasTools'?tools:oldGet.call(document,id);
+    /* The answer is CACHED — it used to be measured inside render(), once a
+       frame, against a layout updateCompass had just dirtied. So each scenario
+       below invalidates first, exactly as the app does: settleViewportChange,
+       applySheetState and the handedness toggle all call invalidateUsableRect,
+       with a ResizeObserver behind them as the safety net. */
+    invalidateUsableRect();
     const safe=usableCanvasRect();
     assertEqual(safe.top,126,'safe canvas begins below the top controls');
     assertEqual(safe.left,64,'safe canvas begins beyond the tool rail');
     assertEqual(safe.bottom,612,'safe canvas ends above the open palette');
+    assert(usableCanvasRect()===safe,'a second call inside the same chrome state is the cached object');
     tools.getBoundingClientRect=()=>({left:334,top:150,right:382,bottom:370,width:48,height:220});
+    invalidateUsableRect();
     const rightSafe=usableCanvasRect();
     assertEqual(rightSafe.left,8,'right-side rail leaves the left canvas edge open');
     assertEqual(rightSafe.right,326,'right-side rail is reserved by shared canvas bounds');
     sheet.classList.add('sheet-collapsed');
+    invalidateUsableRect();
     assertEqual(usableCanvasRect().bottom,836,'collapsed palette gives the canvas its height back');
+    // a viewport change invalidates on its own — VW/VH ride the cache key, so
+    // this one needs no explicit invalidate
+    VH=400;
+    assertEqual(usableCanvasRect().bottom,392,'a resize is never served from the cache');
   } finally {
     VW=oldVW; VH=oldVH; document.querySelector=oldQuery; document.getElementById=oldGet;
+    invalidateUsableRect();
   }
+});
+
+test('the phone zoom is for phones, not for short windows', () => {
+  /* baseZoom asks whether this is a phone-sized screen, of the SHORTER side,
+     because a landscape phone is still a phone. The threshold was 760, which no
+     phone comes near — the largest is ~440 across its short side — so every
+     1280x720 laptop and every browser window under 760 tall silently took the
+     phone zoom and drew 1.8x the world area, measured at 8.95ms of frame
+     JavaScript against 5.92ms. */
+  const oldW=innerWidth, oldH=innerHeight, oldUser=userZoom;
+  const at=(w,h)=>{ innerWidth=w; innerHeight=h; userZoom=1; calcZoom(); return baseZoom; };
+  try{
+    assertEqual(at(390,844), 0.75, 'a phone in portrait gets the wider view');
+    assertEqual(at(844,390), 0.75, '...and so does the same phone in landscape');
+    assertEqual(at(440,956), 0.75, 'the largest phone there is still counts');
+    assertEqual(at(1280,720), 1, 'a 720p laptop does NOT — this was the cliff');
+    assertEqual(at(1366,768), 1, 'nor a 768-tall one, which was already correct');
+    assertEqual(at(768,1024), 1, 'nor a portrait tablet, whose framing is unchanged');
+    assertEqual(at(1440,900), 1, 'nor an ordinary desktop');
+    assert(PHONE_ZOOM_MAX_SIDE > 440 && PHONE_ZOOM_MAX_SIDE < 720,
+      'the threshold sits in the gap between the largest phone and the shortest laptop');
+  } finally { innerWidth=oldW; innerHeight=oldH; userZoom=oldUser; calcZoom(); }
+});
+
+test('the selection pill is not measured against a layout it just dirtied', () => {
+  /* positionSelectionActions runs once per frame from render(), and
+     updateCompass writes style.transform earlier in the same frame whenever the
+     camera moved — so this used to force a full style-and-layout recalc every
+     frame of a marquee drag, measured at 330us in a 1,645-node DOM. Two guards:
+     the geometry read is cached across frames, and the function answers "has
+     anything moved" before doing any work at all. */
+  const src=String(positionSelectionActions);
+  assert(/el\._sig===sig/.test(src),
+    'it returns early when the selection, camera, zoom and viewport are all unchanged');
+  assert(src.indexOf('el._sig===sig') < src.indexOf('usableCanvasRect'),
+    'and that guard comes BEFORE the geometry read, or it saves nothing');
+  assert(/usableRectCache/.test(String(usableCanvasRect)),
+    'usableCanvasRect answers from a cache rather than measuring the DOM per call');
+  assert(/invalidateUsableRect\(\)/.test(String(settleViewportChange)),
+    'settleViewportChange drops that cache — it is the choke point every tier, dock and orientation change takes');
 });
 
 test('desktop canvas recovery reserves the Organic side library', () => {
@@ -6834,6 +6888,48 @@ test('an unclassified layer invalidates everything, so a new layer is safe by de
   markLayerCacheChanged('somethingNobodyClassifiedYet');
   assert(sceneKey() !== scene0 && shadeMapKey(false) !== shade0 && groundDataKey() !== ground0,
     'unknown layers fall back to invalidating every cache rather than silently going stale');
+});
+
+test('sprite keys are baked once per scene, not rebuilt every frame', () => {
+  /* The keys are content-addressed, which is what makes both caches work — but
+     COMPUTING them was not cached. structSpriteSpec ran 1.265us x 295
+     structures and the plant key 0.494us x 645 clumps, every frame, for values
+     whose only moving parts are two integers off the clock. */
+  setup(25, 25);
+  setTile('plants', '5,5', { s:'bluestem', d:0, t:1 });
+  setTile('fences', '2,2', { style:'privacy', height:6, gate:false, t:1 });
+  buildScene(800, 450);
+
+  const plant = scene.ents.find(e => e.kind === SCENE_K.PLANT);
+  assert(plant && plant.kSlot && plant.kTail !== undefined && plant.sv !== undefined,
+    'a plant record carries its baked key parts');
+  assert(plant.kSlot.indexOf(String(plant.seed)) === 0, 'the slot starts with the clump seed');
+  assert(plant.kSlot.indexOf('bluestem') > 0, 'and names the species');
+  assertEqual(typeof plant.hasBloom, 'boolean', 'and whether it blooms this season at all');
+
+  // the struct spec memoises on the record and is not recomputed
+  const fence = scene.ents.find(e => e.kind === SCENE_K.FENCE);
+  assert(fence && fence._spec === undefined, 'a fresh record starts with no cached spec');
+  const first = structSpriteSpec(fence);
+  assert(fence._spec === first, 'the first call memoises it on the record');
+  assert(structSpriteSpec(fence) === first, 'and the second returns the same object');
+
+  /* The invalidation is the record's own lifetime: a scene rebuild makes new
+     objects, so there is nothing to remember to clear. That only holds while
+     every input the spec reads also rebuilds the scene — editing the fence
+     layer bumps sceneRev, so this is the check that matters. */
+  const before = sceneKey();
+  setTile('fences', '3,2', { style:'privacy', height:6, gate:false, t:2 });
+  assert(sceneKey() !== before, 'editing a neighbouring fence invalidates the scene list');
+  buildScene(800, 450);
+  assert(scene.ents.find(e => e.kind === SCENE_K.FENCE) !== fence,
+    'so the record — and its cached spec — is thrown away with it');
+
+  /* Season, rotation and the night flag are deliberately NOT in spec.key: the
+     caller appends them, because a night toggle does not rebuild the scene. */
+  const spec = structSpriteSpec(scene.ents.find(e => e.kind === SCENE_K.FENCE));
+  assert(spec && spec.key.indexOf('Summer') < 0 && spec.key.indexOf('Winter') < 0,
+    'the spec key carries no season — drawStructMaybeCached appends it');
 });
 
 test('the sprite spec takes its geometry from the shared draw box', () => {

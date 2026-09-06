@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.63';
+const APP_VERSION = '0.8.64';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -306,6 +306,13 @@ function setLeftHandedLayout(on,animate=true){
   leftHandedLayout=!!on;
   try{ localStorage.setItem(LEFT_HANDED_KEY,leftHandedLayout?'1':'0'); }catch(_){ }
   applyLeftHandedLayout(animate);
+  /* The rail changes SIDE without changing size, which a ResizeObserver cannot
+     see — so drop the cached usable rect here. It belongs on the setter rather
+     than on applyLeftHandedLayout because that also runs at core.js LOAD time,
+     where view.js's `let` is still in its temporal dead zone: the function
+     declaration hoists across the shared scope and the variable does not, so
+     the typeof guard passes and the read throws. */
+  if (typeof invalidateUsableRect==='function') invalidateUsableRect();
   return leftHandedLayout;
 }
 applyLeftHandedLayout(false);

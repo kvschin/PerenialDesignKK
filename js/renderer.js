@@ -1124,11 +1124,41 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   return { cv, ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
-function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites){
+/* ---- the parts of a sprite key that do not change from frame to frame ----
+   The key is content-addressed, which is what makes both caches work; what was
+   missing is that COMPUTING it was not cached. Every clump rebuilt two strings
+   and a JSON.stringify of its detail bake on every frame — 0.494us x 645 plants
+   = 0.32ms — for a value whose only moving parts are two small integers off the
+   clock. Everything else (the seed, the species, the cultivar, the season, the
+   neighbour-derived detail) is fixed for the life of the scene list, so it is
+   baked once by buildScene and the frame concatenates the buckets onto it.
+   Season is safe to bake because it derives from absDay(), which sceneKey
+   already carries. */
+function bakePlantKeyParts(rec,key,variant,season,seed,detail){
+  rec.kSlot=seed+'|'+key+'|'+(variant||'')+'|'+season;
+  rec.kTail='|'+(detail?JSON.stringify(detail):'');
+  rec.sv=key+'|'+(variant||'');
+  rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
+}
+/* bloomLevel is a pure function of the species and the clock, so within one
+   frame every clump of a species has the same answer — 532 calls collapsing to
+   one per species (0.324us each, 0.17ms a frame). Keyed on the record's baked
+   `sv` so the lookup allocates nothing, and cleared per frame off pspriteFrame's
+   counter, which increments exactly once per render. */
+let bloomMemo=new Map(), bloomMemoFrame=-1;
+function bloomLevelForFrame(sv,key,variant){
+  if (bloomMemoFrame!==PSPRITE.frame){ bloomMemoFrame=PSPRITE.frame; bloomMemo.clear(); }
+  let v=bloomMemo.get(sv);
+  if (v===undefined){ v=bloomLevel(key,variant); bloomMemo.set(sv,v); }
+  return v;
+}
+function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
   if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
-  const P=plantDef(key,variant), bloomS=bloomAppearanceFor(P,season);
-  const gB=gbucket(growth,9), bB=bloomS?gbucket(bloomLevel(key,variant),4):0;
-  const kk=seed+'|'+key+'|'+(variant||'')+'|'+season+'|'+gB+'|'+bB+'|'+(detail?JSON.stringify(detail):'');
+  // a caller with no record (or one from before this frame's scene) pays the old price
+  if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
+  const gB=gbucket(growth,9);
+  const bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
+  const kk=rec.kSlot+'|'+gB+'|'+bB+rec.kTail;
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 
      Growth and bloom are bucketed off the clock, so the instant either moves,
@@ -1147,7 +1177,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
 
      `detail` is deliberately NOT in the slot either: it is a neighbour-derived
      bake, so an old one is as dead as an old growth bucket. */
-  const slot=seed+'|'+key+'|'+(variant||'')+'|'+season;
+  const slot=rec.kSlot;   // baked above — it IS seed|key|variant|season
   let e=PSPRITE.map.get(kk);
   // A sprite baked at a very different zoom blits soft, so re-render it (budget
   // permitting) at the current scale. But to keep zooming smooth, reuse the old
@@ -1353,7 +1383,20 @@ function structDrawBox(e){
   }
   return null;
 }
+/* Memoised on the scene record, for the reason bakePlantKeyParts exists: this
+   was 1.265us x 295 structures = 0.373ms a frame, and every input it reads —
+   the record, the neighbouring fences, the elevation samples, the rotation the
+   building tile asks viewDirToWorld about — is something that rebuilds the
+   scene list when it changes. A fresh record has no `_spec`, so a rebuild
+   invalidates this by construction and there is nothing to remember to clear.
+   `season`, `rot` and `lit` are deliberately NOT in spec.key (the caller
+   appends them), so a night toggle, which does not rebuild the scene, still
+   reaches a different sprite. */
 function structSpriteSpec(e){
+  if (e._spec!==undefined) return e._spec;
+  return (e._spec=computeStructSpriteSpec(e));
+}
+function computeStructSpriteSpec(e){
   const box=structDrawBox(e);
   if (!box) return null;
   switch(e.kind){
@@ -2015,7 +2058,12 @@ function buildScene(W,H){
         bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
   }
   ents.sort((a,b)=>a.d-b.d);
-  for (const e of ents) setEntScreenBounds(e);
+  const season=calClock().season;      // safe to bake: sceneKey carries absDay()
+  for (const e of ents){
+    setEntScreenBounds(e);
+    if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB)
+      bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
+  }
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
     lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
@@ -2046,13 +2094,13 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites);
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
       return 1;
     }
     case SCENE_K.PLANT:{
       let g=displayPlantGrowth(e.p); if (e.stunt) g*=0.45;      // struggling under canopy
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites);
+      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       return 1;
     }
     case SCENE_K.GHOST:

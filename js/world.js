@@ -1417,19 +1417,28 @@ function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWor
 }
 function viewScreen(vx,vy,W,H){ return [W/2 + isoX(vx,vy) - cam.x, H*0.24 + isoY(vx,vy) - cam.y]; }
 function screenOfFlat(x,y,W,H){ const [vx,vy]=worldToView(x,y); return viewScreen(vx,vy,W,H); }
-function screenOf(x,y,W,H){ const [sx,sy]=screenOfFlat(x,y,W,H); return [sx,sy-elevationAt(x,y)*ELEV_STEP]; }
+/* Lifts the point screenOfFlat just made rather than building a second one.
+   Safe because that array is freshly created by viewScreen on every call and
+   nothing else can be holding it — and this is one of the two or three hottest
+   functions in the renderer, so a pair of allocations saved here is thousands
+   a frame. Do NOT copy this pattern onto a function that can return a shared or
+   cached array. */
+function screenOf(x,y,W,H){ const p=screenOfFlat(x,y,W,H); p[1]-=elevationAt(x,y)*ELEV_STEP; return p; }
 function plantOffset(p){
   const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
   return {ox:Number.isFinite(ox)?ox:0, oy:Number.isFinite(oy)?oy:0};
 }
 function plantScreenOf(x,y,p,W,H){
-  const o=plantOffset(p);
-  const s=screenOf(x+o.ox,y+o.oy,W,H);
+  // the offset read inline: plantOffset allocates an object, and this runs once
+  // per drawn plant per frame
+  const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
+  const s=screenOf(x+(Number.isFinite(ox)?ox:0), y+(Number.isFinite(oy)?oy:0), W, H);
   /* A plant standing in a container starts at the rim, not the ground. This is
      the one choke point the plant AND bulb passes share, so lifting here is
      what keeps a pot of tulips and a pot of sedge agreeing. */
   const pot=typeof potAt==='function' && potAt(x,y);
-  return pot ? [s[0], s[1]-potLiftPx(pot)] : s;
+  if (pot) s[1]-=potLiftPx(pot);   // s is screenOf's own fresh array (see there)
+  return s;
 }
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);

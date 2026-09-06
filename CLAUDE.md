@@ -962,6 +962,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rot 1/2/3 today. A piece's drawn LENGTH is its real length along its own
     axis, which projects past the diagonal span of the tiles it claims by a
     different amount at each rotation; one rotation proves nothing.
+    **The sprite KEYS are baked once per scene, not rebuilt per frame.** Both
+    caches are content-addressed, which is what makes them work — but computing
+    the key was itself uncached: `structSpriteSpec` ran 1.265us x 295 structures
+    and the plant key 0.494us x 645 clumps (with a `JSON.stringify` of the
+    detail bake in it) on every frame, for values whose only moving parts are
+    two integers off the clock. `structSpriteSpec` memoises `_spec` on the scene
+    record and `bakePlantKeyParts` bakes `kSlot`/`kTail`/`sv`/`hasBloom` in
+    `buildScene`. **The invalidation is the record's own lifetime** — a rebuild
+    makes new objects, so there is nothing to remember to clear — and that holds
+    only while every input the key reads also rebuilds the scene, which is why
+    `season`, `rot` and `lit` stay OUT of `spec.key` and are appended by
+    `drawStructMaybeCached`: a night toggle does not rebuild the scene.
+    `bloomLevel` is memoised per FRAME per species (off `PSPRITE.frame`), since
+    every clump of a species has the same answer within a frame — 532 calls
+    become one per species. Measured after: `computeStructSpriteSpec` 0 calls a
+    frame, `structRecordSig` 0, `bloomAppearanceFor` 0, `bloomLevel` 532 -> 140.
     Two dev-only verifiers hold this up, beside `verifyStructureSprites`:
     `measureStructBoxes()` (does every box contain its drawing, at all four
     rotations) and `verifySceneCull()` (diff the frame against one rendered with
@@ -1451,6 +1467,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     costs only that boolean check.
     Small screens render at `ZOOM` 0.75 (~1.3x more world); all pointer
     math divides by it (`evPlacement`). Cost scales with screen size, not `GRID`.
+    **"Small" is `PHONE_ZOOM_MAX_SIDE` (600) against the SHORTER side**, and the
+    shorter side is the right question because a phone in landscape is still a
+    phone — it is DOCK for layout, so the responsive tier cannot answer this one.
+    The threshold was 760, which is not a phone number: the largest phone is
+    ~440 CSS px across its short side, while a 1280x720 laptop is 720. So every
+    720p desktop and every browser window under 760 tall silently took the phone
+    zoom and drew 1.8x the world area — measured on the bench garden, 1,794
+    tiles and 1,068 entities against 1,248 and 795, and 8.95ms of frame
+    JavaScript against 5.92ms. A 34% cliff crossed by resizing a window. 600
+    leaves every real phone below it and every tablet and laptop above it, so
+    the only framing that changes is in the 600-759 gap this never meant to
+    catch. A test walks the real device sizes.
 11a. **Ground material grain** (`drawMaterialGrain` + the `grain*` primitives,
     world.js) — what makes gravel look like gravel and mulch like mulch rather
     than like one speckle in different tints. Each material names a `texture`
@@ -2400,7 +2428,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (at 932x430 the category strip and the Filters button were 0% visible with
     no scrollbar to recover them).
     `usableCanvasRect()` detects the side-docked library and reserves its right
-    edge for Fit Plot, selection/build actions, and camera recovery. The
+    edge for Fit Plot, selection/build actions, and camera recovery.
+    **It is CACHED, and that is load-bearing rather than an optimisation.** Its
+    own comment already said it reads live DOM bounds "never in render()" — and
+    `positionSelectionActions` called it from render, so with a selection live
+    every frame did a `getComputedStyle` and five `getBoundingClientRect`s, and
+    `updateCompass` writes `style.transform` earlier in the SAME frame whenever
+    the camera moved. Write, then read, every frame: textbook layout thrash.
+    Measured, a `getBoundingClientRect` on a dirty layout costs **463us** in
+    this 1,645-node DOM, and the call was 330us of every frame of a marquee
+    drag. Nothing it measures moves with the camera, so the answer is cached and
+    dropped two ways: explicitly by `invalidateUsableRect()` from
+    `settleViewportChange`, `applySheetState` and `setLeftHandedLayout` (the
+    rail changes SIDE without changing size, which an observer cannot see), and
+    by a `ResizeObserver` over the four elements as the safety net. VW/VH ride
+    the cache key, so a resize needs no explicit drop. `positionSelectionActions`
+    also answers "has anything moved" before doing any work — the DOM write was
+    already change-guarded, the work to decide it was not.
+    Note `setLeftHandedLayout`, not `applyLeftHandedLayout`: the latter also
+    runs at core.js LOAD time, where view.js's `let` is still in its temporal
+    dead zone — the function declaration hoists across the shared scope and the
+    variable does not, so a `typeof` guard passes and the read throws.
+    The
     dropdown includes Recommended, All eligible, Favorites, and every named
     palette; a separate **Manage plant palettes** action creates, renames, and
     deletes named palettes. Favorites and named palettes always open to a real

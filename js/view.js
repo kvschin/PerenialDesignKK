@@ -30,8 +30,21 @@ let ZOOM = 1, baseZoom = 1, userZoom = 1;
    capped at 1.5x DPR. */
 const ZOOM_MIN=0.4, ZOOM_MAX=2.0;
 const USER_ZOOM_MIN=0.4, USER_ZOOM_MAX=2.8;
+/* "Is this a phone-sized screen?", asked of the SHORTER side, because a phone
+   in landscape is still a phone (and is DOCK for layout, so the responsive tier
+   cannot answer this one). The threshold was 760, which is not a phone number:
+   the largest phone is ~440 CSS px across its short side, while a 1280x720
+   laptop is 720 and a browser window shorter than 760 is commonplace. So every
+   720p desktop silently took the phone zoom and drew 1.8x the world area —
+   measured on the bench garden, 1,794 tiles and 1,068 entities against 1,248
+   and 795, and 8.95ms of frame JavaScript against 5.92ms. A 34% cliff crossed
+   by resizing a window.
+   600 leaves every real phone below it with room to spare and every tablet and
+   laptop above it, so the only screens whose framing changes are the ones in
+   the 600-759 gap this was never meant to catch. */
+const PHONE_ZOOM_MAX_SIDE=600;
 function calcZoom(){
-  baseZoom = Math.min(innerWidth,innerHeight)<760 ? 0.75 : 1;
+  baseZoom = Math.min(innerWidth,innerHeight)<PHONE_ZOOM_MAX_SIDE ? 0.75 : 1;
   ZOOM = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, baseZoom*userZoom));
 }
 function setUserZoom(z){
@@ -50,7 +63,40 @@ function updateZoomPill(){
    recovery share this one rectangle so a selection pill, a building draft, or
    Fit Plot never lands beneath the editing chrome. It deliberately reads live
    DOM bounds only on state changes / explicit callers, never in render(). */
+/* CACHED, because the comment above is a promise the code was not keeping:
+   positionSelectionActions calls this from inside render(), so with a selection
+   live every frame did a getComputedStyle and five getBoundingClientRects — and
+   updateCompass writes style.transform earlier in the same frame whenever the
+   camera has moved, so the layout was always dirty when this read it. Write,
+   then read, every frame: textbook thrash. Measured, a getBoundingClientRect on
+   a dirty layout costs 463us in this app's 1,645-node DOM, and the call cost
+   330us of every frame of a marquee drag.
+   Nothing this measures moves with the camera — the bar, the rail, the sheet and
+   the site-photo editor change only when the CHROME changes — so the answer is
+   cached and invalidated two ways: explicitly from settleViewportChange (which
+   every tier, dock, sheet and orientation change already funnels through), and
+   by a ResizeObserver over the elements themselves, which catches whatever the
+   explicit path misses. */
+let usableRectCache=null, usableRectObs=null;
+function invalidateUsableRect(){ usableRectCache=null; }
+function watchUsableRect(){
+  if (typeof ResizeObserver!=='function') return;
+  if (!usableRectObs) usableRectObs=new ResizeObserver(invalidateUsableRect);
+  // re-resolved on every measure, because #sitePhotoEditor is built on demand
+  // and would never be observed if we only looked once. Observing an element
+  // twice is a no-op.
+  for (const sel of ['.hud-top','#canvasTools','.hud-bottom','#sitePhotoEditor','#gameCanvas']){
+    const el=document.querySelector(sel); if (el) usableRectObs.observe(el);
+  }
+}
 function usableCanvasRect(){
+  if (usableRectCache && usableRectCache.vw===VW && usableRectCache.vh===VH) return usableRectCache.r;
+  watchUsableRect();
+  const r=measureUsableCanvasRect();
+  usableRectCache={vw:VW, vh:VH, r};
+  return r;
+}
+function measureUsableCanvasRect(){
   const out={left:8,top:8,right:Math.max(8,VW-8),bottom:Math.max(8,VH-8)};
   const frame=canvasViewportRect();
   const take=(el,edge)=>{
@@ -255,6 +301,7 @@ function repositionOpenChrome(){
   if (typeof tourRender==='function') tourRender();
 }
 function settleViewportChange(){
+  invalidateUsableRect();   // the chrome is what usableCanvasRect measures
   syncHudTopHeight();   // tier changes resize the bar; the sheet reserves it
   syncRailBottom();     // ...and the sheet/zoom pill are what the RAIL reserves
   setActiveCanvas(activeCanvas());

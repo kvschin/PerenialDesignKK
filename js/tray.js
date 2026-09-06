@@ -969,6 +969,12 @@ function positionSelectionActions(){
   const el=document.getElementById('selectionActions');
   if (!el || el.classList.contains('hidden') || !game.sel) return;
   const r=game.sel, W=VW/ZOOM, H=VH/ZOOM;
+  /* Called once per frame from render(). Nothing below can have moved unless
+     the selection, the camera or the viewport did, so answer that first — the
+     write was already change-guarded, but the WORK to decide it was not. */
+  const sig=r.x0+','+r.y0+','+r.x1+','+r.y1+'|'+cam.x+','+cam.y+'|'+ZOOM+'|'+VW+'x'+VH;
+  if (el._sig===sig) return;
+  el._sig=sig;
   const top=screenOf((r.x0+r.x1)/2, r.y0-0.7, W, H);
   let x=Math.round(top[0]*ZOOM), y=Math.round(top[1]*ZOOM);
   const safe=typeof usableCanvasRect==='function' ? usableCanvasRect() : {left:86,top:118,right:VW-86,bottom:VH-120};
@@ -3829,6 +3835,9 @@ function flyLibraryToLauncher(from){
 }
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
+  // the sheet is one of the four things usableCanvasRect measures, and the
+  // ResizeObserver behind it only fires a frame later
+  if (typeof invalidateUsableRect==='function') invalidateUsableRect();
   const priorFocus=document.activeElement;
   const catalog=document.getElementById('sheetCatalog');
   const focusWasInCatalog=!!(priorFocus&&catalog&&catalog.contains(priorFocus));
