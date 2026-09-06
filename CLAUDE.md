@@ -978,6 +978,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     every clump of a species has the same answer within a frame — 532 calls
     become one per species. Measured after: `computeStructSpriteSpec` 0 calls a
     frame, `structRecordSig` 0, `bloomAppearanceFor` 0, `bloomLevel` 532 -> 140.
+    **The shrub-footprint pass culls the same way**, and it is the third place
+    this trap was found: the resting `'base'` discs were drawn for every shrub
+    surviving the tile bbox, and each is a large translucent ellipse fill and
+    stroke, so the surplus is pure overdraw. `buildScene` bakes the ellipse's
+    camera-free screen bounds onto the shrub record. Measured on a quarter acre
+    at phone size, **67 passed the old test and 13 were on screen**.
+    `verifySceneCull` covers both passes.
     Two dev-only verifiers hold this up, beside `verifyStructureSprites`:
     `measureStructBoxes()` (does every box contain its drawing, at all four
     rotations) and `verifySceneCull()` (diff the frame against one rendered with
@@ -1212,6 +1219,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (never the visible set, so the cache can't thrash/flicker), sprite scale is
     capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
     few frames rather than wiping (the blit auto-scales).
+    **That never-the-visible-set rule means the budget is not a ceiling, and on
+    a phone it stops being one entirely.** Measured on a quarter acre at
+    375×812 with DPR 1.5: 61.7MB against the 48MB budget with **zero** evictable
+    sprites — the whole working set was on screen, so eviction could not act in
+    exactly the situation it exists for, and 51 sprites held 80% of it. The
+    per-sprite resolution clamp was a flat 1024px, so a phone baked sprites
+    larger than its own screen; it is **`spriteMaxPx()`** now, the canvas's
+    shorter side × 1.15, floored at 512 and capped at the old 1024 so big
+    screens are untouched. A sprite much larger than the screen is one you can
+    only ever see a fraction of. Measured deterministically against a true 1:1
+    bake of the largest species (cottonwood, 813×962 draw units): the old 1024
+    clamp ALREADY differed by 2.9% of pixels at a mean of 11.5/255 — the trade
+    was being made already — and the new cap takes that to ~4.1% and 14.8 while
+    cutting the biggest sprite from 3.39MB to 1.38MB and the scene peak from
+    67.5MB to 53.4MB. Do NOT measure this by clearing the cache and diffing two
+    rendered frames: the bake budget makes the frame non-deterministic and the
+    control comes back at 19% differing, which swamps the signal. Bake one
+    species offscreen and diff that.
+    What is left is not waste: ~58 medium woody sprites at screen resolution.
+    A hard byte ceiling was considered and rejected — over budget by ~5MB is
+    about seven sprites, and refusing to bake them puts the most expensive
+    plants in the garden on the procedural path every frame.
     **But that re-bake must wait for the gesture to END** (`noteSpriteZoom` /
     `SPRITE_ZOOM_SETTLE` / `spriteRescaleDue`, shared by both caches). A sprite
     whose baked scale drifts 12% off the current one re-bakes so the blit stays
@@ -1774,7 +1803,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     clockwise bearing from plot-up that is independent of `game.rot`.
     `updateCompass` ray-intersects its rotated N/E/S/W vectors with the plot
     boundary, then projects those geographic edge markers through the current
-    camera rotation. The same bearing rotates the cached derived sun path and
+    camera rotation. **Its chrome signature is built on every frame, before its
+    own early-out can fire**, because that signature is part of the key the
+    early-out compares — measured at 3.05µs of the 3.55µs a fully-cached
+    `updateCompass` cost, i.e. the whole call was the string. Two things made it
+    that: twelve `getElementById` lookups for elements that never move, and a
+    `map`/`join` building thirteen intermediate strings. The elements are cached
+    now (re-resolved only when one is missing or detached, which is the case for
+    the ones built on demand) and the key is concatenated in place: 1.6µs. The
+    remaining `className` reads are the semantic part and stay.
+    Small, but it is per-frame DOM traversal for a question the model already
+    knows the answer to, and it is the pattern most likely to be copied into the
+    next per-frame helper. The same bearing rotates the cached derived sun path and
     exported plan arrow; Rotate View never changes site orientation. The
     non-painting view tools — Rotate and **Layers** — live in the top bar
     beside the season dial (`syncTopTools` keeps their icons/state in sync).
@@ -2871,7 +2911,23 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 17. **Menu meadow + main loop** — animated title background, then `loop(t)`.
     The loop throttles itself: garden frames render full-rate only while
     something is happening (`shouldRenderGarden` — a state signature +
-    gesture/fx checks + a 700ms activity grace), else at a 30fps idle cadence;
+    gesture/fx checks + a **250ms** activity grace, `IDLE_GRACE_MS`), else at a
+    30fps idle cadence.
+    **That grace was 700ms and bought nothing.** Responsiveness does not depend
+    on it: an input that changes anything changes `renderStateSig`, and the very
+    next frame renders regardless. What it genuinely has to cover is the repaint
+    an input DEFERS and the signature therefore cannot see — the crisp ground
+    rebake at `GROUND_PAN_SETTLE` (180ms) and the sprite rescale at
+    `SPRITE_ZOOM_SETTLE` (140ms). At 700 it cost ~50 of the 60 frames in the
+    second after every pause in a gesture, on a garden that was not changing;
+    at 250 it costs 37, and the pauses in design work are constant. This is a
+    battery and thermal fix rather than a frame-time one, which on a phone is
+    the same thing in the end — sustained draw means throttling, and a throttled
+    phone makes every other cost in this file worse for the rest of the session.
+    The shorter grace is only safe because the **signature is now honest about
+    the footprint draft**: its rubber-band edge follows a tile CORNER, finer
+    than `game.hoverTile`, and used to be covered only because any pointermove
+    kept the long grace alive (`buildingDraftSig`);
     render is skipped entirely under the full-screen Library/Plan/Bloom/Export
     overlays, and the menu meadow runs at 30fps. A **glass governor**
     (`updateGlassMode`, `GLASS`) watches frame *spacing* on interaction frames

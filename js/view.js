@@ -363,15 +363,29 @@ function compassElements(){
   compassDom={ root, labels:Array.from(root.querySelectorAll('.compass-edge-label')) };
   return compassDom;
 }
+/* Built on EVERY frame, before updateCompass's own early-out can fire, because
+   it is part of the key that early-out compares. Measured at 3.05us of the
+   3.55us a fully-cached updateCompass cost — the whole call was this string.
+   Two things made it expensive and neither was necessary: twelve
+   getElementById lookups for elements that never move, and a map/join that
+   built thirteen intermediate strings and two arrays. The elements are cached
+   (re-resolved only when one is missing or has been detached, which is the
+   case for the ones built on demand) and the key is concatenated in place. */
+const COMPASS_CHROME_IDS=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow',
+  'brushBar','trayTabs','toolTray','plantCard','selectionActions','sitePhotoEditor'];
+let compassChromeEls=null;
 function compassChromeStateKey(){
-  const bodyCls=(document.body&&document.body.className)||'';
-  const ids=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow','brushBar','trayTabs','toolTray','plantCard','selectionActions','sitePhotoEditor'];
-  const parts=ids.map(id=>{
-    const el=document.getElementById(id);
-    return el ? [id,el.className||'',el.style&&el.style.display||''].join(':') : id+':x';
-  });
-  return [VW,VH,bodyCls,game.sheetState||'',game.toolMenu||'',game.trayCat||'',game.drill||'',
-    game.searchOpen?1:0,game.catMenuOpen?1:0,parts.join('|')].join('|');
+  if (!compassChromeEls) compassChromeEls=new Array(COMPASS_CHROME_IDS.length).fill(null);
+  let out=VW+'|'+VH+'|'+((document.body&&document.body.className)||'')+'|'+
+    (game.sheetState||'')+'|'+(game.toolMenu||'')+'|'+(game.trayCat||'')+'|'+(game.drill||'')+'|'+
+    (game.searchOpen?1:0)+'|'+(game.catMenuOpen?1:0);
+  for (let i=0;i<COMPASS_CHROME_IDS.length;i++){
+    let el=compassChromeEls[i];
+    if (!el || !el.isConnected) el=compassChromeEls[i]=document.getElementById(COMPASS_CHROME_IDS[i]);
+    out += el ? '|'+(el.className||'')+':'+((el.style&&el.style.display)||'')
+              : '|x';
+  }
+  return out;
 }
 function compassChromeRects(stateKey){
   if (compassChrome.key===stateKey) return compassChrome.rects;

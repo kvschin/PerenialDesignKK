@@ -1050,6 +1050,31 @@ function spriteRescaleDue(baked,current){
   return ratio > 1+SPRITE_ZOOM_DRIFT;
 }
 function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
+/* The longest side a single baked sprite may have, in device pixels.
+
+   It was a flat 1024, and the giants are where all the memory is: measured on a
+   quarter acre, 51 sprites held 80% of 57.7MB, and on a retina phone the same
+   garden sat at 61.7MB against a 48MB budget with ZERO evictable sprites — the
+   whole working set was on screen, so eviction could not act and the budget was
+   decorative in exactly the situation it exists for.
+
+   A cap proportional to the canvas is the principled version of the same idea:
+   a sprite much larger than the screen's SHORTER side is one you can only ever
+   see a fraction of, so the detail past that point is memory nobody looks at.
+   Measured deterministically on the biggest species in the catalog (cottonwood,
+   813x962 draw units), against a true 1:1 bake: the old 1024 cap ALREADY
+   differed by 2.9% of pixels at a mean of 11.5/255 — this trade is one the app
+   was making already — and 640 takes that to 4.1% and 14.8 while cutting that
+   one sprite from 3.39MB to 1.32MB. On the phone above it takes the scene from
+   61.7MB to 47.1MB, which is the first time the budget has been reachable.
+   Big screens keep the old behaviour: the cap only bites when the canvas is
+   small, which is where the memory matters. */
+const SPRITE_CAP_MIN=512, SPRITE_CAP_MAX=1024, SPRITE_CAP_SCREENS=1.15;
+function spriteMaxPx(){
+  const shortSide=Math.min(cnv.width||0, cnv.height||0);
+  if (!shortSide) return SPRITE_CAP_MAX;
+  return Math.max(SPRITE_CAP_MIN, Math.min(SPRITE_CAP_MAX, Math.round(shortSide*SPRITE_CAP_SCREENS)));
+}
 function pspriteFrame(){                        // once per render: age the cache
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
@@ -1113,8 +1138,9 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   // giant woody sprites (a T10-rescaled oak is ~800 draw units tall): clamp
   // the bake RESOLUTION instead of bailing to per-frame procedural — the blit
   // scales it up slightly soft at high zoom, which reads fine on foliage and
-  // keeps one oak from costing 13MB of sprite memory.
-  const s=Math.min(want, 1024/Math.max(halfW*2, top+bot));
+  // keeps one oak from costing 13MB of sprite memory. The cap follows the
+  // canvas (see spriteMaxPx), because it is small screens the memory hurts.
+  const s=Math.min(want, spriteMaxPx()/Math.max(halfW*2, top+bot));
   const pw=Math.max(1,Math.ceil(halfW*2*s)), ph=Math.max(1,Math.ceil((top+bot)*s));
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
   const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
@@ -1476,7 +1502,7 @@ function makeStructSprite(e,spec,season,W,H,lit){
   if (!(bw>0&&bh>0)) return null;
   const want=ssprScale();
   // clamp the RESOLUTION of a giant (a house) rather than refusing to cache it
-  const s=Math.min(want, 1024/Math.max(bw,bh));
+  const s=Math.min(want, spriteMaxPx()/Math.max(bw,bh));
   const pw=Math.max(1,Math.ceil(bw*s)), ph=Math.max(1,Math.ceil(bh*s));
   if (pw>2200||ph>2200) return null;
   const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
@@ -1670,7 +1696,9 @@ function verifySceneCull(opts){
       for (const [dx,dy] of cams){
         snapCam(); cam.x+=dx; cam.y+=dy;
         const a=settle(), ctrl=settle();
-        const ents=scene.ents, saved=ents.map(e=>[e.ox0,e.ox1,e.oy0,e.oy1]);
+        // both screen-space culls: the entity pass AND the shrub footprint pass
+        const ents=scene.ents.concat(scene.shrubs);
+        const saved=ents.map(e=>[e.ox0,e.ox1,e.oy0,e.oy1]);
         const W=VW/ZOOM, H=VH/ZOOM, offX=W/2-cam.x, offY=H*0.24-cam.y;
         let culled=0;
         for (const e of ents){
@@ -1978,7 +2006,20 @@ function buildScene(W,H){
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (layerShown('woody')){
       const shrub=shrubInfoFromKey(k);
-      if (shrub){ shrub.cullR=Math.ceil(woodyRadiusTiles(plantDef(p.s,p.v)))+1; shrubs.push(shrub); }
+      if (shrub){
+        const rTiles=woodyRadiusTiles(plantDef(p.s,p.v));
+        shrub.cullR=Math.ceil(rTiles)+1;
+        /* Camera-free screen bounds of the footprint ELLIPSE, for the same
+           reason the entity pass has them: the tile bbox is the bounding box of
+           a diamond, and this loop was drawing a large translucent ellipse for
+           every shrub that survived it. Measured on a quarter acre, 45 passed
+           and 12 were on screen — 73% of the pass was overdraw nobody saw. */
+        const [vx,vy]=worldToView(shrub.x,shrub.y);
+        const ax=isoX(vx,vy), ay=isoY(vx,vy)-elevationAt(shrub.x,shrub.y)*ELEV_STEP+TILE_H/2;
+        const rx=(TILE_W/2)*rTiles*1.06+4, ry=(TILE_H/2)*rTiles*1.06+4;
+        shrub.ox0=ax-rx; shrub.ox1=ax+rx; shrub.oy0=ay-ry; shrub.oy1=ay+ry;
+        shrubs.push(shrub);
+      }
     }
     const sh=treeShadeInfo(k,p);
     if (sh && sh.r>=1){ sh.reach=treeShadeReach(sh); (sh.activePotential?shadeTrees:futureShadeTrees).push(sh); }
@@ -2277,8 +2318,10 @@ function render(t){
   // spike smeared across the window's average.
   dmark('ground',tG0+bakeMs);
   const tShade=dnow();
+  // screen-space, not the tile bbox — see the bounds baked in buildScene
+  const shOffX=W/2-cam.x, shOffY=H*0.24-cam.y;
   if (layerShown('woody')) for (const sh of scene.shrubs){
-    if (sh.x+sh.cullR<x0 || sh.x-sh.cullR>x1 || sh.y+sh.cullR<y0 || sh.y-sh.cullR>y1) continue;
+    if (sh.ox1+shOffX<0 || sh.ox0+shOffX>W || sh.oy1+shOffY<0 || sh.oy0+shOffY>H) continue;
     drawShrubFootprint(cx,W,H,sh,'base');
   }
   // active shade is a cool wash; young trees get only a faint future-canopy

@@ -2106,6 +2106,96 @@ test('mobile canvas recovery avoids visible editing chrome', () => {
   }
 });
 
+test('shrub footprints carry screen bounds, so the base pass culls like the entity pass', () => {
+  /* The resting footprint discs were drawn for every shrub that survived the
+     TILE bounding box — the bbox of a diamond, the same trap the entity pass
+     had. Each survivor is a large translucent ellipse fill and stroke, so the
+     surplus is pure overdraw: measured on a quarter acre at phone size, 67
+     passed the old test and 13 were on screen. */
+  setup(25, 25);
+  setTile('plants', '12,12', { s:'cranberrybush', d:-4000, t:1 });   // a wide mature shrub
+  setTile('plants', '4,4',   { s:'bluestem', d:0, t:1 });            // not a shrub
+  buildScene(800, 450);
+  assertEqual(scene.shrubs.length, 1, 'only the shrub is indexed as one');
+  const sh = scene.shrubs[0];
+  for (const k of ['ox0','ox1','oy0','oy1'])
+    assert(Number.isFinite(sh[k]), `the shrub record carries a finite ${k}`);
+  // the box must cover the footprint ellipse it stands for, around the anchor
+  const [vx, vy] = worldToView(sh.x, sh.y);
+  const ax = isoX(vx, vy), ay = isoY(vx, vy) + TILE_H/2;
+  const r = woodyRadiusTiles(plantDef(sh.p.s, sh.p.v));
+  assert(r > 1, 'this shrub really does reserve more than its own tile');
+  assert(ax - sh.ox0 >= (TILE_W/2)*r*1.06 && sh.ox1 - ax >= (TILE_W/2)*r*1.06,
+    'the box covers the ellipse either side');
+  assert(ay - sh.oy0 >= (TILE_H/2)*r*1.06 && sh.oy1 - ay >= (TILE_H/2)*r*1.06,
+    'and above and below — the ellipse is centred half a tile below the anchor');
+  // a bigger shrub reserves a bigger box, or the bounds are not tracking anything
+  setTile('plants', '12,12', { s:'inkberry', d:-4000, t:1 });
+  buildScene(800, 450);
+  const small = scene.shrubs[0];
+  assert((sh.ox1 - sh.ox0) > (small.ox1 - small.ox0),
+    'the wider shrub reserves the wider box');
+});
+
+test('the sprite resolution cap follows the canvas', () => {
+  /* A flat 1024 meant a phone baked sprites larger than its own screen: on a
+     retina phone a quarter acre sat at 61.7MB against a 48MB budget with ZERO
+     evictable sprites, because the whole working set was visible and eviction
+     could not act. A sprite much bigger than the screen's shorter side is one
+     you can only ever see a fraction of. */
+  const old = [cnv.width, cnv.height];
+  try{
+    cnv.width = 563; cnv.height = 1218;                  // a retina phone
+    const phone = spriteMaxPx();
+    cnv.width = 2560; cnv.height = 1440;                 // a large desktop
+    const desktop = spriteMaxPx();
+    cnv.width = 320; cnv.height = 480;                   // something tiny
+    const tiny = spriteMaxPx();
+    assert(phone < desktop, 'a phone caps lower than a desktop');
+    assertEqual(desktop, SPRITE_CAP_MAX, 'a big screen keeps the behaviour it always had');
+    assertEqual(tiny, SPRITE_CAP_MIN, 'and the cap has a floor, so detail never collapses');
+    assert(phone > SPRITE_CAP_MIN && phone < SPRITE_CAP_MAX,
+      'the phone lands between the two, which is the only case that changes');
+  } finally { cnv.width = old[0]; cnv.height = old[1]; }
+});
+
+test('the idle grace covers a deferred repaint, not two thirds of a second', () => {
+  /* 700ms bought nothing: responsiveness does not depend on it, because an
+     input that changes anything changes renderStateSig and the next frame
+     renders regardless. What it has to cover is the repaint an input DEFERS —
+     the crisp ground rebake and the sprite rescale, neither of which moves the
+     signature. */
+  assert(IDLE_GRACE_MS >= GROUND_PAN_SETTLE && IDLE_GRACE_MS >= SPRITE_ZOOM_SETTLE,
+    'the grace outlasts the longest deferred repaint');
+  assert(IDLE_GRACE_MS < 400, 'but it is not a second of full-rate rendering for a still garden');
+  /* And the signature has to be honest now that the grace is short: the
+     footprint draft's rubber-band edge follows a tile CORNER, finer than
+     hoverTile, and used to be covered only because any pointermove kept the
+     long grace alive. */
+  assert(/buildingDraftSig/.test(String(renderStateSig)),
+    'the render signature includes the building draft and its hovered corner');
+});
+
+test('the compass chrome key stops re-finding elements that never move', () => {
+  /* It is built on EVERY frame, before updateCompass's own early-out can fire,
+     because it is part of the key that early-out compares — 3.05us of the
+     3.55us a fully cached updateCompass cost. */
+  const src = String(compassChromeStateKey);
+  assert(!/\.map\(/.test(src), 'the key is concatenated in place, not mapped and joined');
+  assert(/compassChromeEls/.test(src), 'and the element lookups are cached');
+  assert(/isConnected/.test(src),
+    're-resolving a detached element, so the ones built on demand are still found');
+  // it must still answer differently when the chrome changes
+  const before = compassChromeStateKey();
+  const hud = document.getElementById('hud');
+  if (hud){
+    hud.classList.add('__probe');
+    assert(compassChromeStateKey() !== before, 'a class change on watched chrome moves the key');
+    hud.classList.remove('__probe');
+    assertEqual(compassChromeStateKey(), before, 'and removing it moves the key back');
+  }
+});
+
 test('the phone zoom is for phones, not for short windows', () => {
   /* baseZoom asks whether this is a phone-sized screen, of the SHORTER side,
      because a landscape phone is still a phone. The threshold was 760, which no
@@ -5789,6 +5879,25 @@ test('the sandbox does not let className and classList disagree', () => {
   assert(!el.classList.contains('alpha'), 'rather than accumulating');
   el.className = '';
   assert(!el.classList.contains('delta'), 'and clearing really clears');
+
+  /* ...and the other way round, which was the half of it the fix above missed.
+     classList.add wrote only to the Set, so el.className still read '' — so
+     code that asks for the string view (compassChromeStateKey builds its whole
+     signature out of className) saw a class that was not there, and a test
+     about it passed for no reason connected to the code. Caught by exactly
+     that: a test asserting the compass key moves when chrome gains a class. */
+  const two = document.createElement('div');
+  two.classList.add('one');
+  assertEqual(two.className, 'one', 'classList.add reaches className');
+  two.classList.add('two');
+  assert(/\bone\b/.test(two.className) && /\btwo\b/.test(two.className),
+    'and accumulates there, not just in the Set');
+  two.classList.remove('one');
+  assertEqual(two.className, 'two', 'remove reaches it too');
+  two.classList.toggle('three', true);
+  assert(/\bthree\b/.test(two.className), 'and so does toggle');
+  two.classList.toggle('three', false);
+  assertEqual(two.className, 'two', 'in both directions');
 });
 
 test('the sandbox does not lie about the DOM', () => {

@@ -16,6 +16,7 @@ without testing anything:
 | `localStorage.key` / `.length` | `() => null` and `0` | Storage looked empty however much you wrote. The localStorage→IndexedDB migration was untestable, and an orphan check written against `Object.keys(localStorage)` compared an empty list to zero. |
 | `document.getElementById` | a fresh element every call | Nothing written could be read back. "The button is not disabled" passed trivially, and `showCoachTip`'s `hasAttribute` fallback — its behaviour when localStorage throws — was permanently dead. |
 | `className` vs `classList` | the two disagreed: after `el.className='x'`, `classList.contains('x')` was `false` | Both idioms are live in `js/`, so whichever a test read decided whether it saw the truth. Found while asserting that an outbound link carries its visually-hidden "opens in a new tab" span. |
+| `classList` → `className` | the fix above went ONE way only: after `classList.add('x')`, `el.className` still read `''` | Half a write-through is the same fiction as none. `compassChromeStateKey` builds its entire signature out of `className`, so a test asserting that signature moves when chrome gains a class passed for no reason connected to the code. Found by writing exactly that test. |
 
 Four more were the same shape, found by audit rather than by a failing test:
 

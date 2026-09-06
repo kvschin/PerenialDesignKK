@@ -46,10 +46,20 @@ const CTX = makeCtx();
 function makeEl(tag){
   const el = {
     tagName: (tag || 'div').toUpperCase(), nodeType: 1,
-    classList: { _s: new Set(),
-      add(...c){ c.forEach(x => this._s.add(x)); },
-      remove(...c){ c.forEach(x => this._s.delete(x)); },
-      toggle(c, f){ const on = f === undefined ? !this._s.has(c) : !!f; on ? this._s.add(c) : this._s.delete(c); return on; },
+    /* Both directions. The set trap below already wrote className through to
+       classList; this writes classList back to className, which it did not —
+       so after classList.add('x'), el.className still read '' and any code
+       reading the string view saw a class that was not there. Half a write-
+       through is the same convenient fiction as none: whichever view a test
+       happened to read decided whether it saw the truth. `_w` sets the raw
+       object (classList is built before the Proxy wraps it), so this cannot
+       recurse back through the set trap. */
+    classList: { _s: new Set(), _el: null,
+      _w(){ if (this._el) this._el.className = [...this._s].join(' '); },
+      add(...c){ c.forEach(x => this._s.add(x)); this._w(); },
+      remove(...c){ c.forEach(x => this._s.delete(x)); this._w(); },
+      toggle(c, f){ const on = f === undefined ? !this._s.has(c) : !!f;
+        on ? this._s.add(c) : this._s.delete(c); this._w(); return on; },
       contains(c){ return this._s.has(c); } },
     style: { setProperty(){}, removeProperty(){} }, dataset: {}, children: [],
     appendChild(c){ this.children.push(c); return c; }, append(...c){ this.children.push(...c); },
@@ -83,6 +93,7 @@ function makeEl(tag){
     // here to walk, and a caller should be able to read that from the stub.
     contains(){ return false; }, closest(){ return null; },
   };
+  el.classList._el = el;   // so classList writes reach className (see above)
   return new Proxy(el, {
     get(o, p){ if (p in o) return o[p]; if (typeof p === 'symbol') return undefined; return () => {}; },
     /* className and classList are two views of ONE fact in a browser, and the

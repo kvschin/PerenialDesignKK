@@ -1743,7 +1743,22 @@ function menuRender(t){
 /* ---------- main loop ---------- */
 const MENU_FRAME_MS=1000/30;
 const IDLE_FRAME_MS=1000/30;
-const IDLE_GRACE_MS=700;
+/* How long after the last input the garden keeps rendering at full rate even
+   though its signature says nothing has changed.
+
+   This was 700ms, which bought nothing and cost ~42 full frames after every
+   pause in a gesture — and the pauses in design work are constant. It buys
+   nothing because responsiveness does not depend on it: an input that changes
+   anything changes renderStateSig, and the very next frame renders. What the
+   grace genuinely has to cover is the repaint an input DEFERS — the crisp
+   ground rebake at GROUND_PAN_SETTLE (180ms) and the sprite rescale at
+   SPRITE_ZOOM_SETTLE (140ms), neither of which moves the signature. 250 clears
+   the longest of those with room to spare.
+   This is a battery and thermal fix rather than a frame-time one, and on a
+   phone that is the same thing in the end: sustained draw means throttling, and
+   a throttled phone makes every other cost here worse for the rest of the
+   session. */
+const IDLE_GRACE_MS=250;
 const HUD_IDLE_MS=500;
 let prev=performance.now(), lastMenuRender=-Infinity, lastGardenRender=-Infinity, lastHudUpdate=0;
 let lastMeaningfulChange=performance.now(), lastRenderSig='';
@@ -1771,13 +1786,24 @@ function rulerSig(){
   const r=game.ruler;
   return r ? `${r.a?r.a.join(','):''}>${r.b?r.b.join(','):''}` : '';
 }
+function buildingDraftSig(){
+  /* The footprint draft's rubber-band edge follows the CORNER under the pointer,
+     which is finer than game.hoverTile — so without these two the signature says
+     "nothing changed" while the line the gardener is dragging moves. It used to
+     be covered only because any pointermove kept the 700ms grace alive; the
+     grace is now short enough that the signature has to be honest. */
+  const d=game.buildingDraft;
+  const h=(typeof buildingHover!=='undefined' && buildingHover) ? buildingHover.join(',') : '';
+  return (d&&d.pts?d.pts.length:0)+'@'+h;
+}
 function renderStateSig(){
   return [
     game.rev, game.groundRev, game.terrainRev, game.rot, effectiveSiteNorthDeg(), absDay(),
     GW, GH, VW, VH, ZOOM.toFixed(3), cam.x.toFixed(1), cam.y.toFixed(1),
     game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
     game.previewMode, game.edgeStyle, layerVisibilitySig(),
-    game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig()
+    game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig(),
+    buildingDraftSig()
   ].join('|');
 }
 function hasActiveGesture(){
