@@ -2882,13 +2882,34 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     questionnaire uses chips for its compact choices, with one deliberate
     native-range `<select>` exception: a geographic list is factual reference
     data, not a toggle, and a select stays readable and accessible on a phone.
-    **Climate** shows the 3–9 zone
+    **Climate** shows the zone
     chips face up, with a "Don't know your zone?" link that flips
     (`sel.zoneHelp`) to a ZIP field (`zoneFromZip`, a 3-digit-prefix→zone band
-    table in core.js, clamped to the palette's 3–9, device-local) plus a
+    table in core.js, device-local) plus a
     plain-language "how cold does winter get?" chip fallback (`WINTER_BANDS`) —
     every path writes one `sel.zone`, echoed by a teaching readout (`ZONE_LOWS`)
-    that stays visible in both views; **style** is a chip grid; **native mode**
+    that stays visible in both views.
+    **Which zones are offered is DERIVED FROM THE CATALOG** (`zoneRange()` /
+    `clampZone()`, core.js), and that is a correctness fix rather than tidiness.
+    The chips were a hardcoded `for (let z=3;z<=9;z++)` and `setZone` clamped
+    with `Math.max(3,Math.min(9,z))`, while `ZIP_ZONE_BANDS` already returned
+    **10** for south Florida and **11** for Hawaii — so those gardeners typed a
+    real ZIP and were silently told they were zone 9. **79 species top out at
+    zone 10 or 11**, and one of them, Simpson's Stopper (z10–11), shipped in a
+    state where NO selectable zone could place it: a species in the catalog,
+    reachable from nowhere. `zoneRange()` asks which zones actually HAVE a
+    plant (2–11 today) rather than taking `min(floor)..max(top)`, because an
+    empty palette is a worse answer than a rounded one; it is memoised, and
+    PLANTS loads before core.js. `WINTER_BANDS` and `ZONE_LOWS` had the same
+    3–9 horizon and were extended to match — a band that maps outside the
+    offered range, or a zone with no winter-low caption, is exactly the drift
+    this replaced, so a test pins the chips, the ZIP table and the winter bands
+    to one range and asserts **every species is reachable at some offered
+    zone**. Both halves are mutation-tested against the old span. Note the ZIP
+    BANDS themselves are still coarse (coastal southern California and south
+    Texas are filed as 9 and 8 where parts are really 10) — that is a data
+    accuracy question, separate from this one, and the ZIP path is deliberately
+    labelled an estimate; **style** is a chip grid; **native mode**
     is Any / Regional / Straight chips and reveals the range selector only when
     constrained; animal-resistance constraints are toggle chips.
     A live **palette count** (`paletteCount` in ui.js — a pure mirror of

@@ -1129,6 +1129,60 @@ test('plantFits applies zone and palette filters', () => {
   assert(plantFits('hosta'), 'non-bulbs are unaffected by the squirrel bulb filter');
 });
 
+/* The questionnaire offered a hardcoded 3-9 while ZIP_ZONE_BANDS already
+   returned 10 (south Florida) and 11 (Hawaii). That is not a cosmetic
+   mismatch: a species whose whole range sits above the picker can never be
+   placed in ANY garden, and Simpson's Stopper (z10-11) shipped in exactly that
+   state. Ask the question against the catalog, so the next warm-climate batch
+   cannot quietly reintroduce it. */
+test('every species is reachable at some offered zone', () => {
+  setup();
+  const r = zoneRange(), stranded = [];
+  for (const k of PLANT_KEYS){
+    const P = PLANTS[k]; if (P.hidden) continue;
+    let ok = false;
+    for (let z = r.lo; z <= r.hi && !ok; z++)
+      if (plantRefFitsCriteria({ s: k }, { zone: z, nativeMode: 'any' })) ok = true;
+    if (!ok) stranded.push(k + ' (z' + P.zones[0] + '-' + P.zones[1] + ')');
+  }
+  assertEqual(stranded.length, 0, 'these species sit outside every offered zone: ' + stranded.join(', '));
+});
+
+test('the offered zone range is derived from the catalog, not typed in', () => {
+  const r = zoneRange();
+  let lo = Infinity, hi = -Infinity;
+  for (const k of PLANT_KEYS){ const P = PLANTS[k]; if (P.hidden) continue;
+    lo = Math.min(lo, P.zones[0]); hi = Math.max(hi, P.zones[1]); }
+  assertEqual(r.lo, lo, 'the coldest offered zone is the coldest a species tolerates');
+  assertEqual(r.hi, hi, 'the warmest offered zone is the warmest a species tolerates');
+  assert(paletteCount({ zone: r.lo }) > 0, 'the coldest offered zone has a real palette');
+  assert(paletteCount({ zone: r.hi }) > 0, 'the warmest offered zone has a real palette');
+});
+
+/* The three routes to a zone have to land in the same place. The ZIP table was
+   the one that disagreed, and it disagreed silently: zoneFromZip returned a
+   zone the chips could not show and the clamp then rounded it away. */
+test('the zone chips, the ZIP table and the winter bands agree on the range', () => {
+  const r = zoneRange();
+  assert(r.lo < r.hi, 'the offered range spans more than one zone');
+  for (let z = r.lo; z <= r.hi; z++)
+    assert(ZONE_LOWS[z], 'zone ' + z + ' has a winter-low caption for the readout');
+  for (const band of WINTER_BANDS)
+    assertEqual(clampZone(band[2]), band[2], 'winter band "' + band[0] + '" maps to an offered zone');
+  for (const b of ZIP_ZONE_BANDS)
+    assertEqual(clampZone(b[2]), b[2], 'ZIP band ' + b[0] + '-' + b[1] + ' maps to an offered zone');
+  assert(WINTER_BANDS.some(b => b[2] === r.hi), 'the plain-language fallback reaches the warmest zone');
+});
+
+test('clampZone keeps a stray zone inside the catalog', () => {
+  const r = zoneRange();
+  assertEqual(clampZone(r.lo - 1), r.lo, 'below the range clamps up');
+  assertEqual(clampZone(r.hi + 1), r.hi, 'above the range clamps down');
+  assertEqual(clampZone(r.lo + 1), r.lo + 1, 'an offered zone passes through');
+  assertEqual(clampZone(undefined), r.lo, 'a missing zone falls back rather than reading NaN');
+  assertEqual(clampZone('7'), 7, 'a numeric string is read as a zone');
+});
+
 test('cultivar definitions deep-merge rendering look without mutating the base', () => {
   const base=plantDef('hebe'), cv=plantDef('hebe','andersoniivariegata');
   assertEqual(base.look.leafEdge,undefined,'base hebe stays plain green');

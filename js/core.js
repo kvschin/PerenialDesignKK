@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.65';
+const APP_VERSION = '0.8.66';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -220,12 +220,43 @@ function wallStyleId(id){ return wallStyle(id).id; }
 function wallLabelFor(id){ return wallStyle(id).label; }
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
+/* Which hardiness zones the app can offer, DERIVED FROM THE CATALOG rather
+   than typed in. The questionnaire hardcoded 3-9 while ZIP_ZONE_BANDS already
+   returned 10 (south Florida) and 11 (Hawaii), so those gardeners were told
+   they were zone 9 -- and 79 species top out at 10 or 11, one of which
+   (Simpson's Stopper, z10-11) shipped in a state where NO selectable zone
+   could ever place it. Deriving the range is what stops the chips drifting
+   from the data again: add a zone 12 species and the chip appears.
+   It is the zones that actually HAVE a plant, not min(floor)..max(top) -- an
+   empty palette is a worse answer than a rounded one. Interior gaps cannot
+   really happen, because species carry zone RANGES and a span covers what it
+   crosses, but asking the honest question costs one pass. Memoised; PLANTS is
+   static and loads before this module. */
+const USDA_ZONES=[1,13];          // the scale; the offered span is derived from it
+let zoneRangeCache=null;
+function zoneRange(){
+  if (zoneRangeCache) return zoneRangeCache;
+  let lo=null, hi=null;
+  for (let z=USDA_ZONES[0]; z<=USDA_ZONES[1]; z++){
+    let any=false;
+    for (const k in PLANTS){
+      const P=PLANTS[k];
+      if (!P.hidden && P.zones && P.zones[0]<=z && P.zones[1]>=z){ any=true; break; }
+    }
+    if (any){ if (lo===null) lo=z; hi=z; }
+  }
+  if (lo===null){ lo=3; hi=9; }   // no catalog (a bare harness): keep the old span
+  return (zoneRangeCache={lo,hi});
+}
+function clampZone(z){ const r=zoneRange(); const n=+z; return Math.max(r.lo,Math.min(r.hi,isFinite(n)?n:r.lo)); }
+
 /* Approximate USDA hardiness zone from a US ZIP, by 3-digit prefix. Coarse on
    purpose: species use zone RANGES and plant filters are changeable in-game,
    so within ~half a zone is plenty. Stored as [lo,hi,zone] prefix bands (not
    930 rows) with the band's representative zone; gaps + non-US input return null
    (the questionnaire then falls back to the winter-cold picker). Nothing here
-   leaves the device — it's a static lookup. Callers clamp to the palette's 3–9. */
+   leaves the device — it's a static lookup. Callers clamp through clampZone(),
+   which follows the catalog rather than a typed-in span. */
 const ZIP_ZONE_BANDS=[
   [10,19,5],[20,27,6],[28,29,6],[30,38,5],[39,49,4],[50,59,4],[60,69,6],[70,89,6],   // New England + NJ
   [100,104,7],[105,109,6],[110,119,7],[120,139,5],[140,149,6],[150,168,6],[169,179,5],

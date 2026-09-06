@@ -975,12 +975,14 @@ const WINTER_BANDS=[
   ['Cold winters','below 0°F most years',6],
   ['Light frost','freezes, rarely below 20°F',7],
   ['Barely freezes','mild winters',9],
+  ['A touch of frost','frost some years, never hard',10],
+  ['Never freezes','frost-free',11],
 ];
-const ZONE_LOWS={3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'15°F',9:'25°F'};
+const ZONE_LOWS={2:'−45°F',3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'15°F',9:'25°F',10:'35°F',11:'45°F'};
 function openDesignSetup(){
   const d=game.design||{};
   const nativeDefaults=normalizeFilters(Object.keys(d).length?d:game.filters);
-  const sel={zone:d.zone||6, type:d.type||'any',
+  const sel={zone:clampZone(d.zone||6), type:d.type||'any',
     nativeRegion:nativeDefaults.nativeRegion, nativeMode:nativeDefaults.nativeMode,
     deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
     startSource:activeDiscovery().source, startPaletteId:activeDiscovery().collectionId};
@@ -1001,7 +1003,7 @@ function openDesignSetup(){
     renderStartPalette();
   }
   function setZone(z){
-    sel.zone=Math.max(3,Math.min(9,z));
+    sel.zone=clampZone(z);
     renderZoneChips(); renderWinter(); updateReadout(); updateCount(); syncMeadow();
   }
   function renderWinter(){ winterEl.innerHTML='';
@@ -1009,7 +1011,8 @@ function openDesignSetup(){
   // zone chips are face up by default; "Don't know your zone?" flips to the ZIP
   // + winter-cold helper (which sets the same sel.zone, echoed by the readout).
   function renderZoneChips(){ zoneChipsEl.innerHTML='';
-    for (let z=3;z<=9;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z))); }
+    const r=zoneRange();
+    for (let z=r.lo;z<=r.hi;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z))); }
   function renderZoneMode(){
     zoneChipsEl.classList.toggle('hidden',sel.zoneHelp);
     helpEl.classList.toggle('hidden',!sel.zoneHelp);
