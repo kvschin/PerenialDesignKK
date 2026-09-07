@@ -316,7 +316,10 @@ function activateScheme(id){
 // planting should not rebake terrain, but terrain/elevation/houses should.
 // setTile stores a value; clearTile writes the {removed} tombstone the erase
 // path expects and save-time compaction strips.
-function markModelChanged(){ game.dirty=true; game.rev++; }
+function markModelChanged(){
+  game.dirty=true; game.rev++;
+  if (game.inGarden && typeof requestGardenAutosave==='function') requestGardenAutosave();
+}
 /* ---------- ground damage: which tiles changed since the last bake ----------
    The bake is all-or-nothing and viewport-wide, so a brush drag rebakes the
    whole visible garden every frame it paints a tile. The renderer throttles

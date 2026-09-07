@@ -293,6 +293,17 @@ See §13a.
   warns **once** and stays quiet until a save succeeds again (`saveFailureReported`);
   a toast per day change would be its own bug. The message names the way out
   (export), not the cause.
+- **Paused editing autosaves.** `markModelChanged()` schedules a save after
+  750 ms of quiet through `requestGardenAutosave()`; a held undo gesture or
+  site-photo draft defers it. Tile edits only move a deadline, with one timer
+  per burst and no per-tile serialization. New gardens and loads reset the
+  timer's session; `enterWorld` adopts the loaded contents and id before
+  `endWorldLoad()` allows saving again. Immediate saves still run on day change,
+  quit, and backgrounding. `saveSolo` clones the live blob before its first
+  await and queues both blob and index writes through `updateWorldsIndex`.
+  Only a successful write of both for the current session and revision clears
+  `game.dirty`; failures remain dirty and retry after 5 seconds. `loadSolo`
+  waits for queued writes so immediately reopening a garden sees the latest save.
 - **Save blobs carry `v` (`SAVE_VERSION`) and `app` (`APP_VERSION`).** Version 2
   replaces the old `nativesOnly` Boolean with `nativeRegion` + `nativeMode`;
   `normalizeDesign` removes the legacy field before a loaded garden is saved
@@ -301,6 +312,16 @@ See §13a.
   used to be feature detection — "if the blob has a `house` key it is old" —
   which was fine only while every save in existence was one of ours. Absent `v`
   means a pre-versioning save, i.e. version 0.
+- **Garden imports validate before installation.** `gardenFileProblem()` is a
+  pure check shared by `installWorldBlob()` and file import. It rejects newer
+  envelope/save versions, malformed layers and plant references, invalid plot
+  dimensions/geometry, conflicting schemes, and invalid site photos before
+  any storage or active-garden mutation. Files are limited to 16 MB; imported
+  plot sides to 256 tiles, above the UI maximum, with bounded records and nested
+  data. Missing legacy versions, optional layers, old square/13x13 layouts,
+  tombstones, and retired plant aliases remain supported. File reading and
+  validation failures explain what went wrong; successful imports use fresh
+  local ids and never mutate the supplied envelope.
 - Mobile is a first-class target: tap a tile to act on it. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
@@ -2187,7 +2208,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
     SUNKEN area shows no face and therefore takes no wall.
 
-13. **Storage** — `sGet`/`sSet` over localStorage. Worlds
+13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
+    fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
     each save lives at `hortus:world:<id>` (built by `buildSaveBlob()`; layer maps from `GAME_LAYERS` +
     the optional `schemes` block of §13a +
@@ -2197,10 +2219,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     palettes separately, so they can be used in every garden without changing a
     garden's plant criteria. The old single `hortus:solo` key
     migrates into the first slot once. Older saves with only `grid` load
-    square; 13x13-era saves recenter from (6,6). Autosave on day change is
-    silent; the Save button toasts. Sharing is file-based: `shareCurrentGarden`
-    writes the stored blob inside a small envelope, `importWorldFile` validates
-    it and writes a fresh local slot. Nothing syncs in the background.
+    square; 13x13-era saves recenter from (6,6). Edits autosave after 750 ms of
+    quiet even while the clock is paused; day change, quit, and backgrounding
+    also save. Sharing is file-based: `shareCurrentGarden` exports the live
+    garden inside a small envelope, including edits that could not reach
+    storage. `importWorldFile` validates it with `gardenFileProblem` before
+    installing a fresh local slot. Nothing syncs in the background.
     Retired plant identities are canonicalized through `PLANT_REF_ALIASES` on
     load in the active plant/bulb maps, every inactive planting scheme, and the
     device-local Favorites/palettes. Alias sources are retired keys only; a
@@ -2808,7 +2832,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     matches the root bg to the season as a belt-and-suspenders. A `?debug`/`?vp`
     URL or a **3-finger tap** shows a viewport diagnostics panel. The chrome
     panels are glassy (`backdrop-filter` blur). There is no Save
-    button — autosave fires on day change, quit, and visibilitychange/pagehide.
+    button — autosave fires after settled edits, on day change, quit, and
+    visibilitychange/pagehide.
     Pausing/resuming (now the time menu's primary toggle) freezes or resumes day
     progression without blocking editing; the menu (opened by tapping the season
     box) also offers Skip to next season/year; season skip shows a confirmation

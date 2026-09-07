@@ -1474,7 +1474,7 @@ function updateHUD(){
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
-    if (game.inGarden&&hasStorage){ saveSolo(true); game.dirty=false; }
+    if (game.inGarden&&hasStorage) saveSolo(true);
   }
 }
 

@@ -311,7 +311,7 @@ function restoreSchemes(s,shift){
   ensureSchemes();   // materializes a lone default and nulls the active entry's maps
 }
 function buildSaveBlob(){
-  const t0=dnow();   // autosave fires on day change / quit / pagehide: 'blob' in the debug HUD
+  const t0=dnow();   // 'blob' in the debug HUD measures snapshot construction
   /* `v` is the schema number, `app` the build that wrote it. Migrations used to
      be feature detection ("if the blob has a `house` key it is old"), which was
      fine while every save in existence was one of ours. An explicit version is
@@ -342,8 +342,36 @@ function buildSaveBlob(){
    saveSolo because there are eighteen call sites and one of them is a render-
    adjacent helper; guarding the callers is how the next one gets missed. */
 let loadingWorld=false;
-function beginWorldLoad(){ loadingWorld=true; }
-function endWorldLoad(){ loadingWorld=false; }
+function beginWorldLoad(){ resetGardenAutosave(); loadingWorld=true; }
+function endWorldLoad(){ loadingWorld=false; if (game.dirty) requestGardenAutosave(); }
+/* Edits save independently of garden time. One timer coalesces an entire
+   stroke; tile mutations only move its deadline, never clone the garden.
+   A held/cancelable gesture and a photo draft must settle before it writes. */
+const AUTOSAVE_DELAY=750, AUTOSAVE_RETRY_DELAY=5000;
+let autosaveTimer=0, autosaveDue=0, saveSession={}, saveRequest=0;
+function cancelGardenAutosave(){
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer=0;
+}
+function resetGardenAutosave(){ cancelGardenAutosave(); saveSession={}; }
+function requestGardenAutosave(delay=AUTOSAVE_DELAY){
+  if (!game.inGarden || !hasStorage || loadingWorld) return;
+  autosaveDue=Date.now()+delay;
+  if (autosaveTimer) return;
+  const session=saveSession, id=game.worldId;
+  const run=()=>{
+    if (session!==saveSession) return;
+    autosaveTimer=0;
+    // The first queued save can mint this session's id after an edit armed us.
+    if ((id||session.id||null)!==(game.worldId||null) || !game.inGarden || !game.dirty || loadingWorld) return;
+    const wait=autosaveDue-Date.now();
+    if (wait>0 || pendSnap || game.photoEditing){
+      autosaveTimer=setTimeout(run,Math.max(wait,AUTOSAVE_DELAY)); return;
+    }
+    return saveSolo(true);
+  };
+  autosaveTimer=setTimeout(run,delay);
+}
 /* A silent autosave that fails silently is exactly how a session's work
    disappears with nobody noticing — autosave fires on every day change, so the
    old code could fail two hundred times without a word. It now speaks once and
@@ -355,24 +383,35 @@ async function saveSolo(silent){
   // A load is in flight: game.* still holds the OUTGOING garden. Silent by
   // design — nothing has gone wrong, and the load will save when it lands.
   if (loadingWorld) return false;
-  // First save of a garden that has never had an id. The index is read below
-  // anyway, so minting against it costs nothing and closes the one path where a
-  // fresh garden could land on top of an existing one.
-  if (!game.worldId) game.worldId=newWorldId(new Set((await worldsIndex()).map(w=>w.id)));
-  const blob=buildSaveBlob();
-  const stored=await sSet('hortus:world:'+game.worldId,blob);
+  cancelGardenAutosave();
+  const session=saveSession, id=game.worldId, rev=game.rev, request=++saveRequest;
+  game.dirty=true;
+  let stored=null;
+  try{
+    // Capture before ANY await: a queued save must not acquire a later
+    // garden's name/layers, nor share mutable maps with subsequent edits.
+    const live=buildSaveBlob();
+    const blob=typeof structuredClone==='function' ? structuredClone(live) : JSON.parse(JSON.stringify(live));
+    stored=await updateWorldsIndex(async fresh=>{
+      const target=id || session.id || (session.id=newWorldId(new Set(fresh.map(w=>w.id))));
+      if (session===saveSession && !game.worldId) game.worldId=target;
+      if (!(await sSet('hortus:world:'+target,blob))) return null;
+      const out=fresh.filter(w=>w.id!==target);
+      out.push({id:target,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design'});
+      return out;
+    });
+  }catch(e){ console.error('garden save',e); }
+  const current=session===saveSession && game.worldId===(id||session.id) && request===saveRequest;
   if (!stored){
     if (!silent || !saveFailureReported){
       saveFailureReported=true;
       toast('This garden could not be saved — device storage may be full. Export it from the menu to keep it.','warn');
     }
+    if (current) requestGardenAutosave(AUTOSAVE_RETRY_DELAY);
     return false;
   }
-  await updateWorldsIndex(fresh=>{
-    const out=fresh.filter(w=>w.id!==game.worldId);
-    out.push({id:game.worldId, name:game.worldName||'My garden', ts:Date.now(), gw:GW, gh:GH, mode:'design'});
-    return out;
-  });
+  // An older write finishing is not evidence that a newer edit has saved.
+  if (current && game.rev===rev) game.dirty=false;
   saveFailureReported=false;
   requestPersistence();               // first real save is the strongest signal
   if (!silent) toast('Garden saved.');
@@ -392,7 +431,124 @@ function compactSoloMap(m){
   }
   return out;
 }
+/* Files are untrusted data, including files written by a newer app. Validate
+   without changing game/GW/GH or silently dropping part of someone's garden.
+   Missing optional fields and pre-versioning saves keep their load defaults. */
+const GARDEN_FILE_MAX_BYTES=16*1024*1024;
+const GARDEN_FILE_MAX_SIDE=256; // above the UI's 133 tiles; leaves room for older plots
+function gardenRecord(v){ return v!==null && typeof v==='object' && !Array.isArray(v); }
+function gardenFileProblem(env){
+  if (!gardenRecord(env) || env.pocketPrairie!==1 || !gardenRecord(env.world))
+    return 'That does not look like a Pocket Prairie garden.';
+  if (env.v!==undefined && env.v!==1)
+    return 'This garden file uses an unsupported format. Update Pocket Prairie or export it again from the original app.';
+  const w=env.world;
+  if (w.v!==undefined && (!Number.isInteger(w.v) || w.v<0 || w.v>SAVE_VERSION))
+    return 'This garden uses an unsupported save version. Update Pocket Prairie before importing it.';
+  // Bound recursive data and forbid keys that can change a map's prototype.
+  // This also catches JSON numbers such as 1e999 before they reach geometry.
+  let nodes=0;
+  const jsonOk=(v,depth=0)=>{
+    if (++nodes>500000 || depth>24) return false;
+    if (v===null || typeof v==='boolean' || typeof v==='string') return true;
+    if (typeof v==='number') return Number.isFinite(v) && Math.abs(v)<=Number.MAX_SAFE_INTEGER;
+    if (typeof v!=='object') return false;
+    return Object.keys(v).every(k=>!['__proto__','prototype','constructor'].includes(k) && jsonOk(v[k],depth+1));
+  };
+  if (!jsonOk(env)) return 'This garden contains invalid data. Export a fresh copy from the original garden.';
+  if (JSON.stringify(env).length>GARDEN_FILE_MAX_BYTES) return 'This garden file is too large to import (maximum 16 MB).';
+  const has=k=>Object.prototype.hasOwnProperty.call(w,k);
+  const side=n=>Number.isInteger(n) && n>=2 && n<=GARDEN_FILE_MAX_SIDE;
+  if (['gw','gh','grid'].some(k=>has(k) && !side(w[k])) || has('gw')!==has('gh'))
+    return 'This garden has invalid plot dimensions.';
+  const string=(o,k)=>o[k]===undefined || typeof o[k]==='string';
+  const number=(o,k)=>o[k]===undefined || (typeof o[k]==='number' && Number.isFinite(o[k]));
+  if (!string(w,'name') || !string(w,'app') || !string(w,'mode')) return 'This garden has invalid name or version data.';
+  if (['rot','siteNorthDeg','startTs','elapsedMs','savedAt','dayOffset','wv'].some(k=>!number(w,k)) ||
+      (has('rot') && (!Number.isInteger(w.rot) || w.rot<0 || w.rot>3))) return 'This garden has invalid view or time data.';
+  // Off-plot integer records are retained for legacy saves; enormous or
+  // fractional map keys are never valid tile addresses.
+  const coord=n=>Number.isInteger(n) && Math.abs(n)<=GARDEN_FILE_MAX_SIDE*2;
+  const point=p=>Array.isArray(p) && p.length===2 && p.every(coord);
+  const tileKey=k=>/^-?\d+,-?\d+$/.test(k) && k.split(',').every(n=>coord(Number(n)));
+  const mapProblem=(map,layer)=>{
+    if (!gardenRecord(map)) return `This garden has an invalid ${layer} layer.`;
+    if (Object.keys(map).length>GARDEN_FILE_MAX_SIDE*GARDEN_FILE_MAX_SIDE)
+      return `This garden's ${layer} layer is too large.`;
+    for (const [key,p] of Object.entries(map)){
+      if (!tileKey(key) || !gardenRecord(p) || !number(p,'t') ||
+          (p.removed!==undefined && typeof p.removed!=='boolean')) return `This garden has an invalid ${layer} record.`;
+      if (p.removed) continue;
+      if (layer==='plants' || layer==='bulbs'){
+        if (typeof p.s!=='string' || (p.v!=null && typeof p.v!=='string') ||
+            !Number.isFinite(p.d) || ['ox','oy'].some(k=>!number(p,k))) return 'This garden contains an invalid plant record.';
+        const ref=canonicalPlantRef(p.s,p.v), P=Object.prototype.hasOwnProperty.call(PLANTS,ref.s)&&PLANTS[ref.s];
+        if (!P || (ref.v && (!P.cv || !Object.prototype.hasOwnProperty.call(P.cv,ref.v))))
+          return 'This garden contains a plant or variety this version cannot read. Update Pocket Prairie before importing it.';
+      } else if (layer==='terrain'){
+        if (!['path','bed','water'].includes(p.k) || !string(p,'c') || !string(p,'e')) return 'This garden contains invalid ground material data.';
+      } else if (layer==='elevation'){
+        if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w')) return 'This garden contains invalid elevation data.';
+      } else {
+        // Material IDs can have legacy aliases; their existing normalizers own
+        // that migration. Their types must still be safe for the renderers.
+        if (['style','type','tone','shape','size','species','coat','mark','paws','finish'].some(k=>!string(p,k)) ||
+            ['height','face'].some(k=>!number(p,k)) || (p.gate!==undefined && typeof p.gate!=='boolean'))
+          return `This garden contains invalid ${layer} data.`;
+      }
+    }
+    return null;
+  };
+  for (const L of GAME_MAPS){
+    if (L.k!=='plants' && !has(L.k)) continue;
+    const issue=mapProblem(w[L.k],L.k); if (issue) return issue;
+  }
+  const polygon=vs=>Array.isArray(vs) && vs.length>=4 && vs.length<=4096 && vs.every(point) &&
+    Math.abs(vs.reduce((area,p,i)=>{ const q=vs[(i+1)%vs.length]; return area+p[0]*q[1]-q[0]*p[1]; },0))>0;
+  if (w.plotShape!=null){
+    const gw=w.gw||w.grid||31, gh=w.gh||w.grid||31, vs=w.plotShape;
+    if (!polygon(vs) || vs.length!==4 || vs.some(p=>p[0]<0||p[1]<0||p[0]>gw||p[1]>gh) ||
+        plotEdgesCross(vs[0],vs[1],vs[2],vs[3]) || plotEdgesCross(vs[1],vs[2],vs[3],vs[0]))
+      return 'This garden has an invalid plot outline.';
+    let enclosed=0;
+    for (let y=0;y<gh && enclosed<9;y++) for (let x=0;x<gw && enclosed<9;x++)
+      if (polygonContains(x+.5,y+.5,vs)) enclosed++;
+    if (enclosed<9) return 'This garden has an invalid plot outline.';
+  }
+  const extent=n=>Number.isInteger(n) && n>=1 && n<=GARDEN_FILE_MAX_SIDE;
+  const house=h=>gardenRecord(h) && coord(h.x) && coord(h.y) && extent(h.w) && extent(h.h) &&
+    string(h,'wall') && string(h,'roof') && (h.sizeFt===undefined ||
+      (Array.isArray(h.sizeFt) && h.sizeFt.length===2 && h.sizeFt.every(n=>Number.isFinite(n)&&n>0)));
+  if ((has('houses') && (!Array.isArray(w.houses) || w.houses.length>4096 || !w.houses.every(house))) ||
+      (w.house!=null && !house(w.house))) return 'This garden contains invalid house data.';
+  if (has('buildings') && (!Array.isArray(w.buildings) || w.buildings.length>4096 ||
+      w.buildings.some(b=>!gardenRecord(b) || !polygon(b.vertices) ||
+        ['id','label','status','fill','edge','wall','roof'].some(k=>!string(b,k))))) return 'This garden contains an invalid building outline.';
+  if (w.schemes!==undefined){
+    const sc=w.schemes;
+    if (!gardenRecord(sc) || !Array.isArray(sc.list) || !sc.list.length || sc.list.length>MAX_SCHEMES ||
+        typeof sc.active!=='string') return 'This garden contains invalid planting schemes.';
+    const ids=new Set();
+    for (const s of sc.list){
+      if (!gardenRecord(s) || typeof s.id!=='string' || !s.id || ids.has(s.id) || !string(s,'name') || !number(s,'t'))
+        return 'This garden contains invalid planting scheme names or IDs.';
+      ids.add(s.id);
+      for (const layer of SCHEME_LAYERS){
+        if (s.id===sc.active && s[layer]==null) continue; // active maps live at the top level
+        if (s.id!==sc.active && layer==='bulbs' && s[layer]===undefined) continue;
+        const issue=mapProblem(s[layer],layer); if (issue) return issue;
+        if (s.id===sc.active && Object.keys(s[layer]).length) return 'This garden has conflicting active planting scheme data.';
+      }
+    }
+    if (!ids.has(sc.active)) return 'This garden is missing its active planting scheme.';
+  }
+  if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
+  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+    if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
+  return null;
+}
 async function loadSolo(id){
+  await worldsIndexChain;           // reopening after Quit must see its queued save
   const s=await sGet('hortus:world:'+id);
   if (!s) return false;
   // plot size: gw/gh (current), grid (square-era), or neither (13x13 era,

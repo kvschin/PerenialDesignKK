@@ -3,6 +3,7 @@
 
 // fresh, predictable state for a test
 function setup(gw, gh){
+  resetGardenAutosave();
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
   game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {};
@@ -9741,4 +9742,264 @@ test('the units row is in settings and says what it does not change', () => {
     assertEqual(unitsPref, 'metric', 'the row writes the real preference');
     assertEqual(localStorage.getItem('hortus:units'), 'metric', 'and persists it');
   } finally { setUnitsPref(was); }
+});
+
+/* Exercise the real delayed callback with a controlled clock. The default
+   sandbox deliberately never fires timers, which cannot prove autosaving. */
+async function withAutosaveClock(fn){
+  await worldsIndexChain;
+  setup(21,21); game.worldId='autosave-clock'; game.pausedAt=Date.now(); game.lastDay=absDay();
+  const realNow=Date.now, realTimeout=setTimeout, realClear=clearTimeout;
+  let now=realNow(), serial=10000;
+  const timers=new Map();
+  Date.now=()=>now;
+  globalThis.setTimeout=(run,delay)=>{ const id=++serial; timers.set(id,{run,at:now+delay}); return id; };
+  globalThis.clearTimeout=id=>timers.delete(id);
+  const advance=async ms=>{
+    now+=ms;
+    const id=autosaveTimer, timer=timers.get(id);
+    if (timer && timer.at<=now){ timers.delete(id); await timer.run(); }
+  };
+  try{ await fn(advance,timers); }
+  finally{ cancelGardenAutosave(); Date.now=realNow; globalThis.setTimeout=realTimeout; globalThis.clearTimeout=realClear; }
+}
+
+test('paused edits autosave after a completed stroke, including undo and redo', async()=>{
+  await withAutosaveClock(async advance=>{
+    await saveSolo(true);
+    const original=sSet; let writes=0;
+    sSet=async(k,v)=>{ if(k==='hortus:world:autosave-clock') writes++; return original(k,v); };
+    try{
+      beginUndo();
+      for(let x=2;x<8;x++) setTile('plants',x+',3',{s:'bluestem',d:0,t:1});
+      const timer=autosaveTimer;
+      assert(timer,'an edit arms a timer even with the day paused');
+      updateHUD();
+      await advance(AUTOSAVE_DELAY);
+      assertEqual(writes,0,'a held gesture cannot save half its work');
+      commitUndo();
+      await advance(AUTOSAVE_DELAY);
+      assertEqual(writes,1,'the whole stroke is one write');
+      assertEqual(live((await sGet('hortus:world:autosave-clock')).plants).length,6);
+      assertEqual(game.dirty,false,'only the completed write marks the garden clean');
+      doUndo(); await advance(AUTOSAVE_DELAY);
+      assertEqual(live((await sGet('hortus:world:autosave-clock')).plants).length,0,'undo is persisted');
+      doRedo(); await advance(AUTOSAVE_DELAY);
+      assertEqual(live((await sGet('hortus:world:autosave-clock')).plants).length,6,'redo is persisted');
+      beginUndo(); setTile('plants','9,9',{s:'bluestem',d:0,t:2});
+      cancelPendingUndo(true); await advance(AUTOSAVE_DELAY);
+      assert(!(await sGet('hortus:world:autosave-clock')).plants['9,9'],'a canceled placement never survives in storage');
+    }finally{ sSet=original; }
+  });
+});
+
+test('autosave coalesces rapid edits and a canceled timer cannot follow a new garden', async()=>{
+  await withAutosaveClock(async(advance,timers)=>{
+    await saveSolo(true);
+    setTile('terrain','3,3',{k:'bed',c:'soil',t:1});
+    const first=autosaveTimer;
+    await advance(500);
+    setTile('terrain','4,3',{k:'bed',c:'soil',t:1});
+    assertEqual(autosaveTimer,first,'tile edits move the deadline without allocating more timers');
+    await advance(250);
+    assert(game.dirty,'the earlier deadline does not save a still-changing garden');
+    await advance(AUTOSAVE_DELAY);
+    assertEqual(game.dirty,false);
+    setTile('plants','3,3',{s:'bluestem',d:0,t:1});
+    const stale=timers.get(autosaveTimer).run;
+    resetNewGardenState(); game.worldId='autosave-other';
+    setTile('plants','5,5',{s:'karl',d:0,t:1});
+    const next=autosaveTimer;
+    await stale();
+    assertEqual(autosaveTimer,next,'an obsolete callback cannot disarm the new garden');
+    await advance(AUTOSAVE_DELAY);
+    assert((await sGet('hortus:world:autosave-other')).plants['5,5']);
+    assert(!(await sGet('hortus:world:autosave-clock')).plants['3,3'],'the old timer does not write into either garden');
+  });
+});
+
+test('the first edit after opening a different garden keeps its autosave', async()=>{
+  await withAutosaveClock(async advance=>{
+    setTile('plants','2,2',{s:'bluestem',d:0,t:1});
+    await saveSolo(true);
+    const incoming=JSON.parse(JSON.stringify(buildSaveBlob()));
+    incoming.name='Incoming'; incoming.plants={};
+    await sSet('hortus:world:incoming',incoming);
+    const original=enterGarden;
+    enterGarden=()=>{}; // isolate the actual load/adoption flow from DOM rendering
+    try{ await enterWorld('incoming'); }
+    finally{ enterGarden=original; }
+    setTile('plants','5,5',{s:'karl',d:0,t:2});
+    await advance(AUTOSAVE_DELAY);
+    assert((await sGet('hortus:world:incoming')).plants['5,5'],'the timer belongs to the incoming garden');
+    assert(!(await sGet('hortus:world:autosave-clock')).plants['5,5'],'the outgoing garden stays separate');
+  });
+});
+
+test('an edit made before the first save assigns an id still autosaves', async()=>{
+  await withAutosaveClock(async advance=>{
+    game.worldId=null;
+    let release;
+    const held=new Promise(resolve=>{release=resolve;});
+    const queued=updateWorldsIndex(async()=>{ await held; return null; });
+    try{
+      const first=saveSolo(true);
+      setTile('plants','5,5',{s:'karl',d:0,t:2});
+      release(); await queued; await first;
+      assert(game.worldId,'the initial save assigns a slot');
+      assert(game.dirty,'the later edit is still unsaved');
+      await advance(AUTOSAVE_DELAY);
+      assert((await sGet('hortus:world:'+game.worldId)).plants['5,5']);
+      assertEqual(game.dirty,false);
+    }finally{ release(); }
+  });
+});
+
+test('failed blob or index saves stay dirty and retry with the current edits', async()=>{
+  await withAutosaveClock(async advance=>{
+    await saveSolo(true);
+    const original=sSet, realToast=toast;
+    const warnings=[]; toast=(msg,kind)=>warnings.push({msg,kind});
+    try{
+      for(const failingKey of ['hortus:world:autosave-clock','hortus:worlds']){
+        sSet=async(k,v)=>k===failingKey?false:original(k,v);
+        setTile('plants','3,3',{s:'bluestem',d:0,t:1});
+        assertEqual(await autosaveNow(),false);
+        assert(game.dirty,'a failed write cannot mark edits saved');
+        assert(autosaveTimer,'the failed save has a delayed retry');
+        sSet=original;
+        await advance(AUTOSAVE_RETRY_DELAY);
+        assertEqual(game.dirty,false,'successful retry clears the unsaved state');
+        assert((await sGet('hortus:world:autosave-clock')).plants['3,3']);
+      }
+      assertEqual(warnings.length,2,'one recovery warning per failure episode');
+    }finally{ sSet=original; toast=realToast; }
+  });
+});
+
+test('a save captures its own garden and cannot mark later edits clean', async()=>{
+  await worldsIndexChain;
+  setup(21,21); game.worldId='save-captured-a'; game.worldName='Garden A';
+  setTile('plants','2,2',{s:'bluestem',d:0,t:1});
+  const original=sSet;
+  let release, entered;
+  const held=new Promise(resolve=>{release=resolve;}), started=new Promise(resolve=>{entered=resolve;});
+  sSet=async(k,v)=>{ if(k==='hortus:world:save-captured-a'){ entered(); await held; } return original(k,v); };
+  try{
+    const saving=saveSolo(true); await started;
+    setTile('plants','3,3',{s:'karl',d:0,t:2});
+    release(); await saving;
+    assert(game.dirty,'finishing an old snapshot leaves a subsequent edit unsaved');
+    assert(!(await sGet('hortus:world:save-captured-a')).plants['3,3'],'the snapshot is independent of live map mutations');
+    const saveA=saveSolo(true);
+    resetNewGardenState(); game.worldId='save-captured-b'; game.worldName='Garden B'; setWorldSize(27,27);
+    setTile('plants','6,6',{s:'karl',d:0,t:3});
+    const saveB=saveSolo(true);
+    await Promise.all([saveA,saveB]);
+    const a=await sGet('hortus:world:save-captured-a'), b=await sGet('hortus:world:save-captured-b');
+    assertEqual(a.name,'Garden A'); assertEqual(a.gw,21); assert(a.plants['3,3']); assert(!a.plants['6,6']);
+    assertEqual(b.name,'Garden B'); assertEqual(b.gw,27); assert(b.plants['6,6']);
+    const rows=await worldsIndex();
+    assertEqual(rows.find(w=>w.id==='save-captured-a').name,'Garden A','the index uses the captured metadata too');
+  }finally{ release(); sSet=original; cancelGardenAutosave(); }
+});
+
+test('concurrent first saves create one slot and reopening waits for the latest write', async()=>{
+  await worldsIndexChain;
+  setup(21,21); await clearStoredWorlds(); game.worldId=null;
+  setTile('plants','2,2',{s:'bluestem',d:0,t:1});
+  const first=saveSolo(true);
+  setTile('plants','3,3',{s:'karl',d:0,t:2});
+  const second=saveSolo(true);
+  await Promise.all([first,second]);
+  assertEqual((await worldsIndex()).length,1,'both first writes share their newly minted slot');
+  const id=game.worldId;
+  setTile('plants','4,4',{s:'karl',d:0,t:3});
+  const latest=saveSolo(true);
+  await loadSolo(id); await latest;
+  assert(game.plants['4,4'],'reopen observes the save already queued for this garden');
+  cancelGardenAutosave();
+});
+
+test('garden imports reject malformed versions, layers and records before touching storage', async()=>{
+  await worldsIndexChain;
+  setup(21,21); await clearStoredWorlds();
+  const good=()=>({pocketPrairie:1,v:1,world:{v:SAVE_VERSION,gw:21,gh:21,wv:1,name:'Valid',plants:{'2,2':{s:'bluestem',d:0,t:1}}}});
+  const changes=[
+    e=>e.v=999, e=>e.pocketPrairie=true, e=>e.world.v=SAVE_VERSION+1, e=>e.world.v='2',
+    e=>e.world.plants=null, e=>e.world.plants=[], e=>e.world.plants['2,2']=null,
+    e=>e.world.plants['2,2'].s='unknown-species', e=>e.world.plants['2,2'].v='unknown-variety',
+    e=>e.world.plants['2,2'].d='yesterday', e=>e.world.plants['2,2'].d=Infinity,
+    e=>e.world.plants['bad-coordinate']={s:'bluestem',d:0},
+    e=>e.world.plants['0.5,2']={s:'bluestem',d:0},
+    e=>e.world.gw=1e9, e=>e.world.gw=21.5, e=>delete e.world.gh, e=>e.world.name=42,
+    e=>e.world.bulbs=[], e=>e.world.terrain={'3,3':{k:'nonsense'}},
+    e=>e.world.elevation={'3,3':{h:999}}, e=>e.world.fences={'3,3':{height:'high'}},
+    e=>e.world.houses={}, e=>e.world.houses=[{x:2,y:2,w:-1,h:2}],
+    e=>e.world.buildings=[{vertices:[[1,1],null,[3,3],[1,3]]}],
+    e=>e.world.plotShape=[[0,0],[1,0],[1,1],[0,1]],
+    e=>e.world.schemes={active:'missing',list:[{id:'a',plants:{},bulbs:{}}]},
+    e=>e.world.schemes={active:'a',list:[{id:'a'},{id:'a'}]},
+    e=>e.world.schemes={active:'a',list:[{id:'a'},{id:'b',plants:null}]},
+    e=>e.world.underlay={data:'https://example.invalid/photo.jpg'},
+    e=>e.world.design=[], e=>e.world.discovery='bad',
+    e=>e.world.plants=JSON.parse('{"__proto__":{"s":"bluestem","d":0}}')
+  ];
+  for(let i=0;i<changes.length;i++){
+    const e=good(); changes[i](e); let message='';
+    assertEqual(await installWorldBlob(e,'Rejected',m=>{message=m;}),null,'malformed case '+i);
+    assert(message,'the rejected case has an actionable explanation: '+i);
+  }
+  assertEqual((await worldsIndex()).length,0,'rejected files create no index rows');
+  assertEqual((await storedWorldIds()).size,0,'nor hidden blobs');
+  assertEqual(JSON.stringify(game.plants), '{}','the open garden is untouched');
+  assertEqual(GW,21,'validation never changes the active plot dimensions');
+});
+
+test('current, demo and legacy garden files import without losing schemes or plant aliases', async()=>{
+  await worldsIndexChain;
+  setup(21,21); game.worldId='import-source';
+  setTile('plants','2,2',{s:'bluestem',d:0,t:1});
+  const other={id:'alternate',name:'Alternative',t:1,plants:{'4,4':{s:'karl',d:0,t:1}},bulbs:{}};
+  game.schemes.push(other);
+  game.underlay=normalizeUnderlay({data:'data:image/png;base64,AAAA',pixelW:1,pixelH:1,widthTiles:10});
+  const current={pocketPrairie:1,v:1,world:JSON.parse(JSON.stringify(buildSaveBlob()))};
+  const before=JSON.stringify(current);
+  assertEqual(gardenFileProblem(current),null,'the actual exporter produces a valid document');
+  const id=await installWorldBlob(current,'Imported');
+  assert(id); assertEqual(JSON.stringify(current),before,'validation and installation do not mutate the source');
+  await loadSolo(id);
+  assert(game.plants['2,2']); assertEqual(game.schemes.length,2); assert(game.schemes.find(s=>s.id==='alternate').plants['4,4']);
+  assertEqual(game.underlay.data,current.world.underlay.data);
+  assertEqual(gardenFileProblem(JSON.parse(readRepoFile('demo-garden.json'))),null,'the bundled demo uses the same validation');
+  const old={pocketPrairie:1,world:{grid:13,name:'Old story',mode:'story',plants:{},house:{x:1,y:1,w:2,h:2}}};
+  const alias=Object.keys(PLANT_REF_ALIASES)[0].split('|');
+  old.world.plants['3,3']={s:alias[0],v:alias[1]||null,d:0,t:1};
+  const legacy=await installWorldBlob(old,'Legacy'); assert(legacy,'unversioned exports and retired aliases remain supported');
+  await loadSolo(legacy);
+  assertEqual(GW,13); assertEqual(game.houses.length,1);
+  assertEqual(game.plants['3,3'].s,canonicalPlantRef(alias[0],alias[1]).s);
+  delete old.world.grid;
+  assertEqual(gardenFileProblem(old),null,'the oldest dimensionless saves keep their recentering path');
+  cancelGardenAutosave();
+});
+
+test('file import reports unreadable JSON, invalid names, oversized files and read failures', async()=>{
+  await worldsIndexChain;
+  setup(21,21);
+  const realReader=globalThis.FileReader, realToast=toast;
+  let reader, reads=0; const messages=[];
+  globalThis.FileReader=function(){ reader=this; this.readAsText=()=>{reads++;}; };
+  toast=msg=>messages.push(msg);
+  try{
+    importWorldFile({size:GARDEN_FILE_MAX_BYTES+1});
+    assertEqual(reads,0,'reject an oversized file before allocating its text');
+    assert(/large/i.test(messages.pop()));
+    importWorldFile({size:12}); reader.result='{bad'; await reader.onload();
+    assert(/JSON/i.test(messages.pop()));
+    importWorldFile({size:12}); reader.result=JSON.stringify({pocketPrairie:1,world:{name:42,plants:{}}}); await reader.onload();
+    assert(/name/i.test(messages.pop()),'a numeric name is rejected before String.replace can throw');
+    reader.onerror(); assert(/read/i.test(messages.pop()));
+    reader.onabort(); assert(/interrupted/i.test(messages.pop()));
+  }finally{ toast=realToast; if(realReader===undefined) delete globalThis.FileReader; else globalThis.FileReader=realReader; }
 });

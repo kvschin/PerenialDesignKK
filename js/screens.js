@@ -73,6 +73,7 @@ function todaysChallenge(){ return DAILY_CHALLENGES[Math.floor(Date.now()/864e5)
    owns is what genuinely differs: the name, the plot, true north, the edge
    style and the plant criteria. */
 function resetNewGardenState(){
+  resetGardenAutosave();
   for (const L of GAME_LAYERS) game[L.k]=L.array?[]:{};
   game.schemes=[]; game.schemeActive=null;
   game.freePlanting=false;
@@ -313,10 +314,12 @@ async function enterWorld(id){
      leaves the current garden exactly as it was. */
   beginWorldLoad();
   let ok=false;
-  try{ ok=await loadSolo(id); }
+  try{
+    ok=await loadSolo(id);
+    if (ok){ game.worldId=id; game.inGarden=true; }
+  }
   finally{ endWorldLoad(); }
   if (!ok){ toast('That garden failed to load.'); return; }
-  game.worldId=id; game.inGarden=true;
   funnel(FUNNEL_EVENTS.gardenOpened);
   enterGarden();
 }
@@ -349,36 +352,46 @@ async function shareCurrentGarden(){
    device — a friend's exported file and the bundled demo garden are the same
    envelope, so they should not be able to disagree about what a valid garden is.
    Returns the new slot id, or null if the envelope is not one of ours. */
-async function installWorldBlob(env, name){
-  const w = env && env.pocketPrairie && env.world;
-  if (!w || typeof w!=='object' || typeof w.plants!=='object') return null;
+async function installWorldBlob(env, name, reportProblem){
+  const problem=gardenFileProblem(env);
+  if (problem){ if (reportProblem) reportProblem(problem); return null; }
+  const w=JSON.parse(JSON.stringify(env.world));
   /* Mint, store the blob, and add the row as ONE critical section. The id is
      minted against a fresh index (this writes a whole garden to
      hortus:world:<id>, so a repeat would overwrite one), and the row cannot be
      lost to a concurrent write. */
   let id=null;
-  await updateWorldsIndex(async fresh=>{
+  const installed=await updateWorldsIndex(async fresh=>{
     id=newWorldId(new Set(fresh.map(x=>x.id)));
-    w.name=name;
+    w.name=typeof name==='string' ? name.trim().slice(0,80) : (w.name||'Shared garden');
     if (!(await sSet('hortus:world:'+id, w))){ id=null; return null; }
     const out=fresh.filter(x=>x.id!==id);
-    out.push({ id, name:w.name, ts:Date.now(), gw:w.gw||31, gh:w.gh||31, mode:'design' });
+    out.push({ id, name:w.name, ts:Date.now(), gw:w.gw||w.grid||31, gh:w.gh||w.grid||31, mode:'design' });
     return out;
   });
+  if (!installed){
+    if (reportProblem) reportProblem('The garden could not be imported. Free some device storage and try again.');
+    return null;
+  }
   return id;
 }
 function importWorldFile(file){
   if (!file) return;
+  if (file.size>GARDEN_FILE_MAX_BYTES){ toast('This garden file is too large to import (maximum 16 MB).','warn'); return; }
   const reader=new FileReader();
   reader.onload=async()=>{
-    let env; try{ env=JSON.parse(reader.result); }catch(e){ toast('That file is not a garden.'); return; }
-    const raw=(env && env.world && env.world.name)||'Shared garden';
-    const id=await installWorldBlob(env, raw.replace(/ \(shared\)$/,'')+' (shared)');
-    if (!id){ toast('That does not look like a Pocket Prairie garden.'); return; }
-    toast(`Imported "${raw.replace(/ \(shared\)$/,'')} (shared)". Open it below.`);
-    openWorlds();
+    let env; try{ env=JSON.parse(reader.result); }catch(e){ toast('That file is not readable garden JSON. Export a fresh copy.','warn'); return; }
+    const raw=env && env.world && typeof env.world.name==='string' ? env.world.name : 'Shared garden';
+    try{
+      const id=await installWorldBlob(env, raw.replace(/ \(shared\)$/,'')+' (shared)',msg=>toast(msg,'warn'));
+      if (!id) return;
+      toast(`Imported "${raw.replace(/ \(shared\)$/,'')} (shared)". Open it below.`);
+      await openWorlds();
+    }catch(e){ toast('The garden could not be imported. Try selecting the file again.','warn'); noteError(e,'garden-import'); }
   };
-  reader.readAsText(file);
+  reader.onerror=()=>toast('That garden file could not be read. Try selecting it again.','warn');
+  reader.onabort=()=>toast('Garden import was interrupted. Select the file to try again.','warn');
+  try{ reader.readAsText(file); }catch(e){ reader.onerror(); }
 }
 /* The demo garden ships as an ordinary exported garden file. That is the whole
    trick: it needs no bundled format, no separate loader and no seeding code —
@@ -1511,9 +1524,9 @@ if ($('btnSchemeClose')) $('btnSchemeClose').onclick=()=>closeOverlay('schemeScr
 if ($('btnSchemeNewEmpty')) $('btnSchemeNewEmpty').onclick=()=>{ if (createScheme(false)) renderSchemeManager(); };
 if ($('btnSchemeNewCopy')) $('btnSchemeNewCopy').onclick=()=>{ if (createScheme(true)) renderSchemeManager(); };
 $('schemeScreen').onclick=(e)=>{ if (e.target===$('schemeScreen')) closeOverlay('schemeScreen'); };
-/* no Save button: autosave covers day changes, quitting, and the tab
-   being hidden or closed mid-session */
-function autosaveNow(){ if (game.inGarden&&hasStorage){ saveSolo(true); game.dirty=false; } }
+/* Edits autosave after settling, even with time paused. Lifecycle/day saves
+   flush immediately; only saveSolo may mark a successful write clean. */
+function autosaveNow(){ if (game.inGarden&&hasStorage) return saveSolo(true); }
 addEventListener('visibilitychange',()=>{
   if (document.hidden){ suspendClock(); autosaveNow(); }
   else { resumeClockSession(); updateHUD(); }
