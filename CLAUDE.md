@@ -325,6 +325,38 @@ See §13a.
 - Mobile is a first-class target: tap a tile to act on it. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
+### Regional plant guidance
+
+Continental `nativeTo`/`provenance` and stored `nativeRegion`/`nativeMode` keep
+their eligibility contract. UI labels name the continent and say that local
+native status, nursery provenance, and regional invasive risk need separate
+review. A zone match is not a complete site-suitability assessment.
+
+`PLANT_GUIDANCE` and `PLANT_GUIDANCE_SOURCES` in `core.js` hold a bounded set of
+reviewed notes, separate from `PLANTS` and save blobs. Each entry has `taxon`,
+`reviewed` (ISO date), and optional `origin`, `site`, and `invasive` arrays;
+each note has `area`, `text`, and a `source` key. Origin observations carry
+`status:'native'`; site notes carry a `topic`. `plantGuidance({s,v})` resolves
+aliases and checks the effective botanical name, refusing inheritance by a
+different nested species or an unreviewed hybrid. Named species selections
+retain species cautions but are never implicitly cleared. The gardener's
+`localStatus` stays `unknown`: there is no location input or automatic local
+native/suitability inference. No note is a nationwide planting prohibition.
+
+`buildPlantGuidance`/`openPlantGuidance` (ui.js) present the same source-linked,
+dated advice in the Library and the `plantGuidanceScreen` dialog, reached from
+catalog choices and planted-plant cards. The dialog uses the existing focus
+trap, Escape, and return-focus pathways. Family cards flag cautions among
+their choices; exact cards resolve only their own species. Source links open
+on user action only; notes work offline. Missing records display uncertainty,
+never approval. Planting-list CSVs append local native uncertainty and regional
+cautions with source URLs; the on-screen list names affected regions. This
+does not alter placement, saves, schemes, collections, or quantities.
+
+The initial review covers nine species with regional invasive cautions, seven
+with narrower native-range observations, and six with site qualifications.
+Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
+
 ## Architecture
 
 Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game

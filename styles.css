@@ -2534,3 +2534,26 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .set-value-block{width:100%;order:3;text-align:left;margin:6px 0 0;color:var(--text-primary)}
 .set-row-head:has(.set-value-block){flex-wrap:wrap}
 .set-row-head:has(.set-value-block)+.set-hint{margin-top:8px}
+
+/* Regional guidance stays in normal flow, with separate targets for choosing
+   a plant and reading its notes. Source links remain usable on narrow screens. */
+.plant-result-card.has-guidance{flex-wrap:wrap;align-content:flex-start}
+.plant-result-card.has-guidance>.plant-result-main{flex-basis:100%}
+.plant-guidance-button{display:block;width:100%;min-height:44px;padding:9px 12px;border:0;border-top:1px solid var(--border-quiet);background:var(--surface-control);color:var(--text-secondary);font:600 12px/1.4 'IBM Plex Sans',sans-serif;text-align:left;white-space:normal}
+.plant-guidance-button:hover{background:var(--surface-control-hover)}
+.plant-guidance-button.has-caution,.plant-caution-tag{color:var(--text-warn)}
+.plant-guidance-button.has-caution{background:var(--surface-warn)}
+.plant-caution-tag{font-size:12px;line-height:1.45;white-space:normal}
+.plant-guidance-panel{max-width:580px}
+.plant-guidance{margin:14px 0;color:var(--text-primary);font-size:13px;line-height:1.5}
+.plant-guidance p{margin:6px 0}
+.plant-guidance h3{font:700 14px/1.4 'IBM Plex Sans',sans-serif;margin:8px 0}
+.plant-guidance-note{margin:12px 0}
+.plant-guidance-source{font-size:12px;color:var(--text-secondary);overflow-wrap:anywhere}
+.plant-guidance-source a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.plant-regional-caution{padding:10px 14px;border:1px solid var(--border-active);border-radius:var(--radius-control);background:var(--surface-warn);color:var(--text-warn)}
+.plant-guidance-scope{color:var(--text-secondary)}
+.plant-guidance summary{min-height:44px;padding:10px 0;cursor:pointer;font-weight:700}
+.plant-guidance details{border-top:1px solid var(--border-quiet);margin-top:12px}
+#plantCard{max-height:calc(100vh - 165px);max-height:calc(100dvh - 165px);overflow-y:auto;overscroll-behavior:contain}
+#plantCard>.plant-guidance-button{margin-top:9px;border:1px solid var(--border-quiet);border-radius:var(--radius-control)}

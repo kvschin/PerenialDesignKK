@@ -1041,7 +1041,7 @@ function openDesignSetup(){
   function renderNative(){
     nativeModeEl.innerHTML='';
     NATIVE_MODES.forEach(mode=>{
-      const on=sel.nativeMode===mode.id, b=mkChip(mode.id==='any'?'Any':mode.id==='regional'?'Regional':'Straight',on,()=>{
+      const on=sel.nativeMode===mode.id, b=mkChip(mode.id==='any'?'Any':mode.id==='regional'?'Continent':'Straight',on,()=>{
         sel.nativeMode=mode.id; renderNative(); updateCount(); syncMeadow();
       });
       b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); nativeModeEl.appendChild(b);
@@ -1524,6 +1524,8 @@ if ($('btnSchemeClose')) $('btnSchemeClose').onclick=()=>closeOverlay('schemeScr
 if ($('btnSchemeNewEmpty')) $('btnSchemeNewEmpty').onclick=()=>{ if (createScheme(false)) renderSchemeManager(); };
 if ($('btnSchemeNewCopy')) $('btnSchemeNewCopy').onclick=()=>{ if (createScheme(true)) renderSchemeManager(); };
 $('schemeScreen').onclick=(e)=>{ if (e.target===$('schemeScreen')) closeOverlay('schemeScreen'); };
+if ($('btnPlantGuidanceClose')) $('btnPlantGuidanceClose').onclick=()=>closeOverlay('plantGuidanceScreen');
+if ($('plantGuidanceScreen')) $('plantGuidanceScreen').onclick=e=>{ if (e.target===$('plantGuidanceScreen')) closeOverlay('plantGuidanceScreen'); };
 /* Edits autosave after settling, even with time paused. Lifecycle/day saves
    flush immediately; only saveSolo may mark a successful write clean. */
 function autosaveNow(){ if (game.inGarden&&hasStorage) return saveSolo(true); }

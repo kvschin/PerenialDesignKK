@@ -1468,7 +1468,7 @@ test('the fixed setup zone stays out of discovery filter summaries', () => {
   game.discovery = normalizeDiscovery({ colorFamilies: ['pink'], bloomSeasons: [] });
   const labels = discoveryCriteriaLabels();
   assert(!labels.some(label => /^Zone/.test(label)), 'the setup zone is not repeated in the in-garden catalog');
-  assert(labels.includes('North America natives'), 'an active garden criterion names its comparison range');
+  assert(labels.some(label=>label.includes('North America')), 'an active garden criterion names its comparison range');
   assertEqual(discoveryFilterCount(), 2, 'the filter badge counts the visible criterion and flower lens, not zone');
 });
 
@@ -2679,7 +2679,7 @@ test('design preview can show established plants without changing real growth', 
 test('plant cards lead with woody mature size and keep herbaceous inches', () => {
   setup();
   const oldGet = document.getElementById;
-  const card = { _t: 0, style: {}, innerHTML: '', prepend(){} };
+  const card = document.createElement('div');
   document.getElementById = id => id === 'plantCard' ? card : oldGet.call(document, id);
   try {
     const oak = { s: 'whiteoak', d: absDay(), t: 1 };
@@ -9981,6 +9981,99 @@ test('current, demo and legacy garden files import without losing schemes or pla
   assertEqual(game.plants['3,3'].s,canonicalPlantRef(alias[0],alias[1]).s);
   delete old.world.grid;
   assertEqual(gardenFileProblem(old),null,'the oldest dimensionless saves keep their recentering path');
+  cancelGardenAutosave();
+});
+
+test('regional guidance has explicit taxa, geographic scopes, review dates and sources',()=>{
+  const sources=new Set();
+  for(const [key,entry] of Object.entries(PLANT_GUIDANCE)){
+    assert(PLANTS[key],key+' exists');
+    assertEqual(entry.taxon,PLANTS[key].latin,key+' is an exact reviewed taxon');
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(entry.reviewed),key+' has a review date');
+    const resolved=plantGuidance({s:key});
+    assertEqual(resolved.localStatus,'unknown','a source region never becomes the gardener location');
+    for(const kind of ['origin','site','invasive']) for(const n of entry[kind]||[]){
+      assert(n.area&&n.text,key+' names its scope and advice');
+      if(kind==='origin') assertEqual(n.status,'native');
+      if(kind==='site') assert(n.topic,key+' names the site qualification');
+      const source=PLANT_GUIDANCE_SOURCES[n.source]; sources.add(n.source);
+      assert(source&&source.label&&/^https:\/\//.test(source.url),key+' has a usable source');
+      assert(resolved[kind].some(r=>r.text===n.text&&r.reviewed===entry.reviewed),key+' reaches the consumer');
+    }
+  }
+  assertEqual(sources.size,Object.keys(PLANT_GUIDANCE_SOURCES).length,'no unreferenced source records');
+});
+
+test('regional cautions follow the exact species and preserve unknown cultivar assessments',()=>{
+  assert(plantGuidance({s:'fountaingrass',v:'hameln'}).invasive.length,'a named cultivar does not erase a species caution');
+  assertEqual(plantGuidance({s:'orientalfountain'}).invasive.length,0,'a different species in the same tray family is not accused');
+  assertEqual(plantGuidance({s:'fountaingrass',v:'missing'}).invasive.length,0,'an invalid exact reference does not fall back to the base assessment');
+  assertEqual(plantGuidance({s:'missing'}).localStatus,'unknown');
+  const cv=PLANTS.fountaingrass.cv;
+  try{
+    cv.guidanceOtherSpecies={name:'Test',latin:'Cenchrus orientalis',provenance:'species'};
+    cv.guidanceHybrid={name:'Test hybrid',provenance:'hybrid'};
+    assertEqual(plantGuidance({s:'fountaingrass',v:'guidanceOtherSpecies'}).invasive.length,0,'nested species do not inherit unrelated advice');
+    assertEqual(plantGuidance({s:'fountaingrass',v:'guidanceHybrid'}).invasive.length,0,'unreviewed hybrids do not inherit a species assessment');
+  }finally{
+    delete cv.guidanceOtherSpecies; delete cv.guidanceHybrid;
+    delete _defCache['fountaingrass|guidanceOtherSpecies']; delete _defCache['fountaingrass|guidanceHybrid'];
+  }
+  const g=plantGuidance({s:'fig',v:Object.keys(PLANTS.fig.cv)[0]});
+  assert(g.selection&&g.invasive.length,'named fig retains the unresolved cultivar caution');
+  const text=g.invasive[0].text; g.invasive[0].text='changed by caller';
+  assertEqual(plantGuidance({s:'fig'}).invasive[0].text,text,'readers cannot mutate bundled review notes');
+});
+
+test('continental native criteria do not imply local suitability or clear regional cautions',()=>{
+  setup();
+  const ref={s:'mexicanfeather'}, north={zone:8,nativeRegion:'north-america',nativeMode:'regional'};
+  assert(plantRefFitsCriteria(ref,north),'the existing continental filter contract is preserved');
+  assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'the same plant can carry a California caution');
+  for(const nativeRegion of ['north-america','europe']){
+    game.filters=normalizeFilters({nativeRegion,nativeMode:'any'});
+    assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'choosing an origin continent is not choosing a garden location');
+    assert(/local/i.test(nativeCriteriaText({nativeRegion,nativeMode:'regional'})));
+  }
+  assert(/parts/.test(nativeStatusText(PLANTS.bluestem)),'status copy identifies partial continental ranges');
+  assert(/not assessed/.test(plantCautionText({s:'bamboo',v:'clumping'})),'unidentified bamboo is unknown, never cleared');
+  assert(plantGuidance({s:'cenizo'}).site.some(n=>/humidity/.test(n.text)),'site qualifications extend beyond a moisture bucket');
+});
+
+test('plant guidance shows unknowns and dated source links without changing the garden',()=>{
+  setup();
+  const nodes=e=>[e,...(e.children||[]).flatMap(n=>typeof n==='object'?nodes(n):[])];
+  const text=e=>nodes(e).map(n=>n.textContent||'').join(' ');
+  const state=JSON.stringify(snapshotState());
+  const reviewed=buildPlantGuidance({s:'miscanthus',v:'adagio'});
+  assert(text(reviewed).includes('Maryland'));
+  assert(text(reviewed).includes('not been individually cleared'));
+  assert(text(reviewed).includes(LOCAL_NATIVE_UNKNOWN));
+  const link=nodes(reviewed).find(n=>n.tagName==='A');
+  assertEqual(link.href,PLANT_GUIDANCE_SOURCES.marylandGrasses.url);
+  assertEqual(link.rel,'noopener noreferrer');
+  const unknown=text(buildPlantGuidance({s:'whiteoak'}));
+  assert(unknown.includes('has not been assessed')&&unknown.includes('No additional reviewed site'),'missing data stays visibly unknown');
+  assertEqual(JSON.stringify(snapshotState()),state,'guidance never edits planted work');
+  const warned=discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery());
+  const other=discoveryResultCard({s:'orientalfountain'},activeDiscovery());
+  assert(nodes(warned).some(n=>n.className==='plant-guidance-button has-caution'));
+  assert(!nodes(other).some(n=>n.className==='plant-guidance-button has-caution'));
+});
+
+test('regional cautions travel with exports and do not remove plants from saves or schemes',async()=>{
+  await worldsIndexChain; setup(); game.worldId='regional-guidance-save';
+  setTile('plants','4,4',{s:'mexicanfeather',d:0,t:1});
+  game.schemes.push({id:'other',name:'Other',t:1,plants:{'6,6':{s:'miscanthus',v:'adagio',d:0,t:1}},bulbs:{}});
+  const row=exportRows().find(r=>r.latin==='Nassella tenuissima');
+  assert(row.regionalCautions.includes('California')&&row.regionalCautions.includes('https://www.cal-ipc.org/'));
+  assertEqual(row.localNative,LOCAL_NATIVE_UNKNOWN);
+  const env={pocketPrairie:1,v:1,world:JSON.parse(JSON.stringify(buildSaveBlob()))};
+  assertEqual(gardenFileProblem(env),null,'a caution is not an import ban');
+  assert(!Object.prototype.hasOwnProperty.call(env.world,'regionalCautions'),'review data is not copied into saves');
+  await saveSolo(true); await loadSolo(game.worldId);
+  assert(game.plants['4,4'],'the active scheme survives');
+  assert(game.schemes.find(s=>s.id==='other').plants['6,6'],'the inactive scheme survives');
   cancelGardenAutosave();
 });
 

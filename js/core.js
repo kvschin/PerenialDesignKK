@@ -1174,8 +1174,8 @@ const NATIVE_REGION_IDS=new Set(NATIVE_REGIONS.filter(r=>r.selectable!==false).m
 const DEFAULT_NATIVE_REGION='north-america';
 const NATIVE_MODES=Object.freeze([
   {id:'any',label:'Any origin'},
-  {id:'regional',label:'Regional natives + selections'},
-  {id:'straight',label:'Straight regional species only'},
+  {id:'regional',label:'Continent natives + selections'},
+  {id:'straight',label:'Straight species from continent'},
 ]);
 const NATIVE_MODE_IDS=new Set(NATIVE_MODES.map(m=>m.id));
 function normalizeNativeRegion(value){ return NATIVE_REGION_IDS.has(value)?value:DEFAULT_NATIVE_REGION; }
@@ -1201,14 +1201,15 @@ function passesNativeFilter(P,criteria){
 }
 function nativeCriteriaText(criteria){
   const f=criteria||{}, mode=normalizeNativeMode(f.nativeMode), place=nativeRegionLabel(f.nativeRegion);
-  if (mode==='regional') return `Plants native to ${place}; named selections included, garden hybrids excluded.`;
-  if (mode==='straight') return `${place} natives only; named selections and garden hybrids excluded.`;
-  return 'No native-origin limit.';
+  const scope=' Continental origin does not establish local native status or regional invasive risk.';
+  if (mode==='regional') return `Species native somewhere in ${place}; named selections included, garden hybrids excluded.`+scope;
+  if (mode==='straight') return `Species native somewhere in ${place}; named selections and garden hybrids excluded.`+scope;
+  return 'Any origin. Local native status and regional invasive risk are not checked by this filter.';
 }
 function nativeStatusText(P,region=DEFAULT_NATIVE_REGION){
   const r=nativeRelation(P,region), place=nativeRegionLabel(region);
-  if (r.kind==='native') return `Native to ${place}`;
-  if (r.kind==='selection') return `Selection of a species native to ${place}`;
+  if (r.kind==='native') return `Native in parts of ${place}`;
+  if (r.kind==='selection') return `Selection of a species native in parts of ${place}`;
   if (r.kind==='hybrid') return r.nativeHere
     ? `Hybrid taxon recorded from ${place} (excluded by native filters)`
     : (r.nativeTo.length?`Hybrid taxon; not native to ${place}`:'Garden hybrid');
@@ -1221,12 +1222,92 @@ function nativeOriginText(P){
   if (!r.nativeTo.length) return r.provenance==='selection'?'Garden selection':'Origin not assigned';
   const names=r.nativeTo.map(id=>nativeRegionLabel(id));
   const origin=names.length>3?`${names.slice(0,3).join(', ')} +${names.length-3}`:names.join(', ');
-  if (r.provenance==='selection') return `Selection of a species native to ${origin}`;
+  if (r.provenance==='selection') return `Selection of a species native in parts of ${origin}`;
   if (r.provenance==='hybrid') return `Hybrid taxon; native range includes ${origin}`;
-  return `Native to ${origin}`;
+  return `Native in parts of ${origin}`;
 }
 function provenanceLabel(P){
   return P&&P.provenance==='species'?'Straight species':P&&P.provenance==='selection'?'Named selection':'Hybrid';
+}
+/* Reviewed guidance is separate from continental nativeTo and hard eligibility.
+   A missing assessment is UNKNOWN, never a clean bill of health. Area labels
+   describe the source's geography, not the gardener's location. Sources are
+   bundled as text/links and are never fetched automatically.
+   Match the resolved taxon too: a nested choice may be a DIFFERENT species. */
+const PLANT_GUIDANCE_SOURCES=Object.freeze({
+  marylandGrasses:{label:'University of Maryland Extension',url:'https://www.extension.umd.edu/resource/ornamental-and-native-grasses-landscape'},
+  mexicanFeather:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/stipa-tenuissima-profile/'},
+  cherryLaurel:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/cherry-laurel'},
+  waterlily:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/fragrant-water-lily'},
+  spirea:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/spiraea-japonica/common-name/japanese-spirea/'},
+  milkweed:{label:'EPPO',url:'https://gd.eppo.int/taxon/ASCSY/categorization'},
+  fig:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/ficus-carica-profile/'},
+  olive:{label:'California Invasive Plant Council',url:'https://www.cal-ipc.org/plants/profile/olea-europaea-profile/'},
+  blueblossom:{label:'Oregon State University',url:'https://landscapeplants.oregonstate.edu/plants/ceanothus-thyrsiflorus'},
+  firebush:{label:'UF/IFAS Extension',url:'https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/firebush/'},
+  beachSunflower:{label:'UF/IFAS Extension',url:'https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/beach-sunflower/'},
+  rhododendron:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/rhododendron-catawbiense/'},
+  cenizo:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/leucophyllum-frutescens/common-name/texas-barometer-bush/'},
+});
+const PLANT_GUIDANCE=Object.freeze({
+  mexicanfeather:{taxon:'Nassella tenuissima',reviewed:'2026-09-06',invasive:[
+    {area:'California',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
+  miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-09-06',invasive:[
+    {area:'Maryland',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'}]},
+  fountaingrass:{taxon:'Cenchrus alopecuroides',reviewed:'2026-09-06',invasive:[
+    {area:'Maryland',source:'marylandGrasses',text:'Extension recommends avoiding Chinese fountain grass, including commonly sold cultivars. Also listed as Pennisetum alopecuroides or Cenchrus purpurascens.'}]},
+  cherrylaurel:{taxon:'Prunus laurocerasus',reviewed:'2026-09-06',invasive:[
+    {area:'King County, Washington',source:'cherryLaurel',text:'The county discourages new plantings. Bird-dispersed seeds escape into forests, where dense growth competes with native vegetation.'}]},
+  fragrantwaterlily:{taxon:'Nymphaea odorata',reviewed:'2026-09-06',invasive:[
+    {area:'Washington',source:'waterlily',text:'A regional noxious weed concern despite its North American origin. It forms dense aquatic mats. Consult local guidance before planting or moving it.'}]},
+  japanesespirea:{taxon:'Spiraea japonica',reviewed:'2026-09-06',invasive:[
+    {area:'North Carolina',source:'spirea',text:'Escapes cultivation and is classified as invasive by the NC Invasive Plant Council. Choose a locally appropriate alternative.'}]},
+  commonmilkweed:{taxon:'Asclepias syriaca',reviewed:'2026-09-06',invasive:[
+    {area:'European Union',source:'milkweed',text:'EPPO records this species as an invasive alien plant of EU concern. Check current national guidance before acquiring or planting it.'}]},
+  fig:{taxon:'Ficus carica',reviewed:'2026-09-06',invasive:[
+    {area:'California',source:'fig',text:'Cal-IPC rates this species Moderate; escaped plants can form thickets along waterways. Cultivar risk is still being studied, so named varieties are not automatically cleared.'}]},
+  olive:{taxon:'Olea europaea',reviewed:'2026-09-06',invasive:[
+    {area:'California',source:'olive',text:'Cal-IPC rates this species Limited and advises caution near open space. Its guidance suggests seedless varieties; verify the exact nursery selection rather than assuming an exemption.'}]},
+  bluestem:{taxon:'Schizachyrium scoparium',reviewed:'2026-09-06',origin:[
+    {area:'Maryland',status:'native',source:'marylandGrasses',text:'The species is recorded as native statewide; verify local habitat and stock provenance.'}]},
+  bigbluestem:{taxon:'Andropogon gerardii',reviewed:'2026-09-06',origin:[
+    {area:'Maryland mountains and Piedmont',status:'native',source:'marylandGrasses',text:'The source identifies these regions as its Maryland native range.'}]},
+  switchgrass:{taxon:'Panicum virgatum',reviewed:'2026-09-06',origin:[
+    {area:'Maryland',status:'native',source:'marylandGrasses',text:'Recorded as native statewide. A cultivar name does not identify local seed provenance.'}]},
+  bluefescue:{taxon:'Festuca glauca',reviewed:'2026-09-06',site:[
+    {area:'Maryland',topic:'Drainage and summer heat',source:'marylandGrasses',text:'Needs excellent drainage and performs better in cooler places. Maryland is near its southern heat limit; winter hardiness alone does not predict summer performance.'}]},
+  blueblossom:{taxon:'Ceanothus thyrsiflorus',reviewed:'2026-09-06',origin:[
+    {area:'California and Oregon Coast Range foothills',status:'native',source:'blueblossom',text:'The reviewed range runs from Santa Barbara County north into Oregon; it is not a statewide habitat recommendation.'}],site:[
+    {area:'Western Oregon',topic:'Drainage and winter exposure',source:'blueblossom',text:'Needs good drainage. OSU reports winter losses in some years in Corvallis, so assess shelter and local cold pockets.'}]},
+  firebush:{taxon:'Hamelia patens',reviewed:'2026-09-06',origin:[
+    {area:'Florida',status:'native',source:'firebush',text:'The native species is distinct from nonlocal dwarf forms sold under similar names. Verify nursery identity and provenance.'}],site:[
+    {area:'North versus South Florida',topic:'Freeze response',source:'firebush',text:'Can remain a large shrub in South Florida; freezes cause dieback in North Florida. Water regularly during establishment in well-drained soil.'}]},
+  beachsunflower:{taxon:'Helianthus debilis',reviewed:'2026-09-06',origin:[
+    {area:'Florida coasts',status:'native',source:'beachSunflower',text:'Subspecies have distinct Gulf and Atlantic ranges. Use the local ecotype; moving coast-to-coast stock can hybridize with local populations.'}],site:[
+    {area:'Florida',topic:'Drainage, irrigation and coast',source:'beachSunflower',text:'Favors sandy, well-drained sunny sites; excessive irrigation can cause decline. Tolerates salt spray and soil salts. Freezing sites may grow it as an annual.'}]},
+  catawbarhododendron:{taxon:'Rhododendron catawbiense',reviewed:'2026-09-06',origin:[
+    {area:'Eastern US Appalachian slopes and ridges',status:'native',source:'rhododendron',text:'Its native mountain range is narrower than its North American origin label.'}],site:[
+    {area:'Eastern US gardens',topic:'Soil acidity and drainage',source:'rhododendron',text:'Needs acidic, organic, moist but well-drained soil. Avoid both waterlogging and completely dry roots; a moisture label alone does not capture these needs.'}]},
+  cenizo:{taxon:'Leucophyllum frutescens',reviewed:'2026-09-06',site:[
+    {area:'Southwestern US and humid growing sites',topic:'Heat, humidity and drainage',source:'cenizo',text:'Tolerates heat and drought, but high humidity and hot nights can be troublesome. Avoid overwatering and poor drainage; consider raised planting areas in high rainfall.'}]},
+});
+const LOCAL_NATIVE_UNKNOWN='Local native status has not been assessed for your location. Continental origin is not local provenance.';
+const SITE_GUIDANCE_SCOPE='Matching the plant filters is a starting point. Check drainage, soil pH, summer heat and humidity, irrigation, and exposure before buying.';
+function plantGuidance(ref){
+  const c=canonicalPlantRef(ref&&ref.s,ref&&ref.v), P=plantDef(c.s,c.v);
+  const entry=PLANT_GUIDANCE[c.s], latin=P&&P.latin;
+  const validRef=P && (!c.v || (PLANTS[c.s].cv && Object.prototype.hasOwnProperty.call(PLANTS[c.s].cv,c.v)));
+  const matches=validRef && P.provenance!=='hybrid' && entry &&
+    (latin===entry.taxon || (typeof latin==='string' && latin.startsWith(entry.taxon+" '")));
+  const result={localStatus:'unknown',origin:[],site:[],invasive:[],selection:!!P&&P.provenance!=='species'};
+  if (!matches) return result;
+  for (const kind of ['origin','site','invasive']) result[kind]=(entry[kind]||[]).map(n=>Object.assign({},n,{reviewed:entry.reviewed}));
+  return result;
+}
+function plantCautionText(ref,withSources=false){
+  const notes=plantGuidance(ref).invasive;
+  if (!notes.length) return 'Regional invasive risk not assessed; no caution here does not mean cleared.';
+  return notes.map(n=>`${n.area}: ${n.text}`+(withSources?` [${n.reviewed}; ${PLANT_GUIDANCE_SOURCES[n.source].url}]`:'')).join(' ');
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }

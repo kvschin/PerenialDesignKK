@@ -347,8 +347,8 @@ function showLibraryDetail(key){
     ['Hardiness', `USDA zones ${P.zones[0]}–${P.zones[1]}`],
     ['Bloom', libraryBloomText(P)],
     ['Light', P.sun==='full'?'Full sun':'Part shade'],
-    ['Soil', P.moist[0].toUpperCase()+P.moist.slice(1)+' moisture'],
-    ['Origin', nativeOriginText(P)],
+    ['Moisture', P.moist[0].toUpperCase()+P.moist.slice(1)],
+    ['Broad origin', nativeOriginText(P)],
     ['Plant status', provenanceLabel(P)],
     ['Roles', roleSummary(key)],
   ];
@@ -367,7 +367,7 @@ function showLibraryDetail(key){
   const dl=document.createElement('dl'); dl.className='ld-facts';
   facts.forEach(([k,v])=>{ const dt=document.createElement('dt'); dt.textContent=k;
     const dd=document.createElement('dd'); dd.textContent=v; dl.append(dt,dd); });
-  card.append(dl);
+  card.append(dl,buildPlantGuidance({s:key,v:null}));
   if (cvKeys.length || libraryCultivars.length){
     const cvs=document.createElement('div'); cvs.className='ld-cvs';
     const n=cvKeys.length+libraryCultivars.length;

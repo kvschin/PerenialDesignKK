@@ -1671,7 +1671,7 @@ function discoveryResultCard(ref,d,opts={}){
   const kind=document.createElement('small'); kind.textContent=provenanceLabel(P); meta.appendChild(kind);
   const relation=nativeRelation(P,activeFilters().nativeRegion);
   if (activeFilters().nativeMode==='any' && relation.regional){
-    const nativeTag=document.createElement('small'); nativeTag.textContent='Regional native'; meta.appendChild(nativeTag);
+    const nativeTag=document.createElement('small'); nativeTag.textContent=nativeRegionLabel(activeFilters().nativeRegion)+' origin'; meta.appendChild(nativeTag);
   }
   copy.append(name,latin,meta);
   const timeline=discoveryBloomTimeline(P); if (timeline) copy.appendChild(timeline);
@@ -1696,7 +1696,9 @@ function discoveryResultCard(ref,d,opts={}){
   add.title=inPalette?`Remove ${P.name} from this palette`:`Add ${P.name} to a palette`;
   add.setAttribute('aria-label',add.title); setUiIcon(add,inPalette?'minus':'plus');
   add.onclick=()=>{ if (inPalette){ removePaletteRef(d.collectionId,ref); buildToolTray(); } else openPaletteManager(ref); };
-  actions.append(heart,add); row.append(main,actions); discoveryPlacingBadge(row,selected); return row;
+  actions.append(heart,add); row.append(main,actions);
+  const guidance=plantGuidanceButton(ref); if (guidance){ row.classList.add('has-guidance'); row.appendChild(guidance); }
+  discoveryPlacingBadge(row,selected); return row;
 }
 function discoveryFamilyCard(group,d){
   if (group.refs.length===1) return discoveryResultCard(group.refs[0],d);
@@ -1717,6 +1719,10 @@ function discoveryFamilyCard(group,d){
   const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
   varieties.className='plant-variety-tag';
   meta.append(bloom,varieties); copy.append(name,latin,meta);
+  if (group.refs.some(ref=>plantGuidance(ref).invasive.length)){
+    const caution=document.createElement('span'); caution.className='plant-caution-tag';
+    caution.textContent='Regional cautions · check individual choices'; copy.appendChild(caution);
+  }
   const timeline=discoveryBloomTimeline(R); if (timeline) copy.appendChild(timeline);
   copy.appendChild(discoverySiteMeta(R)); main.append(art,copy);
   const open=document.createElement('span'); open.className='plant-family-open'; open.textContent='View'; const arrow=document.createElement('i'); setUiIcon(arrow,'chevron-right'); open.appendChild(arrow);

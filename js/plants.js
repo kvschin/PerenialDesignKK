@@ -441,7 +441,7 @@ const PLANTS = {
     group:'fountaingrass', groupLabel:'Fountain Grass', chip:'Chinese',
     space:30, spread:36, zones:[5,9], _legacyNative:false, sun:'full', moist:'medium', phen:'warm',
     look:{art2:true, leaves:14, stems:7, fan:2.0, brush:5.5},
-    blurb:'A warm-season fountain of arching leaves and bottlebrush plumes. Sterile or well-behaved cultivars are safer than seed-grown types.',
+    blurb:'A warm-season fountain of arching leaves and bottlebrush plumes. Check regional invasive guidance before buying; a cultivar name alone does not establish low risk.',
     sea:{Spring:{fol:'#7d9a5f'}, Summer:{fol:'#6f8f5a',bloom:'#d6b0a2'}, Fall:{fol:'#c69a52',seed:'#c2a078'}, Winter:{fol:'#b0986e',seed:'#d0b890'}},
     cv:{
       hameln:{name:"'Hameln'", note:'classic compact fountain grass with tan-pink plumes', h:24, spread:24,

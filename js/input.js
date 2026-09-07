@@ -11,6 +11,12 @@ addEventListener('keydown',e=>{
   /* The library opens from the MENU, where the HUD is hidden — so the guard
      on the next line returned before any Escape branch could run, and Escape
      did nothing at all on this screen. It has to be handled ABOVE that line. */
+  const guidanceScreen=document.getElementById('plantGuidanceScreen');
+  if (guidanceScreen&&!guidanceScreen.classList.contains('hidden')){
+    if (e.key==='Escape'){ e.preventDefault(); closeOverlay('plantGuidanceScreen'); }
+    else trapOverlayFocus(guidanceScreen,e);
+    return;
+  }
   const libraryScreen=document.getElementById('libraryScreen');
   if (libraryScreen&&!libraryScreen.classList.contains('hidden')){
     if (e.key==='Escape'){

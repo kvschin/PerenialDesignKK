@@ -1196,6 +1196,7 @@ function showPlantCard(p,px2,py2){
     if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };
   xb.onclick=close;
   el.prepend(xb);
+  el.appendChild(plantGuidanceButton({s:p.s,v:p.v||null},true));
   if (typeof isFavorite==='function' && typeof el.appendChild==='function'){
     const fb=document.createElement('button'); fb.type='button'; fb.className='card-action';
     const ref={s:p.s,v:p.v||null}; fb.textContent=isFavorite(ref)?'Remove from Favorites':'Add to Favorites';

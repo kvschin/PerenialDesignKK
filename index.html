@@ -484,7 +484,7 @@ if ('serviceWorker' in navigator)
     <div class="field"><label>Native planting</label>
       <div class="chip-row native-mode" id="dgnNativeMode" role="radiogroup" aria-label="Native planting mode"></div>
       <div id="dgnNativeRegionWrap" class="native-region-row hidden">
-        <label for="dgnNativeRegion">Native to</label>
+        <label for="dgnNativeRegion">Continent of origin</label>
         <select id="dgnNativeRegion"></select>
       </div>
       <p class="field-hint" id="dgnNativeHint"></p>
@@ -509,17 +509,17 @@ if ('serviceWorker' in navigator)
 <div class="screen modal-screen hidden" id="discoveryFilterScreen" role="dialog" aria-modal="true" aria-labelledby="discoveryFilterTitle">
   <div class="panel discovery-filter-panel" tabindex="-1">
     <h2 id="discoveryFilterTitle">Plant filters</h2>
-    <p class="sub">Garden criteria decide what can be planted. Flower filters narrow the view without changing that eligibility.</p>
+    <p class="sub">Garden criteria decide what can be placed in the plan. Local native status, soil, summer climate, and regional invasive risk need a separate check.</p>
     <div class="field discovery-criteria">
       <label>Garden criteria</label>
       <div class="native-criteria">
         <span class="criteria-label">Native planting</span>
         <select id="discoveryNativeMode" aria-describedby="discoveryNativeHint">
           <option value="any">Any origin</option>
-          <option value="regional">Regional natives + selections</option>
-          <option value="straight">Straight regional species only</option>
+          <option value="regional">Continent natives + selections</option>
+          <option value="straight">Straight species from continent</option>
         </select>
-        <label id="discoveryNativeRegionRow" for="discoveryNativeRegion">Native to
+        <label id="discoveryNativeRegionRow" for="discoveryNativeRegion">Continent of origin
           <select id="discoveryNativeRegion"></select>
         </label>
         <p class="field-hint" id="discoveryNativeHint"></p>
@@ -627,6 +627,14 @@ if ('serviceWorker' in navigator)
 </div>
 
 <div id="plantCard"></div>
+<div class="screen modal-screen hidden" id="plantGuidanceScreen" role="dialog" aria-modal="true" aria-labelledby="plantGuidanceTitle">
+  <div class="panel plant-guidance-panel" tabindex="-1">
+    <h2 id="plantGuidanceTitle">Plant notes</h2>
+    <p class="sub" id="plantGuidanceLatin"></p>
+    <div id="plantGuidanceBody"></div>
+    <button class="btn" id="btnPlantGuidanceClose" type="button">Back to plants</button>
+  </div>
+</div>
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <!-- Offered only when a new build is genuinely installed and waiting. Not a
      modal: an update is neither urgent nor destructive, and blocking the

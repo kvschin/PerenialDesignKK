@@ -696,7 +696,7 @@ const ROLE_LABELS={
   mediterranean:'Mediterranean',
   modern:'Modern',
   movement:'Movement',
-  native:'Native',
+  native:'Native origin',
   naturalistic:'Naturalistic',
   nectar:'Nectar',
   nut:'Nut crop',
@@ -1196,8 +1196,8 @@ function groupDiscoveryRefs(refs){
 function discoveryCriteriaLabels(f=activeFilters()){
   const out=[];
   if (f.nativeMode!=='any') out.push(f.nativeMode==='straight'
-    ? `Straight ${nativeRegionLabel(f.nativeRegion)} natives`
-    : `${nativeRegionLabel(f.nativeRegion)} natives`);
+    ? `Straight species · ${nativeRegionLabel(f.nativeRegion)}`
+    : `Native origin · ${nativeRegionLabel(f.nativeRegion)}`);
   if (f.deer) out.push('Deer');
   if (f.rabbit) out.push('Rabbit');
   if (f.squirrel) out.push('Squirrel');
@@ -1299,11 +1299,69 @@ function applyFilters(){
 function updateFilterBtn(){
   const f=activeFilters(), bits=[];
   if (f.zone) bits.push('z'+f.zone);
-  if (f.nativeMode!=='any') bits.push((f.nativeMode==='straight'?'Straight':'Regional')+' · '+nativeRegionLabel(f.nativeRegion,true));
+  if (f.nativeMode!=='any') bits.push((f.nativeMode==='straight'?'Straight':'Origin')+' · '+nativeRegionLabel(f.nativeRegion,true));
   if (f.deer) bits.push('Deer');
   if (f.rabbit) bits.push('Rabbit');
   if (f.squirrel) bits.push('Squirrel');
   $('filterLbl').textContent=bits.length?bits.join(' / '):'Any';
+}
+
+/* Plant guidance is built only when someone asks for details, never in render.
+   All text remains available offline; only a deliberate source click leaves. */
+function buildPlantGuidance(ref){
+  const g=plantGuidance(ref), host=document.createElement('section'); host.className='plant-guidance';
+  const paragraph=(parent,text,cls)=>{
+    const p=document.createElement('p'); if (cls) p.className=cls;
+    p.textContent=text; parent.appendChild(p); return p;
+  };
+  const note=(parent,n)=>{
+    const box=document.createElement('div'); box.className='plant-guidance-note';
+    const title=document.createElement('b'); title.textContent=n.area+(n.topic?' · '+n.topic:''); box.appendChild(title);
+    paragraph(box,n.text);
+    const source=PLANT_GUIDANCE_SOURCES[n.source], line=document.createElement('p'); line.className='plant-guidance-source';
+    const a=document.createElement('a'); a.textContent=source.label; a.href=source.url;
+    a.target='_blank'; a.rel='noopener noreferrer'; line.append(a,` · Reviewed ${n.reviewed}`);
+    box.appendChild(line); parent.appendChild(box);
+  };
+  if (g.invasive.length){
+    const caution=document.createElement('div'); caution.className='plant-regional-caution';
+    const h=document.createElement('h3'); h.textContent='Regional invasive caution'; caution.appendChild(h);
+    g.invasive.forEach(n=>note(caution,n));
+    if (g.selection) paragraph(caution,'This is a species-level assessment. This named selection has not been individually cleared.');
+    host.appendChild(caution);
+  } else paragraph(host,'Regional invasive risk has not been assessed for this plant. No caution here does not mean it is cleared for your area.','plant-guidance-scope');
+  paragraph(host,LOCAL_NATIVE_UNKNOWN,'plant-guidance-scope');
+  const details=document.createElement('details');
+  const summary=document.createElement('summary'); summary.textContent='Reviewed range and site notes'; details.appendChild(summary);
+  if (g.origin.length){
+    const h=document.createElement('h3'); h.textContent='Species native range'; details.appendChild(h);
+    g.origin.forEach(n=>note(details,n));
+    if (g.selection) paragraph(details,'The species range does not verify the origin of a nursery selection.');
+  } else paragraph(details,'No narrower native-range review is recorded for this plant yet.');
+  if (g.site.length){
+    const h=document.createElement('h3'); h.textContent='Growing conditions'; details.appendChild(h);
+    g.site.forEach(n=>note(details,n));
+  } else paragraph(details,'No additional reviewed site qualifications are recorded yet.');
+  paragraph(details,SITE_GUIDANCE_SCOPE,'plant-guidance-scope');
+  host.appendChild(details); return host;
+}
+function openPlantGuidance(ref){
+  const P=refDef(ref); if (!P) return;
+  const card=$('plantCard'); if (card){ clearTimeout(card._t); card.style.display='none'; game.focusPlantKey=null; }
+  $('plantGuidanceTitle').textContent=P.name;
+  $('plantGuidanceLatin').textContent=P.latin;
+  const body=$('plantGuidanceBody'); body.innerHTML=''; body.appendChild(buildPlantGuidance(ref));
+  const panel=$('plantGuidanceScreen').querySelector('.panel'); if (panel) panel.scrollTop=0;
+  openOverlay('plantGuidanceScreen','#btnPlantGuidanceClose');
+}
+function plantGuidanceButton(ref,always=false){
+  const g=plantGuidance(ref);
+  if (!always && !g.invasive.length && !g.site.length && !g.origin.length) return null;
+  const b=document.createElement('button'); b.type='button';
+  b.className='plant-guidance-button'+(g.invasive.length?' has-caution':'');
+  b.textContent=g.invasive.length?'Regional caution · '+g.invasive.map(n=>n.area).join(', '):'Local origin & site notes';
+  b.setAttribute('aria-haspopup','dialog');
+  b.onclick=()=>openPlantGuidance(ref); return b;
 }
 
 /* ---------- HUD readouts (hint, mobile action button, top/bottom bars) ---------- */
