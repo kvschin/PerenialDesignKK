@@ -348,9 +348,11 @@ dated advice in the Library and the `plantGuidanceScreen` dialog, reached from
 catalog choices and planted-plant cards. The dialog uses the existing focus
 trap, Escape, and return-focus pathways. Family cards flag cautions among
 their choices; exact cards resolve only their own species. Source links open
-on user action only; notes work offline. Missing records display uncertainty,
-never approval. Planting-list CSVs append local native uncertainty and regional
-cautions with source URLs; the on-screen list names affected regions. This
+on user action only; notes work offline. Show invasive-risk text only for
+recorded cautions; otherwise omit it in plant details and leave the CSV field
+empty. Missing assessments remain unknown in the data. Planting-list CSVs
+append local native uncertainty and regional cautions with source URLs; the
+on-screen list names affected regions. This
 does not alter placement, saves, schemes, collections, or quantities.
 
 The initial review covers nine species with regional invasive cautions, seven

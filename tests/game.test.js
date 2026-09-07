@@ -10036,7 +10036,7 @@ test('continental native criteria do not imply local suitability or clear region
     assert(/local/i.test(nativeCriteriaText({nativeRegion,nativeMode:'regional'})));
   }
   assert(/parts/.test(nativeStatusText(PLANTS.bluestem)),'status copy identifies partial continental ranges');
-  assert(/not assessed/.test(plantCautionText({s:'bamboo',v:'clumping'})),'unidentified bamboo is unknown, never cleared');
+  assertEqual(plantCautionText({s:'bamboo',v:'clumping'}),'','no recorded caution produces no invasive-risk statement');
   assert(plantGuidance({s:'cenizo'}).site.some(n=>/humidity/.test(n.text)),'site qualifications extend beyond a moisture bucket');
 });
 
@@ -10053,7 +10053,8 @@ test('plant guidance shows unknowns and dated source links without changing the 
   assertEqual(link.href,PLANT_GUIDANCE_SOURCES.marylandGrasses.url);
   assertEqual(link.rel,'noopener noreferrer');
   const unknown=text(buildPlantGuidance({s:'whiteoak'}));
-  assert(unknown.includes('has not been assessed')&&unknown.includes('No additional reviewed site'),'missing data stays visibly unknown');
+  assert(unknown.includes(LOCAL_NATIVE_UNKNOWN)&&unknown.includes('No additional reviewed site'),'local-origin and site guidance remain available');
+  assert(!/invasive|cleared/i.test(unknown),'plants without a recorded caution show no invasive-risk statement');
   assertEqual(JSON.stringify(snapshotState()),state,'guidance never edits planted work');
   const warned=discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery());
   const other=discoveryResultCard({s:'orientalfountain'},activeDiscovery());

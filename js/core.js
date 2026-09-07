@@ -1306,7 +1306,7 @@ function plantGuidance(ref){
 }
 function plantCautionText(ref,withSources=false){
   const notes=plantGuidance(ref).invasive;
-  if (!notes.length) return 'Regional invasive risk not assessed; no caution here does not mean cleared.';
+  if (!notes.length) return '';
   return notes.map(n=>`${n.area}: ${n.text}`+(withSources?` [${n.reviewed}; ${PLANT_GUIDANCE_SOURCES[n.source].url}]`:'')).join(' ');
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }

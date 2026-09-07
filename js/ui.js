@@ -1329,7 +1329,7 @@ function buildPlantGuidance(ref){
     g.invasive.forEach(n=>note(caution,n));
     if (g.selection) paragraph(caution,'This is a species-level assessment. This named selection has not been individually cleared.');
     host.appendChild(caution);
-  } else paragraph(host,'Regional invasive risk has not been assessed for this plant. No caution here does not mean it is cleared for your area.','plant-guidance-scope');
+  }
   paragraph(host,LOCAL_NATIVE_UNKNOWN,'plant-guidance-scope');
   const details=document.createElement('details');
   const summary=document.createElement('summary'); summary.textContent='Reviewed range and site notes'; details.appendChild(summary);
