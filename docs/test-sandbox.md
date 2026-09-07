@@ -40,6 +40,13 @@ test fails.
 
 ## Declines honestly — verify these in the browser
 
+`npm run test:browser` now supplies repeatable integration checks for actual
+separate-script startup, IndexedDB autosaves/reopening, offline boot, and a
+waiting service-worker update through acceptance. See
+[browser release checks](browser-release-checks.md) for prerequisites, coverage,
+results, and the remaining physical-device checklist. The browser runner loads
+the app directly; it does not use this sandbox's stubs.
+
 These cannot answer without a layout engine, a selector engine or a rasteriser,
 and they are documented rather than faked:
 

@@ -171,6 +171,16 @@ See §13a.
   redeploys automatically (no build step, nothing to configure).
 - After edits, run `node --check <module>.js` on the file(s) you touched to
   catch syntax errors before reloading the browser.
+- Browser release checks: `npm run test:browser` runs `tests/browser-release.cjs`
+  with an existing Playwright/Chromium installation, isolated browser contexts,
+  and a temporary loopback server. It covers separate-script startup, real
+  IndexedDB autosave/reopening, offline boot with the server stopped, and
+  dismissing/accepting a waiting update at root and project-subpath URLs.
+  Synthetic build labels are applied only to HTTP responses; app files and
+  personal browser storage stay untouched. No dependencies are downloaded.
+  `docs/browser-release-checks.md` documents prerequisites, artifacts, limits,
+  and the physical-device checklist. Run it alongside the Node suite before
+  release; the two suites establish different behavior.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
   loads `plants.js` and the app modules (in load order) inside a `vm`
   sandbox with light DOM stubs. **A stub that lies is worse than a missing
