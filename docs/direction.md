@@ -15,10 +15,16 @@ planting list + plan export). Accuracy matters; Kevin grows these.
 Around that core:
 - **Daily design challenge** *(built)* — a date-seeded planting prompt on the
   main menu (everyone gets the same one each day, no backend). Prompt-only: it
-  *suggests* a style + plant types and drops you into Design mode. Nothing is
-  scored or enforced. Prompts live in `DAILY_CHALLENGES` (game.js).
+  *suggests* a style + plant types and opens the planner. Nothing is
+  scored or enforced. Prompts live in `DAILY_CHALLENGES` (`js/screens.js`).
 - **Plant Library** *(built)* — browse every species.
-- **View Gardens** *(built)* — open, duplicate, share, and manage saved gardens.
+- **Your gardens** *(built)* — the combined create/manage entry: open, rename,
+  duplicate, delete, or import saved gardens. The former separate Design a
+  Garden and View Gardens menu entries were consolidated here.
+
+The current implementation status and remaining work are maintained in
+[application readiness](readiness.md) and the Direction & backlog section of
+`CLAUDE.md`. This document records scope decisions rather than a second task list.
 
 ## The pivot (what was cut, and why)
 
@@ -81,8 +87,8 @@ documents a client sees; a cat is for the gardener, not for the drawing.
 
 ## Tooling
 
-- **Plant Creator** (`plant-creator.html`) — a dev-only tool (not linked from
-  the game, opened standalone) that loads the real `plants.js`/`game.js` and
+- **Plant Creator** (`dev/plant-creator.html`) — a dev-only tool (not linked from
+  the game, opened standalone) that loads the real `js/plants.js` and ordered app modules and
   uses the actual `drawPlant` for a live, pixel-accurate preview while authoring
   a `PLANTS` entry: every field, per-season colour pickers, a shape gallery,
   `look`-parameter sliders (incl. foliage), a per-plant draw-cost meter, and

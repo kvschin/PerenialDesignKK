@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.66';
+const APP_VERSION = '0.8.67';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -250,37 +250,63 @@ function zoneRange(){
 }
 function clampZone(z){ const r=zoneRange(); const n=+z; return Math.max(r.lo,Math.min(r.hi,isFinite(n)?n:r.lo)); }
 
-/* Approximate USDA hardiness zone from a US ZIP, by 3-digit prefix. Coarse on
-   purpose: species use zone RANGES and plant filters are changeable in-game,
-   so within ~half a zone is plenty. Stored as [lo,hi,zone] prefix bands (not
-   930 rows) with the band's representative zone; gaps + non-US input return null
-   (the questionnaire then falls back to the winter-cold picker). Nothing here
-   leaves the device — it's a static lookup. Callers clamp through clampZone(),
-   which follows the catalog rather than a typed-in span. */
-const ZIP_ZONE_BANDS=[
-  [10,19,5],[20,27,6],[28,29,6],[30,38,5],[39,49,4],[50,59,4],[60,69,6],[70,89,6],   // New England + NJ
-  [100,104,7],[105,109,6],[110,119,7],[120,139,5],[140,149,6],[150,168,6],[169,179,5],
-  [180,189,6],[190,199,7],                                                            // NY / PA / DE
-  [200,205,7],[206,219,7],[220,237,7],[238,246,6],[247,268,6],[270,279,7],[280,289,7],
-  [290,299,8],                                                                        // DC / MD / VA / WV / NC / SC
-  [300,319,8],[320,329,9],[330,349,10],[350,369,8],[370,385,7],[386,399,8],           // GA / FL / AL / TN / MS
-  [400,427,6],[430,459,6],[460,479,6],[480,489,6],[490,499,5],                        // KY / OH / IN / MI
-  [500,528,5],[530,549,5],[550,567,4],[570,577,5],[580,588,4],[590,599,4],            // IA / WI / MN / SD / ND / MT
-  [600,629,6],[630,658,6],[660,679,6],[680,693,5],                                    // IL / MO / KS / NE
-  [700,714,9],[716,729,7],[730,749,7],[750,769,8],[770,779,9],[780,789,8],[790,799,7],// LA / AR / OK / TX
-  [800,816,5],[820,831,4],[832,838,5],[840,847,6],[850,853,9],[855,865,8],[870,875,7],
-  [877,884,6],[889,891,9],[893,898,6],                                                // CO / WY / ID / UT / AZ / NM / NV
-  [900,928,9],[930,961,9],[967,968,11],[970,979,8],[980,986,8],[988,994,6],[995,999,4],// CA / HI / OR / WA / AK
-];
-function zoneFromZip(zip){
-  const digits=String(zip||'').replace(/\D/g,'');
-  if (digits.length<3) return null;
-  const p=+digits.slice(0,3);
-  for (let i=0;i<ZIP_ZONE_BANDS.length;i++){
-    const b=ZIP_ZONE_BANDS[i];
-    if (p>=b[0] && p<=b[1]) return b[2];
+/* OSU/PRISM's 2023 five-digit ZIP listing, bundled for offline use. No prefix
+   guessing and no ZIP sent to a server. Source half-zones are kept verbatim;
+   the planner explicitly uses whole zones. See docs/zone-lookup.md. */
+const ZIP_ZONE_DATA_URL='./data/zip-zones-2023.json';
+let zipZoneData=null, zipZonePromise=null;
+function validateZipZoneData(data){
+  if (!data || data.format!==1 || data.edition!==2023 || !data.zones ||
+      !Number.isInteger(data.count) || data.count<1) throw new Error('Invalid ZIP zone data');
+  const seen=new Set();
+  for (const [half,packed] of Object.entries(data.zones)){
+    if (!/^(?:[1-9]|1[0-3])[ab]$/.test(half) || typeof packed!=='string' ||
+        !/^\d+$/.test(packed) || packed.length%5) throw new Error('Invalid ZIP zone group');
+    let previous='';
+    for(let i=0;i<packed.length;i+=5){
+      const zip=packed.slice(i,i+5);
+      if (zip<=previous || seen.has(zip)) throw new Error('Duplicate or unordered ZIP');
+      seen.add(zip); previous=zip;
+    }
+  }
+  if (seen.size!==data.count) throw new Error('Incomplete ZIP zone data');
+  return data;
+}
+function loadZipZones(){
+  if (zipZoneData) return Promise.resolve(zipZoneData);
+  if (!zipZonePromise) zipZonePromise=fetch(ZIP_ZONE_DATA_URL).then(r=>{
+    if (!r.ok) throw new Error('ZIP lookup unavailable');
+    return r.json();
+  }).then(data=>{ zipZoneData=validateZipZoneData(data); return zipZoneData; })
+    .catch(e=>{ zipZonePromise=null; throw e; }); // another attempt can recover
+  return zipZonePromise;
+}
+function halfZoneFromZip(zip,data=zipZoneData){
+  const digits=String(zip==null?'':zip).trim();
+  if (!/^\d{5}$/.test(digits) || !data) return null;
+  for (const [half,packed] of Object.entries(data.zones)){
+    let lo=0,hi=packed.length/5-1;
+    while(lo<=hi){
+      const mid=(lo+hi)>>1, candidate=packed.slice(mid*5,mid*5+5);
+      if (candidate===digits) return half;
+      if (candidate<digits) lo=mid+1; else hi=mid-1;
+    }
   }
   return null;
+}
+function zoneFromZip(zip,data=zipZoneData){
+  const half=halfZoneFromZip(zip,data); return half?parseInt(half,10):null;
+}
+function hardinessTemperatureRange(zone){
+  const match=String(zone).match(/^([1-9]|1[0-3])([ab])?$/);
+  if (!match) return null;
+  const low=+match[1]*10-70+(match[2]==='b'?5:0);
+  return {low,high:low+(match[2]?5:10)};
+}
+function zoneTemperatureText(zone){
+  const range=hardinessTemperatureRange(zone); if (!range) return '';
+  const metric=metricUnits(), fmt=f=>String(metric?Math.round((f-32)*5/9*10)/10:f).replace('-','−');
+  return `${fmt(range.low)} to ${fmt(range.high)}°${metric?'C':'F'}`;
 }
 function mixHex(a,b2,t){
   const pa=parseInt(a.slice(1),16), pb=parseInt(b2.slice(1),16);

@@ -469,13 +469,15 @@ if ('serviceWorker' in navigator)
     <div class="field"><label>USDA hardiness zone</label>
       <div class="chip-row" id="dgnZoneChips"></div>
       <div class="zone-help hidden" id="dgnZoneHelp">
-        <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="ZIP code">
-        <p class="field-hint">Estimates your zone from your ZIP. Stays on your device.</p>
-        <p class="field-hint" style="margin-top:9px">Not in the US? How cold does winter get?</p>
+        <label for="dgnZip">US ZIP code</label>
+        <input id="dgnZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="5-digit ZIP" aria-describedby="dgnZipStatus">
+        <p class="field-hint" id="dgnZipStatus" role="status" aria-live="polite"></p>
+        <p class="field-hint" style="margin-top:9px">Or choose an approximate annual winter low:</p>
         <div class="chip-row" id="dgnWinter" style="margin-top:6px"></div>
       </div>
       <p class="zone-readout" id="dgnZoneOut"></p>
       <button type="button" class="link-toggle" id="dgnZoneToggle">Don't know your zone?</button>
+      <a class="ext-link zone-map-link" id="dgnZoneMap" href="https://planthardiness.ars.usda.gov/" target="_blank" rel="noopener noreferrer">Check the official USDA map<span aria-hidden="true"> ↗</span><span class="sr-only"> (opens in a new tab)</span></a>
     </div>
     <div class="field"><label>Garden style</label>
       <div class="chip-row chip-grid" id="dgnTypeChips"></div>

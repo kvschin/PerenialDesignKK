@@ -7,7 +7,7 @@ lying.
 
 ## Caught lying (all fixed)
 
-Four stubs reported a convenient fiction, and each made a real assertion pass
+These stubs reported a convenient fiction, and each made a real assertion pass
 without testing anything:
 
 | Stub | The lie | What it hid |
@@ -18,7 +18,7 @@ without testing anything:
 | `className` vs `classList` | the two disagreed: after `el.className='x'`, `classList.contains('x')` was `false` | Both idioms are live in `js/`, so whichever a test read decided whether it saw the truth. Found while asserting that an outbound link carries its visually-hidden "opens in a new tab" span. |
 | `classList` → `className` | the fix above went ONE way only: after `classList.add('x')`, `el.className` still read `''` | Half a write-through is the same fiction as none. `compassChromeStateKey` builds its entire signature out of `className`, so a test asserting that signature moves when chrome gains a class passed for no reason connected to the code. Found by writing exactly that test. |
 
-Four more were the same shape, found by audit rather than by a failing test:
+Others were the same shape, found by audit rather than by a failing test:
 
 - **`setAttribute` was a no-op** against a `getAttribute` that always returned
   `null`, which is what made memoising `getElementById` pointless on its own.

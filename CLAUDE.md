@@ -17,7 +17,7 @@ unscored, that drops you straight into a garden; `DAILY_CHALLENGES` /
 `todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried
 in as `game.challenge` and toasted on entry, cleared whenever the main menu
 shows). A dev-only
-**Plant Creator** (`plant-creator.html`, opened directly, not linked from the
+**Plant Creator** (`dev/plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
 
@@ -139,7 +139,7 @@ See §13a.
 ## Run / test
 
 - Open `index.html` in a browser, or serve the folder to avoid file:// quirks:
-  `npx http-server -c-1` (this machine has Node but no Python). The preview panel
+  `npx http-server -c-1`. The preview panel
   runs the same server via `.claude/launch.json`, which uses `autoPort` (the
   harness assigns a free port) rather than a hard-coded `-p`, so it doesn't
   collide with anything already holding 8642.
@@ -184,15 +184,15 @@ See §13a.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
   loads `plants.js` and the app modules (in load order) inside a `vm`
   sandbox with light DOM stubs. **A stub that lies is worse than a missing
-  feature, because the suite goes green either way** — three have now been caught
+  feature, because the suite goes green either way** — several were caught
   reporting a convenient fiction (`getRandomValues` handing back an unfilled
   buffer, `localStorage` claiming to be empty however much you wrote,
   `getElementById` returning a fresh element every call so nothing written could
   be read back), and each one made a real assertion pass without testing
   anything. `docs/test-sandbox.md` is the record: which stubs answer honestly,
   which decline (geometry, selectors, pixels, rAF — verify those in the browser),
-  and which were fixed. Three tests under "the harness itself" pin the contract,
-  each verified by reintroducing the lie and watching exactly one fail.
+  and which were fixed. Tests under "the harness itself" pin the contract,
+  with negative controls documented in that record.
   `node dev/audit-stubs.js` prints what every stub actually does; run it after
   touching the sandbox. The sandbox lives in **`tests/sandbox.js`**,
   shared with `dev/make-demo-garden.js` so the demo-garden generator builds its
@@ -921,11 +921,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     adds a house (overlaps with another house are refused), and the **Erase**
     tool on the
     *landscape* layer removes any house it sweeps (`eraseBrush`). Existing
-    houses are recoloured/resized by erasing and re-placing. **No tray arms the
+    houses can be recoloured/resized through the model by erasing and re-placing. **No tray arms the
     House tool any more** — its size/wall/roof chips lived in the story-mode
     branch of the Site tab, which the design branch (site photo / north / Draw
     footprint) always shadowed; houses now reach a garden through a legacy save
-    or a shared one, and `placeHouse` waits for a UI to re-expose it.
+    or a shared one. `placeHouse` remains for compatibility; the current
+    planner's structure-authoring UI is Draw/Edit footprint, described below.
     `defaultHouse()`/`defaultDraft()` pick a shed on small plots, a cottage
     on big ones; legacy single-house saves (`house`) migrate to the array.
     **Design-site footprints are separate from houses.** `game.buildings` is
@@ -2914,9 +2915,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tool) calls `actHere()` and replaces the instructional hint. The plant
     card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
     warning when coords are given). Plant filters persist as `hortus:filters`.
-16. **Screens** — menu, worlds list (`#worldsScreen`: continue, plus rename/duplicate/delete behind a per-row overflow menu
-    saved gardens or start a new one; Design a Garden and View Gardens both open
-    it, unfiltered and identical.
+16. **Screens** — menu, worlds list (`#worldsScreen`: open saved gardens or start
+    a new one, with rename/duplicate/delete behind a per-row overflow menu).
+    The single **Your gardens** menu entry opens it via `openWorlds()`.
     Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
     map drawn from the save blob at list-open time: grass checker, real
     terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
@@ -2953,33 +2954,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     data, not a toggle, and a select stays readable and accessible on a phone.
     **Climate** shows the zone
     chips face up, with a "Don't know your zone?" link that flips
-    (`sel.zoneHelp`) to a ZIP field (`zoneFromZip`, a 3-digit-prefix→zone band
-    table in core.js, device-local) plus a
-    plain-language "how cold does winter get?" chip fallback (`WINTER_BANDS`) —
-    every path writes one `sel.zone`, echoed by a teaching readout (`ZONE_LOWS`)
-    that stays visible in both views.
-    **Which zones are offered is DERIVED FROM THE CATALOG** (`zoneRange()` /
-    `clampZone()`, core.js), and that is a correctness fix rather than tidiness.
-    The chips were a hardcoded `for (let z=3;z<=9;z++)` and `setZone` clamped
-    with `Math.max(3,Math.min(9,z))`, while `ZIP_ZONE_BANDS` already returned
-    **10** for south Florida and **11** for Hawaii — so those gardeners typed a
-    real ZIP and were silently told they were zone 9. **79 species top out at
-    zone 10 or 11**, and one of them, Simpson's Stopper (z10–11), shipped in a
-    state where NO selectable zone could place it: a species in the catalog,
-    reachable from nowhere. `zoneRange()` asks which zones actually HAVE a
-    plant (2–11 today) rather than taking `min(floor)..max(top)`, because an
-    empty palette is a worse answer than a rounded one; it is memoised, and
-    PLANTS loads before core.js. `WINTER_BANDS` and `ZONE_LOWS` had the same
-    3–9 horizon and were extended to match — a band that maps outside the
-    offered range, or a zone with no winter-low caption, is exactly the drift
-    this replaced, so a test pins the chips, the ZIP table and the winter bands
-    to one range and asserts **every species is reachable at some offered
-    zone**. Both halves are mutation-tested against the old span. Note the ZIP
-    BANDS themselves are still coarse (coastal southern California and south
-    Texas are filed as 9 and 8 where parts are really 10) — that is a data
-    accuracy question, separate from this one, and the ZIP path is deliberately
-    labelled an estimate; **style** is a chip grid; **native mode**
-    is Any / Regional / Straight chips and reveals the range selector only when
+    (`sel.zoneHelp`) to the five-digit ZIP helper plus approximate winter-low
+    chips (`WINTER_BANDS`, with temperature ranges). An official USDA map link
+    remains visible in both views, opens on user action, and never forwards ZIP
+    input. `data/zip-zones-2023.json` bundles 40,502 ZIP/half-zone pairs from OSU
+    PRISM's four 2023 listings; source URLs, retrieval date, counts, and raw-file
+    hashes accompany it. `dev/build-zip-zones.cjs` reproduces the compact data
+    from local CSVs; see `docs/zone-lookup.md` for source and terms.
+    Source attribution and the map disclaimer live in Credits. The ZIP status
+    line stays empty until there is lookup progress, a result, or an error.
+    `loadZipZones` reads the fixed, precached same-origin JSON path on demand,
+    shares a pending fetch, validates once, caches success, and allows retry on
+    failure. It never sends or persists the entered ZIP. `halfZoneFromZip`
+    searches packed sorted groups; `zoneFromZip` returns the whole zone.
+    Source half-zones are displayed unchanged, and the readout explains the
+    whole-zone filter. `hardinessTemperatureRange`/`zoneTemperatureText` show
+    full or half-zone intervals in the selected units; they replace the old
+    misleading single-low captions. An average annual winter minimum is not a
+    record low or a complete site recommendation.
+    **Offered zones remain derived from the catalog** (`zoneRange`/`clampZone`,
+    currently 2–11). The old 3–9 limit was removed in 0.8.66. The ZIP listing
+    also contains zones outside catalog coverage: setup displays these without
+    clamping and disables Next until the gardener chooses a supported zone or
+    another valid ZIP. Missing/unavailable results also require another choice.
+    Manual choices invalidate pending responses, and reopened forms ignore an
+    earlier form's request. No ZIP lookup changes existing saved gardens.
+    The setup panel has its own bounded scroll area so toggling the helper
+    cannot strand the zone chips above the viewport.
+    **Style** is a chip grid; **native mode**
+    is Any / Continent / Straight chips and reveals the range selector only when
     constrained; animal-resistance constraints are toggle chips.
     A live **palette count** (`paletteCount` in ui.js — a pure mirror of
     `plantFits`' zone/native-range/deer/rabbit/squirrel gates that never touches game state)
@@ -3735,6 +3738,11 @@ notes are in `docs/plant-data/european-implementation.md`; the dev-only
 
 ## Direction & backlog
 
+Reconciled September 7, 2026. `docs/readiness.md` preserves the original
+numbered readiness list and distinguishes implementation from acceptance work.
+The waves below record built capabilities; they are not instructions to build
+them again. Regional-data gaps remain in `docs/us-regional-plant-roadmap.md`.
+
 **Scope pivot (settled).** The project is **Design-only**: the planner plus the
 **Daily design challenge**. The avatar **Story Mode** — the cozy
 Animal-Crossing-ish original — had a heavy build-out (seed propagation, NPCs, a
@@ -3751,16 +3759,18 @@ export/import (`btnShare` / `btnImport`) — a friend imports your JSON and open
 it in their own planner. The shared-garden lobby that had sat unreachable
 behind it was deleted in the same pass. (Fuller record: `docs/direction.md`.)
 
-Still open: woody follow-up — tree canopies rendering across tile boundaries
-with their own depth slices. Re-exposing a **House placement tool** — the model,
-renderer, ghost and `placeHouse` are all intact, but the tray that armed them
-was story-mode-only and went with it, so a design garden can currently only
-receive a house from a legacy or an imported save. Live collaboration is not on
-the roadmap; if it ever returns it starts from `sGet`/`sSet` and a real server,
-not from the tab-local scaffolding that was just removed.
+Still open: finer tree-canopy depth slices, selection resizing, regional and
+seasonal accuracy, practical-export acceptance, and physical-device validation.
+**Site placement is built** through Draw/Edit footprint. Legacy roofed houses
+still load and render, but their old House picker is unexposed; reintroducing
+that picker is an optional feature decision, separate from site authoring.
+Live collaboration is not on the roadmap; if it ever returns it starts from
+`sGet`/`sSet` and a real server, not the removed tab-local scaffolding.
 
-- **Matrix/scatter mode** — interplant a grass matrix with scattered perennials.
-- **Plant health / water** — establishment can fail; watering during dry spells.
+- **Matrix/scatter mode** *(built)* — interplant at authored spacing through
+  `matrixSpacingBlocks`/`placePlantAt` and the Matrix brush controls.
+- **Plant health / water** *(unscheduled idea)* — establishment failure and
+  watering during dry spells are not implemented or required for this release.
 - **More species** — two native-gap passes and a focused European/Oudolf pass are
   landed (purple and white prairie clovers, blue grama, northern sea oats,
   ironweed, woodland-edge goldenrod/aster, turtlehead, golden ragwort, trout
@@ -3853,9 +3863,9 @@ not from the tab-local scaffolding that was just removed.
   median of 119us, and the priciest fern (hay-scented, 247us) ranks 42/294,
   far below shipped species like switchgrass at 654us. They were cheap because
   they were all the same plant.
-- **Procreate-style editing tools** (planned, not yet built — design mode):
-  - **Pencil** — freehand draw a single layer (already mostly covered by
-    drag-to-paint; the idea is a dedicated stroke tool).
+- **Editing tools** (built except the explicitly open ideas):
+  - **Pencil** *(unscheduled idea)* — a dedicated stroke tool; ordinary
+    freehand planting/material strokes already use drag-to-paint.
   - *(Built)* **Bucket fill** — the **Fill** tool floods the connected
     region of one ground material with the armed brush (plant or landscape);
     see `doFloodFill` in the canvas-toolbar notes above.
@@ -3865,39 +3875,26 @@ not from the tab-local scaffolding that was just removed.
     rotate, or erase the plants/terrain inside it (see the Select tool in the
     canvas-toolbar notes above). Resize-in-place is still open.
 
-### UX + design-feature roadmap (waves)
+### UX + design-feature implementation record (waves)
 
-The agreed build order, from a UX/UI audit + a curves/brushes/features
-consultation (mid-2026). Ordered by **what unblocks what**, not raw priority.
-Four sequencing calls drive it: (1) **WYSIWYG comes early** — every visual
-feature is judged through it, so it precedes the feature work; (2) **stabilize
-mobile cheaply now, do the full sheet redesign last** — the bottom sheet's final
-contents (Fill + brush-size + Matrix) must be frozen before it's redesigned, or
-it gets built twice; (3) the **cursor footprint ghost** and the **disc-brush
-engine** are shared primitives (brush size, erase, curves, plant-spacing ghost
-all consume them) so they're built once, before their consumers; (4) **brush
-size precedes curves** — a big disc brush dragged in an S *is* the curved path,
-so shipping the brush is half of curves. Anything touching the render loop
+The historical build order from a UX/UI audit + a curves/brushes/features
+consultation (mid-2026). Waves 0–6 below are implemented;
+the current UI supersedes some original control-placement proposals.
+The sequence established the shared preview, brush, and footprint primitives
+before their consumers, then settled the mobile layout after its controls were
+known. Those foundations are in place. Anything touching the render loop
 (preview toggle, ghost, curves, overlays) lands behind the debug-HUD phase
 timers and, if it feeds a cache, becomes part of that cache key — A/B on a
 stress garden before merge (see the perf notes in §11).
 
-- **Wave 0 — Stop the bleeding** (small; nothing built on top until fixed):
-  re-wire flood fill (Fill chip → `game.fillMode` in the brush bar; rename the
-  Select tray's button to "Fill area" in the same edit — the flood-fill UI entry
-  was lost when Fill moved to the Select tray, and `nothing sets fillMode=true`);
-  de-compress the phone tray (`min-height` on tab rows + handle, vertical scroll
-  in the catalog — this cheap stabilization is what lets the real sheet redesign
-  wait for Wave 4); re-pin popovers + re-`snapCam` on resize/orientation; fix the
-  search glyph to a drawn canvas icon.
-- **Wave 1 — A planner you can trust your eyes in** (the lens for all later
-  visual work; cheap): pause the clock by default in design mode (season box
-  shows the paused state it already supports); "Today / Established" preview
-  toggle (renders `plantGrowth` clamped to 1 — the sprite key already buckets
-  growth), defaulting new design gardens to Established; armed-brush visibility
-  (rail swatch reusing `drawSheetSwatch` + stop the silent auto-arm on tab open);
-  Duplicate garden (copy the localStorage blob + index row — one-afternoon
-  freebie).
+- **Wave 0 — Initial usability fixes** *(built)*: `chooseFillMode` connects the
+  brush-bar Fill control to `game.fillMode`; catalog scrolling, viewport resize
+  handling, popover placement, and drawn search icons are implemented. Further
+  device regressions belong to acceptance testing, not an unbuilt Wave 0.
+- **Wave 1 — Preview and editing confidence** *(built)*: gardens open with the
+  clock paused and Established preview; Today/Established controls, visible
+  armed-brush status, and explicit tool selection are in place. `duplicateWorld`
+  copies the saved garden through IndexedDB and the serialized index writer.
 - **Wave 2 — Shared interaction primitives** *(done — `brushOffsets` disc
   predicate + `game.brushSize` + `stampBrushAt`; `sizable` flag on
   path/bed/water/raise/lower/level; erase unified onto the shared size;
@@ -3922,13 +3919,13 @@ stress garden before merge (see the perf notes in §11).
   Matrix/scatter brush ("Matrix" beside Draw/Drift — places a species at its real
   `space` within the painted region, skipping occupied tiles, enabling two-layer
   interplanting).
-- **Wave 4 — Definitive mobile redesign** (now that the sheet's contents are
-  frozen): tri-state bottom sheet (collapsed/half/full via drag on the handle —
-  `applySheetState` has the seam), chip-dropdown category nav, `[⋯]` view-tools
-  consolidation (Select/Rotate/Layers/Ruler), 44px rail, Erase → popover on the
-  rail button (stops evicting the catalog); zoom pill + fit-plot (also heals the
-  resize-stranding); two-finger-tap undo / three-finger redo; visible move-cancel
-  on touch; selection actions in a pill anchored to the marquee (desktop/tablet).
+- **Wave 4 — Mobile layout** *(built, with later refinements)*: a tri-state
+  bottom sheet, searchable category navigation, compact view menu, tool rail,
+  brush-bar erase controls, zoom/fit controls, two-finger undo/three-finger redo,
+  and selection actions. Select and Ruler now live on the rail; Rotate and
+  Layers remain view controls. The anchored action pill and gesture cancellation
+  provide selection feedback. Validate these on physical devices; do not
+  restore the obsolete tray or control arrangement from the original proposal.
 - **Wave 5 — Measure & analyze** *(built)* (the ruler + the overlay family, shared render
   pattern): tape-measure mode (tap-tap or drag, reusing `drawSelDimLine`/
   `selMetricLabel`; entry via top bar / view-tools popover) + a free
@@ -3956,12 +3953,11 @@ stress garden before merge (see the perf notes in §11).
   analysis overlays. A device-local left-handed preference mirrors the mobile
   tool rail and its dependent transient chrome while preserving the user's
   camera and the rest of the HUD.
-- **Floaters** (no hard dependency, pull forward on appetite): **bloom/interest
-  calendar** (rows = species, columns = seasons early/mid/late, cells tinted by
-  actual bloom color — pure presentation over existing `bloomLevel` data, a
-  quick credibility win, natural alongside plan-sheet work); **replace-species**
-  (the natural companion to the Matrix brush — promote out of Wave 6 if
-  palette-iteration friction bites during Wave 3).
+- **Former floaters — both built:** the bloom calendar uses Jan–Dec columns
+  from `bloomMonths` (`bloomRows`/`openBloomCalendar`, io.js). Exact species and
+  cultivar replacement supports one plant, a selection, or a garden
+  (`startReplacePlant`/`applyPlantReplacement`, tray.js). Local seasonal accuracy
+  remains separate from the existence of the calendar.
 
 ### Trees & Shrubs roadmap (T1–T12, from the mid-2026 woody audit)
 
@@ -4010,7 +4006,7 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     T1's display/rules shade-map split plus scene stunting, T3's trunk refusal
     and soft spacing warning message, T4's selection-move refusal, T5's
     placement ghosts, T6's plan radius/legend path, and T8's mature canopy
-    overlay. T9-specific assertions should be added with that behavior.
+    overlay. T9's active-canopy soft-warning policy is also covered by placement tests.
 - **Phase 2 — make the model visible:**
   - *(built)* **T5 placement ghost for trees/shrubs** — trunk diamond + dashed mature
     canopy + shade sweep before drop; on touch, anchored to the armed state

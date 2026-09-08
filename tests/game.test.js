@@ -1160,18 +1160,19 @@ test('the offered zone range is derived from the catalog, not typed in', () => {
   assert(paletteCount({ zone: r.hi }) > 0, 'the warmest offered zone has a real palette');
 });
 
-/* The three routes to a zone have to land in the same place. The ZIP table was
-   the one that disagreed, and it disagreed silently: zoneFromZip returned a
-   zone the chips could not show and the clamp then rounded it away. */
-test('the zone chips, the ZIP table and the winter bands agree on the range', () => {
+/* Manual choices follow catalog coverage. Published ZIP results can extend
+   beyond it and must be reported without silently clamping. */
+test('the zone chips and winter choices cover the catalog with correct temperature ranges', () => {
   const r = zoneRange();
   assert(r.lo < r.hi, 'the offered range spans more than one zone');
   for (let z = r.lo; z <= r.hi; z++)
-    assert(ZONE_LOWS[z], 'zone ' + z + ' has a winter-low caption for the readout');
+    assert(hardinessTemperatureRange(z), 'zone ' + z + ' has a winter-low caption for the readout');
   for (const band of WINTER_BANDS)
     assertEqual(clampZone(band[2]), band[2], 'winter band "' + band[0] + '" maps to an offered zone');
-  for (const b of ZIP_ZONE_BANDS)
-    assertEqual(clampZone(b[2]), b[2], 'ZIP band ' + b[0] + '-' + b[1] + ' maps to an offered zone');
+  assertEqual(hardinessTemperatureRange(3).low,-40);
+  assertEqual(hardinessTemperatureRange(3).high,-30,'zone 3 is a range, not a claimed −40°F average');
+  assertEqual(hardinessTemperatureRange('10b').low,35);
+  assertEqual(hardinessTemperatureRange('10b').high,40);
   assert(WINTER_BANDS.some(b => b[2] === r.hi), 'the plain-language fallback reaches the warmest zone');
 });
 
@@ -4860,15 +4861,71 @@ test('worlds-list thumbnails: meta counts live plants and reads the save season'
   drawWorldThumb(cvs, { gw: 139, gh: 139, plants: {}, terrain: {} }); // acre plot: flat fill path
 });
 
-test('zoneFromZip maps prefixes to a clampable zone and rejects junk', () => {
-  assertEqual(zoneFromZip('66044'), 6, 'Lawrence KS → zone 6');   // 660 band
-  assertEqual(zoneFromZip('02139'), 6, 'Cambridge MA → zone 6');  // 020 band
-  assertEqual(zoneFromZip('551'), 4, 'a bare 3-digit MN prefix works');
-  assertEqual(zoneFromZip('99501'), 4, 'Anchorage AK → cold band');
-  assertEqual(zoneFromZip('33101'), 10, 'Miami raw zone is 10 (caller clamps to 9)');
-  assertEqual(zoneFromZip('ab'), null, 'too short → null (fall back to winter picker)');
-  assertEqual(zoneFromZip(''), null, 'empty → null');
-  assertEqual(zoneFromZip('09012'), null, 'an uncovered prefix → null');
+test('ZIP lookup preserves published five-digit half-zones and never guesses from prefixes', () => {
+  const data=validateZipZoneData(JSON.parse(readRepoFile('data/zip-zones-2023.json')));
+  assertEqual(data.count,40502);
+  assertEqual(data.sources.reduce((n,s)=>n+s.rows,0),data.count);
+  for(const [zip,half] of Object.entries({'66044':'6b','02139':'6b','55101':'5a','99501':'5a',
+    '33101':'11a','90001':'10b','90210':'10b','92101':'11a','78520':'10a','78501':'10a','96813':'12b','96720':'11a','00601':'11b'})){
+    assertEqual(halfZoneFromZip(zip,data),half,zip+' keeps the published half-zone');
+    assertEqual(zoneFromZip(zip,data),parseInt(half,10));
+  }
+  for(const zip of ['551','ab','','09012','00000','90210junk','902100','902 10',null,undefined])
+    assertEqual(zoneFromZip(zip,data),null,'no guessed result for '+zip);
+  assertEqual(halfZoneFromZip(' 02139 ',data),'6b','leading zero is preserved');
+  for(const half of ['1a','13b']) assertEqual(halfZoneFromZip(data.zones[half].slice(0,5),data),half,'extreme zones are not clamped');
+});
+
+test('ZIP data validation rejects missing, duplicated and malformed records',()=>{
+  const valid={format:1,edition:2023,count:2,zones:{'6a':'0213902140'}};
+  assertEqual(validateZipZoneData(valid),valid);
+  const invalid=[null,{}, {...valid,count:3}, {...valid,zones:{'6a':'0213902139'}},
+    {...valid,zones:{'6a':'02139','6b':'02139'}}, {...valid,zones:{'6a':'0214002139'}},
+    {...valid,zones:{'14a':'0213902140'}}, {...valid,zones:{'6a':'02139x'}}, {...valid,edition:2012}];
+  for(const data of invalid){ let failed=false; try{validateZipZoneData(data);}catch(e){failed=true;} assert(failed,'reject invalid lookup before use'); }
+});
+
+test('ZIP data loads once from a fixed local URL and can retry a failed load',async()=>{
+  const oldFetch=fetch, oldData=zipZoneData, oldPromise=zipZonePromise;
+  const data={format:1,edition:2023,count:1,zones:{'10a':'78520'}};
+  const urls=[]; let finish;
+  try{
+    zipZoneData=null; zipZonePromise=null;
+    fetch=url=>{urls.push(url);return new Promise(resolve=>{finish=resolve;});};
+    const first=loadZipZones(), second=loadZipZones();
+    assertEqual(first,second,'overlapping lookups share one fetch');
+    finish({ok:false}); let failed=false;
+    try{await first;}catch(e){failed=true;} assert(failed); assertEqual(zipZoneData,null);
+    fetch=url=>{urls.push(url);return Promise.resolve({ok:true,json:()=>Promise.resolve(data)});};
+    assertEqual(await loadZipZones(),data); assertEqual(await loadZipZones(),data);
+    assertEqual(urls.length,2,'failure retries; success stays in memory');
+    assert(urls.every(url=>url===ZIP_ZONE_DATA_URL),'ZIP values never enter a request URL');
+  }finally{fetch=oldFetch;zipZoneData=oldData;zipZonePromise=oldPromise;}
+});
+
+test('setup rejects unsupported ZIP results and a delayed lookup cannot replace a manual choice',async()=>{
+  setup(); const oldLoad=loadZipZones;
+  const data=validateZipZoneData(JSON.parse(readRepoFile('data/zip-zones-2023.json')));
+  const zip=$('dgnZip'), next=$('btnDesignNext');
+  try{
+    loadZipZones=()=>Promise.resolve(data); openDesignSetup();
+    zip.value='96813'; await zip.oninput();
+    assert(next.disabled,'zone 12b is not silently changed to zone 11');
+    assert($('dgnZipStatus').textContent.includes('12b'));
+    zip.value='00000'; await zip.oninput(); assert(next.disabled,'unlisted ZIP requires another choice');
+    zip.value='78520'; await zip.oninput(); assert(!next.disabled);
+    assert($('dgnZoneOut').innerHTML.includes('Zone 10'));
+    let resolve;
+    loadZipZones=()=>new Promise(r=>{resolve=r;});
+    zip.value='33101'; const pending=zip.oninput();
+    $('dgnZoneChips').children.find(b=>b.textContent==='Zone 6').onclick();
+    resolve(data); await pending;
+    assert($('dgnZoneOut').innerHTML.includes('Zone 6'),'manual choice wins over a slow result');
+    assertEqual(zip.value,''); assert(!next.disabled);
+    zip.value='33101'; const oldSetup=zip.oninput(); const finish=resolve;
+    openDesignSetup(); finish(data); await oldSetup;
+    assertEqual(zip.value,''); assert(!$('dgnZipStatus').textContent.includes('33101'),'reopened setup ignores an earlier request');
+  }finally{loadZipZones=oldLoad;}
 });
 
 test('paletteCount tracks zone/native/deer/rabbit/squirrel without touching game state', () => {

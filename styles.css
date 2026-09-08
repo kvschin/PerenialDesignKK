@@ -291,6 +291,9 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
   display:inline-block;padding:5px 3px;
   text-decoration-thickness:1px;border-radius:var(--radius-control)}
 .ext-link:hover{color:var(--action-primary-hover)}
+.zone-map-link{display:flex;align-items:center;width:fit-content;min-height:44px;margin-top:4px;max-width:100%;font-size:13px}
+#dgnWinter .chip{display:inline-flex;flex-direction:column;gap:2px;white-space:normal;min-height:44px}
+#dgnWinter .chip small{display:block;font-size:11px;line-height:1.4;font-weight:400}
 .ext-link:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .ext-arrow{margin-left:.25em;font-size:.9em;opacity:.8}
 
@@ -401,6 +404,7 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 /* A form hint is instructions, not decoration — on the translucent setup
    panel --text-muted measured 4.49:1, a hair under AA. */
 .field-hint{font-size:11.5px;color:var(--text-secondary);line-height:1.45;margin:6px 0 0}
+#dgnZipStatus:empty{margin:0}
 .chip-grid{gap:7px}
 .chip.toggle::before{content:'';width:13px;height:13px;border-radius:var(--radius-control);border:1.5px solid var(--border-strong);
   margin-right:2px;flex:0 0 auto;transition:background .12s,border-color .12s}
@@ -427,6 +431,9 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    their text correctly went dark too — 1.07:1, effectively unreadable. */
 #designScreen .panel,#plotScreen .panel{background:rgba(var(--paper-rgb),.88);
   backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+/* ZIP help changes the form height. Keep the panel inside the viewport so
+   switching back never strands the first zone rows above the scroll origin. */
+#designScreen>.panel{min-height:0;max-height:100%;overflow-y:auto;overscroll-behavior:contain}
 @media (pointer:coarse){
   #designScreen .chip,#plotScreen .chip{min-height:44px;display:inline-flex;align-items:center}
 }

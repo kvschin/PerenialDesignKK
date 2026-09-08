@@ -152,6 +152,33 @@ async function scenario(browser, profile){
       assert.deepEqual(reg.caches, ['pocket-prairie-v' + beforeVersion]);
       assert.equal(await page.locator('#updateBar').isVisible(), false, 'first installation is not an update');
     });
+    await check(label('published ZIP lookup, unsupported zones, and official map link'), async()=>{
+      await page.locator('#btnDesign').click(); await page.locator('#btnNewWorld').click();
+      const map=page.locator('#dgnZoneMap');
+      assert.equal(await map.getAttribute('href'),'https://planthardiness.ars.usda.gov/');
+      assert.equal(await map.getAttribute('target'),'_blank');
+      assert.equal(await map.getAttribute('rel'),'noopener noreferrer');
+      assert(await map.isVisible(),'official map is also reachable without the ZIP helper');
+      const readout=await page.locator('#dgnZoneOut').innerText();
+      await page.locator('#dgnZoneToggle').click();
+      await page.locator('#dgnZip').fill('785');
+      assert.equal(await page.locator('#dgnZoneOut').innerText(),readout,'partial ZIP does not guess a zone');
+      for(const [zip,half,blocked] of [['78520','10a',false],['96813','12b',true],['90210','10b',false]]){
+        await page.locator('#dgnZip').fill(zip);
+        await page.waitForFunction(half=>document.getElementById('dgnZipStatus').textContent.includes('Zone '+half),half);
+        assert.equal(await page.locator('#btnDesignNext').isDisabled(),blocked);
+      }
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'ZIP setup fits the viewport');
+      await page.screenshot({path:path.join(output,profile.name+'-zone-setup.png')});
+      await page.locator('#dgnZip').fill('00000');
+      await page.waitForFunction(()=>document.getElementById('dgnZipStatus').textContent.includes('not in the bundled'));
+      assert(await page.locator('#btnDesignNext').isDisabled());
+      await page.locator('#dgnZoneToggle').click();
+      await page.locator('#dgnZoneChips').getByRole('button',{name:'Zone 6',exact:true}).click();
+      assert.equal(await page.locator('#btnDesignNext').isDisabled(),false);
+      assert.equal(await page.locator('#dgnZip').inputValue(),'');
+      await page.locator('#btnDesignBack').click();
+    });
     await check(label('paused edits persist in real IndexedDB and reopen in a new tab'), async()=>{
       await page.locator('#btnDesign').click();
       await page.locator('#btnNewWorld').click();
@@ -191,6 +218,11 @@ async function scenario(browser, profile){
       });
       assert.equal(probe.networkReachable, false, 'uncached request proves the origin is unavailable');
       assert.equal(probe.cachedScript, true);
+      await page.locator('#btnDesign').click(); await page.locator('#btnNewWorld').click();
+      await page.locator('#dgnZoneToggle').click(); await page.locator('#dgnZip').fill('78520');
+      await page.waitForFunction(()=>document.getElementById('dgnZipStatus').textContent.includes('Zone 10a'));
+      assert.equal(await page.locator('#btnDesignNext').isDisabled(),false,'ZIP data works on a fresh page with the server stopped');
+      await page.locator('#btnDesignBack').click();
       await reopenGarden(page, id);
       assert.deepEqual((await storedGarden(page, id)).plants['4,4'], saved.plants['4,4']);
     });
@@ -251,7 +283,8 @@ async function scenario(browser, profile){
   try {
     for (const profile of [
       {name:'desktop-root', prefix:'/', viewport:{width:1280,height:900}, touch:false},
-      {name:'phone-subpath', prefix:'/PerenialDesignKK/', viewport:{width:390,height:844}, touch:true}
+      {name:'phone-subpath', prefix:'/PerenialDesignKK/', viewport:{width:390,height:844}, touch:true},
+      {name:'small-phone', prefix:'/PerenialDesignKK/', viewport:{width:320,height:568}, touch:true}
     ]) await scenario(browser, profile);
   } finally { await browser.close(); }
 })().catch(e=>{ results.error = e.stack; console.error(e.stack); process.exitCode = 1; }).finally(()=>{

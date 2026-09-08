@@ -37,28 +37,30 @@ not subsequent edits or the live deployment.
 
 ## Automated coverage
 
-The same sequence runs at 1280×900 from `/` and at 390×844 with touch enabled
-from `/PerenialDesignKK/`, matching the deployed subpath. Each uses a fresh
+The same sequence runs at 1280×900 from `/` and at 390×844 and 320×568 with touch
+enabled from `/PerenialDesignKK/`, matching the deployed subpath. Each uses a fresh
 browser context and a read-only loopback HTTP server on a free port.
 
 1. Load `index.html` with its actual separate script tags, verify startup,
    font loading, worker scope, first installation, and absence of a spurious
    update offer.
-2. Create a named garden through the questionnaire, make a deterministic edit
+2. Exercise published ZIP results, unsupported/unlisted ZIPs, manual recovery,
+   reachable zone buttons after toggling help, and the official-map link.
+3. Create a named garden through the questionnaire, make a deterministic edit
    through `withUndo`/`setTile`, and wait for the real paused-clock autosave.
    Read the record directly from IndexedDB so a localStorage fallback cannot
    make the check pass. Close the tab and reopen the saved garden through
    **Your gardens** in a new tab.
-3. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
+4. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
    then open the app and garden in a new tab. An uncached request must fail
-   while cached scripts, fonts, and the saved planting remain available.
-4. Restart the server with a new build. Confirm the worker waits, both caches
+   while cached scripts, fonts, the ZIP lookup, and the saved planting remain available.
+5. Restart the server with a new build. Confirm the worker waits, both caches
    exist, and the running HTML and scripts remain on the old build. Dismiss
    the offer and confirm no takeover occurs.
-5. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
+6. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
    Verify the latest planting survives, the new HTML and scripts agree, the
    old cache is retired, and the updated installation also reopens offline.
-6. Fail on uncaught page errors, HTTP error responses, or automatic third-party
+7. Fail on uncaught page errors, HTTP error responses, or automatic third-party
    requests.
 
 The update pair uses the current source with two build labels: a synthetic

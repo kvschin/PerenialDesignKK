@@ -6,7 +6,7 @@ The core product is substantial enough to validate with paying customers. The la
 
 **What was verified:** the repository contains 545 plant catalog entries; the planner, seasonal views, planting schemes, site-photo reference, bloom calendar, CSV planting list, PNG plan export, offline web support, privacy page, terms, credits, and app icon assets. `node tests/run.js` returned **505 passed, 0 failed**. No native iOS/Android project or real store purchase integration was found. `PREMIUM_ENABLED` is false, entitlement is a local placeholder, and purchase/restore functions return placeholder messages. The photo infrastructure exists, but no catalog entries currently include a photograph. A printable PDF packet is a proposed addition; the existing plan export is PNG and the planting-list print action calls the browser's print function.
 
-This review did not test a physical phone, access developer accounts, verify the live deployment, or establish App Review approval. Some older README/backlog descriptions lag behind implemented features; use current code and CLAUDE.md when preparing claims.
+This review did not test a physical phone, access developer accounts, verify the live deployment, or establish App Review approval. The README/backlog were reconciled September 7; use [current application readiness](readiness.md) and CLAUDE.md for implementation status. The verification counts above remain the dated September 5 snapshot, not the latest test results.
 
 1. **Choose the first customer and the launch promise.**
 

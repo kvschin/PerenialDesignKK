@@ -979,19 +979,17 @@ const GARDEN_TYPES=[
   ['formal','Formal','Symmetry and clipped lines — axial beds and hedges.'],
   ['coastal','Coastal','Salt- and wind-tolerant grasses and dune plants.'],
 ];
-// Plain-language winter bands for people who don't know their zone: each maps
-// to a representative zone (6 and 7 are the most-populated US zones, so the two
-// middle bands hit them). The ZIP field is the precise path; this is the
-// "won't type a ZIP / not in the US" fallback.
+// Approximate winter-low choices. Show the temperature range with the label;
+// frost wording alone cannot identify a zone. ZIP results describe a listed
+// ZIP, not the exact site's microclimate. Manual choices remain available.
 const WINTER_BANDS=[
-  ['Deep freeze','well below 0°F',4],
-  ['Cold winters','below 0°F most years',6],
-  ['Light frost','freezes, rarely below 20°F',7],
-  ['Barely freezes','mild winters',9],
-  ['A touch of frost','frost some years, never hard',10],
-  ['Never freezes','frost-free',11],
+  ['Extreme cold','−50 to −40°F',2],
+  ['Deep freeze','−30 to −20°F',4],
+  ['Cold winters','−10 to 0°F',6],
+  ['Regular freezes','10 to 20°F',8],
+  ['Light frost','30 to 40°F',10],
+  ['Frost-free','40 to 50°F',11],
 ];
-const ZONE_LOWS={2:'−45°F',3:'−40°F',4:'−25°F',5:'−15°F',6:'−5°F',7:'5°F',8:'15°F',9:'25°F',10:'35°F',11:'45°F'};
 function openDesignSetup(){
   const d=game.design||{};
   const nativeDefaults=normalizeFilters(Object.keys(d).length?d:game.filters);
@@ -1006,26 +1004,35 @@ function openDesignSetup(){
     consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette'),
     nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), nativeRegionWrap=$('dgnNativeRegionWrap');
   const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone, sel);  // replant the backdrop to match
+  const zipEl=$('dgnZip'), zipStatus=$('dgnZipStatus');
+  let zipRequest=0, zipBlocked=false;
   function updateReadout(){
-    $('dgnZoneOut').innerHTML=`<b>Zone ${sel.zone}</b> — winters bottom out near ${ZONE_LOWS[sel.zone]||'—'}. `+
-      `We'll only offer plants that can take that.`;
+    $('dgnZoneOut').innerHTML=zipBlocked?'Choose a supported zone to continue.':
+      `<b>Zone ${sel.zone}</b> · Average annual winter minimum ${zoneTemperatureText(sel.zone)}. `+
+      'Plant filters use whole zones; soil, summer conditions, and local exposure also matter.';
   }
   function updateCount(){
     const n=paletteCount(sel);
-    $('dgnCount').innerHTML=`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
+    $('dgnCount').innerHTML=zipBlocked?'Choose a zone to preview the palette.':`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
     renderStartPalette();
   }
-  function setZone(z){
+  function setZone(z,fromZip=false){
+    if (!fromZip){ zipRequest++; zipEl.value=''; zipStatus.textContent=''; }
+    zipBlocked=false; $('btnDesignNext').disabled=false;
     sel.zone=clampZone(z);
     renderZoneChips(); renderWinter(); updateReadout(); updateCount(); syncMeadow();
   }
   function renderWinter(){ winterEl.innerHTML='';
-    WINTER_BANDS.forEach(([label,,z])=>winterEl.appendChild(mkChip(label,sel.zone===z,()=>setZone(z)))); }
+    WINTER_BANDS.forEach(([label,,z])=>{
+      const b=mkChip(label,!zipBlocked&&sel.zone===z,()=>setZone(z));
+      const small=document.createElement('small'); small.textContent=zoneTemperatureText(z); b.appendChild(small);
+      winterEl.appendChild(b);
+    }); }
   // zone chips are face up by default; "Don't know your zone?" flips to the ZIP
   // + winter-cold helper (which sets the same sel.zone, echoed by the readout).
   function renderZoneChips(){ zoneChipsEl.innerHTML='';
     const r=zoneRange();
-    for (let z=r.lo;z<=r.hi;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,sel.zone===z,()=>setZone(z))); }
+    for (let z=r.lo;z<=r.hi;z++) zoneChipsEl.appendChild(mkChip('Zone '+z,!zipBlocked&&sel.zone===z,()=>setZone(z))); }
   function renderZoneMode(){
     zoneChipsEl.classList.toggle('hidden',sel.zoneHelp);
     helpEl.classList.toggle('hidden',!sel.zoneHelp);
@@ -1066,16 +1073,43 @@ function openDesignSetup(){
     const title=document.createElement('b'); title.textContent=label; const small=document.createElement('small'); small.textContent=meta; b.append(title,small);
     b.onclick=()=>{ sel.startSource=source; sel.startPaletteId=source==='palette'?id:null; renderStartPalette(); }; startEl.appendChild(b); }
   function renderStartPalette(){ if (!startEl) return; startEl.innerHTML='';
+    if (zipBlocked){ startEl.textContent='Choose a supported zone to see starting palettes.'; return; }
     startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,`${paletteCount(sel)} plants available`);
     const favs=favoriteRefs(), available=selectionCount(favs); startChoice('Favorites','favorites',null,`${available} available / ${favs.length} saved`);
     const data=plantCollectionsData(); (data.palettes||[]).forEach(p=>{ const available=selectionCount(p.items); startChoice(p.name,'palette',p.id,`${available} available / ${p.items.length} saved`); }); }
-  const zipEl=$('dgnZip'); zipEl.value='';
-  zipEl.oninput=()=>{ const z=zoneFromZip(zipEl.value); if (z) setZone(z); };
+  function blockZip(message){
+    zipBlocked=true; $('btnDesignNext').disabled=true; zipStatus.textContent=message;
+    renderZoneChips(); renderWinter(); updateReadout(); updateCount();
+  }
+  async function readZip(){
+    const request=++zipRequest, zip=zipEl.value.trim();
+    const current=()=>zipEl.oninput===readZip && request===zipRequest && !$('designScreen').classList.contains('hidden');
+    if (!/^\d{5}$/.test(zip)){
+      zipStatus.textContent='';
+      // Clearing an unsuccessful lookup restores the earlier manual choice.
+      zipBlocked=false; $('btnDesignNext').disabled=false;
+      renderZoneChips(); renderWinter(); updateReadout(); updateCount(); return;
+    }
+    blockZip('Looking up ZIP…');
+    try{
+      const data=await loadZipZones(); if (!current()) return;
+      const half=halfZoneFromZip(zip,data), z=zoneFromZip(zip,data), range=zoneRange();
+      if (!half){ blockZip('This ZIP is not in the bundled 2023 listing. Check the USDA map, then choose a zone.'); return; }
+      if (z<range.lo || z>range.hi){
+        blockZip(`ZIP ${zip}: Zone ${half} (${zoneTemperatureText(half)}). The catalog currently covers zones ${range.lo}–${range.hi}. Check your site on the map; this result has not been rounded to another zone.`); return;
+      }
+      setZone(z,true);
+      zipStatus.textContent=`ZIP ${zip}: Zone ${half} (${zoneTemperatureText(half)}). Using whole Zone ${z} for plant filters. Confirm your exact site on the map.`;
+    }catch(e){ if (current()) blockZip('ZIP lookup is unavailable. Choose a zone manually, or check the USDA map when online.'); }
+  }
+  zipEl.value=''; zipStatus.textContent=''; zipEl.oninput=readZip;
+  $('btnDesignNext').disabled=false;
   zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
   renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderNative(); renderConstraints(); renderStartPalette();
   updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{
+    if (zipBlocked) return;
     game.design={zone:sel.zone, type:sel.type, nativeRegion:sel.nativeRegion, nativeMode:sel.nativeMode,
       deer:sel.deer, rabbit:sel.rabbit, squirrel:sel.squirrel};
     // tune the live palette: filters apply, style ranks the tray

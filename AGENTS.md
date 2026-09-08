@@ -19,11 +19,11 @@ Current product direction, for orientation:
 - Pocket Prairie Garden Design is a design-first, 2.5D naturalistic garden
   planner. The primary experience is **Design a Garden**.
 - Every garden is a planner: blank plot, direct placement, free camera, and no
-  house. There is **no game mode switch** — the avatar story flow, the
+  preplaced house. There is **no game mode switch** — the avatar story flow, the
   read-only Visit stroll, and the cat/dog character were all removed, and
   legacy story saves simply open in the planner.
-- The menu also provides Daily design challenge, Plant Library, and View
-  Gardens. `plant-creator.html` is a dev-only, direct-entry plant-authoring
+- The menu provides Your gardens (create and manage), Plant Library, and Daily
+  design challenge. `dev/plant-creator.html` is a dev-only, direct-entry plant-authoring
   tool and is not linked from the game.
 
 ## Working rules

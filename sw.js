@@ -39,7 +39,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.66';
+const VERSION = '0.8.67';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -60,6 +60,8 @@ const PRECACHE = [
   // a first launch is exactly when someone might have no connection — an
   // onboarding path that needs the network is not one.
   './demo-garden.json',
+  // Published ZIP/half-zone listing, read locally when the setup helper is used.
+  './data/zip-zones-2023.json',
   // Load order matters in the browser; it does not here, but the list mirrors
   // index.html so a missing module is easy to spot against it.
   './js/plants.js',
