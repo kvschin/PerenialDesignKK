@@ -378,7 +378,7 @@ function compassChromeStateKey(){
   if (!compassChromeEls) compassChromeEls=new Array(COMPASS_CHROME_IDS.length).fill(null);
   let out=VW+'|'+VH+'|'+((document.body&&document.body.className)||'')+'|'+
     (game.sheetState||'')+'|'+(game.toolMenu||'')+'|'+(game.trayCat||'')+'|'+(game.drill||'')+'|'+
-    (game.searchOpen?1:0)+'|'+(game.catMenuOpen?1:0);
+    (game.searchOpen?1:0);
   for (let i=0;i<COMPASS_CHROME_IDS.length;i++){
     let el=compassChromeEls[i];
     if (!el || !el.isConnected) el=compassChromeEls[i]=document.getElementById(COMPASS_CHROME_IDS[i]);
@@ -389,7 +389,7 @@ function compassChromeStateKey(){
 }
 function compassChromeRects(stateKey){
   if (compassChrome.key===stateKey) return compassChrome.rects;
-  const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.cat-pop','.selection-actions'];
+  const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.selection-actions'];
   const frame=canvasViewportRect();
   const rects=[];
   for (const sel of sels){

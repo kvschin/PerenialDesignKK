@@ -99,9 +99,6 @@ addEventListener('keydown',e=>{
   if (e.key==='Escape' && document.querySelector('.discovery-source-menu')){
     e.preventDefault(); closeDiscoverySourceMenu(true); return;
   }
-  if (e.key==='Escape' && game.catMenuOpen){
-    e.preventDefault(); game.catMenuOpen=false; buildToolTray(); return;
-  }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }

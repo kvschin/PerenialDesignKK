@@ -1000,8 +1000,6 @@ canvas.layer-eye{display:block}
 #trayTabs .tab:hover{background:var(--surface-control-hover);color:var(--text-primary)}
 #trayTabs .tab.sel{background:var(--surface-active);color:var(--text-primary)}
 .catalog-mode{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:stretch;min-height:34px;border:1px solid var(--border-control);border-radius:var(--radius-control);overflow:hidden;flex:0 0 auto}.catalog-mode button{border:0;background:transparent;color:var(--text-secondary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;padding:0 10px}.catalog-mode button+button{border-left:1px solid var(--border-quiet)}.catalog-mode button.sel{background:var(--surface-active);color:var(--text-primary)}.catalog-mode button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
-.cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:148px;min-height:34px;margin:0 0 1px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-primary);font:700 11px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}.cat-current span{overflow:hidden;text-overflow:ellipsis}.cat-current i{font-style:normal;color:var(--bronze);display:flex}.cat-current i .ui-icon{width:14px;height:14px}
-.cat-pop{position:absolute;left:8px;top:calc(100% + 6px);z-index:42;display:flex;gap:10px;max-width:min(96vw,660px);padding:9px;background:var(--surface-dialog);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay);animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}.cat-pop-group{min-width:260px}.cat-pop-group>p{margin:0 0 5px;color:var(--bronze);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.cat-pop-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.cat-pop button{min-height:34px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);color:var(--text-secondary);font:700 11px/1.1 'IBM Plex Sans',system-ui,sans-serif;padding:6px 8px}.cat-pop button:hover{background:var(--surface-control-hover);color:var(--text-primary)}.cat-pop button.sel{background:var(--surface-active);border-color:var(--border-active);color:var(--text-primary)}
 #toolTray{pointer-events:auto;display:flex;gap:var(--space-2);background:var(--surface-workspace);border:1.5px solid var(--border-subtle);
   box-sizing:border-box;border-radius:0 0 var(--radius-panel) var(--radius-panel);padding:var(--space-2);width:var(--catalog-width);max-width:calc(100vw - 24px);overflow-x:auto;min-height:78px;align-items:center}
 .discovery-controls{display:flex;align-items:center;gap:6px;flex:1 0 100%;min-width:0;padding:1px 0 5px}
@@ -1605,22 +1603,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .discovery-filter-trigger{min-height:44px;padding:0 12px}
   .discovery-result-count{display:none}
   .catalog-minimize{flex-basis:44px;width:44px;min-height:44px;margin-left:0}
-  .cat-current{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:128px;max-width:42vw;min-height:44px;
-    background:var(--surface-control);border:1px solid var(--border-quiet);border-radius:var(--radius-control);
-    color:var(--text-primary);font-size:12px;font-weight:700;letter-spacing:.04em;padding:6px 10px;white-space:nowrap}
-  .cat-current span{overflow:hidden;text-overflow:ellipsis}
-  .cat-current i{font-style:normal;color:var(--bronze);display:flex}
-  .cat-current i .ui-icon{width:14px;height:14px}
-  .cat-pop{position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));
-    bottom:calc(100% + 8px);z-index:42;display:flex;flex-direction:column;gap:8px;max-width:none;
-    padding:7px;background:var(--surface-dialog);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);box-shadow:var(--shadow-overlay);
-    animation:popoverEnter var(--motion-menu) var(--ease-emphasized)}
-  .cat-pop-group{min-width:0}.cat-pop-group>p{margin:2px 2px 4px}.cat-pop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
-  .cat-pop button{min-height:44px;border:1px solid var(--border-quiet);border-radius:var(--radius-control);background:var(--surface-control);
-    color:var(--text-secondary);font:700 12px/1.1 'IBM Plex Sans',system-ui,sans-serif}
-  .cat-pop button:hover{background:var(--surface-control-hover);color:var(--text-primary)}
-  .cat-pop button.sel{background:var(--surface-active);border-color:var(--border-active);color:var(--text-primary)}
   /* wrap the brush controls to a second row instead of clipping them off the
      right edge (Fill used to vanish under overflow-x:auto with no scroll cue).
      Hiding the "Brush"/"Erase" label buys the width; the tools read for
@@ -1663,7 +1645,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
     transition:max-height var(--motion-panel) var(--ease-emphasized),opacity var(--motion-menu),transform var(--motion-panel) var(--ease-emphasized),visibility 0s linear var(--motion-panel)}
   .hud-bottom.sheet-full{height:calc(100vh - var(--sheet-safe-top));height:calc(100dvh - var(--sheet-safe-top));max-height:calc(100dvh - var(--sheet-safe-top));overflow:hidden}
   .hud-bottom.sheet-full #sheetCatalog{flex:1 1 0;max-height:none;overflow:visible}
-  .hud-bottom.sheet-full .cat-pop{top:calc(100% + 6px);bottom:auto;max-height:calc(100dvh - var(--sheet-safe-top) - 124px);overflow-y:auto}
   .hud-bottom.sheet-full #toolTray{flex:1 1 0;max-height:none;min-height:0}
   .hud-bottom.sheet-full #toolTray.discovery-results{flex:1 1 0;max-height:none;min-height:0}
   .hud-bottom.sheet-full #trayTabs{border-top:0}
@@ -1886,12 +1867,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .catalog-mode button{border:0!important;border-radius:var(--radius-pill);color:var(--text-secondary);font:700 13px/1 var(--font-body);transition:background var(--motion-control),transform var(--motion-control) var(--ease-standard),box-shadow var(--motion-control)}
 .catalog-mode button.sel{background:var(--color-neutral-100);color:var(--color-text);box-shadow:0 2px 7px rgba(0,0,0,.22)}
 .catalog-mode button:active{transform:scale(.98)}
-.discovery-source,.discovery-filter-trigger,.discovery-filter-summary,.cat-current{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
-.discovery-source i,.cat-current i{color:var(--color-accent)}
-.discovery-source-menu,.cat-pop{background:var(--surface-dialog);border-color:var(--color-divider);box-shadow:var(--shadow-overlay)}
-.discovery-source-label,.cat-pop-group>p{color:var(--color-accent)}
-.discovery-source-item,.cat-pop button{font-family:var(--font-body);color:var(--text-secondary)}
-.discovery-source-item.sel,.cat-pop button.sel{background:color-mix(in srgb,var(--color-accent) 24%,var(--color-bg));border-color:var(--color-accent);color:var(--color-text)}
+.discovery-source,.discovery-filter-trigger,.discovery-filter-summary{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill)}
+.discovery-source i{color:var(--color-accent)}
+.discovery-source-menu{background:var(--surface-dialog);border-color:var(--color-divider);box-shadow:var(--shadow-overlay)}
+.discovery-source-label{color:var(--color-accent)}
+.discovery-source-item{font-family:var(--font-body);color:var(--text-secondary)}
+.discovery-source-item.sel{background:color-mix(in srgb,var(--color-accent) 24%,var(--color-bg));border-color:var(--color-accent);color:var(--color-text)}
 #trayFind,.catalog-search{border-color:var(--color-divider);background:var(--color-neutral-100);color:var(--color-text);font-family:var(--font-body);border-radius:var(--radius-pill);padding-left:15px}
 #trayFind::placeholder,.catalog-search::placeholder{color:var(--text-muted)}
 .discovery-filter-trigger{color:var(--color-text);padding:0 14px}
@@ -2045,7 +2026,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .landscape-controls .catalog-search{flex:1 1 auto;min-height:40px;width:auto}
   .discovery-filter-row{flex:0 0 auto;width:auto}
   .discovery-filter-trigger{min-height:40px}.discovery-result-count{display:none}
-  .cat-current,.discovery-filter-summary{display:none}
+  .discovery-filter-summary{display:none}
   /* width:100% would out-size the arrow gutters it now shares the nav with. */
   .catalog-category-strip{display:flex}
   .plant-result-grid,.plant-variant-grid{grid-template-columns:minmax(0,1fr)}
@@ -2150,7 +2131,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      here is why the two disagreed), and the search takes what is left: 174px
      and 122px at 320px, neither label truncating. */
   .landscape-controls .catalog-search{width:auto;min-height:44px;flex:1 1 auto}
-  .cat-current{display:none}
   /* `order:4;flex:1 0 100%` dates from when the strip was a direct child of
      #trayTabs and wrapped to its own row. Inside .catalog-category-nav it is a
      sibling of the two arrow gutters, and an unshrinkable 100% basis overflows
@@ -2158,7 +2138,6 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .catalog-category-strip{display:flex;min-height:44px;padding-right:10px;padding-bottom:2px}
   .catalog-category-strip button{min-height:44px}
   .discovery-filter-trigger{order:3}
-  .cat-current{border-radius:var(--radius-pill)}
   #toolTray.discovery-results{padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
   .plant-result-card{min-height:110px}.plant-result-main,.plant-result-card.sel .plant-result-main{padding-right:58px}.plant-result-copy>b{font-size:16px}
   .plant-result-heart,.plant-result-add{width:44px;height:44px}.plant-result-card.sel .plant-result-actions{top:42px}
@@ -2346,7 +2325,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .canvas-tool.sel,.top-tool.sel,.tool.sel,.seg .seg-opt.on,.catalog-mode button.sel,
   .catalog-category-strip button.sel,.plant-result-card.sel,.layer-row.sel,
   .scheme-chip.sel,.scheme-row.sel,
-  .discovery-source-item.sel,.cat-pop button.sel,.plant-result-heart.on{
+  .discovery-source-item.sel,.plant-result-heart.on{
     border:2px solid Highlight!important;outline:1px solid Highlight;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}
   .canvas-tool.sel canvas:not(.rail-swatch){filter:none}

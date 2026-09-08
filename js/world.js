@@ -190,7 +190,6 @@ const game = {
   lastBrushTool:null, lastBrushVar:null,             // last placement brush chosen from the catalog
   lastBrushTrayCat:'grasses', lastBrushDrill:null, trayScroll:{}, // where the brush catalog was last browsed
   toolMenu:null,                                     // open flyout on the left canvas toolbar
-  catMenuOpen:false,                                 // mobile category dropdown in the bottom sheet
   sheetState:'half',                                 // mobile palette: collapsed | half | full
   sheetCollapsed:false,                              // legacy alias kept in sync with sheetState
   previewMode:'established',                         // design view: today | established (visual only)

@@ -168,7 +168,6 @@ function rememberBrushTool(){
 function setTool(k,v){
   if (game.tool==='building' && k!=='building' && typeof cancelBuildingDraft==='function') cancelBuildingDraft();
   game.toolMenu=null;
-  game.catMenuOpen=false;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
   if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='building'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
@@ -1479,7 +1478,7 @@ function renderSearchPlantButton(tray,k){
   b.append(c,sp);
   b.onclick=()=>{
     saveTrayScroll();
-    game.trayCat=catId; game.searchOpen=false; game.traySearch=''; game.catMenuOpen=false;
+    game.trayCat=catId; game.searchOpen=false; game.traySearch='';
     game.drill=(P.group||P.cv) ? k : null;
     setTool(k,null);
     buildToolTray();
@@ -1497,7 +1496,7 @@ function renderSearchToolButton(tray,item){
   b.append(c,sp);
   b.onclick=()=>{
     saveTrayScroll();
-    game.trayCat=item.cat; game.searchOpen=false; game.traySearch=''; game.catMenuOpen=false;
+    game.trayCat=item.cat; game.searchOpen=false; game.traySearch='';
     game.drill=item.drill||null;
     setTool(item.tool,null);
     buildToolTray();
@@ -1816,7 +1815,7 @@ function catalogMinimizeButton(){
   b.setAttribute('aria-expanded','true'); b.setAttribute('aria-controls','sheetCatalog'); setUiIcon(b,'chevron-down');
   // Collapse FIRST so the flight starts on this click's frame; the catalog
   // rebuild behind it is main-thread work the compositor-driven ghost ignores.
-  b.onclick=()=>{ game.catMenuOpen=false; closeDiscoverySourceMenu(); setSheetState('collapsed'); buildToolTray(); };
+  b.onclick=()=>{ closeDiscoverySourceMenu(); setSheetState('collapsed'); buildToolTray(); };
   return b;
 }
 function discoveryResultCountText(refs){
@@ -2105,7 +2104,7 @@ function discoverySourceSelection(source,collectionId,current=activeDiscovery())
 function chooseDiscoverySource(source,collectionId){
   // A saved collection is a complete plant list. It opens to All rather than
   // inheriting a hidden category from the prior catalog view.
-  discoveryOpenSpecies=null; game.catMenuOpen=false;
+  discoveryOpenSpecies=null;
   setDiscovery(discoverySourceSelection(source,collectionId),true);
   palettePendingRef=null; paletteRenameId=null; closeOverlay('paletteScreen'); buildToolTray();
 }
@@ -2313,14 +2312,6 @@ function applyPlantReplacement(){
 function discoveryCollectionView(d=activeDiscovery()){
   return d.source==='favorites'||d.source==='palette';
 }
-function discoveryCollectionCategoryData(d=activeDiscovery()){
-  const refs=discoveryRefsFor(Object.assign({},d,{category:null})), counts={};
-  refs.forEach(ref=>{ const id=plantCategoryFor(ref.s); counts[id]=(counts[id]||0)+1; });
-  return {refs,counts};
-}
-function discoveryAllCategoryLabel(d=activeDiscovery()){
-  return d.source==='favorites'?'All favorites':`All in ${discoverySourceLabel(d)}`;
-}
 function updateCatalogHeader(isPlantGroup){
   const title=document.getElementById('catalogTitle'), meta=document.getElementById('catalogMeta');
   if (title) title.textContent=isPlantGroup?'Plant library':'Landscape library';
@@ -2364,7 +2355,7 @@ function trayStateSig(){
   const j=v=>{ try{ return JSON.stringify(v===undefined?null:v); }catch(_){ return '?'; } };
   return [
     g.inGarden?1:0, g.trayCat, g.drill||'', g.tool, g.toolVar||'',
-    g.toolMenu||'', g.catMenuOpen?1:0, g.searchOpen?1:0, g.traySearch||'',
+    g.toolMenu||'', g.searchOpen?1:0, g.traySearch||'',
     g.sheetState||'', g.sheetCollapsed?1:0,
     g.fillMode?1:0, g.matrix?1:0, g.drift?1:0, g.freePlanting?1:0,
     g.brushSize, g.eraseMode||'', g.woodyAge||'', g.edgeStyle||'',
@@ -2445,7 +2436,6 @@ function verifyTrayCache(){
     ['toolVar',     ()=>{ const o=g.toolVar; g.toolVar='zzz'; return ()=>{ g.toolVar=o; }; }],
     ['trayCat',     ()=>{ const o=g.trayCat; g.trayCat='landscape'; return ()=>{ g.trayCat=o; }; }],
     ['drill',       ()=>{ const o=g.drill; g.drill='fence'; return ()=>{ g.drill=o; }; }],
-    ['catMenuOpen', ()=>{ const o=g.catMenuOpen; g.catMenuOpen=!o; return ()=>{ g.catMenuOpen=o; }; }],
     ['traySearch',  ()=>{ const o=g.traySearch; g.traySearch='sedge'; return ()=>{ g.traySearch=o; }; }],
     ['fillMode',    ()=>{ const o=g.fillMode; g.fillMode=!o; return ()=>{ g.fillMode=o; }; }],
     ['matrix',      ()=>{ const o=g.matrix; g.matrix=!o; return ()=>{ g.matrix=o; }; }],
@@ -2514,19 +2504,13 @@ function buildToolTrayInner(){
   lastCatByGroup[activeGroup]=game.trayCat;
   const selectCat=(id)=>{ saveTrayScroll(); game.toolMenu=null; game.drill=null; discoveryOpenSpecies=null; closeDiscoverySourceMenu();
     const currentDiscovery=activeDiscovery(), searchActive=!!currentDiscovery.query.trim();
-    /* "All matching plants" CLEARS the plant category rather than picking one.
-       The popover offers that row from a landscape tab as well, where clearing
-       it moves nothing on screen — so this is also a group switch there, or it
-       is a menu row that visibly does nothing. Every other row already crosses
-       groups, below, by setting game.trayCat. */
-    if (id===null){ setDiscovery({category:null,returnCategory:searchActive?currentDiscovery.returnCategory:null,limit:36}); game.catMenuOpen=false;
-      if (!isPlantGroup){ game.trayCat=lastCatByGroup.plants||TRAY_GROUPS[0].cats[0]; setTool('hand'); }
-      buildToolTray(); return; }
+    /* The strip offers its All row in the plants branch ONLY, so this is only
+       ever reached from a plant tab, and there it just clears the category. */
+    if (id===null){ setDiscovery({category:null,returnCategory:searchActive?currentDiscovery.returnCategory:null,limit:36}); buildToolTray(); return; }
     game.trayCat=id;
     const targetIsPlants=trayGroupOf(id)==='plants';
     setDiscovery({category:targetIsPlants?id:null,returnCategory:targetIsPlants&&searchActive?id:null,limit:36});
     game.searchOpen=false; game.traySearch='';
-    game.catMenuOpen=false;
     rememberBrushMenu(id,null);
     if (game.tool==='pick' || targetIsPlants!==isPlantGroup) setTool('hand');
     else refreshCanvasTools();
@@ -2535,7 +2519,7 @@ function buildToolTrayInner(){
     if (groupId===activeGroup) return;
     const group=TRAY_GROUPS.find(g=>g.id===groupId); if (!group) return;
     if (groupId==='build') tourNote('landscape');
-    saveTrayScroll(); game.trayCat=lastCatByGroup[groupId]||group.cats[0]; game.drill=null; game.catMenuOpen=false; closeDiscoverySourceMenu();
+    saveTrayScroll(); game.trayCat=lastCatByGroup[groupId]||group.cats[0]; game.drill=null; closeDiscoverySourceMenu();
     const d=activeDiscovery();
     setDiscovery({category:groupId==='plants'?(discoveryCollectionView(d)||d.query.trim()?null:game.trayCat):null,limit:36});
     // Changing catalog modes never paints. The last brush stays remembered for
@@ -2550,19 +2534,7 @@ function buildToolTrayInner(){
   updateCatalogHeader(isPlantGroup);
   if (isPlantGroup) renderDiscoveryControls(tabs,modeControl);
   else renderLandscapeControls(tabs,modeControl);
-  // the category popover resolves its own collection counts, and is the only
-  // thing that ever wanted them — computed here they were a whole discarded
-  // discoveryRefsFor pass (0.16ms, 12 favourites) on every rebuild with the
-  // dropdown shut, which is most of them
-  const discovery=isPlantGroup?activeDiscovery():null, collectionView=!!(discovery&&discoveryCollectionView(discovery));
-  const cur=document.createElement('button'); cur.type='button'; cur.className='cat-current';
-  const lab=document.createElement('span');
-  lab.textContent=collectionView&&!discovery.category?discoveryAllCategoryLabel(discovery)
-    : isPlantGroup&&discovery&&!discovery.category?'All matching plants':cat.label;
-  const arrow=document.createElement('i'); setUiIcon(arrow,game.catMenuOpen?'chevron-up':'chevron-down');
-  cur.replaceChildren(lab,arrow); cur.setAttribute('aria-haspopup','menu'); cur.setAttribute('aria-expanded',game.catMenuOpen?'true':'false'); cur.setAttribute('aria-controls','catalogCategoryMenu');
-  cur.onclick=()=>{ game.catMenuOpen=!game.catMenuOpen; buildToolTray(); };
-  tabs.appendChild(cur);
+  const discovery=isPlantGroup?activeDiscovery():null;
   const categoryStrip=document.createElement('div'); categoryStrip.className='catalog-category-strip';
   categoryStrip.setAttribute('role','group');
   categoryStrip.setAttribute('aria-label',isPlantGroup?'Plant categories':'Landscape categories');
@@ -2602,38 +2574,6 @@ function buildToolTrayInner(){
     }
   });
   if (isPlantGroup){ const summary=discoveryFilterSummary(activeDiscovery()); if (summary) tabs.appendChild(summary); }
-  if (game.catMenuOpen){
-    /* This popover lists BOTH groups, so its plants section builds even while a
-       LANDSCAPE tab is open — and there `discovery` is null, deliberately: the
-       current-category label above reads it to decide whether the button says
-       "All favorites" or the landscape category's own name, so it has to stay
-       null for a landscape tab. Resolve the plant lens locally instead. The two
-       `discovery.category` reads below were unguarded, so every tap of the
-       dropdown from Landscape threw and left the tray half-built.
-       What is CURRENT still follows the OPEN group: from a landscape tab no
-       plants row is marked, which is what the row test below already answered
-       through isPlantGroup — now said once, per section, rather than relying on
-       a plant category never matching game.trayCat. */
-    const popD=discovery||activeDiscovery(), popColl=discoveryCollectionView(popD);
-    const popCollData=popColl?discoveryCollectionCategoryData(popD):null;
-    const pop=document.createElement('div'); pop.className='cat-pop'; pop.id='catalogCategoryMenu'; pop.setAttribute('role','menu');
-    TRAY_GROUPS.forEach(group=>{ const section=document.createElement('div'); section.className='cat-pop-group';
-      const head=document.createElement('p'); head.textContent=group.label; section.appendChild(head);
-      const grid=document.createElement('div'); grid.className='cat-pop-grid';
-      if (group.id==='plants'){
-        const allSel=isPlantGroup&&!popD.category;
-        const all=document.createElement('button'); all.type='button'; all.className=allSel?'sel':'';
-        all.textContent=popColl?`${discoveryAllCategoryLabel(popD)} · ${popCollData.refs.length}`:'All matching plants';
-        all.setAttribute('role','menuitemradio'); all.setAttribute('aria-checked',allSel?'true':'false'); all.onclick=()=>selectCat(null); grid.appendChild(all);
-      }
-      TRAY_CATS.filter(c=>group.cats.includes(c.id)).forEach(c=>{ if (popColl&&group.id==='plants'&&!popCollData.counts[c.id]) return;
-        const b=document.createElement('button'); b.type='button';
-        const selected=group.id==='plants'?(isPlantGroup&&popD.category===c.id):game.trayCat===c.id;
-        b.className=selected?'sel':''; b.textContent=c.label+(popColl&&group.id==='plants'?` · ${popCollData.counts[c.id]||0}`:'');
-        b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',selected?'true':'false'); b.onclick=()=>selectCat(c.id); grid.appendChild(b); });
-      section.appendChild(grid); pop.appendChild(section); });
-    tabs.appendChild(pop);
-  }
   const tray=document.getElementById('toolTray'); tray.innerHTML='';
   tray.classList.remove('discovery-results','cultivar-drill','landscape-results');
   if (isPlantGroup){
