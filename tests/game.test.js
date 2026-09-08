@@ -8837,6 +8837,116 @@ test('the tray signature carries each control the catalog draws', () => {
   assertEqual(trayStateSig(), before, 'and restoring it returns');
 });
 
+/* The category dropdown lists BOTH groups, so its plants section builds even
+   while a LANDSCAPE tab is open — and there the plant discovery lens is null on
+   purpose, because the current-category button above reads it to decide whether
+   it says "All favorites" or the landscape category's own name. The plants
+   section read `discovery.category` unguarded, so every tap of the dropdown
+   from Landscape threw. Not fatal — the crash boundary's noteError caught it —
+   which is exactly why it survived: the catalog simply stopped half-built with
+   nothing on screen saying why.
+
+   The same null took verifyTrayCache() down in ALL of its configurations, not
+   only the reported one: its own `catMenuOpen` case opens this menu and its
+   `trayCat` case swings the open tab to 'landscape', so a run started from a
+   plant category with the menu already open threw too.
+
+   The sandbox has no selector engine (docs/test-sandbox.md), so this asks the
+   built tree what it claims rather than counting rendered nodes. */
+test('the category dropdown opens from a landscape tab', () => {
+  setup(21, 21);
+  const tabs = document.getElementById('trayTabs');
+  const catsOf = id => TRAY_GROUPS.find(g => g.id === id).cats;
+  const labelOf = id => TRAY_CATS.find(c => c.id === id).label;
+  // the stub's innerHTML is inert, so clear by hand or an earlier build answers
+  const openMenu = (cat) => {
+    game.trayCat = cat; game.catMenuOpen = true; game.drill = null; game.traySearch = '';
+    tabs.children.length = 0;
+    buildToolTray(true);
+    return tabs.children.find(c => c.id === 'catalogCategoryMenu');
+  };
+  const rows = (el, out = []) => {          // every row in the popover, at any depth
+    if (el.hasAttribute && el.hasAttribute('aria-checked')) out.push(el);
+    (el.children || []).forEach(c => rows(c, out));
+    return out;
+  };
+  const current = pop => rows(pop).filter(b => b.getAttribute('aria-checked') === 'true')
+    .map(b => b.textContent);
+  /* setup() does not reset catMenuOpen, so a failure here would leave the menu
+     open for every later test that builds a tray — which is how one broken
+     dropdown reported itself as ten failures while this was being written. */
+  try {
+
+  for (const cat of catsOf('build')) {
+    const pop = openMenu(cat);
+    assert(pop, `the dropdown builds from ${cat}`);
+    const labels = rows(pop).map(b => b.textContent);
+    // it is the PLANTS half that used to throw, so prove that half is really there
+    assert(catsOf('plants').every(id => labels.includes(labelOf(id))),
+      `${cat}: the plants section is built too`);
+    assert(labels.includes('All matching plants'), `${cat}: including its All row`);
+    assertEqual(current(pop).join(), labelOf(cat),
+      `${cat}: the open landscape tab is the one and only current row`);
+    assertEqual(trayStateSig(), trayCacheSig,
+      `${cat}: the build settles on the signature the rebuild guard compares against`);
+  }
+
+  // and the plants tab is untouched: there the current row is the discovery lens
+  setDiscovery({ source: 'recommended', category: 'sunper', query: '' });
+  assertEqual(current(openMenu('sunper')).join(), labelOf('sunper'),
+    'a chosen plant category is current');
+  setDiscovery({ category: null });
+  assertEqual(current(openMenu('sunper')).join(), 'All matching plants',
+    'and with none chosen, its All row is');
+
+  /* The dev verifier could not be run from a landscape category for the same
+     reason. It prints a report, so silence it; ~110ms from here, against 2.6s
+     from a plant category, which is why only this arm runs. */
+  game.trayCat = 'structures'; game.catMenuOpen = false; game.drill = null;
+  const realLog = console.log;
+  let report;
+  try { console.log = () => {}; report = verifyTrayCache(); }
+  finally { console.log = realLog; }
+  assert(report && report.checked > 0, 'verifyTrayCache runs from a landscape category');
+
+  } finally { game.catMenuOpen = false; }
+});
+
+/* "All matching plants" CLEARS the plant category rather than choosing one, and
+   the dropdown offers it from a landscape tab, where clearing a plant category
+   moves nothing on screen. Guarding the throw above made that row reachable for
+   the first time; without this it is a menu row that visibly does nothing. */
+test('the dropdown\'s plant rows all cross groups, All included', () => {
+  setup(21, 21);
+  const tabs = document.getElementById('trayTabs');
+  const openMenu = (cat) => {
+    game.trayCat = cat; game.catMenuOpen = true; game.drill = null; game.traySearch = '';
+    tabs.children.length = 0; buildToolTray(true);
+    return tabs.children.find(c => c.id === 'catalogCategoryMenu');
+  };
+  const row = (pop, label, out = []) => {
+    if (pop.textContent === label && pop.hasAttribute && pop.hasAttribute('aria-checked')) out.push(pop);
+    (pop.children || []).forEach(c => row(c, label, out));
+    return out[0];
+  };
+
+  try {
+  // a named plant category already did this, by setting game.trayCat
+  game.tool = 'fence';
+  row(openMenu('structures'), 'Trees').onclick();
+  assertEqual(trayGroupOf(game.trayCat), 'plants', 'a plant category switches the open group');
+  assertEqual(activeDiscovery().category, 'trees', 'and becomes the lens');
+  assertEqual(game.tool, 'hand', 'browsing across groups never leaves a landscape brush armed');
+
+  game.tool = 'fence';
+  row(openMenu('structures'), 'All matching plants').onclick();
+  assertEqual(trayGroupOf(game.trayCat), 'plants', 'so does All matching plants');
+  assertEqual(activeDiscovery().category, null, 'with no category chosen');
+  assertEqual(game.tool, 'hand', 'and the same disarm');
+  assertEqual(!!game.catMenuOpen, false, 'the dropdown closes behind it');
+  } finally { game.catMenuOpen = false; }   // as above: a failure must not open it for everyone else
+});
+
 /* ---------- the plant sprite cache retires its own stale buckets ----------
    The key carries a growth and a bloom bucket read off the clock, so the moment
    either moves the sprite at the old key is dead — nothing will ever ask for it

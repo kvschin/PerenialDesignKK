@@ -3804,6 +3804,24 @@ notes are in `docs/plant-data/european-implementation.md`; the dev-only
   `verifyTrayCache()` permutes each input, diffs the rendered DOM and names any
   input that moved the DOM without moving the signature (0 of 33). Add an input
   to the tray, add it to the signature and to that list.
+- **The category popover renders BOTH groups, so nothing in it may read a value
+  gated on the OPEN one.** `discovery` is `activeDiscovery()` on a plants tab and
+  **null** on a landscape tab — deliberately, because the current-category button
+  reads that null to decide whether it says "All favorites" or the landscape
+  category's own name — and the popover's plants section read `discovery.category`
+  unguarded, so every tap of the dropdown from Ground, Grade, Hardscape, Lighting,
+  Decor or Site threw. It was never fatal (`noteError` caught it), which is why it
+  lasted: the tray stopped half-built with nothing on screen saying so. The
+  section resolves its own lens now; what is CURRENT still follows the OPEN group,
+  said once per section rather than resting on the accident that a plant category
+  can never equal `game.trayCat` while a landscape tab is up. It also took
+  **`verifyTrayCache()` down in all three of its configurations**, not only from a
+  landscape category — its own `catMenuOpen` case opens this menu and its
+  `trayCat` case swings the open tab to `landscape`, so a run from a plant tab
+  with the menu already open threw too. And **"All matching plants" is the one row
+  that clears rather than chooses**, so it alone did not set `game.trayCat` and
+  from a landscape tab moved nothing on screen; it crosses groups now, like every
+  other row.
 - **An undo names the tiles it moved.** `applySnapshot` used to say nothing, and
   saying nothing means `groundDamageFull` — a full viewport bake AND a full
   region retrace, 87ms + 9.7ms on that garden, on every undo including the
