@@ -195,7 +195,8 @@ function drawWorldThumb(cvs, s){
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (x<0||y<0||x>=gw||y>=gh) continue;
     g.fillStyle = t.k==='water' ? waterFill(t,false)
-      : t.k==='path' ? pathFill(t,false) : bedFill(t,amb);
+      : t.k==='path' ? pathFill(t,false)
+      : t.k==='lawn' ? lawnFill(t,amb) : bedFill(t,amb);
     g.fillRect(ox+x*sc, oy+y*sc, sc+0.5, sc+0.5);
   }
   const houses=Array.isArray(s.houses)?s.houses:(s.house?[s.house]:[]);

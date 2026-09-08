@@ -16,7 +16,7 @@ function setup(gw, gh){
   game.potDraft = { style: 'terracotta', size: 'p18' };
   game.seatDraft = { type: 'bench4', finish: 'teak' };
   game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
-  game.bedStyle = 'soil';
+  game.bedStyle = 'soil'; game.lawnStyle = 'meadow';
   game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
   game.filters = { zone: null, nativeRegion: 'north-america', nativeMode: 'any', deer: false, rabbit: false, squirrel: false };
   game.discovery = defaultDiscovery();
@@ -10153,4 +10153,224 @@ test('file import reports unreadable JSON, invalid names, oversized files and re
     reader.onerror(); assert(/read/i.test(messages.pop()));
     reader.onabort(); assert(/interrupted/i.test(messages.pop()));
   }finally{ toast=realToast; if(realReader===undefined) delete globalThis.FileReader; else globalThis.FileReader=realReader; }
+});
+
+/* ---------- lawn ----------
+   Grass was the absence of terrain, so the app could draw nine paving
+   materials and not say what the green was. These pin the two decisions that
+   made lawn fit the existing model rather than bolt onto it: the 'mown' row is
+   a REMOVAL, and lawn is the lowest TERRAIN_RANK. */
+
+test('a meadow is lawn: a bed edged against it is billed as against mown grass', () => {
+  const bed = () => {
+    for (let y = 6; y <= 9; y++) for (let x = 6; x <= 9; x++)
+      setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', e: 'steel', t: 1 });
+  };
+  setup(20, 20);
+  bed();
+  const openFt = edgingRunFeet().steel;
+  assert(openFt > 0, 'a bed in open lawn is edged on every side');
+
+  setup(20, 20);
+  bed();
+  for (let y = 6; y <= 9; y++) for (let x = 10; x <= 14; x++)
+    setTile('terrain', `${x},${y}`, { k: 'lawn', c: 'meadow', t: 1 });
+  assert(isLawnTile(10, 6), 'a painted meadow answers isLawnTile');
+  assertEqual(edgingRunFeet().steel, openFt,
+    'a steel edge between a bed and a meadow is as real as one against mown grass');
+
+  /* The control, and the reason this is a test rather than a restatement: a
+     material that is NOT lawn does take its side out of the bill. Without it
+     the assertion above would pass just as well if isLawnTile answered yes to
+     everything. */
+  setup(20, 20);
+  bed();
+  for (let y = 6; y <= 9; y++) for (let x = 10; x <= 14; x++)
+    setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  assert(edgingRunFeet().steel < openFt,
+    'where a bed meets paving there is no lawn to restrain, and none is billed');
+});
+
+test('mowing lifts the record instead of writing one, and leaves the planting', () => {
+  setup(20, 20);
+  setTile('plants', '8,8', { s: firstOfType('forb'), d: 0, t: 1 });
+  game.tool = 'lawn'; game.lawnStyle = 'meadow'; setBrushSize(1);
+  for (let y = 6; y <= 10; y++) for (let x = 4; x <= 12; x++) applyToolAt(x, y);
+  assertEqual(tileTerrain(8, 8), 'lawn', 'the meadow is an ordinary terrain record');
+
+  game.lawnStyle = 'mown';
+  applyToolAt(8, 8);
+  assertEqual(tileTerrain(8, 8), null,
+    'mowing REMOVES the record — mown lawn is the absence of one, which is what makes it the default');
+  assert(isLawnTile(8, 8), 'so the tile is plain lawn again');
+  assert(game.plants['8,8'] && !game.plants['8,8'].removed,
+    'and the plant is still standing: mowing a path is not erasing one');
+
+  // the record IS the material, so mowing turfs a path over too
+  setTile('terrain', '3,3', { k: 'path', c: 'warm', t: 1 });
+  applyToolAt(3, 3);
+  assertEqual(tileTerrain(3, 3), null, 'and it turfs a path over');
+});
+
+test('lawn is the matrix the other three materials are cut into', () => {
+  assert(terrainRank('lawn') < terrainRank('water'), 'a pond is dug into the lawn');
+  assert(terrainRank('lawn') < terrainRank('bed'), 'a bed is cut out of the lawn');
+  assert(terrainRank('lawn') < terrainRank('path'), 'a path is laid across the lawn');
+  assert(terrainRank('water') < terrainRank('bed') && terrainRank('bed') < terrainRank('path'),
+    'and the order the other three already had is unchanged');
+
+  /* Which is what keeps a path crossing a meadow one flowing ribbon instead of
+     turning into a tile staircase the moment it leaves mown grass — the same
+     thing rank already does for a path crossing a bed. */
+  setup(21, 21);
+  game.edgeStyle = 'organic';
+  for (let y = 4; y <= 12; y++) for (let x = 3; x <= 12; x++)
+    setTile('terrain', `${x},${y}`, { k: 'lawn', c: 'meadow', t: 1 });
+  for (let y = 4; y <= 12; y++) for (let x = 7; x <= 8; x++)
+    setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  const regions = buildTerrainRegions();
+  const path = regions.filter(r => r.kind === 'path');
+  assertEqual(path.length, 1, 'one path region');
+  assertEqual(regions[regions.length - 1].kind, 'path', 'and it paints last, over the meadow');
+  const parts = loop => loop.closed ? [loop] : loop.arcs;
+  assert(parts(path[0].loops[0]).every(a => !a.hard),
+    'the path keeps one organic edge for its whole run through the meadow');
+});
+
+test('lawn is the one ground material that may be laid over a planting', () => {
+  setup(24, 24);
+  setTile('plants', '8,8', { s: firstOfType('forb'), d: 0, t: 1 });
+  setBrushSize(1);
+
+  game.tool = 'bed'; game.bedStyle = 'soil';
+  applyToolAt(8, 8);
+  assertEqual(tileTerrain(8, 8), null, 'a bed still refuses to bury a plant, as every material always has');
+
+  game.tool = 'lawn'; game.lawnStyle = 'meadow';
+  applyToolAt(8, 8);
+  assertEqual(tileTerrain(8, 8), 'lawn',
+    'but long grass with a perennial standing in it is the planting style, not a conflict');
+
+  // the exception is specific, not lenient: a mature footprint is reserved ground
+  setTile('plants', '16,16', { s: firstOfType('shrub'), d: 0, t: 1 });
+  applyToolAt(16, 16);
+  assertEqual(tileTerrain(16, 16), null, 'a shrub footprint refuses lawn like everything else');
+});
+
+test('every lawn surface the tray offers has a grain the renderer can draw', () => {
+  const src = drawMaterialGrain.toString();
+  assertEqual(LAWN_STYLES.filter(l => l.none).length, 1, 'exactly one none row');
+  assertEqual(LAWN_STYLES[0].id, 'mown', 'and it leads the list, like No edging and Bare earth');
+  for (const L of LAWN_STYLES) {
+    if (L.none) { assert(!L.texture, `${L.id} declares no grain`); continue; }
+    assert(L.texture, `${L.id} declares a grain`);
+    assert(src.includes(`'${L.texture}'`), `drawMaterialGrain has a branch for ${L.texture}`);
+    assert(Array.isArray(L.tones) && L.tones.length === 4, `${L.id} carries a four-slot palette`);
+    assert(L.plan, `${L.id} has a plan-sheet fill`);
+  }
+  /* The none row must never resolve a grain, or a hand-edited or shared file
+     carrying a mown record would draw a flat green tile with no texture AND no
+     bevel — a material's flat base is only right when a grain follows it. */
+  assertEqual(lawnMaterial('mown'), null, 'the mown row resolves no material');
+  assert(lawnMaterial('meadow'), 'a real surface does');
+});
+
+test('the planting list bills turf, including the mown lawn that has no record', () => {
+  setup(20, 20);
+  const lawnRows = () => hardscapeRows().filter(r => r.kind === 'Lawn');
+  const area = n => fmtAreaSqFt(tileAreaSqFt(n));
+
+  const rows = lawnRows();
+  assertEqual(rows.length, 1, 'a garden that is all grass reports one lawn row');
+  assertEqual(rows[0].name, 'Mown Lawn');
+  assertEqual(rows[0].count, area(400),
+    'covering the whole plot — mown lawn is an absence, so it is counted by walking the plot');
+
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 20; x++)
+    setTile('terrain', `${x},${y}`, { k: 'lawn', c: 'meadow', t: 1 });
+  const by = {}; lawnRows().forEach(r => by[r.name] = r.count);
+  assertEqual(by['Long Meadow'], area(100), 'the meadow is billed at its own area');
+  assertEqual(by['Mown Lawn'], area(300), 'and comes out of the mown lawn');
+
+  for (let y = 10; y < 15; y++) for (let x = 0; x < 20; x++)
+    setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
+  assertEqual(lawnRows().find(r => r.name === 'Mown Lawn').count, area(200),
+    'and so does a bed — turf area is what is left, which is how a gardener counts it');
+});
+
+test('a lawn survives a save, and an older garden does not open with the mower armed', async () => {
+  setup(16, 16);
+  game.tool = 'lawn'; game.lawnStyle = 'moss'; setBrushSize(1);
+  applyToolAt(8, 8);
+  const id = 'lawn-round-trip';
+  await sSet('hortus:world:' + id, buildSaveBlob());
+
+  setup(16, 16); game.lawnStyle = 'meadow';
+  assert(await loadSolo(id), 'the garden loads');
+  assertEqual(tileTerrain(8, 8), 'lawn', 'the moss is still there');
+  assertEqual(terrainAt(8, 8).c, 'moss', 'and it is still moss');
+  assertEqual(game.lawnStyle, 'moss', 'the brush choice comes back with it');
+
+  /* A garden saved before lawns existed carries no lawnStyle, and lawnStyleId
+     falls back to LAWN_STYLES[0] — the mown none row. So the obvious
+     `s.lawnStyle || game.lawnStyle` inherits whatever the LAST garden left
+     armed, and mowing is the one lawn choice that removes: leave the mower on,
+     open an older garden, and the Lawn tool is silently set to erase.
+     Arming it first is what makes this a test rather than a restatement. */
+  game.lawnStyle = 'mown';
+  const legacy = 'lawn-legacy';
+  await sSet('hortus:world:' + legacy,
+    { v: SAVE_VERSION, gw: 16, gh: 16, name: 'Before lawns', plants: {}, bulbs: {} });
+  assert(await loadSolo(legacy), 'the older garden loads');
+  assert(!lawnIsNone(game.lawnStyle),
+    'and names a real surface rather than inheriting the mower from the last one');
+
+  await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
+});
+
+test('a lawn follows the season, except the one surface that should not', () => {
+  const meadow = a => lawnFill({ k: 'lawn', c: 'meadow' }, a);
+  assert(meadow(AMBIENCE.Spring) !== meadow(AMBIENCE.Fall),
+    'a meadow browns off with the garden around it rather than being pinned to one green');
+  assertEqual(lawnFill({ k: 'lawn', c: 'turf' }, AMBIENCE.Spring),
+    lawnFill({ k: 'lawn', c: 'turf' }, AMBIENCE.Fall),
+    'artificial turf does not have a season');
+  assertEqual(lawnFill({ k: 'lawn', c: 'mown' }, AMBIENCE.Summer), AMBIENCE.Summer.grass[0],
+    'and mowing draws exactly the grass this app already draws');
+
+  // flowers in the ground layer are a season, not a material
+  assert(AMBIENCE.Spring.bloom && AMBIENCE.Summer.bloom, 'flowers are out in spring and summer');
+  assert(!AMBIENCE.Fall.bloom && !AMBIENCE.Winter.bloom, 'and not in fall or winter');
+});
+
+test('grass goes over in autumn and clover, thyme and moss do not', () => {
+  /* Mixed at a flat rate over the season's grass, every natural surface
+     collapsed to one tan in fall — five of six inside rgb(148-167,140-149,
+     81-91) — which is wrong about the plants and throws away the distinction
+     the materials exist to draw. `follow` is how far the season drags each. */
+  const at = (id, amb) => lawnFill({ k: 'lawn', c: id }, amb);
+  const drift = id => {
+    const s = colorParts(at(id, AMBIENCE.Summer)), f = colorParts(at(id, AMBIENCE.Fall));
+    return Math.abs(s[0] - f[0]) + Math.abs(s[1] - f[1]) + Math.abs(s[2] - f[2]);
+  };
+  // measured: the grasses move 41-51 across the three channels, the reluctant
+  // surfaces 6-18, so the floor has real headroom under it either way
+  for (const grassy of ['fescue', 'meadow', 'flower'])
+    assert(drift(grassy) > 25, `${grassy} is grass and goes over in autumn`);
+  for (const evergreen of ['clover', 'thyme', 'moss'])
+    assert(drift(evergreen) < drift('meadow') / 2,
+      `${evergreen} holds its colour far better than the meadow beside it`);
+  assertEqual(drift('turf'), 0, 'and artificial turf has no season at all');
+
+  /* mixHex parses hex only and reads its own rgb() output as NaN, which clamps
+     to black — and this is a chained mix, so the first cut rendered clover,
+     thyme and moss as black tiles. Nothing else here would notice. */
+  for (const id of ['clover', 'thyme', 'moss'])
+    for (const amb of [AMBIENCE.Spring, AMBIENCE.Fall, AMBIENCE.Winter])
+      assert(colorParts(at(id, amb)).some(v => v > 40),
+        `${id} is a colour, not the black a NaN channel clamps to`);
+
+  // the whole point: they are still telling apart in fall
+  const fall = ['meadow', 'clover', 'moss'].map(id => at(id, AMBIENCE.Fall));
+  assertEqual(new Set(fall).size, 3, 'three surfaces, three autumn colours');
 });

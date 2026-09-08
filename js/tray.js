@@ -11,7 +11,7 @@ const TRAY_CATS=[
   {id:'waterplants',label:'Water Plants',   types:['water']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
-  {id:'landscape',label:'Ground',           tools:['path','bed','water','edging']},
+  {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
@@ -67,6 +67,9 @@ const TOOLS={
   path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
   bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
   water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  // Lawn shares placeTerrainAt with the three above; its 'mown' style is the
+  // one material in the app that removes a record rather than writing one.
+  lawn:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
   // once: raise/lower INCREMENT, so a disc re-stamping a tile mid-drag would
   // move it several levels — see applyToolAt. level writes 0 and is exempt.
   raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, once:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
@@ -353,6 +356,7 @@ function drawBrushSwatchCanvas(c,includeLast){
   if (k==='path') return matIcon('path',game.pathColor);
   if (k==='bed') return matIcon('bed',game.bedStyle);
   if (k==='water') return matIcon('water',game.waterStyle);
+  if (k==='lawn') return matIcon('lawn',game.lawnStyle);
   if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
     g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
     g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
@@ -449,8 +453,11 @@ function drawMaterialIcon(tc,cx,cy,hw,hh,kind,id,stroke){
   else {
     const rs=mulberry(materialIconSeed(id));
     if (kind==='bed') rs();                    // paintGround spends one draw before the texture
-    const base = kind==='path' ? pathFill(o,0) : bedFill(o,amb);
-    drawGroundTexture(tc,sx,sy,3,7,kind==='bed'?'bed':null,kind==='path',amb,base,rs,o);
+    const base = kind==='path' ? pathFill(o,0) : kind==='lawn' ? lawnFill(o,amb) : bedFill(o,amb);
+    // 'path' is signalled by its own argument, so it passes null as the kind;
+    // every other material names itself. The Mown chip resolves no grain and
+    // falls through to the plain grass branch, which is exactly what it means.
+    drawGroundTexture(tc,sx,sy,3,7,kind==='path'?null:kind,kind==='path',amb,base,rs,o);
   }
   tc.restore();
   if (stroke!==false){
@@ -706,10 +713,12 @@ function pickAt(x,y){
     if (terr.k==='path') game.pathColor=pathColorId(terr.c||game.pathColor);
     if (terr.k==='water') game.waterStyle=waterStyleId(terr.c||game.waterStyle);
     if (terr.k==='bed') game.bedStyle=bedStyleId(terr.c||game.bedStyle);
+    if (terr.k==='lawn') game.lawnStyle=lawnStyleId(terr.c||game.lawnStyle);
     game.fillMode=false; game.trayCat='landscape';
     setTool(terr.k, null); buildToolTray();
     toast(terr.k==='path'?`Picked ${pathColor(game.pathColor).label} path.`
       : terr.k==='water'?`Picked ${waterStyle(game.waterStyle).label} water.`
+      : terr.k==='lawn'?`Picked ${lawnStyle(game.lawnStyle).label}.`
       : `Picked ${bedStyle(game.bedStyle).label} bed.`);
   } else toast('Nothing here to pick — tap a plant or material.');
 }
@@ -1401,6 +1410,7 @@ function plantSearchHay(k){
    search, the one control that promises to find things, answered "No landscape
    tools match" for tools that were sitting two taps away. */
 const TOOL_SEARCH={
+  lawn:   {label:'Lawn',kind:'fill',   hay:'lawn grass turf mown mow meadow long grass rough wildflower clover eco no-mow fescue moss thyme chamomile tapestry artificial synthetic astroturf ground landscape'},
   path:   {label:'Path',kind:'fill',   hay:'path paths walkway gravel limestone slate charcoal red clay hardscape landscape'},
   bed:    {label:'Bed',kind:'fill',    hay:'bed beds soil gravel rock river rock leaf litter mulch bark pine straw pea gravel planting area landscape'},
   water:  {label:'Water',kind:'fill',  hay:'water pond river lake stream creek wet landscape'},
@@ -2358,7 +2368,7 @@ function trayStateSig(){
     g.sheetState||'', g.sheetCollapsed?1:0,
     g.fillMode?1:0, g.matrix?1:0, g.drift?1:0, g.freePlanting?1:0,
     g.brushSize, g.eraseMode||'', g.woodyAge||'', g.edgeStyle||'',
-    g.pathColor||'', g.bedStyle||'', g.waterStyle||'',
+    g.pathColor||'', g.bedStyle||'', g.waterStyle||'', g.lawnStyle||'',
     g.sel?1:0, g.selMode||'', g.selItems?g.selItems.length:-1,
     g.layerFocus||'', typeof layerVisibilitySig==='function'?layerVisibilitySig():'',
     g.photoEditing?1:0, g.buildingEditMode||'',
@@ -2447,6 +2457,7 @@ function verifyTrayCache(){
     ['pathColor',   ()=>{ const o=g.pathColor; g.pathColor=(o==='warm'?'lime':'warm'); return ()=>{ g.pathColor=o; }; }],
     ['bedStyle',    ()=>{ const o=g.bedStyle; g.bedStyle=(o==='soil'?'gravel':'soil'); return ()=>{ g.bedStyle=o; }; }],
     ['waterStyle',  ()=>{ const o=g.waterStyle; g.waterStyle=(o==='pond'?'lake':'pond'); return ()=>{ g.waterStyle=o; }; }],
+    ['lawnStyle',   ()=>{ const o=g.lawnStyle; g.lawnStyle=(o==='meadow'?'moss':'meadow'); return ()=>{ g.lawnStyle=o; }; }],
     ['sel',         ()=>{ const o=g.sel; g.sel=o?null:{x0:1,y0:1,x1:3,y1:3}; return ()=>{ g.sel=o; }; }],
     ['selMode',     ()=>{ const o=g.selMode; g.selMode=(o==='copy'?'move':'copy'); return ()=>{ g.selMode=o; }; }],
     ['layerFocus',  ()=>{ const o=g.layerFocus; g.layerFocus=(o==='bulbs'?'all':'bulbs'); return ()=>{ g.layerFocus=o; }; }],
@@ -2706,7 +2717,9 @@ function buildToolTrayInner(){
   if ((game.traySearch||'').trim()){
     renderLandscapeSearchTray(tray,game.traySearch); finishToolTrayRender(); return;
   }
-  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||cat.tools.some(isElevationTool)){
+  if (cat.tools.includes('path')||cat.tools.includes('bed')||cat.tools.includes('water')||
+      cat.tools.includes('lawn')||cat.tools.some(isElevationTool)){
+    const lawnCol=lawnStyle(game.lawnStyle);
     const pathCol=pathColor(game.pathColor);
     const bedCol=bedStyle(game.bedStyle);
     const waterCol=waterStyle(game.waterStyle);
@@ -2737,6 +2750,9 @@ function buildToolTrayInner(){
       return b;
     };
     [
+      ['lawn','Lawn',tc=>drawMat(tc,'lawn',lawnCol.id), lawnCol.none
+        ? 'Mown lawn: drag to mow a path back through a meadow.'
+        : `${lawnCol.label}: drag to lay long grass, clover, moss or turf.`],
       ['path','Path',tc=>drawMat(tc,'path',pathCol.id),`${pathCol.label} path: drag or act to lay paths.`],
       ['bed','Bed',tc=>drawMat(tc,'bed',bedCol.id),`${bedCol.label} bed: drag or act to prepare planting beds.`],
       ['water','Water',tc=>drawMat(tc,'water',waterCol.id),`${waterCol.label}: drag to paint ponds, rivers, or lakes.`],
@@ -2782,6 +2798,16 @@ function buildToolTrayInner(){
         tc=>drawMat(tc,'bed',bs.id),
         ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
         bs.label).dataset.bedStyle=bs.id);
+    }
+    if (game.tool==='lawn' && cat.tools.includes('lawn')){
+      const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent='Lawn surface'; tray.appendChild(sep);
+      LAWN_STYLES.forEach(ls=>materialBtn('lawn',ls.short||ls.label,
+        game.tool==='lawn'&&game.lawnStyle===ls.id,
+        tc=>drawMat(tc,'lawn',ls.id),
+        ()=>{ game.lawnStyle=ls.id; setTool('lawn',null); buildToolTray(); },
+        ls.none?'Mow back to plain lawn — lifts a meadow, and turfs over a bed or a path':ls.label)
+        .dataset.lawnStyle=ls.id);
     }
     if (game.tool==='water' && cat.tools.includes('water')){
       const sep=document.createElement('span'); sep.className='tray-sep';
@@ -3335,6 +3361,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (b.dataset.pathColor) hay+=' '+pathColor(b.dataset.pathColor).label;
     if (b.dataset.bedStyle) hay+=' '+bedStyle(b.dataset.bedStyle).label+' bed gravel rock leaf litter mulch soil';
     if (b.dataset.waterStyle) hay+=' '+waterStyle(b.dataset.waterStyle).label+' pond river lake water';
+    if (b.dataset.lawnStyle) hay+=' '+lawnStyle(b.dataset.lawnStyle).label+' lawn grass turf mown meadow clover moss thyme fescue artificial';
     if (isElevationTool(k)) hay+=' elevation grade grading raised lowered berm swale terrace level';
     if (k==='wall') hay+=' grade retaining wall terrace bank sleeper gabion drystone dry stone facing '+WALL_STYLES.map(w=>w.label).join(' ');
     if (k==='edging') hay+=' ground edging edge restraint mowing strip lawn border spade steel corten setts soldier course '+EDGING_STYLES.map(e=>e.label).join(' ');
@@ -3361,6 +3388,8 @@ function refreshTray(){
       ? game.tool==='bed' && game.bedStyle===el.dataset.bedStyle
       : el.dataset.waterStyle
       ? game.tool==='water' && game.waterStyle===el.dataset.waterStyle
+      : el.dataset.lawnStyle
+      ? game.tool==='lawn' && game.lawnStyle===el.dataset.lawnStyle
       : el.dataset.fenceStyle
       ? game.tool==='fence' && fenceDraft().style===el.dataset.fenceStyle
       : el.dataset.fenceHeight

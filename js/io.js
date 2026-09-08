@@ -324,7 +324,7 @@ function buildSaveBlob(){
     gw:GW,gh:GH,rot:game.rot,siteNorthDeg:normalizeSiteNorthDeg(game.siteNorthDeg),plotShape:game.plotShape,freePlanting:game.freePlanting,previewMode:game.previewMode,
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
-    pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,
+    pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
     fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
@@ -587,6 +587,9 @@ async function loadSolo(id){
   game.pathColor=pathColorId(s.pathColor||game.pathColor);
   game.bedStyle=bedStyleId(s.bedStyle||'soil');
   game.waterStyle=waterStyleId(s.waterStyle||game.waterStyle);
+  // Older saves have no lawn brush; lawnStyleId falls back to the 'mown' none
+  // row, which would silently arm the eraser, so name the default explicitly.
+  game.lawnStyle=lawnStyleId(s.lawnStyle||'meadow');
   game.freePlanting=!!s.freePlanting;
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.lightDraft=normalizeLightDraft(s.lightDraft);
@@ -664,7 +667,29 @@ function hardscapeRows(){
     wallBy[w]=(wallBy[w]||0)+ft; wallTiles+=ft; wallCourses=Math.max(wallCourses,run.h);
   }
   const edgingFt=edgingRunFeet();
+  /* Turf area — the one number this estimator could never report. Lawn was the
+     absence of a record, so a garden that is two thirds grass came out of here
+     with a bed area, some edging feet and no mention of the surface it is
+     mostly made of. Mown lawn is STILL an absence, deliberately (see
+     LAWN_STYLES), so it has to be counted by walking the plot rather than the
+     terrain map — the one tally here that is O(GW*GH) rather than O(edits).
+     That is affordable because it runs when the planting list is opened, never
+     in a frame, and it is measured the way isLawnTile defines lawn so the two
+     cannot disagree about what counts. */
+  const lawnTiles={};
+  for (const k in game.terrain){
+    const t=game.terrain[k]; if (!t||t.removed||t.k!=='lawn') continue;
+    lawnTiles[lawnStyleId(t.c)]=(lawnTiles[lawnStyleId(t.c)]||0)+1;
+  }
+  let mown=0;
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
+    if (isLawnTile(x,y) && !terrainAt(x,y)) mown++;
+  if (mown) lawnTiles.mown=(lawnTiles.mown||0)+mown;
   const rows=[];
+  for (const id in lawnTiles){
+    rows.push({kind:'Lawn', name:lawnLabelFor(id),
+      count:fmtAreaSqFt(tileAreaSqFt(lawnTiles[id]))});
+  }
   for (const id in edgingFt){
     rows.push({kind:'Edging', name:edgingLabelFor(id),
       count:fmtFeet(edgingFt[id])});
@@ -685,7 +710,9 @@ function openExport(){
   const rows=exportRows(), body=$('exportBody'), hard=hardscapeRows();
   const where=game.worldName||'My garden';
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${tileSizeText()}`;
-  const hardHtml = hard.length ? `<h3 class="export-sub">Containers &amp; seating</h3>`+
+  // The heading names the whole table, which has carried edging and retaining
+  // wall since Wave 5 and now carries turf area too.
+  const hardHtml = hard.length ? `<h3 class="export-sub">Surfaces &amp; hardscape</h3>`+
     `<div class="export-wrap"><table class="export-table"><thead><tr>`+
     `<th>Item</th><th>Type</th><th>Count</th></tr></thead><tbody>`+
     hard.map(r=>`<tr><td>${r.name}</td><td>${r.kind}</td><td><b>${r.count}</b></td></tr>`).join('')+
@@ -1137,7 +1164,8 @@ function buildPlanMap(){
     const planProj=([gx,gy])=>[X(gx),Y(gy)];
     for (const region of buildTerrainRegions()){
       const o={k:region.kind,c:region.c};
-      ctx.fillStyle=region.kind==='path'?pathPlanFill(o):region.kind==='water'?waterPlanFill(o):bedPlanFill(o);
+      ctx.fillStyle=region.kind==='path'?pathPlanFill(o):region.kind==='water'?waterPlanFill(o)
+        :region.kind==='lawn'?lawnPlanFill(o):bedPlanFill(o);
       ctx.beginPath();
       for (const loop of region.loops) terrainLoopPath(ctx,loop,planProj);
       ctx.fill('evenodd');
@@ -1163,7 +1191,8 @@ function buildPlanMap(){
     for (const k in game.terrain){ const t2=game.terrain[k];
       if (t2.removed) continue;
       const [x,y]=k.split(',').map(Number);
-      ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2):bedPlanFill(t2);
+      ctx.fillStyle=t2.k==='path'?pathPlanFill(t2):t2.k==='water'?waterPlanFill(t2)
+        :t2.k==='lawn'?lawnPlanFill(t2):bedPlanFill(t2);
       ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
     }
   }

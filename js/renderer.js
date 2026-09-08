@@ -119,7 +119,7 @@ function drawSiteUnderlay(ctx,W,H){
     }
   }
 }
-const smoothableTerrain = t2 => t2==='path'||t2==='bed'||t2==='water';
+const smoothableTerrain = t2 => t2==='path'||t2==='bed'||t2==='water'||t2==='lawn';
 /* One tile of ground. Extracted from paintGround's inner loop so the damage
    overlay (drawGroundDamage) paints a pending tile through the SAME code the
    bake will use for it a moment later — the two can't drift apart.
@@ -143,6 +143,10 @@ function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
   // patches, and the grain supplies the unevenness now. The rs() draw is kept
   // so the grain scatter below sits at the same point in the tile's stream.
   else if (terr==='bed'){ rs(); col = bedFill(terrObj,amb); }
+  /* No rs() draw here, unlike the bed above: that one exists to hold the point
+     in the tile's stream where the old per-tile jitter used to sit, and a lawn
+     material has no such history to preserve. */
+  else if (terr==='lawn') col = lawnFill(terrObj,amb);
   else col = shade(amb.grass[(x+y)%2], (rs()-0.5)*14);
   drawElevationSides(ctx,W,H,x,y,col);
   if (water) drawWaterTexture(ctx,sx,sy,x,y,terrObj,amb);
@@ -790,7 +794,8 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     if (!vis) continue;
     const isWater=region.kind==='water', o={k:region.kind,c:region.c};
     const base = isWater ? waterFill(o,amb.snow)
-      : region.kind==='path' ? pathFill(o,amb.snow) : bedFill(o,amb);
+      : region.kind==='path' ? pathFill(o,amb.snow)
+      : region.kind==='lawn' ? lawnFill(o,amb) : bedFill(o,amb);
     // project cached tile-corner geometry into the iso view, lifted to the
     // region's terrace (screenOfFlat + explicit lift: the old screenOf call
     // missed elevation entirely for fractional corners, so raised beds drew flat)
@@ -823,8 +828,12 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     // skipping boundaries a higher-ranked region is about to cover
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopStroke(ctx,loop,proj);
+    // A mowing line is a soft green shadow, not the earth-dark joint a bed or a
+    // path cuts: the two surfaces either side of it are the same stuff at two
+    // heights, and a hard brown line there reads as a trench.
     ctx.strokeStyle = isWater ? (amb.snow?'rgba(255,255,255,0.5)':waterStyle(region.c).edge)
-      : region.kind==='path' ? 'rgba(60,48,34,0.32)' : 'rgba(48,36,24,0.30)';
+      : region.kind==='path' ? 'rgba(60,48,34,0.32)'
+      : region.kind==='lawn' ? 'rgba(44,56,32,0.24)' : 'rgba(48,36,24,0.30)';
     ctx.lineWidth=1.6; ctx.stroke();
     /* Edging goes on the SOFT arcs only — the ones facing lawn. A hard arc is
        where this material butts a peer (a bed meeting a path), which already

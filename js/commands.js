@@ -403,7 +403,16 @@ function stampBrushAt(x,y,opts){
 function placeTerrainAt(x,y){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   const ex=game.plants[k], eb=game.bulbs[k];
-  if (ex && !ex.removed) return null;
+  /* Lawn is the one ground material that may be laid over a planting, and the
+     exception is specific rather than lenient. Every other material is a
+     surface you would have to lift the plant to lay — you cannot gravel a
+     drive around a coneflower — but long grass with perennials standing in it
+     is not a conflict, it is the planting style this whole app argues for.
+     Refusing it would mean a meadow could only ever be painted before anything
+     was planted in it, which is backwards: you decide the matrix last.
+     Shrubs still refuse, lawn included: a mature footprint is reserved ground,
+     not open ground. */
+  if (ex && !ex.removed && game.tool!=='lawn') return null;
   if (shrubAt(x,y)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
@@ -417,6 +426,18 @@ function placeTerrainAt(x,y){
      wiped its steel edge, with nothing said. Edging is lifted by painting
      'none', which is a deliberate act. */
   const keep=v=>Object.assign({},terrObj,v,{t:Date.now()});
+  /* 'mown' is the none row of LAWN_STYLES, so painting it LIFTS the record
+     instead of writing one — a tile carrying no terrain has always drawn as
+     mown lawn. That is what makes mowing a path through a meadow the same
+     gesture as painting one, with the same disc brush, rather than an erase
+     that would also take the plants and the edging with it. It turfs a bed or
+     a path over too, which is right: the record IS the material, and there is
+     no material left. */
+  if (game.tool==='lawn' && lawnIsNone(game.lawnStyle)){
+    if (!terrObj) return null;
+    clearTile('terrain',k);
+    return 'lawn';
+  }
   if (terr===game.tool){
     if (game.tool==='water' && waterStyleId(terrObj.c)!==game.waterStyle){
       setTile('terrain',k,keep({k:'water',c:game.waterStyle}));
@@ -430,12 +451,18 @@ function placeTerrainAt(x,y){
       setTile('terrain',k,keep({k:'bed',c:game.bedStyle}));
       return 'bed';
     }
+    if (game.tool==='lawn' && lawnStyleId(terrObj.c)!==game.lawnStyle){
+      setTile('terrain',k,keep({k:'lawn',c:game.lawnStyle}));
+      return 'lawn';
+    }
     return null;
   }
   setTile('terrain',k, game.tool==='path'
     ? keep({k:'path',c:game.pathColor})
     : game.tool==='water'
     ? keep({k:'water',c:game.waterStyle})
+    : game.tool==='lawn'
+    ? keep({k:'lawn',c:game.lawnStyle})
     : keep({k:'bed',c:game.bedStyle}));
   return game.tool;
 }

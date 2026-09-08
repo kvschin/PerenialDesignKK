@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.67';
+const APP_VERSION = '0.8.68';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -700,10 +700,10 @@ function isPremium(){
 
 /* Season ambience: sky gradient, grass tone, soil tone, light tint */
 const AMBIENCE = {
-  Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0},
-  Summer:{sky:['#7d93a8','#b8c9a8'], grass:['#6f8f5a','#5d7a4c'], soil:'#54402f', tint:'rgba(255,240,180,0.05)', snow:0},
-  Fall:  {sky:['#9a7d6e','#d9b98a'], grass:['#a78a4f','#8f7544'], soil:'#4e3a2b', tint:'rgba(255,170,90,0.08)', snow:0},
-  Winter:{sky:['#6e7787','#cdd3d8'], grass:['#9b9484','#857f70'], soil:'#5a5048', tint:'rgba(200,215,235,0.10)', snow:1},
+  Spring:{sky:['#8aa4b8','#cfd8c2'], grass:['#7fa05e','#6f8f5a'], soil:'#5b4332', tint:'rgba(190,220,170,0.06)', snow:0, bloom:1},
+  Summer:{sky:['#7d93a8','#b8c9a8'], grass:['#6f8f5a','#5d7a4c'], soil:'#54402f', tint:'rgba(255,240,180,0.05)', snow:0, bloom:1},
+  Fall:  {sky:['#9a7d6e','#d9b98a'], grass:['#a78a4f','#8f7544'], soil:'#4e3a2b', tint:'rgba(255,170,90,0.08)', snow:0, bloom:0},
+  Winter:{sky:['#6e7787','#cdd3d8'], grass:['#9b9484','#857f70'], soil:'#5a5048', tint:'rgba(200,215,235,0.10)', snow:1, bloom:0},
 };
 const SEASON_LIGHT = {
   Spring:{sun:'rgba(255,235,180,0.20)', haze:'rgba(229,238,210,0.20)', beam:'rgba(255,246,190,0.08)', vignette:'rgba(42,55,42,0.13)'},
@@ -815,8 +815,13 @@ function waterStyleId(id){ return waterStyle(id).id; }
    which, the higher rank is painted last, and its curve lands on the other's
    fill rather than on grass. Materials of equal rank (two bed styles, two path
    colours) both stay exact and butt, which is what they should do. */
-const TERRAIN_RANK = { water:0, bed:1, path:2 };
-function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?1:r; }
+/* Lawn is the MATRIX the other three are cut into — you cut a bed out of it,
+   you lay a path across it, you dig a pond in it — so it sits below all of
+   them and never bleeds over anything. It needs no rank of its own WITHIN the
+   kind, because the mown lawn a meadow meets along a mown path is the absence
+   of a record rather than a second region (see LAWN_STYLES). */
+const TERRAIN_RANK = { lawn:0, water:1, bed:2, path:3 };
+function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?2:r; }
 /* How far a material's edge may be rounded at a corner, in TILES. This is one
    number per material because the two kinds of edge want opposite things and a
    single global value cannot serve both.
@@ -831,7 +836,7 @@ function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?1:r
    3.76 ft off the corners of an 11x12 tile gravel patio and bowed 2.34 ft out of
    a straight 10-tile run. One tile — 18 inches — is a real edge radius and, more
    to the point, a bound. */
-const TERRAIN_FILLET = { bed:Infinity, water:Infinity, path:1.0 };
+const TERRAIN_FILLET = { lawn:Infinity, bed:Infinity, water:Infinity, path:1.0 };
 function terrainFillet(kind){ const r=TERRAIN_FILLET[kind]; return r===undefined?1.0:r; }
 // terrain edge look: crisp tiles for the structured styles, smoothed curves
 // for the naturalistic ones. Seeds game.edgeStyle from the questionnaire.
@@ -841,6 +846,95 @@ function edgeStyleId(s){ return s==='formal'?'formal':'organic'; }
 function waterFill(t,snow){ const w=waterStyle(t&&t.c);
   return snow ? mixHex(w.fill,'#e8f0f5',0.58) : w.fill; }
 function waterPlanFill(t){ return waterStyle(t&&t.c).plan; }
+/* ---------- lawn ----------
+   Grass was the ABSENCE of terrain: nine paving materials, seven bed
+   materials, and no way to say what the green was. So the one surface most
+   gardens are mostly made of could not be drawn, only left behind — no long
+   meadow, no clover, no moss, and above all no MOWN PATH THROUGH ROUGH GRASS,
+   which is the signature move of the planting style this whole app argues for.
+   It could not be billed either: the estimator has always reported bed area
+   and edging feet and had no idea how much turf it was looking at.
+
+   `mown` is the "none" row, exactly as EDGING_STYLES and WALL_STYLES carry
+   one: painting it REMOVES the record, because a tile with no terrain already
+   draws as mown lawn and always has. That is what makes mowing a path a paint
+   gesture with a brush size rather than an erase, and it is why lawn needs no
+   per-material rank — the two things that meet along a mown path are a region
+   and the bare ground, not two regions.
+
+   `tint`/`mix` are mixed over the SEASON's grass (AMBIENCE.grass), so a meadow
+   browns off in fall with the rest of the garden instead of being pinned to
+   one green; `fill` overrides that outright and is for the one surface that
+   does not care what month it is.
+   `follow` is how far the season drags it, and it is not decoration: grass
+   goes over in autumn and clover, thyme and moss do not — moss is at its best
+   in November. Mixed at a flat 1 the whole list collapsed to one tan in fall
+   (measured: five of six surfaces inside rgb(148-167,140-149,81-91)), which
+   is both wrong about the plants and throws away the distinction the
+   materials exist to draw. `tones` are the grain colours, dark to
+   light, read by drawMaterialGrain exactly like a bed's. `cut` is the standing
+   height in inches — display only, and the reason a lawn and a meadow are one
+   tool rather than two. */
+const LAWN_STYLES = [
+  {id:'mown',   label:'Mown Lawn',        short:'Mown',   texture:null, none:true, cut:2.5,
+   plan:'#d7e2c0'},
+  {id:'fescue', label:'No-Mow Fescue',    short:'No-mow', texture:'tussock', cut:8,
+   tint:'#8fa563', mix:0.30, plan:'#cbdcae',
+   tones:['#5c7040','#7d9455','#9aae6f','#6d8449']},
+  {id:'meadow', label:'Long Meadow',      short:'Meadow', texture:'meadow', cut:24,
+   tint:'#a8a468', mix:0.42, plan:'#ccc99a',
+   tones:['#6b7442','#93975a','#b6b47c','#7f8b4c']},
+  {id:'flower', label:'Wildflower Meadow',short:'Flower', texture:'flowermeadow', cut:20,
+   tint:'#a3a76a', mix:0.38, plan:'#d2cf9f',
+   tones:['#6b7442','#8f9557','#b2b178','#7a8749']},
+  {id:'clover', label:'Clover Lawn',      short:'Clover', texture:'clover', cut:4,
+   tint:'#6f9a55', mix:0.34, follow:0.35, plan:'#c3dcae',
+   tones:['#41603a','#5d7f47','#7c9c5c','#94ad6a']},
+  {id:'thyme',  label:'Thyme Lawn',       short:'Thyme',  texture:'tapestry', cut:3,
+   tint:'#7d8f6a', mix:0.44, follow:0.30, plan:'#c8cfb2',
+   tones:['#4a5a44','#6a7a58','#8a9670','#9b7f9a']},
+  {id:'moss',   label:'Moss Lawn',        short:'Moss',   texture:'moss', cut:1,
+   tint:'#4f7346', mix:0.58, follow:0.15, plan:'#b6cdaa',
+   tones:['#33512f','#456b3c','#5a824c','#6f9459']},
+  // The one surface that does not follow the season: a fixed fill, and a grain
+  // that is deliberately too even. That evenness IS the tell.
+  {id:'turf',   label:'Artificial Turf',  short:'Turf',   texture:'synthetic', cut:1.5,
+   fill:'#5a8a4e', plan:'#a8c9a0',
+   tones:['#456f3d','#578646','#699a54','#4e7a44']},
+];
+function lawnStyle(id){ return LAWN_STYLES.find(l=>l.id===id)||LAWN_STYLES[0]; }
+function lawnStyleId(id){ return lawnStyle(id).id; }
+function lawnLabelFor(id){ return lawnStyle(id).label; }
+// the row that means "no record" — painting it lifts the lawn back to default
+function lawnIsNone(id){ return !!lawnStyle(id).none; }
+/* A lawn's base. Unlike a bed it is mixed over the SEASON's grass rather than
+   laid on top of it, so a meadow is the same garden's autumn as the lawn
+   beside it.
+   mixCol, NOT mixHex, and the difference is not cosmetic: this is a CHAINED
+   mix — the tint goes on the grass, then the season drags the result — so the
+   second call is handed the first one's output. mixHex parses hex only and
+   silently reads its own `rgb(...)` string as NaN, which clamps to black; the
+   first cut of this did exactly that and rendered clover, thyme and moss as
+   black tiles. mixCol goes through colorParts and takes either form. */
+function lawnFill(t,amb){
+  const L=lawnStyle(t&&t.c);
+  const over=g=>L.tint ? mixCol(g,L.tint,L.mix==null?0.35:L.mix) : g;
+  const follow=L.follow==null?1:L.follow;
+  const seasonal=over((amb&&amb.grass&&amb.grass[0])||'#6f8f5a');
+  // Summer is the anchor a reluctant surface is held back toward: it is the
+  // month every one of these is doing what it was chosen for.
+  const base = L.fill || (follow>=1 ? seasonal
+    : mixCol(over(AMBIENCE.Summer.grass[0]), seasonal, follow));
+  // Long grass stands up through a light fall, so it takes less of the snow
+  // than a surface lying flat under it does.
+  return (amb&&amb.snow) ? mixCol(base,'#eef2f8', L.cut>=12?0.5:0.68) : base;
+}
+function lawnPlanFill(t){ return lawnStyle(t&&t.c).plan; }
+/* The GRAIN a lawn tile draws with — null for the 'mown' row. That row should
+   never reach a record, because painting it removes one, but a hand-edited or
+   shared file could carry it and it has to fall back to bare ground rather
+   than to a flat green tile with no texture and no bevel. */
+function lawnMaterial(c){ const L=lawnStyle(c); return L.texture ? L : null; }
 /* Edging is the strip that separates a bed or a path from the LAWN. It is
    the last thing the Wave 5 estimator could measure and the app could not
    draw — `materialPerimeterFt` has been reporting exposed bed edge in feet

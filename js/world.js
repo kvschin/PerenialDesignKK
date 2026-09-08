@@ -96,8 +96,17 @@ function plantsForTiles(n,spaceIn){
    terrainUnitEdges asks whether the blob's edge there is soft or hard. The
    organic path used to answer the hardness question its own way and the two
    drifted; see regionEdging. */
+/* A painted LAWN material answers yes too, and has to. A meadow, a clover
+   lawn or a moss carpet is still the green a bed edge wanders into and still
+   the thing a steel restraint holds it back from, so all four surfaces want
+   the same answer for it as for bare ground. Reading only 'carries no terrain'
+   would classify a bed against a meadow as a peer BUTT — the exact hard tile
+   staircase this predicate was written to stop against a house wall, except
+   here it is wrong rather than right. */
 function isLawnTile(x,y){
-  return onPlot(x,y) && !siteStructureAt(x,y) && !tileTerrain(x,y);
+  if (!onPlot(x,y) || siteStructureAt(x,y)) return false;
+  const k=tileTerrain(x,y);
+  return !k || k==='lawn';
 }
 /* How much of a tile's edging DRAWS: the number of its four sides facing lawn. */
 function edgingSidesAt(x,y){
@@ -215,6 +224,7 @@ const game = {
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
   waterStyle:'pond',                                 // selected water swatch for ponds/rivers/lakes
+  lawnStyle:'meadow',                                // selected lawn surface; 'mown' lifts the record
   trayCat:'grasses',                                 // active tool-tray category
   filters:{zone:null, nativeRegion:'north-america', nativeMode:'any', deer:false, rabbit:false, squirrel:false}, // palette filters, persisted
   // Garden rules above stay separate from these reversible catalog lenses.
@@ -1978,7 +1988,7 @@ function materialTones(tones,base){
    which only the laid units need (their bond has to line up across tiles).
    Sizes are real: the tile is 18in across and drawn 76x38, so an inch is
    ~4.2px in x and ~2.1px in y, and a 3in river cobble really is ~12x6px. */
-function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy){
+function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
   const tex=mat&&mat.texture, T=materialTones(mat&&mat.tones,base);
   grainReset();
   if (tex==='gravel'){
@@ -2204,6 +2214,132 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy){
     grainChips(ctx,T[1],0,0,1,0,3);
     grainChips(ctx,T[2],0,0,1,1,3);
     grainChips(ctx,T[3],0,0,1,2,3);
+  } else if (tex==='tussock' || tex==='meadow' || tex==='flowermeadow'){
+    /* Grass is the one grain here that STANDS UP. Every other material in this
+       function is stuff LYING on the ground, placed inside the tile diamond; a
+       blade grows out of its site, so it is staged from a full-tile scatter
+       (tiny rx/ry, so GRAIN_INSET barely pulls it in) and allowed to overhang
+       the tile above. Tiles paint back-to-front, so that overhang lands on
+       ground already drawn — which is what gives long grass its depth — and
+       inside an organic region the clip trims it at the mown line, where the
+       region's own edge stroke covers the cut.
+       The tapered quad is exactly a blade: grainShreds draws its wide end at
+       -u and its narrow end at +u, so pointing +u up-screen gives a leaf broad
+       at the base and fine at the tip, for free.
+       One drift per tile, because grass lies the way the wind left it and a
+       tile of blades all at independent angles reads as a lawn full of weeds.
+       (~22us for the tall ones — the top of the budget, which is what a
+       surface made of thousands of separate objects costs.) */
+    const tall = tex!=='tussock';
+    const drift=(rs()-0.5)*0.55;
+    const n = tall?26:28, len = tall?5.0:3.1, wid = tall?0.44:0.38;
+    const fan = tall?0.80:1.20;          // fescue flops; meadow stands
+    for (let i=0;i<n;i++){
+      grainSite(sx,cy,1.6,1.6,rs);
+      const a=-1.5708+drift+(rs()-0.5)*fan;
+      grainPush(len*(0.60+rs()*0.85), wid*(0.7+rs()*0.7), Math.cos(a), Math.sin(a));
+    }
+    grainShreds(ctx,T[0],0,0,1,0,4);
+    grainShreds(ctx,T[1],0,0,1,1,4);
+    grainShreds(ctx,T[2],0,0,1,2,4);
+    grainShreds(ctx,T[3],0,0,1,3,4);
+    if (tall){
+      // Seedheads, carried above the leaf mass on their own culms. They are
+      // most of what says "not mown" at a distance, where the blades merge.
+      grainReset();
+      for (let i=0;i<7;i++){
+        grainSite(sx,cy,1.8,1.8,rs);
+        grainPush(1.5+rs()*1.1, 0.34+rs()*0.22, drift*0.5, -1);
+      }
+      grainShreds(ctx,T[2],0,-4.4,1,0,2);
+      grainShreds(ctx,T[3],0,-4.4,1,1,2);
+    }
+    if (tex==='flowermeadow'){
+      /* Flower colour is SEASONAL and reads AMBIENCE, not the material: a
+         wildflower meadow in October is seedheads and bleached stems, and
+         painting it in June's yellows all year would be the one thing on this
+         surface a gardener could point at and call wrong. Winter never gets
+         here — drawGroundTexture returns on snow before any grain runs. */
+      grainReset();
+      for (let i=0;i<9;i++){
+        grainSite(sx,cy,2.2,2.2,rs);
+        grainPush(1.05+rs()*0.62, 0.70+rs()*0.40, (rs()*CHIP_SIL)|0);
+      }
+      const cols = (amb&&amb.bloom) ? ['#e6d97e','#e2e6ee','#c98aa8'] : [T[2],T[3]];
+      for (let i=0;i<cols.length;i++) grainGrit(ctx,cols[i],0,-3.4,1,i,cols.length);
+    }
+  } else if (tex==='clover'){
+    // Trefoil: small rounded leaflets, overlapping into a mat with no bare
+    // ground between them. Pebble rather than chip — a clover leaf is the one
+    // thing in this file that really is round, and the rounded silhouette is
+    // what separates it from a lawn at a glance.  (~21us)
+    for (let i=0;i<30;i++){
+      const rx=1.5+rs()*1.35; grainSite(sx,cy,rx,rx*0.62,rs); grainPush(rx,rx*0.62,(rs()*CHIP_SIL)|0);
+    }
+    grainPebble(ctx,T[0],0,0,1,0,4);
+    grainPebble(ctx,T[1],0,0,1,1,4);
+    grainPebble(ctx,T[2],0,0,1,2,4);
+    grainPebble(ctx,T[3],0,0,1,3,4);
+    if (amb&&amb.bloom){
+      // The white flower is most of why anyone chooses a clover lawn, and it
+      // is also the thing that makes it read as clover rather than as moss.
+      grainReset();
+      for (let i=0;i<7;i++){
+        grainSite(sx,cy,1.5,1.5,rs); grainPush(0.95+rs()*0.5, 0.70+rs()*0.35, (rs()*CHIP_SIL)|0);
+      }
+      grainPebble(ctx,'#e9e7d5',0,-1.5,1);
+    }
+  } else if (tex==='tapestry'){
+    // A thyme or chamomile lawn is a dense mat of leaves too small to resolve
+    // individually — so this is the finest grain in the file, and its identity
+    // comes almost entirely from the bloom haze over it in season.  (~19us)
+    for (let i=0;i<36;i++){
+      const rx=0.75+rs()*0.9; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,3);
+    grainGrit(ctx,T[1],0,0,1,1,3);
+    grainGrit(ctx,T[2],0,0,1,2,3);
+    if (amb&&amb.bloom){
+      grainReset();
+      for (let i=0;i<14;i++){
+        grainSite(sx,cy,1.4,1.4,rs); grainPush(1.0+rs()*0.7, 0.62+rs()*0.4, (rs()*CHIP_SIL)|0);
+      }
+      grainGrit(ctx,T[3],0,-0.9,1,0,2);                          // the accent tone IS the flower
+      grainGrit(ctx,mixHex(T[3],'#e8dbe6',0.45),0,-0.9,1,1,2);
+    }
+  } else if (tex==='moss'){
+    // Moss has no blades and no grain you can pick out — it is CUSHIONS, a
+    // lumpy surface at two scales. Big soft pebbles for the cushions, then a
+    // fine grit over the whole tile for the pile, with one lit quarter-pass
+    // because the only relief a moss lawn has is the light on its domes.
+    // (~20us)
+    for (let i=0;i<10;i++){
+      const rx=2.6+rs()*2.6; grainSite(sx,cy,rx,rx*0.55,rs); grainPush(rx,rx*0.55,(rs()*CHIP_SIL)|0);
+    }
+    grainPebble(ctx,T[1],0,0,1,0,3);
+    grainPebble(ctx,T[2],0,0,1,1,3);
+    grainPebble(ctx,T[3],0,0,1,2,3);
+    grainReset();
+    for (let i=0;i<28;i++){
+      const rx=0.55+rs()*0.62; grainSite(sx,cy,rx,rx*0.60,rs); grainPush(rx,rx*0.60,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,2);
+    grainGrit(ctx,T[3],LIT.x*0.5,LIT.y*0.5,0.8,1,2);
+  } else if (tex==='synthetic'){
+    /* Artificial turf: the same blade, the same length, the same lean, over
+       and over. The tell is not the colour — a good one is a convincing green
+       — it is that NOTHING VARIES, so this is the one recipe in the file that
+       deliberately spends none of its rng on variety. Only the placement is
+       random, and only because a visible lattice would read as a texture bug
+       rather than as a manufactured surface.  (~20us) */
+    for (let i=0;i<30;i++){
+      grainSite(sx,cy,1.4,1.4,rs);
+      grainPush(2.05, 0.40, 0, -1);
+    }
+    grainShreds(ctx,T[0],0,0,1,0,4);
+    grainShreds(ctx,T[1],0,0,1,1,4);
+    grainShreds(ctx,T[2],0,0,1,2,4);
+    grainShreds(ctx,T[3],0,0,1,3,4);
   }
 }
 /* `skipBase` is set by the organic path, where paintTerrainBlobs has already
@@ -2214,7 +2350,12 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   // The material's grain recipe and palette both come from its data entry, so a
   // "Bark mulch" path and a bark-mulch bed are the same material rather than two
   // tints of one generic speckle.
+  /* A lawn resolves a material like anything else, and the 'mown' row does
+     not reach here: painting it removes the record, so the tile is bare ground
+     again and takes the grass branch below. That is what keeps mown lawn
+     byte-identical to the lawn this app has always drawn. */
   const mat = terr==='bed' ? bedStyle(terrObj&&terrObj.c)
+            : terr==='lawn' ? lawnMaterial(terrObj&&terrObj.c)
             : path ? pathColor(terrObj&&terrObj.c) : null;
   // A material's base is bled half a pixel past the tile so neighbouring
   // diamonds overlap. Two antialiased fills that merely ABUT leave a hairline
@@ -2241,7 +2382,7 @@ function drawGroundTexture(ctx,sx,sy,x,y,terr,path,amb,base,rs,terrObj,skipBase)
   if (amb.snow) return;
   ctx.save();
   if (mat){
-    drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat,base,rs,x,y);
+    drawMaterialGrain(ctx,sx,sy+TILE_H/2,mat,base,rs,x,y,amb);
   } else {
     const blades=2+((x*17+y*11)&1);
     for (let i=0;i<blades;i++){

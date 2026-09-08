@@ -1143,7 +1143,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     tracing runs only on edit, **never per pan frame**. Each boundary is
     classified into **arcs** (`terrainUnitEdges`/`terrainLoopArcs`), and what
     decides the classification is **`TERRAIN_RANK`** (core.js) — which material
-    is laid ON which, `water:0 < bed:1 < path:2`:
+    is laid ON which, `lawn:0 < water:1 < bed:2 < path:3` (§11f — lawn is the
+    matrix the other three are cut into):
     **soft** arcs — facing grass, *or* facing a material this region outranks —
     are Douglas-Peucker'd (`dpOpen`, eps ≈ 0.9: staircases collapse to straight
     diagonals; unit-tile lobes are exempt so they can't collapse to slivers),
@@ -1193,7 +1194,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     with no jitter, so peers **butt seamlessly** and painted corners stay corners
     (a bed painted to the plot edge or to the house runs exactly into it; leave a
     grass tile for a margin). **`isLawnTile` (world.js) is the one predicate that
-    answers "is the neighbour lawn"**, and FOUR surfaces ask it: this
+    answers "is the neighbour lawn"** — a painted LAWN material (§11f) answers
+    yes, and bare ground still does — and FOUR surfaces ask it: this
     classification, `edgingSidesAt` (which bills edging AND, through
     `edgingDrawsAt`, decides whether a tile's edging draws at all),
     `drawTileEdging` (the formal per-tile renderer), and the planting list via the
@@ -1835,6 +1837,98 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     joints are spaced along the real run so the units stay one size however
     long the edge is.
 
+11f. **Lawn** (`LAWN_STYLES`, `lawnFill`, world.js's blade grains) — grass was
+    the ABSENCE of terrain, so the app shipped nine paving materials, seven bed
+    materials and no way to say what the green was: no long meadow, no clover,
+    no moss, and above all **no mown path through rough grass**, which is the
+    signature move of the planting style the whole app argues for. It could not
+    be billed either — the Wave 5 estimator reported bed area and edging feet
+    and had no idea how much turf it was looking at.
+    It is an ordinary terrain `kind` on the existing record, so undo, save,
+    schemes-adjacency, the ground bake, the region trace and `groundDataKey`
+    all came for free; no new layer and no new cache key.
+    **`mown` is the "none" row**, the third table to carry one after
+    `EDGING_STYLES` and `WALL_STYLES`, and it is the decision the rest hangs
+    off: painting it **removes** the record, because a tile with no terrain has
+    always drawn as mown lawn. That makes mowing a path the SAME gesture as
+    painting one — same tool, same disc brush, one chip along — rather than an
+    erase that would also take the plants and the edging with it. It is also
+    why lawn needs no per-material rank: the two things meeting along a mown
+    path are a region and bare ground, not two regions, so the existing
+    soft-arc treatment smooths that edge with nothing added. It turfs a bed or
+    a path over too, which is right — the record IS the material.
+    **`TERRAIN_RANK` is now `lawn:0 < water:1 < bed:2 < path:3`** (§11): lawn is
+    the matrix the other three are cut into — you cut a bed out of it, lay a
+    path across it, dig a pond in it — so it never bleeds over anything, and a
+    gravel path crossing a meadow stays one flowing ribbon by exactly the
+    mechanism that already carried a path through a bed.
+    **`isLawnTile` answers yes for a painted lawn**, and has to: all four of its
+    surfaces want the same answer for a meadow as for bare ground, so a steel
+    edge between a bed and a meadow is drawn and billed like any other. Reading
+    only "carries no terrain" would classify that joint as a peer BUTT — the
+    hard tile staircase the predicate exists to produce against a house wall,
+    which is right there and wrong here.
+    **Lawn is the one ground material that may be laid over a planting**, and
+    the exception is specific rather than lenient: every other material is a
+    surface you would have to lift the plant to lay, but long grass with
+    perennials standing in it is the planting style, not a conflict — and
+    refusing it would mean a meadow could only ever be painted before anything
+    was planted in it, which is backwards. Shrubs still refuse, lawn included: a
+    mature footprint is reserved ground.
+    **Colour follows the season, `follow` says how far.** `tint`/`mix` sit on
+    `AMBIENCE.grass`, so a meadow browns off with the garden around it; but
+    grass goes over in autumn and clover, thyme and moss do not — moss is at its
+    best in November. At a flat rate every natural surface collapsed to one tan
+    in fall (measured: five of six inside rgb(148-167,140-149,81-91)), which is
+    both wrong about the plants and throws away the distinction the materials
+    exist to draw. `follow` holds a reluctant surface back toward its Summer
+    colour; artificial turf declares a flat `fill` and has no season at all.
+    **That blend is CHAINED — tint onto grass, then season onto the result — so
+    it must use `mixCol`, not `mixHex`.** `mixHex` parses hex only and reads its
+    own `rgb(...)` output as NaN channels that clamp to black; the first cut did
+    exactly that and rendered clover, thyme and moss as black tiles. Same trap
+    the frozen lake hit (§11b), one system over.
+    **The grains are the first in the file that STAND UP.** Everything else in
+    `drawMaterialGrain` is stuff lying on the ground, placed inside the tile
+    diamond; a blade grows out of its site, so it is staged from a full-tile
+    scatter and allowed to overhang the tile above — tiles paint back to front,
+    so that overhang lands on ground already drawn, and inside an organic region
+    the clip trims it at the mown line where the region's own edge stroke covers
+    the cut. `grainShreds` is exactly a blade for free: it draws its wide end at
+    -u and its narrow end at +u, so pointing +u up-screen gives a leaf broad at
+    the base and fine at the tip. One wind drift per tile, because grass lies the
+    way the wind left it and a tile of independent angles reads as weeds.
+    Recipes: `tussock`, `meadow`, `flowermeadow` (blades, the tall two carrying
+    seedhead culms above the leaf mass), `clover` (rounded pebble leaflets),
+    `tapestry` (the finest grain in the file), `moss` (cushions at two scales,
+    no blades), `synthetic` (the same blade, length and lean over and over —
+    **the tell is that nothing varies**, so it is the one recipe that spends
+    none of its rng on variety). Measured on the pathological case — a whole
+    31x31 plot of one surface, organic edges, on the ground REBAKE and never per
+    frame — meadow 13.6ms, moss 12.8, artificial turf 14.5, clover 17.7, against
+    the existing gravel path at 13.3 and soil bed at 14.9 on the same plot in the
+    same session. So lawn lands inside the envelope its neighbours already set,
+    and 18.4us a tile is under §11a's ~21us budget. Bare ground is untouched at
+    2.9ms: painting a surface is opt-in, and not painting one costs nothing.
+    **Flowers are a SEASON, not a material.** `AMBIENCE` gained one field,
+    `bloom`, and the clover, thyme and wildflower recipes read it — a wildflower
+    meadow in October is seedheads and bleached stems, and painting it in June's
+    yellows all year would be the one thing on this surface a gardener could
+    point at and call wrong. Winter never reaches the grain at all;
+    `drawGroundTexture` returns on snow before any of it runs.
+    A lawn material takes the **flat base and no bevel** every other material
+    takes (§11a): the blade grain supplies the relief, and the per-tile bevel
+    stamped across a continuous region is the tilemap artifact that note exists
+    to prevent. Bare ground keeps its bevelled checker, which is what makes a
+    mown path read as continuous with the lawn around it.
+    **Turf area finally reaches the planting list** (`hardscapeRows`), and mown
+    lawn is still an absence, so it is the one tally there counted by walking
+    the plot rather than the terrain map — O(GW*GH), affordable because it runs
+    when the list is opened and never in a frame, and measured the way
+    `isLawnTile` defines lawn so the two cannot disagree. The sheet's heading is
+    **Surfaces & hardscape**, which it has needed since edging and retaining
+    wall joined it in Wave 5.
+
 12. **Actions** — `actHere` (lay/lift terrain, plant or lift on the tile
     `game.actX`/`actY` names — the last one a tap or the E key addressed),
     **`inspectPlantAt(x,y)`** (the Hand tool's tap-to-inspect). The plant card
@@ -2335,8 +2429,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
     the overlay table, `exportCsv()` downloads it. `hardscapeRows()` builds a
-    second table beside it — containers, seating, linear feet of edging and of
-    retaining wall — because those are bought by the item or by the foot, not by
+    second table beside it, **Surfaces & hardscape** — turf area by lawn surface
+    (§11f), containers, seating, linear feet of edging and of retaining wall —
+    because those are bought by the item, by the foot or by the roll, not by
     area at a spacing. Print CSS in `styles.css` strips everything but the sheet.
 14b. **Design plan** — `openPlan()` draws an Oudolf-style top-down drift
     map to `#planCanvas`. `planComponents()` flood-fills contiguous
@@ -2579,7 +2674,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     with a reason and removable from Favorites or named palettes in the palette
     manager rather than falling back to their base species. The
     planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
-    tab is contextual: select Path to reveal path colors, Bed to reveal bed
+    tab is contextual: select **Lawn** to reveal the lawn surfaces (§11f — mown,
+    no-mow fescue, meadow, wildflower, clover, thyme, moss, artificial, with
+    Mown as the row that lifts one back off), Path to reveal path colors, Bed to reveal bed
     materials (soil, gravel, river rock, leaf litter, bark mulch, pine straw,
     pea gravel — see §11a), Water
     to reveal pond/river/lake styles, or **Edging** for the strip that
