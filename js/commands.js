@@ -113,6 +113,14 @@ function actHere(opts){
     else rejectPlacement('Lighting needs a clear dry tile.');
     return;
   }
+  if (game.tool==='waterfeature'){
+    const sh=shrubAt(x,y);
+    if (sh){ pulseShrubFootprint(sh); toast('Water features need clear ground outside the shrub spread.'); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`${waterFeatureLabel()} placed.`); }
+    else toast('No room for that here.');
+    return;
+  }
   if (game.tool==='firepit'){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Fire pits need clear ground outside the shrub spread.'); return; }
@@ -184,7 +192,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -194,6 +202,7 @@ function actHere(opts){
     if (counts.fence) parts.push(`${counts.fence} fence${counts.fence>1?'s':''}`);
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
+    if (counts.waterFeature) parts.push(`${counts.waterFeature} water feature${counts.waterFeature>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
@@ -213,6 +222,7 @@ function actHere(opts){
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
     if (game.tool==='water' && petAt(x,y)){ toast('Move your pet before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
+    if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
@@ -233,6 +243,7 @@ function actHere(opts){
   if (fenceAt(x,y)){ toast('Fence is in the way.'); return; }
   if (lightAt(x,y)){ toast('A light is in the way.'); return; }
   if (firepitAt(x,y)){ toast('A fire pit is in the way.'); return; }
+  if (waterFeatureAt(x,y)){ toast('A water feature is in the way.'); return; }
   if (boulderAt(x,y)){ toast('A boulder is in the way.'); return; }
   const def=PLANTS[game.tool] ? plantDef(game.tool,game.toolVar) : null;
   if (!def) return;
@@ -418,6 +429,7 @@ function placeTerrainAt(x,y){
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (game.tool==='water' && petAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
+  if (waterFeatureAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
   /* Merge over whatever the tile already carried, never replace it: edging rides
@@ -493,6 +505,7 @@ function placePlantAt(x,y,opts){
   if (fenceAt(x,y)) return null;
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
+  if (waterFeatureAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (seatAt(x,y)) return null;
   if (pot && isTreeDef(def)) return null;          // a tree needs open ground
@@ -562,6 +575,7 @@ function fenceLabel(f){
 function canPlaceFence(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
+  if (waterFeatureAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
@@ -580,6 +594,7 @@ function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
+  if (waterFeatureAt(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -610,7 +625,7 @@ function lightLabel(l){
 function canPlacePet(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y);
+  return !fenceBlocks(x,y) && !lightAt(x,y) && !firepitAt(x,y) && !boulderAt(x,y) && !waterFeatureAt(x,y);
 }
 function placePetAt(x,y){
   if (!canPlacePet(x,y)) return null;
@@ -687,7 +702,7 @@ function canPlacePot(x,y,ignoreKey){
     // paving is FINE — that is the whole point. Water and structures are not.
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || seatAt(xx,yy) || shrubAt(xx,yy)) return false;
+        || seatAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const p=potAt(xx,yy); if (p && p.key!==ignoreKey) return false;
     // an in-ground plant already here would be standing in the pot by accident
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
@@ -785,7 +800,7 @@ function canPlaceSeat(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || potAt(xx,yy) || shrubAt(xx,yy)) return false;
+        || potAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const s=seatAt(xx,yy); if (s && s.key!==ignoreKey) return false;
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
     if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
@@ -840,6 +855,7 @@ function canPlaceFirepit(x,y,ignoreKey){
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (waterFeatureAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -854,6 +870,54 @@ function placeFirepitAt(x,y){
   if (!canPlaceFirepit(x,y,k)) return null;
   setTile('firepits',k,Object.assign({},d,{t:Date.now()}));
   return 'firepit';
+}
+/* ---------- water features ----------
+   The fire pit's shape exactly: an origin tile, a claimed rectangle, and a
+   placement that refuses everything already standing on it. It also refuses
+   water TERRAIN, which is worth saying out loud because a fountain standing in
+   a pond is a real and lovely thing and this deliberately does not do it — the
+   drawing would have to know it was in water (no plinth, ripples against the
+   rim rather than a shadow on grass), and half of that in a first cut is worse
+   than a clean refusal. */
+function waterFeatureDraft(){ return game.waterFeatureDraft=normalizeWaterFeatureDraft(game.waterFeatureDraft); }
+function waterFeatureLabel(w){ return waterFeatureLabelFor(w||waterFeatureDraft()); }
+function waterFeatureAt(x,y){
+  if (!game.waterFeatures) return null;
+  for (const k in game.waterFeatures){
+    const w=game.waterFeatures[k]; if (!w || w.removed) continue;
+    const [wx,wy]=k.split(',').map(Number), sz=waterFeatureTileSize(w);
+    if (x>=wx && x<wx+sz.w && y>=wy && y<wy+sz.h) return Object.assign({key:k,x:wx,y:wy},w);
+  }
+  return null;
+}
+function waterFeatureFootprint(x,y,w){
+  const sz=waterFeatureTileSize(w), tiles=[];
+  for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
+  return tiles;
+}
+function canPlaceWaterFeature(x,y,ignoreKey){
+  const d=waterFeatureDraft(), sz=waterFeatureTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of waterFeatureFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
+    const k=`${xx},${yy}`;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (potAt(xx,yy) || seatAt(xx,yy)) return false;
+    const wf=waterFeatureAt(xx,yy); if (wf && wf.key!==ignoreKey) return false;
+    const p=game.plants[k], b=game.bulbs[k];
+    if ((p&&!p.removed) || (b&&!b.removed)) return false;
+  }
+  return true;
+}
+function placeWaterFeatureAt(x,y){
+  if (!game.waterFeatures) game.waterFeatures={};
+  const d=normalizeWaterFeatureDraft(waterFeatureDraft()), k=`${x},${y}`;
+  const cur=game.waterFeatures[k];
+  if (cur && !cur.removed && cur.form===d.form && cur.finish===d.finish && cur.face===d.face) return null;
+  if (!canPlaceWaterFeature(x,y,k)) return null;
+  setTile('waterFeatures',k,Object.assign({},d,{t:Date.now()}));
+  return 'waterfeature';
 }
 function boulderDraft(){ return game.boulderDraft=normalizeBoulderDraft(game.boulderDraft); }
 function boulderLabel(b){
@@ -882,7 +946,7 @@ function canPlaceBoulder(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -960,7 +1024,7 @@ function validateBuildingFootprint(vs,ignoreId){
     if (!onPlot(x,y)) return {ok:false,msg:'The lot line cuts through there.'};
     const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
     if (siteStructureAt(x,y) || buildingAt(x,y,ignoreId)) return {ok:false,msg:'A building cannot overlap another structure.'};
-    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y))
+    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y)||waterFeatureAt(x,y))
       return {ok:false,msg:'Lift plants, paths, and hardscape before drawing a building here.'};
   }
   return {ok:true,tiles};
@@ -1028,7 +1092,7 @@ function buildingTileFree(x,y){
   if (!onPlot(x,y) || buildingAt(x,y) || houseAt(x,y) || isDoor(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], bl=game.bulbs[k];
   return !((p&&!p.removed)||(bl&&!bl.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)
-    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y));
+    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y)||waterFeatureAt(x,y));
 }
 function tilesTouch(x,y,keys){
   return keys.has(`${x+1},${y}`)||keys.has(`${x-1},${y}`)||keys.has(`${x},${y+1}`)||keys.has(`${x},${y-1}`);
@@ -1124,6 +1188,8 @@ function clearTerrainForHouse(x,y,w,h){
     if (lightAt(xx,yy)){ clearTile('lights',k); n++; }
     const fp=firepitAt(xx,yy);
     if (fp){ clearTile('firepits',fp.key); n++; }
+    const wfc=waterFeatureAt(xx,yy);
+    if (wfc){ clearTile('waterFeatures',wfc.key); n++; }
     const bo=boulderAt(xx,yy);
     if (bo){ clearTile('boulders',bo.key); n++; }
     if (petAt(xx,yy)){ clearTile('pets',k); n++; }
@@ -1286,6 +1352,8 @@ function eraseBrush(cx,cy,counts){
     if (terrOK){
       const fp=firepitAt(x,y);
       if (fp){ clearTile('firepits',fp.key); counts.firepit=(counts.firepit||0)+1; }
+      const wfe=waterFeatureAt(x,y);
+      if (wfe){ clearTile('waterFeatures',wfe.key); counts.waterFeature=(counts.waterFeature||0)+1; }
       const bo=boulderAt(x,y);
       if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }
       if (petAt(x,y)){ clearTile('pets',k); counts.pet=(counts.pet||0)+1; }
@@ -1321,7 +1389,7 @@ function selValidDest(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !isDo
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
 function selectionEmptySets(){
   return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
-    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set(),
+    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set(),waterFeatures:new Set(),
     pots:new Set(),seats:new Set()};
 }
 function selectionSourceSets(items,copy){
@@ -1336,6 +1404,7 @@ function selectionSourceSets(items,copy){
     if (c.fence) out.fences.add(k);
     if (c.light) out.lights.add(k);
     if (c.firepit) out.firepits.add(k);
+    if (c.waterFeature) out.waterFeatures.add(k);
     if (c.boulder) out.boulders.add(k);
     if (c.pet) out.pets.add(k);
     if (c.pot) out.pots.add(k);
@@ -1345,7 +1414,7 @@ function selectionSourceSets(items,copy){
 }
 function selectionDestMaps(items,dst){
   const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
-    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map(),
+    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map(),waterFeatures:new Map(),
     pots:new Map(),seats:new Map()};
   items.forEach(c=>{
     const [x,y]=dst(c), k=`${x},${y}`;
@@ -1356,6 +1425,7 @@ function selectionDestMaps(items,dst){
     if (c.fence) out.fences.set(k,c.fence);
     if (c.light) out.lights.set(k,c.light);
     if (c.firepit) out.firepits.set(k,Object.assign({x,y},c.firepit));
+    if (c.waterFeature) out.waterFeatures.set(k,Object.assign({x,y},c.waterFeature));
     if (c.boulder) out.boulders.set(k,Object.assign({x,y},c.boulder));
     if (c.pet) out.pets.set(k,c.pet);
     if (c.pot) out.pots.set(k,Object.assign({x,y},c.pot));
@@ -1394,6 +1464,15 @@ function selectionLightAt(x,y,ctx){
   if (selectionIgnored(ctx,'lights',k)) return null;
   return lightAt(x,y);
 }
+function selectionWaterFeatureAt(x,y,ctx){
+  if (ctx) for (const [key,w] of ctx.dest.waterFeatures){
+    if (!liveSelectionValue(w)) continue;
+    const sz=waterFeatureTileSize(w);
+    if (x>=w.x && x<w.x+sz.w && y>=w.y && y<w.y+sz.h) return Object.assign({key},w);
+  }
+  const wf=waterFeatureAt(x,y);
+  return wf && selectionIgnored(ctx,'waterFeatures',wf.key) ? null : wf;
+}
 function selectionFirepitAt(x,y,ctx){
   if (ctx) for (const [key,f] of ctx.dest.firepits){
     if (!liveSelectionValue(f)) continue;
@@ -1424,7 +1503,8 @@ function selectionShrubDestValid(c,x,y,ctx){
   for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
     if (!selValidDest(xx,yy)) return false;
     if (selectionFenceAt(xx,yy,ctx) || selectionLightAt(xx,yy,ctx) ||
-        selectionFirepitAt(xx,yy,ctx) || selectionBoulderAt(xx,yy,ctx)) return false;
+        selectionFirepitAt(xx,yy,ctx) || selectionBoulderAt(xx,yy,ctx) ||
+        selectionWaterFeatureAt(xx,yy,ctx)) return false;
     const terr=selectionTerrainKindAt(xx,yy,ctx);
     if (terr==='path'||terr==='water') return false;
     const p=selectionPlantAt(xx,yy,ctx,ownKey);
@@ -1444,7 +1524,8 @@ function selectionTreeTrunkDestValid(c,x,y,ctx){
   const k=`${x},${y}`;
   if (!selValidDest(x,y)) return false;
   if (selectionFenceAt(x,y,ctx) || selectionLightAt(x,y,ctx) ||
-      selectionFirepitAt(x,y,ctx) || selectionBoulderAt(x,y,ctx)) return false;
+      selectionFirepitAt(x,y,ctx) || selectionBoulderAt(x,y,ctx) ||
+      selectionWaterFeatureAt(x,y,ctx)) return false;
   const terr=selectionTerrainKindAt(x,y,ctx);
   if (terr==='path'||terr==='water') return false;
   if (selectionPlantAt(x,y,ctx,k)) return false;
@@ -1458,7 +1539,8 @@ function selectionUnderplantDestValid(c,x,y,ctx){
   return true;
 }
 function selItemValidDest(c,x,y){
-  const sz=c.firepit ? firepitTileSize(c.firepit) : c.boulder ? boulderTileSize(c.boulder) : null;
+  const sz=c.firepit ? firepitTileSize(c.firepit) : c.boulder ? boulderTileSize(c.boulder)
+    : c.waterFeature ? waterFeatureTileSize(c.waterFeature) : null;
   if (!sz) return selValidDest(x,y);
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++)
     if (!selValidDest(xx,yy)) return false;
@@ -1494,11 +1576,13 @@ function selectionPayload(r){
     if (f && !f.removed) cell.fence=JSON.parse(JSON.stringify(f));
     if (l && !l.removed) cell.light=JSON.parse(JSON.stringify(l));
     if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
+    const wfc=(game.waterFeatures||{})[k];
+    if (wfc && !wfc.removed) cell.waterFeature=JSON.parse(JSON.stringify(wfc));
     if (bo && !bo.removed) cell.boulder=JSON.parse(JSON.stringify(bo));
     if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
     if (po && !po.removed) cell.pot=JSON.parse(JSON.stringify(po));
     if (se && !se.removed) cell.seat=JSON.parse(JSON.stringify(se));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat) items.push(cell);
+    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat||cell.waterFeature) items.push(cell);
   }
   return items;
 }
@@ -1666,6 +1750,8 @@ function clearRectLayers(r){
     if (game.lights[k] && !game.lights[k].removed) clearTile('lights',k);
     const fp=firepitAt(x,y);
     if (fp) clearTile('firepits',fp.key);
+    const wfd=waterFeatureAt(x,y);
+    if (wfd) clearTile('waterFeatures',wfd.key);
     const bo=boulderAt(x,y);
     if (bo) clearTile('boulders',bo.key);
     if (petAt(x,y)) clearTile('pets',k);
@@ -1731,6 +1817,7 @@ function selWrite(items, getDst, clearSource){
       if (c.fence) clearTile('fences',k);
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
+      if (c.waterFeature) clearTile('waterFeatures',k);
       if (c.boulder) clearTile('boulders',k);
       if (c.pet)   clearTile('pets',k);
       if (c.pot)   clearTile('pots',k);
@@ -1746,6 +1833,7 @@ function selWrite(items, getDst, clearSource){
     if (c.fence) setTile('fences',k,Object.assign({},c.fence,{t:now}));
     if (c.light) setTile('lights',k,Object.assign({},c.light,{t:now}));
     if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
+    if (c.waterFeature) setTile('waterFeatures',k,Object.assign({},c.waterFeature,{t:now}));
     if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
     if (c.pet)   setTile('pets',k,Object.assign({},c.pet,{t:now}));
     if (c.pot)   setTile('pots',k,Object.assign({},c.pot,{t:now}));
@@ -1800,6 +1888,7 @@ function eraseSelection(){
       if (c.fence) clearTile('fences',k);
       if (c.light) clearTile('lights',k);
       if (c.firepit) clearTile('firepits',k);
+      if (c.waterFeature) clearTile('waterFeatures',k);
       if (c.boulder) clearTile('boulders',k);
       if (c.pet)   clearTile('pets',k);
       if (c.pot)   clearTile('pots',k);

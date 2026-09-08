@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.70';
+const APP_VERSION = '0.8.71';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1089,6 +1089,92 @@ function normalizeBoulderDraft(d){ d=d||{}; return {type:boulderTypeId(d.type)};
 function boulderTileSize(b){
   const spec=boulderType(b&&b.type);
   return {w:Math.max(1,spec.w||1), h:Math.max(1,spec.h||1), spec};
+}
+
+/* ---------- water features ----------
+   Pond, river and lake are AREAS — you paint them, they shelve from a bank,
+   and they are the only water this app could draw. But the water that makes a
+   garden is usually an OBJECT: a birdbath, a bubbling urn, a basin at the end
+   of a path. That is the same argument seating was added on — you plant toward
+   the view from a bench, and a water feature is what a path leads TO — and it
+   is also the one garden object people ask for by name.
+
+   Sizes are real inches, like seating and containers, and the footprint follows
+   the fire-pit pattern: origin tile plus a claimed rectangle. A fire pit is the
+   closest sibling in every way (a built focal point with a real footprint and
+   its own tray sub-page), which is why these sit beside each other on Hardscape.
+
+   `form` names the drawing branch the way a plant names its `form` and a fence
+   names its `infill`; `water` names how the water reads — still, welling up
+   over a sealed vessel, or falling. `bed:true` means the vessel stands on a
+   gravel reservoir rather than on open ground, which is what a modern bubbler
+   actually is: no open water, nothing to drown in, and the reason those two
+   are the ones people put in a garden with small children. */
+const WATER_FEATURES = [
+  {id:'birdbath',  label:'Birdbath',            short:'Birdbath',  form:'pedestal',
+   wIn:26, dIn:26, hIn:34, water:'still',   finishes:['stone','slate','bronze']},
+  {id:'urn',       label:'Bubbling Urn',        short:'Urn',       form:'urn',
+   wIn:26, dIn:26, hIn:32, water:'welling', bed:true, finishes:['stone','corten','glazed']},
+  {id:'millstone', label:'Bubbling Millstone',  short:'Millstone', form:'millstone',
+   wIn:34, dIn:34, hIn:9,  water:'welling', bed:true, finishes:['stone','slate']},
+  {id:'tiered',    label:'Tiered Fountain',     short:'Tiered',    form:'tiered',
+   wIn:40, dIn:40, hIn:62, water:'falling', finishes:['stone','slate','bronze']},
+  {id:'tsukubai',  label:'Stone Water Basin',   short:'Stone basin', form:'tsukubai',
+   wIn:22, dIn:22, hIn:15, water:'still',   finishes:['stone','slate']},
+  {id:'spout',     label:'Wall Spout & Trough', short:'Wall spout', form:'spout',
+   wIn:38, dIn:16, hIn:54, water:'falling', finishes:['corten','stone','bronze']},
+  {id:'tank',      label:'Stock Tank Pool',     short:'Stock tank', form:'tank',
+   wIn:70, dIn:70, hIn:24, water:'still',   finishes:['galv','corten']},
+  {id:'pool',      label:'Reflecting Basin',    short:'Basin pool', form:'basin',
+   wIn:72, dIn:36, hIn:15, water:'still',   finishes:['stone','corten','slate']},
+];
+/* Finish is an axis of its own, like a seat's, because the same basin really is
+   sold in cast stone and in corten and they are different design decisions. Not
+   every form takes every finish — a stock tank is galvanised by definition —
+   so a form may name the ones it is made in, exactly as a pot style names the
+   sizes it comes in. */
+const WATER_FINISHES = [
+  {id:'stone',  label:'Cast Stone',  body:'#9a9489', rim:'#b3ada1', dark:'#6f6a61'},
+  {id:'slate',  label:'Slate',       body:'#6b7276', rim:'#868d91', dark:'#474d51'},
+  {id:'corten', label:'Corten',      body:'#8d5134', rim:'#a86840', dark:'#5f341f'},
+  {id:'bronze', label:'Bronze',      body:'#6e5a36', rim:'#8d7748', dark:'#463823'},
+  {id:'glazed', label:'Glazed Blue', body:'#3f6f86', rim:'#5b8ba2', dark:'#28495a'},
+  {id:'galv',   label:'Galvanised',  body:'#8e949a', rim:'#aab0b6', dark:'#666c72'},
+];
+function waterFeature(id){ return WATER_FEATURES.find(w=>w.id===id)||WATER_FEATURES[0]; }
+function waterFeatureId(id){ return waterFeature(id).id; }
+function waterFinish(id){ return WATER_FINISHES.find(f=>f.id===id)||WATER_FINISHES[0]; }
+/* The finishes a form is really made in — the potStyleSizes idiom, with one
+   difference that matters: the order is the FORM's, not the table's, so the
+   first one listed is the default. Filtering WATER_FINISHES instead made a
+   stock tank default to corten because corten sits earlier in that table than
+   galvanised, which is the one finish a stock tank is actually made in. */
+function waterFeatureFinishes(id){
+  const w=waterFeature(id);
+  if (!w.finishes) return WATER_FINISHES;
+  return w.finishes.map(fid=>WATER_FINISHES.find(f=>f.id===fid)).filter(Boolean);
+}
+function waterFinishFor(formId,finishId){
+  const opts=waterFeatureFinishes(formId);
+  return opts.some(f=>f.id===finishId) ? finishId : opts[0].id;
+}
+function normalizeWaterFeatureDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  const form=waterFeatureId(d.form);
+  return {form, finish:waterFinishFor(form,d.finish), face:normalizeFacing(d.face)};
+}
+/* Footprint in tiles. Same rounding as seating, so anything up to about 27in
+   claims a single tile and overhangs it the way a shrub canopy does; the tank
+   and the basin are genuinely large and take real ground. A quarter turn swaps
+   the claim so it follows the drawing. */
+function waterFeatureTileSize(d){
+  const w=waterFeature(d&&d.form);
+  const tw=Math.max(1,Math.round(w.wIn/TILE_IN)), td=Math.max(1,Math.round(w.dIn/TILE_IN));
+  return normalizeFacing(d&&d.face)%2 ? {w:td,h:tw,spec:w} : {w:tw,h:td,spec:w};
+}
+function waterFeatureLabelFor(d){
+  d=normalizeWaterFeatureDraft(d);
+  return `${waterFinish(d.finish).label} ${waterFeature(d.form).label.toLowerCase()}`;
 }
 
 /* ---------- garden pets: a cat or dog as ornament ----------

@@ -325,7 +325,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -543,7 +543,7 @@ function gardenFileProblem(env){
     if (!ids.has(sc.active)) return 'This garden is missing its active planting scheme.';
   }
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
-  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','waterFeatureDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
 }
@@ -594,6 +594,7 @@ async function loadSolo(id){
   game.fenceDraft=normalizeFenceDraft(s.fenceDraft);
   game.lightDraft=normalizeLightDraft(s.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(s.firepitDraft);
+  game.waterFeatureDraft=normalizeWaterFeatureDraft(s.waterFeatureDraft);
   game.boulderDraft=normalizeBoulderDraft(s.boulderDraft);
   game.petDraft=normalizePetDraft(s.petDraft);
   game.potDraft=normalizePotDraft(s.potDraft);
@@ -655,6 +656,11 @@ function hardscapeRows(){
   for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
     const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
     seats[id]=(seats[id]||0)+1; }
+  const waters={};
+  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
+    const d=normalizeWaterFeatureDraft(w);
+    const id=d.form+'|'+d.finish;
+    waters[id]=(waters[id]||0)+1; }
   /* Linear feet of wall, measured along the TRACED CONTOUR rather than by
      counting exposed tile faces. Faces double-count a diagonal — every step
      contributes both of its sides — and count the far side of a wall you can
@@ -702,6 +708,8 @@ function hardscapeRows(){
     rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
   for (const id in seats){ const [ty,fi]=id.split('|');
     rows.push({kind:'Seating', name:`${seatFinish(fi).label} ${seatType(ty).label}`, count:seats[id]}); }
+  for (const id in waters){ const [fo,fi]=id.split('|');
+    rows.push({kind:'Water feature', name:`${waterFinish(fi).label} ${waterFeature(fo).label}`, count:waters[id]}); }
   return rows.sort((a2,b2)=>a2.kind===b2.kind?b2.count-a2.count:a2.kind<b2.kind?-1:1);
 }
 function openExport(){
@@ -1209,6 +1217,26 @@ function buildPlanMap(){
       ctx.fillRect(px+cell*0.1,py+cell*0.1,w-cell*0.2,h-cell*0.2);
       ctx.strokeRect(px+cell*0.1,py+cell*0.1,w-cell*0.2,h-cell*0.2);
       ctx.fillStyle='#2f261f'; ctx.fillRect(px+w*0.32,py+h*0.32,w*0.36,h*0.36);
+    }
+  }
+  // water features
+  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k];
+    if (!w || w.removed) continue;
+    const [x,y]=k.split(',').map(Number), d=normalizeWaterFeatureDraft(w);
+    const spec=waterFeature(d.form), sz=waterFeatureTileSize(d);
+    const px=X(x), py=Y(y), ww=sz.w*cell, hh=sz.h*cell;
+    ctx.fillStyle='#a9d2df'; ctx.strokeStyle='#3f5f6b'; ctx.lineWidth=1.3;
+    const round = spec.form!=='basin' && spec.form!=='spout';
+    if (round){
+      ctx.beginPath(); ctx.ellipse(px+ww/2,py+hh/2,ww*0.42,hh*0.42,0,0,7); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillRect(px+cell*0.1,py+cell*0.1,ww-cell*0.2,hh-cell*0.2);
+      ctx.strokeRect(px+cell*0.1,py+cell*0.1,ww-cell*0.2,hh-cell*0.2);
+    }
+    // concentric rings: the standing convention for water on a drawn plan
+    ctx.strokeStyle='rgba(63,95,107,0.55)'; ctx.lineWidth=0.9;
+    for (const f of [0.26,0.15]){
+      ctx.beginPath(); ctx.ellipse(px+ww/2,py+hh/2,ww*f,hh*f,0,0,7); ctx.stroke();
     }
   }
   // boulders

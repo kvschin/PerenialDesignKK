@@ -1350,6 +1350,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
     case SCENE_K.FENCE:   drawFence(ctx,W,H,season,e.f,e.x,e.y); return;
     case SCENE_K.LIGHT:   drawLightFixture(ctx,W,H,season,e.l,e.x,e.y,lit); return;
     case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y); return;
+    case SCENE_K.WATERF:  drawWaterFeature(ctx,W,H,season,e.wf,e.x,e.y); return;
     case SCENE_K.BOULDER: drawBoulder(ctx,W,H,season,e.b,e.x,e.y); return;
     case SCENE_K.PET:{
       const [sx,sy]=screenOf(e.x,e.y,W,H);
@@ -1411,6 +1412,12 @@ function structDrawBox(e){
     case SCENE_K.FIREPIT:{
       const sz=firepitTileSize(e.f);
       return {w:sz.w, h:sz.h, up:TILE_H*2.4+24, pad:TILE_W*0.35, down:20};
+    }
+    case SCENE_K.WATERF:{
+      // the tallest form is the 62in tiered fountain; the gravel bed and the
+      // wall spout's backboard are what the pad has to cover sideways
+      const sz=waterFeatureTileSize(e.wf);
+      return {w:sz.w, h:sz.h, up:feetToPx(70/12)+30, pad:TILE_W*0.9, down:34};
     }
     case SCENE_K.PET:   return {w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
     case SCENE_K.LIGHT: return {w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
@@ -1480,6 +1487,9 @@ function computeStructSpriteSpec(e){
       return Object.assign({key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y)}, box);
     case SCENE_K.FIREPIT:
       return Object.assign({key:'R|'+structRecordSig(e.f)}, box);
+    case SCENE_K.WATERF:
+      // the gravel bed and the ripples are seeded off the tile, like a boulder's shape
+      return Object.assign({key:'W|'+structRecordSig(e.wf)+'|'+tileSeed(e.x,e.y)}, box);
     case SCENE_K.PET:
       return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
@@ -1619,6 +1629,10 @@ function measureStructBoxes(){
   for (const fp of FIREPIT_SIZES) for (const shp of ['round','square'])
     cases.push({name:'FIREPIT:'+shp+'/'+fp.id, kind:SCENE_K.FIREPIT, field:'f', rec:{shape:shp,size:fp.id,t:1},
       size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y)});
+  for (const w of WATER_FEATURES) for (const fin of waterFeatureFinishes(w.id)) for (let f=0;f<4;f++)
+    cases.push({name:'WATERF:'+w.id+'/'+fin.id+'/f'+f, kind:SCENE_K.WATERF, field:'wf',
+      rec:{form:w.id,finish:fin.id,face:f,t:1},
+      size:s=>waterFeatureTileSize(s), draw:(c,s)=>drawWaterFeature(c,W,H,season,s,x,y)});
   for (const fs of FENCE_STYLES) for (const h of fenceStyleHeights(fs.id))
     cases.push({name:'FENCE:'+fs.id+'/'+h, kind:SCENE_K.FENCE, field:'f', rec:{style:fs.id,height:h,gate:false,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>drawFence(c,W,H,season,s,x,y)});
@@ -1917,7 +1931,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -1935,7 +1949,8 @@ function sceneStale(skey){
   const r=scene.refs;
   return scene.key!==skey || !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
-    r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings;
+    r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings ||
+    r.waterFeatures!==game.waterFeatures;
 }
 /* ---- camera-free screen bounds, for the viewport cull ----
    The entity pass used to reject on the TILE bounding box of the four inverted
@@ -2070,6 +2085,12 @@ function buildScene(W,H){
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,f};
       ents.push(rec); firepits.push(rec);
     }
+    for (const k in game.waterFeatures||{}){ const wf=game.waterFeatures[k];
+      if (!wf || wf.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=waterFeatureTileSize(wf);
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.375, kind:SCENE_K.WATERF,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,wf});
+    }
     for (const k in game.boulders){ const b=game.boulders[k];
       if (!b || b.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=boulderTileSize(b);
@@ -2115,7 +2136,7 @@ function buildScene(W,H){
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,houses:game.houses,buildings:game.buildings},
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
@@ -2128,6 +2149,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.FENCE:
     case SCENE_K.LIGHT:
     case SCENE_K.FIREPIT:
+    case SCENE_K.WATERF:
     case SCENE_K.BOULDER:
     case SCENE_K.PET:
     case SCENE_K.POT:
@@ -2723,6 +2745,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.fence) drawFence(cx,W,H,season,c.fence,nx,ny);
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
       if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny);
+      if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
       if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
       if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);

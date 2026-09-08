@@ -6138,6 +6138,240 @@ function drawFirepit(ctx,W,H,season,f,x,y){
   }
   ctx.restore();
 }
+/* ---------- water features ----------
+   Built on the container idiom rather than the fire pit's: real inches through
+   feetToPx, a round vessel described by a PROFILE rather than a branch per
+   shape (drawPotArt's trick — waist/belly/foot — reused here rather than
+   refactored out of it, so pots stay byte-identical), and isoBox for the
+   rectilinear ones. That matters because these are things whose HEIGHT is
+   their character: a birdbath is 34 inches to the rim and a millstone is nine,
+   and the fire pit's derive-everything-from-the-footprint approach cannot say
+   that.
+
+   NOTHING here animates, and that is a hard constraint rather than a
+   simplification: every structure goes through SSPRITE, which caches on a key
+   with no time in it, so a fountain that moved would simply freeze at whatever
+   frame it was baked on. The splash is seeded and still, exactly as the fire
+   pit's flames are — the fire pit is the precedent that this reads fine. */
+function waterFeatureWater(season,form){
+  // The garden's own pond palette, so a fountain and a pond are the same water.
+  const w=waterStyle('pond');
+  if (AMBIENCE[season].snow) return {face:'#cfe0e8', deep:'#9fb9c6', lit:'rgba(255,255,255,0.75)', ice:true};
+  return {face:w.fill, deep:w.deep, lit:'rgba(255,255,255,0.45)', ice:false};
+}
+// A still surface: the water plane, its shaded far edge, and one highlight.
+function waterDisc(ctx,cx,cy,rx,ry,wc){
+  ctx.fillStyle=wc.deep; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,7); ctx.fill();
+  ctx.fillStyle=wc.face; ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.10,rx*0.94,ry*0.86,0,0,7); ctx.fill();
+  ctx.fillStyle=wc.lit;
+  ctx.beginPath(); ctx.ellipse(cx-rx*0.28,cy-ry*0.18,rx*0.30,ry*0.24,-0.3,0,7); ctx.fill();
+}
+/* Concentric rings, drawn once. `n` rings inside r, each fainter — this is what
+   says "the water is moving" without a clock, and it is the same bargain the
+   fire pit strikes with its three static flame strokes. */
+function waterRings(ctx,cx,cy,rx,ry,n,alpha){
+  ctx.lineWidth=1.1;
+  for (let i=1;i<=n;i++){
+    const f=i/(n+1);
+    ctx.strokeStyle=`rgba(255,255,255,${(alpha*(1-f*0.72)).toFixed(3)})`;
+    ctx.beginPath(); ctx.ellipse(cx,cy,rx*f,ry*f,0,0,7); ctx.stroke();
+  }
+}
+// The gravel reservoir a sealed bubbler stands on: no open water, which is the
+// whole reason those two forms exist.
+function waterGravelBed(ctx,cx,cy,rx,ry,rs){
+  ctx.fillStyle='#6f6a5e'; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,7); ctx.fill();
+  ctx.fillStyle='#8c8677'; ctx.beginPath(); ctx.ellipse(cx,cy-ry*0.08,rx*0.92,ry*0.84,0,0,7); ctx.fill();
+  for (let i=0;i<22;i++){
+    const a=rs()*6.283, d=Math.sqrt(rs());
+    const px=cx+Math.cos(a)*rx*0.88*d, py=cy+Math.sin(a)*ry*0.88*d;
+    const g=1.2+rs()*1.6;
+    ctx.fillStyle=rs()>0.5?'#a09884':'#77715f';
+    ctx.beginPath(); ctx.ellipse(px,py,g,g*0.58,0,0,7); ctx.fill();
+  }
+}
+/* A round vessel from a profile, the drawPotArt grammar: `waist` is how far the
+   foot pulls in, `belly` how far the flank bulges, `foot` what fraction of the
+   height is a pedestal. A birdbath and a bubbling urn are two sets of numbers,
+   not two branches. Returns the rim's centre so the caller can put water in it. */
+function waterVessel(ctx,cx,cy,rx,ry,hh,prof,fin){
+  const body=fin.body, footH=hh*prof.foot, bodyH=hh-footH;
+  const baseY=cy-footH, brx=rx*prof.waist, bry=ry*prof.waist, topY=baseY-bodyH;
+  const trx=rx*(prof.top==null?1:prof.top), tryy=ry*(prof.top==null?1:prof.top);
+  if (footH>0){
+    const prx=rx*0.46, pry=ry*0.46, srx=rx*0.15;
+    ctx.fillStyle=fin.dark;
+    ctx.beginPath(); ctx.ellipse(cx,cy,prx,pry,0,0,7); ctx.fill();
+    ctx.fillStyle=body;
+    ctx.beginPath();
+    ctx.moveTo(cx-prx,cy);
+    ctx.quadraticCurveTo(cx-srx*1.5,cy-footH*0.62,cx-srx,baseY);
+    ctx.ellipse(cx,baseY,srx,srx*(ry/rx),0,Math.PI,0,true);
+    ctx.quadraticCurveTo(cx+srx*1.5,cy-footH*0.62,cx+prx,cy);
+    ctx.ellipse(cx,cy,prx,pry,0,0,Math.PI,true);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle=body; ctx.beginPath();
+  ctx.moveTo(cx-trx,topY);
+  ctx.quadraticCurveTo(cx-rx*(1+prof.belly),topY+bodyH*0.55,cx-brx,baseY);
+  // The FRONT of the foot: pi -> pi/2 -> 0 is decreasing angle, and canvas +y
+  // is down, so sweeping the other way draws the BACK and opens the vessel
+  // underneath — the trap drawPotArt's own comment records.
+  ctx.ellipse(cx,baseY,brx,bry,0,Math.PI,0,true);
+  ctx.quadraticCurveTo(cx+rx*(1+prof.belly),topY+bodyH*0.55,cx+trx,topY);
+  ctx.ellipse(cx,topY,trx,tryy,0,0,Math.PI,true);
+  ctx.closePath(); ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.fillStyle='rgba(0,0,0,0.20)'; ctx.fillRect(cx+trx*0.22,topY-tryy,rx*1.3,hh+tryy*2);
+  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(cx-rx*1.2,topY-tryy,rx*0.52,hh+tryy*2);
+  ctx.restore();
+  ctx.fillStyle=fin.rim;
+  ctx.beginPath(); ctx.ellipse(cx,topY,trx,tryy,0,0,7); ctx.fill();
+  return {topY, trx, tryy};
+}
+function drawWaterFeature(ctx,W,H,season,wf,x,y){
+  const d=normalizeWaterFeatureDraft(wf), spec=waterFeature(d.form), fin=waterFinish(d.finish);
+  const sz=waterFeatureTileSize(d);
+  const foot=footprintScreenPoly(W,H,x,y,sz,1), c=polyCenter(foot);
+  const cx=c[0], cy=c[1];
+  const [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face);
+  const rs=mulberry(tileSeed(x,y)^0x77a7);
+  const wc=waterFeatureWater(season,spec.form);
+  // A world circle of radius r projects to semi-axes r*root2*TILE_W/2: the
+  // root2 is the tile DIAGONAL the diamond width spans, and dropping it is what
+  // drew barrels instead of pots.
+  const r=inchesToTiles(spec.wIn)/2;
+  const rx=r*Math.SQRT2*TILE_W/2, ry=r*Math.SQRT2*TILE_H/2;
+  const hh=feetToPx(spec.hIn/12);
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  drawSoftShadow(ctx,cx,cy+ry*0.26,rx*0.95,ry*0.82,0.20);
+  if (spec.bed) waterGravelBed(ctx,cx,cy,rx*1.28,ry*1.28,rs);
+  if (spec.form==='pedestal'){
+    // thin stem, wide shallow bowl: the bowl is most of what says "birdbath"
+    const v=waterVessel(ctx,cx,cy,rx*0.92,ry*0.92,hh,{waist:0.16,belly:-0.02,foot:0.74,top:1},fin);
+    waterDisc(ctx,cx,v.topY,v.trx*0.82,v.tryy*0.82,wc);
+    waterRings(ctx,cx,v.topY,v.trx*0.66,v.tryy*0.66,2,0.30);
+  } else if (spec.form==='urn'){
+    // sealed: water wells over the shoulder and runs down into the gravel
+    const v=waterVessel(ctx,cx,cy,rx*0.86,ry*0.86,hh,{waist:0.42,belly:0.12,foot:0.10,top:0.42},fin);
+    /* The welling cap has to read on a GLAZED urn too, where the vessel is the
+       same blue as the water — so it is drawn domed and outlined rather than as
+       a flat disc of the water colour, which vanished into the glaze. */
+    ctx.fillStyle=wc.deep;
+    ctx.beginPath(); ctx.ellipse(cx,v.topY-1,v.trx*1.06,v.tryy*1.06,0,0,7); ctx.fill();
+    ctx.fillStyle=wc.face;
+    ctx.beginPath(); ctx.ellipse(cx,v.topY-2.5,v.trx*0.92,v.tryy*0.92,0,0,7); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.62)';
+    ctx.beginPath(); ctx.ellipse(cx-v.trx*0.22,v.topY-3.6,v.trx*0.34,v.tryy*0.30,-0.3,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.34)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.ellipse(cx,v.topY-2,v.trx*1.06,v.tryy*1.06,0,0,7); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1.2;
+    for (const s of [-1,1]){
+      ctx.beginPath(); ctx.moveTo(cx+s*v.trx*0.7,v.topY);
+      ctx.quadraticCurveTo(cx+s*rx*0.78,cy-hh*0.42,cx+s*rx*0.52,cy-2);
+      ctx.stroke();
+    }
+    waterRings(ctx,cx,cy,rx*1.05,ry*1.05,2,0.22);
+  } else if (spec.form==='millstone'){
+    const th=Math.max(4,hh);
+    ctx.fillStyle=fin.dark;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th*0.35,rx,ry,0,0,7); ctx.fill();
+    ctx.fillRect(cx-rx,cy-th*0.35,rx*2,th*0.35);
+    ctx.fillStyle=fin.body;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th,rx,ry,0,0,7); ctx.fill();
+    // the water films over the whole face and wells from the centre hole
+    ctx.fillStyle=wc.face; ctx.globalAlpha=0.55;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th,rx*0.92,ry*0.92,0,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle=wc.deep;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th,rx*0.15,ry*0.15,0,0,7); ctx.fill();
+    waterRings(ctx,cx,cy-th,rx*0.86,ry*0.86,3,0.34);
+  } else if (spec.form==='tiered'){
+    // plinth, big lower bowl, stem, small upper bowl — the water falls between
+    const lowH=hh*0.34, upH=hh*0.86;
+    const v1=waterVessel(ctx,cx,cy,rx*0.96,ry*0.96,lowH,{waist:0.30,belly:0.02,foot:0.42,top:1},fin);
+    waterDisc(ctx,cx,v1.topY,v1.trx*0.84,v1.tryy*0.84,wc);
+    const v2=waterVessel(ctx,cx,v1.topY,rx*0.52,ry*0.52,upH-lowH,{waist:0.26,belly:0.02,foot:0.62,top:1},fin);
+    waterDisc(ctx,cx,v2.topY,v2.trx*0.82,v2.tryy*0.82,wc);
+    ctx.fillStyle=fin.rim;
+    ctx.beginPath(); ctx.ellipse(cx,v2.topY-4,rx*0.07,ry*0.07,0,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.42)'; ctx.lineWidth=1.6;
+    for (const s of [-1,1]){
+      ctx.beginPath(); ctx.moveTo(cx+s*v2.trx*0.8,v2.topY+1);
+      ctx.quadraticCurveTo(cx+s*v2.trx*1.05,(v2.topY+v1.topY)/2,cx+s*v1.trx*0.55,v1.topY-1);
+      ctx.stroke();
+    }
+    waterRings(ctx,cx,v1.topY,v1.trx*0.6,v1.tryy*0.6,2,0.34);
+  } else if (spec.form==='tsukubai'){
+    // a low stone block hollowed on top, with a bamboo spout leaning over it
+    const th=Math.max(6,hh);
+    ctx.fillStyle=fin.dark;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th*0.5,rx*0.86,ry*0.86,0,0,7); ctx.fill();
+    ctx.fillRect(cx-rx*0.86,cy-th*0.5,rx*1.72,th*0.5);
+    ctx.fillStyle=fin.body;
+    ctx.beginPath(); ctx.ellipse(cx,cy-th,rx*0.86,ry*0.86,0,0,7); ctx.fill();
+    waterDisc(ctx,cx,cy-th,rx*0.58,ry*0.58,wc);
+    const bx=cx-rx*1.05, by=cy-th-feetToPx(1.6);
+    ctx.strokeStyle='#9a8b5c'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(bx,cy); ctx.lineTo(bx,by); ctx.stroke();
+    ctx.lineWidth=3.4;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(cx-rx*0.34,by+3); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.42)'; ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.moveTo(cx-rx*0.34,by+4); ctx.lineTo(cx-rx*0.30,cy-th-1); ctx.stroke();
+    waterRings(ctx,cx,cy-th,rx*0.46,ry*0.46,2,0.32);
+  }
+  else if (spec.form==='spout'){
+    // a backboard with a spout part way up and a trough at its foot; the only
+    // form whose FACE really matters, so it is drawn off the turned basis
+    const hw=inchesToTiles(spec.wIn)/2, hd=inchesToTiles(spec.dIn)/2;
+    const troughH=feetToPx(14/12);
+    isoBox(ctx,cx,cy,ax,ay,hw*0.94,hd*0.60,troughH,fin.rim,fin.body,fin.dark);
+    const P=(u,v,up)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-up];
+    const back=P(0,-hd*0.72,0), bx=back[0], by=back[1];
+    ctx.fillStyle=fin.dark;
+    ctx.fillRect(bx-(hw*TILE_W*0.44),by-hh,hw*TILE_W*0.88,hh-troughH*0.4);
+    ctx.fillStyle=fin.body;
+    ctx.fillRect(bx-(hw*TILE_W*0.40),by-hh+2,hw*TILE_W*0.80,hh-troughH*0.4-4);
+    const spoutY=by-hh*0.62;
+    ctx.fillStyle=fin.rim;
+    ctx.beginPath(); ctx.ellipse(bx,spoutY,5,3.4,0,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.44)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(bx,spoutY+3); ctx.lineTo(bx+1.5,by-troughH*0.5); ctx.stroke();
+    const tw=hw*TILE_W*0.40;
+    waterDisc(ctx,bx+1.5,by-troughH*0.42,tw,tw*0.34,wc);
+    waterRings(ctx,bx+1.5,by-troughH*0.42,tw*0.6,tw*0.20,2,0.32);
+  } else if (spec.form==='tank'){
+    // a galvanised cylinder standing proud of the ground, brim full
+    const v=waterVessel(ctx,cx,cy,rx,ry,hh,{waist:0.94,belly:0.0,foot:0,top:1},fin);
+    waterDisc(ctx,cx,v.topY+1,v.trx*0.90,v.tryy*0.90,wc);
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1.4;
+    for (const f of [0.34,0.62]){
+      ctx.beginPath(); ctx.ellipse(cx,v.topY+hh*f,rx*0.97,ry*0.97,0,0.12,Math.PI-0.12); ctx.stroke();
+    }
+    waterRings(ctx,cx,v.topY+1,v.trx*0.62,v.tryy*0.62,2,0.24);
+  } else if (spec.form==='basin'){
+    // a formal reflecting basin: a coping ring around still water
+    const hw=inchesToTiles(spec.wIn)/2, hd=inchesToTiles(spec.dIn)/2;
+    const wallH=Math.max(5,hh);
+    isoBox(ctx,cx,cy,ax,ay,hw,hd,wallH,fin.rim,fin.body,fin.dark);
+    const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-wallH];
+    const inner=[P(-hw*0.78,-hd*0.70),P(hw*0.78,-hd*0.70),P(hw*0.78,hd*0.70),P(-hw*0.78,hd*0.70)];
+    ctx.fillStyle=wc.deep; polyPath(ctx,inner); ctx.fill();
+    ctx.fillStyle=wc.face; polyPath(ctx,scalePoly(inner,0.94)); ctx.fill();
+    const b=polyBounds(inner);
+    ctx.fillStyle=wc.lit;
+    ctx.beginPath(); ctx.ellipse(b.x0+b.w*0.34,b.y0+b.h*0.40,b.w*0.16,b.h*0.13,-0.3,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.20)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.ellipse(b.x0+b.w*0.62,b.y0+b.h*0.60,b.w*0.22,b.h*0.16,0,0,7); ctx.stroke();
+  }
+  if (wc.ice){
+    // frozen: the water read above is already the ice palette, so this is the
+    // snow that settles on the rim, the same note the fire pit ends on
+    ctx.strokeStyle='rgba(240,244,250,0.66)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(cx,cy-Math.min(hh,ry*2)*0.1,rx*0.80,ry*0.66,0,Math.PI*1.05,Math.PI*1.92); ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawFirepitGlow(ctx,W,H,f,x,y){
   const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
   const footprint=firepitScreenPoly(W,H,x,y,sz,0.84), center=polyCenter(footprint), b=polyBounds(footprint);

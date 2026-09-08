@@ -13,7 +13,7 @@ const TRAY_CATS=[
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
-  {id:'structures',label:'Hardscape',       tools:['fence','firepit','boulder','seat']},
+  {id:'structures',label:'Hardscape',       tools:['fence','firepit','waterfeature','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'decor',    label:'Decor',            tools:['pot','pet']},
   {id:'house',    label:'Site',             tools:['building','house']},
@@ -90,6 +90,9 @@ const TOOLS={
   fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
+  // brush:true like the fire pit — each refuses to overlap the last, so a drag
+  // lays a row along a path rather than 24 copies on one spot
+  waterfeature:{layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeWaterFeatureAt(x,y)},
   boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
   // brush:false — tap-only on purpose. Every other placer drags out a run,
   // but a drag laid 24 identical cats across the plot, which nobody wants and
@@ -651,7 +654,7 @@ function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
@@ -694,6 +697,11 @@ function pickAt(x,y){
     game.lightDraft=normalizeLightDraft(l);
     setTool('light', null); buildToolTray();
     toast(`Picked ${lightLabel(l)}.`);
+  } else if (wf){
+    game.fillMode=false; game.trayCat='structures'; game.drill='waterfeature';
+    game.waterFeatureDraft=normalizeWaterFeatureDraft(wf);
+    setTool('waterfeature', null); buildToolTray();
+    toast(`Picked the ${waterFeatureLabel(wf).toLowerCase()}.`);
   } else if (fp){
     game.fillMode=false; game.trayCat='structures'; game.drill='firepit';
     game.firepitDraft=normalizeFirepitDraft(fp);
@@ -1423,6 +1431,8 @@ const TOOL_SEARCH={
            hay:'fence gate door arbor screen privacy deer hardscape structures black aluminum wood vinyl chainlink brick stone 4 foot 6 foot'},
   firepit:{label:'Fire Pit',kind:'fill',drill:'firepit',
            hay:'fire pit firepit hardscape structure round square rectangle 24 36 48 patio'},
+  waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
+           hay:'water feature fountain birdbath bird bath bubbler bubbling urn millstone tiered tsukubai stone basin wall spout trough stock tank reflecting pool rill hardscape focal point'},
   boulder:{label:'Boulder',kind:'fill',drill:'boulder',
            hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
   seat:   {label:'Seating',kind:'fill',
@@ -2371,7 +2381,7 @@ function trayStateSig(){
     j(g.discovery), j(g.filters),
     g.challenge?(g.challenge.id||g.challenge.title||'1'):'-',
     // every draft the tray paints a chip from
-    j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.boulderDraft,g.petDraft,g.potDraft,
+    j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.boulderDraft,g.petDraft,g.potDraft,
        g.seatDraft,g.edgingDraft,g.wallDraft,g.buildingStyleDraft,g.buildingDraft,
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
@@ -2459,6 +2469,7 @@ function verifyTrayCache(){
                           return ()=>{ g.discovery=o; }; }],
     ['challenge',   ()=>{ const o=g.challenge; g.challenge=o?null:{id:'probe',title:'Probe'}; return ()=>{ g.challenge=o; }; }],
     ['fenceDraft',  ()=>{ const o=g.fenceDraft; g.fenceDraft=Object.assign({},o,{height:(o&&o.height)===6?4:6}); return ()=>{ g.fenceDraft=o; }; }],
+    ['waterFeatureDraft', ()=>{ const o=g.waterFeatureDraft; g.waterFeatureDraft={form:'tiered',finish:'slate',face:0}; return ()=>{ g.waterFeatureDraft=o; }; }],
     ['potDraft',    ()=>{ const o=g.potDraft; g.potDraft=Object.assign({},o,{style:(o&&o.style)==='urn'?'timber':'urn'}); return ()=>{ g.potDraft=o; }; }],
     ['seatDraft',   ()=>{ const o=g.seatDraft; g.seatDraft=Object.assign({},o,{face:(((o&&o.face)|0)+1)%4}); return ()=>{ g.seatDraft=o; }; }],
     ['petDraft',    ()=>{ const o=g.petDraft; g.petDraft=Object.assign({},o,{species:(o&&o.species)==='cat'?'dog':'cat'}); return ()=>{ g.petDraft=o; }; }],
@@ -2803,6 +2814,20 @@ function buildToolTrayInner(){
       });
     }
   }
+  /* One Back button for all four Hardscape sub-pages. It was three
+     byte-identical closures, and adding the water feature would have made it
+     four — the restated-table smell this file has been bitten by before. */
+  const backBtn=()=>{
+    const b=document.createElement('button');
+    b.className='tool tool-back'; b.title='Back to Hardscape';
+    const c=document.createElement('canvas'); c.width=48; c.height=44;
+    const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
+    bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
+    const sp=document.createElement('span'); sp.textContent='Back';
+    b.append(c,sp);
+    b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
+    tray.appendChild(b);
+  };
   if (cat.tools.includes('fence')){
     const fd=fenceDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
@@ -2837,17 +2862,6 @@ function buildToolTrayInner(){
         fencePanel(tc,9,y,39,y,h,st,st.infill,7);
         post(9,h); post(39,h);
       }
-    };
-    const backBtn=()=>{
-      const b=document.createElement('button');
-      b.className='tool tool-back'; b.title='Back to Hardscape';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
-      bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
-      const sp=document.createElement('span'); sp.textContent='Back';
-      b.append(c,sp);
-      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
-      tray.appendChild(b);
     };
     const mainFenceBtn=()=>{
       const b=document.createElement('button');
@@ -2925,17 +2939,6 @@ function buildToolTrayInner(){
       tc.beginPath(); tc.moveTo(center[0]-4,center[1]-2); tc.quadraticCurveTo(center[0]-2,center[1]-9,center[0],center[1]-5);
       tc.moveTo(center[0]+3,center[1]-1); tc.quadraticCurveTo(center[0]+5,center[1]-8,center[0]+2,center[1]-11); tc.stroke();
     };
-    const backBtn=()=>{
-      const b=document.createElement('button');
-      b.className='tool tool-back'; b.title='Back to Hardscape';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
-      bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
-      const sp=document.createElement('span'); sp.textContent='Back';
-      b.append(c,sp);
-      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
-      tray.appendChild(b);
-    };
     const choose=(patch)=>{
       const cur=firepitDraft(), next=Object.assign({},cur,patch);
       if (patch.shape && !patch.size && patch.shape!==cur.shape) next.size=firepitSize(null,patch.shape).id;
@@ -2975,6 +2978,71 @@ function buildToolTrayInner(){
         toolBtn(s.label, fd.size===s.id, {size:s.id}, `${s.plan} ${fd.shape} fire pit`));
     }
   }
+  if (cat.tools.includes('waterfeature')){
+    const wd=waterFeatureDraft();
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    /* The chip paints through drawWaterFeature itself, so it cannot advertise a
+       basin the canvas does not draw — the fencePanel rule. It is scaled to the
+       chip rather than redrawn small: these differ by HEIGHT more than by plan
+       shape, and a top-down mini would make a birdbath and a millstone the
+       same picture. */
+    const miniWater=(tc,d)=>{
+      d=normalizeWaterFeatureDraft(d);
+      const spec=waterFeature(d.form);
+      const tall=feetToPx(spec.hIn/12)+TILE_H*1.5;
+      const k=Math.min(1, 34/Math.max(28,tall), 40/Math.max(30,inchesToTiles(spec.wIn)*TILE_W*0.9));
+      tc.save(); tc.translate(24,40); tc.scale(k,k); tc.translate(-24,-40);
+      drawWaterFeature(tc,48,80,'Summer',Object.assign({},d,{face:0}),0,0);
+      tc.restore();
+    };
+    const choose=patch=>{
+      const cur=waterFeatureDraft(), next=Object.assign({},cur,patch);
+      // a form may not be made in the finish that was armed — snap, don't reset
+      if (patch.form && patch.form!==cur.form) next.finish=waterFinishFor(patch.form,cur.finish);
+      game.waterFeatureDraft=normalizeWaterFeatureDraft(next);
+      setTool('waterfeature',null); game.drill='waterfeature';
+      rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
+    };
+    const toolBtn=(label,sel,patch,tip)=>{
+      const d=normalizeWaterFeatureDraft(Object.assign({},wd,patch));
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='waterfeature';
+      if (patch.form!==undefined) b.dataset.waterForm=patch.form;
+      if (patch.finish!==undefined) b.dataset.waterFinish=patch.finish;
+      if (patch.face!==undefined) b.dataset.waterFace=String(patch.face);
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniWater(c.getContext('2d'),d);
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
+      tray.appendChild(b); return b;
+    };
+    if (!game.drill){
+      const b=document.createElement('button');
+      b.className='tool has-sub'+(game.tool==='waterfeature'?' sel':'');
+      b.dataset.k='waterfeature';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniWater(c.getContext('2d'),wd);
+      const sp=document.createElement('span'); sp.textContent='Water';
+      b.append(c,sp);
+      b.title=`Water feature: ${waterFeatureLabel()}. Open to choose the piece and its finish.`;
+      b.onclick=()=>{ setTool('waterfeature',null); game.drill='waterfeature';
+        rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
+      tray.appendChild(b);
+    } else if (game.drill==='waterfeature'){
+      backBtn();
+      sep('Water feature');
+      WATER_FEATURES.forEach(w=>toolBtn(w.short||w.label, wd.form===w.id, {form:w.id},
+        `${w.label} — ${w.hIn} in tall`));
+      sep('Finish');
+      waterFeatureFinishes(wd.form).forEach(f=>toolBtn(f.label, wd.finish===f.id, {finish:f.id}, f.label));
+      // only the two rectilinear pieces read differently when turned
+      if (waterFeature(wd.form).form==='basin' || waterFeature(wd.form).form==='spout'){
+        sep('Facing');
+        toolBtn('Turn', false, {face:(wd.face+1)%4}, 'Turn it a quarter');
+      }
+    }
+  }
   if (cat.tools.includes('boulder')){
     const bd=boulderDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
@@ -2998,17 +3066,6 @@ function buildToolTrayInner(){
         tc.fillStyle='rgba(239,230,211,.23)';
         tc.beginPath(); tc.ellipse(cx2-rx*.18,cy2-ry*.55,rx*.24,Math.max(2,ry*.12),-0.1,0,7); tc.fill();
       }
-    };
-    const backBtn=()=>{
-      const b=document.createElement('button');
-      b.className='tool tool-back'; b.title='Back to Hardscape';
-      const c=document.createElement('canvas'); c.width=48; c.height=44;
-      const bx=c.getContext('2d'); bx.strokeStyle=uiInk('--icon-ink-soft'); bx.lineWidth=3.2; bx.lineCap='round'; bx.lineJoin='round';
-      bx.beginPath(); bx.moveTo(28,13); bx.lineTo(17,22); bx.lineTo(28,31); bx.stroke();
-      const sp=document.createElement('span'); sp.textContent='Back';
-      b.append(c,sp);
-      b.onclick=()=>{ game.drill=null; rememberBrushMenu(game.trayCat,null); buildToolTray(); };
-      tray.appendChild(b);
     };
     const choose=(type)=>{
       game.boulderDraft=normalizeBoulderDraft({type});
@@ -3332,6 +3389,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
     if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
+    if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
     if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ');
     if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ');

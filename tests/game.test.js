@@ -6,7 +6,7 @@ function setup(gw, gh){
   resetGardenAutosave();
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {}; game.waterFeatures = {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
@@ -8536,7 +8536,7 @@ test('structures are cacheable because none of them animate', () => {
      it has to leave drawStructEnt or the cache will freeze it. */
   const animated = ['drawPlant'];
   const still = ['drawFence', 'drawPot', 'drawSeat', 'drawBoulder', 'drawFirepit',
-    'drawLightFixture', 'drawBuildingTile', 'drawHouse'];
+    'drawLightFixture', 'drawBuildingTile', 'drawHouse', 'drawWaterFeature'];
   for (const name of still) {
     const fn = globalThis[name];
     assert(typeof fn === 'function', name + ' exists');
@@ -10406,4 +10406,143 @@ test('no dead category dropdown is left behind', () => {
   const tray = readRepoFile('js/tray.js');
   assert(tray.includes('catalog-category-strip'), 'the counted strip is still built');
   assert(/selectCat\(c\.id\)/.test(tray), 'and still selects through the shared selectCat');
+});
+
+/* ---------- water features ----------
+   Pond, river and lake are AREAS. These are the objects — the thing a path
+   leads to — and they follow the fire pit in every structural way, which is
+   what these pin: the claimed footprint, the mutual refusals, and the fact
+   that both client documents count them. */
+
+test('a water feature claims its footprint and turns with its facing', () => {
+  setup(15, 15);
+  game.tool = 'waterfeature';
+  game.waterFeatureDraft = { form: 'birdbath', finish: 'stone', face: 0 };
+  assertEqual(applyToolAt(3, 3), 'waterfeature', 'a birdbath is placed');
+  assertEqual(waterFeatureAt(3, 3).form, 'birdbath', 'and is found on its tile');
+  assertEqual(waterFeatureTileSize({ form: 'birdbath', face: 0 }).w, 1,
+    'anything up to about 27in claims one tile and overhangs it, like a pot');
+
+  // the basin is genuinely large, and a quarter turn swaps the claim so the
+  // footprint follows the drawing — the seatTileSize rule
+  game.waterFeatureDraft = { form: 'pool', finish: 'stone', face: 0 };
+  assertEqual(applyToolAt(6, 6), 'waterfeature', 'a reflecting basin is placed');
+  const flat = waterFeatureTileSize({ form: 'pool', face: 0 });
+  const turned = waterFeatureTileSize({ form: 'pool', face: 1 });
+  assertEqual(flat.w, 4, 'the basin is four tiles long');
+  assertEqual(flat.h, 2, 'and two deep');
+  assertEqual(turned.w, flat.h, 'a quarter turn swaps the claim');
+  assertEqual(turned.h, flat.w, 'both ways');
+  assert(waterFeatureAt(9, 7), 'the basin claims its far corner');
+  assert(!waterFeatureAt(10, 7), 'and stops there');
+});
+
+test('a water feature and everything else refuse each other', () => {
+  const forb = firstOfType('forb');
+  const arm = f => { game.tool = 'waterfeature';
+    game.waterFeatureDraft = { form: f || 'birdbath', finish: 'stone', face: 0 }; };
+
+  // nothing may be placed on top of it
+  setup(15, 15);
+  arm(); assertEqual(applyToolAt(5, 5), 'waterfeature', 'placed');
+  for (const [tool, label] of [['fence','a fence'], ['light','a light'], ['firepit','a fire pit'],
+                               ['boulder','a boulder'], ['pot','a container'], ['seat','a seat']]) {
+    game.tool = tool;
+    assertEqual(applyToolAt(5, 5), null, label + ' refuses the water feature tile');
+  }
+  game.tool = forb; game.toolVar = null;
+  assertEqual(applyToolAt(5, 5), null, 'and so does a plant');
+  game.tool = 'water';
+  assertEqual(applyToolAt(5, 5), null, 'and painting a pond over it');
+
+  // and it refuses everything already standing
+  setup(15, 15);
+  setTile('plants', '4,4', { s: forb, d: 0, t: 1 });
+  arm(); assertEqual(applyToolAt(4, 4), null, 'a planted tile refuses it');
+  setup(15, 15);
+  game.tool = 'firepit'; game.firepitDraft = { shape: 'round', size: 'round24' };
+  applyToolAt(4, 4);
+  arm(); assertEqual(applyToolAt(4, 4), null, 'a fire pit refuses it');
+  setup(15, 15);
+  setTile('terrain', '4,4', { k: 'water', c: 'pond', t: 1 });
+  arm();
+  /* Water terrain refuses it deliberately: a fountain standing IN a pond is a
+     real thing and this does not do it, because the drawing would have to know
+     it was in water. A clean refusal beats half of that. */
+  assertEqual(applyToolAt(4, 4), null, 'and so does open water');
+});
+
+test('a form is only offered the finishes it is made in, in its own order', () => {
+  /* The order is the FORM's, not WATER_FINISHES'. Filtering the global table
+     instead defaulted a stock tank to CORTEN, because corten sits earlier
+     there than galvanised — the one finish a stock tank is actually made in. */
+  assertEqual(waterFeatureFinishes('tank').map(f => f.id).join(), 'galv,corten',
+    'the tank keeps its own preference order');
+  assertEqual(waterFeatureFinishes('tank')[0].id, 'galv', 'so galvanised is its default');
+  assertEqual(waterFeatureFinishes('tsukubai').map(f => f.id).join(), 'stone,slate',
+    'a stone basin is not offered corten');
+
+  // choosing a form the armed finish is not made in SNAPS rather than resetting
+  assertEqual(normalizeWaterFeatureDraft({ form: 'tsukubai', finish: 'galv' }).finish, 'stone',
+    'an impossible finish snaps to the form default');
+  assertEqual(normalizeWaterFeatureDraft({ form: 'spout', finish: 'bronze' }).finish, 'bronze',
+    'and a possible one is kept');
+
+  for (const w of WATER_FEATURES) {
+    const fins = waterFeatureFinishes(w.id);
+    assert(fins.length > 0, w.id + ' is made in at least one finish');
+    assert(fins.every(f => f && f.id), w.id + ' names only finishes that exist');
+    assert(w.hIn > 0 && w.wIn > 0 && w.dIn > 0, w.id + ' has real dimensions');
+  }
+});
+
+test('water features reach both client documents', () => {
+  setup(15, 15);
+  game.tool = 'waterfeature';
+  game.waterFeatureDraft = { form: 'birdbath', finish: 'stone', face: 0 };
+  applyToolAt(3, 3); applyToolAt(6, 3);
+  game.waterFeatureDraft = { form: 'tank', finish: 'galv', face: 0 };
+  applyToolAt(9, 8);
+
+  const rows = hardscapeRows().filter(r => r.kind === 'Water feature');
+  assertEqual(rows.length, 2, 'two kinds of piece, two lines');
+  const bath = rows.find(r => /Birdbath/.test(r.name));
+  assertEqual(bath.count, 2, 'identical pieces are counted, not listed twice');
+  assert(/Cast Stone/.test(bath.name), 'the finish is named — it is what you order');
+  assert(rows.some(r => r.name === 'Galvanised Stock Tank Pool'), 'and so is the tank');
+
+  /* Unlike a garden pet, these are on the plan: somebody buys them and somebody
+     installs them, which is the same reason containers and seating are. */
+  const plan = readRepoFile('js/io.js');
+  const drawn = plan.slice(plan.indexOf('// water features'), plan.indexOf('// boulders'));
+  assert(/game\.waterFeatures/.test(drawn), 'openPlan iterates the layer');
+  assert(/ellipse/.test(drawn), 'and draws the ripple rings that read as water on a plan');
+});
+
+test('a water feature survives a save, and an older garden simply has none', async () => {
+  setup(15, 15);
+  game.tool = 'waterfeature';
+  game.waterFeatureDraft = { form: 'tiered', finish: 'slate', face: 0 };
+  applyToolAt(6, 6);
+  const id = 'waterfeature-round-trip';
+  await sSet('hortus:world:' + id, buildSaveBlob());
+
+  setup(15, 15);
+  assert(await loadSolo(id), 'the garden loads');
+  const wf = waterFeatureAt(6, 6);
+  assert(wf, 'the fountain is still there');
+  assertEqual(wf.form, 'tiered', 'as the piece it was');
+  assertEqual(wf.finish, 'slate', 'in the finish it was');
+  assertEqual(game.waterFeatureDraft.form, 'tiered', 'and the brush comes back with it');
+
+  // a garden saved before the layer existed loads with an empty one, not undefined
+  const legacy = 'waterfeature-legacy';
+  await sSet('hortus:world:' + legacy,
+    { v: SAVE_VERSION, gw: 15, gh: 15, name: 'Before water features', plants: {}, bulbs: {} });
+  assert(await loadSolo(legacy), 'the older garden loads');
+  assert(game.waterFeatures && !Object.keys(game.waterFeatures).length,
+    'with an empty layer rather than an undefined one');
+  assertEqual(waterFeatureAt(6, 6), null, 'and nothing standing in it');
+
+  await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
 });

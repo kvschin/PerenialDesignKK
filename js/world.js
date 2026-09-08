@@ -162,6 +162,7 @@ const game = {
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
+  waterFeatures:{},   // "x,y" origin -> {form,finish,face,t} or {removed:true,t}
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
@@ -214,6 +215,7 @@ const game = {
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
+  waterFeatureDraft:{form:'birdbath',finish:'stone',face:0}, // settings for the next water feature
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
   petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
@@ -255,6 +257,7 @@ const GAME_LAYERS=[
   {k:'fences'},
   {k:'lights'},
   {k:'firepits'},
+  {k:'waterFeatures'},
   {k:'boulders'},
   {k:'pets'},
   {k:'pots'},
@@ -382,6 +385,7 @@ const LAYER_CACHES={
   fences:    {scene:1},
   lights:    {scene:1},
   firepits:  {scene:1},
+  waterFeatures: {scene:1},   // one sprite in the depth pass, like a fire pit
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   /* `pots` names its own revision for the same reason `plants` does: potIndex()
@@ -666,6 +670,7 @@ function canPlaceShrubAt(x,y,np,opts){
     if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
     if (lightAt(xx,yy)) return {ok:false, reason:'light'};
     if (firepitAt(xx,yy)) return {ok:false, reason:'firepit'};
+    if (waterFeatureAt(xx,yy)) return {ok:false, reason:'water feature'};
     if (boulderAt(xx,yy)) return {ok:false, reason:'boulder'};
     const terr=tileTerrain(xx,yy);
     if (terr==='path'||terr==='water') return {ok:false, reason:terr};

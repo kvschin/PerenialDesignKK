@@ -2347,6 +2347,62 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
     SUNKEN area shows no face and therefore takes no wall.
 
+12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
+    pond, river and lake are AREAS: you paint them, they shelve from a bank, and
+    until 0.8.71 they were the only water the app could draw. The water that
+    makes a garden is usually an OBJECT — a birdbath, a bubbling urn, a basin at
+    the end of a path — and that is the argument seating was added on, one
+    system over: you plant toward the view from a bench, and a water feature is
+    what a path leads TO.
+    Eight pieces: birdbath, bubbling urn, bubbling millstone, tiered fountain,
+    stone water basin (tsukubai), wall spout and trough, stock tank pool, and a
+    reflecting basin. **`form` names the drawing branch** the way a plant names
+    its `form` and a fence its `infill`; `water` names how the water reads
+    (still / welling / falling); `bed:true` puts the vessel on a gravel
+    reservoir, which is what a modern bubbler actually is — no open water, which
+    is exactly why those two are the ones that go into a garden with small
+    children in it.
+    **Structurally it is the fire pit**, deliberately: an origin tile, a claimed
+    rectangle, its own Hardscape sub-page, and a mutual refusal with everything
+    else that stands on ground. The two are siblings — the built focal points —
+    and they sit next to each other in the tray for that reason.
+    **The DRAWING is the container idiom, not the fire pit's.** Real inches
+    through `feetToPx`, and a round vessel described by a PROFILE — `waist`,
+    `belly`, `foot`, the `drawPotArt` grammar — so a birdbath and a bubbling urn
+    are two sets of numbers rather than two branches. That matters because these
+    are objects whose HEIGHT is their character: a birdbath is 34 inches to the
+    rim and a millstone is nine, and deriving everything from the footprint (as
+    the fire pit does) cannot say that. The profile trick is REUSED rather than
+    extracted, so pots stay byte-identical; the root-2 note in `drawPotArt`
+    applies here too, and dropping it draws barrels.
+    **Nothing here animates, and that is a hard constraint.** Every structure
+    goes through `SSPRITE`, whose key carries no time, so a fountain that moved
+    would freeze at whatever frame it was baked on — the note §11's cache ends
+    on, now with a second occupant. The splash is SEEDED and still, exactly as
+    the fire pit's flames are, and the fire pit is the precedent that this reads
+    fine. `drawWaterFeature` is in the "takes no `t`, no `sway`" test alongside
+    the other eight structure painters.
+    Verified with `verifyStructureSprites({rot:true})` across all 21
+    form/finish combinations at four rotations: **0.146-0.178% differing**,
+    which is the fence's band (0.15%) and far under the ~1.27% procedural-vs-
+    procedural control, with **no sprite drawing to its own border**. The key
+    carries `tileSeed` like a boulder's, because the gravel bed and the ripple
+    jitter are seeded off the tile.
+    Two decisions worth not re-litigating. **Water TERRAIN refuses it** — a
+    fountain standing in a pond is a real and lovely thing and this deliberately
+    does not do it, because the drawing would have to know it was in water (no
+    plinth, ripples against the rim rather than a shadow on grass) and half of
+    that is worse than a clean refusal; it is the obvious follow-up. And **a
+    form's `finishes` list is ordered by the FORM, not by `WATER_FINISHES`**:
+    filtering the global table instead defaulted a stock tank to corten, because
+    corten sits earlier there than galvanised, which is the one finish a stock
+    tank is made in. `waterFinishFor` snaps rather than resets when the form
+    changes, the way `fenceHeightFor` does.
+    Unlike the garden pets these DO reach the client documents — somebody buys
+    one and somebody installs it, the same reason containers and seating do: a
+    line on the planting list naming the finish, and concentric rings on the
+    plan, which is the standing convention for water on a drawn sheet.
+
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
@@ -2705,14 +2761,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
     rectangular, and oblong footprints, block planting, render through
     `drawBoulder`, and export to the design plan.
-    Fire pits and boulders erase as Landscape, move/rotate/copy in selections,
-    and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
+    Plus **water features** (§12d) — birdbath, bubbling urn, bubbling
+    millstone, tiered fountain, stone water basin, wall spout, stock tank pool
+    and reflecting basin, each in the finishes that piece is really made in,
+    behind their own drill-in beside the fire pit.
+    Fire pits, boulders and water features erase as Landscape, move/rotate/copy
+    in selections, and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
     (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
     stool, bistro set, dining table, picnic table and sun lounger in four
     finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint.
     **Hardscape mixes two tray idioms and seating is the odd one**: fence, fire
-    pit and boulder each collapse to a summary button and hand the whole tray
-    over to their own options behind `game.drill`, while seating stays expanded
+    pit, water feature and boulder each collapse to a summary button and hand
+    the whole tray over to their own options behind `game.drill` (one shared
+    `backBtn` serves all four — it was three byte-identical closures and the
+    fourth was what prompted extracting it), while seating stays expanded
     at the top level (contextual like Ground — the finish and Turn rows unfold
     once one is armed). So the seat section has to carry `!game.drill`, or its
     nine chips hang off the bottom of whichever sub-page you opened, underneath
