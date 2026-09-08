@@ -2398,6 +2398,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     corten sits earlier there than galvanised, which is the one finish a stock
     tank is made in. `waterFinishFor` snaps rather than resets when the form
     changes, the way `fenceHeightFor` does.
+    **The chip paints through `drawWaterFeatureArt`, not `drawWaterFeature`** —
+    the split `drawPot`/`drawSeat` already make, and for the reason their
+    comment gives: one painter for the garden and the tray, so a chip cannot
+    advertise a basin the canvas does not draw. `drawWaterFeature` positions
+    itself with `screenOf`, which reads the live CAMERA, so the first cut drew
+    all eight chips hundreds of pixels off a 48x44 canvas — every one blank
+    while the tray still reported the right labels, which is exactly why
+    checking `textContent` proved nothing. The chip scale is a CAP each piece
+    shrinks below if it would not fit: the cap alone ran the stock tank 9px off
+    one edge and 8px off the other, and the basin pool 12 and 11.
+    **And the ground centre must be `groundCenterRot`.** `groundCenterOf`
+    offsets a footprint by the rot-0 screen direction, so a multi-tile piece
+    drifts as the camera turns — 152px for the 4x4 stock tank at rot2, clean
+    outside its own sprite box, which `verifyStructureSprites` reported as a
+    1.06% diff where every 1x1 piece sat at 0.01%. The four footprint CORNERS
+    are the other trap and the one §10 documents: that lattice rotates
+    differently and agrees with the tile lattice only at rot 0, which is why
+    the first cut looked right. Averaging the two extreme TILE centres through
+    `screenOf` is correct everywhere; measured, the corner form is a full
+    `TILE_H` out in y at rot 2. After: 0.001-0.042% at every rotation.
+    (`drawPot` and `drawSeat` still use `groundCenterOf`, so their multi-tile
+    cases — the troughs, the benches, the picnic table — have the same latent
+    drift; it has never been chased.)
     Unlike the garden pets these DO reach the client documents — somebody buys
     one and somebody installs it, the same reason containers and seating do: a
     line on the planting list naming the finish, and concentric rings on the

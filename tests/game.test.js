@@ -10546,3 +10546,80 @@ test('a water feature survives a save, and an older garden simply has none', asy
 
   await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
 });
+
+test('a water feature sits on its footprint at every rotation', () => {
+  /* groundCenterOf offsets by ((w-1)-(h-1))*TILE_W/4 — the rot-0 screen
+     direction — so a multi-tile piece drifts as the camera turns: the 4x4 stock
+     tank came out 152px off at rot2, outside its own sprite box, which
+     verifyStructureSprites saw as a 1.06% diff where every 1x1 piece sat at
+     0.01%. And the four footprint CORNERS are the other trap, the one §10
+     documents: the corner lattice rotates differently and agrees with the tile
+     lattice only at rot 0, which is why the first cut looked right. */
+  setup(21, 21);
+  const was = game.rot;
+  try {
+    for (const [w, h] of [[1,1],[2,2],[4,2],[4,4]]) {
+      for (const rot of [0,1,2,3]) {
+        game.rot = rot;
+        const got = groundCenterRot(6, 6, {w,h}, 800, 600);
+        // the honest answer: the mean of the footprint's TILE centres
+        let sx=0, sy=0, n=0;
+        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++){
+          const p = screenOf(6+dx, 6+dy, 800, 600);
+          sx += p[0]; sy += p[1] + TILE_H/2; n++;
+        }
+        const want = [sx/n, sy/n];
+        assert(Math.abs(got[0]-want[0]) < 0.001 && Math.abs(got[1]-want[1]) < 0.001,
+          `${w}x${h} at rot${rot} centres on its own tiles (got ${got.map(Math.round)}, want ${want.map(Math.round)})`);
+      }
+    }
+    // and the corner-lattice form really does disagree away from rot 0 — the
+    // negative control, without which the above passes on a rot-0-only bug
+    game.rot = 0;
+    const flat = polyCenter(footprintScreenPoly(800, 600, 6, 6, {w:4,h:4}, 1));
+    assert(Math.abs(flat[0]-groundCenterRot(6,6,{w:4,h:4},800,600)[0]) < 0.001,
+      'the corner form agrees at rot 0, which is why it looked right');
+    game.rot = 2;
+    const turned = polyCenter(footprintScreenPoly(800, 600, 6, 6, {w:4,h:4}, 1));
+    /* screenOf is affine, so the corner mean is screenOf(x+w/2) while the tile
+       mean is screenOf(x+(w-1)/2)+TILE_H/2 — they differ by exactly one TILE_H
+       in y at rot 2, and by nothing at rot 0. That is the whole trap in one
+       number: half a tile, invisible until the camera turns. */
+    assertEqual(Math.round(turned[1]-groundCenterRot(6,6,{w:4,h:4},800,600)[1]), -TILE_H,
+      'and is a full tile out at rot 2 — the corner lattice, not the tile lattice');
+  } finally { game.rot = was; }
+
+  /* And the drawing has to actually USE it. Testing the helper alone leaves the
+     call site free to go back to groundCenterOf — 'somewhere in js/ gets this
+     right' is not enough, the same reason the tour test reads the real function
+     behind each step. */
+  const world = String(drawWaterFeature);
+  assert(world.includes('groundCenterRot('), 'drawWaterFeature centres through groundCenterRot');
+  assert(!world.includes('groundCenterOf('), 'and not through the rot-0 formula');
+});
+
+test('the water feature chip paints through the art function, not the world one', () => {
+  /* Every chip was BLANK and the tray still reported the right labels, which is
+     why reading textContent proved nothing. drawWaterFeature positions itself
+     with screenOf — it reads the live CAMERA — so on a 48x44 chip all eight
+     pieces drew hundreds of pixels off the canvas. drawPot and drawSeat already
+     split an ART function taking an explicit ground point for exactly this, and
+     the sandbox has no pixels (docs/test-sandbox.md), so this pins the seam. */
+  const src = readRepoFile('js/tray.js');
+  const mini = src.slice(src.indexOf('const miniWater='), src.indexOf('const choose=patch=>'));
+  assert(/drawWaterFeatureArt\(/.test(mini), 'the chip calls drawWaterFeatureArt');
+  assert(!/[^A-Za-z]drawWaterFeature\(/.test(mini),
+    'and never the camera-positioned drawWaterFeature');
+
+  // the art function takes a ground point; the world one takes a tile
+  const artArgs = String(drawWaterFeatureArt).slice(0, String(drawWaterFeatureArt).indexOf(')')).split('(')[1];
+  assert(/cx\s*,\s*cy/.test(artArgs), 'drawWaterFeatureArt takes an explicit ground point (' + artArgs + ')');
+  const worldArgs = String(drawWaterFeature).slice(0, String(drawWaterFeature).indexOf(')')).split('(')[1];
+  assert(/W\s*,\s*H/.test(worldArgs), 'drawWaterFeature takes the canvas and a tile (' + worldArgs + ')');
+
+  // the same rule the pot and seat chips already follow
+  for (const m of ['miniPot', 'miniWater'])
+    assert(src.indexOf(m) > 0, m + ' exists');
+  const pot = src.slice(src.indexOf('const miniPot='), src.indexOf('const miniPot=') + 400);
+  assert(/drawPotArt\(/.test(pot), 'miniPot is the precedent — it paints through drawPotArt');
+});

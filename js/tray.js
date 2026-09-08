@@ -2982,18 +2982,32 @@ function buildToolTrayInner(){
     const wd=waterFeatureDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    /* The chip paints through drawWaterFeature itself, so it cannot advertise a
-       basin the canvas does not draw — the fencePanel rule. It is scaled to the
-       chip rather than redrawn small: these differ by HEIGHT more than by plan
-       shape, and a top-down mini would make a birdbath and a millstone the
-       same picture. */
+    /* Through drawWaterFeatureART, not drawWaterFeature: the latter positions
+       itself with screenOf, which reads the live camera, so on a 48x44 chip
+       every piece drew hundreds of pixels off the canvas. Same seam and same
+       reason as miniPot — one painter for the garden and the chip, so a chip
+       cannot advertise a basin the canvas does not draw.
+       ONE cap for every chip, so a 34in birdbath and a 9in millstone are not
+       normalised into the same picture — miniPot's rule, and here height and
+       width are most of what tells these apart. But the cap ALONE clipped the
+       two big ground pieces badly: measured against the 48x44 chip, the stock
+       tank ran 9px off the left and 8px off the right and the basin pool 12 and
+       11, with both 6-7px below the floor. So the cap is a MAXIMUM and each
+       piece shrinks below it if it would not fit. The six small and medium
+       pieces all sit at the cap and so still read relatively; only the two that
+       cannot fit give that up, which is the right thing to trade for a chip you
+       can recognise. The seed is fixed so a chip does not reshuffle its gravel
+       on every rebuild. */
+    const wfChipScale=spec=>{
+      const wPx=inchesToTiles(spec.wIn)*Math.SQRT2*TILE_W*(spec.bed?1.32:1.06);
+      const hPx=feetToPx(spec.hIn/12)+inchesToTiles(spec.dIn)*Math.SQRT2*TILE_H*0.62;
+      return Math.min(0.31, 44/wPx, 38/hPx);
+    };
     const miniWater=(tc,d)=>{
       d=normalizeWaterFeatureDraft(d);
-      const spec=waterFeature(d.form);
-      const tall=feetToPx(spec.hIn/12)+TILE_H*1.5;
-      const k=Math.min(1, 34/Math.max(28,tall), 40/Math.max(30,inchesToTiles(spec.wIn)*TILE_W*0.9));
-      tc.save(); tc.translate(24,40); tc.scale(k,k); tc.translate(-24,-40);
-      drawWaterFeature(tc,48,80,'Summer',Object.assign({},d,{face:0}),0,0);
+      const k=wfChipScale(waterFeature(d.form));
+      tc.save(); tc.translate(24,33); tc.scale(k,k);
+      drawWaterFeatureArt(tc,0,0,Object.assign({},d,{face:0}),'Summer',ISO_AXES_FLAT,0x5eed);
       tc.restore();
     };
     const choose=patch=>{
@@ -3023,7 +3037,7 @@ function buildToolTrayInner(){
       b.dataset.k='waterfeature';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniWater(c.getContext('2d'),wd);
-      const sp=document.createElement('span'); sp.textContent='Water';
+      const sp=document.createElement('span'); sp.textContent='Water Feature';
       b.append(c,sp);
       b.title=`Water feature: ${waterFeatureLabel()}. Open to choose the piece and its finish.`;
       b.onclick=()=>{ setTool('waterfeature',null); game.drill='waterfeature';

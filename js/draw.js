@@ -6229,13 +6229,39 @@ function waterVessel(ctx,cx,cy,rx,ry,hh,prof,fin){
   ctx.beginPath(); ctx.ellipse(cx,topY,trx,tryy,0,0,7); ctx.fill();
   return {topY, trx, tryy};
 }
+/* Split the way drawPot and drawSeat are, and for the reason their comment
+   gives: the garden and the tray chip have to paint through ONE function, or
+   the chip advertises something the canvas does not draw (the fencePanel rule).
+   Positioning from screenOf is what a chip cannot do — it reads the live
+   CAMERA, so on a 48x44 chip every piece landed hundreds of pixels off it and
+   all eight drew nothing at all. */
+/* The ground centre of a footprint, correct at EVERY rotation. groundCenterOf
+   offsets by ((w-1)-(h-1))*TILE_W/4, which is the rot-0 screen direction, so a
+   multi-tile piece drifts as the camera turns — measured 152px for the 4x4
+   stock tank at rot2, which put it clean outside its own sprite box and showed
+   up as a 1.06% sprite-vs-procedural diff where every 1x1 piece was at 0.01%.
+   Averaging the two extreme TILE CENTRES through screenOf is rotation-correct
+   because screenOf rotates tile indices. Deliberately NOT the four footprint
+   CORNERS: that is the tile-corner lattice, which rotates differently and is
+   right only at rot 0 (see the cornerToView note in the iso-math section). */
+function groundCenterRot(x,y,sz,W,H){
+  const a=screenOf(x,y,W,H), b=screenOf(x+((sz&&sz.w)||1)-1,y+((sz&&sz.h)||1)-1,W,H);
+  return [(a[0]+b[0])/2,(a[1]+b[1])/2+TILE_H/2];
+}
 function drawWaterFeature(ctx,W,H,season,wf,x,y){
+  if (!wf) return;
+  const d=normalizeWaterFeatureDraft(wf);
+  const [cx,cy]=groundCenterRot(x,y,waterFeatureTileSize(d),W,H);
+  // isoAxes(), not ISO_AXES_FLAT: the spout and the basin are rectilinear, so
+  // they have to turn with the camera the way a bench does.
+  drawWaterFeatureArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
+}
+function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed){
+  if (!wf) return;
+  season=season||'Summer';
   const d=normalizeWaterFeatureDraft(wf), spec=waterFeature(d.form), fin=waterFinish(d.finish);
-  const sz=waterFeatureTileSize(d);
-  const foot=footprintScreenPoly(W,H,x,y,sz,1), c=polyCenter(foot);
-  const cx=c[0], cy=c[1];
-  const [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face);
-  const rs=mulberry(tileSeed(x,y)^0x77a7);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const rs=mulberry(((seed||0)^0x77a7)>>>0);
   const wc=waterFeatureWater(season,spec.form);
   // A world circle of radius r projects to semi-axes r*root2*TILE_W/2: the
   // root2 is the tile DIAGONAL the diamond width spans, and dropping it is what
