@@ -187,6 +187,15 @@ See §13a.
   the cull then rejects all but a handful of plants — that environment reported a
   confident 43MB and 31ms/frame for a garden that really measures 1.65ms. A
   plausible wrong number is worse than none.
+- `node dev/wash-verify.cjs` proves a `SEASON_WASH.mode` change costs less and
+  looks the same, by driving the REAL app in system Firefox AND Chrome (a
+  throwaway profile each, service worker disabled in the served markup) and
+  diffing whole frames. Its bar is a CONTROL — the same mode photographed twice
+  — not zero: a GPU canvas is not bit-deterministic, so Chrome's own control is
+  18% of pixels at ±3/255 and an arm at or under that is the same picture drawn
+  again. Decide on the FRAME column; the per-pass one flushes between fills,
+  which is free in software and stalls a GPU pipeline. Freeze `t` if you extend
+  it — `render` derives the wind `sway` from its timestamp.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
@@ -1732,10 +1741,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     All six are a pure function of `(season, canvas size)`.
     **`SEASON_WASH.mode` picks how that is exploited — `'live'` rebuilds the
     gradients every frame in draw units (the original), `'cached'` builds them
-    once in DEVICE pixels and still paints with `fillRect`.** Both are verified
-    **pixel-identical** (0 differing bytes of 5,143,480 across four seasons,
-    both passes, the light pass diffed over a noisy backdrop so the `screen`
-    blend was exercised). Switch at runtime from the console. A third mode,
+    once in DEVICE pixels and still paints with `fillRect`, and `'surface'` —
+    the SHIPPED default — additionally pre-renders the two RADIAL washes to
+    bitmaps and blits them.**
+    **The radial is the one wash idiom with no accelerated path in Firefox**, and
+    that is worth more than the whole `live`→`cached` fix on a machine without
+    canvas acceleration. Measured in Firefox 155 at 2130x973: one full-screen
+    radial fill is **12ms**, against 2ms for a linear gradient, 2ms for a flat
+    fill and 2ms for THREE HUNDRED AND THIRTY sprite blits. A Gecko profile of a
+    real session put **57.6% of the content process's CPU in Skia's software
+    raster pipeline** — 51.8% of it under `drawPlantMaybeCached`, 23.0% under
+    `applySeasonLighting` and 23.0% under `drawSeasonSky`. Those last two fill
+    exactly two radials a frame (the sun and the vignette), which is why that
+    HUD read `sky 9.18ms` and `light 9.18ms`, identical to two decimals.
+    Firefox's accelerated canvas (`DrawTargetWebgl`) has a
+    `LinearGradientToSurface` and no radial equivalent, so the fill falls back to
+    `DrawTargetSkia`. Only the RADIALS are baked: the linear washes measured the
+    same as a flat fill, so baking those trades a cheap fill for a blit.
+    Verified by **`node dev/wash-verify.cjs`**, three runs, both engines, against
+    a control of the same mode photographed twice — Firefox control 0% and
+    surface **0%, byte-identical**, frame **8.08ms → 1.42ms (5.7x)**; Chrome
+    control 18.1% at max 3/255 (GPU rasteriser noise) and surface 14.0% at max
+    **1/255, quieter than its own control**, frame 4.23ms → 3.76ms. Faster on
+    both, visible to nobody. **Read the FRAME column, never the per-pass one**:
+    flushing between fills is free on a software canvas and stalls the pipeline
+    on a GPU one, and that artifact is precisely what made the earlier `baked`
+    attempt read as a Chrome regression. A DOWNSCALED bake was built and measured
+    beside it and is **not** shipped: 1.42ms → 1.33ms for a real 2/255 error over
+    2.5% of the picture. Note the night path (`duskGradients`) still fills two
+    more radials — a moon and its own vignette — and at night runs IN ADDITION to
+    `applySeasonLighting`, so it is the obvious next application of this.
+    The verifier's own trap, which cost a wrong answer first: `render(t)` derives
+    `sway` from its timestamp and shears every plant blit by it, so photographing
+    two frames at `performance.now()` put the CONTROL at 26% of pixels differing
+    and made every comparison unreadable. One frozen `t` for every arm.
+    `'live'` and `'cached'` were verified **pixel-identical** against each
+    other (0 differing bytes of 5,143,480 across four seasons, both passes,
+    the light pass diffed over a noisy backdrop so the `screen` blend was
+    exercised). Switch between all three at runtime from the console. A third mode,
     `'baked'` (pre-render each gradient to a canvas-sized bitmap and blit), was
     built, measured, and **removed** — its numbers are kept below so nobody
     rebuilds it. Measured mid-session on one garden (145 plants, 1490×863):

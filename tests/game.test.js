@@ -6978,9 +6978,11 @@ test('a backgrounded tab resuming is counted as a suspend, not as jank', () => {
 
 test('the season wash caches its gradients on device pixels, never on zoom', () => {
   const was = SEASON_WASH.mode;
-  assert(['live', 'cached'].indexOf(was) >= 0, 'the shipped mode is one of the two');
+  assert(['live', 'cached', 'surface'].indexOf(was) >= 0, 'the shipped mode is one of the three');
   assertEqual(typeof seasonSkyBake, 'undefined',
-    "the 'baked' path is gone — it was measured slower than both survivors");
+    "the old full-canvas 'baked' path is gone — it was measured slower on Chrome");
+  assertEqual(typeof SEASON_WASH.surfScale, 'undefined',
+    'the downscaled bake is not shipped: it traded a real 2/255 error for 0.1ms');
 
   washGrad = { key: '' };
   const ctx = document.createElement('canvas').getContext('2d');
@@ -6996,6 +6998,20 @@ test('the season wash caches its gradients on device pixels, never on zoom', () 
      at another zoom lands in the wrong place. This key is correctness, not
      just speed — see the season-wash note in world.js. */
   assert(washGrad.key.indexOf('801x600') >= 0, 'the key carries the device size, not the camera');
+
+  /* 'surface' bakes the two RADIAL washes to bitmaps, because a radial fill is
+     the one wash idiom with no accelerated path in Firefox: measured there, one
+     costs 12ms against 2ms for a linear gradient and 2ms for 330 sprite blits,
+     and a real profile put 46% of the content process's software rasterising
+     under these two functions. It must key exactly as the gradients do — same
+     reason, since a surface baked for one device size is wrong at another. */
+  washSurf = { key: '' };
+  const s1 = seasonWashSurfaces(800, 600, 'Summer');
+  assert(s1 === seasonWashSurfaces(800, 600, 'Summer'), 'surfaces are built once per season and size');
+  assert(s1 !== seasonWashSurfaces(800, 600, 'Winter'), 'a season change rebuilds them');
+  assert(seasonWashSurfaces(801, 600, 'Winter') !== s1, 'a resize rebuilds them');
+  assert(washSurf.key.indexOf('801x600') >= 0, 'and its key carries the device size too');
+  assert(s1.sun && s1.vg, 'both radials are baked; the linear washes stay direct fills');
 
   SEASON_WASH.mode = was;
 });

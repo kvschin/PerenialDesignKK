@@ -2768,7 +2768,7 @@ function drawWaterTexture(ctx,sx,sy,x,y,tile,amb,inRegion,depthHint){
    'baked' is GONE: a measured loser on both counts, and it carried three
    canvas-sized RGBA bitmaps (~5MB each) to be slower than the two-line fix.
    Its numbers are kept in the table above so nobody rebuilds it. */
-const SEASON_WASH={mode:'cached'};
+const SEASON_WASH={mode:'surface'};
 let washGrad={key:''};
 // gradients built ONCE in device pixels; same geometry as the bakes, no bitmap
 function seasonWashGradients(ctx,cw,ch,season,amb){
@@ -2789,6 +2789,69 @@ function seasonWashGradients(ctx,cw,ch,season,amb){
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,L.vignette);
   washGrad={key,sky,sun,haze,beam,vg};
   return washGrad;
+}
+/* ---- 'surface' mode: the two RADIAL washes pre-rendered to bitmaps ----
+   Measured in Firefox 155 on a 2130x973 canvas, min of 7 rounds: one
+   full-screen radial gradient fill is 12ms, against 2ms for a linear one, 2ms
+   for a flat fill and 2ms for THREE HUNDRED AND THIRTY sprite blits. Firefox's
+   accelerated canvas (DrawTargetWebgl) has no radial path, so the fill falls
+   back to Skia's software raster pipeline; a profile of a real session put
+   57.6% of the content process's CPU in that pipeline, 46% of it under
+   drawSeasonSky and applySeasonLighting — which between them fill exactly two
+   radials a frame, the sun and the vignette. That is the whole of this app's
+   `sky 9.18ms / light 9.18ms` on that machine, identical to two decimals
+   because each pass contains precisely one of them.
+
+   Only the RADIALS are baked. The linear gradients measured the same as a
+   flat fill, so baking those would trade a cheap fill for a blit and buy
+   nothing. This is deliberately NOT the `baked` mode that was built, measured
+   and deleted earlier: that one baked all six washes at full canvas size and
+   lost on Chrome, where a full-canvas drawImage is dearer than the gradient
+   it replaced.
+
+   The bake is EXACT — full canvas size, no resampling. A downscaled bake was
+   built and measured alongside it (the washes are smooth, so half- and
+   quarter-size upscale nearly invisibly) and is not shipped: it bought
+   1.42ms -> 1.33ms a frame on Firefox for a real 2/255 error over 2.5% of the
+   picture, which is the wrong side of that trade and exactly the kind of
+   untested tuning constant this file keeps out.
+
+   Verified by dev/wash-verify.cjs, three runs, both engines, against a control
+   of the same mode photographed twice:
+     Firefox 155  control 0% differing;  surface 0% — literally byte-identical
+                  frame 8.08ms -> 1.42ms   (5.7x)
+     Chrome 152   control 18.1% at max 3/255 (GPU rasteriser noise);
+                  surface 14.0% at max 1/255 — QUIETER than the control
+                  frame 4.23ms -> 3.76ms   (no regression)
+   So it is faster on both and changes nothing anyone can see. Read the frame
+   column, not the per-pass one: flushing between fills is free on a software
+   canvas and stalls the pipeline on a GPU one, which is what made the earlier
+   `baked` attempt look like a Chrome regression. */
+let washSurf={key:''};
+function radialSurface(cw,ch,build){
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(cw)); c.height=Math.max(1,Math.round(ch));
+  const k=c.getContext('2d');
+  k.fillStyle=build(k,c.width,c.height);
+  k.fillRect(0,0,c.width,c.height);
+  return c;
+}
+function seasonWashSurfaces(cw,ch,season){
+  const key=season+'|'+cw+'x'+ch;
+  if (washSurf.key===key) return washSurf;
+  const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
+  const sun=radialSurface(cw,ch,(k,w,h)=>{
+    const g=k.createRadialGradient(w*0.72,h*0.14,0,w*0.72,h*0.14,h*0.9);
+    g.addColorStop(0,L.sun); g.addColorStop(0.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    return g;
+  });
+  const vg=radialSurface(cw,ch,(k,w,h)=>{
+    const g=k.createRadialGradient(w*0.50,h*0.44,Math.min(w,h)*0.20,w*0.50,h*0.44,Math.max(w,h)*0.74);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,L.vignette);
+    return g;
+  });
+  washSurf={key,sun,vg};
+  return washSurf;
 }
 // the whole sky pass — three fills, rebuilt per frame or built once
 function drawSeasonSky(ctx,W,H,season,amb){
@@ -2811,7 +2874,8 @@ function drawSeasonSky(ctx,W,H,season,amb){
   const g=seasonWashGradients(ctx,cw,ch,season,amb);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle=g.sky;  ctx.fillRect(0,0,cw,ch);
-  ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch);
+  if (SEASON_WASH.mode==='surface') ctx.drawImage(seasonWashSurfaces(cw,ch,season).sun,0,0,cw,ch);
+  else { ctx.fillStyle=g.sun;  ctx.fillRect(0,0,cw,ch); }
   ctx.fillStyle=g.haze; ctx.fillRect(0,ch*0.18,cw,ch*0.46);
   ctx.restore();
 }
@@ -2843,7 +2907,8 @@ function applySeasonLighting(ctx,W,H,amb,season){
   ctx.globalCompositeOperation='screen';
   ctx.fillStyle=g.beam; ctx.fillRect(0,0,cw,ch);
   ctx.globalCompositeOperation='source-over';
-  ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
+  if (SEASON_WASH.mode==='surface') ctx.drawImage(seasonWashSurfaces(cw,ch,season).vg,0,0,cw,ch);
+  else { ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch); }
   ctx.restore();
 }
 /* The same three-gradients-a-frame pattern as the day wash, on the night path.
