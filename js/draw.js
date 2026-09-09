@@ -5755,13 +5755,31 @@ function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
    TILE_IN inches across a TILE_W-wide diamond) and HEIGHT from PX_PER_FT, the
    same constant the fences use, so a 34-inch bench back and a 34-inch grass
    arrive at the same height. */
-function groundCenterOf(x,y,sz,W,H){
-  const [ax,ay]=screenOf(x,y,W,H);
-  const w=(sz&&sz.w)||1, h=(sz&&sz.h)||1;
-  // centre of the footprint rectangle, in screen space
-  const cx=ax+((w-1)-(h-1))*TILE_W/4;
-  const cy=ay+TILE_H/2+((w-1)+(h-1))*TILE_H/4;
-  return [cx,cy];
+/* The ground centre of a footprint, correct at EVERY rotation, and the one
+   thing every piece that stands on more than one tile positions itself from.
+   It replaced `groundCenterOf`, which offset by ((w-1)-(h-1))*TILE_W/4 — the
+   rot-0 screen direction — so every multi-tile piece slid off its own
+   footprint as the camera turned. Measured horizontally against the tiles the
+   piece claims: the 6ft bench 114px out at rot2 and rot3, the sun lounger 110
+   at rot1 and rot2, the dining table 114, the picnic table 76, the 54in trough
+   76, and even a 30in pot — which is 2x1, not 1x1 — 38. Every 1x1 piece read 0
+   at every rotation, which is exactly why this survived: the stool, the dining
+   chair and the bistro table were always right, and they are what you reach
+   for first.
+   Averaging the two extreme TILE CENTRES through screenOf is rotation-correct
+   because screenOf rotates tile indices. Deliberately NOT the four footprint
+   CORNERS: that is the tile-corner lattice, which rotates differently and is
+   right only at rot 0 (see the cornerToView note in the iso-math section) —
+   the trap the water features hit first.
+   The sprite cache could not see any of this. Both arms of
+   verifyStructureSprites draw through the same function, so a shared wrong
+   position cancels: pots and seats measured 0.009-0.09% before the fix, well
+   inside the fence's band, because `structDrawBox` pads a seat by 1.7 tiles
+   and the drifted drawing still landed in its own box. A cache diff catches
+   staleness, never a drawing that is confidently in the wrong place. */
+function groundCenterRot(x,y,sz,W,H){
+  const a=screenOf(x,y,W,H), b=screenOf(x+((sz&&sz.w)||1)-1,y+((sz&&sz.h)||1)-1,W,H);
+  return [(a[0]+b[0])/2,(a[1]+b[1])/2+TILE_H/2];
 }
 /* Ground extent, in TILES not pixels. The trap here: the tile diamond is
    TILE_W wide but a tile is TILE_IN inches on a SIDE, so that width spans the
@@ -5830,7 +5848,7 @@ function isoSlab(ctx,cx,cy,ax,ay,hw,hd,hh,col){
    the canvas does not draw (the fencePanel lesson). */
 function drawPot(ctx,W,H,season,pot,x,y){
   if (!pot) return;
-  const [cx,cy]=groundCenterOf(x,y,potTileSize(pot),W,H);
+  const [cx,cy]=groundCenterRot(x,y,potTileSize(pot),W,H);
   drawPotArt(ctx,cx,cy,pot,season,isoAxes());
 }
 function drawPotArt(ctx,cx,cy,pot,season,axes){
@@ -5920,7 +5938,7 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
 }
 function drawSeat(ctx,W,H,season,seat,x,y){
   if (!seat) return;
-  const [cx,cy]=groundCenterOf(x,y,seatTileSize(seat),W,H);
+  const [cx,cy]=groundCenterRot(x,y,seatTileSize(seat),W,H);
   drawSeatArt(ctx,cx,cy,seat,season,isoAxes());
 }
 function drawSeatArt(ctx,cx,cy,seat,season,axes){
@@ -6235,19 +6253,6 @@ function waterVessel(ctx,cx,cy,rx,ry,hh,prof,fin){
    Positioning from screenOf is what a chip cannot do — it reads the live
    CAMERA, so on a 48x44 chip every piece landed hundreds of pixels off it and
    all eight drew nothing at all. */
-/* The ground centre of a footprint, correct at EVERY rotation. groundCenterOf
-   offsets by ((w-1)-(h-1))*TILE_W/4, which is the rot-0 screen direction, so a
-   multi-tile piece drifts as the camera turns — measured 152px for the 4x4
-   stock tank at rot2, which put it clean outside its own sprite box and showed
-   up as a 1.06% sprite-vs-procedural diff where every 1x1 piece was at 0.01%.
-   Averaging the two extreme TILE CENTRES through screenOf is rotation-correct
-   because screenOf rotates tile indices. Deliberately NOT the four footprint
-   CORNERS: that is the tile-corner lattice, which rotates differently and is
-   right only at rot 0 (see the cornerToView note in the iso-math section). */
-function groundCenterRot(x,y,sz,W,H){
-  const a=screenOf(x,y,W,H), b=screenOf(x+((sz&&sz.w)||1)-1,y+((sz&&sz.h)||1)-1,W,H);
-  return [(a[0]+b[0])/2,(a[1]+b[1])/2+TILE_H/2];
-}
 function drawWaterFeature(ctx,W,H,season,wf,x,y){
   if (!wf) return;
   const d=normalizeWaterFeatureDraft(wf);

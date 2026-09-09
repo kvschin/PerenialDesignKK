@@ -2263,6 +2263,26 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     follows the drawing. The tray offers one **Turn** chip rather than four
     compass chips — the chip preview shows the result, and the plot has no fixed
     on-screen north once the view is rotated.
+    **Both position through `groundCenterRot`, and that is not cosmetic.** They
+    used `groundCenterOf`, which offsets a footprint by the rot-0 screen
+    direction, so every piece standing on more than one tile slid off its own
+    footprint as the camera turned. Measured horizontally against the tiles each
+    piece claims: the 6 ft bench **114px** out at rot2 and rot3, the sun lounger
+    110 at rot1 and rot2, the dining table 114, the picnic table 76, the 54in
+    trough 76 — and a 30in pot, which is **2x1 rather than 1x1** in every style,
+    38. Every 1x1 piece read 0 at every rotation, which is why it lasted: the
+    stool, the dining chair and the bistro table were always right, and they are
+    what you reach for first. After: 0-4px everywhere, the residue being the
+    lounger's own recline asymmetry, which reads the same at rot 0.
+    **The sprite cache could not see any of it**, and that is the lesson worth
+    keeping. `verifyStructureSprites` draws both arms through the same function,
+    so a shared wrong position cancels: pots and seats measured 0.009-0.09%
+    before the fix and 0.009-0.09% after, comfortably inside the fence's band,
+    because `structDrawBox` pads a seat by 1.7 tiles and the drifted drawing
+    still landed inside its own box. A cache diff catches STALENESS; it can
+    never catch a drawing that is confidently in the wrong place. What found it
+    was measuring the ink against the tiles the piece claims, at all four
+    rotations — the same probe the water features needed (§12d).
     `isoBox` picks its two visible faces from **the ground corner lowest on
     screen**, not by testing each edge against the centre — the latter drew one,
     three or no faces depending on rotation, which is what turned a sun lounger
@@ -2418,9 +2438,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the first cut looked right. Averaging the two extreme TILE centres through
     `screenOf` is correct everywhere; measured, the corner form is a full
     `TILE_H` out in y at rot 2. After: 0.001-0.042% at every rotation.
-    (`drawPot` and `drawSeat` still use `groundCenterOf`, so their multi-tile
-    cases — the troughs, the benches, the picnic table — have the same latent
-    drift; it has never been chased.)
+    `drawPot` and `drawSeat` had the same bug and were fixed with it in 0.8.73;
+    `groundCenterOf` is deleted, so **`groundCenterRot` is the one helper every
+    piece standing on more than one tile positions itself from** (§12b).
     Unlike the garden pets these DO reach the client documents — somebody buys
     one and somebody installs it, the same reason containers and seating do: a
     line on the planting list naming the finish, and concentric rings on the

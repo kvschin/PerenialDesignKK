@@ -10547,18 +10547,37 @@ test('a water feature survives a save, and an older garden simply has none', asy
   await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
 });
 
-test('a water feature sits on its footprint at every rotation', () => {
-  /* groundCenterOf offsets by ((w-1)-(h-1))*TILE_W/4 — the rot-0 screen
-     direction — so a multi-tile piece drifts as the camera turns: the 4x4 stock
-     tank came out 152px off at rot2, outside its own sprite box, which
-     verifyStructureSprites saw as a 1.06% diff where every 1x1 piece sat at
-     0.01%. And the four footprint CORNERS are the other trap, the one §10
-     documents: the corner lattice rotates differently and agrees with the tile
-     lattice only at rot 0, which is why the first cut looked right. */
+test('every multi-tile piece sits on its footprint at every rotation', () => {
+  /* The retired `groundCenterOf` offset by ((w-1)-(h-1))*TILE_W/4 — the rot-0
+     screen direction — so EVERY piece standing on more than one tile slid off
+     its own footprint as the camera turned. Measured horizontally against the
+     tiles each piece claims: the 6ft bench 114px at rot2 and rot3, the sun
+     lounger 110 at rot1 and rot2, the dining table 114, the picnic table 76,
+     the 54in trough 76, and a 30in pot — which is 2x1, not 1x1 — 38. Every 1x1
+     piece read 0 at every rotation, which is why this lasted: the stool, the
+     dining chair and the bistro table were always right.
+     The four footprint CORNERS are the other trap, the one §10 documents: that
+     lattice rotates differently and agrees with the tile lattice only at rot 0,
+     which is why the first cut of the fix looked right too. */
   setup(21, 21);
   const was = game.rot;
+  /* The real footprints, not invented ones: a size added to SEAT_TYPES or
+     POT_SIZES is then covered without anyone remembering this test exists. */
+  const shapes = [], from = {};
+  from.seats = SEAT_TYPES.map(t => seatTileSize({type:t.id, face:0}));
+  from.pots = [].concat(...POT_STYLES.map(st => potStyleSizes(st.id)
+    .map(sz => potTileSize({style:st.id, size:sz.id, face:0}))));
+  from.water = WATER_FEATURES.map(w => waterFeatureTileSize({form:w.id, face:0}));
+  /* Each catalog has to CONTRIBUTE a multi-tile shape, not merely be listed:
+     without this, deleting one of the three loops leaves the test green on the
+     other two — which is exactly what a mutation run caught it doing. */
+  for (const k of ['seats','pots','water']){
+    assert(from[k].some(s => s.w > 1 || s.h > 1),
+      k + ' contributes at least one multi-tile footprint');
+    from[k].forEach(s => shapes.push([s.w, s.h]));
+  }
   try {
-    for (const [w, h] of [[1,1],[2,2],[4,2],[4,4]]) {
+    for (const [w, h] of shapes) {
       for (const rot of [0,1,2,3]) {
         game.rot = rot;
         const got = groundCenterRot(6, 6, {w,h}, 800, 600);
@@ -10589,13 +10608,21 @@ test('a water feature sits on its footprint at every rotation', () => {
       'and is a full tile out at rot 2 — the corner lattice, not the tile lattice');
   } finally { game.rot = was; }
 
-  /* And the drawing has to actually USE it. Testing the helper alone leaves the
-     call site free to go back to groundCenterOf — 'somewhere in js/ gets this
-     right' is not enough, the same reason the tour test reads the real function
-     behind each step. */
-  const world = String(drawWaterFeature);
-  assert(world.includes('groundCenterRot('), 'drawWaterFeature centres through groundCenterRot');
-  assert(!world.includes('groundCenterOf('), 'and not through the rot-0 formula');
+  /* And every drawing has to actually USE it. Testing the helper alone leaves
+     the call sites free to go back — 'somewhere in js/ gets this right' is not
+     enough, the same reason the tour test reads the real function behind each
+     step. All three entry points position from one helper now. */
+  for (const [name, fn] of [['drawWaterFeature', drawWaterFeature],
+                           ['drawPot', drawPot], ['drawSeat', drawSeat]]) {
+    const src = String(fn);
+    assert(src.includes('groundCenterRot('), name + ' centres through groundCenterRot');
+    assert(!src.includes('groundCenterOf('), name + ' does not use the rot-0 formula');
+  }
+  // and the broken helper is gone rather than sitting there to be picked up again
+  assertEqual(typeof globalThis.groundCenterOf, 'undefined',
+    'groundCenterOf is deleted, not merely unused');
+  assert(!readRepoFile('js/draw.js').includes('function groundCenterOf'),
+    'and its definition is out of the source');
 });
 
 test('the water feature chip paints through the art function, not the world one', () => {
