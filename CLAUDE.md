@@ -3109,7 +3109,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     fill also goes flat grey `#8c867c` while the clock is paused, which design
     mode starts as. **Hold** the box for 360ms to
     fast-forward (`game.ffActive`; the loop adds `FF_RATE` game-ms per real-ms,
-    ~2 garden days/sec): a **masked conic ring** (`.season-box::after`, animated
+    ~2 garden days/sec). **That advance reads REAL elapsed time, capped at
+    `FF_MAX_STEP_MS` (250) — it must not share the frame loop's 50ms `dt`
+    clamp**, which silently made the fast-forward RATE a function of
+    framerate: full speed only while a frame fits in 50ms, and proportionally
+    slower past that. Measured against the intended 2.00 days/sec — 67.88ms
+    frames gave **1.47** (74%), a 169.7ms stall **0.59** (29%), a 552ms one
+    **0.18** (9%) — so a season took 8 seconds on a fast machine and up to a
+    minute and a half on a slow one. It was reported as one heavy garden that
+    "can't fast forward" while every other garden felt fine, which is the
+    shape of a bug that scales with frame cost rather than switching on. The
+    cap stays because a resumed tab hands back one enormous gap; it is just
+    the app's own threshold for that (`dbg.GAP_SUSPEND`) rather than a frame
+    budget, so 4fps and up now runs true and one frame can never jump more
+    than half a garden day: a **masked conic ring** (`.season-box::after`, animated
     through the registered `--hold-sweep` property) traces the hold and the
     calendar line changes to **Fast-forwarding** while it is active. The ring
     takes `border-radius:inherit`, so it always matches the box — it replaced
@@ -3600,7 +3613,16 @@ Footprint rules are intentionally asymmetric:
 | Trees | One hard trunk tile. Canopy area is deliberately open for underplanting except for the separate shade-suitability rule. | Shade, plan circles, placement ghosts, and the Mature Canopies overlay use `woodyRadiusTiles(P)` from `spread`; spacing is a soft warning from `space`. |
 
 `effectiveEstab(p)` is **display-only**: it equals true `plantEstab(p)` in
-normal views and `1` in Design mode's Established preview. Direct consumers
+normal views and `1` in Design mode's Established preview.
+**`previewMode` is saved per garden and is a real performance characteristic,
+not just a view.** Under Established, `displayPlantGrowth` returns a constant
+1, so a clump's sprite growth bucket never moves and fast-forward re-bakes
+almost nothing; under Today it tracks the clock, so every plant's bucket
+churns as time runs. Measured on one 326-plant garden, the same fast-forward
+cost 0.6 bakes/frame established against 1.9 today. Gardens open Established,
+so a garden carrying `today` behaves differently from every other one — and
+because the flag rides the save blob it follows an exported garden to another
+machine, which is what made one garden look individually broken. Direct consumers
 include shade washes/stunting, tree plan circles, and shrub footprint styling;
 related mature ghosts/cards must match the same mature radius/copy contract
 without changing placement rules. Placement legality reads true establishment

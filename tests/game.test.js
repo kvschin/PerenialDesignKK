@@ -10038,6 +10038,37 @@ test('a burst of saves coalesces instead of writing once per call', async()=>{
   cancelGardenAutosave();
 });
 
+test('fast-forward advances at the same rate however slow the frames are', ()=>{
+  /* The rate used to ride the 50ms frame clamp, so it silently degraded in
+     proportion to frame cost: 2.00 garden days a second at 60fps, 1.47 at
+     67.88ms frames, 0.59 through a 169.7ms stall, 0.18 through a 552ms one. A
+     season is 8 seconds on a fast machine and up to 90 on a slow one, which is
+     why it was reported as one garden that `can't fast forward` while every
+     other garden felt fine. The advance reads real elapsed time now, capped
+     only against a resumed tab handing back one enormous gap. */
+  const src=readRepoFile('js/screens.js');
+  const at=src.indexOf('if (game.ffActive){');
+  assert(at>0,'the fast-forward advance is still in frame()');
+  const branch=src.slice(at, at+220);
+  assert(branch.includes('FF_MAX_STEP_MS'),'it caps on its own budget, not the frame clamp');
+  assert(!branch.includes('FF_RATE*dt'),'it no longer multiplies the 50ms-clamped dt');
+
+  // the rate itself, over a second of frames at each speed
+  const perSecond=frameMs=>{
+    const step=Math.min(FF_MAX_STEP_MS,frameMs);
+    return (1000/frameMs)*FF_RATE*step;
+  };
+  const ideal=1000*FF_RATE;
+  for (const ms of [16.7,33,50,67.88,100,169.7,250]){
+    const got=perSecond(ms);
+    assert(Math.abs(got-ideal)<1e-6,
+      `a ${ms}ms frame must still bank ${ideal} game-ms a second, got ${got.toFixed(0)}`);
+  }
+  // and a resumed tab is still bounded to half a garden day in one frame
+  assert(FF_RATE*FF_MAX_STEP_MS <= DAY_MS/2,
+    'one frame may never jump more than half a garden day');
+});
+
 test('holding fast-forward does not write the garden on every day change', ()=>{
   /* Nothing in the model moves while time is held forward — only the clock —
      so an immediate save per day is a whole-garden write twice a second to

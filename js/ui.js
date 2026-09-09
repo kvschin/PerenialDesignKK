@@ -1428,6 +1428,8 @@ function setActButton(){ // the big mobile do-it button, labeled by context
 const SEASON_FILL = { Spring:'#78b74a', Summer:'#2f7d3a', Fall:'#c97f3f', Winter:'#3f6190' };
 // game-ms added per real-ms while holding the season box (~2 garden days/sec)
 const FF_RATE = 40;
+// how much real time one fast-forward frame may bank. See the note in frame().
+const FF_MAX_STEP_MS = 250;
 function clockMeta(){
   const cal=calClock(), sf=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
   return `${cal.season} · ${sf<0.34?'early':sf<0.67?'mid':'late'} season`;

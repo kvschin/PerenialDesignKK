@@ -2538,7 +2538,25 @@ function frame(t){
   const dt=Math.min(50,Math.max(0,rawGap)); prev=t;   // floor 0: a backward t must never rewind FF time
   if (game.inGarden){
     const tFrame=dnow();
-    if (game.ffActive){ game.elapsedMs=(game.elapsedMs||0)+FF_RATE*dt; game.dirty=true; }
+    /* Fast-forward advances by REAL elapsed time, not by the 50ms frame clamp.
+       Sharing that clamp made the fast-forward RATE a function of framerate: it
+       is a fixed FF_RATE ms of garden time per ms of real time only while a
+       frame fits inside 50ms, and past that the gesture silently slows down in
+       proportion. Measured against DAY_MS/FF_RATE = 2.00 game days a second:
+       67.88ms frames gave 1.47 days/s (74%), a 169.7ms stall 0.59 (29%), and a
+       552ms one 0.18 (9%) — so a season is 8 seconds on a fast machine and up
+       to a minute and a half on a slow one. Reported as `I can't fast forward`
+       on one heavy garden while every other garden felt fine, which is exactly
+       the shape of a bug that scales with frame cost rather than switching on.
+       The cap stays, because a resumed tab hands back one enormous gap and
+       nobody wants a year of garden time in a single frame; it is just the
+       app's own threshold for that (dbg.GAP_SUSPEND, 250ms) instead of a frame
+       budget. Anything from 4fps up now fast-forwards at its true rate, and the
+       worst a single frame can jump is FF_RATE*250 = half a garden day. */
+    if (game.ffActive){
+      game.elapsedMs=(game.elapsedMs||0)+FF_RATE*Math.min(FF_MAX_STEP_MS,Math.max(0,rawGap));
+      game.dirty=true;
+    }
     const shouldDraw=shouldRenderGarden(t);
     if (shouldDraw){
       // glass governor samples frame SPACING, but only while the user is
