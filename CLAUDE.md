@@ -1051,10 +1051,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     camera-free screen bounds onto the shrub record. Measured on a quarter acre
     at phone size, **67 passed the old test and 13 were on screen**.
     `verifySceneCull` covers both passes.
-    Two dev-only verifiers hold this up, beside `verifyStructureSprites`:
+    Three dev-only verifiers hold this up, beside `verifyStructureSprites`:
     `measureStructBoxes()` (does every box contain its drawing, at all four
-    rotations) and `verifySceneCull()` (diff the frame against one rendered with
-    the cull disabled). The latter needs three things to be honest, each of
+    rotations), `measureFootprintCentres()` (does a multi-tile piece's INK sit
+    over the tiles it claims — the blind spot the other two share, and the one
+    that has cost three bugs; see §12e) and `verifySceneCull()` (diff the frame
+    against one rendered with the cull disabled). The latter needs three things to be honest, each of
     which cost a wrong answer: both sprite caches pinned OFF (the no-cull arm
     draws ~700 more entities, which perturbs the bake budget and the LRU, so an
     ON-screen plant lands procedural in one arm and blitted in the other — a 1-6
@@ -2446,6 +2448,111 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     line on the planting list naming the finish, and concentric rings on the
     plan, which is the standing convention for water on a drawn sheet.
 
+12e. **Vertical supports + climbers** (`SUPPORT_STYLES`/`SUPPORT_MATERIALS`,
+    `drawSupport`; `type:'vine'`, `form:'climber'`, `climberRenderDetail`) —
+    the catalog had 554 species and, until 0.8.74, **not one plant that goes
+    up**. Everything grew from the ground to its own mature height, so a garden
+    could have a 6ft fence, a house wall and a pergola-shaped gap in the middle
+    of it and nothing to put against any of them. Vertical is the one dimension
+    a small garden has spare, and it is most of what a boundary is FOR.
+    Three frames — **obelisk** (7ft, 1x1), **trellis panel** (6ft, 2x1) and
+    **garden arch** (8ft, 3x1) — in timber, black metal and woven willow, plus
+    the fence the garden already has. `form` names the drawing branch the way a
+    plant names its `form` and a fence its `infill`; each style declares its
+    real `wIn`/`dIn`/`ft` and the materials it is really built in.
+    Structurally it is the fire pit and the water feature: an origin tile, a
+    claimed rectangle, its own Hardscape sub-page behind `game.drill`, and a
+    mutual refusal with everything else standing on ground.
+    **The climber REQUIRES a support, and the rule is symmetric.** A vine in
+    open ground is refused and a support tile refuses everything that is not a
+    vine — three lines in `placePlantAt`, and the second is the one that carries
+    the meaning: an obelisk OCCUPIES its tile, so a coneflower standing inside
+    it is nonsense. That is the container precedent one system over (§12b),
+    where the vessel is what makes paving plantable and `potAt` is the predicate
+    that changes the rules; here `supportAt` is. Lifting a frame takes its
+    climber with it, for the same reason lifting a pot takes its planting: a
+    vine left behind would be standing on ground the placement rule refuses,
+    which an ordinary erase should not be able to reach. A **gate** is
+    deliberately not a support — it swings, and a rose grown across it is a gate
+    nobody opens twice.
+    **A fence is a support and cost nothing to make one.** It already carries a
+    real height in feet (§11d) and a run axis (`fenceRunAxis`), which is exactly
+    what a climber needs to know, so a climbing rose on a 6ft cedar fence — the
+    commonest climber in any garden — needed no new object at all. Walls and
+    pergolas are the obvious follow-ups and are deliberately not here: a wall
+    would need the facing to know which side is exposed, and a pergola is a RUN
+    rather than a piece, which is a different placement idiom.
+    **`climberRenderDetail` is the seam, and it rides the existing one.**
+    `plantRenderDetail` already baked neighbour-derived geometry into the plant
+    sprite key (`kTail`) for hedges and bamboo, so a climber's frame reaches the
+    drawing through a path that was already correct: it returns `{climb, ft}`
+    plus, for anything that runs along a LINE — a fence, a trellis panel, an
+    arch — a unit `axis` **in screen space**, so the foliage turns with the
+    camera; and for an arch a `span` and which `leg` this is. An obelisk gets no
+    axis, because it is symmetric and there is no run to lie along. `ft` is
+    `min(support height, the species' own reach)`, so a climber never draws
+    above its frame — and the branch bounds itself by construction, using the
+    SAME growth ramp `plantDrawBox` uses, because a drawing that can exceed its
+    box is a clipped sprite and clipped sprites are invisible on the procedural
+    path (§11).
+    Two things about the depth, and the second is why the first was not enough.
+    A climber sorts in FRONT of what it climbs: a fence record sits at
+    `viewDepth+0.34` and an ordinary plant at `+0.30`, so a rose on a fence drew
+    BEHIND the panel, visible as a few leaves at its foot. And it is measured
+    against the **frame's footprint**, not its own tile — a piece standing on
+    more than one tile sorts on the far corner of its footprint
+    (`footprintDrawDepth`), so a climber on the near leg of a 2-wide trellis or
+    a 3-wide arch came out a whole tile behind the very thing it climbs. A fence
+    is 1x1, so that case looks fine and hid this until the frames arrived; a
+    test reads both depths off a built scene rather than restating the constants.
+    **A climber has to COVER its frame, and the first cut did not.** The nine
+    species were authored with `leafN` 16-22, by eye against the other forms —
+    where a plant is a compact mound and that is plenty. Spread up a 7ft
+    obelisk the same glyph budget reads as a few leaves on a stick. Measured by
+    ablation (render with the climbers, render without, diff, and count the
+    climber's own ink inside the frame's screen rect): **18.4% of the obelisk,
+    14.3% of the trellis and 17.2% of the arch**. At 3x — 48-66, the fern range
+    — it is **28.3 / 22.2 / 29.0%**, and the coverage is distributed up the
+    frame rather than pooled at its foot. Those are shares of a BOUNDING BOX
+    around a frame that is mostly open air, so ~25% is "covered but you can see
+    through it", which is what a climber on a lattice should look like.
+    `h:100` on every climber is the other half of the same fix: `plantVisualH`
+    puts that at 175px, and `feetToPx(8)` — the arch — is 168, so a climber is
+    drawn tall enough for the tallest frame it can be offered. A test pins that
+    against `SUPPORT_STYLES` rather than a literal, so a taller frame added
+    later fails loudly instead of quietly clipping.
+    **Verification, and a gap it closed.** `verifyStructureSprites({rot:true})`
+    puts supports at 0.48-0.79% of canvas pixels differing at the four
+    rotations, with **no sprite drawing to its own border** — high against the
+    fence's 0.005% and low against the ~1.27% procedural-vs-procedural control,
+    and the reason is the shape rather than a stale key: a support is almost
+    entirely THIN MEMBERS on open sky, so its antialiased edge is most of its
+    ink where a fence panel's is a rim around a fill. Normalised against the
+    supports' own ink on one scene, the cached arm differs by **15.6%** and the
+    procedural control by **66.5%** — the cache is four times tighter than the
+    noise floor for this kind of drawing.
+    `measureStructBoxes` gained a SUPPORT case (mutation-tested: shortening the
+    box to 3ft reports 144 escaping cases, the real box reports 0). But it
+    **cannot see a mis-centred multi-tile piece** — `pad` is deliberately wide
+    enough that a whole tile of drift still fits — and neither can
+    `verifyStructureSprites`, whose two arms draw through the same function so a
+    shared wrong position cancels. That blind spot has now cost three bugs
+    (§12b, §12d, and this one, caught by mutating it), so
+    **`measureFootprintCentres()`** is the fourth verifier: draw each multi-tile
+    piece alone and compare its ink's mid-x to the tiles it claims, at all four
+    rotations. 400 cases, worst 4.5px — the sun lounger, which honestly reclines
+    at one end — against 19.5px (trellis) and 38.5px (arch) for a deliberately
+    mis-centred support, which is where the 6px flag comes from.
+    **The species.** Nine climbers, `type:'vine'` (an eighth `type`, added to
+    the tests' allowlist) and `form:'climber'`: Virginia creeper, trumpet
+    honeysuckle, crossvine, American wisteria, Italian clematis, climbing
+    hydrangea, climbing rose, golden hops and star jasmine — natives and the
+    garden staples, in a **Climbers** plant category. They browse and search
+    like anything else and are eligible under the same `plantFits` gate; nothing
+    about the catalog needed a special case. Like containers and seating they
+    DO reach the client documents: the frame is a line on the planting list
+    naming its material, and the climber is an ordinary plant on it.
+
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
@@ -2723,7 +2830,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     from when it was a direct child of `#trayTabs`; inside the nav an
     unshrinkable 100% basis overflows the gutters, so it is `flex:1 1 auto`. The
     plant categories are Grasses, Sedges, Sun Perennials,
-    Shade Perennials, Bulbs, Water Plants, Shrubs, and Trees; Landscape categories
+    Shade Perennials, Bulbs, Water Plants, Climbers (§12e), Shrubs, and Trees;
+    Landscape categories
     are Ground, Grade, Hardscape, Lighting, Decor, and Site. `#toolTray` is the primary
     scroller so the header, discovery controls, and footer stay visible; below
     `max-height:700px` the control stack becomes a scroller too, because
@@ -2814,10 +2922,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     stool, bistro set, dining table, picnic table and sun lounger in four
     finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint.
     **Hardscape mixes two tray idioms and seating is the odd one**: fence, fire
-    pit, water feature and boulder each collapse to a summary button and hand
-    the whole tray over to their own options behind `game.drill` (one shared
-    `backBtn` serves all four — it was three byte-identical closures and the
-    fourth was what prompted extracting it), while seating stays expanded
+    pit, water feature, support (§12e) and boulder each collapse to a summary
+    button and hand the whole tray over to their own options behind
+    `game.drill` (one shared `backBtn` serves all five — it was three
+    byte-identical closures and the fourth was what prompted extracting it),
+    while seating stays expanded
     at the top level (contextual like Ground — the finish and Turn rows unfold
     once one is armed). So the seat section has to carry `!game.drill`, or its
     nine chips hang off the bottom of whichever sub-page you opened, underneath
@@ -3277,7 +3386,9 @@ key: {
 
 `drawPlant` uses `form`/`h`/`cw`/`sea`/`stem`; planner/rules features use
 `type`/`space`/`spread`/`grow` plus the site data. Valid `type` values are
-`grass`, `sedge`, `forb`, `bulb`, `water`, `shrub`, and `tree`. Per-season keys:
+`grass`, `sedge`, `forb`, `bulb`, `water`, `shrub`, `tree`, and `vine` (§12e —
+a climber, which is the one type that may not be planted without a support).
+Per-season keys:
 `fol` (foliage), `folTip` (optional contrasting last third of a grass blade),
 `bloom` (flower this season, omit for none), `seed` (seedhead/structure —
 present in fall/winter is what makes it Oudolf), `panicle` (optional branch
@@ -3428,7 +3539,8 @@ Sedge alone uses `sedgeHabit:'palm'`; shared `seedStyle` values (`mace`, `brush`
 `pendant`) communicate distinctive fruit without bespoke image assets.
 
 **European garden additions (0.8.58):** ten base records and four nested
-cultivars bring the catalog to 545 base records / 381 nested choices. Exact
+cultivars brought the catalog to 545 base records / 381 nested choices; the
+nine climbers of 0.8.74 (§12e) take it to 554. Exact
 selections of feather reed grass, asters, Sesleria, and masterwort share
 presentation groups; 'Overdam' and hybrid Astrantia 'Roma' retain their own
 botanical records. Helenium 'Sahin's Early Flowerer' has explicit hybrid

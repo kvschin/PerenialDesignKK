@@ -1351,6 +1351,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
     case SCENE_K.LIGHT:   drawLightFixture(ctx,W,H,season,e.l,e.x,e.y,lit); return;
     case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y); return;
     case SCENE_K.WATERF:  drawWaterFeature(ctx,W,H,season,e.wf,e.x,e.y); return;
+    case SCENE_K.SUPPORT: drawSupport(ctx,W,H,season,e.sp,e.x,e.y); return;
     case SCENE_K.BOULDER: drawBoulder(ctx,W,H,season,e.b,e.x,e.y); return;
     case SCENE_K.PET:{
       const [sx,sy]=screenOf(e.x,e.y,W,H);
@@ -1418,6 +1419,11 @@ function structDrawBox(e){
       // wall spout's backboard are what the pad has to cover sideways
       const sz=waterFeatureTileSize(e.wf);
       return {w:sz.w, h:sz.h, up:feetToPx(70/12)+30, pad:TILE_W*0.9, down:34};
+    }
+    case SCENE_K.SUPPORT:{
+      // the tallest is the 8ft arch, and an arch's curve reaches wide of its legs
+      const sz=supportTileSize(e.sp);
+      return {w:sz.w, h:sz.h, up:feetToPx(9)+24, pad:TILE_W*0.8, down:22};
     }
     case SCENE_K.PET:   return {w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
     case SCENE_K.LIGHT: return {w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
@@ -1490,6 +1496,9 @@ function computeStructSpriteSpec(e){
     case SCENE_K.WATERF:
       // the gravel bed and the ripples are seeded off the tile, like a boulder's shape
       return Object.assign({key:'W|'+structRecordSig(e.wf)+'|'+tileSeed(e.x,e.y)}, box);
+    case SCENE_K.SUPPORT:
+      // the willow weave is seeded off the tile; timber and metal are not
+      return Object.assign({key:'V|'+structRecordSig(e.sp)+'|'+tileSeed(e.x,e.y)}, box);
     case SCENE_K.PET:
       return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
@@ -1633,6 +1642,10 @@ function measureStructBoxes(){
     cases.push({name:'WATERF:'+w.id+'/'+fin.id+'/f'+f, kind:SCENE_K.WATERF, field:'wf',
       rec:{form:w.id,finish:fin.id,face:f,t:1},
       size:s=>waterFeatureTileSize(s), draw:(c,s)=>drawWaterFeature(c,W,H,season,s,x,y)});
+  for (const sp of SUPPORT_STYLES) for (const m of sp.materials) for (let f=0;f<4;f++)
+    cases.push({name:'SUPPORT:'+sp.id+'/'+m+'/f'+f, kind:SCENE_K.SUPPORT, field:'sp',
+      rec:{style:sp.id,mat:m,face:f,t:1},
+      size:s=>supportTileSize(s), draw:(c,s)=>drawSupport(c,W,H,season,s,x,y)});
   for (const fs of FENCE_STYLES) for (const h of fenceStyleHeights(fs.id))
     cases.push({name:'FENCE:'+fs.id+'/'+h, kind:SCENE_K.FENCE, field:'f', rec:{style:fs.id,height:h,gate:false,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>drawFence(c,W,H,season,s,x,y)});
@@ -1674,6 +1687,79 @@ function measureStructBoxes(){
   } finally { game.rot=rot0; game.sceneRev++; groundKey=''; }
   console.log('measureStructBoxes: '+escaping.length+' of '+(cases.length*4)+' escape their box');
   return {worstByKind:worst, escaping:escaping.length, cases:escaping.slice(0,12)};
+}
+/* ---- dev-only: does a piece's INK sit over the tiles it claims? ----
+   The blind spot the other three verifiers share, and the one that has now cost
+   three bugs: water features drifting 152px at rot2, pots and seats up to 114px,
+   and — caught by mutating it — a support centred on the wrong footprint.
+   measureStructBoxes cannot see any of them, because `pad` is deliberately wide
+   enough that a whole tile of drift still fits inside the box; and
+   verifyStructureSprites cannot, because both of its arms draw through the same
+   function, so a shared wrong position cancels. The instrument that works is
+   the one §12d records: measure ink against the tiles the piece claims, at all
+   four rotations. Every case here is horizontally symmetric about its ground
+   centre, so the ink's mid-x IS the answer.
+
+     measureFootprintCentres()      // {worst, off:[...]}  — expect worst under ~5px
+
+   It reports past 6px rather than past 0, and the slack is measured rather than
+   chosen: a piece centred on the wrong footprint is out by at least half a tile
+   — mutating drawSupport to centre on {w:1,h:1} put the trellis at 19.5px and
+   the arch at 38.5 — while a drawing that is honestly LOPSIDED sits a few px
+   off its own centre whatever the code does. The sun lounger is the only one
+   here: it reclines at one end, so its ink mid-x is ~4.5px from the middle of
+   the tiles it stands on, at every rotation and every facing. 6px keeps a real
+   drift caught with three times the margin.
+
+   Multi-tile pieces only: a 1x1 piece is right at every rotation by
+   construction, which is exactly why all three bugs lasted as long as they did. */
+function measureFootprintCentres(){
+  const PAD=700;
+  const cv=document.createElement('canvas'); cv.width=PAD*2; cv.height=PAD*2;
+  const c2=cv.getContext('2d',{willReadFrequently:true});
+  if (!c2 || typeof c2.getImageData!=='function') return {unavailable:true};
+  const W=VW/ZOOM, H=VH/ZOOM, season=calClock().season, x=15, y=15, rot0=game.rot;
+  const cases=[];
+  for (const t of SEAT_TYPES) for (let f=0;f<4;f++)
+    cases.push({name:'SEAT:'+t.id+'/f'+f, rec:{type:t.id,finish:'teak',face:f,t:1},
+      size:s=>seatTileSize(s), draw:(c,s)=>drawSeat(c,W,H,season,s,x,y)});
+  for (const p of POT_STYLES) for (const sz of potStyleSizes(p.id)) for (let f=0;f<4;f++)
+    cases.push({name:'POT:'+p.id+'/'+sz.id+'/f'+f, rec:{style:p.id,size:sz.id,face:f,t:1},
+      size:s=>potTileSize(s), draw:(c,s)=>drawPot(c,W,H,season,s,x,y)});
+  for (const w of WATER_FEATURES) for (let f=0;f<4;f++)
+    cases.push({name:'WATERF:'+w.id+'/f'+f, rec:{form:w.id,finish:waterFeatureFinishes(w.id)[0].id,face:f,t:1},
+      size:s=>waterFeatureTileSize(s), draw:(c,s)=>drawWaterFeature(c,W,H,season,s,x,y)});
+  for (const sp of SUPPORT_STYLES) for (const m of sp.materials) for (let f=0;f<4;f++)
+    cases.push({name:'SUPPORT:'+sp.id+'/'+m+'/f'+f, rec:{style:sp.id,mat:m,face:f,t:1},
+      size:s=>supportTileSize(s), draw:(c,s)=>drawSupport(c,W,H,season,s,x,y)});
+  const off=[]; let worst=0, worstName='', n=0;
+  try{
+    for (let r=0;r<4;r++){
+      game.rot=r;
+      for (const cse of cases){
+        const sz=cse.size(cse.rec);
+        if (sz.w===1 && sz.h===1) continue;     // right by construction
+        const [ax,ay]=screenOf(x,y,W,H);
+        c2.setTransform(1,0,0,1,0,0); c2.clearRect(0,0,cv.width,cv.height);
+        c2.setTransform(1,0,0,1,PAD-ax,PAD-ay); cse.draw(c2,cse.rec); c2.setTransform(1,0,0,1,0,0);
+        let d; try{ d=c2.getImageData(0,0,cv.width,cv.height).data; }catch(_){ continue; }
+        let l=1e9, rr=-1e9;
+        for (let i=3;i<d.length;i+=4){ if (d[i]<24) continue;
+          const px=((i-3)/4)%cv.width; if (px<l)l=px; if (px>rr)rr=px; }
+        if (l>rr) continue;
+        n++;
+        const ink=(l+rr)/2-PAD+ax, want=groundCenterRot(x,y,sz,W,H)[0], dx=Math.abs(ink-want);
+        if (dx>worst){ worst=dx; worstName=cse.name+' rot'+r; }
+        if (dx>6) off.push({rot:r, name:cse.name, px:+dx.toFixed(1)});
+      }
+    }
+  } finally { game.rot=rot0; game.sceneRev++; groundKey=''; }
+  console.log('measureFootprintCentres: '+n+' multi-tile cases, worst '+worst.toFixed(1)+
+    'px ('+(worstName||'none')+')\n  '+(off.length
+      ? off.length+' piece(s) drawn off their own footprint by more than 6px:\n    '+
+        off.slice(0,8).map(o=>o.name+' rot'+o.rot+'  '+o.px+'px').join('\n    ')
+      : 'every piece sits over the tiles it claims'));
+  return {worst:+worst.toFixed(1), worstName, cases:n, off};
 }
 /* ---- dev-only: does the viewport cull ever drop something visible? ----
    The cull rejects roughly half the entity pass, and the failure mode is a
@@ -1931,7 +2017,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -1950,7 +2036,7 @@ function sceneStale(skey){
   return scene.key!==skey || !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
     r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings ||
-    r.waterFeatures!==game.waterFeatures;
+    r.waterFeatures!==game.waterFeatures || r.supports!==game.supports;
 }
 /* ---- camera-free screen bounds, for the viewport cull ----
    The entity pass used to reject on the TILE bounding box of the four inverted
@@ -2048,8 +2134,24 @@ function buildScene(W,H){
     const sh=treeShadeInfo(k,p);
     if (sh && sh.r>=1){ sh.reach=treeShadeReach(sh); (sh.activePotential?shadeTrees:futureShadeTrees).push(sh); }
     if (!layerShown(plantLayerOf(p))) continue;
-    const rec={d:plantDepth(x,y,p)+0.3, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
-      x,y,p, seed:tileSeed(x,y), detail:plantRenderDetail(x,y,p,W,H), stunt:false};
+    const pDetail=plantRenderDetail(x,y,p,W,H);
+    /* A climber sorts in FRONT of the thing it climbs. A fence record sits at
+       viewDepth+0.34 and a plant at +0.30, so a rose on a fence drew BEHIND
+       the panel — visible only as a few leaves at its foot. Supports are put
+       at +0.30 in their own pass for the same reason.
+       And measured against the FRAME'S footprint, not its own tile: a piece
+       standing on more than one tile sorts on the far corner of its footprint
+       (footprintDrawDepth), so a climber on the NEAR leg of a 2-wide trellis or
+       a 3-wide arch came out a whole tile behind the very thing it climbs —
+       drawn through the lattice instead of over it. A fence is 1x1, so that
+       case is unchanged and this was invisible until the frames arrived. */
+    let dep=plantDepth(x,y,p)+0.3;
+    if (pDetail&&pDetail.climb){
+      const sup=supportAt(x,y);
+      dep=(sup?footprintDrawDepth(sup.x,sup.y,sup.w,sup.h):plantDepth(x,y,p))+0.44;
+    }
+    const rec={d:dep, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
+      x,y,p, seed:tileSeed(x,y), detail:pDetail, stunt:false};
     plantRecs.push(rec); ents.push(rec);
   }
   // full-sun plants under an ACTIVE canopy render stunted; day-granular, so
@@ -2084,6 +2186,14 @@ function buildScene(W,H){
       const rec={d:footprintDrawDepth(x,y,sz.w,sz.h)+0.37, kind:SCENE_K.FIREPIT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,f};
       ents.push(rec); firepits.push(rec);
+    }
+    /* A support sorts just BEHIND its own climber's depth, so the plant draws
+       in front of the frame it is growing on rather than through it. */
+    for (const k in game.supports||{}){ const sp=game.supports[k];
+      if (!sp || sp.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=supportTileSize(sp);
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.30, kind:SCENE_K.SUPPORT,
+        bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,sp});
     }
     for (const k in game.waterFeatures||{}){ const wf=game.waterFeatures[k];
       if (!wf || wf.removed) continue;
@@ -2136,7 +2246,7 @@ function buildScene(W,H){
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,houses:game.houses,buildings:game.buildings},
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
@@ -2150,6 +2260,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.LIGHT:
     case SCENE_K.FIREPIT:
     case SCENE_K.WATERF:
+    case SCENE_K.SUPPORT:
     case SCENE_K.BOULDER:
     case SCENE_K.PET:
     case SCENE_K.POT:
@@ -2746,6 +2857,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
       if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny);
       if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
+      if (c.support) drawSupport(cx,W,H,season,c.support,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
       if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
       if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);

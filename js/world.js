@@ -163,6 +163,7 @@ const game = {
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
   waterFeatures:{},   // "x,y" origin -> {form,finish,face,t} or {removed:true,t}
+  supports:{},        // "x,y" origin -> {style,mat,face,t} or {removed:true,t}
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
@@ -216,6 +217,7 @@ const game = {
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
   firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
   waterFeatureDraft:{form:'birdbath',finish:'stone',face:0}, // settings for the next water feature
+  supportDraft:{style:'obelisk',mat:'timber',face:0}, // settings for the next vertical support
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint
   petDraft:{species:'cat',coat:'marmalade',mark:'solid'}, // settings for the next garden pet
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
@@ -258,6 +260,7 @@ const GAME_LAYERS=[
   {k:'lights'},
   {k:'firepits'},
   {k:'waterFeatures'},
+  {k:'supports'},
   {k:'boulders'},
   {k:'pets'},
   {k:'pots'},
@@ -386,6 +389,11 @@ const LAYER_CACHES={
   lights:    {scene:1},
   firepits:  {scene:1},
   waterFeatures: {scene:1},   // one sprite in the depth pass, like a fire pit
+  /* A support carries `plants` as well as `scene`: climberRenderDetail reads it
+     for every vine, so adding or lifting one changes how the PLANTS on it draw.
+     Classified `scene` alone, a climber would keep its old shape until some
+     unrelated edit rebuilt the scene. */
+  supports:      {scene:1, plants:1},
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   /* `pots` names its own revision for the same reason `plants` does: potIndex()
@@ -671,6 +679,7 @@ function canPlaceShrubAt(x,y,np,opts){
     if (lightAt(xx,yy)) return {ok:false, reason:'light'};
     if (firepitAt(xx,yy)) return {ok:false, reason:'firepit'};
     if (waterFeatureAt(xx,yy)) return {ok:false, reason:'water feature'};
+    if (structureSupportAt(xx,yy)) return {ok:false, reason:'support'};
     if (boulderAt(xx,yy)) return {ok:false, reason:'boulder'};
     const terr=tileTerrain(xx,yy);
     if (terr==='path'||terr==='water') return {ok:false, reason:terr};
@@ -1502,8 +1511,34 @@ function bambooRenderDetail(x,y,p,W,H){
   });
   return bambooDirs.length ? {bambooDirs} : null;
 }
+/* What a climber grows on, baked into the render detail exactly as a hedge's
+   neighbours are — which is the whole reason this feature was affordable. The
+   detail is computed once per buildScene and bakePlantKeyParts already folds it
+   into the sprite key, so a climber that changes support re-bakes for free and
+   nothing new had to learn about caching.
+   `ft` is what the plant may REACH here: its own mature height clamped by the
+   support, so a 30ft wisteria on a 6ft obelisk fills the obelisk and stops.
+   `axis` is the screen run a flat support spreads along — a fence gives it for
+   free through fenceRunAxis, and without it a climber on a fence would draw as
+   a cone standing in front of the panel rather than as a sheet across it. */
+function climberRenderDetail(x,y,p,W,H){
+  const P=PLANTS[p.s]; if (!P || P.type!=='vine') return null;
+  const sup=supportAt(x,y); if (!sup) return null;
+  const reachFt=(P.heightIn||P.h*12)/12;
+  const out={climb:sup.kind, ft:Math.min(sup.ft, reachFt)};
+  if (sup.kind==='fence' || sup.kind==='panel' || sup.kind==='arch'){
+    const run = sup.kind==='fence' ? fenceRunAxis(x,y)
+      : (normalizeFacing(sup.face)%2 ? [0,1] : [1,0]);
+    const [sx,sy]=screenOf(x,y,W,H), [nx,ny]=screenOf(x+run[0],y+run[1],W,H);
+    const dx=nx-sx, dy=ny-sy, len=Math.hypot(dx,dy)||1;
+    out.axis=[dx/len,dy/len];
+  }
+  if (sup.kind==='arch'){ out.span=sup.w>sup.h?sup.w:sup.h; out.leg=(x-sup.x)+(y-sup.y); }
+  return out;
+}
 function plantRenderDetail(x,y,p,W,H){
-  return hedgeRenderDetail(x,y,p,W,H) || bambooRenderDetail(x,y,p,W,H);
+  return climberRenderDetail(x,y,p,W,H) ||
+    hedgeRenderDetail(x,y,p,W,H) || bambooRenderDetail(x,y,p,W,H);
 }
 function viewDepth(x,y){ const [vx,vy]=worldToView(x,y); return vx+vy; }
 function plantDepth(x,y,p){

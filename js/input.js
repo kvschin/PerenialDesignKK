@@ -343,7 +343,7 @@ cnv.addEventListener('pointerdown',e=>{
   beginUndo();   // snapshot before any placement gesture; committed at pointerup if it changed anything
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
-    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0, pot:0, seat:0, waterFeature:0};
+    sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0, pot:0, seat:0, waterFeature:0, support:0};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -397,6 +397,7 @@ const DRAG_DONE={
   light:     n=>`Placed ${n} ${lightLabel().toLowerCase()}${n>1?'s':''}.`,
   firepit:   n=>`Placed ${n} ${firepitLabel().toLowerCase()}${n>1?'s':''}.`,
   waterfeature: n=>`Placed ${n} ${waterFeatureLabel().toLowerCase()}${n>1?'s':''}.`,
+  support:   n=>`Placed ${n} ${supportLabel().toLowerCase()}${n>1?'s':''}.`,
   boulder:   n=>`Placed ${n} ${boulderLabel().toLowerCase()}${n>1?'s':''}.`,
   pot:       n=>`Placed ${n} container${n>1?'s':''} - ${potLabel()}.`,
   seat:      n=>`Placed ${n} seat${n>1?'s':''} - ${seatLabel()}.`,
@@ -526,6 +527,7 @@ const SWEEP_NOUNS=[
   ['terr','terrain tile'], ['elev','elevation tile'],
   ['fence','fence'], ['light','light'],
   ['firepit','fire pit'], ['boulder','boulder'], ['waterFeature','water feature'],
+  ['support','support'],
   ['pet','pet'], ['pot','container'], ['seat','seat'],
   ['house','house'], ['building','building footprint'],
 ];

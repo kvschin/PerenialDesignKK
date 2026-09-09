@@ -113,6 +113,14 @@ function actHere(opts){
     else rejectPlacement('Lighting needs a clear dry tile.');
     return;
   }
+  if (game.tool==='support'){
+    const sh=shrubAt(x,y);
+    if (sh){ pulseShrubFootprint(sh); toast('Supports need clear ground outside the shrub spread.'); return; }
+    const r=applyToolAt(x,y,opts);
+    if (r){ hapticFeedback('place'); toast(`${supportLabel()} placed. Plant a climber on it.`); }
+    else toast('No room for that here.');
+    return;
+  }
   if (game.tool==='waterfeature'){
     const sh=shrubAt(x,y);
     if (sh){ pulseShrubFootprint(sh); toast('Water features need clear ground outside the shrub spread.'); return; }
@@ -192,7 +200,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0,support:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -203,6 +211,7 @@ function actHere(opts){
     if (counts.light) parts.push(`${counts.light} light${counts.light>1?'s':''}`);
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.waterFeature) parts.push(`${counts.waterFeature} water feature${counts.waterFeature>1?'s':''}`);
+    if (counts.support) parts.push(`${counts.support} support${counts.support>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
@@ -223,6 +232,7 @@ function actHere(opts){
     if (game.tool==='water' && petAt(x,y)){ toast('Move your pet before making water.'); return; }
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
+  if (structureSupportAt(x,y)){ toast('Move the support before changing the ground.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
@@ -430,6 +440,7 @@ function placeTerrainAt(x,y){
   if (game.tool==='water' && petAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
   if (waterFeatureAt(x,y)) return null;
+  if (structureSupportAt(x,y)) return null;
   if (boulderAt(x,y)) return null;
   if (game.tool==='water' && eb && !eb.removed) return null;
   /* Merge over whatever the tile already carried, never replace it: edging rides
@@ -502,7 +513,21 @@ function placePlantAt(x,y,opts){
      spacing, no shrub reservation, no drift jitter. It is not a hardiness
      exemption — the library still only offers what suits the zone. */
   const pot=potAt(x,y);
-  if (fenceAt(x,y)) return null;
+  /* Climbers and supports are a SYMMETRIC pair, and both halves matter.
+     A vine may only go on a support, because a clematis drawn as a free
+     standing column of leaves with nothing holding it up is the floating-pot
+     bug again — and because it is what makes the structures worth placing.
+     And only a vine may go on one: the obelisk occupies that tile, so a
+     coneflower inside it is nonsense. Same shape as the container rule one
+     system over, where the vessel is what makes paving plantable.
+     A FENCE is a support, so the blanket fence refusal below has to let a vine
+     through — a climbing rose on a 6ft fence is the commonest case there is. */
+  // null-safe like isTreeDef below: applyToolAt should never arrive here with
+  // a non-plant tool, but this used to be the first line to dereference def
+  const sup=supportAt(x,y), isVine=!!def && def.type==='vine';
+  if (isVine && !sup) return null;
+  if (sup && !isVine) return null;
+  if (fenceAt(x,y) && !isVine) return null;
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
   if (waterFeatureAt(x,y)) return null;
@@ -903,7 +928,7 @@ function canPlaceWaterFeature(x,y,ignoreKey){
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
-    if (potAt(xx,yy) || seatAt(xx,yy)) return false;
+    if (potAt(xx,yy) || seatAt(xx,yy) || structureSupportAt(xx,yy)) return false;
     const wf=waterFeatureAt(xx,yy); if (wf && wf.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -918,6 +943,74 @@ function placeWaterFeatureAt(x,y){
   if (!canPlaceWaterFeature(x,y,k)) return null;
   setTile('waterFeatures',k,Object.assign({},d,{t:Date.now()}));
   return 'waterfeature';
+}
+/* ---------- vertical supports ----------
+   Placement is the fire pit's shape. What is NOT the fire pit's is the rule
+   about plants, and it is deliberately inverted: a support refuses an existing
+   planting on its tiles the way a pot does (you place the obelisk, then plant
+   into it), but afterwards its tiles are the ONLY ground a climber may take.
+   See supportAt, which is the predicate the planting rule and the renderer
+   both ask. */
+function supportDraft(){ return game.supportDraft=normalizeSupportDraft(game.supportDraft); }
+function supportLabel(s){ return supportLabelFor(s||supportDraft()); }
+// only the placed structures, for the "is something already standing here" guards
+function structureSupportAt(x,y){
+  if (!game.supports) return null;
+  for (const k in game.supports){
+    const s=game.supports[k]; if (!s || s.removed) continue;
+    const [sx,sy]=k.split(',').map(Number), sz=supportTileSize(s);
+    if (x>=sx && x<sx+sz.w && y>=sy && y<sy+sz.h) return Object.assign({key:k,x:sx,y:sy},s);
+  }
+  return null;
+}
+/* What a climber on this tile has to grow up, or null. THREE sources, and two
+   of them cost nothing because the app already has them:
+   - a placed support structure,
+   - a FENCE tile, which already carries a real height in feet and a run axis,
+     so a climbing rose on a 6ft cedar fence needed no new object at all.
+   A gate is refused: it swings, and a rose grown across it is a gate that no
+   longer opens. `ft` is what the climber may reach; `axis` is the run it
+   spreads along, null for a support that climbs in the round. */
+function supportAt(x,y){
+  const st=structureSupportAt(x,y);
+  if (st){
+    const spec=supportStyle(st.style), sz=supportTileSize(st);
+    return {kind:spec.form, ft:spec.ft, style:st.style, mat:st.mat, face:st.face,
+      w:sz.w, h:sz.h, x:st.x, y:st.y, key:st.key};
+  }
+  const f=fenceAt(x,y);
+  if (f && !f.gate) return {kind:'fence', ft:fenceHeightFor(f.style,f.height), fence:f, w:1, h:1, x, y};
+  return null;
+}
+function supportFootprint(x,y,s){
+  const sz=supportTileSize(s), tiles=[];
+  for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
+  return tiles;
+}
+function canPlaceSupport(x,y,ignoreKey){
+  const d=supportDraft(), sz=supportTileSize(d);
+  if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
+  for (const [xx,yy] of supportFootprint(x,y,d)){
+    if (!onPlot(xx,yy)) return false;
+    const k=`${xx},${yy}`;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (potAt(xx,yy) || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+    const other=structureSupportAt(xx,yy); if (other && other.key!==ignoreKey) return false;
+    // as a pot does: the structure goes down first, then the climber goes on it
+    const p=game.plants[k], b=game.bulbs[k];
+    if ((p&&!p.removed) || (b&&!b.removed)) return false;
+  }
+  return true;
+}
+function placeSupportAt(x,y){
+  if (!game.supports) game.supports={};
+  const d=normalizeSupportDraft(supportDraft()), k=`${x},${y}`;
+  const cur=game.supports[k];
+  if (cur && !cur.removed && cur.style===d.style && cur.mat===d.mat && cur.face===d.face) return null;
+  if (!canPlaceSupport(x,y,k)) return null;
+  setTile('supports',k,Object.assign({},d,{t:Date.now()}));
+  return 'support';
 }
 function boulderDraft(){ return game.boulderDraft=normalizeBoulderDraft(game.boulderDraft); }
 function boulderLabel(b){
@@ -1354,6 +1447,18 @@ function eraseBrush(cx,cy,counts){
       if (fp){ clearTile('firepits',fp.key); counts.firepit=(counts.firepit||0)+1; }
       const wfe=waterFeatureAt(x,y);
       if (wfe){ clearTile('waterFeatures',wfe.key); counts.waterFeature=(counts.waterFeature||0)+1; }
+      /* Lifting a support takes its climber with it, exactly as lifting a pot
+         takes its planting (§12b): a vine left standing would be on ground
+         placePlantAt refuses, which is a state an ordinary erase should not be
+         able to reach. */
+      const spe=structureSupportAt(x,y);
+      if (spe){
+        for (const [sx2,sy2] of supportFootprint(spe.x,spe.y,spe)){
+          const pk=`${sx2},${sy2}`, pv=game.plants[pk];
+          if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',pk); counts.plants++; }
+        }
+        clearTile('supports',spe.key); counts.support=(counts.support||0)+1;
+      }
       const bo=boulderAt(x,y);
       if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }
       if (petAt(x,y)){ clearTile('pets',k); counts.pet=(counts.pet||0)+1; }

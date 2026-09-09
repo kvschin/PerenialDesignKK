@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.73';
+const APP_VERSION = '0.8.74';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1089,6 +1089,65 @@ function normalizeBoulderDraft(d){ d=d||{}; return {type:boulderTypeId(d.type)};
 function boulderTileSize(b){
   const spec=boulderType(b&&b.type);
   return {w:Math.max(1,spec.w||1), h:Math.max(1,spec.h||1), spec};
+}
+
+/* ---------- vertical supports ----------
+   A garden is designed vertically and this app could only draw flat: below 8ft
+   of fence there was nothing between the ground and a tree. These are the
+   things a climber grows ON — and they exist BECAUSE of the climber, which is
+   why the rule between them is symmetric and strict: a `vine` may only be
+   planted on a support, and only a `vine` may be planted on one.
+
+   That is the CONTAINER bargain (§12b) rather than a new one. A pot does not
+   own its planting — the plant stays an ordinary plant in game.plants on the
+   same tile and `potAt` is the predicate that changes the rules — so the
+   planting list, the bloom calendar, the plan sheet and discovery all keep
+   working untouched. `supportAt` is the same predicate for the same reason.
+
+   `form` names the drawing branch; `ft` is the real height a climber may reach
+   on it, drawn through PX_PER_FT like a fence, so a 6ft obelisk and a 6ft
+   fence hold their plants at the same height. `face:true` marks the two that
+   read differently when turned. */
+const SUPPORT_STYLES = [
+  {id:'obelisk', label:'Obelisk',       short:'Obelisk', form:'obelisk', wIn:22, dIn:22, ft:7,
+   materials:['timber','black','willow']},
+  {id:'trellis', label:'Trellis Panel', short:'Trellis', form:'panel',   wIn:34, dIn:4,  ft:6, face:true,
+   materials:['timber','black','willow']},
+  {id:'arch',    label:'Garden Arch',   short:'Arch',    form:'arch',    wIn:46, dIn:20, ft:8, face:true,
+   materials:['black','timber','willow']},
+];
+const SUPPORT_MATERIALS = [
+  {id:'timber', label:'Timber',      wood:'#8a6a44', dark:'#5f4526', light:'#a8865c'},
+  {id:'black',  label:'Black Metal', wood:'#2c2c30', dark:'#191919', light:'#4a4a50'},
+  {id:'willow', label:'Woven Willow',wood:'#a58b5c', dark:'#7a6339', light:'#c0a878'},
+];
+function supportStyle(id){ return SUPPORT_STYLES.find(s=>s.id===id)||SUPPORT_STYLES[0]; }
+function supportStyleId(id){ return supportStyle(id).id; }
+function supportMaterial(id){ return SUPPORT_MATERIALS.find(m=>m.id===id)||SUPPORT_MATERIALS[0]; }
+// the materials a support is really made in — the potStyleSizes idiom, ordered
+// by the FORM so the first one listed is its default (see waterFeatureFinishes)
+function supportMaterials(id){
+  const s=supportStyle(id);
+  if (!s.materials) return SUPPORT_MATERIALS;
+  return s.materials.map(m=>SUPPORT_MATERIALS.find(x=>x.id===m)).filter(Boolean);
+}
+function supportMaterialFor(styleId,matId){
+  const opts=supportMaterials(styleId);
+  return opts.some(m=>m.id===matId) ? matId : opts[0].id;
+}
+function normalizeSupportDraft(d){
+  d=d&&typeof d==='object'?d:{};
+  const style=supportStyleId(d.style);
+  return {style, mat:supportMaterialFor(style,d.mat), face:normalizeFacing(d.face)};
+}
+function supportTileSize(d){
+  const s=supportStyle(d&&d.style);
+  const tw=Math.max(1,Math.round(s.wIn/TILE_IN)), td=Math.max(1,Math.round(s.dIn/TILE_IN));
+  return normalizeFacing(d&&d.face)%2 ? {w:td,h:tw,spec:s} : {w:tw,h:td,spec:s};
+}
+function supportLabelFor(d){
+  d=normalizeSupportDraft(d);
+  return `${supportMaterial(d.mat).label} ${supportStyle(d.style).label.toLowerCase()}`;
 }
 
 /* ---------- water features ----------

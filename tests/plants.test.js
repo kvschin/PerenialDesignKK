@@ -1,7 +1,7 @@
 /* Tier 1 — the PLANTS data contract.  Runs concatenated after plants.js, so
    PLANTS is in scope.  Uses injected test()/assert(). */
 
-const TYPES  = ['grass', 'sedge', 'forb', 'bulb', 'water', 'shrub', 'tree'];
+const TYPES  = ['grass', 'sedge', 'forb', 'bulb', 'water', 'shrub', 'tree', 'vine'];
 const SUNS   = ['full', 'part'];
 const MOISTS = ['dry', 'medium', 'moist'];
 const PHENS  = ['cool', 'mid', 'warm'];
@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,545,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,554,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),381,
     'canonical nested-choice count');

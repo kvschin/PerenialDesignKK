@@ -6,7 +6,7 @@ function setup(gw, gh){
   resetGardenAutosave();
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {}; game.waterFeatures = {};
+  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {}; game.waterFeatures = {}; game.supports = {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
@@ -15,6 +15,7 @@ function setup(gw, gh){
   game.boulderDraft = { type: 'round1' };
   game.potDraft = { style: 'terracotta', size: 'p18' };
   game.seatDraft = { type: 'bench4', finish: 'teak' };
+  game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 };
   game.buildingDraft = null; game.buildingStyleDraft = { status: 'existing', label: 'House', wall: '#8a7a60', roof: '#9a5f3a' };
   game.bedStyle = 'soil'; game.lawnStyle = 'meadow';
   game.rot = 0; game.siteNorthDeg = 0; game.siteNorthPreviewDeg = null;
@@ -10547,6 +10548,206 @@ test('a water feature survives a save, and an older garden simply has none', asy
   await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
 });
 
+/* ---- vertical supports and the climbers that need them ---- */
+
+test('a climber needs a support and a support takes only a climber', () => {
+  setup(21, 21);
+  const vine = Object.keys(PLANTS).find(k => PLANTS[k].type === 'vine');
+  const forb = firstOfType('forb');
+  assert(vine, 'the catalog has climbers to test with');
+
+  game.tool = vine;
+  assertEqual(applyToolAt(5, 5), null, 'a climber will not stand in open ground');
+
+  game.tool = 'support'; game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 };
+  assertEqual(applyToolAt(5, 5), 'support', 'the obelisk goes down first');
+  game.tool = vine;
+  assertEqual(applyToolAt(5, 5), 'plant', 'and now the climber has something to climb');
+
+  /* Symmetric, and that is the point: the obelisk OCCUPIES its tile, so a
+     coneflower standing inside it is nonsense — the same shape as the
+     container rule one system over, where the vessel changes what is legal. */
+  game.tool = 'support';
+  assertEqual(applyToolAt(9, 9), 'support', 'a second obelisk');
+  game.tool = forb;
+  assertEqual(applyToolAt(9, 9), null, 'an ordinary perennial refuses a support tile');
+
+  // a FENCE is a support — a climbing rose on a 6ft fence is the commonest case
+  game.tool = 'fence'; game.fenceDraft = { style: 'privacy', height: 6, gate: false };
+  applyToolAt(3, 12); applyToolAt(4, 12); applyToolAt(5, 12);
+  game.tool = vine;
+  assertEqual(applyToolAt(4, 12), 'plant', 'a climber goes on a fence');
+  game.tool = forb;
+  assertEqual(applyToolAt(5, 12), null, 'and an ordinary perennial still does not');
+
+  // a gate is an OPENING, so there is nothing there to climb
+  game.tool = 'fence'; game.fenceDraft = { style: 'privacy', height: 6, gate: true };
+  applyToolAt(3, 12);
+  game.tool = vine;
+  assertEqual(applyToolAt(3, 12), null, 'a climber refuses a gate');
+});
+
+test('a support refuses ground that is already spoken for, and takes its climber with it', () => {
+  setup(21, 21);
+  const vine = Object.keys(PLANTS).find(k => PLANTS[k].type === 'vine');
+  const forb = firstOfType('forb');
+  game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 };
+
+  game.tool = forb; assertEqual(applyToolAt(4, 4), 'plant', 'a perennial is planted first');
+  game.tool = 'support';
+  assertEqual(applyToolAt(4, 4), null, 'and the obelisk will not be driven through it');
+
+  game.tool = 'water'; game.waterStyle = 'pond'; applyToolAt(8, 4);
+  game.tool = 'support';
+  assertEqual(applyToolAt(8, 4), null, 'nor stood in a pond');
+
+  // the arch is 3x1, so its WHOLE footprint has to be clear
+  game.supportDraft = { style: 'arch', mat: 'black', face: 0 };
+  game.tool = forb; assertEqual(applyToolAt(14, 4), 'plant', 'a perennial two tiles along');
+  game.tool = 'support';
+  assertEqual(applyToolAt(12, 4), null, 'the arch refuses a footprint that is not clear');
+  assertEqual(applyToolAt(12, 8), 'support', 'and goes down where the ground is open');
+  assert(supportAt(14, 8), 'its far leg claims its own tile');
+
+  /* Lifting the frame has to lift the planting with it, for the reason a pot
+     does: a climber left behind would silently become an in-ground plant
+     breaking the rule that put it there. */
+  game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 };
+  game.tool = 'support';
+  assertEqual(applyToolAt(6, 10), 'support', 'an obelisk to erase');
+  game.tool = vine; assertEqual(applyToolAt(6, 10), 'plant', 'with a climber on it');
+  /* Sweeping LANDSCAPE, not All: an All sweep clears the plant layer anyway,
+     so it cannot tell whether the frame took its climber or the sweep did. */
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0 };
+  eraseBrush(6, 10, counts);
+  assertEqual(counts.support, 1, 'the sweep reports lifting one frame');
+  assertEqual(supportAt(6, 10), null, 'the obelisk is gone');
+  assert(!live(game.plants).includes('6,10'),
+    'and the climber went with it, rather than being stranded on ground that refuses it');
+});
+
+test('a climber is drawn against its support, never above it', () => {
+  setup(21, 21);
+  const vine = Object.keys(PLANTS).find(k => PLANTS[k].type === 'vine');
+  const forb = firstOfType('forb');
+  const W = 800, H = 600;
+
+  game.tool = 'support'; game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 };
+  applyToolAt(5, 5);
+  game.tool = vine; applyToolAt(5, 5);
+  const ob = climberRenderDetail(5, 5, game.plants['5,5'], W, H);
+  assertEqual(ob.climb, 'obelisk', 'the detail names what is being climbed');
+  assertEqual(ob.ft, supportStyle('obelisk').ft, 'and how far up it reaches');
+  assert(!ob.axis, 'an obelisk is symmetric, so there is no run to lie along');
+
+  /* A panel, an arch and a fence all run along a LINE, so the foliage has to
+     know which way it lies — in SCREEN space, so it turns with the camera. */
+  game.tool = 'support'; game.supportDraft = { style: 'trellis', mat: 'timber', face: 0 };
+  applyToolAt(9, 9);
+  game.tool = vine; applyToolAt(9, 9);
+  const tr = climberRenderDetail(9, 9, game.plants['9,9'], W, H);
+  assertEqual(tr.climb, 'panel', 'a trellis is a panel');
+  assert(tr.axis && Math.abs(Math.hypot(tr.axis[0], tr.axis[1]) - 1) < 1e-9,
+    'and carries a unit screen axis');
+
+  game.tool = 'support'; game.supportDraft = { style: 'arch', mat: 'black', face: 0 };
+  applyToolAt(3, 15);
+  game.tool = vine; applyToolAt(3, 15); applyToolAt(5, 15);
+  const legA = climberRenderDetail(3, 15, game.plants['3,15'], W, H);
+  const legB = climberRenderDetail(5, 15, game.plants['5,15'], W, H);
+  assertEqual(legA.climb, 'arch', 'an arch says so');
+  assertEqual(legA.span, 3, 'and how wide it spans');
+  assertEqual(legA.leg, 0, 'the near leg is leg 0');
+  assertEqual(legB.leg, 2, 'and the far leg knows it is the far one');
+
+  // an ordinary plant has no climb detail at all — the branch must not fire
+  game.tool = forb; applyToolAt(12, 3);
+  assertEqual(climberRenderDetail(12, 3, game.plants['12,3'], W, H), null,
+    'a perennial in open ground climbs nothing');
+
+  /* The cap is a MINIMUM of two things and the catalog only ever exercises one
+     of them: every climber reaches higher than every frame. So shorten one and
+     check the other arm really is live. */
+  const P = PLANTS[vine], wasIn = P.heightIn;
+  try {
+    P.heightIn = 36;                       // three feet, well under a 7ft obelisk
+    const capped = climberRenderDetail(5, 5, game.plants['5,5'], W, H);
+    assertEqual(capped.ft, 3, 'a climber shorter than its frame stops where it stops');
+  } finally { P.heightIn = wasIn; }
+});
+
+test('a climber sorts in front of the frame it climbs', () => {
+  /* A fence record sits at viewDepth+0.34 and an ordinary plant at +0.30, so a
+     rose on a fence drew BEHIND the panel — visible as a few leaves at its foot
+     and nothing else. Read the depths off a built scene rather than restating
+     the constants, or the test only confirms what the code already says. */
+  setup(21, 21);
+  const vine = Object.keys(PLANTS).find(k => PLANTS[k].type === 'vine');
+  game.tool = 'fence'; game.fenceDraft = { style: 'privacy', height: 6, gate: false };
+  applyToolAt(6, 6); applyToolAt(7, 6); applyToolAt(8, 6);
+  game.tool = vine; applyToolAt(7, 6);
+  game.sceneRev++; buildScene(800, 600);
+  const fence = scene.ents.find(e => e.kind === SCENE_K.FENCE && e.x === 7 && e.y === 6);
+  const onFence = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 7 && e.y === 6);
+  assert(fence && onFence, 'the panel and its climber are both in the scene');
+  assert(onFence.d > fence.d, 'and the climber draws after the panel it is on');
+
+  game.tool = 'support'; game.supportDraft = { style: 'trellis', mat: 'timber', face: 0 };
+  applyToolAt(3, 12);
+  game.tool = vine; applyToolAt(3, 12);
+  game.sceneRev++; buildScene(800, 600);
+  const sup = scene.ents.find(e => e.kind === SCENE_K.SUPPORT && e.x === 3 && e.y === 12);
+  const onTrellis = scene.ents.find(e => e.kind === SCENE_K.PLANT && e.x === 3 && e.y === 12);
+  assert(sup && onTrellis, 'the trellis and its climber are both in the scene');
+  assert(onTrellis.d > sup.d, 'and the climber draws after the trellis');
+});
+
+test('a climber is drawn tall enough for the frames it is offered', () => {
+  /* plantDrawBox sizes a sprite from plantVisualH, and the climber branch draws
+     up to min(support ft, reach) — so a species whose DRAWN height fell under
+     the tallest frame would be clipped by its own box the moment it went on an
+     arch. Like every clipped sprite that is invisible on the procedural path
+     and appears only once the governor engages. */
+  const tallest = Math.max(...SUPPORT_STYLES.map(s => s.ft));
+  const need = feetToPx(tallest);
+  let n = 0;
+  for (const k of Object.keys(PLANTS)) {
+    if (PLANTS[k].type !== 'vine') continue;
+    n++;
+    assert(plantVisualH(PLANTS[k]) >= need,
+      k + ' draws at least as tall as the ' + tallest + 'ft frame (' +
+      Math.round(plantVisualH(PLANTS[k])) + ' vs ' + Math.round(need) + 'px)');
+  }
+  assert(n > 0, 'and there are climbers for it to be true of');
+});
+
+test('supports survive a save, and an older garden simply has none', async () => {
+  setup(15, 15);
+  game.tool = 'support'; game.supportDraft = { style: 'arch', mat: 'willow', face: 1 };
+  assertEqual(applyToolAt(4, 4), 'support', 'the arch goes down');
+  const id = 'support-round-trip';
+  await sSet('hortus:world:' + id, buildSaveBlob());
+
+  setup(15, 15);
+  assert(await loadSolo(id), 'the garden loads');
+  const sp = supportAt(4, 4);
+  assert(sp, 'the arch is still there');
+  assertEqual(sp.style, 'arch', 'as the piece it was');
+  assertEqual(sp.mat, 'willow', 'in the material it was');
+  assertEqual(game.supportDraft.style, 'arch', 'and the brush comes back with it');
+
+  const legacy = 'support-legacy';
+  await sSet('hortus:world:' + legacy,
+    { v: SAVE_VERSION, gw: 15, gh: 15, name: 'Before supports', plants: {}, bulbs: {} });
+  assert(await loadSolo(legacy), 'the older garden loads');
+  assert(game.supports && !Object.keys(game.supports).length,
+    'with an empty layer rather than an undefined one');
+  assertEqual(supportAt(4, 4), null, 'and nothing standing in it');
+
+  await sDel('hortus:world:' + id); await sDel('hortus:world:' + legacy);
+});
+
 test('every multi-tile piece sits on its footprint at every rotation', () => {
   /* The retired `groundCenterOf` offset by ((w-1)-(h-1))*TILE_W/4 — the rot-0
      screen direction — so EVERY piece standing on more than one tile slid off
@@ -10568,10 +10769,12 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
   from.pots = [].concat(...POT_STYLES.map(st => potStyleSizes(st.id)
     .map(sz => potTileSize({style:st.id, size:sz.id, face:0}))));
   from.water = WATER_FEATURES.map(w => waterFeatureTileSize({form:w.id, face:0}));
+  from.supports = [].concat(...SUPPORT_STYLES.map(sp =>
+    [0,1].map(f => supportTileSize({style:sp.id, face:f}))));
   /* Each catalog has to CONTRIBUTE a multi-tile shape, not merely be listed:
      without this, deleting one of the three loops leaves the test green on the
      other two — which is exactly what a mutation run caught it doing. */
-  for (const k of ['seats','pots','water']){
+  for (const k of ['seats','pots','water','supports']){
     assert(from[k].some(s => s.w > 1 || s.h > 1),
       k + ' contributes at least one multi-tile footprint');
     from[k].forEach(s => shapes.push([s.w, s.h]));
@@ -10633,7 +10836,13 @@ test('the water feature chip paints through the art function, not the world one'
      split an ART function taking an explicit ground point for exactly this, and
      the sandbox has no pixels (docs/test-sandbox.md), so this pins the seam. */
   const src = readRepoFile('js/tray.js');
-  const mini = src.slice(src.indexOf('const miniWater='), src.indexOf('const choose=patch=>'));
+  /* Slice FORWARD from miniWater, not to the file's first 'const choose' —
+     the support tray page defines one of those earlier, and anchoring on it
+     silently sliced backwards to an empty string, i.e. the assertions below
+     would have passed on nothing at all. */
+  const miniAt = src.indexOf('const miniWater=');
+  const mini = src.slice(miniAt, src.indexOf('const choose=patch=>', miniAt));
+  assert(mini.length > 100, 'the miniWater slice found real source');
   assert(/drawWaterFeatureArt\(/.test(mini), 'the chip calls drawWaterFeatureArt');
   assert(!/[^A-Za-z]drawWaterFeature\(/.test(mini),
     'and never the camera-positioned drawWaterFeature');

@@ -325,7 +325,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -543,7 +543,7 @@ function gardenFileProblem(env){
     if (!ids.has(sc.active)) return 'This garden is missing its active planting scheme.';
   }
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
-  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','waterFeatureDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
 }
@@ -595,6 +595,7 @@ async function loadSolo(id){
   game.lightDraft=normalizeLightDraft(s.lightDraft);
   game.firepitDraft=normalizeFirepitDraft(s.firepitDraft);
   game.waterFeatureDraft=normalizeWaterFeatureDraft(s.waterFeatureDraft);
+  game.supportDraft=normalizeSupportDraft(s.supportDraft);
   game.boulderDraft=normalizeBoulderDraft(s.boulderDraft);
   game.petDraft=normalizePetDraft(s.petDraft);
   game.potDraft=normalizePotDraft(s.potDraft);

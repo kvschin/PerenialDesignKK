@@ -948,6 +948,128 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   const stemFor = (n)=> Math.max(3, Math.round(n * (0.4+0.6*growth)));
   let snowAnchors=null;
 
+  /* ---------- climber ----------
+     The one form with no shape of its own: it takes the silhouette of whatever
+     it is grown on, handed over as `detail` by climberRenderDetail. An obelisk
+     gives a cone climbed in the round, a fence or a trellis a flat SHEET along
+     the run, an arch a sheet that leans in at the top.
+     The drawn height is bounded by plantVisualH BY CONSTRUCTION, not by
+     arithmetic that happens to line up: plantDrawBox sizes the sprite from
+     plantVisualH, and a drawing that can exceed its own box is the clipped
+     sprite this file has been bitten by twice (§T10, and the water features).
+     So the support can only ever make a climber SHORTER than its own art
+     height, never taller. With no support at all — the tray chip and the
+     library card, the only places that happens, since placement refuses a vine
+     in open ground — it draws at its full art height on an implied frame. */
+  if (P.form === 'climber'){
+    const L=P.look||{};
+    const sup = detail && detail.climb ? detail : null;
+    const kind = sup ? sup.climb : 'panel';
+    const climbPx = Math.min(sup ? feetToPx(sup.ft) : Infinity, plantVisualH(P));
+    // the SAME growth ramp plantDrawBox uses, so the box cannot be outgrown
+    const top = -climbPx * (0.25 + 0.75*growth);
+    const ax = (sup && sup.axis) ? sup.axis : [1,0];
+    const round = kind==='obelisk';
+    // half-width at the base, and how the envelope closes toward the top
+    const w0 = round ? -top*0.30 : TILE_W*0.46;
+    const env = u => round ? (1-0.66*u) : (kind==='arch' ? 1-0.18*u : 1-0.10*u);
+    // an arch leans its top growth back toward the opening it spans
+    const lean = kind==='arch' ? 0.55 : 0;
+    const at = (u,s) => {
+      const hw = w0*env(u), lx = ax[0]*hw*s + ax[0]*lean*w0*u*u;
+      const ly = ax[1]*hw*s + ax[1]*lean*w0*u*u;
+      return [lx, top*u + ly];
+    };
+    const twigCol = S.twig || '#6f6046';
+    // stems first: a climber reads as stems with leaves ON them, and in winter
+    // the bare stems on the frame are the whole plant
+    const stems = 3 + (growth>0.5?2:0);
+    ctx.lineCap='round'; ctx.strokeStyle=twigCol;
+    for (let i=0;i<stems;i++){
+      const s0=(i/(stems-1||1))*1.6-0.8, wob=(rnd()-0.5)*0.5;
+      ctx.lineWidth=1.5-0.5*(i/stems);
+      ctx.beginPath();
+      for (let k=0;k<=6;k++){
+        const u=k/6, sp=s0*(1-0.35*u)+Math.sin(u*4+i)*0.18+wob*u;
+        const [px,py]=at(u,sp);
+        k ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+      }
+      ctx.stroke();
+    }
+    if (S.fol){
+      const leafN = Math.round((L.leafN||18) * (0.35+0.65*growth));
+      const lw = (L.leafW||0.14)*climbPx*0.5, lh = (L.leafH||0.11)*climbPx*0.5;
+      for (let i=0;i<leafN;i++){
+        const u=0.06+rnd()*0.94, s=(rnd()*2-1)*0.95;
+        const [px,py]=at(u,s);
+        // lit from the top: leaves higher on the support catch more light
+        ctx.fillStyle=shade(S.fol,(u-0.5)*14+(rnd()-0.5)*16);
+        const a=(rnd()-0.5)*1.1;
+        if (L.lobes){                       // a palmate leaf — creeper, hops
+          const lobes=L.lobes;
+          ctx.beginPath();
+          for (let j=0;j<lobes;j++){
+            const la=a-0.7+ (j/(lobes-1||1))*1.4;
+            ctx.moveTo(px,py);
+            ctx.ellipse(px+Math.cos(la)*lw*0.6, py+Math.sin(la)*lh*0.9, lw*0.42, lh*0.72, la, 0, 7);
+          }
+          ctx.fill();
+        } else if (L.pinnate){              // paired leaflets — wisteria, rose
+          ctx.beginPath();
+          for (let j=-2;j<=2;j++){
+            const ox=px+j*lw*0.34, oy=py+Math.abs(j)*lh*0.16;
+            ctx.moveTo(ox,oy); ctx.ellipse(ox,oy,lw*0.30,lh*0.52,a,0,7);
+          }
+          ctx.fill();
+        } else {
+          ctx.beginPath(); ctx.ellipse(px,py,lw,lh,a,0,7); ctx.fill();
+        }
+      }
+    }
+    if (blooming){
+      const fN = Math.round((L.flowerN||12) * blv * (0.4+0.6*growth));
+      const fr = Math.max(1.6, climbPx*0.030);
+      for (let i=0;i<fN;i++){
+        const u=0.15+rnd()*0.85, s=(rnd()*2-1)*0.88;
+        const [px,py]=at(u,s);
+        const col=shade(S.bloom,(rnd()-0.5)*14);
+        const shape=L.flowerShape;
+        ctx.fillStyle=col;
+        if (shape==='tube'){                // honeysuckle, crossvine
+          const a=-0.5+(rnd()-0.5)*0.8, len=fr*(L.tubeLen||2.6);
+          ctx.save(); ctx.translate(px,py); ctx.rotate(a);
+          ctx.beginPath(); ctx.ellipse(len*0.5,0,len*0.5,fr*0.42,0,0,7); ctx.fill();
+          if (S.eye){ ctx.fillStyle=S.eye;
+            ctx.beginPath(); ctx.ellipse(len,0,fr*0.42,fr*0.42,0,0,7); ctx.fill(); }
+          ctx.restore();
+        } else if (shape==='raceme'){       // wisteria: a hanging chain
+          const len=fr*(L.raceme||3.4);
+          for (let j=0;j<5;j++){
+            const t=j/4, r=fr*(0.62-0.28*t);
+            ctx.fillStyle=shade(col,(0.5-t)*14);
+            ctx.beginPath(); ctx.ellipse(px+(rnd()-0.5)*fr*0.4, py+t*len, r, r*0.8, 0,0,7); ctx.fill();
+          }
+        } else if (shape==='lacecap'){      // climbing hydrangea: a flat disc
+          ctx.beginPath(); ctx.ellipse(px,py,fr*1.5,fr*0.6,0,0,7); ctx.fill();
+          ctx.fillStyle=shade(col,-16);
+          for (let j=0;j<4;j++){ const a=j/4*6.283;
+            ctx.beginPath(); ctx.ellipse(px+Math.cos(a)*fr*1.2, py+Math.sin(a)*fr*0.5, fr*0.4,fr*0.3,0,0,7); ctx.fill(); }
+        } else if (shape==='cone'){         // hop strobiles
+          ctx.beginPath(); ctx.ellipse(px,py+fr,fr*0.7,fr*1.4,0,0,7); ctx.fill();
+        } else {                            // open flowers: clematis, rose, star
+          const petals=L.petals||5;
+          for (let j=0;j<petals;j++){ const a=j/petals*6.283+rnd()*0.3;
+            ctx.beginPath();
+            ctx.ellipse(px+Math.cos(a)*fr*0.72, py+Math.sin(a)*fr*0.62, fr*0.62, fr*0.40, a, 0, 7);
+            ctx.fill(); }
+          if (S.eye){ ctx.fillStyle=S.eye;
+            ctx.beginPath(); ctx.ellipse(px,py,fr*0.34,fr*0.30,0,0,7); ctx.fill(); }
+        }
+      }
+    }
+    ctx.restore();
+    return;
+  }
   if (P.form === 'bunchgrass'){
     const L=P.look||{}, n = stemFor(L.leaves||13);
     const a2 = art2On(L);
@@ -6253,6 +6375,125 @@ function waterVessel(ctx,cx,cy,rx,ry,hh,prof,fin){
    Positioning from screenOf is what a chip cannot do — it reads the live
    CAMERA, so on a 48x44 chip every piece landed hundreds of pixels off it and
    all eight drew nothing at all. */
+/* ---------- vertical supports ----------
+   Split into an ART function taking a ground point, for the reason drawPot and
+   drawSeat are: the garden and the tray chip must paint through ONE painter or
+   a chip advertises a frame the canvas does not draw. The ground centre comes
+   from groundCenterRot, which is correct at every rotation — the arch is 3x1,
+   so it is exactly the multi-tile case that drifts otherwise. */
+function drawSupport(ctx,W,H,season,sup,x,y){
+  if (!sup) return;
+  const d=normalizeSupportDraft(sup);
+  const [cx,cy]=groundCenterRot(x,y,supportTileSize(d),W,H);
+  drawSupportArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
+}
+function drawSupportArt(ctx,cx,cy,sup,season,axes,seed){
+  if (!sup) return;
+  const d=normalizeSupportDraft(sup), spec=supportStyle(d.form||d.style), mat=supportMaterial(d.mat);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const rs=mulberry(((seed||0)^0x1f33)>>>0);
+  const hh=feetToPx(spec.ft);
+  /* Half the ground span in TILES, because ax/ay are already a full tile step
+     in screen pixels — the drawSeatArt basis. The root-2 x TILE_W/2 form is the
+     ROUND-vessel semi-axis from drawPotArt and belongs to ellipses; used here
+     it multiplied a tile step by a pixel count and drew the trellis as a 200px
+     line across the garden. */
+  const halfW=inchesToTiles(spec.wIn)/2;
+  const halfD=inchesToTiles(spec.dIn)/2;
+  const P=(u,v,up)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-(up||0)];
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  drawSoftShadow(ctx,cx,cy,halfW*0.9,Math.max(4,halfD*0.7),0.16);
+  const post=(u,v,h,w)=>{
+    const a=P(u,v,0), b=P(u,v,h);
+    ctx.strokeStyle=mat.dark; ctx.lineWidth=w+1.1;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    ctx.strokeStyle=mat.wood; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  };
+  const rung=(u0,v0,u1,v1,h,w)=>{
+    const a=P(u0,v0,h), b=P(u1,v1,h);
+    ctx.strokeStyle=mat.wood; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  };
+  if (spec.form==='obelisk'){
+    /* Four legs leaning to a point — the taper IS the obelisk, so the legs are
+       drawn to a shared apex rather than as a box with a lid. */
+    const legs=[[-1,-1],[1,-1],[1,1],[-1,1]];
+    const apex=P(0,0,hh);
+    for (const [su,sv] of legs){
+      const foot=P(su*halfW,sv*halfD,0);
+      const top =P(su*halfW*0.14,sv*halfD*0.14,hh*0.94);
+      ctx.strokeStyle=mat.dark; ctx.lineWidth=3.2;
+      ctx.beginPath(); ctx.moveTo(foot[0],foot[1]); ctx.lineTo(top[0],top[1]); ctx.stroke();
+      ctx.strokeStyle=mat.wood; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(foot[0],foot[1]); ctx.lineTo(top[0],top[1]); ctx.stroke();
+    }
+    // horizontal bands, tightening as the frame narrows
+    for (let i=1;i<=4;i++){
+      const t=i/5, k=1-0.86*t, h=hh*t;
+      ctx.strokeStyle=mat.wood; ctx.lineWidth=1.4;
+      ctx.beginPath();
+      legs.forEach(([su,sv],j)=>{ const p=P(su*halfW*k,sv*halfD*k,h);
+        j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); });
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.fillStyle=mat.light;
+    ctx.beginPath(); ctx.ellipse(apex[0],apex[1],2.6,2.6,0,0,7); ctx.fill();
+  } else if (spec.form==='panel'){
+    /* A flat trellis: two posts and a lattice between them, standing in the
+       plane of its own long axis so it turns with the garden. */
+    post(-halfW,0,hh,3);
+    post(halfW,0,hh,3);
+    rung(-halfW,0,halfW,0,hh,2.4);
+    rung(-halfW,0,halfW,0,hh*0.5,1.6);
+    const bays=5;
+    ctx.strokeStyle=mat.light; ctx.lineWidth=1.2;
+    for (let i=0;i<=bays;i++){
+      const u=-halfW+(i/bays)*halfW*2;
+      for (const dir of [1,-1]){
+        const a=P(u,0,0), b=P(u+dir*halfW*0.5,0,hh);
+        ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+      }
+    }
+  } else if (spec.form==='arch'){
+    /* Two legs and a curve you walk under, so the opening has to READ as an
+       opening: nothing is drawn between the posts below the springing line. */
+    post(-halfW,0,hh*0.72,3.4);
+    post(halfW,0,hh*0.72,3.4);
+    const spring=hh*0.72;
+    for (const w of [4.2,2.8]){
+      ctx.strokeStyle = w>3 ? mat.dark : mat.wood; ctx.lineWidth=w;
+      ctx.beginPath();
+      for (let i=0;i<=16;i++){
+        const t=i/16, u=-halfW+t*halfW*2;
+        const h=spring+Math.sin(t*Math.PI)*(hh-spring);
+        const p=P(u,0,h); i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);
+      }
+      ctx.stroke();
+    }
+    // side rails on the legs, which is what a climber is actually tied to
+    ctx.strokeStyle=mat.light; ctx.lineWidth=1.1;
+    for (const s of [-1,1]) for (let i=1;i<=3;i++){
+      const h=spring*(i/4), a=P(s*halfW,-halfD*0.5,h), b=P(s*halfW,halfD*0.5,h);
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    }
+  }
+  if (mat.id==='willow'){
+    // a woven frame is irregular; a few seeded slubs are what says "hazel rods"
+    ctx.strokeStyle=shade(mat.dark,10); ctx.lineWidth=1;
+    for (let i=0;i<7;i++){
+      const h=hh*(0.15+rs()*0.75), u=(rs()*2-1)*halfW*0.8;
+      const a=P(u,0,h), b=P(u+halfW*0.3,0,h+3);
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    }
+  }
+  if (AMBIENCE[season].snow){
+    ctx.strokeStyle='rgba(240,244,250,0.6)'; ctx.lineWidth=1.8;
+    const t=P(0,0,hh*0.98), l=P(-halfW,0,hh*0.7), r=P(halfW,0,hh*0.7);
+    ctx.beginPath(); ctx.moveTo(l[0],l[1]-2); ctx.quadraticCurveTo(t[0],t[1]-3,r[0],r[1]-2); ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawWaterFeature(ctx,W,H,season,wf,x,y){
   if (!wf) return;
   const d=normalizeWaterFeatureDraft(wf);
