@@ -1985,7 +1985,7 @@ function watchForAppUpdate(reg){
    pixel budget. Works identically on desktop and tablet for side-by-side. */
 const dbg={on:false, flush:false, el:null, fps:0, fpsAt:0, n:0, acc:{}, ents:0, tiles:0,
   ev:Object.create(null), gapLast:0, gapMax:0, gapOver:0, gapN:0, gapSusp:0,
-  GAP_BUDGET:20, GAP_SUSPEND:250};
+  GAP_BUDGET:20, GAP_SUSPEND:250, gapSuspMax:0};
 // Labelled phase timing with ~zero cost when off: dnow() reads the clock only
 // while on; dmark folds the elapsed delta into a named accumulator; dtime wraps
 // an ad-hoc call so any function can be timed (e.g. dtime('flood',()=>doFloodFill())).
@@ -2066,13 +2066,22 @@ function dgap(raw){
      whole hidden period as one gap — measured at 709ms and 1158ms in a session
      where the worst REAL stall was under 40ms. That is a suspend, not jank, and
      letting it set gapMax buries every genuine stall beneath it. Count them
-     separately so the resume is still visible but cannot pollute the signal. */
-  if (raw>dbg.GAP_SUSPEND){ dbg.gapSusp++; return; }
+     separately so the resume is still visible but cannot pollute the signal.
+
+     But DISCARDING the size was its own blind spot, found while chasing a
+     report of fast-forward taking 4-5s to restart after a long hold: a stall
+     that big is over the threshold, so the HUD showed `(+2 suspend)` and threw
+     away the one number the investigation needed — and a real multi-second
+     freeze is indistinguishable here from a tab resume. Keep the worst of them
+     so the reading is `(+2 suspend, worst 4300ms)`. It still cannot say WHICH
+     it was, but a suspend the user never caused is now at least visible. */
+  if (raw>dbg.GAP_SUSPEND){ dbg.gapSusp++;
+    if (raw>dbg.gapSuspMax) dbg.gapSuspMax=raw; return; }
   if (raw>dbg.gapMax) dbg.gapMax=raw;
   if (raw>dbg.GAP_BUDGET) dbg.gapOver++;
 }
 function dbgReset(){ dbg.n=0; dbg.acc={}; }              // per-window phase averages
-function devReset(){ dbg.ev=Object.create(null); dbg.gapMax=0; dbg.gapOver=0; dbg.gapN=0; dbg.gapSusp=0; }
+function devReset(){ dbg.ev=Object.create(null); dbg.gapMax=0; dbg.gapOver=0; dbg.gapN=0; dbg.gapSusp=0; dbg.gapSuspMax=0; }
 function toggleDebug(){
   dbg.on=!dbg.on;
   if (dbg.on && !dbg.el){
@@ -2117,7 +2126,7 @@ function updateDebugHud(){
   const gap=dbg.gapN
     ? `\nspacing  last ${dbg.gapLast.toFixed(1)}ms  max ${dbg.gapMax.toFixed(1)}ms`+
       `  over-${dbg.GAP_BUDGET}ms ${dbg.gapOver}/${dbg.gapN}`+
-      (dbg.gapSusp?`  (+${dbg.gapSusp} suspend)`:'')
+      (dbg.gapSusp?`  (+${dbg.gapSusp} suspend, worst ${dbg.gapSuspMax.toFixed(0)}ms)`:'')
     : '';
   dbg.el.textContent=
     `FPS ${(dbg.fps||0).toFixed(0)}   frame ${avg(total).toFixed(2)}ms  (${dbg.ents} ents, ${dbg.tiles} tiles)${flushNote}\n`+

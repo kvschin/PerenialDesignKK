@@ -9982,6 +9982,25 @@ test('concurrent first saves create one slot and reopening waits for the latest 
   cancelGardenAutosave();
 });
 
+test('the debug HUD keeps the size of a stall it classifies as a suspend', ()=>{
+  /* Gaps over GAP_SUSPEND are kept out of gapMax so a tab resume cannot bury
+     every real stall beneath it. Discarding the SIZE too was a blind spot: a
+     report of fast-forward taking 4-5s to restart produced a HUD reading of
+     `(+2 suspend)` and no number at all for the thing being investigated. */
+  const on=dbg.on; dbg.on=true; devReset();
+  dgap(16);                       // an ordinary frame
+  dgap(120);                      // real jank, under the threshold
+  dgap(4300);                     // the stall being hunted
+  dgap(900);                      // a smaller one
+  const got={max:dbg.gapMax, susp:dbg.gapSusp, suspMax:dbg.gapSuspMax, over:dbg.gapOver, n:dbg.gapN};
+  dbg.on=on; devReset();
+  assertEqual(got.max,120,'a suspend-class gap still stays out of gapMax');
+  assertEqual(got.susp,2,'both long gaps are counted');
+  assertEqual(got.suspMax,4300,'and the worst of them keeps its size');
+  assertEqual(got.over,1,'a suspend is not jank: over-budget counts only the 120ms gap');
+  assertEqual(got.n,4,'every gap is seen');
+});
+
 test('a burst of saves coalesces instead of writing once per call', async()=>{
   await worldsIndexChain; await pendingSaves();
   setup(21,21); await clearStoredWorlds();
