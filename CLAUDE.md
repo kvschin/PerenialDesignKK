@@ -187,6 +187,32 @@ See §13a.
   the cull then rejects all but a handful of plants — that environment reported a
   confident 43MB and 31ms/frame for a garden that really measures 1.65ms. A
   plausible wrong number is worse than none.
+- `node dev/plant-blit-bench.cjs` splits the plant sprite pass into BAKING and
+  BLITTING, which the `draw` phase and a profile's `drawPlantMaybeCached` share
+  as one number while wanting opposite fixes — baking is driven by how fast the
+  growth/bloom buckets churn, blitting by pixels composited. Measured on a
+  326-plant garden in Firefox 155 at 1700x959: **blitting dominates and baking
+  is nearly free** (0.2-0.7ms a frame), so bake frequency is not the lever it
+  looks like. The **Established preview costs 2.3x Today** (76 vs 33us a blit,
+  18.8MB of cache against 5.9MB) because mature plants are simply bigger
+  sprites — and Established is the default every garden opens in. The **wind is
+  ~30% of the blit**, because the shear makes every blit a resampling blit.
+  **Three savings were measured and all three REJECTED** — recorded so nobody
+  re-derives them. *Trimming the transparent padding*: the ink audit says only
+  7-11% of a sprite's pixels are drawn, which looks like a huge win and is not
+  one, because the transparency is INTERSTITIAL (the gaps between grass blades)
+  rather than a border, so the ink's bounding box is the sprite's own box and
+  there is nothing to crop. *Dropping the wind shear*: ~30% of the blit, and it
+  is the wind. *`imageSmoothingEnabled=false`*: much the biggest lever — 2.3x
+  off the blit, 27% off the frame, since a sheared `drawImage` is the only
+  resampling in the pass — but against a frozen wind with a clean 0% control it
+  changes **5.7-6.1% of the frame's pixels at a max of 58-59/255**, and it is
+  worse in motion than that static figure looks, because nearest-neighbour snaps
+  each row of a sheared sprite to a whole pixel and the stair-steps then crawl
+  as the wind moves. The tool also refuses a window that is not really
+  rasterising: an occluded one reported **2.0us a blit where three careful runs
+  of the same build report 76us**, so it prints ns/px for a full-screen fill and
+  says so when that is impossibly cheap.
 - `node dev/wash-verify.cjs` proves a `SEASON_WASH.mode` change costs less and
   looks the same, by driving the REAL app in system Firefox AND Chrome (a
   throwaway profile each, service worker disabled in the served markup) and
