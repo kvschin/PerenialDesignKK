@@ -1532,7 +1532,18 @@ function updateHUD(){
         ? 'Spring. Last year is cut back — everything starts small and grows again.'
         : `${cal.season} begins. Watch the garden change.`);
     game.lastDay=sd;
-    if (game.inGarden&&hasStorage) saveSolo(true);
+    /* A day change is worth banking immediately — unless time is being held
+       forward, when the calendar crosses a day every 500ms and NOTHING in the
+       model moves but the clock. Writing the whole garden twice a second to
+       persist one number is pure write amplification, and it is what the save
+       backlog was made of. Hand it to the settling autosave instead: its
+       deadline is pushed past every tick, so a sustained hold writes nothing
+       and releasing the hold banks it once (see resetFF in screens.js).
+       Backgrounding and pagehide still save regardless. */
+    if (game.inGarden&&hasStorage){
+      if (game.ffActive) requestGardenAutosave();
+      else saveSolo(true);
+    }
   }
 }
 

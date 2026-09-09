@@ -9982,6 +9982,46 @@ test('concurrent first saves create one slot and reopening waits for the latest 
   cancelGardenAutosave();
 });
 
+test('a burst of saves coalesces instead of writing once per call', async()=>{
+  await worldsIndexChain; await pendingSaves();
+  setup(21,21); await clearStoredWorlds();
+  game.inGarden=true; game.worldId='save-coalesce';
+  /* The day change fires a save every time the calendar ticks, which under a
+     held fast-forward is every DAY_MS/FF_RATE = 500ms. Unguarded, each call
+     cloned the whole garden and queued another pair of writes behind the last,
+     so a backlog grew for as long as the hold lasted and outlived it — the
+     reload afterwards waited on all of it. At most one save may run and one
+     more sit behind it, however many callers arrive. */
+  const before=saveRequest;
+  const burst=[];
+  for (let i=0;i<8;i++){ setTile('plants',`${2+i},2`,{s:'bluestem',d:0,t:i}); burst.push(saveSolo(true)); }
+  await Promise.all(burst);
+  const executed=saveRequest-before;
+  assert(executed<=2, `at most one save plus one trailing save, ran ${executed}`);
+  const onDisk=await sGet('hortus:world:save-coalesce');
+  assert(onDisk && onDisk.plants['9,2'], 'and the trailing save carries the newest state');
+  cancelGardenAutosave();
+});
+
+test('holding fast-forward does not write the garden on every day change', ()=>{
+  /* Nothing in the model moves while time is held forward — only the clock —
+     so an immediate save per day is a whole-garden write twice a second to
+     persist one number. The tick hands it to the settling autosave, whose
+     deadline is pushed past every day, and the release banks it once. */
+  const hud=readRepoFile('js/ui.js');
+  const at=hud.indexOf('game.lastDay=sd;');
+  assert(at>0,'the day-change branch is still in updateHUD');
+  const branch=hud.slice(at, at+1200);
+  assert(branch.includes('if (game.ffActive) requestGardenAutosave();'),
+    'a day crossed under fast-forward coalesces instead of saving outright');
+  assert(branch.includes('else saveSolo(true);'),
+    'an ordinary day change still saves immediately');
+  const screens=readRepoFile('js/screens.js');
+  const reset=screens.slice(screens.indexOf('const resetFF='), screens.indexOf('const cancelFF='));
+  assert(reset.includes('wasFast') && reset.includes('saveSolo(true)'),
+    'releasing the hold banks the clock once, however the hold ended');
+});
+
 test('garden imports reject malformed versions, layers and records before touching storage', async()=>{
   await worldsIndexChain;
   setup(21,21); await clearStoredWorlds();

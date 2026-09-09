@@ -378,7 +378,43 @@ function requestGardenAutosave(delay=AUTOSAVE_DELAY){
    then stays quiet until a save succeeds again; a toast per day change would be
    its own bug. The message names the way out (export) rather than the cause. */
 let saveFailureReported=false;
-async function saveSolo(silent){
+/* Saves COALESCE: one in flight, at most one more queued behind it.
+   A save is a whole-garden clone plus two IndexedDB writes on the serialized
+   index chain, and it used to be fire-and-forget from every call site — with
+   the day change among them. Under a held fast-forward the calendar ticks
+   every DAY_MS/FF_RATE = 500ms, so that was a full save twice a second,
+   indefinitely, with nothing to stop a second starting behind the first.
+   Stacking them cannot help anyone: a later save writes a strictly newer blob
+   over the earlier one, so every queued save is waste that still pins its own
+   clone of the garden and its own pair of writes. Once they arrive faster than
+   they land the backlog only grows, and it outlives the gesture — the reload
+   afterwards waits on all of it, which is what turned a refresh into twenty
+   seconds of nothing. Reproduced at queue depth 7 by making writes slower than
+   the tick; with this guard the depth is 1 and the trailing save carries the
+   newest state. */
+let saveTail=null, saveQueued=null, saveQueuedSilent=true;
+/* Everything a reopen has to wait for: the save running now, plus the one
+   coalesced behind it. A queued save has NOT reached worldsIndexChain yet, so
+   awaiting that chain alone would let loadSolo read a blob older than the edit
+   the gardener just made — the exact staleness the chain was added to prevent. */
+function pendingSaves(){ return saveQueued || saveTail || Promise.resolve(); }
+function saveSolo(silent){
+  if (!saveTail){
+    const run=saveSoloNow(silent);
+    saveTail=run.then(()=>{},()=>{}).then(()=>{ saveTail=null; });
+    return run;                            // callers see this save's own result
+  }
+  if (!silent) saveQueuedSilent=false;     // a manual save still reports when it lands
+  if (!saveQueued){
+    saveQueued=saveTail.then(()=>{
+      saveQueued=null;
+      const s=saveQueuedSilent; saveQueuedSilent=true;
+      return saveSolo(s);                  // one trailing save, carrying the newest state
+    });
+  }
+  return saveQueued;                       // everyone who arrived meanwhile awaits it
+}
+async function saveSoloNow(silent){
   if (!hasStorage){ toast('No save storage here — garden lives this session only.'); return; }
   // A load is in flight: game.* still holds the OUTGOING garden. Silent by
   // design — nothing has gone wrong, and the load will save when it lands.
@@ -548,6 +584,7 @@ function gardenFileProblem(env){
   return null;
 }
 async function loadSolo(id){
+  await pendingSaves();             // a coalesced save is not on the chain yet
   await worldsIndexChain;           // reopening after Quit must see its queued save
   const s=await sGet('hortus:world:'+id);
   if (!s) return false;

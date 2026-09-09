@@ -1587,6 +1587,9 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
     game.ffActive=false; ffStarted=false;
     box.classList.remove('hold-arming','fast-forwarding');
     box.setAttribute('aria-label','Time — tap for controls, hold to fast-forward');
+    // The hold itself writes nothing (see the day-change note in ui.js), so
+    // the clock is banked here, once, however the hold ended.
+    if (wasFast && game.inGarden && hasStorage) saveSolo(true);
     return wasFast;
   };
   const cancelFF=()=>{ pressActive=false; resetFF(); };

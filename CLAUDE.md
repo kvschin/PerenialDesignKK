@@ -314,6 +314,28 @@ See §13a.
   Only a successful write of both for the current session and revision clears
   `game.dirty`; failures remain dirty and retry after 5 seconds. `loadSolo`
   waits for queued writes so immediately reopening a garden sees the latest save.
+  **`saveSolo` COALESCES: one save runs, at most one more sits behind it**
+  (`saveTail`/`saveQueued`, io.js), and it has to, because the day-change save
+  is fire-and-forget from `updateHUD`. Under a held fast-forward the calendar
+  ticks every `DAY_MS/FF_RATE` = **500ms**, so that was a full save — a whole-
+  garden `structuredClone` plus two IndexedDB writes — twice a second, with
+  nothing stopping a second starting behind the first. Stacking cannot help
+  anyone: a later save writes a strictly newer blob over the earlier one, so a
+  queued save is pure waste that still pins its own clone and its own pair of
+  writes on the serialized index chain. Once they arrived faster than they
+  landed the backlog only grew, and it OUTLIVED the gesture — `pagehide` adds
+  one more save behind the whole queue and the browser waits on the pending
+  transactions, which is what turned a refresh into twenty seconds of nothing.
+  Measured on a 326-plant garden: 12 rapid calls were 12 concurrent executions
+  and 24 writes, and are now 1 concurrent execution and 2 total. **A queued
+  save is not on `worldsIndexChain` yet**, so `loadSolo` awaits `pendingSaves()`
+  as well — awaiting the chain alone would let a reopen read a blob older than
+  the edit just made, the exact staleness that chain exists to prevent.
+  And the day change **does not save at all while `game.ffActive`**: nothing in
+  the model moves under fast-forward but the clock, so it hands the tick to the
+  settling autosave (whose deadline is pushed past every 500ms day, so a
+  sustained hold writes nothing) and `resetFF` banks it once on release,
+  however the hold ended. Backgrounding and pagehide still save regardless.
 - **Save blobs carry `v` (`SAVE_VERSION`) and `app` (`APP_VERSION`).** Version 2
   replaces the old `nativesOnly` Boolean with `nativeRegion` + `nativeMode`;
   `normalizeDesign` removes the legacy field before a loaded garden is saved
