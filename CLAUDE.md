@@ -3124,7 +3124,26 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     budget, so 4fps and up now runs true and one frame can never jump more
     than half a garden day: a **masked conic ring** (`.season-box::after`, animated
     through the registered `--hold-sweep` property) traces the hold and the
-    calendar line changes to **Fast-forwarding** while it is active. The ring
+    calendar line changes to **Fast-forwarding** while it is active.
+    **That 360ms deadline is checked from BOTH a `setTimeout` and the frame loop**
+    (`pollFastForwardHold`, called by `frame()`), through one idempotent
+    `armFastForward`. A timer alone is not enough: Firefox prioritises the
+    refresh driver, so a main thread saturated by rendering can starve a
+    normal-priority timer outright. Measured in a 23.05s Gecko profile of a heavy
+    garden — 320 long tasks totalling **22.90s**, median 71.4ms, the thread ~99%
+    busy — **four** long presses (5737, 4618, 1180 and 3649ms) never ran the
+    360ms callback at all; the only timer callbacks inside those holds fired at
+    +70..74ms and belonged to something else. All four `--hold-sweep` transitions
+    completed on schedule, because the COMPOSITOR drives those, so the box looked
+    like it was arming the whole time — then each press released still in
+    `hold-arming`, took the short-tap path and toggled the Time menu. A
+    five-second hold read as a tap, and fast-forward appeared not to work at all
+    on the one garden heavy enough to starve the timer. The frame loop is the one
+    thing guaranteed to run there, because it IS the work doing the starving. The
+    timer stays: it keeps activation crisp at 360ms on an idle thread, where the
+    next frame could be a frame late. Reproduced deterministically by dropping
+    only the 360ms timer — before, it never armed and the menu opened; after, it
+    arms at ~438ms and time advances. The ring
     takes `border-radius:inherit`, so it always matches the box — it replaced
     an SVG `<rect rx="5">` in a fixed `150x34` viewBox with
     `preserveAspectRatio="none"`, which drew 5px corners inside a 10px box and

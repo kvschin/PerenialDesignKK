@@ -1577,13 +1577,17 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
 // The box stays pressable while the menu is open (see openPause's z-lift),
 // so a hold always fast-forwards — starting one dismisses the dropdown so
 // the garden underneath is visible while time runs.
+/* Driven from frame() so the hold deadline does not depend on a timer getting
+   an event-loop turn. See armFastForward below. */
+let pollFastForwardHold=()=>{};
 (function wireSeasonBox(){
   const box=$('btnSeasonBox'); if (!box) return;
   const HOLD_MS=360;
-  let holdTimer=null, ffStarted=false, pressActive=false;
+  let holdTimer=null, ffStarted=false, pressActive=false, pressAt=0;
   const resetFF=()=>{
     const wasFast=ffStarted;
     if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+    pressAt=0;
     game.ffActive=false; ffStarted=false;
     box.classList.remove('hold-arming','fast-forwarding');
     box.setAttribute('aria-label','Time — tap for controls, hold to fast-forward');
@@ -1593,16 +1597,45 @@ if ($('btnPause')) $('btnPause').onclick=toggleClock;
     return wasFast;
   };
   const cancelFF=()=>{ pressActive=false; resetFF(); };
+  /* One idempotent activation, reached from the 360ms timer OR from the
+     animation frame — because under load the timer does not arrive.
+
+     Firefox prioritises the refresh driver, so when the main thread is
+     saturated by rendering a normal-priority timer can simply be starved. Not
+     theoretical: in a 23.05s Gecko profile of a heavy garden, 320 long tasks
+     totalling 22.90s (median 71.4ms) left the thread ~99% busy, and across
+     FOUR long presses — held 5737, 4618, 1180 and 3649ms — the 360ms callback
+     never ran. The only timer callbacks inside those holds fired at +70..74ms
+     and belonged to something else. Meanwhile all four `--hold-sweep` CSS
+     transitions completed on schedule, because the compositor drives those,
+     which is why the button LOOKED like it was arming the whole time. Each
+     press then released still in `hold-arming`, took the short-tap path, and
+     toggled the Time menu — so a five-second hold read as a tap, and
+     fast-forward appeared not to work at all on the one garden heavy enough
+     to starve the timer.
+
+     The frame loop is the one thing guaranteed to run here — it IS the work
+     starving the timer — so the deadline is checked there too. The timer
+     stays: it is what makes activation crisp at 360ms on an idle thread,
+     where the next frame might be up to a frame late. */
+  const armFastForward=()=>{
+    if (ffStarted || !pressActive) return;                 // idempotent
+    if (holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+    game.ffActive=true; ffStarted=true; closePause();
+    box.classList.remove('hold-arming'); box.classList.add('fast-forwarding');
+    box.setAttribute('aria-label','Time — fast-forwarding while held');
+    hapticFeedback('success');
+  };
+  pollFastForwardHold=()=>{
+    if (pressActive && !ffStarted && pressAt && performance.now()-pressAt>=HOLD_MS)
+      armFastForward();
+  };
   box.addEventListener('pointerdown',e=>{
     e.preventDefault(); dismissCoachTip(); resetFF(); pressActive=true;
     box.classList.add('hold-arming');
     try{ box.setPointerCapture(e.pointerId); }catch(_){ }
-    holdTimer=setTimeout(()=>{
-      holdTimer=null; game.ffActive=true; ffStarted=true; closePause();
-      box.classList.remove('hold-arming'); box.classList.add('fast-forwarding');
-      box.setAttribute('aria-label','Time — fast-forwarding while held');
-      hapticFeedback('success');
-    },HOLD_MS);
+    pressAt=performance.now();
+    holdTimer=setTimeout(armFastForward,HOLD_MS);
   });
   box.addEventListener('pointerup',()=>{
     if (!pressActive) return;
@@ -2538,6 +2571,7 @@ function frame(t){
   const dt=Math.min(50,Math.max(0,rawGap)); prev=t;   // floor 0: a backward t must never rewind FF time
   if (game.inGarden){
     const tFrame=dnow();
+    pollFastForwardHold();          // the hold deadline, checked where it cannot be starved
     /* Fast-forward advances by REAL elapsed time, not by the 50ms frame clamp.
        Sharing that clamp made the fast-forward RATE a function of framerate: it
        is a fixed FF_RATE ms of garden time per ms of real time only while a

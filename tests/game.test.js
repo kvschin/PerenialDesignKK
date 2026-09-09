@@ -10038,6 +10038,35 @@ test('a burst of saves coalesces instead of writing once per call', async()=>{
   cancelGardenAutosave();
 });
 
+test('the hold deadline is checked from the frame loop, not only from a timer', ()=>{
+  /* Firefox prioritises the refresh driver, so a main thread saturated by
+     rendering can starve a normal-priority timer outright. In a 23.05s Gecko
+     profile of a heavy garden — 320 long tasks totalling 22.90s, median 71.4ms,
+     the thread ~99% busy — FOUR long presses (5737, 4618, 1180, 3649ms) never
+     ran the 360ms hold callback at all. All four --hold-sweep CSS transitions
+     completed, because the compositor drives those, so the button looked like
+     it was arming the whole time; each press then released still in
+     hold-arming, took the short-tap path and toggled the Time menu. Reproduced
+     deterministically by dropping just the 360ms timer: before this, activation
+     never happened and the menu opened; after, it arms at ~438ms and time runs. */
+  const src=readRepoFile('js/screens.js');
+  const fi=src.indexOf('function frame(t){');
+  assert(fi>0,'frame() is still there');
+  const body=src.slice(fi, fi+1800);
+  assert(body.includes('pollFastForwardHold()'),
+    'the frame loop polls the hold deadline — it is the one thing guaranteed to run');
+  const ai=src.indexOf('const armFastForward=()=>{');
+  assert(ai>0,'activation is one named function, not inlined in the timeout');
+  const arm=src.slice(ai, ai+420);
+  assert(arm.includes('if (ffStarted || !pressActive) return;'),
+    'and it is idempotent, since two paths can now reach it');
+  assert(arm.includes('game.ffActive=true'),'it is what actually starts fast-forward');
+  assert(src.includes('setTimeout(armFastForward,HOLD_MS)'),
+    'the timer calls that same activation rather than carrying its own copy');
+  assert(typeof pollFastForwardHold==='function','the poll reaches module scope');
+  pollFastForwardHold();   // no press in flight: a no-op, never a throw
+});
+
 test('fast-forward advances at the same rate however slow the frames are', ()=>{
   /* The rate used to ride the 50ms frame clamp, so it silently degraded in
      proportion to frame cost: 2.00 garden days a second at 60fps, 1.47 at
