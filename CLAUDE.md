@@ -166,6 +166,27 @@ See §13a.
   `docs/demo-garden.md`). Prefer authoring the demo garden by hand in the app
   and exporting over the top of it — the generator exists so the file can be
   rebuilt, not because arithmetic plants a better garden.
+- `node dev/ff-bench.cjs` measures the plant sprite cache while time is HELD
+  forward — the one gesture that stresses it, and the one `perfBench` and
+  `drawProfile` cannot see, because neither moves the clock and the cache is
+  keyed on growth and bloom buckets read off it. Under fast-forward a game day
+  passes every 500ms, so those buckets churn ~40x faster than in play. Reports
+  a sprites-vs-procedural A/B, per-season bake rate and reuse, and whether a
+  sustained hold DRIFTS. Defaults to `demo-garden.json` on desktop and phone
+  viewports; `--stress` packs a quarter acre, `--garden` takes an exported
+  file, `--years`/`--profile`/`--json` do the obvious. Measured on the demo
+  garden: **10-11x faster than procedural, 1.4-5.7ms a frame, no drift over
+  several game years**, cache resting at the 48MB budget with ~30MB evictable.
+  Watch `evictMB`: eviction only ever discards sprites not drawn last frame, so
+  that column reaching 0 while `cacheMB` sits over budget is the documented
+  failure shape (the whole working set on screen, eviction unable to act in the
+  one situation it exists for) — `--stress` reproduces it at 115MB of a 48MB
+  budget. **It REFUSES to report on a degenerate viewport**, which is the whole
+  reason it exists as a tool rather than a console snippet: an editor's embedded
+  browser pane can collapse to a 1x1 canvas with `innerWidth` 0 while hidden, and
+  the cull then rejects all but a handful of plants — that environment reported a
+  confident 43MB and 31ms/frame for a garden that really measures 1.65ms. A
+  plausible wrong number is worse than none.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
