@@ -2765,11 +2765,63 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `spread`; bulbs -> scatter rings; building footprints, house, fences/gates, paths/beds,
     edging (§11e, following the same smoothed arcs the garden strokes) and
     retaining walls (§12c) as heavier lines, title block,
-    true-north arrow (rotated within the fixed plan), legend with `planCodes` (short genus/epithet abbreviations,
-    unique per species|cv — a lone genus collapses to 2 letters, e.g. a single
-    Amsonia → `AM`, growing to 3+ only on collision — plus a cultivar tag), and
+    true-north arrow (rotated within the fixed plan), a plant schedule, and
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
+    `docs/plan-sheet.md` is the full record — how the sheet compares with how a
+    planting plan is really drawn, and what is still open (the **bulb overlay**
+    is the next job and the reason that review happened).
+    **A DRIFT is what the brush left connected; a STAND is what a reader sees**
+    (`planStands`/`PLAN_STAND_GAP`). The Matrix brush lays a CHECKERBOARD, so
+    `planComponents` returns dozens of one-tile components and the sheet used
+    to put a code on each: a real 326-tile garden drew 86 labels, 32 of them on
+    a single tile. Components of one species within 2 tiles are grouped
+    transitively — union-find, probing each tile's 5x5 neighbourhood in a
+    tile->component map, exact for Chebyshev distance and O(tiles·25) where the
+    pairwise form is O(tiles²) — and the group is labelled ONCE, on the stand
+    tile NEAREST its centroid (a scattered or L-shaped stand has a centroid
+    outside its own planting, and a label on bare ground reads as another
+    drift). Measured 86 labels → 53, single-tile labels 32 → 5. **The gap is 2
+    on measurement**: 1 reaches nothing (a scatter sits two tiles apart), 3
+    buys three labels, and **4 fuses two separate plantings into one 42-tile
+    stand** whose label then sits between them. Trees are excluded and keep a
+    label per component over the trunk — a tree is a specimen, not a
+    population. Line two of a label is `×N` from `plantsForTiles`, dropped at
+    `×1`.
+    **Three drawing weights** (`planLayerOf`/`PLAN_LAYER_STYLE`): Oudolf sheets
+    are legible because the groundcover matrix recedes and the structure
+    advances, and ours gave a 53-tile grass matrix and a single climber the
+    same fill, outline and label — on that garden the grasses and sedges were
+    141 of 326 tiles, so nearly half the noise was the layer that should be
+    quietest. `matrix` paints first at 80% paper with a whisper of an edge,
+    `drift` keeps the old 66%/1.3px, `structure` gets 60%/1.9px. It asks
+    `staticPlantRoles` rather than restating a type chain — that table already
+    tags every grass/sedge `matrix` and every woody `structure`, so the two
+    cannot drift apart — and `groundcover` is deliberately NOT folded in
+    (it would demote hosta and fern drifts, a taste call the data does not
+    make). Verified in the pixels, median luminance at every planted tile
+    against paper at 243: matrix 227, drift 213, structure 196.
+    **The legend is a plant SCHEDULE**: swatch + code, botanical name (with the
+    cultivar epithet, via `planBotanicalName` — which leaves a `fullName` or a
+    cultivar carrying its own `latin` alone), common name (without it),
+    quantity, and spacing **o.c.** through `plantMeasure` so it follows the
+    units preference (§18). Quantity is `plantsForTiles` over planted RECORDS,
+    not plan tiles — `shrubPlanComponents` tiles are the mature footprint, so
+    counting those bills one viburnum as nine — and `exportRows` now calls the
+    same function, so the sheet and the planting list cannot disagree. The old
+    three-column legend truncated the name at 26 chars, which is exactly where
+    a cultivar epithet lives; `planFitText` truncates by `measureText` instead.
+    The paper has a **660px floor** and the drawing centres inside it, because
+    a sheet sized to a small plot cannot fit the schedule.
+    **`planCodes` is three genus letters plus a digit**, and the digit appears
+    only when the garden holds more than one selection of that species. Two
+    defects that fixes: the cultivar suffix used to be the first two letters of
+    the internal KEY slug, so `'theblues'` rendered as `SC'TH` and nobody could
+    read it back; and a lone genus collapsed to two letters, making *Nassella*
+    `NA` — indistinguishable from N/A on a sheet. Every tag on that garden is
+    now exactly 3 characters. Letters were kept over numbers deliberately (a
+    tag should be a hint, not a cipher); switching to `1..n` is a change to
+    that function alone, since nothing else reads a code's shape.
 14c. **Bloom calendar + live phenology** - `bloomRows()` reads planted plants +
     bulbs, groups them by species/cultivar, and maps `bloomMonths` to
     real-world Jan-Dec columns; missing month data falls back to conservative

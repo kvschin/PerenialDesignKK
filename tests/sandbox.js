@@ -25,9 +25,17 @@ const GAME_MODULES = [
 ];
 const gameSources = () => [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f))];
 
-function makeCtx(){
-  return new Proxy({}, {
+/* `base` lets a test hand in its own recorders — fillText, arc, setLineDash —
+   and still inherit every honest fallback below.  A test that hand-rolls the
+   whole proxy instead gets a context missing methods the real
+   CanvasRenderingContext2D always has: three of them lacked `measureText`, so
+   `planFitText` threw the moment the plan sheet began measuring its own
+   schedule columns.  An incomplete stub is not a strict stub, it is a
+   different environment from the browser. */
+function makeCtx(base){
+  return new Proxy(base || {}, {
     get(o, p){
+      if (p in o) return o[p];                     // an explicit recorder wins
       /* Scales with the string. A flat 0 meant any layout that fits text into a
          box "fit" whatever you gave it, so a wrapping or truncation assertion
          passed without measuring anything. ~6.2px/char is a rough Plex Sans
@@ -36,7 +44,6 @@ function makeCtx(){
       if (p === 'createLinearGradient' || p === 'createRadialGradient' || p === 'createPattern')
         return () => ({ addColorStop(){} });
       if (p === 'getImageData') return () => ({ data: new Uint8ClampedArray(4) });
-      if (p in o) return o[p];
       return () => {};               // any unknown canvas method is a no-op
     },
     set(o, p, v){ o[p] = v; return true; }
@@ -219,6 +226,8 @@ function makeSandbox(withDom, extras){
        one test's deferred work land in the middle of another. Deferred behaviour
        is therefore browser-verified, and a test that needs it replaces
        setTimeout itself — several already do. */
+    // a canvas 2D stub a test can hand its own recorders to (see makeCtx)
+    makeCanvasCtx: makeCtx,
     setTimeout: () => ++timerSerial, clearTimeout: () => {},
     setInterval: () => ++timerSerial, clearInterval: () => {},
   };
@@ -266,4 +275,4 @@ function runTier(label, sources, withDom, extras){
   }
 }
 
-module.exports = { root, read, GAME_MODULES, gameSources, makeSandbox, runTier, makeEl };
+module.exports = { root, read, GAME_MODULES, gameSources, makeSandbox, runTier, makeEl, makeCtx };

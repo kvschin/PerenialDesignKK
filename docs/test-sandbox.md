@@ -68,6 +68,26 @@ which writes through to it), `matchMedia` for
 `min-width` / `max-width` / `orientation` including comma alternatives,
 `measureText` (scales with the string — an approximation, not a zero).
 
+## Handing a canvas your own recorders
+
+`makeCanvasCtx(base)` (a sandbox global; `makeCtx` in `tests/sandbox.js`) wraps
+`base` in the shared canvas-2D proxy, so a test can record the calls it cares
+about — `fillText`, `arc`, `setLineDash` — and still inherit every honest
+fallback above. Reach for it instead of hand-rolling
+`new Proxy({…}, {get(o,p){ return p in o ? o[p] : () => {}; }})`.
+
+A hand-rolled proxy is a **different environment from the browser**, not a
+stricter one: three of them lacked `measureText`, and the day the plan sheet
+started measuring its own schedule columns (`planFitText`) all three threw on
+`undefined.width`. The real `CanvasRenderingContext2D` always has that method.
+Keep a bespoke `get` trap only when it does real work — asserting every numeric
+argument is finite, or recording path points — and those cases stay
+`new Proxy`.
+
+Note the shared stub's ~6.2px/char is *wide* for 10px Plex Sans, so a
+truncation assertion can fire in the sandbox where the browser has room. Assert
+on a prefix, or test the pure formatter directly.
+
 ## Auditing again
 
 ```bash

@@ -678,7 +678,9 @@ function exportRows(){
       cautionAreas:plantGuidance({s,v:v||null}).invasive.map(n=>n.area).join(', '),
       areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
       space:P.space,
-      order:Math.ceil(n*TILE_IN*TILE_IN/(P.space*P.space))};
+      // one definition of "how many plants does this much ground take", shared
+      // with the plan's per-stand annotation and its schedule
+      order:plantsForTiles(n,P.space)};
   }).sort((a,b)=>b.count-a.count);
 }
 /* Containers and seating are real things to buy, and a pot is a different line
@@ -939,6 +941,118 @@ function planComponents(){
   }
   return comps;
 }
+/* A DRIFT is whatever the brush left 8-connected; a STAND is the planting a
+   reader sees, and they are not the same thing.  The Matrix brush — the app's
+   own signature gesture, and correct naturalistic practice — lays a
+   CHECKERBOARD, which 8-connects into dozens of one-tile components, so
+   labelling per component put a code on every one of them: the 326-tile garden
+   that prompted this drew over a hundred labels at an average drift of 2.7
+   tiles.  Components of one species/cultivar within PLAN_STAND_GAP tiles are
+   therefore grouped, transitively, into a stand whose blobs still draw
+   separately (the shapes were never the problem) and which is labelled ONCE.
+
+   Joined by probing each tile's (2*GAP+1)^2 neighbourhood in a tile->component
+   map: exact for Chebyshev distance and O(tiles * 25), where the naive
+   pairwise form is O(tiles^2) and would matter on a stress garden.  All of it
+   runs once on open, never in a frame. */
+const PLAN_STAND_GAP=2;
+function planStands(comps){
+  const of=new Map();
+  comps.forEach((c,i)=>c.tiles.forEach(k=>of.set(k,i)));
+  const par=comps.map((_,i)=>i);
+  const find=i=>{ while (par[i]!==i) i=par[i]=par[par[i]]; return i; };
+  const join=(a,b)=>{ a=find(a); b=find(b); if (a!==b) par[b]=a; };
+  const G=PLAN_STAND_GAP;
+  comps.forEach((c,i)=>{
+    c.tiles.forEach(k=>{
+      const [x,y]=k.split(',').map(Number);
+      for (let dy=-G;dy<=G;dy++) for (let dx=-G;dx<=G;dx++){
+        if (!dx&&!dy) continue;
+        const j=of.get(`${x+dx},${y+dy}`);
+        if (j===undefined || j===i) continue;
+        const o=comps[j];
+        if (o.s===c.s && (o.v||'')===(c.v||'')) join(i,j);
+      }
+    });
+  });
+  const byRoot=new Map();
+  comps.forEach((c,i)=>{
+    const r=find(i);
+    let st=byRoot.get(r);
+    if (!st){ st={s:c.s, v:c.v||null, tiles:[], sx:0, sy:0}; byRoot.set(r,st); }
+    c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number);
+      st.tiles.push([x,y]); st.sx+=x; st.sy+=y; });
+  });
+  /* The label sits on the stand tile CLOSEST to the centroid, not on the
+     centroid itself: a scattered or L-shaped stand has a centroid outside its
+     own planting, and a label floating on bare ground reads as a different
+     drift. */
+  return [...byRoot.values()].map(st=>{
+    const n=st.tiles.length, cx=st.sx/n, cy=st.sy/n;
+    let best=st.tiles[0], bd=Infinity;
+    for (const [x,y] of st.tiles){
+      const d=(x-cx)*(x-cx)+(y-cy)*(y-cy);
+      if (d<bd){ bd=d; best=[x,y]; }
+    }
+    return {s:st.s, v:st.v, n, at:best};
+  }).sort((a,b)=>b.n-a.n);
+}
+/* The three drawing weights the sheet reads as a hierarchy.  Oudolf plans are
+   legible because the groundcover matrix recedes and the structure advances —
+   the fruitcake, where the matrix is the cake — and ours gave a 53-tile grass
+   matrix and a single climber the same fill, outline and label.  On the review
+   garden the grasses and sedges were 141 of 326 tiles, so nearly half the
+   noise on the sheet was the layer that should be quietest.
+
+   This asks the ROLE table rather than restating a type chain:
+   `staticPlantRoles` already tags every grass and sedge `matrix` and every
+   woody `structure`, so a species classified there is classified here and the
+   two cannot drift apart.  `groundcover` is deliberately NOT folded into
+   matrix — it would demote hosta and fern drifts, which read as feature
+   plants, and that is a taste call the data does not make. */
+function planLayerOf(s){
+  const roles=staticPlantRoles(s);
+  if (roles.includes('structure')) return 'structure';
+  if (roles.includes('matrix')) return 'matrix';
+  return 'drift';
+}
+/* The matrix stroke is a WHISPER rather than nothing so two different grasses
+   meeting along an edge still separate; dropping it merges them into one
+   shape. `order` is the paint order — matrix underneath, structure on top. */
+const PLAN_LAYER_STYLE={
+  matrix:   {order:0, paper:0.80, ink:0.12, lw:0.8, label:'#6e5f48'},
+  drift:    {order:1, paper:0.66, ink:0.25, lw:1.3, label:'#2c241c'},
+  structure:{order:2, paper:0.60, ink:0.45, lw:1.9, label:'#2c241c'},
+};
+/* Truncate by MEASUREMENT, not by a character count, so a schedule column is
+   filled rather than guessed at — the old legend cut every name at 26 chars,
+   which is exactly where a cultivar epithet lives. */
+function planFitText(ctx,str,maxW){
+  str=String(str==null?'':str);
+  if (maxW<=0) return '';
+  if (ctx.measureText(str).width<=maxW) return str;
+  let lo=0, hi=str.length;
+  while (lo<hi){ const mid=(lo+hi+1)>>1;
+    if (ctx.measureText(str.slice(0,mid)+'…').width<=maxW) lo=mid; else hi=mid-1; }
+  return lo?str.slice(0,lo)+'…':'';
+}
+/* Botanical name WITH the cultivar epithet, which is the half a nursery order
+   turns on. A nested exact-species choice is left alone: `fullName` replaces
+   the common name outright, and a cultivar carrying its own `latin` has
+   already said what it is. */
+function planBotanicalName(s,v){
+  const P=plantDef(s,v||null), base=PLANTS[s];
+  const cv=v&&base&&base.cv&&base.cv[v];
+  const latin=(P&&P.latin)||'';
+  if (!cv || cv.latin || cv.fullName || !cv.name) return latin;
+  return latin+' '+cv.name;
+}
+// the common name WITHOUT the cultivar — the botanical column carries that
+function planCommonName(s,v){
+  const P=plantDef(s,v||null), base=PLANTS[s];
+  const cv=v&&base&&base.cv&&base.cv[v];
+  return (cv && !cv.fullName && base) ? base.name : ((P&&P.name)||'');
+}
 function traceOutlines(tileSet){ // rectilinear boundary loops of a tile set
   const has=(x,y)=>tileSet.has(`${x},${y}`);
   const edges=new Map(); // "x,y" start -> [end points]
@@ -1035,11 +1149,26 @@ function shrubPlanComponents(){
   }
   return comps;
 }
-function drawPlanCode(ctx,code,lx,ly,fs){
+function drawPlanCode(ctx,code,lx,ly,fs,ink){
   ctx.textAlign='center';
   ctx.font=`600 ${fs}px IBM Plex Sans`;
   ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=3;
-  ctx.strokeText(code,lx,ly); ctx.fillStyle='#2c241c'; ctx.fillText(code,lx,ly);
+  ctx.strokeText(code,lx,ly); ctx.fillStyle=ink||'#2c241c'; ctx.fillText(code,lx,ly);
+}
+/* One label per STAND, over two lines.  Line two is the plant count at the
+   species' recommended spacing — the number an installer reads — and is
+   dropped when it would say "x1", where the code alone is the whole story.
+   Stacking is cheaper than running wide inside a roundish blob. */
+function drawStandLabel(ctx,code,qty,lx,ly,fs,ink){
+  const sub=qty>1?`×${qty}`:'';
+  const rise=sub?fs*0.42:0;
+  drawPlanCode(ctx,code,lx,ly-rise,fs,ink);
+  if (!sub) return;
+  const ss=Math.max(7,Math.round(fs*0.74));
+  ctx.font=`600 ${ss}px IBM Plex Sans`; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=3;
+  ctx.strokeText(sub,lx,ly-rise+ss+1);
+  ctx.fillStyle='rgba(110,95,72,0.95)'; ctx.fillText(sub,lx,ly-rise+ss+1);
 }
 function drawShrubPlan(ctx,c,codes,cell,X,Y){
   const def=plantDef(c.s,c.v), col=planColor(def), fill=mixHex(col,'#f7f3e8',0.62);
@@ -1106,23 +1235,42 @@ function drawTreePlan(ctx,p,x,y,cell,X,Y){
   ctx.fillStyle='#4a3a28';
   ctx.beginPath(); ctx.arc(cx2,cy2,Math.max(2.5,cell*0.18),0,7); ctx.fill();
 }
-function planCodes(ids){ // short Oudolf-style codes, unique per species|cv
+/* Short plan tags, unique per species|cv.  The code's job ON THE DRAWING is to
+   DISTINGUISH; the schedule identifies.  So it is genus-derived — a hint, not a
+   cipher: SCH tells a gardener it is a Schizachyrium without the key — and
+   capped at three letters plus a digit.
+
+   Two defects this fixes.  The cultivar suffix used to be the first two letters
+   of the internal KEY slug, so 'theblues' rendered as SC'TH and nobody could
+   read it back.  And a lone genus collapsed to two letters, which made
+   Nassella "NA" — indistinguishable from N/A on a sheet.  A cultivar is now
+   numbered, and only when the garden holds more than one selection of that
+   species, because a suffix is only information when there is something to
+   tell apart: on the review garden every tag became exactly three characters.
+
+   Letters were kept over numbers deliberately; switching to 1..n is a change
+   to this function alone, since nothing else reads the code's shape. */
+function planCodes(ids){
   const used={}, codes={};
-  // parse genus/epithet once; count 2-letter genus prefixes so a lone genus can
-  // use a short 2-letter code (a single Amsonia -> "AM"), growing only on collision
   const info=ids.map(id=>{ const [s,v]=id.split('|'), P=plantDef(s,v||null);
-    const parts=(P.latin||'').split(' ');
-    return {id, v, gen:(parts[0]||s).toUpperCase(), ep:(parts[1]||'').toUpperCase()}; });
-  const gen2={}; info.forEach(o=>{ const g=o.gen.slice(0,2); gen2[g]=(gen2[g]||0)+1; });
+    const parts=((P&&P.latin)||'').split(' ');
+    return {id, s, v:v||'', gen:(parts[0]||s).toUpperCase(), ep:(parts[1]||'').toUpperCase()}; });
+  // how many selections of each SPECIES the garden holds, in a stable order so
+  // the same garden prints the same tags however it was planted
+  const perSpecies={};
+  info.forEach(o=>{ (perSpecies[o.s]=perSpecies[o.s]||[]).push(o.v); });
+  for (const s in perSpecies) perSpecies[s].sort();
+  const stems={};
   info.forEach(o=>{
-    const g2=o.gen.slice(0,2), g3=o.gen.slice(0,3);
-    let code=null;
-    if (gen2[g2]===1 && !used[g2]) code=g2;               // only genus with this prefix → 2 letters
-    else {                                                // else 3 letters, then grow into the epithet
-      for (let n=0;n<=o.ep.length;n++){ const c=g3+(n?o.ep.slice(0,n):''); if (!used[c]){ code=c; break; } }
-      if (!code){ let i=2; while (used[g3+i]) i++; code=g3+i; }
+    const g3=o.gen.slice(0,3);
+    let stem=stems[o.s];
+    if (!stem){                                     // 3 letters, then grow into the epithet on collision
+      for (let n=0;n<=o.ep.length;n++){ const c=g3+(n?o.ep.slice(0,n):''); if (!used[c]){ stem=c; break; } }
+      if (!stem){ let i=2; while (used[g3+i]) i++; stem=g3+i; }
+      stems[o.s]=stem; used[stem]=1;                // reserve the stem itself either way
     }
-    if (o.v) code+="'"+o.v.slice(0,2).toUpperCase();
+    const sel=perSpecies[o.s];
+    const code=sel.length>1 ? stem+(sel.indexOf(o.v)+1) : stem;
     used[code]=1; codes[o.id]=code;
   });
   return codes;
@@ -1135,6 +1283,11 @@ function buildPlanMap(){
   const allComps=planComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
   const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
   const comps=allComps.filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
+  /* Trees are excluded from stand merging and keep a label per component over
+     the trunk: a tree is a specimen placed individually, not a population. */
+  const treeComps=comps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
+  const herbComps=comps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
+  const stands=planStands(herbComps);
   const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
   const treesLive=Object.keys(game.plants).filter(k=>{
     const p=game.plants[k];
@@ -1142,19 +1295,28 @@ function buildPlanMap(){
   });
   const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
   const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
-  const ids=[...new Set([
-    ...comps.map(c=>c.s+'|'+(c.v||'')),
-    ...shrubComps.map(c=>c.s+'|'+(c.v||'')),
-    ...bulbsLive.map(k=>{ const b2=game.bulbs[k]; return b2.s+'|'+(b2.v||''); })
-  ])];
+  /* Planted RECORDS per species|cultivar — the count the planting list works
+     from, so the schedule's quantity and the list's "to order" agree.  NOT
+     plan tiles: `shrubPlanComponents` tiles are the mature FOOTPRINT, so
+     counting those would bill one viburnum as nine. */
+  const planted={};
+  [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
+    if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
+  const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
   const codes=planCodes(ids);
-  const legCols=3, legRows=Math.ceil(ids.length/legCols);
+  const legRows=ids.length+(ids.length?1:0);        // one row per species, plus the header
   const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
   const noteRows=treesLive.length?1:0;
-  const W2=padL*2+GW*cell, H2=padT+GH*cell+34+(legRows+fixtureRows+noteRows)*15+26;
+  /* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
+     paper has a floor and the drawing centres inside it. At the classic plot
+     size this resolves to the old left-aligned padL exactly. */
+  const drawW=GW*cell;
+  const W2=Math.max(padL*2+drawW, 660);
+  const originX=Math.round((W2-drawW)/2);
+  const H2=padT+GH*cell+34+(legRows+fixtureRows+noteRows)*15+26;
   pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
   ctx.setTransform(2,0,0,2,0,0);
-  const X=x=>padL+x*cell, Y=y=>padT+y*cell;
+  const X=x=>originX+x*cell, Y=y=>padT+y*cell;
   // paper
   ctx.fillStyle='#f7f3e8'; ctx.fillRect(0,0,W2,H2);
   ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1;
@@ -1414,15 +1576,20 @@ function buildPlanMap(){
     }
     ctx.closePath();
   };
-  comps.forEach(c=>{
-    const def=plantDef(c.s,c.v);
-    if (isTreeDef(def)) return; // trees become canopy circles below
+  /* Layer order first, size second: the matrix paints underneath so the
+     drifts and structure standing in it read on top (§14b, PLAN_LAYER_STYLE). */
+  herbComps.slice().sort((a,b2)=>{
+    const la=PLAN_LAYER_STYLE[planLayerOf(a.s)].order;
+    const lb=PLAN_LAYER_STYLE[planLayerOf(b2.s)].order;
+    return la!==lb ? la-lb : b2.tiles.length-a.tiles.length;
+  }).forEach(c=>{
+    const def=plantDef(c.s,c.v), st=PLAN_LAYER_STYLE[planLayerOf(c.s)];
     const col=planColor(def);
     const loops=traceOutlines(new Set(c.tiles));
     loops.forEach(loop=>{
       smoothLoop(loop);
-      ctx.fillStyle=mixHex(col,'#f7f3e8',0.66); ctx.fill();
-      ctx.strokeStyle=mixHex(col,'#2c241c',0.25); ctx.lineWidth=1.3; ctx.stroke();
+      ctx.fillStyle=mixHex(col,'#f7f3e8',st.paper); ctx.fill();
+      if (st.lw){ ctx.strokeStyle=mixHex(col,'#2c241c',st.ink); ctx.lineWidth=st.lw; ctx.stroke(); }
     });
   });
   shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y));
@@ -1474,43 +1641,64 @@ function buildPlanMap(){
     ctx.strokeRect(X(0),Y(0),GW*cell,GH*cell);
   }
   ctx.restore();
-  // labels at drift centroids, white halo for legibility
+  /* One label per STAND, white halo for legibility.  The size range is wider
+     than the old per-component 8-13px — which was five pixels across a whole
+     sheet, a uniform texture rather than a hierarchy — and it is affordable
+     precisely because there are now far fewer labels to place. */
   ctx.textAlign='center';
-  comps.forEach(c=>{
-    const def=plantDef(c.s,c.v);
-    if (isTreeDef(def)){ var lt=c.tiles[0].split(',').map(Number);
-      var lx=X(lt[0])+cell/2, ly=Y(lt[1])-cell*0.4; }
-    else {
-      let sx=0,sy=0;
-      c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number); sx+=x; sy+=y; });
-      var lx=X(sx/c.tiles.length+0.5), ly=Y(sy/c.tiles.length+0.5)+3;
-    }
-    const fs=Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2));
-    ctx.font=`600 ${fs}px IBM Plex Sans`;
-    ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=3;
-    const code=codes[c.s+'|'+(c.v||'')];
-    ctx.strokeText(code,lx,ly); ctx.fillStyle='#2c241c'; ctx.fillText(code,lx,ly);
+  stands.forEach(st=>{
+    const def=plantDef(st.s,st.v), id=st.s+'|'+(st.v||'');
+    const lx=X(st.at[0]+0.5), ly=Y(st.at[1]+0.5)+3;
+    const fs=Math.max(9,Math.min(15,6+Math.sqrt(st.n)*1.6));
+    drawStandLabel(ctx,codes[id],plantsForTiles(st.n,def.space),lx,ly,fs,
+      PLAN_LAYER_STYLE[planLayerOf(st.s)].label);
   });
-  // legend + scale bar
+  treeComps.forEach(c=>{
+    const lt=c.tiles[0].split(',').map(Number);
+    drawPlanCode(ctx,codes[c.s+'|'+(c.v||'')],X(lt[0])+cell/2,Y(lt[1])-cell*0.4,
+      Math.max(9,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
+  });
+  /* Plant schedule + scale bar.  Code, botanical name, common name, quantity
+     and spacing o.c. is the convention the naturalistic and the
+     landscape-architecture traditions agree on (docs/plan-sheet.md); the old
+     three-column legend gave a common name truncated at 26 chars — exactly
+     where a cultivar epithet lives — and a count of game TILES. */
   let ly2=padT+GH*cell+26;
   ctx.textAlign='left'; ctx.font='600 10px IBM Plex Sans';
-  ctx.fillStyle='#6e5f48'; ctx.fillText('KEY', padL, ly2-8);
-  const colW=(W2-padL*2)/legCols;
-  const counts={};
-  comps.forEach(c=>{ const id=c.s+'|'+(c.v||''); counts[id]=(counts[id]||0)+c.tiles.length; });
-  shrubComps.forEach(c=>{ const id=c.s+'|'+(c.v||''); counts[id]=(counts[id]||0)+c.tiles.length; });
-  bulbsLive.forEach(k=>{ const b2=game.bulbs[k], id=b2.s+'|'+(b2.v||'');
-    counts[id]=(counts[id]||0)+1; });
+  // an empty garden gets an empty sheet, not a heading over nothing
+  if (ids.length){ ctx.fillStyle='#6e5f48'; ctx.fillText('PLANT SCHEDULE', padL, ly2-8); }
+  const tblW=W2-padL*2, gapC=10, wCode=54, wQty=44, wSpace=80;
+  const wRest=Math.max(80, tblW-wCode-wQty-wSpace-gapC*3);
+  const wLatin=Math.round(wRest*0.56), wCommon=wRest-wLatin;
+  const xCode=padL, xLatin=xCode+wCode, xCommon=xLatin+wLatin+gapC;
+  const xQty=xCommon+wCommon+gapC, xSpace=xQty+wQty+gapC;
+  if (ids.length){
+    ctx.font='600 9px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+    ctx.fillText('KEY',xCode,ly2);
+    ctx.fillText('BOTANICAL NAME',xLatin,ly2);
+    ctx.fillText('COMMON NAME',xCommon,ly2);
+    ctx.textAlign='right'; ctx.fillText('QTY',xQty+wQty,ly2); ctx.textAlign='left';
+    ctx.fillText('SPACING',xSpace,ly2);
+    ctx.strokeStyle='rgba(120,108,86,0.45)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(xCode,ly2+4); ctx.lineTo(padL+tblW,ly2+4); ctx.stroke();
+  }
   ids.forEach((id,i)=>{
     const [s,v]=id.split('|'), def=plantDef(s,v||null);
-    const cx2=padL+(i%legCols)*colW, cy2=ly2+Math.floor(i/legCols)*15;
+    const cy2=ly2+(i+1)*15;
     ctx.fillStyle=mixHex(planColor(def),'#f7f3e8',0.5);
-    ctx.fillRect(cx2,cy2-7,9,9);
+    ctx.fillRect(xCode,cy2-7,9,9);
     ctx.strokeStyle=mixHex(planColor(def),'#2c241c',0.25); ctx.lineWidth=1;
-    ctx.strokeRect(cx2,cy2-7,9,9);
-    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
-    const nm=def.name.length>26?def.name.slice(0,25)+'…':def.name;
-    ctx.fillText(`${codes[id]} — ${nm} (${counts[id]||0})`, cx2+14, cy2);
+    ctx.strokeRect(xCode,cy2-7,9,9);
+    ctx.textAlign='left'; ctx.fillStyle='#2c241c'; ctx.font='600 10px IBM Plex Sans';
+    ctx.fillText(codes[id],xCode+13,cy2);
+    ctx.font='10px IBM Plex Sans';
+    ctx.fillText(planFitText(ctx,planBotanicalName(s,v||null),wLatin-gapC),xLatin,cy2);
+    ctx.fillStyle='#6e5f48';
+    ctx.fillText(planFitText(ctx,planCommonName(s,v||null),wCommon-gapC),xCommon,cy2);
+    ctx.fillStyle='#2c241c'; ctx.textAlign='right';
+    ctx.fillText(String(plantsForTiles(planted[id],def.space)),xQty+wQty,cy2);
+    ctx.textAlign='left'; ctx.fillStyle='#6e5f48';
+    ctx.fillText(planFitText(ctx,`${plantMeasure(def.space)} o.c.`,wSpace),xSpace,cy2);
   });
   if (lightsLive.length){
     const cy2=ly2+legRows*15, cx2=padL;

@@ -2932,6 +2932,103 @@ test('formal boxwood silhouettes match the intended clipped shapes', () => {
   assert(square.look.bodyH >= 0.9, 'square hedge is tall enough to read as a cuboid');
 });
 
+test('the plan labels a stand once, not every scattered component', () => {
+  setup(21, 21);
+  /* A scatter at the spacing the Matrix brush produces: each tile is its own
+     8-connected component, so the sheet used to put a code on every one of
+     them — 326 planted tiles drew over a hundred labels. */
+  let scattered = 0;
+  for (let y = 2; y <= 8; y += 2) for (let x = 2; x <= 8; x += 2){
+    game.plants[`${x},${y}`] = { s: 'bluestem', d: 0, t: 1 }; scattered++;
+  }
+  // a second patch far enough off to stay its own stand
+  for (let y = 16; y <= 18; y += 2) for (let x = 16; x <= 18; x += 2)
+    game.plants[`${x},${y}`] = { s: 'bluestem', d: 0, t: 1 };
+  const comps = planComponents();
+  assertEqual(comps.length, scattered + 4, 'a scatter really is one component per tile');
+  const stands = planStands(comps);
+  assertEqual(stands.length, 2, 'a scatter and a distant patch are two stands, not twenty');
+  assertEqual(stands[0].n, scattered, 'the biggest stand carries every tile in it');
+  assert(game.plants[`${stands[0].at[0]},${stands[0].at[1]}`],
+    'the stand label sits on its own planting, never on bare ground between the clumps');
+  // one species is one stand only while it stays one population
+  const far = planStands(comps).map(s => s.n).sort((a, b) => b - a);
+  assertEqual(far.join(','), `${scattered},4`, 'stands do not swallow a separate planting');
+});
+
+test('the plan draws the matrix layer under the drifts and quieter than them', () => {
+  assertEqual(planLayerOf('bluestem'), 'matrix', 'a grass is the matrix layer');
+  assertEqual(planLayerOf('mexicanfeather'), 'matrix', 'so is another grass');
+  assertEqual(planLayerOf('butterfly'), 'drift', 'a forb keeps the drift treatment');
+  // groundcover is deliberately NOT folded into matrix (see docs/plan-sheet.md)
+  assertEqual(planLayerOf('hosta'), 'drift', 'a hosta drift reads as a feature, not as matrix');
+  const m = PLAN_LAYER_STYLE.matrix, d = PLAN_LAYER_STYLE.drift, s = PLAN_LAYER_STYLE.structure;
+  assert(m.order < d.order && d.order < s.order, 'matrix paints underneath, structure on top');
+  assert(m.paper > d.paper && d.paper > s.paper, 'the matrix recedes toward the paper');
+  assert(m.lw < d.lw && d.lw < s.lw, 'the matrix edge is a whisper and structure is emphatic');
+  assert(m.lw > 0, 'but not nothing: two different grasses meeting must still separate');
+  assert(m.label !== d.label, 'a matrix label is softer ink than a drift label');
+});
+
+test('plan codes can be read back: no key slugs, no two-letter genus', () => {
+  const one = planCodes(['bluestem|theblues', 'mexicanfeather|', 'butterfly|']);
+  assertEqual(one['bluestem|theblues'], 'SCH',
+    "a lone selection needs no suffix — it used to render the KEY slug as SC'TH");
+  assertEqual(one['mexicanfeather|'], 'NAS',
+    'three letters, so Nassella cannot read as "N/A" on a sheet');
+  assertEqual(one['butterfly|'], 'ASC', 'genus-derived, so the tag is a hint not a cipher');
+  Object.values(one).forEach(c => assert(!/'/.test(c) && c.length <= 3,
+    'an ordinary garden tags every species in three characters'));
+  // a suffix is only information when there is something to tell apart
+  const two = planCodes(['bluestem|', 'bluestem|theblues']);
+  assertEqual(two['bluestem|'], 'SCH1', 'the straight species sorts first');
+  assertEqual(two['bluestem|theblues'], 'SCH2', 'a second selection of one species is numbered');
+  // two species of one genus still grow into the epithet rather than collide
+  const three = planCodes(['bluestem|', 'mexicanfeather|', 'butterfly|', 'hosta|']);
+  assertEqual(new Set(Object.values(three)).size, 4, 'codes stay unique');
+});
+
+test('the plan schedule names what a nursery order needs', () => {
+  assertEqual(planBotanicalName('bluestem', 'theblues'), "Schizachyrium scoparium 'The Blues'",
+    'the botanical column carries the cultivar epithet');
+  assertEqual(planCommonName('bluestem', 'theblues'), 'Little Bluestem',
+    'so the common column drops it');
+  assertEqual(planBotanicalName('meadowsage', 'caradonna'), "Salvia nemorosa 'Caradonna'",
+    'a cultivar carrying its own latin has already said what it is');
+  assertEqual(planBotanicalName('butterfly', null), 'Asclepias tuberosa', 'a straight species stands alone');
+  // truncation is by MEASUREMENT, and a string that fits is left alone
+  const ctx = makeCanvasCtx({});
+  assertEqual(planFitText(ctx, 'Asclepias tuberosa', 400), 'Asclepias tuberosa', 'a name that fits is untouched');
+  const cut = planFitText(ctx, 'Schizachyrium scoparium subsp. littorale', 60);
+  assert(cut.length < 'Schizachyrium scoparium subsp. littorale'.length && /…$/.test(cut),
+    'a name that does not fit is measured back to an ellipsis');
+  assertEqual(planFitText(ctx, 'anything', 0), '', 'no room means no text, never an overflow');
+});
+
+test('the plan schedule quantity is the planting list quantity', () => {
+  setup(21, 21);
+  for (let y = 3; y < 7; y++) for (let x = 3; x < 9; x++)
+    game.plants[`${x},${y}`] = { s: 'bluestem', v: 'theblues', d: 0, t: 1 };
+  game.bulbs['12,12'] = { s: 'crocus', d: 0, t: 1 };
+  const labels = [];
+  const ctx = makeCanvasCtx({ fillText(t){ labels.push(String(t)); } });
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas'
+    ? { getContext(){ return ctx; }, style: {} }
+    : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  const row = exportRows().find(r => r.latin === 'Schizachyrium scoparium');
+  assert(row && row.order > 0, 'the planting list has a quantity to agree with');
+  assert(labels.includes(String(row.order)),
+    'the sheet draws the same figure the list calls "to order" — both go through plantsForTiles');
+  assert(labels.some(t => /\bo\.c\.$/.test(t)), 'the schedule states spacing on centre');
+  assert(labels.some(t => t.indexOf('Schizachyrium scoparium') === 0), 'and the botanical name');
+  assert(labels.includes('PLANT SCHEDULE'), 'the block is a schedule, not a bare key');
+  assert(!labels.some(t => /'[A-Z]{2}$/.test(t)), 'no key-slug code reaches the sheet');
+  // the stand annotation is the installer's number, in the same currency
+  assert(labels.some(t => /^×\d+$/.test(t)), 'a stand says how many plants go in it');
+});
+
 test('shrubs get their own rounded plan components', () => {
   setup(13, 13);
   game.plants['4,4'] = { s: 'boxwoodlow', d: 0, t: 1 };
@@ -2946,10 +3043,7 @@ test('shrubs get their own rounded plan components', () => {
   assert(hedge && hedge.hedge && hedge.tiles.length === 2, 'touching square boxwoods become one hedge symbol');
   assert(hydrangea && !hydrangea.hedge && hydrangea.tiles.length > 1, 'ordinary shrubs get mature rounded plan footprints');
   const ellipses = [];
-  const ctx = new Proxy({ ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); } }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
-  });
+  const ctx = makeCanvasCtx({ ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); } });
   const cell = 20, X = x => x * cell, Y = y => y * cell;
   drawShrubPlan(ctx, hydrangea, { 'hydrangea|': 'HY' }, cell, X, Y);
   const blob = ellipses[0], r = woodyRadiusTiles(plantDef('hydrangea')) * cell;
@@ -2971,16 +3065,13 @@ test('tree plan canopy radius follows the effective display lens', () => {
     const arcs = [], labels = [];
     let dash = [], clips = 0;
     const stack = [];
-    const ctx = new Proxy({
+    const ctx = makeCanvasCtx({
       save(){ stack.push(dash.slice()); },
       restore(){ dash = stack.pop() || []; },
       setLineDash(v){ dash = v.slice(); },
       arc(x, y, r){ arcs.push({ x, y, r, dash: dash.join(',') }); },
       fillText(t){ labels.push(String(t)); },
       clip(){ clips++; },
-    }, {
-      get(o, p){ return p in o ? o[p] : () => {}; },
-      set(o, p, v){ o[p] = v; return true; }
     });
     document.getElementById = id => id === 'planCanvas'
       ? { getContext(){ return ctx; }, style: {} }
@@ -4015,10 +4106,7 @@ test('planting plan includes lighting fixtures in the key', () => {
   game.lights['5,5'] = { type: 'path', tone: 'warm', t: 1 };
   const oldGet = document.getElementById;
   const labels = [];
-  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
-  });
+  const ctx = makeCanvasCtx({ fillText(txt){ labels.push(String(txt)); } });
   document.getElementById = id => id === 'planCanvas'
     ? { getContext(){ return ctx; }, style: {} }
     : oldGet.call(document, id);
@@ -4095,10 +4183,7 @@ test('planting plan includes boulders in the key', () => {
   game.boulders['5,5'] = { type: 'medium2', t: 1 };
   const oldGet = document.getElementById;
   const labels = [];
-  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
-  });
+  const ctx = makeCanvasCtx({ fillText(txt){ labels.push(String(txt)); } });
   document.getElementById = id => id === 'planCanvas'
     ? { getContext(){ return ctx; }, style: {} }
     : oldGet.call(document, id);
@@ -4185,10 +4270,7 @@ test('pets ride along in saves and selections but never reach the plan or the pl
   assert(!exportRows().some(r => /cat|pet/i.test(r.name)), 'the planting list has no pets');
   const oldGet = document.getElementById;
   const labels = [];
-  const ctx = new Proxy({ fillText(txt){ labels.push(String(txt)); } }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
-  });
+  const ctx = makeCanvasCtx({ fillText(txt){ labels.push(String(txt)); } });
   document.getElementById = id => id === 'planCanvas'
     ? { getContext(){ return ctx; }, style: {} }
     : oldGet.call(document, id);
@@ -4347,12 +4429,9 @@ test('tree placement ghost previews mature canopy and respects woody visibility'
   assertEqual(Math.round(canopyRadius(draft) * 1000), Math.round(matureR * 1000),
     'mature placement draft uses the same canopy radius as the established tree');
   const ellipses = [], dashes = [];
-  const ctx = new Proxy({
+  const ctx = makeCanvasCtx({
     ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); },
     setLineDash(v){ dashes.push(v.slice()); },
-  }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
   });
   assert(drawTreePlacementGhost(ctx, 800, 600, 10, 10, tree, null), 'tree ghost draws while woody is visible');
   assertEqual(ellipses.length, SUN_PATH.length + 1, 'tree ghost draws one O(1) shade lobe per sun path plus the canopy ring');
@@ -4375,12 +4454,9 @@ test('mature canopies overlay draws dashed mature rings for all woody plants', (
   game.plants['10,10'] = { s: tree, d: absDay(), t: 1 };
   game.plants['14,10'] = { s: shrub, d: absDay(), t: 2 };
   const ellipses = [], dashes = [];
-  const ctx = new Proxy({
+  const ctx = makeCanvasCtx({
     ellipse(x, y, rx, ry){ ellipses.push({ x, y, rx, ry }); },
     setLineDash(v){ dashes.push(v.slice()); },
-  }, {
-    get(o, p){ return p in o ? o[p] : () => {}; },
-    set(o, p, v){ o[p] = v; return true; }
   });
   assertEqual(drawMatureCanopyOverlay(ctx, 800, 600, 0, 30, 0, 30), 0,
     'overlay flag off skips the woody scan');
