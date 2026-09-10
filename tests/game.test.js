@@ -3029,6 +3029,84 @@ test('the plan schedule quantity is the planting list quantity', () => {
   assert(labels.some(t => /^×\d+$/.test(t)), 'a stand says how many plants go in it');
 });
 
+/* Renders the whole sheet set, returning the text drawn on each canvas.
+   Both are captured, so a test can assert what the bulb sheet does NOT say. */
+function renderPlanSheets(){
+  const out = { planting: [], bulbs: [] };
+  const mk = key => ({ width: 0, height: 0, style: {}, hidden: false,
+    classList: { toggle(){} },
+    getContext(){ return makeCanvasCtx({ fillText(t){ out[key].push(String(t)); } }); } });
+  const planting = mk('planting'), bulbs = mk('bulbs');
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas' ? planting
+    : id === 'planBulbCanvas' ? bulbs
+    : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  return out;
+}
+
+test('a garden without bulbs draws exactly the one sheet it always did', () => {
+  setup(21, 21);
+  for (let y = 3; y < 7; y++) for (let x = 3; x < 9; x++)
+    game.plants[`${x},${y}`] = { s: 'bluestem', d: 0, t: 1 };
+  assertEqual(planSheets().length, 1, 'no bulbs, no set');
+  game.planSheet = 'bulbs';                       // left over from another garden
+  const out = renderPlanSheets();
+  assertEqual(game.planSheet, 'planting', 'a stale sheet choice falls back rather than drawing nothing');
+  assertEqual(out.bulbs.length, 0, 'the bulb canvas is not drawn at all');
+  assert(out.planting.some(t => /^Design plan · /.test(t)),
+    'a lone sheet is still titled "Design plan", not "Sheet 1 of 1"');
+});
+
+test('bulbs are an overlay: their own sheet, over a ghost of the planting', () => {
+  setup(21, 21);
+  for (let y = 3; y < 7; y++) for (let x = 3; x < 9; x++)
+    game.plants[`${x},${y}`] = { s: 'bluestem', d: 0, t: 1 };
+  game.plants['15,15'] = { s: 'boxwoodlow', d: 0, t: 1 };
+  game.bulbs['5,10'] = { s: 'crocus', d: 0, t: 1 };
+  game.bulbs['6,10'] = { s: 'crocus', d: 0, t: 1 };
+  const sheets = planSheets();
+  assertEqual(sheets.length, 2, 'bulbs make it a set');
+  assertEqual(sheets[1].id, 'bulbs', 'the bulb plan is the second sheet');
+  const out = renderPlanSheets();
+  const codes = planCodes(['bluestem|', 'crocus|', 'boxwoodlow|']);
+  // each sheet schedules and labels the planting it draws, and only that
+  assert(out.planting.includes(codes['bluestem|']), 'the planting sheet tags its perennials');
+  assert(!out.planting.includes(codes['crocus|']), 'and does not draw bulbs at all');
+  assert(out.bulbs.includes(codes['crocus|']), 'the bulb sheet tags its bulbs');
+  assert(!out.bulbs.includes(codes['bluestem|']),
+    'and leaves the perennials an unlabelled ghost — the whole point of an overlay');
+  assert(!out.bulbs.includes(codes['boxwoodlow|']),
+    'structure draws on the bulb sheet as context, without a code the schedule cannot explain');
+  // the set says it is a set
+  assert(out.planting.some(t => /^Planting plan · Sheet 1 of 2 · /.test(t)), 'sheet 1 names itself');
+  assert(out.bulbs.some(t => /^Bulb plan · Sheet 2 of 2 · /.test(t)), 'sheet 2 names itself');
+  assert(out.bulbs.includes('PLANT SCHEDULE'), 'the bulb sheet carries its own schedule');
+  assert(out.bulbs.some(t => t.indexOf('Crocus') === 0), 'which names the bulb botanically');
+  // quantity still agrees with the planting list, across the set
+  const row = exportRows().find(r => /Crocus/.test(r.latin));
+  assert(row && out.bulbs.includes(String(row.order)),
+    'the bulb sheet quantity is the planting list quantity');
+});
+
+test('one code means one plant across the whole sheet set', () => {
+  setup(21, 21);
+  /* Campanula and Camassia both reduce to CAM, and they live on different
+     sheets — so assigning codes per sheet would hand the same tag to two
+     different plants, and the set would contradict itself. */
+  game.plants['4,4'] = { s: 'peachbellflower', d: 0, t: 1 };
+  game.plants['4,5'] = { s: 'peachbellflower', d: 0, t: 1 };
+  game.bulbs['9,9'] = { s: 'camassia', d: 0, t: 1 };
+  const out = renderPlanSheets();
+  const codes = planCodes(['peachbellflower|', 'camassia|']);
+  const pc = codes['peachbellflower|'], cc = codes['camassia|'];
+  assert(pc !== cc, 'the collision is resolved by growing one code into its epithet');
+  // assigned per sheet, both would draw as CAM and the set would contradict itself
+  assert(out.planting.includes(pc), 'the perennial carries the set-wide tag');
+  assert(out.bulbs.includes(cc), 'and so does the bulb, on its own sheet');
+  assert(!out.planting.includes(cc) && !out.bulbs.includes(pc), 'neither tag strays to the other sheet');
+});
+
 test('shrubs get their own rounded plan components', () => {
   setup(13, 13);
   game.plants['4,4'] = { s: 'boxwoodlow', d: 0, t: 1 };

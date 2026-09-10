@@ -914,9 +914,11 @@ function openBloomCalendar(){
    each drift's boundary is traced and smoothed into an organic blob,
    labeled with a short code. Trees draw as dashed effective-canopy
    circles (mature under Established preview), bulbs as scatter dots over the drifts. */
-function planComponents(){
+// `layer` defaults to the perennial planting; the bulb sheet passes game.bulbs
+function planComponents(layer){
+  const src=layer||game.plants;
   const live={};
-  for (const k in game.plants){ const p=game.plants[k]; if (!p.removed){
+  for (const k in src){ const p=src[k]; if (p && !p.removed){
     const [x,y]=k.split(',').map(Number), def=plantDef(p.s,p.v);
     if (isShrubDef(def)) shrubFootprintTiles(x,y,p,true).forEach(([xx,yy])=>{ if (!live[`${xx},${yy}`]) live[`${xx},${yy}`]=p; });
     else live[k]=p;
@@ -1170,7 +1172,9 @@ function drawStandLabel(ctx,code,qty,lx,ly,fs,ink){
   ctx.strokeText(sub,lx,ly-rise+ss+1);
   ctx.fillStyle='rgba(110,95,72,0.95)'; ctx.fillText(sub,lx,ly-rise+ss+1);
 }
-function drawShrubPlan(ctx,c,codes,cell,X,Y){
+// `label` is false on the bulb sheet, where structure is context and the only
+// thing carrying a code is the bulb planting the sheet exists to show
+function drawShrubPlan(ctx,c,codes,cell,X,Y,label){
   const def=plantDef(c.s,c.v), col=planColor(def), fill=mixHex(col,'#f7f3e8',0.62);
   const stroke=mixHex(col,'#2c241c',0.18);
   const pts=c.tiles.map(k=>k.split(',').map(Number));
@@ -1188,7 +1192,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
     ctx.fill(); ctx.stroke();
     ctx.save(); ctx.globalAlpha=0.25; ctx.fillStyle='#f7f3e8';
     ctx.beginPath(); ctx.ellipse(cx2-rx*0.22,cy2-ry*0.28,rx*0.38,ry*0.20,-0.08,0,7); ctx.fill(); ctx.restore();
-    drawPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)));
+    if (label!==false) drawPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)));
     ctx.restore();
     return;
   }
@@ -1211,7 +1215,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y){
   ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle='#f7f3e8';
   roundedRectPath(ctx,rx+rw*0.08,ry+rh*0.10,rw*0.58,rh*0.26,Math.min(rad,rh*0.13));
   ctx.fill(); ctx.restore();
-  drawPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
+  if (label!==false) drawPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
   ctx.restore();
 }
 function drawTreePlan(ctx,p,x,y,cell,X,Y){
@@ -1276,34 +1280,108 @@ function planCodes(ids){
   return codes;
 }
 
+/* ---------- the sheet set ----------
+   A garden's bulbs are an OVERLAY of its perennial planting, not part of it:
+   two independent designs on the same ground, which is how Oudolf draws them
+   and the only honest way to draw two plantings that occupy the same tiles.
+   Before this they were one stroked ring per tile over the top of everything,
+   with no code and no drift — two bulb species were told apart by hue alone,
+   landing on drifts already carrying their own fill, outline and label.
+
+   So a garden with bulbs is a SHEET SET: the planting plan, then the bulb
+   plan, which repeats the whole site base and drops the perennials to an
+   unlabelled ghost.  A garden WITHOUT bulbs is one sheet and is byte-for-byte
+   what it was.  See docs/plan-sheet.md. */
+function planSheets(){
+  const sheets=[{id:'planting', layer:'plants', name:'Planting plan'}];
+  const bulbs=game.bulbs||{};
+  if (Object.keys(bulbs).some(k=>bulbs[k]&&!bulbs[k].removed))
+    sheets.push({id:'bulbs', layer:'bulbs', name:'Bulb plan'});
+  return sheets;
+}
+function planSheetCanvasId(id){ return id==='bulbs'?'planBulbCanvas':'planCanvas'; }
+function activePlanSheet(){
+  const sheets=planSheets();
+  return sheets.find(s=>s.id===game.planSheet) || sheets[0];
+}
+function layerRefIds(layer){
+  const set=new Set();
+  for (const k in layer||{}){ const p=layer[k];
+    if (p && !p.removed && p.s) set.add(p.s+'|'+(p.v||'')); }
+  return set;
+}
+// which sheet is on screen; the other is built and hidden, so it still prints
+function setPlanSheet(id){
+  if (game.planSheet===id) return;
+  game.planSheet=id;
+  syncPlanSheets();
+}
+function syncPlanSheets(){
+  const sheets=planSheets(), active=activePlanSheet(), many=sheets.length>1;
+  const tog=$('planSheetToggle'); if (tog) tog.hidden=!many;
+  const byCanvas={}; sheets.forEach(s=>{ byCanvas[planSheetCanvasId(s.id)]=s.id; });
+  ['planCanvas','planBulbCanvas'].forEach(cid=>{ const c=$(cid); if (!c) return;
+    const sid=byCanvas[cid];
+    /* `has-sheet` marks a canvas this garden actually HAS, so the print rules
+       can emit the whole set without also emitting the undrawn 300x150 default
+       canvas as a blank second page. */
+    if (c.classList) c.classList.toggle('has-sheet', !!sid);
+    c.hidden=!sid || sid!==active.id;
+  });
+  [['planting','btnPlanSheetPlanting'],['bulbs','btnPlanSheetBulbs']].forEach(([id,bid])=>{
+    const b=$(bid); if (!b) return;
+    const on=active.id===id;
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-selected',on?'true':'false');
+  });
+}
 function buildPlanMap(){
-  const pc=$('planCanvas'), ctx=pc.getContext('2d');
+  const sheets=planSheets();
+  if (!sheets.some(s=>s.id===game.planSheet)) game.planSheet=sheets[0].id;
+  /* Planted RECORDS per species|cultivar — the count the planting list works
+     from, so the schedule's quantity and the list's "to order" agree.  NOT
+     plan tiles: `shrubPlanComponents` tiles are the mature FOOTPRINT, so
+     counting those would bill one viburnum as nine.
+     Codes are assigned ACROSS the whole set, never per sheet: a tag has to
+     mean the same plant on the planting plan, on the bulb plan and in the
+     planting list, or the set contradicts itself. */
+  const planted={};
+  [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
+    if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
+  const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
+  const shared={planted, codes:planCodes(ids), ids, sheets,
+    plantIds:layerRefIds(game.plants), bulbIds:layerRefIds(game.bulbs)};
+  sheets.forEach((s,i)=>{ const pc=$(planSheetCanvasId(s.id)); if (pc) drawPlanSheet(pc,s,i,shared); });
+  syncPlanSheets();
+}
+function drawPlanSheet(pc,sheet,sheetIndex,shared){
+  const ctx=pc.getContext('2d');
   const cell=Math.max(9, Math.min(24, Math.floor(1000/Math.max(GW,GH))));
   const padL=34, padT=92;
-  const allComps=planComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  const onBulbSheet=sheet.layer==='bulbs';
   const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
-  const comps=allComps.filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
+  // the perennial planting: the SUBJECT of the planting sheet, the GHOST of
+  // the bulb sheet — you have to see where the bulbs sit relative to it
+  const plantComps=planComponents(game.plants).filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
+  const plantHerb=plantComps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
+  const subjectComps=onBulbSheet?planComponents(game.bulbs):plantHerb;
+  const ghostComps=onBulbSheet?plantHerb:[];
   /* Trees are excluded from stand merging and keep a label per component over
-     the trunk: a tree is a specimen placed individually, not a population. */
-  const treeComps=comps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
-  const herbComps=comps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
-  const stands=planStands(herbComps);
-  const bulbsLive=Object.keys(game.bulbs).filter(k=>!game.bulbs[k].removed);
+     the trunk: a tree is a specimen placed individually, not a population.
+     On the bulb sheet they still DRAW — you plant bulbs around a tree — but
+     unlabelled, like every other piece of context there. */
+  const treeComps=onBulbSheet?[]:plantComps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
+  const stands=planStands(subjectComps);
   const treesLive=Object.keys(game.plants).filter(k=>{
     const p=game.plants[k];
     return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
   });
   const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
   const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
-  /* Planted RECORDS per species|cultivar — the count the planting list works
-     from, so the schedule's quantity and the list's "to order" agree.  NOT
-     plan tiles: `shrubPlanComponents` tiles are the mature FOOTPRINT, so
-     counting those would bill one viburnum as nine. */
-  const planted={};
-  [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
-    if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
-  const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
-  const codes=planCodes(ids);
+  const planted=shared.planted, codes=shared.codes;
+  // each sheet schedules the planting it draws, in the set's shared code order
+  const onSheet=onBulbSheet?shared.bulbIds:shared.plantIds;
+  const ids=shared.ids.filter(id=>onSheet.has(id));
   const legRows=ids.length+(ids.length?1:0);        // one row per species, plus the header
   const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
   const noteRows=treesLive.length?1:0;
@@ -1326,7 +1404,11 @@ function buildPlanMap(){
   ctx.font='600 22px Fraunces, serif';
   ctx.fillText(game.worldName||'Design plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-  ctx.fillText(`Design plan · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
+  /* A one-sheet garden still says "Design plan" — it is not a set, and naming
+     it "Sheet 1 of 1" would be drawing-office cosplay. */
+  const setSize=shared.sheets.length;
+  const sheetName=setSize>1?`${sheet.name} · Sheet ${sheetIndex+1} of ${setSize}`:'Design plan';
+  ctx.fillText(`${sheetName} · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   const ftPerTile=TILE_IN/12;
   ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`, padL, 70);
   // True north rotates inside the plan; the garden drawing itself stays in
@@ -1576,9 +1658,19 @@ function buildPlanMap(){
     }
     ctx.closePath();
   };
+  /* The ghost: the perennial planting seen through, so the bulb sheet can say
+     WHERE its bulbs sit without asking anyone to read a second planting.
+     Fill only — no stroke, no label, no layer weight. */
+  ghostComps.forEach(c=>{
+    const col=planColor(plantDef(c.s,c.v));
+    traceOutlines(new Set(c.tiles)).forEach(loop=>{
+      smoothLoop(loop);
+      ctx.fillStyle=mixHex(col,'#f7f3e8',0.88); ctx.fill();
+    });
+  });
   /* Layer order first, size second: the matrix paints underneath so the
      drifts and structure standing in it read on top (§14b, PLAN_LAYER_STYLE). */
-  herbComps.slice().sort((a,b2)=>{
+  subjectComps.slice().sort((a,b2)=>{
     const la=PLAN_LAYER_STYLE[planLayerOf(a.s)].order;
     const lb=PLAN_LAYER_STYLE[planLayerOf(b2.s)].order;
     return la!==lb ? la-lb : b2.tiles.length-a.tiles.length;
@@ -1592,17 +1684,21 @@ function buildPlanMap(){
       if (st.lw){ ctx.strokeStyle=mixHex(col,'#2c241c',st.ink); ctx.lineWidth=st.lw; ctx.stroke(); }
     });
   });
-  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y));
+  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y,!onBulbSheet));
   // trees: effective canopy circles, clipped to the plot, plus trunk dot
   treesLive.forEach(k=>{ const p=game.plants[k];
     const [x,y]=k.split(',').map(Number);
     drawTreePlan(ctx,p,x,y,cell,X,Y);
   });
-  // bulbs: scatter rings over everything
-  bulbsLive.forEach(k=>{
-    const b2=game.bulbs[k], [x,y]=k.split(',').map(Number);
-    ctx.strokeStyle=planColor(plantDef(b2.s,b2.v)); ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke();
+  /* A scatter of rings is the standing symbol for bulbs, and it is what the
+     sheet used to draw and nothing else.  Kept, but now INSIDE its own drift:
+     the blob says where the planting is, the rings say what kind of planting
+     it is, and the stand label says which bulb and how many. */
+  if (onBulbSheet) subjectComps.forEach(c=>{
+    const col=planColor(plantDef(c.s,c.v));
+    ctx.strokeStyle=mixHex(col,'#2c241c',0.30); ctx.lineWidth=1.1;
+    c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number);
+      ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke(); });
   });
   // building footprints: exterior site context, deliberately distinct from legacy houses
   (game.buildings||[]).forEach(b=>{
@@ -1739,13 +1835,21 @@ function buildPlanMap(){
   ctx.fillText(fmtFeet(barFt), bx2+barPx/2, by2-8);
 }
 function openPlan(){ funnel(FUNNEL_EVENTS.planOpened); buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
+/* Downloads the sheet you are LOOKING AT, named for it.  Exporting the whole
+   set at once was the obvious reading of "two sheets" and is worse in a
+   browser: two programmatic downloads from one gesture raises Chrome's
+   "Download multiple files?" prompt, which is a worse experience than one tap
+   on a toggle that is right there.  Print still gives the set as two pages. */
 function downloadPlan(){
   funnel(FUNNEL_EVENTS.planDownloaded);
-  $('planCanvas').toBlob(b2=>{
+  const sheet=activePlanSheet(), pc=$(planSheetCanvasId(sheet.id));
+  if (!pc || !pc.toBlob) return;
+  pc.toBlob(b2=>{
     if (!b2) return;
     const a=document.createElement('a');
     a.href=URL.createObjectURL(b2);
-    a.download=`${(game.worldName||'garden').replace(/\s+/g,'-').toLowerCase()}-plan.png`;
+    const stem=(game.worldName||'garden').replace(/\s+/g,'-').toLowerCase();
+    a.download=`${stem}-${sheet.id==='bulbs'?'bulb-plan':'plan'}.png`;
     a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
   },'image/png');
 }

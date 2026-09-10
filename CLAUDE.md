@@ -2769,8 +2769,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a 10-ft scale bar. `downloadPlan()` saves a 2× PNG; the plan
     also prints (own page). Empty gardens render an empty sheet, no crash.
     `docs/plan-sheet.md` is the full record — how the sheet compares with how a
-    planting plan is really drawn, and what is still open (the **bulb overlay**
-    is the next job and the reason that review happened).
+    planting plan is really drawn, and what is still open.
+    **A garden with bulbs is a SHEET SET** (`planSheets`/`drawPlanSheet`), and
+    it has to be: Oudolf's bulb design is an OVERLAY of the perennial design,
+    two independent designs on the same ground, and one drawing cannot show
+    both honestly. Bulbs used to be one stroked ring per tile over the top of
+    everything, with no code — two bulb species told apart by hue alone,
+    landing on drifts already carrying their own fill, outline and label.
+    `buildPlanMap` is now an orchestrator and `drawPlanSheet` is the old body;
+    what differs per sheet is only which planting is the SUBJECT and which is
+    CONTEXT. On the bulb sheet the perennials drop to a ghost (88% paper, fill
+    only, no stroke, no label), trees and shrubs stay solid but **unlabelled**
+    (a code the sheet's own schedule cannot explain is a dangling reference —
+    hence `drawShrubPlan`'s `label` flag), and the bulbs get drifts, stands,
+    `×N` and the old ring scatter INSIDE their own blob: the blob says where,
+    the rings say what kind of planting, the label says which bulb and how
+    many. Measured as RGB distance from paper (luminance is the wrong metric —
+    it calls a daffodil's yellow "pale"): bulbs 63, bare bed 37, perennial
+    ghost 24, so the ghost is fainter than the ground it sits on, which is what
+    makes it read as underneath. The planting sheet's bulb tiles measure 37 —
+    identical to bare bed, i.e. genuinely absent.
+    **Codes are assigned across the SET, never per sheet**: *Campanula* and
+    *Camassia* both reduce to `CAM` and live on different sheets, so a
+    per-sheet assignment hands the same tag to two different plants (a test
+    pins that pair). `planComponents(layer)` takes the layer, so bulbs get
+    drifts and stands for free. A garden WITHOUT bulbs is one sheet, titled
+    "Design plan" as before, with the toggle hidden — `game.planSheet` is
+    transient and falls back when a garden has no such sheet.
+    Both canvases (`#planCanvas`/`#planBulbCanvas`) are built on open and stay
+    in the DOM, so the toggle is instant and PRINT emits the set as two pages;
+    a `has-sheet` class gates that, or a bulb-less garden prints the undrawn
+    default canvas as a blank page. `downloadPlan` saves the sheet you are
+    LOOKING AT (named `-plan.png` / `-bulb-plan.png`) rather than both: two
+    programmatic downloads from one gesture raise Chrome's "Download multiple
+    files?" prompt, which is worse than one tap on a toggle that is right
+    there. **Two CSS traps, both hit**: `.seg` is `display:inline-flex` and
+    `#planCanvas` was `display:block`, and both beat the UA rule for the
+    `hidden` attribute — so the toggle showed on bulb-less gardens and the two
+    canvases stacked. Each needs an explicit `[hidden]{display:none}`.
     **A DRIFT is what the brush left connected; a STAND is what a reader sees**
     (`planStands`/`PLAN_STAND_GAP`). The Matrix brush lays a CHECKERBOARD, so
     `planComponents` returns dozens of one-tile components and the sheet used

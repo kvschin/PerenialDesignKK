@@ -203,7 +203,75 @@ unambiguous, but `SCH` is a *hint* — it tells a gardener it is a
 rather than a contractor. Switching to `1..n` is a small change to `planCodes`
 alone if that trade is ever re-decided; nothing else reads the code's shape.
 
-### Measured after
+### The bulb sheet (0.8.81)
+
+A garden with bulbs is a **sheet set**, because Oudolf's bulb design is an
+*overlay* of the perennial design — two independent designs on the same ground,
+and one drawing cannot show both honestly. A garden *without* bulbs is one
+sheet and is untouched by all of this.
+
+`planSheets()` is the set: always the planting plan, plus a bulb plan when any
+live bulb exists. Both are built on open into their own canvas
+(`#planCanvas`, `#planBulbCanvas`), and a `.seg` toggle flips which is on
+screen. Building both up front is what makes the toggle instant *and* what lets
+print emit the set rather than whichever tab happened to be open.
+
+`drawPlanSheet(pc, sheet, index, shared)` is the old `buildPlanMap` body, and
+`buildPlanMap` is now the orchestrator. What differs per sheet is only which
+planting is the **subject** and which is **context**:
+
+| | planting plan | bulb plan |
+| --- | --- | --- |
+| perennials | subject — layer weights, labels | ghost: 88% paper, fill only, no stroke, no label |
+| bulbs | absent | subject — drifts, stands, `×N`, plus the ring scatter |
+| trees, shrubs | solid, labelled | solid, **unlabelled** |
+| site base | identical | identical |
+| schedule | its own species | its own species |
+
+Measured on the review garden with 73 bulbs planted through it, as RGB
+distance from paper (luminance is the wrong metric here — it would call a
+daffodil's yellow "pale"):
+
+| | planting sheet | bulb sheet |
+| --- | --- | --- |
+| perennials | 46 | **24** (ghost) |
+| bare bed | 37 | 37 |
+| bulbs | **37 — identical to bare bed, i.e. absent** | **63** |
+
+So on the bulb sheet the reading order is bulbs (63) over bare ground (37) over
+the perennial ghost (24) — the ghost is fainter than the ground it sits on,
+which is what makes it read as *underneath* rather than as another planting.
+
+Four decisions worth keeping.
+
+**Codes are assigned across the SET, never per sheet.** *Campanula* and
+*Camassia* both reduce to `CAM` and live on different sheets, so a per-sheet
+assignment would hand the same tag to two different plants and the set would
+contradict itself. `buildPlanMap` assigns once over both layers and passes the
+result down; a test pins that exact pair.
+
+**Structure draws on the bulb sheet without a code.** You plant bulbs around a
+tree, so trees and shrubs are context there — but a code the sheet's own
+schedule cannot explain is a dangling reference, so `drawShrubPlan` takes a
+`label` flag and the tree label pass is skipped.
+
+**Rings were kept, inside the drift.** A scatter of small circles is the
+standing symbol for bulbs and was the only thing the old sheet drew. Now the
+blob says *where*, the rings say *what kind of planting*, and the stand label
+says *which bulb and how many*.
+
+**Download gives the sheet you are looking at, not both.** Exporting the set as
+two PNGs is the obvious reading and is worse in practice: two programmatic
+downloads from one gesture raises Chrome's "Download multiple files?" prompt.
+Print still gives the set, as two pages — gated on a `has-sheet` class so a
+bulb-less garden does not print the undrawn default canvas as a blank page.
+
+Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
+`display:block`, and **both beat the UA rule for the `hidden` attribute** — so
+the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
+`[hidden]{display:none}` rules for each.
+
+### Measured after (0.8.80, the single sheet)
 
 Off the review garden's own rendered sheet, in the browser (the plan canvas
 sizes itself explicitly rather than from the viewport, so it renders correctly
@@ -246,42 +314,17 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **Split `buildPlanMap` into sheets.** It is one ~470-line function that
-   sizes the canvas, draws paper/title/north/grid, then ground, then planting,
-   then schedule and scale bar, all inline. Splitting it into a common
-   `drawSiteBase(ctx, geom)` plus `drawPlantingLayer(ctx, geom, opts)` is the
-   enabling refactor for everything below.
+1. **Split the site base out of `drawPlanSheet`.** Both sheets now share it,
+   but they share it by running the same ~400 lines twice rather than by
+   calling a `drawSiteBase(ctx, geom)`. That is invisible today and is the
+   thing to do before a third sheet (hardscape) or any per-sheet variation of
+   the base.
 
-2. **The bulb sheet** — the reason this review started. The *model* is already
-   done: bulbs are a separate layer (`game.bulbs`), already scheme-partitioned
-   (`SCHEME_LAYERS`), already layer-toggleable, with their own placement rules.
-   Nothing in the save format needs to move. Today they draw as one stroked
-   ring per tile over the top of everything ([io.js](../js/io.js), "bulbs:
-   scatter rings over everything"), with no code label — so two bulb species
-   are distinguishable only by hue, landing on drifts that already carry their
-   own fill, outline and label. The app has exactly the problem the overlay
-   convention exists to solve; it just does not show up until a garden has
-   bulbs in it.
-
-   The shape of the fix:
-   - Sheet 1 "Planting plan": perennials/grasses/shrubs solid, bulbs omitted.
-   - Sheet 2 "Bulb plan": bulbs solid with their own codes and schedule;
-     perennial drifts dropped to a pale unlabelled ghost (~15% alpha, no
-     outline) so you can see *where* they are without reading them. Trees and
-     shrubs stay solid on both — you plant bulbs around them.
-   - `planComponents()` hardcodes `game.plants`; parameterise the layer and
-     bulbs get drifts, stands, codes and labels for free.
-   - Keep `planCodes` **global** across sheets, not per-sheet: a code should
-     mean the same plant on every sheet and in the schedule.
-   - `#planScreen` needs a sheet toggle; `downloadPlan()` should export both
-     (`-plan.png`, `-bulb-plan.png`); the print CSS should give two pages.
-   - Gate sheet 2 on `bulbsLive.length` so gardens without bulbs are unchanged.
-
-   Level 3, if the goal becomes "a sheet you can hand an installer": Oudolf's
-   bulb overlays are *density over an area* ("N. 'Thalia' × 200 naturalised
-   through here"), which draws as a dashed zone boundary + stipple + count, not
-   as an outlined shape. Our model knows every bulb's tile, so this is a
-   drawing decision, not a data one.
+2. **Bulb density over an area**, if the goal becomes "a sheet you can hand an
+   installer". Oudolf's bulb overlays are a density through a zone
+   ("N. 'Thalia' × 200 naturalised through here") drawn as a dashed zone
+   boundary plus stipple plus count, rather than an outlined drift. Our model
+   knows every bulb's tile, so this is a drawing decision, not a data one.
 
 3. **Label collision and leader lines.** Labels are placed and drawn with no
    overlap test. This ranks lower than it looked: measured, the old sheet had

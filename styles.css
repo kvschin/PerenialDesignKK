@@ -1465,7 +1465,14 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 /* ---------- planting plan ---------- */
 .plan-wrap{width:100%;max-height:74vh;overflow:auto;border-radius:var(--radius-control);
   background:#f7f3e8;border:1px solid rgba(var(--ink-rgb),.3)}
-#planCanvas{display:block;width:100%;height:auto}
+/* `display:block` on the id would beat the `hidden` attribute's UA rule, so the
+   off-screen sheet has to be hidden explicitly or both canvases stack. */
+.plan-wrap canvas{display:block;width:100%;height:auto}
+.plan-wrap canvas[hidden]{display:none}
+/* `.seg` is display:inline-flex, which beats the UA rule for [hidden] the same
+   way the canvas rule above does — a bulb-less garden would keep the toggle. */
+.plan-sheets{margin-bottom:10px}
+.plan-sheets[hidden]{display:none}
 
 /* print: just the planting list, black on white */
 @media print{
@@ -1483,7 +1490,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #planScreen{position:static;padding:0;overflow:visible}
   #planScreen .panel{background:#fff;border:none;max-width:100%;backdrop-filter:none;padding:0}
   #planScreen .plan-wrap{max-height:none;overflow:visible;border:none;background:#fff}
-  #planScreen .row,#planScreen .back-link{display:none!important}
+  #planScreen .row,#planScreen .back-link,#planSheetToggle{display:none!important}
+  /* the whole SET prints, one sheet per page — a set is what a bulb garden
+     has, and printing only the tab that happened to be open would drop half
+     of it. `break-after` on every sheet but the last. */
+  #planScreen .plan-wrap canvas{display:none!important}
+  #planScreen .plan-wrap canvas.has-sheet{display:block!important;break-after:page;page-break-after:always}
+  #planScreen .plan-wrap canvas.has-sheet:last-of-type{break-after:auto;page-break-after:auto}
 }
 
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
