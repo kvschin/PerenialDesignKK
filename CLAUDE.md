@@ -2831,12 +2831,33 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     gave a 31-tile plot 24px a tile and a quarter acre 9, so the sheet was a
     picture rather than a drawing and nothing on it could be measured except
     through the graphic bar. It now picks the most detailed standard ratio at
-    which the plot still fits a portrait page (`PLAN_DRAW_MAX_IN` 7.2, Letter
-    and A4 less margins), derives `cell` at PLAN_DPI (96) units to the paper
-    inch, states it in the title block, and publishes `--plan-in` so the print
-    CSS sizes the canvas in real inches and a rule laid on the page agrees.
-    13 tiles → 1/4"=1ft (1:48, cell 36); 31 → 1/8"=1ft (1:96, cell 18);
-    quarter acre → 1"=16ft (1:192, cell 9); metric → 1:100.
+    which the plot AND ITS SCHEDULE still fit a portrait page, derives `cell`
+    at PLAN_DPI (96) units to the paper inch, states it in the title block, and
+    publishes `--plan-in` so the print CSS sizes the canvas in real inches and
+    a rule laid on the page agrees.
+    **The budget is the page LESS the sheet's own furniture** (`planChromeIn`,
+    `PLAN_PAGE_W_IN` 7.2, `PLAN_PAGE_H_IN` 9.4). 0.8.84 constrained the WIDTH
+    only and never asked how tall the finished sheet was, so a real print of
+    the review garden came out 6.88 x 9.90in onto a ~9.5in printable area and
+    lost the last two schedule rows and the scale bar — and a reader cannot
+    tell that anything is gone. A longer schedule now pushes the scale coarser,
+    which is the whole mechanism: that garden goes 1:96 -> 1" = 10 ft (1:120)
+    and 9.90in -> 8.54in, the drawing about a fifth smaller, which is the trade
+    (a plan that prints whole beats one drawn larger and cut off). 9.4 is
+    deliberately pessimistic: Letter portrait is ~10.2in at default margins,
+    but browsers print a header and footer unless told not to, and that is what
+    ate the difference. **The scale bar sits in the gap between the drawing and
+    the schedule** (`PLAN_SCALEBAR_GAP`), not at `H2-18` on the foot below the
+    whole table — wrong on the convention, since a graphic scale belongs with
+    its drawing, and the first thing a short page cuts off. **A sheet that
+    still cannot fit SAYS so** (`planOverPage`), printing its real size and
+    naming the way out: silently overflowing is the one outcome worth ruling
+    out. Note `planGeometry(rowsBelow)`'s scale now DEPENDS on rowsBelow, so a
+    probe passing 0 gets a different cell from the real sheet — pass what
+    `drawPlanSheet` passes. The way to get the finer scale back is the open
+    schedule-sheet item: it returns the whole page to the drawing.
+    13 tiles → 1/4"=1ft (1:48, cell 36); 31 → 1" = 10 ft (1:120, cell 14.4);
+    quarter acre → coarser still; metric picks a metric ratio (1:100 at 31).
     **The scale is always TRUE and it is the PAPER that grows**: a plot too big
     for the page at every legible scale keeps the coarsest legible one and
     produces a wider sheet, which is what `PLAN_CELL_MIN` (8px) enforces — a

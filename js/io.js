@@ -1752,8 +1752,17 @@ function drawBulbZones(ctx,g,stands,tints){
    the thing that is true either way, which is why a real drawing prints its
    paper size beside its scale. */
 const PLAN_DPI=96;                 // drawing units to the paper inch
-const PLAN_DRAW_MAX_IN=7.2;        // Letter and A4 portrait, less margins
+/* The page the sheet is sized for: Letter and A4 portrait, less margins AND
+   less the header/footer a browser prints by default.  9.4in is deliberately
+   pessimistic about the height — a sheet that overflows loses the bottom of
+   the schedule, and the reader cannot tell that anything is missing. */
+const PLAN_PAGE_W_IN=7.2, PLAN_PAGE_H_IN=9.4;
 const PLAN_CELL_MIN=8;             // below this a tile carries no readable label
+/* The bands above and below the drawing. The scale bar sits in the FIRST gap,
+   with the drawing it measures, rather than at the foot of the sheet under the
+   whole schedule — where it was both wrong (a graphic scale belongs beside its
+   drawing) and the first thing a short page cut off. */
+const PLAN_PAD_T=92, PLAN_SCALEBAR_GAP=16, PLAN_SCHEDULE_GAP=44, PLAN_FOOT=12;
 /* Denominator of the ratio, most detailed first. Real feet to the paper inch
    is denom/12, so 1:48 is the quarter-inch scale and 1:96 the eighth. */
 const PLAN_SCALES_IMPERIAL=Object.freeze([
@@ -1768,28 +1777,47 @@ const PLAN_SCALES_METRIC=Object.freeze([
   {denom:50}, {denom:100}, {denom:200}, {denom:500},
 ]);
 function planScaleCell(s){ return (TILE_IN/12)/(s.denom/12)*PLAN_DPI; }
-function planScale(){
+/* The sheet's own chrome, in paper inches: the title block above the drawing,
+   and the scale bar plus the whole plant schedule below it.  The scale has to
+   be chosen against what is LEFT of the page after that, not against the page
+   — sizing to the width alone printed a sheet 9.9in tall on a ~9.5in
+   printable area and cut the last two schedule rows and the scale bar off the
+   bottom, which is exactly the part a reader needs. */
+function planChromeIn(rowsBelow){
+  return (PLAN_PAD_T+PLAN_SCHEDULE_GAP+(rowsBelow||0)*15+PLAN_FOOT)/PLAN_DPI;
+}
+function planScale(rowsBelow){
   const list=metricUnits()?PLAN_SCALES_METRIC:PLAN_SCALES_IMPERIAL;
   const legible=list.filter(s=>planScaleCell(s)>=PLAN_CELL_MIN);
   const usable=legible.length?legible:[list[0]];
-  const fits=s=>Math.max(GW,GH)*(TILE_IN/12)/(s.denom/12)<=PLAN_DRAW_MAX_IN;
+  const ftW=GW*(TILE_IN/12), ftH=GH*(TILE_IN/12);
+  const hBudget=Math.max(2, PLAN_PAGE_H_IN-planChromeIn(rowsBelow));
+  const fits=s=>{ const per=s.denom/12;
+    return ftW/per<=PLAN_PAGE_W_IN && ftH/per<=hBudget; };
   return usable.find(fits) || usable[usable.length-1];
+}
+// does the finished sheet still exceed the page it was sized for?
+function planOverPage(g){
+  return g.W2/PLAN_DPI>PLAN_PAGE_W_IN+0.05 || g.H2/PLAN_DPI>PLAN_PAGE_H_IN+0.05;
 }
 function planScaleText(s){
   const ratio=`1:${s.denom}`;
   return s.label ? `${s.label} (${ratio})` : ratio;
 }
 function planGeometry(rowsBelow){
-  const scale=planScale();
+  /* NOTE the scale depends on rowsBelow, because the schedule eats the page
+     the drawing has to fit in — so a probe that passes 0 gets a different
+     cell from the real sheet. Pass what drawPlanSheet passes. */
+  const scale=planScale(rowsBelow);
   const cell=planScaleCell(scale);
-  const padL=34, padT=92;
+  const padL=34, padT=PLAN_PAD_T;
   /* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
      paper has a floor and the drawing centres inside it. At the classic plot
      size this resolves to the old left-aligned padL exactly. */
   const drawW=GW*cell;
   const W2=Math.max(padL*2+drawW, 660);
   const originX=Math.round((W2-drawW)/2);
-  const H2=padT+GH*cell+34+rowsBelow*15+26;
+  const H2=padT+GH*cell+PLAN_SCHEDULE_GAP+(rowsBelow||0)*15+PLAN_FOOT;
   return {cell,padL,padT,drawW,W2,originX,H2,scale,
     X:x=>originX+x*cell, Y:y=>padT+y*cell};
 }
@@ -1812,6 +1840,16 @@ function drawPlanPaper(ctx,g,sheetName){
      and leaves the graphic bar as the thing that is true either way. */
   ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`
     + ` · scale ${planScaleText(g.scale)} at full size`, padL, 70);
+  /* Only when it genuinely does not fit — a big plot with a long schedule
+     cannot be drawn on one portrait page at any legible scale, and a reader
+     who prints it needs to know that BEFORE the bottom goes missing rather
+     than after. Its own short line, so the line above never overflows. */
+  if (planOverPage(g)){
+    ctx.font='9px IBM Plex Sans'; ctx.fillStyle='#a2581f';
+    ctx.fillText(`Larger than one portrait page (${(g.W2/PLAN_DPI).toFixed(1)}″ × ${(g.H2/PLAN_DPI).toFixed(1)}″)`
+      + ' — print to a bigger sheet, or scale to fit and read the bar', padL, 84);
+    ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+  }
   // True north rotates inside the plan; the garden drawing itself stays in
   // the user's plot coordinates so labels and saved tile positions never move.
   const nd=siteDirections(game.siteNorthDeg).N, nc=[W2-48,52], perp=[-nd[1],nd[0]];
@@ -2123,13 +2161,14 @@ function drawPlanKeyRows(ctx,g,ly2,legRows,site){
   }
 }
 function drawPlanScaleBar(ctx,g){
-  const {cell,padL,W2,H2}=g;
+  const {cell,padL,padT,W2}=g;
   /* Scale bar. 10 ft imperial, 3 m metric — a round number in the reader's
      own units, because a bar labelled "3.05 m" is a bar nobody trusts. The
      pixels-per-foot came from a hardcoded 1.5 (feet per tile); it reads TILE_IN
      now, so the bar cannot drift from the drawing it measures. */
   const barFt=metricUnits()?3/M_PER_FT:10;
-  const ftPx=cell/(TILE_IN/12), barPx=ftPx*barFt, bx2=W2-padL-barPx, by2=H2-18;
+  const ftPx=cell/(TILE_IN/12), barPx=ftPx*barFt, bx2=W2-padL-barPx;
+  const by2=padT+GH*cell+PLAN_SCALEBAR_GAP;   // with its drawing, not at the foot
   ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;
   ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+barPx,by2); ctx.stroke();
   for (const f of [0,0.5,1]){ ctx.beginPath();
@@ -2262,7 +2301,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      landscape-architecture traditions agree on (docs/plan-sheet.md); the old
      three-column legend gave a common name truncated at 26 chars — exactly
      where a cultivar epithet lives — and a count of game TILES. */
-  let ly2=padT+GH*cell+26;
+  let ly2=padT+GH*cell+PLAN_SCHEDULE_GAP;
   ctx.textAlign='left'; ctx.font='600 10px IBM Plex Sans';
   // an empty garden gets an empty sheet, not a heading over nothing
   if (ids.length){ ctx.fillStyle='#6e5f48'; ctx.fillText('PLANT SCHEDULE', padL, ly2-8); }

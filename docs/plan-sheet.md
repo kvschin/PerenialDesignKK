@@ -276,6 +276,50 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
 
+### The sheet fits the page it is sized for (0.8.86)
+
+Reported from a real print: the last two schedule rows and the scale bar came
+out off the bottom of the page.
+
+**The scale was chosen against the page WIDTH alone.** 0.8.84 constrained the
+drawing to 7.2in across and never asked how tall the finished sheet was — and
+the title block, the schedule and the bar are most of a sheet. The review
+garden came to 6.88in × **9.90in** against a printable area of about 9.5in, so
+the bottom went missing, and a reader cannot tell that anything is gone.
+
+`planChromeIn(rowsBelow)` is now the sheet's own furniture in inches, and
+`planScale` picks against what is LEFT of the page after subtracting it. A
+longer schedule therefore pushes the scale coarser, which is the whole
+mechanism: the review garden moves from 1:96 to **1" = 10 ft (1:120)** and the
+sheet from 9.90in to **8.54in**, inside the budget with room to spare. The
+drawing is about a fifth smaller, and that is the trade — a plan that prints
+whole beats a plan drawn slightly larger and cut off. Label crowding at the
+tighter cell is unchanged in effect: 11 overlapping pairs at the anchor, **0**
+after placement, 9 leaders.
+
+**`PLAN_PAGE_H_IN` is 9.4, deliberately pessimistic.** Letter portrait at
+default margins is about 10.2in, but browsers print a header and footer unless
+told not to, and that is what ate the difference in the reported print.
+
+**The scale bar moved up beside the drawing it measures.** It sat at `H2-18`,
+the very foot of the sheet *below the whole schedule* — wrong on the
+convention, since a graphic scale belongs with its drawing, and the first thing
+a short page cuts off. It is now in the gap between the drawing and the
+schedule heading: measured, the drawing ends at y=538, the bar labels at 546,
+the schedule heading at 574.
+
+**And when it genuinely cannot fit, the sheet says so.** A big site has no
+legible scale that fits one portrait page — the scale stays true and the paper
+grows, which `PLAN_CELL_MIN` enforces — so a sheet over the page prints its
+real size and tells the reader to use a bigger sheet or scale to fit and read
+the bar. Silently overflowing is the one outcome worth ruling out.
+
+> **The way to get the finer scale back** is the next open item: put the plant
+> schedule on its own sheet in the set. That returns the whole page to the
+> drawing and would restore 1:96 here, or 1:48 on a small garden. The
+> machinery exists — `planSheets()` already builds a set — the question is
+> whether a single-page reader minds losing the key from the drawing.
+
 ### Plan colour: a tint, not a mix (0.8.85)
 
 The open item said colour was "doing a job it cannot do" — three lavenders

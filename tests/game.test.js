@@ -3281,6 +3281,78 @@ test('the sheet is drawn to a standard scale, and the scale is always true', () 
   assertEqual(planScaleText({ denom: 100 }), '1:100', 'a metric scale is just its ratio');
 });
 
+test('the sheet is sized for the page, schedule included', () => {
+  /* The scale used to be chosen against the page WIDTH alone, which printed a
+     6.88in x 9.90in sheet onto a ~9.5in printable area and cut the last two
+     schedule rows and the scale bar off the bottom — the part a reader needs. */
+  const cases = [];
+  [[13, 3], [21, 8], [31, 14], [31, 25], [46, 14], [69, 20]].forEach(([side, species]) => {
+    setup(side, side);
+    const rowsBelow = species + 1;                 // a row each, plus the header
+    const g = planGeometry(rowsBelow);
+    cases.push({ side, species, w: +(g.W2 / PLAN_DPI).toFixed(2), h: +(g.H2 / PLAN_DPI).toFixed(2),
+      denom: g.scale.denom, over: planOverPage(g) });
+  });
+  // the drawing and its schedule together, never just the drawing
+  cases.filter(c => !c.over).forEach(c =>
+    assert(c.h <= PLAN_PAGE_H_IN + 0.001,
+      `${c.side} tiles / ${c.species} species fits the page height (${c.h}in)`));
+  const classic = cases.find(c => c.side === 31 && c.species === 14);
+  assert(!classic.over, 'the review garden now fits one portrait page');
+  assert(classic.h < 9.5, `and with room to spare (${classic.h}in, was 9.90)`);
+  /* A longer schedule eats the page the drawing has to fit in, so it must be
+     able to push the scale coarser — that is the whole mechanism. */
+  const short = cases.find(c => c.side === 31 && c.species === 14);
+  const long = cases.find(c => c.side === 31 && c.species === 25);
+  assert(long.denom >= short.denom, 'more schedule rows never buy a finer scale');
+  // a small plot still gets the detailed end
+  assert(cases[0].denom < classic.denom, 'a small garden is still drawn large');
+
+  /* A big site cannot go on one portrait page at any legible scale, and the
+     scale stays TRUE while the paper grows (PLAN_CELL_MIN enforces that). So
+     the sheet has to SAY it overflows — a reader who prints it needs to know
+     before the bottom goes missing, not after. */
+  setup(111, 111);
+  game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
+  const big = planGeometry(2);
+  assert(planOverPage(big), 'a 166ft plot does not fit one portrait page');
+  const texts = [];
+  const ctx = makeCanvasCtx({ fillText(t){ texts.push(String(t)); } });
+  const pc = { width: 0, height: 0, hidden: false, classList: { toggle(){} }, style: {},
+    getContext(){ return ctx; } };
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  assert(texts.some(t => /Larger than one portrait page/.test(t)),
+    'and the sheet says so, with its real size');
+  assert(big.cell >= PLAN_CELL_MIN, 'while still keeping a legible tile');
+});
+
+test('the scale bar sits with the drawing it measures', () => {
+  setup(31, 31);
+  for (let y = 4; y < 9; y++) for (let x = 4; x < 10; x++)
+    game.plants[`${x},${y}`] = { s: 'bluestem', d: 0, t: 1 };
+  const texts = [];
+  const ctx = makeCanvasCtx({ fillText(t, x, y){ texts.push({ t: String(t), y }); } });
+  const pc = { width: 0, height: 0, hidden: false, classList: { toggle(){} }, style: {},
+    getContext(){ return ctx; } };
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  const g = planGeometry(2);
+  const bottom = g.padT + GH * g.cell;
+  const bar = texts.find(r => /^(10 ft|3 m)$/.test(r.t));
+  const heading = texts.find(r => r.t === 'PLANT SCHEDULE');
+  assert(bar, 'the sheet draws a graphic scale');
+  assert(heading, 'and a schedule below it');
+  /* It used to sit at H2-18, the very foot of the sheet under the whole
+     schedule: wrong, because a graphic scale belongs beside its drawing, and
+     the first thing a short page cuts off. */
+  assert(bar.y < heading.y, 'the bar comes before the schedule, not after it');
+  assert(bar.y - bottom < 30,
+    `and within a hair of the drawing (${Math.round(bar.y - bottom)}px below it)`);
+});
+
 test('the scale reaches the title block and the print at real size', () => {
   setup(31, 31);
   game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
