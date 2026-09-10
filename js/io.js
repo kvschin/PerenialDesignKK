@@ -1354,47 +1354,36 @@ function buildPlanMap(){
   sheets.forEach((s,i)=>{ const pc=$(planSheetCanvasId(s.id)); if (pc) drawPlanSheet(pc,s,i,shared); });
   syncPlanSheets();
 }
-function drawPlanSheet(pc,sheet,sheetIndex,shared){
-  const ctx=pc.getContext('2d');
+/* ---------- the site base ----------
+   Every sheet in a set draws the same site: the same paper, the same north
+   arrow, the same ground, the same buildings, the same lot line.  What
+   differs is only which planting is the subject and which is context.  Those
+   ~300 lines used to sit inline in drawPlanSheet, so the two sheets shared
+   them only by being one body called twice — which worked, and hid the seam.
+   Naming them is what makes a third sheet (hardscape) or a per-sheet
+   variation of the base a small change rather than surgery on a 480-line
+   function.
+
+   NOTE they deliberately do NOT wrap themselves in save/restore.  Canvas
+   state leaks from block to block today and later blocks rely on it — the
+   grid inherits the north arrow's textAlign, the schedule sets its own.
+   Isolating them would be a behaviour change wearing a tidy-up's clothes. */
+function planGeometry(rowsBelow){
   const cell=Math.max(9, Math.min(24, Math.floor(1000/Math.max(GW,GH))));
   const padL=34, padT=92;
-  const onBulbSheet=sheet.layer==='bulbs';
-  const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
-  // the perennial planting: the SUBJECT of the planting sheet, the GHOST of
-  // the bulb sheet — you have to see where the bulbs sit relative to it
-  const plantComps=planComponents(game.plants).filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
-  const plantHerb=plantComps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
-  const subjectComps=onBulbSheet?planComponents(game.bulbs):plantHerb;
-  const ghostComps=onBulbSheet?plantHerb:[];
-  /* Trees are excluded from stand merging and keep a label per component over
-     the trunk: a tree is a specimen placed individually, not a population.
-     On the bulb sheet they still DRAW — you plant bulbs around a tree — but
-     unlabelled, like every other piece of context there. */
-  const treeComps=onBulbSheet?[]:plantComps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
-  const stands=planStands(subjectComps);
-  const treesLive=Object.keys(game.plants).filter(k=>{
-    const p=game.plants[k];
-    return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
-  });
-  const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
-  const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
-  const planted=shared.planted, codes=shared.codes;
-  // each sheet schedules the planting it draws, in the set's shared code order
-  const onSheet=onBulbSheet?shared.bulbIds:shared.plantIds;
-  const ids=shared.ids.filter(id=>onSheet.has(id));
-  const legRows=ids.length+(ids.length?1:0);        // one row per species, plus the header
-  const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
-  const noteRows=treesLive.length?1:0;
   /* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
      paper has a floor and the drawing centres inside it. At the classic plot
      size this resolves to the old left-aligned padL exactly. */
   const drawW=GW*cell;
   const W2=Math.max(padL*2+drawW, 660);
   const originX=Math.round((W2-drawW)/2);
-  const H2=padT+GH*cell+34+(legRows+fixtureRows+noteRows)*15+26;
-  pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
-  ctx.setTransform(2,0,0,2,0,0);
-  const X=x=>originX+x*cell, Y=y=>padT+y*cell;
+  const H2=padT+GH*cell+34+rowsBelow*15+26;
+  return {cell,padL,padT,drawW,W2,originX,H2,
+    X:x=>originX+x*cell, Y:y=>padT+y*cell};
+}
+// paper, border, title block and the true-north arrow
+function drawPlanPaper(ctx,g,sheetName){
+  const {padL,W2,H2}=g;
   // paper
   ctx.fillStyle='#f7f3e8'; ctx.fillRect(0,0,W2,H2);
   ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1;
@@ -1404,10 +1393,6 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   ctx.font='600 22px Fraunces, serif';
   ctx.fillText(game.worldName||'Design plan', padL, 38);
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-  /* A one-sheet garden still says "Design plan" — it is not a set, and naming
-     it "Sheet 1 of 1" would be drawing-office cosplay. */
-  const setSize=shared.sheets.length;
-  const sheetName=setSize>1?`${sheet.name} · Sheet ${sheetIndex+1} of ${setSize}`:'Design plan';
   ctx.fillText(`${sheetName} · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   const ftPerTile=TILE_IN/12;
   ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`, padL, 70);
@@ -1423,6 +1408,11 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   ctx.fillStyle='#2c241c'; ctx.fill();
   ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
   ctx.fillText('N',nc[0]+nd[0]*34,nc[1]+nd[1]*34+3);
+}
+// the site UNDER the planting: grid, grade, terrain, hardscape, fixtures
+function drawPlanGround(ctx,g,site){
+  const {cell,padL,padT,W2,H2,X,Y}=g;
+  const {lightsLive,bouldersLive}=site;
   // faint tile grid so bare ground still reads as a plot of blank tiles —
   // clipped to the lot shape so an irregular plot doesn't grid past its edge
   ctx.strokeStyle='rgba(120,108,86,0.16)'; ctx.lineWidth=0.5;
@@ -1644,6 +1634,134 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     ctx.moveTo(cx2,cy2-r*1.8); ctx.lineTo(cx2,cy2+r*1.8); ctx.stroke();
     ctx.restore();
   });
+}
+// the site OVER the planting: footprints, houses, and the deeded lot line
+function drawPlanStructures(ctx,g){
+  const {cell,X,Y}=g;
+  // building footprints: exterior site context, deliberately distinct from legacy houses
+  (game.buildings||[]).forEach(b=>{
+    if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) return;
+    ctx.save();
+    ctx.fillStyle=b.status==='proposed'?'rgba(201,127,63,.26)':(b.roof||'#9a5f3a')+'88';
+    ctx.strokeStyle=b.status==='proposed'?'#b87835':'#4a4238'; ctx.lineWidth=1.5;
+    if (b.status==='proposed') ctx.setLineDash([4,3]);
+    ctx.beginPath(); b.vertices.forEach(([x,y],i)=>{ if (i) ctx.lineTo(X(x),Y(y)); else ctx.moveTo(X(x),Y(y)); }); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    const r=buildingBounds(b);
+    if (r){ ctx.fillStyle='#2c241c'; ctx.font='600 9px IBM Plex Sans'; ctx.textAlign='center';
+      ctx.fillText(b.status==='proposed'?'PROPOSED':(b.label||'EXISTING').toUpperCase(),X((r.x0+r.x1+1)/2),Y((r.y0+r.y1+1)/2)+3); }
+    ctx.restore();
+  });
+  // houses
+  game.houses.forEach(hh=>{
+    ctx.fillStyle='#e3ddd2'; ctx.strokeStyle='#4a4238'; ctx.lineWidth=1.6;
+    ctx.fillRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
+    ctx.strokeRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
+    const [dX,dY]=doorPos(hh);
+    ctx.fillStyle='#4a4238';
+    ctx.fillRect(X(dX)+cell*0.3,Y(dY)-2,cell*0.4,3);
+    if (hh.w*cell>40){ ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
+      ctx.fillText('HOUSE', X(hh.x)+hh.w*cell/2, Y(hh.y)+hh.h*cell/2+3); }
+  });
+  // lot boundary: the shape the garden sits on, or the full rectangle when
+  // no shape is set — drawn over fills/fixtures so the line reads on top
+  ctx.save();
+  ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1.4;
+  if (game.plotShape){
+    ctx.beginPath();
+    game.plotShape.forEach(([vx,vy],i)=>{ const px=X(vx), py=Y(vy); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+    ctx.closePath(); ctx.stroke();
+  } else {
+    ctx.strokeRect(X(0),Y(0),GW*cell,GH*cell);
+  }
+  ctx.restore();
+}
+// the non-planting key rows that sit under the schedule
+function drawPlanKeyRows(ctx,g,ly2,legRows,site){
+  const {padL}=g;
+  const {lightsLive,bouldersLive,treesLive,fixtureRows}=site;
+  if (lightsLive.length){
+    const cy2=ly2+legRows*15, cx2=padL;
+    ctx.fillStyle=mixHex(lightTone('warm').col,'#f7f3e8',0.22);
+    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.arc(cx2+4.5,cy2-3,4,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
+    ctx.fillText(`LIGHT - lighting fixture (${lightsLive.length})`, cx2+14, cy2);
+  }
+  if (bouldersLive.length){
+    const cy2=ly2+(legRows+(lightsLive.length?1:0))*15, cx2=padL;
+    ctx.fillStyle=mixHex('#7f8178','#f7f3e8',0.2);
+    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
+    ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
+  }
+  if (treesLive.length){
+    const cy2=ly2+(legRows+fixtureRows)*15, cx2=padL;
+    ctx.save();
+    ctx.strokeStyle='#6e5f48'; ctx.lineWidth=1.1; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(cx2,cy2-3); ctx.lineTo(cx2+22,cy2-3); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
+    ctx.fillText('Dashed = mature crown in Established preview; Today shows current reach.', cx2+28, cy2);
+  }
+}
+function drawPlanScaleBar(ctx,g){
+  const {cell,padL,W2,H2}=g;
+  /* Scale bar. 10 ft imperial, 3 m metric — a round number in the reader's
+     own units, because a bar labelled "3.05 m" is a bar nobody trusts. The
+     pixels-per-foot came from a hardcoded 1.5 (feet per tile); it reads TILE_IN
+     now, so the bar cannot drift from the drawing it measures. */
+  const barFt=metricUnits()?3/M_PER_FT:10;
+  const ftPx=cell/(TILE_IN/12), barPx=ftPx*barFt, bx2=W2-padL-barPx, by2=H2-18;
+  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+barPx,by2); ctx.stroke();
+  for (const f of [0,0.5,1]){ ctx.beginPath();
+    ctx.moveTo(bx2+barPx*f,by2-4); ctx.lineTo(bx2+barPx*f,by2+4); ctx.stroke(); }
+  ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
+  ctx.fillText(fmtFeet(barFt), bx2+barPx/2, by2-8);
+}
+
+function drawPlanSheet(pc,sheet,sheetIndex,shared){
+  const ctx=pc.getContext('2d');
+  const onBulbSheet=sheet.layer==='bulbs';
+  const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
+  // the perennial planting: the SUBJECT of the planting sheet, the GHOST of
+  // the bulb sheet — you have to see where the bulbs sit relative to it
+  const plantComps=planComponents(game.plants).filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
+  const plantHerb=plantComps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
+  const subjectComps=onBulbSheet?planComponents(game.bulbs):plantHerb;
+  const ghostComps=onBulbSheet?plantHerb:[];
+  /* Trees are excluded from stand merging and keep a label per component over
+     the trunk: a tree is a specimen placed individually, not a population.
+     On the bulb sheet they still DRAW — you plant bulbs around a tree — but
+     unlabelled, like every other piece of context there. */
+  const treeComps=onBulbSheet?[]:plantComps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
+  const stands=planStands(subjectComps);
+  const treesLive=Object.keys(game.plants).filter(k=>{
+    const p=game.plants[k];
+    return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
+  });
+  const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
+  const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
+  const planted=shared.planted, codes=shared.codes;
+  // each sheet schedules the planting it draws, in the set's shared code order
+  const onSheet=onBulbSheet?shared.bulbIds:shared.plantIds;
+  const ids=shared.ids.filter(id=>onSheet.has(id));
+  const legRows=ids.length+(ids.length?1:0);        // one row per species, plus the header
+  const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
+  const noteRows=treesLive.length?1:0;
+  const g=planGeometry(legRows+fixtureRows+noteRows);
+  const {cell,padL,padT,W2,H2,X,Y}=g;
+  pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
+  ctx.setTransform(2,0,0,2,0,0);
+  const site={lightsLive,bouldersLive,treesLive,fixtureRows};
+  /* A one-sheet garden still says "Design plan" — it is not a set, and naming
+     it "Sheet 1 of 1" would be drawing-office cosplay. */
+  const setSize=shared.sheets.length;
+  const sheetName=setSize>1?`${sheet.name} · Sheet ${sheetIndex+1} of ${setSize}`:'Design plan';
+  drawPlanPaper(ctx,g,sheetName);
+  drawPlanGround(ctx,g,site);
   // drifts as smoothed blobs (largest first so small ones read on top)
   const smoothLoop=(loop)=>{
     const pts=loop.map(([x,y])=>{ const [jx,jy]=planJitter(x,y);
@@ -1700,43 +1818,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number);
       ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke(); });
   });
-  // building footprints: exterior site context, deliberately distinct from legacy houses
-  (game.buildings||[]).forEach(b=>{
-    if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) return;
-    ctx.save();
-    ctx.fillStyle=b.status==='proposed'?'rgba(201,127,63,.26)':(b.roof||'#9a5f3a')+'88';
-    ctx.strokeStyle=b.status==='proposed'?'#b87835':'#4a4238'; ctx.lineWidth=1.5;
-    if (b.status==='proposed') ctx.setLineDash([4,3]);
-    ctx.beginPath(); b.vertices.forEach(([x,y],i)=>{ if (i) ctx.lineTo(X(x),Y(y)); else ctx.moveTo(X(x),Y(y)); }); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.setLineDash([]);
-    const r=buildingBounds(b);
-    if (r){ ctx.fillStyle='#2c241c'; ctx.font='600 9px IBM Plex Sans'; ctx.textAlign='center';
-      ctx.fillText(b.status==='proposed'?'PROPOSED':(b.label||'EXISTING').toUpperCase(),X((r.x0+r.x1+1)/2),Y((r.y0+r.y1+1)/2)+3); }
-    ctx.restore();
-  });
-  // houses
-  game.houses.forEach(hh=>{
-    ctx.fillStyle='#e3ddd2'; ctx.strokeStyle='#4a4238'; ctx.lineWidth=1.6;
-    ctx.fillRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
-    ctx.strokeRect(X(hh.x),Y(hh.y),hh.w*cell,hh.h*cell);
-    const [dX,dY]=doorPos(hh);
-    ctx.fillStyle='#4a4238';
-    ctx.fillRect(X(dX)+cell*0.3,Y(dY)-2,cell*0.4,3);
-    if (hh.w*cell>40){ ctx.font='10px IBM Plex Sans'; ctx.textAlign='center';
-      ctx.fillText('HOUSE', X(hh.x)+hh.w*cell/2, Y(hh.y)+hh.h*cell/2+3); }
-  });
-  // lot boundary: the shape the garden sits on, or the full rectangle when
-  // no shape is set — drawn over fills/fixtures so the line reads on top
-  ctx.save();
-  ctx.strokeStyle='#b8ad95'; ctx.lineWidth=1.4;
-  if (game.plotShape){
-    ctx.beginPath();
-    game.plotShape.forEach(([vx,vy],i)=>{ const px=X(vx), py=Y(vy); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
-    ctx.closePath(); ctx.stroke();
-  } else {
-    ctx.strokeRect(X(0),Y(0),GW*cell,GH*cell);
-  }
-  ctx.restore();
+  drawPlanStructures(ctx,g);
   /* One label per STAND, white halo for legibility.  The size range is wider
      than the old per-component 8-13px — which was five pixels across a whole
      sheet, a uniform texture rather than a hierarchy — and it is affordable
@@ -1796,43 +1878,8 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     ctx.textAlign='left'; ctx.fillStyle='#6e5f48';
     ctx.fillText(planFitText(ctx,`${plantMeasure(def.space)} o.c.`,wSpace),xSpace,cy2);
   });
-  if (lightsLive.length){
-    const cy2=ly2+legRows*15, cx2=padL;
-    ctx.fillStyle=mixHex(lightTone('warm').col,'#f7f3e8',0.22);
-    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
-    ctx.beginPath(); ctx.arc(cx2+4.5,cy2-3,4,0,7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
-    ctx.fillText(`LIGHT - lighting fixture (${lightsLive.length})`, cx2+14, cy2);
-  }
-  if (bouldersLive.length){
-    const cy2=ly2+(legRows+(lightsLive.length?1:0))*15, cx2=padL;
-    ctx.fillStyle=mixHex('#7f8178','#f7f3e8',0.2);
-    ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
-    ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#2c241c'; ctx.font='10px IBM Plex Sans';
-    ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
-  }
-  if (treesLive.length){
-    const cy2=ly2+(legRows+fixtureRows)*15, cx2=padL;
-    ctx.save();
-    ctx.strokeStyle='#6e5f48'; ctx.lineWidth=1.1; ctx.setLineDash([5,4]);
-    ctx.beginPath(); ctx.moveTo(cx2,cy2-3); ctx.lineTo(cx2+22,cy2-3); ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle='#6e5f48'; ctx.font='10px IBM Plex Sans'; ctx.textAlign='left';
-    ctx.fillText('Dashed = mature crown in Established preview; Today shows current reach.', cx2+28, cy2);
-  }
-  /* Scale bar. 10 ft imperial, 3 m metric — a round number in the reader's
-     own units, because a bar labelled "3.05 m" is a bar nobody trusts. The
-     pixels-per-foot came from a hardcoded 1.5 (feet per tile); it reads TILE_IN
-     now, so the bar cannot drift from the drawing it measures. */
-  const barFt=metricUnits()?3/M_PER_FT:10;
-  const ftPx=cell/(TILE_IN/12), barPx=ftPx*barFt, bx2=W2-padL-barPx, by2=H2-18;
-  ctx.strokeStyle='#2c241c'; ctx.lineWidth=1.4;
-  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(bx2+barPx,by2); ctx.stroke();
-  for (const f of [0,0.5,1]){ ctx.beginPath();
-    ctx.moveTo(bx2+barPx*f,by2-4); ctx.lineTo(bx2+barPx*f,by2+4); ctx.stroke(); }
-  ctx.font='9px IBM Plex Sans'; ctx.textAlign='center'; ctx.fillStyle='#2c241c';
-  ctx.fillText(fmtFeet(barFt), bx2+barPx/2, by2-8);
+  drawPlanKeyRows(ctx,g,ly2,legRows,site);
+  drawPlanScaleBar(ctx,g);
 }
 function openPlan(){ funnel(FUNNEL_EVENTS.planOpened); buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
 /* Downloads the sheet you are LOOKING AT, named for it.  Exporting the whole

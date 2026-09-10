@@ -3045,6 +3045,35 @@ function renderPlanSheets(){
   return out;
 }
 
+test('the site base is sheet-independent, and drawn in the order a sheet needs', () => {
+  const src = drawPlanSheet.toString();
+  // paper, ground, then the planting, then the structures over it, then the
+  // rows under the schedule — reordering any of these changes what covers what
+  const order = ['drawPlanPaper','drawPlanGround','drawPlanStructures','drawPlanKeyRows','drawPlanScaleBar'];
+  let at = -1;
+  for (const fn of order){
+    const i = src.indexOf(fn + '(ctx');
+    assert(i > at, `${fn} is called by drawPlanSheet, after the one before it`);
+    at = i;
+  }
+  const ground = src.indexOf('drawPlanGround(ctx');
+  const structures = src.indexOf('drawPlanStructures(ctx');
+  const planting = src.indexOf('subjectComps.slice()');
+  assert(ground < planting && planting < structures,
+    'the planting is drawn between the two halves of the base — a drift over the terrain, a building over the drift');
+  /* The whole point of the split: the base knows nothing about WHICH sheet it
+     is drawing. A base function that reached for `sheet` or `shared` would
+     make a third sheet surgery again rather than a small change. */
+  [drawPlanPaper, drawPlanGround, drawPlanStructures, drawPlanKeyRows, drawPlanScaleBar].forEach(f => {
+    const s = f.toString();
+    assert(!/\bshared\b/.test(s), `${f.name} draws the site, so it must not read the sheet set`);
+    assert(!/\bsheetIndex\b|\bonBulbSheet\b/.test(s), `${f.name} must not branch on which sheet it is`);
+    assert(!/planGeometry\(/.test(s), `${f.name} takes the geometry, it does not recompute it`);
+  });
+  assertEqual((src.match(/planGeometry\(/g) || []).length, 1,
+    'one geometry per sheet — sheets that did not line up would be unreadable');
+});
+
 test('a garden without bulbs draws exactly the one sheet it always did', () => {
   setup(21, 21);
   for (let y = 3; y < 7; y++) for (let x = 3; x < 9; x++)

@@ -2770,6 +2770,27 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     also prints (own page). Empty gardens render an empty sheet, no crash.
     `docs/plan-sheet.md` is the full record — how the sheet compares with how a
     planting plan is really drawn, and what is still open.
+    **The SITE BASE is split out of `drawPlanSheet`**: `planGeometry` (paper
+    size, the 660px floor, the centred origin, the `X`/`Y` projectors),
+    `drawPlanPaper`, `drawPlanGround` (grid, grade, terrain, hardscape,
+    fixtures), `drawPlanStructures` (footprints, houses, lot line — the base
+    that goes OVER the planting), `drawPlanKeyRows` and `drawPlanScaleBar`.
+    `drawPlanSheet` keeps only what differs per sheet. **None of the base
+    functions may read `shared`, `sheetIndex` or `onBulbSheet`, or recompute
+    the geometry** — a test asserts all of that, and it is the whole point: a
+    third sheet becomes a small change rather than surgery on a 480-line
+    function. They also deliberately **do not wrap themselves in
+    save/restore**, because canvas state leaks between blocks today and later
+    blocks rely on it (the grid inherits the north arrow's `textAlign`);
+    isolating them would be a behaviour change wearing a tidy-up's clothes.
+    Proved pure two ways — every canvas call with its arguments plus an FNV
+    hash of all 3.6M pixels, identical across four gardens; and each moved
+    block diffed character-for-character against the previous file, which
+    covers the branches no test garden reaches (an irregular lot, the
+    small-plot floor, formal edges, legacy houses). `fixtureRows` rides the
+    `site` object because the tree-note row positions itself with it — that
+    only fires on a garden with trees, so the demo garden's oak is what caught
+    it while every bulb test stayed green.
     **A garden with bulbs is a SHEET SET** (`planSheets`/`drawPlanSheet`), and
     it has to be: Oudolf's bulb design is an OVERLAY of the perennial design,
     two independent designs on the same ground, and one drawing cannot show

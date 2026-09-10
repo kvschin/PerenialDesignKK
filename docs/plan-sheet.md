@@ -271,6 +271,59 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
 
+### The site base split (0.8.82)
+
+Every sheet in a set draws the same site: the same paper, north arrow, ground,
+buildings and lot line. Those ~300 lines used to sit inline in `drawPlanSheet`,
+so the two sheets shared them only by being one body called twice — which
+worked, and hid the seam. They are now named:
+
+| | draws |
+| --- | --- |
+| `planGeometry(rowsBelow)` | paper size, the 660px floor, the centred origin, the `X`/`Y` projectors |
+| `drawPlanPaper(ctx,g,sheetName)` | paper, border, title block, true-north arrow |
+| `drawPlanGround(ctx,g,site)` | grid, grade, terrain, firepits, water features, boulders, fences, walls, lights |
+| `drawPlanStructures(ctx,g)` | footprints, houses, the deeded lot line — the base that goes *over* the planting |
+| `drawPlanKeyRows(ctx,g,ly2,legRows,site)` | the light/boulder/tree-note rows under the schedule |
+| `drawPlanScaleBar(ctx,g)` | the graphic scale |
+
+`drawPlanSheet` keeps only what actually differs per sheet: the components, the
+ghost/subject decision, the labels and the schedule.
+
+**The base functions know nothing about which sheet they are drawing** — a test
+asserts none of them reads `shared`, `sheetIndex` or `onBulbSheet`, and that
+none recomputes the geometry. That is the whole point: a third sheet
+(hardscape) becomes a small change rather than surgery on a 480-line function.
+
+**They deliberately do NOT wrap themselves in save/restore.** Canvas state
+leaks from block to block today and later blocks rely on it — the grid inherits
+the north arrow's `textAlign`, the schedule sets its own. Isolating them would
+be a behaviour change wearing a tidy-up's clothes.
+
+Verified two ways, because a pure refactor deserves proof rather than a passing
+test suite:
+
+- **Runtime**: every canvas call and property write the plan makes was recorded
+  with its arguments, plus an FNV hash of all 3.6M rendered pixels, on four
+  gardens (a real 326-plant garden with and without bulbs, the demo garden with
+  and without) — **identical op count, identical op sequence, identical
+  pixels** on all four. One arm looked like a regression until it turned out I
+  had installed the demo copy under a different *name* in the two runs, and the
+  garden name is drawn in the title block. Replayed with the name matched, it
+  was identical too. A diff instrument needs its control held as carefully as
+  its arm.
+- **Textual**: each moved block was diffed against the committed file
+  line-for-line, ignoring only the wrapper and destructuring lines actually
+  added — **all seven blocks character-identical**, which covers every branch
+  including the ones no test garden reaches (an irregular lot, the small-plot
+  paper floor, formal edges, legacy houses).
+
+One real bug the tests caught mid-refactor: `drawPlanKeyRows`'s tree-note row
+positions itself with `fixtureRows`, which had stayed behind in `drawPlanSheet`.
+It only fires on a garden with trees, so the bulb-sheet tests were all green —
+it was the demo garden's oak that found it. `fixtureRows` rides the `site`
+object now, so there is one definition of it.
+
 ### Measured after (0.8.80, the single sheet)
 
 Off the review garden's own rendered sheet, in the browser (the plan canvas
@@ -314,47 +367,41 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **Split the site base out of `drawPlanSheet`.** Both sheets now share it,
-   but they share it by running the same ~400 lines twice rather than by
-   calling a `drawSiteBase(ctx, geom)`. That is invisible today and is the
-   thing to do before a third sheet (hardscape) or any per-sheet variation of
-   the base.
-
-2. **Bulb density over an area**, if the goal becomes "a sheet you can hand an
+1. **Bulb density over an area**, if the goal becomes "a sheet you can hand an
    installer". Oudolf's bulb overlays are a density through a zone
    ("N. 'Thalia' × 200 naturalised through here") drawn as a dashed zone
    boundary plus stipple plus count, rather than an outlined drift. Our model
    knows every bulb's tile, so this is a drawing decision, not a data one.
 
-3. **Label collision and leader lines.** Labels are placed and drawn with no
+2. **Label collision and leader lines.** Labels are placed and drawn with no
    overlap test. This ranks lower than it looked: measured, the old sheet had
    exactly one overlapping pair and the new one has none, so the symptom was
    crowding rather than collision. It will still matter on a garden denser than
    this one, and the convention is a leader line out to clear paper when a
    label will not fit inside its own shape.
 
-4. **A stated drawing scale.** `cell = max(9, min(24, floor(1000/max(GW,GH))))`
+3. **A stated drawing scale.** `cell = max(9, min(24, floor(1000/max(GW,GH))))`
    — a 31-tile plot gets 24px/tile and a quarter acre gets 9px, where labels
    become unreadable. The scale *bar* is honest, but there is no drawing-to-a-
    ratio (1:50, ¼"=1'), which is what makes a plan measurable off the print.
 
-5. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
+4. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
    spring bloom → fall bloom → fall seed → foliage, so the sheet is coloured by
    *flower colour*. On the review garden the three largest forbs — Salvia,
    Allium and Agastache — were all the same lavender and mutually
    indistinguishable. Either drive saturation/value off the layer role, or
    accept that a dozen species cannot be separated by hue and lean on the tag.
 
-6. **One sheet still does four jobs.** A real set is layout/hardscape →
+5. **One sheet still does four jobs.** A real set is layout/hardscape →
    planting → bulbs → schedule. Ours puts terrain, elevation, walls, buildings,
    lights, boulders, trees, shrubs, perennials and bulbs on one page. Item 1
    gets the hardscape separation for free.
 
-7. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
+6. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
    `drawShrubPlan` labels it with a code and no count. A hedge is the one woody
    case where `×N` is what a buyer needs.
 
-8. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
+7. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
    `SCHEME_LAYERS`, so switching planting schemes switches the bulb plan too.
    Oudolf's bulb layer is usually *one* layer under several possible perennial
    treatments. Not necessarily wrong — but if "bulbs shared across schemes"
