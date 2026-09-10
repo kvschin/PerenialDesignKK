@@ -2964,9 +2964,16 @@ test('the plan draws the matrix layer under the drifts and quieter than them', (
   assertEqual(planLayerOf('hosta'), 'drift', 'a hosta drift reads as a feature, not as matrix');
   const m = PLAN_LAYER_STYLE.matrix, d = PLAN_LAYER_STYLE.drift, s = PLAN_LAYER_STYLE.structure;
   assert(m.order < d.order && d.order < s.order, 'matrix paints underneath, structure on top');
-  assert(m.paper > d.paper && d.paper > s.paper, 'the matrix recedes toward the paper');
+  /* A layer sets a TARGET lightness, not a fraction to mix toward paper — a
+     fraction preserved whatever lightness the species had, which is how 114
+     species ended up drawing on the paper itself. */
+  assert(m.L > d.L && d.L > s.L, 'the matrix sits lightest and structure darkest');
+  const paperL = oklabOf('#f7f3e8')[0];
+  [m, d, s, PLAN_LAYER_STYLE.zone].forEach(st =>
+    assert(paperL - st.L >= 0.03, 'every band is clear of the paper before chroma is counted'));
   assert(m.lw < d.lw && d.lw < s.lw, 'the matrix edge is a whisper and structure is emphatic');
   assert(m.lw > 0, 'but not nothing: two different grasses meeting must still separate');
+  assert(m.edgeDrop < d.edgeDrop && d.edgeDrop < s.edgeDrop, 'and its outline is the faintest too');
   assert(m.label !== d.label, 'a matrix label is softer ink than a drift label');
 });
 
@@ -3136,6 +3143,117 @@ test('bulb stipple density follows the real planting density', () => {
   assert(four > one && four < one * 4, 'density is compressed, not linear');
 });
 
+test('no species draws a fill you cannot see', () => {
+  const paper = oklabOf('#f7f3e8');
+  const bad = [];
+  for (const k in PLANTS){
+    const layer = planLayerOf(k);
+    const t = planTintAt(plantDef(k), layer, null);
+    if (oklabDist(t.lab, paper) < 0.03) bad.push(plantDef(k).name + ' [' + layer + ']');
+  }
+  /* This was 114 of 554 — Culver's Root, Snowy Woodrush and White Wood Aster
+     at 0.006 from the paper, i.e. a drift drawn in paper colour on paper.
+     A layer mixing a FRACTION toward paper preserved whatever lightness the
+     species had; a layer target cannot. */
+  assertEqual(bad.length, 0, 'every species clears the paper: ' + bad.slice(0, 6).join(', '));
+  // and the bands stay a real ladder, no overlap between them
+  const band = layer => { const d = [];
+    for (const k in PLANTS) if (planLayerOf(k) === layer)
+      d.push(oklabDist(planTintAt(plantDef(k), layer, null).lab, paper));
+    return { min: Math.min(...d), max: Math.max(...d) }; };
+  const m = band('matrix'), dr = band('drift'), s = band('structure');
+  assert(m.max < dr.min, 'no matrix tint is ever as strong as the weakest drift');
+  assert(dr.max < s.min, 'and no drift is ever as strong as the weakest structure');
+});
+
+test('a colourless bloom takes its hue from foliage, not from a cream', () => {
+  // a white/cream bloom points the same yellowish direction for every species,
+  // so keeping it would leave a sheet of white-flowered forbs identical
+  const whites = Object.keys(PLANTS).filter(k =>
+    oklabChroma(oklabOf(planColor(plantDef(k)))) < PLAN_TINT_C_USEFUL);
+  assert(whites.length > 50, 'plenty of species resolve a colourless plan colour');
+  const fell = whites.filter(k => !planTintAt(plantDef(k), planLayerOf(k), null).fromBloom);
+  assert(fell.length >= whites.length * 0.9,
+    'nearly all of them fall through to foliage rather than keeping a meaningless hue');
+  // a saturated bloom keeps its own hue
+  const salvia = planTintAt(plantDef('meadowsage'), 'drift', null);
+  assert(salvia.fromBloom, 'a real bloom colour is kept');
+  /* And how far the separation pass may rotate depends on that: a hue read off
+     a bloom is information, a fallback hue is much less. */
+  assert(planTintNudges(true).length > planTintNudges(false).length,
+    'a fallback hue is allowed more room to move than a bloom hue');
+  /* Every tint carries real chroma. The floor is what makes hue rotation able
+     to separate anything at all — at zero chroma a rotation moves nothing, so
+     a set of pale species would have only lightness to be told apart by. */
+  let leanest = 1;
+  for (const k in PLANTS)
+    leanest = Math.min(leanest, oklabChroma(planTintAt(plantDef(k), planLayerOf(k), null).lab));
+  assert(leanest >= PLAN_TINT_C_MIN - 1e-6,
+    `no tint is a bare grey (leanest chroma ${leanest.toFixed(4)})`);
+  assert(PLAN_TINT_C_MIN > 0.01, 'and the floor is a real tint, not a token one');
+});
+
+test('one sheet never draws two species the same colour', () => {
+  const by = t => Object.keys(PLANTS).filter(k => PLANTS[k].type === t);
+  // a realistic palette: some grasses and sedges, mostly forbs, a shrub, a tree
+  const pick = (n, seed) => { const r = mulberry(seed);
+    const pools = [by('grass'), by('sedge'), by('forb'), by('shrub'), by('tree'), by('bulb')];
+    const want = [0, 0, 1, 2, 2, 2, 2, 3, 4, 5], seen = new Set(), out = [];
+    for (let guard = 0; out.length < n && guard < 5000; guard++){
+      const pool = pools[want[out.length % want.length]];
+      const k = pool[(r() * pool.length) | 0];
+      if (k && !seen.has(k)){ seen.add(k); out.push(k + '|'); }
+    }
+    return out; };
+  [14, 21].forEach(n => {
+    for (const seed of [13, 26, 39]){
+      const ids = pick(n, seed);
+      const tints = planSheetTints(ids, planLayerOf);
+      const labs = ids.map(id => tints[id].lab);
+      let worst = 9;
+      for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++)
+        worst = Math.min(worst, oklabDist(labs[i], labs[j]));
+      assert(worst >= 0.02,
+        `${n} species (seed ${seed}) are all told apart — closest ${worst.toFixed(4)}`);
+    }
+  });
+  /* The tints are assigned in the schedule's order, so the biggest planting
+     keeps the colour its own plant gave it and the small ones do the moving —
+     the same principle as label placement. */
+  const ids = ['meadowsage|', 'agastache|'];
+  const t = planSheetTints(ids, planLayerOf);
+  const solo = planTintAt(plantDef('meadowsage'), planLayerOf('meadowsage'), null);
+  assertEqual(t['meadowsage|'].fill, solo.fill, 'the first listed species keeps its natural tint');
+});
+
+test('the key swatch is the colour that is on the drawing', () => {
+  setup(21, 21);
+  for (let y = 3; y < 8; y++) for (let x = 3; x < 9; x++)
+    game.plants[`${x},${y}`] = { s: (x + y) % 2 ? 'bluestem' : 'butterfly', d: 0, t: 1 };
+  game.plants['15,15'] = { s: 'hydrangea', d: 0, t: 1 };
+  const swatches = [];
+  const ctx = makeCanvasCtx({
+    // the schedule's swatch is the only 9x9 rect on the sheet
+    fillRect(x, y, w, h){ if (w === 9 && h === 9) swatches.push(this.fillStyle); }
+  });
+  const pc = { width: 0, height: 0, hidden: false, classList: { toggle(){} }, style: {},
+    getContext(){ return ctx; } };
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  const planted = {};
+  for (const k in game.plants){ const p = game.plants[k];
+    if (p && !p.removed) { const id = p.s + '|' + (p.v || ''); planted[id] = (planted[id] || 0) + 1; } }
+  const ids = Object.keys(planted).sort((a, b) => planted[b] - planted[a] || a.localeCompare(b));
+  const tints = planSheetTints(ids, planLayerOf);
+  assertEqual(swatches.length, ids.length, 'one swatch per species in the schedule');
+  /* Before, the swatch mixed 0.5 toward paper while a drift filled at 0.66 —
+     the key was a different colour from the thing it keyed. */
+  const want = new Set(ids.map(id => tints[id].fill));
+  swatches.forEach(s => assert(want.has(s),
+    `every swatch is a tint the drawing uses, not its own mix (${s})`));
+});
+
 test('the sheet is drawn to a standard scale, and the scale is always true', () => {
   const sides = [13, 21, 31, 46, 69, 111];
   const seen = [];
@@ -3235,7 +3353,7 @@ test('labels are placed, not just drawn: no overlaps, leaders when moved', () =>
      see, because they build their own placer. */
   assert(/planLabelPlacer\(shrubLabelBoxes\)/.test(drawPlanSheet.toString()),
     'the sheet seeds the already-drawn shrub codes as obstacles');
-  assert(/drawShrubPlan\([^)]*shrubLabelBoxes\)/.test(drawPlanSheet.toString()),
+  assert(/drawShrubPlan\([^)]*shrubLabelBoxes/.test(drawPlanSheet.toString()),
     'and the shrub pass is what collects them');
 });
 

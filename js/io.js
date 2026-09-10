@@ -1018,14 +1018,151 @@ function planLayerOf(s){
   if (roles.includes('matrix')) return 'matrix';
   return 'drift';
 }
-/* The matrix stroke is a WHISPER rather than nothing so two different grasses
-   meeting along an edge still separate; dropping it merges them into one
-   shape. `order` is the paint order — matrix underneath, structure on top. */
+/* ---------- plan tints ----------
+   A layer used to set a FRACTION to mix the species colour toward paper, which
+   preserved whatever lightness the species happened to have — so the layer
+   weight was only advisory and a light species stayed light wherever it sat.
+   Measured across all 554 species, that put **114 of them (21%) within 0.03
+   OKLab of the paper itself**: Culver's Root, Snowy Woodrush and White Wood
+   Aster all drew at 0.006, which is a drift you cannot see at all. It was
+   spread through every type — 39 shrubs, 30 forbs, 27 trees — because a white
+   bloom, a cream seedhead and a pale grey foliage all resolve light and the
+   mix then pushed them onto the page. Structure was the worst offender in
+   principle: its band claimed to be the darkest and its lower quartile sat
+   0.015 from paper.
+
+   A layer now names a TARGET lightness instead, and the tint keeps the
+   species' hue and a banded chroma. That makes the layer weight mean
+   something, and no fill can land on the paper: the lightest band is 0.059 of
+   L clear of it before chroma is counted. `edgeDrop` is how much darker the
+   outline is than its own fill, so the two can never disagree. */
+/* `edgeDrop` is checked against what the old strokes actually resolved to,
+   which is the only way to keep the sheet in its own register: the old drift
+   stroke landed near OKLab L 0.56 and 0.30 reproduces that at 0.555. The old
+   structure stroke landed at 0.50; 0.40 takes it to 0.405 — deliberately a
+   little heavier, since structure is meant to advance, but not the 0.355 that
+   a 0.45 drop gave, which read as ink rather than as a plant. The thickness
+   (`lw`) is already carrying part of that job and both together double-count. */
 const PLAN_LAYER_STYLE={
-  matrix:   {order:0, paper:0.80, ink:0.12, lw:0.8, label:'#6e5f48'},
-  drift:    {order:1, paper:0.66, ink:0.25, lw:1.3, label:'#2c241c'},
-  structure:{order:2, paper:0.60, ink:0.45, lw:1.9, label:'#2c241c'},
+  matrix:   {order:0, L:0.905, edgeDrop:0.10, lw:0.8, label:'#6e5f48'},
+  drift:    {order:1, L:0.855, edgeDrop:0.30, lw:1.3, label:'#2c241c'},
+  structure:{order:2, L:0.805, edgeDrop:0.40, lw:1.9, label:'#2c241c'},
+  // a bulb zone is marked by its stipple and must not shout, so it sits
+  // between the matrix and the drifts (§ bulb zones)
+  zone:     {order:1, L:0.885, edgeDrop:0.34, lw:1.2, label:'#2c241c'},
 };
+const PLAN_PAPER='#f7f3e8';
+const PLAN_TINT_C_MIN=0.020, PLAN_TINT_C_MAX=0.075, PLAN_TINT_C_SCALE=0.55;
+/* Below this a bloom's HUE is not worth keeping.  This was 0.004 first and
+   that was the wrong number for the wrong reason: a white or cream bloom has
+   *just enough* chroma to clear a near-zero threshold while carrying no usable
+   hue at all — every cream in the catalog points the same yellowish direction
+   — so twelve white-flowered forbs passed the test, all landed on one hue at
+   the chroma floor, and the separation pass had nothing to turn.  Measured, it
+   left 45 of 66 pairs under 0.02 with the closest at exactly ZERO.  At 0.045
+   those blooms fall through to foliage instead. */
+const PLAN_TINT_C_USEFUL=0.045;
+const PLAN_TINT_C_DEAD=0.004;      // and below THIS there is no hue to read at all
+/* Where a tint's HUE comes from, and how much that hue MEANS — which is what
+   decides how far the separation pass may rotate it.  Foliage is the honest
+   fallback for a colourless bloom: it is always a real green, blue-green or
+   grey-green and it varies between species, where a cream does not. */
+function planTintSource(def){
+  const src=planColor(def);
+  if (oklabChroma(oklabOf(src))>=PLAN_TINT_C_USEFUL) return {col:src, fromBloom:true};
+  const sea=def.sea||{};
+  for (const s of ['Summer','Spring','Fall','Winter']){
+    const fol=sea[s]&&sea[s].fol;
+    if (fol && oklabChroma(oklabOf(fol))>=PLAN_TINT_C_DEAD) return {col:fol, fromBloom:false};
+  }
+  return {col:src, fromBloom:false};
+}
+/* One tint: the species' hue, a banded chroma, the layer's lightness. `nudge`
+   is what the separation pass below turns to pull two collided species apart. */
+function planTintAt(def,layer,nudge){
+  const st=PLAN_LAYER_STYLE[layer]||PLAN_LAYER_STYLE.drift;
+  const n=nudge||{};
+  const src=planTintSource(def);
+  const lab=oklabOf(src.col);
+  const c0=oklabChroma(lab);
+  const L=Math.max(0.55, Math.min(0.94, st.L+(n.dL||0)));
+  const C=Math.max(PLAN_TINT_C_MIN, Math.min(PLAN_TINT_C_MAX, c0*PLAN_TINT_C_SCALE+(n.dC||0)));
+  const H=Math.atan2(lab[2],lab[1])+(n.dH||0);
+  const a=Math.cos(H)*C, b=Math.sin(H)*C;
+  return {lab:[L,a,b], fromBloom:src.fromBloom, fill:oklabToRgb(L,a,b),
+    edge:oklabToRgb(Math.max(0.20,L-st.edgeDrop),a,b)};
+}
+/* Two species one reader cannot tell apart is the other half of the problem:
+   the three biggest forbs on the review garden — Salvia, Allium and Agastache
+   — all resolved the same lavender, and across the catalog 74 pairs of forbs
+   sit under 0.02 OKLab, Culver's Root and Common Yarrow at exactly ZERO.
+
+   So the sheet's species are tinted TOGETHER: in the order the schedule lists
+   them (biggest planting first, so the largest keeps its natural colour), each
+   is pushed off any tint already assigned.  Hue rotation alone cannot do it —
+   at these chromas a full 60 degrees moves only ~0.03 — so lightness and
+   chroma are candidates too, lightness bounded to ±0.015 so a nudged species
+   cannot invert the layer ladder whose bands are 0.05 apart.
+
+   **How far a hue may be rotated depends on how much it MEANS.** A hue read
+   off a real bloom is information and stays within 60 degrees, so a blue aster
+   never comes out green.  A hue that fell through to foliage because the bloom
+   was cream carries much less, so it may go to 110 — which is what gives a
+   sheet of white-flowered forbs anywhere to go.
+
+   Past what colour can carry it accepts a collision, which is the honest end
+   of it: colour is indicative on a planting plan and the CODE is what
+   identifies.  Better most of them separated than a pass that pretends to be a
+   categorical palette. */
+const PLAN_TINT_SEP=0.035;
+function planTintNudges(wideHue){
+  const out=[];
+  const cap=wideHue?110:60, hues=[0];
+  for (let d=12;d<=cap;d+=12) hues.push(d,-d);
+  for (const dC of [0,0.02,0.04]) for (const dL of [0,0.015,-0.015]) for (const dH of hues)
+    out.push({dH:dH*Math.PI/180,dL,dC});
+  return out;
+}
+function planSheetTints(ids,layerFor){
+  const taken=[], tints={};
+  ids.forEach(id=>{
+    const [s,v]=id.split('|'), def=plantDef(s,v||null), layer=layerFor(s);
+    const base=planTintAt(def,layer,null);
+    let best=null;
+    for (const n of planTintNudges(!base.fromBloom)){
+      const t=planTintAt(def,layer,n);
+      if (taken.every(p=>oklabDist(p,t.lab)>=PLAN_TINT_SEP)){ best=t; break; }
+    }
+    if (!best) best=base;                         // nowhere free: the code carries it
+    taken.push(best.lab);
+    tints[id]=best;
+  });
+  return tints;
+}
+/* The tint for one reference.  `layer` OVERRIDES the species' own only where
+   the same plant is drawn in a different register on a different sheet — a
+   bulb in its zone, a swatch keying that zone — so the sheet-wide separation
+   is still what decides the hue and only the lightness band moves. */
+function planTintOf(tints,s,v,layer){
+  const id=s+'|'+(v||'');
+  const t=tints&&tints[id];
+  if (!t) return planTintAt(plantDef(s,v||null),layer||planLayerOf(s),null);
+  if (!layer || layer===planLayerOf(s)) return t;
+  const st=PLAN_LAYER_STYLE[layer]||PLAN_LAYER_STYLE.drift;
+  const [,a,b]=t.lab;
+  return {lab:[st.L,a,b], fill:oklabToRgb(st.L,a,b),
+    edge:oklabToRgb(Math.max(0.20,st.L-st.edgeDrop),a,b)};
+}
+/* The ghost is the same tint seen through: the perennial planting has to say
+   WHERE it is on the bulb sheet without being read as a second planting, so it
+   keeps its hue and goes most of the way to the paper in LIGHTNESS. Measured
+   at 24 RGB distance from paper against bare bed's 37 — fainter than the
+   ground it sits on, which is what makes it read as underneath. */
+const PLAN_GHOST_L=0.945, PLAN_GHOST_C=0.35;
+function planGhostFill(t){
+  const [,a,b]=t.lab;
+  return oklabToRgb(PLAN_GHOST_L,a*PLAN_GHOST_C,b*PLAN_GHOST_C);
+}
 /* Truncate by MEASUREMENT, not by a character count, so a schedule column is
    filled rather than guessed at — the old legend cut every name at 26 chars,
    which is exactly where a cultivar epithet lives. */
@@ -1263,9 +1400,9 @@ function drawShrubPlanCode(ctx,code,lx,ly,fs,boxes){
                 y0:ly-m.top-PLAN_LABEL_PAD, y1:ly+m.bot+PLAN_LABEL_PAD}); }
   drawPlanCode(ctx,code,lx,ly,fs);
 }
-function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes){
-  const def=plantDef(c.s,c.v), col=planColor(def), fill=mixHex(col,'#f7f3e8',0.62);
-  const stroke=mixHex(col,'#2c241c',0.18);
+function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes,tints){
+  const def=plantDef(c.s,c.v), t=planTintOf(tints,c.s,c.v);
+  const fill=t.fill, stroke=t.edge;
   const pts=c.tiles.map(k=>k.split(',').map(Number));
   const code=codes[c.s+'|'+(c.v||'')];
   const shape=(def.look&&def.look.shape)||'round';
@@ -1307,8 +1444,9 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes){
   if (label!==false) drawShrubPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)),boxes);
   ctx.restore();
 }
-function drawTreePlan(ctx,p,x,y,cell,X,Y){
+function drawTreePlan(ctx,p,x,y,cell,X,Y,tints){
   const def=plantDef(p.s,p.v), reach=canopyRadius(p);
+  const tt=planTintOf(tints,p.s,p.v);
   const cx2=X(x)+cell/2, cy2=Y(y)+cell/2;
   if (reach>0){
     const r=reach*cell;
@@ -1317,10 +1455,10 @@ function drawTreePlan(ctx,p,x,y,cell,X,Y){
     ctx.rect(X(0),Y(0),GW*cell,GH*cell);
     ctx.clip();
     ctx.globalAlpha=0.12;
-    ctx.fillStyle=mixHex(planColor(def),'#f7f3e8',0.56);
+    ctx.fillStyle=tt.fill;
     ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.fill();
     ctx.globalAlpha=1;
-    ctx.strokeStyle=mixHex(planColor(def),'#2c241c',0.18);
+    ctx.strokeStyle=tt.edge;
     ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
     ctx.beginPath(); ctx.arc(cx2,cy2,r,0,7); ctx.stroke();
     ctx.restore();
@@ -1438,7 +1576,7 @@ function buildPlanMap(){
   [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
     if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
   const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
-  const shared={planted, codes:planCodes(ids), ids, sheets,
+  const shared={planted, codes:planCodes(ids), ids, sheets, tints:planSheetTints(ids,planLayerOf),
     plantIds:layerRefIds(game.plants), bulbIds:layerRefIds(game.bulbs)};
   sheets.forEach((s,i)=>{ const pc=$(planSheetCanvasId(s.id)); if (pc) drawPlanSheet(pc,s,i,shared); });
   syncPlanSheets();
@@ -1522,10 +1660,10 @@ function bulbDotsPerTile(bulbs,zoneTiles){
   const per=Math.max(0,bulbs)/Math.max(1,zoneTiles);
   return Math.max(1, Math.min(BULB_DOT_MAX, Math.round(Math.sqrt(per)*BULB_DOT_K)));
 }
-function drawBulbZones(ctx,g,stands){
+function drawBulbZones(ctx,g,stands,tints){
   const {cell,X,Y}=g;
   stands.forEach(st=>{
-    const def=plantDef(st.s,st.v), col=planColor(def);
+    const def=plantDef(st.s,st.v), t=planTintOf(tints,st.s,st.v,'zone');
     const zone=bulbZoneTiles(st.tiles);
     const loops=traceOutlines(zone);
     if (!loops.length) return;
@@ -1548,7 +1686,7 @@ function drawBulbZones(ctx,g,stands){
        marking cannot rest on the tint. Measured on the marking instead: the
        darkest ink in a zone tile is 118 against 226 for bare bed and for the
        perennial ghost, on paper at 243. */
-    ctx.fillStyle=mixHex(col,'#f7f3e8',0.72);
+    ctx.fillStyle=t.fill;
     ctx.beginPath();
     loops.forEach(loop=>planBlobSubpath(ctx,loop,X,Y));
     ctx.fill('evenodd');
@@ -1558,7 +1696,7 @@ function drawBulbZones(ctx,g,stands){
     ctx.beginPath();
     loops.forEach(loop=>planBlobSubpath(ctx,loop,X,Y));
     ctx.clip('evenodd');
-    ctx.fillStyle=mixHex(col,'#2c241c',0.28);
+    ctx.fillStyle=t.edge;
     const r=Math.max(0.7, cell*0.055);
     for (const k of zone){
       const [x,y]=k.split(',').map(Number);
@@ -1573,7 +1711,7 @@ function drawBulbZones(ctx,g,stands){
     // dashed, because the boundary is indicative and the count is not
     ctx.save();
     ctx.setLineDash([4,3]);
-    ctx.strokeStyle=mixHex(col,'#2c241c',0.35); ctx.lineWidth=1.2;
+    ctx.strokeStyle=t.edge; ctx.lineWidth=1.2;
     loops.forEach(loop=>{ planBlobPath(ctx,loop,X,Y); ctx.stroke(); });
     ctx.restore();
   });
@@ -2022,7 +2160,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   });
   const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
   const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
-  const planted=shared.planted, codes=shared.codes;
+  const planted=shared.planted, codes=shared.codes, tints=shared.tints;
   // each sheet schedules the planting it draws, in the set's shared code order
   const onSheet=onBulbSheet?shared.bulbIds:shared.plantIds;
   const ids=shared.ids.filter(id=>onSheet.has(id));
@@ -2052,36 +2190,35 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      WHERE its bulbs sit without asking anyone to read a second planting.
      Fill only — no stroke, no label, no layer weight. */
   ghostComps.forEach(c=>{
-    const col=planColor(plantDef(c.s,c.v));
+    const gt=planTintOf(tints,c.s,c.v);
     traceOutlines(new Set(c.tiles)).forEach(loop=>{
       smoothLoop(loop);
-      ctx.fillStyle=mixHex(col,'#f7f3e8',0.88); ctx.fill();
+      ctx.fillStyle=planGhostFill(gt); ctx.fill();
     });
   });
   /* The subject. On the planting sheet that is drifts under the layer
      weights; on the bulb sheet it is zones, because a bulb sheet states a
      density over an area rather than a plant on a tile (see drawBulbZones). */
-  if (onBulbSheet) drawBulbZones(ctx,g,stands);
+  if (onBulbSheet) drawBulbZones(ctx,g,stands,tints);
   else subjectComps.slice().sort((a,b2)=>{
     const la=PLAN_LAYER_STYLE[planLayerOf(a.s)].order;
     const lb=PLAN_LAYER_STYLE[planLayerOf(b2.s)].order;
     return la!==lb ? la-lb : b2.tiles.length-a.tiles.length;
   }).forEach(c=>{
-    const def=plantDef(c.s,c.v), st=PLAN_LAYER_STYLE[planLayerOf(c.s)];
-    const col=planColor(def);
+    const st=PLAN_LAYER_STYLE[planLayerOf(c.s)], t=planTintOf(tints,c.s,c.v);
     const loops=traceOutlines(new Set(c.tiles));
     loops.forEach(loop=>{
       smoothLoop(loop);
-      ctx.fillStyle=mixHex(col,'#f7f3e8',st.paper); ctx.fill();
-      if (st.lw){ ctx.strokeStyle=mixHex(col,'#2c241c',st.ink); ctx.lineWidth=st.lw; ctx.stroke(); }
+      ctx.fillStyle=t.fill; ctx.fill();
+      if (st.lw){ ctx.strokeStyle=t.edge; ctx.lineWidth=st.lw; ctx.stroke(); }
     });
   });
   const shrubLabelBoxes=[];
-  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y,!onBulbSheet,shrubLabelBoxes));
+  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y,!onBulbSheet,shrubLabelBoxes,tints));
   // trees: effective canopy circles, clipped to the plot, plus trunk dot
   treesLive.forEach(k=>{ const p=game.plants[k];
     const [x,y]=k.split(',').map(Number);
-    drawTreePlan(ctx,p,x,y,cell,X,Y);
+    drawTreePlan(ctx,p,x,y,cell,X,Y,tints);
   });
   drawPlanStructures(ctx,g);
   /* One label per STAND, white halo for legibility.  The size range is wider
@@ -2147,9 +2284,10 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   ids.forEach((id,i)=>{
     const [s,v]=id.split('|'), def=plantDef(s,v||null);
     const cy2=ly2+(i+1)*15;
-    ctx.fillStyle=mixHex(planColor(def),'#f7f3e8',0.5);
+    const swatch=planTintOf(tints,s,v||null,onBulbSheet?'zone':null);
+    ctx.fillStyle=swatch.fill;
     ctx.fillRect(xCode,cy2-7,9,9);
-    ctx.strokeStyle=mixHex(planColor(def),'#2c241c',0.25); ctx.lineWidth=1;
+    ctx.strokeStyle=swatch.edge; ctx.lineWidth=1;
     ctx.strokeRect(xCode,cy2-7,9,9);
     ctx.textAlign='left'; ctx.fillStyle='#2c241c'; ctx.font='600 10px IBM Plex Sans';
     ctx.fillText(codes[id],xCode+13,cy2);

@@ -141,9 +141,14 @@ first (underneath), then drifts, then structure.
 
 | Layer | Treatment | Why |
 | --- | --- | --- |
-| `matrix` | 80% paper, a whisper of a stroke (0.8px at 12% ink), soft label ink | the cake — it has to recede |
-| `drift` | 66% paper, 1.3px at 25% ink, dark label | unchanged; this was already right |
-| `structure` | 60% paper, 1.9px at 45% ink, dark label | the fruit — it has to advance |
+| `matrix` | lightest band, a whisper of a stroke (0.8px), soft label ink | the cake — it has to recede |
+| `drift` | middle band, 1.3px stroke, dark label | unchanged; this was already right |
+| `structure` | darkest band, 1.9px stroke, dark label | the fruit — it has to advance |
+
+> These were **paper-mix fractions** (0.80 / 0.66 / 0.60) until 0.8.85, when a
+> fraction turned out to leave 114 species drawing on the paper. They are
+> lightness *targets* now — see the plan-colour section — which is what makes
+> the bands a real ladder rather than an advisory one.
 
 **It asks the role table rather than restating a type chain.**
 `staticPlantRoles` (ui.js) already tags every grass and sedge `matrix` and
@@ -270,6 +275,93 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 `display:block`, and **both beat the UA rule for the `hidden` attribute** — so
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
+
+### Plan colour: a tint, not a mix (0.8.85)
+
+The open item said colour was "doing a job it cannot do" — three lavenders
+indistinguishable. Measuring first found a much worse defect underneath it.
+
+**A layer used to set a FRACTION to mix the species colour toward paper**, and
+a fraction preserves whatever lightness the source happened to have. Measured
+across all 554 species, that put **114 of them (21%) within 0.03 OKLab of the
+paper itself** — Culver's Root, Snowy Woodrush and White Wood Aster at 0.006,
+which is a drift you cannot see at all. It spanned every type: 39 shrubs, 30
+forbs, 27 trees, 7 grasses. Structure was the worst offender in principle: its
+band claimed to be the darkest and its lower quartile sat 0.015 from paper.
+
+A layer now names a **target lightness** and the tint keeps the species' hue
+with a banded chroma (`planTintAt`, in OKLab — sRGB distance is not perceptual
+and `mixHex` cannot set a lightness while keeping a hue). That makes the layer
+weight mean something and no fill can reach the paper.
+
+| | before | after |
+| --- | --- | --- |
+| species drawing on the paper | **114 of 554** | **0** |
+| matrix, distance from paper | 0.004–0.098 | **0.059–0.108** |
+| drift | 0.003–0.198 | **0.109–0.142** |
+| structure | 0.001–0.239 | **0.159–0.182** |
+
+The bands no longer overlap at all: no matrix tint is ever as strong as the
+weakest drift. On the review garden's render the ladder went matrix 16 / drift
+30 / structure 47 RGB distance from paper to **39 / 66 / 77** — the same
+ordering, everything further off the page.
+
+**Then the collisions.** Across the catalog, 74 pairs of forbs sat under 0.02
+OKLab and Culver's Root and Common Yarrow at exactly **zero**. So a sheet's
+species are tinted *together* (`planSheetTints`): in the schedule's own order,
+so the biggest planting keeps the colour its plant gave it and the small ones
+do the moving — the same principle as label placement. Hue rotation alone
+cannot do it, since at these chromas a full 60° moves only ~0.03, so lightness
+(±0.015, small enough that a nudge cannot invert a ladder whose bands are 0.05
+apart) and chroma are candidates too.
+
+Measured on realistic mixed palettes, three random draws each:
+
+| species on a sheet | pairs under 0.02 | closest pair |
+| --- | --- | --- |
+| 14 (the review garden's size) | **0** | 0.035 |
+| 21 (the demo garden's size) | **0** | 0.035 |
+| 30 | 1 of 435 | 0.009 |
+
+**Two findings worth keeping.**
+
+*A cream bloom has just enough chroma to look like a hue and carry none.* The
+"this colour has no usable hue" threshold went in at 0.004 — near zero, which
+seemed safe — and it was the wrong number for the wrong reason. Every cream in
+the catalog points the same yellowish direction, so twelve white-flowered forbs
+all passed the test, all landed on one hue at the chroma floor, and the
+separation pass had nothing to turn: **45 of 66 pairs under 0.02, closest
+exactly 0.0000**. At 0.045 those blooms fall through to **foliage**, which is
+the honest fallback — always a real green, blue-green or grey-green, and it
+varies between species. Same set after: **0 pairs under 0.02, closest 0.035.**
+
+*How far a hue may be rotated depends on how much it means.* A hue read off a
+real bloom is information and stays within 60°, so a blue aster never comes out
+green. A hue that fell through to foliage carries much less and may go to 110°
+— which is what gives a sheet of white-flowered forbs anywhere to go.
+
+**And the key now shows the colour that is on the drawing.** The swatch mixed
+0.5 toward paper while a drift filled at 0.66, so the key was a different
+colour from the thing it keyed. Both come from one resolved tint now; measured
+across the review garden's 14 species, 13 match to the pixel and the 14th is a
+one-tile shape where the probe hit its own outline.
+
+`edgeDrop` was checked against what the old strokes actually resolved to,
+which is the only way to keep the sheet in its own register: the old drift
+stroke landed near OKLab L 0.56 and 0.30 reproduces it at 0.555. The old
+structure stroke landed at 0.50; 0.40 takes it to 0.405 — deliberately a
+little heavier, but not the 0.355 a first pass gave, which read as ink rather
+than as a plant.
+
+Side effect on the bulb sheet, which a lightness target made reachable where
+paper-mixing had not: the zone went from **level with** the bare bed (37/37) to
+clearly above it (**47** vs 37), and the perennial ghost from 24 to **17**. The
+reading order is now zone over ground over ghost, which is what the overlay
+wanted in 0.8.83 and only approximated.
+
+Past what colour can carry it accepts a collision, and that is the honest end
+of it: colour is indicative on a planting plan and the **code** is what
+identifies.
 
 ### A stated scale, and placed labels (0.8.84)
 
@@ -487,23 +579,16 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
-   spring bloom → fall bloom → fall seed → foliage, so the sheet is coloured by
-   *flower colour*. On the review garden the three largest forbs — Salvia,
-   Allium and Agastache — were all the same lavender and mutually
-   indistinguishable. Either drive saturation/value off the layer role, or
-   accept that a dozen species cannot be separated by hue and lean on the tag.
-
-2. **One sheet still does four jobs.** A real set is layout/hardscape →
+1. **One sheet still does four jobs.** A real set is layout/hardscape →
    planting → bulbs → schedule. Ours puts terrain, elevation, walls, buildings,
    lights, boulders, trees, shrubs, perennials and bulbs on one page. Item 1
    gets the hardscape separation for free.
 
-3. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
+2. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
    `drawShrubPlan` labels it with a code and no count. A hedge is the one woody
    case where `×N` is what a buyer needs.
 
-4. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
+3. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
    `SCHEME_LAYERS`, so switching planting schemes switches the bulb plan too.
    Oudolf's bulb layer is usually *one* layer under several possible perennial
    treatments. Not necessarily wrong — but if "bulbs shared across schemes"

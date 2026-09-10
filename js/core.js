@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.84';
+const APP_VERSION = '0.8.85';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -313,6 +313,44 @@ function mixHex(a,b2,t){
   const ch=(sh)=>Math.round(((pa>>sh)&255)*(1-t)+((pb>>sh)&255)*t);
   return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
 }
+/* ---------- OKLab ----------
+   `mixHex` is the right tool for blending two colours and the wrong one for
+   deciding whether two colours can be TOLD APART, or for setting one to a
+   target lightness while keeping its hue: sRGB distance is not perceptual and
+   mixing toward paper preserves whatever lightness the source happened to
+   have. OKLab is built for both jobs — L is perceived lightness, (a,b) the
+   colour plane, and plain Euclidean distance is meaningful, where roughly
+   0.02 is a just-noticeable difference across a large flat area and 0.035 is
+   comfortably two colours.
+
+   Used by the plan sheet's tints (§14b). Takes either colour form, via
+   colorParts; returns to `rgb()`, which is what every other helper here
+   emits and what canvas wants. */
+function oklabOf(col){
+  const p=colorParts(col);
+  const lin=c=>{ c=Math.max(0,Math.min(1,c/255));
+    return c<=0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+  const r=lin(p[0]), g=lin(p[1]), b=lin(p[2]);
+  const l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b);
+  const m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b);
+  const s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
+  return [0.2104542553*l+0.7936177850*m-0.0040720468*s,
+          1.9779984951*l-2.4285922050*m+0.4505937099*s,
+          0.0259040371*l+0.7827717662*m-0.8086757660*s];
+}
+function oklabToRgb(L,a,b){
+  const l=Math.pow(L+0.3963377774*a+0.2158037573*b,3);
+  const m=Math.pow(L-0.1055613458*a-0.0638541728*b,3);
+  const s=Math.pow(L-0.0894841775*a-1.2914855480*b,3);
+  const R= 4.0767416621*l-3.3077115913*m+0.2309699292*s;
+  const G=-1.2684380046*l+2.6097574011*m-0.3413193965*s;
+  const B=-0.0041960863*l-0.7034186147*m+1.7076147010*s;
+  const out=c=>{ c=c<=0.0031308 ? c*12.92 : 1.055*Math.pow(Math.max(c,0),1/2.4)-0.055;
+    return Math.round(Math.max(0,Math.min(1,c))*255); };
+  return `rgb(${out(R)},${out(G)},${out(B)})`;
+}
+function oklabDist(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]); }
+function oklabChroma(lab){ return Math.hypot(lab[1],lab[2]); }
 
 /* UX feature flags for retired / optional interactions.
    The mobile action button is hidden because drag-to-place made a large
