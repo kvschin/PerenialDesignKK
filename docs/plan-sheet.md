@@ -61,9 +61,10 @@ the deeded line.
    was `max(8, min(13, 5+√tiles*2))` — five pixels of range across the whole
    sheet, which is not a hierarchy but a uniform texture. Plus 86 white halos
    at `lineWidth:3`, itself a large share of the noise. (Note what this was
-   *not*: measured, only **one pair of labels actually overlapped**. The sheet
-   read as crowded rather than collided, which is why leader lines are further
-   down the open list than eyeballing the image suggested.)
+   *not*: measured, only **one pair of labels actually overlapped** — the sheet
+   read as crowded rather than collided. That ranking held only until 0.8.84
+   drew the sheet to a real scale and took the same garden to eleven
+   overlapping pairs; see the placed-labels section.)
 
 3. **The codes were undecodable.** `planCodes` appended `o.v.slice(0,2)` — the
    first two letters of the internal **key slug** — so `'theblues'` rendered as
@@ -270,6 +271,65 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
 
+### A stated scale, and placed labels (0.8.84)
+
+These two shipped together because the first created the problem the second
+solves, which is the most useful thing measured in this whole review.
+
+**The sheet is drawn to a standard scale.** `cell` used to be
+`max(9, min(24, floor(1000/side)))` — an arbitrary fit that gave a 31-tile plot
+24px a tile and a quarter acre 9, so the sheet was a picture rather than a
+drawing and nothing on it could be measured except through the graphic bar.
+`planScale()` now picks the most detailed standard ratio at which the plot
+still fits a portrait page, `planGeometry` derives `cell` from it at
+`PLAN_DPI` (96) units to the paper inch, the title block states it, and the
+print CSS sizes the canvas in real inches (`--plan-in`) so a rule laid on the
+page agrees.
+
+| plot | scale | cell |
+| --- | --- | --- |
+| 13 tiles (19.5 ft) | 1/4" = 1 ft (1:48) | 36px |
+| 31 tiles (46.5 ft) | 1/8" = 1 ft (1:96) | 18px |
+| 69 tiles (quarter acre) | 1" = 16 ft (1:192) | 9px |
+| 111 tiles (166 ft) | 1" = 16 ft (1:192) | 9px, on a wider sheet |
+
+Two honesties it has to keep. **The scale is always true and it is the PAPER
+that grows** — a plot too big for the page at every legible scale keeps the
+coarsest legible one and produces a wider sheet, exactly as a real site goes
+onto a bigger sheet rather than being drawn at a ratio nobody can read;
+`PLAN_CELL_MIN` (8px) is what enforces that. And **a browser's fit-to-page
+rescales the print and no stated ratio survives it**, so the title block says
+"at full size" and the graphic bar stays the thing that is true either way —
+which is why a real drawing prints its paper size beside its scale.
+
+Verified on the review garden: 46.5 ft drawn in 5.81 paper inches is exactly
+8.0 ft to the inch, i.e. 1:96; the sheet is 6.88in wide, inside Letter and A4
+portrait with margins; and the schedule still fits its columns at the narrower
+660px sheet with nothing truncated. Metric resolves 1:100.
+
+**Labels are placed, not just drawn.** `planLabelPlacer` measures each label,
+tries it at its anchor, and on a collision moves it outward to the nearest free
+spot with a **leader line** back — the standing convention for a label that
+will not fit inside its own shape. Candidates step vertically first, because a
+drift is wider than it is tall on this projection and there is more clear paper
+above and below a shape than beside it. Shrub codes go down in the *drawing*
+pass and cannot move, so they are seeded in as obstacles and stand labels move
+around them.
+
+Two refusals matter as much as the placement. When nothing is free the label
+**stays on its anchor and overlaps** — a label a long way from the thing it
+names is worse than two labels touching, because the reader cannot tell which
+shape it belongs to; `PLAN_LABEL_RING` bounds the wander for the same reason.
+And the drawing bounds are hard: a label outside the sheet is never chosen.
+
+> **The measurement that justifies doing both at once.** The earlier note in
+> this document said label collision "ranks lower than it looked — measured,
+> exactly one overlapping pair". That was true *at cell 24*. Drawing to scale
+> took the cell to 18 and the same garden's labels to **11 overlapping pairs**;
+> the placer takes it to **0**, with 9 leaders and displacements of 17–21px,
+> about a tile. A ranking measured under one set of constants does not survive
+> a change to those constants.
+
 ### Bulb zones: density over an area (0.8.83)
 
 A bulb sheet says "scatter this many through here" — a density over an **area**
@@ -427,35 +487,23 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **Label collision and leader lines.** Labels are placed and drawn with no
-   overlap test. This ranks lower than it looked: measured, the old sheet had
-   exactly one overlapping pair and the new one has none, so the symptom was
-   crowding rather than collision. It will still matter on a garden denser than
-   this one, and the convention is a leader line out to clear paper when a
-   label will not fit inside its own shape.
-
-2. **A stated drawing scale.** `cell = max(9, min(24, floor(1000/max(GW,GH))))`
-   — a 31-tile plot gets 24px/tile and a quarter acre gets 9px, where labels
-   become unreadable. The scale *bar* is honest, but there is no drawing-to-a-
-   ratio (1:50, ¼"=1'), which is what makes a plan measurable off the print.
-
-3. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
+1. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
    spring bloom → fall bloom → fall seed → foliage, so the sheet is coloured by
    *flower colour*. On the review garden the three largest forbs — Salvia,
    Allium and Agastache — were all the same lavender and mutually
    indistinguishable. Either drive saturation/value off the layer role, or
    accept that a dozen species cannot be separated by hue and lean on the tag.
 
-4. **One sheet still does four jobs.** A real set is layout/hardscape →
+2. **One sheet still does four jobs.** A real set is layout/hardscape →
    planting → bulbs → schedule. Ours puts terrain, elevation, walls, buildings,
    lights, boulders, trees, shrubs, perennials and bulbs on one page. Item 1
    gets the hardscape separation for free.
 
-5. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
+3. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
    `drawShrubPlan` labels it with a code and no count. A hedge is the one woody
    case where `×N` is what a buyer needs.
 
-6. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
+4. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
    `SCHEME_LAYERS`, so switching planting schemes switches the bulb plan too.
    Oudolf's bulb layer is usually *one* layer under several possible perennial
    treatments. Not necessarily wrong — but if "bulbs shared across schemes"

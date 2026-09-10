@@ -1161,8 +1161,9 @@ function drawPlanCode(ctx,code,lx,ly,fs,ink){
    species' recommended spacing — the number an installer reads — and is
    dropped when it would say "x1", where the code alone is the whole story.
    Stacking is cheaper than running wide inside a roundish blob. */
+function standLabelSub(qty){ return qty>1?`×${qty}`:''; }
 function drawStandLabel(ctx,code,qty,lx,ly,fs,ink){
-  const sub=qty>1?`×${qty}`:'';
+  const sub=standLabelSub(qty);
   const rise=sub?fs*0.42:0;
   drawPlanCode(ctx,code,lx,ly-rise,fs,ink);
   if (!sub) return;
@@ -1172,9 +1173,97 @@ function drawStandLabel(ctx,code,qty,lx,ly,fs,ink){
   ctx.strokeText(sub,lx,ly-rise+ss+1);
   ctx.fillStyle='rgba(110,95,72,0.95)'; ctx.fillText(sub,lx,ly-rise+ss+1);
 }
+
+/* ---------- label placement ----------
+   Labels used to be placed and drawn in one pass, with no idea of each other.
+   On the review garden that cost exactly ONE overlapping pair, which is why
+   this ranked below the work that came first — the symptom was crowding, and
+   grouping stands into one label per population fixed most of it.  It still
+   has to be right on a garden denser than that one, and on the bulb sheet,
+   where a zone's label sits over a stipple rather than over open tint.
+
+   So a label is now PLACED: measured, tried at its anchor, and if that box
+   overlaps one already down, moved outward to the nearest free spot with a
+   LEADER LINE back to the anchor — the standing convention for a label that
+   will not fit inside its own shape.  Candidates step vertically first: a
+   drift is wider than it is tall on this projection, so there is more clear
+   paper above and below a shape than beside it.
+
+   When nothing is free the label stays at its anchor and overlaps.  That is
+   deliberate: a label a long way from the thing it names is worse than two
+   labels touching, because the reader cannot tell which shape it belongs to.
+   `PLAN_LABEL_RING` bounds how far it will ever wander for the same reason. */
+const PLAN_LABEL_PAD=2;            // clear paper demanded between two labels
+const PLAN_LABEL_RING=3;           // how many steps outward it will try
+const PLAN_LEADER_MIN=7;           // displacement past which a leader is drawn
+function planLabelBox(ctx,code,qty,fs){
+  ctx.font=`600 ${fs}px IBM Plex Sans`;
+  let w=ctx.measureText(code).width, top=fs*0.78, bot=2;
+  const sub=standLabelSub(qty);
+  if (sub){
+    const ss=Math.max(7,Math.round(fs*0.74));
+    ctx.font=`600 ${ss}px IBM Plex Sans`;
+    w=Math.max(w,ctx.measureText(sub).width);
+    const rise=fs*0.42;
+    top=rise+fs*0.78; bot=ss+1+ss*0.28-rise;
+  }
+  return {w,top,bot};
+}
+function planLabelPlacer(seed){
+  const placed=(seed||[]).slice();
+  const hit=(a,b)=>a.x0<b.x1 && b.x0<a.x1 && a.y0<b.y1 && b.y0<a.y1;
+  return {
+    boxes:placed,
+    /* (lx,ly) is where drawStandLabel/drawPlanCode want their baseline; m is
+       planLabelBox's extents around it. Returns the position to draw at, plus
+       the anchor to run a leader back to when it moved far enough to need one. */
+    place(lx,ly,m,bounds){
+      const P=PLAN_LABEL_PAD;
+      const box=(dx,dy)=>({x0:lx+dx-m.w/2-P, x1:lx+dx+m.w/2+P,
+                           y0:ly+dy-m.top-P, y1:ly+dy+m.bot+P});
+      const h=m.top+m.bot;
+      const cands=[[0,0]];
+      for (let r=1;r<=PLAN_LABEL_RING;r++){
+        const dy=(h+P*2)*r, dx=(m.w*0.75+P*2)*r;
+        cands.push([0,-dy],[0,dy],[dx,0],[-dx,0],
+                   [dx*0.7,-dy*0.8],[-dx*0.7,-dy*0.8],[dx*0.7,dy*0.8],[-dx*0.7,dy*0.8]);
+      }
+      for (const [dx,dy] of cands){
+        const b=box(dx,dy);
+        if (bounds && (b.x0<bounds.x0 || b.x1>bounds.x1 || b.y0<bounds.y0 || b.y1>bounds.y1)) continue;
+        if (placed.some(p=>hit(p,b))) continue;
+        placed.push(b);
+        const moved=Math.hypot(dx,dy);
+        return {x:lx+dx, y:ly+dy, leader:moved>=PLAN_LEADER_MIN?[lx,ly]:null};
+      }
+      placed.push(box(0,0));
+      return {x:lx, y:ly, leader:null};
+    }
+  };
+}
+// thin line back to what the label names, with a dot on the thing itself
+function drawPlanLeader(ctx,from,to,ink){
+  ctx.save();
+  ctx.strokeStyle='rgba(247,243,232,0.85)'; ctx.lineWidth=2.6;
+  ctx.beginPath(); ctx.moveTo(from[0],from[1]); ctx.lineTo(to[0],to[1]); ctx.stroke();
+  ctx.strokeStyle=ink||'#6e5f48'; ctx.lineWidth=0.7;
+  ctx.beginPath(); ctx.moveTo(from[0],from[1]); ctx.lineTo(to[0],to[1]); ctx.stroke();
+  ctx.fillStyle=ink||'#6e5f48';
+  ctx.beginPath(); ctx.arc(to[0],to[1],1.5,0,7); ctx.fill();
+  ctx.restore();
+}
 // `label` is false on the bulb sheet, where structure is context and the only
 // thing carrying a code is the bulb planting the sheet exists to show
-function drawShrubPlan(ctx,c,codes,cell,X,Y,label){
+/* A shrub code goes down in the DRAWING pass, before any stand label is
+   placed, so it cannot move out of the way — it records its box instead and
+   the placer treats it as ground already taken. */
+function drawShrubPlanCode(ctx,code,lx,ly,fs,boxes){
+  if (boxes){ const m=planLabelBox(ctx,code,0,fs);
+    boxes.push({x0:lx-m.w/2-PLAN_LABEL_PAD, x1:lx+m.w/2+PLAN_LABEL_PAD,
+                y0:ly-m.top-PLAN_LABEL_PAD, y1:ly+m.bot+PLAN_LABEL_PAD}); }
+  drawPlanCode(ctx,code,lx,ly,fs);
+}
+function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes){
   const def=plantDef(c.s,c.v), col=planColor(def), fill=mixHex(col,'#f7f3e8',0.62);
   const stroke=mixHex(col,'#2c241c',0.18);
   const pts=c.tiles.map(k=>k.split(',').map(Number));
@@ -1192,7 +1281,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label){
     ctx.fill(); ctx.stroke();
     ctx.save(); ctx.globalAlpha=0.25; ctx.fillStyle='#f7f3e8';
     ctx.beginPath(); ctx.ellipse(cx2-rx*0.22,cy2-ry*0.28,rx*0.38,ry*0.20,-0.08,0,7); ctx.fill(); ctx.restore();
-    if (label!==false) drawPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)));
+    if (label!==false) drawShrubPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)),boxes);
     ctx.restore();
     return;
   }
@@ -1215,7 +1304,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label){
   ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle='#f7f3e8';
   roundedRectPath(ctx,rx+rw*0.08,ry+rh*0.10,rw*0.58,rh*0.26,Math.min(rad,rh*0.13));
   ctx.fill(); ctx.restore();
-  if (label!==false) drawPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
+  if (label!==false) drawShrubPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)),boxes);
   ctx.restore();
 }
 function drawTreePlan(ctx,p,x,y,cell,X,Y){
@@ -1504,8 +1593,57 @@ function drawBulbZones(ctx,g,stands){
    state leaks from block to block today and later blocks rely on it — the
    grid inherits the north arrow's textAlign, the schedule sets its own.
    Isolating them would be a behaviour change wearing a tidy-up's clothes. */
+/* ---------- drawing scale ----------
+   A plan is measurable only if it is drawn to a RATIO somebody can name and
+   check against a rule.  `cell` used to be max(9,min(24,floor(1000/side))) —
+   an arbitrary fit that gave a 31-tile plot 24px a tile and a quarter acre 9,
+   so the sheet was a picture rather than a drawing and nothing on it could be
+   measured except through the graphic bar.
+
+   The sheet now picks the most detailed standard scale at which the plot still
+   fits a portrait page, states it in the title block, and prints at exactly
+   that size: PLAN_DPI units to the paper inch, with the print CSS sizing the
+   canvas in real inches so a rule laid on the paper agrees.
+
+   Two honesties this has to keep.  The scale is always TRUE and it is the
+   PAPER that grows: a plot too big for the page at every legible scale keeps
+   the coarsest legible one and produces a wider sheet, exactly as a real site
+   goes onto a bigger sheet rather than being drawn at a scale nobody can read.
+   And a browser's "fit to page" rescales the print, which no stated ratio
+   survives — so the title block says "at full size" and the graphic bar stays
+   the thing that is true either way, which is why a real drawing prints its
+   paper size beside its scale. */
+const PLAN_DPI=96;                 // drawing units to the paper inch
+const PLAN_DRAW_MAX_IN=7.2;        // Letter and A4 portrait, less margins
+const PLAN_CELL_MIN=8;             // below this a tile carries no readable label
+/* Denominator of the ratio, most detailed first. Real feet to the paper inch
+   is denom/12, so 1:48 is the quarter-inch scale and 1:96 the eighth. */
+const PLAN_SCALES_IMPERIAL=Object.freeze([
+  {denom:48,  label:'1/4" = 1 ft'},
+  {denom:96,  label:'1/8" = 1 ft'},
+  {denom:120, label:'1" = 10 ft'},
+  {denom:192, label:'1" = 16 ft'},
+  {denom:240, label:'1" = 20 ft'},
+  {denom:480, label:'1" = 40 ft'},
+]);
+const PLAN_SCALES_METRIC=Object.freeze([
+  {denom:50}, {denom:100}, {denom:200}, {denom:500},
+]);
+function planScaleCell(s){ return (TILE_IN/12)/(s.denom/12)*PLAN_DPI; }
+function planScale(){
+  const list=metricUnits()?PLAN_SCALES_METRIC:PLAN_SCALES_IMPERIAL;
+  const legible=list.filter(s=>planScaleCell(s)>=PLAN_CELL_MIN);
+  const usable=legible.length?legible:[list[0]];
+  const fits=s=>Math.max(GW,GH)*(TILE_IN/12)/(s.denom/12)<=PLAN_DRAW_MAX_IN;
+  return usable.find(fits) || usable[usable.length-1];
+}
+function planScaleText(s){
+  const ratio=`1:${s.denom}`;
+  return s.label ? `${s.label} (${ratio})` : ratio;
+}
 function planGeometry(rowsBelow){
-  const cell=Math.max(9, Math.min(24, Math.floor(1000/Math.max(GW,GH))));
+  const scale=planScale();
+  const cell=planScaleCell(scale);
   const padL=34, padT=92;
   /* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
      paper has a floor and the drawing centres inside it. At the classic plot
@@ -1514,7 +1652,7 @@ function planGeometry(rowsBelow){
   const W2=Math.max(padL*2+drawW, 660);
   const originX=Math.round((W2-drawW)/2);
   const H2=padT+GH*cell+34+rowsBelow*15+26;
-  return {cell,padL,padT,drawW,W2,originX,H2,
+  return {cell,padL,padT,drawW,W2,originX,H2,scale,
     X:x=>originX+x*cell, Y:y=>padT+y*cell};
 }
 // paper, border, title block and the true-north arrow
@@ -1531,7 +1669,11 @@ function drawPlanPaper(ctx,g,sheetName){
   ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
   ctx.fillText(`${sheetName} · Pocket Prairie Garden Design · ${new Date().toLocaleDateString()}`, padL, 56);
   const ftPerTile=TILE_IN/12;
-  ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`, padL, 70);
+  /* "at full size" is not hedging: a browser's fit-to-page rescales the sheet
+     and no stated ratio survives that, so the sheet says when its ratio holds
+     and leaves the graphic bar as the thing that is true either way. */
+  ctx.fillText(`1 tile = ${tileSizeText()} · plot ${fmtFeet(GW*ftPerTile)} × ${fmtFeet(GH*ftPerTile)}`
+    + ` · scale ${planScaleText(g.scale)} at full size`, padL, 70);
   // True north rotates inside the plan; the garden drawing itself stays in
   // the user's plot coordinates so labels and saved tile positions never move.
   const nd=siteDirections(game.siteNorthDeg).N, nc=[W2-48,52], perp=[-nd[1],nd[0]];
@@ -1890,6 +2032,12 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   const g=planGeometry(legRows+fixtureRows+noteRows);
   const {cell,padL,padT,W2,H2,X,Y}=g;
   pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
+  /* The sheet's real width, for print only: PLAN_DPI units to the inch, so a
+     rule laid on the printed page agrees with the stated scale. On screen the
+     canvas stays width:100% and responsive. (Guarded because the test
+     sandbox's element stubs carry a plain object for `style`.) */
+  if (pc.style && typeof pc.style.setProperty==='function')
+    pc.style.setProperty('--plan-in', (W2/PLAN_DPI).toFixed(3)+'in');
   ctx.setTransform(2,0,0,2,0,0);
   const site={lightsLive,bouldersLive,treesLive,fixtureRows};
   /* A one-sheet garden still says "Design plan" — it is not a set, and naming
@@ -1928,7 +2076,8 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
       if (st.lw){ ctx.strokeStyle=mixHex(col,'#2c241c',st.ink); ctx.lineWidth=st.lw; ctx.stroke(); }
     });
   });
-  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y,!onBulbSheet));
+  const shrubLabelBoxes=[];
+  shrubComps.forEach(c=>drawShrubPlan(ctx,c,codes,cell,X,Y,!onBulbSheet,shrubLabelBoxes));
   // trees: effective canopy circles, clipped to the plot, plus trunk dot
   treesLive.forEach(k=>{ const p=game.plants[k];
     const [x,y]=k.split(',').map(Number);
@@ -1940,17 +2089,36 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      sheet, a uniform texture rather than a hierarchy — and it is affordable
      precisely because there are now far fewer labels to place. */
   ctx.textAlign='center';
+  /* Placed, not just drawn (see planLabelPlacer).  The shrub labels went down
+     in the drawing pass and are seeded in as obstacles, so a stand label moves
+     out of a shrub's way rather than landing on its code.  Stands come in
+     size order, so the biggest planting keeps the spot it wants and the small
+     ones do the moving. */
+  const place=planLabelPlacer(shrubLabelBoxes);
+  const bounds={x0:X(0)-cell, x1:X(GW)+cell, y0:padT-18, y1:Y(GH)+cell*0.6};
+  const queued=[];
   stands.forEach(st=>{
     const def=plantDef(st.s,st.v), id=st.s+'|'+(st.v||'');
     const lx=X(st.at[0]+0.5), ly=Y(st.at[1]+0.5)+3;
     const fs=Math.max(9,Math.min(15,6+Math.sqrt(st.n)*1.6));
-    drawStandLabel(ctx,codes[id],plantsForTiles(st.n,def.space),lx,ly,fs,
-      PLAN_LAYER_STYLE[planLayerOf(st.s)].label);
+    const qty=plantsForTiles(st.n,def.space);
+    const ink=PLAN_LAYER_STYLE[planLayerOf(st.s)].label;
+    const at=place.place(lx,ly,planLabelBox(ctx,codes[id],qty,fs),bounds);
+    queued.push({kind:'stand',code:codes[id],qty,fs,ink,at});
   });
   treeComps.forEach(c=>{
     const lt=c.tiles[0].split(',').map(Number);
-    drawPlanCode(ctx,codes[c.s+'|'+(c.v||'')],X(lt[0])+cell/2,Y(lt[1])-cell*0.4,
-      Math.max(9,Math.min(13,5+Math.sqrt(c.tiles.length)*2)));
+    const lx=X(lt[0])+cell/2, ly=Y(lt[1])-cell*0.4;
+    const fs=Math.max(9,Math.min(13,5+Math.sqrt(c.tiles.length)*2));
+    const code=codes[c.s+'|'+(c.v||'')];
+    const at=place.place(lx,ly,planLabelBox(ctx,code,0,fs),bounds);
+    queued.push({kind:'tree',code,qty:0,fs,ink:'#2c241c',at});
+  });
+  // every leader first, so no label's halo is cut by a line drawn after it
+  queued.forEach(q=>{ if (q.at.leader) drawPlanLeader(ctx,[q.at.x,q.at.y],q.at.leader,q.ink); });
+  queued.forEach(q=>{
+    if (q.kind==='tree') drawPlanCode(ctx,q.code,q.at.x,q.at.y,q.fs,q.ink);
+    else drawStandLabel(ctx,q.code,q.qty,q.at.x,q.at.y,q.fs,q.ink);
   });
   /* Plant schedule + scale bar.  Code, botanical name, common name, quantity
      and spacing o.c. is the convention the naturalistic and the

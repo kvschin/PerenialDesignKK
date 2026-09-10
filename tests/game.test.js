@@ -3136,6 +3136,109 @@ test('bulb stipple density follows the real planting density', () => {
   assert(four > one && four < one * 4, 'density is compressed, not linear');
 });
 
+test('the sheet is drawn to a standard scale, and the scale is always true', () => {
+  const sides = [13, 21, 31, 46, 69, 111];
+  const seen = [];
+  sides.forEach(n => {
+    setup(n, n);
+    const g = planGeometry(0), s = g.scale;
+    assert(s && s.denom > 0, `${n} tiles resolves a scale`);
+    assertEqual(Math.round(g.cell * 1000), Math.round(planScaleCell(s) * 1000),
+      'the cell IS the scale, not a fit to the paper');
+    assert(g.cell >= PLAN_CELL_MIN, `${n} tiles keeps a legible tile (${g.cell.toFixed(1)}px)`);
+    /* The scale is true and it is the PAPER that grows. So the drawn size must
+       equal the plot's real size at the stated ratio, to the pixel. */
+    const ftPerIn = s.denom / 12;
+    assertEqual(Math.round(g.drawW), Math.round(n * (TILE_IN / 12) / ftPerIn * PLAN_DPI),
+      `${n} tiles is drawn at exactly its stated scale`);
+    seen.push({ n, denom: s.denom, cell: +g.cell.toFixed(1) });
+  });
+  // a bigger plot is never drawn at a more detailed scale than a smaller one
+  for (let i = 1; i < seen.length; i++)
+    assert(seen[i].denom >= seen[i - 1].denom,
+      `a ${seen[i].n}-tile plot is not drawn finer than a ${seen[i - 1].n}-tile one`);
+  // and small plots really do get the detailed end, which the old fit denied them
+  assert(seen[0].cell > seen[seen.length - 1].cell, 'a small plot is drawn larger, not clamped');
+  assert(planScaleText({ denom: 96, label: '1/8" = 1 ft' }).includes('1:96'), 'the ratio is stated');
+  assertEqual(planScaleText({ denom: 100 }), '1:100', 'a metric scale is just its ratio');
+});
+
+test('the scale reaches the title block and the print at real size', () => {
+  setup(31, 31);
+  game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
+  const texts = [], props = {};
+  const pc = { width: 0, height: 0, hidden: false, classList: { toggle(){} },
+    style: { setProperty(k, v){ props[k] = v; } },
+    getContext(){ return makeCanvasCtx({ fillText(t){ texts.push(String(t)); } }); } };
+  const oldGet = document.getElementById;
+  document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  const g = planGeometry(0);
+  assert(texts.some(t => t.includes('scale ' + planScaleText(g.scale))),
+    'the title block states the scale it was drawn at');
+  assert(texts.some(t => /at full size/.test(t)),
+    'and says when the ratio holds — fit-to-page rescales the print and no ratio survives that');
+  /* --plan-in is what makes the printed sheet physically true: PLAN_DPI units
+     to the paper inch, so a rule laid on the page agrees with the ratio. */
+  assert(props['--plan-in'], 'the sheet publishes its real width for print');
+  assertEqual(props['--plan-in'], (pc.width / 2 / PLAN_DPI).toFixed(3) + 'in',
+    'and that width is the canvas at PLAN_DPI to the inch');
+});
+
+test('labels are placed, not just drawn: no overlaps, leaders when moved', () => {
+  const ctx = makeCanvasCtx({});
+  const m = planLabelBox(ctx, 'SCH', 12, 12);
+  assert(m.w > 0 && m.top > 0, 'a label has a measured box');
+  assert(planLabelBox(ctx, 'SCH', 12, 12).top > planLabelBox(ctx, 'SCH', 1, 12).top,
+    'the two-line form is taller than the code alone');
+
+  // three labels all wanting the same spot: the first keeps it, the rest move
+  const place = planLabelPlacer();
+  const a = place.place(100, 100, m);
+  const b = place.place(100, 100, m);
+  const c = place.place(100, 100, m);
+  assertEqual(a.leader, null, 'the first label keeps the spot it wants and needs no leader');
+  assert(b.y !== a.y || b.x !== a.x, 'the second is displaced');
+  assert(b.leader && b.leader[0] === 100 && b.leader[1] === 100,
+    'and runs a leader back to the anchor it names');
+  assert(c.leader, 'so does the third');
+  const hit = (p, q) => p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1;
+  const boxes = place.boxes;
+  let overlaps = 0;
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++)
+    if (hit(boxes[i], boxes[j])) overlaps++;
+  assertEqual(overlaps, 0, 'and nothing placed overlaps anything already down');
+
+  // a seeded obstacle (a shrub code, drawn earlier and unable to move) is respected
+  const shrub = { x0: 90, x1: 130, y0: 88, y1: 108 };
+  const seeded = planLabelPlacer([shrub]);
+  const d = seeded.place(105, 100, m);
+  assert(!hit(shrub, seeded.boxes[seeded.boxes.length - 1]),
+    'a stand label moves out of a shrub code rather than landing on it');
+
+  /* Bounds steer the move, not just veto it: the first candidate is upward, so
+     with clear paper only BELOW the anchor the label has to go down. */
+  const blocked = planLabelPlacer([{ x0: 100 - m.w, x1: 100 + m.w, y0: 80, y1: 120 }]);
+  const f = blocked.place(100, 100, m, { x0: 0, x1: 200, y0: 95, y1: 400 });
+  assert(f.y > 100, 'a displaced label stays inside the drawing bounds');
+
+  /* And bounds are a hard limit: a label outside the sheet is worse than a
+     label touching another, so when nothing fits it stays on its anchor. */
+  const tight = planLabelPlacer([{ x0: -1e4, x1: 1e4, y0: -1e4, y1: 1e4 }]);
+  const e = tight.place(100, 100, m, { x0: 99, x1: 101, y0: 99, y1: 101 });
+  assertEqual(e.x, 100, 'a label with nowhere to go stays on the thing it names');
+  assertEqual(e.leader, null, 'and draws no leader to itself');
+
+  /* The sheet must actually seed the shrub codes. They go down in the drawing
+     pass and cannot move, so a placer that does not know about them puts a
+     stand label straight on top of one — which the unit checks above cannot
+     see, because they build their own placer. */
+  assert(/planLabelPlacer\(shrubLabelBoxes\)/.test(drawPlanSheet.toString()),
+    'the sheet seeds the already-drawn shrub codes as obstacles');
+  assert(/drawShrubPlan\([^)]*shrubLabelBoxes\)/.test(drawPlanSheet.toString()),
+    'and the shrub pass is what collects them');
+});
+
 test('the site base is sheet-independent, and drawn in the order a sheet needs', () => {
   const src = drawPlanSheet.toString();
   // paper, ground, then the planting, then the structures over it, then the
@@ -3257,7 +3360,7 @@ test('tree plan canopy radius follows the effective display lens', () => {
   const def = plantDef(tree);
   const cx = 30, cy = 30;
   game.plants[`${cx},${cy}`] = { s: tree, d: absDay(), t: 1 };
-  const cell = Math.max(9, Math.min(24, Math.floor(1000 / Math.max(GW, GH))));
+  const cell = planGeometry(0).cell;   // the sheet draws to a scale now, not to a fit
   const oldGet = document.getElementById;
   const planDraw = mode => {
     const arcs = [], labels = [];

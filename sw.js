@@ -39,7 +39,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.83';
+const VERSION = '0.8.84';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [

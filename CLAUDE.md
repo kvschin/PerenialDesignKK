@@ -2770,6 +2770,48 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     also prints (own page). Empty gardens render an empty sheet, no crash.
     `docs/plan-sheet.md` is the full record — how the sheet compares with how a
     planting plan is really drawn, and what is still open.
+    **The sheet is drawn to a STANDARD SCALE** (`planScale`/`planScaleCell`/
+    `PLAN_SCALES_IMPERIAL`/`PLAN_SCALES_METRIC`/`PLAN_DPI`/`PLAN_CELL_MIN`).
+    `cell` used to be `max(9,min(24,floor(1000/side)))` — an arbitrary fit that
+    gave a 31-tile plot 24px a tile and a quarter acre 9, so the sheet was a
+    picture rather than a drawing and nothing on it could be measured except
+    through the graphic bar. It now picks the most detailed standard ratio at
+    which the plot still fits a portrait page (`PLAN_DRAW_MAX_IN` 7.2, Letter
+    and A4 less margins), derives `cell` at PLAN_DPI (96) units to the paper
+    inch, states it in the title block, and publishes `--plan-in` so the print
+    CSS sizes the canvas in real inches and a rule laid on the page agrees.
+    13 tiles → 1/4"=1ft (1:48, cell 36); 31 → 1/8"=1ft (1:96, cell 18);
+    quarter acre → 1"=16ft (1:192, cell 9); metric → 1:100.
+    **The scale is always TRUE and it is the PAPER that grows**: a plot too big
+    for the page at every legible scale keeps the coarsest legible one and
+    produces a wider sheet, which is what `PLAN_CELL_MIN` (8px) enforces — a
+    real site goes onto a bigger sheet rather than being drawn at a ratio
+    nobody can read. And **a browser's fit-to-page rescales the print and no
+    stated ratio survives it**, so the title block says "at full size" and the
+    graphic bar stays true either way; that is why a real drawing prints its
+    paper size beside its scale.
+    **Labels are PLACED, not just drawn** (`planLabelPlacer`/`planLabelBox`/
+    `drawPlanLeader`/`PLAN_LABEL_PAD`/`PLAN_LABEL_RING`/`PLAN_LEADER_MIN`).
+    A label is measured, tried at its anchor, and on a collision moved outward
+    to the nearest free spot with a LEADER LINE back — the convention for a
+    label that will not fit inside its own shape. Candidates step vertically
+    first, since a drift is wider than it is tall on this projection and there
+    is more clear paper above and below a shape than beside it. Shrub codes go
+    down in the DRAWING pass and cannot move, so `drawShrubPlan` records its
+    box into `shrubLabelBoxes` and the placer is seeded with them.
+    Two refusals matter as much as the placement: when nothing is free the
+    label **stays on its anchor and overlaps**, because a label far from the
+    thing it names is worse than two labels touching (the reader cannot tell
+    which shape it belongs to) — `PLAN_LABEL_RING` bounds the wander for the
+    same reason — and the drawing bounds are hard, so a label is never placed
+    off the sheet.
+    **These two shipped together because the first created the problem the
+    second solves.** This document previously recorded that label collision
+    "ranks lower than it looked — measured, exactly one overlapping pair". That
+    was true AT CELL 24. Drawing to scale took the cell to 18 and the same
+    garden to **11 overlapping pairs**; the placer takes it to **0**, with 9
+    leaders and displacements of 17-21px, about a tile. A ranking measured
+    under one set of constants does not survive a change to those constants.
     **The SITE BASE is split out of `drawPlanSheet`**: `planGeometry` (paper
     size, the 660px floor, the centred origin, the `X`/`Y` projectors),
     `drawPlanPaper`, `drawPlanGround` (grid, grade, terrain, hardscape,

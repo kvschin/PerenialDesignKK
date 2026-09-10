@@ -1495,7 +1495,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      has, and printing only the tab that happened to be open would drop half
      of it. `break-after` on every sheet but the last. */
   #planScreen .plan-wrap canvas{display:none!important}
-  #planScreen .plan-wrap canvas.has-sheet{display:block!important;break-after:page;page-break-after:always}
+  /* Printed at its REAL size, so the stated scale is checkable with a rule:
+     --plan-in is the sheet width in inches, written by drawPlanSheet at
+     PLAN_DPI units to the inch. Falls back to 100% if it is ever missing. */
+  #planScreen .plan-wrap canvas.has-sheet{display:block!important;
+    width:var(--plan-in,100%)!important;max-width:none!important;height:auto;
+    break-after:page;page-break-after:always}
   #planScreen .plan-wrap canvas.has-sheet:last-of-type{break-after:auto;page-break-after:auto}
 }
 
