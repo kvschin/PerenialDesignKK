@@ -3045,6 +3045,97 @@ function renderPlanSheets(){
   return out;
 }
 
+test('a bulb zone is an area, and it keeps off ground the design has spent', () => {
+  setup(21, 21);
+  for (let y = 4; y < 16; y++) for (let x = 4; x < 16; x++)
+    setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
+  for (let x = 4; x < 16; x++) setTile('terrain', `${x},10`, { k: 'path', c: 'gravel', t: 1 });
+  // naturalised either side of the path, at a spacing the perennial gap misses
+  const tiles = [];
+  for (let y = 5; y < 15; y += 3) for (let x = 5; x < 15; x += 3){
+    if (tileTerrain(x, y) === 'path') continue;
+    game.bulbs[`${x},${y}`] = { s: 'crocus', d: 0, t: 1 }; tiles.push([x, y]);
+  }
+  const zone = bulbZoneTiles(tiles);
+  assert(zone.size > tiles.length, 'the zone is grown past its own planting — bulbs are naturalised, not set out');
+  tiles.forEach(([x, y]) => assert(zone.has(`${x},${y}`), 'every planted tile is in its own zone'));
+  const paved = [...zone].filter(k => { const [x, y] = k.split(',').map(Number);
+    return tileTerrain(x, y) === 'path'; });
+  assertEqual(paved.length, 0, 'a zone never spreads across paving — you do not naturalise bulbs into gravel');
+  // the path through it therefore comes back as a hole, i.e. a second loop
+  assert(traceOutlines(zone).length > 1, 'a path through a zone traces as an inner loop');
+
+  // the stand gap is the one the zones imply, not a second number beside it
+  assertEqual(BULB_STAND_GAP, 2 * BULB_ZONE_GROW + 1, 'the gap is derived from the grow');
+  const comps = planComponents(game.bulbs);
+  assert(planStands(comps, PLAN_STAND_GAP).length > planStands(comps, BULB_STAND_GAP).length,
+    'the bulb gap groups a scatter the perennial gap leaves as separate stands');
+  assertEqual(planStands(comps, BULB_STAND_GAP).length, 1, 'one naturalised scatter is one zone');
+  /* And the sheet must actually ask for that gap. Grouping at the perennial
+     gap leaves the scatter as separate stands whose zones abut — which the
+     function-level assertions above cannot see, because they call planStands
+     themselves. */
+  assert(/planStands\([^)]*BULB_STAND_GAP/.test(drawPlanSheet.toString()),
+    'the bulb sheet groups its stands at the bulb gap, not the perennial one');
+});
+
+test('a bulb zone fills even-odd, strokes dashed, and leaves no dash behind', () => {
+  setup(21, 21);
+  for (let y = 4; y < 16; y++) for (let x = 4; x < 16; x++)
+    setTile('terrain', `${x},${y}`, { k: 'bed', c: 'soil', t: 1 });
+  for (let x = 4; x < 16; x++) setTile('terrain', `${x},10`, { k: 'path', c: 'gravel', t: 1 });
+  for (let y = 5; y < 15; y += 3) for (let x = 5; x < 15; x += 3){
+    if (tileTerrain(x, y) === 'path') continue;
+    game.bulbs[`${x},${y}`] = { s: 'crocus', d: 0, t: 1 };
+  }
+  const stands = planStands(planComponents(game.bulbs), BULB_STAND_GAP);
+  const ops = [];
+  const ctx = makeCanvasCtx({
+    save(){ ops.push('save'); }, restore(){ ops.push('restore'); },
+    fill(rule){ ops.push('fill:' + (rule || 'nonzero')); },
+    clip(rule){ ops.push('clip:' + (rule || 'nonzero')); },
+    stroke(){ ops.push('stroke'); },
+    setLineDash(d){ ops.push('dash:' + (d || []).join(',')); },
+  });
+  drawBulbZones(ctx, planGeometry(0), stands);
+  /* Even-odd over one accumulated path, or the hole the path cut paints solid
+     and the tint covers the paving the zone was careful to avoid.  ONE such
+     fill per stand however many loops it traced — a per-loop fill is exactly
+     the regression, and it would show as more. (The stipple dots fill nonzero
+     and legitimately do, so the check is on the zone-fill phase before the
+     stipple's clip.) */
+  assertEqual(ops.filter(o => o === 'fill:evenodd').length, stands.length,
+    'one even-odd zone fill per stand, whatever its loop count');
+  const beforeClip = ops.slice(0, ops.indexOf('clip:evenodd'));
+  assert(!beforeClip.includes('fill:nonzero'), 'the zone is never filled loop by loop');
+  assert(ops.includes('clip:evenodd'), 'so is the stipple clip');
+  assert(ops.some(o => o === 'dash:4,3'), 'the boundary is dashed — indicative, where the count is not');
+  assert(ops.includes('stroke'), 'and it is actually stroked');
+  // balanced, and the dash never escapes to the next thing drawn
+  let depth = 0, worst = 0, dashOutside = 0;
+  for (const o of ops){
+    if (o === 'save') depth++;
+    else if (o === 'restore'){ depth--; worst = Math.min(worst, depth); }
+    else if (o.startsWith('dash:') && o !== 'dash:' && depth === 0) dashOutside++;
+  }
+  assertEqual(depth, 0, 'every save is restored');
+  assertEqual(worst, 0, 'and never restored past its own save');
+  assertEqual(dashOutside, 0, 'the dash is set inside a save, so it cannot leak into the next pass');
+});
+
+test('bulb stipple density follows the real planting density', () => {
+  // same ground, same tiles: a 3in crocus carpet against an 8in camassia scatter
+  const dense = bulbDotsPerTile(plantsForTiles(25, plantDef('crocus').space), 49);
+  const thin  = bulbDotsPerTile(plantsForTiles(25, plantDef('camassia').space), 49);
+  assert(dense > thin, `a crocus carpet stipples denser than a camassia scatter (${dense} vs ${thin})`);
+  assert(dense <= BULB_DOT_MAX, 'and never solid');
+  assertEqual(bulbDotsPerTile(0, 10), 1, 'a zone always shows at least one dot a tile');
+  assertEqual(bulbDotsPerTile(1e9, 1), BULB_DOT_MAX, 'the cap holds against any density');
+  // square-root compressed: quadrupling the density must not quadruple the dots
+  const one = bulbDotsPerTile(100, 100), four = bulbDotsPerTile(400, 100);
+  assert(four > one && four < one * 4, 'density is compressed, not linear');
+});
+
 test('the site base is sheet-independent, and drawn in the order a sheet needs', () => {
   const src = drawPlanSheet.toString();
   // paper, ground, then the planting, then the structures over it, then the

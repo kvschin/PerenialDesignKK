@@ -2802,14 +2802,46 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     CONTEXT. On the bulb sheet the perennials drop to a ghost (88% paper, fill
     only, no stroke, no label), trees and shrubs stay solid but **unlabelled**
     (a code the sheet's own schedule cannot explain is a dangling reference —
-    hence `drawShrubPlan`'s `label` flag), and the bulbs get drifts, stands,
-    `×N` and the old ring scatter INSIDE their own blob: the blob says where,
-    the rings say what kind of planting, the label says which bulb and how
-    many. Measured as RGB distance from paper (luminance is the wrong metric —
-    it calls a daffodil's yellow "pale"): bulbs 63, bare bed 37, perennial
-    ghost 24, so the ghost is fainter than the ground it sits on, which is what
-    makes it read as underneath. The planting sheet's bulb tiles measure 37 —
-    identical to bare bed, i.e. genuinely absent.
+    hence `drawShrubPlan`'s `label` flag), and the bulbs get ZONES (below).
+    Measured as RGB distance from paper (luminance is the wrong metric — it
+    calls a daffodil's yellow "pale"), the perennial ghost is 24 against bare
+    bed's 37: fainter than the ground it sits on, which is what makes it read
+    as underneath rather than as a second planting. The planting sheet's bulb
+    tiles measure 37 — identical to bare bed, i.e. genuinely absent.
+    **A bulb stand draws as a ZONE, not a drift** (`drawBulbZones`,
+    `bulbZoneTiles`, `BULB_ZONE_GROW`, `BULB_STAND_GAP`, `bulbDotsPerTile`).
+    A bulb sheet states a DENSITY OVER AN AREA — "scatter this many through
+    here" — where a drift states "this plant, on this ground". Drawn as drifts
+    they said the wrong thing twice: a scatter at the spacing bulbs are really
+    naturalised at came out as forty one-tile shapes, and the per-tile ring of
+    0.8.81 was a per-tile SYMBOL, the exact claim this convention exists to
+    avoid (those rings are gone, replaced by the stipple). A zone is the
+    planting grown by a tile, a DASHED boundary, a stipple at the real planting
+    density, and the count on the label — the number is authoritative and the
+    shape is not, which is what a dashed line means. **The count still comes
+    from the PLANTED tiles** via `plantsForTiles`, never the grown zone, so the
+    label, schedule and planting list cannot disagree.
+    **`BULB_STAND_GAP` is DERIVED**: `2*BULB_ZONE_GROW+1`, the distance at
+    which two grown zones touch and therefore trace as one loop. At the
+    perennial gap of 2 a scatter three tiles apart stayed 42 stands whose zones
+    abutted — 42 dashed shapes with seams, the opposite of the one flowing area
+    a zone exists to draw; derived, it is 2. **A zone never crosses paving,
+    water or a building**, so a path through a naturalised area comes back as
+    an inner LOOP and the fill must be one accumulated path with **even-odd** —
+    filled loop by loop that hole paints solid and the tint covers the path,
+    undoing the exclusion that made it. Stipple density is bulbs per zone tile,
+    SQUARE-ROOT compressed: linear it spans 36:1 across the catalog and would
+    go from solid to one dot; compressed, a crocus carpet and a camassia
+    scatter on the same tiles measure 6 dots against 2, while a sparse scatter
+    of a dense bulb and a tight drift of a sparser one land together, which is
+    the truth about them. Dots are seeded off `tileSeed`, so a sheet reprints
+    the same. **The tint does NOT mark the zone** — the stipple does, 118
+    darkest ink against 226 for bare bed and for the ghost. Its only jobs are
+    telling two bulb species apart by hue and not reading as a HOLE: at 0.80 it
+    measured 27 against the bed's own 37, i.e. paler than the ground it sits
+    on. It is 0.72, level with the bed. Distance is linear in (1-t) and scales
+    with the species colour's own distance from paper, so a pale bulb always
+    tints more weakly — which is why the marking cannot rest on it.
     **Codes are assigned across the SET, never per sheet**: *Campanula* and
     *Camassia* both reduce to `CAM` and live on different sheets, so a
     per-sheet assignment hands the same tag to two different plants (a test

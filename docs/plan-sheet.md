@@ -255,10 +255,9 @@ tree, so trees and shrubs are context there — but a code the sheet's own
 schedule cannot explain is a dangling reference, so `drawShrubPlan` takes a
 `label` flag and the tree label pass is skipped.
 
-**Rings were kept, inside the drift.** A scatter of small circles is the
-standing symbol for bulbs and was the only thing the old sheet drew. Now the
-blob says *where*, the rings say *what kind of planting*, and the stand label
-says *which bulb and how many*.
+**Rings were kept, inside the drift** — and then replaced in 0.8.83 by the
+stipple, which says the same thing about *density* rather than about tiles. See
+the bulb-zone section above.
 
 **Download gives the sheet you are looking at, not both.** Exporting the set as
 two PNGs is the obvious reading and is worse in practice: two programmatic
@@ -270,6 +269,67 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 `display:block`, and **both beat the UA rule for the `hidden` attribute** — so
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
+
+### Bulb zones: density over an area (0.8.83)
+
+A bulb sheet says "scatter this many through here" — a density over an **area**
+— where a perennial drift says "this plant, on this ground". Drawn as drifts,
+bulbs said the wrong thing twice over: a scatter at the spacing bulbs are
+actually naturalised at came out as forty separate one-tile shapes, and the
+per-tile ring of 0.8.81 was a *per-tile symbol*, which is precisely the claim
+this convention exists to avoid making. (That note is superseded: the rings are
+gone, replaced by the stipple.)
+
+A bulb stand now draws as a **zone**:
+
+- its planting **grown by a tile**, so a scatter reads as one flowing area;
+- a **dashed** boundary, because the boundary is indicative;
+- a **stipple** at the real planting density;
+- the count on the label.
+
+**The number is the authoritative part and the shape is not** — which is what a
+dashed line means on a drawing. The count still comes from the *planted* tiles
+via `plantsForTiles`, never from the grown zone, so the label, the schedule and
+the planting list cannot disagree; the zone is bigger than the planting on
+purpose.
+
+**`BULB_STAND_GAP` is derived, not chosen**: `2 * BULB_ZONE_GROW + 1`. Two
+planted tiles at Chebyshev distance *d* have grown zones that touch exactly when
+*d* ≤ that, and two touching zones trace as one loop. Grouped at the perennial
+gap of 2, a scatter three tiles apart stayed **42 separate stands** whose zones
+abutted — 42 dashed shapes with seams between them, the opposite of the one
+flowing area the zone exists to draw. At the derived gap it is **2 stands**
+(one real scatter plus one genuine outlier), and at four tiles apart they are
+genuinely two plantings and stay two.
+
+**A zone never spreads across paving, water or a building.** You do not
+naturalise bulbs into a gravel path, and a zone that ran over one would claim
+ground the design has already spent. A path through a naturalised area
+therefore comes back from the trace as an inner **loop** — so the zone is
+filled as one accumulated path with **even-odd**. Filled loop by loop, that
+hole paints solid and the tint covers the path, undoing the exclusion that put
+the hole there.
+
+**Stipple density** is real bulbs per zone tile, square-root compressed. The
+linear figure spans 36:1 across the catalog (crocus at 3in against allium at
+12in) and would go from unreadably solid to a single dot. Compressed, a crocus
+carpet and a camassia scatter on the same 25 tiles measure **6 dots a tile
+against 2** — while a *sparse* scatter of a dense bulb and a *tight* drift of a
+sparser one land in the same place, which is the truth about them. Dots are
+seeded off `tileSeed`, so a sheet reprints the same.
+
+**Two measurements worth keeping.** The tint was set to 0.80 first and measured
+**27** against the bare bed's own **37** — the zone came out *paler than the
+ground it sits on* and read as a patch cut out of the planting. It is 0.72 now,
+level with the bed. But the general lesson is that **the tint is not what marks
+the zone**: the distance is linear in `(1-t)` and scales with how far the
+species' own colour sits from paper, so a pale bulb always tints more weakly
+than a saturated one. Measured on the *marking* instead — the darkest ink found
+in a tile — a zone reads **118** against **226** for both bare bed and the
+perennial ghost, on paper at 243. The stipple does the work.
+
+The planting sheet is **byte-identical** through all of this (op trace hashed
+against the 0.8.81 baseline): every change is inside the bulb branch.
 
 ### The site base split (0.8.82)
 
@@ -367,41 +427,35 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **Bulb density over an area**, if the goal becomes "a sheet you can hand an
-   installer". Oudolf's bulb overlays are a density through a zone
-   ("N. 'Thalia' × 200 naturalised through here") drawn as a dashed zone
-   boundary plus stipple plus count, rather than an outlined drift. Our model
-   knows every bulb's tile, so this is a drawing decision, not a data one.
-
-2. **Label collision and leader lines.** Labels are placed and drawn with no
+1. **Label collision and leader lines.** Labels are placed and drawn with no
    overlap test. This ranks lower than it looked: measured, the old sheet had
    exactly one overlapping pair and the new one has none, so the symptom was
    crowding rather than collision. It will still matter on a garden denser than
    this one, and the convention is a leader line out to clear paper when a
    label will not fit inside its own shape.
 
-3. **A stated drawing scale.** `cell = max(9, min(24, floor(1000/max(GW,GH))))`
+2. **A stated drawing scale.** `cell = max(9, min(24, floor(1000/max(GW,GH))))`
    — a 31-tile plot gets 24px/tile and a quarter acre gets 9px, where labels
    become unreadable. The scale *bar* is honest, but there is no drawing-to-a-
    ratio (1:50, ¼"=1'), which is what makes a plan measurable off the print.
 
-4. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
+3. **Colour is doing a job it cannot do.** `planColor` resolves summer bloom →
    spring bloom → fall bloom → fall seed → foliage, so the sheet is coloured by
    *flower colour*. On the review garden the three largest forbs — Salvia,
    Allium and Agastache — were all the same lavender and mutually
    indistinguishable. Either drive saturation/value off the layer role, or
    accept that a dozen species cannot be separated by hue and lean on the tag.
 
-5. **One sheet still does four jobs.** A real set is layout/hardscape →
+4. **One sheet still does four jobs.** A real set is layout/hardscape →
    planting → bulbs → schedule. Ours puts terrain, elevation, walls, buildings,
    lights, boulders, trees, shrubs, perennials and bulbs on one page. Item 1
    gets the hardscape separation for free.
 
-6. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
+5. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
    `drawShrubPlan` labels it with a code and no count. A hedge is the one woody
    case where `×N` is what a buyer needs.
 
-7. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
+6. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
    `SCHEME_LAYERS`, so switching planting schemes switches the bulb plan too.
    Oudolf's bulb layer is usually *one* layer under several possible perennial
    treatments. Not necessarily wrong — but if "bulbs shared across schemes"

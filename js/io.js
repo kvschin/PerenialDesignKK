@@ -958,13 +958,13 @@ function planComponents(layer){
    pairwise form is O(tiles^2) and would matter on a stress garden.  All of it
    runs once on open, never in a frame. */
 const PLAN_STAND_GAP=2;
-function planStands(comps){
+function planStands(comps,gap){
   const of=new Map();
   comps.forEach((c,i)=>c.tiles.forEach(k=>of.set(k,i)));
   const par=comps.map((_,i)=>i);
   const find=i=>{ while (par[i]!==i) i=par[i]=par[par[i]]; return i; };
   const join=(a,b)=>{ a=find(a); b=find(b); if (a!==b) par[b]=a; };
-  const G=PLAN_STAND_GAP;
+  const G=gap||PLAN_STAND_GAP;
   comps.forEach((c,i)=>{
     c.tiles.forEach(k=>{
       const [x,y]=k.split(',').map(Number);
@@ -996,7 +996,7 @@ function planStands(comps){
       const d=(x-cx)*(x-cx)+(y-cy)*(y-cy);
       if (d<bd){ bd=d; best=[x,y]; }
     }
-    return {s:st.s, v:st.v, n, at:best};
+    return {s:st.s, v:st.v, n, at:best, tiles:st.tiles};
   }).sort((a,b)=>b.n-a.n);
 }
 /* The three drawing weights the sheet reads as a hierarchy.  Oudolf plans are
@@ -1354,6 +1354,142 @@ function buildPlanMap(){
   sheets.forEach((s,i)=>{ const pc=$(planSheetCanvasId(s.id)); if (pc) drawPlanSheet(pc,s,i,shared); });
   syncPlanSheets();
 }
+/* The smoothed blob every drift, ghost and bulb zone is drawn as: a quadratic
+   midpoint spline through the traced lattice loop, wobbled by planJitter so
+   neighbouring blobs nest.  `Subpath` omits beginPath so several loops can be
+   accumulated into one path — which a clip needs and a per-loop fill does not. */
+function planBlobSubpath(ctx,loop,X,Y){
+  const pts=loop.map(([x,y])=>{ const [jx,jy]=planJitter(x,y);
+    return [X(x+jx*0.6), Y(y+jy*0.6)]; });
+  const mid=(a,b2)=>[(a[0]+b2[0])/2,(a[1]+b2[1])/2];
+  let m=mid(pts[pts.length-1],pts[0]);
+  ctx.moveTo(m[0],m[1]);
+  for (let i=0;i<pts.length;i++){
+    const nxt=mid(pts[i],pts[(i+1)%pts.length]);
+    ctx.quadraticCurveTo(pts[i][0],pts[i][1],nxt[0],nxt[1]);
+  }
+  ctx.closePath();
+}
+function planBlobPath(ctx,loop,X,Y){ ctx.beginPath(); planBlobSubpath(ctx,loop,X,Y); }
+
+/* ---------- bulb zones ----------
+   Bulbs are NATURALISED, not set out.  What a bulb sheet says is "scatter this
+   many through here" — a density over an AREA — where a perennial drift says
+   "this plant, on this ground".  Drawn as drifts they said the wrong thing
+   twice over: a scatter at the spacing bulbs are actually planted at came out
+   as forty separate one-tile shapes, and the per-tile ring of 0.8.81 was a
+   per-tile symbol, which is precisely the claim this convention exists to
+   avoid making.
+
+   So a bulb stand draws as a ZONE: its planting grown by a tile, so a scatter
+   reads as one flowing area; a DASHED boundary, because the boundary is
+   indicative; a stipple at the real planting density; and the count on the
+   label.  The number is the authoritative part and the shape is not, which is
+   exactly what a dashed line means on a drawing.
+
+   The count still comes from the PLANTED tiles (`plantsForTiles`), never from
+   the grown zone, so the label, the schedule and the planting list cannot
+   disagree — the zone is bigger than the planting on purpose. */
+const BULB_ZONE_GROW=1;
+/* The stand gap the ZONES imply, rather than a second number to keep in step
+   with them: two planted tiles at Chebyshev distance d have grown zones that
+   touch exactly when d <= 2*GROW+1, and two zones that touch trace as ONE
+   loop.  Grouped at the perennial gap of 2 instead, a scatter three tiles
+   apart stayed 42 separate stands whose zones abutted — 42 dashed shapes with
+   seams between them, which is the opposite of the one flowing area the zone
+   exists to draw.  At 4 tiles apart they are genuinely two plantings and stay
+   two. */
+const BULB_STAND_GAP=2*BULB_ZONE_GROW+1;
+const BULB_DOT_MAX=10, BULB_DOT_K=1.4;
+function bulbZoneTiles(tiles){
+  const out=new Set();
+  const G=BULB_ZONE_GROW;
+  for (const [x,y] of tiles){
+    for (let dy=-G;dy<=G;dy++) for (let dx=-G;dx<=G;dx++){
+      const nx=x+dx, ny=y+dy;
+      if (!onPlot(nx,ny)) continue;
+      /* A zone may spread through planting and lawn and never across paving,
+         water or a building: you do not naturalise bulbs into a gravel path,
+         and a zone that ran over one would be claiming ground the design has
+         already spent. */
+      const t=tileTerrain(nx,ny);
+      if (t==='path' || t==='water') continue;
+      if (houseAt(nx,ny)) continue;
+      if (buildingAt(nx,ny)) continue;
+      out.add(`${nx},${ny}`);
+    }
+  }
+  for (const [x,y] of tiles) out.add(`${x},${y}`);   // the planting is always in its own zone
+  return out;
+}
+/* Stipple density from real bulbs per zone tile, square-root compressed: the
+   linear figure spans 36:1 across the catalog (crocus at 3in against allium at
+   12in) and would go from unreadably solid to a single dot.  Compressed it
+   still separates a crocus carpet from a thin camassia scatter — measured 6
+   dots a tile against 2 on the same ground — while a sparse scatter of a dense
+   bulb and a tight drift of a sparser one land in the same place, which is the
+   truth about them. */
+function bulbDotsPerTile(bulbs,zoneTiles){
+  const per=Math.max(0,bulbs)/Math.max(1,zoneTiles);
+  return Math.max(1, Math.min(BULB_DOT_MAX, Math.round(Math.sqrt(per)*BULB_DOT_K)));
+}
+function drawBulbZones(ctx,g,stands){
+  const {cell,X,Y}=g;
+  stands.forEach(st=>{
+    const def=plantDef(st.s,st.v), col=planColor(def);
+    const zone=bulbZoneTiles(st.tiles);
+    const loops=traceOutlines(zone);
+    if (!loops.length) return;
+    const dots=bulbDotsPerTile(plantsForTiles(st.n,def.space), zone.size);
+    /* One path, filled EVEN-ODD, because a zone can have a hole: it never
+       spreads across paving, so a path running through a naturalised area
+       comes back from the trace as an inner loop.  Filled loop by loop that
+       hole paints solid and the tint covers the path — undoing the exclusion
+       that put the hole there.
+
+       The tint's job is NOT to mark the zone — the stipple and the dashed edge
+       do that, which is the whole point of the convention. Its job is only to
+       let two bulb species in one bed read apart by hue, and to not read as a
+       HOLE: at 0.80 it measured 27 (RGB distance from paper) against the bed's
+       own 37, so the zone came out paler than the ground it sits on and looked
+       like a patch cut out of the planting. 0.72 lands level with the bed and
+       fights it for nothing. Note the distance is linear in (1-t) and scales
+       with how far the species' own colour is from paper, so a pale bulb will
+       always tint more weakly than a saturated one — which is exactly why the
+       marking cannot rest on the tint. Measured on the marking instead: the
+       darkest ink in a zone tile is 118 against 226 for bare bed and for the
+       perennial ghost, on paper at 243. */
+    ctx.fillStyle=mixHex(col,'#f7f3e8',0.72);
+    ctx.beginPath();
+    loops.forEach(loop=>planBlobSubpath(ctx,loop,X,Y));
+    ctx.fill('evenodd');
+    // stipple, clipped to the zone: the smoothing insets and outsets the
+    // lattice, so an unclipped dot lands outside its own boundary
+    ctx.save();
+    ctx.beginPath();
+    loops.forEach(loop=>planBlobSubpath(ctx,loop,X,Y));
+    ctx.clip('evenodd');
+    ctx.fillStyle=mixHex(col,'#2c241c',0.28);
+    const r=Math.max(0.7, cell*0.055);
+    for (const k of zone){
+      const [x,y]=k.split(',').map(Number);
+      const rnd=mulberry(tileSeed(x,y));       // seeded: a sheet reprints the same
+      for (let i=0;i<dots;i++){
+        ctx.beginPath();
+        ctx.arc(X(x)+rnd()*cell, Y(y)+rnd()*cell, r, 0, 7);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    // dashed, because the boundary is indicative and the count is not
+    ctx.save();
+    ctx.setLineDash([4,3]);
+    ctx.strokeStyle=mixHex(col,'#2c241c',0.35); ctx.lineWidth=1.2;
+    loops.forEach(loop=>{ planBlobPath(ctx,loop,X,Y); ctx.stroke(); });
+    ctx.restore();
+  });
+}
+
 /* ---------- the site base ----------
    Every sheet in a set draws the same site: the same paper, the same north
    arrow, the same ground, the same buildings, the same lot line.  What
@@ -1737,7 +1873,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      On the bulb sheet they still DRAW — you plant bulbs around a tree — but
      unlabelled, like every other piece of context there. */
   const treeComps=onBulbSheet?[]:plantComps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
-  const stands=planStands(subjectComps);
+  const stands=planStands(subjectComps, onBulbSheet?BULB_STAND_GAP:PLAN_STAND_GAP);
   const treesLive=Object.keys(game.plants).filter(k=>{
     const p=game.plants[k];
     return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
@@ -1763,19 +1899,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   drawPlanPaper(ctx,g,sheetName);
   drawPlanGround(ctx,g,site);
   // drifts as smoothed blobs (largest first so small ones read on top)
-  const smoothLoop=(loop)=>{
-    const pts=loop.map(([x,y])=>{ const [jx,jy]=planJitter(x,y);
-      return [X(x+jx*0.6), Y(y+jy*0.6)]; });
-    const mid=(a,b2)=>[(a[0]+b2[0])/2,(a[1]+b2[1])/2];
-    ctx.beginPath();
-    let m=mid(pts[pts.length-1],pts[0]);
-    ctx.moveTo(m[0],m[1]);
-    for (let i=0;i<pts.length;i++){
-      const nxt=mid(pts[i],pts[(i+1)%pts.length]);
-      ctx.quadraticCurveTo(pts[i][0],pts[i][1],nxt[0],nxt[1]);
-    }
-    ctx.closePath();
-  };
+  const smoothLoop=(loop)=>planBlobPath(ctx,loop,X,Y);
   /* The ghost: the perennial planting seen through, so the bulb sheet can say
      WHERE its bulbs sit without asking anyone to read a second planting.
      Fill only — no stroke, no label, no layer weight. */
@@ -1786,9 +1910,11 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
       ctx.fillStyle=mixHex(col,'#f7f3e8',0.88); ctx.fill();
     });
   });
-  /* Layer order first, size second: the matrix paints underneath so the
-     drifts and structure standing in it read on top (§14b, PLAN_LAYER_STYLE). */
-  subjectComps.slice().sort((a,b2)=>{
+  /* The subject. On the planting sheet that is drifts under the layer
+     weights; on the bulb sheet it is zones, because a bulb sheet states a
+     density over an area rather than a plant on a tile (see drawBulbZones). */
+  if (onBulbSheet) drawBulbZones(ctx,g,stands);
+  else subjectComps.slice().sort((a,b2)=>{
     const la=PLAN_LAYER_STYLE[planLayerOf(a.s)].order;
     const lb=PLAN_LAYER_STYLE[planLayerOf(b2.s)].order;
     return la!==lb ? la-lb : b2.tiles.length-a.tiles.length;
@@ -1807,16 +1933,6 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
   treesLive.forEach(k=>{ const p=game.plants[k];
     const [x,y]=k.split(',').map(Number);
     drawTreePlan(ctx,p,x,y,cell,X,Y);
-  });
-  /* A scatter of rings is the standing symbol for bulbs, and it is what the
-     sheet used to draw and nothing else.  Kept, but now INSIDE its own drift:
-     the blob says where the planting is, the rings say what kind of planting
-     it is, and the stand label says which bulb and how many. */
-  if (onBulbSheet) subjectComps.forEach(c=>{
-    const col=planColor(plantDef(c.s,c.v));
-    ctx.strokeStyle=mixHex(col,'#2c241c',0.30); ctx.lineWidth=1.1;
-    c.tiles.forEach(k=>{ const [x,y]=k.split(',').map(Number);
-      ctx.beginPath(); ctx.arc(X(x)+cell/2,Y(y)+cell/2,Math.max(2,cell*0.2),0,7); ctx.stroke(); });
   });
   drawPlanStructures(ctx,g);
   /* One label per STAND, white halo for legibility.  The size range is wider
