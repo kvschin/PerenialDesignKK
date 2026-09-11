@@ -88,6 +88,13 @@ Note the shared stub's ~6.2px/char is *wide* for 10px Plex Sans, so a
 truncation assertion can fire in the sandbox where the browser has room. Assert
 on a prefix, or test the pure formatter directly.
 
+`document.createElement('canvas').getContext('2d')` returns that same shared
+context, which is what lets code measure text without a canvas from the DOM —
+`planMeasurer` (io.js) keeps a private one so the plan's sheet SET is decided
+the same way at every call site. A stub that returned nothing there would send
+the sandbox down a different branch from the browser, which is the class of
+divergence this whole document exists to record.
+
 ## Auditing again
 
 ```bash

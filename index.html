@@ -556,15 +556,18 @@ if ('serviceWorker' in navigator)
 <!-- DESIGN PLAN (Oudolf-style drift map) -->
 <div class="screen modal-screen hidden" id="planScreen" role="dialog" aria-modal="true" aria-label="Design plan">
   <div class="panel" tabindex="-1" style="max-width:min(94vw,1040px);width:100%">
-    <!-- Sheet set. Hidden until a garden has bulbs, so a garden without them
-         is exactly the single sheet it always was. Both canvases are built and
-         stay in the DOM: the toggle is then instant, and print emits the set
-         as two pages rather than whichever one happened to be on screen. -->
+    <!-- Sheet set. Hidden until a garden earns a second sheet - bulbs, or a
+         plant palette long enough that its schedule belongs on its own page -
+         so a small garden is exactly the single sheet it always was. Every
+         canvas is built and stays in the DOM: the toggle is then instant, and
+         print emits the whole set rather than whichever sheet was on screen.
+         Each tab hides itself when the set has no such sheet. -->
     <div class="seg plan-sheets" id="planSheetToggle" role="tablist" aria-label="Plan sheet" hidden>
       <button class="seg-opt" id="btnPlanSheetPlanting" role="tab" aria-selected="true">Planting plan</button>
-      <button class="seg-opt" id="btnPlanSheetBulbs" role="tab" aria-selected="false">Bulb plan</button>
+      <button class="seg-opt" id="btnPlanSheetBulbs" role="tab" aria-selected="false" hidden>Bulb plan</button>
+      <button class="seg-opt" id="btnPlanSheetSchedule" role="tab" aria-selected="false" hidden>Plant schedule</button>
     </div>
-    <div class="plan-wrap"><canvas id="planCanvas"></canvas><canvas id="planBulbCanvas" hidden></canvas></div>
+    <div class="plan-wrap"><canvas id="planCanvas"></canvas><canvas id="planBulbCanvas" hidden></canvas><canvas id="planSchedCanvas" hidden></canvas></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnPlanPng">Download PNG</button>
       <button class="btn" id="btnPlanList">Planting list</button>

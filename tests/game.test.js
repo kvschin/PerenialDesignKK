@@ -3027,7 +3027,7 @@ test('the plan schedule quantity is the planting list quantity', () => {
   const row = exportRows().find(r => r.latin === 'Schizachyrium scoparium');
   assert(row && row.order > 0, 'the planting list has a quantity to agree with');
   assert(labels.includes(String(row.order)),
-    'the sheet draws the same figure the list calls "to order" — both go through plantsForTiles');
+    'the sheet draws the same figure the list calls "to order" — both go through plantingQuantities');
   assert(labels.some(t => /\bo\.c\.$/.test(t)), 'the schedule states spacing on centre');
   assert(labels.some(t => t.indexOf('Schizachyrium scoparium') === 0), 'and the botanical name');
   assert(labels.includes('PLANT SCHEDULE'), 'the block is a schedule, not a bare key');
@@ -3036,20 +3036,115 @@ test('the plan schedule quantity is the planting list quantity', () => {
   assert(labels.some(t => /^×\d+$/.test(t)), 'a stand says how many plants go in it');
 });
 
-/* Renders the whole sheet set, returning the text drawn on each canvas.
-   Both are captured, so a test can assert what the bulb sheet does NOT say. */
-function renderPlanSheets(){
-  const out = { planting: [], bulbs: [] };
-  const mk = key => ({ width: 0, height: 0, style: {}, hidden: false,
-    classList: { toggle(){} },
-    getContext(){ return makeCanvasCtx({ fillText(t){ out[key].push(String(t)); } }); } });
-  const planting = mk('planting'), bulbs = mk('bulbs');
+test('a placed plant is counted, never billed by area', () => {
+  setup(21, 21);
+  [[3, 3], [3, 9], [3, 15]].forEach(([x, y]) => game.plants[`${x},${y}`] = { s: 'redbud', d: 0, t: 1 });
+  [[15, 3], [15, 9], [15, 15]].forEach(([x, y]) => game.plants[`${x},${y}`] = { s: 'sumac', d: 0, t: 1 });
+  /* WHY this is its own rule: a placed plant's spacing is enormous against an
+     18in tile, so area-at-spacing rounds three trees down to one. Every one of
+     the catalog's woody and climbing species did it. */
+  assertEqual(plantsForTiles(3, PLANTS.redbud.space), 1,
+    'three tiles of redbud IS one plant by area — which is why area is the wrong question');
+  const qty = plantingQuantities();
+  assertEqual(qty['redbud|'], 3, 'three redbuds are three redbuds');
+  assertEqual(qty['sumac|'], 3, 'and three sumacs three sumacs');
+  const rows = exportRows();
+  assertEqual(rows.find(r => r.name === 'Eastern Redbud').order, 3, 'the planting list orders three');
+  assertEqual(rows.find(r => r.latin === PLANTS.sumac.latin).order, 3, 'of each');
+  /* A climber counts the same way and by a different route: it is not woody, so
+     it is grouped into stands like a drift and drawn like one — but one record
+     is still one plant, and three roses on a trellis are three roses. */
+  setup(21, 21);
+  for (let x = 4; x < 7; x++){
+    setTile('supports', `${x},10`, { style: 'trellis', mat: 'timber', face: 0, t: 1 });
+    game.plants[`${x},10`] = { s: 'climbingrose', d: 0, t: 1 };
+  }
+  assertEqual(plantsForTiles(3, PLANTS.climbingrose.space), 1, 'by area it would be one plant');
+  assertEqual(plantsForStand(PLANTS.climbingrose, 3), 3, 'a stand of three climbers is three plants');
+  assertEqual(plantingQuantities()['climbingrose|'], 3, 'which is what the schedule orders');
+  assertEqual(exportRows().find(r => r.latin === PLANTS.climbingrose.latin).order, 3,
+    'and the planting list');
+  // and a painted drift is still derived from its ground, which is the whole point
+  setup(21, 21);
+  for (let y = 3; y < 7; y++) for (let x = 3; x < 9; x++)
+    game.plants[`${x},${y}`] = { s: 'liatris', d: 0, t: 1 };
+  assert(plantingQuantities()['liatris|'] > 24,
+    'a 24-tile drift of a 12in plant is more plants than tiles, not one per tile');
+  assertEqual(plantsForStand(PLANTS.liatris, 24), plantsForTiles(24, PLANTS.liatris.space),
+    'painted ground is billed by its area at the species spacing');
+});
+
+test('the quantity quoted is the sum of the numbers on the drawing', () => {
+  setup(31, 31);
+  /* Four separate stands, far enough apart that PLAN_STAND_GAP cannot merge
+     them, of a species whose spacing does not divide a tile. Each stand rounds
+     UP to a whole plant, so rounding the TOTAL once comes out short — which is
+     what the schedule did: twelve stands of moor grass on the demo garden
+     labelled 52 plants and scheduled 48. */
+  const at = [[3, 3], [3, 20], [20, 3], [20, 20]];
+  at.forEach(([x, y]) => { for (let i = 0; i < 3; i++) game.plants[`${x + i},${y}`] = { s: 'moorhexe', d: 0, t: 1 }; });
+  const perStand = plantsForTiles(3, PLANTS.moorhexe.space);
+  const whole = plantsForTiles(12, PLANTS.moorhexe.space);
+  assert(perStand * 4 > whole, 'per-stand rounding really is the larger figure here');
+  const labels = [];
+  const ctx = makeCanvasCtx({ fillText(t){ labels.push(String(t)); } });
   const oldGet = document.getElementById;
-  document.getElementById = id => id === 'planCanvas' ? planting
-    : id === 'planBulbCanvas' ? bulbs
+  document.getElementById = id => id === 'planCanvas'
+    ? { width: 0, height: 0, style: {}, hidden: false, classList: { toggle(){} }, getContext(){ return ctx; } }
     : oldGet.call(document, id);
   try { buildPlanMap(); } finally { document.getElementById = oldGet; }
+  const drawn = labels.filter(t => /^×\d+$/.test(t)).reduce((a, t) => a + +t.slice(1), 0);
+  assertEqual(drawn, perStand * 4, 'the drawing labels every stand at its own rounded count');
+  assertEqual(plantingQuantities()['moorhexe|'], drawn,
+    'and the schedule quotes what the drawing adds up to, not the total rounded once');
+  assertEqual(exportRows().find(r => r.latin === PLANTS.moorhexe.latin).order, drawn,
+    'so does the planting list — someone ordering from either buys the same plants');
+});
+
+test('a hedge blob says how many plants it stands for', () => {
+  setup(21, 21);
+  const key = PLANT_KEYS.find(k => PLANTS[k].look && PLANTS[k].look.hedge);
+  assert(key, 'the catalog has a clipped hedge to run');
+  for (let x = 4; x < 9; x++) game.plants[`${x},10`] = { s: key, d: 0, t: 1 };
+  const comps = shrubPlanComponents();
+  assertEqual(comps.length, 1, 'a hedge run groups into one blob');
+  assertEqual(shrubPlanQty(comps[0]), 5, 'and the blob stands for five plants');
+  assertEqual(plantingQuantities()[key + '|'], 5, 'which is what the schedule orders');
+  const labels = [];
+  const ctx = makeCanvasCtx({ fillText(t){ labels.push(String(t)); } });
+  drawShrubPlan(ctx, comps[0], { [key + '|']: 'BUX' }, 18, x => x * 18, y => y * 18, true, [], null);
+  assert(labels.includes('×5'),
+    'the drawing carries the count — a code alone cannot say whether that shape is one plant or five');
+  // a single specimen is still just a code: ×1 is noise on a drawing
+  setup(21, 21);
+  game.plants['10,10'] = { s: key, d: 0, t: 1 };
+  assertEqual(shrubPlanQty(shrubPlanComponents()[0]), 1, 'one shrub, one plant, whatever its footprint');
+});
+
+/* Renders the whole sheet set, returning the text drawn on each canvas, plus
+   the canvas objects themselves. Every sheet is captured, so a test can assert
+   what the bulb sheet does NOT say and that the three agree about the paper. */
+function renderPlanSheets(){
+  const out = { planting: [], bulbs: [], schedule: [], canvas: {} };
+  const mk = key => (out.canvas[key] = { width: 0, height: 0, style: {}, hidden: false,
+    classList: { toggle(){} },
+    getContext(){ return makeCanvasCtx({ fillText(t){ out[key].push(String(t)); } }); } });
+  const byId = { planCanvas: mk('planting'), planBulbCanvas: mk('bulbs'),
+    planSchedCanvas: mk('schedule') };
+  const oldGet = document.getElementById;
+  document.getElementById = id => byId[id] || oldGet.call(document, id);
+  try { buildPlanMap(); } finally { document.getElementById = oldGet; }
   return out;
+}
+// the set's own geometry, the way buildPlanMap resolves it
+function planSetG(){ return planSharedState(planSheets(), makeCanvasCtx()).g; }
+function plantPalette(side, n){
+  const herbs = ['bluestem', 'dropseed', 'echinacea', 'yarrow', 'sedum', 'phlox', 'allium',
+    'monarda', 'liatris', 'goldenrod', 'amsonia', 'baptisia', 'culvers', 'stachys',
+    'rattlesnake', 'mountainmint', 'newengland', 'moorhexe', 'butterfly', 'penstemon',
+    'coreopsis', 'helenium'];
+  herbs.slice(0, n).forEach((k, i) => { for (let y = 0; y < 3; y++)
+    game.plants[`${3 + i % (side - 6)},${3 + y + 3 * Math.floor(i / (side - 6))}`] = { s: k, d: 0, t: 1 }; });
 }
 
 test('a bulb zone is an area, and it keeps off ground the design has spent', () => {
@@ -3104,7 +3199,7 @@ test('a bulb zone fills even-odd, strokes dashed, and leaves no dash behind', ()
     stroke(){ ops.push('stroke'); },
     setLineDash(d){ ops.push('dash:' + (d || []).join(',')); },
   });
-  drawBulbZones(ctx, planGeometry(0), stands);
+  drawBulbZones(ctx, planSetG(), stands);
   /* Even-odd over one accumulated path, or the hole the path cut paints solid
      and the tint covers the paving the zone was careful to avoid.  ONE such
      fill per stand however many loops it traced — a per-loop fill is exactly
@@ -3288,8 +3383,8 @@ test('the sheet is sized for the page, schedule included', () => {
   const cases = [];
   [[13, 3], [21, 8], [31, 14], [31, 25], [46, 14], [69, 20]].forEach(([side, species]) => {
     setup(side, side);
-    const rowsBelow = species + 1;                 // a row each, plus the header
-    const g = planGeometry(rowsBelow);
+    // a row each plus the header, in the drawing units the budget is kept in
+    const g = planGeometry((species + 1) * PLAN_ROW_H);
     cases.push({ side, species, w: +(g.W2 / PLAN_DPI).toFixed(2), h: +(g.H2 / PLAN_DPI).toFixed(2),
       denom: g.scale.denom, over: planOverPage(g) });
   });
@@ -3314,7 +3409,7 @@ test('the sheet is sized for the page, schedule included', () => {
      before the bottom goes missing, not after. */
   setup(111, 111);
   game.plants['5,5'] = { s: 'bluestem', d: 0, t: 1 };
-  const big = planGeometry(2);
+  const big = planGeometry(2 * PLAN_ROW_H);
   assert(planOverPage(big), 'a 166ft plot does not fit one portrait page');
   const texts = [];
   const ctx = makeCanvasCtx({ fillText(t){ texts.push(String(t)); } });
@@ -3328,6 +3423,141 @@ test('the sheet is sized for the page, schedule included', () => {
   assert(big.cell >= PLAN_CELL_MIN, 'while still keeping a legible tile');
 });
 
+test('the scale is chosen for the PAPER, side margins included', () => {
+  /* It was chosen for the DRAWING, so PLAN_PAD_L either side was spent
+     off-budget: a 27 ft plot claimed to fit a 7.2in page and produced a 7.46in
+     sheet, and a 69 ft one 7.61in. The reader cannot tell a sheet was cut. */
+  assertEqual(planSheetWidth(800), PLAN_PAD_L * 2 + 800,
+    'the paper is the drawing plus both margins');
+  assertEqual(planSheetWidth(10), PLAN_SHEET_MIN_W,
+    'down to the floor the schedule needs');
+  [13, 18, 21, 27, 31, 46].forEach(side => {
+    setup(side, side);
+    for (let i = 0; i < 8; i++) game.plants[`${2 + i},2`] = { s: 'bluestem', d: 0, t: 1 };
+    const g = planSetG();
+    assert(g.W2 / PLAN_DPI <= PLAN_PAGE_W_IN + 0.001,
+      `${side} tiles produces a sheet that fits the page width (${(g.W2 / PLAN_DPI).toFixed(3)}in)`);
+    assert(!planOverPage(g), `${side} tiles fits, so the sheet does not warn`);
+    assert(g.cell >= PLAN_CELL_MIN, `${side} tiles keeps a legible tile`);
+  });
+  /* And the ladder has the rungs to absorb that: with only the quarter and the
+     eighth in the small range, a 27 ft plot missing the quarter by a quarter
+     inch of paper fell all the way to the eighth. */
+  setup(18, 18);
+  for (let i = 0; i < 8; i++) game.plants[`${2 + i},2`] = { s: 'bluestem', d: 0, t: 1 };
+  assertEqual(planSetG().scale.denom, 64, 'it takes the 3/16in scale between them');
+});
+
+test('every sheet in a set is one scale, on one paper', () => {
+  setup(27, 27);
+  const herbs = ['bluestem', 'dropseed', 'echinacea', 'yarrow', 'sedum', 'phlox', 'allium',
+    'monarda', 'liatris', 'goldenrod', 'amsonia', 'baptisia', 'culvers', 'stachys',
+    'rattlesnake', 'mountainmint', 'newengland', 'moorhexe'];
+  herbs.forEach((k, i) => { for (let y = 3; y < 6; y++) game.plants[`${3 + i},${y}`] = { s: k, d: 0, t: 1 }; });
+  for (let x = 3; x < 9; x++) game.bulbs[`${x},20`] = { s: 'crocus', d: 0, t: 1 };
+  for (let x = 12; x < 17; x++) game.bulbs[`${x},20`] = { s: 'camassia', d: 0, t: 1 };
+  const out = renderPlanSheets();
+  assertEqual(planSheets().length, 3, 'planting, bulbs and a schedule page');
+  /* Each sheet used to size itself from its OWN row count, so this garden drew
+     its planting at 1:120 and its bulbs at 1:96 with the origin 49px further
+     left: the garden visibly grew when you switched tabs, and the two prints
+     could not be laid over one another — which is the one thing a bulb OVERLAY
+     exists to be. */
+  const dims = ['planting', 'bulbs', 'schedule'].map(k => out.canvas[k].width + 'x' + out.canvas[k].height);
+  assertEqual(new Set(dims).size, 1, `every sheet is the same paper (${dims.join(' / ')})`);
+  const scale = 'scale ' + planScaleText(planSetG().scale);
+  ['planting', 'bulbs', 'schedule'].forEach(k =>
+    assert(out[k].some(t => t.indexOf(scale) >= 0), `the ${k} sheet states the set's scale`));
+  // and every sheet says which of how many it is
+  ['planting', 'bulbs', 'schedule'].forEach((k, i) =>
+    assert(out[k].some(t => t.indexOf(`Sheet ${i + 1} of 3`) >= 0), `the ${k} sheet is numbered`));
+});
+
+test('the schedule moves to its own page exactly when it is costing the drawing', () => {
+  /* The table sits inside the same page the drawing has to fit, so every row it
+     takes is paid for in drawing scale. It moves off when that costs a rung of
+     the ladder — or, at the bottom of the ladder where there is no rung left to
+     lose, when it costs the page itself — and stays put when moving it would buy
+     nothing, because one sheet beats two for nothing. A fixed species count
+     cannot answer this: the marginal cost of a row depends on the plot. */
+  setup(13, 13); plantPalette(13, 8);
+  assertEqual(planSheets().length, 1, 'a small garden loses nothing by keeping its schedule');
+  setup(46, 46); plantPalette(46, 14);
+  assertEqual(planSheets().length, 1,
+    'and neither does a 69ft plot with 14 species — it is already at the coarse end of the ladder');
+  // where it does pay, it pays in rungs
+  setup(31, 31); plantPalette(31, 14);
+  const tight = planGeometry(planScheduleRowCount() * PLAN_ROW_H);   // if it had stayed
+  assert(planSheets().some(s => s.id === 'schedule'), '14 species on a 46ft plot is costing the drawing');
+  const out = renderPlanSheets();
+  const split = planSetG();
+  assert(split.cell > tight.cell,
+    `the drawing is drawn larger for it (cell ${split.cell} against ${tight.cell})`);
+  assert(!out.planting.includes('PLANT SCHEDULE'), 'the drawing sheet no longer carries the table');
+  assert(out.planting.includes('KEY'), 'it keeps a compact key, so its codes still resolve');
+  assert(out.planting.some(t => /see the plant schedule sheet/.test(t)),
+    'and says where the names and quantities went');
+  assert(out.schedule.includes('PLANT SCHEDULE'), 'the schedule page carries the table');
+  assert(out.schedule.includes('BOTANICAL NAME') && out.schedule.some(t => /\bo\.c\.$/.test(t)),
+    'in full — botanical names, quantities and spacing');
+  assert(out.schedule.some(t => /plot /.test(t)), 'and it keeps the set\'s title block');
+  /* At the coarsest legible scale the table stops costing scale and starts
+     costing the page, and moving it off is then the only thing that makes the
+     sheet fit at all. */
+  setup(46, 46); plantPalette(46, 21);
+  const kept = planGeometry(planScheduleLayout(makeCanvasCtx(), planGeometry(22 * PLAN_ROW_H), planPlantedRefIds()).h);
+  assert(kept.H2 / PLAN_DPI > PLAN_PAGE_H_IN, 'keeping 21 rows here overflows the page');
+  assert(planSheets().some(s => s.id === 'schedule'), 'so the table moves off');
+  assert(!planOverPage(planSetG()), 'and the sheet fits');
+  /* The band is reserved, not squeezed in: the geometry has to know its height
+     or it lands on the key rows under it and runs off the paper. */
+  setup(31, 31); plantPalette(31, 14);
+  const gg = planSetG();
+  const band = planKeyBandLayout(gg, planSheetIds(planSharedState(planSheets(), makeCanvasCtx()),
+    planSheets()[0]));
+  assert(band.h > 0, 'the key band claims a height');
+  const used = gg.padT + GH * gg.cell + PLAN_SCHEDULE_GAP + band.h
+    + planSiteRows(planSite()) * PLAN_ROW_H + PLAN_FOOT;
+  assert(used <= gg.H2 + 0.001,
+    `the sheet reserves the band and the key rows under it (${Math.round(used)} of ${gg.H2})`);
+  /* And the schedule page's heading clears the row the over-page warning uses —
+     they are both in the strip between the title block and the first row. */
+  assert(PLAN_SCHED_TOP - 8 > PLAN_WARN_Y,
+    'the schedule page starts below the warning row, not on it');
+  // a table has no orientation, so the schedule page draws no north arrow
+  assertEqual(out.schedule.filter(t => t === 'N').length, 0, 'no compass on a table');
+  assertEqual(out.planting.filter(t => t === 'N').length, 1, 'the drawing keeps its north arrow');
+});
+
+test('a long botanical name wraps rather than losing its cultivar', () => {
+  const ctx = makeCanvasCtx({});
+  const full = planBotanicalName('sedum', null);
+  assert(/'/.test(full) && full.length > 30, `the catalog has a name long enough to test (${full})`);
+  const lines = planWrapText(ctx, full, 205);
+  assert(lines.length > 1, 'it takes more than one line at a schedule column width');
+  assertEqual(lines.join(' '), full, 'and every word of it survives');
+  assert(!lines.some(t => /…/.test(t)), 'nothing is elided');
+  /* Which is the whole point: the ellipsis landed exactly where the cultivar
+     epithet lives, so the one thing a reader needs in order to buy the right
+     plant was the one thing it ate. */
+  assert(/…$/.test(planFitText(ctx, full, 205)), 'where truncating it would have');
+  const cap = planWrapText(ctx, full, 40, 2);
+  assertEqual(cap.length, 2, 'a cap bounds it, so a pathological name cannot push the drawing off the page');
+  assert(/…$/.test(cap[1]), 'and the last line truncates instead of running on');
+  assertEqual(planWrapText(ctx, 'Hylotelephiumtelephium', 40).length, 1,
+    'a single word has nowhere to break, so it is the one case still cut');
+  // and it reaches the sheet: the row grows, it does not overlap the row below
+  setup(21, 21);
+  for (let y = 3; y < 7; y++) game.plants[`4,${y}`] = { s: 'sedum', d: 0, t: 1 };
+  for (let y = 3; y < 7; y++) game.plants[`8,${y}`] = { s: 'bluestem', d: 0, t: 1 };
+  const g = planSetG();
+  const lay = planScheduleLayout(makeCanvasCtx({}), g, planSharedState(planSheets(), makeCanvasCtx()).ids);
+  const tall = lay.rows.find(r => r.id === 'sedum|');
+  assertEqual(tall.h, PLAN_ROW_H + PLAN_ROW_LINE, 'a two-line name reserves two lines of row');
+  assertEqual(lay.h, PLAN_ROW_H + lay.rows.reduce((a, r) => a + r.h, 0),
+    'and the table height is the sum of its rows plus the header');
+});
+
 test('the scale bar sits with the drawing it measures', () => {
   setup(31, 31);
   for (let y = 4; y < 9; y++) for (let x = 4; x < 10; x++)
@@ -3339,7 +3569,7 @@ test('the scale bar sits with the drawing it measures', () => {
   const oldGet = document.getElementById;
   document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
   try { buildPlanMap(); } finally { document.getElementById = oldGet; }
-  const g = planGeometry(2);
+  const g = planSetG();            // the geometry the sheet was actually drawn to
   const bottom = g.padT + GH * g.cell;
   const bar = texts.find(r => /^(10 ft|3 m)$/.test(r.t));
   const heading = texts.find(r => r.t === 'PLANT SCHEDULE');
@@ -3363,7 +3593,7 @@ test('the scale reaches the title block and the print at real size', () => {
   const oldGet = document.getElementById;
   document.getElementById = id => id === 'planCanvas' ? pc : oldGet.call(document, id);
   try { buildPlanMap(); } finally { document.getElementById = oldGet; }
-  const g = planGeometry(0);
+  const g = planSetG();
   assert(texts.some(t => t.includes('scale ' + planScaleText(g.scale))),
     'the title block states the scale it was drawn at');
   assert(texts.some(t => /at full size/.test(t)),
@@ -3448,14 +3678,61 @@ test('the site base is sheet-independent, and drawn in the order a sheet needs',
   /* The whole point of the split: the base knows nothing about WHICH sheet it
      is drawing. A base function that reached for `sheet` or `shared` would
      make a third sheet surgery again rather than a small change. */
-  [drawPlanPaper, drawPlanGround, drawPlanStructures, drawPlanKeyRows, drawPlanScaleBar].forEach(f => {
+  [drawPlanPaper, drawPlanNorth, drawPlanGround, drawPlanStructures, drawPlanKeyRows,
+   drawPlanScaleBar].forEach(f => {
     const s = f.toString();
     assert(!/\bshared\b/.test(s), `${f.name} draws the site, so it must not read the sheet set`);
     assert(!/\bsheetIndex\b|\bonBulbSheet\b/.test(s), `${f.name} must not branch on which sheet it is`);
     assert(!/planGeometry\(/.test(s), `${f.name} takes the geometry, it does not recompute it`);
   });
-  assertEqual((src.match(/planGeometry\(/g) || []).length, 1,
-    'one geometry per sheet — sheets that did not line up would be unreadable');
+  /* And the sheet does not compute a geometry AT ALL: the set computes one and
+     every sheet reads it, which is what makes two sheets of one set the same
+     scale, the same paper and the same origin. Per-sheet geometry drew this
+     garden's planting at 1:120 and its bulbs at 1:96, 49px apart. */
+  assertEqual((src.match(/planGeometry\(/g) || []).length, 0,
+    'the sheet takes the set geometry rather than computing its own');
+  assert(/shared\.g\b/.test(src), 'and it takes it from the set');
+});
+
+test('printing a sheet set carries no scrim and no blank page', () => {
+  const css = readRepoFile('styles.css');
+  // comments stripped: the assertions below are about RULES, and this block
+  // explains its own history in prose that names the selectors it replaced
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const print = (rules.match(/@media print\{[\s\S]*?\n\}/) || [''])[0];
+  assert(print, 'there is a print block to read');
+  /* Both documents are .modal-screen, whose whole job on screen is to darken
+     the garden behind the dialog. Printed with background graphics on, that
+     scrim came out as a dark surround around the page — so the SURFACE has to
+     be cleared, not only the panel inside it. */
+  assert(/#planScreen\{background:var\(--surface-scrim\)\}|modal-screen\{background:var\(--surface-scrim\)\}/.test(rules),
+    'the scrim really is on the screen surface');
+  assert(/#exportScreen,#planScreen\{background:none!important/.test(print),
+    'and print clears it on both documents');
+  /* The page break goes BEFORE every sheet but the first. `break-after` on all
+     of them plus a `:last-of-type` exception looks equivalent and is not:
+     of-type counts every <canvas> in the wrap, sheet or not, so a garden with
+     no bulbs let the exception land on a hidden canvas and printed a blank
+     page after its only sheet. */
+  assert(/canvas\.has-sheet ~ canvas\.has-sheet\{[^}]*break-before:page/.test(print),
+    'the break asks whether a printed sheet comes BEFORE this one');
+  assert(!/break-after:page/.test(print), 'and nothing breaks after a sheet');
+  assert(!/:last-of-type/.test(print), 'so no of-type exception can land on a hidden canvas');
+  // every sheet the set can hold has a canvas in the markup, or it cannot print
+  const html = readRepoFile('index.html');
+  ['planCanvas', 'planBulbCanvas', 'planSchedCanvas'].forEach(id =>
+    assert(html.indexOf('id="' + id + '"') >= 0, id + ' exists to be printed'));
+  ['btnPlanSheetPlanting', 'btnPlanSheetBulbs', 'btnPlanSheetSchedule'].forEach(id =>
+    assert(html.indexOf('id="' + id + '"') >= 0, id + ' exists to be chosen'));
+  const wiring = readRepoFile('js/screens.js');
+  ['planting', 'bulbs', 'schedule'].forEach(id =>
+    assert(wiring.indexOf(`setPlanSheet('${id}')`) >= 0, `the ${id} tab is wired`));
+  /* A tab hides itself when the set has no such sheet, and `.seg .seg-opt`
+     sets `display:flex` — which out-specifies the UA rule for the `hidden`
+     attribute. Third time this trap has been hit here (`.seg` and
+     `#planCanvas` were the first two), so it is pinned. */
+  assert(/\.seg \.seg-opt\[hidden\]\{display:none\}/.test(rules),
+    'a seg option can hide itself');
 });
 
 test('a garden without bulbs draws exactly the one sheet it always did', () => {
@@ -3550,7 +3827,7 @@ test('tree plan canopy radius follows the effective display lens', () => {
   const def = plantDef(tree);
   const cx = 30, cy = 30;
   game.plants[`${cx},${cy}`] = { s: tree, d: absDay(), t: 1 };
-  const cell = planGeometry(0).cell;   // the sheet draws to a scale now, not to a fit
+  const cell = planSetG().cell;        // the sheet draws to a scale now, not to a fit
   const oldGet = document.getElementById;
   const planDraw = mode => {
     const arcs = [], labels = [];

@@ -80,6 +80,15 @@ function plantsForTiles(n,spaceIn){
   const cells=Math.max(0,+n||0), spacing=Math.max(1,+spaceIn||TILE_IN);
   return Math.ceil(cells*TILE_IN*TILE_IN/(spacing*spacing));
 }
+/* How many plants ONE stand takes — the number the plan's own label carries,
+   and therefore the unit every quantity on every document is summed from
+   (see `plantingQuantities`).  A placed plant is counted, not derived; painted
+   ground is derived from its area.  The rounding has to happen HERE, per
+   stand, because you plant a stand at a time and cannot buy four tenths of a
+   plant twelve times over. */
+function plantsForStand(def,tiles){
+  return isIndividualDef(def) ? Math.max(0,+tiles||0) : plantsForTiles(tiles,def&&def.space);
+}
 /* Is this tile plain LAWN — the one thing a bed or path edge is free to wander
    into? Everything else is a line the design has to run up to exactly: the
    deeded plot boundary, and a wall you cannot paint terrain through.

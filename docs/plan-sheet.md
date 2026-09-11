@@ -101,15 +101,17 @@ The label sits on the stand tile **closest to the centroid**, not on the
 centroid itself: a scattered or L-shaped stand has a centroid outside its own
 planting, and a label floating on bare ground reads as a different drift.
 
-Line two is `×N`, the plant count from `plantsForTiles(standTiles, space)` —
+Line two is `×N`, the plant count from `plantsForStand(def, standTiles)` —
 the number an installer reads. It is dropped when it would say `×1`, where the
 code alone is the whole story.
 
-> **Known rounding property.** Per-stand quantities `ceil` independently, so
-> they can sum slightly above the schedule's own figure, which rounds once over
-> the whole garden. That is normal on a real plan — you round up per drift when
-> ordering — and both numbers come from the same `plantsForTiles`, so neither
-> is inventing arithmetic. The schedule agrees with the planting list exactly.
+> **This note used to call that a known rounding property** — per-stand
+> quantities `ceil` independently, so they sum above a schedule that rounds
+> once over the whole garden, and both came from the same function so neither
+> was inventing arithmetic. That was wrong, and reported as wrong: a sheet
+> whose labels add up to 52 while its schedule says 48 contradicts itself
+> whichever figure you defend. Rounding belongs per stand, because that is how
+> you plant, and the schedule is the SUM of those. Fixed in 0.8.87 (above).
 
 **`PLAN_STAND_GAP=2` is measured, not chosen.** Sweeping it over the review
 garden's 86 components:
@@ -180,10 +182,10 @@ which is the convention both traditions agree on.
   Blues'`) via `planBotanicalName`, which leaves a nested exact-species choice
   (`fullName`, or a cultivar carrying its own `latin`) alone.
 - Common name drops the cultivar, since the botanical column carries it.
-- Quantity is `plantsForTiles(plantedRecords, space)` — the same figure the
-  planting list calls "to order", counted from **planted records** rather than
-  plan tiles. That distinction matters: `shrubPlanComponents` tiles are the
-  mature *footprint*, so counting them would bill one viburnum as nine.
+- Quantity is `plantingQuantities()` — the same figure the planting list calls
+  "to order", and the **sum of the numbers the drawing already carries**
+  (0.8.87). Never plan tiles: `shrubPlanComponents` tiles are the mature
+  *footprint*, so counting them would bill one viburnum as nine.
 - Spacing goes through `plantMeasure`, the shared formatter, so it follows the
   units preference like everything else (§18) — never a unit string built here.
 - Truncation is by `ctx.measureText` (`planFitText`) rather than a character
@@ -276,6 +278,162 @@ Two CSS traps, both hit: `.seg` is `display:inline-flex` and `#planCanvas` was
 the toggle showed on bulb-less gardens and the two canvases stacked. Explicit
 `[hidden]{display:none}` rules for each.
 
+### Quantities an installer can buy from (0.8.87)
+
+Reported from a review of the sheet: a test garden of three redbuds and three
+sumacs scheduled **one of each**, and the demo garden's moor-grass labels added
+up to 52 plants against a schedule that said 48.
+
+Two separate defects, and the first is the serious one.
+
+**A placed plant was billed by AREA.** `plantsForTiles(tiles, space)` is
+`ceil(tiles × 18² / space²)` — right for painted ground, and catastrophic for
+anything placed one at a time, because a woody plant's spacing is enormous
+against an 18in tile. A redbud at 20 ft on three trunk tiles is
+`ceil(3 × 324 / 57600)` = **one plant for three trees**. Measured across the
+catalog: **all 209** woody and climbing species underbilled, and **204 of them**
+turned three placed plants into one. Somebody ordering from the drawing bought a
+third of the trees on it.
+
+`isIndividualDef` (core.js) is the distinction, and it is a fact about the
+plant rather than about the drawing: a tree, a shrub and a climber each stand
+where they are put, so the quantity is the **count**; a herbaceous drift or a
+bulb scatter is painted **ground**, and its quantity comes from the area at the
+species' spacing. `plantsForStand(def, tiles)` is the one unit both go through.
+
+**And the rounding was done in the wrong place.** Each stand's label rounds up
+to a whole plant — you cannot buy four tenths of a plant twelve times over —
+while the schedule rounded the garden's total once. On the demo garden's twelve
+moor-grass stands that is 52 against 48. `plantingQuantities()` is now the
+single definition, and it is explicitly **the sum of the numbers the drawing
+already carries**: an installer adds up the labels, so the schedule and the
+planting list have to come to the same figure or the set contradicts itself.
+Measured on the demo garden after: 21 species, **0** disagreements between the
+label sum, the schedule and the planting list.
+
+**A hedge blob says `×N` too.** `shrubPlanComponents` already groups a clipped
+hedge run into one shape; it carried a code and no count, so a schedule saying
+5 and a drawing showing one shape left the reader unable to tell whether that
+was five plants or one. One blob, `×5`, five in the schedule.
+
+### One scale for the whole set (0.8.87)
+
+Reported: with bulbs in the demo garden, the planting sheet drew at 1:120 and
+the bulb sheet at 1:96 — the garden visibly grew when you switched tabs.
+
+Each sheet computed its own geometry from its own row count, and the bulb
+sheet's schedule is two species where the planting sheet's is twenty-one. So
+they differed in scale, in paper height, and in origin (**49px** apart
+horizontally), which means the two prints could not be laid over one another —
+and that is the one thing a bulb **overlay** exists to be.
+
+`planSetGeometry` resolves ONE geometry for the set, sized for the longest
+schedule in it, and `planSharedState` hands it to every sheet. Measured after:
+all three sheets 1320 × 1718 device pixels, cell 18, origin 87.
+
+> The schedule's height feeds the scale (a longer table leaves less page for the
+> drawing) and the scale feeds the schedule's width (the paper is as wide as the
+> drawing), so the two are mutually dependent. It iterates to a fixed point
+> rather than guessing: growth is monotone and the ladder is short, so it
+> settles in a pass or two, and the cap only exists so a pathological palette
+> cannot spin.
+
+### The fit test measures the paper, not the drawing (0.8.87)
+
+Reported: a 27 ft plot produces a 7.46in sheet against a 7.2in budget.
+
+`planScale` tested the DRAWING's width and `planGeometry` then added
+`PLAN_PAD_L` either side, so the margins were spent off-budget. A 27 ft plot
+came to 7.46in and a 69 ft one to 7.61in — both over a page they claimed to fit.
+`planSheetWidth(drawW)` is now the one place the finished paper's width is
+computed, and both functions go through it.
+
+**That budget change would have cost two whole rungs, so the ladder gained the
+rungs it was missing.** With only the quarter-inch and the eighth-inch scales in
+the small range, a 27 ft plot missing the quarter by a quarter inch of paper
+fell all the way to the eighth and lost three quarters of its drawn area.
+3/16" = 1 ft (1:64) and 3/32" = 1 ft (1:128) are standard architectural scales,
+so nothing is invented to soften a constraint — the rungs were simply absent.
+
+Measured across plot sizes, with an eight-species schedule (before / after):
+
+| plot | before | after |
+| --- | --- | --- |
+| 19.5 ft | 1:48, sheet 6.88in | 1:48, sheet 6.88in |
+| 27 ft | 1:48, sheet **7.46in — over** | **1:64**, sheet 6.88in |
+| 31.5 ft | 1:96, cell 18 | **1:64, cell 27** |
+| 40.5 ft | 1:96, cell 18 | 1:96, cell 18 |
+| 69 ft | 1:120, sheet **7.61in — over** | 1:192 then **1:96 with the schedule split** |
+
+### The schedule moves to its own page when it is costing the drawing (0.8.87)
+
+The previous release's note ended by naming this as the way to get the finer
+scale back. It is in, and it turned out to be load-bearing rather than an
+improvement: wrapping the botanical names (below) made the table taller, and
+without the split the demo garden would have dropped from 1:120 to **1:192**.
+
+The decision is a **measurement, not a threshold**. The table sits inside the
+same page the drawing has to fit, so every row it takes is paid for in drawing
+scale: it moves off exactly when keeping it would cost a rung of the ladder —
+or, at the bottom of the ladder where there is no rung left to lose, when it
+would cost the page itself — and it stays put when moving it would buy nothing,
+because one sheet beats two for nothing. A fixed species count cannot answer
+this, because the marginal cost of a row depends on the plot: the demo garden's
+21 species cost it two rungs, while 14 species on a 69 ft plot cost nothing at
+all, that plot already being at the coarse end.
+
+The drawing sheet keeps a **compact key** — swatch, code and common name, in two
+columns — and says where the rest went. Common rather than botanical because
+this is the sheet somebody carries into the garden, and because a half-width
+column cannot hold *Molinia caerulea* subsp. *caerulea* 'Moorhexe' without
+wrapping every row of the band the split exists to shorten.
+
+Measured on the demo garden: **1:120 → 1:96**, cell 14.4 → **18**, sheet
+9.34in → 8.95in, and the full schedule readable on a page of its own. The
+schedule page takes the same paper as the rest of the set (a set is one size)
+and draws no north arrow, because a table has no orientation.
+
+### Names wrap instead of losing their cultivar (0.8.87)
+
+Reported: the demo garden truncates the stonecrop to `'Herbs…`.
+
+`planFitText` measured the name back to an ellipsis, and the ellipsis landed
+exactly where the cultivar epithet lives — so the one thing a reader needs in
+order to buy the right plant was the one thing it ate. Three of the demo
+garden's 21 rows were cut, including *Molinia caerulea* subsp. *caerulea*
+'Moorhexe' and *Hylotelephium* (Herbstfreude Group) 'Herbstfreude'.
+
+A schedule is an ordering document and can be two lines tall. `planWrapText`
+word-wraps by measurement and the row grows with it; `PLAN_WRAP_LINES` caps it
+so a pathological name cannot push the drawing off the page, and a single word
+wider than its own column is the one case still cut, because it has nowhere to
+break. Rows are variable height now, so `planChromeIn` and `planGeometry` take
+the table's real height in drawing units rather than a row count.
+
+### Print cleanup (0.8.87)
+
+Two things a real print showed that a screen never does.
+
+**The dialog's scrim was printing.** Both documents are `.modal-screen`, whose
+whole job on screen is to darken the garden behind the panel — and with
+background graphics enabled that came out as a dark surround around the page.
+The print block cleared the panel and not the surface under it.
+
+**And a bulb-less garden printed a trailing blank page.** The break was
+`break-after:page` on every sheet with a `:last-of-type` exception, which looks
+equivalent to breaking before each sheet but is not: `:last-of-type` counts
+every `<canvas>` in the wrap, sheet or not, so with the bulb canvas hidden the
+exception landed on a canvas that was not printing and the only real sheet kept
+its page break. It is `canvas.has-sheet ~ canvas.has-sheet { break-before }`
+now — the general sibling combinator asks the right question, which is whether
+a printed sheet comes *before* this one.
+
+> **A third instance of the same CSS trap.** `.seg .seg-opt` sets
+> `display:flex`, which out-specifies the UA rule for the `hidden` attribute, so
+> the sheet tabs could not hide themselves and a garden with no bulbs showed a
+> Bulb plan tab. `.seg` and `#planCanvas` were the first two; the rule is
+> pinned by a test now.
+
 ### The sheet fits the page it is sized for (0.8.86)
 
 Reported from a real print: the last two schedule rows and the scale bar came
@@ -314,11 +472,10 @@ grows, which `PLAN_CELL_MIN` enforces — so a sheet over the page prints its
 real size and tells the reader to use a bigger sheet or scale to fit and read
 the bar. Silently overflowing is the one outcome worth ruling out.
 
-> **The way to get the finer scale back** is the next open item: put the plant
-> schedule on its own sheet in the set. That returns the whole page to the
-> drawing and would restore 1:96 here, or 1:48 on a small garden. The
-> machinery exists — `planSheets()` already builds a set — the question is
-> whether a single-page reader minds losing the key from the drawing.
+> **The way to get the finer scale back** was the next open item and is now in
+> (0.8.87, above): the plant schedule goes on its own sheet when keeping it
+> would cost the drawing a rung of the ladder, and the drawing keeps a compact
+> key. On the review garden that is 1:96 rather than 1:120.
 
 ### Plan colour: a tint, not a mix (0.8.85)
 
@@ -485,7 +642,7 @@ A bulb stand now draws as a **zone**:
 
 **The number is the authoritative part and the shape is not** — which is what a
 dashed line means on a drawing. The count still comes from the *planted* tiles
-via `plantsForTiles`, never from the grown zone, so the label, the schedule and
+via `plantsForStand`, never from the grown zone, so the label, the schedule and
 the planting list cannot disagree; the zone is bigger than the planting on
 purpose.
 
@@ -623,14 +780,21 @@ bulbs reach the schedule; and the spacing column follows the units preference
 
 Ranked, most valuable first.
 
-1. **One sheet still does four jobs.** A real set is layout/hardscape →
-   planting → bulbs → schedule. Ours puts terrain, elevation, walls, buildings,
-   lights, boulders, trees, shrubs, perennials and bulbs on one page. Item 1
-   gets the hardscape separation for free.
+1. **A layout/hardscape sheet.** The set is now planting → bulbs → schedule
+   (0.8.87), and the remaining conflation is the site: terrain, elevation,
+   walls, buildings, lights and boulders share the planting sheet, where a real
+   set draws them once on a base sheet the planting sheets trace over. The
+   machinery is in place — `planSheets()` builds the set, `planSetGeometry`
+   gives every sheet the same paper, and the site base is already five named
+   functions (0.8.82) — so this is now a question of what to put on which
+   sheet rather than of how.
 
-2. **Hedge stands.** `shrubPlanComponents` already groups a hedge run, but
-   `drawShrubPlan` labels it with a code and no count. A hedge is the one woody
-   case where `×N` is what a buyer needs.
+2. **`PLAN_PAGE_H_IN` is one guess for every printer.** 9.4in is Letter and A4
+   portrait less default margins AND less the header and footer a browser
+   prints unless told not to. With those turned off there is about 0.8in going
+   spare, which is often a whole rung of the scale ladder. The honest fix is to
+   let the gardener say what their page is; the cheap one is a line on the
+   sheet telling them to turn headers off.
 
 3. **A scheme question worth deciding before the bulb sheet.** Bulbs are inside
    `SCHEME_LAYERS`, so switching planting schemes switches the bulb plan too.

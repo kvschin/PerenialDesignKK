@@ -664,6 +664,7 @@ function htmlEscape(v){
 }
 function exportRows(){
   const counts={}; // keyed species|cultivar — cultivars order separately
+  const order=plantingQuantities();   // the plan's own numbers, summed per stand
   [game.plants,game.bulbs].forEach(layer=>{
     for (const k in layer){ const p=layer[k];
       if (!p.removed && p.s){ const ck=p.s+'|'+(p.v||'');
@@ -678,9 +679,9 @@ function exportRows(){
       cautionAreas:plantGuidance({s,v:v||null}).invasive.map(n=>n.area).join(', '),
       areaFt:Math.round(n*(TILE_IN/12)*(TILE_IN/12)*10)/10,
       space:P.space,
-      // one definition of "how many plants does this much ground take", shared
-      // with the plan's per-stand annotation and its schedule
-      order:plantsForTiles(n,P.space)};
+      // one definition of "how many plants does this planting take", shared
+      // with the plan's per-stand labels and its schedule
+      order:order[ck]||0};
   }).sort((a,b)=>b.count-a.count);
 }
 /* Containers and seating are real things to buy, and a pot is a different line
@@ -999,6 +1000,33 @@ function planStands(comps,gap){
     return {s:st.s, v:st.v, n, at:best, tiles:st.tiles};
   }).sort((a,b)=>b.n-a.n);
 }
+/* How many plants to order, keyed species|cultivar — and it is the SUM OF THE
+   NUMBERS THE DRAWING ALREADY CARRIES, which is the whole point.  Three
+   documents quote this (the stand labels, the plan's schedule, the planting
+   list), an installer adds the labels up, and it has to come to the same
+   number or the set contradicts itself.  It did, twice over:
+
+   - Every placed plant was billed by AREA at its spacing, so three redbuds
+     came out as one redbud (see isIndividualDef). Someone following the
+     drawing buys a third of the trees on it.
+   - Each stand rounds UP to a whole plant and the schedule rounded the total
+     ONCE, so twelve stands of moor grass labelled 52 plants and scheduled 48.
+     Rounding has to happen per stand, because that is how you plant.
+
+   O(tiles) with a union-find inside planStands, run when a document is opened
+   and never in a frame. */
+function plantingQuantities(){
+  const qty={}, bump=(s,v,n)=>{ const id=s+'|'+(v||''); qty[id]=(qty[id]||0)+n; };
+  // specimens: counted, because the record IS the plant
+  for (const k in game.plants){ const p=game.plants[k];
+    if (p && !p.removed && p.s && !isPlanStandDef(plantDef(p.s,p.v))) bump(p.s,p.v,1); }
+  // everything grouped into stands, at the density its own label states
+  [[game.plants,PLAN_STAND_GAP],[game.bulbs,BULB_STAND_GAP]].forEach(([layer,gap])=>{
+    const comps=planComponents(layer).filter(c=>isPlanStandDef(plantDef(c.s,c.v)));
+    planStands(comps,gap).forEach(st=>bump(st.s,st.v,plantsForStand(plantDef(st.s,st.v),st.n)));
+  });
+  return qty;
+}
 /* The three drawing weights the sheet reads as a hierarchy.  Oudolf plans are
    legible because the groundcover matrix recedes and the structure advances —
    the fruitcake, where the matrix is the cake — and ours gave a 53-tile grass
@@ -1253,6 +1281,13 @@ function roundedRectPath(ctx,x,y,w,h,r){
 function isShrubPlanDef(def){
   return isShrubDef(def);
 }
+/* Which components a sheet labels as STANDS.  A tree keeps a code per trunk
+   and a shrub a blob per planting — both are specimens, marked and counted one
+   at a time — so everything else, climbers included, is what gets grouped into
+   stands.  ONE predicate, because the drawing and `plantingQuantities` have to
+   partition the planting the same way or the sheet bills a plant twice or not
+   at all. */
+function isPlanStandDef(def){ return !isShrubPlanDef(def) && !isTreeDef(def); }
 function shrubPlanComponents(){
   const live={};
   for (const k in game.plants){ const p=game.plants[k];
@@ -1394,11 +1429,20 @@ function drawPlanLeader(ctx,from,to,ink){
 /* A shrub code goes down in the DRAWING pass, before any stand label is
    placed, so it cannot move out of the way — it records its box instead and
    the placer treats it as ground already taken. */
-function drawShrubPlanCode(ctx,code,lx,ly,fs,boxes){
-  if (boxes){ const m=planLabelBox(ctx,code,0,fs);
+/* How many shrubs a plan blob stands for.  A clipped hedge groups its whole
+   run into one component, one tile per plant, so the run's length IS the
+   count; every other shrub is its own component and its tiles are the mature
+   footprint (nine of them for one viburnum), which is why that branch cannot
+   count tiles. */
+function shrubPlanQty(c){ return c.hedge ? c.tiles.length : 1; }
+/* A hedge blob carries its count the way a drift does.  Without it the
+   schedule said 5 and the drawing showed one shape with a code on it, and a
+   reader had no way to tell whether that was five plants or one. */
+function drawShrubPlanCode(ctx,code,qty,lx,ly,fs,boxes){
+  if (boxes){ const m=planLabelBox(ctx,code,qty,fs);
     boxes.push({x0:lx-m.w/2-PLAN_LABEL_PAD, x1:lx+m.w/2+PLAN_LABEL_PAD,
                 y0:ly-m.top-PLAN_LABEL_PAD, y1:ly+m.bot+PLAN_LABEL_PAD}); }
-  drawPlanCode(ctx,code,lx,ly,fs);
+  drawStandLabel(ctx,code,qty,lx,ly,fs);
 }
 function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes,tints){
   const def=plantDef(c.s,c.v), t=planTintOf(tints,c.s,c.v);
@@ -1418,7 +1462,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes,tints){
     ctx.fill(); ctx.stroke();
     ctx.save(); ctx.globalAlpha=0.25; ctx.fillStyle='#f7f3e8';
     ctx.beginPath(); ctx.ellipse(cx2-rx*0.22,cy2-ry*0.28,rx*0.38,ry*0.20,-0.08,0,7); ctx.fill(); ctx.restore();
-    if (label!==false) drawShrubPlanCode(ctx,code,cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)),boxes);
+    if (label!==false) drawShrubPlanCode(ctx,code,shrubPlanQty(c),cx2,cy2+3,Math.max(8,Math.min(13,Math.min(rx,ry)*0.42)),boxes);
     ctx.restore();
     return;
   }
@@ -1441,7 +1485,7 @@ function drawShrubPlan(ctx,c,codes,cell,X,Y,label,boxes,tints){
   ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle='#f7f3e8';
   roundedRectPath(ctx,rx+rw*0.08,ry+rh*0.10,rw*0.58,rh*0.26,Math.min(rad,rh*0.13));
   ctx.fill(); ctx.restore();
-  if (label!==false) drawShrubPlanCode(ctx,code,rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)),boxes);
+  if (label!==false) drawShrubPlanCode(ctx,code,shrubPlanQty(c),rx+rw/2,ry+rh/2+3,Math.max(8,Math.min(13,5+Math.sqrt(c.tiles.length)*2)),boxes);
   ctx.restore();
 }
 function drawTreePlan(ctx,p,x,y,cell,X,Y,tints){
@@ -1519,14 +1563,80 @@ function planCodes(ids){
    plan, which repeats the whole site base and drops the perennials to an
    unlabelled ghost.  A garden WITHOUT bulbs is one sheet and is byte-for-byte
    what it was.  See docs/plan-sheet.md. */
+// every species|cultivar with something planted, in no particular order
+function planPlantedRefIds(){
+  const ids=new Set();
+  [game.plants,game.bulbs].forEach(l=>{ for (const k in l){ const p=l[k];
+    if (p && !p.removed && p.s) ids.add(p.s+'|'+(p.v||'')); } });
+  return [...ids];
+}
+// rows a full schedule takes: one per species|cultivar, plus its header
+function planScheduleRowCount(){
+  const n=planPlantedRefIds().length;
+  return n ? n+1 : 0;
+}
+/* A private 1x1 canvas, used only to MEASURE.  The sheet set depends on where
+   the schedule's names wrap, and planSheets is called from places that have no
+   sheet canvas in hand - the toggle, syncPlanSheets, the download.  Its own
+   measurer keeps the answer identical at every call site, and that stability
+   matters more than anything else here: a sheet set that came out differently
+   depending on who asked would have the toggle and the drawing disagree about
+   which sheets exist. */
+let planMeasureCanvas=null;
+function planMeasurer(){
+  if (planMeasureCanvas) return planMeasureCanvas;
+  try { planMeasureCanvas=document.createElement('canvas').getContext('2d'); } catch(e){}
+  return planMeasureCanvas;
+}
+/* A second sheet is a real cost to whoever carries it, so a schedule short
+   enough to read at a glance stays where it is even when moving it would buy a
+   rung. Seven species is about where a key stops being a caption. */
+const PLAN_SCHEDULE_PAGE_MIN=8;
+/* Does the schedule go on its OWN page, with the drawing keeping a compact key?
+   It is a MEASUREMENT, not a threshold: the table sits inside the same page the
+   drawing has to fit, so it moves off exactly when keeping it would cost the
+   drawing a rung of the scale ladder - and stays put when moving it would buy
+   nothing, because one sheet beats two for nothing.  A fixed species count
+   cannot answer this, because the marginal cost of a row depends on the plot:
+   the demo garden's 21 species cost it two rungs (1:192 against 1:96, a
+   quarter of the drawn area), while the same 21 species on a quarter acre cost
+   nothing at all, since a plot that size is already at the coarse end.
+   Counted in UNWRAPPED rows so planSheets stays pure and cheap - the toggle,
+   the download and syncPlanSheets all call it and none of them has a canvas to
+   measure wrapped names with. The geometry then uses the real measured height
+   either way. */
+function planScheduleSplits(){
+  const ids=planPlantedRefIds(), rows=ids.length?ids.length+1:0;
+  if (rows<PLAN_SCHEDULE_PAGE_MIN) return false;
+  const fixed=planSiteRows(planSite())*PLAN_ROW_H;
+  const ctx=planMeasurer();
+  /* The table as it would really be SET, wrapped names included - the row
+     count alone underestimates it and so is biased against splitting, which is
+     the direction that leaves a sheet overflowing.  One refinement pass off the
+     row estimate is enough: the column widths barely move between two rungs,
+     and the decision has to be consistent rather than optimal. */
+  let full=planGeometry(rows*PLAN_ROW_H+fixed);
+  full=planGeometry(planScheduleLayout(ctx,full,ids).h+fixed);
+  const keyRows=Math.ceil((rows-1)/PLAN_KEY_COLS)+2;   // heading, rows, the pointer line
+  const key=planGeometry(keyRows*PLAN_ROW_H+fixed);
+  if (key.scale.denom<full.scale.denom) return true;   // it is costing a rung
+  /* And at the BOTTOM of the ladder there is no rung left to lose, so the table
+     stops costing scale and starts costing the page itself: nothing can be
+     drawn coarser, PLAN_CELL_MIN having ruled the rest illegible, so moving the
+     table off is the only thing that makes the sheet fit at all. */
+  return full.H2/PLAN_DPI>PLAN_PAGE_H_IN && key.H2/PLAN_DPI<=PLAN_PAGE_H_IN;
+}
 function planSheets(){
   const sheets=[{id:'planting', layer:'plants', name:'Planting plan'}];
   const bulbs=game.bulbs||{};
   if (Object.keys(bulbs).some(k=>bulbs[k]&&!bulbs[k].removed))
     sheets.push({id:'bulbs', layer:'bulbs', name:'Bulb plan'});
+  if (planScheduleSplits())
+    sheets.push({id:'schedule', layer:'all', name:'Plant schedule'});
   return sheets;
 }
-function planSheetCanvasId(id){ return id==='bulbs'?'planBulbCanvas':'planCanvas'; }
+const PLAN_SHEET_CANVAS={planting:'planCanvas', bulbs:'planBulbCanvas', schedule:'planSchedCanvas'};
+function planSheetCanvasId(id){ return PLAN_SHEET_CANVAS[id]||'planCanvas'; }
 function activePlanSheet(){
   const sheets=planSheets();
   return sheets.find(s=>s.id===game.planSheet) || sheets[0];
@@ -1547,7 +1657,7 @@ function syncPlanSheets(){
   const sheets=planSheets(), active=activePlanSheet(), many=sheets.length>1;
   const tog=$('planSheetToggle'); if (tog) tog.hidden=!many;
   const byCanvas={}; sheets.forEach(s=>{ byCanvas[planSheetCanvasId(s.id)]=s.id; });
-  ['planCanvas','planBulbCanvas'].forEach(cid=>{ const c=$(cid); if (!c) return;
+  Object.keys(PLAN_SHEET_CANVAS).map(k=>PLAN_SHEET_CANVAS[k]).forEach(cid=>{ const c=$(cid); if (!c) return;
     const sid=byCanvas[cid];
     /* `has-sheet` marks a canvas this garden actually HAS, so the print rules
        can emit the whole set without also emitting the undrawn 300x150 default
@@ -1555,20 +1665,24 @@ function syncPlanSheets(){
     if (c.classList) c.classList.toggle('has-sheet', !!sid);
     c.hidden=!sid || sid!==active.id;
   });
-  [['planting','btnPlanSheetPlanting'],['bulbs','btnPlanSheetBulbs']].forEach(([id,bid])=>{
+  const tabs=[['planting','btnPlanSheetPlanting'],['bulbs','btnPlanSheetBulbs'],['schedule','btnPlanSheetSchedule']];
+  tabs.forEach(([id,bid])=>{
     const b=$(bid); if (!b) return;
+    b.hidden=!sheets.some(s=>s.id===id);
     const on=active.id===id;
     b.classList.toggle('on',on);
     b.setAttribute('aria-selected',on?'true':'false');
   });
 }
-function buildPlanMap(){
-  const sheets=planSheets();
-  if (!sheets.some(s=>s.id===game.planSheet)) game.planSheet=sheets[0].id;
-  /* Planted RECORDS per species|cultivar — the count the planting list works
-     from, so the schedule's quantity and the list's "to order" agree.  NOT
-     plan tiles: `shrubPlanComponents` tiles are the mature FOOTPRINT, so
-     counting those would bill one viburnum as nine.
+/* Everything the SET shares, resolved once: what is planted, the codes, the
+   tints, the quantities, the site, and the one geometry every sheet is drawn
+   to.  Separate from buildPlanMap so the set's own decisions can be asked
+   about without rendering it - a measuring context is all it needs. */
+function planSharedState(sheets,measureCtx){
+  /* Planted RECORDS per species|cultivar - what the codes and the schedule's
+     ORDER are built from.  NOT plan tiles: `shrubPlanComponents` tiles are the
+     mature FOOTPRINT, so counting those would bill one viburnum as nine.  (The
+     quantity itself comes from plantingQuantities, which is stricter still.)
      Codes are assigned ACROSS the whole set, never per sheet: a tag has to
      mean the same plant on the planting plan, on the bulb plan and in the
      planting list, or the set contradicts itself. */
@@ -1576,9 +1690,26 @@ function buildPlanMap(){
   [game.plants,game.bulbs].forEach(layer=>{ for (const k in layer){ const p=layer[k];
     if (p && !p.removed && p.s){ const id=p.s+'|'+(p.v||''); planted[id]=(planted[id]||0)+1; } } });
   const ids=Object.keys(planted).sort((a,b)=>planted[b]-planted[a]||a.localeCompare(b));
-  const shared={planted, codes:planCodes(ids), ids, sheets, tints:planSheetTints(ids,planLayerOf),
+  const shared={planted, qty:plantingQuantities(), codes:planCodes(ids), ids, sheets,
+    tints:planSheetTints(ids,planLayerOf), site:planSite(),
     plantIds:layerRefIds(game.plants), bulbIds:layerRefIds(game.bulbs)};
-  sheets.forEach((s,i)=>{ const pc=$(planSheetCanvasId(s.id)); if (pc) drawPlanSheet(pc,s,i,shared); });
+  shared.split=sheets.some(s=>s.layer==='all');
+  /* The geometry is the SET'S, not each sheet's: same scale, same paper, same
+     origin, so the sheets can be compared and overlaid (see planSetGeometry).
+     It needs a context up front because the schedule's height depends on where
+     its names wrap, and the scale depends on that height. */
+  shared.g=planSetGeometry(measureCtx,shared);
+  return shared;
+}
+function buildPlanMap(){
+  const sheets=planSheets();
+  if (!sheets.some(s=>s.id===game.planSheet)) game.planSheet=sheets[0].id;
+  const canvases=sheets.map(s=>$(planSheetCanvasId(s.id)));
+  const measure=canvases.find(Boolean);
+  const shared=planSharedState(sheets, measure?measure.getContext('2d'):planMeasurer());
+  sheets.forEach((s,i)=>{ const pc=canvases[i]; if (!pc) return;
+    if (s.layer==='all') drawPlanScheduleSheet(pc,s,i,shared);
+    else drawPlanSheet(pc,s,i,shared); });
   syncPlanSheets();
 }
 /* The smoothed blob every drift, ghost and bulb zone is drawn as: a quadratic
@@ -1667,7 +1798,7 @@ function drawBulbZones(ctx,g,stands,tints){
     const zone=bulbZoneTiles(st.tiles);
     const loops=traceOutlines(zone);
     if (!loops.length) return;
-    const dots=bulbDotsPerTile(plantsForTiles(st.n,def.space), zone.size);
+    const dots=bulbDotsPerTile(plantsForStand(def,st.n), zone.size);
     /* One path, filled EVEN-ODD, because a zone can have a hole: it never
        spreads across paving, so a path running through a naturalised area
        comes back from the trace as an inner loop.  Filled loop by loop that
@@ -1762,13 +1893,30 @@ const PLAN_CELL_MIN=8;             // below this a tile carries no readable labe
    with the drawing it measures, rather than at the foot of the sheet under the
    whole schedule — where it was both wrong (a graphic scale belongs beside its
    drawing) and the first thing a short page cut off. */
-const PLAN_PAD_T=92, PLAN_SCALEBAR_GAP=16, PLAN_SCHEDULE_GAP=44, PLAN_FOOT=12;
+const PLAN_PAD_T=92, PLAN_PAD_L=34;
+/* The row drawPlanPaper puts the over-page warning on, below the title block.
+   Named because the schedule page has to keep its own heading clear of it. */
+const PLAN_WARN_Y=84;
+const PLAN_SCALEBAR_GAP=16, PLAN_SCHEDULE_GAP=44, PLAN_FOOT=12;
+/* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
+   paper has a floor and the drawing centres inside it. */
+const PLAN_SHEET_MIN_W=660;
+const PLAN_ROW_H=15;               // one schedule row, and one key row
+const PLAN_ROW_LINE=12;            // each wrapped line past a row's first
 /* Denominator of the ratio, most detailed first. Real feet to the paper inch
-   is denom/12, so 1:48 is the quarter-inch scale and 1:96 the eighth. */
+   is denom/12, so 1:48 is the quarter-inch scale and 1:96 the eighth.
+   The two sixteenth-family rungs are here because the LADDER'S GRANULARITY is
+   what a budget change costs: with only 48 and 96 in the small range, a 27 ft
+   plot that misses the quarter-inch scale by a quarter inch of paper falls all
+   the way to an eighth and loses three quarters of its drawn area. Both are
+   standard architectural scales, so nothing is invented to soften a
+   constraint - the rungs were simply missing. */
 const PLAN_SCALES_IMPERIAL=Object.freeze([
   {denom:48,  label:'1/4" = 1 ft'},
+  {denom:64,  label:'3/16" = 1 ft'},
   {denom:96,  label:'1/8" = 1 ft'},
   {denom:120, label:'1" = 10 ft'},
+  {denom:128, label:'3/32" = 1 ft'},
   {denom:192, label:'1" = 16 ft'},
   {denom:240, label:'1" = 20 ft'},
   {denom:480, label:'1" = 40 ft'},
@@ -1777,23 +1925,33 @@ const PLAN_SCALES_METRIC=Object.freeze([
   {denom:50}, {denom:100}, {denom:200}, {denom:500},
 ]);
 function planScaleCell(s){ return (TILE_IN/12)/(s.denom/12)*PLAN_DPI; }
+/* The finished PAPER's width for a drawing this wide, and the only place it
+   is computed - because `planScale` has to test the same number
+   `planGeometry` will produce, or the fit test is measuring something the
+   sheet is not.  It tested the DRAWING alone, so the side margins were spent
+   off-budget: a 27 ft plot claimed to fit a 7.2in page and printed 7.46in,
+   and a 69 ft one printed 7.61in. */
+function planSheetWidth(drawW){ return Math.max(PLAN_PAD_L*2+drawW, PLAN_SHEET_MIN_W); }
 /* The sheet's own chrome, in paper inches: the title block above the drawing,
-   and the scale bar plus the whole plant schedule below it.  The scale has to
-   be chosen against what is LEFT of the page after that, not against the page
-   — sizing to the width alone printed a sheet 9.9in tall on a ~9.5in
-   printable area and cut the last two schedule rows and the scale bar off the
-   bottom, which is exactly the part a reader needs. */
-function planChromeIn(rowsBelow){
-  return (PLAN_PAD_T+PLAN_SCHEDULE_GAP+(rowsBelow||0)*15+PLAN_FOOT)/PLAN_DPI;
+   and the scale bar plus everything tabled below it.  The scale has to be
+   chosen against what is LEFT of the page after that, not against the page -
+   sizing to the width alone printed a sheet 9.9in tall on a ~9.5in printable
+   area and cut the last two schedule rows and the scale bar off the bottom,
+   which is exactly the part a reader needs.  `bodyPx` is that table's real
+   height in drawing units rather than a row count, because a wrapped
+   botanical name makes a row two lines tall. */
+function planChromeIn(bodyPx){
+  return (PLAN_PAD_T+PLAN_SCHEDULE_GAP+Math.max(0,bodyPx||0)+PLAN_FOOT)/PLAN_DPI;
 }
-function planScale(rowsBelow){
+function planScale(bodyPx){
   const list=metricUnits()?PLAN_SCALES_METRIC:PLAN_SCALES_IMPERIAL;
   const legible=list.filter(s=>planScaleCell(s)>=PLAN_CELL_MIN);
   const usable=legible.length?legible:[list[0]];
-  const ftW=GW*(TILE_IN/12), ftH=GH*(TILE_IN/12);
-  const hBudget=Math.max(2, PLAN_PAGE_H_IN-planChromeIn(rowsBelow));
-  const fits=s=>{ const per=s.denom/12;
-    return ftW/per<=PLAN_PAGE_W_IN && ftH/per<=hBudget; };
+  const hBudget=Math.max(2, PLAN_PAGE_H_IN-planChromeIn(bodyPx));
+  // both sides in paper inches, off the same cell, so neither can drift
+  const fits=s=>{ const cell=planScaleCell(s);
+    return planSheetWidth(GW*cell)/PLAN_DPI<=PLAN_PAGE_W_IN
+        && GH*cell/PLAN_DPI<=hBudget; };
   return usable.find(fits) || usable[usable.length-1];
 }
 // does the finished sheet still exceed the page it was sized for?
@@ -1804,22 +1962,149 @@ function planScaleText(s){
   const ratio=`1:${s.denom}`;
   return s.label ? `${s.label} (${ratio})` : ratio;
 }
-function planGeometry(rowsBelow){
-  /* NOTE the scale depends on rowsBelow, because the schedule eats the page
-     the drawing has to fit in — so a probe that passes 0 gets a different
-     cell from the real sheet. Pass what drawPlanSheet passes. */
-  const scale=planScale(rowsBelow);
+function planGeometry(bodyPx){
+  /* NOTE the scale depends on bodyPx, because the table below the drawing eats
+     the page the drawing has to fit in - so a probe that passes 0 gets a
+     different cell from the real sheet. Use planSetGeometry, or pass what it
+     passes. */
+  const body=Math.max(0,bodyPx||0);
+  const scale=planScale(body);
   const cell=planScaleCell(scale);
-  const padL=34, padT=PLAN_PAD_T;
-  /* A sheet narrow enough to fit a small plot cannot fit the schedule, so the
-     paper has a floor and the drawing centres inside it. At the classic plot
-     size this resolves to the old left-aligned padL exactly. */
+  const padL=PLAN_PAD_L, padT=PLAN_PAD_T;
   const drawW=GW*cell;
-  const W2=Math.max(padL*2+drawW, 660);
+  const W2=planSheetWidth(drawW);   // at the classic plot size this is the floor
   const originX=Math.round((W2-drawW)/2);
-  const H2=padT+GH*cell+PLAN_SCHEDULE_GAP+(rowsBelow||0)*15+PLAN_FOOT;
-  return {cell,padL,padT,drawW,W2,originX,H2,scale,
+  const H2=padT+GH*cell+PLAN_SCHEDULE_GAP+body+PLAN_FOOT;
+  return {cell,padL,padT,drawW,W2,originX,H2,scale,body,
     X:x=>originX+x*cell, Y:y=>padT+y*cell};
+}
+/* ---------- the schedule's own layout ----------
+   Measured and drawn through ONE description, because the sheet's height is
+   chosen from the measurement and the rows are then drawn from it: two
+   descriptions and the band reserved stops matching the table put in it. */
+function planScheduleCols(g){
+  const tblW=g.W2-g.padL*2, gapC=10, wCode=54, wQty=44, wSpace=80;
+  const wRest=Math.max(80, tblW-wCode-wQty-wSpace-gapC*3);
+  const wLatin=Math.round(wRest*0.56), wCommon=wRest-wLatin;
+  const xCode=g.padL, xLatin=xCode+wCode, xCommon=xLatin+wLatin+gapC;
+  const xQty=xCommon+wCommon+gapC, xSpace=xQty+wQty+gapC;
+  return {tblW,gapC,wCode,wQty,wSpace,wLatin,wCommon,xCode,xLatin,xCommon,xQty,xSpace};
+}
+/* A name WRAPS rather than truncating.  `Hylotelephium (Herbstfreude Group)
+   'Herbstfreude'` came out as `Hylotelephium (Herbstfreude Grou...`, so the
+   one thing a reader needs in order to buy the right plant - the cultivar
+   epithet - was the one thing the ellipsis ate.  A schedule is an ordering
+   document and can be two lines tall.  The cap is there so a pathological name
+   cannot push the drawing off the page, and a single word wider than its own
+   column is the one case still cut, because it has nowhere to break. */
+const PLAN_WRAP_LINES=3;
+function planWrapText(ctx,str,maxW,maxLines){
+  const cap=Math.max(1,maxLines||PLAN_WRAP_LINES);
+  const words=String(str==null?'':str).split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+  const out=[];
+  let line=words[0];
+  for (let i=1;i<words.length;i++){
+    const t=line+' '+words[i];
+    if (ctx.measureText(t).width<=maxW){ line=t; continue; }
+    if (out.length+1>=cap){ line=[t].concat(words.slice(i+1)).join(' '); break; }
+    out.push(line); line=words[i];
+  }
+  out.push(line);
+  return out.map(l=>ctx.measureText(l).width>maxW?planFitText(ctx,l,maxW):l);
+}
+function planScheduleLayout(ctx,g,ids){
+  const col=planScheduleCols(g), rows=[];
+  let h=ids.length?PLAN_ROW_H:0;          // the column header
+  if (ctx) ctx.font='10px IBM Plex Sans'; // the weight the names are drawn at
+  ids.forEach(id=>{
+    const [s,v]=id.split('|');
+    const latin=ctx?planWrapText(ctx,planBotanicalName(s,v||null),col.wLatin-col.gapC):[''];
+    const common=ctx?planWrapText(ctx,planCommonName(s,v||null),col.wCommon-col.gapC):[''];
+    const rh=PLAN_ROW_H+(Math.max(latin.length,common.length)-1)*PLAN_ROW_LINE;
+    rows.push({id,latin,common,h:rh});
+    h+=rh;
+  });
+  return {col,rows,h};
+}
+/* The non-planting key rows take the same 15px band and are counted with the
+   schedule, so the page budget sees the whole table. */
+function planSite(){
+  const live=m=>Object.keys(m||{}).filter(k=>m[k]&&!m[k].removed);
+  return {lightsLive:live(game.lights), bouldersLive:live(game.boulders),
+    treesLive:Object.keys(game.plants).filter(k=>{ const p=game.plants[k];
+      return p && !p.removed && isTreeDef(plantDef(p.s,p.v)); })};
+}
+/* Where the schedule page's table starts. One row below the drawing sheets'
+   padT, because a drawing has nothing at the top of its field while this table
+   has its heading 8px ABOVE its first row - which is exactly the row
+   drawPlanPaper puts the over-page warning on. */
+const PLAN_SCHED_TOP=PLAN_PAD_T+PLAN_ROW_H;
+function planSiteRows(site){
+  return (site.lightsLive.length?1:0)+(site.bouldersLive.length?1:0)+(site.treesLive.length?1:0);
+}
+function planSheetIds(shared,sheet){
+  if (sheet.layer==='all') return shared.ids;   // the schedule page holds the set
+  const on=sheet.layer==='bulbs'?shared.bulbIds:shared.plantIds;
+  return shared.ids.filter(id=>on.has(id));
+}
+/* The compact key a drawing sheet keeps when the schedule moves to its own
+   page: swatch, code and COMMON name, in two columns.  Common rather than
+   botanical because this is the sheet somebody carries into the garden, and
+   because a half-width column cannot hold `Molinia caerulea subsp. caerulea
+   'Moorhexe'` without wrapping every row of the very band the split exists to
+   shorten.  The botanical name, the quantity and the spacing are one page
+   over, and the band says so rather than leaving the reader to wonder. */
+const PLAN_KEY_COLS=2;
+function planKeyBandLayout(g,ids){
+  const tblW=g.W2-g.padL*2, gap=14, cols=Math.max(1,PLAN_KEY_COLS);
+  const colW=(tblW-gap*(cols-1))/cols;
+  const rows=Math.ceil(ids.length/cols);
+  // heading, the rows themselves, and the line pointing at the schedule sheet
+  return {cols,colW,gap,rows,ids,tblW,h:ids.length?PLAN_ROW_H*(rows+2):0};
+}
+/* ONE scale and ONE drawing position for the whole SET, sized for the LONGEST
+   schedule in it.  Each sheet used to compute its own geometry from its own
+   row count, so a garden with bulbs drew its planting at 1:120 and its bulbs
+   at 1:96 with the origin 49px further left: the garden visibly grew when you
+   switched tabs, and the two prints could not be laid over one another - which
+   is the one thing a bulb OVERLAY exists to be.
+
+   The schedule's height feeds the scale (a longer table leaves less page for
+   the drawing) and the scale feeds the schedule's width (the paper is as wide
+   as the drawing), so the two are mutually dependent: a coarser scale narrows
+   the columns, which wraps another name, which lengthens the table.  Resolve
+   it by iterating rather than by guessing.  Growth is monotone and the ladder
+   is short, so it settles in a pass or two; the cap is there so a pathological
+   palette cannot spin, and overshooting it merely trips planOverPage, which is
+   the sheet's existing way of saying it does not fit. */
+const PLAN_FIT_PASSES=4;
+function planSetGeometry(ctx,shared){
+  const fixed=planSiteRows(shared.site)*PLAN_ROW_H;
+  const drawn=shared.sheets.filter(s=>s.layer!=='all');
+  const band=g=>{
+    let want=0;
+    drawn.forEach(s=>{ const ids=planSheetIds(shared,s);
+      want=Math.max(want, shared.split?planKeyBandLayout(g,ids).h:planScheduleLayout(ctx,g,ids).h); });
+    return want;
+  };
+  let body=0, g=planGeometry(fixed);
+  for (let i=0;i<PLAN_FIT_PASSES;i++){
+    const want=band(g);
+    if (want<=body) break;
+    body=want; g=planGeometry(body+fixed);
+  }
+  /* The paper belongs to the SET, so it also has to be tall enough for the
+     schedule page's own table - and where it is not, the PAPER grows, which is
+     the same honesty the scale keeps (a real site goes onto a bigger sheet
+     rather than being drawn at a ratio nobody can read).  planOverPage then
+     says so on every sheet. */
+  if (shared.split){
+    const page=shared.sheets.find(s=>s.layer==='all');
+    const need=PLAN_SCHED_TOP+planScheduleLayout(ctx,g,planSheetIds(shared,page)).h+PLAN_FOOT;
+    if (need>g.H2) g.H2=need;
+  }
+  return g;
 }
 // paper, border, title block and the true-north arrow
 function drawPlanPaper(ctx,g,sheetName){
@@ -1847,11 +2132,16 @@ function drawPlanPaper(ctx,g,sheetName){
   if (planOverPage(g)){
     ctx.font='9px IBM Plex Sans'; ctx.fillStyle='#a2581f';
     ctx.fillText(`Larger than one portrait page (${(g.W2/PLAN_DPI).toFixed(1)}″ × ${(g.H2/PLAN_DPI).toFixed(1)}″)`
-      + ' — print to a bigger sheet, or scale to fit and read the bar', padL, 84);
+      + ' — print to a bigger sheet, or scale to fit and read the bar', padL, PLAN_WARN_Y);
     ctx.font='11px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
   }
-  // True north rotates inside the plan; the garden drawing itself stays in
-  // the user's plot coordinates so labels and saved tile positions never move.
+}
+/* True north rotates inside the plan; the garden drawing itself stays in the
+   user's plot coordinates so labels and saved tile positions never move.  It is
+   its own block because the schedule page takes the same paper and title block
+   and has no orientation to state - a table does not face north. */
+function drawPlanNorth(ctx,g){
+  const {W2}=g;
   const nd=siteDirections(game.siteNorthDeg).N, nc=[W2-48,52], perp=[-nd[1],nd[0]];
   const nt=[nc[0]+nd[0]*17,nc[1]+nd[1]*17], tail=[nc[0]-nd[0]*13,nc[1]-nd[1]*13];
   const hb=[nt[0]-nd[0]*9,nt[1]-nd[1]*9];
@@ -2130,12 +2420,16 @@ function drawPlanStructures(ctx,g){
   }
   ctx.restore();
 }
-// the non-planting key rows that sit under the schedule
-function drawPlanKeyRows(ctx,g,ly2,legRows,site){
+/* The non-planting key rows that sit under the schedule.  They take the y
+   they START at rather than the schedule's row count: the rows above them are
+   no longer a fixed height, and the count-and-multiply form is what produced
+   the `fixtureRows is not defined` crash when this block was first split out. */
+function drawPlanKeyRows(ctx,g,y0,site){
   const {padL}=g;
-  const {lightsLive,bouldersLive,treesLive,fixtureRows}=site;
+  const {lightsLive,bouldersLive,treesLive}=site;
+  let row=0;
   if (lightsLive.length){
-    const cy2=ly2+legRows*15, cx2=padL;
+    const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
     ctx.fillStyle=mixHex(lightTone('warm').col,'#f7f3e8',0.22);
     ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
     ctx.beginPath(); ctx.arc(cx2+4.5,cy2-3,4,0,7); ctx.fill(); ctx.stroke();
@@ -2143,7 +2437,7 @@ function drawPlanKeyRows(ctx,g,ly2,legRows,site){
     ctx.fillText(`LIGHT - lighting fixture (${lightsLive.length})`, cx2+14, cy2);
   }
   if (bouldersLive.length){
-    const cy2=ly2+(legRows+(lightsLive.length?1:0))*15, cx2=padL;
+    const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
     ctx.fillStyle=mixHex('#7f8178','#f7f3e8',0.2);
     ctx.strokeStyle='#5c5445'; ctx.lineWidth=1.1;
     ctx.beginPath(); ctx.ellipse(cx2+5,cy2-3,5,3.2,0,0,7); ctx.fill(); ctx.stroke();
@@ -2151,7 +2445,7 @@ function drawPlanKeyRows(ctx,g,ly2,legRows,site){
     ctx.fillText(`BOULDER - stone feature (${bouldersLive.length})`, cx2+14, cy2);
   }
   if (treesLive.length){
-    const cy2=ly2+(legRows+fixtureRows)*15, cx2=padL;
+    const cy2=y0+row++*PLAN_ROW_H, cx2=padL;
     ctx.save();
     ctx.strokeStyle='#6e5f48'; ctx.lineWidth=1.1; ctx.setLineDash([5,4]);
     ctx.beginPath(); ctx.moveTo(cx2,cy2-3); ctx.lineTo(cx2+22,cy2-3); ctx.stroke();
@@ -2177,14 +2471,116 @@ function drawPlanScaleBar(ctx,g){
   ctx.fillText(fmtFeet(barFt), bx2+barPx/2, by2-8);
 }
 
-function drawPlanSheet(pc,sheet,sheetIndex,shared){
+/* ---------- the plant schedule ----------
+   Code, botanical name, common name, quantity and spacing o.c. is the
+   convention the naturalistic and the landscape-architecture traditions agree
+   on (docs/plan-sheet.md); the old three-column legend gave a common name
+   truncated at 26 characters - exactly where a cultivar epithet lives - and a
+   count of game TILES.
+   ONE renderer, because the table is drawn in two places now: under the
+   drawing on a small garden's single sheet, and filling its own page on a set
+   where it would otherwise eat the drawing's scale. */
+function drawPlanSchedule(ctx,g,y0,sched,shared){
+  const {padL}=g;
+  const {wQty,wSpace,xCode,xLatin,xCommon,xQty,xSpace,tblW}=sched.col;
+  if (!sched.rows.length) return;   // an empty garden gets an empty sheet
+  ctx.textAlign='left';
+  ctx.font='600 10px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+  ctx.fillText('PLANT SCHEDULE', padL, y0-8);
+  ctx.font='600 9px IBM Plex Sans';
+  ctx.fillText('KEY',xCode,y0);
+  ctx.fillText('BOTANICAL NAME',xLatin,y0);
+  ctx.fillText('COMMON NAME',xCommon,y0);
+  ctx.textAlign='right'; ctx.fillText('QTY',xQty+wQty,y0); ctx.textAlign='left';
+  ctx.fillText('SPACING',xSpace,y0);
+  ctx.strokeStyle='rgba(120,108,86,0.45)'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.moveTo(xCode,y0+4); ctx.lineTo(padL+tblW,y0+4); ctx.stroke();
+  /* Rows are variable height, because a long botanical name WRAPS rather than
+     losing its cultivar epithet to an ellipsis.  The swatch, code, quantity and
+     spacing all sit on the row's first line and a second line of name hangs
+     below them, which is how a schedule is set. */
+  let cy=y0;
+  sched.rows.forEach(row=>{
+    const id=row.id, s=id.split('|')[0], v=id.split('|')[1]||null, def=plantDef(s,v);
+    cy+=PLAN_ROW_H;
+    const swatch=planTintOf(shared.tints,s,v,shared.bulbIds.has(id)?'zone':null);
+    ctx.fillStyle=swatch.fill;
+    ctx.fillRect(xCode,cy-7,9,9);
+    ctx.strokeStyle=swatch.edge; ctx.lineWidth=1;
+    ctx.strokeRect(xCode,cy-7,9,9);
+    ctx.textAlign='left'; ctx.fillStyle='#2c241c'; ctx.font='600 10px IBM Plex Sans';
+    ctx.fillText(shared.codes[id],xCode+13,cy);
+    ctx.font='10px IBM Plex Sans';
+    row.latin.forEach((ln,j)=>{ ctx.fillStyle='#2c241c';
+      ctx.fillText(ln,xLatin,cy+j*PLAN_ROW_LINE); });
+    row.common.forEach((ln,j)=>{ ctx.fillStyle='#6e5f48';
+      ctx.fillText(ln,xCommon,cy+j*PLAN_ROW_LINE); });
+    ctx.fillStyle='#2c241c'; ctx.textAlign='right';
+    ctx.fillText(String(shared.qty[id]||0),xQty+wQty,cy);
+    ctx.textAlign='left'; ctx.fillStyle='#6e5f48';
+    ctx.fillText(planFitText(ctx,`${plantMeasure(def.space)} o.c.`,wSpace),xSpace,cy);
+    cy+=row.h-PLAN_ROW_H;
+  });
+}
+function drawPlanKeyBand(ctx,g,y0,band,shared){
+  const {padL}=g, {colW,gap,rows,ids,tblW}=band;
+  if (!ids.length) return;
+  ctx.textAlign='left';
+  ctx.font='600 10px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+  ctx.fillText('KEY', padL, y0-8);
+  ctx.strokeStyle='rgba(120,108,86,0.45)'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.moveTo(padL,y0+4); ctx.lineTo(padL+tblW,y0+4); ctx.stroke();
+  ids.forEach((id,i)=>{
+    const col=Math.floor(i/rows), row=i%rows;      // each column filled downward
+    const x=padL+col*(colW+gap), y=y0+(row+1)*PLAN_ROW_H;
+    const s=id.split('|')[0], v=id.split('|')[1]||null;
+    const swatch=planTintOf(shared.tints,s,v,shared.bulbIds.has(id)?'zone':null);
+    ctx.fillStyle=swatch.fill; ctx.fillRect(x,y-7,9,9);
+    ctx.strokeStyle=swatch.edge; ctx.lineWidth=1; ctx.strokeRect(x,y-7,9,9);
+    ctx.fillStyle='#2c241c'; ctx.font='600 10px IBM Plex Sans';
+    ctx.fillText(shared.codes[id],x+13,y);
+    ctx.font='10px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+    ctx.fillText(planFitText(ctx,planCommonName(s,v),colW-46),x+42,y);
+  });
+  ctx.font='9px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
+  ctx.fillText('Botanical names, quantities and spacing: see the plant schedule sheet.',
+    padL, y0+(rows+1)*PLAN_ROW_H+4);
+}
+/* A one-sheet garden still says "Design plan" - it is not a set, and naming it
+   "Sheet 1 of 1" would be drawing-office cosplay. */
+function planSheetTitle(shared,sheet,sheetIndex){
+  const setSize=shared.sheets.length;
+  return setSize>1?`${sheet.name} · Sheet ${sheetIndex+1} of ${setSize}`:'Design plan';
+}
+function planSizeCanvas(pc,g){
+  pc.width=g.W2*2; pc.height=g.H2*2; pc.style.aspectRatio=`${g.W2}/${g.H2}`;
+  /* The sheet's real width, for print only: PLAN_DPI units to the inch, so a
+     rule laid on the printed page agrees with the stated scale. On screen the
+     canvas stays width:100% and responsive. (Guarded because the test
+     sandbox's element stubs carry a plain object for `style`.) */
+  if (pc.style && typeof pc.style.setProperty==='function')
+    pc.style.setProperty('--plan-in', (g.W2/PLAN_DPI).toFixed(3)+'in');
   const ctx=pc.getContext('2d');
+  ctx.setTransform(2,0,0,2,0,0);
+  return ctx;
+}
+/* The schedule on its own page: the same paper as the rest of the set, because
+   a set is one size, and no north arrow, because a table has no orientation.
+   This is what gives the drawing its page back - see PLAN_SCHEDULE_MAX_ROWS. */
+function drawPlanScheduleSheet(pc,sheet,sheetIndex,shared){
+  const g=shared.g, ctx=planSizeCanvas(pc,g);
+  drawPlanPaper(ctx,g,planSheetTitle(shared,sheet,sheetIndex));
+  const sched=planScheduleLayout(ctx,g,planSheetIds(shared,sheet));
+  drawPlanSchedule(ctx,g,PLAN_SCHED_TOP,sched,shared);
+  drawPlanKeyRows(ctx,g,PLAN_SCHED_TOP+sched.h,shared.site);
+}
+function drawPlanSheet(pc,sheet,sheetIndex,shared){
   const onBulbSheet=sheet.layer==='bulbs';
   const shrubComps=shrubPlanComponents().sort((a,b2)=>b2.tiles.length-a.tiles.length);
   // the perennial planting: the SUBJECT of the planting sheet, the GHOST of
   // the bulb sheet — you have to see where the bulbs sit relative to it
   const plantComps=planComponents(game.plants).filter(c=>!isShrubPlanDef(plantDef(c.s,c.v)));
-  const plantHerb=plantComps.filter(c=>!isTreeDef(plantDef(c.s,c.v)));
+  const plantHerb=plantComps.filter(c=>isPlanStandDef(plantDef(c.s,c.v)));
   const subjectComps=onBulbSheet?planComponents(game.bulbs):plantHerb;
   const ghostComps=onBulbSheet?plantHerb:[];
   /* Trees are excluded from stand merging and keep a label per component over
@@ -2193,35 +2589,18 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      unlabelled, like every other piece of context there. */
   const treeComps=onBulbSheet?[]:plantComps.filter(c=>isTreeDef(plantDef(c.s,c.v)));
   const stands=planStands(subjectComps, onBulbSheet?BULB_STAND_GAP:PLAN_STAND_GAP);
-  const treesLive=Object.keys(game.plants).filter(k=>{
-    const p=game.plants[k];
-    return p && !p.removed && isTreeDef(plantDef(p.s,p.v));
-  });
-  const lightsLive=Object.keys(game.lights||{}).filter(k=>game.lights[k]&&!game.lights[k].removed);
-  const bouldersLive=Object.keys(game.boulders||{}).filter(k=>game.boulders[k]&&!game.boulders[k].removed);
-  const planted=shared.planted, codes=shared.codes, tints=shared.tints;
+  const site=shared.site, codes=shared.codes, tints=shared.tints;
+  const {lightsLive,bouldersLive,treesLive}=site;
   // each sheet schedules the planting it draws, in the set's shared code order
-  const onSheet=onBulbSheet?shared.bulbIds:shared.plantIds;
-  const ids=shared.ids.filter(id=>onSheet.has(id));
-  const legRows=ids.length+(ids.length?1:0);        // one row per species, plus the header
-  const fixtureRows=(lightsLive.length?1:0)+(bouldersLive.length?1:0);
-  const noteRows=treesLive.length?1:0;
-  const g=planGeometry(legRows+fixtureRows+noteRows);
+  const ids=planSheetIds(shared,sheet);
+  const g=shared.g;                 // the SET's geometry: see planSetGeometry
   const {cell,padL,padT,W2,H2,X,Y}=g;
-  pc.width=W2*2; pc.height=H2*2; pc.style.aspectRatio=`${W2}/${H2}`;
-  /* The sheet's real width, for print only: PLAN_DPI units to the inch, so a
-     rule laid on the printed page agrees with the stated scale. On screen the
-     canvas stays width:100% and responsive. (Guarded because the test
-     sandbox's element stubs carry a plain object for `style`.) */
-  if (pc.style && typeof pc.style.setProperty==='function')
-    pc.style.setProperty('--plan-in', (W2/PLAN_DPI).toFixed(3)+'in');
-  ctx.setTransform(2,0,0,2,0,0);
-  const site={lightsLive,bouldersLive,treesLive,fixtureRows};
-  /* A one-sheet garden still says "Design plan" — it is not a set, and naming
-     it "Sheet 1 of 1" would be drawing-office cosplay. */
-  const setSize=shared.sheets.length;
-  const sheetName=setSize>1?`${sheet.name} · Sheet ${sheetIndex+1} of ${setSize}`:'Design plan';
-  drawPlanPaper(ctx,g,sheetName);
+  const ctx=planSizeCanvas(pc,g);   // resizing resets the context, so size first
+  /* Under the drawing goes either the whole schedule or, when it has moved to
+     its own page, the compact key that stands in for it (planScheduleSplits). */
+  const below=shared.split?planKeyBandLayout(g,ids):planScheduleLayout(ctx,g,ids);
+  drawPlanPaper(ctx,g,planSheetTitle(shared,sheet,sheetIndex));
+  drawPlanNorth(ctx,g);
   drawPlanGround(ctx,g,site);
   // drifts as smoothed blobs (largest first so small ones read on top)
   const smoothLoop=(loop)=>planBlobPath(ctx,loop,X,Y);
@@ -2277,7 +2656,7 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
     const def=plantDef(st.s,st.v), id=st.s+'|'+(st.v||'');
     const lx=X(st.at[0]+0.5), ly=Y(st.at[1]+0.5)+3;
     const fs=Math.max(9,Math.min(15,6+Math.sqrt(st.n)*1.6));
-    const qty=plantsForTiles(st.n,def.space);
+    const qty=plantsForStand(def,st.n);
     const ink=PLAN_LAYER_STYLE[planLayerOf(st.s)].label;
     const at=place.place(lx,ly,planLabelBox(ctx,codes[id],qty,fs),bounds);
     queued.push({kind:'stand',code:codes[id],qty,fs,ink,at});
@@ -2301,45 +2680,10 @@ function drawPlanSheet(pc,sheet,sheetIndex,shared){
      landscape-architecture traditions agree on (docs/plan-sheet.md); the old
      three-column legend gave a common name truncated at 26 chars — exactly
      where a cultivar epithet lives — and a count of game TILES. */
-  let ly2=padT+GH*cell+PLAN_SCHEDULE_GAP;
-  ctx.textAlign='left'; ctx.font='600 10px IBM Plex Sans';
-  // an empty garden gets an empty sheet, not a heading over nothing
-  if (ids.length){ ctx.fillStyle='#6e5f48'; ctx.fillText('PLANT SCHEDULE', padL, ly2-8); }
-  const tblW=W2-padL*2, gapC=10, wCode=54, wQty=44, wSpace=80;
-  const wRest=Math.max(80, tblW-wCode-wQty-wSpace-gapC*3);
-  const wLatin=Math.round(wRest*0.56), wCommon=wRest-wLatin;
-  const xCode=padL, xLatin=xCode+wCode, xCommon=xLatin+wLatin+gapC;
-  const xQty=xCommon+wCommon+gapC, xSpace=xQty+wQty+gapC;
-  if (ids.length){
-    ctx.font='600 9px IBM Plex Sans'; ctx.fillStyle='#6e5f48';
-    ctx.fillText('KEY',xCode,ly2);
-    ctx.fillText('BOTANICAL NAME',xLatin,ly2);
-    ctx.fillText('COMMON NAME',xCommon,ly2);
-    ctx.textAlign='right'; ctx.fillText('QTY',xQty+wQty,ly2); ctx.textAlign='left';
-    ctx.fillText('SPACING',xSpace,ly2);
-    ctx.strokeStyle='rgba(120,108,86,0.45)'; ctx.lineWidth=0.8;
-    ctx.beginPath(); ctx.moveTo(xCode,ly2+4); ctx.lineTo(padL+tblW,ly2+4); ctx.stroke();
-  }
-  ids.forEach((id,i)=>{
-    const [s,v]=id.split('|'), def=plantDef(s,v||null);
-    const cy2=ly2+(i+1)*15;
-    const swatch=planTintOf(tints,s,v||null,onBulbSheet?'zone':null);
-    ctx.fillStyle=swatch.fill;
-    ctx.fillRect(xCode,cy2-7,9,9);
-    ctx.strokeStyle=swatch.edge; ctx.lineWidth=1;
-    ctx.strokeRect(xCode,cy2-7,9,9);
-    ctx.textAlign='left'; ctx.fillStyle='#2c241c'; ctx.font='600 10px IBM Plex Sans';
-    ctx.fillText(codes[id],xCode+13,cy2);
-    ctx.font='10px IBM Plex Sans';
-    ctx.fillText(planFitText(ctx,planBotanicalName(s,v||null),wLatin-gapC),xLatin,cy2);
-    ctx.fillStyle='#6e5f48';
-    ctx.fillText(planFitText(ctx,planCommonName(s,v||null),wCommon-gapC),xCommon,cy2);
-    ctx.fillStyle='#2c241c'; ctx.textAlign='right';
-    ctx.fillText(String(plantsForTiles(planted[id],def.space)),xQty+wQty,cy2);
-    ctx.textAlign='left'; ctx.fillStyle='#6e5f48';
-    ctx.fillText(planFitText(ctx,`${plantMeasure(def.space)} o.c.`,wSpace),xSpace,cy2);
-  });
-  drawPlanKeyRows(ctx,g,ly2,legRows,site);
+  const ly2=padT+GH*cell+PLAN_SCHEDULE_GAP;
+  if (shared.split) drawPlanKeyBand(ctx,g,ly2,below,shared);
+  else drawPlanSchedule(ctx,g,ly2,below,shared);
+  drawPlanKeyRows(ctx,g,ly2+below.h,site);
   drawPlanScaleBar(ctx,g);
 }
 function openPlan(){ funnel(FUNNEL_EVENTS.planOpened); buildPlanMap(); openOverlay('planScreen','#btnPlanPng'); }
@@ -2357,7 +2701,8 @@ function downloadPlan(){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(b2);
     const stem=(game.worldName||'garden').replace(/\s+/g,'-').toLowerCase();
-    a.download=`${stem}-${sheet.id==='bulbs'?'bulb-plan':'plan'}.png`;
+    const part={bulbs:'bulb-plan', schedule:'plant-schedule'}[sheet.id]||'plan';
+    a.download=`${stem}-${part}.png`;
     a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
   },'image/png');
 }

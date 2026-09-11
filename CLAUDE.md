@@ -2852,12 +2852,26 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     its drawing, and the first thing a short page cuts off. **A sheet that
     still cannot fit SAYS so** (`planOverPage`), printing its real size and
     naming the way out: silently overflowing is the one outcome worth ruling
-    out. Note `planGeometry(rowsBelow)`'s scale now DEPENDS on rowsBelow, so a
-    probe passing 0 gets a different cell from the real sheet — pass what
-    `drawPlanSheet` passes. The way to get the finer scale back is the open
-    schedule-sheet item: it returns the whole page to the drawing.
-    13 tiles → 1/4"=1ft (1:48, cell 36); 31 → 1" = 10 ft (1:120, cell 14.4);
-    quarter acre → coarser still; metric picks a metric ratio (1:100 at 31).
+    out. Note `planGeometry(bodyPx)`'s scale DEPENDS on bodyPx, so a probe
+    passing 0 gets a different cell from the real sheet — use
+    `planSetGeometry`, or pass what it passes. bodyPx is the table's real
+    HEIGHT rather than a row count, because a wrapped name makes a row two
+    lines tall.
+    **And the budget is the PAPER, not the drawing** (`planSheetWidth`, 0.8.87).
+    `planScale` tested the drawing's width while `planGeometry` then added
+    `PLAN_PAD_L` either side, so the margins were spent off-budget: a 27 ft plot
+    claimed to fit 7.2in and produced 7.46in, a 69 ft one 7.61in. Both
+    functions go through the one expression now.
+    **That change would have cost two rungs, so the ladder gained the rungs it
+    was missing**: with only 1:48 and 1:96 in the small range, a 27 ft plot
+    missing the quarter-inch scale by a quarter inch of PAPER fell all the way
+    to the eighth and lost three quarters of its drawn area. 3/16"=1ft (1:64)
+    and 3/32"=1ft (1:128) are standard architectural scales, so nothing is
+    invented to soften a constraint — the rungs were simply absent. Metric
+    keeps its 50/100/200/500 ladder, which is the real metric convention.
+    13 tiles → 1/4"=1ft (1:48, cell 36); 18 → 3/16"=1ft (1:64, cell 27);
+    27 → 1/8"=1ft (1:96, cell 18); a quarter acre coarser still; metric picks
+    a metric ratio (1:100 at 31).
     **The scale is always TRUE and it is the PAPER that grows**: a plot too big
     for the page at every legible scale keeps the coarsest legible one and
     produces a wider sheet, which is what `PLAN_CELL_MIN` (8px) enforces — a
@@ -2967,17 +2981,42 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     drifts and stands for free. A garden WITHOUT bulbs is one sheet, titled
     "Design plan" as before, with the toggle hidden — `game.planSheet` is
     transient and falls back when a garden has no such sheet.
-    Both canvases (`#planCanvas`/`#planBulbCanvas`) are built on open and stay
-    in the DOM, so the toggle is instant and PRINT emits the set as two pages;
+    **ONE geometry for the whole SET** (`planSetGeometry`, `planSharedState`,
+    0.8.87): same scale, same paper, same origin, so the sheets can be compared
+    and overlaid. Each sheet used to size itself from its OWN row count, so a
+    garden with bulbs drew its planting at 1:120 and its bulbs at 1:96 with the
+    origin 49px further left — the garden visibly grew when you switched tabs,
+    and the two prints could not be laid over one another, which is the one
+    thing a bulb OVERLAY exists to be. `drawPlanSheet` therefore computes NO
+    geometry at all; it reads `shared.g` (a test asserts both). The schedule's
+    height feeds the scale and the scale feeds the schedule's width, so
+    `planSetGeometry` iterates to a fixed point rather than guessing — monotone
+    growth, a short ladder, and a cap so a pathological palette cannot spin.
+    All three canvases (`#planCanvas`/`#planBulbCanvas`/`#planSchedCanvas`) are
+    built on open and stay in the DOM, so the toggle is instant and PRINT emits
+    the set a page at a time;
     a `has-sheet` class gates that, or a bulb-less garden prints the undrawn
     default canvas as a blank page. `downloadPlan` saves the sheet you are
     LOOKING AT (named `-plan.png` / `-bulb-plan.png`) rather than both: two
     programmatic downloads from one gesture raise Chrome's "Download multiple
     files?" prompt, which is worse than one tap on a toggle that is right
-    there. **Two CSS traps, both hit**: `.seg` is `display:inline-flex` and
-    `#planCanvas` was `display:block`, and both beat the UA rule for the
-    `hidden` attribute — so the toggle showed on bulb-less gardens and the two
-    canvases stacked. Each needs an explicit `[hidden]{display:none}`.
+    there. **THREE CSS traps, all hit**: `.seg` is `display:inline-flex`, `#planCanvas`
+    was `display:block`, and `.seg .seg-opt` is `display:flex` — all three beat
+    the UA rule for the `hidden` attribute, so the toggle showed on bulb-less
+    gardens, the canvases stacked, and the sheet TABS could not hide themselves
+    (a garden with no bulbs offered a Bulb plan tab). Each needs an explicit
+    `[hidden]{display:none}`.
+    **Print takes two more fixes** (0.8.87). Both documents are
+    `.modal-screen`, whose whole job on screen is to darken the garden behind
+    the panel — and with background graphics on that scrim printed as a dark
+    surround, because the print block cleared the panel and not the surface
+    under it. And the page break is `canvas.has-sheet ~ canvas.has-sheet
+    {break-before:page}`: `break-after` on all of them plus a `:last-of-type`
+    exception looks equivalent and is not, since of-type counts every `<canvas>`
+    in the wrap whether it is a sheet or not, so a bulb-less garden let the
+    exception land on a hidden canvas and printed a trailing blank page. The
+    general sibling combinator asks the right question: is there a printed
+    sheet BEFORE this one.
     **A DRIFT is what the brush left connected; a STAND is what a reader sees**
     (`planStands`/`PLAN_STAND_GAP`). The Matrix brush lays a CHECKERBOARD, so
     `planComponents` returns dozens of one-tile components and the sheet used
@@ -2993,8 +3032,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     buys three labels, and **4 fuses two separate plantings into one 42-tile
     stand** whose label then sits between them. Trees are excluded and keep a
     label per component over the trunk — a tree is a specimen, not a
-    population. Line two of a label is `×N` from `plantsForTiles`, dropped at
-    `×1`.
+    population. Line two of a label is `×N` from `plantsForStand`, dropped at
+    `×1`; a clipped HEDGE blob carries the same `×N` (`shrubPlanQty`), because
+    a schedule saying 5 over a drawing showing one shape left the reader unable
+    to tell whether that was five plants or one.
+    **`plantingQuantities()` is the one definition of how many plants to buy,
+    and it is the SUM OF THE NUMBERS THE DRAWING CARRIES** — three documents
+    quote it (the stand labels, the schedule, the planting list), an installer
+    adds the labels up, and it has to come to the same number or the set
+    contradicts itself. It did, twice over. **A placed plant was billed by
+    AREA**: `plantsForTiles` is `ceil(tiles·18²/space²)`, right for painted
+    ground and catastrophic for anything placed one at a time, because a woody
+    plant's spacing is enormous against an 18in tile — a redbud at 20 ft on
+    three trunk tiles is `ceil(3·324/57600)` = ONE plant for three trees, and
+    measured across the catalog **all 209** woody and climbing species
+    underbilled, 204 of them turning three plants into one. `isIndividualDef`
+    (core.js) is the distinction and it is a fact about the PLANT: a tree, a
+    shrub and a climber each stand where they are put, so the quantity is the
+    count; a drift or a bulb scatter is painted GROUND, billed by area at the
+    species' spacing. `plantsForStand(def,tiles)` is the unit both go through.
+    **And the rounding was in the wrong place**: each stand's label rounds up
+    to a whole plant (you cannot buy four tenths of a plant twelve times over)
+    while the schedule rounded the garden's total once — 52 against 48 on the
+    demo garden's twelve moor-grass stands. `isPlanStandDef` is the one
+    predicate that partitions the planting, so the drawing and the quantities
+    cannot bill a plant twice or not at all.
     **Three drawing weights** (`planLayerOf`/`PLAN_LAYER_STYLE`): Oudolf sheets
     are legible because the groundcover matrix recedes and the structure
     advances, and ours gave a 53-tile grass matrix and a single climber the
@@ -3014,14 +3076,49 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     cultivar epithet, via `planBotanicalName` — which leaves a `fullName` or a
     cultivar carrying its own `latin` alone), common name (without it),
     quantity, and spacing **o.c.** through `plantMeasure` so it follows the
-    units preference (§18). Quantity is `plantsForTiles` over planted RECORDS,
-    not plan tiles — `shrubPlanComponents` tiles are the mature footprint, so
-    counting those bills one viburnum as nine — and `exportRows` now calls the
-    same function, so the sheet and the planting list cannot disagree. The old
-    three-column legend truncated the name at 26 chars, which is exactly where
-    a cultivar epithet lives; `planFitText` truncates by `measureText` instead.
-    The paper has a **660px floor** and the drawing centres inside it, because
-    a sheet sized to a small plot cannot fit the schedule.
+    units preference (§18). Quantity is `plantingQuantities` (above), never
+    plan tiles — `shrubPlanComponents` tiles are the mature footprint, so
+    counting those bills one viburnum as nine — and `exportRows` calls the same
+    function, so the sheet and the planting list cannot disagree. The paper has
+    a **660px floor** (`PLAN_SHEET_MIN_W`) and the drawing centres inside it,
+    because a sheet sized to a small plot cannot fit the schedule.
+    **A long name WRAPS rather than truncating** (`planWrapText`,
+    `PLAN_WRAP_LINES`, 0.8.87). `planFitText` measured it back to an ellipsis
+    and the ellipsis landed exactly where the cultivar epithet lives, so the
+    one thing a reader needs in order to buy the right plant was the one thing
+    it ate (`Hylotelephium (Herbstfreude Grou…`). A schedule is an ordering
+    document and can be two lines tall; the cap stops a pathological name
+    pushing the drawing off the page, and a single word wider than its own
+    column is the one case still cut, having nowhere to break. Rows are
+    variable height, so `planScheduleLayout` MEASURES and DRAWS through one
+    description — two descriptions and the band reserved stops matching the
+    table put in it — and `planScheduleCols` is the one column geometry.
+    **The SCHEDULE GOES ON ITS OWN PAGE when it is costing the drawing**
+    (`planScheduleSplits`, `drawPlanScheduleSheet`, `drawPlanKeyBand`). It is a
+    MEASUREMENT, not a threshold: the table sits inside the same page the
+    drawing has to fit, so it moves off exactly when keeping it would cost a
+    rung of the scale ladder — or, at the bottom of the ladder where there is
+    no rung left to lose, when it would cost the PAGE — and stays put when
+    moving it would buy nothing, because one sheet beats two for nothing. A
+    fixed species count cannot answer that: the demo garden's 21 species cost
+    it two rungs (1:192 against 1:96) while 14 species on a 69 ft plot cost
+    nothing at all, that plot already being at the coarse end. The drawing
+    sheet keeps a compact KEY — swatch, code, COMMON name, two columns — and
+    says where the rest went; common rather than botanical because that is the
+    sheet somebody carries into the garden, and because a half-width column
+    cannot hold `Molinia caerulea subsp. caerulea 'Moorhexe'` without wrapping
+    every row of the band the split exists to shorten. The schedule page takes
+    the same paper as the rest of the set and draws NO north arrow
+    (`drawPlanNorth` is its own block), because a table has no orientation; its
+    table starts at `PLAN_SCHED_TOP`, one row below the drawing sheets' padT,
+    since its heading sits 8px above its first row and that is exactly the row
+    `PLAN_WARN_Y` puts the over-page warning on.
+    **`planSheets()` must stay a pure function of the garden**, because the
+    toggle, the download and `syncPlanSheets` all ask it and a set that came
+    out differently per caller would have the toggle and the drawing disagree
+    about which sheets exist. It measures wrapped names through `planMeasurer`,
+    a private 1x1 canvas, rather than through whichever sheet canvas happens to
+    be in hand.
     **`planCodes` is three genus letters plus a digit**, and the digit appears
     only when the garden holds more than one selection of that species. Two
     defects that fixes: the cultivar suffix used to be the first two letters of

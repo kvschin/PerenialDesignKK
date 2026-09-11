@@ -1069,6 +1069,11 @@ canvas.layer-eye{display:block}
 .seg .seg-opt{display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--text-secondary);
   font-size:11px;font-weight:600;letter-spacing:.03em;padding:5px 9px;white-space:nowrap;
   transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
+/* `display:flex` above out-specifies the UA rule for the `hidden` attribute,
+   so a seg option that hides itself has to say so — the third time this trap
+   has been hit (`.seg` and `#planCanvas` were the first two). The plan sheet
+   toggle hides the tabs the set does not have. */
+.seg .seg-opt[hidden]{display:none}
 .seg .seg-opt:active{transform:translateY(1px)}
 .seg .seg-opt+.seg-opt{border-left:1px solid rgba(var(--ink-rgb),.18)}
 .seg .seg-opt:hover{background:var(--surface-control-hover);color:var(--text-primary)}
@@ -1478,8 +1483,13 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 @media print{
   html,body{height:auto;overflow:visible;background:#fff}
   #gameCanvas,#menuCanvas,#hud,#toast,#plantCard{display:none!important}
+  /* Both sheets are .modal-screen, whose whole job on screen is to darken the
+     garden behind the dialog. Printed with background graphics on, that scrim
+     came out as a dark surround around the page - so the surface has to be
+     cleared here, not only on the panel inside it. */
+  #exportScreen,#planScreen{background:none!important;box-shadow:none}
   #exportScreen{position:static;padding:0;overflow:visible}
-  #exportScreen .panel{background:#fff;border:none;color:#111;max-width:100%;backdrop-filter:none;padding:0}
+  #exportScreen .panel{background:#fff;border:none;color:#111;max-width:100%;backdrop-filter:none;padding:0;box-shadow:none}
   #exportScreen h2{color:#111}
   #exportScreen .sub,#exportScreen .note{color:#444}
   #exportScreen .export-table th{color:#555;border-color:#999}
@@ -1488,20 +1498,27 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #exportScreen .row,#exportScreen .back-link{display:none!important}
   /* the plan prints too, on its own page */
   #planScreen{position:static;padding:0;overflow:visible}
-  #planScreen .panel{background:#fff;border:none;max-width:100%;backdrop-filter:none;padding:0}
+  #planScreen .panel{background:#fff;border:none;max-width:100%;backdrop-filter:none;padding:0;box-shadow:none}
   #planScreen .plan-wrap{max-height:none;overflow:visible;border:none;background:#fff}
   #planScreen .row,#planScreen .back-link,#planSheetToggle{display:none!important}
-  /* the whole SET prints, one sheet per page — a set is what a bulb garden
-     has, and printing only the tab that happened to be open would drop half
-     of it. `break-after` on every sheet but the last. */
+  /* the whole SET prints, one sheet per page — a set is what a bulb garden or
+     a long plant palette has, and printing only the tab that happened to be
+     open would drop most of it. */
   #planScreen .plan-wrap canvas{display:none!important}
   /* Printed at its REAL size, so the stated scale is checkable with a rule:
-     --plan-in is the sheet width in inches, written by drawPlanSheet at
+     --plan-in is the sheet width in inches, written by planSizeCanvas at
      PLAN_DPI units to the inch. Falls back to 100% if it is ever missing. */
   #planScreen .plan-wrap canvas.has-sheet{display:block!important;
-    width:var(--plan-in,100%)!important;max-width:none!important;height:auto;
-    break-after:page;page-break-after:always}
-  #planScreen .plan-wrap canvas.has-sheet:last-of-type{break-after:auto;page-break-after:auto}
+    width:var(--plan-in,100%)!important;max-width:none!important;height:auto}
+  /* The break goes BEFORE every sheet but the first, which is the one form of
+     this that cannot emit a trailing blank page. `break-after` on all of them
+     plus a `:last-of-type` exception looks equivalent and is not: of-type
+     counts every <canvas> in the wrap, sheet or not, so a garden with no bulbs
+     let the exception land on a hidden canvas and printed a blank page after
+     its only sheet. The general sibling combinator asks the right question —
+     is there a printed sheet before this one. */
+  #planScreen .plan-wrap canvas.has-sheet ~ canvas.has-sheet{
+    break-before:page;page-break-before:always}
 }
 
 @media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */

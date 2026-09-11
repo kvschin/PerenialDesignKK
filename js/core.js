@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.86';
+const APP_VERSION = '0.8.87';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1615,6 +1615,15 @@ function plantCautionText(ref,withSources=false){
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }
 function isWoodyDef(P){ return isShrubDef(P) || isTreeDef(P); }
+/* Is ONE record of this plant one plant somebody buys?  A tree, a shrub and a
+   climber each stand where they are put, so the quantity is the count.  A
+   herbaceous drift or a bulb scatter is painted GROUND, and its quantity comes
+   from the area at the species' spacing (`plantsForTiles`).
+   Billing a placed plant by area underbills it catastrophically, because its
+   spacing is enormous against an 18in tile: a redbud at 20 ft on three trunk
+   tiles is ceil(3*18*18 / 240*240) = ONE plant for three trees, and 204 of the
+   catalog's 209 woody and climbing species do exactly that. */
+function isIndividualDef(P){ return isWoodyDef(P) || (P && P.type==='vine'); }
 /* Woody spread is truth data (inches); h/cw are drawing hints. Keep the
    spread->tile radius conversion here so shade, shrub footprints, plan marks,
    and cards cannot drift into slightly different ideas of plant size. */

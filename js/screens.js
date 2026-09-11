@@ -1682,6 +1682,7 @@ $('btnPlanPng').onclick=downloadPlan;
 // sheet set: both are already drawn, so switching is a visibility flip
 $('btnPlanSheetPlanting').onclick=()=>setPlanSheet('planting');
 $('btnPlanSheetBulbs').onclick=()=>setPlanSheet('bulbs');
+$('btnPlanSheetSchedule').onclick=()=>setPlanSheet('schedule');
 $('btnPlanList').onclick=()=>{ closeOverlay('planScreen'); openExport(); };
 $('btnBloom').onclick=()=>{ closeOverlay('gardenMenu'); openBloomCalendar(); };
 $('btnBloomClose').onclick=()=>closeOverlay('bloomScreen');
