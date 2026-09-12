@@ -12114,3 +12114,99 @@ test('a guidebook demo only shows plants that are actually up in its season', ()
     }
   }
 });
+
+test('the guidebook points at buttons the app actually has', () => {
+  /* The whole value of showing WHERE a tool lives is that the reader can then
+     go and find it, so every label on that affordance has to be the app's own.
+     These are checked against the real tables — GUIDE_RAIL against
+     buildCanvasTools' source, the catalog steps against TRAY_GROUPS and
+     TRAY_CATS — so a renamed tab cannot leave the guidebook confidently
+     pointing at a button that no longer says that. */
+  const tray = readRepoFile('js/tray.js');
+  const railSrc = tray.slice(tray.indexOf('function buildCanvasTools'),
+                             tray.indexOf('function popButton'));
+  assert(railSrc.length > 200, 'the buildCanvasTools slice found real source');
+  for (const b of GUIDE_RAIL) {
+    assert(railSrc.includes("add('" + b.label + "','" + b.kind + "'"),
+      b.label + '/' + b.kind + ' is a real rail button, in the rail order');
+    assert(typeof globalThis.drawCanvasIcon === 'function', 'the icon painter exists');
+  }
+  /* Order too: a mini rail whose buttons are in a different order than the real
+     one is worse than no picture, because it teaches the wrong muscle memory. */
+  const positions = GUIDE_RAIL.map(b => railSrc.indexOf("add('" + b.label + "'"));
+  for (let i = 1; i < positions.length; i++)
+    assert(positions[i] > positions[i - 1],
+      GUIDE_RAIL[i].label + ' follows ' + GUIDE_RAIL[i - 1].label + ' in the real rail');
+
+  const groups = TRAY_GROUPS.map(g => g.label);
+  const cats = TRAY_CATS.map(c => c.label);
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const w = GUIDE_DEMOS[id].where;
+    if (!w) continue;
+    if (w.rail) assert(guideRailButton(w.rail), id + ' names a real rail button: ' + w.rail);
+    if (w.top) assert(w.top.label && w.top.kind, id + ' top chip carries a label and an icon');
+    if (w.path) {
+      assert(groups.includes(w.path[0]),
+        id + " path starts at a real catalog tab (" + w.path[0] + ')');
+      if (w.path.length > 1)
+        assert(cats.includes(w.path[1]),
+          id + ' path names a real category (' + w.path[1] + ')');
+    }
+  }
+});
+
+test('the drawn affordance and the written one are the same data', () => {
+  /* Two descriptions of where a button is, kept by hand, is how the guidebook
+     ends up telling a reader one thing on the canvas and another underneath
+     it. Both come off the demo's own `where`. */
+  const src = readRepoFile('js/guide.js');
+  assert(/gsApplyWhere\(st,demo\.where,u\)/.test(src),
+    'the canvas affordance is applied from demo.where');
+  assert(/guideWhereTrail\(\(GUIDE_DEMOS\[e\.demo\]\|\|\{\}\)\.where\)/.test(src),
+    'and the written trail reads the same field');
+
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const w = GUIDE_DEMOS[id].where;
+    const trail = guideWhereTrail(w);
+    if (!w) { assertEqual(trail, null, id + ' has no where and so no trail'); continue; }
+    const flat = trail.reduce((a, g) => a.concat(g.steps), []);
+    if (w.rail) assert(flat.includes(w.rail), id + ' trail names its rail button');
+    if (w.top) assert(flat.includes(w.top.label), id + ' trail names its top-bar control');
+    (w.path || []).forEach(s => assert(flat.includes(s), id + ' trail names ' + s));
+
+    // and the stage carries the same thing
+    const st = GUIDE_DEMOS[id].build();
+    GUIDE_DEMOS[id].run(st, 0.5);
+    gsApplyWhere(st, w, 0.5);
+    if (w.rail) assertEqual(st.rail.on, w.rail, id + ' arms that rail button on the stage');
+    if (w.top) assertEqual(st.top.label, w.top.label, id + ' shows that top chip');
+    if (w.path) {
+      const rows = Array.isArray(st.chrome) ? st.chrome : [st.chrome];
+      assertEqual(rows[0].options.join('>'), w.path.join('>'), id + ' draws that trail first');
+      assertEqual(rows[0].on, w.path.length - 1, 'with the last step armed');
+    }
+  }
+});
+
+test('the where affordance survives the smallest plate the app can show', () => {
+  /* The demo plate is min(38vh,280px) on SHEET with a 220px floor and can be
+     292px wide at 320px of viewport. Two things had to be measured there
+     rather than assumed: a rail scaled to a negative size reached arcTo and
+     THREW, and three chrome rows ran past the right edge, which clips an
+     option with nothing to say it did. */
+  const ctx = makeCanvasCtx();
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const d = GUIDE_DEMOS[id];
+    for (const [w, h] of [[292, 220], [343, 280], [600, 340], [40, 18]]) {
+      for (const u of [0.05, 0.45, 0.9]) {
+        const st = d.build(); d.run(st, u); gsApplyWhere(st, d.where, u);
+        gsRender(ctx, st, w, h, 0);       // must not throw at any size
+        const box = { x0: 0, y0: 0, x1: w, y1: h };
+        const rail = gsRailWidth(box, st.rail);
+        assert(rail >= 0 && rail < w, id + ' rail reservation is sane at ' + w + 'x' + h);
+        // a plate too short to hold a legible rail shows none, and says so in words
+        if (h < 150) assertEqual(rail, 0, id + ' drops the rail on a plate that cannot hold it');
+      }
+    }
+  }
+});

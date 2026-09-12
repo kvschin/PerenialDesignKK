@@ -606,6 +606,38 @@ logic is split across ordered modules. They map onto the section list below
   nothing, so the containers demo made its claim over two empty pots (measured,
   69 pixels). A test walks every demo's whole loop and refuses a species with no
   `fol`/`seed`/`bloom`/`twig` in that season.
+  **A demo also shows WHERE its tool lives** (`where`, `GUIDE_RAIL`, `gsDrawRail`,
+  `gsApplyWhere`, `guideWhereTrail`), because showing only the RESULT teaches the
+  second half of the lesson: for most of these tools the harder half is which
+  button and where, the rail being a column of 42x32 icons under 8px labels and
+  a landscape material three taps down a catalog. So the plate carries a mini
+  tool rail down its left edge — where the real one is, which is half the
+  message — and the catalog path as one breadcrumb row across the top, with the
+  armed control rippling. Both are painted by **`drawCanvasIcon`**, the same
+  42x32 function `makeCanvasTool` hands every rail button, so the guidebook
+  cannot show a button the rail does not have.
+  **`where` lives on the DEMO, not the chapter entry**, so the drawn affordance
+  and the written breadcrumb under the title are one piece of data; a test pins
+  every label against `buildCanvasTools`' source, `TRAY_GROUPS` and `TRAY_CATS`
+  (including the rail's ORDER — a mini rail in a different order than the real
+  one teaches the wrong muscle memory). It is applied AFTER `run`, so all 25
+  demos got the affordance without 25 edits and a demo's own option row lands
+  below the path it was reached through.
+  **The rail is declared only where the rail is genuinely the route.** A
+  landscape material DOES light the rail's Plant button (`isBrushTool` is true
+  for bed, path, fence and the rest), but "Plant" lit beside a demo about
+  gravel answers a question nobody asked and raises one they now have; those
+  demos show the catalog path instead.
+  Three things measurement forced here. The rail **reserves its column before
+  the stage is fitted** — on a 375px phone the plate is 343x280, the rail 130 of
+  it, and the bed's left corner sat at x=120, so affordance and subject were
+  fighting over the same pixels. It **drops out entirely below scale 0.45**,
+  degrading to the written trail rather than to a blur — and that floor is also
+  the guard, because a plate a few pixels tall for one frame after a resize
+  produced a NEGATIVE scale and `arcTo` throws outright on one. And a chrome row
+  that will not fit is **scaled, never clipped**: at the narrowest plate three
+  rows overflowed, and for the Layers demo the option clipped away was "Land",
+  the one its last beat is about.
   **`GUIDE_DEMOS` and `guideChapters()` are PURE tables** — the
   `settingsSections`/`tourSteps` split, and for their reason: the sandbox has no
   selector engine, so a test counting rendered DOM would pass without testing
@@ -632,7 +664,8 @@ logic is split across ordered modules. They map onto the section list below
   library's and settings' trap: the guidebook opens from the MAIN MENU, where
   the HUD is hidden) and walks the views back rather than closing outright.
   25 demos in five chapters. Adding one is a row in `guideChapters()` plus an
-  entry in `GUIDE_DEMOS`.
+  entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
+  with no way to find it.
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper

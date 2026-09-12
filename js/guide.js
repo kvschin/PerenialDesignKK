@@ -74,7 +74,9 @@ function guideStage(opts){
     props:[],                     // {kind,x,y,...}
     cursor:null,                  // {x,y,down,press,drag,label}
     notes:[],                     // floating text over the stage
-    chrome:null                   // a mocked control drawn in the corner
+    chrome:null,                  // one segmented row, or a stack of them
+    rail:null,                    // {on,tapping} — the tool rail, left edge
+    top:null                      // {label,kind,tapping} — a top-bar control
   };
 }
 const gsKey=(x,y)=>x+','+y;
@@ -458,24 +460,138 @@ function gsDrawNote(ctx,st,n,box){
   ctx.fillText(n.text,x,y);
   ctx.restore();
 }
+/* ---------- where the tool lives ----------
+   A demo that shows only the RESULT teaches the second half of the lesson. The
+   first half is "which button, and where is it" — and for most of these tools
+   that is the harder half: the rail is a column of 42x32 icons under 8px
+   labels, and a landscape material is three taps down a catalog.
+
+   So a demo also draws the control it is using — the tool rail down the left
+   edge where it really sits, and the catalog path as a stack of segmented rows
+   across the top — with the relevant button armed and a tap ripple on it. Both
+   are painted by the app's OWN icon function (drawCanvasIcon, the same 42x32
+   painter makeCanvasTool hands every rail button), so the guidebook cannot
+   show a button the rail does not have. The fencePanel rule, applied to chrome.
+
+   `where` lives on the DEMO rather than on the chapter entry, so the animated
+   affordance on the canvas and the written breadcrumb under the title are one
+   piece of data and cannot drift apart. */
+
+/* The rail, in its real order. It is built by literal add() calls inside
+   buildCanvasTools and so cannot be imported; a test pins this list against
+   that function's source instead — the same move the tour's step test makes
+   when it stringifies the real function to find its fire site. Undo and Redo
+   are deliberately absent: they sit below a divider as one-shot actions and no
+   demo arms them. */
+const GUIDE_RAIL=[
+  {label:'Hand',   kind:'hand'},
+  {label:'Select', kind:'select'},
+  {label:'Ruler',  kind:'ruler'},
+  {label:'Plant',  kind:'brush'},
+  {label:'Erase',  kind:'erase', danger:true},
+  {label:'Pick',   kind:'dropper'},
+];
+function guideRailButton(label){ return GUIDE_RAIL.find(b=>b.label===label)||null; }
+
+/* A mini rail pinned to the left edge, which is where the real one is — the
+   position is half the message, so this is drawn ON the plate rather than in a
+   caption beside it. It auto-scales rather than assuming a height: the demo
+   canvas is min(46vh,340px) on DOCK and min(38vh,280px) on SHEET with a 220px
+   floor, and six buttons at the rail's real 50px are 320px, taller than the
+   smallest plate it has to fit inside. */
+/* How much of the left edge a rail wants, asked WITHOUT drawing — gsRender
+   needs the answer before it fits the stage, and one definition means the
+   reservation and the drawing cannot disagree about where the rail ends.
+   A plate too short for a legible rail gets none: below about 0.45 the 8px
+   labels are unreadable and the icons are a smear, and the written trail under
+   the title carries the same information anyway, so this degrades to the words
+   rather than to a blur. The floor is also the GUARD — on a resize the canvas
+   can report a height of a few pixels for one frame, and a negative scale
+   reached arcTo, which throws outright. */
+function gsRailScale(box,rail){
+  if (!rail || !rail.on) return 0;
+  const n=GUIDE_RAIL.length;
+  const s=Math.min(1,(box.y1-box.y0-20)/(n*54));
+  return s>0.45 ? s : 0;
+}
+function gsRailWidth(box,rail){ const s=gsRailScale(box,rail); return s?48*s+20:0; }
+function gsDrawRail(ctx,box,rail){
+  const s=gsRailScale(box,rail); if (!s) return 0;
+  const n=GUIDE_RAIL.length, full=50, gap=4;
+  const bw=48*s, bh=full*s, step=(full+gap)*s;
+  const x=box.x0+10, y0=(box.y0+box.y1)/2-(n*step-gap*s)/2;
+  ctx.save();
+  for (let i=0;i<n;i++){
+    const b=GUIDE_RAIL[i], on=b.label===rail.on, y=y0+i*step, r=9*s;
+    ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+bw,y,x+bw,y+bh,r); ctx.arcTo(x+bw,y+bh,x,y+bh,r);
+    ctx.arcTo(x,y+bh,x,y,r); ctx.arcTo(x,y,x+bw,y,r); ctx.closePath();
+    /* Armed is the accent border over a lifted fill, as .canvas-tool.sel
+       paints it — and .danger.sel is a different colour, because Erase is the
+       one rail button that says so about itself. */
+    ctx.fillStyle=on ? (b.danger?'rgba(126,42,35,0.66)':'rgba(201,127,63,0.28)')
+                     : 'rgba(26,21,17,0.74)';
+    ctx.fill();
+    ctx.lineWidth=Math.max(1,1.5*s);
+    ctx.strokeStyle=on ? (b.danger?'#d9645a':'#c97f3f') : 'rgba(239,230,211,0.13)';
+    ctx.stroke();
+    ctx.save();                       // the REAL icon, at its own 42x32
+    ctx.translate(x+bw/2-21*s, y+3*s); ctx.scale(s,s);
+    ctx.globalAlpha=on?1:0.55;
+    drawCanvasIcon(ctx,b.kind);
+    ctx.restore();
+    ctx.globalAlpha=1;
+    ctx.font='700 '+(8.5*s).toFixed(1)+"px 'IBM Plex Sans', system-ui, sans-serif";
+    ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    ctx.fillStyle=on ? (b.danger?'#f3c9c4':'#efe6d3') : 'rgba(239,230,211,0.46)';
+    ctx.fillText(b.label,x+bw/2,y+bh-5*s);
+    if (on && rail.tapping>0 && rail.tapping<1){
+      ctx.strokeStyle='rgba(201,127,63,'+(0.7*(1-rail.tapping)).toFixed(3)+')';
+      ctx.lineWidth=2.5;
+      ctx.beginPath();
+      ctx.ellipse(x+bw/2,y+bh/2,bw*0.62+rail.tapping*24,bh*0.52+rail.tapping*16,0,0,Math.PI*2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return bw+20;                       // how much of the left edge the rail took
+}
+
+
 /* A mocked control, drawn in the corner of the stage. Several tools are armed
    from a chip rather than from the canvas — Drift, the brush sizes, Age,
    Layers — and a demo that showed only the canvas would be teaching the second
    half of a two-part instruction. Drawn rather than built from real DOM
    because the real controls live inside the planner's HUD, which does not
    exist on the title screen. */
-function gsDrawChrome(ctx,st,box,ch){
-  if (!ch) return;
+/* One segmented row. The catalog path is two or three of these stacked
+   (Landscape -> Ground -> Bed) and a brush option row is another, so
+   gsDrawChrome walks a LIST and this draws one member of it; a demo that sets
+   a bare object is normalised to a stack of one, which is why none of them had
+   to change when the path rows arrived. */
+function gsDrawChromeRow(ctx,box,ch,left,top){
+  if (!ch) return 0;
   const pad=10, gap=6, hgt=34;
   ctx.save();
   ctx.font="600 12.5px 'IBM Plex Sans', system-ui, sans-serif";
   ctx.textBaseline='middle';
-  const widths=ch.options.map(o=>ctx.measureText(o).width+22);
-  const total=widths.reduce((a,b)=>a+b,0)+gap*(widths.length-1)+pad*2;
-  let x=box.x0+16, y=box.y0+16;
-  if (ch.align==='bottom') y=box.y1-hgt-16;
+  const widths=ch.options.map(o=>ctx.measureText(o).width+(ch.trail?12:22));
+  const sep=ch.trail?14:gap;
+  const total=widths.reduce((a,b)=>a+b,0)+sep*(widths.length-1)+pad*2;
+  /* Scaled to fit rather than clipped: at the narrowest plate the erase layer
+     seg and the Layers lens both ran past the right edge, and a clipped
+     segmented control loses an option with nothing to say it did. Drawn from a
+     local origin inside the scale, so nothing below has to know. */
+  const k=Math.min(1,(box.x1-left-12)/total);
+  ctx.translate(left,top); ctx.scale(k,k);
+  const x=0, y=0, r=9;
+  /* A TRAIL reads left to right with chevrons and only its last step armed —
+     "Landscape > Hardscape > Fence" — because that is a path through the
+     catalog rather than a set of alternatives. A plain row is the segmented
+     control it looks like: Draw / Drift / Matrix, where every option is a
+     peer. Same painter, because they are the same pill. */
+  const trail=!!ch.trail;
   ctx.fillStyle='rgba(26,21,17,0.86)';
-  const r=9;
   ctx.beginPath(); ctx.moveTo(x+r,y);
   ctx.arcTo(x+total,y,x+total,y+hgt,r); ctx.arcTo(x+total,y+hgt,x,y+hgt,r);
   ctx.arcTo(x,y+hgt,x,y,r); ctx.arcTo(x,y,x+total,y,r);
@@ -493,14 +609,106 @@ function gsDrawChrome(ctx,st,box,ch){
     }
     ctx.fillStyle=on?'#1a1511':'rgba(239,230,211,0.72)';
     ctx.textAlign='center'; ctx.fillText(o,cx2+w/2,y+hgt/2);
-    cx2+=w+gap;
+    cx2+=w;
+    if (trail && i<ch.options.length-1){
+      ctx.strokeStyle='rgba(239,230,211,0.42)'; ctx.lineWidth=1.6;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath();
+      ctx.moveTo(cx2+4,y+hgt/2-3.5); ctx.lineTo(cx2+8,y+hgt/2); ctx.lineTo(cx2+4,y+hgt/2+3.5);
+      ctx.stroke();
+    }
+    cx2+=sep;
   });
-  if (ch.tapping!==undefined && ch.tapping>0){
-    const w=widths[ch.on], cxT=x+pad+widths.slice(0,ch.on).reduce((a,b)=>a+b+gap,0)+w/2;
+  if (ch.tapping>0 && ch.tapping<1){
+    const w=widths[ch.on], cxT=x+pad+widths.slice(0,ch.on).reduce((a,b)=>a+b+sep,0)+w/2;
     ctx.strokeStyle=`rgba(201,127,63,${0.6*(1-ch.tapping)})`; ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(cxT,y+hgt/2,10+ch.tapping*20,0,Math.PI*2); ctx.stroke();
   }
   ctx.restore();
+  return hgt*k;
+}
+/* The stack. Rows read top to bottom as a path — the tab, then the category,
+   then the material — with the tool's own options last, which is the order the
+   taps happen in. It starts to the RIGHT of whatever the rail claimed, so the
+   two affordances never sit on top of each other. */
+function gsDrawChrome(ctx,st,box,chrome,left){
+  if (!chrome) return;
+  const rows=Array.isArray(chrome)?chrome:[chrome];
+  let y=box.y0+14;
+  rows.forEach(row=>{ y+=gsDrawChromeRow(ctx,box,row,box.x0+left+14,y)+7; });
+}
+
+/* A single top-bar control — Rotate, Layers — as a chip at the top right,
+   which is the half of the chrome that is not the rail and not the catalog.
+   Same rule as the rail: the glyph is drawCanvasIcon's, so the guidebook
+   cannot invent a button. */
+function gsDrawTopChip(ctx,box,chip){
+  if (!chip) return;
+  ctx.save();
+  ctx.font="600 12.5px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.textBaseline='middle';
+  const tw=ctx.measureText(chip.label).width, w=tw+56, h=38, r=10;
+  const x=box.x1-w-14, y=box.y0+14;
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  ctx.fillStyle='rgba(201,127,63,0.30)'; ctx.fill();
+  ctx.strokeStyle='#c97f3f'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.save(); ctx.translate(x+8,y+3); ctx.scale(0.78,0.78);
+  drawCanvasIcon(ctx,chip.kind);
+  ctx.restore();
+  ctx.fillStyle='#efe6d3'; ctx.textAlign='left';
+  ctx.fillText(chip.label,x+42,y+h/2);
+  if (chip.tapping>0 && chip.tapping<1){
+    ctx.strokeStyle='rgba(201,127,63,'+(0.7*(1-chip.tapping)).toFixed(3)+')';
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.ellipse(x+w/2,y+h/2,w*0.56+chip.tapping*24,h*0.6+chip.tapping*16,0,0,Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* Apply a demo's `where` to the stage it just built. Done HERE rather than in
+   each run() so all 25 demos got the affordance without 25 edits, and so the
+   canvas and the written breadcrumb under the title read one piece of data.
+
+   The path rows come FIRST in the chrome stack and ripple first, because that
+   is the order the taps really happen in: pick the tab, then the category,
+   then the material, and only then the tool's own options (Drift, a brush
+   size, an Age) which the demo set for itself.
+
+   The rail is shown only where the rail is genuinely the route. A landscape
+   material DOES light the rail's Plant button — isBrushTool is true for bed,
+   path, fence and the rest — but showing "Plant" lit beside a demo about
+   gravel answers a question nobody asked and raises one they now have. Those
+   demos show the catalog path instead, which is how you actually get there. */
+function gsApplyWhere(st,where,u){
+  if (!where) return;
+  const arm=(a,b)=>gAt(u,a,b);
+  if (where.rail) st.rail={on:where.rail, tapping:arm(0.01,0.15)};
+  if (where.top)  st.top={label:where.top.label, kind:where.top.kind, tapping:arm(0.01,0.15)};
+  if (where.path && where.path.length){
+    /* One trail row, not one row per step. The ripple sits on the LAST step,
+       which is the thing actually being armed; the steps before it are how you
+       got there. It lands before 0.3, where every demo's own gesture begins. */
+    const row={options:where.path, on:where.path.length-1, trail:true,
+      tapping:arm(0.02,0.18)};
+    const own=st.chrome ? (Array.isArray(st.chrome)?st.chrome:[st.chrome]) : [];
+    st.chrome=[row].concat(own);
+  }
+}
+/* The same data as a readable trail, for the copy under the title. A reader
+   who has the app open in another window wants the words; a reader looking at
+   the plate wants the picture. One source. */
+function guideWhereTrail(where){
+  if (!where) return null;
+  const groups=[];
+  if (where.rail) groups.push({label:'Tool rail', steps:[where.rail]});
+  if (where.top)  groups.push({label:'Top bar', steps:[where.top.label]});
+  if (where.path && where.path.length)
+    groups.push({label:'Library', steps:where.path.slice()});
+  return groups.length ? groups : null;
 }
 
 /* ---------- one frame ----------
@@ -517,8 +725,12 @@ function gsRender(ctx,st,w,h,sway){
 
   const e=gsExtent(st);
   const pad=14;
-  const s=Math.min((w-pad*2)/Math.max(1,e.x1-e.x0),(h-pad*2)/Math.max(1,e.y1-e.y0))*st.zoom;
-  ctx.translate(w/2,h/2); ctx.scale(s,s);
+  /* The rail's column comes off the plate before the stage is fitted, so the
+     garden is drawn into what is left rather than underneath it. */
+  const reserve=gsRailWidth({x0:0,y0:0,x1:w,y1:h},st.rail);
+  const fitW=Math.max(40,w-reserve);
+  const s=Math.min((fitW-pad*2)/Math.max(1,e.x1-e.x0),(h-pad*2)/Math.max(1,e.y1-e.y0))*st.zoom;
+  ctx.translate(reserve+fitW/2,h/2); ctx.scale(s,s);
   ctx.translate(-(e.x0+e.x1)/2,-(e.y0+e.y1)/2);
 
   gsPaintGround(ctx,st,amb);
@@ -530,7 +742,7 @@ function gsRender(ctx,st,w,h,sway){
      mapped back through the fit — so the bounds have to be computed here,
      where the scale is known, rather than from the stage's own extent. */
   const mx=(e.x0+e.x1)/2, my=(e.y0+e.y1)/2;
-  const nb={x0:mx-w/2/s, x1:mx+w/2/s, y0:my-h/2/s, y1:my+h/2/s};
+  const nb={x0:mx-fitW/2/s, x1:mx+fitW/2/s, y0:my-h/2/s, y1:my+h/2/s};
   st.notes.forEach(n=>gsDrawNote(ctx,st,n,nb));
   ctx.restore();
 
@@ -543,7 +755,10 @@ function gsRender(ctx,st,w,h,sway){
   vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,L.vignette);
   ctx.fillStyle=vg; ctx.fillRect(0,0,w,h);
   ctx.restore();
-  if (st.chrome) gsDrawChrome(ctx,st,{x0:0,y0:0,x1:w,y1:h},st.chrome);
+  const box={x0:0,y0:0,x1:w,y1:h};
+  const railW=gsDrawRail(ctx,box,st.rail);
+  gsDrawChrome(ctx,st,box,st.chrome,railW);
+  gsDrawTopChip(ctx,box,st.top);
 }
 
 /* ---------- the timeline ----------
@@ -608,6 +823,7 @@ const GUIDE_DEMOS={
 /* ----- finding your way ----- */
 
 move:{ loop:9000, rest:0.55,
+  where:{rail:'Hand'},
   build(){ const st=guideStage({cols:9,rows:9});
     gsFill(st,'lawn','meadow',0,0,8,8);
     gsFill(st,'path','warm',0,4,8,4);
@@ -634,6 +850,7 @@ move:{ loop:9000, rest:0.55,
   }},
 
 turn:{ loop:9600, rest:0.3,
+  where:{top:{label:'Rotate',kind:'rotate'}},
   build(){ const st=guideStage({cols:7,rows:7});
     gsFill(st,'bed','mulch',1,1,3,3);
     gsFill(st,'path','slate',0,5,6,5);
@@ -651,6 +868,7 @@ turn:{ loop:9600, rest:0.3,
   }},
 
 identify:{ loop:7000, rest:0.62,
+  where:{rail:'Hand'},
   build(){ const st=guideStage({cols:6,rows:6});
     gsFill(st,'bed','soil',0,0,5,5);
     gsScatter(st,['echinacea','bluestem','monarda','dropseed','sedge','pallida'],
@@ -689,6 +907,7 @@ season:{ loop:13000, rest:0.62,
 /* ----- planting ----- */
 
 plantone:{ loop:6500, rest:0.72,
+  where:{rail:'Plant', path:['Plants','Sun Perennials']},
   build(){ const st=guideStage({cols:6,rows:6});
     gsFill(st,'bed','soil',0,0,5,5);
     gsScatter(st,['bluestem','dropseed'],[[0,2],[5,4],[1,5],[4,0]]);
@@ -708,6 +927,7 @@ plantone:{ loop:6500, rest:0.72,
    how many, DRIFT_OFFSETS is the very table stampDrift walks, in its order —
    so the picture cannot show a drift the tool would not lay. */
 drift:{ loop:9000, rest:0.86,
+  where:{rail:'Plant', path:['Plants','Sun Perennials']},
   build(){ const st=guideStage({cols:7,rows:7});
     gsFill(st,'bed','soil',0,0,6,6);
     gsScatter(st,['bluestem','dropseed','sedge'],[[0,5],[6,1],[5,6],[1,0],[6,4]]);
@@ -741,6 +961,7 @@ drift:{ loop:9000, rest:0.86,
   }},
 
 dragplant:{ loop:8000, rest:0.9,
+  where:{rail:'Plant', path:['Plants','Grasses']},
   build(){ const st=guideStage({cols:8,rows:6});
     gsFill(st,'bed','mulch',0,0,7,5);
     return st; },
@@ -760,6 +981,7 @@ dragplant:{ loop:8000, rest:0.9,
   }},
 
 matrix:{ loop:10000, rest:0.92,
+  where:{rail:'Plant', path:['Plants','Grasses']},
   build(){ const st=guideStage({cols:8,rows:8});
     gsFill(st,'bed','soil',0,0,7,7);
     // The feature forbs go in first; the matrix then flows around them. That
@@ -794,6 +1016,7 @@ matrix:{ loop:10000, rest:0.92,
   }},
 
 woodyage:{ loop:10500, rest:0.88,
+  where:{rail:'Plant', path:['Plants','Trees']},
   build(){ const st=guideStage({cols:7,rows:7});
     gsFill(st,'lawn','fescue',0,0,6,6);
     gsScatter(st,['dropseed','sedge'],[[0,5],[6,5],[1,0],[5,0]]);
@@ -814,6 +1037,7 @@ woodyage:{ loop:10500, rest:0.88,
   }},
 
 footprint:{ loop:9500, rest:0.9,
+  where:{rail:'Plant', path:['Plants','Shrubs']},
   build(){ const st=guideStage({cols:6,rows:5});
     gsFill(st,'bed','mulch',0,0,5,4);
     gsScatter(st,['dropseed','sedge'],[[0,0],[5,4],[0,4],[5,0]]);
@@ -860,6 +1084,7 @@ footprint:{ loop:9500, rest:0.9,
 /* ----- the ground ----- */
 
 paths:{ loop:11000, rest:0.9,
+  where:{path:['Landscape','Ground','Path']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsScatter(st,['dropseed','bluestem','sedge'],[[0,0],[8,0],[0,6],[8,6],[1,3],[7,3]]);
@@ -887,6 +1112,7 @@ paths:{ loop:11000, rest:0.9,
   }},
 
 mow:{ loop:9500, rest:0.9,
+  where:{path:['Landscape','Ground','Lawn']},
   build(){ const st=guideStage({cols:9,rows:8});
     gsFill(st,'lawn','flower',0,0,8,7);
     gsScatter(st,['echinacea','monarda','bluestem'],
@@ -912,6 +1138,7 @@ mow:{ loop:9500, rest:0.9,
   }},
 
 water:{ loop:9500, rest:0.92,
+  where:{path:['Landscape','Ground','Water']},
   build(){ const st=guideStage({cols:9,rows:8});
     gsFill(st,'lawn','fescue',0,0,8,7);
     gsFill(st,'bed','soil',0,0,8,1);
@@ -934,6 +1161,7 @@ water:{ loop:9500, rest:0.92,
   }},
 
 edging:{ loop:10000, rest:0.92,
+  where:{path:['Landscape','Ground','Edging']},
   build(){ const st=guideStage({cols:8,rows:7});
     gsFill(st,'lawn','fescue',0,0,7,6);
     gsScatter(st,['echinacea','dropseed','monarda'],[[2,2],[4,2],[3,3],[5,4],[2,4]]);
@@ -966,6 +1194,7 @@ edging:{ loop:10000, rest:0.92,
   }},
 
 grade:{ loop:11000, rest:0.92,
+  where:{path:['Landscape','Grade']},
   build(){ const st=guideStage({cols:8,rows:7});
     gsFill(st,'lawn','fescue',0,0,7,6);
     gsScatter(st,['dropseed','sedge'],[[0,0],[7,0],[0,6],[7,6]]);
@@ -1000,6 +1229,7 @@ grade:{ loop:11000, rest:0.92,
 /* ----- hardscape and decor ----- */
 
 fence:{ loop:10500, rest:0.92,
+  where:{path:['Landscape','Hardscape','Fence']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsFill(st,'bed','mulch',0,3,8,5);
@@ -1023,6 +1253,7 @@ fence:{ loop:10500, rest:0.92,
   }},
 
 containers:{ loop:10000, rest:0.92,
+  where:{path:['Landscape','Decor','Pot']},
   build(){ const st=guideStage({cols:5,rows:4});
     gsFill(st,'path','paver',0,0,4,3);
     gsFill(st,'lawn','fescue',0,3,4,3);
@@ -1053,6 +1284,7 @@ containers:{ loop:10000, rest:0.92,
   }},
 
 seating:{ loop:10000, rest:0.94,
+  where:{path:['Landscape','Hardscape','Seating']},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'lawn','fescue',0,0,8,6);
     gsFill(st,'path','slate',2,3,6,4);
@@ -1077,6 +1309,7 @@ seating:{ loop:10000, rest:0.94,
   }},
 
 focal:{ loop:10500, rest:0.94,
+  where:{path:['Landscape','Hardscape','Fire pit']},
   build(){ const st=guideStage({cols:9,rows:8});
     gsFill(st,'lawn','fescue',0,0,8,7);
     gsFill(st,'path','lime',4,0,4,7);
@@ -1097,6 +1330,7 @@ focal:{ loop:10500, rest:0.94,
   }},
 
 climbers:{ loop:10500, rest:0.94,
+  where:{path:['Landscape','Hardscape','Support']},
   build(){ const st=guideStage({cols:8,rows:7});
     gsFill(st,'bed','mulch',0,2,7,5);
     gsFill(st,'lawn','fescue',0,6,7,6);
@@ -1124,6 +1358,7 @@ climbers:{ loop:10500, rest:0.94,
   }},
 
 decor:{ loop:8500, rest:0.9,
+  where:{path:['Landscape','Decor','Pet']},
   build(){ const st=guideStage({cols:7,rows:6});
     gsFill(st,'lawn','fescue',0,0,6,5);
     gsFill(st,'bed','mulch',0,0,6,1);
@@ -1146,6 +1381,7 @@ decor:{ loop:8500, rest:0.9,
 /* ----- editing and finishing ----- */
 
 select:{ loop:11000, rest:0.94,
+  where:{rail:'Select'},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'bed','soil',0,0,8,6);
     [[1,1],[2,1],[1,2],[2,2],[3,2],[2,3]].forEach(function(p){
@@ -1184,6 +1420,7 @@ select:{ loop:11000, rest:0.94,
   }},
 
 pick:{ loop:9000, rest:0.92,
+  where:{rail:'Pick'},
   build(){ const st=guideStage({cols:8,rows:6});
     gsFill(st,'lawn','fescue',0,0,7,5);
     gsFill(st,'path','brick',0,0,7,0);
@@ -1213,6 +1450,7 @@ pick:{ loop:9000, rest:0.92,
   }},
 
 erase:{ loop:10000, rest:0.92,
+  where:{rail:'Erase'},
   build(){ const st=guideStage({cols:9,rows:7});
     gsFill(st,'bed','mulch',1,1,7,5);
     gsFill(st,'path','warm',0,6,8,6);
@@ -1243,6 +1481,7 @@ erase:{ loop:10000, rest:0.92,
   }},
 
 layers:{ loop:11000, rest:0.5,
+  where:{top:{label:'Layers',kind:'layers'}},
   build(){ const st=guideStage({cols:8,rows:7,season:'Spring'});
     gsFill(st,'bed','soil',0,0,7,6);
     gsFill(st,'path','slate',0,6,7,6);
@@ -1571,6 +1810,28 @@ function renderGuideDetail(){
   const h=document.createElement('h2'); h.className='guide-title'; h.textContent=e.title;
   const lead=document.createElement('p'); lead.className='guide-lead'; lead.textContent=e.lead;
   frag.append(h,lead);
+  const trail=guideWhereTrail((GUIDE_DEMOS[e.demo]||{}).where);
+  if (trail){
+    const w=document.createElement('p'); w.className='guide-where';
+    trail.forEach((g,gi)=>{
+      const lab=document.createElement('span'); lab.className='guide-where-label';
+      lab.textContent=g.label; w.appendChild(lab);
+      g.steps.forEach((step,i)=>{
+        if (i){ const sep=document.createElement('span'); sep.className='guide-where-sep';
+          sep.setAttribute('aria-hidden','true'); sep.textContent='›'; w.appendChild(sep); }
+        const s=document.createElement('span');
+        /* Only the END of each trail is armed, because that is the control you
+           are left holding; the steps before it are how you got there. */
+        s.className='guide-where-step'+(i===g.steps.length-1?' last':'');
+        s.textContent=step; w.appendChild(s);
+      });
+      if (gi<trail.length-1){
+        const gap=document.createElement('span'); gap.className='guide-where-gap';
+        gap.setAttribute('aria-hidden','true'); gap.textContent='·'; w.appendChild(gap);
+      }
+    });
+    frag.appendChild(w);
+  }
   const ul=document.createElement('ul'); ul.className='guide-how';
   e.how.forEach(function(t){ const li=document.createElement('li'); li.textContent=t; ul.appendChild(li); });
   frag.appendChild(ul);
@@ -1625,6 +1886,9 @@ function drawGuideFrame(t){
      cannot strand it in a state its script never described. */
   const st=demo.build();
   demo.run(st,u);
+  /* After run(), so a demo's own option row lands BELOW the catalog path it
+     was reached through, and so adding the affordance cost no demo an edit. */
+  gsApplyWhere(st,demo.where,u);
   guideStageCache=st;
   ctx.setTransform(box.dpr,0,0,box.dpr,0,0);
   /* No sway. Every demo is about a gesture, and a breathing planting behind it

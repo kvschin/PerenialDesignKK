@@ -711,6 +711,24 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 .guide-scrub:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
 .guide-title{font-family:'Fraunces',serif;font-size:26px;font-weight:600;line-height:1.1;margin-bottom:6px}
 .guide-lead{font-size:14.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px}
+/* The written trail. A row of chips rather than a sentence, because it is a
+   path through real controls and the last step is the one you end up holding —
+   which is why only that one takes the accent. It wraps rather than scrolling:
+   three steps at 320px is the longest this gets. */
+.guide-where{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 16px;
+  font-size:12px;line-height:1.4}
+.guide-where-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-muted);margin-right:2px}
+.guide-where-step{padding:3px 9px;border-radius:var(--radius-control);
+  border:1px solid var(--border-quiet);background:var(--surface-control);color:var(--text-secondary)}
+.guide-where-step.last{border-color:var(--border-active);background:var(--surface-active);
+  color:var(--text-primary);font-weight:600}
+.guide-where-sep{color:var(--text-muted);font-size:13px;line-height:1}
+/* Between the two trails, not inside one — "Tool rail > Plant" and
+   "Library > Plants > Sun Perennials" are two places, and running them
+   together put a rail button and a catalog tab one chevron apart. */
+.guide-where-gap{color:var(--text-muted);opacity:.7;padding:0 4px}
+.guide-where-label:not(:first-child){margin-left:2px}
 .guide-how{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
 .guide-how li{position:relative;padding-left:20px;font-size:13.5px;line-height:1.55;
   color:var(--text-primary)}
@@ -755,7 +773,12 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 @media (forced-colors: active){
   /* Selected state is background-only, which forced colors discards. The demo
      canvas is a bitmap and cannot be recoloured at all, so the plate keeps a
-     border to say where the picture is. */
+     border to say where the picture is — and the written trail becomes the
+     only readable form of the "where", since the drawn rail is inside that
+     bitmap. */
+  .guide-where-step{border:1px solid ButtonBorder!important}
+  .guide-where-step.last{border:2px solid Highlight!important;forced-color-adjust:none;
+    background:Highlight!important;color:HighlightText!important}
   .guide-item.sel{border:2px solid Highlight!important;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}
   .guide-item.sel .gi-lead{color:HighlightText!important}
