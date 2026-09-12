@@ -711,6 +711,41 @@ logic is split across ordered modules. They map onto the section list below
   the chrome rows start under it. Both began at `box.y0+14` and drew over each
   other the moment one demo wanted both — the preview lens, which reaches its
   Today/Established seg by tapping that box.
+  **Four lifecycle rules, each of which was a reported bug.**
+  *`syncGuideView()` runs BEFORE `renderGuideDetail()`*, in `openGuide` and
+  `selectGuideEntry` both. It is what sets `data-guideview`, and on SHEET the
+  detail pane is `display:none` until it does — so a draw before it measures a
+  0x0 canvas, `sizeGuideCanvas` returns null and nothing is painted. With
+  motion on the loop repaints on the next frame and nobody sees it; with
+  reduced motion there IS no next frame, so the reader keeps a solid-colour
+  rectangle until they scrub. `drawGuideFrame` returns whether it drew and an
+  unmeasurable plate is retried once, as the guard behind the ordering.
+  *A resize restarts the loop*, because a resize crosses TIERS: rotating a
+  tablet from the SHEET contents list into DOCK landscape makes the detail pane
+  visible for the first time, and redrawing without restarting left the demo
+  frozen under a button reading "Pause".
+  *Pausing parks on the frame that is on screen* (`guideCurrentU`). Left
+  implicit, `guideScrub` stayed null and the next redraw fell through to
+  `demo.rest` — the reader stopped it where they wanted and resizing moved it.
+  *Focus follows the reader*, by TIER (`guideRestoreFocus`): rebuilding the
+  list throws away the row the keyboard was on, so on DOCK focus goes back to
+  the selected row and on SHEET it goes into the detail pane — that row is a
+  0x0 box inside a `display:none` pane there and cannot take focus at all.
+  Whether focus was in the list is read BEFORE `syncGuideView` can hide it,
+  since a browser blurs an element the moment it becomes `display:none`.
+  **The extent measures the stage, the pan is the camera.** `gsProject` adds
+  `st.pan` to every point, so an extent taken through it moves WITH the pan and
+  the fit then subtracts exactly what the pan added: "Move and zoom" panned
+  70px and was recentred 70px, every frame, so the one demo about the camera
+  never moved. `gsExtent` takes the pan back out.
+  **Captions are drawn in SCREEN space**, after the chrome, clamped clear of
+  the rail's column and of whatever the chrome band claimed. Inside the stage
+  transform the type was multiplied by the fit scale — measured 0.42 on a
+  343x257 plate carrying a rail, i.e. every caption in the guidebook at about
+  5.5px — and being painted before the chrome put the option row on top of the
+  drift demo's count label, the single sentence that demo exists to say. The
+  size now follows the PLATE (12-17px) rather than the stage, so one caption
+  is legible on a phone and against a 616px desktop plate alike.
   35 demos in six chapters. Adding one is a row in `guideChapters()` plus an
   entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
   with no way to find it.

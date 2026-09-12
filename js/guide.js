@@ -164,7 +164,14 @@ function gsExtent(st){
     x0=Math.min(x0,sx-TILE_W/2); x1=Math.max(x1,sx+TILE_W/2);
     y0=Math.min(y0,sy-90);       y1=Math.max(y1,sy+TILE_H+16);
   }
-  return {x0,x1,y0,y1};
+  /* The PAN comes back out. gsProject adds st.pan to every point, so an extent
+     measured through it moves with the pan — and gsRender then centres the fit
+     on that extent, which subtracts exactly what the pan added. The camera
+     demo was panning 70px and being recentred 70px every frame, so "Move and
+     zoom" showed a garden that never moved. The extent is the stage's own
+     geometry; the pan is where the camera is looking at it from. */
+  const px=st.pan[0], py=st.pan[1];
+  return {x0:x0-px, x1:x1-px, y0:y0-py, y1:y1-py};
 }
 
 /* ---------- painters ----------
@@ -500,16 +507,33 @@ function gsDrawCursor(ctx,st,cur){
 /* A caption pinned to a tile — "×9", "refused", "18 in". Plated, because it
    sits over an arbitrary garden and the chrome follows the theme while the
    ground follows the season, so neither theme is safe over bare canvas. */
-function gsDrawNote(ctx,st,n,box){
+/* Drawn in SCREEN space, outside the stage transform, which is why it takes a
+   projector rather than reading gsProjectAt itself. Inside the transform the
+   13px type was multiplied by the fit scale, and on a phone that scale is well
+   under 1 — measured, a 343x257 plate with a rail fits a 7x7 stage at 0.42, so
+   every caption in the guidebook rendered at about 5.5px. The ANCHOR stays in
+   stage units (and so does dx/dy, a relationship to a tile); only the type and
+   the plate are pinned to the screen. */
+function gsDrawNote(ctx,st,n,box,toScreen){
   const p=n.at ? gsProjectAt(st,n.at[0],n.at[1]) : [0,-40];
   ctx.save();
-  ctx.font="600 13px 'IBM Plex Sans', system-ui, sans-serif";
+  /* Sized against the PLATE, not the stage scale. Flat 13px is right on a
+     phone and reads small against a 616px desktop plate; tracking the stage
+     scale is what put it at 5.5px in the first place. A short ramp between
+     the two plate sizes the layout actually produces keeps one caption
+     legible at both ends. */
+  const fs=Math.max(12,Math.min(17,(box?box.y1-box.y0:260)/22));
+  ctx.font='600 '+fs.toFixed(1)+"px 'IBM Plex Sans', system-ui, sans-serif";
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  const w=ctx.measureText(n.text).width+18, h=24;
-  /* Kept inside the plate. A note hangs off a TILE, so one pinned above a tile
-     near the top edge draws off the canvas — the drift demo's own count label
-     was half cut off, which is the single sentence that demo exists to say. */
-  let x=p[0]+(n.dx||0), y=p[1]+(n.dy||0);
+  const w=ctx.measureText(n.text).width+fs*1.4, h=fs*1.85;
+  /* Kept inside the plate, and clear of the chrome. A note hangs off a TILE,
+     so one pinned above a tile near the top edge draws off the canvas — and
+     the drift demo's count label, the single sentence that demo exists to say,
+     was landing under the Draw/Drift/Matrix row. The box the caller passes is
+     the plate LESS the rail's column and the chrome band. */
+  const q=toScreen ? toScreen(p[0]+(n.dx||0), p[1]+(n.dy||0))
+                   : [p[0]+(n.dx||0), p[1]+(n.dy||0)];
+  let x=q[0], y=q[1];
   if (box){
     x=Math.max(box.x0+w/2+4,Math.min(box.x1-w/2-4,x));
     y=Math.max(box.y0+h/2+4,Math.min(box.y1-h/2-4,y));
@@ -517,7 +541,7 @@ function gsDrawNote(ctx,st,n,box){
   ctx.globalAlpha=n.alpha===undefined?1:n.alpha;
   ctx.fillStyle=n.tone==='warn'?'rgba(126,42,35,0.92)'
     : n.tone==='good'?'rgba(58,74,48,0.92)':'rgba(26,21,17,0.88)';
-  const r=7;
+  const r=h*0.29;
   ctx.beginPath(); ctx.moveTo(x-w/2+r,y-h/2);
   ctx.arcTo(x+w/2,y-h/2,x+w/2,y+h/2,r); ctx.arcTo(x+w/2,y+h/2,x-w/2,y+h/2,r);
   ctx.arcTo(x-w/2,y+h/2,x-w/2,y-h/2,r); ctx.arcTo(x-w/2,y-h/2,x+w/2,y-h/2,r);
@@ -957,12 +981,6 @@ function gsRender(ctx,st,w,h,sway){
   if (st.ghost) gsBrushGhost(ctx,st,st.ghost.x,st.ghost.y,st.ghost.size,st.ghost.tone);
   gsDrawRuler(ctx,st,st.ruler);
   gsDrawCursor(ctx,st,st.cursor);
-  /* Captions are clamped to the PLATE, which in stage units is the canvas
-     mapped back through the fit — so the bounds have to be computed here,
-     where the scale is known, rather than from the stage's own extent. */
-  const mx=(e.x0+e.x1)/2, my=(e.y0+e.y1)/2;
-  const nb={x0:mx-fitW/2/s, x1:mx+fitW/2/s, y0:my-h/2/s, y1:my+h/2/s};
-  st.notes.forEach(n=>gsDrawNote(ctx,st,n,nb));
   ctx.restore();
 
   // The season's light wash, painted in SCREEN space so the vignette follows
@@ -977,9 +995,26 @@ function gsRender(ctx,st,w,h,sway){
   const box={x0:0,y0:0,x1:w,y1:h};
   const railW=gsDrawRail(ctx,box,st.rail);
   const boxH=gsDrawSeasonBox(ctx,box,st.seasonBox,railW);
-  gsDrawChrome(ctx,st,box,st.chrome,railW,boxH);
+  const chromeH=gsDrawChrome(ctx,st,box,st.chrome,railW,boxH);
   gsDrawTopChip(ctx,box,st.top);
   gsDrawMenu(ctx,box,st.menu);
+
+  /* Captions LAST, in screen space, and clear of everything already drawn.
+     They were inside the stage transform and drawn before the chrome, which
+     cost them twice: the type was scaled down with the garden, and the row of
+     option chips was then painted over the top of them. */
+  const mx=(e.x0+e.x1)/2, my=(e.y0+e.y1)/2;
+  const toScreen=(px,py)=>[reserve+fitW/2+(px-mx)*s, h/2+(py-my)*s];
+  const band=Math.max(boxH||0, chromeH||0);
+  const nb={
+    x0:reserve+6,
+    /* the menu is a 210px panel down the right edge; nothing else on that side
+       is tall enough to reach a caption */
+    x1:w-6-(st.menu&&st.menu.open>0 ? 224 : 0),
+    y0:6+(band?band+18:0),
+    y1:h-6
+  };
+  st.notes.forEach(n=>gsDrawNote(ctx,st,n,nb,toScreen));
 }
 
 /* ---------- the timeline ----------
@@ -1903,8 +1938,13 @@ lighting:{ loop:10000, rest:0.9,
     const tap=gTap(u,0.1+Math.min(2,n)*0.2);
     const c=gPath(gAt(u,0.04,0.68),[[6,5.6],[1,2],[4,2],[7,2]]);
     st.cursor=u<0.74?{x:c[0],y:c[1],down:tap.down,press:tap.press}:null;
+    /* The sun/moon button in the TOP BAR, not Layers. Night was promoted out
+       of the Layers overlay menu into its own top-bar toggle, and the written
+       instruction under this demo already said so — the caption on the canvas
+       was the copy nobody updated, which is the worse of the two to get wrong
+       because it is the one being read while looking at the picture. */
     st.notes=[{text:u<0.74 ? 'Set them out along the path'
-      : 'Turn night on in Layers to see them lit', at:[4,6.4],dy:28}];
+      : 'The sun/moon button in the top bar lights them', at:[4,6.4],dy:28}];
   }},
 
 site:{ loop:11000, rest:0.92,
@@ -2238,9 +2278,15 @@ function openGuide(){
   guidePlaying=!reducedMotion();
   guideScrub=null;
   show('guideScreen');
+  /* syncGuideView FIRST, always. It is what sets data-guideview, and on SHEET
+     the detail pane is display:none until it does — so a draw before it
+     measures a 0x0 canvas, sizeGuideCanvas returns null, and nothing is
+     painted. With motion on the loop covered that up on the next frame; with
+     reduced motion the loop never runs, so the reader got a solid-colour
+     rectangle until they scrubbed or pressed Play. */
+  syncGuideView();
   buildGuideList();
   renderGuideDetail();
-  syncGuideView();
   startGuideLoop();
 }
 function closeGuide(){ stopGuideLoop(); show('menuScreen'); }
@@ -2265,10 +2311,34 @@ function selectGuideEntry(id){
   guideSel=id;
   guideView='detail';
   guideScrub=null; guidePlaying=!reducedMotion(); guideT0=0;
+  /* Captured FIRST: syncGuideView can hide the list, and a browser blurs an
+     element the moment it becomes display:none, so asking afterwards always
+     answers "no". Only restored when focus was really in the list — a mouse
+     user pressing a row should not have focus yanked around. */
+  const list=$('guideList');
+  const hadFocus=!!(list && document.activeElement && list.contains(document.activeElement));
+  /* Before the draw, for the reason openGuide gives: on SHEET the detail pane
+     is hidden until this runs, and a canvas measured while hidden is 0x0. */
+  syncGuideView();
   buildGuideList();          // the selected row moves
   renderGuideDetail();
-  syncGuideView();
+  if (hadFocus) guideRestoreFocus();
   startGuideLoop();
+}
+/* Where the keyboard goes after the list is rebuilt under it. Both panes throw
+   away every node they own, so focus fell to the body and the next Tab started
+   again at the first tool.
+
+   The destination differs by TIER and it has to: on DOCK the list stays beside
+   the detail, so the keyboard belongs back on the row it was on. On SHEET the
+   list has just been REPLACED by the detail view — measured, that row computes
+   to a 0x0 box inside a display:none pane and cannot take focus at all — so
+   focus follows the reader onto the screen they actually moved to. */
+function guideRestoreFocus(){
+  const target = guideSheetUi()
+    ? ($('btnGuideBack') || document.querySelector('.guide-detail-back'))
+    : (($('guideList')||{querySelector:()=>null}).querySelector('.guide-item.sel'));
+  if (target && target.focus) target.focus({preventScroll:true});
 }
 function buildGuideList(){
   const list=$('guideList'); if (!list) return;
@@ -2328,9 +2398,17 @@ function renderGuideDetail(){
   const play=document.createElement('button'); play.type='button';
   play.className='guide-play'; play.id='guidePlay';
   play.onclick=function(){
-    guidePlaying=!guidePlaying;
-    if (guidePlaying){ guideScrub=null; guideT0=0; startGuideLoop(); }
+    if (guidePlaying){
+      /* Park on the frame that is on screen, rather than leaving the position
+         implicit — otherwise the next redraw falls through to demo.rest and
+         the demo jumps somewhere the reader did not stop it. */
+      guideScrub=guideCurrentU();
+      guidePlaying=false;
+    } else {
+      guideScrub=null; guideT0=0; guidePlaying=true; startGuideLoop();
+    }
     syncGuidePlay();
+    drawGuideFrame();
   };
   const scrub=document.createElement('input'); scrub.type='range';
   scrub.className='guide-scrub'; scrub.id='guideScrub';
@@ -2381,7 +2459,13 @@ function renderGuideDetail(){
   host.scrollTop=0;
   syncGuidePlay();
   sizeGuideCanvas();
-  drawGuideFrame();
+  /* One retry on the next frame if the canvas had no box yet. The ordering
+     above is the real fix; this is the guard that keeps a blank plate from
+     ever being the resting state again, because under reduced motion there is
+     no loop coming along behind to paint it. */
+  if (!drawGuideFrame()) requestAnimationFrame(function(){
+    if (guideOpen()) drawGuideFrame();
+  });
 }
 function syncGuidePlay(){
   const b=$('guidePlay'); if (!b) return;
@@ -2401,11 +2485,23 @@ function sizeGuideCanvas(){
   }
   return {cv,w,h,dpr};
 }
+/* Where the demo is now, without drawing it — so pausing can park on the frame
+   that is actually on screen. Left to drawGuideFrame's own fallback, a pause
+   through the Play button left guideScrub null, and the next redraw (a resize,
+   a rotation) jumped to demo.rest: the reader stopped it on the frame they
+   wanted and the window changing size moved it. */
+function guideCurrentU(t){
+  const e=guideEntry(guideSel), demo=e&&GUIDE_DEMOS[e.demo];
+  if (!demo) return 0;
+  if (guideScrub!==null) return guideScrub;
+  if (!guidePlaying || !guideT0) return demo.rest===undefined?0.8:demo.rest;
+  return (((t||performance.now())-guideT0)%demo.loop)/demo.loop;
+}
 function drawGuideFrame(t){
-  const box=sizeGuideCanvas(); if (!box) return;
-  const e=guideEntry(guideSel); if (!e) return;
-  const demo=GUIDE_DEMOS[e.demo]; if (!demo) return;
-  const ctx=box.cv.getContext('2d'); if (!ctx) return;
+  const box=sizeGuideCanvas(); if (!box) return false;
+  const e=guideEntry(guideSel); if (!e) return false;
+  const demo=GUIDE_DEMOS[e.demo]; if (!demo) return false;
+  const ctx=box.cv.getContext('2d'); if (!ctx) return false;
 
   let u;
   if (guideScrub!==null) u=guideScrub;
@@ -2431,6 +2527,7 @@ function drawGuideFrame(t){
      is motion competing with the thing being explained — and under reduced
      motion there must be none at all. */
   gsRender(ctx,st,box.w,box.h,0);
+  return true;
 }
 /* The loop STOPS rather than spinning on a frame it will not draw. The first
    cut re-armed unconditionally and only skipped the draw, which left a rAF
@@ -2459,7 +2556,19 @@ function stopGuideLoop(){ if (guideRaf) cancelAnimationFrame(guideRaf); guideRaf
 document.addEventListener('visibilitychange',function(){
   if (document.hidden) stopGuideLoop(); else if (guideOpen()) startGuideLoop();
 });
-addEventListener('resize',function(){ if (guideOpen()){ syncGuideView(); drawGuideFrame(); } });
+/* A resize crosses TIERS. Rotating a tablet from the SHEET contents list into
+   DOCK landscape makes the detail pane visible for the first time, and the old
+   handler redrew without restarting the loop — so the demo sat frozen under a
+   button that said "Pause", which is the one label that cannot be true of a
+   still picture. syncGuidePlay goes with it, because guideCanAnimate can now
+   answer differently than it did when the button was last written. */
+addEventListener('resize',function(){
+  if (!guideOpen()) return;
+  syncGuideView();
+  syncGuidePlay();
+  drawGuideFrame();
+  startGuideLoop();
+});
 
 if ($('btnGuide')) $('btnGuide').onclick=openGuide;
 if ($('btnGuideClose')) $('btnGuideClose').onclick=closeGuide;

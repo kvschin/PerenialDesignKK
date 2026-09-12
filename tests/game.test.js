@@ -12333,3 +12333,165 @@ test('a stage prop turns with the stage, like everything else in the garden', ()
   assert(/game\.rot=\(st\.rot\|\|0\)&3/.test(borrow), 'the borrow sets the stage rotation');
   assert(/game\.rot=prior\.rot/.test(borrow), 'and puts the real one back');
 });
+
+test('the guidebook camera can actually move the stage', () => {
+  /* "Move and zoom" never moved. gsProject adds st.pan to every point, so an
+     extent measured through it moves WITH the pan — and gsRender centres the
+     fit on that extent, subtracting exactly what the pan added. The demo was
+     panning 70px and being recentred 70px, every frame, forever.
+     Measured behaviourally rather than grepped: two stages differing only in
+     their camera must describe the same piece of ground. */
+  const a = GUIDE_DEMOS.move.build();
+  const b = GUIDE_DEMOS.move.build();
+  b.pan = [-70, -26];
+  const ea = gsExtent(a), eb = gsExtent(b);
+  for (const k of ['x0', 'x1', 'y0', 'y1'])
+    assert(Math.abs(ea[k] - eb[k]) < 1e-9,
+      'the extent is the stage, not the camera (' + k + ': ' + ea[k] + ' vs ' + eb[k] + ')');
+
+  // and the demo really does drive the camera across its first beat
+  const pans = [];
+  for (let i = 0; i <= 20; i++) {
+    const st = GUIDE_DEMOS.move.build();
+    GUIDE_DEMOS.move.run(st, i / 20);
+    pans.push(st.pan[0] + ',' + st.pan[1] + ',' + st.zoom.toFixed(3));
+  }
+  assert(new Set(pans).size > 6, 'the camera demo moves its camera (' + new Set(pans).size + ' positions)');
+});
+
+test('a guidebook caption is drawn at a readable size, clear of the chrome', () => {
+  /* The captions were inside the stage transform, so the 13px type was
+     multiplied by the fit scale — and on a phone that scale is well under 1
+     (measured 0.42 on a 343x257 plate carrying a rail), which put every
+     caption in the guidebook at about 5.5px. They are drawn in SCREEN space
+     now, which is what the projector argument is for. */
+  const src = readRepoFile('js/guide.js');
+  const note = src.slice(src.indexOf('function gsDrawNote'), src.indexOf('/* ---------- where the tool lives'));
+  assert(/function gsDrawNote\(ctx,st,n,box,toScreen\)/.test(note),
+    'gsDrawNote takes a projector rather than projecting inside the transform');
+  assert(/toScreen\s*\?/.test(note), 'and uses it');
+
+  /* Painted AFTER the chrome and clamped below it. Before, the option row was
+     drawn over the top of the drift demo's count label — the single sentence
+     that demo exists to say. */
+  const render = src.slice(src.indexOf('function gsRender'), src.indexOf('/* ---------- the timeline'));
+  const chromeAt = render.indexOf('gsDrawChrome(');
+  const notesAt = render.indexOf('st.notes.forEach');
+  assert(chromeAt > -1 && notesAt > -1, 'both passes are in gsRender');
+  assert(notesAt > chromeAt, 'captions are painted after the chrome, not under it');
+  assert(/y0:6\+\(band\?band\+18:0\)/.test(render),
+    'and are clamped below whatever the chrome claimed');
+  // the rail's column is reserved for them too
+  assert(/x0:reserve\+6/.test(render), 'and clear of the rail');
+});
+
+test('the guidebook shows the pane before it draws into it', () => {
+  /* Reported as blank demos on a phone with reduced motion. renderGuideDetail
+     measures the canvas, and on SHEET the detail pane is display:none until
+     syncGuideView sets data-guideview — so a draw before it measures 0x0,
+     sizeGuideCanvas returns null and nothing is painted. With motion on the
+     loop repaints on the next frame and nobody sees it; with reduced motion
+     there IS no next frame, so the reader keeps a solid-colour rectangle. */
+  const src = readRepoFile('js/guide.js');
+  for (const fn of ['function openGuide', 'function selectGuideEntry']) {
+    const body = src.slice(src.indexOf(fn), src.indexOf('}', src.indexOf('startGuideLoop();', src.indexOf(fn))));
+    const sync = body.indexOf('syncGuideView()');
+    const draw = body.indexOf('renderGuideDetail()');
+    assert(sync > -1 && draw > -1, fn + ' does both');
+    assert(sync < draw, fn + ' shows the pane before drawing into it');
+  }
+  /* And the belt-and-braces: a draw that could not measure says so, and is
+     retried once — because under reduced motion nothing else will. */
+  assert(/if \(!drawGuideFrame\(\)\) requestAnimationFrame/.test(src),
+    'an unmeasurable plate is retried rather than left blank');
+  const draw = src.slice(src.indexOf('function drawGuideFrame'), src.indexOf('/* The loop STOPS'));
+  assert(/return false;/.test(draw) && /return true;/.test(draw),
+    'drawGuideFrame reports whether it drew');
+});
+
+test('a guidebook resize restarts what it interrupted, and keeps its frame', () => {
+  const src = readRepoFile('js/guide.js');
+  const rs = src.slice(src.indexOf("addEventListener('resize'"), src.length);
+  const handler = rs.slice(0, rs.indexOf('});') + 3);
+  /* Rotating a tablet from the SHEET contents list into DOCK landscape makes
+     the detail pane visible for the first time. The old handler redrew and
+     stopped there, so the demo sat frozen under a button that said "Pause" —
+     the one label that cannot be true of a still picture. */
+  assert(/startGuideLoop\(\)/.test(handler), 'a resize restarts the loop');
+  assert(/syncGuidePlay\(\)/.test(handler), 'and rewrites the button that describes it');
+
+  /* And a PAUSED demo must not move. Pausing used to leave guideScrub null, so
+     the next redraw fell through to demo.rest: the reader stopped it on the
+     frame they wanted and resizing the window moved it. */
+  assert(typeof guideCurrentU === 'function', 'there is a read-only position');
+  const play = src.slice(src.indexOf('play.onclick='), src.indexOf('const scrub='));
+  assert(/guideScrub=guideCurrentU\(\)/.test(play), 'pausing parks on the frame on screen');
+
+  // guideCurrentU agrees with what drawGuideFrame would pick, in each mode
+  const was = { p: guidePlaying, s: guideScrub, t: guideT0, sel: guideSel };
+  try {
+    guideSel = 'drift';
+    const demo = GUIDE_DEMOS[guideEntry('drift').demo];
+    guidePlaying = false; guideScrub = 0.37;
+    assertEqual(guideCurrentU(), 0.37, 'a parked demo reports where it is parked');
+    guideScrub = null;
+    assertEqual(guideCurrentU(), demo.rest, 'an unstarted one reports its resting frame');
+  } finally {
+    guidePlaying = was.p; guideScrub = was.s; guideT0 = was.t; guideSel = was.sel;
+  }
+});
+
+test('the keyboard keeps its place when the guidebook list is rebuilt', () => {
+  /* Selecting an entry throws away every row, including the one the keyboard
+     was on, so focus fell to the body and the next Tab started again at the
+     first tool. The destination differs by TIER and has to: on DOCK the list
+     stays beside the detail; on SHEET it has just been REPLACED by the detail,
+     and that row computes to a 0x0 box inside a display:none pane, which
+     cannot take focus at all. */
+  const src = readRepoFile('js/guide.js');
+  assert(/function guideRestoreFocus\(\)/.test(src), 'there is one place that decides');
+  const fn = src.slice(src.indexOf('function guideRestoreFocus'), src.indexOf('function buildGuideList'));
+  assert(/guideSheetUi\(\)/.test(fn), 'it asks which tier it is on');
+  assert(/btnGuideBack|guide-detail-back/.test(fn), 'SHEET sends focus to the detail pane');
+  assert(/guide-item\.sel/.test(fn), 'DOCK sends it back to the selected row');
+
+  const sel = src.slice(src.indexOf('function selectGuideEntry'), src.indexOf('function guideRestoreFocus'));
+  /* Captured BEFORE syncGuideView, which can hide the list — a browser blurs an
+     element the moment it becomes display:none, so asking afterwards always
+     answers "no" and the restore never runs. */
+  assert(sel.indexOf('hadFocus') < sel.indexOf('syncGuideView()'),
+    'whether focus was in the list is read before the list can be hidden');
+  /* And only then. A mouse user pressing a row must not have focus yanked. */
+  assert(/if \(hadFocus\) guideRestoreFocus\(\)/.test(sel),
+    'focus is restored only when it was in the list to begin with');
+});
+
+test('a guidebook caption names the control the app actually has', () => {
+  /* The lighting demo's caption said to turn night on "in Layers". Night was
+     promoted out of the Layers overlay menu into its own top-bar sun/moon
+     toggle, and the written instruction under the demo already said so — the
+     caption on the canvas was the copy nobody updated, which is the worse of
+     the two to get wrong because it is the one being read while looking at the
+     picture. */
+  const notes = [];
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const d = GUIDE_DEMOS[id];
+    for (let i = 0; i <= 20; i++) {
+      const st = d.build(); d.run(st, i / 20);
+      (st.notes || []).forEach(n => notes.push({ id, text: String(n.text || '') }));
+    }
+  }
+  assert(notes.length > 20, 'there are captions to check (' + notes.length + ')');
+  for (const n of notes)
+    assert(!/night on in Layers/i.test(n.text),
+      n.id + ' still sends the reader to Layers for night: "' + n.text + '"');
+  const lighting = notes.filter(n => n.id === 'lighting').map(n => n.text).join(' | ');
+  assert(/top bar/i.test(lighting) && /sun\/moon/i.test(lighting),
+    'the lighting demo names the top-bar sun/moon button (' + lighting + ')');
+
+  /* Whatever a caption says about WHERE something is has to agree with the
+     written trail under the demo, which is generated from `where`. */
+  const bar = guideEntry('lighting');
+  assert(/sun\/moon button in the top bar/i.test(bar.how.join(' ')),
+    'and the written instruction says the same thing');
+});
