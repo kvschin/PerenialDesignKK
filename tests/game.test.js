@@ -12125,12 +12125,31 @@ test('the guidebook points at buttons the app actually has', () => {
   const tray = readRepoFile('js/tray.js');
   const railSrc = tray.slice(tray.indexOf('function buildCanvasTools'),
                              tray.indexOf('function popButton'));
+  /* Every kind drawCanvasIcon can actually draw, read off its own branches
+     rather than listed here — a list would go stale the first time a branch
+     was renamed, which is the failure this whole family of tests exists to
+     prevent. */
+  function guideIconKinds(){
+    const draw = tray.slice(tray.indexOf('function drawCanvasIcon'),
+                            tray.indexOf('function makeCanvasTool'));
+    return [...draw.matchAll(/kind===[']([a-z-]+)[']/g)].map(m => m[1]);
+  }
   assert(railSrc.length > 200, 'the buildCanvasTools slice found real source');
+  assert(typeof globalThis.drawCanvasIcon === 'function', 'the icon painter exists');
   for (const b of GUIDE_RAIL) {
     assert(railSrc.includes("add('" + b.label + "','" + b.kind + "'"),
       b.label + '/' + b.kind + ' is a real rail button, in the rail order');
-    assert(typeof globalThis.drawCanvasIcon === 'function', 'the icon painter exists');
+    assert(guideIconKinds().includes(b.kind), b.kind + ' is a kind the painter can draw');
   }
+  /* Undo and Redo sit below a DIVIDER in the real rail, and the mini rail says
+     so — they are one-shot history actions, not modes, and running them on
+     with the paint tools would be the one thing about that column a reader
+     could get wrong from a picture. */
+  const sepAt = railSrc.indexOf('sep();');
+  assert(sepAt > -1, 'the real rail has a divider');
+  for (const b of GUIDE_RAIL)
+    assertEqual(railSrc.indexOf("add('" + b.label + "'") > sepAt, !!b.sep || b.label === 'Redo',
+      b.label + ' is on the right side of the divider');
   /* Order too: a mini rail whose buttons are in a different order than the real
      one is worse than no picture, because it teaches the wrong muscle memory. */
   const positions = GUIDE_RAIL.map(b => railSrc.indexOf("add('" + b.label + "'"));
@@ -12144,11 +12163,16 @@ test('the guidebook points at buttons the app actually has', () => {
     const w = GUIDE_DEMOS[id].where;
     if (!w) continue;
     if (w.rail) assert(guideRailButton(w.rail), id + ' names a real rail button: ' + w.rail);
-    /* A control the demo paints ITSELF — the season box — needs no icon,
-       because it is not drawn as a chip. Everything else does, or it is a
-       label floating with nothing to identify it. */
-    if (w.top) assert(w.top.label && (w.top.kind || w.top.drawn),
-      id + ' top control carries a label, and an icon unless it draws itself');
+    /* A top control always carries a LABEL. An icon is optional and several
+       genuinely have none — the scheme chip is text in the real top bar and
+       Menu's glyph is an SVG symbol rather than one of drawCanvasIcon's kinds
+       — but a kind that IS named has to be one the painter can draw, or the
+       chip comes out as an empty box beside a word. */
+    if (w.top) {
+      assert(w.top.label, id + ' top control carries a label');
+      if (w.top.kind) assert(guideIconKinds().includes(w.top.kind),
+        id + ' names a real canvas icon kind (' + w.top.kind + ')');
+    }
     if (w.path) {
       assert(groups.includes(w.path[0]),
         id + " path starts at a real catalog tab (" + w.path[0] + ')');
@@ -12266,4 +12290,46 @@ test('the season demo teaches the control the app actually has', () => {
   const trail = guideWhereTrail(d.where);
   assert(trail && trail[0].label === 'Top bar' && /Season/.test(trail[0].steps[0]),
     'the trail says the season box is in the top bar');
+});
+
+test('a stage prop turns with the stage, like everything else in the garden', () => {
+  /* Reported as "in Turn the view the chair is not turning with the plants".
+     It was not: the drawing basis was pinned to ISO_AXES_FLAT, the rot-0
+     basis, while the POSITION rotated correctly through gsFootCentre — so the
+     furniture held its original facing as the plot turned underneath it. The
+     stage's basis has to be the garden's own, rotation for rotation. */
+  const was = game.rot;
+  try {
+    for (let r = 0; r < 4; r++) {
+      game.rot = r;
+      assertEqual(JSON.stringify(gsAxes({ rot: r })), JSON.stringify(isoAxes()),
+        'the stage basis at rot ' + r + ' is the garden basis');
+    }
+  } finally { game.rot = was; }
+
+  /* And the demo that reported it really does rotate — all four quarters, and
+     it carries a piece of furniture to rotate, which is what made the bug
+     visible in the first place. */
+  const d = GUIDE_DEMOS.turn;
+  const seen = new Set();
+  for (let i = 0; i <= 40; i++) { const st = d.build(); d.run(st, i / 40); seen.add(st.rot); }
+  assertEqual(seen.size, 4, 'the turn demo visits every rotation');
+  const st = d.build();
+  assert(st.props.some(p => p.kind === 'seat' || p.kind === 'pot'),
+    'and it has furniture in it to turn');
+
+  /* gsDrawProp must ask for the basis rather than carrying the flat one — the
+     literal is the bug. */
+  const src = readRepoFile('js/guide.js');
+  const prop = src.slice(src.indexOf('function gsDrawProp'), src.indexOf('function gsPropDepth'));
+  assert(/gsAxes\(st\)/.test(prop), 'gsDrawProp takes the stage basis');
+  assert(!/ISO_AXES_FLAT/.test(prop), 'and never the rot-0 one');
+
+  /* The borrowed camera takes the rotation too, or the two painters that go
+     through it (a boulder, a fire pit, a light, a footprint) would sit still
+     while their neighbours turned. */
+  const borrow = src.slice(src.indexOf('function gsBorrowCamera'),
+                           src.indexOf('function gsDrawFence'));
+  assert(/game\.rot=\(st\.rot\|\|0\)&3/.test(borrow), 'the borrow sets the stage rotation');
+  assert(/game\.rot=prior\.rot/.test(borrow), 'and puts the real one back');
 });

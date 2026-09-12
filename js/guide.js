@@ -71,13 +71,19 @@ function guideStage(opts){
     terrain:Object.create(null),  // "x,y" -> {k,c,e}
     elev:Object.create(null),     // "x,y" -> integer level
     plants:Object.create(null),   // "x,y" -> {s,v,g}  (g = growth 0..1)
+    /* A second layer sharing the same tiles, exactly as game.bulbs does — a
+       bulb tucks UNDER a perennial rather than displacing it, and a demo that
+       could not show two things on one tile could not show that. */
+    bulbs:Object.create(null),
     props:[],                     // {kind,x,y,...}
     cursor:null,                  // {x,y,down,press,drag,label}
     notes:[],                     // floating text over the stage
     chrome:null,                  // one segmented row, or a stack of them
     rail:null,                    // {on,tapping} — the tool rail, left edge
     top:null,                     // {label,kind,tapping} — a top-bar control
-    seasonBox:null                // {season,phase,fill,hold,press,ff} — the real one
+    seasonBox:null,               // {season,phase,fill,hold,press,ff} — the real one
+    ruler:null,                   // {a,b} in stage tiles — drawn by the app's own
+    menu:null                     // {items,on,open} — a mocked dropdown
   };
 }
 const gsKey=(x,y)=>x+','+y;
@@ -132,6 +138,21 @@ function gsViewDir(st,dx,dy){
 }
 // Depth key: the view-space sum, exactly viewDepth's ordering at any rotation.
 function gsDepth(st,x,y){ const [vx,vy]=gsView(st,x,y); return vx+vy; }
+/* The drawing basis, which rotates with the stage exactly as isoAxes() rotates
+   with game.rot. Pinned to ISO_AXES_FLAT it was the rot-0 basis forever: in the
+   Turn the view demo the bench and the pot kept their original facing while the
+   plot turned underneath them, so the two pieces of furniture stayed put while
+   the garden rotated around them. Position was already right — gsFootCentre
+   averages two projected tile centres — which is why it read as the objects
+   refusing to turn rather than as them being in the wrong place. */
+function gsAxes(st){
+  switch((st.rot||0)&3){
+    case 1:  return [[-TILE_W/2,TILE_H/2],[TILE_W/2,TILE_H/2]];
+    case 2:  return [[-TILE_W/2,-TILE_H/2],[TILE_W/2,-TILE_H/2]];
+    case 3:  return [[TILE_W/2,-TILE_H/2],[-TILE_W/2,-TILE_H/2]];
+    default: return [[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
+  }
+}
 
 /* The extent of the whole stage in draw units, used to fit it to the canvas.
    Measured from the four plot corners through the live transform rather than
@@ -243,16 +264,22 @@ function gsWaterDepth(st,x,y){
    where the stage wants it and takes it back in a `finally`. Four fields, one
    synchronous call, no allocation of game state and no cache touched — the
    captureGardenPortrait pattern at its smallest. */
-function gsBorrowCamera(sx,sy,fn){
+function gsBorrowCamera(st,x,y,sx,sy,fn){
   const prior={x:cam.x,y:cam.y,rot:game.rot,elev:game.elevation};
   try{
-    /* viewScreen is W/2 + isoX(0,0) - cam.x, so a camera of -(sx) puts world
-       tile (0,0) at screen sx with W=H=0. Elevation is emptied for the same
-       reason rot is pinned: screenOf must answer about the stage, not about
-       whatever garden the app last held. */
-    game.rot=0; game.elevation=Object.create(null);
-    cam.x=-sx; cam.y=-sy;
-    fn(0,0);
+    /* The stage's own rotation is borrowed along with the camera, so a piece
+       drawn by one of these painters turns with the plot like everything else.
+       worldToView's CONSTANT depends on the live GW/GH and its linear part does
+       not, so anchoring the camera on one tile makes every offset inside the
+       footprint correct whatever size garden the app happens to be holding:
+       viewScreen is isoX(v) - cam at W=H=0, so cam = isoX(anchor) - sx puts
+       that tile exactly where the stage wants it.
+       Elevation is emptied for the same reason the rotation is set rather than
+       left: screenOf must answer about the stage, not about the last garden. */
+    game.rot=(st.rot||0)&3; game.elevation=Object.create(null);
+    const [vx,vy]=worldToView(x,y);
+    cam.x=isoX(vx,vy)-sx; cam.y=isoY(vx,vy)-sy;
+    fn(x,y);
   } finally {
     cam.x=prior.x; cam.y=prior.y; game.rot=prior.rot; game.elevation=prior.elev;
   }
@@ -295,7 +322,7 @@ function gsFootCentre(st,x,y,sz){
   return [(a[0]+b[0])/2,(a[1]+b[1])/2+TILE_H/2];
 }
 function gsDrawProp(ctx,st,p){
-  const season=st.season, axes=ISO_AXES_FLAT;
+  const season=st.season, axes=gsAxes(st);
   switch(p.kind){
     case 'fence': return gsDrawFence(ctx,st,p);
     case 'pot':{
@@ -322,11 +349,34 @@ function gsDrawProp(ctx,st,p){
     }
     case 'boulder':{
       const [sx,sy]=gsProject(st,p.x,p.y);
-      return gsBorrowCamera(sx,sy,(x,y)=>drawBoulder(ctx,0,0,season,{type:p.type},x,y));
+      return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>drawBoulder(ctx,0,0,season,{type:p.type},x,y));
     }
     case 'firepit':{
       const [sx,sy]=gsProject(st,p.x,p.y);
-      return gsBorrowCamera(sx,sy,(x,y)=>drawFirepit(ctx,0,0,season,{shape:p.shape,size:p.size},x,y));
+      return gsBorrowCamera(st,p.x,p.y,sx,sy,
+        (x,y)=>drawFirepit(ctx,0,0,season,{shape:p.shape,size:p.size},x,y));
+    }
+    /* A light and a building footprint reach their painters the same way.
+       Both read the camera — the fixture through screenOf, the footprint
+       through screenOf AND the corner lattice — and both are otherwise pure
+       functions of their own record, so the borrow is all they need and no
+       silhouette had to be reinvented here. */
+    case 'light':{
+      const [sx,sy]=gsProject(st,p.x,p.y);
+      return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>{
+        const l={type:p.type,tone:p.tone};
+        if (p.lit) drawLightGlow(ctx,0,0,l,x,y);
+        drawLightFixture(ctx,0,0,season,l,x,y,!!p.lit);
+      });
+    }
+    case 'building':{
+      const [sx,sy]=gsProject(st,0,0);
+      return gsBorrowCamera(st,0,0,sx,sy,()=>{
+        const b=Object.assign({id:'guide',vertices:p.vertices},
+          normalizeBuildingStyle({status:p.status,label:p.label}));
+        for (const t of buildingTiles(b)) drawBuildingTile(ctx,0,0,b,t[0],t[1]);
+        drawBuildingOutline(ctx,0,0,b);
+      });
     }
   }
 }
@@ -355,6 +405,12 @@ function gsPropSize(p){
 function gsPropDepth(st,p){
   if (p.kind==='pet') return gsDepth(st,p.x,p.y)+0.42;
   if (p.kind==='fence') return gsDepth(st,p.x,p.y)+0.34;
+  if (p.kind==='light') return gsDepth(st,p.x,p.y)+0.36;
+  if (p.kind==='building'){
+    let d=-Infinity;
+    (p.vertices||[]).forEach(v=>{ d=Math.max(d,gsDepth(st,v[0],v[1])); });
+    return d+0.345;
+  }
   const sz=gsPropSize(p);
   const far=Math.max(gsDepth(st,p.x,p.y),gsDepth(st,p.x+sz.w-1,p.y),
                      gsDepth(st,p.x,p.y+sz.h-1),gsDepth(st,p.x+sz.w-1,p.y+sz.h-1));
@@ -382,6 +438,15 @@ function gsPaintEntities(ctx,st,sway){
       drawPlant(ctx,sx,sy+TILE_H/2-lift,p.s,p.g,st.season,tileSeed(x,y),sway,p.v,
         p.bloom===undefined?1:p.bloom);
       ctx.restore();
+    }});
+  });
+  Object.keys(st.bulbs||{}).forEach(k=>{
+    const p=st.bulbs[k]; if (!p||p.g<=0.02) return;
+    const [x,y]=k.split(',').map(Number);
+    ents.push({d:gsDepth(st,x,y)+0.25, draw:()=>{
+      const [sx,sy]=gsProject(st,x,y);
+      drawPlant(ctx,sx,sy+TILE_H/2,p.s,p.g,st.season,(tileSeed(x,y)^0x9e37)>>>0,sway,p.v,
+        p.bloom===undefined?1:p.bloom);
     }});
   });
   st.props.forEach(p=>ents.push({d:gsPropDepth(st,p),draw:()=>gsDrawProp(ctx,st,p)}));
@@ -491,8 +556,26 @@ const GUIDE_RAIL=[
   {label:'Plant',  kind:'brush'},
   {label:'Erase',  kind:'erase', danger:true},
   {label:'Pick',   kind:'dropper'},
+  // below the divider: one-shot history actions, not modes
+  {label:'Undo',   kind:'undo', sep:true},
+  {label:'Redo',   kind:'redo'},
 ];
 function guideRailButton(label){ return GUIDE_RAIL.find(b=>b.label===label)||null; }
+const GUIDE_RAIL_STEP=54;      // a 50px button and its 4px gap
+/* Which slice of the rail a plate can hold at full size, always containing the
+   armed button. The real rail scrolls on a short viewport for exactly this
+   reason, so showing four of eight on a phone is the honest picture rather
+   than a compromise. */
+function gsRailWindow(box,rail){
+  const n=GUIDE_RAIL.length;
+  const fit=Math.floor((box.y1-box.y0-20)/GUIDE_RAIL_STEP);
+  if (fit<3) return null;
+  const show=Math.min(n,fit);
+  let i=GUIDE_RAIL.findIndex(b=>b.label===rail.on);
+  if (i<0) i=0;
+  let from=Math.max(0,Math.min(n-show,i-((show/2)|0)));
+  return {from, to:from+show, show};
+}
 
 /* A mini rail pinned to the left edge, which is where the real one is — the
    position is half the message, so this is drawn ON the plate rather than in a
@@ -511,19 +594,27 @@ function guideRailButton(label){ return GUIDE_RAIL.find(b=>b.label===label)||nul
    reached arcTo, which throws outright. */
 function gsRailScale(box,rail){
   if (!rail || !rail.on) return 0;
-  const n=GUIDE_RAIL.length;
-  const s=Math.min(1,(box.y1-box.y0-20)/(n*54));
+  const w=gsRailWindow(box,rail); if (!w) return 0;
+  const s=Math.min(1,(box.y1-box.y0-20)/(w.show*GUIDE_RAIL_STEP));
   return s>0.45 ? s : 0;
 }
 function gsRailWidth(box,rail){ const s=gsRailScale(box,rail); return s?48*s+20:0; }
 function gsDrawRail(ctx,box,rail){
   const s=gsRailScale(box,rail); if (!s) return 0;
-  const n=GUIDE_RAIL.length, full=50, gap=4;
+  const win=gsRailWindow(box,rail);
+  const full=50, gap=4;
   const bw=48*s, bh=full*s, step=(full+gap)*s;
-  const x=box.x0+10, y0=(box.y0+box.y1)/2-(n*step-gap*s)/2;
+  const x=box.x0+10, y0=(box.y0+box.y1)/2-(win.show*step-gap*s)/2;
   ctx.save();
-  for (let i=0;i<n;i++){
-    const b=GUIDE_RAIL[i], on=b.label===rail.on, y=y0+i*step, r=9*s;
+  for (let k=0;k<win.show;k++){
+    const i=win.from+k;
+    const b=GUIDE_RAIL[i], on=b.label===rail.on, y=y0+k*step, r=9*s;
+    /* The divider Undo and Redo sit below. It is hidden on the SHEET tier in
+       the real rail, so it is only drawn where there is room for it here. */
+    if (b.sep && k>0){
+      ctx.strokeStyle='rgba(239,230,211,0.16)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x+6,y-gap*s/2); ctx.lineTo(x+bw-6,y-gap*s/2); ctx.stroke();
+    }
     ctx.beginPath(); ctx.moveTo(x+r,y);
     ctx.arcTo(x+bw,y,x+bw,y+bh,r); ctx.arcTo(x+bw,y+bh,x,y+bh,r);
     ctx.arcTo(x,y+bh,x,y,r); ctx.arcTo(x,y,x+bw,y,r); ctx.closePath();
@@ -632,11 +723,12 @@ function gsDrawChromeRow(ctx,box,ch,left,top){
    then the material — with the tool's own options last, which is the order the
    taps happen in. It starts to the RIGHT of whatever the rail claimed, so the
    two affordances never sit on top of each other. */
-function gsDrawChrome(ctx,st,box,chrome,left){
-  if (!chrome) return;
+function gsDrawChrome(ctx,st,box,chrome,left,top){
+  if (!chrome) return 0;
   const rows=Array.isArray(chrome)?chrome:[chrome];
-  let y=box.y0+14;
+  let y=box.y0+14+(top||0);
   rows.forEach(row=>{ y+=gsDrawChromeRow(ctx,box,row,box.x0+left+14,y)+7; });
+  return y-(box.y0+14);
 }
 
 /* The season box, which is a CONTROL and not a set of four buttons. The demo
@@ -652,7 +744,7 @@ function gsDrawChrome(ctx,st,box,chrome,left){
    plate six times that. */
 const GUIDE_SEASON_BOX={w:150,h:34,scale:1.5};
 function gsDrawSeasonBox(ctx,box,sb,left){
-  if (!sb) return;
+  if (!sb) return 0;
   const S=GUIDE_SEASON_BOX, k=S.scale, w=S.w*k, h=S.h*k;
   const x=box.x0+left+14, y=box.y0+14, r=9*k;
   const path=()=>{ ctx.beginPath(); ctx.moveTo(x+r,y);
@@ -705,6 +797,8 @@ function gsDrawSeasonBox(ctx,box,sb,left){
     }
   }
   ctx.restore();
+  // what it claimed of the top edge, so a chrome row lands under it
+  return h+(sb.press?26*k:8);
 }
 
 /* A single top-bar control — Rotate, Layers — as a chip at the top right,
@@ -716,18 +810,24 @@ function gsDrawTopChip(ctx,box,chip){
   ctx.save();
   ctx.font="600 12.5px 'IBM Plex Sans', system-ui, sans-serif";
   ctx.textBaseline='middle';
-  const tw=ctx.measureText(chip.label).width, w=tw+56, h=38, r=10;
+  /* A chip with no icon is not a gap: the scheme chip really is text in the
+     top bar, so a label-only pill is the accurate picture rather than a
+     placeholder waiting for a glyph. */
+  const ic=chip.kind?34:0;
+  const tw=ctx.measureText(chip.label).width, w=tw+22+ic, h=38, r=10;
   const x=box.x1-w-14, y=box.y0+14;
   ctx.beginPath(); ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
   ctx.fillStyle='rgba(201,127,63,0.30)'; ctx.fill();
   ctx.strokeStyle='#c97f3f'; ctx.lineWidth=1.5; ctx.stroke();
-  ctx.save(); ctx.translate(x+8,y+3); ctx.scale(0.78,0.78);
-  drawCanvasIcon(ctx,chip.kind);
-  ctx.restore();
+  if (chip.kind){
+    ctx.save(); ctx.translate(x+8,y+3); ctx.scale(0.78,0.78);
+    drawCanvasIcon(ctx,chip.kind);
+    ctx.restore();
+  }
   ctx.fillStyle='#efe6d3'; ctx.textAlign='left';
-  ctx.fillText(chip.label,x+42,y+h/2);
+  ctx.fillText(chip.label,x+11+ic,y+h/2);
   if (chip.tapping>0 && chip.tapping<1){
     ctx.strokeStyle='rgba(201,127,63,'+(0.7*(1-chip.tapping)).toFixed(3)+')';
     ctx.lineWidth=2.5;
@@ -784,6 +884,51 @@ function guideWhereTrail(where){
   return groups.length ? groups : null;
 }
 
+/* The tape measure, drawn by the garden's own dimension line and labelled by
+   its own formatter — so the feet in the guidebook are the feet in the app,
+   and they follow the units preference like everything else. */
+function gsDrawRuler(ctx,st,r){
+  if (!r || !r.a || !r.b) return;
+  const a=gsProjectAt(st,r.a[0],r.a[1]), b=gsProjectAt(st,r.b[0],r.b[1]);
+  const n=Math.hypot(r.b[0]-r.a[0], r.b[1]-r.a[1]);
+  drawSelDimLine(ctx,[a[0],a[1]+TILE_H/2],[b[0],b[1]+TILE_H/2],selMetricLabel(n),1);
+}
+/* The garden menu, which is where every document lives and the hardest thing
+   in the app to find. A mocked dropdown rather than the real DOM, for the
+   reason the seg rows are mocked: the planner's HUD does not exist on the
+   title screen. The ROWS are the real ones. */
+function gsDrawMenu(ctx,box,m){
+  if (!m || !(m.open>0)) return;
+  const rowH=34, pad=10, w=210;
+  const h=m.items.length*rowH+pad*2;
+  const x=box.x1-w-14, y=box.y0+56;
+  ctx.save();
+  ctx.globalAlpha=Math.min(1,m.open);
+  ctx.translate(0,(1-Math.min(1,m.open))*-10);
+  const r=12;
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  ctx.fillStyle='rgba(26,21,17,0.94)'; ctx.fill();
+  ctx.strokeStyle='rgba(239,230,211,0.20)'; ctx.lineWidth=1; ctx.stroke();
+  ctx.font="600 13px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.textBaseline='middle'; ctx.textAlign='left';
+  m.items.forEach((t,i)=>{
+    const ry=y+pad+i*rowH, on=i===m.on;
+    if (on){
+      ctx.fillStyle='rgba(201,127,63,0.30)';
+      ctx.beginPath(); ctx.moveTo(x+pad-2,ry+2);
+      ctx.arcTo(x+w-pad+2,ry+2,x+w-pad+2,ry+rowH-2,7);
+      ctx.arcTo(x+w-pad+2,ry+rowH-2,x+pad-2,ry+rowH-2,7);
+      ctx.arcTo(x+pad-2,ry+rowH-2,x+pad-2,ry+2,7);
+      ctx.arcTo(x+pad-2,ry+2,x+w-pad+2,ry+2,7);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle=on?'#efe6d3':'rgba(239,230,211,0.70)';
+    ctx.fillText(t,x+pad+6,ry+rowH/2);
+  });
+  ctx.restore();
+}
 /* ---------- one frame ----------
    Fit the stage to the canvas, paint sky, ground, entities, overlay. The fit is
    measured from the stage's real extent rather than assumed, so a demo can be
@@ -810,6 +955,7 @@ function gsRender(ctx,st,w,h,sway){
   gsPaintEntities(ctx,st,sway);
   (st.marks||[]).forEach(m=>gsTileMark(ctx,st,m.x,m.y,m.fill,m.stroke));
   if (st.ghost) gsBrushGhost(ctx,st,st.ghost.x,st.ghost.y,st.ghost.size,st.ghost.tone);
+  gsDrawRuler(ctx,st,st.ruler);
   gsDrawCursor(ctx,st,st.cursor);
   /* Captions are clamped to the PLATE, which in stage units is the canvas
      mapped back through the fit — so the bounds have to be computed here,
@@ -830,9 +976,10 @@ function gsRender(ctx,st,w,h,sway){
   ctx.restore();
   const box={x0:0,y0:0,x1:w,y1:h};
   const railW=gsDrawRail(ctx,box,st.rail);
-  gsDrawChrome(ctx,st,box,st.chrome,railW);
-  gsDrawSeasonBox(ctx,box,st.seasonBox,railW);
+  const boxH=gsDrawSeasonBox(ctx,box,st.seasonBox,railW);
+  gsDrawChrome(ctx,st,box,st.chrome,railW,boxH);
   gsDrawTopChip(ctx,box,st.top);
+  gsDrawMenu(ctx,box,st.menu);
 }
 
 /* ---------- the timeline ----------
@@ -1602,6 +1749,226 @@ layers:{ loop:11000, rest:0.5,
       at:[3.5,6.6],dy:28}];
   }},
 
+/* ----- the tools the first cut left out ----- */
+
+/* The preview lens, and the pair to `season`: that demo teaches the HOLD, this
+   one the short TAP that opens the time menu the lens lives in. Worth its own
+   entry because gardens OPEN in Established, so what a new gardener sees first
+   is the design ten years on — and nothing on screen says so until they find
+   this. */
+preview:{ loop:11000, rest:0.7,
+  where:{top:{label:'Season box', drawn:true}},
+  build(){ const st=guideStage({cols:7,rows:6});
+    gsFill(st,'bed','mulch',0,0,6,5);
+    return st; },
+  run(st,u){
+    const tap=gTap(u,0.06,0.12);
+    const est=u>=0.28 ? Math.floor(u*2.4)%2===1 : false;
+    st.seasonBox={season:st.season, phase:'mid season', fill:0.5,
+      hold:0, press:u>0.04&&u<0.16, ff:false};
+    if (u>0.2) st.chrome={options:['Today','Established'],on:est?1:0,
+      tapping:gAt((u*2.4)%1,0,0.22)};
+    /* The SAME planting at two ages. Established is not a bigger garden, it is
+       this garden grown up — which is why the demo plants one and changes only
+       the growth. */
+    const g=est?1:0.22;
+    [[1,1],[3,1],[5,2],[2,3],[4,4],[1,4]].forEach(p=>gsPlant(st,p[0],p[1],'echinacea',g));
+    [[2,2],[4,2],[3,4],[5,4]].forEach(p=>gsPlant(st,p[0],p[1],'dropseed',g));
+    gsPlant(st,6,0,'serviceberry',est?1:0.12);
+    st.notes=[{text:u<0.24 ? 'A short TAP opens the time menu'
+      : est ? 'Established — the design grown up' : 'Today — what is actually in the ground',
+      at:[3,5.4],dy:28}];
+  }},
+
+/* Bulbs share a tile with the perennials above them, which is the whole reason
+   they are a separate layer and not just more plants. Spring, because a bulb
+   in summer is underground and draws nothing. */
+bulbs:{ loop:9500, rest:0.9,
+  where:{rail:'Plant', path:['Plants','Bulbs']},
+  build(){ const st=guideStage({cols:7,rows:6,season:'Spring'});
+    gsFill(st,'bed','soil',0,0,6,5);
+    [[1,1],[3,2],[5,1],[2,4],[4,3],[6,4]].forEach(p=>gsPlant(st,p[0],p[1],'dropseed',1));
+    return st; },
+  run(st,u){
+    const lane=[[0.6,3],[2,2],[4,2],[6,3]];
+    const f=gAt(u,0.14,0.86);
+    const c=gPath(f,lane);
+    st.cursor={x:c[0],y:c[1],down:u>0.12&&u<0.88,press:0};
+    const steps=Math.round(f*12);
+    for (let i=0;i<=steps;i++){
+      const p=gPath(i/12,lane), px=Math.round(p[0]), py=Math.round(p[1]);
+      /* Deliberately laid straight over the grasses: a bulb tucks UNDER a
+         perennial rather than displacing it. It is refused under a tree or a
+         shrub, which is the one place the layer does not overlap. */
+      if (!gsGet(st.plants,px,py)) gsPlant(st,px,py,'crocus',1);
+      else gsSet(st.bulbs,px,py,{s:'crocus',g:1});
+    }
+    st.notes=[{text:'Bulbs tuck under what is already planted',at:[3,5.4],dy:28}];
+  }},
+
+freeplant:{ loop:10000, rest:0.75,
+  where:{rail:'Plant', path:['Plants','Grasses']},
+  build(){ const st=guideStage({cols:7,rows:6});
+    gsFill(st,'bed','soil',0,0,6,5);
+    return st; },
+  run(st,u){
+    const free=Math.floor(u*2)%2===1;
+    st.chrome={options:['Grid','Free'],on:free?1:0,tapping:gAt((u*2)%1,0,0.22)};
+    /* The same tiles either way — only the sub-tile offset changes, which is
+       exactly what the real toggle does. Seeded off the tile so the scatter is
+       the same every time the demo comes round. */
+    for (let y=1;y<=4;y++) for (let x=1;x<=5;x++){
+      const r=mulberry(tileSeed(x,y));
+      const o=free ? {ox:(r()-0.5)*0.66, oy:(r()-0.5)*0.66} : {ox:0,oy:0};
+      gsSet(st.plants,x,y,{s:'sesleria',g:1,ox:o.ox,oy:o.oy});
+    }
+    st.notes=[{text:free ? 'Free — nudged off the lattice, so a drift stops reading as a grid'
+      : 'Grid — every plant on its tile centre', at:[3,5.4],dy:28}];
+  }},
+
+fill:{ loop:9000, rest:0.85,
+  where:{path:['Landscape','Ground','Bed']},
+  build(){ const st=guideStage({cols:8,rows:7});
+    gsFill(st,'lawn','fescue',0,0,7,6);
+    gsFill(st,'path','slate',0,3,7,3);      // the fill stops at the path
+    gsScatter(st,['dropseed','echinacea'],[[1,1],[6,1],[2,5],[6,5]]);
+    return st; },
+  run(st,u){
+    st.chrome={options:['Draw','Fill'],on:u<0.2?0:1,tapping:gAt(u,0.06,0.22)};
+    if (u<0.3){
+      st.notes=[{text:'Turn Fill on',at:[3.5,6.4],dy:28}];
+      return;
+    }
+    const tap=gTap(u,0.42);
+    const c=gPath(gAt(u,0.3,0.4),[[5,5],[3,1]]);
+    st.cursor=u<0.6?{x:c[0],y:c[1],down:tap.down,press:tap.press}:null;
+    if (u>0.46){
+      /* It floods the CONNECTED region sharing the tapped tile's material and
+         stops where that changes — so the path across the middle is a wall and
+         the lawn below it is untouched. That is the whole behaviour. */
+      const f=gEase(gAt(u,0.46,0.84));
+      for (let y=0;y<=2;y++) for (let x=0;x<8;x++)
+        if ((Math.abs(x-3)+Math.abs(y-1))/9 <= f) gsSet(st.terrain,x,y,{k:'bed',c:'mulch'});
+    }
+    st.notes=[{text:'One tap fills the whole connected area',at:[3.5,6.4],dy:28,
+      alpha:gAt(u,0.5,0.6)}];
+  }},
+
+ruler:{ loop:9500, rest:0.85,
+  where:{rail:'Ruler'},
+  build(){ const st=guideStage({cols:9,rows:7});
+    gsFill(st,'lawn','fescue',0,0,8,6);
+    gsFill(st,'bed','mulch',1,1,6,2);
+    gsScatter(st,['echinacea','dropseed','monarda'],[[2,1],[4,2],[6,1],[3,2],[5,1]]);
+    return st; },
+  run(st,u){
+    const a=[1,4], b=[7,4];
+    const f=gEase(gAt(u,0.14,0.7));
+    const to=[a[0]+(b[0]-a[0])*f, a[1]];
+    st.cursor={x:to[0],y:to[1],down:u>0.12&&u<0.76,press:0};
+    st.ruler=f>0.02 ? {a,b:to} : null;
+    st.notes=[{text:'Drag, or tap two points',at:[4,6.4],dy:28}];
+  }},
+
+undo:{ loop:9500, rest:0.9,
+  where:{rail:'Undo'},
+  build(){ const st=guideStage({cols:7,rows:6});
+    gsFill(st,'bed','soil',0,0,6,5);
+    gsScatter(st,['dropseed'],[[0,4],[6,1]]);
+    return st; },
+  run(st,u){
+    const put=[[2,1],[3,2],[4,1],[2,3],[4,3]];
+    // plant five, then take them all back one press at a time
+    const n = u<0.46 ? Math.round(gEase(gAt(u,0.06,0.44))*put.length)
+                     : put.length-Math.round(gEase(gAt(u,0.52,0.92))*put.length);
+    put.slice(0,n).forEach(p=>gsPlant(st,p[0],p[1],'monarda',1));
+    st.rail={on:u<0.5?'Plant':'Undo', tapping:u<0.5?gAt(u,0.01,0.15):gAt((u*6)%1,0,0.4)};
+    st.notes=[{text:u<0.5 ? 'Plant a few…' : 'Undo takes back anything — Ctrl/Cmd-Z',
+      at:[3,5.4],dy:28}];
+  }},
+
+lighting:{ loop:10000, rest:0.9,
+  where:{path:['Landscape','Lighting','Path light']},
+  build(){ const st=guideStage({cols:9,rows:7});
+    gsFill(st,'lawn','fescue',0,0,8,6);
+    gsFill(st,'path','warm',0,3,8,3);
+    gsScatter(st,['dropseed','bluestem','echinacea'],
+      [[1,1],[4,1],[7,1],[2,5],[5,5],[7,5]]);
+    return st; },
+  run(st,u){
+    const at=[[1,2],[4,2],[7,2]];
+    const n=Math.round(gEase(gAt(u,0.12,0.7))*at.length);
+    at.slice(0,n).forEach(p=>st.props.push({kind:'light',x:p[0],y:p[1],
+      type:'path',tone:'warm',lit:u>0.74}));
+    const tap=gTap(u,0.1+Math.min(2,n)*0.2);
+    const c=gPath(gAt(u,0.04,0.68),[[6,5.6],[1,2],[4,2],[7,2]]);
+    st.cursor=u<0.74?{x:c[0],y:c[1],down:tap.down,press:tap.press}:null;
+    st.notes=[{text:u<0.74 ? 'Set them out along the path'
+      : 'Turn night on in Layers to see them lit', at:[4,6.4],dy:28}];
+  }},
+
+site:{ loop:11000, rest:0.92,
+  where:{path:['Landscape','Site','Draw footprint']},
+  build(){ const st=guideStage({cols:9,rows:8});
+    gsFill(st,'lawn','fescue',0,0,8,7);
+    gsScatter(st,['dropseed','bluestem'],[[0,6],[8,6],[1,7],[7,7]]);
+    return st; },
+  run(st,u){
+    /* Corner by corner, orthogonally, closing on the first corner — which is
+       the real gesture. The vertices are on the tile-CORNER lattice, a
+       different space from the tiles (see the note in world.js), so they are
+       given as corners and the app's own painters project them. */
+    const corners=[[2,1],[7,1],[7,4],[2,4]];
+    const laid=Math.min(corners.length,Math.floor(gAt(u,0.08,0.62)*(corners.length+1)));
+    if (u<0.66){
+      st.marks=corners.slice(0,laid).map(c=>({x:Math.min(8,c[0]),y:Math.min(7,c[1]),
+        stroke:'rgba(246,190,103,0.95)'}));
+      const c=gPath(gAt(u,0.08,0.62),corners.map(p=>[p[0],p[1]]));
+      st.cursor={x:c[0],y:c[1],down:true,press:gTap(u,0.08+laid*0.12).press};
+      st.notes=[{text:'Tap each corner; close on the first',at:[4,7.4],dy:28}];
+      return;
+    }
+    st.props.push({kind:'building',vertices:corners,
+      status:u<0.82?'proposed':'existing',label:'Garage'});
+    st.notes=[{text:u<0.82 ? 'Proposed — dashed until you commit it'
+      : 'Existing — beds butt up against it', at:[4,7.4],dy:28}];
+  }},
+
+schemes:{ loop:11000, rest:0.6,
+  where:{top:{label:'Scheme chip'}},
+  build(){ const st=guideStage({cols:8,rows:7});
+    /* ONE site plan. The terrain, the path and the bench are shared and stored
+       once; only the planting belongs to the scheme. */
+    gsFill(st,'lawn','fescue',0,0,7,6);
+    gsFill(st,'bed','mulch',1,1,6,4);
+    gsFill(st,'path','warm',0,6,7,6);
+    st.props.push({kind:'seat',x:5,y:6,type:'bench4',finish:'teak',face:0});
+    return st; },
+  run(st,u){
+    const b=Math.floor(u*2)%2===1;
+    st.chrome={options:['Prairie','Woodland'],on:b?1:0,tapping:gAt((u*2)%1,0,0.22)};
+    const keys=b ? ['sedge','snowywoodrush','palmsedge'] : ['bluestem','echinacea','dropseed'];
+    let i=0;
+    for (let y=1;y<=4;y++) for (let x=1;x<=6;x++)
+      if ((x+y)%2===0) gsPlant(st,x,y,keys[(i++)%keys.length],1);
+    st.notes=[{text:'Two plantings, one site plan',at:[3.5,6.4],dy:28}];
+  }},
+
+outputs:{ loop:10000, rest:0.8,
+  where:{top:{label:'Menu'}},
+  build(){ const st=guideStage({cols:8,rows:7});
+    gsFill(st,'bed','soil',0,0,7,6);
+    gsScatter(st,['echinacea','bluestem','dropseed','monarda','sedge','pallida'],
+      [[1,1],[3,1],[5,1],[2,2],[4,2],[6,2],[1,3],[3,3],[5,3],[2,4],[4,4],[6,4],[3,5],[5,5]]);
+    gsPlant(st,7,0,'serviceberry',1);
+    return st; },
+  run(st,u){
+    /* The payoff, and the hardest thing in the app to find: three documents,
+       all of them behind one Menu button. The rows are the real ones. */
+    st.menu={items:['Planting list','Design plan','Bloom calendar','Share this garden'],
+      on:Math.min(3,Math.floor(gAt(u,0.24,0.96)*4)), open:gAt(u,0.12,0.24)};
+    st.notes=[{text:'Menu — every document the design turns into',at:[3.5,6.4],dy:28}];
+  }},
 };
 
 /* ---------- the chapters ----------
@@ -1634,6 +2001,12 @@ function guideChapters(){
        how:['Arm the Hand, then tap any plant.',
             'Large shrubs answer from anywhere under their spread, not just the middle.',
             'The card is also where Replace lives, if you want a different species in that spot.']},
+      {id:'preview', demo:'preview', title:'Today vs Established',
+       lead:'Gardens open showing the planting grown up. This is the switch back to what is actually in the ground.',
+       how:['A short tap on the season box opens the time menu; the lens is in there.',
+            'Established shows mature sizes, tree canopies and their shade — without advancing time.',
+            'What you SEE follows this. What is LEGAL never does: the rules always plan for maturity.',
+            'It is saved per garden, so a garden left on Today stays on Today.']},
       {id:'season', demo:'season', title:'Run the year',
        lead:'The reason to design a planting rather than arrange one. The same plants bloom, seed, and stand through winter.',
        how:['Press and HOLD the season box to fast-forward.',
@@ -1663,6 +2036,22 @@ function guideChapters(){
        how:['Put the feature plants in first, then flow the matrix around them.',
             'Matrix refuses a tile within that species’ own spacing of itself, so a solid drag comes out as a stand.',
             'It never displaces what is already there — that is what makes the two-layer planting work.']},
+      {id:'bulbs', demo:'bulbs', title:'Bulbs',
+       lead:'A second layer under the planting, up before anything else and gone by midsummer.',
+       how:['Plants → Bulbs, then plant as usual. They tuck under whatever is already there.',
+            'They are refused under a tree trunk or a shrub’s reserved ground, and nowhere else.',
+            'Spring, summer and fall bulbs each have their own window — the bloom calendar shows them.']},
+      {id:'freeplant', demo:'freeplant', title:'Grid or free placement',
+       lead:'Whether a plant sits dead on its tile centre or a little off it.',
+       how:['The Grid / Free chip is in the brush bar with Draw and Drift.',
+            'Free nudges each plant off the lattice, so a drift stops reading as a grid.',
+            'It changes the drawing only. Spacing, quantities and the plan are unaffected.']},
+      {id:'fill', demo:'fill', title:'Fill an area',
+       lead:'One tap covers a whole connected area with whatever is on the brush.',
+       how:['Turn Fill on in the brush bar, then tap inside the area.',
+            'It floods the region sharing the tapped tile’s material and stops where that changes.',
+            'It works with a plant on the brush too, not only a material.',
+            'The whole fill is one undo step.']},
       {id:'woodyage', demo:'woodyage', title:'Trees and shrubs, at an age',
        lead:'A woody plant takes years, so you choose which year you are looking at.',
        how:['The Age chips — New, Young, Mature — set how old the plant is when you place it.',
@@ -1734,6 +2123,17 @@ function guideChapters(){
        how:['Stand an obelisk, a trellis panel or an arch first — or use a fence you already have.',
             'A climber cannot be planted in open ground, and a frame will not take anything but a climber.',
             'Lift the frame and the climber comes with it.']},
+      {id:'lighting', demo:'lighting', title:'Lighting',
+       lead:'Path lights, lantern posts and lamps, in a warm, cool or eco tone.',
+       how:['Landscape → Lighting. Set them out along a path or a bed edge.',
+            'Turn night on with the sun/moon button in the top bar to see them lit.',
+            'They reach the planting list and the plan, because somebody has to install them.']},
+      {id:'site', demo:'site', title:'Draw a building',
+       lead:'The house, the shed, the garage — the things a garden has to be designed around.',
+       how:['Landscape → Site → Draw footprint, then tap each corner. Close on the first corner.',
+            'Corners snap square, and the live edge tells you its length in feet.',
+            'Existing or Proposed changes how it is drawn, not what it blocks.',
+            'Edit footprint adds or removes tiles later; a footprint stays one unbroken shape.']},
       {id:'decor', demo:'decor', title:'The cat and the dog',
        lead:'Pure ornament, and the only placeable thing that claims no ground at all.',
        how:['Decor tab. Pick the animal, then its coat, markings and socks.',
@@ -1751,6 +2151,23 @@ function guideChapters(){
             'Move, Duplicate, Rotate, Fill, Erase, Save, Paste.',
             'The selection owns what was inside it when you drew it, so a plant that lands there later is never scooped up.',
             'A move onto ground that refuses it is refused whole — nothing lands half-placed.']},
+      {id:'ruler', demo:'ruler', title:'Measure something',
+       lead:'A tape measure, for when you need to know whether the bed is really wide enough.',
+       how:['Ruler is on the tool rail. Drag between two points, or tap one then the other.',
+            'It reads in feet or metres, following your units setting.',
+            'A selection reports its own size, and More → Estimate materials prices it up.']},
+      {id:'undo', demo:'undo', title:'Undo and redo',
+       lead:'Nothing you do here is permanent, which is the point of designing on a screen.',
+       how:['The arrows sit at the bottom of the tool rail, below a divider.',
+            'Ctrl/Cmd-Z and Ctrl/Cmd-Shift-Z, or two fingers to undo and three to redo.',
+            'A whole drag, a whole fill and a whole selection move are each ONE step.',
+            'Thirty steps are kept, and they reset when you open a different garden.']},
+      {id:'schemes', demo:'schemes', title:'Two plantings, one plan',
+       lead:'Try a different planting over the same beds, paths and structures without forking the garden.',
+       how:['Garden menu → Planting schemes to make one; the chip in the top bar switches.',
+            '[ and ] cycle, 1–6 jump straight to one.',
+            'Only the planting belongs to a scheme. The site plan is shared and stored once.',
+            'Switching is navigation, not an edit — it takes no undo step.']},
       {id:'pick', demo:'pick', title:'Pick (the eyedropper)',
        lead:'Point at something already in the garden and it becomes the brush.',
        how:['Pick is on the tool rail. Tap a plant, a fence, a path or a bed.',
@@ -1767,6 +2184,17 @@ function guideChapters(){
        how:['Layers is in the top bar. Visible controls what draws; Edit controls what a tool may touch.',
             'Overlays live there too: the shade map and the mature canopies.',
             'Drawing onto a hidden layer asks first, rather than silently doing nothing.']},
+     ]},
+
+    {id:'out', title:'Taking it out',
+     blurb:'The documents a finished design turns into.',
+     entries:[
+      {id:'outputs', demo:'outputs', title:'Planting list, plan and calendar',
+       lead:'Everything the design becomes on paper, all of it behind the Menu button.',
+       how:['Planting list — every species counted into real nursery quantities, plus surfaces and hardscape. It exports as CSV.',
+            'Design plan — a drawn sheet at a stated scale, with a schedule, a north arrow and a scale bar. It prints, and saves as a PNG.',
+            'Bloom calendar — what is in flower, month by month, across the whole planting.',
+            'Share this garden writes a file a friend can import into their own planner.']},
      ]},
   ];
 }

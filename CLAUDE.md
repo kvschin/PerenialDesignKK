@@ -695,9 +695,32 @@ logic is split across ordered modules. They map onto the section list below
   place: it gets no chip (two mocks of one button a few pixels apart is the
   ambient-beats-during-the-tour mistake in miniature) but still earns its line
   in the written trail.
-  25 demos in five chapters. Adding one is a row in `guideChapters()` plus an
+  **A stage prop turns with the stage** — `gsAxes(st)` is the garden's own
+  `isoAxes()` on `st.rot`, and `gsBorrowCamera` takes the rotation along with
+  the camera. Pinned to `ISO_AXES_FLAT` the drawing basis was rot-0 forever
+  while POSITION rotated correctly through `gsFootCentre`, so in Turn the view
+  the bench and the pot held their original facing as the plot turned
+  underneath them. A test pins the two bases equal at all four rotations.
+  **The mini rail SCROLLS rather than shrinking**, which is what the real one
+  does: on a 390px-tall viewport the seventh row pushes Undo and Redo past the
+  fold and `#canvasTools` scrolls. Eight buttons squeezed onto a 257px phone
+  plate put the labels at 4.7px, so `gsRailWindow` shows as many as fit AT FULL
+  SIZE, windowed around the armed one, and draws the divider where the real
+  rail has one.
+  **The top edge is a STACK**: the season box reports the height it claimed and
+  the chrome rows start under it. Both began at `box.y0+14` and drew over each
+  other the moment one demo wanted both — the preview lens, which reaches its
+  Today/Established seg by tapping that box.
+  35 demos in six chapters. Adding one is a row in `guideChapters()` plus an
   entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
   with no way to find it.
+  The catalog now covers every tool with a gesture: the camera, rotation,
+  tap-to-identify, the season hold and the preview lens; planting one, by the
+  drift, by the drag, as a matrix, bulbs, grid-vs-free, woody age and mature
+  spread; paths, lawn, water, edging, grade and fill; fences, containers,
+  seating, focal points, climbers, lighting, building footprints and pets;
+  select, pick, erase, ruler, undo, layers and schemes; and the three documents
+  behind the Menu button.
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper
