@@ -12144,7 +12144,11 @@ test('the guidebook points at buttons the app actually has', () => {
     const w = GUIDE_DEMOS[id].where;
     if (!w) continue;
     if (w.rail) assert(guideRailButton(w.rail), id + ' names a real rail button: ' + w.rail);
-    if (w.top) assert(w.top.label && w.top.kind, id + ' top chip carries a label and an icon');
+    /* A control the demo paints ITSELF — the season box — needs no icon,
+       because it is not drawn as a chip. Everything else does, or it is a
+       label floating with nothing to identify it. */
+    if (w.top) assert(w.top.label && (w.top.kind || w.top.drawn),
+      id + ' top control carries a label, and an icon unless it draws itself');
     if (w.path) {
       assert(groups.includes(w.path[0]),
         id + " path starts at a real catalog tab (" + w.path[0] + ')');
@@ -12179,7 +12183,11 @@ test('the drawn affordance and the written one are the same data', () => {
     GUIDE_DEMOS[id].run(st, 0.5);
     gsApplyWhere(st, w, 0.5);
     if (w.rail) assertEqual(st.rail.on, w.rail, id + ' arms that rail button on the stage');
-    if (w.top) assertEqual(st.top.label, w.top.label, id + ' shows that top chip');
+    if (w.top && !w.top.drawn) assertEqual(st.top.label, w.top.label, id + ' shows that top chip');
+    /* A self-drawn control gets NO chip — two mocks of one button, a few pixels
+       apart, is the ambient-beats-during-the-tour mistake in miniature. It is
+       still named in the written trail, checked above. */
+    if (w.top && w.top.drawn) assertEqual(st.top, null, id + ' draws its own control, so no chip');
     if (w.path) {
       const rows = Array.isArray(st.chrome) ? st.chrome : [st.chrome];
       assertEqual(rows[0].options.join('>'), w.path.join('>'), id + ' draws that trail first');
@@ -12209,4 +12217,53 @@ test('the where affordance survives the smallest plate the app can show', () => 
       }
     }
   }
+});
+
+test('the season demo teaches the control the app actually has', () => {
+  /* Reported as "Run the year is broken". It was: the demo drew
+     "Spring | Summer | Fall | Winter" as a segmented row, and there is no
+     season picker in this app. There is ONE season box that you press and
+     HOLD to fast-forward, and a short tap opens the time menu — so the demo
+     was teaching a gesture that does not exist and hiding the one that does.
+     This is the regression guard, because a four-tab row is the obvious
+     shape to reach for again. */
+  const d = GUIDE_DEMOS.season;
+  const src = String(d.run);
+  assert(!/options:SEASONS/.test(src),
+    'the seasons are not offered as a set of buttons to pick between');
+
+  const at = u => { const st = d.build(); d.run(st, u); gsApplyWhere(st, d.where, u); return st; };
+
+  // the control it draws is the season box, and nothing else
+  for (const u of [0, 0.3, 0.9]) {
+    const st = at(u);
+    assert(st.seasonBox, 'the demo draws the season box at u=' + u);
+    assertEqual(st.chrome, null, 'and no segmented row beside it at u=' + u);
+    assertEqual(st.top, null, 'and no duplicate top-bar chip at u=' + u);
+  }
+
+  /* Reach, then ARM the hold, then run. The hold is the gesture being taught,
+     so it has to be visibly armed before anything moves — the same mistake the
+     controls tour made when its season step completed the instant the 360ms
+     threshold passed, before anything on screen had changed. */
+  assertEqual(at(0.0).seasonBox.press, false, 'it has not reached the box yet');
+  assert(at(0.16).seasonBox.hold > 0 && at(0.16).seasonBox.hold < 1,
+    'the hold is part-way armed while the press is held');
+  assert(at(0.16).seasonBox.press, 'and the finger is on the box');
+  assert(at(0.3).seasonBox.ff, 'past the threshold it is fast-forwarding');
+
+  /* And the year really runs: all four seasons in order, once, with the
+     progress fill tracking. That is the whole pitch of the app. */
+  const seen = [];
+  for (let i = 0; i <= 60; i++) { const s = at(i / 60).season;
+    if (s !== seen[seen.length - 1]) seen.push(s); }
+  assertEqual(seen.join(','), SEASONS.join(','),
+    'the demo runs Spring through Winter, in order, once');
+  assert(at(0.3).seasonBox.fill < at(0.4).seasonBox.fill,
+    'and the season fill advances within a season');
+
+  // the written trail still names where that box is
+  const trail = guideWhereTrail(d.where);
+  assert(trail && trail[0].label === 'Top bar' && /Season/.test(trail[0].steps[0]),
+    'the trail says the season box is in the top bar');
 });

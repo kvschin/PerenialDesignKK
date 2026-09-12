@@ -654,6 +654,22 @@ logic is split across ordered modules. They map onto the section list below
   called from the Play button, from selecting an entry, and from
   `visibilitychange`. `fullScreenRenderBlocked()` counts `guideScreen`, so the
   menu meadow stops painting behind it.
+  **The list is NAMES; the description is inside.** Each row carried its lead
+  clamped to two lines, and each chapter its blurb, on the theory that bare
+  titles would read as a menu of jargon — but the lead is the very next thing
+  the detail pane says, so the list was a wall of text you had to read twice
+  when the one job of a contents list is to be scanned. Both survive as the
+  row's `title` and `aria-label`, where they cost no ink.
+  **The detail pane is ONE measured column** (`.guide-doc`). Every child used to
+  carry its own `max-width` and auto margins, which three of them silently
+  defeated with a `margin` shorthand — equal specificity, later in the file —
+  so the figure and the headings centred while the transport and the copy
+  stayed hard left, 600px apart on a wide monitor. The FIGURE is allowed to be
+  wider than the prose (72ch): a demo is a picture and wants the room. The
+  plate is sized by ASPECT rather than a fixed height, so it grows with the
+  window instead of sitting at 640x340 in the middle of a 2560px monitor —
+  measured 1120x616 at 2000px wide — with a `max-height` for short laptops and
+  a floor above the size at which `gsDrawRail` gives up.
   Layout is the plant library's, deliberately — two reading surfaces that
   navigate differently is two things to learn for no reason: DOCK is a
   master-detail split, SHEET two VIEWS (`list` → `detail`) read only through
@@ -663,6 +679,22 @@ logic is split across ordered modules. They map onto the section list below
   restructured to avoid. Escape sits **above input.js's hidden-HUD guard** (the
   library's and settings' trap: the guidebook opens from the MAIN MENU, where
   the HUD is hidden) and walks the views back rather than closing outright.
+  **The season demo draws the REAL season box** (`gsDrawSeasonBox`,
+  `GUIDE_SEASON_BOX`), and that is the one place this guidebook has been caught
+  teaching a control the app does not have: it drew "Spring | Summer | Fall |
+  Winter" as a segmented row, and there is no season picker. There is one
+  compact readout you press and HOLD to fast-forward, and a short tap opens the
+  time menu — so four tabs taught a gesture that does not exist and hid the one
+  that does. It is now drawn from the real thing's own numbers (150x34, the
+  `SEASON_FILL` tint at .58 with its 2px leading edge, 15.5px Fraunces over an
+  8.7px uppercase phase) and plays three beats: reach, ARM the hold, then run
+  the year while it is held. A test pins all of that, including that the year
+  runs Spring→Winter once and that no segmented row appears beside the box —
+  a four-tab row being the obvious shape to reach for again.
+  `where.top.drawn` marks a control the demo paints ITSELF in its own real
+  place: it gets no chip (two mocks of one button a few pixels apart is the
+  ambient-beats-during-the-tour mistake in miniature) but still earns its line
+  in the written trail.
   25 demos in five chapters. Adding one is a row in `guideChapters()` plus an
   entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
   with no way to find it.

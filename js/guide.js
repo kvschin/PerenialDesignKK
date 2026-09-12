@@ -76,7 +76,8 @@ function guideStage(opts){
     notes:[],                     // floating text over the stage
     chrome:null,                  // one segmented row, or a stack of them
     rail:null,                    // {on,tapping} — the tool rail, left edge
-    top:null                      // {label,kind,tapping} — a top-bar control
+    top:null,                     // {label,kind,tapping} — a top-bar control
+    seasonBox:null                // {season,phase,fill,hold,press,ff} — the real one
   };
 }
 const gsKey=(x,y)=>x+','+y;
@@ -638,6 +639,74 @@ function gsDrawChrome(ctx,st,box,chrome,left){
   rows.forEach(row=>{ y+=gsDrawChromeRow(ctx,box,row,box.x0+left+14,y)+7; });
 }
 
+/* The season box, which is a CONTROL and not a set of four buttons. The demo
+   used to draw "Spring | Summer | Fall | Winter" as a segmented row, and that
+   was the one demo in the guidebook teaching a control the app does not have:
+   there is no season picker. There is one compact readout you press and HOLD
+   to run the year, and a short tap opens the time menu. Showing four tabs
+   taught a gesture that does not exist and hid the one that does.
+
+   Drawn from the real thing's own numbers — 150x34, the SEASON_FILL tint at
+   .58 with its 2px leading edge, the 15.5px Fraunces name over an 8.7px
+   uppercase phase — scaled up, because at its true size it is 34px tall in a
+   plate six times that. */
+const GUIDE_SEASON_BOX={w:150,h:34,scale:1.5};
+function gsDrawSeasonBox(ctx,box,sb,left){
+  if (!sb) return;
+  const S=GUIDE_SEASON_BOX, k=S.scale, w=S.w*k, h=S.h*k;
+  const x=box.x0+left+14, y=box.y0+14, r=9*k;
+  const path=()=>{ ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); };
+  ctx.save();
+  path(); ctx.fillStyle='rgba(26,21,17,0.88)'; ctx.fill();
+  /* The fill is the season's progress, left to right, under the text — the
+     thing that makes "how far through am I" legible rather than a guess. */
+  ctx.save(); path(); ctx.clip();
+  const fw=w*Math.max(0,Math.min(1,sb.fill||0));
+  ctx.globalAlpha=0.58; ctx.fillStyle=SEASON_FILL[sb.season]||'#7fc24e';
+  ctx.fillRect(x,y,fw,h);
+  ctx.globalAlpha=1;
+  if (fw>1){ ctx.fillStyle='rgba(239,230,211,0.85)'; ctx.fillRect(x+fw-2,y,2,h); }
+  ctx.restore();
+  ctx.strokeStyle=sb.press?'#c97f3f':'rgba(239,230,211,0.22)';
+  ctx.lineWidth=sb.press?2.2:1.4; path(); ctx.stroke();
+
+  ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+  ctx.fillStyle='#efe6d3';
+  ctx.font='600 '+(15.5*k).toFixed(1)+"px 'Fraunces', Georgia, serif";
+  ctx.fillText(sb.season, x+11*k, y+h*0.52);
+  ctx.fillStyle=sb.ff?'#f4c66a':'#ece1cb';
+  ctx.font='600 '+(8.7*k).toFixed(1)+"px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.fillText((sb.ff?'FAST-FORWARDING':sb.phase||'').toUpperCase(), x+11*k, y+h*0.82);
+
+  /* The hold sweep. The real one is a masked conic ring on .season-box::after,
+     animated through a registered --hold-sweep property; a dashed stroke of the
+     box's own outline is the same reading — how far through the 360ms you are
+     — without a second path to keep in step with the box's corners. */
+  if (sb.hold>0 && sb.hold<1){
+    const per=2*(w+h);
+    ctx.strokeStyle='#c97f3f'; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.setLineDash([per*sb.hold, per]); ctx.lineDashOffset=0;
+    path(); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // the finger, held on the box rather than tapping it
+  if (sb.press){
+    const cx=x+w*0.5, cy=y+h+16*k;
+    ctx.fillStyle='rgba(201,127,63,0.42)'; ctx.strokeStyle='#c97f3f'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.ellipse(cx,cy,13,6.5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#efe6d3';
+    ctx.beginPath(); ctx.arc(cx,cy-2,2.6,0,Math.PI*2); ctx.fill();
+    if (sb.hold>=1){
+      const p=(sb.pulse||0);
+      ctx.strokeStyle='rgba(201,127,63,'+(0.5*(1-p)).toFixed(3)+')'; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.ellipse(cx,cy,13+p*22,6.5+p*11,0,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 /* A single top-bar control — Rotate, Layers — as a chip at the top right,
    which is the half of the chrome that is not the rail and not the catalog.
    Same rule as the rail: the glyph is drawCanvasIcon's, so the guidebook
@@ -687,7 +756,11 @@ function gsApplyWhere(st,where,u){
   if (!where) return;
   const arm=(a,b)=>gAt(u,a,b);
   if (where.rail) st.rail={on:where.rail, tapping:arm(0.01,0.15)};
-  if (where.top)  st.top={label:where.top.label, kind:where.top.kind, tapping:arm(0.01,0.15)};
+  /* A drawn:true flag means the demo paints that control itself, in its own real place
+     — the season box does. It still earns its line in the written trail, which
+     is the point of keeping one where per demo. */
+  if (where.top && !where.top.drawn)
+    st.top={label:where.top.label, kind:where.top.kind, tapping:arm(0.01,0.15)};
   if (where.path && where.path.length){
     /* One trail row, not one row per step. The ripple sits on the LAST step,
        which is the thing actually being armed; the steps before it are how you
@@ -758,6 +831,7 @@ function gsRender(ctx,st,w,h,sway){
   const box={x0:0,y0:0,x1:w,y1:h};
   const railW=gsDrawRail(ctx,box,st.rail);
   gsDrawChrome(ctx,st,box,st.chrome,railW);
+  gsDrawSeasonBox(ctx,box,st.seasonBox,railW);
   gsDrawTopChip(ctx,box,st.top);
 }
 
@@ -887,7 +961,8 @@ identify:{ loop:7000, rest:0.62,
     }
   }},
 
-season:{ loop:13000, rest:0.62,
+season:{ loop:14000, rest:0.62,
+  where:{top:{label:'Season box', drawn:true}},
   build(){ const st=guideStage({cols:7,rows:7});
     gsFill(st,'bed','soil',0,0,6,6);
     gsScatter(st,['bluestem','echinacea','dropseed','monarda','sedge','pallida','switchgrass'],
@@ -897,11 +972,29 @@ season:{ loop:13000, rest:0.62,
   run(st,u){
     /* The pitch, and the one thing this app does that nothing else does: the
        same planting blooms, seeds and stands through winter without a plant
-       being moved. Every colour here is the species' own authored season. */
-    const i=Math.floor(u*4)%4;
+       being moved. Every colour is the species' own authored season.
+
+       The GESTURE is the other half, and the first cut got it wrong: it drew
+       four season tabs, which is a control the app does not have. There is one
+       season box, and you press and HOLD it — so the demo now reaches for that
+       box, arms the 360ms hold, and then runs the year while it is held down.
+
+       Three beats: reach (to 0.10), arm (to 0.22), run (the rest). */
+    const reach=gAt(u,0.02,0.10), arm=gAt(u,0.10,0.22), run=gAt(u,0.22,1);
+    // the year runs across the whole of the third beat: four seasons, in order
+    const year=run*4, i=Math.min(3,Math.floor(year));
     st.season=SEASONS[i];
-    st.chrome={options:SEASONS,on:i,tapping:gAt((u*4)%1,0,0.25)};
-    st.notes=[{text:'Press and hold the season box',at:[3,6.4],dy:30}];
+    st.seasonBox={
+      season:st.season,
+      phase:['early season','mid season','late season'][Math.min(2,Math.floor((year%1)*3))],
+      fill:run>0 ? year%1 : 0,
+      hold:arm,
+      press:reach>=1,
+      ff:arm>=1,
+      pulse:(u*3)%1
+    };
+    st.notes=[{text:arm<1 ? 'Press and HOLD it' : 'the same planting, all four seasons',
+      at:[3,6.4],dy:30}];
   }},
 
 /* ----- planting ----- */
@@ -1754,18 +1847,26 @@ function buildGuideList(){
   const frag=document.createDocumentFragment();
   guideChapters().forEach(function(c){
     const sec=document.createElement('div'); sec.className='guide-section';
+    sec.setAttribute('role','group');
+    sec.setAttribute('aria-label',c.title+'. '+c.blurb);
     const h=document.createElement('h3'); h.className='guide-cat';
-    h.appendChild(document.createTextNode(c.title));
-    const sm=document.createElement('small'); sm.textContent=c.blurb;
-    h.appendChild(sm);
+    h.textContent=c.title;
+    h.title=c.blurb;
     sec.appendChild(h);
     c.entries.forEach(function(e){
       const b=document.createElement('button'); b.type='button';
       b.className='guide-item'+(e.id===guideSel?' sel':'');
       b.setAttribute('aria-current',e.id===guideSel?'true':'false');
+      /* The NAME, and nothing else. Each row used to carry its lead clamped to
+         two lines, on the theory that 24 bare titles would read as a menu of
+         jargon — but the lead is the very next thing the detail pane says, so
+         the list was a wall of text you had to read twice, and the one job of a
+         contents list is to be scanned. The lead stays as the row's accessible
+         description, where it costs no ink. */
       const n=document.createElement('span'); n.className='gi-name'; n.textContent=e.title;
-      const l=document.createElement('span'); l.className='gi-lead'; l.textContent=e.lead;
-      b.append(n,l);
+      b.appendChild(n);
+      b.title=e.lead;
+      b.setAttribute('aria-label',e.title+'. '+e.lead);
       b.onclick=function(){ selectGuideEntry(e.id); };
       sec.appendChild(b);
     });
@@ -1776,7 +1877,14 @@ function buildGuideList(){
 function renderGuideDetail(){
   const host=$('guideDetail'); if (!host) return;
   const e=guideEntry(guideSel); if (!e){ host.replaceChildren(); return; }
-  const frag=document.createDocumentFragment();
+  /* ONE measured column, rather than a max-width and auto margins on every
+     child. That form looked equivalent and was not: .guide-transport,
+     .guide-where and .guide-how each declare their own `margin` shorthand,
+     which resets margin-left to 0 at equal specificity and later in the file —
+     so the figure and the headings centred while the transport and the copy
+     stayed hard left, and on a wide monitor they sat 600px apart. */
+  const frag=document.createElement('div');
+  frag.className='guide-doc';
 
   const stage=document.createElement('div'); stage.className='guide-stage';
   const cv=document.createElement('canvas'); cv.id='guideCanvas';
