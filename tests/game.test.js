@@ -5709,6 +5709,47 @@ test('worlds-list thumbnails: meta counts live plants and reads the save season'
   drawWorldThumb(cvs, { gw: 139, gh: 139, plants: {}, terrain: {} }); // acre plot: flat fill path
 });
 
+test('garden portraits follow saves, expire after edits or time changes, and never follow a new garden', async()=>{
+  setup(21,21); game.pausedAt=Date.now(); game.worldId='portrait-roundtrip';
+  // Storage fixture only: the stub cannot encode or verify a real JPEG.
+  const cover={v:1,day:absDay(),image:'data:image/jpeg;base64,/9j/2Q=='};
+  rememberGardenPortrait(cover);
+  assertEqual(buildSaveBlob().portrait.image,cover.image);
+  await saveSolo(true); await loadSolo(game.worldId);
+  assertEqual(buildSaveBlob().portrait.image,cover.image,'a loaded cover survives an unchanged autosave');
+  setTile('plants','4,4',{s:'bluestem',d:0,t:1});
+  assert(!buildSaveBlob().portrait,'a changed design cannot keep an old cover');
+  rememberGardenPortrait(cover); game.dayOffset++;
+  assert(!buildSaveBlob().portrait,'a later day uses the fallback until refreshed');
+  game.dayOffset--; rememberGardenPortrait(cover); createScheme(false);
+  assert(!buildSaveBlob().portrait,'the other planting needs its own cover');
+  rememberGardenPortrait(cover); resetNewGardenState();
+  assert(!buildSaveBlob().portrait,'new gardens do not inherit a cover');
+  for (const p of [null,{}, {...cover,v:2}, {...cover,day:-1}, {...cover,image:'https://example.com/cover.jpg'},
+    {...cover,image:'data:image/svg+xml;base64,PHN2Zz4='}, {...cover,image:'data:image/jpeg;base64,'+'A'.repeat(GARDEN_PORTRAIT_LIMIT)}])
+    assertEqual(normalizeGardenPortrait(p),null,'invalid or unbounded images fall back to a map');
+});
+
+test('an optional portrait cannot prevent the garden from saving when storage is tight',async()=>{
+  setup(21,21); game.pausedAt=Date.now(); game.worldId='portrait-quota';
+  setTile('plants','4,4',{s:'bluestem',d:0,t:1});
+  rememberGardenPortrait({v:1,day:absDay(),image:'data:image/jpeg;base64,/9j/2Q=='});
+  const original=sSet, writes=[];
+  sSet=async(k,v)=>{
+    if (k==='hortus:world:portrait-quota'){
+      writes.push(!!v.portrait); if (v.portrait) return false;
+    }
+    return original(k,v);
+  };
+  try{
+    assertEqual(await saveSolo(true),true);
+    assertEqual(writes.join(','),'true,false','retry without the optional picture');
+    const stored=await sGet('hortus:world:portrait-quota');
+    assertEqual(stored.plants['4,4'].s,'bluestem');
+    assert(!stored.portrait); assert(!game.dirty,'the garden itself saved successfully');
+  } finally { sSet=original; }
+});
+
 test('ZIP lookup preserves published five-digit half-zones and never guesses from prefixes', () => {
   const data=validateZipZoneData(JSON.parse(readRepoFile('data/zip-zones-2023.json')));
   assertEqual(data.count,40502);

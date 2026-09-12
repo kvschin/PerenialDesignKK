@@ -162,11 +162,9 @@ $('btnLibraryBack').onclick=libraryBack;
 addEventListener('resize', syncLibraryTier);
 addEventListener('orientationchange', syncLibraryTier);
 
-/* Worlds-list thumbnails: a tiny top-down map drawn straight from the save
-   blob — always current (no stored screenshot to go stale), zero localStorage,
-   and it works retroactively for every existing save. Grass checker + terrain
-   fills reuse the real color tables; plants are foliage-colored dots (woody
-   bigger), houses are wall/roof blocks. Cheap: one pass at list-open time. */
+/* Worlds-list fallback: a top-down map drawn from the saved garden until its
+   first automatic portrait is available. Also stays visible if decoding the
+   saved JPEG fails. Opening the list never runs the full garden renderer. */
 // Point-in-polygon test against a SAVED garden's OWN shape — never the live
 // mask (game.plotShape/onPlot), since a worlds-list row's blob may not be the
 // currently loaded garden. Mirrors rebuildPlotMask/onPlot exactly, just
@@ -251,6 +249,7 @@ function startNewGarden(){
   game.discovery=defaultDiscovery(); openDesignSetup();
 }
 async function openWorlds(){
+  await pendingSaves();   // Save & quit may still be writing the new portrait
   await migrateLegacyWorld();
   /* Reconcile before listing: a garden stored without an index row is invisible
      here and still eating the device's quota, and this screen is the only place
@@ -270,8 +269,9 @@ async function openWorlds(){
   idx.sort((a,b)=>b.ts-a.ts).forEach(w=>{
     const row=document.createElement('button'); row.className='world-row';
     const thumb=document.createElement('canvas'); thumb.className='world-thumb';
-    thumb.width=168; thumb.height=126;   // 2x the CSS box, crisp on retina
-    const info=document.createElement('span'); info.style.flex='1'; info.style.minWidth='0';
+    thumb.width=280; thumb.height=210;
+    thumb.setAttribute('aria-hidden','true');
+    const info=document.createElement('span'); info.className='world-info';
     const nm=document.createElement('span'); nm.className='wname'; nm.textContent=w.name||'My garden';
     const meta=document.createElement('span'); meta.className='meta';
     /* 1.5 was feet-per-tile written as a literal in three places (here and
@@ -279,14 +279,23 @@ async function openWorlds(){
        lying about a garden's size the day the tile becomes a setting. */
     const ftPerTile=TILE_IN/12;
     meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile)} × ${fmtFeet((w.gh||31)*ftPerTile)} · ${new Date(w.ts).toLocaleDateString()}`;
-    info.append(nm,document.createElement('br'),meta);
+    const details=document.createElement('span'); details.className='meta world-details';
+    info.append(nm,meta,details);
     // the save blob fills in the picture + living details (async, per row)
     sGet('hortus:world:'+w.id).then(s=>{
       if (!s) return;
       drawWorldThumb(thumb,s);
       const m=worldSaveMeta(s);
-      meta.textContent+=` · ${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
-      if (m.schemes>1) meta.textContent+=` · ${m.schemes} schemes`;
+      details.textContent=`${m.plants} plant${m.plants===1?'':'s'} · ${m.season}`;
+      if (m.schemes>1) details.textContent+=` · ${m.schemes} schemes`;
+      const portrait=normalizeGardenPortrait(s.portrait);
+      const day=Math.floor((s.elapsedMs||0)/DAY_MS)+(s.dayOffset||0);
+      if (portrait && portrait.day===day){
+        const img=new Image(); img.className='world-thumb'; img.alt=''; img.decoding='async';
+        img.width=GARDEN_PORTRAIT_WIDTH; img.height=GARDEN_PORTRAIT_HEIGHT;
+        img.onload=()=>thumb.replaceWith(img);
+        img.src=portrait.image;
+      }
     });
     /* Three buttons per row cost more width than the garden's own name had, and
        every one of them needed stopPropagation to avoid opening the garden they
@@ -1126,7 +1135,11 @@ function openDesignSetup(){
 function quitToMenu(){
   if (game.photoEditing) closeSitePhotoEdit(false);
   suspendClock();
-  if (game.inGarden&&hasStorage) saveSolo();
+  if (game.inGarden&&hasStorage){
+    try{ rememberGardenPortrait(captureGardenPortrait()); }
+    catch(e){ rememberGardenPortrait(null); noteError(e,'garden-portrait'); }
+    saveSolo();
+  }
   game.inGarden=false; game.pausedAt=0; game.clockSuspended=false;
   document.body.classList.remove('design-mode');
   closeOverlay('exportScreen',false); closeOverlay('discoveryFilterScreen',false); closeOverlay('paletteScreen',false);

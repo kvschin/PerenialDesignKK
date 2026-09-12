@@ -126,7 +126,7 @@ async function scenario(browser, profile){
   const server = releaseServer(profile.prefix);
   const url = await server.start();
   const context = await browser.newContext({viewport:profile.viewport, hasTouch:profile.touch,
-    isMobile:profile.touch, serviceWorkers:'allow'});
+    isMobile:profile.touch, colorScheme:profile.touch?'dark':'light', serviceWorkers:'allow'});
   const errors = [], external = [], responses = [];
   context.on('page', page=>{
     page.on('pageerror', e=>errors.push(e.message));
@@ -200,6 +200,73 @@ async function scenario(browser, profile){
       await boot(page, url, beforeVersion, server.scripts);
       await reopenGarden(page, id);
       assert.deepEqual(await page.evaluate(()=>game.plants['4,4']), saved.plants['4,4']);
+    });
+    await check(label('automatic portraits, unchanged editing views, and legacy fallbacks'), async()=>{
+      const demo=JSON.parse(fs.readFileSync(path.join(root,'demo-garden.json'),'utf8'));
+      const portraitResult=await page.evaluate(async demo=>{
+        const portraitId=await installWorldBlob(demo,'Prairie paths');
+        await enterWorld(portraitId);
+        game.dayOffset=0; game.elapsedMs=DAY_MS*(DAYS_PER_SEASON+8); game.pausedAt=Date.now();
+        game.rot=3; cam.x=1500; cam.y=-800; game.previewMode='today';
+        game.layerVis={...defaultLayerVis(),perennials:false,landscape:false,night:true,shade:true,height:true};
+        game.tool='select'; game.sel={x0:2,y0:2,x1:8,y1:8};
+        game.ruler={a:[1,1],b:[5,5]}; game.hoverTile=[3,3]; game.siteNorthPreviewDeg=180;
+        const view=()=>JSON.stringify({cam,rot:game.rot,preview:game.previewMode,vis:game.layerVis,
+          tool:game.tool,sel:game.sel,ruler:game.ruler,hover:game.hoverTile,north:game.siteNorthPreviewDeg,
+          elapsed:game.elapsedMs,suspended:game.clockSuspended,rev:game.rev});
+        const before=view(), sceneBefore=scene, canvasBefore=cnv.toDataURL(), layers=JSON.stringify(GAME_LAYERS.map(L=>game[L.k]));
+        const plantSprites=PSPRITE.map.size, structSprites=SSPRITE.map.size;
+        const started=performance.now(), first=captureGardenPortrait(), ms=performance.now()-started;
+        if (view()!==before || scene!==sceneBefore || cnv.toDataURL()!==canvasBefore ||
+            JSON.stringify(GAME_LAYERS.map(L=>game[L.k]))!==layers ||
+            PSPRITE.map.size!==plantSprites || SSPRITE.map.size!==structSprites)
+          throw new Error('Portrait changed the editing view, canvas, layers or sprite caches');
+        game.rot=1; cam.x=-300; cam.y=500; game.previewMode='established'; game.layerVis=defaultLayerVis();
+        const second=captureGardenPortrait();
+        if (second.image!==first.image) throw new Error('Portrait depends on editing camera, preview or hidden layers');
+        const seasons=[];
+        for (let n=0;n<4;n++){
+          game.elapsedMs=DAY_MS*(n*DAYS_PER_SEASON+8);
+          seasons.push(captureGardenPortrait().image);
+        }
+        if (new Set(seasons).size!==4) throw new Error('Seasonal portraits did not change');
+        game.elapsedMs=DAY_MS*(DAYS_PER_SEASON+8);
+        const stable=view(), encoder=HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL=function(){ throw new Error('portrait encoder test'); };
+        let failed=false;
+        try{ captureGardenPortrait(); }catch(e){ failed=e.message==='portrait encoder test'; }
+        finally{ HTMLCanvasElement.prototype.toDataURL=encoder; }
+        if (!failed || view()!==stable) throw new Error('Capture failure did not restore the editing view');
+        markModelChanged();
+        quitToMenu(); await openWorlds();
+        const stored=await sGet('hortus:world:'+portraitId);
+        if (!stored.portrait || stored.portrait.image!==first.image || stored.rot!==1)
+          throw new Error('Save & quit did not store the portrait with the original view');
+        await installWorldBlob({pocketPrairie:1,v:1,world:{name:'Unplanted garden',gw:31,gh:31,wv:1,plants:{}}});
+        await installWorldBlob({pocketPrairie:1,v:1,world:{name:'Older garden with a damaged picture',gw:21,gh:31,wv:1,
+          plants:{'4,4':{s:'bluestem',d:0,t:1}},portrait:{v:1,day:0,image:'data:image/jpeg;base64,YmFk'}}});
+        await updateWorldsIndex(rows=>{ rows.find(w=>w.id===portraitId).ts=Date.now()+1000; return rows; });
+        await openWorlds();
+        return {id:portraitId,ms,chars:first.image.length,seasons};
+      },demo);
+      assert(portraitResult.chars>1000 && portraitResult.chars<=120000,'bounded real JPEG');
+      const cover=page.locator('#worldList .world-row').filter({hasText:'Prairie paths'}).locator('img.world-thumb');
+      await cover.waitFor({state:'visible'});
+      assert(await cover.evaluate(img=>img.complete && img.naturalWidth===420 && img.naturalHeight===315));
+      for(const name of ['Unplanted garden','Older garden with a damaged picture'])
+        assert(await page.locator('#worldList .world-row').filter({hasText:name}).locator('canvas.world-thumb').count(),'fallback for '+name);
+      assert(await page.evaluate(()=>[...document.querySelectorAll('#worldList .world-row')].every(row=>
+        row.scrollWidth<=row.clientWidth+1)),'garden cards fit narrow viewports');
+      assert(await page.locator('#worldList .wname').evaluateAll(names=>names.every(n=>n.getBoundingClientRect().width>=90)),
+        'larger portraits still leave readable garden names at the narrowest width');
+      assert(await page.locator('#btnNewWorld').isVisible()); assert(await page.locator('#btnImport').isVisible());
+      await page.waitForFunction(()=>getComputedStyle(document.getElementById('toast')).opacity==='0');
+      await page.screenshot({path:path.join(output,profile.name+'-garden-portraits.png')});
+      for(let n=0;n<4;n++) fs.writeFileSync(path.join(output,profile.name+'-portrait-'+n+'.jpg'),
+        Buffer.from(portraitResult.seasons[n].split(',')[1],'base64'));
+      results.checks.push({name:label('portrait measurement'),ms:portraitResult.ms,chars:portraitResult.chars,passed:true});
+      await page.locator('#worldsScreen [data-back]').click();
+      await reopenGarden(page,id);
     });
     await check(label('offline reopening with the HTTP server stopped'), async()=>{
       await server.stop();

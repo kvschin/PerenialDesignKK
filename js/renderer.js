@@ -2250,7 +2250,7 @@ function buildScene(W,H){
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
-function drawSceneEnt(e,W,H,season,sway,useSprites){
+function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx){
   switch(e.kind){
     /* Every structure goes through one cached blitter. They are pure
        functions of (record, season, rot, camera) — no `t`, no `sway` — so
@@ -2268,7 +2268,10 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.BUILDING:
     case SCENE_K.BUILDING_OUTLINE:
     case SCENE_K.HOUSE:
-      if (structSampling){
+      // Offscreen portraits draw once, without populating or resizing the
+      // live viewport's sprite caches (or charging its performance governor).
+      if (ctx!==cx) drawStructEnt(ctx,e,W,H,season,game.layerVis.night);
+      else if (structSampling){
         const t0=performance.now();
         drawStructMaybeCached(e,W,H,season,game.layerVis.night);
         structSampleMs+=performance.now()-t0;
@@ -2277,19 +2280,85 @@ function drawSceneEnt(e,W,H,season,sway,useSprites){
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
+      drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
       return 1;
     }
     case SCENE_K.PLANT:{
       let g=displayPlantGrowth(e.p); if (e.stunt) g*=0.45;      // struggling under canopy
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
-      drawPlantMaybeCached(cx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
+      drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
       return 1;
     }
     case SCENE_K.GHOST:
-      cx.globalAlpha=0.55; drawHouse(cx,W,H,season,e.h); cx.globalAlpha=1; return 0;
+      ctx.globalAlpha=0.55; drawHouse(ctx,W,H,season,e.h); ctx.globalAlpha=1; return 0;
   }
   return 0;
+}
+/* ---------- automatic garden covers ----------
+   A single offscreen composition on Save & quit, never in render/autosave.
+   Use the real ground and depth-sorted entity painters, with a fixed angle,
+   Established plants and daylight in the garden's own season. The live canvas,
+   zoom, sprite caches, cursor, overlays and season transition are not involved.
+   Projection still reads cam/rot, so this whole operation is synchronous and
+   restores its temporary view even when a painter or image encoder throws. */
+const GARDEN_PORTRAIT_WIDTH=420, GARDEN_PORTRAIT_HEIGHT=315;
+function gardenPortraitBounds(){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const include=(l,t,r,b)=>{ x0=Math.min(x0,l); y0=Math.min(y0,t); x1=Math.max(x1,r); y1=Math.max(y1,b); };
+  // Walk the actual lot, including raised edges; a skewed lot need not use
+  // every corner of the rectangular grid that contains it.
+  for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+    if (!onPlot(x,y)) continue;
+    const [sx,sy]=screenOf(x,y,0,0);
+    include(sx-TILE_W/2,sy,sx+TILE_W/2,sy+TILE_H+Math.max(0,elevationAt(x,y))*ELEV_STEP);
+  }
+  for (const e of scene.ents){
+    if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB){
+      const growth=displayPlantGrowth(e.p)*(e.stunt?0.45:1);
+      if (growth<=0.02) continue;
+      const b=plantDrawBox(plantDef(e.p.s,e.p.v),e.p.s,growth);
+      const [sx,sy]=plantScreenOf(e.x,e.y,e.p,0,0), base=sy+TILE_H/2;
+      include(sx-b.halfW,base-b.top,sx+b.halfW,base+b.bot);
+    } else include(e.ox0,e.oy0,e.ox1,e.oy1);
+  }
+  return {x0,y0,x1,y1};
+}
+function captureGardenPortrait(){
+  const cv=document.createElement('canvas');
+  cv.width=GARDEN_PORTRAIT_WIDTH; cv.height=GARDEN_PORTRAIT_HEIGHT;
+  const ctx=cv.getContext('2d'); if (!ctx) return null;
+  const t0=dnow(), prior={x:cam.x,y:cam.y,rot:game.rot,preview:game.previewMode,
+    vis:game.layerVis,north:game.siteNorthPreviewDeg,scene,elapsed:game.elapsedMs,suspended:game.clockSuspended};
+  try{
+    // Freeze just this composition even if called with the garden clock live.
+    game.elapsedMs=elapsedGameMs(); game.clockSuspended=true;
+    game.rot=0; game.previewMode='established'; game.layerVis=defaultLayerVis(); game.siteNorthPreviewDeg=null;
+    cam.x=0; cam.y=0;
+    buildScene(0,0);
+    const b=gardenPortraitBounds(), pad=18;
+    const scale=Math.min((cv.width-2*pad)/Math.max(1,b.x1-b.x0),(cv.height-2*pad)/Math.max(1,b.y1-b.y0));
+    const W=cv.width/scale, H=cv.height/scale;
+    cam.x=(b.x0+b.x1)/2; cam.y=(b.y0+b.y1)/2-H*0.26;
+    const season=calClock().season, amb=AMBIENCE[season];
+    ctx.setTransform(scale,0,0,scale,0,0);
+    drawSeasonSky(ctx,W,H,season,amb);
+    paintGround(ctx,0,GW-1,0,GH-1,W,H,amb,0);
+    const shadeMap=ensureShadeMap();
+    if (shadeMap.hasShade) for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+      if (!onPlot(x,y)) continue;
+      const a=shadeMap.activeAlpha[y*GW+x]; if (a<=0) continue;
+      const [sx,sy]=screenOf(x,y,W,H);
+      tileDiamond(ctx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
+    }
+    for (const e of scene.ents) drawSceneEnt(e,W,H,season,0,false,ctx);
+    applySeasonLighting(ctx,W,H,amb,season);
+    return {v:1,day:absDay(),image:cv.toDataURL('image/jpeg',0.86)};
+  } finally {
+    cam.x=prior.x; cam.y=prior.y; game.rot=prior.rot; game.previewMode=prior.preview;
+    game.layerVis=prior.vis; game.siteNorthPreviewDeg=prior.north; scene=prior.scene;
+    game.elapsedMs=prior.elapsed; game.clockSuspended=prior.suspended;
+    dev('portrait',t0);
+  }
 }
 /* ---------- season crossfade ----------
    Seasons used to flip abruptly (sky, ground, every plant) on the frame the

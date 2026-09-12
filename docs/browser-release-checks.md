@@ -31,15 +31,17 @@ Optional environment variables:
 
 The final console line gives the results directory. `results.json` records the
 app version, browser version, timestamps, and each check's result and duration.
-A failure also retains a screenshot and page/request diagnostics. Keep that
+A successful portrait check also retains menu screenshots and four seasonal
+JPEGs per viewport. A failure retains a screenshot and page/request diagnostics. Keep that
 report with the release candidate; a green run describes those tested bytes,
 not subsequent edits or the live deployment.
 
 ## Automated coverage
 
 The same sequence runs at 1280×900 from `/` and at 390×844 and 320×568 with touch
-enabled from `/PerenialDesignKK/`, matching the deployed subpath. Each uses a fresh
-browser context and a read-only loopback HTTP server on a free port.
+enabled from `/PerenialDesignKK/`, matching the deployed subpath. Desktop uses
+light mode; phones use dark mode. Each uses a fresh browser context and a
+read-only loopback HTTP server on a free port.
 
 1. Load `index.html` with its actual separate script tags, verify startup,
    font loading, worker scope, first installation, and absence of a spurious
@@ -51,16 +53,21 @@ browser context and a read-only loopback HTTP server on a free port.
    Read the record directly from IndexedDB so a localStorage fallback cannot
    make the check pass. Close the tab and reopen the saved garden through
    **Your gardens** in a new tab.
-4. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
+4. Capture a planted garden in all four seasons, independently of the editing
+   camera and layer visibility. Verify capture leaves the editing view, model,
+   visible canvas and sprite caches intact, including on encoder failure.
+   Save & quit, verify the stored JPEG renders, check old and damaged-image
+   fallbacks, and confirm narrow cards leave readable names and visible actions.
+5. Stop the HTTP server, open privacy/terms/credits from their own cache entries,
    then open the app and garden in a new tab. An uncached request must fail
    while cached scripts, fonts, the ZIP lookup, and the saved planting remain available.
-5. Restart the server with a new build. Confirm the worker waits, both caches
+6. Restart the server with a new build. Confirm the worker waits, both caches
    exist, and the running HTML and scripts remain on the old build. Dismiss
    the offer and confirm no takeover occurs.
-6. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
+7. Relaunch to re-offer the update, edit the garden, and accept **Reload**.
    Verify the latest planting survives, the new HTML and scripts agree, the
    old cache is retired, and the updated installation also reopens offline.
-7. Fail on uncaught page errors, HTTP error responses, or automatic third-party
+8. Fail on uncaught page errors, HTTP error responses, or automatic third-party
    requests.
 
 The update pair uses the current source with two build labels: a synthetic
@@ -78,6 +85,8 @@ Repeat on the smallest supported phone and a tablet, including Safari/iOS;
 Chromium viewport emulation does not establish physical-device behavior.
 
 - [ ] Create → plant → change season → close/reopen → export without coaching.
+- [ ] Save & quit a planted garden; confirm its portrait is recognizable,
+  fully framed and readable in Your gardens at the smallest device width.
 - [ ] Place with one finger; pan/pinch with two; confirm no accidental plants.
   Exercise selection move/cancel, undo/redo, tray scroll, keyboard, and rotation.
 - [ ] Background and relaunch after a paused-clock edit. Reopen in airplane

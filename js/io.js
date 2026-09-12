@@ -310,6 +310,23 @@ function restoreSchemes(s,shift){
   }
   ensureSchemes();   // materializes a lone default and nulls the active entry's maps
 }
+// Covers are optional, bounded JPEGs. Reject arbitrary URLs on load/import;
+// a missing, old or undecodable cover simply leaves the map preview in place.
+const GARDEN_PORTRAIT_LIMIT=120000;
+let gardenPortrait=null;
+function normalizeGardenPortrait(p){
+  if (!p || p.v!==1 || !Number.isSafeInteger(p.day) || p.day<0 ||
+      typeof p.image!=='string' || p.image.length>GARDEN_PORTRAIT_LIMIT ||
+      !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.image)) return null;
+  return {v:1,day:p.day,image:p.image};
+}
+function gardenPortraitKey(){
+  return [game.rev,game.groundRev,game.sceneRev,absDay(),game.schemeActive,game.edgeStyle,game.siteNorthDeg].join('|');
+}
+function rememberGardenPortrait(p){
+  const value=normalizeGardenPortrait(p);
+  gardenPortrait=value?{key:gardenPortraitKey(),value}:null;
+}
 function buildSaveBlob(){
   const t0=dnow();   // 'blob' in the debug HUD measures snapshot construction
   /* `v` is the schema number, `app` the build that wrote it. Migrations used to
@@ -331,6 +348,10 @@ function buildSaveBlob(){
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
+  // Changed gardens/day/scheme use the current map until the next exit makes
+  // a fresh portrait. Ordinary autosaves never render or encode an image.
+  if (gardenPortrait && gardenPortrait.key===gardenPortraitKey() && gardenPortrait.value.day===absDay())
+    blob.portrait=gardenPortrait.value;
   dev('blob',t0);
   return blob;
 }
@@ -353,7 +374,7 @@ function cancelGardenAutosave(){
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer=0;
 }
-function resetGardenAutosave(){ cancelGardenAutosave(); saveSession={}; }
+function resetGardenAutosave(){ cancelGardenAutosave(); saveSession={}; gardenPortrait=null; }
 function requestGardenAutosave(delay=AUTOSAVE_DELAY){
   if (!game.inGarden || !hasStorage || loadingWorld) return;
   autosaveDue=Date.now()+delay;
@@ -431,7 +452,12 @@ async function saveSoloNow(silent){
     stored=await updateWorldsIndex(async fresh=>{
       const target=id || session.id || (session.id=newWorldId(new Set(fresh.map(w=>w.id))));
       if (session===saveSession && !game.worldId) game.worldId=target;
-      if (!(await sSet('hortus:world:'+target,blob))) return null;
+      let saved=await sSet('hortus:world:'+target,blob);
+      if (!saved && blob.portrait){
+        // An optional picture must never be what prevents saving the garden.
+        delete blob.portrait; saved=await sSet('hortus:world:'+target,blob);
+      }
+      if (!saved) return null;
       const out=fresh.filter(w=>w.id!==target);
       out.push({id:target,name:blob.name||'My garden',ts:blob.savedAt,gw:blob.gw,gh:blob.gh,mode:'design'});
       return out;
@@ -651,6 +677,7 @@ async function loadSolo(id){
   // saves from before the walkway became terrain get it seeded once,
   // so the old built-in path is finally shovel-able
   if (!s.wv) seedWalkway();
+  rememberGardenPortrait(s.portrait);
   return true;
 }
 

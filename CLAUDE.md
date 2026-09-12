@@ -2290,7 +2290,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Deliberately absent from the client-facing documents**: no line in
     `exportRows`, no symbol in `openPlan`/`buildPlanMap`, no dot in
     `drawWorldThumb`. That exclusion is a product rule, not an oversight — a
-    test asserts it.
+    test asserts it. Automatic garden portraits include placed pets as part
+    of the garden's actual appearance; they are not planning documents.
 12b. **Containers** (`game.pots`, `POT_STYLES`/`POT_SIZES`, `drawPotArt`) —
     **a pot is the one thing that makes PAVING plantable.** Every planting route
     refuses `path` terrain (five call sites, and correctly — you cannot dig a
@@ -3731,21 +3732,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
 16. **Screens** — menu, worlds list (`#worldsScreen`: open saved gardens or start
     a new one, with rename/duplicate/delete behind a per-row overflow menu).
     The single **Your gardens** menu entry opens it via `openWorlds()`.
-    Each row carries a **mini-map thumbnail** (`drawWorldThumb` — a top-down
-    map drawn from the save blob at list-open time: grass checker, real
-    terrain fills via `pathFill`/`bedFill`/`waterFill`, foliage-colored plant
-    dots, house blocks — always current, no stored screenshot) plus a meta
-    line with live plant count + the garden's own season (`worldSaveMeta`).
+    Each row carries an **automatic garden portrait**, 136×102px on desktop
+    and up to 120×90px on phones (96×72px on the narrowest screens), plus
+    separate metadata lines for size/date and plant count/season
+    (`worldSaveMeta`). `captureGardenPortrait` draws a
+    420×315 JPEG on Save & quit using the real ground and depth-sorted entity
+    painters. It fits the actual lot plus plant/structure bounds, uses rotation
+    zero, Established planting and daylight in the saved season, and omits
+    editing overlays, site-photo references and transient effects. Projection
+    state is temporarily overridden synchronously and restored in `finally`;
+    the visible canvas and plant/structure sprite caches are never touched.
+    `drawSceneEnt` accepts an optional output context; offscreen structures use
+    the procedural painter. Capture costs no work in the animation loop or
+    autosave. The optional save field `portrait:{v:1,day,image}` is bounded to
+    120,000 characters and accepts JPEG data URLs only. A revision/day/scheme
+    key invalidates an old cover on subsequent autosaves; loads and new gardens
+    reset the session cache. Failed writes retry without the optional portrait.
+    `openWorlds` waits for pending saves and paints `drawWorldThumb` from the
+    saved blob while the JPEG decodes. Older saves and damaged/missing covers
+    keep that map until their next Save & quit. Menu opening never loads saved
+    gardens into the live renderer. Covers travel with duplicate/export/import
+    and are deleted with their garden.
     The panel is **locked to the viewport and only `#worldList` scrolls**, so
     the heading and the New/Import/Back actions stay put however many gardens
     you have; previously the whole `.screen` scrolled and at a dozen gardens
     the panel ran 2604px on an 844px phone, putting the title above the
-    viewport and every action below the fold. Row buttons align to
-    `--thumb-w` on `.world-row` (which also sizes the mini-map) rather than a
-    hardcoded indent — the old 94px was sized for the 84px desktop thumbnail
-    and overflowed the 64px phone row, wrapping Delete onto a third line and
-    costing 46px per row),
-    plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
+    viewport and every action below the fold. Rows use a three-column grid;
+    the name and size/date metadata span above the overflow control to leave
+    readable text beside the larger picture on narrow phones.
+    Other screens are plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
     always-visible plot diagram that owns size, shape, and orientation
     together. The width/length inputs sit inside the diagram card; the canvas
     draws the plot to scale with two handle kinds — **squares** at the
