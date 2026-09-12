@@ -16,7 +16,12 @@ challenge** (`btnDaily` — a date-seeded planting prompt, prompt-only and
 unscored, that drops you straight into a garden; `DAILY_CHALLENGES` /
 `todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried
 in as `game.challenge` and toasted on entry, cleared whenever the main menu
-shows). A dev-only
+shows). Top right is a `.menu-corner` flex row of two labelled pills —
+**Guide** (`btnGuide`, the tool guidebook, `js/guide.js`) and **Settings**
+(`btnSettings`) — collapsing to bare 44px icons on SHEET. They share a row
+rather than being positioned independently because the settings pill's width
+depends on whether its label is showing, which is a text measurement no
+`right:` can be written against. A dev-only
 **Plant Creator** (`dev/plant-creator.html`, opened directly, not linked from the
 game) loads the real `plants.js` + game modules to author `PLANTS` entries with
 a live `drawPlant` preview.
@@ -66,7 +71,7 @@ repo root, and all the JavaScript under `js/`: `plants.js` (species data) plus
 the game logic, split for navigability across ordered app modules: `core.js`,
 `draw.js`, `world.js`, `view.js`, `renderer.js`, `commands.js`, `input.js`,
 `io.js`, `collections.js`, `ui.js`, `tray.js`, `photos.js`, `library.js`,
-`screens.js` — with no build step,
+`guide.js`, `screens.js` — with no build step,
 no npm dependencies, no framework. **Nothing loads over the network** — the
 typefaces are self-hosted under `fonts/` (Fraunces and IBM Plex Sans, both SIL
 OFL 1.1, licences shipped alongside), and a **service worker** (`sw.js`)
@@ -150,7 +155,7 @@ See §13a.
   worker. `http-server -c-1` disables *HTTP* caching only — it has no effect on
   the service worker's own cache.
 - **Verifying offline for real**: load the app, then stop the server and reload.
-  It should boot fully — all 15 modules, both typefaces, and any saved garden
+  It should boot fully — all 16 modules, both typefaces, and any saved garden
   out of IndexedDB. That is the only check that actually proves the precache
   list is complete; a green `caches.keys()` does not. Note that `fetch()`
   SUCCEEDING with the server down is not evidence the server is up — the worker
@@ -552,6 +557,82 @@ logic is split across ordered modules. They map onto the section list below
   Escape branch — so the library block has to sit ABOVE that guard.
   `libCollapsed`, the accordion, the card order, `js/photos.js` and the
   illustration plate's deliberately-dark theming are all untouched.
+- **`guide.js`** — the **tool guidebook** (`#guideScreen`, the book beside the
+  gear on the title screen), in which every tool is shown DOING its job rather
+  than described. Drift is the case that justifies it: "a loose cluster sized by
+  spacing" is three abstractions deep, and one tap dropping five coneflowers in
+  a scatter explains itself. It is the deliberate complement of the in-garden
+  controls tour, not a replacement — the tour is CONTEXTUAL, seven anchored
+  callouts each completed by the gardener performing the gesture, and runs once;
+  this is a REFERENCE that stands still, covers tools the tour never reaches
+  (edging, grade, water features, schemes) and is re-openable forever.
+  **Every demo runs on a GUIDE STAGE: a scratch garden with its own isometric
+  projection that touches NO GAME STATE.** That is the module's whole safety
+  property — it opens from the main menu, where the app may still be holding the
+  last garden's layers, and a reference screen that could disturb them would be
+  a data-loss bug wearing a tutorial's clothes. A stage owns its own
+  terrain/plants/props maps and its own camera, so nothing here reaches `game`,
+  `cam`, `GW`/`GH`, the ground bake, the terrain trace or either sprite cache.
+  A test **measures** that rather than grepping it: run every demo across its
+  whole loop through `build`+`run`+`gsRender` and diff the world after
+  (mutation-tested — dropping one line of `gsBorrowCamera`'s restore fails it).
+  **It redraws nothing.** Every mark comes from the app's own painters —
+  `drawPlant`, `drawGroundTexture`, `drawWaterTexture`, `drawEdgingRun`,
+  `drawWallSurface`, `fencePanel`, `drawPotArt`, `drawSeatArt`,
+  `drawSupportArt`, `drawWaterFeatureArt`, `drawPet` — all of which already take
+  a context and a screen point and read no game state, because the tray chips
+  and the plant library needed exactly that first (`drawMaterialIcon`,
+  `libCanvas`). So a demo cannot advertise a plant, a material or a fence the
+  canvas does not draw: the `fencePanel` lesson applied to documentation.
+  **Two painters are camera-coupled** (`drawBoulder` and `drawFirepit` position
+  themselves through `footprintScreenPoly` → `screenOf`, which reads `cam`,
+  `game.rot` and the elevation map). Those run inside **`gsBorrowCamera`**,
+  which overrides exactly four fields and restores them in a `finally` — the
+  `captureGardenPortrait` pattern narrowed to the smallest possible bracket.
+  **Where a demo asserts a NUMBER it asks the app**: `driftCount()` decides how
+  many a drift lays, **`DRIFT_OFFSETS`** (lifted out of `stampDrift` for this)
+  is the cluster it lays them in, `brushOffsets()` is the disc,
+  `woodyRadiusTiles()` the mature crown, and `potTileSize`/`seatTileSize`/
+  `supportTileSize`/`waterFeatureTileSize`/`boulderTileSize`/`firepitTileSize`
+  the footprints — which decide both centring and depth, so a hand-written `w`/`h`
+  is exactly the drift to avoid. Tests pin all of it.
+  **Two authoring traps, both hit and both now tested.** A demo must force
+  `bloomLvl` to 1 the way every other preview surface does: left to `drawPlant`'s
+  default it resolves through `bloomLevel()` against **`absDay()`** — the live
+  clock — which is both a game-state read and a demo that shows a different
+  flower depending on when the session started. And a demo may only plant a
+  species that is UP in its own season: the first cut potted a **crocus in
+  Summer**, when a crocus is underground and `drawPlant` correctly draws
+  nothing, so the containers demo made its claim over two empty pots (measured,
+  69 pixels). A test walks every demo's whole loop and refuses a species with no
+  `fol`/`seed`/`bloom`/`twig` in that season.
+  **`GUIDE_DEMOS` and `guideChapters()` are PURE tables** — the
+  `settingsSections`/`tourSteps` split, and for their reason: the sandbox has no
+  selector engine, so a test counting rendered DOM would pass without testing
+  anything. A demo is a pure function of one number, `u` in 0..1, and rebuilds
+  its stage from scratch every frame rather than accumulating — which costs
+  nothing at this size and buys two things worth more: the reader can SCRUB to
+  any point (the transport bar, and the only way a reduced-motion reader sees it
+  move at all), and a dropped frame cannot strand a demo in a state its script
+  never described.
+  **Cost**: one rAF, owned here, which **stops rather than spins**. The first cut
+  re-armed unconditionally and skipped only the draw, leaving a 60Hz wake-up
+  behind a paused demo, a list view, and — worst — a reader who had turned
+  motion off. `guideCanAnimate()` is the one predicate; `startGuideLoop` is
+  called from the Play button, from selecting an entry, and from
+  `visibilitychange`. `fullScreenRenderBlocked()` counts `guideScreen`, so the
+  menu meadow stops painting behind it.
+  Layout is the plant library's, deliberately — two reading surfaces that
+  navigate differently is two things to learn for no reason: DOCK is a
+  master-detail split, SHEET two VIEWS (`list` → `detail`) read only through
+  `[data-guideview]` selectors inside the SHEET query. **Unlike the library
+  there are no thumbnails in the list**: a guide thumbnail is a whole stage, and
+  24 of them on every open is the 156ms mistake `buildLibraryList` was
+  restructured to avoid. Escape sits **above input.js's hidden-HUD guard** (the
+  library's and settings' trap: the guidebook opens from the MAIN MENU, where
+  the HUD is hidden) and walks the views back rather than closing outright.
+  25 demos in five chapters. Adding one is a row in `guideChapters()` plus an
+  entry in `GUIDE_DEMOS`.
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper

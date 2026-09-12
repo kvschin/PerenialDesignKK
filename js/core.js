@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.88';
+const APP_VERSION = '0.8.89';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -105,6 +105,11 @@ const FUNNEL_EVENTS={
      then did not buy' reads as one sequence rather than two systems to
      reconcile. */
   settingsOpened:'settings:opened',
+  /* The guidebook. Somebody who reads how drift works before they have planted
+     anything is a different story from somebody who reads it after five
+     gardens, and both are worth telling apart from somebody who never found
+     it — which is the question a book icon on the title screen asks. */
+  guideOpened:'guide:opened',
   premiumViewed:'premium:viewed',
   premiumStarted:'premium:started',
   premiumRestored:'premium:restored',

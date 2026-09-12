@@ -39,7 +39,7 @@
    subpath — GitHub Pages serves this from /PerenialDesignKK/. */
 'use strict';
 
-const VERSION = '0.8.88';
+const VERSION = '0.8.89';
 const CACHE = 'pocket-prairie-v' + VERSION;
 
 const PRECACHE = [
@@ -78,6 +78,7 @@ const PRECACHE = [
   './js/tray.js',
   './js/photos.js',
   './js/library.js',
+  './js/guide.js',
   './js/screens.js',
   './fonts/fraunces-latin.woff2',
   './fonts/fraunces-latin-ext.woff2',

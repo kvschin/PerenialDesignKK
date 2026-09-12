@@ -1551,7 +1551,7 @@ function updateHUD(){
 
 /* ---------- screens ---------- */
 const $=id=>document.getElementById(id);
-function show(id){ ['menuScreen','plotScreen','worldsScreen','designScreen','libraryScreen','dailyScreen'].forEach(s=>
+function show(id){ ['menuScreen','plotScreen','worldsScreen','designScreen','libraryScreen','guideScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
   if (id==='menuScreen'){ game.challenge=null; advanceMenuSeason(); refreshMenuCards(); }
 }

@@ -21,7 +21,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
    browser will. */
 const GAME_MODULES = [
   'core.js','draw.js','world.js','view.js','renderer.js','commands.js','input.js',
-  'io.js','collections.js','ui.js','tray.js','photos.js','library.js','screens.js'
+  'io.js','collections.js','ui.js','tray.js','photos.js','library.js','guide.js','screens.js'
 ];
 const gameSources = () => [read('js/plants.js'), ...GAME_MODULES.map(f => read('js/' + f))];
 

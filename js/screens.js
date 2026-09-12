@@ -1877,8 +1877,8 @@ function screenOpen(id){
   return !!el && !el.classList.contains('hidden');
 }
 function fullScreenRenderBlocked(){
-  return screenOpen('libraryScreen') || screenOpen('planScreen') ||
-    screenOpen('bloomScreen') || screenOpen('exportScreen');
+  return screenOpen('libraryScreen') || screenOpen('guideScreen') ||
+    screenOpen('planScreen') || screenOpen('bloomScreen') || screenOpen('exportScreen');
 }
 function layerVisibilitySig(){
   const vis=game.layerVis||{};

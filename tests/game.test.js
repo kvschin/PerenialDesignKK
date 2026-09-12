@@ -10511,17 +10511,17 @@ test('settings controls are touch-sized', () => {
   const coarse = css.slice(css.indexOf('@media (pointer:coarse)'));
   assert(/\.set-choice-opt,\.set-action\{min-height:44px\}/.test(coarse),
     'the choice options and action buttons meet the touch minimum');
-  assert(/\.menu-settings\{min-height:44px/.test(coarse), 'and so does the menu gear');
-  /* On the SHEET tier the pill collapses to a bare gear, and its label is
+  assert(/\.menu-corner-btn\{min-height:44px/.test(coarse), 'and so do the menu corner pills');
+  /* On the SHEET tier the pills collapse to bare icons, and their labels are
      CLIPPED rather than display:none — a button whose only text is
      display:none has no accessible name at all, which would trade a visible
      label for an unnamed control. */
-  assert(!/\.menu-settings span\{display:none/.test(css),
-    'the collapsed gear keeps its accessible name');
-  const collapse = css.indexOf('.menu-settings{padding:0;width:44px');
-  assert(collapse > -1, 'the gear-only rule exists');
-  assert(/\.menu-settings span\{position:absolute/.test(css.slice(collapse)),
-    'and the label beside it is visually clipped');
+  assert(!/\.menu-corner-btn span\{display:none/.test(css),
+    'the collapsed pills keep their accessible names');
+  const collapse = css.indexOf('.menu-corner-btn{padding:0;width:44px');
+  assert(collapse > -1, 'the icon-only rule exists');
+  assert(/\.menu-corner-btn span\{position:absolute/.test(css.slice(collapse)),
+    'and the labels beside them are visually clipped');
 
   /* It collapses on the project's SHEET tier — phones and portrait tablets —
      not at a private breakpoint of its own. */
@@ -10534,10 +10534,22 @@ test('settings controls are touch-sized', () => {
      responsive override — which is exactly what happened when the settings CSS
      was appended to the end of the file and the tier block sat 900 lines above
      it: the gear kept its pill padding on every phone. */
-  const base = css.indexOf('.menu-settings{position:absolute');
+  const base = css.indexOf('.menu-corner-btn{display:flex');
   assert(base > -1, 'the base rule exists');
   assert(base < collapse,
-    'the base .menu-settings must precede its SHEET override or source order defeats it');
+    'the base .menu-corner-btn must precede its SHEET override or source order defeats it');
+
+  /* The gear and the guidebook's book share one absolutely-positioned flex row
+     rather than being positioned independently. They HAVE to: the settings
+     pill's width depends on whether its label is showing, which is a text
+     measurement no `right:` can be written against, so two independent
+     absolute pills would drift apart or overlap between tiers. */
+  assert(/\.menu-corner\{position:absolute[^}]*display:flex/.test(css),
+    'the corner pills are laid out by one flex row');
+  const html = readRepoFile('index.html');
+  const corner = html.slice(html.indexOf('class="menu-corner"'), html.indexOf('menu-shell'));
+  assert(/id="btnGuide"/.test(corner) && /id="btnSettings"/.test(corner),
+    'both corner pills live inside it');
 });
 
 /* ---------- units ---------- */
@@ -11878,4 +11890,227 @@ test('the water feature chip paints through the art function, not the world one'
     assert(src.indexOf(m) > 0, m + ' exists');
   const pot = src.slice(src.indexOf('const miniPot='), src.indexOf('const miniPot=') + 400);
   assert(/drawPotArt\(/.test(pot), 'miniPot is the precedent — it paints through drawPotArt');
+});
+
+/* ---------- the tool guidebook ----------
+   js/guide.js is a reference screen that shows every tool DOING its job, drawn
+   with the app's own painters over a scratch stage. Its whole safety property
+   is that a demo cannot reach game state, and its whole usefulness is that the
+   numbers it shows are the numbers the tools use. Both are pinned here. */
+
+test('every guidebook entry names a demo, and every demo is reachable', () => {
+  const entries = guideEntries();
+  assert(entries.length >= 20, 'the guidebook covers the tool set (' + entries.length + ')');
+  const seen = new Set();
+  for (const e of entries) {
+    assert(GUIDE_DEMOS[e.demo], e.id + ' names a demo that exists (' + e.demo + ')');
+    assert(!seen.has(e.id), e.id + ' appears once');
+    seen.add(e.id);
+    assert(e.title && e.lead && e.how && e.how.length,
+      e.id + ' carries a title, a lead and at least one instruction');
+  }
+  /* The other direction. A demo with no entry is unreachable code that still
+     has to be kept working — the dead .cat-pop popover's lesson, one screen
+     over: it sat display:none in both tiers for months and took the tray's
+     own cache verifier down with it when it finally threw. */
+  for (const id of Object.keys(GUIDE_DEMOS))
+    assert(entries.some(e => e.demo === id), 'demo ' + id + ' is reachable from an entry');
+});
+
+test('a guidebook demo cannot touch game state', () => {
+  /* The guidebook opens from the MAIN MENU, where the app may still be holding
+     the layers of the last garden — so a reference screen that could disturb
+     them would be a data-loss bug wearing a tutorial's clothes. Measured
+     rather than grepped: run every demo across its whole loop and diff the
+     world afterwards. That also covers gsBorrowCamera, the one place this
+     module deliberately DOES write to cam/game.rot/game.elevation and has to
+     put all four back in its `finally`. */
+  setup(21, 21);
+  game.tool = 'echinacea';
+  placePlantAt(5, 5);
+  placePlantAt(6, 6);
+  setTile('terrain', '7,7', { k: 'bed', c: 'mulch' });
+  setTile('elevation', '8,8', 2);
+  cam.x = 123.5; cam.y = -44.25; game.rot = 2;
+
+  const snap = () => JSON.stringify({
+    plants: game.plants, bulbs: game.bulbs, terrain: game.terrain,
+    elevation: game.elevation, fences: game.fences, pots: game.pots,
+    seats: game.seats, pets: game.pets, firepits: game.firepits,
+    boulders: game.boulders, supports: game.supports,
+    waterFeatures: game.waterFeatures, houses: game.houses, buildings: game.buildings,
+    rot: game.rot, tool: game.tool, toolVar: game.toolVar,
+    drift: game.drift, matrix: game.matrix, brushSize: game.brushSize,
+    rev: game.rev, groundRev: game.groundRev, terrainRev: game.terrainRev,
+    sceneRev: game.sceneRev, plantsRev: game.plantsRev,
+    gw: GW, gh: GH, camx: cam.x, camy: cam.y,
+  });
+  const before = snap();
+
+  /* A real render pass, not just build+run: gsBorrowCamera only writes to cam
+     and game.rot from inside the DRAW, so a test that stopped at run() would
+     miss the exact thing it is here to catch. The sandbox's canvas stub is
+     honest about the methods gsRender uses (measureText, the gradient
+     factories); everything else is a no-op, which is all a state test needs. */
+  const ctx = makeCanvasCtx();
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const demo = GUIDE_DEMOS[id];
+    for (let i = 0; i <= 20; i++) {
+      const st = demo.build();
+      demo.run(st, i / 20);
+      gsRender(ctx, st, 480, 280, 0);
+    }
+    assertEqual(snap(), before, id + ' left the garden exactly as it found it');
+  }
+});
+
+test('the guidebook asks the app for its numbers instead of restating them', () => {
+  /* A picture of a drift that disagreed with the drift would be worse than no
+     picture. The two facts the drift demo asserts on screen — how many plants
+     land and where — are the tool's own, so the demo has to read them rather
+     than carry a copy. The tour's step test takes the same shape: stringify
+     the real function and check the call lives in it. */
+  const drift = String(GUIDE_DEMOS.drift.run);
+  assert(/driftCount\(/.test(drift), 'the count comes from driftCount');
+  assert(/DRIFT_OFFSETS/.test(drift), 'and the cluster from the table stampDrift walks');
+  assert(!/\[\[0,0\],\s*\[1,0\]/.test(drift), 'not from a copy of it pasted in');
+
+  /* DRIFT_OFFSETS really is the one stampDrift uses, not a parallel list that
+     happens to look like it today. */
+  assert(/const offs=DRIFT_OFFSETS;/.test(readRepoFile('js/commands.js')),
+    'stampDrift walks DRIFT_OFFSETS');
+  assertEqual(DRIFT_OFFSETS[0].join(','), '0,0', 'the tapped tile is first');
+  assert(DRIFT_OFFSETS.length >= driftCount(plantDef('crocus')),
+    'the table is long enough for the largest drift the app can lay');
+
+  // and the brush demos take their footprint from the shared disc predicate
+  for (const id of ['paths', 'mow', 'erase'])
+    assert(/brushOffsets\(/.test(String(GUIDE_DEMOS[id].run)),
+      id + ' stamps through brushOffsets');
+  // the woody demos read the real mature radius, never a drawn width
+  for (const id of ['woodyage', 'footprint'])
+    assert(/woodyRadiusTiles\(/.test(String(GUIDE_DEMOS[id].run)),
+      id + ' measures the crown with woodyRadiusTiles');
+});
+
+test('a guidebook demo is a pure function of its loop position', () => {
+  /* Stable visuals use mulberry, never Math.random — the same rule the
+     renderer follows, and here it is what lets a demo be scrubbed and lets a
+     dropped frame be harmless, because every frame is rebuilt from scratch
+     rather than accumulated. */
+  const src = readRepoFile('js/guide.js');
+  assert(!/Math\.random/.test(src), 'no Math.random anywhere in the guidebook');
+
+  // same u, same stage — twice, for every demo
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const demo = GUIDE_DEMOS[id];
+    const shot = u => { const st = demo.build(); demo.run(st, u);
+      return JSON.stringify({ t: st.terrain, p: st.plants, r: st.props, s: st.season,
+        rot: st.rot, c: st.cursor, n: st.notes }); };
+    for (const u of [0.13, 0.5, 0.87])
+      assertEqual(shot(u), shot(u), id + ' renders the same stage twice at u=' + u);
+  }
+});
+
+test('the guidebook owns one loop, and stops it rather than spinning it', () => {
+  /* A rAF that re-arms and then declines to draw is the worst of both: it
+     wakes the phone sixty times a second for nothing, and it does it hardest
+     to the reader who turned motion OFF. */
+  const src = readRepoFile('js/guide.js');
+  assert(/function guideCanAnimate\(\)/.test(src), 'one predicate decides whether to animate');
+  const tick = src.slice(src.indexOf('function guideTick'), src.indexOf('function startGuideLoop'));
+  assert(/if \(!guideCanAnimate\(\)\) return;/.test(tick), 'the tick bails on it');
+  assert(tick.indexOf('requestAnimationFrame') > tick.indexOf('guideCanAnimate'),
+    'and re-arms only AFTER it, so a paused demo stops the loop');
+  assert(/document\.hidden/.test(src), 'a hidden tab does not rasterise, so it does not animate');
+
+  /* Motion is a device PREFERENCE here as everywhere: no module may read the
+     media query itself or it silently stops following Settings. */
+  assert(!/prefers-reduced-motion/.test(src),
+    'the guidebook asks reducedMotion(), never matchMedia');
+  assert(/reducedMotion\(\)/.test(src), 'and it does ask it');
+});
+
+test('the guidebook is wired into every place a full-screen reader has to be', () => {
+  const html = readRepoFile('index.html');
+  /* Measured on the SCRIPT TAGS, not by indexOf over the whole file: 'js/guide.js'
+     also appears in the guide screen's own markup comment, which sits above every
+     script tag — so a naive indexOf compares a comment against a tag and passes
+     whatever the real load order happens to be. It did. */
+  const tags = (html.match(/<script src="js\/[a-z-]+\.js"><\/script>/g) || [])
+    .map(s => s.replace(/.*src="js\//, '').replace(/\.js.*/, ''));
+  assert(tags.includes('guide'), 'index.html loads it');
+  // after library.js and before screens.js, which is last so init sees everything
+  assert(tags.indexOf('guide') > tags.indexOf('library'), 'after library.js');
+  assert(tags.indexOf('guide') < tags.indexOf('screens'), 'before screens.js');
+  assertEqual(tags[tags.length - 1], 'screens', 'and screens.js stays last');
+
+  // show() is an exclusive set; a screen missing from it never hides
+  assert(/'libraryScreen','guideScreen'/.test(readRepoFile('js/ui.js')),
+    "show() knows about the guide screen");
+  // and the menu meadow must not keep painting behind it
+  assert(/screenOpen\('guideScreen'\)/.test(readRepoFile('js/screens.js')),
+    'fullScreenRenderBlocked counts it');
+
+  /* Escape has to be handled ABOVE input.js's hidden-HUD guard, the same trap
+     the library and settings blocks sit above: the guidebook opens from the
+     MAIN MENU, where the HUD is hidden, so a branch below that line never
+     runs. */
+  const input = readRepoFile('js/input.js');
+  const guideAt = input.indexOf("getElementById('guideScreen')");
+  const hudGuard = input.indexOf("getElementById('hud').classList.contains('hidden')");
+  assert(guideAt > -1 && hudGuard > -1, 'both are in input.js');
+  assert(guideAt < hudGuard, 'the guide Escape branch sits above the hidden-HUD guard');
+});
+
+test('the guidebook draws through the app painters, never a copy of them', () => {
+  /* The point of the stage is that it cannot advertise a plant, a material or
+     a fence the canvas does not draw — the fencePanel lesson applied to
+     documentation. If a demo ever needs a new mark, it belongs in the shared
+     painter, not in here. */
+  const src = readRepoFile('js/guide.js');
+  for (const fn of ['drawPlant(', 'drawGroundTexture(', 'drawWaterTexture(', 'fencePanel(',
+                    'drawPotArt(', 'drawSeatArt(', 'drawSupportArt(', 'drawWaterFeatureArt(',
+                    'drawPet(', 'drawEdgingRun(', 'drawWallSurface('])
+    assert(src.includes(fn), 'the stage paints through ' + fn.slice(0, -1));
+
+  /* The two camera-coupled painters go through the borrow bracket, which must
+     restore in a `finally` — an instrument that leaves its subject in a
+     different state than it found it is worse than none (drawProfile's lesson,
+     which shipped without one and silently disabled the plant cache). */
+  const borrow = src.slice(src.indexOf('function gsBorrowCamera'),
+                           src.indexOf('function gsDrawFence'));
+  assert(/\bfinally\b/.test(borrow), 'gsBorrowCamera restores in a finally');
+  for (const f of ['cam.x=prior.x', 'cam.y=prior.y', 'game.rot=prior.rot', 'game.elevation=prior.elev'])
+    assert(borrow.includes(f), 'it puts back ' + f.split('=')[0]);
+  for (const painter of ['drawBoulder(', 'drawFirepit('])
+    assert(new RegExp('gsBorrowCamera\\([^)]*[\\s\\S]{0,120}' + painter.replace('(', '\\(')).test(src),
+      painter.slice(0, -1) + ' is called inside the bracket');
+
+  /* Bloom is forced to full, the way every other preview surface forces it.
+     Left to drawPlant's default it resolves through bloomLevel() against
+     absDay() — the LIVE clock — which is both a game-state read and a demo
+     that shows a different flower depending on when the session started. */
+  assert(/p\.bloom===undefined\?1:p\.bloom/.test(src),
+    'a demo plant is drawn at full bloom, not at whatever the clock says');
+});
+
+test('a guidebook demo only shows plants that are actually up in its season', () => {
+  /* The first cut potted a crocus in SUMMER, when a crocus is underground:
+     drawPlant correctly drew nothing, so the containers demo made its claim
+     over two empty pots. Measured, both plants together came to 69 pixels.
+     Rather than re-measure pixels the sandbox does not have, ask the data:
+     a species placed by a demo must have something to draw in that season. */
+  for (const id of Object.keys(GUIDE_DEMOS)) {
+    const demo = GUIDE_DEMOS[id];
+    for (let i = 0; i <= 20; i++) {
+      const st = demo.build(); demo.run(st, i / 20);
+      for (const k in st.plants) {
+        const p = st.plants[k]; if (!p || p.g <= 0.02) continue;
+        const S = plantDef(p.s, p.v).sea[st.season] || {};
+        assert(S.fol || S.seed || S.bloom || S.twig,
+          id + ' plants ' + p.s + ' in ' + st.season + ', where it draws nothing');
+      }
+    }
+  }
 });

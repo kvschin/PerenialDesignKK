@@ -27,6 +27,16 @@ addEventListener('keydown',e=>{
     }
     return;
   }
+  /* Above the hidden-HUD guard for the library's reason: the guidebook opens
+     from the MAIN MENU, where the HUD is hidden, so an Escape branch below
+     that line would never run here. Escape walks the views back the way the
+     on-screen Back does rather than closing outright, so a phone reader is not
+     thrown to the title screen from the middle of a tool page. */
+  const guideScreenEl=document.getElementById('guideScreen');
+  if (guideScreenEl&&!guideScreenEl.classList.contains('hidden')){
+    if (e.key==='Escape'){ e.preventDefault(); guideBack(); }
+    return;
+  }
   /* Above the hidden-HUD guard for the same reason the library block is: the
      settings dialog opens from the MAIN MENU as well as from a garden, and the
      HUD is hidden there — so an Escape branch below this line would never run

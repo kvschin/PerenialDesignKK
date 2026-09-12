@@ -571,9 +571,14 @@ function placePlantAt(x,y,opts){
     if (eb && !eb.removed) clearTile('bulbs',k); }
   return 'plant';
 }
+/* The cluster a drift is laid into, nearest tile first. Module-level because
+   the guidebook's drift demo walks this very list rather than a copy of it —
+   a picture of a drift that disagreed with the drift would be worse than no
+   picture (see js/guide.js), and a test pins the two together. */
+const DRIFT_OFFSETS=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
+                     [2,0],[0,2],[-2,0],[0,-2],[2,1],[1,2],[-1,2],[-2,1]];
 function stampDrift(cx0,cy0,n,opts){
-  const offs=[[0,0],[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
-              [2,0],[0,2],[-2,0],[0,-2],[2,1],[1,2],[-1,2],[-2,1]];
+  const offs=DRIFT_OFFSETS;
   const rest=offs.slice(1); // keep the clicked tile first, shuffle the rest
   for (let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0;
     [rest[i],rest[j]]=[rest[j],rest[i]]; }

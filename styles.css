@@ -358,19 +358,19 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
    On a desktop it keeps its LABEL: an unlabelled gear is the classic
    discoverability tax, and this is the control people open an app specifically
    to find. On SHEET it collapses to the gear alone — see the tier block. */
-.menu-settings{position:absolute;z-index:2;
-  top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));
-  display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
+.menu-corner{position:absolute;z-index:2;display:flex;align-items:center;gap:8px;
+  top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right))}
+.menu-corner-btn{display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px 0 11px;
   border:1.5px solid var(--border-quiet);border-radius:var(--radius-pill);
   background:var(--surface-overlay);color:var(--text-primary);
   font-size:13px;font-weight:600;letter-spacing:.02em;
   box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px);
   transition:transform var(--motion-control) var(--ease-standard),
              background var(--motion-control),border-color var(--motion-control)}
-.menu-settings .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
-.menu-settings:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
-.menu-settings:active{transform:translateY(1px)}
-.menu-settings:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+.menu-corner-btn .ui-icon{width:18px;height:18px;color:var(--color-accent-700)}
+.menu-corner-btn:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
+.menu-corner-btn:active{transform:translateY(1px)}
+.menu-corner-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
 .btn{border:1.5px solid var(--border-control);background:var(--surface-workspace);color:var(--text-primary);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:var(--radius-control);letter-spacing:.02em;
   transition:border-color var(--motion-control),background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
@@ -649,6 +649,118 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   #libraryScreen[data-libview="detail"] #librarySearch{display:none}
   #libraryScreen[data-libview="detail"] .library-head-title{display:block}
   .lib-section.solo{border-bottom:none}
+}
+
+/* ---------- tool guidebook ----------
+   The app's second reading surface, and deliberately the plant library's shape:
+   a full-bleed wrap, a padded head, a contents list and a detail pane, with
+   the DOCK split collapsing to two VIEWS on SHEET. Two reading surfaces that
+   navigate differently is two things to learn for no reason.
+
+   #guideScreen keeps padding:0 for #libraryScreen's reason — full-bleed is
+   right, the plate should reach the edges the way the canvas does — and the
+   safe-area inset .screen was carrying is paid back on .guide-head instead.
+   Skip that and the title draws under the Dynamic Island. */
+#guideScreen{padding:0;align-items:stretch;justify-content:stretch}
+.guide-wrap{display:flex;flex-direction:column;width:100%;height:100%;
+  background:var(--surface-dialog);backdrop-filter:blur(4px)}
+.guide-head{display:flex;align-items:center;gap:14px;
+  padding:max(16px,calc(env(safe-area-inset-top) + 8px)) max(20px,env(safe-area-inset-right))
+          12px max(20px,env(safe-area-inset-left));
+  border-bottom:1.5px solid var(--border-quiet)}
+.guide-head h2{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-right:auto;
+  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guide-head .back-link{margin:0}
+.guide-body{display:flex;flex:1;min-height:0}
+.guide-list{width:34%;max-width:340px;overflow-y:auto;border-right:1.5px solid var(--border-quiet);
+  padding:6px 6px max(6px,env(safe-area-inset-bottom))}
+.guide-section{border-bottom:1px solid rgba(var(--ink-rgb),.08)}
+.guide-section:last-child{border-bottom:none}
+.guide-cat{display:flex;flex-direction:column;gap:2px;
+  font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);
+  padding:14px 10px 8px;position:sticky;top:0;background:var(--surface-dialog);z-index:1}
+.guide-cat small{font-size:11px;letter-spacing:0;text-transform:none;font-weight:400;
+  color:var(--text-muted)}
+.guide-item{display:flex;flex-direction:column;gap:2px;width:100%;
+  padding:9px 10px;border:none;border-radius:var(--radius-control);
+  background:none;color:var(--text-primary);text-align:left}
+.guide-item:hover{background:var(--surface-control-hover)}
+.guide-item.sel{background:var(--surface-active)}
+.guide-item:focus-visible{outline:2px solid var(--bronze);outline-offset:-2px}
+.gi-name{font-size:14px;font-weight:600;line-height:1.25}
+/* The one-line lead doubles as the row's own explanation, so the list is
+   browsable without opening anything — 24 rows of bare titles would read as a
+   menu of jargon ("Matrix", "Pick", "Grade"). Two lines, then it stops. */
+.gi-lead{font-size:11.5px;line-height:1.35;color:var(--text-muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.guide-detail{flex:1;overflow-y:auto;padding:22px 26px max(22px,env(safe-area-inset-bottom))}
+.guide-detail>*{max-width:640px;margin-left:auto;margin-right:auto}
+/* The demo plate. Dark and fixed like .ld-img, and for the same reason: a
+   garden's greens and skies are authored to sit on one, and this plate holds a
+   garden. It does NOT follow the theme. */
+.guide-stage{position:relative;border-radius:var(--radius-panel);overflow:hidden;
+  background:#26331f;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.guide-stage canvas{display:block;width:100%;height:min(46vh,340px);min-height:220px}
+.guide-transport{display:flex;align-items:center;gap:12px;margin:10px 0 18px}
+.guide-play{min-width:72px;min-height:36px;padding:0 14px;
+  border:1.5px solid var(--border-control);border-radius:var(--radius-control);
+  background:var(--surface-control);color:var(--text-primary);font-size:13px;font-weight:600}
+.guide-play:hover{background:var(--surface-control-hover);border-color:var(--border-active)}
+.guide-play:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+.guide-scrub{flex:1;min-width:0;accent-color:var(--bronze)}
+.guide-scrub:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+.guide-title{font-family:'Fraunces',serif;font-size:26px;font-weight:600;line-height:1.1;margin-bottom:6px}
+.guide-lead{font-size:14.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px}
+.guide-how{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.guide-how li{position:relative;padding-left:20px;font-size:13.5px;line-height:1.55;
+  color:var(--text-primary)}
+.guide-how li::before{content:'';position:absolute;left:3px;top:8px;width:6px;height:6px;
+  border-radius:50%;background:var(--color-accent-700)}
+.guide-detail-back{display:none;width:100%;margin-top:22px;text-align:center}
+/* Two views of one screen on SHEET, read ONLY through these selectors so DOCK
+   can never reach a state that hides one of its own panes — the library's rule,
+   verbatim, including using the project's SHEET tier rather than a private
+   breakpoint of its own (a portrait tablet is a phone layout here). */
+@media (max-width:767px), (max-width:1024px) and (orientation:portrait){ /* SHEET */
+  .guide-body{flex-direction:column}
+  .guide-list,.guide-detail{width:100%;max-width:none;border-right:none}
+  .guide-detail{padding:16px 16px max(16px,env(safe-area-inset-bottom))}
+  .guide-head{gap:10px;padding-bottom:10px}
+  /* The h2 restates the button pressed one screen ago; it goes to the screen
+     reader and the head title names the tool being read instead. */
+  .guide-head h2{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+  .guide-title{font-size:22px}
+  .guide-stage canvas{height:min(38vh,280px)}
+  .guide-detail-back{display:block}
+  #guideScreen[data-guideview="list"] .guide-detail,
+  #guideScreen[data-guideview="detail"] .guide-list{display:none}
+  #guideScreen[data-guideview="list"] #btnGuideBack{display:none}
+  #guideScreen[data-guideview="detail"] #btnGuideBack{display:flex}
+  #guideScreen[data-guideview="detail"] #btnGuideClose{display:none}
+  /* Visible in BOTH views, because the clipped h2 leaves nothing else in the
+     header: it names the screen on the list and the tool in the detail. flex:1
+     is also what pushes the Menu link back to the right edge. */
+  .guide-head .library-head-title{display:block}
+}
+/* Touch sizing follows the POINTER, not the width: a tablet in landscape is
+   DOCK and still a finger. Put layout in the tier query and targets here. */
+@media (pointer:coarse){
+  .guide-item{min-height:52px;justify-content:center}
+  .guide-play{min-height:44px}
+  /* A range thumb is ~16px however tall the track is drawn, so the CONTROL is
+     grown rather than the track — the same trade .set-switch::after makes. */
+  .guide-scrub{height:44px}
+}
+@media (forced-colors: active){
+  /* Selected state is background-only, which forced colors discards. The demo
+     canvas is a bitmap and cannot be recoloured at all, so the plate keeps a
+     border to say where the picture is. */
+  .guide-item.sel{border:2px solid Highlight!important;forced-color-adjust:none;
+    background:Highlight!important;color:HighlightText!important}
+  .guide-item.sel .gi-lead{color:HighlightText!important}
+  .guide-play{border:1px solid ButtonBorder!important}
+  .guide-stage{border:1px solid CanvasText}
 }
 
 /* ---------- worlds list ----------
@@ -1527,10 +1639,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      display:none has no accessible name at all, which would trade a visible
      label for an unnamed control. And the icon grows: at 18px it was sized to
      sit BESIDE a word, and it is now carrying the whole meaning. */
-  .menu-settings{padding:0;width:44px;min-height:44px;justify-content:center}
-  .menu-settings span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+  .menu-corner-btn{padding:0;width:44px;min-height:44px;justify-content:center}
+  .menu-corner-btn span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
-  .menu-settings .ui-icon{width:21px;height:21px}
+  .menu-corner-btn .ui-icon{width:21px;height:21px}
   .menu-card{padding:12px;gap:9px}
   .menu-action{min-height:74px;padding:15px 16px}
   .menu-action strong{font-size:20px}
@@ -2429,7 +2541,8 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 
 /* ---------- settings ----------
    The menu gear that opens this lives up with the rest of the menu chrome; see
-   .menu-settings beside .menu-foot. What follows is the dialog itself. */
+   .menu-corner beside .menu-foot — it shares that row with the guidebook's
+   book. What follows is the dialog itself. */
 .settings-panel{width:min(520px,100%)}
 .settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
 .settings-head .eyebrow{display:block;margin-bottom:4px}
@@ -2495,7 +2608,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
      padding here would stretch it into a lozenge on every touch phone; the
      base rule already pads it where the label still shows (a landscape
      tablet). */
-  .menu-settings{min-height:44px}
+  .menu-corner-btn{min-height:44px}
   /* The OPTION is the target, not the track around it, so 44 is on the
      option and the track grows to 52. */
   .set-choice-opt,.set-action{min-height:44px}
@@ -2533,7 +2646,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    — it only ever fired on legacy widths that were already inside SHEET. */
 @media (forced-colors: active){
   /* Both selected states are background-only, which forced colors discards. */
-  .set-choice-opt,.set-action,.settings-x,.menu-settings{border:1px solid ButtonBorder!important}
+  .set-choice-opt,.set-action,.settings-x,.menu-corner-btn{border:1px solid ButtonBorder!important}
   .set-choice-opt.on{border:2px solid Highlight!important;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}
   .set-switch{border:1px solid ButtonBorder!important;forced-color-adjust:none;background:Canvas!important}

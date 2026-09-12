@@ -77,6 +77,7 @@ if ('serviceWorker' in navigator)
   <symbol id="ui-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
   <symbol id="ui-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
   <symbol id="ui-moon" viewBox="0 0 24 24"><path d="M19.4 15.7A8 8 0 0 1 8.3 4.6a8 8 0 1 0 11.1 11.1Z"/></symbol>
+  <symbol id="ui-book" viewBox="0 0 24 24"><path d="M12 6.6C10.4 5.3 8.3 4.7 5.4 4.7c-.7 0-1.2.5-1.2 1.2v11.3c0 .7.5 1.2 1.2 1.2 2.9 0 5 .6 6.6 1.9 1.6-1.3 3.7-1.9 6.6-1.9.7 0 1.2-.5 1.2-1.2V5.9c0-.7-.5-1.2-1.2-1.2-2.9 0-5 .6-6.6 1.9ZM12 6.6v13.7"/></symbol>
   <symbol id="ui-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.3 13.5a7.6 7.6 0 0 0 0-3l2-1.5-1.9-3.3-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.1h-4l-.4 2.9a7.6 7.6 0 0 0-2.6 1.5l-2.4-1L2.7 9l2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 1.9 3.3 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.9h4l.4-2.9a7.6 7.6 0 0 0 2.6-1.5l2.4 1 1.9-3.3Z"/></symbol>
   <symbol id="ui-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v7M12 10v7M16 10v7M6.5 7l.8 13h9.4l.8-13"/></symbol>
   <!-- Zero-length segments, drawn as dots by the sprite's round linecaps. Circles
@@ -97,9 +98,14 @@ if ('serviceWorker' in navigator)
        needs the opaque plate every piece of chrome over the meadow needs: the
        canvas follows the SEASON and the chrome follows the THEME, so neither
        theme is safe over bare sky. -->
-  <button class="menu-settings" id="btnSettings" type="button" aria-haspopup="dialog" aria-expanded="false">
-    <svg class="ui-icon" aria-hidden="true"><use href="#ui-settings"></use></svg><span>Settings</span>
-  </button>
+  <div class="menu-corner">
+    <button class="menu-corner-btn" id="btnGuide" type="button">
+      <svg class="ui-icon" aria-hidden="true"><use href="#ui-book"></use></svg><span>Guide</span>
+    </button>
+    <button class="menu-corner-btn" id="btnSettings" type="button" aria-haspopup="dialog" aria-expanded="false">
+      <svg class="ui-icon" aria-hidden="true"><use href="#ui-settings"></use></svg><span>Settings</span>
+    </button>
+  </div>
   <div class="menu-shell">
     <div class="menu-title-block">
       <div class="eyebrow">Pocket prairie garden design</div>
@@ -676,6 +682,31 @@ if ('serviceWorker' in navigator)
   </div>
 </div>
 
+<!-- TOOL GUIDEBOOK
+     Every tool, shown doing its job. The demos are drawn by js/guide.js into
+     #guideCanvas using the app's own painters over a scratch stage that
+     touches no game state; see that file's header. The head is padded rather
+     than the screen, for the reason #libraryScreen's is: full-bleed is right,
+     and .screen's own safe-area padding is what keeps the title clear of a
+     notch, so zeroing it without paying it back somewhere draws under the
+     Dynamic Island. -->
+<div class="screen hidden" id="guideScreen" data-guideview="list">
+  <div class="guide-wrap">
+    <div class="guide-head">
+      <button class="library-back" type="button" id="btnGuideBack" aria-label="Back to the list of tools">
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-right"></use></svg>
+      </button>
+      <h2>How the tools work</h2>
+      <span class="library-head-title" id="guideHeadTitle"></span>
+      <button class="back-link" id="btnGuideClose">Menu</button>
+    </div>
+    <div class="guide-body">
+      <div class="guide-list" id="guideList"></div>
+      <div class="guide-detail" id="guideDetail"></div>
+    </div>
+  </div>
+</div>
+
 <script src="js/plants.js"></script>
 <!-- Game logic is split for navigability; load order matters (shared global scope) -->
 <script src="js/core.js"></script>
@@ -691,6 +722,7 @@ if ('serviceWorker' in navigator)
 <script src="js/tray.js"></script>
 <script src="js/photos.js"></script>
 <script src="js/library.js"></script>
+<script src="js/guide.js"></script>
 <script src="js/screens.js"></script>
 </body>
 </html>
