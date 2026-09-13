@@ -746,16 +746,91 @@ logic is split across ordered modules. They map onto the section list below
   drift demo's count label, the single sentence that demo exists to say. The
   size now follows the PLATE (12-17px) rather than the stage, so one caption
   is legible on a phone and against a 616px desktop plate alike.
-  35 demos in six chapters. Adding one is a row in `guideChapters()` plus an
+  **The stage borrows the SITE as well as the camera** (`gsBorrowSite`). The
+  shade demo cannot be drawn without north and the season, and both live on
+  `game`: `treeShadeScore` reaches `orientedSunPath()` for the sun's bearing and
+  `shadeSeasonScale()` for how far a shadow runs. Left alone it would swing with
+  whatever north the last garden was set to and lengthen in the reader's own
+  winter — the `bloomLvl` trap in a second costume, a picture that depends on
+  when the session started. Four fields, one synchronous call, restored in a
+  `finally`, `game.dayOffset` nudged so `absDay()` lands mid-way through the
+  STAGE's season. **A TREE is the only thing in this app that casts shade** —
+  `ensureShadeMap` walks `treeIndex()` and nothing else — so the demo's house is
+  what you design AROUND rather than a second caster, and the copy says so
+  instead of implying a feature that is not there. The three band colours are
+  read off the renderer's own overlay pass; the reach is `woodyRadiusTiles`, the
+  T2 rule, never a drawn width.
+  **The site photograph is the ONE mark in the module that is not the app's own
+  painter, and it cannot be**: `drawSiteUnderlay` is a `drawImage` of the
+  reader's own photograph, and the guidebook does not have one — a stock aerial
+  would cost the precache budget and a licence for a picture of nobody's garden.
+  So the image is a deliberately crude stand-in, and everything AROUND it is the
+  real editing chrome, colour for colour: the dashed cyan frame, the dark corner
+  dots, the gold calibration line with its numbered ends. Two things measured
+  there. The frame has to **rebuild its path before stroking** — `clip()` does
+  not consume a path but the sketch's own fills each begin one, so a single
+  `beginPath` left the outline stroking whatever blob the sketch finished on,
+  which came out as a small dashed lozenge in one corner of the thing the reader
+  is dragging. And it is drawn INSIDE the stage transform (it has to follow the
+  photo's quad), so every width it names is multiplied by the fit scale — about
+  0.42 on a phone plate — and the factor divides that back out, bounded, the way
+  `GUIDE_SEASON_BOX`'s 1.5 does by hand.
+  **A mocked dialog is ONE painter** (`gsDrawPanel`): the catalog's result list,
+  the Replace dialog's and the materials estimate are all a titled box of rows,
+  so they share a painter for the reason `gsDrawChromeRow` serves both a
+  segmented control and a breadcrumb — they are the same box. A row carrying `s`
+  is drawn through `drawPlant`, so a result row cannot advertise a species the
+  canvas does not draw; a row carrying `value` is a readout; a row carrying `seg`
+  is a segmented control, painted by `gsDrawChromeRow` itself. **A seg that
+  belongs to a dialog is drawn IN it** — the replace scope and the catalog's
+  source picker both live inside the surface they govern, and drawn as top
+  chrome they sat behind the mocked dialog on a phone while telling the reader to
+  look in the top bar. Text goes through `planFitText`, the plan sheet's own
+  fitter, with the VALUE measured first and keeping its room: on a readout the
+  number is the thing being read. `GUIDE_PANEL_W` is 252 on measurement — at 228
+  the estimate truncated to "Purple Coneflower at sp…", losing the word the row
+  exists for, and the catalog lost a cultivar epithet.
+  **The panel is SCALED rather than clipped, and it leaves the caption
+  somewhere to go.** Below `GUIDE_PANEL_MIN_K` it drops out and the caption
+  carries the beat, which is what the rail and the compass do at their own
+  floors. Where there is no room BESIDE it (a phone plate with a rail and a
+  full-width panel leaves about 6px of caption box, and the caption's own clamp
+  then pushed it out over the very panel it described) the panel goes to the top
+  of the plate and hands the caption the strip underneath — and the chrome rows
+  and the top chip, which want that same top edge, are given the box that is
+  left and **drop out below `GUIDE_CHROME_MIN_K`** rather than shrinking into
+  it. Height bounds the scale as well as width, or the last row — the one
+  answering "how many have I actually planted" — runs off the bottom.
+  **Where a demo prints ARITHMETIC it calls the function the dialog calls.** The
+  estimate's six rows come out of `selectionEstimate` over the tiles the stage is
+  carrying, through `fmtAreaSqFt`/`fmtFeet`/`fmtLengthIn`/`fmtVolumeCuYd` so they
+  follow the units preference like everything else. That function names the ARMED
+  species, which it reads off `game.lastBrushTool`, so `gsBorrowArmed` pins and
+  restores it — otherwise the panel prints whatever the reader last painted with
+  in a different garden. Same rule one demo over: the replace dialog's "N of M
+  can change" and the swap on the canvas come off one list, and the coneflower
+  family's "9 choices" is counted out of `PLANTS` (five species and four
+  cultivars under one `group`, so a hand-written "4 varieties" would have been
+  wrong about the one thing that beat explains).
+  **It caught the guidebook naming a control the app does not have, for the
+  second time.** The selection pill is Move / **Copy** / Fill / More —
+  `renderSelectionActions`' second button is Copy — and the demo drew
+  "Duplicate", sending a reader along a four-button row looking for a fifth that
+  is not on it. A test now pins the mocked pill and every mocked More row
+  against those two functions' own source, the way the rail is pinned against
+  `buildCanvasTools`.
+  41 demos in seven chapters. Adding one is a row in `guideChapters()` plus an
   entry in `GUIDE_DEMOS` — and a `where` on it, or the reader is shown a tool
   with no way to find it.
   The catalog now covers every tool with a gesture: the camera, rotation,
-  tap-to-identify, the season hold and the preview lens; planting one, by the
-  drift, by the drag, as a matrix, bulbs, grid-vs-free, woody age and mature
-  spread; paths, lawn, water, edging, grade and fill; fences, containers,
-  seating, focal points, climbers, lighting, building footprints and pets;
-  select, pick, erase, ruler, undo, layers and schemes; and the three documents
-  behind the Menu button.
+  tap-to-identify, the season hold and the preview lens; tracing a calibrated
+  site photo and setting north against the shade overlay; finding a plant and
+  keeping it in a palette; planting one, by the drift, by the drag, as a matrix,
+  bulbs, grid-vs-free, woody age and mature spread; paths, lawn, water, edging,
+  grade and fill; fences, containers, seating, focal points, climbers, lighting,
+  building footprints and pets; select, save-and-paste an area, replace a
+  species across a design, pick, erase, ruler, undo, layers and schemes; and the
+  three documents behind the Menu button plus the materials estimate.
 - **`screens.js`** — §16 screens (menu, worlds, plot, design setup),
   the daily challenge, all the button wiring, §17 menu meadow + `loop` + the
   `init` IIFE — and the **crash boundary**. `loop` is now a three-line wrapper

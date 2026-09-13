@@ -12379,8 +12379,15 @@ test('a guidebook caption is drawn at a readable size, clear of the chrome', () 
   const notesAt = render.indexOf('st.notes.forEach');
   assert(chromeAt > -1 && notesAt > -1, 'both passes are in gsRender');
   assert(notesAt > chromeAt, 'captions are painted after the chrome, not under it');
-  assert(/y0:6\+\(band\?band\+18:0\)/.test(render),
+  assert(/band\?band\+18:0/.test(render),
     'and are clamped below whatever the chrome claimed');
+  /* …and below a PANEL that took the whole width. On a phone plate the rail and
+     a full-width mocked dialog leave about 6px of caption box between them, and
+     the clamp then pushed the caption out over the very panel it was
+     describing — so a panel with no room beside it goes to the top of the plate
+     and hands the caption the strip underneath. */
+  assert(/panel\.side\?0:panel\.bottom\+6/.test(render),
+    'and below a panel that could not share a row with them');
   // the rail's column is reserved for them too
   assert(/x0:reserve\+6/.test(render), 'and clear of the rail');
 });
@@ -12494,4 +12501,321 @@ test('a guidebook caption names the control the app actually has', () => {
   const bar = guideEntry('lighting');
   assert(/sun\/moon button in the top bar/i.test(bar.how.join(' ')),
     'and the written instruction says the same thing');
+});
+
+
+test('a guidebook demo borrows the SITE the way it borrows the camera', () => {
+  /* The shade demo cannot be drawn without north and the season, and both live
+     on `game`: treeShadeScore reaches orientedSunPath() for the sun's bearing
+     and shadeSeasonScale() for how far a shadow runs. Left alone the demo would
+     swing with whatever north the last garden was set to and lengthen in the
+     reader's own winter — the bloomLvl trap in a second costume, a picture that
+     depends on when the session started. */
+  const src = readRepoFile('js/guide.js');
+  const borrow = src.slice(src.indexOf('function gsBorrowSite'),
+                           src.indexOf('function gsDrawShade'));
+  assert(borrow.length > 200, 'gsBorrowSite is there');
+  assert(/\bfinally\b/.test(borrow), 'it restores in a finally');
+  for (const f of ['game.siteNorthDeg=prior.deg', 'game.siteNorthPreviewDeg=prior.preview',
+                   'siteDirectionCache=prior.cache', 'game.dayOffset=prior.off'])
+    assert(borrow.includes(f), 'it puts back ' + f.split('=')[0]);
+  assert(/SEASONS\.indexOf\(st\.season\)/.test(borrow),
+    'and pins the clock to the STAGE’s season, not the reader’s');
+
+  /* Measured, not read: run it and check the world is where it started, from a
+     deliberately odd north and day so a restore-to-zero would pass by luck. */
+  setup(21, 21);
+  game.siteNorthDeg = 137; game.dayOffset = 9;
+  const before = [game.siteNorthDeg, game.siteNorthPreviewDeg, game.dayOffset, absDay()];
+  const st = GUIDE_DEMOS.north.build();
+  GUIDE_DEMOS.north.run(st, 0.6);
+  let inside = null;
+  gsBorrowSite(st, 200, () => { inside = [normalizeSiteNorthDeg(game.siteNorthDeg), calClock().season]; });
+  assertEqual(inside[0], 200, 'inside the bracket north is the one asked for');
+  assertEqual(inside[1], st.season, 'and the clock is in the stage’s own season');
+  assertEqual(JSON.stringify([game.siteNorthDeg, game.siteNorthPreviewDeg, game.dayOffset, absDay()]),
+    JSON.stringify(before), 'and afterwards the site is exactly as it was');
+
+  // a throw inside must not strand it either
+  try { gsBorrowSite(st, 11, () => { throw new Error('x'); }); } catch (e) { /* expected */ }
+  assertEqual(game.siteNorthDeg, 137, 'even when the call throws');
+});
+
+test('the shade a guidebook demo draws is the shade the app would cast', () => {
+  /* A picture of the shade map that disagreed with the shade map would be worse
+     than no picture, so the demo scores through the app's own treeShadeScore
+     over the app's own mature radius. Two things it must not invent: that a
+     wall casts shade (ensureShadeMap walks the TREE index and nothing else),
+     and that shade is fixed (moving north is the whole point of the demo). */
+  const run = String(GUIDE_DEMOS.north.run);
+  const shade = readRepoFile('js/guide.js');
+  const fn = shade.slice(shade.indexOf('function gsDrawShade'), shade.indexOf('function gsUnderlayQuad'));
+  assert(/treeShadeScore\(/.test(fn), 'the score is the app’s own');
+  assert(/woodyRadiusTiles\(/.test(fn), 'and the reach is the real mature crown');
+  assert(/isTreeDef\(/.test(fn), 'and only a tree casts it');
+  for (const col of ['rgba(38,84,112,0.52)', 'rgba(70,132,128,0.44)', 'rgba(232,180,78,0.40)'])
+    assert(fn.includes(col) && readRepoFile('js/renderer.js').includes(col),
+      'the band colours are the renderer’s own overlay colours (' + col + ')');
+
+  // the demo really does turn north, and the shade really does follow it
+  setup(21, 21);
+  const bandsAt = u => {
+    const st = GUIDE_DEMOS.north.build(); GUIDE_DEMOS.north.run(st, u);
+    if (!st.shade) return null;
+    return gsBorrowSite(st, st.shade.north, () => {
+      const out = [];
+      for (const k in st.plants) {
+        const p = st.plants[k], P = plantDef(p.s, p.v);
+        if (!isTreeDef(P)) continue;
+        const c = k.split(',').map(Number), r = woodyRadiusTiles(P) * p.g;
+        const sh = { x: c[0], y: c[1], r, est: p.g, activePotential: true };
+        for (let y = 0; y < st.rows; y++) for (let x = 0; x < st.cols; x++)
+          if (treeShadeScore(sh, x, y) >= SHADE_ACTIVE_SCORE) out.push(x + ',' + y);
+      }
+      return out.sort().join(' ');
+    });
+  };
+  const a = bandsAt(0.40), b = bandsAt(0.75);
+  assert(a && b && a.length > 10, 'there is shade to compare');
+  assert(a !== b, 'moving north moves the shade');
+
+  /* And turning the CAMERA does not. That is the distinction the demo exists to
+     draw, and it is the one people get wrong because both look like rotation. */
+  const rots = new Set(), norths = new Set();
+  for (let i = 0; i <= 40; i++) {
+    const st = GUIDE_DEMOS.north.build(); GUIDE_DEMOS.north.run(st, i / 40);
+    rots.add(st.rot); if (st.shade) norths.add(st.shade.north);
+  }
+  assert(rots.size >= 3, 'the demo turns the view (' + rots.size + ' rotations)');
+  const late = [0.84, 0.9, 0.96, 1].map(u => {
+    const st = GUIDE_DEMOS.north.build(); GUIDE_DEMOS.north.run(st, u);
+    return st.shade.north + '@' + st.rot;
+  });
+  assertEqual(new Set(late.map(s => s.split('@')[0])).size, 1,
+    'north holds still while the camera turns (' + late.join(' ') + ')');
+  assert(new Set(late.map(s => s.split('@')[1])).size > 1, 'and the camera really turns');
+});
+
+test('the site photo is a stand-in, and the guidebook says so', () => {
+  /* This is the ONE mark in the module that is not the app's own painter, and
+     it cannot be: drawSiteUnderlay draws the reader's own photograph, which the
+     guidebook does not have. What has to stay true is that the exception is
+     declared, that it is the ONLY one, and that everything AROUND the picture
+     is the real editing chrome — that is what the reader is looking for. */
+  const src = readRepoFile('js/guide.js');
+  const fn = src.slice(src.indexOf('function gsPaintPhotoStandIn'),
+                       src.indexOf('/* ---------- props'));
+  assert(/stand-in/.test(src.slice(src.indexOf('/* The site photograph'),
+                                   src.indexOf('function gsUnderlayQuad'))),
+    'the exception is written down where it is made');
+  const rend = readRepoFile('js/renderer.js');
+  for (const mark of ['#72c9ff', '#f4c66a', '#172733'])
+    assert(fn.includes(mark) && rend.includes(mark),
+      'the editing chrome is drawSiteUnderlay’s own (' + mark + ')');
+
+  /* The frame strokes the PHOTO. It used to share one beginPath with the
+     sketch, whose own fills each begin another — so the dashed outline came out
+     as a small lozenge in one corner of the thing the reader is dragging. */
+  assert(/const edge=function/.test(fn), 'the quad is a named path');
+  assert((fn.match(/edge\(\);/g) || []).length >= 2,
+    'and is rebuilt before the frame is stroked, not inherited from the sketch');
+
+  /* The editing marks come and go TOGETHER, because they are one mode: leaving
+     the calibration line lying over a finished trace shows a state the app
+     never holds. */
+  const seen = { frame: new Set(), calib: new Set() };
+  for (let i = 0; i <= 40; i++) {
+    const st = GUIDE_DEMOS.underlay.build(); GUIDE_DEMOS.underlay.run(st, i / 40);
+    seen.frame.add(!!st.underlay.frame);
+    seen.calib.add(!!st.underlay.calib);
+    if (st.underlay.calib) assert(st.underlay.frame,
+      'no calibration marks without the editing frame (u=' + (i / 40) + ')');
+  }
+  assertEqual(seen.frame.size, 2, 'the frame is shown and then put away');
+  assertEqual(seen.calib.size, 2, 'and so are the calibration marks');
+
+  // and the demo ends by DRAWING over it, which is the point of the whole thing
+  const end = GUIDE_DEMOS.underlay.build(); GUIDE_DEMOS.underlay.run(end, 0.99);
+  assert(Object.keys(end.terrain).length > 20,
+    'the last beat traces real terrain over the reference (' +
+    Object.keys(end.terrain).length + ' tiles)');
+});
+
+test('a guidebook panel quotes the app’s own dialog, numbers and all', () => {
+  /* The materials estimate is the one demo that prints ARITHMETIC, so it has to
+     come out of selectionEstimate — the function the real dialog calls — over
+     the tiles the stage is carrying, formatted by the same formatters. A copy
+     of the rows with the numbers typed in would be a picture of a dialog that
+     could quietly stop matching it. */
+  const run = String(GUIDE_DEMOS.estimate.run);
+  assert(/selectionEstimate\(/.test(run), 'the estimate comes from selectionEstimate');
+  for (const f of ['fmtAreaSqFt(', 'fmtFeet(', 'fmtLengthIn(', 'fmtVolumeCuYd('])
+    assert(run.includes(f), 'and is formatted by ' + f.slice(0, -1) + ', which follows the units setting');
+  assert(!/79 sq ft|59 sq ft|0\.5 cu yd/.test(run), 'not from numbers pasted into the demo');
+
+  const rowsAt = u => {
+    const st = GUIDE_DEMOS.estimate.build(); GUIDE_DEMOS.estimate.run(st, u);
+    return st.panel ? st.panel.rows.map(r => r.label + '=' + r.value) : null;
+  };
+  const mid = rowsAt(0.6);
+  assert(mid && mid.length === 6, 'the panel carries the dialog’s six rows');
+
+  /* The two figures the demo exists to separate. A marquee is a RECTANGLE and a
+     bed is not, so if those two were equal the demo would be saying nothing. */
+  const st = GUIDE_DEMOS.estimate.build(); GUIDE_DEMOS.estimate.run(st, 0.6);
+  const sel = st.panel.rows.find(r => r.label === 'Selected area');
+  const bed = st.panel.rows.find(r => r.label === 'Bed area');
+  assert(sel && bed && sel.value !== bed.value,
+    'the selection is bigger than the bed inside it (' + sel.value + ' vs ' + bed.value + ')');
+  // and placed-vs-needed, which is the other pair of numbers that are both true
+  const placed = st.panel.rows.find(r => /Already placed/.test(r.label));
+  const spaced = st.panel.rows.find(r => /at spacing/.test(r.label));
+  assert(placed && spaced && placed.value !== spaced.value,
+    'plants placed and plants the spacing needs are different numbers');
+
+  /* The depth really drives the volume, and it only ever offers the three the
+     slider has. */
+  const depths = new Set(), mulch = new Set();
+  for (let i = 0; i <= 40; i++) {
+    const s = GUIDE_DEMOS.estimate.build(); GUIDE_DEMOS.estimate.run(s, i / 40);
+    if (!s.panel) continue;
+    const row = s.panel.rows.find(r => /^Mulch at/.test(r.label));
+    depths.add(row.label); mulch.add(row.value);
+  }
+  assertEqual(depths.size, 3, 'three depths, as the real slider offers (' + [...depths].join(', ') + ')');
+  assertEqual(mulch.size, 3, 'and each one changes the volume');
+
+  /* selectionEstimate names the ARMED species, which it reads off game state —
+     so the demo borrows it and puts it back, or the panel would print whatever
+     the reader last painted with in some other garden. */
+  assert(/gsBorrowArmed\(/.test(run), 'the armed species is borrowed');
+  const was = game.lastBrushTool;
+  game.lastBrushTool = 'monarda';
+  const s2 = GUIDE_DEMOS.estimate.build(); GUIDE_DEMOS.estimate.run(s2, 0.6);
+  assertEqual(game.lastBrushTool, 'monarda', 'and given back');
+  assert(/Coneflower/.test(s2.panel.rows.find(r => /at spacing/.test(r.label)).label),
+    'and the panel names its own species, not the session’s');
+  game.lastBrushTool = was;
+});
+
+test('the guidebook counts the plants it actually changes', () => {
+  /* The replace demo asserts two numbers on screen — "N of M can change" — and
+     then changes N plants in front of you. The first cut walked a hand-written
+     divisor and swapped 9 of 13, so three coneflowers sat in the middle of the
+     selection, unchanged and unexplained, under a sentence saying every match
+     had changed. Both figures come off one list now. */
+  const at = u => { const st = GUIDE_DEMOS.replace.build(); GUIDE_DEMOS.replace.run(st, u); return st; };
+  const count = (st, s) => Object.keys(st.plants).filter(k => st.plants[k].s === s).length;
+  const start = at(0.47), end = at(0.99);
+  const sub = end.panel.sub.match(/^(\d+) of (\d+)/);
+  assert(sub, 'the dialog says how many can change ("' + end.panel.sub + '")');
+  const fit = +sub[1], total = +sub[2];
+  assert(total > fit, 'and that one of them cannot (' + fit + ' of ' + total + ')');
+  assertEqual(count(end, 'monarda'), fit,
+    'exactly that many are actually swapped on the canvas');
+  assertEqual(count(start, 'echinacea') - count(end, 'echinacea'), fit,
+    'and exactly that many stop being the old species');
+  // the blocked one is still there, and it is marked
+  assert(end.plants['5,5'] && end.plants['5,5'].s === 'echinacea',
+    'the one that cannot fit is left alone');
+  assert((end.marks || []).some(m => m.x === 5 && m.y === 5 && /217,100,90/.test(m.stroke || '')),
+    'and is marked as refused rather than silently skipped');
+
+  /* A family card is a FAMILY, and its size is read off the data. Coneflower is
+     five species and four cultivars under one `group`, so a hand-written "4
+     varieties" would have been wrong about the one thing that beat explains. */
+  const fam = Object.keys(PLANTS).filter(k => PLANTS[k].group === 'coneflower');
+  const choices = fam.reduce((n, k) => n + 1 + Object.keys(PLANTS[k].cv || {}).length, 0);
+  assert(fam.length > 1, 'the coneflowers really are several species');
+  const card = at(0) && GUIDE_DEMOS.findplants;
+  const fst = card.build(); card.run(fst, 0.35);
+  assertEqual(fst.panel.rows[0].sub, choices + ' choices',
+    'the family card counts them off PLANTS (' + choices + ')');
+  assert(/PLANTS\[k\]\.group===.coneflower./.test(String(card.run)),
+    'and reads the group rather than carrying a copy of the number');
+});
+
+test('a guidebook panel scales rather than clipping, and leaves the caption room', () => {
+  /* gsDrawChromeRow's rule, for its reason: a clipped panel loses a row with
+     nothing to say it did, and these rows are the whole lesson. Below the floor
+     it drops out entirely and the caption carries the beat, which is what the
+     rail and the compass do at their own floors. */
+  const p = { title: 'Approximate materials', sub: 'x',
+    rows: [{ label: 'a', value: '1' }, { label: 'b', value: '2' }, { label: 'c', value: '3' }] };
+  const box = (w, h) => ({ x0: 0, y0: 0, x1: w, y1: h });
+  assertEqual(gsPanelScale(box(1120, 616), p, 0), 1, 'a desktop plate draws it at full size');
+  const phone = gsPanelScale(box(343, 257), p, 78);
+  assert(phone >= GUIDE_PANEL_MIN_K && phone <= 1, 'a phone plate scales it (' + phone + ')');
+  assertEqual(gsPanelScale(box(292, 220), p, 78), 0, 'and a narrower one drops it');
+  assertEqual(gsPanelScale(box(400, 90), p, 0), 0, 'as does a plate too short to hold it');
+
+  /* Where there is no room BESIDE it, the panel goes to the top and the caption
+     takes the strip underneath. Left to the caption's own clamp, the rail and a
+     full-width panel between them left about 6px of box, and the caption was
+     pushed out over the panel it was describing. */
+  assert(gsPanelSide(box(1120, 616), p, 60), 'a wide plate has room beside it');
+  assert(!gsPanelSide(box(343, 257), p, 78), 'a phone plate has not');
+  const tall = { title: 'x', rows: new Array(9).fill({ label: 'a', value: '1' }) };
+  assert(gsPanelScale(box(1120, 240), tall, 0) * gsPanelHeight(tall) <= 240 - 28,
+    'height bounds it too, so the last row is never cut off');
+  /* And on a plate with no room beside it, the panel stops short of the bottom
+     by the caption's own band — otherwise it fills the plate and the caption
+     has nowhere left to be drawn except on top of it. */
+  const phoneBox = box(343, 300), k2 = gsPanelScale(phoneBox, tall, 78);
+  assert(k2 > 0 && !gsPanelSide(phoneBox, tall, 78), 'a phone plate, panel on top');
+  assert(12 + k2 * gsPanelHeight(tall) <= 300 - GUIDE_PANEL_BAND,
+    'it leaves the caption its strip (' + Math.round(12 + k2 * gsPanelHeight(tall)) +
+    ' of ' + (300 - GUIDE_PANEL_BAND) + ')');
+
+  // and every demo that shows one still draws at all four plate sizes
+  const ctx = makeCanvasCtx();
+  for (const id of ['findplants', 'replace', 'estimate']) {
+    for (const [w, h] of [[292, 220], [343, 280], [640, 340], [1120, 616]]) {
+      for (const u of [0.1, 0.5, 0.9]) {
+        const st = GUIDE_DEMOS[id].build(); GUIDE_DEMOS[id].run(st, u);
+        gsApplyWhere(st, GUIDE_DEMOS[id].where, u);
+        gsRender(ctx, st, w, h, 0);
+      }
+    }
+  }
+});
+
+test('the guidebook names the selection pill the app actually draws', () => {
+  /* It said "Duplicate". renderSelectionActions' second button is Copy, and has
+     been for as long as the pill has existed — so the guidebook was sending a
+     reader along a four-button row looking for a fifth that is not on it. This
+     is the class of bug the whole where/`how` discipline exists to catch, one
+     control further in. */
+  const tray = readRepoFile('js/tray.js');
+  const pill = tray.slice(tray.indexOf('function renderSelectionActions'),
+                          tray.indexOf('function showSelectionMore'));
+  const buttons = [...pill.matchAll(/\bbtn\('([^']+)'/g)].map(m => m[1]);
+  assertEqual(buttons.join('|'), 'Move|Copy|Fill|More', 'the real pill (' + buttons.join(', ') + ')');
+
+  const st = GUIDE_DEMOS.select.build(); GUIDE_DEMOS.select.run(st, 0.4);
+  const row = Array.isArray(st.chrome) ? st.chrome[0] : st.chrome;
+  assertEqual(row.options.join('|'), buttons.join('|'),
+    'and the demo draws it button for button');
+  const how = guideEntry('select').how.join(' ');
+  assert(!/Duplicate/.test(how), 'and the written instruction does not invent one');
+
+  /* The More menu is the other half, and three demos mock it. Every row they
+     show has to be a row showSelectionMore really adds. */
+  /* Searched FROM the function, not from the top of the file: another builder
+     above it appends a `pop` too, so an unanchored indexOf walks backwards and
+     hands back an empty slice — which is a test that passes by measuring
+     nothing, exactly the failure docs/test-sandbox.md is a record of. */
+  const moreAt = tray.indexOf('function showSelectionMore');
+  const more = tray.slice(moreAt, tray.indexOf('document.body.appendChild(pop)', moreAt));
+  assert(more.length > 200, 'the showSelectionMore slice found real source');
+  const rows = [...more.matchAll(/\badd\('((?:[^'\\]|\\.)+)'/g)]
+    .map(m => m[1].replace(/\\u2026/g, '…'));
+  assert(rows.length >= 5, 'the real More menu (' + rows.join(', ') + ')');
+  for (const id of ['replace', 'savearea', 'estimate']) {
+    const s = GUIDE_DEMOS[id].build(); GUIDE_DEMOS[id].run(s, 0.06);
+    assert(s.menu && s.menu.items.length, id + ' mocks the More menu');
+    for (const item of s.menu.items)
+      assert(rows.includes(item), id + ' shows a real More row: "' + item + '"');
+    assert(rows.includes(s.menu.items[s.menu.on]), id + ' arms one of them');
+  }
 });

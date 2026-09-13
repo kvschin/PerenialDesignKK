@@ -83,7 +83,14 @@ function guideStage(opts){
     top:null,                     // {label,kind,tapping} — a top-bar control
     seasonBox:null,               // {season,phase,fill,hold,press,ff} — the real one
     ruler:null,                   // {a,b} in stage tiles — drawn by the app's own
-    menu:null                     // {items,on,open} — a mocked dropdown
+    menu:null,                    // {items,on,open} — a mocked dropdown
+    /* The reader's OWN photograph, which the guidebook by definition does not
+       have — see gsDrawUnderlay for why this one mark is a stand-in.
+       {x,y,w,h,opacity,frame,calib} in stage tiles. */
+    underlay:null,
+    shade:null,                   // {north} — the overlay, scored by treeShadeScore
+    compass:null,                 // {deg} — the north dial
+    panel:null                    // {title,sub,find,rows} — a readout or a result list
   };
 }
 const gsKey=(x,y)=>x+','+y;
@@ -259,6 +266,165 @@ function gsWaterDepth(st,x,y){
   return Math.max(0.6,Math.min(6,d*1.6));
 }
 
+
+/* ---------- the site: a photograph underneath, and the sun overhead ----------
+
+   These two are the setup a real design starts from, and they are the only
+   part of the app the stage could not already draw: the reference photograph
+   is a file the reader supplies, and the shade map is keyed on where the
+   reader's north is. */
+
+/* North and the season, borrowed the way the camera is. treeShadeScore reaches
+   orientedSunPath() for the sun's bearing and shadeSeasonScale() for how far a
+   shadow runs — game.siteNorthDeg and the LIVE CLOCK. Left alone, the shade
+   demo would swing with whatever north the last garden happened to be set to,
+   and lengthen in the reader's own winter: the bloomLvl trap in a second
+   costume, a demo whose picture depends on when the session started.
+   Four fields, one synchronous call, all four put back in a finally. */
+function gsBorrowSite(st,deg,fn){
+  const prior={deg:game.siteNorthDeg, preview:game.siteNorthPreviewDeg,
+               cache:siteDirectionCache, off:game.dayOffset};
+  try{
+    game.siteNorthDeg=normalizeSiteNorthDeg(deg);
+    game.siteNorthPreviewDeg=null;
+    siteDirectionCache={deg:null,dirs:null,path:null};
+    /* absDay() is floor(elapsed/DAY_MS)+dayOffset, so nudging the offset by the
+       difference lands the clock in the middle of the stage's OWN season
+       without this module having to know how the clock is kept. */
+    const want=SEASONS.indexOf(st.season)*DAYS_PER_SEASON+(DAYS_PER_SEASON>>1);
+    game.dayOffset=prior.off+(want-absDay());
+    return fn();
+  } finally {
+    game.siteNorthDeg=prior.deg; game.siteNorthPreviewDeg=prior.preview;
+    siteDirectionCache=prior.cache; game.dayOffset=prior.off;
+  }
+}
+
+/* The shade overlay, scored by the app's own treeShadeScore over the stage's
+   own trees, banded and coloured off the renderer's own overlay pass — amber
+   full sun, teal part shade, cool blue shade.
+   A TREE is the only thing in this app that casts shade: ensureShadeMap walks
+   treeIndex() and nothing else, so a wall does not. The building in that demo
+   is therefore what you design AROUND rather than a second caster, and the
+   demo says so rather than implying a feature that is not there. */
+function gsDrawShade(ctx,st){
+  if (!st.shade) return;
+  gsBorrowSite(st,st.shade.north||0,function(){
+    const trees=[];
+    Object.keys(st.plants).forEach(function(k){
+      const p=st.plants[k]; if (!p) return;
+      const P=plantDef(p.s,p.v); if (!isTreeDef(P)) return;
+      const c=k.split(',').map(Number);
+      const est=p.g===undefined?1:p.g;
+      /* The reach is woodyRadiusTiles — the real mature crown off the species'
+         own spread — never the drawn width. That is the T2 rule the whole
+         woody system rests on, and shadeAt's radius comes from it too. */
+      const r=woodyRadiusTiles(P)*est;
+      trees.push({x:c[0],y:c[1],r:r,est:est,
+        activePotential:est>=SHADE_ACTIVE_ESTAB && r>=SHADE_MIN_RADIUS});
+    });
+    if (!trees.length) return;
+    for (let y=0;y<st.rows;y++) for (let x=0;x<st.cols;x++){
+      let score=0;
+      trees.forEach(function(sh){ score=Math.max(score,treeShadeScore(sh,x,y)); });
+      gsTileMark(ctx,st,x,y,
+        score>=SHADE_ACTIVE_SCORE ? 'rgba(38,84,112,0.52)'
+        : score>0 ? 'rgba(70,132,128,0.44)'
+        : 'rgba(232,180,78,0.40)', null);
+    }
+  });
+}
+
+/* The site photograph, and the ONE mark in this module that is not the app's
+   own painter — it cannot be. drawSiteUnderlay is a drawImage of the reader's
+   own photograph, and the guidebook does not have one: shipping a stock aerial
+   would cost the precache budget and a licence, for a picture of nobody's
+   garden. So the image is a deliberately crude stand-in, and everything AROUND
+   it is drawSiteUnderlay's real editing chrome — the dashed cyan frame, the
+   corner dots, the gold calibration line with its numbered ends — because that
+   is what the reader is looking for on their own screen. */
+function gsUnderlayQuad(st,u){
+  return [[u.x-u.w/2,u.y-u.h/2],[u.x+u.w/2,u.y-u.h/2],
+          [u.x+u.w/2,u.y+u.h/2],[u.x-u.w/2,u.y+u.h/2]]
+    .map(function(p){ return gsProjectAt(st,p[0],p[1]); });
+}
+function gsPaintPhotoStandIn(ctx,st,u){
+  const q=gsUnderlayQuad(st,u);
+  // bilinear inside the quad, so the sketch shears with the ground plane
+  const P=function(a,b){
+    const tx=q[0][0]+(q[1][0]-q[0][0])*a, ty=q[0][1]+(q[1][1]-q[0][1])*a;
+    const bx=q[3][0]+(q[2][0]-q[3][0])*a, by=q[3][1]+(q[2][1]-q[3][1])*a;
+    return [tx+(bx-tx)*b, ty+(by-ty)*b];
+  };
+  const poly=function(pts,fill){
+    ctx.beginPath();
+    pts.forEach(function(p,i){ const s=P(p[0],p[1]);
+      if (i) ctx.lineTo(s[0],s[1]); else ctx.moveTo(s[0],s[1]); });
+    ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
+  };
+  /* Deliberately DESATURATED and a stop darker than the garden under it: a
+     photograph laid over a drawing has to read as a photograph, and a
+     grass-green rectangle over grass reads as nothing at all. Measured on
+     the plate, the first cut was invisible at the 35% opacity the tool
+     actually defaults to. */
+  poly([[0,0],[1,0],[1,1],[0,1]],'#67724f');                          // rough grass
+  poly([[0.04,0],[0.22,0],[0.28,1],[0.10,1]],'#cfcac0');              // the drive
+  poly([[0.33,0.05],[0.90,0.05],[0.90,0.43],[0.33,0.43]],'#3f362f');  // a roof
+  poly([[0.33,0.20],[0.90,0.20],[0.90,0.24],[0.33,0.24]],'#6a5c4e');  // its ridge
+  poly([[0.36,0.43],[0.90,0.43],[0.90,0.51],[0.36,0.51]],'#231d19');  // its shadow
+  poly([[0.40,0.58],[0.65,0.54],[0.73,0.78],[0.44,0.84]],'#27351f');  // planting
+  poly([[0.77,0.59],[0.96,0.63],[0.94,0.91],[0.73,0.86]],'#2f3d26');
+  poly([[0.33,0.88],[0.66,0.84],[0.68,1],[0.33,1]],'#8b9463');        // mown lawn
+}
+function gsDrawUnderlay(ctx,st,scale){
+  const u=st.underlay; if (!u) return;
+  const q=gsUnderlayQuad(st,u);
+  /* The quad is walked TWICE on purpose. clip() does not consume the path,
+     but the stand-in's own fills each begin one — so a single beginPath at
+     the top left the frame stroking whatever shape the sketch happened to
+     finish on, which came out as a small dashed lozenge in one corner of a
+     photo whose outline is the thing the reader is dragging. */
+  const edge=function(){
+    ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]);
+    q.slice(1).forEach(function(p){ ctx.lineTo(p[0],p[1]); });
+    ctx.closePath();
+  };
+  ctx.save();
+  edge();
+  ctx.save(); ctx.clip();
+  ctx.globalAlpha=u.opacity===undefined?0.35:u.opacity;
+  gsPaintPhotoStandIn(ctx,st,u);
+  ctx.restore();
+  /* The editing chrome is inside the stage transform, because it has to
+     follow the photo's own quad — so every width it names is multiplied by
+     the fit scale on the way to the screen, and on a phone plate that scale
+     is about 0.42. A 7px handle would land at 3px and read as a speck. The
+     factor divides the scale back out, bounded so a large plate does not get
+     a hairline, which is the same trick GUIDE_SEASON_BOX's 1.5 performs by
+     hand for a control whose size is fixed. */
+  const K=Math.max(1.2,Math.min(3.4,1.15/(scale||1)));
+  if (u.frame){
+    edge();
+    ctx.strokeStyle='#72c9ff'; ctx.lineWidth=2.5*K; ctx.setLineDash([7*K,5*K]);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#172733';
+    q.forEach(function(p){ ctx.beginPath(); ctx.arc(p[0],p[1],4.5*K,0,Math.PI*2); ctx.fill(); });
+  }
+  if (u.calib && u.calib.length){
+    const ps=u.calib.map(function(p){ return gsProjectAt(st,p[0],p[1]); });
+    ctx.strokeStyle='#f4c66a'; ctx.lineWidth=3*K;
+    if (ps.length>1){ ctx.beginPath(); ctx.moveTo(ps[0][0],ps[0][1]);
+      ctx.lineTo(ps[1][0],ps[1][1]); ctx.stroke(); }
+    ps.forEach(function(p,i){
+      ctx.fillStyle='#172733';
+      ctx.beginPath(); ctx.arc(p[0],p[1],7*K,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#f4c66a'; ctx.font='700 '+(10*K)+"px 'IBM Plex Sans', sans-serif";
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(i+1),p[0],p[1]);
+    });
+  }
+  ctx.restore();
+}
 /* ---------- props ----------
    Everything that stands on the ground. Each kind is drawn by the app's own
    painter; the two that position themselves through the live camera borrow it
@@ -685,6 +851,11 @@ function gsDrawRail(ctx,box,rail){
    gsDrawChrome walks a LIST and this draws one member of it; a demo that sets
    a bare object is normalised to a stack of one, which is why none of them had
    to change when the path rows arrived. */
+/* Below this the row is DROPPED rather than drawn illegibly, the way the rail
+   drops out below its own floor: 12.5px scaled to 0.62 is 7.8px, and a
+   breadcrumb nobody can read is worse than the written one underneath the
+   plate, which says the same thing in full. */
+const GUIDE_CHROME_MIN_K=0.66;
 function gsDrawChromeRow(ctx,box,ch,left,top){
   if (!ch) return 0;
   const pad=10, gap=6, hgt=34;
@@ -699,6 +870,7 @@ function gsDrawChromeRow(ctx,box,ch,left,top){
      segmented control loses an option with nothing to say it did. Drawn from a
      local origin inside the scale, so nothing below has to know. */
   const k=Math.min(1,(box.x1-left-12)/total);
+  if (k<GUIDE_CHROME_MIN_K){ ctx.restore(); return 0; }
   ctx.translate(left,top); ctx.scale(k,k);
   const x=0, y=0, r=9;
   /* A TRAIL reads left to right with chevrons and only its last step armed —
@@ -953,6 +1125,224 @@ function gsDrawMenu(ctx,box,m){
   });
   ctx.restore();
 }
+/* The north dial. It is a CONTROL in two places — the Site tab's own "North N°"
+   button and the Set north dialog's preview — and both draw the same thing: a
+   ring with a bronze needle, rotated clockwise from plot-up. Drawn here at the
+   ring's own proportions rather than the button's 48x44, because a dial is the
+   one piece of chrome whose entire meaning is its angle.
+   It drops out on a plate too small to hold it, the way gsRailWindow does. */
+const GUIDE_COMPASS_R=30;
+function gsDrawCompass(ctx,box,c){
+  if (!c) return 0;
+  const w=box.x1-box.x0, h=box.y1-box.y0;
+  if (w<220 || h<150) return 0;                 // no room: the caption carries it
+  const r=GUIDE_COMPASS_R, x=box.x1-r-22, y=box.y1-r-30;
+  ctx.save();
+  ctx.fillStyle='rgba(26,21,17,0.86)';
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(239,230,211,0.20)'; ctx.lineWidth=1; ctx.stroke();
+  ctx.strokeStyle='rgba(239,230,211,0.42)'; ctx.lineWidth=1.3;
+  ctx.beginPath(); ctx.arc(x,y,r-6,0,Math.PI*2); ctx.stroke();
+  ctx.save(); ctx.translate(x,y); ctx.rotate((c.deg||0)*Math.PI/180);
+  ctx.strokeStyle='#c97f3f'; ctx.fillStyle='#c97f3f'; ctx.lineWidth=2.8;
+  ctx.beginPath(); ctx.moveTo(0,r-10); ctx.lineTo(0,-(r-12)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-(r-3)); ctx.lineTo(-6,-(r-13)); ctx.lineTo(6,-(r-13));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle='#efe6d3'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font="600 12px 'IBM Plex Sans', system-ui, sans-serif";
+  ctx.fillText('N '+Math.round(c.deg||0)+'°',x,y+r+13);
+  ctx.restore();
+  return r*2+22;
+}
+
+/* A panel down the right edge. The catalog's result list, the Replace dialog's
+   result list and the materials estimate are all a titled box of rows, so they
+   are ONE painter here for the reason gsDrawChromeRow serves both a segmented
+   control and a breadcrumb: they are the same box.
+   A row carrying `s` is a plant and is drawn through drawPlant, so a result row
+   cannot advertise a species the canvas does not draw. A row carrying `value`
+   is a readout line. Returns the width it claimed, so a caption can be kept
+   clear of it exactly as the rail's column is. */
+/* 252, on a measurement rather than a round number: at 228 the estimate's
+   longest row truncated to "Purple Coneflower at sp…" — losing the word
+   `spacing`, which is the whole distinction that row exists to draw — and the
+   catalog lost a cultivar epithet, the half a nursery order turns on. */
+const GUIDE_PANEL_W=252;
+/* Below GUIDE_PANEL_GARDEN of stage left over, the panel is SCALED rather
+   than clipped — gsDrawChromeRow's rule, and for its reason: a clipped panel
+   loses a row with nothing to say it did, and the rows here are the whole
+   lesson. Below GUIDE_PANEL_MIN_K it drops out altogether and the caption
+   carries the beat, which is what the rail and the compass do at their own
+   floors. 0.8 is the floor because the rows are 11.5px and 9px is the size
+   this guidebook has already shipped a bug about once. */
+const GUIDE_PANEL_GARDEN=96;          // stage left beside it, at minimum
+const GUIDE_PANEL_MIN_K=0.8;
+const GUIDE_PANEL_CAPTION=160;        // a caption needs about this much room
+const GUIDE_PANEL_BAND=38;            // …or a strip under the panel instead
+function gsPanelRowH(r){ return r.seg?34:r.s?42:26; }
+function gsPanelHeight(p){
+  let h=26+(p.title?24:0)+(p.sub?17:0)+(p.find===undefined?0:36);
+  (p.rows||[]).forEach(function(r){ h+=gsPanelRowH(r); });
+  return h;
+}
+/* BOTH dimensions bound it, and the CAPTION is one of the things it has to
+   leave room for. A tall panel on a short plate would otherwise start at the
+   top margin and run off the bottom — losing the estimate's last row, the one
+   that answers "how many have I actually planted". And on a phone plate the
+   rail and a full-width panel between them leave 6px of caption box, so the
+   caption's own clamp pushed it out over the panel it was describing. Where
+   there is no room BESIDE, the panel goes to the top and hands the caption a
+   strip underneath — which is the reading order anyway. */
+function gsPanelSide(box,p,left){
+  return (box.x1-box.x0)-(left||0)-GUIDE_PANEL_W-24 >= GUIDE_PANEL_CAPTION;
+}
+function gsPanelScale(box,p,left){
+  if (!p) return 0;
+  const room=(box.x1-box.x0)-Math.max(GUIDE_PANEL_GARDEN,left||0)-14;
+  const vert=(box.y1-box.y0)-28-(gsPanelSide(box,p,left)?0:GUIDE_PANEL_BAND);
+  const k=Math.min(1, room/GUIDE_PANEL_W, vert/gsPanelHeight(p));
+  return k<GUIDE_PANEL_MIN_K ? 0 : k;
+}
+function gsDrawPanel(ctx,box,p,left){
+  const k=gsPanelScale(box,p,left); if (!k) return {w:0,bottom:0,side:true};
+  const pw=GUIDE_PANEL_W;
+  const rows=p.rows||[];
+  const rowH=gsPanelRowH;
+  const hgt=gsPanelHeight(p);
+  /* Laid out from a local origin inside the scale, so nothing below has to
+     know it was scaled — the same shape gsDrawChromeRow uses. */
+  const x=0, y=0;
+  const sh=hgt*k, side=gsPanelSide(box,p,left);
+  const top=side ? Math.max(box.y0+14,Math.min(box.y1-14-sh,(box.y0+box.y1-sh)/2))
+                 : box.y0+12;
+  ctx.save();
+  ctx.translate(box.x1-GUIDE_PANEL_W*k-14,top);
+  ctx.scale(k,k);
+  const rr=12;
+  ctx.beginPath(); ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+pw,y,x+pw,y+hgt,rr); ctx.arcTo(x+pw,y+hgt,x,y+hgt,rr);
+  ctx.arcTo(x,y+hgt,x,y,rr); ctx.arcTo(x,y,x+pw,y,rr); ctx.closePath();
+  ctx.fillStyle='rgba(26,21,17,0.94)'; ctx.fill();
+  ctx.strokeStyle='rgba(239,230,211,0.20)'; ctx.lineWidth=1; ctx.stroke();
+  ctx.save();
+  ctx.clip();
+  let cy=y+12;
+  ctx.textBaseline='middle'; ctx.textAlign='left';
+  if (p.title){
+    ctx.fillStyle='#efe6d3';
+    ctx.font="600 14.5px 'Fraunces', Georgia, serif";
+    ctx.fillText(planFitText(ctx,p.title,pw-24),x+12,cy+10); cy+=24;
+  }
+  if (p.sub){
+    ctx.fillStyle='rgba(239,230,211,0.62)';
+    ctx.font="500 10.5px 'IBM Plex Sans', system-ui, sans-serif";
+    ctx.fillText(planFitText(ctx,p.sub,pw-24),x+12,cy+8); cy+=17;
+  }
+  if (p.find!==undefined){
+    /* The catalog's Find field, which is where every plant search starts and
+       the control a reader is most likely to have walked straight past. */
+    const fh=26;
+    ctx.beginPath(); ctx.moveTo(x+19,cy);
+    ctx.arcTo(x+pw-12,cy,x+pw-12,cy+fh,7); ctx.arcTo(x+pw-12,cy+fh,x+12,cy+fh,7);
+    ctx.arcTo(x+12,cy+fh,x+12,cy,7); ctx.arcTo(x+12,cy,x+pw-12,cy,7);
+    ctx.closePath();
+    ctx.fillStyle='rgba(8,5,4,0.42)'; ctx.fill();
+    ctx.strokeStyle='rgba(239,230,211,0.24)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.strokeStyle='rgba(239,230,211,0.62)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(x+24,cy+fh/2-1,4,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+27,cy+fh/2+2); ctx.lineTo(x+31,cy+fh/2+6); ctx.stroke();
+    ctx.font="500 12px 'IBM Plex Sans', system-ui, sans-serif";
+    ctx.fillStyle=p.find?'#efe6d3':'rgba(239,230,211,0.45)';
+    ctx.fillText(p.find||'Find a plant',x+38,cy+fh/2);
+    if (p.caret){
+      const tw=ctx.measureText(p.find||'').width;
+      ctx.strokeStyle='#c97f3f'; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(x+40+tw,cy+6); ctx.lineTo(x+40+tw,cy+fh-6); ctx.stroke();
+    }
+    cy+=36;
+  }
+  rows.forEach(function(r){
+    const h=rowH(r);
+    if (r.seg){
+      /* The dialog's own segmented control, drawn through gsDrawChromeRow so
+         a seg inside a panel and a seg in the top bar cannot come out as two
+         different controls. */
+      gsDrawChromeRow(ctx,{x0:x,y0:cy,x1:x+pw-12,y1:cy+h},
+        {options:r.seg,on:r.on||0,tapping:r.tapping},x+12,cy+1);
+      cy+=h; return;
+    }
+    if (r.on){
+      ctx.fillStyle='rgba(201,127,63,0.30)';
+      ctx.beginPath(); ctx.moveTo(x+16,cy);
+      ctx.arcTo(x+pw-9,cy,x+pw-9,cy+h-2,7); ctx.arcTo(x+pw-9,cy+h-2,x+9,cy+h-2,7);
+      ctx.arcTo(x+9,cy+h-2,x+9,cy,7); ctx.arcTo(x+9,cy,x+pw-9,cy,7);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#c97f3f'; ctx.lineWidth=1.4; ctx.stroke();
+    }
+    if (r.s){
+      const D=plantDef(r.s,r.v);
+      ctx.save();
+      /* The real result card's own preview call, scaled to the row: full
+         bloom, the species' representative flowering season, one fixed seed. */
+      const sc=Math.min(0.62,32/(plantArtTop(D)||40));
+      ctx.translate(x+17,cy+h-6); ctx.scale(sc,sc);
+      drawPlant(ctx,0,0,r.s,1,plantIconSeason(D),tileSeed(3,7),0,r.v||undefined,1);
+      ctx.restore();
+      ctx.fillStyle='#efe6d3';
+      ctx.font="600 12px 'IBM Plex Sans', system-ui, sans-serif";
+      /* A FAMILY card is one preview standing for several choices, so it
+         carries the group's label and its choice count where an exact card
+         carries the plant's own name and botanical name. */
+      /* Through the plan sheet's own fitter. A name that runs under the
+         heart beside it is the schedule's ellipsis bug one surface over —
+         and a cultivar epithet is exactly the half that gets eaten. */
+      const tw=pw-38-(r.fav===undefined?14:34);
+      ctx.fillText(planFitText(ctx,r.name||D.name,tw),x+38,cy+h/2-7);
+      ctx.fillStyle='rgba(239,230,211,0.58)';
+      ctx.font="400 10px 'IBM Plex Sans', system-ui, sans-serif";
+      ctx.fillText(planFitText(ctx,r.sub||PLANTS[r.s].latin,tw),x+38,cy+h/2+8);
+      if (r.fav!==undefined) gsDrawHeart(ctx,x+pw-24,cy+h/2,r.fav);
+    } else {
+      /* The VALUE is measured first and keeps its room: on a readout the
+         number is the thing being read, so it is the label that gives way.
+         "Purple Coneflower at spacing" ran straight into "26 plants". */
+      let vw=0;
+      if (r.value!==undefined){
+        ctx.font="600 11.5px 'IBM Plex Sans', system-ui, sans-serif";
+        vw=ctx.measureText(String(r.value)).width+10;
+        ctx.textAlign='right'; ctx.fillStyle='#efe6d3';
+        ctx.fillText(String(r.value),x+pw-14,cy+h/2);
+        ctx.textAlign='left';
+      }
+      ctx.fillStyle='rgba(239,230,211,0.70)';
+      ctx.font="500 11.5px 'IBM Plex Sans', system-ui, sans-serif";
+      ctx.fillText(planFitText(ctx,r.label||'',pw-28-vw),x+14,cy+h/2);
+    }
+    cy+=h;
+  });
+  ctx.restore();
+  ctx.restore();
+  return {w:Math.round(pw*k)+14, bottom:top+sh, side:side};
+}
+/* The Favorites heart, filled or hollow. Colour alone never signals a state in
+   this app, so on and off are the same glyph filled and not filled rather than
+   two tints of one. */
+function gsDrawHeart(ctx,x,y,on){
+  ctx.save();
+  ctx.translate(x,y); ctx.scale(0.78,0.78);
+  ctx.beginPath();
+  ctx.moveTo(0,7);
+  ctx.bezierCurveTo(-9,0,-8,-7,-4,-7);
+  ctx.bezierCurveTo(-1.5,-7,0,-4.6,0,-4.6);
+  ctx.bezierCurveTo(0,-4.6,1.5,-7,4,-7);
+  ctx.bezierCurveTo(8,-7,9,0,0,7);
+  ctx.closePath();
+  if (on){ ctx.fillStyle='#c97f3f'; ctx.fill(); }
+  ctx.strokeStyle=on?'#c97f3f':'rgba(239,230,211,0.70)'; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.restore();
+}
+
 /* ---------- one frame ----------
    Fit the stage to the canvas, paint sky, ground, entities, overlay. The fit is
    measured from the stage's real extent rather than assumed, so a demo can be
@@ -976,6 +1366,13 @@ function gsRender(ctx,st,w,h,sway){
   ctx.translate(-(e.x0+e.x1)/2,-(e.y0+e.y1)/2);
 
   gsPaintGround(ctx,st,amb);
+  /* The reference photograph sits above the opaque ground and below every
+     plant and structure, which is exactly where drawSiteUnderlay puts it —
+     traceable without hiding what you have already designed. The shade wash
+     goes next, for the same reason the renderer's `shade` phase runs before
+     the entity pass: it describes the GROUND, not what is standing on it. */
+  gsDrawUnderlay(ctx,st,s);
+  gsDrawShade(ctx,st);
   gsPaintEntities(ctx,st,sway);
   (st.marks||[]).forEach(m=>gsTileMark(ctx,st,m.x,m.y,m.fill,m.stroke));
   if (st.ghost) gsBrushGhost(ctx,st,st.ghost.x,st.ghost.y,st.ghost.size,st.ghost.tone);
@@ -994,10 +1391,21 @@ function gsRender(ctx,st,w,h,sway){
   ctx.restore();
   const box={x0:0,y0:0,x1:w,y1:h};
   const railW=gsDrawRail(ctx,box,st.rail);
-  const boxH=gsDrawSeasonBox(ctx,box,st.seasonBox,railW);
-  const chromeH=gsDrawChrome(ctx,st,box,st.chrome,railW,boxH);
-  gsDrawTopChip(ctx,box,st.top);
+  /* The panel's placement is decided BEFORE the chrome is drawn, because a
+     panel with no room beside it sits at the top of the plate and the top is
+     where the breadcrumb and the chip go. They are given the box that is left,
+     and drop out rather than shrink into it — the written trail under the
+     plate says the same thing at full size. */
+  const pk=gsPanelScale(box,st.panel,railW), pSide=gsPanelSide(box,st.panel,railW);
+  const pTop=pk&&!pSide;
+  const chromeBox=pTop ? {x0:box.x0,y0:box.y0,x1:box.x1-Math.round(GUIDE_PANEL_W*pk)-14,y1:box.y1}
+                       : box;
+  const boxH=gsDrawSeasonBox(ctx,chromeBox,st.seasonBox,railW);
+  const chromeH=gsDrawChrome(ctx,st,chromeBox,st.chrome,railW,boxH);
+  if (!pTop) gsDrawTopChip(ctx,box,st.top);
   gsDrawMenu(ctx,box,st.menu);
+  const panel=gsDrawPanel(ctx,box,st.panel,railW);
+  const dialW=gsDrawCompass(ctx,box,st.compass);
 
   /* Captions LAST, in screen space, and clear of everything already drawn.
      They were inside the stage transform and drawn before the chrome, which
@@ -1010,8 +1418,9 @@ function gsRender(ctx,st,w,h,sway){
     x0:reserve+6,
     /* the menu is a 210px panel down the right edge; nothing else on that side
        is tall enough to reach a caption */
-    x1:w-6-(st.menu&&st.menu.open>0 ? 224 : 0),
-    y0:6+(band?band+18:0),
+    x1:w-6-Math.max(st.menu&&st.menu.open>0 ? 224 : 0, panel.side?panel.w:0, dialW),
+    /* Under the chrome, and under a panel that took the whole width. */
+    y0:Math.max(6+(band?band+18:0), panel.side?0:panel.bottom+6),
     y1:h-6
   };
   st.notes.forEach(n=>gsDrawNote(ctx,st,n,nb,toScreen));
@@ -1061,6 +1470,17 @@ function gsPlant(st,x,y,s,g,v){
    Seeded from the tile, so the same demo comes back identical every open. */
 function gsScatter(st,keys,tiles,g){
   tiles.forEach(([x,y],i)=>gsPlant(st,x,y,keys[i%keys.length],g===undefined?1:g));
+}
+/* selectionEstimate names the ARMED species on its last row — "Purple
+   Coneflower at spacing" — and finds it through game.lastBrushTool, so a demo
+   calling it would otherwise print whatever the reader last painted with in
+   some other garden, or nothing at all. Borrowed and put back, exactly as the
+   camera and the site are, which is what lets the estimate demo show the
+   dialog's OWN rows rather than a hand-typed copy of them. */
+function gsBorrowArmed(key,fn){
+  const prior={t:game.lastBrushTool, v:game.lastBrushVar};
+  try { game.lastBrushTool=key; game.lastBrushVar=null; return fn(); }
+  finally { game.lastBrushTool=prior.t; game.lastBrushVar=prior.v; }
 }
 
 /* ---------- the demos ----------
@@ -1679,9 +2099,13 @@ select:{ loop:11000, rest:0.94,
     st.marks=[];
     for (let y=1;y<=3;y++) for (let x=1;x<=3;x++)
       st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.16)',stroke:'rgba(124,168,196,0.45)'});
-    st.chrome={options:['Move','Duplicate'],on:1,tapping:gAt(u,0.32,0.44)};
+    /* Move | Copy | Fill | More, which is the pill the app really draws —
+       renderSelectionActions' second button is Copy. Everything else lives
+       under More, and saying otherwise sends a reader looking along a row
+       that has four buttons on it for a fifth that is not there. */
+    st.chrome={options:['Move','Copy','Fill','More'],on:1,tapping:gAt(u,0.32,0.44)};
     if (u<0.48){ st.cursor=null;
-      st.notes=[{text:'Move, Duplicate, Rotate or Erase it',at:[4,6.4],dy:28}]; return; }
+      st.notes=[{text:'Move or Copy it; the rest is under More',at:[4,6.4],dy:28}]; return; }
     // duplicate: the same six plants, offset, as a live ghost then committed
     const f2=gEase(gAt(u,0.5,0.86));
     const dx=Math.round(4*f2), dy=Math.round(2*f2);
@@ -1691,7 +2115,7 @@ select:{ loop:11000, rest:0.94,
     for (let y=1;y<=3;y++) for (let x=1;x<=3;x++)
       st.marks.push({x:x+dx,y:y+dy,stroke:'rgba(122,176,122,0.8)'});
     st.cursor={x:2+dx,y:2+dy,down:u<0.88,press:0};
-    st.notes=[{text:'Duplicate carries the planting with it',at:[4,6.4],dy:28}];
+    st.notes=[{text:'Copy carries the planting with it',at:[4,6.4],dy:28}];
   }},
 
 pick:{ loop:9000, rest:0.92,
@@ -2009,6 +2433,346 @@ outputs:{ loop:10000, rest:0.8,
       on:Math.min(3,Math.floor(gAt(u,0.24,0.96)*4)), open:gAt(u,0.12,0.24)};
     st.notes=[{text:'Menu — every document the design turns into',at:[3.5,6.4],dy:28}];
   }},
+/* ----- the site you are actually designing ----- */
+
+/* The one demo that does not start from an empty plot, because a real design
+   does not. Four beats, in the order the tool asks for them: get the picture
+   in, put it where the plot is, tell it how big one thing on it really is, and
+   turn it down far enough to draw over. */
+underlay:{ loop:17000, rest:0.88,
+  where:{path:['Landscape','Site','Add site photo']},
+  build(){ return guideStage({cols:9,rows:8}); },
+  run(st,u){
+    const from=[5.6,2.3], home=[4,3.5];
+    const drag=gEase(gAt(u,0.14,0.34));
+    /* Calibrating does not move the photo, it RESIZES it: you name the real
+       distance between two points on it and the whole reference is scaled so
+       they are that far apart. The two points therefore stay put and the
+       picture grows around them. */
+    const scaled=gEase(gAt(u,0.52,0.62));
+    const w=6.3+1.9*scaled;
+    st.underlay={
+      x:from[0]+(home[0]-from[0])*drag,
+      y:from[1]+(home[1]-from[1])*drag,
+      w:w, h:w*0.62,
+      opacity:(0.64-0.34*gEase(gAt(u,0.64,0.74)))*gAt(u,0.01,0.09),
+      /* The frame and the calibration marks are BOTH photoEditing chrome and
+         both go the moment you press Done — leaving the gold line lying over
+         the finished trace would show a state the app never holds. */
+      frame:u<0.80,
+      calib:(u<0.36||u>=0.80)?null:[[2.5,4.6],[5.6,4.6]].slice(0,u<0.44?1:2)
+    };
+    if (u<0.12){
+      st.cursor=null;
+      st.notes=[{text:'Landscape → Site → Add site photo',at:[4,7.2],dy:26}];
+      return;
+    }
+    if (u<0.36){
+      const c=gPath(gAt(u,0.14,0.34),[[from[0],from[1]],[home[0],home[1]]]);
+      st.cursor={x:c[0],y:c[1],down:true,press:0};
+      st.notes=[{text:'Drag it over the plot; pinch to scale and rotate',at:[4,7.2],dy:26}];
+      return;
+    }
+    if (u<0.64){
+      const tap=gTap(u,u<0.44?0.38:0.46);
+      st.cursor={x:u<0.44?2.5:5.6,y:4.6,down:tap.down,press:tap.press};
+      st.notes=[{text:u<0.52 ? 'Tap two points a known distance apart'
+        : 'Now the photo is to scale — 24 ft between those two',at:[4,7.2],dy:26}];
+      return;
+    }
+    if (u<0.80){
+      st.cursor=null;
+      st.notes=[{text:'Turn the opacity down until you can draw over it',at:[4,7.2],dy:26}];
+      return;
+    }
+    /* And then it is just an ordinary brush over an ordinary plot: the photo
+       is a reference, never geometry. Nothing here is snapped to it. */
+    const f=gEase(gAt(u,0.80,0.98));
+    const lane=[[1,1],[2,3],[2,6]];
+    const steps=Math.round(f*10);
+    for (let i=0;i<=steps;i++){
+      const p=gPath(i/10,lane);
+      brushOffsets(3).forEach(function(o){
+        gsFill(st,'path','slate',Math.round(p[0])+o[0],Math.round(p[1])+o[1],
+          Math.round(p[0])+o[0],Math.round(p[1])+o[1]);
+      });
+    }
+    if (f>0.3) gsFill(st,'bed','mulch',4,3,7,6);
+    const c=gPath(f,lane);
+    st.cursor={x:c[0],y:c[1],down:u<0.98,press:0};
+    st.notes=[{text:'Trace the drive and the beds straight off it',at:[4,7.2],dy:26}];
+  }},
+
+/* North is a property of the SITE. The camera turns; the sun does not follow
+   it. That distinction is the whole demo, and it is the one people get wrong
+   because both controls look like rotation. */
+north:{ loop:16000, rest:0.6,
+  where:{path:['Landscape','Site','North'], top:{label:'Layers',kind:'layers'}},
+  build(){ const st=guideStage({cols:9,rows:9});
+    gsFill(st,'lawn','fescue',0,0,8,8);
+    gsFill(st,'path','slate',0,8,8,8);
+    /* One mature tree, because a tree is the ONLY thing in this app that casts
+       shade — ensureShadeMap walks the tree index and nothing else. The house
+       is what you design around, not a second caster, and the caption says so
+       rather than implying a feature that is not there. */
+    gsPlant(st,6,3,'serviceberry',1);
+    gsScatter(st,['dropseed','sedge'],[[1,7],[4,7],[7,7]]);
+    st.props.push({kind:'building',vertices:[[0,0],[4,0],[4,3],[0,3]],
+      status:'existing',label:'House'});
+    return st; },
+  run(st,u){
+    const deg=Math.round(40*gEase(gAt(u,0.06,0.30))+110*gEase(gAt(u,0.48,0.72)));
+    st.compass={deg:deg};
+    if (u>=0.34) st.shade={north:deg};
+    // the last beat turns the CAMERA while north holds still
+    st.rot = u<0.80 ? 0 : Math.min(3,1+Math.floor((u-0.80)/0.07));
+    st.notes=[{text:
+        u<0.32 ? 'Set north once, for the site'
+      : u<0.46 ? 'Layers → Shade overlay: amber sun, teal part, blue shade'
+      : u<0.78 ? 'Move north and the shade swings with the sun'
+      : 'Turning the VIEW moves you, not the shade',
+      at:[4,8.4],dy:28}];
+  }},
+
+/* ----- finding a plant, and keeping it ----- */
+
+/* The catalog is most of the app and had no demo at all. Four things happen
+   here that are each a separate control: narrowing by search, opening a family
+   to reach an exact cultivar, hearting one, and collecting a few into a named
+   palette that every garden can then browse. */
+findplants:{ loop:17000, rest:0.72,
+  where:{path:['Plants','Sun Perennials']},
+  build(){ const st=guideStage({cols:6,rows:5});
+    gsFill(st,'bed','soil',0,0,5,4);
+    gsScatter(st,['dropseed','bluestem'],[[0,3],[5,1],[1,4]]);
+    return st; },
+  run(st,u){
+    const typed='coneflower'.slice(0,Math.round(gAt(u,0.04,0.22)*10));
+    /* The family and its size are read off PLANTS rather than typed in. The
+       coneflowers are FIVE species and four cultivars under one `group`, so a
+       hand-written "4 varieties" would have been wrong about the one thing
+       this beat exists to explain — that a family card is not a species. */
+    const fam=Object.keys(PLANTS).filter(function(k){ return PLANTS[k].group==='coneflower'; });
+    const choices=fam.reduce(function(n,k){ return n+1+Object.keys(PLANTS[k].cv||{}).length; },0);
+    const tag=choices+' choices';
+    if (u<0.26){
+      st.panel={title:'Plant library', sub:'Search every category at once',
+        find:typed, caret:u<0.24,
+        rows:typed.length<4
+          ? [{s:'monarda'},{s:'dropseed'},{s:'echinacea',name:'Coneflower',sub:tag}]
+          : [{s:'echinacea',name:'Coneflower',sub:tag}]};
+      st.notes=[{text:'Find searches common name, botanical name and cultivar',
+        at:[2.5,4.4],dy:26}];
+      return;
+    }
+    if (u<0.44){
+      st.panel={title:'Plant library', sub:'1 family matches', find:'coneflower',
+        rows:[{s:'echinacea',name:'Coneflower',sub:tag,on:u>0.32}]};
+      st.notes=[{text:'One card, every coneflower — open it to choose',
+        at:[2.5,4.4],dy:26}];
+      return;
+    }
+    if (u<0.72){
+      /* Inside the family: the exact choices, sibling SPECIES and cultivars
+         alike, each of which stays an exact reference everywhere afterwards —
+         on the card, in a palette, on the tile, in the planting list. */
+      const fav=u>0.60;
+      st.panel={title:'Coneflower', sub:tag, find:undefined,
+        rows:[{s:'echinacea',v:'magnus',on:u>0.52,fav:fav},
+              {s:'echinacea',v:'whiteswan',fav:false},
+              {s:'pallida',fav:false}]};
+      st.notes=[{text:fav ? 'The heart saves it to Favorites'
+        : 'Sibling species and cultivars, in one place', at:[2.5,4.4],dy:26}];
+      return;
+    }
+    st.panel={title:'Add to a palette', sub:'Device-local, and usable in every garden',
+      rows:[{seg:['Recommended','Favorites'],on:1,tapping:gAt(u,0.72,0.84)},
+            {label:'Front border',on:u>0.84},{label:'Dry bank'},{label:'New palette…'}]};
+    st.notes=[{text:'A named palette follows you from garden to garden',
+      at:[2.5,4.4],dy:26}];
+  }},
+
+/* ----- changing a planting that is already in ----- */
+
+/* Swapping a species everywhere it appears, which is the edit a design goes
+   through most and the one that is hardest by hand: the positions are the
+   work, and retyping them is how a planting loses its rhythm. */
+replace:{ loop:15000, rest:0.9,
+  where:{rail:'Select'},
+  build(){ const st=guideStage({cols:9,rows:7});
+    gsFill(st,'bed','mulch',0,0,8,6);
+    for (let y=1;y<=5;y++) for (let x=1;x<=7;x++)
+      if ((x+y)%2===0) gsPlant(st,x,y,'echinacea',1);
+    gsScatter(st,['dropseed'],[[2,3],[6,3],[4,1],[4,5]]);
+    return st; },
+  run(st,u){
+    const rect=[1,1,5,5];
+    st.marks=[];
+    for (let y=rect[1];y<=rect[3];y++) for (let x=rect[0];x<=rect[2];x++)
+      st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.22)',stroke:'rgba(124,168,196,0.70)'});
+    if (u<0.2){
+      st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
+        'Save area','Paste saved area','Erase selection'],on:1,open:gAt(u,0.04,0.14)};
+      st.notes=[{text:'Selection pill → More → Replace plants…',at:[4,6.4],dy:28}];
+      return;
+    }
+    /* The three scopes, with their real labels, INSIDE the dialog — which is
+       where they really are. Drawn as top chrome they sat behind the mocked
+       panel on a phone, and told the reader to look in the top bar for a
+       control that lives in the modal in front of them. */
+    const scope={seg:['This plant','Selection','Garden'],on:1,
+      tapping:gAt(u,0.20,0.32)};
+    if (u<0.46){
+      st.panel={title:'Replace Purple Coneflower',
+        sub:'Positions and planted age stay the same',
+        rows:[scope,{s:'monarda',on:u>0.36},{s:'pallida'},{s:'bluestem'}]};
+      st.notes=[{text:'Only compatible plants are offered',at:[4,6.4],dy:28}];
+      return;
+    }
+    /* The swap itself: the same tiles, a different species. One inside the
+       marquee is left alone, because a replacement that cannot fit its new
+       ground is refused per PLANT rather than refusing the whole edit — which
+       is why the dialog's summary counts them separately. Both numbers are
+       taken off the same list the swap walks, so the sentence and the picture
+       cannot disagree about how many there were. */
+    const targets=[];
+    for (let y=rect[1];y<=rect[3];y++) for (let x=rect[0];x<=rect[2];x++){
+      const p=gsGet(st.plants,x,y);
+      if (p && p.s==='echinacea') targets.push([x,y]);
+    }
+    const blocked=function(t){ return t[0]===5 && t[1]===5; };
+    const fit=targets.filter(function(t){ return !blocked(t); });
+    st.panel={title:'Replace Purple Coneflower',
+      sub:fit.length+' of '+targets.length+' can change to '+plantDef('monarda').name,
+      rows:[scope,{s:'monarda',on:true}]};
+    const f=gEase(gAt(u,0.48,0.86));
+    const done=Math.round(f*fit.length);
+    fit.slice(0,done).forEach(function(t){ gsPlant(st,t[0],t[1],'monarda',1); });
+    targets.filter(blocked).forEach(function(t){
+      st.marks.push({x:t[0],y:t[1],stroke:'rgba(217,100,90,0.85)'}); });
+    st.notes=[{text:u<0.88 ? 'Every match inside the selection, in place'
+      : 'Any that cannot fit are left alone', at:[4,6.4],dy:28,
+      tone:u<0.88?undefined:'warn'}];
+  }},
+
+/* A grouping that works is worth keeping. Save puts the whole marquee — plants,
+   bulbs, terrain, fences and all — on a clipboard that survives until you
+   paste it, and Rotate turns it about its own centre so a corner planting can
+   serve the opposite corner. */
+savearea:{ loop:16000, rest:0.9,
+  where:{rail:'Select'},
+  build(){ const st=guideStage({cols:10,rows:8});
+    gsFill(st,'lawn','fescue',0,0,9,7);
+    gsFill(st,'bed','mulch',1,1,3,3);
+    [[1,1],[2,1],[3,2],[2,2],[1,3],[3,3],[2,3]].forEach(function(p){
+      gsPlant(st,p[0],p[1],'echinacea',1); });
+    gsPlant(st,3,1,'dropseed',1); gsPlant(st,1,2,'dropseed',1);
+    return st; },
+  run(st,u){
+    const r={x0:1,y0:1,x1:3,y1:3};
+    const group=[[1,1,'echinacea'],[2,1,'echinacea'],[3,1,'dropseed'],
+                 [1,2,'dropseed'],[2,2,'echinacea'],[3,2,'echinacea'],
+                 [1,3,'echinacea'],[2,3,'echinacea'],[3,3,'echinacea']];
+    st.marks=[];
+    for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++)
+      st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.16)',stroke:'rgba(124,168,196,0.45)'});
+    if (u<0.22){
+      st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
+        'Save area','Paste saved area','Erase selection'],on:3,open:gAt(u,0.04,0.14)};
+      st.notes=[{text:'More → Save area keeps the whole grouping',at:[4.5,7.4],dy:28}];
+      return;
+    }
+    if (u<0.40){
+      st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
+        'Save area','Paste saved area','Erase selection'],on:4,open:1};
+      st.notes=[{text:'…and Paste saved area drops it wherever you are',
+        at:[4.5,7.4],dy:28}];
+      return;
+    }
+    /* Pasted at the cursor. The bed comes with it: a saved area is every layer
+       inside the marquee, not just the planting. */
+    const dx=5, dy=3;
+    const f=gEase(gAt(u,0.42,0.62));
+    if (f>0.02){
+      gsFill(st,'bed','mulch',r.x0+dx,r.y0+dy,r.x1+dx,r.y1+dy);
+      const spun=u>0.72;
+      const h=r.y1-r.y0+1;
+      group.forEach(function(g){
+        const lx=g[0]-r.x0, ly=g[1]-r.y0;
+        /* The app's own rotation, value for value: (x,y) -> (h-1-y, x) about
+           the rectangle's top-left, which is what rotateSelection does. */
+        const rx=spun ? (h-1-ly) : lx, ry=spun ? lx : ly;
+        gsSet(st.plants,r.x0+dx+rx,r.y0+dy+ry,
+          {s:g[2],g:1,alpha:f<1?0.55+0.45*f:1});
+      });
+      for (let y=0;y<3;y++) for (let x=0;x<3;x++)
+        st.marks.push({x:r.x0+dx+x,y:r.y0+dy+y,stroke:'rgba(122,176,122,0.7)'});
+    }
+    st.cursor=u<0.66?{x:r.x0+dx+1,y:r.y0+dy+1,down:u<0.6,press:0}:null;
+    st.notes=[{text:u<0.72 ? 'The bed comes with the planting'
+      : 'Rotate 90 degrees turns it about its own centre', at:[4.5,7.4],dy:28}];
+  }},
+
+/* ----- what it will take to build ----- */
+
+/* The materials estimate, which is the one document that answers "what do I
+   buy" for the ground rather than for the planting — and the one place the
+   difference between a plant PLACED and a plant the spacing would need is put
+   side by side, because they are different numbers and both are true. */
+estimate:{ loop:14000, rest:0.78,
+  where:{rail:'Select'},
+  build(){ const st=guideStage({cols:10,rows:8});
+    gsFill(st,'lawn','fescue',0,0,9,7);
+    /* The bed is deliberately NOT the rectangle. That is the whole point of
+       the estimate: it reads the live bed tiles inside the marquee, so a
+       selected area of 79 sq ft can hold 54 sq ft of bed, and it is the
+       second number you order mulch against. */
+    gsFill(st,'bed','mulch',1,1,7,3,{e:'steel'});
+    gsFill(st,'bed','mulch',2,4,6,4,{e:'steel'});
+    [[1,1],[3,1],[5,1],[7,1],[2,2],[4,2],[6,2],[1,3],[3,3],[5,3],[7,3],[3,4],[5,4]]
+      .forEach(function(p){ gsPlant(st,p[0],p[1],'echinacea',1); });
+    return st; },
+  run(st,u){
+    const r={x0:1,y0:1,x1:7,y1:5};
+    st.marks=[];
+    for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++)
+      st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.22)',stroke:'rgba(124,168,196,0.70)'});
+    if (u<0.26){
+      st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
+        'Save area','Paste saved area','Erase selection'],on:0,open:gAt(u,0.06,0.18)};
+      st.notes=[{text:'Marquee a bed, then More → Estimate materials…',
+        at:[4.5,7.4],dy:28}];
+      return;
+    }
+    /* The rows are the dialog's own, in its own order, built by its own
+       function over the tiles this stage is carrying — so a number here cannot
+       drift from the number the app would print. The mulch depth really is
+       2, 3 or 4 inches; the slider offers nothing else. */
+    const depth=Math.min(4,2+Math.floor(gAt(u,0.34,1)*3.0));
+    const items=[];
+    for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+      const c={x:x,y:y};
+      const t=gsGet(st.terrain,x,y); if (t) c.terr=t;
+      const p=gsGet(st.plants,x,y); if (p) c.plant=p;
+      items.push(c);
+    }
+    const est=gsBorrowArmed('echinacea',function(){
+      return selectionEstimate(r,depth,items);
+    });
+    st.panel={title:'Approximate materials',
+      sub:'From the live bed tiles in your selection',
+      rows:[
+        {label:'Selected area', value:fmtAreaSqFt(est.areaSqFt,0)},
+        {label:'Bed area', value:fmtAreaSqFt(est.bedAreaSqFt,0)},
+        {label:'Exposed bed edge', value:fmtFeet(est.edgeFt,1)},
+        {label:'Mulch at '+fmtLengthIn(depth), value:fmtVolumeCuYd(est.mulchCuYd), on:true},
+        {label:est.armedName+' at spacing', value:est.approxPlants+' plants'},
+        {label:'Already placed', value:est.plants+' plants'}
+      ]};
+    st.notes=[{text:u<0.5 ? 'It reads the BED inside the marquee, not the rectangle'
+      : 'Change the depth and the mulch follows', at:[4.5,7.4],dy:28}];
+  }},
+
 };
 
 /* ---------- the chapters ----------
@@ -2054,9 +2818,36 @@ function guideChapters(){
             'Winter is the test. Good planting still has structure in it.']},
      ]},
 
+    {id:'site', title:'Your own garden',
+     blurb:'Start from a photograph of the real place, and get the sun right.',
+     entries:[
+      {id:'underlay', demo:'underlay', title:'Trace a site photo',
+       lead:'Bring in a photograph or a survey drawing, scale it to something you have measured, and draw the real garden over it.',
+       how:['Landscape → Site → Add site photo. An aerial screenshot or a phone photo taken from an upstairs window both work.',
+            'Drag to move it, pinch to scale and rotate, or use Fit plot and the nudge arrows.',
+            'Calibrate a known distance — tap two points you have measured, then type the real distance. That is what makes everything you draw over it true.',
+            'Turn the opacity down until you can see your own lines. It sits under the planting and over the ground.',
+            'It is a reference, not geometry: nothing snaps to it, and Layers can hide it once you are done.']},
+      {id:'north', demo:'north', title:'North, sun and shade',
+       lead:'Which way the garden faces is the one site fact the app cannot guess, and almost everything about light follows from it.',
+       how:['Landscape → Site → North, or the dial on the plot screen. Drag it, or type a bearing.',
+            'North belongs to the SITE. Turning the view moves you around the garden and never moves the sun.',
+            'Layers → Shade overlay washes every tile: amber full sun, teal part shade, blue shade.',
+            'Shade is cast by TREES, at their mature spread — so the Established preview shows the shade the garden will have, not the shade it has today.',
+            'Buildings and fences block planting, not light. Read a wall as a site constraint, not a shadow.',
+            'The same bearing turns the compass markers and the north arrow on the printed plan.']},
+     ]},
+
     {id:'planting', title:'Putting plants in',
      blurb:'One at a time, by the drift, by the drag, or as a matrix.',
      entries:[
+      {id:'findplants', demo:'findplants', title:'Find a plant, and keep it',
+       lead:'Five hundred species is too many to scroll. Search narrows them, a family card holds the cultivars, and a palette keeps the ones you like.',
+       how:['Find searches common name, botanical name, synonyms and cultivar, across every category at once.',
+            'Filters narrows by flower colour and bloom season. The garden’s own zone and native settings are already applied and are not repeated there.',
+            'A card with a variety count opens into its exact cultivars — the app plants the exact one you chose and keeps it that way everywhere.',
+            'The heart saves a plant to Favorites; the button beside it adds one to a named palette.',
+            'Favorites and palettes live on this device, not in a garden, so they follow you into the next one.']},
       {id:'plantone', demo:'plantone', title:'Plant one',
        lead:'Pick a species in the library, then tap the ground. That is the whole gesture.',
        how:['The footprint ghost shows where it will land before you commit.',
@@ -2188,9 +2979,23 @@ function guideChapters(){
       {id:'select', demo:'select', title:'Select, move, duplicate',
        lead:'Marquee a region and take its whole contents somewhere else.',
        how:['Select is on the tool rail. Drag a rectangle, then use the pill that appears.',
-            'Move, Duplicate, Rotate, Fill, Erase, Save, Paste.',
+            'The pill is Move, Copy, Fill and More; Rotate, Save, Paste, Erase, Replace and Estimate are under More.',
             'The selection owns what was inside it when you drew it, so a plant that lands there later is never scooped up.',
             'A move onto ground that refuses it is refused whole — nothing lands half-placed.']},
+      {id:'savearea', demo:'savearea', title:'Save and reuse a grouping',
+       lead:'A planting that works once will work again. Save the marquee and paste it wherever you need it.',
+       how:['Select the grouping, then More → Save area. One area is held at a time.',
+            'More → Paste saved area drops it at the selection, in any garden you have open.',
+            'It carries every layer inside the rectangle — planting, bulbs, bed, edging, fences — not just the plants.',
+            'Rotate 90 degrees turns it about its own centre, so a corner planting serves the opposite corner.',
+            'A paste onto ground that refuses it is refused whole. Nothing lands half-placed.']},
+      {id:'replace', demo:'replace', title:'Replace a plant everywhere',
+       lead:'Change your mind about a species without losing the positions, which are the part that took the work.',
+       how:['From a plant’s card, or from More → Replace plants… on a selection.',
+            'Three scopes, each with its count: this plant, everything matching inside the selection, or everything matching in the garden.',
+            'Only compatible plants are offered — a perennial swaps for a perennial, a shrub for a shrub.',
+            'Positions and planted age are kept, so a mature tree stays mature.',
+            'Anything that cannot fit its new ground is reported and left alone. The rest still changes, in one undo step.']},
       {id:'ruler', demo:'ruler', title:'Measure something',
        lead:'A tape measure, for when you need to know whether the bed is really wide enough.',
        how:['Ruler is on the tool rail. Drag between two points, or tap one then the other.',
@@ -2235,6 +3040,13 @@ function guideChapters(){
             'Design plan — a drawn sheet at a stated scale, with a schedule, a north arrow and a scale bar. It prints, and saves as a PNG.',
             'Bloom calendar — what is in flower, month by month, across the whole planting.',
             'Share this garden writes a file a friend can import into their own planner.']},
+      {id:'estimate', demo:'estimate', title:'Estimate materials',
+       lead:'What the ground will take: area, edging, and how much mulch to order.',
+       how:['Select an area, then More → Estimate materials…',
+            'It reads the live bed tiles inside the marquee, so it follows the bed rather than the rectangle.',
+            'Mulch depth is 2, 3 or 4 inches, and the volume follows it.',
+            'Plants already placed and plants the spacing would need are shown separately, because they are different numbers and both are true.',
+            'For the whole garden rather than one bed, the planting list does the same job under Surfaces & hardscape.']},
      ]},
   ];
 }
