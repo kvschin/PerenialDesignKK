@@ -1543,8 +1543,27 @@ function selectionDestMaps(items,dst){
   });
   return out;
 }
+/* The shrubs among the destination plants, resolved ONCE.
+   selectionShrubAt has to ask "does any shrub in this move claim that tile",
+   and it was walking the whole dest.plants map per question — plantDef and
+   isShrubDef on every plant in the selection, for every plant in the selection.
+   That is O(items^2) inside a function called from the render loop while the
+   marquee is being dragged: on a 346-item marquee it is ~58,000 plantDef
+   lookups a frame, and it measured as most of the selection overlay's cost
+   after the ghosts were cached. A shrub is a small minority of any planting,
+   so listing them once turns the inner loop from "every plant" into "the two
+   shrubs", and a selection with no shrubs in it stops looping at all. */
+function selectionDestShrubs(destPlants){
+  const out=[];
+  for (const [key,p] of destPlants){
+    if (!liveSelectionValue(p) || !isShrubDef(plantDef(p.s,p.v))) continue;
+    out.push([key,p]);
+  }
+  return out;
+}
 function selectionValidationContext(items,dst,copy){
-  return {ignore:selectionSourceSets(items,copy), dest:selectionDestMaps(items,dst)};
+  const dest=selectionDestMaps(items,dst);
+  return {ignore:selectionSourceSets(items,copy), dest, destShrubs:selectionDestShrubs(dest.plants)};
 }
 function selectionIgnored(ctx,layer,k){ return !!(ctx && ctx.ignore[layer] && ctx.ignore[layer].has(k)); }
 function selectionDest(ctx,layer,k){ return ctx && ctx.dest[layer] && ctx.dest[layer].get(k); }
@@ -1602,8 +1621,9 @@ function selectionBoulderAt(x,y,ctx){
   return bo && selectionIgnored(ctx,'boulders',bo.key) ? null : bo;
 }
 function selectionShrubAt(x,y,ctx,ownDestKey){
-  if (ctx) for (const [key,p] of ctx.dest.plants){
-    if (key===ownDestKey || !liveSelectionValue(p) || !isShrubDef(plantDef(p.s,p.v))) continue;
+  const shrubs=ctx && (ctx.destShrubs || selectionDestShrubs(ctx.dest.plants));
+  if (shrubs) for (const [key,p] of shrubs){
+    if (key===ownDestKey) continue;
     if (shrubClaimsTile(p.x,p.y,p,x,y,true)) return {key,p,x:p.x,y:p.y,center:key===`${x},${y}`};
   }
   return shrubAt(x,y,{ignoreKeys:ctx&&ctx.ignore.plants});

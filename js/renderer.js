@@ -156,8 +156,20 @@ function paintGroundTile(ctx,x,y,W,H,amb,showLand,organic){
   if (amb.snow && !path && !water && rs()>0.4){ ctx.fillStyle='rgba(238,242,248,0.7)';
     ctx.beginPath(); ctx.ellipse(sx+(rs()-0.5)*30, sy+TILE_H/2+(rs()-0.5)*10, 9,3.5,0,0,7); ctx.fill(); }
 }
-function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
+/* `rect` (optional, draw units [x0,y0,x1,y1]) bounds the tile LOOP the way a
+   canvas clip bounds the raster. A partial bake already clips, which is what
+   saves the pixels — but a clip does not save the per-path SETUP, and a thin
+   band's tile bbox is a wide diagonal parallelogram, so on a small plot it is
+   very nearly every tile. Measured on Firefox, a 200px band submitted 12ms
+   against 8.9ms for the whole canvas: all the pixel cost gone and none of the
+   path cost, because the loop had not shrunk at all. Rejecting a tile in screen
+   space costs four compares and is exact — anything whose drawing could reach
+   the rectangle is kept, since the slack allows for a tile's own diamond, its
+   standing grain and an elevation face below it. */
+function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
   ex=ex||0;   // extra cull slack in draw units — the world-anchored bake paints a margin past the viewport
+  const rx0=rect?rect[0]-TILE_W:0, ry0=rect?rect[1]-TILE_H*3:0;
+  const rx1=rect?rect[2]+TILE_W:0, ry1=rect?rect[3]+TILE_H*3:0;
   const showLand=layerShown('landscape');
   // Organic edges: terrain draws its GRASS base in this tile pass and the
   // material is overlaid as a smoothed blob afterward (paintTerrainBlobs), so
@@ -168,11 +180,122 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex){
     if (!onPlot(x,y)) continue;   // off an irregular lot: draw nothing, same as beyond the plot rectangle
     const [sx,sy]=screenOf(x,y,W,H);
     if (sx<-TILE_W-ex||sx>W+TILE_W+ex||sy<-TILE_H*2-ex||sy>H+TILE_H*2+ex) continue;
+    if (rect && (sx<rx0||sx>rx1||sy<ry0||sy>ry1)) continue;
     paintGroundTile(ctx,x,y,W,H,amb,showLand,organic);
   }
   if (organic) paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t);
   if (showLand) paintWallRuns(ctx,W,H);
 }
+/* Repaint ONE rectangle of the bake, in device pixels. Clears it, clips to it,
+   and paints the tiles that can reach it — so the tile loop is bounded by the
+   rectangle rather than by the canvas, and the raster is bounded by the clip.
+   Shared by the two partial bakes below (a pan's exposed band, an edit's
+   viewport) so there is one definition of "repaint this much of the ground". */
+function bakeGroundRect(px,py,pw,ph,W,H,amb,t,MD,pad,ex){
+  if (pw<=0||ph<=0) return;
+  const s=DPR*ZOOM;
+  groundCtx.setTransform(1,0,0,1,0,0);
+  groundCtx.clearRect(px,py,pw,ph);
+  groundCtx.save();
+  groundCtx.beginPath(); groundCtx.rect(px,py,pw,ph); groundCtx.clip();
+  groundCtx.setTransform(s,0,0,s,MD,MD);
+  // the rectangle in draw units, then the tile bbox covering it — padded exactly
+  // like the full bake, since a shrub or a blob reaches past its own tile
+  const dx0=(px-MD)/s, dy0=(py-MD)/s, dx1=(px+pw-MD)/s, dy1=(py+ph-MD)/s;
+  const c4=[tileAt(dx0,dy0,W,H),tileAt(dx1,dy0,W,H),tileAt(dx0,dy1,W,H),tileAt(dx1,dy1,W,H)];
+  const tx0=Math.max(0,Math.min(c4[0][0],c4[1][0],c4[2][0],c4[3][0])-pad);
+  const tx1=Math.min(GW-1,Math.max(c4[0][0],c4[1][0],c4[2][0],c4[3][0])+pad);
+  const ty0=Math.max(0,Math.min(c4[0][1],c4[1][1],c4[2][1],c4[3][1])-pad);
+  const ty1=Math.min(GH-1,Math.max(c4[0][1],c4[1][1],c4[2][1],c4[3][1])+pad);
+  paintGround(groundCtx,tx0,tx1,ty0,ty1,W,H,amb,t,ex,[dx0,dy0,dx1,dy1]);
+  groundCtx.restore();
+}
+/* ---- panning re-bakes the STRIP that came into view, not the whole canvas ----
+
+   A pan changes where the ground sits and nothing about what it is: the bake is
+   a pure function of the camera (screenOfFlat subtracts it; the jitter is seeded
+   off the world lattice, so nothing in the picture is camera-derived), and
+   translating the camera translates every baked pixel by one vector. So the
+   canvas can COPY what it already holds and repaint only the band that has come
+   into view.
+
+   It is worth the trouble because the bake is far more expensive than the event
+   timer says. `dev('bake')` closes over command SUBMISSION and reports ~10ms;
+   a readback-flushed frame carrying one bake measures 96ms against 13ms for the
+   same frame without it (Chrome 153, 1440x900, the demo garden — Firefox 155:
+   46ms against 3ms). Ablated, the bake IS the pan: with paintGround stubbed out
+   the same drag runs at the display's refresh rate instead of 49fps, and with
+   only the per-tile texture stubbed it runs at 158fps — so the cost is the
+   ~10,000 small tessellated path fills the grain lays down, which is what the
+   grain is for. The lever is not to make them cheaper but to stop asking for
+   nine tenths of them again when they are already on the canvas.
+
+   Returns false when nothing of the old bake is worth keeping and the caller
+   should bake in full. */
+function scrollGroundBake(t,W,H,amb,MD,pad){
+  const s=DPR*ZOOM;
+  if (!(s>0) || !groundCanvas) return false;
+  /* Rounding the shift to whole DEVICE pixels is what keeps the copy exact. The
+     sub-pixel remainder rides on the effective camera this canvas now holds
+     rather than resampling the picture, and it cannot accumulate, because the
+     next scroll is measured from the camera recorded here. */
+  const sdx=Math.round(s*(groundCamX-cam.x)), sdy=Math.round(s*(groundCamY-cam.y));
+  const cw=groundCanvas.width, ch=groundCanvas.height;
+  if (Math.abs(sdx)>=cw || Math.abs(sdy)>=ch) return false;   // nothing of it survives
+  if (!sdx && !sdy){
+    // under half a device pixel: the per-frame blit already rounds by that much,
+    // so adopt the camera rather than repainting to chase it
+    groundCamX=cam.x; groundCamY=cam.y; return true;
+  }
+  const cx0=cam.x, cy0=cam.y;
+  const bakeCamX=groundCamX-sdx/s, bakeCamY=groundCamY-sdy/s;
+  /* `copy`, not the default source-over, and that is not a detail: this canvas
+     is mostly TRANSPARENT — an irregular lot, or any plot smaller than the
+     margin canvas, leaves the ground as a diamond in a sea of nothing — so a
+     source-over self-draw lays the shifted picture OVER the old one and the
+     vacated area keeps whatever was there. Measured, that is a second ghost
+     plot: 187,496 pixels carrying ground the full bake leaves empty, on a
+     200px shift. `copy` replaces the destination outright, so everything the
+     shifted picture does not cover becomes transparent — which is exactly the
+     state the exposed band wants to be in before it is repainted. */
+  groundCtx.setTransform(1,0,0,1,0,0);
+  groundCtx.globalCompositeOperation='copy';
+  groundCtx.drawImage(groundCanvas,sdx,sdy);          // the shifted picture; the exposed band is now empty
+  groundCtx.globalCompositeOperation='source-over';
+  /* The two bands must not OVERLAP. Every tile is painted with translucent
+     strokes over a bled base, so a tile painted twice comes out darker than its
+     neighbours — a seam exactly where this is trying not to leave one. The
+     column takes full height and the row takes only what is left of the width. */
+  const vx0 = sdx>0 ? 0 : cw+sdx, vx1 = sdx>0 ? sdx : cw;
+  const hy0 = sdy>0 ? 0 : ch+sdy, hy1 = sdy>0 ? sdy : ch;
+  const strips=[];
+  if (sdx) strips.push([vx0,0,vx1-vx0,ch]);
+  if (sdy){
+    const hx0 = sdx>0 ? vx1 : 0, hx1 = sdx<0 ? vx0 : cw;
+    if (hx1>hx0) strips.push([hx0,hy0,hx1-hx0,hy1-hy0]);
+  }
+  cam.x=bakeCamX; cam.y=bakeCamY;
+  try{
+    for (const st of strips) bakeGroundRect(st[0],st[1],st[2],st[3],W,H,amb,t,MD,pad,MD/s);
+  } finally { cam.x=cx0; cam.y=cy0; }
+  groundCamX=bakeCamX; groundCamY=bakeCamY;
+  return true;
+}
+/* ---- an EDIT re-bakes only what is on screen ----
+
+   A brush stroke does not move the camera, and while the camera has not moved
+   the baked margin is entirely OFF screen — that is the whole point of it. So
+   an edit bake can leave the margin alone and repaint the viewport, which on a
+   1440x900 desktop is 47% of the canvas. The margin then holds ground from
+   before the edit, which is invisible until the camera moves, so the first
+   camera move afterwards has to bake in full rather than scroll: `marginStale`
+   says so, and both the trigger and the scroll test read it.
+
+   This is the one lever available for painting. A stroke cannot scroll (the
+   data changed, not the camera) and the organic contour genuinely can move
+   anywhere along a traced arc, so repainting only the brushed tiles would be
+   wrong; halving the area is what is provably safe. */
+let groundMarginStale=false;
 /* The transient stand-in for tiles edited since the last authoritative bake.
    Drawn onto the LIVE canvas every frame, never cached — so it cannot go stale
    and needs no invalidation of its own. It reads current model state, so a tile
@@ -2489,26 +2612,49 @@ function render(t){
   const mustBake = (gkey!==groundKey && !editThrottled)
     || groundRefsChanged()
     || panDev>=MD
+    // a stale margin becomes visible the moment the camera moves, so bake at once
+    || (camStale && groundMarginStale)
     || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
   if (mustBake){
     const tBake=dnow();                                // 'ground' below is the per-frame BLIT; this is the bake
-    const Mu=MD/(DPR*ZOOM);                            // margin in draw units
-    // expanded tile bbox: the viewport window plus the baked margin
-    const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
-    const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
-    const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
-    const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
-    const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
-    groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
-    groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
-    paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
-    groundKey=gkey; groundKeyStruct=gStruct; groundCamX=cam.x; groundCamY=cam.y; groundZoom=ZOOM;
+    /* A pan can reuse what is already baked (see scrollGroundBake). Only a pan:
+       a data change (gkey), a struct change, a swapped layer or a zoom all make
+       the kept pixels wrong, and each of those keeps the full bake. */
+    const scrolled = groundKey!=='' && gkey===groundKey && !groundRefsChanged()
+      && !zoomStale && camStale && !groundMarginStale && scrollGroundBake(t,W,H,amb,MD,pad);
+    /* An edit with the camera still: repaint the viewport, leave the margin.
+       It needs a bake already on the canvas to leave a margin OF, and the same
+       structure and scale, since a season turn or a zoom invalidates every
+       pixel including the ones off screen. */
+    const viewportOnly = !scrolled && groundKey!=='' && groundKeyStruct===gStruct
+      && !groundRefsChanged() && !zoomStale && !camStale;
+    if (viewportOnly){
+      /* a few pixels INTO the margin, so the clip boundary — where the repaint
+         antialiases against nothing — sits off screen rather than on the
+         outermost row of pixels the gardener can see */
+      const ov=8;
+      bakeGroundRect(MD-ov,MD-ov,cnv.width+2*ov,cnv.height+2*ov,W,H,amb,t,MD,pad,TILE_W*2);
+      groundMarginStale=true;
+    } else if (!scrolled){
+      const Mu=MD/(DPR*ZOOM);                            // margin in draw units
+      // expanded tile bbox: the viewport window plus the baked margin
+      const bc=[tileAt(-Mu,-Mu,W,H),tileAt(W+Mu,-Mu,W,H),tileAt(-Mu,H+Mu,W,H),tileAt(W+Mu,H+Mu,W,H)];
+      const bx0=Math.max(0,Math.min(bc[0][0],bc[1][0],bc[2][0],bc[3][0])-pad);
+      const bx1=Math.min(GW-1,Math.max(bc[0][0],bc[1][0],bc[2][0],bc[3][0])+pad);
+      const by0=Math.max(0,Math.min(bc[0][1],bc[1][1],bc[2][1],bc[3][1])-pad);
+      const by1=Math.min(GH-1,Math.max(bc[0][1],bc[1][1],bc[2][1],bc[3][1])+pad);
+      groundCtx.setTransform(1,0,0,1,0,0); groundCtx.clearRect(0,0,groundCanvas.width,groundCanvas.height);
+      groundCtx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,MD,MD);   // shift by the margin, device px
+      paintGround(groundCtx,bx0,bx1,by0,by1,W,H,amb,t,Mu);
+      groundCamX=cam.x; groundCamY=cam.y; groundMarginStale=false;
+    }
+    groundKey=gkey; groundKeyStruct=gStruct; groundZoom=ZOOM;
     groundRefs={terrain:game.terrain,elevation:game.elevation,houses:game.houses};
     // this bake is authoritative for everything edited up to now, and it starts
     // the next throttle window
     clearGroundDamage(); groundEditT=t;
-    bakeMs=dev('bake',tBake,groundCtx);   // the bake DRAWS, so flush mode attributes its raster
+    bakeMs=dev(scrolled?'bakePan':'bake',tBake,groundCtx);   // the bake DRAWS, so flush mode attributes its raster
   }
   // affine blit: exact 1:1 copy for pans (k=1, integer offset); a scaled
   // approximation mid-zoom-gesture that the settle rebake replaces crisp.
@@ -2899,6 +3045,30 @@ function drawSelectionMetrics(cx,W,H,r){
     drawSelMetricLabel(cx,cx0,cy0-18,w===h?`${wLabel} each side`:`${wLabel} x ${hLabel}`);
   }
 }
+/* Where a moved selection may legally land, resolved once per POSITION rather
+   than once per frame.
+
+   Every part of this is a pure function of (the items, the offset, copy-or-move,
+   the world) — and a drag changes the offset perhaps 60 times a second while the
+   screen redraws at whatever the display runs at, so the overlay was rebuilding
+   twelve Sets and twelve Maps over every selected tile, then re-running the
+   whole placement rulebook per item, on frames where nothing about the answer
+   had moved. game.rev is in the key because it bumps on any model mutation,
+   which is the only other thing that can change a verdict. */
+let selMoveValid={items:null,key:''};
+function selectionMoveValidity(items,dx,dy,copy){
+  const key=dx+','+dy+'|'+(copy?1:0)+'|'+game.rev+'|'+(game.plotRev||0);
+  if (selMoveValid.items===items && selMoveValid.key===key) return selMoveValid;
+  const ctx=selectionValidationContext(items,c=>[c.x+dx,c.y+dy],copy);
+  const ok=new Array(items.length), dest=new Array(items.length);
+  for (let i=0;i<items.length;i++){
+    const c=items[i], nx=c.x+dx, ny=c.y+dy;
+    ok[i]=selItemDestValid(c,nx,ny,ctx);
+    dest[i]=selValidDest(nx,ny);
+  }
+  selMoveValid={items,key,ctx,ok,dest};
+  return selMoveValid;
+}
 function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selDrag){                                    // dragging out a marquee
     const r=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
@@ -2910,17 +3080,41 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selMove){                                    // moving/copying: ghost + valid/invalid tiles
     const dx=selMove.curX-selMove.grabX, dy=selMove.curY-selMove.grabY;
     const items=game.selItems||[];
-    const selCtx=selectionValidationContext(items,c=>[c.x+dx,c.y+dy],selMove.copy);
+    const valid=selectionMoveValidity(items,dx,dy,selMove.copy);
     selDrawRect(cx,W,H,game.sel,'rgba(120,195,255,0.12)','rgba(150,210,255,0.45)');
-    for (const c of items){
-      const nx=c.x+dx, ny=c.y+dy, ok=selItemDestValid(c,nx,ny,selCtx);
+    for (let i=0;i<items.length;i++){
+      const c=items[i], nx=c.x+dx, ny=c.y+dy, ok=valid.ok[i];
       const [sx,sy]=screenOf(nx,ny,W,H);
       tileDiamond(cx,sx,sy, ok?'rgba(120,210,130,0.28)':'rgba(220,90,70,0.42)',
         ok?'rgba(150,235,150,0.7)':'rgba(240,120,100,0.85)');
     }
+    /* Ghost planting goes through the SPRITE CACHE, and the seed is the one the
+       clump is standing on RIGHT NOW rather than the tile it is heading for.
+
+       Drawn procedurally this was the most expensive thing in the app: every
+       selected plant re-ran its whole recipe every frame, so a 241-plant marquee
+       cost 30ms a frame in Chrome and 63ms in Firefox — 12.9fps and 5.6fps, both
+       measured on the demo garden, against 165 for the same garden sitting
+       still. It is also the one draw in the file that had a free cache sitting
+       next to it: the source clumps are still in the scene while the move is
+       uncommitted, so their sprites are already baked at this growth bucket, at
+       this season, at this zoom. Keying the ghost on the DESTINATION tile seed
+       is what made that unreachable — a new seed is a new sprite, and a drag is
+       a new destination every frame, so a cached ghost would have baked a fresh
+       set of sprites per frame and thrashed the budget rather than saving
+       anything. Keyed on the source tile the ghost is a pure cache hit: measured
+       30.2ms -> 0.9ms a frame (Chrome, 12.9 -> 96.8fps) with zero extra bakes.
+
+       What it costs is that a clump's seeded variation no longer changes under
+       the pointer as it crosses tiles. That variation is a rendering detail, not
+       data, and the ghost is a 55%-alpha preview of a plant you are holding; the
+       committed plant still takes its destination's seed on drop, exactly as
+       before. */
     cx.save(); cx.globalAlpha=0.55;
-    for (const c of items){
-      const nx=c.x+dx, ny=c.y+dy; if (!selValidDest(nx,ny)) continue;
+    const ghostSprites=PSPRITE.active;
+    for (let i=0;i<items.length;i++){
+      const c=items[i];
+      const nx=c.x+dx, ny=c.y+dy; if (!valid.dest[i]) continue;
       const [sx,sy]=screenOf(nx,ny,W,H);
       if (c.fence) drawFence(cx,W,H,season,c.fence,nx,ny);
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
@@ -2928,8 +3122,15 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
       if (c.support) drawSupport(cx,W,H,season,c.support,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);
-      if (c.bulb) drawPlant(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,(tileSeed(nx,ny)^0x9e37)>>>0,sway,c.bulb.v);
-      if (c.plant) drawPlant(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,tileSeed(nx,ny),sway,c.plant.v);
+      if (c.bulb) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.bulb.s,displayPlantGrowth(c.bulb),season,
+        (tileSeed(c.x,c.y)^0x9e37)>>>0,sway,c.bulb.v,undefined,ghostSprites);
+      /* the SOURCE tile's detail as well as its seed: detail is out of the
+         sprite SLOT but in its key, so a ghost that disagreed with the scene
+         about a hedge's neighbours would share the clump's slot, miss on the
+         key, and the two draws would retire each other's sprite every frame —
+         a bake apiece per frame for exactly the plants a cache helps most. */
+      if (c.plant) drawPlantMaybeCached(cx,sx,sy+TILE_H/2,c.plant.s,displayPlantGrowth(c.plant),season,
+        tileSeed(c.x,c.y),sway,c.plant.v,plantRenderDetail(c.x,c.y,c.plant,W,H),ghostSprites);
     }
     cx.restore();
     return;

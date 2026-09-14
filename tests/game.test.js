@@ -12819,3 +12819,128 @@ test('the guidebook names the selection pill the app actually draws', () => {
     assert(rows.includes(s.menu.items[s.menu.on]), id + ' arms one of them');
   }
 });
+
+/* ---------- partial ground bakes + the selection overlay (perf audit, Sep 2026) ----------
+   The sandbox has no rasteriser, so none of this can be checked in pixels here —
+   that is the ground verifier's job, against a full bake at the camera the
+   canvas claims. What IS checkable is the reasoning each path rests on, and
+   every assertion below stands for a way one of them was got wrong first. */
+
+test('a pan re-bakes the exposed band, and only a pan may', () => {
+  const src = render.toString();
+  assert(/scrollGroundBake\(/.test(src), 'render offers the pan a partial bake');
+  /* Each of these guards a different way the kept pixels go wrong: a data edit
+     (gkey), a swapped layer object, a zoom, and a margin left stale by an edit
+     bake. Drop any one and the scroll silently shows the previous garden. */
+  const call = src.slice(src.indexOf('const scrolled'), src.indexOf('scrollGroundBake(t,W'));
+  for (const guard of ['gkey===groundKey', '!groundRefsChanged()', '!zoomStale', 'camStale', '!groundMarginStale'])
+    assert(call.includes(guard), 'the scroll is guarded on ' + guard);
+
+  const scroll = scrollGroundBake.toString();
+  /* `copy`, not source-over. The ground canvas is mostly transparent, so a
+     source-over self-draw leaves the vacated area holding a second ghost plot —
+     measured at 187,496 pixels on a 200px shift before this was fixed. */
+  assert(/globalCompositeOperation\s*=\s*'copy'/.test(scroll), 'the self-copy replaces rather than overlays');
+  assert(/Math\.round\(s\*\(groundCamX-cam\.x\)\)/.test(scroll), 'the shift is whole device pixels');
+  // the camera the canvas now holds, so the next scroll measures from here and
+  // the sub-pixel remainder cannot accumulate
+  assert(/groundCamX=bakeCamX/.test(scroll), 'the scrolled camera is recorded');
+  assert(/finally\s*\{\s*cam\.x=cx0/.test(scroll), 'the borrowed camera is restored on every path out');
+});
+
+test('an edit bake leaves the margin, and the next camera move pays for it', () => {
+  const src = render.toString();
+  assert(/groundMarginStale=true/.test(src), 'a viewport-only bake marks the margin stale');
+  assert(/groundMarginStale=false/.test(src), 'and a full bake clears it');
+  /* Without this the stale margin slides into view on the very next camera
+     move, because the blit shows one device pixel of margin per pixel of pan. */
+  assert(/camStale && groundMarginStale/.test(src),
+    'a stale margin forces a bake as soon as the camera moves');
+  const bake = src.slice(src.indexOf('const viewportOnly'), src.indexOf('} else if (!scrolled)'));
+  for (const guard of ['!scrolled', "groundKey!==''", 'groundKeyStruct===gStruct', '!zoomStale', '!camStale'])
+    assert(bake.includes(guard), 'the viewport-only bake is guarded on ' + guard);
+});
+
+test('a partial bake bounds its tile LOOP, not just its raster', () => {
+  /* A clip saves the pixels and not the path setup, and a thin band's tile bbox
+     is a wide diagonal parallelogram — on a small plot, very nearly every tile.
+     Measured on Firefox, a 200px band submitted 12ms against 8.9ms for the whole
+     canvas until the loop was bounded too. */
+  const src = paintGround.toString();
+  assert(/function paintGround\(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect\)/.test(src),
+    'paintGround takes a screen-space rect');
+  assert(/rect && \(sx<rx0\|\|sx>rx1\|\|sy<ry0\|\|sy>ry1\)/.test(src),
+    'and rejects tiles that cannot reach it');
+  assert(/\[dx0,dy0,dx1,dy1\]/.test(bakeGroundRect.toString()),
+    'bakeGroundRect passes its own rectangle');
+  // the slack has to cover a tile's own diamond, its standing grain and an
+  // elevation face below it, or a partial bake drops the edge of what it paints
+  assert(/rect\?rect\[0\]-TILE_W/.test(src) && /rect\?rect\[1\]-TILE_H\*3/.test(src),
+    'the reject allows for what a tile draws outside its own diamond');
+});
+
+test('a dragged selection ghosts from the sprite cache, on the source tile seed', () => {
+  const src = drawSelectionOverlay.toString();
+  assert(!/\bdrawPlant\(/.test(src), 'no ghost goes through the procedural painter');
+  assert(/drawPlantMaybeCached\(/.test(src), 'they go through the cache');
+  /* The seed has to be the tile the clump is STANDING on. Keyed on the
+     destination it is a new sprite every frame of the drag — a cache that bakes
+     instead of hitting, which is worse than no cache. */
+  assert(/tileSeed\(c\.x,c\.y\)/.test(src), 'the ghost seeds off the source tile');
+  assert(!/tileSeed\(nx,ny\)/.test(src), 'never off the destination');
+  /* detail is out of the sprite SLOT but in its key, so a ghost that disagreed
+     with the scene about a hedge's neighbours would share the clump's slot,
+     miss on the key, and the two draws would retire each other every frame. */
+  assert(/plantRenderDetail\(c\.x,c\.y,c\.plant,W,H\)/.test(src),
+    'and carries the source tile render detail, so it matches the scene key');
+});
+
+test('selection move validity is resolved per position, not per frame', () => {
+  setup(24, 24);
+  const key = firstOfType('forb');
+  for (let i = 0; i < 12; i++)
+    setTile('plants', (4 + i % 4) + ',' + (4 + Math.floor(i / 4)), { s: key, d: 0, t: i });
+  game.sel = { x0: 3, y0: 3, x1: 9, y1: 9 };
+  game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.length >= 12, 'the marquee owns the planting');
+
+  const a = selectionMoveValidity(game.selItems, 2, 2, false);
+  const b = selectionMoveValidity(game.selItems, 2, 2, false);
+  assert(a === b, 'the same offset reuses the answer');
+  assertEqual(a.ok.length, game.selItems.length, 'one verdict per item');
+  assertEqual(a.dest.length, game.selItems.length, 'and one destination test per item');
+  const moved = selectionMoveValidity(game.selItems, 3, 2, false);
+  assert(moved !== a, 'a new offset recomputes');
+  game.rev++;
+  assert(selectionMoveValidity(game.selItems, 3, 2, false) !== moved,
+    'and so does a model change, which is the only other thing that can move a verdict');
+  game.sel = null; game.selItems = null;
+});
+
+test('selection validation lists the destination shrubs once', () => {
+  /* selectionShrubAt asked "is any of these a shrub" per tile, over every plant
+     in the selection — O(items^2) plantDef lookups inside the render loop,
+     ~58,000 a frame on a 346-item marquee. */
+  setup(24, 24);
+  const shrub = firstOfType('shrub'), forb = firstOfType('forb');
+  const items = [
+    { x: 5, y: 5, plant: { s: shrub, d: 0, t: 1 } },
+    { x: 8, y: 5, plant: { s: forb, d: 0, t: 2 } },
+    { x: 9, y: 5, plant: { s: forb, d: 0, t: 3 } },
+  ];
+  const ctx = selectionValidationContext(items, c => [c.x, c.y], false);
+  assert(Array.isArray(ctx.destShrubs), 'the context carries the shrub list');
+  assertEqual(ctx.destShrubs.length, 1, 'only the shrub is in it');
+  assertEqual(ctx.destShrubs[0][1].s, shrub, 'and it is the right one');
+  assert(/ctx\.destShrubs/.test(selectionShrubAt.toString()), 'selectionShrubAt reads it');
+});
+
+test('the zoom pill writes only when the number changes', () => {
+  /* Every zoom route funnels through here and a wheel is a stream of ~6% ticks,
+     so an unguarded write is a style invalidation and a backdrop re-blur, on a
+     node inside #hud, for a string that is usually the same string. */
+  const src = updateZoomPill.toString();
+  assert(/if \(pct===zoomPillPct\) return/.test(src), 'it early-returns on an unchanged percentage');
+  assert(src.indexOf('getElementById') > src.indexOf('zoomPillPct'),
+    'and does not even look the element up first');
+});

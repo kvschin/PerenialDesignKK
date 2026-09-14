@@ -227,6 +227,35 @@ See §13a.
   again. Decide on the FRAME column; the per-pass one flushes between fills,
   which is free in software and stalls a GPU pipeline. Freeze `t` if you extend
   it — `render` derives the wind `sway` from its timestamp.
+- `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
+  (§11): a pan re-bakes only the band that came into view and an edit only the
+  viewport, so this asks whether either still draws the ground a full bake
+  would. It tests the one invariant that matters — the canvas claims to be a
+  bake at `(groundCamX, groundCamY)`, so it bakes there for real and diffs —
+  because comparing against a bake at the LIVE camera tests the stale-blit
+  margin instead, which is deliberate behaviour and reported every arm as a
+  failure. It diffs the GROUND CANVAS, not the frame: the plant cache bakes on a
+  per-frame budget, so two frames of one scene legitimately differ and that
+  noise would swamp this. Its bar is a CONTROL, not zero — two full bakes half a
+  device pixel apart, which is what the rounded shift is allowed to cost.
+  Arms: single scrolls at many offsets, chains of 12/40/200 (drift is what a
+  per-step test cannot see), a reversing drag, formal edges, a furnished garden
+  with terraces and faced walls, and the edit path including "an edit then a
+  pan must bake in FULL". `--engine firefox` for the other rasteriser.
+- `node dev/perf-audit.cjs --profile phone --engine chrome` drives the real app
+  at a real viewport and reports where a frame goes. Two halves, deliberately:
+  **live**, where the app's own rAF loop draws and the probe only supplies input
+  (camera, zoom ticks, brush stamps) — the honest end-to-end number, since it
+  includes `shouldRenderGarden`, `updateHUD`, the compositor and the
+  backdrop-filter recomposite, none of which a hand-called `render()` can see;
+  and **pinned**, where the loop is stopped (`crashed=true`) for `drawProfile`,
+  `perfBench` and the micro-benchmarks. **The loop MUST be off for those** — two
+  renders a vsync is queue pressure, and measuring with the app still drawing
+  reported a 33ms selection frame whose own phases summed to 2.6ms.
+  Profiles under 520px wide run in an exactly-sized IFRAME, because Chrome
+  refuses a window narrower than ~500px and a "phone" profile silently came out
+  500x394 landscape. Read the **rAF gap**, not the JS: the ground bake's cost is
+  almost entirely outside every phase timer.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).
@@ -1464,6 +1493,77 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     photographed the frame AFTER `GROUND_PAN_SETTLE` had re-baked, which is the
     one frame where both arms necessarily agree. **The artifact lives in the
     frames DURING the gesture** — verify those, or a pan test proves nothing.
+    **A bake is FAR more expensive than `dev('bake')` says, and the fix is to
+    bake LESS OF IT rather than less often** (`bakeGroundRect`,
+    `scrollGroundBake`, `groundMarginStale`; Sep 2026). That event closes over
+    command SUBMISSION and reports ~10ms; a readback-flushed frame carrying one
+    bake measures **96ms against 13ms** for the same frame without it (Chrome
+    153, 1440x900, the demo garden — Firefox 155: 46 against 3). Ablated, the
+    bake simply IS the pan: with `paintGround` stubbed out the same drag runs at
+    the display's refresh rate instead of 49fps, and with only the per-tile
+    texture stubbed it runs at 158 — so the cost is the ~10,000 small
+    tessellated path fills the grain lays down, which is what the grain is FOR
+    (§11a). Nothing above is a reason to make the grain cheaper.
+    The 0.8.39 note above is still right about its own idea, and this is a
+    different one: not "skip the rebake" but "the rebake already has nine tenths
+    of its answer on the canvas". A pan changes where the ground sits and
+    nothing about what it is — `screenOfFlat` subtracts the camera and the
+    jitter is seeded off the world lattice, so no pixel is camera-derived — so
+    **translating the camera translates every baked pixel by one vector**, and
+    the canvas can copy what it holds and repaint only the band that came into
+    view. The trigger is unchanged (`panDev>=MD`), which is what makes it
+    conservative: the same cadence as before, a cheaper bake.
+    Four things it has to keep right, each of which was wrong first.
+    The self-copy is **`globalCompositeOperation='copy'`, not source-over**:
+    this canvas is mostly TRANSPARENT — any plot smaller than the margin canvas
+    is a diamond in a sea of nothing — so a source-over self-draw lays the
+    shifted picture OVER the old one and the vacated area keeps a **second ghost
+    plot**, measured at 187,496 pixels on a 200px shift. The shift is **rounded
+    to whole device pixels** and the sub-pixel remainder rides on the effective
+    camera the canvas now records, so the picture is never resampled and the
+    error cannot accumulate (the per-frame blit already rounds by exactly that
+    much). The two exposed bands **must not overlap** — every tile is painted
+    with translucent strokes over a bled base, so a tile painted twice comes out
+    darker than its neighbours, a seam exactly where this is trying not to leave
+    one. And the camera is borrowed and restored in a `finally`, the
+    `gsBorrowCamera` pattern.
+    **An EDIT cannot scroll — the data moved, not the camera — so it repaints
+    the VIEWPORT and leaves the margin.** While the camera has not moved the
+    margin is entirely off screen, which is the whole point of it; on a 1440x900
+    desktop that is 47% of the canvas. The margin then holds pre-edit ground,
+    which becomes visible on the very next camera move (one device pixel of
+    margin per pixel of pan), so `groundMarginStale` forces a full bake at that
+    moment and forbids a scroll until it has happened. Repainting only the
+    BRUSHED tiles would be wrong and is the tempting version: `dpOpen` simplifies
+    a whole traced arc, so one added tile can move an organic contour anywhere
+    along its run. Halving the area is what is provably safe.
+    **A partial bake must bound its tile LOOP, not just its raster.** A clip
+    saves the pixels and not the path setup, and a thin band's tile bbox is a
+    wide diagonal parallelogram — on a small plot, very nearly every tile. On
+    Firefox a 200px band submitted **12ms against 8.9ms for the whole canvas**:
+    all the pixel cost gone and none of the path cost. `paintGround` therefore
+    takes an optional screen-space `rect` and rejects a tile in four compares,
+    with slack for the tile's own diamond, its standing grain and an elevation
+    face below it.
+    Measured end to end on the demo garden, before → after, as rAF spacing
+    rather than JS (the bake's cost is mostly outside every phase timer):
+    **pan 50 → 131fps desktop, 66 → 136 phone, 44 → 60 Firefox**, with the
+    gap p95 falling 78.8 → 12.2ms and the worst frame 96.8 → 42.4ms; **a bed
+    drag 36.8 → 51fps desktop and 46 → 83 phone.**
+    **`node dev/ground-verify.cjs` is the gate, and it tests the one invariant
+    that matters: the canvas claims to be a bake at `(groundCamX, groundCamY)`,
+    so it bakes there for real and diffs.** Comparing against a bake at the LIVE
+    camera instead tests the stale-blit margin, which is deliberate behaviour —
+    that mistake reported every arm as a failure. It diffs the GROUND CANVAS,
+    not the frame (the plant cache bakes on a per-frame budget, so two frames of
+    one scene legitimately differ), and its bar is a CONTROL rather than zero:
+    two full bakes half a device pixel apart, which is 9.56% of pixels at max
+    118/255. Every arm — single scrolls, chains of 12/40/200, a reversing drag,
+    formal edges, a furnished garden with terraces and faced walls, and the edit
+    path — lands at **0.09-1.0% of pixels, mean 1.3-2.7, max ≤36**, with no
+    drift over a chain and no blank mismatches. Firefox is tighter still
+    (0.002-0.031%, max ≤16). The residual is antialiasing along the band's own
+    clip edge.
     **The edit throttle** (`groundEditThrottled` + `GROUND_EDIT_SETTLE` 90ms)
     is the same trick for the one gesture the design never covered: a brush drag
     bumps `groundRev` on every tile it paints, so the key changed every frame
@@ -2432,8 +2532,47 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     house/door). `drawSelectionOverlay` (called near the end of `render`)
     draws the marquee, the resting selection (blue fill + outline), and the
     move/copy ghost (destination diamonds tinted green/red for valid/invalid
-    plus translucent plant ghosts via `drawPlant`). Escape cancels an
+    plus translucent plant ghosts, blitted from the sprite cache). Escape cancels an
     in-progress move, then the selection; switching tools drops it.
+    **A dragged selection ghosts through the SPRITE CACHE, on the SOURCE tile's
+    seed** (Sep 2026). Drawn procedurally this was the most expensive thing in
+    the app: every selected plant re-ran its whole recipe every frame, so a
+    241-plant marquee cost **30ms a frame in Chrome and 63ms in Firefox — 12.9
+    and 5.6fps** on the demo garden, against 165 for the same garden sitting
+    still. It also had a free cache sitting next to it, because a move is not
+    committed while it is being dragged: the source clumps are still in the
+    scene, so their sprites are already baked at this growth bucket, this season
+    and this zoom. Keying the ghost on the DESTINATION tile seed is what made
+    that unreachable — a new seed is a new sprite and a drag is a new
+    destination every frame, so a cached ghost would have baked a fresh set per
+    frame and thrashed the budget rather than saving anything. Keyed on the
+    source it is a pure hit, and it carries the source tile's
+    `plantRenderDetail` as well as its seed: detail is out of the sprite SLOT
+    but in its KEY, so a ghost that disagreed with the scene about a hedge's
+    neighbours would share the clump's slot, miss on the key, and the two draws
+    would retire each other's sprite every frame — a bake apiece per frame for
+    exactly the plants a cache helps most. What it costs is that a clump's
+    seeded variation no longer changes under the pointer as it crosses tiles;
+    the committed plant still takes its destination's seed on drop, as before.
+    **And the verdicts are resolved per POSITION, not per frame**
+    (`selectionMoveValidity`, renderer.js). Everything the overlay asks is a
+    pure function of (the items, the offset, copy-or-move, the world), and a
+    drag changes the offset perhaps 60 times a second while the screen redraws
+    at whatever the display runs at — so it was rebuilding twelve Sets and
+    twelve Maps over every selected tile and re-running the whole placement
+    rulebook per item on frames where nothing about the answer had moved.
+    `game.rev` is in the key because it bumps on any model mutation, which is
+    the only other thing that can change a verdict.
+    Under that sat an **O(items²)**: `selectionShrubAt` walks the destination
+    plants asking "does any shrub claim this tile", and it was resolving
+    `plantDef`+`isShrubDef` for every plant in the selection, for every plant in
+    the selection — ~58,000 lookups a frame on a 346-item marquee. The context
+    lists its shrubs once (`selectionDestShrubs`), so the inner loop is over the
+    two shrubs rather than the whole planting, and a selection with none in it
+    stops looping. Together: `over` 30.2 → 5.8ms a frame, and the drag
+    **12.1 → 26.4fps desktop, 19.7 → 37.4 phone, 7.6 → 12.4 Firefox**. What is
+    left is the 346 translucent destination diamonds and the blur under the
+    action pill, not the planting.
     All placement funnels
     through `applyToolAt(x,y)` — now a thin dispatcher: it applies the universal
     guards (off-plot, house/door) then calls the armed tool's `apply` hook from

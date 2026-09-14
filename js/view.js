@@ -54,9 +54,19 @@ function setUserZoom(z){
   tourNote('look');   // the tour camera step: every zoom route funnels here
 }
 function zoomBy(f){ setUserZoom(userZoom*f); }
+/* Change-guarded, like every other per-frame HUD write (hudText/hudDisplay).
+   Every zoom route lands here, and a wheel is a stream of ~6% ticks — so this
+   wrote textContent on a node inside the backdrop-filtered #hud several times a
+   second while the canvas underneath was animating, which is a style
+   invalidation and a re-blur for a string that is usually the same string.
+   Measured on a wheel zoom over the demo garden: 50.9 -> 58.6fps with the write
+   removed entirely, and most zoom ticks do not move the rounded percentage. */
+let zoomPillPct=-1;
 function updateZoomPill(){
+  const pct=Math.round(ZOOM*100);
+  if (pct===zoomPillPct) return;
   const lab=document.getElementById('zoomLabel');
-  if (lab) lab.textContent=Math.round(ZOOM*100)+'%';
+  if (lab){ lab.textContent=pct+'%'; zoomPillPct=pct; }
 }
 /* The garden is a canvas workspace, not an empty viewport: the top bar, tool
    rail and bottom sheet can all claim part of it. Floating controls and camera
