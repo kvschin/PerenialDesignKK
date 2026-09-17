@@ -1991,11 +1991,15 @@ function renderLandscapeControls(tabs,modeControl){
   tabs.appendChild(bar);
 }
 function renderDiscoveryTray(tray){
-  const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs), sourceRefs=discoverySourceRefs(d);
+  const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs);
   tray.classList.add('discovery-results');
   const summary=document.createElement('div'); summary.className='discovery-summary';
+  /* Only a saved collection reports "N eligible of M saved", so only a saved
+     collection needs the source list. It was resolved up front for every
+     rebuild and thrown away on the two sources that never read it -- free
+     before, and no longer free now that `recommended` filters. */
   if (d.source==='favorites'||d.source==='palette'){
-    const a=collectionAvailability(sourceRefs); summary.textContent=`${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`;
+    const a=collectionAvailability(discoverySourceRefs(d)); summary.textContent=`${discoveryResultCountText(refs)} shown · ${a.available} eligible / ${a.total} saved`;
   } else summary.textContent=`${discoverySourceLabel(d)} · ${discoveryResultCountText(refs)}`;
   tray.appendChild(summary);
   /* A daily challenge narrows the catalog from inside plantFits, so species
@@ -2019,9 +2023,23 @@ function renderDiscoveryTray(tray){
   if (!refs.length){
     discoveryOpenSpecies=null;
     const empty=document.createElement('div'); empty.className='discovery-empty';
-    empty.textContent='Nothing matches this view.';
-    const reset=document.createElement('button'); reset.type='button'; reset.className='btn'; reset.textContent='Clear filters';
-    reset.onclick=()=>{ setDiscovery({source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36},true); buildToolTray(); };
+    /* Recommended is a real list now, so "the style does not ask for this" is a
+       new way to arrive here with nothing on screen -- search an oak in a
+       Mediterranean garden and every plant is gone.  Name the lens and widen
+       only the SOURCE, keeping the query, category and colours the gardener
+       typed: sweeping those away as well answers a question they did not ask
+       and loses the search they came here with.  Everything else still falls
+       through to the general reset. */
+    const styled=activeDesignType(), lensOnly=d.source==='recommended'&&styled;
+    empty.textContent=lensOnly
+      // the label as authored: lowercasing gave "a mediterranean garden" and
+      // "a japanese garden", and it is the chip the gardener just chose anyway
+      ? `Nothing here is recommended for a ${designTypeName(styled)} garden.`
+      : 'Nothing matches this view.';
+    const reset=document.createElement('button'); reset.type='button'; reset.className='btn';
+    reset.textContent=lensOnly?'Browse all eligible plants':'Clear filters';
+    reset.onclick=()=>{ setDiscovery(lensOnly?{source:'all',collectionId:null}
+      :{source:'all',collectionId:null,category:null,query:'',colorFamilies:[],bloomSeasons:[],limit:36},true); buildToolTray(); };
     empty.appendChild(reset); tray.appendChild(empty); return;
   }
   const openGroup=discoveryOpenSpecies&&groups.find(group=>group.id===discoveryOpenSpecies);
@@ -2389,6 +2407,12 @@ function trayStateSig(){
       g.underlay.data?g.underlay.data.length:0].join(',') : '-',
     j(g.underlayCalibration),
     j(g.discovery), j(g.filters),
+    /* The garden style. It ranked the catalog before and now also decides what
+       `recommended` holds at all, so it is squarely a tray input. Nothing
+       writes game.design after enterGarden today -- all three writers run
+       before it -- which is why its absence never showed; an in-garden style
+       picker would have opened on a stale catalog. */
+    activeDesignType()||'-',
     g.challenge?(g.challenge.id||g.challenge.title||'1'):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
@@ -2478,6 +2502,9 @@ function verifyTrayCache(){
                           setDiscovery({limit:(g.discovery&&g.discovery.limit||36)+36});
                           return ()=>{ g.discovery=o; }; }],
     ['challenge',   ()=>{ const o=g.challenge; g.challenge=o?null:{id:'probe',title:'Probe'}; return ()=>{ g.challenge=o; }; }],
+    ['design.type', ()=>{ const o=g.design;
+                          g.design=Object.assign({},o||{},{type:(o&&o.type)==='formal'?'cottage':'formal'});
+                          return ()=>{ g.design=o; }; }],
     ['fenceDraft',  ()=>{ const o=g.fenceDraft; g.fenceDraft=Object.assign({},o,{height:(o&&o.height)===6?4:6}); return ()=>{ g.fenceDraft=o; }; }],
     ['waterFeatureDraft', ()=>{ const o=g.waterFeatureDraft; g.waterFeatureDraft={form:'tiered',finish:'slate',face:0}; return ()=>{ g.waterFeatureDraft=o; }; }],
     ['supportDraft',  ()=>{ const o=g.supportDraft; g.supportDraft={style:'arch',mat:'black',face:0}; return ()=>{ g.supportDraft=o; }; }],

@@ -5834,6 +5834,84 @@ test('paletteCount tracks zone/native/deer/rabbit/squirrel without touching game
   assertEqual(game.design, savedDesign, 'game.design untouched');
 });
 
+/* The questionnaire's "Recommended for <style>" row used to render the very
+   same paletteCount(sel) call as the headline above it, so every style on a
+   zone-6 garden answered "486 plants available" and the one knob that names a
+   style visibly did nothing.  The count and the list it promises have to move
+   together, which is why these two tests sit next to each other. */
+test('the starting-palette count answers the STYLE, and the headline never does', () => {
+  const savedFilters = game.filters, savedDesign = game.design;
+  const sel = { zone: 6, nativeRegion:'north-america', nativeMode:'any' };
+  const eligible = paletteCount(sel);
+  assert(eligible > 0, 'zone 6 has a palette at all');
+  const counts = {};
+  for (const type of ['cottage','prairie','shade','japanese','mediterranean','gravel','formal','coastal'])
+    counts[type] = paletteCount(sel, type);
+  for (const [type, n] of Object.entries(counts)){
+    assert(n > 0, `${type} recommends something`);
+    assert(n <= eligible, `${type} never recommends more than the garden can grow`);
+  }
+  assert(new Set(Object.values(counts)).size > 4,
+    'the styles give genuinely different answers, not one number wearing ten labels');
+  assert(counts.formal < counts.cottage,
+    'a clipped formal garden asks for far less of the catalog than a cottage one');
+  // 'Any garden' names no style, so there is nothing to recommend by.
+  assertEqual(paletteCount(sel, 'any'), eligible, "'Any garden' recommends the whole eligible palette");
+  assertEqual(paletteCount(sel, null), eligible, 'the headline is eligibility, whatever style is chosen');
+  // and the other knobs still move the recommended row, not just the headline
+  assert(paletteCount({ ...sel, zone: 3 }, 'mediterranean') < counts.mediterranean,
+    'a colder zone shrinks the recommendation too');
+  assert(paletteCount({ ...sel, nativeMode:'straight' }, 'mediterranean') < counts.mediterranean,
+    'straight natives shrink the recommendation too');
+  assertEqual(game.filters, savedFilters, 'game.filters untouched');
+  assertEqual(game.design, savedDesign, 'game.design untouched');
+});
+
+test('Recommended browses the style it names, and never narrows what may be planted', () => {
+  setup(21, 21);
+  game.filters = normalizeFilters({ zone: 6, nativeRegion:'north-america', nativeMode:'any' });
+  const lens = source => { game.discovery = normalizeDiscovery({ source, category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 }); return discoveryRefs().length; };
+
+  game.design = null;                                   // a legacy save carries no design block
+  assertEqual(lens('recommended'), lens('all'), 'with no style, Recommended is every eligible plant');
+
+  game.design = { zone: 6, type: 'formal', nativeRegion:'north-america', nativeMode:'any' };
+  const all = lens('all'), rec = lens('recommended');
+  assert(rec > 0 && rec < all, 'a style makes Recommended a real, shorter list');
+  assert(discoverySourceRefs({ source:'recommended' }).every(ref => plantStyleRecommended(ref.s, 'formal')),
+    'everything in the list is something the style asks for');
+
+  // eligibility is a separate axis: the style must not remove a plant from the garden
+  const outside = discoverySourceRefs({ source:'all' }).find(ref => !ref.v && !plantStyleRecommended(ref.s, 'formal') && plantFits(ref.s));
+  assert(outside, 'the catalog holds a plant this style does not recommend');
+  assert(plantFits(outside.s), 'and it is still perfectly plantable');
+  assertEqual(lens('all'), all, 'All eligible is untouched by the style');
+});
+
+/* 48 of the 600 zone x origin x style corners recommend nothing the garden can
+   grow -- a zone-2 Mediterranean bed, a zone-3 European-native formal one.  An
+   empty starting palette reads as a broken app, so the lens stands down there,
+   and the count promised at setup has to stand down with it. */
+test('a style that recommends nothing growable hands back the whole palette', () => {
+  setup(21, 21);
+  const cold = { zone: 2, nativeRegion:'north-america', nativeMode:'any' };
+  const eligible = paletteCount(cold);
+  assert(eligible > 0, 'zone 2 still grows something');
+  assertEqual(PLANT_KEYS.filter(k => !PLANTS[k].hidden
+    && PLANTS[k].zones[0] <= 2 && PLANTS[k].zones[1] >= 2
+    && plantStyleRecommended(k, 'mediterranean', cold)).length, 0,
+    'no Mediterranean plant is hardy to zone 2 — the corner this guards');
+  assertEqual(paletteCount(cold, 'mediterranean'), eligible,
+    'the row promises the eligible palette rather than a 0 nobody could design from');
+
+  game.filters = normalizeFilters(cold);
+  game.design = { zone: 2, type: 'mediterranean', nativeRegion:'north-america', nativeMode:'any' };
+  game.discovery = normalizeDiscovery({ source:'recommended', category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 });
+  const rec = discoveryRefs().length;
+  game.discovery = normalizeDiscovery({ source:'all', category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 });
+  assert(rec > 0 && rec === discoveryRefs().length, 'and the catalog opens on that palette, not on nothing');
+});
+
 /* ---------- plot shape (lot boundary) ---------- */
 
 test('no plot shape leaves onPlot true everywhere and placement works at a corner', () => {

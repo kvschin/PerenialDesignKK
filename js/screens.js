@@ -1084,7 +1084,15 @@ function openDesignSetup(){
     b.onclick=()=>{ sel.startSource=source; sel.startPaletteId=source==='palette'?id:null; renderStartPalette(); }; startEl.appendChild(b); }
   function renderStartPalette(){ if (!startEl) return; startEl.innerHTML='';
     if (zipBlocked){ startEl.textContent='Choose a supported zone to see starting palettes.'; return; }
-    startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,`${paletteCount(sel)} plants available`);
+    /* The style's own count, not the headline's. These two rendered the same
+       call, so every style answered with the whole eligible palette and the
+       row could only restate the number three lines above it -- Cottage and
+       Formal both "486 plants available" on a zone-6 garden. paletteCount's
+       second argument is what a style actually asks for; `recommended` now
+       browses exactly that set, so the promise and the catalog agree. */
+    const rec=paletteCount(sel,sel.type);
+    startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,
+      `${rec} plant${rec===1?'':'s'} available`);
     const favs=favoriteRefs(), available=selectionCount(favs); startChoice('Favorites','favorites',null,`${available} available / ${favs.length} saved`);
     const data=plantCollectionsData(); (data.palettes||[]).forEach(p=>{ const available=selectionCount(p.items); startChoice(p.name,'palette',p.id,`${available} available / ${p.items.length} saved`); }); }
   function blockZip(message){

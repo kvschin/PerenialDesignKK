@@ -896,8 +896,25 @@ function plantStyleScore(k,type=activeDesignType(),v=null,criteria=null){
   const weights=STYLE_ROLE_WEIGHTS[type]; if (!weights) return 0;
   return plantRoles(k,criteria,v).reduce((n,r)=>n+(weights[r]||0),0);
 }
-function plantStyleRecommended(k,type=activeDesignType()){
-  return plantStyleScore(k,type)>=(STYLE_RECOMMEND_MIN[type]||1);
+/* Does this style actually ask for this plant?  The one predicate behind the
+   `recommended` browsing source and the questionnaire's starting-palette tally,
+   so the number promised at setup and the catalog that opens later cannot
+   disagree about what "Recommended for Mediterranean" means.
+
+   It is deliberately SPECIES-level (`v` is never passed on): a style wants
+   lavender, and every named lavender comes with it.  Judged per cultivar a
+   garden hybrid would quietly drop out of a prairie or pollinator palette --
+   the `native` role is worth 4 and 3 in those weights -- thinning a family
+   card's varieties for a reason no label on screen could explain.  Provenance
+   is the native chips' axis, not the style's.
+
+   No style at all (the 'Any garden' answer, or a legacy save carrying no
+   `design`) means there is no recommendation to fail, so everything is
+   recommended.  Returning true rather than false there is what lets callers
+   use this as a plain filter instead of special-casing 'any' at every site. */
+function plantStyleRecommended(k,type=activeDesignType(),criteria=null){
+  if (!STYLE_ROLE_WEIGHTS[type]) return true;
+  return plantStyleScore(k,type,null,criteria)>=(STYLE_RECOMMEND_MIN[type]||1);
 }
 
 /* A daily challenge can pin the palette to plants that fit its prompt. A
@@ -1080,10 +1097,36 @@ function ensureDiscoverySearchIndex(){
   if (discoverySearchIndex) return discoverySearchIndex;
   return discoverySearchIndex=allPlantRefs().map(ref=>({ref,hay:discoverySearchText(ref)}));
 }
+/* Which plants a source is ABOUT, before the category / query / colour lens
+   narrows it further.
+
+   `recommended` and `all` used to return the identical array and differ only in
+   the sort below, so the source picker offered two entries that produced the
+   same catalog -- and the questionnaire's "Recommended for Mediterranean" row
+   could only ever echo the headline eligibility count, whatever style you
+   picked.  `plantStyleRecommended` had been written for exactly this job and
+   was wired to nothing.  It narrows here, in the browsing LENS, and never in
+   `plantFits`: the style still changes nothing about what may be planted, only
+   about what is put in front of you first, and "All eligible" is one tap away
+   in the same picker. */
 function discoverySourceRefs(d){
   if (d.source==='favorites' && typeof favoriteRefs==='function') return favoriteRefs();
   if (d.source==='palette' && typeof paletteRefs==='function') return paletteRefs(d.collectionId);
-  return ensureDiscoverySearchIndex().map(x=>x.ref);
+  const refs=ensureDiscoverySearchIndex().map(x=>x.ref);
+  if (d.source!=='recommended') return refs;
+  const type=activeDesignType(); if (!type) return refs;
+  const rec=refs.filter(ref=>plantStyleRecommended(ref.s,type));
+  /* A style that recommends nothing the garden can grow recommends everything
+     instead.  Measured across all 600 zone x origin x style corners, 48 of them
+     came out EMPTY -- a zone-2 Mediterranean garden, a zone-3 European-native
+     formal one -- and an empty starting palette reads as a broken app, not as
+     advice.  The test has to be the INTERSECTION with eligibility, not the
+     recommended list's own length: zone 2 fails precisely because the styles
+     still name plenty of plants and none of them survive the cold.  And it
+     belongs here rather than in the questionnaire, because Plant filters can
+     narrow a garden long after setup, so a check made once at the door would
+     not hold. */
+  return rec.some(plantRefFits) ? rec : refs;
 }
 function discoveryMatches(ref,d){
   const P=refDef(ref); if (!P || !plantRefFits(ref)) return false;
@@ -1226,24 +1269,39 @@ function plantFits(k){
 /* How many species a hypothetical questionnaire selection leaves in the palette,
    computed without touching live game state - drives the live tally on the
    design-setup panel so each knob visibly does something. Mirrors plantFits'
-   zone/native/deer/rabbit/squirrel gates. Style only ranks the tray, so it
-   does not change this count. */
-function paletteCount(sel){
+   zone/native/deer/rabbit/squirrel gates.
+
+   `type` is optional and answers the OTHER question on that panel: with it,
+   how many of those a style actually asks for, which is what the "Recommended
+   for <style>" starting-palette row is promising.  Without it, plain
+   eligibility -- what the headline means by "fit this garden", and the number
+   the style must never change, since a style ranks and browses but never
+   restricts what may be planted.
+
+   `sel` is passed down as the criteria: plantRoles derives `native` from the
+   native region, and left to default it would read game.filters -- the LAST
+   garden's answers -- so a prairie or pollinator tally on this panel would be
+   scored against a region the gardener is in the middle of changing. */
+function paletteCount(sel,type=null){
   sel=normalizeFilters(sel);
-  let n=0;
+  let eligible=0, recommended=0;
   for (const k of PLANT_KEYS){
     const P=PLANTS[k]; if (P.hidden) continue;
     if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
     if (!passesNativeFilter(P,sel)) continue;
-    const roles=plantRoles(k);
+    const roles=plantRoles(k,sel);
     if (!isTreeDef(P)){
       if (sel.deer && !roles.includes('deerOk')) continue;
       if (sel.rabbit && !roles.includes('rabbitOk')) continue;
     }
     if (sel.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) continue;
-    n++;
+    eligible++;
+    if (type && plantStyleRecommended(k,type,sel)) recommended++;
   }
-  return n;
+  // `|| eligible` mirrors discoverySourceRefs' fallback: where a style
+  // recommends nothing growable the catalog hands back the whole eligible
+  // palette, so the row must promise that and not a 0 nobody could design from.
+  return type ? (recommended || eligible) : eligible;
 }
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/water, woody
   const ord={grass:0, sedge:1, forb:2, bulb:3, water:4, shrub:5, tree:6};
