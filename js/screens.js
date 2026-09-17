@@ -1021,8 +1021,19 @@ function openDesignSetup(){
       `<b>Zone ${sel.zone}</b> · Average annual winter minimum ${zoneTemperatureText(sel.zone)}. `+
       'Plant filters use whole zones; soil, summer conditions, and local exposure also matter.';
   }
+  /* One walk of the catalog answers both figures on this panel, and a pure
+     re-render (picking a different starting palette) answers neither anew --
+     so the tally is computed when one of the knobs it depends on has actually
+     moved, and read otherwise. `type` is in the key because the style decides
+     the recommended half. */
+  let tally=null, tallyKey='';
+  function paletteTally(){
+    const key=[sel.zone,sel.nativeRegion,sel.nativeMode,sel.deer?1:0,sel.rabbit?1:0,sel.squirrel?1:0,sel.type].join('|');
+    if (key!==tallyKey){ tallyKey=key; tally=paletteCounts(sel,sel.type); }
+    return tally;
+  }
   function updateCount(){
-    const n=paletteCount(sel);
+    const n=paletteTally().eligible;
     $('dgnCount').innerHTML=zipBlocked?'Choose a zone to preview the palette.':`<b>${n}</b> plant${n===1?'':'s'} fit this garden so far.`;
     renderStartPalette();
   }
@@ -1087,10 +1098,10 @@ function openDesignSetup(){
     /* The style's own count, not the headline's. These two rendered the same
        call, so every style answered with the whole eligible palette and the
        row could only restate the number three lines above it -- Cottage and
-       Formal both "486 plants available" on a zone-6 garden. paletteCount's
-       second argument is what a style actually asks for; `recommended` now
+       Formal both "486 plants available" on a zone-6 garden. The recommended
+       half of the tally is what a style actually asks for; `recommended` now
        browses exactly that set, so the promise and the catalog agree. */
-    const rec=paletteCount(sel,sel.type);
+    const rec=paletteTally().recommended;
     startChoice('Recommended for '+designTypeName(sel.type),'recommended',null,
       `${rec} plant${rec===1?'':'s'} available`);
     const favs=favoriteRefs(), available=selectionCount(favs); startChoice('Favorites','favorites',null,`${available} available / ${favs.length} saved`);

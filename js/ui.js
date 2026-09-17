@@ -1081,6 +1081,17 @@ function plantRefFitsCriteria(ref,criteria){
   return true;
 }
 function plantRefFits(ref){ return plantRefFitsCriteria(ref,activeFilters()) && challengeAllows(ref.s); }
+/* The catalog collapses a base species, its cultivars, and every other species
+   sharing a presentation `group` into ONE family card, so "how many plants"
+   means how many cards. Both surfaces that answer that question resolve the
+   card here, or the questionnaire and the catalog end up counting different
+   things under the same word -- which they did: 486 against 328 on a zone-6
+   garden, because the panel counted species records and the catalog counted
+   cards. */
+function plantFamilyId(s){
+  const P=PLANTS[s]; if (!P) return null;
+  return P.group ? `group:${P.group}` : `species:${s}`;
+}
 function allPlantRefs(){
   const out=[];
   PLANT_KEYS.forEach(s=>{ const P=PLANTS[s]; if (!P||P.hidden) return;
@@ -1218,7 +1229,7 @@ function groupDiscoveryRefs(refs){
   (refs||[]).forEach(ref=>{
     if (!ref||!ref.s) return;
     const exact=plantRef(ref.s,ref.v||null), P=PLANTS[exact.s]; if (!P) return;
-    const id=P.group ? `group:${P.group}` : `species:${exact.s}`;
+    const id=plantFamilyId(exact.s);
     let group=byPresentationGroup.get(id);
     if (!group){
       group={id,domId:id.replace(/[^a-z0-9_-]+/gi,'-'),s:exact.s,label:P.groupLabel||P.name,
@@ -1266,42 +1277,54 @@ function plantFits(k){
   if (f.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) return false;
   return true;
 }
-/* How many species a hypothetical questionnaire selection leaves in the palette,
-   computed without touching live game state - drives the live tally on the
-   design-setup panel so each knob visibly does something. Mirrors plantFits'
-   zone/native/deer/rabbit/squirrel gates.
+/* How many FAMILY CARDS a hypothetical questionnaire selection leaves in the
+   palette, computed without touching live game state - drives the live tally on
+   the design-setup panel so each knob visibly does something.
 
-   `type` is optional and answers the OTHER question on that panel: with it,
-   how many of those a style actually asks for, which is what the "Recommended
-   for <style>" starting-palette row is promising.  Without it, plain
-   eligibility -- what the headline means by "fit this garden", and the number
-   the style must never change, since a style ranks and browses but never
-   restricts what may be planted.
+   It counts what the catalog counts, by asking the catalog's own two
+   questions: `plantRefFitsCriteria` per exact reference, then `plantFamilyId`.
+   It used to run a hand-copied mirror of those gates over PLANT_KEYS and count
+   species RECORDS, which is a different number under the same word -- 486 here
+   against the catalog's "328 plants" on a zone-6 garden -- and the mirror could
+   not have closed the gap on its own: a cultivar carries its own `zones`, so a
+   family whose base species is too tender still earns a card when one of its
+   selections is hardy enough, and creeping phlox does exactly that at zone 3.
+   Counting per REFERENCE is what makes the two surfaces agree by construction
+   rather than by maintenance.
+
+   `type` is optional and answers the OTHER question on that panel: how many of
+   those cards a style actually asks for, which is what the "Recommended for
+   <style>" starting-palette row is promising.  Without it, plain eligibility --
+   what the headline means by "fit this garden", and the number the style must
+   never change, since a style ranks and browses but never restricts what may
+   be planted.
 
    `sel` is passed down as the criteria: plantRoles derives `native` from the
    native region, and left to default it would read game.filters -- the LAST
    garden's answers -- so a prairie or pollinator tally on this panel would be
    scored against a region the gardener is in the middle of changing. */
-function paletteCount(sel,type=null){
-  sel=normalizeFilters(sel);
-  let eligible=0, recommended=0;
-  for (const k of PLANT_KEYS){
-    const P=PLANTS[k]; if (P.hidden) continue;
-    if (sel.zone && (P.zones[0]>sel.zone || P.zones[1]<sel.zone)) continue;
-    if (!passesNativeFilter(P,sel)) continue;
-    const roles=plantRoles(k,sel);
-    if (!isTreeDef(P)){
-      if (sel.deer && !roles.includes('deerOk')) continue;
-      if (sel.rabbit && !roles.includes('rabbitOk')) continue;
-    }
-    if (sel.squirrel && P.type==='bulb' && !roles.includes('squirrelOk')) continue;
-    eligible++;
-    if (type && plantStyleRecommended(k,type,sel)) recommended++;
+function paletteCounts(sel,type=null){
+  const f=normalizeFilters(sel), eligible=new Set(), recommended=new Set();
+  for (const ref of allPlantRefs()){
+    if (!plantRefFitsCriteria(ref,f)) continue;
+    const id=plantFamilyId(ref.s); if (!id) continue;
+    eligible.add(id);
+    // a card survives the style if any of its own plants does, which is exactly
+    // what the catalog does by filtering references and grouping afterwards
+    if (type && plantStyleRecommended(ref.s,type,f)) recommended.add(id);
   }
   // `|| eligible` mirrors discoverySourceRefs' fallback: where a style
   // recommends nothing growable the catalog hands back the whole eligible
   // palette, so the row must promise that and not a 0 nobody could design from.
-  return type ? (recommended || eligible) : eligible;
+  return {eligible:eligible.size, recommended:(type ? (recommended.size||eligible.size) : eligible.size)};
+}
+/* The panel wants BOTH numbers and one walk produces both, so the pair is what
+   the walk returns and this is the single-number view of it. Asked for the
+   headline and the style row separately, the questionnaire crossed the whole
+   catalog twice per keystroke for two figures it had already computed once. */
+function paletteCount(sel,type=null){
+  const c=paletteCounts(sel,type);
+  return type ? c.recommended : c.eligible;
 }
 function trayKeys(){ // grasses first (the matrix), then sedges, forbs, bulbs/water, woody
   const ord={grass:0, sedge:1, forb:2, bulb:3, water:4, shrub:5, tree:6};

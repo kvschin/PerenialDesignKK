@@ -5888,6 +5888,44 @@ test('Recommended browses the style it names, and never narrows what may be plan
   assertEqual(lens('all'), all, 'All eligible is untouched by the style');
 });
 
+/* The panel promises a number and the catalog then shows one, so they have to
+   be the same number under the same word. They were not: the panel counted
+   species RECORDS and the catalog counts family CARDS -- 486 against "328
+   plants" on a zone-6 garden. Pinned end to end through discoveryRefs rather
+   than against a second hand-rolled count, which is the drift being guarded. */
+test('the setup panel counts the family cards the catalog will show', () => {
+  setup(21, 21);
+  const cards = () => groupDiscoveryRefs(discoveryRefs()).length;
+  for (const zone of [3, 6, 9])
+    for (const nativeMode of ['any', 'straight'])
+      for (const type of [null, 'cottage', 'mediterranean', 'formal']){
+        game.filters = normalizeFilters({ zone, nativeRegion:'north-america', nativeMode });
+        game.design = type ? { zone, type, nativeRegion:'north-america', nativeMode } : null;
+        game.discovery = normalizeDiscovery({ source: type ? 'recommended' : 'all',
+          category:null, query:'', colorFamilies:[], bloomSeasons:[], limit:36 });
+        assertEqual(paletteCount(game.filters, type), cards(),
+          `zone ${zone} / ${nativeMode} / ${type || 'no style'}: panel and catalog agree`);
+      }
+});
+
+test('a family card is counted once, however many species and cultivars it holds', () => {
+  setup(21, 21);
+  const f = { zone: 6, nativeRegion:'north-america', nativeMode:'any' };
+  const shared = PLANT_KEYS.filter(k => !PLANTS[k].hidden && PLANTS[k].group);
+  assert(shared.length > 1, 'the catalog has plants sharing a presentation group');
+  /* More species and cultivars than cards is the whole reason the two counts
+     differed. Criteria are passed explicitly: plantFits reads game.filters, so
+     counting through it here would compare two different gardens. */
+  const refs = allPlantRefs().filter(ref => plantRefFitsCriteria(ref, f));
+  const cards = paletteCount(f);
+  assert(refs.length > cards, 'references outnumber cards');
+  assert(PLANT_KEYS.filter(k => !PLANTS[k].hidden && plantRefFitsCriteria(plantRef(k, null), f)).length > cards,
+    'species records outnumber cards too — this is the number the panel used to print');
+  const group = PLANTS[shared[0]].group;
+  assertEqual(new Set(PLANT_KEYS.filter(k => PLANTS[k].group === group)
+    .map(k => plantFamilyId(k))).size, 1, 'every species in a group resolves to one card');
+});
+
 /* 48 of the 600 zone x origin x style corners recommend nothing the garden can
    grow -- a zone-2 Mediterranean bed, a zone-3 European-native formal one.  An
    empty starting palette reads as a broken app, so the lens stands down there,

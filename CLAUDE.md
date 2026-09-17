@@ -3671,8 +3671,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     offered two entries producing the same catalog, and the questionnaire's
     "Recommended for <style>" row could only ever echo the headline eligibility
     count: Cottage and Formal both read "486 plants available" on a zone-6
-    garden, i.e. the one knob naming a style visibly did nothing. It is 385 and
-    43 now, and the catalog it opens matches. The gate is **species-level**
+    garden, i.e. the one knob naming a style visibly did nothing. It is 255 and
+    20 now, and the catalog it opens matches. The gate is **species-level**
     (`v` is never passed on): judged per cultivar a garden hybrid drops out of a
     prairie or pollinator palette — `native` is worth 4 and 3 in those weights —
     thinning a family card's varieties for a reason no label could explain, and
@@ -3684,10 +3684,32 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     recommended list's own length — zone 2 fails precisely because the styles
     still name plenty of plants and none survive the cold — and it lives in the
     data path rather than the questionnaire, since Plant filters can narrow a
-    garden long after setup. `paletteCount(sel,type)` mirrors both, so the
-    number promised at setup and the catalog cannot disagree; called without a
-    `type` it is plain eligibility, which is what the headline means and what a
-    style must never move. Side effect, measured: filtering BEFORE the
+    garden long after setup. `paletteCounts(sel,type)` mirrors both, so the
+    number promised at setup and the catalog cannot disagree; its `eligible`
+    half is what the headline means and what a style must never move.
+    **It counts FAMILY CARDS, which is what the catalog counts**, by asking the
+    catalog's own two questions — `plantRefFitsCriteria` per exact reference,
+    then `plantFamilyId`, extracted out of `groupDiscoveryRefs` so the card's
+    identity has one definition. It used to run a hand-copied mirror of those
+    gates over `PLANT_KEYS` and count species RECORDS, a different number under
+    the same word: 486 against the catalog's "328 plants" on a zone-6 garden.
+    The mirror could not have closed that gap by counting families either, since
+    a **cultivar carries its own `zones`** — a family whose base species is too
+    tender still earns a card when one of its selections is hardy enough, which
+    creeping phlox does at zone 3 (326 against 328). Counting per REFERENCE is
+    what makes the two agree by construction rather than by maintenance; a test
+    pins them across 24 zone/origin/style combinations through `discoveryRefs`
+    itself, and is mutation-checked against both the species-record form and the
+    base-species-only one. It returns the PAIR because one walk produces both
+    and the panel wants both: asked separately it crossed the catalog twice per
+    keystroke, and `openDesignSetup` now recomputes only when a knob feeding the
+    tally has moved (re-rendering after a starting-palette choice recomputes
+    nothing). Measured in Chrome: 2.3ms uncached with a style, 0.5ms for plain
+    eligibility, inside a style-chip click that costs 3.6-7ms end to end and is
+    mostly the meadow replant. The cost is `plantRoles` (3.0ms per 935 refs in
+    the Node sandbox) rather than `normalizeFilters` (0.19ms), which is the
+    opposite of the obvious guess — measure before trimming it.
+    Side effect, measured: filtering BEFORE the
     style-score sort took `discoveryRefsUncached` on `recommended` from 71.5ms
     to 9.8ms, since the comparator now runs over 101 refs rather than 826.
     An empty result under this lens says so and offers to widen the SOURCE
