@@ -13182,3 +13182,180 @@ test('the zoom pill writes only when the number changes', () => {
   assert(src.indexOf('getElementById') > src.indexOf('zoomPillPct'),
     'and does not even look the element up first');
 });
+
+test('a light is built at its real height, like a fence', () => {
+  /* LIGHT_TYPES stored hand-picked PIXELS — 18/42/30 — while everything built
+     around it had moved onto PX_PER_FT. Against that scale the lantern post drew
+     2 ft: half the drawn height of the little bluestem beside it and a third of
+     the 6 ft fence it stands next to. This is the same bug the fences had, in the
+     one system nobody went back to.
+     The pin that matters is that a 6 ft fixture and a 6 ft fence are the same
+     height on screen — ONE built-height scale, no second opinion. */
+  assertEqual(lightDrawH({ type: 'lantern' }), fenceDrawH({ style: 'privacy', height: 6 }),
+    'a 6 ft lamp post draws the height of a 6 ft fence');
+
+  for (const t of LIGHT_TYPES) {
+    assert(t.h === undefined, `${t.id} no longer carries a hand-picked px height`);
+    assert(t.ft > 0 && t.postIn > 0 && t.headIn > 0 && t.headWIn > 0 && t.poolFt > 0,
+      `${t.id} carries real dimensions instead`);
+    assertEqual(lightDrawH({ type: t.id }), t.ft * PX_PER_FT, `${t.id} draws at PX_PER_FT`);
+    /* The drawing has to fit the box the viewport cull and the sprite cache
+       share, or the fixture is clipped at the top — invisible on the cached
+       path and only there, which is the shape of bug that survives review. */
+    assert(feetToPx(lightHeightFt({ type: t.id })) + 4 < feetToPx(8) + 34,
+      `${t.id} fits the height structDrawBox reserves for a light`);
+  }
+
+  /* A path light is ankle height and a lamp post is over head height. That
+     ORDER is the whole point of a fixture picker, and at 18/42/30 px it was
+     three heights that meant nothing. */
+  assert(lightHeightFt({ type: 'path' }) < lightHeightFt({ type: 'lamp' }),
+    'a path light is shorter than a lamp');
+  assert(lightHeightFt({ type: 'lamp' }) < lightHeightFt({ type: 'lantern' }),
+    'and a lamp is shorter than a lantern post');
+  assert(lightHeightFt({ type: 'path' }) < 2 && lightHeightFt({ type: 'lantern' }) > 6,
+    'and both land where a real fixture of that name does');
+
+  /* The tray chip paints through the garden's own painter, like the fence, pot,
+     seat and water-feature chips. It used to be a second hand-written copy of
+     all three fixture branches — its own heights, its own hardcoded metal — so
+     it could advertise a fixture the canvas does not draw. */
+  const tray = readRepoFile('js/tray.js');
+  assert(tray.includes('drawLightArt('), 'the light chip calls the garden painter');
+  assert(!/const miniLight[\s\S]{0,600}#3f4038/.test(tray),
+    'and keeps no second copy of the fixture metal');
+});
+
+
+test('the materials list bills the hardscape, not just the soft parts', () => {
+  /* The table is headed "Surfaces & hardscape" and carried lawn, edging,
+     retaining wall, containers, seating and water features — so the FENCE, the
+     PAVING and every fixture you buy one of were absent from the one document
+     somebody takes to a supplier. */
+  setup(21, 21);
+  // a 5x4 gravel patio and an 8-tile bark path
+  for (let x = 2; x < 7; x++) for (let y = 2; y < 6; y++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm' });
+  for (let x = 7; x < 15; x++) setTile('terrain', `${x},3`, { k: 'path', c: 'bark' });
+  // a 6x3 mulch bed and a 3x3 pond
+  for (let x = 2; x < 8; x++) for (let y = 8; y < 11; y++) setTile('terrain', `${x},${y}`, { k: 'bed', c: 'mulch' });
+  for (let x = 12; x < 15; x++) for (let y = 10; y < 13; y++) setTile('terrain', `${x},${y}`, { k: 'water', c: 'pond' });
+  // 18 tiles of 6 ft cedar along the top, three of them a gate
+  for (let x = 1; x < 19; x++) setTile('fences', `${x},1`, { style: 'privacy', height: 6, gate: x >= 8 && x < 11 });
+
+  const rows = hardscapeRows();
+  const of = (kind) => rows.filter(r => r.kind === kind);
+  const ft = TILE_IN / 12, sq = ft * ft;
+
+  /* FENCE by the foot, and the gate tiles are NOT fence: 18 tiles less the 3
+     the opening occupies. Billing the gate as fence sells somebody panels to
+     stand in a doorway. */
+  assertEqual(of('Fence').length, 1, 'one fence line');
+  assertEqual(fenceRunFeet()['privacy|6'], 15 * ft, 'fence footage skips the gate tiles');
+  assert(of('Fence')[0].name.includes('Cedar Privacy'), 'the line names the material');
+
+  /* A contiguous run of gate tiles is ONE opening — counting tiles would sell
+     three gates to somebody who drew one. */
+  assertEqual(of('Gate').length, 1, 'one gate line');
+  assertEqual(of('Gate')[0].count, 1, 'three gate tiles are one gate');
+  assert(of('Gate')[0].detail.includes('opening'), 'and the line gives its width');
+
+  // PAVING by the square foot, per material; the pond by its surface
+  const paving = of('Paving');
+  assertEqual(paving.length, 2, 'gravel and bark are separate order lines');
+  assertEqual(paving.find(r => r.name === 'Warm gravel').n, 20 * sq, 'the patio is billed by area');
+  assertEqual(of('Bed').length, 1, 'the bed is billed');
+  assertEqual(of('Water').length, 1, 'and so is the water');
+
+  /* A loose surface also carries the VOLUME, because that is what a supplier
+     sells. The material table's `depth` is what says so, and a laid surface
+     carrying none must not sprout an invented cubic yardage. */
+  assert(paving.every(r => /cu yd|cu m/.test(r.detail)),
+    'gravel and bark are loose, so both quote a volume');
+  assert(/cu yd|cu m/.test(of('Bed')[0].detail), 'and so does the bed');
+  setup(21, 21);
+  for (let x = 2; x < 7; x++) for (let y = 2; y < 6; y++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'paver' });
+  assertEqual(hardscapeRows().filter(r => r.kind === 'Paving')[0].detail, '',
+    'a laid surface is billed by area alone');
+  assert(PATH_COLORS.some(c => c.depth) && !pathColor('paver').depth,
+    'and the loose/laid distinction lives in the material table, not in the estimator');
+});
+
+test('every placed fixture reaches the materials list', () => {
+  /* Each of these is a thing somebody buys and installs. The plan sheet already
+     counted the lights in its fixture key; this table never mentioned them. */
+  setup(21, 21);
+  game.lights['3,7'] = { type: 'path', tone: 'warm', t: 1 };
+  game.lights['5,7'] = { type: 'path', tone: 'warm', t: 1 };
+  game.lights['9,7'] = { type: 'lantern', tone: 'warm', t: 1 };
+  game.firepits['4,15'] = { shape: 'round', size: 'round36', t: 1 };
+  game.boulders['16,8'] = { type: 'round1', t: 1 };
+  game.supports['10,8'] = { style: 'obelisk', mat: 'timber', face: 0, t: 1 };
+  game.supports['11,8'] = { style: 'obelisk', mat: 'timber', face: 2, t: 1 };
+
+  const rows = hardscapeRows(), one = (kind) => rows.filter(r => r.kind === kind);
+  assertEqual(one('Lighting').length, 2, 'two fixture types, two lines');
+  assertEqual(one('Lighting').find(r => r.name.includes('Path')).count, 2,
+    'both path lights on one line');
+  assertEqual(one('Fire pit').length, 1, 'the fire pit is billed');
+  assertEqual(one('Boulder')[0].count, 1, 'and the boulder');
+  /* `face` is which way a support is TURNED, which is not something you order,
+     so two identically-specified obelisks are one line of two. */
+  assertEqual(one('Support').length, 1, 'turning a support does not split its order line');
+  assertEqual(one('Support')[0].count, 2, 'both obelisks land on it');
+
+  /* A pet is deliberately NOT here — the same product rule that keeps it off
+     the plan sheet. It is ornament, not a planning-document entry. */
+  game.pets['6,6'] = { species: 'cat', coat: PET_COATS[0].id, t: 1 };
+  assert(!hardscapeRows().some(r => /pet|cat|dog/i.test(r.kind)),
+    'a garden pet stays off the client-facing list');
+});
+
+test('the take-off measures in the app\'s own units and formats at the edge', () => {
+  /* Units are DISPLAY ONLY. `n` is the magnitude the sort reads and it stays in
+     square feet and feet whatever the preference says, so a metric gardener is
+     never quoted a different quantity — the same invariance the formatter tests
+     pin for plants. */
+  setup(21, 21);
+  for (let x = 2; x < 7; x++) for (let y = 2; y < 6; y++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm' });
+  for (let x = 1; x < 12; x++) setTile('fences', `${x},1`, { style: 'privacy', height: 6, gate: false });
+  const imp = withUnits('imperial', () => hardscapeRows());
+  const met = withUnits('metric', () => hardscapeRows());
+  assertEqual(JSON.stringify(met.map(r => [r.kind, r.n])), JSON.stringify(imp.map(r => [r.kind, r.n])),
+    'the measured quantities do not move with the units preference');
+  const impText = imp.map(r => r.count).join('|'), metText = met.map(r => r.count).join('|');
+  assert(impText !== metText, 'only the captions move');
+  assert(/\bm\b/.test(metText) && !/\bft\b/.test(metText),
+    'and a metric caption is metric throughout');
+});
+
+test('the CSV carries the hardscape too', () => {
+  /* The table it mirrors was widened to close exactly this gap; it should not
+     reopen the moment somebody exports. Both sections ride ONE file, because
+     two programmatic downloads from one gesture raise Chrome's "Download
+     multiple files?" prompt — the trap the plan sheet documents, and a CSV has
+     nowhere to put the toggle that answers it there. */
+  setup(21, 21);
+  for (let x = 2; x < 7; x++) for (let y = 2; y < 6; y++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm' });
+  for (let x = 1; x < 12; x++) setTile('fences', `${x},1`, { style: 'privacy', height: 6, gate: false });
+
+  /* The sandbox has no Blob or URL — they are browser plumbing, not logic, and
+     docs/test-sandbox.md is explicit that a stub which LIES is worse than one
+     that is absent. So they are installed only for this call and removed after,
+     and what is asserted is the text handed to Blob(), not that a download
+     happened. */
+  const hadBlob = 'Blob' in globalThis, hadURL = 'URL' in globalThis;
+  const realBlob = globalThis.Blob, realURL = globalThis.URL;
+  let csv = null;
+  globalThis.Blob = function (parts) { csv = parts.join(''); };
+  globalThis.URL = { createObjectURL: () => 'blob:stub', revokeObjectURL() {} };
+  try { exportCsv(); } finally {
+    if (hadBlob) globalThis.Blob = realBlob; else delete globalThis.Blob;
+    if (hadURL) globalThis.URL = realURL; else delete globalThis.URL;
+  }
+
+  /* A garden can be all hardscape — a courtyard drawn before a single plant is
+     chosen is a normal state, and this used to refuse to export one at all. */
+  assert(csv !== null, 'a garden with no plants still exports');
+  assert(/"Item","Type","Quantity","Notes"/.test(csv), 'the hardscape section has its own header');
+  assert(/Cedar Privacy/.test(csv) && /Warm gravel/.test(csv), 'and carries the fence and the paving');
+});

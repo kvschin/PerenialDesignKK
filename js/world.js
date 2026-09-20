@@ -140,6 +140,42 @@ function edgingRunFeet(){
   for (const e in out) out[e]=out[e]*TILE_IN/12;
   return out;
 }
+/* Linear feet of FENCE, by material and height. A tile is one 18in section of
+   panel, so unlike a retaining wall there is no contour to trace and no double
+   counting to undo: a wall's faces double-count a diagonal step and count a far
+   side you only build once, which is why wallRunFeet measures the run instead.
+   A fence tile is simply a fence tile.
+   GATES are billed separately and as ITEMS, because a gate is a thing you buy
+   rather than a length you buy -- and a contiguous run of gate tiles is ONE
+   opening (fenceGateSpan), so counting gate tiles would sell three gates to
+   somebody who drew one 4 ft one. */
+function fenceRunFeet(){
+  const out={};
+  for (const k in game.fences){
+    const f=game.fences[k]; if (!f || f.removed || f.gate) continue;
+    const st=fenceStyleId(f.style);
+    const id=st+'|'+fenceHeightFor(st,f.height);
+    out[id]=(out[id]||0)+1;
+  }
+  for (const id in out) out[id]=out[id]*TILE_IN/12;
+  return out;
+}
+/* One entry per OPENING, keyed style|height|spanTiles. Only the leading tile of
+   a run bills it -- fenceGateSpan counts the gate tiles either side, so the tile
+   with none before it is the one that draws the gate and the one that pays. */
+function fenceGateOpenings(){
+  const out={};
+  for (const k in game.fences){
+    const f=game.fences[k]; if (!f || f.removed || !f.gate) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    const g=fenceGateSpan(x,y,fenceRunAxis(x,y));
+    if (g.a) continue;                       // not the leading tile of this opening
+    const st=fenceStyleId(f.style);
+    const id=st+'|'+fenceHeightFor(st,f.height)+'|'+(g.a+g.b+1);
+    out[id]=(out[id]||0)+1;
+  }
+  return out;
+}
 function materialPerimeterFt(keys){
   const set=keys instanceof Set?keys:new Set(keys||[]); let edges=0;
   set.forEach(k=>{ const [x,y]=k.split(',').map(Number);

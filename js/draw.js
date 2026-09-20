@@ -5770,49 +5770,77 @@ function drawGate(ctx,W,H,f,st,x,y,h,run,seed,extra){
   });
   return postH+rise+6;
 }
-function drawLightFixture(ctx,W,H,season,l,x,y,lit){
-  const typ=lightType(l.type), tone=lightTone(l.tone);
-  const [sx,sy]=screenOf(x,y,W,H), base=sy+TILE_H/2;
-  const h=typ.h, metal='#3f4038', metalHi='#6c6958';
+/* ONE painter for the garden and the tray chip -- it takes a GROUND POINT and a
+   scale rather than a tile, exactly like drawPotArt / drawSeatArt /
+   drawWaterFeatureArt, so a chip cannot advertise a fixture the canvas does not
+   draw. The tray used to carry its own copy of these three branches, with its
+   own numbers and its own hardcoded metal, which is the fencePanel lesson going
+   unlearned in the one system nobody had revisited.
+   Every member is sized in real INCHES through inH(): the post is 6 ft now, and
+   a head sized as a fraction of the post would have grown with it. */
+function drawLightArt(ctx,cx,base,l,lit,season,scale){
+  scale=scale||1;
+  const typ=lightType(l&&l.type), tone=lightTone(l&&l.tone);
+  const inH=n=>feetToPx(n/12)*scale;
+  const h=feetToPx(typ.ft)*scale, top=base-h;
+  const metal='#3f4038', metalHi='#6c6958';
+  const hw=inH(typ.headWIn)/2, hh=inH(typ.headIn);
+  const lw=n=>Math.max(0.7,inH(n));
+  let capY=top-hh;                       // the snow lands on whatever the head's top is
   ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  drawSoftShadow(ctx,sx,base+2,typ.kind==='path'?9:13,4,0.18);
-  ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=4;
-  ctx.beginPath(); ctx.moveTo(sx,base); ctx.lineTo(sx,base-h); ctx.stroke();
-  ctx.strokeStyle=metal; ctx.lineWidth=2.2;
-  ctx.beginPath(); ctx.moveTo(sx,base); ctx.lineTo(sx,base-h); ctx.stroke();
+  drawSoftShadow(ctx,cx,base+2*scale,hw*1.55,hw*0.6,0.18);
+  ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=lw(typ.postIn*1.8);
+  ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
+  ctx.strokeStyle=metal; ctx.lineWidth=lw(typ.postIn);
+  ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx,top); ctx.stroke();
   if (typ.kind==='path'){
+    // a downturned shade with the lamp under its lip
     ctx.fillStyle=metal;
-    ctx.beginPath(); ctx.moveTo(sx-7,base-h); ctx.lineTo(sx+7,base-h); ctx.lineTo(sx+4,base-h-5); ctx.lineTo(sx-4,base-h-5); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx-hw,top); ctx.lineTo(cx+hw,top);
+    ctx.lineTo(cx+hw*0.56,top-hh); ctx.lineTo(cx-hw*0.56,top-hh); ctx.closePath(); ctx.fill();
     ctx.fillStyle=lit?tone.col:'#958f7f';
-    ctx.beginPath(); ctx.ellipse(sx,base-h+1,4.5,2.2,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx,top+hh*0.14,hw*0.64,hh*0.3,0,0,7); ctx.fill();
   } else if (typ.kind==='post'){
-    ctx.strokeStyle=metalHi; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.moveTo(sx-7,base-h+7); ctx.lineTo(sx+7,base-h+7); ctx.stroke();
-    ctx.fillStyle=metal;
-    ctx.fillRect(sx-8,base-h-2,16,12);
+    /* A glazed lantern on a cross-arm, under a peaked cap. The cap peaks at
+       exactly `hh` above the post, so headIn is the WHOLE head and
+       lightHeightFt is the real overall height -- which the tray chip fits
+       itself to and structDrawBox has to contain. An earlier cut peaked at
+       1.32*hh and quietly made both of those numbers understate the drawing. */
+    const boxTop=top-hh*0.55, boxH=hh*0.75;
+    ctx.strokeStyle=metalHi; ctx.lineWidth=lw(1.2);
+    ctx.beginPath(); ctx.moveTo(cx-hw*0.85,top+hh*0.3); ctx.lineTo(cx+hw*0.85,top+hh*0.3); ctx.stroke();
+    ctx.fillStyle=metal; ctx.fillRect(cx-hw,boxTop,hw*2,boxH);
     ctx.fillStyle=lit?tone.col:'#6f6a5e';
-    ctx.fillRect(sx-5,base-h+1,10,7);
-    ctx.strokeStyle=metal; ctx.lineWidth=1;
-    ctx.strokeRect(sx-8,base-h-2,16,12);
-    ctx.beginPath(); ctx.moveTo(sx-5,base-h-2); ctx.lineTo(sx,base-h-9); ctx.lineTo(sx+5,base-h-2); ctx.stroke();
+    ctx.fillRect(cx-hw*0.64,boxTop+hh*0.14,hw*1.28,boxH-hh*0.26);
+    ctx.strokeStyle=metal; ctx.lineWidth=lw(1);
+    ctx.strokeRect(cx-hw,boxTop,hw*2,boxH);
+    capY=top-hh;
+    ctx.beginPath(); ctx.moveTo(cx-hw*0.72,boxTop); ctx.lineTo(cx,capY);
+    ctx.lineTo(cx+hw*0.72,boxTop); ctx.stroke();
   } else {
     ctx.fillStyle=metal;
-    ctx.beginPath(); ctx.ellipse(sx,base-h,10,5,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx,top,hw,hh*0.62,0,0,7); ctx.fill();
     ctx.fillStyle=lit?tone.col:'#777066';
-    ctx.beginPath(); ctx.ellipse(sx,base-h+2,7,3,0,0,7); ctx.fill();
-    ctx.strokeStyle=metalHi; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.moveTo(sx-10,base-h); ctx.lineTo(sx+10,base-h); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx,top+hh*0.3,hw*0.7,hh*0.36,0,0,7); ctx.fill();
+    ctx.strokeStyle=metalHi; ctx.lineWidth=lw(1.2);
+    ctx.beginPath(); ctx.moveTo(cx-hw,top); ctx.lineTo(cx+hw,top); ctx.stroke();
+    capY=top-hh*0.62;
   }
-  if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(sx-7,base-h-4); ctx.lineTo(sx+7,base-h-4); ctx.stroke();
+  if (season && AMBIENCE[season] && AMBIENCE[season].snow){
+    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=lw(1.8);
+    // ON the cap, not above it: capY is the drawing's own ceiling
+    ctx.beginPath(); ctx.moveTo(cx-hw*0.92,capY); ctx.lineTo(cx+hw*0.92,capY); ctx.stroke();
   }
   ctx.restore();
 }
+function drawLightFixture(ctx,W,H,season,l,x,y,lit){
+  const [sx,sy]=screenOf(x,y,W,H);
+  drawLightArt(ctx,sx,sy+TILE_H/2,l,lit,season,1);
+}
 function drawLightGlow(ctx,W,H,l,x,y){
   const typ=lightType(l.type), tone=lightTone(l.tone);
-  const [sx,sy]=screenOf(x,y,W,H), base=sy+TILE_H/2, head=base-typ.h;
-  const r=typ.kind==='path'?42:typ.kind==='post'?74:58;
+  const [sx,sy]=screenOf(x,y,W,H), base=sy+TILE_H/2, head=base-lightDrawH(l);
+  const r=feetToPx(typ.poolFt);
   ctx.save();
   ctx.globalCompositeOperation='screen';
   let g=ctx.createRadialGradient(sx,head,0,sx,head,r);

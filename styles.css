@@ -1571,6 +1571,12 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .export-table td{padding:7px 8px 7px 0;border-bottom:1px solid rgba(var(--ink-rgb),.12);vertical-align:top}
 .export-table td:nth-child(n+2),.export-table th:nth-child(n+2){text-align:right;white-space:nowrap}
 .export-table .latin{font-style:italic;color:var(--bronze);font-size:11px}
+/* The hardscape note: what you ORDER, where that differs from what you
+   measure — a gravel path is laid by the square foot and sold by the cubic
+   yard. It has to be a BLOCK: a bare inline <small> ran on from the material
+   name ("Bark mulch0.4 cu yd at 3 in deep"). The plant rows get away with an
+   inline one only because a block .latin above it already broke the line. */
+.export-table .hard-note{display:block;font-style:normal;color:var(--bronze);font-size:11px}
 .export-table tfoot td{border-bottom:none;border-top:1.5px solid rgba(var(--ink-rgb),.4);font-weight:600}
 /* keep every column reachable on a phone: fit if we can, scroll if we must */
 .export-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -1579,6 +1585,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .export-table th{letter-spacing:.06em;padding-right:6px}
   .export-table td{padding-right:6px}
   .export-table .latin{font-size:10px}
+  .export-table .hard-note{font-size:10px}
 }
 
 /* ---------- bloom calendar ---------- */
@@ -1637,6 +1644,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #exportScreen .export-table th{color:#555;border-color:#999}
   #exportScreen .export-table td{color:#111;border-color:#ccc}
   #exportScreen .export-table .latin{color:#555}
+  #exportScreen .export-table .hard-note{color:#555}
   #exportScreen .row,#exportScreen .back-link{display:none!important}
   /* the plan prints too, on its own page */
   #planScreen{position:static;padding:0;overflow:visible}

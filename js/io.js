@@ -716,70 +716,129 @@ function exportRows(){
    spacing. The plants inside pots still count as plants (they are ordinary
    plants on ordinary tiles), so this is a SUMMARY beside the species table
    rather than a change to it. */
+/* Everything the garden is MADE of, as order lines. The table is headed
+   "Surfaces & hardscape" and for a long time it billed lawn, edging, retaining
+   wall, containers, seating and water features -- while the FENCE, usually the
+   biggest single line in a build, the PAVING, which nobody can order without a
+   square footage, and every fixture you buy one of were simply absent. Lawn area
+   went in because a garden that is two thirds grass came out of here with no
+   mention of the surface it is mostly made of. The gravel path beside that lawn
+   had exactly the same problem, one material over.
+   Three units, and which one a thing takes is a fact about the thing:
+     area   a surface you measure   (lawn, paving, bed, water)
+     feet   a run you measure       (edging, retaining wall, fence)
+     count  a thing you buy         (containers, seats, fixtures, gates, boulders)
+   A loose surface also carries its VOLUME on the sub-line, because a cubic yard
+   of gravel is what a supplier actually sells; `depth` in the material table is
+   what says a surface is loose (see the note over PATH_COLORS). */
 function hardscapeRows(){
-  const pots={}, seats={};
-  for (const k in game.pots||{}){ const p=game.pots[k]; if (!p||p.removed) continue;
-    // colour is part of what you order, so it splits the line
-    const id=potStyleId(p.style)+'|'+potSizeFor(p.style,p.size)+'|'+potFinishFor(p.style,p.finish);
-    pots[id]=(pots[id]||0)+1; }
-  for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
-    const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
-    seats[id]=(seats[id]||0)+1; }
-  const waters={};
-  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
-    const d=normalizeWaterFeatureDraft(w);
-    const id=d.form+'|'+d.finish;
-    waters[id]=(waters[id]||0)+1; }
-  /* Linear feet of wall, measured along the TRACED CONTOUR rather than by
-     counting exposed tile faces. Faces double-count a diagonal — every step
-     contributes both of its sides — and count the far side of a wall you can
-     only build once, so the wall in the garden that prompted this was billed at
-     54 ft for a run of 24. It is a number somebody quotes from. */
-  let wallTiles=0, wallCourses=0; const wallBy={};
-  for (const run of buildElevationRuns()){
-    const w=wallStyleId(run.wall); if (w==='none') continue;
-    const ft=wallRunFeet(run);
-    wallBy[w]=(wallBy[w]||0)+ft; wallTiles+=ft; wallCourses=Math.max(wallCourses,run.h);
-  }
-  const edgingFt=edgingRunFeet();
-  /* Turf area — the one number this estimator could never report. Lawn was the
-     absence of a record, so a garden that is two thirds grass came out of here
-     with a bed area, some edging feet and no mention of the surface it is
-     mostly made of. Mown lawn is STILL an absence, deliberately (see
-     LAWN_STYLES), so it has to be counted by walking the plot rather than the
-     terrain map — the one tally here that is O(GW*GH) rather than O(edits).
-     That is affordable because it runs when the planting list is opened, never
-     in a frame, and it is measured the way isLawnTile defines lawn so the two
-     cannot disagree about what counts. */
-  const lawnTiles={};
+  const rows=[];
+  /* `n` is the magnitude the sort reads. Most counts here are formatted
+     strings, and the comparator used to subtract them -- NaN, so rows within one
+     kind came out in whatever order the object happened to enumerate. */
+  const add=(kind,name,count,n,detail)=>rows.push({kind,name,count,n:+n||0,detail:detail||''});
+  const bump=(m,k)=>{ m[k]=(m[k]||0)+1; };
+  const volumeNote=(areaSqFt,depthIn)=>
+    `${fmtVolumeCuYd(mulchYards(areaSqFt,depthIn))} at ${fmtLengthIn(depthIn)} deep`;
+
+  /* ---- surfaces ---- one pass over the terrain map, split by kind.
+     Mown lawn is STILL an absence (see LAWN_STYLES), so it is the one tally here
+     counted by walking the plot rather than the map -- O(GW*GH), affordable
+     because this runs when the list is opened and never in a frame -- and it
+     asks isLawnTile, so the two cannot disagree about what counts as lawn. */
+  const lawnTiles={}, pathTiles={}, bedTiles={}, waterTiles={};
   for (const k in game.terrain){
-    const t=game.terrain[k]; if (!t||t.removed||t.k!=='lawn') continue;
-    lawnTiles[lawnStyleId(t.c)]=(lawnTiles[lawnStyleId(t.c)]||0)+1;
+    const t=game.terrain[k]; if (!t||t.removed) continue;
+    if (t.k==='lawn') bump(lawnTiles,lawnStyleId(t.c));
+    else if (t.k==='path') bump(pathTiles,pathColorId(t.c));
+    else if (t.k==='bed') bump(bedTiles,bedStyleId(t.c));
+    else if (t.k==='water') bump(waterTiles,waterStyleId(t.c));
   }
   let mown=0;
   for (let y=0;y<GH;y++) for (let x=0;x<GW;x++)
     if (isLawnTile(x,y) && !terrainAt(x,y)) mown++;
   if (mown) lawnTiles.mown=(lawnTiles.mown||0)+mown;
-  const rows=[];
+
   for (const id in lawnTiles){
-    rows.push({kind:'Lawn', name:lawnLabelFor(id),
-      count:fmtAreaSqFt(tileAreaSqFt(lawnTiles[id]))});
+    const area=tileAreaSqFt(lawnTiles[id]);
+    add('Lawn', lawnLabelFor(id), fmtAreaSqFt(area), area);
   }
-  for (const id in edgingFt){
-    rows.push({kind:'Edging', name:edgingLabelFor(id),
-      count:fmtFeet(edgingFt[id])});
+  for (const id in pathTiles){
+    const c=pathColor(id), area=tileAreaSqFt(pathTiles[id]);
+    add('Paving', c.label, fmtAreaSqFt(area), area, c.depth ? volumeNote(area,c.depth) : '');
   }
-  for (const id in wallBy){
-    rows.push({kind:'Retaining wall', name:wallLabelFor(id),
-      count:fmtFeet(wallBy[id])});
+  for (const id in bedTiles){
+    const area=tileAreaSqFt(bedTiles[id]);
+    add('Bed', bedStyle(id).label, fmtAreaSqFt(area), area, volumeNote(area,BED_DEPTH_IN));
   }
+  for (const id in waterTiles){
+    const area=tileAreaSqFt(waterTiles[id]);
+    add('Water', waterStyle(id).label, fmtAreaSqFt(area), area, 'surface area');
+  }
+
+  /* ---- runs ---- */
+  const edgingFt=edgingRunFeet();
+  for (const id in edgingFt) add('Edging', edgingLabelFor(id), fmtFeet(edgingFt[id]), edgingFt[id]);
+
+  /* Linear feet of wall, measured along the TRACED CONTOUR rather than by
+     counting exposed tile faces. Faces double-count a diagonal -- every step
+     contributes both of its sides -- and count the far side of a wall you can
+     only build once, so the wall in the garden that prompted this was billed at
+     54 ft for a run of 24. It is a number somebody quotes from. */
+  const wallBy={};
+  for (const run of buildElevationRuns()){
+    const w=wallStyleId(run.wall); if (w==='none') continue;
+    wallBy[w]=(wallBy[w]||0)+wallRunFeet(run);
+  }
+  for (const id in wallBy) add('Retaining wall', wallLabelFor(id), fmtFeet(wallBy[id]), wallBy[id]);
+
+  const fenceFt=fenceRunFeet();
+  for (const id in fenceFt){
+    const [st,h]=id.split('|');
+    add('Fence', `${fenceStyle(st).label}, ${fmtFeet(+h)} high`, fmtFeet(fenceFt[id]), fenceFt[id]);
+  }
+  const gates=fenceGateOpenings();
+  for (const id in gates){
+    const [st,h,span]=id.split('|');
+    add('Gate', `${fenceStyle(st).label} gate`, gates[id], gates[id],
+      `${fmtFeet(+span*TILE_IN/12,1)} opening, ${fmtFeet(+h)} high`);
+  }
+
+  /* ---- things you buy one of ---- */
+  const pots={}, seats={}, waters={}, pits={}, rocks={}, props={}, lamps={};
+  for (const k in game.pots||{}){ const p2=game.pots[k]; if (!p2||p2.removed) continue;
+    // colour is part of what you order, so it splits the line
+    bump(pots, potStyleId(p2.style)+'|'+potSizeFor(p2.style,p2.size)+'|'+potFinishFor(p2.style,p2.finish)); }
+  for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
+    bump(seats, seatType(s2.type).id+'|'+seatFinish(s2.finish).id); }
+  for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
+    const d=normalizeWaterFeatureDraft(w); bump(waters, d.form+'|'+d.finish); }
+  for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed) continue;
+    const d=normalizeFirepitDraft(f); bump(pits, d.shape+'|'+d.size); }
+  for (const k in game.boulders||{}){ const b2=game.boulders[k]; if (!b2||b2.removed) continue;
+    bump(rocks, normalizeBoulderDraft(b2).type); }
+  for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed) continue;
+    // `face` is which way it is turned, which is not something you order
+    const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
+  for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed) continue;
+    const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+d.tone); }
+
   for (const id in pots){ const [st,sz,fi]=id.split('|');
-    rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, count:pots[id]}); }
+    add('Container', `${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, pots[id], pots[id]); }
   for (const id in seats){ const [ty,fi]=id.split('|');
-    rows.push({kind:'Seating', name:`${seatFinish(fi).label} ${seatType(ty).label}`, count:seats[id]}); }
+    add('Seating', `${seatFinish(fi).label} ${seatType(ty).label}`, seats[id], seats[id]); }
   for (const id in waters){ const [fo,fi]=id.split('|');
-    rows.push({kind:'Water feature', name:`${waterFinish(fi).label} ${waterFeature(fo).label}`, count:waters[id]}); }
-  return rows.sort((a2,b2)=>a2.kind===b2.kind?b2.count-a2.count:a2.kind<b2.kind?-1:1);
+    add('Water feature', `${waterFinish(fi).label} ${waterFeature(fo).label}`, waters[id], waters[id]); }
+  for (const id in pits){ const [shape,size]=id.split('|');
+    add('Fire pit', firepitLabel({shape,size}), pits[id], pits[id]); }
+  for (const id in rocks) add('Boulder', boulderLabel({type:id}), rocks[id], rocks[id]);
+  for (const id in props){ const [style,mat]=id.split('|');
+    add('Support', supportLabel({style,mat}), props[id], props[id]); }
+  for (const id in lamps){ const [type,tone]=id.split('|');
+    add('Lighting', lightLabel({type,tone}), lamps[id], lamps[id],
+      `${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
+
+  return rows.sort((p2,q2)=>p2.kind===q2.kind ? q2.n-p2.n : (p2.kind<q2.kind?-1:1));
 }
 function openExport(){
   tourNote('list');   // the tour ends on the payoff, and this is its only opener
@@ -789,10 +848,15 @@ function openExport(){
   $('exportMeta').textContent=`${where} · ${new Date().toLocaleDateString()} · one tile = ${tileSizeText()}`;
   // The heading names the whole table, which has carried edging and retaining
   // wall since Wave 5 and now carries turf area too.
+  /* "Quantity", not "Count": the column has held an area since lawn joined the
+     table and now holds feet and counts beside it. The sub-line carries what you
+     ORDER where that differs from what you measure -- a gravel path is laid by
+     the square foot and sold by the cubic yard. */
   const hardHtml = hard.length ? `<h3 class="export-sub">Surfaces &amp; hardscape</h3>`+
     `<div class="export-wrap"><table class="export-table"><thead><tr>`+
-    `<th>Item</th><th>Type</th><th>Count</th></tr></thead><tbody>`+
-    hard.map(r=>`<tr><td>${r.name}</td><td>${r.kind}</td><td><b>${r.count}</b></td></tr>`).join('')+
+    `<th>Item</th><th>Type</th><th>Quantity</th></tr></thead><tbody>`+
+    hard.map(r=>`<tr><td>${r.name}${r.detail?`<small class="hard-note">${r.detail}</small>`:''}</td>`+
+      `<td>${r.kind}</td><td><b>${r.count}</b></td></tr>`).join('')+
     `</tbody></table></div>` : '';
   if (!rows.length){
     body.innerHTML=hardHtml+'<p class="note">Nothing planted yet. Plant a few drifts, then come back for the list.</p>';
@@ -813,8 +877,10 @@ function openExport(){
   openOverlay('exportScreen','#btnPrint');
 }
 function exportCsv(){
-  const rows=exportRows();
-  if (!rows.length){ toast('Nothing planted yet.'); return; }
+  /* A garden can be all hardscape -- a courtyard drawn before a single plant is
+     chosen is a normal state, and this used to refuse to export one. */
+  const rows=exportRows(), hard=hardscapeRows();
+  if (!rows.length && !hard.length){ toast('Nothing planted or built yet.'); return; }
   funnel(FUNNEL_EVENTS.listExported);   // took the order away — the deepest step
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
   /* The header NAMES the unit and the values follow it, so a bare number in a
@@ -825,8 +891,22 @@ function exportCsv(){
   const areaHdr=`Bed area (${areaUnit()})`, spaceHdr=`Spacing (${smallLengthUnit()})`;
   const areaVal=v=>metricUnits()?+(v*SQM_PER_SQFT).toFixed(1):v;
   const spaceVal=v=>metricUnits()?Math.round(v*CM_PER_IN):v;
-  const lines=[['Common name','Latin name','Broad origin','Continental native relationship','Provenance','Tiles planted',areaHdr,spaceHdr,'Plants to order','Local native status','Regional invasive guidance'].map(esc).join(',')];
-  rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,areaVal(r.areaFt),spaceVal(r.space),r.order,r.localNative,r.regionalCautions].map(esc).join(',')));
+  const lines=[];
+  if (rows.length){
+    lines.push(['Common name','Latin name','Broad origin','Continental native relationship','Provenance','Tiles planted',areaHdr,spaceHdr,'Plants to order','Local native status','Regional invasive guidance'].map(esc).join(','));
+    rows.forEach(r=>lines.push([r.name,r.latin,r.origin,r.nativeStatus,r.provenance,r.count,areaVal(r.areaFt),spaceVal(r.space),r.order,r.localNative,r.regionalCautions].map(esc).join(',')));
+  }
+  /* The hardscape rides in the SAME file, after a blank line and its own header
+     row. Two programmatic downloads from one gesture raise Chrome's "Download
+     multiple files?" prompt -- the plan sheet documents that trap and answers it
+     with a toggle, which a CSV has nowhere to put. And a take-off that leaves out
+     the fence and the paving is exactly the gap the on-screen table was widened
+     to close; it should not reopen the moment somebody exports it. */
+  if (hard.length){
+    if (lines.length) lines.push('');
+    lines.push(['Item','Type','Quantity','Notes'].map(esc).join(','));
+    hard.forEach(r=>lines.push([r.name,r.kind,r.count,r.detail].map(esc).join(',')));
+  }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   a.download='hortus-planting-list.csv'; a.click();

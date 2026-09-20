@@ -2236,6 +2236,29 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     4→6 ft range was 10px. Houses are deliberately NOT on this scale: like a
     mature oak they are big enough to need the log compression `woodyVisualCw`
     gives trees; 3–8 ft is inside the range that draws true.
+    **LIGHTING was the system that never got this fix** (`LIGHT_TYPES`, core.js;
+    `drawLightArt`, draw.js; Sep 2026). It stored hand-picked PIXELS — 18/42/30 —
+    so against `PX_PER_FT` the *lantern post* drew **2 ft**: half the drawn height
+    of the little bluestem beside it (81px) and a third of the 6 ft fence it
+    stands next to (126px). A row names `ft` (the top of the POST, where the
+    fixture mounts) plus `postIn`/`headIn`/`headWIn`, and `lightDrawH` is
+    `fenceDrawH`'s sibling. Members are sized in real INCHES for the seating
+    reason — as a fraction of the post, a 6 ft fixture grows a fat head — and
+    `lightHeightFt` (post + head) is the real overall height, which the chip fits
+    itself to and `structDrawBox` must contain, so the lantern's cap peaks at
+    exactly `headIn` and not past it. Measured after: path light 33px of ink,
+    lamp 69, lantern **146** against the reserved 202, `measureStructBoxes` 0 of
+    1684 escaping and `verifyStructureSprites` 0.000–0.001% with nothing clipped.
+    `poolFt` (the night glow's radius) is the one number here that is an EFFECT
+    rather than a measurement: a real 6 ft lantern throws far more than 5 ft and
+    a pool that big washes the screen — it still scales with the fixture.
+    **The tray chip paints through `drawLightArt` too**, like the fence, pot,
+    seat and water-feature chips: it used to be a second hand-written copy of all
+    three fixture branches, its own heights and its own hardcoded metal, i.e. the
+    `fencePanel` lesson unlearned in the one system nobody had revisited. Its
+    scale is a CAP each fixture shrinks below to fit (the water-feature rule),
+    because at one SHARED scale the honest 5:1 ratio puts a path light at seven
+    pixels — the true height goes in the chip's `title`, where it costs no ink.
     **One panel painter, no per-style branches.** `FENCE_STYLES` rows name an
     `infill` recipe the way a plant names its `form` — `bar`, `picket`,
     `privacy`, `slat`, `rail`, `mesh`, `chain`, `masonry`, `woven`, `screen` —
@@ -3215,10 +3238,47 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     species (plants + bulbs) and converts to real quantities
     (`ceil(tiles × TILE_IN² / space²)`) plus bed area; `openExport()` renders
     the overlay table, `exportCsv()` downloads it. `hardscapeRows()` builds a
-    second table beside it, **Surfaces & hardscape** — turf area by lawn surface
-    (§11f), containers, seating, linear feet of edging and of retaining wall —
-    because those are bought by the item, by the foot or by the roll, not by
-    area at a spacing. Print CSS in `styles.css` strips everything but the sheet.
+    second table beside it, **Surfaces & hardscape**, because those things are
+    bought by the item, by the foot or by the roll, not by area at a spacing.
+    **It is a materials take-off, and for a long time it left out most of the
+    materials** (Sep 2026): it billed lawn, edging, retaining wall, containers,
+    seating and water features, while the FENCE — usually the biggest single
+    line in a build — the PAVING, which nobody can order without a square
+    footage, and every fixture you buy one of were absent. Turf area went in
+    (§11f) because a garden that is two thirds grass came out of here with no
+    mention of the surface it is mostly made of; the gravel path beside that
+    lawn had exactly the same problem, one material over. It now also carries
+    paving, bed and water area, fence footage, gates, fire pits, boulders,
+    supports and lighting. Three units, and which one a thing takes is a fact
+    about the thing: **area** for a surface, **feet** for a run, **count** for a
+    thing you buy.
+    Four rules it has to keep. **A gate is billed as an ITEM, not as fence**:
+    `fenceRunFeet` skips gate tiles (billing them sells panels to stand in a
+    doorway) and `fenceGateOpenings` bills only the LEADING tile of a run, since
+    a contiguous run of gate tiles is ONE opening (`fenceGateSpan`) and counting
+    tiles sells three gates to somebody who drew one. Unlike a wall a fence
+    needs no contour trace — a tile is simply one 18in section of panel, where a
+    wall's faces double-count a diagonal step and count a far side you build
+    once. **A loose surface also quotes its VOLUME** on the row's sub-line,
+    because a cubic yard of gravel is what a supplier sells; `depth` in the
+    material table is what says a surface is loose, and its ABSENCE is the safe
+    default — a new material with none is billed by area, never by an invented
+    yardage. Asking the table rather than writing `id==='brick'||id==='paver'…`
+    is the `brushTrayCatForTool` lesson: a chain duplicating a table is missed
+    by every row added after it was written. **A garden PET stays off it**, the
+    same product rule that keeps it off the plan sheet. And **the row's `n` is
+    the magnitude in the app's own units** — square feet and feet whatever the
+    units preference says (§18), so a metric gardener is never quoted a
+    different quantity; it is also what the sort reads, where the old
+    comparator subtracted formatted strings and got NaN.
+    **The CSV carries both sections in ONE file**, the hardscape after a blank
+    line with its own header row: two programmatic downloads from one gesture
+    raise Chrome's "Download multiple files?" prompt — the trap §14b documents
+    and answers with a toggle, which a CSV has nowhere to put. It also no longer
+    refuses a garden with no plants in it, a courtyard drawn before a single
+    plant is chosen being a normal state. Print CSS in `styles.css` strips
+    everything but the sheet; `.hard-note` (the sub-line) must stay
+    `display:block` or it runs on from the material name.
 14b. **Design plan** — `openPlan()` draws an Oudolf-style top-down drift
     map to `#planCanvas`. `planComponents()` flood-fills contiguous
     same-species/cultivar tiles (8-connectivity) into drifts;

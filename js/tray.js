@@ -3221,32 +3221,29 @@ function buildToolTrayInner(){
     const ld=lightDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
+    /* The chip paints through the garden's own drawLightArt. It used to be a
+       second, hand-written copy of all three fixture branches, with its own
+       heights and its own hardcoded metal -- so it could advertise a fixture the
+       canvas does not draw, which is the one thing every other chip in this file
+       is built not to do (see the fence, pot, seat and water-feature chips).
+       Scale is a CAP each fixture shrinks below to fit, the water-feature rule.
+       At one SHARED scale the honest ratio does fit a 48x44 chip and is useless:
+       a 1.2 ft path light beside a 7 ft lantern post is seven pixels tall. So
+       the true height goes in the title instead, where it costs no ink. */
+    // base/room leave the soft shadow its own pixels: measured, a 39px base put
+    // the path light's shadow at y=44 in a 44px chip and clipped it.
+    const CHIP_BASE=37, CHIP_ROOM=32, CHIP_CAP=0.9;
+    const chipScale=d=>Math.min(CHIP_CAP, CHIP_ROOM/Math.max(1,feetToPx(lightHeightFt(d))));
     const miniLight=(tc,d,lit)=>{
-      const typ=lightType(d.type), tone=lightTone(d.tone), base=35, h=typ.id==='lantern'?31:typ.id==='lamp'?23:16;
-      tc.lineCap='round'; tc.lineJoin='round';
-      tc.strokeStyle='rgba(0,0,0,.22)'; tc.lineWidth=4;
-      tc.beginPath(); tc.moveTo(24,base); tc.lineTo(24,base-h); tc.stroke();
-      tc.strokeStyle='#3f4038'; tc.lineWidth=2.4;
-      tc.beginPath(); tc.moveTo(24,base); tc.lineTo(24,base-h); tc.stroke();
+      const k=chipScale(d);
       if (lit){
-        const g=tc.createRadialGradient(24,base-h,0,24,base-h,20);
+        const tone=lightTone(d.tone), hy=CHIP_BASE-feetToPx(lightType(d.type).ft)*k;
+        const g=tc.createRadialGradient(24,hy,0,24,hy,20);
         g.addColorStop(0,tone.glow+'0.42)');
         g.addColorStop(1,'rgba(255,255,255,0)');
-        tc.fillStyle=g; tc.fillRect(4,base-h-20,40,40);
+        tc.fillStyle=g; tc.fillRect(4,hy-20,40,40);
       }
-      if (typ.id==='lantern'){
-        tc.fillStyle='#3f4038'; tc.fillRect(15,base-h-2,18,13);
-        tc.fillStyle=lit?tone.col:'#706a5d'; tc.fillRect(19,base-h+1,10,7);
-        tc.strokeStyle='#3f4038'; tc.lineWidth=1.2; tc.strokeRect(15,base-h-2,18,13);
-        tc.beginPath(); tc.moveTo(19,base-h-2); tc.lineTo(24,base-h-9); tc.lineTo(29,base-h-2); tc.stroke();
-      } else if (typ.id==='lamp'){
-        tc.fillStyle='#3f4038'; tc.beginPath(); tc.ellipse(24,base-h,11,5,0,0,7); tc.fill();
-        tc.fillStyle=lit?tone.col:'#777066'; tc.beginPath(); tc.ellipse(24,base-h+2,7,3,0,0,7); tc.fill();
-      } else {
-        tc.fillStyle='#3f4038'; tc.beginPath();
-        tc.moveTo(16,base-h); tc.lineTo(32,base-h); tc.lineTo(29,base-h-5); tc.lineTo(19,base-h-5); tc.closePath(); tc.fill();
-        tc.fillStyle=lit?tone.col:'#958f7f'; tc.beginPath(); tc.ellipse(24,base-h+1,5,2.2,0,0,7); tc.fill();
-      }
+      drawLightArt(tc,24,CHIP_BASE,d,lit,null,k);
     };
     const toolBtn=(label,sel,draftPatch,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
@@ -3262,7 +3259,8 @@ function buildToolTrayInner(){
       tray.appendChild(b); return b;
     };
     sep('Fixture');
-    LIGHT_TYPES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.type===t2.id, {type:t2.id}, t2.label));
+    LIGHT_TYPES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.type===t2.id, {type:t2.id},
+      `${t2.label} · ${fmtLengthIn(lightHeightFt({type:t2.id})*12)} tall`));
     sep('Light');
     LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
   }

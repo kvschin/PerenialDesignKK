@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.98';
+const APP_VERSION = '0.8.99';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -766,18 +766,26 @@ const SEASON_LIGHT = {
    with grey and rust in it; limestone screenings really are one pale tone.
    `null` tones mean "derive from the tile's own base" and are for materials
    whose base is seasonal (soil follows AMBIENCE). */
+/* `depth` is inches of material, and its PRESENCE is what says a surface is
+   bought by the YARD rather than by the square foot: crushed gravel, limestone
+   fines, shredded bark and dark chip are loose, and flagstone, brick, pavers and
+   a compacted clay surface are not. The estimator asks the table rather than
+   carrying a `id==='brick'||id==='paver'||...` chain, which is the mistake
+   brushTrayCatForTool documents -- a chain duplicating a table gets missed by
+   every material added after it was written. Omitting `depth` is the safe
+   default: a new material with none billed by area, never by an invented volume. */
 const PATH_COLORS = [
-  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa',
+  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa', depth:3,
    texture:'gravel', tones:['#8a7a5d','#ae9d80','#c4b596','#9a8765']},
-  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6',
+  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6', depth:3,
    texture:'fines', tones:['#aba189','#c3b99f','#ded5bd','#b9ad92']},
-  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68',
+  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68', depth:3,
    texture:'mulch', tones:['#4a3122','#7a5539','#96775a','#61402a']},
   {id:'slate', label:'Slate', fill:'#7a8386', plan:'#b8c0c2',
    texture:'flag', tones:['#5c6567','#7f888a','#98a1a2','#6d7678']},
   {id:'clay', label:'Red clay', fill:'#a76543', plan:'#d3a184',
    texture:'clay', tones:['#8a4f33','#b2704c','#c48a63','#96593a']},
-  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e',
+  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e', depth:3,
    texture:'gravel', tones:['#35332e','#5a574f','#726e64','#454239']},
   /* Laid units. `unit` is the paver size in INCHES and the recipe lays them in
      running bond; `fill` is the MORTAR, because the joint is the base showing
@@ -797,6 +805,11 @@ function pathColorId(id){ return pathColor(id).id; }
 function pathFill(t,snow){ const p=pathColor(t&&t.c);
   return snow ? mixHex(p.fill,'#eef2f8',0.42) : p.fill; }
 function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
+/* Every bed material in this table is loose and spread to a depth, so a bed
+   needs no per-row `depth` the way a path does -- BED_DEPTH_IN is the nominal
+   the planting list quotes, and it is the depth selectionEstimate has always
+   defaulted to for mulch. */
+const BED_DEPTH_IN = 3;
 const BED_STYLES = [
   // soil follows the season (fill:null -> AMBIENCE.soil), so its grains are
   // derived from whatever that is rather than pinned to one brown
@@ -1071,10 +1084,27 @@ function normalizeFenceDraft(d){
 }
 // drawn height of a placed fence, in screen px above its tile
 function fenceDrawH(f){ return Math.round(fenceHeightFor(fenceStyleId(f&&f.style), f&&f.height)*PX_PER_FT); }
+/* Built height, like a fence (PX_PER_FT, see the built-height note). `ft` is the
+   top of the POST, where the fixture is mounted, and the head sits above it, so
+   the overall height is ft + headIn/12.
+   These used to be hand-picked PIXELS -- 18/42/30 -- which is the same bug the
+   fences had before they moved onto this scale: against PX_PER_FT the lantern
+   post drew 2 ft, half the drawn height of a little bluestem beside it and a
+   third of the 6 ft fence it stands next to. Lighting was simply the system that
+   never got the fix.
+   Every member is sized in real INCHES for the seating reason: sized as a
+   fraction of the post, a tall fixture grows a fat head.
+   `poolFt` is the radius of light thrown at night, and it is the one number here
+   that is an EFFECT rather than a measurement -- a real 6 ft lantern throws far
+   more than 5 ft, and a pool that big washes the screen. It still scales with the
+   fixture, so a post reads brighter than a path light. */
 const LIGHT_TYPES = [
-  {id:'path', label:'Path light', short:'Path', h:18, kind:'path'},
-  {id:'lantern', label:'Lantern post', short:'Lantern', h:42, kind:'post'},
-  {id:'lamp', label:'Outdoor lamp', short:'Lamp', h:30, kind:'lamp'},
+  {id:'path', label:'Path light', short:'Path', kind:'path',
+   ft:1.2, postIn:1.6, headIn:4,  headWIn:7,  poolFt:2.6},
+  {id:'lantern', label:'Lantern post', short:'Lantern', kind:'post',
+   ft:6,   postIn:3,   headIn:11, headWIn:9,  poolFt:5.4},
+  {id:'lamp', label:'Outdoor lamp', short:'Lamp', kind:'lamp',
+   ft:3,   postIn:2.4, headIn:5,  headWIn:11, poolFt:3.6},
 ];
 const LIGHT_TONES = [
   {id:'eco', label:'Eco friendly', short:'Eco', col:'#b9d483', glow:'rgba(190,224,130,'},
@@ -1089,6 +1119,10 @@ function normalizeLightDraft(d){
   d=d||{};
   return {type:lightTypeId(d.type), tone:lightToneId(d.tone)};
 }
+// drawn height of a light's POST, in screen px above its tile -- fenceDrawH's sibling
+function lightDrawH(l){ return lightType(l&&l.type).ft*PX_PER_FT; }
+// overall height in real feet, post plus head: what a tray chip fits itself to
+function lightHeightFt(l){ const t=lightType(l&&l.type); return t.ft+t.headIn/12; }
 const FIREPIT_SIZES = [
   {id:'round24', shape:'round', label:'24 in', plan:'24x24', wIn:24, hIn:24},
   {id:'round36', shape:'round', label:'36 in', plan:'36x36', wIn:36, hIn:36},
