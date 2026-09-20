@@ -719,7 +719,8 @@ function exportRows(){
 function hardscapeRows(){
   const pots={}, seats={};
   for (const k in game.pots||{}){ const p=game.pots[k]; if (!p||p.removed) continue;
-    const id=potStyleId(p.style)+'|'+potSizeFor(p.style,p.size);
+    // colour is part of what you order, so it splits the line
+    const id=potStyleId(p.style)+'|'+potSizeFor(p.style,p.size)+'|'+potFinishFor(p.style,p.finish);
     pots[id]=(pots[id]||0)+1; }
   for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
     const id=seatType(s2.type).id+'|'+seatFinish(s2.finish).id;
@@ -772,8 +773,8 @@ function hardscapeRows(){
     rows.push({kind:'Retaining wall', name:wallLabelFor(id),
       count:fmtFeet(wallBy[id])});
   }
-  for (const id in pots){ const [st,sz]=id.split('|');
-    rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potStyle(st).label}`, count:pots[id]}); }
+  for (const id in pots){ const [st,sz,fi]=id.split('|');
+    rows.push({kind:'Container', name:`${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, count:pots[id]}); }
   for (const id in seats){ const [ty,fi]=id.split('|');
     rows.push({kind:'Seating', name:`${seatFinish(fi).label} ${seatType(ty).label}`, count:seats[id]}); }
   for (const id in waters){ const [fo,fi]=id.split('|');

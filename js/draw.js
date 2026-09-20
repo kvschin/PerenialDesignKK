@@ -5909,6 +5909,22 @@ function groundCenterRot(x,y,sz,W,H){
    root-2 too wide — visibly a barrel. */
 function inchesToTiles(inches){ return inches/TILE_IN; }
 function feetToPx(feet){ return feet*PX_PER_FT; }
+/* How far above its ground point a vessel's SOIL sits, in screen px — the one
+   number drawPotArt and plantScreenOf both read, so a plant cannot stand
+   somewhere its own pot does not put the compost. It is simply the vessel's
+   drawn height: drawPotArt puts the mouth ellipse at cy-hh for a round form and
+   isoSlab's top face at the same height for a boxy one.
+
+   It was 0.86 of that, which anchored the plant part-way down the flank — and
+   because the vessel then painted OVER it (both sorted at viewDepth+0.30, and a
+   stable sort hands the tie to whichever was pushed last), an 18 in pot showed
+   3 pixels of its planting and a 24 in pot showed NONE. Measured by ablation:
+   render the pot, render pot+plant, diff. Both halves of that are fixed, and
+   they have to be — lifting to the rim while the pot still drew last would just
+   have hidden the plant slightly higher up. */
+function potSoilLiftPx(pot){
+  return pot ? feetToPx(potSizeDef(potSizeFor(pot.style,pot.size)).hIn/12) : 0;
+}
 /* The screen delta of one tile step along world x and world y at the CURRENT
    rotation. Everything below is drawn from these two vectors, so a bench
    points the right way after the map is turned, and the tray chips get the
@@ -5983,8 +5999,11 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
      r*root2*TILE_W/2 and r*root2*TILE_H/2 — the root2 is the tile diagonal the
      diamond width actually spans, and dropping it is what drew barrels. */
   const rx=r*Math.SQRT2*TILE_W/2, ry=r*Math.SQRT2*TILE_H/2;
-  const hh=feetToPx(sz.hIn/12);
-  const body=st.body, dark=shade(body,-26), light=shade(body,16);
+  const hh=potSoilLiftPx(pot);   // the soil sits at cy-hh; plantScreenOf agrees
+  /* Colour comes from the finish, never from the style directly: the style's
+     own body/rim ARE its natural finish, so this one lookup serves both and a
+     charcoal urn cannot end up half repainted. */
+  const col=potColors(pot), body=col.body, dark=shade(body,-26), light=shade(body,16);
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
   drawSoftShadow(ctx,cx,cy+ry*0.30,rx*0.92,ry*0.80,0.20);
   const boxy = st.form==='square'||st.form==='crate'||st.form==='trough';
@@ -6035,7 +6054,7 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
     ctx.fillStyle='rgba(255,255,255,0.12)';
     ctx.fillRect(cx-rx*1.1,topY-ry,rx*0.55,hh+ry*2);
     ctx.restore();
-    ctx.strokeStyle=st.rim; ctx.lineWidth=Math.max(2,hh*0.09);
+    ctx.strokeStyle=col.rim; ctx.lineWidth=Math.max(2,hh*0.09);
     ctx.beginPath(); ctx.ellipse(cx,topY,rx,ry,0,0,Math.PI*2); ctx.stroke();
     ctx.fillStyle=st.soil; ctx.beginPath();
     ctx.ellipse(cx,topY,rx*0.80,ry*0.80,0,0,Math.PI*2); ctx.fill();

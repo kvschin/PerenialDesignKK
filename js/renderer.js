@@ -2194,15 +2194,21 @@ function setEntScreenBounds(e){
   if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB){
     /* Full growth, so the box is a superset of whatever any frame draws, and
        the plant's draw point is TILE_H/2 below this anchor. `slip` covers the
-       free-planting sub-tile offset; POT_LIFT_MAX covers standing on a rim; and
-       SWAY_SKEW is the wind, which leans the drawing sideways by up to that
-       fraction of its own height (the same 0.05 the blit skews by, and what
-       drawPlant bends its stems with). Leaving the wind out is what the last
-       16-41px of cull error turned out to be. */
+       free-planting sub-tile offset; POT_LIFT_MAX covers standing on a vessel
+       and POT_CENTRE_MAX its centring shift off this tile; and SWAY_SKEW is the
+       wind, which leans the drawing sideways by up to that fraction of its own
+       height (the same 0.05 the blit skews by, and what drawPlant bends its
+       stems with). Leaving the wind out is what the last 16-41px of cull error
+       turned out to be. The pot terms are charged to every plant rather than
+       only to potted ones: they are ~40px against a pad in the hundreds, and a
+       box that depends on a second layer is a box that goes stale when that
+       layer moves without this one. */
     const b=plantDrawBox(plantDef(e.p.s,e.p.v),e.p.s,1), o=plantOffset(e.p);
     const slip=(Math.abs(o.ox)+Math.abs(o.oy)+1)*TILE_W*0.5;
-    pad+=b.halfW+slip+b.top*SWAY_SKEW+SCENE_CULL_SLACK;
-    up+=b.top+slip+POT_LIFT_MAX+SCENE_CULL_SLACK; down+=b.bot+slip+SCENE_CULL_SLACK;
+    const potX=POT_CENTRE_MAX*TILE_W*0.5, potY=POT_CENTRE_MAX*TILE_H*0.5;
+    pad+=b.halfW+slip+potX+b.top*SWAY_SKEW+SCENE_CULL_SLACK;
+    up+=b.top+slip+POT_LIFT_MAX+potY+SCENE_CULL_SLACK;
+    down+=b.bot+slip+potY+SCENE_CULL_SLACK;
   } else {
     const b=structDrawBox(e);
     if (b){ pad+=b.pad; up+=b.up; down+=b.down; }
@@ -2210,10 +2216,13 @@ function setEntScreenBounds(e){
   }
   e.ox0=ox0-pad; e.ox1=ox1+pad; e.oy0=oy0-up; e.oy1=oy1+down;
 }
-/* The tallest rim any container lifts a plant by, so a potted plant's box
-   covers the lift without asking which vessel it is standing in. */
+/* The tallest vessel any container stands a plant on, and the furthest one can
+   pull that plant sideways off its own origin tile — so a potted plant's box
+   covers both without asking which vessel it is in. */
 const POT_LIFT_MAX=(typeof POT_SIZES!=='undefined' && POT_SIZES.length)
-  ? Math.max(...POT_SIZES.map(s=>Math.round(s.hIn/12*PX_PER_FT*0.86))) : 90;
+  ? Math.max(...POT_SIZES.map(s=>Math.ceil(s.hIn/12*PX_PER_FT))) : 90;
+const POT_CENTRE_MAX=(typeof POT_SIZES!=='undefined' && POT_SIZES.length)
+  ? Math.max(...POT_SIZES.map(s=>(Math.max(1,Math.round(s.wIn/TILE_IN))-1)/2)) : 1;
 // the wind's horizontal lean, as a fraction of the drawing's height — the same
 // 0.05 drawPlantMaybeCached skews the blit by
 const SWAY_SKEW=0.05;
@@ -2272,6 +2281,10 @@ function buildScene(W,H){
     if (pDetail&&pDetail.climb){
       const sup=supportAt(x,y);
       dep=(sup?footprintDrawDepth(sup.x,sup.y,sup.w,sup.h):plantDepth(x,y,p))+0.44;
+    } else {
+      // and the same rule for a container, which is a frame the plant stands IN
+      const po=potAt(x,y);
+      if (po) dep=potPlantDepth(po)+0.3;
     }
     const rec={d:dep, kind:SCENE_K.PLANT, bx0:x,bx1:x,by0:y,by1:y,
       x,y,p, seed:tileSeed(x,y), detail:pDetail, stunt:false};
@@ -2288,7 +2301,9 @@ function buildScene(W,H){
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
     if (p.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    ents.push({d:plantDepth(x,y,p)+0.25, kind:SCENE_K.BULB, bx0:x,bx1:x,by0:y,by1:y,
+    const po=potAt(x,y);
+    ents.push({d:(po?potPlantDepth(po):plantDepth(x,y,p))+0.25, kind:SCENE_K.BULB,
+      bx0:x,bx1:x,by0:y,by1:y,
       x,y,p, seed:(tileSeed(x,y)^0x9e37)>>>0});
   }
   if (layerShown('landscape')){
@@ -2336,12 +2351,17 @@ function buildScene(W,H){
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       ents.push({d:viewDepth(x,y)+0.42, kind:SCENE_K.PET, bx0:x,bx1:x,by0:y,by1:y, x,y,p});
     }
-    /* The vessel sorts just BEHIND the plant standing in it, so foliage always
-       draws over its own rim. */
+    /* The vessel sorts BEHIND the planting standing in it, so the foliage draws
+       over its own rim. It used to say so and sit at the plant's own +0.30 —
+       equal depths, and a stable sort gives the tie to whichever pass pushed
+       last, which is this one. So the pot painted over the plant: measured by
+       ablation on a 24 in pot, the plant added ZERO pixels to the frame.
+       0.24 clears the bulb layer at +0.25 as well, and nothing else can share a
+       pot's tile — canPlacePot refuses every other placeable. */
     for (const k in game.pots||{}){ const p=game.pots[k];
       if (!p || p.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=potTileSize(p);
-      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.30, kind:SCENE_K.POT,
+      ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.24, kind:SCENE_K.POT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,p});
     }
     for (const k in game.seats||{}){ const s2=game.seats[k];

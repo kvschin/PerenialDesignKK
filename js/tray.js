@@ -1450,7 +1450,7 @@ const TOOL_SEARCH={
   light:  {label:'Lighting',kind:'dropper',
            hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
   pot:    {label:'Container',kind:'fill',
-           hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor'},
+           hay:'pot pots container containers planter urn trough terracotta glazed cast stone timber galvanised patio courtyard balcony terrace decor colour color charcoal black white cream blue green teal cobalt copper corten'},
   pet:    {label:'Garden Pet',kind:'fill',
            hay:'pet pets cat dog animal ornament decor coat marking socks paws'},
   building:{label:'Building Footprint',kind:'building',
@@ -3286,6 +3286,7 @@ function buildToolTrayInner(){
       b.dataset.k='pot';
       if (draftPatch.style!==undefined) b.dataset.potStyle=draftPatch.style;
       if (draftPatch.size!==undefined) b.dataset.potSize=draftPatch.size;
+      if (draftPatch.finish!==undefined) b.dataset.potFinish=draftPatch.finish;
       if (draftPatch.face!==undefined) b.dataset.potFace=String(draftPatch.face);
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniPot(c.getContext('2d'),normalizePotDraft(Object.assign({},cd,draftPatch)));
@@ -3301,6 +3302,13 @@ function buildToolTrayInner(){
       sep('Size');
       potStyleSizes(cd.style).forEach(sz=>toolBtn(sz.label, cd.size===sz.id, {size:sz.id},
         `${sz.label} across, ${sz.hIn} in tall`));
+      /* Only the colours this vessel is really made in, its own natural finish
+         first — the water feature's rule (§12d), and the reason a terracotta
+         pot is not offered in cobalt. Every chip paints the real thing, so the
+         swatch IS the colour rather than a label for it. */
+      sep('Colour');
+      potStyleFinishes(cd.style).forEach(f=>toolBtn(f.label, cd.finish===f.id, {finish:f.id},
+        `${f.label} ${(potStyle(cd.style).short||'').toLowerCase()}`.trim()));
       // only a trough has a long axis to point
       if (potTileSize(cd).w!==potTileSize(cd).h){
         sep('Facing');
@@ -3507,7 +3515,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (k==='support') hay+=' hardscape support trellis obelisk arch arbor climber vine frame '+SUPPORT_STYLES.map(s=>s.label).join(' ')+' '+SUPPORT_MATERIALS.map(m=>m.label).join(' ');
     if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
-    if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ');
+    if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace colour color '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ')+' '+POT_FINISHES.map(f=>f.label).join(' ');
     if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
     if (k==='pet') hay+=' decor pet cat dog animal ornament socks paws feet '+PET_COATS.map(c2=>c2.label).join(' ')+' '+PET_MARKS.map(m2=>m2.label).join(' ')+' '+PET_PAWS.map(p2=>p2.label).join(' ');

@@ -1464,16 +1464,28 @@ function plantOffset(p){
   return {ox:Number.isFinite(ox)?ox:0, oy:Number.isFinite(oy)?oy:0};
 }
 function plantScreenOf(x,y,p,W,H){
+  /* A plant standing in a container stands on the COMPOST, in the middle of the
+     vessel — not on the ground, and not on its own origin tile. This is the one
+     choke point the plant AND bulb passes share, so both are decided here and a
+     pot of tulips and a pot of sedge cannot disagree.
+
+     Centre first, because a vessel wider than a tile is centred on its whole
+     footprint (groundCenterRot) while its planting is recorded on the origin
+     tile: a 30 in pot and both troughs are 2-3 tiles long, so the plant stood
+     half a tile — a whole tile for the 54 in trough — beside the pot it was
+     supposed to be in. Ask groundCenterRot rather than re-deriving the midpoint,
+     so the two can only ever agree; it returns the ground centre including the
+     TILE_H/2 every caller here adds back, so take that off again. */
+  const pot=typeof potAt==='function' && potAt(x,y);
+  if (pot){
+    const s2=groundCenterRot(pot.x,pot.y,potTileSize(pot),W,H);
+    s2[1]-=TILE_H/2+potSoilLiftPx(pot);
+    return s2;
+  }
   // the offset read inline: plantOffset allocates an object, and this runs once
   // per drawn plant per frame
   const ox=Number(p&&p.ox), oy=Number(p&&p.oy);
-  const s=screenOf(x+(Number.isFinite(ox)?ox:0), y+(Number.isFinite(oy)?oy:0), W, H);
-  /* A plant standing in a container starts at the rim, not the ground. This is
-     the one choke point the plant AND bulb passes share, so lifting here is
-     what keeps a pot of tulips and a pot of sedge agreeing. */
-  const pot=typeof potAt==='function' && potAt(x,y);
-  if (pot) s[1]-=potLiftPx(pot);   // s is screenOf's own fresh array (see there)
-  return s;
+  return screenOf(x+(Number.isFinite(ox)?ox:0), y+(Number.isFinite(oy)?oy:0), W, H);
 }
 function isHedgePlant(p){
   const D=p && plantDef(p.s,p.v);
@@ -1590,6 +1602,16 @@ function footprintDrawDepth(x,y,w,h){
 }
 function houseDrawDepth(h){
   return footprintDrawDepth(h.x,h.y,h.w,h.h)+0.05;
+}
+/* The depth a POTTED plant sorts from: its vessel's footprint, not its own
+   tile. A container wider than a tile records its planting on the origin tile,
+   so a plant in a 3-tile trough sorted a whole tile in front of the far end of
+   the very thing it is standing in — the trellis-leg bug (§12e) in a second
+   costume. The vessel itself sits a little behind this, so the foliage always
+   draws over the rim. */
+function potPlantDepth(pot){
+  const sz=potTileSize(pot);
+  return footprintDrawDepth(pot.x,pot.y,sz.w,sz.h);
 }
 function isoDiamondPath(ctx,sx,sy,inset){
   const i=inset||0, hw=TILE_W/2-i, hh=TILE_H/2-i*0.5, cy=sy+TILE_H/2;

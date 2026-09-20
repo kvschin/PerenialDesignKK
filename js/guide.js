@@ -500,7 +500,7 @@ function gsDrawProp(ctx,st,p){
     case 'fence': return gsDrawFence(ctx,st,p);
     case 'pot':{
       const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
-      return drawPotArt(ctx,cx,cy,{style:p.style,size:p.size,face:p.face|0},season,axes);
+      return drawPotArt(ctx,cx,cy,{style:p.style,size:p.size,finish:p.finish,face:p.face|0},season,axes);
     }
     case 'seat':{
       const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
@@ -587,20 +587,24 @@ function gsPropDepth(st,p){
   const sz=gsPropSize(p);
   const far=Math.max(gsDepth(st,p.x,p.y),gsDepth(st,p.x+sz.w-1,p.y),
                      gsDepth(st,p.x,p.y+sz.h-1),gsDepth(st,p.x+sz.w-1,p.y+sz.h-1));
-  return far+(p.kind==='pot'?0.30:p.kind==='support'?0.30:0.375);
+  return far+(p.kind==='pot'?0.24:p.kind==='support'?0.30:0.375);
 }
 function gsPaintEntities(ctx,st,sway){
   const ents=[];
   Object.keys(st.plants).forEach(k=>{
     const p=st.plants[k]; if (!p||p.g<=0.02) return;
     const [x,y]=k.split(',').map(Number);
-    ents.push({d:gsDepth(st,x,y)+0.30, draw:()=>{
-      const [sx,sy]=gsProject(st,x+(p.ox||0),y+(p.oy||0));
-      /* A plant standing in a container starts at the RIM, not the ground —
-         plantScreenOf's one lift, and what keeps a pot of tulips and a pot of
-         sedge agreeing about where soil level is. */
-      const pot=st.props.find(q=>q.kind==='pot'&&q.x===x&&q.y===y);
-      const lift=pot?potLiftPx({size:potSizeFor(pot.style,pot.size)}):0;
+    /* A plant standing in a container stands on the COMPOST, in the middle of
+       the vessel — plantScreenOf's own two moves, and what keeps a pot of
+       tulips and a pot of sedge agreeing about where soil level is. The vessel
+       sorts behind it (gsPropDepth), so the foliage draws over its own rim. */
+    const pot=st.props.find(q=>q.kind==='pot'&&q.x===x&&q.y===y);
+    ents.push({d:(pot?gsPropDepth(st,pot)-0.24:gsDepth(st,x,y))+0.30, draw:()=>{
+      let px=x+(p.ox||0), py=y+(p.oy||0), lift=0;
+      if (pot){ const sz=gsPropSize(pot);
+        px=pot.x+(sz.w-1)/2; py=pot.y+(sz.h-1)/2;
+        lift=potSoilLiftPx({style:pot.style,size:pot.size}); }
+      const [sx,sy]=gsProject(st,px,py);
       ctx.save(); if (p.alpha!==undefined) ctx.globalAlpha=p.alpha;
       /* bloomLvl 1, the way tray icons and library previews force it. Left
          undefined, drawPlant falls through to bloomLevel(), which resolves

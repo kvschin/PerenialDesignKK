@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.97';
+const APP_VERSION = '0.8.98';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1338,16 +1338,61 @@ function normalizePetDraft(d){
    Style and size are independent the way a fence's material and height are, so
    terracotta comes in every size rather than each combination being its own
    row. `hIn` is a real height and the pot draws through PX_PER_FT (§11d); its
-   rim is what lifts the plant's draw anchor. `form` names the silhouette the
-   way a plant names its `form` — one painter, no per-style branches. */
+   SOIL is what lifts the plant's draw anchor (potSoilLiftPx). `form` names the
+   silhouette the way a plant names its `form` — one painter, no per-style
+   branches. */
 const POT_STYLES = [
-  {id:'terracotta', label:'Terracotta',   short:'Terracotta', form:'taper',  body:'#b4633f', rim:'#c97a53', soil:'#4a3a2a'},
-  {id:'glazed',     label:'Glazed Blue',  short:'Glazed',     form:'belly',  body:'#3f6f86', rim:'#54889e', soil:'#4a3a2a'},
-  {id:'concrete',   label:'Cast Stone',   short:'Stone',      form:'square', body:'#9a9789', rim:'#aeab9d', soil:'#4a3a2a'},
-  {id:'timber',     label:'Timber Box',   short:'Timber',     form:'crate',  body:'#7d6142', rim:'#96774f', soil:'#4a3a2a'},
-  {id:'metal',      label:'Galvanised',   short:'Metal',      form:'tub',    body:'#8e949a', rim:'#a9afb5', soil:'#4a3a2a'},
-  {id:'urn',        label:'Classical Urn',short:'Urn',        form:'urn',    body:'#8b8478', rim:'#a09889', soil:'#4a3a2a'},
-  {id:'trough',     label:'Long Trough',  short:'Trough',     form:'trough', body:'#8a8175', rim:'#9d9488', soil:'#4a3a2a', sizes:['trough36','trough54']},
+  {id:'terracotta', label:'Terracotta',   short:'Terracotta', form:'taper',  body:'#b4633f', rim:'#c97a53', soil:'#4a3a2a',
+    natural:'Terracotta', finishes:['aged','whitewash','charcoal','sage']},
+  {id:'glazed',     label:'Glazed Blue',  short:'Glazed',     form:'belly',  body:'#3f6f86', rim:'#54889e', soil:'#4a3a2a',
+    natural:'Blue', finishes:['green','teal','cobalt','oxblood','honey','cream','charcoal']},
+  {id:'concrete',   label:'Cast Stone',   short:'Stone',      form:'square', body:'#9a9789', rim:'#aeab9d', soil:'#4a3a2a',
+    natural:'Grey', finishes:['charcoal','buff','slate','sage']},
+  {id:'timber',     label:'Timber Box',   short:'Timber',     form:'crate',  body:'#7d6142', rim:'#96774f', soil:'#4a3a2a',
+    natural:'Oak', finishes:['driftwood','forest','black','slate']},
+  {id:'metal',      label:'Galvanised',   short:'Metal',      form:'tub',    body:'#8e949a', rim:'#a9afb5', soil:'#4a3a2a',
+    natural:'Zinc', finishes:['black','copper','corten','forest']},
+  {id:'urn',        label:'Classical Urn',short:'Urn',        form:'urn',    body:'#8b8478', rim:'#a09889', soil:'#4a3a2a',
+    natural:'Stone', finishes:['lead','verdigris','whitewash','charcoal']},
+  {id:'trough',     label:'Long Trough',  short:'Trough',     form:'trough', body:'#8a8175', rim:'#9d9488', soil:'#4a3a2a',
+    natural:'Stone', sizes:['trough36','trough54'], finishes:['charcoal','corten','driftwood','sage']},
+];
+/* ---------- pot colour ----------
+   What a vessel is finished in, as a third axis rather than more rows above: a
+   style is the SHAPE (one `form`, one painter), so seven forms times a handful
+   of colours is far more range than seven more near-duplicate styles, and it is
+   the axis SEAT_FINISHES and WATER_FINISHES already set.
+
+   Two rules carried over from those, both load-bearing. A style names the
+   finishes that vessel is really MADE in, in its own order (the water feature's
+   rule, §12d) — terracotta does not come in cobalt — so this table is the
+   palette and the style is the menu. And a style's OWN body/rim stay on the
+   style as its natural finish: it is the first chip, it is what `finish:''`
+   means, and it is what a garden that saved no finish at all comes back as.
+   That is also why there is no stone entry here duplicating cast stone's grey
+   to three decimals — three indistinguishable swatches in the picker would cost
+   more than the tidiness bought. `rim` is always the lighter tone, because
+   drawPotArt strokes the mouth with it. */
+const POT_FINISHES = [
+  {id:'aged',      label:'Aged',      body:'#a8836a', rim:'#bc9a80'},
+  {id:'whitewash', label:'Whitewash', body:'#d6cec0', rim:'#e6e0d5'},
+  {id:'cream',     label:'Cream',     body:'#d9cfb5', rim:'#e7decb'},
+  {id:'buff',      label:'Buff',      body:'#b8ab90', rim:'#c9bda4'},
+  {id:'honey',     label:'Honey',     body:'#b4863c', rim:'#c79e58'},
+  {id:'oxblood',   label:'Oxblood',   body:'#7d3230', rim:'#97463f'},
+  {id:'copper',    label:'Copper',    body:'#9a5a34', rim:'#b57347'},
+  {id:'corten',    label:'Corten',    body:'#8a4a2c', rim:'#a3603b'},
+  {id:'sage',      label:'Sage',      body:'#7d8b73', rim:'#94a189'},
+  {id:'green',     label:'Green',     body:'#4a7a52', rim:'#5f9166'},
+  {id:'forest',    label:'Forest',    body:'#3c5440', rim:'#506a52'},
+  {id:'verdigris', label:'Verdigris', body:'#5d8070', rim:'#779783'},
+  {id:'teal',      label:'Teal',      body:'#2f6f6b', rim:'#438a84'},
+  {id:'cobalt',    label:'Cobalt',    body:'#34538e', rim:'#4c6daa'},
+  {id:'slate',     label:'Slate',     body:'#5f6a72', rim:'#77828a'},
+  {id:'lead',      label:'Lead',      body:'#6a6e72', rim:'#83878b'},
+  {id:'driftwood', label:'Driftwood', body:'#9a9183', rim:'#ada596'},
+  {id:'charcoal',  label:'Charcoal',  body:'#4b4b4d', rim:'#5f5f62'},
+  {id:'black',     label:'Black',     body:'#2c2b2e', rim:'#434246'},
 ];
 /* Real diameters. Everything up to 24in claims a single tile — a tile is 18
    inches, so a big pot overhangs its own tile the way a shrub's canopy does,
@@ -1380,16 +1425,45 @@ function potTileSize(d){
   return normalizeFacing(d&&d.face)%2 ? {w:1,h:w} : {w,h:1};
 }
 function potStyleId(id){ return potStyle(id).id; }
+function potFinishDef(id){ return POT_FINISHES.find(f=>f.id===id)||null; }
+// the finishes a vessel is really made in, natural first — '' IS the natural one
+function potStyleFinishes(styleId){
+  const st=potStyle(styleId);
+  return [{id:'', label:st.natural||st.short||st.label, body:st.body, rim:st.rim}]
+    .concat((st.finishes||[]).map(potFinishDef).filter(Boolean));
+}
+/* Snaps rather than resets when the style changes, the way fenceHeightFor and
+   waterFinishFor do: a charcoal pot switched from terracotta to cast stone
+   stays charcoal, and one switched to a vessel that is not made in its colour
+   falls back to that vessel's own natural finish. */
+function potFinishFor(styleId,finishId){
+  return potStyleFinishes(styleId).some(f=>f.id===finishId) ? (finishId||'') : '';
+}
+// the two colours drawPotArt paints with, for any vessel
+function potColors(d){
+  const id=potFinishFor(d&&d.style, d&&d.finish);
+  const f=potStyleFinishes(potStyleId(d&&d.style)).find(x=>x.id===id), st=potStyle(d&&d.style);
+  return f ? {body:f.body, rim:f.rim} : {body:st.body, rim:st.rim};
+}
 function normalizePotDraft(d){
   d=d&&typeof d==='object'?d:{};
   const style=potStyleId(d.style);
   // only a trough is directional, but carrying the field for every vessel keeps
   // one placement path rather than two
-  return {style, size:potSizeFor(style,d.size), face:normalizeFacing(d.face)};
+  return {style, size:potSizeFor(style,d.size), finish:potFinishFor(style,d.finish),
+    face:normalizeFacing(d.face)};
+}
+/* What this vessel is CALLED. The natural finish keeps the style's own name, so
+   nothing a gardener already owns is renamed; a colour names itself in front of
+   the shape, which is how anyone would say it out loud. */
+function potVesselName(d){
+  d=normalizePotDraft(d);
+  const st=potStyle(d.style), f=d.finish&&potFinishDef(d.finish);
+  return f ? `${f.label} ${(st.short||st.label).toLowerCase()}` : st.label;
 }
 function potLabelFor(d){
   d=normalizePotDraft(d);
-  return `${potSizeDef(d.size).label} ${potStyle(d.style).label.toLowerCase()}`;
+  return `${potSizeDef(d.size).label} ${potVesselName(d).toLowerCase()}`;
 }
 
 /* ---------- seating ----------

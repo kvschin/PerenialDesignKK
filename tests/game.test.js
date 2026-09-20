@@ -4440,6 +4440,128 @@ test('lifting a pot takes its planting with it', () => {
     'no orphan left standing in mid-air breaking the spacing it was exempt from');
 });
 
+/* The plant was drawn on its own TILE and lifted 0.86 of the vessel's height —
+   so it stood part-way down the flank of a pot whose centre it was not even on
+   once that pot was wider than a tile. Measured by ablation in a browser (render
+   the pot, render pot+plant, diff): 22% of the plant showed in a 10 in pot, 3
+   PIXELS in an 18 in one and NOTHING at all in a 24 or 30 in one. Both halves
+   of that are arithmetic, so both are pinned here. */
+test('a potted plant stands on its own compost, in the middle of the pot', () => {
+  setup(31, 31);
+  const forb = firstOfType('forb');
+  const cases = [['terracotta', 'p18'], ['terracotta', 'p30'], ['trough', 'trough54']];
+  for (const rot of [0, 1, 2, 3]) {
+    game.rot = rot;
+    for (const [style, size] of cases) {
+      game.plants = {}; game.pots = {};
+      game.tool = 'pot'; game.potDraft = { style, size, face: 0 };
+      assertEqual(applyToolAt(12, 12), 'pot', `${style} ${size} places at rot ${rot}`);
+      game.tool = forb;
+      assertEqual(applyToolAt(12, 12), 'plant', 'and takes a plant');
+      const pot = potAt(12, 12), sz = potTileSize(pot);
+      /* The vessel's own ground centre, through the function drawPot uses — ask
+         it rather than re-deriving the midpoint, or the two can drift. */
+      const [gx, gy] = groundCenterRot(12, 12, sz, 800, 600);
+      const [px, py] = plantScreenOf(12, 12, game.plants['12,12'], 800, 600);
+      const base = py + TILE_H / 2;             // what every caller adds back
+      assertEqual(px, gx, `${style} ${size} rot ${rot}: the plant is centred on the vessel`);
+      assertEqual(base, gy - potSoilLiftPx(pot),
+        `${style} ${size} rot ${rot}: and stands on the soil, not part-way down the flank`);
+    }
+  }
+  game.rot = 0;
+  // the lift IS the drawn height: drawPotArt puts the soil at cy - that
+  assertEqual(potSoilLiftPx({ style: 'terracotta', size: 'p24' }), feetToPx(21 / 12),
+    'the lift is the vessel’s real height in feet, through the built-height scale');
+  assertEqual(potSoilLiftPx(null), 0, 'and nothing lifts a plant that is not in a pot');
+});
+
+test('a pot sorts behind the planting standing in it', () => {
+  /* Both sat at viewDepth+0.30. Equal depths, and a stable sort hands the tie
+     to whichever pass pushed last — which is the pot's — so the vessel painted
+     over its own plant. Read the depths off a built scene rather than restating
+     the constants, the way the climber test does, and check a multi-tile vessel
+     at every rotation: a plant recorded on the origin tile of a 3-tile trough
+     sorted a whole tile in front of the far end of the thing it stands in. */
+  setup(31, 31);
+  const forb = firstOfType('forb'), bulb = firstOfType('bulb');
+  for (const rot of [0, 1, 2, 3]) {
+    game.rot = rot;
+    for (const [style, size] of [['terracotta', 'p18'], ['trough', 'trough54']]) {
+      game.plants = {}; game.bulbs = {}; game.pots = {};
+      game.tool = 'pot'; game.potDraft = { style, size, face: 0 };
+      applyToolAt(12, 12);
+      game.tool = forb; applyToolAt(12, 12);
+      game.tool = bulb; applyToolAt(12, 12);
+      game.sceneRev++; buildScene(800, 600);
+      const at = kind => scene.ents.find(e => e.kind === kind && e.x === 12 && e.y === 12);
+      const pot = at(SCENE_K.POT), plant = at(SCENE_K.PLANT), bu = at(SCENE_K.BULB);
+      assert(pot && plant && bu, `${size} rot ${rot}: vessel, plant and bulb are all in the scene`);
+      assert(plant.d > pot.d, `${size} rot ${rot}: the plant draws after its vessel`);
+      assert(bu.d > pot.d, `${size} rot ${rot}: and so does the bulb`);
+      assert(plant.d > bu.d, `${size} rot ${rot}: the bulb still sits behind the perennial`);
+    }
+  }
+  game.rot = 0;
+});
+
+test('a pot comes in the colours that vessel is really made in', () => {
+  setup(21, 21);
+  const hex = /^#[0-9a-f]{6}$/;
+  POT_STYLES.forEach(st => {
+    const list = potStyleFinishes(st.id);
+    assert(list.length > 1, `${st.id} offers a colour beyond its own`);
+    assertEqual(list[0].id, '', `${st.id} leads with its natural finish`);
+    /* The back-compatibility guarantee: the natural finish IS the style's own
+       body/rim, so a garden saved before colours existed comes back unchanged
+       rather than merely similar. Comparing the two against each other only
+       proves they move together — the colours a garden was SAVED with are
+       pinned literally below, which is the half that can actually fail. */
+    assertEqual(list[0].body, st.body, `${st.id}'s natural finish is its own body colour`);
+    assertEqual(list[0].rim, st.rim, `${st.id}'s natural finish is its own rim colour`);
+    list.forEach(f => {
+      assert(hex.test(f.body) && hex.test(f.rim), `${st.id}/${f.id || 'natural'} names real colours`);
+      assert(f.label, `${st.id}/${f.id || 'natural'} has a name to put on a chip`);
+      assertEqual(potFinishFor(st.id, f.id), f.id, `${st.id} keeps ${f.id || 'its own'} finish`);
+    });
+    (st.finishes || []).forEach(id => assert(potFinishDef(id), `${st.id} names a real finish (${id})`));
+  });
+  /* The colours every pot in every saved garden is already painted. Adding a
+     finish must not repaint them, so these are pinned to the literal values
+     rather than to the table that would move with the change. */
+  const shipped = { terracotta: '#b4633f|#c97a53', glazed: '#3f6f86|#54889e',
+    concrete: '#9a9789|#aeab9d', timber: '#7d6142|#96774f', metal: '#8e949a|#a9afb5',
+    urn: '#8b8478|#a09889', trough: '#8a8175|#9d9488' };
+  assertEqual(Object.keys(shipped).length, POT_STYLES.length,
+    'every vessel is accounted for (a new one needs its own line here)');
+  Object.keys(shipped).forEach(id => {
+    const c = potColors({ style: id });   // no finish field at all: a pre-colour save
+    assertEqual(`${c.body}|${c.rim}`, shipped[id], `${id} is painted exactly as it always was`);
+  });
+  // a colour a vessel is not made in falls back to that vessel's own
+  assertEqual(potFinishFor('terracotta', 'cobalt'), '', 'terracotta does not come in cobalt');
+  const nat = potColors({ style: 'terracotta', size: 'p18', finish: 'cobalt' });
+  assertEqual(nat.body, potStyle('terracotta').body, 'so it paints as plain terracotta');
+  // and one it IS made in changes what gets painted
+  assertEqual(potColors({ style: 'glazed', finish: 'cobalt' }).body, potFinishDef('cobalt').body,
+    'a cobalt glazed jar is cobalt');
+  // a saved garden with no finish at all is untouched
+  assertEqual(normalizePotDraft({ style: 'glazed', size: 'p24' }).finish, '',
+    'a pot saved before colours existed has the natural one');
+  // the name follows, and only when there is something to say
+  assertEqual(potVesselName({ style: 'glazed', size: 'p24', finish: '' }), 'Glazed Blue',
+    'the natural finish keeps the vessel’s own name');
+  assertEqual(potVesselName({ style: 'glazed', size: 'p24', finish: 'cobalt' }), 'Cobalt glazed',
+    'and a colour names itself in front of the shape');
+  // colour is part of what you order, so it is its own line on the planting list
+  game.pots = {};
+  setTile('pots', '4,4', { style: 'glazed', size: 'p24', finish: '', face: 0, t: 1 });
+  setTile('pots', '6,4', { style: 'glazed', size: 'p24', finish: 'cobalt', face: 0, t: 1 });
+  const rows = hardscapeRows().filter(r => r.kind === 'Container');
+  assertEqual(rows.length, 2, 'two colours of one vessel are two things to buy');
+  assert(rows.some(r => /Cobalt/.test(r.name)), 'and the list says which is which');
+});
+
 test('seating claims a real footprint and keeps plants out of it', () => {
   setup(21, 21);
   game.tool = 'seat'; game.seatDraft = { type: 'bench6', finish: 'teak' };

@@ -722,8 +722,13 @@ function potFootprint(x,y,p){
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
   return tiles;
 }
-// how far a pot's rim lifts the plant standing in it, in screen px
-function potLiftPx(p){ return p ? Math.round(potSizeDef(p.size).hIn/12*PX_PER_FT*0.86) : 0; }
+/* How far a vessel's centre can pull its planting off its own origin tile, in
+   TILES: a trough is three tiles long, so the plant stands a whole tile away.
+   The cull box has to allow for it (renderer.js) — plantScreenOf moves the
+   drawing and setEntScreenBounds boxes the record's own tile. */
+function potCentreMaxTiles(){
+  return Math.max(...POT_SIZES.map(s=>(Math.max(1,Math.round(s.wIn/TILE_IN))-1)/2));
+}
 function canPlacePot(x,y,ignoreKey){
   const d=potDraft(), sz=potTileSize(d);
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;

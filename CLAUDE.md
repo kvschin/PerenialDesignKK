@@ -2754,7 +2754,56 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Seven vessels — terracotta, glazed, cast stone, timber, galvanised, urn and a
     multi-tile trough — with `form` naming the silhouette the way a plant names
     its `form`. Everything to 30 in claims ONE tile and overhangs it the way a
-    shrub canopy does; only the troughs take a multi-tile footprint.
+    shrub canopy does; only the troughs take a multi-tile footprint (a 30 in pot
+    is 2x1, the troughs 2x1 and 3x1 — the `w` from `potTileSize`, not the
+    diameter).
+    **The plant has to be IN the pot, and for eleven months it was not.**
+    `plantScreenOf` is the one choke point the plant and bulb passes share, so
+    both moves live there: the plant is centred on the vessel's own ground
+    centre (`groundCenterRot`, the function `drawPot` positions itself with —
+    asked rather than re-derived, so the two cannot drift) and lifted by
+    `potSoilLiftPx`, which is the vessel's drawn height, i.e. exactly where
+    `drawPotArt` puts the soil (`cy-hh` for a round form, `isoSlab`'s top face
+    for a boxy one). Two separate defects compounded: the lift was **0.86** of
+    that, anchoring the plant part-way down the flank, and the vessel sorted at
+    `viewDepth+0.30` — **the plant's own depth**, and a stable sort hands a tie
+    to whichever pass pushed last, which is the pot's — so the pot painted over
+    its planting. Measured by ablation in a browser (render the pot, render
+    pot+plant, diff): **22% of the plant visible in a 10 in pot, 3 PIXELS in an
+    18 in one, and NOTHING AT ALL in a 24 or 30 in one.** After: 97-100% at
+    every size, centred to ≤1px, at all four rotations. Note that fixing only
+    the lift would have hidden the plant slightly higher up — it needed both.
+    The vessel is now `footprintDrawDepth+0.24`, which also clears the bulb
+    layer at +0.25, and **a potted plant or bulb takes its depth from the
+    VESSEL'S footprint** (`potPlantDepth`) rather than its own tile: a plant
+    recorded on the origin tile of a 3-tile trough sorted a whole tile in front
+    of the far end of the thing it stands in, which is the trellis-leg bug of
+    §12e in a second costume. The cull box carries `POT_LIFT_MAX` and
+    `POT_CENTRE_MAX` for both moves, charged to every plant rather than only to
+    potted ones — ~40px against a pad in the hundreds, and a box that depends on
+    a second layer is a box that goes stale when that layer moves without this
+    one. Nothing else can share a pot's tile (`canPlacePot` refuses every other
+    placeable), so 0.24 is unreachable by anything but its own planting. The
+    guide stage carries the identical pair (`gsPropDepth`, `gsPaintEntities`) —
+    its containers demo was drawing the same wrong picture.
+    **Colour is a third axis, not more styles** (`POT_FINISHES`,
+    `potStyleFinishes`, `potFinishFor`, `potColors`): a style is the SHAPE, so
+    seven forms times a handful of colours is far more range than seven more
+    near-duplicate rows, and it is the axis `SEAT_FINISHES` and
+    `WATER_FINISHES` already set. A style names the finishes that vessel is
+    really MADE in, **in its own order** (§12d's rule — terracotta does not come
+    in cobalt), and `potFinishFor` snaps rather than resets the way
+    `fenceHeightFor` does. The style's own `body`/`rim` stay on the style as its
+    **natural** finish: it is the first chip, it is what `finish:''` means, and
+    it is what a garden saved before colours existed comes back as — which is
+    also why there is no stone entry in the table duplicating cast stone's grey
+    to three decimals, since three indistinguishable swatches in the picker
+    would cost more than the tidiness bought. A test pins the seven shipped
+    colours LITERALLY, because asserting the natural finish equals the style's
+    own field only proves the two move together. `drawPotArt` reads `potColors`
+    and never the style directly; the finish rides the record, so
+    `structRecordSig` puts it in the sprite key for free, the eyedropper picks
+    it up, and the planting list bills each colour as its own order line.
     **Both pots and seating draw at real size**, and the geometry has two traps
     worth not rediscovering. The tile diamond is `TILE_W` wide but a tile is
     `TILE_IN` inches on a SIDE, so that width spans the tile's DIAGONAL — sizing
