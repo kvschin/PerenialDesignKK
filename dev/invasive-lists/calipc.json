@@ -1,0 +1,2653 @@
+{
+ "source": "calipc",
+ "label": "California Invasive Plant Inventory (Cal-IPC)",
+ "region": "north-america",
+ "url": "https://www.cal-ipc.org/plants/inventory/",
+ "retrieved": "2026-09-21",
+ "count": 331,
+ "entries": [
+  {
+   "name": "Acacia baileyana",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Acacia cyclops",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Acacia dealbata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Acacia longifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Acacia melanoxylon",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Acacia paradoxa",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Acacia pycnantha",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Acacia saligna",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Acaena novae-zelandiae",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Aegilops cylindrica",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Aegilops triuncialis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ageratina adenophora",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Agrostis avenacea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Agrostis stolonifera",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ailanthus altissima",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Alhagi maurorum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Alliaria petiolata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Alopecurus pratensis",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Alternanthera philoxeroides",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Alyssum corsicum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Alyssum murale",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Ambrosia trifida",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Ammophila arenaria",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Anthoxanthum odoratum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Araujia sericifera",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Arctotheca calendula",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Arctotheca prostrata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Arum italicum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Arundo donax",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Asparagus setaceus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Asparagus aethiopicus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Asparagus asparagoides",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Asphodelus fistulosus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Atriplex semibaccata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Avena barbata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Avena fatua",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Bassia hyssopifolia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Bellardia trixago",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Berberis darwinii",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Berteroa incana",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Brachypodium distachyon",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Brachypodium sylvaticum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Brassica nigra",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Brassica rapa",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Brassica tournefortii",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Briza maxima",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Bromus diandrus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Bromus hordeaceus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Bromus japonicus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Bromus madritensis ssp. rubens",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Bromus tectorum",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Buddleja davidii",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cakile maritima",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Carduus acanthoides",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Carduus nutans",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Carduus pycnocephalus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Carduus tenuiflorus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Carex pendula",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Carpobrotus chilensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Carpobrotus edulis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Carrichtera annua",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Carthamus lanatus",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Casuarina equisetifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Catharanthus roseus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cenchrus echinatus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Cenchrus longispinus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Centaurea calcitrapa",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea diffusa",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea diluta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Centaurea jacea ssp. pratensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea melitensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea solstitialis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea stoebe ssp. australis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Centaurea virgata ssp. squarrosa",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cestrum parqui",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Chasmanthe floribunda",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Chondrilla juncea",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Chrysanthemoides monilifera ssp. monilifera",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cirsium arvense",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cirsium vulgare",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Clematis vitalba",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Colocasia esculenta",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Conicosia pugioniformis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Conium maculatum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cortaderia jubata",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cortaderia selloana",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cotoneaster franchetii",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cotoneaster lacteus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cotoneaster pannosus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cotula coronopifolia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Crataegus monogyna",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Crocosmia x crocosmiiflora",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Crupina vulgaris",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Cuscuta japonica",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Cynara cardunculus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cynodon dactylon",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cynoglossum officinale",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cynosurus echinatus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cytisus multiflorus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Cytisus proliferus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Cytisus scoparius",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Cytisus striatus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Dactylis glomerata",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Datura inoxia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Delairea odorata",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Descurainia sophia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Digitalis purpurea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Dipogon lignosus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Dipsacus fullonum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Dipsacus laciniatus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Dipsacus sativus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Dittrichia graveolens",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Dittrichia viscosa",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Echium candicans",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Echium plantagineum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Egeria densa",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ehrharta calycina",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ehrharta erecta",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ehrharta longiflora",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Eichhornia crassipes",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Elaeagnus angustifolia",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Elymus caput-medusae",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Emex spinosa",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Eragrostis echinochloidea",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Erica lusitanica",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Erodium cicutarium",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Eucalyptus camaldulensis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Eucalyptus cladocalyx",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Eucalyptus globulus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Euphorbia lathyris",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Euphorbia myrsinites",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Euphorbia oblongata",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Euphorbia terracina",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Euphorbia virgata",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Fallopia ×bohemica",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Fallopia japonica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Fallopia sachalinensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Festuca arundinacea",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Festuca myuros",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Festuca perennis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ficus carica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Foeniculum vulgare",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Galega officinalis",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Galenia pubescens",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Gazania linearis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Genista linifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Genista monosperma",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Genista monspessulana",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Geranium dissectum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Geranium lucidum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Geranium purpureum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Glebionis coronaria",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Glyceria declinata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Grevillea robusta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Gunnera tinctoria",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Gypsophila paniculata",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Halogeton glomeratus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hedera canariensis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hedera helix",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Helianthus tuberosus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Helichrysum petiolare",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Heliotropium amplexicaule",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Helminthotheca echioides",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Heracleum mantegazzianum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Hieracium aurantiacum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hirschfeldia incana",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Holcus lanatus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hordeum marinum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hordeum murinum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hydrilla verticillata",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hyparrhenia hirta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Hypericum androsaemum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hypericum canariense",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hypericum grandifolium",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Hypericum perforatum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Hypochaeris glabra",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Hypochaeris radicata",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ilex aquifolium",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Impatiens glandulifera",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ipomoea indica",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Iris pseudacorus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Isatis tinctoria",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Kniphofia uvaria",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Kochia scoparia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lantana camara",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lathyrus latifolius",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lepidium chalepense",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lepidium draba",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lepidium latifolium",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Leptospermum laevigatum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Leucanthemum vulgare",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ligustrum lucidum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Limnobium spongia",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Limonium duriusculum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Limonium ramosissimum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Linaria dalmatica ssp. dalmatica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Linaria vulgaris",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lobularia maritima",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ludwigia hexapetala",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ludwigia peploides",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lythrum hyssopifolia",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lythrum junceum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Lythrum salicaria",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Malephora crocea",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Marrubium vulgare",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Maytenus boaria",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Medicago polymorpha",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Melia azedarach",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Melinis repens",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Mentha pulegium",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Mesembryanthemum crystallinum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Mesembryanthemum nodiflorum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Myoporum laetum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Myosotis latifolia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Myriophyllum aquaticum",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Myriophyllum spicatum",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Nardus stricta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Nassella tenuissima",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Nassella trichotoma",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Nicotiana glauca",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Nothoscordum gracile",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Olea europaea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Oncosiphon pilulifer",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ononis alopecuroides",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Onopordum acanthium",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Onopordum illyricum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Orobanche aegyptiaca",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Osteospermum calendulaceum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Oxalis pes-caprae",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Paraserianthes lophantha",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Parentucellia viscosa",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Parthenium hysterophorus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Paspalum urvillei",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Paspalum vaginatum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Passiflora tarminiana",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Peganum harmala",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pennisetum ciliare",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pennisetum clandestinum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pennisetum setaceum",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pennisetum villosum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Persicaria wallichii",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Phalaris aquatica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Phoenix canariensis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Phytolacca americana",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pittosporum undulatum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Plantago lanceolata",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Plecostachys serpyllifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Poa pratensis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Polygala myrtifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Polypogon monspeliensis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Potamogeton crispus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Potentilla recta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Prunus cerasifera",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pulicaria paludosa",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Pyracantha angustifolia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pyracantha coccinea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pyracantha crenulata",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Pyrus calleryana",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Ranunculus repens",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Raphanus sativus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Rhamnus alaternus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Rhaponticum repens",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ricinus communis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Robinia pseudoacacia",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Romulea rosea var. australis",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Rubus armeniacus",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Rumex acetosella",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Rumex crispus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Rytidosperma caespitosum",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Rytidosperma penicillatum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Saccharum ravennae",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Salpichroa origanifolia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Salsola paulsenii",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Salsola ryanii",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Salsola soda",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Salsola tragus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Salvia aethiopis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Salvinia molesta",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Saponaria officinalis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Scabiosa atropurpurea",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Schinus molle",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Schinus terebinthifolia",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Schismus arabicus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Schismus barbatus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Scolymus hispanicus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Senecio angulatus",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Senecio elegans",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Senecio glomeratus",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Senecio jacobaea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Senecio linearifolius",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Sesbania punicea",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Silybum marianum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Sinapis arvensis",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Sisymbrium irio",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Solanum aviculare",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Solanum carolinense",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Spartina alterniflora x S. foliosa",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Spartina anglica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Spartina densiflora",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Spartina patens",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Spartium junceum",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Sphaerophysa salsula",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Stipa brachychaeta",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Stipa capensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Stipa manicata",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Stipa miliacea var. miliacea",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Tamarix aphylla",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Tamarix chinensis",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Tamarix gallica",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Tamarix parviflora",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Tamarix ramosissima",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Tanacetum vulgare",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Tetragonia tetragonioides",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Thinopyrum junceiforme",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Torilis arvensis",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Triadica sebifera",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Tribulus terrestris",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Trifolium hirtum",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Ulex europaeus",
+   "synonyms": [],
+   "rating": "High",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Undaria pinnatifida",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Urospermum picroides",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Ventenata dubia",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Verbascum thapsus",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Verbena bonariensis",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Vinca major",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Volutaria tubuliflora",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": []
+  },
+  {
+   "name": "Washingtonia robusta",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Watsonia meriana",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Zantedeschia aethiopica",
+   "synonyms": [],
+   "rating": "Limited",
+   "severity": "caution",
+   "notes": [
+    "in the horticultural trade"
+   ]
+  },
+  {
+   "name": "Zostera japonica",
+   "synonyms": [],
+   "rating": "Moderate",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Zygophyllum fabago",
+   "synonyms": [],
+   "rating": "Watch",
+   "severity": "caution",
+   "notes": []
+  }
+ ]
+}

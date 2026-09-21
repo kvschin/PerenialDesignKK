@@ -572,8 +572,41 @@ media query adds no specificity and a later base rule of equal weight would
 silently win — the `.menu-settings` trap. Naming the place is also what lets a
 Kansas gardener judge that a California record is not about them, which matters
 now that such a plant is kept rather than hidden.
-Filling the table is the open work, and the process fix is to **review
-source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
+**`dev/invasive-check.js` (0.9.5) is the review, and it found three plants on
+its first real run.** `--source calipc` matched *Cynara cardunculus*,
+*Digitalis purpurea* and *Leucanthemum vulgare* — all in the Cal-IPC inventory,
+all marked as still in the horticultural trade, and **all three added by the
+European wave three commits earlier**, where nobody thought to check a
+Californian list against a European native. That is the case for source-first
+in one line: plant-first had been running for months and had eleven records.
+It also reported two severity disagreements with the source's own rating (we
+say `caution` for fig where Cal-IPC rates it Moderate, and `avoid` for
+*Nassella* where Cal-IPC rates it Limited — the lowest tier, which is
+independent support for the false positive Kevin reported from Kansas).
+Two sources are configured and both verified working: **EASIN**
+(`/apixg/catxg/euconcern`, JSON, no key, 48 plants, and it publishes
+`Synonyms` and `IsPartNative`) and **Cal-IPC** (the inventory table, 331 plants
+with a real rating and a "still sold" column). Snapshots cache to
+`dev/invasive-lists/` with a retrieval date, the `data/zip-zones-2023.json`
+shape, so `--verify --offline` works and a run is reproducible.
+**Recorded so nobody re-derives it: USDA PLANTS is not usable.** Its
+Invasive/Noxious dataset was not migrated to the 2021 rebuild and a replacement
+"will be deployed in a later release"; the Invasive Plant Atlas refuses
+automated requests (403). Cal-IPC speaks only for California, so North American
+coverage is a real gap rather than a finished job, and `--list` says so on
+screen rather than leaving the next person to find out.
+**Three buckets, not two, and measurement forced the split.** A first cut
+reported "same genus OR same epithet" as one near-miss list: same GENUS is the
+signal (*Cenchrus setaceus* beside the catalog's two *Cenchrus*), same EPITHET
+is how a genus transfer looks but measured **46 of 46 coincidences** on
+Cal-IPC, so it is counted by default and printed under `--all`. Visible, never
+silent — a silent miss is how you come to believe in coverage you do not have,
+and `Cenchrus alopecuroides` ← *Pennisetum alopecuroides* is exactly that
+failure sitting in the catalog today, recorded only in the note's prose.
+The tool **writes nothing to `js/`**: it drafts a `PLANT_GUIDANCE` block with
+`source` and `text` left as `TODO`, because a note nobody read is a citation
+nobody can defend. That rule is why the existing records are trustworthy.
+The remaining process fix is to **review source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
 composite, EDDMapS, the EU Union-concern list) with the catalog's binomials and
 the whole catalog is reviewed in one pass, the way `dev/wikipedia-links.js
 --verify` and `dev/commons-photo.js --verify` already work. The queue is not 596:

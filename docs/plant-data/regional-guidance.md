@@ -46,6 +46,33 @@ Display and gating therefore diverge deliberately: `invasiveCautionsFor` is what
 
 Caution treatment on a row is **region-scoped and severity-led** — `Invasive in California` against `Caution in Washington`. Severity is stated in words rather than tint, because background and colour are both discarded under forced colours, and because a Kansas gardener needs to read *which place* a record is about in order to judge that it is not about them. A caution recorded for another region stays reachable in the dialog but no longer alarms the row; unscoped, a European garden was warned by North Carolina's list about a plant native to Europe.
 
+## The checker (`dev/invasive-check.js`, 0.9.5)
+
+Source-first review: one published list intersected with the whole catalog in a single pass, rather than 596 plant-by-plant decisions. Dev only; it writes nothing to `js/`.
+
+```bash
+node dev/invasive-check.js --list              # configured sources, and what is not
+node dev/invasive-check.js --source calipc     # intersect, and draft what is unrecorded
+node dev/invasive-check.js --verify            # schema, live links, coverage drift
+```
+
+Configured and verified working:
+
+| id | region | source | plants |
+|---|---|---|---|
+| `easin` | europe | EU List of Invasive Alien Species of Union Concern (JRC), `/apixg/catxg/euconcern` — JSON, no key, publishes `Synonyms` and `IsPartNative` | 48 |
+| `calipc` | north-america | California Invasive Plant Inventory — rating (High/Moderate/Limited/Watch) plus a "still in the horticultural trade" column | 331 |
+
+Not configured, with the reason, so it is not rediscovered: **USDA PLANTS**' Invasive/Noxious dataset was not migrated to the 2021 rebuild and a replacement is pending; the **Invasive Plant Atlas** refuses automated requests (HTTP 403). Cal-IPC speaks only for California, so North American coverage remains a genuine gap.
+
+Fetches snapshot to `dev/invasive-lists/<id>.json` with a retrieval date and count, so `--verify --offline` works and a run is reproducible.
+
+**First run findings (2026-09-21).** EASIN matched one plant, *Asclepias syriaca*, already recorded — the catalog is otherwise clean of EU-listed plants. Cal-IPC matched seven, of which **three had no record**: *Cynara cardunculus* (Moderate), *Digitalis purpurea* (Limited) and *Leucanthemum vulgare* (Moderate), all three still sold in the trade and all three added during the European expansion, where a Californian list was not something anyone thought to check against a European native. Two recorded severities disagree with the source's own rating and are left for a human: fig (we say `caution`, Cal-IPC Moderate) and *Nassella tenuissima* (we say `avoid`, Cal-IPC Limited — the lowest tier).
+
+**Matching.** Everything compares as a binomial. Results fall in three buckets: matched, same-genus (worth a look), and same-epithet — which is how a genus transfer appears (`Cenchrus alopecuroides` ← *Pennisetum alopecuroides*, a synonym this catalog records only in prose) but measured 46 of 46 coincidences against Cal-IPC, so it is counted by default and printed under `--all`. Nothing is dropped silently.
+
+**What it cannot do.** Decide whether a single county's listing belongs in a continental filter; judge a cultivar exemption; or write the note. Drafts leave `source` and `text` as `TODO` deliberately.
+
 ## Remaining coverage work
 
 Backfill narrower native-range and site reviews across the regional palettes; add country/state/ecoregion selection only with matching reviewed coverage. Review additional invasive concerns and exact cultivar exceptions as evidence becomes available. Maintain dates and recheck changing assessments before release. Do not infer clearance from a missing entry, continental origin, nursery availability, or the word “sterile.”

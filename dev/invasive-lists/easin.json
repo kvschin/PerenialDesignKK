@@ -1,0 +1,740 @@
+{
+ "source": "easin",
+ "label": "EU List of Invasive Alien Species of Union Concern (EASIN / JRC)",
+ "region": "europe",
+ "url": "https://easin.jrc.ec.europa.eu/apixg/catxg/euconcern",
+ "retrieved": "2026-09-21",
+ "count": 48,
+ "entries": [
+  {
+   "name": "Acacia mearnsii",
+   "synonyms": [
+    "Acacia decurrens var. mollis",
+    "Acacia mollissima",
+    "Acacia decurrens var. mollissima",
+    "Racosperma mearnsii"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Acacia saligna",
+   "synonyms": [
+    "Acacia bracteata",
+    "Acacia cyanophylla",
+    "Acacia lindleyi",
+    "Mimosa saligna",
+    "Racosperma salignum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ailanthus altissima",
+   "synonyms": [
+    "Ailanthus cacodendron",
+    "Ailanthus erythrocarpa",
+    "Ailanthus esquirolii",
+    "Ailanthus giraldii",
+    "Ailanthus glandulosa",
+    "Ailanthus japonica",
+    "Ailanthus peregrina",
+    "Ailanthus pongelion",
+    "Ailanthus procera",
+    "Ailanthus rhodoptera",
+    "Ailanthus rubra",
+    "Ailanthus vilmoriniana",
+    "Albonia peregrina",
+    "Choerospondias auriculata",
+    "Pongelion cacodendron",
+    "Pongelion glandulosum",
+    "Rhus cacodendron",
+    "Toxicodendron altissima"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Alternanthera philoxeroides",
+   "synonyms": [
+    "Achyranthes paludosa",
+    "Achyranthes philoxeroides",
+    "Alternanthera philoxerina",
+    "Bucholzia philoxeroides",
+    "Celosia amphibia",
+    "Mogiphanes philorexoides",
+    "Telanthera philoxeroides"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Andropogon virginicus",
+   "synonyms": [
+    "Anatherum virginicum",
+    "Anatherum virginicum subvar. tetrastachyum",
+    "Anatherum virginicum var. tetrastachyum",
+    "Andropogon capillipes",
+    "Andropogon curtisianus",
+    "Andropogon dealbatus",
+    "Andropogon dissitiflorum",
+    "Andropogon dissitiflorus",
+    "Andropogon eriophorus",
+    "Andropogon glaucescens",
+    "Andropogon louisianae",
+    "Andropogon tetrastachyus",
+    "Andropogon vaginatus",
+    "Andropogon virginicus f. virginicus",
+    "Andropogon virginicus subsp. genuinus",
+    "Andropogon virginicus subvar. ditior",
+    "Andropogon virginicus var. genuinus",
+    "Andropogon virginicus var. scabriglumus",
+    "Andropogon virginicus var. tetrastachyus",
+    "Andropogon virginicus var. vaginatus",
+    "Andropogon virginicus var. viridis",
+    "Cinna lateralis",
+    "Cymbopogon glaucus",
+    "Dimeiostemon tetrastachys",
+    "Dimeiostemon vaginatus",
+    "Holcus virginicus",
+    "Sorghum virginicum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Asclepias syriaca",
+   "synonyms": [
+    "Asclepias intermedia",
+    "Asclepias kansana",
+    "Asclepias syriaca var. kansana"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Baccharis halimifolia",
+   "synonyms": [
+    "Baccharis halimifolia var. angustior",
+    "Baccharis halimifolia var. halimifolia"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Broussonetia papyrifera",
+   "synonyms": [
+    "Broussonetia billiardii",
+    "Broussonetia cordata",
+    "Broussonetia cordata",
+    "Broussonetia cucullata",
+    "Broussonetia dissecta",
+    "Broussonetia elegans",
+    "Broussonetia kasii",
+    "Broussonetia kazi",
+    "Broussonetia maculata",
+    "Broussonetia nana",
+    "Broussonetia navicularis",
+    "Broussonetia navifolia",
+    "Broussonetia papyrifera var. integrifolia",
+    "Broussonetia spathulata",
+    "Broussonetia tricolor",
+    "Morus papyrifera",
+    "Morus papyrifera",
+    "Papyrius papyriferus",
+    "Papyrius papyrifera",
+    "Smithiodendron artocarpoideum",
+    "Stenochasma ancolanum",
+    "Streblus cordatus",
+    "Trophis cordata"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cabomba caroliniana",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cardiospermum grandiflorum",
+   "synonyms": [
+    "Cardiospermum barbicaule",
+    "Cardiospermum coluteoides",
+    "Cardiospermum duarteanum",
+    "Cardiospermum elegans",
+    "Cardiospermum hirsutum",
+    "Cardiospermum hispidum",
+    "Cardiospermum inflatum",
+    "Cardiospermum macrophyllum",
+    "Cardiospermum pilosum",
+    "Cardiospermum velutinum",
+    "Cardiospermum vesicarum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Celastrus orbiculatus",
+   "synonyms": [
+    "Celastrus orbiculata"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": [
+    "part-native to the EU",
+    "native range: [object Object]"
+   ]
+  },
+  {
+   "name": "Cenchrus setaceus",
+   "synonyms": [
+    "Cenchrus setaceus",
+    "Pennisetum ruppelii",
+    "Pennisetum setaceum",
+    "Phalaris setacea"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Cortaderia selloana subsp. jubata",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Crassula helmsii",
+   "synonyms": [
+    "Bulliarda recurva",
+    "Bulliarda recurva",
+    "Crassula helmsii",
+    "Crassula recurva",
+    "Crassula recurva",
+    "Tillaea helmsii",
+    "Tillaea helmsii",
+    "Tillaea recurva"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Delairea odorata",
+   "synonyms": [
+    "Delairea scandens",
+    "Senecio mikanioides",
+    "Senecio mikanioides",
+    "Senecio scandens"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ehrharta calycina",
+   "synonyms": [
+    "Aira capensis",
+    "Melica geniculata",
+    "Trochera calycina"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Elodea nuttallii",
+   "synonyms": [
+    "Anacharis nuttallii",
+    "Anacharis occidentalis",
+    "Elodea columbiana",
+    "Elodea minor",
+    "Elodea occidentalis",
+    "Philotria angustifolia",
+    "Philotria minor",
+    "Philotria nuttallii",
+    "Philotria occidentalis",
+    "Udora verticillata var. minor"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Gunnera tinctoria",
+   "synonyms": [
+    "Gunnera chilensis",
+    "Gunnera scabra",
+    "Panke acaulis",
+    "Panke caulescens",
+    "Panke tinctoria",
+    "Pankea chilensis"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Gymnocoronis spilanthoides",
+   "synonyms": [
+    "Alomia spilanthoides",
+    "Gymnocoronis attenuata",
+    "Gymnocoronis subcordata",
+    "Piqueria attenuata",
+    "Piqueria longipetiolata"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hakea sericea",
+   "synonyms": [
+    "Banksia acicularis",
+    "Banksia tenuifolia",
+    "Conchium aciculare",
+    "Conchium compressum",
+    "Hakea acicularis",
+    "Hakea decurrens",
+    "Hakea tenuifolia"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Heracleum mantegazzianum",
+   "synonyms": [
+    "Heracleum caucasicum",
+    "Heracleum circassicum",
+    "Heracleum giganteum",
+    "Heracleum grossheimii",
+    "Heracleum panaces",
+    "Heracleum speciosum",
+    "Heracleum tauricum",
+    "Heraclium pubescens",
+    "Pastinaca pubescens",
+    "Sphondylium pubescens"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": [
+    "part-native to the EU",
+    "native range: [object Object],[object Object],[object Object],[object Object],[object Object]"
+   ]
+  },
+  {
+   "name": "Heracleum persicum",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": [
+    "part-native to the EU",
+    "native range: [object Object]"
+   ]
+  },
+  {
+   "name": "Heracleum sosnowskyi",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": [
+    "part-native to the EU",
+    "native range: [object Object],[object Object],[object Object],[object Object],[object Object]"
+   ]
+  },
+  {
+   "name": "Humulus scandens",
+   "synonyms": [
+    "Antidesma scandens",
+    "Eugenia apiculata",
+    "Humulopsis scandens",
+    "Humulus aculeatus",
+    "Humulus japonicus"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Hydrocotyle ranunculoides",
+   "synonyms": [
+    "Hydrocotyle batrachioides",
+    "Hydrocotyle cymbalarifolia",
+    "Hydrocotyle natans",
+    "Hydrocotyle nutans"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Impatiens glandulifera",
+   "synonyms": [
+    "Impatiens roylei"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Koenigia polystachya",
+   "synonyms": [
+    "Aconogonon polystachyum",
+    "Aconogonum polystachyum",
+    "Koenigia polystachya",
+    "Persicaria polystachya",
+    "Persicaria wallichii",
+    "Persicaria wallichii var. wallichii",
+    "Peutalis polystachya",
+    "Polygonum polystachyum",
+    "Reynoutria polystachya"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lagarosiphon major",
+   "synonyms": [
+    "Anacharis crispa",
+    "Elodea crispa",
+    "Lagarosiphon muscoides"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lespedeza cuneata",
+   "synonyms": [
+    "Lespedeza juncea var. sericea"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ludwigia grandiflora",
+   "synonyms": [
+    "Jussiaea grandiflora",
+    "Jussiaea michauxiana",
+    "Jussiaea repens var. grandiflora",
+    "Jussiaea uruguayensis",
+    "Ludwigia grandiflora subsp. grandiflora",
+    "Ludwigia hexapetala",
+    "Ludwigia uruguayensis",
+    "Ludwigia uruguayensis var. major"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Ludwigia peploides",
+   "synonyms": [
+    "Jussiaea californica",
+    "Jussiaea fluitans",
+    "Jussiaea gomezii",
+    "Jussiaea patibilcensis",
+    "Jussiaea peploides",
+    "Jussiaea polygonoides",
+    "Jussiaea ramulosa",
+    "Ludwigia ramulosa"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lygodium japonicum",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Lysichiton americanus",
+   "synonyms": [
+    "Lysichitum americanum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Microstegium vimineum",
+   "synonyms": [
+    "Andropogon vimineum",
+    "Andropogon vimineus",
+    "Eulalia viminea",
+    "Eulalia viminea var. imberbis",
+    "Eulalia viminea var. variabilis",
+    "Microstegium imberbe",
+    "Microstegium reticulatum",
+    "Microstegium vimineum var. imberbe",
+    "Microstegium vimineum var. willdenowianum",
+    "Microstegium willdenowianum",
+    "Pollinia cantonensis",
+    "Pollinia debilis",
+    "Pollinia dilatata",
+    "Pollinia imberbis",
+    "Pollinia imberbis var. willdenowiana",
+    "Pollinia viminea",
+    "Pollinia willdenowiana"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Myriophyllum aquaticum",
+   "synonyms": [
+    "Enydria aquatica",
+    "Myriophyllum brasiliensis",
+    "Myriophyllum proserpinacoides"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Myriophyllum heterophyllum",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Nanozostera japonica",
+   "synonyms": [
+    "Nanozostera americana",
+    "Nanozostera japonica",
+    "Zostera americana",
+    "Zostera japonica",
+    "Zostera japonica subsp. Austroasiatica"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Neltuma juliflora",
+   "synonyms": [
+    "Acacia cumanensis",
+    "Acacia juliflora",
+    "Acacia salinarum",
+    "Algarobia juliflora",
+    "Desmanthus salinarum",
+    "Mimosa juliflora",
+    "Mimosa piliflora",
+    "Neltuma bakeri",
+    "Neltuma juliflora",
+    "Neltuma occidenatlis",
+    "Prosopis bracteolata",
+    "Prosopis cumanensis",
+    "Prosopis domingensis",
+    "Prosopis vidaliana"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Parthenium hysterophorus",
+   "synonyms": [
+    "Argyrochaeta bipinnatifida",
+    "Argyrochaeta parviflora",
+    "Echetrosis pentasperma",
+    "Parthenium glomeratum",
+    "Parthenium lobatum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Persicaria perfoliata",
+   "synonyms": [
+    "Amplelygonum perfoliatum",
+    "Chylocalyx perfoliatus",
+    "Echinocaulon perfoliatum",
+    "Echinocaulos perfoliatus",
+    "Fagoparum perfoliatum",
+    "Persicaria perfoliata",
+    "Polygonum perfoliatum",
+    "Tracaulon perfoliatum",
+    "Truellum perfoliatum"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Pistia stratiotes",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Pontederia crassipes",
+   "synonyms": [
+    "Eichhornia crassipes",
+    "Eichhornia speciosa",
+    "Piaropus crassipes"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Pueraria montana (Lour.) Merr. var. lobata",
+   "synonyms": [
+    "Dolichos hirsutus",
+    "Dolichos lobatus",
+    "Neustanthus chinensis",
+    "Pachyrhizus thunbergianus",
+    "Pueraria argyi",
+    "Pueraria bodinieri",
+    "Pueraria caerulea",
+    "Pueraria harmsii",
+    "Pueraria hirsuta",
+    "Pueraria koten",
+    "Pueraria lobata",
+    "Pueraria lobata var. thomsonii",
+    "Pueraria thunbergiana",
+    "Pueraria triloba"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Reynoutria japonica",
+   "synonyms": [
+    "Fallopia compacta",
+    "Fallopia japonica",
+    "Fallopia japonica",
+    "Fallopia japonica f. colorans",
+    "Fallopia japonica var. compacta",
+    "Fallopia japonica var. compacta",
+    "Fallopia japonica var. compacta",
+    "Fallopia japonica var. hachidyoensis",
+    "Fallopia japonica var. japonica",
+    "Fallopia japonica var. uzenensis",
+    "Pleuropterus cuspidatus",
+    "Pleuropterus cuspidatus",
+    "Pleuropterus zuccarinii",
+    "Pleuropterus zuccarinii",
+    "Polygonum compactum",
+    "Polygonum compactum",
+    "Polygonum cuspidatum",
+    "Polygonum cuspidatum",
+    "Polygonum cuspidatum var. compactum",
+    "Polygonum cuspidatum var. spectabile",
+    "Polygonum hachidyoense",
+    "Polygonum hachidyoense",
+    "Polygonum reynoutria",
+    "Polygonum reynoutria",
+    "Polygonum reynoutria f. colorans",
+    "Polygonum sieboldii",
+    "Polygonum zuccarinii",
+    "Polygonum zuccarinii",
+    "Reynoutria compacta",
+    "Reynoutria compacta",
+    "Reynoutria hachidyoensis",
+    "Reynoutria hachidyoensis",
+    "Reynoutria hachidyoensis var. terminalis",
+    "Reynoutria hachijoensis",
+    "Reynoutria hachijoensis",
+    "Reynoutria hastata",
+    "Reynoutria hastata",
+    "Reynoutria henryi",
+    "Reynoutria japonica var. compacta",
+    "Reynoutria japonica var. hastata",
+    "Reynoutria japonica var. spectabilis",
+    "Reynoutria japonica var. terminalis",
+    "Reynoutria japonica var. uzenensis",
+    "Reynoutria uzenensis",
+    "Reynoutria uzenensis",
+    "Tiniaria japonica",
+    "Tiniaria japonica"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Reynoutria sachalinensis",
+   "synonyms": [
+    "Fallopia sachalinensis",
+    "Pleuropterus sachalinensis",
+    "Polygonum sachalinense",
+    "Polygonum sachalinense",
+    "Tiniaria sachalinensis",
+    "Tiniaria sachalinensis"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Reynoutria x bohemica",
+   "synonyms": [
+    "Fallopia bohemica",
+    "Fallopia japonica x sachalinensis",
+    "Fallopia sachalinensis var. intermedia",
+    "Fallopia x bohemica",
+    "Polygonum bohemicum",
+    "Polygonum sachalinense var. intermedium",
+    "Reynoutria mizushimae",
+    "Reynoutria sachalinensis var. intermedia",
+    "Reynoutria vivax"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Salvinia molesta",
+   "synonyms": [],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  },
+  {
+   "name": "Triadica sebifera",
+   "synonyms": [
+    "Carumbium sebiferum",
+    "Croton sebiferum",
+    "Excoecaria sebifera",
+    "Sapium chihsinianum",
+    "Sapium pleiocarpum",
+    "Sapium sebiferum",
+    "Seborium chinense",
+    "Seborium sebiferum",
+    "Stillingfleetia sebifera",
+    "Stillingia sebifera",
+    "Stillingia sinensis",
+    "Triadica sinensis"
+   ],
+   "rating": "Union concern",
+   "severity": "avoid",
+   "notes": []
+  }
+ ]
+}
