@@ -779,6 +779,10 @@ const BROWSE_RESIST_KEYS=new Set([
   'euphorbiawulfenii','cushionspurge','foxglove','rustyfoxglove','monkshood',
   'europeanpasqueflower','nettleleafmullein','bearsbreeches','carthusianpink',
   'redvalerian','meadowrue','globeflower','jacobsladder',
+  // the rockery and woodland layer: toxic sap or alkaloids, or simply too
+  // tough and leathery to be worth browsing
+  'periwinkle','bugle','deadnettle','candytuft','thrift','rockrose','londonpride',
+  'woodanemone','hepatica','comfrey','yellowcorydalis','marshmarigold','yellowflag',
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',

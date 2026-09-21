@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.1';
+const APP_VERSION = '0.9.2';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1781,8 +1781,14 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   beachSunflower:{label:'UF/IFAS Extension',url:'https://gardeningsolutions.ifas.ufl.edu/plants/ornamentals/beach-sunflower/'},
   rhododendron:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/rhododendron-catawbiense/'},
   cenizo:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/leucophyllum-frutescens/common-name/texas-barometer-bush/'},
+  yellowFlagIris:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/yellow-flag-iris'},
+  periwinkleNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/vinca-minor/'},
 });
 const PLANT_GUIDANCE=Object.freeze({
+  yellowflag:{taxon:'Iris pseudacorus',reviewed:'2026-09-20',invasive:[
+    {area:'King County, Washington',source:'yellowFlagIris',text:'Listed as a non-regulated Class C noxious weed. It forms dense stands along shorelines and spreads by seed and by rhizome fragments carried downstream. Check the local position before planting it near water.'}]},
+  periwinkle:{taxon:'Vinca minor',reviewed:'2026-09-20',invasive:[
+    {area:'North Carolina',source:'periwinkleNC',text:'Classified as an invasive species by the NC Invasive Plant Council. It spreads out of gardens into adjacent woodland and holds the ground against native plants. Consider a local groundcover instead.'}]},
   mexicanfeather:{taxon:'Nassella tenuissima',reviewed:'2026-09-06',invasive:[
     {area:'California',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
   miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-09-06',invasive:[

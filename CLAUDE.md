@@ -4823,13 +4823,61 @@ silver cues plus `BROWSE_RESIST_KEYS`), so the toxic ones with no texture cue
 are named in that list rather than hand-writing `deerOk` onto the record.
 `dev/europe2-review.html` covers all 33 exact choices in both renderer modes and
 all four seasons; 396 sprite-edge checks, no painted edges, in each mode.
-Still open from the same audit, in the order it ranked them: the rockery and
-edging layer (Ajuga, Vinca, Lamium, Saxifraga, Iberis, Aubrieta, Armeria,
-`Campanula poscharskyana`, Helianthemum), the woodland spring ephemerals
-(`Anemone nemorosa`, Omphalodes, Hepatica, Symphytum, Myosotis, Corydalis),
-European water plants (there are **none** — `Caltha palustris` and Menyanthes
-are the obvious two, and `Iris pseudacorus` wants a `PLANT_GUIDANCE` caution
-rather than a plain record), and cultivar depth on what is already there.
+**European gaps, phase 3 (0.9.2):** 18 records and 14 cultivars — 596 base /
+404 nested — finishing the audit's list. The first two waves added SPECIES;
+this one adds the three things that were missing as whole LAYERS, which is why
+they are worth naming separately: a garden is not only its border.
+**The rockery and edging layer** did not exist at all — `Ajuga reptans`,
+`Vinca minor`, `Lamium maculatum`, `Saxifraga × urbium`, `Iberis sempervirens`,
+`Aubrieta deltoidea`, `Armeria maritima`, `Campanula poscharskyana` and
+`Helianthemum nummularium`, i.e. the plants that edge a path, top a wall and
+fill a gravel joint. **The woodland spring layer** was equally absent:
+`Anemone nemorosa`, `Omphalodes verna`, `Hepatica nobilis`, `Symphytum
+officinale`, `Myosotis sylvatica` and `Corydalis lutea`. And **Europe had
+ZERO native water plants** against North America's six, so a European pond had
+nothing to put in it: `Caltha palustris`, `Menyanthes trifoliata` and
+`Iris pseudacorus`. Measured after: European native forbs 42 → 55, water
+0 → 3, straight-mode families 74 → 90 at zone 5 and 81 → 98 at zone 7. Across
+all three waves the European native forb palette went **27 → 55** and the
+straight-mode family count **54 → 90**.
+**The wood anemone is `type:'bulb'`**, which looks wrong and is not: it is a
+true spring ephemeral that is up in March and gone by midsummer, and
+`bulbEnvelope()` is exactly that shape. `Anemone blanda` was already filed the
+same way and is the precedent the record copies.
+**`Saxifraga × urbium` claims no wild range.** It is a garden hybrid of two
+Pyrenean species, so it joins `BASE_HYBRID_KEYS` and drops out of both native
+modes — the rule the phase-2 note states, applied to a plant that would
+otherwise have padded the count it was measured by.
+**The px-art trap, and it is the units table paying for itself again.** Two mats
+were authored at `h:6` because the plants really are six inches, and both
+clipped their own sprite box — measured **12 of 12 sprites touching the border**
+across four seasons and three seeds, against **0 of 12** for every mat already
+in the catalog, all of which sit at `h:8` or more. `h` is px-art and `heightIn`
+is the truth, so the fix is `h:8` with `heightIn:6` kept: the card still reports
+six inches and the drawing stops being cut off. Periwinkle needed its `matW` and
+`shadowW` brought from 26 to 24 as well, which is the same lesson one knob over
+— the mossphlox habit's mat is drawn in units the box does not scale with.
+After: 384 sprite-edge checks, no painted edges, in BOTH renderer modes.
+**Two invasive cautions ship with the records, each against a page that was
+opened and read rather than a URL that looked plausible.** `Iris pseudacorus`
+is a non-regulated Class C noxious weed in King County, Washington, and
+`Vinca minor` is classified invasive by the NC Invasive Plant Council — both
+are European natives that behave badly in North America, which is precisely the
+case `PLANT_GUIDANCE` exists for, and both blurbs say so as well.
+**Cultivar depth (d)**: 24 of the 38 European herbaceous records carried no
+selection at all, so the ones a European buyer actually meets went in —
+Astrantia 'Hadspen Blood', Echinops 'Veitch's Blue', Geranium sanguineum
+'Album' and 'Max Frei', Calamintha 'Blue Cloud', Iris sibirica 'Caesar's
+Brother', Eryngium bourgatii 'Picos Blue', Knautia 'Mars Midget', Betonica
+'Rosea', Sanguisorba 'Red Thunder', Deschampsia 'Bronzeschleier', Achillea
+'Walther Funcke' and 'Summerwine', and Brunnera 'Looking Glass'.
+All 18 new records cost 27-379us against a 157us catalog median, and
+`node dev/wikipedia-links.js --verify` re-checked all 596 shipped articles:
+every new one resolves, five through a redirect to a reclassified name
+(*Anemonoides nemorosa*, *Anemone hepatica*, *Valeriana rubra*, *Menyanthes*,
+*Cardoon*). `dev/europe3-review.html` covers all 32 exact choices.
+What the audit has left is no longer a layer but a long tail: more cultivar
+depth, and the regional/ecotype metadata that Phase 0 still defers.
 
 ## Conventions
 

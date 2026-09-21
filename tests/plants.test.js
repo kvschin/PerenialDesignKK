@@ -94,9 +94,9 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,578,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,596,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),390,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),404,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -476,9 +476,9 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
     assertEqual(P.type,'bulb',`${k}: stays in the bulb layer`);
     assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),`${k}: bloom calendar`);
   }
-  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,39,'audited base bulb count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,40,'audited base bulb count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')
-    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),82,'audited exact bulb count');
+    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),83,'audited exact bulb count');
 
   assertEqual(PLANTS.alliumChristophii.latin,'Allium cristophii','Star of Persia uses the accepted spelling');
   assertEqual(PLANTS.alliumcarinatum.latin,'Allium cirrhosum','Pretty garlic uses the accepted taxon');
