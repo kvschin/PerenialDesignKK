@@ -1092,7 +1092,7 @@ function plantRefFitsCriteria(ref,criteria){
      grouping them into family cards, so a flagged plant leaves the starting
      style palettes for free -- which is the defect this began as: all six
      styles offered all eleven flagged plants to a North American garden. */
-  if (f.invasive==='hide' && hasInvasiveCaution(ref,f.nativeRegion)) return false;
+  if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return false;
   if (!challengeAllows(ref.s)) return false;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P)){
@@ -1290,7 +1290,7 @@ function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
-  if (f.invasive==='hide' && hasInvasiveCaution({s:k,v:null},f.nativeRegion)) return false;
+  if (f.invasive==='hide' && invasiveFilterHides({s:k,v:null},f.nativeRegion)) return false;
   if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
   const roles=plantRoles(k);
   if (!isTreeDef(P)){
@@ -1465,12 +1465,31 @@ function openPlantGuidance(ref){
   const panel=$('plantGuidanceScreen').querySelector('.panel'); if (panel) panel.scrollTop=0;
   openOverlay('plantGuidanceScreen','#btnPlantGuidanceClose');
 }
+/* The row leads with the caution that applies to THIS garden, and names it.
+   Two things it used to get wrong. `avoid` and `caution` rendered identically,
+   so King County's "Class C, control not required" for yellow flag read exactly
+   as loud as Vinca minor smothering woodland. And the label was region-blind,
+   so a European garden was alarmed by North Carolina's list about a plant
+   native to Europe -- the same mistake the filter itself was written to avoid.
+   A caution recorded elsewhere is still reachable in the dialog; it just stops
+   shouting about a place this garden is not in.
+   Severity is carried by the WORDS, not the tint: "Invasive in California"
+   survives forced colours, a monochrome screen and a screen reader, and it is
+   also what a Kansas gardener needs in order to decide the record is not about
+   them -- which matters because a plant native to its own region is now KEPT
+   and flagged rather than hidden (`invasiveFilterHides`). */
 function plantGuidanceButton(ref,always=false){
   const g=plantGuidance(ref);
   if (!always && !g.invasive.length && !g.site.length && !g.origin.length) return null;
+  const region=activeFilters().nativeRegion;
+  const here=g.invasive.filter(n=>n.region===region), elsewhere=g.invasive.filter(n=>n.region!==region);
+  const severity=here.some(n=>n.severity==='avoid')?'avoid':(here.length?'caution':'');
+  const areas=list=>list.map(n=>n.area).join(', ');
   const b=document.createElement('button'); b.type='button';
-  b.className='plant-guidance-button'+(g.invasive.length?' has-caution':'');
-  b.textContent=g.invasive.length?'Regional caution · '+g.invasive.map(n=>n.area).join(', '):'Local origin & site notes';
+  b.className='plant-guidance-button'+(here.length?' has-caution is-'+severity:'');
+  b.textContent=here.length
+    ? (severity==='avoid'?'Invasive in ':'Caution in ')+areas(here)
+    : (elsewhere.length ? 'Regional notes · '+areas(elsewhere) : 'Local origin & site notes');
   b.setAttribute('aria-haspopup','dialog');
   b.onclick=()=>openPlantGuidance(ref); return b;
 }

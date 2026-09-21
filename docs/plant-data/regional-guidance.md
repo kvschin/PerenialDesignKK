@@ -31,6 +31,21 @@ Six species have additional site qualifications: blue fescue (drainage/heat), bl
 - Saved plants, inactive schemes, imports, Favorites, and palettes remain intact. Planting-list exports carry local-status uncertainty and regional cautions with dates and source URLs; quantities are unchanged.
 - Generic bamboo is deliberately unassessed: the catalog's Fargesia/Phyllostachys grouping does not identify an exact species. It must not inherit a golden-bamboo assessment by visual name alone. Chinese and Oriental fountain grasses likewise remain distinct.
 
+## The invasive filter (0.9.3–0.9.4)
+
+Each invasive note now carries two more fields, and both exist so the catalog gate can read the table at all:
+
+- **`region`** — the served region the caution applies to (`north-america` or `europe`). The state or county in `area` stays as the human-readable record, but it is *not* the filter's resolution: `nativeRegion` is continental, so per-state precision is precision the gate cannot consume. Trying to settle "invasive" state by state is what stalled this review at eleven records.
+- **`severity`** — `avoid` or `caution`, following each note's own recorded wording. This is what per-state variation was really for: King County listing yellow flag Class C, *control not required*, is not the claim that a plant smothers woodland.
+
+`filters.invasive` (`hide` | `show`, default `hide`) gates the catalog through `plantRefFitsCriteria`, so every discovery source — recommended, all eligible, Favorites, named palettes — inherits it. Before this the eleven records were read by nothing, and all six style palettes offered all eleven flagged plants to a North American garden.
+
+**A plant native to the region is never hidden by that region's own caution** (`invasiveFilterHides`). Invasive means *introduced* and spreading, and a plant cannot be introduced to the continent it comes from: Cal-IPC's record for *Nassella tenuissima* describes a range expansion from its native Texas and New Mexico into coastal California, not an arrival in North America. Two species are in this class — *Nassella tenuissima* and *Nymphaea odorata* — and both stay in the catalog carrying their caution. The filter handles what continental resolution can express (introduced species); the card handles what it cannot. Asking the question globally instead would delete *Asclepias syriaca* from a North American garden because the EU lists it, and take *Vinca minor*, *Iris pseudacorus* and *Prunus laurocerasus* out of Europe, where all three are native.
+
+Display and gating therefore diverge deliberately: `invasiveCautionsFor` is what a card shows, `invasiveFilterHides` is what leaves the catalog. Counts for the filter's own copy come from `invasiveFilterCounts`, which reports `hidden` and `keptNative` from one walk — the hint must promise what the filter delivers, not what the table holds. North America: 8 hidden, 2 kept. Europe: 1 hidden, 0 kept.
+
+Caution treatment on a row is **region-scoped and severity-led** — `Invasive in California` against `Caution in Washington`. Severity is stated in words rather than tint, because background and colour are both discarded under forced colours, and because a Kansas gardener needs to read *which place* a record is about in order to judge that it is not about them. A caution recorded for another region stays reachable in the dialog but no longer alarms the row; unscoped, a European garden was warned by North Carolina's list about a plant native to Europe.
+
 ## Remaining coverage work
 
 Backfill narrower native-range and site reviews across the regional palettes; add country/state/ecoregion selection only with matching reviewed coverage. Review additional invasive concerns and exact cultivar exceptions as evidence becomes available. Maintain dates and recheck changing assessments before release. Do not infer clearance from a missing entry, continental origin, nursery availability, or the word “sterile.”

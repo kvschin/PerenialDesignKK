@@ -5770,9 +5770,11 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
 
 test('zone 6 grass palette includes Mexican feather grass', () => {
   setup();
-  // Cal-IPC flags this grass, so the default filter hides it; the zone question
-  // this test asks is answered with the caution shown.
-  game.filters = normalizeFilters({ zone: 6, invasive: 'show' });
+  /* Cal-IPC flags this grass, but it is NATIVE to North America -- the caution
+     is a range expansion within the continent, not an introduction to it -- so
+     the default filter keeps it. That makes this a regression guard for the
+     false positive as well as a zone test. */
+  game.filters = normalizeFilters({ zone: 6 });
   game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
   assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
@@ -11369,9 +11371,16 @@ test('continental native criteria do not imply local suitability or clear region
      and it is the SEPARATE invasive control that removes it -- so the two
      questions stay distinguishable rather than one standing in for the other. */
   assert(passesNativeFilter(PLANTS.mexicanfeather,normalizeFilters(north)),'the existing continental filter contract is preserved');
-  assert(plantRefFitsCriteria(ref,Object.assign({invasive:'show'},north)),'origin alone still admits it');
-  assert(!plantRefFitsCriteria(ref,Object.assign({invasive:'hide'},north)),'the caution is what removes it, not the origin filter');
   assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'the same plant can carry a California caution');
+  /* A plant NATIVE to the region keeps its place even under `hide` -- the
+     California record is a range expansion within North America, not an
+     introduction to it -- while an introduced species with a caution is the
+     case the filter can express, and is removed. */
+  assert(plantRefFitsCriteria(ref,Object.assign({invasive:'hide'},north)),'a native species is not hidden by its own continent\'s caution');
+  assert(hasInvasiveCaution(ref,'north-america'),'and still carries that caution for the card');
+  const vinca={s:'periwinkle'};
+  assert(plantRefFitsCriteria(vinca,Object.assign({invasive:'show'},north,{nativeMode:'any'})),'origin alone still admits an introduced species');
+  assert(!plantRefFitsCriteria(vinca,Object.assign({invasive:'hide'},north,{nativeMode:'any'})),'the caution is what removes it, not the origin filter');
   for(const nativeRegion of ['north-america','europe']){
     game.filters=normalizeFilters({nativeRegion,nativeMode:'any'});
     assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'choosing an origin continent is not choosing a garden location');
@@ -11422,7 +11431,8 @@ test('an invasive caution is scoped to a REGION, and every catalog source reads 
     for (const v of Object.keys(PLANTS[k].cv||{})){
       for (const region of new Set(notes.map(n=>n.region))){
         assert(hasInvasiveCaution({s:k,v},region),k+" '"+v+"' inherits the species caution for "+region);
-        assert(!plantRefFitsCriteria({s:k,v},{nativeRegion:region,nativeMode:'any'}),k+" '"+v+"' is gated with its species");
+        assertEqual(invasiveFilterHides({s:k,v},region),invasiveFilterHides({s:k,v:null},region),
+          k+" '"+v+"' is gated exactly as its species is");
         inherited++;
       }
     }
@@ -11446,9 +11456,52 @@ test('an invasive caution is scoped to a REGION, and every catalog source reads 
 
   // The copy COUNTS rather than claiming, so it cannot promise completeness the
   // table does not have -- the reviewed set is 10:1 North American today.
-  assert(invasiveCautionCount('north-america')>invasiveCautionCount('europe'),'coverage is measured, not asserted');
-  assert(invasiveCriteriaText(na).includes(String(invasiveCautionCount('north-america'))),'the hint states the real number');
+  assert(invasiveFilterCounts('north-america').hidden>invasiveFilterCounts('europe').hidden,'coverage is measured, not asserted');
+  assert(invasiveCriteriaText(na).includes(String(invasiveFilterCounts('north-america').hidden)),'the hint states the real number');
   assert(/check locally/i.test(invasiveCriteriaText(na)),'and does not present itself as complete');
+});
+
+test('a plant native to the region is not hidden by that region\'s own caution',()=>{
+  setup();
+  /* Invasive means INTRODUCED and spreading, so at continental resolution the
+     claim does not hold against a plant native to that continent: Cal-IPC's
+     record for Nassella tenuissima is a range expansion from its native Texas
+     and New Mexico into coastal California, not an introduction to North
+     America. Hiding it made a Kansas garden lose a plant native to its own
+     continent, which is the first false positive this filter produced. */
+  const na={zone:6,nativeRegion:'north-america',nativeMode:'any',invasive:'hide'};
+  const nativeAndFlagged=[], introducedAndFlagged=[];
+  for (const k of INVASIVE_FLAGGED_KEYS){
+    if (!PLANTS[k]) continue;
+    for (const region of ['north-america','europe']){
+      if (!hasInvasiveCaution({s:k,v:null},region)) continue;
+      (nativeRelation(PLANTS[k],region).nativeHere?nativeAndFlagged:introducedAndFlagged).push(k+'/'+region);
+    }
+  }
+  assertEqual(nativeAndFlagged.sort().join(', '),'fragrantwaterlily/north-america, mexicanfeather/north-america',
+    'the native-and-flagged class is these two species');
+  assert(introducedAndFlagged.length>nativeAndFlagged.length,'and the ordinary case is still the common one');
+
+  for (const id of nativeAndFlagged){
+    const [k,region]=id.split('/');
+    assert(!invasiveFilterHides({s:k,v:null},region),k+' is kept in the region it is native to');
+    assert(hasInvasiveCaution({s:k,v:null},region),k+' still carries its caution for the card');
+    assert(plantRefFitsCriteria({s:k,v:null},{zone:PLANTS[k].zones[0],nativeRegion:region,nativeMode:'any',invasive:'hide'}),
+      k+' stays in the catalog under the default filter');
+  }
+  for (const id of introducedAndFlagged){
+    const [k,region]=id.split('/');
+    assert(invasiveFilterHides({s:k,v:null},region),k+' is introduced to '+region+' and is hidden there');
+  }
+
+  // The hint must promise what the filter delivers, not what the table holds.
+  const counts=invasiveFilterCounts('north-america');
+  assertEqual(counts.hidden+counts.keptNative,10,'ten cautions are recorded for North America');
+  assertEqual(counts.keptNative,2,'two of them are on plants native to it');
+  assert(invasiveCriteriaText(na).includes('Hides the 8 introduced plants'),'and the copy states the eight it actually hides');
+  assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
+  assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
+  assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');
 });
 
 test('the design tally key carries every garden criterion',()=>{
@@ -11484,8 +11537,22 @@ test('plant guidance shows unknowns and dated source links without changing the 
   assertEqual(JSON.stringify(snapshotState()),state,'guidance never edits planted work');
   const warned=discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery());
   const other=discoveryResultCard({s:'orientalfountain'},activeDiscovery());
-  assert(nodes(warned).some(n=>n.className==='plant-guidance-button has-caution'));
-  assert(!nodes(other).some(n=>n.className==='plant-guidance-button has-caution'));
+  const cautionBtn=el=>nodes(el).find(n=>/\bplant-guidance-button\b/.test(n.className||'')&&/\bhas-caution\b/.test(n.className||''));
+  assert(cautionBtn(warned),'a flagged choice carries the caution treatment');
+  assert(!cautionBtn(other),'an unflagged one does not');
+  /* Severity has to reach the row, or Cal-IPC "Limited" and a woodland
+     smotherer read identically -- and it has to reach it in the TEXT, since
+     the class and the tint are both discarded under forced colours. */
+  assert(/\bis-avoid\b/.test(cautionBtn(warned).className),'and grades it');
+  assert(cautionBtn(warned).textContent.startsWith('Invasive in '),'stating the severity in words, not colour alone');
+  assert(cautionBtn(warned).textContent.includes('Maryland'),'and naming the place it applies to');
+  /* Region-scoped: the same plant seen from a European garden is not alarmed
+     by Maryland's list, though the note stays reachable in the dialog. */
+  const saved=game.filters;
+  game.filters=normalizeFilters({nativeRegion:'europe',nativeMode:'any',invasive:'show'});
+  const abroad=cautionBtn(discoveryResultCard({s:'fountaingrass',v:'hameln'},activeDiscovery()));
+  game.filters=saved;
+  assert(!abroad,'a caution recorded for another region does not shout at this garden');
 });
 
 test('regional cautions travel with exports and do not remove plants from saves or schemes',async()=>{

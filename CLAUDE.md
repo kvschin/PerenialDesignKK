@@ -481,7 +481,7 @@ The initial review covers nine species with regional invasive cautions, seven
 with narrower native-range observations, and six with site qualifications.
 Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
 
-### The invasive filter (0.9.3)
+### The invasive filter (0.9.3–0.9.4)
 
 **Invasive risk is a RELATION between a plant and a place**, exactly as native
 status is, so every note names the served `region` it applies to and the filter
@@ -534,6 +534,44 @@ test pins that key against `normalizeFilters`' own fields; it is the
 hiding a species whose family has surviving siblings legitimately moves nothing:
 Europe hides common milkweed and still shows the milkweed card, on eight
 siblings.
+**A plant NATIVE to the region is never hidden by that region's own caution**
+(`invasiveFilterHides`, 0.9.4), and this is where continental resolution stops
+being able to hold the claim. Invasive means *introduced* and spreading, and a
+plant cannot be introduced to the continent it comes from: Cal-IPC's record for
+*Nassella tenuissima* is a range expansion from its native Texas and New Mexico
+into coastal California, not an arrival in North America. One bit per continent
+cannot say that, and when the bit has to choose, native-here is the
+better-supported fact — a stable property of the taxon, where invasive-here is
+true of a sub-region. Hiding it made a Kansas garden lose a plant native to its
+own continent, which was this filter's first false positive and was reported
+from the garden, not from a test. **Two species are in the class**
+(*Nassella tenuissima*, *Nymphaea odorata*), both kept and both still flagged;
+North America goes 357 → 359 family cards, Europe is unchanged.
+**So display and gating diverge on purpose** — `invasiveCautionsFor` is what a
+card shows, `invasiveFilterHides` is what leaves the catalog. That is the
+`effectiveEstab` split one system over: what you SEE follows one rule, what is
+legal follows another. The filter handles what it can express (introduced
+species); the card handles what it cannot.
+**The copy must count what is HIDDEN, not what is flagged.** `invasiveFilterCounts`
+returns `hidden` and `keptNative` from one walk (the `paletteCounts` pair
+shape), because a hint reading "hides the 10" while the filter removes 8 is a
+lie the gardener can check. North America is 8 and 2; Europe 1 and 0, and the
+native clause only prints where it applies.
+**Caution treatment is region-scoped and severity-led** (`plantGuidanceButton`,
+`.plant-caution-tag`): `Invasive in California` against `Caution in Washington`.
+Two bugs that fixes. `avoid` and `caution` rendered identically, so King
+County's "Class C, control not required" shouted exactly as loud as Vinca
+smothering woodland. And the label was region-blind, so a **European** garden
+was alarmed by North Carolina about a plant native to Europe — the very mistake
+the filter exists to avoid, sitting in the UI next to it.
+**Severity is carried by the WORDS, and that ordering is the point**: background
+and colour are both discarded under `forced-colors`, so anything carried by them
+alone is carried by nothing. The left bar is a border (not discarded) and the
+`forced-colors` block sits immediately after the rules it overrides, because a
+media query adds no specificity and a later base rule of equal weight would
+silently win — the `.menu-settings` trap. Naming the place is also what lets a
+Kansas gardener judge that a California record is not about them, which matters
+now that such a plant is kept rather than hidden.
 Filling the table is the open work, and the process fix is to **review
 source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
 composite, EDDMapS, the EU Union-concern list) with the catalog's binomials and

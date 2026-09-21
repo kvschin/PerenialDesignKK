@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.3';
+const APP_VERSION = '0.9.4';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1903,23 +1903,50 @@ function invasiveCautionsFor(ref,region=DEFAULT_NATIVE_REGION){
   return plantGuidance(ref).invasive.filter(n=>n.region===here);
 }
 function hasInvasiveCaution(ref,region=DEFAULT_NATIVE_REGION){ return invasiveCautionsFor(ref,region).length>0; }
+/* What the FILTER acts on, which is deliberately narrower than what the CARD
+   shows -- the `effectiveEstab` split one system over: what you SEE follows one
+   rule, what leaves the catalog follows another.
+
+   A plant native to the region is never hidden by that region's own caution,
+   because at continental resolution the claim does not hold. Invasive means
+   INTRODUCED and spreading, and a plant cannot be introduced to the continent
+   it comes from: what Cal-IPC records about Nassella tenuissima is a range
+   expansion WITHIN North America, from its native Texas and New Mexico into
+   coastal California. One bit per continent cannot say that, and when the bit
+   has to choose, native-here is the better-supported fact -- it is a stable
+   property of the taxon, where invasive-here is true of a sub-region.
+   Two species are in this class today (Nassella tenuissima, Nymphaea odorata),
+   and both keep their caution on the card. The filter handles what it can
+   express, introduced species; the card handles what it cannot. */
+function invasiveFilterHides(ref,region=DEFAULT_NATIVE_REGION){
+  if (!hasInvasiveCaution(ref,region)) return false;
+  const c=canonicalPlantRef(ref&&ref.s,ref&&ref.v);
+  return !nativeRelation(plantDef(c.s,c.v),region).nativeHere;
+}
 /* What the filter's own copy promises, counted rather than typed: the catalog
    holds this many species with a recorded caution for that region. It is the
    honest number to print, because the table is 10:1 North American and a
    European gardener should be able to see that this filter is nearly empty for
    them rather than infer completeness from a confident label. */
-function invasiveCautionCount(region=DEFAULT_NATIVE_REGION){
-  let n=0;
-  for (const k of INVASIVE_FLAGGED_KEYS) if (PLANTS[k] && hasInvasiveCaution({s:k,v:null},region)) n++;
-  return n;
+function invasiveFilterCounts(region=DEFAULT_NATIVE_REGION){
+  let hidden=0, keptNative=0;
+  for (const k of INVASIVE_FLAGGED_KEYS){
+    const ref={s:k,v:null};
+    if (!PLANTS[k] || !hasInvasiveCaution(ref,region)) continue;
+    if (invasiveFilterHides(ref,region)) hidden++; else keptNative++;
+  }
+  return {hidden,keptNative};
 }
 function invasiveCriteriaText(criteria){
-  const f=criteria||{}, place=nativeRegionLabel(f.nativeRegion), n=invasiveCautionCount(f.nativeRegion);
+  const f=criteria||{}, place=nativeRegionLabel(f.nativeRegion), c=invasiveFilterCounts(f.nativeRegion);
   const scope=' Only reviewed species are flagged, and regional lists change, so check locally before planting.';
   if (normalizeInvasiveMode(f.invasive)==='show')
     return `Plants with a recorded invasive caution for ${place} stay in the catalog and carry the caution.`+scope;
-  if (!n) return `No plant in the catalog has a recorded invasive caution for ${place} yet, so this hides nothing.`+scope;
-  return `Hides the ${n} plant${n===1?'':'s'} with a recorded invasive caution for ${place}.`+scope;
+  if (!c.hidden && !c.keptNative) return `No plant in the catalog has a recorded invasive caution for ${place} yet, so this hides nothing.`+scope;
+  const kept=c.keptNative
+    ? ` ${c.keptNative===1?'One plant':c.keptNative+' plants'} native to ${place} keep their place and carry the caution instead.`
+    : '';
+  return `Hides the ${c.hidden} introduced plant${c.hidden===1?'':'s'} with a recorded invasive caution for ${place}.`+kept+scope;
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }

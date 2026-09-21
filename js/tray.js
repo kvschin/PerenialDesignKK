@@ -1756,8 +1756,12 @@ function discoveryFamilyCard(group,d){
   const bloom=document.createElement('span'); bloom.textContent=groupBloom?`Blooms ${groupBloom}`:'Grown for foliage';
   varieties.className='plant-variety-tag';
   meta.append(bloom,varieties); copy.append(name,latin,meta);
-  if (group.refs.some(ref=>plantGuidance(ref).invasive.length)){
-    const caution=document.createElement('span'); caution.className='plant-caution-tag';
+  /* Scoped to the garden's own region, like the exact row's button: unscoped,
+     a family card warned a European garden about North Carolina. */
+  const groupCautions=group.refs.flatMap(ref=>invasiveCautionsFor(ref,activeFilters().nativeRegion));
+  if (groupCautions.length){
+    const caution=document.createElement('span');
+    caution.className='plant-caution-tag is-'+(groupCautions.some(n=>n.severity==='avoid')?'avoid':'caution');
     caution.textContent='Regional cautions · check individual choices'; copy.appendChild(caution);
   }
   const timeline=discoveryBloomTimeline(R); if (timeline) copy.appendChild(timeline);
@@ -2176,7 +2180,7 @@ function savedRefAvailabilityReason(ref){
   if (!challengeAllows(ref.s)) return 'Unavailable in this challenge';
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
   if (!passesNativeFilter(P,f)) return `Excluded by ${f.nativeMode==='straight'?'straight-species':'regional-native'} criteria`;
-  if (f.invasive==='hide' && hasInvasiveCaution(ref,f.nativeRegion)) return `Invasive caution for ${nativeRegionLabel(f.nativeRegion,true)}`;
+  if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return `Invasive caution for ${nativeRegionLabel(f.nativeRegion,true)}`;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P) && f.deer && !roles.includes('deerOk')) return 'Not deer resistant';
   if (!isTreeDef(P) && f.rabbit && !roles.includes('rabbitOk')) return 'Not rabbit resistant';

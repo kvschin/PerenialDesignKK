@@ -2713,9 +2713,24 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .plant-result-card.has-guidance>.plant-result-main{flex-basis:100%}
 .plant-guidance-button{display:block;width:100%;min-height:44px;padding:9px 12px;border:0;border-top:1px solid var(--border-quiet);background:var(--surface-control);color:var(--text-secondary);font:600 12px/1.4 'IBM Plex Sans',sans-serif;text-align:left;white-space:normal}
 .plant-guidance-button:hover{background:var(--surface-control-hover)}
+/* Severity is stated in the WORDS ("Invasive in California" against "Caution in
+   Washington"); the bar and tint only reinforce it. That ordering is deliberate
+   — background and colour are both discarded under forced colours, so anything
+   carried by them alone is carried by nothing. The bar is a border, which is
+   not discarded, and it is what distinguishes the two levels at a glance. */
 .plant-guidance-button.has-caution,.plant-caution-tag{color:var(--text-warn)}
-.plant-guidance-button.has-caution{background:var(--surface-warn)}
-.plant-caution-tag{font-size:12px;line-height:1.45;white-space:normal}
+.plant-guidance-button.has-caution{background:var(--surface-warn);border-left:3px solid var(--text-warn)}
+.plant-guidance-button.is-avoid{background:var(--surface-danger);border-left-color:var(--action-danger)}
+.plant-caution-tag{font-size:12px;line-height:1.45;white-space:normal;padding-left:8px;border-left:3px solid var(--text-warn)}
+.plant-caution-tag.is-avoid{border-left-color:var(--action-danger)}
+/* Sits immediately after the rules it overrides: a media query adds no
+   specificity, so a later base rule of equal weight would silently beat it. */
+@media (forced-colors: active){
+  .plant-guidance-button.has-caution{border-left-color:CanvasText;border-top-color:CanvasText}
+  .plant-guidance-button.is-avoid{border-left-color:Highlight}
+  .plant-caution-tag{border-left-color:CanvasText}
+  .plant-caution-tag.is-avoid{border-left-color:Highlight}
+}
 .plant-guidance-panel{max-width:580px}
 .plant-guidance{margin:14px 0;color:var(--text-primary);font-size:13px;line-height:1.5}
 .plant-guidance p{margin:6px 0}
