@@ -86,7 +86,8 @@ function resetNewGardenState(){
   game.previewMode='established';
   game.pathColor='warm'; game.bedStyle='soil'; game.waterStyle='pond';
   game.fenceDraft={style:'black',height:4,gate:false};
-  game.lightDraft={type:'path',tone:'warm'};
+  game.lightDraft={type:'path',tone:'warm',finish:'graphite'};
+  game.pergolaDraft={mat:'timber',height:8};
   game.firepitDraft={shape:'round',size:'round36'};
   game.boulderDraft={type:'round1'};
   game.petDraft=normalizePetDraft();

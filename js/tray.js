@@ -14,7 +14,7 @@ const TRAY_CATS=[
   {id:'trees',    label:'Trees',            types:['tree']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
-  {id:'structures',label:'Hardscape',       tools:['fence','support','firepit','waterfeature','boulder','seat']},
+  {id:'structures',label:'Hardscape',       tools:['fence','pergola','support','firepit','waterfeature','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'decor',    label:'Decor',            tools:['pot','pet']},
   {id:'house',    label:'Site',             tools:['building','house']},
@@ -96,6 +96,8 @@ const TOOLS={
   waterfeature:{layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeWaterFeatureAt(x,y)},
   // a run of obelisks down a border is a real thing, so it drags like a pot
   support: {layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeSupportAt(x,y)},
+  // a RUN, so it drags like a fence rather than dropping one piece at a time
+  pergola: {layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placePergolaAt(x,y)},
   boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
   // brush:false — tap-only on purpose. Every other placer drags out a run,
   // but a drag laid 24 identical cats across the plot, which nobody wants and
@@ -369,9 +371,10 @@ function drawBrushSwatchCanvas(c,includeLast){
     g.strokeStyle=st.rail; g.lineWidth=2; g.lineCap='round';
     g.beginPath(); g.moveTo(5,16); g.lineTo(25,16); g.moveTo(5,10); g.lineTo(25,10);
     for (let x=7;x<=23;x+=8){ g.moveTo(x,19); g.lineTo(x,6); } g.stroke(); return true; }
-  if (k==='light'){ const ld=lightDraft(), tone=lightTone(ld.tone);
-    g.fillStyle=tone.col; g.beginPath(); g.ellipse(15,9,6,3,0,0,7); g.fill();
-    g.strokeStyle=uiInk('--icon-ink-soft'); g.lineWidth=1.7; g.beginPath(); g.moveTo(15,10); g.lineTo(15,22); g.stroke(); return true; }
+  if (k==='light'){ const ld=lightDraft();
+    // through the garden's own painter, so the swatch follows the finish
+    const overall=feetToPx(lightHeightFt(ld)), k2=Math.min(0.85, 20/Math.max(1,overall));
+    drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
   if (k==='firepit'){ diamond('#74695d','rgba(239,230,211,.35)');
     g.fillStyle='#30261f'; g.beginPath(); g.ellipse(c.width/2,c.height/2+1,6,3,0,0,7); g.fill();
     g.strokeStyle='#ef7f37'; g.lineWidth=1.3; g.beginPath();
@@ -657,7 +660,7 @@ function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
   const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), pgk=pergolaAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();
@@ -695,6 +698,11 @@ function pickAt(x,y){
     game.fenceDraft=normalizeFenceDraft(f);
     setTool('fence', null); buildToolTray();
     toast(`Picked ${fenceLabel(f)}.`);
+  } else if (pgk){
+    game.fillMode=false; game.trayCat='structures'; game.drill='pergola';
+    game.pergolaDraft=normalizePergolaDraft(pgk);
+    setTool('pergola', null); buildToolTray();
+    toast(`Picked ${pergolaLabel(pgk)}.`);
   } else if (l){
     game.fillMode=false; game.trayCat='lighting';
     game.lightDraft=normalizeLightDraft(l);
@@ -3016,6 +3024,54 @@ function buildToolTrayInner(){
         toolBtn(s.label, fd.size===s.id, {size:s.id}, `${s.plan} ${fd.shape} fire pit`));
     }
   }
+  if (cat.tools.includes('pergola')){
+    const gd=pergolaDraft();
+    const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
+      s.textContent=t2; tray.appendChild(s); };
+    // through drawPergolaART, never drawPergola: the latter positions itself
+    // from screenOf and would land the frame off a 48x44 chip entirely
+    const miniPergola=(tc,d)=>{
+      d=normalizePergolaDraft(d);
+      drawPergolaArt(tc,24,40,d,Math.min(0.30,32/pergolaDrawH(d)));
+    };
+    const choose=patch=>{
+      game.pergolaDraft=normalizePergolaDraft(Object.assign({},pergolaDraft(),patch));
+      setTool('pergola',null); game.drill='pergola';
+      rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
+    };
+    const toolBtn=(label,sel,patch,tip)=>{
+      const d=normalizePergolaDraft(Object.assign({},gd,patch));
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='pergola';
+      if (patch.mat!==undefined) b.dataset.pergolaMat=patch.mat;
+      if (patch.height!==undefined) b.dataset.pergolaHeight=String(patch.height);
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniPergola(c.getContext('2d'),d);
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
+      tray.appendChild(b); return b;
+    };
+    if (!game.drill){
+      const b=document.createElement('button');
+      b.className='tool has-sub'+(game.tool==='pergola'?' sel':'');
+      b.dataset.k='pergola';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      miniPergola(c.getContext('2d'),gd);
+      const sp=document.createElement('span'); sp.textContent='Pergola';
+      b.append(c,sp);
+      b.title=`Pergola: ${pergolaLabel()}. Drag a run; a climber will grow on it.`;
+      b.onclick=()=>{ setTool('pergola',null); game.drill='pergola';
+        rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
+      tray.appendChild(b);
+    } else if (game.drill==='pergola'){
+      backBtn();
+      sep('Material');
+      PERGOLA_MATERIALS.forEach(m=>toolBtn(m.short||m.label, gd.mat===m.id, {mat:m.id}, m.label));
+      sep('Height');
+      PERGOLA_HEIGHTS.forEach(h=>toolBtn(h+" ft", gd.height===h, {height:h},
+        h===7?'7 ft — a walk-under arbour':h===9?'9 ft — room for a wisteria to hang':'8 ft — the standard'));
+    }
+  }
   if (cat.tools.includes('support')){
     const sd=supportDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
@@ -3250,6 +3306,7 @@ function buildToolTrayInner(){
       b.dataset.k='light';
       if (draftPatch.type!==undefined) b.dataset.lightType=draftPatch.type;
       if (draftPatch.tone!==undefined) b.dataset.lightTone=draftPatch.tone;
+      if (draftPatch.finish!==undefined) b.dataset.lightFinish=draftPatch.finish;
       const c=document.createElement('canvas'); c.width=48; c.height=44;
       miniLight(c.getContext('2d'),Object.assign({},ld,draftPatch),game.layerVis.night);
       const sp=document.createElement('span'); sp.textContent=label;
@@ -3261,6 +3318,9 @@ function buildToolTrayInner(){
     sep('Fixture');
     LIGHT_TYPES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.type===t2.id, {type:t2.id},
       `${t2.label} · ${fmtLengthIn(lightHeightFt({type:t2.id})*12)} tall`));
+    sep('Finish');
+    lightTypeFinishes(ld.type).forEach(f=>toolBtn(f.short||f.label,
+      game.tool==='light'&&ld.finish===f.id, {finish:f.id}, f.label));
     sep('Light');
     LIGHT_TONES.forEach(t2=>toolBtn(t2.short, game.tool==='light'&&ld.tone===t2.id, {tone:t2.id}, t2.label));
   }
@@ -3550,6 +3610,8 @@ function refreshTray(){
       ? game.tool==='light' && lightDraft().type===el.dataset.lightType
       : el.dataset.lightTone
       ? game.tool==='light' && lightDraft().tone===el.dataset.lightTone
+      : el.dataset.lightFinish
+      ? game.tool==='light' && lightDraft().finish===el.dataset.lightFinish
       : el.dataset.petSpecies
       ? game.tool==='pet' && petDraft().species===el.dataset.petSpecies
       : el.dataset.petCoat

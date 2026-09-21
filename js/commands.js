@@ -200,7 +200,7 @@ function actHere(opts){
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
-    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0,support:0};
+    const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0,support:0,pergola:0};
     eraseBrush(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
@@ -212,6 +212,8 @@ function actHere(opts){
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.waterFeature) parts.push(`${counts.waterFeature} water feature${counts.waterFeature>1?'s':''}`);
     if (counts.support) parts.push(`${counts.support} support${counts.support>1?'s':''}`);
+    // BAYS, not pergolas: a run is one pergola however many tiles it covers
+    if (counts.pergola) parts.push(`${counts.pergola} pergola bay${counts.pergola>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
     if (counts.pot) parts.push(`${counts.pot} pot${counts.pot>1?'s':''}`);
@@ -233,6 +235,7 @@ function actHere(opts){
     if (firepitAt(x,y)){ toast('Move the fire pit before changing the ground.'); return; }
     if (waterFeatureAt(x,y)){ toast('Move the water feature before changing the ground.'); return; }
   if (structureSupportAt(x,y)){ toast('Move the support before changing the ground.'); return; }
+    if (pergolaAt(x,y) && game.tool==='water'){ toast('Move the pergola before making water.'); return; }
     if (boulderAt(x,y)){ toast('Move the boulder before changing the ground.'); return; }
     const wasSame=terr===game.tool;
     const r=stampBrushAt(x,y,opts);
@@ -602,10 +605,33 @@ function fenceLabel(f){
   const d=f||fenceDraft();
   return `${d.height}' ${fenceStyle(d.style).label}${d.gate?' gate':' fence'}`;
 }
+/* ---------- pergolas ----------
+   It stands over a PATIO, so terrain under it is the whole point and is allowed
+   -- exactly as it is under a fence. Everything that stands on the ground is
+   refused, and so is a planted tile: the posts are real. */
+function canPlacePergola(x,y){
+  if (!onPlot(x,y)) return false;
+  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
+  if (fenceAt(x,y) || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
+  if (waterFeatureAt(x,y) || potAt(x,y) || seatAt(x,y) || structureSupportAt(x,y)) return false;
+  const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
+  return !(p&&!p.removed) && !(b&&!b.removed);
+}
+function pergolaDraft(){ return game.pergolaDraft=normalizePergolaDraft(game.pergolaDraft); }
+function pergolaLabel(p){ return pergolaLabelFor(p||pergolaDraft()); }
+function placePergolaAt(x,y){
+  if (!canPlacePergola(x,y)) return null;
+  if (!game.pergolas) game.pergolas={};
+  const d=normalizePergolaDraft(pergolaDraft()), k=`${x},${y}`;
+  const cur=pergolaAt(x,y);
+  if (cur && cur.mat===d.mat && cur.height===d.height) return null;
+  setTile('pergolas',k,Object.assign({},d,{t:Date.now()}));
+  return 'pergola';
+}
 function canPlaceFence(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
-  if (waterFeatureAt(x,y)) return false;
+  if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
   if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
@@ -624,7 +650,7 @@ function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
-  if (waterFeatureAt(x,y)) return false;
+  if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -802,15 +828,22 @@ function paintEdgingAt(x,y){
 function wallDraft(){ return game.wallDraft=wallStyleId(game.wallDraft); }
 function wallLabel(id){ return wallLabelFor(id||wallDraft()); }
 function paintWallAt(x,y){
-  const k=`${x},${y}`, e=game.elevation && game.elevation[k];
-  // a wall holds a level change up; with no exposed face there is nothing to hold
-  if (!e || e.removed || !elevationDropDirs(x,y).length) return null;
+  const k=`${x},${y}`, rec=game.elevation && game.elevation[k];
+  const e=(rec && !rec.removed) ? rec : null;
+  /* A wall holds a level change up; with no exposed face there is nothing to
+     hold. The FACE is the question, not whether this tile carries a record: the
+     rim of a sunken patio sits at grade, so it has no record of its own and
+     could never be faced -- the earthwork was invisible AND unbuildable. */
+  if (!onPlot(x,y) || !elevationDropDirs(x,y).length) return null;
   const want=wallDraft();
-  if (wallStyleId(e.w)===want) return null;
-  setTile('elevation',k,Object.assign({},e,{w:want,t:Date.now()}));
+  if (wallStyleId(e&&e.w)===want) return null;
+  /* Stripping a facing off a GRADE tile removes the record rather than leaving
+     a {h:0,w:'none'} behind: at grade the record exists only to carry the wall,
+     so an emptied one is a tombstone that would ride every save from here on. */
+  if (want==='none' && elevationAt(x,y)===0) clearTile('elevation',k);
+  else setTile('elevation',k,Object.assign({},e,{h:elevationAt(x,y),w:want,t:Date.now()}));
   return 'wall';
 }
-
 /* ---------- seating ---------- */
 function seatDraft(){ return game.seatDraft=normalizeSeatDraft(game.seatDraft); }
 function seatLabel(s){ return seatLabelFor(s||seatDraft()); }
@@ -933,10 +966,20 @@ function waterFeatureFootprint(x,y,w){
 function canPlaceWaterFeature(x,y,ignoreKey){
   const d=waterFeatureDraft(), sz=waterFeatureTileSize(d);
   if (x<0||y<0||x+sz.w>GW||y+sz.h>GH) return false;
-  for (const [xx,yy] of waterFeatureFootprint(x,y,d)){
+  /* A fountain standing IN a pond is a real and lovely thing, and this used to
+     refuse it outright -- the reason given being that the drawing would have to
+     know it was in water (no plinth, ripples against the rim rather than a
+     shadow on grass) and half of that is worse than a clean refusal. The drawing
+     knows now, so the refusal goes. What survives of it is that the piece must
+     be WHOLLY in or wholly out: half a basin on the bank is the picture the old
+     refusal was really protecting against, and no amount of drawing fixes it. */
+  const tiles=waterFeatureFootprint(x,y,d);
+  const wet=tiles.filter(([xx,yy])=>tileTerrain(xx,yy)==='water').length;
+  if (wet && wet!==tiles.length) return false;
+  for (const [xx,yy] of tiles){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
+    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
     if (potAt(xx,yy) || seatAt(xx,yy) || structureSupportAt(xx,yy)) return false;
     const wf=waterFeatureAt(xx,yy); if (wf && wf.key!==ignoreKey) return false;
@@ -990,6 +1033,14 @@ function supportAt(x,y){
   }
   const f=fenceAt(x,y);
   if (f && !f.gate) return {kind:'fence', ft:fenceHeightFor(f.style,f.height), fence:f, w:1, h:1, x, y};
+  /* A PERGOLA is a support and cost almost nothing to make one: it already
+     carries a real height in feet and a run axis, which is exactly what a
+     climber needs to know. This is the seam the supports note named -- a
+     pergola is a RUN rather than a piece, which is a different placement idiom
+     -- and once the run existed the climber came free. A wisteria over a
+     pergola is most of why anybody builds one. */
+  const pg=pergolaAt(x,y);
+  if (pg) return {kind:'pergola', ft:pergolaHeightFor(pg.height), pergola:pg, w:1, h:1, x, y};
   return null;
 }
 function supportFootprint(x,y,s){
@@ -1468,6 +1519,14 @@ function eraseBrush(cx,cy,counts){
           if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',pk); counts.plants++; }
         }
         clearTile('supports',spe.key); counts.support=(counts.support||0)+1;
+      }
+      /* A pergola lifts the same way a support does, and for the same reason:
+         it IS a support (supportAt), so a vine left behind would be standing on
+         ground placePlantAt refuses. */
+      if (pergolaAt(x,y)){
+        const pv=game.plants[k];
+        if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',k); counts.plants++; }
+        clearTile('pergolas',k); counts.pergola=(counts.pergola||0)+1;
       }
       const bo=boulderAt(x,y);
       if (bo){ clearTile('boulders',bo.key); counts.boulder=(counts.boulder||0)+1; }

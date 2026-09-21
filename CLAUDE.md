@@ -2045,7 +2045,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **Bark mulch path and the bark-mulch bed are the same material**, and the
     path colours — which used to differ only by tint — now get crushed gravel,
     limestone fines, shredded bark, cut flagstone, crazed clay, dark chip,
-    brick and concrete paver respectively. Beds are soil / gravel / river rock /
+    brick and concrete paver respectively.
+    **Timber decking and a grey composite** joined the paths (Sep 2026) and
+    needed no new recipe: a deck board is a LAID UNIT exactly as a paver is —
+    5.5in wide, laid in a stagger — so it is `texture:'brick'` with its real
+    `unit`, and its `fill` is the shadow gap between boards, which is what a laid
+    material's fill means. It is the one paving here you would really build ABOVE
+    grade: raise the ground under it with the Grade tools and face the drop.
+    Beds are soil / gravel / river rock /
     leaf litter / bark mulch / **pine straw** / **pea gravel** — the aggregate
     ones deliberately span three sizes (crushed fines, 3/8in rounded pea,
     2–4in cobble) because that is the distinction a designer is actually making.
@@ -2259,6 +2266,33 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     scale is a CAP each fixture shrinks below to fit (the water-feature rule),
     because at one SHARED scale the honest 5:1 ratio puts a path light at seven
     pixels — the true height goes in the chip's `title`, where it costs no ink.
+    **`LIGHT_FINISHES` is the third axis**, as `POT_FINISHES`, `SEAT_FINISHES`
+    and `WATER_FINISHES` are: the metal a fixture is made of is not a different
+    fixture. A row names the finishes that piece is really made in IN ITS OWN
+    ORDER (§12d's rule — filtering the global table defaults a copper-and-brass
+    path light to black), and `lightFinishFor` SNAPS rather than resets the way
+    `fenceHeightFor` does. **`graphite` is first wherever it appears and is the
+    metal every light was drawn in before finishes existed** (`#3f4038` /
+    `#6c6958`), so a saved garden reopens looking exactly as it did; a test pins
+    that literal. `drawLightArt` reads `lightColors` and never a hardcoded metal,
+    which a test greps for.
+    **Two fixtures joined the three**, and the UPLIGHT is the one that mattered:
+    every other fixture lays a POOL on the ground, and the thing that actually
+    makes a garden at night is a can aimed up the trunk of a specimen tree —
+    which this catalog has two hundred of. `glow:'up'` is the branch in
+    `drawLightGlow`: a clipped wedge opening upward with a bloom where it lands,
+    rather than the two radials the pooling fixtures fill. Drawn as a pool it
+    would have been a shorter path light, which is the whole reading the fixture
+    exists to avoid. A STEP light joined it — a louvred bar that shows no lamp,
+    because what you see of one is the wash it lays down. STRING lights are
+    deliberately absent: they are a RUN, which is the pergola's idiom (§12f), not
+    this one.
+    The night glow pass also culls in SCREEN space now, padded by the glow's
+    REACH. It tested the tile bbox, which is the bbox of a DIAMOND — the trap
+    this file documents twice — and that both kept lights that were off screen
+    and DROPPED lights whose pool still landed on it: a lantern throws 113px and
+    a big fire pit close to 200, so a fixture can be a tile and a half out and
+    still be lighting the corner you are looking at.
     **One panel painter, no per-style branches.** `FENCE_STYLES` rows name an
     `infill` recipe the way a plant names its `form` — `bar`, `picket`,
     `privacy`, `slat`, `rail`, `mesh`, `chain`, `masonry`, `woven`, `screen` —
@@ -2437,6 +2471,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     stamped across a continuous region is the tilemap artifact that note exists
     to prevent. Bare ground keeps its bevelled checker, which is what makes a
     mown path read as continuous with the lawn around it.
+    **STEPPING STONES are a lawn, not a path** (Sep 2026), and filing them here
+    is the whole trick: what you are looking at is grass with slabs set into it,
+    so the grass has to be the surface and the stones the grain. As a path it
+    would have needed a material that draws no base — every other paving covers
+    its tile, which is what `TERRAIN_RANK` is about — and the region machinery
+    assumes a continuous surface. As a lawn it costs almost nothing: the base is
+    the season's own grass, `mown` already proves the table can carry a row that
+    is really an absence, and lawn is rank 0 so it never bleeds over anything.
+    One slab per tile, because a tile is 18 inches and that IS about the spacing
+    a stepping stone is set at, so painting a line of tiles lays a line of
+    stones. `noEdge` is the one thing the arrangement needs: a region strokes its
+    outline, and a line drawn round a field of stepping stones marks a boundary
+    where the grass is the same grass on both sides of it.
     **Turf area finally reaches the planting list** (`hardscapeRows`), and mown
     lawn is still an absence, so it is the one tally there counted by walking
     the plot rather than the terrain map — O(GW*GH), affordable because it runs
@@ -2969,9 +3016,27 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     If access ever needs showing, the idea to start from is a PATH that renders
     as treads where it crosses a level change: no tool, no facing, no placement
     rules, and it matches how paths already flow through beds by `TERRAIN_RANK`.
-    Known limitation either way: `drawElevationSides` bails on `h<=0`, so a
-    SUNKEN area shows no face and therefore takes no wall.
-
+    **A HOLLOW shows its face too, as of Sep 2026** — it did not, and that was
+    the standing limitation here. `ELEV_MIN` is -2, so Lower digs two courses
+    below grade, and a sunken patio drew no cut face, traced no wall and billed
+    nothing. The cause is worth keeping: a face belongs to the HIGHER tile, and
+    the higher tile of a hollow is ordinary ground at GRADE, which carries no
+    elevation record — so `buildElevationRuns`, which indexes the elevation map,
+    had nothing to find however the guard was written. Three parts. The per-tile
+    guard was `h<=0` where the per-EDGE test below it already asks the only
+    question that matters (is this tile higher than that neighbour), so it is now
+    `h<=0 && !elevationHasSunken()` — a flag on the elevation grid, which keeps
+    the one comparison per tile that every garden without earthworks was getting
+    for free inside the ground bake. The trace collects the RIM explicitly: any
+    in-bounds neighbour of a below-grade tile that stands above it, added to its
+    own level, with raised ground indexed exactly as before so a terrace still
+    traces one solid set rather than a ring. And `paintWallAt` asks for a FACE
+    rather than for a record, so the rim can be faced at all — it creates
+    `{h:0,w}` and REMOVES it again when the facing is stripped, because at grade
+    the record exists only to carry the wall and an emptied one is a tombstone
+    riding every save from there on. Measured: a 5x5 hollow traces 30 ft where it
+    traced none, a stepped hollow gives both its grade->-1 and -1->-2 faces, and
+    the raised control is unchanged.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that
@@ -3013,11 +3078,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     procedural control, with **no sprite drawing to its own border**. The key
     carries `tileSeed` like a boulder's, because the gravel bed and the ripple
     jitter are seeded off the tile.
-    Two decisions worth not re-litigating. **Water TERRAIN refuses it** — a
-    fountain standing in a pond is a real and lovely thing and this deliberately
-    does not do it, because the drawing would have to know it was in water (no
-    plinth, ripples against the rim rather than a shadow on grass) and half of
-    that is worse than a clean refusal; it is the obvious follow-up. And **a
+    **Water TERRAIN used to refuse it**, on the grounds that the drawing would
+    have to know it was in water -- no plinth, ripples against the rim rather
+    than a shadow on grass -- and half of that is worse than a clean refusal.
+    The drawing knows now (Sep 2026): `drawWaterFeatureArt` takes an `inWater`
+    flag and drops the two marks that say GROUND, the cast shadow and the gravel
+    reservoir, for rings running out from where the piece breaks the surface.
+    What SURVIVES of the refusal is the part no drawing could have fixed: the
+    piece must be wholly in or wholly out, because half a basin on the bank is
+    the picture the rule was really protecting against. And the flag has to be
+    named in the SPRITE KEY -- it is the one thing the drawing reads that is not
+    on the record, the same reason the fence names its neighbour mask -- or
+    dropping a pond around a birdbath leaves the dry sprite, gravel and all,
+    sitting in the water. And **a
     form's `finishes` list is ordered by the FORM, not by `WATER_FINISHES`**:
     filtering the global table instead defaulted a stock tank to corten, because
     corten sits earlier there than galvanised, which is the one finish a stock
@@ -3081,10 +3154,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     **A fence is a support and cost nothing to make one.** It already carries a
     real height in feet (§11d) and a run axis (`fenceRunAxis`), which is exactly
     what a climber needs to know, so a climbing rose on a 6ft cedar fence — the
-    commonest climber in any garden — needed no new object at all. Walls and
-    pergolas are the obvious follow-ups and are deliberately not here: a wall
-    would need the facing to know which side is exposed, and a pergola is a RUN
-    rather than a piece, which is a different placement idiom.
+    commonest climber in any garden — needed no new object at all.
+    The PERGOLA was the other half of that observation and is now built (12f).
+    A WALL is still the obvious follow-up and is deliberately not here: it would
+    need the facing to know which side is exposed.
     **`climberRenderDetail` is the seam, and it rides the existing one.**
     `plantRenderDetail` already baked neighbour-derived geometry into the plant
     sprite key (`kTail`) for hedges and bamboo, so a climber's frame reaches the
@@ -3156,6 +3229,54 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     DO reach the client documents: the frame is a line on the planting list
     naming its material, and the climber is an ordinary plant on it.
 
+12f. **Pergolas** (`PERGOLA_MATERIALS`/`PERGOLA_HEIGHTS`/`PERGOLA_SPEC`,
+    `drawPergola`; Sep 2026) — the thing over a patio, and the structure a small
+    garden asks for most often. **It is modelled on the FENCE, not on the
+    obelisk beside it**, because a pergola is a RUN: a tile is one 18in bay,
+    neighbouring tiles connect, and posts fall at intervals along the run rather
+    than on every tile. That is exactly the reason §12e deferred it — "a pergola
+    is a RUN rather than a piece, which is a different placement idiom" — and
+    once it is filed as a run the idiom is one the app already had.
+    `game.pergolas` is an ordinary keyed layer (`"x,y"` -> `{mat,height,t}`), so
+    undo, save/load and schemes-adjacent plumbing come free. `LAYER_CACHES`
+    classifies it `{scene:1, plants:1}` — and that note names a pergola as its
+    OWN example of a layer that must not silently leave the shade map stale, so
+    the classification is a deliberate statement rather than a missed flag: a
+    tree is the only thing in this app that casts shade, and a pergola that
+    shaded would be a new feature.
+    **It stands OVER paving**, which is the whole point, so `canPlacePergola`
+    allows terrain exactly as `canPlaceFence` does; everything standing on the
+    ground is refused, and so is a planted tile, because the posts are real.
+    `PERGOLA_POST_TILES` is 6 (9 ft on centre) against the fence's 4: a post
+    every 18 inches is a stockade and a pergola is a frame you walk THROUGH.
+    Two posts per post-tile, set out either side of the run — a single line of
+    posts down the middle is a fence wearing a roof, and the pair is most of what
+    says pergola. Members are real INCHES (`PERGOLA_SPEC`) for the seating
+    reason, and every point goes through a WORLD offset so the frame turns with
+    the camera. Rafters are ONE per tile, because a tile is 18 inches and that is
+    what a rafter is really set at, so the tile lattice gives the rhythm for free
+    at one shape instance a bay.
+    **The payoff is that `supportAt` gains a branch and climbers come free.**
+    That function is the single seam for "is there something here a climber can
+    use", and a pergola already carries a real height in feet and a run axis —
+    which is all `climberRenderDetail` asks for. A wisteria over a pergola is
+    most of why anybody builds one, and it cost three lines.
+    The sprite key names what the drawing reads OUTSIDE its own record — the
+    4-neighbour mask, the run axis, `pergolaPostHere` and five elevation samples
+    — and ASKS that function rather than restating its rule, the fence's lesson.
+    Measured: 9 bays collapse to 4 distinct sprites, `verifyStructureSprites`
+    reports **0.000% at all four rotations** with nothing clipped, and
+    `measureStructBoxes` 0 of 1816 escaping. The beam plane lands at exactly
+    `feetToPx(8)`.
+    Erasing a bay takes its climber, for the reason lifting a support or a pot
+    takes its planting: a vine left behind would stand on ground `placePlantAt`
+    refuses. It bills by the FOOT on the planting list, like a fence. It is
+    deliberately NOT in `selectionPayload`, which matches the supports beside it
+    — neither layer moves with a marquee today, and making one of them do so
+    without the other would be worse than the gap.
+    Known limit, shared with the supports: a climber still cannot be planted on
+    a bay standing over PAVING, because a plant cannot be dug into gravel. The
+    answer the app already has is a container under the frame (§12b).
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
@@ -3248,8 +3369,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (§11f) because a garden that is two thirds grass came out of here with no
     mention of the surface it is mostly made of; the gravel path beside that
     lawn had exactly the same problem, one material over. It now also carries
-    paving, bed and water area, fence footage, gates, fire pits, boulders,
-    supports and lighting. Three units, and which one a thing takes is a fact
+    paving, bed and water area, fence footage, gates, pergolas (by the foot,
+    like a fence — a tile is one 18in bay), fire pits, boulders, supports and
+    lighting, the last split by FINISH the way a container's colour splits it. Three units, and which one a thing takes is a fact
     about the thing: **area** for a surface, **feet** for a run, **count** for a
     thing you buy.
     Four rules it has to keep. **A gate is billed as an ITEM, not as fence**:
@@ -3962,6 +4084,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
     rectangular, and oblong footprints, block planting, render through
     `drawBoulder`, and export to the design plan.
+    Plus **pergolas** (§12f) behind their own drill-in, in four materials at
+    7/8/9 ft — a run you drag like a fence, and something a climber grows on.
     Plus **water features** (§12d) — birdbath, bubbling urn, bubbling
     millstone, tiered fountain, stone water basin, wall spout, stock tank pool
     and reflecting basin, each in the finishes that piece is really made in,

@@ -538,6 +538,8 @@ const SWEEP_NOUNS=[
   ['fence','fence'], ['light','light'],
   ['firepit','fire pit'], ['boulder','boulder'], ['waterFeature','water feature'],
   ['support','support'],
+  // BAYS, not pergolas: a run is one pergola however many tiles it covers
+  ['pergola','pergola bay'],
   ['pet','pet'], ['pot','container'], ['seat','seat'],
   ['house','house'], ['building','building footprint'],
 ];

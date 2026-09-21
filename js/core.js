@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.8.99';
+const APP_VERSION = '0.9.0';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -795,6 +795,18 @@ const PATH_COLORS = [
    texture:'brick', unit:[8,4], tones:['#8a4633','#a85f45','#bd7358','#94503a']},
   {id:'paver', label:'Concrete paver', short:'Paver', fill:'#7e7b74', plan:'#c7c4bc',
    texture:'brick', unit:[16,16], tones:['#918e86','#a5a29a','#b5b2aa','#8a877f']},
+  /* TIMBER DECKING, and a composite beside it. A deck board is a LAID UNIT
+     exactly as a paver is -- 5.5in wide, laid in a stagger -- so it needs no new
+     recipe, only its real size; `fill` is the shadow gap between boards, which
+     is what a laid material's fill means (the joint, not the unit).
+     It is the one paving here you would really build ABOVE grade: raise the
+     ground under it with the Grade tools and face the drop, and the composition
+     is a deck rather than a painted rectangle. There is no `depth` on either,
+     because decking is bought by the board and not by the yard. */
+  {id:'deck', label:'Timber Decking', short:'Deck', fill:'#4a3625', plan:'#c8a87c',
+   texture:'brick', unit:[60,5.5], tones:['#8a6845','#a37e55','#b78f61','#77583a']},
+  {id:'composite', label:'Grey Composite', short:'Composite', fill:'#3f4248', plan:'#b9bcc0',
+   texture:'brick', unit:[60,5.5], tones:['#6f747a','#848a90','#979da3','#63686e']},
   // Slate covers the cool greys; a warm flagstone is a different design choice,
   // not a tint of the same one.
   {id:'sandstone', label:'Sandstone', fill:'#a58e6a', plan:'#dcc7a4',
@@ -952,6 +964,20 @@ const LAWN_STYLES = [
   {id:'moss',   label:'Moss Lawn',        short:'Moss',   texture:'moss', cut:1,
    tint:'#4f7346', mix:0.58, follow:0.15, plan:'#b6cdaa',
    tones:['#33512f','#456b3c','#5a824c','#6f9459']},
+  /* STEPPING STONES, and they are a LAWN rather than a path on purpose: what
+     you are looking at is grass with slabs set into it, so the grass has to be
+     the surface and the stones the grain. Filed as a path it would have needed
+     a material that draws no base -- every other paving covers its tile, which
+     is what TERRAIN_RANK is about -- and the whole region machinery assumes a
+     continuous surface. As a lawn it costs nothing: the base is the season's
+     own grass, `mown` already proves the table can carry a row that is really
+     an absence, and lawn is rank 0 so it never bleeds over anything.
+     `noEdge` is the one thing it does need. A region strokes its outline, and
+     a line drawn round a field of stepping stones marks a boundary where
+     nothing changes -- the grass is the same grass on both sides of it. */
+  {id:'stepstone', label:'Stepping Stones', short:'Stones', texture:'stepstone', cut:2.5,
+   tint:'#8fa36a', mix:0.10, noEdge:true, plan:'#cfd6c2',
+   tones:['#5f5f58','#8b8a80','#a5a49a','#76756c']},
   // The one surface that does not follow the season: a fixed fill, and a grain
   // that is deliberately too even. That evenness IS the tell.
   {id:'turf',   label:'Artificial Turf',  short:'Turf',   texture:'synthetic', cut:1.5,
@@ -1097,14 +1123,87 @@ function fenceDrawH(f){ return Math.round(fenceHeightFor(fenceStyleId(f&&f.style
    `poolFt` is the radius of light thrown at night, and it is the one number here
    that is an EFFECT rather than a measurement -- a real 6 ft lantern throws far
    more than 5 ft, and a pool that big washes the screen. It still scales with the
-   fixture, so a post reads brighter than a path light. */
+   fixture, so a post reads brighter than a path light.
+   `glow:'up'` is the UPLIGHT, and it is why that fixture exists: every other one
+   here lays a pool on the ground, and the thing that actually makes a garden at
+   night is a can aimed up the trunk of a specimen tree -- which this catalog has
+   two hundred of. It washes upward instead of pooling, so it reads as lighting
+   the planting rather than the path.
+   `finishes` is ordered BY THE FIXTURE, never by filtering LIGHT_FINISHES: a
+   global order defaults a copper-and-brass path light to black, the same trap
+   the water features documented. `graphite` is first wherever it appears because
+   it is the metal every light in the app was drawn in before finishes existed,
+   so a saved garden reopens looking exactly as it did. */
+/* ---------- pergolas ----------
+   The one structure a small garden most often wants and the app could not draw:
+   the thing over a patio. A pergola is a RUN, not a piece -- which is exactly
+   why it was deferred when the obelisk, trellis and arch landed (see the
+   supports note) -- so it is modelled on the FENCE and not on them: a tile is a
+   bay, neighbouring tiles connect, and posts fall at intervals along the run
+   rather than on every tile.
+   It is built height like everything else (PX_PER_FT): 7 ft is a walk-under
+   arbour, 8 the standard, 9 what you build when you mean to grow a wisteria
+   through it and still walk under the racemes.
+   `postEvery` is in TILES. Real pergola posts are 8-10 ft apart, and a tile is
+   18 inches, so 6 tiles is 9 ft -- the fence's own FENCE_POST_TILES logic with
+   a number that suits a heavier frame. `rafterIn`/`beamIn`/`postIn` are real
+   inches for the seating reason: sized as a fraction of the height, a 9 ft
+   pergola would grow 9-inch rafters. */
+const PERGOLA_HEIGHTS = [7,8,9];
+const PERGOLA_POST_TILES = 6;              // 6 x 18in = 9 ft on centre
+const PERGOLA_SPEC = {postIn:6, beamIn:7, rafterIn:3.5, overhangIn:8};
+const PERGOLA_MATERIALS = [
+  {id:'timber', label:'Timber',      short:'Timber', post:'#8a6a44', beam:'#9c7b52', hi:'#b08f63'},
+  {id:'oak',    label:'Oak',         short:'Oak',    post:'#6f5432', beam:'#82653f', hi:'#9c7d52'},
+  {id:'white',  label:'Painted White',short:'White', post:'#ded9cf', beam:'#efebe2', hi:'#ffffff'},
+  {id:'black',  label:'Black Metal', short:'Black',  post:'#2b2b2f', beam:'#3a3a40', hi:'#5d5d66'},
+];
+function pergolaMaterial(id){ return PERGOLA_MATERIALS.find(m=>m.id===id)||PERGOLA_MATERIALS[0]; }
+function pergolaMatId(id){ return pergolaMaterial(id).id; }
+function pergolaHeightFor(h){
+  const want=+h; return PERGOLA_HEIGHTS.includes(want)?want:8;
+}
+function normalizePergolaDraft(d){
+  d=d||{};
+  return {mat:pergolaMatId(d.mat), height:pergolaHeightFor(d.height)};
+}
+// drawn height of the BEAM above the tile, in screen px -- fenceDrawH's sibling
+function pergolaDrawH(p){ return pergolaHeightFor(p&&p.height)*PX_PER_FT; }
+function pergolaLabelFor(p){
+  const d=normalizePergolaDraft(p);
+  return `${d.height}' ${pergolaMaterial(d.mat).label} pergola`;
+}
 const LIGHT_TYPES = [
   {id:'path', label:'Path light', short:'Path', kind:'path',
-   ft:1.2, postIn:1.6, headIn:4,  headWIn:7,  poolFt:2.6},
+   ft:1.2, postIn:1.6, headIn:4,  headWIn:7,  poolFt:2.6,
+   finishes:['graphite','black','bronze','copper','steel']},
   {id:'lantern', label:'Lantern post', short:'Lantern', kind:'post',
-   ft:6,   postIn:3,   headIn:11, headWIn:9,  poolFt:5.4},
+   ft:6,   postIn:3,   headIn:11, headWIn:9,  poolFt:5.4,
+   finishes:['black','bronze','graphite','copper']},
   {id:'lamp', label:'Outdoor lamp', short:'Lamp', kind:'lamp',
-   ft:3,   postIn:2.4, headIn:5,  headWIn:11, poolFt:3.6},
+   ft:3,   postIn:2.4, headIn:5,  headWIn:11, poolFt:3.6,
+   finishes:['graphite','black','bronze','white','steel']},
+  // aimed UP a trunk, so it throws further than its own six inches suggest
+  {id:'uplight', label:'Uplight', short:'Uplight', kind:'spot', glow:'up',
+   ft:0.55, postIn:1.2, headIn:6, headWIn:4,  poolFt:4.6,
+   finishes:['graphite','black','bronze','copper','steel']},
+  // a louvred bar that washes the tread below it and shows no lamp
+  {id:'step', label:'Step light', short:'Step', kind:'step',
+   ft:0.35, postIn:1,   headIn:3,  headWIn:8,  poolFt:1.9,
+   finishes:['steel','black','bronze','graphite','white']},
+];
+/* The metal, as a third axis -- exactly as POT_FINISHES, SEAT_FINISHES and
+   WATER_FINISHES are: the material a fixture is made of is not a different
+   fixture. `body` is the metal and `hi` its lit edge; drawLightArt reads these
+   and never a literal, which is the convention the rest of the file keeps
+   ("change the palette in data, not in code"). */
+const LIGHT_FINISHES = [
+  {id:'graphite', label:'Graphite',    short:'Graphite', body:'#3f4038', hi:'#6c6958'},
+  {id:'black',    label:'Black Metal', short:'Black',    body:'#26262a', hi:'#4f4f58'},
+  {id:'bronze',   label:'Bronze',      short:'Bronze',   body:'#3f3128', hi:'#7a6049'},
+  {id:'steel',    label:'Brushed Steel', short:'Steel',  body:'#79808a', hi:'#b6bdc4'},
+  {id:'copper',   label:'Aged Copper', short:'Copper',   body:'#6b5237', hi:'#ab7a4d'},
+  {id:'white',    label:'Matt White',  short:'White',    body:'#cfcbc1', hi:'#f0ede6'},
 ];
 const LIGHT_TONES = [
   {id:'eco', label:'Eco friendly', short:'Eco', col:'#b9d483', glow:'rgba(190,224,130,'},
@@ -1115,11 +1214,29 @@ function lightType(id){ return LIGHT_TYPES.find(l=>l.id===id)||LIGHT_TYPES[0]; }
 function lightTone(id){ return LIGHT_TONES.find(l=>l.id===id)||LIGHT_TONES[1]; }
 function lightTypeId(id){ return lightType(id).id; }
 function lightToneId(id){ return lightTone(id).id; }
+// the finishes this fixture is really made in, in its own order
+function lightTypeFinishes(typeId){
+  const t=lightType(typeId);
+  const ids=(t.finishes&&t.finishes.length)?t.finishes:LIGHT_FINISHES.map(f=>f.id);
+  return ids.map(id=>LIGHT_FINISHES.find(f=>f.id===id)).filter(Boolean);
+}
+// SNAP rather than reset, the way fenceHeightFor does: changing fixture should
+// keep the metal you chose wherever that fixture is made in it
+function lightFinishFor(typeId,finishId){
+  const opts=lightTypeFinishes(typeId);
+  return (opts.find(f=>f.id===finishId)||opts[0]).id;
+}
+function lightFinish(typeId,finishId){
+  const id=lightFinishFor(typeId,finishId);
+  return LIGHT_FINISHES.find(f=>f.id===id)||LIGHT_FINISHES[0];
+}
+// what drawLightArt paints with; never a literal in the painter
+function lightColors(l){ return lightFinish(l&&l.type, l&&l.finish); }
 function normalizeLightDraft(d){
   d=d||{};
-  return {type:lightTypeId(d.type), tone:lightToneId(d.tone)};
+  const type=lightTypeId(d.type);
+  return {type, tone:lightToneId(d.tone), finish:lightFinishFor(type,d.finish)};
 }
-// drawn height of a light's POST, in screen px above its tile -- fenceDrawH's sibling
 function lightDrawH(l){ return lightType(l&&l.type).ft*PX_PER_FT; }
 // overall height in real feet, post plus head: what a tray chip fits itself to
 function lightHeightFt(l){ const t=lightType(l&&l.type); return t.ft+t.headIn/12; }

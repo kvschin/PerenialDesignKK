@@ -740,17 +740,32 @@ function buildElevationRuns(){
   if (wallRunCache.sig===sig && wallRunCache.elevRef===game.elevation) return wallRunCache.runs;
   const t0=dnow();
   const runs=[];
-  /* Only ground ABOVE grade shows a face, which is what drawElevationSides has
-     always done — a SUNKEN area shows none. That is a known limitation carried
-     over deliberately, not a new one (see the note in world.js). */
-  const byLevel={};
+  /* A face belongs to the HIGHER tile, and for a HOLLOW the higher tile is
+     ordinary ground at grade -- which carries no elevation record, so nothing
+     here would ever index it and a sunken patio traced no wall at all. The rim
+     is therefore collected explicitly: any in-bounds neighbour of a below-grade
+     tile that stands above it. Raised ground is indexed exactly as before, so a
+     terrace still traces one solid set rather than a ring. */
+  const byLevel={}, addLevel=(x,y)=>{
+    const h=elevationAt(x,y);
+    (byLevel[h]||(byLevel[h]=new Set())).add(x+','+y);
+  };
+  const rim=new Set();
   for (const k in game.elevation||{}){
     const e=game.elevation[k]; if (!e||e.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
-    const h=elevationAt(x,y); if (h<=0) continue;
-    (byLevel[h]||(byLevel[h]=new Set())).add(k);
+    const h=elevationAt(x,y);
+    if (h>0) addLevel(x,y);
+    else if (h<0) for (const [dx,dy] of ELEV_DIRS){
+      const nx=x+dx, ny=y+dy;
+      if (nx>=0&&ny>=0&&nx<GW&&ny<GH && elevationAt(nx,ny)>h) rim.add(nx+','+ny);
+    }
   }
-  for (const hs of Object.keys(byLevel).sort((p,q)=>p-q)){
+  for (const k of rim){
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    addLevel(x,y);
+  }
+  for (const hs of Object.keys(byLevel).sort((p,q)=>(+p)-(+q))){
     const h=+hs, set=byLevel[hs];
     for (const loop of traceOutlines(set)){
       const es=elevationUnitEdges(loop,set,h);
@@ -947,8 +962,12 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
     ctx.restore();
-    // one continuous edge stroke (replaces the per-tile diamond strokes),
-    // skipping boundaries a higher-ranked region is about to cover
+    /* One continuous edge stroke (replaces the per-tile diamond strokes),
+       skipping boundaries a higher-ranked region is about to cover -- and
+       skipped ENTIRELY for a surface that declares itself discontinuous.
+       Stepping stones are grass with slabs in it, so an outline round the field
+       would draw a line where nothing changes. */
+    if (!(region.kind==='lawn' && lawnStyle(region.c).noEdge)){
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopStroke(ctx,loop,proj);
     // A mowing line is a soft green shadow, not the earth-dark joint a bed or a
@@ -958,6 +977,7 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       : region.kind==='path' ? 'rgba(60,48,34,0.32)'
       : region.kind==='lawn' ? 'rgba(44,56,32,0.24)' : 'rgba(48,36,24,0.30)';
     ctx.lineWidth=1.6; ctx.stroke();
+    }
     /* Edging goes on the SOFT arcs only — the ones facing lawn. A hard arc is
        where this material butts a peer (a bed meeting a path), which already
        reads as a joint and wants no restraint drawn on it, and a covered arc
@@ -1475,6 +1495,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
     case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y); return;
     case SCENE_K.WATERF:  drawWaterFeature(ctx,W,H,season,e.wf,e.x,e.y); return;
     case SCENE_K.SUPPORT: drawSupport(ctx,W,H,season,e.sp,e.x,e.y); return;
+    case SCENE_K.PERGOLA: drawPergola(ctx,W,H,season,e.pg,e.x,e.y); return;
     case SCENE_K.BOULDER: drawBoulder(ctx,W,H,season,e.b,e.x,e.y); return;
     case SCENE_K.PET:{
       const [sx,sy]=screenOf(e.x,e.y,W,H);
@@ -1548,6 +1569,9 @@ function structDrawBox(e){
       const sz=supportTileSize(e.sp);
       return {w:sz.w, h:sz.h, up:feetToPx(9)+24, pad:TILE_W*0.8, down:22};
     }
+    case SCENE_K.PERGOLA:
+      // the tallest is 9 ft, and a rafter overhangs its own tile either side
+      return {w:1, h:1, up:feetToPx(9)+26, pad:TILE_W*0.95, down:20};
     case SCENE_K.PET:   return {w:1, h:1, up:TILE_H*1.6+20, pad:TILE_W*0.4, down:18};
     case SCENE_K.LIGHT: return {w:1, h:1, up:feetToPx(8)+34, pad:TILE_W*0.4, down:18};
     case SCENE_K.HOUSE: return {w:e.h.w, h:e.h.h, up:TILE_H*e.h.h*1.2+240, pad:TILE_W*0.7, down:26};
@@ -1617,11 +1641,30 @@ function computeStructSpriteSpec(e){
     case SCENE_K.FIREPIT:
       return Object.assign({key:'R|'+structRecordSig(e.f)}, box);
     case SCENE_K.WATERF:
-      // the gravel bed and the ripples are seeded off the tile, like a boulder's shape
-      return Object.assign({key:'W|'+structRecordSig(e.wf)+'|'+tileSeed(e.x,e.y)}, box);
+      /* The gravel bed and the ripples are seeded off the tile, like a boulder's
+         shape -- and whether the piece stands IN water is the one thing the
+         drawing reads that is NOT on its own record, so it is named here for the
+         reason the fence names its neighbour mask. Leave it out and dropping a
+         pond around a birdbath leaves the dry sprite in place. */
+      return Object.assign({key:'W|'+structRecordSig(e.wf)+'|'+tileSeed(e.x,e.y)+
+        '|'+(tileTerrain(e.x,e.y)==='water'?1:0)}, box);
     case SCENE_K.SUPPORT:
       // the willow weave is seeded off the tile; timber and metal are not
       return Object.assign({key:'V|'+structRecordSig(e.sp)+'|'+tileSeed(e.x,e.y)}, box);
+    case SCENE_K.PERGOLA:{
+      /* Like a fence, it reads OUTSIDE its own record: which neighbours it
+         connects to decides the beams, and pergolaPostHere decides the posts.
+         ASK that function rather than restating its rule -- restating the
+         fence's is how a cached fence loses its posts. */
+      const x=e.x, y=e.y;
+      const nb=(pergolaNeighbor(x+1,y)?1:0)|(pergolaNeighbor(x-1,y)?2:0)|
+               (pergolaNeighbor(x,y+1)?4:0)|(pergolaNeighbor(x,y-1)?8:0);
+      const ax=pergolaRunAxis(x,y), post=pergolaPostHere(x,y)?1:0;
+      const ev=elevationAt(x,y)+'.'+elevationAt(x+1,y)+'.'+elevationAt(x-1,y)+
+               '.'+elevationAt(x,y+1)+'.'+elevationAt(x,y-1);
+      return Object.assign({key:'G|'+structRecordSig(e.pg)+'|'+nb+'|'+ax[0]+','+ax[1]+
+        '|'+post+'|'+ev}, box);
+    }
     case SCENE_K.PET:
       return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
@@ -1772,8 +1815,13 @@ function measureStructBoxes(){
   for (const fs of FENCE_STYLES) for (const h of fenceStyleHeights(fs.id))
     cases.push({name:'FENCE:'+fs.id+'/'+h, kind:SCENE_K.FENCE, field:'f', rec:{style:fs.id,height:h,gate:false,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>drawFence(c,W,H,season,s,x,y)});
-  for (const lt of LIGHT_TYPES)
-    cases.push({name:'LIGHT:'+lt.id, kind:SCENE_K.LIGHT, field:'l', rec:{type:lt.id,tone:'warm',t:1},
+  for (const m of PERGOLA_MATERIALS) for (const ht of PERGOLA_HEIGHTS)
+    cases.push({name:'PERGOLA:'+m.id+'/'+ht, kind:SCENE_K.PERGOLA, field:'pg',
+      rec:{mat:m.id,height:ht,t:1},
+      size:()=>({w:1,h:1}), draw:(c,s)=>drawPergola(c,W,H,season,s,x,y)});
+  for (const lt of LIGHT_TYPES) for (const fi of lightTypeFinishes(lt.id))
+    cases.push({name:'LIGHT:'+lt.id+'/'+fi.id, kind:SCENE_K.LIGHT, field:'l',
+      rec:{type:lt.id,tone:'warm',finish:fi.id,t:1},
       size:()=>({w:1,h:1}), draw:(c,s)=>drawLightFixture(c,W,H,season,s,x,y,false)});
   for (const sp of PET_SPECIES)
     cases.push({name:'PET:'+sp.id, kind:SCENE_K.PET, field:'p', rec:{species:sp.id,coat:PET_COATS[0].id,t:1},
@@ -2140,7 +2188,7 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    identity in sceneStale. Side fix: stunting is now computed against the FULL
    tree list — the old per-frame pass used the viewport-culled list, so an
    off-screen tree's shade stopped stunting a visible plant. */
-const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14};
+const SCENE_K={FENCE:0,LIGHT:1,FIREPIT:2,BOULDER:3,HOUSE:4,BULB:5,PLANT:6,GHOST:7,BUILDING:8,BUILDING_OUTLINE:9,PET:10,POT:11,SEAT:12,WATERF:13,SUPPORT:14,PERGOLA:15};
 let scene={key:null, refs:null, ents:[], shadeTrees:[], futureShadeTrees:[], shrubs:[], lights:[], firepits:[], boulders:[]};
 function sceneLayerBits(){
   return (layerShown('perennials')?1:0)|(layerShown('woody')?2:0)|
@@ -2159,7 +2207,8 @@ function sceneStale(skey){
   return scene.key!==skey || !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
     r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings ||
-    r.waterFeatures!==game.waterFeatures || r.supports!==game.supports;
+    r.waterFeatures!==game.waterFeatures || r.supports!==game.supports ||
+    r.pergolas!==game.pergolas;
 }
 /* ---- camera-free screen bounds, for the viewport cull ----
    The entity pass used to reject on the TILE bounding box of the four inverted
@@ -2176,6 +2225,11 @@ function sceneStale(skey){
    scene list once both are taken out: bake isoX/isoY of the tile corners here,
    add W/2-cam.x and H*0.24-cam.y at frame time. Elevation is baked too — it
    bumps sceneRev, so a terrace edit rebuilds this. */
+/* How far a fire pit's glow reaches past its own footprint, for the night cull.
+   drawFirepitGlow paints max(62, w*0.72, h*1.55) from the footprint centre, so
+   the biggest pit is close to 200; a cull that under-estimates it snuffs out a
+   fire at the edge of the screen. */
+const FIREPIT_GLOW_REACH = 200;
 function setEntScreenBounds(e){
   const x0=e.bx0!==undefined?e.bx0:e.x, x1=e.bx1!==undefined?e.bx1:e.x;
   const y0=e.by0!==undefined?e.by0:e.y, y1=e.by1!==undefined?e.by1:e.y;
@@ -2333,6 +2387,13 @@ function buildScene(W,H){
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.30, kind:SCENE_K.SUPPORT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,sp});
     }
+    /* A pergola sorts just BEHIND a climber's depth, for the same reason a
+       support does: the plant grows in FRONT of the frame it is on. */
+    for (const k in game.pergolas||{}){ const pg=game.pergolas[k];
+      if (!pg || pg.removed) continue;
+      const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+      ents.push({d:viewDepth(x,y)+0.28, kind:SCENE_K.PERGOLA, bx0:x,bx1:x,by0:y,by1:y, x,y,pg});
+    }
     for (const k in game.waterFeatures||{}){ const wf=game.waterFeatures[k];
       if (!wf || wf.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=waterFeatureTileSize(wf);
@@ -2389,7 +2450,7 @@ function buildScene(W,H){
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
   scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,houses:game.houses,buildings:game.buildings},
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,pergolas:game.pergolas,houses:game.houses,buildings:game.buildings},
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
@@ -2888,12 +2949,25 @@ function render(t){
   } else snowFlakes.length=0;
   if (game.layerVis.night){
     applyDuskLighting(cx,W,H,cal.season);
+    /* Culled in SCREEN space and padded by the REACH of the glow -- the trap
+       this file documents twice already. The tile bbox is the bbox of a
+       DIAMOND, so it keeps lights that are off screen and, worse here, DROPS
+       lights whose pool still lands on screen while their own tile does not:
+       a lantern throws 113px and a big fire pit close to 200, so a fixture can
+       be a tile and a half out and still be lighting the corner you are looking
+       at. The baked box is camera-free (setEntScreenBounds), so the frame adds
+       the same two offsets the entity pass adds. */
+    const offX=W/2-cam.x, offY=H*0.24-cam.y;
+    const litOn=(e,reach)=>!(e.ox1+offX< -reach || e.ox0+offX>W+reach ||
+                             e.oy1+offY< -reach || e.oy0+offY>H+reach);
     for (const e of scene.firepits){
-      if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+      if (!litOn(e,FIREPIT_GLOW_REACH)) continue;
       drawFirepitGlow(cx,W,H,e.f,e.x,e.y);
     }
     for (const e of scene.lights){
-      if (e.bx1<x0||e.bx0>x1||e.by1<y0||e.by0>y1) continue;
+      // an uplight's beam runs 1.7x its pool UPWARD, so pad by the larger
+      const lt=lightType(e.l&&e.l.type);
+      if (!litOn(e, feetToPx(lt.poolFt)*(lt.glow==='up'?1.8:1.1))) continue;
       drawLightGlow(cx,W,H,e.l,e.x,e.y);
     }
   }

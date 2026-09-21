@@ -5468,6 +5468,22 @@ function fenceAnchor(x,y,W,H){
 /* Which way the run goes through this tile. A gate has to know: its leaf, its
    posts and its header all sit ON the run, and the old gate drew on a fixed
    screen-horizontal axis, so a gate in a north-south fence faced sideways. */
+// Which way the run goes through this tile -- fenceRunAxis, one structure over.
+function pergolaRunAxis(x,y){
+  const ex=(pergolaNeighbor(x+1,y)?1:0)+(pergolaNeighbor(x-1,y)?1:0);
+  const ey=(pergolaNeighbor(x,y+1)?1:0)+(pergolaNeighbor(x,y-1)?1:0);
+  return ey>ex ? [0,1] : [1,0];
+}
+/* Posts fall at the ends, the corners and every PERGOLA_POST_TILES along --
+   fencePostHere's rule with a wider spacing, because a post every 18 inches is
+   a stockade and a pergola is a frame you walk THROUGH. */
+function pergolaPostHere(x,y){
+  const [rx,ry]=pergolaRunAxis(x,y);
+  const ahead=pergolaAt(x+rx,y+ry), behind=pergolaAt(x-rx,y-ry);
+  if (!ahead || !behind) return true;                 // an end of the run
+  if (pergolaNeighbor(x+ry,y+rx) || pergolaNeighbor(x-ry,y-rx)) return true;  // corner or tee
+  return ((rx?x:y) % PERGOLA_POST_TILES)===0;
+}
 function fenceRunAxis(x,y){
   const ex=(fenceNeighbor(x+1,y)?1:0)+(fenceNeighbor(x-1,y)?1:0);
   const ey=(fenceNeighbor(x,y+1)?1:0)+(fenceNeighbor(x,y-1)?1:0);
@@ -5773,17 +5789,92 @@ function drawGate(ctx,W,H,f,st,x,y,h,run,seed,extra){
 /* ONE painter for the garden and the tray chip -- it takes a GROUND POINT and a
    scale rather than a tile, exactly like drawPotArt / drawSeatArt /
    drawWaterFeatureArt, so a chip cannot advertise a fixture the canvas does not
-   draw. The tray used to carry its own copy of these three branches, with its
-   own numbers and its own hardcoded metal, which is the fencePanel lesson going
+   draw. The tray used to carry its own copy of these branches, with its own
+   numbers and its own hardcoded metal, which is the fencePanel lesson going
    unlearned in the one system nobody had revisited.
    Every member is sized in real INCHES through inH(): the post is 6 ft now, and
-   a head sized as a fraction of the post would have grown with it. */
+   a head sized as a fraction of the post would have grown with it. The METAL
+   comes from lightColors (the finish axis) and never from a literal. */
+/* A pergola bay. Drawn the way a fence tile is -- half a beam toward each end,
+   posts only where pergolaPostHere says -- so a run reads as one frame rather
+   than as a row of separate arbours.
+   Two posts per post-tile, set out either side of the run: a single line of
+   posts down the middle is a fence wearing a roof, and the pair is most of what
+   says pergola. Members are real INCHES (the seating rule) and every point goes
+   through a WORLD offset, so the frame turns with the camera. */
+function drawPergola(ctx,W,H,season,pg,x,y){
+  const m=pergolaMaterial(pg&&pg.mat), h=pergolaDrawH(pg), S=PERGOLA_SPEC;
+  const inPx=n=>feetToPx(n/12);
+  const over=inchesToTiles(S.overhangIn);          // rafter overhang, in tiles
+  const P=(fx,fy,up)=>{ const [sx,sy]=screenOf(x+fx,y+fy,W,H); return [sx,sy+TILE_H/2-up]; };
+  const run=pergolaRunAxis(x,y), per=[run[1],run[0]];
+  const line=(a,b,col,wd)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); };
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  const postW=Math.max(2,inPx(S.postIn)), beamW=Math.max(1.6,inPx(S.beamIn));
+  const raftW=Math.max(1,inPx(S.rafterIn));
+  const half=0.5, side=0.30;
+  // POSTS -- a pair, and the contact shadow that stops them floating
+  if (pergolaPostHere(x,y)) for (const s of [-1,1]){
+    const foot=P(per[0]*side*s, per[1]*side*s, 0);
+    const head=P(per[0]*side*s, per[1]*side*s, h);
+    ctx.fillStyle='rgba(0,0,0,0.16)';
+    ctx.beginPath(); ctx.ellipse(foot[0],foot[1]+1,postW*0.9,postW*0.4,0,0,7); ctx.fill();
+    line([foot[0],foot[1]+1],[head[0],head[1]-1],'rgba(0,0,0,0.22)',postW+1.6);
+    line(foot,head,m.post,postW);
+    line([foot[0]-postW*0.28,foot[1]],[head[0]-postW*0.28,head[1]],m.hi,postW*0.24);
+  }
+  // BEAMS -- one each side, running the length of the bay
+  for (const s of [-1,1]){
+    const a=P(per[0]*side*s-run[0]*half, per[1]*side*s-run[1]*half, h);
+    const b=P(per[0]*side*s+run[0]*half, per[1]*side*s+run[1]*half, h);
+    line(a,b,m.beam,beamW);
+    line([a[0],a[1]-beamW*0.34],[b[0],b[1]-beamW*0.34],m.hi,beamW*0.26);
+  }
+  /* RAFTERS -- across the run, ONE per tile. A tile is 18 inches, which is
+     what a rafter is really set at, so the tile lattice gives the right rhythm
+     for free and costs one shape instance a bay. */
+  {
+    const a=P(-per[0]*(side+over), -per[1]*(side+over), h+raftW*1.4);
+    const b=P( per[0]*(side+over),  per[1]*(side+over), h+raftW*1.4);
+    line(a,b,m.beam,raftW);
+    line([a[0],a[1]-raftW*0.4],[b[0],b[1]-raftW*0.4],m.hi,raftW*0.3);
+    if (AMBIENCE[season] && AMBIENCE[season].snow)
+      line([a[0],a[1]-raftW*1.1],[b[0],b[1]-raftW*1.1],'rgba(240,244,250,0.72)',raftW*0.9);
+  }
+  ctx.restore();
+}
+/* The tray chip: a short stretch of frame drawn without a camera, so a chip
+   cannot advertise a pergola the canvas does not draw. It cannot reuse
+   drawPergola, which positions itself with screenOf and would land hundreds of
+   pixels off a 48x44 canvas -- the miniWater seam, exactly. */
+function drawPergolaArt(ctx,cx,cy,pg,scale){
+  scale=scale||1;
+  const m=pergolaMaterial(pg&&pg.mat), S=PERGOLA_SPEC;
+  const h=pergolaDrawH(pg)*scale;
+  const inPx=n=>Math.max(0.8,feetToPx(n/12)*scale);
+  const halfW=TILE_W*0.42*scale, dep=TILE_H*0.30*scale;
+  const line=(x1,y1,x2,y2,col,wd)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  for (const s of [-1,1]){
+    const bx=cx+s*halfW*0.72, by=cy+s*dep*0.5;
+    line(bx,by,bx,by-h,m.post,inPx(S.postIn));
+  }
+  line(cx-halfW*0.72,cy-dep*0.5-h, cx+halfW*0.72,cy+dep*0.5-h, m.beam,inPx(S.beamIn));
+  for (let i=-1;i<=1;i++){
+    const ox=i*halfW*0.58, oy=i*dep*0.40;
+    line(cx+ox-halfW*0.32,cy+oy+dep*0.32-h-2, cx+ox+halfW*0.32,cy+oy-dep*0.32-h-2,
+      m.beam,inPx(S.rafterIn));
+  }
+  ctx.restore();
+}
 function drawLightArt(ctx,cx,base,l,lit,season,scale){
   scale=scale||1;
-  const typ=lightType(l&&l.type), tone=lightTone(l&&l.tone);
+  const typ=lightType(l&&l.type), tone=lightTone(l&&l.tone), fin=lightColors(l);
   const inH=n=>feetToPx(n/12)*scale;
   const h=feetToPx(typ.ft)*scale, top=base-h;
-  const metal='#3f4038', metalHi='#6c6958';
+  const metal=fin.body, metalHi=fin.hi;
   const hw=inH(typ.headWIn)/2, hh=inH(typ.headIn);
   const lw=n=>Math.max(0.7,inH(n));
   let capY=top-hh;                       // the snow lands on whatever the head's top is
@@ -5817,6 +5908,36 @@ function drawLightArt(ctx,cx,base,l,lit,season,scale){
     capY=top-hh;
     ctx.beginPath(); ctx.moveTo(cx-hw*0.72,boxTop); ctx.lineTo(cx,capY);
     ctx.lineTo(cx+hw*0.72,boxTop); ctx.stroke();
+  } else if (typ.kind==='spot'){
+    /* An UPLIGHT: a can on a ground spike, RAKED BACK so it reads as aimed up
+       rather than as another little post with a hat. The lens is the ellipse
+       facing up the way a pot's soil disc faces up, so the lit face is the
+       thing you see -- which is the whole point of the fixture. */
+    const lean=hw*0.55, canTop=top-hh;
+    ctx.fillStyle=metal;
+    ctx.beginPath();
+    ctx.moveTo(cx-hw*0.62,top); ctx.lineTo(cx+hw*0.62,top);
+    ctx.lineTo(cx+lean+hw*0.72,canTop); ctx.lineTo(cx+lean-hw*0.72,canTop);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=metalHi; ctx.lineWidth=lw(0.9);
+    ctx.beginPath(); ctx.moveTo(cx-hw*0.62,top); ctx.lineTo(cx+lean-hw*0.72,canTop); ctx.stroke();
+    // the lens, tilted with the can
+    ctx.fillStyle=lit?tone.col:'#8d887a';
+    ctx.beginPath(); ctx.ellipse(cx+lean,canTop,hw*0.72,hh*0.2,0,0,7); ctx.fill();
+    ctx.strokeStyle=metal; ctx.lineWidth=lw(0.9);
+    ctx.beginPath(); ctx.ellipse(cx+lean,canTop,hw*0.72,hh*0.2,0,0,7); ctx.stroke();
+    capY=canTop-hh*0.2;
+  } else if (typ.kind==='step'){
+    /* A louvred bar: wide, low, and showing no lamp at all -- what you see is
+       the wash it lays down, so the fixture itself is deliberately dull. */
+    const barTop=top-hh;
+    ctx.fillStyle=metal; ctx.fillRect(cx-hw,barTop,hw*2,hh);
+    ctx.strokeStyle=metalHi; ctx.lineWidth=lw(0.9);
+    ctx.strokeRect(cx-hw,barTop,hw*2,hh);
+    // the lit slot faces DOWN, so it is a sliver under the louvre
+    ctx.fillStyle=lit?tone.col:'#7b766a';
+    ctx.fillRect(cx-hw*0.82,barTop+hh*0.62,hw*1.64,hh*0.24);
+    capY=barTop;
   } else {
     ctx.fillStyle=metal;
     ctx.beginPath(); ctx.ellipse(cx,top,hw,hh*0.62,0,0,7); ctx.fill();
@@ -5837,25 +5958,51 @@ function drawLightFixture(ctx,W,H,season,l,x,y,lit){
   const [sx,sy]=screenOf(x,y,W,H);
   drawLightArt(ctx,sx,sy+TILE_H/2,l,lit,season,1);
 }
+/* The light a fixture throws at night. Two shapes, because two fixtures do two
+   different jobs: everything on a post lays a POOL on the ground, and an uplight
+   washes UP a trunk. Drawing the uplight as a pool would have made it a shorter
+   path light, which is the one reading the fixture exists to avoid. */
 function drawLightGlow(ctx,W,H,l,x,y){
   const typ=lightType(l.type), tone=lightTone(l.tone);
   const [sx,sy]=screenOf(x,y,W,H), base=sy+TILE_H/2, head=base-lightDrawH(l);
   const r=feetToPx(typ.poolFt);
   ctx.save();
   ctx.globalCompositeOperation='screen';
-  let g=ctx.createRadialGradient(sx,head,0,sx,head,r);
-  g.addColorStop(0,tone.glow+'0.58)');
-  g.addColorStop(0.35,tone.glow+'0.22)');
-  g.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle=g; ctx.fillRect(sx-r,head-r,r*2,r*2);
-  g=ctx.createRadialGradient(sx,base,0,sx,base,r*0.72);
-  g.addColorStop(0,tone.glow+'0.18)');
-  g.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle=g; ctx.fillRect(sx-r,base-r*0.72,r*2,r*1.45);
+  if (typ.glow==='up'){
+    /* A wedge opening upward, fading out over its length -- the beam -- with a
+       soft bloom where it lands. It is clipped to the wedge so the gradient
+       cannot square off against its own fillRect. */
+    const reach=r*1.7, spread=r*0.62;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(sx-r*0.10,head); ctx.lineTo(sx+r*0.10,head);
+    ctx.lineTo(sx+spread,head-reach); ctx.lineTo(sx-spread,head-reach);
+    ctx.closePath(); ctx.clip();
+    let gb=ctx.createLinearGradient(sx,head,sx,head-reach);
+    gb.addColorStop(0,tone.glow+'0.46)');
+    gb.addColorStop(0.45,tone.glow+'0.16)');
+    gb.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gb; ctx.fillRect(sx-spread,head-reach,spread*2,reach);
+    ctx.restore();
+    let gh=ctx.createRadialGradient(sx,head-reach*0.55,0,sx,head-reach*0.55,r*0.9);
+    gh.addColorStop(0,tone.glow+'0.20)');
+    gh.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gh; ctx.fillRect(sx-r,head-reach*0.55-r,r*2,r*2);
+  } else {
+    let g=ctx.createRadialGradient(sx,head,0,sx,head,r);
+    g.addColorStop(0,tone.glow+'0.58)');
+    g.addColorStop(0.35,tone.glow+'0.22)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(sx-r,head-r,r*2,r*2);
+    g=ctx.createRadialGradient(sx,base,0,sx,base,r*0.72);
+    g.addColorStop(0,tone.glow+'0.18)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(sx-r,base-r*0.72,r*2,r*1.45);
+  }
   ctx.restore();
   ctx.save();
   ctx.fillStyle=tone.col;
-  ctx.beginPath(); ctx.arc(sx,head,typ.kind==='path'?2.5:3.5,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx,head,typ.kind==='path'||typ.kind==='step'?2.5:3.5,0,7); ctx.fill();
   ctx.restore();
 }
 function polyPath(ctx,pts){
@@ -6547,9 +6694,10 @@ function drawWaterFeature(ctx,W,H,season,wf,x,y){
   const [cx,cy]=groundCenterRot(x,y,waterFeatureTileSize(d),W,H);
   // isoAxes(), not ISO_AXES_FLAT: the spout and the basin are rectilinear, so
   // they have to turn with the camera the way a bench does.
-  drawWaterFeatureArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
+  drawWaterFeatureArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y),
+    tileTerrain(x,y)==='water');
 }
-function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed){
+function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed,inWater){
   if (!wf) return;
   season=season||'Summer';
   const d=normalizeWaterFeatureDraft(wf), spec=waterFeature(d.form), fin=waterFinish(d.finish);
@@ -6563,8 +6711,25 @@ function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed){
   const rx=r*Math.SQRT2*TILE_W/2, ry=r*Math.SQRT2*TILE_H/2;
   const hh=feetToPx(spec.hIn/12);
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
-  drawSoftShadow(ctx,cx,cy+ry*0.26,rx*0.95,ry*0.82,0.20);
-  if (spec.bed) waterGravelBed(ctx,cx,cy,rx*1.28,ry*1.28,rs);
+  /* Standing IN water it sits in the water rather than on the ground, so the
+     two marks that say `ground` come off: the cast shadow, which has nothing to
+     fall on, and the gravel reservoir, which is the dry-bubbler detail that
+     makes no sense submerged. What replaces them is what a real thing standing
+     in still water shows -- rings running out from where it breaks the
+     surface. */
+  if (inWater){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.12,rx*1.10,ry*1.10,0,0,7); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.12,rx*1.48,ry*1.48,0,0,7); ctx.stroke();
+    ctx.strokeStyle='rgba(20,44,54,0.22)'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.ellipse(cx,cy+ry*0.22,rx*0.93,ry*0.86,0,0,7); ctx.stroke();
+    ctx.restore();
+  } else {
+    drawSoftShadow(ctx,cx,cy+ry*0.26,rx*0.95,ry*0.82,0.20);
+    if (spec.bed) waterGravelBed(ctx,cx,cy,rx*1.28,ry*1.28,rs);
+  }
   if (spec.form==='pedestal'){
     // thin stem, wide shallow bowl: the bowl is most of what says "birdbath"
     const v=waterVessel(ctx,cx,cy,rx*0.92,ry*0.92,hh,{waist:0.16,belly:-0.02,foot:0.74,top:1},fin);

@@ -342,7 +342,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -605,7 +605,7 @@ function gardenFileProblem(env){
     if (!ids.has(sc.active)) return 'This garden is missing its active planting scheme.';
   }
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
-  for (const k of ['design','discovery','layerVis','fenceDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+  for (const k of ['design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
 }
@@ -797,6 +797,20 @@ function hardscapeRows(){
     const [st,h]=id.split('|');
     add('Fence', `${fenceStyle(st).label}, ${fmtFeet(+h)} high`, fmtFeet(fenceFt[id]), fenceFt[id]);
   }
+  /* A pergola is billed like a fence and for the same reason: a tile is one
+     18in bay of frame, so the run IS the quantity. It is one of the few things
+     on this list somebody orders as a kit. */
+  const pergolaFt={};
+  for (const k in game.pergolas||{}){
+    const pg=game.pergolas[k]; if (!pg||pg.removed) continue;
+    const d=normalizePergolaDraft(pg);
+    const id=d.mat+'|'+d.height;
+    pergolaFt[id]=(pergolaFt[id]||0)+1;
+  }
+  for (const id in pergolaFt){
+    const [mat,ht]=id.split('|'), ft=pergolaFt[id]*TILE_IN/12;
+    add('Pergola', `${pergolaMaterial(mat).label}, ${fmtFeet(+ht)} high`, fmtFeet(ft), ft);
+  }
   const gates=fenceGateOpenings();
   for (const id in gates){
     const [st,h,span]=id.split('|');
@@ -821,7 +835,8 @@ function hardscapeRows(){
     // `face` is which way it is turned, which is not something you order
     const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
   for (const k in game.lights||{}){ const l=game.lights[k]; if (!l||l.removed) continue;
-    const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+d.tone); }
+    // the FINISH splits the line the way a pot's colour does: it is what you buy
+    const d=normalizeLightDraft(l); bump(lamps, d.type+'|'+d.tone+'|'+d.finish); }
 
   for (const id in pots){ const [st,sz,fi]=id.split('|');
     add('Container', `${potSizeDef(sz).label} ${potVesselName({style:st,size:sz,finish:fi})}`, pots[id], pots[id]); }
@@ -834,9 +849,12 @@ function hardscapeRows(){
   for (const id in rocks) add('Boulder', boulderLabel({type:id}), rocks[id], rocks[id]);
   for (const id in props){ const [style,mat]=id.split('|');
     add('Support', supportLabel({style,mat}), props[id], props[id]); }
-  for (const id in lamps){ const [type,tone]=id.split('|');
-    add('Lighting', lightLabel({type,tone}), lamps[id], lamps[id],
-      `${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
+  for (const id in lamps){ const [type,tone,finish]=id.split('|');
+    /* The NAME is the fixture you order -- its metal and its model. The lamp
+       colour is a setup choice rather than a different product, so it rides the
+       sub-line with the height. */
+    add('Lighting', `${lightFinish(type,finish).label} ${lightType(type).label}`, lamps[id], lamps[id],
+      `${lightTone(tone).label} light, ${fmtLengthIn(lightHeightFt({type})*12)} tall`); }
 
   return rows.sort((p2,q2)=>p2.kind===q2.kind ? q2.n-p2.n : (p2.kind<q2.kind?-1:1));
 }

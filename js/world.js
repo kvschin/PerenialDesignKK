@@ -209,6 +209,7 @@ const game = {
   firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
   waterFeatures:{},   // "x,y" origin -> {form,finish,face,t} or {removed:true,t}
   supports:{},        // "x,y" origin -> {style,mat,face,t} or {removed:true,t}
+  pergolas:{},        // "x,y" -> {mat,height,t} or {removed:true,t} -- a RUN, like a fence
   boulders:{},        // "x,y" origin -> {type,t} or {removed:true,t}
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
@@ -306,6 +307,7 @@ const GAME_LAYERS=[
   {k:'firepits'},
   {k:'waterFeatures'},
   {k:'supports'},
+  {k:'pergolas'},
   {k:'boulders'},
   {k:'pets'},
   {k:'pots'},
@@ -439,6 +441,13 @@ const LAYER_CACHES={
      Classified `scene` alone, a climber would keep its old shape until some
      unrelated edit rebuilt the scene. */
   supports:      {scene:1, plants:1},
+  /* One sprite in the depth pass and nothing else. Note this table's own
+     warning names a pergola as the example of a layer that must not silently
+     leave the SHADE map stale -- classifying it {scene:1} is the deliberate
+     statement that it does not shade, which is true today: ensureShadeMap walks
+     treeIndex() and a tree is the only thing in this app that casts any. A
+     pergola that shaded would be a new feature, not a missing flag. */
+  pergolas:      {scene:1, plants:1},
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   /* `pots` names its own revision for the same reason `plants` does: potIndex()
@@ -1268,6 +1277,8 @@ function isDoor(x,y){
   for (const h of game.houses){ const [dx,dy]=doorPos(h); if (x===dx && y===dy) return true; }
   return false;
 }
+function pergolaAt(x,y){ const p=game.pergolas&&game.pergolas[`${x},${y}`]; return (p&&!p.removed)?p:null; }
+function pergolaNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!pergolaAt(x,y); }
 function fenceAt(x,y){ const f=game.fences[`${x},${y}`]; return (f&&!f.removed)?f:null; }
 function fenceBlocks(x,y){ const f=fenceAt(x,y); return !!(f && !f.gate); }
 function fenceNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!fenceAt(x,y); }
@@ -1366,17 +1377,26 @@ function elevationGrid(){
   const src=game.elevation;
   if (elevGrid.rev===game.terrainRev && elevGrid.ref===src && elevGrid.gw===GW && elevGrid.gh===GH)
     return elevGrid;
-  const g=new Int8Array(GW*GH); let empty=true;
+  const g=new Int8Array(GW*GH); let empty=true, sunken=false;
   for (const k in src||{}){
     const e=src[k]; if (!e || e.removed) continue;
     const h=+e.h; if (!Number.isFinite(h)) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (!(x>=0 && y>=0 && x<GW && y<GH)) continue;   // off-grid: the slow path below still finds it
     const v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,h|0));
-    g[y*GW+x]=v; if (v) empty=false;
+    g[y*GW+x]=v; if (v) empty=false; if (v<0) sunken=true;
   }
-  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty};
+  elevGrid={rev:game.terrainRev, ref:src, gw:GW, gh:GH, g, empty, sunken};
   return elevGrid;
+}
+/* Does this garden hold any ground BELOW grade? The face of a hollow belongs
+   to the tiles AROUND it, which sit at grade and carry no elevation record, so
+   "is this tile raised" is the wrong question to early-out on — but asking it
+   is free and true for every garden that has never dug. */
+function elevationHasSunken(){
+  const src=game.elevation;
+  if (!src) return false;
+  return !!elevationGrid().sunken;
 }
 function elevationAt(x,y){
   const src=game.elevation;
@@ -1583,8 +1603,9 @@ function climberRenderDetail(x,y,p,W,H){
   const sup=supportAt(x,y); if (!sup) return null;
   const reachFt=(P.heightIn||P.h*12)/12;
   const out={climb:sup.kind, ft:Math.min(sup.ft, reachFt)};
-  if (sup.kind==='fence' || sup.kind==='panel' || sup.kind==='arch'){
+  if (sup.kind==='fence' || sup.kind==='pergola' || sup.kind==='panel' || sup.kind==='arch'){
     const run = sup.kind==='fence' ? fenceRunAxis(x,y)
+      : sup.kind==='pergola' ? pergolaRunAxis(x,y)
       : (normalizeFacing(sup.face)%2 ? [0,1] : [1,0]);
     const [sx,sy]=screenOf(x,y,W,H), [nx,ny]=screenOf(x+run[0],y+run[1],W,H);
     const dx=nx-sx, dy=ny-sy, len=Math.hypot(dx,dy)||1;
@@ -1849,7 +1870,14 @@ function drawWallRun(ctx,pts,drop,st,seed,units){
    faces are: a flight on the far side of a bank is not visible. */
 function drawElevationSides(ctx,W,H,x,y,base){
   const h=elevationAt(x,y);
-  if (h<=0) return;
+  /* NOT `h<=0`. ELEV_MIN is -2, so Lower digs two courses below grade — and a
+     sunken patio drew no cut face at all, because the face belongs to the
+     HIGHER tile and the higher tile of a hollow is ordinary ground at grade.
+     The per-edge test below already asks the only question that matters (is
+     this tile higher than that neighbour), so the guard here exists purely to
+     keep the overwhelmingly common case — a garden with no earthworks — at one
+     comparison per tile inside the ground bake. */
+  if (h<=0 && !elevationHasSunken()) return;
   const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
   const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
   const wall=wallStyle(wallStyleAt(x,y));
@@ -2431,6 +2459,27 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     }
     grainGrit(ctx,T[0],0,0,1,0,2);
     grainGrit(ctx,T[3],LIT.x*0.5,LIT.y*0.5,0.8,1,2);
+  } else if (tex==='stepstone'){
+    /* ONE slab per tile, because a tile is 18 inches and that IS about the
+       spacing a stepping stone is set at -- so painting a line of tiles lays a
+       line of stones. The turf between them is the lawn base, drawn already.
+       grainSite insets a grain by the radius it is HANDED, so handing it a
+       bigger stone than we draw is the lever that keeps the slab near the
+       walking line instead of wandering into the corner of its own tile. */
+    const rx=TILE_W*0.29, ry=TILE_H*0.29;
+    grainSite(sx,cy,rx*1.9,ry*1.9,rs); grainPush(rx,ry,(rs()*CHIP_SIL)|0);
+    grainPebble(ctx,T[0],0,1.6,1);                 // the shadow it sits in
+    grainPebble(ctx,T[2],0,0,1);
+    grainReset();
+    grainSite(sx,cy,rx*1.9,ry*1.9,rs); grainPush(rx*0.82,ry*0.82,(rs()*CHIP_SIL)|0);
+    grainPebble(ctx,T[1],0,0,1);                   // a weathered face on the slab
+    // a smaller stone on some tiles, so a run does not read as a stencil
+    if (rs()<0.32){
+      grainReset();
+      const r2=TILE_W*0.13;
+      grainSite(sx,cy,r2*4,ry*1.6,rs); grainPush(r2,r2*0.56,(rs()*CHIP_SIL)|0);
+      grainPebble(ctx,T[3],0,0,1);
+    }
   } else if (tex==='synthetic'){
     /* Artificial turf: the same blade, the same length, the same lean, over
        and over. The tell is not the colour — a good one is a convincing green

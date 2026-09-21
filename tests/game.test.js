@@ -11734,13 +11734,37 @@ test('a water feature and everything else refuse each other', () => {
   game.tool = 'firepit'; game.firepitDraft = { shape: 'round', size: 'round24' };
   applyToolAt(4, 4);
   arm(); assertEqual(applyToolAt(4, 4), null, 'a fire pit refuses it');
+  /* OPEN WATER is the one thing that no longer refuses it. A fountain standing
+     in a pond is a real and lovely thing; it was refused because the drawing
+     would have had to know it was in water, and now it does -- no cast shadow,
+     no gravel reservoir, rings running out from the rim instead. */
   setup(15, 15);
-  setTile('terrain', '4,4', { k: 'water', c: 'pond', t: 1 });
+  for (let x = 3; x < 7; x++) for (let y = 3; y < 7; y++)
+    setTile('terrain', `${x},${y}`, { k: 'water', c: 'pond', t: 1 });
   arm();
-  /* Water terrain refuses it deliberately: a fountain standing IN a pond is a
-     real thing and this does not do it, because the drawing would have to know
-     it was in water. A clean refusal beats half of that. */
-  assertEqual(applyToolAt(4, 4), null, 'and so does open water');
+  assertEqual(applyToolAt(4, 4), 'waterfeature', 'a fountain may stand in a pond');
+
+  /* What survives of the old refusal is the part no drawing could fix: the
+     piece must be WHOLLY in or wholly out, because half a basin on the bank is
+     the picture that rule was really protecting against. */
+  setup(15, 15);
+  for (let y = 3; y < 7; y++) setTile('terrain', `3,${y}`, { k: 'water', c: 'pond', t: 1 });
+  game.tool = 'waterfeature';
+  game.waterFeatureDraft = { form: 'tank', finish: 'galv', face: 0 };   // multi-tile
+  assertEqual(applyToolAt(3, 4), null, 'a piece half on the bank is refused');
+
+  /* And the sprite key has to carry it, or dropping a pond around a birdbath
+     leaves the dry sprite -- shadow, gravel and all -- sitting in the water. */
+  const keyOf = () => {
+    const e = { kind: SCENE_K.WATERF, x: 4, y: 4, bx0: 4, bx1: 4, by0: 4, by1: 4,
+      wf: { form: 'birdbath', finish: 'stone', face: 0, t: 1 } };
+    const spec = computeStructSpriteSpec(e);
+    return spec && spec.key;
+  };
+  setup(15, 15);
+  const dry = keyOf();
+  setTile('terrain', '4,4', { k: 'water', c: 'pond', t: 1 });
+  assert(dry && keyOf() !== dry, 'standing it in water reaches a different sprite');
 });
 
 test('a form is only offered the finishes it is made in, in its own order', () => {
@@ -13358,4 +13382,174 @@ test('the CSV carries the hardscape too', () => {
   assert(csv !== null, 'a garden with no plants still exports');
   assert(/"Item","Type","Quantity","Notes"/.test(csv), 'the hardscape section has its own header');
   assert(/Cedar Privacy/.test(csv) && /Warm gravel/.test(csv), 'and carries the fence and the paving');
+});
+
+test('a hollow shows its cut face, and can be walled', () => {
+  /* ELEV_MIN is -2, so Lower digs two courses below grade -- and a sunken patio
+     drew NO face and traced NO wall, because a face belongs to the HIGHER tile
+     and the higher tile of a hollow is ordinary ground at grade, which carries
+     no elevation record for anything to index. */
+  const runs = () => buildElevationRuns().map(r => +wallRunFeet(r).toFixed(1));
+
+  // the RAISED control: unchanged by any of this
+  setup(21, 21);
+  for (let x = 4; x < 9; x++) for (let y = 4; y < 9; y++) setElevationAt(x, y, 2);
+  const raised = runs().reduce((a, b) => a + b, 0);
+  assert(Math.abs(raised - 30) < 1.5, 'a 5x5 terrace still walls its 30 ft perimeter');
+
+  setup(21, 21);
+  assert(!elevationHasSunken(), 'a flat garden keeps the cheap path');
+  for (let x = 4; x < 9; x++) for (let y = 4; y < 9; y++) setElevationAt(x, y, -1);
+  assert(elevationHasSunken(), 'and a dug one does not');
+  const sunk = runs().reduce((a, b) => a + b, 0);
+  assert(Math.abs(sunk - 30) < 1.5, 'a 5x5 hollow traces the same 30 ft, where it traced none');
+
+  /* Its rim sits at GRADE, so it has no record of its own -- the earthwork was
+     invisible AND unbuildable. paintWallAt asks for a FACE, not a record. */
+  game.wallDraft = 'drystone';
+  assertEqual(paintWallAt(3, 6), 'wall', 'the rim of a hollow can be faced');
+  assertEqual(wallStyleAt(3, 6), 'drystone', 'and keeps the facing');
+  assertEqual(paintWallAt(15, 15), null, 'open flat ground still refuses one');
+
+  /* Stripping it back removes the record: at grade it exists only to carry the
+     wall, so an emptied one is a tombstone riding every save from here on. */
+  game.wallDraft = 'none';
+  paintWallAt(3, 6);
+  assert(!game.elevation['3,6'] || game.elevation['3,6'].removed,
+    'stripping a GRADE facing leaves no tombstone');
+  assertEqual(elevationAt(5, 5), -1, 'and the hollow itself is untouched');
+});
+
+test('a light is a fixture, a metal and a lamp colour', () => {
+  /* The FINISH is a third axis, like a pot's colour or a seat's -- the metal a
+     fixture is made of is not a different fixture. A row names the finishes that
+     piece is really made in, IN ITS OWN ORDER: filtering the global table
+     instead is what defaulted a stock tank to corten, one system over. */
+  assertEqual(lightTypeFinishes('lantern').map(f => f.id).join(), 'black,bronze,graphite,copper',
+    'the lantern post keeps its own preference order');
+  assertEqual(lightTypeFinishes('lantern')[0].id, 'black', 'so black is its default');
+  assert(!lightTypeFinishes('lantern').some(f => f.id === 'white'),
+    'and it is not offered a finish it is not made in');
+
+  // SNAP, not reset -- fenceHeightFor's rule
+  assertEqual(lightFinishFor('path', 'copper'), 'copper', 'a path light is made in copper');
+  assertEqual(lightFinishFor('lantern', 'white'), 'black',
+    'and switching to a fixture that is not snaps to its first');
+
+  /* `graphite` is what every light in the app was drawn in before finishes
+     existed, so a garden saved without one reopens looking exactly as it did. */
+  assertEqual(normalizeLightDraft({ type: 'path', tone: 'warm' }).finish, 'graphite',
+    'a pre-finish record resolves to the metal it was drawn in');
+  assertEqual(lightColors({ type: 'path' }).body, '#3f4038', 'which is the old literal');
+
+  /* The painter reads the finish and never a literal -- the convention the rest
+     of the file keeps ("change the palette in data, not in code"). */
+  const src = readRepoFile('js/draw.js');
+  const art = src.slice(src.indexOf('function drawLightArt'));
+  const body = art.slice(0, art.indexOf('\nfunction drawLightFixture'));
+  assert(/const metal=fin\.body/.test(body), 'the metal comes from the finish');
+  assert(!/#3f4038|#6c6958/.test(body), 'and no metal literal survives in the painter');
+
+  /* The UPLIGHT is why the fixture list grew: every other one lays a pool on
+     the ground, and the thing that makes a garden at night is a can aimed up a
+     trunk -- which this catalog has two hundred of. */
+  assertEqual(lightType('uplight').glow, 'up', 'an uplight washes up, not down');
+  assert(LIGHT_TYPES.filter(t2 => t2.glow === 'up').length === 1, 'and it is the only one');
+  const glow = src.slice(src.indexOf('function drawLightGlow'));
+  assert(/typ\.glow==='up'/.test(glow.slice(0, 2000)), 'and the glow pass branches on it');
+});
+
+test('a surface says how it is ordered, and one says it is not continuous', () => {
+  /* Decking is a LAID UNIT like a paver -- boards in a stagger -- so it needed
+     no new recipe, only its real size, and no `depth`, because you buy it by the
+     board rather than by the yard. */
+  const deck = pathColor('deck');
+  assertEqual(deck.texture, 'brick', 'decking lays units like a paver');
+  assert(deck.unit && deck.unit[1] < 7, 'at a real board width');
+  assert(!deck.depth, 'and is billed by area, never an invented yardage');
+
+  /* Stepping stones are a LAWN, not a path: what you are looking at is grass
+     with slabs set in it, so the grass has to be the surface and the stones the
+     grain. `noEdge` is the one thing the arrangement needs -- a region strokes
+     its outline, and a line round a field of stepping stones marks a boundary
+     where the grass is the same grass on both sides. */
+  const stone = lawnStyle('stepstone');
+  assertEqual(stone.texture, 'stepstone', 'it carries its own grain');
+  assert(stone.noEdge === true, 'and declares itself discontinuous');
+  assert(LAWN_STYLES.filter(l => l.noEdge).length === 1, 'the only surface that does');
+  assert(!PATH_COLORS.some(p => p.id === 'stepstone'), 'and it is not filed as paving');
+  const rsrc = readRepoFile('js/renderer.js');
+  assert(/lawnStyle\(region\.c\)\.noEdge/.test(rsrc),
+    'the region stroke asks the material whether to draw an outline');
+
+  // it is still LAWN, so it bills as turf area rather than as paving
+  setup(15, 15);
+  for (let y = 3; y < 9; y++) setTile('terrain', `5,${y}`, { k: 'lawn', c: 'stepstone', t: 1 });
+  assert(hardscapeRows().some(r => r.kind === 'Lawn' && /Stepping/.test(r.name)),
+    'and reaches the materials list as lawn');
+});
+
+test('a pergola is a run, and a climber grows on it', () => {
+  /* The thing over a patio, and the one structure the supports note deferred:
+     a pergola is a RUN rather than a piece, which is a different placement
+     idiom -- so it is modelled on the FENCE and not on the obelisk beside it. */
+  setup(21, 21);
+  game.pergolaDraft = { mat: 'timber', height: 8 };
+  game.tool = 'pergola';
+
+  // it stands OVER paving, which is the whole point -- as a fence may
+  for (let x = 3; x < 12; x++) setTile('terrain', `${x},6`, { k: 'path', c: 'warm', t: 1 });
+  let laid = 0;
+  for (let x = 3; x < 12; x++) if (applyToolAt(x, 6)) laid++;
+  assertEqual(laid, 9, 'a run lays over a terrace');
+  assertEqual(applyToolAt(3, 6), null, 'and re-laying the same bay is a no-op');
+
+  /* Posts at the ends, the corners and every PERGOLA_POST_TILES -- fencePostHere
+     with a wider spacing, because a post every 18 inches is a stockade. */
+  const posts = [];
+  for (let x = 3; x < 12; x++) if (pergolaPostHere(x, 6)) posts.push(x);
+  assert(posts.includes(3) && posts.includes(11), 'both ends carry a post');
+  assert(!posts.includes(7), 'a plain mid-run bay does not');
+  assert(posts.length < 5, 'and they are spaced, not one a tile: ' + posts.length);
+
+  /* supportAt is the single seam for "can a climber use this", so making the
+     pergola one is what the whole feature is for. */
+  const sup = supportAt(7, 6);
+  assertEqual(sup && sup.kind, 'pergola', 'a bay is a support');
+  assertEqual(sup.ft, 8, 'at its real height');
+  const vine = PLANT_KEYS.find(k => PLANTS[k].type === 'vine');
+  setTile('terrain', '7,6', { removed: true, t: 1 });   // a plant cannot be dug into gravel
+  game.tool = vine; game.toolVar = null;
+  assertEqual(applyToolAt(7, 6), 'plant', 'a climber plants on a pergola');
+  assertEqual(applyToolAt(15, 15), null, 'and still refuses open ground');
+
+  /* The frame's RUN reaches the drawing, so the foliage lies along the pergola
+     rather than across it -- the fence path, one structure over. */
+  const det = climberRenderDetail(7, 6, game.plants['7,6'], 900, 600);
+  assertEqual(det && det.climb, 'pergola', 'the climber knows what it is on');
+  assert(det.axis && det.axis.length === 2, 'and which way the run goes');
+  assert(det.ft <= 8.001, 'and never draws above its frame');
+
+  // billed by the foot, like a fence: a tile is one 18in bay
+  const row = hardscapeRows().find(r => r.kind === 'Pergola');
+  assert(row, 'it reaches the materials list');
+  assert(/Timber/.test(row.name) && /8 ft/.test(row.name), 'naming its material and height');
+
+  /* Lifting a bay takes its climber, exactly as lifting a support or a pot
+     takes its planting: a vine left behind would stand on ground placePlantAt
+     refuses, which an ordinary erase should not be able to reach. */
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0, fence: 0,
+    light: 0, firepit: 0, boulder: 0, pet: 0, pot: 0, seat: 0, waterFeature: 0, support: 0, pergola: 0 };
+  game.brushSize = 1; game.eraseMode = 'terrain';
+  eraseBrush(7, 6, counts);
+  assertEqual(counts.pergola, 1, 'the bay lifts');
+  assertEqual(counts.plants, 1, 'and takes its climber with it');
+
+  /* It does not shade. LAYER_CACHES names a pergola as its own example of a
+     layer that must not silently leave the shade map stale, so classifying it
+     {scene:1} is a deliberate statement rather than a missing flag: a tree is
+     the only thing in this app that casts any. */
+  assert(LAYER_CACHES.pergolas && !LAYER_CACHES.pergolas.shade,
+    'a pergola is classified, and casts no shade');
+  assert(GAME_LAYERS.some(l => l.k === 'pergolas'), 'and is a saved layer');
 });
