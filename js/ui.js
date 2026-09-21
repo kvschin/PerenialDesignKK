@@ -774,6 +774,11 @@ const BROWSE_RESIST_KEYS=new Set([
   'bluebells','heuchera','astilbe','solomonsseal','shootingstar',
   'greatstjohnswort','filipendula','goldenrod','joepye','gaura','poppymallow',
   'pasqueflower','prairiesmoke','goldenalexander','heartleafalexander',
+  // European additions: toxic latex, cardiac glycosides, aconitine, or simply
+  // too bitter and woolly to browse
+  'euphorbiawulfenii','cushionspurge','foxglove','rustyfoxglove','monkshood',
+  'europeanpasqueflower','nettleleafmullein','bearsbreeches','carthusianpink',
+  'redvalerian','meadowrue','globeflower','jacobsladder',
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',

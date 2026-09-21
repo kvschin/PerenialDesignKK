@@ -4782,6 +4782,54 @@ adds a spiny involucre; `headAspect` controls the flower's height/width ratio.
 Both controls are opt-in in classic and ART2 rendering. Source and authoring
 notes are in `docs/plant-data/european-implementation.md`; the dev-only
 `dev/european-review.html` covers all 14 choices and all four seasons.
+**European gaps, phase 2 (0.9.1):** 24 records — 578 base / 390 nested — closing
+the hole the audit measured: Europe is a first-class `nativeRegion` whose native
+palette was a third of North America's (58 family cards against 202 at zone 6),
+and its herbaceous straight-species palette was **31 plants**.
+**Three of those records are straight species of taxa the catalog already held
+ONLY as named selections** — `Molinia caerulea`, `Betonica officinalis`,
+`Cirsium rivulare` — because a selection is `provenance:'selection'` and drops
+out of `straight`, and a hybrid drops out of `regional` too. Purple moor grass
+and feather reed grass, the two signature Dutch-wave grasses, were invisible to
+a European native garden. Each joins its selections under a shared `group` with
+a Species chip. `Calamagrostis × acutiflora` stays out on purpose: it is a
+hybrid, and the straight European *Calamagrostis* is a weed, not a border plant.
+The other 21 are European wild natives, chosen for what a European gardener
+reaches for first: Euphorbia (characias + polychroma), two Digitalis, lavender,
+`Verbascum chaixii`, `Acanthus mollis`, `Aconitum napellus`, `Thalictrum
+aquilegiifolium`, `Dianthus carthusianorum`, `Centranthus ruber`, `Cynara
+cardunculus`, `Succisa pratensis`, `Centaurea montana`, `Silene coronaria`,
+`Leucanthemum vulgare`, `Pulsatilla vulgaris`, `Trollius europaeus`,
+`Polemonium caeruleum`, plus `Helictotrichon sempervirens` and `Briza media`.
+Measured after: European native forbs 27 → 42 and grasses 5 → 7 at zone 6,
+straight-mode families 54 → 74 at zone 5 and 58 → 81 at zone 7.
+No new renderer branches — every record reuses an existing `form`.
+**Three authoring traps, all of which drew a confidently wrong plant.**
+`spikeStyle:'starTube'` **clamps `tubeCount` to 8** and reads `tubeR`; both
+foxgloves were authored at 13 and 22 with `tubeW`, a `penstemon` knob, so they
+silently rendered as eight default-sized tubes. `bell` is what a foxglove is —
+nodding inflated tubes with a pale throat, and it takes a real count.
+`spikeStyle:'poker'` paints its lower 48% with `S.eye`, which is the Kniphofia
+two-tone: an authored dark nectary colour turned *Euphorbia characias* into a
+brown cattail, and the fix is to drop the `eye` so the head is one chartreuse
+mass. And a `spike` whose stems should be clothed needs `stemLeaves` — without
+it the spurge drew as a bare stalk over a basal skirt, which reads as an arrow
+rather than a plant. Its cost is the reason to be sparing: 7 stems x 9
+stem-leaves measured **503us**, rank 16 of 324 herbaceous species, and 5 x 6
+measured 335us for no visible loss. All 24 sit between 87 and 335us against a
+163us catalog median.
+Browse resistance is DERIVED (`staticPlantRoles` — grass/sedge/fern/aromatic/
+silver cues plus `BROWSE_RESIST_KEYS`), so the toxic ones with no texture cue
+are named in that list rather than hand-writing `deerOk` onto the record.
+`dev/europe2-review.html` covers all 33 exact choices in both renderer modes and
+all four seasons; 396 sprite-edge checks, no painted edges, in each mode.
+Still open from the same audit, in the order it ranked them: the rockery and
+edging layer (Ajuga, Vinca, Lamium, Saxifraga, Iberis, Aubrieta, Armeria,
+`Campanula poscharskyana`, Helianthemum), the woodland spring ephemerals
+(`Anemone nemorosa`, Omphalodes, Hepatica, Symphytum, Myosotis, Corydalis),
+European water plants (there are **none** — `Caltha palustris` and Menyanthes
+are the obvious two, and `Iris pseudacorus` wants a `PLANT_GUIDANCE` caution
+rather than a plain record), and cultivar depth on what is already there.
 
 ## Conventions
 
