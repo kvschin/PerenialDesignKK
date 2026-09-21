@@ -521,6 +521,12 @@ const PLANTS = {
     look:{art2:true, leaves:19, stems:7, fan:1.15, leafLen:0.74, seedBeads:7},
     blurb:'A compact purple moor grass: dense upright foliage, dark purple flower stems in late summer, and warm orange-brown fall color.',
     sea:{Spring:{fol:'#78956d'}, Summer:{fol:'#66825f',bloom:'#6b5875'}, Fall:{fol:'#b26d4d',seed:'#8c6d78'}, Winter:{fol:'#9d765c',seed:'#a99388'}}},
+  purplemoorgrass:{ name:'Purple Moor Grass', latin:'Molinia caerulea', form:'moorgrass', type:'grass', h:30,
+    group:'molinia', groupLabel:'Purple Moor Grass', chip:'Species',
+    space:18, spread:24, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'cool',
+    look:{art2:true, leaves:21, stems:9, fan:1.05, leafLen:0.68, seedBeads:9},
+    blurb:'The wild moor grass of European heaths and damp meadows: a neat green tussock with slim purple flower stems held well clear of it, then a long tawny autumn. Seed-grown, so no two clumps match.',
+    sea:{Spring:{fol:'#74915f'}, Summer:{fol:'#628053',bloom:'#7c6689'}, Fall:{fol:'#b59a63',seed:'#bda98a'}, Winter:{fol:'#a18a68',seed:'#c0aa86'}}},
   sandlovegrass:{ name:'Sand Lovegrass', latin:'Eragrostis trichodes', form:'cloudgrass', type:'grass', h:42,
     space:24, spread:30, zones:[5,9], _legacyNative:true, sun:'full', moist:'dry', phen:'warm',
     look:{art2:true, leaves:24, stems:13, leafFan:1.25, leafLen:0.58, bladeSpread:0.56, leafW:1.05,
@@ -1106,10 +1112,17 @@ const PLANTS = {
     blurb:'A narrowleaf hybrid that splits the difference: finer than the prairie species, taller than Iron Butterfly, and the last real purple in the garden before frost.',
     sea:{Spring:{fol:'#719268'}, Summer:{fol:'#5f8759',bloom:'#7c46a2'}, Fall:{fol:'#6d7452',bloom:'#6e3f90',seed:'#95779b'}, Winter:{fol:'#736757',seed:'#836f7d'}}},
   stachys:{ name:"Betony 'Hummelo'", latin:"Betonica officinalis 'Hummelo'", synonyms:["Stachys officinalis 'Hummelo'","Stachys monieri 'Hummelo'"], form:'spike', type:'forb', h:24,
+    group:'betony', groupLabel:'Betony', chip:'Hummelo',
     space:18, spread:18, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
     look:{art2:true, leafShape:'ovate', leafHW:1.90, leafFan:1.70, leafRise:0.74, leafTeeth:0.12, leafTeethN:7, a2Spike:0.26, a2Florets:8, a2FloretR:2.1, a2FloretSq:0.95, a2Wobble:1.4},
     blurb:'Tidy rosettes throwing up rosy-violet bottlebrushes for weeks — the 2019 Perennial of the Year, and earns it.',
     sea:{Spring:{fol:'#5d7a4c'}, Summer:{fol:'#5d7a4c',bloom:'#a04a8e'}, Fall:{fol:'#6b6248',seed:'#4a3c38'}, Winter:{fol:'#5e574a',seed:'#3a322c'}}},
+  betony:{ name:'Betony', latin:'Betonica officinalis', synonyms:['Stachys officinalis','Stachys monieri'], form:'spike', type:'forb', h:26,
+    group:'betony', groupLabel:'Betony', chip:'Species',
+    space:15, spread:15, zones:[4,8], _legacyNative:false, sun:'full', moist:'medium', phen:'mid',
+    look:{art2:true, leafShape:'ovate', leafHW:1.95, leafFan:1.62, leafRise:0.70, leafTeeth:0.14, leafTeethN:7, a2Spike:0.30, a2Florets:7, a2FloretR:1.9, a2FloretSq:0.92, a2Wobble:1.6},
+    blurb:'The wild betony of European hay meadows and open woods: a low mat of scalloped leaves under short rosy-purple spikes. Looser and longer in flower than the named forms, and it comes true from seed.',
+    sea:{Spring:{fol:'#607d4f'}, Summer:{fol:'#607d4f',bloom:'#9c4884'}, Fall:{fol:'#6b6248',seed:'#4a3c38'}, Winter:{fol:'#5e574a',seed:'#3a322c'}}},
   penstemon:{ name:'Foxglove Beardtongue', latin:'Penstemon digitalis', form:'spike', type:'forb', h:38,
     group:'penstemon', groupLabel:'Penstemon', chip:'Foxglove',
     space:18, spread:18, zones:[3,8], _legacyNative:true, sun:'full', moist:'medium', phen:'mid',
@@ -1335,12 +1348,21 @@ const PLANTS = {
     blurb:'Small wine-red pincushions on wiry, dancing stems from summer into fall. Best in lean soil with room to weave.',
     sea:{Spring:{fol:'#708861'}, Summer:{fol:'#628057',bloom:'#8e3f5f',eye:'#e2b4bc'}, Fall:{fol:'#786c58',bloom:'#7b3654',eye:'#d5a3ae',seed:'#7d5961'}, Winter:{fol:'#6c6052',seed:'#72515a'}}},
   cirsiumatropurpureum:{ name:"River Thistle 'Atropurpureum'", latin:"Cirsium rivulare 'Atropurpureum'", form:'pincushion', type:'forb', h:54,
+    group:'riverthistle', groupLabel:'River Thistle', chip:'Atropurpureum',
     roles:['architectural'], space:18, spread:24, zones:[4,8], _legacyNative:false, sun:'full', moist:'moist', phen:'cool',
     look:{art2:true, pincushionStyle:'thistle', leaves:8, leafW:1.4, leafLen:0.30, leafFan:1.45,
       leafRise:0.62, leafShape:'lance', leafHW:1.25, leafTeeth:0.36, leafTeethN:7,
       stems:7, headR:3.4, headAspect:1.05, bracts:9, bractLen:2.4, bractW:1},
     blurb:'Wine-red thistle heads on clean branching stems in early summer. Despite the name, this clump-former is a border plant rather than a wandering weed.',
     sea:{Spring:{fol:'#71835a'}, Summer:{fol:'#61764f',bloom:'#7f2746',eye:'#d28aa1'}, Fall:{fol:'#7a6e54',seed:'#6b4b51'}, Winter:{fol:'#675d4d',seed:'#594148'}}},
+  riverthistle:{ name:'River Thistle', latin:'Cirsium rivulare', form:'pincushion', type:'forb', h:48,
+    group:'riverthistle', groupLabel:'River Thistle', chip:'Species',
+    roles:['architectural'], space:18, spread:24, zones:[4,8], _legacyNative:false, sun:'full', moist:'moist', phen:'cool',
+    look:{art2:true, pincushionStyle:'thistle', leaves:8, leafW:1.35, leafLen:0.31, leafFan:1.45,
+      leafRise:0.60, leafShape:'lance', leafHW:1.30, leafTeeth:0.34, leafTeethN:7,
+      stems:6, headR:3.0, headAspect:1.05, bracts:9, bractLen:2.3, bractW:1},
+    blurb:'The wild river thistle of European wet meadows: clean, nearly spineless stems carrying soft mauve-purple heads in early summer. A clump-former for damp ground, not a running weed.',
+    sea:{Spring:{fol:'#71835a'}, Summer:{fol:'#61764f',bloom:'#8f5a7e',eye:'#d6a2b8'}, Fall:{fol:'#7a6e54',seed:'#6b5a5e'}, Winter:{fol:'#675d4d',seed:'#594a50'}}},
   cenolophium:{ name:'Baltic Parsley', latin:'Cenolophium fischeri', synonyms:['Cenolophium denudatum'], form:'umbel', type:'forb', h:54,
     space:18, spread:24, zones:[4,9], _legacyNative:false, sun:'part', moist:'moist', phen:'cool',
     look:{art2:true, head:7.5, dome:0.35, floretR:0.8, stems:8, stemSpread:22,
@@ -5280,7 +5302,7 @@ function canonicalizePlantMap(map){
    and European gardeners without deriving geography from a hardiness zone. */
 const EUROPE_NATIVE_KEYS=new Set(`
   karl overdam sesleria bluemoorgrass tuftedhair bluefescue giantstipa molinia moorhexe mountainsedge
-  snowywoodrush cirsiumatropurpureum cenolophium
+  purplemoorgrass snowywoodrush cirsiumatropurpureum riverthistle cenolophium betony
   eryngiumbourgatii yarrow purpleemperor meadowsage stachys echinops calamint scabiosa knautia
   greatburnet siberianiris sanguineumgeranium bigrootgeranium pasqueflower ladysmantle brunnera
   spikespeedwell peachbellflower goatsbeard
@@ -5303,7 +5325,7 @@ const ASIA_NATIVE_KEYS=new Set(`
   miscanthus fountaingrass orientalfountain hakone mountainsedge greatburnet
   koreanfeatherreed evergoldsedge kalimerisbluestar cenolophium
   smokebush alliumPurpleSensation
-  persicaria stachys lilacsquirrel siberianiris silvermound
+  persicaria stachys betony lilacsquirrel siberianiris silvermound
   peony brunnera russiansage ladysmantle jerusalemsage
   bleedingheart lambsear orientalpoppy spikespeedwell peachbellflower goatsbeard meadowsage purpleemperor
   tulip tulipatarda tuliplinifolia crocuschrysanthus puschkinia lycoris muscari
@@ -5317,7 +5339,7 @@ const ASIA_NATIVE_KEYS=new Set(`
   asianpersimmon quince fig jujube pomegranate englishwalnut chinesechestnut europeanhazel
   pistachio olive loquat mandarin
 `.trim().split(/\s+/));
-const AFRICA_NATIVE_KEYS=new Set('giantstipa echinops scabiosa eryngiumbourgatii stachys greatburnet scillaperuviana alliumsphaerocephalon blueatlascedar europeanelder laurustinus portugueselaurel fig olive'.split(' '));
+const AFRICA_NATIVE_KEYS=new Set('giantstipa echinops scabiosa eryngiumbourgatii stachys betony greatburnet scillaperuviana alliumsphaerocephalon blueatlascedar europeanelder laurustinus portugueselaurel fig olive'.split(' '));
 const CENTRAL_AMERICA_NATIVE_KEYS=new Set('mexicanfeather choisya avocado'.split(' '));
 const SOUTH_AMERICA_NATIVE_KEYS=new Set('mexicanfeather ipheion'.split(' '));
 const AUSTRALASIA_NATIVE_KEYS=new Set('fountaingrass macadamia'.split(' '));
@@ -5422,7 +5444,7 @@ const BLOOM_MONTHS = {
   bluegrama:[6,7,8], karl:[6,7], overdam:[6,7], sesleria:[8,9], bluemoorgrass:[3,4,5],
   lovegrass:[7,8], pinkmuhly:[9,10], tuftedhair:[6,7], koreanfeatherreed:[8,9,10],
   northernseaoats:[8,9], fountaingrass:[7,8,9], orientalfountain:[7,8,9], molinia:[8,9,10],
-  moorhexe:[8,9], sandlovegrass:[7,8], graysedge:[5,6], mountainsedge:[4,5], snowywoodrush:[5,6],
+  moorhexe:[8,9], purplemoorgrass:[7,8,9], sandlovegrass:[7,8], graysedge:[5,6], mountainsedge:[4,5], snowywoodrush:[5,6],
 
   // prairie forb backbone
   echinacea:[6,7,8], pallida:[6,7], topeka:[6,7], angustifolia:[6,7], paradoxa:[6,7],
@@ -5433,7 +5455,7 @@ const BLOOM_MONTHS = {
   easternbluestar:[4,5], fringedbluestar:[4,5], culvers:[6,7], yarrow:[6,7,8,9],
   sedum:[8,9,10], matrona:[8,9,10], autumnfire:[8,9,10], purpleemperor:[8,9,10], autumncharm:[8,9,10],
   phlox:[7,8,9], joepye:[7,8,9], babyjoe:[7,8,9], persicaria:[6,7,8,9,10], prairieironweed:[7,8,9], baldwinsironweed:[7,8,9,10],
-  giantironweed:[8,9], narrowleafironweed:[8,9,10], swansongironweed:[8,9,10], stachys:[6,7],
+  giantironweed:[8,9], narrowleafironweed:[8,9,10], swansongironweed:[8,9,10], stachys:[6,7], betony:[6,7,8],
   penstemon:[5,6], largebeardtongue:[5,6], butterfly:[6,7,8], swampmilkweed:[6,7,8],
   prairiemilkweed:[6,7], commonmilkweed:[6,7], showymilkweed:[6,7],
   whorledmilkweed:[6,7,8], greenmilkweed:[6,7],
@@ -5441,7 +5463,7 @@ const BLOOM_MONTHS = {
   liatrisspicata:[7,8], goldenrod:[8,9,10], bluestemmedgoldenrod:[8,9], roughgoldenrod:[8,9,10], autumnGoldenrod:[8,9,10],
   meadowsage:[5,6,7], echinops:[7,8], calamint:[7,8,9],
   agastache:[7,8,9], catmint:[5,6,7,8], scabiosa:[6,7,8,9], knautia:[6,7,8,9],
-  cirsiumatropurpureum:[6,7,8], cenolophium:[6,7,8], frikartaster:[7,8,9,10], kalimerisbluestar:[7,8,9],
+  cirsiumatropurpureum:[6,7,8], riverthistle:[6,7], cenolophium:[6,7,8], frikartaster:[7,8,9,10], kalimerisbluestar:[7,8,9],
   helenium:[8,9,10], rudbeckia:[7,8,9], rudbeckiatriloba:[8,9,10],
   rudbeckiamaxima:[7,8,9], falsesunflower:[6,7,8], sanguisorba:[7,8,9,10], greatburnet:[7,8,9],
   lilacsquirrel:[7,8], menziesburnet:[6,7,8], coreopsis:[6,7,8], lanceleaf:[5,6,7], bigflowertickseed:[6,7,8],
@@ -5634,6 +5656,7 @@ const WIKIPEDIA_ARTICLES = {
   giantstipa:             "Celtica gigantea",
   molinia:                "Molinia caerulea",
   moorhexe:               "Molinia caerulea",
+  purplemoorgrass:        "Molinia caerulea",
   sandlovegrass:          "Eragrostis trichodes",
   sedge:                  "Carex brevior",
   foxsedge:               "Carex vulpinoidea",
@@ -5713,6 +5736,7 @@ const WIKIPEDIA_ARTICLES = {
   narrowleafironweed:     "Vernonia lettermannii",
   swansongironweed:       "Vernonia",
   stachys:                "Betonica officinalis",
+  betony:                 "Betonica officinalis",
   penstemon:              "Penstemon digitalis",
   largebeardtongue:       "Penstemon grandiflorus",
   butterfly:              "Asclepias tuberosa",
@@ -5738,6 +5762,7 @@ const WIKIPEDIA_ARTICLES = {
   scabiosa:               "Scabiosa columbaria",
   knautia:                "Knautia macedonica",
   cirsiumatropurpureum:   "Cirsium rivulare",
+  riverthistle:           "Cirsium rivulare",
   cenolophium:            "Cenolophium",
   helenium:               "Helenium autumnale",
   rudbeckia:              "Rudbeckia fulgida",

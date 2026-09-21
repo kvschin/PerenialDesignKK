@@ -94,7 +94,7 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,554,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,557,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),381,
     'canonical nested-choice count');
