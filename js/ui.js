@@ -966,6 +966,13 @@ function normalizeFilters(src){
     zone:src.zone?+src.zone:null,
     nativeRegion:normalizeNativeRegion(src.nativeRegion),
     nativeMode,
+    /* Defaults to 'hide'. A saved garden from before this field therefore
+       adopts it, which is deliberate: the eleven reviewed cautions did nothing
+       at all until now -- every style palette offered every flagged plant --
+       and a gardener who wants one back has a control that says so. Plants
+       already IN the garden are untouched; this gates the catalog, exactly as
+       the native mode does. */
+    invasive:normalizeInvasiveMode(src.invasive),
     deer:!!src.deer,
     rabbit:!!src.rabbit,
     squirrel:!!src.squirrel
@@ -975,7 +982,7 @@ function normalizeDesign(src){
   if (!src || typeof src!=='object') return null;
   const f=normalizeFilters(src);
   return {zone:f.zone,type:typeof src.type==='string'?src.type:'any',
-    nativeRegion:f.nativeRegion,nativeMode:f.nativeMode,
+    nativeRegion:f.nativeRegion,nativeMode:f.nativeMode,invasive:f.invasive,
     deer:f.deer,rabbit:f.rabbit,squirrel:f.squirrel};
 }
 function activeFilters(){ return normalizeFilters(game.filters); }
@@ -1080,6 +1087,12 @@ function plantRefFitsCriteria(ref,criteria){
   const P=refDef(ref), f=normalizeFilters(criteria); if (!P) return false;
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
+  /* The one gate every discovery SOURCE inherits. Recommended, All eligible,
+     Favorites and every named palette filter references through here before
+     grouping them into family cards, so a flagged plant leaves the starting
+     style palettes for free -- which is the defect this began as: all six
+     styles offered all eleven flagged plants to a North American garden. */
+  if (f.invasive==='hide' && hasInvasiveCaution(ref,f.nativeRegion)) return false;
   if (!challengeAllows(ref.s)) return false;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P)){
@@ -1277,6 +1290,7 @@ function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
+  if (f.invasive==='hide' && hasInvasiveCaution({s:k,v:null},f.nativeRegion)) return false;
   if (!challengeAllows(k)) return false;                 // daily challenge limits the palette
   const roles=plantRoles(k);
   if (!isTreeDef(P)){
@@ -1369,6 +1383,7 @@ function applyGardenCriteria(next,{refresh=true,announce=true}={}){
     game.design.zone=game.filters.zone;
     game.design.nativeRegion=game.filters.nativeRegion;
     game.design.nativeMode=game.filters.nativeMode;
+    game.design.invasive=game.filters.invasive;
     delete game.design.nativesOnly;
     game.design.deer=game.filters.deer;
     game.design.rabbit=game.filters.rabbit;
@@ -1390,6 +1405,12 @@ function updateFilterBtn(){
   const f=activeFilters(), bits=[];
   if (f.zone) bits.push('z'+f.zone);
   if (f.nativeMode!=='any') bits.push((f.nativeMode==='straight'?'Straight':'Origin')+' · '+nativeRegionLabel(f.nativeRegion,true));
+  /* Only the non-default is worth a bit, as with zone and browse resistance --
+     except in Any mode, where the region is the ONLY thing attaching this
+     garden to a place and would otherwise go unnamed while it silently scopes
+     which cautions apply. */
+  if (f.invasive==='show') bits.push('Invasives shown');
+  else if (f.nativeMode==='any') bits.push('No invasives · '+nativeRegionLabel(f.nativeRegion,true));
   if (f.deer) bits.push('Deer');
   if (f.rabbit) bits.push('Rabbit');
   if (f.squirrel) bits.push('Squirrel');

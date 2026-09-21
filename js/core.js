@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.2';
+const APP_VERSION = '0.9.3';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1734,10 +1734,14 @@ function passesNativeFilter(P,criteria){
 }
 function nativeCriteriaText(criteria){
   const f=criteria||{}, mode=normalizeNativeMode(f.nativeMode), place=nativeRegionLabel(f.nativeRegion);
-  const scope=' Continental origin does not establish local native status or regional invasive risk.';
+  /* Invasive risk used to be disclaimed here because nothing checked it. It has
+     its own control now, so this sentence must not keep denying it -- but
+     continental origin still does not establish LOCAL native status, which is a
+     separate claim and remains true. */
+  const scope=' Continental origin does not establish local native status.';
   if (mode==='regional') return `Species native somewhere in ${place}; named selections included, garden hybrids excluded.`+scope;
   if (mode==='straight') return `Species native somewhere in ${place}; named selections and garden hybrids excluded.`+scope;
-  return 'Any origin. Local native status and regional invasive risk are not checked by this filter.';
+  return `Any origin. ${place} still sets which invasive cautions apply.`+scope;
 }
 function nativeStatusText(P,region=DEFAULT_NATIVE_REGION){
   const r=nativeRelation(P,region), place=nativeRegionLabel(region);
@@ -1786,27 +1790,27 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
 });
 const PLANT_GUIDANCE=Object.freeze({
   yellowflag:{taxon:'Iris pseudacorus',reviewed:'2026-09-20',invasive:[
-    {area:'King County, Washington',source:'yellowFlagIris',text:'Listed as a non-regulated Class C noxious weed. It forms dense stands along shorelines and spreads by seed and by rhizome fragments carried downstream. Check the local position before planting it near water.'}]},
+    {area:'King County, Washington',region:'north-america',severity:'caution',source:'yellowFlagIris',text:'Listed as a non-regulated Class C noxious weed. It forms dense stands along shorelines and spreads by seed and by rhizome fragments carried downstream. Check the local position before planting it near water.'}]},
   periwinkle:{taxon:'Vinca minor',reviewed:'2026-09-20',invasive:[
-    {area:'North Carolina',source:'periwinkleNC',text:'Classified as an invasive species by the NC Invasive Plant Council. It spreads out of gardens into adjacent woodland and holds the ground against native plants. Consider a local groundcover instead.'}]},
+    {area:'North Carolina',region:'north-america',severity:'avoid',source:'periwinkleNC',text:'Classified as an invasive species by the NC Invasive Plant Council. It spreads out of gardens into adjacent woodland and holds the ground against native plants. Consider a local groundcover instead.'}]},
   mexicanfeather:{taxon:'Nassella tenuissima',reviewed:'2026-09-06',invasive:[
-    {area:'California',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
+    {area:'California',region:'north-america',severity:'avoid',source:'mexicanFeather',text:'Cal-IPC rates this species Limited. It escapes from landscaping and spreads by seed. Avoid new planting in this region.'}]},
   miscanthus:{taxon:'Miscanthus sinensis',reviewed:'2026-09-06',invasive:[
-    {area:'Maryland',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'}]},
+    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding this invasive grass, including commonly sold cultivars. Check current local guidance before buying.'}]},
   fountaingrass:{taxon:'Cenchrus alopecuroides',reviewed:'2026-09-06',invasive:[
-    {area:'Maryland',source:'marylandGrasses',text:'Extension recommends avoiding Chinese fountain grass, including commonly sold cultivars. Also listed as Pennisetum alopecuroides or Cenchrus purpurascens.'}]},
+    {area:'Maryland',region:'north-america',severity:'avoid',source:'marylandGrasses',text:'Extension recommends avoiding Chinese fountain grass, including commonly sold cultivars. Also listed as Pennisetum alopecuroides or Cenchrus purpurascens.'}]},
   cherrylaurel:{taxon:'Prunus laurocerasus',reviewed:'2026-09-06',invasive:[
-    {area:'King County, Washington',source:'cherryLaurel',text:'The county discourages new plantings. Bird-dispersed seeds escape into forests, where dense growth competes with native vegetation.'}]},
+    {area:'King County, Washington',region:'north-america',severity:'avoid',source:'cherryLaurel',text:'The county discourages new plantings. Bird-dispersed seeds escape into forests, where dense growth competes with native vegetation.'}]},
   fragrantwaterlily:{taxon:'Nymphaea odorata',reviewed:'2026-09-06',invasive:[
-    {area:'Washington',source:'waterlily',text:'A regional noxious weed concern despite its North American origin. It forms dense aquatic mats. Consult local guidance before planting or moving it.'}]},
+    {area:'Washington',region:'north-america',severity:'caution',source:'waterlily',text:'A regional noxious weed concern despite its North American origin. It forms dense aquatic mats. Consult local guidance before planting or moving it.'}]},
   japanesespirea:{taxon:'Spiraea japonica',reviewed:'2026-09-06',invasive:[
-    {area:'North Carolina',source:'spirea',text:'Escapes cultivation and is classified as invasive by the NC Invasive Plant Council. Choose a locally appropriate alternative.'}]},
+    {area:'North Carolina',region:'north-america',severity:'avoid',source:'spirea',text:'Escapes cultivation and is classified as invasive by the NC Invasive Plant Council. Choose a locally appropriate alternative.'}]},
   commonmilkweed:{taxon:'Asclepias syriaca',reviewed:'2026-09-06',invasive:[
-    {area:'European Union',source:'milkweed',text:'EPPO records this species as an invasive alien plant of EU concern. Check current national guidance before acquiring or planting it.'}]},
+    {area:'European Union',region:'europe',severity:'avoid',source:'milkweed',text:'EPPO records this species as an invasive alien plant of EU concern. Check current national guidance before acquiring or planting it.'}]},
   fig:{taxon:'Ficus carica',reviewed:'2026-09-06',invasive:[
-    {area:'California',source:'fig',text:'Cal-IPC rates this species Moderate; escaped plants can form thickets along waterways. Cultivar risk is still being studied, so named varieties are not automatically cleared.'}]},
+    {area:'California',region:'north-america',severity:'caution',source:'fig',text:'Cal-IPC rates this species Moderate; escaped plants can form thickets along waterways. Cultivar risk is still being studied, so named varieties are not automatically cleared.'}]},
   olive:{taxon:'Olea europaea',reviewed:'2026-09-06',invasive:[
-    {area:'California',source:'olive',text:'Cal-IPC rates this species Limited and advises caution near open space. Its guidance suggests seedless varieties; verify the exact nursery selection rather than assuming an exemption.'}]},
+    {area:'California',region:'north-america',severity:'caution',source:'olive',text:'Cal-IPC rates this species Limited and advises caution near open space. Its guidance suggests seedless varieties; verify the exact nursery selection rather than assuming an exemption.'}]},
   bluestem:{taxon:'Schizachyrium scoparium',reviewed:'2026-09-06',origin:[
     {area:'Maryland',status:'native',source:'marylandGrasses',text:'The species is recorded as native statewide; verify local habitat and stock provenance.'}]},
   bigbluestem:{taxon:'Andropogon gerardii',reviewed:'2026-09-06',origin:[
@@ -1847,6 +1851,75 @@ function plantCautionText(ref,withSources=false){
   const notes=plantGuidance(ref).invasive;
   if (!notes.length) return '';
   return notes.map(n=>`${n.area}: ${n.text}`+(withSources?` [${n.reviewed}; ${PLANT_GUIDANCE_SOURCES[n.source].url}]`:'')).join(' ');
+}
+/* ---------- invasive risk ----------
+   Invasive risk is a RELATION between a plant and a place, exactly as native
+   status is -- so the question is never "is this plant invasive" but "is it
+   invasive HERE", and every caution therefore names the served `region` it
+   applies to rather than only the state or county it was recorded in.
+
+   Asking it globally is the mistake this is written to prevent. Ten of the
+   eleven reviewed cautions are North American and the eleventh is the EU's
+   listing of common milkweed -- a NORTH AMERICAN native -- so a global test
+   would delete the monarch host plant from a prairie garden, and take Vinca
+   minor, yellow flag iris and cherry laurel out of Europe, where all three are
+   natives and none is a problem. Asked per region it removes two plants from a
+   North American native garden and none at all from a European one.
+
+   The state or county in `area` is deliberately NOT the filter's resolution:
+   `nativeRegion` is continental, so per-state precision is precision the gate
+   cannot consume, and trying to settle it per state is what stalled the
+   catalog review at eleven records. `severity` carries what that precision was
+   really for -- one county listing a plant Class C, control not required, is
+   not the claim that a plant smothers woodland. */
+const INVASIVE_SEVERITIES=Object.freeze(['avoid','caution']);
+const INVASIVE_MODES=Object.freeze([
+  {id:'hide',label:'Hide flagged plants'},
+  {id:'show',label:'Show with a caution'},
+]);
+const INVASIVE_MODE_IDS=new Set(INVASIVE_MODES.map(m=>m.id));
+function normalizeInvasiveMode(value){ return INVASIVE_MODE_IDS.has(value)?value:'hide'; }
+/* `plantRefFitsCriteria` runs over the whole catalog on every keystroke, so the
+   common answer -- 585 of 596 species carry no caution at all -- has to cost one
+   Set lookup rather than a ref canonicalisation and a botanical-name compare.
+   The set is DERIVED from the alias table as well as the guidance table, so a
+   retired key that resolves onto a flagged species cannot slip past the fast
+   path the day somebody adds one. */
+const INVASIVE_FLAGGED_KEYS=(()=>{
+  const set=new Set();
+  for (const k in PLANT_GUIDANCE) if ((PLANT_GUIDANCE[k].invasive||[]).length) set.add(k);
+  for (const pair in PLANT_REF_ALIASES){
+    const target=PLANT_REF_ALIASES[pair];
+    if (set.has(target.slice(0,target.indexOf('|')))) set.add(pair.slice(0,pair.indexOf('|')));
+  }
+  return set;
+})();
+/* Cautions recorded for ONE region. A named selection keeps its species'
+   cautions (`plantGuidance` never implicitly clears one), so a cultivar of
+   Vinca minor is filtered exactly as the species is. */
+function invasiveCautionsFor(ref,region=DEFAULT_NATIVE_REGION){
+  if (!ref || !INVASIVE_FLAGGED_KEYS.has(ref.s)) return [];
+  const here=normalizeNativeRegion(region);
+  return plantGuidance(ref).invasive.filter(n=>n.region===here);
+}
+function hasInvasiveCaution(ref,region=DEFAULT_NATIVE_REGION){ return invasiveCautionsFor(ref,region).length>0; }
+/* What the filter's own copy promises, counted rather than typed: the catalog
+   holds this many species with a recorded caution for that region. It is the
+   honest number to print, because the table is 10:1 North American and a
+   European gardener should be able to see that this filter is nearly empty for
+   them rather than infer completeness from a confident label. */
+function invasiveCautionCount(region=DEFAULT_NATIVE_REGION){
+  let n=0;
+  for (const k of INVASIVE_FLAGGED_KEYS) if (PLANTS[k] && hasInvasiveCaution({s:k,v:null},region)) n++;
+  return n;
+}
+function invasiveCriteriaText(criteria){
+  const f=criteria||{}, place=nativeRegionLabel(f.nativeRegion), n=invasiveCautionCount(f.nativeRegion);
+  const scope=' Only reviewed species are flagged, and regional lists change, so check locally before planting.';
+  if (normalizeInvasiveMode(f.invasive)==='show')
+    return `Plants with a recorded invasive caution for ${place} stay in the catalog and carry the caution.`+scope;
+  if (!n) return `No plant in the catalog has a recorded invasive caution for ${place} yet, so this hides nothing.`+scope;
+  return `Hides the ${n} plant${n===1?'':'s'} with a recorded invasive caution for ${place}.`+scope;
 }
 function isShrubDef(P){ return P && P.type==='shrub'; }
 function isTreeDef(P){ return P && P.type==='tree'; }

@@ -1006,6 +1006,7 @@ function openDesignSetup(){
   const nativeDefaults=normalizeFilters(Object.keys(d).length?d:game.filters);
   const sel={zone:clampZone(d.zone||6), type:d.type||'any',
     nativeRegion:nativeDefaults.nativeRegion, nativeMode:nativeDefaults.nativeMode,
+    invasive:nativeDefaults.invasive,
     deer:!!d.deer, rabbit:!!d.rabbit, squirrel:!!d.squirrel, zoneHelp:false,
     startSource:activeDiscovery().source, startPaletteId:activeDiscovery().collectionId};
   const mkChip=(label,on,fn,extra)=>{ const b=document.createElement('button');
@@ -1013,7 +1014,8 @@ function openDesignSetup(){
     b.textContent=label; b.onclick=fn; return b; };
   const winterEl=$('dgnWinter'), zoneChipsEl=$('dgnZoneChips'), typeEl=$('dgnTypeChips'),
     consEl=$('dgnConstraints'), helpEl=$('dgnZoneHelp'), zoneToggle=$('dgnZoneToggle'), startEl=$('dgnStartPalette'),
-    nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), nativeRegionWrap=$('dgnNativeRegionWrap');
+    nativeModeEl=$('dgnNativeMode'), nativeRegionEl=$('dgnNativeRegion'), nativeRegionWrap=$('dgnNativeRegionWrap'),
+    invasiveEl=$('dgnInvasive');
   const syncMeadow=()=>applyMeadowPalette(sel.type, sel.zone, sel);  // replant the backdrop to match
   const zipEl=$('dgnZip'), zipStatus=$('dgnZipStatus');
   let zipRequest=0, zipBlocked=false;
@@ -1029,7 +1031,7 @@ function openDesignSetup(){
      the recommended half. */
   let tally=null, tallyKey='';
   function paletteTally(){
-    const key=[sel.zone,sel.nativeRegion,sel.nativeMode,sel.deer?1:0,sel.rabbit?1:0,sel.squirrel?1:0,sel.type].join('|');
+    const key=[sel.zone,sel.nativeRegion,sel.nativeMode,sel.invasive,sel.deer?1:0,sel.rabbit?1:0,sel.squirrel?1:0,sel.type].join('|');
     if (key!==tallyKey){ tallyKey=key; tally=paletteCounts(sel,sel.type); }
     return tally;
   }
@@ -1075,13 +1077,26 @@ function openDesignSetup(){
       });
       b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); nativeModeEl.appendChild(b);
     });
-    nativeRegionWrap.classList.toggle('hidden',sel.nativeMode==='any');
+    /* Stays up in Any mode, where it is the only thing saying where this garden
+       IS -- and that is what scopes the invasive cautions below it. */
+    nativeRegionWrap.classList.remove('hidden');
+    $('dgnNativeRegionLabel').textContent=sel.nativeMode==='any'?'Garden region':'Continent of origin';
     nativeRegionEl.innerHTML='';
     NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
       const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===sel.nativeRegion; nativeRegionEl.appendChild(o);
     });
-    nativeRegionEl.onchange=()=>{ sel.nativeRegion=normalizeNativeRegion(nativeRegionEl.value); $('dgnNativeHint').textContent=nativeCriteriaText(sel); updateCount(); syncMeadow(); };
+    nativeRegionEl.onchange=()=>{ sel.nativeRegion=normalizeNativeRegion(nativeRegionEl.value); renderNative(); renderInvasive(); updateCount(); syncMeadow(); };
     $('dgnNativeHint').textContent=nativeCriteriaText(sel);
+  }
+  function renderInvasive(){
+    invasiveEl.innerHTML='';
+    INVASIVE_MODES.forEach(m=>{
+      const on=normalizeInvasiveMode(sel.invasive)===m.id, b=mkChip(m.label,on,()=>{
+        sel.invasive=m.id; renderInvasive(); updateCount(); syncMeadow();
+      });
+      b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false'); invasiveEl.appendChild(b);
+    });
+    $('dgnInvasiveHint').textContent=invasiveCriteriaText(sel);
   }
   function renderConstraints(){ consEl.innerHTML='';
     const t=(label,key)=>consEl.appendChild(mkChip(label,sel[key],()=>{
@@ -1135,7 +1150,7 @@ function openDesignSetup(){
   zipEl.value=''; zipStatus.textContent=''; zipEl.oninput=readZip;
   $('btnDesignNext').disabled=false;
   zoneToggle.onclick=()=>{ sel.zoneHelp=!sel.zoneHelp; renderZoneMode(); };
-  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderNative(); renderConstraints(); renderStartPalette();
+  renderWinter(); renderZoneChips(); renderZoneMode(); renderType(); renderNative(); renderInvasive(); renderConstraints(); renderStartPalette();
   updateReadout(); updateCount();
   syncMeadow();   // replant the backdrop for the initial style/zone
   $('btnDesignNext').onclick=()=>{

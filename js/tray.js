@@ -2094,6 +2094,7 @@ function readDiscoveryCriteria(){
     zone:current.zone,
     nativeMode:$('discoveryNativeMode').value,
     nativeRegion:$('discoveryNativeRegion').value,
+    invasive:$('discoveryInvasive').value,
     deer:$('discoveryDeer').checked,
     rabbit:$('discoveryRabbit').checked,
     squirrel:$('discoverySquirrel').checked
@@ -2106,12 +2107,22 @@ function renderDiscoveryCriteria(){
   region.innerHTML=''; NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
     const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; o.selected=r.id===f.nativeRegion; region.appendChild(o);
   });
-  regionRow.classList.toggle('hidden',f.nativeMode==='any');
+  /* The region used to hide itself in Any mode, which is where it now does its
+     only work: it scopes which invasive cautions apply, so hiding it would
+     leave a European gardener silently filtered against North American lists
+     with no control to say otherwise. It stays up, and changes its WORD --
+     origin is what a native mode restricts, place is what a caution attaches
+     to, and those are two different questions that one control used to fuse. */
+  regionRow.classList.remove('hidden');
+  $('discoveryNativeRegionLabel').textContent=f.nativeMode==='any'?'Garden region':'Continent of origin';
   $('discoveryNativeHint').textContent=nativeCriteriaText(f);
+  const invasive=$('discoveryInvasive');
+  invasive.value=normalizeInvasiveMode(f.invasive);
+  $('discoveryInvasiveHint').textContent=invasiveCriteriaText(f);
   $('discoveryDeer').checked=!!f.deer;
   $('discoveryRabbit').checked=!!f.rabbit;
   $('discoverySquirrel').checked=!!f.squirrel;
-  [mode,region,$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
+  [mode,region,invasive,$('discoveryDeer'),$('discoveryRabbit'),$('discoverySquirrel')].forEach(el=>el.onchange=()=>{
     discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen();
   });
 }
@@ -2165,6 +2176,7 @@ function savedRefAvailabilityReason(ref){
   if (!challengeAllows(ref.s)) return 'Unavailable in this challenge';
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
   if (!passesNativeFilter(P,f)) return `Excluded by ${f.nativeMode==='straight'?'straight-species':'regional-native'} criteria`;
+  if (f.invasive==='hide' && hasInvasiveCaution(ref,f.nativeRegion)) return `Invasive caution for ${nativeRegionLabel(f.nativeRegion,true)}`;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P) && f.deer && !roles.includes('deerOk')) return 'Not deer resistant';
   if (!isTreeDef(P) && f.rabbit && !roles.includes('rabbitOk')) return 'Not rabbit resistant';

@@ -1143,8 +1143,11 @@ test('every species is reachable at some offered zone', () => {
   for (const k of PLANT_KEYS){
     const P = PLANTS[k]; if (P.hidden) continue;
     let ok = false;
+    // `invasive:'show'` because this asks a ZONE question: a plant hidden by
+    // the invasive control is one control away, not stranded by the ladder.
+    // Which species that control hides is pinned by its own test below.
     for (let z = r.lo; z <= r.hi && !ok; z++)
-      if (plantRefFitsCriteria({ s: k }, { zone: z, nativeMode: 'any' })) ok = true;
+      if (plantRefFitsCriteria({ s: k }, { zone: z, nativeMode: 'any', invasive: 'show' })) ok = true;
     if (!ok) stranded.push(k + ' (z' + P.zones[0] + '-' + P.zones[1] + ')');
   }
   assertEqual(stranded.length, 0, 'these species sit outside every offered zone: ' + stranded.join(', '));
@@ -5767,7 +5770,9 @@ test('every daily challenge has a stocked, non-empty opening tab', () => {
 
 test('zone 6 grass palette includes Mexican feather grass', () => {
   setup();
-  game.filters = normalizeFilters({ zone: 6 });
+  // Cal-IPC flags this grass, so the default filter hides it; the zone question
+  // this test asks is answered with the caution shown.
+  game.filters = normalizeFilters({ zone: 6, invasive: 'show' });
   game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
   assert(plantFits('mexicanfeather'), 'mexican feather grass should fit the zone 6 picker');
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
@@ -11359,7 +11364,13 @@ test('regional cautions follow the exact species and preserve unknown cultivar a
 test('continental native criteria do not imply local suitability or clear regional cautions',()=>{
   setup();
   const ref={s:'mexicanfeather'}, north={zone:8,nativeRegion:'north-america',nativeMode:'regional'};
-  assert(plantRefFitsCriteria(ref,north),'the existing continental filter contract is preserved');
+  /* The whole thesis: a continental native filter neither implies local
+     suitability nor clears a regional caution. Origin still admits this grass,
+     and it is the SEPARATE invasive control that removes it -- so the two
+     questions stay distinguishable rather than one standing in for the other. */
+  assert(passesNativeFilter(PLANTS.mexicanfeather,normalizeFilters(north)),'the existing continental filter contract is preserved');
+  assert(plantRefFitsCriteria(ref,Object.assign({invasive:'show'},north)),'origin alone still admits it');
+  assert(!plantRefFitsCriteria(ref,Object.assign({invasive:'hide'},north)),'the caution is what removes it, not the origin filter');
   assert(plantGuidance(ref).invasive.some(n=>n.area==='California'),'the same plant can carry a California caution');
   for(const nativeRegion of ['north-america','europe']){
     game.filters=normalizeFilters({nativeRegion,nativeMode:'any'});
@@ -11369,6 +11380,90 @@ test('continental native criteria do not imply local suitability or clear region
   assert(/parts/.test(nativeStatusText(PLANTS.bluestem)),'status copy identifies partial continental ranges');
   assertEqual(plantCautionText({s:'bamboo',v:'clumping'}),'','no recorded caution produces no invasive-risk statement');
   assert(plantGuidance({s:'cenizo'}).site.some(n=>/humidity/.test(n.text)),'site qualifications extend beyond a moisture bucket');
+});
+
+test('an invasive caution is scoped to a REGION, and every catalog source reads it',()=>{
+  setup();
+  /* Every reviewed caution names the served region it applies to and grades
+     itself, or the gate cannot ask the only question that matters. */
+  const notes=[];
+  for (const k in PLANT_GUIDANCE) for (const n of (PLANT_GUIDANCE[k].invasive||[])) notes.push([k,n]);
+  assert(notes.length>0,'there are reviewed invasive cautions to scope');
+  for (const [k,n] of notes){
+    assert(['north-america','europe'].includes(n.region),k+' names the region its caution applies to');
+    assert(INVASIVE_SEVERITIES.includes(n.severity),k+' grades its caution');
+  }
+
+  /* The decisive property, and the reason this is not a global "is it invasive"
+     test: ten of the eleven cautions are North American and the eleventh is the
+     EU's listing of a North American native, so asked globally the filter would
+     delete common milkweed from a prairie garden and take Vinca minor out of
+     Europe, where it is native and not a problem. */
+  const na={zone:6,nativeRegion:'north-america',nativeMode:'any'};
+  const eu={zone:6,nativeRegion:'europe',nativeMode:'any'};
+  assert(plantRefFitsCriteria({s:'commonmilkweed'},na),'a North American native survives in North America though the EU lists it');
+  assert(!plantRefFitsCriteria({s:'commonmilkweed'},eu),'and is hidden in the region that does list it');
+  assert(!plantRefFitsCriteria({s:'periwinkle'},na),'a European native flagged in North America is hidden there');
+  assert(plantRefFitsCriteria({s:'periwinkle'},eu),'and stays in Europe, where it is native');
+
+  // Hiding is the default, so the reviewed records stop doing nothing at all.
+  assertEqual(normalizeFilters({}).invasive,'hide','cautions are acted on unless the gardener says otherwise');
+  assertEqual(normalizeFilters({invasive:'nonsense'}).invasive,'hide','an unknown value falls back to the safe side');
+  assert(plantRefFitsCriteria({s:'periwinkle'},Object.assign({},na,{invasive:'show'})),'and the gardener can ask for it back');
+
+  /* A named selection keeps its species' caution and is never implicitly
+     cleared -- a cultivar of Miscanthus sinensis is no less of an escapee than
+     the species, and the Maryland note says so in as many words. Asserted on
+     the caution itself rather than through the zone gate, so a tender cultivar
+     cannot pass this for the wrong reason. */
+  let inherited=0;
+  for (const k in PLANT_GUIDANCE){
+    const notes=PLANT_GUIDANCE[k].invasive||[]; if (!notes.length||!PLANTS[k]) continue;
+    for (const v of Object.keys(PLANTS[k].cv||{})){
+      for (const region of new Set(notes.map(n=>n.region))){
+        assert(hasInvasiveCaution({s:k,v},region),k+" '"+v+"' inherits the species caution for "+region);
+        assert(!plantRefFitsCriteria({s:k,v},{nativeRegion:region,nativeMode:'any'}),k+" '"+v+"' is gated with its species");
+        inherited++;
+      }
+    }
+  }
+  assert(inherited>0,'flagged species carry selections for the caution to reach');
+
+  /* The defect this began as: all six style palettes offered all eleven flagged
+     plants to a North American garden. One gate under every discovery SOURCE is
+     what fixes that, so assert it through the sources rather than through the
+     predicate they share. */
+  const saved=game.filters, savedDesign=game.design;
+  game.filters=normalizeFilters(na);
+  for (const [type] of GARDEN_TYPES){
+    game.design={zone:6,type,nativeRegion:'north-america',nativeMode:'any',invasive:'hide'};
+    for (const source of ['recommended','all']){
+      const refs=discoveryRefsFor({source});
+      assert(!refs.some(r=>r.s==='periwinkle'),type+'/'+source+' does not offer a plant flagged for this region');
+    }
+  }
+  game.filters=saved; game.design=savedDesign;
+
+  // The copy COUNTS rather than claiming, so it cannot promise completeness the
+  // table does not have -- the reviewed set is 10:1 North American today.
+  assert(invasiveCautionCount('north-america')>invasiveCautionCount('europe'),'coverage is measured, not asserted');
+  assert(invasiveCriteriaText(na).includes(String(invasiveCautionCount('north-america'))),'the hint states the real number');
+  assert(/check locally/i.test(invasiveCriteriaText(na)),'and does not present itself as complete');
+});
+
+test('the design tally key carries every garden criterion',()=>{
+  setup();
+  /* `paletteTally` memoises on a hand-written key, so a criterion missing from
+     it leaves the live count frozen while every chip on the panel says it
+     moved. The invasive control shipped exactly that way for one browser
+     session: chips, hint and the plant list all followed, and the tally sat at
+     357 for both answers. The key is a closure, so this is pinned on the
+     SOURCE -- the same shape as the tour's "the fire lives there" tests -- and
+     it is the `trayStateSig` lesson in a second place. */
+  const line=String(openDesignSetup).split('\n').find(l=>l.includes('const key=['));
+  assert(line,'the tally still memoises on a key');
+  for (const field of Object.keys(normalizeFilters({})))
+    assert(line.includes('sel.'+field),'the tally key reads sel.'+field);
 });
 
 test('plant guidance shows unknowns and dated source links without changing the garden',()=>{

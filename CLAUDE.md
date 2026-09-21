@@ -481,6 +481,69 @@ The initial review covers nine species with regional invasive cautions, seven
 with narrower native-range observations, and six with site qualifications.
 Coverage and remaining work are in `docs/plant-data/regional-guidance.md`.
 
+### The invasive filter (0.9.3)
+
+**Invasive risk is a RELATION between a plant and a place**, exactly as native
+status is, so every note names the served `region` it applies to and the filter
+asks "is this invasive HERE" — never "is this invasive". `invasiveCautionsFor` /
+`hasInvasiveCaution` (core.js) are that question; `filters.invasive`
+(`hide`|`show`, **defaulting to hide**) is the gardener's answer.
+**Asking it globally is the mistake this is written to prevent, and it is not
+hypothetical.** Ten of the eleven reviewed cautions are North American and the
+eleventh is EPPO's listing of *Asclepias syriaca* — a NORTH AMERICAN native — so
+a global test deletes **common milkweed**, the monarch host plant, from a
+prairie garden, and takes *Vinca minor*, *Iris pseudacorus* and
+*Prunus laurocerasus* out of **Europe**, where all three are natives and two of
+them shipped in 0.9.2 specifically to give Europe a rockery and a pond. Measured
+per region instead: two plants leave a North American native garden and none
+leaves a European one.
+**`plantRefFitsCriteria` is the one insertion point**, so every discovery source
+— recommended, all eligible, Favorites, every named palette — inherits it for
+free. That was the actual defect: the eleven records existed and nothing read
+them, so **all six style palettes offered all eleven flagged plants** to a North
+American garden while the plant card politely showed a caution button.
+**The region now stays visible in Any mode** (questionnaire and filter modal
+both), relabelled *Garden region*, because it is the only thing attaching the
+garden to a place and it silently scopes which cautions apply — hidden, a
+European gardener was filtered against North American lists with no control to
+say otherwise. Origin and location are two questions one control used to fuse.
+**The state or county in `area` is deliberately NOT the filter's resolution.**
+`nativeRegion` is continental, so per-state precision is precision the gate
+cannot consume — and trying to settle "invasive" state by state is exactly what
+stalled the catalog review at eleven records. `severity`
+(`avoid`|`caution`) carries what that precision was really for: one county
+listing a plant Class C, *control not required*, is not the claim that a plant
+smothers woodland. Each shipped value follows its own note's recorded wording.
+**The copy COUNTS rather than claims** (`invasiveCautionCount`,
+`invasiveCriteriaText`): *"Hides the 10 plants with a recorded invasive caution
+for North America"*, plus a standing "only reviewed species are flagged". That
+is what makes the filter honest while the table is incomplete — and it is
+incomplete, 10:1 North American, so it removes **one** plant for a European
+gardener. Say that in the UI rather than let a confident label imply coverage.
+Cost: **0.24ms** added to a 5.25ms walk of all 1,000 refs (4.6%).
+`INVASIVE_FLAGGED_KEYS` is what keeps it there — 585 of 596 species carry no
+caution, so the common answer is one Set lookup rather than a ref
+canonicalisation and a botanical-name compare. It is **derived from
+`PLANT_REF_ALIASES` as well**, so a retired key resolving onto a flagged species
+cannot slip past the fast path.
+**A criterion must be added to `paletteTally`'s key** (screens.js) or the
+questionnaire's live count freezes while every chip on the panel says it moved —
+this shipped that way for one browser session, reading 357 for both answers. A
+test pins that key against `normalizeFilters`' own fields; it is the
+`trayStateSig` lesson in a second place. Note the count is FAMILY CARDS, so
+hiding a species whose family has surviving siblings legitimately moves nothing:
+Europe hides common milkweed and still shows the milkweed card, on eight
+siblings.
+Filling the table is the open work, and the process fix is to **review
+source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
+composite, EDDMapS, the EU Union-concern list) with the catalog's binomials and
+the whole catalog is reviewed in one pass, the way `dev/wikipedia-links.js
+--verify` and `dev/commons-photo.js --verify` already work. The queue is not 596:
+non-native **and** spreading is **76** plants for North America and 113 for
+Europe. Watch synonyms — only 53 records carry a `synonyms` array and the lists
+use older names (the fountain grass note already says *Pennisetum*), so a
+checker must report unmatched names rather than silently miss them.
+
 ## Architecture
 
 Markup (screens, HUD) is in `index.html`; all styling in `styles.css`; game
