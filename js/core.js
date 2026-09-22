@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.5';
+const APP_VERSION = '0.9.6';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1240,31 +1240,231 @@ function normalizeLightDraft(d){
 function lightDrawH(l){ return lightType(l&&l.type).ft*PX_PER_FT; }
 // overall height in real feet, post plus head: what a tray chip fits itself to
 function lightHeightFt(l){ const t=lightType(l&&l.type); return t.ft+t.headIn/12; }
+/* ---------- fire pits ----------
+   A fire pit used to be three ellipses stacked two pixels apart — a flat grey
+   ring with a hole in it, the last hardscape object still drawn as a DIAGRAM in
+   a garden whose pots, seats and water features are solids at real size. It is
+   built now the way those are: real inches through PX_PER_FT, so a 14 in wall
+   stands the height of a 14 in wall, and out of a real MATERIAL, which is the
+   other thing it lacked — a fire pit is a masonry job, a steel ring or a bowl
+   on legs, and which one is most of the design decision.
+
+   Three axes, the water feature's shape (§12d). The STYLE is how it is built
+   and names the drawing branch (`form`: masonry, a thin steel ring, a raised
+   bowl), the FINISH is what it is built in, and the SIZE is the shape and
+   outside dimension it is sold at. A style names the finishes it is really
+   made in, in its own order, and the first is its default; switching style
+   SNAPS rather than resetting, so a charcoal brick pit switched to block stays
+   charcoal. Only the bowl narrows the sizes, because a fire bowl is round.
+
+   `wallIn` is the real height to the top of the cap and `thickIn` how far the
+   cap reaches in from the outside edge, so the opening is the size less twice
+   that. `capIn`/`capOverIn` are the cap course and how far it oversails the
+   wall below, and `courseIn`/`unitIn`/`jointIn` the unit the wall is laid in —
+   a brick is 8 in long in a 2 5/8 in course whatever pit it is in, and those
+   are the numbers the drawing lays and the planting list counts
+   (firepitMasonry). `bedIn` is the fire bed's height above the ground. */
 const FIREPIT_SIZES = [
-  {id:'round24', shape:'round', label:'24 in', plan:'24x24', wIn:24, hIn:24},
-  {id:'round36', shape:'round', label:'36 in', plan:'36x36', wIn:36, hIn:36},
-  {id:'round48', shape:'round', label:'48 in', plan:'48x48', wIn:48, hIn:48},
-  {id:'square36', shape:'square', label:'36 sq', plan:'36x36', wIn:36, hIn:36},
-  {id:'rect24x48', shape:'square', label:'24x48', plan:'24x48', wIn:48, hIn:24},
+  {id:'round24', shape:'round', label:'24 in', plan:'24x24', wIn:24, dIn:24},
+  {id:'round36', shape:'round', label:'36 in', plan:'36x36', wIn:36, dIn:36},
+  {id:'round48', shape:'round', label:'48 in', plan:'48x48', wIn:48, dIn:48},
+  {id:'square36', shape:'square', label:'36 sq', plan:'36x36', wIn:36, dIn:36},
+  {id:'rect24x48', shape:'square', label:'24x48', plan:'24x48', wIn:48, dIn:24},
 ];
+/* `name` is how the material reads in a sentence, with the finish in `{f}`:
+   "tumbled brick", "corten steel", "copper". */
+const FIREPIT_STYLES = [
+  {id:'stone', label:'Stacked Stone',  short:'Stone', form:'masonry', course:'stone', name:'{f}',
+   wallIn:15, thickIn:7,    capIn:2.5,   capOverIn:1.25, courseIn:3.8,   unitIn:10, jointIn:0.5,   bedIn:3,
+   finishes:['fieldstone','limestone','bluestone','sandstone']},
+  {id:'brick', label:'Brick',          short:'Brick', form:'masonry', course:'brick', name:'{f} brick',
+   wallIn:14, thickIn:7.5,  capIn:3.625, capOverIn:1,    courseIn:2.625, unitIn:8,  jointIn:0.375, bedIn:3,
+   capUnitIn:2.25,       // a rowlock cap: bricks on edge, radiating, ends out
+   finishes:['red','tumbled','buff','charcoal','whitewash']},
+  {id:'block', label:'Concrete Block', short:'Block', form:'masonry', course:'block', name:'{f} block',
+   wallIn:15, thickIn:7,    capIn:3,     capOverIn:1,    courseIn:4,     unitIn:12, jointIn:0.25,  bedIn:3,
+   finishes:['grey','tan','charcoal']},
+  {id:'steel', label:'Steel',          short:'Steel', form:'ring',    name:'{f} steel',
+   wallIn:12, thickIn:1.25, bedIn:1,
+   finishes:['black','corten','stainless']},
+  /* A bowl on a stand is sold up to about 40 in; wider than that it is a
+     concrete bowl standing on the ground, and a 48 in wok on 4 in legs is what
+     drawing one on legs produced. */
+  {id:'bowl',  label:'Fire Bowl',      short:'Bowl',  form:'bowl',    name:'{f}', shapes:['round'],
+   sizes:['round24','round36'],
+   wallIn:16, thickIn:1.5,  bowlIn:0.28, // the bowl is this fraction of its width deep
+   finishes:['castiron','copper','corten']},
+];
+/* What a pit is built in. A masonry finish is the SPREAD its wall is laid from
+   (`tones`) and the joint between (`mortar`); a metal is one `tone` with its
+   highlight and its shadow. `fieldstone` is first because it is closest to the
+   grey stone every fire pit was drawn in before materials existed, so a garden
+   saved without one reopens looking like itself. */
+const FIREPIT_FINISHES = [
+  {id:'fieldstone', label:'Fieldstone',  tones:['#857d71','#978d7f','#726c63','#a39886','#8a7e6c','#7b7468'], mortar:'#5a544b'},
+  {id:'limestone',  label:'Limestone',   tones:['#c3b89f','#b8ab90','#cfc5ae','#aea185','#c9bb9b'], mortar:'#8e8573'},
+  {id:'bluestone',  label:'Bluestone',   tones:['#6d7880','#7c8890','#636d74','#86888a','#707b7c'], mortar:'#4b5156'},
+  {id:'sandstone',  label:'Sandstone',   tones:['#b98c62','#c79c70','#a97e57','#cfa77d','#b3865d'], mortar:'#7f644a'},
+  {id:'red',        label:'Red',         tones:['#a14c35','#984430','#aa5640','#92412e','#a64f38'], mortar:'#c3b8a6'},
+  {id:'tumbled',    label:'Tumbled',     tones:['#8e4933','#a8664a','#743f31','#b57a5a','#80523f','#9b563f'], mortar:'#b9ae9c'},
+  {id:'buff',       label:'Buff',        tones:['#c9a36b','#d3b07b','#bd965f','#dbbd8a','#c29c64'], mortar:'#8c8170'},
+  {id:'charcoal',   label:'Charcoal',    tones:['#4e4745','#5a524e','#443e3c','#625955','#4a4442'], mortar:'#8c867d'},
+  {id:'whitewash',  label:'Whitewashed', tones:['#ddd6ca','#e5dfd4','#d1c9bc','#cbb8ab','#d9d1c4'], mortar:'#b3aa9d'},
+  {id:'grey',       label:'Grey',        tones:['#8f8d86','#9a978f','#85837d','#a3a098'], mortar:'#5d5b56'},
+  {id:'tan',        label:'Tan',         tones:['#b09979','#bca685','#a48e70','#c5b091'], mortar:'#6f6250'},
+  {id:'black',      label:'Black',       metal:true, tone:'#34322f', hi:'#6e6a64', dark:'#191816'},
+  {id:'corten',     label:'Corten',      metal:true, tone:'#8b4b2c', hi:'#b9713f', dark:'#57301c', rust:true},
+  {id:'stainless',  label:'Stainless',   metal:true, tone:'#a0a6ab', hi:'#eef1f3', dark:'#646a6f'},
+  {id:'castiron',   label:'Cast Iron',   metal:true, tone:'#2d2b29', hi:'#5f5b56', dark:'#151413'},
+  {id:'copper',     label:'Copper',      metal:true, tone:'#a35f37', hi:'#e8a56d', dark:'#6a3a1f', hammered:true},
+];
+function firepitStyle(id){ return FIREPIT_STYLES.find(s=>s.id===id)||FIREPIT_STYLES[0]; }
+function firepitStyleId(id){ return firepitStyle(id).id; }
+function firepitFinishDef(id){ return FIREPIT_FINISHES.find(f=>f.id===id)||null; }
+// the finishes a style is really made in, in its OWN order (waterFeatureFinishes)
+function firepitStyleFinishes(styleId){
+  return firepitStyle(styleId).finishes.map(firepitFinishDef).filter(Boolean);
+}
+// SNAP, not reset: keep the finish wherever the style is made in it
+function firepitFinishFor(styleId,finishId){
+  const opts=firepitStyleFinishes(styleId);
+  return (opts.find(f=>f.id===finishId)||opts[0]).id;
+}
+// what the painter reads; never a literal in draw.js
+function firepitFinish(styleId,finishId){ return firepitFinishDef(firepitFinishFor(styleId,finishId)); }
+function firepitStyleShapes(styleId){ return firepitStyle(styleId).shapes||['round','square']; }
+function firepitStyleSizes(styleId,shape){
+  const st=firepitStyle(styleId), shapes=firepitStyleShapes(styleId);
+  return FIREPIT_SIZES.filter(s=>shapes.includes(s.shape) && (!shape || s.shape===shape)
+    && (!st.sizes || st.sizes.includes(s.id)));
+}
 function firepitSize(id,shape){
   const s=FIREPIT_SIZES.find(f=>f.id===id);
   if (s && (!shape || s.shape===shape)) return s;
   return FIREPIT_SIZES.find(f=>f.shape===(shape||'round'))||FIREPIT_SIZES[1];
 }
+/* A pit with no size named is the classic 36 in; one whose size its style is
+   not made in (only reachable from a hand-edited or foreign file, since the
+   tray offers nothing else) snaps to the nearest width that style does make. */
+function firepitSizeFor(styleId,shape,sizeId){
+  const opts=firepitStyleSizes(styleId,shape);
+  const hit=opts.find(s=>s.id===sizeId); if (hit) return hit;
+  const want=FIREPIT_SIZES.find(s=>s.id===sizeId);
+  if (!want) return opts.find(s=>s.wIn===36&&s.dIn===36)||opts[0];
+  let best=opts[0];
+  for (const s of opts) if (Math.abs(s.wIn-want.wIn)+Math.abs(s.dIn-want.dIn) <
+                            Math.abs(best.wIn-want.wIn)+Math.abs(best.dIn-want.dIn)) best=s;
+  return best;
+}
+/* Before styles existed a record was {shape,size}; it resolves to stacked
+   fieldstone at the same size and footprint. Only an oblong pit can be turned,
+   and turning it twice is the same pit, so `face` is 0 or 1 there and 0
+   everywhere else. */
 function normalizeFirepitDraft(d){
-  d=d||{};
-  const shape=d.shape==='square'?'square':'round';
-  const size=firepitSize(d.size,shape);
-  return {shape:size.shape, size:size.id};
+  d=d&&typeof d==='object'?d:{};
+  const style=firepitStyleId(d.style), shapes=firepitStyleShapes(style);
+  let shape=d.shape==='square'?'square':'round';
+  if (!shapes.includes(shape)) shape=shapes[0];
+  const s=firepitSizeFor(style,shape,d.size);
+  return {style, finish:firepitFinishFor(style,d.finish), shape:s.shape, size:s.id,
+    face:s.wIn!==s.dIn ? normalizeFacing(d.face)%2 : 0};
 }
 function firepitTileSize(f){
-  const s=firepitSize(f&&f.size,f&&f.shape);
-  return {
-    w:Math.max(1,Math.ceil(s.wIn/TILE_IN)),
-    h:Math.max(1,Math.ceil(s.hIn/TILE_IN)),
-    spec:s
-  };
+  const d=normalizeFirepitDraft(f), s=firepitSize(d.size,d.shape);
+  const w=Math.max(1,Math.ceil(s.wIn/TILE_IN)), h=Math.max(1,Math.ceil(s.dIn/TILE_IN));
+  return d.face ? {w:h, h:w, spec:s} : {w, h, spec:s};
+}
+/* The pit's own dimensions in real inches, for the painter and the take-off
+   alike. `hu`/`hv` are its outside half-extents along its own axes, `open` the
+   half-extent of the opening, `bed` the fire bed's height. A small pit takes a
+   thinner wall rather than closing up its own opening: a 24 in stone pit with
+   the 7 in wall of a 48 in one would be a 10 in hole. */
+function firepitDims(f){
+  const d=normalizeFirepitDraft(f), st=firepitStyle(d.style), s=firepitSize(d.size,d.shape);
+  const hu=s.wIn/2, hv=s.dIn/2, half=Math.min(hu,hv);
+  const thick=Math.min(st.thickIn, half*0.4);
+  const capOver=Math.min(st.capOverIn||0, thick*0.3);
+  const H=st.wallIn, bowl=st.form==='bowl' ? Math.min(12, s.wIn*(st.bowlIn||0.28)) : 0;
+  /* The bed is filled up toward the rim the way a built pit is — gravel or lava
+     rock under the fire — and by how wide the opening is, because from a
+     gardener's eye height the near rim hides anything deeper than about three
+     quarters of the opening's half-width: a fire laid on the ground inside a
+     15 in wall is a fire nobody can see. `bedIn` is the floor it never goes
+     below. */
+  const open=half-thick;
+  const bed=st.form==='bowl' ? H-bowl*0.72 : H-Math.max(4,Math.min(H-(st.bedIn||1),open*0.72));
+  // the floor the fire is laid on: a bowl's ash pools in the bottom of its curve
+  const floor=st.form==='bowl' ? hu*0.52 : open;
+  return {round:d.shape==='round', hu, hv, H, thick, capOver, capIn:st.capIn||0, bowl, open, bed, floor};
+}
+/* How a masonry pit is laid: the courses its wall takes, how many units close
+   each course, and how many cap it. ONE function, because the drawing lays
+   exactly these units and the planting list counts them — a take-off that
+   disagreed with its own picture is the plan sheet's quantity bug again (§14b).
+   A course closes on a whole number of units, so a round wall is laid with the
+   joints opened a touch rather than a cut unit at the back. */
+function firepitMasonry(f){
+  const d=normalizeFirepitDraft(f), st=firepitStyle(d.style);
+  if (st.form!=='masonry') return null;
+  const g=firepitDims(d), wallH=g.H-g.capIn, pitch=st.unitIn+st.jointIn;
+  const courses=Math.max(1,Math.round(wallH/st.courseIn));
+  const faces=g.round ? [2*Math.PI*(g.hu-g.capOver)]
+    : [g.hu,g.hv,g.hu,g.hv].map(h=>2*(h-g.capOver));
+  const perFace=faces.map(len=>Math.max(g.round?6:1, Math.round(len/pitch)));
+  /* The cap runs round the OPENING for a rowlock of bricks on edge — they touch
+     at the inside and the joints open outward — and round the outside for a
+     stone or block coping, which is sold by its own length. */
+  const capPitch=(st.capUnitIn||st.unitIn*1.25)+st.jointIn;
+  const capLen=st.capUnitIn ? (g.round ? 2*Math.PI*(g.open+g.thick*0.12) : 4*(g.hu+g.hv-2*g.thick))
+    : (g.round ? 2*Math.PI*g.hu : 4*(g.hu+g.hv));
+  const capUnits=Math.max(g.round?6:4, Math.round(capLen/capPitch));
+  const perCourse=perFace.reduce((a,n)=>a+n,0);
+  return {courses, courseH:wallH/courses, perFace, perCourse, capUnits,
+    units:courses*perCourse+capUnits,
+    // the wall's outside face, which is how natural stone is quoted
+    faceSqFt:faces.reduce((a,len)=>a+len,0)*g.H/144};
+}
+/* What a pit's masonry comes to, for the planting list's sub-line: brick and
+   block by the unit and natural stone by the face area it is quoted in, all
+   from firepitMasonry's own layout. A steel ring or a bowl is one thing you
+   buy, so it says nothing. */
+function firepitTakeoffText(f,n){
+  const d=normalizeFirepitDraft(f), st=firepitStyle(d.style), m=firepitMasonry(d);
+  if (!m) return '';
+  n=Math.max(1,n|0);
+  const wall=m.courses*m.perCourse*n, cap=m.capUnits*n;
+  if (st.course==='stone') return `about ${fmtAreaSqFt(m.faceSqFt*n)} of wall face and ${cap} cap stones`;
+  if (st.course==='block') return `about ${wall} wall blocks and ${cap} caps`;
+  return `about ${wall+cap} bricks, cap included`;
+}
+/* The size as it reads in a sentence and on a chip, in the reader's units.
+   ASCII only: the label reaches the planting-list CSV, which Excel opens in the
+   system codepage, so a multiplication sign would come back as mojibake. */
+function firepitSizeText(s){
+  const n=v=>metricUnits()?Math.round(v*CM_PER_IN):v, u=smallLengthUnit();
+  const a=Math.min(s.wIn,s.dIn), b=Math.max(s.wIn,s.dIn);
+  return a===b ? `${n(a)} ${u}` : `${n(a)} x ${n(b)} ${u}`;
+}
+function firepitSizeChip(s){
+  const n=v=>metricUnits()?Math.round(v*CM_PER_IN):v;
+  const a=Math.min(s.wIn,s.dIn), b=Math.max(s.wIn,s.dIn);
+  return a===b ? `${n(a)} ${smallLengthUnit()}` : `${n(a)}x${n(b)}`;
+}
+function firepitNoun(d){
+  d=normalizeFirepitDraft(d);
+  const form=firepitStyle(d.style).form;
+  return form==='bowl' ? 'fire bowl' : form==='ring'&&d.shape==='round' ? 'fire ring' : 'fire pit';
+}
+function firepitMaterialName(d){
+  d=normalizeFirepitDraft(d);
+  return firepitStyle(d.style).name.replace('{f}',firepitFinish(d.style,d.finish).label).toLowerCase();
+}
+function firepitLabelFor(d){
+  d=normalizeFirepitDraft(d);
+  const s=firepitSize(d.size,d.shape), noun=firepitNoun(d);
+  const shape = d.shape==='round' ? (noun==='fire pit' ? ' round' : '')
+    : s.wIn===s.dIn ? ' square' : ' rectangular';
+  return `${firepitSizeText(s)}${shape} ${firepitMaterialName(d)} ${noun}`;
 }
 const BOULDER_TYPES = [
   {id:'round1',   label:'Round Boulder',       short:'Round',      shape:'round',  plan:'1x1', w:1, h:1, tone:'#808276'},

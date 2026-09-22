@@ -891,15 +891,9 @@ function petLabel(p){
   const socks=paw.c ? ` with ${paw.label.toLowerCase()} socks` : '';
   return `${petCoat(d.coat).label.toLowerCase()} ${mark}${petSpecies(d.species).label.toLowerCase()}${socks}`;
 }
-function firepitShapeName(f){
-  const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
-  return d.shape==='round' ? 'round' : (s.wIn===s.hIn ? 'square' : 'rectangular');
-}
 function firepitDraft(){ return game.firepitDraft=normalizeFirepitDraft(game.firepitDraft); }
-function firepitLabel(f){
-  const d=normalizeFirepitDraft(f||firepitDraft()), s=firepitSize(d.size,d.shape);
-  return `${s.plan} ${firepitShapeName(d)} fire pit`;
-}
+// "36 in round tumbled brick fire pit", "24 in copper fire bowl" — see firepitLabelFor
+function firepitLabel(f){ return firepitLabelFor(f||firepitDraft()); }
 function firepitAt(x,y){
   if (!game.firepits) return null;
   for (const k in game.firepits){
@@ -934,7 +928,8 @@ function placeFirepitAt(x,y){
   if (!game.firepits) game.firepits={};
   const d=normalizeFirepitDraft(firepitDraft()), k=`${x},${y}`;
   const cur=game.firepits[k];
-  if (cur && !cur.removed && cur.shape===d.shape && cur.size===d.size) return null;
+  // the same pit already standing here is not an edit; a different material is
+  if (cur && !cur.removed && JSON.stringify(normalizeFirepitDraft(cur))===JSON.stringify(d)) return null;
   if (!canPlaceFirepit(x,y,k)) return null;
   setTile('firepits',k,Object.assign({},d,{t:Date.now()}));
   return 'firepit';

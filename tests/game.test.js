@@ -5030,7 +5030,7 @@ test('fire pits reserve their footprint and erase as structures', () => {
   game.firepitDraft = { shape: 'square', size: 'rect24x48' };
   assertEqual(applyToolAt(9, 5), 'firepit', 'rectangular fire pit placed');
   assert(firepitAt(11, 6), '24x48 fire pit reserves a rectangular footprint');
-  assertEqual(firepitLabel({ shape: 'square', size: 'rect24x48' }), '24x48 rectangular fire pit', 'rectangle fire pit label is not called square');
+  assertEqual(firepitLabel({ shape: 'square', size: 'rect24x48' }), '24 x 48 in rectangular fieldstone fire pit', 'rectangle fire pit label is not called square');
   const rectSize = firepitTileSize({ shape: 'square', size: 'rect24x48' });
   assertEqual(rectSize.w, 3, '24x48 fire pit spans three tiles long');
   assertEqual(rectSize.h, 2, '24x48 fire pit spans two tiles wide');
@@ -5043,6 +5043,254 @@ test('fire pits reserve their footprint and erase as structures', () => {
   eraseBrush(6, 6, counts);
   assertEqual(counts.firepit, 1, 'erase counted the whole fire pit once');
   assert(!firepitAt(5, 5), 'fire pit removed');
+});
+
+/* ---------- fire pits: style, material, size ----------
+   A pit used to be {shape,size} drawn as three stacked grey ellipses. It is a
+   STYLE (how it is built, and the drawing branch), a FINISH (what it is built
+   in) and a size now — the water feature's three axes, with its two rules: a
+   style names the finishes it is really made in, in its own order, and
+   switching style SNAPS rather than resetting. */
+test('a fire pit is a style, a material and a size, and an old one is stacked stone', () => {
+  /* Every pit saved before styles existed comes back as fieldstone at the SAME
+     size and footprint — fieldstone because it is the grey stone every pit was
+     drawn in, the same footprint because a pit that grew on reopening would be
+     standing on whatever was planted beside it. */
+  for (const s of FIREPIT_SIZES){
+    const old = { shape: s.shape, size: s.id };
+    const d = normalizeFirepitDraft(old);
+    assertEqual(d.style, 'stone', s.id + ' resolves to stacked stone');
+    assertEqual(d.finish, 'fieldstone', s.id + ' in fieldstone');
+    assertEqual(d.size, s.id, s.id + ' keeps its size');
+    const a = firepitTileSize(old), b = firepitTileSize(d);
+    assert(a.w === b.w && a.h === b.h, s.id + ' keeps its footprint');
+  }
+  assertEqual(firepitStyleFinishes('stone')[0].id, 'fieldstone', 'fieldstone is the stone default');
+
+  for (const st of FIREPIT_STYLES){
+    const fins = firepitStyleFinishes(st.id);
+    assert(fins.length > 0 && fins.length === st.finishes.length, st.id + ' names only finishes that exist');
+    assert(firepitStyleSizes(st.id).length > 0, st.id + ' is made in at least one size');
+    assert(['masonry','ring','bowl'].includes(st.form), st.id + ' names a drawing branch');
+  }
+  // what the pit is MADE of snaps across styles wherever the new style is made in it
+  assertEqual(normalizeFirepitDraft({ style: 'block', finish: 'charcoal' }).finish, 'charcoal',
+    'a charcoal brick pit switched to block stays charcoal');
+  assertEqual(normalizeFirepitDraft({ style: 'bowl', finish: 'corten' }).finish, 'corten',
+    'a corten ring switched to a bowl stays corten');
+  assertEqual(normalizeFirepitDraft({ style: 'steel', finish: 'red' }).finish, 'black',
+    'and a finish the style is not made in falls to its own first');
+  // a bowl is round, and not made at 48 in
+  const bowl = normalizeFirepitDraft({ style: 'bowl', shape: 'square', size: 'square36' });
+  assertEqual(bowl.shape, 'round', 'a fire bowl is round');
+  assertEqual(bowl.size, 'round36', 'at the nearest width it IS made in');
+  assertEqual(normalizeFirepitDraft({ style: 'bowl', size: 'round48' }).size, 'round36',
+    'a bowl on legs stops at 36 in');
+  // only an oblong pit turns, and turning it twice is the same pit
+  assertEqual(normalizeFirepitDraft({ size: 'round36', face: 1 }).face, 0, 'a round pit does not turn');
+  assertEqual(normalizeFirepitDraft({ shape: 'square', size: 'square36', face: 3 }).face, 0, 'nor a square one');
+  const rect = { shape: 'square', size: 'rect24x48' };
+  assertEqual(normalizeFirepitDraft(Object.assign({ face: 3 }, rect)).face, 1, 'an oblong one turns in quarters');
+  assertEqual(normalizeFirepitDraft(Object.assign({ face: 2 }, rect)).face, 0, 'and a half turn is where it began');
+  const flat = firepitTileSize(rect), turned = firepitTileSize(Object.assign({ face: 1 }, rect));
+  assert(flat.w === turned.h && flat.h === turned.w && flat.w !== flat.h, 'turning it swaps its footprint');
+});
+
+test('a turned pit claims the ground it is drawn on, and the eyedropper reads it back', () => {
+  setup(15, 15);
+  game.tool = 'firepit';
+  game.firepitDraft = { style: 'brick', finish: 'tumbled', shape: 'square', size: 'rect24x48', face: 1 };
+  assertEqual(applyToolAt(4, 4), 'firepit', 'a turned rectangular pit places');
+  assert(firepitAt(5, 6) && !firepitAt(6, 4), 'it runs along y now: 2 wide and 3 deep');
+  const rec = game.firepits['4,4'];
+  assertEqual(rec.style + '/' + rec.finish + '/' + rec.face, 'brick/tumbled/1', 'the record carries what it is');
+  // re-laying the SAME pit is not an edit; a different material is
+  assertEqual(applyToolAt(4, 4), null, 'the same pit twice is a no-op');
+  game.firepitDraft = Object.assign({}, game.firepitDraft, { finish: 'red' });
+  assertEqual(applyToolAt(4, 4), 'firepit', 'restyling it in place is');
+  game.firepitDraft = { style: 'stone' };
+  game.tool = 'hand';
+  pickAt(5, 6);
+  assertEqual(JSON.stringify(firepitDraft()),
+    JSON.stringify({ style: 'brick', finish: 'red', shape: 'square', size: 'rect24x48', face: 1 }),
+    'picking it arms exactly that pit, turned the way it is');
+});
+
+test('a fire pit label names what it is made of, in the reader units and in ASCII', () => {
+  withUnits('imperial', () => {
+    assertEqual(firepitLabelFor({ style: 'brick', finish: 'tumbled', shape: 'round', size: 'round36' }),
+      '36 in round tumbled brick fire pit', 'a masonry pit');
+    assertEqual(firepitLabelFor({ style: 'steel', finish: 'corten', shape: 'round', size: 'round36' }),
+      '36 in corten steel fire ring', 'a round steel pit is a fire ring');
+    assertEqual(firepitLabelFor({ style: 'steel', finish: 'black', shape: 'square', size: 'square36' }),
+      '36 in square black steel fire pit', 'a square one is a pit');
+    assertEqual(firepitLabelFor({ style: 'bowl', finish: 'copper', size: 'round24' }),
+      '24 in copper fire bowl', 'and a bowl is a bowl');
+  });
+  withUnits('metric', () => {
+    assertEqual(firepitLabelFor({ style: 'block', finish: 'grey', shape: 'square', size: 'rect24x48' }),
+      '61 x 122 cm rectangular grey block fire pit', 'metric reads in centimetres');
+  });
+  /* The label reaches the planting-list CSV, which Excel opens in the system
+     codepage — a multiplication sign or a prime comes back as mojibake. */
+  for (const st of FIREPIT_STYLES) for (const f of firepitStyleFinishes(st.id))
+    for (const s of firepitStyleSizes(st.id)) for (const u of ['imperial','metric'])
+      withUnits(u, () => {
+        const l = firepitLabelFor({ style: st.id, finish: f.id, shape: s.shape, size: s.id });
+        assert(/^[\x20-\x7e]+$/.test(l), 'ASCII only: ' + l);
+        assert(/fire (pit|ring|bowl)$/.test(l), 'names the thing: ' + l);
+      });
+});
+
+test('a fire pit is drawn at its real height, and the fire in it can be seen', () => {
+  /* The painter reads firepitDims and nothing else for its geometry, so what is
+     pinned here is what the picture does. The bed is filled up under the fire
+     the way a built pit is, because from a gardener's eye height the near rim
+     hides a bed deeper than the opening allows — and a fire pit whose fire is
+     hidden reads as an empty ring. Measured the way the eye does: the bed's
+     centre must project INSIDE the opening's outline on screen. */
+  for (const st of FIREPIT_STYLES) for (const s of firepitStyleSizes(st.id)){
+    const d = normalizeFirepitDraft({ style: st.id, shape: s.shape, size: s.id });
+    const g = firepitDims(d);
+    assertEqual(g.H, st.wallIn, d.style + '/' + d.size + ' stands at its real height');
+    assert(g.bed > 0 && g.bed < g.H, d.style + '/' + d.size + ' has its bed inside the pit');
+    const depthPx = (g.H - g.bed) * PX_PER_FT / 12;
+    const openRy = g.open * Math.SQRT2 * (TILE_H / 2) / TILE_IN;
+    assert(depthPx < openRy, `${d.style}/${d.size}: the fire is visible over the near rim (${depthPx.toFixed(1)} < ${openRy.toFixed(1)})`);
+    assert(g.floor > 0 && g.floor <= g.open, d.style + '/' + d.size + ' lays its fire inside the opening');
+  }
+  // a small pit takes a thinner wall rather than closing up its own opening
+  const small = firepitDims({ style: 'stone', size: 'round24' }), big = firepitDims({ style: 'stone', size: 'round48' });
+  assert(small.thick < big.thick && small.open > 6, 'a 24 in stone pit keeps a real opening');
+
+  /* The painter reads the FINISH, never a literal: no material colour is
+     restated in draw.js, and the old flat grey is gone. */
+  const src = readRepoFile('js/draw.js');
+  const art = src.slice(src.indexOf('/* ---------- fire pits ----------'), src.indexOf('function drawFirepitGlow'));
+  const body = art.slice(0, art.indexOf('/* ---------- water features ----------'));
+  for (const f of FIREPIT_FINISHES)
+    for (const hex of [].concat(f.tones || [], [f.tone, f.hi, f.dark, f.mortar]).filter(Boolean))
+      assert(!body.includes(hex), 'the painter does not restate ' + f.id + ' ' + hex);
+  assert(!/#6d6358|#968b7d/.test(src), 'and the old flat grey ring is gone');
+  assert(/firepitFinish\(d\.style,d\.finish\)/.test(body), 'the finish comes from the table');
+});
+
+test('the drawing lays the masonry the planting list counts', () => {
+  /* One layout, two readers: fpMasonryCourses lays exactly firepitMasonry's
+     units and the planting list bills them — a take-off that disagreed with its
+     own picture is the plan sheet's quantity bug again. */
+  const brick = { style: 'brick', finish: 'red', shape: 'round', size: 'round36' };
+  const m = firepitMasonry(brick);
+  const pitch = firepitStyle('brick').unitIn + firepitStyle('brick').jointIn;
+  const g = firepitDims(brick);
+  assertEqual(m.perFace.length, 1, 'a ring is one face');
+  assertEqual(m.perFace[0], Math.round(2 * Math.PI * (g.hu - g.capOver) / pitch),
+    'a course closes on a whole number of bricks round the ring');
+  assert(m.courses >= 3 && m.capUnits > m.perFace[0], 'a brick pit has courses and a finer cap');
+  const total = m.courses * m.perCourse + m.capUnits;
+  assert(total > 60 && total < 120, 'a 36 in pit is in the range a mason quotes: ' + total);
+  assertEqual(firepitTakeoffText(brick, 1), `about ${total} bricks, cap included`, 'the sub-line bills them');
+  assertEqual(firepitTakeoffText(brick, 2), `about ${total * 2} bricks, cap included`, 'per pit, times the pits');
+  assert(/wall blocks and \d+ caps$/.test(firepitTakeoffText({ style: 'block', size: 'round48' }, 1)),
+    'block is billed as wall units and caps');
+  assert(/of wall face and \d+ cap stones$/.test(firepitTakeoffText({ style: 'stone', size: 'round36' }, 1)),
+    'natural stone by the face area it is quoted in');
+  assertEqual(firepitMasonry({ style: 'steel' }), null, 'a steel ring is not masonry');
+  assertEqual(firepitTakeoffText({ style: 'bowl' }, 3), '', 'and a bowl is one thing you buy');
+  // the painter asks the same function, rather than laying its own count
+  const src = readRepoFile('js/draw.js');
+  const pit = src.slice(src.indexOf('function fpMasonryPit'), src.indexOf('function fpCapAngle'));
+  assert(pit.includes('firepitMasonry(d)'), 'the masonry painter lays firepitMasonry');
+  const courses = src.slice(src.indexOf('function fpMasonryCourses'), src.indexOf('function firepitFireLayout'));
+  assert(courses.includes('lay.perFace[0]'), 'and closes a ring on its count');
+
+  /* Turning is not ordering. Only an OBLONG pit can be turned — a round one
+     normalises its face away — so the pair has to be oblong, or this passes
+     without asking the question (a mutation run caught exactly that). */
+  setup(21, 21);
+  const rect = { style: 'brick', finish: 'red', shape: 'square', size: 'rect24x48' };
+  game.firepits['3,3'] = Object.assign({ t: 1, face: 0 }, rect);
+  game.firepits['8,3'] = Object.assign({ t: 1, face: 1 }, rect);
+  game.firepits['13,3'] = { style: 'stone', shape: 'round', size: 'round36', t: 1 };
+  const rows = hardscapeRows().filter(r => r.kind === 'Fire pit');
+  assertEqual(rows.length, 2, 'two materials, two lines — the turned pit is not a third');
+  const b = rows.find(r => /brick/.test(r.name));
+  assertEqual(b.count, 2, 'both brick pits on one line');
+  const mr = firepitMasonry(rect), totalR = mr.courses * mr.perCourse + mr.capUnits;
+  assertEqual(b.detail, `about ${totalR * 2} bricks, cap included`, 'billed together');
+});
+
+test('the fire pit chips paint through the garden painter, once', () => {
+  /* The chip used to be a second, hand-drawn copy of the old flat ellipses —
+     and so did the brush swatch. Both go through drawFirepitArt now, via one
+     fitted, cached bitmap per draft. */
+  const tray = readRepoFile('js/tray.js');
+  const chip = tray.slice(tray.indexOf('function drawFirepitChip'), tray.indexOf('function drawBrushSwatchCanvas'));
+  assert(chip.includes('drawFirepitArt('), 'the chip calls the garden painter');
+  assert(!/#74695d|#9a8f81|#30261f/.test(tray), 'and keeps no copy of the old ring');
+  const swatch = tray.slice(tray.indexOf('function drawBrushSwatchCanvas'));
+  assert(/k==='firepit'\)\{ drawFirepitChip\(/.test(swatch.slice(0, 3000)), 'the brush swatch uses it too');
+  FIREPIT_CHIP_CACHE.clear();
+  const ctx = document.createElement('canvas').getContext('2d');
+  drawFirepitChip(ctx, { style: 'brick' }, 48, 44);
+  drawFirepitChip(ctx, { style: 'brick', finish: 'red' }, 48, 44);   // the same pit, spelled out
+  assertEqual(FIREPIT_CHIP_CACHE.size, 1, 'one draft is one bitmap');
+  drawFirepitChip(ctx, { style: 'brick', finish: 'buff' }, 48, 44);
+  assertEqual(FIREPIT_CHIP_CACHE.size, 2, 'and another material is another');
+});
+
+test('the fire pit page offers what the chosen style is made in', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  const chips = (draft) => {
+    game.firepitDraft = draft; game.trayCat = 'structures'; game.traySearch = ''; game.drill = 'firepit';
+    game.tool = 'firepit';
+    tray.children.length = 0;
+    buildToolTray(true);
+    const fp = tray.children.filter(c => c.dataset && c.dataset.k === 'firepit');
+    return {
+      styles: fp.filter(c => c.dataset.firepitStyle).length,
+      finishes: fp.filter(c => c.dataset.firepitFinish).map(c => c.dataset.firepitFinish).join(),
+      shapes: fp.filter(c => c.dataset.firepitShape).length,
+      sizes: fp.filter(c => c.dataset.firepitSize).map(c => c.dataset.firepitSize).join(),
+      turn: fp.filter(c => c.dataset.firepitTurn).length,
+    };
+  };
+  const brick = chips({ style: 'brick', shape: 'round', size: 'round36' });
+  assertEqual(brick.styles, FIREPIT_STYLES.length, 'every style is offered');
+  assertEqual(brick.finishes, firepitStyle('brick').finishes.join(), 'the brick finishes, in their own order');
+  assertEqual(brick.shapes, 2, 'round or square');
+  assertEqual(brick.sizes, 'round24,round36,round48', 'the round sizes');
+  assertEqual(brick.turn, 0, 'nothing to turn on a round pit');
+  const bowl = chips({ style: 'bowl', finish: 'copper' });
+  assertEqual(bowl.finishes, 'castiron,copper,corten', 'a bowl is offered only what a bowl is made in');
+  assertEqual(bowl.shapes, 0, 'no shape row: a bowl is round');
+  assertEqual(bowl.sizes, 'round24,round36', 'and made to 36 in');
+  const rect = chips({ style: 'steel', shape: 'square', size: 'rect24x48' });
+  assertEqual(rect.turn, 1, 'an oblong pit can be turned');
+});
+
+test('a fire pit sprite is keyed on its seed and its night fire', () => {
+  /* The stones and the logs are seeded off the tile, so two identical pits are
+     two sprites (a boulder's rule), and the night fire is a different drawing —
+     which reaches it through the lit flag every structure key already carries,
+     so long as drawStructEnt passes it on. */
+  setup(15, 15);
+  const e = x => ({ kind: SCENE_K.FIREPIT, x, y: 4, bx0: x, bx1: x + 1, by0: 4, by1: 5,
+    f: { style: 'brick', finish: 'red', shape: 'round', size: 'round36', t: 1 } });
+  assert(computeStructSpriteSpec(e(3)).key !== computeStructSpriteSpec(e(8)).key, 'the seed is in the key');
+  const src = String(drawStructEnt);
+  assert(/drawFirepit\(ctx,W,H,season,e\.f,e\.x,e\.y,lit\)/.test(src), 'the night flag reaches the painter');
+  /* And the fire is laid in the pit's own frame before anything is culled, so
+     turning the view never reshuffles a log. */
+  const d = { style: 'stone', shape: 'round', size: 'round36' };
+  const was = game.rot;
+  try {
+    game.rot = 0; const a = JSON.stringify(firepitFireLayout(d, 777));
+    game.rot = 2; const b = JSON.stringify(firepitFireLayout(d, 777));
+    assertEqual(a, b, 'the layout does not depend on the camera');
+    assert(a !== JSON.stringify(firepitFireLayout(d, 778)), 'but does on the seed');
+  } finally { game.rot = was; }
 });
 
 test('boulders reserve their footprint and erase as hardscape', () => {
@@ -12227,10 +12475,12 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
   from.water = WATER_FEATURES.map(w => waterFeatureTileSize({form:w.id, face:0}));
   from.supports = [].concat(...SUPPORT_STYLES.map(sp =>
     [0,1].map(f => supportTileSize({style:sp.id, face:f}))));
+  from.firepits = [].concat(...FIREPIT_STYLES.map(st => firepitStyleSizes(st.id)
+    .map(sz => firepitTileSize({style:st.id, shape:sz.shape, size:sz.id, face:1}))));
   /* Each catalog has to CONTRIBUTE a multi-tile shape, not merely be listed:
      without this, deleting one of the three loops leaves the test green on the
      other two — which is exactly what a mutation run caught it doing. */
-  for (const k of ['seats','pots','water','supports']){
+  for (const k of ['seats','pots','water','supports','firepits']){
     assert(from[k].some(s => s.w > 1 || s.h > 1),
       k + ' contributes at least one multi-tile footprint');
     from[k].forEach(s => shapes.push([s.w, s.h]));
@@ -12272,10 +12522,15 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
      enough, the same reason the tour test reads the real function behind each
      step. All three entry points position from one helper now. */
   for (const [name, fn] of [['drawWaterFeature', drawWaterFeature],
-                           ['drawPot', drawPot], ['drawSeat', drawSeat]]) {
+                           ['drawPot', drawPot], ['drawSeat', drawSeat],
+                           ['drawFirepit', drawFirepit], ['drawFirepitGlow', drawFirepitGlow]]) {
     const src = String(fn);
     assert(src.includes('groundCenterRot('), name + ' centres through groundCenterRot');
     assert(!src.includes('groundCenterOf('), name + ' does not use the rot-0 formula');
+    /* The fire pit is the one that drew through the CORNER lattice — a whole
+       tile off its own footprint at rot 2, the trap the negative control above
+       measures — so it is also held to not going back there. */
+    assert(!src.includes('footprintScreenPoly('), name + ' does not position through the corner lattice');
   }
   // and the broken helper is gone rather than sitting there to be picked up again
   assertEqual(typeof globalThis.groundCenterOf, 'undefined',
@@ -12495,7 +12750,7 @@ test('the guidebook draws through the app painters, never a copy of them', () =>
   const src = readRepoFile('js/guide.js');
   for (const fn of ['drawPlant(', 'drawGroundTexture(', 'drawWaterTexture(', 'fencePanel(',
                     'drawPotArt(', 'drawSeatArt(', 'drawSupportArt(', 'drawWaterFeatureArt(',
-                    'drawPet(', 'drawEdgingRun(', 'drawWallSurface('])
+                    'drawFirepitArt(', 'drawPet(', 'drawEdgingRun(', 'drawWallSurface('])
     assert(src.includes(fn), 'the stage paints through ' + fn.slice(0, -1));
 
   /* The two camera-coupled painters go through the borrow bracket, which must
@@ -12507,9 +12762,14 @@ test('the guidebook draws through the app painters, never a copy of them', () =>
   assert(/\bfinally\b/.test(borrow), 'gsBorrowCamera restores in a finally');
   for (const f of ['cam.x=prior.x', 'cam.y=prior.y', 'game.rot=prior.rot', 'game.elevation=prior.elev'])
     assert(borrow.includes(f), 'it puts back ' + f.split('=')[0]);
-  for (const painter of ['drawBoulder(', 'drawFirepit('])
+  for (const painter of ['drawBoulder('])
     assert(new RegExp('gsBorrowCamera\\([^)]*[\\s\\S]{0,120}' + painter.replace('(', '\\(')).test(src),
       painter.slice(0, -1) + ' is called inside the bracket');
+  /* The fire pit left the bracket when it was rebuilt on a ground point: it is
+     drawn at the stage's own footprint centre, on the stage's own axes, and
+     borrowing the camera for it now would be a second route to the same place. */
+  assert(!/gsBorrowCamera\([^)]*[\s\S]{0,120}drawFirepit/.test(src),
+    'the fire pit no longer borrows the camera');
 
   /* Bloom is forced to full, the way every other preview surface forces it.
      Left to drawPlant's default it resolves through bloomLevel() against

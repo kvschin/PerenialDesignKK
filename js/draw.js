@@ -6033,7 +6033,6 @@ function footprintScreenPoly(W,H,x,y,sz,scale){
   ];
   return scale===undefined ? pts : scalePoly(pts,scale);
 }
-function firepitScreenPoly(W,H,x,y,sz,scale){ return footprintScreenPoly(W,H,x,y,sz,scale); }
 function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
   const r=mulberry(seed>>>0), n=12;
   ctx.beginPath();
@@ -6439,38 +6438,750 @@ function drawBoulder(ctx,W,H,season,b,x,y){
   }
   ctx.restore();
 }
-function drawFirepit(ctx,W,H,season,f,x,y){
-  const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
-  const footprint=firepitScreenPoly(W,H,x,y,sz,0.82), center=polyCenter(footprint), bounds=polyBounds(footprint);
-  const sx=center[0], base=center[1];
-  const rx=Math.max(17,bounds.w*0.50), ry=Math.max(9,bounds.h*0.50);
-  ctx.save();
-  drawSoftShadow(ctx,sx,base+3,rx*0.92,ry*0.58,0.22);
-  const outer='#6d6358', rimHi='#968b7d', inner='#2a211c', coal='#4a2418';
-  if (d.shape==='round'){
-    ctx.fillStyle=outer; ctx.beginPath(); ctx.ellipse(sx,base,rx,ry,0,0,7); ctx.fill();
-    ctx.fillStyle=rimHi; ctx.beginPath(); ctx.ellipse(sx,base-2,rx*0.86,ry*0.72,0,0,7); ctx.fill();
-    ctx.fillStyle=inner; ctx.beginPath(); ctx.ellipse(sx,base-1,rx*0.58,ry*0.46,0,0,7); ctx.fill();
-  } else {
-    const rim=scalePoly(footprint,0.78), hole=scalePoly(footprint,0.42);
-    ctx.fillStyle=outer; polyPath(ctx,footprint); ctx.fill();
-    ctx.fillStyle=rimHi; polyPath(ctx,rim.map(p=>[p[0],p[1]-2])); ctx.fill();
-    ctx.fillStyle=inner; polyPath(ctx,hole.map(p=>[p[0],p[1]-1])); ctx.fill();
-    ctx.strokeStyle='rgba(35,28,23,0.38)'; ctx.lineWidth=1.2;
-    polyPath(ctx,footprint); ctx.stroke();
-    ctx.strokeStyle='rgba(236,220,190,0.20)'; ctx.lineWidth=1;
-    polyPath(ctx,rim.map(p=>[p[0],p[1]-2])); ctx.stroke();
+/* ---------- fire pits ----------
+   A solid at real size, drawn the container way (§12b): real inches through
+   PX_PER_FT, a ground point and the camera's two tile vectors, so the garden,
+   the tray chip and the guidebook all paint through drawFirepitArt and none of
+   them can advertise a pit the others do not draw. It replaced a diagram of
+   three stacked ellipses that had no height, no material and no inside.
+
+   Everything is laid out in the pit's OWN frame — u along its width, v along
+   its depth, z up, all in inches — and projected once, so a stone course and a
+   log both turn with the view. Seeded detail is decided before anything is
+   culled to the side facing the camera: a stone that is behind the pit this
+   rotation is still in the layout, which is what keeps the wall the same wall
+   when you turn round it.
+
+   The order is the reason the inside reads as an inside: the wall, the cap on
+   top of it, then everything below the rim drawn through the OPENING — the far
+   inner wall, the bed, the logs — clipped to it. Under this projection a point
+   inside the pit and below the rim is visible exactly when it lands inside the
+   opening's outline on screen, so that clip IS the occlusion, and the flames
+   are the only thing that climbs out of it (fpClipOpening). */
+const FP_Z=PX_PER_FT/12;                       // screen px per real inch of height
+/* Local inches -> screen. The tile vectors are already a whole tile step in
+   screen px, so an inch is 1/TILE_IN of one; height is PX_PER_FT, the scale a
+   fence and a seat stand at. */
+function fpProjector(cx,cy,ax,ay){
+  const k=1/TILE_IN;
+  return (u,v,z)=>[cx+(ax[0]*u+ay[0]*v)*k, cy+(ax[1]*u+ay[1]*v)*k-(z||0)*FP_Z];
+}
+/* How lit a vertical face is, from its outward normal in the pit's frame: the
+   light every solid in the app is drawn under — upper LEFT, a little in front
+   — so the front-left face is brightest and the right-hand one darkest, the
+   way isoBox and a pot's shading bands put it. */
+function fpLight(ax,ay,nu,nv){
+  const sx=(ax[0]*nu+ay[0]*nv)/(TILE_W/2), sy=(ax[1]*nu+ay[1]*nv)/(TILE_H/2);
+  return (-0.62*sx+0.78*sy)/(Math.hypot(sx,sy)||1);
+}
+// a vertical face with this outward normal faces the camera
+function fpFacing(ax,ay,nu,nv){ return ax[1]*nu+ay[1]*nv>1e-6; }
+function fpPoly(ctx,pts){
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+}
+// points round a circle of radius r at height z, angle a to b
+function fpArc(P,r,a,b,z,out){
+  out=out||[];
+  const n=Math.max(2,Math.ceil(Math.abs(b-a)/0.09)+1);
+  for (let i=0;i<n;i++){ const t=a+(b-a)*i/(n-1); out.push(P(r*Math.cos(t),r*Math.sin(t),z)); }
+  return out;
+}
+/* The pit's outline in its own frame at a given inset: a circle of radius `r`,
+   or a box's four `corners` and the four `faces` between them, each with its
+   outward normal. fpVisibleFaces walks whichever stretches face the camera. */
+function fpOutline(g,inset){
+  if (g.round){
+    const r=Math.max(0.5,g.hu-inset);
+    return {round:true, r, len:2*Math.PI*r};
   }
-  ctx.fillStyle=coal;
-  ctx.beginPath(); ctx.ellipse(sx,base,rx*0.28,Math.max(3,ry*0.22),0,0,7); ctx.fill();
-  ctx.strokeStyle='rgba(238,127,55,0.82)'; ctx.lineWidth=1.5; ctx.lineCap='round';
-  [-0.22,0,0.22].forEach((off,i)=>{ ctx.beginPath();
-    ctx.moveTo(sx+off*rx,base-1); ctx.quadraticCurveTo(sx+(off+0.04)*rx,base-7-i,sx+(off-0.02)*rx,base-11+i); ctx.stroke(); });
-  if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.68)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.ellipse(sx,base-3,rx*0.86,ry*0.72,0,Math.PI*1.05,Math.PI*1.92); ctx.stroke();
+  const a=Math.max(0.5,g.hu-inset), b=Math.max(0.5,g.hv-inset);
+  const c=[[-a,-b],[a,-b],[a,b],[-a,b]];
+  const n=[[0,-1],[1,0],[0,1],[-1,0]];
+  return {round:false, a, b, corners:c, faces:c.map((p,i)=>({p, q:c[(i+1)%4], n:n[i],
+    len:Math.hypot(c[(i+1)%4][0]-p[0], c[(i+1)%4][1]-p[1])}))};
+}
+// the outline's horizontal extent on screen, for a fill that shades across it
+function fpSpan(P,o,z){
+  if (o.round){ const c=P(0,0,z), rx=o.r*Math.SQRT2*TILE_W/2/TILE_IN; return [c[0]-rx,c[0]+rx]; }
+  const xs=o.corners.map(([u,v])=>P(u,v,z)[0]);
+  return [Math.min(...xs),Math.max(...xs)];
+}
+// the outline's own path at height z, for fills and clips
+function fpOutlinePath(ctx,P,o,z){
+  if (o.round){ fpPoly(ctx,fpArc(P,o.r,0,Math.PI*2,z)); return; }
+  fpPoly(ctx,o.corners.map(([u,v])=>P(u,v,z)));
+}
+/* The silhouette of a vertical wall standing on the outline, z0 to z1: for a
+   circle the half facing the camera, for a box its two front faces. It is the
+   path that fills the wall and clips what is painted on it. */
+function fpWallPath(ctx,P,ax,ay,o,z0,z1){
+  if (o.round){
+    const f=Math.atan2(ay[1],ax[1]), a=f-Math.PI/2, b=f+Math.PI/2;
+    const pts=fpArc(P,o.r,a,b,z1);
+    fpArc(P,o.r,b,a,z0,pts);
+    fpPoly(ctx,pts); return;
+  }
+  // the corner nearest the camera is the lowest on screen, as in isoBox
+  const cs=o.corners.map(([u,v])=>P(u,v,0));
+  let k=0; for (let i=1;i<4;i++) if (cs[i][1]>cs[k][1]) k=i;
+  const tri=[o.corners[(k+3)%4],o.corners[k],o.corners[(k+1)%4]];
+  fpPoly(ctx,tri.map(([u,v])=>P(u,v,z1)).concat(tri.slice().reverse().map(([u,v])=>P(u,v,z0))));
+}
+/* Walk every stretch of an outline that faces the camera, as `fn(at, len, nu,
+   nv, s0, s1)` where at(s) is the ground point s inches round the outline and
+   [s0,s1] the visible part of it. A round wall faces the camera over half its
+   circumference, centred on the point nearest it. */
+function fpVisibleFaces(ax,ay,o,fn){
+  if (o.round){
+    const f=Math.atan2(ay[1],ax[1]), r=o.r;
+    const at=s=>{ const t=s/r; return [r*Math.cos(t), r*Math.sin(t)]; };
+    fn(at,o.len,null,null,(f-Math.PI/2)*r,(f+Math.PI/2)*r);
+    return;
+  }
+  for (const fc of o.faces){
+    if (!fpFacing(ax,ay,fc.n[0],fc.n[1])) continue;
+    const at=s=>[fc.p[0]+(fc.q[0]-fc.p[0])*s/fc.len, fc.p[1]+(fc.q[1]-fc.p[1])*s/fc.len];
+    fn(at,fc.len,fc.n[0],fc.n[1],0,fc.len);
+  }
+}
+/* A unit's own random numbers, from where it sits in the layout rather than
+   from how many units were drawn before it — so what the camera happens to be
+   facing never reshuffles a stone. */
+function fpUnitRng(seed,k,i){ return mulberry(((seed^Math.imul(k+1,0x9e3779b1)^Math.imul(i+7,0x85ebca6b))>>>0)||1); }
+/* One unit of masonry on a wall face, s0..s1 along it and z0..z1 up it. A brick
+   is a crisp rectangle; a stone has its corners knocked off and its edges out of
+   true; a split-face block has a chipped top arris. `cut0`/`cut1` mark a side
+   the silhouette clipped, which keeps its straight edge — a notch knocked out of
+   the outline of the pit is not what a stone at the edge of the view looks like. */
+function fpUnitPath(ctx,P,at,s0,s1,z0,z1,kind,r,cut0,cut1){
+  const pt=(s,z)=>{ const g=at(s); return P(g[0],g[1],z); };
+  const n=Math.max(1,Math.ceil((s1-s0)/3));             // a sample every 3 in, for the curve
+  const pts=[];
+  if (kind==='stone'){
+    const h=z1-z0, cs=Math.min((s1-s0)*0.2,h*0.45), cz=Math.min(h*0.32,(s1-s0)*0.2);
+    const jz=()=> (r()-0.5)*h*0.22, a=cut0?0:cs, b=cut1?0:cs;
+    pts.push(pt(s0,z1-(cut0?0:cz)));
+    for (let i=0;i<=n;i++) pts.push(pt(s0+a+(s1-s0-a-b)*i/n, z1+jz()*0.7));
+    pts.push(pt(s1,z1-(cut1?0:cz)));
+    pts.push(pt(s1,z0+(cut1?0:cz)));
+    for (let i=n;i>=0;i--) pts.push(pt(s0+a+(s1-s0-a-b)*i/n, z0+jz()*0.5));
+    pts.push(pt(s0,z0+(cut0?0:cz)));
+  } else {
+    for (let i=0;i<=n;i++){
+      const s=s0+(s1-s0)*i/n;
+      // a split face spalls along its top edge; a brick does not
+      const chip = kind==='block' && i>0 && i<n ? (r()<0.45 ? -(z1-z0)*(0.06+r()*0.1) : 0) : 0;
+      pts.push(pt(s,z1+chip));
+    }
+    for (let i=n;i>=0;i--) pts.push(pt(s0+(s1-s0)*i/n,z0));
+  }
+  fpPoly(ctx,pts);
+}
+/* Every course of a masonry wall, laid round the outline and painted where it
+   faces the camera. Brick and block are RUNNING BOND from firepitMasonry's own
+   count, so the drawing lays exactly the units the planting list bills; stone
+   is laid from its seed, courses of uneven height and stones of uneven length,
+   which is what a stacked wall is. */
+function fpMasonryCourses(ctx,P,ax,ay,o,fin,st,lay,z0,z1,seed,kind){
+  const tones=fin.tones, j=st.jointIn, jh=j/2;
+  // course heights: even for units, drawn from the seed for stone
+  let hs;
+  if (kind==='stone'){
+    const r=mulberry(((seed^0x51ed)>>>0)||1), n=lay.courses;
+    hs=[]; for (let i=0;i<n;i++) hs.push(0.62+r()*0.8);
+    const t=hs.reduce((a,b)=>a+b,0); hs=hs.map(h=>h/t*(z1-z0));
+  } else hs=Array(lay.courses).fill((z1-z0)/lay.courses);
+  let zc=z0;
+  for (let k=0;k<hs.length;k++){
+    const cz0=zc+jh, cz1=zc+hs[k]-jh; zc+=hs[k];
+    fpVisibleFaces(ax,ay,o,(at,len,nu,nv,vs0,vs1)=>{
+      // the units round this stretch of outline, in outline inches; a box's
+      // faces each get their own draw, or two sides of a stone pit match stone
+      // for stone
+      const units=[], fid=o.round?0:(nu+1)*3+(nv+1)+1, kf=k*16+fid;
+      if (kind==='stone'){
+        const r=mulberry(((seed^Math.imul(kf+3,0x2c1b3c6d))>>>0)||1);
+        let s=(o.round?-len*0.5:0)+r()*st.unitIn, end=s+len;
+        if (!o.round){ s=-r()*st.unitIn*0.6; end=len; }
+        let i=0;
+        while (s<end-0.5){
+          let w=st.unitIn*(0.55+r()*0.95);
+          if (end-(s+w)<st.unitIn*0.35) w=end-s;       // no sliver at the end
+          units.push([s,s+w,i++]); s+=w;
+        }
+      } else {
+        /* A ring closes on exactly n units, so it lays n; a straight face in
+           running bond starts every other course half a unit in, which leaves a
+           half unit at each end — so it lays one either side and clips them. */
+        const n=o.round?lay.perFace[0]:Math.max(1,Math.round(len/(st.unitIn+j)));
+        const pitch=len/n, off=(k%2)?pitch/2:0, phase=o.round?(seed%97)/97*pitch:0;
+        for (let i=o.round?0:-1;i<(o.round?n:n+1);i++){
+          const a=phase+off+i*pitch;
+          units.push([a,a+pitch,i]);
+        }
+      }
+      for (const [a0,b0,i] of units){
+        let a=a0+jh, b=b0-jh;
+        // the round wall wraps, so test the unit against the visible half both ways round
+        let shift=0;
+        if (o.round){
+          for (const sh of [0,len,-len]) if (b+sh>vs0 && a+sh<vs1){ shift=sh; break; }
+          a+=shift; b+=shift;
+        }
+        if (b<=vs0 || a>=vs1) continue;
+        const cut0=a<vs0, cut1=b>vs1;
+        a=Math.max(a,vs0); b=Math.min(b,vs1);
+        if (b-a<0.15) continue;
+        const r=fpUnitRng(seed,kf,i);
+        const tone=tones[(r()*tones.length)|0];
+        const mid=at((a+b)/2), m=Math.hypot(mid[0],mid[1])||1;
+        const lit=o.round ? fpLight(ax,ay,mid[0]/m,mid[1]/m) : fpLight(ax,ay,nu,nv);
+        ctx.fillStyle=shade(tone,Math.round(lit*15+(r()-0.5)*9)-2);
+        fpUnitPath(ctx,P,at,a,b,cz0,cz1,kind,r,cut0,cut1);
+        ctx.fill();
+        if (kind!=='brick'){
+          // the top arris of a stone or a split block catches the light
+          ctx.strokeStyle='rgba(255,250,236,0.16)'; ctx.lineWidth=0.8;
+          const p=at(a+(b-a)*0.12), q=at(b-(b-a)*0.12);
+          const A=P(p[0],p[1],cz1-0.25), B=P(q[0],q[1],cz1-0.25);
+          ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke();
+        }
+      }
+    });
+  }
+}
+/* The fire: split logs laid across the bed in the pit's own frame, so they turn
+   with it; coals round them; and flame tongues that do NOT turn, because a
+   flame looks the same from every side and a row of tongues laid along the
+   pit's axis collapsed into one tongue at two of the four rotations. A pure
+   function of the record and the seed, so the painter and the night glow
+   agree about where the flames are. */
+function firepitFireLayout(f,seed){
+  const d=normalizeFirepitDraft(f), g=firepitDims(d), st=firepitStyle(d.style);
+  const r=mulberry((((seed||0)^0x7f4a1)>>>0)||1);
+  // the floor a fire can use: a bowl narrows toward its bottom
+  const bedR=Math.max(3.5,g.floor*0.84);
+  const nLogs=bedR<7.5?2:bedR<12.5?3:4;
+  const dia=Math.max(2.3,Math.min(4.6,bedR*0.3));
+  const phase=r()*Math.PI, logs=[];
+  for (let i=0;i<nLogs;i++){
+    const a=phase+i*Math.PI/nLogs+(r()-0.5)*0.4;
+    logs.push({a, len:bedR*(1.25+r()*0.4), dia,
+      u:(r()-0.5)*bedR*0.2, v:(r()-0.5)*bedR*0.2,
+      z:g.bed+dia*0.5+i*dia*0.6, tone:r()});
+  }
+  const coals=[], nC=Math.round(7+bedR*0.8);
+  for (let i=0;i<nC;i++){
+    const a=r()*Math.PI*2, rr=Math.sqrt(r())*bedR*0.8;
+    coals.push({u:Math.cos(a)*rr, v:Math.sin(a)*rr, s:0.7+r()*1.1, glow:r()});
+  }
+  const top=g.bed+dia*(0.8+(nLogs-1)*0.6);
+  const F=Math.max(8,Math.min(22,bedR*1.2));     // the full flame, in inches
+  const nT=bedR<7.5?3:bedR<12.5?4:5, tongues=[];
+  for (let i=0;i<nT;i++){
+    const f2=nT===1?0:i/(nT-1)-0.5;
+    tongues.push({dx:f2*bedR*0.9+(r()-0.5)*bedR*0.12, dz:(r()-0.5)*dia*0.6,
+      h:F*(0.58+r()*0.42)*(1-Math.abs(f2)*0.55), w:bedR*(0.15+r()*0.07),
+      lean:(r()-0.5)*0.34});
+  }
+  const sparks=[];
+  for (let i=0;i<7;i++) sparks.push({dx:(r()-0.5)*bedR*1.1, dz:F*(1.05+r()*0.85), s:0.5+r()*0.6});
+  const ash=[];
+  for (let i=0;i<Math.round(6+bedR*0.5);i++){
+    const a=r()*Math.PI*2, rr=Math.sqrt(r())*bedR*0.9;
+    ash.push({u:Math.cos(a)*rr, v:Math.sin(a)*rr, s:0.5+r()*0.8});
+  }
+  return {g, bedR, logs, coals, tongues, sparks, ash, dia, top, F};
+}
+/* A flame tongue: a teardrop from a rounded base to a leaning tip. Height is
+   what separates day from night, not shape. */
+function fpTongue(ctx,x,y,w,h,lean){
+  ctx.beginPath();
+  ctx.moveTo(x-w,y);
+  ctx.bezierCurveTo(x-w*1.08,y-h*0.38, x+lean*0.35-w*0.62,y-h*0.68, x+lean,y-h);
+  ctx.bezierCurveTo(x+lean*0.35+w*0.46,y-h*0.6, x+w*1.08,y-h*0.34, x+w,y);
+  ctx.quadraticCurveTo(x,y+w*0.55,x-w,y);
+  ctx.closePath();
+}
+/* By day the fire burns at this fraction of its night height: a planner wants
+   the pit to read as a fire pit at noon without a bonfire in a summer border. */
+const FP_DAY_FLAME=0.7;
+const FP_FLAME = {
+  day:  ['rgba(214,86,30,0.60)','rgba(240,132,44,0.76)','rgba(250,188,82,0.86)','rgba(255,236,172,0.88)'],
+  night:['rgba(232,80,26,0.92)','rgba(255,142,40,0.96)','rgba(255,206,92,0.97)','rgba(255,246,206,0.98)'],
+  // laid again over the dusk pass in screen blend, so lighter than either
+  glow: ['rgba(255,112,40,0.34)','rgba(255,152,62,0.5)','rgba(255,212,112,0.62)','rgba(255,246,212,0.72)'],
+};
+// the flames alone, in the colours given — the art and the night glow both
+function fpFlames(ctx,P,lay,lit,cols){
+  const base=P(0,0,lay.top), k=lit?1:FP_DAY_FLAME;
+  for (const t of lay.tongues){
+    const x=base[0]+t.dx*FP_Z*1.25, y=base[1]-t.dz*FP_Z;
+    const h=t.h*FP_Z*k, w=t.w*FP_Z*(lit?1:0.84);
+    for (let i=0;i<4;i++){
+      const hk=[1,0.8,0.6,0.38][i], wk=[1,0.76,0.54,0.32][i];
+      ctx.fillStyle=cols[i];
+      fpTongue(ctx,x,y-h*0.03*i,w*wk,h*hk,t.lean*h*hk);
+      ctx.fill();
+    }
+  }
+}
+function fpDrawFire(ctx,P,lay,lit,bedPath,pooled){
+  const g=lay.g;
+  // the bed: ash, with the wall's shadow round its edge — darker where it has
+  // pooled in the bottom of a bowl rather than been raked over gravel
+  ctx.save();
+  bedPath(); ctx.clip();
+  bedPath(); ctx.fillStyle=pooled ? (lit?'#3f3430':'#4f4843') : (lit?'#51423a':'#6b645c'); ctx.fill();
+  ctx.fillStyle=lit?'rgba(140,110,90,0.5)':'rgba(170,163,152,0.55)';
+  for (const a of lay.ash){ const p=P(a.u,a.v,g.bed);
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],a.s*2.2,a.s*1.1,0,0,7); ctx.fill(); }
+  bedPath(); ctx.strokeStyle='rgba(0,0,0,0.30)'; ctx.lineWidth=3; ctx.stroke();
+  ctx.restore();
+  // coals, the glowing ones brighter by night
+  for (const c of lay.coals){
+    const p=P(c.u,c.v,g.bed+0.4), rx=c.s*2.3, ry=c.s*1.3;
+    ctx.fillStyle=c.glow>0.5?'#3a2a20':'#241b16';
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],rx,ry,0,0,7); ctx.fill();
+    if (c.glow>(lit?0.3:0.62)){
+      ctx.fillStyle=lit?'#ff9a38':'#c4521f';
+      ctx.beginPath(); ctx.ellipse(p[0],p[1]-ry*0.2,rx*0.55,ry*0.5,0,0,7); ctx.fill();
+    }
+  }
+  // the logs, lowest first: each rests on the one before it
+  const barks=['#6e4c33','#61442e','#7a573b'];
+  for (const L of lay.logs){
+    const ca=Math.cos(L.a)*L.len/2, sa=Math.sin(L.a)*L.len/2;
+    const A=P(L.u+ca,L.v+sa,L.z), B=P(L.u-ca,L.v-sa,L.z);
+    const w=L.dia*FP_Z*1.25;
+    const seg=(p,q,wd,col,t0,t1,dy)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd; ctx.beginPath();
+      ctx.moveTo(p[0]+(q[0]-p[0])*t0,p[1]+(q[1]-p[1])*t0+(dy||0));
+      ctx.lineTo(p[0]+(q[0]-p[0])*t1,p[1]+(q[1]-p[1])*t1+(dy||0)); ctx.stroke(); };
+    ctx.lineCap='round';
+    seg(A,B,w+1.4,'#24170f',0,1);
+    seg(A,B,w,barks[(L.tone*barks.length)|0],0,1);
+    seg(A,B,w*0.9,'#2a1c13',0.36,0.64);                    // charred where it burns
+    ctx.lineCap='butt';
+    seg(A,B,w*0.3,'rgba(186,146,104,0.6)',0.08,0.3,-w*0.22); // the bark's lit top
+    seg(A,B,w*0.3,'rgba(186,146,104,0.6)',0.7,0.92,-w*0.22);
+    if (lit) seg(A,B,w*0.34,'rgba(255,128,44,0.85)',0.3,0.7,w*0.18);
+    else seg(A,B,w*0.26,'rgba(210,84,30,0.55)',0.4,0.6,w*0.16);
+    // end grain on the end toward the camera
+    const e=A[1]>B[1]?A:B;
+    ctx.fillStyle='#a3804f';
+    ctx.beginPath(); ctx.ellipse(e[0],e[1],w*0.34,w*0.46,0,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(90,62,36,0.8)'; ctx.lineWidth=0.7;
+    ctx.beginPath(); ctx.ellipse(e[0],e[1],w*0.17,w*0.24,0,0,7); ctx.stroke();
+    ctx.lineCap='round';
+  }
+  fpFlames(ctx,P,lay,lit,lit?FP_FLAME.night:FP_FLAME.day);
+  if (lit){
+    const base=P(0,0,lay.top);
+    ctx.fillStyle='#ffd27a';
+    for (const s of lay.sparks){
+      ctx.beginPath(); ctx.arc(base[0]+s.dx*FP_Z*1.25,base[1]-s.dz*FP_Z,s.s,0,7); ctx.fill();
+    }
+  }
+}
+/* Everything inside the pit is drawn through this clip: the opening at the rim,
+   extended straight up. Below the rim it is exact occlusion — a point inside the
+   pit is visible only where it lands inside the opening's outline — and above
+   the rim it lets the flames out, which nothing of the pit can hide. */
+function fpClipOpening(ctx,P,ax,ay,o,z){
+  if (o.round){
+    const f=Math.atan2(ay[1],ax[1]);
+    const pts=fpArc(P,o.r,f-Math.PI/2,f+Math.PI/2,z);
+    const a=pts[0], b=pts[pts.length-1];
+    pts.push([b[0],b[1]-4000],[a[0],a[1]-4000]);
+    fpPoly(ctx,pts); ctx.clip(); return;
+  }
+  const cs=o.corners.map(([u,v])=>P(u,v,z));
+  let k=0; for (let i=1;i<4;i++) if (cs[i][1]>cs[k][1]) k=i;
+  const l=cs[(k+3)%4], m=cs[k], n=cs[(k+1)%4];
+  const lo=l[0]<n[0]?l:n, hi=l[0]<n[0]?n:l;
+  fpPoly(ctx,[lo,m,hi,[hi[0],hi[1]-4000],[lo[0],lo[1]-4000]]); ctx.clip();
+}
+/* The inside, seen through the opening: the far inner wall — sooty, darker
+   toward the bed, with the courses showing on a masonry pit — then the bed and
+   the fire. By night the fire lights its own bowl. */
+function fpInterior(ctx,P,ax,ay,o,g,d,st,fin,seed,lit,innerCol){
+  const lay=firepitFireLayout(d,seed);
+  ctx.save();
+  fpClipOpening(ctx,P,ax,ay,o,g.H);
+  fpOutlinePath(ctx,P,o,g.H);
+  const top=P(0,0,g.H), bot=P(0,0,g.bed);
+  const halfW=o.round ? o.r*Math.SQRT2*TILE_W/2/TILE_IN : (o.a+o.b)*TILE_W/2/TILE_IN;
+  const gr=ctx.createLinearGradient(top[0]-halfW,0,top[0]+halfW,0);
+  gr.addColorStop(0,shade(innerCol,-10)); gr.addColorStop(0.55,innerCol); gr.addColorStop(1,shade(innerCol,14));
+  ctx.fillStyle=gr; ctx.fill();
+  if (st.form==='masonry'){
+    // the courses on the far inner face
+    const lay2=firepitMasonry(d);
+    ctx.strokeStyle='rgba(0,0,0,0.22)'; ctx.lineWidth=0.8;
+    for (let k=1;k<=lay2.courses;k++){
+      const z=g.H-g.capIn-(k-1)*lay2.courseH;
+      if (z<=g.bed) break;
+      ctx.beginPath(); fpOutlinePath(ctx,P,o,z); ctx.stroke();
+    }
+  }
+  // soot: the upper inner wall blackened where the flames reach
+  ctx.fillStyle='rgba(16,12,10,0.34)';
+  ctx.beginPath(); ctx.ellipse(top[0],(top[1]+bot[1])/2,halfW*0.62,Math.abs(bot[1]-top[1])*0.9+4,0,0,7); ctx.fill();
+  const bedPath=()=>fpOutlinePath(ctx,P,o.round?{round:true,r:Math.max(0.5,g.floor)}:o,g.bed);
+  fpDrawFire(ctx,P,lay,lit,bedPath,st.form==='bowl');
+  if (lit){
+    const c=P(0,0,lay.top);
+    const rg=ctx.createRadialGradient(c[0],c[1],0,c[0],c[1],halfW*1.1);
+    rg.addColorStop(0,'rgba(255,150,60,0.42)'); rg.addColorStop(1,'rgba(255,120,40,0)');
+    ctx.globalCompositeOperation='screen';
+    ctx.fillStyle=rg; ctx.fillRect(c[0]-halfW*1.2,c[1]-halfW*1.2,halfW*2.4,halfW*2.4);
+    ctx.globalCompositeOperation='source-over';
   }
   ctx.restore();
+  return lay;
+}
+function drawFirepit(ctx,W,H,season,f,x,y,lit){
+  if (!f) return;
+  const d=normalizeFirepitDraft(f);
+  const [cx,cy]=groundCenterRot(x,y,firepitTileSize(d),W,H);
+  drawFirepitArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y),lit);
+}
+/* The pit at a ground point. `axes` is the camera's pair of tile vectors (the
+   tray and the guidebook pass ISO_AXES_FLAT or their own stage's), `seed` fixes
+   the stones and the logs, `lit` is the night variant — a bigger fire, sparks,
+   the bowl lit from inside and a steel ring's vents glowing. */
+function drawFirepitArt(ctx,cx,cy,f,season,axes,seed,lit){
+  if (!f) return;
+  season=season||'Summer';
+  const d=normalizeFirepitDraft(f), st=firepitStyle(d.style), fin=firepitFinish(d.style,d.finish);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const g=firepitDims(d), P=fpProjector(cx,cy,ax,ay);
+  const snow=!!(AMBIENCE[season]&&AMBIENCE[season].snow);
+  seed=(seed||0)>>>0;
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  const outer=fpOutline(g,0);
+  const shR=o=>o.round ? o.r*Math.SQRT2/TILE_IN : (o.a+o.b)/TILE_IN/Math.SQRT2;
+  const lift=st.form==='bowl';
+  drawSoftShadow(ctx,cx,cy+(lift?2:3),shR(outer)*TILE_W/2*(lift?0.82:1.04),
+    shR(outer)*TILE_H/2*(lift?0.78:1.0),lift?0.2:0.26);
+  if (st.form==='masonry') fpMasonryPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow);
+  else if (st.form==='ring') fpSteelPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow);
+  else fpBowlPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow);
+  ctx.restore();
+}
+/* How far the daytime drawing reaches from its ground point at scale 1 on the
+   flat axes — what a chip fits itself to — from the same dimensions and the
+   same fire the painter uses, so a chip cannot crop a pit it was sized for. */
+function firepitArtExtent(f){
+  const d=normalizeFirepitDraft(f), g=firepitDims(d);
+  const [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face), P=fpProjector(0,0,ax,ay);
+  const o=fpOutline(g,0), [x0,x1]=fpSpan(P,o,0);
+  const ys=z=>{ if (o.round){ const c=P(0,0,z)[1], ry=o.r*Math.SQRT2*TILE_H/2/TILE_IN; return [c-ry,c+ry]; }
+    const v=o.corners.map(([u,w])=>P(u,w,z)[1]); return [Math.min(...v),Math.max(...v)]; };
+  const lay=firepitFireLayout(d,0x3f1e), base=P(0,0,lay.top);
+  let top=ys(g.H)[0];
+  for (const t of lay.tongues) top=Math.min(top, base[1]-t.dz*FP_Z-t.h*FP_Z*FP_DAY_FLAME);
+  return {halfW:Math.max(-x0,x1)*1.05, up:-top, down:ys(0)[1]+2};
+}
+/* Stone, brick and block: a wall laid in courses, a cap that oversails it, and
+   the fire inside. */
+function fpMasonryPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow){
+  const lay=firepitMasonry(d), kind=st.course;
+  const wall=fpOutline(g,g.capOver), cap=fpOutline(g,0), open=fpOutline(g,g.thick);
+  const wallH=g.H-g.capIn, mortar=fin.mortar;
+  const avg=fin.tones[0];
+  // the joints first: the wall's silhouette in mortar, darker to the right
+  ctx.save();
+  fpWallPath(ctx,P,ax,ay,wall,0,wallH);
+  const [L,R]=fpSpan(P,wall,0);
+  const mg=ctx.createLinearGradient(L,0,R,0);
+  mg.addColorStop(0,shade(mortar,8)); mg.addColorStop(1,shade(mortar,-24));
+  ctx.fillStyle=mg; ctx.fill(); ctx.clip();
+  fpMasonryCourses(ctx,P,ax,ay,wall,fin,st,lay,0,wallH,seed,kind);
+  // the cap's shadow on the wall under its overhang, and the foot sitting in the ground
+  ctx.fillStyle='rgba(0,0,0,0.20)';
+  fpWallPath(ctx,P,ax,ay,wall,wallH-Math.min(1.4,wallH*0.12),wallH); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.14)';
+  fpWallPath(ctx,P,ax,ay,wall,0,Math.min(1.6,wallH*0.12)); ctx.fill();
+  ctx.restore();
+  // the cap course: its outside face, then its top
+  ctx.save();
+  fpWallPath(ctx,P,ax,ay,cap,wallH,g.H);
+  ctx.fillStyle=shade(mortar,-6); ctx.fill(); ctx.clip();
+  fpCapFace(ctx,P,ax,ay,cap,open,g,st,fin,lay,seed,wallH);
+  ctx.restore();
+  fpCapTop(ctx,P,ax,ay,cap,open,g,st,fin,lay,seed,snow);
+  const inner=mixCol(shade(avg,-38),'#1c1612',0.55);
+  fpInterior(ctx,P,ax,ay,open,g,d,st,fin,seed,lit,inner);
+  fpRimEdges(ctx,P,ax,ay,open,g.H,lit);
+}
+/* The outside face of the cap course. A rowlock of bricks shows their ENDS, a
+   narrow unit every couple of inches with the joints opening outward; a stone
+   or block coping shows the edges of long slabs. */
+/* Where cap unit i of a round pit sits, as an angle — shared by its face and
+   its top, so one brick is one colour on both. */
+function fpCapAngle(lay,seed,i){ const step=Math.PI*2/lay.capUnits; return (seed%89)/89*step+i*step; }
+function fpCapFace(ctx,P,ax,ay,cap,open,g,st,fin,lay,seed,z0){
+  const tones=fin.tones, kind=st.course==='stone'?'stone':'brick';
+  fpVisibleFaces(ax,ay,cap,(at,len,nu,nv,vs0,vs1)=>{
+    const n=cap.round ? lay.capUnits : Math.max(1,Math.round(len/((st.capUnitIn||st.unitIn*1.25)+st.jointIn)));
+    const pitch=len/n;
+    /* Tight joints, even on a ring. Real rowlock bricks keep their width and
+       leave a wedge of mortar that opens toward the outside, and drawn that way
+       a 36 in cap was more joint than brick — a sunburst, not a coping. A mason
+       closes those joints with cut or tapered units, which is also what reads
+       as a cap at this size. */
+    const w=pitch-st.jointIn;
+    for (let i=cap.round?0:-1;i<(cap.round?n:n+1);i++){
+      let a=cap.round ? fpCapAngle(lay,seed,i)*cap.r-w/2 : i*pitch+(pitch-w)/2, b=a+w;
+      if (cap.round){ for (const sh of [0,len,-len]) if (b+sh>vs0 && a+sh<vs1){ a+=sh; b+=sh; break; } }
+      if (b<=vs0 || a>=vs1) continue;
+      const cut0=a<vs0, cut1=b>vs1; a=Math.max(a,vs0); b=Math.min(b,vs1);
+      if (b-a<0.15) continue;
+      const r=fpUnitRng(seed,cap.round?99:99+Math.round(nu*3+nv*7),i);
+      const mid=at((a+b)/2), m=Math.hypot(mid[0],mid[1])||1;
+      const lit=cap.round ? fpLight(ax,ay,mid[0]/m,mid[1]/m) : fpLight(ax,ay,nu,nv);
+      ctx.fillStyle=shade(tones[(r()*tones.length)|0],Math.round(lit*15+(r()-0.5)*8)+4);
+      fpUnitPath(ctx,P,at,a,b,z0+st.jointIn*0.3,g.H,kind,r,cut0,cut1);
+      ctx.fill();
+    }
+  });
+}
+/* The top of the cap, between the outside edge and the opening: laid in the
+   same units, lighter because it faces the sky. A brick rowlock radiates — each
+   brick keeps its width and the joint between two opens toward the outside —
+   where a stone or block coping is cut in long segments. */
+function fpCapTop(ctx,P,ax,ay,cap,open,g,st,fin,lay,seed,snow){
+  const tones=fin.tones, z=g.H;
+  ctx.save();
+  // the frame between the two outlines, in mortar
+  ctx.beginPath();
+  if (cap.round){
+    fpArcPath(ctx,P,cap.r,z); fpArcPath(ctx,P,open.r,z,true);
+  } else {
+    const c1=cap.corners.map(([u,v])=>P(u,v,z)), c2=open.corners.map(([u,v])=>P(u,v,z)).reverse();
+    ctx.moveTo(c1[0][0],c1[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c1[i][0],c1[i][1]); ctx.closePath();
+    ctx.moveTo(c2[0][0],c2[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c2[i][0],c2[i][1]); ctx.closePath();
+  }
+  ctx.fillStyle=shade(fin.mortar,10); ctx.fill('evenodd');
+  const unitTop=(pts,r)=>{ ctx.fillStyle=shade(tones[(r()*tones.length)|0],12+Math.round((r()-0.5)*14));
+    fpPoly(ctx,pts); ctx.fill(); };
+  if (cap.round){
+    const n=lay.capUnits, step=Math.PI*2/n, R0=open.r, R1=cap.r;
+    const jr=st.jointIn/2;
+    for (let i=0;i<n;i++){
+      const r=fpUnitRng(seed,99,i);
+      const c=fpCapAngle(lay,seed,i);
+      // a tapered unit with a joint of constant width either side (see fpCapFace)
+      const pts=fpArc(P,R1,c-step/2+jr/R1,c+step/2-jr/R1,z);
+      fpArc(P,R0,c+step/2-jr/R0,c-step/2+jr/R0,z,pts);
+      // a flag's edges wander
+      if (st.course==='stone') for (const p of pts){ p[0]+=(r()-0.5)*1.2; p[1]+=(r()-0.5)*0.8; }
+      unitTop(pts,r);
+    }
+  } else {
+    // a box coping: long sides run the full length, the short sides between them
+    const R0=open, R1=cap, j=st.jointIn;
+    const pitchIn=(st.capUnitIn||st.unitIn*1.25)+j;
+    const sides=[
+      {o:[-R1.a,-R1.b],d:[1,0],len:2*R1.a,w:[0,1],depth:R1.b-R0.b},
+      {o:[-R1.a, R1.b],d:[1,0],len:2*R1.a,w:[0,-1],depth:R1.b-R0.b},
+      {o:[-R1.a,-R0.b],d:[0,1],len:2*R0.b,w:[1,0],depth:R1.a-R0.a},
+      {o:[ R1.a,-R0.b],d:[0,1],len:2*R0.b,w:[-1,0],depth:R1.a-R0.a},
+    ];
+    sides.forEach((sd,si)=>{
+      const n=Math.max(1,Math.round(sd.len/pitchIn)), pitch=sd.len/n;
+      for (let i=0;i<n;i++){
+        const r=fpUnitRng(seed,120+si,i);
+        const s0=i*pitch+j/2, s1=(i+1)*pitch-j/2;
+        const q=(s,t)=>P(sd.o[0]+sd.d[0]*s+sd.w[0]*t, sd.o[1]+sd.d[1]*s+sd.w[1]*t, z);
+        unitTop([q(s0,0),q(s1,0),q(s1,sd.depth-j/2),q(s0,sd.depth-j/2)],r);
+      }
+    });
+  }
+  if (snow){
+    // snow lies on the cap, thinned where the fire's warmth reaches
+    ctx.beginPath();
+    if (cap.round){ fpArcPath(ctx,P,cap.r,z); fpArcPath(ctx,P,open.r+(cap.r-open.r)*0.3,z,true); }
+    else {
+      const t=0.3, mid={a:open.a+(cap.a-open.a)*t, b:open.b+(cap.b-open.b)*t};
+      const c1=cap.corners.map(([u,v])=>P(u,v,z));
+      const c2=[[-mid.a,-mid.b],[mid.a,-mid.b],[mid.a,mid.b],[-mid.a,mid.b]].map(([u,v])=>P(u,v,z)).reverse();
+      ctx.moveTo(c1[0][0],c1[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c1[i][0],c1[i][1]); ctx.closePath();
+      ctx.moveTo(c2[0][0],c2[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c2[i][0],c2[i][1]); ctx.closePath();
+    }
+    ctx.fillStyle='rgba(242,245,249,0.84)'; ctx.fill('evenodd');
+  }
+  ctx.restore();
+}
+// a closed circle at height z as a sub-path (reversed for an even-odd hole)
+function fpArcPath(ctx,P,r,z,rev){
+  const pts=fpArc(P,r,rev?Math.PI*2:0,rev?0:Math.PI*2,z);
+  ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+}
+/* The inner arris of the rim: lit along the near edge where it faces the sky
+   and the camera, soot-dark along the far edge the flames lick. */
+function fpRimEdges(ctx,P,ax,ay,o,z,lit){
+  const f=Math.atan2(ay[1],ax[1]);
+  ctx.lineWidth=1;
+  if (o.round){
+    ctx.strokeStyle='rgba(20,14,10,0.55)';
+    ctx.beginPath(); const back=fpArc(P,o.r,f+Math.PI/2,f+Math.PI*1.5,z);
+    ctx.moveTo(back[0][0],back[0][1]); for (const p of back) ctx.lineTo(p[0],p[1]); ctx.stroke();
+    ctx.strokeStyle=lit?'rgba(255,170,90,0.55)':'rgba(255,248,232,0.28)';
+    ctx.beginPath(); const front=fpArc(P,o.r,f-Math.PI/2,f+Math.PI/2,z);
+    ctx.moveTo(front[0][0],front[0][1]); for (const p of front) ctx.lineTo(p[0],p[1]); ctx.stroke();
+    return;
+  }
+  const cs=o.corners.map(([u,v])=>P(u,v,z));
+  let k=0; for (let i=1;i<4;i++) if (cs[i][1]>cs[k][1]) k=i;
+  const far=[cs[(k+1)%4],cs[(k+2)%4],cs[(k+3)%4]], near=[cs[(k+3)%4],cs[k],cs[(k+1)%4]];
+  ctx.strokeStyle='rgba(20,14,10,0.55)';
+  ctx.beginPath(); ctx.moveTo(far[0][0],far[0][1]); ctx.lineTo(far[1][0],far[1][1]); ctx.lineTo(far[2][0],far[2][1]); ctx.stroke();
+  ctx.strokeStyle=lit?'rgba(255,170,90,0.55)':'rgba(255,248,232,0.28)';
+  ctx.beginPath(); ctx.moveTo(near[0][0],near[0][1]); ctx.lineTo(near[1][0],near[1][1]); ctx.lineTo(near[2][0],near[2][1]); ctx.stroke();
+}
+/* A metal surface across its visible width: a highlight a quarter of the way in
+   from the lit side and a shadow toward the other, which is all a cylinder of
+   plate needs to read as round. Returned as a fill for the caller's own path. */
+function fpMetalFill(ctx,x0,x1,fin){
+  const gr=ctx.createLinearGradient(x0,0,x1,0);
+  gr.addColorStop(0,shade(fin.tone,6));
+  gr.addColorStop(0.2,mixCol(fin.tone,fin.hi,0.62));
+  gr.addColorStop(0.38,fin.tone);
+  gr.addColorStop(0.8,mixCol(fin.tone,fin.dark,0.7));
+  gr.addColorStop(1,mixCol(fin.tone,fin.dark,0.45));
+  return gr;
+}
+/* Weathering steel is never one colour: seeded blotches of darker and brighter
+   rust, clipped to whatever surface the caller has set up. */
+function fpRust(ctx,P,g,seed,n,z1){
+  const r=mulberry(((seed^0x2b7c)>>>0)||1);
+  for (let i=0;i<n;i++){
+    const a=r()*Math.PI*2, rr=g.hu*(0.92+r()*0.1), z=r()*z1;
+    const p=P(Math.cos(a)*rr*(g.round?1:1),Math.sin(a)*rr*(g.hv/g.hu),z);
+    ctx.fillStyle=r()>0.5?'rgba(84,40,20,0.30)':'rgba(196,112,58,0.26)';
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],2+r()*5,1.2+r()*2.2,0,0,7); ctx.fill();
+  }
+}
+/* A steel pit: a single plate, 12 in of it, with a rolled lip, a row of air
+   holes near the foot — which glow by night, the one moment a steel ring is at
+   its best — and almost all of its footprint open to the fire. */
+function fpSteelPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow){
+  const wall=fpOutline(g,0), open=fpOutline(g,g.thick), H=g.H;
+  const [x0,x1]=fpSpan(P,wall,0);
+  ctx.save();
+  if (wall.round){
+    fpWallPath(ctx,P,ax,ay,wall,0,H);
+    ctx.fillStyle=fpMetalFill(ctx,x0,x1,fin); ctx.fill();
+  } else {
+    // a box: each face flat, lit by which way it faces
+    fpVisibleFaces(ax,ay,wall,(at,len,nu,nv)=>{
+      const a=at(0), b=at(len);
+      const q=[P(a[0],a[1],H),P(b[0],b[1],H),P(b[0],b[1],0),P(a[0],a[1],0)];
+      const lt=fpLight(ax,ay,nu,nv);
+      ctx.fillStyle=lt>0.3?mixCol(fin.tone,fin.hi,0.3):mixCol(fin.tone,fin.dark,0.45);
+      fpPoly(ctx,q); ctx.fill();
+    });
+    fpWallPath(ctx,P,ax,ay,wall,0,H);
+  }
+  ctx.clip();
+  if (fin.rust) fpRust(ctx,P,g,seed,26,H);
+  if (fin.id==='stainless'){
+    // brushed plate: a hard specular stripe down the lit side
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    const sx=x0+(x1-x0)*0.24;
+    ctx.fillRect(sx-2,P(0,0,H)[1]-60,3,200);
+  }
+  // the air holes, a row round the foot: dark by day, alight by night
+  fpVisibleFaces(ax,ay,wall,(at,len,nu,nv,vs0,vs1)=>{
+    const n=Math.max(2,Math.round(len/5.5)), pitch=len/n;
+    for (let i=0;i<n;i++){
+      let s=(wall.round?-len*0.5:0)+(i+0.5)*pitch;
+      if (wall.round){ for (const sh of [0,len,-len]) if (s+sh>vs0+0.8 && s+sh<vs1-0.8){ s+=sh; break; } }
+      if (s<=vs0+0.8 || s>=vs1-0.8) continue;
+      const a=at(s-0.9), b=at(s+0.9), c=at(s);
+      const pa=P(a[0],a[1],H*0.24), pb=P(b[0],b[1],H*0.24), pc=P(c[0],c[1],H*0.24);
+      const w=Math.max(0.6,Math.hypot(pb[0]-pa[0],pb[1]-pa[1])/2), h=1.0*FP_Z;
+      ctx.fillStyle=lit?'#ffb049':'#1c1512';
+      ctx.beginPath(); ctx.ellipse(pc[0],pc[1],w,h,0,0,7); ctx.fill();
+    }
+  });
+  ctx.fillStyle='rgba(0,0,0,0.16)';
+  fpWallPath(ctx,P,ax,ay,wall,0,1.2); ctx.fill();
+  ctx.restore();
+  // the rolled lip
+  ctx.save();
+  ctx.beginPath();
+  if (wall.round){ fpArcPath(ctx,P,wall.r+0.35,H); fpArcPath(ctx,P,open.r,H,true); }
+  else {
+    const c1=fpOutline(g,-0.35).corners.map(([u,v])=>P(u,v,H)), c2=open.corners.map(([u,v])=>P(u,v,H)).reverse();
+    ctx.moveTo(c1[0][0],c1[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c1[i][0],c1[i][1]); ctx.closePath();
+    ctx.moveTo(c2[0][0],c2[0][1]); for (let i=1;i<4;i++) ctx.lineTo(c2[i][0],c2[i][1]); ctx.closePath();
+  }
+  ctx.fillStyle=mixCol(fin.tone,fin.hi,0.5); ctx.fill('evenodd');
+  if (snow){ ctx.strokeStyle='rgba(242,245,249,0.8)'; ctx.lineWidth=1.6; ctx.stroke(); }
+  ctx.restore();
+  fpInterior(ctx,P,ax,ay,open,g,d,st,fin,seed,lit,mixCol(fin.dark,'#15110e',0.6));
+  fpRimEdges(ctx,P,ax,ay,open,H,lit);
+}
+/* A fire bowl: a shallow bowl on four splayed legs, its rim at 16 in. The legs
+   go down first, because the bowl hides where they meet it. Copper is hammered,
+   and the dimples are what say so. */
+function fpBowlPit(ctx,P,ax,ay,g,d,st,fin,seed,lit,snow){
+  const R=g.hu, H=g.H, bd=g.bowl, open=fpOutline(g,g.thick);
+  const rim=P(0,0,H);
+  const rx=R*Math.SQRT2*TILE_W/2/TILE_IN, ry=R*Math.SQRT2*TILE_H/2/TILE_IN;
+  const ryB=Math.hypot(ry,bd*FP_Z);
+  const stand='#262422';
+  for (let k=0;k<4;k++){
+    const a=Math.PI/4+k*Math.PI/2, c=Math.cos(a), s=Math.sin(a);
+    const top=P(c*R*0.5,s*R*0.5,H-bd*0.78), foot=P(c*R*0.76,s*R*0.76,0), mid=P(c*R*0.74,s*R*0.74,H*0.36);
+    ctx.strokeStyle=stand; ctx.lineWidth=Math.max(1.4,1.3*FP_Z);
+    ctx.beginPath(); ctx.moveTo(top[0],top[1]); ctx.quadraticCurveTo(mid[0],mid[1],foot[0],foot[1]); ctx.stroke();
+    ctx.fillStyle=stand;
+    ctx.beginPath(); ctx.ellipse(foot[0],foot[1],2.6,1.3,0,0,7); ctx.fill();
+  }
+  // the bowl's outside: the lower half of its silhouette, which the rim then caps
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(rim[0]-rx,rim[1]);
+  ctx.ellipse(rim[0],rim[1],rx,ryB,0,Math.PI,0,true);
+  ctx.closePath();
+  ctx.fillStyle=fpMetalFill(ctx,rim[0]-rx,rim[0]+rx,fin); ctx.fill(); ctx.clip();
+  const vg=ctx.createLinearGradient(0,rim[1],0,rim[1]+ryB);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.34)');
+  ctx.fillStyle=vg; ctx.fillRect(rim[0]-rx,rim[1],rx*2,ryB);
+  const r=mulberry(((seed^0x3ad1)>>>0)||1);
+  if (fin.hammered){
+    for (let i=0;i<34;i++){
+      const px=rim[0]+(r()*2-1)*rx*0.92, py=rim[1]+r()*ryB*0.92, s=1.3+r()*1.6;
+      ctx.fillStyle='rgba(255,214,160,0.30)';
+      ctx.beginPath(); ctx.ellipse(px-s*0.3,py-s*0.25,s,s*0.62,0,0,7); ctx.fill();
+      ctx.fillStyle='rgba(60,24,8,0.22)';
+      ctx.beginPath(); ctx.ellipse(px+s*0.4,py+s*0.3,s*0.8,s*0.5,0,0,7); ctx.fill();
+    }
+  } else if (fin.rust){
+    for (let i=0;i<22;i++){
+      const px=rim[0]+(r()*2-1)*rx*0.9, py=rim[1]+r()*ryB*0.9;
+      ctx.fillStyle=r()>0.5?'rgba(84,40,20,0.30)':'rgba(196,112,58,0.26)';
+      ctx.beginPath(); ctx.ellipse(px,py,2+r()*5,1.2+r()*2.2,0,0,7); ctx.fill();
+    }
+  }
+  ctx.restore();
+  // the rolled rim
+  ctx.save();
+  ctx.beginPath(); fpArcPath(ctx,P,R,H); fpArcPath(ctx,P,open.r,H,true);
+  ctx.fillStyle=mixCol(fin.tone,fin.hi,0.55); ctx.fill('evenodd');
+  ctx.strokeStyle=mixCol(fin.tone,fin.dark,0.6); ctx.lineWidth=0.8;
+  ctx.beginPath(); fpArcPath(ctx,P,R,H); ctx.stroke();
+  if (snow){ ctx.strokeStyle='rgba(242,245,249,0.8)'; ctx.lineWidth=1.6; ctx.beginPath(); fpArcPath(ctx,P,R-0.6,H); ctx.stroke(); }
+  ctx.restore();
+  fpInterior(ctx,P,ax,ay,open,g,d,st,fin,seed,lit,mixCol(fin.dark,'#171210',0.5));
+  fpRimEdges(ctx,P,ax,ay,open,H,lit);
 }
 /* ---------- water features ----------
    Built on the container idiom rather than the fire pit's: real inches through
@@ -6856,25 +7567,33 @@ function drawWaterFeatureArt(ctx,cx,cy,wf,season,axes,seed,inWater){
   }
   ctx.restore();
 }
+/* The light a fire throws at night. It is drawn AFTER the dusk pass has
+   darkened everything, so it also has to put the flames back: the sprite's own
+   flames were dimmed with the rest, and a glow round a dim flame reads as a
+   lamp. They are the same tongues (firepitFireLayout) laid again in screen
+   blend. Centred on the FIRE rather than the footprint, because a fire bowl
+   holds its fire 16 in off the ground. The radius is capped under
+   FIREPIT_GLOW_REACH (renderer.js), which is what the night cull pads by. */
 function drawFirepitGlow(ctx,W,H,f,x,y){
-  const d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
-  const footprint=firepitScreenPoly(W,H,x,y,sz,0.84), center=polyCenter(footprint), b=polyBounds(footprint);
-  const sx=center[0], sy=center[1]-5, r=Math.max(62,b.w*0.72,b.h*1.55);
+  const d=normalizeFirepitDraft(f);
+  const [cx,cy]=groundCenterRot(x,y,firepitTileSize(d),W,H);
+  const [ax,ay]=turnAxes(isoAxes(),d.face);
+  const P=fpProjector(cx,cy,ax,ay), lay=firepitFireLayout(d,tileSeed(x,y));
+  const fire=P(0,0,lay.top), sy=fire[1]-lay.F*FP_Z*0.3;
+  const rPit=Math.max(lay.g.hu,lay.g.hv)*Math.SQRT2*TILE_W/2/TILE_IN;
+  const r=Math.max(64,Math.min(180,rPit*2.1));
   ctx.save();
   ctx.globalCompositeOperation='screen';
-  let g=ctx.createRadialGradient(sx,sy,0,sx,sy,r);
-  g.addColorStop(0,'rgba(255,138,56,0.46)');
-  g.addColorStop(0.28,'rgba(255,156,74,0.22)');
-  g.addColorStop(1,'rgba(255,180,96,0)');
-  ctx.fillStyle=g; ctx.fillRect(sx-r,sy-r,r*2,r*2);
-  g=ctx.createRadialGradient(sx,center[1]+2,0,sx,center[1]+2,r*0.72);
-  g.addColorStop(0,'rgba(255,104,38,0.20)');
-  g.addColorStop(1,'rgba(255,160,70,0)');
-  ctx.fillStyle=g; ctx.fillRect(sx-r,center[1]-r*0.42,r*2,r*0.95);
-  ctx.restore();
-  ctx.save();
-  ctx.globalCompositeOperation='screen';
-  ctx.fillStyle='rgba(255,190,98,0.74)';
-  ctx.beginPath(); ctx.ellipse(sx,sy+3,Math.max(5,b.w*0.055),Math.max(2.5,b.h*0.10),0,0,7); ctx.fill();
+  let gr=ctx.createRadialGradient(fire[0],sy,0,fire[0],sy,r);
+  gr.addColorStop(0,'rgba(255,138,56,0.46)');
+  gr.addColorStop(0.28,'rgba(255,156,74,0.22)');
+  gr.addColorStop(1,'rgba(255,180,96,0)');
+  ctx.fillStyle=gr; ctx.fillRect(fire[0]-r,sy-r,r*2,r*2);
+  // the pool it lays on the ground round the pit
+  gr=ctx.createRadialGradient(cx,cy,0,cx,cy,r*0.8);
+  gr.addColorStop(0,'rgba(255,104,38,0.22)');
+  gr.addColorStop(1,'rgba(255,160,70,0)');
+  ctx.fillStyle=gr; ctx.fillRect(cx-r,cy-r*0.45,r*2,r*0.95);
+  fpFlames(ctx,P,lay,true,FP_FLAME.glow);
   ctx.restore();
 }

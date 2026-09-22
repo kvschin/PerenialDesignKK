@@ -1492,7 +1492,7 @@ function drawStructEnt(ctx,e,W,H,season,lit){
   switch(e.kind){
     case SCENE_K.FENCE:   drawFence(ctx,W,H,season,e.f,e.x,e.y); return;
     case SCENE_K.LIGHT:   drawLightFixture(ctx,W,H,season,e.l,e.x,e.y,lit); return;
-    case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y); return;
+    case SCENE_K.FIREPIT: drawFirepit(ctx,W,H,season,e.f,e.x,e.y,lit); return;
     case SCENE_K.WATERF:  drawWaterFeature(ctx,W,H,season,e.wf,e.x,e.y); return;
     case SCENE_K.SUPPORT: drawSupport(ctx,W,H,season,e.sp,e.x,e.y); return;
     case SCENE_K.PERGOLA: drawPergola(ctx,W,H,season,e.pg,e.x,e.y); return;
@@ -1555,8 +1555,14 @@ function structDrawBox(e){
       return {w:sz.w, h:sz.h, up:TILE_H*2.6+24, pad:TILE_W*0.55, down:24};
     }
     case SCENE_K.FIREPIT:{
+      /* Drawn at real size now, so it sits INSIDE its own footprint — the pad is
+         the shadow's soft edge — and the tallest thing is the night fire in a
+         fire bowl: a 16 in rim, a log stack and flames with sparks over them.
+         Measured across every style, size, turn, season and night at all four
+         rotations, that reaches 55px over the footprint's top vertex; this
+         leaves ~18px of slack there and ~12px either side. */
       const sz=firepitTileSize(e.f);
-      return {w:sz.w, h:sz.h, up:TILE_H*2.4+24, pad:TILE_W*0.35, down:20};
+      return {w:sz.w, h:sz.h, up:feetToPx(28/12)+24, pad:TILE_W*0.2, down:14};
     }
     case SCENE_K.WATERF:{
       // the tallest form is the 62in tiered fountain; the gravel bed and the
@@ -1639,7 +1645,9 @@ function computeStructSpriteSpec(e){
       // shape comes from tileSeed, so two boulders of one type differ
       return Object.assign({key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y)}, box);
     case SCENE_K.FIREPIT:
-      return Object.assign({key:'R|'+structRecordSig(e.f)}, box);
+      /* The stones, the logs and the flames are seeded off the tile, like a
+         boulder's shape; the night fire is the `lit` flag the caller appends. */
+      return Object.assign({key:'R|'+structRecordSig(e.f)+'|'+tileSeed(e.x,e.y)}, box);
     case SCENE_K.WATERF:
       /* The gravel bed and the ripples are seeded off the tile, like a boulder's
          shape -- and whether the piece stands IN water is the one thing the
@@ -1801,9 +1809,13 @@ function measureStructBoxes(){
   for (const b of BOULDER_TYPES)
     cases.push({name:'BOULDER:'+b.id, kind:SCENE_K.BOULDER, field:'b', rec:{type:b.id,t:1},
       size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
-  for (const fp of FIREPIT_SIZES) for (const shp of ['round','square'])
-    cases.push({name:'FIREPIT:'+shp+'/'+fp.id, kind:SCENE_K.FIREPIT, field:'f', rec:{shape:shp,size:fp.id,t:1},
-      size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y)});
+  // every style at every size it is made in, turned, and by night — the night
+  // fire in a bowl is the tallest thing the box has to hold
+  for (const st of FIREPIT_STYLES) for (const sz of firepitStyleSizes(st.id))
+    for (const face of (sz.wIn!==sz.dIn?[0,1]:[0])) for (const lit of [false,true])
+      cases.push({name:'FIREPIT:'+st.id+'/'+sz.id+'/f'+face+(lit?'/lit':''), kind:SCENE_K.FIREPIT, field:'f',
+        rec:{style:st.id,shape:sz.shape,size:sz.id,face,t:1},
+        size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y,lit)});
   for (const w of WATER_FEATURES) for (const fin of waterFeatureFinishes(w.id)) for (let f=0;f<4;f++)
     cases.push({name:'WATERF:'+w.id+'/'+fin.id+'/f'+f, kind:SCENE_K.WATERF, field:'wf',
       rec:{form:w.id,finish:fin.id,face:f,t:1},
@@ -1903,6 +1915,13 @@ function measureFootprintCentres(){
   for (const sp of SUPPORT_STYLES) for (const m of sp.materials) for (let f=0;f<4;f++)
     cases.push({name:'SUPPORT:'+sp.id+'/'+m+'/f'+f, rec:{style:sp.id,mat:m,face:f,t:1},
       size:s=>supportTileSize(s), draw:(c,s)=>drawSupport(c,W,H,season,s,x,y)});
+  /* Every fire pit is multi-tile — even a 24 in pit claims 2x2 — and it drew
+     through the corner lattice until it was rebuilt, i.e. a whole tile off its
+     own footprint at rot 2. */
+  for (const st of FIREPIT_STYLES) for (const sz of firepitStyleSizes(st.id))
+    for (const face of (sz.wIn!==sz.dIn?[0,1]:[0]))
+      cases.push({name:'FIREPIT:'+st.id+'/'+sz.id+'/f'+face, rec:{style:st.id,shape:sz.shape,size:sz.id,face,t:1},
+        size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y,false)});
   const off=[]; let worst=0, worstName='', n=0;
   try{
     for (let r=0;r<4;r++){
@@ -2226,9 +2245,9 @@ function sceneStale(skey){
    add W/2-cam.x and H*0.24-cam.y at frame time. Elevation is baked too — it
    bumps sceneRev, so a terrace edit rebuilds this. */
 /* How far a fire pit's glow reaches past its own footprint, for the night cull.
-   drawFirepitGlow paints max(62, w*0.72, h*1.55) from the footprint centre, so
-   the biggest pit is close to 200; a cull that under-estimates it snuffs out a
-   fire at the edge of the screen. */
+   drawFirepitGlow paints a radius of at most 180 from the FIRE, which sits
+   inside the footprint's own screen box; a cull that under-estimates it snuffs
+   out a fire at the edge of the screen. */
 const FIREPIT_GLOW_REACH = 200;
 function setEntScreenBounds(e){
   const x0=e.bx0!==undefined?e.bx0:e.x, x1=e.bx1!==undefined?e.bx1:e.x;
@@ -3212,7 +3231,7 @@ function drawSelectionOverlay(cx,W,H,t,season,sway){
       const [sx,sy]=screenOf(nx,ny,W,H);
       if (c.fence) drawFence(cx,W,H,season,c.fence,nx,ny);
       if (c.light) drawLightFixture(cx,W,H,season,c.light,nx,ny,game.layerVis.night);
-      if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny);
+      if (c.firepit) drawFirepit(cx,W,H,season,c.firepit,nx,ny,game.layerVis.night);
       if (c.waterFeature) drawWaterFeature(cx,W,H,season,c.waterFeature,nx,ny);
       if (c.support) drawSupport(cx,W,H,season,c.support,nx,ny);
       if (c.boulder) drawBoulder(cx,W,H,season,c.boulder,nx,ny);

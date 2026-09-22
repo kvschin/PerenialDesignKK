@@ -206,7 +206,7 @@ const game = {
   elevation:{},       // "x,y" -> {h:-2..4, t:ts} or {removed:true,t}
   fences:{},          // "x,y" -> {style,height,gate,t} or {removed:true,t}
   lights:{},          // "x,y" -> {type,tone,t} or {removed:true,t}
-  firepits:{},        // "x,y" origin -> {shape,size,t} or {removed:true,t}
+  firepits:{},        // "x,y" origin -> {style,finish,shape,size,face,t} or {removed:true,t}
   waterFeatures:{},   // "x,y" origin -> {form,finish,face,t} or {removed:true,t}
   supports:{},        // "x,y" origin -> {style,mat,face,t} or {removed:true,t}
   pergolas:{},        // "x,y" -> {mat,height,t} or {removed:true,t} -- a RUN, like a fence
@@ -261,7 +261,7 @@ const game = {
   buildingStyleDraft:{status:'existing',label:'House',edge:'#8a7a60',fill:'#9a5f3a'},
   fenceDraft:{style:'black',height:4,gate:false},    // settings for the next fence/gate tile
   lightDraft:{type:'path',tone:'warm'},               // settings for the next lighting tile
-  firepitDraft:{shape:'round',size:'round36'},        // settings for the next fire pit footprint
+  firepitDraft:{style:'stone',finish:'fieldstone',shape:'round',size:'round36',face:0}, // the next fire pit placed
   waterFeatureDraft:{form:'birdbath',finish:'stone',face:0}, // settings for the next water feature
   supportDraft:{style:'obelisk',mat:'timber',face:0}, // settings for the next vertical support
   boulderDraft:{type:'round1'},                        // settings for the next boulder footprint

@@ -25,17 +25,19 @@
    What it does NOT do is redraw the garden. Every mark on a stage comes from
    the app's OWN painters — drawPlant, drawGroundTexture, drawWaterTexture,
    drawEdgingRun, fencePanel, drawPotArt, drawSeatArt, drawSupportArt,
-   drawWaterFeatureArt, drawPet — all of which already take a context and a
-   screen point and read no game state, because the tray chips and the plant
-   library needed exactly that first (drawMaterialIcon, libCanvas). So a
-   guidebook demo cannot advertise a plant, a material or a fence the canvas
-   does not draw: it is the fencePanel lesson applied to documentation.
+   drawWaterFeatureArt, drawFirepitArt, drawPet — all of which already take a
+   context and a screen point and read no game state, because the tray chips
+   and the plant library needed exactly that first (drawMaterialIcon,
+   libCanvas). So a guidebook demo cannot advertise a plant, a material or a
+   fence the canvas does not draw: it is the fencePanel lesson applied to
+   documentation.
 
-   Two painters are camera-coupled (drawBoulder and drawFirepit position
-   themselves through footprintScreenPoly -> screenOf, which reads `cam`,
-   `game.rot` and the elevation map). Those two run inside gsBorrowCamera,
-   which overrides exactly four fields and restores them in a `finally` — the
-   captureGardenPortrait pattern, narrowed to the smallest possible bracket.
+   One painter is still camera-coupled (drawBoulder positions itself through
+   footprintScreenPoly -> screenOf, which reads `cam`, `game.rot` and the
+   elevation map; drawFirepit was the other until it was rebuilt on a ground
+   point). It runs inside gsBorrowCamera, which overrides exactly four fields
+   and restores them in a `finally` — the captureGardenPortrait pattern,
+   narrowed to the smallest possible bracket.
 
    ---------- the rules are the real rules ----------
    Where a demo asserts a NUMBER it asks the app rather than restating it:
@@ -427,16 +429,16 @@ function gsDrawUnderlay(ctx,st,scale){
 }
 /* ---------- props ----------
    Everything that stands on the ground. Each kind is drawn by the app's own
-   painter; the two that position themselves through the live camera borrow it
+   painter; the ones that position themselves through the live camera borrow it
    for the length of one call. */
 
-/* drawBoulder and drawFirepit find their footprint through footprintScreenPoly
-   -> screenOf, which reads cam, game.rot and the elevation map. Rather than
-   reimplementing two silhouettes (which would then be free to drift from the
-   garden's), the stage lends them a camera that lands the footprint exactly
-   where the stage wants it and takes it back in a `finally`. Four fields, one
-   synchronous call, no allocation of game state and no cache touched — the
-   captureGardenPortrait pattern at its smallest. */
+/* drawBoulder finds its footprint through footprintScreenPoly -> screenOf,
+   which reads cam, game.rot and the elevation map (and so, until it was rebuilt,
+   did drawFirepit). Rather than reimplementing a silhouette (which would then be
+   free to drift from the garden's), the stage lends it a camera that lands the
+   footprint exactly where the stage wants it and takes it back in a `finally`.
+   Four fields, one synchronous call, no allocation of game state and no cache
+   touched — the captureGardenPortrait pattern at its smallest. */
 function gsBorrowCamera(st,x,y,sx,sy,fn){
   const prior={x:cam.x,y:cam.y,rot:game.rot,elev:game.elevation};
   try{
@@ -525,9 +527,8 @@ function gsDrawProp(ctx,st,p){
       return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>drawBoulder(ctx,0,0,season,{type:p.type},x,y));
     }
     case 'firepit':{
-      const [sx,sy]=gsProject(st,p.x,p.y);
-      return gsBorrowCamera(st,p.x,p.y,sx,sy,
-        (x,y)=>drawFirepit(ctx,0,0,season,{shape:p.shape,size:p.size},x,y));
+      const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
+      return drawFirepitArt(ctx,cx,cy,normalizeFirepitDraft(p),season,axes,tileSeed(p.x,p.y),!!p.lit);
     }
     /* A light and a building footprint reach their painters the same way.
        Both read the camera — the fixture through screenOf, the footprint
@@ -565,7 +566,7 @@ function gsPropSize(p){
     case 'support':return supportTileSize(normalizeSupportDraft(p));
     case 'waterfeature': return waterFeatureTileSize(normalizeWaterFeatureDraft(p));
     case 'boulder':return boulderTileSize({type:p.type});
-    case 'firepit':return firepitTileSize({shape:p.shape,size:p.size});
+    case 'firepit':return firepitTileSize(normalizeFirepitDraft(p));
     default:       return {w:1,h:1};
   }
 }
@@ -2020,7 +2021,8 @@ focal:{ loop:10500, rest:0.94,
     // refuse each other's ground exactly the way the fire pit always has.
     if (u>0.16) st.props.push({kind:'waterfeature',x:4,y:1,form:'birdbath',
       finish:'stone',face:0});
-    if (u>0.42) st.props.push({kind:'firepit',x:3,y:5,shape:'round',size:36});
+    if (u>0.42) st.props.push({kind:'firepit',x:3,y:5,style:'brick',finish:'tumbled',
+      shape:'round',size:'round36'});
     if (u>0.66) st.props.push({kind:'boulder',x:7,y:4,type:'medium2'});
     const tap=gTap(u,u<0.36?0.12:u<0.6?0.38:0.62);
     const c=gPath(gAt(u,0,0.72),[[7,7],[4,1],[3,5],[7,4]]);

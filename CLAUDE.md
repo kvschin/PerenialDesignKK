@@ -749,15 +749,17 @@ logic is split across ordered modules. They map onto the section list below
   **It redraws nothing.** Every mark comes from the app's own painters —
   `drawPlant`, `drawGroundTexture`, `drawWaterTexture`, `drawEdgingRun`,
   `drawWallSurface`, `fencePanel`, `drawPotArt`, `drawSeatArt`,
-  `drawSupportArt`, `drawWaterFeatureArt`, `drawPet` — all of which already take
-  a context and a screen point and read no game state, because the tray chips
-  and the plant library needed exactly that first (`drawMaterialIcon`,
-  `libCanvas`). So a demo cannot advertise a plant, a material or a fence the
-  canvas does not draw: the `fencePanel` lesson applied to documentation.
-  **Two painters are camera-coupled** (`drawBoulder` and `drawFirepit` position
-  themselves through `footprintScreenPoly` → `screenOf`, which reads `cam`,
-  `game.rot` and the elevation map). Those run inside **`gsBorrowCamera`**,
-  which overrides exactly four fields and restores them in a `finally` — the
+  `drawSupportArt`, `drawWaterFeatureArt`, `drawFirepitArt`, `drawPet` — all of
+  which already take a context and a screen point and read no game state,
+  because the tray chips and the plant library needed exactly that first
+  (`drawMaterialIcon`, `libCanvas`). So a demo cannot advertise a plant, a
+  material or a fence the canvas does not draw: the `fencePanel` lesson applied
+  to documentation.
+  **One painter is still camera-coupled** (`drawBoulder` positions itself
+  through `footprintScreenPoly` → `screenOf`, which reads `cam`, `game.rot` and
+  the elevation map; `drawFirepit` was the other until the rebuild of §12g put
+  it on a ground point). It runs inside **`gsBorrowCamera`**, which overrides
+  exactly four fields and restores them in a `finally` — the
   `captureGardenPortrait` pattern narrowed to the smallest possible bracket.
   **Where a demo asserts a NUMBER it asks the app**: `driftCount()` decides how
   many a drift lays, **`DRIFT_OFFSETS`** (lifted out of `stampDrift` for this)
@@ -3197,13 +3199,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     rectangle, its own Hardscape sub-page, and a mutual refusal with everything
     else that stands on ground. The two are siblings — the built focal points —
     and they sit next to each other in the tray for that reason.
-    **The DRAWING is the container idiom, not the fire pit's.** Real inches
-    through `feetToPx`, and a round vessel described by a PROFILE — `waist`,
-    `belly`, `foot`, the `drawPotArt` grammar — so a birdbath and a bubbling urn
-    are two sets of numbers rather than two branches. That matters because these
-    are objects whose HEIGHT is their character: a birdbath is 34 inches to the
-    rim and a millstone is nine, and deriving everything from the footprint (as
-    the fire pit does) cannot say that. The profile trick is REUSED rather than
+    **The DRAWING is the container idiom, not the fire pit's as it then was.**
+    Real inches through `feetToPx`, and a round vessel described by a PROFILE —
+    `waist`, `belly`, `foot`, the `drawPotArt` grammar — so a birdbath and a
+    bubbling urn are two sets of numbers rather than two branches. That matters
+    because these are objects whose HEIGHT is their character: a birdbath is 34
+    inches to the rim and a millstone is nine, and deriving everything from the
+    footprint (as the fire pit then did) cannot say that — which is why the fire
+    pit was later rebuilt on this idiom too (§12g). The profile trick is REUSED rather than
     extracted, so pots stay byte-identical; the root-2 note in `drawPotArt`
     applies here too, and dropping it draws barrels.
     **Nothing here animates, and that is a hard constraint.** Every structure
@@ -3418,6 +3421,102 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Known limit, shared with the supports: a climber still cannot be planted on
     a bay standing over PAVING, because a plant cannot be dug into gravel. The
     answer the app already has is a container under the frame (§12b).
+
+12g. **Fire pits** (`FIREPIT_STYLES`/`FIREPIT_FINISHES`/`FIREPIT_SIZES`,
+    `firepitDims`, `firepitMasonry`, `drawFirepitArt`; Sep 2026) — rebuilt as a
+    solid at real size. It had been three ellipses stacked two pixels apart: no
+    height, no material, no inside — the last hardscape object still drawn as a
+    DIAGRAM beside pots, seats and water features that stand at real size. It
+    also positioned itself through `footprintScreenPoly`, i.e. the corner
+    lattice, so it sat a whole tile off its own footprint at rot 2 (§10's trap;
+    the boulder still has it).
+    **Three axes, the water feature's (§12d).** The STYLE is how it is built and
+    `form` names the drawing branch — `masonry` (stacked stone, brick, concrete
+    block), `ring` (steel), `bowl` (a fire bowl on legs); the FINISH is what it
+    is built in — Fieldstone/Limestone/Bluestone/Sandstone,
+    Red/Tumbled/Buff/Charcoal/Whitewashed brick, Grey/Tan/Charcoal block,
+    Black/Corten/Stainless steel, Cast Iron/Copper/Corten bowls; the SIZE is the
+    shape and outside dimension it is sold at. A style names its finishes in its
+    own order, the first being its default, and switching SNAPS: a charcoal brick
+    pit switched to block stays charcoal, a corten ring switched to a bowl stays
+    corten. Only the bowl narrows the sizes — round, to 36 in, because a 48 in
+    bowl on legs drew as a wok on 4 in stilts and is really a concrete bowl on
+    the ground. An oblong pit carries `face` (0 or 1: turning it twice is the
+    same pit) and swaps its footprint the way a seat does; round and square
+    pits normalise it to 0.
+    **A record saved before styles existed resolves to stacked FIELDSTONE at
+    the same size and footprint** — fieldstone is first because it is the grey
+    every pit was drawn in, and the same footprint because a pit that grew on
+    reopening would stand on whatever is planted beside it. A test pins both.
+    **Everything is laid out in the pit's own frame** (u, v, z in inches,
+    through `fpProjector`) and decided before anything is culled to the side
+    facing the camera: `fpUnitRng` hashes a unit's course and index rather than
+    counting draws, and `firepitFireLayout` is a pure function of the record and
+    the seed (tested camera-independent), so turning round a pit never
+    reshuffles a stone or a log. Masonry is laid in running bond from
+    `firepitMasonry`'s own count — a ring closes on a whole number of units,
+    opening its joints a touch rather than cutting one at the back — and stone
+    from the seed, courses and stones of uneven size; a unit cut by the
+    silhouette keeps its straight edge on that side, or the pit's outline gets a
+    notch knocked out of it. Faces shade by `fpLight`, the upper-left light
+    `isoBox` and the pots already use.
+    **The opening is the occlusion.** Under this projection a point inside the
+    pit and below the rim is visible exactly when it projects inside the
+    opening's outline, so everything in there — far inner wall, bed, coals,
+    logs — is drawn through that clip (`fpClipOpening`), extended straight up
+    because nothing of the pit can hide a flame above the rim.
+    **The bed is filled up toward the rim** (`firepitDims`: the rim-to-bed depth
+    is at most ~0.72 of the opening's half-width), the way a built pit is filled
+    with gravel under its fire: from a gardener's eye height the near rim hides
+    anything deeper, and the first cut — the bed at the pit's foot — was a pit
+    whose fire nobody could see. A test asserts the bed's centre projects inside
+    the opening for every style and size. A small pit takes a thinner wall
+    (at most 40% of its half-size) rather than closing up its own opening.
+    **The cap is laid in tapered units with tight joints, brick included.** A
+    real rowlock keeps each brick's width and leaves a wedge of mortar opening
+    toward the outside; drawn that way a 36 in cap was more joint than brick —
+    a sunburst, not a coping.
+    **Day and night are two drawings**, reached through the `lit` flag every
+    structure sprite key already carries (`drawStructEnt` passes it on): by
+    night a bigger fire, sparks, the inside lit and a steel ring's vents
+    glowing; by day the fire burns at `FP_DAY_FLAME` (0.7) of that height — a pit
+    that reads as a fire pit at noon without a bonfire in a summer border. Smoke
+    was tried by day and dropped: over the dark interior it read as a stain.
+    `drawFirepitGlow` lays the SAME tongues again in screen blend after the
+    dusk pass (a glow round a dimmed flame reads as a lamp), centred on the fire
+    rather than the footprint — a bowl holds it 16 in up — and its radius is
+    capped at 180, inside `FIREPIT_GLOW_REACH`.
+    The sprite key gains `tileSeed` (the stones and logs are seeded — a
+    boulder's rule). The box is measured: across every style, size, turn,
+    season and day/night at all four rotations the tallest drawing (a bowl's
+    night fire) reaches 55px over the footprint's top vertex, and the box leaves
+    ~18px over that and ~12 either side. `measureStructBoxes` 0 escaping;
+    `measureFootprintCentres`, which now covers fire pits, worst 0.5px;
+    `verifyStructureSprites({rot:true})` **0.75%** of pixels against a
+    **4.86%** procedural control (the camera nudged a third of a pixel), nothing
+    clipped.
+    **Cost.** A procedural draw is 0.5-1.4ms (a 48 in brick pit is the worst) —
+    five to ten times a tiered fountain, most of it the fire and the interior —
+    and it is paid once per bake: six pits in the demo garden cost **0.01ms a
+    frame** together, and the night glow 0.14ms a pit. The tray chips and the
+    brush swatch go through `drawFirepitChip`, which keeps the fitted bitmap per
+    draft and size (a pure function of the draft, so it cannot go stale): the
+    fire pit page builds in 14ms cold and 6ms warm, the water feature page's
+    figure. Both used to be hand-drawn copies of the old ellipses.
+    **Both documents follow.** The plan sheet draws each pit TO SCALE with its
+    wall tinted by the finish — it drew a fraction of the tiles claimed, so a
+    24 in and a 36 in pit were the same circle (both claim 2x2). The planting
+    list splits a line by `style|finish|shape|size` (`face` is how it is
+    turned, not what you order) and its sub-line is the masonry take-off from
+    `firepitMasonry` — the count the drawing lays: bricks with the cap, wall
+    blocks and caps, natural stone by the wall-face area it is quoted in; steel
+    and bowls say nothing, being one thing you buy. Labels name the material in
+    the reader's units and in ASCII, because they reach the CSV: "36 in round
+    tumbled brick fire pit", "36 in corten steel fire ring", "24 in copper fire
+    bowl", "61 x 122 cm rectangular grey block fire pit".
+    The guidebook's focal demo had asked for `size:36` — not a size id — and
+    silently drew the 24 in; it now places a 36 in tumbled brick pit through
+    `drawFirepitArt`, off the stage's own axes, without borrowing the camera.
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
@@ -3511,7 +3610,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     mention of the surface it is mostly made of; the gravel path beside that
     lawn had exactly the same problem, one material over. It now also carries
     paving, bed and water area, fence footage, gates, pergolas (by the foot,
-    like a fence — a tile is one 18in bay), fire pits, boulders, supports and
+    like a fence — a tile is one 18in bay), fire pits (split by what they are
+    built in, with the masonry take-off — bricks, blocks, or natural stone by
+    face area — on the sub-line, §12g), boulders, supports and
     lighting, the last split by FINISH the way a container's colour splits it. Three units, and which one a thing takes is a fact
     about the thing: **area** for a surface, **feet** for a run, **count** for a
     thing you buy.
@@ -4213,14 +4314,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     built at (`fenceStyleHeights`). Its chips paint through the garden's own
     `fencePanel`, so a chip cannot advertise a fence the canvas does not draw,
     and the chip height tracks the real feet. Plus **fire
-    pits** from `game.firepitDraft` (Round/Square shape + size — round
-    24/36/48 in, square 36 in or 24x48 in — `FIREPIT_SIZES`/`firepitTileSize`;
-    drill in for shape/size like a grouped species). Fire pits live in
-    `game.firepits` keyed by origin tile (`{shape,size,t}` or `{removed:true}`),
-    reserve a mature footprint via `firepitFootprint`/`canPlaceFirepit`
+    pits** (§12g) from `game.firepitDraft` — a style (stacked stone, brick,
+    concrete block, steel, fire bowl), the finish that style is made in, a
+    shape and size (round 24/36/48 in, square 36 in or 24x48 in, the bowl round
+    to 36) and, for the oblong one, a Turn — `FIREPIT_STYLES`/`FIREPIT_FINISHES`/
+    `FIREPIT_SIZES`/`firepitTileSize`, behind their own drill-in whose chips are
+    each the pit itself. Fire pits live in `game.firepits` keyed by origin tile
+    (`{style,finish,shape,size,face,t}` or `{removed:true}`; an older
+    `{shape,size}` record is fieldstone), reserve a mature footprint via
+    `firepitFootprint`/`canPlaceFirepit`
     (refused under house/door/water/plants/bulbs/fences/lights/shrubs),
-    claim their whole footprint (`firepitAt`), and render
-    through `drawFirepit` (stone rim + coals + flames, snow cap in winter).
+    claim their whole footprint (`firepitAt`), and render through
+    `drawFirepit` → `drawFirepitArt` (a real-size solid with a visible inside
+    and a fire, bigger by night, snow on the cap in winter).
     Boulders live in `game.boulders` keyed by origin tile (`{type,t}` or
     `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
     rectangular, and oblong footprints, block planting, render through

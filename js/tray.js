@@ -337,6 +337,35 @@ function brushSwatchChoice(includeLast){
   if (includeLast && isBrushTool(game.lastBrushTool)) return [game.lastBrushTool,game.lastBrushVar||null];
   return [null,null];
 }
+/* A fire pit fitted to a small canvas, through the garden's own drawFirepitArt,
+   so a chip cannot advertise a pit the canvas does not draw — it used to be a
+   second, hand-drawn copy of the old flat ellipses, in the tray and here in the
+   brush swatch both. One scale CAP, each pit shrinking below it to fit, the
+   miniWater rule. The bitmap is KEPT per draft and size: a pit is a few hundred
+   shapes, the fire pit page shows fifteen of them, and redrawing each on every
+   click made it the slowest page in the tray. The drawing is a pure function of
+   the draft (a fixed seed, Summer, daylight), so the cache cannot go stale. */
+const FIREPIT_CHIP_CACHE=new Map();
+function drawFirepitChip(tc,d,w,h,capK){
+  if (!tc) return;
+  d=normalizeFirepitDraft(d);
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(capK||0.42);
+  let bmp=FIREPIT_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (FIREPIT_CHIP_CACHE.size>96) FIREPIT_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      const e=firepitArtExtent(d);
+      const k=Math.min(capK||0.42,(w-4)/(2*e.halfW),(h-4)/(e.up+e.down));
+      c.save(); c.translate(w/2,h/2+(e.up-e.down)*k/2); c.scale(k,k);
+      drawFirepitArt(c,0,0,d,'Summer',ISO_AXES_FLAT,0x3f1e,false);
+      c.restore();
+    }
+    FIREPIT_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 function drawBrushSwatchCanvas(c,includeLast){
   if (!c) return false;
   const [k,v]=brushSwatchChoice(includeLast);
@@ -375,10 +404,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     // through the garden's own painter, so the swatch follows the finish
     const overall=feetToPx(lightHeightFt(ld)), k2=Math.min(0.85, 20/Math.max(1,overall));
     drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
-  if (k==='firepit'){ diamond('#74695d','rgba(239,230,211,.35)');
-    g.fillStyle='#30261f'; g.beginPath(); g.ellipse(c.width/2,c.height/2+1,6,3,0,0,7); g.fill();
-    g.strokeStyle='#ef7f37'; g.lineWidth=1.3; g.beginPath();
-    g.moveTo(12,12); g.quadraticCurveTo(13,7,15,10); g.moveTo(18,13); g.quadraticCurveTo(20,8,17,6); g.stroke(); return true; }
+  if (k==='firepit'){ drawFirepitChip(g,firepitDraft(),c.width,c.height,0.34); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
@@ -1446,7 +1472,8 @@ const TOOL_SEARCH={
   fence:  {label:'Fence / Gate',kind:'layers',drill:'fence',
            hay:'fence gate door arbor screen privacy deer hardscape structures black aluminum wood vinyl chainlink brick stone 4 foot 6 foot'},
   firepit:{label:'Fire Pit',kind:'fill',drill:'firepit',
-           hay:'fire pit firepit hardscape structure round square rectangle 24 36 48 patio'},
+           hay:'fire pit firepit fire ring fire bowl hardscape structure round square rectangle 24 36 48 patio '+
+               'stacked stone brick block concrete steel metal corten stainless cast iron copper'},
   support:{label:'Support / Trellis',kind:'fill',drill:'support',
            hay:'support trellis obelisk tuteur arch arbor climber vine frame vertical hardscape structures willow timber metal'},
   waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
@@ -2971,39 +2998,15 @@ function buildToolTrayInner(){
     const fd=firepitDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    const miniFirepit=(tc,d)=>{
-      d=normalizeFirepitDraft(d);
-      const sz=firepitTileSize(d), cx2=24, cy2=25, tw=9.5, th=4.8;
-      const pts=[
-        [-sz.w/2,-sz.h/2],
-        [ sz.w/2,-sz.h/2],
-        [ sz.w/2, sz.h/2],
-        [-sz.w/2, sz.h/2]
-      ].map(([x2,y2])=>[cx2+(x2-y2)*tw,cy2+(x2+y2)*th]);
-      const center=pts.reduce((a,p)=>[a[0]+p[0],a[1]+p[1]],[0,0]).map(v=>v/4);
-      const scalePts=s=>pts.map(p=>[center[0]+(p[0]-center[0])*s,center[1]+(p[1]-center[1])*s]);
-      const poly=(pa,fill,yoff)=>{ tc.fillStyle=fill; tc.beginPath(); tc.moveTo(pa[0][0],pa[0][1]+(yoff||0));
-        for (let i=1;i<pa.length;i++) tc.lineTo(pa[i][0],pa[i][1]+(yoff||0));
-        tc.closePath(); tc.fill(); };
-      const b=scalePts(0.92), rx=(Math.max(...b.map(p=>p[0]))-Math.min(...b.map(p=>p[0])))/2;
-      const ry=(Math.max(...b.map(p=>p[1]))-Math.min(...b.map(p=>p[1])))/2;
-      tc.fillStyle='rgba(0,0,0,.24)'; tc.beginPath(); tc.ellipse(center[0],center[1]+6,rx*.9,4,0,0,7); tc.fill();
-      if (d.shape==='round'){
-        tc.fillStyle='#74695d'; tc.beginPath(); tc.ellipse(center[0],center[1],rx*.9,Math.max(6,ry*.9),0,0,7); tc.fill();
-        tc.fillStyle='#9a8f81'; tc.beginPath(); tc.ellipse(center[0],center[1]-2,rx*.74,Math.max(4,ry*.62),0,0,7); tc.fill();
-        tc.fillStyle='#30261f'; tc.beginPath(); tc.ellipse(center[0],center[1]-1,rx*.45,Math.max(3,ry*.38),0,0,7); tc.fill();
-      } else {
-        poly(scalePts(0.88),'#74695d',0);
-        poly(scalePts(0.68),'#9a8f81',-2);
-        poly(scalePts(0.36),'#30261f',-1);
-      }
-      tc.strokeStyle='#ef7f37'; tc.lineWidth=1.5; tc.lineCap='round';
-      tc.beginPath(); tc.moveTo(center[0]-4,center[1]-2); tc.quadraticCurveTo(center[0]-2,center[1]-9,center[0],center[1]-5);
-      tc.moveTo(center[0]+3,center[1]-1); tc.quadraticCurveTo(center[0]+5,center[1]-8,center[0]+2,center[1]-11); tc.stroke();
-    };
     const choose=(patch)=>{
       const cur=firepitDraft(), next=Object.assign({},cur,patch);
-      if (patch.shape && !patch.size && patch.shape!==cur.shape) next.size=firepitSize(null,patch.shape).id;
+      /* Switching shape lands on that shape's classic 36 in rather than its
+         smallest; switching style keeps whatever finish, shape and size the new
+         style is also made in (normalizeFirepitDraft snaps the rest). */
+      if (patch.shape && !patch.size && patch.shape!==cur.shape){
+        const s36=firepitStyleSizes(cur.style,patch.shape).find(s=>s.wIn===36&&s.dIn===36);
+        if (s36) next.size=s36.id;
+      }
       game.firepitDraft=normalizeFirepitDraft(next);
       setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
     };
@@ -3011,10 +3014,13 @@ function buildToolTrayInner(){
       const d=normalizeFirepitDraft(Object.assign({},fd,patch));
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
       b.dataset.k='firepit';
+      if (patch.style!==undefined) b.dataset.firepitStyle=patch.style;
+      if (patch.finish!==undefined) b.dataset.firepitFinish=patch.finish;
       if (patch.shape!==undefined) b.dataset.firepitShape=patch.shape;
       if (patch.size!==undefined) b.dataset.firepitSize=patch.size;
+      if (patch.face!==undefined) b.dataset.firepitTurn='1';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniFirepit(c.getContext('2d'),d);
+      drawFirepitChip(c.getContext('2d'),d,48,44);
       const sp=document.createElement('span'); sp.textContent=label;
       b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
@@ -3024,20 +3030,36 @@ function buildToolTrayInner(){
       b.className='tool has-sub'+(game.tool==='firepit'?' sel':'');
       b.dataset.k='firepit';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniFirepit(c.getContext('2d'),fd);
+      drawFirepitChip(c.getContext('2d'),fd,48,44);
       const sp=document.createElement('span'); sp.textContent='Fire Pit';
       b.append(c,sp);
-      b.title=`Fire Pit: ${firepitLabel()}. Open to choose shape and size.`;
+      b.title=`Fire Pit: ${firepitLabel()}. Open to choose the style, material and size.`;
       b.onclick=()=>{ setTool('firepit',null); game.drill='firepit'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
     } else if (game.drill==='firepit'){
       backBtn();
-      sep('Shape');
-      toolBtn('Round', fd.shape==='round', {shape:'round'}, 'Round fire pit');
-      toolBtn('Square', fd.shape==='square', {shape:'square'}, 'Square or rectangular fire pit');
+      /* Style is how it is built, material what it is built in — each chip is
+         the pit itself, so choosing is looking, the pots' and pets' rule. */
+      sep('Style');
+      FIREPIT_STYLES.forEach(s=>toolBtn(s.short||s.label, fd.style===s.id, {style:s.id},
+        `${s.label}: ${firepitStyleFinishes(s.id).map(f=>f.label.toLowerCase()).join(', ')}`));
+      sep('Material');
+      firepitStyleFinishes(fd.style).forEach(f=>toolBtn(f.label, fd.finish===f.id, {finish:f.id},
+        cap(firepitMaterialName({style:fd.style,finish:f.id}))));
+      if (firepitStyleShapes(fd.style).length>1){
+        sep('Shape');
+        toolBtn('Round', fd.shape==='round', {shape:'round'}, 'Round fire pit');
+        toolBtn('Square', fd.shape==='square', {shape:'square'}, 'Square or rectangular fire pit');
+      }
       sep('Size');
-      FIREPIT_SIZES.filter(s=>s.shape===fd.shape).forEach(s=>
-        toolBtn(s.label, fd.size===s.id, {size:s.id}, `${s.plan} ${fd.shape} fire pit`));
+      firepitStyleSizes(fd.style,fd.shape).forEach(s=>toolBtn(firepitSizeChip(s), fd.size===s.id, {size:s.id},
+        cap(firepitLabelFor(Object.assign({},fd,{size:s.id})))));
+      // only an oblong pit has a way round to turn
+      const cur=firepitSize(fd.size,fd.shape);
+      if (cur.wIn!==cur.dIn){
+        sep('Facing');
+        toolBtn('Turn', false, {face:fd.face?0:1}, 'Turn it a quarter');
+      }
     }
   }
   if (cat.tools.includes('pergola')){
@@ -3585,7 +3607,8 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (k==='edging') hay+=' ground edging edge restraint mowing strip lawn border spade steel corten setts soldier course '+EDGING_STYLES.map(e=>e.label).join(' ');
     if (k==='fence') hay+=' hardscape structures fence gate door arbor wall screen deer privacy '
       +FENCE_STYLES.map(f=>f.label+' '+(f.short||'')).join(' ');
-    if (k==='firepit') hay+=' hardscape structures fire pit round square '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ');
+    if (k==='firepit') hay+=' hardscape structures fire pit ring bowl round square metal '+FIREPIT_SIZES.map(f=>f.label+' '+f.plan).join(' ')
+      +' '+FIREPIT_STYLES.map(s=>s.label).join(' ')+' '+FIREPIT_FINISHES.map(f=>f.label).join(' ');
     if (k==='support') hay+=' hardscape support trellis obelisk arch arbor climber vine frame '+SUPPORT_STYLES.map(s=>s.label).join(' ')+' '+SUPPORT_MATERIALS.map(m=>m.label).join(' ');
     if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
@@ -3616,6 +3639,12 @@ function refreshTray(){
       ? game.tool==='fence' && String(fenceDraft().height)===el.dataset.fenceHeight
       : el.dataset.fenceGate
       ? game.tool==='fence' && String(!!fenceDraft().gate)===el.dataset.fenceGate
+      : el.dataset.firepitStyle
+      ? game.tool==='firepit' && firepitDraft().style===el.dataset.firepitStyle
+      : el.dataset.firepitFinish
+      ? game.tool==='firepit' && firepitDraft().finish===el.dataset.firepitFinish
+      : el.dataset.firepitTurn
+      ? false
       : el.dataset.firepitShape
       ? game.tool==='firepit' && firepitDraft().shape===el.dataset.firepitShape
       : el.dataset.firepitSize

@@ -828,7 +828,8 @@ function hardscapeRows(){
   for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
     const d=normalizeWaterFeatureDraft(w); bump(waters, d.form+'|'+d.finish); }
   for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed) continue;
-    const d=normalizeFirepitDraft(f); bump(pits, d.shape+'|'+d.size); }
+    // the material is what you order; `face` is only which way it is turned
+    const d=normalizeFirepitDraft(f); bump(pits, [d.style,d.finish,d.shape,d.size].join('|')); }
   for (const k in game.boulders||{}){ const b2=game.boulders[k]; if (!b2||b2.removed) continue;
     bump(rocks, normalizeBoulderDraft(b2).type); }
   for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed) continue;
@@ -844,8 +845,8 @@ function hardscapeRows(){
     add('Seating', `${seatFinish(fi).label} ${seatType(ty).label}`, seats[id], seats[id]); }
   for (const id in waters){ const [fo,fi]=id.split('|');
     add('Water feature', `${waterFinish(fi).label} ${waterFeature(fo).label}`, waters[id], waters[id]); }
-  for (const id in pits){ const [shape,size]=id.split('|');
-    add('Fire pit', firepitLabel({shape,size}), pits[id], pits[id]); }
+  for (const id in pits){ const [style,finish,shape,size]=id.split('|'), d={style,finish,shape,size};
+    add('Fire pit', firepitLabel(d), pits[id], pits[id], firepitTakeoffText(d,pits[id])); }
   for (const id in rocks) add('Boulder', boulderLabel({type:id}), rocks[id], rocks[id]);
   for (const id in props){ const [style,mat]=id.split('|');
     add('Support', supportLabel({style,mat}), props[id], props[id]); }
@@ -2356,19 +2357,24 @@ function drawPlanGround(ctx,g,site){
       ctx.fillRect(X(x)+0.5,Y(y)+0.5,cell-1,cell-1);
     }
   }
-  // fire pits
+  /* Fire pits, TO SCALE: the outside at its real size and the opening inside
+     it, the wall tinted by what it is built in. They were drawn as a fraction
+     of the tiles they claim, which made a 24 in and a 36 in pit the same circle
+     (both claim 2x2) — on a sheet somebody lays a rule on. */
   for (const k in game.firepits){ const f=game.firepits[k];
     if (!f || f.removed) continue;
-    const [x,y]=k.split(',').map(Number), d=normalizeFirepitDraft(f), sz=firepitTileSize(d);
-    const px=X(x), py=Y(y), w=sz.w*cell, h=sz.h*cell;
-    ctx.fillStyle='#766b60'; ctx.strokeStyle='#3b3028'; ctx.lineWidth=1.3;
+    const [x,y]=k.split(',').map(Number), d=normalizeFirepitDraft(f), sz=firepitTileSize(d), g=firepitDims(d);
+    const ppi=cell/TILE_IN, cxp=X(x)+sz.w*cell/2, cyp=Y(y)+sz.h*cell/2;
+    const fin=firepitFinish(d.style,d.finish), tone=fin.tones?fin.tones[0]:fin.tone;
+    // a turned oblong pit runs the other way on the sheet too
+    const hw=(d.face?g.hv:g.hu)*ppi, hd=(d.face?g.hu:g.hv)*ppi, t=g.thick*ppi;
+    ctx.fillStyle=mixHex(tone,'#f7f3e8',0.45); ctx.strokeStyle='#3b3028'; ctx.lineWidth=1.3;
     if (d.shape==='round'){
-      ctx.beginPath(); ctx.ellipse(px+w/2,py+h/2,w*0.42,h*0.42,0,0,7); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#2f261f'; ctx.beginPath(); ctx.ellipse(px+w/2,py+h/2,w*0.24,h*0.24,0,0,7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cxp,cyp,hw,hw,0,0,7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#2f261f'; ctx.beginPath(); ctx.ellipse(cxp,cyp,Math.max(1,hw-t),Math.max(1,hw-t),0,0,7); ctx.fill();
     } else {
-      ctx.fillRect(px+cell*0.1,py+cell*0.1,w-cell*0.2,h-cell*0.2);
-      ctx.strokeRect(px+cell*0.1,py+cell*0.1,w-cell*0.2,h-cell*0.2);
-      ctx.fillStyle='#2f261f'; ctx.fillRect(px+w*0.32,py+h*0.32,w*0.36,h*0.36);
+      ctx.fillRect(cxp-hw,cyp-hd,hw*2,hd*2); ctx.strokeRect(cxp-hw,cyp-hd,hw*2,hd*2);
+      ctx.fillStyle='#2f261f'; ctx.fillRect(cxp-hw+t,cyp-hd+t,Math.max(1,hw*2-t*2),Math.max(1,hd*2-t*2));
     }
   }
   // water features
