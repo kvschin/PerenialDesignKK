@@ -606,6 +606,13 @@ failure sitting in the catalog today, recorded only in the note's prose.
 The tool **writes nothing to `js/`**: it drafts a `PLANT_GUIDANCE` block with
 `source` and `text` left as `TODO`, because a note nobody read is a citation
 nobody can defend. That rule is why the existing records are trustworthy.
+**`--verify` exits 1 today, and that is the honest state.** Three decisions are
+open and they are recorded, in dependency order, under "Open decisions" in
+`docs/plant-data/regional-guidance.md` — read that before touching this system.
+The shortest version: severity does not gate hiding, so Cal-IPC's LOWEST tier
+hides a plant from every North American garden, and Cal-IPC is the only North
+American source there is. That is the *Nassella* over-reach in a form the
+native-here rule cannot catch, because foxglove and cardoon are European.
 The remaining process fix is to **review source-first, not plant-first** — intersect one aggregator (USDA PLANTS'
 composite, EDDMapS, the EU Union-concern list) with the catalog's binomials and
 the whole catalog is reviewed in one pass, the way `dev/wikipedia-links.js

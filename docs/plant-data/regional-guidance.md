@@ -73,6 +73,18 @@ Fetches snapshot to `dev/invasive-lists/<id>.json` with a retrieval date and cou
 
 **What it cannot do.** Decide whether a single county's listing belongs in a continental filter; judge a cultivar exemption; or write the note. Drafts leave `source` and `text` as `TODO` deliberately.
 
+## Open decisions (as of 2026-09-22, v0.9.5)
+
+`node dev/invasive-check.js --verify` currently **exits 1**, and that is the honest state rather than a regression. Three decisions are outstanding, in dependency order:
+
+1. **Make `severity` gate the filter.** `invasiveFilterHides` (core.js) reads only whether a caution exists and whether the plant is native — `avoid` and `caution` hide identically, and severity drives nothing but the badge. Letting `avoid` hide while `caution` stays badged releases foxglove, olive, fig and yellow flag, all of which sit on their source's lowest tier.
+2. **Cap a single-jurisdiction listing at `caution`** unless a second source corroborates it. Blocked on (3).
+3. **Find a second North American source.** Cal-IPC speaks only for California and is currently the only one, so every Californian rating silently becomes a continental one — the Mexican feather grass over-reach in a form the native-here rule cannot catch, since foxglove and cardoon are European. Unchecked candidates: per-state noxious weed lists behind one adapter, NatureServe, the regional invasive plant councils (Mid-Atlantic, Southeast, Midwest).
+
+Also unresolved: the three unrecorded findings above need a person to read three Cal-IPC profiles and write the notes, and two recorded severities disagree with the source's own rating (*Ficus carica* — we are more lenient; *Nassella tenuissima* — we are stricter, and the source's own bottom-tier rating supports the Kansas report).
+
+Fuller write-up, with the reasoning and the dead ends: <https://claude.ai/artifact/LKhmgEkUppbeTz2r1vKXgn>
+
 ## Remaining coverage work
 
 Backfill narrower native-range and site reviews across the regional palettes; add country/state/ecoregion selection only with matching reviewed coverage. Review additional invasive concerns and exact cultivar exceptions as evidence becomes available. Maintain dates and recheck changing assessments before release. Do not infer clearance from a missing entry, continental origin, nursery availability, or the word “sterile.”
