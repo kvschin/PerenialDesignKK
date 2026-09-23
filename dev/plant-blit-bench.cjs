@@ -64,6 +64,7 @@
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
+const { closeTestBrowser, sweepStaleTestBrowsers } = require('./close-test-browser.cjs');
 
 const argv = process.argv.slice(2);
 const JSON_OUT = argv.includes('--json');
@@ -221,12 +222,13 @@ const server = http.createServer((req, res) => {
 });
 server.listen(0, '127.0.0.1', async () => {
   const port = server.address().port;
+  sweepStaleTestBrowsers('plantblit-');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'plantblit-'));
   const child = spawn(FF, ['-profile', profile, '-no-remote', '-new-instance',
     'http://127.0.0.1:' + port + '/'], { stdio: 'ignore' });
   const r = await Promise.race([ready,
     new Promise((_, j) => setTimeout(() => j(new Error('timed out')), 300000))]).catch(e => ({ error: e.message }));
-  try { child.kill(); } catch (e) { } server.close();
+  closeTestBrowser(child, profile); server.close();
 
   if (r.error) { console.error(r.error); process.exit(1); }
   if (JSON_OUT) { console.log(JSON.stringify(r, null, 1)); process.exit(0); }

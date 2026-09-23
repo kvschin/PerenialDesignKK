@@ -42,6 +42,7 @@
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
+const { closeTestBrowser, sweepStaleTestBrowsers } = require('./close-test-browser.cjs');
 const root = path.resolve(__dirname, '..');
 
 const argv = process.argv.slice(2);
@@ -226,12 +227,13 @@ function server(port0) {
     const exe = eng.exe.find(p => fs.existsSync(p));
     if (!exe) { console.error('skip ' + eng.name + ': not installed'); continue; }
     const { srv, port, ready } = await server();
+    sweepStaleTestBrowsers('washverify-');
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'washverify-'));
     const child = spawn(exe, eng.args(profile, 'http://127.0.0.1:' + port + '/'), { stdio: 'ignore' });
     const result = await Promise.race([ready,
       new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 180000))])
       .catch(e => ({ error: e.message }));
-    try { child.kill(); } catch (e) { }
+    closeTestBrowser(child, profile);
     srv.close();
     report.engines[eng.name] = result;
     await new Promise(r => setTimeout(r, 400));

@@ -256,6 +256,19 @@ See §13a.
   refuses a window narrower than ~500px and a "phone" profile silently came out
   500x394 landscape. Read the **rAF gap**, not the JS: the ground bake's cost is
   almost entirely outside every phase timer.
+- **The drivers that launch a real browser close it by its PROFILE PATH**
+  (`dev/close-test-browser.cjs`, used by perf-audit, ground-verify,
+  wash-verify and plant-blit-bench). `child.kill()` is not enough on Windows:
+  `firefox.exe` starts through a launcher stub that exits at once, so the PID a
+  tool spawned is not the browser, and every Firefox run used to leave its
+  window open with the app still rendering. A session of runs left ten-plus of
+  them going, several in Firefox's software fallback pinning a core each, and
+  every measurement after the first shared the machine with them; that load
+  invented a finding (a sprite-cache "cliff" a clean re-run showed was not
+  there). Each tool now also closes anything a crashed earlier run of the same
+  tool left on its own profile prefix before it launches. When measuring by
+  hand, check first: display pacing that drifts from the monitor's refresh
+  (8ms instead of 6.1 at 164Hz) was the tell.
 - Live deployment: GitHub Pages serves `master` as-is at
   <https://kvschin.github.io/PerenialDesignKK/> — every push to `master`
   redeploys automatically (no build step, nothing to configure).

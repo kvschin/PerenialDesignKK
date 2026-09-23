@@ -17,6 +17,7 @@
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
+const { closeTestBrowser, sweepStaleTestBrowsers } = require('./close-test-browser.cjs');
 const REPO = path.resolve(__dirname, '..');
 
 const argv = process.argv.slice(2);
@@ -380,12 +381,13 @@ async function run(probeFn, boot) {
   const exe = ENG.exe.find(p => fs.existsSync(p));
   if (!exe) throw new Error('browser not installed');
   const { srv, port, ready } = await server(driverFor(probeFn, boot));
+  sweepStaleTestBrowsers('ppaudit-');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ppaudit-'));
   if (ENG.profilePrefs) fs.writeFileSync(path.join(profile, 'user.js'), ENG.profilePrefs);
   const child = spawn(exe, ENG.args(profile, 'http://127.0.0.1:' + port + '/'), { stdio: 'ignore' });
   const result = await Promise.race([ready, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 420000))])
     .catch(e => ({ error: e.message }));
-  try { child.kill(); } catch (e) { }
+  closeTestBrowser(child, profile);
   srv.close();
   await new Promise(r => setTimeout(r, 800));
   return result;

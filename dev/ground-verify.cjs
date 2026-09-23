@@ -17,6 +17,7 @@
 */
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 const { spawn } = require('child_process');
+const { closeTestBrowser, sweepStaleTestBrowsers } = require('./close-test-browser.cjs');
 const REPO = path.resolve(__dirname, '..');
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
@@ -229,11 +230,12 @@ const driver = `
 (async () => {
   const exe = ENG.exe.find(p => fs.existsSync(p));
   const { srv, port, ready } = await server(driver);
+  sweepStaleTestBrowsers('ppgv-');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ppgv-'));
   if (ENG.profilePrefs) fs.writeFileSync(path.join(profile, 'user.js'), ENG.profilePrefs);
   const child = spawn(exe, ENG.args(profile, 'http://127.0.0.1:' + port + '/'), { stdio: 'ignore' });
   const res = await Promise.race([ready, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 300000))]).catch(e => ({ error: e.message }));
-  try { child.kill(); } catch (e) { }
+  closeTestBrowser(child, profile);
   srv.close();
   if (res.error) { console.log('ERROR ' + res.error); process.exit(1); }
   console.log(JSON.stringify(res.env));
