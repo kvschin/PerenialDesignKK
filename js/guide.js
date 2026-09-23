@@ -25,19 +25,21 @@
    What it does NOT do is redraw the garden. Every mark on a stage comes from
    the app's OWN painters — drawPlant, drawGroundTexture, drawWaterTexture,
    drawEdgingRun, fencePanel, drawPotArt, drawSeatArt, drawSupportArt,
-   drawWaterFeatureArt, drawFirepitArt, drawPet — all of which already take a
-   context and a screen point and read no game state, because the tray chips
-   and the plant library needed exactly that first (drawMaterialIcon,
-   libCanvas). So a guidebook demo cannot advertise a plant, a material or a
-   fence the canvas does not draw: it is the fencePanel lesson applied to
-   documentation.
+   drawWaterFeatureArt, drawFirepitArt, drawBoulderArt, drawPet — all of which
+   already take a context and a screen point and read no game state, because
+   the tray chips and the plant library needed exactly that first
+   (drawMaterialIcon, libCanvas). So a guidebook demo cannot advertise a plant,
+   a material or a fence the canvas does not draw: it is the fencePanel lesson
+   applied to documentation.
 
-   One painter is still camera-coupled (drawBoulder positions itself through
-   footprintScreenPoly -> screenOf, which reads `cam`, `game.rot` and the
-   elevation map; drawFirepit was the other until it was rebuilt on a ground
-   point). It runs inside gsBorrowCamera, which overrides exactly four fields
-   and restores them in a `finally` — the captureGardenPortrait pattern,
-   narrowed to the smallest possible bracket.
+   Two props still reach a camera-coupled painter: a light fixture, which
+   positions itself through screenOf (reading `cam`, `game.rot` and the
+   elevation map), and a building footprint, which does that AND walks the
+   corner lattice. They run inside gsBorrowCamera, which overrides exactly four
+   fields and restores them in a `finally` — the captureGardenPortrait
+   pattern, narrowed to the smallest possible bracket. The fire pit and the
+   boulder used to be in there too, until each was rebuilt on a ground point
+   and stopped drawing a tile off its own footprint at rot 1-3.
 
    ---------- the rules are the real rules ----------
    Where a demo asserts a NUMBER it asks the app rather than restating it:
@@ -432,11 +434,12 @@ function gsDrawUnderlay(ctx,st,scale){
    painter; the ones that position themselves through the live camera borrow it
    for the length of one call. */
 
-/* drawBoulder finds its footprint through footprintScreenPoly -> screenOf,
-   which reads cam, game.rot and the elevation map (and so, until it was rebuilt,
-   did drawFirepit). Rather than reimplementing a silhouette (which would then be
-   free to drift from the garden's), the stage lends it a camera that lands the
-   footprint exactly where the stage wants it and takes it back in a `finally`.
+/* drawLightFixture and the building painters find their tiles through
+   screenOf, which reads cam, game.rot and the elevation map (and so, until each
+   was rebuilt on a ground point, did drawFirepit and drawBoulder). Rather than
+   reimplementing a silhouette (which would then be free to drift from the
+   garden's), the stage lends them a camera that lands the tile exactly where
+   the stage wants it and takes it back in a `finally`.
    Four fields, one synchronous call, no allocation of game state and no cache
    touched — the captureGardenPortrait pattern at its smallest. */
 function gsBorrowCamera(st,x,y,sx,sy,fn){
@@ -523,18 +526,18 @@ function gsDrawProp(ctx,st,p){
       return drawPet(ctx,sx,sy+TILE_H/2,d,1);
     }
     case 'boulder':{
-      const [sx,sy]=gsProject(st,p.x,p.y);
-      return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>drawBoulder(ctx,0,0,season,{type:p.type},x,y));
+      const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
+      return drawBoulderArt(ctx,cx,cy,{type:p.type},season,axes,tileSeed(p.x,p.y));
     }
     case 'firepit':{
       const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
       return drawFirepitArt(ctx,cx,cy,normalizeFirepitDraft(p),season,axes,tileSeed(p.x,p.y),!!p.lit);
     }
-    /* A light and a building footprint reach their painters the same way.
-       Both read the camera — the fixture through screenOf, the footprint
-       through screenOf AND the corner lattice — and both are otherwise pure
-       functions of their own record, so the borrow is all they need and no
-       silhouette had to be reinvented here. */
+    /* A light and a building footprint are the two props left that reach their
+       painters through the borrow. Both read the camera — the fixture through
+       screenOf, the footprint through screenOf AND the corner lattice — and
+       both are otherwise pure functions of their own record, so the borrow is
+       all they need and no silhouette had to be reinvented here. */
     case 'light':{
       const [sx,sy]=gsProject(st,p.x,p.y);
       return gsBorrowCamera(st,p.x,p.y,sx,sy,(x,y)=>{

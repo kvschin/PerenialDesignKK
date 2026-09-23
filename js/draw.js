@@ -6024,15 +6024,6 @@ function polyBounds(pts){
   pts.forEach(p=>{ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); });
   return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
 }
-function footprintScreenPoly(W,H,x,y,sz,scale){
-  const pts=[
-    screenOf(x,y,W,H),
-    screenOf(x+sz.w,y,W,H),
-    screenOf(x+sz.w,y+sz.h,W,H),
-    screenOf(x,y+sz.h,W,H)
-  ];
-  return scale===undefined ? pts : scalePoly(pts,scale);
-}
 function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
   const r=mulberry(seed>>>0), n=12;
   ctx.beginPath();
@@ -6401,20 +6392,79 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
   ctx.restore();
 }
 
+/* ---------- boulders ----------
+   A rock at a ground point, drawn the container way (§12b): drawBoulder asks
+   groundCenterRot where the middle of its tiles is and hands everything else to
+   drawBoulderArt, which reads no camera — so the garden and the guidebook paint
+   through one function, and the guidebook no longer has to lend it one.
+
+   It used to find itself through footprintScreenPoly, which put the four
+   footprint CORNERS through screenOf. That is the tile-corner lattice pushed
+   through the TILE transform — §10's trap, right at rot 0 and a tile out
+   everywhere else — so every boulder bigger than a tile slid off the ground it
+   claims as the view turned: measured on the ink, dx +35px at rot 1, dy -39 to
+   -45px at rot 2, dx -41px at rot 3. It also sampled the elevation of tiles
+   OUTSIDE its own footprint, since corner x+w is the next tile's index. The
+   fire pit had the identical bug and the identical fix (§12g). */
 function drawBoulder(ctx,W,H,season,b,x,y){
+  const d=normalizeBoulderDraft(b);
+  const [cx,cy]=groundCenterRot(x,y,boulderTileSize(d),W,H);
+  drawBoulderArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
+}
+/* Sizes, as fractions of the footprint's screen span (see drawBoulderArt).
+   They are the old numbers exactly — 0.86 of the corner polygon, then 0.48 /
+   0.54 of its bounds for a rounded stone, 0.56 / 0.46 for an oblong one that
+   lies lower and longer, and 0.76 of it again for a dressed stone's top face —
+   so a boulder at rot 0 still draws byte for byte as it did. Measured: rounding
+   these to two places changed 6-10% of a boulder's ink by up to 128/255, the
+   thin outline stroke landing a sub-pixel over. */
+const BOULDER_FILL={
+  round:{rx:0.86*0.48, ry:0.86*0.54},
+  oblong:{rx:0.86*0.56, ry:0.86*0.46},
+  box:0.86*0.76,
+};
+/* The rock at a ground point. `axes` is the camera's pair of tile vectors, and
+   only the squared-off stone reads them: a rounded boulder is one irregular
+   outline seen from any side, so it needs its centre and its radii and nothing
+   else. `seed` is the tile's; the type is mixed in HERE so that a guidebook
+   stage passing tileSeed gets the rock the garden would draw on that tile. */
+function drawBoulderArt(ctx,cx,cy,b,season,axes,seed){
+  season=season||'Summer';
   const d=normalizeBoulderDraft(b), sz=boulderTileSize(d), spec=sz.spec;
-  const footprint=footprintScreenPoly(W,H,x,y,sz,0.86), center=polyCenter(footprint), bounds=polyBounds(footprint);
-  const sx=center[0], base=center[1], seed=(tileSeed(x,y)^0x6d2b79f5^boulderTypeId(d.type).length)>>>0;
+  const sx=cx, base=cy;
+  seed=((seed||0)^0x6d2b79f5^d.type.length)>>>0;
   const tone=spec.tone||'#7f8178', side=shade(tone,-22), top=shade(tone,16), hi=shade(tone,36);
-  const rx=Math.max(16,bounds.w*(spec.shape==='oblong'?0.56:0.48));
-  const ry=Math.max(7,bounds.h*(spec.shape==='oblong'?0.46:0.54));
+  /* Radii from the footprint's real size in tiles. A w x h footprint spans
+     (w+h)*TILE_W/2 across the screen and (w+h)*TILE_H/2 down it at EVERY
+     rotation, because each tile vector is (±TILE_W/2, ±TILE_H/2) — the same
+     fact behind drawPotArt's root-2 rule, that a tile's drawn width is its
+     diagonal. The corner polygon's bounds were exactly this at rot 0 and a box
+     round the wrong centre everywhere else.
+     (The root-2 rule proper — the inscribed ellipse, hypot(w,h)/2 per side —
+     was tried and agrees for a square footprint, but no one constant then
+     reproduces both oblongs: the 2x1 would shrink 6% and the 3x2 grow 2.5%.) */
+  const fill=BOULDER_FILL[spec.shape==='oblong'?'oblong':'round'];
+  const rx=(sz.w+sz.h)*TILE_W/2*fill.rx, ry=(sz.w+sz.h)*TILE_H/2*fill.ry;
   ctx.save();
   drawSoftShadow(ctx,sx,base+6,rx*0.98,Math.max(5,ry*0.55),0.24);
   if (spec.shape==='rect'){
-    const topPoly=scalePoly(footprint,0.76).map(p=>[p[0],p[1]-7]);
-    const front=topPoly.map(p=>[p[0],p[1]+12]);
-    ctx.fillStyle=side; polyPath(ctx,[topPoly[3],topPoly[2],front[2],front[3]]); ctx.fill();
-    ctx.fillStyle=shade(tone,-10); polyPath(ctx,[topPoly[1],topPoly[2],front[2],front[1]]); ctx.fill();
+    /* A dressed stone is a low box laid out in its OWN frame — u along its
+       width, v along its depth, in tiles — and projected through the camera's
+       axes, so it turns with the view the way isoBox's pieces do. It stands 7px
+       proud and is bedded 5px into the ground. */
+    const [ax,ay]=axes||ISO_AXES_FLAT, hw=sz.w/2*BOULDER_FILL.box, hd=sz.h/2*BOULDER_FILL.box;
+    const P=(u,v,z)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-z];
+    const c=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]];
+    const topPoly=c.map(([u,v])=>P(u,v,7)), front=c.map(([u,v])=>P(u,v,-5));
+    /* The camera sees the two faces meeting at the corner lowest on screen
+       (isoBox's rule). They are shaded by which SIDE of the screen they fall
+       on rather than by which edge of the stone they are — the light is fixed
+       to the screen, not to the stone — so the left face is always the darker
+       one, as it was at rot 0 before the stone could turn. */
+    let f=0; for (let i=1;i<4;i++) if (topPoly[i][1]>topPoly[f][1]) f=i;
+    const a=(f+3)%4, n=(f+1)%4, [l,r]=topPoly[a][0]<topPoly[n][0] ? [a,n] : [n,a];
+    ctx.fillStyle=side; polyPath(ctx,[topPoly[l],topPoly[f],front[f],front[l]]); ctx.fill();
+    ctx.fillStyle=shade(tone,-10); polyPath(ctx,[topPoly[r],topPoly[f],front[f],front[r]]); ctx.fill();
     ctx.fillStyle=top; polyPath(ctx,topPoly); ctx.fill();
     ctx.strokeStyle='rgba(45,42,36,0.24)'; ctx.lineWidth=1.1; polyPath(ctx,topPoly); ctx.stroke();
     ctx.fillStyle='rgba(239,230,211,0.18)';

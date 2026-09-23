@@ -1541,7 +1541,9 @@ function structDrawBox(e){
        the view. Measured against the actual ink at all four rotations
        (measureStructBoxes, dev), the old numbers were escaped by up to 79px on
        a seat, 47 on a pot and 12 on a boulder: sprites clipped at rot 1/2/3 and
-       the viewport cull, which shares this box, dropped them early. */
+       the viewport cull, which shares this box, dropped them early. (The
+       boulder's 12 was not reach at all but its own position — it drew through
+       the corner lattice until it was rebuilt, and now sits inside its tiles.) */
     case SCENE_K.POT:{
       const sz=potTileSize(e.p);
       return {w:sz.w, h:sz.h, up:feetToPx(46/12)+30, pad:TILE_W*1.05, down:48};
@@ -1551,8 +1553,17 @@ function structDrawBox(e){
       return {w:sz.w, h:sz.h, up:feetToPx(52/12)+30, pad:TILE_W*1.7, down:72};
     }
     case SCENE_K.BOULDER:{
-      const sz=boulderTileSize(e.b);
-      return {w:sz.w, h:sz.h, up:TILE_H*2.6+24, pad:TILE_W*0.55, down:24};
+      /* A boulder sits INSIDE its own tile diamonds — measured across every
+         type, both seasons and all four rotations it needs 1px beyond them.
+         This box used to be pad 42 / up 123 / down 24, and what it was holding
+         was the old corner-lattice drift (half a tile sideways at rot 1 and 3,
+         40px up at rot 2); measureStructBoxes passed the broken painter because
+         of it. What it must still hold is a SLOPE: the centre is the mean of
+         two tiles' elevations and the sprite is anchored on one, so a footprint
+         straddling the whole earthwork range moves the stone half of it, up or
+         down, off the anchor. */
+      const sz=boulderTileSize(e.b), slope=(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2;
+      return {w:sz.w, h:sz.h, up:slope+12, pad:TILE_W*0.2, down:slope+12};
     }
     case SCENE_K.FIREPIT:{
       /* Drawn at real size now, so it sits INSIDE its own footprint — the pad is
@@ -1922,6 +1933,16 @@ function measureFootprintCentres(){
     for (const face of (sz.wIn!==sz.dIn?[0,1]:[0]))
       cases.push({name:'FIREPIT:'+st.id+'/'+sz.id+'/f'+face, rec:{style:st.id,shape:sz.shape,size:sz.id,face,t:1},
         size:s=>firepitTileSize(s), draw:(c,s)=>drawFirepit(c,W,H,season,s,x,y,false)});
+  /* Boulders drew through the same corner polygon as the old fire pit, and
+     drifted the same way: +35px in x at rot 1, -45px in y at rot 2, -41px in x
+     at rot 3. This measures x only, so the rot-2 half of that is invisible
+     here — but the corner lattice cannot be out at rot 2 without also being
+     out at rot 1 and 3, which is where it is caught. A rounded boulder is not
+     exactly symmetric — its outline is seeded — so its ink sits a few px off
+     centre by design, the lounger's case. */
+  for (const b of BOULDER_TYPES)
+    cases.push({name:'BOULDER:'+b.id, rec:{type:b.id,t:1},
+      size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
   const off=[]; let worst=0, worstName='', n=0;
   try{
     for (let r=0;r<4;r++){

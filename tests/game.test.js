@@ -12585,10 +12585,11 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
     [0,1].map(f => supportTileSize({style:sp.id, face:f}))));
   from.firepits = [].concat(...FIREPIT_STYLES.map(st => firepitStyleSizes(st.id)
     .map(sz => firepitTileSize({style:st.id, shape:sz.shape, size:sz.id, face:1}))));
+  from.boulders = BOULDER_TYPES.map(b => boulderTileSize({type:b.id}));
   /* Each catalog has to CONTRIBUTE a multi-tile shape, not merely be listed:
      without this, deleting one of the three loops leaves the test green on the
      other two — which is exactly what a mutation run caught it doing. */
-  for (const k of ['seats','pots','water','supports','firepits']){
+  for (const k of ['seats','pots','water','supports','firepits','boulders']){
     assert(from[k].some(s => s.w > 1 || s.h > 1),
       k + ' contributes at least one multi-tile footprint');
     from[k].forEach(s => shapes.push([s.w, s.h]));
@@ -12610,13 +12611,20 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
       }
     }
     // and the corner-lattice form really does disagree away from rot 0 — the
-    // negative control, without which the above passes on a rot-0-only bug
+    // negative control, without which the above passes on a rot-0-only bug.
+    // It is written out here because the helper that did this in the app,
+    // footprintScreenPoly, is deleted along with its last caller (drawBoulder).
+    const cornerMean = (x, y, w, h) => {
+      const c = [screenOf(x,y,800,600), screenOf(x+w,y,800,600),
+                 screenOf(x+w,y+h,800,600), screenOf(x,y+h,800,600)];
+      return [c.reduce((s,p) => s+p[0], 0)/4, c.reduce((s,p) => s+p[1], 0)/4];
+    };
     game.rot = 0;
-    const flat = polyCenter(footprintScreenPoly(800, 600, 6, 6, {w:4,h:4}, 1));
+    const flat = cornerMean(6, 6, 4, 4);
     assert(Math.abs(flat[0]-groundCenterRot(6,6,{w:4,h:4},800,600)[0]) < 0.001,
       'the corner form agrees at rot 0, which is why it looked right');
     game.rot = 2;
-    const turned = polyCenter(footprintScreenPoly(800, 600, 6, 6, {w:4,h:4}, 1));
+    const turned = cornerMean(6, 6, 4, 4);
     /* screenOf is affine, so the corner mean is screenOf(x+w/2) while the tile
        mean is screenOf(x+(w-1)/2)+TILE_H/2 — they differ by exactly one TILE_H
        in y at rot 2, and by nothing at rot 0. That is the whole trap in one
@@ -12631,20 +12639,33 @@ test('every multi-tile piece sits on its footprint at every rotation', () => {
      step. All three entry points position from one helper now. */
   for (const [name, fn] of [['drawWaterFeature', drawWaterFeature],
                            ['drawPot', drawPot], ['drawSeat', drawSeat],
-                           ['drawFirepit', drawFirepit], ['drawFirepitGlow', drawFirepitGlow]]) {
+                           ['drawFirepit', drawFirepit], ['drawFirepitGlow', drawFirepitGlow],
+                           ['drawBoulder', drawBoulder]]) {
     const src = String(fn);
     assert(src.includes('groundCenterRot('), name + ' centres through groundCenterRot');
     assert(!src.includes('groundCenterOf('), name + ' does not use the rot-0 formula');
-    /* The fire pit is the one that drew through the CORNER lattice — a whole
-       tile off its own footprint at rot 2, the trap the negative control above
-       measures — so it is also held to not going back there. */
+    /* The fire pit and the boulder are the two that drew through the CORNER
+       lattice — a whole tile off their own footprint at rot 2, the trap the
+       negative control above measures — so every painter is held to not going
+       back there. */
     assert(!src.includes('footprintScreenPoly('), name + ' does not position through the corner lattice');
   }
-  // and the broken helper is gone rather than sitting there to be picked up again
+  /* The art half reads no camera at all: it is handed a ground point and a pair
+     of axes, which is what lets the guidebook draw a boulder without lending it
+     one. A screenOf or an isoAxes() in here would put the live view back. */
+  const art = String(drawBoulderArt);
+  for (const read of ['screenOf(', 'isoAxes(', 'cam.', 'game.rot'])
+    assert(!art.includes(read), 'drawBoulderArt does not read ' + read.replace('(', ''));
+  // and the broken helpers are gone rather than sitting there to be picked up again
   assertEqual(typeof globalThis.groundCenterOf, 'undefined',
     'groundCenterOf is deleted, not merely unused');
   assert(!readRepoFile('js/draw.js').includes('function groundCenterOf'),
     'and its definition is out of the source');
+  assertEqual(typeof globalThis.footprintScreenPoly, 'undefined',
+    'footprintScreenPoly is deleted with its last caller');
+  assert(!/footprintScreenPoly\(/.test(['core','draw','world','view','renderer','commands','input',
+    'io','collections','ui','tray','photos','library','guide','screens']
+    .map(f => readRepoFile('js/' + f + '.js')).join('\n')), 'and nothing in the app calls it');
 });
 
 test('the water feature chip paints through the art function, not the world one', () => {
@@ -12858,7 +12879,7 @@ test('the guidebook draws through the app painters, never a copy of them', () =>
   const src = readRepoFile('js/guide.js');
   for (const fn of ['drawPlant(', 'drawGroundTexture(', 'drawWaterTexture(', 'fencePanel(',
                     'drawPotArt(', 'drawSeatArt(', 'drawSupportArt(', 'drawWaterFeatureArt(',
-                    'drawFirepitArt(', 'drawPet(', 'drawEdgingRun(', 'drawWallSurface('])
+                    'drawFirepitArt(', 'drawBoulderArt(', 'drawPet(', 'drawEdgingRun(', 'drawWallSurface('])
     assert(src.includes(fn), 'the stage paints through ' + fn.slice(0, -1));
 
   /* The two camera-coupled painters go through the borrow bracket, which must
@@ -12870,14 +12891,16 @@ test('the guidebook draws through the app painters, never a copy of them', () =>
   assert(/\bfinally\b/.test(borrow), 'gsBorrowCamera restores in a finally');
   for (const f of ['cam.x=prior.x', 'cam.y=prior.y', 'game.rot=prior.rot', 'game.elevation=prior.elev'])
     assert(borrow.includes(f), 'it puts back ' + f.split('=')[0]);
-  for (const painter of ['drawBoulder('])
-    assert(new RegExp('gsBorrowCamera\\([^)]*[\\s\\S]{0,120}' + painter.replace('(', '\\(')).test(src),
+  for (const painter of ['drawLightFixture(', 'drawBuildingTile('])
+    assert(new RegExp('gsBorrowCamera\\([^)]*[\\s\\S]{0,240}' + painter.replace('(', '\\(')).test(src),
       painter.slice(0, -1) + ' is called inside the bracket');
-  /* The fire pit left the bracket when it was rebuilt on a ground point: it is
-     drawn at the stage's own footprint centre, on the stage's own axes, and
-     borrowing the camera for it now would be a second route to the same place. */
-  assert(!/gsBorrowCamera\([^)]*[\s\S]{0,120}drawFirepit/.test(src),
-    'the fire pit no longer borrows the camera');
+  /* The fire pit and the boulder left the bracket when each was rebuilt on a
+     ground point: they are drawn at the stage's own footprint centre, on the
+     stage's own axes, and borrowing the camera for either now would be a second
+     route to the same place. */
+  for (const painter of ['drawFirepit', 'drawBoulder'])
+    assert(!new RegExp('gsBorrowCamera\\([^)]*[\\s\\S]{0,240}' + painter).test(src),
+      painter + ' no longer borrows the camera');
 
   /* Bloom is forced to full, the way every other preview surface forces it.
      Left to drawPlant's default it resolves through bloomLevel() against

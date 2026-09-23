@@ -752,18 +752,20 @@ logic is split across ordered modules. They map onto the section list below
   **It redraws nothing.** Every mark comes from the app's own painters —
   `drawPlant`, `drawGroundTexture`, `drawWaterTexture`, `drawEdgingRun`,
   `drawWallSurface`, `fencePanel`, `drawPotArt`, `drawSeatArt`,
-  `drawSupportArt`, `drawWaterFeatureArt`, `drawFirepitArt`, `drawPet` — all of
-  which already take a context and a screen point and read no game state,
-  because the tray chips and the plant library needed exactly that first
-  (`drawMaterialIcon`, `libCanvas`). So a demo cannot advertise a plant, a
-  material or a fence the canvas does not draw: the `fencePanel` lesson applied
-  to documentation.
-  **One painter is still camera-coupled** (`drawBoulder` positions itself
-  through `footprintScreenPoly` → `screenOf`, which reads `cam`, `game.rot` and
-  the elevation map; `drawFirepit` was the other until the rebuild of §12g put
-  it on a ground point). It runs inside **`gsBorrowCamera`**, which overrides
+  `drawSupportArt`, `drawWaterFeatureArt`, `drawFirepitArt`, `drawBoulderArt`,
+  `drawPet` — all of which already take a context and a screen point and read
+  no game state, because the tray chips and the plant library needed exactly
+  that first (`drawMaterialIcon`, `libCanvas`). So a demo cannot advertise a
+  plant, a material or a fence the canvas does not draw: the `fencePanel`
+  lesson applied to documentation.
+  **Two props still reach a camera-coupled painter**: a light fixture
+  (`drawLightFixture` positions itself through `screenOf`, which reads `cam`,
+  `game.rot` and the elevation map) and a building footprint (which also walks
+  the corner lattice). They run inside **`gsBorrowCamera`**, which overrides
   exactly four fields and restores them in a `finally` — the
   `captureGardenPortrait` pattern narrowed to the smallest possible bracket.
+  `drawFirepit` and `drawBoulder` used to be in there too; each was rebuilt on
+  a ground point (§12g, and the boulder note in §15) and left.
   **Where a demo asserts a NUMBER it asks the app**: `driftCount()` decides how
   many a drift lays, **`DRIFT_OFFSETS`** (lifted out of `stampDrift` for this)
   is the cluster it lays them in, `brushOffsets()` is the disc,
@@ -1559,7 +1561,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     a pot by 47 and a boulder by 12 — so those sprites were being clipped at
     rot 1/2/3 today. A piece's drawn LENGTH is its real length along its own
     axis, which projects past the diagonal span of the tiles it claims by a
-    different amount at each rotation; one rotation proves nothing.
+    different amount at each rotation; one rotation proves nothing. (The
+    boulder's 12 turned out not to be reach at all but its own POSITION — it
+    drew through the corner lattice, half a tile off at rot 1-3 — and the box
+    widened to hold it hid the bug from `measureStructBoxes` for months. A box
+    that passes is not a drawing that is in the right place.)
     **The sprite KEYS are baked once per scene, not rebuilt per frame.** Both
     caches are content-addressed, which is what makes them work — but computing
     the key was itself uncached: `structSpriteSpec` ran 1.265us x 295 structures
@@ -3432,7 +3438,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     DIAGRAM beside pots, seats and water features that stand at real size. It
     also positioned itself through `footprintScreenPoly`, i.e. the corner
     lattice, so it sat a whole tile off its own footprint at rot 2 (§10's trap;
-    the boulder still has it).
+    the boulder had it too, and was rebuilt the same way — see §15).
     **Three axes, the water feature's (§12d).** The STYLE is how it is built and
     `form` names the drawing branch — `masonry` (stacked stone, brick, concrete
     block), `ring` (steel), `bowl` (a fire bowl on legs); the FINISH is what it
@@ -4333,7 +4339,36 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Boulders live in `game.boulders` keyed by origin tile (`{type,t}` or
     `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
     rectangular, and oblong footprints, block planting, render through
-    `drawBoulder`, and export to the design plan.
+    `drawBoulder` → `drawBoulderArt`, and export to the design plan.
+    **A boulder is drawn from `groundCenterRot`, not from its corners** (Sep
+    2026). It positioned itself through `footprintScreenPoly`, the four footprint
+    CORNERS pushed through `screenOf` — the tile-corner lattice run through the
+    tile transform, §10's trap — so every boulder sat a half-tile off its ground
+    at rot 1-3: measured on the ink, ~+39px in x at rot 1, -39px in y at rot 2,
+    -38px in x at rot 3, for the 1x1 stones as much as the 3x3 ones (the corner
+    mean is not the tile centre even for one tile, so "1x1 is right by
+    construction" held only for pieces already on `groundCenterRot`). The dressed
+    stone also drew its two side faces behind its own top at rot 2, so it lost
+    12px of height there. `drawBoulderArt(ctx,cx,cy,b,season,axes,seed)` is the
+    camera-free half: a rounded stone takes its radii from the footprint's own
+    screen span, `(w+h)·TILE_W/2` by `(w+h)·TILE_H/2`, which is the same at
+    every rotation, with **`BOULDER_FILL`** holding the old fractions exactly —
+    so every type at rot 0 is **byte-identical** to before (0 differing pixels,
+    Summer and Winter). Rounding those to two places moved 6-10% of a stone's
+    ink by up to 128/255, the thin outline stroke landing a sub-pixel over; the
+    root-2 inscribed-ellipse basis agrees for a square footprint and cannot
+    reproduce both oblongs with one constant. The dressed stone is a box in its
+    own frame through the camera's axes, so it turns with the view, and its faces
+    are shaded by SCREEN side rather than by which edge of the stone they are, so
+    the darker face stays on the left. `footprintScreenPoly` is deleted with its
+    last caller. `structDrawBox` for a boulder went from pad 42 / up 123 / down
+    24 to pad 15 / up 39 / down 39 — it needs 1px beyond its tiles on flat
+    ground, and the up/down are a SLOPE allowance, half the earthwork range,
+    because the centre is the mean of two tiles' elevations and the sprite is
+    anchored on one (removing it, 52 of 72 sloped cases escape by up to 12px).
+    Sprites 54% of their old memory; `verifyStructureSprites` 0.002-0.003% at
+    all four rotations, nothing clipped; `measureFootprintCentres` now covers
+    boulders and flags the old painter at up to 41.5px.
     Plus **pergolas** (§12f) behind their own drill-in, in four materials at
     7/8/9 ft — a run you drag like a fence, and something a climber grows on.
     Plus **water features** (§12d) — birdbath, bubbling urn, bubbling
