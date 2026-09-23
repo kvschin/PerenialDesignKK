@@ -6091,16 +6091,25 @@ function potSoilLiftPx(pot){
   return pot ? feetToPx(potSizeDef(potSizeFor(pot.style,pot.size)).hIn/12) : 0;
 }
 /* The screen delta of one tile step along world x and world y at the CURRENT
-   rotation. Everything below is drawn from these two vectors, so a bench
-   points the right way after the map is turned, and the tray chips get the
-   rot-0 pair explicitly. */
-function isoAxes(){
-  switch(game.rot){
-    case 1:  return [[-TILE_W/2,TILE_H/2],[TILE_W/2,TILE_H/2]];
-    case 2:  return [[-TILE_W/2,-TILE_H/2],[TILE_W/2,-TILE_H/2]];
-    case 3:  return [[TILE_W/2,-TILE_H/2],[-TILE_W/2,-TILE_H/2]];
-    default: return [[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
-  }
+   rotation — or at `rot`, which is how the guidebook's stage asks for its own.
+   Everything below is drawn from these two vectors, so a bench points the right
+   way after the map is turned, and the tray chips get the rot-0 pair explicitly.
+
+   It is DERIVED — worldToView's linear part through the iso projection — and
+   must stay that way. It used to be a typed table whose rot 1 and rot 3 rows
+   had the x vector negated: not a rotation of the rot-0 basis but a MIRROR of
+   it. Anything symmetric about its own centre came out in the right place, which
+   is why measureFootprintCentres and verifyStructureSprites never saw it; what
+   it did at those two rotations was draw every turned piece as its mirror
+   image. Measured: every boxy pot, basin and seat shaded its lit face on the
+   screen-RIGHT (isoBox reads handedness off the corner order), a face-1 sun
+   lounger drew exactly as a face-3 one with its head at the wrong end of its
+   footprint, a bench's back and a wall spout's backboard sat on the wrong side,
+   and a fire pit's seeded stones and logs flipped as the camera went round it. */
+function isoAxes(rot){
+  const r=rot==null?game.rot:rot;
+  const [xa,xb]=worldDirToView(1,0,r), [ya,yb]=worldDirToView(0,1,r);
+  return [[isoX(xa,xb),isoY(xa,xb)],[isoX(ya,yb),isoY(ya,yb)]];
 }
 const ISO_AXES_FLAT=[[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
 /* Turn an object a quarter at a time in WORLD space. Its own width always runs
@@ -6119,7 +6128,7 @@ function turnAxes(axes,face){
 /* `y0` is the height of the box's UNDERSIDE. Without it every part had to
    stand on the ground, which is why a bench came out a solid crate instead of a
    thin plank on four legs. */
-function isoBox(ctx,cx,cy,ax,ay,hw,hd,hh,top,left,right,y0){
+function isoBox(ctx,cx,cy,ax,ay,hw,hd,hh,top,right,left,y0){
   y0=y0||0;
   const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-y0];
   const A=P(-hw,-hd), B=P(hw,-hd), C=P(hw,hd), D=P(-hw,hd);
@@ -6130,12 +6139,19 @@ function isoBox(ctx,cx,cy,ax,ay,hw,hd,hh,top,left,right,y0){
   /* The corner nearest the camera is simply the lowest on screen, and the two
      faces meeting there are the two the camera can see — always exactly two,
      at any rotation. Testing each edge against the centre instead drew one,
-     three or none, which is what turned a sun lounger into a kite. */
+     three or none, which is what turned a sun lounger into a kite.
+     A-B-C-D run clockwise on screen for any basis isoAxes/turnAxes hands out
+     (both are proper rotations of the rot-0 pair), so prev->cur is the
+     screen-RIGHT face and cur->next the screen-LEFT one at every rotation and
+     facing. These parameters were once named the other way round, which is how
+     a pot passing its darker shade as `left` still came out lit from the left;
+     and a mirrored basis reverses the order, which is how every box swapped its
+     shading at rot 1 and 3 while isoAxes was one. */
   const c=[A,B,C,D];
   let f=0; for (let i=1;i<4;i++) if (c[i][1]>c[f][1]) f=i;
   const prev=c[(f+3)%4], cur=c[f], next=c[(f+1)%4];
-  quad(prev,cur,up(cur),up(prev),left);
-  quad(cur,next,up(next),up(cur),right);
+  quad(prev,cur,up(cur),up(prev),right);
+  quad(cur,next,up(next),up(cur),left);
   quad(up(A),up(B),up(C),up(D),top);
 }
 // a flat top at height hh, sized in tiles

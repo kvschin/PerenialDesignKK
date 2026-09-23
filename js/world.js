@@ -1498,6 +1498,19 @@ function cornerToView(cx,cy){
   }
 }
 function screenOfCorner(cx,cy,W,H){ const [vx,vy]=cornerToView(cx,cy); return viewScreen(vx,vy,W,H); }
+/* Direction vectors, the other way: the linear part of worldToView, i.e. where
+   one tile STEP goes. Pure in `rot`, because the guidebook's stage turns on its
+   own rotation rather than game.rot, and isoAxes is derived from this rather
+   than typed out as a table — the table it replaced had x negated at rot 1 and
+   3, a mirror image of the true basis. */
+function worldDirToView(dx,dy,rot){
+  switch(rot&3){
+    case 1:  return [ dy,-dx];
+    case 2:  return [-dx,-dy];
+    case 3:  return [-dy, dx];
+    default: return [dx,dy];
+  }
+}
 function viewDirToWorld(dvx,dvy){ // direction vectors: linear part of viewToWorld
   switch(game.rot){
     case 1:  return [-dvy, dvx];

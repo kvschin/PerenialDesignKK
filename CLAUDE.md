@@ -1425,6 +1425,32 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     face drawn from a neighbour test must ask **view** directions via
     `viewDirToWorld`: `drawElevationSides` always did, `drawBuildingTile` did
     not, and struck its extruded rim across the footprint's interior at rot 2.
+    **The DRAWING BASIS is a third thing, and it has to be a rotation, not a
+    mirror.** `isoAxes(rot)` (draw.js) is the screen step of one tile along world
+    x and y — what every turned piece (pots, seats, supports, water features,
+    fire pits, the dressed boulder, the guidebook's props via `gsAxes`) is drawn
+    from — and it is DERIVED: `worldDirToView` (world.js, the linear part of
+    `worldToView`, pure in `rot`) through `isoX`/`isoY`. It used to be a typed
+    table whose rot 1 and rot 3 rows had x negated, i.e. the rot-0 basis
+    reflected rather than turned; `gsAxes` carried a copy. Positions were right
+    (every piece centres through `groundCenterRot`), so `measureFootprintCentres`
+    and `verifyStructureSprites` never saw it — what it did was draw each piece as
+    its mirror image at those two rotations. Measured before the fix: every boxy
+    pot, trough and basin lit on the screen-RIGHT at rot 1/3 and the left at 0/2;
+    a face-1 sun lounger drew exactly as a face-3 one, head at the wrong end of
+    its footprint; bench backs and the wall spout's backboard on the wrong side;
+    a fire pit's seeded stones and logs flipping as the camera went round it. Of
+    572 piece x facing x rotation cases, none at rot 1/3 drew as any real facing;
+    after, all 572 draw exactly as their own. (Fire pit LIGHTING was never wrong:
+    `fpLight` projects its normals through the same basis, so it stayed
+    screen-consistent — steel measured lit-left by 27 levels either way.)
+    `isoBox`'s 5th colour is the screen-RIGHT face and its 6th the LEFT one — it
+    reads that off the corner order, which only a proper rotation preserves, and
+    the parameters used to be named the other way round. Note the rot-0
+    conventions themselves differ, untouched here: pots, seats and fire pits are
+    lit from the left, the reflecting basin, the spout trough and the dressed
+    boulder from the right. A test pins the basis to `screenOf`'s own step at all
+    four rotations, its handedness, the stage's copy and isoBox's sides.
     World logic never rotates — only the mapping. `rotateView(dir)` also
     fires from the R key or the ⟳ button. (Two-finger twist was removed — it
     fought the pan/zoom gesture; see the note above.)

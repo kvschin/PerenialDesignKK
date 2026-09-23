@@ -139,14 +139,7 @@ function gsProjectAt(st,x,y){
   const [dx,dy]=gsViewDir(st,fx,fy);
   return [isoX(vx+dx,vy+dy)+st.pan[0], isoY(vx+dx,vy+dy)+st.pan[1]-gsElev(st,Math.round(x),Math.round(y))*ELEV_STEP];
 }
-function gsViewDir(st,dx,dy){
-  switch(st.rot&3){
-    case 1:  return [dy,-dx];
-    case 2:  return [-dx,-dy];
-    case 3:  return [-dy,dx];
-    default: return [dx,dy];
-  }
-}
+function gsViewDir(st,dx,dy){ return worldDirToView(dx,dy,st.rot||0); }
 // Depth key: the view-space sum, exactly viewDepth's ordering at any rotation.
 function gsDepth(st,x,y){ const [vx,vy]=gsView(st,x,y); return vx+vy; }
 /* The drawing basis, which rotates with the stage exactly as isoAxes() rotates
@@ -155,15 +148,11 @@ function gsDepth(st,x,y){ const [vx,vy]=gsView(st,x,y); return vx+vy; }
    plot turned underneath them, so the two pieces of furniture stayed put while
    the garden rotated around them. Position was already right — gsFootCentre
    averages two projected tile centres — which is why it read as the objects
-   refusing to turn rather than as them being in the wrong place. */
-function gsAxes(st){
-  switch((st.rot||0)&3){
-    case 1:  return [[-TILE_W/2,TILE_H/2],[TILE_W/2,TILE_H/2]];
-    case 2:  return [[-TILE_W/2,-TILE_H/2],[TILE_W/2,-TILE_H/2]];
-    case 3:  return [[TILE_W/2,-TILE_H/2],[-TILE_W/2,-TILE_H/2]];
-    default: return [[TILE_W/2,TILE_H/2],[-TILE_W/2,TILE_H/2]];
-  }
-}
+   refusing to turn rather than as them being in the wrong place.
+   It ASKS isoAxes for the stage's rotation rather than keeping a copy of the
+   table: the copy faithfully reproduced the garden's own rot 1 / rot 3 mirror,
+   so the demo turned its bench into its own reflection twice a lap. */
+function gsAxes(st){ return isoAxes((st.rot||0)&3); }
 
 /* The extent of the whole stage in draw units, used to fit it to the canvas.
    Measured from the four plot corners through the live transform rather than

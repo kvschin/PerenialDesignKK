@@ -1999,6 +1999,67 @@ test('tile-corner geometry lands on its tiles at every rotation', () => {
   game.rot = 0;
 });
 
+/* The drawing basis every turned piece is painted from. It was a typed table
+   whose rot 1 and rot 3 rows had the x vector negated — a MIRROR of the rot-0
+   basis, not a rotation of it — so at those two rotations every pot, seat,
+   basin, support and fire pit drew as its own reflection: lit faces on the
+   screen-right, a face-1 lounger with its head at the wrong end, a bench's back
+   on the wrong side. Symmetric pieces landed in the right PLACE, which is why
+   the footprint and sprite verifiers never saw it. The basis is now asked of
+   the projection, and this pins it to the projection. */
+test('the drawing basis is the screen step of one tile, at every rotation', () => {
+  setup(31, 31);
+  const W = 1200, H = 800, J = v => JSON.stringify(v);
+  const cross = ([a, b]) => a[0] * b[1] - a[1] * b[0];
+  const was = game.rot;
+  try {
+    for (let r = 0; r < 4; r++) {
+      game.rot = r;
+      const o = screenOf(10, 10, W, H), ex = screenOf(11, 10, W, H), ey = screenOf(10, 11, W, H);
+      const step = [[ex[0] - o[0], ex[1] - o[1]], [ey[0] - o[0], ey[1] - o[1]]];
+      assertEqual(J(isoAxes()), J(step), `rot ${r}: isoAxes() is screenOf's step along world x and y`);
+      assertEqual(J(isoAxes(r)), J(step), `rot ${r}: and isoAxes(${r}) says the same without game.rot`);
+      /* A rotation of the rot-0 pair, i.e. turning the camera is the same as
+         turning the piece: some quarter turn of the flat basis IS this one.
+         A mirror is not any quarter turn, and handedness is what gives it away. */
+      assert([0, 1, 2, 3].some(k => J(turnAxes(ISO_AXES_FLAT, k)) === J(isoAxes())),
+        `rot ${r}: the basis is a quarter turn of the rot-0 one`);
+      assert(Math.sign(cross(isoAxes())) === Math.sign(cross(ISO_AXES_FLAT)),
+        `rot ${r}: the basis keeps the rot-0 handedness`);
+      // and the guidebook's stage turns on the very same basis
+      assertEqual(J(gsAxes({ rot: r })), J(step), `rot ${r}: the stage basis is the garden's`);
+    }
+  } finally { game.rot = was; }
+  /* isoBox's 5th colour is the screen-RIGHT face and its 6th the screen-LEFT
+     one, at every rotation and facing — it reads that off the corner order,
+     which only a proper rotation preserves. The mirrored basis swapped them at
+     rot 1 and 3, which is the pots and basins lit from the wrong side. */
+  const faces = axes => {
+    const got = {}; let col = null, pts = [];
+    const ctx = new Proxy({}, { get(o, p){
+      if (p === 'fillStyle') return col;
+      return (...a) => {
+        if (p === 'beginPath') pts = [];
+        else if (p === 'moveTo' || p === 'lineTo') pts.push(a);
+        else if (p === 'fill') got[col] = pts.reduce((s, q) => s + q[0], 0) / pts.length;
+      };
+    }, set(o, p, v){ if (p === 'fillStyle') col = v; return true; } });
+    isoBox(ctx, 0, 0, axes[0], axes[1], 0.8, 0.5, 30, 'top', 'right', 'left');
+    return got;
+  };
+  try {
+    for (let r = 0; r < 4; r++) for (let f = 0; f < 4; f++) {
+      game.rot = r;
+      const got = faces(turnAxes(isoAxes(), f));
+      assert(got.right > 0 && got.left < 0,
+        `rot ${r} face ${f}: isoBox paints its right colour right of centre and its left colour left (${J(got)})`);
+    }
+  } finally { game.rot = was; }
+  // a copied table is how the stage inherited the mirror, so neither may carry one
+  for (const fn of [isoAxes, gsAxes])
+    assert(!/TILE_W\s*\/\s*2/.test(String(fn)), fn.name + ' derives the basis rather than listing it');
+});
+
 /* The footprint's extruded rim is drawn on the two faces the CAMERA sees, so
    its "is my neighbour missing" test has to ask the view directions. Asking
    world +x/+y agreed at rot 0 and was backwards at rot 2, which struck a rim
