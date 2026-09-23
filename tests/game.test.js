@@ -6,7 +6,9 @@ function setup(gw, gh){
   resetGardenAutosave();
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
-  game.plants = {}; game.bulbs = {}; game.terrain = {}; game.elevation = {}; game.houses = []; game.buildings = []; game.fences = {}; game.lights = {}; game.firepits = {}; game.boulders = {}; game.pets = {}; game.pots = {}; game.seats = {}; game.waterFeatures = {}; game.supports = {};
+  // every registered layer, read off the registry: a hand list here missed
+  // pergolas, so a pergola laid in one test was still standing in the next
+  for (const L of GAME_LAYERS) game[L.k] = L.array ? [] : {};
   game.schemes = []; game.schemeActive = null; ensureSchemes();   // every garden runs on at least one planting scheme
   game.houseDraft = { w: 2, h: 2, wall: '#8a7a60', roof: '#9a5f3a', sizeFt: [3, 3] };
   game.fenceDraft = { style: 'black', height: 4, gate: false };
@@ -4115,6 +4117,78 @@ test('stroke tracing fills fast pointer gaps and does not double-count a repeate
   assertEqual(drag.runInches,TILE_IN,'retracing the same centerline edge is counted once');
 });
 
+/* The paint-drag readout gated on ['path','bed','water','fence','gate'], a
+   list written before lawn existed, so dragging a meadow measured nothing —
+   the kind-list defect gardenFileProblem had, one surface over. Under it the
+   disc scan asked bed||water||path, so a lawn drag counted one tile a step
+   whatever the brush size. Mowing forced a second rule: mown lawn is what the
+   untouched plot already is, so it has to count what it LIFTED. */
+test('a lawn drag measures its area, and mowing measures only what it cut', () => {
+  const drag = (x0, y0, x1, y1) => {
+    const d = { sx:x0, sy:y0, cx:x0, cy:y0, active:true, count:0, what:null, lastX:x0, lastY:y0,
+                trace:[[x0,y0]], edgeSeen:new Set(), affected:new Set(), runInches:0 };
+    stampToolDrag(d, x0, y0, null);
+    paintToolDragLine(d, x1, y1, null);
+    return d;
+  };
+  const records = () => Object.keys(game.terrain).filter(k => { const [x, y] = k.split(',').map(Number); return terrainAt(x, y); }).length;
+
+  // the next terrain kind cannot be missed: every one declares its measure
+  for (const k of Object.keys(TERRAIN_RANK))
+    assert(TOOLS[k] && (TOOLS[k].measure === 'area' || TOOLS[k].measure === 'run'), `${k} declares what its drag measures`);
+
+  // a 3-wide meadow stroke counts its whole disc, exactly as a bed stroke does
+  setup(21, 21);
+  game.tool = 'bed'; setBrushSize(3);
+  const bed = drag(5, 10, 12, 10);
+  setup(21, 21);
+  game.tool = 'lawn'; game.lawnStyle = 'meadow'; setBrushSize(3);
+  const meadow = drag(5, 10, 12, 10);
+  assertEqual(meadow.affected.size, 30, 'eight steps of a 3-wide disc lay thirty tiles, not eight');
+  assertEqual(meadow.affected.size, records(), 'and every one is counted');
+  assertEqual(meadow.affected.size, bed.affected.size, 'the same as the same stroke of bed');
+  assertEqual(toolDragMetricLabel(meadow), fmtAreaSqFt(tileAreaSqFt(30)), 'a meadow drag reads its area');
+  game.lawnStyle = 'stepstone';
+  assertEqual(DRAG_DONE.lawn(3), 'Laid 3 tiles of stepping stones.', 'and its toast names the surface');
+
+  /* Mow along the EDGE of a meadow: the disc spans rows 7-9 and row 7 was never
+     meadow. "Now mown under the stroke" would count it; it was not cut. */
+  setup(21, 21);
+  game.tool = 'lawn'; game.lawnStyle = 'meadow'; setBrushSize(1);
+  for (let y = 8; y <= 14; y++) for (let x = 3; x <= 16; x++) applyToolAt(x, y);
+  const before = records();
+  game.lawnStyle = 'mown'; setBrushSize(3);
+  const mow = drag(5, 8, 12, 8);
+  const cut = before - records();
+  assertEqual(cut, 20, 'the stroke cut the two meadow rows under its disc');
+  assertEqual(mow.affected.size, cut, 'mowing counts the tiles it lifted, not the lawn beside them');
+  assertEqual(toolDragMetricLabel(mow), fmtAreaSqFt(tileAreaSqFt(cut)) + ' mown', 'and says the area is mown');
+  assertEqual(DRAG_DONE.lawn(cut), 'Mowed 20 tiles.', 'the toast agrees with the readout');
+  // a stroke through lawn that was never anything else cuts nothing and says nothing
+  const idle = drag(3, 2, 12, 2);
+  assertEqual(idle.what, null, 'nothing under it was lifted');
+  assertEqual(toolDragMetricLabel(idle), null, 'so there is no readout');
+
+  // the runs are unchanged, and a gate is still a run though its noun is 'gate'
+  setup(21, 21);
+  game.tool = 'path'; setBrushSize(3);
+  assertEqual(toolDragMetricLabel(drag(5, 10, 9, 10)),
+    `${inchesMetricLabel(4 * TILE_IN)} x ${selMetricLabel(3)} wide`, 'a path reads its run and its width');
+  setup(21, 21);
+  game.tool = 'fence'; game.fenceDraft = { style: 'wood', height: 4, gate: true }; setBrushSize(3);
+  const gate = drag(5, 4, 9, 4);
+  assertEqual(gate.what, 'gate', 'a gate run reports its own noun');
+  assertEqual(toolDragMetricLabel(gate), inchesMetricLabel(4 * TILE_IN), 'and reads as a run one tile wide');
+  // the pergola was the other tool the list predated
+  setup(21, 21);
+  game.tool = 'pergola'; game.pergolaDraft = { mat: 'timber', height: 8 };
+  assertEqual(toolDragMetricLabel(drag(5, 4, 9, 4)), inchesMetricLabel(4 * TILE_IN), 'a pergola reads its run');
+  // and a tool that declares nothing still draws nothing
+  setup(21, 21);
+  game.tool = 'pot';
+  assertEqual(toolDragMetricLabel(drag(5, 4, 9, 4)), null, 'a row of pots has no readout');
+});
+
 test('houses: place several, refuse overlaps, erase removes one', () => {
   setup(21, 21);
   game.tool = 'house';
@@ -6623,7 +6697,7 @@ test('every placement tool has a completion message, and none can reach the plan
      drag threw — after the tiles were placed and before commitUndo() ran, so
      the work stuck with no undo step. boulder WAS handled, which is why
      exactly those four broke. */
-  const nouns = ['path', 'bed', 'water', 'elevation', 'fence', 'gate', 'light',
+  const nouns = ['path', 'bed', 'water', 'lawn', 'elevation', 'fence', 'gate', 'light',
     'firepit', 'boulder', 'pot', 'seat', 'edging', 'wall', 'building'];
   for (const n of nouns) {
     assert(typeof DRAG_DONE[n] === 'function', n + ' has a completion message');

@@ -401,6 +401,9 @@ const DRAG_DONE={
   path:      n=>`Updated ${n} path tile${n>1?'s':''}.`,
   bed:       n=>`Dug ${n} bed tile${n>1?'s':''}.`,
   water:     n=>`Laid ${n} water tile${n>1?'s':''}.`,
+  // "tiles of", because a lawn's name is a noun phrase: "12 stepping stones tiles"
+  lawn:      n=>lawnMowArmed() ? `Mowed ${n} tile${n>1?'s':''}.`
+    : `Laid ${n} tile${n>1?'s':''} of ${lawnLabelFor(game.lawnStyle).toLowerCase()}.`,
   elevation: n=>`Adjusted ${n} elevation tile${n>1?'s':''}.`,
   fence:     n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
   gate:      n=>`Placed ${n} ${fenceLabel().toLowerCase()} tile${n>1?'s':''}.`,
@@ -441,7 +444,20 @@ function strokeLineTiles(x0,y0,x1,y1){
   }
   return out;
 }
-function recordToolDragPoint(drag,x,y,what){
+/* `affected` is the set of tiles a drag's readout and its completion toast
+   count. For a ground material it is every tile under the stroke that now
+   carries it — scanned across the disc, since a 5-wide bed brush covers
+   twenty-one tiles, not the one under the pointer. Which nouns get that scan
+   is TERRAIN_RANK's question (isTerrainKind), not a list: it said
+   bed||water||path, so a lawn drag counted one tile per step, whatever the
+   brush size.
+   MOWING cannot use that rule, and `lifted` is why. "Now carries it" works for
+   a material because the untouched plot is not made of it; mown lawn is what
+   the untouched plot IS, so the scan would count the lawn beside a meadow as
+   mown, and a trim along a meadow's edge with a 5-wide brush would read about
+   double. So a mowing stamp is judged by what it actually lifted: the tiles
+   that carried a record before it ran (mowCandidates) and carry none after. */
+function recordToolDragPoint(drag,x,y,what,lifted){
   const prev=drag.trace[drag.trace.length-1];
   if (!prev || prev[0]!==x || prev[1]!==y){
     const a=prev?`${prev[0]},${prev[1]}`:'', b=`${x},${y}`, edge=a<b?`${a}|${b}`:`${b}|${a}`;
@@ -449,21 +465,32 @@ function recordToolDragPoint(drag,x,y,what){
     drag.trace.push([x,y]);
   }
   if (!what) return;
-  const size=toolBrushSize();
-  if (what==='bed'||what==='water'||what==='path'){
-    for (const [dx,dy] of brushOffsets(size)){
+  if (lifted){
+    for (const [xx,yy] of lifted) if (!terrainAt(xx,yy)) drag.affected.add(`${xx},${yy}`);
+  } else if (isTerrainKind(what)){
+    for (const [dx,dy] of brushOffsets(toolBrushSize())){
       const xx=x+dx, yy=y+dy; if (xx<0||yy<0||xx>=GW||yy>=GH) continue;
       const terr=terrainAt(xx,yy); if (terr&&terr.k===what) drag.affected.add(`${xx},${yy}`);
     }
   } else drag.affected.add(`${x},${y}`);
 }
+// the tiles under the disc a mowing stamp could lift; null for any other brush
+function mowCandidates(x,y){
+  if (!lawnMowArmed()) return null;
+  const out=[];
+  for (const [dx,dy] of brushOffsets(toolBrushSize())) if (terrainAt(x+dx,y+dy)) out.push([x+dx,y+dy]);
+  return out;
+}
+// one stamp of a paint-drag: place, then record what it did
+function stampToolDrag(drag,x,y,opts){
+  const lifted=mowCandidates(x,y), r=stampBrushAt(x,y,opts);
+  recordToolDragPoint(drag,x,y,r,lifted);
+  if (r){ drag.count++; drag.what=r; }
+  return r;
+}
 function paintToolDragLine(drag,x,y,place){
   const pts=strokeLineTiles(drag.lastX,drag.lastY,x,y).slice(1);
-  for (const [xx,yy] of pts){
-    const opts=(xx===x&&yy===y)?place:null, r=stampBrushAt(xx,yy,opts);
-    recordToolDragPoint(drag,xx,yy,r);
-    if (r){ drag.count++; drag.what=r; }
-  }
+  for (const [xx,yy] of pts) stampToolDrag(drag,xx,yy,(xx===x&&yy===y)?place:null);
   drag.lastX=x; drag.lastY=y;
 }
 cnv.addEventListener('pointermove',e=>{
@@ -510,9 +537,7 @@ cnv.addEventListener('pointermove',e=>{
     toolDrag.cx=x; toolDrag.cy=y;
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
-      const r0=stampBrushAt(toolDrag.sx,toolDrag.sy,toolDrag);
-      recordToolDragPoint(toolDrag,toolDrag.sx,toolDrag.sy,r0);
-      if (r0){ toolDrag.count++; toolDrag.what=r0; }
+      stampToolDrag(toolDrag,toolDrag.sx,toolDrag.sy,toolDrag);
     }
     if (toolDrag.active){
       paintToolDragLine(toolDrag,x,y,place);

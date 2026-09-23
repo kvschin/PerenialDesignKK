@@ -3063,18 +3063,35 @@ function drawRulerOverlay(cx,W,H){
   drawRulerEndpoint(cx,b);
   drawSelDimLine(cx,a,b,distanceMetricLabel(r.a,r.b),1);
 }
-function drawToolDragMetric(cx,W,H){
-  if (typeof toolDrag==='undefined' || !toolDrag || !toolDrag.active || !toolDrag.what) return;
-  if (!['path','bed','water','fence','gate'].includes(toolDrag.what)) return;
-  const b=tileCenterScreen(toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy,W,H);
-  let label;
-  if (toolDrag.what==='bed'||toolDrag.what==='water'){
-    const n=toolDrag.affected?toolDrag.affected.size:0;
-    label=fmtAreaSqFt(tileAreaSqFt(n));
-  } else {
-    label=inchesMetricLabel(toolDrag.runInches||TILE_IN);
-    if (toolDrag.what==='path' && toolBrushSize()>1) label+=` x ${selMetricLabel(toolBrushSize())} wide`;
+/* What the live paint-drag readout says, or null for none. The ARMED TOOL's
+   row decides (TOOLS[t].measure), not the noun its hook returned: a fence run
+   returns 'gate' for a gate, and the readout is about the gesture, not the
+   tile. It used to gate on ['path','bed','water','fence','gate'] — written
+   before lawn and the pergola, so a meadow drag and a pergola run measured
+   nothing — which is the kind list that refused every shared garden with a
+   lawn in it (isTerrainKind), one surface over.
+   A run is `x N wide` only for a tool whose brush has a width: a fence or a
+   pergola is one tile wide whatever the size dots say. Mowing is an area too,
+   but the one area that is REMOVED, so it says so: without the word, a mown
+   path's readout reads as the size of the meadow it is cut through. */
+function toolDragMetricLabel(drag){
+  if (!drag || !drag.active || !drag.what) return null;
+  const meta=toolMeta(game.tool);
+  if (meta.measure==='area'){
+    const label=fmtAreaSqFt(tileAreaSqFt(drag.affected?drag.affected.size:0));
+    return lawnMowArmed() ? `${label} mown` : label;
   }
+  if (meta.measure==='run'){
+    const label=inchesMetricLabel(drag.runInches||TILE_IN), size=toolBrushSize();
+    return size>1 ? `${label} x ${selMetricLabel(size)} wide` : label;
+  }
+  return null;
+}
+function drawToolDragMetric(cx,W,H){
+  if (typeof toolDrag==='undefined' || !toolDrag) return;
+  const label=toolDragMetricLabel(toolDrag);
+  if (!label) return;
+  const b=tileCenterScreen(toolDrag.cx||toolDrag.sx,toolDrag.cy||toolDrag.sy,W,H);
   const safe=typeof usableCanvasRect==='function'?usableCanvasRect():{left:8,top:8,right:VW-8,bottom:VH-8};
   const x=Math.max(safe.left/ZOOM+46,Math.min(safe.right/ZOOM-46,b[0]));
   const y=Math.max(safe.top/ZOOM+22,Math.min(safe.bottom/ZOOM-22,b[1]-28));

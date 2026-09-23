@@ -57,6 +57,13 @@ const LAYER_DEFS=[['perennials'],['bulbs'],['woody'],['landscape']]; // editable
      apply     — the silent placement hook applyToolAt dispatches to; returns what
                  it placed ('plant'|'bulb'|'path'|… ) or null. House has none (it's
                  placed via placeHouse from pointerdown); non-drawing tools have none.
+     measure   — what the live paint-drag readout reports (toolDragMetricLabel):
+                 'area' for a surface you spread, 'run' for a thing laid along a
+                 line. ABSENT means no readout, which is the safe default for a new
+                 tool — the readout used to gate on a hand-written list, written
+                 before lawn and the pergola existed, so both drew nothing. Edging
+                 and the wall face carry none on purpose: what they bill is the
+                 sides that face lawn or fall away, not the line the pointer drew.
    The apply hooks are arrow wrappers (like the GAME_LAYERS sync hooks) so the
    placement functions — defined later in view.js — resolve at call time. */
 const TOOLS={
@@ -65,12 +72,14 @@ const TOOLS={
   ruler:   {layer:null,        brush:false, placement:false, paints:false, material:false},
   pick:    {layer:null,        brush:false, placement:false, paints:false, material:false},
   shovel:  {layer:null,        brush:false, placement:false, paints:false, material:false}, // Erase
-  path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
-  bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
-  water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  // a path is paving and is billed by area, but it is LAID as a run, and how
+  // long it is is the question while you are drawing one
+  path:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, measure:'run',  apply:(x,y,o)=>placeTerrainAt(x,y)},
+  bed:     {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, measure:'area', apply:(x,y,o)=>placeTerrainAt(x,y)},
+  water:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, measure:'area', apply:(x,y,o)=>placeTerrainAt(x,y)},
   // Lawn shares placeTerrainAt with the three above; its 'mown' style is the
   // one material in the app that removes a record rather than writing one.
-  lawn:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, apply:(x,y,o)=>placeTerrainAt(x,y)},
+  lawn:    {layer:'landscape', brush:true,  placement:true,  paints:true,  material:true,  sizable:true, measure:'area', apply:(x,y,o)=>placeTerrainAt(x,y)},
   // once: raise/lower INCREMENT, so a disc re-stamping a tile mid-drag would
   // move it several levels — see applyToolAt. level writes 0 and is exempt.
   raise:   {layer:'landscape', brush:true,  placement:true,  paints:true,  material:false, sizable:true, once:true, apply:(x,y,o)=>applyElevationTool(x,y)?'elevation':null},
@@ -88,7 +97,7 @@ const TOOLS={
   'building-edit':{layer:'landscape', brush:true, placement:true, paints:false, material:false,
     sizable:true, overSite:true, apply:(x,y,o)=>applyBuildingEdit(x,y),
     stamp:(tiles,o)=>applyBuildingEditTiles(tiles)},
-  fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFenceAt(x,y)},
+  fence:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, measure:'run', apply:(x,y,o)=>placeFenceAt(x,y)},
   light:   {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeLightAt(x,y)},
   firepit: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeFirepitAt(x,y)},
   // brush:true like the fire pit — each refuses to overlap the last, so a drag
@@ -97,7 +106,7 @@ const TOOLS={
   // a run of obelisks down a border is a real thing, so it drags like a pot
   support: {layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeSupportAt(x,y)},
   // a RUN, so it drags like a fence rather than dropping one piece at a time
-  pergola: {layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placePergolaAt(x,y)},
+  pergola: {layer:'landscape', brush:true, placement:true, paints:false, material:false, measure:'run', apply:(x,y,o)=>placePergolaAt(x,y)},
   boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
   // brush:false — tap-only on purpose. Every other placer drags out a run,
   // but a drag laid 24 identical cats across the plot, which nobody wants and

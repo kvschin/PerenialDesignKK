@@ -423,7 +423,12 @@ function stampBrushAt(x,y,opts){
   }
   return what;
 }
-// path/bed/water: lay or repaint a ground material on a tile
+/* Is the armed brush MOWING — the lawn tool on its 'none' row? One predicate,
+   because three things have to agree about it: placeTerrainAt lifts a record
+   instead of writing one, the paint-drag counts the tiles it lifted rather
+   than the ones it covered, and the readout says "mown". */
+function lawnMowArmed(){ return game.tool==='lawn' && lawnIsNone(game.lawnStyle); }
+// path/bed/water/lawn: lay or repaint a ground material on a tile
 function placeTerrainAt(x,y){
   const k=`${x},${y}`, terrObj=terrainAt(x,y), terr=terrObj&&terrObj.k;
   const ex=game.plants[k], eb=game.bulbs[k];
@@ -459,7 +464,7 @@ function placeTerrainAt(x,y){
      that would also take the plants and the edging with it. It turfs a bed or
      a path over too, which is right: the record IS the material, and there is
      no material left. */
-  if (game.tool==='lawn' && lawnIsNone(game.lawnStyle)){
+  if (lawnMowArmed()){
     if (!terrObj) return null;
     clearTile('terrain',k);
     return 'lawn';
