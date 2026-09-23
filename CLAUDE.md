@@ -1646,6 +1646,28 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (mid-gesture frames scale-blit the stale bake — briefly soft, never slow),
     and ~180ms after a pan ends (resting frames are freshly rasterized, never
     resampled). Water ripples freeze except at rebakes.
+    **Mid-zoom, the ground bakes only when it has to** (`groundZoomDriftDue`,
+    `plotGroundExtentDevice`, `GROUND_ZOOM_IN_MAX` 1.6; Sep 2026): when the
+    scaled stale bake would leave ground missing on screen, or a zoom IN has
+    magnified it past 1.6×. It replaced a flat 18% drift from the baked zoom,
+    and a mouse wheel moves 12% a notch, so every second notch was a full bake
+    — 13-15 in one wheel gesture on a 261-plant garden, each ~100ms of GPU
+    raster at 2114×1241. Zooming OUT is where the question had to be asked
+    properly: the minified bake shrinks toward the zoom anchor and stops
+    covering the screen after ~16%, but what it no longer covers is only a gap
+    if there is ground there, and once the whole plot sits inside the bake the
+    gap is sky the sky pass already painted. Both tests run in DEVICE pixels
+    with the blit's own arithmetic — the 0.8.39 lesson below, applied. The
+    plot box pads the corner tiles' diamonds for terraces, faces and edging;
+    verified in a browser by baking the whole plot into a scratch canvas and
+    finding where ink actually landed, at all four rotations and three zooms:
+    every pixel inside, 14-91px to spare. Measured live on top of the sprite
+    stand-ins (Chrome 153, 164Hz, two runs a side): wheel zoom 51-53 →
+    87-96fps, p95 frame 115 → 18-24ms, ground bakes 13 → 5-6 a gesture. The
+    worst frame left (~150ms) is the settle bake itself. In Firefox 156 the
+    same gesture went 25 → 40fps, but its sprite re-bakes (564, from 1578)
+    still trip the acceleration give-up described with the sprite cache, so a
+    wheel zoom there is one more way into the slow path.
     **The margin rebake looks wasteful and is not — do not "optimise" it the way
     0.8.39 did (shipped, broke the garden, reverted in 0.8.40).** Panning is the
     dominant desktop cost: measured on a real 70×39 garden, ONE SECOND of

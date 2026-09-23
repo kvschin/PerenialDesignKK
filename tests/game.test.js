@@ -9331,6 +9331,68 @@ test('ground damage records tiles and clears on the authoritative bake', () => {
   assert(groundDamage.size === 0 && !groundDamageFull, 'planting is not ground damage at all');
 });
 
+/* ---------- a zoom in progress bakes the ground only when it has to ----------
+   The mid-gesture rebake used to fire at a flat 18% drift from the baked zoom,
+   and a mouse wheel moves 12% a notch, so every second notch was a full bake —
+   13-15 of them in one wheel gesture on a 261-plant garden, each roughly 100ms
+   of GPU raster. groundZoomDriftDue asks what actually matters: would the
+   scaled old bake leave ground missing on screen, or has a zoom IN magnified
+   it until it is soft. The fixture is a bake made at zoom 1, camera unmoved,
+   on a 2000x1200 canvas with the app's own margin. */
+function zoomDriftCase(gw, fn){
+  setup(gw, gw);
+  const was = { VW, VH, DPR, ZOOM, cx: cam.x, cy: cam.y, w: cnv.width, h: cnv.height,
+    gc: groundCanvas, gz: groundZoom, gx: groundCamX, gy: groundCamY };
+  try {
+    VW = 2000; VH = 1200; DPR = 1; ZOOM = 1; cnv.width = 2000; cnv.height = 1200;
+    snapCam();
+    const MD = Math.round(GROUND_MARGIN_CSS * DPR);
+    groundCanvas = { width: cnv.width + 2 * MD, height: cnv.height + 2 * MD };
+    groundZoom = 1; groundCamX = cam.x; groundCamY = cam.y;
+    fn(z => { ZOOM = z; return groundZoomDriftDue(MD); });
+  } finally {
+    VW = was.VW; VH = was.VH; DPR = was.DPR; ZOOM = was.ZOOM; cam.x = was.cx; cam.y = was.cy;
+    cnv.width = was.w; cnv.height = was.h; groundCanvas = was.gc;
+    groundZoom = was.gz; groundCamX = was.gx; groundCamY = was.gy;
+  }
+}
+
+test('a zoom whose old ground bake still covers the screen waits for the settle', () => {
+  zoomDriftCase(31, due => {
+    assert(!due(0.9), 'a 10% zoom out stays inside the margin');
+    assert(!due(1.5), 'a zoom in magnifies the bake, so it still covers the screen');
+  });
+});
+
+test('a zoom in past GROUND_ZOOM_IN_MAX bakes at once', () => {
+  zoomDriftCase(31, due => {
+    assert(due(GROUND_ZOOM_IN_MAX * 1.05), 'a bake magnified past the limit has gone soft');
+  });
+});
+
+test('a zoom out that uncovers the screen waits if all the ground is still inside', () => {
+  /* A 12x12 plot sits well inside the bake, so however far out the wheel
+     goes, what the minified bake no longer covers is sky. This is the case the
+     flat drift re-baked every second notch. */
+  zoomDriftCase(12, due => {
+    assert(!due(0.4), 'the gap around a zoomed-out small plot is sky');
+  });
+});
+
+test('a zoom out that would leave ground missing bakes at once', () => {
+  zoomDriftCase(60, due => {
+    assert(due(0.5), 'a 60-tile plot runs past the bake, so the gap would show missing ground');
+  });
+});
+
+test('render asks groundZoomDriftDue, not a flat drift', () => {
+  const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = src.slice(src.indexOf('function render(t){'));
+  assert(/zoomStale && \(t-groundZoomT>GROUND_ZOOM_SETTLE \|\| groundZoomDriftDue\(MD\)\)/.test(body),
+    'the mid-gesture rebake goes through the coverage test');
+  assert(!/GROUND_ZOOM_DRIFT/.test(src), 'and the flat 18% drift is gone');
+});
+
 /* ---------- closing the docked library ----------
    Desktop close collapsed a grid column with no motion, so the panel blinked
    out and nothing connected it to the launcher it reopens from. It now flies a
@@ -10880,7 +10942,7 @@ test('a big zoom jump re-bakes at once rather than blitting mush', () => {
     t += 16;
     /* Past SPRITE_ZOOM_DRIFT the stale sprite would be upscaled beyond what
        "briefly soft" can cover, so the escape fires even though the gesture is
-       still moving — the ground bake's GROUND_ZOOM_DRIFT, one system over. */
+       still moving — the ground bake's GROUND_ZOOM_IN_MAX, one system over. */
     const jump = 1 + SPRITE_ZOOM_DRIFT + 0.1;
     assertEqual(zoomFrameBakes(ctx, key, jump, t, 8080), 1,
       'a drift past SPRITE_ZOOM_DRIFT re-bakes mid-gesture');

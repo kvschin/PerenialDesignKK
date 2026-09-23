@@ -21,7 +21,7 @@ let groundCamPrevX=NaN, groundCamPrevY=NaN, groundCamT=-1e9; // last cam tick, f
 const GROUND_MARGIN_CSS=200;    // pan headroom baked around the viewport, CSS px
 const GROUND_ZOOM_SETTLE=140;   // ms after the last zoom tick before the crisp rebake
 const GROUND_PAN_SETTLE=180;    // ms after the last cam move before the crisp rebake
-const GROUND_ZOOM_DRIFT=0.18;   // mid-gesture rebake if scale drifts this far from the bake
+const GROUND_ZOOM_IN_MAX=1.6;   // mid-gesture rebake once a zoom IN magnifies the stale bake this far
 /* Edit settle: the shortest gap between two authoritative bakes while the
    gardener is painting. 90ms is ~11 authoritative updates a second — fast
    enough that organic edges look like they are following the brush, slow
@@ -58,6 +58,49 @@ function groundEditThrottled(t, keyChanged, structMatches){
   if (hasDamage) groundDamageT=t;      // "the gardener is still painting"
   return !!(keyChanged && hasDamage && groundDamage.size<=GROUND_DAMAGE_CAP
     && structMatches && !newBurst && t-groundEditT<GROUND_EDIT_SETTLE);
+}
+/* Does a zoom still in progress need the ground baked NOW, rather than at the
+   settle? Only when the scaled old bake would leave ground missing on screen,
+   or a zoom IN has magnified it past GROUND_ZOOM_IN_MAX and it has gone soft.
+
+   It replaced a flat 18% drift from the baked zoom, and a mouse wheel moves
+   12% a notch, so every second notch was a full bake: measured on a 261-plant
+   garden at 2114x1241 in Chrome, 13-15 of them in one wheel gesture, each
+   roughly 100ms of GPU raster. Zooming OUT is the case that needed the
+   question asked properly. The minified bake shrinks towards the zoom anchor
+   and stops covering the screen after ~16%, but whatever it no longer covers
+   is only a gap if there is ground there: once the whole plot sits inside the
+   bake, the gap is sky, which the sky pass has already painted.
+
+   Asked in DEVICE pixels with the blit's own arithmetic — the space the blit
+   happens in. The 0.8.39 note in CLAUDE.md is about asking a containment
+   question in tile space instead, and what that cost. */
+function groundZoomDriftDue(MD){
+  if (!groundCanvas || !(groundZoom>0)) return true;
+  const k=ZOOM/groundZoom;
+  if (k>GROUND_ZOOM_IN_MAX) return true;
+  const bdx=DPR*VW/2*(1-k) - k*MD + DPR*ZOOM*(groundCamX-cam.x);
+  const bdy=DPR*VH*0.24*(1-k) - k*MD + DPR*ZOOM*(groundCamY-cam.y);
+  const bw=groundCanvas.width*k, bh=groundCanvas.height*k;
+  if (bdx<=0 && bdy<=0 && bdx+bw>=cnv.width && bdy+bh>=cnv.height) return false;
+  const g=plotGroundExtentDevice();
+  return !(g.x0>=bdx && g.y0>=bdy && g.x1<=bdx+bw && g.y1<=bdy+bh);
+}
+/* The screen box, in device pixels, that the plot's ground can occupy at the
+   current camera: the four corner tiles' diamonds, padded for terraces lifted
+   above them, faces and hollows hanging below, and edging reaching past a tile.
+   Generous on purpose — too big only means a bake that could have waited. */
+function plotGroundExtentDevice(){
+  const W=VW/ZOOM, H=VH/ZOOM, s=DPR*ZOOM;
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for (const c of [[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]]){
+    const p=screenOfFlat(c[0],c[1],W,H);
+    if (p[0]<x0) x0=p[0]; if (p[0]>x1) x1=p[0];
+    if (p[1]<y0) y0=p[1]; if (p[1]>y1) y1=p[1];
+  }
+  const lift=ELEV_MAX*ELEV_STEP, drop=-ELEV_MIN*ELEV_STEP;
+  return {x0:(x0-TILE_W)*s, x1:(x1+TILE_W)*s,
+          y0:(y0-TILE_H-lift)*s, y1:(y1+TILE_H*2+drop+lift)*s};
 }
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
@@ -2807,7 +2850,7 @@ function render(t){
     || panDev>=MD
     // a stale margin becomes visible the moment the camera moves, so bake at once
     || (camStale && groundMarginStale)
-    || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || Math.abs(ZOOM/groundZoom-1)>GROUND_ZOOM_DRIFT))
+    || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || groundZoomDriftDue(MD)))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
   if (mustBake){
     const tBake=dnow();                                // 'ground' below is the per-frame BLIT; this is the bake
