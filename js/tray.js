@@ -1721,7 +1721,8 @@ function trayPlantArt(species,variant,season,D){
   let cv=TRAY_ART.get(k);
   if (cv){ TRAY_ART.delete(k); TRAY_ART.set(k,cv); return cv; }   // LRU: re-insert at the end
   cv=document.createElement('canvas'); cv.width=TRAY_ART_W; cv.height=TRAY_ART_H;
-  const g=cv.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(D)||40));
+  const side=plantVisualH(D)*Math.max(0,(D.look||{}).sideScale||0);
+  const g=cv.getContext('2d'), scale=Math.min(1.15,88/(plantArtTop(D)||40),side?(TRAY_ART_W-8)/(side*2):1.15);
   g.scale(scale,scale);
   drawPlant(g,56/scale,110/scale,species,1,season,tileSeed(3,7),0,variant||undefined,1);
   TRAY_ART.set(k,cv);

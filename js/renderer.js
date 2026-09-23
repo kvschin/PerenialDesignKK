@@ -1274,7 +1274,7 @@ function plantDrawBox(P,key,growth){
   const herbTop=P.form==='cloudgrass'
     ? Math.max(H*1.12, H*1.05*(L.cloudTop||0.92)+(L.cloudHeight||11)+6)
     : P.form==='sotol' ? artH*1.05
-    : H*1.12;
+    : artH*1.12;
   const top=(woody?Math.max(H,0.75*H+canopy*0.7):herbTop)+26;
   // Everything a plant paints BELOW its placement point — the cast ground
   // shadow, and a weeping conifer's cascade — so the cached and live procedural

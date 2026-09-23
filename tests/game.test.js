@@ -316,6 +316,151 @@ test('western woody groundcovers reserve mature shrub space and vine maple allow
   assertEqual(applyToolAt(16,15),'plant','fern can be planted beneath open maple canopy');
 });
 
+test('dormant shrub-form perennials draw neither fallback foliage nor floating snow', () => {
+  const before=ART2.on;
+  function aboveGround(key){
+    const ink=[],ctx=new Proxy({}, {
+      get(o,p){
+        if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>{ if(['ellipse','arc','moveTo','lineTo'].includes(p)&&a[1]<0)ink.push([p,...a]); };
+      },set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,'Winter',101,0,null,1);return ink;
+  }
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of ['poppymallow','berlandiersundrops','sunshinemimosa']){
+      const slot=PLANTS[key].sea.Winter, leaves=PLANTS[key].look.leaves;
+      const winter=JSON.stringify(aboveGround(key));
+      try {
+        PLANTS[key].look.leaves=64;
+        assertEqual(JSON.stringify(aboveGround(key)),winter,`${key}: no fallback leaf pass runs`);
+        PLANTS[key].sea.Winter={};
+        assertEqual(aboveGround(key).length,0,`${key}: an empty season has no foliage or floating snow`);
+        PLANTS[key].sea.Winter={seed:'#92704d'};
+        assert(aboveGround(key).length>0,`${key}: authored seed structure still draws`);
+      } finally { PLANTS[key].sea.Winter=slot;
+        if(leaves===undefined)delete PLANTS[key].look.leaves; else PLANTS[key].look.leaves=leaves; }
+    }
+  } } finally { ART2.on=before; }
+});
+
+// Record actual drawing operations, including paint, for opt-in morphology.
+function nativePerennialTrace(key,season,growth=1,bloom=1,seed=101){
+  const ops=[],ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return (...a)=>{
+        ops.push([p,...a]);return {addColorStop(...s){ops.push(['stop',...s]);}};
+      };
+      return (...a)=>{for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key}: finite ${p}`);
+        ops.push([p,...a]);};
+    },set(o,p,v){o[p]=v;ops.push([p,v]);return true;}
+  });
+  drawPlant(ctx,0,0,key,growth,season,seed,0,null,bloom);return JSON.stringify(ops);
+}
+
+test('Virginia bluebells disappear after spring even in full-growth forced-bloom previews', () => {
+  const before=ART2.on;
+  try {for(const mode of [false,true]){
+    ART2.on=mode;
+    assert(nativePerennialTrace('bluebells','Spring')!=='[]','spring organs are visible');
+    for(const season of ['Summer','Fall','Winter'])for(const growth of [0,0.4,1])for(const bloom of [0,1])
+      assertEqual(nativePerennialTrace('bluebells',season,growth,bloom),'[]',`${season}: no stems, shadow or snow`);
+    assert(nativePerennialTrace('echinacea','Summer',0)!=='[]','ordinary forbs keep their establishment floor');
+  }} finally {ART2.on=before;}
+});
+
+test('native perennial morphology is finite, seeded, and active in both visual styles', () => {
+  const cases=[['bluebells','Spring','spikeStyle'],['whiteturtlehead','Fall','spikeStyle'],
+    ['cardinallobelia','Summer','spikeStyle'],['greatbluelobelia','Summer','spikeStyle'],
+    ['lizardtail','Summer','spikeStyle'],['arrowhead','Summer','leafShape'],
+    ['wildgeranium','Spring','leafShape'],['mountainmint','Summer','umbelStyle'],
+    ['commonmilkweed','Summer','stemLeafArrangement'],['whorledmilkweed','Summer','stemLeafArrangement'],
+    ['noddingonion','Summer','globeStyle'],['prairieonion','Fall','globeStyle']];
+  const before=ART2.on;
+  try {for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const [key,season,control] of cases){
+      const rendered=nativePerennialTrace(key,season),L=PLANTS[key].look,saved=L[control];
+      assertEqual(nativePerennialTrace(key,season),rendered,`${key}: stable seed`);
+      assert(nativePerennialTrace(key,season,1,1,4410)!==rendered,`${key}: clumps vary by seed`);
+      try {delete L[control];assert(nativePerennialTrace(key,season)!==rendered,`${key}: morphology control changes the drawing`);}
+      finally {L[control]=saved;}
+      for(const s of SEASONS)for(const g of [0.4,1])nativePerennialTrace(key,s,g);
+    }
+  }} finally {ART2.on=before;}
+});
+
+test('milkweed pods require authored seed structure and retain a distinct winter split', () => {
+  const keys=['butterfly','swampmilkweed','prairiemilkweed','commonmilkweed','showymilkweed',
+    'whorledmilkweed','greenmilkweed','antelopehorns','narrowleafmilkweed'];
+  const before=ART2.on;
+  try {for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of keys){
+      const L=PLANTS[key].look,saved=L.seedStyle;
+      const spring=nativePerennialTrace(key,'Spring'),fall=nativePerennialTrace(key,'Fall',1,0);
+      try {delete L.seedStyle;
+        assertEqual(nativePerennialTrace(key,'Spring'),spring,`${key}: no spring pods`);
+        assert(nativePerennialTrace(key,'Fall',1,0)!==fall,`${key}: seed season draws pods`);
+      } finally {L.seedStyle=saved;}
+      assert(nativePerennialTrace(key,'Winter')!==fall,`${key}: winter changes foliage and pod state`);
+    }
+  }} finally {ART2.on=before;}
+});
+
+test('nodding onion does not keep pendant bell flowers on dry seedheads', () => {
+  const before=ART2.on,drawBell=drawBulbBell;let bells=0;
+  try {
+    drawBulbBell=function(...args){bells++;return drawBell(...args);};
+    for(const mode of [false,true]){
+      ART2.on=mode;bells=0;nativePerennialTrace('noddingonion','Summer');assert(bells>0,'summer has hanging bells');
+      bells=0;nativePerennialTrace('noddingonion','Fall');assertEqual(bells,0,'autumn has capsules, not recoloured bells');
+    }
+  } finally {ART2.on=before;drawBulbBell=drawBell;}
+});
+
+test('milkweed winter opens follicles and anchors snow to their rotated tips', () => {
+  function podTrace(season){
+    const ops=[],anchors=[],ctx=new Proxy({}, {
+      get(o,p){if(p in o)return o[p];if(p==='createLinearGradient')return ()=>({addColorStop(){}});
+        return (...a)=>ops.push([p,...a]);},set(o,p,v){o[p]=v;return true;}
+    });
+    const L={pods:1,podLen:10,podCurve:0.7};
+    drawMilkweedPods(ctx,0,0,L,{seed:'#a18c6c'},season,1,anchors);
+    return {ops,anchors};
+  }
+  const fall=podTrace('Fall'),winter=podTrace('Winter');
+  assert(winter.ops.filter(o=>o[0]==='quadraticCurveTo').length>fall.ops.filter(o=>o[0]==='quadraticCurveTo').length,
+    'identical colours and geometry gain retained silk when a closed fall pod splits in winter');
+  assert(Math.abs(winter.anchors[0][0]-(2+Math.sin(0.7)*10))<1e-9,'snow follows the lateral rotation of the pod tip');
+  assert(Math.abs(winter.anchors[0][1]-(3-Math.cos(0.7)*10))<1e-9,'snow follows the actual pod tip height');
+});
+
+test('water blue flag keeps its placement type while sharing iris organs', () => {
+  assertEqual(PLANTS.waterblueflag.type,'water','water placement is preserved');
+  assertEqual(PLANTS.waterblueflag.form,'iris','blue flag uses the iris grammar');
+  setup();game.tool='waterblueflag';assertEqual(applyToolAt(15,15),null,'water iris refuses dry land');
+  setTile('terrain','15,15',{k:'water',c:'pond'});
+  assertEqual(applyToolAt(15,15),'plant','water iris still plants on water');
+});
+
+test('fine grass clouds batch their florets without losing the panicle silhouette', () => {
+  const before=ART2.on;ART2.on=true;
+  try {for(const [key,season] of [['pinkmuhly','Fall'],['lovegrass','Summer'],['tuftedhair','Summer']]){
+    const L=PLANTS[key].look,style=L.panicle;
+    const batched=JSON.parse(nativePerennialTrace(key,season));
+    try {L.panicle=true;
+      const individual=JSON.parse(nativePerennialTrace(key,season));
+      const count=(ops,method)=>ops.filter(o=>o[0]===method).length;
+      assert(count(batched,'fill')<count(individual,'fill')*0.7,`${key}: fine cloud does not pay one fill per speck`);
+      assertEqual(count(batched,'ellipse'),count(individual,'ellipse'),`${key}: every seed floret remains drawn`);
+    } finally {L.panicle=style;}
+  }} finally {ART2.on=before;}
+});
+
 test('new West Coast drawing options stay finite and deterministic in both renderers', () => {
   function trace(key,season){
     const ops=[],ctx=new Proxy({}, {
@@ -9242,7 +9387,7 @@ test('snow only falls on a plant that actually drew something', () => {
   // brown dead stems through it; a rule keyed on the season colours alone
   // stripped snow from 26 such species before this was narrowed to three forms.
   for (const form of ['cone','spike','umbel','globe','iris','airywand','archbell',
-                      'bunchgrass','shrub','forestgrass'])
+                      'bunchgrass','forestgrass'])
     assert(catchesSnow({form}, bare.Winter), `${form}: dead stems still catch snow`);
 
   // Woody forms put trunk and twigs on the tile in every season.

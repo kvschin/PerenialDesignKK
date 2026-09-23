@@ -4989,6 +4989,43 @@ Archbells can select `archStyle:'bleedingHeart'`, while spikes can select
 `rayShape:'poppy'` for four broad petals with basal marks. Omitted values
 preserve the defaults.
 
+**North American perennial morphology (0.9.12):** the seasonal shrub-form
+foliage pass requires `sea[season].fol`; its independent seed pass survives,
+and an empty shrub-form season catches no floating snow. For genuine seasonal
+dieback, `look.dormantWhenBare` suppresses all drawing when there is no foliage,
+seed, or active bloom, including the shadow and full-growth library/Established
+previews. Virginia bluebells use it with empty Summer/Fall/Winter slots; ordinary
+forbs retain their standing stems and establishment floor.
+
+Shared stemmed forms accept `leaves:0` to omit a basal fan, and opt into
+`stemLeafArrangement:'alternate'|'opposite'|'whorled'`, with `stemLeaves` naming
+nodes (capped at six), `stemLeafLen` and `stemLeafHW` sizing blades. Existing
+`stemLeaves` without an arrangement retains its previous meaning. Petiolate
+basal leaves use `leafStyle:'petiolate'`, `petioles`, `leafSpread`, `leafLen`,
+and `leafHW`; the shared leaf painter adds true `palmate` and `sagittate`
+outlines, with clefts that cannot be represented by a tapered ribbon.
+
+Umbels can use `umbelStyle:'milkweed'|'bracted'|'looseFlowers'|'whorls'`;
+milkweed seed seasons use `seedStyle:'milkweedPods'` with bounded pods and
+`podLen`/`podW`/`podCurve`, showing closed and opening follicles in Fall and
+split pods with retained silk in Winter. Bracted heads read `sea.bract` apart
+from flower colour. Spikes add `spikeStyle:'bellCyme'|'hooded'|'lobelia'|
+'curvedRaceme'` with bounded `florets`, `floretR`, `racemeSpan` or `cymeReach`.
+These architecture controls work in both visual styles. Allium heads also
+share their pedicel grammar in Classic; pendant bells are bloom-only and
+autumn heads carry capsules. Aster rays are likewise bloom-only. The water
+placement record of blue flag uses `form:'iris'` while retaining `type:'water'`.
+
+`look.topScale` now supplies headroom to every herbaceous sprite form as well
+as icon/library scaling; cloudgrass retains its measured panicle bound.
+Tray previews also respect authored `sideScale`, as library previews do, so
+the wider 'Fast Forward' muhly cloud fits without losing its outer branches.
+Fine cloudgrasses use `panicle:'mist'` to batch their subpixel florets into
+three depth tones in both styles, keeping the larger veil affordable to bake.
+The dev-only `dev/native-perennial-review.html` covers the changed species,
+cultivars, four seasons, two growth sizes, three seeds and both visual styles.
+Sources and authoring details are in `docs/plant-data/native-perennial-visuals.md`.
+
 Bulb morphology uses the same data-first rule. `bulbcup` selects
 `look.bulbStyle:'crocus'|'tulip'|'daffodil'|'snowdrop'|'snowflake'|'aconite'|
 'colchicum'` and optional `flowerStyle`, `pattern`, `flowersPerStem`, or
