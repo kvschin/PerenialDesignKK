@@ -5157,29 +5157,41 @@ test('the edge-style chips belong to the Ground tab, not to an armed tool', () =
   assertEqual(chips('leveling', 'raise'), 0, 'the Grade tab has no bed or path edge to style');
 });
 
-/* Hardscape mixes two tray idioms: fence, fire pit and boulder each collapse to
-   a summary button and hand the whole tray over to their own options, while
-   seating stays expanded at the top level. Seating had no drill guard, so its
-   nine chips hung off the bottom of whichever sub-page you had opened —
-   underneath the Back button that is supposed to be the way out of it. */
-test('opening a Hardscape sub-page leaves the seating behind', () => {
+/* Seating is a Hardscape tool like the others: one summary button that opens
+   its own page. It used to be the one section laid out flat — nine chips under
+   a heading, below the fence/fire pit/boulder summary buttons — which read as a
+   different kind of thing, and needed a guard so those nine chips did not hang
+   off the bottom of every other tool's sub-page. */
+test('seating opens its own Hardscape page, like every tool beside it', () => {
   setup(21, 21);
   const tray = document.getElementById('toolTray');
   // the sandbox's innerHTML is inert (docs/test-sandbox.md), so clear by hand
-  const seatChips = (drill) => {
+  const page = (drill) => {
     game.trayCat = 'structures'; game.traySearch = ''; game.drill = drill || null;
     tray.children.length = 0;
     buildToolTray();
-    return tray.children.filter(c => c.dataset && c.dataset.k === 'seat').length;
+    return tray.children.filter(c => c.dataset && c.dataset.k === 'seat');
   };
-  assertEqual(seatChips(null), SEAT_TYPES.length, 'the top level offers every seat');
-  assertEqual(seatChips('fence'), 0, 'the fence page is only fence');
-  assertEqual(seatChips('firepit'), 0, 'the fire pit page is only fire pit');
-  assertEqual(seatChips('boulder'), 0, 'the boulder page is only boulder');
-  assertEqual(seatChips(null), SEAT_TYPES.length, 'and Back brings them straight back');
+  const top = page(null);
+  assertEqual(top.length, 1, 'the top level offers ONE seating button, not every seat');
+  assert(/\bhas-sub\b/.test(top[0].className), 'and it is marked as opening a page, like Fence and Fire Pit');
+  assertEqual(page('fence').length, 0, 'the fence page is only fence');
+  assertEqual(page('firepit').length, 0, 'the fire pit page is only fire pit');
+  assertEqual(page('boulder').length, 0, 'the boulder page is only boulder');
+
+  game.seatDraft = { type: 'chair', finish: 'teak', face: 0 };
+  const own = page('seat');
+  assertEqual(own.filter(c => c.dataset.seatType).length, SEAT_TYPES.length, 'its own page offers every piece');
+  assertEqual(own.filter(c => c.dataset.seatFinish).map(c => c.dataset.seatFinish).join(','),
+    seatType('chair').finishes.join(','), 'and only the finishes the armed piece is made in, in its order');
+  assertEqual(own.filter(c => c.dataset.seatFace).length, 1, 'and one Turn chip');
+  assert(tray.children.some(c => /\btool-back\b/.test(c.className || '')), 'with the shared Back button');
+  assert(landscapeSearchItems('bench').some(i => i.tool === 'seat' && i.drill === 'seat'),
+    'a search result opens that page too');
 
   /* The one route that arms a seat from outside the tray has to land on the page
-     that shows it, or the guard above would hide what you just picked. */
+     that shows it — the fence's rule — or a stale sub-page would sit there
+     showing something else entirely. */
   game.seatDraft = { type: 'bench6', finish: 'teak', face: 0 };
   game.tool = 'seat'; applyToolAt(10, 10);
   assertEqual(Object.keys(game.seats).length, 1, 'a bench to pick');
@@ -5187,7 +5199,127 @@ test('opening a Hardscape sub-page leaves the seating behind', () => {
   pickAt(10, 10);
   assertEqual(game.tool, 'seat', 'picking the bench arms it');
   assertEqual(seatDraft().type, 'bench6', 'as the bench it actually is');
-  assertEqual(game.drill, null, 'and drops the stale sub-page that would hide it');
+  assertEqual(game.drill, 'seat', 'on the seating page, not the stale one');
+});
+
+/* A finish is a material a piece is really made in (the fire pit's rule): a
+   stone bench is a slab on plinths, and nobody makes a stone Adirondack. */
+test('a seat is offered only in the finishes it is made in, and snaps', () => {
+  setup(21, 21);
+  const ids = SEAT_FINISHES.map(f => f.id);
+  for (const t of SEAT_TYPES){
+    assert(t.finishes && t.finishes.length, t.id + ' names its finishes');
+    t.finishes.forEach(f => assert(ids.includes(f), `${t.id}: ${f} is a real finish`));
+  }
+  // a finish keeps its id for the gardens already saved with it
+  for (const id of ['teak', 'painted', 'black', 'stone']) assert(ids.includes(id), id + ' still resolves');
+  assertEqual(normalizeSeatDraft({ type: 'chair', finish: 'stone' }).finish, seatType('chair').finishes[0],
+    'a stone Adirondack snaps to the chair\'s own first finish');
+  assertEqual(normalizeSeatDraft({ type: 'chair', finish: 'painted' }).finish, 'painted',
+    'a finish the piece IS made in is kept');
+  assertEqual(normalizeSeatDraft({ type: 'bench4', finish: 'stone' }).finish, 'stone', 'a stone bench is real');
+  // the planting list bills the finish the garden draws, not the one on the record
+  game.tool = 'seat'; game.seatDraft = { type: 'bench4', finish: 'teak', face: 0 };
+  applyToolAt(4, 4);
+  setTile('seats', '10,10', { type: 'lounger', finish: 'stone', face: 0, t: 1 });
+  const rows = hardscapeRows().filter(r => r.kind === 'Seating' && /lounger/i.test(r.name));
+  assert(rows.length === 1, 'the lounger is billed');
+  assert(/teak/i.test(rows[0].name) && !/stone/i.test(rows[0].name), 'as the teak it is drawn in, not a stone lounger (' + rows[0].name + ')');
+});
+
+/* The painter reads no camera: the garden, the tray chip and the guidebook all
+   hand it a ground point and a pair of axes. And the chip is fitted to what it
+   draws — sized by inches, every seat chip was cropped and the lounger lost
+   both ends. */
+test('a seat is drawn inside its own extent, from a ground point', () => {
+  setup(21, 21);
+  for (const f of [drawSeatArt, seatSolids]){
+    const src = String(f);
+    for (const read of ['screenOf(', 'isoAxes(', 'cam.', 'game.rot'])
+      assert(!src.includes(read), f.name + ' does not read ' + read.replace('(', ''));
+  }
+  for (const t of SEAT_TYPES) for (const fin of t.finishes) for (let face = 0; face < 4; face++){
+    const d = { type: t.id, finish: fin, face };
+    const b = artBounds(c => drawSeatArt(c, 0, 0, d, 'Winter', ISO_AXES_FLAT)), e = seatArtExtent(d);
+    const slack = 0.51;
+    assert(b.x0 >= e.x0 - slack && b.x1 <= e.x1 + slack && b.y0 >= e.y0 - slack && b.y1 <= e.y1 + slack,
+      `${t.id}/${fin}/f${face}: drawn ${[b.x0, b.x1, b.y0, b.y1].map(Math.round)} inside ${[e.x0, e.x1, e.y0, e.y1].map(Math.round)}`);
+  }
+  const tray = readRepoFile('js/tray.js');
+  const page = tray.slice(tray.indexOf("if (cat.tools.includes('seat')){"), tray.indexOf("if (cat.tools.includes('pet')){"));
+  assert(page.length > 200, 'found the seating page source');
+  assert(/drawSeatChip\(/.test(page) && !/drawSeatArt\(/.test(page),
+    'every seating chip is fitted through drawSeatChip, never scaled by hand');
+});
+
+/* A piece is a list of solids put in depth order — a fixed painting order is
+   what drew a bench's back legs over its seat at the rotations nobody checked.
+   Every piece but the Adirondack has no cyclic overlap at all, so its order must
+   honour every "this before that" between solids that meet on screen. */
+test('seating paints its solids in depth order from every side', () => {
+  setup(21, 21);
+  const edgesOf = (L, D, g) => {
+    const out = [];
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++){
+      const a = L[i].sb, c = L[j].sb;
+      if (a[1] <= c[0] || c[1] <= a[0] || a[3] <= c[2] || c[3] <= a[2]) continue;
+      const o = solClip(L[i].hull, L[j].hull); if (solArea(o) < 0.05) continue;
+      out.push(solBefore(L[i], L[j], D, g, o) ? [i, j] : [j, i]);
+    }
+    return out;
+  };
+  /* The Adirondack is the exception, and a genuine one: seen from behind, six of
+     its members occlude each other in a ring (stringer under seat, seat under
+     the arm rail, rail under the arm, arm behind the back, back in front of its
+     cleat, cleat behind the stringer) and no order paints that right. solOrder
+     breaks it where the fewest pixels are wrong; this pins how few. */
+  let checked = 0, worstRing = 0;
+  for (const t of SEAT_TYPES){
+    for (const fin of t.finishes) for (let face = 0; face < 4; face++) for (let rot = 0; rot < 4; rot++){
+      const [ax, ay] = turnAxes(isoAxes(rot), face), P = fpProjector(0, 0, ax, ay), D = solViewDir(ax, ay);
+      const L = seatSolids({ type: t.id, finish: fin, face }).list;
+      L.forEach((s, i) => { s.i = i; solMeasure(P, s, D); });
+      const g = solGroundOf(P), pos = new Map(solOrder(L, D, g).map((s, k) => [s.i, k]));
+      let wrong = 0;
+      for (const [a, b] of edgesOf(L, D, g)){
+        checked++;
+        if (pos.get(a) < pos.get(b)) continue;
+        if (t.form !== 'adirondack'){ assert(false, `${t.id}/${fin} f${face} rot${rot}: solid ${a} before ${b}`); continue; }
+        wrong += solArea(solClip(L[a].hull, L[b].hull));
+      }
+      worstRing = Math.max(worstRing, wrong);
+    }
+  }
+  assert(checked > 1000, 'the check reached a real number of overlapping pairs (' + checked + ')');
+  assert(worstRing < 100, `the Adirondack's ring is broken where it costs least (${worstRing.toFixed(1)} px² at 1x)`);
+
+  /* When no face plane separates two solids — a low rail whose end pokes into a
+     tall raked post, the case the benches had — their CENTRES give the wrong
+     answer: the post's is far higher, so it would paint last, over the rail in
+     front of it. The view ray through their overlap gives the right one. */
+  {
+    const [ax, ay] = isoAxes(0), P = fpProjector(0, 0, ax, ay), D = solViewDir(ax, ay), g = solGroundOf(P);
+    const post = solBeam([0, 0, 0], [0, -6, 34], 2.4, 2.4, [1, 0, 0], '#888');
+    const rail = solBox(-0.6, 0.6, -0.2, 18, 4.8, 6.6, '#888');    // its end a fraction of an inch inside the post
+    [post, rail].forEach(s => solMeasure(P, s, D));
+    assert(!solSeparating(post, rail) && !solSeparating(rail, post), 'the two genuinely touch inside each other');
+    assert(post.depth > rail.depth, 'and the centres alone would paint the post last');
+    assert(solBefore(post, rail, D, g), 'but the post is painted first, behind the rail in front of it');
+  }
+
+  /* The Adirondack's back is FANNED, so no face plane separates a slat from the
+     long rails behind it, and comparing centres drew the rails across the front
+     of the back. Seen from the front, every slat covers the rails behind it. */
+  const [ax, ay] = turnAxes(isoAxes(0), 0), P = fpProjector(0, 0, ax, ay), D = solViewDir(ax, ay);
+  const L = seatSolids({ type: 'chair', finish: 'teak', face: 0 }).list;
+  L.forEach((s, i) => { s.i = i; solMeasure(P, s, D); });
+  const order = solOrder(L, D, solGroundOf(P)).map(s => s.i);
+  const slats = L.filter(s => !s.cyl && Math.max(...s.c.map(c => c[2])) > 32).map(s => s.i);
+  const rails = L.filter(s => !s.cyl && Math.min(...s.c.map(c => c[2])) >= 19 && Math.max(...s.c.map(c => c[2])) <= 31.5
+    && Math.max(...s.c.map(c => c[1])) < -8).map(s => s.i);
+  assert(slats.length === 5 && rails.length >= 2, `found the fan (${slats.length}) and the rails behind it (${rails.length})`);
+  for (const r of rails) for (const s of slats)
+    assert(order.indexOf(r) < order.indexOf(s), `rail ${r} is painted before slat ${s}`);
 });
 
 /* Every Hardscape pick has to land on the page that shows what it picked. Fire

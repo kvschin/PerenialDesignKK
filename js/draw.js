@@ -6460,6 +6460,27 @@ function drawPotArt(ctx,cx,cy,pot,season,axes){
   }
   ctx.restore();
 }
+/* ---------- seating ----------
+   Built the fire pit's way (§12g) and for its reason: every member is laid out
+   in the piece's OWN frame — u along its width, v along its depth with +v the
+   side you sit on, z up, all in real inches — and projected once through
+   fpProjector, so a board, a leg and a raked back all turn with the view and
+   stand at the scale a fence and a pot do.
+
+   It replaced a fixed painting order of isoBoxes, and the ORDER was the
+   problem: nothing sorted, so whichever part the code happened to draw last
+   won, and at the rotations nobody was looking at, a bench's back legs drew
+   over its seat and a lounger's back fell through its own deck. A piece is now
+   a LIST OF SOLIDS — boards, legs, rails, drums — each painting only the faces
+   that face the camera (so a solid never has to sort against itself), and the
+   list is put in depth order before anything is drawn (solOrder).
+
+   Nor is a chair a box of boards. What makes an Adirondack is a seat raked down
+   toward the back, a tall reclined FAN of slats and wide flat arms over the
+   front legs; what makes a lounger is a long low deck with its back propped up
+   at one end. Each builder in seatSolids is that construction at real size,
+   and each finish builds differently: timber in boards with grain, metal in
+   thin section, stone as a slab, a plinth or a drum. */
 function drawSeat(ctx,W,H,season,seat,x,y){
   if (!seat) return;
   const [cx,cy]=groundCenterRot(x,y,seatTileSize(seat),W,H);
@@ -6469,145 +6490,541 @@ function drawSeatArt(ctx,cx,cy,seat,season,axes){
   if (!seat) return;
   season=season||'Summer';
   const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,seat.face);
-  const t=seatType(seat.type), fin=seatFinish(seat.finish);
-  const hw=inchesToTiles(t.wIn)/2, hd=inchesToTiles(t.dIn)/2;
-  const sitH=feetToPx(18/12);                       // a seat is 18in off the ground
-  const fullH=feetToPx(t.hIn/12);
-  const deckH=feetToPx(30/12);                      // table height
-  const wood=fin.wood, dark=fin.dark, metal=fin.metal;
-  /* Every member is sized in REAL INCHES, not as a fraction of the piece. Sized
-     proportionally, a big object got fat members: the sun lounger's backrest
-     measured 24 inches thick and its legs 10 inches deep, which is why the
-     furniture read as stacked blocks rather than as boards. Same lesson as the
-     fence panels — a 6-inch board is 6 inches whatever it is bolted to. */
-  const inH=n=>inchesToTiles(n)/2;                  // half-extent, in tiles
-  const LEG=inH(1.6), BOARD=inH(1.0), SLAT=inH(3.4), TOP=inH(1.5);
-  const P=(u,v)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v];
-  const box=(u,v,lw,ld,y0,y1,col)=>{
-    const p=P(u,v);
-    isoBox(ctx,p[0],p[1],ax,ay,lw,ld,y1,col,shade(col,-30),shade(col,-14),y0);
-  };
-  /* A board that LEANS: the same box, but its top face is offset along its own
-     depth, so a back can rake and a lounger can recline. Nothing else in the
-     app tilts, and an Adirondack that does not lean back is just a chair. */
-  const rake=(u,v,lw,ld,y0,y1,dv,col)=>{
-    const a=P(u-lw,v-ld), b=P(u+lw,v-ld), c=P(u+lw,v+ld), d=P(u-lw,v+ld);
-    const o=P(u-lw,v-ld+dv);          // dv leans the top along the DEPTH
-    const shift=[o[0]-a[0],o[1]-a[1]];
-    const lo=p=>[p[0],p[1]-y0], hi=p=>[p[0]+shift[0],p[1]-y1+shift[1]];
-    const quad=(p1,p2,p3,p4,col2)=>{ ctx.fillStyle=col2; ctx.beginPath();
-      ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]);
-      ctx.lineTo(p3[0],p3[1]); ctx.lineTo(p4[0],p4[1]); ctx.closePath(); ctx.fill(); };
-    quad(lo(d),lo(c),hi(c),hi(d),shade(col,-14));
-    quad(lo(a),lo(d),hi(d),hi(a),shade(col,-30));
-    quad(hi(a),hi(b),hi(c),hi(d),col);
-  };
+  const P=fpProjector(cx,cy,ax,ay), built=seatSolids(seat);
+  const snow=!!(AMBIENCE[season]&&AMBIENCE[season].snow);
   ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
-  drawSoftShadow(ctx,cx,cy,Math.max(hw,hd)*Math.SQRT2*TILE_W/2*0.9,
-    Math.max(hw,hd)*Math.SQRT2*TILE_H/2*0.85,0.18);
-  const legs=(lw,ld,h,col)=>[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([u,v])=>
-    box(lw*u-LEG*u,ld*v-LEG*v,LEG,LEG,0,h,col||metal));
-  /* A seating surface is BOARDS with gaps, not one slab — the gaps are most of
-     what makes timber read as timber at this size. */
-  const boards=(u,v,lw,ld,y0,y1,col,along)=>{
-    const span=(along?ld:lw)*2, n=Math.max(2,Math.min(7,Math.round(span/(SLAT*2.5))));
-    for (let i=0;i<n;i++){
-      const f=(i+0.5)/n-0.5, off=(along?ld:lw)*2*f;
-      const c2=i%2?col:shade(col,-7);
-      if (along) box(u,v+off,lw,(ld*2/n)*0.40,y0,y1,c2);
-      else       box(u+off,v,(lw*2/n)*0.40,ld,y0,y1,c2);
-    }
+  solShadow(ctx,P,built.rect);
+  solPaint(ctx,P,ax,ay,built.list,snow);
+  ctx.restore();
+}
+/* How far the drawing reaches from its ground point on the flat axes at scale
+   1 — what a chip fits itself to — from the very solids the painter draws, so
+   a chip cannot crop a piece it was sized for. The old chip scaled by the
+   piece's size in INCHES, which is not how big it draws: every chip was
+   cropped and the lounger lost both ends. */
+function seatArtExtent(seat){
+  const d=normalizeSeatDraft(seat), [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face);
+  const P=fpProjector(0,0,ax,ay), b=seatSolids(d);
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  const take=p=>{ if (p[0]<x0)x0=p[0]; if (p[0]>x1)x1=p[0]; if (p[1]<y0)y0=p[1]; if (p[1]>y1)y1=p[1]; };
+  for (const s of b.list){
+    if (s.cyl){ for (const z of [s.z0,s.z1]) fpArc((u,v,zz)=>P(u+s.u,v+s.v,zz),s.r,0,Math.PI*2,z).forEach(take); }
+    else s.c.forEach(c=>take(P(c[0],c[1],c[2])));
+  }
+  const r=b.rect, e=SOL_SHADOW_REACH;
+  [[r[0]-e,r[2]-e],[r[1]+e,r[2]-e],[r[1]+e,r[3]+e],[r[0]-e,r[3]+e]].forEach(([u,v])=>take(P(u,v,0)));
+  return {x0,x1,y0,y1};
+}
+
+/* The pieces. Every number is inches in the piece's own frame; hu and hv are
+   its half width and half depth, the side you sit on is +v, and seat height
+   is the 17-18 in that outdoor seating is actually built at. */
+function seatSolids(seat){
+  const d=normalizeSeatDraft(seat), t=seatType(d.type), fin=seatFinish(d.finish);
+  const m=fin.mat, hw=fin.hw, L=[];
+  const W=t.wIn, Dp=t.dIn, H=t.hIn, hu=W/2, hv=Dp/2, thin=m==='metal';
+  let k=0;
+  /* A board's colour and grain come from its place in the build order, which is
+     the same at every rotation — so a board keeps its colour as the view turns,
+     the rule fpUnitRng keeps for a fire pit's stones. */
+  const tone=()=>{ const r=fpUnitRng(0x5ea7,k++,3), base=fin.tones[(r()*fin.tones.length)|0];
+    return shade(base,Math.round((r()-0.5)*(m==='wood'?12:m==='stone'?9:m==='paint'?4:2))); };
+  const deco=()=>{ const r=fpUnitRng(0x6a11,k,5), o={};
+    if (m==='wood'){ o.grain=fin.grain; o.gt=[0.2+r()*0.2,0.58+r()*0.22]; }
+    if (m==='stone'){ o.speck=9; o.seed=(0x51d0+k*7919)>>>0; }
+    // powder-coated metal catches the sky on anything facing up; without it a
+    // black bench is one flat silhouette, and on the dark tray it vanished
+    if (m==='metal') o.gloss=18;
+    return o; };
+  // an explicit colour is the table's metal pedestal or foot: no grain, a sheen
+  const look=col=>col?{gloss:14}:deco();
+  const box=(u0,u1,v0,v1,z0,z1,col)=>{ L.push(solBox(Math.min(u0,u1),Math.max(u0,u1),
+    Math.min(v0,v1),Math.max(v0,v1),z0,z1,col||tone(),look(col))); };
+  const beam=(a,b,w,th,side,col)=>{ L.push(solBeam(a,b,w,th,side,col||tone(),look(col))); };
+  const cyl=(u,v,r,z0,z1,col,o)=>{ L.push(solCyl(u,v,r,z0,z1,col||tone(),Object.assign(look(col),o))); };
+  // a run of `n`-ish boards of width `w` with `gap` between, filling lo..hi exactly
+  const run=(lo,hi,w,gap,fn)=>{
+    const n=Math.max(1,Math.round((hi-lo+gap)/(w+gap))), bw=(hi-lo-(n-1)*gap)/n;
+    for (let i=0;i<n;i++){ const a=lo+i*(bw+gap); fn(a,a+bw,i,n); }
   };
   switch (t.form){
-    case 'bench':
-      legs(hw*0.90,hd*0.72,sitH);
-      boards(0,0,hw,hd*0.80,sitH-BOARD*2,sitH,wood,true);
-      boards(0,-hd*0.80,hw,BOARD,sitH,fullH,wood,false);       // slatted back
+    case 'bench': {
+      if (m==='stone'){
+        // backless: a slab on two plinths is what a stone bench is
+        box(-hu,hu,-hv+0.5,hv-0.5,14.2,17.8);
+        for (const s of [-1,1]){
+          const uc=s*(hu-8.5);
+          box(uc-3.7,uc+3.7,-hv+2.2,hv-2.2,0,1.8);
+          box(uc-2.9,uc+2.9,-hv+3,hv-3,1.8,14.2);
+        }
+        break;
+      }
+      /* A slatted garden bench: two end frames — a back post raked back as it
+         rises, a front leg up to the arm, the arm, a seat rail and a low
+         stretcher — with the seat slats laid between them and a back of rails
+         and upright slats leaning with the posts. */
+      const seatZ=17.5, armZ=25, lg=thin?1.4:2.4, sl=thin?0.5:0.9;
+      const uL=hu-lg/2-0.5, fv=hv-lg/2-1.4, rv0=-hv+lg/2+2.4, rake=2.2;
+      const rv=z=>rv0-rake*z/H, uIn=uL-lg/2, up=[0,-rake,H];
+      for (const s of [-1,1]){
+        const u=s*uL;
+        beam([u,rv0,0],[u,rv(H-0.6),H-0.6],lg,lg,[1,0,0]);
+        box(u-lg/2,u+lg/2,fv-lg/2,fv+lg/2,0,armZ);
+        box(u-(thin?0.35:0.6),u+(thin?0.35:0.6),rv(4.8)+lg/2,fv-lg/2,4.8,thin?5.8:6.6);  // stretcher, butting the raked post at its foot
+        box(s*(uIn-(thin?0.7:1.3)),s*uIn,rv(seatZ)+lg/2,fv-lg/2,seatZ-(thin?1.8:3.8),seatZ-sl);
+        const aw=thin?2.2:3.8;
+        box(u-aw/2,u+aw/2,rv(armZ)+lg/2,hv+0.3,armZ,armZ+(thin?0.6:1.1));
+      }
+      box(-uIn,uIn,fv-0.55,fv+0.55,seatZ-(thin?1.8:3.8),seatZ-sl);                     // front rail
+      box(-uIn,uIn,rv(seatZ)-0.55,rv(seatZ)+0.55,seatZ-(thin?1.8:3.8),seatZ-sl);       // back rail
+      run(rv(seatZ)+lg/2+0.3,hv-0.4,thin?1.7:3.1,thin?0.55:0.5,
+        (v0,v1)=>box(-uIn,uIn,v0,v1,seatZ-sl,seatZ));
+      const zb=seatZ+4.2, zt=H-2.2;
+      beam([-uIn,rv(zb),zb],[uIn,rv(zb),zb],2.2,1.1,up);
+      beam([-uIn,rv(zt),zt],[uIn,rv(zt),zt],3.4,1.4,up);
+      const bw=thin?1.0:2.1, bg=thin?1.4:1.5;
+      run(-uIn+bg,uIn-bg,bw,bg,(a,b)=>{ const u=(a+b)/2;
+        beam([u,rv(zb+1.3),zb+1.3],[u,rv(zt-1.9),zt-1.9],b-a,thin?0.4:0.8,[1,0,0]); });
       break;
-    /* An Adirondack is a low RAKED seat under a tall fanned back, with wide
-       flat arms — that silhouette is the whole point of the chair. */
+    }
     case 'adirondack': {
-      const seatFront=feetToPx(13/12), seatBack=feetToPx(10/12);
-      legs(hw*0.84,hd*0.76,seatBack,dark);
-      rake(0,hd*0.06,hw*0.82,hd*0.62,seatBack,seatFront,0,wood);
-      // the fan: narrow slats, each a real board, splaying and shortening out
-      for (let i=0;i<6;i++){
-        const f=(i+0.5)/6-0.5, taper=1-Math.abs(f)*0.42;
-        box(hw*1.55*f, -hd*0.60 - hd*0.16*Math.abs(f),
-          SLAT*0.78, inH(0.9), seatBack, seatBack+(fullH-seatBack)*taper,
-          i%2?wood:shade(wood,-8));
+      /* The stringers are the back legs: a board each side running from the
+         front of the seat down to the ground behind, so the seat on them rakes
+         back about 17 degrees — the low, tipped-back sit that is half of what
+         makes the chair. */
+      const uS=12.6, sw=1.5, A=[15.4,11.4], B=[-13.2,2.8];     // stringer centre line, [v,z]
+      const slope=(A[1]-B[1])/(A[0]-B[0]), lift=2.75*Math.hypot(1,slope);
+      const seatTop=v=>A[1]+(v-A[0])*slope+lift;
+      const uO=uS+sw/2, vb=z=>-3.4-(z-8.4)*0.45;              // the back reclines ~24 degrees
+      for (const s of [-1,1]){
+        beam([s*uS,A[0],A[1]],[s*uS,B[0],B[1]],sw,5.5,[1,0,0]);
+        const uF=s*(uO+0.75);
+        box(uF-0.75,uF+0.75,9.6,15.1,0,21.2);                  // front leg
+        box(s*(uO+1.5),s*(uO+2.9),11,14.8,17.2,21.2);          // bracket under the arm
       }
-      [-1,1].forEach(u=>box(hw*0.86*u,hd*0.02,inH(5),hd*0.56,
-        seatFront+feetToPx(4/12),seatFront+feetToPx(4/12)+BOARD*2,shade(wood,8)));
-      break;
-    }
-    case 'chair':                                             // a plain dining chair
-      legs(hw*0.86,hd*0.82,sitH);
-      boards(0,0,hw*0.92,hd*0.86,sitH-BOARD*2,sitH,wood,true);
-      boards(0,-hd*0.82,hw*0.92,inH(0.9),sitH,fullH,wood,false);
-      break;
-    case 'stool':
-      legs(hw*0.76,hd*0.76,sitH);
-      boards(0,0,hw*0.88,hd*0.88,sitH-BOARD*2,sitH,wood,true);
-      break;
-    /* A lounger is a long, low, RECLINED deck: flat from the foot to about
-       two-thirds, then a raked back. */
-    case 'lounger': {
-      const deck=feetToPx(14/12);
-      legs(hw*0.78,hd*0.86,deck);
-      boards(0,hd*0.22,hw*0.88,hd*0.72,deck-BOARD*2,deck,wood,false);
-      /* The back starts ON the far end of the deck and LEANS away, which is
-         the whole difference between a lounger and a bench: standing it
-         upright and clear of the deck left a panel hovering behind it. */
-      rake(0,-hd*0.44,hw*0.88,inH(1.8),deck,fullH,-hd*0.26,wood);
+      box(-uO,uO,16.25,17,9,seatTop(15.4));                    // the apron across the front
+      // the rails behind the back: the feet of the slats, the arms' rest, a cleat up top
+      const behind=(zTop,depth)=>{ const v1=vb(zTop)-0.5; return [v1-depth,v1]; };
+      const [c0,c1]=behind(10.6,1.4), [r0,r1]=behind(21.2,1.5), [q0,q1]=behind(31.2,1.3);
+      box(-(uS-sw/2),uS-sw/2,c0,c1,7.8,10.6);
+      box(-16.2,16.2,r0,r1,19.4,21.2);
+      box(-11.4,11.4,q0,q1,29.4,31.2);
+      for (const s of [-1,1]) box(s*10.8,s*16.2,r0,hv,21.2,22.2);   // the wide flat arms
+      /* The fan: five broad slats reclined with the back, narrow enough at the
+         arms to pass between them and splaying above, the middle one tallest —
+         which is the silhouette anyone would draw for this chair. */
       for (let i=0;i<5;i++){
-        const f=(i+0.5)/5-0.5;
-        rake(hw*1.62*f,-hd*0.44,SLAT*0.60,inH(1.2),deck+BOARD,fullH+0.5,-hd*0.26,
-          i%2?shade(wood,9):shade(wood,-6));
+        const f=(i-2)/2, z1=H-4.5*f*f;
+        beam([f*7.4,vb(8.6),8.6],[f*10.8,vb(z1),z1],3.1,0.8,[1,0,0]);
       }
+      run(-3.2,16.9,2.9,0.45,(v0,v1)=>{ const z0=seatTop(Math.min(v1,A[0]));
+        box(-uO,uO,v0,v1,z0,z0+0.8); });
       break;
     }
-    case 'bistro': {                                          // the TABLE only
-      const tr=hw*0.94;
-      box(0,0,inH(2.2),inH(2.2),0,deckH,metal);               // pedestal
-      box(0,0,tr*0.58,tr*0.58,0,BOARD,metal);                 // foot plate
-      const erx=tr*Math.SQRT2*TILE_W/2, ery=tr*Math.SQRT2*TILE_H/2;
-      ctx.fillStyle=shade(wood,-26);
-      ctx.beginPath(); ctx.ellipse(cx,cy-deckH+TOP*TILE_H,erx,ery,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle=wood;
-      ctx.beginPath(); ctx.ellipse(cx,cy-deckH,erx,ery,0,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle=dark; ctx.lineWidth=1.2; ctx.stroke();
+    case 'chair': {
+      const seatZ=17.5, lg=thin?1.2:1.7, sl=thin?0.5:0.8;
+      const uL=hu-lg/2-0.2, fv=hv-lg/2-0.3, rv0=-hv+lg/2+1.4, rake=1.6;
+      const rv=z=>rv0-rake*z/H, uIn=uL-lg/2, up=[0,-rake,H];
+      for (const s of [-1,1]){
+        const u=s*uL;
+        box(u-lg/2,u+lg/2,fv-lg/2,fv+lg/2,0,seatZ-sl);                         // front leg
+        beam([u,rv0,0],[u,rv(H-0.4),H-0.4],lg,lg,[1,0,0]);                      // back leg and post in one
+        box(s*(uIn-(thin?0.5:0.9)),s*uIn,rv(seatZ)+lg/2,fv-lg/2,seatZ-(thin?1.6:3.2),seatZ-sl);
+        box(u-0.4,u+0.4,rv(5.2)+lg/2,fv-lg/2,5.2,6.2);                          // stretcher
+      }
+      box(-uIn,uIn,fv-0.5,fv+0.5,seatZ-(thin?1.6:3.2),seatZ-sl);
+      /* The slats run the full width, over the front legs — except a slat
+         alongside the back posts, which stops between them the way a real
+         seat is notched round its posts. Run past them, it sat half in front
+         of and half beside a post, and no painting order can show both. */
+      run(rv(seatZ)+lg/2+0.2,hv-0.1,thin?1.5:3.6,thin?0.5:0.45,(v0,v1)=>{
+        const w=v0<rv0+lg/2+0.1 ? uIn : uL+lg/2;
+        box(-w,w,v0,v1,seatZ-sl,seatZ); });
+      // a back of horizontal slats under a deeper top rail
+      const slats=thin?[21.6,24.4,27.2,30]:[22.4,26.8];
+      for (const z of slats) beam([-uIn,rv(z),z],[uIn,rv(z),z],thin?1.4:2.6,thin?0.4:0.8,up);
+      beam([-uIn,rv(H-2.2),H-2.2],[uIn,rv(H-2.2),H-2.2],3.4,1.1,up);
+      break;
+    }
+    case 'stool': {
+      if (m==='stone'){
+        // a glazed or cast garden stool is a drum
+        cyl(0,0,6.4,0,0.7); cyl(0,0,7.1,0.7,17.1); cyl(0,0,7.6,17.1,18);
+        break;
+      }
+      const lg=thin?1.0:1.5, a0=hu-lg/2-0.5, a1=hu-lg/2-1.7, tz=16.9;
+      const at=z=>a0-(a0-a1)*z/tz;                             // the legs splay out to the foot
+      for (const [i,j] of [[-1,-1],[1,-1],[1,1],[-1,1]]) beam([i*a0,j*a0,0],[i*a1,j*a1,tz],lg,lg,[1,0,0]);
+      const ai=a1-lg/2, si=at(5.8)-lg/2;
+      for (const s of [-1,1]){
+        box(-ai,ai,s*a1-0.45,s*a1+0.45,tz-2.6,tz); box(s*a1-0.45,s*a1+0.45,-ai,ai,tz-2.6,tz);
+        box(s*at(5.8)-0.4,s*at(5.8)+0.4,-si,si,5.2,6.4);
+      }
+      run(-hv,hv,thin?1.6:4.6,thin?0.5:0.45,(v0,v1)=>box(-hu,hu,v0,v1,tz,tz+(thin?0.6:1.0)));
+      break;
+    }
+    case 'bistro': {
+      // a round top on a pedestal and a cross foot, the pedestal and foot in metal
+      const tz=29, th=m==='stone'?1.6:m==='metal'?0.5:1.1, apron=m==='wood'||m==='paint';
+      box(-9.5,9.5,-0.9,0.9,0,1.2,hw); box(-0.9,0.9,-9.5,9.5,0,1.2,hw);
+      cyl(0,0,thin?1.0:1.3,1.2,apron?tz-2.4:tz,hw);
+      if (apron) cyl(0,0,hu-2.4,tz-2.4,tz);
+      cyl(0,0,hu,tz,tz+th,null,{top:apron?'slats':m==='metal'?'ring':null});
+      break;
+    }
+    case 'dining': {
+      if (m==='stone'){
+        box(-hu,hu,-hv,hv,27.6,30);
+        for (const s of [-1,1]){ const uc=s*(hu-11);
+          box(uc-3.4,uc+3.4,-hv+5,hv-5,0,1.6); box(uc-2.4,uc+2.4,-hv+6.2,hv-6.2,1.6,27.6); }
+        break;
+      }
+      const lg=thin?1.6:2.8, tz=thin?29.2:28.6, ah=thin?1.6:3.6;
+      const ul=hu-lg/2-3, vl=hv-lg/2-3;
+      for (const [i,j] of [[-1,-1],[1,-1],[1,1],[-1,1]]) box(i*ul-lg/2,i*ul+lg/2,j*vl-lg/2,j*vl+lg/2,0,tz);
+      for (const s of [-1,1]){
+        box(-ul+lg/2,ul-lg/2,s*vl-0.5,s*vl+0.5,tz-ah,tz);
+        box(s*ul-0.5,s*ul+0.5,-vl+lg/2,vl-lg/2,tz-ah,tz);
+      }
+      run(-hv,hv,thin?2.4:5.6,thin?0.5:0.35,(v0,v1)=>box(-hu,hu,v0,v1,tz,30));
       break;
     }
     case 'picnic': {
-      /* The benches ARE the table here, so this one form has to sort against
-         itself: the far bench before the table, the near bench after. */
-      const far=P(0,-hd*0.70), near=P(0,hd*0.70);
-      const bench=v=>{
-        [-1,1].forEach(u=>box(hw*0.50*u,hd*0.70*v,LEG,LEG,0,sitH-BOARD*2,metal));
-        box(0,hd*0.70*v,hw*0.64,inH(5.5),sitH-BOARD*2,sitH,wood);
-      };
-      const farFirst = far[1] <= near[1];
-      bench(farFirst?-1:1);
-      legs(hw*0.56,hd*0.24,deckH);
-      box(0,0,hw*0.66,hd*0.28,deckH-TOP*2,deckH,wood);       // a solid top
-      for (let i=1;i<5;i++){                                  // plank seams
-        box(hw*1.32*(i/5-0.5),0,inH(0.5),hd*0.28,deckH-BOARD,deckH+0.3,shade(wood,-16));
+      if (m==='stone'){
+        // cast concrete: slabs on piers
+        box(-hu,hu,-14,14,27,30);
+        for (const j of [-1,1]) box(-hu,hu,j*19.5,j*29.5,15,18);
+        for (const s of [-1,1]){ const u=s*(hu-9);
+          box(u-2.2,u+2.2,-9,9,0,27);
+          for (const j of [-1,1]) box(u-2.2,u+2.2,j*21,j*28,0,15); }
+        break;
       }
-      bench(farFirst?1:-1);
+      /* The one form that carries its own benches, because they are bolted to
+         it: A-frame legs at each end, a cleat under the top and a longer one
+         under both seats, all set in from the ends. */
+      const tz=28.4, sz=16.4;
+      for (const s of [-1,1]){
+        const u=s*(hu-8);
+        for (const j of [-1,1]) beam([u,j*4.2,tz-1.5],[u,j*25.6,1.2],1.5,3.5,[1,0,0]);
+        box(u+s*0.75,u+s*2.25,-13.6,13.6,tz-2,tz);
+        box(u+s*0.75,u+s*2.25,-29.4,29.4,sz-1.8,sz);
+      }
+      run(-14.2,14.2,5.3,0.45,(v0,v1)=>box(-hu,hu,v0,v1,tz,tz+1.5));
+      for (const j of [-1,1]) run(19.6,29.4,4.7,0.4,(a,b)=>box(-hu,hu,j*a,j*b,sz,sz+1.5));
       break;
     }
-    default:                                                  // dining TABLE only
-      legs(hw*0.84,hd*0.76,deckH);
-      box(0,0,hw*0.90,hd*0.82,deckH-TOP*2,deckH,wood);
+    case 'lounger': {
+      /* A long low deck on two side rails, and at the head a back on its own
+         two stiles, hinged where the deck ends and propped up behind. The head
+         is -v. */
+      const rw=thin?1.0:1.5, rh=thin?2.4:3.4, rz=11.2, lg=thin?1.3:2.0;
+      const sw=thin?2.2:3.1, gap=thin?0.7:0.8, st=thin?0.5:0.8;
+      for (const s of [-1,1]){
+        const u=s*(hu-rw/2);
+        box(u-rw/2,u+rw/2,-hv+1,hv-0.5,rz-rh,rz);
+        for (const v of [hv-3.2,-hv+4.5]) box(u-lg/2,u+lg/2,v-lg/2,v+lg/2,0,rz-rh);
+      }
+      for (const v of [hv-3.2,4,-hv+4.5]) box(-hu+rw,hu-rw,v-0.8,v+0.8,rz-rh+0.4,rz-0.6);
+      const vHinge=-7;
+      run(vHinge,hv-0.8,sw,gap,(v0,v1)=>box(-hu+0.2,hu-0.2,v0,v1,rz,rz+st));
+      // the back: along e from the hinge to the head, its face turned toward n
+      const h0=[vHinge-0.4,rz+1.2], h1=[-hv+1.6,H-1.4];
+      const Lb=Math.hypot(h1[0]-h0[0],h1[1]-h0[1]), ev=(h1[0]-h0[0])/Lb, ez=(h1[1]-h0[1])/Lb;
+      const nv=ez, nz=-ev, sT=rh-1;                           // n faces the side you lean on
+      const at=(p,off)=>[h0[0]+ev*p+nv*off, h0[1]+ez*p+nz*off];
+      for (const s of [-1,1]){
+        const u=s*(hu-rw/2), a=at(0,0), b=at(Lb,0);
+        beam([u,a[0],a[1]],[u,b[0],b[1]],rw,sT,[1,0,0]);
+        // the prop, from the underside of the back down to a notch in the rail
+        const p=at(Lb*0.58,-sT/2), u2=s*(hu-rw-0.6);
+        beam([u2,p[0],p[1]],[u2,vHinge-15,rz],0.9,1.2,[0,1,0]);
+      }
+      run(0.6,Lb-0.4,sw,gap,(a,b)=>{ const c=at((a+b)/2,sT/2+st/2);
+        beam([-hu+0.2,c[0],c[1]],[hu-0.2,c[0],c[1]],b-a,st,[0,ev,ez]); });
       break;
+    }
   }
-  if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.72)'; ctx.lineWidth=2.4;
-    const a2=P(-hw*0.8,0), b2=P(hw*0.8,0);
-    ctx.beginPath(); ctx.moveTo(a2[0],a2[1]-sitH-2); ctx.lineTo(b2[0],b2[1]-sitH-2); ctx.stroke();
+  return {list:L, rect:[-hu,hu,-hv,hv]};
+}
+
+/* ---- solids: seating's drawing primitive ----
+   A solid is a hexahedron given by its eight corners (bottom ring, then top
+   ring, each in the same order round the footprint), or an upright drum. */
+const SOL_FACES=[[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+const SOL_SHADOW_REACH=3;                  // inches the soft shadow spreads past the footprint
+function solHex(c,col,o){ return Object.assign({c,col},o); }
+function solBox(u0,u1,v0,v1,z0,z1,col,o){
+  return solHex([[u0,v0,z0],[u1,v0,z0],[u1,v1,z0],[u0,v1,z0],
+                 [u0,v0,z1],[u1,v0,z1],[u1,v1,z1],[u0,v1,z1]],col,o);
+}
+/* A member whose centreline runs a->b, `w` across it toward `side` and `t`
+   through it. A raked back slat, a sloped Adirondack stringer and a reclined
+   lounger slat are each one of these; a box is only the case that happens to
+   line up with the frame. */
+function solBeam(a,b,w,t,side,col,o){
+  let d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+  const L=Math.hypot(d[0],d[1],d[2])||1; d=d.map(x=>x/L);
+  const k=side[0]*d[0]+side[1]*d[1]+side[2]*d[2];
+  let s=[side[0]-d[0]*k,side[1]-d[1]*k,side[2]-d[2]*k];
+  const m=Math.hypot(s[0],s[1],s[2])||1; s=s.map(x=>x/m);
+  const n=[d[1]*s[2]-d[2]*s[1],d[2]*s[0]-d[0]*s[2],d[0]*s[1]-d[1]*s[0]];
+  const ring=p=>[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>
+    [p[0]+s[0]*w/2*i+n[0]*t/2*j, p[1]+s[1]*w/2*i+n[1]*t/2*j, p[2]+s[2]*w/2*i+n[2]*t/2*j]);
+  return solHex(ring(a).concat(ring(b)),col,o);
+}
+function solCyl(u,v,r,z0,z1,col,o){ return Object.assign({cyl:true,u,v,r,z0,z1,col},o); }
+/* Toward the camera, in a piece's own frame: the one direction the projection
+   flattens to a point. A face is visible exactly when its outward normal has a
+   positive component along it, and it is what makes one side of a pair the
+   near side. */
+function solViewDir(ax,ay){
+  let du=ay[0], dv=-ax[0], dz=(ax[1]*ay[0]-ay[1]*ax[0])/TILE_IN/FP_Z;
+  if (dz<0){ du=-du; dv=-dv; dz=-dz; }
+  const m=Math.hypot(du,dv,dz)||1;
+  return [du/m,dv/m,dz/m];
+}
+// corners, outward face planes, centre, depth and screen box, once per paint
+function solMeasure(P,s,D){
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  if (s.cyl){
+    // for ordering, a drum is the octagonal prism around it
+    const R=s.r/Math.cos(Math.PI/8);
+    s.verts=[]; s.planes=[{n:[0,0,1],d:s.z1},{n:[0,0,-1],d:-s.z0}];
+    for (let i=0;i<8;i++){
+      const a=(i+0.5)*Math.PI/4, b=i*Math.PI/4, n=[Math.cos(b),Math.sin(b),0];
+      for (const z of [s.z0,s.z1]) s.verts.push([s.u+R*Math.cos(a),s.v+R*Math.sin(a),z]);
+      s.planes.push({n,d:n[0]*s.u+n[1]*s.v+s.r});
+    }
+    s.ctr=[s.u,s.v,(s.z0+s.z1)/2];
+  } else {
+    const c=s.c; s.verts=c;
+    s.ctr=[0,0,0]; for (const p of c) for (let i=0;i<3;i++) s.ctr[i]+=p[i]/8;
+    s.planes=[]; s.faces=[]; let big=0;
+    for (const f of SOL_FACES){
+      const a=c[f[0]], b=c[f[1]], e=c[f[2]], g=c[f[3]];
+      const d1=[e[0]-a[0],e[1]-a[1],e[2]-a[2]], d2=[g[0]-b[0],g[1]-b[1],g[2]-b[2]];
+      let n=[d1[1]*d2[2]-d1[2]*d2[1],d1[2]*d2[0]-d1[0]*d2[2],d1[0]*d2[1]-d1[1]*d2[0]];
+      const m=Math.hypot(n[0],n[1],n[2]); if (m<1e-9) continue;
+      n=n.map(x=>x/m);
+      const fc=[(a[0]+b[0]+e[0]+g[0])/4-s.ctr[0],(a[1]+b[1]+e[1]+g[1])/4-s.ctr[1],(a[2]+b[2]+e[2]+g[2])/4-s.ctr[2]];
+      if (dot(n,fc)<0) n=n.map(x=>-x);
+      s.planes.push({n,d:dot(n,a)});
+      s.faces.push({f,n,area:m/2}); if (m/2>big) big=m/2;
+    }
+    s.big=big;
   }
-  ctx.restore();
+  s.pts=s.verts.map(p=>P(p[0],p[1],p[2]));
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const p of s.pts){ if (p[0]<x0)x0=p[0]; if (p[0]>x1)x1=p[0]; if (p[1]<y0)y0=p[1]; if (p[1]>y1)y1=p[1]; }
+  s.sb=[x0,x1,y0,y1];
+  s.hull=solHull(s.pts);
+  s.depth=dot(s.ctr,D);
+}
+/* A face plane of A with all of B on its outside, or null. Touching counts as
+   outside, because a slat lying on a rail is exactly that. */
+function solSeparating(A,B){
+  for (const p of A.planes){
+    let out=true;
+    for (const v of B.verts) if (p.n[0]*v[0]+p.n[1]*v[1]+p.n[2]*v[2]<p.d-0.05){ out=false; break; }
+    if (out) return p.n;
+  }
+  return null;
+}
+/* A must be painted before B. If a face of one has the whole of the other on
+   its far side, that face decides it: B beyond a face of A that looks toward
+   the camera is nearer, so A goes first. Ordering by centres alone is what put
+   a stringer's top over the seat slat lying on it.
+   No face plane separates two solids that touch INSIDE each other — a low
+   stretcher whose end is a fraction of an inch into a raked post — and there
+   the centres give the wrong answer: the post's is far higher, so it would
+   paint last, over the stretcher in front of it. So the next test is exact:
+   take a point where the two outlines overlap on screen, follow the view ray
+   through it, and whichever solid it reaches nearer the camera is painted
+   after. Measured over every piece, finish, facing and rotation, the planes
+   decide ~46,500 pairs and the ray ~420, and it overrules the centres in 80 —
+   every one an Adirondack arm against the outer slat of the fan passing just
+   inside it, which leans sideways so no face of either separates them. */
+function solBefore(A,B,D,toGround,o){
+  let n=solSeparating(A,B); if (n) return n[0]*D[0]+n[1]*D[1]+n[2]*D[2]>0;
+  n=solSeparating(B,A);     if (n) return !(n[0]*D[0]+n[1]*D[1]+n[2]*D[2]>0);
+  o=o||solClip(A.hull,B.hull);
+  if (o.length>=3 && toGround){
+    let sx=0, sy=0; for (const p of o){ sx+=p[0]; sy+=p[1]; }
+    const X=toGround(sx/o.length,sy/o.length), ta=solNearest(A,X,D), tb=solNearest(B,X,D);
+    if (isFinite(ta) && isFinite(tb) && Math.abs(ta-tb)>1e-6) return ta<tb;
+  }
+  return A.depth<B.depth;
+}
+/* How far along the view ray X + tD the solid's camera-facing surface lies: the
+   ray leaves a convex solid through the nearest plane that faces the camera. */
+function solNearest(s,X,D){
+  let t=Infinity;
+  for (const p of s.planes){
+    const nd=p.n[0]*D[0]+p.n[1]*D[1]+p.n[2]*D[2];
+    if (nd>1e-9) t=Math.min(t,(p.d-(p.n[0]*X[0]+p.n[1]*X[1]+p.n[2]*X[2]))/nd);
+  }
+  return t;
+}
+// the convex outline of a solid on screen (monotone chain)
+function solHull(pts){
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lo=[], hi=[];
+  for (const q of p){ while (lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0) lo.pop(); lo.push(q); }
+  for (let i=p.length-1;i>=0;i--){ const q=p[i];
+    while (hi.length>1&&cr(hi[hi.length-2],hi[hi.length-1],q)<=0) hi.pop(); hi.push(q); }
+  return lo.slice(0,-1).concat(hi.slice(0,-1));
+}
+function solArea(o){
+  let a=0; for (let i=0;i<o.length;i++){ const p=o[i], q=o[(i+1)%o.length]; a+=p[0]*q[1]-q[0]*p[1]; }
+  return Math.abs(a)/2;
+}
+// one convex outline clipped by another (Sutherland-Hodgman; both from solHull, so both anticlockwise in y-up terms)
+function solClip(poly,clip){
+  let out=poly;
+  for (let i=0;i<clip.length && out.length;i++){
+    const a=clip[i], b=clip[(i+1)%clip.length], inp=out; out=[];
+    const side=p=>(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]);
+    for (let j=0;j<inp.length;j++){
+      const p=inp[j], q=inp[(j+1)%inp.length], sp=side(p), sq=side(q);
+      if (sp>=0) out.push(p);
+      if ((sp>=0)!==(sq>=0)){ const t=sp/(sp-sq); out.push([p[0]+(q[0]-p[0])*t, p[1]+(q[1]-p[1])*t]); }
+    }
+  }
+  return out;
+}
+/* Depth order as a topological sort of "A before B", taken only between
+   solids whose OUTLINES overlap on screen — a comparison sort cannot do this,
+   since "before" means nothing between solids that never meet on screen. And it
+   has to be the outlines, not their boxes: a bracket beside a stringer is both
+   above its top face and beyond its side, and for two solids that do not
+   actually overlap those two planes can disagree. Edges like that closed false
+   cycles through the whole back of the Adirondack, and breaking them is what
+   drew its rails across the front of the fan. Ties go to the farther centre.
+   What is left after that is a GENUINE cycle — convex pieces can occlude each
+   other in a ring, and an Adirondack does: stringer under seat, seat under the
+   arm rail, rail under the arm, arm behind the back, back in front of its
+   cleat, cleat behind the stringer. No order paints that right, so it is broken
+   where it costs the fewest pixels: the piece whose unmet "paint me after"
+   overlaps are smallest goes next. */
+function solOrder(list,D,toGround){
+  const n=list.length, next=list.map(()=>[]), indeg=new Array(n).fill(0), inW=new Array(n).fill(0);
+  for (let i=0;i<n;i++) for (let j=i+1;j<n;j++){
+    const a=list[i].sb, b=list[j].sb;
+    if (a[1]<=b[0]||b[1]<=a[0]||a[3]<=b[2]||b[3]<=a[2]) continue;
+    const o=solClip(list[i].hull,list[j].hull), w=solArea(o);
+    if (w<0.05) continue;                          // touching at most
+    if (solBefore(list[i],list[j],D,toGround,o)){ next[i].push([j,w]); indeg[j]++; inW[j]+=w; }
+    else { next[j].push([i,w]); indeg[i]++; inW[i]+=w; }
+  }
+  const out=[], done=new Uint8Array(n);
+  while (out.length<n){
+    let best=-1;
+    for (let i=0;i<n;i++) if (!done[i]&&!indeg[i]&&(best<0||list[i].depth<list[best].depth)) best=i;
+    if (best<0) for (let i=0;i<n;i++) if (!done[i]&&(best<0||inW[i]<inW[best])) best=i;
+    done[best]=1; out.push(list[best]);
+    for (const [j,w] of next[best]){ indeg[j]--; inW[j]-=w; }
+  }
+  return out;
+}
+/* The light every solid in the app is drawn under (fpLight, isoBox): tops
+   brightest, the face toward the lower left next, the right-hand face darkest.
+   A raked face falls between, which is what makes a reclined back read as
+   reclined rather than as a board stood up. */
+function solShade(ax,ay,n){
+  const h=Math.hypot(n[0],n[1]);
+  const lt=h>1e-6?fpLight(ax,ay,n[0]/h,n[1]/h):0;
+  return Math.round(10*n[2]+h*(-21+16*lt));
+}
+function solPaint(ctx,P,ax,ay,list,snow){
+  const D=solViewDir(ax,ay);
+  for (const s of list) solMeasure(P,s,D);
+  for (const s of solOrder(list,D,solGroundOf(P))){
+    if (s.cyl) solDrawCyl(ctx,P,ax,ay,D,s,snow);
+    else solDrawHex(ctx,ax,ay,D,s,snow);
+  }
+}
+/* The ground point under a screen point: P inverted at z=0. Any point on the
+   view ray serves as its origin, and this is the one that is easy to find. */
+function solGroundOf(P){
+  const O=P(0,0,0), U=P(1,0,0), V=P(0,1,0);
+  const a=U[0]-O[0], b=V[0]-O[0], c=U[1]-O[1], d=V[1]-O[1], det=a*d-b*c;
+  return (x,y)=>{ const dx=x-O[0], dy=y-O[1]; return [(d*dx-b*dy)/det,(a*dy-c*dx)/det,0]; };
+}
+const SOL_SNOW='rgba(242,245,249,0.84)';
+function solDrawHex(ctx,ax,ay,D,s,snow){
+  for (const fc of s.faces){
+    const n=fc.n;
+    if (n[0]*D[0]+n[1]*D[1]+n[2]*D[2]<=1e-4) continue;          // faces away
+    const q=fc.f.map(i=>s.pts[i]);
+    ctx.fillStyle=shade(s.col,solShade(ax,ay,n)+(s.gloss?Math.round(s.gloss*Math.max(0,n[2])):0));
+    fpPoly(ctx,q); ctx.fill();
+    if (s.grain && fc.area>=s.big*0.55) solGrain(ctx,q,s);
+    if (s.speck && n[2]>0.5) solSpeck(ctx,q,s);
+    if (snow && n[2]>0.55){ ctx.fillStyle=SOL_SNOW; fpPoly(ctx,q); ctx.fill(); }
+  }
+}
+/* A drum, lit in bands round its visible half — flat fills rather than a
+   gradient, so the side reads as round under the same light as everything
+   else in the piece. */
+function solDrawCyl(ctx,P,ax,ay,D,s,snow){
+  const Pc=(u,v,z)=>P(u+s.u,v+s.v,z), f=Math.atan2(D[1],D[0]), N=8;
+  if (s.z1-s.z0>0.05) for (let i=0;i<N;i++){
+    const a=f-Math.PI/2+Math.PI*i/N, b=a+Math.PI/N+0.004, mid=(a+b)/2;
+    const pts=fpArc(Pc,s.r,a,b,s.z1); fpArc(Pc,s.r,b,a,s.z0,pts);
+    ctx.fillStyle=shade(s.col,solShade(ax,ay,[Math.cos(mid),Math.sin(mid),0]));
+    fpPoly(ctx,pts); ctx.fill();
+  }
+  const top=fpArc(Pc,s.r,0,Math.PI*2,s.z1);
+  ctx.fillStyle=shade(s.col,10+(s.gloss||0)); fpPoly(ctx,top); ctx.fill();
+  if (s.top==='slats' || s.top==='ring'){
+    ctx.save(); fpPoly(ctx,top); ctx.clip();
+    ctx.strokeStyle='rgba(40,28,18,0.30)'; ctx.lineWidth=0.7; ctx.beginPath();
+    if (s.top==='slats') for (let i=1;i<5;i++){
+      // each seam is its real chord across the round top
+      const v=-s.r+2*s.r*i/5, h=Math.sqrt(Math.max(0,s.r*s.r-v*v)), a=Pc(-h,v,s.z1), b=Pc(h,v,s.z1);
+      ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+    } else { const r=fpArc(Pc,s.r*0.82,0,Math.PI*2,s.z1);
+      ctx.moveTo(r[0][0],r[0][1]); for (const p of r) ctx.lineTo(p[0],p[1]); }
+    ctx.stroke(); ctx.restore();
+  }
+  if (s.speck) solSpeck(ctx,[Pc(-s.r*0.6,-s.r*0.6,s.z1),Pc(s.r*0.6,-s.r*0.6,s.z1),Pc(s.r*0.6,s.r*0.6,s.z1),Pc(-s.r*0.6,s.r*0.6,s.z1)],s);
+  if (snow){ ctx.fillStyle=SOL_SNOW; fpPoly(ctx,top); ctx.fill(); }
+}
+/* Grain: two fine lines down a board's length, placed from the board's own
+   numbers so they stay put as the view turns, and only on its broad face —
+   on an end it would be end grain, and at this size that is noise. */
+function solGrain(ctx,q,s){
+  const l01=Math.hypot(q[1][0]-q[0][0],q[1][1]-q[0][1]), l12=Math.hypot(q[2][0]-q[1][0],q[2][1]-q[1][1]);
+  const [p0,p1,p2,p3]=l01>=l12?q:[q[1],q[2],q[3],q[0]];
+  if (Math.hypot(p3[0]-p0[0],p3[1]-p0[1])<2.4) return;       // too narrow on screen to hold a line
+  const at=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  ctx.strokeStyle=s.grain; ctx.lineWidth=0.6; ctx.beginPath();
+  for (const t of s.gt){
+    const a=at(p0,p3,t), b=at(p1,p2,Math.min(0.92,Math.max(0.08,t+(t-0.5)*0.3)));
+    ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+  }
+  ctx.stroke();
+}
+// cast stone's aggregate: a few dark and light flecks on a face that looks up
+function solSpeck(ctx,q,s){
+  const r=mulberry(s.seed||1);
+  for (let i=0;i<s.speck;i++){
+    const a=r(), b=r(), p=[q[0][0]+(q[1][0]-q[0][0])*a, q[0][1]+(q[1][1]-q[0][1])*a],
+      p2=[q[3][0]+(q[2][0]-q[3][0])*a, q[3][1]+(q[2][1]-q[3][1])*a];
+    ctx.fillStyle=i%3?'rgba(58,54,46,0.24)':'rgba(255,252,240,0.32)';
+    ctx.fillRect(p[0]+(p2[0]-p[0])*b-0.45, p[1]+(p2[1]-p[1])*b-0.45, 0.9, 0.9);
+  }
+}
+/* The shadow on the ground: the piece's own footprint laid three times, each a
+   little tighter and darker, so it is soft at the edge and turns with the
+   piece. The screen-aligned ellipse it replaced was the wrong shape for
+   anything long — a lounger threw a round shadow. */
+function solShadow(ctx,P,r){
+  const q=e=>[[r[0]-e,r[2]-e],[r[1]+e,r[2]-e],[r[1]+e,r[3]+e],[r[0]-e,r[3]+e]].map(([u,v])=>P(u,v,0));
+  for (const [e,a] of [[SOL_SHADOW_REACH,0.05],[0.6,0.07],[-2.4,0.08]]){
+    ctx.fillStyle=`rgba(0,0,0,${a})`; fpPoly(ctx,q(e)); ctx.fill();
+  }
 }
 
 /* ---------- boulders ----------

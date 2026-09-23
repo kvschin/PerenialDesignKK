@@ -824,7 +824,8 @@ function hardscapeRows(){
     // colour is part of what you order, so it splits the line
     bump(pots, potStyleId(p2.style)+'|'+potSizeFor(p2.style,p2.size)+'|'+potFinishFor(p2.style,p2.finish)); }
   for (const k in game.seats||{}){ const s2=game.seats[k]; if (!s2||s2.removed) continue;
-    bump(seats, seatType(s2.type).id+'|'+seatFinish(s2.finish).id); }
+    // snapped, so the list bills the finish the garden actually draws
+    const d=normalizeSeatDraft(s2); bump(seats, d.type+'|'+d.finish); }
   for (const k in game.waterFeatures||{}){ const w=game.waterFeatures[k]; if (!w||w.removed) continue;
     const d=normalizeWaterFeatureDraft(w); bump(waters, d.form+'|'+d.finish); }
   for (const k in game.firepits||{}){ const f=game.firepits[k]; if (!f||f.removed) continue;

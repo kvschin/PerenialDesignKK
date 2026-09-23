@@ -385,6 +385,33 @@ function drawFirepitChip(tc,d,w,h,capK){
   }
   tc.drawImage(bmp,0,0);
 }
+/* A seat fitted to a small canvas the same way, through drawSeatArt and fitted
+   to seatArtExtent — the drawing's real reach, not its size in inches. The old
+   chip scaled by inches (34/the longer side), which is not how big a piece
+   draws, so every seat chip was cropped and the lounger lost both ends. One
+   cap, each piece shrinking below it to fit: a stool and a chair sit at the
+   cap and still read small beside a bench, the miniWater rule. */
+const SEAT_CHIP_CACHE=new Map();
+function drawSeatChip(tc,d,w,h,capK){
+  if (!tc) return;
+  d=normalizeSeatDraft(d);
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(capK||0.42);
+  let bmp=SEAT_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (SEAT_CHIP_CACHE.size>96) SEAT_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      const e=seatArtExtent(d);
+      const k=Math.min(capK||0.42,(w-4)/(e.x1-e.x0),(h-4)/(e.y1-e.y0));
+      c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h/2-(e.y0+e.y1)/2*k); c.scale(k,k);
+      drawSeatArt(c,0,0,d,'Summer',ISO_AXES_FLAT);
+      c.restore();
+    }
+    SEAT_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 function drawBrushSwatchCanvas(c,includeLast){
   if (!c) return false;
   const [k,v]=brushSwatchChoice(includeLast);
@@ -421,11 +448,12 @@ function drawBrushSwatchCanvas(c,includeLast){
     const overall=feetToPx(lightHeightFt(ld)), k2=Math.min(0.85, 20/Math.max(1,overall));
     drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
   if (k==='firepit'){ drawFirepitChip(g,firepitDraft(),c.width,c.height,0.34); return true; }
+  if (k==='seat'){ drawSeatChip(g,seatDraft(),c.width,c.height,0.34); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
   /* Generic fallback for the placement tools with no bespoke swatch — boulder,
-     pot, seat, edging, wall, building. Hiding the canvas (what used to happen
+     pot, edging, wall, building. Hiding the canvas (what used to happen
      here) left the brush bar with a name and no mark, so the armed tool had no
      visual at all. A tinted tile with the tool's initial is not art, but it is
      an unmistakable "this is armed", which is the job. */
@@ -717,10 +745,9 @@ function pickAt(x,y){
     setTool('pot', null); buildToolTray();
     toast(`Picked the ${potLabel(po)}.`);
   } else if (se){
-    // seating lives on the TOP level of Hardscape (it is the one section there
-    // that does not drill in), so a stale sub-page would hide the seat we just
-    // armed. Fire pit and boulder set theirs for the same reason, downward.
-    game.fillMode=false; game.trayCat='structures'; game.drill=null;
+    // its own sub-page, set BEFORE setTool like the fence's below: that is where
+    // the picked piece, finish and facing are selected chips
+    game.fillMode=false; game.trayCat='structures'; game.drill='seat';
     game.seatDraft=normalizeSeatDraft(se);
     setTool('seat', null); buildToolTray();
     toast(`Picked the ${seatLabel(se)}.`);
@@ -1496,8 +1523,8 @@ const TOOL_SEARCH={
            hay:'water feature fountain birdbath bird bath bubbler bubbling urn millstone tiered tsukubai stone basin wall spout trough stock tank reflecting pool rill hardscape focal point'},
   boulder:{label:'Boulder',kind:'fill',drill:'boulder',
            hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
-  seat:   {label:'Seating',kind:'fill',
-           hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture'},
+  seat:   {label:'Seating',kind:'fill',drill:'seat',
+           hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture teak weathered white painted green forest black metal stone concrete'},
   light:  {label:'Lighting',kind:'dropper',
            hay:'lighting lights path light lantern post outdoor lamp eco warm bright night'},
   pot:    {label:'Container',kind:'fill',
@@ -3428,50 +3455,60 @@ function buildToolTrayInner(){
       }
     }
   }
-  /* Skipped while another Hardscape tool is drilled in. Seating is the one
-     section on this tab that is not itself drillable — fence, fire pit and
-     boulder each collapse to a summary button and hand the whole tray over to
-     their own options — so without this guard the nine seat chips hung off the
-     bottom of whichever sub-page you had opened, underneath the Back button
-     that is supposed to be the way out of it. */
-  if (cat.tools.includes('seat') && !game.drill){
-    const sd=seatDraft(), armed=game.tool==='seat';
+  /* Seating collapses to one summary button and opens its own page, like every
+     other Hardscape tool. It used to be the one section on this tab laid out
+     flat — nine chips and a "Seating" heading under the summary buttons — which
+     made it look like a different kind of thing from the fence and the fire pit
+     beside it, and needed a guard to keep those nine chips off every other
+     tool's sub-page. Every chip paints through drawSeatChip, so it is the piece
+     itself in the finish and facing you would place. */
+  if (cat.tools.includes('seat')){
+    const sd=seatDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    const miniSeat=(tc,d)=>{
-      const t=seatType(d.type), k=Math.min(1.0,34/Math.max(t.wIn,t.dIn));
-      tc.save(); tc.translate(24,33); tc.scale(k,k);
-      drawSeatArt(tc,0,0,d,'Summer');
-      tc.restore();
+    const choose=patch=>{
+      game.seatDraft=normalizeSeatDraft(Object.assign({},seatDraft(),patch));
+      setTool('seat',null); game.drill='seat'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
     };
-    const toolBtn=(label,sel,draftPatch,tip)=>{
+    const toolBtn=(label,sel,patch,tip)=>{
       const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
       b.dataset.k='seat';
-      if (draftPatch.type!==undefined) b.dataset.seatType=draftPatch.type;
-      if (draftPatch.finish!==undefined) b.dataset.seatFinish=draftPatch.finish;
-      if (draftPatch.face!==undefined) b.dataset.seatFace=String(draftPatch.face);
+      if (patch.type!==undefined) b.dataset.seatType=patch.type;
+      if (patch.finish!==undefined) b.dataset.seatFinish=patch.finish;
+      if (patch.face!==undefined) b.dataset.seatFace=String(patch.face);
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniSeat(c.getContext('2d'),normalizeSeatDraft(Object.assign({},sd,draftPatch)));
+      drawSeatChip(c.getContext('2d'),Object.assign({},sd,patch),48,44);
       const sp=document.createElement('span'); sp.textContent=label;
-      b.append(c,sp); b.title=tip||label;
-      b.onclick=()=>{ game.seatDraft=normalizeSeatDraft(Object.assign({},seatDraft(),draftPatch));
-        setTool('seat',null); buildToolTray(); };
+      b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
       tray.appendChild(b); return b;
     };
-    /* Its own heading, for the reason the pets have one: the chips ran straight
-       on from Boulder with nothing between them, so a bench read as one more
-       kind of rock. */
-    if (cat.tools.some(k=>k!=='seat')) sep('Seating');
-    SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, armed&&sd.type===t.id, {type:t.id},
-      `${t.label} — ${Math.round(t.wIn/12*10)/10} ft wide`));
-    if (armed){
+    if (!game.drill){
+      const b=document.createElement('button');
+      b.className='tool has-sub'+(game.tool==='seat'?' sel':'');
+      b.dataset.k='seat';
+      const c=document.createElement('canvas'); c.width=48; c.height=44;
+      drawSeatChip(c.getContext('2d'),sd,48,44);
+      const sp=document.createElement('span'); sp.textContent='Seating';
+      b.append(c,sp);
+      b.title=`Seating: ${seatLabel()}. Open to choose the piece, its finish and which way it faces.`;
+      b.onclick=()=>{ setTool('seat',null); game.drill='seat'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
+      tray.appendChild(b);
+    } else if (game.drill==='seat'){
+      backBtn();
+      sep('Seating');
+      SEAT_TYPES.forEach(t=>toolBtn(t.short||t.label, sd.type===t.id, {type:t.id},
+        `${t.label} — ${fmtLengthIn(t.wIn)} wide`));
+      /* Only the finishes this piece is really made in, in its own order — the
+         fire pit's rule. A stone bench is a slab on plinths; nobody makes a stone
+         Adirondack. */
       sep('Finish');
-      SEAT_FINISHES.forEach(f=>toolBtn(f.label, sd.finish===f.id, {finish:f.id}, `${f.label} finish`));
+      seatTypeFinishes(sd.type).forEach(f=>toolBtn(f.label, sd.finish===f.id, {finish:f.id},
+        cap(seatLabelFor({type:sd.type,finish:f.id}))));
       /* One Turn chip rather than four compass chips: the preview shows the
          result, so tapping until it points the right way needs no legend, and
          the plot has no fixed "north" on screen once the view is rotated. */
       sep('Facing');
-      toolBtn('Turn',false,{face:(sd.face+1)%4},'Turn the seat a quarter');
+      toolBtn('Turn',false,{face:(sd.face+1)%4},'Turn it a quarter');
     }
   }
   if (cat.tools.includes('pet')){
@@ -3629,7 +3666,7 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
     if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
     if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
     if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace colour color '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ')+' '+POT_FINISHES.map(f=>f.label).join(' ');
-    if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ');
+    if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ')+' '+SEAT_FINISHES.map(f=>f.label).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
     if (k==='pet') hay+=' decor pet cat dog animal ornament socks paws feet '+PET_COATS.map(c2=>c2.label).join(' ')+' '+PET_MARKS.map(m2=>m2.label).join(' ')+' '+PET_PAWS.map(p2=>p2.label).join(' ');
     if (P){ hay=P.name+' '+P.latin+' '+(P.group||'')+' '+roleSummary(k,12);

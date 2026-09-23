@@ -1549,8 +1549,16 @@ function structDrawBox(e){
       return {w:sz.w, h:sz.h, up:feetToPx(46/12)+30, pad:TILE_W*1.05, down:48};
     }
     case SCENE_K.SEAT:{
-      const sz=seatTileSize(e.s);
-      return {w:sz.w, h:sz.h, up:feetToPx(52/12)+30, pad:TILE_W*1.7, down:72};
+      /* Measured on the rebuilt seats (drawSeatArt lays every member out in
+         real inches inside its own footprint): across every piece, facing and
+         rotation they reach 28px sideways, 66 above the footprint and 13 below
+         it. The old 129 / 121 / 72 was holding the old painter, whose long
+         pieces slid off their tiles as the view turned. What the box must still
+         hold is a SLOPE, the boulder's reason: a seat may straddle a level
+         change, and it is centred on the mean of its end tiles while the sprite
+         is anchored on one. */
+      const sz=seatTileSize(e.s), slope=(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2;
+      return {w:sz.w, h:sz.h, up:feetToPx(38/12)+slope+12, pad:TILE_W*0.5, down:slope+22};
     }
     case SCENE_K.BOULDER:{
       /* A boulder sits INSIDE its own tile diamonds — measured across every
@@ -1900,10 +1908,11 @@ function measureStructBoxes(){
    chosen: a piece centred on the wrong footprint is out by at least half a tile
    — mutating drawSupport to centre on {w:1,h:1} put the trellis at 19.5px and
    the arch at 38.5 — while a drawing that is honestly LOPSIDED sits a few px
-   off its own centre whatever the code does. The sun lounger is the only one
-   here: it reclines at one end, so its ink mid-x is ~4.5px from the middle of
-   the tiles it stands on, at every rotation and every facing. 6px keeps a real
-   drift caught with three times the margin.
+   off its own centre whatever the code does. The sun lounger used to be the
+   one here, ~4.5px off because it reclines at one end; rebuilt in real inches
+   with a footprint shadow it measures under 1px, like every other seat, and
+   the seeded outline of a rounded boulder is now the lopsided case. 6px keeps
+   a real drift caught with three times the margin.
 
    Multi-tile pieces only: a 1x1 piece is right at every rotation by
    construction, which is exactly why all three bugs lasted as long as they did. */

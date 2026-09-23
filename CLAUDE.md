@@ -3065,28 +3065,81 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     partial is what makes it a real guard, because the soft shadow and the soil
     disc are full rings drawn either way, and measuring those made a base drawn
     backwards indistinguishable from a correct one.
+    **Seating is built as SOLIDS in depth order** (`seatSolids`, `solPaint`,
+    draw.js; Sep 2026), the fire pit's idiom (§12g) and for its reason. Every
+    member — leg, rail, slat, arm, stringer, drum — is laid out in the piece's
+    OWN frame in real inches (u across, v deep with +v the side you sit on, z
+    up) and projected through `fpProjector`. It replaced a FIXED painting order
+    of `isoBox`es, and the order was the bug: whichever part the code drew last
+    won, so at the rotations nobody checked a bench's back legs drew over its
+    seat and a lounger's back fell through its own deck. The chip was wrong
+    separately — scaled by INCHES (34/the longer side), which is not how big a
+    piece draws, so every seat chip was cropped and the lounger lost both ends;
+    `drawSeatChip` now fits `seatArtExtent`, the reach of the very solids the
+    painter draws, the `drawFirepitChip` pattern.
+    A solid paints only its camera-facing faces (its normal against
+    `solViewDir`, the one direction the projection flattens to a point), so it
+    never sorts against itself, and `solOrder` topologically sorts the list over
+    pairs whose OUTLINES overlap on screen (`solHull`/`solClip`). Three rules,
+    each tested and mutation-checked: a face plane with the whole other solid
+    beyond it decides the pair; failing that, the view ray through their overlap
+    (`solNearest`) — two solids touching INSIDE each other, where the centres
+    give the wrong answer; failing that, centres. Bounding BOXES are the trap in
+    choosing which pairs to order at all: two solids that do not really overlap
+    can each lie beyond a face of the other, and those spurious edges closed
+    false cycles through the Adirondack's back that drew its rails across the
+    front of the fan. What is left is a GENUINE cycle — seen from behind, six
+    Adirondack members occlude each other in a ring — broken where the fewest
+    pixels are wrong (worst ~70px² at 1x, rear views only; a test bounds it at
+    100). No other piece has a cycle at any facing or rotation, and a test holds
+    every one of their pairwise orders.
+    **What makes each piece that piece is its construction, not its box.** An
+    **Adirondack**: stringers that ARE the back legs, raking the seat ~17° down
+    toward the back; a fan of five slats reclined ~24°, crowned in the middle
+    and narrow enough at arm height to pass between the arms; wide flat arms on
+    front legs with brackets under them, resting behind on a rail. A **bench**:
+    end frames of a raked back post and a front leg up to the arm, slats between
+    them, and a back of rails and upright slats leaning with the posts. A
+    **lounger**: a long deck on side rails with its back on its own stiles,
+    hinged where the deck ends and propped behind. A **picnic table**: A-frame
+    legs, a cleat under the top and a longer one under both seats.
+    Every member is sized in REAL INCHES — sized as a fraction of the piece, a
+    big object got fat members (the old lounger's backrest measured 24 inches
+    thick), the fence panels' lesson — and a seating surface is BOARDS WITH
+    GAPS, because at this size the gaps are most of what reads as timber.
+    **A finish is a MATERIAL** (`SEAT_FINISHES[].mat`): timber (`teak`,
+    `weathered`) gets per-board tone and grain on each board's broad face, paint
+    (`painted` — labelled White, keeping its id for saved gardens — and `forest`)
+    one even coat, metal (`black`) thin section and a sheen on anything facing
+    up (without it a black bench was one flat silhouette and vanished on the
+    dark tray), and STONE BUILDS DIFFERENTLY: a slab on plinths for a bench, a
+    drum for a stool, slabs on piers for a picnic table. Each `SEAT_TYPES` row
+    names the finishes it is really made in, in its own order, and
+    `seatFinishFor` snaps rather than resets (the fire pit's rule) — there is no
+    stone Adirondack or lounger, and the planting list bills the snapped finish.
+    A board's colour and grain come from its place in the BUILD order, which is
+    the same at every rotation (`fpUnitRng`), so a board keeps its colour as the
+    view turns.
+    Two geometry rules, both cycles before they were fixes: a member butting a
+    RAKED post starts at the post's face at its own lowest point (`rv(z0)+lg/2`),
+    or its end pokes into the post; and a seat slat alongside the back posts
+    stops between them, as a real seat is notched round its posts.
+    Measured: `measureStructBoxes` 0 escaping, with the seat box tightened from
+    pad 129 / up 121 / down 72 to 38 / 105 / 49 — the drawings reach 28 / 66 /
+    13, plus the boulder's slope allowance, since a seat may straddle a level
+    change; `measureFootprintCentres` ≤1px for every seat, lounger included;
+    `verifyStructureSprites({rot:true})` 0.28-0.49% of pixels against a
+    0.81-1.34% procedural control, nothing clipped. `dev/seating-review.html`
+    draws every piece at four rotations beside its chip, and takes
+    `?fin=&season=&scale=&face=&only=&rots=` so a headless screenshot can ask
+    for one view without clicking.
     **Tables come WITHOUT chairs, and a chair is its own placeable.** Bundling
     them looked like a convenience and was three problems at once: one object
     cannot depth-sort against itself, so the chairs drew over the table top;
     the footprint claimed ground the table does not occupy; and you could
     neither seat three people nor turn one chair to face the view. A picnic
-    table keeps its benches because they really are bolted to it — and it is
-    therefore the one form that has to sort against itself, drawing the far
-    bench, then the table, then the near one.
-    Two silhouettes carry their whole identity and are worth not flattening:
-    an **Adirondack** is a low RAKED seat under a tall fanned back with wide
-    flat arms, and a **lounger** is a long low deck that reclines at one end.
-    **Every member is sized in REAL INCHES, not as a fraction of the piece.**
-    Sized proportionally, a big object got fat members: the sun lounger's
-    backrest measured 24 inches thick and its legs 10 inches deep, which is
-    exactly why the furniture read as stacked blocks. `inH(n)` is the seam —
-    legs 1.6in, boards 1in, slats 3.4in, tops 3in — and it is the same lesson
-    as the fence panels: a 6-inch board is 6 inches whatever it is bolted to.
-    A seating surface is BOARDS WITH GAPS rather than one slab, because at
-    this size the gaps are most of what makes timber read as timber.
-    Drawn as ordinary boxes they were just a chair and a ramp. `rake()` is the
-    shared primitive — a box whose top face is offset along its own depth —
-    and it is the only thing in the app that tilts.
+    table keeps its benches because they really are bolted to it — which the
+    solid order now handles like any other overlap.
     Seating and troughs carry a `face` (0-3 quarter turns of the OBJECT, nothing
     to do with the camera's `game.rot`): `turnAxes` rotates the drawing basis and
     `seatTileSize`/`potTileSize` swap the footprint to match, so the claim always
@@ -3103,24 +3156,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     38. Every 1x1 piece read 0 at every rotation, which is why it lasted: the
     stool, the dining chair and the bistro table were always right, and they are
     what you reach for first. After: 0-4px everywhere, the residue being the
-    lounger's own recline asymmetry, which reads the same at rot 0.
+    old lounger's own recline asymmetry (under 1px since the solids rebuild).
     **The sprite cache could not see any of it**, and that is the lesson worth
     keeping. `verifyStructureSprites` draws both arms through the same function,
     so a shared wrong position cancels: pots and seats measured 0.009-0.09%
     before the fix and 0.009-0.09% after, comfortably inside the fence's band,
-    because `structDrawBox` pads a seat by 1.7 tiles and the drifted drawing
-    still landed inside its own box. A cache diff catches STALENESS; it can
+    because `structDrawBox` then padded a seat by 1.7 tiles and the drifted
+    drawing still landed inside its own box. A cache diff catches STALENESS; it can
     never catch a drawing that is confidently in the wrong place. What found it
     was measuring the ink against the tiles the piece claims, at all four
     rotations — the same probe the water features needed (§12d).
-    `isoBox` picks its two visible faces from **the ground corner lowest on
-    screen**, not by testing each edge against the centre — the latter drew one,
-    three or no faces depending on rotation, which is what turned a sun lounger
-    into a kite. It also takes a base height `y0`, without which every part
-    stood on the ground and a bench came out a solid crate rather than a plank
-    on four legs. `drawPotArt`/`drawSeatArt` take a ground point and the
-    rotation axes, so the garden and the tray chips paint through one function
-    (the `fencePanel` lesson).
+    `isoBox` (the boxy pots and troughs; seating left it for solids) picks its
+    two visible faces from **the ground corner lowest on screen**, not by
+    testing each edge against the centre — the latter drew one, three or no
+    faces depending on rotation, which is what turned a sun lounger into a kite.
+    It also takes a base height `y0`, without which every part stood on the
+    ground. `drawPotArt`/`drawSeatArt` take a ground point and the rotation
+    axes, so the garden, the tray chips and the guidebook paint through one
+    function (the `fencePanel` lesson) — and neither reads the camera.
     Unlike the pets, containers and seating **do** appear on the client-facing
     documents: a ring at its real diameter and a hatched footprint on the plan,
     and a Containers & seating table on the planting list — a pot is one plant,
@@ -4404,26 +4457,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Fire pits, boulders and water features erase as Landscape, move/rotate/copy
     in selections, and eyedrop with Pick. The **Decor** tab holds **containers** (§12b) and **garden pets**
     (§12a), and Hardscape adds **seating** — bench 4/6 ft, Adirondack chair,
-    stool, bistro set, dining table, picnic table and sun lounger in four
-    finishes (`SEAT_TYPES`/`SEAT_FINISHES`), each claiming its real footprint.
-    **Hardscape mixes two tray idioms and seating is the odd one**: fence, fire
-    pit, water feature, support (§12e) and boulder each collapse to a summary
-    button and hand the whole tray over to their own options behind
-    `game.drill` (one shared `backBtn` serves all five — it was three
-    byte-identical closures and the fourth was what prompted extracting it),
-    while seating stays expanded
-    at the top level (contextual like Ground — the finish and Turn rows unfold
-    once one is armed). So the seat section has to carry `!game.drill`, or its
-    nine chips hang off the bottom of whichever sub-page you opened, underneath
-    the Back button that is supposed to be the way out of it. Its `Seating`
-    heading is there for the reason the pets have one — the chips ran straight
-    on from Boulder and a bench read as one more kind of rock.
+    dining chair, stool, bistro table, dining table, picnic table and sun
+    lounger, each in the finishes it is really made in (`SEAT_TYPES` /
+    `SEAT_FINISHES`, §12b), each claiming its real footprint.
+    **Every Hardscape tool is one idiom**: fence, pergola, support (§12e), fire
+    pit, water feature, boulder and seating each collapse to a summary button
+    and hand the whole tray over to their own options behind `game.drill` (one
+    shared `backBtn` serves them all — it was three byte-identical closures and
+    the fourth was what prompted extracting it). Seating was the exception until
+    Sep 2026: nine chips laid flat under a `Seating` heading below the summary
+    buttons, which read as a different kind of thing from the tools beside it
+    and needed a `!game.drill` guard to keep those chips off every other tool's
+    sub-page. Its page is Seating / Finish (only the armed piece's) / Facing,
+    every chip the piece itself through `drawSeatChip`.
     **Every Hardscape branch of `pickAt` therefore has to name its own
     destination**, because the eyedropper is the one route that arms these tools
-    from outside the tray: fence, fire pit and boulder each set `game.drill` to
-    their own sub-page (that is where the picked material, height, shape or size
-    is a visible selected chip), and seating clears it, because seating lives at
-    the top level. Fence used to set nothing and inherit whatever page was open,
+    from outside the tray: each sets `game.drill` to its own sub-page, because
+    that is where the picked material, height, shape, size or finish is a
+    visible selected chip. Fence used to set nothing and inherit whatever page was open,
     so eyedropping a brick fence while the Fire Pit page was up left you looking
     at fire pit chips. Set it BEFORE `setTool` — `rememberBrushTool` reads
     `game.drill` from inside it, so a stale one is also written into

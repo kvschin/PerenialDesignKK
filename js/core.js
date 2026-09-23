@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.12';
+const APP_VERSION = '0.9.13';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1831,32 +1831,66 @@ function potLabelFor(d){
    A plan with nowhere to sit is a plant list, not a garden. Seating also drives
    layout — you plant TOWARD the view from a bench — so it belongs in the model
    even though it grows nothing. Sizes are real inches; the footprint follows
-   the fire-pit pattern. `form` picks the drawing branch. */
+   the fire-pit pattern. `form` picks the drawing branch.
+
+   A finish is a MATERIAL, not a tint, and `mat` says which: timber has grain
+   and board-to-board colour, paint is one even coat, metal is built in thin
+   section, and stone is not slats at all — a stone bench is a slab on two
+   plinths and a stone stool is a drum. `tones` are the boards' own colours
+   (one is picked per board, from where it sits, so the pattern holds as the
+   view turns); `hw` is the metal a table's pedestal and foot are made of.
+   'painted' keeps its id so saved gardens reopen unchanged; it is labelled by
+   its colour now that there is a second paint. */
 const SEAT_FINISHES = [
-  {id:'teak',   label:'Teak',    wood:'#a97f4e', dark:'#7a5730', metal:'#6b6156'},
-  {id:'painted',label:'Painted', wood:'#e6e0d2', dark:'#b3ab99', metal:'#8d8677'},
-  {id:'black',  label:'Black',   wood:'#3a3a3e', dark:'#232327', metal:'#2b2b2f'},
-  {id:'stone',  label:'Stone',   wood:'#9d998c', dark:'#7b776b', metal:'#8b8779'},
+  {id:'teak',     label:'Teak',      mat:'wood',  tones:['#a97f4e','#b28851','#9e7445','#aa7c4a'], grain:'rgba(62,36,14,0.20)', hw:'#3c3a37'},
+  {id:'weathered',label:'Weathered', mat:'wood',  tones:['#a8a396','#9c978a','#b0ab9e','#a19c8f'], grain:'rgba(58,55,48,0.22)', hw:'#3c3a37'},
+  {id:'painted',  label:'White',     mat:'paint', tones:['#ebe6da','#e6e1d4'], hw:'#3c3a37'},
+  {id:'forest',   label:'Forest',    mat:'paint', tones:['#415d49','#3d5845'], hw:'#2e302e'},
+  {id:'black',    label:'Black',     mat:'metal', tones:['#393a3e'], hw:'#2a2b2e'},
+  {id:'stone',    label:'Stone',     mat:'stone', tones:['#a6a295','#9d998c','#aeaa9d'], hw:'#3c3a37'},
 ];
 /* Tables come WITHOUT chairs and chairs are placed individually. Bundling
    them looked like a convenience and was three problems: the chairs drew over
    the table top because one object cannot depth-sort against itself, the
    footprint claimed ground the table does not actually occupy, and you could
    not seat three people or turn one chair to face the view. A picnic table
-   keeps its benches because they are genuinely bolted to it. */
+   keeps its benches because they are genuinely bolted to it.
+   `finishes` are what each piece is really made in, in its own order — the fire
+   pit's rule (§12g): nobody makes a stone Adirondack or a cast-stone lounger,
+   and a stone bench is exactly as real as a teak one. */
 const SEAT_TYPES = [
-  {id:'bench4',  label:'Garden Bench 4 ft', short:'Bench 4ft', form:'bench',  wIn:48, dIn:22, hIn:34},
-  {id:'bench6',  label:'Garden Bench 6 ft', short:'Bench 6ft', form:'bench',  wIn:72, dIn:22, hIn:34},
-  {id:'chair',   label:'Adirondack Chair',  short:'Adirondack',form:'adirondack', wIn:32, dIn:34, hIn:38},
-  {id:'dchair',  label:'Dining Chair',      short:'Chair',     form:'chair',  wIn:20, dIn:20, hIn:35},
-  {id:'stool',   label:'Garden Stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18},
-  {id:'bistro',  label:'Bistro Table',      short:'Bistro',    form:'bistro', wIn:26, dIn:26, hIn:30},
-  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:36, hIn:30},
-  {id:'picnic',  label:'Picnic Table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30},
-  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:36},
+  {id:'bench4',  label:'Garden Bench 4 ft', short:'Bench 4ft', form:'bench',  wIn:48, dIn:22, hIn:34,
+   finishes:['teak','weathered','painted','forest','black','stone']},
+  {id:'bench6',  label:'Garden Bench 6 ft', short:'Bench 6ft', form:'bench',  wIn:72, dIn:22, hIn:34,
+   finishes:['teak','weathered','painted','forest','black','stone']},
+  {id:'chair',   label:'Adirondack Chair',  short:'Adirondack',form:'adirondack', wIn:32, dIn:34, hIn:38,
+   finishes:['teak','weathered','painted','forest','black']},
+  {id:'dchair',  label:'Dining Chair',      short:'Chair',     form:'chair',  wIn:20, dIn:20, hIn:35,
+   finishes:['teak','weathered','painted','forest','black']},
+  {id:'stool',   label:'Garden Stool',      short:'Stool',     form:'stool',  wIn:16, dIn:16, hIn:18,
+   finishes:['teak','weathered','painted','black','stone']},
+  {id:'bistro',  label:'Bistro Table',      short:'Bistro',    form:'bistro', wIn:26, dIn:26, hIn:30,
+   finishes:['teak','painted','forest','black','stone']},
+  {id:'dining',  label:'Dining Table',      short:'Dining',    form:'dining', wIn:72, dIn:36, hIn:30,
+   finishes:['teak','weathered','painted','black','stone']},
+  {id:'picnic',  label:'Picnic Table',      short:'Picnic',    form:'picnic', wIn:60, dIn:60, hIn:30,
+   finishes:['teak','weathered','painted','forest','stone']},
+  {id:'lounger', label:'Sun Lounger',       short:'Lounger',   form:'lounger',wIn:26, dIn:76, hIn:36,
+   finishes:['teak','weathered','painted','black']},
 ];
 function seatType(id){ return SEAT_TYPES.find(s=>s.id===id)||SEAT_TYPES[0]; }
 function seatFinish(id){ return SEAT_FINISHES.find(f=>f.id===id)||SEAT_FINISHES[0]; }
+// the finishes this piece is made in, in its own order
+function seatTypeFinishes(typeId){
+  return (seatType(typeId).finishes||SEAT_FINISHES.map(f=>f.id)).map(seatFinish);
+}
+/* Snaps rather than resets, the way firepitFinishFor does: a painted bench
+   switched to an Adirondack stays painted, and a stone bench switched to one
+   falls back to the chair's own first finish. */
+function seatFinishFor(typeId,finishId){
+  const list=seatType(typeId).finishes||SEAT_FINISHES.map(f=>f.id);
+  return list.includes(finishId) ? finishId : list[0];
+}
 function seatTileSize(d){
   const t=seatType(d&&d.type);
   const w=Math.max(1,Math.round(t.wIn/TILE_IN)), h=Math.max(1,Math.round(t.dIn/TILE_IN));
@@ -1867,7 +1901,8 @@ function seatTileSize(d){
 function normalizeFacing(f){ f=Math.round(Number(f)||0)%4; return f<0?f+4:f; }
 function normalizeSeatDraft(d){
   d=d&&typeof d==='object'?d:{};
-  return {type:seatType(d.type).id, finish:seatFinish(d.finish).id, face:normalizeFacing(d.face)};
+  const type=seatType(d.type).id;
+  return {type, finish:seatFinishFor(type,d.finish), face:normalizeFacing(d.face)};
 }
 function seatLabelFor(d){
   d=normalizeSeatDraft(d);

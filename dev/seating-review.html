@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seating review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}select,button{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:6px 8px}main{display:flex;flex-direction:column;gap:10px;padding:10px}article{background:#30291f;padding:8px;border-radius:6px}h2{font-size:13px;margin:0 0 4px}.row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}figure{margin:0;text-align:center}figcaption{font-size:10px;color:#c7b9a2}canvas{display:block;background:#6f8a4e;border-radius:4px}.chip canvas{background:#3a3027;image-rendering:pixelated}#status{padding:0 16px;font-size:12px;color:#d6c094}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/draw.js"></script>
+<script src="../js/world.js"></script>
+<script src="../js/view.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/commands.js"></script>
+<script src="../js/input.js"></script>
+<script src="../js/io.js"></script>
+<script src="../js/collections.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/tray.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Seating review</h1>
+<label>Finish <select id="fin"></select></label>
+<label>Season <select id="season"><option>Summer</option><option>Spring</option><option>Fall</option><option>Winter</option></select></label>
+<label>Scale <select id="scale"><option value="1">1x</option><option value="1.6" selected>1.6x</option><option value="2.4">2.4x</option><option value="3">3x</option><option value="4">4x</option></select></label>
+<label>Face <select id="face"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+</header>
+<p id="status"></p><main id="out"></main>
+<script>
+const Q=id=>document.getElementById(id);
+SEAT_FINISHES.forEach(f=>{ const o=document.createElement('option'); o.value=f.id; o.textContent=f.label; Q('fin').appendChild(o); });
+function tileDiamonds(c,cx,cy,ax,ay,sz){
+  // the tiles the piece claims, centred on its ground point
+  c.strokeStyle='rgba(255,255,255,.28)'; c.lineWidth=1;
+  for (let i=0;i<sz.w;i++) for (let j=0;j<sz.h;j++){
+    const u=i-(sz.w-1)/2, v=j-(sz.h-1)/2;
+    const px=cx+ax[0]*u+ay[0]*v, py=cy+ax[1]*u+ay[1]*v;
+    c.beginPath(); c.moveTo(px,py-TILE_H/2); c.lineTo(px+TILE_W/2,py); c.lineTo(px,py+TILE_H/2); c.lineTo(px-TILE_W/2,py); c.closePath(); c.stroke();
+  }
+}
+function render(){
+  const out=Q('out'); out.innerHTML='';
+  const fin=Q('fin').value, season=Q('season').value, k=+Q('scale').value, face=+Q('face').value;
+  const only=(new URLSearchParams(location.search).get('only')||'').split(',').filter(Boolean);
+  for (const t of SEAT_TYPES){
+    if (only.length && !only.includes(t.id)) continue;
+    const art=document.createElement('article');
+    const h2=document.createElement('h2'); h2.textContent=t.label+`  (${t.wIn}x${t.dIn}x${t.hIn} in)`; art.appendChild(h2);
+    const row=document.createElement('div'); row.className='row';
+    const rots=(new URLSearchParams(location.search).get('rots')||'0,1,2,3').split(',').map(Number);
+    for (const r of rots){
+      const d={type:t.id,finish:fin,face};
+      const W=Math.round(260*k), H=Math.round(190*k);
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+      const c=cv.getContext('2d');
+      c.save(); c.translate(W/2,H*0.68); c.scale(k,k);
+      const axes=isoAxes(r), [ax,ay]=turnAxes(axes,face);
+      tileDiamonds(c,0,0,axes[0],axes[1],seatTileSize(d));
+      drawSeatArt(c,0,0,d,season,axes);
+      c.restore();
+      const fg=document.createElement('figure'); fg.append(cv);
+      const cap=document.createElement('figcaption'); cap.textContent='rot '+r; fg.append(cap);
+      row.appendChild(fg);
+    }
+    // the chip, at real size and blown up
+    const chipFig=document.createElement('figure'); chipFig.className='chip';
+    const chip=document.createElement('canvas'); chip.width=48; chip.height=44;
+    if (typeof drawSeatChip==='function') drawSeatChip(chip.getContext('2d'),{type:t.id,finish:fin,face:0},48,44);
+    const big=document.createElement('canvas'); big.width=144; big.height=132;
+    const bc=big.getContext('2d'); bc.imageSmoothingEnabled=false; bc.drawImage(chip,0,0,144,132);
+    chipFig.append(chip,big); const cc=document.createElement('figcaption'); cc.textContent='chip'; chipFig.append(cc);
+    row.appendChild(chipFig);
+    art.appendChild(row); out.appendChild(art);
+  }
+}
+['fin','season','scale','face'].forEach(id=>Q(id).onchange=render);
+// ?fin=&season=&scale=&face= preset the controls, so a headless screenshot can
+// ask for one view without clicking
+const qs=new URLSearchParams(location.search);
+['fin','season','scale','face'].forEach(id=>{ if (qs.has(id)) Q(id).value=qs.get(id); });
+render();
+</script>
+</body></html>
