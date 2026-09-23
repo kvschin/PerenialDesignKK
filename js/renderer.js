@@ -1067,7 +1067,14 @@ const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, by
      this app ships with (no cross-origin isolation) a single ~7us structure
      rounds to zero anyway. Sampling one frame in SAMPLE and smoothing is both
      cheaper and no less accurate. */
-  structMs:0, SAMPLE:8, structRing:[], RING:8 };
+  structMs:0, SAMPLE:8, structRing:[], RING:8,
+  /* The per-frame budget for bakes that have something to show meanwhile —
+     see plantStandInKey. BAKE_MS is JS time spent baking this frame, BAKE_CAP
+     a count backstop for the GPU side that JS time cannot see. A cold miss
+     with nothing to stand in is not held to either: it bakes up to BUDGET as
+     before. `spec` maps a sprite key minus its seed to the newest key baked
+     for it, so one clump can borrow a sibling's sprite. */
+  BAKE_MS:4, BAKE_CAP:24, bakeMs:0, spec:new Map() };
 /* sprite-mode governor: engage the cache when the DRAW PHASE is measured
    heavy, not at a fixed plant count — the old 300-plant threshold left a
    typical 150–250 plant design fully procedural forever, even on a window
@@ -1164,18 +1171,17 @@ let structSampling=false, structSampleMs=0;
    tick and blits the stale bake meanwhile — "briefly soft, never slow". The
    sprite caches had the same 12% threshold and no settle at all.
 
-   SPRITE_ZOOM_DRIFT is the ground's GROUND_ZOOM_DRIFT escape: past a large
-   drift, re-bake even mid-gesture, or a long continuous zoom would blit a
-   sprite baked at a sixth of its current size for the whole gesture. 0.6 means
-   at most a 1.6x resample before it refreshes — a handful of re-bakes across a
-   big zoom instead of one every two wheel ticks.
+   SPRITE_ZOOM_DRIFT is the escape: past a large drift, re-bake even
+   mid-gesture, or a long continuous zoom IN would blit a sprite at six times
+   the size it was baked at for the whole gesture. 0.6 means at most a 1.6x
+   upscale before it refreshes — a handful of re-bakes across a big zoom
+   instead of one every two wheel ticks.
 
-   It is a RATIO of the two scales, not the difference-over-current form the
-   12% rest threshold uses, because that form is asymmetric in the wrong
-   direction: |baked-now| > 0.6*now needs a 2.5x zoom IN to fire but only a
-   1.6x zoom OUT, and zooming in is the case that upscales a stale sprite into
-   mush. Zooming out merely minifies it, which looks fine. A ratio is 1.6x
-   either way.
+   It applies to zooming IN only. It is a RATIO of the two scales, not the
+   difference-over-current form the 12% rest threshold uses, and it used to
+   fire at 1.6x either way — but zooming out merely minifies a stale sprite,
+   which looks fine, so those re-bakes were work thrown away at the next
+   crossing (spriteRescaleDue).
 
    Shared by PSPRITE and SSPRITE because it is one fact about the camera, and
    deliberately separate from groundZoomT: the ground stamps its tick later in
@@ -1198,8 +1204,14 @@ function noteSpriteZoom(t){
 function spriteRescaleDue(baked,current){
   if (spriteZoomSettled) return true;
   if (!(baked>0) || !(current>0)) return true;
-  const ratio = baked>current ? baked/current : current/baked;
-  return ratio > 1+SPRITE_ZOOM_DRIFT;
+  /* Zooming OUT only minifies a sprite, which reads fine for the length of a
+     gesture, so its crisp re-bake waits for the settle like the ground's does.
+     It used to fire past 1.6x in either direction, and a mouse wheel spun out
+     from 2.8x to 0.4x crossed that four times: four re-bakes of every visible
+     plant, each thrown away at the next crossing. Zooming IN still escapes,
+     because an upscaled sprite is the one that turns to mush. */
+  if (baked>current) return false;
+  return current/baked > 1+SPRITE_ZOOM_DRIFT;
 }
 function pspriteScale(){ return Math.min(DPR,1.5)*ZOOM; } // cap DPR so retina sprites don't 4x the budget
 /* The longest side a single baked sprite may have, in device pixels.
@@ -1228,7 +1240,7 @@ function spriteMaxPx(){
   return Math.max(SPRITE_CAP_MIN, Math.min(SPRITE_CAP_MAX, Math.round(shortSide*SPRITE_CAP_SCREENS)));
 }
 function pspriteFrame(){                        // once per render: age the cache
-  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.scale=pspriteScale();
+  PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.scale=pspriteScale();
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
   // budget — never the visible set. This is what stops the cache thrashing and
   // flickering when the working set is large (e.g. a dense garden on retina):
@@ -1364,18 +1376,38 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   // Resolution-capped giants (T10) compare on the REQUESTED scale and never
   // rebake while zooming further in — the bake would come out identical.
   // The rescale also waits for the gesture to settle (see noteSpriteZoom); a
-  // genuine MISS (!e) never waits, or a plant entering the viewport mid-zoom
-  // would fall through to a procedural draw, which is what this cache exists
-  // to avoid.
+  // MISS with nothing to stand in for it never waits, or a plant entering the
+  // viewport mid-zoom would fall through to a procedural draw, which is what
+  // this cache exists to avoid.
   const eScale=e&&(e.want!==undefined?e.want:e.s);
   const drift=e?Math.abs(eScale-PSPRITE.scale):0;
   const rescale = !!e && drift>PSPRITE.scale*0.12
     && !(e.capped && PSPRITE.scale>e.s)
     && spriteRescaleDue(eScale,PSPRITE.scale);
   if (!e || rescale){
+    /* Once this frame's bake time is spent, a bake that has something to show
+       in the meantime waits for a later frame instead of stalling this one: a
+       rescale shows its own stale sprite, a miss whatever plantStandInKey
+       finds. Before this, every frame could bake up to BUDGET (160) sprites,
+       and the bursts that ask for that many are exactly the moments a gardener
+       is watching — a season turn re-bakes every plant, a wheel zoom every
+       plant several times, a scheme switch or a replacement a whole planting.
+       game.photo is exempt: it renders ONE frame into a downloaded PNG, where a
+       stand-in would outlive the moment it stood in for. */
+    const spent=!game.photo && (PSPRITE.bakeMs>=PSPRITE.BAKE_MS || PSPRITE.rendered>=PSPRITE.BAKE_CAP);
+    const standKey=spent ? (e ? kk : plantStandInKey(kk,slot)) : null;
+    if (standKey){
+      const s=PSPRITE.map.get(standKey);
+      PSPRITE.map.delete(standKey); s.used=PSPRITE.frame; PSPRITE.map.set(standKey,s);   // LRU, like any hit
+      blitPlantSprite(ctx,s,bx,by,sway);
+      return;
+    }
     if (PSPRITE.rendered<PSPRITE.BUDGET){
+      const t0=performance.now();
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
-      if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes; }
+      PSPRITE.bakeMs+=performance.now()-t0;
+      if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
+        PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
     if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
   }
@@ -1391,11 +1423,42 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
   e.used=PSPRITE.frame; e.slot=slot;   // carried so eviction can clear the index
   PSPRITE.map.set(kk,e);
+  blitPlantSprite(ctx,e,bx,by,sway);
+}
+function blitPlantSprite(ctx,e,bx,by,sway){
   const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
   if (sway){
     ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,sway*0.05,1,0,0); ctx.translate(-bx,-by);
     ctx.drawImage(e.cv,lx,ly,dw,dh); ctx.restore();
   } else ctx.drawImage(e.cv,lx,ly,dw,dh);
+}
+/* What to draw for a clump whose own sprite is waiting for bake time, as the
+   key of a cached sprite, or null when nothing will do. In order:
+     1. this clump at the growth or bloom bucket it showed last — a growth
+        tick, and the picture is continuous;
+     2. the same species, cultivar, season, bucket and detail, baked for
+        another clump — right size and colours, a sibling's shape: a scheme
+        switch or a replacement, where this clump has no sprite at all;
+     3. this clump in another season, the one being left first — a season
+        turn, drawn under the crossfade that is showing the old season anyway.
+   A sprite drawn as a stand-in keeps its own slot. Retiring happens only when
+   the clump's real sprite lands, exactly as before. */
+function plantStandInKey(kk,slot){
+  const was=PSPRITE.slot.get(slot);
+  if (was!==undefined && PSPRITE.map.has(was)) return was;
+  const sk=kk.slice(kk.indexOf('|')+1), other=PSPRITE.spec.get(sk);
+  if (other!==undefined){
+    if (PSPRITE.map.has(other)) return other;
+    PSPRITE.spec.delete(sk);                    // the sibling was retired or evicted
+  }
+  const cut=slot.lastIndexOf('|'), i=SEASONS.indexOf(slot.slice(cut+1));
+  if (i<0) return null;
+  const base=slot.slice(0,cut+1);
+  for (let d=3; d>=1; d--){                     // (i+3)%4 is the season just left
+    const k2=PSPRITE.slot.get(base+SEASONS[(i+d)%4]);
+    if (k2!==undefined && PSPRITE.map.has(k2)) return k2;
+  }
+  return null;
 }
 /* ---------- structure sprite cache ----------
    Everything in the depth pass that is NOT a plant — fence, building tile,

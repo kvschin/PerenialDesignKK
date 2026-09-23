@@ -10911,6 +10911,115 @@ test('render arms the zoom guard before either cache ages', () => {
   assert(noteAt < sAt, 'and before the structure cache ages');
 });
 
+test('zooming OUT mid-gesture re-bakes nothing; the settle does it once', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasZoom = ZOOM;
+  try {
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    let t = 50000;
+    zoomFrameBakes(ctx, key, 2, t, 6060);
+    t += SPRITE_ZOOM_SETTLE + 1;
+    zoomFrameBakes(ctx, key, 2, t, 6060);
+    /* A wheel spun out from 2.8x to 0.4x crossed the 1.6x escape four times
+       and re-baked every visible plant at each crossing, every one of them
+       thrown away at the next. A minified sprite reads fine for a gesture. */
+    t += 16;
+    assertEqual(zoomFrameBakes(ctx, key, 0.5, t, 6060), 0,
+      'a 4x zoom OUT mid-gesture keeps the stale sprite');
+    t += SPRITE_ZOOM_SETTLE + 1;
+    assertEqual(zoomFrameBakes(ctx, key, 0.5, t, 6060), 1, 'the settle re-bakes it crisp');
+  } finally { ZOOM = wasZoom; }
+});
+
+/* ---------- a burst of bakes is spread over frames, with stand-ins ----------
+   Each frame could bake up to PSPRITE.BUDGET (160) sprites, and the moments
+   that ask for that many are the ones a gardener is watching: a season turn
+   re-bakes every plant, a scheme switch a whole planting. Measured live on a
+   261-plant garden at 2114x1241, a season turn was frames of 103, 279 and
+   127ms. Now a bake that has something to show meanwhile waits once the frame
+   has spent PSPRITE.BAKE_MS baking. BAKE_MS=0 below spends it before the
+   first draw, which is the deterministic way to ask for the waiting path. */
+function standInCase(fn){
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  const wasMs = PSPRITE.BAKE_MS, wasPhoto = game.photo;
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+  PSPRITE.off = false;
+  const ctx = document.createElement('canvas').getContext('2d');
+  const draw = (growth, season, seed) => drawPlantMaybeCached(ctx, 0, 0, key, growth, season, seed, 0, null, undefined, true);
+  const frame = spent => { PSPRITE.BAKE_MS = spent ? 0 : wasMs; pspriteFrame(); };
+  try { fn(draw, frame); } finally { PSPRITE.BAKE_MS = wasMs; game.photo = wasPhoto; }
+}
+
+test('a growth tick past the bake budget shows the clump its previous bucket', () => {
+  standInCase((draw, frame) => {
+    frame(false); draw(0.3, 'Summer', 4321);
+    assertEqual(PSPRITE.rendered, 1, 'the cold draw bakes');
+    const first = PSPRITE.slot.values().next().value;
+    frame(true); draw(0.9, 'Summer', 4321);
+    assertEqual(PSPRITE.rendered, 0, 'the new bucket waits for a frame with time');
+    assertEqual(PSPRITE.slot.values().next().value, first, 'the clump still points at the sprite it showed');
+    assertEqual(PSPRITE.map.size, 1, 'nothing added, nothing retired');
+    frame(false); draw(0.9, 'Summer', 4321);
+    assertEqual(PSPRITE.rendered, 1, 'with time to spare it bakes');
+    assert(PSPRITE.slot.values().next().value !== first, 'and the clump moves to its new bucket');
+    assertEqual(PSPRITE.map.size, 1, 'retiring the stand-in as its replacement lands');
+  });
+});
+
+test('a clump with no sprite borrows a same-species sibling while its own waits', () => {
+  standInCase((draw, frame) => {
+    frame(false); draw(0.7, 'Summer', 111);
+    frame(true); draw(0.7, 'Summer', 222);
+    assertEqual(PSPRITE.rendered, 0, 'a scheme switch or a replacement does not bake past the budget');
+    assertEqual(PSPRITE.map.size, 1, 'the newcomer drew its sibling');
+    assertEqual(PSPRITE.slot.size, 1, 'and claimed no slot until its own sprite exists');
+    frame(false); draw(0.7, 'Summer', 222);
+    assertEqual(PSPRITE.rendered, 1, 'its own sprite lands on the next frame with time');
+    assertEqual(PSPRITE.map.size, 2, 'and the sibling keeps its own');
+  });
+});
+
+test('a season turn shows the season being left while the new sprites wait', () => {
+  standInCase((draw, frame) => {
+    frame(false); draw(0.7, 'Summer', 333);
+    frame(true); draw(0.7, 'Fall', 333);
+    assertEqual(PSPRITE.rendered, 0, 'the Fall bake waits');
+    assertEqual(PSPRITE.slot.size, 1, 'drawn from the Summer sprite, under the crossfade');
+    frame(false); draw(0.7, 'Fall', 333);
+    assertEqual(PSPRITE.rendered, 1, 'Fall bakes when there is time');
+    assertEqual(PSPRITE.map.size, 2, 'and Summer is still kept: one sprite per season');
+  });
+});
+
+test('a clump with nothing to stand in bakes, budget or not', () => {
+  standInCase((draw, frame) => {
+    /* The alternative is a procedural draw, which costs what a bake costs and
+       then costs it again on every frame until the bake happens. */
+    frame(true); draw(0.7, 'Summer', 444);
+    assertEqual(PSPRITE.rendered, 1, 'a cold miss bakes even with the frame spent');
+  });
+});
+
+test('a photo is never drawn from stand-ins', () => {
+  standInCase((draw, frame) => {
+    frame(false); draw(0.3, 'Summer', 555);
+    game.photo = true;
+    frame(true); draw(0.9, 'Summer', 555);
+    assertEqual(PSPRITE.rendered, 1, 'the one frame that becomes a PNG gets the real sprite');
+  });
+});
+
+test('the bake budget belongs to one frame', () => {
+  PSPRITE.bakeMs = 99; PSPRITE.rendered = 99;
+  pspriteFrame();
+  assertEqual(PSPRITE.bakeMs, 0, 'bake time resets with the frame');
+  assertEqual(PSPRITE.rendered, 0, 'and so does the bake count');
+});
+
 test('a photo frame always gets the crisp bake', () => {
   setup(20, 20);
   const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');

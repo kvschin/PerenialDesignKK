@@ -1962,23 +1962,60 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     over: `GROUND_ZOOM_SETTLE` already deferred the crisp bake ~140ms past the
     last tick and blitted the stale one meanwhile ("briefly soft, never slow");
     the sprite caches had the identical 12% threshold and no settle at all.
-    Three things the guard must keep right, each mutation-tested: a genuine
-    cache **MISS never waits** (a plant entering the viewport mid-zoom would
-    otherwise fall to a procedural draw, which is the cost this cache exists to
-    avoid); `game.photo` overrides it, because `takePhoto` renders ONE frame
-    straight into a downloaded PNG, where softness outlives the gesture and
-    there is no next frame to stutter; and `SPRITE_ZOOM_DRIFT` (0.6) re-bakes
-    mid-gesture anyway past a large drift, as a **ratio** of the two scales
-    rather than the difference-over-current form the 12% test uses — that form
-    is asymmetric in the wrong direction (a 2.5× zoom IN to fire, but only
-    1.6× OUT, and zooming in is the case that upscales a stale sprite into
-    mush). Side effect, verified by comparing cache contents rather than
+    Three things the guard must keep right, each mutation-tested: a **MISS
+    with nothing to stand in never waits** (a plant entering the viewport
+    mid-zoom would otherwise fall to a procedural draw, which is the cost this
+    cache exists to avoid); `game.photo` overrides it, because `takePhoto`
+    renders ONE frame straight into a downloaded PNG, where softness outlives
+    the gesture and there is no next frame to stutter; and `SPRITE_ZOOM_DRIFT`
+    (0.6) re-bakes mid-gesture anyway once a zoom IN has upscaled a sprite
+    past 1.6×, as a **ratio** of the two scales rather than the
+    difference-over-current form the 12% test uses. **Zooming out never
+    re-bakes mid-gesture**: a minified sprite reads fine, and the escape used
+    to fire at 1.6× in both directions, so a wheel spun out from 2.8× to 0.4×
+    re-baked every visible plant four times, each thrown away at the next
+    crossing. Side effect, verified by comparing cache contents rather than
     pixels: the settle rebake lands on the EXACT current scale, where the old
     path stopped at its last threshold crossing and blitted a ~5.4% upscale at
     rest — legal under the 12% tolerance either way, but the new one is
     crisper. Do not chase a worst-frame number here without a compositing tab:
     capping the settle burst to spread it over several frames measured *worse*
     and the run-to-run variance exceeded the effect, so no such constant ships.
+    What did spread it, measured live, is the time budget with stand-ins below.
+    **A bake that has something to show meanwhile waits for a frame with
+    time** (`PSPRITE.BAKE_MS` 4ms of baking a frame, `BAKE_CAP` 24 as a
+    backstop for the GPU side, `plantStandInKey`; Sep 2026). A frame could bake
+    up to `BUDGET` (160) sprites, and the bursts that ask for that many are the
+    moments a gardener is watching: a season turn re-bakes every plant
+    (measured on a 261-plant garden at 2114×1241, frames of 103, 279 and
+    127ms), a scheme switch or a replacement a whole planting, a wheel zoom
+    every plant several times, fast-forward through spring several hundred a
+    second. Once BAKE_MS is spent, a rescale shows its own stale sprite and a
+    miss shows the first of: the clump at its previous growth or bloom bucket,
+    the same species, bucket, season and detail baked for a sibling clump
+    (`PSPRITE.spec`, keyed on the sprite key minus its seed), or the clump in
+    the season being left, drawn under the crossfade that is showing that
+    season anyway. A miss with none of those still bakes up to BUDGET —
+    its alternative is a procedural draw on every frame until it does — and
+    `game.photo` is exempt. The stand-in is re-inserted in LRU order like any
+    hit, because the eviction sweep stops at the first recently-used entry and
+    a stand-in left where it was would shield every older sprite behind it.
+    Measured live (rAF spacing, Chrome 153, 164Hz, two interleaved runs a side
+    on a clean machine): wheel zoom 25-27 → 51-53fps (worst frame 236-249 →
+    170-176ms), a scheme switch's worst frame 109-158 → 18-42ms, the first
+    frames of a 754-plant scheme 12-14 → 123-124fps (worst 352-364 →
+    24-30ms), season turns' worst 212-261 → 115-188ms, fast-forward's worst
+    303-309 → 206ms, panning unchanged. What remains in those worst frames is
+    the full ground bake. **Firefox is not rescued by it**: in Firefox 156 a
+    few hundred NEW sprite canvases — one season turn is enough — make it give
+    up canvas acceleration for the rest of the page (the
+    `gfx.canvas.accelerated.profile-*` heuristic; setting
+    `profile-cache-miss-ratio` to 1.1 in about:config prevents it), after
+    which every frame is 50-150ms. Spreading the bakes, removing the 'screen'
+    light beam, resetting the canvas and CPU-backed sprites
+    (`willReadFrequently`, which demote it at load) were each tried on a clean
+    machine and do not avoid it; full ground re-bakes alone never trigger it.
+    The fix there is fewer canvas objects — a sprite atlas — not a tweak.
     ~2.7–3.4× on dense
     frames; `PSPRITE.off` A/Bs it, dev-only `stressGarden()` packs the plot. A
     perf **debug HUD** (`dbg`, toggled by backtick or `?debug`, zero-cost off;
