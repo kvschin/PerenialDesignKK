@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.6';
+const APP_VERSION = '0.9.7';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -890,6 +890,16 @@ function waterStyleId(id){ return waterStyle(id).id; }
    of a record rather than a second region (see LAWN_STYLES). */
 const TERRAIN_RANK = { lawn:0, water:1, bed:2, path:3 };
 function terrainRank(kind){ const r=TERRAIN_RANK[kind]; return r===undefined?2:r; }
+/* Every terrain kind has a rank, so this table is also the one list of what a
+   terrain record's `k` may be. The garden-file validator asks it rather than
+   restating the kinds: it used to say ['path','bed','water'], written before
+   lawn existed, and refused every shared garden with a meadow in it.
+   Own-property and string-typed, because the question arrives from an imported
+   file — `in` would admit 'toString', and hasOwnProperty alone coerces
+   ['lawn'] to 'lawn'. */
+function isTerrainKind(kind){
+  return typeof kind==='string' && Object.prototype.hasOwnProperty.call(TERRAIN_RANK,kind);
+}
 /* How far a material's edge may be rounded at a corner, in TILES. This is one
    number per material because the two kinds of edge want opposite things and a
    single global value cannot serve both.

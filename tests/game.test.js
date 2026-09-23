@@ -11520,6 +11520,7 @@ test('garden imports reject malformed versions, layers and records before touchi
     e=>e.world.plants['0.5,2']={s:'bluestem',d:0},
     e=>e.world.gw=1e9, e=>e.world.gw=21.5, e=>delete e.world.gh, e=>e.world.name=42,
     e=>e.world.bulbs=[], e=>e.world.terrain={'3,3':{k:'nonsense'}},
+    e=>e.world.terrain={'3,3':{k:'toString'}}, e=>e.world.terrain={'3,3':{k:['lawn']}},
     e=>e.world.elevation={'3,3':{h:999}}, e=>e.world.fences={'3,3':{height:'high'}},
     e=>e.world.houses={}, e=>e.world.houses=[{x:2,y:2,w:-1,h:2}],
     e=>e.world.buildings=[{vertices:[[1,1],null,[3,3],[1,3]]}],
@@ -11568,6 +11569,39 @@ test('current, demo and legacy garden files import without losing schemes or pla
   delete old.world.grid;
   assertEqual(gardenFileProblem(old),null,'the oldest dimensionless saves keep their recentering path');
   cancelGardenAutosave();
+});
+
+test('a garden with a painted lawn surface survives export and import', async()=>{
+  /* Lawn is a terrain KIND (§11f), and the validator's kind list was written
+     before it existed — so every shared garden with a meadow, a clover lawn or
+     a run of stepping stones was refused as "invalid ground material data". */
+  await worldsIndexChain;
+  setup(13,13); game.worldId='lawn-source';
+  setTile('terrain','4,4',{k:'lawn',c:'meadow',t:1});
+  setTile('terrain','5,4',{k:'path',c:'warm',t:1});
+  const blob=buildSaveBlob();
+  const file={pocketPrairie:1,v:1,world:JSON.parse(JSON.stringify(blob))};
+  assertEqual(gardenFileProblem(file),null,'a lawn tile is valid ground material');
+  const id=await installWorldBlob(file,'Meadow');
+  assert(id,'the garden installs');
+  setup(13,13);
+  await loadSolo(id);
+  const t=game.terrain['4,4'];
+  assert(t && t.k==='lawn' && t.c==='meadow','the meadow tile survives the round trip');
+  assertEqual(game.terrain['5,4'].k,'path','and the path beside it');
+  cancelGardenAutosave();
+});
+
+test('the terrain kinds the validator accepts are exactly the ones the tools write', ()=>{
+  /* TERRAIN_RANK is the one list of terrain kinds; each placeTerrainAt tool
+     writes a record whose `k` is its own name. Pin the two together so a fifth
+     ground kind cannot ship paintable and un-importable, which is how lawn did. */
+  const writers=Object.keys(TOOLS).filter(t=>TOOLS[t].apply && /placeTerrainAt/.test(String(TOOLS[t].apply)));
+  assertEqual(writers.slice().sort().join(),Object.keys(TERRAIN_RANK).sort().join(),
+    'every terrain-writing tool has a rank, and every rank has a tool');
+  for (const k of writers) assert(isTerrainKind(k),k+' is a terrain kind');
+  for (const k of ['grass','toString','__proto__','',null,undefined,['lawn'],{}])
+    assert(!isTerrainKind(k),'not a terrain kind: '+String(k));
 });
 
 test('regional guidance has explicit taxa, geographic scopes, review dates and sources',()=>{

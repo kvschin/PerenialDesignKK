@@ -548,7 +548,7 @@ function gardenFileProblem(env){
         if (!P || (ref.v && (!P.cv || !Object.prototype.hasOwnProperty.call(P.cv,ref.v))))
           return 'This garden contains a plant or variety this version cannot read. Update Pocket Prairie before importing it.';
       } else if (layer==='terrain'){
-        if (!['path','bed','water'].includes(p.k) || !string(p,'c') || !string(p,'e')) return 'This garden contains invalid ground material data.';
+        if (!isTerrainKind(p.k) || !string(p,'c') || !string(p,'e')) return 'This garden contains invalid ground material data.';
       } else if (layer==='elevation'){
         if (!Number.isInteger(p.h) || p.h<ELEV_MIN || p.h>ELEV_MAX || !string(p,'w')) return 'This garden contains invalid elevation data.';
       } else {

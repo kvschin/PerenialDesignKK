@@ -443,7 +443,10 @@ See §13a.
   data. Missing legacy versions, optional layers, old square/13x13 layouts,
   tombstones, and retired plant aliases remain supported. File reading and
   validation failures explain what went wrong; successful imports use fresh
-  local ids and never mutate the supplied envelope.
+  local ids and never mutate the supplied envelope. A terrain record's kind is
+  checked with `isTerrainKind` (core.js), which reads `TERRAIN_RANK` — the
+  validator restated `['path','bed','water']` and refused every garden with a
+  painted lawn until 0.9.7, and a test pins the table to the tools that write it.
 - Mobile is a first-class target: tap a tile to act on it. Keep
   `touch-action: none` on the canvases and don't assume a mouse.
 
