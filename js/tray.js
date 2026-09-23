@@ -136,6 +136,16 @@ function toolMeta(t){ t=t||game.tool;
 function isPlacementTool(t){ return toolMeta(t).placement; }
 function toolTargetLayer(t){ return toolMeta(t).layer; }
 function isBrushTool(k){ return toolMeta(k).brush; }
+/* The material a terrain tool will lay next: the id its chip is armed with.
+   Every surface that draws a terrain tool as its real tile asks this, and asks
+   isTerrainKind whether it IS one, rather than listing path/bed/water again —
+   the landscape search's icon did, written before lawn, so a meadow result drew
+   the generic brush beside three real material tiles. One field per
+   TERRAIN_RANK kind; a test holds the two tables together. */
+const TERRAIN_DRAFT_FIELD={path:'pathColor', bed:'bedStyle', water:'waterStyle', lawn:'lawnStyle'};
+function terrainDraftId(kind){
+  return isTerrainKind(kind) ? game[TERRAIN_DRAFT_FIELD[kind]] : null;
+}
 /* Which tab a tool is browsed on. Read it off TRAY_CATS rather than restating
    it: this was a hand-written chain duplicating the table, and every tool added
    to a tab after it was written got missed. All four of them — 'wall' answered
@@ -398,10 +408,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     if (stroke){ g.strokeStyle=stroke; g.lineWidth=1.2; g.stroke(); }
   };
   const matIcon=(kind,id)=>{ drawMaterialIcon(g,c.width/2,c.height/2+1,c.width*.36,c.height*.24,kind,id); return true; };
-  if (k==='path') return matIcon('path',game.pathColor);
-  if (k==='bed') return matIcon('bed',game.bedStyle);
-  if (k==='water') return matIcon('water',game.waterStyle);
-  if (k==='lawn') return matIcon('lawn',game.lawnStyle);
+  if (isTerrainKind(k)) return matIcon(k,terrainDraftId(k));
   if (isElevationTool(k)){ diamond(k==='lower'?'#6f7f83':'#8ba263','rgba(239,230,211,.45)');
     g.fillStyle=uiInk('--icon-ink'); g.font='700 12px IBM Plex Sans'; g.textAlign='center'; g.textBaseline='middle';
     g.fillText(k==='level'?'0':(k==='raise'?'+':'-'),c.width/2,c.height/2+1); return true; }
@@ -1519,9 +1526,8 @@ function landscapeSearchItems(query){
 }
 function drawSearchToolIcon(tc,item){
   tc.clearRect(0,0,48,44);
-  if (item.tool==='path'||item.tool==='bed'||item.tool==='water'){
-    const id = item.tool==='path' ? game.pathColor : item.tool==='bed' ? game.bedStyle : game.waterStyle;
-    drawMaterialIcon(tc,24,22,18,13,item.tool,id);
+  if (isTerrainKind(item.tool)){
+    drawMaterialIcon(tc,24,22,18,13,item.tool,terrainDraftId(item.tool));
     return;
   }
   tc.save(); tc.translate(3,6); drawCanvasIcon(tc,item.kind||'brush'); tc.restore();

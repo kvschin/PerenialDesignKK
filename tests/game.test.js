@@ -1455,6 +1455,58 @@ test('every landscape tool in TRAY_CATS is reachable from the landscape search',
   assert(landscapeSearchItems('cat').some(i => i.tool === 'pet'), 'a cat is found under pets');
 });
 
+/* A terrain tool is drawn as its real tile wherever it is shown, and which ones
+   count is TERRAIN_RANK's question. The search icon asked a hand-written
+   path/bed/water list that predates lawn, so a meadow result fell through to
+   the generic brush. The sandbox has no pixels, so this pins the ROUTING: which
+   painter each search result and brush swatch reaches, and with what id. */
+test('every terrain kind draws its armed material in the search results and the brush swatch', () => {
+  setup();
+  const kinds = Object.keys(TERRAIN_RANK).sort();
+  assertEqual(Object.keys(TERRAIN_DRAFT_FIELD).sort().join(), kinds.join(),
+    'one armed-material field per terrain kind, and no field for anything else');
+  for (const k of kinds){
+    const id = terrainDraftId(k);
+    assert(typeof id === 'string' && id.length, `${k} resolves to an armed material id (got ${id})`);
+  }
+  assertEqual(terrainDraftId('fence'), null, 'a tool that lays no terrain has no material id');
+  assertEqual(terrainDraftId('toString'), null, 'nor does a key that only looks like one');
+  game.lawnStyle = 'clover'; game.pathColor = 'brick';
+  assertEqual(terrainDraftId('lawn'), 'clover', 'the id follows the armed lawn');
+  assertEqual(terrainDraftId('path'), 'brick', 'and the armed path colour');
+
+  const realMat = drawMaterialIcon, realIcon = drawCanvasIcon;
+  let calls = [];
+  drawMaterialIcon = (tc, cx, cy, hw, hh, kind, id) => calls.push({ mat: kind, id });
+  drawCanvasIcon = (tc, kind) => calls.push({ icon: kind });
+  try {
+    const items = searchToolItems();
+    for (const k of kinds) assert(items.some(i => i.tool === k), `${k} is a landscape search result`);
+    for (const item of items){
+      calls = [];
+      drawSearchToolIcon(document.createElement('canvas').getContext('2d'), item);
+      assertEqual(calls.length, 1, `${item.tool}'s search icon draws once`);
+      if (isTerrainKind(item.tool)){
+        assertEqual(calls[0].mat, item.tool, `${item.tool}'s search result is its real material tile`);
+        assertEqual(calls[0].id, terrainDraftId(item.tool), `${item.tool}'s tile is the armed material`);
+      } else assert(!calls[0].mat, `${item.tool} is not a ground material and keeps its tool icon`);
+    }
+    // Mown is LAWN_STYLES' "none" row: it still routes to the tile, which draws plain grass
+    game.lawnStyle = 'mown'; calls = [];
+    drawSearchToolIcon(document.createElement('canvas').getContext('2d'), { tool: 'lawn', kind: 'brush' });
+    assertEqual(calls[0] && calls[0].id, 'mown', 'the Mown chip still shows a lawn tile');
+
+    for (const k of kinds){
+      game.tool = k; calls = [];
+      assert(drawBrushSwatchCanvas(document.createElement('canvas'), false), `${k} has a brush swatch`);
+      assertEqual(calls.length === 1 && calls[0].mat, k, `${k}'s brush swatch is its material tile`);
+      assertEqual(calls[0].id, terrainDraftId(k), `${k}'s swatch is the armed material`);
+    }
+  } finally { drawMaterialIcon = realMat; drawCanvasIcon = realIcon; }
+  // and the real painter takes the Mown id without complaint
+  drawMaterialIcon(document.createElement('canvas').getContext('2d'), 24, 22, 18, 13, 'lawn', 'mown');
+});
+
 test('applying garden criteria leaves the discovery lens intact', () => {
   setup();
   game.design = { zone: 6, type: 'any', nativeRegion:'north-america', nativeMode:'any', deer: false, rabbit: false, squirrel: false };
