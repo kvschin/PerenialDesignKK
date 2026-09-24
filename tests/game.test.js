@@ -9385,11 +9385,143 @@ test('a zoom out that would leave ground missing bakes at once', () => {
   });
 });
 
+/* ---------- the next ground picture is baked behind the one on screen ----------
+   A full bake is ~100ms of GPU at 2114x1241 and a season turn, a rotation and
+   every zoom settle each asked for one on the frame it happened. A ground job
+   bakes the next picture into a spare canvas a band per frame and swaps it in
+   whole. The sandbox cannot rasterise, so these pin the bookkeeping: the bands,
+   the swap, what the job borrows, and what drops it. */
+function groundJobCase(fn){
+  setup(20, 20);
+  const was = { VW, VH, DPR, ZOOM, cx: cam.x, cy: cam.y, w: cnv.width, h: cnv.height,
+    gc: groundCanvas, gx: groundCtx, sp: groundSpare, spx: groundSpareCtx, job: groundJob,
+    gk: groundKey, gks: groundKeyStruct, gz: groundZoom, gcx: groundCamX, gcy: groundCamY,
+    ff: game.ffActive, pa: game.pausedAt, pg: paintGround };
+  try {
+    VW = 800; VH = 600; DPR = 1; ZOOM = 1; cnv.width = 800; cnv.height = 600;
+    const MD = Math.round(GROUND_MARGIN_CSS * DPR);
+    groundCanvas = document.createElement('canvas'); groundCtx = groundCanvas.getContext('2d');
+    groundCanvas.width = cnv.width + 2 * MD; groundCanvas.height = cnv.height + 2 * MD;
+    groundSpare = null; groundSpareCtx = null; groundJob = null;
+    fn(MD);
+  } finally {
+    VW = was.VW; VH = was.VH; DPR = was.DPR; ZOOM = was.ZOOM; cam.x = was.cx; cam.y = was.cy;
+    cnv.width = was.w; cnv.height = was.h; groundCanvas = was.gc; groundCtx = was.gx;
+    groundSpare = was.sp; groundSpareCtx = was.spx; groundJob = was.job;
+    groundKey = was.gk; groundKeyStruct = was.gks; groundZoom = was.gz; groundCamX = was.gcx; groundCamY = was.gcy;
+    game.ffActive = was.ff; game.pausedAt = was.pa; paintGround = was.pg;
+  }
+}
+
+test('a ground job bakes in bands and is swapped in whole', () => {
+  groundJobCase(MD => {
+    ensureGroundJob('rot', 'Summer', 1, 10, 20, MD);
+    assert(groundJob && groundJob.band === 0 && !groundJobDone(), 'a new job has baked nothing');
+    stepGroundJob(0, 5);
+    assertEqual(groundJob.band, 5, 'a step bakes the bands it is asked for');
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    assert(groundJobDone(), 'and never more than there are');
+    const baked = groundSpare, onScreen = groundCanvas;
+    adoptGroundJob(0);
+    assert(groundCanvas === baked, 'the baked canvas is now the one on screen');
+    assert(groundSpare === onScreen, 'and the old one is kept as the next spare');
+    assertEqual(groundKeyStruct, groundStructKey('Summer', 1), 'the key says what the canvas holds');
+    assert(groundCamX === 10 && groundCamY === 20, 'including the camera it was baked at');
+    assert(groundJob === null, 'the job is spent');
+  });
+});
+
+test('a ground job borrows the camera and rotation, and gives them back', () => {
+  groundJobCase(MD => {
+    const seen = [];
+    paintGround = function () { seen.push([game.rot, cam.x, cam.y]); };
+    cam.x = 5; cam.y = 6; game.rot = 0;
+    ensureGroundJob('rot', 'Summer', 2, 100, 200, MD);
+    stepGroundJob(0, GROUND_JOB_BANDS);
+    assertEqual(seen.length, GROUND_JOB_BANDS, 'one paint per band');
+    assert(seen.every(s => s[0] === 2 && s[1] === 100 && s[2] === 200), 'painted at the job\'s rotation and camera');
+    assert(game.rot === 0 && cam.x === 5 && cam.y === 6, 'and the live view is untouched afterwards');
+  });
+});
+
+test('a ground job on a stale footing is dropped', () => {
+  groundJobCase(MD => {
+    ensureGroundJob('ahead', 'Fall', 0, 0, 0, MD);
+    assert(groundJobValid(MD), 'valid when made');
+    setTile('terrain', '3,3', { k: 'bed', c: 'soil', t: 1 });
+    assert(!groundJobValid(MD), 'an edit to the ground makes it a picture of the past');
+    ensureGroundJob('ahead', 'Fall', 0, 0, 0, MD);
+    ZOOM = 1.3;
+    assert(!groundJobValid(MD), 'so does a zoom');
+  });
+});
+
+test('the same picture keeps its job; a different one replaces it', () => {
+  groundJobCase(MD => {
+    ensureGroundJob('rot', 'Summer', 1, 0, 0, MD);
+    stepGroundJob(0, 3);
+    const job = groundJob;
+    /* The camera is not part of "the same picture": a job baked at another
+       camera is still the right ground, and the pan logic scrolls it. */
+    ensureGroundJob('zoom', 'Summer', 1, 50, 50, MD);
+    assert(groundJob === job && groundJob.band === 3, 'the bands already baked are kept');
+    assertEqual(groundJob.why, 'zoom', 'and now a frame is waiting on it');
+    ensureGroundJob('season', 'Fall', 1, 0, 0, MD);
+    assert(groundJob !== job && groundJob.band === 0, 'another season is another picture');
+  });
+});
+
+test('the next season is baked ahead only while the clock is running towards it', () => {
+  const aheadSeason = () => { const a = seasonTurnAhead(); return a ? a.season : null; };
+  groundJobCase(() => {
+    const boundary = DAYS_PER_SEASON * DAY_MS;          // Spring -> Summer, dayOffset 0
+    game.ffActive = false; game.pausedAt = Date.now();
+    game.elapsedMs = boundary - 500;
+    assertEqual(aheadSeason(), null, 'a paused planner bakes nothing ahead, however close the turn');
+    game.pausedAt = 0; game.startTs = Date.now();
+    assertEqual(aheadSeason(), 'Summer', 'half a second out at 1x is inside the lead');
+    game.elapsedMs = boundary - 5000;
+    assertEqual(aheadSeason(), null, 'five seconds out is not');
+    game.pausedAt = Date.now(); game.ffActive = true;
+    game.elapsedMs = boundary - FF_RATE * 1000;          // a second of fast-forward away
+    assertEqual(aheadSeason(), 'Summer', 'the lead is real time, so fast-forward starts it a season-day sooner');
+  });
+});
+
+test('snapCamFor is exactly where snapCam puts the camera', () => {
+  groundJobCase(() => {
+    /* The ground pre-bakes the next rotation at snapCamFor's camera and swaps
+       it in on rotate only if rotateView's snapCam lands on the same one, to
+       the bit. */
+    for (let r = 0; r < 4; r++) {
+      game.rot = 0;
+      const c = snapCamFor(r);
+      assertEqual(game.rot, 0, 'asking does not turn the view');
+      game.rot = r; snapCam();
+      assert(cam.x === c[0] && cam.y === c[1], 'rotation ' + r + ' agrees');
+    }
+  });
+});
+
+test('render lets a picture stand in only where it can, and never in a photo', () => {
+  const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = src.slice(src.indexOf('function render(t){'));
+  assert(/const seasonOnly = !game\.photo && /.test(body), 'a photo never keeps the last season\'s ground');
+  assert(/zoomSettled && !!game\.photo/.test(body), 'nor a soft stale bake');
+  assert(/groundJob\.struct===gStruct\)\{\s*if \(!groundJobDone\(\) && groundKeyStruct!==gStruct && !groundSeasonOnly\(groundKeyStruct,gStruct\)\)\s*stepGroundJob\(t,GROUND_JOB_BANDS\);/.test(body),
+    'a picture that cannot stand in (a rotation) has its job finished on the spot');
+  assert(/if \(!game\.photo\) groundJobTick\(/.test(body), 'and a photo frame does no background work');
+  assert(groundSeasonOnly('Summer|0|organic|1|800x600', 'Fall|0|organic|1|800x600'), 'season-only is season-only');
+  assert(!groundSeasonOnly('Summer|0|organic|1|800x600', 'Fall|1|organic|1|800x600'), 'a rotation is not');
+});
+
 test('render asks groundZoomDriftDue, not a flat drift', () => {
   const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
   const body = src.slice(src.indexOf('function render(t){'));
-  assert(/zoomStale && \(t-groundZoomT>GROUND_ZOOM_SETTLE \|\| groundZoomDriftDue\(MD\)\)/.test(body),
-    'the mid-gesture rebake goes through the coverage test');
+  assert(/\(zoomStale && \(groundZoomDriftDue\(MD\)/.test(body),
+    'a zoom bakes at once only when the coverage test finds a gap');
+  assert(/ensureGroundJob\(seasonOnly\?'season':'zoom'/.test(body),
+    'and the settle is baked behind the stale picture instead of on the frame');
   assert(!/GROUND_ZOOM_DRIFT/.test(src), 'and the flat 18% drift is gone');
 });
 

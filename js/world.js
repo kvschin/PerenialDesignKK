@@ -3100,8 +3100,15 @@ function applyDuskLighting(ctx,W,H,season){
 /* centre the camera on the plot. Design keeps a free camera afterwards, so this
    only runs when the view has no continuity to preserve: entering a garden and
    rotating it. */
-function snapCam(){ const [vx,vy]=worldToView(SPAWNX,SPAWNY);
-  cam.x=isoX(vx,vy); cam.y=isoY(vx,vy)-(VH/ZOOM)*0.21; }
+function snapCam(){ const c=snapCamFor(game.rot); cam.x=c[0]; cam.y=c[1]; }
+/* Where snapCam puts the camera at a given rotation. One definition, because
+   the ground pre-bakes the NEXT rotation at exactly this camera: the two have
+   to agree to the bit for the finished picture to be swapped in on rotate. */
+function snapCamFor(rot){
+  const r0=game.rot; game.rot=rot;
+  try{ const [vx,vy]=worldToView(SPAWNX,SPAWNY); return [isoX(vx,vy), isoY(vx,vy)-(VH/ZOOM)*0.21]; }
+  finally{ game.rot=r0; }
+}
 function rotateView(dir){
   game.rot=(game.rot+(dir||1)+4)%4; snapCam(); game.dirty=true;
   updateCompass();

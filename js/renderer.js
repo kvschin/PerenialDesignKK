@@ -102,6 +102,115 @@ function plotGroundExtentDevice(){
   return {x0:(x0-TILE_W)*s, x1:(x1+TILE_W)*s,
           y0:(y0-TILE_H-lift)*s, y1:(y1+TILE_H*2+drop+lift)*s};
 }
+/* The STRUCT half of the ground key: everything that makes a whole new picture. */
+function groundStructKey(season,rot){
+  return season+'|'+rot+'|'+game.edgeStyle+'|'+(layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height;
+}
+// two struct keys that differ in nothing but the season
+function groundSeasonOnly(a,b){
+  return a!==b && a.slice(a.indexOf('|'))===b.slice(b.indexOf('|'));
+}
+/* ---------- the next ground picture, baked a band at a time ----------
+   A full bake is ~100ms of GPU raster at 2114x1241 in Chrome — the grain is
+   thousands of small fills, which is what it is for — and three things asked
+   for one on a frame the gardener was watching: a season turn, a rotation,
+   and the settle at the end of every zoom. Each can instead be baked into a
+   SECOND canvas, one horizontal band per frame, and swapped in whole. A band
+   is a clipped strip through bakeGroundRect, the path a pan already scrolls
+   strips in by, so there is no new way of painting the ground to get wrong.
+     zoom   - after the settle, the soft stale bake stays on screen while the
+              crisp one fills in behind it;
+     season - while the clock runs towards a season boundary the next season
+              is baked ahead of it, and a turn nothing got ahead of (Skip)
+              keeps the old season's ground until the new one is ready;
+     rot    - once the view is idle, the NEXT rotation — the button and R both
+              turn one way — at the camera rotateView will snap to.
+   A job is a promise about one picture: season, rotation, zoom, camera,
+   ground data and layer objects, canvas size. If any of those moves it is
+   dropped, and one on a stale footing is never swapped in. */
+const GROUND_JOB_BANDS=12;
+const GROUND_SEASON_LEAD_MS=1500;   // bake the next season this long, in real time, before it arrives
+const GROUND_IDLE_MS=600;           // quiet this long before pre-baking the next rotation
+let groundJob=null, groundSpare=null, groundSpareCtx=null;
+function groundJobDone(){ return !!groundJob && groundJob.band>=GROUND_JOB_BANDS; }
+function groundJobValid(MD){
+  const j=groundJob;
+  return !!j && j.data===groundDataKey() && j.zoom===ZOOM && j.MD===MD
+    && j.w===cnv.width+2*MD && j.h===cnv.height+2*MD
+    && j.refs.terrain===game.terrain && j.refs.elevation===game.elevation && j.refs.houses===game.houses
+    && j.struct===groundStructKey(j.season,j.rot);    // edge style, landscape layer, canvas size
+}
+/* Keep a valid job already heading for this picture; otherwise start one. The
+   camera is not part of "the same picture": a job baked at another camera is
+   still the right ground, and the pan logic scrolls it into place. */
+function ensureGroundJob(why,season,rot,camX,camY,MD){
+  const struct=groundStructKey(season,rot);
+  if (groundJob && groundJob.struct===struct && groundJobValid(MD)){ groundJob.why=why; return; }
+  const w=cnv.width+2*MD, h=cnv.height+2*MD;
+  if (!groundSpare){ groundSpare=document.createElement('canvas'); groundSpareCtx=groundSpare.getContext('2d'); }
+  if (groundSpare.width!==w || groundSpare.height!==h){ groundSpare.width=w; groundSpare.height=h; }
+  groundJob={why, season, rot, struct, data:groundDataKey(), zoom:ZOOM, camX, camY, MD, w, h,
+    refs:{terrain:game.terrain,elevation:game.elevation,houses:game.houses}, band:0};
+}
+/* Bake the next `n` bands of the job into the spare canvas. The camera and the
+   rotation are borrowed for the call and put back in a finally — the
+   gsBorrowCamera pattern — because the ground painters read both; the season
+   travels in `amb`, which is all they read of it. */
+function stepGroundJob(t,n){
+  const j=groundJob; if (!j) return;
+  const tB=dnow();
+  const W=VW/ZOOM, H=VH/ZOOM, amb=AMBIENCE[j.season], s=DPR*ZOOM, bh=Math.ceil(j.h/GROUND_JOB_BANDS);
+  const cx0=cam.x, cy0=cam.y, r0=game.rot;
+  cam.x=j.camX; cam.y=j.camY; game.rot=j.rot;
+  try{
+    for (let i=0; i<n && j.band<GROUND_JOB_BANDS; i++, j.band++){
+      const py=j.band*bh;
+      bakeGroundRect(0,py,j.w,Math.min(bh,j.h-py),W,H,amb,t,j.MD,5,j.MD/s,groundSpareCtx);
+    }
+  } finally { cam.x=cx0; cam.y=cy0; game.rot=r0; }
+  dev('bakeBand',tB,groundSpareCtx);
+}
+// swap the finished picture in; the old canvas becomes the next job's spare
+function adoptGroundJob(t){
+  const j=groundJob;
+  const oc=groundCanvas, ox=groundCtx;
+  groundCanvas=groundSpare; groundCtx=groundSpareCtx; groundSpare=oc; groundSpareCtx=ox;
+  groundKey=j.struct+'|'+j.data; groundKeyStruct=j.struct; groundZoom=j.zoom;
+  groundCamX=j.camX; groundCamY=j.camY; groundRefs=j.refs;
+  groundMarginStale=false; clearGroundDamage(); groundEditT=t;
+  groundJob=null;
+  dev('adopt',performance.now());
+}
+/* The season the clock is about to turn into, and the garden-ms instant it
+   does, when that is under GROUND_SEASON_LEAD_MS away in REAL time at the rate
+   the clock is running. Null when it is not running, so a paused planner
+   bakes nothing ahead. */
+function seasonTurnAhead(){
+  const clock=clockActive(), ff=!!game.ffActive;
+  if (!clock && !ff) return null;
+  const rate=(ff?FF_RATE:0)+(clock?1:0);
+  const d=absDay(), s=Math.floor(d/DAYS_PER_SEASON)+1;
+  const at=(s*DAYS_PER_SEASON-game.dayOffset)*DAY_MS;
+  return (at-elapsedGameMs())/rate<=GROUND_SEASON_LEAD_MS ? {season:SEASONS[((s%4)+4)%4], at} : null;
+}
+function groundViewIdle(t){
+  return !game.ffActive && typeof lastMeaningfulChange!=='undefined' && t-lastMeaningfulChange>GROUND_IDLE_MS
+    && !(typeof hasActiveGesture==='function' && hasActiveGesture());
+}
+/* Once a frame, after the blit: queue work nothing is waiting for yet (the
+   next season, the next rotation), then bake one band of whatever is queued.
+   Work a frame IS waiting for (a zoom settle, a season already turned) was
+   queued by render itself and is never displaced by a guess. */
+function groundJobTick(t,MD,season,ahead){
+  if (!groundJob || groundJob.why==='ahead' || groundJob.why==='rot'){
+    if (ahead) ensureGroundJob('ahead',ahead.season,game.rot,cam.x,cam.y,MD);
+    else if (groundViewIdle(t)){
+      const r=(game.rot+1)%4, c=snapCamFor(r);
+      ensureGroundJob('rot',season,r,c[0],c[1],MD);
+    }
+  }
+  if (groundJob && !groundJobDone() && groundJobValid(MD)) stepGroundJob(t,1);
+}
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
 function groundRefsChanged(){
@@ -234,14 +343,15 @@ function paintGround(ctx,x0,x1,y0,y1,W,H,amb,t,ex,rect){
    rectangle rather than by the canvas, and the raster is bounded by the clip.
    Shared by the two partial bakes below (a pan's exposed band, an edit's
    viewport) so there is one definition of "repaint this much of the ground". */
-function bakeGroundRect(px,py,pw,ph,W,H,amb,t,MD,pad,ex){
+function bakeGroundRect(px,py,pw,ph,W,H,amb,t,MD,pad,ex,ctx){
   if (pw<=0||ph<=0) return;
+  ctx=ctx||groundCtx;                 // a ground job bakes into the spare canvas
   const s=DPR*ZOOM;
-  groundCtx.setTransform(1,0,0,1,0,0);
-  groundCtx.clearRect(px,py,pw,ph);
-  groundCtx.save();
-  groundCtx.beginPath(); groundCtx.rect(px,py,pw,ph); groundCtx.clip();
-  groundCtx.setTransform(s,0,0,s,MD,MD);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(px,py,pw,ph);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip();
+  ctx.setTransform(s,0,0,s,MD,MD);
   // the rectangle in draw units, then the tile bbox covering it — padded exactly
   // like the full bake, since a shrub or a blob reaches past its own tile
   const dx0=(px-MD)/s, dy0=(py-MD)/s, dx1=(px+pw-MD)/s, dy1=(py+ph-MD)/s;
@@ -250,8 +360,8 @@ function bakeGroundRect(px,py,pw,ph,W,H,amb,t,MD,pad,ex){
   const tx1=Math.min(GW-1,Math.max(c4[0][0],c4[1][0],c4[2][0],c4[3][0])+pad);
   const ty0=Math.max(0,Math.min(c4[0][1],c4[1][1],c4[2][1],c4[3][1])-pad);
   const ty1=Math.min(GH-1,Math.max(c4[0][1],c4[1][1],c4[2][1],c4[3][1])+pad);
-  paintGround(groundCtx,tx0,tx1,ty0,ty1,W,H,amb,t,ex,[dx0,dy0,dx1,dy1]);
-  groundCtx.restore();
+  paintGround(ctx,tx0,tx1,ty0,ty1,W,H,amb,t,ex,[dx0,dy0,dx1,dy1]);
+  ctx.restore();
 }
 /* ---- panning re-bakes the STRIP that came into view, not the whole canvas ----
 
@@ -2794,6 +2904,9 @@ function render(t){
   const sway = Math.sin(t*0.0012);
   noteSpriteZoom(t);            // must precede both: it decides whether they may rescale
   pspriteFrame(); ssprFrame();
+  // the season the clock is about to turn into, if it is close: its ground is
+  // baked ahead of it (groundJobTick)
+  const ahead=game.photo?null:seasonTurnAhead();
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen
@@ -2819,14 +2932,25 @@ function render(t){
   // new picture) and DATA (groundDataKey — the gardener edited a tile). Only a
   // data change is eligible for the edit throttle below; a struct change always
   // bakes at once, because there is nothing on screen worth keeping.
-  const gStruct=cal.season+'|'+game.rot+'|'+game.edgeStyle+'|'+
-    (layerShown('landscape')?1:0)+'|'+cnv.width+'x'+cnv.height;
+  const gStruct=groundStructKey(cal.season,game.rot);
   const gkey=gStruct+'|'+groundDataKey();
   let bakeMs=0;                                        // charged to the 'bake' event, not the 'ground' phase
   const MD=Math.round(GROUND_MARGIN_CSS*DPR);          // margin in device px
   if (!groundCanvas){ groundCanvas=document.createElement('canvas'); groundCtx=groundCanvas.getContext('2d'); }
   if (groundCanvas.width!==cnv.width+2*MD||groundCanvas.height!==cnv.height+2*MD){
     groundCanvas.width=cnv.width+2*MD; groundCanvas.height=cnv.height+2*MD; groundKey=''; }
+  /* A picture baked behind the scenes (groundJob) is swapped in when it is
+     exactly what this frame needs. If the canvas on screen cannot stand in —
+     a rotation, not merely a season — the job is finished now: the bands
+     already baked are the saving, and there is nothing to show meanwhile. */
+  if (groundJob){
+    if (!groundJobValid(MD)) groundJob=null;
+    else if (groundJob.struct===gStruct){
+      if (!groundJobDone() && groundKeyStruct!==gStruct && !groundSeasonOnly(groundKeyStruct,gStruct))
+        stepGroundJob(t,GROUND_JOB_BANDS);
+      if (groundJobDone()) adoptGroundJob(t);
+    }
+  }
   if (ZOOM!==groundZoomPrev){ groundZoomT=t; groundZoomPrev=ZOOM; }        // zoom gesture heat
   if (cam.x!==groundCamPrevX||cam.y!==groundCamPrevY){ groundCamT=t; groundCamPrevX=cam.x; groundCamPrevY=cam.y; }
   const zoomStale=ZOOM!==groundZoom;
@@ -2851,14 +2975,28 @@ function render(t){
      through to an immediate bake, which is also what makes an external
      `groundKey=''` (stressGarden, perfBench) still force one. */
   const editThrottled = groundEditThrottled(t, gkey!==groundKey, groundKeyStruct===gStruct);
-  const mustBake = (gkey!==groundKey && !editThrottled)
+  /* Two changes leave a picture on screen that can stand in for a few frames
+     while the right one is baked behind it (groundJob): a season turn, whose
+     old ground sits under the crossfade that is showing the old season anyway,
+     and the settle after a zoom, whose stale bake is merely soft. Both used to
+     bake in full on the frame they happened, ~100ms of GPU at 2114x1241. */
+  // A photo is one frame written straight into a PNG: nothing may stand in for it.
+  const seasonOnly = !game.photo && groundKey!=='' && groundSeasonOnly(groundKeyStruct,gStruct)
+    && groundKey.slice(groundKeyStruct.length)===gkey.slice(gStruct.length) && !groundRefsChanged();
+  const zoomSettled = zoomStale && t-groundZoomT>GROUND_ZOOM_SETTLE;
+  const mustBake = (gkey!==groundKey && !editThrottled && !seasonOnly)
     || groundRefsChanged()
     || panDev>=MD
     // a stale margin becomes visible the moment the camera moves, so bake at once
     || (camStale && groundMarginStale)
-    || (zoomStale && (t-groundZoomT>GROUND_ZOOM_SETTLE || groundZoomDriftDue(MD)))
+    // a zoom that would leave ground missing on screen cannot wait
+    || (zoomStale && (groundZoomDriftDue(MD) || (zoomSettled && !!game.photo)))
     || (camStale && !zoomStale && t-groundCamT>GROUND_PAN_SETTLE);
+  if (!mustBake && (seasonOnly || zoomSettled))
+    ensureGroundJob(seasonOnly?'season':'zoom',cal.season,game.rot,cam.x,cam.y,MD);
   if (mustBake){
+    // this bake supersedes any job heading for the same picture
+    if (groundJob && groundJob.struct===gStruct) groundJob=null;
     const tBake=dnow();                                // 'ground' below is the per-frame BLIT; this is the bake
     /* A pan can reuse what is already baked (see scrollGroundBake). Only a pan:
        a data change (gkey), a struct change, a swapped layer or a zoom all make
@@ -2907,6 +3045,9 @@ function render(t){
   cx.save(); cx.setTransform(1,0,0,1,0,0);
   cx.drawImage(groundCanvas,bdx,bdy,groundCanvas.width*k,groundCanvas.height*k);
   cx.restore();
+  // one band of the next ground picture, and queue one if the view is idle
+  // or the clock is about to turn the season
+  if (!game.photo) groundJobTick(t,MD,cal.season,ahead);
   // tiles edited since that bake, painted live over it (ground, so it belongs
   // under the site photo and everything else). Costs nothing when not editing.
   if (dbg.on) dbg.gdmg=drawGroundDamage(cx,W,H,amb); else drawGroundDamage(cx,W,H,amb);

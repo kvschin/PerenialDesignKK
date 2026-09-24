@@ -1677,10 +1677,56 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     every pixel inside, 14-91px to spare. Measured live on top of the sprite
     stand-ins (Chrome 153, 164Hz, two runs a side): wheel zoom 51-53 →
     87-96fps, p95 frame 115 → 18-24ms, ground bakes 13 → 5-6 a gesture. The
-    worst frame left (~150ms) is the settle bake itself. In Firefox 156 the
+    worst frame left (~150ms) was the settle bake itself, which is now a
+    ground job (next paragraph). In Firefox 156 the
     same gesture went 25 → 40fps, but its sprite re-bakes (564, from 1578)
     still trip the acceleration give-up described with the sprite cache, so a
     wheel zoom there is one more way into the slow path.
+    **The next ground picture is baked a band at a time, behind the one on
+    screen** (`groundJob`, `ensureGroundJob`/`stepGroundJob`/`adoptGroundJob`,
+    `groundJobTick`, `GROUND_JOB_BANDS` 12; Sep 2026). Three things asked for a
+    full bake on a frame the gardener was watching — the settle at the end of a
+    zoom, a season turn, a rotation — each ~100ms of GPU at 2114×1241. Each is
+    now baked into a SECOND canvas (`groundSpare`), one horizontal band a
+    frame, through `bakeGroundRect`: the clipped-strip path a pan already
+    scrolls by, so there is no second way of painting the ground to get wrong.
+    The finished picture is swapped in whole and the old canvas becomes the
+    next job's spare, so the cost is one extra ground canvas, not one per job.
+    *zoom* — past `GROUND_ZOOM_SETTLE` the soft stale bake stays up while the
+    crisp one fills in behind it. *season* — while the clock runs toward a
+    boundary (`seasonTurnAhead`: `GROUND_SEASON_LEAD_MS`, 1.5s of REAL time at
+    the rate the clock is running, so fast-forward starts it a season-day
+    sooner) the next season is baked ahead of it; a turn nothing got ahead of
+    (Skip, a paused garden) keeps the old season's ground until the new one is
+    ready, which is invisible, because the crossfade is showing the old season
+    anyway. *rot* — once the view has been quiet `GROUND_IDLE_MS` (600), the
+    NEXT rotation (the ⟳ button and R both turn one way) at the camera
+    `rotateView` will snap to. That is why **`snapCamFor(rot)`** (world.js)
+    exists: snapCam and the pre-bake must agree to the bit or the finished
+    picture is on the wrong footing. One rotation cannot stand in for another,
+    so a rot job not finished when the gardener rotates is finished on that
+    frame — the bands already baked are the saving.
+    A job is a promise about ONE picture — season, rotation, zoom, ground data,
+    the layer objects, canvas size (`groundJobValid`) — dropped the moment any
+    of those moves, and never swapped in on a stale footing. The camera is
+    deliberately NOT part of it: a job baked at another camera is still the
+    right ground, and the ordinary pan logic scrolls it into place. Work a
+    frame is WAITING for (zoom, season) is queued by `render` and never
+    displaced by a guess (ahead, rot); a real bake supersedes any job heading
+    for the same picture; `game.photo` neither stands in nor queues. Camera and
+    rotation are borrowed per band and restored in a `finally`; the season
+    travels in `amb`, which is all the painters read of it.
+    Measured live (rAF spacing, Chrome 153, 164Hz, 261-plant garden at
+    2114×1241, same session, worst frame before → after): rotating after an
+    idle 188-194 → 6-12ms; zoom settle 146 → 30ms; a Skip to the next season
+    115-188 → 42ms; fast-forward across a boundary 206 → 48ms; pans unchanged
+    (149/159 → 153/157fps). A band costs 2.5-8.7ms. `dev/ground-verify.cjs`
+    still passes, and a job-baked canvas against a full bake of the same
+    picture differs on 0.37-0.50% of pixels, all anti-aliasing along the band
+    seams — compared GPU canvas to GPU canvas, since a CPU raster against a GPU
+    one differs on 6-11% and would swamp it. Left: a wheel zoom OUT still does
+    ~4 synchronous ~170ms bakes a gesture, because ground missing on screen
+    (`groundZoomDriftDue`) cannot wait for bands.
     **The margin rebake looks wasteful and is not — do not "optimise" it the way
     0.8.39 did (shipped, broke the garden, reverted in 0.8.40).** Panning is the
     dominant desktop cost: measured on a real 70×39 garden, ONE SECOND of
@@ -2047,8 +2093,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     170-176ms), a scheme switch's worst frame 109-158 → 18-42ms, the first
     frames of a 754-plant scheme 12-14 → 123-124fps (worst 352-364 →
     24-30ms), season turns' worst 212-261 → 115-188ms, fast-forward's worst
-    303-309 → 206ms, panning unchanged. What remains in those worst frames is
-    the full ground bake. **Firefox is not rescued by it**: in Firefox 156 a
+    303-309 → 206ms, panning unchanged. What remained in those worst frames was
+    the full ground bake, since moved into ground jobs (§11, beside the mid-zoom
+    note).
+    **Firefox is not rescued by any of this**: in Firefox 156 a
     few hundred NEW sprite canvases — one season turn is enough — make it give
     up canvas acceleration for the rest of the page (the
     `gfx.canvas.accelerated.profile-*` heuristic; setting
