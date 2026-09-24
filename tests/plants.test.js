@@ -765,7 +765,7 @@ test('rudbeckia group keeps species distinct and trims redundant cultivars', () 
 test('shrub-form forbs use distinct foliage habits', () => {
   assertEqual(PLANTS.amsonia.look.habit, 'threadleaf', 'hubrichtii amsonia should have fine foliage');
   assertEqual(PLANTS.amsonia.cv.butterscotch.sea.Fall.fol, '#d99a3a', 'butterscotch keeps its warm fall color on the threadleaf form');
-  assertEqual(PLANTS.ozarkamsonia.look.habit, 'broadamsonia', 'ozark amsonia should read as broader-leaved');
+  assertEqual(PLANTS.ozarkamsonia.look.habit, 'leafystems', 'ozark amsonia should read as broader-leaved');
   assertEqual(PLANTS.baptisia.look.habit, 'baptisia', 'baptisia should use upright pea-shrub foliage');
   assertEqual(PLANTS.aster.look.habit, 'asterdome', 'aromatic aster should be a low dome');
   assertEqual(PLANTS.newengland.look.habit, 'asterupright', 'new england aster should be taller and upright');
@@ -944,7 +944,7 @@ test('requested sun and shade catalog expansion retains distinct taxa and cultiv
   for (const k of ['autumnfire','purpleemperor','autumncharm']){
     assertEqual(PLANTS[k].group, 'hylotelephium', `${k}: stonecrop group`);
   }
-  assertEqual(PLANTS.willowamsonia.look.habit, 'broadamsonia', 'willow amsonia needs its broad habit');
+  assertEqual(PLANTS.willowamsonia.look.habit, 'leafystems', 'willow amsonia needs its broad habit');
   assert(PLANTS.willowamsonia.look.leafL >= 5 && PLANTS.willowamsonia.look.leafH < 1.5, 'willow amsonia needs long, narrow leaves');
   assertEqual(PLANTS.autumnGoldenrod.look.spikeStyle, 'goldenrodPanicle', 'autumn goldenrod needs an arching panicle');
   assertEqual(PLANTS.moorhexe.form, 'moorgrass', 'Moorhexe uses the compact moorgrass silhouette');

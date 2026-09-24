@@ -5281,6 +5281,53 @@ The dev-only `dev/native-perennial-review.html` covers the changed species,
 cultivars, four seasons, two growth sizes, three seeds and both visual styles.
 Sources and authoring details are in `docs/plant-data/native-perennial-visuals.md`.
 
+**Stem-built mounds: the bluestars and silver artemisias (0.9.20).** Two
+shrub-form habits are built from STEMS (`drawThreadDome`, `drawLeafyStems`,
+draw.js), where the rest of the form scatters leaves over a box. Both were
+wrong about the plant's shape, not its detail: `threadleaf` drew *Amsonia
+hubrichtii* as a fan of ~30 bare strokes — a grass — where the plant is a
+billowy dome of arching stems clothed to the tip in needle leaves, and the old
+`broadamsonia` put *A. tabernaemontana* in a column ±6 units wide, where it is
+a vase of leafy stems nearly as wide as it is tall. Silver Mound and fringed
+sage rode `threadleaf` too and came out as a few white hairs; broad-leaf prairie
+sage was a `mound` scatter of 26 floating leaves.
+Both habits lay three things. A scalloped, lit MASS under everything (one fill,
+the conifer crown-mass idea — a few hundred threads cannot stand in for
+thousands of leaves); its outline alternates in and out into lobes, and the
+dome's underside tucks in to a narrow crown, because a smooth outline read as a
+loaf and a flat underside stacked into shelves in a drift. Then the stems. Then
+the foliage over the mass and past its rim. `threadleaf` foliage is needles up
+each stem's top half, a single-stroke NAP over the face (`hatch`), feathered
+SPRIGS on the outer shell (`tufts`, with a skirt drooping over the underside),
+all batched into three LIGHT buckets by position against `LIT` — three strokes
+for ~500 needles. `leafystems` blades are batched by tone too under ART2
+(`ribbonPath` gained an `append` flag so many blades share a path, and
+`LEAF_SHAPES` a 6-sample `profLo` for blades under 14 units): drawLeaf is a fill
+and a stroke per blade, and one leaf at a time cost willow bluestar 848us.
+Classic keeps one `leafDot` per blade.
+Flowers sit on the recorded stem TIPS (`drawStemTipHeads`): a bluestar's
+terminal star cluster on a flattened golden-angle spiral (`clusterFlorets`,
+`clusterR`), or an artemisia's narrow nodding `panicle` — at the tip for
+prairie sage, on `wands` rising clear of the cushion for fringed sage. The
+generic head pass put every flower on a stalk within `flowerW/2` of the crown,
+which is what made the spring bluestar a broom. Snow anchors ride the same
+tips. `winterMass` keeps the mass for the evergreen cushions (Silver Mound and
+fringed sage hold their foliage; a bluestar thins to stems), and drawPlant's
+closing highlight strokes skip these habits — they assume foliage fills the H
+box and hung in the air over fringed sage's low cushion.
+The dome is a half-ellipse squared off by a 0.72 power (`domeX`/`domeY`), since
+a true half-ellipse this tall is a bell. Every one of these plants is wider
+than 0.62H, so each declares **`sideScale`** — measured off its own ink (0.53H
+prairie sage to 1.02H Silver Mound) — or the library card and tray chip clip
+it. A test pins `sideScale` against `dome`.
+Measured interleaved against HEAD in one session (controls: aster 283→288us,
+baptisia 673→655): threadleaf bluestars 85-100 → 218-297us, leafy ones
+305-690 → 488-617, Silver Mound 67 → 165, fringed sage 115 → 220, prairie sage
+145 → ~290 — i.e. from nearly-empty drawings to the aster-to-baptisia range the
+catalog already carries. `dev/stem-mound-review.html` shows every choice in
+four seasons, both renderers, as library cards or as a drift at game scale, with
+the sprite-edge check (0 of 1600 sprites and 320 previews touching an edge).
+
 Bulb morphology uses the same data-first rule. `bulbcup` selects
 `look.bulbStyle:'crocus'|'tulip'|'daffodil'|'snowdrop'|'snowflake'|'aconite'|
 'colchicum'` and optional `flowerStyle`, `pattern`, `flowersPerStem`, or

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stem-built mound review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:70px;height:105px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/draw.js"></script>
+<script src="../js/world.js"></script>
+<script src="../js/view.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/commands.js"></script>
+<script src="../js/input.js"></script>
+<script src="../js/io.js"></script>
+<script src="../js/collections.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/tray.js"></script>
+<script src="../js/photos.js"></script>
+<script src="../js/library.js"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Bluestars and silver artemisias</h1><label>Group <select id="batch"><option value="threadleaf">Threadleaf bluestars</option><option value="leafy">Leafy bluestars</option><option value="silver">Silver artemisias</option></select></label><label>View <select id="view"><option value="cards">Library cards</option><option value="drift">Drift at game scale</option></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
+<p id="status">Loading…</p><main id="plants"></main><script>
+const batches={threadleaf:['amsonia','fringedbluestar'],leafy:['easternbluestar','ozarkamsonia','willowamsonia'],silver:['silvermound','fringedsage','broadleafwormwood']};
+const reviewKeys=Object.values(batches).flat();
+function renderDrift(host){
+ const refs=[];for(const k of batches[document.getElementById('batch').value])for(const v of [null,...Object.keys(PLANTS[k].cv||{})])refs.push([k,v]);
+ for(const season of SEASONS){const card=document.createElement('article');card.style.gridColumn='1/-1';card.innerHTML='<h2>'+season+'</h2>';
+  const W=300*refs.length,H=230,c=document.createElement('canvas');c.width=W*2;c.height=H*2;c.style.cssText='width:'+W+'px;height:'+H+'px;max-width:100%';
+  const ctx=c.getContext('2d');ctx.scale(2,2);ctx.fillStyle=AMBIENCE[season].soil;ctx.fillRect(0,0,W,H);
+  refs.forEach(([k,v],n)=>{const pts=[];for(let gx=0;gx<3;gx++)for(let gy=0;gy<3;gy++)pts.push([gx,gy]);pts.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1]));
+   for(const [gx,gy] of pts){ctx.save();ctx.translate(150+300*n+(gx-gy)*TILE_W/2*1.3,150+(gx+gy-2)*TILE_H/2*1.3);ctx.scale(1.3,1.3);drawPlant(ctx,0,0,k,1,season,tileSeed(gx+5,gy+9),0,v,1);ctx.restore();}
+   ctx.fillStyle='#f3ecdd';ctx.font='12px system-ui';ctx.fillText(plantDef(k,v).name,300*n+20,H-10);});
+  card.append(c);host.append(card);}
+}
+function renderReview(){
+ ART2.on=document.getElementById('art').value==='1';const host=document.getElementById('plants');host.replaceChildren();
+ if(document.getElementById('view').value==='drift'){renderDrift(host);document.getElementById('status').textContent='Drift of nine, planted every tile · '+(ART2.on?'ART2':'Classic');return;}
+ for(const k of batches[document.getElementById('batch').value]){
+  const P=PLANTS[k],card=document.createElement('article');card.innerHTML='<h2>'+P.name+'</h2><div class="latin">'+P.latin+'</div><div class="seasons"></div>';
+  for(const season of SEASONS){const fig=document.createElement('figure'),c=libCanvas(k,null,season,70,105);fig.append(c);const label=document.createElement('figcaption');label.textContent=season;fig.append(label);card.querySelector('.seasons').append(fig);}
+  host.append(card);
+ }
+ document.getElementById('status').textContent='Actual library previews · four seasons · '+(ART2.on?'ART2':'Classic');
+}
+function checkEdges(){
+ const bad=[];let count=0,previews=0;const original=ART2.on;
+ try{for(const mode of [false,true]){ART2.on=mode;
+  for(const k of reviewKeys)for(const v of [null,...Object.keys(PLANTS[k].cv||{})])for(const season of SEASONS)for(const seed of [7,101,4410])for(const growth of [3,8]){
+   const s=makePlantSprite(k,growth,3,season,seed,v),c=s.cv,w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;
+   let edge=false;for(let x=0;x<w;x++)if(d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8)edge=true;
+   for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
+   if(edge)bad.push({k,v,season,seed,growth,mode});count++;
+  }
+  TRAY_ART.clear();
+  for(const k of reviewKeys)for(const v of [null,...Object.keys(PLANTS[k].cv||{})])for(const season of SEASONS){
+   for(const [surface,c]of [['library',libCanvas(k,v,season,70,105)],['tray',trayPlantArt(k,v,season,plantDef(k,v))]]){
+    const w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;let edge=false;
+    for(let x=0;x<w;x++)if(d[x*4+3]>8)edge=true;
+    // Preview ground shadows intentionally run into the bottom margin; check
+    // the crown's top/side edges here and the whole shadow in the sprite above.
+    for(let y=0;y<h-18;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
+    if(edge)bad.push({k,v,season,surface,mode});previews++;
+   }
+  }
+ }}finally{ART2.on=original;TRAY_ART.clear();}
+ window.reviewResult={count,previews,bad};document.getElementById('status').textContent=count+' sprite and '+previews+' preview checks: '+(bad.length?bad.length+' touch edges — '+JSON.stringify(bad):'no painted edges');
+ return window.reviewResult;
+}
+document.getElementById('batch').onchange=renderReview;document.getElementById('art').onchange=renderReview;document.getElementById('view').onchange=renderReview;document.getElementById('check').onclick=checkEdges;
+const params=new URLSearchParams(location.search);if(params.has('art'))document.getElementById('art').value=params.get('art');if(params.has('batch'))document.getElementById('batch').value=params.get('batch');if(params.has('view'))document.getElementById('view').value=params.get('view');
+try{renderReview();if(params.has('check'))setTimeout(checkEdges,0);}catch(e){document.getElementById('status').textContent='Review failed: '+e.stack;}
+</script></html>

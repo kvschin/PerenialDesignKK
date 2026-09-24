@@ -394,6 +394,110 @@ test('native perennial morphology is finite, seeded, and active in both visual s
   }} finally {ART2.on=before;}
 });
 
+/* The stem-built shrub-form habits (threadleaf, leafystems): the threadleaf
+   bluestars and silver artemisias used to be a fan of bare strokes and the
+   broad bluestars a column a few pixels wide. These pin what made them read as
+   the plants — WHERE the organs land — through a context that records every
+   call along with the fill in force when it was made. */
+function stemMoundOps(key,season,variant=null,seed=101){
+  const ops=[]; let fill=null, stroke=null;
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if(p in o)return o[p];
+      if(p==='createLinearGradient'||p==='createRadialGradient')return (...a)=>{
+        ops.push({op:p});return {addColorStop(){}};
+      };
+      return (...a)=>{
+        for(const v of a)if(typeof v==='number')assert(Number.isFinite(v),`${key}: finite ${p}`);
+        ops.push({op:p,a,fill,stroke});
+      };
+    },
+    set(o,p,v){o[p]=v; if(p==='fillStyle')fill=v; if(p==='strokeStyle')stroke=v; return true;}
+  });
+  drawPlant(ctx,0,0,key,1,season,seed,0,variant,1);
+  return ops;
+}
+
+test('a bluestar carries its stars in clusters over the dome, not on stalks up the middle', () => {
+  const before=ART2.on;
+  try {for(const mode of [false,true]){
+    ART2.on=mode;
+    for(const key of ['amsonia','fringedbluestar','easternbluestar','willowamsonia']){
+      const P=plantDef(key), H=plantVisualH(P), body=shade(P.sea.Spring.bloom,-12);
+      const florets=stemMoundOps(key,'Spring').filter(o=>o.op==='ellipse'&&o.fill===body);
+      assert(florets.length>=P.look.flowerStems*P.look.clusterFlorets*0.9, `${key}: every cluster is drawn (${florets.length})`);
+      const xs=florets.map(o=>o.a[0]), ys=florets.map(o=>o.a[1]);
+      // the old head pass put every flower on a stalk within flowerW/2 of the
+      // crown; a dome of clusters spans most of the plant's width
+      assert(Math.max(...xs)-Math.min(...xs)>=H*0.6, `${key}: stars span the mound (${(Math.max(...xs)-Math.min(...xs)).toFixed(1)} of H ${H})`);
+      assert(Math.min(...ys)>=-H*1.1, `${key}: no cluster floats above the foliage`);
+    }
+  }} finally {ART2.on=before;}
+});
+
+test('a stem-built mound reserves the width it draws', () => {
+  // sideScale is what the sprite box and both preview canvases read to fit a
+  // plant wider than 0.62H; the edge checks in dev review pages measured each
+  // plant's ink at 0.53-1.02H, so a threadleaf dome must at least declare the
+  // dome it is fitted to.
+  for (const key of PLANT_KEYS){
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,v), L=P.look||{};
+      if (P.form!=='shrub' || (L.habit!=='threadleaf'&&L.habit!=='leafystems')) continue;
+      assert(L.sideScale>=(L.habit==='threadleaf'?(L.dome||0.56):0.5), `${key}${v?':'+v:''}: sideScale covers the drawn mound`);
+    }
+  }
+});
+
+test('evergreen silver cushions keep their foliage mass in winter; a bluestar does not', () => {
+  const grads=(k,s)=>stemMoundOps(k,s).filter(o=>o.op==='createLinearGradient').length;
+  assert(grads('amsonia','Summer')>=1, 'a bluestar is a lit mass in leaf');
+  assertEqual(grads('amsonia','Winter'), 0, 'and thins to stems in winter');
+  for (const k of ['silvermound','fringedsage']){
+    assert(PLANTS[k].look.winterMass, `${k}: marked evergreen`);
+    assert(grads(k,'Winter')>=1, `${k}: holds its mass through winter`);
+  }
+});
+
+test('fringed sage flowers on wands above its cushion; prairie sage seeds at its tips', () => {
+  const P=plantDef('fringedsage'), H=plantVisualH(P), L=P.look;
+  const heads=stemMoundOps('fringedsage','Summer').filter(o=>o.op==='ellipse'&&o.fill===shade(P.sea.Summer.bloom,-14));
+  assert(heads.length>=L.flowerStems*L.plumeHeads*0.9, `fringed sage: every wand carries its heads (${heads.length})`);
+  const above=heads.filter(o=>o.a[1]<-H*L.domeH).length;
+  assert(above>=heads.length*0.8, `fringed sage: the wands rise clear of the cushion (${above}/${heads.length})`);
+  const W=plantDef('broadleafwormwood'), WH=plantVisualH(W);
+  const seed=stemMoundOps('broadleafwormwood','Fall').filter(o=>o.op==='ellipse'&&o.fill===shade(W.sea.Fall.seed,-14));
+  assert(seed.length>=W.look.flowerStems*W.look.plumeHeads*0.9, 'prairie sage: seed plumes at the tips');
+  assert(Math.max(...seed.map(o=>o.a[1]))<-WH*0.5, 'prairie sage: plumes sit at the top of the stand');
+  assertEqual(stemMoundOps('broadleafwormwood','Summer').filter(o=>o.op==='ellipse'&&o.fill===shade(W.sea.Fall.seed,-14)).length,
+    0, 'no plumes in a season with no seed or bloom');
+});
+
+test('a leafy clump batches its blades by tone under ART2', () => {
+  // drawLeaf is a fill and a stroke per blade; a clump is 120-160 blades
+  const before=ART2.on;
+  try {
+    const L=PLANTS.easternbluestar.look, blades=L.stems*L.leaves;
+    ART2.on=true;
+    const fills=stemMoundOps('easternbluestar','Summer').filter(o=>o.op==='fill').length;
+    assert(fills<20, `ART2: a handful of fills, not one per blade (${fills} for ${blades} blades)`);
+    ART2.on=false;
+    const classic=stemMoundOps('easternbluestar','Summer').filter(o=>o.op==='fill').length;
+    assert(classic>=blades*0.9, `classic still paints each blade (${classic})`);
+  } finally {ART2.on=before;}
+});
+
+test('a stem-built mound draws no stray highlight above itself', () => {
+  // drawPlant's closing highlight strokes assume foliage fills the whole H box;
+  // over fringed sage's low cushion they hung in empty air
+  for (const k of ['fringedsage','silvermound','amsonia','easternbluestar']){
+    const P=plantDef(k), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
+    assertEqual(stemMoundOps(k,'Summer').filter(o=>o.op==='stroke'&&o.stroke===col).length, 0, `${k}: no generic highlight`);
+  }
+  const P=plantDef('aster'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
+  assert(stemMoundOps('aster','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'other shrub-form habits keep it');
+});
+
 test('milkweed pods require authored seed structure and retain a distinct winter split', () => {
   const keys=['butterfly','swampmilkweed','prairiemilkweed','commonmilkweed','showymilkweed',
     'whorledmilkweed','greenmilkweed','antelopehorns','narrowleafmilkweed'];

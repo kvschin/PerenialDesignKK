@@ -95,7 +95,7 @@ const _ribA = new Float64Array((RIB_MAX+1)*2), _ribB = new Float64Array((RIB_MAX
    The tangent is the analytic derivative B'(t), not a finite difference:
    cheaper, and exact at the endpoints. Math.sqrt, not Math.hypot — hypot does
    overflow-safe scaling nobody needs at these magnitudes and costs several x. */
-function ribbonPath(ctx, x0,y0, cx,cy, x1,y1, prof, hw, teeth, tn){
+function ribbonPath(ctx, x0,y0, cx,cy, x1,y1, prof, hw, teeth, tn, append){
   const n = prof.length-1;
   for (let i=0;i<=n;i++){
     const t=i/n, u=1-t;
@@ -110,7 +110,8 @@ function ribbonPath(ctx, x0,y0, cx,cy, x1,y1, prof, hw, teeth, tn){
     _ribA[j]=px-dy*w; _ribA[j+1]=py+dx*w;
     _ribB[j]=px+dy*w; _ribB[j+1]=py-dx*w;
   }
-  ctx.beginPath(); ctx.moveTo(_ribA[0],_ribA[1]);
+  if (!append) ctx.beginPath();
+  ctx.moveTo(_ribA[0],_ribA[1]);
   for (let i=1;i<=n;i++) ctx.lineTo(_ribA[i*2],_ribA[i*2+1]);
   for (let i=n;i>=0;i--)  ctx.lineTo(_ribB[i*2],_ribB[i*2+1]);
   ctx.closePath();
@@ -140,13 +141,18 @@ function leafWidth(t, S){
    read as facets and the leaf comes out looking like broken glass. Big leaves
    take the 18-sample table instead; the extra cost is 8 lineTo calls on the
    few forms whose leaves are actually that large. */
-const LEAF_N = 10, LEAF_N_HI = 18, RAY_N = 7;
+const LEAF_N = 10, LEAF_N_HI = 18, LEAF_N_LO = 5, RAY_N = 7;
 const LEAF_HI_LEN = 26;                  // draw-units above which to use profHi
+const LEAF_LO_LEN = 14;                  // ...and below which a batched blade may use profLo
 for (const S of Object.values(LEAF_SHAPES)){
   S.prof = new Float64Array(LEAF_N+1);
   for (let i=0;i<=LEAF_N;i++) S.prof[i] = leafWidth(i/LEAF_N, S);
   S.profHi = new Float64Array(LEAF_N_HI+1);
   for (let i=0;i<=LEAF_N_HI;i++) S.profHi[i] = leafWidth(i/LEAF_N_HI, S);
+  // and the other way: a blade under ~14 units is a handful of pixels, where
+  // ten samples a side are ten vertices nobody can see (drawLeafyStems)
+  S.profLo = new Float64Array(LEAF_N_LO+1);
+  for (let i=0;i<=LEAF_N_LO;i++) S.profLo[i] = leafWidth(i/LEAF_N_LO, S);
 }
 // a ray is a STRAP, not a spear: it holds most of its width almost to the tip,
 // then rounds off. Taper it too early and the flower reads smaller.
@@ -610,6 +616,329 @@ function drawShrubWhorls(ctx,tx,ty,H,L,col,bract,bloom){
         ctx.ellipse(fx,fy,0.9,1.0,a,0,7); ctx.fill(); }
     }
   }
+}
+/* ---------- stem-built mounds: threadleaf domes and leafy clumps ----------
+   Two shrub-form habits that are built from STEMS, where the rest of the form
+   scatters leaves over a box. The threadleaf bluestars and the silver
+   artemisias were drawn as a fan of bare strokes, which is a grass: nothing
+   about Amsonia hubrichtii is grass-like except the leaf. The plant is a
+   billowy dome of arching stems each clothed to the tip in crowded needle
+   leaves, and a silver cushion is the same thing packed low and tight. The
+   broad-leaved bluestars were a single column of stems a few pixels wide,
+   where the real plant is a vase of leafy stems nearly as wide as it is tall.
+
+   Both habits share three layers. A scalloped, lit MASS under everything, the
+   conifer crown-mass idea (one fill): a few hundred threads cannot stand in for
+   thousands of leaves, and without it the plant reads as a lattice of strokes
+   with sky behind it. Then the stems. Then the foliage, drawn over the mass
+   and past its rim so the silhouette stays soft rather than a hard blob.
+
+   The threads are batched: every thread goes into one of three LIGHT buckets
+   (shadow, mid, lit — by where it sits on the dome relative to LIT) and each
+   bucket is one stroke. ~300 threads cost three strokes, and the value change
+   across the dome is what makes it read as a volume instead of a flat hatch.
+
+   Each stem's tip is recorded, so the flowers sit ON the foliage — a bluestar
+   carries its stars in clusters at the stem tips, not on stalks of their own
+   rising out of the crown, which is what the generic head pass would draw. */
+const THR_MAX = 720;
+const _thr = [new Float64Array(THR_MAX*4), new Float64Array(THR_MAX*4), new Float64Array(THR_MAX*4)];
+const _thrN = [0,0,0];
+function thrPush(b,x0,y0,x1,y1){
+  const n=_thrN[b]; if (n>=THR_MAX) return;
+  const a=_thr[b], j=n*4; a[j]=x0; a[j+1]=y0; a[j+2]=x1; a[j+3]=y1; _thrN[b]=n+1;
+}
+function thrStroke(ctx,b,col){
+  const n=_thrN[b]; if (!n) return;
+  const a=_thr[b]; ctx.strokeStyle=col; ctx.beginPath();
+  for (let i=0;i<n;i++){ const j=i*4; ctx.moveTo(a[j],a[j+1]); ctx.lineTo(a[j+2],a[j+3]); }
+  ctx.stroke(); _thrN[b]=0;
+}
+// Stem geometry for the two habits: base x, the quadratic's control point, the
+// tip, and the stem's lean. Module scratch, so a procedural frame allocates
+// nothing; the flower pass reads the tips straight after the foliage pass.
+const STEM_MAX = 64;
+const _stB=new Float64Array(STEM_MAX), _stCX=new Float64Array(STEM_MAX), _stCY=new Float64Array(STEM_MAX),
+      _stX=new Float64Array(STEM_MAX), _stY=new Float64Array(STEM_MAX), _stA=new Float64Array(STEM_MAX);
+let _stN = 0;
+// Which light bucket a point on a mound falls in: its position relative to
+// the mound's centre stands in for the surface normal.
+function moundLight(x,y,cx,cy,rx,ry,jit){
+  const lit=(x-cx)/rx*LIT.x + (y-cy)/ry*LIT.y + jit;
+  return lit>0.34 ? 2 : lit<-0.26 ? 0 : 1;
+}
+// A scalloped mound outline through the recorded stem tips, pulled in toward
+// the crown by `inset` so the foliage overhangs it, closed across the base.
+function moundMassPath(ctx,inset,cx,cy,baseHW){
+  ctx.beginPath(); ctx.moveTo(cx-baseHW,0);
+  let px=cx-baseHW, py=0;
+  for (let i=0;i<_stN;i++){
+    const x=cx+(_stX[i]-cx)*inset, y=cy+(_stY[i]-cy)*inset;
+    ctx.quadraticCurveTo(px,py,(px+x)/2,(py+y)/2); px=x; py=y;
+  }
+  ctx.quadraticCurveTo(px,py,(px+cx+baseHW)/2,py/2);
+  ctx.lineTo(cx+baseHW,0); ctx.closePath();
+}
+// The dome itself: the half-ellipse every threadleaf mound is fitted to,
+// flattened a touch at the crown and carried down to ~10% of its height at the
+// rim, because the outer stems of a bluestar or a silver cushion arch right
+// over to the ground rather than stopping at the waist.
+// Two functions rather than one returning a pair: this runs a few hundred
+// times per procedural draw, and a pair is an allocation.
+// The 0.72 power squares the ellipse off a little: a billowy mound carries its
+// width up into the shoulders, where a true half-ellipse this tall is a bell.
+function domeX(phi,rho,domeW){ const s=Math.sin(phi); return (s<0?-1:1)*Math.pow(Math.abs(s),0.72)*domeW*rho; }
+function domeY(phi,rho,domeH){ return -(Math.pow(Math.abs(Math.cos(phi)),0.72)*0.9+0.1)*domeH*rho; }
+function stemBuiltHabit(P){
+  const h=P.form==='shrub'&&P.look&&P.look.habit;
+  return h==='threadleaf'||h==='leafystems';
+}
+function drawThreadDome(ctx,L,fol,H,growth,winter,sway,rnd,stems){
+  const domeW=H*(L.dome||0.56), domeH=H*(L.domeH||0.92), cy=-domeH*0.45;
+  const spread=L.spread||2.4, thin=winter?(L.winterThin===undefined?0.6:L.winterThin):1;
+  const threads=Math.max(2,Math.round((L.threads||5)*thin));
+  const tufts=Math.max(8,Math.round((L.tufts||60)*thin*(0.45+0.55*growth)));
+  const tl=(L.threadLen||6)*(0.55+0.45*growth);
+  const sheen=L.sheen===undefined?18:L.sheen, ly=domeH*0.55;
+  // Stems, across the fan: they carry the flowers and the snow, and their
+  // leafy upper halves are what break the rim into separate sprays.
+  _stN=0;
+  for (let i=0;i<stems&&_stN<STEM_MAX;i++){
+    const t=stems>1?i/(stems-1):0.5;
+    const th=(t-0.5)*spread+(rnd()-0.5)*0.22, r=0.84+rnd()*0.16;
+    const tx=domeX(th,r,domeW), ty=domeY(th,r,domeH);
+    const bx=(rnd()-0.5)*domeW*0.2;
+    _stB[_stN]=bx; _stX[_stN]=tx+sway*r*2.2; _stY[_stN]=ty; _stA[_stN]=th;
+    _stCX[_stN]=bx+(tx-bx)*0.2; _stCY[_stN]=ty*0.55-domeH*0.3*Math.abs(Math.sin(th));
+    _stN++;
+  }
+  // 1. the mass: a smooth, slightly lumpy dome, lit from the upper left, whose
+  //    underside curves in to a narrow crown at the ground the way the clump
+  //    really does. It is inset so every edge of it is under tufts: seen bare
+  //    it is a loaf, and in a drift a flat underside stacked into shelves.
+  //    Winter draws none — the leaves have thinned and the stems show through
+  //    — but still takes the same random draws, so the tufts do not move
+  //    between seasons. `winterMass` keeps it for the evergreen cushions (the
+  //    silver artemisias hold their foliage; a bluestar drops its).
+  const inset=L.massInset||0.78, K=20, crown=domeW*0.30, lift=domeH*0.06;
+  ctx.beginPath(); ctx.moveTo(-crown,0);
+  let px=domeX(-Math.PI/2,inset,domeW), py=domeY(-Math.PI/2,inset,domeH)-lift;
+  ctx.quadraticCurveTo(-crown*1.9,-lift*0.4,px,py);
+  for (let k=1;k<=K;k++){
+    // alternate in and out, so the outline is a run of lobes — foliage — and
+    // not an arc that reads as the rim of a bowl between the sprigs
+    const phi=-Math.PI/2+k/K*Math.PI, rho=inset*((k&1?0.9:1.0)+rnd()*0.06);
+    const x=domeX(phi,rho,domeW), y=domeY(phi,rho,domeH)-(k===K?lift:0);
+    ctx.quadraticCurveTo(px,py,(px+x)/2,(py+y)/2); px=x; py=y;
+  }
+  ctx.quadraticCurveTo(crown*1.9,-lift*0.4,crown,0); ctx.closePath();
+  if (!winter || L.winterMass)
+    litFill(ctx,0,cy,Math.max(domeW,domeH*0.5),shade(fol,L.massShade===undefined?-26:L.massShade),16,-18);
+  // 2. stems, one path, thin — foliage hides most of them
+  ctx.lineCap='round';
+  ctx.strokeStyle=shade(fol,-26); ctx.lineWidth=(L.leafW||0.7)*0.85; ctx.beginPath();
+  for (let i=0;i<_stN;i++){ ctx.moveTo(_stB[i],0); ctx.quadraticCurveTo(_stCX[i],_stCY[i],_stX[i],_stY[i]); }
+  ctx.stroke();
+  // 3a. needle leaves up the top half of each stem, then a terminal tuft
+  for (let i=0;i<_stN;i++){
+    const bx=_stB[i], qx=_stCX[i], qy=_stCY[i], tx=_stX[i], ty=_stY[i];
+    let dx=0, dy=-1;
+    for (let j=0;j<threads;j++){
+      const f=0.45+0.55*(j+0.5)/threads, u=1-f;
+      const sx=u*u*bx+2*u*f*qx+f*f*tx, sy=2*u*f*qy+f*f*ty;
+      dx=2*(u*(qx-bx)+f*(tx-qx)); dy=2*(u*qy+f*(ty-qy));
+      const dl=Math.sqrt(dx*dx+dy*dy)||1; dx/=dl; dy/=dl;
+      const sp=(((i+j)&1)?1:-1)*(0.45+rnd()*0.4), cs=Math.cos(sp), sn=Math.sin(sp);
+      const len=tl*(1.1-0.4*f)*(0.75+rnd()*0.5);
+      const ex=sx+(dx*cs-dy*sn)*len, ey=sy+(dx*sn+dy*cs)*len;
+      thrPush(moundLight((sx+ex)/2,(sy+ey)/2,0,cy,domeW,ly,(rnd()-0.5)*0.5),sx,sy,ex,ey);
+    }
+    thrPush(moundLight(tx,ty,0,cy,domeW,ly,0.1),tx,ty,tx+dx*tl*0.8,ty+dy*tl*0.8);
+  }
+  // 3b. the nap: single needles over the face of the mound, all leaning out of
+  //     it. A sprig is five strokes and the eye cannot resolve its structure
+  //     inside the mass, so the interior's fine texture is bought one stroke at
+  //     a time, and the sprigs are spent where they show — the silhouette.
+  const hatch=Math.round((L.hatch===undefined?tufts*2.2:L.hatch)*thin);
+  for (let k=0;k<hatch;k++){
+    const phi=(rnd()-0.5)*Math.PI*0.96, rho=0.12+0.8*Math.sqrt(rnd());
+    const qx=domeX(phi,rho,domeW)+sway*rho*2, qy=domeY(phi,rho,domeH);
+    let dx=qx, dy=qy+domeH*0.2; const dl=Math.sqrt(dx*dx+dy*dy)||1;
+    const rot=(rnd()-0.5)*1.1, c0=Math.cos(rot), s0=Math.sin(rot), len=tl*(0.55+rnd()*0.45)/dl;
+    dx*=len; dy*=len;
+    thrPush(moundLight(qx,qy,0,cy,domeW,ly,(rnd()-0.5)*0.55),qx,qy,qx+dx*c0-dy*s0,qy+dx*s0+dy*c0);
+  }
+  // 3c. the feather: sprays scattered over the whole face of the dome, each a short
+  //     axis with two pairs of needles, pointing out of the mound. This is
+  //     what covers the flanks — stems alone leave them bare between the arches.
+  //     The first few are a SKIRT along the tucked underside, drooping out and
+  //     down over it, or that curve reads as the rim of a bowl.
+  const skirt=Math.round(tufts*0.14), rimX=domeW*inset, rimY=domeH*0.1*inset+lift;
+  for (let k=0;k<tufts;k++){
+    let qx, qy, dx, dy;
+    if (k<skirt){
+      const side=(k&1)?1:-1, sk=0.35+0.65*rnd();
+      qx=side*(crown+(rimX-crown)*sk)+sway; qy=-rimY*sk*sk-rnd()*domeH*0.04;
+      dx=side; dy=0.3+rnd()*0.3;
+    } else {
+      const phi=(rnd()-0.5)*Math.PI*0.98, rho=0.46+0.56*Math.sqrt(rnd());
+      qx=domeX(phi,rho,domeW)+sway*rho*2; qy=domeY(phi,rho,domeH);
+      dx=qx; dy=qy+domeH*0.18;
+    }
+    const rot=(rnd()-0.5)*0.5;
+    const dl=Math.sqrt(dx*dx+dy*dy)||1; dx/=dl; dy/=dl;
+    const c0=Math.cos(rot), s0=Math.sin(rot), ux=dx*c0-dy*s0, uy=dx*s0+dy*c0;
+    const len=tl*(0.9+rnd()*0.5), b=moundLight(qx,qy,0,cy,domeW,ly,(rnd()-0.5)*0.45);
+    const ax=qx-ux*len*0.35, ay=qy-uy*len*0.35;
+    thrPush(b,ax,ay,qx+ux*len*0.75,qy+uy*len*0.75);
+    for (let q=0;q<2;q++){
+      const sx=ax+ux*len*(0.3+q*0.38), sy=ay+uy*len*(0.3+q*0.38), nl=len*(0.62-q*0.14);
+      for (let side=-1;side<=1;side+=2){
+        const sp=side*(0.55+rnd()*0.3), cs=Math.cos(sp), sn=Math.sin(sp);
+        thrPush(b,sx,sy,sx+(ux*cs-uy*sn)*nl,sy+(ux*sn+uy*cs)*nl);
+      }
+    }
+  }
+  ctx.lineWidth=L.leafW||0.7;
+  thrStroke(ctx,0,shade(fol,-20)); thrStroke(ctx,1,fol); thrStroke(ctx,2,shade(fol,sheen));
+  ctx.lineCap='butt';
+}
+function drawLeafyStems(ctx,L,fol,H,winter,sway,rnd,stems,leafDot,stemCol){
+  const spread=L.spread||1.1, baseW=L.baseW||8, thin=winter?(L.winterThin===undefined?0.7:L.winterThin):1;
+  const leaves=Math.max(2,Math.round((L.leaves||7)*thin)), leafL=L.leafL||4.6, leafH=L.leafH||1.8;
+  const ascend=L.leafAscend||0.62, cy=-H*0.55;
+  _stN=0;
+  for (let i=0;i<stems&&_stN<STEM_MAX;i++){
+    const t=stems>1?i/(stems-1):0.5, e=Math.abs(t-0.5)*2;
+    const th=(t-0.5)*spread+(rnd()-0.5)*0.16;
+    // outer stems a little shorter, so the clump tops out in a dome, not a flat brush
+    const len=H*(0.80+rnd()*0.20)*(1-0.16*e*e);
+    const bx=(t-0.5)*baseW+(rnd()-0.5)*2.5;
+    const tx=bx+Math.sin(th)*len+sway*1.6, ty=-Math.cos(th)*len;
+    _stB[_stN]=bx; _stX[_stN]=tx; _stY[_stN]=ty; _stA[_stN]=th;
+    _stCX[_stN]=bx+(tx-bx)*0.36; _stCY[_stN]=ty*0.55;
+    _stN++;
+  }
+  ctx.save(); if (winter) ctx.globalAlpha=0.4;
+  moundMassPath(ctx,L.massInset||0.72,0,cy,baseW*0.5+2);
+  litFill(ctx,0,cy,H*0.5,shade(fol,L.massShade===undefined?-26:L.massShade),10,-22);
+  ctx.restore();
+  ctx.strokeStyle=stemCol||shade(fol,-22); ctx.lineWidth=1.05; ctx.beginPath();
+  for (let i=0;i<_stN;i++){ ctx.moveTo(_stB[i],0); ctx.quadraticCurveTo(_stCX[i],_stCY[i],_stX[i],_stY[i]); }
+  ctx.stroke();
+  // Leaves ascend from the stem at `ascend`, alternate, and shorten up the
+  // stem. Stems are visited from the outside in, so under the classic
+  // renderer (one fill per leaf, in order) the centre of the clump — nearest
+  // the viewer on a dome — lands on top.
+  //
+  // Under ART2 the blades are BATCHED: every leaf goes into one of four tone
+  // groups by where it sits against the light, and each group is one path and
+  // one fill, with every midrib in one more stroke. drawLeaf is a fill and a
+  // stroke per blade, and a leafy clump is 120-160 blades: measured on willow
+  // bluestar, 848us a draw one leaf at a time against the figure below. What
+  // it gives up is the per-leaf random tint and strict paint order inside a
+  // tone; the light groups carry the modelling instead, lit side on top.
+  const sheen=L.sheen===undefined?10:L.sheen;
+  const batch=art2On(L) && !!LEAF_SHAPES[L.leafShape];
+  const hw=leafH*(L.leafHW||1.4), bow=L.leafBow===undefined?0.05:L.leafBow;
+  _lbN=0;
+  for (let o=0;o<_stN;o++){
+    const i=(o&1)?_stN-1-(o>>1):(o>>1);
+    const bx=_stB[i], qx=_stCX[i], qy=_stCY[i], tx=_stX[i], ty=_stY[i];
+    for (let j=0;j<leaves;j++){
+      const f=0.22+0.74*(j+0.5)/leaves, u=1-f;
+      const px=u*u*bx+2*u*f*qx+f*f*tx, py=2*u*f*qy+f*f*ty;
+      const ang=Math.atan2(2*(u*qy+f*(ty-qy)),2*(u*(qx-bx)+f*(tx-qx)))+(((i+j)&1)?ascend:-ascend);
+      const w=leafL*(1.08-0.36*f)*(0.85+rnd()*0.3), ca=Math.cos(ang), sa=Math.sin(ang);
+      const lit=px/(H*0.5)*LIT.x+(py-cy)/(H*0.5)*LIT.y+(rnd()-0.5)*0.4;
+      if (batch){
+        if (_lbN>=LB_MAX) continue;
+        const k=_lbN*5;
+        _lb[k]=px-ca*w*0.05; _lb[k+1]=py-sa*w*0.05; _lb[k+2]=px+ca*w*1.95; _lb[k+3]=py+sa*w*1.95; _lb[k+4]=w;
+        _lbT[_lbN++]=lit>0.4?3:lit>0.05?2:lit>-0.35?1:0;
+      } else
+        leafDot(px+ca*w*0.95,py+sa*w*0.95,w,leafH,ang,lit>0.34?shade(fol,sheen):lit<-0.26?shade(fol,-sheen):fol);
+    }
+  }
+  if (!batch || !_lbN) return;
+  const S=LEAF_SHAPES[L.leafShape];
+  for (let t=0;t<4;t++){
+    ctx.beginPath();
+    for (let n=0;n<_lbN;n++){
+      if (_lbT[n]!==t) continue;
+      const k=n*5, x0=_lb[k], y0=_lb[k+1], x1=_lb[k+2], y1=_lb[k+3], dx=x1-x0, dy=y1-y0;
+      ribbonPath(ctx,x0,y0,(x0+x1)/2-dy*bow,(y0+y1)/2+dx*bow,x1,y1,
+                 _lb[k+4]*2>LEAF_HI_LEN?S.profHi:_lb[k+4]*2<LEAF_LO_LEN?S.profLo:S.prof,hw,0,6,true);
+    }
+    ctx.fillStyle=shade(fol,t===3?sheen+2:t===2?5:t===1?-3:-sheen-4); ctx.fill();
+  }
+  if (L.leafRib===false) return;
+  // the midrib is the cue that says "leaf"; below 9 units of blade it is not seen
+  ctx.save(); ctx.globalAlpha=0.45; ctx.strokeStyle=shade(fol,-30);
+  ctx.lineWidth=Math.max(0.5,hw*0.17); ctx.beginPath();
+  for (let n=0;n<_lbN;n++){
+    const k=n*5; if (_lb[k+4]<4.5) continue;
+    const x0=_lb[k], y0=_lb[k+1], x1=_lb[k+2], y1=_lb[k+3];
+    ctx.moveTo(x0,y0); ctx.quadraticCurveTo((x0+x1)/2-(y1-y0)*bow,(y0+y1)/2+(x1-x0)*bow,x1,y1);
+  }
+  ctx.stroke(); ctx.restore();
+}
+// Leaf scratch for the batched blades above: base, tip and half-length per
+// leaf, plus its tone group. Module-level for the usual reason — no per-draw
+// allocation on a path that runs every procedural frame.
+const LB_MAX = 400;
+const _lb = new Float64Array(LB_MAX*5), _lbT = new Uint8Array(LB_MAX);
+let _lbN = 0;
+/* The heads that sit on those recorded tips. `star` is a bluestar's terminal
+   cluster of pale stars, laid on a flattened golden-angle spiral so a cluster
+   reads as a posy rather than a ring of dots. `panicle` is an artemisia's
+   narrow wand of tiny nodding heads — on a tip, or, with `wands`, on stems of
+   its own rising out of a low cushion (fringed sage flowers well above its
+   foliage). */
+function drawStemTipHeads(ctx,L,col,m,H,sway,rnd,fol){
+  if (!_stN || m<=0) return;
+  const step=_stN/m;
+  if ((L.headStyle||'star')==='star'){
+    const n=Math.max(3,Math.min(16,Math.round(L.clusterFlorets||7)));
+    const cr=L.clusterR||3.2, fr=L.clusterFloretR||1.15;
+    for (let k=0;k<m;k++){
+      const i=Math.min(_stN-1,Math.floor((k+0.5)*step));
+      const cx=_stX[i]+Math.sin(_stA[i])*cr*0.4, cy=_stY[i]-cr*0.45;
+      if (_fcN>FC_MAX-n) fcDraw(ctx,col,26,-12);
+      for (let f=0;f<n;f++){
+        const rr=cr*Math.sqrt((f+0.5)/n), a=f*2.39996+rnd()*0.5;
+        fcPush(cx+Math.cos(a)*rr, cy+Math.sin(a)*rr*0.62, fr*(0.85+rnd()*0.3), 0.92);
+      }
+    }
+    fcDraw(ctx,col,26,-12);
+    return;
+  }
+  const heads=Math.max(3,Math.min(14,Math.round(L.plumeHeads||7))), hr=L.headR||0.85;
+  const span=L.wands?(L.wandSpan||0.5):1;
+  ctx.strokeStyle=shade(fol,-26); ctx.lineWidth=0.55; ctx.lineCap='round'; ctx.beginPath();
+  for (let k=0;k<m;k++){
+    let x0,y0,x1,y1;
+    if (L.wands){
+      // a flowering stem from inside the cushion, leaning out with its tip
+      const i=Math.min(_stN-1,Math.floor((k+0.5)*step)), lean=Math.sin(_stA[i]);
+      x0=_stX[i]*0.45; y0=_stY[i]*0.6;
+      x1=x0+lean*H*0.26+sway*2; y1=-H*(L.wandLen||0.9)*(0.82+rnd()*0.18);
+    } else {
+      const i=Math.min(_stN-1,Math.floor((k+0.5)*step)), pl=L.plumeLen||8;
+      x0=_stX[i]; y0=_stY[i]; x1=x0+Math.sin(_stA[i])*pl*0.5+sway; y1=y0-pl;
+    }
+    ctx.moveTo(x0,y0); ctx.lineTo(x1,y1);
+    if (_fcN>FC_MAX-heads) break;
+    for (let h=0;h<heads;h++){
+      const f=1-span+span*(h+0.5)/heads, px=x0+(x1-x0)*f, py=y0+(y1-y0)*f;
+      const side=(h&1)?1:-1, reach=0.7+(1-f)*1.8;
+      const hx=px+side*reach, hy=py+hr*0.9;          // nodding: hung below the branch
+      ctx.moveTo(px,py); ctx.lineTo(hx,hy-hr*0.6);
+      fcPush(hx,hy,hr*(0.85+rnd()*0.3),0.9);
+    }
+  }
+  ctx.stroke(); ctx.lineCap='butt';
+  fcDraw(ctx,col,20,-14);
 }
 function drawReflexedFloret(ctx,cx,cy,r,col){
   // A nodding centre below swept-back sepals, not an upright hosta bell.
@@ -3378,8 +3707,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // species in upgrades its whole mound at once: the ellipse becomes a real
     // silhouette swept between the two ends of the same axis, at the same
     // centre and angle, so the layout the habits worked out is untouched. A
-    // species with no leafShape (the threadleaf artemisias, moss phlox) keeps
-    // its ellipse — a thread-fine leaf has no silhouette to draw.
+    // species with no leafShape (moss phlox) keeps its ellipse — a
+    // thread-fine leaf has no silhouette to draw, which is also why the
+    // threadleaf habit strokes its needles and never calls this at all.
     const leafDot=(px,py,w,h,a,col)=>{
       if (a2 && L.leafShape){
         const ca=Math.cos(a), sa=Math.sin(a);
@@ -3395,42 +3725,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.fillStyle=shade(col||fol,(rnd()-0.5)*26);
       ctx.beginPath(); ctx.ellipse(px,py,w,h,a,0,7); ctx.fill();
     };
-    if (S.fol){
+    // The two stem-built habits carry their own lit mass (see drawThreadDome),
+    // so they skip the translucent disc the scattered habits stand on — under
+    // a thin fan of stems that disc read as a pale balloon behind the plant.
+    const stemBuilt=stemBuiltHabit(P);
+    if (S.fol && !stemBuilt){
       ctx.save(); ctx.globalAlpha=0.20; ctx.fillStyle=shade(fol,-25);
       const sw=L.shadowW||18, sh=L.shadowH||H*0.24, sy=L.shadowY||-H*0.40;
       ctx.beginPath(); ctx.ellipse(sway, sy, sw*(0.5+0.5*growth), sh, 0, 0, 7); ctx.fill();
       ctx.restore();
     }
+    if (stemBuilt) _stN=0;
     if (S.fol && habit==='threadleaf'){
-      const stems=stemFor(L.stems||22);
-      ctx.strokeStyle=fol; ctx.lineWidth=L.leafW||0.82; ctx.lineCap='round';
-      for(let i=0;i<stems;i++){
-        const a=(i/(stems-1)-0.5)*(L.spread||2.2)+(rnd()-0.5)*0.18;
-        const len=H*(0.45+rnd()*0.45), bx=(rnd()-0.5)*7;
-        const tx=Math.sin(a)*len*0.58+sway*len*0.035, ty=-len;
-        ctx.beginPath(); ctx.moveTo(bx,0);
-        ctx.quadraticCurveTo(bx+Math.sin(a)*len*0.18,-len*0.48,tx,ty); ctx.stroke();
-        if (i%3===0){
-          ctx.strokeStyle=shade(fol,14);
-          ctx.beginPath(); ctx.moveTo(tx,ty);
-          ctx.lineTo(tx+(rnd()-0.5)*5,ty-3-rnd()*5); ctx.stroke();
-          ctx.strokeStyle=fol;
-        }
-      }
-      ctx.lineCap='butt';
-    } else if (S.fol && habit==='broadamsonia'){
-      const stems=stemFor(L.stems||12);
-      for(let i=0;i<stems;i++){
-        const ox=(rnd()-0.5)*13, len=H*(0.55+rnd()*0.35), tx=ox+sway*1.6;
-        ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=1.1;
-        ctx.beginPath(); ctx.moveTo(ox*0.35,0); ctx.quadraticCurveTo(ox,-len*0.52,tx,-len); ctx.stroke();
-        const leaves=L.leaves||5;
-        for(let j=0;j<leaves;j++){
-          const f=(j+1)/(leaves+1), side=j%2?-1:1, px=ox+(tx-ox)*f*0.7, py=-len*(0.18+f*0.64);
-          const leafL=L.leafL||4.2, leafH=L.leafH||2.6;
-          leafDot(px+side*(leafL*0.72+rnd()*leafL*0.48),py,leafL,leafH,side*0.35,fol);
-        }
-      }
+      drawThreadDome(ctx,L,fol,H,growth,season==='Winter',sway,rnd,stemFor(L.stems||24));
+    } else if (S.fol && habit==='leafystems'){
+      drawLeafyStems(ctx,L,fol,H,season==='Winter',sway,rnd,stemFor(L.stems||16),leafDot,P.stem);
     } else if (S.fol && habit==='baptisia'){
       const stems=stemFor(L.stems||11), baseW=L.baseW||18;
       for(let i=0;i<stems;i++){
@@ -3481,7 +3790,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         leafDot(px,py,leafW,leafH,a,fol);
       }
     }
-    if (mature && ((blooming&&S.bloom)||S.seed)){
+    if (stemBuilt && _stN){
+      // snow lies on the crown of the mound, not in the air above a stem box
+      if (AMBIENCE[season].snow){
+        snowAnchors=[];
+        for (let i=0;i<_stN;i++) if (Math.abs(_stA[i])<0.75)
+          snowAnchors.push([_stX[i]*0.92,_stY[i]*0.88,Math.max(2.2,H*0.05)]);
+      }
+      if (mature && ((blooming&&S.bloom)||S.seed) && (L.flowerStems===undefined||L.flowerStems>0)){
+        const col=(blooming?S.bloom:null)||S.seed, m0=stemFor(L.flowerStems||8);
+        drawStemTipHeads(ctx,L,col,S.bloom&&!S.seed?Math.max(1,Math.ceil(m0*blv)):m0,H,sway,rnd,fol);
+      }
+    } else if (mature && ((blooming&&S.bloom)||S.seed)){
       const col=(blooming?S.bloom:null)||S.seed;
       const m0=stemFor((habit==='mossphlox'||habit==='matflower')?(L.flowers||18):(L.flowerStems||7)), m=S.bloom&&!S.seed ? Math.max(1,Math.ceil(m0*blv)) : m0;
       // The stems stay one stroke apiece even under ART2. Batching them into a
@@ -3512,15 +3832,6 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.beginPath();
             ctx.ellipse(ox+sway*2+(s%2?-1.8:1.8),-len+s*3.3,pods?2.1:2.0,pods?3.1:2.4,0,0,7); ctx.fill();
           }
-        }
-        else if ((habit==='threadleaf'||habit==='broadamsonia')&&season==='Spring'){
-          if (a2){
-            for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
-              fcPush(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3); }
-            fcDraw(ctx,col,26,-14);
-          } else
-          for(let p=0;p<5;p++){ const pa=p/5*Math.PI*2;
-            ctx.beginPath(); ctx.ellipse(ox+sway*2+Math.cos(pa)*3,-len+Math.sin(pa)*3,1.3,1.3,0,0,7); ctx.fill(); }
         }
         else if (habit==='mossphlox'){
           const petals=L.petals||5, petal=L.petal||2.2, cx=ox+sway*2+(rnd()-0.5)*(L.flowerSpread||24), cy=-H*(0.08+rnd()*(L.foliageH||0.18));
@@ -5370,7 +5681,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.ellipse((rs()-0.5)*capW,-H*crown*(0.5+rs()*0.45),3.5*capS,1.6*capS,0,0,7); ctx.fill(); }
     }
   }
-  if (!AMBIENCE[season].snow && S.fol && growth>0.28){
+  // The stem-built mounds light their own foliage (the lit thread bucket), and
+  // these strokes assume foliage fills the whole H box — over a low cushion
+  // like fringed sage they drew a stray highlight in the empty air above it.
+  if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P)){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';
