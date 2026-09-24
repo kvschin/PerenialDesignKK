@@ -1696,10 +1696,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     crisp one fills in behind it. *season* — while the clock runs toward a
     boundary (`seasonTurnAhead`: `GROUND_SEASON_LEAD_MS`, 1.5s of REAL time at
     the rate the clock is running, so fast-forward starts it a season-day
-    sooner) the next season is baked ahead of it; a turn nothing got ahead of
-    (Skip, a paused garden) keeps the old season's ground until the new one is
-    ready, which is invisible, because the crossfade is showing the old season
-    anyway. *rot* — once the view has been quiet `GROUND_IDLE_MS` (600), the
+    sooner) the next season is baked ahead of it, and a Skip bakes its
+    destination before it lands (see the prepared Skip, below the sprite
+    look-ahead); a turn nothing got ahead of keeps the old season's ground
+    until the new one is ready. That fallback is invisible under a crossfade
+    and NOT under a Skip, which has none — the first cut claimed otherwise and
+    a Skip showed a Fall sky over a Summer lawn for 12 frames. *rot* — once the view has been quiet `GROUND_IDLE_MS` (600), the
     NEXT rotation (the ⟳ button and R both turn one way) at the camera
     `rotateView` will snap to. That is why **`snapCamFor(rot)`** (world.js)
     exists: snapCam and the pre-bake must agree to the bit or the finished
@@ -2101,8 +2103,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     smooth but not pretty: ~375 bakes spread over the frames after it meant the
     plants changed colour one by one, a wave across the garden under the
     crossfade. So while `seasonTurnAhead` says a boundary is close (the ground
-    jobs' 1.5s lead), each live frame spends up to `AHEAD.BUDGET_MS` (2ms)
-    baking the NEXT season's sprite for whatever it draws — growth and bloom
+    jobs' 1.5s lead), each live frame spends up to `AHEAD.budget` baking the
+    NEXT season's sprite for whatever it draws — growth and bloom
     evaluated at the instant of the turn, by borrowing the clock and putting it
     back — and the turn finds every clump's picture waiting, so the whole
     garden changes at once. Those sprites are LEASED (`used` set `AHEAD.LEASE`
@@ -2110,21 +2112,70 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     frame and nothing draws a season that has not arrived; a garden whose cache
     already sits at 1.5× `MEM` turns progressively instead. A clump's sprite
     from that season last year is retired when the new one lands. Never for a
-    portrait (`ctx!==cx`) or a photo, and never while paused — there is no
-    turn coming. Measured live, a running clock crossing Summer→Fall,
+    portrait (`ctx!==cx`) or a photo, and never while paused unless a Skip is
+    coming (below). Measured live, a running clock crossing Summer→Fall,
     Fall→Winter and Winter→Spring (same garden and setup as above): worst frame
     after the turn 158-188 → 24-30ms, fps over the second after it 114-130 →
-    149-153, plant bakes after the turn 333-357 → **0** (Spring: 120, the
-    bulbs, which are underground until the turn and so drawn by nothing that
-    could bake them ahead). The bakes land in the 1.5s before instead, whose
-    worst frame is 12-18ms. It does not change Firefox: the same canvases are
-    created, only earlier.
+    149-153, plant bakes after the turn 333-357 → **0** (Spring: 120, which are
+    not the turn at all — a spring bulb is at growth 0 the instant Spring
+    starts and grows over the next day and a half, a bake per growth bucket).
+    The bakes land in the 1.5s before instead, whose worst frame is 12-18ms.
+    **A bulb is looked ahead from underground**, because some DO come up at a
+    turn: the summer bulbs — alliums, lilies, dahlias — go 0 → 0.67 grown at
+    Spring→Summer and Colchicum 0 → full at Summer→Fall, and a clump with no
+    sprite of its own has nothing to stand in. So `drawSceneEnt` asks before
+    its underground test.
+    **The budget is a share of the DISPLAY's frame interval** (`aheadFrame`:
+    30% of `AHEAD.vs`, the smallest recent gap drifting back up 2% a frame,
+    between 2 and 6ms). A flat 2ms bakes 490ms in the 1.5s lead at 164Hz and
+    180ms at 60Hz, half of what a 374-plant turn needs, so a 60Hz display was
+    left wiping plants over under the crossfade. It must NOT be a share of the
+    LAST gap: a slow frame then buys the next one more baking and the budget
+    feeds on its own cost — measured, that took fast-forward's worst frames from
+    48ms to 61; with the display interval they are back at 48.
+    **A Skip lands in ONE frame** (`pendingSkip`, `requestSkipTo`,
+    `landPreparedSkip`, `skipPrepared`, ui.js/renderer.js; 0.9.19). A Skip is
+    the one turn the clock does not run up to, and it is the palette-comparison
+    control, so it has no crossfade. Applied on the click it showed 355 plants
+    in the old season on the first frame, clearing from the top of the garden
+    down over 21 frames (bakes happen in drawing order, back to front), with a
+    Fall sky over a Summer lawn until the ground's 12th band. Reported as "the
+    plants update from the top down". So a Skip names its destination and
+    WAITS: `seasonTurnAhead` answers `skipAheadTarget` first, the look-ahead
+    bakes the destination's sprites at `AHEAD.SKIP_MS` (16) and the ground job
+    two bands a frame, and it lands at the top of the first frame after one
+    that drew every visible clump with its destination picture ready
+    (`AHEAD.readyFor`, which is `AHEAD.short` — the clumps a frame's budget
+    left over — coming out 0) with the ground baked too. `SKIP_PREP_MAX_MS`
+    (1200) caps the wait; stand-ins are the fallback, not a hang.
+    `hasTransientGardenWork` keeps it at full rate. **Opening the time menu
+    starts that preparation** (`skipPrewarm`, at 6ms on the paused planner's
+    idle frames), because Skip is only ever reached from that menu: measured,
+    the menu open for 0.7s had the destination ready and the Skip landed on its
+    first frame. Without the prewarm the wait is 142-444ms of still picture. A
+    second Skip while one is pending goes a season further; a destination in
+    the season on screen (a year skip from Spring) lands at once, since its
+    sprites would share the slot being drawn; quitting, hiding the page and
+    pagehide land a pending Skip rather than lose it, and opening a garden
+    drops one meant for the last. `AHEAD.epoch` moves whenever the destination
+    does, so a clump marked done for one lead is checked (and its lease
+    renewed) again for the next. Measured, Chrome, every Skip path — Summer→
+    Fall, Fall→Winter, a year skip into Spring, the menu path — 0 plants in
+    the old season and the ground on the same frame; natural and fast-forward
+    turns unchanged. `turnlook`-style probing (count stand-ins whose season is
+    not the frame's, with their screen y, per frame, plus a contact sheet) is
+    what found it; a frame-time measurement never would have, since the wipe
+    was smooth.
     **Firefox is not rescued by any of this**: in Firefox 156 a
     few hundred NEW sprite canvases — one season turn is enough — make it give
     up canvas acceleration for the rest of the page (the
     `gfx.canvas.accelerated.profile-*` heuristic; setting
     `profile-cache-miss-ratio` to 1.1 in about:config prevents it), after
-    which every frame is 50-150ms. Spreading the bakes, removing the 'screen'
+    which every frame is 50-150ms. **It is the first BLIT of those canvases
+    that trips it, not the bake**: the time menu's prewarm baked 364 Fall
+    sprites off a Summer garden and panning held 64fps before and after, then
+    the Skip that drew them dropped it to 17. So baking ahead is safe there,
+    and it is also why baking ahead cannot help. Spreading the bakes, removing the 'screen'
     light beam, resetting the canvas and CPU-backed sprites
     (`willReadFrequently`, which demote it at load) were each tried on a clean
     machine and do not avoid it; full ground re-bakes alone never trigger it.
@@ -4769,7 +4820,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     while it runs). The menu's explicit Skip suppresses this once so it lands
     on the destination palette immediately; Skip doubles as the gardener's
     seasonal-colour comparison control, and blending old green foliage over
-    new burgundy creates a misleading olive/bronze transient. After the
+    new burgundy creates a misleading olive/bronze transient. Having no
+    crossfade to hide behind is also why a Skip is PREPARED and lands in one
+    frame (the prepared-Skip note in §11, beside the sprite look-ahead). After the
     box sit the **view tools** — Rotate and Layers
     (`#btnRotateTool`/`#btnLayersTool`, the controls that do not set
     `game.tool`; Select and Ruler moved to the rail); the season box `flex-shrink`s (explicit
@@ -4910,8 +4963,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     visibilitychange/pagehide.
     Pausing/resuming (now the time menu's primary toggle) freezes or resumes day
     progression without blocking editing; the menu (opened by tapping the season
-    box) also offers Skip to next season/year; season skip shows a confirmation
-    using the real next season. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
+    box) also offers Skip to next season/year, with no confirmation; a Skip
+    toasts the season it lands on, and lands once its destination is baked
+    (§11), which opening this menu has usually already done. Zoom: `ZOOM = baseZoom (0.75 on phones) ×
     userZoom`, driven by pinch (two-pointer tracking in the canvas
     handlers), mouse wheel, and +/- keys. The phone zoom pill stays hidden to
     protect canvas space; the one-time Time coach also teaches pinch zoom.

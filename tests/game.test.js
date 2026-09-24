@@ -25,6 +25,7 @@ function setup(gw, gh){
   game.discovery = defaultDiscovery();
   game.design = null; game.challenge = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
+  cancelPendingSkip();    // a Skip still preparing, or the time menu's prewarm, from someone else's test
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
   game.previewMode = 'today'; game.edgeStyle = 'organic';
   game.lastBrushTool = null; game.lastBrushVar = null;
@@ -11248,10 +11249,186 @@ test('the coming season is baked before the turn, at the turn\'s own growth', ()
 test('a frame past its look-ahead budget leaves the rest for the next frame', () => {
   aheadCase((key, recFor) => {
     const rec = recFor('Summer');
-    AHEAD.ms = AHEAD.BUDGET_MS;
+    AHEAD.ms = AHEAD.budget; AHEAD.short = 0;
     aheadBakePlant(rec);
     assertEqual(PSPRITE.map.size, 0, 'nothing baked on a spent frame');
-    assert(rec.aheadFor !== 'Fall', 'and the clump is not marked done, so it is tried again');
+    assert(rec.aheadFor !== AHEAD.epoch, 'and the clump is not marked done, so it is tried again');
+    assertEqual(AHEAD.short, 1, 'and it is counted, which is how a pending Skip knows that frame did not finish');
+  });
+});
+
+test('the look-ahead budget is a share of the frame, and a Skip gets more', () => {
+  const was = Object.assign({}, AHEAD);
+  try {
+    /* A flat 2ms is 490ms of baking in a 1.5s lead at 164Hz and 180ms at 60Hz,
+       half of what a 374-plant turn needs. */
+    const run = (dt, n, a) => { for (let k = 0; k < n; k++) aheadFrame(AHEAD.lastT + dt, a); };
+    const turn = { season: 'Fall', at: 5 };
+    AHEAD.lastT = 1000; AHEAD.vs = 0;
+    run(6.1, 30, turn);
+    assertEqual(AHEAD.budget, AHEAD.BUDGET_MS, '164Hz keeps the floor');
+    run(40, 1, turn);
+    assertEqual(AHEAD.budget, AHEAD.BUDGET_MS,
+      'a slow frame buys the next one nothing, or the budget would feed on its own cost');
+    AHEAD.vs = 0; run(16.7, 30, turn);
+    assert(AHEAD.budget > 4.9 && AHEAD.budget < 5.1, '60Hz gets ~5ms: ' + AHEAD.budget);
+    AHEAD.vs = 0; run(34, 30, turn);
+    assertEqual(AHEAD.budget, AHEAD.MAX_MS, 'and it is capped');
+    run(6.1, 1, { season: 'Fall', at: 5, skip: true });
+    assertEqual(AHEAD.budget, AHEAD.SKIP_MS, 'a Skip the gardener is waiting on gets the skip budget');
+    const paused = game.pausedAt, inG = game.inGarden;
+    try {
+      game.inGarden = true; game.pausedAt = Date.now(); AHEAD.vs = 0;
+      run(6.1, 5, { season: 'Fall', at: 5, prewarm: true });
+      assertEqual(AHEAD.budget, AHEAD.MAX_MS, 'the time menu on a paused planner prewarms on idle frames that have the time');
+      game.pausedAt = 0; game.clockSuspended = false; game.startTs = Date.now();
+      run(6.1, 5, { season: 'Fall', at: 5, prewarm: true });
+      assertEqual(AHEAD.budget, AHEAD.BUDGET_MS, 'but not while the clock is running the garden at full rate');
+    } finally { game.pausedAt = paused; game.inGarden = inG; }
+    // the epoch moves with the destination, and only then
+    const e0 = AHEAD.epoch;
+    aheadFrame(1010, { season: 'Fall', at: 5, skip: true });
+    assertEqual(AHEAD.epoch, e0, 'the same destination keeps its marks');
+    aheadFrame(1020, { season: 'Winter', at: 9 });
+    assert(AHEAD.epoch !== e0, 'another destination checks every clump again');
+    const e1 = AHEAD.epoch;
+    AHEAD.short = 5;                                    // a frame that ran out of budget
+    aheadFrame(1030, null); aheadFrame(1040, { season: 'Winter', at: 9 });
+    assert(AHEAD.epoch !== e1, 'and so does coming back to one after a gap, which renews the leases');
+    assertEqual(AHEAD.short, 0, 'each frame starts with nothing left over');
+  } finally { Object.assign(AHEAD, was); }
+});
+
+test('a bulb that comes up at the turn is baked ahead from underground', () => {
+  aheadCase(() => {
+    /* A summer bulb (the alliums, lilies, dahlias) is underground all Spring
+       and two thirds grown the instant Summer starts, so the turn is exactly
+       when it appears. A spring bulb is not the case: at the first instant of
+       Spring it has only just broken ground. */
+    const key = PLANT_KEYS.find(k => PLANTS[k].type === 'bulb' && PLANTS[k].bulbSeason === 'summer' && !PLANTS[k].hidden);
+    const rec = { kind: SCENE_K.BULB, p: { s: key, d: -400, t: 1 }, seed: 777, stunt: false };
+    bakePlantKeyParts(rec, key, null, 'Spring', 777, undefined);
+    game.elapsedMs = 8 * DAY_MS;                        // mid-Spring
+    assert(displayPlantGrowth(rec.p) <= 0.02, 'underground now: ' + key);
+    AHEAD.season = 'Summer'; AHEAD.at = DAYS_PER_SEASON * DAY_MS; AHEAD.ms = 0;
+    aheadBakePlant(rec);
+    assert([...PSPRITE.map.keys()].some(k => k.startsWith('777|' + key + '||Summer|')),
+      'its Summer picture exists before Summer does');
+    /* and render asks for it BEFORE the underground test, or nothing would */
+    const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    const body = src.slice(src.indexOf('case SCENE_K.BULB:{'));
+    assert(body.indexOf('aheadBakePlant(e)') < body.indexOf('if (g<=0.02) return 0;'),
+      'drawSceneEnt looks ahead for a bulb before returning on an underground one');
+  });
+});
+
+/* ---------- a Skip lands in one frame ----------
+   Applied on the click, a Skip left 355 plants in the old season, clearing top
+   to bottom over 21 frames, and the lawn a season behind for 12. */
+function skipCase(fn){
+  setup(20, 20);
+  const was = { gks: groundKeyStruct, job: groundJob, rf: AHEAD.readyFor };
+  try {
+    game.pausedAt = Date.now();                                   // a planner, paused
+    game.elapsedMs = (DAYS_PER_SEASON - 1) * DAY_MS + DAY_MS * 0.5; // the last day of Spring
+    groundJob = null;
+    fn();
+  } finally { cancelPendingSkip(); groundKeyStruct = was.gks; groundJob = was.job; AHEAD.readyFor = was.rf; }
+}
+
+test('a Skip waits until its destination is ready, then lands in one frame', () => {
+  skipCase(() => {
+    let landed = 0;
+    requestSkipTo(DAYS_PER_SEASON, () => landed++);
+    assertEqual(calClock().season, 'Spring', 'nothing moves on the click');
+    assert(skipPending(), 'the Skip is pending');
+    const a = seasonTurnAhead();
+    assert(a && a.season === 'Summer' && a.skip, 'the look-ahead points at the destination, at the skip budget');
+    game.elapsedMs = a.at + DAY_MS * 0.02;
+    assertEqual(calClock().season, 'Summer', 'at the instant the Skip lands on');
+    game.elapsedMs = (DAYS_PER_SEASON - 1) * DAY_MS + DAY_MS * 0.5;
+    assert(hasTransientGardenWork(), 'and the garden draws at full rate while it prepares');
+    AHEAD.readyFor = null; groundKeyStruct = groundStructKey('Summer', game.rot);
+    landPreparedSkip();
+    assert(skipPending() && !landed, 'not until a frame has drawn every clump with its picture ready, ground or no ground');
+    AHEAD.readyFor = 'Summer'; groundKeyStruct = groundStructKey('Spring', game.rot);
+    landPreparedSkip();
+    assert(skipPending() && !landed, 'nor while the ground is still the old season');
+    groundKeyStruct = groundStructKey('Summer', game.rot);
+    landPreparedSkip();
+    assert(!skipPending() && landed === 1, 'then it lands, once');
+    assertEqual(calClock().season, 'Summer', 'on the destination');
+    assertEqual(calClock().day, 1, 'at its first day');
+    assert(seasonFade.suppressOnce, 'still without a crossfade: Skip is the palette comparison');
+    // and render is what lands it, before anything in the frame reads the clock
+    const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    const body = src.slice(src.indexOf('function render(t){'));
+    assert(body.indexOf('landPreparedSkip();') >= 0 && body.indexOf('landPreparedSkip();') < body.indexOf('cal=calClock()'),
+      'render lands a prepared Skip at the top of the frame');
+  });
+});
+
+test('a Skip that cannot get ready lands anyway, and a second Skip goes further', () => {
+  skipCase(() => {
+    let landed = 0;
+    requestSkipTo(DAYS_PER_SEASON, () => landed++);
+    skipNextSeason();                                   // pressed again while preparing
+    assertEqual(seasonTurnAhead().season, 'Fall', 'two presses are two seasons');
+    AHEAD.readyFor = null;
+    pendingSkip.t0 = performance.now() - SKIP_PREP_MAX_MS - 1;
+    game.inGarden = false;                              // no save side effect
+    landPreparedSkip();
+    assert(!skipPending(), 'past the cap it lands on stand-ins rather than hang');
+    assertEqual(calClock().season, 'Fall', 'where the second press sent it');
+    assertEqual(landed, 0, 'the first press was superseded, not landed');
+  });
+});
+
+test('a Skip with nothing to prepare lands at once', () => {
+  skipCase(() => {
+    let landed = 0;
+    // a year skip from Spring lands in Spring: its sprites would share the slot on screen
+    game.elapsedMs = 3 * DAY_MS;
+    requestSkipTo(4 * DAYS_PER_SEASON, () => landed++);
+    assert(!skipPending() && landed === 1, 'same season: at once');
+    assertEqual(calClock().year, 2, 'a year on');
+    // outside a garden there is no picture to prepare
+    game.inGarden = false;
+    requestSkipTo(5 * DAYS_PER_SEASON, () => landed++);
+    assert(!skipPending() && landed === 2, 'no garden: at once');
+  });
+});
+
+test('the time menu starts preparing the next season, and leaving never loses a Skip', () => {
+  skipCase(() => {
+    assertEqual(seasonTurnAhead(), null, 'a paused planner with the menu shut bakes nothing ahead');
+    openPause();
+    const a = seasonTurnAhead();
+    assert(a && a.season === 'Summer' && !a.skip, 'with the menu open, Skip is one tap away: prepare, at the ordinary budget');
+    closePause();
+    assertEqual(seasonTurnAhead(), null, 'and it stops when the menu shuts');
+    // a Skip still preparing when the garden is left, or the page hidden, lands
+    let landed = 0;
+    requestSkipTo(DAYS_PER_SEASON, () => landed++);
+    game.inGarden = false;
+    landSkipNow();
+    assert(!skipPending() && landed === 1 && calClock().season === 'Summer', 'landSkipNow lands it');
+    game.inGarden = true;
+    requestSkipTo(2 * DAYS_PER_SEASON, () => landed++);
+    assert(skipPending(), 'a second one pending');
+    game.inGarden = false;
+    game.elapsedMs = (2 * DAYS_PER_SEASON + 1 - game.dayOffset) * DAY_MS;   // the clock got there first
+    landSkipNow();
+    assertEqual(landed, 1, 'a Skip the clock already passed does nothing');
+    const src = readRepoFile('js/screens.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    const quit = src.slice(src.indexOf('function quitToMenu(){'));
+    assert(quit.indexOf('landSkipNow()') >= 0 && quit.indexOf('landSkipNow()') < quit.indexOf('saveSolo()'),
+      'quitting lands a pending Skip before it saves');
+    assert(/if \(document\.hidden\)\{ landSkipNow\(\);/.test(src), 'so does hiding the page');
+    assert(/addEventListener\('pagehide',\(\)=>\{ landSkipNow\(\);/.test(src), 'and leaving it');
+    const enter = src.slice(src.indexOf('function enterGarden(){'));
+    assert(enterIndex(enter), 'opening a garden drops a Skip meant for the last one');
+    function enterIndex(s) { const i = s.indexOf('cancelPendingSkip()'); return i >= 0 && i < s.indexOf('\n}'); }
   });
 });
 

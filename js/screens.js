@@ -558,6 +558,7 @@ function enterGarden(){
   resetSelectionState();
   game.ruler=null;
   resetSeasonFade();   // never crossfade from a previous garden's last frame
+  cancelPendingSkip(); // nor land a Skip meant for it
   game.tool='hand'; game.toolVar=null; game.clockSuspended=false; game.startTs=Date.now();
   game.previewMode=game.previewMode||'established';
   game.woodyAge='mature';                       // designers plan around existing/mature trees
@@ -1169,6 +1170,7 @@ function openDesignSetup(){
 }
 function quitToMenu(){
   if (game.photoEditing) closeSitePhotoEdit(false);
+  landSkipNow();                 // a Skip still preparing is still a Skip
   suspendClock();
   if (game.inGarden&&hasStorage){
     try{ rememberGardenPortrait(captureGardenPortrait()); }
@@ -1613,10 +1615,10 @@ if ($('plantGuidanceScreen')) $('plantGuidanceScreen').onclick=e=>{ if (e.target
    flush immediately; only saveSolo may mark a successful write clean. */
 function autosaveNow(){ if (game.inGarden&&hasStorage) return saveSolo(true); }
 addEventListener('visibilitychange',()=>{
-  if (document.hidden){ suspendClock(); autosaveNow(); }
+  if (document.hidden){ landSkipNow(); suspendClock(); autosaveNow(); }
   else { resumeClockSession(); updateHUD(); }
 });
-addEventListener('pagehide',()=>{ suspendClock(); autosaveNow(); });
+addEventListener('pagehide',()=>{ landSkipNow(); suspendClock(); autosaveNow(); });
 if ($('btnDayNight')) $('btnDayNight').onclick=()=>{ setLayerVis('night',!game.layerVis.night);
   updateDayNightBtn(); refreshCanvasTools();
   toast(game.layerVis.night?'Night — your garden lighting switches on.':'Back to daylight.'); };
@@ -1961,7 +1963,8 @@ function hasActiveGesture(){
 function hasTransientGardenWork(){
   return !!(game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
-    || seasonFadeActive());   // the season crossfade needs live frames for ~1s
+    || seasonFadeActive()     // the season crossfade needs live frames for ~1s
+    || skipPending());        // and a Skip being prepared lands sooner at full rate
 }
 function shouldRenderGarden(t){
   if (fullScreenRenderBlocked()) return false;

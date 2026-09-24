@@ -1766,17 +1766,70 @@ function openPause(){
   if (box && p){ const r=box.getBoundingClientRect();
     p.style.top=(r.bottom+10)+'px';
     p.style.left=Math.max(8,Math.round(r.left))+'px'; }
+  skipPrewarm=true;           // Skip is one tap away: start preparing where it goes
 }
 function closePause(){
   closeOverlay('pauseScreen');
   document.removeEventListener('pointerdown',pauseOutsidePress,true);
+  skipPrewarm=false;
 }
 function toggleClock(){
   if (game.pausedAt){ resumeClock(); toast('Day started.'); }
   else { pauseClock(); toast('Day paused.'); }
   updateHUD();
 }
-function skipToAbsDay(targetDay){
+/* ---------- a Skip lands in ONE frame ----------
+   A Skip turns every plant, structure and the ground to another season at
+   once, and it is the palette-comparison control, so it runs without the
+   crossfade the clock's own turns hide behind. Applied on the click, every
+   visible sprite and the ground needed re-baking at once: done in the frame
+   that was a 280ms hitch, and spread over frames (with the old season standing
+   in) it was a wipe down the screen with the lawn a season behind — measured,
+   355 plants still in the old season on the first frame, clearing top to
+   bottom over 21 frames, the ground flipping on the 12th.
+   So a Skip is PREPARED first: `pendingSkip` names the destination, the
+   renderer's look-ahead bakes that season's sprites and ground behind the
+   picture on screen (seasonTurnAhead answers skipAheadTarget first), and the
+   Skip lands at the top of the first frame after one that drew every visible
+   clump with its destination picture ready (landPreparedSkip, skipPrepared) —
+   or once SKIP_PREP_MAX_MS has passed, the fallback being the stand-ins.
+   Opening the time menu starts that preparation early (`skipPrewarm`), since
+   Skip is one tap away: at the ordinary look-ahead budget it is usually done
+   before the finger gets there, and the Skip is instant.
+   A second Skip while one is pending goes a season further. A destination in
+   the season already on screen (a year skip from Spring) has nothing a
+   look-ahead can hold — its sprites share the slot being drawn — so it lands
+   at once, as does anything outside a garden. */
+const SKIP_PREP_MAX_MS=1200;
+let pendingSkip=null, skipPrewarm=false;
+function skipPending(){ return !!pendingSkip; }
+function seasonOfDay(d){ return SEASONS[((Math.floor(d/DAYS_PER_SEASON)%4)+4)%4]; }
+function nextSeasonStartDay(from){ return (Math.floor(from/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON; }
+function skipAheadTarget(){
+  if (!game.inGarden) return null;
+  const d=pendingSkip ? pendingSkip.day : (skipPrewarm ? nextSeasonStartDay(absDay()) : null);
+  if (d===null) return null;
+  return {season:seasonOfDay(d), at:(d-game.dayOffset)*DAY_MS, skip:!!pendingSkip, prewarm:!pendingSkip};
+}
+function requestSkipTo(targetDay,done){
+  if (targetDay<=absDay()) return;
+  const season=seasonOfDay(targetDay);
+  if (!game.inGarden || season===calClock().season){ pendingSkip=null; skipToAbsDay(targetDay); done(); return; }
+  pendingSkip={day:targetDay, season, t0:performance.now(), done};
+}
+function landPreparedSkip(){
+  if (pendingSkip && !game.photo && skipPrepared(pendingSkip)) landSkipNow(true);
+}
+// also called by anything that must not leave a Skip hanging: quitting, hiding
+function landSkipNow(fromRender){
+  const p=pendingSkip; if (!p) return;
+  pendingSkip=null;
+  if (p.day<=absDay()) return;          // the clock got there first (fast-forward during the wait)
+  skipToAbsDay(p.day,!!fromRender);
+  p.done();
+}
+function cancelPendingSkip(){ pendingSkip=null; skipPrewarm=false; }
+function skipToAbsDay(targetDay,deferSave){
   const d=absDay();
   if (targetDay<=d) return;
   game.dayOffset += targetDay-d;
@@ -1791,19 +1844,20 @@ function skipToAbsDay(targetDay){
   // season over the new one: green + burgundy briefly reads muddy yellow-brown.
   suppressNextSeasonFade();
   game.dirty=true;
-  if (game.inGarden&&hasStorage) saveSolo(true);
+  // landed from inside render: the save's clone waits for the frame to finish
+  if (game.inGarden&&hasStorage){ if (deferSave) setTimeout(()=>saveSolo(true),0); else saveSolo(true); }
 }
 function skipNextSeason(){
-  const d=absDay();
-  skipToAbsDay((Math.floor(d/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON);
-  const cal=calClock();
-  $('pauseMeta').textContent=clockMeta();
-  toast(`${cal.season} begins.`);
+  const from=pendingSkip?pendingSkip.day:absDay();
+  requestSkipTo(nextSeasonStartDay(from),()=>{
+    $('pauseMeta').textContent=clockMeta();
+    toast(`${calClock().season} begins.`);
+  });
 }
 function skipNextYear(){
-  const d=absDay(), yearLen=DAYS_PER_SEASON*SEASONS.length;
-  skipToAbsDay((Math.floor(d/yearLen)+1)*yearLen);
-  const cal=calClock();
-  $('pauseMeta').textContent=clockMeta();
-  toast(`Year ${cal.year} begins.`);
+  const from=pendingSkip?pendingSkip.day:absDay(), yearLen=DAYS_PER_SEASON*SEASONS.length;
+  requestSkipTo((Math.floor(from/yearLen)+1)*yearLen,()=>{
+    $('pauseMeta').textContent=clockMeta();
+    toast(`Year ${calClock().year} begins.`);
+  });
 }

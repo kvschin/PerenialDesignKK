@@ -120,9 +120,10 @@ function groundSeasonOnly(a,b){
    strips in by, so there is no new way of painting the ground to get wrong.
      zoom   - after the settle, the soft stale bake stays on screen while the
               crisp one fills in behind it;
-     season - while the clock runs towards a season boundary the next season
-              is baked ahead of it, and a turn nothing got ahead of (Skip)
-              keeps the old season's ground until the new one is ready;
+     season - while the clock runs towards a season boundary, or a Skip is
+              pending or likely, the next season is baked ahead of it; a turn
+              nothing got ahead of keeps the old season's ground until the new
+              one is ready (under a crossfade; a Skip waits for it instead);
      rot    - once the view is idle, the NEXT rotation — the button and R both
               turn one way — at the camera rotateView will snap to.
    A job is a promise about one picture: season, rotation, zoom, camera,
@@ -184,8 +185,10 @@ function adoptGroundJob(t){
 /* The season the clock is about to turn into, and the garden-ms instant it
    does, when that is under GROUND_SEASON_LEAD_MS away in REAL time at the rate
    the clock is running. Null when it is not running, so a paused planner
-   bakes nothing ahead. */
+   bakes nothing ahead — unless a Skip is pending or likely (skipAheadTarget,
+   ui.js), which names its own destination and is answered first. */
 function seasonTurnAhead(){
+  const sk=skipAheadTarget(); if (sk) return sk;
   const clock=clockActive(), ff=!!game.ffActive;
   if (!clock && !ff) return null;
   const rate=(ff?FF_RATE:0)+(clock?1:0);
@@ -209,7 +212,19 @@ function groundJobTick(t,MD,season,ahead){
       ensureGroundJob('rot',season,r,c[0],c[1],MD);
     }
   }
-  if (groundJob && !groundJobDone() && groundJobValid(MD)) stepGroundJob(t,1);
+  // a pending Skip is waiting on this picture: two bands a frame, so the ground
+  // is never what holds the turn back
+  if (groundJob && !groundJobDone() && groundJobValid(MD)) stepGroundJob(t,ahead&&ahead.skip?2:1);
+}
+/* Is everything a pending Skip will show ready? The last frame drew every
+   visible entity with its destination picture already baked (AHEAD.readyFor),
+   and the destination ground is baked — or the wait has gone on long enough
+   that stand-ins are the lesser evil. */
+function skipPrepared(p){
+  if (performance.now()-p.t0>SKIP_PREP_MAX_MS) return true;
+  if (AHEAD.readyFor!==p.season) return false;
+  const MD=Math.round(GROUND_MARGIN_CSS*DPR), gs=groundStructKey(p.season,game.rot);
+  return groundKeyStruct===gs || (!!groundJob && groundJob.struct===gs && groundJobDone() && groundJobValid(MD));
 }
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
@@ -1614,11 +1629,45 @@ function blitPlantSprite(ctx,e,bx,by,sway){
    whole garden changes at once, under the crossfade, the way it should.
    The sprites are LEASED past the turn (`used` set ahead of the frame
    counter), because the eviction sweep discards what was not drawn last frame
-   and nothing draws a sprite of a season that has not arrived yet. */
-const AHEAD={season:null, at:0, ms:0, BUDGET_MS:2, LEASE:1500};
+   and nothing draws a sprite of a season that has not arrived yet.
+   The per-frame budget is a SHARE of the frame (`budget`, set in render), not
+   a flat 2ms: the lead is 1.5s of real time, and at 60Hz a flat 2ms is 180ms
+   of baking in it, half of what a 374-plant turn needs, where 164Hz gets 490.
+   A Skip is the one turn the clock does not run up to, so it gets a lead of
+   its own (skipAheadTarget, ui.js): the Skip WAITS until the frame before has
+   drawn every visible clump with its destination picture ready (`readyFor`),
+   then lands in one frame. It has no crossfade to hide stand-ins under — it is
+   the palette-comparison control — so without that wait a Skip showed the old
+   season in plants and ground, turning over from the top of the screen down,
+   because bakes happen in drawing order, back to front. `short` counts the
+   clumps a frame left for later; `epoch` moves whenever the destination does,
+   so a clump marked done for one lead is checked again (and its lease renewed)
+   for the next. */
+const AHEAD={season:null, at:0, ms:0, BUDGET_MS:2, MAX_MS:6, SKIP_MS:16, budget:2, LEASE:1500,
+  epoch:0, token:null, short:0, readyFor:null, lastT:0, vs:0};
+/* What render tells the look-ahead at the top of each frame. The share is of
+   the DISPLAY's interval — the smallest recent frame gap, drifting back up 2%
+   a frame — never of the last gap: a slow frame must not buy the next frame
+   more baking, or the budget feeds on its own cost (measured, a share of the
+   last gap took fast-forward's worst frames from 48ms to 61). The prewarm of a
+   paused planner is the exception: those frames come at the 30fps idle
+   cadence and have the time. */
+function aheadFrame(t,ahead){
+  const token=ahead?ahead.season+'|'+ahead.at:null;
+  if (token!==AHEAD.token){ AHEAD.token=token; AHEAD.epoch++; }
+  const dt=AHEAD.lastT?Math.min(34,Math.max(4,t-AHEAD.lastT)):16.7;
+  AHEAD.lastT=t;
+  AHEAD.vs=Math.min(dt,(AHEAD.vs||dt)*1.02);
+  AHEAD.season=ahead?ahead.season:null; AHEAD.at=ahead?ahead.at:0; AHEAD.ms=0; AHEAD.short=0;
+  AHEAD.budget=!ahead ? AHEAD.BUDGET_MS
+    : ahead.skip ? AHEAD.SKIP_MS
+    : ahead.prewarm && !clockActive() && !game.ffActive ? AHEAD.MAX_MS
+    : Math.min(AHEAD.MAX_MS,Math.max(AHEAD.BUDGET_MS,AHEAD.vs*0.3));
+}
 function aheadBakePlant(e){
   const next=AHEAD.season;
-  if (e.aheadFor===next || AHEAD.ms>=AHEAD.BUDGET_MS || e.kSlot===undefined) return;
+  if (e.aheadFor===AHEAD.epoch || e.kSlot===undefined) return;
+  if (AHEAD.ms>=AHEAD.budget){ AHEAD.short++; return; }
   if (PSPRITE.bytes>PSPRITE.MEM*1.5) return;   // a garden whose visible set nearly fills the cache turns progressively
   const t0=performance.now();
   // growth and bloom as they will be just after the boundary: borrow the clock
@@ -1627,7 +1676,7 @@ function aheadBakePlant(e){
   game.elapsedMs=AHEAD.at+DAY_MS*0.02; game.clockSuspended=true;
   try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); }
   finally{ game.elapsedMs=was; game.clockSuspended=susp; }
-  e.aheadFor=next;
+  e.aheadFor=AHEAD.epoch;
   if (g<=0.02) return;                         // not up yet in the coming season
   const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0;
   const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
@@ -1646,8 +1695,9 @@ function aheadBakePlant(e){
 }
 function aheadBakeStruct(e,W,H,lit){
   const next=AHEAD.season;
-  if (e.aheadFor===next || AHEAD.ms>=AHEAD.BUDGET_MS) return;
-  e.aheadFor=next;
+  if (e.aheadFor===AHEAD.epoch) return;
+  if (AHEAD.ms>=AHEAD.budget){ AHEAD.short++; return; }
+  e.aheadFor=AHEAD.epoch;
   const spec=structSpriteSpec(e); if (!spec) return;
   const kk=spec.key+'|'+next+'|'+game.rot+'|'+(lit?1:0);   // drawStructMaybeCached's key, next season
   const have=SSPRITE.map.get(kk);
@@ -2812,10 +2862,12 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx){
       if (AHEAD.season && SSPRITE.active && !SSPRITE.off) aheadBakeStruct(e,W,H,game.layerVis.night);
       return 0;
     case SCENE_K.BULB:{
+      // ahead of the underground test: a bulb that comes UP at the turn has no
+      // picture of its own to stand in, so it is the one most worth baking early
+      if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
-      if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
     }
     case SCENE_K.PLANT:{
@@ -2954,6 +3006,8 @@ function render(t){
      stretch used to be covered by no phase timer at all, which hid ~31% of the
      frame; `sky` is what closed that. */
   const tSky=dnow();
+  // a Skip whose destination is ready lands here, before anything reads the clock
+  landPreparedSkip();
   const W=VW/ZOOM, H=VH/ZOOM, cal=calClock(), amb=AMBIENCE[cal.season];
   maybeStartSeasonFade(t,cal.season);            // must run before the sky pass clears the frame
   cx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
@@ -2968,7 +3022,7 @@ function render(t){
   // the season the clock is about to turn into, if it is close: its ground and
   // its sprites are baked ahead of it (groundJobTick, aheadBakePlant)
   const ahead=game.photo?null:seasonTurnAhead();
-  AHEAD.season=ahead?ahead.season:null; AHEAD.at=ahead?ahead.at:0; AHEAD.ms=0;
+  aheadFrame(t,ahead);
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen
@@ -3271,6 +3325,9 @@ function render(t){
   while (di<dyn.length){
     plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   dmark('draw',tDraw);
+  // every visible clump now has its picture for the coming season (a pending
+  // Skip lands on the next frame if the ground is ready too — skipPrepared)
+  AHEAD.readyFor=AHEAD.season && !AHEAD.short ? AHEAD.season : null;
   drawBuildingDraftOverlay(cx,W,H);
   updateSpriteMode(performance.now()-tDrawWall, plantCount,
     structSampling ? structSampleMs : null);
