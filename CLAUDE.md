@@ -2095,7 +2095,30 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     24-30ms), season turns' worst 212-261 → 115-188ms, fast-forward's worst
     303-309 → 206ms, panning unchanged. What remained in those worst frames was
     the full ground bake, since moved into ground jobs (§11, beside the mid-zoom
-    note).
+    note), and the season turn's own sprite burst, since baked ahead (below).
+    **The coming season's sprites are baked before it arrives** (`AHEAD`,
+    `aheadBakePlant`/`aheadBakeStruct`; Sep 2026). The stand-ins made a turn
+    smooth but not pretty: ~375 bakes spread over the frames after it meant the
+    plants changed colour one by one, a wave across the garden under the
+    crossfade. So while `seasonTurnAhead` says a boundary is close (the ground
+    jobs' 1.5s lead), each live frame spends up to `AHEAD.BUDGET_MS` (2ms)
+    baking the NEXT season's sprite for whatever it draws — growth and bloom
+    evaluated at the instant of the turn, by borrowing the clock and putting it
+    back — and the turn finds every clump's picture waiting, so the whole
+    garden changes at once. Those sprites are LEASED (`used` set `AHEAD.LEASE`
+    frames ahead), because the eviction sweep discards what was not drawn last
+    frame and nothing draws a season that has not arrived; a garden whose cache
+    already sits at 1.5× `MEM` turns progressively instead. A clump's sprite
+    from that season last year is retired when the new one lands. Never for a
+    portrait (`ctx!==cx`) or a photo, and never while paused — there is no
+    turn coming. Measured live, a running clock crossing Summer→Fall,
+    Fall→Winter and Winter→Spring (same garden and setup as above): worst frame
+    after the turn 158-188 → 24-30ms, fps over the second after it 114-130 →
+    149-153, plant bakes after the turn 333-357 → **0** (Spring: 120, the
+    bulbs, which are underground until the turn and so drawn by nothing that
+    could bake them ahead). The bakes land in the 1.5s before instead, whose
+    worst frame is 12-18ms. It does not change Firefox: the same canvases are
+    created, only earlier.
     **Firefox is not rescued by any of this**: in Firefox 156 a
     few hundred NEW sprite canvases — one season turn is enough — make it give
     up canvas acceleration for the rest of the page (the

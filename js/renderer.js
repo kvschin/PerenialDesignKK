@@ -1601,6 +1601,64 @@ function blitPlantSprite(ctx,e,bx,by,sway){
    which is what the gardener saw as the planting spazzing at a season change.
    A sprite drawn as a stand-in keeps its own slot. Retiring happens only when
    the clump's real sprite lands, exactly as before. */
+/* ---------- the coming season, baked before it arrives ----------
+   A season turn needs a new sprite for every plant and every structure on
+   screen: 374 plants and 11 structures in a 261-plant garden. Baked on the
+   turn, that was frames of 103, 279 and 127ms; spread over the frames after it
+   with stand-ins, it was smooth but the plants changed colour one by one, a
+   wave across the garden under the crossfade. So while the clock is running
+   towards a boundary (seasonTurnAhead — the same lead the ground uses), each
+   frame spends up to AHEAD.BUDGET_MS baking the coming season's sprites for
+   whatever it draws, with growth and bloom evaluated at the instant of the
+   turn. When the turn comes every clump already has its new picture and the
+   whole garden changes at once, under the crossfade, the way it should.
+   The sprites are LEASED past the turn (`used` set ahead of the frame
+   counter), because the eviction sweep discards what was not drawn last frame
+   and nothing draws a sprite of a season that has not arrived yet. */
+const AHEAD={season:null, at:0, ms:0, BUDGET_MS:2, LEASE:1500};
+function aheadBakePlant(e){
+  const next=AHEAD.season;
+  if (e.aheadFor===next || AHEAD.ms>=AHEAD.BUDGET_MS || e.kSlot===undefined) return;
+  if (PSPRITE.bytes>PSPRITE.MEM*1.5) return;   // a garden whose visible set nearly fills the cache turns progressively
+  const t0=performance.now();
+  // growth and bloom as they will be just after the boundary: borrow the clock
+  const was=game.elapsedMs, susp=game.clockSuspended;
+  let g, bl;
+  game.elapsedMs=AHEAD.at+DAY_MS*0.02; game.clockSuspended=true;
+  try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); }
+  finally{ game.elapsedMs=was; game.clockSuspended=susp; }
+  e.aheadFor=next;
+  if (g<=0.02) return;                         // not up yet in the coming season
+  const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0;
+  const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
+  const kk=slot+'|'+gB+'|'+bB+e.kTail;
+  const have=PSPRITE.map.get(kk);
+  if (have){ have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); return; }
+  const ne=makePlantSprite(e.p.s,gB,bB,next,e.seed,e.p.v,e.detail);
+  AHEAD.ms+=performance.now()-t0;
+  if (!ne) return;
+  // whatever this clump held in that season before (last year's) is dead now
+  const old=PSPRITE.slot.get(slot);
+  if (old!==undefined && old!==kk){ const d=PSPRITE.map.get(old); if (d){ PSPRITE.bytes-=d.bytes; PSPRITE.map.delete(old); } }
+  ne.used=PSPRITE.frame+AHEAD.LEASE; ne.slot=slot;
+  PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
+  PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk);
+}
+function aheadBakeStruct(e,W,H,lit){
+  const next=AHEAD.season;
+  if (e.aheadFor===next || AHEAD.ms>=AHEAD.BUDGET_MS) return;
+  e.aheadFor=next;
+  const spec=structSpriteSpec(e); if (!spec) return;
+  const kk=spec.key+'|'+next+'|'+game.rot+'|'+(lit?1:0);   // drawStructMaybeCached's key, next season
+  const have=SSPRITE.map.get(kk);
+  if (have){ have.used=Math.max(have.used||0,SSPRITE.frame+AHEAD.LEASE); return; }
+  const t0=performance.now();
+  const ns=makeStructSprite(e,spec,next,W,H,lit);
+  AHEAD.ms+=performance.now()-t0;
+  if (!ns) return;
+  ns.used=SSPRITE.frame+AHEAD.LEASE;
+  SSPRITE.map.set(kk,ns); SSPRITE.bytes+=ns.bytes;
+}
 function plantStandInKey(kk,slot){
   const was=PSPRITE.slot.get(slot);
   if (was!==undefined && PSPRITE.map.has(was)) return was;
@@ -2745,23 +2803,26 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx){
     case SCENE_K.HOUSE:
       // Offscreen portraits draw once, without populating or resizing the
       // live viewport's sprite caches (or charging its performance governor).
-      if (ctx!==cx) drawStructEnt(ctx,e,W,H,season,game.layerVis.night);
-      else if (structSampling){
+      if (ctx!==cx){ drawStructEnt(ctx,e,W,H,season,game.layerVis.night); return 0; }
+      if (structSampling){
         const t0=performance.now();
         drawStructMaybeCached(e,W,H,season,game.layerVis.night);
         structSampleMs+=performance.now()-t0;
       } else drawStructMaybeCached(e,W,H,season,game.layerVis.night);
+      if (AHEAD.season && SSPRITE.active && !SSPRITE.off) aheadBakeStruct(e,W,H,game.layerVis.night);
       return 0;
     case SCENE_K.BULB:{
       const g=displayPlantGrowth(e.p); if (g<=0.02) return 0;   // underground
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,undefined,useSprites,e);
+      if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
     }
     case SCENE_K.PLANT:{
       let g=displayPlantGrowth(e.p); if (e.stunt) g*=0.45;      // struggling under canopy
       const [sx,sy]=plantScreenOf(e.x,e.y,e.p,W,H);
       drawPlantMaybeCached(ctx,sx,sy+TILE_H/2,e.p.s,g,season,e.seed,sway,e.p.v,e.detail,useSprites,e);
+      if (AHEAD.season && useSprites && ctx===cx) aheadBakePlant(e);
       return 1;
     }
     case SCENE_K.GHOST:
@@ -2904,9 +2965,10 @@ function render(t){
   const sway = Math.sin(t*0.0012);
   noteSpriteZoom(t);            // must precede both: it decides whether they may rescale
   pspriteFrame(); ssprFrame();
-  // the season the clock is about to turn into, if it is close: its ground is
-  // baked ahead of it (groundJobTick)
+  // the season the clock is about to turn into, if it is close: its ground and
+  // its sprites are baked ahead of it (groundJobTick, aheadBakePlant)
   const ahead=game.photo?null:seasonTurnAhead();
+  AHEAD.season=ahead?ahead.season:null; AHEAD.at=ahead?ahead.at:0; AHEAD.ms=0;
 
   // visible tile window: invert the four screen corners to world tiles
   // and take the padded bounding box, so we only walk what's on screen

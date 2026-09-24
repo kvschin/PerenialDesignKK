@@ -11205,6 +11205,72 @@ test('at a season turn a clump keeps its OWN shape, not a sibling\'s', () => {
   });
 });
 
+/* ---------- the coming season is baked before it arrives ----------
+   With stand-ins alone a season turn was smooth but the plants changed colour
+   one by one after it. While the clock runs towards a boundary, each frame now
+   bakes the coming season's sprites for what it draws, at the growth and
+   bloom of the instant of the turn, so the turn itself bakes nothing. */
+function aheadCase(fn){
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0; PSPRITE.off = false;
+  const was = game.elapsedMs, wasAhead = Object.assign({}, AHEAD);
+  const recFor = season => { const r = { kind: SCENE_K.PLANT, p: { s: key, d: -400, t: 1 }, seed: 4321, stunt: false };
+    bakePlantKeyParts(r, key, null, season, 4321, undefined); return r; };
+  try {
+    pspriteFrame();
+    // Summer -> Fall, dayOffset 0: the boundary is the first instant of day 32
+    AHEAD.season = 'Fall'; AHEAD.at = 2 * DAYS_PER_SEASON * DAY_MS; AHEAD.ms = 0;
+    fn(key, recFor);
+  } finally { game.elapsedMs = was; Object.assign(AHEAD, wasAhead); }
+}
+
+test('the coming season is baked before the turn, at the turn\'s own growth', () => {
+  aheadCase((key, recFor) => {
+    const rec = recFor('Summer'), before = game.elapsedMs;
+    aheadBakePlant(rec);
+    assertEqual(game.elapsedMs, before, 'the borrowed clock is put back');
+    const k = [...PSPRITE.map.keys()].find(x => x.startsWith('4321|' + key + '||Fall|'));
+    assert(k, 'a Fall sprite exists while it is still Summer');
+    assert(PSPRITE.map.get(k).used > PSPRITE.frame + 100, 'leased, so the sweep keeps it until Fall draws it');
+    const n = PSPRITE.map.size;
+    aheadBakePlant(rec);
+    assertEqual(PSPRITE.map.size, n, 'a clump is baked ahead once');
+    // the turn: drawn in Fall, it finds its sprite waiting
+    game.elapsedMs = AHEAD.at + DAY_MS * 0.02;
+    pspriteFrame();
+    const ctx = document.createElement('canvas').getContext('2d');
+    drawPlantMaybeCached(ctx, 0, 0, key, 1, 'Fall', 4321, 0, null, undefined, true, recFor('Fall'));
+    assertEqual(PSPRITE.rendered, 0, 'the turn itself bakes nothing');
+  });
+});
+
+test('a frame past its look-ahead budget leaves the rest for the next frame', () => {
+  aheadCase((key, recFor) => {
+    const rec = recFor('Summer');
+    AHEAD.ms = AHEAD.BUDGET_MS;
+    aheadBakePlant(rec);
+    assertEqual(PSPRITE.map.size, 0, 'nothing baked on a spent frame');
+    assert(rec.aheadFor !== 'Fall', 'and the clump is not marked done, so it is tried again');
+  });
+});
+
+test('render looks ahead only for the live frame, and never in a photo', () => {
+  const src = readRepoFile('js/renderer.js').replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = src.slice(src.indexOf('function render(t){'));
+  assert(/const ahead=game\.photo\?null:seasonTurnAhead\(\);/.test(body), 'a photo frame bakes nothing ahead');
+  let draw = src.slice(src.indexOf('function drawSceneEnt('));
+  draw = draw.slice(0, draw.indexOf('\nfunction '));
+  // every call site, bulb and plant alike: a portrait draws the whole scene too
+  const sites = draw.split('\n').filter(l => l.includes('aheadBakePlant(e)'));
+  assertEqual(sites.length, 2, 'the bulb and the plant path both look ahead');
+  for (const l of sites) assert(/if \(AHEAD\.season && useSprites && ctx===cx\) aheadBakePlant\(e\);/.test(l),
+    'plants bake ahead only onto the live canvas\'s cache, never from a portrait: ' + l.trim());
+  const portrait = draw.indexOf('if (ctx!==cx){ drawStructEnt(ctx,e,W,H,season,game.layerVis.night); return 0; }');
+  const struct = draw.indexOf('aheadBakeStruct(e,W,H,game.layerVis.night)');
+  assert(portrait > 0 && struct > portrait, 'and so do structures: a portrait returns before the look-ahead');
+});
+
 test('a clump with nothing to stand in bakes, budget or not', () => {
   standInCase((draw, frame) => {
     /* The alternative is a procedural draw, which costs what a bake costs and
