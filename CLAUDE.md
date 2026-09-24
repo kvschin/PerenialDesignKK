@@ -799,13 +799,19 @@ logic is split across ordered modules. They map onto the section list below
   **A demo also shows WHERE its tool lives** (`where`, `GUIDE_RAIL`, `gsDrawRail`,
   `gsApplyWhere`, `guideWhereTrail`), because showing only the RESULT teaches the
   second half of the lesson: for most of these tools the harder half is which
-  button and where, the rail being a column of 42x32 icons under 8px labels and
+  button and where, the rail being a column of compact icons with small labels and
   a landscape material three taps down a catalog. So the plate carries a mini
   tool rail down its left edge — where the real one is, which is half the
   message — and the catalog path as one breadcrumb row across the top, with the
   armed control rippling. Both are painted by **`drawCanvasIcon`**, the same
   42x32 function `makeCanvasTool` hands every rail button, so the guidebook
   cannot show a button the rail does not have.
+  **Rail icon treatment:** shared artwork uses rounded 1.8px outlines in the
+  42x32 logical space, with theme-aware neutral ink and restrained warm details.
+  Rail canvases render at 3x backing resolution; CSS keeps their existing
+  responsive display sizes. Armed tools retain their two-tone art on a tinted
+  surface with an accent border and edge marker (red for Erase), never a
+  silhouette filter. Labels are 8.5-9.5px and touch targets remain at least 44px.
   **`where` lives on the DEMO, not the chapter entry**, so the drawn affordance
   and the written breadcrumb under the title are one piece of data; a test pins
   every label against `buildCanvasTools`' source, `TRAY_GROUPS` and `TRAY_CATS`

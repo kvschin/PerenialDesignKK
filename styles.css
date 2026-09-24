@@ -237,10 +237,8 @@
   --color-accent-700:#d59a63;
   --ink-rgb:239,230,211;
 }
-/* An armed tool paints its canvas icon flat against the accent fill. On loam
-   the accent is light enough to take a black icon; on paper the accent is a
-   deep bronze, so the same icon has to go white instead. */
-[data-theme="light"] .canvas-tool.sel canvas:not(.rail-swatch),
+/* Segmented controls use solid accent fills, so their canvas art needs
+   contrasting ink. The rail retains its themed artwork on a tinted fill. */
 [data-theme="light"] .seg .seg-opt.on canvas{filter:brightness(0) invert(1)!important}
 /* "Auto" is resolved in JS, not here: the inline bootstrap in index.html stamps
    data-theme="light|dark" on <html> before first paint, so this file needs one
@@ -1062,14 +1060,14 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
   padding:3px 2px 4px;position:relative;text-decoration:none;
   transition:background var(--motion-control),border-color var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
 .canvas-tool:active:not(.disabled){transform:translateY(1px)}
-.canvas-tool canvas{position:absolute;top:3px;left:50%;transform:translateX(-50%)}
+.canvas-tool canvas{position:absolute;top:3px;left:50%;width:42px;height:32px;transform:translateX(-50%)}
 .canvas-tool canvas.rail-swatch{left:auto;right:2px;top:2px;transform:none;width:18px;height:16px;
   border-radius:3px;background:rgba(25,18,15,.72);border:1px solid rgba(var(--ink-rgb),.28)}
-.canvas-tool span{font-size:8px;line-height:1;text-align:center;pointer-events:none}
-.canvas-tool:hover:not(.disabled){background:var(--surface-control-hover);border-color:var(--border-subtle)}
+.canvas-tool span{font-size:9px;font-weight:500;line-height:1.15;text-align:center;pointer-events:none}
+
 .canvas-tool.sel{border-color:var(--border-active);background:var(--surface-active);box-shadow:inset 0 0 0 1px rgba(var(--ink-rgb),.10)}
 .canvas-tool.sel span{color:var(--seedhead)}
-.canvas-tool.danger.sel{border-color:var(--action-danger);background:var(--surface-danger);box-shadow:0 0 0 1px rgba(224,138,122,.25)}
+.canvas-tool.danger.sel{border-color:var(--action-danger);background:var(--surface-danger);box-shadow:none}
 .canvas-tool.danger.sel span{color:var(--action-danger-text)}
 .canvas-tool.disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .canvas-sep{height:1px;background:rgba(var(--ink-rgb),.16);margin:2px 3px}
@@ -1723,7 +1721,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .active-tool-status{left:8px;top:calc(62px + env(safe-area-inset-top));max-width:calc(100vw - 16px);font-size:10px;padding:5px 8px}
   .canvas-tool{width:44px;min-width:44px;min-height:44px;flex:0 0 auto}
   .canvas-tool canvas{width:34px;height:26px;top:2px}
-  .canvas-tool span{font-size:7px}
+  .canvas-tool span{font-size:8.5px}
   #canvasTools .canvas-tool.todo,#canvasTools .canvas-sep{display:none}
   .tool-popover{top:104px;width:148px}
   .tool-popover button,.layer-row{min-height:44px}
@@ -1870,7 +1868,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   #canvasTools{gap:5px;padding:6px}
   .canvas-tool{width:54px;min-height:56px}
   .canvas-tool canvas{width:46px;height:35px}
-  .canvas-tool span{font-size:8.5px}
+  .canvas-tool span{font-size:9.5px}
 }
 /* Reduced motion is keyed on data-motion, NOT on the media query it replaced.
    The OS switch is the wrong granularity on its own: it is usually turned on
@@ -2012,23 +2010,20 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
 .hud-right{pointer-events:auto}
 .pill.iconbar .lbl,.pill.iconbar button{color:var(--color-text)}
 #canvasTools{background:var(--color-bg);border-color:var(--color-divider);border-radius:22px;padding:7px 6px;gap:4px;box-shadow:var(--shadow-control)}
-/* Same resting-affordance problem as the top bar (see .season-dial above): the
-   rail's five tools were transparent, so only the ARMED one had any fill and
-   the rest read as flat art on the rail's background. A whisper of fill gives
-   each one a shape without stacking five outlined boxes down the edge — the
-   armed tool keeps solid accent and stays the loudest thing here. */
-.canvas-tool{background:rgba(var(--ink-rgb),.06);color:color-mix(in srgb,var(--color-text) 74%,transparent);border-radius:16px}
-.canvas-tool:hover:not(.disabled){background:rgba(var(--ink-rgb),.30);border-color:transparent}
-.canvas-tool.sel{background:var(--color-accent);border-color:var(--color-accent);color:var(--ink);box-shadow:none}
-/* Anything sitting on the SOLID accent fill has to flip its canvas icon to the
-   on-accent ink. The label already did (var(--ink)), but the icon did not — a
-   selected Draw/Grid chip kept cream #efe6d3 art on bronze #c97f3f at 2.55:1,
-   so the icon dissolved into the fill while its label stayed crisp and the
-   chip read as unselected. Tray .tool.sel is deliberately excluded: it tints
-   with translucent --surface-active, not solid accent, so light art is right
-   there. */
-.canvas-tool.sel span{color:var(--ink)}
-.canvas-tool.sel canvas:not(.rail-swatch),
+/* Quiet button surfaces and a tinted selection keep the two-tone line art
+   legible in both themes. Border + edge marker also signal the armed tool. */
+.canvas-tool{background:rgba(var(--ink-rgb),.035);color:var(--text-secondary);border-radius:12px}
+@media (hover:hover) and (pointer:fine){
+  .canvas-tool:hover:not(.disabled):not(.sel){background:rgba(var(--ink-rgb),.09);border-color:var(--border-subtle)}
+}
+.canvas-tool.sel{background:var(--surface-active);border-color:var(--color-accent);color:var(--color-text);box-shadow:none}
+.canvas-tool.sel span{color:var(--color-text);font-weight:600}
+.canvas-tool.sel::after{content:'';position:absolute;left:2px;top:50%;width:2px;height:14px;
+  border-radius:2px;background:var(--color-accent-700);transform:translateY(-50%);pointer-events:none}
+body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
+.canvas-tool.danger.sel::after{background:var(--action-danger)}
+.canvas-tool:focus-visible{outline:2px solid var(--focus-ring);outline-offset:1px}
+/* Segmented chips still use a solid accent fill. */
 .seg .seg-opt.on canvas{filter:brightness(0) saturate(100%)}
 .canvas-sep{background:var(--color-divider);margin:5px 8px}
 .tool-popover,.selection-more{background:var(--surface-dialog);border-color:var(--color-divider);color:var(--color-text)}
@@ -2513,7 +2508,10 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .discovery-source-item.sel,.plant-result-heart.on{
     border:2px solid Highlight!important;outline:1px solid Highlight;forced-color-adjust:none;
     background:Highlight!important;color:HighlightText!important}
-  .canvas-tool.sel canvas:not(.rail-swatch){filter:none}
+  .canvas-tool.sel span{color:HighlightText!important}
+  .canvas-tool.sel::after{background:HighlightText!important}
+  .canvas-tool canvas{background:var(--color-bg)}
+  .canvas-tool:focus-visible{outline:2px solid CanvasText!important}
   /* Canvas art cannot be recoloured, so at least frame it so the control reads
      as a control rather than an empty rectangle. */
   .canvas-tool canvas,.top-tool canvas,.tool canvas,.seg .seg-opt canvas,

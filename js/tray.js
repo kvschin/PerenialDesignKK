@@ -214,49 +214,54 @@ function roundedIconRect(tc,x,y,w,h,r){
   tc.quadraticCurveTo(x,y,x+r,y);
 }
 function drawCanvasIcon(tc,kind){
+  tc.save();
   tc.clearRect(0,0,42,32);
-  // cream/seed are the neutral ink of every rail + tray icon, so they follow
-  // the theme; the botanical accents below are the same in both.
-  const cream=uiInk('--icon-ink'), seed=uiInk('--icon-ink-soft'), bronze='#c97f3f', sage='#6f8f5a',
-    leaf='#8fa36f', soil='#6e5a48', rose='#d9a1a3', water='#6a9ba5';
-  tc.strokeStyle=seed; tc.fillStyle=seed; tc.lineWidth=2;
+  // Shared 42x32 artwork for the rail, search and guidebook. Neutral outlines
+  // and restrained warm details follow the theme, including when selected.
+  const cream=uiInk('--icon-ink'), seed=uiInk('--icon-ink-soft'),
+    warm=uiInk('--icon-warm'), bronze='#c97f3f';
+  tc.strokeStyle=cream; tc.fillStyle=cream; tc.lineWidth=1.8;
   tc.lineCap='round'; tc.lineJoin='round';
   if (kind==='hand'){
-    tc.strokeStyle=cream; tc.lineWidth=2.05;
-    tc.beginPath(); tc.moveTo(11,19); tc.lineTo(11,11); tc.moveTo(16,19); tc.lineTo(16,7);
-    tc.moveTo(21,19); tc.lineTo(21,9); tc.moveTo(26,20); tc.lineTo(26,13);
-    tc.moveTo(11,19); tc.quadraticCurveTo(12,27,20,29); tc.quadraticCurveTo(30,29,31,22);
-    tc.quadraticCurveTo(30,19,26,20); tc.stroke();
-    tc.fillStyle=sage; tc.beginPath();
-    tc.ellipse(21,23,4.2,2.1,-0.45,0,7); tc.fill();
-    tc.strokeStyle=shade(sage,-28); tc.lineWidth=1;
-    tc.beginPath(); tc.moveTo(18,24); tc.quadraticCurveTo(21,21,25,22); tc.stroke();
+    tc.beginPath(); tc.moveTo(18,28);
+    tc.quadraticCurveTo(14,25,10,20); tc.quadraticCurveTo(8,17,10,16);
+    tc.quadraticCurveTo(11,15,13,17); tc.lineTo(15,19); tc.lineTo(15,9);
+    tc.bezierCurveTo(15,5,19,5,19,9); tc.lineTo(19,15); tc.lineTo(19,6);
+    tc.bezierCurveTo(19,2,23,2,23,6); tc.lineTo(23,15); tc.lineTo(23,8);
+    tc.bezierCurveTo(23,4,27,4,27,8); tc.lineTo(27,16); tc.lineTo(27,12);
+    tc.bezierCurveTo(27,8,31,8,31,12); tc.lineTo(31,20);
+    tc.quadraticCurveTo(31,25,27,28); tc.closePath(); tc.stroke();
+    tc.strokeStyle=warm;
+    tc.beginPath(); tc.moveTo(19,24.5); tc.lineTo(26,24.5); tc.stroke();
   } else if (kind==='select'){
-    tc.setLineDash([4,3]); tc.strokeRect(8,7,24,18); tc.setLineDash([]);
-    tc.beginPath(); tc.moveTo(26,22); tc.lineTo(34,29); tc.moveTo(30,29); tc.lineTo(34,29); tc.lineTo(34,25); tc.stroke();
+    tc.beginPath();
+    tc.moveTo(9,13); tc.lineTo(9,7); tc.lineTo(15,7);
+    tc.moveTo(27,7); tc.lineTo(33,7); tc.lineTo(33,13);
+    tc.moveTo(9,19); tc.lineTo(9,25); tc.lineTo(15,25);
+    tc.moveTo(21,7); tc.lineTo(21,7.1); tc.moveTo(9,16); tc.lineTo(9,16.1);
+    tc.stroke();
+    tc.strokeStyle=warm;
+    tc.beginPath(); tc.moveTo(22,15); tc.lineTo(24,28); tc.lineTo(27,24);
+    tc.lineTo(32,23); tc.closePath(); tc.stroke();
   } else if (kind==='brush'){
-    tc.save(); tc.translate(21,17); tc.rotate(-0.62);
-    tc.fillStyle=bronze; tc.strokeStyle=shade(bronze,-34); tc.lineWidth=1.2;
-    tc.beginPath(); roundedIconRect(tc,-3.3,-14,6.6,17,2); tc.fill(); tc.stroke();
-    tc.fillStyle=cream; tc.strokeStyle=soil; tc.beginPath(); roundedIconRect(tc,-5,1.5,10,6.2,1.5); tc.fill(); tc.stroke();
-    tc.strokeStyle=shade(leaf,-30); tc.lineWidth=1.25;
+    tc.save(); tc.translate(21,16); tc.rotate(-0.55);
+    tc.strokeStyle=warm;
+    tc.beginPath(); roundedIconRect(tc,-2.5,-12,5,14,2.5); tc.stroke();
+    tc.strokeStyle=cream;
+    tc.beginPath(); roundedIconRect(tc,-4.5,2,9,5,1.5); tc.stroke();
     tc.beginPath(); tc.moveTo(0,7); tc.lineTo(0,14); tc.stroke();
-    tc.fillStyle=leaf;
-    tc.beginPath(); tc.ellipse(-3.5,11.4,3.5,1.7,-0.65,0,7); tc.fill();
-    tc.beginPath(); tc.ellipse(3.7,10.4,3.9,1.9,0.45,0,7); tc.fill();
-    tc.restore();
+    tc.fillStyle=warm;
+    tc.beginPath(); tc.moveTo(0,12); tc.bezierCurveTo(-6,13,-7,9,-7,8);
+    tc.bezierCurveTo(-3,7,0,9,0,12); tc.fill();
+    tc.beginPath(); tc.moveTo(0,13); tc.bezierCurveTo(6,14,7,10,7,9);
+    tc.bezierCurveTo(3,8,0,10,0,13); tc.fill(); tc.restore();
   } else if (kind==='erase'){
-    tc.save(); tc.translate(21,17); tc.rotate(-0.48);
-    tc.fillStyle=rose; tc.strokeStyle=soil; tc.lineWidth=1.6;
-    tc.beginPath(); roundedIconRect(tc,-11,-7,22,14,2); tc.fill(); tc.stroke();
-    tc.fillStyle=cream; tc.beginPath(); roundedIconRect(tc,-11,-7,7.5,14,2); tc.fill(); tc.stroke();
-    tc.strokeStyle='rgba(110,90,72,.5)'; tc.lineWidth=1;
-    tc.beginPath(); tc.moveTo(-1,-4); tc.lineTo(8,2); tc.moveTo(1,3); tc.lineTo(9,6); tc.stroke();
-    tc.restore();
-    tc.fillStyle=shade(leaf,-24);
-    tc.beginPath(); tc.ellipse(12,25,3.4,1.5,0.2,0,7); tc.fill();
-    tc.fillStyle='rgba(239,230,211,.72)';
-    tc.beginPath(); tc.arc(28,8,1.2,0,7); tc.arc(32,11,0.9,0,7); tc.fill();
+    tc.save(); tc.translate(21,15); tc.rotate(-0.55);
+    tc.beginPath(); roundedIconRect(tc,-11,-6,22,12,2); tc.stroke();
+    tc.strokeStyle=warm;
+    tc.beginPath(); tc.moveTo(0,-6); tc.lineTo(0,6); tc.stroke(); tc.restore();
+    tc.strokeStyle=seed;
+    tc.beginPath(); tc.moveTo(15,27); tc.lineTo(32,27); tc.stroke();
   } else if (kind==='fill'){
     tc.save(); tc.translate(20,16); tc.rotate(-0.72);
     tc.strokeRect(-8,-7,16,14); tc.beginPath(); tc.moveTo(8,3); tc.lineTo(15,9); tc.stroke();
@@ -270,26 +275,17 @@ function drawCanvasIcon(tc,kind){
     tc.beginPath(); tc.moveTo(17,10); tc.lineTo(17,6); tc.lineTo(25,6); tc.lineTo(25,10); tc.stroke();
     tc.setLineDash([3,2]); tc.strokeRect(7,15,18,12); tc.setLineDash([]);
   } else if (kind==='dropper'){
-    tc.save(); tc.translate(21,16); tc.rotate(-0.75);
-    tc.strokeStyle=cream; tc.lineWidth=2;
-    tc.beginPath(); tc.moveTo(-8,0); tc.lineTo(8,0); tc.stroke();
-    tc.fillStyle=bronze; tc.strokeStyle=soil; tc.lineWidth=1.2;
-    tc.beginPath(); roundedIconRect(tc,5,-4,8,8,2); tc.fill(); tc.stroke();
-    tc.fillStyle=water; tc.beginPath(); tc.moveTo(-11,2); tc.quadraticCurveTo(-15,7,-9,9);
-    tc.quadraticCurveTo(-4,7,-8,2); tc.fill();
-    tc.restore();
-    tc.strokeStyle=shade(sage,-28); tc.lineWidth=1.3;
-    tc.beginPath(); tc.moveTo(11,25); tc.quadraticCurveTo(16,22,21,24); tc.stroke();
-    tc.fillStyle=sage; tc.beginPath(); tc.ellipse(23,24,3,1.5,-0.2,0,7); tc.fill();
+    tc.beginPath(); tc.moveTo(25,12); tc.lineTo(13,24); tc.lineTo(12,28);
+    tc.lineTo(16,27); tc.lineTo(28,15); tc.stroke();
+    tc.strokeStyle=warm;
+    tc.beginPath(); tc.moveTo(23,10); tc.lineTo(30,17); tc.stroke();
+    tc.beginPath(); tc.moveTo(25,12); tc.lineTo(29,8);
+    tc.bezierCurveTo(33,4,37,8,33,12); tc.lineTo(29,16); tc.stroke();
   } else if (kind==='undo'||kind==='redo'){
-    const flip=kind==='redo'?-1:1; tc.save(); tc.translate(kind==='redo'?42:0,0); tc.scale(flip,1);
-    tc.strokeStyle=cream; tc.lineWidth=2.2;
-    tc.beginPath(); tc.arc(23,17,9.5,0.20*Math.PI,1.62*Math.PI,true); tc.stroke();
-    tc.fillStyle=sage; tc.beginPath();
-    tc.moveTo(11,9); tc.lineTo(9,19); tc.lineTo(19,17); tc.closePath(); tc.fill();
-    tc.strokeStyle=shade(sage,-32); tc.lineWidth=1;
-    tc.beginPath(); tc.moveTo(11,16); tc.quadraticCurveTo(14,13,18,12); tc.stroke();
-    tc.fillStyle=bronze; tc.beginPath(); tc.arc(29,24,1.4,0,7); tc.fill();
+    tc.save(); tc.translate(kind==='redo'?42:0,0); tc.scale(kind==='redo'?-1:1,1);
+    tc.beginPath(); tc.moveTo(11,12); tc.lineTo(23,12);
+    tc.bezierCurveTo(34,12,34,25,23,25); tc.lineTo(20,25); tc.stroke();
+    tc.beginPath(); tc.moveTo(16,7); tc.lineTo(11,12); tc.lineTo(16,17); tc.stroke();
     tc.restore();
   } else if (kind==='rotate'){
     tc.beginPath(); tc.arc(21,16,10,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
@@ -312,11 +308,12 @@ function drawCanvasIcon(tc,kind){
     tc.strokeStyle='rgba(201,127,63,.55)'; tc.lineWidth=1.3;
     tc.beginPath(); tc.moveTo(9,8); tc.lineTo(33,8); tc.moveTo(9,24); tc.lineTo(33,24); tc.stroke();
   } else if (kind==='ruler'){
-    tc.save(); tc.translate(21,17); tc.rotate(-0.55);
-    tc.fillStyle='rgba(201,127,63,.25)'; tc.strokeStyle=cream; tc.lineWidth=1.6;
-    tc.beginPath(); roundedIconRect(tc,-14,-5,28,10,2); tc.fill(); tc.stroke();
-    tc.strokeStyle=seed; tc.lineWidth=1;
-    for (let x=-9;x<=9;x+=6){ tc.beginPath(); tc.moveTo(x,-5); tc.lineTo(x,-1); tc.stroke(); }
+    tc.save(); tc.translate(21,16); tc.rotate(-0.55);
+    tc.beginPath(); roundedIconRect(tc,-13,-5,26,10,2); tc.stroke();
+    tc.strokeStyle=warm; tc.lineWidth=1.5;
+    for (let x=-8;x<=8;x+=4){
+      tc.beginPath(); tc.moveTo(x,-5); tc.lineTo(x,x%8===0?-1:1); tc.stroke();
+    }
     tc.restore();
   } else if (kind==='move'){
     // four-way arrows
@@ -330,6 +327,7 @@ function drawCanvasIcon(tc,kind){
     tc.strokeRect(9,8,16,13); tc.strokeRect(17,14,16,13);
     tc.setLineDash([]);
   }
+  tc.restore();
 }
 function makeCanvasTool(label,kind,opts){
   const b=document.createElement('button');
@@ -338,8 +336,11 @@ function makeCanvasTool(label,kind,opts){
   b.setAttribute('aria-pressed',opts&&opts.active?'true':'false');
   // a stable hook for the controls tour, which has to point at a real element
   if (opts&&opts.tour) b.dataset.tour=opts.tour;
-  const c=document.createElement('canvas'); c.width=42; c.height=32;
-  drawCanvasIcon(c.getContext('2d'),kind);
+  // Small fixed 3x backing stays crisp across the rail's responsive sizes.
+  // Keep drawCanvasIcon's logical coordinates intact for its other callers.
+  const c=document.createElement('canvas'); c.width=126; c.height=96;
+  c.setAttribute('aria-hidden','true');
+  const tc=c.getContext('2d'); tc.scale(3,3); drawCanvasIcon(tc,kind);
   const s=document.createElement('span'); s.textContent=label;
   b.append(c,s);
   if (opts&&opts.swatch){
