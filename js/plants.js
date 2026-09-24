@@ -121,8 +121,20 @@
            Shrub forms may select
            `habit:'mossphlox'` for a low evergreen runner mat instead of a
            generic mound, or `flowerStyle:'double'` plus flowerR/flowerPetals
-           for large layered blooms. Leafmounds may tune leaves/scapes/florets/
-           floretR/floretGap, set scapes to zero, and add foliage spots.
+           for large layered blooms. Two stem-built habits carry a lit mass
+           under their foliage: `habit:'threadleaf'` (a feathery dome —
+           dome/domeH/tufts/threadLen/sheen, winterMass for evergreens) and
+           `habit:'leafystems'` (a clump of leafy stems — spread/baseW/arch,
+           leafSpan, leaflets:3, mass:'dome'|false, faceLeaves). Their flowers
+           sit on the stems through `headStyle`: 'star' (clusterFlorets/
+           clusterR), 'panicle' (plumeHeads/headR, wands), 'raceme' (raceme/
+           racemeLen, pods in seed), 'whorls' (whorls/whorlSpan), 'haze'
+           (branchlets/branchLen/branchFlorets) or 'bloom' (flowerR, with
+           flowerStyle:'double'). A plant wider than 0.62H must declare the
+           sideScale its ink measures. Leafmounds may tune leaves/scapes/florets/
+           floretR/floretGap, set scapes to zero, and add foliage spots;
+           `rosettes` (with rosetteLeaves/matW/leafLen/woolly) lays a mat of
+           ground rosettes instead of one upright fan.
            Archbells may use `archStyle:'bleedingHeart'` for heart flowers.
            Rosettes may select `flowerStyle:'daylily'` for branched scapes
            carrying open, six-tepal flowers instead of the yucca bell tower.
@@ -878,16 +890,17 @@ const PLANTS = {
   baptisia:{ name:'Baptisia', latin:'Baptisia australis', form:'shrub', type:'forb', h:50,
     group:'baptisia', groupLabel:'Baptisia', chip:'Blue',
     space:36, spread:42, zones:[3,9], _legacyNative:true, sun:'full', moist:'medium', phen:'cool',
-    look:{habit:'baptisia', stems:12, baseW:18, leafWhorls:4, raceme:7, flowerStems:7, flowerW:20, flowerLen:0.9,
-      art2:true, leafShape:'ovate', leafHW:0.88},
+    look:{habit:'leafystems', mass:'dome', stems:13, spread:1.4, arch:0.25, baseW:10, leaves:5, leafSpan:[0.3,0.95],
+      leaflets:3, leafL:4.6, leafH:2.5, leafAscend:0.55, sheen:12, stemW:1.3, faceLeaves:18,
+      headStyle:'raceme', flowerStems:9, raceme:9, racemeLen:0.3, floretR:1.5, sideScale:0.7,
+      art2:true, leafShape:'ovate', leafHW:0.62},
     blurb:'Long-lived wild indigo: shrub-like blue-green foliage, pea flowers in spring, and charcoal pods for winter.',
     sea:{Spring:{fol:'#6f8f6e',bloom:'#4a5d9e'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}},
     cv:{
       creamwild:{name:'Cream Wild Indigo', fullName:'Cream Wild Indigo', note:'low, early cream flowers on Baptisia bracteata',
         latin:'Baptisia bracteata', _legacyNative:true,
         h:30, space:30, spread:36,
-        look:{habit:'baptisia', stems:9, baseW:17, leafWhorls:3, raceme:5, flowerStems:6, flowerW:22, flowerLen:0.72,
-          art2:true, leafShape:'ovate', leafHW:0.88},
+        look:{stems:11, spread:1.9, arch:0.55, baseW:12, leaves:4, faceLeaves:14, raceme:7, racemeLen:0.24, flowerStems:7, sideScale:0.94},
         sea:{Spring:{fol:'#7d9a6e',bloom:'#e8e0b8'}, Summer:{fol:'#6f8f6e'}, Fall:{fol:'#6e6a55',seed:'#2c2620'}, Winter:{fol:'#5e574a',seed:'#1d1814'}}},
       carolinamoonlight:{name:"'Carolina Moonlight'", note:'soft butter-yellow spikes',
         sea:{Spring:{fol:'#6f8f6e',bloom:'#eadb82'}, Summer:{fol:'#5d7a5c'}, Fall:{fol:'#7a7052',seed:'#2c2620'}}},
@@ -1370,7 +1383,10 @@ const PLANTS = {
     }},
   catmint:{ name:'Catmint', latin:'Nepeta x faassenii', form:'shrub', type:'forb', h:26,
     space:24, spread:30, zones:[3,8], _legacyNative:false, sun:'full', moist:'dry', phen:'cool',
-    look:{art2:true, leafShape:'ovate', leafHW:0.55, leafTeeth:0.12, leafTeethN:5},
+    look:{art2:true, habit:'leafystems', mass:'dome', stems:18, spread:2.9, arch:0.9, baseW:6,
+      leaves:8, leafSpan:[0.14,0.7], leafL:2.4, leafH:2.1, leafAscend:0.7, sheen:14, massShade:-22, faceLeaves:24,
+      leafShape:'ovate', leafHW:0.55, leafTeeth:0.12, leafTeethN:5,
+      headStyle:'whorls', flowerStems:18, whorls:6, whorlSpan:0.42, floretR:1.12, sideScale:0.94},
     blurb:'A soft silver mound covered in lavender-blue flowers for weeks. Good edge plant, good bee traffic.',
     sea:{Spring:{fol:'#8a9a88',bloom:'#8a7ac0'}, Summer:{fol:'#7d8f84',bloom:'#8a7ac0'}, Fall:{fol:'#8a8474',seed:'#9a8aa8'}, Winter:{fol:'#7d766a',seed:'#8a7a88'}},
     cv:{
@@ -1379,7 +1395,7 @@ const PLANTS = {
       sixhills:{name:"'Six Hills Giant'", note:'larger, billowy, and informal',
         h:34, spread:36, sea:{Spring:{fol:'#8a9a88',bloom:'#7d73c8'}, Summer:{fol:'#7d8f84',bloom:'#7d73c8'}}},
       catspajamas:{name:"'Cat's Pajamas'", note:'compact with flowers held low on the stems',
-        h:18, spread:20, sea:{Spring:{fol:'#8a9a88',bloom:'#796ad0'}, Summer:{fol:'#7d8f84',bloom:'#796ad0'}}},
+        h:18, spread:20, look:{sideScale:1.04}, sea:{Spring:{fol:'#8a9a88',bloom:'#796ad0'}, Summer:{fol:'#7d8f84',bloom:'#796ad0'}}},
     }},
   scabiosa:{ name:'Scabiosa', latin:'Scabiosa columbaria', form:'pincushion', type:'forb', h:24,
     space:12, spread:15, zones:[3,8], _legacyNative:false, sun:'full', moist:'dry', phen:'mid',
@@ -2111,9 +2127,10 @@ const PLANTS = {
     sea:{Spring:{fol:'#68815f'}, Summer:{fol:'#58764f',bloom:'#635fc0',eye:'#e7e4eb'}, Fall:{fol:'#756f50',bloom:'#6759af',eye:'#e7e4eb'}, Winter:{}}},
   peony:{ name:'Garden Peony', latin:'Paeonia lactiflora', form:'shrub', type:'forb', h:36,
     space:36, spread:36, zones:[3,8], _legacyNative:false, sun:'full', moist:'medium', phen:'cool',
-    look:{habit:'mound', leaves:34, foliageW:22, foliageH:0.64, leafW:3.8, leafH:1.5,
-      flowerStems:5, flowerW:20, flowerLen:0.88, flowerStyle:'double', flowerR:9, flowerPetals:18,
-      art2:true, leafShape:'lance', leafHW:0.82},
+    look:{habit:'leafystems', mass:'dome', stems:13, spread:1.5, arch:0.3, baseW:8, leaves:5, leafSpan:[0.25,0.92],
+      leaflets:3, leafL:4.8, leafH:2, leafAscend:0.6, sheen:16, dormantWhenBare:true, faceLeaves:16,
+      headStyle:'bloom', flowerStyle:'double', flowerStems:6, flowerR:8.5, flowerPetals:16, sideScale:0.8,
+      art2:true, leafShape:'lance', leafHW:0.72},
     blurb:'A durable early-summer specimen with glossy divided foliage and large fragrant flowers. Give the crown room and avoid moving it once established.',
     sea:{Spring:{fol:'#59764e',bloom:'#d99eb7'}, Summer:{fol:'#4f6e47',bloom:'#d99eb7'}, Fall:{fol:'#96734f',seed:'#6f5945'}, Winter:{}},
     cv:{
@@ -2160,17 +2177,21 @@ const PLANTS = {
       lookingglass:{name:"'Looking Glass'", note:'almost solid pewter, the veins barely showing',
         sea:{Spring:{fol:'#c2cbc4',bloom:'#6397d3'}, Summer:{fol:'#b8c2ba'}, Fall:{fol:'#9aa08e',seed:'#89755d'}}},
     }},
-  russiansage:{ name:'Russian Sage', latin:'Salvia yangii', form:'spike', type:'forb', h:42,
-    space:30, spread:36, zones:[4,9], _legacyNative:false, sun:'full', moist:'dry', phen:'warm', stem:'#8b8f94',
-    look:{stems:11, stemSpread:24, lenBase:0.78, lenJitter:0.22, leaves:18, leafW:0.9, leafLen:0.34,
-      art2:true, leafShape:'linear', leafHW:1.15, leafFan:1.60, leafRise:0.84, leafRib:false,
-      a2Spike:0.46, a2Florets:16, a2FloretR:1.3, a2FloretSq:0.85, a2Wobble:3.4},
+  russiansage:{ name:'Russian Sage', latin:'Salvia yangii', form:'shrub', type:'forb', h:42,
+    space:30, spread:36, zones:[4,9], _legacyNative:false, sun:'full', moist:'dry', phen:'warm', stem:'#aeb2b3',
+    look:{art2:true, habit:'leafystems', mass:false, stems:15, spread:1.25, baseW:12, stemW:1.1,
+      leaves:7, leafSpan:[0.1,0.8], leafL:2.6, leafH:1, leafAscend:0.75, sheen:14,
+      leafShape:'linear', leafHW:1.0, leafRib:false,
+      headStyle:'haze', flowerStems:15, branchlets:6, hazeSpan:0.55, branchLen:6.5, branchFlorets:3, floretR:0.85,
+      sideScale:0.66},
     blurb:'Silver stems and aromatic gray foliage carry a long haze of violet-blue flowers in hot, sharply drained sites. Botanically it is Salvia yangii.',
     sea:{Spring:{fol:'#9aa39a'}, Summer:{fol:'#8e9a94',bloom:'#7f78bd'}, Fall:{fol:'#94907f',bloom:'#756cac',seed:'#9b8d79'}, Winter:{fol:'#858276',seed:'#8f806d'}},
     cv:{
       bluespire:{name:"'Blue Spire'", latin:"Salvia 'Blue Spire'", note:'tall, strongly upright violet-blue hybrid', h:46, space:30, spread:30,
+        look:{spread:0.95},
         sea:{Spring:{fol:'#9aa39a'}, Summer:{fol:'#8b9792',bloom:'#7068b2'}, Fall:{fol:'#918d7d',bloom:'#6960a6',seed:'#978976'}, Winter:{fol:'#838075',seed:'#8b7d6c'}}},
       littlespire:{name:"'Little Spire'", note:'compact selection for smaller dry borders', h:24, space:24, spread:24,
+        look:{sideScale:0.76},
         sea:{Spring:{fol:'#9ca49b'}, Summer:{fol:'#909b95',bloom:'#7a72b7'}, Fall:{fol:'#928e7e',bloom:'#7169aa',seed:'#978976'}, Winter:{fol:'#858175',seed:'#8b7d6c'}}},
     }},
   shastadaisy:{ name:'Shasta Daisy', latin:'Leucanthemum × superbum', form:'cone', type:'forb', h:40,
@@ -2267,16 +2288,17 @@ const PLANTS = {
   lambsear:{ name:"Lamb's Ear", latin:'Stachys byzantina', form:'leafmound', type:'forb', h:15,
     roles:['groundcover','matrix'],
     space:18, spread:24, zones:[4,9], _legacyNative:false, sun:'full', moist:'dry', phen:'cool',
-    look:{art2:true, leafShape:'ovate', moundHW:0.24, leafBow:0.08,
-      leaves:15, scapes:4, florets:8, floretR:1.25, floretGap:1.7, floretSquash:1.05},
+    look:{art2:true, leafShape:'ovate', moundHW:0.26, leafBow:0.06, woolly:true,
+      rosettes:5, rosetteLeaves:7, matW:0.85, leafLen:0.5, leafRise:0.3,
+      leaves:15, scapes:4, florets:7, floretR:1.2, sideScale:1.28},
     blurb:'A tactile western Asian groundcover with woolly silver leaves and soft pink-purple summer spikes. Sharp drainage keeps the mat dense and clean.',
     sea:{Spring:{fol:'#a8ada0',bloom:'#b783aa'}, Summer:{fol:'#9fa79c',bloom:'#aa789d'}, Fall:{fol:'#9b9989',seed:'#887568'}, Winter:{fol:'#8e9186'}},
     cv:{
       bigears:{name:"'Big Ears'", note:'very large silver leaves and sparse flower stalks', h:10, space:24, spread:36,
-        look:{leaves:12, scapes:1, moundHW:0.31},
+        look:{leaves:12, scapes:1, moundHW:0.31, rosettes:5, rosetteLeaves:8, matW:1.2, leafLen:1.0, sideScale:2.26},
         sea:{Spring:{fol:'#b2b6aa'}, Summer:{fol:'#a8aea5',bloom:'#ad7d9f'}, Fall:{fol:'#9d9c90',seed:'#887568'}, Winter:{fol:'#92958b'}}},
       silvercarpet:{name:"'Silver Carpet'", note:'low, effectively non-flowering silver foliage groundcover', h:8, space:24, spread:36,
-        bloomMonths:[], look:{leaves:17, scapes:0, moundHW:0.29},
+        bloomMonths:[], look:{leaves:17, scapes:0, moundHW:0.29, rosettes:8, rosetteLeaves:8, matW:1.6, leafLen:0.9, sideScale:2.26},
         sea:{Spring:{fol:'#b7bbb1'}, Summer:{fol:'#adb2aa'}, Fall:{fol:'#a19f94'}, Winter:{fol:'#969990'}}},
     }},
   redhotpoker:{ name:'Red-hot Poker', latin:'Kniphofia hybrids', form:'spike', type:'forb', h:39,

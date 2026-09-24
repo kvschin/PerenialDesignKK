@@ -490,12 +490,91 @@ test('a leafy clump batches its blades by tone under ART2', () => {
 test('a stem-built mound draws no stray highlight above itself', () => {
   // drawPlant's closing highlight strokes assume foliage fills the whole H box;
   // over fringed sage's low cushion they hung in empty air
-  for (const k of ['fringedsage','silvermound','amsonia','easternbluestar']){
+  for (const k of ['fringedsage','silvermound','amsonia','easternbluestar','lambsear']){
     const P=plantDef(k), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
     assertEqual(stemMoundOps(k,'Summer').filter(o=>o.op==='stroke'&&o.stroke===col).length, 0, `${k}: no generic highlight`);
   }
   const P=plantDef('aster'), col=mixHex(P.sea.Summer.fol,'#fff1c4',0.42);
   assert(stemMoundOps('aster','Summer').some(o=>o.op==='stroke'&&o.stroke===col), 'other shrub-form habits keep it');
+});
+
+/* The mounded perennials that were drawn as a stalk or a column: catmint,
+   baptisia, peony and Russian sage on leafystems, lamb's ear as a rosette mat.
+   Each test asks where the organs LAND, which is what was wrong. */
+const florets=(k,season,drop,which='bloom')=>{
+  const P=plantDef(k), col=shade(P.sea[season][which],drop);
+  return stemMoundOps(k,season).filter(o=>o.op==='ellipse'&&o.fill===col);
+};
+const spanX=ops=>Math.max(...ops.map(o=>o.a[0]))-Math.min(...ops.map(o=>o.a[0]));
+
+test('catmint is a low mound hazed with whorled spikes, not stalks with a dot on top', () => {
+  const P=plantDef('catmint'), H=plantVisualH(P), fl=florets('catmint','Summer',-16);
+  assert(fl.length>=P.look.flowerStems*P.look.whorls*2, `every stem carries its whorls (${fl.length})`);
+  // the old head pass put five heads within flowerW/2 of the crown
+  assert(spanX(fl)>=H*1.2, `the flowers spread across the mound (${spanX(fl).toFixed(1)} of H ${H})`);
+  assert(Math.max(...fl.map(o=>o.a[1]))>-H*0.35, 'the arching outer stems carry flowers low on the flanks');
+});
+
+test('baptisia racemes stand clear above the foliage, and turn to pods in fall', () => {
+  const P=plantDef('baptisia'), H=plantVisualH(P);
+  const fl=florets('baptisia','Spring',-15);
+  assert(fl.length>=P.look.flowerStems*P.look.raceme*0.9, `every raceme is drawn (${fl.length})`);
+  assert(Math.min(...fl.map(o=>o.a[1]))<-H*1.0, 'racemes top out above the leafy mound');
+  const pods=florets('baptisia','Fall',-16,'seed');
+  assert(pods.length>=P.look.flowerStems*2 && pods.length<fl.length, `fall carries a few pods per raceme (${pods.length})`);
+  assert(pods.every(o=>o.a[3]>o.a[2]*1.3), 'pods are inflated oblongs, taller than wide');
+  // the dome mass is summer bulk; round the black winter stems it read as fog
+  assertEqual(stemMoundOps('baptisia','Winter').filter(o=>o.op==='createLinearGradient').length, 0,
+    'no ghost of the summer mass in winter');
+});
+
+test('a peony carries its doubles on the mound, and is gone in winter', () => {
+  const P=plantDef('peony'), H=plantVisualH(P), petals=florets('peony','Summer',-18);
+  assert(petals.length>=P.look.flowerStems*16, `each bloom is a double (${petals.length})`);
+  // blooms ride the top of the foliage rather than lollipop stalks above it
+  assert(Math.min(...petals.map(o=>o.a[1]))>-H*1.15, 'no bloom floats above the plant');
+  assert(spanX(petals)>=H*0.9, 'the blooms spread across the mound');
+  assertEqual(stemMoundOps('peony','Winter').length, 0, 'a herbaceous peony is cut to the ground: nothing, not even a shadow');
+});
+
+test('Russian sage is a see-through vase under a branched haze', () => {
+  const P=plantDef('russiansage'), H=plantVisualH(P), fl=florets('russiansage','Summer',-16);
+  assert(P.form==='shrub' && P.look.mass===false, 'no underlayer: you can see through a Russian sage');
+  assert(fl.length>=P.look.flowerStems*P.look.branchlets*P.look.branchFlorets*0.9, `the haze is dense (${fl.length})`);
+  // measured: lowest floret -0.30H on the short outer stems, median -0.60H
+  const ys=fl.map(o=>o.a[1]).sort((a,b)=>a-b);
+  assert(fl.every(o=>o.a[1]<-H*0.27) && ys[ys.length>>1]<-H*0.5, 'the flowers are the top half; the lower stems are leafy');
+  // a vase: a narrow woody base under a haze several times its width (the
+  // old spike form stood its stems in a column and its flowers stayed in it)
+  assert(spanX(fl)>=H*0.9 && P.look.baseW*4<spanX(fl), `the haze opens far wider than the base (${(spanX(fl)/H).toFixed(2)}H)`);
+});
+
+test("lamb's ear is a mat of woolly rosettes, not one upright fan", () => {
+  // measured 1.95H, 3.13H and 4.33H; a single upright fan spans ~1.2H
+  for (const [v,min] of [[null,1.8],['bigears',2.8],['silvercarpet',3.2]]){
+    const P=plantDef('lambsear',v), H=plantVisualH(P);
+    const ops=stemMoundOps('lambsear','Fall',v).filter(o=>o.op==='lineTo'||o.op==='moveTo');
+    const xs=ops.map(o=>o.a[0]), span=Math.max(...xs)-Math.min(...xs);
+    assert(span>=H*min, `${v||'species'}: the mat spreads (${(span/H).toFixed(2)}H)`);
+    assert(P.look.woolly && P.look.rosettes>=4, `${v||'species'}: several felted rosettes`);
+  }
+  // the spike is felted silver, the flowers tucked into its whorls
+  const P=plantDef('lambsear'), wool=shade(shade(P.sea.Summer.fol,12),-10);
+  assert(stemMoundOps('lambsear','Summer').some(o=>o.op==='ellipse'&&o.fill===wool), 'silver bracts on the spike');
+  assertEqual(stemMoundOps('lambsear','Summer','silvercarpet').filter(o=>o.op==='ellipse'&&o.fill===wool).length, 0,
+    'Silver Carpet stays without spikes');
+});
+
+test('tiny batched blades are two curves, not a sampled ribbon', () => {
+  // drawLeafyStems' lens path keeps baptisia and peony — 240-odd leaflets each
+  // — inside the catalog's cost range; a longer blade keeps its ribbon
+  const before=ART2.on;
+  try {
+    ART2.on=true;
+    const ops=stemMoundOps('baptisia','Summer');
+    const curves=ops.filter(o=>o.op==='quadraticCurveTo').length, lines=ops.filter(o=>o.op==='lineTo').length;
+    assert(curves>200 && lines<curves, `leaflets drawn as lenses (${curves} curves, ${lines} lines)`);
+  } finally {ART2.on=before;}
 });
 
 test('milkweed pods require authored seed structure and retain a distinct winter split', () => {

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stem-built mound review</title>
+<title>Mound perennial review</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:70px;height:105px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}
 </style><body>
@@ -56,9 +56,9 @@
 window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
 window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
 </script>
-<header><h1>Bluestars and silver artemisias</h1><label>Group <select id="batch"><option value="threadleaf">Threadleaf bluestars</option><option value="leafy">Leafy bluestars</option><option value="silver">Silver artemisias</option></select></label><label>View <select id="view"><option value="cards">Library cards</option><option value="drift">Drift at game scale</option></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
+<header><h1>Mound perennials</h1><label>Group <select id="batch"><option value="threadleaf">Threadleaf bluestars</option><option value="leafy">Leafy bluestars</option><option value="silver">Silver artemisias</option><option value="mounds">Catmint, baptisia, peony, Russian sage</option><option value="mats">Lamb's ear</option></select></label><label>View <select id="view"><option value="cards">Library cards</option><option value="drift">Drift at game scale</option></select></label><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><button id="check">Check sprite edges</button></header>
 <p id="status">Loading…</p><main id="plants"></main><script>
-const batches={threadleaf:['amsonia','fringedbluestar'],leafy:['easternbluestar','ozarkamsonia','willowamsonia'],silver:['silvermound','fringedsage','broadleafwormwood']};
+const batches={threadleaf:['amsonia','fringedbluestar'],leafy:['easternbluestar','ozarkamsonia','willowamsonia'],silver:['silvermound','fringedsage','broadleafwormwood'],mounds:['catmint','baptisia','peony','russiansage'],mats:['lambsear']};
 const reviewKeys=Object.values(batches).flat();
 function renderDrift(host){
  const refs=[];for(const k of batches[document.getElementById('batch').value])for(const v of [null,...Object.keys(PLANTS[k].cv||{})])refs.push([k,v]);

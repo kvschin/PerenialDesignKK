@@ -766,7 +766,9 @@ test('shrub-form forbs use distinct foliage habits', () => {
   assertEqual(PLANTS.amsonia.look.habit, 'threadleaf', 'hubrichtii amsonia should have fine foliage');
   assertEqual(PLANTS.amsonia.cv.butterscotch.sea.Fall.fol, '#d99a3a', 'butterscotch keeps its warm fall color on the threadleaf form');
   assertEqual(PLANTS.ozarkamsonia.look.habit, 'leafystems', 'ozark amsonia should read as broader-leaved');
-  assertEqual(PLANTS.baptisia.look.habit, 'baptisia', 'baptisia should use upright pea-shrub foliage');
+  assertEqual(PLANTS.baptisia.look.habit, 'leafystems', 'baptisia is a clump of leafy stems');
+  assertEqual(PLANTS.baptisia.look.leaflets, 3, 'baptisia carries trifoliate leaves');
+  assertEqual(PLANTS.baptisia.look.headStyle, 'raceme', 'baptisia flowers in racemes above the foliage');
   assertEqual(PLANTS.aster.look.habit, 'asterdome', 'aromatic aster should be a low dome');
   assertEqual(PLANTS.newengland.look.habit, 'asterupright', 'new england aster should be taller and upright');
   assertEqual(PLANTS.smoothaster.look.habit, 'asterclean', 'smooth blue aster should keep its clean blue-gray habit');

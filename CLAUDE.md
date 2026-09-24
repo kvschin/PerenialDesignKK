@@ -5301,10 +5301,10 @@ each stem's top half, a single-stroke NAP over the face (`hatch`), feathered
 SPRIGS on the outer shell (`tufts`, with a skirt drooping over the underside),
 all batched into three LIGHT buckets by position against `LIT` — three strokes
 for ~500 needles. `leafystems` blades are batched by tone too under ART2
-(`ribbonPath` gained an `append` flag so many blades share a path, and
-`LEAF_SHAPES` a 6-sample `profLo` for blades under 14 units): drawLeaf is a fill
-and a stroke per blade, and one leaf at a time cost willow bluestar 848us.
-Classic keeps one `leafDot` per blade.
+(`ribbonPath` gained an `append` flag so many blades share a path; a blade
+under `LEAF_LO_LEN`, 14 units, is two quadratic curves instead — see 0.9.21
+below): drawLeaf is a fill and a stroke per blade, and one leaf at a time cost
+willow bluestar 848us. Classic keeps one `leafDot` per blade.
 Flowers sit on the recorded stem TIPS (`drawStemTipHeads`): a bluestar's
 terminal star cluster on a flattened golden-angle spiral (`clusterFlorets`,
 `clusterR`), or an artemisia's narrow nodding `panicle` — at the tip for
@@ -5324,9 +5324,60 @@ Measured interleaved against HEAD in one session (controls: aster 283→288us,
 baptisia 673→655): threadleaf bluestars 85-100 → 218-297us, leafy ones
 305-690 → 488-617, Silver Mound 67 → 165, fringed sage 115 → 220, prairie sage
 145 → ~290 — i.e. from nearly-empty drawings to the aster-to-baptisia range the
-catalog already carries. `dev/stem-mound-review.html` shows every choice in
+catalog already carries. `dev/mound-review.html` shows every choice in
 four seasons, both renderers, as library cards or as a drift at game scale, with
 the sprite-edge check (0 of 1600 sprites and 320 previews touching an edge).
+
+**Catmint, baptisia, peony, Russian sage and lamb's ear (0.9.21).** The same
+failure five more times, found by a contact sheet of all 267 forbs: each was a
+STALK where the plant is a mound. Catmint was five straight stems with a dot on
+top (it is a sprawling grey mound hazed lavender); baptisia a column 18 units
+wide (a shrub-sized dome of trifoliate leaves, racemes above it); peony three
+lollipop stalks (a bushy mound of divided leaves with the blooms ON it); Russian
+sage eleven stems in a tight column of dots (a see-through vase of silver stems
+under a branched haze); lamb's ear two or three leaves (a carpet of felted
+rosettes). The first four moved onto `leafystems`, which grew one knob per
+missing idea: `arch` (a high control point, so outer stems climb and bow over
+— catmint), `leafSpan` (Russian sage's leaves are on the lower stem),
+`leaflets:3` (a trifoliate or ternate leaf — baptisia, peony), `mass:'dome'`
+and `mass:false` (below), `stemW`; and four head styles: `raceme` (pea
+spikes standing clear, a few fat pods in seed), `whorls` (rings of florets up
+every stem's top), `haze` (short side branches studded with florets) and
+`bloom` (one flower per tip — `drawDoubleBloom`, lifted out of the generic
+shrub head pass, which still uses it). The old `baptisia` habit had no other
+user and is gone. Russian sage changed form, `spike` → `shrub`; nothing
+outside draw.js reads a forb's form but `ui.js`'s role tags for fern,
+leafmound and hydrangea.
+**`mass:'dome'` is the threadleaf mass** (`domeMassPath`, extracted), fitted
+to the stems' extent, because the tips-hull of an arching clump is a FUNNEL and
+its V underside showed in every drift. A dome needs leaves on its FACE
+(`faceLeaves`, uniform over the dome, leaning out of it): the stems carry theirs
+high and out along the arch, and without them the lower front of baptisia and
+peony was a smooth bowl — a rim-only skirt was tried first and read as ears.
+Both go in winter unless `winterMass`: round baptisia's black stems the summer
+bulk read as fog. `mass:false` is for a plant you see through.
+**Lamb's ear is `leafmound` + `rosettes`**: rosettes on a golden-angle spiral
+in the tile's own 2:1 ground plane, painted back to front and each one's leaves
+back to front, `woolly` giving every blade a paler felted rim through drawLeaf's
+edge pass; the spikes rise from rosettes, felted silver with the pink tucked into
+whorls. The leaf angles use a fixed pattern rather than rnd(), because the two
+passes (away, then toward) must agree which leaves point back. drawPlant's
+closing highlight skips rosette mats too.
+**Cost, and the lens.** First cut, interleaved against HEAD (controls aster
+292→298, eastern bluestar 540→540): baptisia 702 → 1258us, peony 358 → 1027,
+catmint 217 → 796, Russian sage 408 → 794, lamb's ear 165 → 408 — over the
+~700us ceiling baptisia itself had set. Ablation put it in blade count (baptisia
+and peony 300-380 leaflets) and tiny ellipses (Russian sage 600 florets). Counts
+were trimmed, and every batched blade under `LEAF_LO_LEN` became TWO QUADRATIC
+CURVES instead of a sampled ribbon — 3 path calls against 22, invisible at a
+blade that small. That one change took baptisia BELOW its old cost and made
+last round's plants cheaper too. Final, same method: baptisia 658 → 517, peony
+342 → 523, catmint 206 → 375, Russian sage 375 → 483, lamb's ear 156 → 348;
+eastern bluestar 517 → 398, willow 610 → 438, Ozark 483 → 377, prairie sage
+427 → 315; aster 277 → 279. Every plant was re-measured for `sideScale` (catmint
+0.92H, Cat's Pajamas 1.01, cream wild indigo 0.91, lamb's ear 1.25, Big Ears and
+Silver Carpet 2.21), and the edge sweep covers all 13 stem-built plants: 0 of
+4800 bakes and 960 previews touching an edge, both renderers.
 
 Bulb morphology uses the same data-first rule. `bulbcup` selects
 `look.bulbStyle:'crocus'|'tulip'|'daffodil'|'snowdrop'|'snowflake'|'aconite'|
