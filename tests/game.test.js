@@ -11057,6 +11057,22 @@ test('a season turn shows the season being left while the new sprites wait', () 
   });
 });
 
+test('at a season turn a clump keeps its OWN shape, not a sibling\'s', () => {
+  standInCase((draw, frame) => {
+    frame(false); draw(0.7, 'Summer', 111); draw(0.7, 'Summer', 222);
+    /* The turn's first bake lands for clump 111, which puts a Fall sprite of
+       this species and bucket in the sibling index. Clump 222 must NOT borrow
+       it: that is the twitch — out to a sibling's shape and back to its own
+       when its own bake lands, across every plant in the garden. */
+    frame(false); draw(0.7, 'Fall', 111);
+    PSPRITE.BAKE_MS = 0;                        // the rest of this frame's time is spent
+    draw(0.7, 'Fall', 222);
+    const drawn = [...PSPRITE.map.keys()].pop();  // a stand-in is re-inserted last, like any hit
+    assert(drawn.startsWith('222|'), 'drew its own sprite, not 111\'s: ' + drawn);
+    assert(/\|Summer\|/.test(drawn), 'the one from the season being left, under the crossfade');
+  });
+});
+
 test('a clump with nothing to stand in bakes, budget or not', () => {
   standInCase((draw, frame) => {
     /* The alternative is a procedural draw, which costs what a bake costs and

@@ -2026,11 +2026,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     127ms), a scheme switch or a replacement a whole planting, a wheel zoom
     every plant several times, fast-forward through spring several hundred a
     second. Once BAKE_MS is spent, a rescale shows its own stale sprite and a
-    miss shows the first of: the clump at its previous growth or bloom bucket,
-    the same species, bucket, season and detail baked for a sibling clump
-    (`PSPRITE.spec`, keyed on the sprite key minus its seed), or the clump in
-    the season being left, drawn under the crossfade that is showing that
-    season anyway. A miss with none of those still bakes up to BUDGET —
+    miss shows the first of: the clump at its previous growth or bloom bucket;
+    the clump in another season, the one being left first, drawn under the
+    crossfade that is showing that season anyway; or — only for a clump with no
+    sprite of its own at all, i.e. a scheme switch or a replacement — the same
+    species, bucket, season and detail baked for a sibling clump
+    (`PSPRITE.spec`, keyed on the sprite key minus its seed). **That order is
+    the fix for plants that "spazzed" at a season change** (0.9.16): with the
+    sibling tried before the clump's own other season, a turn's first few bakes
+    filled the sibling index, every clump after them wore a sibling's SHAPE in
+    the new colours until its own bake landed, and each plant twitched out to
+    another shape and back, all across the garden. A clump's own picture always
+    beats a sibling's. A miss with none of those still bakes up to BUDGET —
     its alternative is a procedural draw on every frame until it does — and
     `game.photo` is exempt. The stand-in is re-inserted in LRU order like any
     hit, because the eviction sweep stops at the first recently-used entry and

@@ -1479,27 +1479,33 @@ function blitPlantSprite(ctx,e,bx,by,sway){
    key of a cached sprite, or null when nothing will do. In order:
      1. this clump at the growth or bloom bucket it showed last — a growth
         tick, and the picture is continuous;
-     2. the same species, cultivar, season, bucket and detail, baked for
-        another clump — right size and colours, a sibling's shape: a scheme
-        switch or a replacement, where this clump has no sprite at all;
-     3. this clump in another season, the one being left first — a season
-        turn, drawn under the crossfade that is showing the old season anyway.
+     2. this clump in another season, the one being left first — a season
+        turn, drawn under the crossfade that is showing the old season anyway;
+     3. the same species, cultivar, season, bucket and detail, baked for
+        another clump — right size and colours, a sibling's shape. Only for a
+        clump with no sprite of its own at all: a scheme switch, a replacement.
+   The clump's OWN picture has to come before a sibling's. The other way round,
+   a season turn's first few bakes filled the sibling index and every clump
+   after them wore a sibling's shape in the new colours until its own landed:
+   each plant twitched out to another shape and back, across the whole garden,
+   which is what the gardener saw as the planting spazzing at a season change.
    A sprite drawn as a stand-in keeps its own slot. Retiring happens only when
    the clump's real sprite lands, exactly as before. */
 function plantStandInKey(kk,slot){
   const was=PSPRITE.slot.get(slot);
   if (was!==undefined && PSPRITE.map.has(was)) return was;
+  const cut=slot.lastIndexOf('|'), i=SEASONS.indexOf(slot.slice(cut+1));
+  if (i>=0){
+    const base=slot.slice(0,cut+1);
+    for (let d=3; d>=1; d--){                   // (i+3)%4 is the season just left
+      const k2=PSPRITE.slot.get(base+SEASONS[(i+d)%4]);
+      if (k2!==undefined && PSPRITE.map.has(k2)) return k2;
+    }
+  }
   const sk=kk.slice(kk.indexOf('|')+1), other=PSPRITE.spec.get(sk);
   if (other!==undefined){
     if (PSPRITE.map.has(other)) return other;
     PSPRITE.spec.delete(sk);                    // the sibling was retired or evicted
-  }
-  const cut=slot.lastIndexOf('|'), i=SEASONS.indexOf(slot.slice(cut+1));
-  if (i<0) return null;
-  const base=slot.slice(0,cut+1);
-  for (let d=3; d>=1; d--){                     // (i+3)%4 is the season just left
-    const k2=PSPRITE.slot.get(base+SEASONS[(i+d)%4]);
-    if (k2!==undefined && PSPRITE.map.has(k2)) return k2;
   }
   return null;
 }
