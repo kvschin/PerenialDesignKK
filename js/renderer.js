@@ -1407,6 +1407,15 @@ function spriteMaxPx(){
   if (!shortSide) return SPRITE_CAP_MAX;
   return Math.max(SPRITE_CAP_MIN, Math.min(SPRITE_CAP_MAX, Math.round(shortSide*SPRITE_CAP_SCREENS)));
 }
+/* Retiring an image also retires its indexes. A sibling may have replaced the
+   species lookup already, so only remove pointers that still name this image.
+   The slot lives on the entry: the key's JSON detail may contain separators. */
+function retirePlantSprite(k,e){
+  PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k);
+  if (e.slot!==undefined && PSPRITE.slot.get(e.slot)===k) PSPRITE.slot.delete(e.slot);
+  const sk=k.slice(k.indexOf('|')+1);
+  if (PSPRITE.spec.get(sk)===k) PSPRITE.spec.delete(sk);
+}
 function pspriteFrame(){                        // once per render: age the cache
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.scale=pspriteScale();
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
@@ -1414,15 +1423,12 @@ function pspriteFrame(){                        // once per render: age the cach
   // flickering when the working set is large (e.g. a dense garden on retina):
   // memory may overshoot to hold everything on screen, but it never re-renders
   // a visible plant it just discarded.
-  /* An evicted sprite has to clear its slot, or the index outlives the cache:
-     the stale pointer is harmless on lookup (nothing sits at that key any
-     more) but it would accumulate one dead string per eviction, forever. The
-     slot is carried ON the entry rather than parsed back out of the key — the
-     key's last field is JSON and may contain the separator. */
+  // Look-ahead renews leases in place, so a protected entry can precede stale
+  // ones. Skip it rather than ending the sweep before those can be reclaimed.
   if (PSPRITE.bytes>PSPRITE.MEM) for (const [k,e] of PSPRITE.map){
-    if (PSPRITE.bytes<=PSPRITE.MEM || e.used>=PSPRITE.frame-1) break;
-    PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k);
-    if (e.slot!==undefined && PSPRITE.slot.get(e.slot)===k) PSPRITE.slot.delete(e.slot);
+    if (PSPRITE.bytes<=PSPRITE.MEM) break;
+    if (e.used>=PSPRITE.frame-1) continue;
+    retirePlantSprite(k,e);
   }
 }
 function gbucket(v,n){ v=v<0?0:v>1?1:v; return Math.round(v*(n-1)); }
@@ -1585,7 +1591,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   const wasKey=PSPRITE.slot.get(slot);
   if (wasKey!==undefined && wasKey!==kk){
     const dead=PSPRITE.map.get(wasKey);
-    if (dead){ PSPRITE.bytes-=dead.bytes; PSPRITE.map.delete(wasKey); }
+    if (dead) retirePlantSprite(wasKey,dead);
   }
   if (wasKey!==kk) PSPRITE.slot.set(slot,kk);
   if (PSPRITE.map.has(kk)) PSPRITE.map.delete(kk);   // LRU: re-insert at the end
@@ -1688,7 +1694,7 @@ function aheadBakePlant(e){
   if (!ne) return;
   // whatever this clump held in that season before (last year's) is dead now
   const old=PSPRITE.slot.get(slot);
-  if (old!==undefined && old!==kk){ const d=PSPRITE.map.get(old); if (d){ PSPRITE.bytes-=d.bytes; PSPRITE.map.delete(old); } }
+  if (old!==undefined && old!==kk){ const d=PSPRITE.map.get(old); if (d) retirePlantSprite(old,d); }
   ne.used=PSPRITE.frame+AHEAD.LEASE; ne.slot=slot;
   PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
   PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk);
@@ -1790,7 +1796,8 @@ function ssprFrame(){
   // evict only what was NOT drawn last frame, oldest first — never the visible
   // set, so the cache cannot thrash or flicker (the PSPRITE rule)
   if (SSPRITE.bytes>SSPRITE.MEM) for (const [k,e] of SSPRITE.map){
-    if (SSPRITE.bytes<=SSPRITE.MEM || e.used>=SSPRITE.frame-1) break;
+    if (SSPRITE.bytes<=SSPRITE.MEM) break;
+    if (e.used>=SSPRITE.frame-1) continue; // renewed look-ahead leases need not be last in the Map
     SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k);
   }
 }

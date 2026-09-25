@@ -11166,6 +11166,105 @@ test('the slot index does not outlive the sprites it points at', () => {
     PSPRITE.slot.size + ' slots vs ' + PSPRITE.map.size + ' sprites)');
 });
 
+test('sprite eviction skips protected entries and reaches older sprites behind them', () => {
+  for (const [cache, frame] of [[PSPRITE, pspriteFrame], [SSPRITE, ssprFrame]]) {
+    const was = Object.assign({}, cache);
+    try {
+      Object.assign(cache, { map: new Map(), frame: 100, bytes: 500, MEM: 300 });
+      if (cache === PSPRITE) { cache.slot = new Map(); cache.spec = new Map(); }
+      // Look-ahead renews a lease in place, so insertion order is not age order.
+      const leased = { bytes: 100, used: 100 + AHEAD.LEASE };
+      const visible = { bytes: 100, used: 100 };
+      cache.map.set('leased', leased);
+      cache.map.set('old-a', { bytes: 100, used: 1 });
+      cache.map.set('visible', visible);
+      cache.map.set('old-b', { bytes: 100, used: 2 });
+      cache.map.set('old-c', { bytes: 100, used: 3 });
+      frame();
+      assertEqual(cache.bytes, 300, 'reclaims stale entries beyond protected ones');
+      assert(!cache.map.has('old-a') && !cache.map.has('old-b'), 'oldest eligible sprites go first');
+      assert(cache.map.has('old-c'), 'stops once the budget is met');
+      assert(cache.map.get('leased') === leased && cache.map.get('visible') === visible, 'protected sprites survive');
+      cache.MEM = 1;
+      visible.used = cache.frame;
+      frame();
+      assertEqual(cache.bytes, 200, 'allows overshoot when only protected sprites remain');
+      assert(cache.map.get('leased') === leased && cache.map.get('visible') === visible, 'no protected sprite is rebaked');
+      cache.frame = leased.used + 1;
+      frame();
+      assertEqual(cache.bytes, 0, 'expired leases become evictable');
+    } finally { Object.assign(cache, was); }
+  }
+});
+
+function plantIndexCase(fn){
+  setup(20, 20);
+  const was = Object.assign({}, PSPRITE), photo = game.photo;
+  try {
+    Object.assign(PSPRITE, { map: new Map(), slot: new Map(), spec: new Map(), bytes: 0, off: false });
+    game.photo = true; // every requested bucket really bakes, without the interactive governor
+    pspriteFrame();
+    const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+    const ctx = document.createElement('canvas').getContext('2d');
+    const draw = (seed, growth) => {
+      pspriteFrame();
+      drawPlantMaybeCached(ctx, 0, 0, key, growth, 'Summer', seed, 0, null, undefined, true);
+    };
+    fn(key, draw);
+  } finally { Object.assign(PSPRITE, was); game.photo = photo; }
+}
+
+test('plant growth and eviction retire sibling lookup entries with their sprites', () => {
+  plantIndexCase((key, draw) => {
+    for (let i = 0; i < 9; i++) {
+      draw(12345, i / 8);
+      assertEqual(PSPRITE.map.size, 1, 'one live sprite per clump and season');
+      assertEqual(PSPRITE.spec.size, 1, 'superseded buckets leave no sibling lookup strings');
+      assert([...PSPRITE.spec.values()].every(k => PSPRITE.map.has(k)), 'every lookup points at a live sprite');
+    }
+    PSPRITE.MEM = 1; PSPRITE.frame += 5; pspriteFrame();
+    assertEqual(PSPRITE.bytes, 0, 'evicts the last off-screen sprite');
+    assertEqual(PSPRITE.slot.size, 0, 'no dead clump lookup');
+    assertEqual(PSPRITE.spec.size, 0, 'no dead sibling lookup');
+  });
+});
+
+test('retiring an older sibling preserves the lookup for the newer live sibling', () => {
+  plantIndexCase((key, draw) => {
+    draw(111, 0.5); draw(222, 0.5);
+    const siblingKey = [...PSPRITE.map.keys()].find(k => k.startsWith('222|'));
+    const specKey = siblingKey.slice(siblingKey.indexOf('|') + 1);
+    draw(111, 1); // supersedes only the first clump's old bucket
+    assertEqual(PSPRITE.spec.get(specKey), siblingKey, 'replacement keeps the other clump indexed');
+    draw(333, 0.5); // newest sibling now owns that lookup
+    const newestKey = PSPRITE.spec.get(specKey);
+    const newest = PSPRITE.map.get(newestKey);
+    PSPRITE.MEM = newest.bytes;
+    pspriteFrame(); // older siblings are off screen; the newest was drawn last frame
+    assertEqual(PSPRITE.map.size, 1, 'only the newest sibling remains');
+    assertEqual(PSPRITE.spec.get(specKey), newestKey, 'eviction preserves its lookup');
+    const slot = '444|' + key + '||Summer';
+    assertEqual(plantStandInKey('444' + newestKey.slice(newestKey.indexOf('|')), slot), newestKey,
+      'a new clump can still borrow that sibling');
+  });
+});
+
+test('look-ahead replacement retires the old sibling lookup', () => {
+  plantIndexCase(() => {
+    aheadCase((key, recFor) => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      drawPlantMaybeCached(ctx, 0, 0, key, 0.25, 'Fall', 4321, 0, null, undefined, true);
+      const oldKey = [...PSPRITE.map.keys()][0];
+      aheadBakePlant(recFor('Summer'));
+      assert(!PSPRITE.map.has(oldKey), 'the destination season gets its new growth bucket');
+      assertEqual(PSPRITE.map.size, 1, 'only its replacement remains');
+      assertEqual(PSPRITE.spec.size, 1, 'look-ahead leaves no obsolete sibling lookup');
+      assert([...PSPRITE.spec.values()].every(k => PSPRITE.map.has(k)), 'the remaining lookup is live');
+      assertEqual(PSPRITE.bytes, [...PSPRITE.map.values()][0].bytes, 'byte accounting tracks the replacement');
+    });
+  });
+});
+
 /* ---------- a zoom gesture must not re-bake the whole cache, repeatedly ----------
    Both sprite caches re-bake an entry whose baked scale drifts 12% off the
    current one. A mouse wheel is a stream of ~6% ticks, so that threshold is

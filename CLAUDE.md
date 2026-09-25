@@ -2002,6 +2002,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     when it changes. The slot is carried ON the cache entry so eviction can
     clear the index — parsing it back out of the key would be wrong, the key's
     last field is JSON and may contain the separator.
+    **All plant retirement paths share `retirePlantSprite`**: budget eviction,
+    growth/detail replacement, and look-ahead replacement remove both the slot
+    and sibling (`PSPRITE.spec`) pointers if they still name the retired image.
+    A pointer already naming a newer sibling must survive. LRU reinsertion is
+    not retirement and leaves both indexes intact.
     **It is a MEMORY fix and not a frame-time one, measured.** Eviction only
     ever discards sprites that were not drawn last frame, so sitting on the
     ceiling costs bytes rather than milliseconds: at the ceiling (47.9MB) against
@@ -2013,6 +2018,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (never the visible set, so the cache can't thrash/flicker), sprite scale is
     capped at 1.5× DPR (retina memory), and a zoom change re-bakes crisp over a
     few frames rather than wiping (the blit auto-scales).
+    Both plant and structure sweeps skip protected entries and continue to
+    older eligible images until the budget is met. Look-ahead renews leases
+    in place, so Map insertion order is not a guarantee of age order; stopping
+    at the first protected entry can strand stale images behind it.
     **That never-the-visible-set rule means the budget is not a ceiling, and on
     a phone it stops being one entirely.** Measured on a quarter acre at
     375×812 with DPR 1.5: 61.7MB against the 48MB budget with **zero** evictable
@@ -2094,8 +2103,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     beats a sibling's. A miss with none of those still bakes up to BUDGET —
     its alternative is a procedural draw on every frame until it does — and
     `game.photo` is exempt. The stand-in is re-inserted in LRU order like any
-    hit, because the eviction sweep stops at the first recently-used entry and
-    a stand-in left where it was would shield every older sprite behind it.
+    hit, so eviction considers it according to when it was last drawn.
     Measured live (rAF spacing, Chrome 153, 164Hz, two interleaved runs a side
     on a clean machine): wheel zoom 25-27 → 51-53fps (worst frame 236-249 →
     170-176ms), a scheme switch's worst frame 109-158 → 18-42ms, the first
