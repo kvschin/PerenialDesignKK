@@ -2364,6 +2364,8 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 
 /* ---------- Docked application shell ---------- */
 .canvas-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.garden-opening{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:var(--surface-workspace);color:var(--text-primary);font:500 20px 'Fraunces',serif;pointer-events:auto}
+body.garden-opening-active #gameCanvas{visibility:hidden}
 .canvas-stage #gameCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:auto}
 .library-launcher{display:none}
 /* Ghost that flies the docked library down into its launcher on close.

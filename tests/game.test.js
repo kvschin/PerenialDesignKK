@@ -3,6 +3,7 @@
 
 // fresh, predictable state for a test
 function setup(gw, gh){
+  finishGardenOpen();
   resetGardenAutosave();
   setWorldSize(gw || 21, gh || 21);
   game.inGarden = true;
@@ -9748,6 +9749,23 @@ test('sizeCanvas only reallocates when the backing store size really changes', (
   assert(c.width === w0 && c.height === h0, 'a genuine size change is still applied');
 });
 
+test('layout settles redraw only when resizing actually clears the canvas',()=>{
+  setup();
+  const oldRender=render, oldCanvas=activeCanvasId;
+  const hidden=cnv.classList.contains('hidden');
+  let draws=0;
+  try{
+    render=()=>{draws++;};
+    cnv.classList.remove('hidden'); setActiveCanvas(cnv);
+    settleViewportChange(); draws=0;
+    settleViewportChange(); settleViewportChange();
+    assertEqual(draws,0,'unchanged layout does not add full draws between animation frames');
+    cnv.width+=7;
+    settleViewportChange();
+    assertEqual(draws,1,'a cleared backing store is redrawn before compositing');
+  } finally { render=oldRender; activeCanvasId=oldCanvas; cnv.classList.toggle('hidden',hidden); }
+});
+
 /* ---------- catalog card art cache ----------
    Result cards redrew their species procedurally on every tray rebuild, and the
    tray rebuilds on every tool arm and search keystroke. The art is a pure
@@ -11411,6 +11429,119 @@ test('zooming OUT mid-gesture re-bakes nothing; the settle does it once', () => 
   } finally { ZOOM = wasZoom; }
 });
 
+/* Cold opening must converge before the canvas is revealed, even with a
+   working set above the cache ceiling. Synthetic costs make budgets and the
+   light/heavy decision deterministic; actual scene and sprite painters run. */
+function openingCase(n, plantCost, fn){
+  setup(21,21); govReset();
+  const was={VW,VH,DPR,ZOOM,w:cnv.width,h:cnv.height,now:performance.now,
+    draw:drawSceneEnt,mem:PSPRITE.MEM,photo:game.photo,create:document.createElement};
+  let clock=0, calls=0;
+  try{
+    VW=1200; VH=1000; DPR=1; ZOOM=0.6; cnv.width=VW; cnv.height=VH; snapCam();
+    game.photo=false; game.previewMode='established'; game.pausedAt=Date.now();
+    for(let i=0;i<n;i++) setTile('plants',(5+i%10)+','+(6+Math.floor(i/10)),{s:'bluestem',d:0,t:1});
+    setTile('lights','10,10',{type:'path',tone:'warm'});
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0;
+    PSPRITE.MEM=1; groundKey=''; groundJob=null;
+    // The ordinary DOM stub shares one context. Give newly created canvases
+    // distinct contexts so preparing on the live surface cannot pass unnoticed.
+    document.createElement=function(tag){
+      const el=was.create.apply(this,arguments);
+      if (tag==='canvas'){ const ctx=makeCanvasCtx(); el.getContext=()=>ctx; }
+      return el;
+    };
+    performance.now=()=>clock;
+    drawSceneEnt=function(){
+      const count=was.draw.apply(this,arguments);
+      clock+=count ? plantCost : 20; // expensive hardscape must not engage plant sprites
+      calls++;
+      return count;
+    };
+    beginGardenOpen();
+    assert(!prepareGardenOpen(0), 'layout cannot start drawing the half-initialized garden');
+    assertEqual(calls,0,'no entity drawn during entry setup');
+    gardenOpening.ready=true;
+    let ticks=0;
+    const step=()=>{
+      const before=calls, done=prepareGardenOpen(++ticks*16.7);
+      assert(calls-before<=PSPRITE.BAKE_CAP,'a preparation frame respects the entity cap');
+      assert(PSPRITE.rendered<=PSPRITE.BAKE_CAP,'no cold burst or sibling stand-in past the bake cap');
+      assert(ticks<500,'opening makes bounded forward progress');
+      return done;
+    };
+    fn(step,()=>calls);
+  } finally {
+    finishGardenOpen(); performance.now=was.now; drawSceneEnt=was.draw; document.createElement=was.create;
+    VW=was.VW; VH=was.VH; DPR=was.DPR; ZOOM=was.ZOOM; cnv.width=was.w; cnv.height=was.h;
+    PSPRITE.MEM=was.mem; game.photo=was.photo; groundJob=null; groundKey='';
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes=0; govReset();
+  }
+}
+test('cold opening prepares every own sprite before reveal, even above the memory ceiling',()=>{
+  openingCase(80,1,step=>{
+    while(!step()){}
+    assert(PSPRITE.active,'measured heavy planting gets sprites');
+    assertEqual(gardenOpening.plants,80,'all visible planting was measured');
+    assertEqual(PSPRITE.map.size,80,'every clump has its own sprite before reveal');
+    assert(PSPRITE.bytes>PSPRITE.MEM,'fixture exceeds the memory ceiling');
+    assert(document.body.classList.contains('garden-opening-active'),'preparation alone does not reveal an unfinished frame');
+    render(10000);
+    assertEqual(PSPRITE.rendered,0,'the first full picture is all cache hits');
+    assertEqual(PSPRITE.map.size,80,'earlier batches survived eviction at reveal');
+    assert(!gardenOpening && !document.getElementById('hud').inert,'the completed picture releases the HUD');
+  });
+});
+test('cold opening keeps cheap planting procedural despite expensive structures',()=>{
+  openingCase(80,0.01,step=>{
+    while(!step()){}
+    assert(!PSPRITE.active,'plant-only measurement stays below the heavy threshold');
+    assertEqual(PSPRITE.map.size,0,'no unnecessary plant cache');
+  });
+});
+test('opening prepares plants and cached structures off the live canvas and releases the surface',()=>{
+  openingCase(80,1,step=>{
+    const draw=drawSceneEnt;
+    let plants=0, structures=0;
+    drawSceneEnt=function(e,W,H,season,sway,useSprites,ctx,cacheStructures){
+      assert(ctx && ctx!==cx,'partial preparation must never draw on the live canvas');
+      assert(cacheStructures,'offscreen preparation still warms structure sprites');
+      const n=draw.apply(this,arguments);
+      if(n) plants++; else structures++;
+      return n;
+    };
+    try { while(!step()){} } finally { drawSceneEnt=draw; }
+    assert(plants>0 && structures>0,'both plant and structure paths were exercised');
+    const cv=gardenOpening.cv;
+    assertEqual(cv.width,cnv.width,'measurement surface uses the actual viewport width');
+    assertEqual(cv.height,cnv.height,'and height');
+    render(10000);
+    assertEqual(PSPRITE.rendered,0,'revealing does not bake any plants');
+    assertEqual(SSPRITE.rendered,0,'revealing does not bake any structures');
+    assertEqual(cv.width*cv.height,0,'finishing releases the temporary pixel buffer');
+  });
+});
+test('cold opening preserves the small-garden floor',()=>{
+  openingCase(10,1,step=>{
+    while(!step()){}
+    assert(!PSPRITE.active,'ten plants stay procedural');
+  });
+});
+test('resizing during opening discards the partial view and prepares the final one',()=>{
+  openingCase(80,1,step=>{
+    while(gardenOpening.phase!=='sprites' || gardenOpening.index===0) step();
+    const key=gardenOpening.key;
+    VW+=100; cnv.width=VW;
+    assert(!step(),'the changed view must be prepared');
+    assert(gardenOpening.key!==key && gardenOpening.index===0,'the entity walk restarts for the new view');
+    while(!step()){}
+    const margin=Math.round(GROUND_MARGIN_CSS*DPR);
+    assertEqual(groundCanvas.width,cnv.width+2*margin,'ground matches the final viewport');
+    render(10000);
+    assertEqual(PSPRITE.rendered,0,'the resized view still reveals without cold bakes');
+  });
+});
+
 /* ---------- a burst of bakes is spread over frames, with stand-ins ----------
    Each frame could bake up to PSPRITE.BUDGET (160) sprites, and the moments
    that ask for that many are the ones a gardener is watching: a season turn
@@ -11725,9 +11856,30 @@ test('render looks ahead only for the live frame, and never in a photo', () => {
   assertEqual(sites.length, 2, 'the bulb and the plant path both look ahead');
   for (const l of sites) assert(/if \(AHEAD\.season && useSprites && ctx===cx\) aheadBakePlant\(e\);/.test(l),
     'plants bake ahead only onto the live canvas\'s cache, never from a portrait: ' + l.trim());
-  const portrait = draw.indexOf('if (ctx!==cx){ drawStructEnt(ctx,e,W,H,season,game.layerVis.night); return 0; }');
-  const struct = draw.indexOf('aheadBakeStruct(e,W,H,game.layerVis.night)');
-  assert(portrait > 0 && struct > portrait, 'and so do structures: a portrait returns before the look-ahead');
+  setup(21,21);
+  setTile('lights','10,10',{type:'path',tone:'warm'}); buildScene(800,600);
+  const e=scene.ents.find(e=>e.kind===SCENE_K.LIGHT), ctx=makeCanvasCtx();
+  const was={cached:drawStructMaybeCached,procedural:drawStructEnt,ahead:aheadBakeStruct,
+    season:AHEAD.season,active:SSPRITE.active,off:SSPRITE.off};
+  let cached=0,procedural=0,ahead=0,target=null;
+  try {
+    AHEAD.season='Fall'; SSPRITE.active=true; SSPRITE.off=false;
+    drawStructMaybeCached=(e,W,H,season,lit,ctx)=>{cached++;target=ctx;};
+    drawStructEnt=()=>{procedural++;}; aheadBakeStruct=()=>{ahead++;};
+    drawSceneEnt(e,800,600,'Summer',0,false,ctx);
+    assertEqual(procedural,1,'portraits keep drawing structures without the live cache');
+    assertEqual(cached,0,'portraits do not populate the live cache');
+    drawSceneEnt(e,800,600,'Summer',0,true,ctx,true);
+    assertEqual(cached,1,'opening can explicitly prepare cached structures offscreen');
+    assert(target===ctx,'cached structure blits go to the requested surface');
+    assertEqual(ahead,0,'neither offscreen route starts speculative work');
+    drawSceneEnt(e,800,600,'Summer',0,true);
+    assert(target===cx,'normal frames still use the live surface');
+    assertEqual(ahead,1,'only the live frame looks ahead');
+  } finally {
+    drawStructMaybeCached=was.cached; drawStructEnt=was.procedural; aheadBakeStruct=was.ahead;
+    AHEAD.season=was.season; SSPRITE.active=was.active; SSPRITE.off=was.off;
+  }
 });
 
 test('a clump with nothing to stand in bakes, budget or not', () => {

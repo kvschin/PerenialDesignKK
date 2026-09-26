@@ -2075,10 +2075,10 @@ function makeStructSprite(e,spec,season,W,H,lit){
   return {cv, ox:b.left, oy:b.top, s, want, capped:s<want, bytes:pw*ph*4};
 }
 // blit a cached structure if we can, else draw it live — never drop one
-function drawStructMaybeCached(e,W,H,season,lit){
-  if (SSPRITE.off || !SSPRITE.active){ drawStructEnt(cx,e,W,H,season,lit); return; }
+function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
+  if (SSPRITE.off || !SSPRITE.active){ drawStructEnt(ctx,e,W,H,season,lit); return; }
   const spec=structSpriteSpec(e);
-  if (!spec){ drawStructEnt(cx,e,W,H,season,lit); return; }
+  if (!spec){ drawStructEnt(ctx,e,W,H,season,lit); return; }
   const kk=spec.key+'|'+season+'|'+game.rot+'|'+(lit?1:0);
   let sp=SSPRITE.map.get(kk);
   // a sprite baked at a very different zoom blits soft: rebake it, budget
@@ -2097,14 +2097,14 @@ function drawStructMaybeCached(e,W,H,season,lit){
       const ns=makeStructSprite(e,spec,season,W,H,lit);
       if (ns){ if (sp) SSPRITE.bytes-=sp.bytes; sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
     }
-    if (!sp){ SSPRITE.fell++; drawStructEnt(cx,e,W,H,season,lit); return; }
+    if (!sp){ SSPRITE.fell++; drawStructEnt(ctx,e,W,H,season,lit); return; }
   }
   if (had) SSPRITE.hits++; else SSPRITE.misses++;
   if (SSPRITE.map.has(kk)) SSPRITE.map.delete(kk);   // LRU: re-insert at the end
   sp.used=SSPRITE.frame;
   SSPRITE.map.set(kk,sp);
   const [ax,ay]=structAnchor(e,W,H);
-  cx.drawImage(sp.cv, ax+sp.ox, ay+sp.oy, sp.cv.width/sp.s, sp.cv.height/sp.s);
+  ctx.drawImage(sp.cv, ax+sp.ox, ay+sp.oy, sp.cv.width/sp.s, sp.cv.height/sp.s);
 }
 /* ---- dev-only: prove the cached path draws the same picture ----
    The whole design rests on a key naming everything its drawing reads, and the
@@ -2840,7 +2840,7 @@ function buildScene(W,H){
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
-function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx){
+function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===cx){
   switch(e.kind){
     /* Every structure goes through one cached blitter. They are pure
        functions of (record, season, rot, camera) — no `t`, no `sway` — so
@@ -2860,13 +2860,13 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx){
     case SCENE_K.HOUSE:
       // Offscreen portraits draw once, without populating or resizing the
       // live viewport's sprite caches (or charging its performance governor).
-      if (ctx!==cx){ drawStructEnt(ctx,e,W,H,season,game.layerVis.night); return 0; }
+      if (!cacheStructures){ drawStructEnt(ctx,e,W,H,season,game.layerVis.night); return 0; }
       if (structSampling){
         const t0=performance.now();
-        drawStructMaybeCached(e,W,H,season,game.layerVis.night);
+        drawStructMaybeCached(e,W,H,season,game.layerVis.night,ctx);
         structSampleMs+=performance.now()-t0;
-      } else drawStructMaybeCached(e,W,H,season,game.layerVis.night);
-      if (AHEAD.season && SSPRITE.active && !SSPRITE.off) aheadBakeStruct(e,W,H,game.layerVis.night);
+      } else drawStructMaybeCached(e,W,H,season,game.layerVis.night,ctx);
+      if (AHEAD.season && SSPRITE.active && !SSPRITE.off && ctx===cx) aheadBakeStruct(e,W,H,game.layerVis.night);
       return 0;
     case SCENE_K.BULB:{
       // ahead of the underground test: a bulb that comes UP at the turn has no
@@ -3007,7 +3007,94 @@ function drawSeasonFade(t){
   cx.drawImage(seasonFade.cv,0,0);
   cx.restore();
 }
+/* Opening has no old picture to stand in for a cold cache. Prepare the actual
+   visible clumps before revealing the canvas instead of showing changing
+   siblings. Keep the normal painters/keys, cull, and measured sprite governor:
+   one procedural measurement is spread across frames, then only a heavy
+   planting gets sprites. Ground uses the existing banded bake. */
+let gardenOpening=null;
+function beginGardenOpen(){
+  gardenOpening={ready:false, key:null};
+  document.body.classList.add('garden-opening-active');
+  document.getElementById('gardenOpening').classList.remove('hidden');
+  document.getElementById('hud').inert=true;
+}
+function finishGardenOpen(){
+  if (gardenOpening && gardenOpening.cv) gardenOpening.cv.width=gardenOpening.cv.height=0;
+  gardenOpening=null;
+  document.body.classList.remove('garden-opening-active');
+  document.getElementById('gardenOpening').classList.add('hidden');
+  document.getElementById('hud').inert=false;
+}
+function prepareGardenOpen(t){
+  const o=gardenOpening;
+  if (!o.ready) return false; // enterGarden's synchronous layout is still running
+  const W=VW/ZOOM, H=VH/ZOOM, season=calClock().season;
+  const skey=sceneKey(), MD=Math.round(GROUND_MARGIN_CSS*DPR);
+  const key=skey+'|'+groundDataKey()+'|'+groundStructKey(season,game.rot)
+    +'|'+ZOOM+'|'+cam.x+'|'+cam.y;
+  if (o.key!==key || sceneStale(skey)){
+    if (sceneStale(skey)) buildScene(W,H);
+    const ox=W/2-cam.x, oy=H*0.24-cam.y;
+    o.ents=scene.ents.filter(e=>!(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H));
+    o.key=key; o.phase='ground'; o.index=0; o.plants=0; o.plantMs=0;
+    // Age once for the whole preparation. Otherwise a working set over MEM
+    // evicts its first batches before the last batches have been prepared.
+    pspriteFrame(); ssprFrame();
+    groundJob=null;
+  }
+  if (o.phase==='ground'){
+    const gkey=groundStructKey(season,game.rot)+'|'+groundDataKey();
+    if (groundKey!==gkey || groundRefsChanged() || groundZoom!==ZOOM
+        || groundCamX!==cam.x || groundCamY!==cam.y || groundMarginStale){
+      ensureGroundJob('open',season,game.rot,cam.x,cam.y,MD);
+      stepGroundJob(t,1);
+      if (groundJobDone()){ adoptGroundJob(t); o.phase='measure'; }
+      return false;
+    }
+    o.phase='measure';
+  }
+  noteSpriteZoom(t);
+  // This is a settled view, not a zoom gesture. A reused garden may have old
+  // sprites at another scale; prepare the final scale before revealing it.
+  spriteZoomSettled=true;
+  PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.scale=pspriteScale();
+  SSPRITE.rendered=0;
+  aheadFrame(t,null); structSampling=false;
+  // Partial procedural draws and first sprite blits must stay off the live
+  // canvas. Preparing them there leaves Firefox's later frames persistently
+  // slow, even after the normal opaque sky repaint. A disposable surface
+  // keeps preparation separate; the live canvas first receives a full frame.
+  if (!o.cv){ o.cv=document.createElement('canvas'); o.ctx=o.cv.getContext('2d'); }
+  if (o.cv.width!==cnv.width) o.cv.width=cnv.width;
+  if (o.cv.height!==cnv.height) o.cv.height=cnv.height;
+  o.ctx.setTransform(1,0,0,1,0,0);
+  o.ctx.clearRect(0,0,o.cv.width,o.cv.height);
+  o.ctx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,0,0);
+  const start=performance.now();
+  let count=0;
+  while (o.index<o.ents.length && count<PSPRITE.BAKE_CAP
+      && performance.now()-start<PSPRITE.BAKE_MS){
+    const e=o.ents[o.index++], t0=performance.now();
+    const plants=drawSceneEnt(e,W,H,season,0,o.phase==='sprites',o.ctx,true);
+    if (o.phase==='measure' && plants){ o.plants+=plants; o.plantMs+=performance.now()-t0; }
+    count++;
+  }
+  if (o.index<o.ents.length) return false;
+  if (o.phase==='measure'){
+    PSPRITE.active=!PSPRITE.off && o.plants>PSPRITE.FLOOR && o.plantMs>PSPRITE.HI_MS;
+    PSPRITE.plantMs=o.plants ? o.plantMs/o.plants : 0;
+    PSPRITE.hot=0; PSPRITE.calm=0;
+    // Structure samples from a previous garden must not mask this one's plants.
+    PSPRITE.structMs=0; PSPRITE.structRing.length=0;
+    if (PSPRITE.active){ o.phase='sprites'; o.index=0; return false; }
+  }
+  // Leave speculative rotation/season preparation until this picture is shown.
+  lastMeaningfulChange=t;
+  return true;
+}
 function render(t){
+  if (gardenOpening && !game.photo && !prepareGardenOpen(t)) return;
   /* Sky: three full-screen gradient fills, now one opaque blit of a bake keyed
      on (season, canvas size) — see the season-wash note in world.js. This
      stretch used to be covered by no phase timer at all, which hid ~31% of the
@@ -3416,6 +3503,7 @@ function render(t){
        over   — selection/ruler/metric overlays, only when those tools are live
        light  — season tint, snow, dusk/glow: full-screen work EVERY frame */
   dmark('light',tLight);
+  if (gardenOpening && !game.photo) finishGardenOpen();
 }
 
 function selDrawRect(cx,W,H,r,fill,stroke){

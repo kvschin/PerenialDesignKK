@@ -551,6 +551,7 @@ if ($('importFile')) $('importFile').onchange=e=>{ importWorldFile(e.target.file
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ show('menuScreen'); });
 
 function enterGarden(){
+  beginGardenOpen(); // viewport setup can request a draw before the garden is ready
   show(''); $('hud').classList.remove('hidden');
   cnv.classList.remove('hidden'); mcnv.classList.add('hidden');
   setActiveCanvas(cnv);
@@ -596,6 +597,7 @@ function enterGarden(){
   buildCanvasTools();
   updateCompass();
   $('worldLabel').textContent = game.worldName||'My garden';
+  gardenOpening.ready=true;
   if (game.challenge)
     setTimeout(()=>{ if (game.challenge){
       const n=challengePaletteSize(game.challenge), total=speciesCount();
@@ -1169,6 +1171,7 @@ function openDesignSetup(){
   show('designScreen');
 }
 function quitToMenu(){
+  finishGardenOpen();
   if (game.photoEditing) closeSitePhotoEdit(false);
   landSkipNow();                 // a Skip still preparing is still a Skip
   suspendClock();
@@ -1961,7 +1964,7 @@ function hasActiveGesture(){
     || (typeof sweep!=='undefined' && !!sweep);
 }
 function hasTransientGardenWork(){
-  return !!(game.ffActive || hasActiveGesture()
+  return !!(gardenOpening || game.ffActive || hasActiveGesture()
     || (game.fx&&game.fx.length) || (game.shrubFx&&game.shrubFx.length)
     || seasonFadeActive()     // the season crossfade needs live frames for ~1s
     || skipPending());        // and a Skip being prepared lands sooner at full rate
@@ -2545,6 +2548,7 @@ function noteError(err,where){
   try{ console.error('[pocket-prairie]',where,err); }catch(_){ }
 }
 function reportCrash(err,where){
+  finishGardenOpen(); // keep the recovery controls reachable if preparation failed
   if (crashed) return;                             // a throwing frame would
   crashed=true;                                    // otherwise storm the report
   noteError(err,where);

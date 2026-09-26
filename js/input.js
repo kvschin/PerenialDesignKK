@@ -2,6 +2,7 @@
 
 /* keyboard */
 addEventListener('keydown',e=>{
+  if (gardenOpening) return; // the view and clock are being prepared, like the inert HUD
   const northScreen=document.getElementById('siteNorthScreen');
   if (northScreen&&!northScreen.classList.contains('hidden')){
     if (e.key==='Escape'){ e.preventDefault(); cancelSiteNorthEditor(); }

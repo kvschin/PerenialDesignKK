@@ -1984,6 +1984,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     sprites make draw fast, disengaging reads the *predicted* procedural cost
     (plant count × a per-plant ms learned while procedural) rather than the live
     number, and releases only when that stays under ~2.5ms for ~45 frames.
+    **Opening a garden prepares its first picture before revealing it**
+    (`beginGardenOpen` / `prepareGardenOpen`, renderer.js). A cold cache has no
+    picture of each clump to reuse: borrowing siblings made plants change shape
+    for about a second on a saved garden. The opening status covers the canvas
+    while ground is baked one band per frame and visible entities are processed
+    in batches bounded by 4ms / 24 entities. One procedural plant-only measurement,
+    also batched, seeds the governor using its existing 6ms and 40-plant thresholds;
+    cheap gardens stay procedural, heavy gardens prepare every visible clump's
+    own sprite. No three expensive full-scene trial frames on entry. Cache aging
+    runs once for the whole preparation so early batches cannot be evicted before
+    reveal, even when the visible set exceeds the memory budget. A changed scene,
+    viewport or camera restarts preparation; entry setup cannot render half-ready
+    state. The HUD and keyboard garden shortcuts wait until the first complete
+    frame, and quit/crash cleanup always removes the opening status. Existing
+    season, zoom, photo and ongoing governor behavior is retained. Layout settles
+    draw synchronously only when canvas size or zoom changed, avoiding duplicate
+    full draws when a ResizeObserver notification changed no pixels.
+    **Preparation draws into a temporary viewport-sized canvas, never the live
+    garden canvas.** Drawing the partial measurement and sprite batches onto
+    the live surface caused a persistent Firefox opening regression: normal
+    frames stayed slow after the opening status disappeared. Clearing batches
+    on that surface was not a reliable fix. The temporary surface uses the same
+    device scale and painters; structure caching is explicitly enabled there
+    (`drawSceneEnt`'s `cacheStructures` argument), while portraits retain their
+    uncached structure path. Neither offscreen route starts season look-ahead.
+    The live surface receives its first complete frame only after preparation,
+    and finish/quit/crash cleanup releases the temporary pixel buffer. Keep the
+    visible-window before/after check alongside the synthetic budget tests:
+    canvas backend regressions cannot be detected by the Node canvas stub.
     **A clump retires its own superseded sprite** (`PSPRITE.slot`). The key
     carries a growth and a bloom BUCKET read off the clock, so the moment either
     moves the sprite at the old key is dead — nothing will ever ask for it again

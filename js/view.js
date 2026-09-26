@@ -311,6 +311,7 @@ function repositionOpenChrome(){
   if (typeof tourRender==='function') tourRender();
 }
 function settleViewportChange(){
+  const oldWidth=cnv.width, oldHeight=cnv.height, oldZoom=ZOOM;
   invalidateUsableRect();   // the chrome is what usableCanvasRect measures
   syncHudTopHeight();   // tier changes resize the bar; the sheet reserves it
   syncRailBottom();     // ...and the sheet/zoom pill are what the RAIL reserves
@@ -331,7 +332,8 @@ function settleViewportChange(){
      anyway, so this is when that cost was always going to be paid; paying it
      before the frame is composited is what makes it invisible. */
   if (typeof game!=='undefined' && game.inGarden && activeCanvasId==='gameCanvas'
-      && !cnv.classList.contains('hidden') && typeof render==='function'){
+      && !cnv.classList.contains('hidden') && typeof render==='function'
+      && (cnv.width!==oldWidth || cnv.height!==oldHeight || ZOOM!==oldZoom)){
     render(performance.now());
   }
 }
