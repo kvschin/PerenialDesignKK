@@ -812,6 +812,15 @@ logic is split across ordered modules. They map onto the section list below
   responsive display sizes. Armed tools retain their two-tone art on a tinted
   surface with an accent border and edge marker (red for Erase), never a
   silhouette filter. Labels are 8.5-9.5px and touch targets remain at least 44px.
+  The top bar's Rotate/Layers/View icons and the phone View-tools popover draw
+  the same artwork through **`paintIconCanvas`** (tray.js) at the same 3x
+  backing — they were 1x shown at 32x24 and read soft beside the rail. It uses
+  `setTransform`, since those repaint on every `syncTopTools` and a `scale`
+  would compound. Rotate is an orbit arrow round an iso plot tile (a plain
+  circular arrow reads as reload); Layers is one sheet over two near edges, the
+  warm one the ground (three full diamonds overlapped into a lattice and ran off
+  the canvas). Menu's SVG hamburger is sized to 24px in `#btnMenu` to sit level
+  with them. A test pins the backing, the art's bounds and the Menu size.
   **`where` lives on the DEMO, not the chapter entry**, so the drawn affordance
   and the written breadcrumb under the title are one piece of data; a test pins
   every label against `buildCanvasTools`' source, `TRAY_GROUPS` and `TRAY_CATS`

@@ -288,13 +288,31 @@ function drawCanvasIcon(tc,kind){
     tc.beginPath(); tc.moveTo(16,7); tc.lineTo(11,12); tc.lineTo(16,17); tc.stroke();
     tc.restore();
   } else if (kind==='rotate'){
-    tc.beginPath(); tc.arc(21,16,10,0.15*Math.PI,1.72*Math.PI,false); tc.stroke();
-    tc.beginPath(); tc.moveTo(30,8); tc.lineTo(35,8); tc.lineTo(34,13); tc.stroke();
-    tc.fillStyle='rgba(201,127,63,.28)'; tc.beginPath();
-    tc.moveTo(21,7); tc.lineTo(32,16); tc.lineTo(21,25); tc.lineTo(10,16); tc.closePath(); tc.fill();
+    /* The garden plot, as the iso tile it is on screen, with an orbit arrow
+       travelling round it: the view turns about the plot. A plain circular
+       arrow (what this was) reads as "reload", which is the one thing a
+       rotate-view button must not be mistaken for. Tint and outline come off
+       the warm ink so light mode follows. */
+    tc.save(); tc.strokeStyle=warm; tc.fillStyle=warm;
+    tc.beginPath(); tc.moveTo(21,12.5); tc.lineTo(31,17.5); tc.lineTo(21,22.5); tc.lineTo(11,17.5); tc.closePath();
+    tc.globalAlpha=0.22; tc.fill(); tc.globalAlpha=1; tc.stroke(); tc.restore();
+    // clockwise orbit, open across the top where the arrowhead chases its tail
+    const a0=1.68*Math.PI, a1=3.32*Math.PI, rx=16, ry=9.5, ox=21, oy=16.5;
+    tc.beginPath(); tc.ellipse(ox,oy,rx,ry,0,a0,a1,false); tc.stroke();
+    const tx=ox+rx*Math.cos(a1), ty=oy+ry*Math.sin(a1),
+      back=Math.atan2(-ry*Math.cos(a1),rx*Math.sin(a1));
+    tc.beginPath(); tc.moveTo(tx+5.5*Math.cos(back+0.62),ty+5.5*Math.sin(back+0.62));
+    tc.lineTo(tx,ty); tc.lineTo(tx+5.5*Math.cos(back-0.62),ty+5.5*Math.sin(back-0.62)); tc.stroke();
   } else if (kind==='layers'){
-    for (let i=0;i<3;i++){ tc.beginPath(); tc.moveTo(21,8+i*7); tc.lineTo(33,14+i*7);
-      tc.lineTo(21,20+i*7); tc.lineTo(9,14+i*7); tc.closePath(); tc.stroke(); }
+    /* Stacked sheets: one whole sheet on top, the two beneath showing only
+       their near edges. Three full outlines overlapped into a lattice (and
+       the lowest ran off the bottom of the canvas); this is the layers glyph
+       people already know. The bottom edge is warm — the ground layer. */
+    tc.beginPath(); tc.moveTo(21,4); tc.lineTo(33,10); tc.lineTo(21,16); tc.lineTo(9,10); tc.closePath();
+    tc.save(); tc.fillStyle=warm; tc.globalAlpha=0.22; tc.fill(); tc.restore(); tc.stroke();
+    tc.beginPath(); tc.moveTo(9,15.5); tc.lineTo(21,21.5); tc.lineTo(33,15.5); tc.stroke();
+    tc.strokeStyle=warm;
+    tc.beginPath(); tc.moveTo(9,21); tc.lineTo(21,27); tc.lineTo(33,21); tc.stroke();
   } else if (kind==='building'){
     tc.fillStyle='rgba(154,95,58,.32)'; tc.strokeStyle=cream; tc.lineWidth=2;
     tc.beginPath(); tc.moveTo(8,9); tc.lineTo(31,9); tc.lineTo(31,17); tc.lineTo(37,17);
@@ -329,6 +347,18 @@ function drawCanvasIcon(tc,kind){
   }
   tc.restore();
 }
+/* Paint drawCanvasIcon's 42x32 artwork into a canvas at whatever backing
+   resolution the canvas carries. Chrome icons are 3x (126x96) so they stay
+   crisp at every displayed size; the top bar's used to be 1x, drawn 42x32 and
+   shown at 32x24, which blurred them beside the rail's 3x icons. setTransform
+   rather than scale(): the top-bar icons repaint on every syncTopTools, and a
+   scale would compound. */
+function paintIconCanvas(c,kind){
+  const tc=c && c.getContext('2d');
+  if (!tc) return;
+  tc.setTransform(c.width/42,0,0,c.height/32,0,0);
+  drawCanvasIcon(tc,kind);
+}
 function makeCanvasTool(label,kind,opts){
   const b=document.createElement('button');
   b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
@@ -340,7 +370,7 @@ function makeCanvasTool(label,kind,opts){
   // Keep drawCanvasIcon's logical coordinates intact for its other callers.
   const c=document.createElement('canvas'); c.width=126; c.height=96;
   c.setAttribute('aria-hidden','true');
-  const tc=c.getContext('2d'); tc.scale(3,3); drawCanvasIcon(tc,kind);
+  paintIconCanvas(c,kind);
   const s=document.createElement('span'); s.textContent=label;
   b.append(c,s);
   if (opts&&opts.swatch){
@@ -858,17 +888,17 @@ function syncTopTools(){
   // so it belongs with the other modal tools rather than beside Rotate and Layers.
   const rot=document.getElementById('btnRotateTool');
   if (rot){ rot.onclick=()=>rotateView(1);
-    const c=document.getElementById('btnRotateIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'rotate'); }
+    paintIconCanvas(document.getElementById('btnRotateIcon'),'rotate'); }
   const lay=document.getElementById('btnLayersTool');
   if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
     lay.setAttribute('aria-expanded',game.toolMenu==='layers'?'true':'false');
     lay.onclick=()=>toggleLayerMenu();
-    const c=document.getElementById('btnLayersIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'layers'); }
+    paintIconCanvas(document.getElementById('btnLayersIcon'),'layers'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
     view.setAttribute('aria-expanded',(game.toolMenu==='view'||(!visibleEl(lay)&&game.toolMenu==='layers'))?'true':'false');
     view.onclick=()=>toggleViewToolsMenu();
-    const c=document.getElementById('btnViewToolsIcon'); if (c) drawCanvasIcon(c.getContext('2d'),'viewtools'); }
+    paintIconCanvas(document.getElementById('btnViewToolsIcon'),'viewtools'); }
   syncSchemeChip();
   renderViewToolsMenu();
   renderLayerMenu();
@@ -940,8 +970,9 @@ function popButton(label,kind,sel,fn,title,extra){
   b.className=(sel?' sel':'')+(extra||'');
   b.title=title||label;
   if (kind){
-    const c=document.createElement('canvas'); c.width=42; c.height=32;
-    drawCanvasIcon(c.getContext('2d'),kind);
+    const c=document.createElement('canvas'); c.width=126; c.height=96;
+    c.setAttribute('aria-hidden','true');
+    paintIconCanvas(c,kind);
     b.appendChild(c);
   }
   const sp=document.createElement('span'); sp.textContent=label; b.appendChild(sp);

@@ -1005,6 +1005,12 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
 .pill.iconbar button:hover{background:var(--surface-control-hover)}
 .pill.iconbar button.disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .pill.iconbar .lbl{font-size:11px;color:var(--text-secondary)}
+/* The hamburger only spans 14 of its symbol's 24 units, so at the shared 18px
+   it drew 10.5px wide — visibly smaller than the sun beside the season box
+   (14px) and the rotate/layers glyphs (18-24px). 24px brings its three strokes
+   to 14px; the stroke is thinned so the lines stay the canvas icons' ~1.4px
+   weight rather than growing with the box. */
+#btnMenu .ui-icon{width:24px;height:24px;stroke-width:1.5}
 .pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
 .pill.iconbar .ic-emoji{display:none;font-size:15px}
 .pill.iconbar .bar-div{width:1px;align-self:stretch;background:rgba(var(--ink-rgb),.2);margin:2px 4px}

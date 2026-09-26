@@ -1666,6 +1666,64 @@ test('uiInk always yields a usable colour, including with no computed style', ()
   assert(/^#/.test(uiInk('--nope')), 'an unknown token still yields a colour');
 });
 
+test('top-bar icons are drawn at the rail\'s resolution and inside their own box', () => {
+  setup();
+  /* The top bar's Rotate/Layers/View canvases were 1x (42x32) shown at 32x24,
+     so they came out soft beside the rail's 3x icons — and the phone's View
+     tools popover built its icons the same way. All of them are 3x now. */
+  const html = readRepoFile('index.html');
+  for (const id of ['btnRotateIcon', 'btnLayersIcon', 'btnViewToolsIcon'])
+    assert(new RegExp('<canvas id="' + id + '" width="126" height="96"').test(html),
+      id + ' carries a 3x backing store');
+  const tray = readRepoFile('js/tray.js');
+  const pop = tray.slice(tray.indexOf('function popButton'), tray.indexOf('function anchorPopover'));
+  assert(/paintIconCanvas\(c,kind\)/.test(pop) && !/width=42/.test(pop),
+    'popover icons are painted at 3x too');
+  const sync = tray.slice(tray.indexOf('function syncTopTools'), tray.indexOf('function toggleViewToolsMenu'));
+  assert(!/drawCanvasIcon\(/.test(sync), 'the top bar paints through paintIconCanvas, not a bare 1x context');
+
+  /* setTransform, not scale: the top-bar icons repaint on every syncTopTools,
+     and a scale() would compound until the icon drew off its own canvas. */
+  const calls = [];
+  const ctx = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+    return (...a) => { if (p === 'setTransform' || p === 'scale') calls.push([p, ...a]); }; },
+    set(o, p, v){ o[p] = v; return true; } });
+  const cvs = { width: 126, height: 96, getContext: () => ctx };
+  paintIconCanvas(cvs, 'rotate'); paintIconCanvas(cvs, 'rotate');
+  assertEqual(calls.filter(c => c[0] === 'scale').length, 0, 'never scales the context');
+  assertEqual(calls.filter(c => c[0] === 'setTransform').map(c => c.slice(1).join()).join('|'),
+    '3,0,0,3,0,0|3,0,0,3,0,0', 'sets the same absolute 3x transform each time');
+
+  /* The art stays inside the 42x32 box, stroke included. The old Layers drew
+     three full diamonds 7 units apart and the lowest ended at y=34, so its
+     bottom point was simply cut off. Bounds are taken conservatively — a whole
+     ellipse, not the arc actually swept. */
+  for (const kind of ['rotate', 'layers']) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, moved = false;
+    const pt = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+    const rec = new Proxy({}, { get(o, p){ if (p in o) return o[p];
+      return (...a) => {
+        if (p === 'moveTo' || p === 'lineTo') pt(a[0], a[1]);
+        else if (p === 'quadraticCurveTo') { pt(a[0], a[1]); pt(a[2], a[3]); }
+        else if (p === 'bezierCurveTo') { pt(a[0], a[1]); pt(a[2], a[3]); pt(a[4], a[5]); }
+        else if (p === 'arc') { pt(a[0] - a[2], a[1] - a[2]); pt(a[0] + a[2], a[1] + a[2]); }
+        else if (p === 'ellipse') { pt(a[0] - a[2], a[1] - a[3]); pt(a[0] + a[2], a[1] + a[3]); }
+        else if (p === 'translate' || p === 'rotate' || p === 'scale' || p === 'setTransform') moved = true;
+      }; }, set(o, p, v){ o[p] = v; return true; } });
+    drawCanvasIcon(rec, kind);
+    assert(!moved, kind + ' draws in the plain 42x32 frame (the bounds below assume it)');
+    const m = 0.9; // half the 1.8 stroke
+    assert(x0 >= m && y0 >= m && x1 <= 42 - m && y1 <= 32 - m,
+      `${kind} stays inside its canvas: ${x0.toFixed(1)},${y0.toFixed(1)} .. ${x1.toFixed(1)},${y1.toFixed(1)}`);
+  }
+
+  /* The hamburger spans 14 of its symbol's 24 units, so at the shared 18px it
+     drew 10.5px wide beside 14-24px neighbours. */
+  const css = readRepoFile('styles.css');
+  const menu = css.match(/#btnMenu \.ui-icon\{width:(\d+)px;height:(\d+)px/);
+  assert(menu && +menu[1] >= 22 && menu[1] === menu[2], 'the Menu glyph is sized up to match the bar');
+});
+
 test('plant catalog controls pair into two rows instead of five stacked rows', () => {
   setup();
   const tabs = document.createElement('div');
