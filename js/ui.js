@@ -1121,6 +1121,7 @@ function allPlantRefs(){
   return out;
 }
 let discoverySearchIndex=null;
+const discoverySearchEntries=new Map();
 function discoverySearchText(ref){
   const P=refDef(ref); if (!P) return '';
   return [ref.s,ref.v||'',P.name,P.latin,(P.synonyms||[]).join(' '),PLANTS[ref.s].group||'',PLANTS[ref.s].chip||'',staticPlantRoles(ref.s).map(roleLabel).join(' '),trayCatLabel(plantCategoryFor(ref.s))]
@@ -1128,7 +1129,57 @@ function discoverySearchText(ref){
 }
 function ensureDiscoverySearchIndex(){
   if (discoverySearchIndex) return discoverySearchIndex;
-  return discoverySearchIndex=allPlantRefs().map(ref=>({ref,hay:discoverySearchText(ref)}));
+  discoverySearchEntries.clear();
+  return discoverySearchIndex=allPlantRefs().map(indexDiscoveryRef);
+}
+function indexDiscoveryRef(ref){
+  const P=refDef(ref); if (!P) return null;
+  const entry={ref,P,hay:discoverySearchText(ref),blooms:DISCOVERY_SEASONS
+    .filter(([season])=>bloomMonthsInSeason(P,season).length)
+    .map(([season])=>({season,families:flowerFamiliesFor(P,season)}))};
+  discoverySearchEntries.set(plantRefId(ref),entry); return entry;
+}
+function discoverySearchEntry(ref){
+  ensureDiscoverySearchIndex();
+  // Saved collections may contain hidden catalog entries or retired names.
+  // Index valid hidden entries too, but never retain arbitrary missing IDs.
+  return discoverySearchEntries.get(plantRefId(ref)) || indexDiscoveryRef(ref);
+}
+/* Catalog text/bloom metadata is fixed for this page, like plantDef's cache.
+   Eligibility depends on garden criteria and the challenge's actual rules.
+   Keep only the current context; queries and source switches reuse its answers,
+   while changing even an in-place challenge rule creates a fresh context. */
+let discoveryEligibility=null, discoveryCandidatesCache=null;
+function ensureDiscoveryEligibility(){
+  const index=ensureDiscoverySearchIndex(), filters=activeFilters();
+  const key=JSON.stringify([filters,game.challenge&&game.challenge.match||null]);
+  if (!discoveryEligibility || discoveryEligibility.index!==index || discoveryEligibility.key!==key)
+    discoveryEligibility={index,key,fits:new Map()};
+  return discoveryEligibility;
+}
+function discoveryEligible(ref,context=ensureDiscoveryEligibility()){
+  const id=plantRefId(ref);
+  if (context.fits.has(id)) return context.fits.get(id);
+  if (!discoverySearchEntry(ref)) return false;
+  const fits=plantRefFits(ref); context.fits.set(id,fits); return fits;
+}
+function discoveryCandidates(d){
+  const eligibility=ensureDiscoveryEligibility(), design=activeDesignType();
+  const saved=d.source==='favorites'||d.source==='palette';
+  const key=JSON.stringify([d.source,d.collectionId,design,saved?plantCollectionsRevision():0]);
+  if (discoveryCandidatesCache && discoveryCandidatesCache.eligibility===eligibility && discoveryCandidatesCache.key===key)
+    return discoveryCandidatesCache.entries;
+  const seen=new Set(), entries=[];
+  for (const ref of discoverySourceRefs(d,eligibility)){
+    const id=plantRefId(ref); if (seen.has(id)||!discoveryEligible(ref,eligibility)) continue;
+    seen.add(id); entries.push(discoverySearchEntry(ref));
+  }
+  // Filter a sorted eligible source for each query. Its order is independent of
+  // the query/category/bloom lens; score each exact reference only once.
+  const ranked=entries.map(entry=>({entry,score:d.source==='recommended'&&design?plantStyleScore(entry.ref.s,design,entry.ref.v):0}));
+  ranked.sort((a,b)=>b.score-a.score || a.entry.P.name.localeCompare(b.entry.P.name));
+  const sorted=ranked.map(x=>x.entry);
+  discoveryCandidatesCache={eligibility,key,entries:sorted}; return sorted;
 }
 /* Which plants a source is ABOUT, before the category / query / colour lens
    narrows it further.
@@ -1142,7 +1193,7 @@ function ensureDiscoverySearchIndex(){
    `plantFits`: the style still changes nothing about what may be planted, only
    about what is put in front of you first, and "All eligible" is one tap away
    in the same picker. */
-function discoverySourceRefs(d){
+function discoverySourceRefs(d,eligibility=ensureDiscoveryEligibility()){
   if (d.source==='favorites' && typeof favoriteRefs==='function') return favoriteRefs();
   if (d.source==='palette' && typeof paletteRefs==='function') return paletteRefs(d.collectionId);
   const refs=ensureDiscoverySearchIndex().map(x=>x.ref);
@@ -1159,35 +1210,27 @@ function discoverySourceRefs(d){
      belongs here rather than in the questionnaire, because Plant filters can
      narrow a garden long after setup, so a check made once at the door would
      not hold. */
-  return rec.some(plantRefFits) ? rec : refs;
+  return rec.some(ref=>discoveryEligible(ref,eligibility)) ? rec : refs;
 }
-function discoveryMatches(ref,d){
-  const P=refDef(ref); if (!P || !plantRefFits(ref)) return false;
+function discoveryEntryMatches(entry,d){
+  const P=entry.P;
   if (d.category){ const cat=TRAY_CATS.find(c=>c.id===d.category);
     if (!cat || !cat.types.includes(P.type) || (cat.sunFilter&&P.sun!==cat.sunFilter)) return false; }
   const q=(d.query||'').trim().toLowerCase();
-  if (q && !discoverySearchText(ref).includes(q)) return false;
+  if (q && !entry.hay.includes(q)) return false;
   const selectedSeasons=d.bloomSeasons.length ? d.bloomSeasons : DISCOVERY_SEASONS.map(x=>x[0]);
   const wantsColor=d.colorFamilies.length;
   if (!wantsColor && !d.bloomSeasons.length) return true;
-  return selectedSeasons.some(season=>{
-    if (!bloomMonthsInSeason(P,season).length) return false;
-    const families=flowerFamiliesFor(P,season);
-    return !wantsColor || families.some(c=>d.colorFamilies.includes(c));
+  return entry.blooms.some(({season,families})=>{
+    return selectedSeasons.includes(season) && (!wantsColor || families.some(c=>d.colorFamilies.includes(c)));
   });
 }
+function discoveryMatches(ref,d){
+  const entry=discoverySearchEntry(ref);
+  return !!entry && discoveryEligible(ref) && discoveryEntryMatches(entry,d);
+}
 function discoveryRefsUncached(d){
-  const seen=new Set();
-  const refs=discoverySourceRefs(d).filter(ref=>{
-    const id=typeof plantRefId==='function' ? plantRefId(ref) : `${ref.s}|${ref.v||''}`;
-    if (seen.has(id)||!discoveryMatches(ref,d)) return false; seen.add(id); return true;
-  });
-  const design=activeDesignType();
-  refs.sort((a,b)=>{
-    if (d.source==='recommended' && design){ const score=plantStyleScore(b.s,design,b.v)-plantStyleScore(a.s,design,a.v); if (score) return score; }
-    return plantRefDisplayName(a).localeCompare(plantRefDisplayName(b));
-  });
-  return refs;
+  return discoveryCandidates(d).filter(entry=>discoveryEntryMatches(entry,d)).map(entry=>entry.ref);
 }
 /* ---------- per-rebuild memo (perf) ----------
    Filtering discovery is O(catalog) and ends in a locale-collated sort, and one
@@ -1198,10 +1241,9 @@ function discoveryRefsUncached(d){
 
    The memo is deliberately scoped to ONE synchronous rebuild: buildToolTray
    opens it on entry and closes it on exit, so identical calls inside a rebuild
-   are free and nothing survives to go stale afterwards. That sidesteps the
-   whole invalidation surface a persistent cache would have — garden filters,
-   favourites, palettes, the design style and the zone all feed this, and a
-   catalog showing yesterday's plants is a worse bug than a slow one. */
+   are free and query results never survive to go stale afterwards. Static
+   metadata, current eligibility and the ranked source have their own explicit
+   lifetimes above; this memo only shares a render's final filtered lists. */
 let discoveryMemo=null, discoveryMemoDepth=0;   // depth-counted, so a nested rebuild cannot close it early
 function openDiscoveryMemo(){ if (!discoveryMemoDepth++) discoveryMemo=new Map(); }
 function closeDiscoveryMemo(){ if (discoveryMemoDepth>0 && !--discoveryMemoDepth) discoveryMemo=null; }
@@ -1285,7 +1327,11 @@ function discoverySourceLabel(d=activeDiscovery()){
   if (d.source==='palette' && typeof paletteById==='function'){ const p=paletteById(d.collectionId); return p?p.name:'Saved palette'; }
   return d.source==='all'?'All eligible':'Recommended';
 }
-function collectionAvailability(refs){ const total=(refs||[]).length, available=(refs||[]).filter(plantRefFits).length; return {total,available}; }
+function collectionAvailability(refs){
+  const context=ensureDiscoveryEligibility();
+  const total=(refs||[]).length, available=(refs||[]).filter(ref=>discoveryEligible(ref,context)).length;
+  return {total,available};
+}
 function plantFits(k){
   const P=PLANTS[k], f=activeFilters();
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;

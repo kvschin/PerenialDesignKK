@@ -10006,6 +10006,101 @@ test('the discovery memo returns exactly what an uncached filter would', () => {
   }
 });
 
+test('search reuses indexed text and eligibility across queries and styles',()=>{
+  setup();
+  const text=discoverySearchText, fits=plantRefFitsCriteria, score=plantStyleScore;
+  let textCalls=0, fitsCalls=0, scoreCalls=0;
+  try {
+    discoverySearchText=(...args)=>{textCalls++;return text(...args);};
+    plantRefFitsCriteria=(...args)=>{fitsCalls++;return fits(...args);};
+    plantStyleScore=(...args)=>{scoreCalls++;return score(...args);};
+    discoveryRefsFor({source:'all'}); // warm every eligible reference
+    game.design={type:'prairie'}; discoveryRefsFor({source:'recommended'});
+    textCalls=fitsCalls=scoreCalls=0;
+    for (const query of ['a','grass','carex','Daffodil','zzzz',''])
+      discoveryRefsFor({source:'recommended',query});
+    assertEqual(textCalls,0,'warm queries use the text already indexed');
+    assertEqual(fitsCalls,0,'warm queries do not recalculate eligibility');
+    assertEqual(scoreCalls,0,'warm queries filter the already ranked source');
+    game.design.type='formal'; discoveryRefsFor({source:'recommended'});
+    assertEqual(fitsCalls,0,'a style change reranks without repeating unchanged eligibility');
+    assert(scoreCalls>0,'a different style receives fresh rankings');
+    game.filters.zone=2; discoveryRefsFor({source:'all'});
+    assert(fitsCalls>0,'a changed zone recomputes eligibility');
+    fitsCalls=0; game.challenge={id:'same-id',match:{types:['grass']}}; discoveryRefsFor({source:'all'});
+    assert(fitsCalls>0,'challenge rules affect eligibility');
+    fitsCalls=0; game.challenge.match.types=['bulb']; discoveryRefsFor({source:'all'});
+    assert(fitsCalls>0,'in-place changes to the same challenge invalidate eligibility');
+  } finally {discoverySearchText=text;plantRefFitsCriteria=fits;plantStyleScore=score;}
+});
+
+test('cached discovery agrees with fresh predicates after criteria, source and collection changes',()=>{
+  setup();
+  const palette=createPlantPalette('Cache accuracy',[...allPlantRefs().slice(0,35),{s:'hosta',v:'retired-cultivar'},{s:'retired-species'}]);
+  const fresh=d=>{
+    let source=d.source==='palette'?paletteRefs(d.collectionId):d.source==='favorites'?favoriteRefs():allPlantRefs();
+    const style=activeDesignType();
+    if (d.source==='recommended'&&style){
+      const recommended=source.filter(ref=>plantStyleRecommended(ref.s,style));
+      if (recommended.some(plantRefFits)) source=recommended;
+    }
+    const seen=new Set(), q=d.query.trim().toLowerCase();
+    const refs=source.filter(ref=>{
+      const P=refDef(ref), id=plantRefId(ref);
+      if (!P||seen.has(id)||!plantRefFits(ref)) return false;
+      if (d.category){const cat=TRAY_CATS.find(c=>c.id===d.category);if(!cat.types.includes(P.type)||(cat.sunFilter&&P.sun!==cat.sunFilter))return false;}
+      if (q&&!discoverySearchText(ref).includes(q)) return false;
+      if (d.colorFamilies.length||d.bloomSeasons.length){
+        const seasons=d.bloomSeasons.length?d.bloomSeasons:DISCOVERY_SEASONS.map(x=>x[0]);
+        if (!seasons.some(s=>bloomMonthsInSeason(P,s).length&&(!d.colorFamilies.length||flowerFamiliesFor(P,s).some(c=>d.colorFamilies.includes(c)))))return false;
+      }
+      seen.add(id);return true;
+    });
+    refs.sort((a,b)=>(d.source==='recommended'&&style?plantStyleScore(b.s,style,b.v)-plantStyleScore(a.s,style,a.v):0)||plantRefDisplayName(a).localeCompare(plantRefDisplayName(b)));
+    return refs.map(plantRefId).join(',');
+  };
+  const verify=state=>{
+    const d=normalizeDiscovery(state);
+    assertEqual(discoveryRefsFor(d).map(plantRefId).join(','),fresh(d),'fresh results and order: '+JSON.stringify([game.filters,game.design,game.challenge,d]));
+  };
+  try {
+    for (const criteria of [{zone:2},{zone:6,nativeMode:'regional'},{zone:6,nativeRegion:'europe',nativeMode:'straight'},
+      {zone:10,invasive:'show'},{zone:6,deer:true,rabbit:true,squirrel:true},{zone:6}]){
+      game.filters=normalizeFilters(criteria);
+      for (const style of ['prairie','mediterranean',null]){
+        game.design={type:style};
+        for (const source of ['all','recommended','palette']){
+          verify({source,collectionId:palette.id});
+          verify({source,collectionId:palette.id,query:'a',colorFamilies:['purple','white'],bloomSeasons:['Spring','Summer']});
+        }
+      }
+    }
+    game.challenge={id:'same',match:{types:['grass','sedge']}};verify({source:'all'});
+    game.challenge.match.types=['bulb'];verify({source:'all'});
+    game.challenge=null;verify({source:'all'});
+    verify({source:'favorites'});toggleFavorite({s:'hosta'});verify({source:'favorites'});toggleFavorite({s:'hosta'});verify({source:'favorites'});
+    addPaletteRef(palette.id,{s:'hosta'});verify({source:'palette',collectionId:palette.id});
+    removePaletteRef(palette.id,{s:'hosta'});verify({source:'palette',collectionId:palette.id});
+    assertEqual(collectionAvailability(paletteRefs(palette.id)).available,paletteRefs(palette.id).filter(plantRefFits).length,'saved availability uses the same criteria, including retired references');
+  } finally {deletePlantPalette(palette.id);}
+});
+
+test('asynchronously loaded collections invalidate a cached empty Favorites source',async()=>{
+  setup();
+  const saved={data:_plantCollections,loaded:_plantCollectionsLoaded,loading:_plantCollectionsLoading,revision:_plantCollectionsRevision,get:sGet};
+  try {
+    _plantCollections=emptyPlantCollections();_plantCollectionsLoaded=false;_plantCollectionsLoading=null;
+    _plantCollectionsRevision++;
+    assertEqual(discoveryRefsFor({source:'favorites'}).length,0,'empty source was cached before storage answered');
+    sGet=async()=>({version:PLANT_COLLECTIONS_VERSION,favorites:[{s:'hosta'}],palettes:[]});
+    await loadPlantCollections();
+    assert(discoveryRefsFor({source:'favorites'}).some(ref=>ref.s==='hosta'),'loaded Favorites replace the previously cached empty result');
+  } finally {
+    _plantCollections=saved.data;_plantCollectionsLoaded=saved.loaded;_plantCollectionsLoading=saved.loading;
+    _plantCollectionsRevision=saved.revision;sGet=saved.get;
+  }
+});
+
 test('the memo distinguishes states that must not share a result', () => {
   setup(31, 31);
   const base = normalizeDiscovery(defaultDiscovery());

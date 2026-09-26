@@ -293,13 +293,17 @@ async function verify(){
   const pages = await resolveTitles([...new Set(have.map(h => h.title))]);
   let bad = 0;
   for (const h of have){
-    const genus = (cleanLatin(h.P.latin).split(' ')[0]) || '';
+    // Use the same renamed-taxon evidence as resolveAll; otherwise verify
+    // rejects links the generator deliberately accepted after a genus change.
+    const words = cleanLatin(h.P.latin).split(' ').filter(Boolean);
+    const genus = words[0] || '';
+    const epithet = (words.find((w, i) => i > 0 && isEpithet(w))) || '';
     const page = pages.get(h.title);
-    if (!pageOk(page, genus)){
+    if (!pageOk(page, genus, epithet)){
       bad++;
       const why = !page || page.missing ? 'no longer exists'
         : (page.pageprops && 'disambiguation' in page.pageprops) ? 'is now a disambiguation page'
-        : `no longer mentions ${genus}`;
+        : `no longer mentions ${genus}${epithet ? ' or '+epithet : ''}`;
       console.log(`  x ${h.key} - "${h.title}" ${why}`);
     } else if (page.title !== h.title){
       console.log(`  > ${h.key} - "${h.title}" now redirects to "${page.title}"`);

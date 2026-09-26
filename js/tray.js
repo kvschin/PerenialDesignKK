@@ -1739,9 +1739,10 @@ function discoveryPlacingBadge(row,selected){
    The bitmap is a pure function of species|variant|season, so it never needs
    invalidating: plant colour lives in PLANTS and is deliberately world art, not
    themed, so a light/dark flip cannot change it (unlike the uiInk chrome icons,
-   which are rebuilt by applyTheme). Cards still get their OWN canvas element —
-   a cached element could only live in one place in the DOM at a time — and a
-   drawImage of a 112x124 bitmap is microseconds against a procedural redraw. */
+   which are rebuilt by applyTheme). Discovery shows each exact reference in
+   only one card at a time, so the cached canvas itself can be mounted there.
+   Detach mounted art when retiring a view so the cache never retains old card
+   parents. Offscreen cards reserve their space without allocating a bitmap. */
 const TRAY_ART=new Map(), TRAY_ART_MAX=128;   // ~55KB each, so ~7MB at the cap
 const TRAY_ART_W=112, TRAY_ART_H=124;
 function trayPlantArt(species,variant,season,D){
@@ -1757,11 +1758,48 @@ function trayPlantArt(species,variant,season,D){
   if (TRAY_ART.size>TRAY_ART_MAX) TRAY_ART.delete(TRAY_ART.keys().next().value);
   return cv;
 }
+let discoveryArtView=null;
+function resetDiscoveryArt(){
+  if (!discoveryArtView) return;
+  if (discoveryArtView.observer) discoveryArtView.observer.disconnect();
+  discoveryArtView.canvases.forEach(canvas=>canvas.remove());
+  discoveryArtView.canvases.clear(); discoveryArtView.pending.clear();
+  discoveryArtView=null;
+}
+function paintDiscoveryArt(view,slot){
+  const spec=view.pending.get(slot); if (!spec) return;
+  const art=trayPlantArt(...spec);
+  art.className='plant-result-art'; art.dataset.artKey=slot.dataset.artKey;
+  art.setAttribute('aria-hidden','true');
+  slot.replaceWith(art); view.canvases.add(art); view.pending.delete(slot);
+  if (view.observer) view.observer.unobserve(slot);
+}
+function observeDiscoveryArt(view){
+  if (!view.pending.size || normalizedSheetState(game.sheetState)==='collapsed') return;
+  if (typeof IntersectionObserver!=='function'){
+    // Old browsers retain the synchronous art behavior.
+    [...view.pending.keys()].forEach(slot=>paintDiscoveryArt(view,slot)); return;
+  }
+  view.observer=new IntersectionObserver(entries=>{
+    if (discoveryArtView!==view || game.sheetCollapsed || !game.inGarden) return;
+    entries.forEach(entry=>{
+      if (entry.isIntersecting&&entry.target.isConnected) paintDiscoveryArt(view,entry.target);
+    });
+  },{root:view.tray,rootMargin:'120px 0px'});
+  view.pending.forEach((_,slot)=>view.observer.observe(slot));
+}
+function syncDiscoveryArtVisibility(){
+  const view=discoveryArtView; if (!view) return;
+  if (game.sheetCollapsed){
+    if (view.observer) view.observer.disconnect();
+    view.observer=null;
+  } else if (!view.observer) observeDiscoveryArt(view);
+}
 function plantArtCanvas(species,variant,season,D){
-  const art=document.createElement('canvas');
-  art.className='plant-result-art'; art.width=TRAY_ART_W; art.height=TRAY_ART_H;
-  art.getContext('2d').drawImage(trayPlantArt(species,variant,season,D),0,0);
-  return art;
+  const slot=document.createElement('span'); slot.className='plant-result-art';
+  slot.dataset.artKey=species+'|'+(variant||'')+'|'+season; slot.setAttribute('aria-hidden','true');
+  if (discoveryArtView){ discoveryArtView.pending.set(slot,[species,variant,season,D]); return slot; }
+  const art=trayPlantArt(species,variant,season,D); art.className='plant-result-art'; return art;
 }
 function discoveryResultCard(ref,d,opts={}){
   const P=refDef(ref), row=document.createElement('article'), selected=activePlantRef(ref); row.className='plant-result-card'+(selected?' sel':'');
@@ -2038,10 +2076,26 @@ function renderDiscoveryControls(tabs,modeControl){
   const d=activeDiscovery(), bar=document.createElement('div'); bar.className='discovery-controls';
   const find=document.createElement('input'); find.id='trayFind'; find.type='search'; find.autocomplete='off';
   find.placeholder='Find a plant'; find.value=d.query; find.setAttribute('aria-label','Find a plant');
-  find.oninput=()=>{ discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,find.value)); clearTimeout(discoverySearchTimer);
-    discoverySearchTimer=setTimeout(()=>{ buildToolTray(); const next=document.getElementById('trayFind');
-      if (next){ next.focus(); try{ next.setSelectionRange(next.value.length,next.value.length); }catch(_){} } },120); };
-  find.onkeydown=e=>{ if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); discoveryOpenSpecies=null; setDiscovery(discoverySearchSelection(d,'')); buildToolTray(); } };
+  find.maxLength=120;
+  let composing=false;
+  const search=(immediate=false)=>{
+    clearTimeout(discoverySearchTimer);
+    discoveryOpenSpecies=null;
+    // This input survives many queries. Read the current lens, including the
+    // category to restore, rather than the one captured when it was created.
+    setDiscovery(discoverySearchSelection(activeDiscovery(),find.value));
+    if (immediate) refreshDiscoverySearch(find);
+    else discoverySearchTimer=setTimeout(()=>refreshDiscoverySearch(find),120);
+  };
+  find.oninput=e=>{ if (!composing&&!e.isComposing) search(); };
+  find.addEventListener('compositionstart',()=>{ composing=true; clearTimeout(discoverySearchTimer); });
+  find.addEventListener('compositionend',()=>{ composing=false; search(); });
+  find.onkeydown=e=>{
+    // Let the IME handle its keys without the garden's Escape shortcut
+    // collapsing the sheet (and replacing the composing input).
+    if (composing||e.isComposing){ e.stopPropagation(); return; }
+    if (e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); find.value=''; search(true); }
+  };
   const filterRow=document.createElement('div'); filterRow.className='discovery-filter-row';
   const filters=document.createElement('button'); filters.type='button'; filters.className='discovery-filter-trigger';
   const n=discoveryFilterCount(); filters.textContent=n?`Filters · ${n}`:'Filters'; filters.setAttribute('aria-expanded','false');
@@ -2053,6 +2107,7 @@ function renderDiscoveryControls(tabs,modeControl){
   bar.appendChild(catalogControlRow(modeControl?modeControl():null,discoverySourceMenu(d)));
   bar.appendChild(catalogControlRow(find,filterRow));
   tabs.appendChild(bar);
+  return {find,count};
 }
 function renderLandscapeControls(tabs,modeControl){
   const bar=document.createElement('div'); bar.className='landscape-controls';
@@ -2074,6 +2129,12 @@ function renderLandscapeControls(tabs,modeControl){
   tabs.appendChild(bar);
 }
 function renderDiscoveryTray(tray){
+  resetDiscoveryArt();
+  const view=discoveryArtView={tray,pending:new Map(),canvases:new Set(),observer:null};
+  renderDiscoveryTrayInner(tray);
+  observeDiscoveryArt(view);
+}
+function renderDiscoveryTrayInner(tray){
   const d=activeDiscovery(), refs=discoveryRefs(), groups=groupDiscoveryRefs(refs);
   tray.classList.add('discovery-results');
   const summary=document.createElement('div'); summary.className='discovery-summary';
@@ -2482,10 +2543,15 @@ function plantTrayCategoryId(d=activeDiscovery(),currentId=game.trayCat){
    `verifyTrayCache()` is the guard: it permutes each input, asks whether the
    rendered DOM changed, and reports any input that moved the DOM without moving
    the signature. Add an input to the tray, add it here. */
-let trayCacheSig=null;
-function trayStateSig(){
+let trayCacheSig=null, discoverySearchView=null;
+function trayStateSig(ignoreDiscoverySearch=false){
   const g=game;
   const j=v=>{ try{ return JSON.stringify(v===undefined?null:v); }catch(_){ return '?'; } };
+  // A query changes only these discovery fields and the results drill-in.
+  // Share the full guard's inputs so new panel dependencies also invalidate
+  // the narrow search refresh; do not maintain a second dependency list.
+  const discovery=ignoreDiscoverySearch ? Object.assign({},g.discovery,
+    {query:'',category:null,returnCategory:null,limit:36}) : g.discovery;
   return [
     g.inGarden?1:0, g.trayCat, g.drill||'', g.tool, g.toolVar||'',
     g.toolMenu||'', g.searchOpen?1:0, g.traySearch||'',
@@ -2501,7 +2567,7 @@ function trayStateSig(){
     g.underlay?[g.underlay.visible?1:0,g.underlay.opacity,g.underlay.rotation,
       g.underlay.data?g.underlay.data.length:0].join(',') : '-',
     j(g.underlayCalibration),
-    j(g.discovery), j(g.filters),
+    j(discovery), j(g.filters),
     /* The garden style. It ranked the catalog before and now also decides what
        `recommended` holds at all, so it is squarely a tray input. Nothing
        writes game.design after enterGarden today -- all three writers run
@@ -2515,8 +2581,8 @@ function trayStateSig(){
        g.houseDraft]),
     g.lastBrushTool||'', g.lastBrushVar||'', g.lastBrushTrayCat||'', g.lastBrushDrill||'',
     // tray-module state that changes what is drawn
-    discoveryOpenSpecies||'', sourceMenuOpen?1:0, paletteRenameId||'',
-    j(palettePendingRef), j(catalogCategoryFocus), j(lastCatByGroup),
+    ignoreDiscoverySearch?'':discoveryOpenSpecies||'', sourceMenuOpen?1:0, paletteRenameId||'',
+    j(palettePendingRef), j(ignoreDiscoverySearch?null:catalogCategoryFocus), j(lastCatByGroup),
     replacePlantContext?1:0, sitePhotoEditState?1:0,
     j(discoveryFilterDraft), j(discoveryCriteriaDraft),
     // Favorites and palettes live outside `game`, and the heart on every card
@@ -2545,6 +2611,64 @@ function buildToolTray(force){
   trayCacheSig=trayStateSig();
   tourRender();   // the tray was replaced; re-pin any callout anchored into it
   return true;
+}
+/* Keep the input, source/filter controls, category scroller and placement
+   footer alive while typing. Only counts, category facets and results depend
+   on the query. A full rebuild retires this view and cancels its pending work. */
+function refreshDiscoverySearch(find){
+  const view=discoverySearchView;
+  if (!view || view.find!==find || !find.isConnected) return false;
+  if (view.sig!==trayStateSig(true)){
+    // An unrelated state change still requires the full renderer. Preserve
+    // editing state only if this input still owns focus; never steal it back.
+    const focused=document.activeElement===find;
+    const selection=[find.selectionStart,find.selectionEnd,find.selectionDirection];
+    buildToolTray();
+    const next=document.getElementById('trayFind');
+    if (focused&&next){ next.focus({preventScroll:true}); next.setSelectionRange(...selection); }
+    return true;
+  }
+  if (trayStateSig()===trayCacheSig) return false;
+  openDiscoveryMemo();
+  try {
+    saveTrayScroll();
+    game.trayCat=plantTrayCategoryId(); lastCatByGroup.plants=game.trayCat;
+    const refs=discoveryRefs(), count=discoveryResultCountText(refs);
+    view.count.textContent=count;
+    const meta=document.getElementById('catalogMeta');
+    if (meta) meta.textContent=`${discoverySourceLabel(activeDiscovery())} \u00b7 ${count}`;
+    renderDiscoveryCategories(view.categoryStrip,view.selectCat);
+    updateCatalogStripAffordance(view.categoryStrip);
+    const tray=document.getElementById('toolTray'); tray.innerHTML='';
+    tray.classList.remove('cultivar-drill');
+    renderDiscoveryTray(tray);
+    restoreTrayScroll();
+  } finally { closeDiscoveryMemo(); }
+  view.sig=trayStateSig(true); trayCacheSig=trayStateSig();
+  tourRender();
+  return true;
+}
+function renderDiscoveryCategories(strip,selectCat){
+  const d=activeDiscovery(), tally=discoveryCategoryCounts(d);
+  const categories=[{id:'all',label:'All'},...TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)&&tally.counts[c.id])];
+  const existing=new Map([...strip.children].map(b=>[b.dataset.categoryId,b]));
+  const ids=new Set(categories.map(c=>c.id));
+  existing.forEach((b,id)=>{ if (!ids.has(id)){ b.remove(); existing.delete(id); } });
+  let index=0;
+  for (const c of categories){
+    const count=c.id==='all'?tally.all:tally.counts[c.id]||0;
+    let b=existing.get(c.id);
+    if (!b){
+      b=document.createElement('button'); b.type='button'; b.dataset.categoryId=c.id;
+      b.onclick=()=>{ catalogCategoryFocus={groupId:'plants',id:c.id}; selectCat(c.id==='all'?null:c.id); };
+      const before=strip.children[index];
+      if (before) strip.insertBefore(b,before); else strip.appendChild(b);
+    }
+    index++;
+    const selected=c.id==='all'?!d.category:d.category===c.id;
+    b.className=selected?'sel':''; b.textContent=`${c.label} ${count}`;
+    b.setAttribute('aria-pressed',selected?'true':'false');
+  }
 }
 /* ---- dev-only: prove the signature is complete ----
    A missed input shows up as a catalog that does not update, which is the kind
@@ -2638,7 +2762,9 @@ function verifyTrayCache(){
   return {misses, inert, checked:cases.length};
 }
 function buildToolTrayInner(){
+  clearTimeout(discoverySearchTimer); discoverySearchView=null;
   saveTrayScroll();
+  resetDiscoveryArt();
   const tabs=document.getElementById('trayTabs'); tabs.innerHTML='';
   const syncedCategory=plantTrayCategoryId(); if (syncedCategory!==game.trayCat) game.trayCat=syncedCategory;
   const cat=TRAY_CATS.find(c=>c.id===game.trayCat)||TRAY_CATS[0];
@@ -2676,27 +2802,12 @@ function buildToolTrayInner(){
       b.setAttribute('aria-pressed',activeGroup===group.id?'true':'false'); b.onclick=()=>switchGroup(group.id); seg.appendChild(b); });
     return seg; };
   updateCatalogHeader(isPlantGroup);
-  if (isPlantGroup) renderDiscoveryControls(tabs,modeControl);
-  else renderLandscapeControls(tabs,modeControl);
-  const discovery=isPlantGroup?activeDiscovery():null;
+  const controls=isPlantGroup?renderDiscoveryControls(tabs,modeControl):renderLandscapeControls(tabs,modeControl);
   const categoryStrip=document.createElement('div'); categoryStrip.className='catalog-category-strip';
   categoryStrip.setAttribute('role','group');
   categoryStrip.setAttribute('aria-label',isPlantGroup?'Plant categories':'Landscape categories');
   if (isPlantGroup){
-    // every chip's count from ONE filter pass, bucketed — see
-    // discoveryCategoryCounts for why that is equivalent to filtering per category
-    const tally=discoveryCategoryCounts(discovery);
-    const all=document.createElement('button'); all.type='button'; all.className=discovery.category?'':'sel';
-    all.dataset.categoryId='all';
-    all.textContent=`All ${tally.all}`; all.setAttribute('aria-pressed',discovery.category?'false':'true');
-    all.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:'all'}; selectCat(null); }; categoryStrip.appendChild(all);
-    TRAY_CATS.filter(c=>TRAY_GROUPS[0].cats.includes(c.id)).forEach(c=>{
-      const n=tally.counts[c.id]||0; if (!n) return;
-      const b=document.createElement('button'); b.type='button'; const selected=discovery.category===c.id;
-      b.dataset.categoryId=c.id;
-      b.className=selected?'sel':''; b.textContent=`${c.label} ${n}`;
-      b.setAttribute('aria-pressed',selected?'true':'false'); b.onclick=()=>{ catalogCategoryFocus={groupId:activeGroup,id:c.id}; selectCat(c.id); }; categoryStrip.appendChild(b);
-    });
+    renderDiscoveryCategories(categoryStrip,selectCat);
   } else {
     TRAY_CATS.filter(c=>TRAY_GROUPS[1].cats.includes(c.id)).forEach(c=>{
       const b=document.createElement('button'); b.type='button'; const selected=game.trayCat===c.id;
@@ -2723,6 +2834,7 @@ function buildToolTrayInner(){
   if (isPlantGroup){
     if (PLANTS[game.tool] && !plantRefFits(plantRef(game.tool,game.toolVar))){ game.tool='hand'; game.toolVar=null; }
     renderDiscoveryTray(tray); renderCvRow(); finishToolTrayRender();
+    discoverySearchView={...controls,categoryStrip,selectCat,sig:trayStateSig(true)};
     return;
   }
   tray.classList.add('landscape-results');
@@ -4188,6 +4300,7 @@ function applySheetState(){
   // move directly between the browser and the compact current-tool bar.
   if (!phone&&s==='half') s='full';
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
+  syncDiscoveryArtVisibility();
   const reduced=reducedMotion();
   const start=phone?hb.getBoundingClientRect().height:0;
   // Desktop collapse flies a ghost of the panel into the launcher, so measure

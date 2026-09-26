@@ -4771,6 +4771,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and persists that prior category as `returnCategory`, while clearing or
     escaping returns to the correct per-garden browse category without
     disturbing the active garden criteria or palette source.
+    **Plant Find refreshes results in place after its 120ms debounce.** Keep
+    the input node, focus, caret/selection direction, source/filter controls,
+    category scroller, and placement footer mounted. Only result cards,
+    category counts/selection, and the result/header counts change; typing
+    must not call `renderCvRow` or reapply sheet state. Category buttons that
+    still match retain their nodes. Read `activeDiscovery()` for each edit,
+    since the input outlives the query that created it. Composition waits for
+    `compositionend`; its Escape must not reach the garden shortcut. Full
+    panel rebuilds cancel pending search work. The narrow refresh shares
+    `trayStateSig` with the full renderer, ignoring only the discovery search
+    fields and transient category-focus request, so unrelated changes still
+    rebuild normally. Real DOM regression coverage lives in
+    `tests/browser-search.cjs` (installed Chromium, or `PP_FIREFOX_PATH` for
+    stock Firefox; optional `PP_SEARCH_GARDEN` imports a local garden fixture).
+    **Discovery caches have separate lifetimes.** Exact-reference search text
+    and bloom/color metadata are indexed once for the page's immutable plant
+    catalog. Eligibility is retained only for the current normalized garden
+    filters plus the challenge's actual `match` rules, including in-place rule
+    changes. The current source's eligible references are sorted once per
+    criteria/style/source change; queries, categories and flower filters narrow
+    that ordered list. Favorites/palette membership also keys off the collection
+    revision, which advances when asynchronous storage loading completes. Do
+    not key eligibility on a challenge ID alone, or mix style recommendations
+    into the underlying planting eligibility. Query-result memoization still
+    ends with each synchronous render; caches do not accumulate past queries
+    or past garden criteria.
+    **Discovery thumbnails allocate artwork near the visible results.** A
+    same-size placeholder reserves each offscreen image's space. One
+    `IntersectionObserver` per result view paints within a 120px margin of the
+    results viewport; the existing 128-entry artwork LRU supplies the actual
+    canvas node, avoiding a second canvas allocation and bitmap copy. Each
+    exact reference appears at most once in a view. Retiring a view disconnects
+    its observer and detaches its mounted canvases so cached images cannot keep
+    old card trees alive. Collapsing pauses observation explicitly (the phone's
+    clipping animation alone is insufficient); expanding resumes it without a
+    panel rebuild. Browsers without the observer paint synchronously. Preserve
+    exact cultivar/season keys, deterministic pixels, scroll restoration, and
+    the artwork's independence from UI theme.
     The planner top chrome is one connected dark loam bar: the season/day-night
     cluster stays top-left, view tools remain centered on desktop, tablet/phone use
     the compact view-tools menu, and Menu stays at the far right within the same

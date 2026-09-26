@@ -138,6 +138,7 @@ async function loadPlantCollections(){
     _plantCollectionsLoaded=true;
     _plantCollectionsLoading=null;
     if (_plantCollectionsRevision!==revisionAtStart) persistPlantCollections();
+    else _plantCollectionsRevision++; // the async load also changes cached source membership
     return plantCollectionsData();
   })();
   return _plantCollectionsLoading;
