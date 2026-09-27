@@ -13,10 +13,19 @@ real perennial planting (zone/style/native filters, the full plant palette,
 planting list + plan export). Accuracy matters; Kevin grows these.
 
 Around that core:
-- **Daily design challenge** *(built)* — a date-seeded planting prompt on the
-  main menu (everyone gets the same one each day, no backend). Prompt-only: it
-  *suggests* a style + plant types and opens the planner. Nothing is
-  scored or enforced. Prompts live in `DAILY_CHALLENGES` (`js/screens.js`).
+- **Daily design challenge** *(built)* — a local-calendar daily brief with
+  three design goals, a small editable starting site and a suggested seasonal
+  view. Progress and the original brief save with the garden; today's attempt
+  has a Continue button, with recent attempts below. Gardeners review their
+  goals and choose when to finish, then download or share a portrait image.
+  There are no scores or deadline. Each theme offers ten curated plant choices,
+  with optional automatically tracked constraints for species count, repetition,
+  required plant groups and palette membership. The 18 themes each have three
+  distinct exercises, giving a 54-day rotation over the three site templates.
+  Climate-filter conflicts are explained with an explicit study-palette option.
+  Restrictions can be lifted without losing the brief; older saved challenges
+  retain their original wording and rules. Richer site layouts and a visual
+  design collection remain future work.
 - **Plant Library** *(built)* — browse every species.
 - **Your gardens** *(built)* — the combined create/manage entry: open, rename,
   duplicate, delete, or import saved gardens. The former separate Design a

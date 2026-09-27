@@ -67,7 +67,7 @@ addEventListener('keydown',e=>{
   if (selectionMore && e.key==='Escape'){ e.preventDefault(); selectionMore.remove();
     const more=document.querySelector('#selectionActions button[aria-haspopup="menu"]'); if (more) more.focus(); return; }
   if (e.key==='`'){ toggleDebug(); return; }
-  const overlay=['siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','schemeScreen','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
+  const overlay=['challengeScreen','siteNorthScreen','sitePhotoCalibrateScreen','replacePlantScreen','estimateScreen','gardenMenu','schemeScreen','exportScreen','discoveryFilterScreen','paletteScreen','planScreen','bloomScreen']
     .map(id=>document.getElementById(id)).find(el=>el && !el.classList.contains('hidden'));
   if (overlay){ // an overlay is open: only Escape closes, game keys ignored
     if (e.key==='Escape'){

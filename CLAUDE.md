@@ -12,11 +12,46 @@ opened, renamed, duplicated, shared or deleted and a new one is started;
 it used to be two entries, Design a Garden and View Gardens, opening that
 same unfiltered list), **Plant Library** (`btnLibrary` — browse every
 species: list + seasonal images + facts + cultivars), and **Daily design
-challenge** (`btnDaily` — a date-seeded planting prompt, prompt-only and
-unscored, that drops you straight into a garden; `DAILY_CHALLENGES` /
-`todaysChallenge` / `openDaily`, shown via the `#dailyScreen` panel, carried
-in as `game.challenge` and toasted on entry, cleared whenever the main menu
-shows). Top right is a `.menu-corner` flex row of two labelled pills —
+challenge** (`btnDaily` — an unscored daily brief with three design goals,
+a small prepared site, saved progress and an optional finish/share image).
+`DAILY_THEMES` defines 18 themes with three distinct composition exercises each,
+forming a 54-day rotation. Each theme owns ten exact species/cultivar references,
+three self-review goals and an authored plant group. The user's
+local calendar date determines the prompt and the start screen freezes it
+across midnight. `openDaily` checks saved attempts before enabling Start,
+offers Continue for today's attempt and six recent designs. Every attempt
+stores a bounded version-2 `challenge` snapshot through `normalizeDailyChallenge`
+in the existing version-2 garden blob: ID/date, wording, goals/checks,
+site/season, exact palette, objective rules, optional `strict` setting, palette
+free choice and completion timestamp. Version-1 snapshots retain their original
+wording and broad match rules without acquiring new constraints. Resume matches
+the saved calendar date, so changed template IDs cannot duplicate an older
+attempt on that day. Older untagged
+gardens remain ordinary planners. Metadata survives imports, exports, menu
+navigation and reopen; only a new ordinary garden clears it. The daily
+exception to blank plots is editable path/bed terrain: pathside border and
+split beds (24 × 18 ft) or island (24 × 24 ft), with no plants or house.
+They open in the brief's suggested season with the normal paused planner.
+`#challengeScreen` reopens the brief from the plant catalog or garden menu,
+saves self-reviewed goal checks, and allows unscored completion after adding
+plants. Optional constraints require the tracked species range, repeated species
+(three separate placements, not inferred visual groups), selected plant-group
+minimum and exact curated palette. Counts read the active plant and bulb layers
+when reviewing/finishing; tombstones and off-plot records do not count. Cultivars
+and renderer shape aliases share their base botanical identity. No new scan runs
+in the frame loop. Constraint toggles save with the garden and can be turned off
+to finish freely. Start previews the palette under the retained zone and regional
+guidance, reports unavailable choices and infeasible rules, and offers an explicit
+study-palette action to remove the zone limit. It never silently weakens a rule;
+regional invasive filtering still applies. Exact cultivar membership is enforced
+through the shared catalog eligibility pipeline, including saved collections;
+palette edits/free choice are in both catalog and tray cache keys. Finish only
+reports saved completion after a successful save. Images
+use `renderGardenPortrait` synchronously offscreen, restoring the live view,
+then a 1080 × 1350 PNG card; ordinary autosaves never render an image. Download
+and caption copying work without a backend; native file sharing is offered
+only where supported. The gardener chooses whether and where to post. Top
+right is a `.menu-corner` flex row of two labelled pills —
 **Guide** (`btnGuide`, the tool guidebook, `js/guide.js`) and **Settings**
 (`btnSettings`) — collapsing to bare 44px icons on SHEET. They share a row
 rather than being positioned independently because the settings pill's width
@@ -6108,7 +6143,10 @@ depth, and the regional/ecotype metadata that Phase 0 still defers.
   Open Plant filters and nothing looks unusual; clear every filter and the
   plant is still gone; the app reads as broken. The catalog now renders a
   `.discovery-challenge` line under `.discovery-summary` naming the challenge,
-  with a **Design freely** action that nulls `game.challenge`. It is deliberately
+  with a **Brief & finish** button and a reversible **Design freely** action
+  that sets `challenge.paletteFree` while preserving the saved brief. The
+  catalog cache keys include the effective restriction and the tray key includes
+  the palette toggle. It is deliberately
   placed BEFORE the empty-state early return, so it is visible in exactly the
   state that used to be most confusing — no results and no explanation.
   Quitting to the menu was previously the only exit.

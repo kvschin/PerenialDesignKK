@@ -2918,9 +2918,9 @@ function gardenPortraitBounds(){
   }
   return {x0,y0,x1,y1};
 }
-function captureGardenPortrait(){
+function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT_HEIGHT){
   const cv=document.createElement('canvas');
-  cv.width=GARDEN_PORTRAIT_WIDTH; cv.height=GARDEN_PORTRAIT_HEIGHT;
+  cv.width=width; cv.height=height;
   const ctx=cv.getContext('2d'); if (!ctx) return null;
   const t0=dnow(), prior={x:cam.x,y:cam.y,rot:game.rot,preview:game.previewMode,
     vis:game.layerVis,north:game.siteNorthPreviewDeg,scene,elapsed:game.elapsedMs,suspended:game.clockSuspended};
@@ -2930,7 +2930,7 @@ function captureGardenPortrait(){
     game.rot=0; game.previewMode='established'; game.layerVis=defaultLayerVis(); game.siteNorthPreviewDeg=null;
     cam.x=0; cam.y=0;
     buildScene(0,0);
-    const b=gardenPortraitBounds(), pad=18;
+    const b=gardenPortraitBounds(), pad=Math.min(width,height)*18/GARDEN_PORTRAIT_HEIGHT;
     const scale=Math.min((cv.width-2*pad)/Math.max(1,b.x1-b.x0),(cv.height-2*pad)/Math.max(1,b.y1-b.y0));
     const W=cv.width/scale, H=cv.height/scale;
     cam.x=(b.x0+b.x1)/2; cam.y=(b.y0+b.y1)/2-H*0.26;
@@ -2947,7 +2947,7 @@ function captureGardenPortrait(){
     }
     for (const e of scene.ents) drawSceneEnt(e,W,H,season,0,false,ctx);
     applySeasonLighting(ctx,W,H,amb,season);
-    return {v:1,day:absDay(),image:cv.toDataURL('image/jpeg',0.86)};
+    return cv;
   } finally {
     cam.x=prior.x; cam.y=prior.y; game.rot=prior.rot; game.previewMode=prior.preview;
     game.layerVis=prior.vis; game.siteNorthPreviewDeg=prior.north; scene=prior.scene;
@@ -3018,6 +3018,10 @@ function beginGardenOpen(){
   document.body.classList.add('garden-opening-active');
   document.getElementById('gardenOpening').classList.remove('hidden');
   document.getElementById('hud').inert=true;
+}
+function captureGardenPortrait(){
+  const cv=renderGardenPortrait();
+  return cv?{v:1,day:absDay(),image:cv.toDataURL('image/jpeg',0.86)}:null;
 }
 function finishGardenOpen(){
   if (gardenOpening && gardenOpening.cv) gardenOpening.cv.width=gardenOpening.cv.height=0;

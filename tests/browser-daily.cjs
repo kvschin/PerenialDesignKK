@@ -1,0 +1,152 @@
+'use strict';
+/* Real storage, PNG output and keyboard/touch-layout checks. Uses installed
+   Playwright/Chromium with isolated profiles; never downloads dependencies. */
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..');
+const output=process.env.PP_BROWSER_RESULTS?path.resolve(process.env.PP_BROWSER_RESULTS):fs.mkdtempSync(path.join(os.tmpdir(),'pp-daily-results-'));
+fs.mkdirSync(output,{recursive:true});
+const precache=[...fs.readFileSync(path.join(root,'sw.js'),'utf8').match(/const PRECACHE = \[([\s\S]*?)\n\];/)[1].matchAll(/^\s*'\.\/([^']*)',?\s*$/gm)].map(m=>m[1]||'index.html');
+const files=new Map([...new Set(['index.html',...precache])].map(f=>[f,fs.readFileSync(path.join(root,f))]));
+const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.woff2':'font/woff2','.png':'image/png','.webmanifest':'application/manifest+json'};
+const server=http.createServer((req,res)=>{
+  const f=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
+  if(!files.has(f)){res.writeHead(404);res.end();return;}
+  res.writeHead(200,{'Content-Type':mime[path.extname(f)]||'application/octet-stream'});res.end(files.get(f));
+});
+function playwright(){
+  for(const candidate of [process.env.PLAYWRIGHT_MODULE_PATH,'playwright','playwright-core',path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright')].filter(Boolean)){
+    try{return require(candidate);}catch(e){if(e.code!=='MODULE_NOT_FOUND')throw e;}
+  }
+  throw new Error('Set PLAYWRIGHT_MODULE_PATH to an existing installation. Nothing was downloaded.');
+}
+async function check(browser,url,name,viewport,isMobile){
+  const context=await browser.newContext({viewport,isMobile,hasTouch:isMobile,serviceWorkers:'block',acceptDownloads:true,timezoneId:'America/Chicago'});
+  try{
+    await context.addInitScript(()=>localStorage.setItem('hortus:welcomed','1'));
+    await context.addInitScript(()=>{
+      Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});
+      Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{
+        window.__sharedFile={name:data.files[0].name,size:data.files[0].size};
+        throw new DOMException('User cancelled','AbortError');
+      }});
+    });
+    const page=await context.newPage(), errors=[]; page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url,{waitUntil:'load'}); await page.evaluate(()=>document.fonts.ready);
+    await page.evaluate(()=>{game.filters=normalizeFilters({zone:13,nativeRegion:'north-america'});});
+    await page.locator('#btnDaily').click();
+    await page.waitForFunction(()=>dailyReady);
+    assert(await page.locator('#btnDailyStart').isDisabled(),'empty climate palette explains why start is unavailable');
+    assert.match(await page.locator('#dailyAvailability').textContent(),/cannot meet/);
+    await page.locator('#btnDailyStudy').click();
+    await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
+    assert.equal(await page.locator('#dailyPlantList li').count(),10);
+    await page.locator('#dailyRulesOptions summary').click();await page.locator('#dailyStrict').check();
+    assert.equal(await page.locator('#dailyGoals li').count(),3);
+    const brief=await page.locator('#dailyTitle').textContent();
+    await page.screenshot({path:path.join(output,name+'-brief.png')});
+    // Crossing midnight after reading the prompt must not swap the brief.
+    await page.evaluate(()=>{window.__today=todaysChallenge;todaysChallenge=()=>dailyChallengeFor(new Date(Date.now()+864e5));});
+    await page.locator('#btnDailyStart').click();
+    await page.locator('#gardenOpening').waitFor({state:'hidden'});
+    await page.evaluate(()=>{todaysChallenge=window.__today;});
+    const initial=await page.evaluate(async()=>{
+      await pendingSaves();
+      return {id:game.worldId,challenge:game.challenge,terrain:Object.values(game.terrain).map(p=>p.k),plants:Object.keys(game.plants).length,houses:game.houses.length,gw:GW,gh:GH};
+    });
+    assert.equal(initial.challenge.title,brief); assert.equal(initial.plants,0); assert.equal(initial.houses,0);
+    assert(initial.challenge.strict&&initial.challenge.palette.length===10);
+    assert.equal(await page.evaluate(()=>discoveryRefsFor({source:'all'}).length),10,'only ten exact plant choices enter the catalog');
+    assert(initial.terrain.includes('bed')&&initial.terrain.includes('path')); assert(initial.gw<=16&&initial.gh<=16);
+    await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
+    await page.locator('#btnChallengeFinish').click();
+    assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
+    await page.locator('#challengeGoals input').first().check();
+    await page.keyboard.press('Escape');
+    assert(await page.locator('#challengeScreen').evaluate(el=>el.classList.contains('hidden')));
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'btnMenu');
+    // One species is insufficient when the gardener opts into constraints.
+    await page.evaluate(()=>{
+      const ref=game.challenge.palette[0];setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants','2,2',{...ref,d:0,t:Date.now()});
+    });
+    await page.locator('#btnMenu').click();await page.locator('#btnChallenge').click();
+    await page.locator('#btnChallengeFinish').click();
+    assert.match(await page.locator('#challengeStatus').textContent(),/constraints still need attention/);
+    assert.equal(await page.evaluate(()=>game.challenge.completedAt),null);
+    await page.locator('#btnChallengeReturn').click();
+    // A fixture built from eligible exact references must meet every rule.
+    await page.evaluate(()=>{
+      for(const layer of ['plants','bulbs'])for(const key of Object.keys(game[layer]))clearTile(layer,key);
+      const c=game.challenge, refs=dailyEligiblePalette(c,activeFilters()), group=c.rules.find(r=>r.kind==='group');
+      const count=c.rules.find(r=>r.kind==='species').min, chosen=new Map();
+      const add=ref=>{if(chosen.size<count)chosen.set(dailySpeciesId(ref),ref);};
+      refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);refs.forEach(add);
+      const beds=Object.keys(game.terrain).filter(k=>game.terrain[k].k==='bed');
+      let i=0;
+      for(const ref of chosen.values())for(let n=0;n<3;n++){
+        setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants',beds[i++],{...ref,d:0,t:Date.now()});
+      }
+    });
+    await page.screenshot({path:path.join(output,name+'-garden.png')});
+    await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
+    assert(await page.locator('#challengeGoals input').first().isChecked());
+    assert.equal(await page.locator('#challengeRules .daily-rule-met').count(),4,'live placement data meets every tracked rule');
+    await page.locator('#btnChallengeFinish').click();
+    await page.locator('#challengeShare').waitFor({state:'visible'});
+    assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/);
+    const geometry=await page.locator('#challengeScreen .panel').evaluate(el=>({scroll:el.scrollWidth,width:el.clientWidth,top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}));
+    assert(geometry.scroll<=geometry.width+1,'no horizontal overflow'); assert(geometry.top>=0&&geometry.bottom<=viewport.height,'dialog fits viewport');
+    await page.locator('#challengeImage').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(output,name+'-finish.png')});
+    const downloaded=page.waitForEvent('download'); await page.locator('#btnChallengeDownload').click();
+    const download=await downloaded, file=path.join(output,name+'-share.png'); await download.saveAs(file);
+    const png=fs.readFileSync(file); assert.equal(png.readUInt32BE(16),1080); assert.equal(png.readUInt32BE(20),1350);
+    await page.locator('#btnChallengeShare').click();
+    const shared=await page.evaluate(()=>window.__sharedFile); assert.equal(shared.name,download.suggestedFilename()); assert(shared.size>1000);
+    assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/,'cancelling the native share dialog is harmless');
+    await page.locator('#btnChallengeClose').click(); await page.locator('#btnMenu').click(); await page.locator('#btnQuit').click();
+    await page.locator('#btnDaily').click(); await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
+    assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
+    await page.locator('#btnDailyStart').click(); await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id); await page.locator('#gardenOpening').waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>game.worldId),initial.id);
+    const saved=await page.evaluate(async()=>{await pendingSaves();return sGet('hortus:world:'+game.worldId);});
+    assert.equal(saved.challenge.title,brief); assert(saved.challenge.completedAt); assert.deepEqual(saved.challenge.checked,[0]);
+    assert(saved.challenge.strict&&saved.challenge.v===2);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
+    assert(Object.keys(saved.plants).length>0);
+    // A full reload exercises the actual IndexedDB resume path.
+    await page.reload({waitUntil:'load'}); await page.locator('#btnDaily').click();
+    await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
+    assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
+    await page.locator('#btnDailyStart').click(); await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id); await page.locator('#gardenOpening').waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>game.worldId),initial.id);
+    assert.equal(await page.evaluate(async()=>{const rows=await migrateLegacyWorld();return rows.filter(r=>r.id===game.worldId).length;}),1,'continue does not duplicate the garden');
+    const cache=await page.evaluate(()=>verifyTrayCache()); assert.equal(cache.misses.length,0);
+    // A snapshot from the first release keeps its original ID/brief on this
+    // same date, rather than becoming a second attempt after a template update.
+    await page.evaluate(()=>{
+      game.challenge=normalizeDailyChallenge({...game.challenge,v:1,id:'old-template',title:'Original saved brief'});
+      markModelChanged();
+    });
+    await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
+    await page.locator('#btnDaily').click();await page.waitForFunction(()=>dailyReady);
+    assert.equal(await page.locator('#dailyTitle').textContent(),'Original saved brief');
+    assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
+    assert(await page.locator('#dailyRulesOptions').evaluate(el=>el.classList.contains('hidden')));
+    await page.locator('#btnDailyStart').click();await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id);
+    assert.equal(await page.evaluate(()=>game.challenge.v),1);
+    assert.deepEqual(errors,[]); console.log(name+' curated palette, climate fallback, strict progress, finish, PNG and reload PASS');
+  }finally{await context.close();}
+}
+(async()=>{
+  let browser;
+  try{
+    const executablePath=process.env.PP_BROWSER_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/usr/bin/chromium','/usr/bin/google-chrome','/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find(p=>fs.existsSync(p));
+    assert(executablePath,'An installed Chromium browser is required');
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    browser=await playwright().chromium.launch({executablePath,headless:true});
+    const url='http://127.0.0.1:'+server.address().port;
+    await check(browser,url,'desktop',{width:1440,height:900},false);
+    await check(browser,url,'phone',{width:390,height:844},true);
+    await check(browser,url,'small-phone',{width:320,height:640},true);
+    console.log('Artifacts: '+output);
+  }finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -938,6 +938,7 @@ function plantStyleRecommended(k,type=activeDesignType(),criteria=null){
    Repetition, Cottage Abundance leave the palette open). */
 function matchAllows(m,k){
   if (!m) return true;
+  if (m.palette) return m.palette.some(ref=>ref.s===k);
   if (m.keys && m.keys.includes(k)) return true;
   const P=PLANTS[k];
   if (m.types && !m.types.includes(P.type)) return false;
@@ -945,11 +946,23 @@ function matchAllows(m,k){
   if (m.roles){ const rs=plantRoles(k); if (!m.roles.some(r=>rs.includes(r))) return false; }
   return true;
 }
-function challengeAllows(k){ return matchAllows(game.challenge && game.challenge.match, k); }
+function activeChallengeMatch(){
+  const c=game.inGarden&&game.challenge;
+  return c&&!c.paletteFree ? (c.palette?{palette:c.palette}:c.match) : null;
+}
+function challengeAllows(k,v){
+  const m=activeChallengeMatch();
+  if(m&&m.palette&&arguments.length>1){
+    const ref=canonicalPlantRef(k,v||null);
+    return m.palette.some(p=>p.s===ref.s&&(p.v||null)===(ref.v||null));
+  }
+  return matchAllows(m,k);
+}
 // Total selectable species, and how many a given challenge admits (ignoring
 // zone — that's a separate axis). 0 of total is the "full palette" case.
 function speciesCount(){ return PLANT_KEYS.filter(k=>!PLANTS[k].hidden).length; }
 function challengePaletteSize(c){
+  if (c && c.palette) return c.palette.length;
   if (!c || !c.match) return speciesCount();
   return PLANT_KEYS.filter(k=>!PLANTS[k].hidden && matchAllows(c.match,k)).length;
 }
@@ -1083,7 +1096,7 @@ function bloomRangeText(P){
   const first=months[(gapAt+1)%months.length], last=months[gapAt];
   return first===last ? labels[first-1] : `${labels[first-1]}\u2013${labels[last-1]}`;
 }
-function plantRefFitsCriteria(ref,criteria){
+function plantRefFitsCriteria(ref,criteria,ignoreChallenge=false){
   const P=refDef(ref), f=normalizeFilters(criteria); if (!P) return false;
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return false;
   if (!passesNativeFilter(P,f)) return false;
@@ -1093,7 +1106,7 @@ function plantRefFitsCriteria(ref,criteria){
      style palettes for free -- which is the defect this began as: all six
      styles offered all eleven flagged plants to a North American garden. */
   if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return false;
-  if (!challengeAllows(ref.s)) return false;
+  if (!ignoreChallenge && !challengeAllows(ref.s,ref.v||null)) return false;
   const roles=plantRoles(ref.s);
   if (!isTreeDef(P)){
     if (f.deer && !roles.includes('deerOk')) return false;
@@ -1152,7 +1165,7 @@ function discoverySearchEntry(ref){
 let discoveryEligibility=null, discoveryCandidatesCache=null;
 function ensureDiscoveryEligibility(){
   const index=ensureDiscoverySearchIndex(), filters=activeFilters();
-  const key=JSON.stringify([filters,game.challenge&&game.challenge.match||null]);
+  const key=JSON.stringify([filters,activeChallengeMatch()||null]);
   if (!discoveryEligibility || discoveryEligibility.index!==index || discoveryEligibility.key!==key)
     discoveryEligibility={index,key,fits:new Map()};
   return discoveryEligibility;
@@ -1729,7 +1742,7 @@ function updateHUD(){
 const $=id=>document.getElementById(id);
 function show(id){ ['menuScreen','plotScreen','worldsScreen','designScreen','libraryScreen','guideScreen','dailyScreen'].forEach(s=>
   $(s).classList.toggle('hidden',s!==id));
-  if (id==='menuScreen'){ game.challenge=null; advanceMenuSeason(); refreshMenuCards(); }
+  if (id==='menuScreen'){ advanceMenuSeason(); refreshMenuCards(); }
 }
 function overlayController(id){ return document.querySelector(`[aria-controls="${id}"]`); }
 function overlayFocusables(el){

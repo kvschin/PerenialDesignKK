@@ -2186,13 +2186,15 @@ function renderDiscoveryTrayInner(tray){
      previously the only exit. */
   if (game.challenge){
     const ch=document.createElement('div'); ch.className='discovery-challenge';
-    const txt=document.createElement('span');
-    txt.textContent=`Challenge palette · ${game.challenge.title||"today's prompt"}`;
+    const txt=document.createElement('button'); txt.type='button'; txt.className='discovery-challenge-clear';
+    txt.textContent=`Brief & finish · ${game.challenge.title||"today's prompt"}`;
+    txt.onclick=openChallengeBrief;
     const free=document.createElement('button'); free.type='button'; free.className='discovery-challenge-clear';
-    free.textContent='Design freely';
-    free.title='Stop limiting the catalog to the challenge palette';
-    free.onclick=()=>{ game.challenge=null; buildToolTray(); updateFilterBtn&&updateFilterBtn();
-      toast('Challenge palette cleared — the whole catalog is back.'); };
+    free.textContent=game.challenge.paletteFree?'Use challenge palette':'Design freely';
+    free.title='Toggle the challenge palette while keeping your brief and progress';
+    free.onclick=()=>{ game.challenge.paletteFree=!game.challenge.paletteFree; markModelChanged(); buildToolTray(); updateFilterBtn&&updateFilterBtn();
+      toast(game.challenge.paletteFree?'Challenge palette cleared — your brief is still saved.':'Challenge palette restored.'); };
+    free.classList.toggle('hidden',!game.challenge.match&&!game.challenge.palette);
     ch.append(txt,free); tray.appendChild(ch);
   }
   if (!refs.length){
@@ -2340,7 +2342,7 @@ function savedRefLabel(ref){
 function savedRefAvailabilityReason(ref){
   const P=refDef(ref), f=activeFilters();
   if (!P) return 'Retired plant';
-  if (!challengeAllows(ref.s)) return 'Unavailable in this challenge';
+  if (!challengeAllows(ref.s,ref.v||null)) return 'Unavailable in this challenge';
   if (f.zone && (P.zones[0]>f.zone || P.zones[1]<f.zone)) return `Outside Zone ${f.zone}`;
   if (!passesNativeFilter(P,f)) return `Excluded by ${f.nativeMode==='straight'?'straight-species':'regional-native'} criteria`;
   if (f.invasive==='hide' && invasiveFilterHides(ref,f.nativeRegion)) return `Invasive caution for ${nativeRegionLabel(f.nativeRegion,true)}`;
@@ -2605,7 +2607,7 @@ function trayStateSig(ignoreDiscoverySearch=false){
        before it -- which is why its absence never showed; an in-garden style
        picker would have opened on a stale catalog. */
     activeDesignType()||'-',
-    g.challenge?(g.challenge.id||g.challenge.title||'1'):'-',
+    g.challenge?j([g.challenge.id,g.challenge.title,g.challenge.match,g.challenge.palette,g.challenge.paletteFree]):'-',
     // every draft the tray paints a chip from
     j([g.fenceDraft,g.lightDraft,g.firepitDraft,g.waterFeatureDraft,g.supportDraft,g.boulderDraft,g.petDraft,g.potDraft,
        g.seatDraft,g.edgingDraft,g.wallDraft,g.buildingStyleDraft,g.buildingDraft,

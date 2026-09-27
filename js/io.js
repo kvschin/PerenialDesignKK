@@ -327,6 +327,58 @@ function rememberGardenPortrait(p){
   const value=normalizeGardenPortrait(p);
   gardenPortrait=value?{key:gardenPortraitKey(),value}:null;
 }
+/* A bounded, self-contained brief. Never reconstruct an old challenge from
+   today's catalog: wording, goals and restrictions belong to that attempt. */
+function normalizeDailyChallenge(c){
+  if(!c || typeof c!=='object' || Array.isArray(c) || ![1,2].includes(c.v))return null;
+  const txt=(s,n)=>typeof s==='string' && s.trim().length>0 && s.length<=n;
+  if(!txt(c.id,60)||!/^[a-z0-9-]+$/.test(c.id)||!txt(c.date,10)||!/^\d{4}-\d{2}-\d{2}$/.test(c.date))return null;
+  const date=new Date(c.date+'T12:00:00Z');
+  if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==c.date)return null;
+  if(!txt(c.title,100)||!txt(c.brief,600)||!txt(c.plants,600)||!['border','split','island'].includes(c.site)||!SEASONS.includes(c.season))return null;
+  if(!Array.isArray(c.goals)||c.goals.length<1||c.goals.length>6||!c.goals.every(s=>txt(s,240)))return null;
+  let match;
+  if(c.match!=null){
+    if(typeof c.match!=='object'||Array.isArray(c.match))return null;
+    match={};
+    for(const k of Object.keys(c.match)){
+      if(!['keys','types','moist','roles'].includes(k)||!Array.isArray(c.match[k])||!c.match[k].length||c.match[k].length>100||!c.match[k].every(s=>txt(s,80)))return null;
+      match[k]=c.match[k].slice();
+    }
+  }
+  let extra={};
+  if(c.v===2){
+    const refs=c.palette;
+    if(!Array.isArray(refs)||refs.length<1||refs.length>12)return null;
+    const palette=[];
+    for(const p of refs){
+      if(!p||!txt(p.s,80)||(p.v!=null&&!txt(p.v,80)))return null;
+      const ref=canonicalPlantRef(p.s,p.v||null);
+      if(!Object.prototype.hasOwnProperty.call(PLANTS,ref.s)||
+          (ref.v&&!Object.prototype.hasOwnProperty.call(PLANTS[ref.s].cv||{},ref.v)))return null;
+      if(palette.some(q=>q.s===ref.s&&(q.v||null)===(ref.v||null)))return null;
+      palette.push({s:ref.s,v:ref.v||null});
+    }
+    if(!Array.isArray(c.rules)||!c.rules.length||c.rules.length>5)return null;
+    const rules=[], count=n=>Number.isInteger(n)&&n>=1&&n<=12;
+    for(const r of c.rules){
+      if(!r||!txt(r.label,160))return null;
+      if(r.kind==='species'&&count(r.min)&&count(r.max)&&r.max>=r.min)rules.push({kind:r.kind,label:r.label,min:r.min,max:r.max});
+      else if(r.kind==='repeat'&&count(r.min)&&count(r.count))rules.push({kind:r.kind,label:r.label,min:r.min,count:r.count});
+      else if(r.kind==='group'&&count(r.min)&&Array.isArray(r.keys)&&r.keys.length>0&&r.keys.length<=12&&
+          r.keys.every(k=>txt(k,80)&&palette.some(p=>p.s===k)))rules.push({kind:r.kind,label:r.label,min:r.min,keys:[...new Set(r.keys)]});
+      else if(r.kind==='palette')rules.push({kind:r.kind,label:r.label});
+      else return null;
+    }
+    // One of each rule keeps feasibility exact and imported contracts legible.
+    if(new Set(rules.map(r=>r.kind)).size!==rules.length||!rules.some(r=>r.kind==='palette'))return null;
+    extra={palette,rules,strict:c.strict===true};
+  }
+  return {v:c.v,id:c.id,date:c.date,title:c.title,brief:c.brief,plants:c.plants,site:c.site,season:c.season,
+    goals:c.goals.slice(),checked:[...new Set((Array.isArray(c.checked)?c.checked:[]).filter(n=>Number.isInteger(n)&&n>=0&&n<c.goals.length))],
+    ...(match?{match}:{}),...extra,paletteFree:c.paletteFree===true,
+    completedAt:Number.isSafeInteger(c.completedAt)&&c.completedAt>0?c.completedAt:null};
+}
 function buildSaveBlob(){
   const t0=dnow();   // 'blob' in the debug HUD measures snapshot construction
   /* `v` is the schema number, `app` the build that wrote it. Migrations used to
@@ -347,6 +399,7 @@ function buildSaveBlob(){
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
+  const challenge=normalizeDailyChallenge(game.challenge); if(challenge)blob.challenge=challenge;
   const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
   // Changed gardens/day/scheme use the current map until the next exit makes
   // a fresh portrait. Ordinary autosaves never render or encode an image.
@@ -605,6 +658,7 @@ function gardenFileProblem(env){
     if (!ids.has(sc.active)) return 'This garden is missing its active planting scheme.';
   }
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
+  if (w.challenge!=null && !normalizeDailyChallenge(w.challenge)) return 'This garden contains an invalid daily design brief.';
   for (const k of ['design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
@@ -622,6 +676,7 @@ async function loadSolo(id){
   // `mode` is vestigial: story gardens were retired with the avatar, so an old
   // story save simply opens in the planner (its house and plants come along).
   game.design = typeof normalizeDesign==='function' ? normalizeDesign(s.design) : (s.design||null);
+  game.challenge=normalizeDailyChallenge(s.challenge);
   // Old saves predate discovery lenses.  Garden criteria is still the source
   // of truth; the global filters value only supplies compatibility/defaults.
   if (game.design && typeof normalizeFilters==='function') game.filters=normalizeFilters(game.design);

@@ -1169,6 +1169,35 @@ canvas.layer-eye{display:block}
 .discovery-summary{font-size:11px;color:var(--text-muted);margin:0 0 8px;padding:0 2px}
 /* Says the catalog is deliberately narrowed, and offers the way out. Bronze
    because it is a live constraint on what you can plant, not a status line. */
+.daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left}
+.daily-intro{font-size:12px;line-height:1.5;color:var(--text-muted);margin:12px 0 18px}
+.daily-label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;margin:20px 0 10px;color:var(--text-primary)}
+.daily-goals{padding-left:22px;margin:10px 0 18px;font-size:14px;line-height:1.55}
+.daily-goals li+li{margin-top:9px}
+.daily-checklist{padding:0;list-style:none}
+.daily-checklist label{display:flex;gap:12px;align-items:flex-start;min-height:44px;cursor:pointer;padding:8px 0}
+.daily-checklist input{flex:0 0 auto;width:20px;height:20px;margin-top:1px;accent-color:var(--bronze)}
+.daily-status{margin-top:14px;line-height:1.5}
+.daily-actions{flex-wrap:wrap;gap:8px;margin:16px 0}
+.daily-actions .btn{min-height:44px}
+.daily-history{display:grid;gap:8px}
+.daily-details{border-top:1px solid var(--border-subtle);margin-top:12px;padding:8px 0}
+.daily-details summary{font-size:13px;line-height:1.5;cursor:pointer;padding:8px 0;min-height:44px;box-sizing:border-box}
+.daily-plant-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;font-size:13px;line-height:1.4}
+.daily-plant-list li{padding:8px;border:1px solid var(--border-subtle);border-radius:8px;overflow-wrap:anywhere}
+.daily-plant-list small,.daily-rules small{display:block;color:var(--text-muted);font-size:11px;line-height:1.5;margin-top:4px}
+.daily-plant-unavailable{border-style:dashed!important}
+.daily-strict{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px;line-height:1.5;cursor:pointer}
+.daily-strict input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--bronze)}
+.daily-rules{padding-left:20px;margin:8px 0;font-size:13px;line-height:1.5}
+.daily-rules li{margin-bottom:12px}
+.daily-rule-met>span{font-weight:600}
+.daily-availability:not(:empty){padding:10px;border-left:3px solid var(--bronze);margin:10px 0}
+.daily-history-item{background:var(--surface-control);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;line-height:1.5;cursor:pointer;min-height:44px}
+.daily-history-item:hover{background:var(--surface-control-hover)}
+.daily-share-image{display:block;width:100%;max-width:320px;height:auto;border-radius:12px;margin:12px auto}
+.daily-caption{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:90px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface-control);color:var(--text-primary);font:inherit;font-size:14px;line-height:1.5;margin-bottom:10px}
+@media(max-width:480px){.daily-actions>.btn{flex-basis:100%}}
 .discovery-challenge{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
   margin:0 0 9px;padding:7px 9px;border:1px solid var(--border-active);border-radius:var(--radius-control);
   background:var(--surface-active);font-size:11px;color:var(--text-primary);line-height:1.3}

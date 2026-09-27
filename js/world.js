@@ -225,6 +225,7 @@ const game = {
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   worldId:null, worldName:'My garden',               // current solo save slot
   design:null,                                       // answers {zone,type,nativeRegion,nativeMode,deer,rabbit,squirrel}
+  challenge:null,                                    // optional saved daily brief, self-review and completion
   drift:false,                                       // plant in clusters, Oudolf style
   matrix:false,                                      // scatter at real spacing across a painted region (flows around what's there)
   woodyAge:'new',                                    // age trees/shrubs plant at: new | young | mature (design defaults mature)

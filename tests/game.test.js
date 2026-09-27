@@ -6684,43 +6684,186 @@ test('late-season role comes from a fall bloom', () => {
   assert(!plantRoles('crocus').includes('late'), 'a spring bulb is not late-season');
 });
 
-test('daily challenge match limits the palette', () => {
-  setup();
-  const find = t => DAILY_CHALLENGES.find(c => c.title === t);
-  game.challenge = find('Grasses Only');
-  assert(challengeAllows('bluestem'), 'a grass passes Grasses Only');
-  assert(challengeAllows('sedge'), 'a sedge passes Grasses Only');
-  assert(!challengeAllows('echinacea'), 'a forb is excluded from Grasses Only');
-  game.challenge = find('Deer-Resistant Border');
-  assert(challengeAllows('monarda'), 'an aromatic forb passes the deer border');
-  assert(!challengeAllows('hosta'), 'hosta is excluded from the deer border');
-  // moist range keeps adaptable medium-moisture plants the prompt names
-  game.challenge = find('Dry Prairie Matrix');
-  assert(challengeAllows('dropseed'), 'medium-moisture prairie dropseed fits the dry matrix');
-  assert(!challengeAllows('swampmilkweed'), 'a true moisture-lover is excluded from the dry matrix');
-  // keys whitelist a named species the role/moist filter would otherwise miss
-  game.challenge = find('Slow-Draining Low');
-  assert(challengeAllows('switchgrass'), 'switchgrass is whitelisted into the wet bed');
-  assert(!challengeAllows('bluestem'), 'a dry grass stays out of the wet bed');
-  game.challenge = find('Monochrome Study');           // technique-only — carries no match
-  assert(challengeAllows('echinacea') && challengeAllows('hosta'), 'an unrestricted prompt allows anything');
-  game.challenge = null;
-  assert(challengeAllows('hosta'), 'no challenge → everything allowed');
+test('daily briefs follow the local calendar and have independent saved snapshots',()=>{
+  const ids=new Set();
+  for(let day=1;day<=18;day++){
+    const c=dailyChallengeFor(new Date(2026,8,day,0,1));
+    assert(c&&c.goals.length===3&&DAILY_SITES[c.site],'complete brief for each day'); ids.add(c.id);
+    assertEqual(c.id,dailyChallengeFor(new Date(2026,8,day,23,59)).id,'same local day');
+    assertEqual(c.date,`2026-09-${String(day).padStart(2,'0')}`);
+  }
+  assertEqual(ids.size,18);
+  assertEqual(dailyChallengeFor(new Date(2026,2,8,0,1)).id,dailyChallengeFor(new Date(2026,2,8,23,59)).id,'DST day uses the calendar');
+  const c=dailyChallengeFor(new Date(2026,8,26)), copy=normalizeDailyChallenge(c);
+  copy.goals[0]='Changed'; copy.checked.push(0);
+  assert(c.goals[0]!=='Changed'&&!c.checked.length,'saved data never aliases authored goals');
+  for(const bad of [{...c,v:3},{...c,date:'2026-02-30'},{...c,goals:['x'.repeat(241)]},
+    {...c,match:{roles:'matrix'}},{...c,match:{constructor:['bad']}},{...c,site:'unknown'}])
+    assertEqual(normalizeDailyChallenge(bad),null,'invalid snapshots are rejected');
 });
 
-test('every daily challenge has a stocked, non-empty opening tab', () => {
-  setup();
-  game.filters = normalizeFilters({});                           // widest palette
-  for (const c of DAILY_CHALLENGES){
-    game.challenge = c;
-    const keys = trayKeys();
-    assert(keys.length > 0, `${c.title} produced an empty palette`);
-    const cat = firstStockedTrayCat();
-    const def = TRAY_CATS.find(x => x.id === cat);
-    const n = keys.filter(k => def.types.includes(PLANTS[k].type) && (!def.sunFilter || PLANTS[k].sun === def.sunFilter)).length;
-    assert(n > 0, `${c.title} opens on an empty "${cat}" tab`);
+test('54 distinct daily exercises each offer ten exact choices and feasible study constraints',()=>{
+  setup(); const ids=new Set(), briefs=new Set();
+  for(let day=0;day<54;day++){
+    const c=dailyChallengeFor(new Date(2026,8,1+day));
+    assert(c&&c.v===2); ids.add(c.id); briefs.add(c.brief);
+    assertEqual(c.palette.length,10); assertEqual(new Set(c.palette.map(plantRefId)).size,10);
+    assertEqual(new Set(c.palette.map(dailySpeciesId)).size,10,'choices represent ten species: '+c.id);
+    assert(c.palette.every(ref=>refDef(ref)&&!PLANTS[ref.s].hidden),'only valid selectable choices');
+    assert(c.rules.length===4&&!c.strict,'constraints are available but optional');
+    for(const nativeRegion of ['north-america','europe','asia','africa','south-america','australasia']){
+      const refs=dailyEligiblePalette(c,{zone:null,nativeRegion});
+      assert(dailyFeasibility(c,refs).possible,'study is feasible with regional guidance: '+c.id+' '+nativeRegion);
+    }
+    assertEqual(c.id,dailyChallengeFor(new Date(2026,8,55+day)).id,'rotation repeats only after 54 days');
   }
-  game.challenge = null;
+  assertEqual(ids.size,54);assertEqual(briefs.size,54);
+});
+
+test('every feasible filtered brief has a planting that meets its complete rule set',()=>{
+  for(let day=0;day<54;day++)for(const zone of [2,3,6,9,11]){
+    setup();const c=dailyChallengeFor(new Date(2026,8,1+day));game.challenge=c;
+    const refs=dailyEligiblePalette(c,{zone,nativeRegion:'north-america'}), possible=dailyFeasibility(c,refs).possible;
+    if(!possible)continue;
+    const count=c.rules.find(r=>r.kind==='species').min, group=c.rules.find(r=>r.kind==='group');
+    const bySpecies=new Map();
+    const add=ref=>{if(bySpecies.size<count)bySpecies.set(dailySpeciesId(ref),ref);};
+    refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);
+    refs.forEach(add);
+    let i=0;
+    for(const ref of bySpecies.values())for(let n=0;n<3;n++){
+      const key=(i%15+1)+','+(Math.floor(i/15)+1);i++;
+      setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants',key,{...ref,d:0,t:1});
+    }
+    const progress=dailyDesignProgress(c);
+    assert(progress.met,c.id+' zone '+zone+': '+JSON.stringify(progress.rules.filter(r=>!r.met)));
+  }
+});
+
+test('curated choices stay exact through catalog filters and cache changes',()=>{
+  setup();const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.id==='monochrome-1');
+  game.challenge=c;
+  assert(!challengeAllows('echinacea',null),'pink parent excluded');
+  assert(challengeAllows('echinacea','whiteswan'),'white cultivar admitted');
+  const refs=discoveryRefsFor({source:'all'});
+  assert(refs.length<=10&&refs.every(r=>c.palette.some(p=>plantRefId(r)===plantRefId(p))),'no extra cultivars leak');
+  const before=trayStateSig(); c.palette=c.palette.filter(p=>p.s!=='echinacea');
+  assert(trayStateSig()!==before,'same challenge ID with changed choices invalidates tray');
+  assert(!discoveryRefsFor({source:'all'}).some(p=>p.s==='echinacea'),'eligibility cache sees exact palette changes');
+  c.paletteFree=true; assert(challengeAllows('echinacea',null),'free exploration restores the wider catalog');
+});
+
+test('tracked rules ignore removals, off-plot plants and cultivar duplicates; bulbs count',()=>{
+  setup(); const c=dailyChallengeFor(new Date(2026,8,26));game.challenge=c;
+  c.rules=[{kind:'species',min:2,max:2,label:'Two species'},{kind:'repeat',min:1,count:3,label:'Repeat one'},
+    {kind:'palette',label:'Use the palette'}];
+  c.palette=[{s:'echinacea',v:null},{s:'echinacea',v:'whiteswan'},{s:'allium',v:null}];
+  setTile('plants','1,1',{s:'echinacea',d:0,t:1});
+  setTile('plants','2,1',{s:'echinacea',v:'whiteswan',d:0,t:1});
+  setTile('plants','3,1',{s:'echinacea',d:0,t:1});
+  setTile('bulbs','1,1',{s:'allium',d:0,t:1});
+  setTile('plants','-1,-1',{s:'bluestem',d:0,t:1});
+  setTile('plants','4,1',{s:'bluestem',d:0,t:1});clearTile('plants','4,1');
+  let p=dailyDesignProgress(c);assert(p.met);assertEqual(p.plants,4);assertEqual(p.rules[0].value,2);
+  clearTile('plants','3,1');p=dailyDesignProgress(c);assert(!p.rules[1].met,'removal updates repeat count');
+  assertEqual(dailySpeciesId({s:'boxwoodlow'}),dailySpeciesId({s:'boxwoodcone'}),'shape aliases share species identity');
+});
+
+test('v1 briefs retain their original wording and broad rules; v2 snapshots validate nested contracts',()=>{
+  const c=dailyChallengeFor(new Date(2026,8,26));
+  const old={...c,v:1,title:'Old cottage',match:{types:['forb']}};
+  delete old.palette;delete old.rules;
+  const loaded=normalizeDailyChallenge(old);
+  assertEqual(loaded.v,1);assertEqual(loaded.title,'Old cottage');assert(!loaded.palette&&!loaded.rules&&!loaded.strict);
+  for(const bad of [
+    {...c,palette:[...c.palette,c.palette[0]]}, {...c,palette:[{s:'unknown'}]},
+    {...c,palette:[{s:'echinacea',v:'unknown'}]}, {...c,rules:[{kind:'mystery',label:'Bad'}]},
+    {...c,rules:[{kind:'species',min:6,max:2,label:'Impossible'}]},
+    {...c,rules:[{kind:'palette',label:'A'},{kind:'palette',label:'B'}]},
+    {...c,rules:[{kind:'group',label:'Unknown group',min:1,keys:['unknown']},{kind:'palette',label:'Palette'}]},
+  ])assertEqual(normalizeDailyChallenge(bad),null,'malformed nested contract is rejected');
+  const copy=normalizeDailyChallenge(c);copy.palette[0].s='changed';copy.rules[2].keys[0]='changed';
+  assert(c.palette[0].s!=='changed'&&c.rules[2].keys[0]!=='changed','snapshots own their nested arrays');
+});
+
+test('strict completion blocks unmet rules and switching it off preserves free completion',async()=>{
+  setup();game.challenge=dailyChallengeFor(new Date(2026,8,26));game.challenge.strict=true;
+  setTile('plants','1,1',{s:game.challenge.palette[0].s,d:0,t:1});
+  const save=saveSolo,share=prepareDailyShare,portrait=captureGardenPortrait;let saves=0;
+  try{
+    saveSolo=async()=>{saves++;return true;};prepareDailyShare=async()=>{};captureGardenPortrait=()=>null;
+    await finishDailyDesign();assertEqual(saves,0);assert(!game.challenge.completedAt);
+    game.challenge.strict=false;await finishDailyDesign();assertEqual(saves,1);assert(game.challenge.completedAt);
+  }finally{saveSolo=save;prepareDailyShare=share;captureGardenPortrait=portrait;}
+});
+
+test('daily prepared sites are repeatable, editable terrain with no inherited planting',()=>{
+  for(const kind of Object.keys(DAILY_SITES)){
+    const site=DAILY_SITES[kind]; setup(ftToTiles(site.widthFt),ftToTiles(site.lengthFt));
+    game.challenge=dailyChallengeFor();
+    setTile('plants','2,2',{s:'bluestem',d:0,t:1}); resetNewGardenState();
+    assertEqual(game.challenge,null,'new ordinary gardens clear the prior brief');
+    prepareDailySite(kind);
+    assert(!live(game.plants).length&&!game.houses.length&&!game.buildings.length);
+    const layout=()=>Object.entries(game.terrain).map(([key,p])=>[key,p.k,p.c]);
+    const first=JSON.stringify(layout());
+    assert(layout().some(p=>p[1]==='path')&&layout().some(p=>p[1]==='bed'));
+    assert(layout().every(p=>{const [x,y]=p[0].split(',').map(Number);return onPlot(x,y);}));
+    resetNewGardenState(); prepareDailySite(kind); assertEqual(JSON.stringify(layout()),first);
+    const key=live(game.terrain)[0]; clearTile('terrain',key); assert(game.terrain[key].removed,'ordinary tools can remove prepared terrain');
+  }
+});
+
+test('daily progress survives save, menu, reload and garden-file export; ordinary saves clear it',async()=>{
+  setup(); game.worldId='daily-progress-test'; game.pausedAt=Date.now();
+  game.challenge=dailyChallengeFor(new Date(2026,8,26)); game.challenge.checked=[0,2]; game.challenge.completedAt=Date.now();
+  const expected=JSON.stringify(game.challenge);
+  assert(await saveSolo(true)); show('menuScreen'); await pendingSaves();
+  game.challenge=null; assert(await loadSolo('daily-progress-test'));
+  assertEqual(JSON.stringify(game.challenge),expected);
+  const env={pocketPrairie:1,v:1,world:buildSaveBlob()}; assertEqual(gardenFileProblem(env),null);
+  env.world.challenge.date='bad'; assert(gardenFileProblem(env),'invalid challenge rejected on import');
+  game.worldId='ordinary-after-daily'; game.challenge=null; await saveSolo(true);
+  game.challenge=dailyChallengeFor(); await loadSolo('ordinary-after-daily'); assertEqual(game.challenge,null);
+});
+
+test('free palette retains the brief and invalidates both catalog and tray caches',()=>{
+  setup(); const c=dailyChallengeFor(new Date(2026,8,30)); // no dependence on this day's match
+  c.palette=[{s:'bluestem',v:null},{s:'dropseed',v:null}]; game.challenge=c;
+  game.discovery={...defaultDiscovery(),source:'all'};
+  const before=trayStateSig(), restricted=discoveryRefsFor({source:'all'}).map(plantRefId);
+  assert(!challengeAllows('echinacea')); game.challenge.paletteFree=true;
+  assert(challengeAllows('echinacea')); assert(trayStateSig()!==before);
+  const free=discoveryRefsFor({source:'all'}).map(plantRefId);
+  assert(free.length>restricted.length,'catalog ref cache sees the toggle');
+  assertEqual(game.challenge.title,c.title); assertEqual(game.challenge.goals.length,3);
+  game.challenge.paletteFree=false;
+  assertEqual(discoveryRefsFor({source:'all'}).map(plantRefId).join(','),restricted.join(','));
+  game.inGarden=false;
+  assert(challengeAllows('echinacea'),'saved restrictions cannot leak into the next garden setup or the library');
+  assertEqual(game.challenge.title,c.title,'leaving the garden retains metadata for pending saves');
+});
+
+test('a failed finish never claims saved completion and an empty site cannot finish',async()=>{
+  setup(); game.worldId='daily-finish-test'; game.challenge=dailyChallengeFor();
+  await finishDailyDesign(); assertEqual(game.challenge.completedAt,null);
+  setTile('plants','3,3',{s:'echinacea',d:0,t:1});
+  const oldSave=saveSolo, oldPortrait=captureGardenPortrait, oldShare=prepareDailyShare;
+  let shared=0;
+  try{
+    saveSolo=async()=>false; captureGardenPortrait=()=>null; prepareDailyShare=async()=>{shared++;};
+    await finishDailyDesign(); assertEqual(game.challenge.completedAt,null); assertEqual(shared,1,'download remains available after save failure');
+    saveSolo=async()=>true;
+    await finishDailyDesign(); assert(game.challenge.completedAt>0); assert(!dailyFinishing,'finish button unlocks');
+  }finally{saveSolo=oldSave;captureGardenPortrait=oldPortrait;prepareDailyShare=oldShare;}
+});
+
+test('legacy daily match limits still work without a curated palette',()=>{
+  setup(); game.challenge={v:1,match:{types:['grass','sedge']}};
+  assert(challengeAllows('bluestem')&&challengeAllows('sedge'));
+  assert(!challengeAllows('echinacea'));
+  game.challenge={v:1,match:{roles:['wet','water'],keys:['switchgrass']}};
+  assert(challengeAllows('switchgrass')); assert(!challengeAllows('bluestem'));
 });
 
 test('zone 6 grass palette includes Mexican feather grass', () => {
@@ -6735,13 +6878,9 @@ test('zone 6 grass palette includes Mexican feather grass', () => {
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
 });
 
-test('challenge palette size reports the limit for the entry badge', () => {
-  const find = t => DAILY_CHALLENGES.find(c => c.title === t);
-  const total = speciesCount();
-  const grassSedge = PLANT_KEYS.filter(k => !PLANTS[k].hidden && ['grass', 'sedge'].includes(PLANTS[k].type)).length;
-  assertEqual(challengePaletteSize(find('Grasses Only')), grassSedge, 'Grasses Only admits every grass + sedge');
-  assertEqual(challengePaletteSize(find('Cottage Abundance')), total, 'an unrestricted prompt is the full palette');
-  assert(challengePaletteSize(find('Sensory Garden')) < total, 'Sensory Garden is a real limit');
+test('new daily palette badges count exact choices',()=>{
+  for(let i=0;i<54;i++)assertEqual(challengePaletteSize(dailyChallengeFor(new Date(2026,8,1+i))),10);
+  assertEqual(challengePaletteSize({}),speciesCount(),'legacy unrestricted brief retains full palette');
 });
 
 test('deer/rabbit plant filters narrow the tray, trees exempt', () => {
