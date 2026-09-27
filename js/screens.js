@@ -1165,6 +1165,7 @@ function enterGarden(){
   setActiveCanvas(cnv);
   setViewportFill('#4b5044');
   resetSelectionState();
+  hidePlantCard();     // a card about the last garden's plant would describe nothing here
   game.ruler=null;
   resetSeasonFade();   // never crossfade from a previous garden's last frame
   cancelPendingSkip(); // nor land a Skip meant for it
@@ -1797,6 +1798,7 @@ function quitToMenu(){
   closeOverlay('pauseScreen',false);
   closeOverlay('gardenMenu',false);
   dismissCoachTip();
+  hidePlantCard();   // it lives outside #hud, so hiding the HUD does not take it
   $('hud').classList.add('hidden'); cnv.classList.add('hidden');
   mcnv.classList.remove('hidden');
   setActiveCanvas(mcnv);
@@ -2353,7 +2355,8 @@ $('btnAct').onclick=()=>{ if (ENABLE_MOBILE_ACT_BUTTON) actHere(); };
 if ($('btnZoomOut')) $('btnZoomOut').onclick=()=>zoomBy(0.89);
 if ($('btnZoomIn')) $('btnZoomIn').onclick=()=>zoomBy(1.12);
 if ($('btnZoomFit')) $('btnZoomFit').onclick=()=>fitPlot();
-if ($('btnCatalogClose')) $('btnCatalogClose').onclick=()=>setSheetState('collapsed');
+if ($('btnLibraryToggle')) $('btnLibraryToggle').onclick=toggleLibrary;
+if ($('btnLibraryPlacing')) $('btnLibraryPlacing').onclick=()=>setSheetState('full');
 (function wireSheetHandle(){
   const h=$('sheetHandle'); if (!h) return;
   const down=$('btnSheetDown'), up=$('btnSheetUp');
@@ -2559,7 +2562,7 @@ function renderStateSig(){
     game.tool, game.toolVar||'', game.eraseMode, game.brushSize,
     game.previewMode, game.edgeStyle, layerVisibilitySig(),
     game.hoverTile?game.hoverTile.join(','):'', selectionSig(), rulerSig(),
-    buildingDraftSig()
+    buildingDraftSig(), game.focusTile?game.focusTile.join(','):''
   ].join('|');
 }
 function hasActiveGesture(){

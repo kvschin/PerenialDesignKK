@@ -77,6 +77,9 @@ if ('serviceWorker' in navigator)
   <symbol id="ui-menu" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
   <symbol id="ui-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
   <symbol id="ui-moon" viewBox="0 0 24 24"><path d="M19.4 15.7A8 8 0 0 1 8.3 4.6a8 8 0 1 0 11.1 11.1Z"/></symbol>
+  <!-- A window with its right-hand column split off: the docked library, which
+       is exactly what the button that carries it shows and hides. -->
+  <symbol id="ui-library" viewBox="0 0 24 24"><rect x="3.2" y="4.6" width="17.6" height="14.8" rx="2.4"/><path d="M14.2 4.6v14.8M16.6 8.6h1.9M16.6 11.6h1.9M16.6 14.6h1.9"/></symbol>
   <symbol id="ui-book" viewBox="0 0 24 24"><path d="M12 6.6C10.4 5.3 8.3 4.7 5.4 4.7c-.7 0-1.2.5-1.2 1.2v11.3c0 .7.5 1.2 1.2 1.2 2.9 0 5 .6 6.6 1.9 1.6-1.3 3.7-1.9 6.6-1.9.7 0 1.2-.5 1.2-1.2V5.9c0-.7-.5-1.2-1.2-1.2-2.9 0-5 .6-6.6 1.9ZM12 6.6v13.7"/></symbol>
   <symbol id="ui-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.3 13.5a7.6 7.6 0 0 0 0-3l2-1.5-1.9-3.3-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.1h-4l-.4 2.9a7.6 7.6 0 0 0-2.6 1.5l-2.4-1L2.7 9l2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 1.9 3.3 2.4-1a7.6 7.6 0 0 0 2.6 1.5l.4 2.9h4l.4-2.9a7.6 7.6 0 0 0 2.6-1.5l2.4 1 1.9-3.3Z"/></symbol>
   <symbol id="ui-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v7M12 10v7M16 10v7M6.5 7l.8 13h9.4l.8-13"/></symbol>
@@ -280,6 +283,12 @@ if ('serviceWorker' in navigator)
     </div>
     <div class="hud-right">
       <div class="pill iconbar" id="actionBar">
+        <!-- Docked layouts only: the one door to the library, open or shut, and
+             pressed while it is open. It replaced a round close button inside
+             the library's header and a separate launcher in the canvas corner,
+             two controls for one job in two places. The phone sheet keeps its
+             own handle. -->
+        <button id="btnLibraryToggle" class="library-toggle" type="button" title="Hide the library (L)" aria-label="Library" aria-controls="sheetCatalog" aria-expanded="true"><svg class="ui-icon" aria-hidden="true"><use href="#ui-library"></use></svg><span class="lbl">Library</span></button>
         <button id="btnMenu" title="Garden menu" aria-label="Garden menu" aria-haspopup="dialog" aria-controls="gardenMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span class="lbl">Menu</span></button>
       </div>
     </div>
@@ -306,8 +315,12 @@ if ('serviceWorker' in navigator)
     <span id="coachTipText" role="status" aria-live="polite"></span>
     <button id="coachTipClose" type="button" aria-label="Dismiss tip"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
   </div>
-  <button id="btnLibraryLauncher" class="library-launcher" type="button" aria-label="Open plant library" onclick="setSheetState('full')">
-    <svg class="ui-icon" aria-hidden="true"><use href="#ui-menu"></use></svg><span>Plant library</span>
+  <!-- With the docked library shut, its footer (and so the "Now placing" row)
+       goes with it. This keeps the armed brush on screen; tapping it reopens
+       the library to change it. Shown only while something is armed. -->
+  <button id="btnLibraryPlacing" class="library-placing hidden" type="button">
+    <canvas id="libraryPlacingSwatch" width="30" height="26" aria-hidden="true"></canvas>
+    <span class="library-placing-copy"><span class="library-placing-eyebrow">Now placing</span><span id="libraryPlacingName"></span></span>
   </button>
   </main>
   <div class="hud-bottom">
@@ -326,7 +339,6 @@ if ('serviceWorker' in navigator)
           <h2 id="catalogTitle">Plant library</h2>
           <p id="catalogMeta" aria-live="polite">Browse plants for this garden</p>
         </div>
-        <button id="btnCatalogClose" class="catalog-close" type="button" title="Minimize the library" aria-label="Minimize the plant library and show more of the plan" aria-controls="sheetCatalog"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
       </header>
       <div id="cvRow" class="chip-row hidden"></div>
       <div id="trayTabs"></div>

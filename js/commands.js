@@ -1406,11 +1406,28 @@ function crownTilesText(P){
   const n=Math.max(1,Math.round(woodyRadiusTiles(P)*2));
   return `crown covers ~${n} tile${n===1?'':'s'} wide`;
 }
+/* The plant card stays until it is dismissed: the ✕, Escape, a Hand tap on
+   open ground, a change of tool, or opening something that replaces it. It
+   used to close itself after 8 seconds, which is shorter than it takes to read
+   the blurb and the roles and then decide whether to press Replace… — the card
+   went away under the pointer on its way to the button. */
+function plantCardOpen(){
+  const el=document.getElementById('plantCard');
+  return !!(el && el.style && el.style.display==='block');
+}
+function hidePlantCard(){
+  const el=document.getElementById('plantCard'); if (!el) return false;
+  const was=plantCardOpen();
+  clearTimeout(el._t); el.style.display='none';
+  game.focusPlantKey=null; game.focusTile=null;
+  return was;
+}
 function showPlantCard(p,px2,py2){
   const P=plantDef(p.s,p.v), g=Math.round(plantEstab(p)*100), el=document.getElementById('plantCard');
   clearTimeout(el._t);
   const focusKey=plantKeyOf(p);
   game.focusPlantKey=focusKey;
+  game.focusTile=(px2!==undefined && py2!==undefined) ? [px2,py2] : null;
   const shaded = px2!==undefined && P.sun!=='part' && !isTreeDef(P) && shadeInfoAt(px2,py2,false);
   const detailBits=[
     `<b>Mature size:</b> ${matureSizeText(P,true)}`,
@@ -1439,8 +1456,7 @@ function showPlantCard(p,px2,py2){
     <p style="margin-top:6px;color:var(--text-primary)">${status}</p>`;
   const xb=document.createElement('button'); xb.className='card-x'; xb.title='Close plant details';
   xb.setAttribute('aria-label','Close plant details'); setUiIcon(xb,'close');
-  const close=()=>{ el.style.display='none'; clearTimeout(el._t);
-    if (game.focusPlantKey===focusKey) game.focusPlantKey=null; };
+  const close=()=>hidePlantCard();
   xb.onclick=close;
   el.prepend(xb);
   el.appendChild(plantGuidanceButton({s:p.s,v:p.v||null},true));
@@ -1457,7 +1473,74 @@ function showPlantCard(p,px2,py2){
     if (el.appendChild) el.appendChild(rb); else el.prepend(rb);
   }
   el.style.display='block';
-  el._t=setTimeout(close,8000);
+  placePlantCard();
+}
+/* The card sits BESIDE the plant it describes, inside the part of the canvas
+   the chrome leaves clear (usableCanvasRect) — never over the docked library
+   or the tool rail. It was pinned at `right:10px`, which on the docked layout
+   is the library: the card covered the plant list and the library's own
+   controls, every time, whichever plant you tapped.
+   Where there is room for it beside the plant, it goes to the far side from
+   it: a plant right of centre gets the card on the left, one left of centre on
+   the right. Where there is not (a phone, a narrow window) it goes above or
+   below instead, whichever leaves more room, and is capped to that room so it
+   cannot grow back over the plant. The side is chosen when the card opens and
+   again when the canvas area changes (library opened or closed, a resize) —
+   deliberately not as the camera moves, where a card flipping sides under a
+   pan would be harder to read than one that stays put.
+   The side is also written to the card's className, which is part of the key
+   the compass labels use to stay clear of chrome — an inline position change
+   alone would leave them avoiding where the card used to be. */
+const PLANT_CARD_GAP=12, PLANT_CARD_MIN_H=120;
+function plantCardSide(safe,w,h,px,pyTop,pyBase,narrow){
+  if (!narrow) return px > (safe.left+safe.right)/2 ? 'left' : 'right';
+  const above=pyTop-PLANT_CARD_GAP-safe.top, below=safe.bottom-(pyBase+PLANT_CARD_GAP);
+  return below>=above ? 'bottom' : 'top';
+}
+function placePlantCard(){
+  const el=document.getElementById('plantCard');
+  if (!el || !plantCardOpen() || !el.getBoundingClientRect || typeof usableCanvasRect!=='function') return;
+  const safe=usableCanvasRect(), frame=canvasViewportRect();
+  el.style.maxHeight='none';                // measure the card's natural size
+  const w=el.offsetWidth||300, h=el.offsetHeight||240;
+  const sw=safe.right-safe.left, sh=safe.bottom-safe.top;
+  const tile=game.focusTile;
+  let px=(safe.left+safe.right)/2, pyBase=safe.top, pyTop=safe.top;
+  if (tile && game.inGarden){
+    const Wd=VW/ZOOM, Hd=VH/ZOOM, [sx,sy]=screenOf(tile[0],tile[1],Wd,Hd);
+    px=sx*ZOOM; pyBase=(sy+TILE_H)*ZOOM;
+    // how far the plant rises above its tile, capped: a mature oak is taller
+    // than the screen, and planning for all of it would leave no room at all
+    const p=game.plants[tile[0]+','+tile[1]]||game.bulbs[tile[0]+','+tile[1]];
+    const P=p&&PLANTS[p.s] ? plantDef(p.s,p.v) : null;
+    const rise=P&&typeof plantVisualH==='function' ? plantVisualH(P)*ZOOM : 60;
+    pyTop=pyBase-Math.min(rise,sh*0.45);
+  }
+  // Beside the plant needs the card plus an equal-sized clear column for the
+  // plant to stand in; anything narrower stacks instead.
+  const narrow=mobileSheetUi() || sw < w*2+PLANT_CARD_GAP*3;
+  const side=tile ? plantCardSide(safe,w,h,px,pyTop,pyBase,narrow) : (narrow?'top':'right');
+  let left, top, maxH;
+  if (side==='left'||side==='right'){
+    left=side==='left' ? safe.left : safe.right-w;
+    top=safe.top; maxH=sh;
+  } else {
+    left=safe.left+Math.max(0,(sw-w)/2);
+    const room=side==='top' ? pyTop-PLANT_CARD_GAP-safe.top : safe.bottom-(pyBase+PLANT_CARD_GAP);
+    // never squeeze below a readable strip — the name, the Latin and the first
+    // lines, the rest scrolling — and past that, overlapping the plant's top is
+    // better than a card too short to use. 120, not more: a phone with the sheet
+    // at half height leaves under 300px of garden, and a 180px floor measured
+    // straight over the plant that had been tapped.
+    maxH=Math.max(Math.min(PLANT_CARD_MIN_H,sh),Math.min(sh,room));
+    top=side==='top' ? safe.top : safe.bottom-Math.min(h,maxH);
+  }
+  left=Math.max(safe.left,Math.min(safe.right-Math.min(w,sw),left));
+  el.style.left=Math.round(frame.left+left)+'px';
+  el.style.top=Math.round(frame.top+top)+'px';
+  el.style.right='auto'; el.style.bottom='auto';
+  el.style.maxHeight=Math.round(maxH)+'px';
+  el.className='plant-card-'+side;
 }
 function toast(msg,kind){
   const el=document.getElementById('toast');
@@ -2252,6 +2335,7 @@ function restoreLayerInPlace(dst,src){
 }
 function applySnapshot(s){ // restore every layer + refresh UI
   resetSelectionState();
+  hidePlantCard();   // the plant it described may be exactly what this undoes
   // A snapshot belongs to the scheme it was taken in. Undoing across a switch
   // has to re-enter that scheme FIRST, or the restored plants land in whatever
   // scheme happens to be active and silently overwrite it.
@@ -2326,7 +2410,7 @@ function doRedo(){
    the snapshot tag above. */
 function switchScheme(id){
   if (!schemeById(id) || id===game.schemeActive) return false;
-  resetSelectionState(); game.focusPlantKey=null;   // the selection owns the outgoing scheme's plants
+  resetSelectionState(); hidePlantCard();   // the selection and the card own the outgoing scheme's plants
   if (!activateScheme(id)) return false;
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(`Now showing "${activeSchemeName()}".`);
@@ -2353,7 +2437,7 @@ function createScheme(copyCurrent){
     plants: copyCurrent?JSON.parse(JSON.stringify(game.plants||{})):{},
     bulbs:  copyCurrent?JSON.parse(JSON.stringify(game.bulbs||{})):{}};
   list.push(s);
-  resetSelectionState(); game.focusPlantKey=null;
+  resetSelectionState(); hidePlantCard();
   activateScheme(s.id);                       // stashes the outgoing scheme on the way out
   buildToolTray(); refreshCanvasTools(); updateHUD();
   toast(copyCurrent?`"${s.name}" started from a copy.`:`"${s.name}" started empty.`);
@@ -2375,7 +2459,7 @@ function deleteScheme(id){
   const i=list.findIndex(s=>s.id===id); if (i<0) return false;
   const name=list[i].name;
   if (id===game.schemeActive){        // leave before deleting the ground under us
-    resetSelectionState(); game.focusPlantKey=null;
+    resetSelectionState(); hidePlantCard();
     activateScheme(list[(i+1)%list.length].id);
   }
   list.splice(list.findIndex(s=>s.id===id),1);

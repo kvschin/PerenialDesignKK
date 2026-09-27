@@ -110,6 +110,11 @@ addEventListener('keydown',e=>{
   if (e.key==='Escape' && document.querySelector('.discovery-source-menu')){
     e.preventDefault(); closeDiscoverySourceMenu(true); return;
   }
+  /* The plant card is the nearest thing to the pointer, so it answers Escape
+     before the library does. It had no Escape of its own, and the branch
+     further down collapsed the LIBRARY instead — the card you were trying to
+     dismiss stayed put and the list behind it vanished. */
+  if (e.key==='Escape' && plantCardOpen()){ e.preventDefault(); hidePlantCard(); return; }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }
@@ -127,6 +132,8 @@ addEventListener('keydown',e=>{
   }
   if (k==='e'||k===' '){ e.preventDefault(); withUndo(actHere); return; }
   if (k==='r'){ e.preventDefault(); rotateView(); return; }
+  // L shows or hides the library, as the top-bar toggle does
+  if (k==='l' && !e.ctrlKey && !e.metaKey && !e.altKey){ e.preventDefault(); toggleLibrary(); return; }
   // planting schemes: [ and ] cycle, 1-6 jump straight to one. This is the
   // desktop A/B — flicking between schemes with the camera, zoom, rotation and
   // season all held constant is the whole point of the feature.
@@ -346,6 +353,12 @@ cnv.addEventListener('pointerdown',e=>{
     if (blockIfWrongEditLayer(layer)) return;
     if (layer && !layerShown(layer)){ promptRevealLayer(layer,x,y); return; }
   }
+  /* An editing gesture puts an open plant card away. The card no longer times
+     itself out, so without this a stray tap on a planted tile mid-drag left a
+     card standing through the rest of the session's painting — and an erase
+     could lift the very plant it was describing. A tap that lands on a planted
+     tile reopens it at pointerup (actHere), so nothing is lost. */
+  hidePlantCard();
   if (fillActive()){ // bucket fill commits on pointerup so a pinch can still cancel it
     fillTap={x,y};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
@@ -599,7 +612,9 @@ cnv.addEventListener('pointerup',e=>{
     if (pd.tap && activePtrs.size===0 &&
         Math.abs(e.clientX-pd.sx)<=TAP_SLOP_PX && Math.abs(e.clientY-pd.sy)<=TAP_SLOP_PX){
       game.actX=pd.tx; game.actY=pd.ty;   // move the cursor diamond to the tapped tile
-      inspectPlantAt(pd.tx,pd.ty);
+      // a tap on open ground puts an open card away, the way tapping off a
+      // selection clears it — the card no longer times itself out
+      if (!inspectPlantAt(pd.tx,pd.ty)) hidePlantCard();
     } else tourNote('look');   // it travelled: that was a pan, which is the camera step
     return;
   }

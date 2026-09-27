@@ -308,6 +308,8 @@ function repositionOpenChrome(){
     return el && !el.classList.contains('hidden'); };
   if (shown('pauseScreen') && typeof openPause==='function') openPause();
   if (shown('gardenMenu') && typeof openGardenMenu==='function') openGardenMenu();
+  // the canvas area it was placed against has just changed shape
+  if (typeof placePlantCard==='function') placePlantCard();
   if (typeof tourRender==='function') tourRender();
 }
 function settleViewportChange(){

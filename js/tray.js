@@ -196,6 +196,7 @@ function setTool(k,v){
   if (game.tool==='building' && k!=='building' && typeof cancelBuildingDraft==='function') cancelBuildingDraft();
   game.toolMenu=null;
   if (k!=='select') resetSelectionState(); // leaving select drops its marquee
+  if (k!==game.tool || (v||null)!==(game.toolVar||null)) hidePlantCard();   // moving on from what it described
   if (k==='fence'||k==='light'||k==='firepit'||k==='boulder'||k==='house'||k==='building'||k==='shovel'||k==='hand'||k==='select'||k==='ruler'||k==='pick') game.fillMode=false;
   game.tool=k; game.toolVar=v||null;
   rememberBrushTool();
@@ -681,21 +682,18 @@ function plantCategoryFor(k){
     (!c.sunFilter || P.sun===c.sunFilter));
   return cat ? cat.id : 'grasses';
 }
+/* The brush the Plant rail button brings back: the last one the gardener
+   actually chose, or nothing. It used to fall back to the first species in the
+   open category, so pressing Plant before choosing anything — or after the
+   remembered plant had been filtered out — armed whatever sorted first (blue
+   grama, in a fresh garden) with nothing on screen to say so, and the next tap
+   planted a species nobody picked. */
 function visiblePlantChoice(){
-  const visible=trayKeys();
   if (isBrushTool(game.lastBrushTool) && !PLANTS[game.lastBrushTool])
     return [game.lastBrushTool,null];
-  if (PLANTS[game.lastBrushTool] && visible.includes(game.lastBrushTool))
+  if (PLANTS[game.lastBrushTool] && trayKeys().includes(game.lastBrushTool))
     return [game.lastBrushTool,game.lastBrushVar||null];
-  const cat=TRAY_CATS.find(c=>c.id===game.trayCat && c.types);
-  let keys=[];
-  if (cat){
-    keys=visible.filter(k=>cat.types.includes(PLANTS[k].type));
-    if (cat.sunFilter) keys=keys.filter(k=>PLANTS[k].sun===cat.sunFilter);
-  }
-  const k=keys[0] || visible.find(k=>PLANTS[k].type==='grass') || visible[0] ||
-    PLANT_KEYS.find(k=>!PLANTS[k].hidden);
-  return k ? [k,null] : null;
+  return null;
 }
 function armPlantToolFromRail(openMenu){
   const nextMenu=openMenu ? (game.toolMenu==='plant'?null:'plant') : null;
@@ -708,14 +706,19 @@ function armPlantToolFromRail(openMenu){
     game.drill=brushDrillFitsTray(game.lastBrushDrill,game.trayCat) ? game.lastBrushDrill : null;
     rememberBrushTool();
   } else {
+    // nothing chosen yet: show the plants to choose from instead of guessing
     game.tool='hand'; game.toolVar=null; game.drill=null;
+    if (trayGroupOf(game.trayCat)!=='plants') game.trayCat=lastCatByGroup.plants||'grasses';
   }
   game.toolMenu=nextMenu;
   buildToolTray();
   renderCvRow();
   refreshCanvasTools();
   updateCanvasCursor();
-  if (!choice) toast('Pick a plant from the catalog first.');
+  if (!choice){
+    if (!libraryOpen()) setSheetState(mobileSheetUi() ? 'half' : 'full');
+    toast('Pick a plant from the library, then tap the ground.');
+  }
   return !!choice;
 }
 /* bucket fill: a tap floods the connected region of the tapped tile's
@@ -1310,24 +1313,57 @@ function toggleLayerMenu(){
   if (opening) focusToolMenu('layerPop');
 }
 // The Layers flyout hangs off the top-bar Layers button now, so pin it there as
-// a fixed dropdown (same idea as the garden/time menus) and rebuild it in place
-// whenever the rail refreshes — its rows call refreshCanvasTools() to re-render.
+// a fixed dropdown (same idea as the garden/time menus) and re-render it whenever
+// the rail refreshes — its rows call refreshCanvasTools() to re-render.
+/* The re-render keeps the ELEMENT and swaps its rows. It used to remove the
+   popover and append a fresh one, and every row click goes through here, so
+   toggling an overlay near the bottom of the list threw the reader back to the
+   top of it (a new element has scrollTop 0), dropped keyboard focus onto the
+   body, and replayed the popoverEnter animation as a flicker on every click.
+   Now the scroll offset carries over and focus returns to the row it was on,
+   found by its label rather than its index so a row appearing or disappearing
+   (Add/Edit site photo) cannot move it onto a neighbour. */
 function renderLayerMenu(){
-  const old=document.getElementById('layerPop'); if (old) old.remove();
+  const old=document.getElementById('layerPop');
   const btn = visibleEl(document.getElementById('btnLayersTool'))
     ? document.getElementById('btnLayersTool')
     : document.getElementById('btnViewTools');
-  if (game.toolMenu!=='layers' || !btn) return;
+  if (game.toolMenu!=='layers' || !btn){ if (old) old.remove(); return; }
   const viewPop=document.getElementById('viewToolsPop'); if (viewPop) viewPop.remove();
-  const pop=buildLayerPopover(); pop.id='layerPop';
+  const fresh=buildLayerPopover();
+  if (old && old.isConnected!==false){
+    const scroll=old.scrollTop;
+    const active=document.activeElement;
+    const focusKey=active && old.contains(active) && active.dataset ? active.dataset.layerRow : null;
+    old.replaceChildren(...fresh.childNodes);
+    placeLayerMenu(old,btn);
+    old.scrollTop=scroll;
+    if (focusKey){
+      const again=[...old.querySelectorAll('button')].find(b=>b.dataset && b.dataset.layerRow===focusKey);
+      if (again) again.focus({preventScroll:true});
+    }
+    return;
+  }
+  if (old) old.remove();
+  const pop=fresh; pop.id='layerPop';
   pop.setAttribute('aria-label','Garden layers and overlays');
   pop.style.position='fixed'; pop.style.zIndex='40';
   pop.style.bottom='auto'; pop.style.right='auto';
   document.body.appendChild(pop);
-  const r=btn.getBoundingClientRect(), w=pop.offsetWidth||172;
+  placeLayerMenu(pop,btn);
+}
+/* Pinned under its button and allowed the whole height below it. The CSS cap
+   (min(54vh,330px)) was sized for a phone and applied everywhere, so at
+   1440x900 a thirteen-row menu scrolled inside a 330px box with most of the
+   screen empty beneath it — and the scrollbar that forced then took enough
+   width to push "Landscape/Hardscape" into a horizontal scroll as well. */
+function placeLayerMenu(pop,btn){
+  const r=btn.getBoundingClientRect(), w=pop.offsetWidth||214;
   let left=Math.min(Math.round(r.left), innerWidth-w-8); left=Math.max(8,left);
-  pop.style.top=Math.round(r.bottom+6)+'px';
+  const top=Math.round(r.bottom+6);
+  pop.style.top=top+'px';
   pop.style.left=left+'px';
+  pop.style.maxHeight=Math.max(160,innerHeight-top-12)+'px';
 }
 /* ---------- the planting-scheme chip ----------
    Comparison is the whole point, so the switch has to be one tap while you are
@@ -1387,6 +1423,7 @@ function renderSchemeMenu(){
   pop.style.top=Math.round(r.bottom+6)+'px';
   pop.style.left=left+'px';
 }
+function layerDefsAllShown(){ return LAYER_DEFS.every(([key])=>layerShown(key)); }
 function buildLayerPopover(){
   if (!ENABLE_LAYER_EDIT_FOCUS) game.layerFocus='all';
   const pop=document.createElement('div');
@@ -1411,16 +1448,18 @@ function buildLayerPopover(){
   };
   // one row = a visibility toggle. The whole row (eye + label) flips it;
   // the row mutes when off and stays put so it can be turned back on.
+  // No toast: the row itself changes under the pointer and the garden changes
+  // beside it, so "Shade Overlay shown." was a third copy of the same news.
   const row=(get,set,label)=>{
     const on=get();
     const b=document.createElement('button');
     b.setAttribute('role','menuitemcheckbox'); b.setAttribute('aria-checked',on?'true':'false');
     b.className='layer-row'+(on?'':' off');
+    b.dataset.layerRow=label;
     b.title=(on?'Hide ':'Show ')+label;
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
     b.append(eyeIcon(on),nm);
-    b.onclick=ev=>{ ev.stopPropagation(); set(!on); refreshCanvasTools();
-      toast(`${label} ${!on?'shown':'hidden'}.`); };
+    b.onclick=ev=>{ ev.stopPropagation(); set(!on); refreshCanvasTools(); };
     pop.appendChild(b);
   };
   const focusRow=(key,label)=>{
@@ -1428,6 +1467,7 @@ function buildLayerPopover(){
     const b=document.createElement('button');
     b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',on?'true':'false');
     b.className='layer-row'+(on?' sel':'');
+    b.dataset.layerRow='edit:'+key;
     b.title=`Edit ${label}`;
     const eye=document.createElement('span'); eye.className='layer-eye'; eye.textContent=on?'*':'-';
     const nm=document.createElement('span'); nm.className='layer-name'; nm.textContent=label;
@@ -1437,20 +1477,24 @@ function buildLayerPopover(){
     pop.appendChild(b);
   };
   section('Visible');
-  const allVisible=()=>LAYER_DEFS.every(([key])=>layerShown(key)) &&
-    !game.layerVis.shade && !game.layerVis.moisture && !game.layerVis.height &&
-    !game.layerVis.matureCanopies && !game.layerVis.edgeRulers;
+  /* "All" answers for the section it sits in: every LAYER drawn. It used to
+     also require every overlay to be off, and switched them off when pressed,
+     so turning on the shade map un-selected "All" while every layer was still
+     showing — the row said something was hidden when nothing was — and pressing
+     it to get a layer back took the overlay you were reading away with it.
+     Overlays have their own rows below and are left alone. */
+  const allVisible=()=>layerDefsAllShown();
   const allRow=document.createElement('button');
   allRow.setAttribute('role','menuitemradio'); allRow.setAttribute('aria-checked',allVisible()?'true':'false');
   allRow.className='layer-row'+(allVisible()?' sel':'');
-  allRow.title='Show the normal full garden';
+  allRow.dataset.layerRow='All';
+  allRow.title='Show every layer';
   const allName=document.createElement('span'); allName.className='layer-name'; allName.textContent='All';
   allRow.append(eyeIcon(allVisible()),allName);
   allRow.onclick=ev=>{ ev.stopPropagation();
     LAYER_DEFS.forEach(([key])=>{ setLayerVis(key,true,false); });
-    ['shade','moisture','height','matureCanopies','edgeRulers'].forEach(key=>setLayerVis(key,false,false));
     persistLayerVis();
-    refreshCanvasTools(); toast('All layers shown.'); };
+    refreshCanvasTools(); };
   pop.appendChild(allRow);
   LAYER_DEFS.forEach(([key])=>row(
     ()=>layerShown(key), v=>{ setLayerVis(key,v); }, LAYER_LABELS[key]));
@@ -1468,12 +1512,12 @@ function buildLayerPopover(){
   section('Reference');
   if (game.underlay){
     row(()=>!!game.underlay.visible, v=>{ game.underlay.visible=v; markUnderlayChanged(); if (game.inGarden) saveSolo(true); }, 'Site Photo');
-    const edit=document.createElement('button'); edit.className='layer-row'; edit.setAttribute('role','menuitem');
+    const edit=document.createElement('button'); edit.className='layer-row'; edit.setAttribute('role','menuitem'); edit.dataset.layerRow='editPhoto';
     const mark=document.createElement('span'); mark.className='layer-eye'; mark.textContent='+';
     const label=document.createElement('span'); label.className='layer-name'; label.textContent='Edit site photo\u2026'; edit.append(mark,label);
     edit.onclick=ev=>{ ev.stopPropagation(); game.toolMenu=null; beginSitePhotoEdit(); refreshCanvasTools(); }; pop.appendChild(edit);
   } else {
-    const add=document.createElement('button'); add.className='layer-row'; add.setAttribute('role','menuitem');
+    const add=document.createElement('button'); add.className='layer-row'; add.setAttribute('role','menuitem'); add.dataset.layerRow='addPhoto';
     const mark=document.createElement('span'); mark.className='layer-eye'; mark.textContent='+';
     const label=document.createElement('span'); label.className='layer-name'; label.textContent='Add site photo\u2026'; add.append(mark,label);
     add.onclick=ev=>{ ev.stopPropagation(); chooseSitePhoto(); }; pop.appendChild(add);
@@ -4284,9 +4328,11 @@ function flyTransform(from,to){
   };
 }
 /* Desktop close: the library is a grid COLUMN, so collapsing it re-lays out the
-   canvas and the panel simply blinks out — nothing connects it to the launcher
-   in the corner it can be reopened from. Fly a ghost of the panel down into
-   that launcher so the destination is legible.
+   canvas and the panel simply blinks out — nothing connects it to the control
+   it can be reopened from. Fly a ghost of the panel up into that control, the
+   top-bar Library toggle, so the destination is legible. (It flew DOWN to a
+   launcher in the canvas corner until that launcher was retired for the toggle;
+   the name stayed, the destination moved.)
 
    A ghost rather than the panel itself, because `.sheet-collapsed` is
    `display:none` and the panel has to leave the grid immediately — that is what
@@ -4295,7 +4341,7 @@ function flyTransform(from,to){
    full ground rebake per frame. Being compositor-driven also means a catalog
    rebuild on the same click cannot stutter it. */
 function flyLibraryToLauncher(from){
-  const launcher=document.getElementById('btnLibraryLauncher');
+  const launcher=document.getElementById('btnLibraryToggle');
   if (!launcher || typeof launcher.getBoundingClientRect!=='function') return;
   const to=launcher.getBoundingClientRect();
   if (!to.width || !to.height) return;                     // launcher not laid out — skip rather than fly to 0,0
@@ -4326,7 +4372,7 @@ function applySheetState(){
   const priorFocus=document.activeElement;
   const catalog=document.getElementById('sheetCatalog');
   const focusWasInCatalog=!!(priorFocus&&catalog&&catalog.contains(priorFocus));
-  const focusWasExpand=!!(priorFocus&&(priorFocus.id==='btnSheetUp'||priorFocus.id==='btnLibraryLauncher'));
+  const focusWasExpand=!!(priorFocus&&(priorFocus.id==='btnSheetUp'||priorFocus.id==='btnLibraryPlacing'));
   const phone=mobileSheetUi();
   let s=normalizedSheetState(game.sheetState);
   // The middle state belongs only to the phone bottom sheet. Larger screens
@@ -4336,7 +4382,7 @@ function applySheetState(){
   syncDiscoveryArtVisibility();
   const reduced=reducedMotion();
   const start=phone?hb.getBoundingClientRect().height:0;
-  // Desktop collapse flies a ghost of the panel into the launcher, so measure
+  // Desktop collapse flies a ghost of the panel into its toggle, so measure
   // where the panel IS before the class swap takes it out of the grid.
   const wasCollapsed=hb.classList.contains('sheet-collapsed');
   const deskFrom=(!phone && !reduced && s==='collapsed' && !wasCollapsed)
@@ -4354,6 +4400,7 @@ function applySheetState(){
     if (!ready||reduced||Math.abs(start-target)<1){
       hb.style.height=''; hb.classList.remove('sheet-measuring');
       if (typeof syncRailBottom==='function') syncRailBottom();
+      if (typeof placePlantCard==='function') placePlantCard();
     } else {
       hb.style.height=`${start}px`; hb.getBoundingClientRect();
       hb.classList.remove('sheet-measuring'); hb.classList.add('sheet-animating');
@@ -4367,16 +4414,17 @@ function applySheetState(){
            against where it actually came to rest. During the ~200ms flight
            the rail is briefly over-long, behind a sheet that is animating
            over it — invisible, and cheaper than measuring every frame. */
-        if (typeof syncRailBottom==='function') syncRailBottom(); };
+        if (typeof syncRailBottom==='function') syncRailBottom();
+        if (typeof placePlantCard==='function') placePlantCard(); };
       hb._sheetEnd=ev=>{ if (ev.target!==hb||ev.propertyName!=='height') return; finish(); };
       hb.addEventListener('transitionend',hb._sheetEnd);
       hb._sheetTimer=setTimeout(finish,700); // cleanup even if rotation/display changes swallow transitionend
     }
   } else {
     hb.style.height=''; hb.dataset.sheetReady=''; hb.classList.remove('sheet-measuring','sheet-animating');
-    // The grid column has just collapsed, so the launcher is now laid out and
-    // can be measured as the destination. One resize has been scheduled; the
-    // flight itself adds no further layout.
+    // The destination is the top-bar toggle, laid out whatever the library
+    // is doing. One resize has been scheduled; the flight itself adds no
+    // further layout.
     if (deskFrom && deskFrom.width>1 && deskFrom.height>1) flyLibraryToLauncher(deskFrom);
     /* Resize the canvas NOW, in the same task as the class swap. The grid
        column collapses the moment the class lands, but the backing store only
@@ -4393,12 +4441,10 @@ function applySheetState(){
     handle.setAttribute('data-state',s);
     handle.setAttribute('aria-label',phone
       ? `${cap(s)} plant palette. Swipe or use the show less and show more buttons.`
-      : `${s==='collapsed'?'Collapsed':'Expanded'} catalog. ${sheetContextLabel()} is selected. ${s==='collapsed'?'Use the up button to browse plants.':'Use the in-catalog minimize button to show more of the plan.'}`);
+      : `${s==='collapsed'?'Collapsed':'Expanded'} catalog. ${sheetContextLabel()} is selected. Use the Library button in the top bar to ${s==='collapsed'?'browse plants':'show more of the plan'}.`);
   }
   const down=document.getElementById('btnSheetDown'), up=document.getElementById('btnSheetUp');
-  const close=document.getElementById('btnCatalogClose');
-  const launcher=document.getElementById('btnLibraryLauncher');
-  if (close) close.onclick=()=>setSheetState('collapsed');
+  const libBtn=document.getElementById('btnLibraryToggle');
   if (down){
     down.disabled=s==='collapsed';
     down.setAttribute('aria-label',phone
@@ -4414,9 +4460,13 @@ function applySheetState(){
   }
   if (down) down.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(-1); };
   const moveFocus=target=>{ if (!target) return; try{ target.focus({preventScroll:true}); }catch(_){ target.focus(); } };
-  if (s==='collapsed'&&focusWasInCatalog) moveFocus(phone?up:launcher);
-  else if (!phone&&s==='full'&&focusWasExpand) moveFocus(close);
+  // Focus that was inside the library cannot stay there once it is display:none,
+  // and the chip that opened it has just hidden itself: both land on the
+  // top-bar toggle, the control that reverses what just happened.
+  if (s==='collapsed'&&focusWasInCatalog) moveFocus(phone?up:libBtn);
+  else if (!phone&&s==='full'&&focusWasExpand) moveFocus(libBtn);
   drawSheetSwatch();
+  syncLibraryChrome(s,phone);
   renderBuildingDraftActions();
 }
 /* a mini render of the armed brush in the collapse handle, so you always see
@@ -4424,6 +4474,40 @@ function applySheetState(){
 function drawSheetSwatch(){
   const c=document.getElementById('sheetSwatch'); if (!c) return;
   drawBrushSwatchCanvas(c,false);
+}
+/* The docked library's two pieces of chrome outside the library itself.
+
+   The top-bar toggle is the one door, open or shut. It replaced a round ✕ in
+   the library's header (which read as "close", and minimised) and a launcher in
+   the canvas corner that wore the same hamburger icon as Menu and said "Plant
+   library" even on the Landscape tab. Its pressed state is the library's state.
+
+   The chip answers what the old launcher never did: what is on the brush. The
+   brush bar and its "Now placing" row live in the library's footer, so shutting
+   the library took them with it and left nothing on screen saying what a tap
+   would plant. It shows only while a placement tool is armed; with Hand, Select
+   and the rest the rail already says what the pointer does. */
+function libraryOpen(){ return normalizedSheetState(game.sheetState)!=='collapsed'; }
+function toggleLibrary(){
+  setSheetState(libraryOpen() ? 'collapsed' : (mobileSheetUi() ? 'half' : 'full'));
+}
+function syncLibraryChrome(s=normalizedSheetState(game.sheetState),phone=mobileSheetUi()){
+  const open=s!=='collapsed';
+  const btn=document.getElementById('btnLibraryToggle');
+  if (btn){
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    btn.title=open ? 'Hide the library (L)' : 'Show the library (L)';
+  }
+  const chip=document.getElementById('btnLibraryPlacing');
+  if (!chip) return;
+  const armed=!phone && !open && isPlacementTool(game.tool);
+  chip.classList.toggle('hidden',!armed);
+  if (!armed) return;
+  const name=sheetContextLabel();
+  hudText('libraryPlacingName',name);
+  chip.setAttribute('aria-label',`Now placing ${name}. Open the library to change it.`);
+  chip.title='Open the library to change what you are placing';
+  drawBrushSwatchCanvas(document.getElementById('libraryPlacingSwatch'),false);
 }
 
 const replaceSearch=document.getElementById('replacePlantSearch');

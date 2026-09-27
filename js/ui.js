@@ -1517,7 +1517,7 @@ function buildPlantGuidance(ref){
 }
 function openPlantGuidance(ref){
   const P=refDef(ref); if (!P) return;
-  const card=$('plantCard'); if (card){ clearTimeout(card._t); card.style.display='none'; game.focusPlantKey=null; }
+  hidePlantCard();
   $('plantGuidanceTitle').textContent=P.name;
   $('plantGuidanceLatin').textContent=P.latin;
   const body=$('plantGuidanceBody'); body.innerHTML=''; body.appendChild(buildPlantGuidance(ref));

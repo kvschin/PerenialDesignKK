@@ -1011,6 +1011,14 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
    to 14px; the stroke is thinned so the lines stay the canvas icons' ~1.4px
    weight rather than growing with the box. */
 #btnMenu .ui-icon{width:24px;height:24px;stroke-width:1.5}
+/* The library toggle sits beside Menu and reads the same at rest; while the
+   library is open it is PRESSED, on the tokens .top-tool.sel uses, so the bar
+   says whether the panel is up without anyone looking right to check. The
+   pressed state is carried by the border as well as the fill, because
+   forced-colors discards the fill (see that block). */
+#btnLibraryToggle{border:1px solid transparent}
+#btnLibraryToggle .ui-icon{width:21px;height:21px;stroke-width:1.6}
+#btnLibraryToggle[aria-expanded="true"]{background:var(--surface-active);border-color:var(--border-active)}
 .pill.iconbar .ic{width:22px;height:22px;display:block;object-fit:contain}
 .pill.iconbar .ic-emoji{display:none;font-size:15px}
 .pill.iconbar .bar-div{width:1px;align-self:stretch;background:rgba(var(--ink-rgb),.2);margin:2px 4px}
@@ -1093,8 +1101,14 @@ button.lib-cat:hover{background:var(--surface-control-hover);color:var(--action-
    are pinned as fixed dropdowns from a top-bar button, so on a short viewport
    the tail would otherwise sit below the fold with no way to reach it (the
    Layers flyout overflowed a 390px-tall viewport by 92px). */
-.layer-popover{top:auto;bottom:6px;width:172px;padding:6px;display:flex;flex-direction:column;gap:1px;
-  max-height:min(54vh,330px);overflow-y:auto;overscroll-behavior:contain}
+/* The Layers flyout's max-height is set from the space below its button by
+   placeLayerMenu; the cap here is only the fallback before that runs. 214px
+   because "Landscape/Hardscape" did not fit 172 once a scrollbar was taking its
+   share, and overflowed sideways into a second scrollbar (196 still cut it
+   short beside a desktop scrollbar, measured). */
+.layer-popover{top:auto;bottom:6px;width:214px;padding:6px;display:flex;flex-direction:column;gap:1px;
+  max-height:min(54vh,330px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.layer-popover .layer-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* must sit AFTER .tool-popover: same specificity, so source order decides the width */
 .scheme-popover{top:auto;width:190px;padding:6px;display:flex;flex-direction:column;gap:1px;
   max-height:min(54vh,330px);overflow-y:auto;overscroll-behavior:contain}
@@ -1769,6 +1783,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
   .tool-popover{top:104px;width:148px}
   .tool-popover button,.layer-row{min-height:44px}
   .view-tools-popover{width:156px}
+  .layer-popover{width:204px}
   .zoom-pill{right:8px;bottom:calc(112px + env(safe-area-inset-bottom));padding:3px}
   .zoom-pill button{min-width:32px;height:32px;font-size:12px}
   .zoom-pill #zoomLabel{display:none}
@@ -2079,8 +2094,6 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 .catalog-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px 12px;border-bottom:1px solid var(--color-divider);background:var(--color-bg);pointer-events:auto}
 .catalog-heading-copy{min-width:0}.catalog-header h2{margin:0;color:var(--color-text);font:600 22px/1.05 var(--font-heading);letter-spacing:-.01em}
 .catalog-header p{margin:6px 0 0;color:var(--text-muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.catalog-close{display:flex;align-items:center;justify-content:center;flex:0 0 42px;width:42px;height:42px;border:0;border-radius:50%;background:var(--color-neutral-200);color:var(--text-secondary);transition:background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
-.catalog-close:hover{background:var(--surface-control-hover);color:var(--color-text)}.catalog-close:active{transform:scale(.96)}
 #trayTabs{background:var(--color-bg);border-color:var(--color-divider);font-family:var(--font-body)}
 #toolTray{background:var(--color-bg);border-color:var(--color-divider);font-family:var(--font-body);scrollbar-color:var(--color-neutral-400) transparent;scrollbar-width:thin}
 /* Shares a .catalog-control-row with the source picker (Plants) or the search
@@ -2338,10 +2351,11 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
   #sheetHandle .sheet-ctx{color:var(--color-text);font-family:var(--font-heading);font-weight:600}
   #sheetHandle .sheet-actions{border-color:var(--color-divider)}
   .catalog-header{padding:15px 16px 11px}.catalog-header h2{font-size:23px}.catalog-header p{font-size:11px}
-  /* No close control on the sheet: the handle owns sheet state here, and its
-     down/up chevrons already collapse and expand the library. A second, differently
-     shaped way to do the same thing sat one row below them. */
-  .catalog-close{display:none}
+  /* No library toggle in the top bar on the sheet: the handle owns sheet state
+     here, and its down/up chevrons already collapse and expand the library.
+     (The library header lost its own close button for the same reason on every
+     tier — the top-bar toggle is the one door on the dock.) */
+  #btnLibraryToggle{display:none}
   #trayTabs,#toolTray{background:var(--color-bg);border-color:var(--color-divider)}
   /* Padding is set once for this tier further up; declaring it again here only
      reached the catalog WITHOUT .has-discovery. */
@@ -2410,7 +2424,7 @@ body.left-handed-layout .canvas-tool.sel::after{left:auto;right:2px}
 .garden-opening{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:var(--surface-workspace);color:var(--text-primary);font:500 20px 'Fraunces',serif;pointer-events:auto}
 body.garden-opening-active #gameCanvas{visibility:hidden}
 .canvas-stage #gameCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:auto}
-.library-launcher{display:none}
+.library-placing{display:none}
 /* Ghost that flies the docked library down into its launcher on close.
    TRANSFORM AND OPACITY ONLY, and deliberately so: animating the library's grid
    column width instead would fire the #canvasStage ResizeObserver every frame,
@@ -2492,23 +2506,34 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
   /* display:none removes it from the grid outright; the box properties that
      used to follow here could never apply. */
   .hud-bottom.sheet-collapsed{display:none}
-  #hud:has(.hud-bottom.sheet-collapsed) .library-launcher{
+  /* The docked library's "Now placing" row goes when the library does, so the
+     armed brush follows it into the corner the library launcher used to hold.
+     It is shown only while something is armed (syncLibraryChrome), because a
+     launcher with nothing to say duplicates the top-bar toggle. */
+  #hud:has(.hud-bottom.sheet-collapsed) .library-placing:not(.hidden){
     position:absolute;
     right:var(--canvas-control-inset);
     bottom:var(--canvas-control-inset);
     display:flex;
     align-items:center;
-    gap:7px;
+    gap:9px;
     min-height:44px;
-    padding:0 14px;
+    max-width:min(320px,calc(100% - 2 * var(--canvas-control-inset)));
+    padding:5px 14px 5px 7px;
     border:1px solid var(--color-divider);
     border-radius:var(--canvas-control-radius);
     background:var(--color-bg);
     box-shadow:var(--canvas-control-shadow);
     color:var(--color-text);
-    font:700 12px/1 var(--font-body);
+    text-align:left;
+    cursor:pointer;
     pointer-events:auto;
   }
+  .library-placing:hover{border-color:var(--border-strong)}
+  .library-placing>canvas{width:34px;height:30px;flex:0 0 34px;border-radius:10px;background:var(--color-neutral-100)}
+  .library-placing-copy{display:flex;flex-direction:column;min-width:0}
+  .library-placing-eyebrow{color:var(--color-accent-700);font:800 9px/1.2 var(--font-body);letter-spacing:.1em;text-transform:uppercase}
+  #libraryPlacingName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 14px/1.2 var(--font-heading)}
   #canvasTools{
     left:var(--canvas-control-inset);
     --rail-top:var(--canvas-control-inset);
@@ -2566,7 +2591,8 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
      box and the on months a solid one so the pattern survives. */
   .plant-bloom-timeline i{forced-color-adjust:none;border:1px solid ButtonBorder;background:Canvas!important}
   .plant-bloom-timeline i.on{background:Highlight!important}
-  .catalog-strip-arrow,.plant-result-heart,.plant-result-add,.catalog-close{border:1px solid ButtonBorder!important}
+  .catalog-strip-arrow,.plant-result-heart,.plant-result-add,.library-placing{border:1px solid ButtonBorder!important}
+  #btnLibraryToggle[aria-expanded="true"]{border:2px solid Highlight!important;forced-color-adjust:none;background:Highlight!important;color:HighlightText!important}
   /* The library list row signals selection with background alone, and its
      preview is a canvas — so in forced colors the selected plant was invisible
      and every row was a blank box. Same treatment as the tray's cards. */
@@ -2585,12 +2611,15 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
      where every neighbour is 44 — visibly the odd one out, and under the touch
      minimum. Width stays auto: it is a label, not a square icon button. */
   .season-dial .daynight,.top-tool,.pill.iconbar button{width:44px;min-width:44px;height:44px;min-height:44px}
+  /* ...except the labelled toggle, which a landscape tablet (DOCK, and a finger)
+     shows with its word: a fixed 44px width would push "Library" out of it */
+  .pill.iconbar #btnLibraryToggle{width:auto;padding:0 10px}
   .season-box{height:44px;min-height:44px}
   /* popover menu items: .selection-more sets 40px, which is under the minimum.
      Covers the selection More menu and the worlds-list row menu, which share
      the class. */
   .selection-more button{min-height:44px}
-  .plant-result-heart,.plant-result-add,.catalog-close,
+  .plant-result-heart,.plant-result-add,
   .catalog-category-strip button,.discovery-source,.discovery-filter-trigger,
   .discovery-filter-summary,.palette-unavailable-row button,.palette-rename button,
   .discovery-load-more,.catalog-mode button,.modal-screen .chip,.modal-screen .back-link{min-width:44px;min-height:44px}

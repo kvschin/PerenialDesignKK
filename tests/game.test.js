@@ -3216,6 +3216,204 @@ test('plant cards lead with woody mature size and keep herbaceous inches', () =>
   }
 });
 
+/* ---------- the plant card, the Layers flyout and the library door (0.9.28) ----------
+   Three reported problems in the planner's chrome. The card was pinned over the
+   docked library and closed itself after 8s; the Layers flyout was rebuilt on
+   every click, which threw a scrolled list back to the top; and the library had
+   two doors (an ✕ in its header and a launcher in the canvas corner) while the
+   Plant rail armed a species nobody had chosen. Geometry has no layout engine
+   here, so these tests inject the rects the placement reads — the pattern
+   docs/test-sandbox.md describes — and pin the rest by behaviour or source. */
+const DOCK_MM = () => ({ matches: false, addEventListener(){}, removeEventListener(){}, addListener(){}, removeListener(){} });
+const SHEET_MM = () => ({ matches: true, addEventListener(){}, removeEventListener(){}, addListener(){}, removeListener(){} });
+
+test('a plant card goes to the far side of its plant, and never over the library', () => {
+  setup(21, 21);
+  const oldRect = usableCanvasRect, oldFrame = canvasViewportRect, oldMM = matchMedia;
+  const card = document.getElementById('plantCard');
+  try {
+    matchMedia = DOCK_MM;
+    // the docked library starts past `right`: nothing may be placed beyond it
+    const safe = { left: 70, top: 8, right: 1000, bottom: 780 };
+    const frame = { left: 0, top: 56, width: 1060, height: 844 };
+    usableCanvasRect = () => safe;
+    canvasViewportRect = () => frame;
+    const W = VW / ZOOM, H = VH / ZOOM, mid = (safe.left + safe.right) / 2;
+    const px = (x, y) => screenOf(x, y, W, H)[0] * ZOOM;
+    // the iso diamond's leftmost and rightmost tiles
+    const L = [0, GH - 1], R = [GW - 1, 0];
+    assert(px(...L) < mid && px(...R) > mid, 'precondition: the plot spans the middle of the canvas');
+    const forb = firstOfType('forb');
+    for (const [x, y] of [L, R]) game.plants[x + ',' + y] = { s: forb, d: absDay(), t: 1 };
+
+    showPlantCard(game.plants[R.join(',')], R[0], R[1]);
+    assertEqual(card.className, 'plant-card-left', 'a plant right of centre puts its card on the left');
+    assertEqual(parseFloat(card.style.left), frame.left + safe.left, 'flush with the clear area, past the rail');
+    assertEqual(parseFloat(card.style.top), frame.top + safe.top, 'at the top of the clear area');
+
+    showPlantCard(game.plants[L.join(',')], L[0], L[1]);
+    assertEqual(card.className, 'plant-card-right', 'a plant left of centre puts its card on the right');
+    const w = card.offsetWidth || 300;
+    assertEqual(parseFloat(card.style.left) + w, frame.left + safe.right,
+      'its right edge stops at the clear area, which is where the docked library begins');
+    assertEqual(JSON.stringify(game.focusTile), JSON.stringify(L), 'the card names the tile it describes');
+  } finally {
+    usableCanvasRect = oldRect; canvasViewportRect = oldFrame; matchMedia = oldMM; hidePlantCard();
+  }
+});
+
+test('where there is no room beside a plant, its card goes above or below it', () => {
+  const safe = { left: 70, top: 69, right: 367, bottom: 357 };
+  // a phone: the plant low in the garden strip leaves the room above it
+  assertEqual(plantCardSide(safe, 285, 300, 240, 250, 330, true), 'top', 'a low plant: the card goes above');
+  assertEqual(plantCardSide(safe, 285, 300, 240, 90, 130, true), 'bottom', 'a high plant: the card goes below');
+  // a wide canvas asks only which side of the middle the plant is on
+  const wide = { left: 70, top: 8, right: 1000, bottom: 780 };
+  assertEqual(plantCardSide(wide, 300, 400, 900, 300, 340, false), 'left');
+  assertEqual(plantCardSide(wide, 300, 400, 200, 300, 340, false), 'right');
+});
+
+test('a plant card stays until it is put away', () => {
+  setup(21, 21);
+  const forb = firstOfType('forb');
+  game.plants['5,5'] = { s: forb, d: absDay(), t: 1 };
+  try {
+    assert(!/setTimeout/.test(String(showPlantCard)), 'the card sets no timer to close itself');
+    showPlantCard(game.plants['5,5'], 5, 5);
+    assert(plantCardOpen(), 'open');
+    assert(game.focusTile && game.focusTile[0] === 5, 'and ringed on its tile');
+    const sig = renderStateSig();
+    hidePlantCard();
+    assert(!plantCardOpen() && game.focusTile === null && game.focusPlantKey === null, 'closed, focus cleared');
+    assert(renderStateSig() !== sig, 'the ring is part of what redraws the garden');
+
+    showPlantCard(game.plants['5,5'], 5, 5);
+    setTool('select');
+    assert(!plantCardOpen(), 'changing tool puts it away');
+
+    setTool(forb);
+    withUndo(() => { applyToolAt(9, 9); });
+    showPlantCard(game.plants['5,5'], 5, 5);
+    doUndo();
+    assert(!plantCardOpen(), 'an undo puts it away — the plant it described may be what came out');
+
+    const input = readRepoFile('js/input.js');
+    const cardEsc = input.indexOf("plantCardOpen()){ e.preventDefault(); hidePlantCard()");
+    const libEsc = input.indexOf("e.key==='Escape' && normalizedSheetState(game.sheetState)!=='collapsed'");
+    assert(cardEsc > 0 && libEsc > 0 && cardEsc < libEsc,
+      'Escape closes the card before it can reach the branch that collapses the library');
+    assert(input.includes('if (!inspectPlantAt(pd.tx,pd.ty)) hidePlantCard();'),
+      'a Hand tap on open ground puts the card away');
+  } finally { hidePlantCard(); }
+});
+
+test('Layers "All" means every layer, and leaves the overlays alone', () => {
+  setup(21, 21);
+  const row = (pop, key) => pop.children.find(b => b.dataset && b.dataset.layerRow === key);
+  setLayerVis('perennials', false, false);
+  setLayerVis('shade', true, false);
+  let all = row(buildLayerPopover(), 'All');
+  assertEqual(all.getAttribute('aria-checked'), 'false', 'a hidden layer un-checks All');
+  all.onclick({ stopPropagation(){} });
+  assert(layerShown('perennials'), 'All shows the hidden layer');
+  assert(game.layerVis.shade, 'and leaves the shade overlay you were reading on');
+  all = row(buildLayerPopover(), 'All');
+  assertEqual(all.getAttribute('aria-checked'), 'true', 'every layer drawn is All, overlay or not');
+  const src = String(buildLayerPopover);
+  const between = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
+  assert(!/toast\(/.test(between('const row=', 'const focusRow=')) &&
+         !/toast\(/.test(between('allRow.onclick', 'pop.appendChild(allRow)')),
+    'a visibility row changes under the pointer and says so itself — no toast');
+});
+
+test('the Layers flyout re-renders in place, keeping its scroll and focus', () => {
+  /* No layout here, and no replaceChildren or focus on the stubs, so a DOM
+     assertion would pass without testing anything. The behaviour is verified in
+     a browser (scrollTop and the focused row survive a click); this pins the
+     shape that behaviour depends on, so a return to remove-and-rebuild fails. */
+  const src = String(renderLayerMenu);
+  assert(/old\.replaceChildren\(/.test(src), 'the rows are swapped into the existing element');
+  assert(/old\.scrollTop=scroll/.test(src), 'the scroll offset carries over');
+  assert(/dataset\.layerRow===focusKey/.test(src), 'focus returns to the same row, found by its label');
+  assert(/innerHeight-top/.test(String(placeLayerMenu)), 'it may use the height below its button');
+});
+
+test('the library has one door on the dock, pressed while it is open', () => {
+  const oldMM = matchMedia;
+  try {
+    matchMedia = DOCK_MM;
+    setup(21, 21);
+    const btn = document.getElementById('btnLibraryToggle');
+    setSheetState('full');
+    assertEqual(btn.getAttribute('aria-expanded'), 'true', 'pressed while open');
+    toggleLibrary();
+    assertEqual(game.sheetState, 'collapsed', 'the toggle shuts it');
+    assertEqual(btn.getAttribute('aria-expanded'), 'false', 'and un-presses');
+    toggleLibrary();
+    assertEqual(game.sheetState, 'full', 'and opens it again');
+  } finally { matchMedia = oldMM; }
+  const html = readRepoFile('index.html');
+  const bar = html.indexOf('id="actionBar"'), tog = html.indexOf('id="btnLibraryToggle"'), menu = html.indexOf('id="btnMenu"');
+  assert(bar > 0 && bar < tog && tog < menu, 'the toggle sits in the top bar, beside Menu');
+  assert(!html.includes('btnCatalogClose') && !html.includes('btnLibraryLauncher'),
+    'the header close button and the corner launcher are gone');
+});
+
+test('every element id in the page is unique', () => {
+  /* The library toggle first shipped as id="btnLibrary", which the main menu's
+     Plant Library button already was: getElementById returned the menu button,
+     so the wiring REPLACED the menu's handler and the new button did nothing —
+     and its SHEET rule would have hidden the main menu's Plant Library on
+     every phone. Nothing else would have caught it. */
+  const ids = [...readRepoFile('index.html').matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+  const dup = ids.filter((v, i) => ids.indexOf(v) !== i);
+  assertEqual(dup.join(','), '', 'duplicate ids in index.html');
+});
+
+test('with the docked library shut, the placing chip says what is on the brush', () => {
+  const oldMM = matchMedia;
+  const chip = document.getElementById('btnLibraryPlacing');
+  try {
+    matchMedia = DOCK_MM;
+    setup(21, 21);
+    const forb = firstOfType('forb');
+    setSheetState('collapsed');
+    setTool('hand');
+    assert(chip.classList.contains('hidden'), 'nothing armed, nothing to say');
+    setTool(forb);
+    assert(!chip.classList.contains('hidden'), 'a plant armed with the library shut shows the chip');
+    assertEqual(document.getElementById('libraryPlacingName').textContent, plantDef(forb).name,
+      'naming the plant a tap would place');
+    setSheetState('full');
+    assert(chip.classList.contains('hidden'), 'the open library has its own Now placing row');
+    matchMedia = SHEET_MM;
+    setSheetState('collapsed');
+    assert(chip.classList.contains('hidden'), 'the phone sheet keeps its own handle label instead');
+  } finally { matchMedia = oldMM; }
+});
+
+test('the Plant rail never arms a plant nobody chose', () => {
+  const oldMM = matchMedia;
+  try {
+    matchMedia = DOCK_MM;
+    setup(21, 21);
+    game.trayCat = 'landscape';
+    setSheetState('collapsed');
+    armPlantToolFromRail(false);
+    assertEqual(game.tool, 'hand', 'nothing is armed');
+    assert(game.sheetState !== 'collapsed', 'the library opens to choose from');
+    assertEqual(trayGroupOf(game.trayCat), 'plants', 'on the plants');
+
+    // remembered, but no longer allowed in this garden: still not a guess
+    game.filters.nativeMode = 'straight';
+    const gone = PLANT_KEYS.find(k => !PLANTS[k].hidden && !trayKeys().includes(k));
+    assert(gone, 'precondition: the filter hides something');
+    game.lastBrushTool = gone; game.lastBrushVar = null;
+    armPlantToolFromRail(false);
+    assertEqual(game.tool, 'hand', 'a filtered-out plant is not armed, and nothing is armed in its place');
+  } finally { matchMedia = oldMM; }
+});
+
 test('library mature size includes height for woody and herbaceous plants', () => {
   setup();
   const oldGet = document.getElementById;
@@ -10026,9 +10224,11 @@ test('render asks groundZoomDriftDue, not a flat drift', () => {
 
 /* ---------- closing the docked library ----------
    Desktop close collapsed a grid column with no motion, so the panel blinked
-   out and nothing connected it to the launcher it reopens from. It now flies a
-   ghost into that launcher. The motion is browser-verified (a stubbed canvas
-   has no layout), but the geometry it depends on is pure and belongs here. */
+   out and nothing connected it to the control it reopens from. It now flies a
+   ghost into that control — the top-bar Library toggle since 0.9.28, a
+   launcher in the canvas corner before that. The motion is browser-verified (a
+   stubbed canvas has no layout), but the geometry it depends on is pure and
+   belongs here. */
 
 test('the closing library lands exactly on its launcher', () => {
   const from = { left: 900, top: 56, width: 380, height: 700 };

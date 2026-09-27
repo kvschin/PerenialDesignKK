@@ -3447,6 +3447,8 @@ function render(t){
   dmark('pulse',tFx);
   const tOver=dnow();
 
+  if (game.focusTile && !focusedShrub) drawPlantFocusRing(cx,W,H,game.focusTile);
+
   // selection tool: marquee, committed selection, and move/copy ghost
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
   drawRulerOverlay(cx,W,H);
@@ -3699,6 +3701,31 @@ function selectionMoveValidity(items,dx,dy,copy){
   }
   selMoveValid={items,key,ctx,ok,dest};
   return selMoveValid;
+}
+/* The plant the open card describes. Only shrubs were ever marked (their
+   footprint, in the ground pass), so tapping one coneflower in a drift of
+   coneflowers opened a card about ONE of them with nothing saying which.
+   It is drawn OVER the planting, like the planting pulse and the selection:
+   a ground ring under the plant was tried first and a mature clump covers its
+   own tile completely — a 42in baptisia hid it without a trace. So the ring is
+   sized to the plant's mature spread and encloses the clump it names, capped
+   so a wide perennial cannot ring its neighbours too; a tree is ringed at the
+   trunk, since its crown would ring half the garden. Two strokes, dark then
+   light, so it reads over foliage, soil and pale gravel alike. */
+function drawPlantFocusRing(ctx,W,H,tile){
+  const k=tile[0]+','+tile[1], p=game.plants[k]||game.bulbs[k];
+  const P=p && !p.removed && PLANTS[p.s] ? plantDef(p.s,p.v) : null;
+  const reach=P && !isTreeDef(P) ? Math.max(1,Math.min(3,(P.spread||TILE_IN)/TILE_IN)) : 1.2;
+  const [sx,sy]=screenOf(tile[0],tile[1],W,H), cyx=sy+TILE_H/2;
+  const hw=TILE_W/2*reach, hh=TILE_H/2*reach;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(sx,cyx-hh); ctx.lineTo(sx+hw,cyx); ctx.lineTo(sx,cyx+hh); ctx.lineTo(sx-hw,cyx);
+  ctx.closePath();
+  ctx.lineJoin='round';
+  ctx.strokeStyle='rgba(36,26,22,0.6)'; ctx.lineWidth=4.5; ctx.stroke();
+  ctx.strokeStyle='rgba(240,183,101,0.95)'; ctx.lineWidth=2.2; ctx.stroke();
+  ctx.restore();
 }
 function drawSelectionOverlay(cx,W,H,t,season,sway){
   if (selDrag){                                    // dragging out a marquee

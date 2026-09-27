@@ -3056,7 +3056,25 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (which layer is currently editable, or All), and an *Overlays* section
     (Shade Overlay, stored as the `shade` flag). Each whole visible row
     toggles its layer; the row mutes (`.off`) when hidden and stays put so it
-    can be turned back on. `render` skips hidden layers (`layerShown`:
+    can be turned back on.
+    **The flyout re-renders IN PLACE** (0.9.28): `renderLayerMenu` keeps the
+    `#layerPop` element and swaps its rows (`replaceChildren`), carrying the
+    scroll offset over and returning focus to the row it was on, found by
+    `data-layer-row` rather than index. It used to remove the popover and append
+    a new one, and every row click goes through it, so toggling an overlay near
+    the bottom threw the reader back to the top (a new element has scrollTop 0),
+    dropped keyboard focus on the body and replayed `popoverEnter` as a flicker.
+    `placeLayerMenu` gives it the whole height below its button; the CSS cap
+    (`min(54vh,330px)`) was a phone number applied everywhere, so at 1440x900 a
+    thirteen-row menu scrolled in a 330px box, and the scrollbar then pushed
+    "Landscape/Hardscape" into a sideways scroll too (214px wide now, labels
+    ellipsize rather than overflow). Visibility rows do not toast — the row
+    changes under the pointer and the garden beside it. **"All" answers for its
+    own section**: every LAYER drawn (`layerDefsAllShown`). It used to also
+    require every overlay off and switched them off when pressed, so turning on
+    the shade map un-checked "All" with every layer still showing, and pressing
+    it to get a layer back took the overlay away. Overlays have their own rows.
+    `render` skips hidden layers (`layerShown`:
     landscape gates terrain+doorstep+houses+fences, bulbs gate the bulb pass,
     perennials/woody split plants via `plantLayerOf`); the shade overlay
     washes every tile by canopy reach (amber full sun → teal part → blue
@@ -3212,8 +3230,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     /`renderEraseTray` were removed) — so on a collapsed phone sheet the erase
     width/layer stay visible because the brush bar persists. The WASD/arrow
     movement keys went with the avatar; the keyboard now carries E (act on the
-    last-addressed tile), R (rotate), Space-hold (pan), +/- (zoom), undo/redo,
-    and the scheme keys.
+    last-addressed tile), R (rotate), L (show/hide the library, `toggleLibrary`),
+    Space-hold (pan), +/- (zoom), undo/redo, and the scheme keys.
 12a. **Garden pets** — the cat and dog, back as ornament after the avatar was
     retired. `game.pets` is an ordinary keyed layer (`"x,y"` ->
     `{species,coat,mark,paws,t}`) registered in `GAME_LAYERS`, so undo, save/load
@@ -4799,7 +4817,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     them; that is accepted rather than shrinking rows below the 44px touch
     minimum, and both also have Ctrl+Z and the two-finger tap. Plant
     arms the last drawable brush (plant, path, bed, or water; house/fence do
-    not overwrite that memory).
+    not overwrite that memory) — **and nothing else** (`visiblePlantChoice`,
+    0.9.28). With nothing chosen yet, or the remembered plant filtered out of
+    this garden, it opens the library on the plants and says to pick one. It
+    used to fall back to the first species in the open category, so pressing
+    Plant in a fresh garden armed blue grama with nothing on screen saying so
+    (the library was shut, taking its "Now placing" row with it), and the next
+    tap planted a species nobody chose.
     **`brushTrayCatForTool`/`toolFitsBrushTray` answer which TAB a tool is
     browsed on, and both read `TRAY_CATS` rather than restating it.** They were
     hand-written `k==='fence'||k==='firepit'||…` chains duplicating that table,
@@ -4976,8 +5000,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     ignores the basis) so the box + tools + Menu all fit a 360px phone, with a
     `≤359px` query tightening gaps/buttons for legacy widths. Right =
     the **action bar**
-    (`#actionBar`): just a stroke-icon Menu now (Undo/Redo moved down to the canvas
-    rail). The Menu opens `#gardenMenu` — the planting list,
+    (`#actionBar`): the **Library** toggle (`#btnLibraryToggle`, docked tiers
+    only — see below) and a stroke-icon Menu (Undo/Redo moved down to the canvas
+    rail). **Not `#btnLibrary`**: that is the main menu's Plant Library button,
+    and the toggle first shipped with the same id, so `getElementById` wired the
+    toggle's handler onto the MENU button and its SHEET `display:none` would have
+    hidden the main menu's Plant Library on every phone. A test now refuses any
+    duplicate id in `index.html`. The Menu opens `#gardenMenu` — the planting list,
     plant filters (shows the active filter), photo, planting plan, opt-in
     haptics when the device supports them, and Save & quit — so the infrequent
     outputs sit one tap behind Menu rather than a
@@ -5007,8 +5036,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Half `#trayTabs` measures 73px (plants) / 80px (landscape), against 227px at
     full. **The sheet has
     no in-header close control** — the handle's down/up chevrons already own sheet
-    state, so the round `.catalog-close` is `display:none` below the dock and a
-    second, differently shaped collapse control no longer sits one row under them.
+    state, and a second, differently shaped collapse control no longer sits one
+    row under them. (Since 0.9.28 no tier has one: the round `.catalog-close` is
+    gone from the markup, and on the dock the top-bar toggle is the door.)
     The **Plants / Landscape switch stays usable in the Landscape catalog** on the
     sheet: its `.catalog-control-row` pairs the switch with the landscape search,
     and the search's old `flex:1 0 100%` (from when it owned a full row) claimed
@@ -5076,10 +5106,21 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     half/full states the handle spans and visually joins the full-width sheet;
     collapsed returns it to a compact inset bar. At 768px and above `.hud-bottom`
     is the right-docked dark library; desktop/tablet deliberately have only
-    two levels: the expanded browser and a compact **Plant library** launcher on
-    the lower-right edge. The round close control in the library header (dock only)
-    minimizes directly; the launcher reopens directly to the browser, and Escape also
-    minimizes. Zoom/Fit sits in a dark loam pill at the bottom-left on these sizes.
+    two levels, open and shut, and **one door: the top-bar Library toggle**
+    (`toggleLibrary`/`syncLibraryChrome`, tray.js; the L key; 0.9.28), pressed
+    (`aria-expanded`, border and fill) while the library is open. It replaced two
+    controls for one job in two places — a round ✕ in the library header, which
+    read as "close" and minimised, and a launcher in the canvas corner that wore
+    Menu's hamburger icon and said "Plant library" even on the Landscape tab.
+    Closing still flies a ghost of the panel (`flyLibraryToLauncher`), now UP into
+    the toggle. Escape also minimizes. **The corner now holds the "Now placing"
+    chip** (`#btnLibraryPlacing`): the brush bar and its Now placing row are the
+    library's footer, so shutting the library took them with it and nothing on
+    screen said what a tap would plant. The chip shows the armed brush's swatch and
+    `sheetContextLabel()`, only while a placement tool is armed with the docked
+    library shut, and reopens the library to change it. The phone sheet has no
+    toggle and no chip — its handle already carries both jobs. Zoom/Fit sits in a
+    dark loam pill at the bottom-left on these sizes.
     The active plant result card uses the same terracotta selected treatment independently of
     its Favorite heart. **Canvas full-bleed under
     `viewport-fit=cover`:** an iOS standalone PWA with `black-translucent` has a
@@ -5141,9 +5182,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `setUserZoom` clamps and snaps the camera. On phones (`baseZoom<1`) a
     big contextual action button (`setActButton`: Plant here / Plant a
     drift / Erase here / Lay path / Dig bed; hidden for the House
-    tool) calls `actHere()` and replaces the instructional hint. The plant
-    card sits top-right with a local close icon (`showPlantCard(p,x,y)` adds a shade
-    warning when coords are given). Plant filters persist as `hortus:filters`.
+    tool) calls `actHere()` and replaces the instructional hint. The **plant
+    card** (`showPlantCard(p,x,y)`, which adds a shade warning when coords are
+    given) is placed **beside the plant it describes** (`placePlantCard`,
+    `plantCardSide`, commands.js; 0.9.28), inside `usableCanvasRect()` — never
+    over the docked library or the rail. It was pinned `top:108px;right:10px`,
+    which on the docked layout IS the library: it covered the plant list and the
+    library's own controls on every tap. With room beside the plant the card
+    takes the far side of it (plant right of centre, card on the left, and vice
+    versa); where there is not — a phone, a narrow window — it goes above or
+    below, whichever has more room, capped to that room with a 120px floor
+    (`PLANT_CARD_MIN_H`; 180 measured straight over the tapped plant on a phone
+    with the sheet at half). The side is chosen on open and again when the canvas
+    area changes (`repositionOpenChrome`, and the phone sheet settling), never as
+    the camera moves; it is written to the card's className because that is what
+    keys the compass labels' chrome avoidance.
+    The plant it describes gets a **ring** (`game.focusTile`,
+    `drawPlantFocusRing`, renderer.js) — only shrubs were ever marked, so a card
+    about one coneflower in a drift of them said nothing about which. It is drawn
+    OVER the planting like the planting pulse: under it, a mature clump hid the
+    ring completely. It is sized to the plant's `spread` (capped at 3 tiles; a
+    tree is ringed at the trunk), and `focusTile` rides `renderStateSig`.
+    The card **stays until it is put away** (`hidePlantCard`): ✕, Escape, a Hand
+    tap on open ground, a change of tool, any editing gesture (a tap that lands
+    on a planted tile reopens it), undo/redo, a scheme switch, entering or
+    leaving a garden. It closed itself after 8s, shorter than reading it and
+    reaching for Replace…. **Escape is answered by the card before the library**
+    — it had no Escape of its own, and the branch below it in input.js collapsed
+    the library instead, so the card stayed and the list behind it vanished.
+    Plant filters persist as `hortus:filters`.
 16. **Screens** — menu, worlds list (`#worldsScreen`: open saved gardens or start
     a new one, with rename/duplicate/delete behind a per-row overflow menu).
     The single **Your gardens** menu entry opens it via `openWorlds()`.
