@@ -25,6 +25,7 @@ function setup(gw, gh){
   game.filters = { zone: null, nativeRegion: 'north-america', nativeMode: 'any', deer: false, rabbit: false, squirrel: false };
   game.discovery = defaultDiscovery();
   game.design = null; game.challenge = null;
+  game.startHere = null; game.savedView = null;
   game.startTs = Date.now(); game.elapsedMs = 0; game.dayOffset = 0; game.pausedAt = 0; game.clockSuspended = false;
   cancelPendingSkip();    // a Skip still preparing, or the time menu's prewarm, from someone else's test
   game.tool = 'hand'; game.toolVar = null; game.fillMode = false; game.drift = false; game.matrix = false; game.freePlanting = false;
@@ -3414,6 +3415,147 @@ test('the Plant rail never arms a plant nobody chose', () => {
   } finally { matchMedia = oldMM; }
 });
 
+/* ---------- setup honesty, first steps, the view, help, selection (0.9.29) ---------- */
+
+test('the plot screen quotes one size: the one the grid can build', () => {
+  /* 46 typed, 47 on the diagram, 2,116 sq ft in the note — for one plot that is
+     31 tiles, i.e. 46.5 ft, i.e. 2,162 sq ft. */
+  const w = document.getElementById('plotW'), l = document.getElementById('plotL');
+  const oldW = w.value, oldL = l.value;
+  try {
+    w.value = '46'; l.value = '46';
+    assertEqual(plotRealFt('plotW'), 46.5, 'a typed 46 is a 31-tile, 46.5 ft side');
+    const note = plotNoteText();
+    assert(note.startsWith('46.5 ft × 46.5 ft'), 'the note leads with the real size (' + note + ')');
+    assert(note.includes('2,162 sq ft') && note.includes('31 × 31 tiles'), 'and the area is of that size, not of 46 x 46');
+    setPlotField('plotW', 46);
+    assertEqual(String(w.value), '46.5', 'a field snaps to the real side, half a foot included');
+    assertEqual(JSON.stringify(plotShapeSideLengthsFt(defaultPlotShapeVerts(31, 31))), JSON.stringify([46.5, 46.5, 46.5, 46.5]),
+      'and the diagram labels agree with it');
+  } finally { w.value = oldW; l.value = oldL; }
+});
+
+test('what setup says can change later really can', () => {
+  setup(21, 21);
+  const html = readRepoFile('index.html');
+  assert(!/start small/.test(html), 'the plot screen no longer promises a plot you can grow later');
+  assert(/size and shape are fixed once the garden is made/.test(html), 'it says what is fixed instead');
+  assert(html.includes('id="discoveryZone"') && html.includes('id="discoveryStyle"'),
+    'and the questionnaire\'s zone and style are in the in-garden Plant filters');
+
+  game.design = normalizeDesign({ zone: 6, type: 'any' });
+  game.filters = normalizeFilters({ zone: 6 });
+  // the drafts openDiscoveryFilters sets up; its chip rendering needs a DOM
+  // (createTextNode) the sandbox does not claim to have
+  discoveryFilterDraft = normalizeDiscovery(activeDiscovery());
+  discoveryCriteriaDraft = activeFilters();
+  document.getElementById('discoveryZone').value = '4';
+  discoveryCriteriaDraft = readDiscoveryCriteria();
+  discoveryStyleDraft = 'prairie';
+  applyDiscoveryFilters();
+  assertEqual(game.filters.zone, 4, 'the zone changes the eligibility gate');
+  assertEqual(game.design.zone, 4, 'and the garden\'s own record of it');
+  assertEqual(game.design.type, 'prairie', 'the style changes what Recommended holds');
+  assertEqual(activeDesignType(), 'prairie', 'and the catalog reads it');
+
+  // a garden older than the questionnaire has no design, and gets one
+  game.design = null;
+  assert(applyGardenStyle('shade'), 'a style can be set on a garden with no design');
+  assertEqual(game.design.type, 'shade', 'built from its filters');
+  assert(!applyGardenStyle('shade'), 'setting the same style again is no change');
+});
+
+test('a new garden opens fitted, a reopened one where it was left', () => {
+  setup(21, 21);
+  const oldRect = usableCanvasRect;
+  try {
+    usableCanvasRect = () => ({ left: 70, top: 8, right: 1000, bottom: 780 });
+    cam.x = 137; cam.y = -42; userZoom = 1.4; calcZoom();
+    const v = gardenViewNow();
+    assert(v && Number.isFinite(v.x) && Number.isFinite(v.y), 'the view is a world point');
+    assertEqual(v.z, 1.4, 'and the gardener\'s own zoom');
+    cam.x = 0; cam.y = 0; userZoom = 1; calcZoom();
+    assert(restoreGardenView(v), 'a saved view is put back');
+    const again = gardenViewNow();
+    assert(Math.abs(again.x - v.x) < 0.02 && Math.abs(again.y - v.y) < 0.02 && again.z === v.z,
+      'to the same point at the same zoom (' + JSON.stringify(v) + ' vs ' + JSON.stringify(again) + ')');
+    assert(!restoreGardenView({ x: 400, y: 400, z: 1 }), 'a view of empty sky is refused for the fitted default');
+    assertEqual(normalizeGardenView({ x: 'a', y: 1, z: 1 }), null, 'junk is not a view');
+    assertEqual(normalizeGardenView({ x: 1, y: 1, z: 99 }).z, USER_ZOOM_MAX, 'and a zoom is clamped');
+
+    game.inGarden = true;
+    assert(buildSaveBlob().view, 'the view saves with the garden');
+    assert(gardenFileProblem({ v: 1, world: Object.assign(buildSaveBlob(), { view: 'north' }) }),
+      'an imported garden with a nonsense view is refused, like any other bad field');
+  } finally { usableCanvasRect = oldRect; userZoom = 1; calcZoom(); }
+  const enter = String(enterGarden);
+  assert(/restoreGardenView\(game\.savedView\)\) fitPlot\(\)/.test(enter), 'entering restores the saved view or fits the plot');
+  assert(/game\.savedView=null/.test(String(resetNewGardenState)), 'and a new garden has no saved view to restore');
+});
+
+test('a new garden has a start-here list, ticked off by the garden itself', () => {
+  setup(21, 21);
+  assert(startHereApplies(), 'an empty new garden gets the list');
+  assert(!START_STEPS.some(s => startStepDone(s.id)), 'with nothing done');
+  markStartStep('north');
+  assert(startStepDone('north'), 'confirming north ticks it, even with north up');
+  setTile('terrain', '4,4', { k: 'bed', c: 'soil', t: 1 });
+  assert(startStepDone('ground'), 'a bed ticks the ground step');
+  game.buildings = [{ id: 'b', vertices: [[1, 1], [3, 1], [3, 3], [1, 3]], status: 'existing' }];
+  assert(startStepDone('buildings'), 'a footprint ticks the buildings step');
+  game.plants['6,6'] = { s: firstOfType('forb'), d: absDay(), t: 1 };
+  assert(!startHereApplies(), 'the first plant retires it');
+  game.plants = {};
+  game.challenge = { id: 'x' };
+  assert(!startHereApplies(), 'a daily challenge brings its own brief instead');
+  game.challenge = null;
+  dismissStartHere();
+  assert(!startHereApplies(), 'and the ✕ puts it away for this garden');
+  assertEqual(JSON.stringify(buildSaveBlob().start), JSON.stringify({ north: true, dismissed: true }),
+    'both facts save with the garden');
+  assertEqual(normalizeStartProgress('junk'), null, 'and junk loads as nothing');
+
+  const build = TRAY_CATS.filter(c => TRAY_GROUPS[1].cats.includes(c.id)).map(c => c.label);
+  assertEqual(build[0], 'Site', 'Site leads the Landscape strip, where a design starts');
+});
+
+test('the guidebook and the tour are in the garden menu, and the guidebook returns there', () => {
+  const html = readRepoFile('index.html');
+  const menu = html.slice(html.indexOf('id="gardenMenu"'), html.indexOf('id="btnGmClose"'));
+  assert(menu.includes('id="btnGardenGuide"') && menu.includes('id="btnGardenTour"'),
+    'both are rows of the garden menu');
+  setup(21, 21);
+  game.inGarden = true;
+  // openGuide builds its list through createDocumentFragment, which the sandbox
+  // does not stub; pin what it records, then exercise the return for real
+  const open = String(openGuide);
+  assert(/guideFrom=game\.inGarden \? 'garden' : 'menu'/.test(open), 'opening records where it came from');
+  assert(/'Back to garden'/.test(open), 'and relabels its way out');
+  guideFrom = 'garden';
+  closeGuide();
+  assert(document.getElementById('menuScreen').classList.contains('hidden'), 'closing it does not drop the title screen over the garden');
+  assert(document.getElementById('guideScreen').classList.contains('hidden'), 'it closes');
+});
+
+test('the selection copies, cuts, pastes and deletes from the keyboard', () => {
+  setup(21, 21);
+  const input = readRepoFile('js/input.js');
+  assert(/\(k==='c'\|\|k==='x'\) && game\.tool==='select' && game\.sel/.test(input), 'Ctrl/Cmd+C and X copy and cut a selection');
+  assert(/k==='v' && storedArea\(\)\)\{ e\.preventDefault\(\); pasteAreaFromKeys\(\)/.test(input), 'Ctrl/Cmd+V pastes');
+  assert(/\(e\.key==='Delete'\|\|e\.key==='Backspace'\) && game\.tool==='select' && game\.sel/.test(input), 'Delete erases it');
+
+  const forb = firstOfType('forb');
+  game.plants['3,3'] = { s: forb, d: absDay(), t: 1 };
+  setTool('select');
+  game.sel = { x0: 3, y0: 3, x1: 4, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  assert(saveSelectedArea(), 'copying a selection reports that it copied');
+  clearSelection(); setTool('hand');
+  game.hoverTile = [10, 10];
+  pasteAreaFromKeys();
+  assertEqual(game.tool, 'select', 'a keyboard paste arms Select');
+  assert(game.plants['10,10'] && game.plants['10,10'].s === forb, 'and lands at the pointer when nothing is selected');
+});
+
 test('library mature size includes height for woody and herbaceous plants', () => {
   setup();
   const oldGet = document.getElementById;
@@ -6669,7 +6811,7 @@ test('lot-shape setup helpers: side lengths, snapping, validity, and create orde
   assertEqual(JSON.stringify(defaultPlotShapeVerts(20, 20)),
     JSON.stringify([[0, 0], [20, 0], [20, 20], [0, 20]]), 'default verts are the full rectangle');
   assertEqual(JSON.stringify(plotShapeSideLengthsFt([[0, 0], [20, 0], [16, 20], [0, 20]])),
-    JSON.stringify([30, 31, 24, 30]), 'side lengths convert tiles to rounded feet');
+    JSON.stringify([30, 30.5, 24, 30]), 'side lengths convert tiles to feet, to the half foot');
   assertEqual(JSON.stringify(plotShapeSnap(3.4, -2, 20, 20)), JSON.stringify([3, 0]), 'snap clamps below zero');
   assertEqual(JSON.stringify(plotShapeSnap(25.6, 19.5, 20, 20)), JSON.stringify([20, 20]), 'snap clamps past the far corner');
   assert(plotShapeQuadOk([[0, 0], [20, 0], [14, 20], [0, 20]], 20, 20), 'a trapezoid validates');
@@ -8893,9 +9035,15 @@ test('the coach beats fire in order, on doing, and only for a new device', () =>
     // A new device gets them threaded off real placements, in order.
     armCoach();
     coachPlanted = 0;
-    game.plants = {};                  // an EMPTY garden takes the plant-me beat
+    game.plants = {};
+    // A new empty garden has the start-here checklist, which carries beat 1 and
+    // more; the tip would be the same advice in a second widget beside it.
     coachBeatEnter();
+    assertEqual(shown.length, 0, 'the checklist stands in for beat 1 in a new garden');
+    game.startHere = { north: false, dismissed: true };
+    coachBeatEnter();                  // an EMPTY garden past its checklist takes the plant-me beat
     assertEqual(shown.join(','), 'first-plant', 'beat 1 names the core loop on arrival');
+    game.startHere = null;
     coachNotePlanting();
     assertEqual(shown.join(','), 'first-plant,plant-drag', 'beat 2 waits for the first plant');
     for (let i = 0; i < 3; i++) coachNotePlanting();          // 4 planted
@@ -8940,8 +9088,10 @@ test('a garden that arrives already planted is offered to look at, not to dig up
     // tombstones are not a planting: an emptied garden is an empty garden
     shown.length = 0;
     for (const k in game.plants) game.plants[k] = { removed: true };
+    game.startHere = { north: false, dismissed: true };   // the checklist would otherwise take this beat's place
     coachBeatEnter();
     assertEqual(shown[0].key, 'first-plant', 'removed plants do not count as a planting');
+    game.startHere = null;
   } finally {
     // eslint-disable-next-line no-global-assign
     showCoachTip = realCoach;
@@ -9311,9 +9461,11 @@ test('a finished garden starts the tour rather than offering it', () => {
     // and a year worth running.
     endTour(false); tourReset();
     game.plants = {};
+    game.startHere = { north: false, dismissed: true };   // past the checklist, which otherwise stands in for this beat
     coachBeatEnter();
     assert(!tourRunning(), 'an empty garden does not');
     assertEqual(shown[0].key, 'first-plant', 'it gets the plant-me beat instead');
+    game.startHere = null;
 
     // Once seen, never again — the beat takes over for a returning gardener.
     shown.length = 0;
@@ -15591,23 +15743,24 @@ test('a guidebook panel scales rather than clipping, and leaves the caption room
 });
 
 test('the guidebook names the selection pill the app actually draws', () => {
-  /* It said "Duplicate". renderSelectionActions' second button is Copy, and has
-     been for as long as the pill has existed — so the guidebook was sending a
-     reader along a four-button row looking for a fifth that is not on it. This
-     is the class of bug the whole where/`how` discipline exists to catch, one
-     control further in. */
+  /* It once said "Duplicate" when the pill's second button was Copy, sending a
+     reader along the row for a button that was not on it. Since 0.9.29 the
+     button IS Duplicate (the drag mode was renamed, so "copy" could mean the
+     clipboard) and Erase is on the pill; the demo has to follow either way.
+     This is the class of bug the whole where/`how` discipline exists to catch,
+     one control further in. */
   const tray = readRepoFile('js/tray.js');
   const pill = tray.slice(tray.indexOf('function renderSelectionActions'),
                           tray.indexOf('function showSelectionMore'));
-  const buttons = [...pill.matchAll(/\bbtn\('([^']+)'/g)].map(m => m[1]);
-  assertEqual(buttons.join('|'), 'Move|Copy|Fill|More', 'the real pill (' + buttons.join(', ') + ')');
+  const buttons = [...pill.matchAll(/\b(?:btn|modeBtn)\('([^']+)'/g)].map(m => m[1]);
+  assertEqual(buttons.join('|'), 'Move|Duplicate|Fill|Erase|More', 'the real pill (' + buttons.join(', ') + ')');
 
   const st = GUIDE_DEMOS.select.build(); GUIDE_DEMOS.select.run(st, 0.4);
   const row = Array.isArray(st.chrome) ? st.chrome[0] : st.chrome;
   assertEqual(row.options.join('|'), buttons.join('|'),
     'and the demo draws it button for button');
   const how = guideEntry('select').how.join(' ');
-  assert(!/Duplicate/.test(how), 'and the written instruction does not invent one');
+  assert(!/\bCopy,|Save area|Save,/.test(how), 'and the written instruction names no retired button');
 
   /* The More menu is the other half, and three demos mock it. Every row they
      show has to be a row showSelectionMore really adds. */

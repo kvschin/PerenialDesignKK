@@ -115,6 +115,18 @@ addEventListener('keydown',e=>{
      further down collapsed the LIBRARY instead — the card you were trying to
      dismiss stayed put and the list behind it vanished. */
   if (e.key==='Escape' && plantCardOpen()){ e.preventDefault(); hidePlantCard(); return; }
+  /* The selection's clipboard and its Delete, where every editor keeps them.
+     Copy and paste had menu rows only, and the only way to erase a marquee was
+     the last row of the More menu. X cuts: copy, then erase what was copied. */
+  if ((e.ctrlKey||e.metaKey) && !e.altKey && (k==='c'||k==='x') && game.tool==='select' && game.sel){
+    e.preventDefault();
+    if (saveSelectedArea() && k==='x'){ eraseSelection(); refreshCanvasTools(); }
+    return;
+  }
+  if ((e.ctrlKey||e.metaKey) && !e.altKey && k==='v' && storedArea()){ e.preventDefault(); pasteAreaFromKeys(); return; }
+  if ((e.key==='Delete'||e.key==='Backspace') && game.tool==='select' && game.sel){
+    e.preventDefault(); eraseSelection(); refreshCanvasTools(); return;
+  }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }

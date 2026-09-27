@@ -2097,13 +2097,13 @@ select:{ loop:11000, rest:0.94,
     st.marks=[];
     for (let y=1;y<=3;y++) for (let x=1;x<=3;x++)
       st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.16)',stroke:'rgba(124,168,196,0.45)'});
-    /* Move | Copy | Fill | More, which is the pill the app really draws —
-       renderSelectionActions' second button is Copy. Everything else lives
-       under More, and saying otherwise sends a reader looking along a row
-       that has four buttons on it for a fifth that is not there. */
-    st.chrome={options:['Move','Copy','Fill','More'],on:1,tapping:gAt(u,0.32,0.44)};
+    /* Move | Duplicate | Fill | Erase | More, which is the pill the app really
+       draws — renderSelectionActions' buttons, in its order (a test pins the
+       two together). The rest lives under More, and saying otherwise sends a
+       reader looking along the row for a button that is not on it. */
+    st.chrome={options:['Move','Duplicate','Fill','Erase','More'],on:1,tapping:gAt(u,0.32,0.44)};
     if (u<0.48){ st.cursor=null;
-      st.notes=[{text:'Move or Copy it; the rest is under More',at:[4,6.4],dy:28}]; return; }
+      st.notes=[{text:'Move or Duplicate it; the rest is under More',at:[4,6.4],dy:28}]; return; }
     // duplicate: the same six plants, offset, as a live ghost then committed
     const f2=gEase(gAt(u,0.5,0.86));
     const dx=Math.round(4*f2), dy=Math.round(2*f2);
@@ -2610,7 +2610,7 @@ replace:{ loop:15000, rest:0.9,
       st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.22)',stroke:'rgba(124,168,196,0.70)'});
     if (u<0.2){
       st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
-        'Save area','Paste saved area','Erase selection'],on:1,open:gAt(u,0.04,0.14)};
+        'Copy area','Paste area'],on:1,open:gAt(u,0.04,0.14)};
       st.notes=[{text:'Selection pill → More → Replace plants…',at:[4,6.4],dy:28}];
       return;
     }
@@ -2676,14 +2676,14 @@ savearea:{ loop:16000, rest:0.9,
       st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.16)',stroke:'rgba(124,168,196,0.45)'});
     if (u<0.22){
       st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
-        'Save area','Paste saved area','Erase selection'],on:3,open:gAt(u,0.04,0.14)};
-      st.notes=[{text:'More → Save area keeps the whole grouping',at:[4.5,7.4],dy:28}];
+        'Copy area','Paste area'],on:3,open:gAt(u,0.04,0.14)};
+      st.notes=[{text:'More → Copy area keeps the whole grouping',at:[4.5,7.4],dy:28}];
       return;
     }
     if (u<0.40){
       st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
-        'Save area','Paste saved area','Erase selection'],on:4,open:1};
-      st.notes=[{text:'…and Paste saved area drops it wherever you are',
+        'Copy area','Paste area'],on:4,open:1};
+      st.notes=[{text:'…and Paste area drops it wherever you are',
         at:[4.5,7.4],dy:28}];
       return;
     }
@@ -2737,7 +2737,7 @@ estimate:{ loop:14000, rest:0.78,
       st.marks.push({x:x,y:y,fill:'rgba(124,168,196,0.22)',stroke:'rgba(124,168,196,0.70)'});
     if (u<0.26){
       st.menu={items:['Estimate materials…','Replace plants…','Rotate 90 degrees',
-        'Save area','Paste saved area','Erase selection'],on:0,open:gAt(u,0.06,0.18)};
+        'Copy area','Paste area'],on:0,open:gAt(u,0.06,0.18)};
       st.notes=[{text:'Marquee a bed, then More → Estimate materials…',
         at:[4.5,7.4],dy:28}];
       return;
@@ -2977,13 +2977,14 @@ function guideChapters(){
       {id:'select', demo:'select', title:'Select, move, duplicate',
        lead:'Marquee a region and take its whole contents somewhere else.',
        how:['Select is on the tool rail. Drag a rectangle, then use the pill that appears.',
-            'The pill is Move, Copy, Fill and More; Rotate, Save, Paste, Erase, Replace and Estimate are under More.',
+            'The pill is Move or Duplicate (what a drag does), then Fill, Erase and More; Rotate, Copy area, Paste area, Replace and Estimate are under More.',
+            'Delete erases the selection; Ctrl/Cmd+C, X and V copy, cut and paste it.',
             'The selection owns what was inside it when you drew it, so a plant that lands there later is never scooped up.',
             'A move onto ground that refuses it is refused whole — nothing lands half-placed.']},
-      {id:'savearea', demo:'savearea', title:'Save and reuse a grouping',
+      {id:'savearea', demo:'savearea', title:'Copy and reuse a grouping',
        lead:'A planting that works once will work again. Save the marquee and paste it wherever you need it.',
-       how:['Select the grouping, then More → Save area. One area is held at a time.',
-            'More → Paste saved area drops it at the selection, in any garden you have open.',
+       how:['Select the grouping, then More → Copy area (or Ctrl/Cmd+C). One area is held at a time.',
+            'More → Paste area (or Ctrl/Cmd+V) drops it at the selection, in any garden you have open.',
             'It carries every layer inside the rectangle — planting, bulbs, bed, edging, fences — not just the plants.',
             'Rotate 90 degrees turns it about its own centre, so a corner planting serves the opposite corner.',
             'A paste onto ground that refuses it is refused whole. Nothing lands half-placed.']},
@@ -3081,8 +3082,16 @@ let guideStageCache=null;   // the built stage for the current frame, rebuilt ea
 function guideOpen(){ return !!$('guideScreen') && !$('guideScreen').classList.contains('hidden'); }
 function guideSheetUi(){ return typeof mobileSheetUi==='function' && mobileSheetUi(); }
 
+/* Where the guidebook goes back to. It opened only from the title screen until
+   0.9.29; it opens from a garden's menu now as well, and closing it there must
+   land back in the garden rather than on the title screen over a live HUD. The
+   stage touches no game state (see the note at the top of this file), which is
+   what makes opening it over an open garden safe. */
+let guideFrom='menu';
 function openGuide(){
   funnel(FUNNEL_EVENTS.guideOpened);
+  guideFrom=game.inGarden ? 'garden' : 'menu';
+  const back=$('btnGuideClose'); if (back) back.textContent=guideFrom==='garden' ? 'Back to garden' : 'Menu';
   guideSel=guideSel||guideEntries()[0].id;
   guideView=guideSheetUi()?'list':'detail';
   guidePlaying=!reducedMotion();
@@ -3099,7 +3108,15 @@ function openGuide(){
   renderGuideDetail();
   startGuideLoop();
 }
-function closeGuide(){ stopGuideLoop(); show('menuScreen'); }
+function closeGuide(){
+  stopGuideLoop();
+  if (guideFrom==='garden' && game.inGarden){
+    show('');
+    const m=$('btnMenu'); if (m) m.focus({preventScroll:true});
+    return;
+  }
+  show('menuScreen');
+}
 /* SHEET walks back through the views; DOCK has nowhere to go but out. */
 function guideBack(){
   if (guideSheetUi() && guideView==='detail'){ guideView='list'; syncGuideView(); stopGuideLoop(); return; }

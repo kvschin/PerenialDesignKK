@@ -322,6 +322,18 @@ if ('serviceWorker' in navigator)
     <canvas id="libraryPlacingSwatch" width="30" height="26" aria-hidden="true"></canvas>
     <span class="library-placing-copy"><span class="library-placing-eyebrow">Now placing</span><span id="libraryPlacingName"></span></span>
   </button>
+  <!-- A new garden's first steps, in the order a design is really made. Built
+       by syncStartHere (ui.js); gone once the first plant is in. -->
+  <section id="startHere" class="start-here hidden" aria-labelledby="startHereTitle">
+    <div class="start-here-head">
+      <button id="btnStartHereToggle" class="start-here-toggle" type="button" aria-expanded="true" aria-controls="startHereSteps">
+        <span id="startHereTitle">Start here</span><span id="startHereCount" class="start-here-count"></span>
+        <svg class="ui-icon" aria-hidden="true"><use href="#ui-chevron-down"></use></svg>
+      </button>
+      <button id="btnStartHereClose" class="start-here-close" type="button" title="Dismiss" aria-label="Dismiss the start-here checklist"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
+    </div>
+    <ol id="startHereSteps" class="start-here-steps"></ol>
+  </section>
   </main>
   <div class="hud-bottom">
     <div id="sheetHandle" role="group" aria-label="Plant palette height" data-state="half">
@@ -412,6 +424,10 @@ if ('serviceWorker' in navigator)
            Share in a 236px dropdown, and they were unreachable from the main
            menu, where somebody who has not opened a garden yet would look for
            dark mode. One row, one settings surface, reachable from both. -->
+      <!-- Help from where the questions come up. The guidebook opened only from
+           the title screen, and the tour only from inside Settings. -->
+      <button class="btn" id="btnGardenGuide">Tool guide</button>
+      <button class="btn" id="btnGardenTour">Tour the controls</button>
       <button class="btn" id="btnGardenSettings" aria-haspopup="dialog">Settings</button>
       <button class="btn" id="btnQuit">Save &amp; quit to menu</button>
     </div>
@@ -494,7 +510,7 @@ if ('serviceWorker' in navigator)
     <h2>Lay out the plot</h2>
     <!-- The tile size is written by syncUnitLabels; it is the one sentence on
          this screen that states a real dimension. -->
-    <p class="sub">How much ground are we working? One tile is <span id="plotTileSize">18&quot; &times; 18&quot;</span>. You can always start small &mdash; the house and beds move later.</p>
+    <p class="sub">How much ground are we working? One tile is <span id="plotTileSize">18&quot; &times; 18&quot;</span>, so sides go in steps of a tile. The size and shape are fixed once the garden is made &mdash; everything you draw and plant inside it can change.</p>
     <div class="field"><label for="plotName">Garden name</label>
       <input id="plotName" maxlength="24" placeholder="My garden" autocomplete="off">
     </div>
@@ -557,7 +573,7 @@ if ('serviceWorker' in navigator)
 <div class="screen hidden" id="designScreen">
   <div class="panel panel-enter">
     <h2>What are you planting?</h2>
-    <p class="sub">A few questions to tune the plant palette to your garden. You can change any of this later.</p>
+    <p class="sub">A few questions to tune the plant palette to your garden. You can change any of these later from inside the garden.</p>
     <div class="field"><label>USDA hardiness zone</label>
       <div class="chip-row" id="dgnZoneChips"></div>
       <div class="zone-help hidden" id="dgnZoneHelp">
@@ -610,6 +626,18 @@ if ('serviceWorker' in navigator)
     <p class="sub">Garden criteria decide what can be placed in the plan. Local native status, soil, summer climate, and regional invasive risk need a separate check.</p>
     <div class="field discovery-criteria">
       <label>Garden criteria</label>
+      <!-- The two answers the questionnaire opens with. Both used to be fixed
+           the moment the garden was made, while the questionnaire said "you can
+           change any of this later" — so a wrong zone meant starting over. -->
+      <div class="native-criteria garden-criteria">
+        <label for="discoveryZone">Hardiness zone
+          <select id="discoveryZone" aria-describedby="discoveryGardenHint"></select>
+        </label>
+        <label for="discoveryStyle">Garden style
+          <select id="discoveryStyle" aria-describedby="discoveryGardenHint"></select>
+        </label>
+        <p class="field-hint" id="discoveryGardenHint">Set when the garden was made, and yours to correct. They change what the library offers; nothing already planted is removed.</p>
+      </div>
       <div class="native-criteria">
         <span class="criteria-label">Native planting</span>
         <select id="discoveryNativeMode" aria-describedby="discoveryNativeHint">

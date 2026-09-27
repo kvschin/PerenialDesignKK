@@ -449,6 +449,9 @@ function buildSaveBlob(){
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
   for (const L of GAME_LAYERS) blob[L.k]=game[L.k];   // plants/bulbs/terrain/elevation/fences/lights/firepits/boulders/houses
   const challenge=normalizeDailyChallenge(game.challenge); if(challenge)blob.challenge=challenge;
+  // where the garden was being looked at (view.js): reopened there, not re-centred
+  const view=typeof gardenViewNow==='function' ? gardenViewNow() : null; if (view) blob.view=view;
+  const start=normalizeStartProgress(game.startHere); if (start) blob.start=start;   // the start-here checklist (ui.js)
   const schemes=serializeSchemes(); if (schemes) blob.schemes=schemes;
   // Changed gardens/day/scheme use the current map until the next exit makes
   // a fresh portrait. Ordinary autosaves never render or encode an image.
@@ -709,7 +712,8 @@ function gardenFileProblem(env){
   }
   if (w.underlay!=null && (!gardenRecord(w.underlay) || !normalizeUnderlay(w.underlay))) return 'This garden contains an invalid site photo.';
   if (w.challenge!=null && !normalizeDailyChallenge(w.challenge)) return 'This garden contains an invalid daily design brief.';
-  for (const k of ['design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
+  if (w.view!=null && !normalizeGardenView(w.view)) return 'This garden contains an invalid saved view.';
+  for (const k of ['start','design','discovery','layerVis','fenceDraft','pergolaDraft','lightDraft','firepitDraft','waterFeatureDraft','supportDraft','boulderDraft','petDraft','potDraft','seatDraft','buildingStyleDraft'])
     if (w[k]!=null && !gardenRecord(w[k])) return `This garden contains invalid ${k} settings.`;
   return null;
 }
@@ -727,6 +731,8 @@ async function loadSolo(id){
   // story save simply opens in the planner (its house and plants come along).
   game.design = typeof normalizeDesign==='function' ? normalizeDesign(s.design) : (s.design||null);
   game.challenge=normalizeDailyChallenge(s.challenge);
+  game.savedView=normalizeGardenView(s.view);   // applied by enterGarden, then dropped
+  game.startHere=normalizeStartProgress(s.start);
   // Old saves predate discovery lenses.  Garden criteria is still the source
   // of truth; the global filters value only supplies compatibility/defaults.
   if (game.design && typeof normalizeFilters==='function') game.filters=normalizeFilters(game.design);

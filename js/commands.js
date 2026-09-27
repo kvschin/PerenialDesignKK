@@ -1997,18 +1997,22 @@ function storedArea(){
   }catch(_){ areaClipboard=null; }
   return areaClipboard;
 }
+/* The selection's COPY (More → Copy area, Ctrl/Cmd+C). It was called Save area,
+   beside a drag mode called Copy that was really a duplicate. Returns whether
+   anything was copied, which is what a cut (Ctrl/Cmd+X) waits on. */
 function saveSelectedArea(){
-  if (!game.sel){ toast('Select an area first.'); return; }
+  if (!game.sel){ toast('Select an area first.'); return false; }
   const area=selectionAreaPayload(game.sel);
-  if (!area.items.length){ toast('Nothing in the selection to save.'); return; }
+  if (!area.items.length){ toast('Nothing in the selection to copy.'); return false; }
   area.savedAt=Date.now();
   areaClipboard=area;
   if (hasStorage){
     try{ localStorage.setItem(AREA_CLIP_KEY,JSON.stringify(area)); }
-    catch(_){ toast('That selection is too large to save here.'); return; }
+    catch(_){ toast('That selection is too large to copy here.'); return false; }
   }
   buildToolTray();
-  toast(`Saved ${area.items.length} occupied tile${area.items.length>1?'s':''} as an area.`);
+  toast(`Copied ${area.items.length} occupied tile${area.items.length>1?'s':''}. Select where it goes, then Paste area.`);
+  return true;
 }
 function rectForSavedArea(area,x0,y0){ return {x0,y0,x1:x0+area.w-1,y1:y0+area.h-1}; }
 function rectFits(r){
@@ -2036,16 +2040,28 @@ function clearRectLayers(r){
 }
 function pasteSavedArea(){
   const area=storedArea();
-  if (!area || !area.items || !area.items.length){ toast('No saved area yet.'); return; }
-  if (!game.sel){ toast('Select where to paste the saved area.'); return; }
+  if (!area || !area.items || !area.items.length){ toast('Nothing copied yet.'); return; }
+  if (!game.sel){ toast('Select where to paste the area.'); return; }
   const target=rectForSavedArea(area,game.sel.x0,game.sel.y0);
-  if (!rectFits(target)){ toast('Saved area would run off the plot or into a house.'); return; }
+  if (!rectFits(target)){ toast('That area would run off the plot or into a house.'); return; }
   const items=area.items.map(c=>{ const out=cloneCell(c); out.x=target.x0+c.x; out.y=target.y0+c.y; return out; });
   withUndo(()=>{ clearRectLayers(target); selWrite(items,c=>[c.x,c.y],false); });
   game.sel=target;
   game.selItems=selectionPayload(game.sel);
   buildToolTray();
-  toast(`Pasted saved area: ${items.length} occupied tile${items.length>1?'s':''}.`);
+  toast(`Pasted ${items.length} occupied tile${items.length>1?'s':''}.`);
+}
+/* Ctrl/Cmd+V: paste at the selection, or — with no selection — at the tile
+   under the pointer, arming Select to do it, since that is where a paste by
+   keyboard is aimed. */
+function pasteAreaFromKeys(){
+  if (game.tool!=='select') setTool('select');
+  if (!game.sel){
+    const t=game.hoverTile;
+    if (!t){ toast('Point at where the area should go, then paste.'); return; }
+    game.sel={x0:t[0],y0:t[1],x1:t[0],y1:t[1]};
+  }
+  pasteSavedArea(); renderSelectionActions(); refreshCanvasTools();
 }
 function fillSelectionWithPlant(){
   if (!game.sel){ toast('Select an area first.'); return; }

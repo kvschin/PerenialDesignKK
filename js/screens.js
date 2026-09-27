@@ -511,6 +511,8 @@ function prepareDailySite(plan){
 function resetNewGardenState(){
   resetGardenAutosave();
   game.challenge=null;
+  game.savedView=null;   // a new garden opens fitted to the screen
+  game.startHere=null;   // and with the start-here checklist fresh
   for (const L of GAME_LAYERS) game[L.k]=L.array?[]:{};
   game.schemes=[]; game.schemeActive=null;
   game.freePlanting=false;
@@ -886,7 +888,9 @@ async function openWorlds(){
        twice on the plan sheet). It reads TILE_IN now, so the row cannot start
        lying about a garden's size the day the tile becomes a setting. */
     const ftPerTile=TILE_IN/12;
-    meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile)} × ${fmtFeet((w.gh||31)*ftPerTile)} · ${new Date(w.ts).toLocaleDateString()}`;
+    // one decimal: a 31-tile side is 46.5 ft, and "47 ft" disagreed with the
+    // plot screen the garden was made on
+    meta.textContent=`${fmtFeet((w.gw||31)*ftPerTile,1)} × ${fmtFeet((w.gh||31)*ftPerTile,1)} · ${new Date(w.ts).toLocaleDateString()}`;
     const details=document.createElement('span'); details.className='meta world-details';
     info.append(nm,meta,details);
     // the save blob fills in the picture + living details (async, per row)
@@ -1199,6 +1203,12 @@ function enterGarden(){
   game.bedStyle=bedStyleId(game.bedStyle);
   game.actX=SPAWNX; game.actY=SPAWNY;   // free camera centred on the plot
   snapCam();
+  /* Where it was left, or the whole plot. The usable rect is measured fresh:
+     the HUD has only just been shown, and a cached answer from the last garden
+     can describe a library that was open then and is shut now. */
+  invalidateUsableRect();
+  if (!restoreGardenView(game.savedView)) fitPlot();
+  game.savedView=null;
   if (groundReset) markGroundChanged();
   game.lastDay=absDay();
   undoStack=[]; redoStack=[]; updateUndoBtn();
@@ -1280,6 +1290,7 @@ function applySiteNorthEditor(){
     drawPlotShapeEditor();                    // the diagram's dial mirrors the applied bearing
   } else if (context==='garden'){
     const changed=setSiteNorthDeg(siteNorthEditorDraft);
+    markStartStep('north');   // confirming north is the tick, even when north is up
     buildToolTray(); refreshCanvasTools();
     if (changed && game.inGarden) saveSolo(true);
     toast('North set. Sun and shade directions updated.');
@@ -1308,8 +1319,10 @@ function syncUnitLabels(){
      INWARD matters — a metric max of 61 m rounded up to 62 would let the field
      offer a plot plotFt then silently clamps back, which reads as the app
      ignoring what you typed. */
-  attrs('plotW', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), metric?0.5:1);
-  attrs('plotL', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), metric?0.5:1);
+  // half a foot in imperial too: a tile is 1.5 ft, so 46.5 is a real plot
+  // side, and a step of 1 marked the field invalid the moment it snapped there
+  attrs('plotW', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), 0.5);
+  attrs('plotL', Math.ceil(ftToDisplay(FT_MIN,2)), Math.floor(ftToDisplay(FT_MAX,2)), 0.5);
 
   set('plotTileSize',tileSizeText());
   set('sitePhotoWidthUnit',lengthUnit());
@@ -1326,7 +1339,15 @@ function syncUnitLabels(){
   });
 }
 function plotFt(id){ const ft=displayToFt($(id).value); return Math.max(FT_MIN,Math.min(FT_MAX,Number.isFinite(ft)?ft:46)); }
-function setPlotField(id,ft){ $(id).value=ftToDisplay(ft, metricUnits()?1:0); }
+/* A plot is a whole number of 18-inch tiles, so every side is a multiple of
+   1.5 ft — and that, not the number typed, is the garden that gets built. The
+   screen used to quote three different sizes for one plot: 46 typed, 47 on the
+   diagram (31 tiles is 46.5 ft, rounded), and 2,116 sq ft in the note (46 x 46,
+   when 46.5 x 46.5 is 2,162). Everything now reads plotRealFt, and a field
+   snaps to it when you finish typing — at one decimal, which is what a half
+   foot needs and what the imperial field used to round away. */
+function plotRealFt(id){ return ftToTiles(plotFt(id))*TILE_IN/12; }
+function setPlotField(id,ft){ $(id).value=ftToDisplay(ftToTiles(ft)*TILE_IN/12,1); }
 /* ---------- lot-shape editor (plot setup) ----------
    A pending 4-corner shape drafted BEFORE the world exists — btnPlotStart
    applies it via setPlotShape only after setWorldSize (which always clears
@@ -1337,9 +1358,12 @@ let pendingPlotShape=null, plotShapeDrag=null;
 function defaultPlotShapeVerts(gw,gh){ return [[0,0],[gw,0],[gw,gh],[0,gh]]; }
 /* FEET, still — the canvas formats them at draw time. Kept numeric because
    the shape validator and the tests read these as lengths, not as captions. */
+/* To the nearest half foot, not the nearest foot: every straight side is a
+   multiple of 1.5 ft, and rounding 46.5 to 47 is how the diagram came to
+   disagree with the field beside it. */
 function plotShapeSideLengthsFt(verts){
   return verts.map((v,i)=>{ const w=verts[(i+1)%verts.length];
-    return Math.round(Math.hypot(w[0]-v[0],w[1]-v[1])*TILE_IN/12); });
+    return Math.round(Math.hypot(w[0]-v[0],w[1]-v[1])*TILE_IN/12*2)/2; });
 }
 function plotShapeSnap(px,py,gw,gh){
   return [Math.max(0,Math.min(gw,Math.round(px))), Math.max(0,Math.min(gh,Math.round(py)))];
@@ -1410,7 +1434,7 @@ function drawPlotShapeEditor(){
     const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
     const nx=dy/len, ny=-dx/len;               // outward for clockwise winding
     const lx=mx+nx*13, ly=my+ny*13;
-    const cap=fmtFeet(fts[i]);
+    const cap=fmtFeet(fts[i],1);
     g.strokeStyle=uiInk('--icon-halo'); g.lineWidth=3; g.strokeText(cap,lx,ly);
     g.fillStyle=uiInk('--icon-ink'); g.fillText(cap,lx,ly);
   }
@@ -1531,16 +1555,18 @@ function wirePlotShapeEditor(){
   cvs.addEventListener('pointerup',finish);
   cvs.addEventListener('pointercancel',finish);
 }
-function updatePlotNote(){
-  const w=plotFt('plotW'), l=plotFt('plotL'), sqFt=w*l;
+function plotNoteText(){
+  const w=plotRealFt('plotW'), l=plotRealFt('plotL'), sqFt=w*l;
   /* Acres are dropped in metric rather than converted: a garden is 0.04 ha,
      which is a number nobody can hold, and square metres already answer the
      question the acre figure was there for. */
   const area=metricUnits()
     ? `${Math.round(sqFt*SQM_PER_SQFT).toLocaleString()} sq m`
     : `${Math.round(sqFt).toLocaleString()} sq ft · ${(sqFt/43560).toFixed(2)} acres`;
-  $('plotNote').textContent=`${ftToTiles(w)} × ${ftToTiles(l)} tiles · ${area}`;
+  // the real size leads: it is what the garden will be, whatever is mid-typing
+  return `${fmtFeet(w,1)} × ${fmtFeet(l,1)} · ${area} · ${ftToTiles(w)} × ${ftToTiles(l)} tiles`;
 }
+function updatePlotNote(){ $('plotNote').textContent=plotNoteText(); }
 function openPlotScreen(){
   const row=$('plotPresets');
   if (!row.children.length){
@@ -1554,6 +1580,10 @@ function openPlotScreen(){
     });
     $('plotW').oninput=$('plotL').oninput=()=>{ updatePlotNote(); resetPendingPlotShape(true);
       row.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel')); };
+    // on finishing a value (blur or Enter), not per keystroke: rewriting the
+    // field mid-typing would fight the person typing it
+    $('plotW').onchange=()=>{ setPlotField('plotW',plotFt('plotW')); updatePlotNote(); drawPlotShapeEditor(); };
+    $('plotL').onchange=()=>{ setPlotField('plotL',plotFt('plotL')); updatePlotNote(); drawPlotShapeEditor(); };
     wirePlotShapeEditor();
     $('btnPlotStart').onclick=()=>{
       setWorldSize(ftToTiles(plotFt('plotW')), ftToTiles(plotFt('plotL')));
@@ -1820,6 +1850,14 @@ if ($('coachTipClose')) $('coachTipClose').onclick=dismissCoachTip;
 $('gardenMenu').onclick=(e)=>{ if (e.target===$('gardenMenu')) closeOverlay('gardenMenu'); };
 $('btnQuit').onclick=quitToMenu;
 if ($('btnShare')) $('btnShare').onclick=shareCurrentGarden;
+/* Help rows. Both close the garden menu first, like Settings below, so there
+   is one layer on screen and Escape means one thing. */
+if ($('btnGardenGuide')) $('btnGardenGuide').onclick=()=>{ closeOverlay('gardenMenu',false); openGuide(); };
+if ($('btnGardenTour')) $('btnGardenTour').onclick=()=>{
+  closeOverlay('gardenMenu',false);
+  tourSession=null;   // a replay, as Settings' own row does
+  toast(startTour() ? 'Tour started.' : 'Nothing to tour here.');
+};
 if ($('btnGardenSettings')) $('btnGardenSettings').onclick=()=>{
   /* A dropdown that spawns a modal should get out of the way: leaving the
      garden menu open behind the scrim puts two dismissable layers on screen and
@@ -2335,7 +2373,7 @@ $('btnCsv').onclick=exportCsv;
 $('btnFilters').onclick=()=>{ closeOverlay('gardenMenu'); openFilters(); };
 if ($('btnDiscoveryApply')) $('btnDiscoveryApply').onclick=applyDiscoveryFilters;
 if ($('btnDiscoveryClear')) $('btnDiscoveryClear').onclick=clearDiscoveryFilters;
-if ($('btnDiscoveryClose')) $('btnDiscoveryClose').onclick=()=>{ discoveryFilterDraft=null; discoveryCriteriaDraft=null; closeOverlay('discoveryFilterScreen'); };
+if ($('btnDiscoveryClose')) $('btnDiscoveryClose').onclick=()=>{ discoveryFilterDraft=null; discoveryCriteriaDraft=null; discoveryStyleDraft=null; closeOverlay('discoveryFilterScreen'); };
 if ($('btnPaletteClose')) $('btnPaletteClose').onclick=()=>{ palettePendingRef=null; paletteRenameId=null; closeOverlay('paletteScreen'); };
 if ($('btnPaletteCreate')) $('btnPaletteCreate').onclick=createPaletteFromInput;
 if ($('paletteName')) $('paletteName').onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); createPaletteFromInput(); } };

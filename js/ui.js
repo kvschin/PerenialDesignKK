@@ -190,8 +190,132 @@ function coachBeatEnter(){
     coachLookTimer=setTimeout(()=>{ coachLookTimer=null;
       if (!tourRunning()) showTimeCoachTip(); }, COACH_LOOK_MS);
   } else {
+    // an empty new garden has the start-here checklist, which says this and more
+    if (startHereApplies()) return;
     showCoachTip('Pick a plant from the library, then tap the ground to plant it.','first-plant');
   }
+}
+/* ---------- Start here: a new garden's first steps ----------
+   A new garden opened as a plain lawn and one tip about planting, while a real
+   design starts from the SITE — which way is north, the house, where the beds
+   go — and the tools for all of that sat in the last category of the
+   Landscape library, scrolled out of sight. This is the order, once, where it
+   can be seen.
+   Every step DOES its step rather than describing it (sets north, opens a
+   photo, arms the footprint or bed tool with the library open on it), and
+   every tick is read off the garden itself — a footprint exists, terrain is
+   laid — so there is no progress to fall out of step with. The one exception
+   is north, whose default (up) may well be right: confirming it in the north
+   dialog is the tick, recorded on game.startHere.north.
+   It shows only in a garden with no planting that is not a daily challenge
+   (those bring their own brief), and goes the moment the first plant is in —
+   that is the list's last step, and a design under way does not need it. The
+   ✕ dismisses it for that garden; both facts save with it (blob.start).
+   It replaces the empty-garden coach tip, which said step 5 alone. */
+const START_STEPS=[
+  {id:'north',     title:'Set north',                   hint:'Sun and shade follow it.'},
+  {id:'photo',     title:'Trace a site photo',          hint:'Optional: line up an aerial view or a sketch.'},
+  {id:'buildings', title:'Draw the house and buildings',hint:'Beds then stop at the walls.'},
+  {id:'ground',    title:'Lay out beds and paths',      hint:'Paint them; the edges curve on their own.'},
+  {id:'plants',    title:'Choose plants and plant',     hint:'Pick one, then tap or drag the ground.'},
+];
+function normalizeStartProgress(v){
+  if (!v || typeof v!=='object' || Array.isArray(v)) return null;
+  return {north:v.north===true, dismissed:v.dismissed===true};
+}
+function gardenHasPlanting(){
+  for (const k in game.plants){ const p=game.plants[k]; if (p && !p.removed) return true; }
+  for (const k in game.bulbs){ const b=game.bulbs[k]; if (b && !b.removed) return true; }
+  return false;
+}
+function startStepDone(id){
+  const s=game.startHere||{};
+  if (id==='north') return !!s.north || normalizeSiteNorthDeg(game.siteNorthDeg)!==0;
+  if (id==='photo') return !!game.underlay;
+  if (id==='buildings') return (game.buildings||[]).length>0 || (game.houses||[]).length>0;
+  if (id==='ground'){ for (const k in game.terrain){ const t=game.terrain[k]; if (t && !t.removed) return true; } return false; }
+  if (id==='plants') return gardenHasPlanting();
+  return false;
+}
+function startHereApplies(){
+  return !!(game.inGarden && !game.challenge && !(game.startHere && game.startHere.dismissed) && !gardenHasPlanting());
+}
+function markStartStep(id){
+  if (id!=='north' || !game.inGarden) return;
+  game.startHere=Object.assign({north:false,dismissed:false},game.startHere||{},{north:true});
+  markModelChanged(); syncStartHere();
+}
+function dismissStartHere(){
+  game.startHere=Object.assign({north:false,dismissed:false},game.startHere||{},{dismissed:true});
+  markModelChanged(); syncStartHere();
+}
+function runStartStep(id){
+  if (id==='north') openSiteNorthEditor('garden');
+  else if (id==='photo') chooseSitePhoto();
+  else if (id==='buildings') openLibraryAt('house','building');
+  else if (id==='ground') openLibraryAt('landscape','bed');
+  else if (id==='plants'){ openLibraryAt(lastCatByGroup.plants||'grasses',null); toast('Pick a plant, then tap or drag the ground.'); }
+}
+/* Collapsed by default where the canvas is a strip above a sheet (a phone),
+   open where it sits beside the library. Per session; the ✕ is what persists. */
+let startHereSig='', startHereCollapsed=null;
+/* Called from updateHUD, so it must cost nothing when there is nothing to do:
+   hidden gardens return on booleans, and a visible list rebuilds only when a
+   tick, the collapse or the canvas area moves. */
+function syncStartHere(){
+  const el=document.getElementById('startHere'); if (!el) return;
+  if (!startHereApplies()){
+    if (!el.classList.contains('hidden')){ el.classList.add('hidden'); startHereSig=''; }
+    return;
+  }
+  if (startHereCollapsed===null) startHereCollapsed=mobileSheetUi();
+  const done=START_STEPS.map(s=>startStepDone(s.id));
+  const sig=done.map(d=>d?1:0).join('')+'|'+(startHereCollapsed?1:0)+'|'+VW+'x'+VH+'|'+(game.sheetState||'')+'|'+(document.body.className||'');
+  if (sig===startHereSig && !el.classList.contains('hidden')) return;
+  startHereSig=sig;
+  const n=done.filter(Boolean).length;
+  hudText('startHereCount',`${n} of ${START_STEPS.length}`);
+  const toggle=document.getElementById('btnStartHereToggle');
+  if (toggle){
+    toggle.setAttribute('aria-expanded',startHereCollapsed?'false':'true');
+    toggle.onclick=()=>{ startHereCollapsed=!startHereCollapsed; syncStartHere(); };
+  }
+  const close=document.getElementById('btnStartHereClose'); if (close) close.onclick=dismissStartHere;
+  const list=document.getElementById('startHereSteps');
+  if (list){
+    list.hidden=!!startHereCollapsed;
+    list.innerHTML='';
+    START_STEPS.forEach((s,i)=>{
+      const li=document.createElement('li'), b=document.createElement('button');
+      b.type='button'; b.className='start-step'+(done[i]?' done':'');
+      const check=document.createElement('span'); check.className='start-check'; check.setAttribute('aria-hidden','true');
+      const copy=document.createElement('span'); copy.className='start-step-copy';
+      const t=document.createElement('b'); t.textContent=s.title;
+      const h=document.createElement('small'); h.textContent=s.hint;
+      copy.append(t,h); b.append(check,copy);
+      b.setAttribute('aria-label',`${s.title}${done[i]?' (done)':''}. ${s.hint}`);
+      b.onclick=()=>runStartStep(s.id);
+      li.appendChild(b); list.appendChild(li);
+    });
+  }
+  el.classList.remove('hidden');
+  placeStartHere(el);
+}
+/* Beside the library, top right of the clear canvas; across the top of the
+   strip on a phone. Measured against usableCanvasRect so it clears the rail,
+   the top bar and the sheet. */
+function placeStartHere(el){
+  if (!el.style || typeof usableCanvasRect!=='function') return;
+  const safe=usableCanvasRect(), sw=safe.right-safe.left;
+  if (mobileSheetUi()){
+    el.style.left=Math.round(safe.left)+'px';
+    el.style.width=Math.round(Math.min(sw,380))+'px';
+  } else {
+    const w=Math.min(300,sw);
+    el.style.width=Math.round(w)+'px';
+    el.style.left=Math.round(safe.right-w)+'px';
+  }
+  el.style.top=Math.round(safe.top)+'px';
 }
 /* Called once per successfully placed plant or bulb, from plantFx — the one
    choke point every route funnels through (tap, drag, drift, fill, matrix), and
@@ -1672,6 +1796,7 @@ function hudText(id,txt){ const el=document.getElementById(id);
   if (el && el._t!==txt){ el._t=txt; el.textContent=txt; } }
 function updateHUD(){
   const cal=calClock();
+  syncStartHere();   // returns on booleans unless a new garden's checklist is up
   hudText('seasonName',cal.season);
   // A planner: real days are meaningless (a day is 20s), so the readout shows
   // the season + how far through it. The internal clock is unchanged.

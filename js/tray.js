@@ -12,18 +12,21 @@ const TRAY_CATS=[
   {id:'climbers', label:'Climbers',         types:['vine']},
   {id:'shrubs',   label:'Shrubs',           types:['shrub']},
   {id:'trees',    label:'Trees',            types:['tree']},
+  /* Site FIRST: a real design starts from the site — north, a photo to trace,
+     the house — and it sat last in the strip, scrolled out of view, so the
+     step that should come first was the one found last. */
+  {id:'house',    label:'Site',             tools:['building','house']},
   {id:'landscape',label:'Ground',           tools:['lawn','path','bed','water','edging']},
   {id:'leveling', label:'Grade',            tools:['raise','lower','level','wall']},
   {id:'structures',label:'Hardscape',       tools:['fence','pergola','support','firepit','waterfeature','boulder','seat']},
   {id:'lighting', label:'Lighting',         tools:['light']},
   {id:'decor',    label:'Decor',            tools:['pot','pet']},
-  {id:'house',    label:'Site',             tools:['building','house']},
 ];
 // two-tier tab grouping: a top-level Plants / Build toggle decides which set
 // of category sub-tabs shows, so the bar never spills all twelve at once.
 const TRAY_GROUPS=[
   {id:'plants', label:'Plants', cats:['grasses','sedges','sunper','shadeper','bulbs','waterplants','climbers','shrubs','trees']},
-  {id:'build',  label:'Landscape',  cats:['landscape','leveling','structures','lighting','decor','house']},
+  {id:'build',  label:'Landscape',  cats:['house','landscape','leveling','structures','lighting','decor']},
 ];
 function trayGroupOf(catId){ const g=TRAY_GROUPS.find(g=>g.cats.includes(catId)); return g?g.id:'plants'; }
 let lastCatByGroup={plants:'grasses', build:'landscape'}; // remember the sub-tab per group
@@ -1048,9 +1051,21 @@ function renderSelectionActions(){
      formats them rather than the estimator pre-baking a unit into its result. */
   summary.textContent=`${fmtFeet(est.widthFt,1)} x ${fmtFeet(est.heightFt,1)} - ${fmtAreaSqFt(est.areaSqFt,0)}`;
   el.appendChild(summary);
-  btn('Move',game.selMode==='move',()=>{ game.selMode='move'; renderSelectionActions(); updateActiveToolStatus(); });
-  btn('Copy',game.selMode==='copy',()=>{ game.selMode='copy'; renderSelectionActions(); updateActiveToolStatus(); });
+  /* Move and Duplicate are a MODE — what dragging the selection does — so they
+     are one pressed/unpressed pair, set apart from the one-shot actions after
+     them. They were styled like the actions beside them, and the second was
+     called "Copy" while the real copy (to reuse an area elsewhere) sat under
+     More as "Save area": two copies, neither named for what it does. */
+  const mode=document.createElement('span'); mode.className='selection-mode';
+  mode.setAttribute('role','group'); mode.setAttribute('aria-label','Dragging the selection will');
+  el.appendChild(mode);
+  const modeBtn=(label,id,title)=>{ const b=btn(label,game.selMode===id,()=>{ game.selMode=id; renderSelectionActions(); updateActiveToolStatus(); },title);
+    b.setAttribute('aria-pressed',game.selMode===id?'true':'false'); mode.appendChild(b); };
+  modeBtn('Move','move','Drag the selection to move it');
+  modeBtn('Duplicate','copy','Drag the selection to place a duplicate; the original stays');
   btn('Fill',false,()=>fillSelectionWithPlant(),'Fill the selection with the last selected plant or landscape material');
+  // Erase was the last row of More; it is the commonest thing done to a selection
+  btn('Erase',false,()=>{ eraseSelection(); refreshCanvasTools(); },'Erase everything in the selection (Delete)','danger');
   const more=btn('More',false,null,'More selection actions');
   more.setAttribute('aria-haspopup','menu');
   more.onclick=e=>{ e.stopPropagation(); showSelectionMore(more); };
@@ -1060,18 +1075,18 @@ function renderSelectionActions(){
 function showSelectionMore(anchor){
   const old=document.getElementById('selectionMore'); if (old){ old.remove(); return; }
   const pop=document.createElement('div'); pop.id='selectionMore'; pop.className='selection-more'; pop.setAttribute('role','menu');
-  const add=(label,fn,cls,disabled)=>{
+  const add=(label,fn,cls,disabled,title)=>{
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.setAttribute('role','menuitem');
-    if (cls) b.className=cls; b.disabled=!!disabled;
+    if (cls) b.className=cls; b.disabled=!!disabled; if (title) b.title=title;
     b.onclick=e=>{ e.stopPropagation(); pop.remove(); fn&&fn(); };
     pop.appendChild(b);
   };
   add('Estimate materials\u2026',()=>openSelectionEstimate());
   add('Replace plants\u2026',()=>openSelectionReplace());
   add('Rotate 90 degrees',()=>{ rotateSelection(); renderSelectionActions(); refreshCanvasTools(); });
-  add('Save area',()=>saveSelectedArea());
-  add('Paste saved area',()=>pasteSavedArea(),null,!storedArea());
-  add('Erase selection',()=>{ eraseSelection(); refreshCanvasTools(); },'danger');
+  // the clipboard, named as one (and on Ctrl/Cmd+C and V)
+  add('Copy area',()=>saveSelectedArea(),null,false,'Copy everything in the selection to paste elsewhere (Ctrl+C)');
+  add('Paste area',()=>pasteSavedArea(),null,!storedArea(),'Paste the copied area here (Ctrl+V)');
   document.body.appendChild(pop);
   const r=anchor.getBoundingClientRect(), w=pop.offsetWidth||190;
   pop.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
@@ -2296,15 +2311,24 @@ function renderDiscoveryTrayInner(tray){
 function openDiscoveryFilters(opener){
   discoveryFilterDraft=normalizeDiscovery(activeDiscovery());
   discoveryCriteriaDraft=activeFilters();
+  discoveryStyleDraft=gardenStyleId();
   renderDiscoveryFilterScreen();
   const screen=openOverlay('discoveryFilterScreen','#discoveryNativeMode'); if (screen) screen._returnFocus=opener||screen._returnFocus;
 }
+/* The garden's style lives on game.design, not in the filters: it ranks the
+   catalog and decides what `recommended` holds, but it is not an eligibility
+   gate. 'any' when a garden predates the questionnaire. */
+let discoveryStyleDraft=null;
+function gardenStyleId(){ return activeDesignType()||'any'; }
 function readDiscoveryCriteria(){
-  const current=discoveryCriteriaDraft||activeFilters();
+  const zoneEl=$('discoveryZone');
   return normalizeFilters({
-    // Zone is selected when a garden begins. It remains an eligibility gate,
-    // but is intentionally not editable from the in-garden discovery lens.
-    zone:current.zone,
+    /* Zone is chosen when a garden begins and, since 0.9.29, can be corrected
+       here. It used to be carried through untouched ("intentionally not
+       editable") while the questionnaire promised "you can change any of this
+       later", so a gardener who picked the wrong zone had to start again. It
+       only gates what the library OFFERS: nothing planted is ever removed. */
+    zone:zoneEl && zoneEl.value ? +zoneEl.value : (discoveryCriteriaDraft||activeFilters()).zone,
     nativeMode:$('discoveryNativeMode').value,
     nativeRegion:$('discoveryNativeRegion').value,
     invasive:$('discoveryInvasive').value,
@@ -2313,8 +2337,31 @@ function readDiscoveryCriteria(){
     squirrel:$('discoverySquirrel').checked
   });
 }
+function renderGardenCriteria(f){
+  const zone=$('discoveryZone'), style=$('discoveryStyle');
+  if (zone){
+    zone.innerHTML='';
+    const r=zoneRange(), cur=f.zone ? clampZone(f.zone) : null;
+    if (!cur){ const o=document.createElement('option'); o.value=''; o.textContent='Not set — every zone'; o.selected=true; zone.appendChild(o); }
+    for (let z=r.lo;z<=r.hi;z++){
+      const o=document.createElement('option'); o.value=String(z);
+      const t=zoneTemperatureText(z); o.textContent=t?`Zone ${z} · ${t}`:`Zone ${z}`;
+      o.selected=z===cur; zone.appendChild(o);
+    }
+    zone.onchange=()=>{ discoveryCriteriaDraft=readDiscoveryCriteria(); renderDiscoveryFilterScreen(); };
+  }
+  if (style){
+    style.innerHTML='';
+    const want=discoveryStyleDraft||gardenStyleId();
+    GARDEN_TYPES.forEach(([id,label])=>{
+      const o=document.createElement('option'); o.value=id; o.textContent=label; o.selected=id===want; style.appendChild(o);
+    });
+    style.onchange=()=>{ discoveryStyleDraft=style.value; renderDiscoveryFilterScreen(); };
+  }
+}
 function renderDiscoveryCriteria(){
   const f=discoveryCriteriaDraft||activeFilters();
+  renderGardenCriteria(f);
   const mode=$('discoveryNativeMode'), region=$('discoveryNativeRegion'), regionRow=$('discoveryNativeRegionRow');
   mode.value=f.nativeMode;
   region.innerHTML=''; NATIVE_REGIONS.filter(r=>r.selectable!==false).forEach(r=>{
@@ -2348,13 +2395,30 @@ function renderDiscoveryFilterScreen(){
     b.append(dot,document.createTextNode(label)); b.onclick=()=>{ const next=d.colorFamilies.includes(id)?d.colorFamilies.filter(x=>x!==id):[...d.colorFamilies,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{colorFamilies:next})); renderDiscoveryFilterScreen(); }; colors.appendChild(b); });
   DISCOVERY_SEASONS.forEach(([id])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'+(d.bloomSeasons.includes(id)?' sel':''); b.textContent=id;
     b.setAttribute('aria-pressed',d.bloomSeasons.includes(id)?'true':'false'); b.onclick=()=>{ const next=d.bloomSeasons.includes(id)?d.bloomSeasons.filter(x=>x!==id):[...d.bloomSeasons,id]; discoveryFilterDraft=normalizeDiscovery(Object.assign({},d,{bloomSeasons:next})); renderDiscoveryFilterScreen(); }; seasons.appendChild(b); });
-  const savedDiscovery=game.discovery, savedCriteria=game.filters;
+  // count against the DRAFT, style included: `recommended` is the style's list
+  const savedDiscovery=game.discovery, savedCriteria=game.filters, savedDesign=game.design;
   game.discovery=normalizeDiscovery(d); game.filters=normalizeFilters(discoveryCriteriaDraft||savedCriteria);
-  const refs=discoveryRefs(), countText=discoveryResultCountText(refs); game.discovery=savedDiscovery; game.filters=savedCriteria;
+  if (discoveryStyleDraft) game.design=Object.assign({},savedDesign||{},{type:discoveryStyleDraft});
+  let refs, countText;
+  try { refs=discoveryRefs(); countText=discoveryResultCountText(refs); }
+  finally { game.discovery=savedDiscovery; game.filters=savedCriteria; game.design=savedDesign; }
   document.getElementById('discoveryFilterCount').textContent=`${countText} match these filters.`;
+}
+/* The style is not a filter, so it rides game.design alone; a garden older
+   than the questionnaire has no design and gets one, built from its filters. */
+function applyGardenStyle(type){
+  const next=GARDEN_TYPES.some(([id])=>id===type) ? type : 'any';
+  if (next===gardenStyleId()) return false;
+  game.design=Object.assign(normalizeDesign(game.design||activeFilters())||{},{type:next});
+  return true;
 }
 function applyDiscoveryFilters(){
   const n=applyGardenCriteria(discoveryCriteriaDraft||activeFilters(),{refresh:false,announce:false});
+  if (discoveryStyleDraft) applyGardenStyle(discoveryStyleDraft);
+  discoveryStyleDraft=null;
+  // zone and style live in the garden's own save (game.design), not only in the
+  // device-wide hortus:filters, so an apply has to reach the autosave
+  if (game.inGarden) markModelChanged();
   discoveryOpenSpecies=null;
   setDiscovery(Object.assign({},discoveryFilterDraft||{}, {limit:36}),true); discoveryFilterDraft=null; discoveryCriteriaDraft=null;
   closeOverlay('discoveryFilterScreen'); buildToolTray();
@@ -4165,7 +4229,7 @@ function toolGuide(){
   }
   const guides={
     hand:{k:'Hand',v:'Drag to pan — pinch, wheel, or View Tools to zoom'},
-    select:{k:'Select',v:game.sel?`${cap(game.selMode)} mode — drag the selected area to ${game.selMode==='copy'?'place a copy':'move it'}`:'Drag a box around an area, then use the actions above it'},
+    select:{k:'Select',v:game.sel?`${game.selMode==='copy'?'Duplicate':'Move'} — drag the selection to ${game.selMode==='copy'?'place a duplicate':'move it'}; Delete erases it`:'Drag a box around an area, then use the actions above it'},
     ruler:{k:'Tape measure',v:'Tap two points or drag between them'},
     pick:{k:'Eyedropper',v:'Tap an existing plant, material, or structure to copy it'},
     shovel:{k:'Erase',v:`${cap(game.eraseMode)} layer — tap or drag — ${game.brushSize}-tile brush`},
@@ -4488,6 +4552,19 @@ function drawSheetSwatch(){
    would plant. It shows only while a placement tool is armed; with Hand, Select
    and the rest the rail already says what the pointer does. */
 function libraryOpen(){ return normalizedSheetState(game.sheetState)!=='collapsed'; }
+/* Open the library on one category with one tool armed (or Hand), from outside
+   the library — the start-here steps. A plant category opens the whole plant
+   catalog (All) rather than one shelf of it: "choose plants" is a browse. */
+function openLibraryAt(cat,tool){
+  const plants=trayGroupOf(cat)==='plants';
+  game.toolMenu=null; game.drill=null; game.searchOpen=false; game.traySearch='';
+  game.trayCat=cat; lastCatByGroup[trayGroupOf(cat)]=cat;
+  discoveryOpenSpecies=null;
+  setDiscovery({category:null,returnCategory:null,query:plants?'':activeDiscovery().query,limit:36});
+  setTool(tool||'hand');
+  if (!libraryOpen()) setSheetState(mobileSheetUi() ? 'half' : 'full');
+  buildToolTray();
+}
 function toggleLibrary(){
   setSheetState(libraryOpen() ? 'collapsed' : (mobileSheetUi() ? 'half' : 'full'));
 }

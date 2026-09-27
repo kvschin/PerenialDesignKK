@@ -1323,6 +1323,12 @@ canvas.layer-eye{display:block}
 .selection-actions button.danger{border-color:rgba(224,138,122,.5);color:var(--action-danger-text);background:var(--surface-danger)}
 .selection-actions button.disabled{opacity:var(--disabled-opacity);pointer-events:none}
 .selection-summary{flex:1 0 100%;padding:2px 7px 4px;text-align:center;color:var(--text-primary);font-size:10px;font-weight:700;white-space:nowrap}
+/* Move | Duplicate is one control — what a drag does — so it reads as a joined
+   pair with a gap after it, not as two more of the action buttons. */
+.selection-mode{display:inline-flex;margin-right:6px}
+.selection-mode button{border-radius:0}
+.selection-mode button:first-child{border-radius:var(--radius-pill) 0 0 var(--radius-pill)}
+.selection-mode button:last-child{border-radius:0 var(--radius-pill) var(--radius-pill) 0;margin-left:-1px}
 .selection-more{position:fixed;z-index:48;display:flex;flex-direction:column;width:196px;padding:6px;border:1.5px solid var(--border-subtle);
   border-radius:var(--radius-panel);background:var(--surface-dialog);box-shadow:var(--shadow-overlay)}
 .selection-more button{min-height:40px;padding:8px 10px;border:0;border-radius:var(--radius-control);background:transparent;
@@ -1360,6 +1366,48 @@ canvas.layer-eye{display:block}
   font-size:13.5px;line-height:1.5;font-weight:500;
   animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
 .coach-tip span{position:relative;z-index:1;text-align:left}
+/* ---------- Start here (a new garden's checklist, ui.js) ----------
+   A dialog surface rather than the translucent overlay: it is read, and it sits
+   over a lawn whose colour follows the season. Positioned by placeStartHere
+   against usableCanvasRect, so it never meets the rail, the bar or the sheet. */
+.start-here{position:absolute;z-index:8;pointer-events:auto;padding:6px;
+  border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);
+  background:var(--surface-dialog);box-shadow:var(--shadow-overlay);color:var(--text-primary);
+  font-family:var(--font-body);animation:panelEnter var(--motion-panel) var(--ease-emphasized)}
+.start-here-head{display:flex;align-items:center;gap:2px}
+.start-here-toggle{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:36px;padding:4px 8px;
+  border:0;border-radius:var(--radius-control);background:none;color:var(--text-primary);text-align:left;cursor:pointer}
+.start-here-toggle:hover,.start-here-close:hover,.start-step:hover{background:var(--surface-control-hover)}
+#startHereTitle{font:600 15px/1.2 var(--font-heading)}
+.start-here-count{color:var(--text-muted);font-size:11px;font-weight:600}
+.start-here-toggle .ui-icon{width:15px;height:15px;margin-left:auto;transition:transform var(--motion-control)}
+.start-here-toggle[aria-expanded="false"] .ui-icon{transform:rotate(-90deg)}
+.start-here-close{flex:0 0 32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;
+  border:0;border-radius:var(--radius-control);background:none;color:var(--text-muted)}
+.start-here-close .ui-icon{width:15px;height:15px}
+.start-here-steps{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:1px}
+.start-here-steps[hidden]{display:none}
+.start-step{width:100%;display:flex;align-items:flex-start;gap:9px;min-height:40px;padding:7px 8px;
+  border:0;border-radius:var(--radius-control);background:none;color:var(--text-primary);text-align:left;cursor:pointer}
+.start-check{flex:0 0 18px;height:18px;margin-top:1px;border:1.5px solid var(--border-strong);border-radius:50%}
+/* Done is carried by the tick's SHAPE (the drawn check) as well as its fill,
+   since forced-colors discards the fill — see that block. */
+.start-step.done .start-check{background:var(--color-accent);border-color:var(--color-accent)}
+.start-step.done .start-check::after{content:'';display:block;width:4px;height:8px;margin:2px auto 0;
+  border:solid var(--color-bg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.start-step-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
+.start-step b{font-size:12.5px;font-weight:600}
+.start-step small{color:var(--text-muted);font-size:11px;line-height:1.35}
+.start-step.done b{color:var(--text-secondary)}
+@media (pointer:coarse){
+  .start-step,.start-here-toggle{min-height:44px}
+  .start-here-close{flex-basis:44px;height:44px}
+}
+@media (forced-colors: active){
+  .start-here{border-color:CanvasText}
+  .start-step.done .start-check{forced-color-adjust:none;background:Highlight;border-color:Highlight}
+  .start-step.done .start-check::after{border-color:HighlightText}
+}
 /* A tip that can take you somewhere has to look like it can. The accent border
    and pointer are the whole affordance — the close button keeps its own cursor
    so the two targets stay distinguishable. */

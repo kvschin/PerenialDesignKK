@@ -224,6 +224,8 @@ const game = {
   hoverTile:null,                                    // pointer/armed tile for placement ghosts
   focusPlantKey:null,                                // plant card focus, used for shrub footprint outlines
   focusTile:null,                                    // [x,y] the open plant card describes; ringed on the ground, transient
+  savedView:null,                                    // {x,y,z} a loaded garden's saved view, consumed by enterGarden (view.js)
+  startHere:null,                                    // {north,dismissed} the new-garden checklist (ui.js); saved as blob.start
   worldId:null, worldName:'My garden',               // current solo save slot
   design:null,                                       // answers {zone,type,nativeRegion,nativeMode,deer,rabbit,squirrel}
   challenge:null,                                    // optional saved daily brief, self-review and completion

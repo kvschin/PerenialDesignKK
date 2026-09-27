@@ -160,6 +160,49 @@ function fitPlot(){
   updateCompass();
   updateZoomPill();
 }
+/* ---------- where the garden was being looked at ----------
+   A garden used to open at 100% on the plot's centre every time: a new one
+   with its corners cropped off (the tour then told you "Fit frames the whole
+   plot"), a reopened one wherever you had NOT been working. So a new garden
+   opens fitted, and a reopened one where it was left.
+   The view is stored as the WORLD point at the centre of the clear canvas plus
+   the gardener's own zoom (userZoom, not ZOOM), which is what survives a
+   different screen: camera pixels mean nothing on a phone that saved on a
+   desktop, and baseZoom already differs between the two. Rotation is saved on
+   its own (game.rot) and is applied before this runs. Saved with the garden,
+   so a shared or duplicated garden opens framed the way its author left it. */
+function gardenViewNow(){
+  if (!game.inGarden || !VW || !VH || typeof usableCanvasRect!=='function') return null;
+  const safe=usableCanvasRect(), W=VW/ZOOM, H=VH/ZOOM;
+  const [x,y]=worldPointAt((safe.left+safe.right)/2/ZOOM,(safe.top+safe.bottom)/2/ZOOM,W,H,0);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {x:Math.round(x*100)/100, y:Math.round(y*100)/100, z:Math.round(userZoom*1000)/1000};
+}
+function normalizeGardenView(v){
+  if (!v || typeof v!=='object' || Array.isArray(v)) return null;
+  const x=+v.x, y=+v.y, z=+v.z;
+  if (![x,y,z].every(Number.isFinite)) return null;
+  return {x, y, z:Math.max(USER_ZOOM_MIN,Math.min(USER_ZOOM_MAX,z))};
+}
+/* Put a saved view back: the saved point at the centre of the clear canvas.
+   worldPointAt measures to the tile's CENTRE, half a tile below the point
+   screenOfFlat returns, hence the TILE_H/2. A view somewhere well off the plot
+   is refused rather than restored — a camera aimed at empty sky is worse than
+   the fitted default. */
+function restoreGardenView(v){
+  v=normalizeGardenView(v);
+  if (!v || !game.inGarden) return false;
+  if (v.x<-4 || v.y<-4 || v.x>GW+4 || v.y>GH+4) return false;
+  userZoom=v.z; calcZoom();
+  const safe=usableCanvasRect(), W=VW/ZOOM, H=VH/ZOOM;
+  const [sx,sy]=screenOfFlat(v.x,v.y,W,H);
+  cam.x+=sx-(safe.left+safe.right)/2/ZOOM;
+  cam.y+=sy+TILE_H/2-(safe.top+safe.bottom)/2/ZOOM;
+  compassKey='';
+  updateCompass();
+  updateZoomPill();
+  return true;
+}
 calcZoom();
 // The true full-screen height under viewport-fit=cover. Measured on an iPhone
 // standalone PWA: innerHeight / 100% / 100dvh all report the SHORT height (they
@@ -386,7 +429,7 @@ function compassElements(){
    (re-resolved only when one is missing or has been detached, which is the
    case for the ones built on demand) and the key is concatenated in place. */
 const COMPASS_CHROME_IDS=['hud','canvasTools','zoomPill','sheetHandle','btnAct','cvRow',
-  'brushBar','trayTabs','toolTray','plantCard','selectionActions','sitePhotoEditor'];
+  'brushBar','trayTabs','toolTray','plantCard','selectionActions','sitePhotoEditor','startHere'];
 let compassChromeEls=null;
 function compassChromeStateKey(){
   if (!compassChromeEls) compassChromeEls=new Array(COMPASS_CHROME_IDS.length).fill(null);
@@ -403,7 +446,7 @@ function compassChromeStateKey(){
 }
 function compassChromeRects(stateKey){
   if (compassChrome.key===stateKey) return compassChrome.rects;
-  const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.selection-actions'];
+  const sels=['.hud-top','#canvasTools','.hud-bottom','#zoomPill','#plantCard','.tool-popover','.selection-actions','#startHere'];
   const frame=canvasViewportRect();
   const rects=[];
   for (const sel of sels){

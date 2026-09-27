@@ -105,7 +105,14 @@ directly and the once-per-completed-gesture haptic rule is unchanged.
 `mode` (still written as `'design'` so an older build reads a new save sanely),
 and the garden keeps whatever house and plants it had. The renderer's camera no
 longer eases toward anything: `snapCam` centres on the plot and runs only on
-`enterGarden`/`rotateView`. **`game.actX`/`actY` is what the movement target
+`enterGarden`/`rotateView`. **A garden opens where it was left, or fitted**
+(0.9.29): `enterGarden` puts back the saved view (`blob.view`, `{x,y,z}` — the
+world point at the centre of the clear canvas plus `userZoom`, via
+`gardenViewNow`/`restoreGardenView`, view.js) and otherwise calls `fitPlot`. It
+used to open at 100% on the plot's centre every time, a new garden with its
+corners cropped and a reopened one wherever the gardener had NOT been working. A
+world point and the user zoom are what survive a different screen; camera pixels
+are not, and a view well off the plot is refused for the fitted default. **`game.actX`/`actY` is what the movement target
 became** — simply the tile the last tap or E keypress addressed, drawn as the
 cream cursor diamond.
 Panning: two fingers on touch; on PC, middle-mouse drag or
@@ -800,7 +807,9 @@ logic is split across ordered modules. They map onto the section list below
   `libCollapsed`, the accordion, the card order, `js/photos.js` and the
   illustration plate's deliberately-dark theming are all untouched.
 - **`guide.js`** — the **tool guidebook** (`#guideScreen`, the book beside the
-  gear on the title screen), in which every tool is shown DOING its job rather
+  gear on the title screen, and since 0.9.29 the **Tool guide** row of a
+  garden's menu — `guideFrom` sends Close back to the garden rather than the
+  title screen, and the menu's **Tour the controls** row sits beside it), in which every tool is shown DOING its job rather
   than described. Drift is the case that justifies it: "a loose cluster sized by
   spacing" is three abstractions deep, and one tap dropping five coneflowers in
   a scatter explains itself. It is the deliberate complement of the in-garden
@@ -1144,6 +1153,22 @@ logic is split across ordered modules. They map onto the section list below
   the prompt is shown rather than on its answer — someone who declines the demo
   and starts from scratch is exactly as new), so a gardener of six months is
   never told how to plant.
+- **Start here** (`#startHere`, `START_STEPS`/`syncStartHere`/`runStartStep`,
+  ui.js; 0.9.29) is a new garden's first steps, in the order a design is really
+  made: set north, trace a site photo (optional), draw the house and buildings,
+  lay out beds and paths, choose plants. A new garden used to be a plain lawn and
+  one tip about planting, while the site tools sat in the LAST Landscape category
+  (Site now leads it). Each step DOES its step — opens the north dialog or the
+  photo picker, or opens the library on the right category with the footprint or
+  bed tool armed (`openLibraryAt`, tray.js) — and each tick is read off the garden
+  itself (a footprint, any terrain, a photo), except north, whose default may be
+  right, so confirming it in the dialog is the tick. It shows in a garden with no
+  planting that is not a daily challenge, top-right beside the library on the
+  dock and collapsed to one line on a phone; the first plant retires it, and ✕
+  dismisses it for that garden. `game.startHere` `{north,dismissed}` saves as
+  `blob.start`. It STANDS IN for beat 1 in an empty garden — the tip was step 5
+  alone, in a second widget beside it — and `syncStartHere` runs from `updateHUD`,
+  so it returns on booleans unless the list is up.
 - **The controls tour** (`tourSteps`/`tourNote`/`tourRender`, ui.js) is the
   explicit half of the same system, and it exists because in the DEMO garden the
   ambient beats mostly do not run: beats 2 and 4 are gated on planting, and
@@ -3094,8 +3119,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     Pointerdown *inside* the selection starts a `selMove` drag whose intent
     (`game.selMode` 'move'|'copy') is set by the marquee action pill
     (`renderSelectionActions`, anchored to the selection) which
-    shows **Move / Duplicate** (mode toggles) and **Fill / Rotate / Erase /
-    Save / Paste** (one-shot actions). On commit the marquee snapshots its contents once
+    shows **Move | Duplicate** — one joined toggle pair, `.selection-mode`, since it
+    says what a DRAG does — then **Fill**, **Erase** and **More** (Estimate, Replace,
+    Rotate, **Copy area**, **Paste area**). 0.9.29 renamed the pair's second half
+    from Copy and the clipboard rows from Save area / Paste saved area: there were
+    two copies and neither was named for what it does. Erase came out of More onto
+    the pill. Keys (input.js): **Delete/Backspace** erases a selection, **Ctrl/Cmd+C**
+    copies, **X** cuts, **V** pastes at the selection or, with none, at the tile under
+    the pointer (`pasteAreaFromKeys`, arming Select). The guidebook's mock of the
+    pill and its More rows is pinned to these functions by a test. On commit the marquee snapshots its contents once
     into `game.selItems` (via `selectionPayload`, plants/bulbs/terrain/fences); every
     op then works on those **owned** items — so a plant that later lands
     inside the rect is never scooped up. `commitSelectionOffset(dx,dy,copy)`
@@ -4661,7 +4693,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     plant categories are Grasses, Sedges, Sun Perennials,
     Shade Perennials, Bulbs, Water Plants, Climbers (§12e), Shrubs, and Trees;
     Landscape categories
-    are Ground, Grade, Hardscape, Lighting, Decor, and Site. `#toolTray` is the primary
+    are Site, Ground, Grade, Hardscape, Lighting and Decor — **Site first** (0.9.29): a
+    design starts from the site, and it was last in the strip, scrolled out of view.
+    The strip follows `TRAY_CATS` order, not `TRAY_GROUPS`. `#toolTray` is the primary
     scroller so the header, discovery controls, and footer stay visible; below
     `max-height:700px` the control stack becomes a scroller too, because
     `#sheetCatalog` is `overflow:hidden` and used to simply swallow the overflow
@@ -4695,9 +4729,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     deletes named palettes. Favorites and named palettes always open to a real
     **All** view across every saved plant category; category choices become
     optional counted facets and never inherit the previous catalog category.
-    The garden-start zone remains a fixed eligibility
-    gate and is deliberately not repeated in the in-garden filter sheet or
-    active-filter summary. Cards show a Fraunces common name, IBM Plex Sans Latin
+    **The zone and the garden style can be changed in Plant filters** ("This
+    garden", `#discoveryZone`/`#discoveryStyle`; `renderGardenCriteria`,
+    `applyGardenStyle`, tray.js; 0.9.29). The zone used to be a fixed gate "not
+    repeated in the in-garden filter sheet" while the questionnaire promised "you
+    can change any of this later", so a wrong zone meant starting the garden again.
+    Both only change what the library OFFERS — nothing planted is ever removed —
+    and the modal's live count previews the style too, `recommended` being the
+    style's list. Plot size and shape really are fixed, and the plot screen now
+    says so instead of "you can always start small". Cards show a Fraunces common name, IBM Plex Sans Latin
     name, bloom range plus a 12-month timeline driven by the same `bloomMonths`
     data, sun, moisture, mature size, flower-color swatch, and a sage
     variety-count tag. The selected card has a terracotta ring plus a visible
@@ -5244,7 +5284,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     readable text beside the larger picture on narrow phones.
     Other screens are plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
     always-visible plot diagram that owns size, shape, and orientation
-    together. The width/length inputs sit inside the diagram card; the canvas
+    together. **One size, everywhere**: a plot is whole 18in tiles, so every
+    figure on the screen — the fields, the diagram's labels (to the half foot),
+    the note, and later the worlds list — reads the real side `plotRealFt`
+    (0.9.29), and a field snaps to it on change; it quoted 46, 47 and 2,116 sq ft
+    for one 46.5 ft plot. The width/length inputs sit inside the diagram card; the canvas
     draws the plot to scale with two handle kinds — **squares** at the
     right/bottom edge midpoints drag-resize width/length (writing the inputs
     live, tile-snapped, frozen scale during the drag, refit on release) and
