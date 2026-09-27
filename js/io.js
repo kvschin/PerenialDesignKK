@@ -327,15 +327,64 @@ function rememberGardenPortrait(p){
   const value=normalizeGardenPortrait(p);
   gardenPortrait=value?{key:gardenPortraitKey(),value}:null;
 }
+/* The original starting site is a small, immutable snapshot, independent of
+   the edited garden. Only the layers a daily starter actually uses belong here. */
+function normalizeDailySitePlan(p){
+  if(!p||p.v!==1||!gardenRecord(p))return null;
+  const txt=(s,n)=>typeof s==='string'&&s.trim().length>0&&s.length<=n;
+  if(!txt(p.kind,40)||!/^[a-z-]+$/.test(p.kind)||!txt(p.label,80)||!txt(p.description,400)||!txt(p.conditions,400))return null;
+  if(![p.gw,p.gh].every(n=>Number.isInteger(n)&&n>=2&&n<=32))return null;
+  let shape=null;
+  if(p.shape!=null){
+    const vs=p.shape;
+    if(!Array.isArray(vs)||vs.length!==4||!vs.every(q=>Array.isArray(q)&&q.length===2&&
+      q.every(Number.isInteger)&&q[0]>=0&&q[1]>=0&&q[0]<=p.gw&&q[1]<=p.gh)||
+      plotEdgesCross(vs[0],vs[1],vs[2],vs[3])||plotEdgesCross(vs[1],vs[2],vs[3],vs[0]))return null;
+    shape=vs.map(q=>q.slice());
+  }
+  const inside=(x,y)=>Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<p.gw&&y<p.gh&&
+    (!shape||polygonContains(x+.5,y+.5,shape));
+  let area=0;for(let y=0;y<p.gh;y++)for(let x=0;x<p.gw;x++)if(inside(x,y))area++;
+  if(area<9)return null;
+  const terrain={},elevation={};
+  for(const [name,target] of [['terrain',terrain],['elevation',elevation]]){
+    if(!gardenRecord(p[name])||Object.keys(p[name]).length>p.gw*p.gh)return null;
+    for(const [key,r] of Object.entries(p[name])){
+      const xy=key.split(',').map(Number);
+      if(!/^\d+,\d+$/.test(key)||xy.join(',')!==key||!inside(...xy)||!gardenRecord(r))return null;
+      if(name==='terrain'){
+        const styles=r.k==='bed'?BED_STYLES:r.k==='path'?PATH_COLORS:[];
+        if(!styles.some(s=>s.id===r.c))return null;
+        target[key]={k:r.k,c:r.c};
+      }else{
+        if(!Number.isInteger(r.h)||r.h<ELEV_MIN||r.h>ELEV_MAX||!WALL_STYLES.some(s=>s.id===r.w))return null;
+        target[key]={h:r.h,w:r.w};
+      }
+    }
+  }
+  if(!Array.isArray(p.context)||p.context.length>2)return null;
+  const context=[];
+  for(const q of p.context){
+    if(!q||!txt(q.id,40)||!/^[a-z0-9-]+$/.test(q.id)||!inside(q.x,q.y)||typeof q.s!=='string'||
+        (q.v!=null&&typeof q.v!=='string'))return null;
+    const ref=canonicalPlantRef(q.s,q.v||null), P=Object.prototype.hasOwnProperty.call(PLANTS,ref.s)&&PLANTS[ref.s];
+    if(!P||!isTreeDef(P)||(ref.v&&!Object.prototype.hasOwnProperty.call(P.cv||{},ref.v))||
+        terrain[q.x+','+q.y]?.k!=='bed'||context.some(a=>a.id===q.id||(a.x===q.x&&a.y===q.y)))return null;
+    context.push({id:q.id,s:ref.s,v:ref.v||null,x:q.x,y:q.y});
+  }
+  return {v:1,kind:p.kind,label:p.label,description:p.description,conditions:p.conditions,gw:p.gw,gh:p.gh,shape,terrain,elevation,context};
+}
 /* A bounded, self-contained brief. Never reconstruct an old challenge from
    today's catalog: wording, goals and restrictions belong to that attempt. */
 function normalizeDailyChallenge(c){
-  if(!c || typeof c!=='object' || Array.isArray(c) || ![1,2].includes(c.v))return null;
+  if(!c || typeof c!=='object' || Array.isArray(c) || ![1,2,3].includes(c.v))return null;
   const txt=(s,n)=>typeof s==='string' && s.trim().length>0 && s.length<=n;
   if(!txt(c.id,60)||!/^[a-z0-9-]+$/.test(c.id)||!txt(c.date,10)||!/^\d{4}-\d{2}-\d{2}$/.test(c.date))return null;
   const date=new Date(c.date+'T12:00:00Z');
   if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==c.date)return null;
-  if(!txt(c.title,100)||!txt(c.brief,600)||!txt(c.plants,600)||!['border','split','island'].includes(c.site)||!SEASONS.includes(c.season))return null;
+  if(!txt(c.title,100)||!txt(c.brief,600)||!txt(c.plants,600)||!SEASONS.includes(c.season))return null;
+  const sitePlan=c.v===3?normalizeDailySitePlan(c.sitePlan):null;
+  if(c.v===3?(!sitePlan||c.site!==sitePlan.kind):!['border','split','island'].includes(c.site))return null;
   if(!Array.isArray(c.goals)||c.goals.length<1||c.goals.length>6||!c.goals.every(s=>txt(s,240)))return null;
   let match;
   if(c.match!=null){
@@ -347,7 +396,7 @@ function normalizeDailyChallenge(c){
     }
   }
   let extra={};
-  if(c.v===2){
+  if(c.v>=2){
     const refs=c.palette;
     if(!Array.isArray(refs)||refs.length<1||refs.length>12)return null;
     const palette=[];
@@ -376,7 +425,7 @@ function normalizeDailyChallenge(c){
   }
   return {v:c.v,id:c.id,date:c.date,title:c.title,brief:c.brief,plants:c.plants,site:c.site,season:c.season,
     goals:c.goals.slice(),checked:[...new Set((Array.isArray(c.checked)?c.checked:[]).filter(n=>Number.isInteger(n)&&n>=0&&n<c.goals.length))],
-    ...(match?{match}:{}),...extra,paletteFree:c.paletteFree===true,
+    ...(match?{match}:{}),...extra,...(sitePlan?{sitePlan}:{}),paletteFree:c.paletteFree===true,
     completedAt:Number.isSafeInteger(c.completedAt)&&c.completedAt>0?c.completedAt:null};
 }
 function buildSaveBlob(){
@@ -596,6 +645,7 @@ function gardenFileProblem(env){
       if (p.removed) continue;
       if (layer==='plants' || layer==='bulbs'){
         if (typeof p.s!=='string' || (p.v!=null && typeof p.v!=='string') ||
+            (p.dailySiteId!=null&&(typeof p.dailySiteId!=='string'||!/^[a-z0-9-]{1,40}$/.test(p.dailySiteId))) ||
             !Number.isFinite(p.d) || ['ox','oy'].some(k=>!number(p,k))) return 'This garden contains an invalid plant record.';
         const ref=canonicalPlantRef(p.s,p.v), P=Object.prototype.hasOwnProperty.call(PLANTS,ref.s)&&PLANTS[ref.s];
         if (!P || (ref.v && (!P.cv || !Object.prototype.hasOwnProperty.call(P.cv,ref.v))))

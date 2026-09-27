@@ -53,10 +53,10 @@ async function check(browser,url,name,viewport,isMobile){
       await pendingSaves();
       return {id:game.worldId,challenge:game.challenge,terrain:Object.values(game.terrain).map(p=>p.k),plants:Object.keys(game.plants).length,houses:game.houses.length,gw:GW,gh:GH};
     });
-    assert.equal(initial.challenge.title,brief); assert.equal(initial.plants,0); assert.equal(initial.houses,0);
+    assert.equal(initial.challenge.title,brief); assert.equal(initial.plants,initial.challenge.sitePlan.context.length); assert.equal(initial.houses,0);
     assert(initial.challenge.strict&&initial.challenge.palette.length===10);
     assert.equal(await page.evaluate(()=>discoveryRefsFor({source:'all'}).length),10,'only ten exact plant choices enter the catalog');
-    assert(initial.terrain.includes('bed')&&initial.terrain.includes('path')); assert(initial.gw<=16&&initial.gh<=16);
+    assert(initial.terrain.includes('bed')&&initial.terrain.includes('path')); assert(initial.gw<=20&&initial.gh<=16);
     await page.locator('#btnMenu').click(); await page.locator('#btnChallenge').click();
     await page.locator('#btnChallengeFinish').click();
     assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
@@ -75,12 +75,12 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnChallengeReturn').click();
     // A fixture built from eligible exact references must meet every rule.
     await page.evaluate(()=>{
-      for(const layer of ['plants','bulbs'])for(const key of Object.keys(game[layer]))clearTile(layer,key);
+      for(const layer of ['plants','bulbs'])for(const key of Object.keys(game[layer]))if(!game[layer][key].dailySiteId)clearTile(layer,key);
       const c=game.challenge, refs=dailyEligiblePalette(c,activeFilters()), group=c.rules.find(r=>r.kind==='group');
       const count=c.rules.find(r=>r.kind==='species').min, chosen=new Map();
       const add=ref=>{if(chosen.size<count)chosen.set(dailySpeciesId(ref),ref);};
       refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);refs.forEach(add);
-      const beds=Object.keys(game.terrain).filter(k=>game.terrain[k].k==='bed');
+      const beds=Object.keys(game.terrain).filter(k=>game.terrain[k].k==='bed'&&!game.plants[k]?.dailySiteId);
       let i=0;
       for(const ref of chosen.values())for(let n=0;n<3;n++){
         setTile(PLANTS[ref.s].type==='bulb'?'bulbs':'plants',beds[i++],{...ref,d:0,t:Date.now()});
@@ -110,7 +110,7 @@ async function check(browser,url,name,viewport,isMobile){
     assert.equal(await page.evaluate(()=>game.worldId),initial.id);
     const saved=await page.evaluate(async()=>{await pendingSaves();return sGet('hortus:world:'+game.worldId);});
     assert.equal(saved.challenge.title,brief); assert(saved.challenge.completedAt); assert.deepEqual(saved.challenge.checked,[0]);
-    assert(saved.challenge.strict&&saved.challenge.v===2);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
+    assert(saved.challenge.strict&&saved.challenge.v===3);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
     assert(Object.keys(saved.plants).length>0);
     // A full reload exercises the actual IndexedDB resume path.
     await page.reload({waitUntil:'load'}); await page.locator('#btnDaily').click();
@@ -123,7 +123,7 @@ async function check(browser,url,name,viewport,isMobile){
     // A snapshot from the first release keeps its original ID/brief on this
     // same date, rather than becoming a second attempt after a template update.
     await page.evaluate(()=>{
-      game.challenge=normalizeDailyChallenge({...game.challenge,v:1,id:'old-template',title:'Original saved brief'});
+      game.challenge=normalizeDailyChallenge({...game.challenge,v:1,site:'border',id:'old-template',title:'Original saved brief'});
       markModelChanged();
     });
     await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
@@ -134,6 +134,63 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnDailyStart').click();await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id);
     assert.equal(await page.evaluate(()=>game.challenge.v),1);
     assert.deepEqual(errors,[]); console.log(name+' curated palette, climate fallback, strict progress, finish, PNG and reload PASS');
+  }finally{await context.close();}
+}
+async function checkSites(browser,url,viewport,isMobile){
+  const context=await browser.newContext({viewport,isMobile,hasTouch:isMobile,serviceWorkers:'block'});
+  try{
+    await context.addInitScript(()=>localStorage.setItem('hortus:welcomed','1'));
+    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url,{waitUntil:'load'});await page.evaluate(()=>document.fonts.ready);
+    for(const kind of ['woodland','narrow','patio','slope','hollow','gravel','corner']){
+      const frozen=await page.evaluate(kind=>{
+        dailySelection=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind);
+        dailyResumeId=null;dailyReady=true;dailyCriteria=normalizeFilters({zone:null});renderDailyEntry();show('dailyScreen');
+        document.querySelector('#dailyScreen .panel').scrollTop=0;
+        return JSON.stringify(dailySelection.sitePlan);
+      },kind);
+      const prefix=(isMobile?'mobile':'desktop')+'-'+kind;
+      await page.locator('#dailySiteCanvas').scrollIntoViewIfNeeded();
+      await page.screenshot({path:path.join(output,prefix+'-preview.png')});
+      const geometry=await page.locator('#dailyScreen .panel').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+      assert(geometry.scroll<=geometry.width+1,kind+' preview fits the panel');
+      const alt=await page.locator('#dailySiteCanvas').getAttribute('aria-label');assert(alt.length>50,'site has an accessible explanation');
+      if(isMobile)continue;
+      await page.locator('#btnDailyStart').click();await page.locator('#gardenOpening').waitFor({state:'hidden'});
+      const initial=await page.evaluate(async()=>{
+        await pendingSaves();const p=game.challenge.sitePlan;
+        return {id:game.worldId,plan:JSON.stringify(p),count:dailyPlantCount(),shape:game.plotShape,
+          beds:Object.values(game.terrain).filter(t=>t.k==='bed').length,
+          heights:Object.values(game.elevation).map(e=>e.h),trees:Object.values(game.plants).map(p=>plantEstab(p)),
+          saved:(await sGet('hortus:world:'+game.worldId)).challenge.sitePlan};
+      });
+      assert.equal(initial.plan,frozen);assert.equal(JSON.stringify(initial.saved),frozen);
+      assert.equal(initial.count,0,'starter alone cannot finish');assert(initial.beds>=80);
+      if(kind==='woodland')assert.deepEqual(initial.trees,[1]);
+      if(kind==='slope')assert(initial.heights.includes(1)&&initial.heights.includes(2));
+      if(kind==='hollow')assert(initial.heights.every(h=>h===-1));
+      if(kind==='corner')assert(initial.shape&&initial.shape.length===4);
+      await page.screenshot({path:path.join(output,prefix+'-garden.png')});
+      await page.locator('#btnMenu').click();await page.locator('#btnChallenge').click();
+      await page.locator('#btnChallengeFinish').click();assert.match(await page.locator('#challengeStatus').textContent(),/Add some plants/);
+      await page.locator('#btnChallengeReturn').click();
+      // Edits travel through real tools, storage and reopening, never the generator.
+      const edited=await page.evaluate(async()=>{
+        const key=Object.keys(game.terrain).find(k=>game.terrain[k].k==='bed'&&!game.plants[k]),[x,y]=key.split(',').map(Number);
+        game.tool='path';applyToolAt(x,y);
+        const c=game.challenge;if(c.site==='woodland'){
+          selWrite([{x:7,y:9,plant:game.plants['7,9']}],()=>[8,9],true);
+        }
+        await saveSolo(true);return {key,id:game.worldId,plan:JSON.stringify(c.sitePlan)};
+      });
+      await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
+      await page.evaluate(id=>enterWorld(id),edited.id);await page.locator('#gardenOpening').waitFor({state:'hidden'});
+      const reopened=await page.evaluate(key=>({kind:game.terrain[key].k,plan:JSON.stringify(game.challenge.sitePlan),count:dailyPlantCount()}),edited.key);
+      assert.equal(reopened.kind,'path');assert.equal(reopened.plan,edited.plan);assert.equal(reopened.count,0);
+      await page.locator('#btnMenu').click();await page.locator('#btnQuit').click();
+      console.log(kind+' preview, real starter, edits and saved reopen PASS');
+    }
+    assert.deepEqual(errors,[]);
   }finally{await context.close();}
 }
 (async()=>{
@@ -147,6 +204,8 @@ async function check(browser,url,name,viewport,isMobile){
     await check(browser,url,'desktop',{width:1440,height:900},false);
     await check(browser,url,'phone',{width:390,height:844},true);
     await check(browser,url,'small-phone',{width:320,height:640},true);
+    await checkSites(browser,url,{width:1440,height:900},false);
+    await checkSites(browser,url,{width:320,height:640},true);
     console.log('Artifacts: '+output);
   }finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

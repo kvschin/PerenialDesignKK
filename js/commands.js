@@ -2020,7 +2020,12 @@ function selWrite(items, getDst, clearSource){
   }
   const now=Date.now();
   for (const c of items){ const [nx,ny]=getDst(c); const k=`${nx},${ny}`;
-    if (c.plant) setTile('plants',k,Object.assign({},c.plant,{t:now}));
+    if (c.plant){
+      const plant=Object.assign({},c.plant,{t:now});
+      if(!clearSource)delete plant.dailySiteId; // a copy is a new planting, even if its source was site context
+      setTile('plants',k,plant);
+      c.plant=plant; // later moves/rotations must use the copied identity too
+    }
     if (c.bulb)  setTile('bulbs',k,Object.assign({},c.bulb,{t:now}));
     if (c.terr)  setTile('terrain',k,Object.assign({},c.terr,{t:now}));
     if (c.elev)  setTile('elevation',k,Object.assign({},c.elev,{t:now}));

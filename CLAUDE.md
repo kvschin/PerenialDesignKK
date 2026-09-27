@@ -20,18 +20,39 @@ three self-review goals and an authored plant group. The user's
 local calendar date determines the prompt and the start screen freezes it
 across midnight. `openDaily` checks saved attempts before enabling Start,
 offers Continue for today's attempt and six recent designs. Every attempt
-stores a bounded version-2 `challenge` snapshot through `normalizeDailyChallenge`
+stores a bounded version-3 `challenge` snapshot through `normalizeDailyChallenge`
 in the existing version-2 garden blob: ID/date, wording, goals/checks,
 site/season, exact palette, objective rules, optional `strict` setting, palette
-free choice and completion timestamp. Version-1 snapshots retain their original
-wording and broad match rules without acquiring new constraints. Resume matches
+free choice, completion timestamp and an original `sitePlan` blueprint. Version-1
+snapshots retain their original wording and broad match rules without acquiring
+new constraints; version-2 snapshots keep their original palettes and rules. Resume matches
 the saved calendar date, so changed template IDs cannot duplicate an older
 attempt on that day. Older untagged
 gardens remain ordinary planners. Metadata survives imports, exports, menu
 navigation and reopen; only a new ordinary garden clears it. The daily
-exception to blank plots is editable path/bed terrain: pathside border and
-split beds (24 × 18 ft) or island (24 × 24 ft), with no plants or house.
-They open in the brief's suggested season with the normal paused planner.
+exception to blank plots is an authored, fully editable starting landscape.
+`DAILY_SITE_ROTATION` matches exercises to seven suitable sites: woodland clearing,
+narrow border, patio edge, gentle terraced slope, lowered planting hollow, gravel
+pockets and tapered corner. Sites are 24–30 ft wide and 12–24 ft deep, without a
+house. Legacy border/split/island sites remain available for older saved briefs.
+`dailySitePlan` builds a pure, deterministic blueprint, including label/description,
+conditions, dimensions, optional four-point outline, bed/path materials, grade and
+at most two context trees. `normalizeDailySitePlan` bounds and copies that data;
+the preview and creation use the same snapshot. The start screen shows a top-down
+preview with dimensions, north and an accessible legend; the in-garden brief can
+show the original site separately from the gardener's edits. `prepareDailySite`
+applies the snapshot only at creation through `setPlotShape` and `setTile`; reload
+never reseeds it. No generator or preview work runs in the frame loop. Suggested
+moisture/drainage are design assumptions, not a hydrology simulation. Gravel beds
+remain plantable; hollow beds use soil at grade -1, not water. The terraced slope
+uses grade +1/+2 and dry-stone edges beside a level route. The woodland starts
+with a mature serviceberry, placed via `matureWoodyDraft` after the season is set,
+so it contributes real canopy shade. Its `dailySiteId` matches the saved context
+descriptor and excludes that one original from every daily plant count, including
+empty-finish and palette checks. Moves, undo and saved schemes preserve identity;
+selection copies strip it, and ordinary new plantings never receive it. Duplicate
+imported tags exempt at most one matching tree. Context remains editable/removable.
+Sites open in the brief's suggested season with the normal paused planner.
 `#challengeScreen` reopens the brief from the plant catalog or garden menu,
 saves self-reviewed goal checks, and allows unscored completion after adding
 plants. Optional constraints require the tracked species range, repeated species

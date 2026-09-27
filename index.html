@@ -165,6 +165,11 @@ if ('serviceWorker' in navigator)
     <p class="daily-intro">A small garden to make your own. Aim for a 15–20 minute design session, or take your time. No scores or deadline.</p>
     <p class="sub" id="dailyBrief"></p>
     <p class="note" id="dailySite"></p>
+    <figure class="daily-site-preview">
+      <canvas id="dailySiteCanvas" width="560" height="320" role="img" aria-describedby="dailySiteCaption"></canvas>
+      <figcaption id="dailySiteCaption"></figcaption>
+      <div class="daily-site-legend" id="dailySiteLegend"></div>
+    </figure>
     <h3 class="daily-label">Design goals</h3>
     <ol class="daily-goals" id="dailyGoals"></ol>
     <p class="note" id="dailyPlants"></p>
@@ -197,6 +202,14 @@ if ('serviceWorker' in navigator)
     </div>
     <p class="sub" id="challengeBrief"></p>
     <p class="note" id="challengeSite"></p>
+    <details class="daily-details">
+      <summary>Original starting site</summary>
+      <figure class="daily-site-preview">
+        <canvas id="challengeSiteCanvas" width="560" height="320" role="img" aria-describedby="challengeSiteCaption"></canvas>
+        <figcaption id="challengeSiteCaption"></figcaption>
+        <div class="daily-site-legend" id="challengeSiteLegend"></div>
+      </figure>
+    </details>
     <h3 class="daily-label">Your design goals</h3>
     <p class="note">Check off the goals as you review your design. These are prompts for your judgment, not a score.</p>
     <ul class="daily-goals daily-checklist" id="challengeGoals"></ul>

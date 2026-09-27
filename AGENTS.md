@@ -20,7 +20,8 @@ Current product direction, for orientation:
   planner. The primary experience is **Design a Garden**.
 - Every garden is a planner: direct placement, free camera, and no preplaced
   house. Ordinary gardens start with a blank plot; daily challenges start with
-  small, editable paths and beds. There is **no game mode switch** — the avatar story flow, the
+  small, editable landscapes with paths, beds, grades and occasional existing trees.
+  There is **no game mode switch** — the avatar story flow, the
   read-only Visit stroll, and the cat/dog character were all removed, and
   legacy story saves simply open in the planner.
 - The menu provides Your gardens (create and manage), Plant Library, and Daily

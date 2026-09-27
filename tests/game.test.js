@@ -6697,7 +6697,7 @@ test('daily briefs follow the local calendar and have independent saved snapshot
   const c=dailyChallengeFor(new Date(2026,8,26)), copy=normalizeDailyChallenge(c);
   copy.goals[0]='Changed'; copy.checked.push(0);
   assert(c.goals[0]!=='Changed'&&!c.checked.length,'saved data never aliases authored goals');
-  for(const bad of [{...c,v:3},{...c,date:'2026-02-30'},{...c,goals:['x'.repeat(241)]},
+  for(const bad of [{...c,v:4},{...c,date:'2026-02-30'},{...c,goals:['x'.repeat(241)]},
     {...c,match:{roles:'matrix'}},{...c,match:{constructor:['bad']}},{...c,site:'unknown'}])
     assertEqual(normalizeDailyChallenge(bad),null,'invalid snapshots are rejected');
 });
@@ -6706,7 +6706,7 @@ test('54 distinct daily exercises each offer ten exact choices and feasible stud
   setup(); const ids=new Set(), briefs=new Set();
   for(let day=0;day<54;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day));
-    assert(c&&c.v===2); ids.add(c.id); briefs.add(c.brief);
+    assert(c&&c.v===3); ids.add(c.id); briefs.add(c.brief);
     assertEqual(c.palette.length,10); assertEqual(new Set(c.palette.map(plantRefId)).size,10);
     assertEqual(new Set(c.palette.map(dailySpeciesId)).size,10,'choices represent ten species: '+c.id);
     assert(c.palette.every(ref=>refDef(ref)&&!PLANTS[ref.s].hidden),'only valid selectable choices');
@@ -6771,7 +6771,7 @@ test('tracked rules ignore removals, off-plot plants and cultivar duplicates; bu
 
 test('v1 briefs retain their original wording and broad rules; v2 snapshots validate nested contracts',()=>{
   const c=dailyChallengeFor(new Date(2026,8,26));
-  const old={...c,v:1,title:'Old cottage',match:{types:['forb']}};
+  const old={...c,v:1,site:'border',title:'Old cottage',match:{types:['forb']}};
   delete old.palette;delete old.rules;
   const loaded=normalizeDailyChallenge(old);
   assertEqual(loaded.v,1);assertEqual(loaded.title,'Old cottage');assert(!loaded.palette&&!loaded.rules&&!loaded.strict);
@@ -6797,20 +6797,137 @@ test('strict completion blocks unmet rules and switching it off preserves free c
   }finally{saveSolo=save;prepareDailyShare=share;captureGardenPortrait=portrait;}
 });
 
-test('daily prepared sites are repeatable, editable terrain with no inherited planting',()=>{
+test('daily prepared sites are repeatable, editable layers with no inherited planting',()=>{
   for(const kind of Object.keys(DAILY_SITES)){
     const site=DAILY_SITES[kind]; setup(ftToTiles(site.widthFt),ftToTiles(site.lengthFt));
     game.challenge=dailyChallengeFor();
     setTile('plants','2,2',{s:'bluestem',d:0,t:1}); resetNewGardenState();
     assertEqual(game.challenge,null,'new ordinary gardens clear the prior brief');
     prepareDailySite(kind);
-    assert(!live(game.plants).length&&!game.houses.length&&!game.buildings.length);
+    assertEqual(live(game.plants).length,kind==='woodland'?1:0);
+    assert(!game.houses.length&&!game.buildings.length);
     const layout=()=>Object.entries(game.terrain).map(([key,p])=>[key,p.k,p.c]);
     const first=JSON.stringify(layout());
     assert(layout().some(p=>p[1]==='path')&&layout().some(p=>p[1]==='bed'));
     assert(layout().every(p=>{const [x,y]=p[0].split(',').map(Number);return onPlot(x,y);}));
     resetNewGardenState(); prepareDailySite(kind); assertEqual(JSON.stringify(layout()),first);
     const key=live(game.terrain)[0]; clearTile('terrain',key); assert(game.terrain[key].removed,'ordinary tools can remove prepared terrain');
+  }
+});
+
+test('daily starter snapshots are bounded, deeply independent and keep legacy briefs intact',()=>{
+  const p=dailySitePlan('woodland'),c=dailyChallengeFor();
+  const copy=normalizeDailySitePlan(p);copy.terrain['1,1'].c='soil';copy.context[0].x=5;
+  assertEqual(p.terrain['1,1'].c,'leaf');assertEqual(p.context[0].x,7);
+  for(const bad of [{...p,gw:500},{...p,description:'x'.repeat(401)},
+    {...p,shape:[[0,0],[1,0],[1,1],[0,1]]},{...p,shape:[[0,0],[20,16],[20,0],[0,16]]},
+    {...p,terrain:{'0,0':{k:'water',c:'pond'}}},{...p,terrain:{'20,1':{k:'bed',c:'soil'}}},
+    {...p,elevation:{'1,1':{h:99,w:'none'}}},{...p,context:[{...p.context[0],s:'echinacea'}]},
+    {...p,context:[p.context[0],p.context[0]]}])assertEqual(normalizeDailySitePlan(bad),null);
+  assertEqual(normalizeDailyChallenge({...c,sitePlan:null}),null);
+  assertEqual(normalizeDailyChallenge({...c,sitePlan:{...c.sitePlan,kind:'mismatch'}}),null);
+  for(const v of [1,2])for(const site of ['border','split','island']){
+    const old=normalizeDailyChallenge({...c,v,site});
+    assert(old&&!old.sitePlan);assertEqual(dailyStartingPlan(old).kind,site);
+  }
+});
+
+test('authored sites fit their briefs and leave connected routes and generous planting space',()=>{
+  const kinds=new Set();
+  for(let day=0;day<54;day++){
+    const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;kinds.add(c.site);
+    assertEqual(JSON.stringify(p),JSON.stringify(dailySitePlan(c.site)),'frozen layout matches its preview');
+    assert(Object.values(p.terrain).filter(t=>t.k==='bed').length>=80,'space for repeated planting');
+    const path=Object.keys(p.terrain).filter(k=>p.terrain[k].k==='path'),seen=new Set(),todo=[path[0]];
+    while(todo.length){const key=todo.pop();if(seen.has(key))continue;seen.add(key);
+      const [x,y]=key.split(',').map(Number);
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const next=(x+dx)+','+(y+dy);if(p.terrain[next]?.k==='path'&&!seen.has(next))todo.push(next);
+      }
+    }
+    assertEqual(seen.size,path.length,'route stays connected: '+c.site);
+    assert(path.every(k=>!p.elevation[k]),'route is level');
+    if(/^(woodland|spring|foliage)-/.test(c.id))assertEqual(c.site,'woodland');
+    if(/^(wet-spot|hummingbird)-/.test(c.id))assertEqual(c.site,'hollow');
+    if(/^evergreen-/.test(c.id))assertEqual(c.site,'patio');
+  }
+  assertEqual(kinds.size,7);
+});
+
+test('all 54 prepared briefs can satisfy strict rules through ordinary placement tools',()=>{
+  for(let day=0;day<54;day++){
+    const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;
+    setup(p.gw,p.gh);game.challenge=c;game.dayOffset=SEASONS.indexOf(c.season)*DAYS_PER_SEASON;prepareDailySite(p);
+    const group=c.rules.find(r=>r.kind==='group'),count=c.rules.find(r=>r.kind==='species').min;
+    const refs=dailyEligiblePalette(c,game.filters),chosen=new Map();
+    const add=ref=>{if(chosen.size<count)chosen.set(dailySpeciesId(ref),ref);};
+    refs.filter(ref=>group.keys.includes(ref.s)).slice(0,group.min).forEach(add);refs.forEach(add);
+    // Woody footprints go first; ordinary companions fill the remaining ground.
+    const ordered=[...chosen.values()].sort((a,b)=>Number(isWoodyDef(refDef(b)))-Number(isWoodyDef(refDef(a))));
+    for(const ref of ordered){
+      game.tool=ref.s;game.toolVar=ref.v;let placed=0;
+      for(const key of Object.keys(p.terrain)){
+        if(p.terrain[key].k!=='bed')continue;
+        const [x,y]=key.split(',').map(Number);
+        if(applyToolAt(x,y)&&++placed===3)break;
+      }
+      assertEqual(placed,3,c.id+' has room for '+ref.s);
+    }
+    const progress=dailyDesignProgress();assert(progress.met,c.id+' meets all rules on its actual site');
+  }
+});
+
+test('woodland canopy is mature shade and only original context is exempt from counts',()=>{
+  const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
+  setup(p.gw,p.gh);game.challenge=c;game.dayOffset=16;prepareDailySite(p);
+  const tree=p.context[0],key=tree.x+','+tree.y,plant=game.plants[key];
+  assertEqual(plantEstab(plant),1);assertEqual(dailyPlantCount(),0);
+  assert(Object.keys(p.terrain).some(k=>{const [x,y]=k.split(',').map(Number);return p.terrain[k].k==='bed'&&shadeAt(x,y);}),
+    'existing tree casts real placement shade');
+  const snapshot=snapshotState();
+  selWrite([{x:tree.x,y:tree.y,plant}],()=>[8,9],true);
+  assertEqual(dailyPlantCount(),0,'moved original stays exempt');
+  selWrite([{x:8,y:9,plant:game.plants['8,9']}],()=>[9,9],false);
+  assert(!game.plants['9,9'].dailySiteId,'copy receives no exemption');
+  assertEqual(dailyPlantCount(),1);assert(!dailyDesignProgress().met,'out-of-palette copy is counted');
+  clearTile('plants','8,9');assertEqual(dailyPlantCount(),1,'removing original cannot exempt its copy');
+  applySnapshot(snapshot);assertEqual(dailyPlantCount(),0,'undo restores the original identity');
+  setTile('plants','9,9',{...plant});assertEqual(dailyPlantCount(),1,'duplicate imported tags never exempt multiple trees');
+  game.challenge={...c,sitePlan:null};assertEqual(dailyPlantCount(),2,'tag alone grants no exemption');
+});
+
+test('copying then moving or rotating a selected context tree cannot restore its exemption',()=>{
+  const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site==='woodland'),p=c.sitePlan;
+  setup(p.gw,p.gh);game.challenge=c;prepareDailySite(p);
+  game.sel={x0:7,y0:9,x1:7,y1:9};game.selItems=[{x:7,y:9,plant:game.plants['7,9']}];
+  assert(commitSelectionOffset(1,0,true),'copy original');
+  assert(!game.selItems[0].plant.dailySiteId,'owned payload now belongs to the copy');
+  assert(commitSelectionOffset(1,0,false),'move copy');rotateSelection();
+  clearTile('plants','7,9');
+  assertEqual(dailyPlantCount(),1,'copy still counts after removing the original');
+  assert(!game.plants['9,9'].dailySiteId);
+});
+
+test('site preview uses its saved blueprint without touching the live garden',()=>{
+  setup();setTile('plants','1,1',{s:'echinacea',d:0,t:1});
+  const state=JSON.stringify([snapshotState(),GW,GH,cam,game.rev]);
+  for(const kind of Object.keys(DAILY_SITES))drawDailySitePlan($('dailySiteCanvas'),dailySitePlan(kind));
+  assertEqual(JSON.stringify([snapshotState(),GW,GH,cam,game.rev]),state);
+});
+
+test('edited starter layers and tree identity survive save, reload and export without reseeding',async()=>{
+  for(const kind of ['woodland','slope','hollow','corner']){
+    const c=Array.from({length:54},(_,i)=>dailyChallengeFor(new Date(2026,8,1+i))).find(c=>c.site===kind),p=c.sitePlan;
+    setup(p.gw,p.gh);game.worldId='starter-'+kind;game.challenge=c;game.pausedAt=Date.now();prepareDailySite(p);
+    const key=Object.keys(p.terrain)[0];clearTile('terrain',key);
+    if(kind==='woodland')selWrite([{x:7,y:9,plant:game.plants['7,9']}],()=>[8,9],true);
+    if(kind==='slope')setTile('elevation','3,3',{h:0,w:'none',t:Date.now()});
+    assert(await saveSolo(true));assert(await loadSolo(game.worldId));
+    assert(!game.terrain[key]||game.terrain[key].removed,'edited ground never reseeds');
+    assertEqual(JSON.stringify(game.challenge.sitePlan),JSON.stringify(p),'original blueprint survives');
+    if(kind==='woodland'){assert(!game.plants['7,9']||game.plants['7,9'].removed);assertEqual(dailyPlantCount(),0);}
+    if(kind==='slope')assertEqual(game.elevation['3,3'].h,0);
+    assertEqual(gardenFileProblem({pocketPrairie:1,v:1,world:buildSaveBlob()}),null);
   }
 });
 

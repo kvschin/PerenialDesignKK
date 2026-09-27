@@ -1171,6 +1171,14 @@ canvas.layer-eye{display:block}
    because it is a live constraint on what you can plant, not a status line. */
 .daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left}
 .daily-intro{font-size:12px;line-height:1.5;color:var(--text-muted);margin:12px 0 18px}
+.daily-site-preview{margin:16px 0 20px;border:1px solid var(--border-subtle);border-radius:10px;overflow:hidden}
+.daily-site-preview canvas{display:block;width:100%;height:auto;background:#f3efe4}
+.daily-site-preview figcaption{font-size:12px;line-height:1.5;padding:10px 12px 4px;color:var(--text-secondary)}
+.daily-site-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 12px 12px;font-size:11px;color:var(--text-secondary)}
+.daily-site-legend span{display:inline-flex;align-items:center;gap:5px}
+.daily-site-swatch{display:inline-block;width:12px;height:12px;border:1px solid #756f5c;border-radius:2px;background:#ac9272}
+.daily-site-swatch.path{background:#d2c5aa}.daily-site-swatch.tree{background:#78916c;border-radius:50%}
+.daily-site-swatch.grade{background:linear-gradient(135deg,#cec19c 48%,#655d4c 49%,#655d4c 58%,#ac9272 59%)}
 .daily-label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;margin:20px 0 10px;color:var(--text-primary)}
 .daily-goals{padding-left:22px;margin:10px 0 18px;font-size:14px;line-height:1.55}
 .daily-goals li+li{margin-top:9px}

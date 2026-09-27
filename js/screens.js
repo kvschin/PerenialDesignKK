@@ -6,7 +6,6 @@ const DAILY_THEMES = [
   {
     id:"dry-prairie",
     title:"Dry Prairie Matrix",
-    site:"split",
     season:"Summer",
     palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"sideoats","v":null},{"s":"bluegrama","v":null},{"s":"pallida","v":null},{"s":"angustifolia","v":null},{"s":"purpleprairieclover","v":null},{"s":"butterfly","v":null},{"s":"liatris","v":null},{"s":"goldenrod","v":null}],
     exercises:[["Woven meadow","Let the grasses connect the bed, with flowers emerging through them."],["Prairie pockets","Build a few compact flowering pockets surrounded by grass."],["A repeated horizon","Repeat low grasses along the route, with upright accents behind."]],
@@ -17,7 +16,6 @@ const DAILY_THEMES = [
   {
     id:"woodland",
     title:"Shade Woodland Floor",
-    site:"border",
     season:"Spring",
     palette:[{"s":"pennsedge","v":null},{"s":"rosysedge","v":null},{"s":"plantainsedge","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"maidenhairfern","v":null},{"s":"hosta","v":null},{"s":"heuchera","v":null},{"s":"woodlandphlox","v":null},{"s":"solomonsseal","v":null}],
     exercises:[["Leaf layers","Build a low woodland carpet beneath arching and upright leaves."],["A quiet clearing","Leave a calm opening between a few bold foliage groups."],["Fern rhythm","Carry a repeated fern shape along the path."]],
@@ -28,7 +26,6 @@ const DAILY_THEMES = [
   {
     id:"pollinator",
     title:"Pollinator Patch",
-    site:"island",
     season:"Summer",
     palette:[{"s":"echinacea","v":null},{"s":"monarda","v":null},{"s":"mountainmint","v":null},{"s":"penstemon","v":null},{"s":"goldenalexander","v":null},{"s":"liatrispycnostachya","v":null},{"s":"rudbeckia","v":null},{"s":"newengland","v":null},{"s":"butterfly","v":null},{"s":"dropseed","v":null}],
     exercises:[["Flower patches","Use generous patches of flowers with space to see each patch."],["A small feast","Create a compact composition from a restrained flowering palette."],["Connected blooms","Repeat flowering patches across the site instead of isolating each species."]],
@@ -39,7 +36,6 @@ const DAILY_THEMES = [
   {
     id:"four-season",
     title:"Four-Season Interest",
-    site:"island",
     season:"Fall",
     palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"karl","v":null},{"s":"echinacea","v":null},{"s":"penstemon","v":null},{"s":"amsonia","v":null},{"s":"aster","v":null},{"s":"sedum","v":null},{"s":"goldenrod","v":null},{"s":"alliumPurpleSensation","v":null}],
     exercises:[["Standing structure","Make a framework that still reads when the flowers fade."],["One lasting focal point","Use a strong central shape with a restrained supporting palette."],["Winter echoes","Repeat lasting forms so the winter view has a clear rhythm."]],
@@ -50,7 +46,6 @@ const DAILY_THEMES = [
   {
     id:"cottage",
     title:"Cottage Abundance",
-    site:"border",
     season:"Summer",
     palette:[{"s":"yarrow","v":null},{"s":"meadowsage","v":null},{"s":"echinacea","v":null},{"s":"phlox","v":null},{"s":"stachys","v":null},{"s":"catmint","v":null},{"s":"shastadaisy","v":null},{"s":"spikespeedwell","v":null},{"s":"dropseed","v":null},{"s":"quakinggrass","v":null}],
     exercises:[["Soft edges","Let low flowers soften the path while taller plants rise behind."],["A restrained cottage","Make a full-looking border from a small, repeated plant palette."],["Flower ribbons","Carry repeated flower colours through the planting like ribbons."]],
@@ -61,7 +56,6 @@ const DAILY_THEMES = [
   {
     id:"gravel",
     title:"Hot, Dry Gravel",
-    site:"split",
     season:"Summer",
     palette:[{"s":"bluegrama","v":null},{"s":"bluefescue","v":null},{"s":"dropseed","v":null},{"s":"pallida","v":null},{"s":"liatris","v":null},{"s":"purpleprairieclover","v":null},{"s":"yucca","v":null},{"s":"eryngiumbourgatii","v":null},{"s":"lambsear","v":null},{"s":"pussytoes","v":null}],
     exercises:[["Shapes in gravel","Set upright accents among low mounds with open ground between."],["One sculptural accent","Give a strong plant shape room to stand out from a quiet setting."],["Repeated islands","Arrange repeated groups separated by visible open ground."]],
@@ -72,7 +66,6 @@ const DAILY_THEMES = [
   {
     id:"wet-spot",
     title:"Slow-Draining Low",
-    site:"island",
     season:"Summer",
     palette:[{"s":"foxsedge","v":null},{"s":"grayssedge","v":null},{"s":"tussocksedge","v":null},{"s":"swampmilkweed","v":null},{"s":"liatrisspicata","v":null},{"s":"babyjoe","v":null},{"s":"northernblueflag","v":null},{"s":"blueflagiris","v":null},{"s":"roughgoldenrod","v":null},{"s":"greatstjohnswort","v":null}],
     exercises:[["Sedge framework","Use sedges to connect flowering groups in a damp-site planting."],["A damp pocket","Concentrate a few moisture-loving plants in a coherent central group."],["Wet meadow rhythm","Repeat sedges and flowers through the bed while keeping the route clear."]],
@@ -83,7 +76,6 @@ const DAILY_THEMES = [
   {
     id:"monochrome",
     title:"Monochrome Study",
-    site:"border",
     season:"Summer",
     palette:[{"s":"yarrow","v":null},{"s":"penstemon","v":null},{"s":"whiteprairieclover","v":null},{"s":"mountainmint","v":null},{"s":"shastadaisy","v":null},{"s":"culvers","v":null},{"s":"candytuft","v":null},{"s":"echinacea","v":"whiteswan"},{"s":"dropseed","v":null},{"s":"karl","v":null}],
     exercises:[["White and cream","Connect white and cream flowers with grasses for texture."],["A pale focal point","Make one pale flowering group the focus of a restrained composition."],["White ribbons","Repeat white and cream flowers through the bed, changing height and texture."]],
@@ -94,7 +86,6 @@ const DAILY_THEMES = [
   {
     id:"grasses",
     title:"Grasses Only",
-    site:"split",
     season:"Fall",
     palette:[{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"sideoats","v":null},{"s":"bluegrama","v":null},{"s":"lovegrass","v":null},{"s":"karl","v":null},{"s":"moorhexe","v":null},{"s":"switchgrass","v":null},{"s":"prairiejunegrass","v":null},{"s":"bluefescue","v":null}],
     exercises:[["Moving textures","Combine low fountains and upright grasses to make contrasting textures."],["Grass sculpture","Create a small composition where each grass shape has room to read."],["A flowing rhythm","Repeat the same grass shapes through the planting like a repeating phrase."]],
@@ -105,7 +96,6 @@ const DAILY_THEMES = [
   {
     id:"late-season",
     title:"Late-Season Glow",
-    site:"border",
     season:"Fall",
     palette:[{"s":"aster","v":null},{"s":"newengland","v":null},{"s":"smoothaster","v":null},{"s":"goldenrod","v":null},{"s":"autumnGoldenrod","v":null},{"s":"sedum","v":null},{"s":"narrowleafironweed","v":null},{"s":"bluestem","v":null},{"s":"dropseed","v":null},{"s":"switchgrass","v":null}],
     exercises:[["Autumn partners","Set late flowers against warm grasses and lasting seedheads."],["A late focal point","Build a restrained autumn composition around one flowering focal group."],["Autumn procession","Repeat late flowers along the route with grasses between."]],
@@ -116,7 +106,6 @@ const DAILY_THEMES = [
   {
     id:"deer-border",
     title:"Deer-Resistant Border",
-    site:"border",
     season:"Summer",
     palette:[{"s":"yarrow","v":null},{"s":"meadowsage","v":null},{"s":"monarda","v":null},{"s":"mountainmint","v":null},{"s":"agastache","v":null},{"s":"catmint","v":null},{"s":"calamint","v":null},{"s":"lambsear","v":null},{"s":"dropseed","v":null},{"s":"bluestem","v":null}],
     exercises:[["Aromatic border","Connect aromatic flowers with contrasting foliage along the path."],["A tough little garden","Use a small palette to make a legible, repeated border."],["Scented repetition","Carry aromatic groups through the planting in a repeated sequence."]],
@@ -127,7 +116,6 @@ const DAILY_THEMES = [
   {
     id:"rhythm",
     title:"Repetition & Rhythm",
-    site:"split",
     season:"Summer",
     palette:[{"s":"dropseed","v":null},{"s":"karl","v":null},{"s":"bluestem","v":null},{"s":"echinacea","v":null},{"s":"stachys","v":null},{"s":"meadowsage","v":null},{"s":"sedum","v":null},{"s":"penstemon","v":null},{"s":"allium","v":null},{"s":"rudbeckia","v":null}],
     exercises:[["A repeated phrase","Choose a short planting phrase and repeat it across the site."],["Three-plant composition","Explore how much variety three repeated species can create."],["Four-part rhythm","Use four species in a recurring sequence with contrasting forms."]],
@@ -138,7 +126,6 @@ const DAILY_THEMES = [
   {
     id:"matrix",
     title:"Matrix & Scatter",
-    site:"island",
     season:"Summer",
     palette:[{"s":"dropseed","v":null},{"s":"bluestem","v":null},{"s":"sideoats","v":null},{"s":"prairiejunegrass","v":null},{"s":"pallida","v":null},{"s":"purpleprairieclover","v":null},{"s":"butterfly","v":null},{"s":"liatris","v":null},{"s":"pussytoes","v":null},{"s":"heartleafalexander","v":null}],
     exercises:[["A woven carpet","Make a connected grass layer with flowering plants threaded through."],["Quiet matrix","Keep the grass layer calm and let a few flowering accents stand out."],["Repeated scatter","Repeat the same flowering accents through a continuous grass layer."]],
@@ -149,7 +136,6 @@ const DAILY_THEMES = [
   {
     id:"hummingbird",
     title:"Hummingbird Garden",
-    site:"border",
     season:"Summer",
     palette:[{"s":"columbine","v":null},{"s":"penstemon","v":null},{"s":"indianpink","v":null},{"s":"scarletbeebalm","v":null},{"s":"cardinallobelia","v":null},{"s":"greatbluelobelia","v":null},{"s":"obedientplant","v":null},{"s":"liliumsuperbum","v":null},{"s":"switchgrass","v":null},{"s":"foxsedge","v":null}],
     exercises:[["Flower stops","Arrange patches of tubular flowers in a moist, sun-to-part-shade study."],["A compact stopover","Concentrate a few flowering species into bold groups."],["A flowering route","Repeat flowering patches through the site with supporting foliage between."]],
@@ -160,7 +146,6 @@ const DAILY_THEMES = [
   {
     id:"spring",
     title:"Spring Ephemerals",
-    site:"border",
     season:"Spring",
     palette:[{"s":"bluebells","v":null},{"s":"woodlandphlox","v":null},{"s":"shootingstar","v":null},{"s":"columbine","v":null},{"s":"dwarfcrestediris","v":null},{"s":"hepatica","v":null},{"s":"yellowtroutlily","v":null},{"s":"christmasfern","v":null},{"s":"rosysedge","v":null},{"s":"maidenhairfern","v":null}],
     exercises:[["Spring into summer","Place spring flowers among leafy companions that fill later gaps."],["A spring clearing","Make a small spring-flowering pocket framed by summer foliage."],["Woodland echoes","Repeat spring flowers and their leafy companions along the route."]],
@@ -171,7 +156,6 @@ const DAILY_THEMES = [
   {
     id:"foliage",
     title:"Foliage First",
-    site:"island",
     season:"Summer",
     palette:[{"s":"hosta","v":null},{"s":"hakone","v":null},{"s":"heuchera","v":null},{"s":"brunnera","v":null},{"s":"solomonsseal","v":null},{"s":"japanesepaintedfern","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"evergoldsedge","v":null},{"s":"plantainsedge","v":null}],
     exercises:[["Leaf contrasts","Compose with fine, broad and upright leaves in a part-shade study."],["One bold leaf","Let a bold-leaved focal group stand out against quieter textures."],["Texture rhythm","Repeat contrasting foliage shapes through the bed."]],
@@ -182,7 +166,6 @@ const DAILY_THEMES = [
   {
     id:"evergreen",
     title:"Evergreen Bones",
-    site:"island",
     season:"Winter",
     palette:[{"s":"boxwoodlow","v":null},{"s":"yewlow","v":null},{"s":"inkberry","v":null},{"s":"sweetbox","v":null},{"s":"skimmia","v":null},{"s":"loworegongrape","v":null},{"s":"christmasfern","v":null},{"s":"marginalwoodfern","v":null},{"s":"evergoldsedge","v":null},{"s":"hollyfern","v":null}],
     exercises:[["Winter framework","Use compact woody evergreens with a lower leafy layer."],["A winter focal point","Give one woody form prominence in a restrained winter composition."],["Evergreen rhythm","Repeat evergreen forms to connect the winter view."]],
@@ -193,7 +176,6 @@ const DAILY_THEMES = [
   {
     id:"sensory",
     title:"Sensory Garden",
-    site:"split",
     season:"Summer",
     palette:[{"s":"lavender","v":null},{"s":"catmint","v":null},{"s":"calamint","v":null},{"s":"agastache","v":null},{"s":"meadowsage","v":null},{"s":"lambsear","v":null},{"s":"silvermound","v":null},{"s":"yarrow","v":null},{"s":"dropseed","v":null},{"s":"bluefescue","v":null}],
     exercises:[["A scented edge","Place aromatic and soft foliage near the path in a sunny, free-draining study."],["A small sensory corner","Create a compact corner of contrasting soft and aromatic foliage."],["Texture along the path","Repeat aromatic groups and soft textures along the route."]],
@@ -220,8 +202,142 @@ const DAILY_SITES={
     "description": "A 24 × 24 ft plot with a central bed and a route around it.",
     "widthFt": 24,
     "lengthFt": 24
-  }
+  },
+  woodland:{label:'Woodland clearing',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft clearing with leaf-litter beds, a winding bark path and an established serviceberry.',
+    conditions:'Design for part shade and average moisture. The tree casts shade; move or remove it with the usual tools. The starting tree is excluded from plant counts.'},
+  narrow:{label:'Narrow border',widthFt:30,lengthFt:12,
+    description:'A 30 × 12 ft strip with a deep border along a straight limestone path.',
+    conditions:'An open, sunny edge. Build depth with low planting near the path and taller groups behind.'},
+  patio:{label:'Patio edge',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft garden with an offset paved terrace and generous beds around two sides.',
+    conditions:'Keep the terrace open and compose a planting to enjoy from its edge. Choose plant positions for the conditions shown in their details.'},
+  slope:{label:'Gentle terraced slope',widthFt:30,lengthFt:24,
+    description:'A 30 × 24 ft site with two shallow planting terraces above a level gravel route.',
+    conditions:'Design for a sunny slope. The raised ground uses editable grade steps and dry-stone edges; drainage is a design assumption.'},
+  hollow:{label:'Lowered planting hollow',widthFt:24,lengthFt:24,
+    description:'A 24 × 24 ft garden with a shallow lowered soil bed and a level path around it.',
+    conditions:'Imagine a damp planting pocket in sun to part shade. The bed is plantable soil; the grade does not simulate water or drainage.'},
+  gravel:{label:'Gravel garden pockets',widthFt:30,lengthFt:21,
+    description:'A 30 × 21 ft gravel garden with broad planting pockets beside a bending slate path.',
+    conditions:'Design for sun and free-draining soil. Gravel beds accept plants; the darker slate is the route to keep clear.'},
+  corner:{label:'Tapered corner',widthFt:30,lengthFt:24,
+    description:'A tapered corner within a 30 × 24 ft outline, with a turning path and two unequal planting areas.',
+    conditions:'Use repetition to connect the broad bed and the narrowing end. The plot outline and all ground materials are editable.'}
 };
+// Each exercise starts on an ecologically suitable site. Shade exercises keep
+// their canopy; damp-site palettes never rotate onto a dry gravel template.
+const DAILY_SITE_ROTATION={
+  'dry-prairie':['slope','gravel','corner'], woodland:['woodland','woodland','woodland'],
+  pollinator:['corner','patio','slope'], 'four-season':['slope','patio','corner'],
+  cottage:['narrow','patio','corner'], gravel:['gravel','gravel','gravel'],
+  'wet-spot':['hollow','hollow','hollow'], monochrome:['narrow','patio','corner'],
+  grasses:['slope','gravel','corner'], 'late-season':['slope','patio','narrow'],
+  'deer-border':['narrow','patio','corner'], rhythm:['narrow','corner','patio'],
+  matrix:['slope','gravel','corner'], hummingbird:['hollow','hollow','hollow'],
+  spring:['woodland','woodland','woodland'], foliage:['woodland','woodland','woodland'],
+  evergreen:['patio','patio','patio'], sensory:['narrow','gravel','patio']
+};
+/* Pure blueprint: preview, start and saved brief all consume the same data.
+   Legacy layouts remain available only to older saved briefs. */
+function dailySitePlan(kind){
+  const site=DAILY_SITES[kind]; if(!site)return null;
+  const gw=ftToTiles(site.widthFt),gh=ftToTiles(site.lengthFt);
+  const p={v:1,kind,label:site.label,description:site.description,
+    conditions:site.conditions||'Everything on the site is editable.',gw,gh,
+    shape:kind==='corner'?[[0,0],[20,0],[14,16],[0,16]]:null,terrain:{},elevation:{},context:[]};
+  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){
+    if(!blobOnPlot(x,y,gw,gh,p.shape))continue;
+    let k=null,c='soil',h=0,w='none';
+    const inner=x>0&&y>0&&x<gw-1&&y<gh-1;
+    if(kind==='border')k=y<gh-4?'bed':y<gh-2?'path':null;
+    if(kind==='split')k=Math.abs(x-(gw-1)/2)<1.1?'path':inner?'bed':null;
+    if(kind==='island'){
+      const r=Math.hypot((x-(gw-1)/2)/(gw/2),(y-(gh-1)/2)/(gh/2));
+      k=r<.65?'bed':r<.86?'path':null;
+    }
+    if(kind==='woodland'){
+      const route=y<5?14:y<10?15:14;
+      k=x>=route&&x<route+2?'path':inner?'bed':null;c=k==='path'?'bark':'leaf';
+    }
+    if(kind==='narrow'){k=y<5?'bed':y<7?'path':null;c=k==='path'?'lime':'soil';}
+    if(kind==='patio'){
+      k=(x>=11&&x<=17&&y>=8&&y<=14)||(x>=14&&x<=15&&y>=14)?'path':inner?'bed':null;
+      c=k==='path'?'paver':'mulch';
+    }
+    if(kind==='slope'){
+      k=y>=12&&y<=13?'path':inner&&y<12?'bed':null;
+      h=y<4?2:y<8?1:0;w='drystone';
+    }
+    if(kind==='hollow'){
+      const r=Math.hypot((x-7.5)/6,(y-7.5)/5.5);
+      k=r<.92?'bed':r<1.3?'path':null;h=k==='bed'?-1:0;
+    }
+    if(kind==='gravel'){
+      const route=y<4?11:y<9?10:9;
+      k=x>=route&&x<route+2?'path':inner?'bed':null;c=k==='path'?'slate':'gravel';
+    }
+    if(kind==='corner'){
+      k=(x>=5&&x<=6&&y>=6)||(y>=5&&y<=6&&x>=5)?'path':inner?'bed':null;
+      c=k==='path'?'lime':'soil';
+    }
+    if(k)p.terrain[x+','+y]={k,c:c==='soil'&&k==='path'?'warm':c};
+    if(h)p.elevation[x+','+y]={h,w};
+  }
+  if(kind==='woodland')p.context.push({id:'canopy-1',s:'serviceberry',v:null,x:7,y:9});
+  return p;
+}
+function dailyStartingPlan(c){return c.sitePlan||dailySitePlan(c.site);}
+function renderDailySite(prefix,c,resuming=false){
+  const p=dailyStartingPlan(c),canvas=$(prefix+'SiteCanvas');
+  $(prefix+'Site').textContent=p.description+' '+p.conditions;
+  $(prefix+'SiteCaption').textContent=resuming?'Original starting site · your edits are saved in the garden':'Your starting site · everything is editable';
+  const legend=$(prefix+'SiteLegend');legend.replaceChildren();
+  for(const [kind,label] of [['bed','Planting beds'],['path','Paths / terrace'],
+      ...(p.context.length?[['tree','Existing tree canopy']]:[]),
+      ...(Object.keys(p.elevation).length?[['grade','Grade changes']]:[])]){
+    const span=document.createElement('span'),swatch=document.createElement('i');
+    swatch.className='daily-site-swatch '+kind;swatch.setAttribute('aria-hidden','true');
+    span.append(swatch,label);legend.appendChild(span);
+  }
+  canvas.setAttribute('aria-label',p.label+'. '+p.description+' '+p.conditions);
+  drawDailySitePlan(canvas,p);
+}
+function drawDailySitePlan(canvas,p){
+  const ctx=canvas.getContext('2d');if(!ctx)return;
+  canvas.height=Math.round(Math.min(440,Math.max(200,canvas.width*(p.gh+3)/(p.gw+3))));
+  const W=canvas.width,H=canvas.height,scale=Math.min((W-68)/p.gw,(H-56)/p.gh);
+  const ox=(W-p.gw*scale)/2,oy=(H-p.gh*scale)/2+7;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#f3efe4';ctx.fillRect(0,0,W,H);
+  const outline=p.shape||[[0,0],[p.gw,0],[p.gw,p.gh],[0,p.gh]];
+  const trace=()=>{ctx.beginPath();outline.forEach(([x,y],i)=>i?ctx.lineTo(ox+x*scale,oy+y*scale):ctx.moveTo(ox+x*scale,oy+y*scale));ctx.closePath();};
+  ctx.save();trace();ctx.clip();
+  for(let y=0;y<p.gh;y++)for(let x=0;x<p.gw;x++){
+    if(!blobOnPlot(x,y,p.gw,p.gh,p.shape))continue;
+    const key=x+','+y,t=p.terrain[key],e=p.elevation[key];
+    ctx.fillStyle=t?(t.k==='path'?(t.c==='slate'?'#7f888a':'#d2c5aa'):t.c==='gravel'?'#b8ad8e':t.c==='leaf'?'#97866b':'#ac9272'):'#b5bc91';
+    ctx.fillRect(ox+x*scale,oy+y*scale,scale+.5,scale+.5);
+    if(e){ctx.fillStyle=e.h<0?'rgba(47,66,49,.15)':`rgba(255,248,215,${e.h*.11})`;ctx.fillRect(ox+x*scale,oy+y*scale,scale+.5,scale+.5);}
+    // Trace grade boundaries, including the lower hollow, without implying water.
+    const height=e?.h||0;
+    ctx.strokeStyle='#655d4c';ctx.lineWidth=1.4;
+    for(const [dx,dy,ax,ay,bx,by] of [[1,0,1,0,1,1],[0,1,0,1,1,1]]){
+      if(!blobOnPlot(x+dx,y+dy,p.gw,p.gh,p.shape)||(p.elevation[(x+dx)+','+(y+dy)]?.h||0)===height)continue;
+      ctx.beginPath();ctx.moveTo(ox+(x+ax)*scale,oy+(y+ay)*scale);ctx.lineTo(ox+(x+bx)*scale,oy+(y+by)*scale);ctx.stroke();
+    }
+  }
+  for(const tree of p.context){
+    const x=ox+(tree.x+.5)*scale,y=oy+(tree.y+.5)*scale;
+    ctx.beginPath();ctx.arc(x,y,woodyRadiusTiles(plantDef(tree.s,tree.v))*scale,0,Math.PI*2);
+    ctx.fillStyle='rgba(55,92,63,.24)';ctx.fill();ctx.strokeStyle='#49684a';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fillStyle='#554330';ctx.fill();
+  }
+  ctx.restore();trace();ctx.strokeStyle='#697154';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#45533e';ctx.font='22px sans-serif';ctx.textAlign='center';
+  ctx.fillText(`${p.gw*TILE_IN/12} ft`,W/2,19);
+  ctx.textAlign='left';ctx.fillText('N ↑',12,24);
+  ctx.save();ctx.translate(ox-12,oy+p.gh*scale/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText(`${p.gh*TILE_IN/12} ft`,0,0);ctx.restore();
+}
 function dailyRulesFor(theme,variation){
   const definition=DAILY_THEMES[theme], [group,min,keys]=definition.group;
   let low=definition.minSpecies, high=Math.min(6,low+2);
@@ -245,9 +361,9 @@ function dailyChallengeFor(date=new Date()){
   const day=Math.floor(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/864e5);
   const i=((day%DAILY_THEMES.length)+DAILY_THEMES.length)%DAILY_THEMES.length;
   const variation=((Math.floor(day/DAILY_THEMES.length)%3)+3)%3;
-  const theme=DAILY_THEMES[i], {id,site:baseSite,season}=theme, [exercise,focus]=theme.exercises[variation];
-  const site=variation===0?baseSite:variation===1?'island':'split';
-  return normalizeDailyChallenge({v:2,id:`${id}-${variation+1}`,date:dailyDateKey(date),site,season,
+  const theme=DAILY_THEMES[i], {id,season}=theme, [exercise,focus]=theme.exercises[variation];
+  const site=DAILY_SITE_ROTATION[id][variation];
+  return normalizeDailyChallenge({v:3,id:`${id}-${variation+1}`,date:dailyDateKey(date),site,sitePlan:dailySitePlan(site),season,
     title:`${theme.title}: ${exercise}`,brief:focus,goals:theme.goals,checked:[],
     plants:'Ten curated plant choices. Plant details show their growing conditions and hardiness.',
     palette:theme.palette,rules:dailyRulesFor(i,variation),strict:false});
@@ -274,10 +390,15 @@ function dailyFeasibility(c,refs){
 }
 function dailyDesignProgress(c=game.challenge){
   const species=new Map(), records=[], palette=new Set((c&&c.palette||[]).map(plantRefId));
+  const context=new Map((c?.sitePlan?.context||[]).map(p=>[p.id,plantRefId(p)])),seenContext=new Set();
   let outside=0;
   for(const layer of [game.plants,game.bulbs])for(const [key,p] of Object.entries(layer)){
     if(!p||p.removed||!PLANTS[p.s])continue;
     const [x,y]=key.split(',').map(Number); if(!Number.isInteger(x)||!Number.isInteger(y)||!onPlot(x,y))continue;
+    // One original tree may move, but copied/replanted trees count as additions.
+    if(layer===game.plants&&p.dailySiteId&&context.get(p.dailySiteId)===plantRefId(p)&&!seenContext.has(p.dailySiteId)){
+      seenContext.add(p.dailySiteId);continue;
+    }
     const ref=plantRef(p.s,p.v||null), id=dailySpeciesId(ref), inside=palette.has(plantRefId(ref));
     if(!species.has(id))species.set(id,new Set());
     species.get(id).add(key); records.push({ref,id,inside}); if(!inside)outside++;
@@ -330,7 +451,7 @@ function renderDailyEntry(){
   const c=dailySelection; if(!c)return;
   $('dailyTitle').textContent=c.title; $('dailyBrief').textContent=c.brief;
   $('dailyPlants').textContent=c.plants;
-  $('dailySite').textContent=DAILY_SITES[c.site].description+' Everything on the site is editable.';
+  renderDailySite('daily',c,!!dailyResumeId);
   renderDailyGoals($('dailyGoals'),c); renderDailyPalette($('dailyPlantList'),c,dailyCriteria);
   $('dailyPaletteDetails').classList.toggle('hidden',!c.palette);
   renderDailyRules($('dailyRules'),c);
@@ -368,20 +489,13 @@ function renderDailyGoals(target,c,editable=false){
     target.appendChild(li);
   });
 }
-// Ordinary editable terrain, with no hidden generator state and no plants or
-// house. Templates are deliberately small enough for a short design session.
-function prepareDailySite(kind){
+// Apply only at creation. Reopening always loads the gardener's edited layers.
+function prepareDailySite(plan){
+  if(typeof plan==='string')plan=dailySitePlan(plan);
   const now=Date.now();
-  for(let y=0;y<GH;y++) for(let x=0;x<GW;x++){
-    let k=null;
-    if(kind==='border') k=y<GH-4?'bed':y<GH-2?'path':null;
-    if(kind==='split') k=Math.abs(x-(GW-1)/2)<1.1?'path':x>0&&x<GW-1&&y>0&&y<GH-1?'bed':null;
-    if(kind==='island'){
-      const r=Math.hypot((x-(GW-1)/2)/(GW/2),(y-(GH-1)/2)/(GH/2));
-      k=r<.65?'bed':r<.86?'path':null;
-    }
-    if(k)setTile('terrain',x+','+y,{k,c:k==='path'?'warm':'soil',t:now});
-  }
+  setPlotShape(plan.shape?.map(p=>p.slice())||null);
+  for(const layer of ['terrain','elevation'])for(const [key,p] of Object.entries(plan[layer]))setTile(layer,key,{...p,t:now});
+  for(const p of plan.context)setTile('plants',p.x+','+p.y,{...matureWoodyDraft(p.s,p.v),dailySiteId:p.id,t:now});
 }
 /* Everything a brand-new garden starts from. Both routes in — the plot
    screen and the daily challenge — kept their own copy of this list, and
@@ -467,20 +581,20 @@ async function startDailyChallenge(){
   dailyStarting=true; $('btnDailyStart').disabled=true;
   try{
   if(dailyResumeId){ await enterWorld(dailyResumeId); return; }
-  const c=normalizeDailyChallenge(dailySelection), site=DAILY_SITES[c.site];
+  const c=normalizeDailyChallenge(dailySelection), site=dailyStartingPlan(c);
   if(c.palette){
     const available=dailyEligiblePalette(c,dailyCriteria);
     if(!available.length||(c.strict&&!dailyFeasibility(c,available).possible)){renderDailyEntry();return;}
   }
-  setWorldSize(ftToTiles(site.widthFt), ftToTiles(site.lengthFt));
+  setWorldSize(site.gw,site.gh);
   game.worldId=newWorldId();
   game.worldName=`Daily: "${c.title}"`;
   game.inGarden=true;
   resetNewGardenState();
   game.challenge=c;
   game.discovery=defaultDiscovery();
-  prepareDailySite(c.site);
   game.dayOffset=SEASONS.indexOf(c.season)*DAYS_PER_SEASON;
+  prepareDailySite(site);
   game.siteNorthDeg=0;
   game.edgeStyle='organic';                               // daily challenges default to naturalistic edges
   game.design={...dailyCriteria,type:'any'};
@@ -546,7 +660,7 @@ function openChallengeBrief(){
   $('challengeTitle').textContent=c.title;
   $('challengeDate').textContent='Daily design · '+c.date;
   $('challengeBrief').textContent=c.brief;
-  $('challengeSite').textContent=DAILY_SITES[c.site].description+' Suggested view: '+c.season+'.';
+  renderDailySite('challenge',c,true);
   $('challengePlants').textContent=c.plants;
   renderDailyGoals($('challengeGoals'),c,true);
   refreshChallengeRules();
