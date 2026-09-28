@@ -4453,15 +4453,12 @@ function flyLibraryToLauncher(from){
   ghost.addEventListener('transitionend',done,{once:true});
   setTimeout(done,600);   // a swallowed transitionend must never strand the ghost over the garden
 }
+/* What the sheet was last LAID OUT as: its state, the tier, and whether the
+   site-photo editor has hidden it (visibility, which the rail reservation and
+   usableCanvasRect both read). Empty until the first layout. */
+let sheetLaidOut='';
 function applySheetState(){
   const hb=document.querySelector('.hud-bottom'); if (!hb) return;
-  // the sheet is one of the four things usableCanvasRect measures, and the
-  // ResizeObserver behind it only fires a frame later
-  if (typeof invalidateUsableRect==='function') invalidateUsableRect();
-  const priorFocus=document.activeElement;
-  const catalog=document.getElementById('sheetCatalog');
-  const focusWasInCatalog=!!(priorFocus&&catalog&&catalog.contains(priorFocus));
-  const focusWasExpand=!!(priorFocus&&(priorFocus.id==='btnSheetUp'||priorFocus.id==='btnLibraryPlacing'));
   const phone=mobileSheetUi();
   let s=normalizedSheetState(game.sheetState);
   // The middle state belongs only to the phone bottom sheet. Larger screens
@@ -4469,6 +4466,27 @@ function applySheetState(){
   if (!phone&&s==='half') s='full';
   game.sheetState=s; game.sheetCollapsed=s==='collapsed';
   syncDiscoveryArtVisibility();
+  /* Nothing about the sheet's GEOMETRY has changed, so there is nothing to lay
+     out: only its label, swatch and chip, which follow the armed tool.
+     This runs on every tool change and every catalog rebuild (renderCvRow),
+     and the layout below is not cheap. On a phone it swaps measuring classes
+     across the whole ~950-node catalog and reads its height twice, 6-7ms of
+     every tool tap even going Hand to Ruler; on the dock it ran
+     settleViewportChange, the whole resize routine (both canvases, the
+     compass, the chrome menus, eight throwaway measuring divs) for a library
+     that had not moved. Measured in Chrome on the demo garden.
+     A FLIP already in flight to this same state is left alone to finish,
+     which is what restarting it from mid-flight used to amount to anyway. */
+  const laidOut=s+'|'+(phone?1:0)+'|'+(hb.classList.contains('photo-editing')?1:0);
+  if (laidOut===sheetLaidOut && hb.classList.contains('sheet-'+s)){ syncSheetChrome(s,phone); return; }
+  sheetLaidOut=laidOut;
+  // the sheet is one of the four things usableCanvasRect measures, and the
+  // ResizeObserver behind it only fires a frame later
+  if (typeof invalidateUsableRect==='function') invalidateUsableRect();
+  const priorFocus=document.activeElement;
+  const catalog=document.getElementById('sheetCatalog');
+  const focusWasInCatalog=!!(priorFocus&&catalog&&catalog.contains(priorFocus));
+  const focusWasExpand=!!(priorFocus&&(priorFocus.id==='btnSheetUp'||priorFocus.id==='btnLibraryPlacing'));
   const reduced=reducedMotion();
   const start=phone?hb.getBoundingClientRect().height:0;
   // Desktop collapse flies a ghost of the panel into its toggle, so measure
@@ -4525,15 +4543,30 @@ function applySheetState(){
        already matches, so that costs an ordinary frame, not a rebake. */
     if (typeof settleViewportChange==='function') settleViewportChange();
   }
-  const ctx=document.getElementById('sheetCtx'); if (ctx) ctx.textContent=sheetContextLabel();
+  syncSheetChrome(s,phone);
+  const up=document.getElementById('btnSheetUp'), libBtn=document.getElementById('btnLibraryToggle');
+  const moveFocus=target=>{ if (!target) return; try{ target.focus({preventScroll:true}); }catch(_){ target.focus(); } };
+  // Focus that was inside the library cannot stay there once it is display:none,
+  // and the chip that opened it has just hidden itself: both land on the
+  // top-bar toggle, the control that reverses what just happened.
+  if (s==='collapsed'&&focusWasInCatalog) moveFocus(phone?up:libBtn);
+  else if (!phone&&s==='full'&&focusWasExpand) moveFocus(libBtn);
+}
+/* The sheet's words and pictures, as opposed to its geometry: the "Now placing"
+   label, the handle and chevrons, the swatch, the library chip. They follow the
+   armed tool, so they refresh on every applySheetState, including the ones
+   that have nothing to lay out. */
+function syncSheetChrome(s,phone){
+  const label=sheetContextLabel();
+  // compared against the node itself, not hudText's cache: updateActiveToolStatus writes it too
+  const ctx=document.getElementById('sheetCtx'); if (ctx && ctx.textContent!==label) ctx.textContent=label;
   const handle=document.getElementById('sheetHandle'); if (handle){
     handle.setAttribute('data-state',s);
     handle.setAttribute('aria-label',phone
       ? `${cap(s)} plant palette. Swipe or use the show less and show more buttons.`
-      : `${s==='collapsed'?'Collapsed':'Expanded'} catalog. ${sheetContextLabel()} is selected. Use the Library button in the top bar to ${s==='collapsed'?'browse plants':'show more of the plan'}.`);
+      : `${s==='collapsed'?'Collapsed':'Expanded'} catalog. ${label} is selected. Use the Library button in the top bar to ${s==='collapsed'?'browse plants':'show more of the plan'}.`);
   }
   const down=document.getElementById('btnSheetDown'), up=document.getElementById('btnSheetUp');
-  const libBtn=document.getElementById('btnLibraryToggle');
   if (down){
     down.disabled=s==='collapsed';
     down.setAttribute('aria-label',phone
@@ -4548,12 +4581,6 @@ function applySheetState(){
     up.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(1); };
   }
   if (down) down.onclick=e=>{ e.stopPropagation(); nudgeCatalogHandle(-1); };
-  const moveFocus=target=>{ if (!target) return; try{ target.focus({preventScroll:true}); }catch(_){ target.focus(); } };
-  // Focus that was inside the library cannot stay there once it is display:none,
-  // and the chip that opened it has just hidden itself: both land on the
-  // top-bar toggle, the control that reverses what just happened.
-  if (s==='collapsed'&&focusWasInCatalog) moveFocus(phone?up:libBtn);
-  else if (!phone&&s==='full'&&focusWasExpand) moveFocus(libBtn);
   drawSheetSwatch();
   syncLibraryChrome(s,phone);
   renderBuildingDraftActions();

@@ -214,7 +214,22 @@ function probeUnitH(unit){
   d.style.cssText='position:fixed;left:-300px;top:0;width:0;height:'+unit+';visibility:hidden;pointer-events:none';
   document.body.appendChild(d); const h=d.getBoundingClientRect().height; d.remove(); return h||0;
 }
-function trueViewH(){ return Math.round(Math.max(innerHeight, probeUnitH('100vh'), probeUnitH('100lvh'))); }
+/* Memoised for the rest of the current TASK. Each probe appends a div to the
+   body and removes it, which dirties layout, so the next geometry read lays the
+   page out again; one settleViewportChange asked eight times (syncRailBottom
+   three times, sizeCanvas once per canvas). The viewport cannot change size in
+   the middle of a task, so the first answer holds until the microtask
+   checkpoint. It is deliberately NOT kept until the next resize event: the
+   rAF re-settles in setActiveCanvas exist because iOS reports the new height a
+   frame or two after rotating, and each of those is a task of its own, so each
+   still probes fresh. */
+let viewHMemo=null;
+function trueViewH(){
+  if (viewHMemo!==null) return viewHMemo;
+  viewHMemo=Math.round(Math.max(innerHeight, probeUnitH('100vh'), probeUnitH('100lvh')));
+  Promise.resolve().then(()=>{ viewHMemo=null; });
+  return viewHMemo;
+}
 function setViewportFill(color){
   if (!color) return;
   document.documentElement.style.setProperty('--viewport-fill', color);
