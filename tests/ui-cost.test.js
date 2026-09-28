@@ -235,3 +235,94 @@ test('the true viewport height is probed once per task, not once per caller', as
     assertEqual(n, 4, 'a later task probes fresh, which the post-rotation re-settles rely on');
   } finally { probeUnitH = probe; }
 });
+
+/* ---------- #2: the catalog rebuilds only for what the catalog shows ---------- */
+
+test('the catalog signature ignores the brush bar, the selection and the rail menu', () => {
+  /* Each of these moved the signature and so rebuilt ~950 nodes (8-11ms in
+     Chrome) to redraw nothing: the brush bar is its own element, repainted by
+     the control that changed it, and the selection pill and rail menus are not
+     in the catalog at all. */
+  uiSetup();
+  const flips = [
+    ['fillMode', true, false], ['matrix', true, false], ['drift', true, false],
+    ['freePlanting', true, false], ['brushSize', 7, 1], ['eraseMode', 'bulb', 'all'],
+    ['woodyAge', 'new', 'mature'], ['selMode', 'copy', 'move'], ['toolMenu', 'layers', null],
+    ['sel', { x0: 1, y0: 1, x1: 3, y1: 3 }, null], ['selItems', [{ x: 1, y: 1 }], null],
+  ];
+  for (const [k, a, b] of flips){
+    const was = game[k];
+    game[k] = a; const one = trayStateSig();
+    game[k] = b; const two = trayStateSig();
+    game[k] = was;
+    assertEqual(one, two, k + ' must not move the catalog signature');
+  }
+});
+
+test('to the catalog, a rail tool is the same as nothing armed', () => {
+  uiSetup();
+  game.tool = 'hand'; game.toolVar = null;
+  const base = trayStateSig();
+  for (const t of ['select', 'ruler', 'pick', 'shovel']){
+    game.tool = t;
+    assertEqual(trayStateSig(), base, t + ' reads as nothing armed');
+  }
+  // ...but everything the catalog does show still moves it
+  const herb = fittingKey(P => P.type === 'forb');
+  for (const t of [herb, 'path', 'bed', 'fence', 'pot', 'building', 'building-edit']){
+    game.tool = t; game.toolVar = null;
+    assert(trayStateSig() !== base, t + ' moves the signature');
+  }
+  game.tool = herb; const plain = trayStateSig();
+  game.toolVar = 'somecultivar';
+  assert(trayStateSig() !== plain, 'the armed cultivar moves it too');
+  game.tool = 'hand'; game.toolVar = null;
+});
+
+test('switching between the rail tools does not rebuild the catalog', () => {
+  /* The first press of Select, Pick or Erase after another rail tool rebuilt
+     the catalog: 15-25ms in Chrome, for a catalog that shows none of them. */
+  uiSetup();
+  /* buildToolTray also rebuilds when #trayTabs has been emptied, which it asks
+     through firstChild — and the stub element's firstChild is always null, so
+     here every unforced call would rebuild. Answer as a browser does once the
+     catalog has been drawn, so this measures the signature and only that. */
+  const intact = trayDomIntact;
+  trayDomIntact = () => true;
+  try {
+    setTool('hand'); buildToolTray(true);
+    const n = counting(['buildToolTrayInner'], () => {
+      // exactly what the rail buttons run
+      setTool('select'); game.toolMenu = null; buildToolTray();
+      setTool('ruler'); game.toolMenu = null;
+      setTool('pick'); buildToolTray();
+      armEraseTool();
+      setTool('hand');
+      setTool('select'); game.toolMenu = null; buildToolTray();
+    });
+    assertEqual(n.buildToolTrayInner, 0, 'no catalog rebuild among Hand, Select, Ruler, Pick and Erase');
+    const herb = fittingKey(P => P.type === 'forb');
+    const m = counting(['buildToolTrayInner'], () => { setTool(herb, null); buildToolTray(); });
+    assertEqual(m.buildToolTrayInner, 1, 'arming a plant still rebuilds: its card changes');
+  } finally { trayDomIntact = intact; }
+});
+
+test('the catalog renderers never tell one rail tool from another', () => {
+  /* RAIL_ONLY_TOOLS folds these out of the signature, which is only safe while
+     nothing the catalog DRAWS depends on which of them is armed. The one
+     comparison allowed is read at click time, not render time: the category
+     strip's handler sends the eyedropper back to Hand. */
+  const renderers = [buildToolTrayInner, renderDiscoveryTray, renderDiscoveryTrayInner, renderDiscoveryControls,
+    renderLandscapeControls, renderLandscapeSearchTray, renderSearchPlantButton, renderSearchToolButton,
+    discoveryResultCard, discoveryFamilyCard, renderDiscoveryCategories, renderDrillIn, updateCatalogHeader];
+  const rail = [...RAIL_ONLY_TOOLS].join('|');
+  const re = new RegExp("game\\.tool\\s*[!=]==?\\s*['\"](" + rail + ")['\"]", 'g');
+  const found = renderers.flatMap(f => (String(f).match(re) || []).map(m => f.name + ': ' + m));
+  assertEqual(found.length, 1, 'rail-tool comparisons in the catalog: ' + JSON.stringify(found));
+  assert(/buildToolTrayInner: game\.tool\s*===\s*'pick'/.test(found[0]), 'and it is the click-time eyedropper check: ' + found[0]);
+  // the set names what the rail arms, and nothing the catalog lists
+  for (const t of RAIL_ONLY_TOOLS){
+    assert(!PLANTS[t], t + ' is not a plant');
+    assert(!TRAY_CATS.some(c => c.tools && c.tools.includes(t)), t + ' is not a catalog tool');
+  }
+});

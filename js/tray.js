@@ -2708,8 +2708,28 @@ function plantTrayCategoryId(d=activeDiscovery(),currentId=game.trayCat){
    THE FAILURE MODE IS A STALE CATALOG, so the signature has to be complete, and
    `verifyTrayCache()` is the guard: it permutes each input, asks whether the
    rendered DOM changed, and reports any input that moved the DOM without moving
-   the signature. Add an input to the tray, add it here. */
+   the signature. Add an input to the tray, add it here.
+
+   AND ONLY WHAT THE CATALOG READS. An input it does not read costs a full
+   rebuild (8-11ms, measured in Chrome on the demo garden) every time it moves,
+   and the signature used to carry nine of them: the brush bar's own state
+   (fill, drift, matrix, free planting, brush size, erase mode, woody age), the
+   selection, and the rail's open menu. So Draw/Drift, a brush size and a first
+   switch to Select, Pick or Erase each rebuilt ~950 nodes to redraw nothing.
+   The brush bar is not in #trayTabs/#toolTray: renderBrushBar redraws it, and
+   every control that changes its state calls that itself. */
 let trayCacheSig=null, discoverySearchView=null;
+/* The tools the canvas rail arms and the catalog never lists. The catalog reads
+   game.tool only by comparing it with what it shows (an armed plant's card, a
+   landscape tool's chip and its contextual options), so one of these is, to the
+   catalog, the same as nothing armed. Named rather than derived from TRAY_CATS
+   because that table is not the whole list the catalog compares against:
+   Edit footprint ('building-edit') is shown on the Site tab and is not in it. A
+   test holds the catalog's renderers to never comparing against these. */
+const RAIL_ONLY_TOOLS=new Set(['hand','select','ruler','pick','shovel']);
+function catalogToolKey(){
+  return (RAIL_ONLY_TOOLS.has(game.tool) ? '' : (game.tool||''))+'|'+(game.toolVar||'');
+}
 function trayStateSig(ignoreDiscoverySearch=false){
   const g=game;
   const j=v=>{ try{ return JSON.stringify(v===undefined?null:v); }catch(_){ return '?'; } };
@@ -2719,13 +2739,11 @@ function trayStateSig(ignoreDiscoverySearch=false){
   const discovery=ignoreDiscoverySearch ? Object.assign({},g.discovery,
     {query:'',category:null,returnCategory:null,limit:36}) : g.discovery;
   return [
-    g.inGarden?1:0, g.trayCat, g.drill||'', g.tool, g.toolVar||'',
-    g.toolMenu||'', g.searchOpen?1:0, g.traySearch||'',
+    g.inGarden?1:0, g.trayCat, g.drill||'', catalogToolKey(),
+    g.searchOpen?1:0, g.traySearch||'',
     g.sheetState||'', g.sheetCollapsed?1:0,
-    g.fillMode?1:0, g.matrix?1:0, g.drift?1:0, g.freePlanting?1:0,
-    g.brushSize, g.eraseMode||'', g.woodyAge||'', g.edgeStyle||'',
+    g.edgeStyle||'',
     g.pathColor||'', g.bedStyle||'', g.waterStyle||'', g.lawnStyle||'',
-    g.sel?1:0, g.selMode||'', g.selItems?g.selItems.length:-1,
     g.layerFocus||'', typeof layerVisibilitySig==='function'?layerVisibilitySig():'',
     g.photoEditing?1:0, g.buildingEditMode||'',
     normalizeSiteNorthDeg?normalizeSiteNorthDeg(g.siteNorthDeg):g.siteNorthDeg,
@@ -2863,6 +2881,14 @@ function verifyTrayCache(){
                           g.tool=inCat[0]||keys[0]||'shovel'; g.toolVar=null;
                           return ()=>{ g.tool=o; g.toolVar=ov; }; }],
     ['toolVar',     ()=>{ const o=g.toolVar; g.toolVar='zzz'; return ()=>{ g.toolVar=o; }; }],
+    /* The rail's own tools are folded out of the signature (RAIL_ONLY_TOOLS), so
+       each is probed from Hand: any of them moving the catalog is a stale tray. */
+    ...['select','ruler','pick','shovel'].map(t=>['tool: rail '+t,
+                          ()=>{ g.tool=t; return ()=>{}; },
+                          ()=>{ const o=g.tool, ov=g.toolVar; g.tool='hand'; g.toolVar=null;
+                                return ()=>{ g.tool=o; g.toolVar=ov; }; }]),
+    ['toolMenu',    ()=>{ const o=g.toolMenu; g.toolMenu=(o==='layers'?null:'layers'); return ()=>{ g.toolMenu=o; }; }],
+    ['freePlanting',()=>{ const o=g.freePlanting; g.freePlanting=!o; return ()=>{ g.freePlanting=o; }; }],
     ['trayCat',     ()=>{ const o=g.trayCat; g.trayCat='landscape'; return ()=>{ g.trayCat=o; }; }],
     ['drill',       ()=>{ const o=g.drill; g.drill='fence'; return ()=>{ g.drill=o; }; }],
     ['traySearch',  ()=>{ const o=g.traySearch; g.traySearch='sedge'; return ()=>{ g.traySearch=o; }; }],
@@ -2906,10 +2932,14 @@ function verifyTrayCache(){
   ];
   buildToolTray(true);
   const misses=[], inert=[];
-  for (const [name,mutate] of cases){
+  // A case may bring a `prep`, run BEFORE the baseline is taken: the rail-tool
+  // cases have to be measured from Hand, whatever is armed when this is called.
+  for (const [name,mutate,prep] of cases){
+    let unprep=null;
+    if (prep){ try{ unprep=prep(); }catch(_){ } buildToolTray(true); }
     const sigBefore=trayStateSig(), domBefore=dom();
     let restore;
-    try{ restore=mutate(); }catch(e){ misses.push({input:name, error:String(e&&e.message||e)}); continue; }
+    try{ restore=mutate(); }catch(e){ misses.push({input:name, error:String(e&&e.message||e)}); if (unprep) unprep(); buildToolTray(true); continue; }
     const sigAfter=trayStateSig();
     buildToolTray(true);                       // force: what the tray SHOULD look like
     const domAfter=dom();
@@ -2917,6 +2947,7 @@ function verifyTrayCache(){
     if (domMoved && !sigMoved) misses.push({input:name, why:'DOM changed but the signature did not — STALE TRAY'});
     else if (!domMoved && sigMoved) inert.push(name);   // harmless: an extra rebuild, never a stale one
     try{ restore(); }catch(_){ }
+    if (unprep){ try{ unprep(); }catch(_){ } }
     buildToolTray(true);
   }
   console.log('verifyTrayCache — '+cases.length+' inputs permuted\n'+

@@ -11985,14 +11985,13 @@ test('the tray signature carries each control the catalog draws', () => {
   };
   moves('the open category', () => game.trayCat, v => { game.trayCat = v; }, 'grasses', 'landscape');
   moves('a drill-in page', () => game.drill, v => { game.drill = v; }, 'fence', null);
-  moves('the brush size', () => game.brushSize, v => { game.brushSize = v; }, 7, 1);
-  moves('the erase layer', () => game.eraseMode, v => { game.eraseMode = v; }, 'bulb', 'all');
+  // (brush size, erase layer and the selection are the brush bar's and the
+  // pill's, not the catalog's: ui-cost.test.js holds them OUT of the signature)
   moves('the edge style', () => game.edgeStyle, v => { game.edgeStyle = v; }, 'formal', 'organic');
   moves('a bed material', () => game.bedStyle, v => { game.bedStyle = v; }, 'gravel', 'soil');
   moves('a path colour', () => game.pathColor, v => { game.pathColor = v; }, 'lime', 'warm');
   moves('the wall facing', () => game.wallDraft, v => { game.wallDraft = v; }, 'brick', 'stone');
   moves('the edging', () => game.edgingDraft, v => { game.edgingDraft = v; }, 'timber', 'steel');
-  moves('a selection', () => game.sel, v => { game.sel = v; }, { x0: 1, y0: 1, x1: 3, y1: 3 }, null);
   moves('the challenge', () => game.challenge, v => { game.challenge = v; }, { id: 'x', title: 'X' }, null);
   moves('the sheet state', () => game.sheetState, v => { game.sheetState = v; }, 'collapsed', 'full');
   moves('the fence draft', () => game.fenceDraft, v => { game.fenceDraft = v; },
