@@ -91,7 +91,10 @@ whether and where to post. Physical-phone/Instagram acceptance is recorded
 separately from the mocked browser handoff checks in `docs/browser-release-checks.md`. Top
 right is a `.menu-corner` flex row of two labelled pills —
 **Guide** (`btnGuide`, the tool guidebook, `js/guide.js`) and **Settings**
-(`btnSettings`) — collapsing to bare 44px icons on SHEET. They share a row
+(`btnSettings`) — collapsing to bare 44px icons on SHEET, and on a phone
+(under 768px wide) stacking them, Settings in the corner and the Guide below it
+(`flex-direction:column-reverse`, since the markup keeps the desktop row's
+Guide-then-Settings order). They share a row
 rather than being positioned independently because the settings pill's width
 depends on whether its label is showing, which is a text measurement no
 `right:` can be written against. A dev-only

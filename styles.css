@@ -369,6 +369,15 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .menu-corner-btn:hover{border-color:var(--border-strong);background:var(--surface-control-hover);transform:translateY(-1px)}
 .menu-corner-btn:active{transform:translateY(1px)}
 .menu-corner-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+/* Phones only (a portrait tablet keeps the row): the two icons stack, Settings
+   in the corner and the Guide under it, still one flex container so neither can
+   drift. column-REVERSE because the markup is Guide then Settings — the order
+   the desktop row reads left to right — so the gear lands on top without
+   reordering the row everywhere else. Placed after the base rule on purpose:
+   a media query adds no specificity, so source order decides. */
+@media (max-width:767px){
+  .menu-corner{flex-direction:column-reverse;align-items:flex-end}
+}
 .btn{border:1.5px solid var(--border-control);background:var(--surface-workspace);color:var(--text-primary);
   padding:14px 18px;font-size:16px;font-weight:600;border-radius:var(--radius-control);letter-spacing:.02em;
   transition:border-color var(--motion-control),background var(--motion-control),color var(--motion-control),transform var(--motion-control) var(--ease-standard)}
@@ -2667,9 +2676,13 @@ body.garden-opening-active #gameCanvas{visibility:hidden}
      where every neighbour is 44 — visibly the odd one out, and under the touch
      minimum. Width stays auto: it is a label, not a square icon button. */
   .season-dial .daynight,.top-tool,.pill.iconbar button{width:44px;min-width:44px;height:44px;min-height:44px}
-  /* ...except the labelled toggle, which a landscape tablet (DOCK, and a finger)
-     shows with its word: a fixed 44px width would push "Library" out of it */
-  .pill.iconbar #btnLibraryToggle{width:auto;padding:0 10px}
+  /* ...except the two LABELLED buttons, which a landscape tablet (DOCK, and a
+     finger) shows with their words. Menu was left out when Library got this, and
+     at a fixed 44px its icon + "Menu" (~72px of content) centred itself in a box
+     too small for it — spilling off the right edge of the screen on an iPad, so
+     the hamburger was cut off. min-width keeps the 44px touch floor; on a phone
+     the label is hidden and the content is exactly that 44px. */
+  .pill.iconbar #btnLibraryToggle,.pill.iconbar #btnMenu{width:auto;padding:0 10px}
   .season-box{height:44px;min-height:44px}
   /* popover menu items: .selection-more sets 40px, which is under the minimum.
      Covers the selection More menu and the worlds-list row menu, which share
