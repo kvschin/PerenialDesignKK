@@ -77,6 +77,46 @@ timers, and update UI run unchanged. This checks the update mechanism. It does
 not claim compatibility with every historical release, browser engine, or
 native wrapper. Node tests cover legacy save shapes separately.
 
+## Daily sharing checks
+
+Run `npm run test:daily` for the complete daily flow at desktop, 390px and
+320px phone viewports. In addition to site creation and saved progress, it checks:
+
+- Portrait 1080 × 1350, square 1080 × 1080 and story 1080 × 1920 PNG downloads.
+- All four seasonal garden renders at the same size, separately from card labels;
+  changing the shared season leaves the editing camera, clock and layers intact.
+- Saved format/season preferences, long-title fitting, narrow layouts, and a
+  scrollable garden menu with reachable Save & quit controls.
+- Native-share capability absent, false or throwing; native cancellation and
+  rejection; an already-encoded file passed in the click's active user gesture;
+  and prevention of concurrent share requests.
+- Clipboard-denied selection fallback, encoder failure/retry, out-of-order
+  encoding, closing mid-encode, and object-URL cleanup.
+
+Native share and clipboard outcomes are mocked in these browser checks. The
+[Web Share standard](https://www.w3.org/TR/web-share/#share-method) leaves the
+available destinations to the browser/device; neither a passed capability check
+nor a resolved share promise verifies an Instagram post. The app never publishes
+automatically and offers a PNG download when file sharing is unavailable.
+
+Physical acceptance for the 0.9.30 sharing changes remains **not run**. Record
+device model, OS/browser versions, browser versus installed-app mode, app version,
+date and result when running the following on an iPhone and an Android phone:
+
+- [ ] Finish a planted daily design. Confirm the sharing controls come into view
+  and remain readable in portrait and landscape orientation.
+- [ ] Download each format, open it from the device's saved files/photos, and
+  verify its dimensions, full garden framing, title and selected season.
+- [ ] Open Share image; confirm the received image matches the preview in an
+  available destination. Cancel once, then retry. If no suitable destination is
+  offered, follow the download route without losing the garden.
+- [ ] Import the saved image into Instagram's post/story composer. Verify the
+  square, portrait and story layouts and text placement in the composer. Copy
+  and paste the suggested caption. Back out without publishing the test.
+- [ ] Deny clipboard access where possible and check manual text selection/copy.
+- [ ] Background/return from the destination app, then close and reopen the
+  garden. Confirm edits, completion, image format and season choices survive.
+
 ## Short device checklist
 
 Use disposable test gardens and retain one exported backup. Record app

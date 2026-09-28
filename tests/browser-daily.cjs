@@ -19,6 +19,103 @@ function playwright(){
   }
   throw new Error('Set PLAYWRIGHT_MODULE_PATH to an existing installation. Nothing was downloaded.');
 }
+async function checkShareOptions(page,name){
+  const ready=()=>page.waitForFunction(()=>dailyShareImage&&document.getElementById('challengeShare').getAttribute('aria-busy')==='false');
+  const state=()=>page.evaluate(()=>JSON.stringify({cam,rot:game.rot,preview:game.previewMode,vis:game.layerVis,
+    north:game.siteNorthPreviewDeg,elapsed:game.elapsedMs,offset:game.dayOffset,paused:game.pausedAt,
+    suspended:game.clockSuspended,layers:GAME_LAYERS.map(L=>game[L.k])}));
+  const before=await state(),seasons=new Set();
+  for(const [format,season,height] of [['square','Summer',1080],['portrait','Fall',1350],['story','Winter',1920],['portrait','Spring',1350]]){
+    await page.locator('#challengeShareFormat').selectOption(format);await ready();
+    await page.locator('#challengeShareSeason').selectOption(season);await ready();
+    const info=await page.evaluate(async()=>{
+      const image=dailyShareImage,bitmap=await createImageBitmap(image.blob);
+      // Compare the garden itself at one size, so a changed label or crop cannot
+      // make a broken seasonal renderer pass this assertion.
+      const garden=renderGardenPortrait(420,315,dailyShareMoment({season:image.season}).atDay).toDataURL();
+      const bytes=new TextEncoder().encode(garden);
+      const out={width:bitmap.width,height:bitmap.height,name:image.name,season:image.season,
+        hash:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).join(',')};bitmap.close();return out;
+    });
+    assert.equal(info.width,1080);assert.equal(info.height,height);assert.equal(info.season,season);
+    assert(info.name.endsWith('-'+format+'-'+season.toLowerCase()+'.png'));
+    assert.match(await page.locator('#challengeCaption').inputValue(),new RegExp(season.toLowerCase()));
+    assert.equal(await state(),before,'sharing preserves editing camera, clock, layers and planting');
+    seasons.add(info.hash);
+    const event=page.waitForEvent('download');await page.locator('#btnChallengeDownload').click();
+    const download=await event;await download.saveAs(path.join(output,name+'-'+format+'-'+season+'.png'));
+    await page.locator('#challengeShareFormat').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(output,name+'-'+format+'-'+season+'-controls.png')});
+    const geometry=await page.locator('#challengeScreen .panel').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+    assert(geometry.scroll<=geometry.width+1,'sharing options fit the phone panel');
+  }
+  assert.equal(seasons.size,4,'four distinct seasonal images');
+  // A real click reaches share synchronously with an already-prepared file.
+  // The OS picker is mocked; this does not claim device or Instagram acceptance.
+  await page.evaluate(()=>{
+    window.__shareMode='hold';window.__shareCalls=0;
+    Object.defineProperty(navigator,'share',{configurable:true,value:data=>{
+      window.__shareCalls++;window.__shareActivated=navigator.userActivation.isActive;
+      window.__sharedFile={name:data.files[0].name,size:data.files[0].size};
+      if(window.__shareMode==='hold')return new Promise(resolve=>window.__releaseShare=resolve);
+      if(window.__shareMode==='fail')return Promise.reject(new DOMException('Test denied','NotAllowedError'));
+      return Promise.resolve();
+    }});
+  });
+  await page.locator('#btnChallengeShare').click();
+  assert(await page.locator('#btnChallengeShare').isDisabled());assert(await page.locator('#challengeShareFormat').isDisabled());
+  await page.evaluate(()=>document.getElementById('btnChallengeShare').onclick());
+  assert.equal(await page.evaluate(()=>window.__shareCalls),1,'duplicate native requests are blocked');
+  assert(await page.evaluate(()=>window.__shareActivated),'native sharing retains the click activation');
+  await page.evaluate(()=>window.__releaseShare());await page.waitForFunction(()=>!dailySharing);
+  assert.match(await page.locator('#challengeShareStatus').textContent(),/Share menu opened/);
+  await page.evaluate(()=>window.__shareMode='fail');await page.locator('#btnChallengeShare').click();
+  assert.match(await page.locator('#challengeShareStatus').textContent(),/Download the image/);
+  assert(await page.locator('#btnChallengeDownload').isEnabled());
+  // Capability absent, false, or throwing all keep a usable download fallback.
+  for(const mode of ['absent','false','throws']){
+    await page.evaluate(async mode=>{
+      Object.defineProperty(navigator,'canShare',{configurable:true,value:mode==='absent'?undefined:()=>{
+        if(mode==='throws')throw new Error('Test unsupported');return false;
+      }});await prepareDailyShare();
+    },mode);
+    assert(await page.locator('#btnChallengeShare').isHidden());assert(await page.locator('#btnChallengeDownload').isEnabled());
+  }
+  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new Error('Test clipboard unavailable');}}}));
+  await page.locator('#btnChallengeCaption').click();
+  assert(await page.locator('#challengeCaption').evaluate(el=>document.activeElement===el&&el.selectionEnd===el.value.length),'copy fallback selects the caption');
+  // Failed encoding offers retry and never leaves an old downloadable image.
+  await page.evaluate(async()=>{
+    const encode=HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob=function(cb){cb(null);};
+    try{await prepareDailyShare();}finally{HTMLCanvasElement.prototype.toBlob=encode;}
+  });
+  assert(await page.locator('#btnChallengeDownload').isDisabled());assert(await page.locator('#btnChallengeShareRetry').isVisible());
+  await page.locator('#btnChallengeShareRetry').click();await ready();
+  // Encode out of order, then dismiss during encoding; neither can restore stale output.
+  await page.evaluate(()=>{
+    window.__realEncode=HTMLCanvasElement.prototype.toBlob;window.__encoders=[];
+    window.__liveShareURLs=new Set([dailyShareImage.url]);window.__makeURL=URL.createObjectURL;window.__dropURL=URL.revokeObjectURL;
+    URL.createObjectURL=blob=>{const url=window.__makeURL(blob);window.__liveShareURLs.add(url);return url;};
+    URL.revokeObjectURL=url=>{window.__liveShareURLs.delete(url);window.__dropURL(url);};
+    HTMLCanvasElement.prototype.toBlob=function(cb){window.__encoders.push(()=>new Promise(resolve=>window.__realEncode.call(this,blob=>{cb(blob);resolve();},'image/png')));};
+  });
+  await page.locator('#challengeShareFormat').selectOption('square');
+  assert(await page.locator('#btnChallengeDownload').isDisabled());
+  await page.locator('#challengeShareSeason').selectOption('Winter');
+  await page.evaluate(async()=>{const jobs=window.__encoders.splice(0);await jobs[1]();await jobs[0]();});
+  await ready();assert.equal(await page.evaluate(()=>dailyShareImage.season),'Winter');
+  assert.equal(await page.evaluate(()=>window.__liveShareURLs.size),1,'only the newest result has a live URL');
+  await page.locator('#challengeShareFormat').selectOption('story');await page.locator('#btnChallengeClose').click();
+  await page.evaluate(async()=>{
+    await window.__encoders.shift()();HTMLCanvasElement.prototype.toBlob=window.__realEncode;
+  });
+  assert.equal(await page.evaluate(()=>dailyShareImage),null);assert.equal(await page.evaluate(()=>window.__liveShareURLs.size),0);
+  await page.evaluate(()=>{URL.createObjectURL=window.__makeURL;URL.revokeObjectURL=window.__dropURL;openChallengeBrief();});await ready();
+  assert.equal(await page.locator('#challengeShareFormat').inputValue(),'story');assert.equal(await page.locator('#challengeShareSeason').inputValue(),'Winter');
+  assert.equal(await state(),before,'all error and cancellation paths preserve the garden');
+  console.log(name+' sharing formats, seasons, capabilities, cancellation, retry and stale-result cleanup PASS');
+}
 async function check(browser,url,name,viewport,isMobile){
   const context=await browser.newContext({viewport,isMobile,hasTouch:isMobile,serviceWorkers:'block',acceptDownloads:true,timezoneId:'America/Chicago'});
   try{
@@ -103,6 +200,7 @@ async function check(browser,url,name,viewport,isMobile){
     await page.locator('#btnChallengeShare').click();
     const shared=await page.evaluate(()=>window.__sharedFile); assert.equal(shared.name,download.suggestedFilename()); assert(shared.size>1000);
     assert.match(await page.locator('#challengeStatus').textContent(),/Finished and saved/,'cancelling the native share dialog is harmless');
+    await checkShareOptions(page,name);
     await page.locator('#btnChallengeClose').click(); await page.locator('#btnMenu').click(); await page.locator('#btnQuit').click();
     await page.locator('#btnDaily').click(); await page.waitForFunction(()=>!document.getElementById('btnDailyStart').disabled);
     assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
@@ -111,6 +209,7 @@ async function check(browser,url,name,viewport,isMobile){
     const saved=await page.evaluate(async()=>{await pendingSaves();return sGet('hortus:world:'+game.worldId);});
     assert.equal(saved.challenge.title,brief); assert(saved.challenge.completedAt); assert.deepEqual(saved.challenge.checked,[0]);
     assert(saved.challenge.strict&&saved.challenge.v===3);assert.deepEqual(saved.challenge.palette,initial.challenge.palette);
+    assert.deepEqual(saved.challenge.share,{format:'story',season:'Winter'});
     assert(Object.keys(saved.plants).length>0);
     // A full reload exercises the actual IndexedDB resume path.
     await page.reload({waitUntil:'load'}); await page.locator('#btnDaily').click();
@@ -118,6 +217,7 @@ async function check(browser,url,name,viewport,isMobile){
     assert.match(await page.locator('#btnDailyStart').textContent(),/Continue/);
     await page.locator('#btnDailyStart').click(); await page.waitForFunction(id=>game.inGarden&&game.worldId===id,initial.id); await page.locator('#gardenOpening').waitFor({state:'hidden'});
     assert.equal(await page.evaluate(()=>game.worldId),initial.id);
+    assert.deepEqual(await page.evaluate(()=>game.challenge.share),{format:'story',season:'Winter'});
     assert.equal(await page.evaluate(async()=>{const rows=await migrateLegacyWorld();return rows.filter(r=>r.id===game.worldId).length;}),1,'continue does not duplicate the garden');
     const cache=await page.evaluate(()=>verifyTrayCache()); assert.equal(cache.misses.length,0);
     // A snapshot from the first release keeps its original ID/brief on this

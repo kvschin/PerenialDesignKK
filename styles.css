@@ -1217,7 +1217,14 @@ canvas.layer-eye{display:block}
 .daily-availability:not(:empty){padding:10px;border-left:3px solid var(--bronze);margin:10px 0}
 .daily-history-item{background:var(--surface-control);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;line-height:1.5;cursor:pointer;min-height:44px}
 .daily-history-item:hover{background:var(--surface-control-hover)}
-.daily-share-image{display:block;width:100%;max-width:320px;height:auto;border-radius:12px;margin:12px auto}
+.daily-share-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.daily-share-options label{font-size:12px;color:var(--text-secondary);min-width:0}
+.daily-share-options select{display:block;box-sizing:border-box;width:100%;min-height:44px;margin-top:6px;padding:8px;border:1px solid var(--border-control);border-radius:8px;background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:14px}
+.daily-share-options select:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+.daily-share-frame{width:100%;max-width:320px;margin:12px auto;border-radius:12px;overflow:hidden;background:var(--surface-control)}
+.daily-share-image{display:block;width:100%;height:auto}
+.daily-share-image:not([src]){visibility:hidden}
+@media(max-width:380px){.daily-share-options{grid-template-columns:1fr}}
 .daily-caption{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:90px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface-control);color:var(--text-primary);font:inherit;font-size:14px;line-height:1.5;margin-bottom:10px}
 @media(max-width:480px){.daily-actions>.btn{flex-basis:100%}}
 .discovery-challenge{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
@@ -1643,6 +1650,7 @@ body.no-glass .tool-popover,body.no-glass #plantCard{background:var(--surface-di
    in JS), not a full-screen centered modal — keeps the garden in view */
 #gardenMenu{display:block;padding:0;background:transparent}
 #gardenMenu .panel{position:fixed;top:54px;right:10px;width:236px;max-width:calc(100vw - 16px);
+  max-height:calc(100vh - 64px);max-height:calc(100dvh - var(--garden-menu-top,54px) - 10px - env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain;
   padding:13px;border-radius:var(--radius-panel);box-shadow:var(--shadow-dialog);animation:gmDrop var(--motion-menu) var(--ease-emphasized)}
 #gardenMenu .panel h2{font-size:16px;margin-bottom:2px}
 #gardenMenu .panel .sub{display:none}

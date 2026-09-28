@@ -2918,15 +2918,17 @@ function gardenPortraitBounds(){
   }
   return {x0,y0,x1,y1};
 }
-function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT_HEIGHT){
+function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT_HEIGHT,atDay=null){
   const cv=document.createElement('canvas');
   cv.width=width; cv.height=height;
   const ctx=cv.getContext('2d'); if (!ctx) return null;
   const t0=dnow(), prior={x:cam.x,y:cam.y,rot:game.rot,preview:game.previewMode,
-    vis:game.layerVis,north:game.siteNorthPreviewDeg,scene,elapsed:game.elapsedMs,suspended:game.clockSuspended};
+    vis:game.layerVis,north:game.siteNorthPreviewDeg,scene,elapsed:game.elapsedMs,suspended:game.clockSuspended,dayOffset:game.dayOffset};
   try{
     // Freeze just this composition even if called with the garden clock live.
     game.elapsedMs=elapsedGameMs(); game.clockSuspended=true;
+    // Sharing can show another season without advancing the saved garden.
+    if(Number.isSafeInteger(atDay)&&atDay>=0){game.elapsedMs=atDay*DAY_MS;game.dayOffset=0;}
     game.rot=0; game.previewMode='established'; game.layerVis=defaultLayerVis(); game.siteNorthPreviewDeg=null;
     cam.x=0; cam.y=0;
     buildScene(0,0);
@@ -2951,7 +2953,7 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
   } finally {
     cam.x=prior.x; cam.y=prior.y; game.rot=prior.rot; game.previewMode=prior.preview;
     game.layerVis=prior.vis; game.siteNorthPreviewDeg=prior.north; scene=prior.scene;
-    game.elapsedMs=prior.elapsed; game.clockSuspended=prior.suspended;
+    game.elapsedMs=prior.elapsed; game.clockSuspended=prior.suspended;game.dayOffset=prior.dayOffset;
     dev('portrait',t0);
   }
 }

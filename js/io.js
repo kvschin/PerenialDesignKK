@@ -374,6 +374,10 @@ function normalizeDailySitePlan(p){
   }
   return {v:1,kind:p.kind,label:p.label,description:p.description,conditions:p.conditions,gw:p.gw,gh:p.gh,shape,terrain,elevation,context};
 }
+function normalizeDailyShareOptions(value){
+  return {format:['portrait','square','story'].includes(value?.format)?value.format:'portrait',
+    season:['current',...SEASONS].includes(value?.season)?value.season:'current'};
+}
 /* A bounded, self-contained brief. Never reconstruct an old challenge from
    today's catalog: wording, goals and restrictions belong to that attempt. */
 function normalizeDailyChallenge(c){
@@ -425,7 +429,7 @@ function normalizeDailyChallenge(c){
   }
   return {v:c.v,id:c.id,date:c.date,title:c.title,brief:c.brief,plants:c.plants,site:c.site,season:c.season,
     goals:c.goals.slice(),checked:[...new Set((Array.isArray(c.checked)?c.checked:[]).filter(n=>Number.isInteger(n)&&n>=0&&n<c.goals.length))],
-    ...(match?{match}:{}),...extra,...(sitePlan?{sitePlan}:{}),paletteFree:c.paletteFree===true,
+    ...(match?{match}:{}),...extra,...(sitePlan?{sitePlan}:{}),share:normalizeDailyShareOptions(c.share),paletteFree:c.paletteFree===true,
     completedAt:Number.isSafeInteger(c.completedAt)&&c.completedAt>0?c.completedAt:null};
 }
 function buildSaveBlob(){

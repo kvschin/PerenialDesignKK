@@ -233,12 +233,23 @@ if ('serviceWorker' in navigator)
     </div>
     <div id="challengeShare" class="hidden">
       <h3 class="daily-label">Keep it. Share it.</h3>
-      <img id="challengeImage" class="daily-share-image" alt="Your daily garden design share image">
-      <p class="note">A portrait image for Instagram or wherever you share. Download it to post, or choose an app from your device’s share menu.</p>
+      <div class="daily-share-options">
+        <label for="challengeShareFormat">Image format
+          <select id="challengeShareFormat"><option value="portrait">Portrait · 4:5</option><option value="square">Square · 1:1</option><option value="story">Story · 9:16</option></select>
+        </label>
+        <label for="challengeShareSeason">Season in image
+          <select id="challengeShareSeason" aria-describedby="challengeShareSeasonHint"><option value="current">Current garden season</option><option>Spring</option><option>Summer</option><option>Fall</option><option>Winter</option></select>
+        </label>
+      </div>
+      <p class="note" id="challengeShareSeasonHint">Season previews show established plants. Your garden’s date and editing view stay as they are.</p>
+      <div id="challengeImageFrame" class="daily-share-frame"><img id="challengeImage" class="daily-share-image" alt="Your daily garden design share image"></div>
+      <p class="note daily-status" id="challengeShareStatus" role="status" aria-live="polite"></p>
+      <button class="btn hidden" id="btnChallengeShareRetry">Try preparing image again</button>
       <div class="row daily-actions">
         <button class="btn primary" id="btnChallengeDownload">Download image</button>
         <button class="btn hidden" id="btnChallengeShare">Share image</button>
       </div>
+      <p class="note">Share opens your device’s app chooser. If Instagram isn’t offered, download the image and choose it when creating a post or story. Copy and paste the caption separately.</p>
       <label class="daily-label" for="challengeCaption">Suggested caption</label>
       <textarea id="challengeCaption" class="daily-caption" readonly rows="3"></textarea>
       <button class="btn" id="btnChallengeCaption">Copy caption</button>

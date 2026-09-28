@@ -646,12 +646,28 @@ $('btnChallengeStudy').onclick=()=>{
   game.design=normalizeDesign({...game.design,...game.filters});
   markModelChanged(); updateFilterBtn(); buildToolTray(); refreshChallengeRules();
 };
-let dailyShareImage=null, dailyShareRequest=0, dailyFinishing=false;
-function clearDailyShare(){
+const DAILY_SHARE_FORMATS={
+  portrait:{label:'Portrait',width:1080,height:1350},
+  square:{label:'Square',width:1080,height:1080},
+  story:{label:'Story',width:1080,height:1920}
+};
+let dailyShareImage=null, dailyShareRequest=0, dailyFinishing=false,dailySharing=false;
+function syncDailyShareControls(){
+  $('btnChallengeDownload').disabled=!dailyShareImage;
+  $('btnChallengeCaption').disabled=!dailyShareImage;
+  $('btnChallengeShare').disabled=!dailyShareImage||dailySharing;
+  $('btnChallengeShare').classList.toggle('hidden',!dailyShareImage?.canShare);
+  $('challengeShareFormat').disabled=$('challengeShareSeason').disabled=dailySharing;
+}
+function clearDailyShare(hide=true){
   dailyShareRequest++;
   if(dailyShareImage)URL.revokeObjectURL(dailyShareImage.url);
   dailyShareImage=null;
-  $('challengeImage').removeAttribute('src'); $('challengeShare').classList.add('hidden');
+  $('challengeImage').removeAttribute('src');$('challengeCaption').value='';
+  $('challengeShare').classList.toggle('hidden',hide);
+  $('challengeShare').setAttribute('aria-busy','false');
+  $('btnChallengeShareRetry').classList.add('hidden');
+  $('challengeShareStatus').textContent='';syncDailyShareControls();
 }
 function dailyPlantCount(){
   return dailyDesignProgress().plants;
@@ -679,7 +695,7 @@ async function finishDailyDesign(){
   if(!dailyPlantCount()){
     $('challengeStatus').textContent='Add some plants before finishing your design. The prepared site is your starting point.'; return;
   }
-  const c=game.challenge, id=game.worldId, prior=c.completedAt;
+  const c=game.challenge, id=game.worldId, prior=c.completedAt,shareRequest=dailyShareRequest;
   const progress=dailyDesignProgress(c);
   if(c.strict&&!progress.met){
     refreshChallengeRules();
@@ -699,61 +715,123 @@ async function finishDailyDesign(){
       $('challengeStatus').textContent='Finished and saved. Find it in Daily design or Your gardens whenever you want to return.';
       $('btnChallengeFinish').textContent='Update finished design';
     }
-    await prepareDailyShare();
+    if(shareRequest===dailyShareRequest){
+      await prepareDailyShare();
+      if(dailyShareImage&&game.challenge===c&&!$('challengeScreen').classList.contains('hidden')){
+        $('challengeShare').scrollIntoView({block:'start',behavior:'auto'});
+        $('challengeShareFormat').focus({preventScroll:true});
+      }
+    }
   } finally { dailyFinishing=false; $('btnChallengeFinish').disabled=false; }
 }
+function dailyShareMoment(options){
+  const current=absDay(),s=SEASONS.indexOf(options.season);
+  const day=s<0?current:Math.floor(current/YEAR_DAYS)*YEAR_DAYS+s*DAYS_PER_SEASON+Math.floor(DAYS_PER_SEASON/2);
+  return {day,season:SEASONS[Math.floor(day/DAYS_PER_SEASON)%4],atDay:s<0?null:day};
+}
+function dailyShareTitleLines(ctx,title,width){
+  let lines=[];
+  for(let size=44;size>=28;size-=2){
+    ctx.font=`bold ${size}px serif`;lines=[''];
+    for(const word of title.trim().split(/\s+/)){
+      const i=lines.length-1, next=lines[i]?lines[i]+' '+word:word;
+      if(lines[i]&&ctx.measureText(next).width>width)lines.push(word);else lines[i]=next;
+    }
+    if(lines.length<=2&&lines.every(line=>ctx.measureText(line).width<=width))return {lines,size};
+  }
+  lines=lines.slice(0,2);
+  lines=lines.map((line,i)=>{
+    const chars=Array.from(line);let clipped=i===1;
+    while(chars.length&&ctx.measureText(chars.join('')+(clipped?'…':'')).width>width){chars.pop();clipped=true;}
+    return chars.join('')+(clipped?'…':'');
+  });
+  return {lines,size:28};
+}
+function renderDailyShareCard(c,options,moment){
+  const format=DAILY_SHARE_FORMATS[options.format],cv=document.createElement('canvas');
+  cv.width=format.width;cv.height=format.height;
+  const ctx=cv.getContext('2d');if(!ctx)throw new Error('No share canvas');
+  const inset=48,width=cv.width-inset*2,top=options.format==='story'?200:64;
+  ctx.fillStyle='#f3efe4';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#59664d';ctx.font='20px sans-serif';ctx.fillText('POCKET PRAIRIE · DAILY DESIGN',inset,top);
+  const title=dailyShareTitleLines(ctx,c.title,width),titleY=top+62;
+  ctx.fillStyle='#29362c';ctx.font=`bold ${title.size}px serif`;
+  title.lines.forEach((line,i)=>ctx.fillText(line,inset,titleY+i*54));
+  const dateY=titleY+(title.lines.length-1)*54+48,imageY=dateY+40;
+  ctx.font='23px sans-serif';ctx.fillStyle='#59664d';ctx.fillText(c.date+' · '+moment.season+' · My interpretation',inset,dateY);
+  const footerY=cv.height-(options.format==='story'?280:120),imageHeight=footerY-48-imageY;
+  const portrait=renderGardenPortrait(width,imageHeight,moment.atDay);if(!portrait)throw new Error('No portrait canvas');
+  ctx.drawImage(portrait,inset,imageY);
+  ctx.fillStyle='#29362c';ctx.font='29px serif';ctx.fillText('A little garden. A new idea every day.',inset,footerY);
+  ctx.font='22px sans-serif';ctx.fillStyle='#59664d';ctx.fillText('Made in Pocket Prairie Garden Design',inset,footerY+48);
+  return cv;
+}
 async function prepareDailyShare(){
-  clearDailyShare();
+  clearDailyShare(false);
   const request=dailyShareRequest, c=game.challenge, id=game.worldId;
-  if(!c)return;
+  if(!c){clearDailyShare();return;}
+  const options=normalizeDailyShareOptions(c.share),format=DAILY_SHARE_FORMATS[options.format],moment=dailyShareMoment(options);
+  $('challengeShareFormat').value=options.format;$('challengeShareSeason').value=options.season;
+  $('challengeImageFrame').style.aspectRatio=format.width+'/'+format.height;
+  $('challengeImageFrame').style.maxWidth=options.format==='story'?'260px':'320px';
+  $('challengeShare').setAttribute('aria-busy','true');
+  $('challengeShareStatus').textContent='Preparing your image…';
   try{
-    const portrait=renderGardenPortrait(1000,950); if(!portrait)throw new Error('No portrait canvas');
-    const cv=document.createElement('canvas'); cv.width=1080; cv.height=1350;
-    const ctx=cv.getContext('2d'); if(!ctx)throw new Error('No share canvas');
-    ctx.fillStyle='#f3efe4'; ctx.fillRect(0,0,1080,1350);
-    ctx.fillStyle='#59664d'; ctx.font='20px sans-serif';
-    ctx.fillText('POCKET PRAIRIE · DAILY DESIGN',48,64);
-    ctx.fillStyle='#29362c'; ctx.font='bold 44px serif';
-    // Imported briefs can carry a longer title than our authored prompts.
-    let title=c.title; while(ctx.measureText(title).width>984&&title.length>1)title=title.slice(0,-1);
-    if(title!==c.title)title=title.slice(0,-1)+'…';
-    ctx.fillText(title,48,126);
-    ctx.font='23px sans-serif'; ctx.fillStyle='#59664d';
-    ctx.fillText(c.date+' · '+calClock().season+' · My interpretation',48,176);
-    ctx.drawImage(portrait,40,216);
-    ctx.fillStyle='#29362c'; ctx.font='29px serif';
-    ctx.fillText('A little garden. A new idea every day.',48,1230);
-    ctx.font='22px sans-serif'; ctx.fillStyle='#59664d'; ctx.fillText('Made in Pocket Prairie Garden Design',48,1285);
+    const cv=renderDailyShareCard(c,options,moment);
     const blob=await new Promise(resolve=>cv.toBlob(resolve,'image/png'));
     if(!blob)throw new Error('Image encoding failed');
     if(request!==dailyShareRequest||game.challenge!==c||game.worldId!==id)return;
-    const name=`pocket-prairie-${c.date}-${c.id}.png`, url=URL.createObjectURL(blob);
+    const name=`pocket-prairie-${c.date}-${c.id}-${options.format}-${moment.season.toLowerCase()}.png`, url=URL.createObjectURL(blob);
     const file=typeof File==='function'?new File([blob],name,{type:'image/png'}):null;
-    dailyShareImage={blob,file,name,url};
-    $('challengeImage').src=url;
-    $('challengeCaption').value=`My ${c.title} garden for the ${c.date} Pocket Prairie daily design challenge.\n#PocketPrairie #GardenDesign`;
     let canShare=false;
     try{canShare=!!(file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));}catch(e){/* download is always available */}
-    $('btnChallengeShare').classList.toggle('hidden',!canShare);
-    $('challengeShare').classList.remove('hidden');
+    dailyShareImage={blob,file,name,url,canShare,worldId:id,title:c.title,format:options.format,season:moment.season};
+    $('challengeImage').alt=`${c.title} · ${moment.season} · ${format.label} sharing image`;
+    $('challengeImage').src=url;
+    $('challengeCaption').value=`My ${c.title} garden for the ${c.date} Pocket Prairie daily design challenge, shown in ${moment.season.toLowerCase()}.\n#PocketPrairie #GardenDesign`;
+    $('challengeShareStatus').textContent=`${format.label} · ${format.width} × ${format.height} PNG · ${moment.season}. `+
+      (canShare?'Ready to download or share.':'Ready to download. File sharing isn’t available in this browser.');
+    syncDailyShareControls();
   }catch(e){
-    if(request===dailyShareRequest)$('challengeStatus').textContent+=' The share image could not be prepared. Try Update finished design again.';
+    if(request===dailyShareRequest){
+      $('challengeShareStatus').textContent='The image could not be prepared. Try again; your garden is unchanged.';
+      $('btnChallengeShareRetry').classList.remove('hidden');
+    }
     noteError(e,'daily-share');
+  }finally{
+    if(request===dailyShareRequest)$('challengeShare').setAttribute('aria-busy','false');
   }
 }
+$('challengeShareFormat').onchange=$('challengeShareSeason').onchange=()=>{
+  if(!game.challenge||dailySharing)return;
+  game.challenge.share=normalizeDailyShareOptions({format:$('challengeShareFormat').value,season:$('challengeShareSeason').value});
+  markModelChanged();prepareDailyShare();
+};
+$('btnChallengeShareRetry').onclick=()=>prepareDailyShare();
 $('btnChallenge').onclick=openChallengeBrief;
 $('btnChallengeClose').onclick=$('btnChallengeReturn').onclick=$('btnChallengeShareDone').onclick=()=>closeOverlay('challengeScreen');
 $('btnChallengeFinish').onclick=finishDailyDesign;
 $('btnChallengeDownload').onclick=()=>{
-  if(!dailyShareImage)return;
-  const a=document.createElement('a'); a.href=dailyShareImage.url; a.download=dailyShareImage.name; a.click();
+  if(!dailyShareImage||dailyShareImage.worldId!==game.worldId)return;
+  const a=document.createElement('a'); a.href=dailyShareImage.url; a.download=dailyShareImage.name;
+  document.body.appendChild(a);a.click();a.remove();
+  $('challengeShareStatus').textContent='Download requested. If your browser opens the image, use its save-image action. Copy the caption separately when posting.';
 };
 $('btnChallengeShare').onclick=async()=>{
-  if(!dailyShareImage||!dailyShareImage.file)return;
-  try{ await navigator.share({files:[dailyShareImage.file],title:game.challenge.title}); }
-  catch(e){ if(e.name!=='AbortError')toast('Sharing is unavailable here. Download the image instead.'); }
+  const image=dailyShareImage;if(!image?.canShare||image.worldId!==game.worldId||dailySharing)return;
+  dailySharing=true;syncDailyShareControls();
+  try{
+    // The file is already encoded: share() stays in the button's user gesture.
+    await navigator.share({files:[image.file],title:image.title});
+    if(dailyShareImage===image)$('challengeShareStatus').textContent='Share menu opened. Complete your post in the app you choose.';
+  }catch(e){
+    if(dailyShareImage===image)$('challengeShareStatus').textContent=e.name==='AbortError'
+      ?'Sharing cancelled or no app was chosen. Your image is still ready to download.'
+      :'Sharing is unavailable here. Download the image, then choose it in the app where you want to post.';
+  }finally{dailySharing=false;syncDailyShareControls();}
 };
 $('btnChallengeCaption').onclick=async()=>{
+  if(!dailyShareImage)return;
   const field=$('challengeCaption');
   try{ await navigator.clipboard.writeText(field.value); toast('Caption copied.'); }
   catch(e){ field.focus(); field.select(); toast('Select and copy this caption.'); }
@@ -1841,7 +1919,7 @@ function openGardenMenu(){
   // anchor the dropdown right under the menu button, right-aligned to the action
   // bar — robust to the bar's height/width at any breakpoint
   const bar=$('actionBar').getBoundingClientRect(), p=gm.querySelector('.panel');
-  if (p && bar.width){ p.style.top=(bar.bottom+6)+'px';
+  if (p && bar.width){ p.style.top=(bar.bottom+6)+'px';p.style.setProperty('--garden-menu-top',(bar.bottom+6)+'px');
     p.style.right=Math.max(8,Math.round(innerWidth-bar.right))+'px'; }
 }
 $('btnMenu').onclick=openGardenMenu;

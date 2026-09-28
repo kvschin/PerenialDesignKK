@@ -7335,6 +7335,72 @@ test('zone 6 grass palette includes Mexican feather grass', () => {
   assert(trayKeys().includes('mexicanfeather'), 'mexican feather grass should appear in the tray');
 });
 
+test('sharing preferences normalize safely and persist without changing old brief contracts',async()=>{
+  setup();game.pausedAt=Date.now();game.worldId='daily-share-options';game.challenge=dailyChallengeFor();
+  assertEqual(JSON.stringify(normalizeDailyShareOptions(null)),JSON.stringify({format:'portrait',season:'current'}));
+  assertEqual(JSON.stringify(normalizeDailyShareOptions({format:'huge',season:'bad'})),JSON.stringify(normalizeDailyShareOptions()));
+  game.challenge.share={format:'story',season:'Winter'};
+  assert(await saveSolo(true));await loadSolo(game.worldId);
+  assertEqual(game.challenge.share.format,'story');assertEqual(game.challenge.share.season,'Winter');
+  for(const v of [1,2]){
+    const old=normalizeDailyChallenge({...game.challenge,v,site:'border',share:undefined});
+    assertEqual(old.share.format,'portrait');assertEqual(old.share.season,'current');
+  }
+});
+
+test('sharing seasons use this garden year and restore the editing clock and view even on failure',()=>{
+  setup(16,16);game.pausedAt=Date.now();game.dayOffset=2*YEAR_DAYS+5;game.elapsedMs=DAY_MS*3+1234;
+  game.rot=2;game.previewMode='today';game.siteNorthPreviewDeg=120;cam.x=800;cam.y=-40;
+  const state=()=>JSON.stringify([cam,game.rot,game.previewMode,game.siteNorthPreviewDeg,game.layerVis,
+    game.elapsedMs,game.clockSuspended,game.dayOffset,game.pausedAt,game.rev,game.plants,game.terrain]);
+  const before=state(),priorScene=scene;
+  assertEqual(dailyShareMoment({season:'current'}).atDay,null,'current view keeps its exact time');
+  const paint=paintGround,drawn=[];
+  try{
+    paintGround=()=>drawn.push(calClock().season);
+    for(const season of SEASONS){
+      const moment=dailyShareMoment({season});assertEqual(moment.season,season);
+      assertEqual(Math.floor(moment.day/YEAR_DAYS),2);
+      renderGardenPortrait(400,300,moment.atDay);
+      assertEqual(state(),before);assert(scene===priorScene);
+    }
+    assertEqual(drawn.join(),SEASONS.join(),'painter reads the requested calendar');
+    paintGround=()=>{throw new Error('test painter failure');};
+    let failed=false;try{renderGardenPortrait(400,300,40);}catch(e){failed=true;}
+    assert(failed);assertEqual(state(),before);assert(scene===priorScene);
+  }finally{paintGround=paint;}
+});
+
+test('sharing formats fit the complete garden and keep image text within the card',()=>{
+  setup();game.pausedAt=Date.now();const c=dailyChallengeFor(),render=renderGardenPortrait;
+  const requested=[];
+  try{
+    renderGardenPortrait=(w,h,day)=>{requested.push({w,h,day});return document.createElement('canvas');};
+    for(const [format,height] of [['square',1080],['portrait',1350],['story',1920]]){
+      c.title='A long garden title with repeated planting and a woodland clearing to explore through every season';
+      const options={format,season:'Winter'},moment=dailyShareMoment(options),card=renderDailyShareCard(c,options,moment);
+      assertEqual(card.width,1080);assertEqual(card.height,height);
+      const last=requested[requested.length-1];assertEqual(last.w,984);assert(last.h>500&&last.h<height-300);
+      assertEqual(last.day,moment.day);
+    }
+    const ctx=makeCanvasCtx();ctx.measureText=s=>({width:Array.from(s).length*28});
+    for(const title of [c.title,'X'.repeat(100),'🌿'.repeat(50)]){
+      const fitted=dailyShareTitleLines(ctx,title,984);assert(fitted.lines.length<=2);
+      assert(fitted.lines.every(line=>ctx.measureText(line).width<=984),'long imported titles stay in bounds');
+    }
+  }finally{renderGardenPortrait=render;}
+});
+
+test('closing the brief during finish cannot recreate its share image after saving',async()=>{
+  setup();game.challenge=dailyChallengeFor();setTile('plants','1,1',{s:game.challenge.palette[0].s,d:0,t:1});
+  const save=saveSolo,share=prepareDailyShare,portrait=captureGardenPortrait;let generated=0;
+  try{
+    captureGardenPortrait=()=>null;prepareDailyShare=async()=>{generated++;};
+    saveSolo=async()=>{closeOverlay('challengeScreen');return true;};
+    await finishDailyDesign();assertEqual(generated,0);assert(game.challenge.completedAt,'completion still saves');
+  }finally{saveSolo=save;prepareDailyShare=share;captureGardenPortrait=portrait;}
+});
+
 test('new daily palette badges count exact choices',()=>{
   for(let i=0;i<54;i++)assertEqual(challengePaletteSize(dailyChallengeFor(new Date(2026,8,1+i))),10);
   assertEqual(challengePaletteSize({}),speciesCount(),'legacy unrestricted brief retains full palette');

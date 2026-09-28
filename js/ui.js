@@ -1889,6 +1889,7 @@ function openOverlay(id,focusSelector){
 }
 function closeOverlay(id,restoreFocus=true){
   const el=$(id); if (!el) return;
+  if(id==='challengeScreen'&&typeof clearDailyShare==='function')clearDailyShare();
   el.classList.add('hidden');
   const ctl=overlayController(id); if (ctl) ctl.setAttribute('aria-expanded','false');
   const back=el._returnFocus; el._returnFocus=null;

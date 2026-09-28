@@ -68,10 +68,27 @@ regional invasive filtering still applies. Exact cultivar membership is enforced
 through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
 reports saved completion after a successful save. Images
-use `renderGardenPortrait` synchronously offscreen, restoring the live view,
-then a 1080 × 1350 PNG card; ordinary autosaves never render an image. Download
+use `renderGardenPortrait` synchronously offscreen, restoring the live view.
+Daily sharing offers portrait (1080 × 1350), square (1080 × 1080) and story
+(1080 × 1920) PNG cards, fitting the whole garden and wrapping long titles.
+Optional `challenge.share` preferences (`format`, `season`) normalize with safe
+defaults in every supported brief version and save with that attempt. Current
+season keeps the exact garden time; an explicit season previews its midpoint
+in the garden's current year, with established plants. The optional `atDay`
+argument to `renderGardenPortrait` borrows/restores elapsed time and day offset,
+along with camera, layers and view, even if drawing fails. It never advances
+the saved clock or changes the garden cover. Ordinary autosaves never render
+an image. A separate share status reports preparation, retry, download and
+device-sharing results without overwriting completion/save status. Downloads
 and caption copying work without a backend; native file sharing is offered
-only where supported. The gardener chooses whether and where to post. Top
+only when `canShare({files})` accepts the prepared PNG. `share()` runs directly
+from the click, with no preceding encoding await; only one device share can be
+pending. Cancellation keeps the download available, and failure explains that
+fallback. Sharing never implies a post was published. Image changes disable
+stale actions; request tokens discard out-of-order encodes, and closing the
+brief invalidates pending work and revokes its object URL. The gardener chooses
+whether and where to post. Physical-phone/Instagram acceptance is recorded
+separately from the mocked browser handoff checks in `docs/browser-release-checks.md`. Top
 right is a `.menu-corner` flex row of two labelled pills —
 **Guide** (`btnGuide`, the tool guidebook, `js/guide.js`) and **Settings**
 (`btnSettings`) — collapsing to bare 44px icons on SHEET. They share a row
@@ -5053,7 +5070,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     permanent row. `#gardenMenu` is a compact **dropdown**, not a centered
     modal: `openGardenMenu()` measures the action bar's rect and pins the panel
     just under the Menu icon, right-aligned to it (`position:fixed`, JS-set
-    `top`/`right`); clicking the transparent backdrop dismisses it. So it drops
+    `top`/`right`); `--garden-menu-top` also caps its height to the remaining
+    dynamic viewport, with bottom safe-area space and internal scrolling so
+    Save & quit stays reachable on small phones. Clicking the transparent
+    backdrop dismisses it. So it drops
     from the corner over the still-visible garden instead of covering the
     screen. The readout shows the season + early/mid/late phase
     (`clockMeta`/`seasonPhase`), never a Year/Day count — a garden day is 20s of
