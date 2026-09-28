@@ -274,7 +274,7 @@ button:disabled{cursor:not-allowed;opacity:var(--disabled-opacity)}
   padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));overflow-y:auto}
 .modal-screen{background:var(--surface-scrim)}
 .modal-screen>.panel{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;
-  box-shadow:var(--shadow-dialog);padding:clamp(19px,3vw,26px)}
+  box-shadow:var(--shadow-dialog);--panel-pad:clamp(19px,3vw,26px);padding:var(--panel-pad)}
 .hidden{display:none!important}
 /* Text for assistive tech only. Outbound links carry a decorative arrow glyph,
    and a glyph is not an announcement — a screen reader reads the link TEXT, so
@@ -391,8 +391,10 @@ h1.title em{font-style:italic;font-weight:400;color:var(--bronze)}
 .btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 
 /* ---------- panels ---------- */
+/* --panel-pad is the padding as a variable so a full-bleed child (the daily
+   brief's sticky footer) can reach the panel's edges without restating it. */
 .panel{background:var(--surface-dialog);border:1.5px solid var(--border-subtle);border-radius:var(--radius-panel);
-  padding:var(--space-5);max-width:560px;width:100%}
+  --panel-pad:var(--space-5);padding:var(--panel-pad);max-width:560px;width:100%}
 .panel h2{font-family:'Fraunces',serif;font-weight:600;font-size:28px;line-height:1.08;margin-bottom:6px}
 .panel .sub{color:var(--text-muted);font-size:13px;line-height:1.45;margin-bottom:18px}
 .field{margin-bottom:var(--space-4)}
@@ -1193,7 +1195,46 @@ canvas.layer-eye{display:block}
 /* Says the catalog is deliberately narrowed, and offers the way out. Bronze
    because it is a live constraint on what you can plant, not a status line. */
 .daily-panel{max-width:600px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;text-align:left}
-.daily-intro{font-size:12px;line-height:1.5;color:var(--text-muted);margin:12px 0 18px}
+/* No color-scheme is declared anywhere, so native controls draw light — an
+   unchecked goal box was a white square on the loam panel. Scoped to the brief
+   rather than the root: the root would restyle every scrollbar and select in the
+   app at once, unverified. Native boxes keep forced-colors working for free,
+   which a hand-drawn appearance:none box would have to earn. */
+:root[data-theme="dark"] .daily-panel{color-scheme:dark}
+/* The brief IS the exercise. It was 13px muted text between two paragraphs of
+   boilerplate in the same style, so the one sentence that says what to do read
+   as small print. */
+.daily-brief{font-size:16px;line-height:1.5;color:var(--text-primary);margin:10px 0 0}
+.settings-head+.daily-brief{margin-top:0}
+.daily-intro{font-size:12px;line-height:1.5;color:var(--text-muted);margin:10px 0 0}
+/* An empty status or availability line kept .note's margin: ~12px of nothing
+   each, stacked into a visible gap above the study-palette link. Margin rather
+   than display:none, because several are live regions and a region that is
+   un-hidden at the moment it is filled is often not announced. */
+.daily-panel .note:empty{margin:0}
+/* Start/Finish and the way back ride the bottom of the scrolling panel. It
+   bleeds to the panel's edges by --panel-pad, so content scrolls under a solid
+   band rather than showing through its side gutters.
+   It also takes over the panel's BOTTOM padding, and has to: a sticky box sticks
+   inside its scroller's padding, so bottom:0 left a 24px strip under it with the
+   brief scrolling past in plain view. With the panel's bottom padding moved into
+   the footer, "stuck" and "at the end of the scroll" are the same position —
+   which is why the footer must be the panel's last child. */
+.panel.daily-panel{padding-bottom:0}
+.daily-footer{position:sticky;bottom:0;z-index:1;margin:20px calc(-1 * var(--panel-pad)) 0;
+  padding:12px var(--panel-pad) 14px;border-top:1px solid var(--border-subtle);
+  /* The surface twice: --surface-dialog is 97% opaque, which is right for a
+     panel over the meadow and wrong for a band with text scrolling under it —
+     the goals ghosted through. Two layers are 99.9%, in either theme. */
+  background:linear-gradient(var(--surface-dialog),var(--surface-dialog)) var(--surface-dialog)}
+.daily-footer .daily-status{margin:0}
+.daily-footer .daily-status:not(:empty){margin-bottom:10px}
+/* One row where the button fits beside the link at its natural width. Where it
+   does not, wrap-reverse lifts the button onto its own full-width line ABOVE the
+   link, rather than squeezing a long label into three lines beside it. */
+.daily-footer-actions{display:flex;flex-wrap:wrap-reverse;align-items:center;gap:4px 12px}
+.daily-footer-actions .back-link{margin:0;flex:0 0 auto}
+.daily-footer-actions .btn{flex:1 1 auto;min-height:48px;padding:12px 16px}
 .daily-site-preview{margin:16px 0 20px;border:1px solid var(--border-subtle);border-radius:10px;overflow:hidden}
 .daily-site-preview canvas{display:block;width:100%;height:auto;background:#f3efe4}
 .daily-site-preview figcaption{font-size:12px;line-height:1.5;padding:10px 12px 4px;color:var(--text-secondary)}
@@ -1202,7 +1243,9 @@ canvas.layer-eye{display:block}
 .daily-site-swatch{display:inline-block;width:12px;height:12px;border:1px solid #756f5c;border-radius:2px;background:#ac9272}
 .daily-site-swatch.path{background:#d2c5aa}.daily-site-swatch.tree{background:#78916c;border-radius:50%}
 .daily-site-swatch.grade{background:linear-gradient(135deg,#cec19c 48%,#655d4c 49%,#655d4c 58%,#ac9272 59%)}
-.daily-label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;margin:20px 0 10px;color:var(--text-primary)}
+/* At least the size of what it heads: at 12px "Design goals" was smaller than
+   the 14px goals under it. */
+.daily-label{display:block;font-size:15px;font-weight:600;letter-spacing:.01em;margin:20px 0 10px;color:var(--text-primary)}
 .daily-goals{padding-left:22px;margin:10px 0 18px;font-size:14px;line-height:1.55}
 .daily-goals li+li{margin-top:9px}
 .daily-checklist{padding:0;list-style:none}

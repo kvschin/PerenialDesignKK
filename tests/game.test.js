@@ -7406,6 +7406,91 @@ test('new daily palette badges count exact choices',()=>{
   assertEqual(challengePaletteSize({}),speciesCount(),'legacy unrestricted brief retains full palette');
 });
 
+test('a daily site reads in the gardener\'s units, on the map and in the text',()=>{
+  /* The map labels and every site description hard-coded "ft", so a metric
+     gardener was told the site was 24 ft across in two places at once. A saved
+     brief keeps its own copy of the description, so the size is re-read for
+     display rather than rewritten in the data. */
+  const mapText=(kind)=>{
+    const texts=[],ctx=makeCanvasCtx({fillText(t){texts.push(String(t));}});
+    drawDailySitePlan({width:560,height:320,getContext(){return ctx;}},dailySitePlan(kind));
+    return texts;
+  };
+  withUnits('imperial',()=>{
+    for(const kind of Object.keys(DAILY_SITES))
+      assertEqual(dailySiteText(DAILY_SITES[kind].description),DAILY_SITES[kind].description,
+        'imperial text is unchanged: '+kind);
+    const t=mapText('hollow');
+    assert(t.includes('24 ft'),'the map labels its sides in feet ('+t.join('|')+')');
+  });
+  withUnits('metric',()=>{
+    for(const kind of Object.keys(DAILY_SITES)){
+      const text=dailySiteText(DAILY_SITES[kind].description);
+      assert(!/\bft\b/.test(text)&&/\d m × \d/.test(text),'metric description: '+text);
+    }
+    assert(dailySiteText('A 24 × 18 ft plot').startsWith('A 7.3 m × 5.5 m'),'converted against known values');
+    const t=mapText('narrow');
+    assert(t.includes('9.1 m')&&t.includes('3.7 m'),'the map labels its sides in metres ('+t.join('|')+')');
+    assert(!t.some(s=>/\bft\b/.test(s)),'and says feet nowhere');
+  });
+});
+
+test('a daily date reads as words wherever a person sees it',()=>{
+  /* The start screen said "Monday, September 28" while the brief header, the
+     history rows, the share card and its caption said "2026-09-28". The ISO key
+     stays the storage key and the file name; nothing a person reads prints it. */
+  const thisYear=dailyDateKey(new Date()), label=dailyDateLabel(thisYear);
+  assert(label&&!/\d{4}-\d{2}-\d{2}/.test(label),'a long date, not the key ('+label+')');
+  assert(!label.includes(String(new Date().getFullYear())),'no year for this year');
+  assert(dailyDateLabel('2019-06-03').includes('2019'),'an older design says which year');
+  assert(dailyDateLabel(thisYear,true).includes(String(new Date().getFullYear())),'a shared image always does');
+  assertEqual(dailyDateLabel('not-a-date'),'not-a-date','anything unexpected passes through unharmed');
+  const src=readRepoFile('js/screens.js');
+  const shown=src.split('\n').filter(l=>/\.date\b/.test(l)&&/textContent|fillText|Caption'\)\.value/.test(l));
+  assert(shown.length>=5,'the display sites are all found ('+shown.length+')');
+  for(const line of shown)assert(line.includes('dailyDateLabel('),'formatted where shown: '+line.trim().slice(0,90));
+});
+
+test('the daily brief leads with the task and keeps its actions on screen',()=>{
+  /* The exercise sentence was 13px muted text between two paragraphs of
+     boilerplate in the same style; Start and the way back were two or three
+     screens down on a phone; the goals heading was smaller than the goals; the
+     "hold me to these" box came before the rules it commits you to; and an
+     unchecked goal was a white native square on the dark panel. */
+  const html=readRepoFile('index.html'), css=readRepoFile('styles.css');
+  const panel=id=>{const a=html.indexOf('id="'+id+'"');return html.slice(a,html.indexOf('\n</div>',a));};
+  const daily=panel('dailyScreen'), brief=panel('challengeScreen');
+  assert(/class="daily-brief" id="dailyBrief"/.test(daily)&&/class="daily-brief" id="challengeBrief"/.test(brief),
+    'both briefs carry the lead style');
+  assert(daily.indexOf('id="dailyBrief"')<daily.indexOf('daily-intro'),'the task comes before the boilerplate');
+  /* The footer takes over the panel's bottom padding (a sticky box sticks inside
+     its scroller's padding, so bottom:0 left a strip of brief scrolling past
+     beneath it), which only works while it is the panel's LAST child. */
+  const footer=(s,ids)=>{const f=s.slice(s.indexOf('class="daily-footer"')), end=f.indexOf('\n    </div>\n');
+    return ids.every(id=>{const i=f.indexOf(id);return i>0&&i<end;})&&f.slice(end).startsWith('\n    </div>\n  </div>');};
+  assert(footer(daily,['id="dailyStatus"','data-back','id="btnDailyStart"']),'start screen: status, back and Start share the last-child footer');
+  assert(footer(brief,['id="challengeStatus"','id="btnChallengeReturn"','id="btnChallengeFinish"']),'brief: status, return and Finish share the last-child footer');
+  for(const [s,rules,strict] of [[daily,'dailyRules','dailyStrict'],[brief,'challengeRules','challengeStrict']])
+    assert(s.indexOf('id="'+rules+'"')<s.indexOf('id="'+strict+'"'),'the rules are listed before the box that commits to them');
+  const rule=sel=>{const i=css.indexOf(sel+'{');assert(i>=0,'rule exists: '+sel);return css.slice(i,css.indexOf('}',i));};
+  assert(/position:sticky/.test(rule('.daily-footer'))&&/bottom:0/.test(rule('.daily-footer')),'the footer sticks');
+  assert(/var\(--panel-pad\)/.test(rule('.daily-footer')),'and bleeds by the panel\'s own padding');
+  assert(/padding-bottom:0/.test(rule('.panel.daily-panel')),'with the panel handing it its bottom padding');
+  const px=(sel)=>+/font-size:(\d+)px/.exec(rule(sel))[1];
+  assert(px('.daily-brief')>=16&&/var\(--text-primary\)/.test(rule('.daily-brief')),'the brief is lead text');
+  assert(px('.daily-label')>=px('.daily-goals'),'a heading is at least the size of what it heads');
+  assert(/color-scheme:dark/.test(rule(':root[data-theme="dark"] .daily-panel')),'native boxes follow the dark theme');
+  const empty=rule('.daily-panel .note:empty');
+  assert(/margin:0/.test(empty)&&!/display:none/.test(empty),'empty notes collapse without hiding the live regions');
+  // Finished, the share section's Download is the next step and sits right
+  // above the footer: the footer's button stops competing with it.
+  const finish=$('btnChallengeFinish');
+  syncChallengeFinishButton(true);
+  assert(!finish.classList.contains('primary')&&/Update/.test(finish.textContent),'a finished design demotes Finish');
+  syncChallengeFinishButton(false);
+  assert(finish.classList.contains('primary')&&finish.textContent==='Finish design','and an unfinished one restores it');
+});
+
 test('deer/rabbit plant filters narrow the tray, trees exempt', () => {
   setup();                                              // filters wide, design null
   game.filters = normalizeFilters({ zone: 6, deer: true });

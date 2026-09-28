@@ -288,9 +288,16 @@ function dailySitePlan(kind){
   return p;
 }
 function dailyStartingPlan(c){return c.sitePlan||dailySitePlan(c.site);}
+/* A site's size is authored in feet inside its description, and a saved brief
+   keeps its own copy of that text, so the dimension is re-read for display
+   rather than rewritten in the data. Imperial comes back byte-identical. */
+function dailySiteText(text){
+  return String(text||'').replace(/(\d+(?:\.\d+)?) × (\d+(?:\.\d+)?) ft\b/g,
+    (whole,w,l)=>metricUnits()?`${fmtFeet(+w,1)} × ${fmtFeet(+l,1)}`:whole);
+}
 function renderDailySite(prefix,c,resuming=false){
   const p=dailyStartingPlan(c),canvas=$(prefix+'SiteCanvas');
-  $(prefix+'Site').textContent=p.description+' '+p.conditions;
+  $(prefix+'Site').textContent=dailySiteText(p.description)+' '+p.conditions;
   $(prefix+'SiteCaption').textContent=resuming?'Original starting site · your edits are saved in the garden':'Your starting site · everything is editable';
   const legend=$(prefix+'SiteLegend');legend.replaceChildren();
   for(const [kind,label] of [['bed','Planting beds'],['path','Paths / terrace'],
@@ -300,7 +307,7 @@ function renderDailySite(prefix,c,resuming=false){
     swatch.className='daily-site-swatch '+kind;swatch.setAttribute('aria-hidden','true');
     span.append(swatch,label);legend.appendChild(span);
   }
-  canvas.setAttribute('aria-label',p.label+'. '+p.description+' '+p.conditions);
+  canvas.setAttribute('aria-label',p.label+'. '+dailySiteText(p.description)+' '+p.conditions);
   drawDailySitePlan(canvas,p);
 }
 function drawDailySitePlan(canvas,p){
@@ -334,9 +341,9 @@ function drawDailySitePlan(canvas,p){
   }
   ctx.restore();trace();ctx.strokeStyle='#697154';ctx.lineWidth=1.5;ctx.stroke();
   ctx.fillStyle='#45533e';ctx.font='22px sans-serif';ctx.textAlign='center';
-  ctx.fillText(`${p.gw*TILE_IN/12} ft`,W/2,19);
+  ctx.fillText(fmtFeet(p.gw*TILE_IN/12,1),W/2,19);
   ctx.textAlign='left';ctx.fillText('N ↑',12,24);
-  ctx.save();ctx.translate(ox-12,oy+p.gh*scale/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText(`${p.gh*TILE_IN/12} ft`,0,0);ctx.restore();
+  ctx.save();ctx.translate(ox-12,oy+p.gh*scale/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText(fmtFeet(p.gh*TILE_IN/12,1),0,0);ctx.restore();
 }
 function dailyRulesFor(theme,variation){
   const definition=DAILY_THEMES[theme], [group,min,keys]=definition.group;
@@ -356,6 +363,17 @@ function dailyRulesFor(theme,variation){
 }
 function dailyDateKey(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+/* The key is for storage; people read the long form. The start screen said
+   "Monday, September 28" while the brief and the history said "2026-09-28".
+   The year shows only when it is not this one, except on a shared image,
+   which outlives the year it was posted in. */
+function dailyDateLabel(key,withYear=false){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key||''));
+  if(!m)return String(key||'');
+  const date=new Date(+m[1],+m[2]-1,+m[3]), opts={weekday:'long',month:'long',day:'numeric'};
+  if(withYear||date.getFullYear()!==new Date().getFullYear())opts.year='numeric';
+  return date.toLocaleDateString(undefined,opts);
 }
 function dailyChallengeFor(date=new Date()){
   const day=Math.floor(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())/864e5);
@@ -537,11 +555,13 @@ async function openDaily(){
   dailyReady=false;
   const prior=normalizeFilters(game.filters);
   dailyCriteria=normalizeFilters({zone:prior.zone||6,nativeRegion:prior.nativeRegion,invasive:prior.invasive});
-  $('dailyDate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  $('dailyDate').textContent=dailyDateLabel(c.date);
   $('btnDailyStart').textContent='Checking saved designs…'; $('btnDailyStart').disabled=true;
   $('dailyHistory').replaceChildren();
   $('dailyHistoryHeading').classList.add('hidden');
-  $('dailyStatus').textContent='A new prompt each day at local midnight. Take as long as you like.';
+  // The status sits in the sticky footer now, so the standing "a new prompt
+  // each day" line moved into the intro rather than riding every screen.
+  $('dailyStatus').textContent='';
   renderDailyEntry();
   show('dailyScreen');
   try{
@@ -559,11 +579,12 @@ async function openDaily(){
       // A resumed attempt owns its original wording, even after an app update.
       const savedBrief=today.challenge;
       dailySelection=savedBrief; dailyCriteria=today.criteria;
-      $('dailyStatus').textContent=today.challenge.completedAt?'Today’s design is finished. Reopen it to keep creating or share an image.':'Your design is saved. Continue where you left off.';
+      // Short: this rides the sticky footer, beside a button that already says "Continue".
+      $('dailyStatus').textContent=today.challenge.completedAt?'Finished. Reopen it to edit or share it.':'Your design is saved.';
     } else if(!hasStorage) $('dailyStatus').textContent='Storage is unavailable. This design will last for this session; export the garden file to keep it.';
     for(const row of designs.filter(row=>row.id!==dailyResumeId).slice(0,6)){
       const b=document.createElement('button'); b.className='daily-history-item'; b.type='button';
-      b.textContent=`${row.challenge.completedAt?'Finished':'In progress'} · ${row.challenge.title} · ${row.challenge.date}`;
+      b.textContent=`${row.challenge.completedAt?'Finished':'In progress'} · ${row.challenge.title} · ${dailyDateLabel(row.challenge.date)}`;
       b.onclick=()=>enterWorld(row.id); $('dailyHistory').appendChild(b);
     }
     $('dailyHistoryHeading').classList.toggle('hidden',!$('dailyHistory').children.length);
@@ -574,7 +595,9 @@ async function openDaily(){
     dailySelection=null; return;
   }
   dailyReady=true;
-  $('btnDailyStart').textContent=dailyResumeId?'Continue today’s design':'Start designing'; renderDailyEntry();
+  // "Continue designing", not "Continue today's design": the footer's status
+  // already says the design is saved, and the shorter label fits beside Back on a phone.
+  $('btnDailyStart').textContent=dailyResumeId?'Continue designing':'Start designing'; renderDailyEntry();
 }
 // Freeze the brief displayed on the start screen, even across midnight.
 async function startDailyChallenge(){
@@ -634,11 +657,19 @@ $('dailyStrict').onchange=()=>{
   dailySelection.strict=$('dailyStrict').checked; renderDailyEntry();
 };
 $('btnDailyStudy').onclick=()=>{dailyCriteria={...dailyCriteria,zone:null};renderDailyEntry();};
+/* Once a design is finished, Download in the share section is the thing to do
+   next, and the sticky footer sits directly under it: two bronze buttons one
+   above the other. Finishing again drops to secondary. */
+function syncChallengeFinishButton(done){
+  const b=$('btnChallengeFinish');
+  b.textContent=done?'Update finished design':'Finish design';
+  b.classList.toggle('primary',!done);
+}
 $('challengeStrict').onchange=()=>{
   if(!game.challenge)return;
   game.challenge.strict=$('challengeStrict').checked; game.challenge.completedAt=null;
   markModelChanged();clearDailyShare();refreshChallengeRules();
-  $('btnChallengeFinish').textContent='Finish design';
+  syncChallengeFinishButton(false);
   $('challengeStatus').textContent=game.challenge.strict?'Meet the tracked constraints to finish, or turn them off to explore freely.':'Constraints are optional. Finish when you are happy with your design.';
 };
 $('btnChallengeStudy').onclick=()=>{
@@ -676,14 +707,16 @@ function openChallengeBrief(){
   const c=game.challenge; if(!normalizeDailyChallenge(c))return;
   closeOverlay('gardenMenu',false); clearDailyShare();
   $('challengeTitle').textContent=c.title;
-  $('challengeDate').textContent='Daily design · '+c.date;
+  $('challengeDate').textContent='Daily design · '+dailyDateLabel(c.date);
   $('challengeBrief').textContent=c.brief;
   renderDailySite('challenge',c,true);
   $('challengePlants').textContent=c.plants;
   renderDailyGoals($('challengeGoals'),c,true);
   refreshChallengeRules();
-  $('challengeStatus').textContent=c.completedAt?'You finished this design. You can keep editing and update the finished image.':'Review the goals, then finish when you’re happy with your planting. Your progress saves as you work.';
-  $('btnChallengeFinish').textContent=c.completedAt?'Update finished design':'Finish design';
+  // The status is in the sticky footer; the not-yet-finished guidance moved to
+  // the goals note, so the footer carries only something worth reading.
+  $('challengeStatus').textContent=c.completedAt?'Finished. Keep editing and update the image any time.':'';
+  syncChallengeFinishButton(!!c.completedAt);
   $('btnChallengeFinish').disabled=dailyFinishing;
   const overlay=openOverlay('challengeScreen','#btnChallengeClose');
   // The menu row is hidden once the modal opens; return to its visible owner.
@@ -712,8 +745,9 @@ async function finishDailyDesign(){
       c.completedAt=prior; markModelChanged();
       $('challengeStatus').textContent='The finished design could not be saved. Download the image now, and export the garden file from the menu to keep your work.';
     }else{
-      $('challengeStatus').textContent='Finished and saved. Find it in Daily design or Your gardens whenever you want to return.';
-      $('btnChallengeFinish').textContent='Update finished design';
+      // One line: it rides the sticky footer, over the share section.
+      $('challengeStatus').textContent='Finished and saved to Your gardens.';
+      syncChallengeFinishButton(true);
     }
     if(shareRequest===dailyShareRequest){
       await prepareDailyShare();
@@ -758,7 +792,7 @@ function renderDailyShareCard(c,options,moment){
   ctx.fillStyle='#29362c';ctx.font=`bold ${title.size}px serif`;
   title.lines.forEach((line,i)=>ctx.fillText(line,inset,titleY+i*54));
   const dateY=titleY+(title.lines.length-1)*54+48,imageY=dateY+40;
-  ctx.font='23px sans-serif';ctx.fillStyle='#59664d';ctx.fillText(c.date+' · '+moment.season+' · My interpretation',inset,dateY);
+  ctx.font='23px sans-serif';ctx.fillStyle='#59664d';ctx.fillText(dailyDateLabel(c.date,true)+' · '+moment.season+' · My interpretation',inset,dateY);
   const footerY=cv.height-(options.format==='story'?280:120),imageHeight=footerY-48-imageY;
   const portrait=renderGardenPortrait(width,imageHeight,moment.atDay);if(!portrait)throw new Error('No portrait canvas');
   ctx.drawImage(portrait,inset,imageY);
@@ -788,7 +822,7 @@ async function prepareDailyShare(){
     dailyShareImage={blob,file,name,url,canShare,worldId:id,title:c.title,format:options.format,season:moment.season};
     $('challengeImage').alt=`${c.title} · ${moment.season} · ${format.label} sharing image`;
     $('challengeImage').src=url;
-    $('challengeCaption').value=`My ${c.title} garden for the ${c.date} Pocket Prairie daily design challenge, shown in ${moment.season.toLowerCase()}.\n#PocketPrairie #GardenDesign`;
+    $('challengeCaption').value=`My ${c.title} garden for the Pocket Prairie daily design challenge on ${dailyDateLabel(c.date,true)}, shown in ${moment.season.toLowerCase()}.\n#PocketPrairie #GardenDesign`;
     $('challengeShareStatus').textContent=`${format.label} · ${format.width} × ${format.height} PNG · ${moment.season}. `+
       (canShare?'Ready to download or share.':'Ready to download. File sharing isn’t available in this browser.');
     syncDailyShareControls();
@@ -809,7 +843,9 @@ $('challengeShareFormat').onchange=$('challengeShareSeason').onchange=()=>{
 };
 $('btnChallengeShareRetry').onclick=()=>prepareDailyShare();
 $('btnChallenge').onclick=openChallengeBrief;
-$('btnChallengeClose').onclick=$('btnChallengeReturn').onclick=$('btnChallengeShareDone').onclick=()=>closeOverlay('challengeScreen');
+// The share section's own "Back to garden" went: the footer's Keep designing
+// sits directly under it now, and two ways out side by side read as two things.
+$('btnChallengeClose').onclick=$('btnChallengeReturn').onclick=()=>closeOverlay('challengeScreen');
 $('btnChallengeFinish').onclick=finishDailyDesign;
 $('btnChallengeDownload').onclick=()=>{
   if(!dailyShareImage||dailyShareImage.worldId!==game.worldId)return;

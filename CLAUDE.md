@@ -67,7 +67,17 @@ study-palette action to remove the zone limit. It never silently weakens a rule;
 regional invasive filtering still applies. Exact cultivar membership is enforced
 through the shared catalog eligibility pipeline, including saved collections;
 palette edits/free choice are in both catalog and tray cache keys. Finish only
-reports saved completion after a successful save. Images
+reports saved completion after a successful save. Both daily panels lead with
+the brief as 16px `.daily-brief` text and end in a sticky `.daily-footer`
+(status, the way back, the primary action) that **must stay the panel's last
+child**: a sticky box sticks inside its scroller's padding, so the footer owns
+the panel's bottom padding (`.panel.daily-panel{padding-bottom:0}`), bleeds by
+`--panel-pad`, and lays the surface twice to be opaque. Status copy there is
+kept to a line. Once finished, the footer's button drops to secondary so the
+share section's Download is the only primary. Dates display through
+`dailyDateLabel` (the ISO key stays the storage key and file name); site sizes
+through `dailySiteText`/`fmtFeet`, because saved snapshots keep their authored
+imperial text. Images
 use `renderGardenPortrait` synchronously offscreen, restoring the live view.
 Daily sharing offers portrait (1080 × 1350), square (1080 × 1080) and story
 (1080 × 1920) PNG cards, fitting the whole garden and wrapping long titles.

@@ -165,8 +165,8 @@ if ('serviceWorker' in navigator)
   <div class="panel daily-panel">
     <div id="dailyDate" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px">Today</div>
     <h2 id="dailyTitle">Challenge</h2>
-    <p class="daily-intro">A small garden to make your own. Aim for a 15–20 minute design session, or take your time. No scores or deadline.</p>
-    <p class="sub" id="dailyBrief"></p>
+    <p class="daily-brief" id="dailyBrief"></p>
+    <p class="daily-intro">A small garden to make your own, with a new prompt each day at local midnight. Aim for a 15–20 minute design session, or take your time. No scores or deadline.</p>
     <p class="note" id="dailySite"></p>
     <figure class="daily-site-preview">
       <canvas id="dailySiteCanvas" width="560" height="320" role="img" aria-describedby="dailySiteCaption"></canvas>
@@ -181,19 +181,26 @@ if ('serviceWorker' in navigator)
     <p class="note" id="dailyClimate"></p>
     <details class="daily-details" id="dailyRulesOptions">
       <summary>Optional constraints</summary>
-      <label class="daily-strict"><input type="checkbox" id="dailyStrict"> Meet these constraints to finish</label>
       <ul class="daily-rules" id="dailyRules"></ul>
+      <label class="daily-strict"><input type="checkbox" id="dailyStrict"> Meet these constraints to finish</label>
       <p class="note">Counts are tracked automatically. Composition remains your choice. You can change this while designing.</p>
     </details>
     <p class="note daily-availability" id="dailyAvailability" role="status"></p>
     <button class="back-link" id="btnDailyStudy">Use study palette (any hardiness zone)</button>
-    <div class="row" style="margin-top:18px">
-      <button class="btn primary" id="btnDailyStart">Start designing</button>
-    </div>
-    <p class="note daily-status" id="dailyStatus" role="status"></p>
     <h3 class="daily-label hidden" id="dailyHistoryHeading">Recent daily designs</h3>
     <div id="dailyHistory" class="daily-history"></div>
-    <button class="back-link" data-back>Back to menu</button>
+    <!-- Sticky, and last: the brief runs two or three screens on a phone, and
+         Start and the way back used to sit at the very bottom of it. The status
+         lives inside, so a message a press produces is never scrolled out from
+         under it. It has to be the LAST child, because it takes over the panel's
+         bottom padding (see .daily-footer). -->
+    <div class="daily-footer">
+      <p class="note daily-status" id="dailyStatus" role="status"></p>
+      <div class="daily-footer-actions">
+        <button class="back-link" type="button" data-back>Back to menu</button>
+        <button class="btn primary" type="button" id="btnDailyStart">Start designing</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -203,7 +210,7 @@ if ('serviceWorker' in navigator)
       <div><span class="eyebrow" id="challengeDate">Daily design</span><h2 id="challengeTitle">Your brief</h2></div>
       <button id="btnChallengeClose" class="settings-x" type="button" aria-label="Close design brief"><svg class="ui-icon" aria-hidden="true"><use href="#ui-close"></use></svg></button>
     </div>
-    <p class="sub" id="challengeBrief"></p>
+    <p class="daily-brief" id="challengeBrief"></p>
     <p class="note" id="challengeSite"></p>
     <details class="daily-details">
       <summary>Original starting site</summary>
@@ -214,23 +221,18 @@ if ('serviceWorker' in navigator)
       </figure>
     </details>
     <h3 class="daily-label">Your design goals</h3>
-    <p class="note">Check off the goals as you review your design. These are prompts for your judgment, not a score.</p>
+    <p class="note">Check off the goals as you review your design. These are prompts for your judgment, not a score. Your progress saves as you work.</p>
     <ul class="daily-goals daily-checklist" id="challengeGoals"></ul>
     <p class="note" id="challengePlants"></p>
     <details class="daily-details" id="challengePaletteDetails"><summary>Curated plant choices</summary><ul class="daily-plant-list" id="challengePlantList"></ul></details>
     <details class="daily-details" id="challengeRulesOptions" open>
       <summary>Tracked constraints</summary>
-      <label class="daily-strict"><input type="checkbox" id="challengeStrict"> Meet these constraints to finish</label>
       <ul class="daily-rules" id="challengeRules"></ul>
+      <label class="daily-strict"><input type="checkbox" id="challengeStrict"> Meet these constraints to finish</label>
       <p class="note">Repetition counts separate placements, not visual groups. Cultivars of the same species count together.</p>
     </details>
     <p class="note daily-availability" id="challengeAvailability" role="status"></p>
     <button class="back-link hidden" id="btnChallengeStudy">Use study palette (any hardiness zone)</button>
-    <p class="note daily-status" id="challengeStatus" role="status" aria-live="polite"></p>
-    <div class="row daily-actions">
-      <button class="btn primary" id="btnChallengeFinish">Finish design</button>
-      <button class="btn" id="btnChallengeReturn">Keep designing</button>
-    </div>
     <div id="challengeShare" class="hidden">
       <h3 class="daily-label">Keep it. Share it.</h3>
       <div class="daily-share-options">
@@ -253,7 +255,13 @@ if ('serviceWorker' in navigator)
       <label class="daily-label" for="challengeCaption">Suggested caption</label>
       <textarea id="challengeCaption" class="daily-caption" readonly rows="3"></textarea>
       <button class="btn" id="btnChallengeCaption">Copy caption</button>
-      <button class="back-link" id="btnChallengeShareDone">Back to garden</button>
+    </div>
+    <div class="daily-footer">
+      <p class="note daily-status" id="challengeStatus" role="status" aria-live="polite"></p>
+      <div class="daily-footer-actions">
+        <button class="back-link" type="button" id="btnChallengeReturn">Keep designing</button>
+        <button class="btn primary" type="button" id="btnChallengeFinish">Finish design</button>
+      </div>
     </div>
   </div>
 </div>
