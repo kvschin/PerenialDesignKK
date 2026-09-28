@@ -51,8 +51,14 @@ if (!r.ok) results.push({ file: 'plants.test.js', name: 'load plants.js', ok: fa
 // ---------- Tier 2: game logic + render smoke test (DOM-stubbed) ----------
 // Game logic is split into ordered modules (under js/); gameSources() loads them
 // in the same order the browser does (they share one global scope here).
+/* More than one test file shares this tier, and must: every sandbox is handed
+   the same document stub, so loading the modules into a second one would re-run
+   init and re-wire the shared elements' handlers into the other sandbox's
+   `game`. A later file names itself with testFile() so its results say where
+   they came from. */
 currentFile = 'game.test.js';
-r = runTier('game', [...gameSources(), read('tests/game.test.js')], true, inject);
+r = runTier('game', [...gameSources(), read('tests/game.test.js'), read('tests/ui-cost.test.js')], true,
+  Object.assign({ testFile: name => { currentFile = name; } }, inject));
 if (!r.ok) results.push({ file: 'game.test.js', name: 'load game modules (DOM-stubbed)', ok: false, err: r.err });
 
 // ---------- report ----------

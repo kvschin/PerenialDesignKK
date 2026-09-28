@@ -694,8 +694,14 @@ function plantCategoryFor(k){
 function visiblePlantChoice(){
   if (isBrushTool(game.lastBrushTool) && !PLANTS[game.lastBrushTool])
     return [game.lastBrushTool,null];
-  if (PLANTS[game.lastBrushTool] && trayKeys().includes(game.lastBrushTool))
-    return [game.lastBrushTool,game.lastBrushVar||null];
+  /* Membership only. This was `trayKeys().includes(k)`, and trayKeys() is this
+     same filter followed by a SORT of the whole catalog by style score and
+     name: 7.4ms to ask whether one plant is in it, paid on every Plant press
+     and, through armPlantToolFromRail, every Draw/Drift/Matrix/Grid/Age tap.
+     plantFits() alone gives the identical answer (a test compares the two for
+     every species) in well under a microsecond. */
+  const k=game.lastBrushTool, P=PLANTS[k];
+  if (P && !P.hidden && plantFits(k)) return [k,game.lastBrushVar||null];
   return null;
 }
 function armPlantToolFromRail(openMenu){
@@ -851,25 +857,44 @@ function pickAt(x,y){
       : `Picked ${bedStyle(game.bedStyle).label} bed.`);
   } else toast('Nothing here to pick — tap a plant or material.');
 }
+/* The brush bar's pattern, placement and age toggles change what the NEXT tap
+   does, not what is armed. With a plant already on the brush, which is the only
+   time the bar shows them, they repaint the bar and the sheet's label ("· drift")
+   and stop. They used to re-arm through armPlantToolFromRail, which rebuilt the
+   whole catalog (drift, matrix and the rest are in trayStateSig), the sheet and
+   the tool rail for a change only the brush bar shows: 24ms a tap on a desktop,
+   34ms in the phone layout.
+   Kept from the old path: a pattern choice means plain planting, so Fill goes
+   off, and an open Layers/View menu closes. Dropped: re-selecting the armed
+   plant's catalog category, which pulled the catalog away from wherever the
+   gardener was browsing. With nothing armed they still go the long way,
+   because then arming is the point. */
+function applyBrushOption(){
+  if (!PLANTS[game.tool]){ armPlantToolFromRail(false); return; }
+  game.fillMode=false;
+  renderCvRow();                       // brush bar + sheet label and swatch
+  if (game.toolMenu){ game.toolMenu=null; refreshCanvasTools(); }
+  updateCanvasCursor();
+  tourRender();                        // the drift step anchors to a brush-bar chip renderCvRow just replaced
+}
 function choosePlantMode(drift){
   game.drift=!!drift; game.matrix=false;   // Draw/Drift and Matrix are exclusive patterns
-  armPlantToolFromRail(false);
+  applyBrushOption();
   updateActiveToolStatus();
 }
 function chooseMatrixMode(){
   game.matrix=true; game.drift=false;
-  armPlantToolFromRail(false);
+  applyBrushOption();
   updateActiveToolStatus();
 }
 function choosePlacementMode(free){
   game.freePlanting=!!free;
-  armPlantToolFromRail(false);
+  applyBrushOption();
   updateActiveToolStatus();
 }
 function chooseWoodyAge(age){
   game.woodyAge=normalizeWoodyAge(age);
-  armPlantToolFromRail(false);
-  renderBrushBar();
+  applyBrushOption();
   updateActiveToolStatus();
 }
 function chooseFillMode(on){
