@@ -326,3 +326,92 @@ test('the catalog renderers never tell one rail tool from another', () => {
     assert(!TRAY_CATS.some(c => c.tools && c.tools.includes(t)), t + ' is not a catalog tool');
   }
 });
+
+/* ---------- #4: the Replace dialog's search filters a list it built once ---------- */
+
+// The candidate list as it was computed before, per keystroke, off trayKeys().
+function replaceOptionsAsBefore(source, q){
+  const from = plantDef(source.s, source.v), group = replacementGroup(from), out = [];
+  trayKeys().forEach(k => {
+    const P = PLANTS[k], add = v => {
+      const D = plantDef(k, v), hay = `${P.name} ${P.latin} ${D.name || ''} ${D.note || ''}`.toLowerCase();
+      if (plantRefFits({ s: k, v: v || null }) && replacementGroup(D) === group && (!q || hay.includes(q))) out.push(k + '|' + (v || ''));
+    };
+    add(null); Object.keys(P.cv || {}).forEach(add);
+  });
+  return out.filter(id => id !== source.s + '|' + (source.v || '')).sort();
+}
+
+test('the Replace search offers exactly what it offered before, in name order', () => {
+  uiSetup();
+  const pick = pred => PLANT_KEYS.find(k => !PLANTS[k].hidden && pred(PLANTS[k]) && plantFits(k));
+  const sources = [
+    { s: pick(P => P.type === 'forb'), v: null },
+    { s: pick(P => P.type === 'grass' && P.cv && Object.keys(P.cv).length), v: null },
+    { s: pick(P => P.type === 'shrub'), v: null },
+    { s: pick(P => P.type === 'bulb'), v: null },
+  ];
+  const cvSrc = sources[1];
+  sources.push({ s: cvSrc.s, v: Object.keys(PLANTS[cvSrc.s].cv)[0] });
+  let checked = 0;
+  for (const src of sources){
+    assert(src.s, 'a source plant for each kind');
+    for (const q of ['', 'a', 'blue', 'prairie', 'zzzz']){
+      const now = replaceOptionList(src, q);
+      assertEqual(JSON.stringify(now.map(o => o.s + '|' + (o.v || '')).sort()),
+        JSON.stringify(replaceOptionsAsBefore(src, q)), `${src.s}/${src.v || ''} for "${q}"`);
+      for (let i = 1; i < now.length; i++)
+        assert(now[i - 1].D.name.localeCompare(now[i].D.name) <= 0, 'sorted by name at ' + now[i].D.name);
+      checked += now.length;
+    }
+  }
+  assert(checked > 50, 'the comparison covered real result lists: ' + checked);
+});
+
+test('typing in the Replace search does not rebuild or re-sort the candidates', () => {
+  /* Measured 11-13ms a keystroke in Chrome: trayKeys() sorted the whole
+     catalog and every cultivar's search text was rebuilt, for each letter. */
+  uiSetup();
+  const src = { s: PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb' && plantFits(k)), v: null };
+  replaceOptionList(src, '');                      // the dialog opening builds it once
+  const n = counting(['trayKeys', 'plantFits', 'replacementGroup'], () => {
+    for (const q of ['p', 'pr', 'pra', 'prai', 'prair', 'prairi', 'prairie']) replaceOptionList(src, q);
+  });
+  assertEqual(n.trayKeys, 0, 'no catalog sort per keystroke');
+  assertEqual(n.plantFits, 0, 'no eligibility pass per keystroke');
+  assertEqual(n.replacementGroup, 0, 'no grouping pass per keystroke');
+  const code = String(replaceCandidates).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert(!/trayKeys\s*\(/.test(code), 'replaceCandidates does not sort the catalog');
+});
+
+test('the Replace candidates follow the garden\'s filters', () => {
+  uiSetup();
+  const src = { s: PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb' && plantFits(k)), v: null };
+  const all = replaceOptionList(src, '').length;
+  game.filters = Object.assign({}, game.filters, { zone: 3, deer: true });
+  const narrowed = replaceOptionList(src, '');
+  assert(narrowed.length < all, `a stricter filter narrows the list (${all} -> ${narrowed.length})`);
+  assertEqual(JSON.stringify(narrowed.map(o => o.s + '|' + (o.v || '')).sort()),
+    JSON.stringify(replaceOptionsAsBefore(src, '')), 'and matches the old answer under the new filter');
+});
+
+test('a Replace thumbnail is drawn once per plant, and the scope counts once per dialog', () => {
+  uiSetup();
+  const k = PLANT_KEYS.find(x => !PLANTS[x].hidden && PLANTS[x].type === 'forb' && plantFits(x));
+  const o = { s: k, v: null, D: plantDef(k, null) };
+  REPLACE_ART.clear();
+  let a, b;
+  const n = counting(['drawPlant'], () => { a = replaceThumb(o); b = replaceThumb(o); });
+  assertEqual(n.drawPlant, 1, 'one procedural draw for two renders');
+  assert(a === b, 'the same node is reused');
+
+  for (let i = 0; i < 6; i++) setTile('plants', `${3 + i},4`, { s: k, d: absDay() - 40, t: Date.now() + i });
+  replacePlantContext = { source: { s: k, v: null }, key: '3,4', scope: 'one', target: null, choosingSource: false };
+  try {
+    const m = counting(['replacementScopeTargets'], () => {
+      for (let i = 0; i < 3; i++) for (const s of ['one', 'selection', 'garden']) replaceScopeCount(s);
+    });
+    assertEqual(m.replacementScopeTargets, 3, 'each scope counted once, not per render');
+    assertEqual(replaceScopeCount('garden'), 6, 'and the garden count is right');
+  } finally { replacePlantContext = null; }
+});

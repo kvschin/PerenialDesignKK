@@ -2567,22 +2567,67 @@ function selectionReplaceSources(){
   }
   return [...map.values()].sort((a,b)=>b.count-a.count||plantDef(a.p.s,a.p.v).name.localeCompare(plantDef(b.p.s,b.p.v).name));
 }
-function replaceOptionList(source,q){
+/* Everything the source plant could be replaced WITH, sorted, each carrying its
+   search text. Built once and kept while nothing it depends on moves (the
+   source, the garden's filters, the challenge palette), so a keystroke in the
+   search is a filter over this list rather than a rebuild of it. It used to be
+   rebuilt per keystroke, starting with trayKeys(), which SORTS the whole catalog
+   by style score only for this to sort again by name: 11-13ms a letter in
+   Chrome on the demo garden, before any result was drawn.
+   Species-level plantFits() stands in for trayKeys()'s membership, which is all
+   that was read of it. Equal names now break ties by key, so the order is the
+   same on every call rather than whatever the catalog sort left. */
+let replaceCandidateMemo={key:'',list:null};
+function replaceCandidates(source){
+  const c=game.challenge;
+  const key=[source.s,source.v||'',JSON.stringify(activeFilters()),
+    c?JSON.stringify([c.id,c.match,c.palette,c.paletteFree]):'-'].join('|');
+  if (replaceCandidateMemo.key===key && replaceCandidateMemo.list) return replaceCandidateMemo.list;
   const from=plantDef(source.s,source.v), group=replacementGroup(from), out=[];
-  trayKeys().forEach(k=>{
-    const P=PLANTS[k], add=v=>{
-      const D=plantDef(k,v), hay=`${P.name} ${P.latin} ${D.name||''} ${D.note||''}`.toLowerCase();
-      const ref={s:k,v:v||null};
-      if (plantRefFits(ref) && replacementGroup(D)===group && (!q||hay.includes(q))) out.push({s:k,v:v||null,D});
+  for (const k of PLANT_KEYS){
+    const P=PLANTS[k]; if (P.hidden || !plantFits(k)) continue;
+    const add=v=>{
+      v=v||null;
+      if (k===source.s && v===(source.v||null)) return;
+      const D=plantDef(k,v);
+      if (replacementGroup(D)!==group || !plantRefFits({s:k,v})) return;
+      out.push({s:k,v,D,hay:`${P.name} ${P.latin} ${D.name||''} ${D.note||''}`.toLowerCase()});
     };
     add(null); Object.keys(P.cv||{}).forEach(add);
-  });
-  return out.filter(o=>!(o.s===source.s&&(o.v||null)===(source.v||null)))
-    .sort((a,b)=>a.D.name.localeCompare(b.D.name));
+  }
+  out.sort((a,b)=>a.D.name.localeCompare(b.D.name) || (a.s<b.s?-1:a.s>b.s?1:0) || String(a.v||'').localeCompare(String(b.v||'')));
+  replaceCandidateMemo={key,list:out};
+  return out;
 }
+function replaceOptionList(source,q){
+  const list=replaceCandidates(source);
+  return q ? list.filter(o=>o.hay.includes(q)) : list.slice();
+}
+/* The dialog's result thumbnails, drawn once per plant and reused: each was a
+   procedural drawPlant, up to eighty of them, on every keystroke. A cached node
+   is simply re-appended, since the results list is emptied before it is
+   refilled and a plant appears in it once. */
+const REPLACE_ART=new Map(), REPLACE_ART_MAX=160;
+function replaceThumb(o){
+  const season=plantIconSeason(o.D), key=o.s+'|'+(o.v||'')+'|'+season;
+  let c=REPLACE_ART.get(key);
+  if (c){ REPLACE_ART.delete(key); REPLACE_ART.set(key,c); return c; }   // LRU order
+  c=document.createElement('canvas'); c.width=48; c.height=44;
+  const sc=Math.min(.62,36/(plantArtTop(o.D)||40)), tc=c.getContext('2d'); tc.scale(sc,sc);
+  drawPlant(tc,24/sc,42/sc,o.s,1,season,tileSeed(3,7),0,o.v||undefined,1);
+  REPLACE_ART.set(key,c);
+  if (REPLACE_ART.size>REPLACE_ART_MAX) REPLACE_ART.delete(REPLACE_ART.keys().next().value);
+  return c;
+}
+/* How many plants each scope would change. Counted once per dialog: the garden
+   cannot change while it is open, and 'garden' walks every plant in it. */
 function replaceScopeCount(scope){
-  if (!replacePlantContext||!replacePlantContext.source) return 0;
-  return replacementScopeTargets(Object.assign({},replacePlantContext,{scope})).length;
+  const ctx=replacePlantContext;
+  if (!ctx||!ctx.source) return 0;
+  if (!ctx.scopeCounts) ctx.scopeCounts={};
+  if (!(scope in ctx.scopeCounts))
+    ctx.scopeCounts[scope]=replacementScopeTargets(Object.assign({},ctx,{scope})).length;
+  return ctx.scopeCounts[scope];
 }
 function startReplacePlant(source,key,scope){
   replacePlantContext={source:{s:source.s,v:source.v||null},key,scope:scope||'one',target:null,choosingSource:false};
@@ -2643,9 +2688,7 @@ function renderReplacePlantUi(){
   opts.slice(0,80).forEach(o=>{
     const b=document.createElement('button'); b.type='button'; b.className='replace-plant-result'+(ctx.target&&ctx.target.s===o.s&&(ctx.target.v||null)===(o.v||null)?' sel':'');
     b.setAttribute('role','option'); b.setAttribute('aria-selected',b.classList.contains('sel')?'true':'false');
-    const c=document.createElement('canvas'); c.width=48; c.height=44;
-    const sc=Math.min(.62,36/(plantArtTop(o.D)||40)), tc=c.getContext('2d'); tc.scale(sc,sc);
-    drawPlant(tc,24/sc,42/sc,o.s,1,plantIconSeason(o.D),tileSeed(3,7),0,o.v||undefined,1);
+    const c=replaceThumb(o);
     const copy=document.createElement('span'), cat=document.createElement('small');
     copy.innerHTML=`<strong>${o.D.name}</strong><small>${PLANTS[o.s].latin}</small>`;
     cat.textContent=trayCatLabel(plantCategoryFor(o.s)); b.append(c,copy,cat);
@@ -4671,7 +4714,24 @@ function syncLibraryChrome(s=normalizedSheetState(game.sheetState),phone=mobileS
 }
 
 const replaceSearch=document.getElementById('replacePlantSearch');
-if (replaceSearch) replaceSearch.addEventListener('input',()=>{ if (replacePlantContext&&!replacePlantContext.choosingSource) replacePlantContext.target=null; renderReplacePlantUi(); });
+/* Debounced like the catalog's Find and the Library search (120ms), and held
+   while an IME is composing. Clearing the chosen replacement belongs with the
+   render it feeds, so until the list redraws, the plant still highlighted is
+   the one Apply would use. A render after the dialog has closed finds no
+   context and returns. */
+let replaceSearchTimer=0, replaceComposing=false;
+function scheduleReplaceSearch(){
+  clearTimeout(replaceSearchTimer);
+  replaceSearchTimer=setTimeout(()=>{
+    if (replacePlantContext&&!replacePlantContext.choosingSource) replacePlantContext.target=null;
+    renderReplacePlantUi();
+  },120);
+}
+if (replaceSearch){
+  replaceSearch.addEventListener('input',e=>{ if (!replaceComposing&&!e.isComposing) scheduleReplaceSearch(); });
+  replaceSearch.addEventListener('compositionstart',()=>{ replaceComposing=true; clearTimeout(replaceSearchTimer); });
+  replaceSearch.addEventListener('compositionend',()=>{ replaceComposing=false; scheduleReplaceSearch(); });
+}
 const replaceApply=document.getElementById('btnReplacePlantApply'); if (replaceApply) replaceApply.onclick=applyPlantReplacement;
 const replaceCancel=document.getElementById('btnReplacePlantCancel'); if (replaceCancel) replaceCancel.onclick=()=>{ closeOverlay('replacePlantScreen'); replacePlantContext=null; };
 const replaceScreen=document.getElementById('replacePlantScreen'); if (replaceScreen) replaceScreen.onclick=e=>{ if (e.target===replaceScreen){ closeOverlay('replacePlantScreen'); replacePlantContext=null; } };
