@@ -5416,6 +5416,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     userZoom`, driven by pinch (two-pointer tracking in the canvas
     handlers), mouse wheel, and +/- keys. The phone zoom pill stays hidden to
     protect canvas space; the one-time Time coach also teaches pinch zoom.
+    **Two fingers are a pan until they are a pinch, and a pinch zooms about the
+    fingers** (`beginPinch`/`movePinch`, input.js; 0.9.39). It used to zoom
+    about the renderer's fixed anchor (half the width, 24% down) while panning
+    with the finger midpoint, with no dead zone — so the ordinary wobble in
+    finger spacing during a two-finger PAN zoomed the view and slid the garden
+    under the fingers by (zoom change) x (distance from the anchor). Fingers sit
+    below that point, so the slide was mostly vertical and grew with screen
+    height, which is the shape of a report of plants "stuttering up and down",
+    mildly on an iPhone and badly on an iPad (found by reading, not yet
+    confirmed on the device). The zoom it caused also kept `zoomStale` true, which
+    denies a pan the cheap scrolled ground bake and can force a synchronous one
+    (`groundZoomDriftDue`). Now the world point under the starting midpoint is
+    held under the current one (tested through `worldPointAt`, the renderer's
+    own inverse), and zoom engages only once the spacing moves past
+    `PINCH_SLOP_PX`/`PINCH_SLOP_FRAC` (16px / 8%), measured from that moment so
+    it cannot jump. A pan inside the slop leaves `ZOOM` bit-identical.
     **Two ceilings, and they are not the same number**: `ZOOM_MAX` (2.0) is the
     on-screen scale the pill reports, `USER_ZOOM_MAX` (2.8) the multiplier
     applied before `baseZoom` — which has to be larger or a phone can never

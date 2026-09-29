@@ -265,6 +265,47 @@ function markMultiMoved(){
     if (s && Math.hypot(p[0]-s[0],p[1]-s[1])>10){ multiTouch.moved=true; return; }
   }
 }
+/* ---------- two fingers: a pan, and a zoom about the fingers ----------
+   Both halves of this used to be wrong, and both only exist on a touch screen,
+   which is why a phone showed it a little and an iPad showed it a lot.
+   The zoom scaled about a FIXED screen point, the renderer's anchor (half the
+   width, 24% of the height — viewScreen), while the pan followed the fingers.
+   So whenever the zoom moved, the garden under the fingers slid by (zoom
+   change) x (distance from that point). Fingers sit well below it, so the
+   slide was mostly VERTICAL and it grew with the screen: with the fingers at
+   the middle of the screen, a 3% wobble in their spacing slid the garden
+   ~9px on an iPad in portrait (820x1180) against ~7px on a phone (390x844),
+   and two to three times that with the fingers near the bottom. The world point first under
+   the fingers' midpoint is now held under it for the whole gesture, which is
+   what a pinch means.
+   And there was no dead zone. Nobody holds two fingers a fixed distance apart
+   while dragging, so EVERY two-finger pan was also a zoom: the garden breathed
+   under the fingers, and the ground could not take the cheap scrolled bake
+   (render requires !zoomStale), so crossing the bake margin paid a full ground
+   bake, and a zoom-out wobble could force a synchronous one
+   (groundZoomDriftDue) — a stall in the middle of a pan. The gesture is a pan
+   until the spacing has changed by PINCH_SLOP, and a zoom measured from that
+   moment after, so it does not jump when it engages. */
+const PINCH_SLOP_PX=16, PINCH_SLOP_FRAC=0.08;
+function pinchSpacing(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1])||1; }
+// a, b: client points; rect: the canvas's client rect (read once per gesture)
+function beginPinch(a,b,rect){
+  const mx=(a[0]+b[0])/2-rect.left, my=(a[1]+b[1])/2-rect.top;
+  return {d0:pinchSpacing(a,b), z0:userZoom, zooming:false, left:rect.left, top:rect.top,
+    // the world point, in draw units, under the midpoint — held there throughout
+    ix:cam.x+(mx-VW/2)/ZOOM, iy:cam.y+(my-VH*0.24)/ZOOM};
+}
+function movePinch(p,a,b){
+  const d=pinchSpacing(a,b);
+  if (!p.zooming && Math.abs(d-p.d0)>Math.max(PINCH_SLOP_PX,p.d0*PINCH_SLOP_FRAC)){
+    p.zooming=true; p.d0=d; p.z0=userZoom;
+  }
+  if (p.zooming) setUserZoom(p.z0*d/p.d0);
+  // after the zoom, and against the ZOOM it produced: at a clamp the pan still tracks
+  const mx=(a[0]+b[0])/2-p.left, my=(a[1]+b[1])/2-p.top;
+  cam.x=p.ix-(mx-VW/2)/ZOOM;
+  cam.y=p.iy-(my-VH*0.24)/ZOOM;
+}
 function screenDeltaToWorld(dx,dy){
   const W=VW/ZOOM,H=VH/ZOOM, o=screenOfFlat(0,0,W,H), px=screenOfFlat(1,0,W,H), py=screenOfFlat(0,1,W,H);
   const ax=px[0]-o[0], ay=px[1]-o[1], bx=py[0]-o[0], by=py[1]-o[1], det=ax*by-ay*bx||1;
@@ -321,9 +362,7 @@ cnv.addEventListener('pointerdown',e=>{
   }
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
-    pinch={d0:Math.hypot(a[0]-b2[0],a[1]-b2[1])||1, z0:userZoom,
-           cx0:(a[0]+b2[0])/2, cy0:(a[1]+b2[1])/2,   // centroid, for two-finger pan
-           camx0:cam.x, camy0:cam.y};
+    pinch=beginPinch(a,b2,canvasViewportRect());
     startMultiTouch(2);
     // silent unless the pinch really interrupted something (see the helper)
     cancelCanvasGesture(true,canvasGestureWouldLoseWork()?'Placement cancelled':null);
@@ -533,13 +572,9 @@ cnv.addEventListener('pointermove',e=>{
   markMultiMoved();
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
-    const d=Math.hypot(a[0]-b2[0],a[1]-b2[1])||1;
-    if (Math.abs(d-pinch.d0)>8) multiTouch && (multiTouch.moved=true);
-    setUserZoom(pinch.z0*d/pinch.d0);
-    // two-finger drag pans the canvas (the camera is free)
-    const cx=(a[0]+b2[0])/2, cy=(a[1]+b2[1])/2;
-    cam.x=pinch.camx0-(cx-pinch.cx0)/ZOOM;
-    cam.y=pinch.camy0-(cy-pinch.cy0)/ZOOM;
+    // before movePinch, which re-bases d0 when the zoom engages
+    if (Math.abs(pinchSpacing(a,b2)-pinch.d0)>8) multiTouch && (multiTouch.moved=true);
+    movePinch(pinch,a,b2);   // pans with the fingers; zooms about them past the slop
     // (two-finger twist-to-rotate removed — rotate via the ⟳ button or R key)
     return;
   }

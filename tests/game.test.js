@@ -10784,6 +10784,79 @@ test('opening and closing the library returns the camera exactly', () => {
   assert(Math.abs(open.dy + shut.dy) < 1e-12, 'vertically too');
 });
 
+/* ---------- two fingers: pan, and zoom about the fingers ----------
+   A two-finger drag zoomed about the renderer's fixed anchor (half the width,
+   24% down) while it panned with the fingers, and had no dead zone, so the
+   natural wobble in finger spacing slid the garden up and down under the
+   fingers — worse the taller the screen, which is why an iPad showed it.
+   Measured through the renderer's own inverse (worldPointAt), not a copy of it:
+   the world point under the fingers' midpoint must stay under it. */
+function withPinchViewport(fn){
+  const was={VW, VH, uz:userZoom, cx:cam.x, cy:cam.y};
+  try{ VW=820; VH=1180; userZoom=1; calcZoom(); cam.x=40; cam.y=-120; fn(); }
+  finally{ VW=was.VW; VH=was.VH; userZoom=was.uz; calcZoom(); cam.x=was.cx; cam.y=was.cy; }
+}
+const underFingers = (a, b) => worldPointAt((a[0]+b[0])/2/ZOOM, (a[1]+b[1])/2/ZOOM, VW/ZOOM, VH/ZOOM, 0);
+const samePt = (p, q) => Math.abs(p[0]-q[0]) < 1e-9 && Math.abs(p[1]-q[1]) < 1e-9;
+
+test('a two-finger pan is a pan: spacing wobble neither zooms nor slides the garden', () => {
+  setup(41, 41);
+  withPinchViewport(() => {
+    const z = ZOOM;
+    let a = [360, 900], b = [460, 900];          // low on a tall screen, far below the anchor
+    const p = beginPinch(a, b, { left: 0, top: 0 });
+    const w0 = underFingers(a, b);
+    // drag up 400px while the spacing drifts inside the slop, as real fingers do
+    const wobble = [0, 6, -9, 12, -4, 14, -12, 3];
+    for (let i = 1; i <= wobble.length; i++){
+      const y = 900 - i * 50, half = (100 + wobble[i - 1]) / 2;
+      a = [410 - half, y]; b = [410 + half, y];
+      movePinch(p, a, b);
+      assertEqual(ZOOM, z, 'spacing inside the slop leaves the zoom exactly alone (step ' + i + ')');
+      assert(samePt(underFingers(a, b), w0), 'the garden under the fingers stays under them (step ' + i + ')');
+    }
+    assert(!p.zooming, 'still a pan');
+  });
+});
+
+test('a pinch zooms about the fingers, and does not jump when it engages', () => {
+  setup(41, 41);
+  withPinchViewport(() => {
+    const z = userZoom;
+    let a = [300, 850], b = [400, 850];
+    const p = beginPinch(a, b, { left: 0, top: 0 });
+    const w0 = underFingers(a, b);
+    a = [290, 840]; b = [410, 840];               // 120 apart: past the 16px slop
+    movePinch(p, a, b);
+    assert(p.zooming, 'the spread engages the zoom');
+    assertEqual(userZoom, z, 'measured from the moment it engaged, so no jump');
+    assert(samePt(underFingers(a, b), w0), 'held under the fingers as it engages');
+    a = [200, 700]; b = [440, 700];               // twice that spacing, and moved
+    movePinch(p, a, b);
+    assert(Math.abs(userZoom - z * 2) < 1e-9, 'zoom follows the spacing ratio from there');
+    assert(samePt(underFingers(a, b), w0), 'the point under the fingers stays put while zooming');
+    a = [-2000, 700]; b = [2800, 700];            // far past the ceiling
+    movePinch(p, a, b);
+    assertEqual(userZoom, USER_ZOOM_MAX, 'the zoom clamps');
+    assert(samePt(underFingers(a, b), w0), 'and at the clamp the fingers still hold the garden');
+  });
+});
+
+test('a pinch reads the midpoint against the canvas, not the page', () => {
+  setup(41, 41);
+  withPinchViewport(() => {
+    // the docked shell puts the canvas under a 56px bar and beside nothing on the left
+    const rect = { left: 0, top: 56 };
+    let a = [300, 656], b = [420, 656];
+    const p = beginPinch(a, b, rect);
+    const local = (q) => [q[0] - rect.left, q[1] - rect.top];
+    const w0 = underFingers(local(a), local(b));
+    a = [250, 556]; b = [490, 556];
+    movePinch(p, a, b);
+    assert(samePt(underFingers(local(a), local(b)), w0), 'the offset canvas does not skew the anchor');
+  });
+});
+
 test('a viewport change that changes nothing moves nothing', () => {
   const d = viewportAnchorDelta(0, 0, 1);
   assert(d.dx === 0 && d.dy === 0, 'no size change, no camera movement');
