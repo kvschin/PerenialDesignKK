@@ -415,3 +415,78 @@ test('a Replace thumbnail is drawn once per plant, and the scope counts once per
     assertEqual(replaceScopeCount('garden'), 6, 'and the garden count is right');
   } finally { replacePlantContext = null; }
 });
+
+/* ---------- #5: the tool rail is built once and kept in step ---------- */
+
+test('the tool rail is built once, not after every gesture, undo or tool change', () => {
+  /* Every refresh rebuilt it: eight new 126x96 icon canvases (~390KB of
+     backing store) and a dozen icon repaints, after every planted tap
+     (pushUndo -> updateUndoBtn -> refreshCanvasTools), every undo and every
+     tool change. */
+  uiSetup();
+  railDom = null;
+  const first = counting(['makeCanvasTool'], () => refreshCanvasTools());
+  assertEqual(first.makeCanvasTool, 8, 'the first refresh builds the eight buttons');
+  const herb = fittingKey(P => P.type === 'forb');
+  const n = counting(['makeCanvasTool', 'paintIconCanvas'], () => {
+    setTool('select'); setTool('hand'); setTool(herb, null);
+    withUndo(() => setTile('plants', '5,5', { s: herb, d: absDay() - 30, t: Date.now() }));
+    doUndo(); doRedo();
+    game.layerVis.night = !game.layerVis.night; refreshCanvasTools();
+    game.layerVis.night = !game.layerVis.night; refreshCanvasTools();
+  });
+  assertEqual(n.makeCanvasTool, 0, 'no rail button is rebuilt afterwards');
+  assertEqual(n.paintIconCanvas, 0, 'and no rail or top-bar icon is repainted');
+});
+
+test('the kept rail still shows the armed tool and what undo can do', () => {
+  uiSetup();
+  railDom = null; refreshCanvasTools();
+  const b = railDom.byKind;
+  setTool('select');
+  assert(/\bsel\b/.test(b.select.className) && !/\bsel\b/.test(b.hand.className), 'Select lit, Hand not');
+  assertEqual(b.select.getAttribute('aria-pressed'), 'true', 'Select pressed');
+  assertEqual(b.hand.getAttribute('aria-pressed'), 'false', 'Hand not pressed');
+  setTool('shovel');
+  assert(/\bsel\b/.test(b.erase.className) && /\bdanger\b/.test(b.erase.className), 'Erase lit and still red');
+  const herb = fittingKey(P => P.type === 'forb');
+  setTool(herb, null);
+  assert(/\bsel\b/.test(b.brush.className), 'a plant lights Plant');
+  undoStack = []; redoStack = []; updateUndoBtn();
+  assert(/\bdisabled\b/.test(b.undo.className) && /\bdisabled\b/.test(b.redo.className), 'both greyed with empty stacks');
+  withUndo(() => setTile('plants', '6,6', { s: herb, d: absDay() - 30, t: Date.now() }));
+  assert(!/\bdisabled\b/.test(b.undo.className), 'Undo live once there is something to undo');
+  doUndo();
+  assert(!/\bdisabled\b/.test(b.redo.className), 'Redo live after an undo');
+  assert(/\bdisabled\b/.test(b.undo.className), 'and Undo greys again with its stack empty');
+});
+
+test('a theme change repaints the rail, which is the one thing it depends on', () => {
+  uiSetup();
+  const was = document.documentElement.getAttribute('data-theme');
+  try {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    railDom = null; refreshCanvasTools();
+    const same = counting(['makeCanvasTool'], () => refreshCanvasTools());
+    assertEqual(same.makeCanvasTool, 0, 'same theme: kept');
+    document.documentElement.setAttribute('data-theme', 'light');
+    const flipped = counting(['makeCanvasTool', 'paintIconCanvas'], () => refreshCanvasTools());
+    assertEqual(flipped.makeCanvasTool, 8, 'new theme: the buttons are rebuilt in its inks');
+    assert(flipped.paintIconCanvas >= 8 + 3, 'rail and top-bar icons repainted: ' + flipped.paintIconCanvas);
+  } finally {
+    if (was === null) document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.setAttribute('data-theme', was);
+    railDom = null; refreshCanvasTools();
+  }
+});
+
+test('a chrome refresh with the menus shut asks for no computed style', () => {
+  /* visibleEl is a getComputedStyle, which forces a style recalc; syncTopTools
+     and renderLayerMenu called it before checking whether their menu was even
+     open, on every refresh. */
+  uiSetup();
+  game.toolMenu = null;
+  refreshCanvasTools();
+  const n = counting(['visibleEl'], () => { refreshCanvasTools(); refreshCanvasTools(); });
+  assertEqual(n.visibleEl, 0, 'no computed style with every menu shut');
+});

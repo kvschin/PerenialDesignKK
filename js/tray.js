@@ -365,7 +365,7 @@ function paintIconCanvas(c,kind){
 }
 function makeCanvasTool(label,kind,opts){
   const b=document.createElement('button');
-  b.className='canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
+  b.className=canvasToolClass(opts);
   b.title=opts&&opts.title || label;
   b.setAttribute('aria-pressed',opts&&opts.active?'true':'false');
   // a stable hook for the controls tour, which has to point at a real element
@@ -381,10 +381,44 @@ function makeCanvasTool(label,kind,opts){
     const sw=document.createElement('canvas');
     sw.className='rail-swatch'; sw.width=30; sw.height=24;
     drawBrushSwatchCanvas(sw,true);
+    const [k,v]=brushSwatchChoice(true);
+    sw._swatchKey=PLANTS[k] ? k+'|'+(v||'') : null;   // see syncCanvasTool
     b.appendChild(sw);
   }
   if (opts&&opts.onClick) b.onclick=opts.onClick;
   return b;
+}
+function canvasToolClass(opts){
+  return 'canvas-tool'+(opts&&opts.active?' sel':'')+(opts&&opts.danger?' danger':'')+(opts&&opts.disabled?' disabled':'')+(opts&&opts.todo?' todo':'');
+}
+/* Bring an existing rail button up to date without rebuilding it: its state
+   classes, title, pressed state and handler, and the Plant swatch. The swatch
+   of a PLANT is a procedural drawPlant, so it is redrawn only when the plant
+   on it changes; every other swatch is a few shapes or a cached bitmap and is
+   simply redrawn, which is cheaper than keeping a key that has to name every
+   draft it reads. */
+function syncCanvasTool(b,label,opts){
+  const cls=canvasToolClass(opts);
+  if (b.className!==cls) b.className=cls;
+  const title=opts&&opts.title || label;
+  if (b.title!==title) b.title=title;
+  b.setAttribute('aria-pressed',opts&&opts.active?'true':'false');
+  if (opts&&opts.onClick) b.onclick=opts.onClick;
+  const sw=opts&&opts.swatch && b.querySelector && b.querySelector('.rail-swatch');
+  if (sw){
+    const [k,v]=brushSwatchChoice(true), key=PLANTS[k] ? k+'|'+(v||'') : null;
+    if (!key || sw._swatchKey!==key){ drawBrushSwatchCanvas(sw,true); sw._swatchKey=key; }
+  }
+}
+/* A chrome icon depends on its kind and, through uiInk, on the theme and
+   nothing else, so paint it when either changes and not on every refresh. The
+   top-bar icons were repainted at 3x on every syncTopTools, which runs on every
+   tool change, undo and planted tap. */
+function paintIconCanvasOnce(c,kind){
+  if (!c) return;
+  const key=kind+'|'+((document.documentElement&&document.documentElement.getAttribute('data-theme'))||'');
+  if (c._iconKey===key) return;
+  paintIconCanvas(c,kind); c._iconKey=key;
 }
 function brushSwatchChoice(includeLast){
   if (isBrushTool(game.tool)) return [game.tool,game.toolVar||null];
@@ -919,17 +953,19 @@ function syncTopTools(){
   // so it belongs with the other modal tools rather than beside Rotate and Layers.
   const rot=document.getElementById('btnRotateTool');
   if (rot){ rot.onclick=()=>rotateView(1);
-    paintIconCanvas(document.getElementById('btnRotateIcon'),'rotate'); }
+    paintIconCanvasOnce(document.getElementById('btnRotateIcon'),'rotate'); }
   const lay=document.getElementById('btnLayersTool');
   if (lay){ lay.classList.toggle('sel',game.toolMenu==='layers'||layerViewActive());
     lay.setAttribute('aria-expanded',game.toolMenu==='layers'?'true':'false');
     lay.onclick=()=>toggleLayerMenu();
-    paintIconCanvas(document.getElementById('btnLayersIcon'),'layers'); }
+    paintIconCanvasOnce(document.getElementById('btnLayersIcon'),'layers'); }
   const view=document.getElementById('btnViewTools');
   if (view){ view.classList.toggle('sel',game.toolMenu==='view'||game.toolMenu==='layers'||game.tool==='select'||layerViewActive());
-    view.setAttribute('aria-expanded',(game.toolMenu==='view'||(!visibleEl(lay)&&game.toolMenu==='layers'))?'true':'false');
+    // the menu test FIRST: visibleEl is a getComputedStyle, i.e. a style
+    // recalc, and this runs on every refresh with the menu shut
+    view.setAttribute('aria-expanded',(game.toolMenu==='view'||(game.toolMenu==='layers'&&!visibleEl(lay)))?'true':'false');
     view.onclick=()=>toggleViewToolsMenu();
-    paintIconCanvas(document.getElementById('btnViewToolsIcon'),'viewtools'); }
+    paintIconCanvasOnce(document.getElementById('btnViewToolsIcon'),'viewtools'); }
   syncSchemeChip();
   renderViewToolsMenu();
   renderLayerMenu();
@@ -947,12 +983,37 @@ function focusToolMenu(id){
     if (first) first.focus({preventScroll:true});
   });
 }
+/* The rail is BUILT ONCE and then kept in step. It was rebuilt wholesale on
+   every refresh, and a refresh follows every tool change, every undo and redo,
+   every Day/Night press and the end of every planting gesture (pushUndo ->
+   updateUndoBtn): eight new 126x96 icon canvases (~390KB of backing store)
+   and a dozen 3x icon repaints each time, for a column whose buttons never
+   change, only their state does. The buttons now keep their identity, so a
+   refresh is a handful of class and attribute writes. It is rebuilt when the
+   theme changes (the icons are painted in its inks) or when the rail has been
+   emptied under it. */
+let railDom=null;
+function railIntact(rail){
+  if (!railDom || railDom.rail!==rail) return false;
+  const h=railDom.byKind.hand;
+  // an element that cannot say (no boolean isConnected: a test stub) is taken
+  // at its word; a real one must still be connected, and in this rail
+  return !!h && (typeof h.isConnected!=='boolean' || (h.isConnected && h.parentNode===rail));
+}
 function buildCanvasTools(){
   const rail=document.getElementById('canvasTools'); if (!rail) return;
   syncTopTools();
-  rail.innerHTML='';
-  const add=(label,kind,opts)=>{ const b=makeCanvasTool(label,kind,opts||{}); rail.appendChild(b); return b; };
-  const sep=()=>{ const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
+  const theme=(document.documentElement&&document.documentElement.getAttribute('data-theme'))||'';
+  const fresh=!railIntact(rail) || railDom.theme!==theme;
+  if (fresh){ rail.innerHTML=''; railDom={rail,theme,byKind:{}}; }
+  const add=(label,kind,opts)=>{
+    opts=opts||{};
+    let b=railDom.byKind[kind];
+    if (!b){ b=makeCanvasTool(label,kind,opts); railDom.byKind[kind]=b; rail.appendChild(b); }
+    else syncCanvasTool(b,label,opts);
+    return b;
+  };
+  const sep=()=>{ if (!fresh) return; const s=document.createElement('div'); s.className='canvas-sep'; rail.appendChild(s); };
   add('Hand','hand',{active:game.tool==='hand',tour:'hand',title:'Hand / safe select: drag the map to pan',
     onClick:()=>setTool('hand')});
   /* Select lives HERE, not in the top bar, because it is a tool in the only
@@ -988,11 +1049,11 @@ function buildCanvasTools(){
   sep();
   add('Undo','undo',{disabled:!undoStack.length,title:'Undo (Ctrl+Z)',onClick:doUndo});
   add('Redo','redo',{disabled:!redoStack.length,title:'Redo (Ctrl+Shift+Z)',onClick:doRedo});
-  renderViewToolsMenu();
-  renderLayerMenu();
+  // (The view and layer menus are rendered by syncTopTools above; they were
+  // rendered here a second time on every refresh.)
   renderSelectionActions();
-  // the rail is rebuilt wholesale, so a callout anchored into it is pointing at
-  // a detached node until this re-pins it
+  // re-pin a callout anchored into the rail: after a rebuild it points at a
+  // detached node, and a state change can move what it rings
   tourRender();
 }
 function popButton(label,kind,sel,fn,title,extra){
@@ -1365,10 +1426,13 @@ function toggleLayerMenu(){
    (Add/Edit site photo) cannot move it onto a neighbour. */
 function renderLayerMenu(){
   const old=document.getElementById('layerPop');
+  // shut: nothing to measure (visibleEl is a getComputedStyle, and this runs on
+  // every refresh of the chrome)
+  if (game.toolMenu!=='layers'){ if (old) old.remove(); return; }
   const btn = visibleEl(document.getElementById('btnLayersTool'))
     ? document.getElementById('btnLayersTool')
     : document.getElementById('btnViewTools');
-  if (game.toolMenu!=='layers' || !btn){ if (old) old.remove(); return; }
+  if (!btn){ if (old) old.remove(); return; }
   const viewPop=document.getElementById('viewToolsPop'); if (viewPop) viewPop.remove();
   const fresh=buildLayerPopover();
   if (old && old.isConnected!==false){
