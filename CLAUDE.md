@@ -389,13 +389,29 @@ See §13a.
   `docs/browser-release-checks.md` documents prerequisites, artifacts, limits,
   and the physical-device checklist. Run it alongside the Node suite before
   release; the two suites establish different behavior.
-  **One check is intermittent and has been since at least 0.9.34:** the
-  portrait check ("Portrait depends on editing camera, preview or hidden
-  layers") fails in roughly half of runs, in the small-phone or phone-subpath
-  profile, on builds with nothing near portraits changed. Repeating the same
-  sequence in a fresh page gives identical portraits every time (8 of 8 on
-  0.9.35 and 0.9.36), so it depends on something an earlier check leaves in the
-  page. Unexplained as of 0.9.36; re-run before treating it as a regression.
+  **The portrait check's old intermittent failure was GPU rasterisation, not
+  app state (fixed 0.9.41).** From at least 0.9.34 "Portrait depends on editing
+  camera, preview or hidden layers" failed in ~30% of runs, never in the desktop
+  profile. Bisecting the steps before it, it needed a saved garden reopened on
+  a fresh page just before the check (0 of 10 without that, 2-4 of 10 with it),
+  so that garden's opening bake is still running when the check starts. The
+  first capture then differed from the next two by the SAME
+  17 isolated pixels (up to 17/255, over eleven species), while every
+  JavaScript input was identical: scene, every `drawPlant` argument, plant
+  definitions, the full canvas command stream. Chrome's accelerated canvas is
+  not bit-exact from draw to draw; how it rasterises depends on what the GPU
+  process was just doing. Measured with a lean harness: entities alone on an
+  accelerated canvas, 3 of 16 differ; on a software one, 0 of 16; the whole
+  portrait in software, 0 of 20; `--disable-gpu`, 0 of 12. The portrait now
+  draws on a `willReadFrequently` canvas and paints its season wash directly
+  (§16). **Making only the canvas software was tried first and still failed**:
+  the baked sun/vignette wash surfaces are accelerated canvases composited into
+  it. Two diagnostic traps: a `getImageData` probe mid-draw pushes Chrome's
+  canvas onto another raster path, and ANY wrapper on the context's calls
+  (logging, hashing, even a proxy on 40 plants) made the failure vanish
+  (0 of 48 runs), apparently by changing timing. Prove "the calls were
+  identical" with a probe that does not touch the context: argument logs,
+  PNGs exported after the draw, and ablating stages.
 - **Testing a snapshot outside the working tree** (to keep someone else's
   uncommitted edits out of a run, or to test exactly what is staged) must export
   with line conversion OFF: `git -c core.autocrlf=false archive HEAD` or
@@ -2872,7 +2888,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `'live'` and `'cached'` were verified **pixel-identical** against each
     other (0 differing bytes of 5,143,480 across four seasons, both passes,
     the light pass diffed over a noisy backdrop so the `screen` blend was
-    exercised). Switch between all three at runtime from the console. A third mode,
+    exercised). Switch between all three at runtime from the console. The
+    garden portrait ignores the mode: both painters take a `direct` flag that
+    forces the `'live'` branch, because the baked surfaces are accelerated
+    canvases and the portrait must not composite one (§16). A third mode,
     `'baked'` (pre-render each gradient to a canvas-sized bitmap and blit), was
     built, measured, and **removed** — its numbers are kept below so nobody
     rebuilds it. Measured mid-session on one garden (145 plants, 1490×863):
@@ -5514,8 +5533,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     state is temporarily overridden synchronously and restored in `finally`;
     the visible canvas and plant/structure sprite caches are never touched.
     `drawSceneEnt` accepts an optional output context; offscreen structures use
-    the procedural painter. Capture costs no work in the animation loop or
-    autosave. The optional save field `portrait:{v:1,day,image}` is bounded to
+    the procedural painter. **The portrait canvas is a software one**
+    (`willReadFrequently`), and **nothing accelerated is composited into it**:
+    the sky and light washes are painted directly (`drawSeasonSky`/
+    `applySeasonLighting` with `direct`) instead of blitted from the shared
+    baked surfaces, which also leaves the live canvas's wash caches alone. An
+    accelerated canvas is not bit-exact from one draw to the next (see the
+    browser-check note under Run/test), so the same garden came out a few pixels
+    different depending on what the GPU had just drawn. The software raster
+    draws sub-pixel florets a shade lighter than the GPU did (mean 2.3/255 over
+    the cover); the direct wash is byte-identical to the baked one. A cover
+    measured ~110ms draw plus encode, down from ~170ms, since the old path also
+    paid a GPU readback. A test pins all three requests. Capture costs no work
+    in the animation loop or autosave. The optional save field `portrait:{v:1,day,image}` is bounded to
     120,000 characters and accepts JPEG data URLs only. A revision/day/scheme
     key invalidates an old cover on subsequent autosaves; loads and new gardens
     reset the session cache. Failed writes retry without the optional portrait.

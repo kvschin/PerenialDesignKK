@@ -3072,10 +3072,26 @@ function gardenPortraitBounds(){
   }
   return {x0,y0,x1,y1};
 }
+/* The portrait is drawn in SOFTWARE (willReadFrequently), and so is everything
+   composited into it: the season wash is painted directly (drawSeasonSky's and
+   applySeasonLighting's `direct`) rather than blitted from the shared baked
+   surfaces, which are accelerated canvases. That is what makes the picture a
+   function of the garden. Chrome's accelerated canvas is not bit-exact from one
+   draw to the next — how it rasterises depends on what the GPU process was just
+   doing — so the same garden, drawn twice in one synchronous task with identical
+   canvas calls, could come out a few pixels different. Measured: the first cover
+   after reopening a saved garden (whose opening bake was still running) differed
+   from the next ones by the same 17 isolated pixels, up to 17/255, spread over
+   eleven species, in ~30% of browser-check runs; everything JavaScript produced
+   — the entity list, every drawPlant argument, the whole command stream — was
+   identical. Entities alone on a software canvas: 0 of 16 differ (3 of 16 on an
+   accelerated one); the whole portrait with the wash in software too: 0 of 20.
+   A software canvas is also simply the right one here: it is drawn once and read
+   back at once (JPEG cover, share card). Cost measured the same either way. */
 function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT_HEIGHT,atDay=null){
   const cv=document.createElement('canvas');
   cv.width=width; cv.height=height;
-  const ctx=cv.getContext('2d'); if (!ctx) return null;
+  const ctx=cv.getContext('2d',{willReadFrequently:true}); if (!ctx) return null;
   const t0=dnow(), prior={x:cam.x,y:cam.y,rot:game.rot,preview:game.previewMode,
     vis:game.layerVis,north:game.siteNorthPreviewDeg,scene,elapsed:game.elapsedMs,suspended:game.clockSuspended,dayOffset:game.dayOffset};
   try{
@@ -3092,7 +3108,7 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
     cam.x=(b.x0+b.x1)/2; cam.y=(b.y0+b.y1)/2-H*0.26;
     const season=calClock().season, amb=AMBIENCE[season];
     ctx.setTransform(scale,0,0,scale,0,0);
-    drawSeasonSky(ctx,W,H,season,amb);
+    drawSeasonSky(ctx,W,H,season,amb,true);
     paintGround(ctx,0,GW-1,0,GH-1,W,H,amb,0);
     const shadeMap=ensureShadeMap();
     if (shadeMap.hasShade) for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
@@ -3102,7 +3118,7 @@ function renderGardenPortrait(width=GARDEN_PORTRAIT_WIDTH,height=GARDEN_PORTRAIT
       tileDiamond(ctx,sx,sy,`rgba(32,52,42,${Math.max(0.035,a)})`,null);
     }
     for (const e of scene.ents) drawSceneEnt(e,W,H,season,0,false,ctx);
-    applySeasonLighting(ctx,W,H,amb,season);
+    applySeasonLighting(ctx,W,H,amb,season,true);
     return cv;
   } finally {
     cam.x=prior.x; cam.y=prior.y; game.rot=prior.rot; game.previewMode=prior.preview;

@@ -7421,6 +7421,37 @@ test('sharing seasons use this garden year and restore the editing clock and vie
   }finally{paintGround=paint;}
 });
 
+/* A portrait has to be a function of the garden, and on an accelerated canvas
+   it is not: Chrome's GPU rasterisation depends on what the GPU process was
+   just doing, so the first cover after reopening a garden came out a few pixels
+   different from the next (the browser check's intermittent "Portrait depends on
+   editing camera, preview or hidden layers"). Software raster repeats exactly,
+   but only if NOTHING composited into it is accelerated — which the baked wash
+   surfaces are. The sandbox has no pixels, so this pins the three requests. */
+test('a garden portrait is drawn in software, its season wash included, so its pixels repeat',()=>{
+  setup(16,16);game.pausedAt=Date.now();
+  const make=document.createElement,sky=drawSeasonSky,lit=applySeasonLighting,asked=[],wash=[];
+  const gradBefore=washGrad,surfBefore=washSurf;
+  try{
+    document.createElement=function(tag){
+      const el=make.apply(this,arguments);
+      if (String(tag).toLowerCase()==='canvas'){
+        const plain=el.getContext;
+        el.getContext=function(type,opts){asked.push({type,opts});return plain.apply(this,arguments);};
+      }
+      return el;
+    };
+    drawSeasonSky=function(...a){wash.push('sky:'+a[5]);return sky.apply(this,a);};
+    applySeasonLighting=function(...a){wash.push('light:'+a[5]);return lit.apply(this,a);};
+    renderGardenPortrait();
+  }finally{document.createElement=make;drawSeasonSky=sky;applySeasonLighting=lit;}
+  assert(asked[0]&&asked[0].type==='2d','the portrait draws on a 2D canvas of its own');
+  assert(asked[0].opts&&asked[0].opts.willReadFrequently===true,'and asks for it unaccelerated');
+  assertEqual(asked.length,1,'no other canvas is made for it — a baked wash surface is an accelerated one');
+  assertEqual(wash.join(),'sky:true,light:true','both washes are painted directly');
+  assert(washGrad===gradBefore&&washSurf===surfBefore,"and the live canvas's wash caches are left alone");
+});
+
 test('sharing formats fit the complete garden and keep image text within the card',()=>{
   setup();game.pausedAt=Date.now();const c=dailyChallengeFor(),render=renderGardenPortrait;
   const requested=[];

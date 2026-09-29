@@ -3008,10 +3008,15 @@ function seasonWashSurfaces(cw,ch,season){
   washSurf={key,sun,vg};
   return washSurf;
 }
-// the whole sky pass — three fills, rebuilt per frame or built once
-function drawSeasonSky(ctx,W,H,season,amb){
+/* The whole sky pass — three fills, rebuilt per frame or built once.
+   `direct` takes the 'live' branch whatever the mode: gradients built on THIS
+   context and painted here, no shared cache, no baked bitmap. It is for the
+   garden portrait (renderGardenPortrait), which draws on a software canvas so
+   that its pixels repeat; the surfaces are accelerated canvases, and compositing
+   one would bring back the GPU rasterisation that canvas exists to avoid. */
+function drawSeasonSky(ctx,W,H,season,amb,direct){
   amb=amb||AMBIENCE[season]||AMBIENCE.Summer;
-  if (SEASON_WASH.mode==='live'){                 // original: rebuilt every frame, in draw units
+  if (direct || SEASON_WASH.mode==='live'){       // original: rebuilt every frame, in draw units
     const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
     let g=ctx.createLinearGradient(0,0,0,H);
     g.addColorStop(0,amb.sky[0]); g.addColorStop(1,amb.sky[1]);
@@ -3036,9 +3041,10 @@ function drawSeasonSky(ctx,W,H,season,amb){
 }
 /* tint (source-over) -> beam ('screen') -> vignette (source-over). The blend in
    the middle is against the LIVE scene, so the three cannot be folded into one
-   layer. The flat tint needs no cached gradient — it is a solid colour. */
-function applySeasonLighting(ctx,W,H,amb,season){
-  if (SEASON_WASH.mode==='live'){
+   layer. The flat tint needs no cached gradient — it is a solid colour.
+   `direct` as drawSeasonSky's: the portrait's path, no cache and no bitmap. */
+function applySeasonLighting(ctx,W,H,amb,season,direct){
+  if (direct || SEASON_WASH.mode==='live'){
     const L=SEASON_LIGHT[season]||SEASON_LIGHT.Summer;
     ctx.fillStyle=amb.tint; ctx.fillRect(0,0,W,H);
     ctx.save();
