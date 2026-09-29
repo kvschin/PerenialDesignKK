@@ -1506,8 +1506,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
    clock. Everything else (the seed, the species, the cultivar, the season, the
    neighbour-derived detail) is fixed for the life of the scene list, so it is
    baked once by buildScene and the frame concatenates the buckets onto it.
-   Season is safe to bake because it derives from absDay(), which sceneKey
-   already carries. */
+   Season is safe to bake because sceneKey distinguishes it in both previews. */
 function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kSlot=seed+'|'+key+'|'+(variant||'')+'|'+season;
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
@@ -2348,8 +2347,8 @@ function measureFootprintCentres(){
    first. Both sprite caches are pinned OFF, because the no-cull arm draws ~700
    more entities and perturbs the bake budget and the LRU, which changes whether
    an ON-screen plant is blitted or drawn live — a 1-6 level difference smeared
-   over the whole canvas. The clock is paused, because sceneKey carries absDay()
-   and a long run ticks the day and rebuilds the scene underneath the harness.
+   over the whole canvas. The clock is paused so neither growth nor a day/season
+   boundary changes the scene underneath the harness.
    And each arm renders until two consecutive frames are byte-identical, since
    the frame after a camera move is a warm-up. */
 function verifySceneCull(opts){
@@ -2585,7 +2584,8 @@ function drawMatureCanopyOverlay(ctx,W,H,x0,x1,y0,y1){
    (numeric compares) and draws. Time-varying looks — growth, sway, bloom — are
    computed at draw time from the live plant refs, so nothing visual goes stale;
    day-granular facts (tree shade reach/stunting — plantEstab is integer-day)
-   sit in the key via absDay(). In-place edits invalidate via game.rev
+   use absDay() in Today, but only the season in Established, where canopies
+   do not grow. In-place edits invalidate via game.sceneRev
    (markModelChanged in setTile/clearTile/addHouse/applySnapshot);
    wholesale map swaps (load / new garden / legacy fixups) are caught by object
    identity in sceneStale. Side fix: stunting is now computed against the FULL
@@ -2602,15 +2602,24 @@ function sceneLayerBits(){
 // (O(all plants)) for a layer it does not contain. See LAYER_CACHES in world.js
 // for what bumps it, and why elevation still does.
 function sceneKey(){
-  return game.sceneRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
+  const when=establishedPreviewActive()?calClock().season:absDay();
+  return game.sceneRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+when+'|'+sceneLayerBits()+'|'+GW+'x'+GH+
     '|'+(establishedPreviewActive()?1:0);   // preview flips shade trees + stunting
 }
 function sceneStale(skey){
-  const r=scene.refs;
-  return scene.key!==skey || !r ||
+  return scene.key!==skey || sceneRefsChanged(scene.refs);
+}
+function sceneRefs(){
+  return {plants:game.plants,bulbs:game.bulbs,fences:game.fences,
+    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,
+    pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,
+    pergolas:game.pergolas,houses:game.houses,buildings:game.buildings};
+}
+function sceneRefsChanged(r){
+  return !r ||
     r.plants!==game.plants || r.bulbs!==game.bulbs || r.fences!==game.fences ||
     r.lights!==game.lights || r.firepits!==game.firepits || r.boulders!==game.boulders || r.pets!==game.pets || r.houses!==game.houses || r.buildings!==game.buildings ||
-    r.waterFeatures!==game.waterFeatures || r.supports!==game.supports ||
+    r.pots!==game.pots || r.seats!==game.seats || r.waterFeatures!==game.waterFeatures || r.supports!==game.supports ||
     r.pergolas!==game.pergolas;
 }
 /* ---- camera-free screen bounds, for the viewport cull ----
@@ -2698,9 +2707,19 @@ const SWAY_SKEW=0.05;
    contiguous blob of hundreds instead. */
 const SCENE_CULL_SLACK=24;
 function buildScene(W,H){
+  ensureShadeMap(); // preserve the synchronous shade event timer; the steps then reuse it
+  const steps=sceneBuildSteps(W,H);
+  let step;
+  do { step=steps.next(); } while (!step.done);
+}
+// One builder for ordinary draws and prepared skips. Yield between bounded
+// groups of records, and within the shade calculation, before publishing scene.
+function* sceneBuildSteps(W,H){
   const ents=[], shadeTrees=[], futureShadeTrees=[], shrubs=[], lights=[], firepits=[], boulders=[];
   const plantRecs=[];
+  let count=0;
   for (const k in game.plants){ const p=game.plants[k];
+    if (++count%32===0) yield;
     if (p.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     if (layerShown('woody')){
@@ -2747,15 +2766,17 @@ function buildScene(W,H){
       x,y,p, seed:tileSeed(x,y), detail:pDetail, stunt:false};
     plantRecs.push(rec); ents.push(rec);
   }
-  // full-sun plants under an ACTIVE canopy render stunted; day-granular, so
+  // full-sun plants under an ACTIVE canopy render stunted; canopy-granular, so
   // it lives here (against ALL trees, not just the on-screen ones)
-  ensureShadeMap();
+  yield* shadeMapSteps();
   for (const rec of plantRecs){
+    if (++count%64===0) yield;
     const P2=PLANTS[rec.p.s];
     if (P2 && P2.sun!=='part' && !isTreeDef(P2))
       rec.stunt=shadeScoreAt(rec.x,rec.y)>=SHADE_ACTIVE_SCORE;
   }
   if (layerShown('bulbs')) for (const k in game.bulbs){ const p=game.bulbs[k];
+    if (++count%64===0) yield;
     if (p.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     const po=potAt(x,y);
@@ -2765,17 +2786,20 @@ function buildScene(W,H){
   }
   if (layerShown('landscape')){
     for (const k in game.fences){ const f=game.fences[k];
+      if (++count%64===0) yield;
       if (f.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       ents.push({d:viewDepth(x,y)+0.34, kind:SCENE_K.FENCE, bx0:x,bx1:x,by0:y,by1:y, x,y,f});
     }
     for (const k in game.lights){ const l=game.lights[k];
+      if (++count%64===0) yield;
       if (!l || l.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       const rec={d:viewDepth(x,y)+0.36, kind:SCENE_K.LIGHT, bx0:x,bx1:x,by0:y,by1:y, x,y,l};
       ents.push(rec); lights.push(rec);
     }
     for (const k in game.firepits){ const f=game.firepits[k];
+      if (++count%64===0) yield;
       if (!f || f.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=firepitTileSize(f);
       const rec={d:footprintDrawDepth(x,y,sz.w,sz.h)+0.37, kind:SCENE_K.FIREPIT,
@@ -2785,6 +2809,7 @@ function buildScene(W,H){
     /* A support sorts just BEHIND its own climber's depth, so the plant draws
        in front of the frame it is growing on rather than through it. */
     for (const k in game.supports||{}){ const sp=game.supports[k];
+      if (++count%64===0) yield;
       if (!sp || sp.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=supportTileSize(sp);
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.30, kind:SCENE_K.SUPPORT,
@@ -2793,17 +2818,20 @@ function buildScene(W,H){
     /* A pergola sorts just BEHIND a climber's depth, for the same reason a
        support does: the plant grows in FRONT of the frame it is on. */
     for (const k in game.pergolas||{}){ const pg=game.pergolas[k];
+      if (++count%64===0) yield;
       if (!pg || pg.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       ents.push({d:viewDepth(x,y)+0.28, kind:SCENE_K.PERGOLA, bx0:x,bx1:x,by0:y,by1:y, x,y,pg});
     }
     for (const k in game.waterFeatures||{}){ const wf=game.waterFeatures[k];
+      if (++count%64===0) yield;
       if (!wf || wf.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=waterFeatureTileSize(wf);
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.375, kind:SCENE_K.WATERF,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,wf});
     }
     for (const k in game.boulders){ const b=game.boulders[k];
+      if (++count%64===0) yield;
       if (!b || b.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=boulderTileSize(b);
       const rec={d:footprintDrawDepth(x,y,sz.w,sz.h)+0.38, kind:SCENE_K.BOULDER,
@@ -2811,6 +2839,7 @@ function buildScene(W,H){
       ents.push(rec); boulders.push(rec);
     }
     for (const k in game.pets){ const p=game.pets[k];
+      if (++count%64===0) yield;
       if (!p || p.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
       ents.push({d:viewDepth(x,y)+0.42, kind:SCENE_K.PET, bx0:x,bx1:x,by0:y,by1:y, x,y,p});
@@ -2823,37 +2852,47 @@ function buildScene(W,H){
        0.24 clears the bulb layer at +0.25 as well, and nothing else can share a
        pot's tile — canPlacePot refuses every other placeable. */
     for (const k in game.pots||{}){ const p=game.pots[k];
+      if (++count%64===0) yield;
       if (!p || p.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=potTileSize(p);
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.24, kind:SCENE_K.POT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,p});
     }
     for (const k in game.seats||{}){ const s2=game.seats[k];
+      if (++count%64===0) yield;
       if (!s2 || s2.removed) continue;
       const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1), sz=seatTileSize(s2);
       ents.push({d:footprintDrawDepth(x,y,sz.w,sz.h)+0.39, kind:SCENE_K.SEAT,
         bx0:x,bx1:x+sz.w-1,by0:y,by1:y+sz.h-1, x,y,s:s2});
     }
     for (const b of game.buildings||[]){
+      if (++count%64===0) yield;
       const r=buildingBounds(b); if (!r) continue;
-      for (const p of buildingTiles(b)) ents.push({d:viewDepth(p[0],p[1])+0.345,kind:SCENE_K.BUILDING,
-        bx0:p[0],bx1:p[0],by0:p[1],by1:p[1],b,x:p[0],y:p[1]});
+      for (const p of buildingTiles(b)){
+        if (++count%64===0) yield;
+        ents.push({d:viewDepth(p[0],p[1])+0.345,kind:SCENE_K.BUILDING,
+          bx0:p[0],bx1:p[0],by0:p[1],by1:p[1],b,x:p[0],y:p[1]});
+      }
       ents.push({d:buildingDrawDepth(b),kind:SCENE_K.BUILDING_OUTLINE,
         bx0:r.x0,bx1:r.x1,by0:r.y0,by1:r.y1,b});
     }
-    for (const hh of game.houses)
+    for (const hh of game.houses){
+      if (++count%64===0) yield;
       ents.push({d:houseDrawDepth(hh), kind:SCENE_K.HOUSE,
         bx0:hh.x,bx1:hh.x+hh.w-1,by0:hh.y,by1:hh.y+hh.h-1, h:hh});
+    }
   }
+  yield;
   ents.sort((a,b)=>a.d-b.d);
-  const season=calClock().season;      // safe to bake: sceneKey carries absDay()
+  yield;
+  const season=calClock().season;      // sceneKey always distinguishes seasons
   for (const e of ents){
+    if (++count%32===0) yield;
     setEntScreenBounds(e);
     if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB)
       bakePlantKeyParts(e,e.p.s,e.p.v,season,e.seed,e.detail);
   }
-  scene={key:sceneKey(), refs:{plants:game.plants,bulbs:game.bulbs,fences:game.fences,
-    lights:game.lights,firepits:game.firepits,boulders:game.boulders,pets:game.pets,pots:game.pots,seats:game.seats,waterFeatures:game.waterFeatures,supports:game.supports,pergolas:game.pergolas,houses:game.houses,buildings:game.buildings},
+  scene={key:sceneKey(), refs:sceneRefs(),
     ents, shadeTrees, futureShadeTrees, shrubs, lights, firepits, boulders};
 }
 // draw one record; returns 1 when it drew a plant/bulb (the sprite-cache count)
@@ -3162,23 +3201,35 @@ function preparePendingSkip(t){
   aheadFrame(t,skipAheadTarget());
   game.elapsedMs=AHEAD.at; game.clockSuspended=true;
   try{
-    if (o.scene){ scene=o.scene; shadeMapCache=o.shade; }
+    if (o.scene) scene=o.scene;
+    if (o.shade) shadeMapCache=o.shade;
     const key=sceneKey()+'|'+groundDataKey()+'|'+groundStructKey(p.season,game.rot)
       +'|'+ZOOM+'|'+DPR+'|'+VW+'|'+VH+'|'+cam.x+'|'+cam.y+'|'+(game.layerVis.night?1:0)
       +'|'+PSPRITE.active+'|'+PSPRITE.off+'|'+SSPRITE.active+'|'+SSPRITE.off;
-    if (o.key!==key || sceneStale(sceneKey())){
-      if (sceneStale(sceneKey())) buildScene(W,H);
-      o.scene=scene; o.shade=shadeMapCache;
-      const ox=W/2-cam.x, oy=H*0.24-cam.y;
-      o.ents=scene.ents.filter(e=>!(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H));
-      o.key=key; o.index=0; o.ready=false;
+    // A photo can render the current day while this view is held, replacing
+    // same-season sprite slots. Revalidate after any intervening live render.
+    if (o.key!==key || sceneRefsChanged(o.refs) || o.plantFrame!==PSPRITE.frame || o.structFrame!==SSPRITE.frame){
+      o.key=key; o.refs=sceneRefs(); o.index=0; o.ready=false; o.ents=null;
+      o.build=sceneStale(sceneKey())?sceneBuildSteps(W,H):null;
+      o.scene=null;
       AHEAD.epoch++; // camera, lighting, preview or edits must recheck every key
       // Age once for the whole preparation, never between its batches.
       pspriteFrame(); ssprFrame();
+      o.plantFrame=PSPRITE.frame; o.structFrame=SSPRITE.frame;
+    }
+    if (o.build){
+      while (performance.now()-start<AHEAD.budget){
+        if (o.build.next().done){ o.build=null; break; }
+      }
+      if (o.build) return false;
+    }
+    if (!o.ents){
+      o.scene=scene; o.shade=shadeMapCache;
+      const ox=W/2-cam.x, oy=H*0.24-cam.y;
+      o.ents=scene.ents.filter(e=>!(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H));
     }
     trimSkipSprites(p.season);
-    // A scene/shade rebuild is indivisible today. If it consumed this frame's
-    // allowance, yield now instead of stacking ground or plant bakes onto it.
+    // Scene, shade, ground and sprites spend the same frame allowance.
     AHEAD.ms=performance.now()-start;
     const gs=groundStructKey(p.season,game.rot), gkey=gs+'|'+groundDataKey();
     const groundReady=groundKey===gkey && !groundRefsChanged() && groundZoom===ZOOM
@@ -3208,6 +3259,10 @@ function preparePendingSkip(t){
       o.ready=true;
     }
   } finally {
+    // A completed shade map can precede the completed scene by several batches.
+    // Keep it private to this job until both are ready to reveal.
+    AHEAD.ms=performance.now()-start;
+    o.shade=shadeMapCache;
     game.elapsedMs=was.elapsed; game.clockSuspended=was.suspended;
     scene=was.scene; shadeMapCache=was.shade;
     if (!o.ready){
@@ -3259,7 +3314,7 @@ function render(t){
   const x1=Math.min(GW-1,Math.max(crn[0][0],crn[1][0],crn[2][0],crn[3][0])+pad);
   const y0=Math.max(0,Math.min(crn[0][1],crn[1][1],crn[2][1],crn[3][1])-pad);
   const y1=Math.min(GH-1,Math.max(crn[0][1],crn[1][1],crn[2][1],crn[3][1])+pad);
-  // persistent scene list: rebuild only on edit / rot / layer toggle / day tick
+  // Persistent scene list: edits / rotation / layers, plus Today days or Established seasons.
   // (or when a load swapped the maps wholesale) — never on pan/zoom frames
   // Scene rebuilds are invalidation-triggered, not per-frame, so they are an
   // EVENT: folded into the 'gather' average they made a rare O(all plants)

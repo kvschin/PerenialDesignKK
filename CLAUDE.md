@@ -1549,6 +1549,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    amber (red only where placement will actually refuse). `sceneKey` and
    `shadeMapKey` carry the preview flag so shade trees/stunting rebuild on
    toggle. The plant card reports establishment, not seasonal size.
+   **Established display caches use the season, not the absolute day** (0.9.37).
+   `sceneKey` and the display `shadeMapKey` retain their records throughout an
+   unchanged season: those canopies are already mature. Today scene/shade and
+   the separate placement-rules map still use the absolute day, because true
+   tree age can change them. Growth and bloom buckets remain live draw inputs;
+   this optimization must not freeze them. A 2,735-plant stress garden's Summer
+   day 24→25 previously spent 32–33ms rebuilding identical scene records and
+   shade values (about 22ms of that shade). Both caches now retain their identity.
    `shadeMapKey` is keyed on **`treeIndex().treesRev`, not `game.plantsRev`**:
    shade is cast by trees and nothing else in the model can change it. The
    rebuild is O(trees x reach²) and a mature cottonwood's reach spans the whole
@@ -1791,9 +1799,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     which cost a wrong answer: both sprite caches pinned OFF (the no-cull arm
     draws ~700 more entities, which perturbs the bake budget and the LRU, so an
     ON-screen plant lands procedural in one arm and blitted in the other — a 1-6
-    level difference smeared over the whole canvas); the clock PAUSED (`sceneKey`
-    carries `absDay()`, and a long run ticks the day and rebuilds the scene
-    underneath the harness); and each arm rendered until two consecutive frames
+    level difference smeared over the whole canvas); the clock PAUSED (growth
+    and day/season boundaries otherwise change the scene underneath the
+    harness); and each arm rendered until two consecutive frames
     are byte-identical, since the frame after a camera move is a warm-up. It
     still reports a handful of isolated pixels at ±1-8 of 255 — that is
     rasteriser batching between two draw sequences, does not respond to the
@@ -2349,6 +2357,15 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the actual destination scene, ground and visible sprites under one
     `AHEAD.SKIP_MS=6` allowance. The former independent 16ms sprite allowance
     plus two ground bands stacked into 35ms preparation frames on the demo.
+    **Scene and shade preparation also yield** (0.9.37): `sceneBuildSteps` and
+    `shadeMapSteps` are shared by the synchronous builders and held skips.
+    The scene yields between small groups of records; shade also yields every
+    64 tree/tile samples, so a single large canopy cannot occupy the frame.
+    Only complete maps/scenes are published. The skip retains a finished shade
+    map privately while the remaining scene batches run, and revalidates both
+    revision keys and layer object identities before resuming. An edit or map
+    swap discards unfinished work. Depth sorting remains a single operation
+    between yield points; an individual sprite/ground draw is also indivisible.
     The destination scene uses its own day, growth, bloom and shade/stunting;
     the clock, scene and shade cache are borrowed synchronously and restored in
     `finally`, so HUD and saves never observe a half-committed skip. Once ready,
@@ -2366,14 +2383,26 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     preview or scene edits restart validation; a changed destination releases
     the held canvas, obsolete ground job and abandoned leases. The held bitmap
     also survives a resize; partial preparations never draw on the live canvas.
+    An intervening render (notably taking a photo of the current day) advances
+    the sprite frame counters and forces revalidation: in a same-season year
+    skip, that photo may have replaced already-prepared destination slots.
     `hasTransientGardenWork` keeps it at full rate. **Opening the time menu
     starts that preparation** (`skipPrewarm`, at 6ms on the paused planner's
     idle frames), because Skip is only ever reached from that menu: measured,
     the menu open for 0.7s had the destination ready and the Skip landed on its
     first frame. Without the prewarm the wait is 142-444ms of still picture. A
-    second Skip while one is pending goes a season further; a destination in
-    the season on screen (a year skip from Spring) lands at once, since its
-    sprites would share the slot being drawn; quitting, hiding the page and
+    second Skip while one is pending goes a season further. **Same-season year
+    skips prepare too**: Today growth, bloom and canopy age can all differ, and
+    the held bitmap makes replacing the current season's sprite slots safe.
+    **Garden time is held for the whole pending skip** (`game.skipClockHeld`,
+    `holdSkipClock`/`releaseSkipClock`). Bank the instant used to validate the
+    destination before starting work; both `clockActive` and the frame's
+    fast-forward advance respect this transient flag. Release resets `startTs`
+    so waiting time is never caught up. The user's pause and fast-forward
+    controls remain intact, including changes to them during preparation.
+    Retargeting keeps the hold; landing/cancellation releases it. Previously a
+    running clock could overtake the destination, cancel preparation and reveal
+    2,233 wrong-season draws in the stress fixture. Quitting, hiding the page and
     pagehide land a pending Skip rather than lose it, and opening a garden
     drops one meant for the last. `AHEAD.epoch` moves whenever the destination
     does, so a clump marked done for one lead is checked (and its lease
@@ -2382,8 +2411,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     stale sprites on landing and subsequent frames in the demo and a seeded
     2,735-plant/bulb stress garden. The stress case previously landed with 1,078
     wrong-season draws. The desktop demo's maximum measured JS work fell from
-    35.3ms to 8.8ms; a dense destination's one-time scene/shade rebuild remains
-    indivisible and can exceed the preparation allowance. Repeated clicks,
+    35.3ms to 8.8ms. The 0.9.37 batching follow-up split the dense destination's
+    roughly 38ms scene/shade block into eight roughly 6–8ms preparation batches
+    in the headless browser check. These are JS diagnostics, not phone FPS;
+    normal drawing of the large visible garden still has its own cost. Repeated clicks,
     Today-mode Summer/Spring arrivals, memory pressure, and combined resize,
     rotation, lighting, zoom and planting changes also landed with exact sprites.
     Earlier measurements, Chrome, every Skip path — Summer→
@@ -2604,7 +2635,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     current-rotation max view depth over the footprint, so large houses sort
     consistently from every side). That pass reads a **persistent scene list**
     (`scene` / `buildScene` / `sceneStale`): plain depth-sorted records built
-    once per edit / rotation / layer toggle / game day — invalidated by
+    once per edit / rotation / layer toggle / Today game day or Established
+    season — invalidated by
     **`game.sceneRev`** (see `LAYER_CACHES`, §8a) plus map object identity for
     wholesale swaps (load / new garden) — so a frame only culls (numeric
     bounds compares) and draws, merging in the one per-frame dynamic entity

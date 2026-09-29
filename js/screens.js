@@ -3411,7 +3411,7 @@ function frame(t){
        app's own threshold for that (dbg.GAP_SUSPEND, 250ms) instead of a frame
        budget. Anything from 4fps up now fast-forwards at its true rate, and the
        worst a single frame can jump is FF_RATE*250 = half a garden day. */
-    if (game.ffActive){
+    if (game.ffActive && !game.skipClockHeld){
       game.elapsedMs=(game.elapsedMs||0)+FF_RATE*Math.min(FF_MAX_STEP_MS,Math.max(0,rawGap));
       game.dirty=true;
     }

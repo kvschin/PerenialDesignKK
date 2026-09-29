@@ -1980,12 +1980,22 @@ function toggleClock(){
    Opening the time menu starts that preparation early (`skipPrewarm`), since
    Skip is one tap away: at the ordinary look-ahead budget it is usually done
    before the finger gets there, and the Skip is instant.
-   A second Skip while one is pending goes a season further. A destination in
-   the season already on screen (a year skip from Spring) has nothing a
-   look-ahead can hold — its sprites share the slot being drawn — so it lands
-   at once, as does anything outside a garden. */
+   A second Skip while one is pending goes a season further. Same-season year
+   skips also prepare: growth and bloom can change even with the same palette.
+   The held picture lets those sprites safely replace the current season's.
+   Both clock paths wait with the picture, without changing the user's pause
+   or hold controls. Only a Skip outside a garden lands immediately. */
 let pendingSkip=null, skipPrewarm=false;
 function skipPending(){ return !!pendingSkip; }
+function holdSkipClock(elapsed){
+  if (game.skipClockHeld) return;
+  game.elapsedMs=elapsed; game.startTs=Date.now();
+  game.skipClockHeld=true;
+}
+function releaseSkipClock(){
+  if (!game.skipClockHeld) return;
+  game.startTs=Date.now(); game.skipClockHeld=false;
+}
 function seasonOfDay(d){ return SEASONS[((Math.floor(d/DAYS_PER_SEASON)%4)+4)%4]; }
 function nextSeasonStartDay(from){ return (Math.floor(from/DAYS_PER_SEASON)+1)*DAYS_PER_SEASON; }
 function skipAheadTarget(){
@@ -1995,10 +2005,18 @@ function skipAheadTarget(){
   return {season:seasonOfDay(d), at:(d-game.dayOffset)*DAY_MS, skip:!!pendingSkip, prewarm:!pendingSkip};
 }
 function requestSkipTo(targetDay,done){
-  if (targetDay<=absDay()) return;
+  const elapsed=elapsedGameMs();
+  if (targetDay<=Math.floor(elapsed/DAY_MS)+game.dayOffset) return;
+  // Bank the same instant used to validate the destination, before releasing
+  // an old preparation can spend any time near a season boundary.
+  if (game.inGarden) holdSkipClock(elapsed);
   const season=seasonOfDay(targetDay);
   resetSkipPreparation();
-  if (!game.inGarden || season===calClock().season){ pendingSkip=null; skipToAbsDay(targetDay); done(); return; }
+  if (!game.inGarden){
+    pendingSkip=null;
+    try{ skipToAbsDay(targetDay); } finally { releaseSkipClock(); }
+    done(); return;
+  }
   pendingSkip={day:targetDay, season, t0:performance.now(), done};
 }
 function landPreparedSkip(){
@@ -2009,11 +2027,13 @@ function landSkipNow(fromRender){
   const p=pendingSkip; if (!p) return;
   pendingSkip=null;
   resetSkipPreparation();
-  if (p.day<=absDay()) return;          // the clock got there first (fast-forward during the wait)
-  skipToAbsDay(p.day,!!fromRender);
+  try{
+    if (p.day<=absDay()) return;        // another operation replaced the clock
+    skipToAbsDay(p.day,!!fromRender);
+  } finally { releaseSkipClock(); }
   p.done();
 }
-function cancelPendingSkip(){ pendingSkip=null; skipPrewarm=false; resetSkipPreparation(); }
+function cancelPendingSkip(){ pendingSkip=null; skipPrewarm=false; resetSkipPreparation(); releaseSkipClock(); }
 function skipToAbsDay(targetDay,deferSave){
   const d=absDay();
   if (targetDay<=d) return;

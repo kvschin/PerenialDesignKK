@@ -214,7 +214,7 @@ const game = {
   pets:{},            // "x,y" -> {species,coat,mark,t} or {removed:true,t} — ornament only, never on the plan
   pots:{},            // "x,y" origin -> {style,size,t} or {removed:true,t} — the one thing that makes paving plantable
   seats:{},           // "x,y" origin -> {type,finish,t} or {removed:true,t}
-  startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false,
+  startTs:Date.now(), elapsedMs:0, dayOffset:0, clockSuspended:false, skipClockHeld:false,
   actX:15, actY:15,                                  // tile the last tap / keyboard action addresses
   house:null,                                        // legacy single-house field; migrated into game.houses on load
   rot:0,                                             // view rotation, 90-degree steps
@@ -521,7 +521,7 @@ const hasStorage = (()=>{
   catch(e){ try{ return !!window.indexedDB; }catch(_){ return false; } }
 })();
 
-function clockActive(){ return !!(game.inGarden && !game.pausedAt && !game.clockSuspended); }
+function clockActive(){ return !!(game.inGarden && !game.pausedAt && !game.clockSuspended && !game.skipClockHeld); }
 function elapsedGameMs(){
   const base=game.elapsedMs||0;
   return base + (clockActive() ? Math.max(0, Date.now()-game.startTs) : 0);
@@ -1085,25 +1085,47 @@ function treeIndex(){
   treeIndexCache={rev:game.plantsRev, ref:game.plants, list, sig, treesRev};
   return treeIndexCache;
 }
-function shadeMapKey(real){ return treeIndex().treesRev+'.'+game.shadeRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+absDay()+'|'+GW+'x'+GH+
+// Established display canopies do not grow between days. The rules map and
+// Today view still use true age; all maps must change with the season's sun.
+function shadeMapKey(real){ return treeIndex().treesRev+'.'+game.shadeRev+'|'+game.rot+'|N'+effectiveSiteNorthDeg()+'|'+
+  ((!real && establishedPreviewActive())?calClock().season:absDay())+'|'+GW+'x'+GH+
   ((!real && establishedPreviewActive())?'|est':''); }
 function resetShadeMapCache(){
   shadeMapCache=emptyShadeCache(); shadeMapCacheReal=emptyShadeCache();
 }
 function ensureShadeMap(real){
   real = !!real && establishedPreviewActive();   // maps coincide outside the preview
+  const cached=cachedShadeMap(real);
+  if (cached) return cached;
+  const tMap=dnow();
+  const steps=shadeMapSteps(real);
+  let step;
+  do { step=steps.next(); } while (!step.done);
+  dev(real?'shadeR':'shadeM',tMap);
+  return step.value;
+}
+function cachedShadeMap(real){
   const key=shadeMapKey(real), n=Math.max(0,GW*GH);
   const cached = real ? shadeMapCacheReal : shadeMapCache;
   if (cached.key===key && cached.plantsRef===game.plants &&
       cached.activeScore && cached.activeScore.length===n) return cached;
-  const tMap=dnow();     // cache miss only: rebuilt per edit, and O(GW*GH) in allocation
+  return null;
+}
+// The normal path drains this synchronously; held skips resume the same math
+// under their borrowed destination clock. No partial map is published.
+function* shadeMapSteps(real=false){
+  real = !!real && establishedPreviewActive();
+  const cached=cachedShadeMap(real);
+  if (cached) return cached;
+  const key=shadeMapKey(real), n=Math.max(0,GW*GH);
   const activeScore=new Float32Array(n), activeAlpha=new Float32Array(n);
   const futureScore=new Float32Array(n), futureDrawScore=new Float32Array(n);
   const activeTree=new Array(n), futureTree=new Array(n);
-  let trees=0;   // hasShade lets the render wash loop skip treeless gardens entirely
+  let trees=0, cells=0;   // hasShade lets the render wash loop skip treeless gardens entirely
   // the tree index already knows which plants these are — no second scan of the
   // whole planting, and one definition of "casts shade"
   for (const t of treeIndex().list){
+    yield; // even many inactive trees cannot monopolize a preparation frame
     const sh=treeShadeInfo(t.k,t.p,real);
     if (!sh || sh.r<1) continue;
     trees++;
@@ -1112,6 +1134,7 @@ function ensureShadeMap(real){
     const yA=Math.max(0,sh.y-reach), yB=Math.min(GH-1,sh.y+reach);
     const xA=Math.max(0,sh.x-reach), xB=Math.min(GW-1,sh.x+reach);
     for (let yy=yA; yy<=yB; yy++) for (let xx=xA; xx<=xB; xx++){
+      if (++cells%64===0) yield;
       const score=treeShadeScore(sh,xx,yy);
       if (score<=0) continue;
       const idx=shadeMapIndex(xx,yy);
@@ -1132,7 +1155,6 @@ function ensureShadeMap(real){
   const built={key, plantsRef:game.plants, activeScore, activeAlpha,
     futureScore, futureDrawScore, activeTree, futureTree, hasShade:trees>0};
   if (real) shadeMapCacheReal=built; else shadeMapCache=built;
-  dev(real?'shadeR':'shadeM',tMap);
   return built;
 }
 function shadeScoreAt(x,y){

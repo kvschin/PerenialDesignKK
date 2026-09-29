@@ -6608,6 +6608,56 @@ test('established preview matures the display shade but never the placement rule
   assert(sceneKey() !== kEst, 'sceneKey distinguishes preview modes');
 });
 
+test('Established scene and display shade reuse unchanged days without freezing Today or rules', () => {
+  setup(); game.pausedAt=Date.now(); game.elapsedMs=24*DAY_MS;
+  const tree=firstOfType('tree');
+  setTile('plants','10,10',{s:tree,d:0,t:1});
+  game.previewMode='established';
+  buildScene(800,600);
+  const establishedScene=scene, display=ensureShadeMap(), rules=ensureShadeMap(true);
+  game.elapsedMs+=DAY_MS;
+  assert(!sceneStale(sceneKey()) && scene===establishedScene,'an ordinary Established day needs no scene rebuild');
+  assert(ensureShadeMap()===display,'its display shade is the very same map');
+  assert(ensureShadeMap(true)!==rules,'placement rules still update true tree age');
+  game.elapsedMs=32*DAY_MS;
+  assert(sceneStale(sceneKey()),'a season change still refreshes seasonal scene keys');
+  const fall=ensureShadeMap();
+  assert(fall!==display,'the season changes the sun and invalidates display shade');
+  assert(Array.from(fall.activeScore).some((v,i)=>v!==display.activeScore[i]),'the new shade really differs');
+  game.previewMode='today'; game.elapsedMs=24*DAY_MS;
+  buildScene(800,600); const today=ensureShadeMap();
+  game.elapsedMs+=DAY_MS;
+  assert(sceneStale(sceneKey()),'Today still refreshes growing canopy records');
+  assert(ensureShadeMap()!==today,'and its actual shade grows with the trees');
+  assertEqual(ensureShadeMap(true),ensureShadeMap(),'Today display and rules share the same map');
+});
+
+test('resumable shade and scene builders publish only complete results matching synchronous builds', () => {
+  setup(); game.pausedAt=Date.now(); game.previewMode='established'; game.elapsedMs=32*DAY_MS;
+  setTile('plants','10,10',{s:firstOfType('tree'),d:-10000,t:1});
+  for (let i=0;i<90;i++) setTile('plants',(i%9)+','+Math.floor(i/9),{s:'bluestem',d:0,t:1});
+  setTile('fences','12,12',{style:'wood',height:4,t:1});
+  buildScene(800,600);
+  const expectedScene=JSON.stringify(scene), expectedShade=JSON.stringify(shadeMapCache);
+  resetShadeMapCache();
+  const blank=shadeMapCache, shadeSteps=shadeMapSteps(); let steps=0, next;
+  do {
+    next=shadeSteps.next(); steps++;
+    if (!next.done) assert(shadeMapCache===blank,'a partial shade map never escapes');
+  } while (!next.done && steps<10000);
+  assert(next.done && steps>2,'shade work yields within a tree as well as between trees');
+  assertEqual(JSON.stringify(shadeMapCache),expectedShade,'batched shade has identical values and tree ownership');
+  resetShadeMapCache();
+  const previous=scene, sceneSteps=sceneBuildSteps(800,600); steps=0;
+  do {
+    next=sceneSteps.next(); steps++;
+    if (!next.done) assert(scene===previous,'the old complete scene survives every partial batch');
+  } while (!next.done && steps<10000);
+  assert(next.done && steps>3,'scene work also yields before it is complete');
+  assertEqual(JSON.stringify(scene),expectedScene,'batched scene preserves order, bounds, keys and stunting');
+  assertEqual(JSON.stringify(shadeMapCache),expectedShade,'the nested shade builder preserves the full map too');
+});
+
 test('tree placement ghost previews mature canopy and respects woody visibility', () => {
   setup(21, 21);
   const tree = firstOfType('tree');
@@ -12758,6 +12808,45 @@ test('a Skip waits until its destination is ready, then lands in one frame', () 
   });
 });
 
+test('Skip scene and shade batches share the preparation budget and discard edited work', () => {
+  skipCase(() => {
+    const was={now:performance.now,score:treeShadeScore,detail:plantRenderDetail,budget:AHEAD.SKIP_MS};
+    let time=0, batches=0, edited=false;
+    try {
+      game.previewMode='established';
+      setTile('plants','10,10',{s:firstOfType('tree'),d:-10000,t:1});
+      for (let i=0;i<100;i++) setTile('plants',(i%10)+','+Math.floor(i/10),{s:'bluestem',d:0,t:1});
+      buildScene(800,600);
+      const previous=scene, shade=shadeMapCache, day=absDay();
+      performance.now=()=>time; AHEAD.SKIP_MS=3;
+      treeShadeScore=function(){ time+=0.02; return was.score.apply(this,arguments); };
+      plantRenderDetail=function(){ time+=0.05; return was.detail.apply(this,arguments); };
+      requestSkipTo(2*DAYS_PER_SEASON,()=>{});
+      while (!skipPrepared(pendingSkip) && batches++<500){
+        const before=time; preparePendingSkip(batches*16.7);
+        assert(time-before<4.7,'a batch exceeds the allowance by at most one bounded group');
+        assertEqual(absDay(),day,'every batch restores the borrowed destination clock');
+        if (!skipPrepared(pendingSkip)){
+          assert(scene===previous && shadeMapCache===shade,'partial destination state stays private');
+          if (!edited && batches===2){
+            game.plants=Object.assign({},game.plants,{'15,15':{s:'bluestem',d:0,t:1}});
+            edited=true; // an import/reference swap, even without a revision bump
+          }
+        }
+      }
+      assert(edited && batches>3 && skipPrepared(pendingSkip),'preparation resumes and finishes after the edit');
+      assert(skipPreparation.scene.ents.some(e=>e.x===15 && e.y===15),'the destination contains the intervening edit');
+      assertEqual(skipPreparation.shade.key,shadeMapKeyForDay(2*DAYS_PER_SEASON),'shade belongs to the destination');
+      function shadeMapKeyForDay(day){
+        const was=game.elapsedMs; game.elapsedMs=(day-game.dayOffset)*DAY_MS;
+        try { return shadeMapKey(false); } finally { game.elapsedMs=was; }
+      }
+    } finally {
+      performance.now=was.now; treeShadeScore=was.score; plantRenderDetail=was.detail; AHEAD.SKIP_MS=was.budget;
+    }
+  });
+});
+
 test('a slow Skip never times out onto stand-ins, and a second Skip goes further', () => {
   skipCase(() => {
     let landed = 0;
@@ -12799,18 +12888,60 @@ test('superseding or cancelling a held Skip releases its canvas, job and leases'
   });
 });
 
-test('a Skip with nothing to prepare lands at once', () => {
+test('same-season year skips prepare their growth and bloom before landing', () => {
   skipCase(() => {
     let landed = 0;
-    // a year skip from Spring lands in Spring: its sprites would share the slot on screen
-    game.elapsedMs = 3 * DAY_MS;
+    game.previewMode='today'; game.elapsedMs = 14 * DAY_MS;
+    setTile('plants','10,10',{s:'bluestem',d:0,t:1});
     requestSkipTo(4 * DAYS_PER_SEASON, () => landed++);
-    assert(!skipPending() && landed === 1, 'same season: at once');
+    assert(skipPending() && landed === 0, 'same palette does not mean the same growth');
+    assertEqual(absDay(),14,'the original day is held');
+    for (let i=0;i<500 && !skipPrepared(pendingSkip);i++) preparePendingSkip(i*16.7);
+    assert(skipPrepared(pendingSkip),'the year destination finishes preparation');
+    landPreparedSkip();
+    assert(!skipPending() && landed === 1, 'the prepared year lands once');
     assertEqual(calClock().year, 2, 'a year on');
     // outside a garden there is no picture to prepare
     game.inGarden = false;
     requestSkipTo(5 * DAYS_PER_SEASON, () => landed++);
     assert(!skipPending() && landed === 2, 'no garden: at once');
+  });
+});
+
+test('a pending Skip holds the running clock and fast-forward, including across retargets', () => {
+  skipCase(() => {
+    const realNow=Date.now, draw=shouldRenderGarden, hud=updateHUD, oldPrev=prev;
+    let now=realNow(), landed=0;
+    try {
+      Date.now=()=>now; shouldRenderGarden=()=>false; updateHUD=()=>{};
+      game.pausedAt=0; game.clockSuspended=false; game.startTs=now;
+      game.elapsedMs=DAYS_PER_SEASON*DAY_MS-200; game.ffActive=true;
+      requestSkipTo(DAYS_PER_SEASON,()=>landed++);
+      const held=elapsedGameMs();
+      now+=2*DAY_MS; frame(prev+250);
+      assertEqual(elapsedGameMs(),held,'neither real time nor a fast-forward frame crosses the boundary');
+      assert(skipPending() && !clockActive(),'the original picture remains pending');
+      assert(game.ffActive && !game.pausedAt,'the user controls are preserved');
+      requestSkipTo(2*DAYS_PER_SEASON,()=>landed++);
+      now+=DAY_MS; frame(prev+250);
+      assertEqual(elapsedGameMs(),held,'retargeting cannot unfreeze the clock');
+      landSkipNow();
+      assertEqual(absDay(),2*DAYS_PER_SEASON,'the latest destination lands exactly');
+      assertEqual(landed,1,'only the final callback runs');
+      assert(clockActive() && !game.skipClockHeld,'the previously running clock resumes');
+      now+=100; assertEqual(elapsedGameMs()%DAY_MS,100,'preparation time is never caught up');
+      game.ffActive=false;
+      requestSkipTo(3*DAYS_PER_SEASON,()=>{});
+      pauseClock(); cancelPendingSkip();
+      assert(!clockActive() && game.pausedAt,'pausing during preparation stays paused after cancellation');
+      requestSkipTo(3*DAYS_PER_SEASON,()=>{});
+      resumeClock(); now+=DAY_MS;
+      const beforeCancel=elapsedGameMs(); cancelPendingSkip();
+      assert(clockActive(),'resuming during preparation takes effect when it ends');
+      assertEqual(elapsedGameMs(),beforeCancel,'cancellation also discards the held wall time');
+    } finally {
+      Date.now=realNow; shouldRenderGarden=draw; updateHUD=hud; prev=oldPrev; game.ffActive=false;
+    }
   });
 });
 
@@ -13928,7 +14059,7 @@ test('fast-forward advances at the same rate however slow the frames are', ()=>{
      other garden felt fine. The advance reads real elapsed time now, capped
      only against a resumed tab handing back one enormous gap. */
   const src=readRepoFile('js/screens.js');
-  const at=src.indexOf('if (game.ffActive){');
+  const at=src.indexOf('if (game.ffActive && !game.skipClockHeld){');
   assert(at>0,'the fast-forward advance is still in frame()');
   const branch=src.slice(at, at+220);
   assert(branch.includes('FF_MAX_STEP_MS'),'it caps on its own budget, not the frame clamp');

@@ -6,12 +6,23 @@ Run these before a web release, after the ordinary syntax and logic checks:
 npm run check
 npm test
 npm run test:browser
+npm run test:skips
 ```
 
 `tests/browser-release.cjs` uses a real headless Chromium browser through an
 existing Playwright installation. It does not install packages, download a
 browser, change app files, or use the user's browser profile. The application
 still has no npm dependencies or build step.
+
+`tests/browser-skips.cjs` uses the same installed browser prerequisites in fresh
+desktop and phone-sized contexts, with service workers disabled for its local
+server. It checks same-season year skips, four rapid season skips, a running
+clock and fast-forward near a boundary in a 2,735-plant garden, unchanged-day
+cache reuse, photos during preparation, and retargeting with camera, lighting and model edits. It requires
+exact destination sprites on the first revealed frame and compares prepared
+scene/shade data with a fresh build. JSON timings and arrival screenshots go
+into a temporary results directory printed at completion. The timings measure
+JS work in a headless browser, not compositor cost or physical-phone FPS.
 
 ## Runtime and results
 
