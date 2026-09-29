@@ -9908,6 +9908,36 @@ test('the season wash caches its gradients on device pixels, never on zoom', () 
   SEASON_WASH.mode = was;
 });
 
+test('the night wash bakes its two radials too, and paints no radial in surface mode', () => {
+  /* The moon and the vignette were the last per-frame radial fills: in Firefox
+     night panning measured 48fps against ~160 with this pass removed. */
+  const was = SEASON_WASH.mode;
+  try {
+    duskSurf = { key: '' };
+    const d1 = duskWashSurfaces(800, 600, false);
+    assert(d1 === duskWashSurfaces(800, 600, false), 'built once per size and season');
+    assert(d1 !== duskWashSurfaces(800, 600, true), 'winter has its own moon');
+    assert(duskWashSurfaces(801, 600, true) !== d1 && duskSurf.key.indexOf('801x600') >= 0,
+      'keyed on the device size, like every other wash');
+    assert(d1.moon && d1.vg, 'moon and vignette are both baked');
+
+    const ctx = document.createElement('canvas').getContext('2d');
+    let radials = 0, blits = [];
+    const mk = ctx.createRadialGradient;
+    ctx.createRadialGradient = function(){ radials++; return mk.apply(this, arguments); };
+    ctx.drawImage = function(img){ blits.push([img, this.globalCompositeOperation]); };
+    duskGrad = { key: '' }; duskSurf = { key: '' };
+    SEASON_WASH.mode = 'surface';
+    ctx.canvas.width = 640; ctx.canvas.height = 480;
+    applyDuskLighting(ctx, 640, 480, 'Summer');
+    const s = duskWashSurfaces(ctx.canvas.width, ctx.canvas.height, false);
+    assert(blits.some(b => b[0] === s.moon && b[1] === 'screen'), 'the moon is blitted, still in screen');
+    assert(blits.some(b => b[0] === s.vg), 'the vignette is blitted');
+    radials = 0; applyDuskLighting(ctx, 640, 480, 'Summer');
+    assertEqual(radials, 0, 'a night frame builds no radial gradient once the surfaces exist');
+  } finally { SEASON_WASH.mode = was; duskGrad = { key: '' }; duskSurf = { key: '' }; }
+});
+
 test('an undo snapshot shares tile entries but later edits cannot reach it', () => {
   setup(21, 21);
   const g = firstOfType('forb');
@@ -12162,6 +12192,88 @@ test('the slot index does not outlive the sprites it points at', () => {
   assert(PSPRITE.slot.size <= PSPRITE.map.size,
     'and no slot is left pointing at a sprite that is gone (' +
     PSPRITE.slot.size + ' slots vs ' + PSPRITE.map.size + ' sprites)');
+});
+
+/* Sprites are ImageBitmaps where OffscreenCanvas exists, because a frame of
+   small <canvas> blits is a "failed" frame to Firefox's accelerated canvas and
+   ten of them take the garden off the GPU for the rest of the page (see
+   spriteBitmapsSupported). The sandbox has no OffscreenCanvas, so these hand it
+   a minimal one: it keeps the size it is given, draws through the sandbox's
+   own 2D stub, and transfers a bitmap that close() really empties. */
+function withFakeSpriteBitmaps(fn){
+  class FakeBitmap { constructor(w, h){ this.width = w; this.height = h; this.closed = false; }
+    close(){ this.width = 0; this.height = 0; this.closed = true; } }
+  const made = [];
+  class FakeOffscreen { constructor(w, h){ this.width = w; this.height = h; made.push(this);
+      this.ctx = document.createElement('canvas').getContext('2d'); }
+    getContext(){ return this.ctx; }
+    transferToImageBitmap(){ return new FakeBitmap(this.width, this.height); } }
+  const g = globalThis, had = { O: g.OffscreenCanvas, I: g.ImageBitmap }, wasOn = spriteBitmaps;
+  try {
+    g.OffscreenCanvas = FakeOffscreen; g.ImageBitmap = FakeBitmap; spriteBitmaps = true;
+    for (const k in spriteScratch) delete spriteScratch[k];
+    spriteRetired = [];
+    fn({ made, FakeBitmap });
+  } finally {
+    if (had.O === undefined) delete g.OffscreenCanvas; else g.OffscreenCanvas = had.O;
+    if (had.I === undefined) delete g.ImageBitmap; else g.ImageBitmap = had.I;
+    spriteBitmaps = wasOn; spriteRetired = [];
+    for (const k in spriteScratch) delete spriteScratch[k];
+    PSPRITE.map.clear(); PSPRITE.slot.clear(); PSPRITE.spec.clear(); PSPRITE.bytes = 0;
+  }
+}
+
+test('sprites are bitmaps baked on one reused surface per cache where OffscreenCanvas exists', () => {
+  setup(20, 20);
+  const forbs = PLANT_KEYS.filter(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  withFakeSpriteBitmaps(({ made, FakeBitmap }) => {
+    const a = makePlantSprite(forbs[0], 8, 0, 'Summer', 11, null, null);
+    const b = makePlantSprite(forbs[1], 3, 0, 'Summer', 22, null, null);
+    assert(a.cv instanceof FakeBitmap && b.cv instanceof FakeBitmap, 'each bake keeps a bitmap, not a canvas');
+    assertEqual(made.length, 1, 'every plant bake reuses one scratch surface');
+    assert(a.cv.width > 0 && a.bytes === a.cv.width * a.cv.height * 4, 'the bitmap is the size the bake accounted for');
+    assert(a.cv.width !== b.cv.width || a.cv.height !== b.cv.height, 'and the reused surface is resized per bake');
+    spriteBakeImage('struct', spriteBakeSurface('struct', 30, 40));
+    assertEqual(made.length, 2, 'structures bake on a surface of their own');
+    // a bake that starts while another holds the surface must not draw over it
+    const held = spriteBakeSurface('plant', 10, 10), inner = spriteBakeSurface('plant', 12, 12);
+    assert(held !== inner, 'a nested bake gets its own surface');
+    spriteBakeImage('plant', inner); spriteBakeImage('plant', held);
+    assert(spriteBakeSurface('plant', 5, 5) === held, 'and the scratch is free again afterwards');
+  });
+  // (the sandbox's element stub answers any property, so ask what was used, not what came back)
+  const c = makePlantSprite(forbs[0], 8, 0, 'Summer', 11, null, null);
+  assert(c.cv.height > 0 && !Object.keys(spriteScratch).length,
+    'with no OffscreenCanvas a sprite is a canvas, as before');
+});
+
+test('a retired sprite bitmap is closed on the next frame, and a closed one is never drawn', () => {
+  setup(20, 20);
+  const key = PLANT_KEYS.find(k => !PLANTS[k].hidden && PLANTS[k].type === 'forb');
+  withFakeSpriteBitmaps(({ FakeBitmap }) => {
+    PSPRITE.off = false;
+    const ctx = document.createElement('canvas').getContext('2d');
+    drawPlantMaybeCached(ctx, 0, 0, key, 0.20, 'Summer', 777, 0, null, undefined, true);
+    const first = [...PSPRITE.map.values()][0].cv;
+    assert(first instanceof FakeBitmap, 'the clump is cached as a bitmap');
+    PSPRITE.bakeMs = 0; PSPRITE.rendered = 0;
+    drawPlantMaybeCached(ctx, 0, 0, key, 0.95, 'Summer', 777, 0, null, undefined, true);
+    assert(![...PSPRITE.map.values()].some(e => e.cv === first), 'the new growth bucket superseded it');
+    assert(!first.closed, 'not closed in the frame that may still have drawn it');
+    pspriteFrame();
+    assert(first.closed, 'closed at the start of the next frame');
+    // structures retire the same way
+    const sb = new FakeBitmap(4, 4), wasMem = SSPRITE.MEM;
+    SSPRITE.map.set('fake-struct', { cv: sb, bytes: 64, used: -10 }); SSPRITE.bytes += 64;
+    SSPRITE.MEM = 0; ssprFrame(); SSPRITE.MEM = wasMem;
+    assert(!SSPRITE.map.has('fake-struct') && !sb.closed, 'an evicted structure waits a frame too');
+    pspriteFrame();
+    assert(sb.closed, 'and is then closed');
+    let drawn = 0;
+    const spy = { drawImage(){ drawn++; }, save(){}, restore(){}, translate(){}, transform(){} };
+    blitPlantSprite(spy, { cv: first, s: 1, ox: 0, oy: 0 }, 0, 0, 0.5);
+    assertEqual(drawn, 0, 'a closed bitmap is skipped rather than handed to drawImage, which throws');
+  });
 });
 
 test('sprite eviction skips protected entries and reaches older sprites behind them', () => {

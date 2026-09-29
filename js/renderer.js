@@ -1421,12 +1421,13 @@ function spriteMaxPx(){
    species lookup already, so only remove pointers that still name this image.
    The slot lives on the entry: the key's JSON detail may contain separators. */
 function retirePlantSprite(k,e){
-  PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k);
+  PSPRITE.bytes-=e.bytes; PSPRITE.map.delete(k); retireSpriteImage(e.cv);
   if (e.slot!==undefined && PSPRITE.slot.get(e.slot)===k) PSPRITE.slot.delete(e.slot);
   const sk=k.slice(k.indexOf('|')+1);
   if (PSPRITE.spec.get(sk)===k) PSPRITE.spec.delete(sk);
 }
 function pspriteFrame(){                        // once per render: age the cache
+  closeRetiredSprites();                        // last frame's, which nothing can draw now
   PSPRITE.frame++; PSPRITE.rendered=0; PSPRITE.bakeMs=0; PSPRITE.scale=pspriteScale();
   // Evict only sprites NOT drawn last frame (off-screen), oldest first, down to
   // budget — never the visible set. This is what stops the cache thrashing and
@@ -1479,6 +1480,101 @@ function plantDrawBox(P,key,growth){
   const below=plantDrawBelow(P,growth,H)+8;
   return {halfW, top, bot:Math.max(18,Number.isFinite(below)?below:18)};
 }
+/* ---------- sprite pixels live in ImageBitmaps, not <canvas> elements ----------
+   Every baked sprite used to be its own <canvas>, and in Firefox that alone
+   took the garden canvas off the GPU for the rest of the page. Firefox's
+   accelerated canvas (DrawTargetWebgl) scores every frame: a frame FAILS when
+   texture uploads + readbacks + layers exceed 66% of its draw requests
+   (gfx.canvas.accelerated.profile-cache-miss-ratio), and after 10 frames a
+   canvas whose failed frames exceed 30% of ALL its frames is permanently
+   dropped to a software canvas in the content process (profile-frames,
+   profile-fallback-ratio; the counters are cumulative and never reset). A
+   small canvas — under 128x128 in area, or past the 200-canvas cap on GPU
+   draw targets — is a software surface in the GPU process, and blitting it
+   into the garden re-uploads it EVERY frame, cached or not. So a frame of
+   sprite blits is a failed frame, and the tenth frame after a garden opens
+   is the last accelerated one.
+   Measured in Firefox 157 at 2130x1259 on a 261-plant, 233-bulb garden: the
+   demotion lands on exactly frame #10, and from then on every frame is
+   ~80ms (12fps panning, 11.5 fast-forwarding), ~60% of it Skia's software
+   raster on the main thread and ~20% blocked on per-sprite IPC readbacks,
+   because the garden canvas is now local while its sprites are still remote.
+   A page with no app code reproduces it: 100 small canvases blitted per
+   frame demote a big canvas at frame 10; the same sprites as ImageBitmaps,
+   or packed into one atlas canvas, never do. With bitmaps the same garden
+   runs 165fps panning and 158 fast-forwarding, and a frame's JS falls from
+   ~80ms to ~1.5ms (400 blits of a remote canvas cost ~20us of recording
+   each; a bitmap's is nearly free). Chrome was never affected and is equal
+   or a little better (2.1 -> 1.7ms of JS a frame, and 2,823 sprite canvases
+   created over the same session against 30).
+   OffscreenCanvas.transferToImageBitmap() is used because it is SYNCHRONOUS
+   — a bake is used in the frame that makes it — and one scratch surface per
+   cache is reused, so bakes no longer mint a draw target each (the 200-target
+   cap is shared with the garden canvas itself, which Firefox cannot
+   accelerate when it is re-created, on a resize, past it). Pixels: Chrome
+   identical; Firefox rasterises a small OffscreenCanvas with slightly
+   different antialiasing than a small <canvas>, which changed 5% of a frame's
+   pixels by a mean of 2/255 (max 39), all on structure and plant edges and
+   invisible side by side at 2x.
+   WebKit keeps canvases: unmeasured there, and already smooth on the phones
+   that run it. `spriteBitmaps=false` in the console A/Bs the old path (clear
+   both caches after). */
+function spriteBitmapsSupported(){
+  try{
+    if (typeof OffscreenCanvas!=='function'
+        || typeof OffscreenCanvas.prototype.transferToImageBitmap!=='function') return false;
+    const ua=(typeof navigator!=='undefined' && navigator.userAgent) || '';
+    if (/AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) return false;   // Safari, every iOS browser
+    return !!new OffscreenCanvas(1,1).getContext('2d');
+  }catch(_){ return false; }
+}
+let spriteBitmaps=spriteBitmapsSupported();
+const spriteScratch={};
+/* A surface sized pw x ph to bake one sprite into; spriteBakeImage turns it
+   into the thing the cache keeps. Setting the size clears the surface and
+   resets its state, which every bake relies on. A bake inside a bake (none
+   exists today) gets a surface of its own rather than one being drawn on. */
+function spriteBakeSurface(which,pw,ph){
+  if (!spriteBitmaps){
+    const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+    return cv;
+  }
+  let s=spriteScratch[which];
+  if (s && s.busy) return new OffscreenCanvas(pw,ph);
+  if (!s) s=spriteScratch[which]={oc:new OffscreenCanvas(pw,ph), busy:false};
+  s.oc.width=pw; s.oc.height=ph; s.busy=true;
+  return s.oc;
+}
+function spriteBakeImage(which,cv){
+  if (typeof OffscreenCanvas!=='function' || !(cv instanceof OffscreenCanvas)) return cv;
+  const s=spriteScratch[which]; if (s && s.oc===cv) s.busy=false;
+  return cv.transferToImageBitmap();
+}
+/* A retired bitmap is closed at the start of the NEXT frame, not on the spot:
+   a stand-in drawn earlier in the same frame may still be in that frame's
+   recorded commands. Closing frees its memory now rather than at the next GC,
+   which a fast-forward that bakes ~150 sprites a second would otherwise wait
+   on. A <canvas> sprite has no close() and is left to the collector as before. */
+let spriteRetired=[];
+function retireSpriteImage(img){
+  if (typeof ImageBitmap==='function' && img instanceof ImageBitmap) spriteRetired.push(img);
+}
+function closeRetiredSprites(){
+  if (!spriteRetired.length) return;
+  for (const b of spriteRetired){ try{ b.close(); }catch(_){ } }
+  spriteRetired=[];
+}
+// A sprite's pixels, for the dev verifiers, whichever kind of image it is.
+function spritePixels(img){
+  const w=img.width, h=img.height;
+  if (typeof img.getContext==='function'){
+    const c=img.getContext('2d');
+    if (c && typeof c.getImageData==='function') return c.getImageData(0,0,w,h).data;
+  }
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const c=cv.getContext('2d',{willReadFrequently:true}); c.drawImage(img,0,0);
+  return c.getImageData(0,0,w,h).data;
+}
 function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const P=plantDef(key,variant), growth=gB/8;
   const box=plantDrawBox(P,key,growth);
@@ -1491,11 +1587,11 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const s=Math.min(want, spriteMaxPx()/Math.max(halfW*2, top+bot));
   const pw=Math.max(1,Math.ceil(halfW*2*s)), ph=Math.max(1,Math.ceil((top+bot)*s));
   if (pw>2600||ph>2600) return null;           // absurd size — don't cache, fall back
-  const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+  const cv=spriteBakeSurface('plant',pw,ph);
   const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
   const spriteDetail=Object.assign({},detail||{},{bloomFallback:true});
   drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail); // still (sway 0), bucketed bloom
-  return { cv, ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
+  return { cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
 /* ---- the parts of a sprite key that do not change from frame to frame ----
@@ -1589,7 +1685,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
       const t0=performance.now();
       const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
       PSPRITE.bakeMs+=performance.now()-t0;
-      if (ne){ if (e) PSPRITE.bytes-=e.bytes; e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
+      if (ne){ if (e){ PSPRITE.bytes-=e.bytes; retireSpriteImage(e.cv); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
         PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
     if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
@@ -1609,6 +1705,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   blitPlantSprite(ctx,e,bx,by,sway);
 }
 function blitPlantSprite(ctx,e,bx,by,sway){
+  if (!e.cv.width) return;   // a closed bitmap (retireSpriteImage) — drawImage would throw
   const dw=e.cv.width/e.s, dh=e.cv.height/e.s, lx=bx-e.ox, ly=by-e.oy;
   if (sway){
     ctx.save(); ctx.translate(bx,by); ctx.transform(1,0,sway*0.05,1,0,0); ctx.translate(-bx,-by);
@@ -1722,7 +1819,7 @@ function aheadBakeStruct(e,W,H,lit,prepared=false){
   const ns=makeStructSprite(e,spec,next,W,H,lit);
   AHEAD.ms+=performance.now()-t0;
   if (!ns){ AHEAD.short++; return; }
-  if (have) SSPRITE.bytes-=have.bytes;
+  if (have){ SSPRITE.bytes-=have.bytes; retireSpriteImage(have.cv); }
   ns.used=SSPRITE.frame+AHEAD.LEASE;
   SSPRITE.map.set(kk,ns); SSPRITE.bytes+=ns.bytes;
   e.aheadFor=AHEAD.epoch;
@@ -1814,7 +1911,7 @@ function ssprFrame(){
   if (SSPRITE.bytes>SSPRITE.MEM) for (const [k,e] of SSPRITE.map){
     if (SSPRITE.bytes<=SSPRITE.MEM) break;
     if (e.used>=SSPRITE.frame-1) continue; // renewed look-ahead leases need not be last in the Map
-    SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k);
+    SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k); retireSpriteImage(e.cv);
   }
 }
 /* The whole record, minus the bookkeeping that cannot change how it draws.
@@ -2079,8 +2176,8 @@ function makeStructSprite(e,spec,season,W,H,lit){
   const s=Math.min(want, spriteMaxPx()/Math.max(bw,bh));
   const pw=Math.max(1,Math.ceil(bw*s)), ph=Math.max(1,Math.ceil(bh*s));
   if (pw>2200||ph>2200) return null;
-  const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
-  const c2=cv.getContext('2d'); if (!c2) return null;
+  const cv=spriteBakeSurface('struct',pw,ph);
+  const c2=cv.getContext('2d'); if (!c2){ spriteBakeImage('struct',cv); return null; }
   const [sx,sy]=structAnchor(e,W,H);
   /* Bake with the CURRENT camera and translate it back out: the draws compute
      their own screen position through screenOf, so shifting the origin by the
@@ -2088,7 +2185,7 @@ function makeStructSprite(e,spec,season,W,H,lit){
   c2.setTransform(s,0,0,s,-b.left*s,-b.top*s);
   c2.translate(-sx,-sy);
   drawStructEnt(c2,e,W,H,season,lit);
-  return {cv, ox:b.left, oy:b.top, s, want, capped:s<want, bytes:pw*ph*4};
+  return {cv:spriteBakeImage('struct',cv), ox:b.left, oy:b.top, s, want, capped:s<want, bytes:pw*ph*4};
 }
 // blit a cached structure if we can, else draw it live — never drop one
 function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
@@ -2111,7 +2208,7 @@ function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
   if (!sp || sRescale){
     if (SSPRITE.rendered<SSPRITE.BUDGET){
       const ns=makeStructSprite(e,spec,season,W,H,lit);
-      if (ns){ if (sp) SSPRITE.bytes-=sp.bytes; sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
+      if (ns){ if (sp){ SSPRITE.bytes-=sp.bytes; retireSpriteImage(sp.cv); } sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
     }
     if (!sp){ SSPRITE.fell++; drawStructEnt(ctx,e,W,H,season,lit); return; }
   }
@@ -2119,6 +2216,7 @@ function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
   if (SSPRITE.map.has(kk)) SSPRITE.map.delete(kk);   // LRU: re-insert at the end
   sp.used=SSPRITE.frame;
   SSPRITE.map.set(kk,sp);
+  if (!sp.cv.width) return;   // a closed bitmap (retireSpriteImage) — drawImage would throw
   const [ax,ay]=structAnchor(e,W,H);
   ctx.drawImage(sp.cv, ax+sp.ox, ay+sp.oy, sp.cv.width/sp.s, sp.cv.height/sp.s);
 }
@@ -2405,9 +2503,9 @@ function verifySceneCull(opts){
 function ssprClippedSprites(){
   const out=[];
   for (const [k,sp] of SSPRITE.map){
-    const c=sp.cv.getContext('2d'); if (!c || typeof c.getImageData!=='function') continue;
     const w=sp.cv.width, h=sp.cv.height;
-    let d; try{ d=c.getImageData(0,0,w,h).data; }catch(_){ continue; }
+    let d; try{ d=spritePixels(sp.cv); }catch(_){ continue; }
+    if (!d || !w || !h) continue;
     const A=(x,y)=>d[(y*w+x)*4+3];
     let top=0,bot=0,left=0,right=0;
     for (let x=0;x<w;x++){ if (A(x,0)>8) top++; if (A(x,h-1)>8) bot++; }
@@ -3125,8 +3223,11 @@ function prepareGardenOpen(t){
   aheadFrame(t,null); structSampling=false;
   // Partial procedural draws and first sprite blits must stay off the live
   // canvas. Preparing them there leaves Firefox's later frames persistently
-  // slow, even after the normal opaque sky repaint. A disposable surface
-  // keeps preparation separate; the live canvas first receives a full frame.
+  // slow, even after the normal opaque sky repaint: frames made mostly of
+  // first uploads are "failed" frames to Firefox, and enough of them early in
+  // a canvas's life demote it for good (see spriteBitmapsSupported). A
+  // disposable surface keeps preparation separate; the live canvas first
+  // receives a full frame.
   if (!o.cv){ o.cv=document.createElement('canvas'); o.ctx=o.cv.getContext('2d'); }
   if (o.cv.width!==cnv.width) o.cv.width=cnv.width;
   if (o.cv.height!==cnv.height) o.cv.height=cnv.height;
@@ -3182,7 +3283,7 @@ function trimSkipSprites(season){
   if (SSPRITE.bytes>SSPRITE.MEM*1.5){
     const tail='|'+season+'|'+game.rot+'|'+(game.layerVis.night?1:0);
     for (const [k,e] of SSPRITE.map) if (!k.endsWith(tail)){
-      SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k);
+      SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k); retireSpriteImage(e.cv);
     }
   }
 }

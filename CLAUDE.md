@@ -320,6 +320,18 @@ See §13a.
   again. Decide on the FRAME column; the per-pass one flushes between fills,
   which is free in software and stalls a GPU pipeline. Freeze `t` if you extend
   it — `render` derives the wind `sway` from its timestamp.
+- `node dev/ff-accel-check.cjs [--garden file]` asks the one question no other
+  test can: does FIREFOX keep the garden canvas on the GPU? Every other browser
+  test runs Chromium, where the failure does not exist. It drives a garden
+  through open, pan, fast-forward, a Skip and night, and uses the JS cost of
+  `drawSeasonSky` as the probe — ~0ms while the canvas is remote (only
+  recorded), several ms once Firefox has demoted it to a local software canvas
+  (rasterised on the spot). Exits 1 naming the frame it happened on. On
+  0.9.37 it reports demotion at frame #10 and ~12fps throughout on a
+  261-plant garden at 2130x1259; on 0.9.38, 158-165fps and no demotion. Run
+  it on any change to how sprites or other surfaces are made or drawn, with a
+  garden heavy enough that the sprite governor engages and a window the size
+  you use. The rule it guards is in §11 (the sprite-bitmap note).
 - `node dev/ground-verify.cjs` is the gate on the ground bake's PARTIAL paths
   (§11): a pan re-bakes only the band that came into view and an edit only the
   viewport, so this asks whether either still draws the ground a full bake
@@ -351,7 +363,7 @@ See §13a.
   almost entirely outside every phase timer.
 - **The drivers that launch a real browser close it by its PROFILE PATH**
   (`dev/close-test-browser.cjs`, used by perf-audit, ground-verify,
-  wash-verify and plant-blit-bench). `child.kill()` is not enough on Windows:
+  wash-verify, plant-blit-bench and ff-accel-check). `child.kill()` is not enough on Windows:
   `firefox.exe` starts through a launcher stub that exits at once, so the PID a
   tool spawned is not the browser, and every Firefox run used to leave its
   window open with the app still rendering. A session of runs left ten-plus of
@@ -2171,7 +2183,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     garden canvas.** Drawing the partial measurement and sprite batches onto
     the live surface caused a persistent Firefox opening regression: normal
     frames stayed slow after the opening status disappeared. Clearing batches
-    on that surface was not a reliable fix. The temporary surface uses the same
+    on that surface was not a reliable fix — the frames had already been
+    SCORED: batches made mostly of first uploads are failed frames to
+    Firefox's accelerated canvas, and enough of them early in its life demote
+    it permanently (the sprite-bitmap note in §11 has the rule). The temporary surface uses the same
     device scale and painters; structure caching is explicitly enabled there
     (`drawSceneEnt`'s `cacheStructures` argument), while portraits retain their
     uncached structure path. Neither offscreen route starts season look-ahead.
@@ -2424,20 +2439,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     not the frame's, with their screen y, per frame, plus a contact sheet) is
     what found it; a frame-time measurement never would have, since the wipe
     was smooth.
-    **Firefox is not rescued by any of this**: in Firefox 156 a
-    few hundred NEW sprite canvases — one season turn is enough — make it give
-    up canvas acceleration for the rest of the page (the
-    `gfx.canvas.accelerated.profile-*` heuristic; setting
-    `profile-cache-miss-ratio` to 1.1 in about:config prevents it), after
-    which every frame is 50-150ms. **It is the first BLIT of those canvases
-    that trips it, not the bake**: the time menu's prewarm baked 364 Fall
-    sprites off a Summer garden and panning held 64fps before and after, then
-    the Skip that drew them dropped it to 17. So baking ahead is safe there,
-    and it is also why baking ahead cannot help. Spreading the bakes, removing the 'screen'
-    light beam, resetting the canvas and CPU-backed sprites
-    (`willReadFrequently`, which demote it at load) were each tried on a clean
-    machine and do not avoid it; full ground re-bakes alone never trigger it.
-    The fix there is fewer canvas objects — a sprite atlas — not a tweak.
+    **Sprites are ImageBitmaps, not canvases, and that is what keeps Firefox
+    on the GPU** (`spriteBitmapsSupported`/`spriteBakeSurface`/
+    `spriteBakeImage`, renderer.js; 0.9.38). Firefox's accelerated canvas
+    (`DrawTargetWebgl`) scores every frame — read from its source, not
+    guessed: a frame FAILS when texture uploads + readbacks + layers exceed
+    66% of its draw requests (`gfx.canvas.accelerated.profile-cache-miss-ratio`),
+    and after 10 frames (`profile-frames`) a canvas whose failed frames exceed
+    30% of ALL its frames (`profile-fallback-ratio`; the counts never reset) is
+    dropped for good to a software canvas in the content process. A small
+    canvas — under 128x128 in AREA (`min-size`), or past the 200-target cap
+    (`max-draw-target-count`, shared with the garden canvas itself) — is a
+    software surface, and blitting one into the garden RE-UPLOADS it every
+    frame, cached or not. So a frame of sprite blits was a failed frame, and
+    **the tenth frame after a garden opened was its last on the GPU** —
+    measured on a 261-plant garden in Firefox 157 at 2130x1259, demotion on
+    exactly frame #10, then ~80ms every frame (12fps panning, 11.5
+    fast-forwarding): ~60% Skia's software raster on the main thread and ~20%
+    blocked on synchronous per-sprite IPC readbacks, because the garden canvas
+    had gone local while its sprites stayed in the GPU process. The earlier
+    diagnosis here ("a few hundred NEW sprite canvases — one season turn") was
+    that effect seen late: the garden had usually been demoted since it opened.
+    A page with NO app code reproduces it (100 small canvases blitted per frame
+    demote a big canvas at frame 10; the same sprites as ImageBitmaps, or in one
+    atlas canvas, never do). Bakes now go to one reused OffscreenCanvas per
+    cache and leave as `transferToImageBitmap()`, which is synchronous, so a
+    bake is still usable in the frame that makes it. After: 165fps panning, 158
+    fast-forwarding, a frame's JS ~80ms -> ~1.5ms (a remote-canvas blit costs
+    ~20us of recording; a bitmap's is nearly free). Chrome equal or slightly
+    better (JS 2.1 -> 1.7ms a frame; 2,823 sprite canvases per session -> 30).
+    Pixels: identical in Chrome; Firefox antialiases a small OffscreenCanvas
+    slightly differently from a small `<canvas>` (5% of pixels, mean 2/255, max
+    39, all on edges, invisible side by side at 2x). Retired bitmaps are
+    `close()`d one frame LATER (a stand-in drawn earlier in the frame may still
+    be in its recorded commands) and a blit skips a closed one rather than
+    letting drawImage throw. **WebKit keeps canvases** — unmeasured there, and
+    the phones already run smoothly; `spriteBitmaps=false` A/Bs the old path.
+    `node dev/ff-accel-check.cjs` is the regression guard, and the only one:
+    every other browser test runs in Chromium, where this cannot happen.
     ~2.7–3.4× on dense
     frames; `PSPRITE.off` A/Bs it, dev-only `stressGarden()` packs the plot. A
     perf **debug HUD** (`dbg`, toggled by backtick or `?debug`, zero-cost off;
@@ -2818,9 +2857,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     on a GPU one, and that artifact is precisely what made the earlier `baked`
     attempt read as a Chrome regression. A DOWNSCALED bake was built and measured
     beside it and is **not** shipped: 1.42ms → 1.33ms for a real 2/255 error over
-    2.5% of the picture. Note the night path (`duskGradients`) still fills two
-    more radials — a moon and its own vignette — and at night runs IN ADDITION to
-    `applySeasonLighting`, so it is the obvious next application of this.
+    2.5% of the picture. **The night path has it too** (`duskWashSurfaces`,
+    0.9.38): `applyDuskLighting` filled two more radials, a moon and its own
+    vignette, IN ADDITION to the day wash, and in Firefox 157 at 2130x1259 that
+    was the whole cost of night — 48fps panning, ~160 with the pass removed,
+    still ~50 with every light and fire-pit glow removed instead. Baked the same
+    way (full size, device-pixel key, the moon still composited with 'screen'):
+    night panning 48 -> 163fps, and 0 differing pixels against the gradient
+    path in Firefox and Chrome. Chrome night measured within ~1% either way.
     The verifier's own trap, which cost a wrong answer first: `render(t)` derives
     `sway` from its timestamp and shears every plant blit by it, so photographing
     two frames at `performance.now()` put the CONTROL at 26% of pixels differing

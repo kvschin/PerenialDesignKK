@@ -3073,21 +3073,46 @@ function applySeasonLighting(ctx,W,H,amb,season){
    with the transform reset. See the season-wash note above for why the key is
    correctness and not just speed. */
 let duskGrad={key:''};
+function duskMoonGradient(ctx,cw,ch,winter){
+  const g=ctx.createRadialGradient(cw*0.74,ch*0.16,0,cw*0.74,ch*0.16,ch*0.86);
+  g.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
+  g.addColorStop(0.38,'rgba(92,118,176,0.07)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  return g;
+}
+function duskVignetteGradient(ctx,cw,ch){
+  const g=ctx.createRadialGradient(cw*0.48,ch*0.46,Math.min(cw,ch)*0.22,cw*0.48,ch*0.46,Math.max(cw,ch)*0.78);
+  g.addColorStop(0,'rgba(0,0,0,0)');
+  g.addColorStop(1,'rgba(5,10,20,0.26)');
+  return g;
+}
 function duskGradients(ctx,cw,ch,winter){
   const key=(winter?'w':'s')+'|'+cw+'x'+ch;
   if (duskGrad.key===key) return duskGrad;
-  const moon=ctx.createRadialGradient(cw*0.74,ch*0.16,0,cw*0.74,ch*0.16,ch*0.86);
-  moon.addColorStop(0,winter?'rgba(178,202,232,0.18)':'rgba(156,178,220,0.14)');
-  moon.addColorStop(0.38,'rgba(92,118,176,0.07)');
-  moon.addColorStop(1,'rgba(255,255,255,0)');
+  const moon=duskMoonGradient(ctx,cw,ch,winter);
   const warm=ctx.createLinearGradient(0,ch*0.52,0,ch);
   warm.addColorStop(0,'rgba(255,255,255,0)');
   warm.addColorStop(1,'rgba(186,116,72,0.08)');
-  const vg=ctx.createRadialGradient(cw*0.48,ch*0.46,Math.min(cw,ch)*0.22,cw*0.48,ch*0.46,Math.max(cw,ch)*0.78);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(5,10,20,0.26)');
+  const vg=duskVignetteGradient(ctx,cw,ch);
   duskGrad={key,moon,warm,vg};
   return duskGrad;
+}
+/* 'surface' mode for the night: the moon and the vignette are RADIALS, which
+   Firefox's accelerated canvas cannot fill (the day wash's note above), so each
+   night frame drew both through a software layer. Measured in Firefox 157 at
+   2130x1259 on a 261-plant garden: night panning ran 48fps and ~160fps with
+   this pass removed, while removing every light and fire-pit glow instead
+   left it at ~50 — so these two fills were the whole cost of night. Baked
+   exactly as the day's are: full canvas size, no resampling, keyed on device
+   pixels, the moon still composited with 'screen'. */
+let duskSurf={key:''};
+function duskWashSurfaces(cw,ch,winter){
+  const key=(winter?'w':'s')+'|'+cw+'x'+ch;
+  if (duskSurf.key===key) return duskSurf;
+  duskSurf={key,
+    moon:radialSurface(cw,ch,(k,w,h)=>duskMoonGradient(k,w,h,winter)),
+    vg:radialSurface(cw,ch,(k,w,h)=>duskVignetteGradient(k,w,h))};
+  return duskSurf;
 }
 function applyDuskLighting(ctx,W,H,season){
   const winter=season==='Winter';
@@ -3116,11 +3141,14 @@ function applyDuskLighting(ctx,W,H,season){
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle=winter?'rgba(20,28,46,0.30)':'rgba(18,25,42,0.26)';
   ctx.fillRect(0,0,cw,ch);
+  const surf=SEASON_WASH.mode==='surface' ? duskWashSurfaces(cw,ch,winter) : null;
   ctx.globalCompositeOperation='screen';
-  ctx.fillStyle=g.moon; ctx.fillRect(0,0,cw,ch);
+  if (surf) ctx.drawImage(surf.moon,0,0,cw,ch);
+  else { ctx.fillStyle=g.moon; ctx.fillRect(0,0,cw,ch); }
   ctx.fillStyle=g.warm; ctx.fillRect(0,0,cw,ch);
   ctx.globalCompositeOperation='source-over';
-  ctx.fillStyle=g.vg;   ctx.fillRect(0,0,cw,ch);
+  if (surf) ctx.drawImage(surf.vg,0,0,cw,ch);
+  else { ctx.fillStyle=g.vg; ctx.fillRect(0,0,cw,ch); }
   ctx.restore();
 }
 /* centre the camera on the plot. Design keeps a free camera afterwards, so this

@@ -145,7 +145,7 @@ const DRIVER = `
       for (const e of PSPRITE.map.values()){
         if(budget--<=0) break;
         const w=e.cv.width,h=e.cv.height; px+=w*h; n++;
-        const d=e.cv.getContext('2d').getImageData(0,0,w,h).data;
+        const d=spritePixels(e.cv);   // sprites are ImageBitmaps where OffscreenCanvas exists
         let a=0,seen=0; for(let i=3;i<d.length;i+=16){ seen++; if(d[i]>8) a++; }
         a=Math.round(a*(w*h)/Math.max(1,seen)); ink+=a;
         boxes.push([w*h, w+'x'+h+' '+(100*a/(w*h)).toFixed(0)+'% ink']);
