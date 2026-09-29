@@ -5432,6 +5432,19 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     own inverse), and zoom engages only once the spacing moves past
     `PINCH_SLOP_PX`/`PINCH_SLOP_FRAC` (16px / 8%), measured from that moment so
     it cannot jump. A pan inside the slop leaves `ZOOM` bit-identical.
+    **A two-finger tap (undo) or three-finger tap (redo) is judged over the
+    whole touch sequence**, first finger down to last finger up (`touchSeq`,
+    `noteTouchDown`/`noteTouchMove`, the pure `multiTapAction`; 0.9.40). It was
+    judged from the second finger's landing, so a finger that dropped out and
+    landed again — which is how a pinch-in usually ends, the screen merging two
+    close touches — restarted it with a fresh clock and no movement, and the
+    end of a zoom said Undo. A `pointercancel` also finished it like a lift.
+    Now a tap needs every finger to land exactly once (`downs===max`), none to
+    move past 10px from where it landed, no cancel, and the whole sequence
+    under 320ms. And `pointermove` records every tracked pointer FIRST: the
+    one-finger pan branch returned before that, so a second finger began its
+    pinch from where the first had landed and the view jumped by the whole pan
+    (250 draw units in the browser check).
     **Two ceilings, and they are not the same number**: `ZOOM_MAX` (2.0) is the
     on-screen scale the pill reports, `USER_ZOOM_MAX` (2.8) the multiplier
     applied before `baseZoom` — which has to be larger or a phone can never

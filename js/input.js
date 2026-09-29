@@ -162,7 +162,7 @@ addEventListener('keyup',e=>{
 
 
 /* two fingers pinch the zoom; everything else is one-finger business */
-const activePtrs=new Map(); let pinch=null, multiTouch=null, toolDrag=null, fillTap=null, rulerDrag=null, buildingHover=null, photoDrag=null, photoPinch=null;
+const activePtrs=new Map(); let pinch=null, toolDrag=null, fillTap=null, rulerDrag=null, buildingHover=null, photoDrag=null, photoPinch=null;
 function buildingCornerForPlacement(place){
   return [Math.max(0,Math.min(GW,Math.round(place.wx+0.5))),
     Math.max(0,Math.min(GH,Math.round(place.wy+0.5)))];
@@ -255,15 +255,38 @@ function cancelCanvasGesture(restore,notice){
   if (notice) showGestureCancel(notice);
   updateCanvasCursor();
 }
-function startMultiTouch(count){
-  multiTouch={count,start:Date.now(),moved:false,pts:new Map(activePtrs)};
+/* ---------- two- and three-finger taps: undo and redo ----------
+   A tap is judged over the whole TOUCH SEQUENCE, first finger down to last
+   finger up. It used to be judged from the moment the second finger landed,
+   and three things let the end of a zoom read as a two-finger tap:
+   - A finger that dropped out and landed again restarted the check with a
+     fresh clock and no movement. Two fingers pinched close together are the
+     commonest way to lose one — the screen merges the touches at the end of a
+     pinch-in — so a zoom out that ended in a quick re-touch said Undo.
+   - A pointercancel finished the check exactly like a lift, although the
+     system taking the touches away is the opposite of a deliberate tap.
+   - Movement counted only from the second finger's landing, and never while
+     the first finger was panning (that branch returned before looking).
+   So a tap now needs every finger to have landed exactly once (downs===max),
+   none to have moved past the slop from where it landed, no cancel, and the
+   whole sequence to fit in MULTI_TAP_MS. */
+const MULTI_TAP_MS=320, MULTI_TAP_SLOP_PX=10;
+let touchSeq=null;
+function noteTouchDown(id,x,y,first){
+  if (first || !touchSeq) touchSeq={start:Date.now(), downs:0, max:0, moved:false, cancelled:false, pts:new Map()};
+  touchSeq.downs++; touchSeq.max=Math.max(touchSeq.max,activePtrs.size);
+  touchSeq.pts.set(id,[x,y]);
 }
-function markMultiMoved(){
-  if (!multiTouch || multiTouch.moved) return;
-  for (const [id,p] of activePtrs){
-    const s=multiTouch.pts.get(id);
-    if (s && Math.hypot(p[0]-s[0],p[1]-s[1])>10){ multiTouch.moved=true; return; }
-  }
+function noteTouchMove(id,x,y){
+  const s=touchSeq; if (!s || s.moved) return;
+  const p=s.pts.get(id);
+  if (p && Math.hypot(x-p[0],y-p[1])>MULTI_TAP_SLOP_PX) s.moved=true;
+}
+// pure: what a finished sequence asks for, if anything
+function multiTapAction(s,now){
+  if (!s || s.cancelled || s.moved || s.downs!==s.max) return null;
+  if (now-s.start>=MULTI_TAP_MS) return null;
+  return s.max===2 ? 'undo' : s.max>=3 ? 'redo' : null;
 }
 /* ---------- two fingers: a pan, and a zoom about the fingers ----------
    Both halves of this used to be wrong, and both only exist on a touch screen,
@@ -342,20 +365,19 @@ function movePhotoPointer(e){
   markUnderlayChanged(); if (typeof syncSitePhotoEditor==='function') syncSitePhotoEditor();
 }
 function finishMultiTouch(){
-  if (!multiTouch || activePtrs.size) return;
-  const quick=Date.now()-multiTouch.start<320;
-  if (quick && !multiTouch.moved){
-    if (multiTouch.count>=3){ doRedo(); showGestureCancel('Redo'); }
-    else if (multiTouch.count===2){ doUndo(); showGestureCancel('Undo'); }
-  }
-  multiTouch=null;
+  if (activePtrs.size) return;
+  const act=multiTapAction(touchSeq,Date.now());
+  touchSeq=null;
+  if (act==='undo'){ doUndo(); showGestureCancel('Undo'); }
+  else if (act==='redo'){ doRedo(); showGestureCancel('Redo'); }
 }
 cnv.addEventListener('pointerdown',e=>{
+  const first=!activePtrs.size;
   activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
   if (game.photoEditing && game.underlayCalibration){ e.preventDefault(); recordSitePhotoCalibrationPoint(photoWorldPoint(e)); return; }
   if (game.photoEditing && game.underlay){ beginPhotoPointer(e); return; }
+  noteTouchDown(e.pointerId,e.clientX,e.clientY,first);
   if (activePtrs.size>=3){
-    startMultiTouch(3);
     pinch=null;
     cancelCanvasGesture(true,canvasGestureWouldLoseWork()?'Placement cancelled':null);
     return;
@@ -363,7 +385,6 @@ cnv.addEventListener('pointerdown',e=>{
   if (activePtrs.size===2){
     const [a,b2]=[...activePtrs.values()];
     pinch=beginPinch(a,b2,canvasViewportRect());
-    startMultiTouch(2);
     // silent unless the pinch really interrupted something (see the helper)
     cancelCanvasGesture(true,canvasGestureWouldLoseWork()?'Placement cancelled':null);
     return;
@@ -559,21 +580,26 @@ function paintToolDragLine(drag,x,y,place){
   drag.lastX=x; drag.lastY=y;
 }
 cnv.addEventListener('pointermove',e=>{
-  if (game.photoEditing && game.underlayCalibration){
-    if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]); return;
+  /* Every tracked pointer's position, first and always. The pan branch below
+     used to return before this, so while one finger panned, activePtrs held
+     where it LANDED — and a second finger then began its pinch from that stale
+     point: the spacing and midpoint were off by the whole pan, so the view
+     jumped on the first move. */
+  if (activePtrs.has(e.pointerId)){
+    activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
+    noteTouchMove(e.pointerId,e.clientX,e.clientY);
   }
+  if (game.photoEditing && game.underlayCalibration) return;
   if (game.photoEditing && game.underlay){ movePhotoPointer(e); return; }
   if (panDrag){ // PC space/middle-drag pan
     cam.x=panDrag.camx0-(e.clientX-panDrag.sx)/ZOOM;
     cam.y=panDrag.camy0-(e.clientY-panDrag.sy)/ZOOM;
     return;
   }
-  if (activePtrs.has(e.pointerId)) activePtrs.set(e.pointerId,[e.clientX,e.clientY]);
-  markMultiMoved();
   if (pinch && activePtrs.size>=2){
     const [a,b2]=[...activePtrs.values()];
     // before movePinch, which re-bases d0 when the zoom engages
-    if (Math.abs(pinchSpacing(a,b2)-pinch.d0)>8) multiTouch && (multiTouch.moved=true);
+    if (touchSeq && Math.abs(pinchSpacing(a,b2)-pinch.d0)>8) touchSeq.moved=true;
     movePinch(pinch,a,b2);   // pans with the fingers; zooms about them past the slop
     // (two-finger twist-to-rotate removed — rotate via the ⟳ button or R key)
     return;
@@ -695,6 +721,7 @@ cnv.addEventListener('pointercancel',e=>{
   activePtrs.delete(e.pointerId);
   if (game.photoEditing){ photoPinch=null; photoDrag=null; return; }
   if (activePtrs.size<2) pinch=null;
+  if (touchSeq) touchSeq.cancelled=true;   // the system took the touch: never a tap
   finishMultiTouch();
   cancelCanvasGesture(true);
 });

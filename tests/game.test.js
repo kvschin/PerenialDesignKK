@@ -10857,6 +10857,70 @@ test('a pinch reads the midpoint against the canvas, not the page', () => {
   });
 });
 
+/* ---------- two-finger taps: undo only on a real tap ----------
+   The end of a pinch could read as a two-finger tap: a finger that dropped out
+   and landed again restarted the check with a fresh clock and no movement, and
+   a pointercancel finished it like a lift. These replay touch sequences with
+   the same bookkeeping the canvas handlers do, then let the real
+   finishMultiTouch decide — so a wrong Undo shows up as a plant disappearing. */
+function touchReplay(steps){
+  activePtrs.clear(); touchSeq=null;
+  for (const [kind, id, x, y] of steps){
+    if (kind === 'down'){ const first = !activePtrs.size; activePtrs.set(id, [x, y]); noteTouchDown(id, x, y, first); }
+    else if (kind === 'move'){ activePtrs.set(id, [x, y]); noteTouchMove(id, x, y); }
+    else if (kind === 'up'){ activePtrs.delete(id); finishMultiTouch(); }
+    else if (kind === 'cancel'){ activePtrs.delete(id); if (touchSeq) touchSeq.cancelled = true; finishMultiTouch(); }
+  }
+}
+function withOneUndoablePlant(fn){
+  setup(13, 13);
+  undoStack.length = 0; redoStack.length = 0;
+  const forb = firstOfType('forb');
+  game.tool = forb; game.toolVar = null;
+  withUndo(() => applyToolAt(5, 5));
+  assert(game.plants['5,5'] && !game.plants['5,5'].removed, 'planted, with one undo step');
+  try{ fn(() => !!(game.plants['5,5'] && !game.plants['5,5'].removed)); }
+  finally{ activePtrs.clear(); touchSeq = null; }
+}
+
+test('a quick still two-finger tap undoes, and three fingers redo', () => {
+  withOneUndoablePlant(planted => {
+    touchReplay([['down',1,300,500],['down',2,380,500],['up',1,300,500],['up',2,380,500]]);
+    assert(!planted(), 'two-finger tap undid the planting');
+    touchReplay([['down',1,300,500],['down',2,380,500],['down',3,460,500],
+      ['up',1,300,500],['up',2,380,500],['up',3,460,500]]);
+    assert(planted(), 'three-finger tap redid it');
+  });
+});
+
+test('the end of a pinch never reads as a two-finger tap', () => {
+  withOneUndoablePlant(planted => {
+    // pinch in, the fingers merge (one touch drops), a touch lands again, lift quickly
+    touchReplay([['down',1,200,500],['down',2,420,500],
+      ['move',1,260,500],['move',2,360,500],['move',1,300,500],['move',2,320,500],
+      ['up',2,320,500],['down',3,322,501],['up',1,300,500],['up',3,322,501]]);
+    assert(planted(), 'a finger re-landing at the end of a zoom is not a tap');
+    // the same re-touch with no zoom before it is still not a clean tap
+    touchReplay([['down',1,300,500],['down',2,380,500],['up',2,380,500],['down',3,381,500],
+      ['up',1,300,500],['up',3,381,500]]);
+    assert(planted(), 'downs must equal the finger count');
+  });
+});
+
+test('a cancelled touch, a pan before the second finger, or a slow tap does not undo', () => {
+  withOneUndoablePlant(planted => {
+    touchReplay([['down',1,300,500],['down',2,380,500],['cancel',1,300,500],['cancel',2,380,500]]);
+    assert(planted(), 'the system taking the touches is not a tap');
+    touchReplay([['down',1,300,500],['move',1,300,440],['down',2,380,440],['up',1,300,440],['up',2,380,440]]);
+    assert(planted(), 'the first finger panned before the second landed');
+    touchReplay([['down',1,300,500],['down',2,380,500]]);
+    touchSeq.start -= MULTI_TAP_MS + 1;
+    touchReplay_finish();
+    assert(planted(), 'a hold longer than the tap window is not a tap');
+  });
+});
+function touchReplay_finish(){ activePtrs.clear(); finishMultiTouch(); }
+
 test('a viewport change that changes nothing moves nothing', () => {
   const d = viewportAnchorDelta(0, 0, 1);
   assert(d.dx === 0 && d.dy === 0, 'no size change, no camera movement');
