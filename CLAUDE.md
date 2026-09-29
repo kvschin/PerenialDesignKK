@@ -377,6 +377,20 @@ See §13a.
   `docs/browser-release-checks.md` documents prerequisites, artifacts, limits,
   and the physical-device checklist. Run it alongside the Node suite before
   release; the two suites establish different behavior.
+  **One check is intermittent and has been since at least 0.9.34:** the
+  portrait check ("Portrait depends on editing camera, preview or hidden
+  layers") fails in roughly half of runs, in the small-phone or phone-subpath
+  profile, on builds with nothing near portraits changed. Repeating the same
+  sequence in a fresh page gives identical portraits every time (8 of 8 on
+  0.9.35 and 0.9.36), so it depends on something an earlier check leaves in the
+  page. Unexplained as of 0.9.36; re-run before treating it as a regression.
+- **Testing a snapshot outside the working tree** (to keep someone else's
+  uncommitted edits out of a run, or to test exactly what is staged) must export
+  with line conversion OFF: `git -c core.autocrlf=false archive HEAD` or
+  `git -c core.autocrlf=false checkout-index -a --prefix=<dir>/`. This repo has
+  `core.autocrlf=true`, so a plain export writes `index.html` with CRLF, and the
+  daily-brief test slices that file on `'\n</div>'` and fails. It passes on a
+  real checkout; the failure is the export's.
 - Tests: `node tests/run.js` (or `npm test`) — a zero-dependency runner that
   loads `plants.js` and the app modules (in load order) inside a `vm`
   sandbox with light DOM stubs. **A stub that lies is worse than a missing
@@ -408,6 +422,18 @@ See §13a.
   an async test that ran on declaration would suspend at its first `await`, let
   the next declaration reset the world underneath it, and resume against someone
   else's garden. Two tests failed exactly that way before the queue landed.
+  **`tests/ui-cost.test.js` pins what a UI action COSTS** — which rebuilds and
+  measurements a button triggers, since the sandbox cannot time anything — by
+  wrapping the app's own functions and counting calls (`counting()`, which puts
+  them back in a `finally`). It is concatenated into the SAME tier after
+  `game.test.js` and names itself with an injected `testFile()`, and it cannot
+  have a tier of its own: every sandbox is handed one shared `document` stub, so
+  loading the modules a second time re-runs `init` and re-wires the shared
+  elements' handlers into the other sandbox's `game`. Three stub behaviours that
+  test had to allow for: `firstChild` is always null, so `trayDomIntact()` is
+  false and every unforced `buildToolTray()` rebuilds; the element Proxy answers
+  any unknown property with a no-op FUNCTION, so `isConnected` is truthy and not
+  a boolean; `closest()` returns null, so `renderReplacePlantUi` cannot run.
 
 ## Known constraints (read before touching save)
 
@@ -910,8 +936,10 @@ logic is split across ordered modules. They map onto the section list below
   The top bar's Rotate/Layers/View icons and the phone View-tools popover draw
   the same artwork through **`paintIconCanvas`** (tray.js) at the same 3x
   backing — they were 1x shown at 32x24 and read soft beside the rail. It uses
-  `setTransform`, since those repaint on every `syncTopTools` and a `scale`
-  would compound. Rotate is an orbit arrow round an iso plot tile (a plain
+  `setTransform`, since a canvas may be painted more than once and a `scale`
+  would compound (the top-bar ones now paint once per theme,
+  `paintIconCanvasOnce`, where they used to repaint on every `syncTopTools`).
+  Rotate is an orbit arrow round an iso plot tile (a plain
   circular arrow reads as reload); Layers is one sheet over two near edges, the
   warm one the ground (three full diamonds overlapped into a lattice and ran off
   the canvas). Menu's SVG hamburger is sized to 24px in `#btnMenu` to sit level
@@ -3097,10 +3125,27 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `displacePlants()` them with a count in the toast; drifts also skip
     the door tile; chips resize/repaint), the left **canvas toolbar**
     (`buildCanvasTools`, the paint/edit tools only: Hand / Plant / Erase /
-    **Pick**, a divider, then **Undo** / **Redo** as one-shot actions —
-    `makeCanvasTool` greys each via `disabled:!undoStack.length` when its stack
-    is empty, recomputed every rebuild; `updateUndoBtn` just calls
-    `refreshCanvasTools`. **True north** is `game.siteNorthDeg`, an arbitrary
+    **Pick**, a divider, then **Undo** / **Redo** as one-shot actions — each
+    greyed via `disabled:!undoStack.length` when its stack is empty;
+    `updateUndoBtn` just calls `refreshCanvasTools`.
+    **The rail is BUILT ONCE and kept in step** (`railDom`, `syncCanvasTool`,
+    0.9.36). `buildCanvasTools`' `add()` creates a button the first time and
+    updates it in place after that — state classes, title, pressed state,
+    handler — so the source keeps the `add('Label','kind')` / `sep()` shape the
+    guidebook test reads. It used to rebuild the rail on every refresh, and a
+    refresh follows every tool change, undo, redo, Day/Night press and the end of
+    every planting gesture (`pushUndo` -> `updateUndoBtn`): eight new 126x96 icon
+    canvases (~390KB of backing store) and a dozen 3x icon repaints a time. The
+    rail is rebuilt only when the theme changes (its icons are painted in the
+    theme's inks via `uiInk`) or it has been emptied (`railIntact`). The Plant
+    swatch is redrawn only when the PLANT on it changes (a `drawPlant`); any other
+    swatch is a few shapes or a cached bitmap and is just redrawn, rather than
+    keeping a key that would have to name every draft it reads. The top-bar
+    icons paint once per theme (`paintIconCanvasOnce`), and `syncTopTools`
+    alone renders the view and layer menus (`buildCanvasTools` rendered them a
+    second time). Measured on the demo garden: the end of a planting tap
+    0.8 -> 0.1ms with 0 new canvases, undo 1.2 -> 0.5ms, a layer row 3.6 -> 1.8ms.
+    **True north** is `game.siteNorthDeg`, an arbitrary
     clockwise bearing from plot-up that is independent of `game.rot`.
     `updateCompass` ray-intersects its rotated N/E/S/W vectors with the plot
     boundary, then projects those geographic edge markers through the current
@@ -4929,7 +4974,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     used to fall back to the first species in the open category, so pressing
     Plant in a fresh garden armed blue grama with nothing on screen saying so
     (the library was shut, taking its "Now placing" row with it), and the next
-    tap planted a species nobody chose.
+    tap planted a species nobody chose. Whether the remembered plant still fits
+    is asked of `plantFits()` directly: it was `trayKeys().includes(k)`, and
+    `trayKeys()` SORTS the catalog by style score and name, 7.4ms to answer a
+    membership question (0.9.33; a test compares the two for every species).
+    **The brush bar's Draw/Drift/Matrix, Grid/Free and Age do not re-arm**
+    (`applyBrushOption`): with a plant armed, which is the only time the bar
+    shows them, they set their flag, repaint the bar and the sheet label
+    (`renderCvRow`) and stop. Going through `armPlantToolFromRail` rebuilt the
+    catalog, the sheet and the rail for a change only the brush bar shows, 24ms
+    a tap (34 in the phone layout). Kept from re-arming: Fill goes off and an
+    open tool menu closes. Dropped: jumping the catalog back to the armed
+    plant's category. With nothing armed they still arm, since that is the point.
     **`brushTrayCatForTool`/`toolFitsBrushTray` answer which TAB a tool is
     browsed on, and both read `TRAY_CATS` rather than restating it.** They were
     hand-written `k==='fence'||k==='firepit'||…` chains duplicating that table,
@@ -5210,6 +5266,20 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     genuinely sit above the keyboard is a separate job and has to be done in
     CSS — a `--sheet-vv-h` the JS keeps in sync with `visualViewport` — or the
     two sources of truth diverge again and the flicker comes back.
+    **`applySheetState` lays the sheet out only when its GEOMETRY changed**
+    (`sheetLaidOut`, 0.9.33): the state, the tier, and whether the photo editor
+    has hidden it (visibility, which the rail reservation and
+    `usableCanvasRect` both read). Otherwise it refreshes only its words and
+    pictures (`syncSheetChrome`: the Now placing label, handle, chevrons,
+    swatch and library chip, which follow the armed tool) plus
+    `syncDiscoveryArtVisibility`. Because `renderCvRow` calls it on every tool
+    change and every catalog rebuild, the full path was a tax on every tap: on a
+    phone the measuring classes swapped across the whole ~950-node catalog and
+    its height read twice, 6-7ms even going Hand to Ruler; on the dock it ran
+    `settleViewportChange` — both canvases, the compass, the chrome menus, eight
+    throwaway measuring divs, 29-31 `getBoundingClientRect` calls — for a
+    library that had not moved. A FLIP already in flight to the same state is
+    left to finish, which is what restarting it from mid-flight amounted to.
     Only the collapsed state clips its content
     (half/full must let the category popover escape above the sheet). In phone
     half/full states the handle spans and visually joins the full-width sheet;
@@ -5250,7 +5320,12 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the CSS `width:100%` back off `getBoundingClientRect()` — otherwise the inline
     width it set last time wins over the CSS and freezes width across resize /
     rotation (only height escaped, via the fresh `trueViewH()` probe), stranding
-    a dead body-bg strip. `resizeCanvases` (on `resize`/`orientationchange`) then
+    a dead body-bg strip. `trueViewH()` is **memoised for the rest of the current
+    task** (0.9.33): each probe appends a div and removes it, dirtying layout
+    for the next geometry read, and one `settleViewportChange` probed eight
+    times. It is deliberately NOT kept until the next resize, because the rAF
+    re-settles after an iOS rotation are tasks of their own and must each probe
+    fresh — that late re-measure is what the pair of rAFs is for. `resizeCanvases` (on `resize`/`orientationchange`) then
     re-`snapCam`s and re-pins open chrome. `setViewportFill()` still
     matches the root bg to the season as a belt-and-suspenders. A `?debug`/`?vp`
     URL or a **3-finger tap** shows a viewport diagnostics panel. The chrome
@@ -6374,8 +6449,62 @@ depth, and the regional/ecotype metadata that Phase 0 still defers.
   the actual scheme work, was **0ms** all along: schemes never cost anything, the
   catalog rebuild did. **The failure mode is a stale catalog**, so
   `verifyTrayCache()` permutes each input, diffs the rendered DOM and names any
-  input that moved the DOM without moving the signature (0 of 33). Add an input
+  input that moved the DOM without moving the signature. Add an input
   to the tray, add it to the signature and to that list.
+  **And ONLY what the catalog reads** (0.9.34): an input it does not read costs
+  a full rebuild every time it moves. The signature used to carry nine: the
+  brush bar's own state (fill, drift, matrix, free planting, brush size, erase
+  mode, woody age), the selection, and the rail's open menu. The brush bar is
+  its own element (`#brushBar`, outside `#trayTabs`/`#toolTray`), repainted by
+  whichever control changed it, and every writer of those fields does so. And
+  `game.tool` goes in through **`catalogToolKey()`**, which folds the rail's
+  own tools (`RAIL_ONLY_TOOLS`: hand, select, ruler, pick, shovel) to one key:
+  the catalog reads the tool only by comparing it with what it lists, and it
+  lists none of those, so the first press of Select, Pick or Erase after
+  another rail tool rebuilt it for nothing (cycling them: 12.6 -> 1.4ms). The
+  set is NAMED rather than derived from `TRAY_CATS` because that table is not
+  the whole list: Edit footprint ('building-edit') is compared on the Site tab
+  and is not in it. A test holds the catalog's renderers to never comparing
+  against a rail tool; the one comparison there is the category handler's
+  click-time eyedropper check. `verifyTrayCache()` cases may carry a `prep`
+  run BEFORE the baseline, which is how the rail-tool cases are measured from
+  Hand; run from 17 catalog states (each plant and landscape tab with its own
+  tool armed, Edit footprint included) it found 0 misses in 42 inputs.
+- **A button press should cost what it changes** (the Sep 2026 UI audit,
+  0.9.33-0.9.36). The expensive pattern was never one slow function. It was a
+  broad refresh — `refreshCanvasTools`, `renderCvRow`, `buildToolTray` — reached
+  from dozens of places, each doing the whole job for a change that touched a
+  corner of it, and often forcing a synchronous layout of DOM it had just
+  rebuilt. Five fixes, each documented where it lives: the sheet lays out only
+  on a geometry change (§15, beside the FLIP note); the catalog signature
+  carries only what the catalog reads (the bullet above); the Plant rail and
+  brush-bar toggles stopped re-arming (§15, beside `visiblePlantChoice`); the
+  tool rail is built once (§12); and the Replace dialog, below.
+  **The Replace dialog's search filters a list built once** (`replaceCandidates`,
+  `replaceThumb`, 0.9.36). Each keystroke rebuilt everything the dialog shows,
+  none of which depends on what was typed: the candidate list from
+  `trayKeys()` (a catalog SORT, only to sort again by name) with every
+  cultivar's search text, all three scope counts (Garden walks every plant),
+  and up to eighty `drawPlant` thumbnails, undebounced. The candidates are now
+  kept while the source, the garden's filters and the challenge palette hold
+  (`plantFits()` for membership; equal names break ties by key, so the order is
+  stable); thumbnails sit in a bounded LRU (`REPLACE_ART`) and are re-appended;
+  scope counts are taken once per dialog on `ctx.scopeCounts`, since the garden
+  cannot change while it is open. The input is debounced at 120ms like Find,
+  holds while an IME composes, and clears the chosen replacement with the render
+  it feeds, so until the list redraws, the highlighted plant is the one Apply
+  would use. One keystroke's render 9.6 -> 0.2ms; a seven-letter word 7 renders
+  and 90ms blocked -> 1 render and 0.1ms.
+  **How these were measured, so the next one is measured the same way:** real
+  Chrome at a desktop and a phone-sized (iframe) viewport, a throwaway profile,
+  the demo garden, a driver clicking the REAL buttons, with the app's global
+  functions, `getBoundingClientRect`, `getComputedStyle` and
+  `createElement('canvas')` wrapped to count what each press does; blocking JS
+  per press plus the style and layout it left pending. Counting the work is what
+  found these (31 rect reads and 8 probe divs behind a Hand-to-Ruler click);
+  frame timings alone showed nothing, since a 6-25ms handler fits between frames
+  on a fast desktop. The counts do not survive into the sandbox as timings, so
+  `tests/ui-cost.test.js` pins the WORK instead.
 - **The catalog has ONE category control: the counted strip.** A `.cat-current`
   dropdown opening a two-group popover (`.cat-pop`) sat beside it until 0.8.70,
   and it had been unreachable the whole time — `display:none` in BOTH responsive
