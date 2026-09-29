@@ -1973,11 +1973,10 @@ function toggleClock(){
    355 plants still in the old season on the first frame, clearing top to
    bottom over 21 frames, the ground flipping on the 12th.
    So a Skip is PREPARED first: `pendingSkip` names the destination, the
-   renderer's look-ahead bakes that season's sprites and ground behind the
-   picture on screen (seasonTurnAhead answers skipAheadTarget first), and the
-   Skip lands at the top of the first frame after one that drew every visible
-   clump with its destination picture ready (landPreparedSkip, skipPrepared) —
-   or once SKIP_PREP_MAX_MS has passed, the fallback being the stand-ins.
+   renderer holds the complete current picture and prepares the destination
+   scene, sprites and ground with one shared frame budget. The Skip lands only
+   when that exact view is ready (landPreparedSkip, skipPrepared). A slow device
+   takes more frames; a timeout never reveals unfinished seasonal artwork.
    Opening the time menu starts that preparation early (`skipPrewarm`), since
    Skip is one tap away: at the ordinary look-ahead budget it is usually done
    before the finger gets there, and the Skip is instant.
@@ -1985,7 +1984,6 @@ function toggleClock(){
    the season already on screen (a year skip from Spring) has nothing a
    look-ahead can hold — its sprites share the slot being drawn — so it lands
    at once, as does anything outside a garden. */
-const SKIP_PREP_MAX_MS=1200;
 let pendingSkip=null, skipPrewarm=false;
 function skipPending(){ return !!pendingSkip; }
 function seasonOfDay(d){ return SEASONS[((Math.floor(d/DAYS_PER_SEASON)%4)+4)%4]; }
@@ -1999,6 +1997,7 @@ function skipAheadTarget(){
 function requestSkipTo(targetDay,done){
   if (targetDay<=absDay()) return;
   const season=seasonOfDay(targetDay);
+  resetSkipPreparation();
   if (!game.inGarden || season===calClock().season){ pendingSkip=null; skipToAbsDay(targetDay); done(); return; }
   pendingSkip={day:targetDay, season, t0:performance.now(), done};
 }
@@ -2009,11 +2008,12 @@ function landPreparedSkip(){
 function landSkipNow(fromRender){
   const p=pendingSkip; if (!p) return;
   pendingSkip=null;
+  resetSkipPreparation();
   if (p.day<=absDay()) return;          // the clock got there first (fast-forward during the wait)
   skipToAbsDay(p.day,!!fromRender);
   p.done();
 }
-function cancelPendingSkip(){ pendingSkip=null; skipPrewarm=false; }
+function cancelPendingSkip(){ pendingSkip=null; skipPrewarm=false; resetSkipPreparation(); }
 function skipToAbsDay(targetDay,deferSave){
   const d=absDay();
   if (targetDay<=d) return;

@@ -10444,6 +10444,25 @@ test('a ground job borrows the camera and rotation, and gives them back', () => 
   });
 });
 
+test('ground preparation chunks cover the canvas once, including rounded edges', () => {
+  groundJobCase(MD => {
+    const bake=bakeGroundRect, rects=[];
+    try {
+      bakeGroundRect=(x,y,w,h)=>rects.push({x,y,w,h});
+      cnv.width=803; cnv.height=607;
+      ensureGroundJob('skip','Fall',0,0,0,MD);
+      stepGroundJob(0,GROUND_JOB_BANDS);
+      assertEqual(rects.length,GROUND_JOB_BANDS,'every chunk is painted');
+      assertEqual(rects.reduce((n,r)=>n+r.w*r.h,0),groundJob.w*groundJob.h,'no area is lost at the right or bottom');
+      for (let i=0;i<rects.length;i++) for (let j=i+1;j<rects.length;j++){
+        const a=rects[i], b=rects[j];
+        assert(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y,'chunks never double-paint');
+      }
+      assert(rects.every(r=>r.w<groundJob.w/2),'a work unit is smaller than a full-width band');
+    } finally { bakeGroundRect=bake; }
+  });
+});
+
 test('a ground job on a stale footing is dropped', () => {
   groundJobCase(MD => {
     ensureGroundJob('ahead', 'Fall', 0, 0, 0, MD);
@@ -12581,6 +12600,45 @@ test('a frame past its look-ahead budget leaves the rest for the next frame', ()
   });
 });
 
+test('memory pressure and failed bakes remain unfinished look-ahead work', () => {
+  aheadCase((key, recFor) => {
+    const rec=recFor('Summer'), bake=makePlantSprite;
+    try {
+      AHEAD.short=0; PSPRITE.bytes=PSPRITE.MEM*1.5+1;
+      aheadBakePlant(rec);
+      assertEqual(AHEAD.short,1,'memory refusal is counted');
+      assert(rec.aheadFor!==AHEAD.epoch,'memory refusal cannot mark a clump ready');
+      PSPRITE.bytes=0; makePlantSprite=()=>null;
+      aheadBakePlant(rec);
+      assertEqual(AHEAD.short,2,'an unsuccessful bake is counted too');
+      assert(rec.aheadFor!==AHEAD.epoch,'a failed bake is retried');
+      makePlantSprite=bake; aheadBakePlant(rec);
+      assertEqual(rec.aheadFor,AHEAD.epoch,'only the successful retry completes it');
+    } finally { makePlantSprite=bake; }
+  });
+});
+
+test('ground preparation consumes the sprite preparation budget', () => {
+  groundJobCase(MD => {
+    const step=stepGroundJob, now=performance.now, was=Object.assign({},AHEAD);
+    let time=0, calls=0;
+    try {
+      performance.now=()=>time;
+      stepGroundJob=()=>{ calls++; time+=3; groundJob.band++; };
+      ensureGroundJob('ahead','Fall',0,0,0,MD);
+      AHEAD.ms=0; AHEAD.budget=6;
+      prepareGroundWithinBudget(0,AHEAD.budget/2);
+      assertEqual(calls,1,'a half budget leaves time for sprites');
+      assertEqual(AHEAD.ms,3,'ground cost is charged to the shared allowance');
+      prepareGroundWithinBudget(0,AHEAD.budget);
+      assertEqual(calls,2,'the remaining allowance fits one more chunk');
+      prepareGroundWithinBudget(0,AHEAD.budget);
+      assertEqual(calls,2,'a spent allowance cannot bake more ground');
+      assert(AHEAD.SKIP_MS<=6,'an explicit skip cannot claim a whole display frame for preparation');
+    } finally { stepGroundJob=step; performance.now=now; Object.assign(AHEAD,was); }
+  });
+});
+
 test('the look-ahead budget is a share of the frame, and a Skip gets more', () => {
   const was = Object.assign({}, AHEAD);
   try {
@@ -12651,13 +12709,14 @@ test('a bulb that comes up at the turn is baked ahead from underground', () => {
    to bottom over 21 frames, and the lawn a season behind for 12. */
 function skipCase(fn){
   setup(20, 20);
-  const was = { gks: groundKeyStruct, job: groundJob, rf: AHEAD.readyFor };
+  const was = { gks: groundKeyStruct, job: groundJob, ahead:Object.assign({},AHEAD), scene, shade:shadeMapCache };
   try {
     game.pausedAt = Date.now();                                   // a planner, paused
     game.elapsedMs = (DAYS_PER_SEASON - 1) * DAY_MS + DAY_MS * 0.5; // the last day of Spring
     groundJob = null;
     fn();
-  } finally { cancelPendingSkip(); groundKeyStruct = was.gks; groundJob = was.job; AHEAD.readyFor = was.rf; }
+  } finally { cancelPendingSkip(); groundKeyStruct = was.gks; groundJob = was.job;
+    Object.assign(AHEAD,was.ahead); scene=was.scene; shadeMapCache=was.shade; }
 }
 
 test('a Skip waits until its destination is ready, then lands in one frame', () => {
@@ -12680,7 +12739,14 @@ test('a Skip waits until its destination is ready, then lands in one frame', () 
     assert(skipPending() && !landed, 'nor while the ground is still the old season');
     groundKeyStruct = groundStructKey('Summer', game.rot);
     landPreparedSkip();
+    assert(skipPending() && !landed,'speculative readiness alone is insufficient');
+    for (let i=0;i<500 && !skipPrepared(pendingSkip);i++) preparePendingSkip(i*16.7);
+    assert(skipPrepared(pendingSkip),'the complete destination was prepared');
+    assertEqual(calClock().season,'Spring','preparation restores the borrowed clock');
+    const held=skipPreparation.cv;
+    landPreparedSkip();
     assert(!skipPending() && landed === 1, 'then it lands, once');
+    assertEqual(held.width,0,'the held frame is released after landing');
     assertEqual(calClock().season, 'Summer', 'on the destination');
     assertEqual(calClock().day, 1, 'at its first day');
     assert(seasonFade.suppressOnce, 'still without a crossfade: Skip is the palette comparison');
@@ -12692,19 +12758,44 @@ test('a Skip waits until its destination is ready, then lands in one frame', () 
   });
 });
 
-test('a Skip that cannot get ready lands anyway, and a second Skip goes further', () => {
+test('a slow Skip never times out onto stand-ins, and a second Skip goes further', () => {
   skipCase(() => {
     let landed = 0;
     requestSkipTo(DAYS_PER_SEASON, () => landed++);
     skipNextSeason();                                   // pressed again while preparing
     assertEqual(seasonTurnAhead().season, 'Fall', 'two presses are two seasons');
     AHEAD.readyFor = null;
-    pendingSkip.t0 = performance.now() - SKIP_PREP_MAX_MS - 1;
-    game.inGarden = false;                              // no save side effect
+    pendingSkip.t0 = performance.now() - 10000;
     landPreparedSkip();
-    assert(!skipPending(), 'past the cap it lands on stand-ins rather than hang');
-    assertEqual(calClock().season, 'Fall', 'where the second press sent it');
+    assert(skipPending(), 'elapsed time cannot declare an incomplete view ready');
+    assertEqual(calClock().season, 'Spring', 'the displayed season stays current while preparing');
     assertEqual(landed, 0, 'the first press was superseded, not landed');
+  });
+});
+
+test('superseding or cancelling a held Skip releases its canvas, job and leases', () => {
+  skipCase(() => {
+    const budget=AHEAD.SKIP_MS;
+    try {
+      AHEAD.SKIP_MS=0; // deliberately leave the first preparation unfinished
+      requestSkipTo(DAYS_PER_SEASON,()=>{});
+      assert(!preparePendingSkip(100),'the zero-budget frame cannot finish');
+      const held=skipPreparation.cv, previous=pendingSkip;
+      const entry={used:PSPRITE.frame+AHEAD.LEASE,bytes:0,slot:'test||Summer'};
+      PSPRITE.map.set('skip-test',entry);
+      skipNextSeason();
+      assertEqual(held.width,0,'the abandoned snapshot is freed');
+      assertEqual(skipPreparation,null,'the next destination starts fresh');
+      assertEqual(groundJob,null,'an abandoned skip ground job cannot block idle preparation');
+      assert(entry.used<PSPRITE.frame-1,'abandoned artwork is evictable');
+      assert(!skipPrepared(previous),'the abandoned request cannot be ready');
+      assertEqual(pendingSkip.season,'Fall','repeated clicks preserve their accumulated destination');
+      preparePendingSkip(120);
+      const second=skipPreparation.cv;
+      cancelPendingSkip();
+      assertEqual(second.width,0,'cancelling frees the next snapshot too');
+      assertEqual(calClock().season,'Spring','cancelling never commits the borrowed clock');
+    } finally { AHEAD.SKIP_MS=budget; PSPRITE.map.delete('skip-test'); }
   });
 });
 

@@ -129,7 +129,10 @@ function groundSeasonOnly(a,b){
    A job is a promise about one picture: season, rotation, zoom, camera,
    ground data and layer objects, canvas size. If any of those moves it is
    dropped, and one on a stale footing is never swapped in. */
-const GROUND_JOB_BANDS=12;
+// Four columns per row keep an individual preparation step small enough to
+// yield between tiles of work, even on a wide viewport. `band` counts chunks.
+const GROUND_JOB_COLS=4, GROUND_JOB_ROWS=12;
+const GROUND_JOB_BANDS=GROUND_JOB_COLS*GROUND_JOB_ROWS;
 const GROUND_SEASON_LEAD_MS=1500;   // bake the next season this long, in real time, before it arrives
 const GROUND_IDLE_MS=600;           // quiet this long before pre-baking the next rotation
 let groundJob=null, groundSpare=null, groundSpareCtx=null;
@@ -153,20 +156,22 @@ function ensureGroundJob(why,season,rot,camX,camY,MD){
   groundJob={why, season, rot, struct, data:groundDataKey(), zoom:ZOOM, camX, camY, MD, w, h,
     refs:{terrain:game.terrain,elevation:game.elevation,houses:game.houses}, band:0};
 }
-/* Bake the next `n` bands of the job into the spare canvas. The camera and the
+/* Bake the next `n` chunks of the job into the spare canvas. The camera and the
    rotation are borrowed for the call and put back in a finally — the
    gsBorrowCamera pattern — because the ground painters read both; the season
    travels in `amb`, which is all they read of it. */
 function stepGroundJob(t,n){
   const j=groundJob; if (!j) return;
   const tB=dnow();
-  const W=VW/ZOOM, H=VH/ZOOM, amb=AMBIENCE[j.season], s=DPR*ZOOM, bh=Math.ceil(j.h/GROUND_JOB_BANDS);
+  const W=VW/ZOOM, H=VH/ZOOM, amb=AMBIENCE[j.season], s=DPR*ZOOM;
+  const bw=Math.ceil(j.w/GROUND_JOB_COLS), bh=Math.ceil(j.h/GROUND_JOB_ROWS);
   const cx0=cam.x, cy0=cam.y, r0=game.rot;
   cam.x=j.camX; cam.y=j.camY; game.rot=j.rot;
   try{
     for (let i=0; i<n && j.band<GROUND_JOB_BANDS; i++, j.band++){
-      const py=j.band*bh;
-      bakeGroundRect(0,py,j.w,Math.min(bh,j.h-py),W,H,amb,t,j.MD,5,j.MD/s,groundSpareCtx);
+      const px=(j.band%GROUND_JOB_COLS)*bw, py=Math.floor(j.band/GROUND_JOB_COLS)*bh;
+      if (px<j.w && py<j.h)
+        bakeGroundRect(px,py,Math.min(bw,j.w-px),Math.min(bh,j.h-py),W,H,amb,t,j.MD,5,j.MD/s,groundSpareCtx);
     }
   } finally { cam.x=cx0; cam.y=cy0; game.rot=r0; }
   dev('bakeBand',tB,groundSpareCtx);
@@ -212,19 +217,24 @@ function groundJobTick(t,MD,season,ahead){
       ensureGroundJob('rot',season,r,c[0],c[1],MD);
     }
   }
-  // a pending Skip is waiting on this picture: two bands a frame, so the ground
-  // is never what holds the turn back
-  if (groundJob && !groundJobDone() && groundJobValid(MD)) stepGroundJob(t,ahead&&ahead.skip?2:1);
+  if (groundJob && !groundJobDone() && groundJobValid(MD)){
+    if (ahead) prepareGroundWithinBudget(t,AHEAD.budget/2);
+    else stepGroundJob(t,GROUND_JOB_COLS);
+  }
 }
-/* Is everything a pending Skip will show ready? The last frame drew every
-   visible entity with its destination picture already baked (AHEAD.readyFor),
-   and the destination ground is baked — or the wait has gone on long enough
-   that stand-ins are the lesser evil. */
+// Ground and sprites spend the SAME preparation allowance. A single canvas
+// operation cannot be interrupted; check the clock again after every chunk.
+function prepareGroundWithinBudget(t,limit){
+  while (!groundJobDone() && groundJob && AHEAD.ms<limit){
+    const start=performance.now();
+    stepGroundJob(t,1);
+    AHEAD.ms+=performance.now()-start;
+  }
+}
+/* Readiness belongs to a complete destination view, never to elapsed time or
+   the absence of attempts after the speculative cache hit its memory limit. */
 function skipPrepared(p){
-  if (performance.now()-p.t0>SKIP_PREP_MAX_MS) return true;
-  if (AHEAD.readyFor!==p.season) return false;
-  const MD=Math.round(GROUND_MARGIN_CSS*DPR), gs=groundStructKey(p.season,game.rot);
-  return groundKeyStruct===gs || (!!groundJob && groundJob.struct===gs && groundJobDone() && groundJobValid(MD));
+  return !!skipPreparation && skipPreparation.p===p && skipPreparation.ready;
 }
 function groundDataKey(){ return game.groundRev+'|'+GW+'x'+GH; }
 function terrainRegionKey(){ return game.terrainRev+'|'+GW+'x'+GH; }
@@ -1639,17 +1649,14 @@ function blitPlantSprite(ctx,e,bx,by,sway){
    The per-frame budget is a SHARE of the frame (`budget`, set in render), not
    a flat 2ms: the lead is 1.5s of real time, and at 60Hz a flat 2ms is 180ms
    of baking in it, half of what a 374-plant turn needs, where 164Hz gets 490.
-   A Skip is the one turn the clock does not run up to, so it gets a lead of
-   its own (skipAheadTarget, ui.js): the Skip WAITS until the frame before has
-   drawn every visible clump with its destination picture ready (`readyFor`),
-   then lands in one frame. It has no crossfade to hide stand-ins under — it is
-   the palette-comparison control — so without that wait a Skip showed the old
-   season in plants and ground, turning over from the top of the screen down,
-   because bakes happen in drawing order, back to front. `short` counts the
-   clumps a frame left for later; `epoch` moves whenever the destination does,
+   The Time menu starts this work early. An explicit Skip then checks the exact
+   destination scene in preparePendingSkip, holding the previous complete view
+   until everything is ready. It has no crossfade to hide stand-ins under — it
+   is the palette-comparison control. `short` counts ALL unfinished attempts,
+   including memory refusals and failed bakes; `epoch` moves with the destination,
    so a clump marked done for one lead is checked again (and its lease renewed)
    for the next. */
-const AHEAD={season:null, at:0, ms:0, BUDGET_MS:2, MAX_MS:6, SKIP_MS:16, budget:2, LEASE:1500,
+const AHEAD={season:null, at:0, ms:0, BUDGET_MS:2, MAX_MS:6, SKIP_MS:6, budget:2, LEASE:1500,
   epoch:0, token:null, short:0, readyFor:null, lastT:0, vs:0};
 /* What render tells the look-ahead at the top of each frame. The share is of
    the DISPLAY's interval — the smallest recent frame gap, drifting back up 2%
@@ -1670,50 +1677,60 @@ function aheadFrame(t,ahead){
     : ahead.prewarm && !clockActive() && !game.ffActive ? AHEAD.MAX_MS
     : Math.min(AHEAD.MAX_MS,Math.max(AHEAD.BUDGET_MS,AHEAD.vs*0.3));
 }
-function aheadBakePlant(e){
+function aheadBakePlant(e,prepared=false){
   const next=AHEAD.season;
   if (e.aheadFor===AHEAD.epoch || e.kSlot===undefined) return;
   if (AHEAD.ms>=AHEAD.budget){ AHEAD.short++; return; }
-  if (PSPRITE.bytes>PSPRITE.MEM*1.5) return;   // a garden whose visible set nearly fills the cache turns progressively
+  if (!prepared && PSPRITE.bytes>PSPRITE.MEM*1.5){ AHEAD.short++; return; }
   const t0=performance.now();
   // growth and bloom as they will be just after the boundary: borrow the clock
   const was=game.elapsedMs, susp=game.clockSuspended;
   let g, bl;
-  game.elapsedMs=AHEAD.at+DAY_MS*0.02; game.clockSuspended=true;
+  game.elapsedMs=AHEAD.at+(prepared?0:DAY_MS*0.02); game.clockSuspended=true;
   try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); }
   finally{ game.elapsedMs=was; game.clockSuspended=susp; }
-  e.aheadFor=AHEAD.epoch;
-  if (g<=0.02) return;                         // not up yet in the coming season
+  if (e.kind===SCENE_K.BULB && g<=0.02){ e.aheadFor=AHEAD.epoch; return; }
   const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0;
   const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
   const kk=slot+'|'+gB+'|'+bB+e.kTail;
   const have=PSPRITE.map.get(kk);
-  if (have){ have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); return; }
+  if (have && (!prepared || preparedSpriteScale(have,pspriteScale()))){
+    have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); e.aheadFor=AHEAD.epoch; return;
+  }
   const ne=makePlantSprite(e.p.s,gB,bB,next,e.seed,e.p.v,e.detail);
   AHEAD.ms+=performance.now()-t0;
-  if (!ne) return;
+  if (!ne){ AHEAD.short++; return; }
+  if (have) retirePlantSprite(kk,have);
   // whatever this clump held in that season before (last year's) is dead now
   const old=PSPRITE.slot.get(slot);
   if (old!==undefined && old!==kk){ const d=PSPRITE.map.get(old); if (d) retirePlantSprite(old,d); }
   ne.used=PSPRITE.frame+AHEAD.LEASE; ne.slot=slot;
   PSPRITE.map.set(kk,ne); PSPRITE.slot.set(slot,kk); PSPRITE.bytes+=ne.bytes;
   PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk);
+  e.aheadFor=AHEAD.epoch;
 }
-function aheadBakeStruct(e,W,H,lit){
+function aheadBakeStruct(e,W,H,lit,prepared=false){
   const next=AHEAD.season;
   if (e.aheadFor===AHEAD.epoch) return;
   if (AHEAD.ms>=AHEAD.budget){ AHEAD.short++; return; }
-  e.aheadFor=AHEAD.epoch;
-  const spec=structSpriteSpec(e); if (!spec) return;
+  const spec=structSpriteSpec(e); if (!spec){ e.aheadFor=AHEAD.epoch; return; }
   const kk=spec.key+'|'+next+'|'+game.rot+'|'+(lit?1:0);   // drawStructMaybeCached's key, next season
   const have=SSPRITE.map.get(kk);
-  if (have){ have.used=Math.max(have.used||0,SSPRITE.frame+AHEAD.LEASE); return; }
+  if (have && (!prepared || preparedSpriteScale(have,ssprScale()))){
+    have.used=Math.max(have.used||0,SSPRITE.frame+AHEAD.LEASE); e.aheadFor=AHEAD.epoch; return;
+  }
   const t0=performance.now();
   const ns=makeStructSprite(e,spec,next,W,H,lit);
   AHEAD.ms+=performance.now()-t0;
-  if (!ns) return;
+  if (!ns){ AHEAD.short++; return; }
+  if (have) SSPRITE.bytes-=have.bytes;
   ns.used=SSPRITE.frame+AHEAD.LEASE;
   SSPRITE.map.set(kk,ns); SSPRITE.bytes+=ns.bytes;
+  e.aheadFor=AHEAD.epoch;
+}
+function preparedSpriteScale(e,scale){
+  const baked=e.want!==undefined?e.want:e.s;
+  return Math.abs(baked-scale)<=scale*0.12 || (e.capped && scale>e.s);
 }
 function plantStandInKey(kk,slot){
   const was=PSPRITE.slot.get(slot);
@@ -3054,7 +3071,7 @@ function prepareGardenOpen(t){
     if (groundKey!==gkey || groundRefsChanged() || groundZoom!==ZOOM
         || groundCamX!==cam.x || groundCamY!==cam.y || groundMarginStale){
       ensureGroundJob('open',season,game.rot,cam.x,cam.y,MD);
-      stepGroundJob(t,1);
+      stepGroundJob(t,GROUND_JOB_COLS);
       if (groundJobDone()){ adoptGroundJob(t); o.phase='measure'; }
       return false;
     }
@@ -3099,8 +3116,117 @@ function prepareGardenOpen(t){
   lastMeaningfulChange=t;
   return true;
 }
+/* Explicit skips keep one complete frame while the destination is prepared.
+   Unlike speculative look-ahead, this can retire the old season under memory
+   pressure: its pixels are held, so no live draw will ask for those sprites.
+   Build the destination scene with its OWN shade/stunting, then borrow its
+   clock only synchronously. The model, HUD and saves stay on the current day
+   until the ground and all visible sprites can be revealed together. */
+let skipPreparation=null;
+function resetSkipPreparation(){
+  if (skipPreparation){
+    skipPreparation.cv.width=skipPreparation.cv.height=0;
+    // Cancelled/superseded destinations must not retain speculative leases.
+    if (!skipPreparation.ready){
+      for (const e of PSPRITE.map.values()) if (e.used>PSPRITE.frame) e.used=PSPRITE.frame-2;
+      for (const e of SSPRITE.map.values()) if (e.used>SSPRITE.frame) e.used=SSPRITE.frame-2;
+    }
+  }
+  if (groundJob && groundJob.why==='skip') groundJob=null;
+  skipPreparation=null;
+}
+function trimSkipSprites(season){
+  if (PSPRITE.bytes>PSPRITE.MEM*1.5){
+    for (const [k,e] of PSPRITE.map)
+      if (!e.slot || !e.slot.endsWith('|'+season)) retirePlantSprite(k,e);
+  }
+  if (SSPRITE.bytes>SSPRITE.MEM*1.5){
+    const tail='|'+season+'|'+game.rot+'|'+(game.layerVis.night?1:0);
+    for (const [k,e] of SSPRITE.map) if (!k.endsWith(tail)){
+      SSPRITE.bytes-=e.bytes; SSPRITE.map.delete(k);
+    }
+  }
+}
+function preparePendingSkip(t){
+  const p=pendingSkip;
+  if (!p) return true;
+  if (p.day<=absDay()){ landSkipNow(); return true; }
+  if (!skipPreparation){
+    const cv=document.createElement('canvas'); cv.width=cnv.width; cv.height=cnv.height;
+    cv.getContext('2d').drawImage(cnv,0,0);
+    skipPreparation={p,cv,key:null,ready:false};
+  }
+  const o=skipPreparation, start=performance.now();
+  const W=VW/ZOOM, H=VH/ZOOM, MD=Math.round(GROUND_MARGIN_CSS*DPR);
+  const was={elapsed:game.elapsedMs,suspended:game.clockSuspended,scene,shade:shadeMapCache};
+  aheadFrame(t,skipAheadTarget());
+  game.elapsedMs=AHEAD.at; game.clockSuspended=true;
+  try{
+    if (o.scene){ scene=o.scene; shadeMapCache=o.shade; }
+    const key=sceneKey()+'|'+groundDataKey()+'|'+groundStructKey(p.season,game.rot)
+      +'|'+ZOOM+'|'+DPR+'|'+VW+'|'+VH+'|'+cam.x+'|'+cam.y+'|'+(game.layerVis.night?1:0)
+      +'|'+PSPRITE.active+'|'+PSPRITE.off+'|'+SSPRITE.active+'|'+SSPRITE.off;
+    if (o.key!==key || sceneStale(sceneKey())){
+      if (sceneStale(sceneKey())) buildScene(W,H);
+      o.scene=scene; o.shade=shadeMapCache;
+      const ox=W/2-cam.x, oy=H*0.24-cam.y;
+      o.ents=scene.ents.filter(e=>!(e.ox1+ox<0 || e.ox0+ox>W || e.oy1+oy<0 || e.oy0+oy>H));
+      o.key=key; o.index=0; o.ready=false;
+      AHEAD.epoch++; // camera, lighting, preview or edits must recheck every key
+      // Age once for the whole preparation, never between its batches.
+      pspriteFrame(); ssprFrame();
+    }
+    trimSkipSprites(p.season);
+    // A scene/shade rebuild is indivisible today. If it consumed this frame's
+    // allowance, yield now instead of stacking ground or plant bakes onto it.
+    AHEAD.ms=performance.now()-start;
+    const gs=groundStructKey(p.season,game.rot), gkey=gs+'|'+groundDataKey();
+    const groundReady=groundKey===gkey && !groundRefsChanged() && groundZoom===ZOOM
+      && groundCamX===cam.x && groundCamY===cam.y && !groundMarginStale;
+    if (!groundReady){
+      // A camera move during a held view must not leave a finishing pan bake
+      // for the reveal frame. Prepare precisely the view that will be shown.
+      if (groundJob && (groundJob.camX!==cam.x || groundJob.camY!==cam.y)) groundJob=null;
+      ensureGroundJob('skip',p.season,game.rot,cam.x,cam.y,MD);
+      prepareGroundWithinBudget(t,AHEAD.budget);
+      if (!groundJobDone()) return false;
+    }
+    while (o.index<o.ents.length && performance.now()-start<AHEAD.budget){
+      const e=o.ents[o.index];
+      AHEAD.ms=performance.now()-start;
+      if (e.kind===SCENE_K.PLANT || e.kind===SCENE_K.BULB){
+        if (PSPRITE.active && !PSPRITE.off) aheadBakePlant(e,true);
+        else e.aheadFor=AHEAD.epoch;
+      } else if (SSPRITE.active && !SSPRITE.off) aheadBakeStruct(e,W,H,game.layerVis.night,true);
+      else e.aheadFor=AHEAD.epoch;
+      if (e.aheadFor!==AHEAD.epoch) break;
+      o.index++;
+    }
+    AHEAD.ms=performance.now()-start;
+    if (o.index===o.ents.length){
+      if (!groundReady) adoptGroundJob(t);
+      o.ready=true;
+    }
+  } finally {
+    game.elapsedMs=was.elapsed; game.clockSuspended=was.suspended;
+    scene=was.scene; shadeMapCache=was.shade;
+    if (!o.ready){
+      // Also restores the held view after a canvas resize, which clears pixels.
+      cx.save(); cx.setTransform(1,0,0,1,0,0);
+      cx.drawImage(o.cv,0,0,cnv.width,cnv.height); cx.restore();
+      if (!o.notified && performance.now()-p.t0>250){
+        toast('Preparing '+p.season+'…'); o.notified=true;
+      }
+    }
+  }
+  if (!o.ready) return false;
+  scene=o.scene; shadeMapCache=o.shade;
+  lastMeaningfulChange=t;
+  return true;
+}
 function render(t){
   if (gardenOpening && !game.photo && !prepareGardenOpen(t)) return;
+  if (!game.photo && !preparePendingSkip(t)) return;
   /* Sky: three full-screen gradient fills, now one opaque blit of a bake keyed
      on (season, canvas size) — see the season-wash note in world.js. This
      stretch used to be covered by no phase timer at all, which hid ~31% of the
@@ -3425,8 +3551,8 @@ function render(t){
   while (di<dyn.length){
     plantCount+=drawSceneEnt(dyn[di++],W,H,cal.season,sway,useSprites); drawn++; }
   dmark('draw',tDraw);
-  // every visible clump now has its picture for the coming season (a pending
-  // Skip lands on the next frame if the ground is ready too — skipPrepared)
+  // Diagnostic speculative readiness; explicit skips check their destination
+  // scene separately, including its shade, scale and visible working set.
   AHEAD.readyFor=AHEAD.season && !AHEAD.short ? AHEAD.season : null;
   drawBuildingDraftOverlay(cx,W,H);
   updateSpriteMode(performance.now()-tDrawWall, plantCount,

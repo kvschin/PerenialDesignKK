@@ -1810,14 +1810,24 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     wheel zoom there is one more way into the slow path.
     **The next ground picture is baked a band at a time, behind the one on
     screen** (`groundJob`, `ensureGroundJob`/`stepGroundJob`/`adoptGroundJob`,
-    `groundJobTick`, `GROUND_JOB_BANDS` 12; Sep 2026). Three things asked for a
+    `groundJobTick`; Sep 2026). Three things asked for a
     full bake on a frame the gardener was watching — the settle at the end of a
     zoom, a season turn, a rotation — each ~100ms of GPU at 2114×1241. Each is
-    now baked into a SECOND canvas (`groundSpare`), one horizontal band a
-    frame, through `bakeGroundRect`: the clipped-strip path a pan already
+    now baked into a SECOND canvas (`groundSpare`), through smaller rectangles
+    in `bakeGroundRect`: the clipped-strip path a pan already
     scrolls by, so there is no second way of painting the ground to get wrong.
     The finished picture is swapped in whole and the old canvas becomes the
     next job's spare, so the cost is one extra ground canvas, not one per job.
+    The original 12 full-width bands now have four columns apiece:
+    `GROUND_JOB_ROWS=12`, `GROUND_JOB_COLS=4`, `GROUND_JOB_BANDS=48` (the retained
+    `band` counter counts chunks). Ordinary opening/zoom/rotation work advances
+    four chunks per frame. Seasonal look-ahead charges each chunk to the SAME
+    `AHEAD.budget` as sprites, reserving half for plants; explicit skips can use
+    the whole allowance on ground before preparing sprites. Check time after
+    each indivisible canvas operation; this is a cooperative limit, not a hard
+    ceiling on one expensive draw. Pixel checks of the chunked ground versus a
+    full rectangle found 0.075–0.115% changed pixels, confined to raster seams,
+    with no missing ground; all 28 `dev/ground-verify.cjs` arms passed.
     *zoom* — past `GROUND_ZOOM_SETTLE` the soft stale bake stays up while the
     crisp one fills in behind it. *season* — while the clock runs toward a
     boundary (`seasonTurnAhead`: `GROUND_SEASON_LEAD_MS`, 1.5s of REAL time at
@@ -2273,7 +2283,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     garden changes at once. Those sprites are LEASED (`used` set `AHEAD.LEASE`
     frames ahead), because the eviction sweep discards what was not drawn last
     frame and nothing draws a season that has not arrived; a garden whose cache
-    already sits at 1.5× `MEM` turns progressively instead. A clump's sprite
+    already sits at 1.5× `MEM` can still turn progressively on a natural clock
+    boundary. A memory refusal or failed bake increments `short` and NEVER marks
+    the record complete. Explicit skips use the held-view path below instead.
+    A clump's sprite
     from that season last year is retired when the new one lands. Never for a
     portrait (`ctx!==cx`) or a photo, and never while paused unless a Skip is
     coming (below). Measured live, a running clock crossing Summer→Fall,
@@ -2304,13 +2317,27 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     down over 21 frames (bakes happen in drawing order, back to front), with a
     Fall sky over a Summer lawn until the ground's 12th band. Reported as "the
     plants update from the top down". So a Skip names its destination and
-    WAITS: `seasonTurnAhead` answers `skipAheadTarget` first, the look-ahead
-    bakes the destination's sprites at `AHEAD.SKIP_MS` (16) and the ground job
-    two bands a frame, and it lands at the top of the first frame after one
-    that drew every visible clump with its destination picture ready
-    (`AHEAD.readyFor`, which is `AHEAD.short` — the clumps a frame's budget
-    left over — coming out 0) with the ground baked too. `SKIP_PREP_MAX_MS`
-    (1200) caps the wait; stand-ins are the fallback, not a hang.
+    WAITS: `preparePendingSkip` captures the last complete frame and prepares
+    the actual destination scene, ground and visible sprites under one
+    `AHEAD.SKIP_MS=6` allowance. The former independent 16ms sprite allowance
+    plus two ground bands stacked into 35ms preparation frames on the demo.
+    The destination scene uses its own day, growth, bloom and shade/stunting;
+    the clock, scene and shade cache are borrowed synchronously and restored in
+    `finally`, so HUD and saves never observe a half-committed skip. Once ready,
+    its scene/shade and ground are adopted and the clock lands before drawing.
+    `AHEAD.readyFor` alone is no longer sufficient. The former 1200ms timeout
+    is removed: elapsed time or the speculative memory cutoff cannot declare
+    missing artwork ready. A wait over 250ms shows “Preparing [season]…”.
+    **Memory pressure retires old artwork behind the held frame.** Above 1.5×
+    either sprite budget, the held skip drops other seasons (and other
+    rotation/lighting variants for structures), then continues preparing the
+    destination. A visible destination working set may exceed MEM, like normal
+    rendering; do not impose a cap that prevents it ever completing. Age caches
+    once for each preparation view, not once per batch, and lease completed
+    images through the reveal. Camera, zoom, canvas size, layers, lighting,
+    preview or scene edits restart validation; a changed destination releases
+    the held canvas, obsolete ground job and abandoned leases. The held bitmap
+    also survives a resize; partial preparations never draw on the live canvas.
     `hasTransientGardenWork` keeps it at full rate. **Opening the time menu
     starts that preparation** (`skipPrewarm`, at 6ms on the paused planner's
     idle frames), because Skip is only ever reached from that menu: measured,
@@ -2322,7 +2349,16 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     pagehide land a pending Skip rather than lose it, and opening a garden
     drops one meant for the last. `AHEAD.epoch` moves whenever the destination
     does, so a clump marked done for one lead is checked (and its lease
-    renewed) again for the next. Measured, Chrome, every Skip path — Summer→
+    renewed) again for the next. The Sept 28 regression checks (headless Edge,
+    actual desktop and phone-sized canvases, not physical-phone FPS) found zero
+    stale sprites on landing and subsequent frames in the demo and a seeded
+    2,735-plant/bulb stress garden. The stress case previously landed with 1,078
+    wrong-season draws. The desktop demo's maximum measured JS work fell from
+    35.3ms to 8.8ms; a dense destination's one-time scene/shade rebuild remains
+    indivisible and can exceed the preparation allowance. Repeated clicks,
+    Today-mode Summer/Spring arrivals, memory pressure, and combined resize,
+    rotation, lighting, zoom and planting changes also landed with exact sprites.
+    Earlier measurements, Chrome, every Skip path — Summer→
     Fall, Fall→Winter, a year skip into Spring, the menu path — 0 plants in
     the old season and the ground on the same frame; natural and fast-forward
     turns unchanged. `turnlook`-style probing (count stand-ins whose season is
