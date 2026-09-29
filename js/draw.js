@@ -1527,6 +1527,13 @@ function coniferWeepBelow(P,H){
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail){
+  // Every plant starts with empty floret and thread batches. Each batch resets
+  // only when it is FLUSHED, so a draw that threw between a push and its flush
+  // (a negative ellipse radius is an IndexSizeError) would hand its leftovers
+  // to the next plant drawn, on any canvas. The batch helpers are entered only
+  // from in here, and drawPlant never re-enters itself, so this one reset
+  // covers them all. Four writes; a test poisons both counts.
+  fcReset(); _thrN[0]=_thrN[1]=_thrN[2]=0;
   const P = plantDef(key, variant), baseS = P.sea[season]||{};
   if (P.type==='bulb'&&growth<=0.02) return; // dormant bulbs have no organs and therefore no floating ground shadow
   // Month-window plants may bridge a real-world boundary even when their

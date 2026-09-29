@@ -647,6 +647,50 @@ test('fine grass clouds batch their florets without losing the panicle silhouett
   }} finally {ART2.on=before;}
 });
 
+/* fcPush/fcDraw and thrPush/thrStroke batch into module scratch that resets
+   only on a flush, so a draw that threw between a push and its flush left its
+   count behind and the NEXT plant painted those leftovers as its own. Poison
+   both counts over sentinel coordinates, as a thrown draw would, and the plant
+   must draw exactly what it draws from clean scratch. Mutation-checked: drop
+   either half of drawPlant's reset and this fails. */
+test('a plant never paints floret or thread batches left behind by an earlier draw', () => {
+  const SENT=98765.5;
+  function trace(key,season){
+    const ops=[],ctx=new Proxy({}, {
+      get(o,p){ if(p in o)return o[p];
+        if(p==='createLinearGradient'||p==='createRadialGradient')return ()=>({addColorStop(){}});
+        return (...a)=>ops.push([p,...a]); },
+      set(o,p,v){o[p]=v;return true;}
+    });
+    drawPlant(ctx,0,0,key,1,season,4242,0,null,1);return ops;
+  }
+  const before=ART2.on,fp=fcPush,tp=thrPush;
+  try { for(const mode of [false,true]){
+    ART2.on=mode;
+    const used={fc:0,thr:0};
+    // amsonia in spring carries both: threadleaf foliage and star clusters;
+    // pink muhly's cloud is the densest floret spray in the catalog
+    for(const [key,season] of [['amsonia','Spring'],['pinkmuhly','Fall']]){
+      _fcN=0; _thrN[0]=_thrN[1]=_thrN[2]=0;
+      let fc=0,thr=0;
+      fcPush=function(){fc++;return fp.apply(null,arguments);};
+      thrPush=function(){thr++;return tp.apply(null,arguments);};
+      let clean;
+      try { clean=JSON.stringify(trace(key,season)); } finally { fcPush=fp; thrPush=tp; }
+      used.fc+=fc; used.thr+=thr;
+      for(let i=0;i<55;i++){ _fcX[i]=_fcY[i]=SENT; _fcR[i]=3; _fcS[i]=1; }
+      for(const a of _thr) a.fill(SENT,0,40*4);
+      _fcN=55; _thrN[0]=_thrN[1]=_thrN[2]=40;
+      let dirty;
+      try { dirty=trace(key,season); } finally { _fcN=0; _thrN[0]=_thrN[1]=_thrN[2]=0; }
+      const stale=dirty.filter(o=>o.includes(SENT));
+      assertEqual(stale.length,0,`${key} ${season} (${mode?'ART2':'classic'}): calls carrying coordinates this plant never pushed`);
+      assert(JSON.stringify(dirty)===clean,`${key} ${season} (${mode?'ART2':'classic'}): draws exactly what it draws from clean scratch`);
+    }
+    assert(used.fc>0&&used.thr>0,`${mode?'ART2':'classic'}: both batches are actually exercised (fc ${used.fc}, thr ${used.thr})`);
+  } } finally { ART2.on=before; fcPush=fp; thrPush=tp; _fcN=0; _thrN[0]=_thrN[1]=_thrN[2]=0; }
+});
+
 test('new West Coast drawing options stay finite and deterministic in both renderers', () => {
   function trace(key,season){
     const ops=[],ctx=new Proxy({}, {
