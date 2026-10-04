@@ -5648,7 +5648,7 @@ const PLANTS = {
     blurb:'The wisteria you can actually let near a house. Short dense lilac racemes after the leaves are out, on a plant that tops out near thirty feet instead of the sixty an Asian wisteria will take a porch apart to reach. Wants a real structure even so — a wire, an arch or a stout pergola, never a downpipe.',
     sea:{Spring:{fol:'#6f8f5c',bloom:'#9a8fc4'}, Summer:{fol:'#557a4c'}, Fall:{fol:'#c4b256',seed:'#8a7a58'}, Winter:{twig:'#6f6046',seed:'#867653'}}},
   clematisviticella:{ name:'Italian Clematis', latin:'Clematis viticella', form:'climber', type:'vine',
-    h:100, heightIn:144, space:36, spread:36, zones:[4,9], nativeTo:['europe'], provenance:'species',
+    h:100, heightIn:144, space:36, spread:36, zones:[4,9], nativeTo:['europe','asia'], provenance:'species',
     sun:'full', moist:'medium', phen:'mid',
     roles:['nectar','structure','longbloom'],
     look:{leafN:48, leafW:0.12, leafH:0.10, flowerN:16, flowerShape:'open', petals:4, twine:'petiole'},
@@ -5662,14 +5662,14 @@ const PLANTS = {
     blurb:'The best climber for a shaded wall, and the slowest — it sulks for three years and then goes up forty feet, clinging by aerial roots with no help. Flat white lacecaps in early summer over glossy heart-shaped leaves, and cinnamon peeling bark that earns its keep in winter. Give it something permanent; it is not a plant you move.',
     sea:{Spring:{fol:'#5f8a55'}, Summer:{fol:'#47713f',bloom:'#f0efe0'}, Fall:{fol:'#c9b354'}, Winter:{twig:'#8a6047'}}},
   climbingrose:{ name:'Climbing Rose', latin:'Rosa', synonyms:['Rosa hybrid'], form:'climber', type:'vine',
-    h:100, heightIn:180, space:48, spread:60, zones:[5,9], nativeTo:['europe','asia'], provenance:'hybrid',
+    h:100, heightIn:180, space:48, spread:60, zones:[5,9], nativeTo:[], provenance:'hybrid',
     sun:'full', moist:'medium', phen:'mid',
     roles:['nectar','structure','fragrant','longbloom'],
     look:{leafN:54, leafW:0.11, leafH:0.09, pinnate:true, flowerN:14, flowerShape:'rose', petals:8, twine:'lean'},
     blurb:'Not a true climber — it has no tendrils and does not twine, it leans, so it has to be TIED to whatever it is going up. That is the whole trick: train the long canes near horizontal along a fence or an arch and they flower along their whole length instead of only at the tip. Repeat-flowering modern climbers give three flushes; once-blooming ramblers give one enormous one.',
     sea:{Spring:{fol:'#5f7f4c'}, Summer:{fol:'#4e7042',bloom:'#eab6c4',eye:'#e8d68a'}, Fall:{fol:'#5a7048',bloom:'#e3aabb',seed:'#c0392b'}, Winter:{twig:'#6c5a46',seed:'#b5342c'}}},
-  goldenhops:{ name:'Golden Hops', latin:'Humulus lupulus', form:'climber', type:'vine',
-    h:100, heightIn:240, space:48, spread:60, zones:[3,8], nativeTo:['europe','north-america'], provenance:'species',
+  goldenhops:{ name:'Golden Hops', latin:"Humulus lupulus 'Aureus'", form:'climber', type:'vine',
+    h:100, heightIn:240, space:48, spread:60, zones:[3,8], nativeTo:['europe','asia','africa','north-america'], provenance:'selection',
     sun:'full', moist:'medium', phen:'warm',
     roles:['foliage','structure','fast'],
     look:{leafN:60, leafW:0.17, leafH:0.14, lobes:3, flowerN:10, flowerShape:'cone', twine:'twine'},
@@ -5729,7 +5729,12 @@ function canonicalizePlantMap(map){
    then replace it with explicit ranges and provenance on EVERY base and cv.
    Ranges are intentionally continental until the catalog carries sourced
    subregional distributions. This keeps "native" factual for North American
-   and European gardeners without deriving geography from a hardiness zone. */
+   and European gardeners without deriving geography from a hardiness zone.
+   A record that STATES its own `nativeTo` or `provenance` keeps it: the tables
+   below are the migration for records that predate those fields, not a second
+   opinion. They used to overwrite everything, and every climber -- the first
+   records written with the fields inline -- came out with no range at all, so
+   a North American native garden was never offered Virginia creeper. */
 const EUROPE_NATIVE_KEYS=new Set(`
   karl overdam sesleria bluemoorgrass tuftedhair bluefescue giantstipa molinia moorhexe mountainsedge
   purplemoorgrass snowywoodrush cirsiumatropurpureum riverthistle cenolophium betony
@@ -5850,23 +5855,29 @@ const CV_RANGE_OVERRIDES={
   'mandarin|clementine':[],
   'macadamia|beaumont':[],
 };
+const PROVENANCES=new Set(['species','selection','hybrid']);
 for (const [key,P] of Object.entries(PLANTS)){
-  const ranges=[];
-  if ((P._legacyNative || NORTH_AMERICA_ADDITIONS.has(key)) && !NORTH_AMERICA_EXCLUSIONS.has(key)) ranges.push('north-america');
-  if (EUROPE_NATIVE_KEYS.has(key)) ranges.push('europe');
-  if (ASIA_NATIVE_KEYS.has(key)) ranges.push('asia');
-  if (AFRICA_NATIVE_KEYS.has(key)) ranges.push('africa');
-  if (CENTRAL_AMERICA_NATIVE_KEYS.has(key)) ranges.push('central-america');
-  if (SOUTH_AMERICA_NATIVE_KEYS.has(key)) ranges.push('south-america');
-  if (AUSTRALASIA_NATIVE_KEYS.has(key)) ranges.push('australasia');
-  P.nativeTo=[...new Set(ranges)];
-  const named=/'[^']+'/.test(`${P.name||''} ${P.latin||''}`);
-  P.provenance=BASE_HYBRID_KEYS.has(key)?'hybrid':named?'selection':'species';
+  if (!Array.isArray(P.nativeTo)){
+    const ranges=[];
+    if ((P._legacyNative || NORTH_AMERICA_ADDITIONS.has(key)) && !NORTH_AMERICA_EXCLUSIONS.has(key)) ranges.push('north-america');
+    if (EUROPE_NATIVE_KEYS.has(key)) ranges.push('europe');
+    if (ASIA_NATIVE_KEYS.has(key)) ranges.push('asia');
+    if (AFRICA_NATIVE_KEYS.has(key)) ranges.push('africa');
+    if (CENTRAL_AMERICA_NATIVE_KEYS.has(key)) ranges.push('central-america');
+    if (SOUTH_AMERICA_NATIVE_KEYS.has(key)) ranges.push('south-america');
+    if (AUSTRALASIA_NATIVE_KEYS.has(key)) ranges.push('australasia');
+    P.nativeTo=[...new Set(ranges)];
+  }
+  if (!PROVENANCES.has(P.provenance)){
+    const named=/'[^']+'/.test(`${P.name||''} ${P.latin||''}`);
+    P.provenance=BASE_HYBRID_KEYS.has(key)?'hybrid':named?'selection':'species';
+  }
   delete P._legacyNative;
   for (const [v,C] of Object.entries(P.cv||{})){
     const ref=`${key}|${v}`;
-    C.provenance=CV_SPECIES_REFS.has(ref)?'species':CV_HYBRID_REFS.has(ref)||P.provenance==='hybrid'?'hybrid':'selection';
-    C.nativeTo=(CV_RANGE_OVERRIDES[ref]||P.nativeTo).slice();
+    if (!PROVENANCES.has(C.provenance))
+      C.provenance=CV_SPECIES_REFS.has(ref)?'species':CV_HYBRID_REFS.has(ref)||P.provenance==='hybrid'?'hybrid':'selection';
+    C.nativeTo=(Array.isArray(C.nativeTo)?C.nativeTo:CV_RANGE_OVERRIDES[ref]||P.nativeTo).slice();
     delete C._legacyNative;
   }
 }

@@ -1613,6 +1613,11 @@ test('native eligibility is range-aware and distinguishes species, selections, a
   assert(!passesNativeFilter(plantDef('meadowsage'),north), 'the same species does not qualify for North America');
   assert(plantRoles('meadowsage',europe).includes('native'), 'roles use the requested range');
   assert(!plantRoles('meadowsage',north).includes('native'), 'regional roles do not leak from the cache');
+  ['virginiacreeper','trumpethoneysuckle','crossvine','americanwisteria'].forEach(k=>
+    assert(passesNativeFilter(plantDef(k),northStraight), `${k}: a native climber is offered to a straight-native garden`));
+  assert(passesNativeFilter(plantDef('goldenhops'),europe), 'golden hops is a selection of a European native');
+  assert(!passesNativeFilter(plantDef('goldenhops'),northStraight), 'a golden selection is not wild hops');
+  assert(!passesNativeFilter(plantDef('climbingrose'),europe), 'a garden climbing rose is in no native palette');
 });
 
 test('legacy native-only criteria migrate deterministically', () => {

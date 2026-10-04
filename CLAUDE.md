@@ -5745,6 +5745,15 @@ natural hybrid has a recorded wild range. Every base and `cv` resolves explicit
 explicit exact-species and hybrid overrides. Keep regional facts out of
 `ROLE_CACHE`: `plantRoles` adds native/naturalistic roles after resolving the
 active/requested range and exact cultivar.
+**A record may state `nativeTo`/`provenance` inline, and the migration keeps
+it** (0.9.43). The key tables in plants.js (`EUROPE_NATIVE_KEYS`,
+`BASE_HYBRID_KEYS` and the rest) are the migration for records written before
+those fields existed, and they used to overwrite every record: the nine
+climbers, the first written with the fields inline, all came out with NO range,
+so a North American native garden was never offered Virginia creeper, trumpet
+honeysuckle, crossvine or American wisteria — and nothing failed, because an
+empty array is a valid range. New records should state both fields inline
+rather than join the tables.
 
 Cultivar definitions are sparse overrides. `plantDef` deep-merges `look` and
 each seasonal `sea` slot over the base, so a compact habit or variegated leaf

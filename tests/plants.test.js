@@ -93,6 +93,24 @@ test('native migration pins corrected ranges and cultivar provenance sentinels',
   assertEqual(PLANTS.smoketree.cv,undefined,'American smoketree does not repeat Cotinus coggygria cultivars');
 });
 
+test('a record that states its own native range keeps it through the migration', () => {
+  /* The climbers were the first records written with nativeTo and provenance
+     inline, and the migration loop overwrote both from tables they were not in,
+     leaving every one with no range. These are their real ranges. */
+  ['virginiacreeper','trumpethoneysuckle','crossvine','americanwisteria'].forEach(k=>{
+    assertEqual(PLANTS[k].nativeTo.join(','),'north-america',`${k}: eastern North American native`);
+    assertEqual(PLANTS[k].provenance,'species',`${k}: straight species`);
+  });
+  assertEqual(PLANTS.clematisviticella.nativeTo.join(','),'europe,asia','Clematis viticella runs from SE Europe to N Iran');
+  assertEqual(PLANTS.climbinghydrangea.nativeTo.join(','),'asia','climbing hydrangea is East Asian');
+  assertEqual(PLANTS.starjasmine.nativeTo.join(','),'asia','star jasmine is East Asian');
+  assertEqual(PLANTS.climbingrose.provenance,'hybrid','a modern climbing rose is a garden hybrid');
+  assertEqual(PLANTS.climbingrose.nativeTo.length,0,'a garden hybrid has no wild native range');
+  assertEqual(PLANTS.goldenhops.provenance,'selection','golden hops is the named selection, not wild hops');
+  ['europe','asia','north-america'].forEach(r=>
+    assert(PLANTS.goldenhops.nativeTo.includes(r),`Humulus lupulus is native in ${r}`));
+});
+
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
   assertEqual(PLANT_KEYS.length,596,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
