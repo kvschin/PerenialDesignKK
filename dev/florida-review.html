@@ -77,10 +77,14 @@ function renderReview(){
   }
   document.getElementById('status').textContent=keys.length+' species · all four seasonal previews · actual library canvas sizing';
 }
+/* Sprites are ImageBitmaps since 0.9.38, so copy each onto a canvas to read it. */
 function checkEdges(){
   const bad=[];let count=0;
+  const scratch=document.createElement('canvas'),sctx=scratch.getContext('2d',{willReadFrequently:true});
   for(const k of [...batches.ground,...batches.structure])for(const v of [null,...Object.keys(PLANTS[k].cv||{})])for(const season of ['Spring','Summer','Fall','Winter'])for(const seed of [7,101,4410]){
-    const s=makePlantSprite(k,8,3,season,seed,v),c=s.cv,w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data;
+    const s=makePlantSprite(k,8,3,season,seed,v),img=s.cv,w=img.width,h=img.height;
+    scratch.width=w;scratch.height=h;sctx.clearRect(0,0,w,h);sctx.drawImage(img,0,0);
+    const d=sctx.getImageData(0,0,w,h).data;
     let edge=false;for(let x=0;x<w;x++)if(d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8)edge=true;
     for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
     if(edge)bad.push(k+(v?':'+v:'')+' '+season+' seed '+seed);count++;
@@ -88,5 +92,6 @@ function checkEdges(){
   document.getElementById('status').textContent=count+' sprite checks: '+(bad.length?bad.length+' touching edges — '+bad.join('; '):'no painted edges');
 }
 document.getElementById('batch').onchange=renderReview;document.getElementById('art').onchange=renderReview;document.getElementById('check').onclick=checkEdges;
-try{renderReview();}catch(error){document.getElementById('status').textContent='Review failed: '+(error&&error.stack||error);}
+const reviewParams=new URLSearchParams(location.search);if(reviewParams.has('art'))document.getElementById('art').value=reviewParams.get('art');if(reviewParams.has('batch'))document.getElementById('batch').value=reviewParams.get('batch');
+try{renderReview();if(reviewParams.has('check'))setTimeout(checkEdges,0);}catch(error){document.getElementById('status').textContent='Review failed: '+(error&&error.stack||error);}
 </script></html>
