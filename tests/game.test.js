@@ -1325,6 +1325,156 @@ test('the sprite box reserves everything a plant paints below its own tile', () 
     'and it scales with the canopy, so a perennial does not pay a tree tax');
 });
 
+/* The axis-aligned extent of everything drawPlant paints, on all four sides.
+   An ellipse is projected exactly: taking its larger radius as a circle made
+   every flat ground shadow look 50px deep and reported 874 false misses. */
+function plantDrawExtent(key,v,season,seed,growth){
+  let m=[1,0,0,1,0,0], x0=1e9, x1=-1e9, y0=1e9, y1=-1e9;
+  const stack=[];
+  const grow=(X,Y,hx,hy)=>{ x0=Math.min(x0,X-hx); x1=Math.max(x1,X+hx); y0=Math.min(y0,Y-hy); y1=Math.max(y1,Y+hy); };
+  const pt=(x,y)=>grow(m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5], 0, 0);
+  const ell=(cx,cy,rx,ry,phi)=>{
+    const c=Math.cos(phi), s=Math.sin(phi);
+    const ux=m[0]*c+m[2]*s, uy=m[1]*c+m[3]*s, vx=m[2]*c-m[0]*s, vy=m[3]*c-m[1]*s;
+    grow(m[0]*cx+m[2]*cy+m[4], m[1]*cx+m[3]*cy+m[5], Math.hypot(ux*rx,vx*ry), Math.hypot(uy*rx,vy*ry));
+  };
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      if (p==='measureText') return () => ({width:0});
+      return (...a) => {
+        if (p==='save') stack.push(m.slice());
+        else if (p==='restore'){ const s=stack.pop(); if (s) m=s; }
+        else if (p==='translate'){ m[4]+=m[0]*a[0]+m[2]*a[1]; m[5]+=m[1]*a[0]+m[3]*a[1]; }
+        else if (p==='scale'){ m[0]*=a[0]; m[1]*=a[0]; m[2]*=a[1]; m[3]*=a[1]; }
+        else if (p==='rotate'){
+          const c=Math.cos(a[0]), s=Math.sin(a[0]);
+          m=[m[0]*c+m[2]*s, m[1]*c+m[3]*s, m[2]*c-m[0]*s, m[3]*c-m[1]*s, m[4], m[5]];
+        }
+        else if (p==='transform'){
+          const [a1,b1,c1,d1,e1,f1]=a;
+          m=[m[0]*a1+m[2]*b1, m[1]*a1+m[3]*b1, m[0]*c1+m[2]*d1, m[1]*c1+m[3]*d1, m[0]*e1+m[2]*f1+m[4], m[1]*e1+m[3]*f1+m[5]];
+        }
+        else if (p==='setTransform') m=a.slice(0,6);
+        else if (p==='moveTo'||p==='lineTo') pt(a[0],a[1]);
+        else if (p==='quadraticCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); }
+        else if (p==='bezierCurveTo'){ pt(a[0],a[1]); pt(a[2],a[3]); pt(a[4],a[5]); }
+        else if (p==='arc') ell(a[0],a[1],a[2],a[2],0);
+        else if (p==='ellipse') ell(a[0],a[1],a[2],a[3],a[4]||0);
+        else if (p==='rect'||p==='fillRect'||p==='strokeRect'){ pt(a[0],a[1]); pt(a[0]+a[2],a[1]+a[3]); }
+      };
+    },
+    set(o,p,val){ o[p]=val; return true; },
+  });
+  drawPlant(ctx,0,0,key,growth,season,seed,0,v,1);
+  return {x0,x1,y0,y1};
+}
+
+test('every tree, shrub and cultivar draws inside its sprite box on all four sides', () => {
+  /* The box test above asks only how far a plant paints BELOW its tile, and only
+     of base species. A cultivar is where a drawing changes shape -- a weeping
+     redbud, a hemlock mound wider than it is tall, a column -- and a sprite that
+     clips does so only once the governor engages, never in the procedural path. */
+  const bad=[];
+  for (const key of PLANT_KEYS){
+    if (!isWoodyDef(PLANTS[key])) continue;
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,v);
+      for (const growth of [1,0.4]){
+        const box=plantDrawBox(P,key,growth);
+        for (const season of SEASONS) for (const seed of [7122,4410]){
+          const e=plantDrawExtent(key,v,season,seed,growth);
+          const over=Math.max(e.x1-box.halfW, -box.halfW-e.x0, -box.top-e.y0, e.y1-box.bot);
+          if (over>0) bad.push(`${key}${v?'.'+v:''}@${growth} ${season} over by ${over.toFixed(1)}`);
+        }
+      }
+    }
+  }
+  assertEqual(bad.slice(0,6).join(' | '),'','every woody drawing fits the box its sprite is baked into');
+});
+
+test('a sized tree cultivar draws at its species\' scale for its real size', () => {
+  /* Trees are drawn on one compression curve: across the catalog, drawn width
+     grows as real spread^0.76 and drawn height as real height^0.70. A cultivar
+     whose px-art was set by eye drifted off it -- 'Slender Silhouette', narrow
+     but carrying its species' spread, drew 45% TALLER than the sweet gum it is
+     a selection of. Anchored on its own species, a cultivar sits on the curve. */
+  const off=[];
+  for (const key of PLANT_KEYS){
+    const B=PLANTS[key]; if (!isTreeDef(B)) continue;
+    for (const [v,C] of Object.entries(B.cv||{})){
+      if (!['h','cw','spread','heightIn'].some(f=>Object.hasOwn(C,f))) continue;
+      const D=plantDef(key,v);
+      const w=(woodyVisualCw(D)/woodyVisualCw(B))/Math.pow(D.spread/B.spread,0.7635);
+      const h=(plantVisualH(D)/plantVisualH(B))/Math.pow(D.heightIn/B.heightIn,0.698);
+      if (Math.abs(Math.log(w))>0.08 || Math.abs(Math.log(h))>0.08)
+        off.push(`${key}.${v} width x${w.toFixed(2)} height x${h.toFixed(2)}`);
+    }
+  }
+  assertEqual(off.join(' | '),'','sized tree cultivars sit on their species\' drawn-size curve');
+});
+
+test('a weeping tree hangs its flowers down its curtains, on both sides', () => {
+  /* `weep` used to add eight wisps under the foliage and nothing else, so a
+     weeping cherry in bloom -- the season it is planted for -- drew as an
+     upright tree. And the first armature put every flower on the first few
+     limbs, i.e. one side, because the flower pass takes the tips in order. */
+  const flowers=(key,v)=>{
+    const pts=[], real=drawFloret, wasArt=ART2.on;
+    drawFloret=function(c,x,y){ pts.push([x,y]); return real.apply(this,arguments); };
+    ART2.on=true;
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return () => {};
+      },
+      set(o,p,val){ o[p]=val; return true; },
+    });
+    try { drawPlant(ctx,0,0,key,1,'Spring',7122,0,v,1); }
+    finally { drawFloret=real; ART2.on=wasArt; }
+    return pts;
+  };
+  const lowShare=(pts,H)=>pts.filter(([,y])=>y>-H*0.5).length/pts.length;
+  for (const v of ['weepinghigan','snowfountains']){
+    const P=plantDef('floweringcherry',v), pts=flowers('floweringcherry',v);
+    assert(pts.length>10, `${v}: flowers drawn`);
+    assert(lowShare(pts,plantVisualH(P))>0.25, `${v}: flowers hang into the lower half of the tree`);
+    const left=pts.filter(([x])=>x<0).length, right=pts.length-left;
+    assert(left>pts.length*0.3 && right>pts.length*0.3, `${v}: flowers on both sides (${left} left, ${right} right)`);
+  }
+  const K=plantDef('floweringcherry','kanzan');
+  assertEqual(lowShare(flowers('floweringcherry','kanzan'),plantVisualH(K)),0, 'an upright cherry keeps its flowers in the crown');
+});
+
+test('a male winterberry draws no berries, and a female still does', () => {
+  /* A berry is a glossy floret in the seed colour under ART2 and a plain disc
+     filled with it in Classic, so count both ways of painting one. */
+  const berries=(v,art)=>{
+    const seed=plantDef('winterberry',v).sea.Winter.seed, real=drawFloret, wasArt=ART2.on;
+    let n=0;
+    const ctx=new Proxy({}, {
+      get(o,p){
+        if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return () => { if (p==='fill' && o.fillStyle===seed) n++; };
+      },
+      set(o,p,val){ o[p]=val; return true; },
+    });
+    drawFloret=function(c,x,y,r,col){ if (col===seed) n++; return real.apply(this,arguments); };
+    ART2.on=art;
+    try { drawPlant(ctx,0,0,'winterberry',1,'Winter',7122,0,v,1); }
+    finally { drawFloret=real; ART2.on=wasArt; }
+    return n;
+  };
+  for (const art of [true,false]){
+    assert(berries('winterred',art)>0, `Winter Red carries its berries into winter (ART2 ${art})`);
+    assertEqual(berries('jimdandy',art),0, `Jim Dandy is a male and carries none (ART2 ${art})`);
+    assertEqual(berries('southerngentleman',art),0, `nor does Southern Gentleman (ART2 ${art})`);
+  }
+});
+
 test('the crown mass fills upright habits and is withheld from weeping ones', () => {
   const massOps=(habit,look) => {
     let n=0;

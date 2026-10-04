@@ -285,6 +285,15 @@ See §13a.
   the cull then rejects all but a handful of plants — that environment reported a
   confident 43MB and 31ms/frame for a garden that really measures 1.65ms. A
   plausible wrong number is worse than none.
+- `node dev/cultivar-size.cjs <species> <heightIn> <spreadIn> [...]` prints the
+  `h`/`cw` a woody cultivar of that real size must carry to sit on its species'
+  drawn-size curve (see "Cultivar definitions are sparse overrides"). Author a
+  sized tree or shrub cultivar from its real dimensions through this, never by
+  eye. `dev/woody-cultivar-review.html` shows every woody cultivar in four
+  seasons, true-scale lineups beside its species, and a real-pixel sprite-edge
+  check (`?check`, `&art=0` for Classic); it copies each sprite onto a canvas to
+  read it, since sprites have been ImageBitmaps since 0.9.38 and the older
+  review pages' `getContext` on one no longer works.
 - `node dev/plant-blit-bench.cjs` splits the plant sprite pass into BAKING and
   BLITTING, which the `draw` phase and a profile's `drawPlantMaybeCached` share
   as one number while wanting opposite fixes — baking is driven by how fast the
@@ -5757,10 +5766,25 @@ rather than join the tables.
 
 Cultivar definitions are sparse overrides. `plantDef` deep-merges `look` and
 each seasonal `sea` slot over the base, so a compact habit or variegated leaf
-edge does not have to copy the species renderer contract. A shrub cultivar that
-changes rendered or recommended size (`h`, `cw`, `space`, or `spread`) must
-declare both its exact `heightIn` and `spread`; otherwise it silently inherits
-the base plant's mature dimensions. `fullName` is reserved for the rare nested
+edge does not have to copy the species renderer contract. A tree or shrub
+cultivar that changes rendered or recommended size (`h`, `cw`, `space`,
+`spread`, or for a tree `heightIn`) must declare both its exact `heightIn` and
+`spread`; otherwise it silently inherits the base plant's mature dimensions.
+**For a tree that was the norm until 0.9.44, and spread is the ONLY source for
+shade, the plan circle and the mature-canopy ring**: 35 ornamental tree
+cultivars drew narrower than their species while carrying its full spread, so
+'Slender Silhouette', eight feet wide, cast the shade of a fifty-five-foot sweet
+gum. The test used to cover orchard trees only.
+**A tree cultivar's `h`/`cw` are SOLVED from its real size, not chosen**
+(`node dev/cultivar-size.cjs <species> <heightIn> <spreadIn>`). Across the
+catalog's broadleaf trees drawn width grows as real spread^0.76 and drawn height
+as real height^0.70 (the T10 compression curve, measured), so a cultivar is
+anchored on its own species with those exponents and `woodyVisualCw` inverted
+for `cw`. Picked by eye the px-art drifted badly off it: a narrow cultivar's
+small `cw` raises its compression factor, which scales `h` with it, so
+'Slender Silhouette' drew 45% TALLER than the species it is a selection of. A
+test holds every sized tree cultivar within 8% of the curve; a shrub draws near
+true scale and is solved linearly. `fullName` is reserved for the rare nested
 exact-species choice whose common name should replace, rather than append to,
 the base name. `synonyms` is an array of accepted or recent botanical names;
 discovery search indexes it while `latin` remains the canonical display name.
@@ -5778,6 +5802,28 @@ placement records; hydrangea mophead/lacecap pairs, single-/multistem river
 birch, and the boxwood/yew shape records preserve different renderer or tool
 contracts. Tests keep this allowlist explicit. Other duplicate base taxa are a
 catalog defect, not a precedent for another pseudo-species.
+
+**Broadleaf tree habits are `look` data too (0.9.44).** A **column** is
+`trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2`
+with about 1.6x the species' `leafN`: the crown runs nearly to the ground. A
+narrow `cw` alone only made a smaller lollipop -- a short crown on a tall bare
+trunk -- which is what 'Armstrong', 'Slender Silhouette' and the columnar oaks
+drew as. **`weep`** is a real armature now: each limb arches out and falls as a
+thinner strand (`weepFall`, the fraction of the drop to the ground it covers,
+default 0.72) with two thinner strands beside it; the flowers, fruit and part of
+the foliage hang along those strands. It used to keep the upright armature and
+add eight wisps under the crown, so a weeping cherry in bloom and in winter --
+the two seasons it is planted for -- drew as an upright tree. The strand points
+become the tree's `tips`, interleaved by a golden-ratio stride, because the
+flower and fruit passes take tips in order and in strand order every flower sat
+on the first two limbs (a test checks both sides). Only `weep` trees take the
+new path: every other tree's canvas command stream is byte-identical (3,464
+draws compared against the previous build). A weeper costs ~50% more per
+procedural draw (126 -> 178us for a cherry in bloom), paid once per sprite bake.
+**`berryN:0` is a male shrub** (winterberry 'Jim Dandy', 'Southern Gentleman'):
+the species' `seed` colour stays for the family, the plant draws no fruit --
+`seedN:0`'s convention for trees. A cultivar's `sea` cannot clear a colour (the
+data contract wants hex), which is why it is a `look` switch.
 
 Shared herbaceous morphology stays data-driven. Shrub-form forbs can use
 `look.flowerStyle:'double'` with `flowerR`/`flowerPetals` for large layered

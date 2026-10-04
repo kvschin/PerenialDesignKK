@@ -4704,13 +4704,56 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const tips=[];
     ctx.lineWidth=Math.max(1.2, (L.branchW||2.2)*vs*growth);
     const branchN=L.branches||5;
+    /* A weeping tree (`weep`: a weeping cherry, a laceleaf maple, a weeping
+       redbud) arches each branch out and lets it FALL as a hanging strand,
+       with thinner strands beside it, and its flowers and fruit hang along
+       those strands. It used to keep the upright armature and add eight
+       wisps under the foliage, so in bloom and in winter -- the two seasons a
+       weeping tree is planted for -- it drew as an ordinary upright tree.
+       `weepFall` is the fraction of the drop from the arch to the ground a
+       strand covers, as on the weeping conifers. */
+    const weep=!!L.weep, hang=weep?[]:null;
+    const weepFall=Math.max(0.2,Math.min(0.95,L.weepFall===undefined?0.72:L.weepFall));
     for (let i=0;i<branchN;i++){
       const a=(i/(branchN-1)-0.5)*(L.branchSpread||1.7)+(rnd()-0.5)*0.2;
       const bx=Math.sin(a)*cw*(L.branchReach||0.34)+sway*3, by=cy-Math.cos(a)*H*(L.branchLift||0.18);
       ctx.beginPath(); ctx.moveTo(sway*1.4,-trunkH*0.92);
-      ctx.quadraticCurveTo(bx*0.35,-trunkH-H*(L.branchY||0.12),bx,by); ctx.stroke();
-      tips.push([bx,by]);
+      ctx.quadraticCurveTo(bx*0.35,-trunkH-H*(L.branchY||0.12),bx,by);
+      ctx.stroke();
+      if (!weep){ tips.push([bx,by]); continue; }
+      // past its arch the limb falls as a thinner hanging strand, and side
+      // strands hang from points along it, thinner still: drawn at limb width
+      // the curtain read as a brown cage rather than as pendant twigs
+      const out=Math.sign(bx-sway*1.4)||1, ex=bx+out*cw*0.10, ey=by+(-by)*weepFall;
+      ctx.save(); ctx.lineWidth*=0.6; ctx.beginPath(); ctx.moveTo(bx,by);
+      ctx.quadraticCurveTo(bx+out*cw*0.12,by-H*0.02,ex,ey); ctx.stroke();
+      hang.push([bx,by,bx+out*cw*0.12,by-H*0.02,ex,ey]);
+      ctx.lineWidth*=0.65; ctx.beginPath();
+      for (let s=0;s<2;s++){
+        const f=0.45+s*0.3+(rnd()-0.5)*0.12, sx=sway*1.4+(bx-sway*1.4)*f, sy=-trunkH*0.92+(by+trunkH*0.92)*f-H*0.05;
+        const sx2=sx+out*cw*(0.05+rnd()*0.05), sy2=sy+(-sy)*weepFall*(0.6+rnd()*0.3);
+        ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx+out*cw*0.06,sy-H*0.02,sx2,sy2);
+        hang.push([sx,sy,sx+out*cw*0.06,sy-H*0.02,sx2,sy2]);
+      }
+      ctx.stroke(); ctx.restore();
     }
+    // Weeping tips are points down the hanging strands, not branch ends --
+    // interleaved by a golden-ratio stride, because the flower and fruit passes
+    // take the first N in order, and in strand order those all sat on the
+    // first two or three limbs, i.e. one side of the tree.
+    if (weep){
+      const pts=[];
+      for (const [x0,y0,qx,qy,x1,y1] of hang) for (const t of [0.2,0.45,0.7,0.92]){
+        const u=1-t; pts.push([u*u*x0+2*u*t*qx+t*t*x1, u*u*y0+2*u*t*qy+t*t*y1]);
+      }
+      pts.map((p,k)=>[(k*0.6180339887)%1,p]).sort((a,b)=>a[0]-b[0]).forEach(([,p])=>tips.push(p));
+    }
+    // Where along a limb a flower or fruit sits. Upright trees spread them from
+    // the trunk top out to the branch end; on a weeper the tip already IS a
+    // point on a hanging strand, so it is used as it stands.
+    const alongLimb=(tx2,ty2,f)=>weep
+      ? [tx2+(f-0.72)*cw*0.09, ty2+(f-0.72)*H*0.05]
+      : [sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f];
     if (L.twigCanopy){
       // Palo-verde and other airy desert trees carry much of their visual
       // mass in photosynthetic twigs. A bounded secondary fan exposes that
@@ -4814,11 +4857,15 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       }
       if (L.weep){
-        ctx.strokeStyle=shade(S.fol,-10); ctx.lineWidth=Math.max(1,vs*0.7);
-        for (let w=0;w<8;w++){
-          const wx=(rnd()-0.5)*cw*0.7+sway*3, wy=cy+rnd()*H*0.12;
-          ctx.beginPath(); ctx.moveTo(wx,wy);
-          ctx.quadraticCurveTo(wx+(rnd()-0.5)*5,wy+H*0.16,wx+(rnd()-0.5)*7,wy+H*(0.24+rnd()*0.1)); ctx.stroke();
+        // The foliage hangs down the curtains the armature drew, which is what
+        // a weeping tree in leaf IS; eight wisps under a crown read as a
+        // mushroom. Elongated blobs, since a hanging spray is longer than wide.
+        const hangN=Math.min(tips.length, Math.round(n*0.7));
+        for (let w=0;w<hangN;w++){
+          const [tx2,ty2]=tips[w];
+          const px=tx2+(rnd()-0.5)*cw*0.05, py=ty2+(rnd()-0.5)*H*0.04;
+          ctx.fillStyle=shade(S.fol,-6+(rnd()-0.5)*18);
+          ctx.beginPath(); ctx.ellipse(px,py,bw*0.72,bh*1.15,Math.PI/2+(rnd()-0.5)*0.7,0,7); ctx.fill();
         }
       }
       if (!art2On(L)){          // ART2 folds the lit side into the main loop
@@ -4861,7 +4908,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
-          const fx=sway*1.4+(tx2-sway*1.4)*f, fy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
+          const [fx,fy]=alongLimb(tx2,ty2,f);
           if (L.flowerShape) drawShrubFlower(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),
             L.flowerShape,rnd,(rnd()-0.5)*0.45,S.eye,L.flowerPetals);
           else drawFloret(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),{squash:0.92});
@@ -4871,7 +4918,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
-          const fx=sway*1.4+(tx2-sway*1.4)*f, fy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
+          const [fx,fy]=alongLimb(tx2,ty2,f);
           if (L.flowerShape) drawShrubFlower(ctx,fx,fy,(L.flowerSize||1.8)*vs,S.bloom,
             L.flowerShape,rnd,(rnd()-0.5)*0.45,S.eye,L.flowerPetals);
           else { ctx.beginPath(); ctx.arc(fx,fy,(L.flowerSize||1.8)*vs,0,7); ctx.fill(); }
@@ -4889,10 +4936,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const sites=[];
         for (let i=0;i<Math.ceil(seeds/bunch);i++){
           const [tx2,ty2]=tips[i%tips.length], f=0.50+frnd()*0.45;
-          sites.push([
-            sway*1.4+(tx2-sway*1.4)*f,
-            -trunkH*0.92+(ty2+trunkH*0.92)*f,
-          ]);
+          sites.push(alongLimb(tx2,ty2,f));
         }
         for (let i=0;i<seeds;i++){
           const [bx,by]=sites[Math.floor(i/bunch)], member=i%bunch;
@@ -5685,7 +5729,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const fr=L.flowerR||2.6;
             ctx.beginPath(); ctx.ellipse(tx2,ty2-2,fr*0.85,fr*1.23,0,0,7); ctx.fill(); }); }
       }
-      if (S.seed && mature){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
+      // berryN:0 is a male pollinizer (a winterberry 'Jim Dandy'): the species
+      // fruits, this plant never does -- the convention seedN:0 sets for trees.
+      if (S.seed && mature && L.berryN!==0){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
         // Own RNG stream (the mulberry(seed+N) convention the snow caps use):
         // the bloom pass above burns a VARYING number of rnd() draws as bloom
         // rises and fades, so sharing the stream would make a heavy berry set

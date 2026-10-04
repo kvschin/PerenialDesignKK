@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Woody cultivar review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;padding:12px}article{background:#30291f;padding:10px;border-radius:6px}h2{font-size:13px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2}.seasons{display:flex;justify-content:space-around}figure{margin:0;text-align:center;min-width:0}canvas{width:70px;height:105px;display:block}figcaption{font-size:10px}#status{padding:0 16px;font-size:12px;color:#d6c094}.notes{margin:4px 0;font-size:11px}.sec{font-size:14px;padding:12px 16px 0;margin:0}#lineups{padding:8px 12px;display:flex;flex-direction:column;gap:8px}.lineup{overflow-x:auto}.lineup canvas{width:auto;height:auto}
+</style><body>
+<script>
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js?v=0.9.44-woodycv"></script>
+<script src="../js/core.js?v=0.9.44-woodycv"></script>
+<script src="../js/draw.js?v=0.9.44-woodycv"></script>
+<script src="../js/world.js?v=0.9.44-woodycv"></script>
+<script src="../js/view.js?v=0.9.44-woodycv"></script>
+<script src="../js/renderer.js?v=0.9.44-woodycv"></script>
+<script src="../js/commands.js?v=0.9.44-woodycv"></script>
+<script src="../js/input.js?v=0.9.44-woodycv"></script>
+<script src="../js/io.js?v=0.9.44-woodycv"></script>
+<script src="../js/collections.js?v=0.9.44-woodycv"></script>
+<script src="../js/ui.js?v=0.9.44-woodycv"></script>
+<script src="../js/tray.js?v=0.9.44-woodycv"></script>
+<script src="../js/photos.js?v=0.9.44-woodycv"></script>
+<script src="../js/library.js?v=0.9.44-woodycv"></script>
+<script src="../js/guide.js?v=0.9.44-woodycv"></script>
+<script src="../js/screens.js?v=0.9.44-woodycv"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Woody cultivars — new selections + real sizes</h1><label>Renderer <select id="art"><option value="1">ART2</option><option value="0">Classic</option></select></label><label>Season <select id="season"><option>Spring</option><option selected>Summer</option><option>Fall</option><option>Winter</option></select></label><button id="check">Check sprite edges</button></header>
+<p id="status">Loading…</p>
+<h2 class="sec">True-scale lineups — each species first, then its cultivars, all at game scale</h2>
+<section id="lineups"></section>
+<h2 class="sec">Every choice, four seasons (library previews, each fitted to its card)</h2>
+<main id="plants"></main>
+<script>
+/* Species followed by the cultivars to review.  The resized ones are listed
+   too: 0.9.44 gave every sized tree cultivar its real spread and solved its
+   drawing from it, so they change on screen. */
+const groups=[
+  ['freemanmaple','jeffersred','armstrong'],
+  ['sugarmaple','greenmountain','legacy','bailsta','barrettcole'],
+  ['redmaple','redsunset','octoberglory','frankjr'],
+  ['redbud','forestpansy','merlot','jn2','covey','royalwhite'],
+  ['floweringdogwood','cloud9','appalachianspring','comco1','rubra'],
+  ['treelilac','ivorysilk'],
+  ['sweetbaymagnolia','jimwilson'],
+  ['swampwhiteoak','long'],['whiteoak','crimschmidt'],
+  ['arborvitae','smaragd','techny','artboe','rheingold'],
+  ['norwayspruce','pendula'],['bluespruce','fatalbert','hoopsii'],
+  ['easternhemlock','sargentii'],['baldcypress','peveminaret','shawnee'],
+  ['hinokicypress','nanagracilis','crippsii'],
+  ['sweetgum','slendersilhouette'],['blackgum','tupelotower'],['ginkgo','princetonsentry','saratoga'],
+  ['japanesemaple','crimsonqueen','tamukeyama','shishigashira','osakazuki','seiryu','katsura'],
+  ['floweringcherry','yoshino','kanzan','okame','snowfountains','weepinghigan','mtfuji'],
+  ['serviceberry','autumnbrilliance','robinhill','standingovation'],
+  ['americanelm','princeton','valleyforge','accolade'],
+  ['inkberry','shamrock','piiigi','densa'],
+  ['winterberry','winterred','jimdandy','southerngentleman'],
+  ['catawbarhododendron','roseumelegans'],
+  ['virginiasweetspire','henrysgarnet'],['summersweet','rubyspice'],
+  ['arnoldwitchhazel'],['jelenawitchhazel'],['dianewitchhazel'],
+];
+const climbers=[['americanwisteria','amethystfalls'],['trumpethoneysuckle','majorwheeler'],['trumpethoneysuckle','johnclayton'],
+  ['climbingrose','newdawn'],['climbingrose','zephirinedrouhin'],['clematisviticella','etoileviolette']];
+const refs=[];
+for(const [k,...vs] of groups){ refs.push([k]); for(const v of vs) refs.push([k,v]); }
+for(const r of climbers) refs.push(r);
+const SCALE=0.42;   // every lineup at one scale, so species compare across rows
+function lineup(k,vs,season){
+  const items=[[k,null],...vs.map(v=>[k,v])].map(([key,v])=>{ const P=plantDef(key,v); return {key,v,P,box:plantDrawBox(P,key,1)}; });
+  const W=items.reduce((s,i)=>s+i.box.halfW*2,0), top=Math.max(...items.map(i=>i.box.top)), bot=Math.max(...items.map(i=>i.box.bot));
+  const c=document.createElement('canvas'), dpr=2;
+  c.width=Math.ceil(W*SCALE*dpr); c.height=Math.ceil((top+bot+18)*SCALE*dpr);
+  c.style.width=Math.ceil(W*SCALE)+'px'; c.style.height=Math.ceil((top+bot+18)*SCALE)+'px';
+  const ctx=c.getContext('2d'); ctx.scale(SCALE*dpr,SCALE*dpr);
+  ctx.fillStyle='#3b4a2f'; ctx.fillRect(0,top,W,bot+18);
+  let x=0;
+  for(const i of items){
+    x+=i.box.halfW; drawPlant(ctx,x,top,i.key,1,season,7122,0,i.v,1);
+    ctx.fillStyle='#ede5d6'; ctx.font='16px system-ui'; ctx.textAlign='center';
+    ctx.fillText((i.v?PLANTS[i.key].cv[i.v].name:'species')+'  '+Math.round(i.P.heightIn/12)+'×'+Math.round(i.P.spread/12)+' ft',x,top+bot+12);
+    x+=i.box.halfW;
+  }
+  return c;
+}
+function renderReview(){
+  ART2.on=document.getElementById('art').value==='1';
+  const season=document.getElementById('season').value;
+  const lu=document.getElementById('lineups'); lu.replaceChildren();
+  for(const [k,...vs] of groups){ const d=document.createElement('div'); d.className='lineup'; d.append(lineup(k,vs,season)); lu.append(d); }
+  const host=document.getElementById('plants');host.replaceChildren();
+  for(const [k,v] of refs){
+    const P=plantDef(k,v),card=document.createElement('article');
+    card.innerHTML='<h2>'+P.name+'</h2><div class="latin">'+P.latin+'</div><div class="seasons"></div>';
+    for(const s of SEASONS){
+      const fig=document.createElement('figure'),c=libCanvas(k,v,s,70,105);
+      fig.append(c);const label=document.createElement('figcaption');label.textContent=s;fig.append(label);card.querySelector('.seasons').append(fig);
+    }
+    const note=document.createElement('p');note.className='notes';
+    note.textContent=Math.round((P.heightIn||P.h)/12)+' ft tall · '+Math.round(P.spread/12)+' ft wide · '+P.type+' · '+nativeOriginText(P)+(v?' · '+PLANTS[k].cv[v].note:'');
+    card.append(note);host.append(card);
+  }
+  document.getElementById('status').textContent=refs.length+' exact choices · lineups at one game scale · '+season;
+}
+/* Sprites are ImageBitmaps since 0.9.38, so copy each onto a canvas to read it. */
+function checkEdges(){
+  const bad=[];let count=0;
+  const scratch=document.createElement('canvas'), sctx=scratch.getContext('2d',{willReadFrequently:true});
+  for(const [k,v] of refs)for(const season of SEASONS)for(const seed of [7,101,4410]){
+    const s=makePlantSprite(k,8,3,season,seed,v), img=s.cv, w=img.width, h=img.height;
+    scratch.width=w; scratch.height=h; sctx.clearRect(0,0,w,h); sctx.drawImage(img,0,0);
+    const d=sctx.getImageData(0,0,w,h).data;
+    let edge=false;for(let x=0;x<w;x++)if(d[x*4+3]>8||d[((h-1)*w+x)*4+3]>8)edge=true;
+    for(let y=0;y<h;y++)if(d[y*w*4+3]>8||d[(y*w+w-1)*4+3]>8)edge=true;
+    if(edge)bad.push(k+(v?':'+v:'')+' '+season+' seed '+seed);count++;
+  }
+  document.getElementById('status').textContent=count+' sprite checks: '+(bad.length?bad.length+' touching edges — '+bad.join('; '):'no painted edges');
+  return {count,bad};
+}
+document.getElementById('art').onchange=renderReview;document.getElementById('season').onchange=renderReview;
+document.getElementById('check').onclick=checkEdges;
+const params=new URLSearchParams(location.search);
+if(params.has('art'))document.getElementById('art').value=params.get('art');
+if(params.has('season'))document.getElementById('season').value=params.get('season');
+try{renderReview();if(params.has('check'))setTimeout(checkEdges,0);}catch(error){document.getElementById('status').textContent='Review failed: '+(error.stack||error);}
+</script></html>

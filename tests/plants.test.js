@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,596,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,598,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),404,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),449,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -386,16 +386,39 @@ test('trees declare a real mature height (heightIn)', () => {
   }
 });
 
-test('resized orchard-tree cultivars declare exact real dimensions', () => {
+test('resized tree cultivars declare exact real dimensions', () => {
+  /* This used to cover orchard trees only, and 35 ornamental cultivars drew
+     narrower than their species while inheriting its full spread -- so
+     'Slender Silhouette', eight feet wide, cast the shade and drew the plan
+     circle of a fifty-five-foot sweet gum. Spread is the only source for both. */
   for (const k of keys){
-    const P=PLANTS[k]; if (P.type!=='tree'||!(P.roles||[]).includes('orchard')) continue;
+    const P=PLANTS[k]; if (P.type!=='tree') continue;
     for (const [v,C] of Object.entries(P.cv||{})){
-      const resized=['h','cw','space','spread'].some(f=>Object.hasOwn(C,f));
+      const resized=['h','cw','space','spread','heightIn'].some(f=>Object.hasOwn(C,f));
       if (!resized) continue;
       assert(typeof C.heightIn==='number'&&typeof C.spread==='number',
         `${k}.${v}: a resized tree cultivar needs exact heightIn and spread`);
     }
   }
+});
+
+test('a hybrid cultivar says so, and a male pollinizer bears no fruit', () => {
+  for (const [k,v] of [['swampwhiteoak','long'],['whiteoak','crimschmidt'],['catawbarhododendron','roseumelegans'],
+    ['clematisviticella','etoileviolette'],['freemanmaple','jeffersred'],['freemanmaple','armstrong']]){
+    assertEqual(PLANTS[k].cv[v].provenance,'hybrid',`${k}.${v}: a garden hybrid`);
+  }
+  for (const [k,v] of [['swampwhiteoak','long'],['whiteoak','crimschmidt'],['catawbarhododendron','roseumelegans'],['clematisviticella','etoileviolette']])
+    assertEqual(PLANTS[k].cv[v].nativeTo.length,0,`${k}.${v}: a garden-made hybrid has no wild range`);
+  for (const k of ['jelenawitchhazel','dianewitchhazel']){
+    assertEqual(PLANTS[k].provenance,'hybrid',`${k}: Hamamelis x intermedia is a hybrid`);
+    assertEqual(PLANTS[k].nativeTo.length,0,`${k}: a garden hybrid has no wild range`);
+    assertEqual(PLANTS[k].group,'witchhazel',`${k}: browses with the other witch hazels`);
+  }
+  assertEqual(PLANTS.redbud.cv.forestpansy.provenance,'selection','a redbud cultivar is a selection of a native');
+  assert(PLANTS.redbud.cv.forestpansy.nativeTo.includes('north-america'),'and keeps the species range');
+  for (const v of ['jimdandy','southerngentleman'])
+    assertEqual(PLANTS.winterberry.cv[v].look.berryN,0,`${v}: a male winterberry bears no berries`);
+  assertEqual((PLANTS.winterberry.cv.winterred.look||{}).berryN,undefined,'a female keeps the species fruit set');
 });
 
 test('home-orchard expansion covers common temperate and zone-9 fruit and nut groups', () => {
