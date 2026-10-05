@@ -1448,6 +1448,30 @@ test('a weeping tree hangs its flowers down its curtains, on both sides', () => 
   assertEqual(lowShare(flowers('floweringcherry','kanzan'),plantVisualH(K)),0, 'an upright cherry keeps its flowers in the crown');
 });
 
+test('a clipped hedge joins its own family, never a different hedge', () => {
+  const p=s=>({s,v:null});
+  for (const k of ['beechhedge','hornbeamhedge','englishyewhedge'])
+    assert(shrubHedgeCompatible(p(k),p(k)),`${k}: two plants of one hedge join into a block`);
+  assert(!shrubHedgeCompatible(p('beechhedge'),p('hornbeamhedge')),'beech and hornbeam are separate hedges');
+  assert(!shrubHedgeCompatible(p('englishyewhedge'),p('boxwoodsquare')),'a yew hedge does not merge into a boxwood one');
+  assert(!shrubHedgeCompatible(p('englishyewhedge'),p('yewtall')),'nor into a Taxus x media shape');
+  assert(!shrubHedgeCompatible(p('englishyewcone'),p('englishyewhedge')),'a cone is a specimen, not a run of hedge');
+});
+
+test('a joined hedge stands at its real height, on the same scale as a fence', () => {
+  /* A joined square hedge draws 0.76 x bodyH of the plant's drawn height (the
+     connected branch in drawPlant's clip pass). Sized like any other shrub it
+     came out near 1 px an inch, so a 6 ft beech hedge stood barely above a 3 ft
+     coneflower and a 3 ft boxwood hedge at half one. PX_PER_FT is what a fence
+     of the same height draws at. */
+  const hedges=PLANT_KEYS.filter(k=>PLANTS[k].look&&PLANTS[k].look.hedge);
+  assert(hedges.length>=4,'boxwood, beech, hornbeam and yew hedges');
+  for (const k of hedges){
+    const P=plantDef(k), block=plantVisualH(P)*(P.look.bodyH||0.58)*0.76, want=P.heightIn*PX_PER_FT/12;
+    assert(Math.abs(block/want-1)<0.05, `${k}: block ${block.toFixed(0)}px for a ${P.heightIn/12} ft hedge, ${want.toFixed(0)}px on the fence scale`);
+  }
+});
+
 test('a male winterberry draws no berries, and a female still does', () => {
   /* A berry is a glossy floret in the seed colour under ART2 and a plain disc
      filled with it in Classic, so count both ways of painting one. */

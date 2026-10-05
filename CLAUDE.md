@@ -291,9 +291,10 @@ See §13a.
   sized tree or shrub cultivar from its real dimensions through this, never by
   eye. `dev/woody-cultivar-review.html` shows every woody cultivar in four
   seasons, true-scale lineups beside its species, and a real-pixel sprite-edge
-  check (`?check`, `&art=0` for Classic); it copies each sprite onto a canvas to
-  read it, since sprites have been ImageBitmaps since 0.9.38 and the older
-  review pages' `getContext` on one no longer works.
+  check (`?check`, `&art=0` for Classic). Every review page copies each sprite
+  onto a scratch canvas to read it: sprites have been ImageBitmaps since 0.9.38,
+  which have no `getContext`, and calling it threw on every older page until
+  they were changed to match.
 - `node dev/plant-blit-bench.cjs` splits the plant sprite pass into BAKING and
   BLITTING, which the `draw` phase and a profile's `drawPlantMaybeCached` share
   as one number while wanting opposite fixes — baking is driven by how fast the
@@ -6170,6 +6171,33 @@ every new one resolves, five through a redirect to a reclassified name
 *Cardoon*). `dev/europe3-review.html` covers all 32 exact choices.
 What the audit has left is no longer a layer but a long tail: more cultivar
 depth, and the regional/ecotype metadata that Phase 0 still defers.
+**Hedging trees and highbush blueberry (0.9.45).** Europe's woody palette had
+no beech, hornbeam or yew -- the three plants its gardens are hedged and framed
+with, and the clipped blocks a naturalistic planting is set against. Beech
+(`europeanbeech` + Copper, 'Dawyck', 'Dawyck Purple', 'Purpurea Pendula') and
+hornbeam (`europeanhornbeam` + 'Frans Fontaine', 'Fastigiata', with the native
+`americanhornbeam`) each get a TREE record and a clipped-HEDGE record
+(`beechhedge`, `hornbeamhedge`) in one family, the river-birch pattern: one
+taxon, two renderers, so the duplicate-Latin allowlist names them. English yew
+is its own family (`englishyewhedge`, `englishyewcone`, `irishyew`) rather than
+chips on 'Yew', because a *Taxus baccata* hedge must not join a *Taxus × media*
+one (`hedge:true` joins within a group). Its square hedge uses `fleck`, not
+`needles`: the needles branch draws free sprays and cannot join into a block.
+**A clipped beech or hornbeam keeps its dead leaves until spring**, so the
+hedges' Winter `fol` is russet or tan, not absent -- the winter wall is why they
+are planted. European straight-native woody plants: 17 -> 23.
+**A joined hedge now stands at its real height on the fence scale.** The
+connected-square branch draws the block at 0.76 x bodyH of the plant's drawn
+height, so a hedge sized like any other shrub came out near 1 px an inch: a 6 ft
+beech hedge barely topped a 3 ft coneflower and boxwood's 3 ft hedge stood at
+half one. Every `hedge:true` record's `h` is set so the block lands on
+`PX_PER_FT` (`boxwoodsquare` 42 -> 71, so existing boxwood hedges draw taller),
+and a test pins it.
+`highbushblueberry` (*Vaccinium corymbosum*) is the first fruiting shrub of the
+orchard set; its bells and berries sit ALONG the stems (`bloomStyle:'stemAxil'`,
+no `fruitStyle`), since tip clusters read as a blue-flowered shrub. Cultivars:
+'Bluecrop', 'Patriot', and the hybrids 'Northland', 'Top Hat', 'Pink
+Lemonade' and the southern highbush 'Sunshine Blue'.
 
 ## Conventions
 

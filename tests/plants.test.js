@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,598,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,607,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),449,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),461,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -137,6 +137,10 @@ test('catalog cleanup leaves only intentional base-taxon aliases', () => {
     ['Betula nigra','riverbirch,riverbirchmulti'],
     ['Buxus sempervirens / hybrids','boxwoodcolumn,boxwoodcone,boxwoodlow,boxwoodround,boxwoodsquare'],
     ['Taxus x media','yewlow,yewmedium,yewtall'],
+    // a tree and the same tree clipped into a hedge (or a cone): one taxon, two renderers
+    ['Fagus sylvatica','beechhedge,europeanbeech'],
+    ['Carpinus betulus','europeanhornbeam,hornbeamhedge'],
+    ['Taxus baccata','englishyewcone,englishyewhedge'],
   ]);
   const byLatin=new Map();
   for (const key of PLANT_KEYS){
@@ -399,6 +403,28 @@ test('resized tree cultivars declare exact real dimensions', () => {
       assert(typeof C.heightIn==='number'&&typeof C.spread==='number',
         `${k}.${v}: a resized tree cultivar needs exact heightIn and spread`);
     }
+  }
+});
+
+test('European hedging trees and highbush blueberry carry their real ranges', () => {
+  /* Europe's native palette had no beech, hornbeam or yew at all -- the three
+     plants its gardens are hedged and framed with. */
+  for (const k of ['europeanbeech','beechhedge']) assertEqual(PLANTS[k].nativeTo.join(','),'europe',`${k}: Fagus sylvatica is European`);
+  for (const k of ['europeanhornbeam','hornbeamhedge']) assertEqual(PLANTS[k].nativeTo.join(','),'europe,asia',`${k}: Carpinus betulus runs to Iran`);
+  for (const k of ['englishyewhedge','englishyewcone','irishyew'])
+    assert(PLANTS[k].nativeTo.includes('europe'),`${k}: Taxus baccata is a European native`);
+  for (const k of ['europeanbeech','beechhedge','europeanhornbeam','hornbeamhedge','englishyewhedge','englishyewcone','highbushblueberry','americanhornbeam'])
+    assertEqual(PLANTS[k].provenance,'species',`${k}: straight species (clipping is horticulture, not genetics)`);
+  assertEqual(PLANTS.irishyew.provenance,'selection','Irish yew is a named selection');
+  assert(PLANTS.americanhornbeam.nativeTo.includes('north-america'),'musclewood is North American');
+  assert(PLANTS.highbushblueberry.nativeTo.includes('north-america'),'highbush blueberry is North American');
+  for (const v of ['northland','tophat','pinklemonade','sunshineblue'])
+    assertEqual(PLANTS.highbushblueberry.cv[v].provenance,'hybrid',`${v}: a bred hybrid`);
+  assertEqual(PLANTS.highbushblueberry.cv.bluecrop.provenance,'selection','Bluecrop is a straight highbush selection');
+  // a clipped beech or hornbeam holds its dead leaves: the winter hedge is brown, not bare
+  for (const k of ['beechhedge','hornbeamhedge']){
+    assert(PLANTS[k].sea.Winter.fol,`${k}: a clipped hedge keeps its leaves through winter`);
+    assert(PLANTS[k].sea.Winter.fol!==PLANTS[k].sea.Summer.fol,`${k}: and they are dead, not green`);
   }
 });
 
