@@ -1440,6 +1440,28 @@ test('every broadleaf tree names a crown habit', () => {
   assertEqual(missing.join(', '),'','every form:tree record carries look.crown');
 });
 
+test('every broadleaf tree names a bark style', () => {
+  const bad=PLANT_KEYS.filter(k=>PLANTS[k].form==='tree' && !BARK_STYLES.has(PLANTS[k].look&&PLANTS[k].look.barkStyle));
+  assertEqual(bad.join(', '),'','every form:tree record carries a look.barkStyle from BARK_STYLES');
+});
+
+test('bark marks the trunk and touches nothing else', () => {
+  /* Every style but smooth draws strokes on the trunk; none may add or take
+     away a fill or an ellipse, which is where foliage, fruit and snow live. */
+  const key='whiteoak', L=PLANTS[key].look, keep=L.barkStyle;
+  const calls=style=>{ L.barkStyle=style; return plantDrawCalls(key,null,'Winter',4242,1,0).split('\n'); };
+  const count=(log,p)=>log.filter(c=>c.startsWith(p)).length;
+  try {
+    const smooth=calls('smooth');
+    for (const style of [...BARK_STYLES].filter(s=>s!=='smooth')){
+      const log=calls(style);
+      assert(count(log,'stroke(')>count(smooth,'stroke('), `${style} draws marks`);
+      assert(count(log,'ellipse(')===count(smooth,'ellipse(') && count(log,'fill(')===count(smooth,'fill('),
+        `${style} adds no fill or ellipse`);
+    }
+  } finally { L.barkStyle=keep; }
+});
+
 test('every broadleaf tree names a leaf texture', () => {
   const bad=PLANT_KEYS.filter(k=>PLANTS[k].form==='tree' && !TREE_TEXTURES[PLANTS[k].look&&PLANTS[k].look.texture]);
   assertEqual(bad.join(', '),'','every form:tree record carries a look.texture from TREE_TEXTURES');

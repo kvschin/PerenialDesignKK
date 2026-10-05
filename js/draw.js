@@ -1760,6 +1760,124 @@ const _habitFor=new WeakMap();
    share of a shrub as of an oak. Its own seeded stream, so a palette never
    moves a leaf; and a colour costs no shape. Returns null when there is no
    palette, which callers read as "the plain fall colour". */
+/* Bark (look.barkStyle). A trunk is a cylinder seen from the side, so every
+   mark is laid out in (s, th): s runs 0..1 up the trunk, th -pi/2..pi/2 round
+   it, and a mark lands at sin(th) of the half-width -- furrows crowd toward the
+   edges, which is most of what makes a trunk read as round. `polys` are the
+   trunk (or each stem of a multi-stemmed tree) as [x,y,width] points from the
+   ground up. Marks are batched one stroke per colour, a handful of calls a
+   tree, and drawn on their own seeded stream so they never move a limb.
+   Colours: the darker of barkStripe and a shaded bark for cracks, the lighter
+   for ridges, strips and lenticels -- which is why a cherry's lenticels come
+   out pale and a paper birch's dark. */
+const BARK_STYLES = new Set(['smooth','furrowed','interlaced','plated','longplated','shaggy',
+  'lenticel','birch','peeling','fluted','warty']);
+function drawBark(ctx, style, polys, bark, stripe, rnd){
+  if (!style || style==='smooth' || !polys.length) return;
+  const lum=c=>{ const n=parseInt(String(c).slice(1),16); return ((n>>16&255)*0.3+(n>>8&255)*0.59+(n&255)*0.11)/255; };
+  const hex=c=>typeof c==='string' && /^#[0-9a-f]{6}$/i.test(c);
+  const dark=hex(stripe) && lum(stripe)<lum(bark) ? stripe : shade(bark,-38);
+  const light=hex(stripe) && lum(stripe)>=lum(bark) ? stripe : shade(bark,22);
+  const paths={dark:[], light:[], thin:[], chev:[]};
+  for (const pts of polys){
+    if (pts.length<2) continue;
+    const cum=[0]; for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+    const len=cum[cum.length-1]; if (len<4) continue;
+    const wB=pts[Math.min(1,pts.length-1)][2];
+    // centre, width and right-hand normal at fraction s of the length
+    const at=sf=>{
+      const d=Math.max(0,Math.min(1,sf))*len; let i=1; while (i<pts.length-1 && cum[i]<d) i++;
+      const a=pts[i-1], b=pts[i], seg=(cum[i]-cum[i-1])||1, t=Math.max(0,Math.min(1,(d-cum[i-1])/seg));
+      const tx=(b[0]-a[0])/seg, ty=(b[1]-a[1])/seg;
+      return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t, -ty, tx];
+    };
+    const P=(sf,th,out)=>{ const [x,y,w,nx,ny]=at(sf), r=0.5*w*Math.sin(Math.max(-1.5,Math.min(1.5,th)))+(out||0)*w;
+      return [x+nx*r, y+ny*r]; };
+    const line=(key,pts2)=>paths[key].push(pts2);
+    const run=wB*0.9/len;              // one trunk-width, as a fraction of length
+    if (style==='furrowed' || style==='interlaced' || style==='shaggy'){
+      const F=Math.max(3,Math.min(8,Math.round(wB/5))), weave=style==='interlaced'?0.34:0.08;
+      for (let f=0;f<F;f++){
+        const th0=-1.3+2.6*(f+0.5)/F+(rnd()-0.5)*0.2, ph=rnd()*6.28, steps=12;
+        let cur=[];
+        for (let k=0;k<=steps;k++){
+          const sf=0.02+0.9*k/steps, th=th0+weave*Math.sin(sf*len/Math.max(4,wB)*1.6+ph);
+          cur.push(P(sf,th));
+          if (k<steps && rnd()<0.22){ if (cur.length>1) line('dark',cur); cur=[]; }
+        }
+        if (cur.length>1) line('dark',cur);
+        // a pale ridge beside each furrow on the lit side
+        if (th0<0.2){ const r=[]; for (let k=0;k<=6;k++){ const sf=0.06+0.8*k/6; r.push(P(sf,th0+1.3/F+weave*Math.sin(sf*len/Math.max(4,wB)*1.6+ph))); } line('thin',r); }
+      }
+      if (style==='shaggy'){
+        // long strips lifting off the trunk's flanks, curling outward at the foot
+        const n=Math.max(5,Math.min(14,Math.round(len/(wB*0.7))));
+        for (let i=0;i<n;i++){
+          const side=i%2?1:-1, sf=0.08+0.84*rnd(), th=side*(1.05+0.3*rnd()), l=run*(1.2+rnd());
+          line('light',[P(sf+l,th),P(sf+l*0.3,th),P(sf,th,side*0.16)]);
+        }
+      }
+    } else if (style==='plated' || style==='longplated'){
+      const rowH=run*(style==='longplated'?1.25:0.55), cols=Math.max(2,Math.min(5,Math.round(wB/7)));
+      for (let r=0, sf=0.03; sf<0.95; r++, sf+=rowH*(0.8+rnd()*0.4)){
+        // the crack under this row, broken where plates meet
+        for (let j=0;j<cols;j++){
+          const a=-1.35+2.7*j/cols+0.06, b=-1.35+2.7*(j+1)/cols-0.06;
+          if (rnd()<0.8) line('dark',[P(sf,a),P(sf+(rnd()-0.5)*rowH*0.2,(a+b)/2),P(sf,b)]);
+        }
+        // and the vertical cracks, staggered row to row like brickwork
+        for (let j=0;j<cols;j++){
+          const th=-1.35+2.7*(j+(r%2?0.5:0))/cols; if (Math.abs(th)>1.4) continue;
+          line('dark',[P(sf,th),P(Math.min(0.97,sf+rowH),th+(rnd()-0.5)*0.15)]);
+        }
+      }
+    } else if (style==='lenticel' || style==='birch'){
+      const n=Math.max(6,Math.min(style==='birch'?34:26,Math.round(len/(wB*(style==='birch'?0.22:0.3)))));
+      for (let i=0;i<n;i++){
+        const sf=0.04+0.92*rnd(), c=(rnd()-0.5)*1.8, h=0.18+rnd()*(style==='birch'?0.45:0.35);
+        line(style==='birch'?'dark':'light',[P(sf,c-h),P(sf+0.004,c),P(sf,c+h)]);
+      }
+      if (style==='birch'){
+        // the black chevrons a paper birch carries where branches were
+        for (let i=0;i<Math.max(2,Math.min(6,Math.round(len/(wB*2.2))));i++){
+          const sf=0.25+0.7*rnd(), c=(rnd()-0.5)*1.2, h=run*0.5;
+          line('chev',[P(sf-h,c-0.45),P(sf,c),P(sf-h,c+0.45)]);
+        }
+      }
+    } else if (style==='peeling'){
+      // papery curls lifting along the grain, each with its shadow under it
+      const n=Math.max(6,Math.min(26,Math.round(len/(wB*0.35))));
+      for (let i=0;i<n;i++){
+        const sf=0.04+0.9*rnd(), c=(rnd()-0.5)*2.2, h=0.25+rnd()*0.4;
+        line('light',[P(sf,c-h),P(sf+run*0.12,c),P(sf+run*0.2,c+h,0.03)]);
+        line('dark',[P(sf-run*0.05,c-h*0.8),P(sf-run*0.03,c+h*0.6)]);
+      }
+    } else if (style==='fluted'){
+      // musclewood: smooth sinuous ridges with a groove beside each
+      for (const th0 of [-0.95,-0.15,0.65]){
+        const ph=rnd()*6.28, r=[], g=[];
+        for (let k=0;k<=10;k++){ const sf=0.03+0.92*k/10, th=th0+0.22*Math.sin(sf*len/Math.max(4,wB)*0.9+ph);
+          r.push(P(sf,th)); g.push(P(sf,th+0.22)); }
+        line('light',r); line('dark',g);
+      }
+    } else if (style==='warty'){
+      // corky warts and short ridges, pale over the bark
+      const n=Math.max(8,Math.min(30,Math.round(len/(wB*0.25))));
+      for (let i=0;i<n;i++){ const sf=0.04+0.92*rnd(), c=(rnd()-0.5)*2.4, h=0.08+rnd()*0.14;
+        line('light',[P(sf,c-h),P(sf+run*0.05,c+h)]); }
+    }
+  }
+  const wBase=polys[0][Math.min(1,polys[0].length-1)][2];
+  const stroke=(key,col,w)=>{ const list=paths[key]; if (!list.length) return;
+    ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath();
+    for (const pl of list){ ctx.moveTo(pl[0][0],pl[0][1]); for (let i=1;i<pl.length;i++) ctx.lineTo(pl[i][0],pl[i][1]); }
+    ctx.stroke(); };
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  stroke('thin',light,Math.max(0.5,wBase*0.04));
+  stroke('dark',dark,Math.max(0.6,wBase*(style==='birch'?0.055:0.065)));
+  stroke('light',light,Math.max(0.6,wBase*(style==='shaggy'?0.07:0.06)));
+  if (paths.chev && paths.chev.length) stroke('chev',dark,Math.max(0.8,wBase*0.1));
+}
 function fallColourPicker(fol, mix, seed, cx, cy, rx, ry){
   if (!fol || !mix || !mix.length) return null;
   const crng=mulberry(seed^0xfa11), phase=crng()*6.283;
@@ -1936,7 +2054,10 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     }
   };
   let remaining=N;
-  const trunkPts=[[0, 0, Wt*1.32], [trunkX(-H*0.05), -H*0.05, Wt]];
+  // a root flare that swells into the ground: look.flare is the width at
+  // grade as a multiple of the trunk, kept below the lowest limb
+  const fl=Math.max(1,Math.min(2,L.flare||1.32)), fh=Math.min(H*0.06, groups.length ? -groups[0].oy*0.8 : H*0.06);
+  const trunkPts=[[0,0,Wt*fl],[trunkX(-fh*0.2),-fh*0.2,Wt*(1+(fl-1)*0.5)],[trunkX(-fh*0.5),-fh*0.5,Wt*(1+(fl-1)*0.18)],[trunkX(-fh),-fh,Wt]];
   if (hb.tiers){
     // a low fork into two climbing stems, each carrying its side of every
     // tier: a pole up the middle read as a coat rack
@@ -1992,18 +2113,6 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
   for (let i=trunkPts.length-1;i>=0;i--){ const [x,y,w]=trunkPts[i]; ctx.lineTo(x+w/2,y); }
   ctx.closePath(); ctx.fill();
   ctx.lineCap='round';
-  // bark marks across the trunk: a birch's dark lenticels, the pale ridges of
-  // a walnut or a hickory (the classic armature's three dashes)
-  if (L.barkStripe && stems<=1 && trunkPts.length>2){
-    ctx.strokeStyle=typeof L.barkStripe==='string' ? L.barkStripe : shade(bark,-24);
-    ctx.lineWidth=Math.max(0.7,Wt*0.11); ctx.beginPath();
-    const top=trunkPts[trunkPts.length-1][1];
-    for (let m=0;m<6;m++){
-      const y=top*(0.1+m*0.14)+(arm()-0.5)*H*0.01, w=Wt*(1-0.4*y/top)*(0.3+arm()*0.25), x=trunkX(y)+(arm()-0.5)*Wt*0.3;
-      ctx.moveTo(x-w/2,y); ctx.lineTo(x+w/2,y-Wt*0.06);
-    }
-    ctx.stroke();
-  }
   /* A pale trunk carries darker twigs: a paper birch drawn white to its
      tips read as a ghost. Darkened toward its bark marks, or a plain brown. */
   const lum=c=>{ const n=parseInt(String(c).slice(1),16); return ((n>>16&255)*0.3+(n>>8&255)*0.59+(n&255)*0.11)/255; };
@@ -2047,6 +2156,21 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       ctx.moveTo(_thSeg[o],_thSeg[o+1]); ctx.lineTo(_thSeg[o+4],_thSeg[o+5]); any=true;
     }
     if (any) ctx.stroke();
+  }
+  // bark: on the trunk, or up each stem of a multi-stemmed tree
+  const barkStyle=L.barkStyle || (L.barkStripe ? 'lenticel' : null);
+  if (barkStyle && barkStyle!=='smooth'){
+    const polys=[];
+    if (stems>1){
+      for (let s2=0;s2<ns;s2++){
+        const o=s2*TH_STRIDE; if (_thSeg[o+7]!==0) continue;
+        const pl=[];
+        for (let k=0;k<=8;k++){ const t=k/8, u=1-t;
+          pl.push([u*u*_thSeg[o]+2*u*t*_thSeg[o+2]+t*t*_thSeg[o+4], u*u*_thSeg[o+1]+2*u*t*_thSeg[o+3]+t*t*_thSeg[o+5], _thSeg[o+6]*(1-0.15*t)]); }
+        polys.push(pl);
+      }
+    } else if (trunkPts.length>2) polys.push(trunkPts.slice(1));
+    drawBark(ctx, barkStyle, polys, bark, L.barkStripe, mulberry(seed^0xba12));
   }
   // light on the upper-left of the trunk and the scaffold limbs
   ctx.strokeStyle=shade(bark,20); ctx.lineWidth=Math.max(0.8,Wt*0.16);

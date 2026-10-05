@@ -6329,6 +6329,28 @@ and `?habit=0`. A test holds the direction (finer = more AND smaller, on one
 crown with only the class changed); 5,448 pixel renders stay in their boxes;
 every non-tree plant and every bare-season tree is byte-identical to 0.9.51.
 There is no catalpa in the catalog.
+**0.9.53: bark (`look.barkStyle`, `BARK_STYLES`, `drawBark`) and root flare
+(`look.flare`).** Bark marks are laid out on the trunk as a CYLINDER: `s` up
+the trunk, `th` round it, landing at sin(th) of the half-width, so furrows
+crowd toward the edges -- the cue that makes a trunk read round. Styles:
+furrowed and interlaced (weaving into diamonds: elm, walnut, pecan, olive),
+plated and longplated (alligator blocks: persimmon, black gum, dogwood, white
+oak; long plates: sugar maple), shaggy (strips curling off the flanks:
+shagbark, silver maple), lenticel (pale bands: cherries, plums, tree lilac),
+birch (black dashes and branch-scar chevrons on white), peeling (river birch
+curls), fluted (musclewood), warty (hackberry), smooth (beech, magnolias,
+citrus: no marks). Multi-stem trees mark each stem, sampled off its depth-0
+segment. `barkStripe` is still read, as the crack colour when it is darker
+than the bark and the ridge colour when lighter -- which is why a cherry's
+lenticels come out pale and a paper birch's dark. Marks are three to four
+strokes a tree on their own seeded stream, drawn after the limbs and before
+the highlight; the old three dashes are gone. The flare is four trunk points
+swelling into the ground below the lowest limb (default 1.32x, up to 1.65x on
+beech, white and bur oak, elm, cottonwood). Winter bake total over all 83:
+96.1 -> 98.6ms. Tests hold every tree to a known style and bark to strokes
+only (no fill or ellipse, where foliage, fruit and snow live); every non-tree
+plant is byte-identical to 0.9.52. Bark only shows zoomed in: a white oak's
+trunk is ~26 draw units wide at maturity.
 
 ## Conventions
 
