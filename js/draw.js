@@ -1731,6 +1731,25 @@ const TREE_HABITS = {
    table's fields (a silver maple is a vase without the elm's weeping rim).
    Merged once per look object: plantDef hands back the same object every call. */
 const _habitFor=new WeakMap();
+/* Fall colour as a mosaic (look.fallMix, 0.9.50 trees, 0.9.51 shrubs): each
+   leaf or clump takes the plant's own fall colour or one of its companions,
+   chosen by a slow wave across the plant plus a little chance, so the colours
+   come in PATCHES -- one side turning before the other -- rather than as
+   confetti. The palette ORDER is the gradient: neighbouring entries share a
+   patch, starting from the plant's own colour, which keeps 40% of it. (cx,cy)
+   and (rx,ry) are the plant's centre and half-extent, so a patch is the same
+   share of a shrub as of an oak. Its own seeded stream, so a palette never
+   moves a leaf; and a colour costs no shape. Returns null when there is no
+   palette, which callers read as "the plain fall colour". */
+function fallColourPicker(fol, mix, seed, cx, cy, rx, ry){
+  if (!fol || !mix || !mix.length) return null;
+  const crng=mulberry(seed^0xfa11), phase=crng()*6.283;
+  return (x,y)=>{
+    const wave=0.5+0.5*Math.sin(((x-cx)/rx)*2.6+((y-cy)/ry)*1.9+phase);
+    const t=Math.min(0.9999,Math.max(0,0.68*wave+0.32*crng()));
+    return t<0.4 ? fol : mix[Math.floor((t-0.4)/0.6*mix.length)];
+  };
+}
 function treeHabitOf(L){
   const base=TREE_HABIT.on && L && L.crown && art2On(L) && !L.weep && TREE_HABITS[L.crown];
   if (!base) return null;
@@ -2067,23 +2086,9 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       ctx.beginPath(); ctx.ellipse(x,y,bw*e,bh*e,rot,0,7); ctx.fill();
     };
     const glob=(x,y)=>(x/W)*LIT.x+((y-yMid)/half)*LIT.y;
-    /* Fall colour as a mosaic (look.fallMix): each clump takes the species'
-       fall colour or one of its companions, chosen by a slow wave across the
-       crown plus a little chance, so the colours come in patches -- a maple
-       turns one side before the other -- rather than as confetti. The palette
-       ORDER is the gradient: neighbouring entries share a patch, starting from
-       the species' own colour, which keeps 40% of the crown. Its own
-       stream, so a palette never moves a clump. No extra shapes: a colour is
-       free, a shape is not. */
-    const pal=mix && mix.length ? [S.fol,...mix] : null;
-    const crng=pal ? mulberry(seed^0xfa11) : null, phase=pal ? crng()*6.283 : 0;
-    const colAt=(x,y)=>{
-      if (!pal) return S.fol;
-      const wave=0.5+0.5*Math.sin((x/W)*2.6+((y-yMid)/half)*1.9+phase);
-      const t=Math.min(0.9999,Math.max(0,0.68*wave+0.32*crng()));
-      // the species' own colour holds 40% of the crown, the companions share the rest
-      return t<0.4 ? S.fol : mix[Math.floor((t-0.4)/0.6*mix.length)];
-    };
+    // fall colour in patches across the crown (fallColourPicker)
+    const pick=fallColourPicker(S.fol, mix, seed, 0, yMid, W, half);
+    const colAt=(x,y)=>pick ? pick(x,y) : S.fol;
     const nFill=Math.round(nLeaf*hb.fill), nTip=nLeaf-nFill;
     for (let i=0;i<nFill;i++){
       let v=0, x=0, g=0;
@@ -6210,6 +6215,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         // leaves stuck on it rather than as a leafy shrub.
         const leafCount=stemFor(a2||pinnate||exposed ? (L.leafN||40) : 20);
         const n=pinnate?Math.min(16,leafCount):leafCount;
+        // fall colour in patches across the shrub, on the shaped-leaf path
+        const fallPick=season==='Fall' && (a2||pinnate||exposed)
+          ? fallColourPicker(S.fol, L.fallMix, seed, 0, -H*0.45, cw*0.5||1, H*0.3||1) : null;
         for (let i=0;i<n;i++){
           const a=rnd()*Math.PI*2, r=rnd();
           if (a2||pinnate||exposed){
@@ -6233,7 +6241,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const side=(rnd()<0.5?-1:1);
             const dir=side*(0.55+rnd()*0.75);       // out from the cane and drooping
             const u=(px/(cw*0.5||1))*LIT.x+((py+H*0.42)/(H*0.28||1))*LIT.y;
-            const leafCol=L.newGrowth && season!=='Winter' && t>0.72 ? L.newGrowth : S.fol;
+            const leafCol=L.newGrowth && season!=='Winter' && t>0.72 ? L.newGrowth : fallPick ? fallPick(px,py) : S.fol;
             if (pinnate){
               const pl=Math.max(8,Math.min(48,L.pinnateLen||24))*(0.80+rnd()*0.20);
               const pw=Math.max(0.7,Math.min(4,L.pinnateLeafW||2));
@@ -6508,6 +6516,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       else { ctx.fillStyle=shade(S.fol,-24); ctx.fill(); }
       ctx.restore();
       const n=stemFor(22);
+      const fallPick=season==='Fall' && a2
+        ? fallColourPicker(S.fol, L.fallMix, seed, 0, -H*0.40, cw*0.46||1, H*0.26||1) : null;
       for (let i=0;i<n;i++){ const a=rnd()*Math.PI*2, r=rnd();
         // px carries no rnd() and is shared; py DOES, so each branch takes it
         // in its own order — the classic path drew colour first and hoisting
@@ -6522,7 +6532,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const lw=(L.leafHW||1)*4.6, ll=lw*(L.leafLong||2.4), dir=a-Math.PI*0.5;
           const u=(px/(cw*0.46||1))*LIT.x+((py+H*0.40)/(H*0.26||1))*LIT.y;
           drawLeaf(ctx, px,py, px+Math.cos(dir)*ll, py+Math.sin(dir)*ll*0.6-ll*0.2,
-                   lw, shade(S.fol, u*20+(rnd()-0.5)*12),
+                   lw, shade(fallPick ? fallPick(px,py) : S.fol, u*20+(rnd()-0.5)*12),
                    {shape:L.leafShape||'ovate',
                     teeth:L.leafTeeth===undefined?0.12:L.leafTeeth, teethN:L.leafTeethN||7,
                     bow:Math.cos(dir)<0?-0.1:0.1, rib:lw>=4.2});

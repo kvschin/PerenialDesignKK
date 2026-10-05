@@ -6295,6 +6295,19 @@ Pansy' purple-red, the copper beeches). A cultivar that only changes its fall
 is free and a shape is not: the same canvas calls, bake times within noise.
 Habit trees only; the weeping cultivars' classic armature is untouched, and
 every draw outside fall is byte-identical to 0.9.49.
+**0.9.51: shrubs too.** The picker is now one function, `fallColourPicker`
+(draw.js), shared by the tree crown, the `bush` form's shaped leaves (the
+`a2||pinnate||exposed` path, so pinnate elders and sumacs as well) and the
+`hydrangea` form's big leaves; it takes the plant's centre and half-extent so
+a patch is the same share of a shrub as of an oak. The tree output is
+byte-identical through the refactor (8,648 draws). 47 shrubs carry a palette
+(fothergilla's gold, red and burgundy on one plant; oakleaf hydrangea's
+crimson, orange and purple among the burgundy) and 9 cultivars their own (the
+purple ninebarks, 'Eva', 'Alexandra', 'Royal Purple'). Clipped forms take
+none: a hedge is a few large fills, and the classic ellipse path is left
+alone. The palette test covers every form that can show one and refuses one
+anywhere else. Shrub leaves are small, so the mosaic reads more quietly than
+on a crown; bake times within noise.
 
 ## Conventions
 
