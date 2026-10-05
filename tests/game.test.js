@@ -1603,6 +1603,31 @@ test('a sized tree cultivar draws at its species\' scale for its real size', () 
   assertEqual(off.join(' | '),'','sized tree cultivars sit on their species\' drawn-size curve');
 });
 
+test('every weeping cultivar takes the weeping habit, and its strands hang', () => {
+  /* A weeper naming any other crown would fall back to the classic armature
+     (treeHabitOf refuses weep otherwise), quietly missing the crown, fall
+     mosaic, texture and bark every other tree has. */
+  const noop=()=>{};
+  const ctx=new Proxy({}, { get:(o,p)=>p in o ? o[p]
+      : (p==='createLinearGradient'||p==='createRadialGradient') ? ()=>({addColorStop:noop}) : noop,
+    set:(o,p,v)=>{ o[p]=v; return true; } });
+  let weepers=0;
+  for (const key of PLANT_KEYS){
+    for (const v of Object.keys(PLANTS[key].cv||{})){
+      const P=plantDef(key,v); if (!(P.look&&P.look.weep)) continue;
+      weepers++;
+      assertEqual(P.look.crown,'weeping',`${key}.${v} names the weeping habit`);
+      const hb=treeHabitOf(P.look);
+      assert(hb && hb.weep, `${key}.${v} draws through it`);
+      const H=plantVisualH(P), cw=woodyVisualCw(P);
+      const r=drawTreeHabit(ctx,P.look,P.sea.Summer,hb,H,cw,cw/P.cw,1,4242,60,false);
+      const hanging=r.tips.filter(t=>t[1]>t[3]).length;
+      assert(hanging>r.tips.length*0.6, `${key}.${v}: most strands fall from their fork (${hanging} of ${r.tips.length})`);
+    }
+  }
+  assert(weepers>=6, 'the weeping cultivars were found');
+});
+
 test('a weeping tree hangs its flowers down its curtains, on both sides', () => {
   /* `weep` used to add eight wisps under the foliage and nothing else, so a
      weeping cherry in bloom -- the season it is planted for -- drew as an

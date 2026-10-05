@@ -55,22 +55,22 @@ figure.after{outline:2px solid #c97f3f}
   window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
 })();
 </script>
-<script src="../js/plants.js?v=habit-all"></script>
-<script src="../js/core.js?v=habit-all"></script>
-<script src="../js/draw.js?v=habit-all"></script>
-<script src="../js/world.js?v=habit-all"></script>
-<script src="../js/view.js?v=habit-all"></script>
-<script src="../js/renderer.js?v=habit-all"></script>
-<script src="../js/commands.js?v=habit-all"></script>
-<script src="../js/input.js?v=habit-all"></script>
-<script src="../js/io.js?v=habit-all"></script>
-<script src="../js/collections.js?v=habit-all"></script>
-<script src="../js/ui.js?v=habit-all"></script>
-<script src="../js/tray.js?v=habit-all"></script>
-<script src="../js/photos.js?v=habit-all"></script>
-<script src="../js/library.js?v=habit-all"></script>
-<script src="../js/guide.js?v=habit-all"></script>
-<script src="../js/screens.js?v=habit-all"></script>
+<script src="../js/plants.js?v=habit-weep"></script>
+<script src="../js/core.js?v=habit-weep"></script>
+<script src="../js/draw.js?v=habit-weep"></script>
+<script src="../js/world.js?v=habit-weep"></script>
+<script src="../js/view.js?v=habit-weep"></script>
+<script src="../js/renderer.js?v=habit-weep"></script>
+<script src="../js/commands.js?v=habit-weep"></script>
+<script src="../js/input.js?v=habit-weep"></script>
+<script src="../js/io.js?v=habit-weep"></script>
+<script src="../js/collections.js?v=habit-weep"></script>
+<script src="../js/ui.js?v=habit-weep"></script>
+<script src="../js/tray.js?v=habit-weep"></script>
+<script src="../js/photos.js?v=habit-weep"></script>
+<script src="../js/library.js?v=habit-weep"></script>
+<script src="../js/guide.js?v=habit-weep"></script>
+<script src="../js/screens.js?v=habit-weep"></script>
 <script>
 window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
 window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
@@ -85,7 +85,7 @@ window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__re
 <p class="note">One scale for every tree in the lineup, the way they meet on a plot, so size and outline read as they would in a garden.</p>
 <section id="lineup"></section>
 <h2 class="sec">Each tree in four seasons (outlined = after)</h2>
-<p class="note">Each row shares one scale, so before and after compare directly. Weeping cultivars keep their own drawing and are not listed. In the app, add <code>?habit=0</code> to the address to see the old drawing.</p>
+<p class="note">Each row shares one scale, so before and after compare directly. In the app, add <code>?habit=0</code> to the address to see the old drawing.</p>
 <section id="rows"></section>
 <script>
 const HB_SEASONS=['Spring','Summer','Fall','Winter'];
@@ -95,7 +95,7 @@ const HB_REFS=[];
 for (const k of PLANT_KEYS){
   const P=PLANTS[k]; if (P.form!=='tree' || !(P.look&&P.look.crown)) continue;
   HB_REFS.push([k,null]);
-  for (const v of Object.keys(P.cv||{})){ const c=P.cv[v].look; if (c && c.crown && !c.weep) HB_REFS.push([k,v]); }
+  for (const v of Object.keys(P.cv||{})){ const c=P.cv[v].look; if (c && c.crown) HB_REFS.push([k,v]); }
 }
 const HB_GROUPS={
   'The first six':['whiteoak','sugarmaple','americanelm','sweetgum','floweringdogwood','honeylocust'],
@@ -104,6 +104,7 @@ const HB_GROUPS={
   'Small flowering trees':['redbud','floweringdogwood','serviceberry','fringetree','hawthorn','crabapple','floweringcherry','magnolia','saucermagnolia','treelilac','japanesemaple','smoketree'],
   'Fruit trees':['apple','europeanpear','sweetcherry','sourcherry','peach','apricot','europeanplum','asianpersimmon','fig','quince','pawpaw'],
   'Nut trees':['pecan','blackwalnut','englishwalnut','butternut','americanchestnut','chinesechestnut','shagbarkhickory'],
+  'Weeping cultivars':['floweringcherry.weepinghigan','floweringcherry.snowfountains','japanesemaple.crimsonqueen','japanesemaple.tamukeyama','europeanbeech.purpureapendula','redbud.covey'],
   'Warm-climate trees':['sweetorange','lemon','avocado','olive','loquat','pomegranate','bluepaloverde','desertwillow','sweetbaymagnolia'],
 };
 function nameOf(k,v){ const P=plantDef(k,v); return P.name; }
@@ -161,7 +162,8 @@ function buildLineup(){
   const season=document.getElementById('season').value, host=document.getElementById('lineup'); host.innerHTML='';
   const keys=HB_GROUPS[document.getElementById('group').value], scale=0.3, gap=16;
   const shots=[];
-  for (const on of [false,true]) for (const k of keys) shots.push(shot(k,null,season,on));
+  // an entry is a species key or species.cultivar
+  for (const on of [false,true]) for (const ref of keys){ const [k,v]=ref.split('.'); shots.push(shot(k,v||null,season,on)); }
   const n=keys.length;
   const widths=keys.map((_,i)=>Math.max(shots[i].x1-shots[i].x0, shots[i+n].x1-shots[i+n].x0)*scale);
   const tall=Math.max(...shots.map(s=>(s.oy-s.y0)*scale))+22, rowH=tall+30;
@@ -176,7 +178,7 @@ function buildLineup(){
       const s=shots[row*n+i], cx=x+widths[i]/2;
       const sw=(s.x1-s.x0)*scale, sh=(s.oy-s.y0)*scale, left=cx+(s.x0-s.ox)*scale;
       o.drawImage(s.c, s.x0, s.y0, s.x1-s.x0, s.oy-s.y0, left, base-sh, sw, sh);
-      o.fillStyle='#2a2620'; o.font='11px system-ui'; o.textAlign='center'; o.fillText(PLANTS[k].name,cx,base+18);
+      o.fillStyle='#2a2620'; o.font='11px system-ui'; o.textAlign='center'; { const nm=nameOf(...k.split('.').concat([null]).slice(0,2).map((p,j)=>j&&!p?null:p)), fit=Math.max(6,Math.floor((widths[i]+gap)/6)); o.fillText(nm.length>fit?nm.slice(0,fit-1)+'…':nm,cx,base+18); }
       x+=widths[i]+gap;
     });
   }

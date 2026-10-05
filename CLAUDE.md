@@ -6351,6 +6351,27 @@ beech, white and bur oak, elm, cottonwood). Winter bake total over all 83:
 only (no fill or ellipse, where foliage, fruit and snow live); every non-tree
 plant is byte-identical to 0.9.52. Bark only shows zoomed in: a white oak's
 trunk is ~26 draw units wide at maturity.
+**0.9.54: the weeping cultivars join the habit system** (`crown:'weeping'`).
+They had stayed on the 0.9.44 classic weeping armature, so they missed the
+crowns, fall mosaic, texture and bark. `treeHabitOf` now admits a `weep` look
+only when it names the weeping habit, which a test requires of every weeper.
+Three rules make it weep. **Forks sit on a dome** (`domeDrop`): highest over
+the trunk, falling away to the rim, so limbs climb from the trunk (or the
+graft: each weeper sets its own `oLo`/`oHi`) into a mound and pour off it --
+reaching straight out made level coat-hanger arms, and climbing outward made
+an M with a notch over the trunk. **A falling strand arcs over before it
+drops** (`arch`: its control point lifted above the fork). **Foliage hangs**:
+`curtain` of each tip's blobs are laid down its strand with the long axis
+vertical, the rest clumped at the end; `coverMul` 1.5 makes the veil denser
+than a crown's clumps, and `vPow` 1.8 pulls the tips down toward the skirt so
+the strands run nearly to the ground (the older flowers-hang-low test holds
+it). A weeper's tips carry the arch, so `alongLimb` puts blossom and fruit ON
+the curve (other trees keep the straight interpolation, byte-identical).
+Laceleaf maples are low cascading mounds, 'Snow Fountains' a narrow fountain,
+Weeping Higan an umbrella on a tall trunk, 'Purpurea Pendula' and 'Covey'
+domes on their graft. Bakes 0.74-1.74ms; 360 pixel renders in their boxes;
+everything but the six weepers is byte-identical to 0.9.53 (8,600 draws).
+Broad-columnar ('Fastigiata', 'Tupelo Tower') is still not its own habit.
 
 ## Conventions
 

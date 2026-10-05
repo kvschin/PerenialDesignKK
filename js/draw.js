@@ -1721,6 +1721,17 @@ const TREE_HABITS = {
             oLo:0.15, oHi:0.24, scaffolds:4, tips:24, scaffold:0.55, fork:0.5, three:0.3,
             bend:-0.35, crook:0.18, lean:0.04, twigs:2, twigLen:0.03,
             clusterR:0.09, squash:0.8, clump:0.9, hang:0.1, wash:0.28, washFrom:0.15, fill:0.15, rim:1.1, leafScale:0.82},
+  // a weeping cultivar: limbs leave a tall trunk (or the graft), stay high as
+  // they reach out, and every final strand arcs over and falls toward the
+  // ground, its foliage hanging along it as curtains. `arch` lifts a falling
+  // strand's control point above its fork, `domeDrop` how far the dome the
+  // forks sit on falls by its rim, `curtain` the share of foliage hung along the strands
+  // rather than clumped at their ends. Each weeper sets its own trunk height.
+  weeping: {base:0.06, top:1.00, w:0.52, p:0.28, eLo:1.3, eHi:2.0, lo:0.8,
+            oLo:0.6, oHi:0.8, scaffolds:6, tips:30, scaffold:0.5, fork:0.5, three:0.3,
+            bend:-0.5, crook:0.06, lean:0.02, twigs:2, twigLen:0.05, droop:2.2,
+            clusterR:0.06, squash:1.0, clump:0.7, hang:0, wash:0.16, washFrom:0.35, fill:0, rim:2.2, leafScale:0.8,
+            weep:true, arch:0.5, domeDrop:0.45, curtain:0.65, coverMul:1.5, vPow:1.8},
   // a narrow upright selection on a leader (columnar oaks, 'Slender Silhouette')
   column:  {base:0.08, top:1.00, w:0.50, p:0.42, eLo:2.2, eHi:2.0, lo:0.45,
             leader:0.95, oLo:0.06, oHi:0.92, ascend:1.6, scaffolds:10, tips:22, scaffold:0.6, fork:0.55, three:0.2,
@@ -1888,7 +1899,7 @@ function fallColourPicker(fol, mix, seed, cx, cy, rx, ry){
   };
 }
 function treeHabitOf(L){
-  const base=TREE_HABIT.on && L && L.crown && art2On(L) && !L.weep && TREE_HABITS[L.crown];
+  const base=TREE_HABIT.on && L && L.crown && art2On(L) && (!L.weep || L.crown==='weeping') && TREE_HABITS[L.crown];
   if (!base) return null;
   if (!L.habit) return base;
   let hb=_habitFor.get(L);
@@ -1938,7 +1949,8 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       let bx=0, by=toY(0.5), bs=-1;
       for (let c=0;c<6;c++){
         let v=0, x=0, g=0;
-        do { v=tf+(1-tf)*arm(); x=(arm()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v) && ++g<12);
+        // vPow > 1 pulls the tips down the crown: a weeper's strands run to the skirt
+        do { v=tf+(1-tf)*Math.pow(arm(),hb.vPow||1); x=(arm()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v) && ++g<12);
         const hwv=W*treeCrownHW(hb,v);
         if (Math.abs(x)>hwv) x=Math.sign(x)*hwv*0.9;
         const y=toY(v);
@@ -2025,6 +2037,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     const dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1;
     const bend=bendTo===undefined ? hb.bend*Math.pow(0.55,depth) : bendTo;
     let cx=x0+dx*(0.5+0.3*bend), cy=y0+dy*(0.5-0.3*bend);
+    if (hb.weep && dy>0){ cx=x0+dx*0.6; cy=y0-Math.abs(dx)*hb.arch; }
     const ck=hb.crook*len*(arm()-0.5)*2;
     cx+=-dy/len*ck; cy+=dx/len*ck;
     const o=ns*TH_STRIDE;
@@ -2043,7 +2056,12 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     const ff=(depth===0 ? (stems>1 ? (hb.stemRise||0.62) : hb.scaffold) : hb.fork)*(0.85+arm()*0.3);
     // a stem climbs before it leans: drawn straight to its centre, two stems
     // made a slingshot
-    const fx=ox+(mx-ox)*ff*((depth===0 && stems>1) ? (hb.stemSplay||0.5) : 1), fy=oy+(my-oy)*ff;
+    const fx=ox+(mx-ox)*ff*((depth===0 && stems>1) ? (hb.stemSplay||0.5) : 1);
+    // a weeper's forks sit on a dome, highest over the trunk and falling away
+    // outward (domeDrop of the crown height at its rim), so the crown is a
+    // mound the strands pour off rather than arms raised either side
+    const dome=hb.weep ? toY(0.97)+Math.pow(Math.min(1,Math.abs(fx)/W),2)*span*hb.domeDrop : 0;
+    const fy=hb.weep ? (depth===0 ? Math.min(oy,dome) : dome) : oy+(my-oy)*ff;
     seg(ox,oy,fx,fy,wOf(list.length),depth,(depth===0 && stems>1) ? -0.45 : undefined);
     for (const i of list) angs[i]=Math.atan2(tx[i]-fx, fy-ty[i]);
     list.sort((a,b)=>angs[a]-angs[b]);
@@ -2213,7 +2231,8 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       bw=W*T.rel; bh=bw*T.aspect;
       // scale-free: W and span grow together, so the count is the same at any
       // age and only thins the way stemFor thins a young plant
-      nLeaf=Math.max(3,Math.round(Math.max(20,Math.min(150,T.cover*hb._area*W*span/(Math.PI*bw*bh)))*(0.4+0.6*growth)));
+      // coverMul: a weeper's curtains are a denser veil than a crown's clumps
+      nLeaf=Math.max(3,Math.round(Math.max(20,Math.min(150,T.cover*(hb.coverMul||1)*hb._area*W*span/(Math.PI*bw*bh)))*(0.4+0.6*growth)));
     }
     const contrast=T ? T.contrast : 1, droop=T ? T.droop : 0;
     const yMid=toY(0.5), half=span/2;
@@ -2253,10 +2272,22 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     const rc0=cw*hb.clusterR, per=nTip/N, tmp=[], leafSnow=[];
     let made=0;
     order.forEach((i,r)=>{
-      const cnt=Math.round(per*(r+1))-made; made+=cnt;
+      let cnt=Math.round(per*(r+1))-made; made+=cnt;
       if (cnt<=0) return;
-      const cx=tx[i]+(tx[i]-tpx[i])*0.12, cy=ty[i]+(ty[i]-tpy[i])*0.12;
+      const cx=hb.weep ? tx[i] : tx[i]+(tx[i]-tpx[i])*0.12, cy=hb.weep ? ty[i] : ty[i]+(ty[i]-tpy[i])*0.12;
       const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20, cc=colAt(cx,cy);
+      if (hb.weep && ty[i]>tpy[i]){
+        // a hanging spray is longer than it is wide: the blob's long axis
+        // turned to the vertical, laid down the strand from the arch to the tip
+        const hangN=Math.round(cnt*hb.curtain), x0=tpx[i], y0=tpy[i];
+        const qx=x0+(tx[i]-x0)*0.6, qy=y0-Math.abs(tx[i]-x0)*hb.arch;
+        for (let j=0;j<hangN;j++){
+          const t=0.3+0.7*leaf(), u=1-t;
+          const px=u*u*x0+2*u*t*qx+t*t*tx[i]+(leaf()-0.5)*bw*0.8, py=u*u*y0+2*u*t*qy+t*t*ty[i];
+          blob(px,py,Math.PI/2+(leaf()-0.5)*0.6,(glob(px,py)*20+ct)*contrast+(leaf()-0.5)*10,0.9+leaf()*0.2,colAt(px,py));
+        }
+        cnt-=hangN; if (cnt<=0) return;
+      }
       // an evergreen in snow carries it on the tops of its clumps
       if (snowy && cy<toY(0.3) && Math.abs(cx)<hwAt(cy)*0.75) leafSnow.push([cx, cy-rc*hb.squash*0.55, rc*0.5]);
       tmp.length=0;
@@ -2273,7 +2304,9 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
 
   // tips for flowers and fruit, interleaved so a short pass reaches every limb
   const tips=[];
-  for (let i=0;i<N;i++) tips.push([tx[i],ty[i],tpx[i],tpy[i]]);
+  for (let i=0;i<N;i++) tips.push(hb.weep && ty[i]>tpy[i]
+    ? [tx[i],ty[i],tpx[i],tpy[i],tpx[i]+(tx[i]-tpx[i])*0.6,tpy[i]-Math.abs(tx[i]-tpx[i])*hb.arch]
+    : [tx[i],ty[i],tpx[i],tpy[i]]);
   const spread=tips.map((t,k)=>[(k*0.6180339887)%1,t]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
   if (!anchors.length) for (let i=0;i<N;i+=3) anchors.push([tx[i],ty[i],2.6*vs]);
   return {tips:spread, snow:anchors};
@@ -5452,7 +5485,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
         season==='Fall' ? L.fallMix : null);
       tips=r.tips; snowAnchors=r.snow;
-      alongLimb=(tx2,ty2,f,tp)=>tp ? [tp[2]+(tx2-tp[2])*f, tp[3]+(ty2-tp[3])*f] : [tx2,ty2];
+      alongLimb=(tx2,ty2,f,tp)=>{
+        if (!tp) return [tx2,ty2];
+        if (tp.length>4){ const u=1-f; return [u*u*tp[2]+2*u*f*tp[4]+f*f*tx2, u*u*tp[3]+2*u*f*tp[5]+f*f*ty2]; }
+        return [tp[2]+(tx2-tp[2])*f, tp[3]+(ty2-tp[3])*f];
+      };
     } else {
     ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
     const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*vs*growth);
