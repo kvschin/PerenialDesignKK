@@ -1440,6 +1440,43 @@ test('every broadleaf tree names a crown habit', () => {
   assertEqual(missing.join(', '),'','every form:tree record carries look.crown');
 });
 
+test('every deciduous broadleaf tree carries a fall palette, and it is hex', () => {
+  /* look.fallMix holds the companions of the species' own fall colour. An
+     evergreen holds its leaves green through fall, so it has none to mix. */
+  const bad=[];
+  for (const key of PLANT_KEYS){
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,v), mix=P.look&&P.look.fallMix, id=key+(v?'.'+v:'');
+      if (mix!==undefined){
+        if (P.form!=='tree') bad.push(id+' is not a tree');
+        if (!Array.isArray(mix) || !mix.length || mix.some(c=>!/^#[0-9a-f]{6}$/i.test(c))) bad.push(id+' palette is not hex');
+      }
+      if (v || P.form!=='tree') continue;
+      // a crown "turns" when its fall colour is markedly warmer than its summer one
+      const warmth=c=>{ const n=parseInt(c.slice(1),16); return (n>>16&255)-(n>>8&255); };
+      const F=P.sea.Fall&&P.sea.Fall.fol, Su=P.sea.Summer&&P.sea.Summer.fol;
+      const turns=!!(F && Su && warmth(F)>warmth(Su)+30);
+      if (turns && !mix) bad.push(id+' turns colour with no palette');
+      if (!turns && mix) bad.push(id+' stays green and has a fall palette');
+    }
+  }
+  assertEqual(bad.slice(0,8).join(' | '),'','fall palettes are where a crown turns, and nowhere else');
+});
+
+test('a fall palette changes the fall crown and nothing else', () => {
+  const key='sugarmaple', L=PLANTS[key].look, keep=L.fallMix;
+  assert(keep && keep.length, 'sugar maple has a palette');
+  const draw=s=>plantDrawCalls(key,null,s,4242,1,0);
+  const fallWith=draw('Fall'), summerWith=draw('Summer');
+  delete L.fallMix;
+  let fallWithout, summerWithout;
+  try { fallWithout=draw('Fall'); summerWithout=draw('Summer'); }
+  finally { L.fallMix=keep; }
+  assert(fallWith!==fallWithout, 'the palette recolours the fall crown');
+  assert(summerWith===summerWithout, 'and leaves summer exactly as it was');
+  assert(fallWith.split('\n').length===fallWithout.split('\n').length, 'with the same number of canvas calls: a colour costs no shape');
+});
+
 test('with habits switched off, a habit tree draws exactly the classic tree', () => {
   /* ?habit=0 is the A/B and the way back, so it has to restore the old
      drawing call for call, not approximately. Base records only: plantDef

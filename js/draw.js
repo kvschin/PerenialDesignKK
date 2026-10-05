@@ -1753,7 +1753,7 @@ const _thSeg=new Float64Array(TH_STRIDE*TH_MAX);
 /* Draw a habit tree's limbs and (in leaf) its crown. Returns the twig tips as
    [x,y,parentX,parentY] in a spread-out order, for the flower and fruit passes,
    and snow anchors along the limbs. `nLeaf` is the blob budget. */
-function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
+function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix){
   const arm=mulberry(seed^0x5ca1ab), leaf=mulberry(seed^0x1eaf5);
   const base=H*hb.base, span=H*(hb.top-hb.base), W=cw*hb.w;
   const toY=v=>-(base+span*v);
@@ -2060,19 +2060,36 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
       litFill(ctx, 0, yMid, Math.max(W,half)*0.85, shade(S.fol,-30), 24, -22);
       ctx.restore();
     }
-    const blob=(x,y,rot,tone,e)=>{
+    const blob=(x,y,rot,tone,e,col)=>{
       const hw=hwAt(y)-bw*0.35;
       if (Math.abs(x)>hw) x=hw>0 ? Math.sign(x)*hw : 0;
-      ctx.fillStyle=shade(S.fol,tone);
+      ctx.fillStyle=shade(col||S.fol,tone);
       ctx.beginPath(); ctx.ellipse(x,y,bw*e,bh*e,rot,0,7); ctx.fill();
     };
     const glob=(x,y)=>(x/W)*LIT.x+((y-yMid)/half)*LIT.y;
+    /* Fall colour as a mosaic (look.fallMix): each clump takes the species'
+       fall colour or one of its companions, chosen by a slow wave across the
+       crown plus a little chance, so the colours come in patches -- a maple
+       turns one side before the other -- rather than as confetti. The palette
+       ORDER is the gradient: neighbouring entries share a patch, starting from
+       the species' own colour, which keeps 40% of the crown. Its own
+       stream, so a palette never moves a clump. No extra shapes: a colour is
+       free, a shape is not. */
+    const pal=mix && mix.length ? [S.fol,...mix] : null;
+    const crng=pal ? mulberry(seed^0xfa11) : null, phase=pal ? crng()*6.283 : 0;
+    const colAt=(x,y)=>{
+      if (!pal) return S.fol;
+      const wave=0.5+0.5*Math.sin((x/W)*2.6+((y-yMid)/half)*1.9+phase);
+      const t=Math.min(0.9999,Math.max(0,0.68*wave+0.32*crng()));
+      // the species' own colour holds 40% of the crown, the companions share the rest
+      return t<0.4 ? S.fol : mix[Math.floor((t-0.4)/0.6*mix.length)];
+    };
     const nFill=Math.round(nLeaf*hb.fill), nTip=nLeaf-nFill;
     for (let i=0;i<nFill;i++){
       let v=0, x=0, g=0;
       do { v=leaf(); x=(leaf()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v)*0.85 && ++g<10);
       const y=toY(v);
-      blob(x,y,leaf()*Math.PI,glob(x,y)*20-10+(leaf()-0.5)*10,1);
+      blob(x,y,leaf()*Math.PI,glob(x,y)*20-10+(leaf()-0.5)*10,1,colAt(x,y));
     }
     // clumps drawn shadowed side first, so the lit ones overlap them
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
@@ -2082,7 +2099,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
       const cnt=Math.round(per*(r+1))-made; made+=cnt;
       if (cnt<=0) return;
       const cx=tx[i]+(tx[i]-tpx[i])*0.12, cy=ty[i]+(ty[i]-tpy[i])*0.12;
-      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20;
+      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20, cc=colAt(cx,cy);
       // an evergreen in snow carries it on the tops of its clumps
       if (snowy && cy<toY(0.3) && Math.abs(cx)<hwAt(cy)*0.75) leafSnow.push([cx, cy-rc*hb.squash*0.55, rc*0.5]);
       tmp.length=0;
@@ -2092,7 +2109,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
         tmp.push([dx,dy,(dx/rc)*LIT.x+(dy/rc)*LIT.y,leaf()*Math.PI,0.86+0.14*(1-rr/rc)]);
       }
       tmp.sort((a,b)=>a[2]-b[2]);
-      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,gl+ul*hb.clump*16+ct+(leaf()-0.5)*8,e);
+      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,gl+ul*hb.clump*16+ct+(leaf()-0.5)*8,e,cc);
     });
     if (leafSnow.length) anchors.splice(0,anchors.length,...leafSnow);
   }
@@ -5275,7 +5292,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // applies, so the cached and procedural trees move alike
       if (sway){ ctx.save(); ctx.transform(1,0,-sway*4.2/Math.max(1,H),1,0,0); sheared=true; }
       const n=stemFor(Math.round((L.leafN||26)*Math.min(3,Math.max(1,vs*0.75))));
-      const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow);
+      const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
+        season==='Fall' ? L.fallMix : null);
       tips=r.tips; snowAnchors=r.snow;
       alongLimb=(tx2,ty2,f,tp)=>tp ? [tp[2]+(tx2-tp[2])*f, tp[3]+(ty2-tp[3])*f] : [tx2,ty2];
     } else {

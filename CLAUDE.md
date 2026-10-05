@@ -6276,6 +6276,25 @@ maple) reaching ~1.8-2.2ms because their limbs are long, which is the feature.
 Shortening their twig fringe was measured and moved nothing, so it is not
 there. 5,448 real-pixel renders of all 227 non-weeping tree choices (four
 seasons, three ages, two seeds) stay inside their sprite boxes, min margin 6px.
+**0.9.50: fall colour as a mosaic (`look.fallMix`).** A crown used to turn one
+flat colour; now each foliage clump takes the species' own `sea.Fall.fol` or
+one of its companions. It lives in `look`, not `sea`, because `sea` values are
+hex strings by contract (plants.test.js). The choice is a slow wave across the
+crown (0.68) plus chance (0.32) on its own seeded stream, so colours come in
+PATCHES, a maple turning one side before the other, rather than as confetti;
+the species' own colour holds 40% of the crown and the companions share the
+rest in palette order, which is why each palette is written as a gradient
+outward from the fall colour (sugar maple orange -> gold, red-orange, red;
+sweetgum burgundy -> purple, red, orange, gold; ginkgo nearly uniform; a late-
+green yellow-green in the tuliptree's). 71 deciduous species carry one, the
+evergreens and the leafless palo verde none (a test derives "turns colour"
+from the summer->fall warmth and holds the two sets equal), and 14 cultivars
+whose colour is another family carry their own ('Sango-kaku' gold, 'Forest
+Pansy' purple-red, the copper beeches). A cultivar that only changes its fall
+`fol` inherits its species' companions, which suits the red maples. A colour
+is free and a shape is not: the same canvas calls, bake times within noise.
+Habit trees only; the weeping cultivars' classic armature is untouched, and
+every draw outside fall is byte-identical to 0.9.49.
 
 ## Conventions
 
