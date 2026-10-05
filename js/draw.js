@@ -1639,6 +1639,404 @@ function coniferWeepBelow(P,H){
   return Math.max(0, reach*(weepFall*WEEP_LEN_MAX-1), tierGap*0.6-H*crownBase)+tip+4;
 }
 
+/* ---------- broadleaf tree habits (look.crown) ----------
+   Every broadleaf tree shared one drawing: an ellipse of foliage blobs over five
+   straight limbs fanned from the top of a bare trunk. 78 of 83 used the same
+   crown proportions, so a white oak, a sugar maple, an elm, a sweetgum and a
+   ginkgo were one lollipop in different greens, and in winter every tree was
+   the same broom of five sticks. A tree is told apart first by its SHAPE, so a
+   habit names one: a crown outline, where the limbs leave the trunk and how
+   they bend, and how the foliage gathers on them.
+   The limbs are built from the outside in. Twig tips are spread through the
+   crown outline, grouped by direction, and joined back to the trunk through
+   forks placed toward each group's centre (`fork`), so every limb ends inside
+   the crown and the crown is filled by construction; character comes from how
+   a limb bends on the way out (`bend`: +1 runs level then turns up, -1 climbs
+   then turns out) and how crooked it is (`crook`). Foliage then gathers in
+   clumps at the tips, each lit on its own upper-left, so a crown reads as
+   masses with sky between them rather than as confetti in an ellipse.
+   Cost is kept where the cache can absorb it. The foliage blob BUDGET is the
+   classic one (leafN, rescaled as before), only placed differently; the new
+   work is the branching, a few hundred stroked segments batched into one path
+   per width, and most of it only shows in winter, the cheapest season.
+   Opt-in per species through `look.crown`; anything without it draws exactly
+   as before. `?habit=0` (TREE_HABIT.on) A/Bs the whole system.
+   Table fields: base/top, the crown's extent as fractions of H; w, its widest
+   half-width as a fraction of cw; p, the height of that widest point (0 the
+   crown base, 1 its top); eLo/eHi, superellipse exponents below and above it
+   (1 a straight taper, 2 an ellipse, 3 boxy); lo, the half-width kept at the
+   crown base. oLo/oHi: where the scaffold limbs leave the trunk, and `leader`
+   (with `ascend`) for a tree whose trunk runs to the top carrying laterals.
+   `tiers` lays the tips in horizontal shelves. clusterR/squash/hang/clump shape
+   the foliage clumps; wash is the alpha of the crown underwash, fill the share
+   of the blob budget spread through the interior rather than at the tips. */
+const TREE_HABIT = { on: typeof location==='undefined' || !/[?&]habit=0(&|$)/.test(location.search) };
+const TREE_HABITS = {
+  // a broad low dome on a short trunk; massive crooked limbs leave low and run
+  // out nearly level before turning up (white oak, bur oak)
+  spread:  {base:0.17, top:0.80, w:0.55, p:0.42, eLo:2.2, eHi:3.4, lo:0.30, tipFrom:0.12, pipe:0.45,
+            oLo:0.14, oHi:0.28, scaffolds:5, tips:28, scaffold:0.6, fork:0.5, three:0.3,
+            bend:0.85, crook:0.30, lean:0.05, twigs:2, twigLen:0.022,
+            clusterR:0.09, squash:0.72, clump:1, hang:0, wash:0.32, washFrom:0.15, fill:0.12, rim:1.4, leafScale:0.8},
+  // a dense oval on a straight trunk, ascending limbs off a short leader (sugar maple)
+  round:   {base:0.30, top:1.00, w:0.47, p:0.45, eLo:2.0, eHi:2.3, lo:0.30,
+            oLo:0.28, oHi:0.46, scaffolds:6, tips:26, scaffold:0.45, fork:0.5, three:0.25,
+            bend:-0.6, crook:0.10, lean:0.02, twigs:3, twigLen:0.026,
+            clusterR:0.12, squash:0.85, clump:0.7, hang:0, wash:0.48, washFrom:0, fill:0.30, rim:0.8},
+  // one low fork into steep limbs that diverge and arch into an umbrella, fine
+  // twigs hanging from its rim (American elm)
+  vase:    {base:0.28, top:1.00, w:0.53, p:0.80, eLo:1.0, eHi:2.8, lo:0.08, tipFrom:0.45,
+            oLo:0.25, oHi:0.30, scaffolds:4, tips:30, scaffold:0.66, fork:0.55, three:0.3,
+            bend:-0.9, crook:0.07, lean:0.02, twigs:2, twigLen:0.05, droop:1.4, leafDepth:2,
+            clusterR:0.07, squash:0.75, clump:0.8, hang:0.9, wash:0.2, washFrom:0.55, fill:0.04, rim:1.6, leafScale:0.72},
+  // a pyramid on a central leader with short ascending laterals (sweetgum)
+  pyramid: {base:0.17, top:1.02, w:0.42, p:0.22, eLo:2.0, eHi:1.1, lo:0.45, leafScale:0.74,
+            leader:0.97, oLo:0.12, oHi:0.94, ascend:0.55, scaffolds:10, tips:28, scaffold:0.6, fork:0.55, three:0.2,
+            bend:-0.15, crook:0.06, lean:0.01, twigs:2, twigLen:0.022,
+            clusterR:0.085, squash:0.8, clump:0.8, hang:0, wash:0.40, washFrom:0, fill:0.22, rim:0.9},
+  // flat horizontal tiers on a short trunk, the twig ends turned up (flowering dogwood)
+  layered: {base:0.22, top:0.94, w:0.53, p:0.30, eLo:2.4, eHi:2.6, lo:0.6,
+            tiers:[[0.06,1.00,0.40],[0.46,0.86,0.34],[0.86,0.56,0.26]],
+            oLo:0.16, oHi:0.85, scaffolds:6, tips:30, scaffold:0.55, fork:0.5, three:0.2, stemSpread:0.16,
+            bend:0.85, crook:0.14, lean:0.03, twigs:2, twigLen:0.03, twigUp:0.8,
+            clusterR:0.10, squash:0.5, clump:0.9, hang:0, wash:0, washFrom:0, fill:0, rim:0, leafScale:0.86},
+  // an open, irregular dome of zigzag limbs carrying small separate sprays, so
+  // sky and branches show through (honeylocust)
+  open:    {base:0.36, top:1.00, w:0.50, p:0.55, eLo:1.6, eHi:2.4, lo:0.18,
+            oLo:0.30, oHi:0.44, scaffolds:4, tips:32, scaffold:0.5, fork:0.5, three:0.35, pipe:0.6,
+            bend:-0.4, crook:0.30, lean:0.06, twigs:2, twigLen:0.03,
+            clusterR:0.055, squash:0.8, clump:0.6, hang:0.15, wash:0, washFrom:0, fill:0, rim:1.0, leafScale:0.9, leafDepth:3},
+  // a narrow upright selection on a leader (columnar oaks, 'Slender Silhouette')
+  column:  {base:0.08, top:1.00, w:0.50, p:0.42, eLo:2.2, eHi:2.0, lo:0.45,
+            leader:0.95, oLo:0.06, oHi:0.92, ascend:1.6, scaffolds:10, tips:22, scaffold:0.6, fork:0.55, three:0.2,
+            bend:-0.5, crook:0.06, lean:0, twigs:2, twigLen:0.02,
+            clusterR:0.16, squash:0.9, clump:0.6, hang:0, wash:0.5, washFrom:0, fill:0.35, rim:0.6},
+};
+function treeHabitOf(L){
+  return (TREE_HABIT.on && L && L.crown && art2On(L) && !L.weep && TREE_HABITS[L.crown]) || null;
+}
+// half-width of a crown outline at height v (0 = crown base, 1 = top), 0..1
+function treeCrownHW(hb, v){
+  if (v<0 || v>1) return 0;
+  const lower=v<hb.p, d=lower ? (hb.p-v)/hb.p : (v-hb.p)/(1-hb.p), e=lower ? hb.eLo : hb.eHi;
+  const f=Math.pow(Math.max(0, 1-Math.pow(d,e)), 1/e), lo=lower ? hb.lo : 0;
+  return lo+(1-lo)*f;
+}
+/* Segment scratch: x0,y0,cx,cy,x1,y1,width,depth. drawPlant runs per frame on
+   the procedural path, so the limbs are staged here rather than as arrays. */
+const TH_STRIDE=8, TH_MAX=720;
+const _thSeg=new Float64Array(TH_STRIDE*TH_MAX);
+/* Draw a habit tree's limbs and (in leaf) its crown. Returns the twig tips as
+   [x,y,parentX,parentY] in a spread-out order, for the flower and fruit passes,
+   and snow anchors along the limbs. `nLeaf` is the blob budget. */
+function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
+  const arm=mulberry(seed^0x5ca1ab), leaf=mulberry(seed^0x1eaf5);
+  const base=H*hb.base, span=H*(hb.top-hb.base), W=cw*hb.w;
+  const toY=v=>-(base+span*v);
+  const hwAt=y=>W*treeCrownHW(hb, Math.max(0,Math.min(1,(-y-base)/span)));
+  const N=Math.max(8, Math.round(L.tipN||hb.tips));
+  const tx=new Float64Array(N), ty=new Float64Array(N), tpx=new Float64Array(N), tpy=new Float64Array(N);
+
+  // 1. twig tips, spread through the crown (best of six candidates each, so
+  //    they neither clump nor sit on a grid), or laid in shelves
+  // each side of each tier sits at its own height, so shelves are not ruled lines
+  const tierOff=hb.tiers ? hb.tiers.map(()=>[(arm()-0.5)*H*0.07,(arm()-0.5)*H*0.07]) : null;
+  if (hb.tiers){
+    let k=0;
+    hb.tiers.forEach(([tv,tw,share],ti)=>{
+      const cnt=ti===hb.tiers.length-1 ? N-k : Math.round(N*share);
+      for (let j=0;j<cnt && k<N;j++,k++){
+        const s=((j+0.5+(arm()-0.5)*0.7)/cnt)*2-1, x=s*W*tw*(0.92+arm()*0.16);
+        tx[k]=x; ty[k]=toY(tv)+tierOff[ti][x<0?0:1]+(arm()-0.5)*H*0.06-Math.abs(s)*H*0.035;
+      }
+    });
+  } else {
+    // `tipFrom` keeps the lower crown to limbs: an elm's bare V, the open
+    // space under an oak's spreading limbs
+    const tf=hb.tipFrom||0;
+    for (let k=0;k<N;k++){
+      let bx=0, by=toY(0.5), bs=-1;
+      for (let c=0;c<6;c++){
+        let v=0, x=0, g=0;
+        do { v=tf+(1-tf)*arm(); x=(arm()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v) && ++g<12);
+        const hwv=W*treeCrownHW(hb,v);
+        if (Math.abs(x)>hwv) x=Math.sign(x)*hwv*0.9;
+        const y=toY(v);
+        let d=1e9;
+        for (let i=0;i<k;i++){ const dx=(tx[i]-x)/cw, dy=(ty[i]-y)/cw, q=dx*dx+dy*dy; if (q<d) d=q; }
+        const rim=Math.max(hwv>0?Math.abs(x)/hwv:0, (v-0.7)/0.3);
+        const sc=Math.sqrt(d)*(1+hb.rim*Math.max(0,rim));
+        if (sc>bs){ bs=sc; bx=x; by=y; }
+      }
+      tx[k]=bx; ty[k]=by;
+    }
+  }
+
+  // 2. which limb serves which tips, and where each limb leaves the trunk
+  const lean=(arm()-0.5)*H*(hb.lean||0)*2;
+  const trunkTop=H*(hb.leader||hb.oHi);
+  const trunkX=y=>lean*Math.pow(Math.min(1,Math.max(0,-y/trunkTop)),1.6);
+  const groups=[];   // {list, oy}
+  const ang=new Float64Array(N);
+  if (hb.tiers){
+    const byKey=new Map();
+    let k=0;
+    hb.tiers.forEach(([tv,tw,share],ti)=>{
+      const cnt=ti===hb.tiers.length-1 ? N-k : Math.round(N*share);
+      for (let j=0;j<cnt && k<N;j++,k++){
+        const side=tx[k]<0?0:1, key=ti*2+side;
+        if (!byKey.has(key)) byKey.set(key,{list:[], oy:toY(tv)+tierOff[ti][side]+H*0.04, side:side?1:-1, tier:ti});
+        byKey.get(key).list.push(k);
+      }
+    });
+    byKey.forEach(g=>groups.push(g));
+  } else if (hb.leader){
+    const att=new Float64Array(N);
+    for (let i=0;i<N;i++) att[i]=Math.max(H*hb.oLo, Math.min(H*hb.oHi, -ty[i]-Math.abs(tx[i])*hb.ascend));
+    const per=Math.max(1,Math.round(hb.scaffolds/2));
+    for (const side of [-1,1]){
+      const list=[]; for (let i=0;i<N;i++) if ((tx[i]<0?-1:1)===side) list.push(i);
+      list.sort((a,b)=>att[a]-att[b]);
+      for (let g=0; g<per; g++){
+        const a=Math.round(list.length*g/per), b=Math.round(list.length*(g+1)/per);
+        if (b<=a) continue;
+        const part=list.slice(a,b); let m=0; for (const i of part) m+=att[i];
+        groups.push({list:part, oy:-m/part.length});
+      }
+    }
+  } else {
+    const hubY=-H*(hb.oLo+hb.oHi)/2;
+    for (let i=0;i<N;i++) ang[i]=Math.atan2(tx[i]-trunkX(hubY), hubY-ty[i]);
+    const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>ang[a]-ang[b]);
+    const S=Math.max(2,hb.scaffolds), parts=[];
+    for (let g=0; g<S; g++){
+      const a=Math.round(N*g/S), b=Math.round(N*(g+1)/S);
+      if (b>a){ const part=order.slice(a,b); let m=0; for (const i of part) m+=Math.abs(ang[i]); parts.push({list:part, m:m/part.length}); }
+    }
+    // the most nearly level limbs leave lowest, as they do on a real trunk
+    parts.sort((a,b)=>b.m-a.m);
+    parts.forEach((p,j)=>{
+      const f=parts.length>1 ? j/(parts.length-1) : 0.5;
+      groups.push({list:p.list, oy:-H*(hb.oLo+(hb.oHi-hb.oLo)*Math.min(1,Math.max(0,f+(arm()-0.5)*0.25)))});
+    });
+  }
+  groups.sort((a,b)=>b.oy-a.oy);   // lowest origin first
+
+  // 3. the limbs: every fork placed toward the centre of the tips it serves
+  const Wt=Math.max(2,(L.trunkW||6)*vs*growth);
+  // pipe model: a limb carries the twigs beyond it (da Vinci's rule is 0.5)
+  const wOf=n=>Math.max(0.6, Wt*Math.pow(n/N, hb.pipe||0.55));
+  let ns=0;
+  const anchors=[];
+  const seg=(x0,y0,x1,y1,w,depth,bendTo)=>{
+    if (ns>=TH_MAX) return;
+    const dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1;
+    const bend=bendTo===undefined ? hb.bend*Math.pow(0.55,depth) : bendTo;
+    let cx=x0+dx*(0.5+0.3*bend), cy=y0+dy*(0.5-0.3*bend);
+    const ck=hb.crook*len*(arm()-0.5)*2;
+    cx+=-dy/len*ck; cy+=dx/len*ck;
+    const o=ns*TH_STRIDE;
+    _thSeg[o]=x0; _thSeg[o+1]=y0; _thSeg[o+2]=cx; _thSeg[o+3]=cy;
+    _thSeg[o+4]=x1; _thSeg[o+5]=y1; _thSeg[o+6]=w; _thSeg[o+7]=depth; ns++;
+    if (depth<=2 && Math.abs(dy)<Math.abs(dx)*0.8 && w>1.4)
+      anchors.push([(x0+x1)/2, (y0+y1)/2-w*0.5, Math.max(2.6*vs, w*1.5)]);
+  };
+  const angs=new Float64Array(N);
+  const grow=(ox,oy,list,depth)=>{
+    if (list.length===1){
+      const i=list[0]; seg(ox,oy,tx[i],ty[i],wOf(1),depth); tpx[i]=ox; tpy[i]=oy; return;
+    }
+    let mx=0, my=0; for (const i of list){ mx+=tx[i]; my+=ty[i]; }
+    mx/=list.length; my/=list.length;
+    const ff=(depth===0 ? hb.scaffold : hb.fork)*(0.85+arm()*0.3);
+    const fx=ox+(mx-ox)*ff, fy=oy+(my-oy)*ff;
+    seg(ox,oy,fx,fy,wOf(list.length),depth);
+    for (const i of list) angs[i]=Math.atan2(tx[i]-fx, fy-ty[i]);
+    list.sort((a,b)=>angs[a]-angs[b]);
+    const k=(list.length>=6 && arm()<hb.three) ? 3 : 2;
+    for (let g=0; g<k; g++){
+      const a=Math.round(list.length*g/k), b=Math.round(list.length*(g+1)/k);
+      if (b>a) grow(fx,fy,list.slice(a,b),depth+1);
+    }
+  };
+  let remaining=N;
+  const trunkPts=[[0, 0, Wt*1.32], [trunkX(-H*0.05), -H*0.05, Wt]];
+  if (hb.tiers){
+    // a low fork into two climbing stems, each carrying its side of every
+    // tier: a pole up the middle read as a coat rack
+    const forkY=Math.max(...groups.map(g=>g.oy)), forkX=trunkX(forkY);
+    trunkPts.push([forkX, forkY, wOf(N)*0.92]);
+    for (const side of [-1,1]){
+      const sg=groups.filter(g=>g.side===side);
+      let rem=0; for (const g of sg) rem+=g.list.length;
+      let px=forkX, py=forkY;
+      sg.forEach((g,t)=>{
+        const gx=t ? forkX+side*W*(hb.stemSpread||0.16)*(t/Math.max(1,sg.length-1))+(arm()-0.5)*W*0.05 : forkX;
+        if (t || Math.abs(g.oy-py)>0.5) seg(px,py,gx,g.oy,wOf(rem),0,-0.35);
+        grow(gx, g.oy, g.list, 0);
+        rem-=g.list.length; px=gx; py=g.oy;
+      });
+    }
+  } else for (const g of groups){
+    const oy=g.oy, ox=trunkX(oy);
+    trunkPts.push([ox, oy, wOf(remaining-g.list.length*0.5)]);
+    remaining-=g.list.length;
+    grow(ox, oy, g.list, 0);
+  }
+  // in winter, a fringe of fine twigs beyond each tip: the haze a bare crown
+  // really has, and the drooping twigs on an elm's rim. Drawn behind leaves it
+  // would be hidden, so it is skipped in leaf (and costs nothing then).
+  if (!S.fol){
+    const tw=wOf(1)*0.55;
+    for (let i=0;i<N;i++){
+      let dx=tx[i]-tpx[i], dy=ty[i]-tpy[i]; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+      for (let q=0;q<hb.twigs;q++){
+        const a=(q-(hb.twigs-1)/2)*0.9+(arm()-0.5)*0.5, len=H*hb.twigLen*(0.6+arm()*0.7);
+        const ex=dx*Math.cos(a)-dy*Math.sin(a), ey=dx*Math.sin(a)+dy*Math.cos(a);
+        const x1=tx[i]+ex*len, y1=ty[i]+ey*len+len*(hb.droop||0)-len*(hb.twigUp||0)*0.6;
+        if (ns>=TH_MAX) break;
+        const o=ns*TH_STRIDE;
+        _thSeg[o]=tx[i]; _thSeg[o+1]=ty[i]; _thSeg[o+2]=tx[i]+ex*len*0.6; _thSeg[o+3]=ty[i]+ey*len*0.6;
+        _thSeg[o+4]=x1; _thSeg[o+5]=y1; _thSeg[o+6]=tw; _thSeg[o+7]=9; ns++;
+      }
+    }
+  }
+
+  // trunk: one tapered fill with a flared foot
+  const bark=L.bark||'#5e4a38';
+  ctx.fillStyle=bark; ctx.beginPath();
+  for (let i=0;i<trunkPts.length;i++){ const [x,y,w]=trunkPts[i]; i ? ctx.lineTo(x-w/2,y) : ctx.moveTo(x-w/2,y); }
+  for (let i=trunkPts.length-1;i>=0;i--){ const [x,y,w]=trunkPts[i]; ctx.lineTo(x+w/2,y); }
+  ctx.closePath(); ctx.fill();
+  ctx.lineCap='round';
+  /* Limbs. On the sprite-bake path a stroke costs by its stroked LENGTH, by
+     curves over lines, and by the call: sixty short segments in one path
+     measured 0.42ms, sixty long ones 1.03ms, and the same sixty split over ten
+     calls 0.83ms. So: in leaf, only the scaffolds and their first forks are
+     drawn (the rest end inside the clumps that hide them); the limbs from
+     THIN up are curves, one stroke per 1.6x step of width; everything finer
+     is straight lines in three strokes, which a twig at that size is anyway.
+     THIN is relative (a limb carrying fewer than three tips), since one oak
+     twig is wider in draw units than a dogwood's whole scaffold. */
+  const leafDepth=S.fol ? (hb.leafDepth||1) : 99, THIN=wOf(2.5), STEP=Math.log(1.6);
+  let bMax=-99, bMin=99;
+  for (let s=0;s<ns;s++){
+    const o=s*TH_STRIDE; if (_thSeg[o+7]>leafDepth || _thSeg[o+6]<THIN) continue;
+    const b=Math.round(Math.log(_thSeg[o+6])/STEP); if (b>bMax) bMax=b; if (b<bMin) bMin=b;
+  }
+  ctx.strokeStyle=bark;
+  for (let b=bMax;b>=bMin;b--){
+    ctx.lineWidth=Math.exp(b*STEP); ctx.beginPath(); let any=false;
+    for (let s=0;s<ns;s++){
+      const o=s*TH_STRIDE;
+      if (_thSeg[o+7]>leafDepth || _thSeg[o+6]<THIN || Math.round(Math.log(_thSeg[o+6])/STEP)!==b) continue;
+      ctx.moveTo(_thSeg[o],_thSeg[o+1]);
+      ctx.quadraticCurveTo(_thSeg[o+2],_thSeg[o+3],_thSeg[o+4],_thSeg[o+5]); any=true;
+    }
+    if (any) ctx.stroke();
+  }
+  const w1=wOf(1);
+  for (const [lo,hi,lw,col] of [[w1*1.02,THIN,wOf(2),bark],[w1*0.9,w1*1.02,w1,bark],[0,w1*0.9,w1*0.55,shade(bark,10)]]){
+    ctx.strokeStyle=col; ctx.lineWidth=Math.max(0.6,lw); ctx.beginPath(); let any=false;
+    for (let s=0;s<ns;s++){
+      const o=s*TH_STRIDE, w=_thSeg[o+6];
+      if (_thSeg[o+7]>leafDepth || w<lo || w>=hi) continue;
+      ctx.moveTo(_thSeg[o],_thSeg[o+1]); ctx.lineTo(_thSeg[o+4],_thSeg[o+5]); any=true;
+    }
+    if (any) ctx.stroke();
+  }
+  // light on the upper-left of the trunk and the scaffold limbs
+  ctx.strokeStyle=shade(bark,20); ctx.lineWidth=Math.max(0.8,Wt*0.16);
+  ctx.beginPath();
+  for (let i=1;i<trunkPts.length;i++){ const [x,y,w]=trunkPts[i]; i>1 ? ctx.lineTo(x-w*0.26,y) : ctx.moveTo(x-w*0.26,y); }
+  for (let s=0;s<ns;s++){
+    const o=s*TH_STRIDE, w=_thSeg[o+6];
+    if (_thSeg[o+7]>0 || w<Wt*0.22) continue;
+    const ox=-w*0.2, oy=-w*0.18;
+    ctx.moveTo(_thSeg[o]+ox,_thSeg[o+1]+oy);
+    ctx.quadraticCurveTo(_thSeg[o+2]+ox,_thSeg[o+3]+oy,_thSeg[o+4]+ox,_thSeg[o+5]+oy);
+  }
+  ctx.stroke();
+  // snow lies along the top of the big limbs that run near level, and slides
+  // off what does not
+  if (snowy && !S.fol){
+    ctx.strokeStyle='rgba(240,244,250,0.9)'; ctx.lineWidth=Math.max(1.2,Wt*0.2);
+    ctx.beginPath(); let any=false;
+    for (let s=0;s<ns;s++){
+      const o=s*TH_STRIDE, w=_thSeg[o+6];
+      if (_thSeg[o+7]>1 || w<THIN) continue;
+      if (Math.abs(_thSeg[o+4]-_thSeg[o]) < Math.abs(_thSeg[o+5]-_thSeg[o+1])*0.45) continue;
+      const dy=-w*0.42;
+      ctx.moveTo(_thSeg[o],_thSeg[o+1]+dy);
+      ctx.quadraticCurveTo(_thSeg[o+2],_thSeg[o+3]+dy,_thSeg[o+4],_thSeg[o+5]+dy); any=true;
+    }
+    if (any) ctx.stroke();
+  }
+
+  // 4. foliage: clumps at the tips, each lit on its own upper-left
+  if (S.fol){
+    const leafMul=Math.min(3,Math.max(1,vs*0.75)), leafDim=1/Math.sqrt(leafMul);
+    // smaller than the classic blob: clumps have to stay apart enough for
+    // the crown to read as masses with sky between them
+    const ls=hb.leafScale||0.78;
+    const bw=cw*(L.leafW||0.15)*leafDim*ls, bh=cw*(L.leafH||0.10)*leafDim*ls;
+    const yMid=toY(0.5), half=span/2;
+    if (hb.wash>0){
+      ctx.save(); ctx.globalAlpha=hb.wash; ctx.beginPath();
+      // a soft shape inside the outline: rounded where it starts, and never
+      // boxier than an ellipse at the top, or its straight edges show between
+      // the clumps
+      const v0=hb.washFrom||0, steps=16;
+      const soft=hb._soft||(hb._soft=Object.assign({},hb,{eLo:Math.min(hb.eLo,2.2),eHi:Math.min(hb.eHi,2.2)}));
+      const wv=v=>{ const k=Math.min(1,(v-v0)/0.2); return W*0.94*treeCrownHW(soft,v)*Math.sqrt(Math.max(0,1-(1-k)*(1-k))); };
+      for (let i=0;i<=steps;i++){ const v=v0+(1-v0)*i/steps; ctx[i?'lineTo':'moveTo'](-wv(v), toY(v)); }
+      for (let i=steps;i>=0;i--){ const v=v0+(1-v0)*i/steps; ctx.lineTo(wv(v), toY(v)); }
+      ctx.closePath();
+      litFill(ctx, 0, yMid, Math.max(W,half)*0.85, shade(S.fol,-30), 24, -22);
+      ctx.restore();
+    }
+    const blob=(x,y,rot,tone,e)=>{
+      const hw=hwAt(y)-bw*0.35;
+      if (Math.abs(x)>hw) x=hw>0 ? Math.sign(x)*hw : 0;
+      ctx.fillStyle=shade(S.fol,tone);
+      ctx.beginPath(); ctx.ellipse(x,y,bw*e,bh*e,rot,0,7); ctx.fill();
+    };
+    const glob=(x,y)=>(x/W)*LIT.x+((y-yMid)/half)*LIT.y;
+    const nFill=Math.round(nLeaf*hb.fill), nTip=nLeaf-nFill;
+    for (let i=0;i<nFill;i++){
+      let v=0, x=0, g=0;
+      do { v=leaf(); x=(leaf()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v)*0.85 && ++g<10);
+      const y=toY(v);
+      blob(x,y,leaf()*Math.PI,glob(x,y)*20-10+(leaf()-0.5)*10,1);
+    }
+    // clumps drawn shadowed side first, so the lit ones overlap them
+    const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
+    const rc0=cw*hb.clusterR, per=nTip/N, tmp=[];
+    let made=0;
+    order.forEach((i,r)=>{
+      const cnt=Math.round(per*(r+1))-made; made+=cnt;
+      if (cnt<=0) return;
+      const cx=tx[i]+(tx[i]-tpx[i])*0.12, cy=ty[i]+(ty[i]-tpy[i])*0.12;
+      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20;
+      tmp.length=0;
+      for (let j=0;j<cnt;j++){
+        const a=leaf()*Math.PI*2, rr=rc*Math.sqrt(leaf());
+        const dx=Math.cos(a)*rr, dy=Math.sin(a)*rr*hb.squash+hb.hang*rr*0.6;
+        tmp.push([dx,dy,(dx/rc)*LIT.x+(dy/rc)*LIT.y,leaf()*Math.PI,0.86+0.14*(1-rr/rc)]);
+      }
+      tmp.sort((a,b)=>a[2]-b[2]);
+      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,gl+ul*hb.clump*16+ct+(leaf()-0.5)*8,e);
+    });
+  }
+
+  // tips for flowers and fruit, interleaved so a short pass reaches every limb
+  const tips=[];
+  for (let i=0;i<N;i++) tips.push([tx[i],ty[i],tpx[i],tpy[i]]);
+  const spread=tips.map((t,k)=>[(k*0.6180339887)%1,t]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
+  if (!anchors.length) for (let i=0;i<N;i+=3) anchors.push([tx[i],ty[i],2.6*vs]);
+  return {tips:spread, snow:anchors};
+}
+
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail){
@@ -4800,6 +5198,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const vs=(woodyVisualCw(P)||100)/(P.cw||100);
     const cw=(woodyVisualCw(P)||100)*(L.cwMul||1)*(0.12+0.88*growth), trunkH=H*(L.trunkH||0.42);
     const cy=-trunkH-H*(L.canopyY||0.30); // canopy center
+    // a named crown habit draws its own limbs and canopy (drawTreeHabit); the
+    // flower and fruit passes below are shared, reading its tips
+    const habit=treeHabitOf(L);
+    let tips, alongLimb, sheared=false;
+    if (habit){
+      // sway is a lean that grows with height, the same shear the sprite blit
+      // applies, so the cached and procedural trees move alike
+      if (sway){ ctx.save(); ctx.transform(1,0,-sway*4.2/Math.max(1,H),1,0,0); sheared=true; }
+      const n=stemFor(Math.round((L.leafN||26)*Math.min(3,Math.max(1,vs*0.75))));
+      const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow);
+      tips=r.tips; if (!S.fol) snowAnchors=r.snow;
+      alongLimb=(tx2,ty2,f,tp)=>tp ? [tp[2]+(tx2-tp[2])*f, tp[3]+(ty2-tp[3])*f] : [tx2,ty2];
+    } else {
     ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
     const trunks=Math.max(1,L.trunks||1), trunkW=Math.max(2,(L.trunkW||6)*vs*growth);
     for (let tr=0;tr<trunks;tr++){
@@ -4816,7 +5227,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.strokeStyle=L.bark||'#5e4a38';
       }
     }
-    const tips=[];
+    tips=[];
     ctx.lineWidth=Math.max(1.2, (L.branchW||2.2)*vs*growth);
     const branchN=L.branches||5;
     /* A weeping tree (`weep`: a weeping cherry, a laceleaf maple, a weeping
@@ -4866,7 +5277,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // Where along a limb a flower or fruit sits. Upright trees spread them from
     // the trunk top out to the branch end; on a weeper the tip already IS a
     // point on a hanging strand, so it is used as it stands.
-    const alongLimb=(tx2,ty2,f)=>weep
+    alongLimb=(tx2,ty2,f)=>weep
       ? [tx2+(f-0.72)*cw*0.09, ty2+(f-0.72)*H*0.05]
       : [sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f];
     if (L.twigCanopy){
@@ -4995,6 +5406,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         ctx.restore();
       }
     }
+    } // end of the classic armature and canopy
     if (blooming){ // flowers: on the canopy, or straight on bare branches (redbud)
       const spots=Math.max(2,Math.ceil((L.flowerN||(S.fol?10:14))*blv));
       if (L.smoke){
@@ -5023,7 +5435,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
           const f=0.45+rnd()*0.55;
-          const [fx,fy]=alongLimb(tx2,ty2,f);
+          const [fx,fy]=alongLimb(tx2,ty2,f,tips[i%tips.length]);
           if (L.flowerShape) drawShrubFlower(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),
             L.flowerShape,rnd,(rnd()-0.5)*0.45,S.eye,L.flowerPetals);
           else drawFloret(ctx,fx,fy,fr,shade(S.bloom,(rnd()-0.5)*10),{squash:0.92});
@@ -5051,7 +5463,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const sites=[];
         for (let i=0;i<Math.ceil(seeds/bunch);i++){
           const [tx2,ty2]=tips[i%tips.length], f=0.50+frnd()*0.45;
-          sites.push(alongLimb(tx2,ty2,f));
+          sites.push(alongLimb(tx2,ty2,f,tips[i%tips.length]));
         }
         for (let i=0;i<seeds;i++){
           const [bx,by]=sites[Math.floor(i/bunch)], member=i%bunch;
@@ -5059,6 +5471,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const rr=bunch===1?0:seedR*(0.65+0.22*bunch);
           drawTreeFruit(ctx,bx+Math.cos(a)*rr,by+Math.sin(a)*rr*0.72,
             seedR*(0.88+frnd()*0.20),S.seed,L.fruitShape,(frnd()-0.5)*1.1);
+        }
+      } else if (habit){
+        // on the twigs that carry them, not scattered through the crown box,
+        // where bare-crown acorns and gumballs used to hang in the air
+        const frnd=mulberry(seed+0x6f72);
+        for (let i=0;i<seeds;i++){
+          const tp=tips[(i*7)%tips.length], [fx,fy]=alongLimb(tp[0],tp[1],0.55+frnd()*0.45,tp);
+          drawFloret(ctx, fx, fy+seedR*0.6, seedR, S.seed, {squash:0.9});
         }
       } else if (art2On(L)){       // acorns, samaras and fluff all read better lit
         for (let i=0;i<seeds;i++)
@@ -5069,6 +5489,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           ctx.arc((rnd()-0.5)*cw*0.8+sway*3, cy-(rnd()-0.5)*H*0.4, seedR, 0, 7); ctx.fill(); }
       }
     }
+    if (sheared) ctx.restore();
   }
   else if (P.form === 'conifer'){ // evergreen habits share primitives, not silhouettes
     const L=P.look||{}, habit=S.fol?(L.coniferHabit||'spruce'):'bare';
@@ -6096,7 +6517,10 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // these strokes assume foliage fills the whole H box — over a low cushion
   // like fringed sage, or a lamb's ear mat, they drew a stray highlight in
   // the empty air above it.
-  if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)){
+  // A habit tree lights each clump itself, and its crown has sky in it where
+  // these would land.
+  if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
+      && !(P.form==='tree' && treeHabitOf(P.look))){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

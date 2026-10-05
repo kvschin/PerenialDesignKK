@@ -1394,6 +1394,98 @@ test('every tree, shrub and cultivar draws inside its sprite box on all four sid
   assertEqual(bad.slice(0,6).join(' | '),'','every woody drawing fits the box its sprite is baked into');
 });
 
+/* Every canvas call drawPlant makes, as one string, for comparing two drawings
+   of the same plant call by call. */
+function plantDrawCalls(key,v,season,seed,growth,sway){
+  const log=[];
+  const ctx=new Proxy({}, {
+    get(o,p){
+      if (p in o) return o[p];
+      return (...a) => {
+        log.push(String(p)+'('+a.map(x=>typeof x==='number'?Math.round(x*1000)/1000:x).join(',')+')');
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return {addColorStop:(o2,c)=>log.push('stop '+o2+' '+c)};
+        if (p==='measureText') return {width:0};
+        return undefined;
+      };
+    },
+    set(o,p,val){ o[p]=val; log.push('set '+String(p)+'='+val); return true; },
+  });
+  drawPlant(ctx,0,0,key,growth,season,seed,sway||0,v,1);
+  return log.join('\n');
+}
+
+test('every crown habit a tree names exists, and only broadleaf trees name one', () => {
+  const bad=[];
+  for (const key of PLANT_KEYS){
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,v), c=P.look&&P.look.crown;
+      if (c===undefined) continue;
+      if (P.form!=='tree') bad.push(`${key}${v?'.'+v:''} is a ${P.form}`);
+      else if (!TREE_HABITS[c]) bad.push(`${key}${v?'.'+v:''} names '${c}'`);
+    }
+  }
+  assertEqual(bad.join(' | '),'','look.crown is a TREE_HABITS key on a form:tree record');
+  for (const [name,hb] of Object.entries(TREE_HABITS)){
+    for (const f of ['base','top','w','p','eLo','eHi','lo','oLo','oHi','scaffolds','tips','scaffold','fork','bend','crook','clusterR','squash','wash','fill'])
+      assert(Number.isFinite(hb[f]), `${name}.${f} is a number`);
+    assert(hb.top>hb.base && hb.p>0 && hb.p<1, `${name} has a crown with height and a widest point inside it`);
+  }
+});
+
+test('with habits switched off, a habit tree draws exactly the classic tree', () => {
+  /* ?habit=0 is the A/B and the way back, so it has to restore the old
+     drawing call for call, not approximately. Base records only: plantDef
+     hands those back uncached, so the crown can be lifted off and put back. */
+  const keys=PLANT_KEYS.filter(k=>PLANTS[k].look && PLANTS[k].look.crown);
+  assert(keys.length>=6, 'there are habit trees to compare');
+  const prev=TREE_HABIT.on;
+  try {
+    for (const key of keys){
+      for (const season of SEASONS) for (const sway of [0,0.6]){
+        TREE_HABIT.on=false;
+        const off=plantDrawCalls(key,null,season,4242,1,sway);
+        const crown=PLANTS[key].look.crown;
+        TREE_HABIT.on=true; delete PLANTS[key].look.crown;
+        let classic;
+        try { classic=plantDrawCalls(key,null,season,4242,1,sway); }
+        finally { PLANTS[key].look.crown=crown; }
+        assert(off===classic, `${key} ${season} sway ${sway}: switched off draws the classic tree`);
+        assert(off!==plantDrawCalls(key,null,season,4242,1,sway), `${key} ${season}: and switched on draws something else`);
+      }
+    }
+  } finally { TREE_HABIT.on=prev; }
+});
+
+test('a habit tree ends every limb inside its crown, and carries its snow on the limbs', () => {
+  /* The limbs are built back from twig tips spread through the crown outline,
+     which is what keeps a branch from poking out of the foliage as a bare stick
+     (the old armature's tell). A tip outside the outline would be exactly that. */
+  const noop=()=>{};
+  const ctx=new Proxy({}, { get:(o,p)=>p in o ? o[p]
+      : (p==='createLinearGradient'||p==='createRadialGradient') ? ()=>({addColorStop:noop}) : noop,
+    set:(o,p,v)=>{ o[p]=v; return true; } });
+  for (const key of PLANT_KEYS){
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const P=plantDef(key,v), hb=treeHabitOf(P.look);
+      if (!hb) continue;
+      const H=plantVisualH(P), cw=woodyVisualCw(P), vs=cw/P.cw;
+      for (const season of ['Summer','Winter']){
+        const r=drawTreeHabit(ctx,P.look,P.sea[season]||{},hb,H,cw,vs,1,4242,60,season==='Winter');
+        assert(r.tips.length>=8, `${key}${v?'.'+v:''} has twig tips`);
+        for (const [tx,ty,px,py] of r.tips){
+          const vv=(-ty-H*hb.base)/(H*(hb.top-hb.base));
+          // tiers sit their shelves a little off the outline on purpose
+          const slack=hb.tiers ? 0.12 : 0.02;
+          assert(vv>=-slack && vv<=1+slack, `${key}${v?'.'+v:''} tip inside the crown's height`);
+          assert(Math.abs(tx)<=cw*hb.w*(treeCrownHW(hb,Math.max(0,Math.min(1,vv)))+slack)+0.5, `${key}${v?'.'+v:''} tip inside the crown's width`);
+          assert(Number.isFinite(px)&&Number.isFinite(py), `${key}${v?'.'+v:''} every tip has the limb it hangs from`);
+        }
+        if (season==='Winter') assert(r.snow.length>0, `${key}${v?'.'+v:''} has limbs for snow to lie on`);
+      }
+    }
+  }
+});
+
 test('a sized tree cultivar draws at its species\' scale for its real size', () => {
   /* Trees are drawn on one compression curve: across the catalog, drawn width
      grows as real spread^0.76 and drawn height as real height^0.70. A cultivar

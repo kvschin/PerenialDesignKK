@@ -6217,6 +6217,39 @@ the plain twig curve so leaves and catkins still sit on it. `fruitStyle:'cone'`
 (staghorn sumac + 'Bailtiger'/Tiger Eyes, new Sumac family with fragrant
 sumac) draws upright fruit heads sized to the plant. Staghorn carries a
 Switzerland caution citing Info Flora, so European gardens hide it.
+**0.9.48: broadleaf crown habits (`look.crown`, `TREE_HABITS`,
+`drawTreeHabit`, draw.js).** Every broadleaf tree drew one shape: an ellipse
+of foliage blobs over five straight limbs fanned from the top of a bare trunk
+(78 of 83 had the same crown proportions), and in winter every tree was the
+same broom of five sticks with snow ovals floating over it. A habit names a
+crown OUTLINE (a superellipse profile: widest point `p`, exponents `eLo`/`eHi`,
+base width `lo`), where the scaffolds leave the trunk (`oLo`/`oHi`, or a
+`leader` carrying laterals, or `tiers` of shelves) and how limbs bend (`bend`
++1 runs level then turns up, -1 climbs then turns out) and kink (`crook`).
+**The limbs are built from the outside in**: twig tips are spread through the
+outline (best of six candidates, rim-weighted), grouped by direction, and
+joined back to the trunk through forks placed toward each group's centre, so
+every limb ends inside the crown by construction (a test holds every tip inside
+the outline). Widths follow a pipe model (`pipe`, 0.45-0.6). Foliage gathers in
+clumps at the tips, each lit on its own upper-left and drawn shadow side first;
+the blob BUDGET is the classic one. Winter adds a twig fringe, snow ridged along
+the top of near-level limbs, and acorns/gumballs/pods on twigs instead of in the
+crown box. Shipped on white oak (`spread`), sugar maple (`round`), American elm
+(`vase`), sweetgum (`pyramid`), flowering dogwood (`layered`, two stems forked
+low), honeylocust (`open`), and `column` on 'Crimschmidt', 'Barrett Cole' and
+'Slender Silhouette'. **Cost, measured on the sprite-bake path (OffscreenCanvas
+-> ImageBitmap), not a software canvas**: a stroke there costs by stroked
+LENGTH, by curves over lines and per call (sixty short segments in one path
+0.42ms, sixty long ones 1.03ms, the same sixty over ten calls 0.83ms). So in
+leaf only scaffolds and first forks draw (`leafDepth`), limbs under `wOf(2.5)`
+are straight lines in three strokes, wider ones one stroke per 1.6x step.
+Summer bakes: maple and dogwood unchanged, the other four +0.15-0.35ms on
+~1ms; winter 0.6 -> 1.1-1.6ms, about an old summer tree. The underwash is
+soft-bounded (never boxier than an ellipse, rounded at its base) because a
+boxy wash showed its straight edges between clumps. Every tree without a crown
+draws byte-identical to 0.9.47 (7,456 draws), `?habit=0` (`TREE_HABIT.on`)
+restores the classic drawing call for call (a test), and `dev/tree-habit-review.html`
+shows each habit tree before/after in four seasons plus a garden-scale lineup.
 
 ## Conventions
 

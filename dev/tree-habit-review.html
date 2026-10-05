@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tree habit review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}
+header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}
+button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}
+#status{padding:0 16px;font-size:12px;color:#d6c094;margin:0}
+.sec{font-size:14px;padding:14px 16px 4px;margin:0}
+.note{padding:0 16px;margin:0 0 8px;font-size:12px;color:#c7b9a2;max-width:70ch}
+#lineup{padding:8px 12px;overflow-x:auto}#lineup canvas{display:block;max-width:none}
+#rows{padding:8px 12px;display:flex;flex-direction:column;gap:10px}
+article{background:#30291f;padding:10px;border-radius:6px}
+h2{font-size:14px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2;margin:0 0 6px}
+.grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+figure{margin:0;text-align:center;background:#cdd6be;border-radius:4px;padding:4px 2px 2px}
+figure canvas{width:100%;height:auto;display:block}
+figcaption{font-size:10px;color:#2a2620}
+figure.after{outline:2px solid #c97f3f}
+@media (max-width:800px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style><body>
+<script>
+// The app's modules expect their DOM; stub what the planner would touch, as
+// the other dev review pages do, so only the painters run here.
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js?v=habit-proto"></script>
+<script src="../js/core.js?v=habit-proto"></script>
+<script src="../js/draw.js?v=habit-proto"></script>
+<script src="../js/world.js?v=habit-proto"></script>
+<script src="../js/view.js?v=habit-proto"></script>
+<script src="../js/renderer.js?v=habit-proto"></script>
+<script src="../js/commands.js?v=habit-proto"></script>
+<script src="../js/input.js?v=habit-proto"></script>
+<script src="../js/io.js?v=habit-proto"></script>
+<script src="../js/collections.js?v=habit-proto"></script>
+<script src="../js/ui.js?v=habit-proto"></script>
+<script src="../js/tray.js?v=habit-proto"></script>
+<script src="../js/photos.js?v=habit-proto"></script>
+<script src="../js/library.js?v=habit-proto"></script>
+<script src="../js/guide.js?v=habit-proto"></script>
+<script src="../js/screens.js?v=habit-proto"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Tree habits: before and after</h1>
+<label>Lineup season <select id="season"><option>Spring</option><option selected>Summer</option><option>Fall</option><option>Winter</option></select></label>
+<button id="reseed">Another seed</button></header>
+<p id="status">Loading…</p>
+<h2 class="sec">At garden scale: the six trees side by side, before (top) and after (bottom)</h2>
+<p class="note">Same scale for every tree, the way they meet in a garden, so the differences in size and outline read as they would on the plot.</p>
+<section id="lineup"></section>
+<h2 class="sec">Each tree in four seasons (outlined = after)</h2>
+<p class="note">Each row shares one scale, so before and after are directly comparable. In the app, add <code>?habit=0</code> to the address to see the old drawing.</p>
+<section id="rows"></section>
+<script>
+const HB_REFS=[
+  ['whiteoak',null,'spread'],['sugarmaple',null,'round'],['americanelm',null,'vase'],
+  ['sweetgum',null,'pyramid'],['floweringdogwood',null,'layered'],['honeylocust',null,'open'],
+  ['sweetgum','slendersilhouette','column'],['whiteoak','crimschmidt','column'],['sugarmaple','barrettcole','column'],
+];
+const HB_SEASONS=['Spring','Summer','Fall','Winter'];
+let HB_SEED=4242;
+const HB_N=1500;
+function render(k,v,season,on,g){
+  TREE_HABIT.on=on;
+  const sc=document.createElement('canvas'); sc.width=HB_N; sc.height=HB_N;
+  const x=sc.getContext('2d',{willReadFrequently:true});
+  drawPlant(x,HB_N/2,HB_N-90,k,g||1,season,HB_SEED,0,v,1);
+  TREE_HABIT.on=true;
+  return sc;
+}
+function inkBox(sc,box){
+  const d=sc.getContext('2d').getImageData(0,0,HB_N,HB_N).data;
+  for(let y=0;y<HB_N;y+=2) for(let x=0;x<HB_N;x+=2){
+    if(d[(y*HB_N+x)*4+3]>40){ if(x<box[0])box[0]=x; if(x>box[2])box[2]=x; if(y<box[1])box[1]=y; if(y>box[3])box[3]=y; }
+  }
+  return box;
+}
+function buildRows(){
+  const host=document.getElementById('rows'); host.innerHTML='';
+  for (const [k,v,habit] of HB_REFS){
+    const P=plantDef(k,v);
+    const art=document.createElement('article');
+    art.innerHTML='<h2></h2><p class="latin"></p><div class="grid"></div>';
+    art.querySelector('h2').textContent=P.name+(v&&PLANTS[k].cv[v].name&&!P.name.includes(PLANTS[k].cv[v].name)?' '+PLANTS[k].cv[v].name:'')+' — '+habit;
+    art.querySelector('.latin').textContent=P.latin||PLANTS[k].latin;
+    const cells=[]; const box=[HB_N,HB_N,0,0];
+    for (const s of HB_SEASONS) for (const on of [false,true]){ const sc=render(k,v,s,on); inkBox(sc,box); cells.push([s,on,sc]); }
+    const w=box[2]-box[0]+8, h=box[3]-box[1]+8, CW=220, CH=220, f=Math.min(CW/w,CH/h);
+    const grid=art.querySelector('.grid');
+    for (const [s,on,sc] of cells){
+      const fig=document.createElement('figure'); if(on) fig.className='after';
+      const c=document.createElement('canvas'); c.width=CW; c.height=CH;
+      c.getContext('2d').drawImage(sc,box[0]-4,box[1]-4,w,h,(CW-w*f)/2,CH-h*f,w*f,h*f);
+      const cap=document.createElement('figcaption'); cap.textContent=s+(on?' after':' before');
+      fig.append(c,cap); grid.append(fig);
+    }
+    host.append(art);
+  }
+}
+function buildLineup(){
+  const season=document.getElementById('season').value, host=document.getElementById('lineup'); host.innerHTML='';
+  const six=HB_REFS.slice(0,6), scale=0.34, gap=16;
+  const shots=[];
+  for (const on of [false,true]) for (const [k,v] of six){ const sc=render(k,v,season,on); shots.push({on,k,sc,box:inkBox(sc,[HB_N,HB_N,0,0])}); }
+  const widths=six.map((_,i)=>Math.max(shots[i].box[2]-shots[i].box[0], shots[i+6].box[2]-shots[i+6].box[0])*scale);
+  const tall=Math.max(...shots.map(s=>(HB_N-90-s.box[1])*scale))+22, rowH=tall+30;
+  const W=widths.reduce((a,b)=>a+b+gap,gap), H=rowH*2;
+  const c=document.createElement('canvas'); c.width=Math.ceil(W); c.height=Math.ceil(H);
+  const o=c.getContext('2d'); o.fillStyle='#cdd6be'; o.fillRect(0,0,c.width,c.height);
+  for (let row=0; row<2; row++){
+    let x=gap; const base=row*rowH+tall;
+    o.fillStyle='#b8c4a6'; o.fillRect(0,base-2,c.width,5);
+    o.fillStyle='#2a2620'; o.font='bold 12px system-ui'; o.fillText(row?'After':'Before',6,row*rowH+14);
+    six.forEach(([k,v],i)=>{
+      const s=shots[row*6+i], b=s.box, cx=x+widths[i]/2;
+      const sw=(b[2]-b[0])*scale, sh=(HB_N-90-b[1])*scale;
+      o.drawImage(s.sc,b[0],b[1],b[2]-b[0],HB_N-90-b[1],cx-sw/2,base-sh,sw,sh);
+      o.fillStyle='#2a2620'; o.font='11px system-ui'; o.textAlign='center'; o.fillText(PLANTS[k].name,cx,base+18); o.textAlign='left';
+      x+=widths[i]+gap;
+    });
+  }
+  host.append(c);
+}
+function buildAll(){
+  const st=document.getElementById('status'); st.textContent='Drawing…';
+  setTimeout(()=>{ try{ buildLineup(); buildRows(); st.textContent='Seed '+HB_SEED+'. Before = the shared crown every tree drew; after = look.crown.'; }
+    catch(e){ st.textContent='Error: '+e.message; console.error(e); } },20);
+}
+document.getElementById('season').onchange=()=>{ buildLineup(); };
+document.getElementById('reseed').onclick=()=>{ HB_SEED=(HB_SEED*48271+12345)%2147483647; buildAll(); };
+buildAll();
+</script>
+</body></html>

@@ -4037,7 +4037,7 @@ const PLANTS = {
 
   floweringdogwood:{ name:'Flowering Dogwood', latin:'Cornus florida', form:'tree', type:'tree', h:56, cw:74, heightIn:300,
     space:240, spread:300, zones:[5,9], _legacyNative:true, sun:'part', moist:'medium', phen:'cool', grow:7,
-    look:{art2:true, trunkW:4.4, bark:'#6f6659', branches:5, branchSpread:2.05, branchReach:0.44,
+    look:{art2:true, crown:'layered', trunkW:4.4, bark:'#6f6659', branches:5, branchSpread:2.05, branchReach:0.44,
       flowerN:30, flowerSize:2.2, leafN:26, leafW:0.13, leafH:0.09, seedN:10, seedR:1.3},
     blurb:'The native woodland-edge dogwood: white bracts on horizontal tiers in April, red fruit for birds, and deep wine-red fall color. Wants afternoon shade and even moisture.',
     sea:{Spring:{bloom:'#f6f2e6'}, Summer:{fol:'#4f7048'}, Fall:{fol:'#9c2f42',seed:'#b7332f'}, Winter:{seed:'#6b5a4a'}},
@@ -4700,13 +4700,13 @@ const PLANTS = {
   whiteoak:{ name:'White Oak', latin:'Quercus alba', form:'tree', type:'tree', h:128, cw:160, heightIn:1080,
     group:'oak', groupLabel:'Oak', chip:'White',
     space:540, spread:900, zones:[3,9], _legacyNative:true, sun:'full', moist:'medium', phen:'mid', grow:10,
-    look:{art2:true, trunkW:7, bark:'#6e6658', branches:6, branchSpread:2.0, branchReach:0.42, leafN:30, seedN:12, seedR:1.7},
+    look:{art2:true, crown:'spread', trunkW:7, bark:'#6e6658', branches:6, branchSpread:2.0, branchReach:0.42, leafN:30, seedN:12, seedR:1.7},
     blurb:'A broad, long-lived native oak with rounded lobes, pale bark, acorns for wildlife, and wine-red fall color in good years.',
     sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#4f6f45'}, Fall:{fol:'#8f4a32'}, Winter:{seed:'#6e5a43'}},
     cv:{
       crimschmidt:{name:"'Crimschmidt'", note:'sold as Crimson Spire; a columnar hybrid of English oak and white oak whose rusty-red fall leaves hang on into winter',
         latin:"Quercus x bimundorum 'Crimschmidt'", provenance:'hybrid', nativeTo:[],
-        h:104, cw:62, heightIn:540, spread:180, look:{branchSpread:0.95, leafN:48, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}, sea:{Fall:{fol:'#9b3c2c'}, Winter:{fol:'#7f5a3f'}}},
+        h:104, cw:62, heightIn:540, spread:180, look:{crown:'column', branchSpread:0.95, leafN:48, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}, sea:{Fall:{fol:'#9b3c2c'}, Winter:{fol:'#7f5a3f'}}},
     }},
   /* Beech and hornbeam are planted two ways in a European garden: as trees, and
      clipped into the hedges a naturalistic planting is set against. So each
@@ -4805,7 +4805,7 @@ const PLANTS = {
   sugarmaple:{ name:'Sugar Maple', latin:'Acer saccharum', form:'tree', type:'tree', h:118, cw:138, heightIn:840,
     group:'namaple', groupLabel:'North American Maple', chip:'Sugar',
     space:480, spread:720, zones:[3,8], _legacyNative:true, sun:'part', moist:'medium', phen:'cool', grow:8,
-    look:{art2:true, trunkW:6.6, bark:'#665f55', branches:6, branchSpread:1.8, leafN:32, leafW:0.14, leafH:0.09},
+    look:{art2:true, crown:'round', trunkW:6.6, bark:'#665f55', branches:6, branchSpread:1.8, leafN:32, leafW:0.14, leafH:0.09},
     blurb:'Classic shade maple with dense summer canopy and yellow, orange, or red fall color. Likes cooler, richer soil.',
     sea:{Spring:{fol:'#88a866',bloom:'#c3c169'}, Summer:{fol:'#4f6f45'}, Fall:{fol:'#dc9532'}, Winter:{seed:'#6b5b47'}},
     cv:{
@@ -4816,7 +4816,7 @@ const PLANTS = {
       bailsta:{name:"'Bailsta'", note:'sold as Fall Fiesta; thick glossy leaves and a vivid orange, red and yellow fall display',
         h:111, cw:116, heightIn:720, spread:540, sea:{Fall:{fol:'#e0702e'}}},
       barrettcole:{name:"'Barrett Cole'", note:'sold as Apollo; a slow, dense column for narrow spaces, about twenty-five feet by ten',
-        h:78, cw:48, heightIn:300, spread:120, look:{branchSpread:0.9, leafN:51, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}, sea:{Fall:{fol:'#da7d32'}}},
+        h:78, cw:48, heightIn:300, spread:120, look:{crown:'column', branchSpread:0.9, leafN:51, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}, sea:{Fall:{fol:'#da7d32'}}},
     }},
   silvermaple:{ name:'Silver Maple', latin:'Acer saccharinum', form:'tree', type:'tree', h:126, cw:155, heightIn:840,
     group:'namaple', groupLabel:'North American Maple', chip:'Silver',
@@ -4848,12 +4848,12 @@ const PLANTS = {
     }},
   sweetgum:{ name:'Sweet Gum', latin:'Liquidambar styraciflua', form:'tree', type:'tree', h:118, cw:125, heightIn:840,
     space:420, spread:660, zones:[5,9], _legacyNative:true, sun:'full', moist:'medium', phen:'mid', grow:7,
-    look:{art2:true, trunkW:6.3, bark:'#5b5147', branches:6, branchSpread:1.65, leafN:34, leafW:0.12, leafH:0.09, seedN:12, seedR:1.9},
+    look:{art2:true, crown:'pyramid', trunkW:6.3, bark:'#5b5147', branches:6, branchSpread:1.65, leafN:34, leafW:0.12, leafH:0.09, seedN:12, seedR:1.9},
     blurb:'Star-shaped leaves, corky twigs, spiky seed balls, and a wide fall color range from gold to burgundy.',
     sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#4f7448',seed:'#78613f'}, Fall:{fol:'#9b3540',seed:'#6b5138'}, Winter:{seed:'#6b5138'}},
     cv:{
       rotundiloba:{name:"'Rotundiloba'", note:'rounded leaf lobes and far fewer seed balls', look:{art2:true, trunkW:6.3, bark:'#5b5147', branches:6, branchSpread:1.65, leafN:32, leafW:0.13, leafH:0.09, seedN:2, seedR:1.3}},
-      slendersilhouette:{name:"'Slender Silhouette'", note:'very narrow columnar sweet gum', h:139, cw:40, heightIn:660, spread:96, look:{art2:true, trunkW:6.0, bark:'#5b5147', branches:6, branchSpread:0.9, leafN:48, leafW:0.12, leafH:0.09, seedN:8, seedR:1.6, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}},
+      slendersilhouette:{name:"'Slender Silhouette'", note:'very narrow columnar sweet gum', h:139, cw:40, heightIn:660, spread:96, look:{art2:true, crown:'column', trunkW:6.0, bark:'#5b5147', branches:6, branchSpread:0.9, leafN:48, leafW:0.12, leafH:0.09, seedN:8, seedR:1.6, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}},
       worplesdon:{name:"'Worplesdon'", note:'deeply cut leaves and purple-red fall tones', sea:{Summer:{fol:'#4f7448'}, Fall:{fol:'#7e2f45'}}},
     }},
   hackberry:{ name:'Hackberry', latin:'Celtis occidentalis', form:'tree', type:'tree', h:110, cw:135, heightIn:660,
@@ -4871,7 +4871,7 @@ const PLANTS = {
     }},
   honeylocust:{ name:'Honey Locust', latin:'Gleditsia triacanthos', form:'tree', type:'tree', h:110, cw:135, heightIn:720,
     space:420, spread:660, zones:[3,8], _legacyNative:true, sun:'full', moist:'dry', phen:'warm', grow:7,
-    look:{art2:true, trunkW:5.8, bark:'#62564a', branches:7, branchSpread:2.05, branchReach:0.42, leafN:42, leafW:0.07, leafH:0.045, seedN:8, seedR:1.8},
+    look:{art2:true, crown:'open', trunkW:5.8, bark:'#62564a', branches:7, branchSpread:2.05, branchReach:0.42, leafN:42, leafW:0.07, leafH:0.045, seedN:8, seedR:1.8},
     blurb:'High, filtered shade from tiny leaflets: good over paths and prairie plantings when using thornless, podless selections.',
     sea:{Spring:{fol:'#b4bd63'}, Summer:{fol:'#6f8849'}, Fall:{fol:'#d7b448',seed:'#6b412a'}, Winter:{seed:'#5b3a28'}},
     cv:{
@@ -4935,7 +4935,7 @@ const PLANTS = {
     sea:{Spring:{fol:'#9ab36f',seed:'#caa86a'}, Summer:{fol:'#5f7f4f'}, Fall:{fol:'#d8bc4a'}, Winter:{seed:'#e8e1d0'}}},
   americanelm:{ name:'American Elm', latin:'Ulmus americana', form:'tree', type:'tree', h:132, cw:170, heightIn:900,
     space:540, spread:900, zones:[3,9], _legacyNative:true, sun:'full', moist:'medium', phen:'cool', grow:8,
-    look:{art2:true, trunkW:6.8, bark:'#5e554c', branches:7, branchSpread:2.25, branchReach:0.46, leafN:34},
+    look:{art2:true, crown:'vase', trunkW:6.8, bark:'#5e554c', branches:7, branchSpread:2.25, branchReach:0.46, leafN:34},
     blurb:'The classic vase-shaped native shade tree. Use disease-resistant selections where Dutch elm disease is a concern.',
     sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#4f7248'}, Fall:{fol:'#d5b548'}, Winter:{seed:'#6b5b47'}},
     cv:{
