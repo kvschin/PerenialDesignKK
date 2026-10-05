@@ -1440,6 +1440,29 @@ test('every broadleaf tree names a crown habit', () => {
   assertEqual(missing.join(', '),'','every form:tree record carries look.crown');
 });
 
+test('every broadleaf tree names a leaf texture', () => {
+  const bad=PLANT_KEYS.filter(k=>PLANTS[k].form==='tree' && !TREE_TEXTURES[PLANTS[k].look&&PLANTS[k].look.texture]);
+  assertEqual(bad.join(', '),'','every form:tree record carries a look.texture from TREE_TEXTURES');
+});
+
+test('a finer leaf texture draws more and smaller foliage masses, a coarser one fewer and bigger', () => {
+  /* The count follows from the size (cover x crown area / blob area), so the
+     two have to move in opposite directions or a fine tree is just a sparse
+     one. Measured on one crown with only the class changed. */
+  const key='sugarmaple', L=PLANTS[key].look, keep=L.texture;
+  const stats=t=>{
+    L.texture=t;
+    const calls=plantDrawCalls(key,null,'Summer',4242,1,0).split('\n').filter(c=>c.startsWith('ellipse('));
+    const radii=calls.map(c=>+c.slice(8).split(',')[2]).filter(r=>r>4);   // foliage, not florets
+    return {n:calls.length, r:radii.reduce((a,b)=>a+b,0)/Math.max(1,radii.length)};
+  };
+  let fine, med, coarse;
+  try { fine=stats('fine'); med=stats('medium'); coarse=stats('coarse'); }
+  finally { L.texture=keep; }
+  assert(fine.n>med.n && med.n>coarse.n, `more masses as the texture gets finer (${fine.n}, ${med.n}, ${coarse.n})`);
+  assert(fine.r<med.r && med.r<coarse.r, `and smaller ones (${fine.r.toFixed(1)}, ${med.r.toFixed(1)}, ${coarse.r.toFixed(1)})`);
+});
+
 test('every tree and shrub whose leaves turn carries a fall palette, and it is hex', () => {
   /* look.fallMix holds the companions of the plant's own fall colour. It is
      drawn where leaves are drawn one by one: broadleaf crowns, informal shrubs

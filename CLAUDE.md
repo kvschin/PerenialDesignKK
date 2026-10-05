@@ -6308,6 +6308,27 @@ none: a hedge is a few large fills, and the classic ellipse path is left
 alone. The palette test covers every form that can show one and refuses one
 anywhere else. Shrub leaves are small, so the mosaic reads more quietly than
 on a crown; bake times within noise.
+**0.9.52: leaf texture (`look.texture`, `TREE_TEXTURES`).** The legacy blob
+sizes (`leafW`/`leafN`) followed no rule: river birch, one of the finest-
+textured trees, drew some of the BIGGEST masses in the catalog (0.176 of the
+crown's half-width) and black walnut some of the smallest (0.093). Every tree
+now names a class -- fine (birches, honeylocust, Japanese maple, olive),
+medfine (hornbeams, serviceberry, crabapple, pecan, walnut), medium (oaks,
+maples, elm, most), coarse (magnolias, pawpaw, fig, basswood, buckeye,
+chestnuts, tuliptree) -- and a habit tree sizes its masses from it: `rel`, the
+radius as a share of the crown half-width, and `cover`, the share of the
+outline the blobs cover together, give the COUNT (cover x the habit's outline
+area, cached on the habit as `_area`, / blob area), so fine means many small
+masses with sky between and coarse fewer, bigger, bolder ones. Tuned so the
+catalog total held (5,859 blobs against 6,129); measured on the bake path the
+summer total over all 83 went 104.3 -> 101.7ms, fine trees ~+0.2ms each and
+coarse ~-0.2ms. `contrast` scales the light/shade swing, `wash` thins a fine
+crown's underwash, `droop` lays coarse masses near level, `aspect` rounds fine
+tufts and flattens coarse leaves. `leafW`/`leafN` still drive the classic path
+and `?habit=0`. A test holds the direction (finer = more AND smaller, on one
+crown with only the class changed); 5,448 pixel renders stay in their boxes;
+every non-tree plant and every bare-season tree is byte-identical to 0.9.51.
+There is no catalpa in the catalog.
 
 ## Conventions
 

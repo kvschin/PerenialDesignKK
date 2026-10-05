@@ -1727,6 +1727,25 @@ const TREE_HABITS = {
             bend:-0.5, crook:0.06, lean:0, twigs:2, twigLen:0.02,
             clusterR:0.16, squash:0.9, clump:0.6, hang:0, wash:0.5, washFrom:0, fill:0.35, rim:0.6},
 };
+/* Leaf texture (look.texture). The legacy blob sizes followed no rule -- river
+   birch, one of the finest-textured trees, drew some of the BIGGEST masses in
+   the catalog, and black walnut some of the smallest -- so a habit tree with a
+   texture sizes its foliage masses from the class instead: `rel`, the blob's
+   radius as a share of the crown's half-width, and `cover`, how much of the
+   crown outline the blobs together cover. The count follows from those two
+   (cover x area / blob area), so a fine tree gets many small masses with sky
+   between them and a coarse one fewer, bigger, bolder ones -- and the catalog
+   total stays where it was: 5,859 blobs across the 83 trees against 6,129
+   before. `aspect` is the mass's height to width (small round tufts, broad flat
+   drooping leaves), `contrast` scales its light-to-shade swing (big leaves cast
+   hard shadows, a fine crown is a haze), `wash` thins the underwash under a
+   see-through crown, and `droop` lays a coarse tree's masses near level. */
+const TREE_TEXTURES = {
+  fine:    {rel:0.085, cover:0.90, aspect:0.80, contrast:0.75, wash:0.55, droop:0},
+  medfine: {rel:0.110, cover:1.10, aspect:0.74, contrast:0.90, wash:0.80, droop:0},
+  medium:  {rel:0.145, cover:1.25, aspect:0.68, contrast:1.00, wash:1.00, droop:0},
+  coarse:  {rel:0.190, cover:1.35, aspect:0.62, contrast:1.30, wash:1.00, droop:0.35},
+};
 /* A species can adjust its habit through look.habit, a partial set of the
    table's fields (a silver maple is a vase without the elm's weeping rim).
    Merged once per look object: plantDef hands back the same object every call. */
@@ -2062,11 +2081,20 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     const leafMul=Math.min(3,Math.max(1,vs*0.75)), leafDim=1/Math.sqrt(leafMul);
     // smaller than the classic blob: clumps have to stay apart enough for
     // the crown to read as masses with sky between them
-    const ls=hb.leafScale||0.78;
-    const bw=cw*(L.leafW||0.15)*leafDim*ls, bh=cw*(L.leafH||0.10)*leafDim*ls;
+    const ls=hb.leafScale||0.78, T=L.texture ? TREE_TEXTURES[L.texture] : null;
+    let bw=cw*(L.leafW||0.15)*leafDim*ls, bh=cw*(L.leafH||0.10)*leafDim*ls;
+    if (T){
+      // the crown outline's area as a share of W x span, once per habit
+      if (hb._area===undefined){ let a=0; for (let i=0;i<24;i++) a+=2*treeCrownHW(hb,(i+0.5)/24)/24; hb._area=a; }
+      bw=W*T.rel; bh=bw*T.aspect;
+      // scale-free: W and span grow together, so the count is the same at any
+      // age and only thins the way stemFor thins a young plant
+      nLeaf=Math.max(3,Math.round(Math.max(20,Math.min(150,T.cover*hb._area*W*span/(Math.PI*bw*bh)))*(0.4+0.6*growth)));
+    }
+    const contrast=T ? T.contrast : 1, droop=T ? T.droop : 0;
     const yMid=toY(0.5), half=span/2;
     if (hb.wash>0){
-      ctx.save(); ctx.globalAlpha=hb.wash; ctx.beginPath();
+      ctx.save(); ctx.globalAlpha=hb.wash*(T ? T.wash : 1); ctx.beginPath();
       // a soft shape inside the outline: rounded where it starts, and never
       // boxier than an ellipse at the top, or its straight edges show between
       // the clumps
@@ -2094,7 +2122,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       let v=0, x=0, g=0;
       do { v=leaf(); x=(leaf()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v)*0.85 && ++g<10);
       const y=toY(v);
-      blob(x,y,leaf()*Math.PI,glob(x,y)*20-10+(leaf()-0.5)*10,1,colAt(x,y));
+      blob(x,y,droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI,(glob(x,y)*20-10)*contrast+(leaf()-0.5)*10,1,colAt(x,y));
     }
     // clumps drawn shadowed side first, so the lit ones overlap them
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
@@ -2111,10 +2139,10 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       for (let j=0;j<cnt;j++){
         const a=leaf()*Math.PI*2, rr=rc*Math.sqrt(leaf());
         const dx=Math.cos(a)*rr, dy=Math.sin(a)*rr*hb.squash+hb.hang*rr*0.6;
-        tmp.push([dx,dy,(dx/rc)*LIT.x+(dy/rc)*LIT.y,leaf()*Math.PI,0.86+0.14*(1-rr/rc)]);
+        tmp.push([dx,dy,(dx/rc)*LIT.x+(dy/rc)*LIT.y,droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI,0.86+0.14*(1-rr/rc)]);
       }
       tmp.sort((a,b)=>a[2]-b[2]);
-      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,gl+ul*hb.clump*16+ct+(leaf()-0.5)*8,e,cc);
+      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,(gl+ul*hb.clump*16+ct)*contrast+(leaf()-0.5)*8,e,cc);
     });
     if (leafSnow.length) anchors.splice(0,anchors.length,...leafSnow);
   }
