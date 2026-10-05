@@ -1432,6 +1432,14 @@ test('every crown habit a tree names exists, and only broadleaf trees name one',
   }
 });
 
+test('every broadleaf tree names a crown habit', () => {
+  /* 0.9.49 gave all 83 one. A tree added without it falls back to the shared
+     lollipop crown every tree used to draw, which is the thing this replaced.
+     Weeping cultivars inherit the crown and are drawn by their own armature. */
+  const missing=PLANT_KEYS.filter(k=>PLANTS[k].form==='tree' && !(PLANTS[k].look&&PLANTS[k].look.crown));
+  assertEqual(missing.join(', '),'','every form:tree record carries look.crown');
+});
+
 test('with habits switched off, a habit tree draws exactly the classic tree', () => {
   /* ?habit=0 is the A/B and the way back, so it has to restore the old
      drawing call for call, not approximately. Base records only: plantDef

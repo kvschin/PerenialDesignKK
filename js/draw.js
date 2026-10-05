@@ -1706,14 +1706,38 @@ const TREE_HABITS = {
             oLo:0.30, oHi:0.44, scaffolds:4, tips:32, scaffold:0.5, fork:0.5, three:0.35, pipe:0.6,
             bend:-0.4, crook:0.30, lean:0.06, twigs:2, twigLen:0.03,
             clusterR:0.055, squash:0.8, clump:0.6, hang:0.15, wash:0, washFrom:0, fill:0, rim:1.0, leafScale:0.9, leafDepth:3},
+  // an upright oval, taller than wide, on ascending limbs (tuliptree, red maple, pear)
+  oval:    {base:0.26, top:1.00, w:0.42, p:0.45, eLo:2.0, eHi:2.0, lo:0.35,
+            oLo:0.24, oHi:0.50, scaffolds:6, tips:26, scaffold:0.45, fork:0.5, three:0.25,
+            bend:-0.55, crook:0.10, lean:0.02, twigs:2, twigLen:0.024,
+            clusterR:0.10, squash:0.85, clump:0.8, hang:0, wash:0.42, washFrom:0, fill:0.25, rim:0.9, leafScale:0.8},
+  // a broad dense dome carried nearly to the ground on low sweeping limbs (beech)
+  dome:    {base:0.10, top:1.00, w:0.53, p:0.36, eLo:2.0, eHi:2.2, lo:0.72,
+            oLo:0.12, oHi:0.40, scaffolds:7, tips:30, scaffold:0.5, fork:0.5, three:0.25,
+            bend:0.45, crook:0.08, lean:0.01, twigs:2, twigLen:0.022,
+            clusterR:0.10, squash:0.8, clump:0.8, hang:0.2, wash:0.5, washFrom:0, fill:0.3, rim:1.0, leafScale:0.82},
+  // a low open-centre fruit tree: three or four limbs off a short trunk
+  orchard: {base:0.20, top:0.95, w:0.50, p:0.55, eLo:1.8, eHi:2.4, lo:0.45, tipFrom:0.1,
+            oLo:0.15, oHi:0.24, scaffolds:4, tips:24, scaffold:0.55, fork:0.5, three:0.3,
+            bend:-0.35, crook:0.18, lean:0.04, twigs:2, twigLen:0.03,
+            clusterR:0.09, squash:0.8, clump:0.9, hang:0.1, wash:0.28, washFrom:0.15, fill:0.15, rim:1.1, leafScale:0.82},
   // a narrow upright selection on a leader (columnar oaks, 'Slender Silhouette')
   column:  {base:0.08, top:1.00, w:0.50, p:0.42, eLo:2.2, eHi:2.0, lo:0.45,
             leader:0.95, oLo:0.06, oHi:0.92, ascend:1.6, scaffolds:10, tips:22, scaffold:0.6, fork:0.55, three:0.2,
             bend:-0.5, crook:0.06, lean:0, twigs:2, twigLen:0.02,
             clusterR:0.16, squash:0.9, clump:0.6, hang:0, wash:0.5, washFrom:0, fill:0.35, rim:0.6},
 };
+/* A species can adjust its habit through look.habit, a partial set of the
+   table's fields (a silver maple is a vase without the elm's weeping rim).
+   Merged once per look object: plantDef hands back the same object every call. */
+const _habitFor=new WeakMap();
 function treeHabitOf(L){
-  return (TREE_HABIT.on && L && L.crown && art2On(L) && !L.weep && TREE_HABITS[L.crown]) || null;
+  const base=TREE_HABIT.on && L && L.crown && art2On(L) && !L.weep && TREE_HABITS[L.crown];
+  if (!base) return null;
+  if (!L.habit) return base;
+  let hb=_habitFor.get(L);
+  if (!hb){ hb=Object.assign({},base,L.habit); _habitFor.set(L,hb); }
+  return hb;
 }
 // half-width of a crown outline at height v (0 = crown base, 1 = top), 0..1
 function treeCrownHW(hb, v){
@@ -1772,7 +1796,11 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
     }
   }
 
-  // 2. which limb serves which tips, and where each limb leaves the trunk
+  // 2. which limb serves which tips, and where each limb leaves the trunk.
+  //    A multi-stemmed tree (look.stems, or the classic look.trunks) sends its
+  //    stems up from the ground instead; leaders and tiers keep one trunk.
+  const stems=(hb.leader||hb.tiers) ? 0 : Math.round(L.stems||(L.trunks>1 ? L.trunks : 0));
+  const Wt0=Math.max(2,(L.trunkW||6)*vs*growth);
   const lean=(arm()-0.5)*H*(hb.lean||0)*2;
   const trunkTop=H*(hb.leader||hb.oHi);
   const trunkX=y=>lean*Math.pow(Math.min(1,Math.max(0,-y/trunkTop)),1.6);
@@ -1805,20 +1833,28 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
       }
     }
   } else {
-    const hubY=-H*(hb.oLo+hb.oHi)/2;
+    const hubY=stems>1 ? -H*Math.max(0.2,hb.base) : -H*(hb.oLo+hb.oHi)/2;
     for (let i=0;i<N;i++) ang[i]=Math.atan2(tx[i]-trunkX(hubY), hubY-ty[i]);
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>ang[a]-ang[b]);
-    const S=Math.max(2,hb.scaffolds), parts=[];
+    const S=stems>1 ? stems : Math.max(2,hb.scaffolds), parts=[];
     for (let g=0; g<S; g++){
       const a=Math.round(N*g/S), b=Math.round(N*(g+1)/S);
-      if (b>a){ const part=order.slice(a,b); let m=0; for (const i of part) m+=Math.abs(ang[i]); parts.push({list:part, m:m/part.length}); }
+      if (b>a){ const part=order.slice(a,b); let m=0, sm=0; for (const i of part){ m+=Math.abs(ang[i]); sm+=ang[i]; } parts.push({list:part, m:m/part.length, side:sm/part.length}); }
     }
-    // the most nearly level limbs leave lowest, as they do on a real trunk
-    parts.sort((a,b)=>b.m-a.m);
-    parts.forEach((p,j)=>{
-      const f=parts.length>1 ? j/(parts.length-1) : 0.5;
-      groups.push({list:p.list, oy:-H*(hb.oLo+(hb.oHi-hb.oLo)*Math.min(1,Math.max(0,f+(arm()-0.5)*0.25)))});
-    });
+    if (stems>1){
+      // every stem leaves the ground, in order across the base, so the left
+      // stem carries the left of the crown
+      parts.sort((a,b)=>a.side-b.side);
+      parts.forEach((p,j)=>groups.push({list:p.list, oy:-H*0.012,
+        ox:(j-(parts.length-1)/2)*Wt0*0.5+(arm()-0.5)*Wt0*0.2, stem:true}));
+    } else {
+      // the most nearly level limbs leave lowest, as they do on a real trunk
+      parts.sort((a,b)=>b.m-a.m);
+      parts.forEach((p,j)=>{
+        const f=parts.length>1 ? j/(parts.length-1) : 0.5;
+        groups.push({list:p.list, oy:-H*(hb.oLo+(hb.oHi-hb.oLo)*Math.min(1,Math.max(0,f+(arm()-0.5)*0.25)))});
+      });
+    }
   }
   groups.sort((a,b)=>b.oy-a.oy);   // lowest origin first
 
@@ -1848,9 +1884,11 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
     }
     let mx=0, my=0; for (const i of list){ mx+=tx[i]; my+=ty[i]; }
     mx/=list.length; my/=list.length;
-    const ff=(depth===0 ? hb.scaffold : hb.fork)*(0.85+arm()*0.3);
-    const fx=ox+(mx-ox)*ff, fy=oy+(my-oy)*ff;
-    seg(ox,oy,fx,fy,wOf(list.length),depth);
+    const ff=(depth===0 ? (stems>1 ? (hb.stemRise||0.62) : hb.scaffold) : hb.fork)*(0.85+arm()*0.3);
+    // a stem climbs before it leans: drawn straight to its centre, two stems
+    // made a slingshot
+    const fx=ox+(mx-ox)*ff*((depth===0 && stems>1) ? (hb.stemSplay||0.5) : 1), fy=oy+(my-oy)*ff;
+    seg(ox,oy,fx,fy,wOf(list.length),depth,(depth===0 && stems>1) ? -0.45 : undefined);
     for (const i of list) angs[i]=Math.atan2(tx[i]-fx, fy-ty[i]);
     list.sort((a,b)=>angs[a]-angs[b]);
     const k=(list.length>=6 && arm()<hb.three) ? 3 : 2;
@@ -1877,6 +1915,12 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
         rem-=g.list.length; px=gx; py=g.oy;
       });
     }
+  } else if (stems>1){
+    // one root flare under all the stems, then each stem is a limb of its own
+    const half=Math.abs(groups[0].ox-groups[groups.length-1].ox)/2;
+    trunkPts.length=0;
+    trunkPts.push([0,0,(half*2+Wt)*1.1],[0,-H*0.012,half*2+Wt*0.6]);
+    for (const g of groups) grow(g.ox, g.oy, g.list, 0);
   } else for (const g of groups){
     const oy=g.oy, ox=trunkX(oy);
     trunkPts.push([ox, oy, wOf(remaining-g.list.length*0.5)]);
@@ -1886,12 +1930,13 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
   // in winter, a fringe of fine twigs beyond each tip: the haze a bare crown
   // really has, and the drooping twigs on an elm's rim. Drawn behind leaves it
   // would be hidden, so it is skipped in leaf (and costs nothing then).
-  if (!S.fol){
-    const tw=wOf(1)*0.55;
+  const twiggy=!!L.twigCanopy;
+  if (!S.fol || twiggy){
+    const tw=wOf(1)*0.55, nTw=twiggy ? Math.max(1,Math.min(5,Math.round(L.twigCanopy))) : hb.twigs;
     for (let i=0;i<N;i++){
       let dx=tx[i]-tpx[i], dy=ty[i]-tpy[i]; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
-      for (let q=0;q<hb.twigs;q++){
-        const a=(q-(hb.twigs-1)/2)*0.9+(arm()-0.5)*0.5, len=H*hb.twigLen*(0.6+arm()*0.7);
+      for (let q=0;q<nTw;q++){
+        const a=(q-(nTw-1)/2)*0.9+(arm()-0.5)*0.5, len=H*(twiggy ? Math.max(0.03,(L.twigReach||0.16)*0.35) : hb.twigLen)*(0.6+arm()*0.7);
         const ex=dx*Math.cos(a)-dy*Math.sin(a), ey=dx*Math.sin(a)+dy*Math.cos(a);
         const x1=tx[i]+ex*len, y1=ty[i]+ey*len+len*(hb.droop||0)-len*(hb.twigUp||0)*0.6;
         if (ns>=TH_MAX) break;
@@ -1909,6 +1954,26 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
   for (let i=trunkPts.length-1;i>=0;i--){ const [x,y,w]=trunkPts[i]; ctx.lineTo(x+w/2,y); }
   ctx.closePath(); ctx.fill();
   ctx.lineCap='round';
+  // bark marks across the trunk: a birch's dark lenticels, the pale ridges of
+  // a walnut or a hickory (the classic armature's three dashes)
+  if (L.barkStripe && stems<=1 && trunkPts.length>2){
+    ctx.strokeStyle=typeof L.barkStripe==='string' ? L.barkStripe : shade(bark,-24);
+    ctx.lineWidth=Math.max(0.7,Wt*0.11); ctx.beginPath();
+    const top=trunkPts[trunkPts.length-1][1];
+    for (let m=0;m<6;m++){
+      const y=top*(0.1+m*0.14)+(arm()-0.5)*H*0.01, w=Wt*(1-0.4*y/top)*(0.3+arm()*0.25), x=trunkX(y)+(arm()-0.5)*Wt*0.3;
+      ctx.moveTo(x-w/2,y); ctx.lineTo(x+w/2,y-Wt*0.06);
+    }
+    ctx.stroke();
+  }
+  /* A pale trunk carries darker twigs: a paper birch drawn white to its
+     tips read as a ghost. Darkened toward its bark marks, or a plain brown. */
+  const lum=c=>{ const n=parseInt(String(c).slice(1),16); return ((n>>16&255)*0.3+(n>>8&255)*0.59+(n&255)*0.11)/255; };
+  const pale=/^#[0-9a-f]{6}$/i.test(bark) && lum(bark)>0.55;
+  const twigCol=twiggy ? (L.twigColor||bark)
+    : pale ? mixHex(bark, (typeof L.barkStripe==='string' && lum(L.barkStripe)<lum(bark)) ? L.barkStripe : '#5b4c40', 0.7)
+    : shade(bark,10);
+  const midCol=pale ? mixCol(bark,twigCol,0.5) : bark;   // mixCol: twigCol is rgb(), which mixHex reads as black
   /* Limbs. On the sprite-bake path a stroke costs by its stroked LENGTH, by
      curves over lines, and by the call: sixty short segments in one path
      measured 0.42ms, sixty long ones 1.03ms, and the same sixty split over ten
@@ -1918,7 +1983,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
      is straight lines in three strokes, which a twig at that size is anyway.
      THIN is relative (a limb carrying fewer than three tips), since one oak
      twig is wider in draw units than a dogwood's whole scaffold. */
-  const leafDepth=S.fol ? (hb.leafDepth||1) : 99, THIN=wOf(2.5), STEP=Math.log(1.6);
+  const leafDepth=(S.fol && !twiggy) ? (hb.leafDepth||1) : 99, THIN=wOf(2.5), STEP=Math.log(1.6);
   let bMax=-99, bMin=99;
   for (let s=0;s<ns;s++){
     const o=s*TH_STRIDE; if (_thSeg[o+7]>leafDepth || _thSeg[o+6]<THIN) continue;
@@ -1936,7 +2001,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
     if (any) ctx.stroke();
   }
   const w1=wOf(1);
-  for (const [lo,hi,lw,col] of [[w1*1.02,THIN,wOf(2),bark],[w1*0.9,w1*1.02,w1,bark],[0,w1*0.9,w1*0.55,shade(bark,10)]]){
+  for (const [lo,hi,lw,col] of [[w1*1.02,THIN,wOf(2),midCol],[w1*0.9,w1*1.02,w1,pale ? twigCol : bark],[0,w1*0.9,w1*0.55,twigCol]]){
     ctx.strokeStyle=col; ctx.lineWidth=Math.max(0.6,lw); ctx.beginPath(); let any=false;
     for (let s=0;s<ns;s++){
       const o=s*TH_STRIDE, w=_thSeg[o+6];
@@ -2011,13 +2076,15 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
     }
     // clumps drawn shadowed side first, so the lit ones overlap them
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
-    const rc0=cw*hb.clusterR, per=nTip/N, tmp=[];
+    const rc0=cw*hb.clusterR, per=nTip/N, tmp=[], leafSnow=[];
     let made=0;
     order.forEach((i,r)=>{
       const cnt=Math.round(per*(r+1))-made; made+=cnt;
       if (cnt<=0) return;
       const cx=tx[i]+(tx[i]-tpx[i])*0.12, cy=ty[i]+(ty[i]-tpy[i])*0.12;
       const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20;
+      // an evergreen in snow carries it on the tops of its clumps
+      if (snowy && cy<toY(0.3) && Math.abs(cx)<hwAt(cy)*0.75) leafSnow.push([cx, cy-rc*hb.squash*0.55, rc*0.5]);
       tmp.length=0;
       for (let j=0;j<cnt;j++){
         const a=leaf()*Math.PI*2, rr=rc*Math.sqrt(leaf());
@@ -2027,6 +2094,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy){
       tmp.sort((a,b)=>a[2]-b[2]);
       for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,gl+ul*hb.clump*16+ct+(leaf()-0.5)*8,e);
     });
+    if (leafSnow.length) anchors.splice(0,anchors.length,...leafSnow);
   }
 
   // tips for flowers and fruit, interleaved so a short pass reaches every limb
@@ -5208,7 +5276,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       if (sway){ ctx.save(); ctx.transform(1,0,-sway*4.2/Math.max(1,H),1,0,0); sheared=true; }
       const n=stemFor(Math.round((L.leafN||26)*Math.min(3,Math.max(1,vs*0.75))));
       const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow);
-      tips=r.tips; if (!S.fol) snowAnchors=r.snow;
+      tips=r.tips; snowAnchors=r.snow;
       alongLimb=(tx2,ty2,f,tp)=>tp ? [tp[2]+(tx2-tp[2])*f, tp[3]+(ty2-tp[3])*f] : [tx2,ty2];
     } else {
     ctx.strokeStyle=L.bark||'#5e4a38'; ctx.lineCap='round';
@@ -5418,7 +5486,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         const a2=art2On(L);
         for (let i=0;i<spots;i++){
           const [tx2,ty2]=tips[i%tips.length];
-          const f=0.5+rnd()*0.45, hx=sway*1.4+(tx2-sway*1.4)*f, hy=-trunkH*0.92+(ty2+trunkH*0.92)*f;
+          const f=0.5+rnd()*0.45;
+          const [hx,hy]=habit ? alongLimb(tx2,ty2,f,tips[i%tips.length])
+            : [sway*1.4+(tx2-sway*1.4)*f, -trunkH*0.92+(ty2+trunkH*0.92)*f];
           ctx.fillStyle=a2
             ? shade(S.bloom, ((hx/(cw*0.6||1))*LIT.x+((hy-cy)/(H*0.3||1))*LIT.y)*20+(rnd()-0.5)*14)
             : shade(S.bloom,(rnd()-0.5)*26);

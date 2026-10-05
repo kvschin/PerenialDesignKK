@@ -6250,6 +6250,32 @@ boxy wash showed its straight edges between clumps. Every tree without a crown
 draws byte-identical to 0.9.47 (7,456 draws), `?habit=0` (`TREE_HABIT.on`)
 restores the classic drawing call for call (a test), and `dev/tree-habit-review.html`
 shows each habit tree before/after in four seasons plus a garden-scale lineup.
+**0.9.49: every broadleaf tree has a crown** (83 species; weeping cultivars keep
+their own armature, since `treeHabitOf` refuses `weep`). Three more habits:
+`oval` (upright, taller than wide: tuliptree, red maple, pear, hickory),
+`dome` (dense to near the ground on low sweeping limbs: the beeches) and
+`orchard` (open centre on a short trunk: the stone and pome fruit).
+`look.habit` is a partial override merged over the named habit (once per look
+object, WeakMap) so a silver maple is a vase without the elm's weeping rim;
+a cultivar's look replaces its species' `habit` wholesale, which is why
+'Princeton Sentry' carries `habit:{}` to shed ginkgo's tweaks. **Multi-stem
+trees** (`look.stems`, or the classic `trunks>1`; leaders and tiers keep one
+trunk) send each stem up from a shared root flare, ordered across the base so
+the left stem carries the left of the crown, rising `stemRise` of the way to
+its tips but only `stemSplay` of the way out -- drawn straight to their tips,
+two stems made a slingshot. A pale trunk (luminance > 0.55) gets darker twigs,
+mixed toward its own bark marks, because a paper birch drawn white to the tips
+read as a ghost; `barkStripe` draws six marks across the trunk. An evergreen in
+snow carries it on the tops of its upper, inner clumps rather than as the
+classic floating ovals. Palo verde's `twigCanopy` draws its green fringe in
+every season with every limb visible; smoketree's haze rides `alongLimb`.
+Measured on the bake path over all 83 (min of three runs, eight bakes each):
+summer median 1.11 -> 1.19ms, 21 trees cheaper than before, max 2.11 -> 2.22;
+winter median 0.70 -> 1.02ms, the giants (cottonwood, elm, white oak, silver
+maple) reaching ~1.8-2.2ms because their limbs are long, which is the feature.
+Shortening their twig fringe was measured and moved nothing, so it is not
+there. 5,448 real-pixel renders of all 227 non-weeping tree choices (four
+seasons, three ages, two seeds) stay inside their sprite boxes, min margin 6px.
 
 ## Conventions
 
