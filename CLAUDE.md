@@ -6203,6 +6203,20 @@ grandifolia*, North America only -- POWO now treats the Mexican beech as its
 own species) in the beech family, whose European tree chip became 'European',
 and `lowbushblueberry` (*Vaccinium angustifolium*), a 1 ft rhizomatous
 groundcover for dry acid sand, in the blueberry family.
+**0.9.47: dwarf conifers, corkscrew hazel, staghorn sumac.** Three opt-in
+renderer features, each touching only plants that set it (8,560 other draws
+compared byte-identical against 0.9.46): `coniferHabit:'bun'|'mat'`
+(`drawConiferLow`; bird's nest spruce with `nest`, globe blue spruce, mugo pine
++ 'Mops', 'Golden Mop', creeping juniper + 'Wiltonii'/'Mother Lode') -- SHRUB
+records so they reserve ground and cast no tree shade; foliage points out along
+the GROUND (outward from the dome made hedgehogs), and `coniferGroundBelow`
+reserves the reach in front of the tile. The dome outline is Bezier quarters
+(`coniferDomePath`), because the test bounds probes read an arc as its whole
+ellipse. `contorted` (twists per twig; Corylus 'Contorta') lays a sine across
+the plain twig curve so leaves and catkins still sit on it. `fruitStyle:'cone'`
+(staghorn sumac + 'Bailtiger'/Tiger Eyes, new Sumac family with fragrant
+sumac) draws upright fruit heads sized to the plant. Staghorn carries a
+Switzerland caution citing Info Flora, so European gardens hide it.
 
 ## Conventions
 

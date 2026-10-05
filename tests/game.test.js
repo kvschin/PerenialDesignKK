@@ -1472,6 +1472,51 @@ test('a joined hedge stands at its real height, on the same scale as a fence', (
   }
 });
 
+test('a low conifer is drawn wider than tall, and a mat far flatter still', () => {
+  /* Dwarf conifers squeezed into an upright habit read as short Christmas
+     trees. A bun is a dome wider than it is tall; a mat is a carpet. */
+  const ext=k=>plantDrawExtent(k,null,'Summer',7122,1);
+  for (const k of ['birdsnestspruce','globebluespruce','mugopine','goldenmop']){
+    const e=ext(k), w=e.x1-e.x0, h=Math.max(0,-e.y0);
+    assert(w>h, `${k}: a dome, ${w.toFixed(0)} wide against ${h.toFixed(0)} tall`);
+  }
+  /* A carpet's screen extent is mostly its own DEPTH -- the ground recedes up
+     the screen -- so flatness is its drawn height against its width. */
+  const J=plantDef('creepingjuniper'), m=ext('creepingjuniper');
+  assert(plantVisualH(J)<woodyVisualCw(J)*0.2, 'creeping juniper is drawn a carpet, a fraction as tall as it is wide');
+  // and it reaches in FRONT of its tile, which the sprite box reserves
+  assert(m.y1>0 && plantDrawBelow(plantDef('creepingjuniper'),1,plantVisualH(plantDef('creepingjuniper')))>=m.y1,
+    'the ground reach of a mat is reserved below its placement point');
+});
+
+test('a corkscrew hazel twists its twigs, and a plain hazel does not', () => {
+  const segs=v=>{ let n=0; const ctx=new Proxy({}, { get(o,p){ if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return () => { if (p==='lineTo') n++; }; }, set(o,p,val){ o[p]=val; return true; } });
+    drawPlant(ctx,0,0,'europeanhazel',1,'Winter',7122,0,v,1); return n; };
+  assert(segs('contorta')>segs(null)+60, `Contorta draws its twigs as twists (${segs('contorta')} segments against ${segs(null)})`);
+});
+
+test('staghorn sumac carries its fruit cones into winter', () => {
+  const fills=(v)=>{ const seed=plantDef('staghornsumac',v).sea.Winter.seed; let n=0;
+    const ctx=new Proxy({}, { get(o,p){ if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return () => { if (p==='fill' && o.fillStyle===seed) n++; }; }, set(o,p,val){ o[p]=val; return true; } });
+    const was=ART2.on; ART2.on=false; try { drawPlant(ctx,0,0,'staghornsumac',1,'Winter',7122,0,v,1); } finally { ART2.on=was; }
+    return n; };
+  assert(fills(null)>=4, 'a cone on every branch tip');
+});
+
+test('the staghorn caution hides it from a European garden and not from a North American one', () => {
+  /* Native in North America, introduced and on Switzerland's invasive list in
+     Europe: invasive risk is a relation between a plant and a place. */
+  for (const v of [null,'bailtiger']){
+    assert(invasiveFilterHides({s:'staghornsumac',v},'europe'), `${v||'species'}: hidden in Europe`);
+    assert(!invasiveFilterHides({s:'staghornsumac',v},'north-america'), `${v||'species'}: offered in North America`);
+  }
+  assert(/infoflora/.test(PLANT_GUIDANCE_SOURCES.staghornSwiss.url),'the caution cites the page it was read from');
+});
+
 test('a male winterberry draws no berries, and a female still does', () => {
   /* A berry is a glossy floret in the seed colour under ART2 and a plain disc
      filled with it in Classic, so count both ways of painting one. */

@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,609,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,615,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),461,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),466,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -432,6 +432,35 @@ test('European hedging trees and highbush blueberry carry their real ranges', ()
     assert(PLANTS[k].sea.Winter.fol,`${k}: a clipped hedge keeps its leaves through winter`);
     assert(PLANTS[k].sea.Winter.fol!==PLANTS[k].sea.Summer.fol,`${k}: and they are dead, not green`);
   }
+});
+
+test('dwarf conifers are shrubs built on the ground, not short trees', () => {
+  /* A 4 ft mound or a 6 in carpet must reserve the ground it covers and cast
+     no tree shade, which a tree record would do -- so these are SHRUB records
+     on the conifer renderer, with the low habits drawConiferLow builds. */
+  const low={birdsnestspruce:'bun',globebluespruce:'bun',mugopine:'bun',goldenmop:'bun',creepingjuniper:'mat'};
+  for (const [k,habit] of Object.entries(low)){
+    const P=PLANTS[k];
+    assertEqual(P.form,'conifer',`${k}: conifer renderer`);
+    assertEqual(P.type,'shrub',`${k}: a shrub, so it reserves its spread and casts no shade`);
+    assertEqual(P.look.coniferHabit,habit,`${k}: low habit`);
+    for (const s of SEASON_KEYS) assert(P.sea[s].fol,`${k}: evergreen in ${s}`);
+  }
+  assert(PLANTS.birdsnestspruce.look.nest,'bird\'s nest spruce has its nest');
+  assertEqual(PLANTS.mugopine.nativeTo.join(','),'europe','mugo pine is European');
+  assertEqual(PLANTS.creepingjuniper.nativeTo.join(','),'north-america','creeping juniper is North American');
+  assertEqual(PLANTS.creepingjuniper.provenance,'species','straight species');
+  assertEqual(PLANTS.birdsnestspruce.provenance,'selection','Nidiformis is a named selection');
+  assert(PLANTS.creepingjuniper.cv.wiltonii.heightIn<=6,'Blue Rug is a few inches tall');
+});
+
+test('staghorn sumac and Tiger Eyes join the sumacs, with a regional caution for Europe', () => {
+  assertEqual(PLANTS.staghornsumac.group,'sumac','staghorn browses with fragrant sumac');
+  assertEqual(PLANTS.sumac.group,'sumac','fragrant sumac joins the family');
+  assertEqual(PLANTS.staghornsumac.nativeTo.join(','),'north-america','staghorn is North American');
+  assertEqual(PLANTS.staghornsumac.look.fruitStyle,'cone','upright fruit cones at the tips');
+  assertEqual(PLANTS.staghornsumac.cv.bailtiger.heightIn,72,'Tiger Eyes is a six-foot cultivar');
+  assert(PLANTS.europeanhazel.cv.contorta.look.contorted>0,'Contorta twists');
 });
 
 test('a hybrid cultivar says so, and a male pollinizer bears no fruit', () => {

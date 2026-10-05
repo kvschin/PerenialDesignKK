@@ -1486,6 +1486,121 @@ function drawConiferCrownMass(ctx,L,habit,cw,top,base,ox,fol,fullness){
   litFill(ctx,ox*0.5,(top+base)/2,Math.max(cw*0.5,crownH*0.5),shade(fol,-26),22,-20);
   ctx.restore();
 }
+/* ---------- low conifers: `bun` and `mat` ----------
+   Every other habit is a tree built up a leader in tiers, and a dwarf conifer
+   squeezed into one reads as a short Christmas tree. These two are built on
+   the GROUND instead: a bird's nest spruce, a globe blue spruce or a mugo pine
+   is a dome wider than it is tall (`bun`), and a creeping juniper is a carpet
+   of plume-tipped branches radiating flat across the ground (`mat`). Both lie
+   in the ground plane, whose depth is half its width on this projection, so
+   they reach in FRONT of their placement point -- `coniferGroundBelow` is that
+   reach, and the sprite box reads it as it reads a weeping cascade.
+   Sprays and tufts are the habits' own primitives (drawConiferSpray,
+   drawConiferTuft, chosen by `needles`), lit by where they sit on the mound,
+   and painted back to front. `nest` is the bird's nest spruce's shallow hollow
+   in the top; `sprayLen` sizes a spray or plume against the plant's width. */
+const CONIFER_GROUND_DEPTH=0.5;      // ground-plane depth/width on screen (TILE_H/TILE_W)
+const CONIFER_LOW_REACH=0.88;        // how far out the outermost foliage sits, x the radius
+function coniferIsLow(L){ return !!L && (L.coniferHabit==='bun' || L.coniferHabit==='mat'); }
+/* A dome over the front of its ground ellipse, as four Bezier quarters (k is
+   the circle constant). Not two half-ellipse arcs: the drawing is the same,
+   but every bounds probe in the tests reads an arc as its whole ellipse, so
+   a dome's top half measured as hanging its full height below the ground. */
+function coniferDomePath(ctx,cx,rx,hb,ry){
+  const k=0.5523;
+  ctx.moveTo(cx-rx,0);
+  ctx.bezierCurveTo(cx-rx,-hb*k,cx-rx*k,-hb,cx,-hb);
+  ctx.bezierCurveTo(cx+rx*k,-hb,cx+rx,-hb*k,cx+rx,0);
+  ctx.bezierCurveTo(cx+rx,ry*k,cx+rx*k,ry,cx,ry);
+  ctx.bezierCurveTo(cx-rx*k,ry,cx-rx,ry*k,cx-rx,0);
+  ctx.closePath();
+}
+function coniferLowSprayLen(L){ return Math.max(0.05,Math.min(0.16,L.sprayLen||(L.coniferHabit==='mat'?0.10:0.12))); }
+function coniferGroundBelow(P,growth){
+  const L=P.look||{};
+  if (P.form!=='conifer' || !coniferIsLow(L)) return 0;
+  const cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
+  const full=Math.max(1,L.fullness===undefined?1.12:L.fullness);
+  return cw*0.5*CONIFER_GROUND_DEPTH*CONIFER_LOW_REACH + cw*coniferLowSprayLen(L)*1.3*full + 4;
+}
+function drawConiferLow(ctx,L,habit,cw,H,ox,fol,fullness,vs,rnd,snow){
+  const rx=cw*0.5, ry=rx*CONIFER_GROUND_DEPTH, mat=habit==='mat';
+  const hb=Math.max(4,H*(mat?0.85:0.92)), cy=-hb*0.42;
+  const sprayLen=Math.max(5,cw*coniferLowSprayLen(L)*fullness);
+  const thick=Math.max(2,(L.padThick||4)*vs*Math.sqrt(fullness));
+  const needles=!!L.needles;
+  // the mass: a dark core the foliage sits on, so the gaps read as shade
+  ctx.save(); ctx.globalAlpha=L.crownMass===undefined?0.85:L.crownMass; ctx.beginPath();
+  coniferDomePath(ctx,ox*0.4,rx*0.94,hb*(mat?0.9:0.96),ry*0.9);
+  litFill(ctx,ox*0.4,cy,Math.max(rx,hb)*0.8,shade(fol,-28),22,-20);
+  ctx.restore();
+  const tone=(x,y)=>((x/(rx||1))*LIT.x+((y-cy)/(Math.max(hb,ry)||1))*LIT.y)*22+(rnd()-0.5)*10;
+  const put=(x,y,ang,len)=>{
+    if (needles) drawConiferTuft(ctx,x,y,Math.max(2.2,len*0.62),ang,shade(fol,tone(x,y)),rnd,!!L.softNeedles);
+    else drawConiferSpray(ctx,x,y,len,thick,ang,fol,tone(x,y),true);
+  };
+  /* Foliage points OUT ALONG THE GROUND from the plant's centre, flattened by
+     the projection, so it reads as layered horizontal plates. Pointing it out
+     from the dome's surface made every bun a hedgehog. A spray facing the
+     viewer is foreshortened, and a ring carries as many as its circumference
+     needs, so the cover stays dense at any size. */
+  const out=th=>Math.atan2(Math.sin(th)*CONIFER_GROUND_DEPTH,Math.cos(th));
+  const fore=th=>Math.max(0.5,Math.hypot(Math.cos(th),Math.sin(th)*CONIFER_GROUND_DEPTH));
+  if (mat){
+    // Branches radiate across the ground, plumed to the tip on alternate
+    // sides; the centre is a little raised, so the carpet has a crown.
+    const n=Math.max(7,Math.min(16,Math.round((L.branches||10)*fullness)));
+    const arms=[];
+    for (let i=0;i<n;i++) arms.push((i/n)*Math.PI*2+(rnd()-0.5)*0.45);
+    arms.sort((a,b)=>Math.sin(a)-Math.sin(b));                  // back to front
+    ctx.strokeStyle=L.bark||shade(fol,-60); ctx.lineCap='round';
+    for (const a of arms){
+      const ex=Math.cos(a)*rx*CONIFER_LOW_REACH+ox*0.3, ey=Math.sin(a)*ry*CONIFER_LOW_REACH;
+      const sx=ox*0.4, sy=-hb*0.55, mx=ex*0.5, my=ey*0.5-hb*0.4;
+      ctx.lineWidth=Math.max(0.7,1.1*vs); ctx.beginPath();
+      ctx.moveTo(sx,sy); ctx.quadraticCurveTo(mx,my,ex,ey); ctx.stroke();
+      const reach=Math.hypot(ex-sx,(ey-sy)), plumes=Math.max(3,Math.min(9,Math.round(reach/(sprayLen*0.55))));
+      const base=out(a), f0=fore(a);
+      for (let j=1;j<=plumes;j++){
+        const f=j/plumes, u=1-f;
+        const px=u*u*sx+2*u*f*mx+f*f*ex, py=u*u*sy+2*u*f*my+f*f*ey;
+        put(px,py,base+(j&1?0.42:-0.42)+(rnd()-0.5)*0.25,sprayLen*f0*(0.75+0.25*f));
+      }
+      put(ex,ey,base,sprayLen*f0*0.9);
+      snow.push([mx,my-thick*0.4,Math.max(2.2,sprayLen*0.3)]);
+    }
+    for (let k=0;k<4;k++){ const th=k*Math.PI*0.5+0.4; put(ox*0.4,-hb*0.62,out(th),sprayLen*0.7*fore(th)); }
+    return;
+  }
+  // bun: rings from the top down, so a lower (nearer) ring paints over the one
+  // above; within a ring, back before front. Lower rings only show their front.
+  if (L.nest){
+    ctx.fillStyle=shade(fol,-40); ctx.beginPath();
+    ctx.ellipse(ox*0.5,-hb*0.88,rx*0.36,ry*0.36,0,0,7); ctx.fill();
+  }
+  const rings=Math.max(4,Math.min(8,Math.round((L.tiers||6)*fullness)));
+  for (let r=rings-1;r>=0;r--){
+    const phi=(r+0.5)/rings*Math.PI*0.5*(L.nest?0.84:0.94), c=Math.cos(phi), s=Math.sin(phi);
+    const ringR=rx*c*CONIFER_LOW_REACH, yc=-hb*s;
+    const span=Math.PI*Math.min(2,1.08+1.2*s);
+    const circ=Math.PI*ringR*(1+CONIFER_GROUND_DEPTH)*span/(Math.PI*2);
+    const n=Math.max(4,Math.min(26,Math.round(circ/(sprayLen*0.42)*(L.pads?L.pads/10:1))));
+    const pts=[];
+    for (let i=0;i<n;i++) pts.push(Math.PI/2-span/2+span*((i+0.5)/n)+(rnd()-0.5)*0.22);
+    pts.sort((a,b)=>Math.sin(a)-Math.sin(b));
+    pts.forEach((th,i)=>{
+      const px=Math.cos(th)*ringR+ox*s*0.6, py=Math.sin(th)*ringR*CONIFER_GROUND_DEPTH+yc;
+      const droop=(0.18-0.3*s)*(Math.cos(th)>=0?1:-1);          // lower rings droop, the top lifts
+      put(px,py,out(th)+droop,sprayLen*fore(th)*(0.85+0.25*c));
+      if (r>=rings-2 && i%2===0) snow.push([px,py-thick*0.5,Math.max(2.2,sprayLen*0.35)]);
+    });
+  }
+  // the crown: a few short sprays over the top, round the nest if there is one
+  for (let k=0;k<5;k++){
+    const th=k*Math.PI*2/5+0.3, rr=rx*(L.nest?0.38:0.12);
+    put(ox*0.6+Math.cos(th)*rr,-hb*0.9+Math.sin(th)*rr*CONIFER_GROUND_DEPTH,out(th),sprayLen*0.6*fore(th));
+  }
+}
 /* How far a weeping conifer's foliage falls BELOW its placement point, at full
    growth, in draw units. renderer.js sizes the sprite box from this, so the
    cached and live silhouettes read one function and cannot drift apart. */
@@ -1505,7 +1620,7 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H), coniferGroundBelow(P,growth));
 }
 const WEEP_LEN_MAX=1.24, WEEP_SCAFFOLD=0.55;  // product of the two length jitters
 function coniferWeepBelow(P,H){
@@ -4968,21 +5083,32 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // than left purely to the authored `padThick` — a species that asks for
     // more tiers gets finer plates for free, and none of it costs a shape.
     const tierGap=crownH/Math.max(1,tierCount-1);
-    if (art2On(L) && habit!=='bare')
+    // a low conifer has no leader and no cone to underwash: it lays its own mass
+    const low=coniferIsLow(L);
+    if (art2On(L) && habit!=='bare' && !low)
       drawConiferCrownMass(ctx,L,habit,cw,top,base,ox,fol,fullness);
     ctx.strokeStyle=bark; ctx.lineCap='round'; ctx.lineWidth=Math.max(1.2,(L.trunkW||3.4)*vs*growth);
-    ctx.beginPath(); ctx.moveTo(0,1);
-    if (habit==='weeping'){
-      for (let i=1;i<=6;i++){
-        const u=i/6, mu=(i-0.5)/6;
-        ctx.quadraticCurveTo(coniferLeaderAt(L,H,mu,seed,ox),1+(top-1)*mu,
-          coniferLeaderAt(L,H,u,seed,ox),1+(top-1)*u);
-      }
-    } else ctx.quadraticCurveTo(ox*0.18,-H*0.55,ox,top);
-    ctx.stroke();
+    if (!low){
+      ctx.beginPath(); ctx.moveTo(0,1);
+      if (habit==='weeping'){
+        for (let i=1;i<=6;i++){
+          const u=i/6, mu=(i-0.5)/6;
+          ctx.quadraticCurveTo(coniferLeaderAt(L,H,mu,seed,ox),1+(top-1)*mu,
+            coniferLeaderAt(L,H,u,seed,ox),1+(top-1)*u);
+        }
+      } else ctx.quadraticCurveTo(ox*0.18,-H*0.55,ox,top);
+      ctx.stroke();
+    }
     snowAnchors=[];
 
-    if (!art2On(L) && S.fol){
+    if (!art2On(L) && S.fol && low){
+      // the Classic fallback for a low conifer: its dome in two tones
+      const rx=cw*0.5, hb=H*(L.coniferHabit==='mat'?0.85:0.92);
+      ctx.fillStyle=shade(S.fol,-12); ctx.beginPath();
+      coniferDomePath(ctx,0,rx*0.94,hb,rx*0.94*CONIFER_GROUND_DEPTH); ctx.fill();
+      ctx.fillStyle=shade(S.fol,10); ctx.beginPath();
+      ctx.ellipse(-rx*0.12,-hb*0.45,rx*0.6,hb*0.38,0,0,7); ctx.fill();
+    } else if (!art2On(L) && S.fol){
       // Preserve the global ?art2=0 A/B and emergency performance fallback.
       // The data-rich renderer is the normal path; this is deliberately the
       // old low-cost three-tier silhouette.
@@ -5175,6 +5301,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // Close the base without turning the whole plant back into one triangle.
       for (const side of [-1,1]) drawConiferSpray(ctx,0,base,Math.max(8,cw*0.45),Math.max(2.5,(L.padThick||4.2)*vs*mass),side<0?Math.PI:0,
         fol,side<0?-14:8,true);
+    } else if (low){
+      drawConiferLow(ctx,L,habit,cw,H,ox,fol,fullness,vs,rnd,snowAnchors);
     } else {
       // Spruce/fir/hemlock: whorled branch plates with scalloped gaps. The
       // number, droop, openness and columnar profile are all authored in data.
@@ -5493,6 +5621,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     } else {
       const tn=stemFor(L.twigN||7), tips=[], a2=art2On(L), habit=L.habit||'round';
       const exposed=!!L.exposedBranching, pinnate=Number.isFinite(L.pinnatePairs)&&L.pinnatePairs>0;
+      // `contorted`: how many twists a twig makes along its length (0 = straight)
+      const contort=Math.max(0,Math.min(8,Number(L.contorted)||0)), contortAmp=Math.max(0.5,Math.min(2,L.contortAmp||1));
       const twigW=L.twigW===undefined?1.6:Math.max(0.7,Math.min(5,L.twigW));
       const spread=habit==='upright'?0.88:habit==='vase'?1.35:habit==='open'?1.72:
         habit==='lowMound'?2.05:habit==='arching'||habit==='fountain'?2.12:habit==='layered'?1.48:1.5;
@@ -5524,7 +5654,23 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           rootY=-H*(0.18*q+0.40*t*t);
           ctx.moveTo(rootX,rootY);
         } else ctx.moveTo(baseX,0);
-        ctx.quadraticCurveTo(tx2*ctrlX,ty2*ctrlY,tx2,ty2);
+        if (contort){
+          /* A corkscrew hazel's stems spiral. The twist is a sine laid across
+             the SAME curve the plain twig follows, because the leaf, flower
+             and fruit passes all place themselves on that curve: offset from
+             it by a few pixels they still sit on the stem, where a separate
+             zigzag path would leave them floating. It grows in from the base,
+             as a contorted stem does above its straight grafted foot. */
+          const x0=exposed?rootX:baseX, y0=exposed?rootY:0, qx=tx2*ctrlX, qy=ty2*ctrlY;
+          const amp=Math.max(1.6,cw*0.028)*contortAmp, phase=i*2.39, steps=18;
+          for (let s=1;s<=steps;s++){
+            const t=s/steps, u=1-t;
+            const px=u*u*x0+2*u*t*qx+t*t*tx2, py=u*u*y0+2*u*t*qy+t*t*ty2;
+            const dx=2*u*(qx-x0)+2*t*(tx2-qx), dy=2*u*(qy-y0)+2*t*(ty2-qy), dl=Math.hypot(dx,dy)||1;
+            const off=amp*Math.sin(t*contort*Math.PI*2+phase)*Math.min(1,t*3.2)*(s===steps?0:1);
+            ctx.lineTo(px-dy/dl*off, py+dx/dl*off);
+          }
+        } else ctx.quadraticCurveTo(tx2*ctrlX,ty2*ctrlY,tx2,ty2);
         if (!a2) ctx.stroke();
         tips.push(exposed?[tx2,ty2,ctrlX,ctrlY,rootX,rootY]:[tx2,ty2,ctrlX,ctrlY]);
       }
@@ -5804,6 +5950,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         } else if (L.fruitStyle==='cluster'||L.fruitStyle==='terminalCluster'){
           tips.forEach(([tx2,ty2])=>{ for (let b=0;b<bn+3;b++){ const a=b/(bn+3)*Math.PI*2, rr=2.2+(b%3)*1.25;
             drawFloret(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.65,1.55,S.seed,{lift:36}); }
+          });
+        } else if (L.fruitStyle==='cone'){
+          // Upright conical fruit heads held above the leaves at every branch
+          // tip -- staghorn sumac's fuzzy crimson cones, which stand all winter.
+          // Sized to the plant (`coneLen` of its height): a fixed ring of florets
+          // vanished on a 15 ft shrub. A tapered spike, dotted for the fuzz.
+          const ch=Math.max(6,H*Math.max(0.03,Math.min(0.12,L.coneLen||0.07))), cwid=ch*0.36;
+          tips.forEach(([tx2,ty2])=>{
+            ctx.fillStyle=S.seed; ctx.beginPath();
+            ctx.moveTo(tx2-cwid*0.5,ty2+ch*0.08); ctx.quadraticCurveTo(tx2-cwid*0.55,ty2-ch*0.55,tx2,ty2-ch);
+            ctx.quadraticCurveTo(tx2+cwid*0.55,ty2-ch*0.55,tx2+cwid*0.5,ty2+ch*0.08); ctx.closePath();
+            if (art2On(L)) litFill(ctx,tx2,ty2-ch*0.45,ch*0.5,S.seed,18,-22); else ctx.fill();
+            for (let b=0;b<4;b++) drawFloret(ctx,tx2+(brnd()-0.5)*cwid*0.6,ty2-ch*(0.15+b*0.2),Math.max(1.2,cwid*0.18),shade(S.seed,10),{lift:30});
           });
         } else if (L.fruitStyle==='globe'){
           tips.forEach(([tx2,ty2])=>drawFloret(ctx,tx2,ty2,2.8,S.seed,{lift:28}));
