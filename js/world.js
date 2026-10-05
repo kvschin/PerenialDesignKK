@@ -902,6 +902,70 @@ function bloomLevel(key,variant){
   const annualDay=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
   return bloomWindowsFor(P).reduce((level,[start,end])=>Math.max(level,bloomWindowLevel(annualDay,start,end)),0);
 }
+/* ---------- leaf-out ----------
+   Leaves are authored once per season, so a deciduous tree was either in full
+   leaf on March 1 (an oak, which leafs out in May) or, where its spring is
+   blossom on bare wood (redbud, the cherries and plums, the magnolias), bare
+   from the end of its bloom until June 1. Leaf-out is a ramp through spring,
+   in days of the year (Spring is days 0-16: March to 5.3, April to 10.7, May
+   to 16): bud break at `s`, full leaf at `f`, then the new leaves darken to
+   their summer colour by the end of May, so the turn to Summer changes nothing.
+   The timing is read off `phen`, which already orders the trees the way they
+   leaf out: maples, birches and fruit trees first; oaks, beeches and the gums
+   in the middle; walnuts, hickories, honeylocust and persimmons last. A tree
+   whose spring is blossom on bare wood leafs out as the blossom passes its
+   peak. An evergreen (green Winter foliage) has none, and nor has a tree with
+   no summer foliage (palo verde's green twigs). Held winter leaves are not
+   green, so a bur oak still leafs out.
+   Stages are what the sprite key carries: 0 bare, 1-3 emerging, 4 full leaf,
+   5-6 darkening. Quantised for the procedural path too, so the two agree and
+   the colours drawn come from a short list. */
+const LEAF_OUT={cool:{s:6,f:10}, mid:{s:8,f:12.5}, warm:{s:9.8,f:14}};
+const LEAF_STAGES=6, LEAF_FULL=4;
+const _leafOut=new WeakMap();
+function treeLeafOut(P){
+  if (!isTreeDef(P) || !P.sea) return null;
+  let lo=_leafOut.get(P);
+  if (lo!==undefined) return lo;
+  lo=null;
+  const sp=P.sea.Spring||{}, su=P.sea.Summer||{}, wi=P.sea.Winter||{};
+  const green=c=>{ const [r,g,b]=colorParts(c); return g>r && g>=b; };
+  if (su.fol && !(wi.fol && green(wi.fol))){
+    const t=LEAF_OUT[P.phen]||LEAF_OUT.mid;
+    let s=t.s;
+    if (sp.bloom && !sp.fol){
+      // blossom on bare wood: the leaves come as it passes its peak
+      const w=bloomWindowsFor(P).find(([a])=>a<DAYS_PER_SEASON);
+      if (w) s=Math.min(10, Math.max(s, (w[0]+Math.min(w[1],DAYS_PER_SEASON))/2));
+    }
+    // a spring colour of its own, or the summer one, fresher (lighter, if it
+    // is a purple or a gold); the first leaves paler still
+    const spring=sp.fol || (green(su.fol) ? mixCol(su.fol,'#bfd98b',0.5) : shade(su.fol,22));
+    const first=green(spring) ? mixCol(spring,'#dfe6a2',0.4) : shade(spring,16);
+    const cols=[null];
+    for (let k=1;k<=LEAF_FULL;k++) cols.push(k===LEAF_FULL ? spring : mixCol(first,spring,(k-1)/(LEAF_FULL-1)));
+    for (let k=LEAF_FULL+1;k<=LEAF_STAGES;k++) cols.push(k===LEAF_STAGES ? su.fol : mixCol(spring,su.fol,(k-LEAF_FULL)/(LEAF_STAGES-LEAF_FULL)));
+    lo={s, f:s+(t.f-t.s), cols};
+  }
+  _leafOut.set(P,lo);
+  return lo;
+}
+// the leaf-out stage on a day of the year (with its fraction)
+function treeLeafStage(lo, d){
+  if (d<0 || d>=DAYS_PER_SEASON) return LEAF_STAGES;
+  const a=(d-lo.s)/(lo.f-lo.s);
+  if (a<1) return a<=0 ? 0 : Math.round(a*LEAF_FULL);
+  const m=Math.min(1,(d-lo.f)/(DAYS_PER_SEASON-lo.f));
+  return LEAF_FULL+Math.round(m*(LEAF_STAGES-LEAF_FULL));
+}
+// what drawPlant's leafStage is now, for a plant drawn in `season`: undefined
+// unless it is a deciduous tree in spring
+function leafStageNow(P, season){
+  if (season!=='Spring') return undefined;
+  const lo=treeLeafOut(P);
+  if (!lo) return undefined;
+  return treeLeafStage(lo, (((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac);
+}
 /* trees throw shade as they establish; baby trees show a future canopy,
    but they don't block full-sun perennials until the canopy is meaningful. */
 const SHADE_ACTIVE_ESTAB = 0.35;

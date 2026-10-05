@@ -1575,7 +1575,7 @@ function spritePixels(img){
   const c=cv.getContext('2d',{willReadFrequently:true}); c.drawImage(img,0,0);
   return c.getImageData(0,0,w,h).data;
 }
-function makePlantSprite(key,gB,bB,season,seed,variant,detail){
+function makePlantSprite(key,gB,bB,season,seed,variant,detail,lB){
   const P=plantDef(key,variant), growth=gB/8;
   const box=plantDrawBox(P,key,growth);
   const halfW=box.halfW, top=box.top, bot=box.bot, want=pspriteScale();
@@ -1590,7 +1590,7 @@ function makePlantSprite(key,gB,bB,season,seed,variant,detail){
   const cv=spriteBakeSurface('plant',pw,ph);
   const c2=cv.getContext('2d'); c2.setTransform(s,0,0,s,halfW*s,top*s);
   const spriteDetail=Object.assign({},detail||{},{bloomFallback:true});
-  drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail); // still (sway 0), bucketed bloom
+  drawPlant(c2,0,0,key,growth,season,seed,0,variant,bB/3,spriteDetail,lB>=0?lB:undefined); // still (sway 0), bucketed bloom and leaf-out
   return { cv:spriteBakeImage('plant',cv), ox:halfW, oy:top, s, want, capped:s<want, bytes:pw*ph*4 };
 }
 // blit a cached plant if we can, else fall back to a live procedural draw.
@@ -1608,6 +1608,8 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
   rec.sv=key+'|'+(variant||'');
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
+  // a deciduous tree in spring carries its leaf-out stage (treeLeafOut) as well
+  rec.leafOut=season==='Spring' && !!treeLeafOut(plantDef(key,variant));
 }
 /* bloomLevel is a pure function of the species and the clock, so within one
    frame every clump of a species has the same answer — 532 calls collapsing to
@@ -1621,13 +1623,22 @@ function bloomLevelForFrame(sv,key,variant){
   if (v===undefined){ v=bloomLevel(key,variant); bloomMemo.set(sv,v); }
   return v;
 }
+// the leaf-out stage, like bloom one answer per species per frame
+let leafMemo=new Map(), leafMemoFrame=-1;
+function leafStageForFrame(sv,key,variant){
+  if (leafMemoFrame!==PSPRITE.frame){ leafMemoFrame=PSPRITE.frame; leafMemo.clear(); }
+  let v=leafMemo.get(sv);
+  if (v===undefined){ v=leafStageNow(plantDef(key,variant),'Spring'); leafMemo.set(sv,v); }
+  return v;
+}
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
-  if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
+  if (!useSprites || PSPRITE.off){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,leafStageNow(plantDef(key,variant),season)); return; }
   // a caller with no record (or one from before this frame's scene) pays the old price
   if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
   const gB=gbucket(growth,9);
   const bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
-  const kk=rec.kSlot+'|'+gB+'|'+bB+rec.kTail;
+  const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant):-1;
+  const kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail;
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 
      Growth and bloom are bucketed off the clock, so the instant either moves,
@@ -1683,12 +1694,12 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
     }
     if (PSPRITE.rendered<PSPRITE.BUDGET){
       const t0=performance.now();
-      const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail);
+      const ne=makePlantSprite(key,gB,bB,season,seed,variant,detail,lB);
       PSPRITE.bakeMs+=performance.now()-t0;
       if (ne){ if (e){ PSPRITE.bytes-=e.bytes; retireSpriteImage(e.cv); } e=ne; PSPRITE.rendered++; PSPRITE.bytes+=e.bytes;
         PSPRITE.spec.set(kk.slice(kk.indexOf('|')+1),kk); }
     }
-    if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail); return; }
+    if (!e){ drawPlant(ctx,bx,by,key,growth,season,seed,sway,variant,undefined,detail,lB>=0?lB:undefined); return; }
   }
   /* Retire whatever this clump was cached as before. Only now — if the bake
      above was refused for budget we are still holding the OLD sprite, and
@@ -1781,19 +1792,19 @@ function aheadBakePlant(e,prepared=false){
   const t0=performance.now();
   // growth and bloom as they will be just after the boundary: borrow the clock
   const was=game.elapsedMs, susp=game.clockSuspended;
-  let g, bl;
+  let g, bl, lv;
   game.elapsedMs=AHEAD.at+(prepared?0:DAY_MS*0.02); game.clockSuspended=true;
-  try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); }
+  try{ g=displayPlantGrowth(e.p)*(e.stunt?0.45:1); bl=bloomLevel(e.p.s,e.p.v); lv=leafStageNow(plantDef(e.p.s,e.p.v),next); }
   finally{ game.elapsedMs=was; game.clockSuspended=susp; }
   if (e.kind===SCENE_K.BULB && g<=0.02){ e.aheadFor=AHEAD.epoch; return; }
-  const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0;
+  const gB=gbucket(g,9), bB=bloomAppearanceFor(plantDef(e.p.s,e.p.v),next)?gbucket(bl,4):0, lB=lv===undefined?-1:lv;
   const cut=e.kSlot.lastIndexOf('|'), slot=e.kSlot.slice(0,cut+1)+next;
-  const kk=slot+'|'+gB+'|'+bB+e.kTail;
+  const kk=slot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+e.kTail;
   const have=PSPRITE.map.get(kk);
   if (have && (!prepared || preparedSpriteScale(have,pspriteScale()))){
     have.used=Math.max(have.used||0,PSPRITE.frame+AHEAD.LEASE); e.aheadFor=AHEAD.epoch; return;
   }
-  const ne=makePlantSprite(e.p.s,gB,bB,next,e.seed,e.p.v,e.detail);
+  const ne=makePlantSprite(e.p.s,gB,bB,next,e.seed,e.p.v,e.detail,lB);
   AHEAD.ms+=performance.now()-t0;
   if (!ne){ AHEAD.short++; return; }
   if (have) retirePlantSprite(kk,have);

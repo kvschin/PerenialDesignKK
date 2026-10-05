@@ -204,6 +204,41 @@ window.habitSheet=function(refs,cell,seasons){
   });
   return ov;
 };
+/* Leaf-out through spring, from the console: leafSheet(['redbud','whiteoak'])
+   draws each tree across March to June at its leaf stage (treeLeafOut) and
+   bloom level, the way the garden does; L is the stage, b the bloom. */
+window.leafSheet=function(refs,days,cell){
+  days=days||[1,6,8,9.5,11,13,15,17]; cell=cell||97;
+  const lab=16;
+  let ov=document.getElementById('leafSheet'); if (ov) ov.remove();
+  ov=document.createElement('canvas'); ov.id='leafSheet'; ov.width=days.length*cell; ov.height=refs.length*(cell+lab)+lab;
+  ov.style.cssText='position:fixed;left:0;top:0;z-index:99';
+  document.body.append(ov); const o=ov.getContext('2d'); o.fillStyle='#d9e6d0'; o.fillRect(0,0,ov.width,ov.height);
+  o.font='10px sans-serif'; o.fillStyle='#222';
+  const mon=d=>['Mar','Apr','May','Jun'][Math.floor(d/(YEAR_DAYS/12))]+' '+(1+Math.floor((d%(YEAR_DAYS/12))/(YEAR_DAYS/12)*30));
+  days.forEach((d,i)=>o.fillText(mon(d), i*cell+4, 12));
+  refs.forEach((ref,ri)=>{
+    const [k,v]=ref.split('.'), P=plantDef(k,v||null), lo=treeLeafOut(P);
+    const shots=days.map(d=>{
+      const season=d<DAYS_PER_SEASON?'Spring':'Summer';
+      const bl=bloomWindowsFor(P).reduce((l,[a,b])=>Math.max(l,bloomWindowLevel(d,a,b)),0);
+      const ls=lo && season==='Spring' ? treeLeafStage(lo,d) : undefined;
+      const b=plantDrawBox(P,k,1), c=document.createElement('canvas');
+      c.width=Math.ceil(b.halfW*2); c.height=Math.ceil(b.top+b.bot);
+      drawPlant(c.getContext('2d'),b.halfW,b.top,k,1,season,HB_SEED,0,v||null,bl,undefined,ls);
+      return {c,b,bl,ls};
+    });
+    const b0=shots[0].b, f=Math.min((cell-8)/(b0.halfW*2),(cell-8)/(b0.top+b0.bot*0.3));
+    shots.forEach((s,i)=>{
+      const x0=i*cell, y0=lab+ri*(cell+lab);
+      o.save(); o.beginPath(); o.rect(x0,y0,cell,cell); o.clip();
+      o.drawImage(s.c, x0+cell/2-s.b.halfW*f, y0+cell-8-s.b.top*f, s.c.width*f, s.c.height*f);
+      o.restore();
+      o.fillStyle='#222'; o.fillText((i?'':(v||k).slice(0,11)+' ')+'L'+(s.ls===undefined?'-':s.ls)+' b'+s.bl.toFixed(1), x0+3, y0+cell+11);
+    });
+  });
+  return ov;
+};
 (function init(){
   const g=document.getElementById('group'); for (const name of Object.keys(HB_GROUPS)){ const o=document.createElement('option'); o.textContent=name; g.append(o); }
   const cs=document.getElementById('crown'); for (const name of Object.keys(TREE_HABITS)){ const o=document.createElement('option'); o.value=o.textContent=name; cs.append(o); }

@@ -1396,7 +1396,7 @@ test('every tree, shrub and cultivar draws inside its sprite box on all four sid
 
 /* Every canvas call drawPlant makes, as one string, for comparing two drawings
    of the same plant call by call. */
-function plantDrawCalls(key,v,season,seed,growth,sway){
+function plantDrawCalls(key,v,season,seed,growth,sway,leafStage){
   const log=[];
   const ctx=new Proxy({}, {
     get(o,p){
@@ -1410,7 +1410,7 @@ function plantDrawCalls(key,v,season,seed,growth,sway){
     },
     set(o,p,val){ o[p]=val; log.push('set '+String(p)+'='+val); return true; },
   });
-  drawPlant(ctx,0,0,key,growth,season,seed,sway||0,v,1);
+  drawPlant(ctx,0,0,key,growth,season,seed,sway||0,v,1,undefined,leafStage);
   return log.join('\n');
 }
 
@@ -1641,6 +1641,59 @@ test('every weeping cultivar takes the weeping habit, and its strands hang', () 
     }
   }
   assert(weepers>=6, 'the weeping cultivars were found');
+});
+
+test('deciduous trees leaf out through spring, in the order they really do', () => {
+  /* Leaves were on or off for a whole season: an oak was in full leaf on
+     March 1, and a redbud stood bare from the end of its bloom until June 1. */
+  const lo=k=>treeLeafOut(plantDef(k,null));
+  for (const k of ['whiteoak','sugarmaple','blackwalnut','redbud','floweringcherry','buroak'])
+    assert(lo(k), k+' leafs out (a bur oak\'s held winter leaves are not evergreen ones)');
+  for (const k of ['lemon','olive','sweetorange','bluepaloverde','bluestem'])
+    assert(!lo(k), k+' has no leaf-out');
+  assert(lo('sugarmaple').s<lo('whiteoak').s && lo('whiteoak').s<lo('blackwalnut').s, 'maple first, then oak, then walnut');
+  for (const k of ['whiteoak','redbud','sugarmaple']){
+    const L=lo(k);
+    assertEqual(treeLeafStage(L,0.5),0,k+' is bare in early March');
+    assertEqual(treeLeafStage(L,15.95),LEAF_STAGES,k+' has its summer leaves by the end of May');
+    let prev=0;
+    for (let d=0; d<16; d+=0.25){ const st=treeLeafStage(L,d); assert(st>=prev, k+' never goes back a stage'); prev=st; }
+    assert(L.cols.slice(1).every(c=>typeof c==='string' && colorParts(c).every(Number.isFinite)), k+' has a colour for every stage');
+  }
+  const [w]=bloomWindowsFor(plantDef('redbud',null));
+  assert(treeLeafStage(lo('redbud'),(w[0]+w[1])/2-0.5)===0, 'a redbud is in flower before it is in leaf');
+  assert(treeLeafStage(lo('redbud'),w[1])>0, 'and leafs out as the flowers go');
+  assertEqual(lo('whiteoak').cols[LEAF_STAGES], plantDef('whiteoak',null).sea.Summer.fol,
+    'the last stage is the summer colour, so the turn to Summer changes nothing');
+  // the clock reads through leafStageNow, and only in spring
+  game.dayOffset=1; assertEqual(leafStageNow(plantDef('whiteoak',null),'Spring'),0,'bare on spring day 1');
+  game.dayOffset=15; assert(leafStageNow(plantDef('whiteoak',null),'Spring')>=LEAF_FULL,'in leaf by mid-May');
+  assertEqual(leafStageNow(plantDef('whiteoak',null),'Summer'),undefined,'no stage outside spring');
+});
+
+test('a leaf stage draws only on a spring tree, and full leaf is the authored spring tree', () => {
+  for (const season of ['Summer','Fall','Winter'])
+    assertEqual(plantDrawCalls('whiteoak',null,season,4242,1,0,2), plantDrawCalls('whiteoak',null,season,4242,1),
+      'a leaf stage in '+season+' changes nothing');
+  assertEqual(plantDrawCalls('bluestem',null,'Spring',4242,1,0,2), plantDrawCalls('bluestem',null,'Spring',4242,1),
+    'nor on a grass');
+  /* full leaf with an authored spring colour is the authored tree, call for
+     call: the stages change sizes and which shapes draw, never the random
+     streams, so a tree keeps its shape as it leafs out */
+  for (const k of ['whiteoak','sugarmaple','apple'])
+    assertEqual(plantDrawCalls(k,null,'Spring',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Spring',4242,1), k+' at full leaf');
+  const ell=t=>(t.match(/(^|\n)ellipse\(/g)||[]).length;
+  const bare=ell(plantDrawCalls('whiteoak',null,'Spring',4242,1,0,0)),
+    first=ell(plantDrawCalls('whiteoak',null,'Spring',4242,1,0,1)),
+    full=ell(plantDrawCalls('whiteoak',null,'Spring',4242,1,0,LEAF_FULL));
+  assert(bare<first && first<full, `bare, then tufts, then the crown (${bare}, ${first}, ${full} shapes)`);
+});
+
+test('a spring tree caches by its leaf stage, and nothing else does', () => {
+  const rec=(k,season)=>{ const r={}; bakePlantKeyParts(r,k,null,season,7,undefined); return r.leafOut; };
+  assert(rec('whiteoak','Spring'), 'a spring oak');
+  for (const [k,season] of [['whiteoak','Summer'],['whiteoak','Winter'],['lemon','Spring'],['bluestem','Spring']])
+    assert(!rec(k,season), k+' in '+season+' keeps its key');
 });
 
 test('a weeping tree hangs its flowers down its curtains, on both sides', () => {

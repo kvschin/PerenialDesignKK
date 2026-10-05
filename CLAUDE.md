@@ -6388,6 +6388,47 @@ key would have silently won. Chosen from the catalog by spread/height against
 the species plus the notes; 'Princeton' elm stays a vase and 'Skyline' and
 'Espresso' stay open, those habits being what makes each that tree. 600
 pixel renders in their boxes; everything else byte-identical to 0.9.54.
+**0.9.56: trees leaf out through spring (`treeLeafOut`, `treeLeafStage`,
+`leafStageNow`, world.js; `LEAF_OUT`, `LEAF_STAGES`, `LEAF_FULL`).** Leaves were
+authored once per season, so 34 trees stood in full summer leaf on March 1
+(oaks, walnuts, hickories) and 14 authored as blossom on bare wood (redbud, the
+cherries, plums, peach, crabapple, the magnolias, serviceberry, dogwood) stood
+bare from the end of their bloom until June 1, then everything darkened in one
+step on the turn to Summer. Leaf-out is now a ramp in days of the year: bud
+break at `s`, full leaf at `f`, then the new leaves darken to the summer colour
+by the end of May, so the Summer turn changes nothing. The timing is read off
+`phen`, which already orders trees the way they leaf out (cool: maples,
+birches, fruit trees, ~Apr 4 to Apr 27; mid: oaks, beeches, gums, ~Apr 16 to
+May 10; warm: walnuts, hickories, honeylocust, persimmons, ~Apr 26 to May 19);
+a tree whose Spring is `bloom` without `fol` leafs out as its bloom passes its
+peak. No new data: a tree with no Spring `fol` takes its Summer one, fresher;
+the first leaves are paler still (a purple or gold one is lightened instead).
+Evergreens (GREEN Winter `fol`) and a tree with no Summer `fol` have none; a bur
+oak's held tan leaves are not green, so it still leafs out.
+**Stages, not a level** (0 bare, 1-3 emerging, 4 full, 5-6 darkening): the
+sprite key carries `|L<stage>` for a deciduous tree in Spring
+(`rec.leafOut`, baked in `bakePlantKeyParts`; `leafStageForFrame` memoises one
+answer per species per frame, as bloom does), and the procedural path is
+quantised too, so the two agree and `shade`'s unbounded cache only ever sees a
+short list of colours. drawPlant's new last argument `leafStage` is passed only
+by the garden (`drawPlantMaybeCached`, `makePlantSprite`, `aheadBakePlant`);
+undefined draws the season as authored, so the library, tray, guide and
+review pages are untouched (8,648 draws byte-identical). In `drawTreeHabit`,
+`leafAmt` below 1 draws the crown see-through -- every limb and the twig
+fringe, as in winter -- with clumps shrunk at the twig tips, the inner fill
+blobs drawn by a golden-ratio share and the underwash last. **Sizes and which
+shapes draw depend on the stage; the random streams never do** (the fill loop
+computes rot and tone before deciding to draw), so a tree keeps its shape from
+stage to stage, and stage 4 with an authored spring colour is the authored
+tree call for call (a test). Only the habit path leafs out; `?habit=0` draws
+as before. Cost: an emerging stage bakes like a winter tree (median 2.3-2.5ms
+on the bake path against 2.0 summer and 2.3 winter, same harness), about six
+bakes a tree a year; `dev/ff-bench.cjs` on a 36-tree garden held through two
+years: spring fast-forward 0.9-1.1 -> 1.4-1.6 bakes and 4.25-4.31 ->
+4.48-4.57ms a frame, other seasons and cache size unchanged, no drift. 3,232
+pixel renders of the 202 leaf-out trees stay in their boxes (min margin 8px).
+`leafSheet([...])` in `dev/tree-habit-review.html` draws a tree March to June.
+Skip to Spring lands on March 1, so it now shows the deciduous trees bare.
 
 ## Conventions
 

@@ -1927,7 +1927,13 @@ const _thSeg=new Float64Array(TH_STRIDE*TH_MAX);
 /* Draw a habit tree's limbs and (in leaf) its crown. Returns the twig tips as
    [x,y,parentX,parentY] in a spread-out order, for the flower and fruit passes,
    and snow anchors along the limbs. `nLeaf` is the blob budget. */
-function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix){
+function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix, leafAmt){
+  // leafAmt < 1: leaves coming out in spring. The crown is see-through, so the
+  // limbs and the twig fringe draw as in winter, and the leaves are small
+  // tufts at the twig tips that grow into clumps; the inner mass and the
+  // underwash come last. Only sizes and which shapes draw depend on it, never
+  // the random streams, so a tree keeps its shape from one stage to the next.
+  const la=leafAmt===undefined ? 1 : Math.max(0,Math.min(1,leafAmt));
   const arm=mulberry(seed^0x5ca1ab), leaf=mulberry(seed^0x1eaf5);
   const base=H*hb.base, span=H*(hb.top-hb.base), W=cw*hb.w;
   const toY=v=>-(base+span*v);
@@ -2115,7 +2121,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
   // really has, and the drooping twigs on an elm's rim. Drawn behind leaves it
   // would be hidden, so it is skipped in leaf (and costs nothing then).
   const twiggy=!!L.twigCanopy;
-  if (!S.fol || twiggy){
+  if (!S.fol || twiggy || la<0.6){
     const tw=wOf(1)*0.55, nTw=twiggy ? Math.max(1,Math.min(5,Math.round(L.twigCanopy))) : hb.twigs;
     for (let i=0;i<N;i++){
       let dx=tx[i]-tpx[i], dy=ty[i]-tpy[i]; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
@@ -2155,7 +2161,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
      is straight lines in three strokes, which a twig at that size is anyway.
      THIN is relative (a limb carrying fewer than three tips), since one oak
      twig is wider in draw units than a dogwood's whole scaffold. */
-  const leafDepth=(S.fol && !twiggy) ? (hb.leafDepth||1) : 99, THIN=wOf(2.5), STEP=Math.log(1.6);
+  const leafDepth=(S.fol && !twiggy && la>=1) ? (hb.leafDepth||1) : 99, THIN=wOf(2.5), STEP=Math.log(1.6);
   let bMax=-99, bMin=99;
   for (let s=0;s<ns;s++){
     const o=s*TH_STRIDE; if (_thSeg[o+7]>leafDepth || _thSeg[o+6]<THIN) continue;
@@ -2243,8 +2249,9 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     }
     const contrast=T ? T.contrast : 1, droop=T ? T.droop : 0;
     const yMid=toY(0.5), half=span/2;
-    if (hb.wash>0){
-      ctx.save(); ctx.globalAlpha=hb.wash*(T ? T.wash : 1); ctx.beginPath();
+    if (la<1){ const k=0.35+0.65*la; bw*=k; bh*=k; }
+    if (hb.wash>0 && la>=0.5){
+      ctx.save(); ctx.globalAlpha=hb.wash*(T ? T.wash : 1)*(la<1 ? la*la : 1); ctx.beginPath();
       // a soft shape inside the outline: rounded where it starts, and never
       // boxier than an ellipse at the top, or its straight edges show between
       // the clumps
@@ -2272,11 +2279,13 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       let v=0, x=0, g=0;
       do { v=leaf(); x=(leaf()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v)*0.85 && ++g<10);
       const y=toY(v);
-      blob(x,y,droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI,(glob(x,y)*20-10)*contrast+(leaf()-0.5)*10,1,colAt(x,y));
+      const rot=droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI, tone=(glob(x,y)*20-10)*contrast+(leaf()-0.5)*10;
+      // the inner mass fills in last, a share of it at each stage
+      if (la>=1 || (i*0.6180339887)%1<la*la) blob(x,y,rot,tone,1,colAt(x,y));
     }
     // clumps drawn shadowed side first, so the lit ones overlap them
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
-    const rc0=cw*hb.clusterR, per=nTip/N, tmp=[], leafSnow=[];
+    const rc0=cw*hb.clusterR*(la<1 ? 0.3+0.7*la : 1), per=nTip/N, tmp=[], leafSnow=[];
     let made=0;
     order.forEach((i,r)=>{
       let cnt=Math.round(per*(r+1))-made; made+=cnt;
@@ -2321,7 +2330,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
 
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
-function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail){
+function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail, leafStage){
   // Every plant starts with empty floret and thread batches. Each batch resets
   // only when it is FLUSHED, so a draw that threw between a push and its flush
   // (a negative ellipse radius is an IndexSizeError) would hand its leftovers
@@ -5489,8 +5498,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       // applies, so the cached and procedural trees move alike
       if (sway){ ctx.save(); ctx.transform(1,0,-sway*4.2/Math.max(1,H),1,0,0); sheared=true; }
       const n=stemFor(Math.round((L.leafN||26)*Math.min(3,Math.max(1,vs*0.75))));
-      const r=drawTreeHabit(ctx,L,S,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
-        season==='Fall' ? L.fallMix : null);
+      // leaf-out (treeLeafOut): a spring tree in the garden is handed its stage;
+      // previews pass none and draw the season as authored
+      let LS=S, leafAmt=1;
+      const lo=leafStage!==undefined && season==='Spring' ? treeLeafOut(P) : null;
+      if (lo){
+        const k=Math.max(0,Math.min(LEAF_STAGES,leafStage|0));
+        leafAmt=Math.min(1,k/LEAF_FULL);
+        LS=Object.assign({},S,{fol:k ? lo.cols[k] : undefined});
+      }
+      const r=drawTreeHabit(ctx,L,LS,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
+        season==='Fall' ? L.fallMix : null, leafAmt);
       tips=r.tips; snowAnchors=r.snow;
       alongLimb=(tx2,ty2,f,tp)=>{
         if (!tp) return [tx2,ty2];
