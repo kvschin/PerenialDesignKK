@@ -204,6 +204,29 @@ window.habitSheet=function(refs,cell,seasons){
   });
   return ov;
 };
+/* Blossom, from the console: bloomSheet(['redbud','treelilac'], 300, 4) draws
+   each tree at the peak of its bloom, in that day's season and at that day's
+   leaf stage, the way the garden would show it (drawTreeBlossom). */
+window.bloomSheet=function(refs,cell,per){
+  cell=cell||200; per=per||6; const lab=14, rows=Math.ceil(refs.length/per);
+  let ov=document.getElementById('bloomSheet'); if (ov) ov.remove();
+  ov=document.createElement('canvas'); ov.id='bloomSheet'; ov.width=per*cell; ov.height=rows*(cell+lab);
+  ov.style.cssText='position:fixed;left:0;top:0;z-index:99';
+  document.body.append(ov); const o=ov.getContext('2d'); o.fillStyle='#d9e6d0'; o.fillRect(0,0,ov.width,ov.height);
+  o.font='10px sans-serif';
+  refs.forEach((ref,i)=>{
+    const [k,v]=ref.split('.'), P=plantDef(k,v||null), lo=treeLeafOut(P), ws=bloomWindowsFor(P);
+    const peak=ws.length ? ((ws[0][0]+ws[0][1])/2)%YEAR_DAYS : 8, season=SEASONS[Math.floor(peak/DAYS_PER_SEASON)];
+    const ls=lo && season==='Spring' ? treeLeafStage(lo,peak) : undefined;
+    const b=plantDrawBox(P,k,1), c=document.createElement('canvas'); c.width=Math.ceil(b.halfW*2); c.height=Math.ceil(b.top+b.bot);
+    drawPlant(c.getContext('2d'),b.halfW,b.top,k,1,season,HB_SEED,0,v||null,1,undefined,ls);
+    const f=Math.min((cell-6)/(b.halfW*2),(cell-6)/(b.top+b.bot*0.3)), x0=(i%per)*cell, y0=Math.floor(i/per)*(cell+lab);
+    o.save(); o.beginPath(); o.rect(x0,y0,cell,cell); o.clip();
+    o.drawImage(c, x0+cell/2-b.halfW*f, y0+cell-6-b.top*f, c.width*f, c.height*f); o.restore();
+    o.fillStyle='#222'; o.fillText((v||k).slice(0,14)+' '+season[0]+(ls===undefined?'':' L'+ls), x0+3, y0+cell+10);
+  });
+  return ov;
+};
 /* Leaf-out through spring, from the console: leafSheet(['redbud','whiteoak'])
    draws each tree across March to June at its leaf stage (treeLeafOut) and
    bloom level, the way the garden does; L is the stage, b the bloom. */

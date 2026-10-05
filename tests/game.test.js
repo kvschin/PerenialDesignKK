@@ -1702,19 +1702,21 @@ test('a weeping tree hangs its flowers down its curtains, on both sides', () => 
      upright tree. And the first armature put every flower on the first few
      limbs, i.e. one side, because the flower pass takes the tips in order. */
   const flowers=(key,v)=>{
-    const pts=[], real=drawFloret, wasArt=ART2.on;
-    drawFloret=function(c,x,y){ pts.push([x,y]); return real.apply(this,arguments); };
-    ART2.on=true;
-    const ctx=new Proxy({}, {
+    // every shape the blossom pass draws (drawTreeBlossom), and nothing else
+    const pts=[], real=drawTreeBlossom, wasArt=ART2.on;
+    const mk=rec=>new Proxy({}, {
       get(o,p){
         if (p in o) return o[p];
+        if (rec && p==='ellipse') return (x,y)=>pts.push([x,y]);
         if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
         return () => {};
       },
       set(o,p,val){ o[p]=val; return true; },
     });
-    try { drawPlant(ctx,0,0,key,1,'Spring',7122,0,v,1); }
-    finally { drawFloret=real; ART2.on=wasArt; }
+    drawTreeBlossom=function(c,...rest){ return real.call(this,mk(true),...rest); };
+    ART2.on=true;
+    try { drawPlant(mk(false),0,0,key,1,'Spring',7122,0,v,1); }
+    finally { drawTreeBlossom=real; ART2.on=wasArt; }
     return pts;
   };
   const lowShare=(pts,H)=>pts.filter(([,y])=>y>-H*0.5).length/pts.length;
@@ -1725,8 +1727,57 @@ test('a weeping tree hangs its flowers down its curtains, on both sides', () => 
     const left=pts.filter(([x])=>x<0).length, right=pts.length-left;
     assert(left>pts.length*0.3 && right>pts.length*0.3, `${v}: flowers on both sides (${left} left, ${right} right)`);
   }
+  // blossom is drawn in clusters now, and a cluster on the lowest twig of an
+  // upright crown can spread a floret or two over the halfway line
   const K=plantDef('floweringcherry','kanzan');
-  assertEqual(lowShare(flowers('floweringcherry','kanzan'),plantVisualH(K)),0, 'an upright cherry keeps its flowers in the crown');
+  assert(lowShare(flowers('floweringcherry','kanzan'),plantVisualH(K))<0.02, 'an upright cherry keeps its flowers in the crown');
+});
+
+test('every tree bloomStyle and flowerShape is one the blossom pass draws', () => {
+  const styles=new Set(['cluster','panicle','pendantRaceme','catkin']), shapes=['trumpet','funnel','bell'];
+  const bad=[];
+  for (const key of PLANT_KEYS){
+    if (PLANTS[key].form!=='tree') continue;
+    for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+      const L=plantDef(key,v).look||{};
+      if (L.bloomStyle!==undefined && !styles.has(L.bloomStyle)) bad.push(`${key}${v?'.'+v:''} bloomStyle ${L.bloomStyle}`);
+      if (L.flowerShape!==undefined && !TB_SHAPES[L.flowerShape] && !shapes.includes(L.flowerShape)) bad.push(`${key}${v?'.'+v:''} flowerShape ${L.flowerShape}`);
+    }
+  }
+  assert(!bad.length, bad.join('; '));
+});
+
+test('a tree in bloom carries blossom for its crown, and keeps it in place as the bloom rises', () => {
+  /* A tree drew 10-40 single florets in bloom: a few specks, where a cherry
+     or a redbud in flower is a cloud of blossom. */
+  const noop=()=>{};
+  const rec=log=>new Proxy({}, { get:(o,p)=>p in o ? o[p]
+      : (p==='createLinearGradient'||p==='createRadialGradient') ? ()=>({addColorStop:noop})
+      : (...a)=>{ log.push(String(p)+'('+a.map(x=>typeof x==='number'?Math.round(x*100)/100:x).join(',')+')'); },
+    set:(o,p,v)=>{ o[p]=v; log.push('set '+String(p)+'='+v); return true; } });
+  // the blossom pass's own arguments, as drawPlant hands them over
+  const args=(key,leaf)=>{
+    let got=null; const real=drawTreeBlossom;
+    drawTreeBlossom=function(...a){ got=a; };
+    try { drawPlant(rec([]),0,0,key,1,'Spring',4242,0,null,1,undefined,leaf); } finally { drawTreeBlossom=real; }
+    return got;
+  };
+  const draw=(a,patch)=>{ const log=[], b=a.slice(); b[0]=rec(log); Object.assign(b,patch||{}); drawTreeBlossom(...b); return log; };
+  const ell=log=>log.filter(c=>c.startsWith('ellipse('));
+  const cherry=args('floweringcherry',0);
+  assert(cherry, 'a cherry in bloom reaches the blossom pass');
+  const full=ell(draw(cherry,{8:0})), half=ell(draw(cherry,{6:0.5,8:0}));
+  assert(full.length>=150, `a cherry in full bloom is a crown of blossom (${full.length} florets)`);
+  assert(half.length<full.length && half.every(c=>full.includes(c)), 'as the bloom rises florets are added, never moved');
+  const sparse=args('floweringcherry',0).slice(); sparse[1]=Object.assign({},sparse[1],{flowerN:12});
+  assert(ell(draw(sparse,{8:0})).length<full.length*0.6, 'look.flowerN is a density: a sparse bloomer carries less');
+  const walnut=draw(args('blackwalnut',2),{8:0});
+  assert(walnut.filter(c=>c.startsWith('quadraticCurveTo(')).length>10 && !ell(walnut).length, 'catkins are strokes, not beads');
+  // the wash is for bare wood: a redbud before its leaves, never an apple in leaf
+  assertEqual(args('redbud',0)[8],1,'a redbud blooms on bare wood');
+  assertEqual(args('apple',LEAF_FULL)[8],0,'an apple blooms among its leaves');
+  assert(draw(args('redbud',0)).some(c=>/^set globalAlpha=0\.[01]/.test(c)), 'bare wood carries a wash of the bloom colour');
+  assert(!draw(args('apple',LEAF_FULL)).some(c=>c.startsWith('set globalAlpha')), 'leaves carry none');
 });
 
 test('a clipped hedge joins its own family, never a different hedge', () => {

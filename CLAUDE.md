@@ -6429,6 +6429,41 @@ years: spring fast-forward 0.9-1.1 -> 1.4-1.6 bakes and 4.25-4.31 ->
 pixel renders of the 202 leaf-out trees stay in their boxes (min margin 8px).
 `leafSheet([...])` in `dev/tree-habit-review.html` draws a tree March to June.
 Skip to Spring lands on March 1, so it now shows the deciduous trees bare.
+**0.9.57: tree blossom (`drawTreeBlossom`, `TB_SHAPES`, `TB_FLORETS`, draw.js;
+`look.bloomStyle` on trees).** A habit tree in bloom drew 10-40 single florets,
+so a redbud in full bloom was a few pink specks and an apple's blossom vanished
+in its leaves. Blossom now comes in SITES, as many as the crown has room for:
+`flowerN` is a DENSITY against 30 (crown area from the habit, `crown.area`,
+the leaf-texture idea), so a cherry is smothered and a walnut is not.
+`look.bloomStyle` shapes a site in the shrubs' vocabulary: `cluster` (default,
+a loose truss), `panicle` (upright cone: tree lilac, buckeye, chestnuts,
+loquat), `pendantRaceme` (hanging chain: yellowwood, basswood, sourwood,
+fringetree, macadamia), and `catkin` (walnuts, hickory, pecan, mulberry),
+drawn as ONE stroke per tassel because 360 tiny ellipses cost 1.7ms. A tree
+naming a `flowerShape` draws one flower a site: dogwood `star` (four bracts),
+the magnolias `magnolia`, tuliptree `cup`, pomegranate and desert willow
+`trumpet`. The three shapes trees use are re-laid in `TB_SHAPES` from
+drawShrubFlower's own geometry and batched by tone, because drawShrubFlower
+fills every petal separately (24 magnolias were 3ms); shrubs still use it.
+On BARE wood (`bare`, 0..1: no leaves yet, or leaves still coming out, or a
+twig canopy) a site is strung along a twig over a soft WASH of the bloom
+colour, one ellipse per twig (not per site: the overlaps are what a union
+costs, and 170 sites cost 1ms), two layers for a soft edge, fainter on a
+sparse bloomer whose twigs are far apart; in leaf a site sits on top of a
+clump. A weeper's sites are pulled down the hanging part of each strand. Sites
+are clamped inside `crown.hw` (and racemes above the ground), which is what
+keeps 3,540 pixel renders of the 182 blooming trees in their boxes (min margin
+7px). Florets batch into three light tones, one fill each, highlights only on
+the lit side. Own seeded stream, and **each site draws its florets right
+after itself**, so a rising bloom adds sites without moving a floret (a test;
+drawing them after all the sites moved every floret whenever the count did).
+Capped at 360 florets / 24 shaped flowers a tree: the big nut and shade trees
+asked for up to 1,400, 7ms a bake for nothing visible at garden scale. Cost:
+bloom adds a median 0.5ms to a bake (90th percentile 1.6, worst 3.5 basswood),
+paid only on bloom-stage bakes; `dev/ff-bench.cjs` on the 36-tree garden shows
+no change in fast-forward. Everything but a habit tree in bloom draws call for
+call as in 0.9.56 (16,890 draws); smoketree's smoke and `?habit=0` keep the old
+pass. `bloomSheet([...])` in `dev/tree-habit-review.html` shows trees at peak.
 
 ## Conventions
 

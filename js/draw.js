@@ -2325,7 +2325,189 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     : [tx[i],ty[i],tpx[i],tpy[i]]);
   const spread=tips.map((t,k)=>[(k*0.6180339887)%1,t]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
   if (!anchors.length) for (let i=0;i<N;i+=3) anchors.push([tx[i],ty[i],2.6*vs]);
-  return {tips:spread, snow:anchors};
+  // the crown, for the blossom pass: its outline's area, its light, its clumps
+  if (hb._area===undefined){ let a=0; for (let i=0;i<24;i++) a+=2*treeCrownHW(hb,(i+0.5)/24)/24; hb._area=a; }
+  return {tips:spread, snow:anchors,
+    crown:{W, hw:hwAt, yMid:toY(0.5), half:span/2, area:hb._area*W*span, rc:cw*hb.clusterR*(la<1 ? 0.3+0.7*la : 1)}};
+}
+/* ---------- tree blossom ----------
+   A tree in bloom drew 10-40 single florets, so a redbud in full bloom was a
+   few pink specks where the real tree is a magenta haze, and an apple's
+   blossom vanished against its leaves. Blossom now comes in sites, as many as
+   the crown has room for: look.flowerN is a DENSITY against 30, the way leaf
+   texture's cover is, so a cherry (38) is smothered and a walnut (10) is not.
+   look.bloomStyle shapes a site, in the shrubs' vocabulary:
+     cluster        a round truss of florets (the default: cherries, apples)
+     panicle        an upright cone (tree lilac, buckeye, the chestnuts)
+     pendantRaceme  a hanging chain (yellowwood, basswood, sourwood)
+     catkin         a thin dangling tassel (walnuts, hickories, pecan)
+   A tree that names a flowerShape draws one such flower a site (a dogwood's
+   four bracts, a magnolia's tepals, a tuliptree's cup).
+   On bare wood -- no leaves yet, or leaves still coming out (`bare`, 0..1) --
+   a site sits along a twig, over a soft wash of the bloom colour, so the crown
+   reads as a cloud; in leaf it sits on top of a clump. The florets batch into
+   three light tones through fcPush/fcDraw, two fills a batch, so a crown of
+   several hundred costs a handful of fills.
+   Its own seeded stream with a fixed number of draws per site, so a site
+   keeps its place as the bloom rises and fades and only the count changes. */
+const TB_MAX=400, TB_FLORETS=360;
+const _tbX=new Float64Array(TB_MAX), _tbY=new Float64Array(TB_MAX), _tbR=new Float64Array(TB_MAX),
+      _tbS=new Float64Array(TB_MAX), _tbB=new Uint8Array(TB_MAX);
+const TB_DROP=[-20,-8,4], TB_LIFT=[-6,8,16];
+/* The flowerShapes a tree uses, as drawShrubFlower lays them out (rings of
+   [petals, ring radius, petal radius, squash, turn, tone], then the centre's
+   [radius, squash, colour]), so a crown of them batches into a few fills a
+   tone instead of two fills a petal: 24 magnolias were 3ms a bake. */
+const TB_SHAPES={
+  magnolia:{rings:[[6,0.62,0.72,0.46,0,-2],[3,0.35,0.58,0.46,Math.PI/6,4]], eye:[0.30,1.25,'#c9a548']},
+  star:{rings:[[4,0.78,0.58,0.56,0,0]], eye:[0.3,1,null]},
+  cup:{rings:[[4,0.78,0.58,0.76,0,0]], eye:[0.3,1,null]},
+};
+function drawTreeBlossom(ctx, L, S, crown, tips, alongLimb, blv, vs, bare, seed){
+  const col=S.bloom, style=L.bloomStyle||'cluster', shape=L.flowerShape, N=tips.length;
+  if (!N) return;
+  const fr=(L.flowerSize||1.8)*vs;
+  const k=shape ? 1 : Math.max(1,Math.min(12,Math.round(L.flowerCluster||(style==='cluster'?6:style==='catkin'?6:8))));
+  // a site's footprint: a truss of florets with sky between them; the long
+  // styles are about two florets wide
+  const rcl=shape ? fr*1.4 : style==='cluster' ? fr*0.9*Math.sqrt(k) : fr*2.4;
+  const len=style==='panicle' ? fr*(3.8+k*0.32) : style==='pendantRaceme' ? fr*(3.4+k*0.4) : fr*4.6;
+  const dens=(L.flowerN||(S.fol?10:14))/30;
+  // capped at TB_FLORETS a tree: a cherry asks for ~250, and the big nut and
+  // shade trees for up to 1400, which bought nothing at garden scale but 7ms a
+  // bake. A named flowerShape is a dozen fills a flower, so it stops at 24.
+  const full=Math.max(2,Math.min(shape?24:Math.floor(TB_FLORETS/k),Math.round(dens*0.6*crown.area/(Math.PI*rcl*rcl))));
+  const nS=Math.max(1,Math.min(full,Math.round(full*blv)));
+  const brnd=mulberry((seed^0xb1055)>>>0), W=crown.W||1, half=crown.half||1, rc=crown.rc;
+  let nF=0;
+  const sx=new Float64Array(nS), sy=new Float64Array(nS), sb=new Uint8Array(nS), sa=new Float64Array(nS),
+    ux=new Float64Array(nS), uy=new Float64Array(nS), on=new Uint8Array(nS);
+  for (let i=0;i<nS;i++){
+    const t=tips[i%N];
+    const u1=brnd(), u2=brnd(), u3=brnd(), u4=brnd(), u5=brnd(), u6=brnd();
+    let px, py;
+    if (u1<bare){
+      // strung along the twig, a little to one side of it; a weeper's strand
+      // (it carries its arch, t.length>4) rises over the arch first, so its
+      // blossom is pulled down the part that hangs
+      const [ax,ay]=alongLimb(t[0],t[1],t.length>4 ? 0.55+0.45*Math.sqrt(u2) : Math.min(1,0.4+0.62*u2),t);
+      let dx=t[0]-t[2], dy=t[1]-t[3]; const l=Math.sqrt(dx*dx+dy*dy)||1;
+      const off=(u4-0.5)*rcl*0.7;
+      px=ax-dy/l*off; py=ay+dx/l*off; ux[i]=dx/l; uy[i]=dy/l; on[i]=1;
+    } else {
+      // on top of the clump at this tip
+      const cx=t[0]+(t[0]-t[2])*0.12, cy=t[1]+(t[1]-t[3])*0.12, a=u2*6.283, r=rc*0.8*Math.sqrt(u3);
+      px=cx+Math.cos(a)*r; py=cy+Math.sin(a)*r*0.6-rc*0.25; ux[i]=1; uy[i]=0;
+    }
+    // inside the crown, as its clumps are: the sprite box is cut to that outline
+    const lim=Math.max(0,crown.hw(py)+fr-rcl*1.35);
+    if (Math.abs(px)>lim) px=Math.sign(px)*lim;
+    const g=(px/W)*LIT.x+((py-crown.yMid)/half)*LIT.y+(u5-0.5)*0.7;
+    sx[i]=px; sy[i]=py; sb[i]=g<-0.22 ? 0 : g<0.22 ? 1 : 2; sa[i]=u6;
+    // its florets, drawn from the stream right after it, so each site owns a
+    // fixed run of it and a rising bloom adds sites without moving any floret
+    if (shape || style==='catkin') continue;
+    const side=u6<0.5 ? -1 : 1;
+    // a hanging chain stops short of the ground, which a young tree's low twigs are near
+    const hang=style==='pendantRaceme' ? Math.min(1,Math.max(0,(-py-fr*2)/len)) : 1;
+    for (let j=0;j<k;j++){
+      const v1=brnd(), v2=brnd(), v3=brnd();
+      if (nF>=TB_MAX) continue;
+      const t=(j+0.5)/k;
+      let x=0, y=0, r=fr*(0.7+0.35*v3), sq=0.85;
+      if (style==='panicle'){
+        const w=fr*1.5*(1-t*0.8); x=(v1-0.5)*2*w; y=-len*t+(v2-0.5)*fr*0.5; r*=1.15-0.45*t; sq=0.9;
+      } else if (style==='pendantRaceme'){
+        x=side*len*0.22*t*t+(v1-0.5)*fr*0.8; y=len*hang*t+(v2-0.5)*fr*0.4; r*=1.1-0.35*t;
+      } else {
+        // scattered through an ellipse that lies along the twig on bare wood
+        // and flat on a clump: blossom with gaps in it, not a berry
+        const a=v1*6.283, rr=Math.sqrt(v2), A=on[i] ? rcl*1.35 : rcl, B=on[i] ? rcl*0.55 : rcl*0.6;
+        const p=Math.cos(a)*rr*A, q=Math.sin(a)*rr*B;
+        x=ux[i]*p-uy[i]*q; y=uy[i]*p+ux[i]*q;
+      }
+      _tbX[nF]=px+x; _tbY[nF]=py+y; _tbR[nF]=r; _tbS[nF]=sq; _tbB[nF]=sb[i]; nF++;
+    }
+  }
+  // the wash: one soft ellipse along each twig, filled a layer at a time, so
+  // they read as one cloud rather than a stack of discs; a wide faint layer
+  // under a closer one softens its edge. Per twig rather than per site: the
+  // overlaps are what a union costs to fill, and 170 sites cost 1ms of it.
+  if (bare>0.05){
+    // a sparse bloomer's twigs are far apart, so its wash is fainter or it reads as discs
+    const a=0.12*bare*Math.min(1,blv*1.4)*Math.min(1,0.4+0.6*dens);
+    const dy=style==='panicle' ? -len*0.45 : style==='cluster' ? 0 : len*0.45;
+    const ry0=style==='cluster' ? rcl*1.6 : Math.max(rcl*1.5,len*0.7);
+    ctx.save(); ctx.fillStyle=col;
+    for (const m of [1.3,0.85]){
+      ctx.globalAlpha=a; ctx.beginPath();
+      for (let i=0;i<N;i++){
+        // a weeper's strand: down the curtain, long and narrow, not on the arch
+        const t=tips[i], hang=t.length>4, [cx,cy]=alongLimb(t[0],t[1],hang ? 0.86 : 0.72,t);
+        const l=Math.hypot(t[0]-t[2],t[1]-t[3]), room=Math.max(rcl,crown.hw(cy)+rcl-Math.abs(cx));
+        const rx=Math.min(room,(hang ? rcl*1.8 : Math.max(rcl*2.1,l*0.42))*m);
+        const ry=Math.min(Math.max(ry0,l*(hang ? 0.4 : 0.3))*m,Math.max(fr*0.5,-cy-dy));
+        ctx.moveTo(cx+rx,cy+dy); ctx.ellipse(cx,cy+dy,rx,ry,0,0,7);
+      }
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  if (shape){
+    const T=TB_SHAPES[shape];
+    if (!T){
+      for (let b=0;b<3;b++) for (let i=0;i<nS;i++) if (sb[i]===b)
+        drawShrubFlower(ctx,sx[i],sy[i],fr,shade(col,TB_DROP[b]+6),shape,null,(sa[i]-0.5)*0.5,S.eye,L.flowerPetals);
+      return;
+    }
+    for (let b=0;b<3;b++) for (const [n,rr,pr,sq,turn,tone] of T.rings){
+      ctx.fillStyle=shade(col,TB_DROP[b]+6+tone); ctx.beginPath();
+      for (let i=0;i<nS;i++){
+        if (sb[i]!==b) continue;
+        for (let p=0;p<n;p++){
+          const a=(sa[i]-0.5)*0.5+p/n*Math.PI*2+turn, px=sx[i]+Math.cos(a)*rr*fr, py=sy[i]+Math.sin(a)*rr*fr*0.72;
+          ctx.moveTo(px+Math.cos(a)*pr*fr,py+Math.sin(a)*pr*fr); ctx.ellipse(px,py,pr*fr,pr*fr*sq,a,0,7);
+        }
+      }
+      ctx.fill();
+    }
+    const [er,esq,ecol]=T.eye;
+    ctx.fillStyle=S.eye||ecol||shade(col,20); ctx.beginPath();
+    for (let i=0;i<nS;i++){ ctx.moveTo(sx[i]+er*fr,sy[i]); ctx.ellipse(sx[i],sy[i],er*fr,er*fr*esq,0,0,7); }
+    ctx.fill();
+    return;
+  }
+  if (style==='catkin'){
+    // a tassel is one soft stroke, not a string of beads: three strokes a tree
+    ctx.lineCap='round'; ctx.lineWidth=Math.max(0.6,fr*0.95);
+    for (let b=0;b<3;b++){
+      ctx.strokeStyle=shade(col,TB_DROP[b]+4); ctx.beginPath();
+      for (let i=0;i<nS;i++){
+        if (sb[i]!==b) continue;
+        const side=sa[i]<0.5 ? -1 : 1, l=Math.min(len*(0.8+0.4*sa[i]),Math.max(fr,-sy[i]-fr*2));
+        ctx.moveTo(sx[i],sy[i]); ctx.quadraticCurveTo(sx[i]+side*fr*0.7,sy[i]+l*0.55,sx[i]+side*fr*0.35,sy[i]+l);
+      }
+      ctx.stroke();
+    }
+    return;
+  }
+  // one fill a tone, shadow side first; only the lit side carries a highlight,
+  // which at a floret's size is all a highlight can say
+  for (let b=0;b<3;b++){
+    ctx.fillStyle=shade(col,TB_DROP[b]); ctx.beginPath();
+    for (let i=0;i<nF;i++){
+      if (_tbB[i]!==b) continue;
+      ctx.moveTo(_tbX[i]+_tbR[i],_tbY[i]); ctx.ellipse(_tbX[i],_tbY[i],_tbR[i],_tbR[i]*_tbS[i],0,0,7);
+    }
+    ctx.fill();
+  }
+  ctx.fillStyle=shade(col,TB_LIFT[2]); ctx.beginPath();
+  for (let i=0;i<nF;i++){
+    if (_tbB[i]!==2 || _tbR[i]<1.15) continue;
+    const r=_tbR[i], hr=r*0.55, hx=_tbX[i]+LIT.x*r*0.34, hy=_tbY[i]+LIT.y*r*_tbS[i]*0.34;
+    ctx.moveTo(hx+hr,hy); ctx.ellipse(hx,hy,hr,hr*_tbS[i],0,0,7);
+  }
+  ctx.fill();
 }
 
 /* ---------- procedural plant renderer ----------
@@ -5492,7 +5674,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     // a named crown habit draws its own limbs and canopy (drawTreeHabit); the
     // flower and fruit passes below are shared, reading its tips
     const habit=treeHabitOf(L);
-    let tips, alongLimb, sheared=false;
+    let tips, alongLimb, sheared=false, crown=null, bare=0;
     if (habit){
       // sway is a lean that grows with height, the same shear the sprite blit
       // applies, so the cached and procedural trees move alike
@@ -5509,7 +5691,9 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       }
       const r=drawTreeHabit(ctx,L,LS,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
         season==='Fall' ? L.fallMix : null, leafAmt);
-      tips=r.tips; snowAnchors=r.snow;
+      tips=r.tips; snowAnchors=r.snow; crown=r.crown;
+      // how bare the wood the blossom sits on is: no leaves, or leaves coming out
+      bare=(!LS.fol || L.twigCanopy) ? 1 : 1-leafAmt;
       alongLimb=(tx2,ty2,f,tp)=>{
         if (!tp) return [tx2,ty2];
         if (tp.length>4){ const u=1-f; return [u*u*tp[2]+2*u*f*tp[4]+f*f*tx2, u*u*tp[3]+2*u*f*tp[5]+f*f*ty2]; }
@@ -5733,6 +5917,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.ellipse(hx+(rnd()-0.5)*12*vs,hy+(rnd()-0.5)*10*vs,3.2*vs,2.1*vs,(rnd()-0.5)*1.2,0,7); ctx.fill(); }
         }
         ctx.restore();
+      } else if (crown){
+        drawTreeBlossom(ctx,L,S,crown,tips,alongLimb,blv,vs,bare,seed);
       } else if (art2On(L)){
         // Blossom on a cherry or redbud IS the plant for that fortnight, so
         // this is the one place on a tree worth a second fill per shape.
