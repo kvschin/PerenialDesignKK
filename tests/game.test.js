@@ -1603,6 +1603,21 @@ test('a sized tree cultivar draws at its species\' scale for its real size', () 
   assertEqual(off.join(' | '),'','sized tree cultivars sit on their species\' drawn-size curve');
 });
 
+test('broad columnar sits between a column and an oval, on a leader', () => {
+  /* The upright selections ('Fastigiata', 'Green Mountain', 'Tupelo Tower')
+     drew their species' oval or pyramid. Wider than that oval, the first cut
+     made them look broader than the species they were selected to be narrower
+     than; the crown has to stay inside the oval's width and above the column's. */
+  const bc=TREE_HABITS.broadcolumn, ov=TREE_HABITS.oval, col=TREE_HABITS.column;
+  assert(bc.w<=ov.w && bc.w<TREE_HABITS.round.w, 'no wider than an oval or a round crown');
+  assert(bc.w*0.5<col.w*0.5+0.05 && bc.ascend<col.ascend, 'fuller than a column, with limbs less tight to the trunk');
+  assert(bc.leader>0.9, 'a central leader to the top');
+  const users=[];
+  for (const key of PLANT_KEYS) for (const v of Object.keys(PLANTS[key].cv||{}))
+    if (plantDef(key,v).look.crown==='broadcolumn') users.push(key+'.'+v);
+  assert(users.length>=10, `the upright cultivars use it (${users.join(', ')})`);
+});
+
 test('every weeping cultivar takes the weeping habit, and its strands hang', () => {
   /* A weeper naming any other crown would fall back to the classic armature
      (treeHabitOf refuses weep otherwise), quietly missing the crown, fall

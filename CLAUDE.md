@@ -6371,7 +6371,23 @@ Laceleaf maples are low cascading mounds, 'Snow Fountains' a narrow fountain,
 Weeping Higan an umbrella on a tall trunk, 'Purpurea Pendula' and 'Covey'
 domes on their graft. Bakes 0.74-1.74ms; 360 pixel renders in their boxes;
 everything but the six weepers is byte-identical to 0.9.53 (8,600 draws).
-Broad-columnar ('Fastigiata', 'Tupelo Tower') is still not its own habit.
+**0.9.55: broad columnar (`crown:'broadcolumn'`).** The upright-but-not-narrow
+selections had borrowed their species' habit: 'Fastigiata' hornbeam,
+'Green Mountain' and 'Legacy' sugar maples, 'Jeffersred', 'Frank Jr.',
+'Tupelo Tower', 'Shishigashira', 'Jim Wilson' sweetbay, 'Robin Hill',
+'Jane'. The habit is a central leader (`leader` 0.94) carrying limbs that
+climb steeply all the way up (`ascend` 1.1, against the column's 1.6) into a
+flame-shaped crown (`eHi` 1.45). Its width is the point and was measured, not
+guessed: the first cut at `w` 0.48 drew 'Fastigiata' broader than its own
+species' oval (0.42), so it is 0.40 and a test holds it inside the oval and
+round widths and outside the column's. Leader habits keep one trunk, so the
+multi-stem 'Jane' and 'Jim Wilson' (sold single-trunked) draw on one. Each
+cultivar carries `habit:{}` to shed its species' tweaks -- 'Shishigashira'
+also lost a stale crown:'oval' further along its own look, where a duplicate
+key would have silently won. Chosen from the catalog by spread/height against
+the species plus the notes; 'Princeton' elm stays a vase and 'Skyline' and
+'Espresso' stay open, those habits being what makes each that tree. 600
+pixel renders in their boxes; everything else byte-identical to 0.9.54.
 
 ## Conventions
 

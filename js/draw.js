@@ -1732,6 +1732,13 @@ const TREE_HABITS = {
             bend:-0.5, crook:0.06, lean:0.02, twigs:2, twigLen:0.05, droop:2.2,
             clusterR:0.06, squash:1.0, clump:0.7, hang:0, wash:0.16, washFrom:0.35, fill:0, rim:2.2, leafScale:0.8,
             weep:true, arch:0.5, domeDrop:0.45, curtain:0.65, coverMul:1.5, vPow:1.8},
+  // broad columnar: a central leader whose limbs climb steeply all the way up,
+  // into a dense flame-shaped crown -- fuller than a column, more upright and
+  // pointed than an oval ('Fastigiata' hornbeam, 'Green Mountain' sugar maple)
+  broadcolumn: {base:0.10, top:1.00, w:0.40, p:0.38, eLo:1.8, eHi:1.45, lo:0.55,
+            leader:0.94, oLo:0.12, oHi:0.88, ascend:1.1, scaffolds:12, tips:28, scaffold:0.55, fork:0.55, three:0.25,
+            bend:-0.6, crook:0.08, lean:0.01, twigs:2, twigLen:0.022,
+            clusterR:0.10, squash:0.85, clump:0.8, hang:0, wash:0.45, washFrom:0, fill:0.28, rim:0.8, leafScale:0.8},
   // a narrow upright selection on a leader (columnar oaks, 'Slender Silhouette')
   column:  {base:0.08, top:1.00, w:0.50, p:0.42, eLo:2.2, eHi:2.0, lo:0.45,
             leader:0.95, oLo:0.06, oHi:0.92, ascend:1.6, scaffolds:10, tips:22, scaffold:0.6, fork:0.55, three:0.2,

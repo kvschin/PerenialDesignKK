@@ -4017,7 +4017,7 @@ const PLANTS = {
     cv:{
       autumnbrilliance:{name:"'Autumn Brilliance'", note:'larger hybrid serviceberry with strong orange-red fall color', h:61, cw:52, heightIn:240, spread:180,
         latin:'Amelanchier x grandiflora', sea:{Spring:{bloom:'#f4efe6'}, Summer:{fol:'#5d7a4c',seed:'#42324a'}, Fall:{fol:'#c8583f',seed:'#4a303c'}}},
-      robinhill:{name:"'Robin Hill'", note:'pink buds opening pale, upright habit', h:62, cw:50, heightIn:240, spread:168,
+      robinhill:{look:{crown:'broadcolumn', habit:{}}, name:"'Robin Hill'", note:'pink buds opening pale, upright habit', h:62, cw:50, heightIn:240, spread:168,
         sea:{Spring:{bloom:'#f0cbd0'}, Summer:{fol:'#5d7a4c',seed:'#42324a'}, Fall:{fol:'#d98a3e'}}},
       standingovation:{name:"'Standing Ovation'", note:'narrow, upright serviceberry for small yards', h:63, cw:27, heightIn:192, spread:60,
         look:{crown:'column', art2:true, trunks:1, trunkW:4.8, bark:'#766f63', branches:5, branchSpread:1.15, flowerN:18, flowerSize:1.7, seedN:8, leafN:42, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2},
@@ -4637,7 +4637,7 @@ const PLANTS = {
     cv:{
       royalstar:{name:"'Royal Star'", note:'fuller white flowers, a little later and hardier in bud',
         sea:{Spring:{bloom:'#f7f5ee'}, Summer:{fol:'#54724a'}, Fall:{fol:'#cbab4c'}, Winter:{seed:'#6f6659'}}},
-      janemagnolia:{name:"'Jane'", note:'late-blooming Little Girl hybrid, purple-pink outside and pale within — the frost-dodger', h:52, cw:42, heightIn:180, spread:120,
+      janemagnolia:{look:{crown:'broadcolumn', habit:{}}, name:"'Jane'", note:'late-blooming Little Girl hybrid, purple-pink outside and pale within — the frost-dodger', h:52, cw:42, heightIn:180, spread:120,
         sea:{Spring:{bloom:'#b0668f'}, Summer:{fol:'#54724a'}, Fall:{fol:'#c9a749'}, Winter:{seed:'#6f6659'}}},
     }},
 
@@ -4687,7 +4687,7 @@ const PLANTS = {
         look:{fallMix:['#e0a43a','#c9c24c'], crown:'oval', habit:{leafScale:0.75}, art2:true, trunkW:4.5, bark:'#c36a48', branches:6, branchSpread:1.8, leafN:30, leafW:0.12, leafH:0.08},
         sea:{Spring:{fol:'#b8c875'}, Summer:{fol:'#7fa35e'}, Fall:{fol:'#e6bf42'}, Winter:{seed:'#c36a48'}}},
       shishigashira:{name:"'Shishigashira'", note:'compact lion-head maple with dense curled leaves', h:48, cw:35, heightIn:144, spread:84,
-        look:{fallMix:['#e0a43a','#c2452f'], crown:'oval', habit:{leafScale:0.8}, art2:true, trunkW:4.4, bark:'#6a5a4c', branches:6, branchSpread:1.35, leafN:42, leafW:0.12, leafH:0.08},
+        look:{crown:'broadcolumn', habit:{}, fallMix:['#e0a43a','#c2452f'], art2:true, trunkW:4.4, bark:'#6a5a4c', branches:6, branchSpread:1.35, leafN:42, leafW:0.12, leafH:0.08},
         sea:{Spring:{fol:'#7ca15d'}, Summer:{fol:'#526f43'}, Fall:{fol:'#d46b32'}}},
       osakazuki:{look:{fallMix:['#e0602f','#b02a35']}, name:"'Osakazuki'", note:'green summer leaves with brilliant scarlet fall color', h:55, cw:62, heightIn:216, spread:216,
         sea:{Spring:{fol:'#8baa66'}, Summer:{fol:'#547443'}, Fall:{fol:'#d2342e'}}},
@@ -4756,7 +4756,7 @@ const PLANTS = {
         h:97, cw:53, heightIn:420, spread:144,
         look:{crown:'column', branchSpread:0.9, leafN:58, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}},
       fastigiata:{name:"'Fastigiata'", note:'narrowly pyramidal when young, filling out to a dense upright oval; the street and allée hornbeam',
-        h:93, cw:81, heightIn:480, spread:300, look:{branchSpread:1.3}},
+        h:93, cw:81, heightIn:480, spread:300, look:{crown:'broadcolumn', habit:{}, branchSpread:1.3}},
     }},
   americanhornbeam:{ name:'American Hornbeam', latin:'Carpinus caroliniana', form:'tree', type:'tree', h:67, cw:81, heightIn:300,
     group:'hornbeam', groupLabel:'Hornbeam', chip:'American',
@@ -4800,7 +4800,7 @@ const PLANTS = {
       octoberglory:{name:"'October Glory'", note:'later fall color, often deep red',
         sea:{Spring:{fol:'#86a467',bloom:'#b94a42'}, Summer:{fol:'#57764b'}, Fall:{fol:'#b73532'}}},
       frankjr:{name:"'Frank Jr.'", note:'sold as Redpointe; a symmetrical pyramid with bright red fall color, more tolerant of alkaline soil than most red maples',
-        h:111, cw:95, heightIn:570, spread:390, look:{branchSpread:1.5}, sea:{Fall:{fol:'#cf3a2e'}}},
+        h:111, cw:95, heightIn:570, spread:390, look:{crown:'broadcolumn', habit:{}, branchSpread:1.5}, sea:{Fall:{fol:'#cf3a2e'}}},
     }},
   sugarmaple:{ name:'Sugar Maple', latin:'Acer saccharum', form:'tree', type:'tree', h:118, cw:138, heightIn:840,
     group:'namaple', groupLabel:'North American Maple', chip:'Sugar',
@@ -4809,9 +4809,9 @@ const PLANTS = {
     blurb:'Classic shade maple with dense summer canopy and yellow, orange, or red fall color. Likes cooler, richer soil.',
     sea:{Spring:{fol:'#88a866',bloom:'#c3c169'}, Summer:{fol:'#4f6f45'}, Fall:{fol:'#dc9532'}, Winter:{seed:'#6b5b47'}},
     cv:{
-      greenmountain:{name:"'Green Mountain'", note:'thick, dark leaves that hold up to heat and drought better than most sugar maples; orange to red in fall',
+      greenmountain:{look:{crown:'broadcolumn', habit:{}}, name:"'Green Mountain'", note:'thick, dark leaves that hold up to heat and drought better than most sugar maples; orange to red in fall',
         h:118, cw:116, heightIn:780, spread:540, sea:{Summer:{fol:'#47683f'}, Fall:{fol:'#d8662f'}}},
-      legacy:{name:"'Legacy'", note:'a dense, leathery-leaved selection that resists leaf tatter and scorch in hot summers',
+      legacy:{look:{crown:'broadcolumn', habit:{}}, name:"'Legacy'", note:'a dense, leathery-leaved selection that resists leaf tatter and scorch in hot summers',
         h:108, cw:105, heightIn:660, spread:456, sea:{Summer:{fol:'#4a6a42'}, Fall:{fol:'#d47a34'}}},
       bailsta:{name:"'Bailsta'", note:'sold as Fall Fiesta; thick glossy leaves and a vivid orange, red and yellow fall display',
         h:111, cw:116, heightIn:720, spread:540, sea:{Fall:{fol:'#e0702e'}}},
@@ -4831,7 +4831,7 @@ const PLANTS = {
     blurb:'Hybrid red x silver maple: red maple fall color with silver maple speed and tolerance of poor, heavy soil. It is almost always sold as a named cultivar. Red flowers open on bare wood before the leaves.',
     sea:{Spring:{fol:'#8aa86a',bloom:'#b94a42'}, Summer:{fol:'#58774c'}, Fall:{fol:'#d34b2d'}, Winter:{seed:'#6b5b47'}},
     cv:{
-      jeffersred:{name:"'Jeffersred'", note:'sold as Autumn Blaze; the familiar fast oval shade tree, with orange-red fall color that holds for weeks',
+      jeffersred:{look:{crown:'broadcolumn', habit:{}}, name:"'Jeffersred'", note:'sold as Autumn Blaze; the familiar fast oval shade tree, with orange-red fall color that holds for weeks',
         h:123, cw:106, heightIn:660, spread:480, sea:{Fall:{fol:'#d6492c'}}},
       armstrong:{name:"'Armstrong'", note:'a narrow column for tight lots and street strips; often listed as a red maple, but a Freeman hybrid. Fall color is a modest yellow-orange',
         h:140, cw:66, heightIn:660, spread:216, look:{fallMix:['#e0b03c','#d0682f'], crown:'column', branchSpread:0.95, leafN:51, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2}, sea:{Fall:{fol:'#d9993a'}}},
@@ -4843,7 +4843,7 @@ const PLANTS = {
     sea:{Spring:{fol:'#8aa86a'}, Summer:{fol:'#456b43',seed:'#283f5f'}, Fall:{fol:'#b73236',seed:'#26364e'}, Winter:{seed:'#57483e'}},
     cv:{
       wildfire:{name:"'Wildfire'", note:'red spring flush plus red fall color', sea:{Spring:{fol:'#b84a3d'}, Summer:{fol:'#466b43'}, Fall:{fol:'#b72f36'}}},
-      tupelotower:{name:"'Tupelo Tower'", note:'narrow upright black gum for tighter spaces', h:94, cw:61, heightIn:420, spread:216, sea:{Summer:{fol:'#456b43'}, Fall:{fol:'#ad2e36'}}},
+      tupelotower:{look:{crown:'broadcolumn', habit:{}}, name:"'Tupelo Tower'", note:'narrow upright black gum for tighter spaces', h:94, cw:61, heightIn:420, spread:216, sea:{Summer:{fol:'#456b43'}, Fall:{fol:'#ad2e36'}}},
       afterburner:{name:"'Afterburner'", note:'strong scarlet fall display', sea:{Summer:{fol:'#456b43'}, Fall:{fol:'#c43132'}}},
     }},
   sweetgum:{ name:'Sweet Gum', latin:'Liquidambar styraciflua', form:'tree', type:'tree', h:118, cw:125, heightIn:840,
@@ -5947,7 +5947,7 @@ const PLANTS = {
     blurb:'A fragrant-flowered coastal-plain tree for moist, acidic soil, rain gardens, and woodland edges, modeled here at forty by twenty feet. Size and winter foliage vary sharply: northern plants are usually shorter and deciduous, while Deep South provenances, var. australis, and selected cultivars can grow much taller and remain evergreen. The May-to-September calendar is a broad main-flush-plus-scattered-bloom window, not continuous full bloom.',
     sea:{Spring:{fol:'#5e7c57',bloom:'#f1eee1',eye:'#c7a548'}, Summer:{fol:'#4f714f',bloom:'#efe9d8',eye:'#c39f44'}, Fall:{fol:'#65745a',bloom:'#ece6d8',eye:'#b8943f',seed:'#c64c3e'}, Winter:{}},
     cv:{
-      jimwilson:{name:"'Jim Wilson'", note:'sold as Moonglow; an upright, usually single-trunked selection that holds its leaves well into winter',
+      jimwilson:{look:{crown:'broadcolumn', habit:{}}, name:"'Jim Wilson'", note:'sold as Moonglow; an upright, usually single-trunked selection that holds its leaves well into winter',
         h:76, cw:77, heightIn:420, spread:216, sea:{Winter:{fol:'#58684f'}}},
     }},
   /* ---------- climbers ----------
