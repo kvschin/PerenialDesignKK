@@ -112,7 +112,7 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,607,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,609,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),461,
     'canonical nested-choice count');
@@ -418,6 +418,12 @@ test('European hedging trees and highbush blueberry carry their real ranges', ()
   assertEqual(PLANTS.irishyew.provenance,'selection','Irish yew is a named selection');
   assert(PLANTS.americanhornbeam.nativeTo.includes('north-america'),'musclewood is North American');
   assert(PLANTS.highbushblueberry.nativeTo.includes('north-america'),'highbush blueberry is North American');
+  // POWO: E Canada to C and E USA; the Mexican beech is now its own species
+  assertEqual(PLANTS.americanbeech.nativeTo.join(','),'north-america','American beech is North American only');
+  assertEqual(PLANTS.lowbushblueberry.nativeTo.join(','),'north-america','lowbush blueberry is North American');
+  for (const k of ['americanbeech','lowbushblueberry']) assertEqual(PLANTS[k].provenance,'species',`${k}: straight species`);
+  assertEqual(PLANTS.americanbeech.group,'beech','American beech browses with the beeches');
+  assertEqual(PLANTS.lowbushblueberry.group,'blueberry','lowbush browses with the blueberries');
   for (const v of ['northland','tophat','pinklemonade','sunshineblue'])
     assertEqual(PLANTS.highbushblueberry.cv[v].provenance,'hybrid',`${v}: a bred hybrid`);
   assertEqual(PLANTS.highbushblueberry.cv.bluecrop.provenance,'selection','Bluecrop is a straight highbush selection');

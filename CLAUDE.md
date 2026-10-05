@@ -6198,6 +6198,11 @@ orchard set; its bells and berries sit ALONG the stems (`bloomStyle:'stemAxil'`,
 no `fruitStyle`), since tip clusters read as a blue-flowered shrub. Cultivars:
 'Bluecrop', 'Patriot', and the hybrids 'Northland', 'Top Hat', 'Pink
 Lemonade' and the southern highbush 'Sunshine Blue'.
+0.9.46 added the two North American counterparts: `americanbeech` (*Fagus
+grandifolia*, North America only -- POWO now treats the Mexican beech as its
+own species) in the beech family, whose European tree chip became 'European',
+and `lowbushblueberry` (*Vaccinium angustifolium*), a 1 ft rhizomatous
+groundcover for dry acid sand, in the blueberry family.
 
 ## Conventions
 
