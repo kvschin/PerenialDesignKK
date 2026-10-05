@@ -6464,6 +6464,34 @@ paid only on bloom-stage bakes; `dev/ff-bench.cjs` on the 36-tree garden shows
 no change in fast-forward. Everything but a habit tree in bloom draws call for
 call as in 0.9.56 (16,890 draws); smoketree's smoke and `?habit=0` keep the old
 pass. `bloomSheet([...])` in `dev/tree-habit-review.html` shows trees at peak.
+**0.9.58: trees drop their leaves through late fall (`lo.drop`, `LEAF_DROP`,
+`treeDropStage`, world.js; `dropping` in `drawTreeHabit`; `drawFallenLeaves`,
+draw.js).** Fall colour stood whole until December 1, then every crown went bare
+at once. Leaf drop is leaf-out's mirror on the same machinery: the garden passes
+a drop stage in Fall (LEAF_FULL in full colour down to 0 bare, so stage 4 is the
+authored fall tree call for call and the turn to Winter changes nothing), the
+sprite key carries `|L<stage>` (`rec.leafOut` now also for a Fall tree with a
+drop; `leafStageForFrame` memoises per frame AND season), and `aheadBakePlant`
+asks for the Fall stage at the turn. Timing is `phen` again, and it fits: the
+late leafers (walnuts, honeylocust, coffeetree, persimmons) are bare first, Oct
+15 to Nov 13; maples, birches and fruit trees Oct 23 to Nov 21; oaks, beeches
+and sweetgum last, Nov 2 to Nov 28. A tree that HOLDS its leaves (non-green
+Winter `fol`: bur oak, 'Crimschmidt') has `drop:null` and keeps them. A thinning
+crown does not shrink back into tufts the way an emerging one grows: whole leaf
+masses go, by a golden-ratio walk weighted by a phase per clump so clumps go
+bare patchily, the inner fill first, each mass keeping its place and COLOUR.
+**The fall colour picker has its own random stream**, so a mass that is skipped
+must still ask it for its colour, or every mass after it is recoloured from
+stage to stage (a test; the first cut did exactly that). What has fallen lies
+under the tree in its fall colours (`drawFallenLeaves`, up to `FALLEN_MAX` 60
+small leaves inside 0.62 of the ground shadow, one fill a colour, fixed draws
+per leaf so the litter only grows). A drop-stage bake costs what a full fall
+bake does (median 2.3-2.5ms against 2.3); 4,800 pixel renders of the 200 trees
+that drop stay in their boxes (min margin 8px); every default draw is
+byte-identical to 0.9.57 (17,296). `dev/ff-bench.cjs` on the 36-tree garden:
+late-fall fast-forward 0 -> 1.2 bakes and ~4.3 -> 5.8ms a frame, other seasons
+unchanged. `dropSheet([...])` in `dev/tree-habit-review.html` draws a tree
+September to December. Shrubs do not leaf out or drop yet (see the backlog).
 
 ## Conventions
 
@@ -7069,6 +7097,26 @@ that picker is an optional feature decision, separate from site authoring.
 Live collaboration is not on the roadmap; if it ever returns it starts from
 `sGet`/`sSet` and a real server, not the removed tab-local scaffolding.
 
+- **Shrub leaf-out and leaf drop** *(todo — do it with the planned general
+  rework of how shrubs look)*. Trees leaf out through spring (0.9.56) and drop
+  their leaves through late fall (0.9.58); shrubs do neither. All 102 `bush`
+  and `hydrangea` shrubs stand in full leaf on March 1, forsythia and witch
+  hazel included, which really flower on bare stems, and every deciduous shrub
+  goes bare at once on December 1. Reuse the tree machinery rather than
+  building a second one: `treeLeafOut`/`treeLeafStage`/`treeDropStage` and the
+  `LEAF_OUT`/`LEAF_DROP` timing by `phen` (world.js), drawPlant's `leafStage`
+  argument, `|L<stage>` in the sprite key (`bakePlantKeyParts`'
+  `rec.leafOut`, `leafStageForFrame`), `makePlantSprite`, `aheadBakePlant`, and
+  `drawFallenLeaves`. What differs: the gate is `isTreeDef` today and has to
+  admit shrubs; no shrub authors a Spring `bloom` without `fol`, so the
+  bare-wood signal is probably `look.bloomStyle:'bareStem'` (forsythia, witch
+  hazel) or bloom months that end before leaf-out; evergreen shrubs are the
+  ones with a green Winter `fol` (boxwood, inkberry, the hollies, mountain
+  laurel); and the bush renderer draws its own leaves, so the emerging and
+  dropping stages have to be built there, keeping the rule that a stage
+  changes sizes and which shapes draw but never the random streams (including
+  `fallColourPicker`'s). Expect the cost to look like the trees': per frame
+  nothing, a handful of extra bakes per shrub per year.
 - **Matrix/scatter mode** *(built)* — interplant at authored spacing through
   `matrixSpacingBlocks`/`placePlantAt` and the Matrix brush controls.
 - **Plant health / water** *(unscheduled idea)* — establishment failure and

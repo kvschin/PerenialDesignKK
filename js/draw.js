@@ -1927,13 +1927,15 @@ const _thSeg=new Float64Array(TH_STRIDE*TH_MAX);
 /* Draw a habit tree's limbs and (in leaf) its crown. Returns the twig tips as
    [x,y,parentX,parentY] in a spread-out order, for the flower and fruit passes,
    and snow anchors along the limbs. `nLeaf` is the blob budget. */
-function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix, leafAmt){
+function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix, leafAmt, dropping){
   // leafAmt < 1: leaves coming out in spring. The crown is see-through, so the
   // limbs and the twig fringe draw as in winter, and the leaves are small
   // tufts at the twig tips that grow into clumps; the inner mass and the
   // underwash come last. Only sizes and which shapes draw depend on it, never
   // the random streams, so a tree keeps its shape from one stage to the next.
-  const la=leafAmt===undefined ? 1 : Math.max(0,Math.min(1,leafAmt));
+  // `dropping`: the same, but leaves coming DOWN in late fall. They do not
+  // shrink back into tufts; whole leaf masses go, patchily, clump by clump.
+  const la=leafAmt===undefined ? 1 : Math.max(0,Math.min(1,leafAmt)), emerging=la<1 && !dropping;
   const arm=mulberry(seed^0x5ca1ab), leaf=mulberry(seed^0x1eaf5);
   const base=H*hb.base, span=H*(hb.top-hb.base), W=cw*hb.w;
   const toY=v=>-(base+span*v);
@@ -2249,7 +2251,7 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
     }
     const contrast=T ? T.contrast : 1, droop=T ? T.droop : 0;
     const yMid=toY(0.5), half=span/2;
-    if (la<1){ const k=0.35+0.65*la; bw*=k; bh*=k; }
+    if (emerging){ const k=0.35+0.65*la; bw*=k; bh*=k; }
     if (hb.wash>0 && la>=0.5){
       ctx.save(); ctx.globalAlpha=hb.wash*(T ? T.wash : 1)*(la<1 ? la*la : 1); ctx.beginPath();
       // a soft shape inside the outline: rounded where it starts, and never
@@ -2279,19 +2281,24 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
       let v=0, x=0, g=0;
       do { v=leaf(); x=(leaf()*2-1)*W; } while (Math.abs(x)>W*treeCrownHW(hb,v)*0.85 && ++g<10);
       const y=toY(v);
-      const rot=droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI, tone=(glob(x,y)*20-10)*contrast+(leaf()-0.5)*10;
-      // the inner mass fills in last, a share of it at each stage
-      if (la>=1 || (i*0.6180339887)%1<la*la) blob(x,y,rot,tone,1,colAt(x,y));
+      // the colour too, whether or not it draws: the fall picker has a stream
+      // of its own, and skipping it would recolour every mass after this one
+      const rot=droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI, tone=(glob(x,y)*20-10)*contrast+(leaf()-0.5)*10, col=colAt(x,y);
+      // the inner mass fills in last (and is half gone by mid-drop), a share at each stage
+      if (la>=1 || (i*0.6180339887)%1<(dropping ? la : la*la)) blob(x,y,rot,tone,1,col);
     }
     // clumps drawn shadowed side first, so the lit ones overlap them
     const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
-    const rc0=cw*hb.clusterR*(la<1 ? 0.3+0.7*la : 1), per=nTip/N, tmp=[], leafSnow=[];
-    let made=0;
+    const rc0=cw*hb.clusterR*(emerging ? 0.3+0.7*la : 1), per=nTip/N, tmp=[], leafSnow=[];
+    // which leaf masses are still up while they come down: by a golden-ratio
+    // walk, weighted by a phase per clump so whole clumps go bare first
+    let made=0, bi=0;
+    const up=ph=>{ const k=bi++; return !dropping || la>=1 || ((k*0.6180339887)%1)*0.55+ph*0.45<la; };
     order.forEach((i,r)=>{
       let cnt=Math.round(per*(r+1))-made; made+=cnt;
       if (cnt<=0) return;
       const cx=hb.weep ? tx[i] : tx[i]+(tx[i]-tpx[i])*0.12, cy=hb.weep ? ty[i] : ty[i]+(ty[i]-tpy[i])*0.12;
-      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20, cc=colAt(cx,cy);
+      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*12, gl=glob(cx,cy)*20, cc=colAt(cx,cy), ph=(i*0.7548776662)%1;
       if (hb.weep && ty[i]>tpy[i]){
         // a hanging spray is longer than it is wide: the blob's long axis
         // turned to the vertical, laid down the strand from the arch to the tip
@@ -2300,7 +2307,8 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
         for (let j=0;j<hangN;j++){
           const t=0.3+0.7*leaf(), u=1-t;
           const px=u*u*x0+2*u*t*qx+t*t*tx[i]+(leaf()-0.5)*bw*0.8, py=u*u*y0+2*u*t*qy+t*t*ty[i];
-          blob(px,py,Math.PI/2+(leaf()-0.5)*0.6,(glob(px,py)*20+ct)*contrast+(leaf()-0.5)*10,0.9+leaf()*0.2,colAt(px,py));
+          const rot=Math.PI/2+(leaf()-0.5)*0.6, tone=(glob(px,py)*20+ct)*contrast+(leaf()-0.5)*10, e=0.9+leaf()*0.2, col=colAt(px,py);
+          if (up(ph)) blob(px,py,rot,tone,e,col);
         }
         cnt-=hangN; if (cnt<=0) return;
       }
@@ -2313,7 +2321,10 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
         tmp.push([dx,dy,(dx/rc)*LIT.x+(dy/rc)*LIT.y,droop ? (leaf()-0.5)*droop*2 : leaf()*Math.PI,0.86+0.14*(1-rr/rc)]);
       }
       tmp.sort((a,b)=>a[2]-b[2]);
-      for (const [dx,dy,ul,rot,e] of tmp) blob(cx+dx,cy+dy,rot,(gl+ul*hb.clump*16+ct)*contrast+(leaf()-0.5)*8,e,cc);
+      for (const [dx,dy,ul,rot,e] of tmp){
+        const tone=(gl+ul*hb.clump*16+ct)*contrast+(leaf()-0.5)*8;
+        if (up(ph)) blob(cx+dx,cy+dy,rot,tone,e,cc);
+      }
     });
     if (leafSnow.length) anchors.splice(0,anchors.length,...leafSnow);
   }
@@ -2328,7 +2339,32 @@ function drawTreeHabit(ctx, L, S, hb, H, cw, vs, growth, seed, nLeaf, snowy, mix
   // the crown, for the blossom pass: its outline's area, its light, its clumps
   if (hb._area===undefined){ let a=0; for (let i=0;i<24;i++) a+=2*treeCrownHW(hb,(i+0.5)/24)/24; hb._area=a; }
   return {tips:spread, snow:anchors,
-    crown:{W, hw:hwAt, yMid:toY(0.5), half:span/2, area:hb._area*W*span, rc:cw*hb.clusterR*(la<1 ? 0.3+0.7*la : 1)}};
+    crown:{W, hw:hwAt, yMid:toY(0.5), half:span/2, area:hb._area*W*span, rc:cw*hb.clusterR*(emerging ? 0.3+0.7*la : 1)}};
+}
+/* Fallen leaves under a tree in late fall, in its fall colours: `fallen` (0..1)
+   of the crown is down, spread through the inner part of its ground shadow,
+   which the sprite box already holds. Fixed draws per leaf, so the litter
+   only grows as more falls. One fill a colour, a little duller on the ground. */
+const FALLEN_MAX=60;
+function drawFallenLeaves(ctx, fol, mix, shR, vs, fallen, seed){
+  const cols=[fol].concat(mix||[]), n=Math.round(FALLEN_MAX*Math.min(1,shR/60)*fallen);
+  if (n<1) return;
+  const r=mulberry((seed^0x1ea4f)>>>0), rx=shR*0.62, ry=rx*0.34;
+  const xs=new Float64Array(n), ys=new Float64Array(n), rs=new Float64Array(n), as=new Float64Array(n), cs=new Uint8Array(n);
+  for (let i=0;i<n;i++){
+    const a=r()*6.283, rr=Math.sqrt(r());
+    xs[i]=Math.cos(a)*rr*rx; ys[i]=2+Math.sin(a)*rr*ry; rs[i]=(1.1+0.7*r())*vs*0.8; as[i]=(r()-0.5)*1.4;
+    cs[i]=Math.min(cols.length-1,Math.floor(r()*cols.length));
+  }
+  for (let c=0;c<cols.length;c++){
+    ctx.fillStyle=shade(cols[c],-16); ctx.beginPath(); let any=false;
+    for (let i=0;i<n;i++){
+      if (cs[i]!==c) continue;
+      ctx.moveTo(xs[i]+Math.cos(as[i])*rs[i],ys[i]+Math.sin(as[i])*rs[i]);
+      ctx.ellipse(xs[i],ys[i],rs[i],rs[i]*0.45,as[i],0,7); any=true;
+    }
+    if (any) ctx.fill();
+  }
 }
 /* ---------- tree blossom ----------
    A tree in bloom drew 10-40 single florets, so a redbud in full bloom was a
@@ -5682,15 +5718,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const n=stemFor(Math.round((L.leafN||26)*Math.min(3,Math.max(1,vs*0.75))));
       // leaf-out (treeLeafOut): a spring tree in the garden is handed its stage;
       // previews pass none and draw the season as authored
-      let LS=S, leafAmt=1;
-      const lo=leafStage!==undefined && season==='Spring' ? treeLeafOut(P) : null;
-      if (lo){
+      let LS=S, leafAmt=1, dropping=false;
+      const lo=leafStage!==undefined && (season==='Spring'||season==='Fall') ? treeLeafOut(P) : null;
+      if (lo && season==='Spring'){
         const k=Math.max(0,Math.min(LEAF_STAGES,leafStage|0));
         leafAmt=Math.min(1,k/LEAF_FULL);
         LS=Object.assign({},S,{fol:k ? lo.cols[k] : undefined});
+      } else if (lo && lo.drop && S.fol){
+        // leaves coming down: the crown keeps its fall colours as it thins,
+        // and what has fallen lies under it, in the same colours
+        const k=Math.max(0,Math.min(LEAF_FULL,leafStage|0));
+        leafAmt=k/LEAF_FULL; dropping=true;
+        if (!k) LS=Object.assign({},S,{fol:undefined});
+        if (leafAmt<1) drawFallenLeaves(ctx,S.fol,L.fallMix,shR,vs,1-leafAmt,seed);
       }
       const r=drawTreeHabit(ctx,L,LS,habit,H,cw,vs,growth,seed,n,mature&&!!AMBIENCE[season].snow,
-        season==='Fall' ? L.fallMix : null, leafAmt);
+        season==='Fall' ? L.fallMix : null, leafAmt, dropping);
       tips=r.tips; snowAnchors=r.snow; crown=r.crown;
       // how bare the wood the blossom sits on is: no leaves, or leaves coming out
       bare=(!LS.fol || L.twigCanopy) ? 1 : 1-leafAmt;

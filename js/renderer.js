@@ -1608,8 +1608,10 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
   rec.sv=key+'|'+(variant||'');
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
-  // a deciduous tree in spring carries its leaf-out stage (treeLeafOut) as well
-  rec.leafOut=season==='Spring' && !!treeLeafOut(plantDef(key,variant));
+  // a deciduous tree in spring carries its leaf-out stage (treeLeafOut) as
+  // well, and one that drops its leaves carries its leaf-drop stage in fall
+  const lo=(season==='Spring'||season==='Fall') ? treeLeafOut(plantDef(key,variant)) : null;
+  rec.leafOut=!!lo && (season==='Spring' || !!lo.drop);
 }
 /* bloomLevel is a pure function of the species and the clock, so within one
    frame every clump of a species has the same answer — 532 calls collapsing to
@@ -1623,12 +1625,12 @@ function bloomLevelForFrame(sv,key,variant){
   if (v===undefined){ v=bloomLevel(key,variant); bloomMemo.set(sv,v); }
   return v;
 }
-// the leaf-out stage, like bloom one answer per species per frame
-let leafMemo=new Map(), leafMemoFrame=-1;
-function leafStageForFrame(sv,key,variant){
-  if (leafMemoFrame!==PSPRITE.frame){ leafMemoFrame=PSPRITE.frame; leafMemo.clear(); }
+// the leaf stage, like bloom one answer per species per frame (and season)
+let leafMemo=new Map(), leafMemoFrame=-1, leafMemoSeason=null;
+function leafStageForFrame(sv,key,variant,season){
+  if (leafMemoFrame!==PSPRITE.frame || leafMemoSeason!==season){ leafMemoFrame=PSPRITE.frame; leafMemoSeason=season; leafMemo.clear(); }
   let v=leafMemo.get(sv);
-  if (v===undefined){ v=leafStageNow(plantDef(key,variant),'Spring'); leafMemo.set(sv,v); }
+  if (v===undefined){ v=leafStageNow(plantDef(key,variant),season); leafMemo.set(sv,v); }
   return v;
 }
 function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,detail,useSprites,rec){
@@ -1637,7 +1639,7 @@ function drawPlantMaybeCached(ctx,bx,by,key,growth,season,seed,sway,variant,deta
   if (!rec || rec.kSlot===undefined) { rec=rec||{}; bakePlantKeyParts(rec,key,variant,season,seed,detail); }
   const gB=gbucket(growth,9);
   const bB=rec.hasBloom?gbucket(bloomLevelForFrame(rec.sv,key,variant),4):0;
-  const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant):-1;
+  const lB=rec.leafOut?leafStageForFrame(rec.sv,key,variant,season):-1;
   const kk=rec.kSlot+'|'+gB+'|'+bB+(lB>=0?'|L'+lB:'')+rec.kTail;
   /* This clump's own SLOT — what identifies the plant rather than the moment.
 

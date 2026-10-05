@@ -1671,10 +1671,14 @@ test('deciduous trees leaf out through spring, in the order they really do', () 
   assertEqual(leafStageNow(plantDef('whiteoak',null),'Summer'),undefined,'no stage outside spring');
 });
 
-test('a leaf stage draws only on a spring tree, and full leaf is the authored spring tree', () => {
-  for (const season of ['Summer','Fall','Winter'])
+test('a leaf stage draws only on a spring or fall tree, and full leaf is the authored tree', () => {
+  for (const season of ['Summer','Winter'])
     assertEqual(plantDrawCalls('whiteoak',null,season,4242,1,0,2), plantDrawCalls('whiteoak',null,season,4242,1),
       'a leaf stage in '+season+' changes nothing');
+  assertEqual(plantDrawCalls('buroak',null,'Fall',4242,1,0,1), plantDrawCalls('buroak',null,'Fall',4242,1),
+    'a bur oak holds its leaves into winter, so it drops none');
+  for (const k of ['sugarmaple','sweetgum','redbud'])
+    assertEqual(plantDrawCalls(k,null,'Fall',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Fall',4242,1), k+' in full fall colour');
   assertEqual(plantDrawCalls('bluestem',null,'Spring',4242,1,0,2), plantDrawCalls('bluestem',null,'Spring',4242,1),
     'nor on a grass');
   /* full leaf with an authored spring colour is the authored tree, call for
@@ -1689,11 +1693,42 @@ test('a leaf stage draws only on a spring tree, and full leaf is the authored sp
   assert(bare<first && first<full, `bare, then tufts, then the crown (${bare}, ${first}, ${full} shapes)`);
 });
 
-test('a spring tree caches by its leaf stage, and nothing else does', () => {
+test('a spring or fall tree caches by its leaf stage, and nothing else does', () => {
   const rec=(k,season)=>{ const r={}; bakePlantKeyParts(r,k,null,season,7,undefined); return r.leafOut; };
-  assert(rec('whiteoak','Spring'), 'a spring oak');
-  for (const [k,season] of [['whiteoak','Summer'],['whiteoak','Winter'],['lemon','Spring'],['bluestem','Spring']])
+  assert(rec('whiteoak','Spring') && rec('whiteoak','Fall'), 'an oak in spring and in fall');
+  for (const [k,season] of [['whiteoak','Summer'],['whiteoak','Winter'],['buroak','Fall'],['lemon','Spring'],['bluestem','Spring']])
     assert(!rec(k,season), k+' in '+season+' keeps its key');
+});
+
+test('deciduous trees drop their leaves through late fall, and the litter lies under them', () => {
+  /* Fall colour stood whole until December 1, then every crown went bare at once. */
+  const lo=k=>treeLeafOut(plantDef(k,null));
+  assert(!lo('buroak').drop, 'a bur oak holds its leaves into winter');
+  assert(lo('blackwalnut').drop.s<lo('sugarmaple').drop.s && lo('sugarmaple').drop.s<lo('whiteoak').drop.s,
+    'the walnut is bare first, the oak last');
+  for (const k of ['whiteoak','sugarmaple','blackwalnut']){
+    const d=lo(k).drop;
+    assertEqual(treeDropStage(d,DAYS_PER_SEASON*2+1),LEAF_FULL,k+' is in full leaf in early September');
+    assertEqual(treeDropStage(d,DAYS_PER_SEASON*3-0.05),0,k+' is bare by the end of November');
+    let prev=LEAF_FULL;
+    for (let d2=DAYS_PER_SEASON*2; d2<DAYS_PER_SEASON*3; d2+=0.25){ const st=treeDropStage(d,d2); assert(st<=prev, k+' never puts leaves back'); prev=st; }
+  }
+  game.dayOffset=DAYS_PER_SEASON*2+15; assertEqual(leafStageNow(plantDef('sugarmaple',null),'Fall'),0,'a maple is bare in late November');
+  assertEqual(leafStageNow(plantDef('buroak',null),'Fall'),undefined,'a bur oak has no stage');
+  /* the crown thins by whole masses, which keep their colours as others fall,
+     and what has fallen lies on the ground under it */
+  const fills=t=>{ const out=[], lines=t.split('\n'); let col=null;
+    for (const l of lines){ if (l.startsWith('set fillStyle=')) col=l.slice(14); else if (/^ellipse\(/.test(l)) out.push(l+' '+col); }
+    return out; };
+  const full=fills(plantDrawCalls('sugarmaple',null,'Fall',4242,1,0,LEAF_FULL)),
+    half=fills(plantDrawCalls('sugarmaple',null,'Fall',4242,1,0,2));
+  // a leaf mass is tens of units across, a fallen leaf a few; the shadow is rgba
+  const rx=e=>+e.slice(8).split(',')[2];
+  const crown=s=>s.filter(e=>rx(e)>12 && !/rgba\(0,0,0/.test(e)), ground=s=>s.filter(e=>rx(e)<=12);
+  assert(crown(half).length<crown(full).length*0.75, `half the crown's masses are down (${crown(half).length} of ${crown(full).length})`);
+  assert(crown(half).every(e=>crown(full).includes(e)), 'the masses still up are where they were, in the same colour');
+  assert(ground(half).length>ground(full).length && ground(half).every(e=>+e.slice(8).split(',')[1]>-60),
+    'and the fallen ones lie on the ground under it');
 });
 
 test('a weeping tree hangs its flowers down its curtains, on both sides', () => {

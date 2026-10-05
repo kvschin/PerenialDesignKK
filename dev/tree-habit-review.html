@@ -227,6 +227,38 @@ window.bloomSheet=function(refs,cell,per){
   });
   return ov;
 };
+/* Leaf drop through late fall, from the console: dropSheet(['sugarmaple','whiteoak'])
+   draws each tree September to December at its leaf-drop stage (treeDropStage),
+   with what has fallen under it. */
+window.dropSheet=function(refs,days,cell){
+  days=days||[34,38,40.5,42,43.5,45,46.5,47.8,49]; cell=cell||97;
+  const lab=16;
+  let ov=document.getElementById('dropSheet'); if (ov) ov.remove();
+  ov=document.createElement('canvas'); ov.id='dropSheet'; ov.width=days.length*cell; ov.height=refs.length*(cell+lab)+lab;
+  ov.style.cssText='position:fixed;left:0;top:0;z-index:99';
+  document.body.append(ov); const o=ov.getContext('2d'); o.fillStyle='#b9b98a'; o.fillRect(0,0,ov.width,ov.height);
+  o.font='10px sans-serif'; o.fillStyle='#222';
+  const M=YEAR_DAYS/12, mon=d=>['Sep','Oct','Nov','Dec'][Math.floor((d-2*DAYS_PER_SEASON)/M)]+' '+(1+Math.floor(((d-2*DAYS_PER_SEASON)%M)/M*30));
+  days.forEach((d,i)=>o.fillText(mon(d), i*cell+4, 12));
+  refs.forEach((ref,ri)=>{
+    const [k,v]=ref.split('.'), P=plantDef(k,v||null), lo=treeLeafOut(P);
+    const shots=days.map(d=>{
+      const season=d<3*DAYS_PER_SEASON?'Fall':'Winter';
+      const ls=lo && lo.drop && season==='Fall' ? treeDropStage(lo.drop,d) : undefined;
+      const b=plantDrawBox(P,k,1), c=document.createElement('canvas'); c.width=Math.ceil(b.halfW*2); c.height=Math.ceil(b.top+b.bot);
+      drawPlant(c.getContext('2d'),b.halfW,b.top,k,1,season,HB_SEED,0,v||null,0,undefined,ls);
+      return {c,b,ls};
+    });
+    const b0=shots[0].b, f=Math.min((cell-6)/(b0.halfW*2),(cell-6)/(b0.top+b0.bot*0.5));
+    shots.forEach((s,i)=>{
+      const x0=i*cell, y0=lab+ri*(cell+lab);
+      o.save(); o.beginPath(); o.rect(x0,y0,cell,cell); o.clip();
+      o.drawImage(s.c, x0+cell/2-s.b.halfW*f, y0+cell-14-s.b.top*f, s.c.width*f, s.c.height*f); o.restore();
+      o.fillStyle='#222'; o.fillText((i?'':(v||k).slice(0,9)+' ')+'L'+(s.ls===undefined?'-':s.ls), x0+3, y0+cell+11);
+    });
+  });
+  return ov;
+};
 /* Leaf-out through spring, from the console: leafSheet(['redbud','whiteoak'])
    draws each tree across March to June at its leaf stage (treeLeafOut) and
    bloom level, the way the garden does; L is the stage, b the bloom. */

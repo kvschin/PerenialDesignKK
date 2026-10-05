@@ -919,8 +919,16 @@ function bloomLevel(key,variant){
    green, so a bur oak still leafs out.
    Stages are what the sprite key carries: 0 bare, 1-3 emerging, 4 full leaf,
    5-6 darkening. Quantised for the procedural path too, so the two agree and
-   the colours drawn come from a short list. */
+   the colours drawn come from a short list.
+   The leaves come down the same way in late fall (`lo.drop`, in days of the
+   year: Fall is 32-48, October from 37.3, November from 42.7), from full fall
+   colour at stage 4 to bare at 0, so the turn to Winter changes nothing. The
+   order is phen's again, as it happens: the late leafers (walnuts,
+   honeylocust, coffeetree, persimmons) are the first bare, the maples, birches
+   and fruit trees next, the oaks, beeches and sweetgum last. A tree that HOLDS
+   its leaves through winter (a bur oak's tan Winter fol) keeps them. */
 const LEAF_OUT={cool:{s:6,f:10}, mid:{s:8,f:12.5}, warm:{s:9.8,f:14}};
+const LEAF_DROP={warm:{s:40,f:45}, cool:{s:41.5,f:46.5}, mid:{s:43,f:47.6}};
 const LEAF_STAGES=6, LEAF_FULL=4;
 const _leafOut=new WeakMap();
 function treeLeafOut(P){
@@ -945,7 +953,8 @@ function treeLeafOut(P){
     const cols=[null];
     for (let k=1;k<=LEAF_FULL;k++) cols.push(k===LEAF_FULL ? spring : mixCol(first,spring,(k-1)/(LEAF_FULL-1)));
     for (let k=LEAF_FULL+1;k<=LEAF_STAGES;k++) cols.push(k===LEAF_STAGES ? su.fol : mixCol(spring,su.fol,(k-LEAF_FULL)/(LEAF_STAGES-LEAF_FULL)));
-    lo={s, f:s+(t.f-t.s), cols};
+    // held winter leaves are never green here (that was an evergreen, above)
+    lo={s, f:s+(t.f-t.s), cols, drop:wi.fol ? null : (LEAF_DROP[P.phen]||LEAF_DROP.mid)};
   }
   _leafOut.set(P,lo);
   return lo;
@@ -958,13 +967,19 @@ function treeLeafStage(lo, d){
   const m=Math.min(1,(d-lo.f)/(DAYS_PER_SEASON-lo.f));
   return LEAF_FULL+Math.round(m*(LEAF_STAGES-LEAF_FULL));
 }
+// the leaf-drop stage on a day of the year: LEAF_FULL in full fall colour, 0 bare
+function treeDropStage(drop, d){
+  const a=(d-drop.s)/(drop.f-drop.s);
+  return a<=0 ? LEAF_FULL : a>=1 ? 0 : Math.round((1-a)*LEAF_FULL);
+}
 // what drawPlant's leafStage is now, for a plant drawn in `season`: undefined
-// unless it is a deciduous tree in spring
+// unless it is a deciduous tree in spring, or one that drops its leaves in fall
 function leafStageNow(P, season){
-  if (season!=='Spring') return undefined;
+  if (season!=='Spring' && season!=='Fall') return undefined;
   const lo=treeLeafOut(P);
-  if (!lo) return undefined;
-  return treeLeafStage(lo, (((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac);
+  if (!lo || (season==='Fall' && !lo.drop)) return undefined;
+  const d=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
+  return season==='Spring' ? treeLeafStage(lo,d) : treeDropStage(lo.drop,d);
 }
 /* trees throw shade as they establish; baby trees show a future canopy,
    but they don't block full-sun perennials until the canopy is meaningful. */
