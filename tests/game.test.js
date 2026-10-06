@@ -7719,8 +7719,17 @@ test('lot-shape setup helpers: side lengths, snapping, validity, and create orde
 test('sprite governor: engages on measured-heavy draw, predicts to disengage', () => {
   PSPRITE.off = false; PSPRITE.active = false; PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // below the plant floor it never engages, however slow the draw
-  for (let i = 0; i < 10; i++) updateSpriteMode(9, 30);
+  for (let i = 0; i < 10; i++) updateSpriteMode(9, PSPRITE.FLOOR);
   assert(!PSPRITE.active, 'below the plant floor stays procedural');
+  /* but a SMALL garden of heavy plants does engage: 25 habit shrubs and
+     nothing else measured 12ms a frame procedurally and sat under the old
+     40-plant floor for good, where sprites draw them in about 1ms */
+  assert(PSPRITE.FLOOR<25, 'the floor admits a garden of 25 shrubs');
+  for (let i = 0; i < 3; i++) updateSpriteMode(12, 25);
+  assert(PSPRITE.active, 'a heavy 25-plant garden engages');
+  for (let i = 0; i < 45; i++) updateSpriteMode(0.5, 5);
+  assert(!PSPRITE.active, 'and releases once it falls under the floor');
+  PSPRITE.hot = 0; PSPRITE.calm = 0; PSPRITE.plantMs = 0;
   // sustained heavy draw engages after three consecutive hot frames
   updateSpriteMode(8, 200); updateSpriteMode(8, 200);
   assert(!PSPRITE.active, 'two hot frames are not enough');

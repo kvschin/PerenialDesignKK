@@ -2182,7 +2182,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     blitted after, with sway applied as a cheap skew on the blit and growth/bloom
     bucketed so the key is frame-stable. A **governor** (`updateSpriteMode`)
     engages it when the measured draw phase stays heavy (>6ms for 3 straight
-    frames, 40-plant floor) rather than at a fixed plant count — so a mid-size
+    frames, 12-plant floor — 40 until 0.9.60) rather than at a fixed plant count — so a mid-size
     garden gets sprites on a weak GPU or huge window while the same garden on a
     fast desktop keeps the pristine, smoothly-growing procedural path. Because
     sprites make draw fast, disengaging reads the *predicted* procedural cost
@@ -6614,6 +6614,12 @@ cost the drawing in a browser. `dev/shrub-review.html` shows every shrub
 before/after in four seasons, `?sheet=<refs|group|all>&seasons=&arm=` for a
 contact sheet, `seasonSheet([...])` for March-June and September-December, and
 `?bench=all` for bake cost.
+**The sprite governor's plant floor went 40 -> 12** (renderer.js,
+`PSPRITE.FLOOR`), a separate one-line change: 25 big shrubs and nothing else
+measured ~12ms a frame procedurally (classic ~9) and never qualified, where
+sprites draw them in ~1ms (`dev/ff-bench.cjs`, desktop and phone, with 0.7-0.8
+bakes a frame through spring and fall stages). The frame still has to measure
+heavy for three frames to engage.
 
 ## Conventions
 

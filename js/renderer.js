@@ -1237,7 +1237,7 @@ function strokeEdgingArc(ctx,arc,proj,st,edgePx){
    pristine, smoothly-growing procedural path. Toggle PSPRITE.off to A/B it. */
 const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, bytes:0,
   MEM:48*1024*1024, BUDGET:160, off:false, active:false,
-  FLOOR:40, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
+  FLOOR:12, HI_MS:6, LO_MS:2.5, hot:0, calm:0, plantMs:0,
   /* What the STRUCTURES in the draw pass cost, so the governor can take them
      back out — see the note on updateSpriteMode. Sampled rather than measured
      every frame: a clock pair costs 0.358us, so splitting ~400 structures
@@ -1262,7 +1262,11 @@ const PSPRITE={ map:new Map(), slot:new Map(), scale:-1, frame:0, rendered:0, by
    decision can't read the live number (it would flap): it predicts what
    procedural WOULD cost — plantCount × a per-plant ms learned (EMA) while
    procedural was last active — and disengages only when that stays cheap.
-   The 40-plant floor keeps genuinely light gardens procedural regardless.
+   The plant floor keeps genuinely light gardens procedural regardless. It was
+   40, set when a plant cost a few dozen microseconds; a habit tree or shrub
+   now costs 0.5-2ms procedurally, so 25 shrubs and nothing else measured
+   12ms a frame and never qualified, where sprites draw them in about 1ms. At 12
+   the frame still has to be measured heavy (HI_MS) for 3 frames to engage.
 
    IT IS HANDED THE WHOLE ENTITY PASS AND MUST TAKE THE STRUCTURES BACK OUT.
    `drawMs` covers fences, building tiles, pots, seats, boulders, fire pits,
