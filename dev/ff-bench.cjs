@@ -39,6 +39,7 @@
      node dev/ff-bench.cjs --profile desktop   one viewport (desktop|phone)
      node dev/ff-bench.cjs --garden my.json    an exported garden of your own
      node dev/ff-bench.cjs --json              machine-readable, for diffing runs
+     node dev/ff-bench.cjs --query conifer=0   app URL query, to A/B a renderer switch
 */
 const http = require('http');
 const fs = require('fs');
@@ -52,7 +53,7 @@ const flag = n => argv.includes('--' + n);
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
 const YEARS = Math.max(1, Number(opt('years', 3)) || 3);
 const STRESS = flag('stress'), JSON_OUT = flag('json');
-const GARDEN = opt('garden', null), ONLY = opt('profile', null);
+const GARDEN = opt('garden', null), ONLY = opt('profile', null), QUERY = opt('query', '');
 
 const PROFILES = [
   { name: 'desktop', viewport: { width: 1280, height: 900 }, dpr: 1 },
@@ -250,7 +251,7 @@ function measure(opts) {
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
-      await page.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' });
+      await page.goto('http://127.0.0.1:' + port + '/' + (QUERY ? '?' + QUERY : ''), { waitUntil: 'load' });
       await page.waitForFunction(() => typeof enterWorld === 'function' && typeof PSPRITE !== 'undefined');
       await page.evaluate(async stress => {
         const env = await (await fetch('/__bench-garden.json')).json();

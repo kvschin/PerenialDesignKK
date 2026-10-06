@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.58';
+const APP_VERSION = '0.9.59';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -2033,10 +2033,13 @@ const PLANT_GUIDANCE_SOURCES=Object.freeze({
   yellowFlagIris:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/yellow-flag-iris'},
   periwinkleNC:{label:'NC State Extension',url:'https://plants.ces.ncsu.edu/plants/vinca-minor/'},
   staghornSwiss:{label:'Info Flora, Swiss national data centre',url:'https://www.infoflora.ch/de/flora/rhus-typhina.html'},
+  englishHolly:{label:'King County, Washington',url:'https://kingcounty.gov/en/dept/dnrp/nature-recreation/environment-ecology-conservation/noxious-weeds/identification-control/common-holly'},
 });
 const PLANT_GUIDANCE=Object.freeze({
   staghornsumac:{taxon:'Rhus typhina',reviewed:'2026-10-04',invasive:[
     {area:'Switzerland',region:'europe',severity:'avoid',source:'staghornSwiss',text:'Listed among Switzerland\'s invasive non-native species. Introduced from North America, it suckers into dense stands that crowd out other plants. Check current national rules before buying or planting it.'}]},
+  englishholly:{taxon:'Ilex aquifolium',reviewed:'2026-10-05',invasive:[
+    {area:'King County, Washington',region:'north-america',severity:'caution',source:'englishHolly',text:'Listed as a non-regulated Class C noxious weed. Birds carry the berries into forests, where it shades out the native understory, and it also spreads by suckering. The county recommends controlling it near natural areas.'}]},
   yellowflag:{taxon:'Iris pseudacorus',reviewed:'2026-09-20',invasive:[
     {area:'King County, Washington',region:'north-america',severity:'caution',source:'yellowFlagIris',text:'Listed as a non-regulated Class C noxious weed. It forms dense stands along shorelines and spreads by seed and by rhizome fragments carried downstream. Check the local position before planting it near water.'}]},
   periwinkle:{taxon:'Vinca minor',reviewed:'2026-09-20',invasive:[

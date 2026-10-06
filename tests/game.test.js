@@ -1287,12 +1287,20 @@ test('weeping curtains fall to the ground, and the sprite box reserves the fall'
         `${key}: seed ${seed} cascades to the ground rather than hemming inside the crown`);
     }
   }
-  // ...and an upright conifer of the same renderer still keeps its feet dry.
-  const spruce=plantDef('bluespruce');
-  assertEqual(coniferWeepBelow(spruce,plantVisualH(spruce)),0,
-    'an upright habit reserves nothing, so it keeps the default sprite margin');
-  assert(coniferDrawDepth('bluespruce',7122)<coniferDrawDepth('blueweepingalaskacedar',7122),
-    'the weeper hangs below the upright it shares a renderer with');
+  // ...and an upright conifer reserves no cascade. Built in the round, the
+  // front of its lowest whorl comes down the screen toward the viewer, which
+  // coniferTreeBelow reserves instead; drawn flat (?conifer=0, the renderer a
+  // weeper still shares), the weeper hangs below it.
+  const spruce=plantDef('bluespruce'), sH=plantVisualH(spruce);
+  assertEqual(coniferWeepBelow(spruce,sH),0,
+    'an upright habit reserves no cascade');
+  assert(coniferDrawDepth('bluespruce',7122)<=coniferTreeBelow(spruce,1,sH)+1,
+    'the skirt of an upright built in the round stays inside its own reserve');
+  CONIFER_HABIT.on=false;
+  try {
+    assert(coniferDrawDepth('bluespruce',7122)<coniferDrawDepth('blueweepingalaskacedar',7122),
+      'drawn flat, the weeper hangs below the upright it shares a renderer with');
+  } finally { CONIFER_HABIT.on=true; }
 });
 
 test('the sprite box reserves everything a plant paints below its own tile', () => {
@@ -1552,6 +1560,55 @@ test('with habits switched off, a habit tree draws exactly the classic tree', ()
   } finally { TREE_HABIT.on=prev; }
 });
 
+test('a conifer tree is built in the round, and ?conifer=0 is the way back', () => {
+  /* The tree habits, weepers included, draw through drawConiferTree; the low
+     ones (bun, mat) keep their own drawing, so the switch must not touch them.
+     Every habit a record names has to be one the renderer knows, or it
+     silently falls back to a spruce. */
+  const known=new Set([...Object.keys(CONIFER_FORMS),'weeping','bun','mat']);
+  const prev=CONIFER_HABIT.on;
+  try {
+    for (const key of PLANT_KEYS){
+      if (PLANTS[key].form!=='conifer') continue;
+      for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+        const P=plantDef(key,v), h=P.look.coniferHabit||'spruce', ref=key+(v?'.'+v:'');
+        assert(known.has(h), `${ref}: names a conifer habit the renderer has (${h})`);
+        CONIFER_HABIT.on=false; const off=plantDrawCalls(key,v,'Summer',4242,1,0);
+        CONIFER_HABIT.on=true;  const on=plantDrawCalls(key,v,'Summer',4242,1,0);
+        if (h==='bun' || h==='mat') assert(on===off, `${ref}: a ${h} conifer keeps its own drawing`);
+        else assert(on!==off, `${ref}: a conifer tree is drawn in the round`);
+      }
+    }
+  } finally { CONIFER_HABIT.on=prev; }
+});
+
+test('an evergreen changes colour with the season, never shape, and keeps the cost of a tree', () => {
+  /* Spring is the summer needles with new growth on the tips, so a spruce in
+     May and in July are the same tree: only colours may differ. Winter adds
+     snow on top of the same tree. And a bake must stay in the range of the
+     broadleaf habit trees, so the plate, brush and spray counts are bounded. */
+  const shapes=log=>log.split('\n').filter(l=>!l.startsWith('set ')&&!l.startsWith('stop ')).join('\n');
+  const fills=log=>log.split('\n').filter(l=>l==='fill()').length;
+  for (const key of PLANT_KEYS){
+    const P=plantDef(key);
+    if (P.form!=='conifer' || !coniferTreeOn(P.look) || !P.sea.Winter.fol) continue;
+    // cones are seasonal, so compare the two trees without them
+    const seeds=SEASONS.map(z=>P.sea[z].seed);
+    let spring, summer;
+    try {
+      for (const z of SEASONS) delete P.sea[z].seed;
+      spring=plantDrawCalls(key,null,'Spring',4242,1,0); summer=plantDrawCalls(key,null,'Summer',4242,1,0);
+    } finally { SEASONS.forEach((z,i)=>{ if (seeds[i]!==undefined) P.sea[z].seed=seeds[i]; }); }
+    assert(shapes(spring)===shapes(summer), `${key}: spring and summer draw the same shapes`);
+    if (P.sea.Spring.fol!==P.sea.Summer.fol)
+      assert(spring!==summer, `${key}: but spring shows its new growth`);
+    const winter=plantDrawCalls(key,null,'Winter',4242,1,0);
+    assert(fills(winter)>=fills(summer), `${key}: winter adds snow to the same tree`);
+    for (const log of [summer,winter])
+      assert(fills(log)<=460, `${key}: ${fills(log)} fills stays inside a tree's budget`);
+  }
+});
+
 test('a habit tree ends every limb inside its crown, and carries its snow on the limbs', () => {
   /* The limbs are built back from twig tips spread through the crown outline,
      which is what keeps a branch from poking out of the foliage as a bare stick
@@ -1651,6 +1708,9 @@ test('deciduous trees leaf out through spring, in the order they really do', () 
     assert(lo(k), k+' leafs out (a bur oak\'s held winter leaves are not evergreen ones)');
   for (const k of ['lemon','olive','sweetorange','bluepaloverde','bluestem'])
     assert(!lo(k), k+' has no leaf-out');
+  // a conifer draws no leaf stages, blue and gold ones included
+  for (const k of ['bluespruce','blueatlascedar','arizonacypress','baldcypress'])
+    assert(!lo(k), k+' has no leaf-out, so its sprite key does not churn');
   assert(lo('sugarmaple').s<lo('whiteoak').s && lo('whiteoak').s<lo('blackwalnut').s, 'maple first, then oak, then walnut');
   for (const k of ['whiteoak','redbud','sugarmaple']){
     const L=lo(k);
@@ -15286,9 +15346,9 @@ test('a plant native to the region is not hidden by that region\'s own caution',
 
   // The hint must promise what the filter delivers, not what the table holds.
   const counts=invasiveFilterCounts('north-america');
-  assertEqual(counts.hidden+counts.keptNative,10,'ten cautions are recorded for North America');
+  assertEqual(counts.hidden+counts.keptNative,11,'eleven cautions are recorded for North America');
   assertEqual(counts.keptNative,2,'two of them are on plants native to it');
-  assert(invasiveCriteriaText(na).includes('Hides the 8 introduced plants'),'and the copy states the eight it actually hides');
+  assert(invasiveCriteriaText(na).includes('Hides the 9 introduced plants'),'and the copy states the nine it actually hides');
   assert(/native to North America keep their place/.test(invasiveCriteriaText(na)),'and says why the other two are still listed');
   assertEqual(invasiveFilterCounts('europe').keptNative,0,'Europe has no native-and-flagged plant, so its copy says nothing about one');
   assert(!/keep their place/.test(invasiveCriteriaText({nativeRegion:'europe',invasive:'hide'})),'the clause appears only where it applies');

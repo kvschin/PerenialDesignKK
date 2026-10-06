@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conifer review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#221d18;color:#ede5d6;font:14px system-ui}
+header{padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:18px;margin:0}
+button,select{font:inherit;background:#42372b;color:inherit;border:1px solid #73604a;padding:8px}
+#status{padding:0 16px;font-size:12px;color:#d6c094;margin:0}
+.sec{font-size:14px;padding:14px 16px 4px;margin:0}
+.note{padding:0 16px;margin:0 0 8px;font-size:12px;color:#c7b9a2;max-width:70ch}
+#lineup{padding:8px 12px;overflow-x:auto}#lineup canvas{display:block;max-width:none}
+#rows{padding:8px 12px;display:flex;flex-direction:column;gap:10px}
+article{background:#30291f;padding:10px;border-radius:6px}
+h2{font-size:14px;margin:0 0 2px}.latin{font-size:11px;color:#c7b9a2;margin:0 0 6px}
+.grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+figure{margin:0;text-align:center;background:#cdd6be;border-radius:4px;padding:4px 2px 2px}
+figure canvas{width:100%;height:auto;display:block}
+figcaption{font-size:10px;color:#2a2620}
+figure.after{outline:2px solid #c97f3f}
+#sheet{display:block}
+@media (max-width:800px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style><body>
+<script>
+// The app's modules expect their DOM; stub what the planner would touch, as
+// the other dev review pages do, so only the painters run here.
+(function(){
+  window.__reviewResizeObserver=window.ResizeObserver;
+  window.ResizeObserver=class { observe(){} unobserve(){} disconnect(){} };
+  function noopCtx(){ return new Proxy({}, { get:function(o,p){
+      if(p==='measureText') return function(){return {width:0};};
+      if(p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern')
+        return function(){return {addColorStop:function(){}};};
+      if(p==='getImageData') return function(){return {data:new Uint8ClampedArray(4)};};
+      if(p in o) return o[p]; return function(){};
+    }, set:function(o,p,v){o[p]=v;return true;} }); }
+  function stub(){
+    var el={ tagName:'DIV', nodeType:1,
+      classList:{add:function(){},remove:function(){},toggle:function(){return false;},contains:function(){return false;}},
+      style:{}, dataset:{}, children:[], width:300, height:150, value:'', textContent:'', innerHTML:'', checked:false,
+      appendChild:function(c){return c;}, append:function(){}, prepend:function(){}, remove:function(){},
+      removeChild:function(c){return c;}, insertBefore:function(c){return c;},
+      setAttribute:function(){}, removeAttribute:function(){}, getAttribute:function(){return null;},
+      querySelector:function(){return stub();}, querySelectorAll:function(){return [];},
+      getContext:function(){return noopCtx();},
+      getBoundingClientRect:function(){return {top:0,left:0,right:0,bottom:0,width:0,height:0};},
+      focus:function(){}, click:function(){}, setPointerCapture:function(){}, releasePointerCapture:function(){},
+      addEventListener:function(){}, removeEventListener:function(){} };
+    return new Proxy(el,{ get:function(o,p){ if(p in o) return o[p];
+        if(typeof p==='symbol') return undefined; return function(){}; },
+      set:function(o,p,v){o[p]=v;return true;} });
+  }
+  var realGet=document.getElementById.bind(document);
+  document.getElementById=function(id){ return realGet(id) || stub(); };
+  window.__realAdd=window.addEventListener; document.__realAdd=document.addEventListener;
+  window.addEventListener=function(){}; document.addEventListener=function(){};
+  window.__realRAF=window.requestAnimationFrame; window.requestAnimationFrame=function(){return 0;};
+})();
+</script>
+<script src="../js/plants.js?v=conifer"></script>
+<script src="../js/core.js?v=conifer"></script>
+<script src="../js/draw.js?v=conifer"></script>
+<script src="../js/world.js?v=conifer"></script>
+<script src="../js/view.js?v=conifer"></script>
+<script src="../js/renderer.js?v=conifer"></script>
+<script src="../js/commands.js?v=conifer"></script>
+<script src="../js/input.js?v=conifer"></script>
+<script src="../js/io.js?v=conifer"></script>
+<script src="../js/collections.js?v=conifer"></script>
+<script src="../js/ui.js?v=conifer"></script>
+<script src="../js/tray.js?v=conifer"></script>
+<script src="../js/photos.js?v=conifer"></script>
+<script src="../js/library.js?v=conifer"></script>
+<script src="../js/guide.js?v=conifer"></script>
+<script src="../js/screens.js?v=conifer"></script>
+<script>
+window.addEventListener=window.__realAdd; document.addEventListener=document.__realAdd;
+window.requestAnimationFrame=window.__realRAF; window.ResizeObserver=window.__reviewResizeObserver;
+</script>
+<header><h1>Conifers: before and after</h1>
+<label>Lineup <select id="group"></select></label>
+<label>Season <select id="season"><option>Spring</option><option selected>Summer</option><option>Fall</option><option>Winter</option></select></label>
+<label>Rows <select id="habit"><option value="">every conifer</option></select></label>
+<button id="reseed">Another seed</button></header>
+<p id="status">Loading…</p>
+<pre id="bench"></pre>
+<canvas id="sheet" hidden></canvas>
+<h2 class="sec">At garden scale, before (top) and after (bottom)</h2>
+<p class="note">One scale for every tree in the lineup, the way they meet on a plot. In the app, add <code>?conifer=0</code> to the address to see the old drawing.</p>
+<section id="lineup"></section>
+<h2 class="sec">Each conifer in four seasons (outlined = after)</h2>
+<section id="rows"></section>
+<script>
+const CR_SEASONS=['Spring','Summer','Fall','Winter'];
+const CR_Q=new URLSearchParams(location.search);
+/* Try a look change without editing plants.js: ?ov=easternhemlock:coniferHabit=hemlock,droop=0.06|whitefir:tiers=12
+   (patched before anything is drawn, so plantDef's cache never sees the old look) */
+for (const part of (CR_Q.get('ov')||'').split('|').filter(Boolean)){
+  const [key,fields]=part.split(':'), [k,v]=key.split('.');
+  const rec=v ? PLANTS[k].cv[v] : PLANTS[k]; if (!rec) continue;
+  rec.look=Object.assign({},rec.look||{});
+  for (const kv of (fields||'').split(',').filter(Boolean)){
+    const [f,val]=kv.split('='); let x=val; try { x=JSON.parse(val); } catch(e){}
+    rec.look[f]=x;
+  }
+}
+let CR_SEED=+(CR_Q.get('seed')||4242);
+// before/after: CONIFER_HABIT.on when the renderer has the switch, else one arm
+const crHasSwitch=()=>typeof CONIFER_HABIT!=='undefined';
+const CR_REFS=[];
+for (const k of PLANT_KEYS){
+  const P=PLANTS[k]; if (P.form!=='conifer') continue;
+  CR_REFS.push([k,null]);
+  for (const v of Object.keys(P.cv||{})) CR_REFS.push([k,v]);
+}
+const habitOf=(k,v)=>{ const L=plantDef(k,v).look||{}; return L.coniferHabit||'spruce'; };
+const CR_GROUPS={
+  'Spruce and fir':['bluespruce','norwayspruce','serbianspruce','blackhillsspruce','whitefir','dwarfalbertaspruce','wellspirespruce','bigbertaspruce','easternhemlock'],
+  'Pines':['whitepine','swissstonepine','vanderwolfpine','weepingwhitepine','mugopine'],
+  'Cedars and cypress':['blueatlascedar','himalayancedar','baldcypress','arizonacypress','sawaracypress','hinokicypress','leylandcypress'],
+  'Columns and screens':['arborvitae','arborvitae.smaragd','greengiantarborvitae','spartanjuniper','taylorjuniper','redcedar','wellspirespruce'],
+  'Weeping':['blueweepingalaskacedar','weepingwhitepine','norwayspruce.pendula','easternhemlock.sargentii'],
+  'Low and dwarf':['birdsnestspruce','globebluespruce','mugopine','creepingjuniper','goldenmop','hinokicypress.nanagracilis','arborvitae.rheingold'],
+};
+function nameOf(k,v){ return plantDef(k,v).name; }
+function shot(k,v,season,on,seed,growth){
+  const had=crHasSwitch() ? CONIFER_HABIT.on : null;
+  if (crHasSwitch()) CONIFER_HABIT.on=on;
+  try {
+    const P=plantDef(k,v), g=growth||1, b=plantDrawBox(P,k,g);
+    const w=Math.ceil(b.halfW*2), h=Math.ceil(b.top+b.bot);
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    drawPlant(x,b.halfW,b.top,k,g,season,seed||CR_SEED,0,v,1);
+    const d=x.getImageData(0,0,w,h).data; let x0=w,y0=h,x1=0,y1=0;
+    for (let y=0;y<h;y+=2) for (let xx=0;xx<w;xx+=2) if (d[(y*w+xx)*4+3]>40){ if(xx<x0)x0=xx; if(xx>x1)x1=xx; if(y<y0)y0=y; if(y>y1)y1=y; }
+    return {c, ox:b.halfW, oy:b.top, x0, y0, x1, y1, w, h};
+  } finally { if (crHasSwitch()) CONIFER_HABIT.on=had; }
+}
+function buildRow(host,k,v){
+  const P=plantDef(k,v);
+  const art=document.createElement('article');
+  art.innerHTML='<h2></h2><p class="latin"></p><div class="grid"></div>';
+  art.querySelector('h2').textContent=nameOf(k,v)+' — '+habitOf(k,v);
+  art.querySelector('.latin').textContent=P.latin||PLANTS[k].latin;
+  const cells=[]; let ux0=1e9,uy0=1e9,ux1=-1e9,uy1=-1e9;
+  for (const s of CR_SEASONS) for (const on of [false,true]){
+    const r=shot(k,v,s,on); cells.push([s,on,r]);
+    ux0=Math.min(ux0,r.x0-r.ox); ux1=Math.max(ux1,r.x1-r.ox); uy0=Math.min(uy0,r.y0-r.oy); uy1=Math.max(uy1,r.y1-r.oy);
+  }
+  const w=ux1-ux0+8, h=uy1-uy0+8, CW=220, CH=220, f=Math.min(CW/w,CH/h);
+  const grid=art.querySelector('.grid');
+  for (const [s,on,r] of cells){
+    const fig=document.createElement('figure'); if (on) fig.className='after';
+    const c=document.createElement('canvas'); c.width=CW; c.height=CH;
+    c.getContext('2d').drawImage(r.c, r.ox+ux0-4, r.oy+uy0-4, w, h, (CW-w*f)/2, CH-h*f, w*f, h*f);
+    const cap=document.createElement('figcaption'); cap.textContent=s+(on?' after':' before');
+    fig.append(c,cap); grid.append(fig);
+  }
+  host.append(art);
+}
+let rowJob=0;
+function buildRows(){
+  const host=document.getElementById('rows'); host.innerHTML='';
+  const habit=document.getElementById('habit').value;
+  const list=CR_REFS.filter(([k,v])=>!habit || habitOf(k,v)===habit);
+  const job=++rowJob; let i=0;
+  const step=()=>{ if (job!==rowJob) return;
+    const t0=performance.now();
+    while (i<list.length && performance.now()-t0<40){ const [k,v]=list[i++]; buildRow(host,k,v); }
+    document.getElementById('status').textContent=`Seed ${CR_SEED}. ${i} of ${list.length} conifers drawn.`;
+    if (i<list.length) setTimeout(step,0);
+  };
+  step();
+}
+function buildLineup(){
+  const season=document.getElementById('season').value, host=document.getElementById('lineup'); host.innerHTML='';
+  host.append(lineupCanvas(CR_GROUPS[document.getElementById('group').value], season, 0.3));
+}
+function lineupCanvas(keys, season, scale, arms){
+  arms=arms||[false,true]; const gap=16;
+  const shots=[];
+  for (const on of arms) for (const ref of keys){ const [k,v]=ref.split('.'); shots.push(shot(k,v||null,season,on)); }
+  const n=keys.length;
+  const widths=keys.map((_,i)=>Math.max(...arms.map((a,j)=>shots[i+n*j].x1-shots[i+n*j].x0))*scale);
+  const tall=Math.max(...shots.map(s=>(s.oy-s.y0)*scale))+22, rowH=tall+30;
+  const W=widths.reduce((a,b)=>a+b+gap,gap), H=rowH*arms.length;
+  const c=document.createElement('canvas'); c.width=Math.ceil(W); c.height=Math.ceil(H);
+  const o=c.getContext('2d'); o.fillStyle='#cdd6be'; o.fillRect(0,0,c.width,c.height);
+  for (let row=0; row<arms.length; row++){
+    let x=gap; const base=row*rowH+tall;
+    o.fillStyle='#b8c4a6'; o.fillRect(0,base-2,c.width,5);
+    o.fillStyle='#2a2620'; o.font='bold 12px system-ui'; o.textAlign='left'; o.fillText(arms[row]?'After':'Before',6,row*rowH+14);
+    keys.forEach((ref,i)=>{
+      const s=shots[row*n+i], cx=x+widths[i]/2;
+      const sw=(s.x1-s.x0)*scale, sh=(s.y1-s.y0)*scale, left=cx+(s.x0-s.ox)*scale, top=base+(s.y0-s.oy)*scale;
+      o.drawImage(s.c, s.x0, s.y0, s.x1-s.x0, s.y1-s.y0, left, top, sw, sh);
+      const [k,v]=ref.split('.'), nm=nameOf(k,v||null), fit=Math.max(6,Math.floor((widths[i]+gap)/6));
+      o.fillStyle='#2a2620'; o.font='11px system-ui'; o.textAlign='center'; o.fillText(nm.length>fit?nm.slice(0,fit-1)+'…':nm,cx,base+18);
+      x+=widths[i]+gap;
+    });
+  }
+  return c;
+}
+/* A contact sheet for a headless screenshot: ?sheet=<ref,ref,...|group name>
+   &seasons=Summer,Winter&cell=180&arm=after|before|both&per=4. Each ref is drawn
+   in each season at the same scale, `per` refs to a row. */
+window.coniferSheet=function(refs,opts){
+  opts=opts||{}; const cell=opts.cell||180, seasons=opts.seasons||['Summer','Winter'], per=opts.per||4;
+  const arms=opts.arm==='before'?[false]:opts.arm==='both'?[false,true]:[true];
+  const lab=14, cols=per*seasons.length*arms.length, rows=Math.ceil(refs.length/per);
+  const ov=document.getElementById('sheet'); ov.hidden=false;
+  ov.width=cols*cell; ov.height=rows*(cell+lab);
+  const o=ov.getContext('2d'); o.fillStyle=opts.bg||'#cdd6be'; o.fillRect(0,0,ov.width,ov.height);
+  refs.forEach((ref,i)=>{
+    const [k,v]=ref.split('.');
+    const rs=[]; for (const on of arms) for (const s of seasons) rs.push(shot(k,v||null,s,on,opts.seed,opts.growth));
+    const x0=Math.min(...rs.map(r=>r.x0-r.ox)), x1=Math.max(...rs.map(r=>r.x1-r.ox));
+    const y0=Math.min(...rs.map(r=>r.y0-r.oy)), y1=Math.max(...rs.map(r=>r.y1-r.oy));
+    const w=x1-x0+4, h=y1-y0+4, f=Math.min((cell-6)/w,(cell-6)/h), row=Math.floor(i/per), col=(i%per)*seasons.length*arms.length;
+    rs.forEach((r,j)=>o.drawImage(r.c, r.ox+x0-2, r.oy+y0-2, w, h, (col+j)*cell+(cell-w*f)/2, row*(cell+lab)+cell-h*f, w*f, h*f));
+    o.fillStyle='#222'; o.font='10px sans-serif';
+    o.fillText(nameOf(k,v||null).slice(0,30)+' · '+habitOf(k,v||null), col*cell+3, row*(cell+lab)+cell+10);
+  });
+  return ov;
+};
+/* Bake cost, the way the sprite cache pays it: each conifer drawn into an
+   OffscreenCanvas the size of its sprite box, flushed with a 1px readback, min
+   of `rounds`, before and after interleaved. ?bench=all (or a ref list) writes
+   a table into #bench; `node --dump-dom` style headless runs read it back. */
+window.coniferBench=function(which,rounds){
+  rounds=rounds||+(CR_Q.get('rounds')||7);
+  const refs=which==='all'||which==='1' ? CR_REFS.map(([k,v])=>v?k+'.'+v:k) : which.split(',');
+  const seasons=(CR_Q.get('seasons')||'Summer,Winter').split(',');
+  const rows=[], arm=on=>{ if (crHasSwitch()) CONIFER_HABIT.on=on; };
+  for (const ref of refs){
+    const [k,v]=ref.split('.'), P=plantDef(k,v||null), b=plantDrawBox(P,k,1);
+    const w=Math.ceil(b.halfW*2), h=Math.ceil(b.top+b.bot);
+    const oc=new OffscreenCanvas(w,h), x=oc.getContext('2d');
+    const row={ref};
+    for (const s of seasons){
+      const best=[1e9,1e9];
+      for (let r=0;r<rounds;r++) for (const on of [false,true]){
+        arm(on); x.clearRect(0,0,w,h);
+        const t0=performance.now();
+        drawPlant(x,b.halfW,b.top,k,1,s,CR_SEED+r,0,v||null,1);
+        x.getImageData(0,0,1,1);
+        const dt=performance.now()-t0; if (dt<best[on?1:0]) best[on?1:0]=dt;
+      }
+      row[s]=[+best[0].toFixed(3),+best[1].toFixed(3)];
+    }
+    arm(true); rows.push(row);
+  }
+  let pre=document.getElementById('bench');
+  if (!pre){ pre=document.createElement('pre'); pre.id='bench'; document.body.prepend(pre); }
+  pre.textContent='BENCH '+JSON.stringify(rows);
+  document.title='bench ready';
+  return rows;
+};
+(function init(){
+  const g=document.getElementById('group'); for (const name of Object.keys(CR_GROUPS)){ const o=document.createElement('option'); o.textContent=name; g.append(o); }
+  const hs=document.getElementById('habit'); for (const name of [...new Set(CR_REFS.map(([k,v])=>habitOf(k,v)))]){ const o=document.createElement('option'); o.value=o.textContent=name; hs.append(o); }
+  g.onchange=document.getElementById('season').onchange=()=>buildLineup();
+  hs.onchange=()=>buildRows();
+  document.getElementById('reseed').onclick=()=>{ CR_SEED=(CR_SEED*48271+12345)%2147483647; buildLineup(); buildRows(); };
+  const sheet=CR_Q.get('sheet');
+  setTimeout(()=>{ try {
+    if (CR_Q.get('bench')){ coniferBench(CR_Q.get('bench')); return; }
+    if (sheet){
+      const refs=CR_GROUPS[sheet] || (sheet==='all' ? CR_REFS.map(([k,v])=>v?k+'.'+v:k) : sheet.split(','));
+      coniferSheet(refs,{seasons:(CR_Q.get('seasons')||'Summer,Winter').split(','), cell:+(CR_Q.get('cell')||180),
+        per:+(CR_Q.get('per')||4), arm:CR_Q.get('arm')||'after', growth:+(CR_Q.get('growth')||1), bg:CR_Q.get('bg')||undefined});
+      document.getElementById('status').textContent='sheet ready';
+      document.title='sheet ready';
+      return;
+    }
+    buildLineup(); buildRows();
+  } catch(e){ document.getElementById('status').textContent='Error: '+e.message; console.error(e); } },20);
+})();
+</script>
+</body></html>

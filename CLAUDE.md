@@ -6492,6 +6492,52 @@ byte-identical to 0.9.57 (17,296). `dev/ff-bench.cjs` on the 36-tree garden:
 late-fall fast-forward 0 -> 1.2 bakes and ~4.3 -> 5.8ms a frame, other seasons
 unchanged. `dropSheet([...])` in `dev/tree-habit-review.html` draws a tree
 September to December. Shrubs do not leaf out or drop yet (see the backlog).
+**0.9.59: conifer trees built in the round (`drawConiferTree`, `CONIFER_FORMS`,
+`CONIFER_HABIT`, draw.js), and an evergreen catalog audit.** The first conifer
+renderer drew every tree flat -- lozenge plates left and right of a pole, the
+trunk stroked over the whole height -- so spruce, hemlock and fir were one
+ladder in different colours and a scale-leaved tree was a pale triangle with
+leaves stuck on. Every conifer TREE (all habits but `bun`/`mat`) now builds
+whorls of limbs at real azimuths, projected with a slight look-down
+(`CONIFER_TILT` 0.30): a limb toward the viewer drops down the screen, one
+away sits behind the trunk, and everything is depth-sorted (dark interior,
+back limbs and foliage, trunk, front). Foliage comes in four kinds, named per
+habit in `CONIFER_FORMS`: `slab` (spruce, `fir`, `hemlock`: a plate per limb,
+lit top face over a dark thickness with a needle fringe on its downward edges,
+split into overlapping sprays on long limbs), `puff` (pine; true cedar with
+`cover`/`flat` makes flat tufted shelves: spiky needle brushes, open interior,
+limbs and trunk visible), `fan` (scale foliage: upright sprays SCATTERED over
+the crown surface, not laid in whorls -- rows read as a pine cone; `fanRows`
+opts back in), and `drape` (weeping: limbs arch out and fall, ragged strands
+hang most of the way to the ground under them, pine tufts as chains of
+brushes). New habits `fir` and `hemlock` fall back to spruce in the old path.
+Spring draws the summer needles with the SPRING colour on the plate tips (new
+growth), with the same shapes as summer (a test); winter lays snow on the top
+faces. Optional look fields: `profile` (a broadleaf-style crown outline, for
+mature flat-topped pines and cedar of Lebanon), `barkTop` (a trunk that
+changes colour upward: Scots pine), `hang` (Norway/Douglas fir branchlets),
+`barkStyle` on pines. A dense crown draws its trunk only up into the skirt.
+`coniferTreeDims` is shared by the drawing and `coniferTreeBelow` (the sprite
+reserve below the tile, front skirts and weeping strands), and `lim` keeps
+every item inside the box plantDrawBox guarantees. `?conifer=0` restores the
+old drawing call for call (8,976 draws compared against 0.9.58, every
+non-conifer identical); `treeLeafOut` now returns null for any conifer, since
+blue and gold ones read as "not green in winter" and churned leaf-stage
+sprite keys for nothing. Cost: 1.4-3.0ms a bake against 1.0-2.2 old and
+1.2-2.6 for the broadleaf habit trees; a test caps a conifer at 460 fills. On
+a 21-conifer garden `dev/ff-bench.cjs` reads 6.9 vs 7.4ms a frame on sprites
+and 74.9 vs 76.6 procedural (new vs `--query conifer=0`, a flag added for this).
+`dev/conifer-review.html` shows every conifer before/after in four seasons,
+takes `?sheet=<refs|group|all>&seasons=&cell=&per=&arm=&growth=` for a
+headless screenshot, `?ov=key:field=value|...` to try a look without editing
+plants.js, and `?bench=all` for bake cost. The audit
+(`docs/plant-data/evergreen-audit.md`) added 20 species -- Douglas, Fraser
+fir; Austrian, Scots, Japanese black, ponderosa pine; Italian cypress, incense
+cedar, western red cedar, cryptomeria, Rocky Mountain juniper, cedar of
+Lebanon; and the broadleaf evergreens Southern magnolia, live oak, holm oak,
+American, English and 'Nellie R. Stevens' holly, bay laurel, strawberry tree
+-- and 21 cultivars (635 base / 487 nested). English holly carries a King
+County caution, so the invasive filter hides it in North America (9 hidden).
 
 ## Conventions
 

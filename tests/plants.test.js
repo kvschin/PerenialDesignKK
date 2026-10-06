@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,615,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,635,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),466,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),487,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -922,8 +922,21 @@ test('evergreen tree expansion keeps resolved taxa, scale data, and distinct arc
     bigbertaspruce:["Picea glauca 'Big Berta'",'spruce'],
     serbianspruce:['Picea omorika','spruce'],
     blackhillsspruce:['Picea glauca var. densata','spruce'],
-    whitefir:['Abies concolor','spruce'],
-    easternhemlock:['Tsuga canadensis','spruce'],
+    whitefir:['Abies concolor','fir'],
+    easternhemlock:['Tsuga canadensis','hemlock'],
+    // the evergreen audit (docs/plant-data/evergreen-audit.md)
+    douglasfir:['Pseudotsuga menziesii','spruce'],
+    fraserfir:['Abies fraseri','fir'],
+    austrianpine:['Pinus nigra','pine'],
+    scotspine:['Pinus sylvestris','pine'],
+    japaneseblackpine:['Pinus thunbergii','pine'],
+    ponderosapine:['Pinus ponderosa','pine'],
+    italiancypress:['Cupressus sempervirens (Stricta Group)','scale'],
+    incensecedar:['Calocedrus decurrens','scale'],
+    westernredcedar:['Thuja plicata','scale'],
+    cryptomeria:['Cryptomeria japonica','scale'],
+    rockymountainjuniper:['Juniperus scopulorum','scale'],
+    cedaroflebanon:['Cedrus libani','cedar'],
   };
   for (const k in expected){
     const P=PLANTS[k];
@@ -942,6 +955,92 @@ test('evergreen tree expansion keeps resolved taxa, scale data, and distinct arc
   assertEqual(PLANTS.baldcypress.sea.Winter.fol, undefined, 'deciduous bald cypress drops its winter foliage');
   for (const k of ['bluespruce','arizonacypress','whitefir'])
     assert(PLANTS[k].nativeTo.includes('north-america'),`${k}: western species belongs in the continental North American range`);
+});
+
+test('the evergreen audit adds the conifers gardeners reach for, with their real ranges and families', () => {
+  /* docs/plant-data/evergreen-audit.md. The catalog had no Douglas fir, no
+     Austrian, Scots or ponderosa pine, no Italian cypress, cryptomeria, incense
+     or western red cedar, no Rocky Mountain juniper and no cedar of Lebanon. */
+  const range={douglasfir:'north-america', fraserfir:'north-america', ponderosapine:'north-america',
+    incensecedar:'north-america', westernredcedar:'north-america', rockymountainjuniper:'north-america',
+    austrianpine:'europe', scotspine:'europe', italiancypress:'europe',
+    japaneseblackpine:'asia', cryptomeria:'asia', cedaroflebanon:'asia'};
+  for (const [k,r] of Object.entries(range)){
+    assert(PLANTS[k].nativeTo.includes(r),`${k}: native to ${r}`);
+    assertEqual(PLANTS[k].type,'tree',`${k}: a tree, so it casts shade and leaves its canopy open`);
+  }
+  assert(!PLANTS.fraserfir.nativeTo.includes('europe') && !PLANTS.scotspine.nativeTo.includes('north-america'),
+    'Fraser fir is Appalachian and Scots pine is Eurasian');
+  assertEqual(PLANTS.italiancypress.provenance,'selection','the pencil cypress is the Stricta form, not the broad wild tree');
+  const family={fraserfir:'fir', whitefir:'fir', austrianpine:'pine', scotspine:'pine', japaneseblackpine:'pine',
+    ponderosapine:'pine', italiancypress:'cypress', westernredcedar:'arborvitae', rockymountainjuniper:'juniper', cedaroflebanon:'truecedar'};
+  for (const [k,g] of Object.entries(family)) assertEqual(PLANTS[k].group,g,`${k}: browses with the ${g} family`);
+  assertEqual(PLANTS.douglasfir.group,undefined,'Douglas fir is not a true fir, so it keeps its own card');
+
+  const cultivars=['bluespruce|babyblue','bluespruce|iselifastigiate','norwayspruce|cupressina','whitefir|candicans',
+    'whitepine|fastigiata','serbianspruce|bruns','blueatlascedar|glaucapendula','himalayancedar|shalimar',
+    'redcedar|canaertii','arizonacypress|blueice','leylandcypress|castlewellan','westernredcedar|atrovirens',
+    'cryptomeria|yoshino','rockymountainjuniper|skyrocket','rockymountainjuniper|wichitablue'];
+  for (const ref of cultivars){
+    const [k,v]=ref.split('|'), C=PLANTS[k].cv&&PLANTS[k].cv[v];
+    assert(C,`${ref}: cultivar is missing`);
+    if (C.heightIn!==undefined) assert(C.heightIn<=PLANTS[k].heightIn && C.spread<=PLANTS[k].spread,`${ref}: no bigger than its species`);
+  }
+  assert(PLANTS.rockymountainjuniper.cv.skyrocket.spread<=PLANTS.taylorjuniper.spread,'Skyrocket is as narrow as Taylor');
+  for (const [k,v] of [['bluespruce','iselifastigiate'],['norwayspruce','cupressina'],['whitepine','fastigiata']])
+    assert(PLANTS[k].cv[v].spread*2<PLANTS[k].spread && PLANTS[k].cv[v].look.columnar>(PLANTS[k].look.columnar||0),
+      `${k}.${v}: a columnar selection is drawn and planned narrow`);
+  assertEqual(PLANTS.blueatlascedar.cv.glaucapendula.look.coniferHabit,'weeping','the weeping Atlas cedar weeps');
+  assertEqual(PLANTS.himalayancedar.cv.shalimar.zones[0],6,'Shalimar is the cold-hardy deodar');
+  assertEqual(PLANTS.leylandcypress.cv.castlewellan.provenance,'hybrid','a Leyland selection is still a hybrid');
+  assert(/var\. glabra/.test(PLANTS.arizonacypress.cv.blueice.latin),'Blue Ice is a smooth Arizona cypress');
+  assert(/Diplodia/.test(PLANTS.austrianpine.blurb) && /pine wilt/.test(PLANTS.japaneseblackpine.blurb),
+    'pine disease cautions stay visible');
+  assert(/cedar-apple rust/.test(PLANTS.rockymountainjuniper.blurb),'the juniper keeps its rust-host warning');
+});
+
+test('broadleaf evergreen trees hold green leaves all winter, draw a crown and turn no fall colour', () => {
+  /* Before the evergreen audit the only evergreen broadleaf trees were orchard
+     crops. Evergreen is read off the Winter foliage being GREEN (treeLeafOut:
+     g>r and g>=b) -- otherwise the tree would leaf out and drop like an oak --
+     and a fall colour no warmer than summer's, or it would need a fall palette. */
+  const expected={
+    southernmagnolia:['Magnolia grandiflora','pyramid'], liveoak:['Quercus virginiana','spread'],
+    holmoak:['Quercus ilex','dome'], americanholly:['Ilex opaca','pyramid'], englishholly:['Ilex aquifolium','pyramid'],
+    nelliestevensholly:["Ilex 'Nellie R. Stevens'",'pyramid'], baylaurel:['Laurus nobilis','oval'], strawberrytree:['Arbutus unedo','round'],
+  };
+  const rgb=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+  const green=c=>{ const [r,g,b]=rgb(c); return g>r && g>=b; };
+  const warmth=c=>{ const [r,g]=rgb(c); return r-g; };
+  for (const [k,[latin,crown]] of Object.entries(expected)){
+    const P=PLANTS[k];
+    assert(P,`${k}: evergreen tree is missing`);
+    assertEqual(P.latin,latin,`${k}: botanical name`);
+    assertEqual(P.form,'tree',`${k}: broadleaf renderer`);
+    assertEqual(P.type,'tree',`${k}: catalog type`);
+    assertEqual(P.look.crown,crown,`${k}: crown habit`);
+    for (const v of [null,...Object.keys(P.cv||{})]){
+      const sea=v ? Object.fromEntries(SEASON_KEYS.map(s=>[s,Object.assign({},P.sea[s],(P.cv[v].sea||{})[s])])) : P.sea;
+      for (const s of SEASON_KEYS) assert(sea[s].fol,`${k}${v?'.'+v:''}: foliage in ${s}`);
+      assert(green(sea.Winter.fol),`${k}${v?'.'+v:''}: green winter foliage (${sea.Winter.fol})`);
+      assert(warmth(sea.Fall.fol)<=warmth(sea.Summer.fol)+30,`${k}${v?'.'+v:''}: no fall turn`);
+    }
+    assertEqual(P.look.fallMix,undefined,`${k}: an evergreen has no fall palette`);
+  }
+  for (const k of ['southernmagnolia','liveoak','americanholly']) assert(PLANTS[k].nativeTo.includes('north-america'),`${k}: North American native`);
+  for (const k of ['holmoak','englishholly','baylaurel','strawberrytree']) assert(PLANTS[k].nativeTo.includes('europe'),`${k}: European native`);
+  assertEqual(PLANTS.nelliestevensholly.provenance,'hybrid','Nellie R. Stevens is an English x Chinese holly hybrid');
+  assertEqual(PLANTS.nelliestevensholly.nativeTo.length,0,'a garden hybrid has no wild range');
+  assertEqual(PLANTS.southernmagnolia.group,'magnolia','Southern magnolia joins the magnolias');
+  for (const k of ['liveoak','holmoak']) assertEqual(PLANTS[k].group,'oak',`${k}: browses with the oaks`);
+  for (const k of ['americanholly','englishholly','nelliestevensholly']) assertEqual(PLANTS[k].group,'holly',`${k}: browses with the hollies`);
+  assertEqual(PLANTS.americanholly.cv.jerseyknight.look.seedN,0,'a male holly bears no berries');
+  assert(/invasive/.test(PLANTS.englishholly.blurb) && /Pacific/.test(PLANTS.englishholly.blurb),
+    'English holly keeps its Pacific Northwest invasive warning');
+  assertEqual(PLANTS.southernmagnolia.cv.brackensbrownbeauty.zones[0],6,"Bracken's Brown Beauty is the hardy one");
+  assert(PLANTS.southernmagnolia.cv.littlegem.heightIn<PLANTS.southernmagnolia.heightIn/2,'Little Gem is a small magnolia');
+  for (const k of ['americanholly','englishholly','nelliestevensholly','liveoak','holmoak'])
+    assertEqual(PLANTS[k].bloomMonths,undefined,`${k}: inconspicuous flowers claim no calendar slot`);
 });
 
 test('native landscape-gap additions retain their botanical identity and intended roles', () => {

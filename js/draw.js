@@ -1620,12 +1620,13 @@ function plantShadowR(P, growth){
 // shadow, or a weeping conifer's cascade, whichever hangs lower.
 function plantDrawBelow(P, growth, H){
   const shR = plantShadowR(P, growth);
-  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H), coniferGroundBelow(P,growth));
+  return Math.max(3+shR*0.36+1.8, coniferWeepBelow(P,H,growth), coniferGroundBelow(P,growth), coniferTreeBelow(P,growth,H));
 }
 const WEEP_LEN_MAX=1.24, WEEP_SCAFFOLD=0.55;  // product of the two length jitters
-function coniferWeepBelow(P,H){
+function coniferWeepBelow(P,H,growth){
   const L=P.look||{};
   if (P.form!=='conifer' || L.coniferHabit!=='weeping') return 0;
+  if (coniferTreeOn(L)) return coniferTreeBelow(P,growth===undefined?1:growth,H);
   const crownTop=L.crownTop||0.96, crownBase=L.crownBase||0.08;
   const tierGap=H*(crownTop-crownBase)/Math.max(1,(L.tiers||8)-1);
   const vs=(woodyVisualCw(P)||P.cw||80)/(P.cw||80);
@@ -1637,6 +1638,510 @@ function coniferWeepBelow(P,H){
   const weepFall=L.weepFall===undefined?0.86:L.weepFall;
   const tip=L.weepTufts?(L.needleLen||7)*vs*full:(L.padThick||2.7)*vs*Math.sqrt(full);
   return Math.max(0, reach*(weepFall*WEEP_LEN_MAX-1), tierGap*0.6-H*crownBase)+tip+4;
+}
+
+/* ---------- conifer trees built in the round (CONIFER_HABIT) ----------
+   The first conifer renderer drew a tree flat: a row of lozenges either side
+   of a pole, tier after tier, with the trunk stroked over the whole height. It
+   had no depth -- every branch pointed left or right -- so a blue spruce, a
+   Norway spruce and a hemlock were the same ladder in different colours, and
+   a scale-leaved arborvitae was a pale triangle with leaves stuck on it.
+   A conifer is a solid of revolution. Its limbs leave the trunk in WHORLS, all
+   the way round, so this builds each whorl as limbs at real azimuths and
+   projects them: a limb pointing at the viewer is foreshortened and drops a
+   little down the screen (CONIFER_TILT, the slight look-down every sprite in
+   the garden has), one pointing away sits behind the trunk. Foliage hangs on
+   the limbs in one of three kinds, named by the habit:
+     slab -- a plate of foliage on each limb, its lit top face over a dark
+             thickness with a fringe of needles hanging from its lower edge
+             (spruce, fir, hemlock; true cedar as separate shelves, `clouds`)
+     puff -- needle brushes at the shoot tips, the limbs bare inside
+             (pines), so trunk and limbs show between them
+     fan  -- the flattened sprays of the scale-leaved conifers, overlapping
+             into a surface (arborvitae, juniper, cypress, falsecypress)
+   Everything is depth-sorted: the dark interior, the back of the crown, the
+   trunk, then the front, so the trunk shows only where the crown really lets
+   it -- under the skirt and through an open pine.
+   Table fields (each overridable by a look field of the same name):
+   tierMul scales the authored `tiers` into whorls; whorl is limbs per whorl;
+   from the fraction of a limb's length bare of foliage; padW a plate's
+   half-width against its limb's length; padT its thickness against the gap
+   between whorls; upturn lifts limb tips (fir), fringe the needle fringe's
+   depth; clouds splits a limb's foliage into separate shelves; gaps is the
+   chance a limb is missing, jitter how much limb lengths vary; mass/massA
+   the dark interior's width and alpha; back the lowest sin(azimuth) of a limb
+   still worth drawing (a dense crown hides its back half entirely); cone the
+   cone style. `profile` ({p,eLo,eHi,lo}, as a broadleaf crown) replaces the
+   taper with a crown outline, for an umbrella pine or a flat-topped old one.
+   Opt-out: `?conifer=0` (CONIFER_HABIT.on) draws every conifer the old way,
+   call for call. Weeping and the low habits keep their own drawings. */
+const CONIFER_HABIT = { on: typeof location==='undefined' || !/[?&]conifer=0(&|$)/.test(location.search) };
+const CONIFER_TILT = 0.30, CONIFER_TILT_C = Math.sqrt(1-CONIFER_TILT*CONIFER_TILT);
+const CONIFER_FORMS = {
+  spruce:  {kind:'slab', tierMul:1.35, whorl:7, from:0.15, padW:0.28, padT:0.6,  upturn:0,    fringe:0.5,  clouds:1, gaps:0.03, jitter:0.13, mass:0.68, massA:1,   back:-0.3, limb:0.5,  cone:'pendent'},
+  fir:     {kind:'slab', tierMul:1.4,  whorl:7, from:0.15, padW:0.3,  padT:0.64, upturn:0.04, fringe:0.3,  clouds:1, gaps:0.02, jitter:0.08, mass:0.7,  massA:1,   back:-0.3, limb:0.5,  cone:'upright'},
+  hemlock: {kind:'slab', tierMul:1.5,  whorl:7, from:0.12, padW:0.24, padT:0.4,  upturn:0,    fringe:1.1,  clouds:1, gaps:0.04, jitter:0.16, mass:0.66, massA:1,   back:-0.3, limb:0.45, cone:'tiny'},
+  cedar:   {kind:'puff', tierMul:1.3,  whorl:5, from:0.2,  tufts:3, cover:1.1, flat:0.55, gaps:0.08, jitter:0.2, mass:0.3, massA:0, back:-0.55, limb:0.8, cone:'barrel'},
+  pine:    {kind:'puff', tierMul:1.0,  whorl:5, from:0.35, tufts:3, cover:0,   flat:1,    gaps:0.10, jitter:0.2, mass:0.3, massA:0, back:-0.55, limb:0.8, cone:'pendent'},
+  scale:   {kind:'fan',  tierMul:2.2,  whorl:9, from:0.50, gaps:0, jitter:0.10, mass:0.86, massA:1, back:-0.35, limb:0, cone:'tiny'},
+  weeping: {kind:'drape', tierMul:1.0, whorl:6, from:0.3, gaps:0.06, jitter:0.14, mass:0.44, massA:0.9, back:-0.45, limb:1.0, cone:'pendent'},
+};
+function coniferTreeOn(L){
+  if (!CONIFER_HABIT.on || !art2On(L)) return false;
+  const h=L.coniferHabit||'spruce';
+  return h!=='bun' && h!=='mat';
+}
+/* Items: one per plate, puff or fan, staged flat so a procedural frame does
+   not allocate a few hundred objects. */
+const CF_STRIDE=12, CF_MAX=1100;
+const _cfIt=new Float64Array(CF_STRIDE*CF_MAX), _cfOrd=new Int32Array(CF_MAX);
+const _cfX=new Float64Array(96), _cfY=new Float64Array(96), _cuX=new Float64Array(96), _cuY=new Float64Array(96);
+function cfTrace(ctx,X,Y,n){ ctx.moveTo(X[0],Y[0]); for (let i=1;i<n;i++) ctx.lineTo(X[i],Y[i]); ctx.closePath(); }
+// a closed outline through the midpoints of its points: soft, and no corners
+function cfTraceSmooth(ctx,X,Y,n){
+  ctx.moveTo((X[n-1]+X[0])/2,(Y[n-1]+Y[0])/2);
+  for (let i=0;i<n;i++){ const j=i+1<n?i+1:0; ctx.quadraticCurveTo(X[i],Y[i],(X[i]+X[j])/2,(Y[i]+Y[j])/2); }
+  ctx.closePath();
+}
+/* The top face of a plate on a limb: out along one side of the limb and back
+   along the other, its half-width rising from the bare inner limb to a widest
+   point and closing to a blunt tip. The limb runs in the ground plane at its
+   azimuth (c,s), so its sideways spread is foreshortened by the tilt too. */
+function cfSlabFace(bx,by,c,s,R,f0,f1,D,U,W,rnd,X,Y){
+  const K=5; let n=0;
+  for (let side=1; side>=-1; side-=2) for (let k=0;k<=K;k++){
+    const t=side>0 ? k/K : (K-k)/K, f=f0+(f1-f0)*t;
+    const w=W*Math.sqrt(Math.max(0,Math.sin(Math.PI*(0.12+0.86*t))))*(0.7+0.6*rnd());
+    const sx=bx+R*f*c, sy=by+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f;
+    X[n]=sx-s*w*side; Y[n]=sy+c*CONIFER_TILT*w*side; n++;
+  }
+  return n;
+}
+/* The plate's thickness: the face pushed down, with a needle fringe hanging
+   from every edge that faces down. Its upper half is hidden behind the face. */
+function cfSlabUnder(T,fringe,rnd,n){
+  let a=0; for (let i=0;i<n;i++){ const j=i+1<n?i+1:0; a+=_cfX[i]*_cfY[j]-_cfX[j]*_cfY[i]; }
+  const sg=a>0?1:-1; let m=0;
+  for (let i=0;i<n && m<90;i++){
+    const j=i+1<n?i+1:0, dx=_cfX[j]-_cfX[i], dy=_cfY[j]-_cfY[i];
+    _cuX[m]=_cfX[i]; _cuY[m]=_cfY[i]+T*(0.78+0.44*rnd()); m++;
+    if (-dx*sg>0 && fringe>0){           // outward normal points down the screen
+      const len=Math.sqrt(dx*dx+dy*dy), q=Math.max(1,Math.min(6,Math.round(len/Math.max(1.6,T*0.7))));
+      for (let k=0;k<q && m<88;k++){
+        const f=(k+0.5)/q, g=(k+1)/q;
+        _cuX[m]=_cfX[i]+dx*f; _cuY[m]=_cfY[i]+dy*f+T*(1+fringe*(0.2+1.0*rnd())); m++;
+        if (k<q-1){ _cuX[m]=_cfX[i]+dx*g; _cuY[m]=_cfY[i]+dy*g+T*(0.8+0.15*rnd()); m++; }
+      }
+    }
+  }
+  return m;
+}
+/* A lobed blob, flattened or upright, rotated: one fan of scale foliage, or a
+   cushion under a pine brush. Lobes only on the upper half, which is the edge
+   you see against the sky. */
+function cfLobe(ctx,x,y,rx,ry,rot,lobes,amp,ph){
+  const n=12, cr=Math.cos(rot), sr=Math.sin(rot);
+  for (let i=0;i<n;i++){
+    const a=i/n*Math.PI*2, up=Math.max(0,-Math.sin(a)), r=1+amp*up*Math.cos(lobes*a+ph);
+    const px=Math.cos(a)*rx*r, py=Math.sin(a)*ry*r;
+    _cfX[i]=x+px*cr-py*sr; _cfY[i]=y+px*sr+py*cr;
+  }
+  ctx.beginPath(); cfTraceSmooth(ctx,_cfX,_cfY,n);
+}
+/* A star of needle tips round an ellipse: the spikes are longest up and out
+   along the shoot, where a pine's needles splay, and a soft pine's lower ones
+   hang. One path of 2n points. */
+function cfSpiky(ctx,x,y,rx,ry,dir,soft,rnd,n){
+  for (let i=0;i<n;i++){
+    const a=(i+(rnd()-0.5)*0.4)/n*Math.PI*2, b=a+Math.PI/n*(0.7+0.6*rnd()), up=Math.max(0,-Math.sin(b)), out=Math.max(0,Math.cos(b)*dir);
+    const l=(0.85+0.3*up+0.35*out)*(0.8+0.4*rnd()), hang=soft ? Math.max(0,Math.sin(b))*0.35 : 0;
+    _cfX[2*i]=x+Math.cos(a)*rx*0.8; _cfY[2*i]=y+Math.sin(a)*ry*0.8;
+    _cfX[2*i+1]=x+Math.cos(b)*rx*l; _cfY[2*i+1]=y+Math.sin(b)*ry*l+ry*hang;
+  }
+  ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,2*n);
+}
+/* A pine brush: a dark spiky cushion under a lit one, so each shoot's tuft of
+   needles reads as a brush and a branch of them as a cloud. */
+function cfPuff(ctx,x,y,r,dir,col,tone,rnd,soft,newCol,snowy,flat){
+  const fl=flat||1, st=1+0.4*Math.abs(dir);
+  ctx.fillStyle=shade(col,tone-26);
+  cfSpiky(ctx,x,y+r*0.14*fl,r*1.05*st,r*0.56*fl,dir,soft,rnd,soft?17:19); ctx.fill();
+  ctx.fillStyle=shade(newCol||col,tone+6);
+  cfSpiky(ctx,x-r*0.12,y-r*0.1*fl,r*0.8*st,r*0.38*fl,dir,soft,rnd,soft?12:13); ctx.fill();
+  if (snowy){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x-r*0.1,y-r*0.32,r*0.6,r*0.2,0,0,7); ctx.fill(); }
+}
+/* One upright spray of scale foliage: a rounded base, the top broken into a
+   few feathery points. Drawn soft, through the midpoints. */
+function cfFlame(ctx,x,y,rx,ry,rot,tips,rnd){
+  const cr=Math.cos(rot), sr=Math.sin(rot); let n=0;
+  const put=(px,py)=>{ _cfX[n]=x+px*cr-py*sr; _cfY[n]=y+px*sr+py*cr; n++; };
+  put(0,ry*0.62); put(rx*0.9,ry*0.3); put(rx*0.95,-ry*0.2);
+  for (let i=0;i<tips;i++){
+    const fx=tips>1 ? 0.75-1.5*i/(tips-1) : 0;
+    put(rx*fx,-ry*(0.85+0.3*rnd()));
+    if (i<tips-1) put(rx*(fx-0.75/(tips-1)),-ry*(0.42+0.12*rnd()));
+  }
+  put(-rx*0.95,-ry*0.2); put(-rx*0.9,ry*0.3);
+  ctx.beginPath(); cfTraceSmooth(ctx,_cfX,_cfY,n);
+}
+const CF_SNOW='rgba(240,244,250,0.93)';
+/* A hanging strand of foliage: it narrows as it falls and drifts a little
+   sideways, and both edges are ragged with the shoots that stick out of it.
+   One fill. */
+function cfStrand(ctx,x,y,len,w,drift,col,tone,rnd){
+  const K=6; let n=0;
+  for (let k=0;k<=K;k++){ const f=k/K, hw=w*0.5*(1-0.7*f)*(k&1?1.25:0.8)*(0.85+0.3*rnd());
+    _cfX[n]=x+drift*f*f-hw; _cfY[n]=y+len*f*(k===K?1:0.98); n++; }
+  for (let k=K-1;k>=0;k--){ const f=(k+0.5)/K, hw=w*0.5*(1-0.7*f)*(k&1?0.8:1.25)*(0.85+0.3*rnd());
+    _cfX[n]=x+drift*f*f+hw; _cfY[n]=y+len*f; n++; }
+  ctx.fillStyle=shade(col,tone); ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,n); ctx.fill();
+}
+/* The numbers the drawing and its sprite box both need, from one place. `lim`
+   is the half-width the sprite box is guaranteed to hold (plantDrawBox gives a
+   woody plant at least 0.62 of its canopy plus a margin), so nothing is laid
+   out past it. */
+function coniferTreeDims(L,H,cw,growth){
+  const F=CONIFER_FORMS[L.coniferHabit||'spruce']||CONIFER_FORMS.spruce;
+  const opt=n=>L[n]!==undefined ? L[n] : F[n];
+  const crownH=Math.max(8,H*((L.crownTop||0.96)-(L.crownBase||0.08)));
+  const fullness=Math.max(0.75,L.fullness===undefined?1.12:L.fullness);
+  const open=L.open||1, thick=Math.max(0.6,Math.min(1.6,(L.padThick||3.6)/3.6));
+  const tiersN=Math.max(4,Math.min(60,Math.round((L.tiers||8)*opt('tierMul')*(F.kind==='fan'?(L.density||1.1):1)/Math.sqrt(open)*(0.45+0.55*growth))));
+  const prof=L.profile;
+  return {F, opt, kind:F.kind, crownH, fullness, open, thick, tiersN, gap:crownH/Math.max(1,tiersN-1),
+    reach:Math.min(1.25,Math.sqrt(fullness)), lim:cw*0.62+12,
+    hwAt:u=>prof ? cw*0.5*treeCrownHW(prof,u) : coniferHalfWidth(L,cw,u)};
+}
+/* How far a conifer built in the round paints below its placement point: the
+   front of a low whorl comes toward the viewer, down the screen, and its
+   plates, brushes or sprays hang a little below that. plantDrawBelow reads it,
+   so the sprite box and the drawing cannot disagree. Bounded generously --
+   every random factor at its maximum. */
+function coniferTreeBelow(P,growth,H){
+  const L=P.look||{};
+  if (P.form!=='conifer' || !coniferTreeOn(L)) return 0;
+  const vs=(woodyVisualCw(P)||60)/(P.cw||60), cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
+  const d=coniferTreeDims(L,H,cw,growth), o=d.opt, base=H*(L.crownBase||0.08);
+  const droop=L.droop===undefined?0.025:L.droop, jit=o('jitter'), from=o('from');
+  if (d.kind==='drape'){
+    // the longest strand from the highest limb, past the ground under it
+    const R=Math.min(d.lim,d.hwAt(0)*d.reach*(1+jit)), wf=L.weepFall===undefined?0.86:L.weepFall;
+    const reach=R*CONIFER_TILT+H*((L.crownTop||0.96)+(L.branchLift||0.035));
+    const tip=L.weepTufts ? Math.max(2.5,(L.needleLen||7)*vs*d.fullness*0.55)*1.6 : 2;
+    return R*CONIFER_TILT+Math.max(0,wf*1.2508-1)*reach+tip+6;
+  }
+  let deep=0;
+  for (let i=0;i<=10;i++){
+    const u=i/20, R=Math.min(d.lim,d.hwAt(u)*d.reach*(1+jit));
+    const D=H*droop*(0.45+0.55*(1-u))*(d.kind==='fan'?0.3:1);
+    let extra;
+    if (d.kind==='slab') extra=Math.max(1.6,d.gap*o('padT')*d.thick/d.open)*(1+(o('fringe')+(L.hang||0))*1.2);
+    else if (d.kind==='puff'){
+      const tufts=Math.max(1,(L.tufts||o('tufts')));
+      const r=1.15*Math.max(2.4,(L.needleLen||7)*vs*d.fullness*0.62,d.gap*0.42,R*(1-from)/tufts*o('cover')*d.fullness);
+      extra=r*(1.15*(o('flat')||1)+0.55)+Math.max(2.2,(L.coneLen||1)*2.6*vs)*1.25;
+    } else {
+      const sl=(L.sprayLen||0.13)/0.13, r0=Math.max(2.2,Math.max(cw*0.1,d.crownH*0.058)*sl*d.fullness*0.8)*1.35;
+      extra=r0*1.3*d.thick*0.45+r0*0.6+Math.max(2.2,d.gap*1.5);
+    }
+    deep=Math.max(deep,R*CONIFER_TILT+D+extra-base-d.crownH*u);
+  }
+  return Math.max(0,deep)+4;
+}
+function drawConiferTree(ctx,P,L,S,habit,H,cw,vs,growth,seed,sway,season,snowy,mature){
+  const dims=coniferTreeDims(L,H,cw,growth), F=dims.F, kind=dims.kind, opt=dims.opt, lim=dims.lim;
+  const rnd=mulberry(seed^0xc0f1e), fol=S.fol||null;
+  // spring: the old needles keep the summer colour and the new growth is the
+  // spring one, on the tips -- a spruce in May is dark with bright ends
+  const sum=P.sea&&P.sea.Summer&&P.sea.Summer.fol;
+  const body=fol && season==='Spring' && sum ? sum : fol, newCol=fol && season==='Spring' && sum ? fol : null;
+  const topY=-H*(L.crownTop||0.96), baseY=-H*(L.crownBase||0.08), crownH=Math.max(8,baseY-topY);
+  const ox=sway*(L.sway||1.2), xAt=kind==='drape'
+    ? y=>coniferLeaderAtY(L,H,topY,y,seed,ox)
+    : y=>ox*Math.min(1,Math.max(0,-y/H));
+  const fullness=dims.fullness, open=dims.open, thick=dims.thick, tiersN=dims.tiersN, gap=dims.gap, hwAt=dims.hwAt;
+  const whorl0=Math.max(3,Math.round(opt('whorl'))), jit=opt('jitter'), gaps=opt('gaps'), from=opt('from');
+  const back=opt('back'), clouds=Math.max(1,Math.round(opt('clouds')||1));
+  const reach=dims.reach;
+  const Wt=Math.max(1.4,(L.trunkW||3.4)*vs*growth*1.25);
+  const lit=c=>c*LIT.x/0.55;                     // +1 facing the light, -1 away
+  // 1. the limbs and what they carry, whorl by whorl
+  let n=0;
+  const limbB=[], limbF=[];                      // [x0,y0,cx,cy,x1,y1,w] per limb
+  const snow=[], conesAt=[];
+  for (let t=0;t<tiersN && n<CF_MAX-8;t++){
+    const u=Math.min(0.985,Math.max(0,(t+(t>0 && t<tiersN-1 ? (rnd()-0.5)*0.5 : 0))/(tiersN-1)));
+    const y=baseY-crownH*u, hw=hwAt(u)*reach, bx=xAt(y);
+    if (hw<1.2) continue;
+    const nW=Math.max(3,Math.round(whorl0*(0.5+0.5*Math.min(1,hw/(cw*0.22)))));
+    const rot=t*2.39996+rnd()*0.7;
+    const D=H*(L.droop===undefined?0.025:L.droop)*(0.45+0.55*(1-u))*(kind==='fan'?0.3:1);
+    const U=H*(opt('upturn')||0)*(1-u*0.5);
+    for (let j=0;j<nW;j++){
+      const th=rot+j*Math.PI*2/nW+(rnd()-0.5)*0.55, c=Math.cos(th), s=Math.sin(th);
+      const missing=rnd()<gaps*(0.4+u);
+      let R=hw*(1-jit+2*jit*rnd());
+      if (kind==='slab') R=Math.min(R,(lim-Math.abs(bx))/Math.max(0.2,Math.abs(c)+Math.abs(s)*opt('padW')*1.4));
+      if (missing || s<back) continue;
+      const tone=Math.round(16*lit(c)+7*s+12*(u-0.45)+(rnd()-0.5)*9-(s<0 ? 8-10*s : 0));
+      const dz=R*0.65*s*CONIFER_TILT_C-y*CONIFER_TILT;
+      const tipX=bx+R*c, tipY=y+R*s*CONIFER_TILT+D-U;
+      if (opt('limb')>0 && kind!=='drape') (s<0?limbB:limbF).push(bx,y,bx+(tipX-bx)*0.5,y-(L.branchLift||0.02)*H+(tipY-y)*0.25,tipX,tipY,Math.max(0.6,1.4*vs*opt('limb')*(1-u*0.6)));
+      if (kind==='slab'){
+        // a long limb carries its plate as overlapping sprays, so a big tree's
+        // lower limbs are textured rather than one sheet; a true cedar's are
+        // separate shelves with sky between
+        const shelves=clouds>1, len=R*(1-from);
+        const sub=shelves ? clouds : Math.max(1,Math.min(3,Math.round(len/Math.max(4,gap*3.2))));
+        for (let k=0;k<sub;k++){
+          const a=from+(1-from)*k/sub, b=shelves ? a+(1-from)/sub*0.86 : Math.min(1,a+(1-from)/sub*1.35);
+          const o=n*CF_STRIDE; _cfIt[o]=0; _cfIt[o+1]=bx; _cfIt[o+2]=y; _cfIt[o+3]=c; _cfIt[o+4]=s;
+          _cfIt[o+5]=R; _cfIt[o+6]=a; _cfIt[o+7]=b; _cfIt[o+8]=D; _cfIt[o+9]=dz+k*0.01*s; _cfIt[o+10]=tone+k*3; _cfIt[o+11]=U; n++;
+        }
+      } else if (kind==='puff'){
+        // a pine's brushes are sized by its needles; a cedar's tufts by the
+        // limb they cover (`cover`), so its shelves close up into clouds
+        const tufts=Math.max(1,Math.round((L.tufts||opt('tufts'))*(0.7+0.3*(1-u))));
+        const r0=Math.max(2.4,(L.needleLen||7)*vs*fullness*0.62*(0.5+0.5*growth),gap*0.42,R*(1-from)/tufts*opt('cover')*fullness);
+        for (let k=0;k<tufts;k++){
+          const f=tufts>1 ? from+(1-from)*(k/(tufts-1)) : 1, side=k&1?1:-1;
+          const r=r0*(0.72+0.28*f)*(0.85+0.3*rnd());
+          let px=bx+R*f*c-s*side*r*0.5; const py=y+R*f*s*CONIFER_TILT+D*f*f-U*f*f*f+c*side*r*0.15;
+          const ext=r*2.35; if (Math.abs(px)+ext>lim) px=Math.sign(px)*Math.max(0,lim-ext);
+          const o=n*CF_STRIDE; _cfIt[o]=1; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
+          _cfIt[o+5]=r; _cfIt[o+6]=opt('flat'); _cfIt[o+9]=dz+f*0.02*s; _cfIt[o+10]=tone; n++;
+          if (k===tufts-1 && s>-0.2) conesAt.push(px,py+r*0.4,s);
+        }
+      } else if (kind==='drape'){
+        /* A weeper's limb goes out, then down: it arches from the leader and
+           its tip finishes below where it started, and the foliage hangs off it
+           in curtains that fall most of the way to the GROUND under them --
+           which, for a limb pointing at the viewer, is lower on the screen. */
+        const armFall=L.scaffoldDroop===undefined?WEEP_SCAFFOLD:L.scaffoldDroop;
+        const weepFall=L.weepFall===undefined?0.86:L.weepFall, asym=L.asymmetry===undefined?0.16:L.asymmetry;
+        R*=1-asym*(0.5+0.5*Math.cos(th-(seed&7)));
+        const toGround=Math.max(gap*0.5,-y), armDrop=Math.min(R*armFall,toGround*0.45), arch=(L.branchLift||0.035)*H;
+        const cx=bx+R*c*0.55, cy=y-arch+R*s*CONIFER_TILT*0.55, tx=bx+R*c, ty=y+R*s*CONIFER_TILT+armDrop;
+        (s<0?limbB:limbF).push(bx,y,cx,cy,tx,ty,Math.max(0.6,1.25*vs*(1-u*0.4)));
+        const nC=Math.max(2,Math.min(L.weepTufts?3:5,Math.round((L.curtains||4)*(0.5+0.5*Math.min(1,R/(cw*0.25))))));
+        const nr=L.weepTufts ? Math.max(2.5,(L.needleLen||7)*vs*fullness*0.55) : 0;
+        for (let k=0;k<nC;k++){
+          const f=from+(1-from)*(k+0.5)/nC, q=1-f;
+          const px=q*q*bx+2*q*f*cx+f*f*tx, py=q*q*y+2*q*f*cy+f*f*ty, gy=R*f*s*CONIFER_TILT;
+          const len=Math.max(gap*0.6,(gy-py)*weepFall*(0.62+0.56*rnd())*(0.84+0.22*f));
+          const w=Math.max(2.4,(R*(1-from)/nC)*(0.6+0.5*Math.abs(c))*Math.sqrt(fullness)*(0.6+0.6*rnd()));
+          const o=n*CF_STRIDE; _cfIt[o]=3; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
+          _cfIt[o+5]=len; _cfIt[o+6]=w; _cfIt[o+7]=(c<0?-1:1)*len*0.05; _cfIt[o+8]=nr;
+          _cfIt[o+9]=dz+f*0.02*s; _cfIt[o+10]=tone-k*2; n++;
+          if (k===nC-1 && s>-0.1 && u>0.25) conesAt.push(px,py,s);
+        }
+      } else if (L.fanRows){
+        // fans in rows on their limbs: the shell-like layers of a hinoki
+        const sl=(L.sprayLen||0.13)/0.13, upright=L.fanFlat ? 1 : 0.8;
+        const rx=Math.max(gap*0.7,Math.PI*hw/nW*0.8)*sl*(0.45+0.55*Math.abs(s)+0.1)*fullness*0.8;
+        const ry=Math.max(gap*1.5,rx*1.25)*thick*upright;
+        const f=0.86, px=bx+R*f*c, py=y+R*f*s*CONIFER_TILT+D*f*f-ry*0.15;
+        const o=n*CF_STRIDE; _cfIt[o]=2; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
+        _cfIt[o+5]=rx; _cfIt[o+6]=ry; _cfIt[o+7]=c*(L.sprayJitter===undefined?0.2:L.sprayJitter)*0.9+(rnd()-0.5)*0.25;
+        _cfIt[o+9]=dz; _cfIt[o+10]=tone; n++;
+        if (s>0.1 && rnd()<0.35) conesAt.push(px+(rnd()-0.5)*rx,py-ry*(0.2+0.4*rnd()),s);
+      }
+      if (kind==='slab' && s>-0.2 && u>0.35) conesAt.push(tipX-c*R*0.12,tipY,s);
+    }
+  }
+  if (kind==='fan' && !L.fanRows){
+    /* Scale foliage is a SURFACE: sprays scattered over the crown rather than
+       laid in whorls, which read as the rows of a pine cone. Heights are drawn
+       in proportion to the crown's width there, so the base is as full as the
+       top; the back half is hidden by the interior and never drawn. */
+    const sl=(L.sprayLen||0.13)/0.13, h0=Math.max(1,hwAt(0),hwAt(0.3));
+    const r0=Math.max(2.2,Math.max(cw*0.1,crownH*0.058)*sl*fullness*0.8);
+    let area=0; for (let i=0;i<12;i++) area+=2*hwAt((i+0.5)/12)*crownH/12;
+    const N=Math.max(24,Math.min(120,Math.round(area*reach/(r0*r0*1.1)*(L.density||1.1))));
+    for (let i=0;i<N && n<CF_MAX-4;i++){
+      let u=0, g=0; do { u=rnd(); } while (rnd()>hwAt(u)/h0+0.12 && ++g<8);
+      const th=-Math.PI*0.14+rnd()*Math.PI*1.28, c=Math.cos(th), s=Math.sin(th);
+      const y=baseY-crownH*Math.min(0.985,u), hw=hwAt(u)*reach, R=hw*(0.84+0.18*rnd()), bx=xAt(y);
+      if (hw<1) continue;
+      const sz=r0*(0.65+0.7*rnd())*(0.7+0.3*Math.min(1,hw/(cw*0.2)));
+      const rx=sz*(0.5+0.5*Math.abs(s)), ry=sz*1.3*thick*(L.fanFlat?1:0.85);
+      let px=bx+R*c; const py=y+R*s*CONIFER_TILT-ry*0.3;
+      if (Math.abs(px)+rx*1.1+ry*0.35>lim) px=Math.sign(px)*Math.max(0,lim-rx*1.1-ry*0.35);
+      const tone=Math.round(15*lit(c)+6*s+12*(u-0.45)+(rnd()-0.5)*8);
+      const o=n*CF_STRIDE; _cfIt[o]=2; _cfIt[o+1]=px; _cfIt[o+2]=py; _cfIt[o+3]=c; _cfIt[o+4]=s;
+      _cfIt[o+5]=rx; _cfIt[o+6]=ry; _cfIt[o+7]=c*(L.sprayJitter===undefined?0.2:L.sprayJitter)*1.2+(rnd()-0.5)*0.3;
+      _cfIt[o+9]=R*0.65*s*CONIFER_TILT_C-y*CONIFER_TILT; _cfIt[o+10]=tone; n++;
+      if (s>0.1 && rnd()<0.3) conesAt.push(px+(rnd()-0.5)*rx,py-ry*(0.1+0.3*rnd()),s);
+    }
+  }
+  // 2. the dark interior: a cone (or crown outline) inset under the foliage,
+  //    closed at the bottom by the front of the lowest whorl
+  if (fol){
+    const m=opt('mass'), a=opt('massA');
+    if (m>0 && a>0){
+      ctx.save(); ctx.globalAlpha=a; ctx.beginPath();
+      const steps=10;
+      for (let i=0;i<=steps;i++){ const u=1-i/steps, y=baseY-crownH*u; ctx[i?'lineTo':'moveTo'](xAt(y)+hwAt(u)*m*reach*(1-0.45*u*u),y); }
+      const hb=hwAt(0)*m*reach;
+      if (kind==='drape') ctx.lineTo(xAt(baseY)+hb*0.85,-gap*0.3);
+      ctx.quadraticCurveTo(xAt(baseY)+hb*0.6,baseY+hb*CONIFER_TILT*1.3,xAt(baseY),baseY+hb*CONIFER_TILT);
+      ctx.quadraticCurveTo(xAt(baseY)-hb*0.6,baseY+hb*CONIFER_TILT*1.3,xAt(baseY)-hb,baseY);
+      if (kind==='drape') ctx.lineTo(xAt(baseY)-hb*0.85,-gap*0.3);
+      for (let i=1;i<=steps;i++){ const u=i/steps, y=baseY-crownH*u; ctx.lineTo(xAt(y)-hwAt(u)*m*reach*(1-0.45*u*u),y); }
+      ctx.closePath();
+      litFill(ctx,ox*0.5,(topY+baseY)/2,Math.max(cw*0.4,crownH*0.5),shade(body,kind==='fan'?-34:-50),8,-10);
+      ctx.restore();
+    }
+  }
+  // depth order: furthest first
+  for (let i=0;i<n;i++) _cfOrd[i]=i;
+  const ord=_cfOrd.subarray(0,n).sort((a,b)=>_cfIt[a*CF_STRIDE+9]-_cfIt[b*CF_STRIDE+9]);
+  const bark=L.bark||shade(body||'#5e4a38',-72);
+  const limbs=list=>{
+    if (!list.length) return;
+    ctx.strokeStyle=L.barkTop||shade(bark,6); ctx.lineCap='round';
+    for (let w0=0;w0<2;w0++){
+      ctx.lineWidth=0; ctx.beginPath(); let any=false, wmax=0;
+      for (let i=0;i<list.length;i+=7){
+        const thin=list[i+6]<1.1; if (thin!==(w0===1)) continue;
+        ctx.moveTo(list[i],list[i+1]); ctx.quadraticCurveTo(list[i+2],list[i+3],list[i+4],list[i+5]);
+        if (list[i+6]>wmax) wmax=list[i+6]; any=true;
+      }
+      if (any){ ctx.lineWidth=wmax; ctx.stroke(); }
+    }
+  };
+  const W=opt('padW'), fringe=opt('fringe')+(L.hang||0);
+  const paint=i=>{
+    const o=i*CF_STRIDE, k=_cfIt[o], tone=_cfIt[o+10];
+    if (k===0){
+      const bx=_cfIt[o+1], by=_cfIt[o+2], c=_cfIt[o+3], s=_cfIt[o+4], R=_cfIt[o+5], f0=_cfIt[o+6], f1=_cfIt[o+7], D=_cfIt[o+8], U=_cfIt[o+11];
+      const T=Math.max(1.6,gap*opt('padT')*thick/open);
+      const tm=Math.max(0,Math.min(1,((f0+f1)/2-from)/Math.max(0.05,1-from)));
+      const wl=R*W*Math.sqrt(Math.max(0.08,Math.sin(Math.PI*(0.18+0.78*tm))));
+      const nf=cfSlabFace(bx,by,c,s,R,f0,f1,D,U,wl,rnd,_cfX,_cfY);
+      const nu=cfSlabUnder(T,fringe,rnd,nf);
+      ctx.fillStyle=shade(body,tone-34); ctx.beginPath(); cfTrace(ctx,_cuX,_cuY,nu); ctx.fill();
+      ctx.fillStyle=shade(body,tone+2); ctx.beginPath(); cfTrace(ctx,_cfX,_cfY,nf); ctx.fill();
+      // the lit, outer part of the face: new growth in spring, snow in winter
+      const a=f0+(f1-f0)*(snowy?0.15:0.38), nh=cfSlabFace(bx,by-T*(snowy?0.12:0.08),c,s,R,a,f1*0.98,D,U,wl*(snowy?0.82:0.58),rnd,_cfX,_cfY);
+      ctx.fillStyle=snowy ? CF_SNOW : shade(newCol||body,tone+(newCol?8:14));
+      ctx.beginPath(); cfTraceSmooth(ctx,_cfX,_cfY,nh); ctx.fill();
+    } else if (k===3){
+      const x=_cfIt[o+1], y=_cfIt[o+2], len=_cfIt[o+5], w=_cfIt[o+6], drift=_cfIt[o+7], nr=_cfIt[o+8], c=_cfIt[o+3];
+      if (nr>0){
+        // a pine hangs needle-clad shoots: brushes down the strand
+        const steps=Math.max(2,Math.min(3,Math.round(len/Math.max(6,nr*1.8))));
+        for (let q=1;q<=steps;q++){ const f=q/steps;
+          cfPuff(ctx,x+drift*f,y+len*f-nr*0.3,nr*(0.66+0.34*f),c*0.3,body,tone+(q&1?-4:3),rnd,!!L.softNeedles,newCol,
+            snowy && q===1 && _cfIt[o+4]>0,0.85); }
+      } else {
+        // scale or needle foliage as a drape: dark body, a lit strip down its
+        // light side, the tip in new growth in spring
+        cfStrand(ctx,x,y,len,w,drift,body,tone-14,rnd);
+        cfStrand(ctx,x-w*0.18,y+len*0.03,len*0.8,w*0.48,drift*0.8,newCol||body,tone+(newCol?6:10),rnd);
+        if (snowy && _cfIt[o+4]>0){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x,y+w*0.1,w*0.55,Math.max(1.2,w*0.22),0,0,7); ctx.fill(); }
+      }
+    } else if (k===1){
+      cfPuff(ctx,_cfIt[o+1],_cfIt[o+2],_cfIt[o+5],_cfIt[o+3],body,tone,rnd,!!L.softNeedles,newCol,
+        snowy && _cfIt[o+4]>-0.2 && ((i*0.618034)%1)<0.6,_cfIt[o+6]);
+    } else {
+      const x=_cfIt[o+1], y=_cfIt[o+2], rx=_cfIt[o+5], ry=_cfIt[o+6], rot=_cfIt[o+7];
+      ctx.fillStyle=shade(body,tone-8); cfFlame(ctx,x+rx*0.06,y+ry*0.06,rx,ry,rot,3,rnd); ctx.fill();
+      ctx.fillStyle=shade(newCol||body,tone+(newCol?10:6));
+      cfFlame(ctx,x-rx*0.16,y-ry*0.2,rx*0.55,ry*0.55,rot,2,rnd); ctx.fill();
+      // snow settles on the upward-facing sprays, not on every one
+      if (snowy && _cfIt[o+4]>0.15 && ((i*0.618034)%1)<0.45){ ctx.fillStyle=CF_SNOW; ctx.beginPath(); ctx.ellipse(x-rx*0.05,y-ry*0.6,rx*0.5,ry*0.16,rot,0,7); ctx.fill(); }
+    }
+  };
+  let split=0; while (split<n && _cfIt[ord[split]*CF_STRIDE+4]<0) split++;
+  // the back items sort among themselves; the front ones after the trunk
+  const backIdx=[], frontIdx=[];
+  for (let q=0;q<n;q++) (_cfIt[ord[q]*CF_STRIDE+4]<0 ? backIdx : frontIdx).push(ord[q]);
+  limbs(limbB);
+  if (fol) for (const i of backIdx) paint(i);
+  // 3. the trunk: a tapered column with a flared foot, up to the leader
+  const tTop=(kind!=='drape' && opt('massA')>=0.9 && fol) ? Math.max(topY+gap*0.5,baseY-crownH*0.25) : topY+gap*0.5;
+  const trunk=[[0,0,Wt*1.45],[xAt(-H*0.02),-H*0.02,Wt*1.1],[xAt(-H*0.06),-H*0.06,Wt]];
+  const tk=kind==='drape' ? 5 : 2;
+  for (let q=1;q<=tk;q++){ const yy=-H*0.06+(tTop+H*0.06)*q/tk; trunk.push([xAt(yy),yy,Wt*(1-0.82*q/tk)]); }
+  ctx.fillStyle=bark; ctx.beginPath();
+  for (let i=0;i<trunk.length;i++){ const [x,y,w]=trunk[i]; ctx[i?'lineTo':'moveTo'](x-w/2,y); }
+  for (let i=trunk.length-1;i>=0;i--){ const [x,y,w]=trunk[i]; ctx.lineTo(x+w/2,y); }
+  ctx.closePath(); ctx.fill();
+  /* `barkTop`: a bark that changes colour up the tree -- a Scots pine's
+     scaly orange upper trunk and limbs over grey-brown plates at the foot. */
+  if (L.barkTop){
+    const g=ctx.createLinearGradient(0,trunk[2][1],0,trunk[3][1]);
+    g.addColorStop(0,bark); g.addColorStop(1,L.barkTop);
+    ctx.fillStyle=g; ctx.beginPath();
+    for (let i=2;i<trunk.length;i++){ const [x,y,w]=trunk[i]; ctx[i>2?'lineTo':'moveTo'](x-w/2,y); }
+    for (let i=trunk.length-1;i>=2;i--){ const [x,y,w]=trunk[i]; ctx.lineTo(x+w/2,y); }
+    ctx.closePath(); ctx.fill();
+  }
+  if (L.barkStyle) drawBark(ctx,L.barkStyle,[trunk.slice(1,trunk.length-1)],bark,L.barkStripe,mulberry(seed^0xba12));
+  ctx.strokeStyle=shade(bark,18); ctx.lineWidth=Math.max(0.7,Wt*0.14); ctx.beginPath();
+  ctx.moveTo(trunk[1][0]-trunk[1][2]*0.26,trunk[1][1]); ctx.lineTo(trunk[3][0]-trunk[3][2]*0.26,trunk[3][1]); ctx.stroke();
+  limbs(limbF);
+  if (fol) for (const i of frontIdx) paint(i);
+  if (!fol){
+    // a deciduous conifer in winter: the limbs and a fine haze of branchlets
+    ctx.strokeStyle=shade(bark,14); ctx.lineWidth=Math.max(0.5,0.6*vs); ctx.beginPath();
+    for (const list of [limbB,limbF]) for (let i=0;i<list.length;i+=7){
+      const x0=list[i], y0=list[i+1], x1=list[i+4], y1=list[i+5];
+      for (let q=1;q<=3;q++){ const f=q/4+0.1, px=x0+(x1-x0)*f, py=y0+(y1-y0)*f, dx=(x1-x0)*0.12;
+        ctx.moveTo(px,py); ctx.lineTo(px+dx,py-gap*0.35); ctx.moveTo(px,py); ctx.lineTo(px+dx*0.8,py+gap*0.12); }
+    }
+    ctx.stroke();
+  }
+  // 4. the leader: a spire of new growth, or the nodding tip of a hemlock or deodar
+  if (fol){
+    const lx=xAt(topY);
+    if (L.leaderDroop || kind==='drape'){
+      const side=(seed&1)?-1:1, hook=typeof L.leaderDroop==='number'?L.leaderDroop:kind==='drape'?0.04:0.065;
+      ctx.strokeStyle=shade(body,-12); ctx.lineWidth=Math.max(0.9,1.5*vs); ctx.lineCap='round'; ctx.beginPath();
+      ctx.moveTo(lx,topY+gap); ctx.quadraticCurveTo(lx+side*H*hook*0.3,topY-H*0.02,lx+side*H*hook,topY+H*hook); ctx.stroke();
+    } else if (habit==='cedar'){
+      ctx.strokeStyle=shade(body,-6); ctx.lineWidth=Math.max(0.9,1.3*vs); ctx.lineCap='round'; ctx.beginPath();
+      ctx.moveTo(lx,topY+gap*1.2); ctx.quadraticCurveTo(lx+gap*0.1,topY+gap*0.4,lx+gap*0.18,topY-gap*0.2); ctx.stroke();
+    } else if (kind==='puff'){
+      cfPuff(ctx,lx,topY+gap*0.2,Math.max(2.6,(L.needleLen||7)*vs*fullness*0.6),0,body,10,rnd,!!L.softNeedles,newCol,snowy);
+    } else {
+      const sw=Math.max(1.4,gap*(kind==='fan'?0.5:0.32));
+      ctx.fillStyle=shade(newCol||body,10); ctx.beginPath();
+      ctx.moveTo(lx,topY-gap*0.35); ctx.quadraticCurveTo(lx+sw,topY+gap*0.6,lx+sw*0.4,topY+gap*1.6);
+      ctx.lineTo(lx-sw*0.4,topY+gap*1.6); ctx.quadraticCurveTo(lx-sw,topY+gap*0.6,lx,topY-gap*0.35); ctx.fill();
+    }
+  }
+  // 5. cones, on the front of the crown where they would be seen
+  if (S.seed && mature && conesAt.length){
+    const style=L.coneStyle||(L.roundSeed ? 'berry' : opt('cone')), N=Math.min(conesAt.length/3|0,L.seedN||6);
+    const len=Math.max(2.2,(L.coneLen||1)*(style==='berry'?1.2:style==='tiny'?1.4:2.6)*vs);
+    for (let q=0;q<N;q++){
+      const i=((((q*0.6180339887)%1)*(conesAt.length/3))|0)*3, x=conesAt[i], y=conesAt[i+1];
+      ctx.fillStyle=shade(S.seed,-14+(conesAt[i+2]>0.5?8:0));
+      ctx.beginPath();
+      if (style==='berry'){
+        for (let b=0;b<3;b++) { const bx=x+(b-1)*len*0.9, by=y+(b&1)*len*0.6; ctx.moveTo(bx+len*0.55,by); ctx.ellipse(bx,by,len*0.55,len*0.55,0,0,7); }
+      } else if (style==='upright' || style==='barrel'){
+        ctx.ellipse(x,y-len*0.75,len*(style==='barrel'?0.42:0.34),len*0.75,0,0,7);
+      } else {
+        ctx.ellipse(x,y+len*0.6,len*0.3,len*(style==='tiny'?0.42:0.62),0,0,7);
+      }
+      ctx.fill();
+      ctx.fillStyle=shade(S.seed,14); ctx.beginPath();
+      ctx.ellipse(x-len*0.12,style==='upright'||style==='barrel'?y-len*0.95:y+len*0.45,len*0.12,len*0.22,0,0,7); ctx.fill();
+    }
+  }
+  // snow for the closing caps: the tops of the front plates of the upper crown
+  if (snowy) for (let q=frontIdx.length-1;q>=0 && snow.length<9;q-=3){
+    const o=frontIdx[q]*CF_STRIDE, k=_cfIt[o], c=_cfIt[o+3], s=_cfIt[o+4], R=_cfIt[o+5];
+    if (s<0.3) continue;
+    if (k===0) snow.push([_cfIt[o+1]+R*0.6*c,_cfIt[o+2]+R*0.6*s*CONIFER_TILT-gap*0.1,Math.max(2.4,R*0.12)]);
+    else if (k===1) snow.push([_cfIt[o+1],_cfIt[o+2]-R*0.3,Math.max(2.2,R*0.45)]);
+    else if (k===3) snow.push([_cfIt[o+1],_cfIt[o+2],Math.max(2.2,_cfIt[o+6]*0.5)]);
+    else snow.push([_cfIt[o+1],_cfIt[o+2]-_cfIt[o+6]*0.6,Math.max(2.2,R*0.45)]);
+  }
+  return snow;
 }
 
 /* ---------- broadleaf tree habits (look.crown) ----------
@@ -6027,6 +6532,12 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     }
     if (sheared) ctx.restore();
   }
+  else if (P.form === 'conifer' && coniferTreeOn(P.look)){ // built in the round
+    const L=P.look, vs=(woodyVisualCw(P)||60)/(P.cw||60);
+    const cw=(woodyVisualCw(P)||60)*(0.12+0.88*growth);
+    snowAnchors=drawConiferTree(ctx,P,L,S,L.coniferHabit||'spruce',H,cw,vs,growth,seed,sway,season,
+      !!(AMBIENCE[season].snow && mature),mature);
+  }
   else if (P.form === 'conifer'){ // evergreen habits share primitives, not silhouettes
     const L=P.look||{}, habit=S.fol?(L.coniferHabit||'spruce'):'bare';
     const fol=S.fol||'#4f6f50', vs=(woodyVisualCw(P)||60)/(P.cw||60);
@@ -7061,7 +7572,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // A habit tree lights each clump itself, and its crown has sky in it where
   // these would land.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
-      && !(P.form==='tree' && treeHabitOf(P.look))){
+      && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';
