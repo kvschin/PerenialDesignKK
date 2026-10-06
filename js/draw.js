@@ -3051,6 +3051,728 @@ function drawTreeBlossom(ctx, L, S, crown, tips, alongLimb, blv, vs, bare, seed)
   ctx.fill();
 }
 
+/* ---------- shrub habits (SHRUB_HABIT, 0.9.60) ----------
+   Every informal shrub was the same drawing: seven to thirteen straight twigs
+   fanned from ONE point at the ground, a translucent ellipse behind them and a
+   few dozen leaves stuck along the twigs. A viburnum, a lilac, a rhododendron
+   and a forsythia were one broom in different greens, and none of them looked
+   leafy, because the leaves covered about a tenth of the crown.
+   A shrub is told apart by its shape first, as a tree is, so this is the tree
+   habit system (drawTreeHabit) applied to a plant with many stems instead of
+   one trunk. A habit names a crown OUTLINE (the superellipse profile treeCrownHW
+   reads: w, p, eLo/eHi, lo over base..top), how many stems come out of the
+   ground and how wide a crown they leave from (stems, baseW), and how they
+   carry their tips: rise and fork place the forks toward the tips each limb
+   serves, bend makes a stem climb before it turns out, arch lifts a twig's
+   control point so a cane rises and falls (a forsythia's fountain), crook
+   kinks it, and `tiers` lays the tips in shelves (a doublefile viburnum).
+   The tips are spread through the outline and joined back to the stems from
+   the outside in, so the crown is filled by construction.
+   The foliage is LEAVES, not blobs: at shrub scale a leaf is readable (a 9-unit
+   viburnum leaf on a 200-unit shrub), so a dark underwash fills the outline
+   and a few hundred leaf shapes cover it, clumped at the tips and thinner
+   through the interior, each turned out of its clump and lit by where it sits
+   on the clump AND on the crown. They are batched into five light tones (one
+   fill a tone, a few more for a fall palette), which is what lets a shrub carry
+   300 leaves for less than the 40 drawLeaf calls it used to make: each of
+   those built a gradient. `cover` is how much of the outline the leaves
+   cover, so the count follows the crown's size; past SH_LEAF_CAP the leaves
+   grow instead, the way a tree trades blob size for count.
+   Seasons follow the trees: a deciduous shrub leafs out through spring
+   (woodyLeafOut), its leaves emerging as tufts at the twig tips over a bare
+   twiggy frame, and drops them through late fall a clump at a time onto the
+   ground beneath it; in winter it is its twigs. An evergreen (winter foliage)
+   never does either.
+   Opt-in per form: every informal art2 shrub and hydrangea draws this way; the
+   clipped topiary keeps its own drawing. `?shrub=0` (SHRUB_HABIT.on) A/Bs the
+   whole system and restores the old drawing call for call.
+   Table fields as TREE_HABITS, plus: stems/baseW, the stems and the half-width
+   of the crown they rise from (a fraction of cw); rise, how far a stem climbs
+   toward its tips before it forks; arch, a twig's lift above its ends; cover,
+   wash, fill and clumpR, the leaves' coverage, the underwash alpha, the share
+   of leaves spread through the interior, and a clump's radius as a share of
+   the crown's half-width; twigs/twigLen, the winter twig fringe. */
+const SHRUB_HABIT = { on: typeof location==='undefined' || !/[?&]shrub=0(&|$)/.test(location.search) };
+const SHRUB_HABITS = {
+  // a dense rounded mass of stems, leafy to near the ground (arrowwood, ninebark)
+  round:    {base:0.02, top:1.00, w:0.49, p:0.44, eLo:1.9, eHi:2.1, lo:0.40, stems:7, baseW:0.10,
+             tips:30, tipFrom:0.14, rim:1.0, rise:0.50, fork:0.55, three:0.3, bend:-0.55, crook:0.12, arch:0.08, pipe:0.6,
+             clumpR:0.16, squash:0.85, hang:0.10, cover:0.95, wash:0.88, fill:0.34, twigs:2, twigLen:0.08},
+  // a broad dome wider than tall, foliage to the ground (rhododendron, laurustinus)
+  mound:    {base:0.00, top:1.00, w:0.50, p:0.30, eLo:2.4, eHi:2.0, lo:0.78, stems:8, baseW:0.12,
+             tips:30, tipFrom:0.06, rim:1.2, rise:0.45, fork:0.5, three:0.3, bend:-0.35, crook:0.10, arch:0.14, pipe:0.6,
+             clumpR:0.15, squash:0.80, hang:0.14, cover:1.0, wash:0.92, fill:0.36, twigs:2, twigLen:0.06},
+  // low and spreading, wider than anything else (lowbush blueberry, fothergilla)
+  lowMound: {base:0.00, top:1.00, w:0.50, p:0.24, eLo:2.6, eHi:1.7, lo:0.86, stems:9, baseW:0.16,
+             tips:28, tipFrom:0.04, rim:1.3, rise:0.35, fork:0.5, three:0.3, bend:0.35, crook:0.16, arch:0.22, pipe:0.6,
+             clumpR:0.15, squash:0.70, hang:0.18, cover:0.95, wash:0.86, fill:0.30, twigs:2, twigLen:0.07},
+  // taller than wide, the stems near vertical (summersweet, camellia, photinia)
+  upright:  {base:0.07, top:1.00, w:0.44, p:0.50, eLo:2.0, eHi:1.8, lo:0.38, stems:8, baseW:0.09,
+             tips:30, tipFrom:0.18, rim:0.8, rise:0.62, fork:0.6, three:0.25, bend:-0.85, crook:0.08, arch:0.0, pipe:0.6,
+             clumpR:0.16, squash:0.95, hang:0.0, cover:0.95, wash:0.88, fill:0.36, twigs:2, twigLen:0.06},
+  // a narrow base flaring to an open top, the stems bare below (lilac, elder, witch hazel)
+  vase:     {base:0.20, top:1.00, w:0.50, p:0.70, eLo:1.3, eHi:2.3, lo:0.20, stems:7, baseW:0.07,
+             tips:30, tipFrom:0.32, rim:1.4, rise:0.62, fork:0.6, three:0.3, bend:-0.7, crook:0.14, arch:0.06, pipe:0.6,
+             clumpR:0.15, squash:0.85, hang:0.06, cover:0.85, wash:0.62, fill:0.22, twigs:2, twigLen:0.07},
+  // canes rise and arch over, their tips falling (forsythia, bridal wreath, hazel)
+  fountain: {base:0.00, top:1.00, w:0.52, p:0.40, eLo:2.0, eHi:1.6, lo:0.42, stems:10, baseW:0.08,
+             tips:32, tipFrom:0.06, rim:1.7, vPow:1.25, rise:0.72, fork:0.68, three:0.2, bend:-0.9, crook:0.05, arch:0.62, pipe:0.6,
+             clumpR:0.12, squash:0.80, hang:0.36, cover:0.85, wash:0.8, fill:0.16, alongCane:0.5, twigs:2, twigLen:0.07, droop:1.0},
+  // a rounded mound of arching branches (weigela, sweetspire, cherry laurel)
+  arching:  {base:0.00, top:1.00, w:0.51, p:0.38, eLo:2.1, eHi:1.9, lo:0.52, stems:9, baseW:0.10,
+             tips:30, tipFrom:0.08, rim:1.3, rise:0.62, fork:0.6, three:0.25, bend:-0.7, crook:0.08, arch:0.36, pipe:0.6,
+             clumpR:0.14, squash:0.80, hang:0.26, cover:0.92, wash:0.84, fill:0.26, alongCane:0.3, twigs:2, twigLen:0.06, droop:0.6},
+  // irregular and loose, sky between its masses (swamp azalea, buttonbush)
+  open:     {base:0.10, top:1.00, w:0.50, p:0.55, eLo:1.7, eHi:2.2, lo:0.28, stems:5, baseW:0.08,
+             tips:26, tipFrom:0.22, rim:1.2, rise:0.50, fork:0.55, three:0.35, bend:-0.4, crook:0.32, arch:0.08, pipe:0.6,
+             clumpR:0.13, squash:0.80, hang:0.10, cover:0.75, wash:0, fill:0.06, twigs:2, twigLen:0.08},
+  // horizontal tiers of branches (doublefile viburnum, pieris)
+  layered:  {base:0.04, top:1.00, w:0.51, p:0.30, eLo:2.3, eHi:2.0, lo:0.62,
+             tiers:[[0.10,1.00,0.40],[0.52,0.84,0.35],[0.90,0.55,0.25]], stems:6, baseW:0.08,
+             tips:34, rim:0, rise:0.5, fork:0.5, three:0.2, bend:0.7, crook:0.10, arch:0.08, pipe:0.6,
+             clumpR:0.17, squash:0.55, hang:0.0, cover:1.0, wash:0, fill:0.03, twigs:2, twigLen:0.05, twigUp:0.6},
+  // many straight stems from a broad base, flat-topped (red-twig dogwood, sumac)
+  thicket:  {base:0.08, top:1.00, w:0.48, p:0.58, eLo:1.6, eHi:2.0, lo:0.50, stems:12, baseW:0.22,
+             tips:30, tipFrom:0.28, rim:0.9, rise:0.76, fork:0.72, three:0.2, bend:-0.3, crook:0.05, arch:0.0, pipe:0.55,
+             clumpR:0.14, squash:0.90, hang:0.0, cover:0.88, wash:0.72, fill:0.24, twigs:2, twigLen:0.05},
+};
+const SHRUB_TONES=[-26,-13,-2,10,22];
+// the share of a shrub's tips that carry a flower head, by bloom style
+const SHRUB_HEAD_SHARE={bareStem:0.85, stemAxil:0.6, spray:0.8, flatCorymb:0.75, rose:0.5, scattered:0.5,
+  whorls:0.4, bottlebrush:0.5, powderpuff:0.5, truss:0.45, looseCluster:0.5, panicle:0.5,
+  raceme:0.5, pendantRaceme:0.5, droopingRaceme:0.5};
+const _shrubHabitFor=new WeakMap();
+// the habit a shrub draws with, or null for the clipped topiary, a shrub drawn
+// in the classic renderer, and everything when ?shrub=0. look.shrubHabit is a
+// partial override merged over the named habit, once per look object.
+function shrubHabitOf(P){
+  if (!SHRUB_HABIT.on || !P || P.type!=='shrub') return null;
+  const L=P.look||{};
+  if (!art2On(L)) return null;
+  let name;
+  if (P.form==='hydrangea') name=L.habit||(L.bloomShape==='panicle'?'vase':'mound');
+  else if (P.form==='bush' && !L.clip) name=L.habit||'round';
+  else return null;
+  const base=SHRUB_HABITS[name]||SHRUB_HABITS.round;
+  if (!L.shrubHabit) return base;
+  let hb=_shrubHabitFor.get(L);
+  if (!hb){ hb=Object.assign({},base,L.shrubHabit); _shrubHabitFor.set(L,hb); }
+  return hb;
+}
+/* A point along the twig a shrub tip ends, at fraction t, into _saX/_saY (shrubTwigAt). The
+   habit renderer's tips carry their twig as an absolute quadratic
+   [tx,ty, qx,qy, x0,y0, 1]; the classic fan's ran from the ground centre with
+   its control at a FRACTION of the tip, [tx,ty, cx,cy], and is evaluated with
+   exactly the arithmetic the classic flower passes used, so ?shrub=0 draws
+   them where it always did. shrubChord is the straight line the classic
+   berries were strung on. */
+let _saX=0, _saY=0;
+function shrubTwigAt(tip,t){
+  if (tip[6]){ const u=1-t; _saX=u*u*tip[4]+2*u*t*tip[2]+t*t*tip[0]; _saY=u*u*tip[5]+2*u*t*tip[3]+t*t*tip[1]; return; }
+  const q=2*(1-t)*t; _saX=tip[0]*(q*tip[2]+t*t); _saY=tip[1]*(q*tip[3]+t*t);
+}
+function shrubChord(tip,f){
+  if (tip[6]) { shrubTwigAt(tip,f); return; }
+  _saX=tip[0]*f; _saY=tip[1]*f;
+}
+/* Leaf scratch for the shrub habit: base, tip, half-width and its fill bucket
+   (colour x5 + tone), plus the rachis strokes of compound leaves. Module-level,
+   the usual reason: no allocation on a path that runs every procedural frame. */
+const SH_LEAF_CAP=300, SH_MAX=1400, SH_RACHIS_MAX=260;
+const _shL=new Float64Array(SH_MAX*5), _shB=new Uint8Array(SH_MAX), _shP=new Uint8Array(SH_MAX), _shO=new Uint16Array(SH_MAX);
+const _shR=new Float64Array(SH_RACHIS_MAX*4);
+let _shN=0, _shRN=0;
+const _shCount=new Uint16Array(64), _shStart=new Uint16Array(64);
+function shLeafPush(x0,y0,x1,y1,w,bucket,palm){
+  if (_shN>=SH_MAX) return;
+  const k=_shN*5; _shL[k]=x0; _shL[k+1]=y0; _shL[k+2]=x1; _shL[k+3]=y1; _shL[k+4]=w; _shB[_shN]=bucket; _shP[_shN]=palm?1:0; _shN++;
+}
+// the area of a habit's outline as a share of (2W x span), once per habit
+function shrubHWTable(hb){
+  if (!hb._hwTab){ const t=new Float64Array(33); for (let i=0;i<=32;i++) t[i]=treeCrownHW(hb,i/32); hb._hwTab=t; }
+  return hb._hwTab;
+}
+function shrubOutlineArea(hb){
+  if (hb._area===undefined){ let a=0; for (let i=0;i<24;i++) a+=treeCrownHW(hb,(i+0.5)/24)/24; hb._area=a; }
+  return hb._area;
+}
+function drawShrubHabit(ctx, P, L, S, hb, H, cw, growth, seed, o){
+  const la=o.la===undefined ? 1 : Math.max(0,Math.min(1,o.la)), dropping=!!o.dropping, emerging=la<1 && !dropping;
+  const arm=mulberry((seed^0x5b0b5)>>>0), leaf=mulberry((seed^0x1eaf7)>>>0);
+  const base=H*hb.base, span=H*(hb.top-hb.base), W=cw*hb.w*(L.widthMul||1);
+  const toY=v=>-(base+span*v);
+  // the outline's profile, tabulated once per habit: it is asked a few
+  // thousand times a draw, and each answer was two Math.pow calls
+  const tab=shrubHWTable(hb), hwF=v=>{ const f=Math.max(0,Math.min(1,v))*32, i=f|0; return i>=32 ? tab[32] : tab[i]+(tab[i+1]-tab[i])*(f-i); };
+  const hwAt=y=>W*hwF((-y-base)/span);
+  const sizeK=Math.max(0.8,Math.min(1.5,Math.sqrt(W/60)));
+  const N=Math.max(8,Math.min(60,Math.round((L.tipN||hb.tips)*sizeK*(0.45+0.55*growth))));
+  const tx=new Float64Array(N), ty=new Float64Array(N), tpx=new Float64Array(N), tpy=new Float64Array(N),
+        tqx=new Float64Array(N), tqy=new Float64Array(N), tv=new Float64Array(N);
+
+  // 1. twig tips through the outline (best of four candidates, rim-weighted),
+  //    or along shelves
+  const tierOf=hb.tiers ? new Int8Array(N) : null;
+  if (hb.tiers){
+    let k=0;
+    hb.tiers.forEach(([v0,tw,share],ti)=>{
+      const cnt=ti===hb.tiers.length-1 ? N-k : Math.round(N*share), off=(arm()-0.5)*H*0.05;
+      for (let j=0;j<cnt && k<N;j++,k++){
+        const s=((j+0.5+(arm()-0.5)*0.7)/cnt)*2-1, x=s*W*tw*(0.92+arm()*0.16);
+        tx[k]=x; ty[k]=toY(v0)+off+(arm()-0.5)*H*0.06-Math.abs(s)*H*0.03; tv[k]=v0; tierOf[k]=ti;
+      }
+    });
+  } else {
+    const tf=hb.tipFrom||0;
+    for (let k=0;k<N;k++){
+      let bx=0, by=toY(0.5), bv=0.5, bs=-1;
+      for (let c=0;c<4;c++){
+        // a height, kept in proportion to the outline's width there, then a
+        // place across it
+        let v=0, g=0;
+        do { v=tf+(1-tf)*(hb.vPow ? Math.pow(arm(),hb.vPow) : arm()); } while (arm()>hwF(v)+0.12 && ++g<6);
+        const hwv=W*hwF(v), x=(arm()*2-1)*hwv*0.97;
+        const y=toY(v);
+        let d=1e9;
+        for (let i=0;i<k;i++){ const dx=(tx[i]-x)/W, dy=(ty[i]-y)/W, q=dx*dx+dy*dy; if (q<d) d=q; }
+        const rim=Math.max(hwv>0 ? Math.abs(x)/hwv : 0, (v-0.7)/0.3);
+        const sc=Math.sqrt(d)*(1+hb.rim*Math.max(0,rim));
+        if (sc>bs){ bs=sc; bx=x; by=y; bv=v; }
+      }
+      tx[k]=bx; ty[k]=by; tv[k]=bv;
+    }
+  }
+  // drawn from the structure stream before anything that depends on the
+  // season, so the flowers and the wash's lobes keep their places all year:
+  // which tips carry flowers and fruit (the higher first), and the wash phase
+  // most tips carry a head -- a viburnum in bloom is dozens of cymes -- fewer
+  // where each head is a run of flowers along its twig or a big hydrangea ball
+  const share=o.hydr ? 0.34 : (SHRUB_HEAD_SHARE[L.bloomStyle]||0.6);
+  const K=Math.max(2,Math.min(N,L.headN ? Math.round(L.headN*(0.4+0.6*growth)) : Math.round(N*share)));
+  const headIx=Array.from({length:N},(_, i)=>[tv[i]+arm()*0.55,i]).sort((a,b)=>b[0]-a[0]).slice(0,K)
+    .map((s,r)=>[(r*0.6180339887)%1,s[1]]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
+  const washPh=arm()*6.283;
+
+  // 2. which stem serves which tips. Stems leave the ground across a crown of
+  //    width baseW, in order, so the left stem carries the left of the shrub;
+  //    an exposed-branching shrub (a manzanita, a staghorn sumac) stands on a
+  //    few thick stems that fork low instead.
+  const exposed=!!L.exposedBranching;
+  const S0=L.trunks>1 ? L.trunks : (L.stems||hb.stems);
+  const nStem=Math.max(1,Math.min(N, exposed ? Math.max(2,Math.min(3,Math.round(S0*0.35))) : Math.max(2,Math.round(S0*(0.55+0.45*growth)))));
+  const groups=[];
+  if (hb.tiers){
+    // each shelf, each side, is a stem of its own that climbs to its height
+    const byKey=new Map();
+    for (let i=0;i<N;i++){ const key=tierOf[i]*2+(tx[i]<0?0:1); if (!byKey.has(key)) byKey.set(key,[]); byKey.get(key).push(i); }
+    [...byKey.keys()].sort((a,b)=>(a&1)-(b&1)||(a>>1)-(b>>1)).forEach(key=>groups.push(byKey.get(key)));
+  } else {
+    const hubY=H*0.3, ang=new Float64Array(N);
+    for (let i=0;i<N;i++) ang[i]=Math.atan2(tx[i], hubY-ty[i]);
+    const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>ang[a]-ang[b]);
+    for (let g=0; g<nStem; g++){
+      const a=Math.round(N*g/nStem), b=Math.round(N*(g+1)/nStem);
+      if (b>a) groups.push(order.slice(a,b));
+    }
+  }
+  const nG=groups.length, perStem=N/Math.max(1,nG);
+  const Wt=Math.max(0.9,(L.trunkW||(L.twigW||1.6)*(exposed?1.6:1.3))*Math.sqrt(cw/100)*(0.55+0.45*growth));
+  const wOf=n=>Math.max(0.5, Math.min(Wt*1.3, Wt*Math.pow(n/perStem, hb.pipe||0.6)));
+  let ns=0;
+  let sgCX=0, sgCY=0;
+  const seg=(x0,y0,x1,y1,w,depth,isTip)=>{
+    const dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1;
+    const b=hb.bend*Math.pow(0.6,depth);
+    let cx=x0+dx*(0.5+0.3*b), cy=y0+dy*(0.5-0.3*b);
+    // an arching twig rises over its ends before it falls to its tip
+    if (hb.arch && (isTip || depth>0)) {
+      const lift=Math.abs(dx)*hb.arch*(isTip ? 1 : 0.5);
+      if (lift>0){ cx=x0+dx*0.55; cy=Math.min(cy, Math.min(y0,y1)-lift); }
+    }
+    const ck=hb.crook*len*(arm()-0.5)*2;
+    cx+=-dy/len*ck; cy+=dx/len*ck;
+    sgCX=cx; sgCY=cy;
+    if (ns>=TH_MAX) return;
+    const o2=ns*TH_STRIDE;
+    _thSeg[o2]=x0; _thSeg[o2+1]=y0; _thSeg[o2+2]=cx; _thSeg[o2+3]=cy;
+    _thSeg[o2+4]=x1; _thSeg[o2+5]=y1; _thSeg[o2+6]=w; _thSeg[o2+7]=depth; ns++;
+  };
+  const angs=new Float64Array(N);
+  const grow=(ox,oy,list,depth)=>{
+    if (list.length===1){
+      const i=list[0]; seg(ox,oy,tx[i],ty[i],wOf(1),depth,true);
+      tpx[i]=ox; tpy[i]=oy; tqx[i]=sgCX; tqy[i]=sgCY; return;
+    }
+    let mx=0, my=0; for (const i of list){ mx+=tx[i]; my+=ty[i]; }
+    mx/=list.length; my/=list.length;
+    const ff=(depth===0 ? hb.rise : hb.fork)*(0.85+arm()*0.3);
+    // a stem leaving the ground climbs before it leans, so a group far out at
+    // the side does not drag its stem out along the ground
+    const fx=ox+(mx-ox)*ff*(depth===0 ? (exposed ? 0.45 : 0.75) : 1);
+    const fy=oy+(my-oy)*ff*(depth===0 && exposed ? 0.55 : 1);
+    seg(ox,oy,fx,fy,wOf(list.length),depth,false);
+    for (const i of list) angs[i]=Math.atan2(tx[i]-fx, fy-ty[i]);
+    list.sort((a,b)=>angs[a]-angs[b]);
+    const k=(list.length>=6 && arm()<hb.three) ? 3 : 2;
+    for (let g=0; g<k; g++){
+      const a=Math.round(list.length*g/k), b=Math.round(list.length*(g+1)/k);
+      if (b>a) grow(fx,fy,list.slice(a,b),depth+1);
+    }
+  };
+  const baseW=cw*hb.baseW*(exposed ? 0.5 : 1);
+  groups.forEach((list,j)=>{
+    const f=nG>1 ? j/(nG-1)-0.5 : 0;
+    grow(f*2*baseW+(arm()-0.5)*baseW*0.3, 0, list, 0);
+  });
+
+  // 3. the stems and twigs, one stroke per step of width. In winter, and while
+  //    the leaves are coming, a fringe of fine twigs beyond each tip as well:
+  //    the haze a bare shrub has. Contorted twigs (a corkscrew hazel) twist
+  //    along the same curve, so whatever sits on a twig still sits on it.
+  const fol=S.fol, bare=!fol || la<0.6;
+  if (bare){
+    const tw=wOf(1)*0.6, nTw=hb.twigs||2, twr=mulberry((seed^0x7a16)>>>0);
+    for (let i=0;i<N;i++){
+      let dx=tx[i]-tqx[i], dy=ty[i]-tqy[i]; const l=Math.sqrt(dx*dx+dy*dy)||1; dx/=l; dy/=l;
+      for (let q=0;q<nTw;q++){
+        if (ns>=TH_MAX) break;
+        const a=(q-(nTw-1)/2)*0.85+(twr()-0.5)*0.5, len=H*hb.twigLen*(0.6+twr()*0.7);
+        const ex=dx*Math.cos(a)-dy*Math.sin(a), ey=dx*Math.sin(a)+dy*Math.cos(a);
+        const x1=tx[i]+ex*len, y1=Math.min(-1, ty[i]+ey*len+len*(hb.droop||0)*0.4-len*(hb.twigUp||0)*0.6);
+        const o2=ns*TH_STRIDE;
+        _thSeg[o2]=tx[i]; _thSeg[o2+1]=ty[i]; _thSeg[o2+2]=tx[i]+ex*len*0.6; _thSeg[o2+3]=ty[i]+ey*len*0.6;
+        _thSeg[o2+4]=x1; _thSeg[o2+5]=y1; _thSeg[o2+6]=tw; _thSeg[o2+7]=9; ns++;
+      }
+    }
+  }
+  const stemCol=S.twig||L.bark||'#6e5a48';
+  const contort=Math.max(0,Math.min(8,Number(L.contorted)||0)), contortAmp=Math.max(0.5,Math.min(2,L.contortAmp||1));
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  const STEP=Math.log(1.5);
+  // in full leaf a dense crown hides everything past its stems and their
+  // first forks (the trees' leafDepth): not drawn, they cost nothing
+  const hide=(fol && la>=1 && hb.wash>=0.6) ? (hb.leafDepth||1) : 99;
+  let bMax=-99, bMin=99;
+  for (let s=0;s<ns;s++){ if (_thSeg[s*TH_STRIDE+7]>hide) continue; const b=Math.round(Math.log(_thSeg[s*TH_STRIDE+6])/STEP); if (b>bMax) bMax=b; if (b<bMin) bMin=b; }
+  for (let b=bMax;b>=bMin;b--){
+    const w=Math.exp(b*STEP);
+    // a thin twig needs no round cap: at its width one is under a pixel
+    ctx.strokeStyle=w<1 ? shade(stemCol,8) : stemCol; ctx.lineWidth=w; ctx.lineCap=w<1.25 ? 'butt' : 'round'; ctx.beginPath(); let any=false;
+    for (let s=0;s<ns;s++){
+      const o2=s*TH_STRIDE;
+      if (_thSeg[o2+7]>hide || Math.round(Math.log(_thSeg[o2+6])/STEP)!==b) continue;
+      const x0=_thSeg[o2], y0=_thSeg[o2+1], qx=_thSeg[o2+2], qy=_thSeg[o2+3], x1=_thSeg[o2+4], y1=_thSeg[o2+5];
+      ctx.moveTo(x0,y0);
+      if (contort && _thSeg[o2+7]>0){
+        const amp=Math.max(1.2,cw*0.022)*contortAmp, ph=s*2.39, steps=10;
+        for (let k=1;k<=steps;k++){
+          const t=k/steps, u=1-t, px=u*u*x0+2*u*t*qx+t*t*x1, py=u*u*y0+2*u*t*qy+t*t*y1;
+          const ddx=2*u*(qx-x0)+2*t*(x1-qx), ddy=2*u*(qy-y0)+2*t*(y1-qy), dl=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+          const off=amp*Math.sin(t*contort*Math.PI+ph)*(k===steps?0:1);
+          ctx.lineTo(px-ddy/dl*off, py+ddx/dl*off);
+        }
+      } else if (w<1.25) ctx.lineTo(x1,y1);   // a thin twig is straight at this size
+      else ctx.quadraticCurveTo(qx,qy,x1,y1);
+      any=true;
+    }
+    if (any) ctx.stroke();
+  }
+  ctx.lineCap='round';
+  // light along the upper-left of the thick stems
+  if (Wt>=1.6){
+    ctx.strokeStyle=shade(stemCol,22); ctx.lineWidth=Math.max(0.6,Wt*0.22); ctx.beginPath();
+    for (let s=0;s<ns;s++){
+      const o2=s*TH_STRIDE, w=_thSeg[o2+6]; if (_thSeg[o2+7]>0 || w<1.6) continue;
+      const ox=-w*0.22, oy=-w*0.12;
+      ctx.moveTo(_thSeg[o2]+ox,_thSeg[o2+1]+oy); ctx.quadraticCurveTo(_thSeg[o2+2]+ox,_thSeg[o2+3]+oy,_thSeg[o2+4]+ox,_thSeg[o2+5]+oy);
+    }
+    ctx.stroke();
+  }
+
+  // 4. the foliage
+  const yMid=toY(0.5), half=span/2;
+  const glob=(x,y)=>(x/W)*LIT.x+((y-yMid)/half)*LIT.y;
+  const snow=[];
+  if (fol){
+    const hydr=!!o.hydr;
+    let lw=(L.leafHW||1)*(hydr?4.6:3.1), ll=lw*(L.leafLong||(hydr?2.4:2.6));
+    const pinn=L.pinnatePairs>0 ? Math.max(2,Math.min(6,Math.round(L.pinnatePairs))) : L.compound==='pinnate' ? 2 : 0;
+    const tri=!pinn && (L.compound==='palmate' || L.compound==='trifoliate');
+    const lets=pinn ? pinn*2+1 : tri ? 3 : 1;
+    // a leaflet's half-width and length, and the rachis it hangs on
+    let rach=pinn ? (L.pinnatePairs>0 ? Math.max(8,Math.min(48,L.pinnateLen||24)) : ll*1.35) : 0;
+    let lhw=pinn ? (L.pinnatePairs>0 ? Math.max(0.7,Math.min(4,L.pinnateLeafW||2)) : lw*0.62) : tri ? lw*0.7 : lw;
+    let lll=pinn ? (L.pinnatePairs>0 ? rach*0.32 : ll*0.56) : tri ? ll*0.72 : ll;
+    const unitA=lets*(4/3)*lll*lhw*0.85;
+    const area=shrubOutlineArea(hb)*2*W*span;
+    const want=(L.density||1)*hb.cover*area/unitA;
+    // compound leaves are counted by the leaflet, each a small, cheap shape, so
+    // they get a larger allowance before the leaflets start to grow
+    // (and small leaves, two curves apiece, a larger one again: a fine-leaved
+    // yaupon covers its crown with leaves, not with its underwash)
+    const cap=lets>1 ? SH_LEAF_CAP*1.6 : SH_LEAF_CAP*Math.max(1,Math.min(2,9/Math.max(1,ll)));
+    let units=Math.max(Math.ceil(30/lets), Math.min(Math.floor(cap/lets), Math.round(want)));
+    /* Past the cap the leaves grow, but only so far: a big shrub's cost is
+       the AREA its leaves fill (measured, a 22 ft cherry laurel's leaves
+       cost three times its whole classic drawing at 2.2x), and the
+       underwash already carries the mass between them. */
+    const grow2=want>units ? Math.min(1.55,Math.sqrt(want/units)) : 1;
+    // a young shrub's leaves run a little smaller, and they are emerging tufts
+    // while the shrub leafs out
+    const em=(emerging ? 0.35+0.65*la : 1)*(0.75+0.25*growth);
+    lw*=grow2*em; ll*=grow2*em; lhw*=grow2*em; lll*=grow2*em; rach*=grow2*em;
+    const shapeName=L.leafShape==='round' ? 'ovate' : L.leafShape;
+    const SH=LEAF_SHAPES[shapeName]||LEAF_SHAPES.ovate, palm=L.leafShape==='palmate';
+    const bwK=palm ? 1 : (shapeName==='linear' ? 0.62 : L.leafShape==='round' ? 1.05 : 0.85);
+    const contrast=L.gloss ? 1.15 : 1;
+    // colours: the season's, a fall palette's patches, a red flush of new growth
+    const pick=o.mix ? fallColourPicker(fol, o.mix, seed, 0, yMid, W, half) : null;
+    const cols=[fol];
+    if (pick) for (const c of o.mix) if (cols.indexOf(c)<0 && cols.length<7) cols.push(c);
+    const flush=L.newGrowth && o.season!=='Winter' && !emerging;
+    const flushIx=flush ? (cols.indexOf(L.newGrowth)<0 && cols.length<8 ? cols.push(L.newGrowth)-1 : cols.indexOf(L.newGrowth)) : -1;
+    const colIx=c=>{ const i=cols.indexOf(c); return i<0 ? 0 : i; };
+    const toneOf=g=>g<-0.48 ? 0 : g<-0.14 ? 1 : g<0.2 ? 2 : g<0.54 ? 3 : 4;
+    _shN=0; _shRN=0;
+    const reach=pinn ? rach*0.7+lll : tri ? lll : ll*0.68;
+    const emit=(px,py,ang,tone,ci)=>{
+      // nothing grows into the ground: a leaf at the foot of a low mound that
+      // would reach below grade is turned up instead
+      py=Math.min(py,-1);
+      if (py+Math.sin(ang)*reach>-0.5) ang=-ang;
+      const bucket=ci*5+tone, ca=Math.cos(ang), sa=Math.sin(ang);
+      if (pinn){
+        // a rachis with paired leaflets and one at its end
+        const x0=px-ca*rach*0.3, y0=py-sa*rach*0.3, x1=px+ca*rach*0.7, y1=py+sa*rach*0.7;
+        if (_shRN<SH_RACHIS_MAX){ const k=_shRN*4; _shR[k]=x0; _shR[k+1]=y0; _shR[k+2]=x1; _shR[k+3]=y1; _shRN++; }
+        for (let j=0;j<pinn;j++){
+          const f=0.18+0.62*j/Math.max(1,pinn-1), qx=x0+(x1-x0)*f, qy=y0+(y1-y0)*f, taper=1-0.22*j/pinn;
+          for (const sd of [-1,1]){
+            const la2=ang+sd*1.15;
+            shLeafPush(qx,qy,qx+Math.cos(la2)*lll*taper,qy+Math.sin(la2)*lll*taper,lhw*taper*bwK,bucket,palm);
+          }
+        }
+        shLeafPush(x1-ca*lll*0.15,y1-sa*lll*0.15,x1+ca*lll*0.85,y1+sa*lll*0.85,lhw*bwK,bucket,palm);
+      } else if (tri){
+        for (let l=-1;l<=1;l++){ const la2=ang+l*0.62, len=lll*(l?0.86:1);
+          shLeafPush(px,py,px+Math.cos(la2)*len,py+Math.sin(la2)*len,lhw*bwK*(l?0.9:1),bucket,palm); }
+      } else shLeafPush(px-ca*ll*0.32,py-sa*ll*0.32,px+ca*ll*0.68,py+sa*ll*0.68,lw*bwK,bucket,palm);
+    };
+    const nFill=Math.round(units*hb.fill), nTip=units-nFill;
+    // where a leaf may sit: inside the outline (a leaf's own length past it at
+    // most) and below the top of the drawn height
+    // (a compound leaf reaches well past where it is attached, so it is
+    // attached further in)
+    const over=pinn ? -rach*0.35 : ll*0.15;
+    const clampX=(x,y)=>{ const h=Math.max(0,hwAt(y)+over); return Math.abs(x)>h ? Math.sign(x)*h : x; };
+    const topY=-H*0.97;
+    // the interior: leaves turned out from the crown's centre, darker
+    for (let i=0;i<nFill;i++){
+      let v=0, g=0;
+      do { v=0.04+0.94*leaf(); } while (leaf()>hwF(v)+0.12 && ++g<6);
+      const x=(leaf()*2-1)*W*hwF(v)*0.88, y=Math.max(topY,toY(v));
+      const ang=Math.atan2(y-yMid*0.6, x)+(leaf()-0.5)*1.6;
+      const gl=glob(x,y)*0.6-0.42+(leaf()-0.5)*0.5;
+      const c=pick ? pick(x,y) : fol;     // the palette's stream, drawn or not
+      if (la<1 && ((i*0.6180339887)%1)>=(dropping ? la : la*la)) continue;
+      emit(x,y,ang,toneOf(gl*contrast),colIx(c));
+    }
+    // clumps at the tips, the shadowed ones first so the lit ones overlap them
+    const order=Array.from({length:N},(_, i)=>i).sort((a,b)=>glob(tx[a],ty[a])-glob(tx[b],ty[b]));
+    const rc0=W*hb.clumpR*(emerging ? 0.3+0.7*la : 1), per=nTip/N;
+    let made=0, bi=0;
+    const up=ph=>{ const k=bi++; return !dropping || la>=1 || ((k*0.6180339887)%1)*0.55+ph*0.45<la; };
+    order.forEach((i,r)=>{
+      const cnt=Math.round(per*(r+1))-made; made+=cnt;
+      if (cnt<=0) return;
+      const cx=tx[i]+(tx[i]-tqx[i])*0.10, cy=Math.max(topY,ty[i]+(ty[i]-tqy[i])*0.10);
+      const rc=rc0*(0.8+leaf()*0.4), ct=(leaf()-0.5)*0.3, ph=(i*0.7548776662)%1;
+      if (o.snowy && tv[i]>0.45) snow.push([cx, cy-rc*hb.squash*0.55, rc*0.42]);
+      // an arching cane carries its leaves along it, alternate, so its spray
+      // breaks the outline where a clump would round it off
+      const along=hb.alongCane ? Math.round(cnt*hb.alongCane) : 0;
+      for (let j=0;j<along;j++){
+        const t=0.3+0.7*leaf(), u=1-t, sd=(j&1)?1:-1, jt=leaf();
+        const px=u*u*tpx[i]+2*u*t*tqx[i]+t*t*tx[i], py=Math.max(topY,u*u*tpy[i]+2*u*t*tqy[i]+t*t*ty[i]);
+        const dx=2*u*(tqx[i]-tpx[i])+2*t*(tx[i]-tqx[i]), dy=2*u*(tqy[i]-tpy[i])+2*t*(ty[i]-tqy[i]);
+        const ang=Math.atan2(dy,dx)+sd*(0.75+jt*0.5)+(hb.droop||0)*0.3;
+        const gl=glob(px,py)*0.55+(sd<0 ? 0.25 : -0.15)+ct+(leaf()-0.5)*0.45;
+        const c=pick ? pick(px,py) : fol;
+        if (!up(ph)) continue;
+        emit(px,py,ang,toneOf(gl*contrast),colIx(c));
+      }
+      for (let j=along;j<cnt;j++){
+        const a=leaf()*Math.PI*2, rr=rc*Math.sqrt(leaf());
+        const dx=Math.cos(a)*rr, dy=Math.sin(a)*rr*hb.squash+hb.hang*rr*0.6;
+        const px=clampX(cx+dx,cy+dy), py=Math.max(topY,cy+dy);
+        // out of the clump, and down a little where the habit droops
+        const ang=(rr<rc*0.25 ? leaf()*Math.PI*2 : Math.atan2(dy,dx)+(leaf()-0.5)*0.9)+(hb.droop||0)*0.25*(Math.cos(a)>0?1:-1);
+        const ul=(dx/rc)*LIT.x+(dy/rc)*LIT.y;
+        const gl=glob(px,py)*0.55+ul*0.6+ct+(leaf()-0.5)*0.45;
+        let c=pick ? pick(px,py) : fol, ci=colIx(c);
+        if (flushIx>=0 && rr>rc*0.55 && dy<0) ci=flushIx;
+        if (!up(ph)) continue;
+        emit(px,py,ang,toneOf(gl*contrast),ci);
+      }
+    });
+    // the underwash, inside the outline, under everything: what makes a shrub
+    // read as a solid mass rather than leaves on sticks
+    if (hb.wash>0 && la>=0.35){
+      ctx.save(); ctx.globalAlpha=Math.min(1,hb.wash*(L.density||1))*(emerging ? la*la : dropping ? la : 1);
+      const v0=hb.washFrom||0.03, steps=18, ph=washPh;
+      const soft=hb._soft||(hb._soft=Object.assign({},hb,{eLo:Math.min(hb.eLo,2.2),eHi:Math.min(hb.eHi,2.2)}));
+      const wv=(v,s)=>{ const k=Math.min(1,(v-v0)/0.12); return W*0.85*treeCrownHW(soft,v)*Math.sqrt(Math.max(0,1-(1-k)*(1-k)))*(0.88+0.12*Math.sin(v*19+ph+s)); };
+      ctx.beginPath();
+      for (let i=0;i<=steps;i++){ const v=v0+(0.97-v0)*i/steps; ctx[i?'lineTo':'moveTo'](-wv(v,0), toY(v)); }
+      for (let i=steps;i>=0;i--){ const v=v0+(0.97-v0)*i/steps; ctx.lineTo(wv(v,2.1), toY(v)); }
+      ctx.closePath();
+      litFill(ctx, 0, yMid, Math.max(W,half)*0.85, shade(fol,-34), 20, -20);
+      ctx.restore();
+    }
+    // compound leaves: their stalks, under the leaflets
+    if (_shRN){
+      ctx.strokeStyle=shade(fol,-20); ctx.lineWidth=Math.max(0.5,lhw*0.28); ctx.beginPath();
+      for (let r=0;r<_shRN;r++){ const k=r*4; ctx.moveTo(_shR[k],_shR[k+1]); ctx.lineTo(_shR[k+2],_shR[k+3]); }
+      ctx.stroke();
+    }
+    // the leaves, a fill per tone and colour, darkest first
+    const nb=cols.length*5;
+    _shCount.fill(0,0,nb);
+    for (let n=0;n<_shN;n++) _shCount[_shB[n]]++;
+    let acc=0; for (let b=0;b<nb;b++){ _shStart[b]=acc; acc+=_shCount[b]; }
+    for (let n=0;n<_shN;n++) _shO[_shStart[_shB[n]]++]=n;
+    acc=0; for (let b=0;b<nb;b++){ _shStart[b]=acc; acc+=_shCount[b]; }
+    const teeth=L.leafTeeth===undefined ? (hydr?0.12:0) : L.leafTeeth, tn=L.leafTeethN||(hydr?7:6), bow=0.07;
+    // a sampled, toothed ribbon only where the teeth can be seen: on a smooth
+    // leaf, or one grown past its real size, two curves draw the same outline
+    const rib2=teeth>0 && grow2<1.25;
+    for (let t=0;t<5;t++) for (let ci=0;ci<cols.length;ci++){
+      const b=ci*5+t, n0=_shStart[b], n1=n0+_shCount[b];
+      if (n1<=n0) continue;
+      ctx.beginPath();
+      for (let m=n0;m<n1;m++){
+        const n=_shO[m], k=n*5, x0=_shL[k], y0=_shL[k+1], x1=_shL[k+2], y1=_shL[k+3], bw=_shL[k+4];
+        const dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1;
+        if (_shP[n]){
+          // a lobed leaf (an oakleaf hydrangea's): the palmate outline, turned
+          const c=dx/len, s=dy/len;
+          for (let j=0;j<PALMATE_OUTLINE.length;j+=2){
+            const u=PALMATE_OUTLINE[j]*bw, v=-PALMATE_OUTLINE[j+1]*len;
+            const px=x0+c*v-s*u, py=y0+s*v+c*u;
+            j ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+          }
+          ctx.closePath();
+        } else if (len<LEAF_LO_LEN || !rib2){
+          const nx=-dy/len*bw*2, ny=dx/len*bw*2, sb=(n&1)?bow:-bow;
+          const mx=x0+dx*SH.wAt-dy*sb, my=y0+dy*SH.wAt+dx*sb;
+          ctx.moveTo(x0,y0); ctx.quadraticCurveTo(mx+nx,my+ny,x1,y1); ctx.quadraticCurveTo(mx-nx,my-ny,x0,y0);
+        } else {
+          const sb=(n&1)?bow:-bow;
+          ribbonPath(ctx,x0,y0,(x0+x1)/2-dy*sb,(y0+y1)/2+dx*sb,x1,y1,len>LEAF_HI_LEN?SH.profHi:SH.prof,bw,teeth,tn,true);
+        }
+      }
+      ctx.fillStyle=shade(cols[ci],SHRUB_TONES[t]*contrast); ctx.fill();
+    }
+    // midribs on the most lit leaves, where the light catches one
+    if (ll>=11 && !palm){
+      ctx.save(); ctx.globalAlpha=0.38; ctx.strokeStyle=shade(fol,-30); ctx.lineWidth=Math.max(0.5,lw*0.14); ctx.beginPath();
+      for (let n=0;n<_shN;n++){
+        if (_shB[n]%5<4) continue;
+        const k=n*5; ctx.moveTo(_shL[k],_shL[k+1]); ctx.lineTo(_shL[k+2],_shL[k+3]);
+      }
+      ctx.stroke(); ctx.restore();
+    }
+  } else if (o.snowy){
+    for (let i=0;i<N;i++) if (tv[i]>0.5) snow.push([tx[i],ty[i]-1,2.4]);
+  }
+
+  // the tips flowers and fruit sit on (headIx, chosen above), interleaved so a
+  // partial bloom is spread across the shrub
+  const heads=headIx.map(i=>[tx[i],ty[i],tqx[i],tqy[i],tpx[i],tpy[i],1]);
+  if (!snow.length) for (let i=0;i<N;i++) if (tv[i]>0.4) snow.push([tx[i],ty[i]-1,2.4]);
+  return {heads, snow, crown:{W, yMid, half, hw:hwAt}};
+}
+/* Where a shrub is in its leaf cycle (woodyLeafOut), for the garden that hands
+   drawPlant a leaf stage: spring leaves coming out in their paler first
+   colours, or fall leaves coming down, with what has fallen on the ground
+   under it (drawn here, before anything stands on it). Previews pass no stage
+   and draw the season as authored. */
+function shrubLeafState(ctx,P,L,S,season,leafStage,shR,seed){
+  let LS=S, la=1, dropping=false;
+  const lo=leafStage!==undefined && (season==='Spring'||season==='Fall') ? woodyLeafOut(P) : null;
+  if (lo && season==='Spring'){
+    const k=Math.max(0,Math.min(LEAF_STAGES,leafStage|0));
+    la=Math.min(1,k/LEAF_FULL);
+    LS=Object.assign({},S,{fol:k ? lo.cols[k] : undefined});
+  } else if (lo && lo.drop && S.fol){
+    const k=Math.max(0,Math.min(LEAF_FULL,leafStage|0));
+    la=k/LEAF_FULL; dropping=true;
+    if (!k) LS=Object.assign({},S,{fol:undefined});
+    if (la<1) drawFallenLeaves(ctx,S.fol,L.fallMix,shR,(L.leafHW||1)*(P.form==='hydrangea'?3.2:2.2),1-la,seed);
+  }
+  return {S:LS, la, dropping};
+}
+/* A hydrangea head, batched (floretB): a mophead is a SPHERE of florets lit by
+   where each sits on it, a lacecap a flat ring of sterile florets round a
+   beaded centre, a panicle a cone, paler and fuller toward its base. Its own
+   stream with fixed draws per head, so a head keeps its florets whether or not
+   it is out yet (`show`), and a rising bloom only adds heads. */
+function hydrangeaHeadB(L,hx,hy,col,r,hr,show){
+  const shape=L.bloomShape||'mop';
+  if (shape==='panicle'){
+    for (let k=0;k<16;k++){ const f=k/16, wr=r*(1-f)*0.9, fy=hy-r*0.3-f*r*1.7;
+      const fx=hx+(hr()-0.5)*2*wr, tone=(1-f)*10-4+(hr()-0.5)*12;
+      if (show) floretB(null, fx,fy, 2.0, shade(col,tone), {squash:0.95}); }
+  } else if (shape==='lacecap'){
+    const cy=hy-r*0.4, dot=shade(col,-46);
+    for (let k=0;k<12;k++){ const a=hr()*Math.PI*2, rr=Math.sqrt(hr())*r*0.6;
+      if (show) fbEllipse(0,dot,hx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.42,1.1,1.1,0); }
+    const ring=Math.round(7+r*0.5);
+    for (let k=0;k<ring;k++){ const a=k/ring*Math.PI*2, j=(hr()-0.5)*10;
+      if (show) floretB(null, hx+Math.cos(a)*r, cy+Math.sin(a)*r*0.45, 2.5,
+        shade(col,(Math.cos(a)*LIT.x+Math.sin(a)*0.45*LIT.y)*13+j), {squash:0.9, rot:a, pass:2}); }
+  } else {
+    for (let k=0;k<20;k++){ const a=hr()*Math.PI*2, rr=Math.sqrt(hr())*r, j=(hr()-0.5)*9;
+      const fx=hx+Math.cos(a)*rr, fy=hy-r*0.55+Math.sin(a)*rr*0.82;
+      if (show) floretB(null, fx,fy, 2.1, shade(col,((Math.cos(a)*rr/r)*LIT.x+(Math.sin(a)*rr*0.82/r)*LIT.y)*20+j), {squash:0.96}); }
+  }
+}
+/* ---------- a fill batch for the shrub flower and fruit passes ----------
+   A shrub's flowers are many small shapes in a handful of colours: a rose is
+   19 florets of two fills each, a Turk's cap eleven fills a flower, and the
+   flower pass was most of the cost of the worst shrubs (6.4ms a bake). The
+   habit renderer hands those passes floretB/shrubFlowerB instead, which stage
+   every shape under its fill colour and paint each colour once (fbFlush), in
+   passes so a flower's body, its highlight and its centre still stack in
+   order. Nothing allocates per call: groups and their op arrays are kept and
+   reused, and dropped wholesale if a session ever collects too many colours. */
+const FB={map:new Map(), live:[]};
+function fbGroup(pass,col,lw){
+  // groups by colour, then by pass (and, for strokes, width): no key strings
+  // built per shape, which a few hundred florets a shrub made a hot spot
+  let byCol=FB.map.get(col);
+  if (!byCol){ byCol=[]; FB.map.set(col,byCol); }
+  const slot=lw ? 16+Math.round(lw*20) : pass;
+  let g=byCol[slot];
+  if (!g){ g={pass, col, lw:lw||0, ops:[], n:0, on:false}; byCol[slot]=g; }
+  if (!g.on){ g.on=true; g.n=0; FB.live.push(g); }
+  return g;
+}
+function fbReset(){
+  for (const g of FB.live){ g.on=false; g.n=0; }
+  FB.live.length=0;
+  if (FB.map.size>600) FB.map.clear();
+}
+function fbEllipse(pass,col,x,y,rx,ry,rot){
+  const g=fbGroup(pass,col), o=g.ops; let n=g.n;
+  o[n++]=4; o[n++]=x; o[n++]=y; o[n++]=rx; o[n++]=ry; o[n++]=rot||0; g.n=n;
+}
+function fbFlush(ctx){
+  if (!FB.live.length) return;
+  const live=FB.live.slice().sort((a,b)=>a.pass-b.pass);
+  for (const g of live){
+    const o=g.ops, n=g.n; if (!n) continue;
+    ctx.beginPath();
+    for (let i=0;i<n;){
+      const op=o[i];
+      if (op===4){ const x=o[i+1], y=o[i+2], rx=o[i+3], ry=o[i+4], r=o[i+5];
+        ctx.moveTo(x+Math.cos(r)*rx, y+Math.sin(r)*rx); ctx.ellipse(x,y,rx,ry,r,0,7); i+=6; }
+      else if (op===0){ ctx.moveTo(o[i+1],o[i+2]); i+=3; }
+      else if (op===1){ ctx.lineTo(o[i+1],o[i+2]); i+=3; }
+      else if (op===2){ ctx.quadraticCurveTo(o[i+1],o[i+2],o[i+3],o[i+4]); i+=5; }
+      else { ctx.closePath(); i+=1; }
+    }
+    if (g.lw){ ctx.strokeStyle=g.col; ctx.lineWidth=g.lw; ctx.lineCap='round'; ctx.stroke(); }
+    else { ctx.fillStyle=g.col; ctx.fill(); }
+  }
+  fbReset();
+}
+/* drawFloret, batched: the body in `pass`, its highlight in the pass above it.
+   _fbScale shrinks the flowers and fruit of a small shrub: the passes size
+   them in absolute units, which on a one-foot lowbush blueberry made every
+   bell as big as a leaf. It is 1 on anything larger (and outside the habit
+   renderer), so it never enlarges anything. */
+let _fbScale=1;
+function floretB(ctx, cx,cy, r, col, opt){ floretRaw(cx,cy,r*_fbScale,col,opt); }
+function floretRaw(cx,cy, r, col, opt){
+  opt=opt||{};
+  const sq=opt.squash===undefined?1:opt.squash, rot=opt.rot||0, pass=opt.pass||0;
+  fbEllipse(pass, shade(col, opt.drop===undefined?-8:opt.drop), cx,cy,r,r*sq,rot);
+  if (r < 1.1 || opt.hl===false) return;      // a petal is a shape, not a lit bead
+  fbEllipse(pass+1, shade(col, opt.lift===undefined?24:opt.lift),
+    cx+LIT.x*r*0.34, cy+LIT.y*r*sq*0.34, r*0.56, r*sq*0.56, rot);
+}
+// a closed path of [x,y,...] points and quadratic controls, turned by `ang`
+// about (cx,cy): op list as fbFlush reads it
+function fbShape(pass,col,cx,cy,ang,pts){
+  const g=fbGroup(pass,col), o=g.ops, c=Math.cos(ang), s=Math.sin(ang); let n=g.n;
+  const X=(x,y)=>cx+x*c-y*s, Y=(x,y)=>cy+x*s+y*c;
+  o[n++]=0; o[n++]=X(pts[0],pts[1]); o[n++]=Y(pts[0],pts[1]);
+  for (let i=2;i<pts.length;i+=4){ o[n++]=2; o[n++]=X(pts[i],pts[i+1]); o[n++]=Y(pts[i],pts[i+1]); o[n++]=X(pts[i+2],pts[i+3]); o[n++]=Y(pts[i+2],pts[i+3]); }
+  o[n++]=3; g.n=n;
+}
+function fbLine(pass,col,lw,x0,y0,cx,cy,x1,y1){
+  const g=fbGroup(pass,col,lw), o=g.ops; let n=g.n;
+  o[n++]=0; o[n++]=x0; o[n++]=y0; o[n++]=2; o[n++]=cx; o[n++]=cy; o[n++]=x1; o[n++]=y1; g.n=n;
+}
+/* drawShrubFlower, batched: the same flowers, staged into FB. The petal rings
+   go through floretB in rising passes (outer ring, inner ring, centre), the
+   bells and trumpets are their outline turned by the flower's angle. */
+function shrubFlowerB(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount){
+  shape=shape||'single'; ang=ang||0; r*=_fbScale;
+  if (shape==='ribbon'){
+    const sc=shade(col,8), lw=Math.max(0.75,r*0.38);
+    for (let p=0;p<4;p++){ const a=ang+p*Math.PI/2+(rnd? (rnd()-0.5)*0.35:0), ex=cx+Math.cos(a)*r*2.4, ey=cy+Math.sin(a)*r*1.45;
+      fbLine(0,sc,+lw.toFixed(2),cx,cy,cx+Math.cos(a+0.8)*r,cy+Math.sin(a+0.8)*r*0.75,ex,ey); }
+    floretRaw(cx,cy,Math.max(0.8,r*0.42),shade(col,-18),{squash:1,pass:2}); return;
+  }
+  if (shape==='turkscap'){
+    const c=Math.cos(ang), s=Math.sin(ang);
+    for(let p=0;p<5;p++){
+      const a=(p/5-0.5)*1.55, px=Math.sin(a)*r*0.48, py=Math.abs(a)*r*0.16;
+      fbEllipse(0,shade(col,(p-2)*4),cx+px*c-py*s,cy+px*s+py*c,r*0.42,r*1.02,ang+a*0.34);
+    }
+    const ac=accent||shade(col,-30), x0=cx-(-r*0.48)*s, y0=cy+(-r*0.48)*c, x1=cx-(-r*2.25)*s, y1=cy+(-r*2.25)*c;
+    fbLine(1,ac,+Math.max(0.65,r*0.24).toFixed(2),x0,y0,(x0+x1)/2,(y0+y1)/2,x1,y1);
+    const dot=accent||shade(col,28), dr=Math.max(0.45,r*0.18);
+    for(let k=-2;k<=2;k++){ const px=k*r*0.22, py=-r*(1.72+Math.abs(k)*0.07); fbEllipse(2,dot,cx+px*c-py*s,cy+px*s+py*c,dr,dr,0); }
+    return;
+  }
+  if (shape==='daisy'){
+    const petals=Math.max(6,Math.min(21,Math.round(petalCount||12)));
+    for(let p=0;p<petals;p++){
+      const a=ang+p/petals*Math.PI*2, rr=r*0.82;
+      floretRaw(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.66,r*0.66,shade(col,(p%3-1)*4),{squash:0.36,rot:a,hl:false});
+    }
+    floretRaw(cx,cy,r*0.62,accent||shade(col,-32),{squash:0.88,lift:20,pass:2}); return;
+  }
+  if (shape==='pea'){
+    const c=Math.cos(ang), s=Math.sin(ang), at=(x,y)=>[cx+x*c-y*s, cy+x*s+y*c];
+    let p=at(0,-r*0.48); fbEllipse(0,shade(col,12),p[0],p[1],r*0.88,r*0.62,ang);
+    p=at(-r*0.66,r*0.02); fbEllipse(1,col,p[0],p[1],r*0.58,r*0.36,ang-0.35);
+    p=at(r*0.66,r*0.02); fbEllipse(1,col,p[0],p[1],r*0.58,r*0.36,ang+0.35);
+    p=at(0,r*0.48); fbEllipse(2,shade(col,-16),p[0],p[1],r*0.34,r*0.72,ang);
+    const dr=Math.max(0.45,r*0.18); p=at(0,-r*0.02); fbEllipse(3,accent||shade(col,28),p[0],p[1],dr,dr,0);
+    return;
+  }
+  if (shape==='trumpet'||shape==='funnel'||shape==='bell'){
+    fbShape(0,shade(col,-12),cx,cy,ang,[-r*0.45,r*0.85, -r*0.9,0,-r*1.05,-r*0.55, 0,-r*1.05,r*1.05,-r*0.55, r*0.9,0,r*0.45,r*0.85]);
+    const c=Math.cos(ang), s=Math.sin(ang);
+    fbEllipse(1,shade(col,24),cx+r*0.5*s,cy-r*0.5*c,r*0.78,r*0.36,ang);
+    return;
+  }
+  if (shape==='magnolia'||shape==='starTube'){ drawShrubFlower(ctx,cx,cy,r,col,shape,rnd,ang,accent,petalCount); return; }
+  const petals=shape==='star'?4:shape==='cup'?4:shape==='doubleCup'?8:shape==='calico'?5:
+    shape==='camellia'?10:shape==='rosette'?9:5;
+  const rings=(shape==='camellia'||shape==='rosette'||shape==='doubleCup')?2:1;
+  for (let ring=0;ring<rings;ring++) for (let p=0;p<petals;p++){
+    const a=ang+p*Math.PI*2/petals+(ring?Math.PI/petals:0), rr=r*(ring?0.52:0.78);
+    floretRaw(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr*0.72,r*(ring?0.46:0.58),
+      shade(col,ring?12:0),{squash:shape==='star'?0.56:0.76,rot:a,pass:ring*2,hl:false});
+  }
+  floretRaw(cx,cy,r*(shape==='calico'?0.34:0.3),accent||(shape==='calico'?shade(col,-34):shade(col,20)),{squash:1,pass:4});
+}
+
 /* ---------- procedural plant renderer ----------
    Draws a species at screen (x,y) given growth 0..1, season, and a stable seed. */
 function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl, detail, leafStage){
@@ -3060,7 +3782,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // to the next plant drawn, on any canvas. The batch helpers are entered only
   // from in here, and drawPlant never re-enters itself, so this one reset
   // covers them all. Four writes; a test poisons both counts.
-  fcReset(); _thrN[0]=_thrN[1]=_thrN[2]=0;
+  fcReset(); _thrN[0]=_thrN[1]=_thrN[2]=0; if (FB.live.length) fbReset(); _fbScale=1;
   const P = plantDef(key, variant), baseS = P.sea[season]||{};
   if (P.type==='bulb'&&growth<=0.02) return; // dormant bulbs have no organs and therefore no floating ground shadow
   // Month-window plants may bridge a real-world boundary even when their
@@ -7087,7 +7809,22 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
         if (bf) ctx.stroke();
       }
     } else {
-      const tn=stemFor(L.twigN||7), tips=[], a2=art2On(L), habit=L.habit||'round';
+      const a2=art2On(L), sh=shrubHabitOf(P);
+      // the habit renderer hands the flower and fruit passes batched painters
+      // (fbFlush paints them); the classic fan draws as it always did
+      const flo=sh ? floretB : drawFloret, fl=sh ? shrubFlowerB : drawShrubFlower;
+      let tips=[], sheared=false, shCrownW=0;
+      if (sh){
+        // sway is a lean that grows with height, the shear the sprite blit applies
+        if (sway){ ctx.save(); ctx.transform(1,0,-sway*2.2/Math.max(1,H),1,0,0); sheared=true; }
+        const st=shrubLeafState(ctx,P,L,S,season,leafStage,shR,seed);
+        const r=drawShrubHabit(ctx,P,L,st.S,sh,H,cw,growth,seed,
+          {la:st.la, dropping:st.dropping, mix:season==='Fall' ? L.fallMix : null,
+           snowy:mature && !!AMBIENCE[season].snow, season});
+        tips=r.heads; snowAnchors=r.snow; shCrownW=r.crown.W;
+        _fbScale=Math.max(0.5,Math.min(1,Math.sqrt(cw/120)));
+      } else {
+      const tn=stemFor(L.twigN||7), habit=L.habit||'round';
       const exposed=!!L.exposedBranching, pinnate=Number.isFinite(L.pinnatePairs)&&L.pinnatePairs>0;
       // `contorted`: how many twists a twig makes along its length (0 = straight)
       const contort=Math.max(0,Math.min(8,Number(L.contorted)||0)), contortAmp=Math.max(0.5,Math.min(2,L.contortAmp||1));
@@ -7226,56 +7963,78 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           }
         }
       }
+      } // end of the classic fan
       if (blooming && mature){
         const heads=tips.slice(0,Math.max(1,Math.ceil(tips.length*blv)));
         if (L.bloomStyle==='whorls'){
           heads.forEach(([tx2,ty2])=>drawShrubWhorls(ctx,tx2,ty2,H,L,S.bloom,S.bract,true));
         } else if (L.bloomStyle==='bareStem'||L.bloomStyle==='stemAxil'){
-          const count=L.flowerN||6, shape=L.flowerShape||'star';
-          heads.forEach(tip=>{ const [tx2,ty2,cx1,cy1]=tip;
-            for (let k=0;k<count;k++){ const t=0.28+k*(0.64/Math.max(1,count-1)), q=2*(1-t)*t;
-              const fx=tx2*(q*cx1+t*t)+(rnd()-0.5)*2.4, fy=ty2*(q*cy1+t*t)+(rnd()-0.5)*2;
-              drawShrubFlower(ctx,fx,fy,shape==='ribbon'?2.0:shape==='trumpet'||shape==='turkscap'?2.5:1.9,
+          // the habit renderer has many more flowering twigs: it keeps the
+          // flowers a shrub carries about the same, spread across them
+          const count=sh ? Math.max(3,Math.min(L.flowerN||6,Math.ceil(120/Math.max(1,heads.length)))) : (L.flowerN||6), shape=L.flowerShape||'star';
+          heads.forEach(tip=>{ const tx2=tip[0];
+            for (let k=0;k<count;k++){ const t=0.28+k*(0.64/Math.max(1,count-1));
+              shrubTwigAt(tip,t);
+              const fx=_saX+(rnd()-0.5)*2.4, fy=_saY+(rnd()-0.5)*2;
+              fl(ctx,fx,fy,shape==='ribbon'?2.0:shape==='trumpet'||shape==='turkscap'?2.5:1.9,
                 shade(S.bloom,(rnd()-0.5)*10),shape,rnd,tx2<0?-0.6:0.6,S.eye,L.flowerPetals); }
           });
         } else if (L.bloomStyle==='truss'||L.bloomStyle==='looseCluster'){
           const cr=L.clusterR||5, shape=L.flowerShape||'cup', n=L.bloomStyle==='truss'?9:(L.flowerN||5);
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<n;p++){ const a=p/n*Math.PI*2, ring=L.bloomStyle==='truss'?(p%3?0.75:0.32):0.7+rnd()*0.25;
-            drawShrubFlower(ctx,tx2+Math.cos(a)*cr*ring,ty2-cr*0.35+Math.sin(a)*cr*ring*0.58,
-              shape==='funnel'||shape==='calico'?2.1:1.8,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a,S.eye,L.flowerPetals); }
+            fl(ctx,tx2+Math.cos(a)*cr*ring,ty2-cr*0.35+Math.sin(a)*cr*ring*0.58,
+              (shape==='funnel'||shape==='calico'?2.1:1.8)*(sh?Math.max(1,cr/5):1),shade(S.bloom,(rnd()-0.5)*10),shape,rnd,a,S.eye,L.flowerPetals); }
           });
         } else if (L.bloomStyle==='rose'||L.bloomStyle==='scattered'){
           const n=stemFor(L.flowerN||12), shape=L.flowerShape||'single';
-          for (let k=0;k<n;k++){ const tip=tips[k%tips.length], [tx2,ty2,cx1,cy1]=tip, t=0.45+rnd()*0.5, q=2*(1-t)*t;
-            const fx=tx2*(q*cx1+t*t)+(rnd()-0.5)*cw*0.08, fy=ty2*(q*cy1+t*t)+(rnd()-0.5)*H*0.05;
-            drawShrubFlower(ctx,fx,fy,shape==='camellia'?3.4:shape==='rosette'?2.8:2.2,
+          for (let k=0;k<n;k++){ const tip=tips[k%tips.length], t=0.45+rnd()*0.5;
+            shrubTwigAt(tip,t);
+            const fx=_saX+(rnd()-0.5)*cw*0.08, fy=_saY+(rnd()-0.5)*H*0.05;
+            fl(ctx,fx,fy,shape==='camellia'?3.4:shape==='rosette'?2.8:2.2,
               shade(S.bloom,(rnd()-0.5)*12),shape,rnd,rnd()*Math.PI,S.eye,L.flowerPetals); }
         } else if (L.bloomStyle==='flatCorymb'){
           const cr=L.clusterR||8;
           heads.slice(0,Math.max(2,Math.ceil(heads.length*0.45))).forEach(([tx2,ty2])=>{
             for (let p=0;p<16;p++){ const a=p/16*Math.PI*2, rr=(0.25+0.75*Math.sqrt(rnd()))*cr;
-              drawFloret(ctx,tx2+Math.cos(a)*rr,ty2-cr*0.35+Math.sin(a)*rr*0.28,1.55,
+              flo(ctx,tx2+Math.cos(a)*rr,ty2-cr*0.35+Math.sin(a)*rr*0.28,1.55,
                 shade(S.bloom,(rnd()-0.5)*10),{squash:0.9}); }
           });
         } else if (['raceme','droopingRaceme','pendantRaceme','shortSpike'].includes(L.bloomStyle)){
           const n=L.flowerN||10, down=L.bloomStyle==='droopingRaceme'||L.bloomStyle==='pendantRaceme';
-          const len=(L.bloomStyle==='shortSpike'?10:18), shape=L.flowerShape||'bell';
-          heads.forEach(([tx2,ty2])=>{ ctx.strokeStyle=shade(S.bloom,-35); ctx.lineWidth=0.9; ctx.beginPath();
-            ctx.moveTo(tx2,ty2); ctx.quadraticCurveTo(tx2+(down?3:0),ty2+(down?len*0.5:-len*0.5),tx2+(down?2:0),ty2+(down?len:-len)); ctx.stroke();
+          // on the habit renderer a big shrub carries proportionately bigger racemes
+          const rz=sh ? Math.max(1,Math.min(1.6,Math.sqrt(cw/140))) : 1;
+          const len=(L.bloomStyle==='shortSpike'?10:18)*rz, shape=L.flowerShape||'bell';
+          heads.forEach(([tx2,ty2])=>{
+            if (sh) fbLine(0,shade(S.bloom,-35),0.9,tx2,ty2,tx2+(down?3:0),ty2+(down?len*0.5:-len*0.5),tx2+(down?2:0),ty2+(down?len:-len));
+            else { ctx.strokeStyle=shade(S.bloom,-35); ctx.lineWidth=0.9; ctx.beginPath();
+              ctx.moveTo(tx2,ty2); ctx.quadraticCurveTo(tx2+(down?3:0),ty2+(down?len*0.5:-len*0.5),tx2+(down?2:0),ty2+(down?len:-len)); ctx.stroke(); }
             for (let k=0;k<n;k++){ const f=k/Math.max(1,n-1), fy=ty2+(down?1:-1)*(2+f*len), side=k%2?-1:1;
-              drawShrubFlower(ctx,tx2+side*(2.2+f*1.8),fy,1.25,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,down?Math.PI:0,S.eye,L.flowerPetals); }
+              fl(ctx,tx2+side*(2.2+f*1.8)*rz,fy,1.25*rz,shade(S.bloom,(rnd()-0.5)*10),shape,rnd,down?Math.PI:0,S.eye,L.flowerPetals); }
           });
+        } else if (L.bloomStyle==='catkin'){
+          // a hazel's catkins: two or three slim tassels hanging from each twig
+          // end, one soft stroke apiece (the trees' catkin, at shrub size)
+          const cl=(L.clusterR||5)*2, cw2=+Math.max(0.9,cl*0.15).toFixed(2);
+          heads.forEach(([tx2,ty2])=>{ for (let c=0;c<3;c++){
+            const ox=(c-1)*2.2+(rnd()-0.5)*1.5, l=cl*(0.75+rnd()*0.5), x0=tx2+ox, y0=ty2+1, col=shade(S.bloom,(c-1)*10);
+            if (sh) fbLine(0,col,cw2,x0,y0,x0+ox*0.4+1,y0+l*0.55,x0+ox*0.6+0.6,y0+l);
+            else { ctx.strokeStyle=col; ctx.lineWidth=cw2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(x0,y0);
+              ctx.quadraticCurveTo(x0+ox*0.4+1,y0+l*0.55,x0+ox*0.6+0.6,y0+l); ctx.stroke(); } } });
         } else if (L.bloomStyle==='bottlebrush'){
-          heads.forEach(([tx2,ty2])=>{ ctx.strokeStyle=shade(S.bloom,-28); ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(tx2,ty2); ctx.lineTo(tx2,ty2-16); ctx.stroke();
+          heads.forEach(([tx2,ty2])=>{
+            if (sh) fbLine(0,shade(S.bloom,-28),0.8,tx2,ty2,tx2,ty2-8,tx2,ty2-16);
+            else { ctx.strokeStyle=shade(S.bloom,-28); ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(tx2,ty2); ctx.lineTo(tx2,ty2-16); ctx.stroke(); }
             for (let k=0;k<(L.flowerN||10);k++){ const fy=ty2-2-k*1.35, span=2.1+Math.sin(k/Math.max(1,(L.flowerN||10)-1)*Math.PI)*2.8;
-              ctx.strokeStyle=shade(S.bloom,(rnd()-0.5)*8); ctx.lineWidth=0.65; ctx.beginPath();
-              ctx.moveTo(tx2,fy); ctx.lineTo(tx2-span,fy-1.15); ctx.moveTo(tx2,fy); ctx.lineTo(tx2+span,fy+1.15); ctx.stroke();
-              drawFloret(ctx,tx2-span,fy-1.15,0.72,S.bloom,{}); drawFloret(ctx,tx2+span,fy+1.15,0.72,S.bloom,{}); }
+              const fc=shade(S.bloom,(rnd()-0.5)*8);
+              if (sh){ fbLine(1,fc,0.65,tx2,fy,tx2-span*0.5,fy-0.6,tx2-span,fy-1.15); fbLine(1,fc,0.65,tx2,fy,tx2+span*0.5,fy+0.6,tx2+span,fy+1.15); }
+              else { ctx.strokeStyle=fc; ctx.lineWidth=0.65; ctx.beginPath();
+                ctx.moveTo(tx2,fy); ctx.lineTo(tx2-span,fy-1.15); ctx.moveTo(tx2,fy); ctx.lineTo(tx2+span,fy+1.15); ctx.stroke(); }
+              flo(ctx,tx2-span,fy-1.15,0.72,S.bloom,{pass:2}); flo(ctx,tx2+span,fy+1.15,0.72,S.bloom,{pass:2}); }
           });
         } else if (L.bloomStyle==='globe'){
           const gr=L.clusterR||5;
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<12;p++){ const a=p/12*Math.PI*2, rr=gr*(0.35+0.65*(p%3)/2);
-              drawFloret(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.78,1.35,shade(S.bloom,(rnd()-0.5)*8),{}); }
+              flo(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.78,1.35,shade(S.bloom,(rnd()-0.5)*8),{}); }
             ctx.strokeStyle=shade(S.bloom,-12); ctx.lineWidth=0.55; ctx.beginPath();
             for (let p=0;p<10;p++){ const a=p/10*Math.PI*2; ctx.moveTo(tx2+Math.cos(a)*gr*0.7,ty2+Math.sin(a)*gr*0.55); ctx.lineTo(tx2+Math.cos(a)*gr*1.3,ty2+Math.sin(a)*gr); } ctx.stroke();
           });
@@ -7299,18 +8058,21 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           });
         } else if (L.smoke){
           ctx.save(); ctx.globalAlpha=0.52;
-          heads.forEach(([tx2,ty2])=>{ for (let p=0;p<6;p++){ ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*24);
-            ctx.beginPath(); ctx.ellipse(tx2+(rnd()-0.5)*16,ty2-3+(rnd()-0.5)*12,3.4,2.2,(rnd()-0.5)*1.2,0,7); ctx.fill(); } });
+          // the habit renderer's plumes scale with the crown: a smokebush in
+          // flower is a haze over the whole top of the shrub, not a few puffs
+          const sz=sh ? Math.max(1,shCrownW*0.045/3.4) : 1, np=sh ? 4 : 6;
+          heads.forEach(([tx2,ty2])=>{ for (let p=0;p<np;p++){ ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*24);
+            ctx.beginPath(); ctx.ellipse(tx2+(rnd()-0.5)*16*sz,ty2-3*sz+(rnd()-0.5)*12*sz,3.4*sz,2.2*sz,(rnd()-0.5)*1.2,0,7); ctx.fill(); } });
           ctx.restore();
         } else if (L.bloomStyle==='panicle'){ // upright conical trusses (lilac)
-          const pr=L.clusterR||4.5;
-          heads.forEach(([tx2,ty2])=>{ for (let k=0;k<14;k++){ const f=k/14, wr=pr*(1-f*0.85);
+          const pr=L.clusterR||4.5, nk=sh ? Math.round(14*Math.max(1,Math.pow(pr/4.5,1.5))) : 14;
+          heads.forEach(([tx2,ty2])=>{ for (let k=0;k<nk;k++){ const f=k/nk, wr=pr*(1-f*0.85);
             const fy=ty2-pr*0.2-f*pr*1.9;      // fy takes no rnd(); fx does
             // a lilac truss is hundreds of tiny lit florets; the highlight is
             // exactly what stops it reading as a solid lilac-coloured cone
             if (a2){
               const fx=tx2+(rnd()-0.5)*2*wr;
-              drawFloret(ctx, fx,fy, 1.9, shade(S.bloom,(rnd()-0.5)*14), {squash:0.94});
+              flo(ctx, fx,fy, 1.9, shade(S.bloom,(rnd()-0.5)*14), {squash:0.94});
             } else {                            // classic drew COLOUR before fx
               ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
               const fx=tx2+(rnd()-0.5)*2*wr;
@@ -7320,11 +8082,11 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           // quadratic with control (0.4,0.55), so B(t) = (0.8t+0.2t^2, 1.1t-0.1t^2).
           // The chord bows several px off a long cane, and on this style the arch
           // IS the plant.
-          heads.forEach(([tx2,ty2,cx1,cy1])=>{ for (let k=0;k<9;k++){ const t=0.30+k*0.075, q=2*(1-t)*t;
-            const cx=tx2*(q*cx1+t*t), cy=ty2*(q*cy1+t*t);
+          heads.forEach(tip=>{ for (let k=0;k<9;k++){ const t=0.30+k*0.075;
+            shrubTwigAt(tip,t); const cx=_saX, cy=_saY;
             if (a2){
               const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
-              drawFloret(ctx, fx,fy, 2.1, shade(S.bloom,(rnd()-0.5)*12), {squash:0.9});
+              flo(ctx, fx,fy, 2.1, shade(S.bloom,(rnd()-0.5)*12), {squash:0.9});
             } else {                            // classic drew COLOUR before fx/fy
               ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*14);
               const fx=cx+(rnd()-0.5)*3, fy=cy+(rnd()-0.5)*2.5;
@@ -7334,18 +8096,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           heads.forEach(([tx2,ty2])=>{ for (let p=0;p<8;p++){ const a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*cr;
             const fx=tx2+Math.cos(a)*rr, fy=ty2-cr*0.5+Math.sin(a)*rr*0.6;
             // a corymb is a DOME of florets: light them by where they sit on it
-            if (a2) drawFloret(ctx, fx,fy, 1.8,
+            if (a2) flo(ctx, fx,fy, 1.8,
                      shade(S.bloom, ((Math.cos(a)*rr/cr)*LIT.x+(Math.sin(a)*rr*0.6/cr)*LIT.y)*14+(rnd()-0.5)*10),
                      {squash:0.94});
             else { ctx.fillStyle=shade(S.bloom,(rnd()-0.5)*18);
               ctx.beginPath(); ctx.ellipse(fx, fy, 1.7,1.6,0,0,7); ctx.fill(); } } });
         } else if (a2){
-          heads.forEach(([tx2,ty2])=>drawFloret(ctx,tx2,ty2-2,L.flowerR||2.6,S.bloom,{squash:1.35}));
+          heads.forEach(([tx2,ty2])=>flo(ctx,tx2,ty2-2,L.flowerR||2.6,S.bloom,{squash:1.35}));
         } else { ctx.fillStyle=S.bloom;
           heads.forEach(([tx2,ty2])=>{
             const fr=L.flowerR||2.6;
             ctx.beginPath(); ctx.ellipse(tx2,ty2-2,fr*0.85,fr*1.23,0,0,7); ctx.fill(); }); }
       }
+      if (sh) fbFlush(ctx);
       // berryN:0 is a male pollinizer (a winterberry 'Jim Dandy'): the species
       // fruits, this plant never does -- the convention seedN:0 sets for trees.
       if (S.seed && mature && L.berryN!==0){ ctx.fillStyle=S.seed; // berries/pods along upper twigs
@@ -7413,14 +8176,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             }
           }
         } else if (L.seedAlong){
-          tips.forEach(([tx2,ty2,cx1,cy1])=>{ for (let node=0;node<4;node++){ const f=0.38+node*0.15, q=2*(1-f)*f;
-            const nx=tx2*(q*cx1+f*f), ny=ty2*(q*cy1+f*f);
+          tips.forEach(tip=>{ for (let node=0;node<4;node++){ const f=0.38+node*0.15;
+            shrubTwigAt(tip,f); const nx=_saX, ny=_saY;
             for (let b=0;b<bn;b++){ const a=b/bn*Math.PI*2;
-              drawFloret(ctx,nx+Math.cos(a)*3.1,ny+Math.sin(a)*1.7,1.45,S.seed,{lift:36}); }
+              flo(ctx,nx+Math.cos(a)*3.1,ny+Math.sin(a)*1.7,1.45,S.seed,{lift:36}); }
           } });
         } else if (L.fruitStyle==='cluster'||L.fruitStyle==='terminalCluster'){
           tips.forEach(([tx2,ty2])=>{ for (let b=0;b<bn+3;b++){ const a=b/(bn+3)*Math.PI*2, rr=2.2+(b%3)*1.25;
-            drawFloret(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.65,1.55,S.seed,{lift:36}); }
+            flo(ctx,tx2+Math.cos(a)*rr,ty2+Math.sin(a)*rr*0.65,1.55,S.seed,{lift:36}); }
           });
         } else if (L.fruitStyle==='cone'){
           // Upright conical fruit heads held above the leaves at every branch
@@ -7433,20 +8196,43 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             ctx.moveTo(tx2-cwid*0.5,ty2+ch*0.08); ctx.quadraticCurveTo(tx2-cwid*0.55,ty2-ch*0.55,tx2,ty2-ch);
             ctx.quadraticCurveTo(tx2+cwid*0.55,ty2-ch*0.55,tx2+cwid*0.5,ty2+ch*0.08); ctx.closePath();
             if (art2On(L)) litFill(ctx,tx2,ty2-ch*0.45,ch*0.5,S.seed,18,-22); else ctx.fill();
-            for (let b=0;b<4;b++) drawFloret(ctx,tx2+(brnd()-0.5)*cwid*0.6,ty2-ch*(0.15+b*0.2),Math.max(1.2,cwid*0.18),shade(S.seed,10),{lift:30});
+            for (let b=0;b<4;b++) flo(ctx,tx2+(brnd()-0.5)*cwid*0.6,ty2-ch*(0.15+b*0.2),Math.max(1.2,cwid*0.18),shade(S.seed,10),{lift:30});
+            if (sh) fbFlush(ctx);           // each cone's dots on that cone
           });
         } else if (L.fruitStyle==='globe'){
-          tips.forEach(([tx2,ty2])=>drawFloret(ctx,tx2,ty2,2.8,S.seed,{lift:28}));
+          tips.forEach(([tx2,ty2])=>flo(ctx,tx2,ty2,2.8,S.seed,{lift:28}));
         } else if (L.hipN){
           const hn=stemFor(L.hipN);
-          tips.forEach(([tx2,ty2,cx1,cy1],i)=>{ if (i%2) return; for (let b=0;b<hn;b++){ const f=0.5+b*0.11, q=2*(1-f)*f;
-            drawFloret(ctx,tx2*(q*cx1+f*f),ty2*(q*cy1+f*f),2.0,S.seed,{squash:1.2,lift:34}); }
+          tips.forEach((tip,i)=>{ if (i%2) return; for (let b=0;b<hn;b++){ const f=0.5+b*0.11;
+            shrubTwigAt(tip,f); flo(ctx,_saX,_saY,2.0,S.seed,{squash:1.2,lift:34}); }
           });
-        } else tips.forEach(([tx2,ty2])=>{ for (let b=0;b<bn;b++){ const f=f0+b*fs;
+        } else tips.forEach(tip=>{ for (let b=0;b<bn;b++){ const f=f0+b*fs;
           const jx=bn>3?(brnd()-0.5)*2.6:0, jy=bn>3?(brnd()-0.5)*2:0;
-          if (a2) drawFloret(ctx, tx2*f+jx, ty2*f+jy, 1.8, S.seed, {lift:38});
-          else { ctx.beginPath(); ctx.arc(tx2*f+jx,ty2*f+jy,1.6,0,7); ctx.fill(); } } }); }
+          shrubChord(tip,f);
+          if (a2) flo(ctx, _saX+jx, _saY+jy, 1.8, S.seed, {lift:38});
+          else { ctx.beginPath(); ctx.arc(_saX+jx,_saY+jy,1.6,0,7); ctx.fill(); } } }); }
+      if (sh){ fbFlush(ctx); _fbScale=1; }
+      if (sheared) ctx.restore();
     }
+  }
+  else if (P.form === 'hydrangea' && shrubHabitOf(P)){ // the habit renderer, big heads on its tips
+    const L=P.look||{}, sh=shrubHabitOf(P), cw=(woodyVisualCw(P)||70)*(0.4+0.6*growth);
+    let sheared=false;
+    if (sway){ ctx.save(); ctx.transform(1,0,-sway*2.2/Math.max(1,H),1,0,0); sheared=true; }
+    const st=shrubLeafState(ctx,P,L,S,season,leafStage,shR,seed);
+    const r=drawShrubHabit(ctx,P,L,st.S,sh,H,cw,growth,seed,
+      {la:st.la, dropping:st.dropping, mix:season==='Fall' ? L.fallMix : null,
+       snowy:mature && !!AMBIENCE[season].snow, season, hydr:true});
+    snowAnchors=r.snow;
+    const heads=r.heads, hr=mulberry((seed^0x4ead5)>>>0), headR=(L.headR||7)*(0.6+0.4*growth);
+    if (blooming && mature && S.bloom){
+      const n=Math.max(1,Math.ceil(heads.length*blv));
+      for (let t=0;t<heads.length;t++) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.bloom,headR,hr,t<n);
+    } else if (S.seed && mature){                  // dried heads hold through winter
+      for (let t=0;t<heads.length;t++) hydrangeaHeadB(L,heads[t][0],heads[t][1],S.seed,headR*0.8,hr,true);
+    }
+    fbFlush(ctx);
+    if (sheared) ctx.restore();
   }
   else if (P.form === 'hydrangea'){ // big mophead or panicle flowering shrub
     const L = P.look||{}, panicle = L.bloomShape==='panicle', lacecap = L.bloomShape==='lacecap';
@@ -7572,7 +8358,8 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
   // A habit tree lights each clump itself, and its crown has sky in it where
   // these would land.
   if (!AMBIENCE[season].snow && S.fol && growth>0.28 && !stemBuiltHabit(P) && !(P.look&&P.look.rosettes)
-      && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))){
+      && !(P.form==='tree' && treeHabitOf(P.look)) && !(P.form==='conifer' && coniferTreeOn(P.look))
+      && !shrubHabitOf(P)){
     const hl=mulberry(seed+0x51f15e), col=mixHex(S.fol,'#fff1c4',0.42);
     ctx.save(); ctx.globalAlpha=isTreeDef(P)?0.16:0.13;
     ctx.strokeStyle=col; ctx.lineWidth=isTreeDef(P)?1.2:0.9; ctx.lineCap='round';

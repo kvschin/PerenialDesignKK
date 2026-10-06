@@ -964,6 +964,42 @@ function treeLeafOut(P){
   _leafOut.set(P,lo);
   return lo;
 }
+/* The same cycle for a shrub drawn by the habit renderer (shrubHabitOf), and
+   the one entry point the garden asks: a tree's treeLeafOut, or this. A shrub
+   with winter foliage is evergreen and has none -- a shrub's evergreens are not
+   all green in winter (an Oregon grape bronzes, a brittlebush is silver), so it
+   is read off the foliage being THERE, not its colour. A shrub comes into leaf
+   a few days ahead of the canopy above it, the understorey's head start, and
+   one that flowers on bare stems (a forsythia, `bloomStyle:'bareStem'` with a
+   spring bloom) only as its flowers pass their peak. The clipped topiary is a
+   solid block and draws no stages. */
+const _shrubLeafOut=new WeakMap();
+function woodyLeafOut(P){
+  if (!P) return null;
+  if (isTreeDef(P)) return treeLeafOut(P);
+  if (!isShrubDef(P) || !P.sea || !shrubHabitOf(P)) return null;
+  let lo=_shrubLeafOut.get(P);
+  if (lo!==undefined) return lo;
+  lo=null;
+  const sp=P.sea.Spring||{}, su=P.sea.Summer||{}, wi=P.sea.Winter||{}, L=P.look||{};
+  const green=c=>{ const [r,g,b]=colorParts(c); return g>r && g>=b; };
+  if (su.fol && !wi.fol){
+    const t=LEAF_OUT[P.phen]||LEAF_OUT.mid;
+    let s=t.s-0.8;
+    if (sp.bloom && (!sp.fol || L.bloomStyle==='bareStem')){
+      const w=bloomWindowsFor(P).find(([a])=>a<DAYS_PER_SEASON);
+      if (w) s=Math.min(10, Math.max(s, (w[0]+Math.min(w[1],DAYS_PER_SEASON))/2));
+    }
+    const spring=sp.fol || (green(su.fol) ? mixCol(su.fol,'#bfd98b',0.5) : shade(su.fol,22));
+    const first=green(spring) ? mixCol(spring,'#dfe6a2',0.4) : shade(spring,16);
+    const cols=[null];
+    for (let k=1;k<=LEAF_FULL;k++) cols.push(k===LEAF_FULL ? spring : mixCol(first,spring,(k-1)/(LEAF_FULL-1)));
+    for (let k=LEAF_FULL+1;k<=LEAF_STAGES;k++) cols.push(k===LEAF_STAGES ? su.fol : mixCol(spring,su.fol,(k-LEAF_FULL)/(LEAF_STAGES-LEAF_FULL)));
+    lo={s, f:s+(t.f-t.s), cols, drop:LEAF_DROP[P.phen]||LEAF_DROP.mid};
+  }
+  _shrubLeafOut.set(P,lo);
+  return lo;
+}
 // the leaf-out stage on a day of the year (with its fraction)
 function treeLeafStage(lo, d){
   if (d<0 || d>=DAYS_PER_SEASON) return LEAF_STAGES;
@@ -978,10 +1014,11 @@ function treeDropStage(drop, d){
   return a<=0 ? LEAF_FULL : a>=1 ? 0 : Math.round((1-a)*LEAF_FULL);
 }
 // what drawPlant's leafStage is now, for a plant drawn in `season`: undefined
-// unless it is a deciduous tree in spring, or one that drops its leaves in fall
+// unless it is a deciduous tree or shrub in spring, or one that drops its
+// leaves in fall
 function leafStageNow(P, season){
   if (season!=='Spring' && season!=='Fall') return undefined;
-  const lo=treeLeafOut(P);
+  const lo=woodyLeafOut(P);
   if (!lo || (season==='Fall' && !lo.drop)) return undefined;
   const d=(((absDay()%YEAR_DAYS)+YEAR_DAYS)%YEAR_DAYS)+calClock().frac;
   return season==='Spring' ? treeLeafStage(lo,d) : treeDropStage(lo.drop,d);

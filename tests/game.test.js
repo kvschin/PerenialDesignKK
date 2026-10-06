@@ -1532,7 +1532,11 @@ test('a fall palette changes the fall foliage and nothing else', () => {
     finally { L.fallMix=keep; }
     assert(fallWith!==fallWithout, key+': the palette recolours the fall foliage');
     assert(summerWith===summerWithout, key+': and leaves summer exactly as it was');
-    assert(fallWith.split('\n').length===fallWithout.split('\n').length, key+': with the same number of canvas calls: a colour costs no shape');
+    /* The same SHAPES, not the same calls: a shrub batches its leaves into one
+       fill per tone and colour (drawShrubHabit), so a palette adds a fill or two
+       for its colours while every leaf stays where it was. */
+    const shapes=t=>t.split('\n').filter(l=>/^(moveTo|lineTo|quadraticCurveTo|bezierCurveTo|ellipse|arc|rect|closePath)\(/.test(l)).length;
+    assert(shapes(fallWith)===shapes(fallWithout), key+': with the same shapes: a colour costs no shape');
   }
 });
 
@@ -1791,6 +1795,134 @@ test('deciduous trees drop their leaves through late fall, and the litter lies u
     'and the fallen ones lie on the ground under it');
 });
 
+/* ---------- shrub habits (0.9.60) ----------
+   Every informal shrub used to be one broom: a fan of straight twigs from a
+   single point with a few dozen leaves on it. */
+test('every informal shrub draws with a habit that exists, and the clipped topiary keeps its own drawing', () => {
+  const bad=[];
+  for (const key of PLANT_KEYS) for (const v of [null,...Object.keys(PLANTS[key].cv||{})]){
+    const P=plantDef(key,v); if (P.type!=='shrub') continue;
+    const L=P.look||{}, id=key+(v?'.'+v:''), informal=(P.form==='bush' && !L.clip) || P.form==='hydrangea';
+    if (informal && !shrubHabitOf(P)) bad.push(id+' has no habit');
+    if (!informal && shrubHabitOf(P)) bad.push(id+' ('+P.form+(L.clip?', clipped':'')+') has one');
+    if (informal && L.habit && !SHRUB_HABITS[L.habit]) bad.push(id+" names '"+L.habit+"'");
+  }
+  assertEqual(bad.slice(0,8).join(' | '),'','every informal shrub has a habit, nothing else does');
+  for (const [name,hb] of Object.entries(SHRUB_HABITS)){
+    for (const f of ['base','top','w','p','eLo','eHi','lo','stems','baseW','tips','rise','fork','bend','crook','arch',
+                     'clumpR','squash','hang','cover','wash','fill','twigs','twigLen'])
+      assert(Number.isFinite(hb[f]), `${name}.${f} is a number`);
+    assert(hb.top>hb.base && hb.p>0 && hb.p<1, `${name} has a crown with height and a widest point inside it`);
+  }
+  // the habits a shrub is told apart by are really used
+  const used=new Set(PLANT_KEYS.map(k=>shrubHabitOf(plantDef(k,null))).filter(Boolean));
+  for (const name of ['round','mound','lowMound','upright','vase','fountain','arching','open','layered','thicket'])
+    assert(used.has(SHRUB_HABITS[name]), `some shrub draws as '${name}'`);
+});
+
+test('with shrub habits switched off, a shrub draws the classic fan and reads nothing of the habit table', () => {
+  /* ?shrub=0 is the A/B and the way back. The classic drawing was checked call
+     for call against the previous build when this landed; this keeps the
+     switch honest: off, nothing the habit renderer reads can move a shrub. */
+  const was=SHRUB_HABIT.on, keep=SHRUB_HABITS.round;
+  try {
+    SHRUB_HABIT.on=false;
+    const before=plantDrawCalls('arrowwood',null,'Summer',4242,1);
+    SHRUB_HABITS.round=Object.assign({},keep,{w:0.2,tips:9,cover:0.1});
+    assertEqual(plantDrawCalls('arrowwood',null,'Summer',4242,1),before,'off, the habit table changes nothing');
+    assertEqual(woodyLeafOut(plantDef('arrowwood',null)),null,'and no leaf stage keys a classic shrub');
+    SHRUB_HABIT.on=true;
+    assert(plantDrawCalls('arrowwood',null,'Summer',4242,1)!==before,'on, it draws the habit');
+  } finally { SHRUB_HABIT.on=was; SHRUB_HABITS.round=keep; }
+});
+
+test('a shrub is leaves on stems from a crown of stems, not a fan from one point', () => {
+  /* The two things the broom lacked: stems that leave the ground across a
+     crown rather than from one point, and leaves enough to hide them. */
+  const ctxFor=log=>new Proxy({}, { get(o,p){ if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return (...a)=>log.push([p,...a]); }, set(o,p,v){ o[p]=v; return true; } });
+  for (const key of ['arrowwood','catawbarhododendron','forsythia','hydrangea']){
+    const P=plantDef(key,null), log=[];
+    drawPlant(ctxFor(log),0,0,key,1,'Summer',4242,0,null,1);
+    // stem bases: moveTo points at the ground
+    const feet=new Set(log.filter(c=>c[0]==='moveTo' && Math.abs(c[2])<0.01).map(c=>Math.round(c[1])));
+    assert(feet.size>=4, `${key}: its stems leave the ground at ${feet.size} places`);
+    assert(_shN>=120, `${key}: carries ${_shN} leaves`);
+  }
+  // and a leaf count that does not run away with a shrub's size
+  for (const key of PLANT_KEYS){
+    const P=PLANTS[key]; if (P.type!=='shrub' || !shrubHabitOf(P)) continue;
+    drawPlant(ctxFor([]),0,0,key,1,'Summer',4242,0,null,0);
+    assert(_shN<=SH_LEAF_CAP*2+12, `${key}: ${_shN} leaves is within the cap`);
+  }
+});
+
+test('a shrub carries its flowers on its own twigs, spread across the crown', () => {
+  /* A flower pass that lost its twigs draws every flower on one spot (it did,
+     for an hour: a later module's shrubAt shadowed the twig helper). */
+  for (const key of ['forsythia','weigela','bridalwreath']){
+    const P=plantDef(key,null), xs=[], ys=[];
+    const ctx=new Proxy({}, { get(o,p){ if (p in o) return o[p];
+        if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+        return (...a)=>{ if (p==='ellipse' && a[2]<4){ xs.push(a[0]); ys.push(a[1]); } }; }, set(o,p,v){ o[p]=v; return true; } });
+    drawPlant(ctx,0,0,key,1,'Spring',4242,0,null,1);
+    const spread=Math.max(...xs)-Math.min(...xs);
+    assert(xs.length>=40, `${key}: ${xs.length} flower shapes`);
+    assert(spread>woodyVisualCw(P)*0.45, `${key}: its flowers spread ${spread.toFixed(0)} across a ${woodyVisualCw(P)}-wide shrub`);
+    assert(ys.filter(y=>y<-plantVisualH(P)*0.3).length>xs.length*0.6, `${key}: and stand up in the crown, not at its foot`);
+  }
+});
+
+test('deciduous shrubs leaf out through spring and drop through fall; evergreen and clipped ones never do', () => {
+  const lo=k=>woodyLeafOut(plantDef(k,null));
+  for (const k of ['arrowwood','ninebark','forsythia','lilac','hydrangea','oakleafhydrangea','redtwig','highbushblueberry'])
+    assert(lo(k) && lo(k).drop, k+' leafs out and drops');
+  // an evergreen is read off the foliage being there in winter, whatever its colour
+  for (const k of ['catawbarhododendron','cherrylaurel','loworegongrape','brittlebush','boxwoodround','beechhedge','englishyewhedge'])
+    assert(!lo(k), k+' has no leaf stages');
+  // the understorey comes into leaf a little ahead of trees with the same timing
+  const midTree=PLANT_KEYS.find(k=>PLANTS[k].type==='tree' && PLANTS[k].phen==='mid' && treeLeafOut(plantDef(k,null)));
+  assert(lo('arrowwood').s<treeLeafOut(plantDef(midTree,null)).s, 'a viburnum leafs out before a '+midTree);
+  // a forsythia flowers on bare stems, then leafs out
+  const [w]=bloomWindowsFor(plantDef('forsythia',null));
+  assertEqual(treeLeafStage(lo('forsythia'),(w[0]+Math.min(w[1],DAYS_PER_SEASON))/2-0.5),0,'a forsythia is in flower before it is in leaf');
+  assertEqual(lo('arrowwood').cols[LEAF_STAGES],plantDef('arrowwood',null).sea.Summer.fol,'the last stage is the summer colour');
+  // and the sprite key follows
+  const rec=(k,season)=>{ const r={}; bakePlantKeyParts(r,k,null,season,7,undefined); return r.leafOut; };
+  assert(rec('arrowwood','Spring') && rec('arrowwood','Fall'), 'a viburnum caches by leaf stage in spring and fall');
+  for (const [k,season] of [['arrowwood','Summer'],['arrowwood','Winter'],['catawbarhododendron','Spring'],['boxwoodround','Spring']])
+    assert(!rec(k,season), k+' in '+season+' keeps its key');
+  game.dayOffset=1; assertEqual(leafStageNow(plantDef('arrowwood',null),'Spring'),0,'bare on spring day 1');
+  game.dayOffset=15; assert(leafStageNow(plantDef('arrowwood',null),'Spring')>=LEAF_FULL,'in leaf by mid-May');
+});
+
+test("a shrub's leaf stage changes sizes and which leaves draw, never its shape", () => {
+  for (const k of ['arrowwood','hydrangea','forsythia']){
+    // full leaf with an authored spring colour is the authored spring shrub, call for call
+    assertEqual(plantDrawCalls(k,null,'Spring',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Spring',4242,1), k+' at full leaf in spring');
+    assertEqual(plantDrawCalls(k,null,'Fall',4242,1,0,LEAF_FULL), plantDrawCalls(k,null,'Fall',4242,1), k+' in full fall colour');
+    for (const season of ['Summer','Winter'])
+      assertEqual(plantDrawCalls(k,null,season,4242,1,0,2), plantDrawCalls(k,null,season,4242,1), k+': a stage in '+season+' changes nothing');
+  }
+  const leaves=stage=>{ drawPlant(new Proxy({}, { get(o,p){ if (p in o) return o[p];
+      if (p==='createLinearGradient'||p==='createRadialGradient'||p==='createPattern') return () => ({addColorStop(){}});
+      return () => {}; }, set(o,p,v){ o[p]=v; return true; } }),0,0,'arrowwood',1,'Spring',4242,0,null,0,undefined,stage); return stage ? _shN : 0; };
+  const bare=leaves(0), first=leaves(1), full=leaves(LEAF_FULL);
+  assert(bare<first && first<full, `bare, then tufts, then the shrub (${bare}, ${first}, ${full} leaves)`);
+  // coming down in fall: the leaves still up are where they were, and the fallen lie under it
+  const ell=t=>(t.match(/(^|\n)ellipse\(/g)||[]).length;
+  const half=plantDrawCalls('arrowwood',null,'Fall',4242,1,0,2), full2=plantDrawCalls('arrowwood',null,'Fall',4242,1,0,LEAF_FULL);
+  assert(ell(half)>ell(full2), 'the fallen leaves lie on the ground under a dropping shrub');
+});
+
+test('a hydrangea stands bare with its dried heads in winter', () => {
+  for (const k of ['hydrangea','smoothhydrangea','bigleaflace','smoothlace','serratahydrangea','panniclehydrangea','oakleafhydrangea']){
+    assert(!PLANTS[k].sea.Winter.fol, k+': no winter leaves (it is deciduous)');
+    assert(PLANTS[k].sea.Winter.seed, k+': its dried heads hold through winter');
+  }
+});
+
 test('a weeping tree hangs its flowers down its curtains, on both sides', () => {
   /* `weep` used to add eight wisps under the foliage and nothing else, so a
      weeping cherry in bloom -- the season it is planted for -- drew as an
@@ -1948,7 +2080,9 @@ test('a male winterberry draws no berries, and a female still does', () => {
   /* A berry is a glossy floret in the seed colour under ART2 and a plain disc
      filled with it in Classic, so count both ways of painting one. */
   const berries=(v,art)=>{
-    const seed=plantDef('winterberry',v).sea.Winter.seed, real=drawFloret, wasArt=ART2.on;
+    // the habit renderer stages its berries through floretB and paints them
+    // batched, so a berry is counted where it is staged as well
+    const seed=plantDef('winterberry',v).sea.Winter.seed, real=drawFloret, realB=floretB, wasArt=ART2.on;
     let n=0;
     const ctx=new Proxy({}, {
       get(o,p){
@@ -1959,9 +2093,10 @@ test('a male winterberry draws no berries, and a female still does', () => {
       set(o,p,val){ o[p]=val; return true; },
     });
     drawFloret=function(c,x,y,r,col){ if (col===seed) n++; return real.apply(this,arguments); };
+    floretB=function(c,x,y,r,col){ if (col===seed) n++; return realB.apply(this,arguments); };
     ART2.on=art;
     try { drawPlant(ctx,0,0,'winterberry',1,'Winter',7122,0,v,1); }
-    finally { drawFloret=real; ART2.on=wasArt; }
+    finally { drawFloret=real; floretB=realB; ART2.on=wasArt; }
     return n;
   };
   for (const art of [true,false]){

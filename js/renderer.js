@@ -1608,9 +1608,9 @@ function bakePlantKeyParts(rec,key,variant,season,seed,detail){
   rec.kTail='|'+(detail?JSON.stringify(detail):'');
   rec.sv=key+'|'+(variant||'');
   rec.hasBloom=!!bloomAppearanceFor(plantDef(key,variant),season);
-  // a deciduous tree in spring carries its leaf-out stage (treeLeafOut) as
-  // well, and one that drops its leaves carries its leaf-drop stage in fall
-  const lo=(season==='Spring'||season==='Fall') ? treeLeafOut(plantDef(key,variant)) : null;
+  // a deciduous tree or shrub in spring carries its leaf-out stage
+  // (woodyLeafOut) as well, and one that drops its leaves its leaf-drop stage in fall
+  const lo=(season==='Spring'||season==='Fall') ? woodyLeafOut(plantDef(key,variant)) : null;
   rec.leafOut=!!lo && (season==='Spring' || !!lo.drop);
 }
 /* bloomLevel is a pure function of the species and the clock, so within one

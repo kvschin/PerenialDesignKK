@@ -6538,6 +6538,82 @@ Lebanon; and the broadleaf evergreens Southern magnolia, live oak, holm oak,
 American, English and 'Nellie R. Stevens' holly, bay laurel, strawberry tree
 -- and 21 cultivars (635 base / 487 nested). English holly carries a King
 County caution, so the invasive filter hides it in North America (9 hidden).
+**0.9.60: shrubs built as shrubs (`SHRUB_HABITS`, `shrubHabitOf`,
+`drawShrubHabit`, draw.js), with leaf-out and leaf drop (`woodyLeafOut`,
+world.js).** Every informal shrub -- 88 `bush` species and the 7 hydrangeas,
+161 choices with cultivars -- was one drawing: seven to thirteen straight twigs
+fanned from ONE point at the ground over a translucent ellipse, with 20-40
+leaves stuck along the twigs, about a tenth of the crown covered. A viburnum,
+a lilac, a rhododendron and a forsythia were one broom in different greens.
+The shrub is now the tree habit system applied to a plant with many stems: a
+habit names a crown outline (the superellipse `treeCrownHW` reads), how many
+stems leave the ground and across how wide a crown (`stems`, `baseW`), and how
+they reach their tips (`rise`, `fork`, `bend`, `crook`, `arch` -- a twig's
+control point lifted so a cane rises and falls -- and `tiers`). Tips are spread
+through the outline and joined back to the stems from the outside in. Ten
+habits: `round` (viburnums), `mound` (rhododendron, laurustinus, the
+hydrangeas), `lowMound`, `upright` (camellia, photinia), `vase` (lilac, elder,
+witch hazel, panicle hydrangea), `fountain` (forsythia, bridal wreath, hazel),
+`arching` (weigela, ninebark, sweetspire), `open` (swamp azalea, buttonbush,
+staghorn), `layered` (doublefile viburnum, pieris) and `thicket` (red-twig
+dogwood). `look.habit` names one -- 31 species were given or changed theirs --
+and `look.shrubHabit` is a partial override (pieris fills between its tiers).
+**The foliage is LEAVES, not blobs**: at shrub scale a leaf is legible, so a
+dark underwash fills the outline (lobed, inset, `wash`) and a few hundred
+leaf shapes cover it -- clumped at the tips, thinner through the interior,
+strung along the canes of an arching habit (`alongCane`) -- each turned out of
+its clump and lit by its place on the clump AND on the crown. They are batched
+into five light tones, one fill a tone (a few more for a fall palette), two
+quadratic curves a leaf, a toothed ribbon only where teeth can be seen. `cover`
+makes the count follow the crown's area; past `SH_LEAF_CAP` (300; x1.6 for
+compound leaves counted by the leaflet, up to x2 for small leaves) the leaves
+grow instead, to at most 1.55x, because a big shrub's cost is the AREA its
+leaves fill: a 22 ft cherry laurel at 2.2x cost three times its classic
+drawing. Compound leaves (`pinnatePairs`, `compound:'pinnate'|'trifoliate'|
+'palmate'`) are a rachis with leaflets; `leafShape:'palmate'` is the oakleaf
+hydrangea's lobed leaf. In full leaf a dense crown skips the stems it hides
+(`leafDepth`, the trees' rule); thin twigs are straight lines with butt caps.
+**Flowers and fruit ride the twigs the habit built** (`shrubTwigAt`, absolute
+quadratic tips `[tx,ty,qx,qy,x0,y0,1]`; the classic fan's ratio tips keep their
+old arithmetic exactly, which is how `?shrub=0` stays call-for-call). Most tips
+carry a head (`SHRUB_HEAD_SHARE` by bloom style: a viburnum in bloom is dozens
+of cymes), so the passes take batched painters, `floretB`/`shrubFlowerB` into a
+fill batch (`FB`, `fbFlush`) that paints each colour once in stacking passes
+(body, highlight, inner ring, centre); a petal skips its highlight. That batch is
+what pays for the extra heads: the classic Turk's cap was 5.8ms a bake on
+eleven fills a flower. `_fbScale` shrinks flowers on a small shrub (a lowbush
+blueberry's bells were leaf-sized), trusses, panicles, racemes and the smoke
+scale with the shrub, stem-strung flowers are capped near 120 a shrub, and the
+hazels gained a `catkin` style. Hydrangea heads are batched too
+(`hydrangeaHeadB`), on their own seeded stream.
+**Seasons follow the trees.** `woodyLeafOut` is the one entry point the
+garden asks (`leafStageNow`, `bakePlantKeyParts`): a tree's `treeLeafOut`, or a
+shrub's cycle -- evergreen read off winter foliage being THERE, not its colour
+(an Oregon grape bronzes, a brittlebush is silver), coming into leaf 0.8 days
+ahead of trees with the same `phen`, a `bareStem` spring bloomer (forsythia)
+only as its flowers pass their peak. Emerging leaves are tufts at the twig tips
+over a bare twiggy frame (`shrubLeafState`); dropping leaves go a clump at a
+time onto the ground under the shrub (`drawFallenLeaves`); in winter a shrub is
+its twigs plus a fine fringe. Stages change sizes and which leaves draw, never
+the streams (the fall picker included), so full leaf is the authored shrub call
+for call (a test). The clipped topiary has no habit and no stages. The seven
+hydrangeas lost their brown Winter `fol`: they are deciduous, and stand as bare
+canes with dried heads.
+**Verified.** With HEAD's data, 17,952 drawings compared call for call against
+0.9.59: every non-shrub identical, and every shrub under `?shrub=0` the classic
+drawing. Bake cost in headless Edge, all 88 species, classic vs habit: spring
+86.6 -> 96.9ms total (median 0.92 -> 1.00), summer 78.7 -> 90.4, fall 74.4 ->
+87.6, winter 55.4 -> 66.0 (median 0.44 -> 0.72); worst single shrub 3.1ms
+(cherry laurel) against the classic worst 4.2 (Turk's cap). A shrub fills its
+crown now, so it costs some 12-19% more to bake than the broom did. Two traps
+found on the way: `shrubAt` already existed (world.js, the tile lookup) and a
+later module's function silently replaced the twig helper, drawing every
+flower on one spot -- now `shrubTwigAt`, and a test asserts the flowers spread;
+and the Node `vm` sandbox's global lookups inflate JS timings several-fold, so
+cost the drawing in a browser. `dev/shrub-review.html` shows every shrub
+before/after in four seasons, `?sheet=<refs|group|all>&seasons=&arm=` for a
+contact sheet, `seasonSheet([...])` for March-June and September-December, and
+`?bench=all` for bake cost.
 
 ## Conventions
 
@@ -7143,26 +7219,11 @@ that picker is an optional feature decision, separate from site authoring.
 Live collaboration is not on the roadmap; if it ever returns it starts from
 `sGet`/`sSet` and a real server, not the removed tab-local scaffolding.
 
-- **Shrub leaf-out and leaf drop** *(todo — do it with the planned general
-  rework of how shrubs look)*. Trees leaf out through spring (0.9.56) and drop
-  their leaves through late fall (0.9.58); shrubs do neither. All 102 `bush`
-  and `hydrangea` shrubs stand in full leaf on March 1, forsythia and witch
-  hazel included, which really flower on bare stems, and every deciduous shrub
-  goes bare at once on December 1. Reuse the tree machinery rather than
-  building a second one: `treeLeafOut`/`treeLeafStage`/`treeDropStage` and the
-  `LEAF_OUT`/`LEAF_DROP` timing by `phen` (world.js), drawPlant's `leafStage`
-  argument, `|L<stage>` in the sprite key (`bakePlantKeyParts`'
-  `rec.leafOut`, `leafStageForFrame`), `makePlantSprite`, `aheadBakePlant`, and
-  `drawFallenLeaves`. What differs: the gate is `isTreeDef` today and has to
-  admit shrubs; no shrub authors a Spring `bloom` without `fol`, so the
-  bare-wood signal is probably `look.bloomStyle:'bareStem'` (forsythia, witch
-  hazel) or bloom months that end before leaf-out; evergreen shrubs are the
-  ones with a green Winter `fol` (boxwood, inkberry, the hollies, mountain
-  laurel); and the bush renderer draws its own leaves, so the emerging and
-  dropping stages have to be built there, keeping the rule that a stage
-  changes sizes and which shapes draw but never the random streams (including
-  `fallColourPicker`'s). Expect the cost to look like the trees': per frame
-  nothing, a handful of extra bakes per shrub per year.
+- **Shrub leaf-out and leaf drop** *(built, 0.9.60, with the shrub habits)*:
+  `woodyLeafOut` reuses the trees' timing, stages and sprite key; see the
+  0.9.60 note in the catalog section. The clipped topiary still has no stages
+  (a beech or hornbeam hedge holds its dead leaves and greens in spring as one
+  colour change, which a block cannot show leaf by leaf).
 - **Matrix/scatter mode** *(built)* — interplant at authored spacing through
   `matrixSpacingBlocks`/`placePlantAt` and the Matrix brush controls.
 - **Plant health / water** *(unscheduled idea)* — establishment failure and
