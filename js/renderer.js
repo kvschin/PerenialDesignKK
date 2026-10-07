@@ -3630,17 +3630,9 @@ function render(t){
   const focusedShrub=layerShown('woody') && game.focusPlantKey ? shrubInfoFromKey(game.focusPlantKey) : null;
   if (focusedShrub) drawShrubFootprint(cx,W,H,focusedShrub,'focus');
   const hoverShrub=layerShown('woody') && game.hoverTile ? shrubAt(game.hoverTile[0],game.hoverTile[1]) : null;
-  if (hoverShrub){
-    let mode='hover';
-    if (isPlacementTool(game.tool) && game.tool!=='house'){  // placement tools are blocked by a shrub here; house ghosts instead
-      mode='blocked';
-      if (PLANTS[game.tool] && isShrubDef(plantDef(game.tool,game.toolVar))){
-        const [txh,tyh]=game.hoverTile, draft={s:game.tool,v:game.toolVar||null,d:absDay()};
-        if (canPlaceShrubAt(txh,tyh,draft).ok) mode='hover';
-      }
-    }
-    drawShrubFootprint(cx,W,H,hoverShrub,mode);
-  }
+  // the spread a hovered tile sits in — information, never a refusal: since
+  // 0.9.61 a shrub's spread takes anything, and placing inside it is advice
+  if (hoverShrub) drawShrubFootprint(cx,W,H,hoverShrub,'hover');
   game.shrubFx=game.shrubFx.filter(f=>t-f.t0<760);
   game.shrubFx.forEach(f=>{
     const sh=shrubInfoFromKey(f.key);

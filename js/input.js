@@ -249,7 +249,7 @@ function canvasGestureWouldLoseWork(){
 }
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
-  sweep=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
+  sweep=null; sweepTap=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
   game.hoverTile=null;
   if (game.tool==='building' && game.buildingDraft) cancelBuildingDraft();
   if (notice) showGestureCancel(notice);
@@ -440,6 +440,7 @@ cnv.addEventListener('pointerdown',e=>{
   if (game.tool==='house'){ placeHouse(x,y); return; }
   if (game.tool==='shovel'){ // drag across the bed to lift plant after plant
     sweep={plants:0, bulbs:0, terr:0, elev:0, house:0, building:0, fence:0, light:0, firepit:0, boulder:0, pet:0, pot:0, seat:0, waterFeature:0, support:0};
+    sweepTap={x,y,moved:false};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     sweepLift(x,y); return;
   }
@@ -512,10 +513,12 @@ function finishToolDrag(){
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
     const done=DRAG_DONE[toolDrag.what];
     let msg;
+    // a plant drag says once, for the whole stroke, what a shrub will crowd
+    const crowd=def ? gestureCrowdingNote([...toolDrag.affected].map(k=>k.split(',').map(Number))) : '';
     if (done) msg=done(changed);
-    else if (def) msg=`Planted ${changed} - ${def.name}.`;
+    else if (def) msg=`Planted ${changed} - ${def.name}.`+(crowd?' '+crowd:'');
     else msg=`Placed ${changed} tile${changed>1?'s':''}.`;
-    toast(msg);
+    toast(msg,crowd?placementPolicy('shrubSpacing').toast:null);
   } else if (!(game.tool==='building-edit' && buildingEditMode()==='rename')){
     // Rename acts on a tap, so a stray drag in that mode changed nothing on
     // purpose — "nothing would take along that line" would be a lie about it.
@@ -569,7 +572,7 @@ function mowCandidates(x,y){
 }
 // one stamp of a paint-drag: place, then record what it did
 function stampToolDrag(drag,x,y,opts){
-  const lifted=mowCandidates(x,y), r=stampBrushAt(x,y,opts);
+  const lifted=mowCandidates(x,y), r=withShrubAutoSpacing(()=>stampBrushAt(x,y,opts));
   recordToolDragPoint(drag,x,y,r,lifted);
   if (r){ drag.count++; drag.what=r; }
   return r;
@@ -618,7 +621,10 @@ cnv.addEventListener('pointermove',e=>{
     }
     return;
   }
-  if (sweep){ sweepLift(x,y); return; }
+  if (sweep){
+    if (sweepTap && (x!==sweepTap.x || y!==sweepTap.y)) sweepTap.moved=true;
+    sweepLift(x,y); return;
+  }
   if (toolDrag){
     if (x<0||y<0||x>=GW||y>=GH) return;
     toolDrag.cx=x; toolDrag.cy=y;
@@ -657,6 +663,10 @@ const SWEEP_NOUNS=[
 ];
 function endSweep(){
   if (!sweep) return;
+  // a TAP on a shrub's visible edge that erased nothing else lifts that shrub;
+  // a drag never does, or clearing a drift beside one would take it too
+  if (sweepTap && !sweepTap.moved && eraseCountTotal(sweep)===0) eraseShrubBySpread(sweepTap.x,sweepTap.y,sweep);
+  sweepTap=null;
   const parts=[];
   for (const [k,noun] of SWEEP_NOUNS){
     const n=sweep[k];

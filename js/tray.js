@@ -787,8 +787,9 @@ function doFloodFill(sx,sy){
       seen.add(key); q.push([nx,ny]);
     }
   }
-  let placed=0;
-  withUndo(()=>{ region.forEach(([x,y])=>{ if (applyToolAt(x,y)) placed++; }); });
+  let placed=0; const tiles=[];
+  // a fill of shrubs spaces them, as a drag does (shrubAutoSpacing, commands.js)
+  withUndo(()=>withShrubAutoSpacing(()=>{ region.forEach(([x,y])=>{ if (applyToolAt(x,y)){ placed++; tiles.push([x,y]); } }); }));
   if (placed){
     hapticFeedback('place');
     const def=PLANTS[game.tool] && plantDef(game.tool,game.toolVar);
@@ -796,18 +797,26 @@ function doFloodFill(sx,sy){
       : game.tool==='water'?`${waterStyle(game.waterStyle).label} water`
       : isElevationTool(game.tool)?(game.tool==='raise'?'raised grade':game.tool==='lower'?'lowered grade':'level grade')
       : `${bedStyle(game.bedStyle).label} bed`;
-    toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`);
+    const crowd=def ? gestureCrowdingNote(tiles) : '';
+    toast(`Filled ${placed} tile${placed>1?'s':''} with ${label}.`+(crowd?' '+crowd:''),
+      crowd?placementPolicy('shrubSpacing').toast:null);
   } else toast('Nothing here that fill can change.');
   dev('fill',tFill);
 }
 /* eyedropper: sample whatever is on the tapped tile (plant > bulb > fence/light/firepit/boulder > terrain)
    and arm it as the brush, dropping straight into Plant mode so the next tap
-   paints with it. */
+   paints with it. A shrub whose spread covers an otherwise EMPTY tile is
+   picked too, so its visible edge samples it — but only once nothing on the
+   tile itself answers, since bulbs, perennials and hardscape can all stand
+   inside a shrub's spread (0.9.61). Terrain still ranks below it, as before. */
 function pickAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return;
   const k=`${x},${y}`;
-  const direct=game.plants[k], sh=shrubAt(x,y);
-  const p=(direct&&!direct.removed)?direct:(sh&&sh.p), b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), pgk=pergolaAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const direct=game.plants[k];
+  const b=game.bulbs[k], f=fenceAt(x,y), l=lightAt(x,y), fp=firepitAt(x,y), bo=boulderAt(x,y), pet=petAt(x,y), po=potAt(x,y), se=seatAt(x,y), wf=waterFeatureAt(x,y), sp=structureSupportAt(x,y), pgk=pergolaAt(x,y), building=buildingAt(x,y), terr=terrainAt(x,y);
+  const onTile=(b&&!b.removed)||f||l||fp||bo||pet||po||se||wf||sp||pgk||building;
+  const sh=onTile ? null : shrubAt(x,y);
+  const p=(direct&&!direct.removed)?direct:(sh&&sh.p);
   if (p && !p.removed){
     game.fillMode=false; game.trayCat=plantCategoryFor(p.s);
     setTool(p.s, p.v||null); buildToolTray();

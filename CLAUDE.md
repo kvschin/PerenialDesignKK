@@ -1396,11 +1396,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    with `leafletHW` and `floretStyle:'reflexed'`. Defaults preserve previous
    seeded geometry; no species-key branches. `dev/west-coast-review.html`
    provides both renderer modes, four-season previews, and sprite-edge checks.
-   Low Oregon grape and salal remain woody shrubs with mature reservations.
+   Low Oregon grape and salal remain woody shrubs with mature spreads.
    **Florida Phase 2:** ten straight species bring the catalog to 505 base
    records / 377 nested choices. Source reviews and authoring decisions live
    in `docs/plant-data/phase2-implementation.md`. Phase 0 remains deferred.
-   Coontie and saw palmetto are shrubs for mature-footprint purposes and use
+   Coontie and saw palmetto are shrubs for mature-spread purposes and use
    reusable `cycad` and `fanpalm` forms; neither renderer checks a species key.
    Low `shrub`/`matflower` plants can opt into `matHeadStyle:'button'|'puff'|
    'spike'`, and runner leaves can opt into `compound:'pinnate'`. Defaults keep
@@ -1418,8 +1418,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    qualifications stay visible in the plant descriptions rather than becoming
    automatic regional claims. Prairie Junegrass and Indian ricegrass keep
    their cool-season identities; Colorado blue columbine remains part/medium
-   and outside the dry matrix roles. The three shrubs reserve mature woody
-   footprints. Reusable data-gated drawing options add `cloudAwn`, radial
+   and outside the dry matrix roles. The three shrubs carry mature woody
+   spreads. Reusable data-gated drawing options add `cloudAwn`, radial
    `airywand` flowers, `globeStyle:'columbine'`, small `shrub` flowers through
    `flowerR`, and `seedStyle:'plumedAchenes'`; existing plants keep their
    previous paths unless they opt in. Wild columbine now shares the reusable
@@ -1435,7 +1435,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    Texas subregions, Arizona low desert versus high country, local origin,
    rainfall response, drainage, humidity, and safety limitations stay visible
    in descriptions rather than becoming automatic regional claims. Eight
-   shrubs reserve their authored mature woody footprints; blue palo verde uses
+   shrubs carry their authored mature woody spreads; blue palo verde uses
    normal tree placement with a 25-foot planning crown. Reusable data-gated
    drawing options add rolled `flowerShape:'turkscap'`, bounded `daisy` and
    `pea` flowers, filament `bloomStyle:'powderpuff'`, propagated shrub flower
@@ -1450,7 +1450,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
    Carolina mountain/Piedmont/coast distinctions, local origin, propagation,
    spreading, wet-site, sex/fruit, leaf-persistence, and regional mature-size
    limits remain explicit in descriptions instead of automatic claims.
-   Yaupon holly reserves its mature shrub footprint; sweetbay magnolia uses
+   Yaupon holly carries its mature shrub spread; sweetbay magnolia uses
    normal tree placement and permits ground-layer planting beneath its canopy.
    Blue mistflower joins the existing mistflower presentation group and swamp
    sunflower joins the sunflower group while both remain exact species in
@@ -3134,8 +3134,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     surface you would have to lift the plant to lay, but long grass with
     perennials standing in it is the planting style, not a conflict — and
     refusing it would mean a meadow could only ever be painted before anything
-    was planted in it, which is backwards. Shrubs still refuse, lawn included: a
-    mature footprint is reserved ground.
+    was planted in it, which is backwards. A shrub stands in lawn the way a
+    tree does (0.9.61): lawn may run into its spread and round its own tile.
     **Colour follows the season, `follow` says how far.** `tint`/`mix` sit on
     `AMBIENCE.grass`, so a meadow browns off with the garden around it; but
     grass goes over in autumn and clover, thyme and moss do not — moss is at its
@@ -3218,11 +3218,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `pointerup` calls `inspectPlantAt` if the pointer travelled under
     `TAP_SLOP_PX` (6). Middle-mouse and Space-drag opt out — they are
     unambiguously panning — and a pinch cannot reach it because the second
-    pointer runs `cancelCanvasGesture`, which nulls `panDrag`. Lookup order
-    matches `actHere`'s: plant on the tile, then a shrub whose mature footprint
-    OVERHANGS it (so tapping the visible edge of a big shrub finds it), then a
-    bulb; a plant on a hidden layer is skipped, since a card for something you
-    cannot see comes from nowhere.
+    pointer runs `cancelCanvasGesture`, which nulls `panDrag`. Lookup order:
+    what is ON the tile — the plant, then a bulb — and only then a shrub whose
+    mature spread overhangs it (so tapping the visible edge of a big shrub still
+    finds it). The shrub has to come last since 0.9.61, when bulbs and
+    perennials began standing inside a shrub's spread; a plant on a hidden
+    layer is skipped, since a card for something you cannot see comes from
+    nowhere.
     `placeHouse`/`applyHouseSize`/`paintHouse` (the
     House tool: hover draws an RTS-style ghost — tinted footprint, red where it
     would overlap another house, translucent house via `drawHouse` override —
@@ -3403,16 +3405,54 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     path/bed/water, `placeFenceAt`/`placeLightAt`/`placeFirepitAt`/
     `applyElevationTool` for the rest; house has no hook — it places via
     `placeHouse` from pointerdown). The hooks are silent and handle the rules —
-    bulbs tuck under perennials but are refused under trees/shrubs (and a
-    newly planted tree/shrub clears any bulb already there), plants check
-    `shadeAt`; shrubs reserve a mature spread footprint from `spread`/`TILE_IN`
-    (paths, water, fences, bulbs, and perennials refuse that ground; compatible
-    clipped hedge shrubs can still connect edge-to-edge). The reserved shrub
-    footprint is also a visual affordance: a faint base under each shrub, a
-    stronger outline when hovered or when its plant card is open, and a brief
-    red pulse when it blocks placement. Paths refuse planted tiles, beds store
+    bulbs tuck under perennials, a tree's canopy and a shrub's spread, refusing
+    only a woody plant's own tile (and a newly planted tree/shrub clears a bulb
+    on that one tile), plants check `shadeAt`; a shrub claims its own tile and
+    nothing more (see **Shrub spread is advice** below). Its mature spread is a
+    visual affordance: a faint base under each shrub, a stronger outline when
+    hovered or when its plant card is open, and a brief amber pulse naming the
+    shrub when a placement will be crowded by it. Paths refuse planted tiles, beds store
     a material `c` (`soil`/`gravel`/`rock`/`leaf`/`mulch`) and can be repainted
     like path colors, and fences refuse planted/water/house tiles).
+    **Shrub spread is advice (0.9.61).** A shrub used to hard-reserve its whole
+    mature spread: perennials, bulbs, paths, water, fences, lights, pots, seats,
+    fire pits, boulders, supports and building footprints were all refused
+    anywhere inside it. Gardeners could not see why, and measurement agreed with
+    them: the disc came out of the tile lattice lumpy (a 3-5 ft shrub — 90 of the
+    197 choices — blocked the four tiles touching its sides and allowed the
+    diagonals between them, while a 2.5 ft one blocked nothing), it always
+    blocked the MATURE size however young the shrub, and the ring drawn for it is
+    three quarters of the blocked radius. Planting a shrub also silently deleted
+    every bulb in its spread, which is backwards: spring bulbs under a deciduous
+    shrub are a textbook pairing. Now a shrub holds exactly what a tree trunk
+    holds — its own tile (`canPlaceShrubAt`, world.js; `woodyTrunk` in
+    `PLANT_PLACEMENT_POLICY`) — and the spread is `shrubSpacing`, a SOFT rule.
+    **`shrubCrowding(x,y,ref,ignoreKey)`** (world.js) is the one question:
+    two plants closer than the average of their on-centre `space`, at least one
+    a shrub — the rule `nearestTreeCrowder` already uses for trees, and since a
+    shrub's `space` is a median 0.83 of its spread it means "their mature
+    spreads overlap", not "somewhere in the disc". Out of it: trees (their
+    relationship to what is under them is shade), bulbs, climbers, anything in a
+    pot, and plants of one clipped hedge (`shrubHedgeCompatible`). A tap places
+    and says so in an amber toast naming the shrub and the distance in real
+    units (`shrubCrowdingText`), and pulses that shrub's footprint
+    (`pulseCrowding`); a drag, drift or fill says it once for the whole gesture
+    (`gestureCrowdingNote`). **A drag or fill of SHRUBS spaces itself**
+    (`withShrubAutoSpacing` around `stampToolDrag` and `doFloodFill`): without
+    the reservation a line drawn with a viburnum armed would plant one on every
+    18in tile, so placePlantAt skips a tile that would crowd another shrub while
+    that flag is set — the old footprint's useful side effect, kept on purpose.
+    A tap is never second-guessed. Three things followed from opening the spread:
+    **Erase** takes a shrub only by its own tile, because a stroke clearing a
+    drift beside one (a matrix drift is bare every other tile) would otherwise
+    take the shrub too — a TAP that erased nothing else still lifts the shrub
+    whose spread it hit (`eraseShrubBySpread`, from `endSweep` via `sweepTap`,
+    and from `actHere`). **Inspect and Pick** answer what is on the tile before
+    the shrub whose spread covers it. **A house** displaces only the plants
+    inside it; a shrub beside it is a foundation planting. Selection moves and
+    replacement validate a shrub's stem tile like a trunk's
+    (`selectionWoodyStemDestValid`), which deleted the O(items²) spread lookup
+    the selection overlay used to need.
     **Disc-brush engine (Wave 2)**: one shared `game.brushSize` (diameter in
     `BRUSH_SIZES` = 1/2/3/5/7) drives paint and erase alike. `brushOffsets(size)`
     (world.js) returns the tile offsets of a *rounded disc* centered on the
@@ -3459,9 +3499,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     gates it (`fillMode && toolMeta(tool).paints` — `paints` is true for the
     continuous fills (plants + path/bed/water/elevation) and false for the
     discrete hardscape/structure tools house/fence/light/firepit/boulder); the Plant rail
-    button clears the flag. The **Pick** and **Erase** tools see the mature
-    shrub footprint, so sampling or erasing the visible edge of a large shrub
-    acts on the shrub's center tile. The **Pick** tool (`game.tool==='pick'`,
+    button clears the flag. **Pick** and a **tap of Erase** on an otherwise
+    empty tile in a shrub's spread act on that shrub, so its visible edge still
+    reaches it; anything on the tile answers first, and an erase DRAG never
+    reaches a shrub through its spread (0.9.61). The **Pick** tool (`game.tool==='pick'`,
     eyedropper) samples the tapped tile via `pickAt` — plant > bulb > fence >
     terrain priority — arms that species/material/structure as the brush
     (copying path colour, bed material, water style, or fence material/height/gate mode and
@@ -3563,7 +3604,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     are in the per-tile paint path rather than the per-frame one, and want the
     same treatment when it bites.
     A pot exempts its plant from the in-GROUND rules — bed spacing, matrix
-    thinning, the shrub mature reservation, the free-planting jitter — and from
+    thinning, shrub crowding advice, the free-planting jitter — and from
     nothing else. **Hardiness is deliberately NOT relaxed**: the library is
     filtered by `plantFits`, so a tender plant is not reachable to put in a pot
     in the first place, and surfacing one only inside containers would need a
@@ -6022,8 +6063,8 @@ Footprint rules are intentionally asymmetric:
 | Plant/object | Hard footprint | Soft or visual reach |
 | --- | --- | --- |
 | Herbaceous grasses/sedges/forbs/water plants | One plant tile, or a stored sub-tile art offset when free planting is on. They do not reserve `spread`. | `space` drives matrix/export spacing; `spread` is mature-width metadata. |
-| Bulbs | One bulb-layer tile. They may share with non-woody plants, but not a woody trunk or mature shrub reservation. | Seasonal bulb art comes from `bulbEnvelope()`, `bloomDay`/`bloomMonths`, and optional split `springFoliage`. |
-| Shrubs | Mature rounded footprint from `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from `spread`. Paths, water, structures, bulbs, and perennials refuse it; compatible hedges may connect edge-to-edge. Because that footprint overhangs its own tile, "is a shrub on this tile" cannot be a map lookup — `shrubAt` consults **`shrubIndex()`**, a list of the shrubs alone cached on `plantsRev` + map identity, and bounding-box rejects before the exact test. It used to scan every PLANT (1486 to consult 26 on a quarter acre, with two allocations each): instrumented, that scan was ~97% of the cost of painting terrain, and it also ran once per selected item per frame during a selection drag (50ms/frame on a 20x20 marquee) and once per disc tile inside the pointer handler on every paint stamp. Keep it O(shrubs). | Faint base/hover/focus/pulse/ghost rings reuse the same mature footprint. |
+| Bulbs | One bulb-layer tile. They may share with non-woody plants and sit under a tree canopy or a shrub spread, but not on a woody plant's own tile. | Seasonal bulb art comes from `bulbEnvelope()`, `bloomDay`/`bloomMonths`, and optional split `springFoliage`. |
+| Shrubs | One hard tile, their own, exactly as a tree trunk (0.9.61). The mature spread, `shrubFootprintTiles(..., true)` from `woodyRadiusTiles(P)` and `spread`, refuses nothing: planting inside it is advice (`shrubCrowding`, the average of the two plants' `space`), and a drag or fill of shrubs spaces itself by the same advice. Because that spread overhangs its own tile, "which shrub covers this tile" (inspect, Pick, a tap of Erase, the hover ring) cannot be a map lookup — `shrubAt` consults **`shrubIndex()`**, a list of the shrubs alone cached on `plantsRev` + map identity, and bounding-box rejects before the exact test. It used to scan every PLANT (1486 to consult 26 on a quarter acre, with two allocations each): instrumented, that scan was ~97% of the cost of painting terrain, back when it also sat under every placement. Keep it O(shrubs). | Faint base/hover/focus/pulse/ghost rings reuse the same mature spread; the pulse is amber and names the shrub a placement crowds. |
 | Trees | One hard trunk tile. Canopy area is deliberately open for underplanting except for the separate shade-suitability rule. | Shade, plan circles, placement ghosts, and the Mature Canopies overlay use `woodyRadiusTiles(P)` from `spread`; spacing is a soft warning from `space`. |
 
 `effectiveEstab(p)` is **display-only**: it equals true `plantEstab(p)` in
@@ -6039,9 +6080,9 @@ because the flag rides the save blob it follows an exported garden to another
 machine, which is what made one garden look individually broken. Direct consumers
 include shade washes/stunting, tree plan circles, and shrub footprint styling;
 related mature ghosts/cards must match the same mature radius/copy contract
-without changing placement rules. Placement legality reads true establishment
-(or the explicit shrub mature-reservation policy above), so changing the preview
-never changes what can be planted.
+without changing placement rules. Placement legality reads true establishment,
+and shrub crowding advice plans for maturity whatever the preview, so changing
+the preview never changes what can be planted or what is advised.
 
 **To add a species:** add an entry in `plants.js`, reuse an existing `form` or
 add a new branch in `drawPlant`. It automatically appears in the tool tray
@@ -7463,8 +7504,9 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
     crowded spacing but never block, and the trunk refuses underplanting".
   - *(built)* **T4 selection ops respect woody footprints** — `selValidDest`/
     `commitSelectionOffset`/`rotateSelection` validate moved shrubs (and T3
-    trunks) like house placement already does (`shrubFootprintOverlapsRect`).
-    Test: "selection move validates shrub footprints and tree trunks".
+    trunks) like house placement already does. Since 0.9.61 that is the stem
+    tile alone (`selectionWoodyStemDestValid`), and `shrubFootprintOverlapsRect`
+    is gone. Test: "selection move validates the tile a shrub or tree stands on".
   - *(built/current)* **T11 QA** — woody tests now cover the landed rules:
     T1's display/rules shade-map split plus scene stunting, T3's trunk refusal
     and soft spacing warning message, T4's selection-move refusal, T5's
@@ -7487,8 +7529,9 @@ way shrub reservations always have (`shrubFootprintTiles(..., mature=true)`).
 - **Phase 3 — behavior changes and the big lifts:**
   - *(built)* **T9 soft-warning policy** — `PLANT_PLACEMENT_POLICY`
     (commands.js) states each placement rule's mode in one table: occupancy,
-    shrub core, woody trunk, and water stay HARD; active-canopy-sun and tree
-    spacing are SOFT. Full-sun plants place under an active canopy with an
+    woody trunk (a tree's trunk and, since 0.9.61, a shrub's own tile) and
+    water stay HARD; active-canopy-sun, tree spacing and shrub spacing are
+    SOFT. Full-sun plants place under an active canopy with an
     amber warning toast (`toast(msg,'warn')`, `#toast.warn`) — the stunted
     render and Struggling card already show the consequence.
   - *(built)* **T10 woody visual rescale + age-at-placement** — TREES only

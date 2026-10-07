@@ -702,14 +702,16 @@ function gsDrawNote(ctx,st,n,box,toScreen){
     y=Math.max(box.y0+h/2+4,Math.min(box.y1-h/2-4,y));
   }
   ctx.globalAlpha=n.alpha===undefined?1:n.alpha;
+  // 'advise' is the amber of a placement warning: done, but worth knowing
   ctx.fillStyle=n.tone==='warn'?'rgba(126,42,35,0.92)'
+    : n.tone==='advise'?'rgba(118,80,24,0.92)'
     : n.tone==='good'?'rgba(58,74,48,0.92)':'rgba(26,21,17,0.88)';
   const r=h*0.29;
   ctx.beginPath(); ctx.moveTo(x-w/2+r,y-h/2);
   ctx.arcTo(x+w/2,y-h/2,x+w/2,y+h/2,r); ctx.arcTo(x+w/2,y+h/2,x-w/2,y+h/2,r);
   ctx.arcTo(x-w/2,y+h/2,x-w/2,y-h/2,r); ctx.arcTo(x-w/2,y-h/2,x+w/2,y-h/2,r);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle=n.tone==='warn'?'#f3c9c4':'#efe6d3';
+  ctx.fillStyle=n.tone==='warn'?'#f3c9c4':n.tone==='advise'?'#f6dfb0':'#efe6d3';
   ctx.fillText(n.text,x,y);
   ctx.restore();
 }
@@ -1741,15 +1743,15 @@ footprint:{ loop:9500, rest:0.9,
       const c=gPath(gAt(u,0.03,0.22),[[4.6,3.8],[2,2]]);
       st.cursor={x:c[0],y:c[1],down:tap.down,press:tap.press};
       st.ghost={x:2,y:2,size:1};
-      st.notes=[{text:'A shrub reserves the ground it will need',at:[2.5,4.4],dy:28}];
+      st.notes=[{text:'A shrub is planted on one tile',at:[2.5,4.4],dy:28}];
       return;
     }
     const grow=gEase(gAt(u,0.3,0.58));
     gsPlant(st,2,2,'koreanspice',Math.max(0.12,grow));
-    /* Drawn strongly, because the reserved ground IS the subject here. At the
-       faint tint every other overlay uses it came out as a few pale diamonds
-       under the plant, which is the one thing this demo must not be vague
-       about — the disc is only about a tile and a half across to begin with. */
+    /* Drawn strongly, because the spread IS the subject here. At the faint
+       tint every other overlay uses it came out as a few pale diamonds under
+       the plant, which is the one thing this demo must not be vague about —
+       the disc is only about a tile and a half across to begin with. */
     st.marks=[];
     for (let y=0;y<5;y++) for (let x=0;x<6;x++)
       if (Math.hypot(x-2,y-2)<=r*grow)
@@ -1758,19 +1760,28 @@ footprint:{ loop:9500, rest:0.9,
       st.notes=[{text:P.spread+' in across when grown',at:[2.5,4.4],dy:28}];
       return;
     }
-    // A second planting inside that circle is refused, and says why.
-    const tap2=gTap(u,0.78);
-    const c2=gPath(gAt(u,0.62,0.76),[[2,2],[3,3]]);
-    st.cursor={x:c2[0],y:c2[1],down:tap2.down,press:tap2.press};
-    if (u>0.8){
-      st.marks.push({x:3,y:3,fill:'rgba(217,100,90,0.34)',stroke:'rgba(217,100,90,0.9)'});
-      /* BELOW its tile, not above it. A plant grows up from its tile centre,
-         so a caption hung above the refused tile lands squarely on the shrub
-         that is refusing — measured, the viburnum was drawing its full 2312
-         pixels and none of them were visible. */
-      st.notes=[{text:'No room — that is its mature spread',at:[3,3],dy:34,tone:'warn',
-        alpha:gAt(u,0.8,0.88)}];
+    /* Since 0.9.61 a planting inside that circle is PLACED, with advice: the
+       shrub will crowd it as it fills in. Close in, so it says so; out at the
+       edge, the pair have the room they want (shrubCrowding asks the very
+       same question of the very same two species), so it says nothing. */
+    const tap2=gTap(u,0.7), tap3=gTap(u,0.88);
+    const c2=u<0.8 ? gPath(gAt(u,0.62,0.68),[[2,2],[3,3]]) : gPath(gAt(u,0.8,0.86),[[3,3],[4,2]]);
+    const tap=u<0.8?tap2:tap3;
+    st.cursor={x:c2[0],y:c2[1],down:tap.down,press:tap.press};
+    if (u>0.72){
+      gsPlant(st,3,3,'echinacea',1);
+      st.marks.push({x:3,y:3,fill:'rgba(214,160,72,0.30)',stroke:'rgba(240,190,96,0.92)'});
     }
+    if (u>0.9) gsPlant(st,4,2,'echinacea',1);
+    /* BELOW its tile, not above it. A plant grows up from its tile centre, so
+       a caption hung above the tile lands squarely on the shrub — measured, the
+       viburnum was drawing its full 2312 pixels and none of them were visible. */
+    if (u>0.72 && u<=0.9)
+      st.notes=[{text:'Planted — it will be crowded as the shrub fills in',at:[3,3],dy:34,tone:'advise',
+        alpha:gAt(u,0.72,0.78)}];
+    else if (u>0.9)
+      st.notes=[{text:'At the edge: room enough, no warning',at:[4,2],dy:34,tone:'good',
+        alpha:gAt(u,0.9,0.95)}];
   }},
 
 /* ----- the ground ----- */
@@ -2868,7 +2879,7 @@ function guideChapters(){
       {id:'bulbs', demo:'bulbs', title:'Bulbs',
        lead:'A second layer under the planting, up before anything else and gone by midsummer.',
        how:['Plants → Bulbs, then plant as usual. They tuck under whatever is already there.',
-            'They are refused under a tree trunk or a shrub’s reserved ground, and nowhere else.',
+            'They go under a tree’s canopy and a shrub’s spread alike; only the trunk or stem tile itself refuses.',
             'Spring, summer and fall bulbs each have their own window — the bloom calendar shows them.']},
       {id:'freeplant', demo:'freeplant', title:'Grid or free placement',
        lead:'Whether a plant sits dead on its tile centre or a little off it.',
@@ -2887,10 +2898,10 @@ function guideChapters(){
             'Gardens open in the Established preview, showing everything grown. Switch to Today in the time menu.',
             'What you SEE follows the preview. What is LEGAL never does: the rules always plan for maturity.']},
       {id:'footprint', demo:'footprint', title:'Mature spread',
-       lead:'A shrub reserves the ground it will eventually need, so the bed you draw today still works in ten years.',
-       how:['The faint disc under a shrub is its spread at maturity.',
-            'Paths, water, fences, bulbs and perennials all refuse that ground.',
-            'A tree is different: only its trunk tile is reserved, so you can underplant right through the canopy.']},
+       lead:'A shrub stands on one tile, and the faint disc around it is the ground it will cover when grown.',
+       how:['Anything can go inside that disc. Plant too close and the toast says so: the shrub will crowd it as it fills in.',
+            '“Too close” is the average of the two plants’ spacing — the same rule trees use with each other.',
+            'Drag or fill with a shrub and it spaces itself; a single tap goes exactly where you put it.']},
      ]},
 
     {id:'ground', title:'Shaping the ground',
@@ -2935,7 +2946,7 @@ function guideChapters(){
       {id:'containers', demo:'containers', title:'Containers',
        lead:'A pot is the one thing that makes paving plantable.',
        how:['Drop the vessel first, then plant into it as you would plant anything.',
-            'Inside a pot, bed spacing, matrix thinning and mature shrub reservations all stand aside.',
+            'Inside a pot, bed spacing, matrix thinning and shrub crowding all stand aside.',
             'Lifting the pot takes its planting with it.']},
       {id:'seating', demo:'seating', title:'Seating',
        lead:'Benches, chairs, a bistro set, a dining table, a lounger — each claiming the ground it really occupies.',

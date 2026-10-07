@@ -255,7 +255,7 @@ const game = {
   selItems:null,                                     // payload the selection owns (snapshotted at marquee time)
   selMode:'move',                                    // selection drag intent: 'move' | 'copy'
   fillMode:false,                                    // bucket-fill: tap floods a connected same-material region
-  shrubFx:[],                                        // short-lived footprint pulses when shrubs block placement
+  shrubFx:[],                                        // short-lived footprint pulses naming the shrub a placement crowds
   houses:[],                                         // placed houses (multiple allowed); each {x,y,w,h,wall,roof,sizeFt}
   buildings:[],                                      // design-site footprints: {id,vertices,status,label,wall,roof,t}; independent of placed houses
   schemes:[],                                        // planting schemes over one site plan: [{id,name,t,plants,bulbs}] (see SCHEME_LAYERS)
@@ -675,9 +675,14 @@ function shrubInfoFromKey(k){
   const [x,y]=k.split(',').map(Number);
   return {key:k,p,x,y,center:true};
 }
-/* A shrub reserves its MATURE footprint, so a tile can be claimed by a shrub
-   whose center sits several tiles away — which is why this cannot be a map
-   lookup and has to consider every shrub in the garden.
+/* Which shrub's MATURE SPREAD covers this tile — a shrub several tiles away can
+   cover it, which is why this cannot be a map lookup and has to consider every
+   shrub in the garden.
+
+   Since 0.9.61 this answers IDENTIFICATION only: tapping the visible edge of a
+   big shrub finds it (inspect, Pick, a tap of Erase, the hover ring), and the
+   crowding advice below walks the same index. It no longer decides what may be
+   placed — a shrub claims its own tile and nothing more (canPlaceShrubAt).
 
    It used to consider every PLANT in the garden, which is a different thing:
    on a quarter acre that is 1486 plants scanned to consult 26 shrubs, with a
@@ -724,46 +729,108 @@ function shrubAt(x,y,opts){
   }
   return null;
 }
+/* Where a shrub may STAND: its own tile, and nothing about the ground around it.
+   That is the tree-trunk rule, and since 0.9.61 shrubs and trees share it.
+   Until then a shrub hard-reserved its whole mature spread — perennials, bulbs,
+   paths, fences, seats and every other placeable were refused anywhere inside
+   it — and gardeners could not see why. The disc came out of the tile lattice
+   lumpy (a 3-5 ft shrub blocked the four tiles touching its sides and allowed
+   the diagonals between them), it always blocked the MATURE size however young
+   the shrub, and the ring drawn for it was three quarters of the blocked
+   radius, so a tile that looked empty would not take a coneflower. Planting
+   inside the spread is now ADVICE (shrubCrowding); a drag or fill of shrubs
+   uses the same advice to space what it lays (shrubAutoSpacing, commands.js).
+   Kept as a function because the hover ghost, selection moves and replacement
+   all ask it, and it must say what placePlantAt does. */
 function canPlaceShrubAt(x,y,np,opts){
   opts=opts||{};
   const P=plantDef(np.s,np.v);
   if (!isShrubDef(P)) return {ok:true};
   const ignore=opts.ignoreKey||null, ignoreKeys=opts.ignoreKeys||null;
   const ignored=k=>k===ignore || !!(ignoreKeys && (ignoreKeys.has ? ignoreKeys.has(k) : ignoreKeys[k]));
-  for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
-    if (!onPlot(xx,yy)) return {ok:false, reason:'plot'};
-    if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return {ok:false, reason:'house'};
-    if (fenceAt(xx,yy)) return {ok:false, reason:'fence'};
-    if (lightAt(xx,yy)) return {ok:false, reason:'light'};
-    if (firepitAt(xx,yy)) return {ok:false, reason:'firepit'};
-    if (waterFeatureAt(xx,yy)) return {ok:false, reason:'water feature'};
-    if (structureSupportAt(xx,yy)) return {ok:false, reason:'support'};
-    if (boulderAt(xx,yy)) return {ok:false, reason:'boulder'};
-    const terr=tileTerrain(xx,yy);
-    if (terr==='path'||terr==='water') return {ok:false, reason:terr};
-    const k=`${xx},${yy}`, p=game.plants[k];
-    if (p && !p.removed && !ignored(k)){
-      if (shrubHedgeCompatible(np,p) && Math.hypot(xx-x,yy-y)>=0.95) continue;
-      return {ok:false, reason:'plant'};
-    }
-    const other=shrubAt(xx,yy,{ignoreKey:ignore,ignoreKeys});
-    if (other){
-      if (shrubHedgeCompatible(np,other.p) && Math.hypot(other.x-x,other.y-y)>=0.95) continue;
-      return {ok:false, reason:'shrub'};
-    }
-  }
+  if (!onPlot(x,y)) return {ok:false, reason:'plot'};
+  if (siteStructureAt(x,y) || isDoor(x,y)) return {ok:false, reason:'house'};
+  if (fenceAt(x,y)) return {ok:false, reason:'fence'};
+  if (lightAt(x,y)) return {ok:false, reason:'light'};
+  if (firepitAt(x,y)) return {ok:false, reason:'firepit'};
+  if (waterFeatureAt(x,y)) return {ok:false, reason:'water feature'};
+  if (structureSupportAt(x,y)) return {ok:false, reason:'support'};
+  if (boulderAt(x,y)) return {ok:false, reason:'boulder'};
+  if (seatAt(x,y)) return {ok:false, reason:'seat'};
+  const terr=tileTerrain(x,y);
+  if ((terr==='path'||terr==='water') && !potAt(x,y)) return {ok:false, reason:terr};
+  const k=`${x},${y}`, p=game.plants[k];
+  if (p && !p.removed && !ignored(k)) return {ok:false, reason:'plant'};
   return {ok:true};
 }
-function clearBulbsUnderShrub(x,y,p,removedKeys){
-  let n=0;
-  for (const [xx,yy] of shrubFootprintTiles(x,y,p,true)){
-    const k=`${xx},${yy}`, b=game.bulbs[k];
-    if (b && !b.removed){ clearTile('bulbs',k); if (removedKeys) removedKeys.add(k); n++; }
-  }
-  return n;
+/* A tree or shrub stands on its own tile, so a bulb on THAT tile is lost when
+   one is planted there. Bulbs anywhere else in a shrub's spread stay: spring
+   bulbs under a deciduous shrub are a textbook pairing, up and flowering before
+   the shrub leafs out. (Planting a shrub used to clear every bulb inside its
+   whole mature spread, silently.) */
+function clearBulbUnderStem(x,y,removedKeys){
+  const k=`${x},${y}`, b=game.bulbs[k];
+  if (!b || b.removed) return 0;
+  clearTile('bulbs',k); if (removedKeys) removedKeys.add(k);
+  return 1;
 }
-function shrubFootprintOverlapsRect(cx,cy,p,x,y,w,h){
-  return shrubFootprintTiles(cx,cy,p,true).some(([xx,yy])=>xx>=x&&xx<x+w&&yy>=y&&yy<y+h);
+/* Crowding: two plants standing closer than the average of their on-centre
+   spacings, at least one of them a shrub. That is the designer's rule for
+   spacing two different plants, and the one trees already use
+   (nearestTreeCrowder), so a shrub and a tree warn by one idea; measured, a
+   shrub's `space` is a median 0.83 of its spread, so this is "their mature
+   spreads overlap" rather than "it is somewhere in the shrub's disc".
+   It is ADVICE (PLANT_PLACEMENT_POLICY.shrubSpacing): a tap places anyway and
+   says so, and only a drag or fill of SHRUBS uses it to space what it lays.
+   Out of it: trees (what a tree does to the plants under it is shade, which has
+   its own rule), bulbs (under a deciduous shrub they are a pairing, not a
+   conflict), climbers (they stand on a support), and anything in a pot (the pot
+   lifts it out of the ground rules). Hedge shrubs of one hedge are meant to
+   touch, so they never crowd each other. */
+function crowdingPlantDef(P){ return !!P && P.type!=='bulb' && P.type!=='vine' && !isTreeDef(P); }
+function crowdingWantTiles(A,B){ return (treeSpacingTiles(A)+treeSpacingTiles(B))/2; }
+let crowdHerbSpaceCache=0;
+// the widest on-centre spacing any non-shrub that crowds can have, in tiles —
+// how far a shrub being placed has to look for the plants it will crowd
+function crowdHerbSpaceMax(){
+  if (crowdHerbSpaceCache) return crowdHerbSpaceCache;
+  let m=1;
+  for (const s of PLANT_KEYS){
+    for (const v of [null,...Object.keys(PLANTS[s].cv||{})]){
+      const P=plantDef(s,v||undefined);
+      if (crowdingPlantDef(P) && !isShrubDef(P)) m=Math.max(m,treeSpacingTiles(P));
+    }
+  }
+  return crowdHerbSpaceCache=m;
+}
+/* For a plant `ref` ({s,v}) at (x,y): the nearest shrub crowding it (or, for a
+   shrub, the nearest OTHER shrub it crowds), and for a shrub the keys of the
+   ground-layer plants it will crowd as it fills in. null when there is none.
+   `ignoreKey` is the plant's own record, when it has one. */
+function shrubCrowding(x,y,ref,ignoreKey){
+  const def=ref && plantDef(ref.s,ref.v);
+  if (!crowdingPlantDef(def) || potAt(x,y)) return null;
+  const me=isShrubDef(def), own=`${x},${y}`;
+  let shrub=null;
+  for (const s of shrubIndex()){
+    if (s.key===ignoreKey || s.key===own || potAt(s.x,s.y)) continue;
+    if (me && shrubHedgeCompatible(ref,s.p)) continue;
+    const dist=Math.hypot(s.x-x,s.y-y), want=crowdingWantTiles(def,plantDef(s.p.s,s.p.v));
+    if (dist<want && (!shrub || dist<shrub.dist)) shrub={key:s.key,x:s.x,y:s.y,p:s.p,dist,wantTiles:want};
+  }
+  const plants=[];
+  if (me){
+    const R=Math.ceil((treeSpacingTiles(def)+crowdHerbSpaceMax())/2);
+    for (let yy=Math.max(0,y-R); yy<=Math.min(GH-1,y+R); yy++){
+      for (let xx=Math.max(0,x-R); xx<=Math.min(GW-1,x+R); xx++){
+        const k=`${xx},${yy}`; if (k===own || k===ignoreKey) continue;
+        const p=game.plants[k]; if (!p || p.removed) continue;
+        const P=plantDef(p.s,p.v); if (!P || isShrubDef(P) || !crowdingPlantDef(P) || potAt(xx,yy)) continue;
+        if (Math.hypot(xx-x,yy-y)<crowdingWantTiles(def,P)) plants.push(k);
+      }
+    }
+  }
+  return (shrub || plants.length) ? {shrub,plants} : null;
 }
 function drawShrubFootprint(ctx,W,H,sh,mode,age){
   const p=sh && sh.p;
@@ -777,14 +844,14 @@ function drawShrubFootprint(ctx,W,H,sh,mode,age){
     fill='rgba(166,64,48,0.16)'; stroke='rgba(236,118,92,0.86)'; line=1.8; dash=[7,5];
   } else if (mode==='hover'){
     fill='rgba(218,170,84,0.13)'; stroke='rgba(246,220,156,0.72)'; line=1.6;
-  } else if (mode==='blocked'){
-    fill='rgba(166,64,48,0.18)'; stroke='rgba(236,118,92,0.86)'; line=1.8;
   } else if (mode==='focus'){
     fill='rgba(224,185,98,0.12)'; stroke='rgba(247,232,176,0.78)'; line=1.7;
   } else if (mode==='pulse'){
+    // amber, the warning palette: since 0.9.61 a pulse points at the shrub a
+    // placement will be crowded by, which is advice — nothing is refused
     const a=Math.max(0,1-(age||0)/760);
-    fill=`rgba(170,64,48,${0.10+0.12*a})`;
-    stroke=`rgba(244,130,102,${0.25+0.62*a})`;
+    fill=`rgba(206,150,58,${0.10+0.12*a})`;
+    stroke=`rgba(246,204,120,${0.25+0.62*a})`;
     line=1.5+1.8*a;
   } else if (est<0.45){
     fill='rgba(35,52,31,0.045)';

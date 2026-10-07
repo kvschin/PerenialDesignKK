@@ -302,15 +302,17 @@ test('West Coast plants are reachable by category, exact discovery, and botanica
   assertEqual(libraryCatFor('sloughsedge').id,'sedges','wet sedge stays in the one Sedge category');
 });
 
-test('western woody groundcovers reserve mature shrub space and vine maple allows underplanting', () => {
+test('western woody groundcovers keep a mature spread that advises, and vine maple allows underplanting', () => {
   for(const key of ['salal','loworegongrape','vinehillmanzanita']){
     setup(31,31); game.tool=key;
     assertEqual(applyToolAt(15,15),'plant',`${key}: places through normal tool dispatch`);
     const tiles=shrubFootprintTiles(15,15,game.plants['15,15'],true);
     const neighbor=tiles.find(([x,y])=>x!==15||y!==15);
-    assert(neighbor,`${key}: has mature ground reservation`);
+    assert(neighbor,`${key}: has a mature spread wider than its own tile`);
     game.tool='insideoutflower';
-    assertEqual(applyToolAt(...neighbor),null,`${key}: groundcover role does not bypass woody occupancy`);
+    assertEqual(applyToolAt(15,15),null,`${key}: its own tile stays occupied`);
+    assert(shrubCrowding(16,15,{s:'insideoutflower'}),`${key}: a ground layer right beside it is told it will be crowded`);
+    assertEqual(applyToolAt(...neighbor),'plant',`${key}: and the spread itself is open ground`);
   }
   setup(31,31); game.tool='vinemaple';
   assertEqual(applyToolAt(15,15),'plant','vine maple places as a tree');
@@ -734,15 +736,17 @@ test('Florida plants are reachable by category, exact discovery, and botanical s
   assertEqual(libraryCatFor('coontie').id,'shrubs','coontie reserves shrub-scale space');
 });
 
-test('Florida woody plants reserve their reviewed mature footprints', () => {
+test('Florida woody plants keep their reviewed mature spreads, which advise rather than refuse', () => {
   for(const key of ['coontie','firebush','sawpalmetto','simpsonsstopper']){
     setup(41,41); game.tool=key;
     assertEqual(applyToolAt(20,20),'plant',`${key}: places through normal tool dispatch`);
     const tiles=shrubFootprintTiles(20,20,game.plants['20,20'],true);
     const neighbor=tiles.find(([x,y])=>x!==20||y!==20);
-    assert(neighbor,`${key}: mature spread reserves more than its centre tile`);
+    assert(neighbor,`${key}: mature spread covers more than its centre tile`);
     game.tool='frogfruit';
-    assertEqual(applyToolAt(...neighbor),null,`${key}: hard woody occupancy blocks ground-layer planting`);
+    assertEqual(applyToolAt(20,20),null,`${key}: its own tile stays occupied`);
+    assert(shrubCrowding(21,20,{s:'frogfruit'}),`${key}: a ground layer right beside it is told it will be crowded`);
+    assertEqual(applyToolAt(...neighbor),'plant',`${key}: and the spread itself is open ground`);
   }
   assert(woodyRadiusTiles(PLANTS.sawpalmetto)>=4,'the 12-foot saw-palmetto clump keeps a large planning radius');
 });
@@ -789,15 +793,17 @@ test('Colorado/Rockies plants are reachable by category, discovery, and botanica
   assertEqual(libraryCatFor('fringedsage').id,'sunper','soft-layer fringed sage stays placeable with sunny perennials');
 });
 
-test('Colorado/Rockies woody plants reserve reviewed mature footprints', () => {
+test('Colorado/Rockies woody plants keep reviewed mature spreads, which advise rather than refuse', () => {
   for(const key of ['rubberrabbitbrush','mountainmahogany','goldencurrant']){
     setup(41,41); game.tool=key;
     assertEqual(applyToolAt(20,20),'plant',`${key}: places through normal tool dispatch`);
     const tiles=shrubFootprintTiles(20,20,game.plants['20,20'],true);
     const neighbor=tiles.find(([x,y])=>x!==20||y!==20);
-    assert(neighbor,`${key}: mature spread reserves more than its centre tile`);
+    assert(neighbor,`${key}: mature spread covers more than its centre tile`);
     game.tool='blueflax';
-    assertEqual(applyToolAt(...neighbor),null,`${key}: hard woody occupancy blocks ground-layer planting`);
+    assertEqual(applyToolAt(20,20),null,`${key}: its own tile stays occupied`);
+    assert(shrubCrowding(21,20,{s:'blueflax'}),`${key}: a ground layer right beside it is told it will be crowded`);
+    assertEqual(applyToolAt(...neighbor),'plant',`${key}: and the spread itself is open ground`);
   }
   assert(woodyRadiusTiles(PLANTS.mountainmahogany)>=3,'ten-foot mountain mahogany keeps a shrub-scale planning radius');
 });
@@ -854,7 +860,7 @@ test('Texas and Arizona plants are reachable by category, discovery, and botanic
     'June brittlebush bloom remains discoverable through the Summer yellow filter');
 });
 
-test('Phase 4 woody plants reserve reviewed mature footprints', () => {
+test('Phase 4 woody plants keep reviewed mature spreads, which advise rather than refuse', () => {
   const shrubs=['turkscap','texasrockrose','cenizo','texasmountainlaurel',
     'trailingindigobush','brittlebush','jojoba','pinkfairyduster'];
   for(const key of shrubs){
@@ -862,9 +868,11 @@ test('Phase 4 woody plants reserve reviewed mature footprints', () => {
     assertEqual(applyToolAt(30,30),'plant',`${key}: places through normal tool dispatch`);
     const tiles=shrubFootprintTiles(30,30,game.plants['30,30'],true);
     const neighbor=tiles.find(([x,y])=>x!==30||y!==30);
-    assert(neighbor,`${key}: mature spread reserves more than its centre tile`);
+    assert(neighbor,`${key}: mature spread covers more than its centre tile`);
     game.tool='blueflax';
-    assertEqual(applyToolAt(...neighbor),null,`${key}: hard woody occupancy blocks ground-layer planting`);
+    assertEqual(applyToolAt(30,30),null,`${key}: its own tile stays occupied`);
+    assert(shrubCrowding(31,30,{s:'blueflax'}),`${key}: a ground layer right beside it is told it will be crowded`);
+    assertEqual(applyToolAt(...neighbor),'plant',`${key}: and the spread itself is open ground`);
   }
   assert(woodyRadiusTiles(PLANTS.texasmountainlaurel)>=3,'ten-foot Texas mountain laurel keeps a shrub-scale planning radius');
 });
@@ -918,14 +926,16 @@ test('Carolinas and humid Southeast plants are reachable by category, discovery,
   assertEqual(PLANTS.swampsunflower.group,'sunflower','swamp sunflower joins the shared sunflower group');
 });
 
-test('Phase 5 woody plants reserve mature footprints while sweetbay permits canopy underplanting', () => {
+test('Phase 5 woody plants keep mature spreads that advise, while sweetbay permits canopy underplanting', () => {
   setup(81,81);game.tool='yauponholly';
   assertEqual(applyToolAt(40,40),'plant','yaupon holly places through normal tool dispatch');
   const tiles=shrubFootprintTiles(40,40,game.plants['40,40'],true);
   const neighbor=tiles.find(([x,y])=>x!==40||y!==40);
-  assert(neighbor,'yaupon holly reserves more than its centre tile');
+  assert(neighbor,'yaupon holly spreads beyond its centre tile');
   game.tool='greenandgold';
-  assertEqual(applyToolAt(...neighbor),null,'yaupon holly hard occupancy blocks ground-layer planting');
+  assertEqual(applyToolAt(40,40),null,'yaupon holly keeps its own tile');
+  assert(shrubCrowding(41,40,{s:'greenandgold'}),'a ground layer right beside it is told it will be crowded');
+  assertEqual(applyToolAt(...neighbor),'plant','and the spread itself is open ground');
 
   setup(81,81);game.tool='sweetbaymagnolia';
   assertEqual(applyToolAt(40,40),'plant','sweetbay magnolia places as a tree');
@@ -3006,7 +3016,7 @@ test('winter-dormant Colchicum paints no orphan shadow', () => {
   assertEqual(ops,0,'winter Colchicum has neither organs nor a detached ground shadow');
 });
 
-test('bulbs cannot be planted under a tree trunk or shrub footprint', () => {
+test('bulbs refuse only a woody stem: open under a tree canopy and a shrub spread alike', () => {
   setup(21, 21);
   const tree = 'whiteoak';
   const shrub = 'sumac';
@@ -3017,7 +3027,8 @@ test('bulbs cannot be planted under a tree trunk or shrub footprint', () => {
   assert(applyToolAt(5, 4) === 'bulb', 'bulb under open tree canopy is allowed');
   game.bulbs = {};
   game.plants = { '10,10': { s: shrub, d: 0, t: 1 } };
-  assert(applyToolAt(12, 10) === null, 'bulb inside a mature shrub footprint must be refused');
+  assert(applyToolAt(10, 10) === null, 'bulb on the shrub itself is refused, as on a trunk');
+  assert(applyToolAt(12, 10) === 'bulb', 'bulb inside the shrub spread is planted: bulbs under a shrub are a pairing');
   // but a bulb under a perennial is fine
   game.plants = { '6,6': { s: firstOfType('forb'), d: 0, t: 1 } };
   assert(applyToolAt(6, 6) === 'bulb', 'bulb under a perennial is allowed');
@@ -3028,7 +3039,8 @@ test('full-sun plants under active canopy place with a warning and render strugg
   const x = 15, y = 14;
   setTile('plants', '15,15', { s: 'whiteoak', d: -10000, t: 1 });
   assertEqual(placementPolicy('activeCanopySun').mode, 'soft', 'active tree shade is a soft rule');
-  assertEqual(placementPolicy('shrubCore').mode, 'hard', 'shrub footprint remains a hard rule');
+  assertEqual(placementPolicy('shrubSpacing').mode, 'soft', 'a shrub spread is advice, like tree spacing');
+  assert(!('shrubCore' in PLANT_PLACEMENT_POLICY), 'and the hard shrub reservation is gone, not merely unused');
   assert(shadeInfoAt(x, y, false, true), 'fixture tile is in active true-establishment shade');
 
   const oldToast = toast;
@@ -4527,25 +4539,177 @@ test('free placement stores sub-tile offsets for herbaceous plants only', () => 
     'shrubs stay grid-centered because their mature footprint is tile-based');
 });
 
-test('shrubs reserve their mature footprint for planting and materials', () => {
+/* 0.9.61: a shrub claims its own tile and nothing more, as a tree claims its
+   trunk. Its mature spread used to refuse perennials, bulbs, paths, fences and
+   every other placeable, and gardeners could not see why — the disc came out
+   of the tile lattice lumpy, always measured the MATURE size, and was drawn at
+   three quarters of the radius it blocked. */
+test("a shrub's spread is open ground: bulbs stay, plants and paths go in, only its own tile refuses", () => {
   setup(17, 17);
   const bulb = firstOfType('bulb');
   const forb = firstOfType('forb');
   game.bulbs['10,8'] = { s: bulb, d: 0, t: 1 };
+  game.bulbs['8,8'] = { s: bulb, d: 0, t: 1 };
   game.tool = 'sumac'; game.toolVar = null;
   assertEqual(applyToolAt(8, 8), 'plant', 'wide shrub planted');
-  assert(game.bulbs['10,8'].removed, 'bulb inside shrub footprint was cleared');
+  assert(game.bulbs['10,8'] && !game.bulbs['10,8'].removed, 'a bulb in the spread stays — it used to be cleared silently');
+  assert(game.bulbs['8,8'].removed, "a bulb on the shrub's own tile is lost, as under a tree trunk");
 
   game.tool = forb; game.toolVar = null;
-  assertEqual(applyToolAt(10, 8), null, 'perennial refused inside mature shrub footprint');
+  assertEqual(applyToolAt(8, 8), null, "the shrub's own tile is still occupied");
+  assertEqual(applyToolAt(9, 9), 'plant', 'a perennial goes inside the spread');
   game.tool = 'path';
-  assertEqual(applyToolAt(10, 8), null, 'path refused inside mature shrub footprint');
-
-  const counts = { plants: 0, bulbs: 0, terr: 0, house: 0, fence: 0 };
-  eraseBrush(10, 8, counts);
-  assertEqual(counts.plants, 1, 'erasing the shrub edge removes the shrub');
-  assert(game.plants['8,8'].removed, 'shrub center was removed');
+  assertEqual(applyToolAt(8, 8), null, 'no path over the shrub itself');
+  assert(applyToolAt(8, 10), 'a path runs inside the spread');
+  for (const [tool, x, y] of [['fence', 6, 7], ['light', 7, 6], ['pot', 10, 9]]) {
+    game.tool = tool; game.toolVar = null;
+    assert(applyToolAt(x, y), tool + ' stands inside the spread too');
+  }
   assert(woodyVisualCw(plantDef('sumac')) > PLANTS.sumac.cw, 'wide shrubs render from real spread, not just icon width');
+});
+
+test('erase takes a shrub by its own tile, or by a tap on its spread that erased nothing else', () => {
+  setup(17, 17);
+  setBrushSize(1); game.eraseMode = 'all';
+  const forb = firstOfType('forb');
+  setTile('plants', '8,8', { s: 'sumac', d: 0, t: 1 });
+  setTile('plants', '9,9', { s: forb, d: 0, t: 2 });
+  assert(shrubAt(10, 7), 'fixture: (10,7) is bare ground inside the sumac spread');
+
+  // a stroke through the spread — a matrix drift has a bare tile every other step
+  const counts = { plants: 0, bulbs: 0, terr: 0 };
+  eraseBrush(10, 7, counts);
+  assertEqual(counts.plants, 0, 'a stroke over bare ground in the spread erases nothing');
+  assert(!game.plants['8,8'].removed, 'and the shrub survives it');
+  eraseBrush(9, 9, counts);
+  assertEqual(counts.plants, 1, 'the perennial in the spread is erased');
+  assert(!game.plants['8,8'].removed, 'without taking the shrub with it');
+
+  // the pointer gesture: a drag that moved never reaches the shrub through its spread
+  sweep = { plants: 0, bulbs: 0, terr: 0 }; sweepTap = { x: 10, y: 7, moved: true };
+  endSweep();
+  assert(!game.plants['8,8'].removed, 'a drag that erased nothing leaves the shrub');
+  sweep = { plants: 0, bulbs: 0, terr: 0 }; sweepTap = { x: 10, y: 7, moved: false };
+  endSweep();
+  assert(game.plants['8,8'].removed, 'a TAP on its visible edge that erased nothing else lifts it');
+  assertEqual(sweep, null, 'and the sweep is finished');
+
+  setTile('plants', '8,8', { s: 'sumac', d: 0, t: 3 });
+  setTile('bulbs', '10,7', { s: firstOfType('bulb'), d: 0, t: 4 });
+  sweep = { plants: 0, bulbs: 0, terr: 0 }; sweepTap = { x: 10, y: 7, moved: false };
+  sweepLift(10, 7); endSweep();
+  assert(game.bulbs['10,7'].removed, 'a tap on a bulb in the spread erases the bulb');
+  assert(!game.plants['8,8'].removed, 'and only the bulb');
+});
+
+test('crowding is advice: the nearest shrub, the distance the pair wants, and what is left out', () => {
+  setup(31, 31);
+  const forb = 'echinacea';
+  setTile('plants', '10,10', { s: 'koreanspice', d: 0, t: 1 });
+  const want = crowdingWantTiles(plantDef('koreanspice'), plantDef(forb));
+  assertEqual(want, (PLANTS.koreanspice.space / TILE_IN + Math.max(1, PLANTS.echinacea.space / TILE_IN)) / 2,
+    'the pair wants the average of their on-centre spacings, the rule trees use');
+  const c = shrubCrowding(11, 11, { s: forb });
+  assert(c && c.shrub && c.shrub.key === '10,10', 'a coneflower a diagonal away is crowded by the viburnum');
+  assertEqual(shrubCrowding(12, 10, { s: forb }), null, 'two tiles out the pair have the room they want');
+  assertEqual(shrubCrowding(11, 10, { s: firstOfType('bulb') }), null, 'a bulb is never crowded: under a shrub it is a pairing');
+  assertEqual(shrubCrowding(11, 10, { s: 'whiteoak' }), null, 'a tree is left to its own spacing and shade rules');
+
+  setTile('plants', '11,10', { s: forb, d: 0, t: 2 });
+  setTile('plants', '9,10', { s: forb, d: 0, t: 3 });
+  setTile('plants', '18,10', { s: forb, d: 0, t: 4 });
+  const mine = shrubCrowding(10, 10, { s: 'koreanspice' }, '10,10');
+  assertEqual(mine.plants.length, 2, 'a shrub counts the ground-layer plants it will crowd, and only those');
+
+  game.tool = 'pot'; game.toolVar = null;
+  assert(applyToolAt(20, 20), 'fixture: a pot stands at (20,20)');
+  setTile('plants', '20,20', { s: 'koreanspice', d: 0, t: 5 });
+  assertEqual(shrubCrowding(21, 20, { s: forb }), null, 'a shrub in a pot crowds nothing in the ground');
+});
+
+test('a tap inside a spread places and says so in amber, naming the shrub and the distance', () => {
+  setup(31, 31);
+  setTile('plants', '10,10', { s: 'koreanspice', d: 0, t: 1 });
+  const oldToast = toast; let msg = '', kind = null;
+  toast = (m, k) => { msg = m; kind = k; };
+  try {
+    game.tool = 'echinacea'; game.toolVar = null; game.drift = false;
+    game.actX = 11; game.actY = 11; actHere();
+    assertEqual(game.plants['11,11'] && game.plants['11,11'].s, 'echinacea', 'the coneflower is planted');
+    assertEqual(kind, 'warn', 'with the amber warning toast');
+    const name = plantNameInline(plantDef('koreanspice'));
+    assert(msg.includes(`the ${name} will crowd it as it fills in`) && /apart/.test(msg),
+      'the message names the shrub and how far apart they want to be: ' + msg);
+    assert(game.shrubFx.some(f => f.key === '10,10'), 'and the shrub that crowds it pulses on the canvas');
+
+    msg = ''; kind = null;
+    game.actX = 13; game.actY = 10; actHere();
+    assertEqual(game.plants['13,10'] && game.plants['13,10'].s, 'echinacea', 'planted with room to spare');
+    assertEqual(kind, null, 'with room enough there is no warning');
+    assert(!/crowd/.test(msg), 'and no crowding copy: ' + msg);
+  } finally { toast = oldToast; }
+  assertEqual(plantNameInline({ name: "Ninebark 'Diabolo'" }), "ninebark 'Diabolo'",
+    'mid-sentence the common name drops its capitals and the cultivar keeps them');
+});
+
+test('a drag or fill of shrubs spaces them; a tap of a shrub goes exactly where it is put', () => {
+  setup(31, 31);
+  game.tool = 'koreanspice'; game.toolVar = null;
+  const drag = { sx: 2, sy: 5, cx: 2, cy: 5, active: true, count: 0, what: null, lastX: 2, lastY: 5,
+                 trace: [[2, 5]], edgeSeen: new Set(), affected: new Set(), runInches: 0 };
+  stampToolDrag(drag, 2, 5, null);
+  paintToolDragLine(drag, 20, 5, null);
+  const laid = Object.keys(game.plants).filter(k => game.plants[k] && !game.plants[k].removed)
+    .map(k => +k.split(',')[0]).sort((a, b) => a - b);
+  assert(laid.length > 2, 'the drag laid a row');
+  const want = crowdingWantTiles(plantDef('koreanspice'), plantDef('koreanspice'));
+  for (let i = 1; i < laid.length; i++)
+    assert(laid[i] - laid[i - 1] >= want, `neighbours in the row sit at least ${want} tiles apart, not one per tile`);
+  assertEqual(shrubAutoSpacing, false, 'the spacing flag does not outlive the stroke');
+
+  game.actX = laid[0] + 1; game.actY = 5;
+  const oldToast = toast; let kind = null; toast = (m, k) => { kind = k; };
+  try { actHere(); } finally { toast = oldToast; }
+  assert(game.plants[`${laid[0] + 1},5`], 'a tap places a shrub right beside another');
+  assertEqual(kind, 'warn', 'and warns that they crowd');
+
+  setup(31, 31);
+  for (let y = 4; y <= 12; y++) for (let x = 4; x <= 12; x++) game.terrain[`${x},${y}`] = { k: 'bed', c: 'soil', t: 1 };
+  game.tool = 'koreanspice'; game.toolVar = null; game.fillMode = true;
+  doFloodFill(8, 8);
+  const filled = Object.keys(game.plants).filter(k => game.plants[k] && !game.plants[k].removed);
+  assert(filled.length > 1 && filled.length < 20, `a fill of shrubs lays a spaced handful, not 81 (${filled.length})`);
+  for (const k of filled) assertEqual(shrubCrowding(...k.split(',').map(Number), { s: 'koreanspice' }, k), null,
+    'no filled shrub crowds another');
+  assertEqual(shrubAutoSpacing, false, 'nor does the fill leave the flag on');
+});
+
+test('inspect and Pick answer what is on the tile before the shrub whose spread covers it', () => {
+  setup(17, 17);
+  const bulb = firstOfType('bulb');
+  setTile('plants', '8,8', { s: 'sumac', d: 0, t: 1 });
+  setTile('bulbs', '10,8', { s: bulb, d: 0, t: 2 });
+  const oldCard = showPlantCard; let shown = null;
+  showPlantCard = p => { shown = p; };
+  try {
+    inspectPlantAt(10, 8);
+    assertEqual(shown && shown.s, bulb, 'a tap on a bulb under a shrub describes the bulb');
+    inspectPlantAt(10, 7);
+    assertEqual(shown && shown.s, 'sumac', 'a tap on bare ground in the spread still finds the shrub');
+  } finally { showPlantCard = oldCard; }
+  pickAt(10, 8);
+  assertEqual(game.tool, bulb, 'Pick on that bulb arms the bulb');
+  pickAt(10, 7);
+  assertEqual(game.tool, 'sumac', 'Pick on bare ground in the spread arms the shrub');
+});
+
+test('a house displaces the plants inside it, not a shrub growing against it', () => {
+  setup(31, 31);
+  setTile('plants', '10,10', { s: 'sumac', d: 0, t: 1 });
+  setTile('plants', '14,10', { s: 'sumac', d: 0, t: 2 });
+  const n = displacePlants(12, 8, 6, 6);
+  assertEqual(n, 1, 'only the shrub standing inside the house goes');
+  assert(game.plants['10,10'] && !game.plants['10,10'].removed, 'the foundation planting beside it stays');
 });
 
 test('small shrub footprints are rounded, not full square blocks', () => {
@@ -4557,15 +4721,17 @@ test('small shrub footprints are rounded, not full square blocks', () => {
   assert(!tiles.has('7,7') && !tiles.has('5,5'), 'diagonal corners stay plantable');
 });
 
-test('compatible hedge shrubs can be planted edge to edge', () => {
+test('compatible hedge shrubs can be planted edge to edge, and never crowd each other', () => {
   setup(13, 13);
   game.tool = 'boxwoodsquare'; game.toolVar = null;
   assertEqual(applyToolAt(5, 5), 'plant', 'first hedge shrub planted');
   assertEqual(applyToolAt(6, 5), 'plant', 'same hedge shrub can connect');
+  assertEqual(shrubCrowding(6, 5, { s: 'boxwoodsquare' }, '6,5'), null, 'plants of one hedge are meant to touch');
   game.tool = 'hydrangea';
-  assertEqual(applyToolAt(5, 6), null, 'unrelated shrub cannot overlap the hedge footprint');
+  assert(shrubCrowding(5, 6, { s: 'hydrangea' }), 'an unrelated shrub against the hedge is told it crowds');
+  assertEqual(applyToolAt(5, 6), 'plant', 'but it is placed: a shrub claims only its own tile');
   game.tool = 'boxwoodround';
-  assertEqual(applyToolAt(7, 5), null, 'round boxwood does not merge into a square hedge');
+  assert(shrubCrowding(7, 5, { s: 'boxwoodround' }), 'a round boxwood is not part of the square hedge');
 });
 
 test('connected hedge shrubs expose a render angle for continuous lines', () => {
@@ -5587,7 +5753,7 @@ test('selection move shifts owned items and is refused off-plot', () => {
   assertEqual(JSON.stringify(game.plants), before, 'refused move left state untouched');
 });
 
-test('selection move validates shrub footprints and tree trunks', () => {
+test('selection move validates the tile a shrub or tree stands on', () => {
   setup(20, 20);
   game.plants['4,4'] = { s: 'sumac', d: 0, t: 1 };
   game.terrain['8,4'] = { k: 'path', c: 'warm', t: 1 };
@@ -5607,9 +5773,11 @@ test('selection move validates shrub footprints and tree trunks', () => {
   game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 };
   game.selItems = selectionPayload(game.sel);
   before = JSON.stringify({ plants: game.plants, sel: game.sel });
-  assert(!commitSelectionOffset(4, 0, false), 'shrub move into another mature shrub footprint refused');
+  assert(!commitSelectionOffset(6, 0, false), "shrub move onto another shrub's own tile refused");
   assertEqual(JSON.stringify({ plants: game.plants, sel: game.sel }), before,
-    'shrub-over-shrub move leaves state untouched');
+    'shrub-onto-shrub move leaves state untouched');
+  assert(commitSelectionOffset(4, 0, false), "a move into another shrub's spread is allowed: the spread is advice");
+  assert(game.plants['8,4'] && game.plants['8,4'].s === 'sumac', 'and the sumac now stands there');
 
   setup(20, 20);
   game.plants['8,8'] = { s: firstOfType('tree'), d: 0, t: 1 };
@@ -5769,7 +5937,7 @@ test('shrub replacement clears covered bulbs and validates the batch final state
   game.bulbs['16,15']={s:bulb,d:0,t:1};
   let result=replacePlantInstances({source:{s:'damianita',v:null},key:'15,15',scope:'one'},{s:'sumac',v:null});
   assertEqual(result.changed,1,'a larger shrub replacement succeeds on a clear site');
-  assert(game.bulbs['16,15']&&game.bulbs['16,15'].removed,'bulbs in the mature replacement footprint are cleared');
+  assert(game.bulbs['16,15']&&!game.bulbs['16,15'].removed,"a bulb in the replacement's spread stays, as it would under any shrub");
 
   setup(30,30);
   game.plants['10,10']={s:'sumac',d:0,t:1};
@@ -8759,17 +8927,19 @@ test('flood fill never writes past the plot mask', () => {
   assert(!(game.terrain['30,20'] && !game.terrain['30,20'].removed), 'the cut-corner tile was never reached');
 });
 
-test('a shrub footprint crossing the lot line is refused with reason plot', () => {
+test('a shrub at the lot line is placed; only its own tile has to be on the lot', () => {
   setup(31, 31);
   setPlotShape([[0, 0], [31, 0], [24, 31], [0, 31]]);
-  const shrub = 'sumac', cx = 22, cy = 30; // trunk sits on-lot; its ~2.7-tile mature radius crosses the cut corner
-  assert(onPlot(cx, cy), 'the trunk tile itself is on the lot');
+  const shrub = 'sumac', cx = 22, cy = 30; // stem on-lot; its ~2.7-tile mature radius crosses the cut corner
+  assert(onPlot(cx, cy), 'the stem tile itself is on the lot');
   const np = { s: shrub, d: absDay(), t: 1 };
-  const check = canPlaceShrubAt(cx, cy, np);
-  assertEqual(check.ok, false, 'a mature footprint crossing the lot line is refused');
-  assertEqual(check.reason, 'plot', 'the refusal reason is the lot boundary');
+  assertEqual(canPlaceShrubAt(cx, cy, np).ok, true, 'a spread hanging over the lot line is allowed, like a tree canopy');
   game.tool = shrub; game.toolVar = null;
-  assertEqual(applyToolAt(cx, cy), null, 'the normal placement path refuses it too');
+  assertEqual(applyToolAt(cx, cy), 'plant', 'the normal placement path places it too');
+  assert(!onPlot(30, 30), 'fixture: (30,30) is off the lot');
+  const off = canPlaceShrubAt(30, 30, np);
+  assertEqual(off.ok, false, 'a stem off the lot is refused');
+  assertEqual(off.reason, 'plot', 'with reason plot');
 });
 
 test('setWorldSize clears an existing plot shape', () => {
@@ -15681,10 +15851,14 @@ test('lawn is the one ground material that may be laid over a planting', () => {
   assertEqual(tileTerrain(8, 8), 'lawn',
     'but long grass with a perennial standing in it is the planting style, not a conflict');
 
-  // the exception is specific, not lenient: a mature footprint is reserved ground
+  // a shrub stands in lawn the way a tree does (0.9.61): its spread is ordinary
+  // ground, and lawn may go round the shrub itself as it goes round a perennial
   setTile('plants', '16,16', { s: firstOfType('shrub'), d: 0, t: 1 });
+  applyToolAt(17, 16);
+  assertEqual(tileTerrain(17, 16), 'lawn', "lawn runs into a shrub's spread");
+  game.tool = 'bed';
   applyToolAt(16, 16);
-  assertEqual(tileTerrain(16, 16), null, 'a shrub footprint refuses lawn like everything else');
+  assertEqual(tileTerrain(16, 16), null, 'but a bed still refuses to bury the shrub itself');
 });
 
 test('every lawn surface the tray offers has a grain the renderer can draw', () => {
@@ -17371,22 +17545,22 @@ test('selection move validity is resolved per position, not per frame', () => {
   game.sel = null; game.selItems = null;
 });
 
-test('selection validation lists the destination shrubs once', () => {
-  /* selectionShrubAt asked "is any of these a shrub" per tile, over every plant
-     in the selection — O(items^2) plantDef lookups inside the render loop,
-     ~58,000 a frame on a 346-item marquee. */
+test('selection validation asks no shrub-spread question at all', () => {
+  /* selectionShrubAt used to ask "is any of these a shrub" per tile, over every
+     plant in the selection — O(items^2) plantDef lookups inside the render
+     loop, ~58,000 a frame on a 346-item marquee, until the destination shrubs
+     were listed once. Since 0.9.61 a shrub claims only its own tile, which plant
+     occupancy answers, so the question went with the rule. */
   setup(24, 24);
   const shrub = firstOfType('shrub'), forb = firstOfType('forb');
   const items = [
     { x: 5, y: 5, plant: { s: shrub, d: 0, t: 1 } },
-    { x: 8, y: 5, plant: { s: forb, d: 0, t: 2 } },
-    { x: 9, y: 5, plant: { s: forb, d: 0, t: 3 } },
+    { x: 6, y: 5, plant: { s: forb, d: 0, t: 2 } },
   ];
   const ctx = selectionValidationContext(items, c => [c.x, c.y], false);
-  assert(Array.isArray(ctx.destShrubs), 'the context carries the shrub list');
-  assertEqual(ctx.destShrubs.length, 1, 'only the shrub is in it');
-  assertEqual(ctx.destShrubs[0][1].s, shrub, 'and it is the right one');
-  assert(/ctx\.destShrubs/.test(selectionShrubAt.toString()), 'selectionShrubAt reads it');
+  assert(!('destShrubs' in ctx), 'the context carries no shrub list');
+  assert(typeof selectionShrubAt === 'undefined', 'and the spread lookup is gone');
+  assert(items.every(c => selItemDestValid(c, c.x, c.y, ctx)), 'a perennial beside a moved shrub is a valid destination');
 });
 
 test('the zoom pill writes only when the number changes', () => {

@@ -214,18 +214,20 @@
    - Herbaceous plants occupy one plant tile; `space` drives matrix/export
      spacing and `spread` is mature-width metadata.
    - Bulbs occupy one bulb-layer tile and may share non-woody plant tiles,
-     but not a woody trunk or mature shrub reservation.
-   - Shrubs reserve a mature rounded footprint from
-     `shrubFootprintTiles(..., true)`, using `woodyRadiusTiles(P)` from
-     `spread`. Compatible clipped hedges may connect edge-to-edge.
+     and sit anywhere under a tree's canopy or a shrub's spread; only the
+     woody plant's own tile refuses them.
+   - Shrubs, like trees, hold one hard tile: their own (0.9.61). The mature
+     spread (`shrubFootprintTiles(..., true)`, `woodyRadiusTiles(P)` from
+     `spread`) is drawn and planned with, and planting inside it is ADVICE —
+     a warning when two plants stand closer than the average of their `space`
+     (`shrubCrowding`). Plants of one clipped hedge never crowd each other.
    - Trees have one hard trunk tile. Canopy is visual/shade/soft-warning
      space, not an occupancy footprint; mature rings and shade still use
      `woodyRadiusTiles(P)`, never `cw`.
 
    `effectiveEstab(p)` is a display lens only: real establishment normally,
    maturity in Design mode's Established preview. Visuals may read it; placement
-   legality reads true establishment (except shrubs, which reserve mature size
-   by policy).
+   legality reads true establishment, and crowding advice plans for maturity.
 
    Accuracy matters more than prettiness — Kevin grows these.
 */

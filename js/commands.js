@@ -1,15 +1,26 @@
 'use strict';
 
 /* ---------- placement policy ---------- */
+/* `woodyTrunk` is a tree's trunk tile AND a shrub's own tile: since 0.9.61 a
+   shrub claims exactly what a tree does. Its mature spread is `shrubSpacing`,
+   advice like the tree's — see canPlaceShrubAt and shrubCrowding (world.js). */
 const PLANT_PLACEMENT_POLICY={
   occupancy:{mode:'hard'},
-  shrubCore:{mode:'hard'},
   woodyTrunk:{mode:'hard'},
   water:{mode:'hard'},
   activeCanopySun:{mode:'soft',toast:'warn'},
   treeSpacing:{mode:'soft',toast:'warn'},
+  shrubSpacing:{mode:'soft',toast:'warn'},
 };
 function placementPolicy(rule){ return PLANT_PLACEMENT_POLICY[rule] || {mode:'hard'}; }
+/* True while a DRAG or a FILL is laying plants: placePlantAt then spaces the
+   shrubs it lays by shrubCrowding instead of putting one on every tile. Set
+   only through withShrubAutoSpacing, so a throw cannot leave it on. */
+let shrubAutoSpacing=false;
+function withShrubAutoSpacing(fn){
+  const was=shrubAutoSpacing; shrubAutoSpacing=true;
+  try{ return fn(); } finally{ shrubAutoSpacing=was; }
+}
 function canopyShadePolicyCheck(def,x,y){
   if (!def || def.sun==='part') return null;
   const shadeTree=shadeInfoAt(x,y,false,true);   // rules read true establishment
@@ -36,16 +47,79 @@ function appendPlacementWarning(base,text){
   const clean=base.replace(/\.$/,'');
   return `${clean}${clean.includes(' — ')?';':' —'} ${text}.`;
 }
-function plantPlacedMessage(def,x,y,k,shadeWarn,water){
+// a plant's name mid-sentence: the common name lowercased, a cultivar epithet
+// kept as it is written — "the ninebark 'Diabolo'", never "'diabolo'"
+function plantNameInline(P){ return String(P.name).replace(/^[^']+/,s=>s.toLowerCase()); }
+function crowdFeet(tiles){ return fmtFeet(Math.max(1,tiles*TILE_IN/12)); }
+/* The crowding advice for one placed plant (shrubCrowding, world.js), worded
+   for the placement toast. It names the plant doing the crowding and the
+   distance the pair wants, in real units, because "crowded" alone is the same
+   unexplained verdict the hard rule used to give. */
+function shrubCrowdingText(def,crowd,ref){
+  ref=ref||{s:game.tool,v:game.toolVar};
+  const parts=[];
+  if (crowd.shrub){
+    const S=plantDef(crowd.shrub.p.s,crowd.shrub.p.v), ft=crowdFeet(crowd.shrub.wantTiles);
+    const same=crowd.shrub.p.s===ref.s && (crowd.shrub.p.v||null)===(ref.v||null);
+    parts.push(!isShrubDef(def)
+      ? `the ${plantNameInline(S)} will crowd it as it fills in (they want about ${ft} apart)`
+      : same ? `it crowds another ${plantNameInline(def)} (they want about ${ft} apart)`
+      : `it crowds the nearby ${plantNameInline(S)} (they want about ${ft} apart)`);
+  }
+  const n=crowd.plants.length;
+  if (n) parts.push(`it will crowd ${n} nearby plant${n>1?'s':''} as it fills in`);
+  return parts.join('; ');
+}
+/* Point at the shrub the advice is about — the one crowding the placed plant,
+   or the placed shrub itself when what it crowds is the planting around it —
+   with the footprint pulse, so "crowded by what" is answered on the canvas. */
+function pulseCrowding(crowd,placedKey){
+  if (!crowd) return;
+  if (crowd.shrub) pulseShrubFootprint(crowd.shrub.key);
+  else if (placedKey) pulseShrubFootprint(placedKey);
+}
+function plantPlacedMessage(def,x,y,k,shadeWarn,water,crowd){
   const base=water ? `Planted ${def.name} in the water.`
     : isTreeDef(def) ? treePlacedMessage(def,x,y,k)
-    : `Planted ${def.name}.${!shadeWarn && (def.type==='forb'||def.type==='grass')?' Drifts of 3+ read better — try the Drift toggle.':''}`;
-  return shadeWarn ? appendPlacementWarning(base,canopyShadeWarningText(shadeWarn)) : base;
+    : `Planted ${def.name}.${!shadeWarn && !crowd && (def.type==='forb'||def.type==='grass')?' Drifts of 3+ read better — try the Drift toggle.':''}`;
+  const advised=crowd ? appendPlacementWarning(base,shrubCrowdingText(def,crowd)) : base;
+  return shadeWarn ? appendPlacementWarning(advised,canopyShadeWarningText(shadeWarn)) : advised;
 }
-function plantPlacementToastKind(def,x,y,k,shadeWarn){
+function plantPlacementToastKind(def,x,y,k,shadeWarn,crowd){
   if (shadeWarn) return shadeWarn.policy.toast;
+  if (crowd) return placementPolicy('shrubSpacing').toast;
   if (isTreeDef(def) && nearestTreeCrowder(x,y,def,k)) return placementPolicy('treeSpacing').toast;
   return null;
+}
+/* The crowding summary for a GESTURE — a drag, a drift or a fill — given the
+   tiles it planted. One sentence for the whole gesture (a toast per tile would
+   be a storm), counting each crowded plant once however many shrubs reach it,
+   and pulsing the shrubs involved (a few, not a garden's worth). Returns '' when
+   nothing crowds. */
+function gestureCrowdingNote(tiles){
+  const ref={s:game.tool,v:game.toolVar||null}, def=plantDef(ref.s,ref.v);
+  if (!crowdingPlantDef(def) || !tiles || !tiles.length) return '';
+  let near=0; const crowders=new Map(), pulse=new Set(), crowded=new Set();
+  for (const [x,y] of tiles){
+    const k=`${x},${y}`, p=game.plants[k];
+    if (!p || p.removed || p.s!==ref.s || (p.v||null)!==ref.v) continue;
+    const c=shrubCrowding(x,y,ref,k); if (!c) continue;
+    if (c.shrub){ near++; crowders.set(c.shrub.key,c.shrub); pulse.add(c.shrub.key); }
+    if (c.plants.length){ c.plants.forEach(pk=>crowded.add(pk)); pulse.add(k); }
+  }
+  [...pulse].slice(0,6).forEach(key=>pulseShrubFootprint(key));
+  const parts=[];
+  if (near){
+    const only=crowders.size===1 ? [...crowders.values()][0] : null;
+    const by=only ? `the ${plantNameInline(plantDef(only.p.s,only.p.v))}` : 'a shrub';
+    parts.push(isShrubDef(def)
+      ? `${near} ${near>1?'stand':'stands'} closer to another shrub than they want`
+      : `${near} ${near>1?'sit':'sits'} close enough to ${by} to be crowded as it fills in`);
+  }
+  if (crowded.size) parts.push(`${tiles.length>1?'they':'it'} will crowd ${crowded.size} nearby plant${crowded.size>1?'s':''} as ${tiles.length>1?'they fill':'it fills'} in`);
+  if (!parts.length) return '';
+  const s=parts.join('; ');
+  return s.charAt(0).toUpperCase()+s.slice(1)+'.';
 }
 function rejectPlacement(msg){ hapticFeedback('invalid'); toast(msg); }
 
@@ -59,19 +133,22 @@ function rejectPlacement(msg){ hapticFeedback('invalid'); toast(msg); }
    clump just panned the map and there was no way to ask what a plant is. That
    also hid the card's Replace… action, and the Struggling/establishment
    readouts, behind arming an unrelated species.
-   Lookup order matches actHere's: the plant on the tile, then a shrub whose
-   mature footprint overhangs it (so tapping the visible edge of a big shrub
-   finds it), then a bulb. A plant on a hidden layer is deliberately skipped —
-   you cannot see it, so a card for it would come from nowhere. */
+   Lookup order: what is ON the tile first — the plant, then a bulb — and only
+   then a shrub whose mature spread overhangs it (so tapping the visible edge of
+   a big shrub still finds it). Since 0.9.61 bulbs and perennials can stand
+   inside a shrub's spread, so the shrub has to come after both, or a tap on
+   a crocus under a witch hazel would describe the witch hazel. A plant on a
+   hidden layer is deliberately skipped — you cannot see it, so a card for it
+   would come from nowhere. */
 function inspectPlantAt(x,y){
   if (x<0||y<0||x>=GW||y>=GH) return false;
   const k=`${x},${y}`;
   const p=game.plants[k];
   if (p && !p.removed && layerShown(plantLayerOf(p))){ showPlantCard(p,x,y); tourNote('identify'); return true; }
-  const hit=shrubAt(x,y);
-  if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); tourNote('identify'); return true; }
   const b=game.bulbs[k];
   if (b && !b.removed && layerShown('bulbs')){ showPlantCard(b,x,y); tourNote('identify'); return true; }
+  const hit=shrubAt(x,y);
+  if (hit && layerShown('woody')){ showPlantCard(hit.p,hit.x,hit.y); tourNote('identify'); return true; }
   return false;
 }
 function actHere(opts){
@@ -98,48 +175,36 @@ function actHere(opts){
     return;
   }
   if (game.tool==='fence'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Fence needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${fenceLabel()} placed.`); }
     else rejectPlacement('Fence needs clear dry ground.');
     return;
   }
   if (game.tool==='light'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Lighting needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${lightLabel()} placed.`); }
     else rejectPlacement('Lighting needs a clear dry tile.');
     return;
   }
   if (game.tool==='support'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Supports need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${supportLabel()} placed. Plant a climber on it.`); }
     else toast('No room for that here.');
     return;
   }
   if (game.tool==='waterfeature'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Water features need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${waterFeatureLabel()} placed.`); }
     else toast('No room for that here.');
     return;
   }
   if (game.tool==='firepit'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Fire pits need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${firepitLabel()} placed.`); }
     else rejectPlacement('Fire pit needs clear dry ground.');
     return;
   }
   if (game.tool==='boulder'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Boulders need clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${boulderLabel()} placed.`); }
     else rejectPlacement('Boulder needs clear dry ground.');
@@ -161,16 +226,12 @@ function actHere(opts){
     return;
   }
   if (game.tool==='pot'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('A pot needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${potLabel()} set down — now plant it.`); }
     else rejectPlacement(potAt(x,y)?'A pot is already standing there.':'A pot needs a clear, dry tile — paving is fine.');
     return;
   }
   if (game.tool==='seat'){
-    const sh=shrubAt(x,y);
-    if (sh){ pulseShrubFootprint(sh); toast('Seating needs clear ground outside the shrub spread.'); return; }
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${seatLabel()} placed.`); }
     else rejectPlacement('Seating needs a clear, dry patch that size.');
@@ -196,12 +257,12 @@ function actHere(opts){
     return;
   }
   const existing = game.plants[k], hasPlant = existing && !existing.removed;
-  const shrubHit = shrubAt(x,y);
   const terrObj = terrainAt(x,y), terr = terrObj&&terrObj.k;
   const bulbHere=game.bulbs[k], hasBulb=bulbHere && !bulbHere.removed;
   if (game.tool==='shovel'){
     const counts={plants:0,bulbs:0,terr:0,elev:0,house:0,building:0,fence:0,light:0,firepit:0,boulder:0,pet:0,pot:0,seat:0,waterFeature:0,support:0,pergola:0};
     eraseBrush(x,y,counts);
+    if (eraseCountTotal(counts)===0) eraseShrubBySpread(x,y,counts);
     const parts=[];
     if (counts.plants) parts.push(`${counts.plants} plant${counts.plants>1?'s':''}`);
     if (counts.bulbs) parts.push(`${counts.bulbs} bulb${counts.bulbs>1?'s':''}`);
@@ -227,7 +288,6 @@ function actHere(opts){
   }
   if (toolMeta(game.tool).material){
     if (hasPlant){ toast('Lift the plant first.'); return; }
-    if (shrubHit){ pulseShrubFootprint(shrubHit); toast('Lift the shrub first — its mature spread claims this ground.'); return; }
     if (hasBulb && game.tool==='water'){ toast('Dig the bulb first.'); return; }
     if (game.tool==='water' && fenceAt(x,y)){ toast('Move the fence before making water.'); return; }
     if (game.tool==='water' && lightAt(x,y)){ toast('Move the light before making water.'); return; }
@@ -264,7 +324,6 @@ function actHere(opts){
     if (terr!=='water'){ toast('Water plants need a pond, river, or lake tile.'); return; }
     if (hasPlant){ showPlantCard(existing,x,y); return; }
     if (hasBulb){ toast('Lift the bulb before planting in water.'); return; }
-    if (shrubHit){ pulseShrubFootprint(shrubHit); toast('Water plants need open water outside the shrub spread.'); return; }
     const shadeBlock=canopyShadeHardBlock(def,x,y);
     if (shadeBlock){
       toast(canopyShadeHardMessage(def,shadeBlock));
@@ -273,20 +332,21 @@ function actHere(opts){
     const shadeWarn=canopyShadeSoftWarning(def,x,y);
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
-    if (applyToolAt(x,y,opts)){ hapticFeedback('place'); toast(plantPlacedMessage(def,x,y,k,shadeWarn,true),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
+    if (applyToolAt(x,y,opts)){ hapticFeedback('place');
+      const crowd=shrubCrowding(x,y,{s:game.tool,v:game.toolVar||null},k); pulseCrowding(crowd,k);
+      toast(plantPlacedMessage(def,x,y,k,shadeWarn,true,crowd),plantPlacementToastKind(def,x,y,k,shadeWarn,crowd)); }
     else rejectPlacement('No open water here.');
     return;
   }
-  if (def.type==='bulb'){ // bulbs go UNDER perennials — but not under trees or shrubs
+  /* Bulbs go under perennials, under a tree's canopy and, since 0.9.61, under a
+     shrub's spread — spring bulbs beneath a deciduous shrub are a textbook
+     pairing, up and flowering before it leafs out. Only the stem tile itself
+     refuses, the same tile a tree's trunk stands on. */
+  if (def.type==='bulb'){
     if (hasBulb){ showPlantCard(bulbHere,x,y); return; }
     if (!potAt(x,y) && (terr==='path'||terr==='water')){ toast(terr==='water'?'Not in the water.':'Not in the gravel — lift the path first, or stand a pot on it.'); return; }
-    if (shrubHit){
-      pulseShrubFootprint(shrubHit);
-      toast(`No bulbs under ${plantDef(shrubHit.p.s,shrubHit.p.v).name.toLowerCase()} — the shrub claims that ground.`);
-      return;
-    }
     if (hasPlant && plantLayerOf(existing)==='woody'){
-      toast('No bulbs under trees or shrubs — their roots claim that ground.'); return; }
+      toast(`That is where the ${plantNameInline(plantDef(existing.s,existing.v))} stands — tuck the bulbs in around it.`); return; }
     const n=game.drift?driftCount(def):1;
     if (n>1){ stampDrift(x,y,n,opts); return; }
     if (applyToolAt(x,y,opts)){ hapticFeedback('place');
@@ -297,12 +357,6 @@ function actHere(opts){
   const potHere=potAt(x,y);
   if (potHere && isTreeDef(def)){ rejectPlacement('A tree needs open ground, not a container.'); return; }
   if (!potHere && (terr==='path'||terr==='water')){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree, unless you stand a pot on it.'); return; }
-  if (shrubHit && !isShrubDef(def) && (!hasPlant || shrubHit.key!==k)){
-    pulseShrubFootprint(shrubHit);
-    showPlantCard(shrubHit.p,shrubHit.x,shrubHit.y);
-    toast(`${plantDef(shrubHit.p.s,shrubHit.p.v).name} needs this mature spread.`);
-    return;
-  }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
   const shadeBlock=canopyShadeHardBlock(def,x,y);
   if (shadeBlock){
@@ -314,8 +368,11 @@ function actHere(opts){
   if (n>1){ stampDrift(x,y,n,opts); return; }
   if (applyToolAt(x,y,opts)){ hapticFeedback('place');
     const fit=potHere?potFitWarning(def,potHere):'';
+    // a tap places inside a shrub's spread and SAYS so (shrubSpacing is advice)
+    const crowd=fit?null:shrubCrowding(x,y,{s:game.tool,v:game.toolVar||null},k);
+    pulseCrowding(crowd,k);
     if (fit) toast(`Planted ${def.name}. ${fit}`,'warn');
-    else toast(plantPlacedMessage(def,x,y,k,shadeWarn,false),plantPlacementToastKind(def,x,y,k,shadeWarn)); }
+    else toast(plantPlacedMessage(def,x,y,k,shadeWarn,false,crowd),plantPlacementToastKind(def,x,y,k,shadeWarn,crowd)); }
   else rejectPlacement(potHere?'That pot is already planted.':'No room here.');
 }
 /* soft tree-spacing feedback (T3): the trunk placed fine (occupancy guaranteed
@@ -439,10 +496,10 @@ function placeTerrainAt(x,y){
      is not a conflict, it is the planting style this whole app argues for.
      Refusing it would mean a meadow could only ever be painted before anything
      was planted in it, which is backwards: you decide the matrix last.
-     Shrubs still refuse, lawn included: a mature footprint is reserved ground,
-     not open ground. */
+     A shrub's SPREAD is open ground like any other since 0.9.61 — a path along
+     a shrub border runs under its skirt, which is what pruning is for — and a
+     shrub's own tile takes lawn exactly as a tree's trunk tile does. */
   if (ex && !ex.removed && game.tool!=='lawn') return null;
-  if (shrubAt(x,y)) return null;
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (game.tool==='water' && petAt(x,y)) return null;
@@ -548,17 +605,15 @@ function placePlantAt(x,y,opts){
     const ex=game.plants[k], eb=game.bulbs[k];
     if (terr!=='water') return null;
     if ((ex && !ex.removed) || (eb && !eb.removed)) return null;
-    if (shrubAt(x,y)) return null;
     if (canopyShadeHardBlock(def,x,y)) return null;
     if (freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
     setTile('plants',k,np); plantFx(x,y,np);
     return 'plant';
   }
   if (terr==='water' || (!pot && terr==='path')) return null;
-  if (def.type==='bulb'){ // bulbs tuck in under perennials — but not under trees/shrubs
+  if (def.type==='bulb'){ // under perennials, a canopy or a shrub's spread — never on a woody stem
     const eb=game.bulbs[k];
     if (eb && !eb.removed) return null;
-    if (shrubAt(x,y)) return null;
     const above=game.plants[k];
     if (above && !above.removed && plantLayerOf(above)==='woody') return null;
     setTile('bulbs',k,np); plantFx(x,y,np);
@@ -567,16 +622,21 @@ function placePlantAt(x,y,opts){
   const ex=game.plants[k];
   if (ex && !ex.removed) return null;
   if (!pot && game.matrix && matrixSpacingBlocks(x,y,def)) return null;   // scatter at real spacing
-  if (!isShrubDef(def) && shrubAt(x,y)) return null;
-  if (isShrubDef(def) && !pot && !canPlaceShrubAt(x,y,np).ok) return null;
+  /* A shrub claims its own tile and nothing more (canPlaceShrubAt); inside its
+     spread, anything is placed and the TOAST advises. A drag or fill laying
+     shrubs is the exception: it spaces them, skipping a tile that would crowd
+     another shrub, or a line drawn with a viburnum armed would put one on every
+     18in tile. A tap is a deliberate spot and is never second-guessed. */
+  if (isShrubDef(def) && !pot){
+    if (!canPlaceShrubAt(x,y,np).ok) return null;
+    if (shrubAutoSpacing){ const c=shrubCrowding(x,y,np,k); if (c && c.shrub) return null; }
+  }
   if (canopyShadeHardBlock(def,x,y)) return null;
   // a plant in a container stands in the middle of it, not wherever you tapped
   if (!pot && freePlantable(def)) Object.assign(np,naturalPlantOffset(x,y,opts));
   setTile('plants',k,np); plantFx(x,y,np);
-  // a tree or shrub claims the ground — any bulb tucked under it is lost
-  if (isShrubDef(def)) clearBulbsUnderShrub(x,y,np);
-  else if (isTreeDef(def)){ const eb=game.bulbs[k];
-    if (eb && !eb.removed) clearTile('bulbs',k); }
+  // a tree or shrub stands on its tile — a bulb tucked in on THAT tile is lost
+  if (isWoodyDef(def)) clearBulbUnderStem(x,y);
   return 'plant';
 }
 /* The cluster a drift is laid into, nearest tile first. Module-level because
@@ -591,17 +651,19 @@ function stampDrift(cx0,cy0,n,opts){
   for (let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0;
     [rest[i],rest[j]]=[rest[j],rest[i]]; }
   const def=plantDef(game.tool,game.toolVar);
-  let placed=0;
+  let placed=0; const tiles=[];
   for (const [ox,oy] of [offs[0],...rest]){
     if (placed>=n) break;
-    if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)) placed++;
+    if (applyToolAt(cx0+ox,cy0+oy,(!ox&&!oy)?opts:null)){ placed++; tiles.push([cx0+ox,cy0+oy]); }
   }
   /* The tour's drift step: arming the chip is only the setup the copy names
      first — a cluster actually landing is what the step teaches, and >1 is
      what makes it a drift rather than an ordinary planting. */
   if (placed>1) tourNote('drift');
   if (placed){ hapticFeedback('place');
-    toast(placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`); }
+    const crowd=gestureCrowdingNote(tiles);
+    toast((placed>1?`A drift of ${placed} — ${def.name}.`:`Planted ${def.name} — no room for more here.`)+(crowd?' '+crowd:''),
+      crowd?placementPolicy('shrubSpacing').toast:null); }
   else toast('No room for a drift here.');
 }
 /* ---------- fence / structure placement ---------- */
@@ -617,7 +679,7 @@ function fenceLabel(f){
 function canPlacePergola(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y) || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
+  if (fenceAt(x,y) || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (waterFeatureAt(x,y) || potAt(x,y) || seatAt(x,y) || structureSupportAt(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
@@ -637,7 +699,6 @@ function canPlaceFence(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
-  if (shrubAt(x,y)) return false;
   const d=fenceDraft();
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
@@ -654,7 +715,7 @@ function placeFenceAt(x,y){
 function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y) || shrubAt(x,y)) return false;
+  if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
   if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
@@ -768,7 +829,7 @@ function canPlacePot(x,y,ignoreKey){
     // paving is FINE — that is the whole point. Water and structures are not.
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || seatAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+        || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const p=potAt(xx,yy); if (p && p.key!==ignoreKey) return false;
     // an in-ground plant already here would be standing in the pot by accident
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
@@ -873,7 +934,7 @@ function canPlaceSeat(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || potAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+        || potAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const s=seatAt(xx,yy); if (s && s.key!==ignoreKey) return false;
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
     if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
@@ -921,7 +982,7 @@ function canPlaceFirepit(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy)) return false;
     if (waterFeatureAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
@@ -980,7 +1041,7 @@ function canPlaceWaterFeature(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)) return false;
     if (potAt(xx,yy) || seatAt(xx,yy) || structureSupportAt(xx,yy)) return false;
     const wf=waterFeatureAt(xx,yy); if (wf && wf.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
@@ -1055,7 +1116,7 @@ function canPlaceSupport(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy) || shrubAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)) return false;
     if (potAt(xx,yy) || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const other=structureSupportAt(xx,yy); if (other && other.key!==ignoreKey) return false;
     // as a pot does: the structure goes down first, then the climber goes on it
@@ -1100,7 +1161,7 @@ function canPlaceBoulder(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || shrubAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -1178,7 +1239,7 @@ function validateBuildingFootprint(vs,ignoreId){
     if (!onPlot(x,y)) return {ok:false,msg:'The lot line cuts through there.'};
     const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
     if (siteStructureAt(x,y) || buildingAt(x,y,ignoreId)) return {ok:false,msg:'A building cannot overlap another structure.'};
-    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y)||waterFeatureAt(x,y))
+    if ((p&&!p.removed)||(b&&!b.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y))
       return {ok:false,msg:'Lift plants, paths, and hardscape before drawing a building here.'};
   }
   return {ok:true,tiles};
@@ -1246,7 +1307,7 @@ function buildingTileFree(x,y){
   if (!onPlot(x,y) || buildingAt(x,y) || houseAt(x,y) || isDoor(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], bl=game.bulbs[k];
   return !((p&&!p.removed)||(bl&&!bl.removed)||terrainAt(x,y)||elevationAt(x,y)||fenceAt(x,y)
-    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||shrubAt(x,y)||waterFeatureAt(x,y));
+    ||lightAt(x,y)||firepitAt(x,y)||boulderAt(x,y)||waterFeatureAt(x,y));
 }
 function tilesTouch(x,y,keys){
   return keys.has(`${x+1},${y}`)||keys.has(`${x-1},${y}`)||keys.has(`${x},${y+1}`)||keys.has(`${x},${y-1}`);
@@ -1321,14 +1382,15 @@ function renameBuildingAt(x,y){
     });
   return true;
 }
-function displacePlants(x,y,w,h){ // a house can't share ground with plants
+/* A house can't share ground with the plants standing inside it. A shrub BESIDE
+   it stays, whatever its spread: that is a foundation planting, the commonest
+   place a shrub goes, and its skirt against the wall is what pruning is for. */
+function displacePlants(x,y,w,h){
   let n=0;
   for (const k in game.plants){ const p=game.plants[k];
     if (!p || p.removed) continue;
     const [px2,py2]=k.split(',').map(Number);
-    const inside=px2>=x&&px2<x+w&&py2>=y&&py2<y+h;
-    const overlaps=isShrubDef(plantDef(p.s,p.v)) && shrubFootprintOverlapsRect(px2,py2,p,x,y,w,h);
-    if (inside || overlaps){ clearTile('plants',k); n++; }
+    if (px2>=x&&px2<x+w&&py2>=y&&py2<y+h){ clearTile('plants',k); n++; }
   }
   return n;
 }
@@ -1554,10 +1616,18 @@ function toast(msg,kind){
 
 /* tap / click: the tapped tile is acted on directly */
 let sweep=null; // shovel drag-lift in progress: {plants, terr}
+// where that drag began, and whether it has left the tile — see eraseShrubBySpread
+let sweepTap=null;
 /* the eraser: clears a disc brush (game.brushSize, shared with the paint
    brushes) centered on the tile, removing the layers selected by
    game.eraseMode. 'all' wipes plant + bulb + terrain on every tile in one
-   pass; the others touch only their layer. Counts tally into `counts`. */
+   pass; the others touch only their layer. Counts tally into `counts`.
+   A shrub is taken by its OWN tile here, as a tree is by its trunk. Reaching it
+   through its mature spread was right while nothing else could stand in that
+   spread; since 0.9.61 perennials and bulbs do, so an erase stroke clearing a
+   drift beside a viburnum — a matrix drift especially, every other tile bare —
+   would take the viburnum out with it. The visible-edge reach survives for a
+   TAP that erased nothing else (eraseShrubBySpread). */
 function eraseBrush(cx,cy,counts){
   const m=game.eraseMode;
   // a layer is erasable only if it's visible, in edit focus, and in eraseMode
@@ -1567,14 +1637,9 @@ function eraseBrush(cx,cy,counts){
   for (const [dx,dy] of brushOffsets(game.brushSize)){
     const x=cx+dx, y=cy+dy;
     if (!onPlot(x,y)) continue;
-    const k=`${x},${y}`;
-    let pk=k, p=game.plants[k];
-    if (!(p && !p.removed)){
-      const sh=shrubAt(x,y);
-      if (sh){ pk=sh.key; p=sh.p; }
-    }
+    const k=`${x},${y}`, p=game.plants[k];
     if (p && !p.removed && (plantLayerOf(p)==='woody'?woody:peren)){
-      clearTile('plants',pk); counts.plants++; }
+      clearTile('plants',k); counts.plants++; }
     const b=game.bulbs[k];
     if (bulbOK && b && !b.removed){
       clearTile('bulbs',k); counts.bulbs++; }
@@ -1629,6 +1694,23 @@ function eraseBrush(cx,cy,counts){
   }
 }
 function sweepLift(x,y){ eraseBrush(x,y,sweep); }
+// everything an erase counted, whatever the layer
+function eraseCountTotal(counts){
+  let n=0; for (const k in counts) if (typeof counts[k]==='number') n+=counts[k];
+  return n;
+}
+/* A tap of Erase on a shrub's visible edge — its spread rather than its own
+   tile — still lifts the shrub, but only a TAP, and only when nothing else was
+   erased by it: the caller decides both. Anything on the tapped tile, or a drag
+   through the spread, never reaches the shrub (see eraseBrush). */
+function eraseShrubBySpread(x,y,counts){
+  const m=game.eraseMode;
+  if (!(layerShown('woody') && layerEditable('woody') && (m==='all'||m==='plant'))) return false;
+  const sh=onPlot(x,y) && shrubAt(x,y);
+  if (!sh) return false;
+  clearTile('plants',sh.key); counts.plants++;
+  return true;
+}
 
 /* ---------- selection tool: marquee a region, then move/copy/rotate/erase ----------
    game.sel is the committed rect; selDrag is an in-progress marquee; selMove
@@ -1690,27 +1772,14 @@ function selectionDestMaps(items,dst){
   });
   return out;
 }
-/* The shrubs among the destination plants, resolved ONCE.
-   selectionShrubAt has to ask "does any shrub in this move claim that tile",
-   and it was walking the whole dest.plants map per question — plantDef and
-   isShrubDef on every plant in the selection, for every plant in the selection.
-   That is O(items^2) inside a function called from the render loop while the
-   marquee is being dragged: on a 346-item marquee it is ~58,000 plantDef
-   lookups a frame, and it measured as most of the selection overlay's cost
-   after the ghosts were cached. A shrub is a small minority of any planting,
-   so listing them once turns the inner loop from "every plant" into "the two
-   shrubs", and a selection with no shrubs in it stops looping at all. */
-function selectionDestShrubs(destPlants){
-  const out=[];
-  for (const [key,p] of destPlants){
-    if (!liveSelectionValue(p) || !isShrubDef(plantDef(p.s,p.v))) continue;
-    out.push([key,p]);
-  }
-  return out;
-}
+/* No shrub question here any more. A move used to ask, for every item, "does
+   any shrub in this move claim that tile" — a spread test that was O(items^2)
+   until the destination shrubs were listed once. Since 0.9.61 a shrub claims
+   only its own tile, which the plant-occupancy test already answers, so the
+   whole question went with the rule. */
 function selectionValidationContext(items,dst,copy){
   const dest=selectionDestMaps(items,dst);
-  return {ignore:selectionSourceSets(items,copy), dest, destShrubs:selectionDestShrubs(dest.plants)};
+  return {ignore:selectionSourceSets(items,copy), dest};
 }
 function selectionIgnored(ctx,layer,k){ return !!(ctx && ctx.ignore[layer] && ctx.ignore[layer].has(k)); }
 function selectionDest(ctx,layer,k){ return ctx && ctx.dest[layer] && ctx.dest[layer].get(k); }
@@ -1767,37 +1836,8 @@ function selectionBoulderAt(x,y,ctx){
   const bo=boulderAt(x,y);
   return bo && selectionIgnored(ctx,'boulders',bo.key) ? null : bo;
 }
-function selectionShrubAt(x,y,ctx,ownDestKey){
-  const shrubs=ctx && (ctx.destShrubs || selectionDestShrubs(ctx.dest.plants));
-  if (shrubs) for (const [key,p] of shrubs){
-    if (key===ownDestKey) continue;
-    if (shrubClaimsTile(p.x,p.y,p,x,y,true)) return {key,p,x:p.x,y:p.y,center:key===`${x},${y}`};
-  }
-  return shrubAt(x,y,{ignoreKeys:ctx&&ctx.ignore.plants});
-}
-function selectionShrubDestValid(c,x,y,ctx){
-  const ownKey=`${x},${y}`, np=Object.assign({},c.plant);
-  for (const [xx,yy] of shrubFootprintTiles(x,y,np,true)){
-    if (!selValidDest(xx,yy)) return false;
-    if (selectionFenceAt(xx,yy,ctx) || selectionLightAt(xx,yy,ctx) ||
-        selectionFirepitAt(xx,yy,ctx) || selectionBoulderAt(xx,yy,ctx) ||
-        selectionWaterFeatureAt(xx,yy,ctx)) return false;
-    const terr=selectionTerrainKindAt(xx,yy,ctx);
-    if (terr==='path'||terr==='water') return false;
-    const p=selectionPlantAt(xx,yy,ctx,ownKey);
-    if (p){
-      if (shrubHedgeCompatible(np,p) && Math.hypot(xx-x,yy-y)>=0.95) continue;
-      return false;
-    }
-    const other=selectionShrubAt(xx,yy,ctx,ownKey);
-    if (other){
-      if (shrubHedgeCompatible(np,other.p) && Math.hypot(other.x-x,other.y-y)>=0.95) continue;
-      return false;
-    }
-  }
-  return true;
-}
-function selectionTreeTrunkDestValid(c,x,y,ctx){
+// a tree's trunk or a shrub's stem: the one tile a woody plant claims
+function selectionWoodyStemDestValid(c,x,y,ctx){
   const k=`${x},${y}`;
   if (!selValidDest(x,y)) return false;
   if (selectionFenceAt(x,y,ctx) || selectionLightAt(x,y,ctx) ||
@@ -1806,13 +1846,11 @@ function selectionTreeTrunkDestValid(c,x,y,ctx){
   const terr=selectionTerrainKindAt(x,y,ctx);
   if (terr==='path'||terr==='water') return false;
   if (selectionPlantAt(x,y,ctx,k)) return false;
-  if (selectionShrubAt(x,y,ctx,k)) return false;
   return true;
 }
 function selectionUnderplantDestValid(c,x,y,ctx){
   const k=`${x},${y}`, p=selectionPlantAt(x,y,ctx,c.plant?k:null);
   if (p && isWoodyDef(plantDef(p.s,p.v))) return false;
-  if (selectionShrubAt(x,y,ctx,c.plant?k:null)) return false;
   return true;
 }
 function selItemValidDest(c,x,y){
@@ -1827,8 +1865,7 @@ function selItemDestValid(c,x,y,ctx){
   if (!selItemValidDest(c,x,y)) return false;
   if (c.plant){
     const P=plantDef(c.plant.s,c.plant.v);
-    if (isShrubDef(P)) return selectionShrubDestValid(c,x,y,ctx);
-    if (isTreeDef(P)) return selectionTreeTrunkDestValid(c,x,y,ctx);
+    if (isWoodyDef(P)) return selectionWoodyStemDestValid(c,x,y,ctx);
     return selectionUnderplantDestValid(c,x,y,ctx);
   }
   if (c.bulb) return selectionUnderplantDestValid(c,x,y,ctx);
@@ -1906,46 +1943,22 @@ function replacementPreflight(ctx,target){
   if (!plantRefFitsCriteria({s:target.s,v:target.v||null},activeFilters()))
     return {valid:[],blocked:targets,reason:'That plant does not fit this garden\'s active criteria.'};
   const candidates=[], ignoredShrubs=isShrubDef(to)?new Set(targets.map(item=>item.key)):null;
+  // a replacement is judged on the tile it stands on, as a planting is: since
+  // 0.9.61 a shrub's spread refuses nothing, so there is no batch overlap left
   for (const item of targets){
     const [x,y]=item.key.split(',').map(Number), np=Object.assign({},item.p,{s:target.s,t:Date.now()});
     if (target.v) np.v=target.v; else delete np.v;
     let ok=!siteStructureAt(x,y)&&!isDoor(x,y);
     if (ok && to.type==='water') ok=tileTerrain(x,y)==='water';
     if (ok && to.type==='bulb'){
-      const sh=shrubAt(x,y), above=game.plants[item.key];
-      ok=!sh && !(above&&!above.removed&&plantLayerOf(above)==='woody');
+      const above=game.plants[item.key];
+      ok=!(above&&!above.removed&&plantLayerOf(above)==='woody');
     }
     if (ok && isShrubDef(to)) ok=canPlaceShrubAt(x,y,np,{ignoreKeys:ignoredShrubs}).ok;
     if (ok && !isShrubDef(to) && to.type!=='bulb' && to.type!=='water'){
-      const terr=tileTerrain(x,y); ok=terr!=='path'&&terr!=='water'&&!shrubAt(x,y,{ignoreKey:item.key});
+      const terr=tileTerrain(x,y); ok=terr!=='path'&&terr!=='water';
     }
     candidates.push(Object.assign({},item,{next:np,x,y,ok}));
-  }
-  // Validate a shrub batch against its virtual final state. Source shrubs that
-  // cannot change remain obstacles; successful candidates are compared as the
-  // replacement species so adjacent batch members do not block one another
-  // merely because their old footprints still exist in game.plants.
-  if (isShrubDef(to) && candidates.length>1){
-    const blocked=new Set(candidates.map((c,i)=>c.ok?null:i).filter(i=>i!==null));
-    const overlaps=(a,ap,b,bp)=>{
-      if (shrubHedgeCompatible(ap,bp) && Math.hypot(a.x-b.x,a.y-b.y)>=0.95) return false;
-      const tiles=new Set(shrubFootprintTiles(a.x,a.y,ap,true).map(p=>p.join(',')));
-      return shrubFootprintTiles(b.x,b.y,bp,true).some(p=>tiles.has(p.join(',')));
-    };
-    let changed=true;
-    while (changed){
-      changed=false;
-      for (let i=0;i<candidates.length;i++){
-        if (blocked.has(i)) continue;
-        for (let j=0;j<candidates.length;j++){
-          if (i===j) continue;
-          const other=blocked.has(j)?candidates[j].p:candidates[j].next;
-          if (overlaps(candidates[i],candidates[i].next,candidates[j],other)){
-            blocked.add(i); candidates[i].ok=false; changed=true; break;
-          }
-        }
-      }
-    }
   }
   const valid=candidates.filter(c=>c.ok), blocked=candidates.filter(c=>!c.ok);
   return {valid,blocked,reason:blocked.length?'Some positions are blocked or too small for the replacement.':''};
@@ -1964,8 +1977,8 @@ function replacePlantInstances(ctx,target){
   if (!check.valid.length) return Object.assign(check,{changed:0});
   const clearedBulbs=new Set();
   withUndo(()=>{ check.valid.forEach(item=>{
-    if (item.layer==='plants'&&isShrubDef(plantDef(item.next.s,item.next.v)))
-      clearBulbsUnderShrub(item.x,item.y,item.next,clearedBulbs);
+    if (item.layer==='plants'&&isWoodyDef(plantDef(item.next.s,item.next.v)))
+      clearBulbUnderStem(item.x,item.y,clearedBulbs);
     setTile(item.layer,item.key,item.next);
   }); });
   updateReplacementSelection(check.valid,clearedBulbs);
