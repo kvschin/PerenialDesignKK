@@ -6018,10 +6018,10 @@ test('a lawn drag measures its area, and mowing measures only what it cut', () =
   const gate = drag(5, 4, 9, 4);
   assertEqual(gate.what, 'gate', 'a gate run reports its own noun');
   assertEqual(toolDragMetricLabel(gate), inchesMetricLabel(4 * TILE_IN), 'and reads as a run one tile wide');
-  // the pergola was the other tool the list predated
+  // a pergola is dragged corner to corner, and reads the roof it will lay
   setup(21, 21);
   game.tool = 'pergola'; game.pergolaDraft = { mat: 'timber', height: 8 };
-  assertEqual(toolDragMetricLabel(drag(5, 4, 9, 4)), inchesMetricLabel(4 * TILE_IN), 'a pergola reads its run');
+  assertEqual(toolDragMetricLabel({ sx: 5, sy: 4, cx: 11, cy: 8, active: true, rect: true }), pergolaSizeText(7, 5), 'a pergola reads its footprint');
   // and a tool that declares nothing still draws nothing
   setup(21, 21);
   game.tool = 'pot';
@@ -17855,67 +17855,142 @@ test('a surface says how it is ordered, and one says it is not continuous', () =
     'and reaches the materials list as lawn');
 });
 
-test('a pergola is a run, and a climber grows on it', () => {
-  /* The thing over a patio, and the one structure the supports note deferred:
-     a pergola is a RUN rather than a piece, which is a different placement
-     idiom -- so it is modelled on the FENCE and not on the obelisk beside it. */
+test('a pergola is a roof: laid whole, framed from its shape, and a climber grows on it', () => {
+  /* It was a one-tile-wide RUN modelled on the fence, so every bay drew its own
+     pair of posts 11 inches apart, and it refused the table, the chairs and the
+     pots that a pergola is built over. It is the roof's footprint now, and the
+     frame is derived from that shape the way one is built. */
   setup(21, 21);
   game.pergolaDraft = { mat: 'timber', height: 8 };
   game.tool = 'pergola';
+  for (let y = 4; y <= 10; y++) for (let x = 4; x <= 12; x++) setTile('terrain', `${x},${y}`, { k: 'path', c: 'warm', t: 1 });
+  // what it is BUILT over: a dining table and a pot on the patio
+  game.seatDraft = { type: 'dining', finish: 'teak', face: 0 };
+  assertEqual(placeSeatAt(7, 6), 'seat', 'the table goes down first');
+  game.potDraft = { style: 'terracotta', size: 'p18' };
+  assertEqual(placePotAt(10, 8), 'pot', 'and a pot');
 
-  // it stands OVER paving, which is the whole point -- as a fence may
-  for (let x = 3; x < 12; x++) setTile('terrain', `${x},6`, { k: 'path', c: 'warm', t: 1 });
-  let laid = 0;
-  for (let x = 3; x < 12; x++) if (applyToolAt(x, 6)) laid++;
-  assertEqual(laid, 9, 'a run lays over a terrace');
-  assertEqual(applyToolAt(3, 6), null, 'and re-laying the same bay is a no-op');
+  // a drag lays the rectangle between its corners, over all of it
+  assertEqual(finishPergolaDrag(11, 9, 5, 5), 35, 'a 7 x 5 roof, corners in either order');
+  assertEqual(pergolaRegions().list.length, 1, 'one pergola');
+  const reg = pergolaRegionAt(8, 7);
+  assertEqual(reg.info.a, 0, 'its beams run the long way');
+  let posts = 0;
+  for (const [x, y] of reg.tiles) posts += pergolaFrameAt(x, y).posts.length;
+  assertEqual(posts, 4, 'a 10.5 x 7.5 ft roof stands on four corner posts, not a forest of them');
+  const edge = pergolaFrameAt(8, 5), mid = pergolaFrameAt(8, 7), corner = pergolaFrameAt(5, 5);
+  assertEqual(edge.beams.length, 1, 'an edge tile carries the beam');
+  assert(Math.abs(Math.abs(edge.beams[0][0]) - (0.5 - PERGOLA_OVERHANG)) < 1e-9, 'set in by the rafter overhang');
+  assertEqual(edge.posts.length, 0, 'and a post only where one is needed');
+  assertEqual(mid.beams.length + mid.posts.length, 0, 'the middle of the roof is open');
+  assertEqual(corner.posts.length, 1, 'a corner stands on its post');
+  assertEqual(JSON.stringify(mid.raf), '[0,0]', 'a rafter joins its neighbours without end faces');
 
-  /* Posts at the ends, the corners and every PERGOLA_POST_TILES -- fencePostHere
-     with a wider spacing, because a post every 18 inches is a stockade. */
-  const posts = [];
-  for (let x = 3; x < 12; x++) if (pergolaPostHere(x, 6)) posts.push(x);
-  assert(posts.includes(3) && posts.includes(11), 'both ends carry a post');
-  assert(!posts.includes(7), 'a plain mid-run bay does not');
-  assert(posts.length < 5, 'and they are spaced, not one a tile: ' + posts.length);
+  // a long span grows a middle beam and more posts, as a real one is built
+  setup(31, 31);
+  game.pergolaDraft = { mat: 'oak', height: 9 };
+  assertEqual(finishPergolaDrag(2, 2, 15, 12), 14 * 11, 'a 21 x 16.5 ft roof');
+  const big = pergolaRegionAt(5, 5);
+  assert(big.info.midR.size >= 1, 'a span over 12 ft takes a middle beam');
+  let bigPosts = 0;
+  for (const [x, y] of big.tiles) bigPosts += pergolaFrameAt(x, y).posts.length;
+  assertEqual(bigPosts, 9, 'three beams on three posts each');
 
-  /* supportAt is the single seam for "can a climber use this", so making the
-     pergola one is what the whole feature is for. */
-  const sup = supportAt(7, 6);
-  assertEqual(sup && sup.kind, 'pergola', 'a bay is a support');
-  assertEqual(sup.ft, 8, 'at its real height');
+  // laid WHOLE or not at all, and saying what is in the way
+  setup(21, 21);
+  game.pergolaDraft = { mat: 'timber', height: 8 };
+  game.fenceDraft = { style: 'wood', height: 4, gate: false };
+  placeFenceAt(8, 8);
+  assertEqual(finishPergolaDrag(5, 5, 11, 11), 0, 'a fence through the footprint refuses the whole roof');
+  assertEqual(Object.keys(game.pergolas).length, 0, 'leaving no half a pergola');
+  assertEqual(pergolaRectBlocker({ x0: 5, y0: 5, x1: 11, y1: 11 }).why, 'fence', 'and it can say why');
+
+  // a tap lays a whole one about 10 ft square, and on a pergola restyles it
+  setup(21, 21);
+  game.pergolaDraft = { mat: 'timber', height: 8 };
+  tapPergolaAt(10, 10);
+  assertEqual(Object.keys(game.pergolas).length, PERGOLA_TAP_TILES * PERGOLA_TAP_TILES, 'a tap lays a whole pergola');
+  game.pergolaDraft = { mat: 'black', height: 9 };
+  tapPergolaAt(8, 8);
+  assert(Object.values(game.pergolas).every(p => p.mat === 'black' && p.height === 9),
+    'and tapping it again restyles the whole roof, never one bay of it');
+
+  /* Climbers: anywhere on the roof, and one pins a post at its foot -- so a
+     wisteria is never left climbing nothing. A post closes its tile to other
+     planting; the rest of the roof is open ground. */
+  setup(21, 21);
+  game.pergolaDraft = { mat: 'timber', height: 8 };
+  finishPergolaDrag(5, 5, 11, 9);
   const vine = PLANT_KEYS.find(k => PLANTS[k].type === 'vine');
-  setTile('terrain', '7,6', { removed: true, t: 1 });   // a plant cannot be dug into gravel
+  const forb = PLANT_KEYS.find(k => PLANTS[k].type === 'forb' && PLANTS[k].sun === 'full');
+  const tree = PLANT_KEYS.find(k => PLANTS[k].type === 'tree');
   game.tool = vine; game.toolVar = null;
-  assertEqual(applyToolAt(7, 6), 'plant', 'a climber plants on a pergola');
+  assertEqual(applyToolAt(8, 5), 'plant', 'a climber plants along the roof');
+  assertEqual(pergolaFrameAt(8, 5).posts.length, 1, 'and pins a post there to climb');
   assertEqual(applyToolAt(15, 15), null, 'and still refuses open ground');
-
-  /* The frame's RUN reaches the drawing, so the foliage lies along the pergola
-     rather than across it -- the fence path, one structure over. */
-  const det = climberRenderDetail(7, 6, game.plants['7,6'], 900, 600);
+  const det = climberRenderDetail(8, 5, game.plants['8,5'], 900, 600);
   assertEqual(det && det.climb, 'pergola', 'the climber knows what it is on');
-  assert(det.axis && det.axis.length === 2, 'and which way the run goes');
+  assert(Array.isArray(det.post) && det.post.length === 2, 'and where its post stands');
   assert(det.ft <= 8.001, 'and never draws above its frame');
+  game.tool = forb;
+  assertEqual(applyToolAt(5, 5), null, 'a post tile is closed to other planting');
+  assertEqual(applyToolAt(8, 7), 'plant', 'the open roof is not');
+  game.tool = tree;
+  assertEqual(applyToolAt(9, 7), null, 'a tree would grow through the roof');
+  game.tool = 'firepit'; game.firepitDraft = { shape: 'round', size: 'round24' };
+  assertEqual(applyToolAt(9, 7), null, 'and fire stays out from under it');
 
-  // billed by the foot, like a fence: a tile is one 18in bay
+  // billed as a thing you buy, by its size and its posts, not by the foot
   const row = hardscapeRows().find(r => r.kind === 'Pergola');
   assert(row, 'it reaches the materials list');
-  assert(/Timber/.test(row.name) && /8 ft/.test(row.name), 'naming its material and height');
+  assertEqual(row.count, 1, 'as one pergola');
+  assert(/Timber/.test(row.name) && /8 ft/.test(row.name), 'naming its material and height: ' + row.name);
+  assert(row.detail.indexOf(pergolaSizeText(7, 5)) === 0 && /5 posts/.test(row.detail),
+    'its footprint and its posts, the pinned one included: ' + row.detail);
+
+  /* The sprite key IS the frame, so identical bays share a sprite and a bay
+     whose frame changes cannot keep a stale one. */
+  const pg = game.pergolas['9,7'];
+  const keyOf = (x, y) => computeStructSpriteSpec({ kind: SCENE_K.PERGOLA, x, y, pg }).key;
+  assertEqual(keyOf(9, 7), keyOf(10, 7), 'two open bays share a sprite');
+  assert(keyOf(9, 7) !== keyOf(5, 5), 'a corner does not');
+
+  // the plan sheet draws its posts where the garden does
+  let squares = 0;
+  const g = { cell: 18, X: x => x * 18, Y: y => y * 18 };
+  drawPlanStructures(makeCanvasCtx({ fillRect(){ squares++; } }), g);
+  assert(squares >= 5, 'the sheet draws a post for every post: ' + squares);
 
   /* Lifting a bay takes its climber, exactly as lifting a support or a pot
-     takes its planting: a vine left behind would stand on ground placePlantAt
-     refuses, which an ordinary erase should not be able to reach. */
+     takes its planting. */
   const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0, house: 0, building: 0, fence: 0,
     light: 0, firepit: 0, boulder: 0, pet: 0, pot: 0, seat: 0, waterFeature: 0, support: 0, pergola: 0 };
   game.brushSize = 1; game.eraseMode = 'terrain';
-  eraseBrush(7, 6, counts);
+  eraseBrush(8, 5, counts);
   assertEqual(counts.pergola, 1, 'the bay lifts');
   assertEqual(counts.plants, 1, 'and takes its climber with it');
 
   /* It does not shade. LAYER_CACHES names a pergola as its own example of a
-     layer that must not silently leave the shade map stale, so classifying it
-     {scene:1} is a deliberate statement rather than a missing flag: a tree is
-     the only thing in this app that casts any. */
+     layer that must not silently leave the shade map stale, so leaving shade
+     out is a deliberate statement rather than a missing flag. */
   assert(LAYER_CACHES.pergolas && !LAYER_CACHES.pergolas.shade,
     'a pergola is classified, and casts no shade');
+  assert(LAYER_CACHES.pergolas.pergolas, 'and names the revision its frames are cached on');
   assert(GAME_LAYERS.some(l => l.k === 'pergolas'), 'and is a saved layer');
+});
+
+test('every structure kind in the scene is actually drawn', () => {
+  /* drawSceneEnt routes each structure kind to the cached blitter and returns
+     0 for anything it does not name -- silently. The pergola was missing from
+     that list from the day it shipped, so every pergola ever placed was in the
+     scene, sorted, culled and never drawn. Every kind drawStructEnt can paint
+     must be one drawSceneEnt sends there. */
+  const painted = String(drawStructEnt), routed = String(drawSceneEnt);
+  let n = 0;
+  for (const k of Object.keys(SCENE_K)){
+    if (!painted.includes('SCENE_K.' + k + ':')) continue;
+    n++;
+    assert(routed.includes('SCENE_K.' + k + ':'), k + ' is drawn by the scene pass');
+  }
+  assert(n >= 12, 'and the check found the structure kinds to check: ' + n);
 });

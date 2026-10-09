@@ -189,9 +189,10 @@ function actHere(opts){
   if (game.tool==='support'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${supportLabel()} placed. Plant a climber on it.`); }
-    else toast('No room for that here.');
+    else toast(pergolaAt(x,y) ? 'The pergola is already something to climb — plant the climber on it.' : 'No room for that here.');
     return;
   }
+  if (game.tool==='pergola'){ tapPergolaAt(x,y); return; }
   if (game.tool==='waterfeature'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${waterFeatureLabel()} placed.`); }
@@ -201,7 +202,7 @@ function actHere(opts){
   if (game.tool==='firepit'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${firepitLabel()} placed.`); }
-    else rejectPlacement('Fire pit needs clear dry ground.');
+    else rejectPlacement(pergolaAt(x,y) ? PERGOLA_BLOCKER_TEXT.firepit : 'Fire pit needs clear dry ground.');
     return;
   }
   if (game.tool==='boulder'){
@@ -273,7 +274,7 @@ function actHere(opts){
     if (counts.firepit) parts.push(`${counts.firepit} fire pit${counts.firepit>1?'s':''}`);
     if (counts.waterFeature) parts.push(`${counts.waterFeature} water feature${counts.waterFeature>1?'s':''}`);
     if (counts.support) parts.push(`${counts.support} support${counts.support>1?'s':''}`);
-    // BAYS, not pergolas: a run is one pergola however many tiles it covers
+    // BAYS, not pergolas: a pergola is one however many tiles its roof covers
     if (counts.pergola) parts.push(`${counts.pergola} pergola bay${counts.pergola>1?'s':''}`);
     if (counts.boulder) parts.push(`${counts.boulder} boulder${counts.boulder>1?'s':''}`);
     if (counts.pet) parts.push(counts.pet>1?`${counts.pet} pets`:'a pet');
@@ -313,7 +314,8 @@ function actHere(opts){
       : 'Needs clear ground.');
     return;
   }
-  if (fenceAt(x,y)){ toast('Fence is in the way.'); return; }
+  // a fence is in the way of everything but a climber, which grows ON it
+  if (fenceAt(x,y) && !(PLANTS[game.tool] && PLANTS[game.tool].type==='vine')){ toast('Fence is in the way.'); return; }
   if (lightAt(x,y)){ toast('A light is in the way.'); return; }
   if (firepitAt(x,y)){ toast('A fire pit is in the way.'); return; }
   if (waterFeatureAt(x,y)){ toast('A water feature is in the way.'); return; }
@@ -358,6 +360,14 @@ function actHere(opts){
   if (potHere && isTreeDef(def)){ rejectPlacement('A tree needs open ground, not a container.'); return; }
   if (!potHere && (terr==='path'||terr==='water')){ toast(terr==='water'?'Dry land first — land plants and ponds disagree.':'Dig the path up first — plants and gravel disagree, unless you stand a pot on it.'); return; }
   if (hasPlant){ showPlantCard(existing,x,y); return; }
+  /* Say WHY a climber or a frame refused, rather than the generic line: the
+     rule is symmetric (placePlantAt) and neither half is guessable. */
+  const supHere=supportAt(x,y);
+  if (def.type==='vine' && !supHere){ rejectPlacement('A climber needs something to climb — a fence, a support or a pergola.'); return; }
+  if (supHere && def.type!=='vine' && !supHere.open){
+    rejectPlacement(supHere.kind==='pergola' ? 'A pergola post stands there — only a climber goes at its foot.'
+      : 'That frame is for a climber.'); return; }
+  if (supHere && supHere.kind==='pergola' && isTreeDef(def)){ rejectPlacement(PERGOLA_BLOCKER_TEXT.tree); return; }
   const shadeBlock=canopyShadeHardBlock(def,x,y);
   if (shadeBlock){
     toast(canopyShadeHardMessage(def,shadeBlock));
@@ -591,7 +601,9 @@ function placePlantAt(x,y,opts){
   // a non-plant tool, but this used to be the first line to dereference def
   const sup=supportAt(x,y), isVine=!!def && def.type==='vine';
   if (isVine && !sup) return null;
-  if (sup && !isVine) return null;
+  // a pergola's roof is open ground except where a post stands (supportAt)
+  if (sup && !isVine && !sup.open) return null;
+  if (sup && sup.kind==='pergola' && isTreeDef(def)) return null;   // it would grow through the roof
   if (fenceAt(x,y) && !isVine) return null;
   if (lightAt(x,y)) return null;
   if (firepitAt(x,y)) return null;
@@ -673,17 +685,35 @@ function fenceLabel(f){
   return `${d.height}' ${fenceStyle(d.style).label}${d.gate?' gate':' fence'}`;
 }
 /* ---------- pergolas ----------
-   It stands over a PATIO, so terrain under it is the whole point and is allowed
-   -- exactly as it is under a fence. Everything that stands on the ground is
-   refused, and so is a planted tile: the posts are real. */
-function canPlacePergola(x,y){
-  if (!onPlot(x,y)) return false;
-  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y) || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
-  if (waterFeatureAt(x,y) || potAt(x,y) || seatAt(x,y) || structureSupportAt(x,y)) return false;
-  const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
-  return !(p&&!p.removed) && !(b&&!b.removed);
+   A pergola is a ROOF over ground you go on using, so what stands under it is
+   the point rather than an obstacle: the paving, the table and chairs, the
+   pots, the bed under the rafters. It used to refuse every one of those,
+   which left the commonest pergola there is -- over a dining table -- the one
+   you could not draw. What it still refuses is what genuinely cannot share
+   the footprint: a building or its doorway, water, a fence line, a climbing
+   frame (its posts are the climbing frame), a tree (it would grow through the
+   roof) and a fire pit (fire under a timber roof). */
+function pergolaBlockerAt(x,y){
+  if (!onPlot(x,y)) return 'off';
+  if (siteStructureAt(x,y) || isDoor(x,y)) return 'building';
+  if (tileTerrain(x,y)==='water') return 'water';
+  if (fenceAt(x,y)) return 'fence';
+  if (firepitAt(x,y)) return 'firepit';
+  if (structureSupportAt(x,y)) return 'support';
+  const p=game.plants[`${x},${y}`];
+  if (p && !p.removed && isTreeDef(PLANTS[p.s])) return 'tree';
+  return null;
 }
+const PERGOLA_BLOCKER_TEXT={
+  off:'Keep the pergola on the plot.',
+  building:'A building is in the way of that pergola.',
+  water:'A pergola cannot stand in the water.',
+  fence:'A fence runs through that footprint.',
+  firepit:'Keep the fire pit out from under the pergola.',
+  support:'Move the climbing frame first — the pergola posts will carry the climber.',
+  tree:'A tree is in the way — it would grow up through the roof.',
+};
+function canPlacePergola(x,y){ return !pergolaBlockerAt(x,y); }
 function pergolaDraft(){ return game.pergolaDraft=normalizePergolaDraft(game.pergolaDraft); }
 function pergolaLabel(p){ return pergolaLabelFor(p||pergolaDraft()); }
 function placePergolaAt(x,y){
@@ -694,6 +724,80 @@ function placePergolaAt(x,y){
   if (cur && cur.mat===d.mat && cur.height===d.height) return null;
   setTile('pergolas',k,Object.assign({},d,{t:Date.now()}));
   return 'pergola';
+}
+// the size a single tap lays: about 10 ft square, the commonest kit there is
+const PERGOLA_TAP_TILES = 7;
+function pergolaRect(x0,y0,x1,y1){
+  return {x0:Math.min(x0,x1), y0:Math.min(y0,y1), x1:Math.max(x0,x1), y1:Math.max(y0,y1)};
+}
+// the footprint a tap at (x,y) lays, centred on it and kept on the plot
+function pergolaTapRect(x,y){
+  const n=PERGOLA_TAP_TILES, h=(n-1)>>1;
+  const x0=Math.max(0,Math.min(GW-n,x-h)), y0=Math.max(0,Math.min(GH-n,y-h));
+  return {x0, y0, x1:Math.min(GW-1,x0+n-1), y1:Math.min(GH-1,y0+n-1)};
+}
+/* A pergola is laid WHOLE or not at all: a footprint with a fence through it
+   would come out with a hole and posts standing round it, which is nobody's
+   pergola. Returns the first thing in the way, or null. */
+function pergolaRectBlocker(r){
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const why=pergolaBlockerAt(x,y); if (why) return {why,x,y};
+  }
+  return null;
+}
+function placePergolaRect(r){
+  r=pergolaRect(r.x0,r.y0,r.x1,r.y1);
+  if (pergolaRectBlocker(r)) return 0;
+  let n=0;
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) if (placePergolaAt(x,y)) n++;
+  return n;
+}
+// "10.5 x 12 ft", short side first, in the reader's units
+function pergolaSizeText(w,h){
+  const a=Math.min(w,h)*TILE_IN/12, b=Math.max(w,h)*TILE_IN/12;
+  return a===b ? `${fmtFeet(a,1)} square` : `${fmtFeet(a,1)} x ${fmtFeet(b,1)}`;
+}
+/* Restyle the WHOLE pergola a tile belongs to. Changing the material of one
+   bay would split it into two frames meeting in the middle. */
+function restylePergolaAt(x,y){
+  const reg=pergolaRegionAt(x,y); if (!reg) return 0;
+  const d=normalizePergolaDraft(pergolaDraft()); let n=0;
+  for (const [tx,ty] of reg.tiles){
+    const cur=pergolaAt(tx,ty);
+    if (!cur || (cur.mat===d.mat && cur.height===d.height)) continue;
+    setTile('pergolas',`${tx},${ty}`,Object.assign({},d,{t:Date.now()})); n++;
+  }
+  return n;
+}
+/* What a tap does with the pergola armed. On an existing pergola it restyles
+   it to the armed material and height; on open ground it lays a whole pergola
+   about 10 ft square, the way a tap with a bench lays a bench. Any other size
+   is a drag, corner to corner (placePergolaRect). */
+function tapPergolaAt(x,y){
+  if (pergolaAt(x,y)){
+    if (restylePergolaAt(x,y)){ const d=pergolaDraft(); hapticFeedback('place');
+      toast(`Changed the pergola to ${pergolaMaterial(d.mat).label.toLowerCase()}, ${fmtFeet(d.height)} high.`); }
+    else toast('Drag corner to corner to add to it, or erase bays to trim it.');
+    return;
+  }
+  const r=pergolaTapRect(x,y), bl=pergolaRectBlocker(r);
+  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.'); return; }
+  if (placePergolaRect(r)){
+    hapticFeedback('place');
+    toast(`Laid a ${pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1)} ${pergolaLabel().toLowerCase()}. Drag corner to corner for another size.`);
+  }
+}
+/* A drag lays the rectangle between its two corners (input.js hands this the
+   corners at pointerup). Reported once, for the whole roof. */
+function finishPergolaDrag(x0,y0,x1,y1){
+  const r=pergolaRect(x0,y0,x1,y1), bl=pergolaRectBlocker(r);
+  if (bl){ rejectPlacement(PERGOLA_BLOCKER_TEXT[bl.why]); return 0; }
+  const n=placePergolaRect(r);
+  if (n){
+    hapticFeedback('place');
+    toast(`Laid a ${pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1)} ${pergolaLabel().toLowerCase()}.`);
+  } else toast('That pergola is already there.');
+  return n;
 }
 function canPlaceFence(x,y){
   if (!onPlot(x,y)) return false;
@@ -716,7 +820,7 @@ function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
   if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
-  if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
+  if (waterFeatureAt(x,y)) return false;     // under a pergola is fine: it is overhead
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -983,7 +1087,8 @@ function canPlaceFirepit(x,y,ignoreKey){
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy)) return false;
-    if (waterFeatureAt(xx,yy)) return false;
+    // no fire under a pergola: the other half of pergolaBlockerAt
+    if (waterFeatureAt(xx,yy) || pergolaAt(xx,yy)) return false;
     const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -1094,14 +1199,19 @@ function supportAt(x,y){
   }
   const f=fenceAt(x,y);
   if (f && !f.gate) return {kind:'fence', ft:fenceHeightFor(f.style,f.height), fence:f, w:1, h:1, x, y};
-  /* A PERGOLA is a support and cost almost nothing to make one: it already
-     carries a real height in feet and a run axis, which is exactly what a
-     climber needs to know. This is the seam the supports note named -- a
-     pergola is a RUN rather than a piece, which is a different placement idiom
-     -- and once the run existed the climber came free. A wisteria over a
-     pergola is most of why anybody builds one. */
+  /* A PERGOLA is a support anywhere on its roof: a climber planted on any of
+     its tiles pins a post at its foot (pergolaFrameIn), goes up it and over the
+     rafters -- and a wisteria over a pergola is most of why anybody builds one.
+     It is not a support that OCCUPIES its tile the way an obelisk does, though:
+     only a tile where a post really stands is closed to other planting, and the
+     rest of the roof is open ground under a frame -- a bed, a patio, a table.
+     `open` says which. */
   const pg=pergolaAt(x,y);
-  if (pg) return {kind:'pergola', ft:pergolaHeightFor(pg.height), pergola:pg, w:1, h:1, x, y};
+  if (pg){
+    const fr=pergolaFrameAt(x,y), post=fr&&fr.posts.length?fr.posts[0]:null;
+    return {kind:'pergola', ft:pergolaHeightFor(pg.height), pergola:pg, w:1, h:1, x, y,
+      a:fr?fr.a:0, post, open:!post};
+  }
   return null;
 }
 function supportFootprint(x,y,s){
@@ -1118,6 +1228,7 @@ function canPlaceSupport(x,y,ignoreKey){
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)) return false;
     if (potAt(xx,yy) || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+    if (pergolaAt(xx,yy)) return false;      // its posts are the climbing frame there
     const other=structureSupportAt(xx,yy); if (other && other.key!==ignoreKey) return false;
     // as a pot does: the structure goes down first, then the climber goes on it
     const p=game.plants[k], b=game.bulbs[k];

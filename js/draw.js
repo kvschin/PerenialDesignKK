@@ -3843,7 +3843,19 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
     const env = u => round ? (1-0.66*u) : (kind==='arch' ? 1-0.18*u : 1-0.10*u);
     // an arch leans its top growth back toward the opening it spans
     const lean = kind==='arch' ? 0.55 : 0;
-    const at = (u,s) => {
+    /* A PERGOLA is climbed up one post and then over the roof: the lower
+       third of every (u,s) the leaf and flower passes ask for lands on the
+       post, the rest on a disc lying on the rafters around it. One mapping, so
+       the leaf, flower and stem passes below are shared unchanged. */
+    const onPergola = kind==='pergola';
+    const post = (onPergola && sup.post) ? sup.post : [0,0];
+    const roofR = TILE_W*0.66*(0.45+0.55*growth), roofY = top-5;
+    const at = onPergola ? (u,s) => {
+      if (u<0.3){ const f=u/0.3;
+        return [post[0]+s*3.2, post[1]+(top-post[1])*0.92*f]; }
+      const f=Math.sqrt((u-0.3)/0.7), ang=s*Math.PI;
+      return [post[0]*0.5+Math.cos(ang)*roofR*f, roofY+post[1]*0.5+Math.sin(ang)*roofR*0.5*f];
+    } : (u,s) => {
       const hw = w0*env(u), lx = ax[0]*hw*s + ax[0]*lean*w0*u*u;
       const ly = ax[1]*hw*s + ax[1]*lean*w0*u*u;
       return [lx, top*u + ly];
@@ -3857,7 +3869,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       const s0=(i/(stems-1||1))*1.6-0.8, wob=(rnd()-0.5)*0.5;
       ctx.lineWidth=1.5-0.5*(i/stems);
       ctx.beginPath();
-      for (let k=0;k<=6;k++){
+      if (onPergola){
+        // twined up the post, then out across the roof in its own direction
+        for (let k=0;k<=5;k++){
+          const f=k/5, px=post[0]+Math.sin(f*7+i*1.7)*2.6, py=post[1]+(top-post[1])*0.95*f;
+          k ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+        }
+        for (let k=1;k<=4;k++){
+          const [px,py]=at(0.3+0.7*(k/4)*(0.6+0.4*Math.abs(s0)),s0+wob*0.4);
+          ctx.lineTo(px,py);
+        }
+      } else for (let k=0;k<=6;k++){
         const u=k/6, sp=s0*(1-0.35*u)+Math.sin(u*4+i)*0.18+wob*u;
         const [px,py]=at(u,sp);
         k ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
@@ -8659,22 +8681,6 @@ function fenceAnchor(x,y,W,H){
 /* Which way the run goes through this tile. A gate has to know: its leaf, its
    posts and its header all sit ON the run, and the old gate drew on a fixed
    screen-horizontal axis, so a gate in a north-south fence faced sideways. */
-// Which way the run goes through this tile -- fenceRunAxis, one structure over.
-function pergolaRunAxis(x,y){
-  const ex=(pergolaNeighbor(x+1,y)?1:0)+(pergolaNeighbor(x-1,y)?1:0);
-  const ey=(pergolaNeighbor(x,y+1)?1:0)+(pergolaNeighbor(x,y-1)?1:0);
-  return ey>ex ? [0,1] : [1,0];
-}
-/* Posts fall at the ends, the corners and every PERGOLA_POST_TILES along --
-   fencePostHere's rule with a wider spacing, because a post every 18 inches is
-   a stockade and a pergola is a frame you walk THROUGH. */
-function pergolaPostHere(x,y){
-  const [rx,ry]=pergolaRunAxis(x,y);
-  const ahead=pergolaAt(x+rx,y+ry), behind=pergolaAt(x-rx,y-ry);
-  if (!ahead || !behind) return true;                 // an end of the run
-  if (pergolaNeighbor(x+ry,y+rx) || pergolaNeighbor(x-ry,y-rx)) return true;  // corner or tee
-  return ((rx?x:y) % PERGOLA_POST_TILES)===0;
-}
 function fenceRunAxis(x,y){
   const ex=(fenceNeighbor(x+1,y)?1:0)+(fenceNeighbor(x-1,y)?1:0);
   const ey=(fenceNeighbor(x,y+1)?1:0)+(fenceNeighbor(x,y-1)?1:0);
@@ -8986,79 +8992,121 @@ function drawGate(ctx,W,H,f,st,x,y,h,run,seed,extra){
    Every member is sized in real INCHES through inH(): the post is 6 ft now, and
    a head sized as a fraction of the post would have grown with it. The METAL
    comes from lightColors (the finish axis) and never from a literal. */
-/* A pergola bay. Drawn the way a fence tile is -- half a beam toward each end,
-   posts only where pergolaPostHere says -- so a run reads as one frame rather
-   than as a row of separate arbours.
-   Two posts per post-tile, set out either side of the run: a single line of
-   posts down the middle is a fence wearing a roof, and the pair is most of what
-   says pergola. Members are real INCHES (the seating rule) and every point goes
-   through a WORLD offset, so the frame turns with the camera. */
+/* A pergola bay: the piece of frame over ONE tile, read off pergolaFrameAt.
+   Each tile is its own sprite in the depth pass (as a fence tile is), so a
+   rafter crossing three tiles is three segments that meet end to end -- which
+   is why a segment draws its end face only where the frame really ends.
+   Every member is a box in real INCHES (the seating rule) laid out in the
+   tile's own b/r frame and projected through the camera's axes, so the frame
+   turns with the view. Inside the bay the posts, braces and beams paint far
+   to near and the rafters go last, because they sit on top of everything. */
 function drawPergola(ctx,W,H,season,pg,x,y){
-  const m=pergolaMaterial(pg&&pg.mat), h=pergolaDrawH(pg), S=PERGOLA_SPEC;
-  const inPx=n=>feetToPx(n/12);
-  const over=inchesToTiles(S.overhangIn);          // rafter overhang, in tiles
-  const P=(fx,fy,up)=>{ const [sx,sy]=screenOf(x+fx,y+fy,W,H); return [sx,sy+TILE_H/2-up]; };
-  const run=pergolaRunAxis(x,y), per=[run[1],run[0]];
-  const line=(a,b,col,wd)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd;
-    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); };
-  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  const postW=Math.max(2,inPx(S.postIn)), beamW=Math.max(1.6,inPx(S.beamIn));
-  const raftW=Math.max(1,inPx(S.rafterIn));
-  const half=0.5, side=0.30;
-  // POSTS -- a pair, and the contact shadow that stops them floating
-  if (pergolaPostHere(x,y)) for (const s of [-1,1]){
-    const foot=P(per[0]*side*s, per[1]*side*s, 0);
-    const head=P(per[0]*side*s, per[1]*side*s, h);
-    ctx.fillStyle='rgba(0,0,0,0.16)';
-    ctx.beginPath(); ctx.ellipse(foot[0],foot[1]+1,postW*0.9,postW*0.4,0,0,7); ctx.fill();
-    line([foot[0],foot[1]+1],[head[0],head[1]-1],'rgba(0,0,0,0.22)',postW+1.6);
-    line(foot,head,m.post,postW);
-    line([foot[0]-postW*0.28,foot[1]],[head[0]-postW*0.28,head[1]],m.hi,postW*0.24);
+  const [cx,cy]=groundCenterRot(x,y,null,W,H);
+  drawPergolaBay(ctx,cx,cy,isoAxes(),pergolaFrameAt(x,y),pg,season);
+}
+function drawPergolaBay(ctx,cx,cy,axes,fr,pg,season){
+  if (!fr) return;
+  const m=pergolaMaterial(pg&&pg.mat), S=pergolaSpec(pg&&pg.mat), a=fr.a;
+  const [ax,ay]=axes, zIn=PX_PER_FT/12, tIn=1/TILE_IN;
+  // tile-frame offset (b along the beams, r across) -> world (x,y) -> screen
+  const sv=(b,r)=>{ const wx=a?r:b, wy=a?b:r; return [ax[0]*wx+ay[0]*wy, ax[1]*wx+ay[1]*wy]; };
+  const P=(b,r,z)=>{ const v=sv(b,r); return [cx+v[0], cy+v[1]-z]; };
+  const top=pergolaDrawH(pg), raftZ0=top-S.rafterIn*zIn;
+  const beamZ1=raftZ0, beamZ0=beamZ1-S.beamIn*zIn;
+  const snow=!!(AMBIENCE[season]&&AMBIENCE[season].snow);
+  const wood={lit:m.beam, dark:shade(m.beam,-38), top:snow?'#eef2f6':m.hi};
+  const postC={lit:m.post, dark:shade(m.post,-34)};
+  const quad=(p,q,s,t,fill)=>{ ctx.fillStyle=fill; ctx.beginPath();
+    ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.lineTo(s[0],s[1]); ctx.lineTo(t[0],t[1]);
+    ctx.closePath(); ctx.fill(); };
+  /* A horizontal member: along b (a beam) or along r (a rafter), from s0 to s1,
+     centred `c` across, half `hw` tiles wide, between heights z0 and z1. Its
+     long face is whichever side looks toward the camera, and it is lit when
+     that face looks left -- the upper-left light every structure here uses. */
+  const bar=(alongB,s0,s1,c,hw,z0,z1,cap0,cap1)=>{
+    const L=(s,o,z)=>alongB?P(s,c+o,z):P(c+o,s,z);
+    const vX=alongB?sv(0,1):sv(1,0), vA=alongB?sv(1,0):sv(0,1);
+    const side=vX[1]>0?1:-1, end=vA[1]>0?1:-1;
+    quad(L(s0,side*hw,z1),L(s1,side*hw,z1),L(s1,side*hw,z0),L(s0,side*hw,z0),vX[0]*side<0?wood.lit:wood.dark);
+    if (end>0?cap1:cap0){ const s=end>0?s1:s0;
+      quad(L(s,-hw,z1),L(s,hw,z1),L(s,hw,z0),L(s,-hw,z0),vA[0]*end<0?wood.lit:wood.dark); }
+    quad(L(s0,-hw,z1),L(s1,-hw,z1),L(s1,hw,z1),L(s0,hw,z1),wood.top);
+  };
+  // a segment that meets the next tile's overlaps it a hair, so the seam closes
+  const J=0.012;
+  const items=[];
+  ctx.save();
+  const hp=S.postIn/2*tIn;
+  for (const [b,r] of fr.posts){
+    items.push({y:sv(b,r)[1], k:0, draw(){
+      const foot=P(b,r,0);
+      // up into the beam it carries, or to the rafter where a climber pinned it off any beam
+      const zTop=(fr.beams.some(bm=>bm[0]===r)?beamZ0:raftZ0)+1;
+      drawSoftShadow(ctx,foot[0],foot[1]+1,TILE_W*hp*1.7,TILE_H*hp*1.7,0.7);
+      for (const [nb,nr] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const v=sv(nb,nr); if (v[1]<=0) continue;
+        const p1=nb?[b+nb*hp,r-hp]:[b-hp,r+nr*hp], p2=nb?[b+nb*hp,r+hp]:[b+hp,r+nr*hp];
+        quad(P(p1[0],p1[1],zTop),P(p2[0],p2[1],zTop),P(p2[0],p2[1],0),P(p1[0],p1[1],0),
+          v[0]<0?postC.lit:postC.dark);
+      }
+      if (!m.brace) return;
+      /* Knee braces: the diagonal from post to beam that keeps a timber frame
+         from racking. They lie in the beam's own plane, so they take the
+         colour its long face does. */
+      const vX=sv(0,1), lit=vX[0]*(vX[1]>0?1:-1)<0;
+      const len=S.braceIn*tIn, drop=S.braceIn*zIn;
+      ctx.strokeStyle=lit?wood.lit:wood.dark; ctx.lineCap='butt';
+      ctx.lineWidth=Math.max(1,S.beamWIn*zIn*1.1);
+      for (const [pb,pr,dir] of fr.braces){
+        if (pb!==b || pr!==r) continue;
+        const p=P(b+dir*hp,r,beamZ0-drop), q=P(b+dir*(hp+len),r,beamZ0);
+        ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+      }
+    }});
   }
-  // BEAMS -- one each side, running the length of the bay
-  for (const s of [-1,1]){
-    const a=P(per[0]*side*s-run[0]*half, per[1]*side*s-run[1]*half, h);
-    const b=P(per[0]*side*s+run[0]*half, per[1]*side*s+run[1]*half, h);
-    line(a,b,m.beam,beamW);
-    line([a[0],a[1]-beamW*0.34],[b[0],b[1]-beamW*0.34],m.hi,beamW*0.26);
-  }
-  /* RAFTERS -- across the run, ONE per tile. A tile is 18 inches, which is
+  const hb=S.beamWIn/2*tIn;
+  for (const [r,e0,e1] of fr.beams)
+    items.push({y:sv(0,r)[1], k:1, draw(){ bar(true,e0?-0.5:-0.5-J,e1?0.5:0.5+J,r,hb,beamZ0,beamZ1,e0,e1); }});
+  items.sort((p,q)=>p.y-q.y || p.k-q.k);
+  for (const it of items) it.draw();
+  /* RAFTERS -- ONE per tile, across the beams. A tile is 18 inches, which is
      what a rafter is really set at, so the tile lattice gives the right rhythm
-     for free and costs one shape instance a bay. */
-  {
-    const a=P(-per[0]*(side+over), -per[1]*(side+over), h+raftW*1.4);
-    const b=P( per[0]*(side+over),  per[1]*(side+over), h+raftW*1.4);
-    line(a,b,m.beam,raftW);
-    line([a[0],a[1]-raftW*0.4],[b[0],b[1]-raftW*0.4],m.hi,raftW*0.3);
-    if (AMBIENCE[season] && AMBIENCE[season].snow)
-      line([a[0],a[1]-raftW*1.1],[b[0],b[1]-raftW*1.1],'rgba(240,244,250,0.72)',raftW*0.9);
-  }
+     for free. They run edge to edge of the roof, so their tails overhang the
+     edge beams by PERGOLA_OVERHANG. */
+  const [c0,c1]=fr.raf;
+  bar(false,c0?-0.5:-0.5-J,c1?0.5:0.5+J,0,S.rafterWIn/2*tIn,raftZ0,top,c0,c1);
   ctx.restore();
 }
-/* The tray chip: a short stretch of frame drawn without a camera, so a chip
-   cannot advertise a pergola the canvas does not draw. It cannot reuse
-   drawPergola, which positions itself with screenOf and would land hundreds of
-   pixels off a 48x44 canvas -- the miniWater seam, exactly. */
-function drawPergolaArt(ctx,cx,cy,pg,scale){
-  scale=scale||1;
-  const m=pergolaMaterial(pg&&pg.mat), S=PERGOLA_SPEC;
-  const h=pergolaDrawH(pg)*scale;
-  const inPx=n=>Math.max(0.8,feetToPx(n/12)*scale);
-  const halfW=TILE_W*0.42*scale, dep=TILE_H*0.30*scale;
-  const line=(x1,y1,x2,y2,col,wd)=>{ ctx.strokeStyle=col; ctx.lineWidth=wd;
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
-  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  for (const s of [-1,1]){
-    const bx=cx+s*halfW*0.72, by=cy+s*dep*0.5;
-    line(bx,by,bx,by-h,m.post,inPx(S.postIn));
+/* A whole small pergola at a ground point, through drawPergolaBay and the same
+   pergolaFrameIn the garden uses, so the tray chip and the brush swatch cannot
+   advertise a pergola the canvas does not draw. It cannot reuse drawPergola,
+   which positions itself with screenOf and would land hundreds of pixels off a
+   48x44 canvas -- the miniWater seam, exactly. Bays paint far to near. */
+const PERGOLA_ART_SIZE={lenB:5, lenR:4};
+function drawPergolaArt(ctx,cx,cy,pg,season,axes,lenB,lenR){
+  lenB=lenB||PERGOLA_ART_SIZE.lenB; lenR=lenR||PERGOLA_ART_SIZE.lenR;
+  axes=axes||ISO_AXES_FLAT;
+  const tiles=[];
+  for (let r=0;r<lenR;r++) for (let b=0;b<lenB;b++) tiles.push([b,r]);
+  const info=pergolaRegionInfo(tiles), has=(x,y)=>x>=0&&y>=0&&x<lenB&&y<lenR;
+  const [ax,ay]=axes, ox=(lenB-1)/2, oy=(lenR-1)/2;
+  const at=(x,y)=>[cx+ax[0]*(x-ox)+ay[0]*(y-oy), cy+ax[1]*(x-ox)+ay[1]*(y-oy)];
+  tiles.sort((p,q)=>at(p[0],p[1])[1]-at(q[0],q[1])[1]);
+  for (const [x,y] of tiles){
+    const [sx,sy]=at(x,y);
+    drawPergolaBay(ctx,sx,sy,axes,pergolaFrameIn(has,info,x,y),pg,season);
   }
-  line(cx-halfW*0.72,cy-dep*0.5-h, cx+halfW*0.72,cy+dep*0.5-h, m.beam,inPx(S.beamIn));
-  for (let i=-1;i<=1;i++){
-    const ox=i*halfW*0.58, oy=i*dep*0.40;
-    line(cx+ox-halfW*0.32,cy+oy+dep*0.32-h-2, cx+ox+halfW*0.32,cy+oy-dep*0.32-h-2,
-      m.beam,inPx(S.rafterIn));
+}
+// how far drawPergolaArt reaches from its ground point, for fitting a chip
+function pergolaArtExtent(pg,lenB,lenR,axes){
+  lenB=lenB||PERGOLA_ART_SIZE.lenB; lenR=lenR||PERGOLA_ART_SIZE.lenR;
+  const [ax,ay]=axes||ISO_AXES_FLAT, hb=lenB/2, hr=lenR/2, top=pergolaDrawH(pg);
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for (const [u,v] of [[-hb,-hr],[hb,-hr],[hb,hr],[-hb,hr]]){
+    const sx=ax[0]*u+ay[0]*v, sy=ax[1]*u+ay[1]*v;
+    x0=Math.min(x0,sx); x1=Math.max(x1,sx); y0=Math.min(y0,sy-top); y1=Math.max(y1,sy);
   }
-  ctx.restore();
+  return {x0,x1,y0,y1};
 }
 function drawLightArt(ctx,cx,base,l,lit,season,scale){
   scale=scale||1;

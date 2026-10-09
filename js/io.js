@@ -912,19 +912,25 @@ function hardscapeRows(){
     const [st,h]=id.split('|');
     add('Fence', `${fenceStyle(st).label}, ${fmtFeet(+h)} high`, fmtFeet(fenceFt[id]), fenceFt[id]);
   }
-  /* A pergola is billed like a fence and for the same reason: a tile is one
-     18in bay of frame, so the run IS the quantity. It is one of the few things
-     on this list somebody orders as a kit. */
-  const pergolaFt={};
-  for (const k in game.pergolas||{}){
-    const pg=game.pergolas[k]; if (!pg||pg.removed) continue;
-    const d=normalizePergolaDraft(pg);
-    const id=d.mat+'|'+d.height;
-    pergolaFt[id]=(pergolaFt[id]||0)+1;
+  /* A pergola is a thing you BUY, by its size -- "a 10 x 12 timber pergola" is
+     how a kit or a carpenter's quote is written -- so it is counted, one per
+     roof, and the sub-line says its footprint and how many posts go in the
+     ground. It was billed by the foot like a fence while it was modelled as
+     one, which quoted a 10 ft square pergola as 74 ft of something. Two of one
+     size and material share a line. */
+  const pergolas={};
+  for (const reg of pergolaRegions().list){
+    const inf=reg.info, w=inf.x1-inf.x0+1, h=inf.y1-inf.y0+1, rect=reg.tiles.length===w*h;
+    let posts=0;
+    for (const [x,y] of reg.tiles) posts+=pergolaFrameAt(x,y).posts.length;
+    const id=[reg.mat,reg.height,rect?Math.min(w,h)+'x'+Math.max(w,h):'a'+reg.tiles.length,posts].join('|');
+    if (!pergolas[id]) pergolas[id]={n:0,reg,w,h,rect,posts};
+    pergolas[id].n++;
   }
-  for (const id in pergolaFt){
-    const [mat,ht]=id.split('|'), ft=pergolaFt[id]*TILE_IN/12;
-    add('Pergola', `${pergolaMaterial(mat).label}, ${fmtFeet(+ht)} high`, fmtFeet(ft), ft);
+  for (const id in pergolas){
+    const g=pergolas[id], area=tileAreaSqFt(g.reg.tiles.length);
+    add('Pergola', pergolaLabelFor({mat:g.reg.mat,height:g.reg.height}), g.n, g.n,
+      (g.rect ? pergolaSizeText(g.w,g.h) : `${fmtAreaSqFt(area)} covered`)+`, ${g.posts} posts`);
   }
   const gates=fenceGateOpenings();
   for (const id in gates){
@@ -2637,9 +2643,38 @@ function drawPlanGround(ctx,g,site){
     ctx.restore();
   });
 }
-// the site OVER the planting: footprints, houses, and the deeded lot line
+// the site OVER the planting: pergolas, footprints, houses, and the deeded lot line
 function drawPlanStructures(ctx,g){
   const {cell,X,Y}=g;
+  /* Pergolas, the way an overhead structure is drawn on a plan: the roof's
+     edge DASHED (it is above the planting, not on the ground), the rafters as
+     fine lines across it, the beams heavier, the posts solid -- read off the
+     same pergolaFrameAt the garden draws, so the sheet puts the posts where the
+     garden does. Drawn over the planting and light enough to read it through. */
+  for (const reg of pergolaRegions().list){
+    const m=pergolaMaterial(reg.mat), ink=mixHex(m.post,'#3b3226',0.45);
+    ctx.save();
+    ctx.strokeStyle=ink; ctx.lineCap='butt';
+    const pt=(x,y,b,r,a)=>[X(x)+cell/2+(a?r:b)*cell, Y(y)+cell/2+(a?b:r)*cell];
+    const line=(p,q)=>{ ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke(); };
+    for (const [x,y] of reg.tiles){
+      const fr=pergolaFrameAt(x,y), a=fr.a;
+      ctx.globalAlpha=0.5; ctx.lineWidth=Math.max(0.6,cell*0.05);
+      line(pt(x,y,0,-0.5,a),pt(x,y,0,0.5,a));                      // the rafter
+      ctx.globalAlpha=0.8; ctx.lineWidth=Math.max(1,cell*0.09);
+      for (const [r] of fr.beams) line(pt(x,y,-0.5,r,a),pt(x,y,0.5,r,a));
+      ctx.globalAlpha=1; ctx.fillStyle=ink;
+      const ps=Math.max(2.5,cell*pergolaSpec(reg.mat).postIn/TILE_IN);
+      for (const [b,r] of fr.posts){ const p=pt(x,y,b,r,a); ctx.fillRect(p[0]-ps/2,p[1]-ps/2,ps,ps); }
+    }
+    ctx.globalAlpha=1; ctx.lineWidth=1.2; ctx.setLineDash([5,3]);
+    for (const loop of traceOutlines(new Set(reg.tiles.map(([x,y])=>`${x},${y}`)))){
+      ctx.beginPath();
+      loop.forEach(([lx,ly],i)=>{ const px=X(lx), py=Y(ly); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+  }
   // building footprints: exterior site context, deliberately distinct from legacy houses
   (game.buildings||[]).forEach(b=>{
     if (!b || !Array.isArray(b.vertices) || b.vertices.length<3) return;

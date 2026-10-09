@@ -293,6 +293,7 @@ const game = {
   sceneRev:0,          // renderer scene-list revision: an entity moved/appeared/vanished (NOT terrain — see LAYER_CACHES)
   plantsRev:0,         // plants-map revision: the shade map and the shrub index track trees/shrubs only
   potsRev:0,           // pots-map revision: the pot tile index (potIndex) rebuilds on change, not on every scene edit
+  pergolasRev:0,       // pergolas-map revision: the derived frames (pergolaRegions) rebuild on change, not on every scene edit
   shadeRev:0,          // "something unclassified may cast shade" — only the unknown-layer fallback bumps it
   plotRev:0,           // plot-shape mask revision: bumped by setPlotShape/setWorldSize; onPlot mask rebuilds on change
 };
@@ -445,13 +446,16 @@ const LAYER_CACHES={
      Classified `scene` alone, a climber would keep its old shape until some
      unrelated edit rebuilt the scene. */
   supports:      {scene:1, plants:1},
-  /* One sprite in the depth pass and nothing else. Note this table's own
-     warning names a pergola as the example of a layer that must not silently
-     leave the SHADE map stale -- classifying it {scene:1} is the deliberate
-     statement that it does not shade, which is true today: ensureShadeMap walks
-     treeIndex() and a tree is the only thing in this app that casts any. A
-     pergola that shaded would be a new feature, not a missing flag. */
-  pergolas:      {scene:1, plants:1},
+  /* One sprite a tile in the depth pass. Note this table's own warning names a
+     pergola as the example of a layer that must not silently leave the SHADE
+     map stale -- leaving `shade` out is the deliberate statement that it does
+     not shade, which is true today: ensureShadeMap walks treeIndex() and a tree
+     is the only thing in this app that casts any. A pergola that shaded would
+     be a new feature, not a missing flag. `plants` because its posts are where
+     a climber may stand (supportAt); `pergolas` names the revision the derived
+     frames are cached on, the pots rule: keyed on sceneRev they would rebuild
+     on every stamp of a planting drag. */
+  pergolas:      {scene:1, plants:1, pergolas:1},
   boulders:  {scene:1},
   pets:      {scene:1},   // one sprite in the depth pass; no ground, shade or spacing effect
   /* `pots` names its own revision for the same reason `plants` does: potIndex()
@@ -471,10 +475,11 @@ const LAYER_CACHES={
   buildings: {scene:1, trace:1},
 };
 function markLayerCacheChanged(layer,key){
-  const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1, pots:1, shade:1};   // unknown layer: assume the worst
+  const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1, pots:1, pergolas:1, shade:1};   // unknown layer: assume the worst
   if (c.scene) game.sceneRev++;
   if (c.plants) game.plantsRev++;
   if (c.pots) game.potsRev++;
+  if (c.pergolas) game.pergolasRev++;
   /* `shade` means "this edit may have changed the shade map by a route the tree
      index cannot see". No classified layer sets it — the shade map is keyed on
      a signature of the TREES, and every layer in the table above is either not
@@ -1493,6 +1498,137 @@ function isDoor(x,y){
 }
 function pergolaAt(x,y){ const p=game.pergolas&&game.pergolas[`${x},${y}`]; return (p&&!p.removed)?p:null; }
 function pergolaNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!pergolaAt(x,y); }
+/* ---------- pergola frames ----------
+   A pergola is stored as the tiles its roof covers and nothing else; every
+   structural member is DERIVED from that shape, here and only here, so the
+   garden, the tray chip, the plan sheet, the materials list and the climber
+   rule cannot disagree about where a post stands.
+   A pergola is the 4-connected run of tiles sharing one material and height
+   (two materials side by side are two frames that meet). Its beams run the
+   LONG way of its bounding box and its rafters cross the short span, which is
+   how one is built: the rafters are the members that have to span, so they
+   take the short direction. In a tile's own frame `b` runs along the beams and
+   `r` across them, both -0.5..0.5 from the tile's centre.
+   Cached on pergolasRev + map identity (load, undo and a new garden swap the
+   map) + the plot size, since tiles are indexed y*GW+x. */
+const PERGOLA_OVERHANG = PERGOLA_SPEC.overhangIn/TILE_IN;   // tails past the beams, in tiles
+const PERGOLA_NARROW = 0.28;     // a one-tile-wide run: the two beams sit this far either side of its centre
+let pergolaRegionCache={rev:-1, ref:null, gw:0, gh:0, at:new Map(), list:[]};
+function pergolaRegionKey(p){ return pergolaMatId(p&&p.mat)+'|'+pergolaHeightFor(p&&p.height); }
+// stops along a line of `len` tiles, evenly spaced and never more than maxGap apart
+function pergolaStops(len,maxGap){
+  const n=Math.max(1,Math.ceil((len-1)/maxGap)), s=new Set();
+  for (let k=0;k<=n;k++) s.add(Math.round(k*(len-1)/n));
+  return s;
+}
+function pergolaRegionInfo(tiles){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for (const [x,y] of tiles){ if (x<x0)x0=x; if (x>x1)x1=x; if (y<y0)y0=y; if (y>y1)y1=y; }
+  const a=(x1-x0)>=(y1-y0)?0:1;
+  const lenB=(a?y1-y0:x1-x0)+1, lenR=(a?x1-x0:y1-y0)+1;
+  const midR=pergolaStops(lenR,PERGOLA_SPAN_TILES); midR.delete(0); midR.delete(lenR-1);
+  return {a, x0, y0, x1, y1, bMin:a?y0:x0, rMin:a?x0:y0, lenB, lenR,
+    postB:pergolaStops(lenB,PERGOLA_POST_TILES), midR};
+}
+function pergolaRegions(){
+  const c=pergolaRegionCache;
+  if (c.rev===game.pergolasRev && c.ref===game.pergolas && c.gw===GW && c.gh===GH) return c;
+  const map=game.pergolas||{}, at=new Map(), list=[], keyOf=new Map();
+  for (const k in map){ const p=map[k]; if (!p||p.removed) continue;
+    const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
+    if (x>=0&&y>=0&&x<GW&&y<GH) keyOf.set(y*GW+x,pergolaRegionKey(p));
+  }
+  for (const [i0,key] of keyOf){
+    if (at.has(i0)) continue;
+    const reg={key, tiles:[], info:null, has:null};
+    const stack=[i0]; at.set(i0,reg);
+    while (stack.length){
+      const i=stack.pop(), x=i%GW, y=(i-x)/GW; reg.tiles.push([x,y]);
+      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=x+dx, ny=y+dy; if (nx<0||ny<0||nx>=GW||ny>=GH) continue;
+        const j=ny*GW+nx; if (at.has(j) || keyOf.get(j)!==key) continue;
+        at.set(j,reg); stack.push(j);
+      }
+    }
+    const [mat,ht]=key.split('|'); reg.mat=mat; reg.height=+ht;
+    reg.info=pergolaRegionInfo(reg.tiles);
+    reg.has=(xx,yy)=>xx>=0&&yy>=0&&xx<GW&&yy<GH&&at.get(yy*GW+xx)===reg;
+    list.push(reg);
+  }
+  pergolaRegionCache={rev:game.pergolasRev, ref:game.pergolas, gw:GW, gh:GH, at, list};
+  return pergolaRegionCache;
+}
+/* The frame over ONE tile, as plain data -- which is also the whole of its
+   sprite key, so the drawing can only read what the key names.
+     a       which world axis the beams run along (0 = x, 1 = y)
+     beams   [r, endsBack, endsFront]: a beam across the tile along b at offset r
+     posts   [b, r]
+     braces  [b, r, dir]: a knee brace from the post toward +b or -b
+     raf     [capBack, capFront]: the rafter across the tile, and which of its
+             ends is a real end rather than a joint with the next tile's
+   Edge beams sit PERGOLA_OVERHANG in from the roof's edge, so the rafter tails
+   overhang them by that much; a one-tile run has nowhere to overhang and keeps
+   its pair of beams PERGOLA_NARROW either side of the centre. Posts stand where
+   a beam ends -- at the corners, and where an L-shaped roof steps -- and at the
+   evenly spaced stops pergolaRegionInfo hands out along the long side. */
+function pergolaFrameIn(has,info,x,y,pin){
+  const a=info.a, B=a?[0,1]:[1,0], R=a?[1,0]:[0,1];
+  const at=(db,dr)=>has(x+B[0]*db+R[0]*dr, y+B[1]*db+R[1]*dr);
+  const edge=0.5-PERGOLA_OVERHANG;
+  const linesAt=db=>{
+    if (!at(db,0)) return [];
+    const n0=at(db,-1), n1=at(db,1), out=[];
+    if (!n0 && !n1) return [-PERGOLA_NARROW, PERGOLA_NARROW];
+    if (!n0) out.push(-edge);
+    if (!n1) out.push(edge);
+    const ri=(a?x:y)-info.rMin;               // the row is the same along b
+    if (n0 && n1 && info.midR.has(ri)) out.push(0);
+    return out;
+  };
+  const bi=(a?y:x)-info.bMin, out={a, beams:[], posts:[], braces:[], raf:[!at(0,-1)?1:0, !at(0,1)?1:0]};
+  const back=linesAt(-1), front=linesAt(1);
+  for (const r of linesAt(0)){
+    const e0=back.indexOf(r)<0, e1=front.indexOf(r)<0;
+    out.beams.push([r, e0?1:0, e1?1:0]);
+    let b=null;
+    if (e0 && e1) b=0;
+    else if (e0) b=-edge;
+    else if (e1) b=edge;
+    else if (info.postB.has(bi)) b=0;
+    if (b===null) continue;
+    out.posts.push([b,r]);
+    // a short beam has no room for a brace: it would reach the next post
+    if (!(e0 && e1) && info.lenB>=4){
+      if (!e1) out.braces.push([b,r,1]);
+      if (!e0) out.braces.push([b,r,-1]);
+    }
+  }
+  /* A climber PINS a post: planted on a tile with none, it gets one at its
+     foot -- under the beam when the tile carries one, otherwise standing up to
+     the rafter -- so a wisteria may go anywhere on the roof, and reshaping the
+     roof can never leave it climbing nothing. */
+  if (pin && !out.posts.length && pin(x,y)){
+    const r=out.beams.length ? out.beams[0][0] : 0;
+    out.posts.push([0,r]);
+  }
+  return out;
+}
+// a climber planted on this tile -- the `pin` the live garden hands pergolaFrameIn
+function pergolaVineAt(x,y){
+  const p=game.plants[`${x},${y}`];
+  return !!(p && !p.removed && PLANTS[p.s] && PLANTS[p.s].type==='vine');
+}
+// the frame over a tile of the live garden (a tile outside it is a lone bay)
+function pergolaFrameAt(x,y){
+  const R=pergolaRegions(), reg=(x>=0&&y>=0&&x<GW&&y<GH)?R.at.get(y*GW+x):null;
+  if (!reg) return pergolaFrameIn((xx,yy)=>xx===x&&yy===y, pergolaRegionInfo([[x,y]]), x, y, pergolaVineAt);
+  return pergolaFrameIn(reg.has, reg.info, x, y, pergolaVineAt);
+}
+// the pergola a tile belongs to, or null
+function pergolaRegionAt(x,y){
+  if (!(x>=0&&y>=0&&x<GW&&y<GH)) return null;
+  return pergolaRegions().at.get(y*GW+x)||null;
+}
 function fenceAt(x,y){ const f=game.fences[`${x},${y}`]; return (f&&!f.removed)?f:null; }
 function fenceBlocks(x,y){ const f=fenceAt(x,y); return !!(f && !f.gate); }
 function fenceNeighbor(x,y){ return x>=0 && y>=0 && x<GW && y<GH && !!fenceAt(x,y); }
@@ -1830,9 +1966,15 @@ function climberRenderDetail(x,y,p,W,H){
   const sup=supportAt(x,y); if (!sup) return null;
   const reachFt=(P.heightIn||P.h*12)/12;
   const out={climb:sup.kind, ft:Math.min(sup.ft, reachFt)};
-  if (sup.kind==='fence' || sup.kind==='pergola' || sup.kind==='panel' || sup.kind==='arch'){
+  /* On a pergola it climbs the POST and spreads over the roof, so the drawing
+     needs where the post stands on screen relative to the tile's centre. */
+  if (sup.kind==='pergola' && sup.post){
+    const [ax,ay]=isoAxes(), a=sup.a, b=sup.post[0], r=sup.post[1];
+    const wx=a?r:b, wy=a?b:r;
+    out.post=[Math.round(ax[0]*wx+ay[0]*wy), Math.round(ax[1]*wx+ay[1]*wy)];
+  }
+  if (sup.kind==='fence' || sup.kind==='panel' || sup.kind==='arch'){
     const run = sup.kind==='fence' ? fenceRunAxis(x,y)
-      : sup.kind==='pergola' ? pergolaRunAxis(x,y)
       : (normalizeFacing(sup.face)%2 ? [0,1] : [1,0]);
     const [sx,sy]=screenOf(x,y,W,H), [nx,ny]=screenOf(x+run[0],y+run[1],W,H);
     const dx=nx-sx, dy=ny-sy, len=Math.hypot(dx,dy)||1;

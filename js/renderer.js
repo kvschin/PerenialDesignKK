@@ -2145,20 +2145,14 @@ function computeStructSpriteSpec(e){
     case SCENE_K.SUPPORT:
       // the willow weave is seeded off the tile; timber and metal are not
       return Object.assign({key:'V|'+structRecordSig(e.sp)+'|'+tileSeed(e.x,e.y)}, box);
-    case SCENE_K.PERGOLA:{
-      /* Like a fence, it reads OUTSIDE its own record: which neighbours it
-         connects to decides the beams, and pergolaPostHere decides the posts.
-         ASK that function rather than restating its rule -- restating the
-         fence's is how a cached fence loses its posts. */
-      const x=e.x, y=e.y;
-      const nb=(pergolaNeighbor(x+1,y)?1:0)|(pergolaNeighbor(x-1,y)?2:0)|
-               (pergolaNeighbor(x,y+1)?4:0)|(pergolaNeighbor(x,y-1)?8:0);
-      const ax=pergolaRunAxis(x,y), post=pergolaPostHere(x,y)?1:0;
-      const ev=elevationAt(x,y)+'.'+elevationAt(x+1,y)+'.'+elevationAt(x-1,y)+
-               '.'+elevationAt(x,y+1)+'.'+elevationAt(x,y-1);
-      return Object.assign({key:'G|'+structRecordSig(e.pg)+'|'+nb+'|'+ax[0]+','+ax[1]+
-        '|'+post+'|'+ev}, box);
-    }
+    case SCENE_K.PERGOLA:
+      /* Like a fence, it reads OUTSIDE its own record -- the whole roof decides
+         where this tile's posts, beams and rafter ends fall. pergolaFrameAt is
+         that answer as plain data, and drawPergolaBay reads nothing else, so
+         the frame IS the key: ASK it rather than restating its rules, which is
+         how a cached fence once lost its posts. Elevation is not in it: every
+         member is placed off this tile's own anchor, which the blit supplies. */
+      return Object.assign({key:'G|'+structRecordSig(e.pg)+'|'+JSON.stringify(pergolaFrameAt(e.x,e.y))}, box);
     case SCENE_K.PET:
       return Object.assign({key:'T|'+structRecordSig(e.p)}, box);
     case SCENE_K.LIGHT:
@@ -3022,6 +3016,7 @@ function drawSceneEnt(e,W,H,season,sway,useSprites,ctx=cx,cacheStructures=ctx===
     case SCENE_K.FIREPIT:
     case SCENE_K.WATERF:
     case SCENE_K.SUPPORT:
+    case SCENE_K.PERGOLA:   // missing here until 0.9.62, so no pergola ever drew
     case SCENE_K.BOULDER:
     case SCENE_K.PET:
     case SCENE_K.POT:
@@ -3761,6 +3756,7 @@ function render(t){
   // selection tool: marquee, committed selection, and move/copy ghost
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
   drawRulerOverlay(cx,W,H);
+  drawPergolaGhost(cx,W,H,cal.season);
   drawToolDragMetric(cx,W,H);
   if (game.layerVis.edgeRulers && VW>640) drawSelectionMetrics(cx,W,H,{x0:0,y0:0,x1:GW-1,y1:GH-1});
   if (typeof positionSelectionActions==='function') positionSelectionActions();
@@ -3887,7 +3883,11 @@ function drawRulerOverlay(cx,W,H){
    but the one area that is REMOVED, so it says so: without the word, a mown
    path's readout reads as the size of the meadow it is cut through. */
 function toolDragMetricLabel(drag){
-  if (!drag || !drag.active || !drag.what) return null;
+  if (!drag || !drag.active) return null;
+  // a rectangle (the pergola) reads its footprint, which exists before any tile does
+  if (drag.rect){ const r=pergolaRect(drag.sx,drag.sy,drag.cx,drag.cy);
+    return pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1); }
+  if (!drag.what) return null;
   const meta=toolMeta(game.tool);
   if (meta.measure==='area'){
     const label=fmtAreaSqFt(tileAreaSqFt(drag.affected?drag.affected.size:0));
@@ -3898,6 +3898,54 @@ function toolDragMetricLabel(drag){
     return size>1 ? `${label} x ${selMetricLabel(size)} wide` : label;
   }
   return null;
+}
+/* What a pergola tap or drag is about to lay, before it is laid: the tiles of
+   the footprint (red where something stands in the way, since a pergola is
+   laid whole or not at all), and while dragging the translucent frame itself,
+   so where the posts land and which way the rafters run is visible before the
+   gesture commits. Hovering an existing pergola outlines it instead -- a tap
+   there restyles it. Drawn only with the pergola armed, and the frame only for
+   a footprint small enough to cost nothing (PERGOLA_GHOST_MAX tiles). */
+const PERGOLA_GHOST_MAX=400;
+function drawPergolaGhost(cx,W,H,season){
+  if (game.tool!=='pergola' || !layerShown('landscape')) return;
+  const td=typeof toolDrag!=='undefined'?toolDrag:null;
+  let r=null, framed=false;
+  if (td && td.rect && td.active){ r=pergolaRect(td.sx,td.sy,td.cx,td.cy); framed=true; }
+  else if (!td && game.hoverTile){
+    const [hx,hy]=game.hoverTile;
+    const reg=pergolaRegionAt(hx,hy);
+    if (reg){
+      for (const [x,y] of reg.tiles){ const [sx,sy]=screenOf(x,y,W,H);
+        tileDiamond(cx,sx,sy,'rgba(243,236,221,0.16)','rgba(243,236,221,0.5)',[4,3]); }
+      return;
+    }
+    r=pergolaTapRect(hx,hy);
+  }
+  if (!r) return;
+  const blocked=!!pergolaRectBlocker(r), tiles=[];
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    tiles.push([x,y]);
+    const [sx,sy]=screenOf(x,y,W,H), bad=pergolaBlockerAt(x,y);
+    tileDiamond(cx,sx,sy,bad?'rgba(196,58,44,0.42)':blocked?'rgba(196,58,44,0.12)':'rgba(243,236,221,0.22)',null);
+  }
+  // the roof's edge, on the corner lattice (screenOfCorner: it turns differently)
+  cx.save(); cx.setLineDash([6,4]); cx.lineWidth=1.6;
+  cx.strokeStyle=blocked?'rgba(230,118,92,0.9)':'rgba(243,236,221,0.85)';
+  cx.beginPath();
+  [[r.x0,r.y0],[r.x1+1,r.y0],[r.x1+1,r.y1+1],[r.x0,r.y1+1]].forEach(([qx,qy],i)=>{
+    const [px,py]=screenOfCorner(qx,qy,W,H); i?cx.lineTo(px,py):cx.moveTo(px,py); });
+  cx.closePath(); cx.stroke(); cx.restore();
+  if (!framed || blocked || tiles.length>PERGOLA_GHOST_MAX) return;
+  const info=pergolaRegionInfo(tiles), has=(x,y)=>x>=r.x0&&x<=r.x1&&y>=r.y0&&y<=r.y1;
+  const axes=isoAxes(), d=pergolaDraft();
+  tiles.sort((p,q)=>viewDepth(p[0],p[1])-viewDepth(q[0],q[1]));
+  cx.save(); cx.globalAlpha=0.6;
+  for (const [x,y] of tiles){
+    const [gx,gy]=groundCenterRot(x,y,null,W,H);
+    drawPergolaBay(cx,gx,gy,axes,pergolaFrameIn(has,info,x,y),d,season);
+  }
+  cx.restore();
 }
 function drawToolDragMetric(cx,W,H){
   if (typeof toolDrag==='undefined' || !toolDrag) return;

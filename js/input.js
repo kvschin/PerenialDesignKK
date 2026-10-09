@@ -448,7 +448,10 @@ cnv.addEventListener('pointerdown',e=>{
   // sweeps them; a plain tap (resolved at pointerup) acts. (house already returned above.)
   if (isBrushTool(game.tool)){
     toolDrag={sx:x, sy:y, cx:x, cy:y, ox:place.ox, oy:place.oy, active:false, count:0, what:null,
-      lastX:x,lastY:y,trace:[[x,y]],edgeSeen:new Set(),affected:new Set(),runInches:0};
+      lastX:x,lastY:y,trace:[[x,y]],edgeSeen:new Set(),affected:new Set(),runInches:0,
+      // a RECT tool (the pergola) paints nothing while dragging: the two corners
+      // are the gesture, and the footprint between them is laid at pointerup
+      rect:!!toolMeta(game.tool).rect};
     try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
     return;
   }
@@ -507,6 +510,7 @@ const DRAG_DONE={
 };
 function finishToolDrag(){
   if (!toolDrag || !toolDrag.active) return;
+  if (toolDrag.rect){ toolMeta(game.tool).rect(toolDrag.sx,toolDrag.sy,toolDrag.cx,toolDrag.cy); return; }
   if (toolDrag.count){
     hapticFeedback('place');
     const changed=toolDrag.affected&&toolDrag.affected.size?toolDrag.affected.size:toolDrag.count;
@@ -628,6 +632,7 @@ cnv.addEventListener('pointermove',e=>{
   if (toolDrag){
     if (x<0||y<0||x>=GW||y>=GH) return;
     toolDrag.cx=x; toolDrag.cy=y;
+    if (toolDrag.rect){ if (x!==toolDrag.sx||y!==toolDrag.sy) toolDrag.active=true; return; }
     if (!toolDrag.active && (x!==toolDrag.sx||y!==toolDrag.sy)){
       toolDrag.active=true; // crossed a tile line: it's a paint-drag now
       stampToolDrag(toolDrag,toolDrag.sx,toolDrag.sy,toolDrag);
@@ -656,7 +661,7 @@ const SWEEP_NOUNS=[
   ['fence','fence'], ['light','light'],
   ['firepit','fire pit'], ['boulder','boulder'], ['waterFeature','water feature'],
   ['support','support'],
-  // BAYS, not pergolas: a run is one pergola however many tiles it covers
+  // BAYS, not pergolas: a pergola is one however many tiles its roof covers
   ['pergola','pergola bay'],
   ['pet','pet'], ['pot','container'], ['seat','seat'],
   ['house','house'], ['building','building footprint'],

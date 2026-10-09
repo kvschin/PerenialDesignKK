@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.61';
+const APP_VERSION = '0.9.62';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1145,29 +1145,33 @@ function fenceDrawH(f){ return Math.round(fenceHeightFor(fenceStyleId(f&&f.style
    it is the metal every light in the app was drawn in before finishes existed,
    so a saved garden reopens looking exactly as it did. */
 /* ---------- pergolas ----------
-   The one structure a small garden most often wants and the app could not draw:
-   the thing over a patio. A pergola is a RUN, not a piece -- which is exactly
-   why it was deferred when the obelisk, trellis and arch landed (see the
-   supports note) -- so it is modelled on the FENCE and not on them: a tile is a
-   bay, neighbouring tiles connect, and posts fall at intervals along the run
-   rather than on every tile.
-   It is built height like everything else (PX_PER_FT): 7 ft is a walk-under
-   arbour, 8 the standard, 9 what you build when you mean to grow a wisteria
-   through it and still walk under the racemes.
-   `postEvery` is in TILES. Real pergola posts are 8-10 ft apart, and a tile is
-   18 inches, so 6 tiles is 9 ft -- the fence's own FENCE_POST_TILES logic with
-   a number that suits a heavier frame. `rafterIn`/`beamIn`/`postIn` are real
-   inches for the seating reason: sized as a fraction of the height, a 9 ft
-   pergola would grow 9-inch rafters. */
+   The thing over a patio. A pergola is a ROOF FOOTPRINT, not a run: the tiles
+   you lay are the area it covers, and the frame is derived from that shape
+   (pergolaFrameAt, world.js) the way a real one is built -- posts at the
+   corners and every PERGOLA_POST_TILES along, a beam along each long side on
+   top of them, rafters across the short span at 18 in on centre with their
+   tails overhanging the beams, and a middle beam when the span passes
+   PERGOLA_SPAN_TILES. It was first modelled on the FENCE, one tile wide: every
+   bay drew its own pair of posts 11 inches apart, so a pergola over a patio
+   was a forest of posts under a roof two feet wide.
+   It is built height like everything else (PX_PER_FT), measured to the top of
+   the rafters: 7 ft is a walk-under arbour, 8 the standard, 9 what you build
+   when you mean to grow a wisteria through it and still walk under the racemes.
+   Members are real INCHES for the seating reason -- sized as a fraction of the
+   height, a 9 ft pergola would grow 9-inch rafters -- and a material may carry
+   its own `spec`, because an aluminium frame is slimmer than a timber one. */
 const PERGOLA_HEIGHTS = [7,8,9];
-const PERGOLA_POST_TILES = 6;              // 6 x 18in = 9 ft on centre
-const PERGOLA_SPEC = {postIn:6, beamIn:7, rafterIn:3.5, overhangIn:8};
+const PERGOLA_POST_TILES = 8;              // 8 x 18in = 12 ft between posts along a beam
+const PERGOLA_SPAN_TILES = 8;              // rafters span up to 12 ft before a middle beam
+const PERGOLA_SPEC = {postIn:6, beamIn:9, beamWIn:3.5, rafterIn:7, rafterWIn:2, overhangIn:8, braceIn:20};
 const PERGOLA_MATERIALS = [
-  {id:'timber', label:'Timber',      short:'Timber', post:'#8a6a44', beam:'#9c7b52', hi:'#b08f63'},
-  {id:'oak',    label:'Oak',         short:'Oak',    post:'#6f5432', beam:'#82653f', hi:'#9c7d52'},
-  {id:'white',  label:'Painted White',short:'White', post:'#ded9cf', beam:'#efebe2', hi:'#ffffff'},
-  {id:'black',  label:'Black Metal', short:'Black',  post:'#2b2b2f', beam:'#3a3a40', hi:'#5d5d66'},
+  {id:'timber', label:'Timber',      short:'Timber', post:'#8a6a44', beam:'#9c7b52', hi:'#c2a074', brace:true},
+  {id:'oak',    label:'Oak',         short:'Oak',    post:'#6f5432', beam:'#82653f', hi:'#a3845a', brace:true},
+  {id:'white',  label:'Painted White',short:'White', post:'#ded9cf', beam:'#efebe2', hi:'#ffffff', brace:true},
+  {id:'black',  label:'Black Metal', short:'Black',  post:'#2b2b2f', beam:'#3a3a40', hi:'#6a6a74', brace:false,
+   spec:{postIn:4, beamIn:7, beamWIn:2.5, rafterIn:5, rafterWIn:1.5}},
 ];
+function pergolaSpec(mat){ return Object.assign({},PERGOLA_SPEC,pergolaMaterial(mat).spec||{}); }
 function pergolaMaterial(id){ return PERGOLA_MATERIALS.find(m=>m.id===id)||PERGOLA_MATERIALS[0]; }
 function pergolaMatId(id){ return pergolaMaterial(id).id; }
 function pergolaHeightFor(h){
@@ -1177,11 +1181,12 @@ function normalizePergolaDraft(d){
   d=d||{};
   return {mat:pergolaMatId(d.mat), height:pergolaHeightFor(d.height)};
 }
-// drawn height of the BEAM above the tile, in screen px -- fenceDrawH's sibling
+// drawn height of the TOP of the rafters above the tile, in screen px -- fenceDrawH's sibling
 function pergolaDrawH(p){ return pergolaHeightFor(p&&p.height)*PX_PER_FT; }
+// "Timber pergola, 8 ft high" -- through fmtFeet, so it follows the units preference
 function pergolaLabelFor(p){
   const d=normalizePergolaDraft(p);
-  return `${d.height}' ${pergolaMaterial(d.mat).label} pergola`;
+  return `${pergolaMaterial(d.mat).label} pergola, ${fmtFeet(d.height)} high`;
 }
 const LIGHT_TYPES = [
   {id:'path', label:'Path light', short:'Path', kind:'path',

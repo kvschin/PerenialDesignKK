@@ -4078,53 +4078,95 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     naming its material, and the climber is an ordinary plant on it.
 
 12f. **Pergolas** (`PERGOLA_MATERIALS`/`PERGOLA_HEIGHTS`/`PERGOLA_SPEC`,
-    `drawPergola`; Sep 2026) — the thing over a patio, and the structure a small
-    garden asks for most often. **It is modelled on the FENCE, not on the
-    obelisk beside it**, because a pergola is a RUN: a tile is one 18in bay,
-    neighbouring tiles connect, and posts fall at intervals along the run rather
-    than on every tile. That is exactly the reason §12e deferred it — "a pergola
-    is a RUN rather than a piece, which is a different placement idiom" — and
-    once it is filed as a run the idiom is one the app already had.
-    `game.pergolas` is an ordinary keyed layer (`"x,y"` -> `{mat,height,t}`), so
-    undo, save/load and schemes-adjacent plumbing come free. `LAYER_CACHES`
-    classifies it `{scene:1, plants:1}` — and that note names a pergola as its
-    OWN example of a layer that must not silently leave the shade map stale, so
-    the classification is a deliberate statement rather than a missed flag: a
-    tree is the only thing in this app that casts shade, and a pergola that
-    shaded would be a new feature.
-    **It stands OVER paving**, which is the whole point, so `canPlacePergola`
-    allows terrain exactly as `canPlaceFence` does; everything standing on the
-    ground is refused, and so is a planted tile, because the posts are real.
-    `PERGOLA_POST_TILES` is 6 (9 ft on centre) against the fence's 4: a post
-    every 18 inches is a stockade and a pergola is a frame you walk THROUGH.
-    Two posts per post-tile, set out either side of the run — a single line of
-    posts down the middle is a fence wearing a roof, and the pair is most of what
-    says pergola. Members are real INCHES (`PERGOLA_SPEC`) for the seating
-    reason, and every point goes through a WORLD offset so the frame turns with
-    the camera. Rafters are ONE per tile, because a tile is 18 inches and that is
-    what a rafter is really set at, so the tile lattice gives the rhythm for free
-    at one shape instance a bay.
-    **The payoff is that `supportAt` gains a branch and climbers come free.**
-    That function is the single seam for "is there something here a climber can
-    use", and a pergola already carries a real height in feet and a run axis —
-    which is all `climberRenderDetail` asks for. A wisteria over a pergola is
-    most of why anybody builds one, and it cost three lines.
-    The sprite key names what the drawing reads OUTSIDE its own record — the
-    4-neighbour mask, the run axis, `pergolaPostHere` and five elevation samples
-    — and ASKS that function rather than restating its rule, the fence's lesson.
-    Measured: 9 bays collapse to 4 distinct sprites, `verifyStructureSprites`
-    reports **0.000% at all four rotations** with nothing clipped, and
-    `measureStructBoxes` 0 of 1816 escaping. The beam plane lands at exactly
-    `feetToPx(8)`.
+    `pergolaRegions`/`pergolaFrameIn`/`pergolaFrameAt`, world.js;
+    `drawPergolaBay`/`drawPergolaArt`, draw.js; rebuilt 0.9.62) — the thing over
+    a patio, and the structure a small garden asks for most often. **A pergola
+    is a ROOF FOOTPRINT, not a run**: the tiles you lay are the area it covers,
+    and every member is DERIVED from that shape the way one is built — a beam
+    along each long side on posts at the corners and every
+    `PERGOLA_POST_TILES` (8, 12 ft) along, rafters across the short span ONE
+    per tile (a tile is 18 in, which is what a rafter is set at) with their
+    tails overhanging the edge beams by `PERGOLA_OVERHANG` (8 in), a middle
+    beam once the span passes `PERGOLA_SPAN_TILES` (8), knee braces on the
+    timber frames, and a pair of beams `PERGOLA_NARROW` either side of a
+    one-tile run's centre, which has nowhere to overhang.
+    **Why it was rebuilt, because each of these was a shipped bug.** It began
+    as a one-tile-wide RUN modelled on the fence, so every bay drew its own pair
+    of posts 11 inches apart under a roof two feet wide, and a pergola painted
+    over a patio was a forest of posts. `drawSceneEnt` **never listed
+    `SCENE_K.PERGOLA`**, so from the day it shipped every pergola was built into
+    the scene, sorted, culled — and never drawn (a test now holds every kind
+    `drawStructEnt` paints to being routed there; `verifyStructureSprites`
+    could not see it, because it draws both of its arms itself). A tap did
+    nothing at all, since `actHere` had no pergola branch. The tray chip was
+    three sticks that read as a doorway. And it refused every table, chair and
+    pot, which left the commonest pergola there is — over a dining table — the
+    one you could not draw.
+    **The frame is plain data, and that data is the sprite key.**
+    `pergolaFrameIn(has,info,x,y,pin)` returns, for one tile, which world axis
+    the beams run along (the LONG way of the roof's bounding box), the beam
+    lines crossing it and whether each ends here, the posts, the braces, and
+    which ends of its rafter are real ends rather than joints with the next
+    tile's. `drawPergolaBay` reads nothing else, so `computeStructSpriteSpec`
+    keys on `JSON.stringify(pergolaFrameAt(x,y))` and identical bays share a
+    sprite: measured, two pergolas of 279 bays bake **9** distinct sprites. A
+    pergola is the 4-connected run of tiles sharing one material and height;
+    `pergolaRegions()` floods them once per `pergolasRev` (a revision of its
+    own in `LAYER_CACHES`, the pots rule — keyed on `sceneRev` it would rebuild
+    on every stamp of a planting drag) plus map identity and plot size. One
+    function serves the garden, the tray chip (`drawPergolaArt` builds a 5 x 4
+    one through the same `pergolaFrameIn`), the plan sheet, the materials list
+    and the climber rule, so none of them can disagree about where a post is.
+    Each member is a BOX in real inches projected through the camera's axes:
+    its long face is whichever side looks toward the camera, lit when that face
+    looks left (the upper-left light every structure here uses), and a segment
+    draws its end face only where the frame really ends, so a rafter crossing
+    three tiles is three sprites that read as one member. Inside a bay posts,
+    braces and beams paint far to near and the rafters last. A bay costs ~3.5us
+    to draw procedurally and ~0.5us to look up its frame.
+    **Laying one.** It drags CORNER TO CORNER (`TOOLS.pergola.rect`, a
+    `toolDrag.rect` in input.js that paints nothing until pointerup,
+    `finishPergolaDrag`), and a TAP lays a whole one `PERGOLA_TAP_TILES` (7,
+    10.5 ft) square centred on the tap, the way a tap with a bench lays a
+    bench (`tapPergolaAt`). A footprint is laid WHOLE or not at all
+    (`pergolaRectBlocker`) and the refusal names what is in the way: a pergola
+    with a fence through it would come out with a hole and posts round it.
+    Tapping an existing pergola restyles the WHOLE roof to the armed material
+    and height (`restylePergolaAt`), because restyling one bay splits it into
+    two frames. While dragging, `drawPergolaGhost` shows the footprint (red
+    where blocked) and the translucent frame it will build; hovering shows the
+    footprint a tap lays, or outlines the pergola a tap would restyle.
+    **What stands under it** (`pergolaBlockerAt`, both directions): paving,
+    beds, lawn, plants, bulbs, pots, seating, lights, boulders, water features
+    and pets all may. A building or doorway, water, a fence line, a climbing
+    frame (its posts are the climbing frame), a tree (it would grow through the
+    roof) and a fire pit (fire under a timber roof) may not.
+    **Climbers: anywhere on the roof.** `supportAt` returns the pergola for any
+    of its tiles, and a climber planted on one PINS a post at its foot
+    (`pergolaFrameIn`'s `pin`, `pergolaVineAt`) — under the beam where the tile
+    carries one, otherwise standing up to the rafter — so a wisteria may go
+    anywhere and reshaping the roof can never leave it climbing nothing. Only a
+    tile where a post stands is closed to other planting (`open` on the
+    support); the rest of the roof is open ground. On a pergola the climber
+    branch of `drawPlant` (`onPergola`) twines up the post `climberRenderDetail`
+    hands it as a screen offset and spreads over the rafters in a disc, with
+    the lower third of the leaf and flower passes landing on the post.
+    It does not shade: `LAYER_CACHES` names a pergola as its own example of a
+    layer that must not silently leave the shade map stale, so leaving `shade`
+    out is a statement — a tree is the only thing in this app that casts any.
     Erasing a bay takes its climber, for the reason lifting a support or a pot
-    takes its planting: a vine left behind would stand on ground `placePlantAt`
-    refuses. It bills by the FOOT on the planting list, like a fence. It is
-    deliberately NOT in `selectionPayload`, which matches the supports beside it
-    — neither layer moves with a marquee today, and making one of them do so
-    without the other would be worse than the gap.
-    Known limit, shared with the supports: a climber still cannot be planted on
-    a bay standing over PAVING, because a plant cannot be dug into gravel. The
-    answer the app already has is a container under the frame (§12b).
+    takes its planting. The planting list bills it as a thing you BUY, one per
+    roof, named by material and height with its footprint and post count on the
+    sub-line ("10.5 x 13.5 ft, 4 posts"); it was billed by the foot like a fence
+    while it was one, which quoted a 10 ft square pergola as 74 ft of something.
+    The plan sheet draws it the way an overhead structure is drawn: the roof's
+    edge dashed, rafters fine, beams heavier, posts solid. Measured:
+    `measureStructBoxes` 0 escaping, `verifyStructureSprites({rot:true})`
+    0.18-0.34% of pixels at the four rotations with nothing clipped.
+    Known limits: it is still NOT in `selectionPayload`, with the supports beside
+    it, so a marquee moving a patio leaves its pergola behind; and a climber
+    still cannot be planted into PAVING under one, because a plant cannot be dug
+    into gravel — the answer is a container under the frame (§12b).
 
 12g. **Fire pits** (`FIREPIT_STYLES`/`FIREPIT_FINISHES`/`FIREPIT_SIZES`,
     `firepitDims`, `firepitMasonry`, `drawFirepitArt`; Sep 2026) — rebuilt as a
@@ -4313,8 +4355,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (§11f) because a garden that is two thirds grass came out of here with no
     mention of the surface it is mostly made of; the gravel path beside that
     lawn had exactly the same problem, one material over. It now also carries
-    paving, bed and water area, fence footage, gates, pergolas (by the foot,
-    like a fence — a tile is one 18in bay), fire pits (split by what they are
+    paving, bed and water area, fence footage, gates, pergolas (one per roof,
+    with its footprint and post count, §12f), fire pits (split by what they are
     built in, with the masonry take-off — bricks, blocks, or natural stone by
     face area — on the sub-line, §12g), boulders, supports and
     lighting, the last split by FINISH the way a container's colour splits it. Three units, and which one a thing takes is a fact
@@ -5073,7 +5115,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     all four rotations, nothing clipped; `measureFootprintCentres` now covers
     boulders and flags the old painter at up to 41.5px.
     Plus **pergolas** (§12f) behind their own drill-in, in four materials at
-    7/8/9 ft — a run you drag like a fence, and something a climber grows on.
+    7/8/9 ft — a roof you drag out corner to corner (a tap lays one 10.5 ft
+    square), with tables, pots and planting under it and climbers on it.
     Plus **water features** (§12d) — birdbath, bubbling urn, bubbling
     millstone, tiered fountain, stone water basin, wall spout, stock tank pool
     and reflecting basin, each in the finishes that piece is really made in,

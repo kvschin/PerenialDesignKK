@@ -108,8 +108,12 @@ const TOOLS={
   waterfeature:{layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeWaterFeatureAt(x,y)},
   // a run of obelisks down a border is a real thing, so it drags like a pot
   support: {layer:'landscape', brush:true, placement:true, paints:false, material:false, apply:(x,y,o)=>placeSupportAt(x,y)},
-  // a RUN, so it drags like a fence rather than dropping one piece at a time
-  pergola: {layer:'landscape', brush:true, placement:true, paints:false, material:false, measure:'run', apply:(x,y,o)=>placePergolaAt(x,y)},
+  /* A ROOF FOOTPRINT, so it drags corner to corner like the selection marquee
+     (`rect`, input.js) rather than painting tile by tile -- and a tap lays a
+     whole one about 10 ft square (tapPergolaAt). `apply` stays the one-tile
+     placer that both of those lay every bay through. */
+  pergola: {layer:'landscape', brush:true, placement:true, paints:false, material:false, measure:'rect',
+    apply:(x,y,o)=>placePergolaAt(x,y), rect:(x0,y0,x1,y1)=>finishPergolaDrag(x0,y0,x1,y1)},
   boulder: {layer:'landscape', brush:true,  placement:true,  paints:false, material:false, apply:(x,y,o)=>placeBoulderAt(x,y)},
   // brush:false — tap-only on purpose. Every other placer drags out a run,
   // but a drag laid 24 identical cats across the plot, which nobody wants and
@@ -481,6 +485,33 @@ function drawSeatChip(tc,d,w,h,capK){
   }
   tc.drawImage(bmp,0,0);
 }
+/* A pergola fitted to a small canvas the same way, through drawPergolaArt --
+   a whole little pergola built by the garden's own frame rules, so the chip
+   shows posts, beams and rafters where the canvas would put them. It used to
+   be three hand-drawn sticks: two posts and a beam, which read as a doorway. */
+const PERGOLA_CHIP_CACHE=new Map();
+function drawPergolaChip(tc,d,w,h){
+  if (!tc) return;
+  d=normalizePergolaDraft(d);
+  const key=JSON.stringify(d)+'|'+w+'x'+h;
+  let bmp=PERGOLA_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (PERGOLA_CHIP_CACHE.size>64) PERGOLA_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      /* ONE scale for every height, fitted to the tallest: a 7 ft pergola
+         should read lower than a 9 ft one side by side, not fill the same box. */
+      const e=pergolaArtExtent({mat:d.mat,height:PERGOLA_HEIGHTS[PERGOLA_HEIGHTS.length-1]});
+      const k=Math.min((w-2)/(e.x1-e.x0),(h-2)/(e.y1-e.y0));
+      c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h-1-e.y1*k); c.scale(k,k);
+      drawPergolaArt(c,0,0,d,'Summer',ISO_AXES_FLAT);
+      c.restore();
+    }
+    PERGOLA_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 function drawBrushSwatchCanvas(c,includeLast){
   if (!c) return false;
   const [k,v]=brushSwatchChoice(includeLast);
@@ -518,6 +549,7 @@ function drawBrushSwatchCanvas(c,includeLast){
     drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
   if (k==='firepit'){ drawFirepitChip(g,firepitDraft(),c.width,c.height,0.34); return true; }
   if (k==='seat'){ drawSeatChip(g,seatDraft(),c.width,c.height,0.34); return true; }
+  if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
@@ -3535,12 +3567,9 @@ function buildToolTrayInner(){
     const gd=pergolaDraft();
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    // through drawPergolaART, never drawPergola: the latter positions itself
+    // through drawPergolaChip, never drawPergola: the latter positions itself
     // from screenOf and would land the frame off a 48x44 chip entirely
-    const miniPergola=(tc,d)=>{
-      d=normalizePergolaDraft(d);
-      drawPergolaArt(tc,24,40,d,Math.min(0.30,32/pergolaDrawH(d)));
-    };
+    const miniPergola=(tc,d)=>drawPergolaChip(tc,d,48,44);
     const choose=patch=>{
       game.pergolaDraft=normalizePergolaDraft(Object.assign({},pergolaDraft(),patch));
       setTool('pergola',null); game.drill='pergola';
@@ -3566,7 +3595,7 @@ function buildToolTrayInner(){
       miniPergola(c.getContext('2d'),gd);
       const sp=document.createElement('span'); sp.textContent='Pergola';
       b.append(c,sp);
-      b.title=`Pergola: ${pergolaLabel()}. Drag a run; a climber will grow on it.`;
+      b.title=`${pergolaLabel()}. Tap for one ${pergolaSizeText(PERGOLA_TAP_TILES,PERGOLA_TAP_TILES)}, or drag corner to corner; a climber grows on it.`;
       b.onclick=()=>{ setTool('pergola',null); game.drill='pergola';
         rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
@@ -3575,8 +3604,9 @@ function buildToolTrayInner(){
       sep('Material');
       PERGOLA_MATERIALS.forEach(m=>toolBtn(m.short||m.label, gd.mat===m.id, {mat:m.id}, m.label));
       sep('Height');
-      PERGOLA_HEIGHTS.forEach(h=>toolBtn(h+" ft", gd.height===h, {height:h},
-        h===7?'7 ft — a walk-under arbour':h===9?'9 ft — room for a wisteria to hang':'8 ft — the standard'));
+      // to the top of the rafters, in the reader's units
+      PERGOLA_HEIGHTS.forEach(h=>toolBtn(fmtFeet(h), gd.height===h, {height:h},
+        fmtFeet(h)+(h===7?' — a walk-under arbour':h===9?' — room for a wisteria to hang':' — the standard')));
     }
   }
   if (cat.tools.includes('support')){
@@ -4362,6 +4392,9 @@ function sheetContextLabel(){
   if (game.tool==='fence') return fenceLabel();
   if (game.tool==='light') return 'Lighting';
   if (game.tool==='firepit') return firepitLabel();
+  if (game.tool==='pergola') return pergolaLabel();
+  if (game.tool==='support') return cap(supportLabel());
+  if (game.tool==='waterfeature') return cap(waterFeatureLabel());
   if (game.tool==='boulder') return boulderLabel();
   if (game.tool==='edging') return edgingLabel();
   if (game.tool==='wall') return wallLabel();
@@ -4416,6 +4449,9 @@ function toolGuide(){
     fence:{k:fenceLabel(),v:'Tap or drag to draw a connected run'},
     light:{k:lightLabel(),v:'Tap or drag on clear, dry ground'},
     firepit:{k:firepitLabel(),v:'Tap clear, dry ground to place'},
+    pergola:{k:pergolaLabel(),v:`Tap for one ${pergolaSizeText(PERGOLA_TAP_TILES,PERGOLA_TAP_TILES)}, or drag corner to corner`},
+    support:{k:cap(supportLabel()),v:'Tap or drag to place, then plant a climber on it'},
+    waterfeature:{k:cap(waterFeatureLabel()),v:'Tap clear ground, or stand it in a pond'},
     boulder:{k:boulderLabel(),v:'Tap clear, dry ground to place'},
     pot:{k:cap(potLabel()),v:'Tap or drag to set it down — paving is fine, then plant it'},
     seat:{k:cap(seatLabel()),v:'Tap or drag to place seating on clear, dry ground'},
