@@ -18678,3 +18678,136 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+test('a selection carries climbing frames with their climbers, and whole pergola roofs only (F04)', () => {
+  setup(24, 24);
+  game.supports['4,4'] = { style: 'obelisk', mat: 'timber', face: 0, t: 1 };
+  game.plants['4,4'] = { s: 'clematisviticella', d: 0, t: 1 };
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  const before = JSON.stringify({ s: game.supports, p: game.plants });
+  assert(commitSelectionOffset(5, 0, false), 'frame and climber move together');
+  assert(structureSupportAt(9, 4) && !structureSupportAt(4, 4), 'the obelisk moved');
+  assert(game.plants['9,4'] && !game.plants['9,4'].removed && game.plants['9,4'].s === 'clematisviticella', 'and its clematis with it');
+  doUndo();
+  assertEqual(JSON.stringify({ s: game.supports, p: game.plants }), before, 'one undo step puts both back');
+
+  // a trellis panel is two tiles: its climber on the far tile comes along even outside the rect
+  setup(24, 24);
+  game.supports['4,4'] = { style: 'trellis', mat: 'timber', face: 0, t: 1 };
+  const sz = supportTileSize(game.supports['4,4']);
+  assert(sz.w > 1, 'the trellis claims more than one tile');
+  game.plants[`${4 + sz.w - 1},4`] = { s: 'clematisviticella', d: 0, t: 1 };
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 }; game.selItems = selectionPayload(game.sel);
+  assert(game.selItems.some(c => c.plant && c.x === 4 + sz.w - 1), 'the climber on the far tile is carried');
+  assert(commitSelectionOffset(0, 5, false), 'moved');
+  assert(game.plants[`${4 + sz.w - 1},9`], 'the climber landed on the moved trellis');
+
+  // pergolas: a whole roof travels, a cut one stays and says so
+  setup(24, 24);
+  for (let y = 3; y <= 5; y++) for (let x = 3; x <= 6; x++) game.pergolas[`${x},${y}`] = { mat: 'cedar', height: 8, t: 1 };
+  game.sel = { x0: 3, y0: 3, x1: 6, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assertEqual(game.selItems.filter(c => c.pergola).length, 12, 'every roof tile is owned');
+  assert(commitSelectionOffset(8, 0, false), 'the roof moves');
+  assert(pergolaAt(11, 3) && pergolaAt(14, 5) && !pergolaAt(3, 3), 'whole, to its new place');
+
+  let msg = null; const oldToast = toast; toast = m => { msg = m; };
+  try {
+    game.sel = { x0: 11, y0: 3, x1: 12, y1: 5 }; game.selItems = selectionPayload(game.sel);
+    assertEqual(game.selItems.filter(c => c.pergola).length, 0, 'a cut roof is not owned');
+    game.terrain['11,3'] = { k: 'path', c: 'warm', t: 1 };
+    game.sel = { x0: 11, y0: 3, x1: 12, y1: 5 }; game.selItems = selectionPayload(game.sel);
+    assert(commitSelectionOffset(0, 6, false), 'the paving under it moves');
+    assert(pergolaAt(11, 3) && pergolaAt(12, 4), 'the pergola stays whole where it was');
+    assert(/pergola stayed put/.test(msg), 'and the toast says so: ' + msg);
+  } finally { toast = oldToast; }
+});
+
+test('rotating a selection turns each piece and lands it on its turned footprint (F05)', () => {
+  setup(24, 24);
+  game.seats['5,5'] = { type: 'bench6', finish: 'teak', face: 0, t: 1 };
+  game.boulders['5,7'] = { type: 'oblong21', stone: 'granite', face: 0, seed: 7, t: 1 };
+  game.plants['8,8'] = { s: firstOfType('grass'), d: 0, t: 1 };
+  const bsz = seatTileSize(game.seats['5,5']);
+  assert(bsz.w > 1 && bsz.h === 1, 'the bench is a long piece');
+  game.sel = { x0: 5, y0: 5, x1: 9, y1: 8 }; game.selItems = selectionPayload(game.sel);
+  const snap = () => JSON.stringify(['seats', 'boulders', 'plants'].map(l =>
+    Object.keys(game[l]).filter(k => !game[l][k].removed).sort().map(k => k + JSON.stringify(Object.assign({}, game[l][k], { t: 0 })))));
+  const before = snap(), beforeSel = JSON.stringify(game.sel);
+  rotateSelection();
+  const seatKey = Object.keys(game.seats).find(k => !game.seats[k].removed);
+  const seat = game.seats[seatKey];
+  assertEqual(seat.face, 1, 'the bench turned a quarter');
+  const [sx, sy] = seatKey.split(',').map(Number), sz = seatTileSize(seat);
+  assert(sz.w === 1 && sz.h === bsz.w, 'its footprint follows the turn');
+  // the bench's tiles are the old ones, rotated about the rect
+  const r = { x0: 5, y0: 5, x1: 9, y1: 8 }, rot = (x, y) => [r.x0 + (r.y1 - y), r.y0 + (x - r.x0)];
+  const want = new Set(); for (let x = 5; x < 5 + bsz.w; x++) want.add(rot(x, 5).join(','));
+  const got = new Set(); for (let y = sy; y < sy + sz.h; y++) want.has(`${sx},${y}`) && got.add(`${sx},${y}`);
+  assertEqual(got.size, want.size, 'the bench covers exactly its rotated tiles');
+  for (let i = 0; i < 3; i++) rotateSelection();
+  assertEqual(JSON.stringify(game.sel), beforeSel, 'four turns restore the rect');
+  assertEqual(snap(), before, 'and every piece, its facing and its origin');
+
+  // a turn that would put the bench on a fire pit refuses cleanly
+  setup(24, 24);
+  game.seats['5,5'] = { type: 'bench6', finish: 'teak', face: 0, t: 1 };
+  game.sel = { x0: 5, y0: 5, x1: 7, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  game.firepits['5,6'] = { style: 'stone', shape: 'round', size: 'round24', t: 1 };
+  const b4 = JSON.stringify({ s: game.seats, f: game.firepits, sel: game.sel });
+  rotateSelection();
+  assertEqual(JSON.stringify({ s: game.seats, f: game.firepits, sel: game.sel }), b4, 'a blocked turn changes nothing');
+});
+
+test('a moved piece is checked on every tile it claims (F06)', () => {
+  setup(15, 15);
+  game.seats['8,5'] = { type: 'bench6', finish: 'teak', face: 0, t: 1 };
+  const w = seatTileSize(game.seats['8,5']).w;
+  game.sel = { x0: 8, y0: 5, x1: 8, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  const before = JSON.stringify(game.seats);
+  assert(!commitSelectionOffset(15 - 8 - w + 1, 0, false), 'a bench whose far end would leave the plot is refused');
+  assertEqual(JSON.stringify(game.seats), before, 'and nothing moved');
+  game.pots['4,9'] = { style: 'terracotta', size: 'p18', t: 1 };
+  assert(!commitSelectionOffset(-4 - w + 1 + 1, 4, false), 'a bench whose far end lands on a pot is refused');
+  assert(commitSelectionOffset(-4, 0, false), 'an open spot is fine');
+  // a trough is the multi-tile pot
+  setup(15, 15);
+  game.pots['10,3'] = { style: 'trough', size: 'trough54', face: 0, t: 1 };
+  const tw = potTileSize(game.pots['10,3']).w;
+  game.sel = { x0: 10, y0: 3, x1: 10, y1: 3 }; game.selItems = selectionPayload(game.sel);
+  if (tw > 1) assert(!commitSelectionOffset(15 - 10 - tw + 1, 0, false), 'a trough whose end leaves the plot is refused');
+});
+
+test('a moved plant obeys the planting rules where it lands (F07)', () => {
+  setup(20, 20);
+  const forb = firstOfType('forb');
+  game.terrain['10,5'] = { k: 'path', c: 'warm', t: 1 };
+  game.terrain['10,7'] = { k: 'water', c: 'pond', t: 1 };
+  game.plants['5,5'] = { s: forb, d: 0, t: 1 };
+  game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assert(!commitSelectionOffset(5, 0, false), 'a perennial cannot be moved onto paving');
+  assert(!commitSelectionOffset(5, 2, false), 'or into water');
+  game.plants['9,9'] = { s: forb, d: 0, t: 1 };
+  assert(!commitSelectionOffset(4, 4, false), 'or onto another plant');
+
+  // in its pot it may go onto paving: the pot moves with it
+  game.pots['5,5'] = { style: 'terracotta', size: 'p18', t: 1 };
+  game.sel = { x0: 5, y0: 5, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(5, 0, false), 'a potted plant moves with its pot onto paving');
+  assert(potAt(10, 5) && game.plants['10,5'] && !game.plants['10,5'].removed, 'both arrived');
+
+  // a vine must land on a support
+  setup(20, 20);
+  game.fences['4,4'] = { style: 'black', height: 4, gate: false, t: 1 };
+  game.fences['9,4'] = { style: 'black', height: 4, gate: false, t: 1 };
+  game.plants['4,4'] = { s: 'clematisviticella', d: 0, t: 1 };
+  game.sel = { x0: 4, y0: 4, x1: 4, y1: 4 };
+  game.selItems = [{ x: 4, y: 4, plant: JSON.parse(JSON.stringify(game.plants['4,4'])) }];   // the vine alone
+  let msg = null; const oldToast = toast; toast = m => { msg = m; };
+  try {
+    assert(!commitSelectionOffset(0, 3, false), 'a vine moved off its fence onto open ground is refused');
+    assert(/climber/.test(msg), 'and told why: ' + msg);
+  } finally { toast = oldToast; }
+  assert(commitSelectionOffset(5, 0, false), 'onto another fence it may go');
+  doUndo();
+  assert(game.plants['4,4'] && !game.plants['4,4'].removed, 'one undo step');
+});
