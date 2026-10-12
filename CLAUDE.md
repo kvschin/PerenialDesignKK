@@ -3436,7 +3436,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     about the rect center, `eraseSelection` deletes them — each wrapped in
     `withUndo` for a single undo step. Moves/rotations
     are refused if any destination fails `selValidDest` (off-plot or into the
-    house/door). `drawSelectionOverlay` (called near the end of `render`)
+    house/door). **One table, `SEL_LAYERS`, lists everything a selection
+    carries** (payload, validation sets, write, erase) — pergolas and climbing
+    frames were missing from five hand-kept copies of it (F04); a frame carries
+    the climbers on its footprint. Validation runs on the POST-MOVE world: every
+    tile of every multi-tile piece (`SEL_FOOTPRINTS`, F06) and the ordinary
+    planting rules for a moved plant (`selectionPlantDestValid`, F07 — a potted
+    plant may land on paving with its pot, a vine must land on a support; shade
+    and spacing advice are not re-asked). Rotation turns each piece's `face`
+    and lands it on the turned image of its far corner, in an item of its own
+    (`rotatedSelectionItems`, F05); four turns restore the original exactly.
+    `drawSelectionOverlay` (called near the end of `render`)
     draws the marquee, the resting selection (blue fill + outline), and the
     move/copy ghost (destination diamonds tinted green/red for valid/invalid
     plus translucent plant ghosts, blitted from the sprite cache). Escape cancels an
@@ -4287,8 +4297,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     edge dashed, rafters fine, beams heavier, posts solid. Measured:
     `measureStructBoxes` 0 escaping, `verifyStructureSprites({rot:true})`
     0.18-0.34% of pixels at the four rotations with nothing clipped.
-    Known limits: it is still NOT in `selectionPayload`, with the supports beside
-    it, so a marquee moving a patio leaves its pergola behind; and a climber
+    A selection carries a pergola only when the WHOLE roof is inside the
+    marquee (`selectionRoofs`); a cut roof stays put and the move's toast says
+    so, since splitting it would leave two frames. Known limit: a climber
     still cannot be planted into PAVING under one, because a plant cannot be dug
     into gravel — the answer is a container under the frame (§12b).
 
