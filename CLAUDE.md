@@ -4263,6 +4263,105 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     The guidebook's focal demo had asked for `size:36` — not a size id — and
     silently drew the 24 in; it now places a 36 in tumbled brick pit through
     `drawFirepitArt`, off the stage's own axes, without borrowing the camera.
+
+12h. **Boulders and rocks** (`BOULDER_FORMS`/`BOULDER_TYPES`/`BOULDER_STONES`,
+    core.js; `RK_SHAPES`/`boulderRocks`/`rockMesh`/`paintRock`/`drawBoulderArt`,
+    draw.js; 0.9.63) — rebuilt as SOLIDS at real size. A boulder was two flat
+    seeded 12-gons a few pixels apart: a pebble seen from directly above, the
+    same from every side, no height, one grey per type — and two pairs of types
+    (small1/round1, small2/medium2) differed only in that grey and drew as the
+    same rock under two names.
+    **Three axes, the fire pit's.** The TYPE is form and size together (22 of
+    them, because the footprint is a fact about both): Rounded 12 in to 5.5 ft
+    plus two Long ones, Angular (quarried, fractured into planes), Ledge (a low
+    stack of beds, flat-topped — the sitting stone), Standing (a tapering, leaning
+    upright stone to 5 ft), Grouping (3 or 5 rocks set as a scalene triangle, one
+    big and the rest falling away, as rocks are grouped — never a row), basalt
+    Columns (one, or three nested as a honeycomb) and Dressed blocks. The STONE —
+    fieldstone, granite, limestone, sandstone, basalt, slate, moss rock, river
+    rock — is colour, grain and marks; each form names the stones it really comes
+    in, in its own order (no river-rock ledge, columns only in basalt), and
+    `boulderStoneFor` SNAPS rather than resets. `face` (0-3) turns it: a long or
+    oblong stone swaps its footprint like a seat, and on a square one it is how
+    you choose which side of the stone shows — what a landscaper does when
+    setting one. **Every shipped id keeps its footprint** (a rock that grew on
+    reopening would stand on the planting beside it); a stoneless record is
+    fieldstone, the grey every boulder was drawn in (a dressed block granite).
+    **The drawing.** Each rock is a shell in its own frame — u along its width, v
+    its depth, z up, in real inches (the fire pit's frame) — built as rings from a
+    PROFILE (`RK_SHAPES`: height fraction, radius fraction per ring) with
+    low-frequency harmonic noise round each ring, per-point jitter, a twist so
+    facets do not line up, a tilted top and, for a standing stone, a lean; then
+    RESCALED to exactly its stated width, depth and height. That rescale is what
+    makes `boulderReachUp` a bound rather than a guess, so `structDrawBox` grows
+    the box by a stone's real height (a 5 ft standing stone ~80px over its tiles,
+    a pebble not at all) while the sides stay inside the diamonds — a type's
+    width fits its footprint, and a test holds every shell, seed, facing and
+    rotation to both. The shell is projected through `turnAxes(axes,face)` and
+    `fpProjector`, back faces dropped by `solViewDir` (the seats' test), the rest
+    painted far to near over an UNDERLAY of all of them (the seam between two
+    antialiased fills otherwise shows the ground through the stone), shaded under
+    `RK_LIGHT` — fpLight's upper-left light, fixed to the SCREEN — on a per-stone
+    14-step ramp. A weathered stone takes most of its shading from its CORNERS
+    (`smooth`, area-weighted vertex normals): shaded face by face, its rings of
+    equal height read as the courses of an igloo. A ledge is stepped beds whose
+    narrow up-facing set-backs catch the light; that, not a texture, is what
+    reads as layered stone.
+    **Hidden faces, measured not assumed.** A stone is not convex — a lump, a
+    ledge's set-back beds — so a face can turn toward the camera and still be
+    behind the stone. The fill order covers it; the marks and the outline, drawn
+    after, do not, and showed through as wire across a ledge's top. A face whose
+    screen centre lies inside a NEARER face is flagged hidden (bbox-prefiltered;
+    on a convex shell no two visible faces overlap) and gets no marks, no snow and
+    no outline. The outline is every edge with a visible face on one side only,
+    one stroke. **Snow goes on last**, over the marks and an underlay of its own,
+    only on faces facing up and standing clear of the ground; laid face by face
+    onto dark stone the seams showed and the cap was igloo panels again.
+    **Marks are laid out in the rock's frame, per face, from that face's own
+    random stream** (`fpUnitRng`), so a crack keeps its course and a lichen patch
+    its place as the view turns: bedding planes dipping with the top, cracks
+    wandering down from near the crown, grain flecks, limestone pits, lichen on
+    upward faces, moss (seasonal colour) on the moss rock's tops and shaded foot —
+    all batched one fill per colour, density by area.
+    **Cost, measured** (`dev/boulder-review.html?bench=1`, headless Chrome's
+    software raster, the pessimistic case): 0.08-0.5ms a procedural draw, a
+    five-rock grouping ~0.7ms, against 0.04-0.08ms for the old blobs. It is paid
+    once per SPRITE BAKE — every boulder is in `SSPRITE` — so a frame pays a
+    blit: 60 boulders on screen measured **0.65ms a frame together (11us each)**
+    with `drawProfile`, and `verifyStructureSprites({rot:true})` 0.09% of pixels
+    at all four rotations against a ~1.3% procedural control, nothing clipped,
+    22 types in 1.4MB. Three things keep the bake cheap, each found by profiling
+    rather than guessed: the shells are CACHED (`boulderMeshes`, keyed on type,
+    smooth stone and seed — never camera, season or zoom — a seventh of a draw),
+    a small stone takes fewer points and a four-ring `pebble` profile, and a
+    grouping's rocks take a one-fill contact shadow under one soft group shadow.
+    Batching the face fills by colour was built, measured at NOTHING (35 fills
+    are 0.027ms; half the draw was an O(F^2) overlap test the batching needed)
+    and removed. **The structure cache now has a re-bake time budget**
+    (`SSPRITE.BAKE_MS` 4ms, PSPRITE's rule one cache over): a re-bake that has
+    its own stale sprite to show waits for a frame with time, on the live canvas
+    only, so a zoom settling over a rock-heavy garden lands over a few frames —
+    measured 24 / 22 / 12 re-bakes at ~4ms each for 58 boulders, where it would
+    have been one frame. A miss never waits; a photo never waits.
+    **Both documents follow.** The plan sheet draws each rock TO SCALE in the
+    outline of the very shell the garden draws on that tile (its standing ring,
+    turned by `face`), tinted by its stone — it drew a tile-fraction ellipse.
+    The planting list splits by `type|stone` (`face` is not something you order)
+    and its sub-line is what the stone WEIGHS (`boulderWeightLb`: the whole stone
+    including the buried third, by form and density, "about 1,500 lb each, 3
+    tons in all"), because a quarry quotes by the ton; `fmtWeightLb` is pounds then
+    US tons, or kilograms then tonnes. Labels are ASCII for the CSV:
+    "Fieldstone boulder (34 in)", "Granite standing stone (5 ft tall)",
+    "Basalt columns (set of 3)", "Moss rock grouping (5 rocks)".
+    The tray page is Form / Size / Stone / Facing, every chip the stone itself
+    through `drawBoulderChip` (cached per draft, the fire pit chip's pattern),
+    which also became the brush swatch — it was the tinted-tile-and-initial
+    fallback. `measureStructBoxes` and `measureFootprintCentres` cover every type
+    at four facings; a rock is honestly lopsided, so the centring check compares
+    the ink with the mesh's own projected centre (`lop`) rather than assume
+    symmetry. `dev/boulder-review.html` shows every type at four rotations beside
+    its chip (`?view=sheet`, `?view=stones&only=<type>`, `?season=`, `?face=`,
+    `?ground=`, `?bench=1`).
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,
@@ -4358,7 +4457,8 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     paving, bed and water area, fence footage, gates, pergolas (one per roof,
     with its footprint and post count, §12f), fire pits (split by what they are
     built in, with the masonry take-off — bricks, blocks, or natural stone by
-    face area — on the sub-line, §12g), boulders, supports and
+    face area — on the sub-line, §12g), boulders (split by stone, with what each
+    weighs on the sub-line, §12h), supports and
     lighting, the last split by FINISH the way a container's colour splits it. Three units, and which one a thing takes is a fact
     about the thing: **area** for a surface, **feet** for a run, **count** for a
     thing you buy.
@@ -5081,10 +5181,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     claim their whole footprint (`firepitAt`), and render through
     `drawFirepit` → `drawFirepitArt` (a real-size solid with a visible inside
     and a fire, bigger by night, snow on the cap in winter).
-    Boulders live in `game.boulders` keyed by origin tile (`{type,t}` or
-    `{removed:true}`), use `BOULDER_TYPES`/`boulderTileSize` for round,
-    rectangular, and oblong footprints, block planting, render through
-    `drawBoulder` → `drawBoulderArt`, and export to the design plan.
+    Boulders live in `game.boulders` keyed by origin tile (`{type,stone,face,t}`
+    or `{removed:true}`), a form-and-size TYPE, a STONE and a turn (§12h), use
+    `boulderTileSize` for the footprint (a turned long stone swaps it), block
+    planting, render through `drawBoulder` → `drawBoulderArt` as solids at real
+    size, and reach the plan sheet to scale and the planting list by weight.
     **A boulder is drawn from `groundCenterRot`, not from its corners** (Sep
     2026). It positioned itself through `footprintScreenPoly`, the four footprint
     CORNERS pushed through `screenOf` — the tile-corner lattice run through the
@@ -5113,7 +5214,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     anchored on one (removing it, 52 of 72 sloped cases escape by up to 12px).
     Sprites 54% of their old memory; `verifyStructureSprites` 0.002-0.003% at
     all four rotations, nothing clipped; `measureFootprintCentres` now covers
-    boulders and flags the old painter at up to 41.5px.
+    boulders and flags the old painter at up to 41.5px. (The flat painter this
+    paragraph describes, `BOULDER_FILL` and all, was replaced by the solids of
+    §12h in 0.9.63; the positioning lesson is what still stands.)
     Plus **pergolas** (§12f) behind their own drill-in, in four materials at
     7/8/9 ft — a roof you drag out corner to corner (a tap lays one 10.5 ft
     square), with tables, pots and planting under it and climbers on it.

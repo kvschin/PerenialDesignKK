@@ -1907,6 +1907,15 @@ function plantStandInKey(kk,slot){
 const SSPRITE={ map:new Map(), frame:0, rendered:0, bytes:0,
   MEM:24*1024*1024,        // half the plant budget: far fewer, far smaller sprites
   BUDGET:24,               // bakes per frame; the rest fall through to procedural
+  /* ...and JS time per frame for a RE-bake, one that has its own stale sprite
+     to show meanwhile — PSPRITE's BAKE_MS rule, one cache over. A zoom settling
+     re-bakes every structure on screen in one frame, and a structure is no longer
+     a few shapes: a boulder is a solid of a few dozen faces (0.2-0.6ms
+     procedurally, a grouping of five ~0.7ms) and a fire pit 0.5-1.4ms. Twenty
+     boulders were a ~10ms frame at the end of every zoom; spent 4ms at a time
+     they land over three, each still blitting its old sprite until then. A MISS
+     never waits (it has nothing to show), nor does a photo. */
+  BAKE_MS:4, bakeMs:0,
   off:false, active:true, scale:-1, hits:0, misses:0, fell:0,
   /* Bake at 1.5x the scale the blit needs. A structure carries detail as fine
      as a chair leg (1.6in, about 2px), and rasterising that onto the sprite's
@@ -1922,7 +1931,7 @@ function ssprBlitScale(){ return Math.min(DPR,1.5)*ZOOM; }
 // ...and the scale we actually bake at (see SS above).
 function ssprScale(){ return ssprBlitScale()*SSPRITE.SS; }
 function ssprFrame(){
-  SSPRITE.frame++; SSPRITE.rendered=0; SSPRITE.scale=ssprScale();
+  SSPRITE.frame++; SSPRITE.rendered=0; SSPRITE.bakeMs=0; SSPRITE.scale=ssprScale();
   // evict only what was NOT drawn last frame, oldest first — never the visible
   // set, so the cache cannot thrash or flicker (the PSPRITE rule)
   if (SSPRITE.bytes>SSPRITE.MEM) for (const [k,e] of SSPRITE.map){
@@ -2037,8 +2046,16 @@ function structDrawBox(e){
          two tiles' elevations and the sprite is anchored on one, so a footprint
          straddling the whole earthwork range moves the stone half of it, up or
          down, off the anchor. */
-      const sz=boulderTileSize(e.b), slope=(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2;
-      return {w:sz.w, h:sz.h, up:slope+12, pad:TILE_W*0.2, down:slope+12};
+      /* It now has a real HEIGHT, and stands up past the top of its own tiles
+         by however much that height outreaches them: a 5 ft standing stone by
+         ~80px, a 12 in pebble not at all. boulderReachUp is a bound rather than
+         a guess because rockMesh rescales every shell to its stated size. The
+         sides stay inside the diamonds — a type's width fits its footprint, a
+         test pins it — so the pad is the soft shadow and a leaning stone. */
+      const sz=boulderTileSize(e.b), slope=(ELEV_MAX-ELEV_MIN)*ELEV_STEP/2, spec=sz.spec;
+      const over=Math.max(0,boulderReachUp(spec)-(sz.w+sz.h)*TILE_H/4);
+      const lean=spec.form==='standing' ? spec.hIn*0.1*(TILE_W/2)/TILE_IN : 0;
+      return {w:sz.w, h:sz.h, up:Math.ceil(over)+slope+12, pad:TILE_W*0.2+lean, down:slope+12};
     }
     case SCENE_K.FIREPIT:{
       /* Drawn at real size now, so it sits INSIDE its own footprint — the pad is
@@ -2217,8 +2234,12 @@ function drawStructMaybeCached(e,W,H,season,lit,ctx=cx){
     && !(sp.capped && SSPRITE.scale>sp.s)
     && spriteRescaleDue(eScale,SSPRITE.scale);
   if (!sp || sRescale){
-    if (SSPRITE.rendered<SSPRITE.BUDGET){
+    // only on the live canvas: preparing a garden to open must finish its bakes
+    const wait=sRescale && ctx===cx && !game.photo && SSPRITE.bakeMs>=SSPRITE.BAKE_MS;
+    if (!wait && SSPRITE.rendered<SSPRITE.BUDGET){
+      const t0=performance.now();
       const ns=makeStructSprite(e,spec,season,W,H,lit);
+      SSPRITE.bakeMs+=performance.now()-t0;
       if (ns){ if (sp){ SSPRITE.bytes-=sp.bytes; retireSpriteImage(sp.cv); } sp=ns; SSPRITE.rendered++; SSPRITE.bytes+=ns.bytes; }
     }
     if (!sp){ SSPRITE.fell++; drawStructEnt(ctx,e,W,H,season,lit); return; }
@@ -2287,9 +2308,12 @@ function measureStructBoxes(){
     cases.push({name:'POT:'+p.id+'/'+sz.id+'/f'+f, kind:SCENE_K.POT, field:'p',
       rec:{style:p.id,size:potSizeFor(p.id,sz.id),face:f,t:1},
       size:s=>potTileSize(s), draw:(c,s)=>drawPot(c,W,H,season,s,x,y)});
-  for (const b of BOULDER_TYPES)
-    cases.push({name:'BOULDER:'+b.id, kind:SCENE_K.BOULDER, field:'b', rec:{type:b.id,t:1},
-      size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
+  // every type at every facing, in its default stone and (where it comes in
+  // it) water-worn river rock, the one stone that changes the shell
+  for (const b of BOULDER_TYPES) for (let f=0;f<4;f++)
+    for (const stone of [...new Set([boulderTypeStones(b.id)[0].id, boulderStoneFor(b.id,'river')])])
+      cases.push({name:'BOULDER:'+b.id+'/'+stone+'/f'+f, kind:SCENE_K.BOULDER, field:'b', rec:{type:b.id,stone,face:f,t:1},
+        size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
   // every style at every size it is made in, turned, and by night — the night
   // fire in a bowl is the tallest thing the box has to hold
   for (const st of FIREPIT_STYLES) for (const sz of firepitStyleSizes(st.id))
@@ -2411,9 +2435,17 @@ function measureFootprintCentres(){
      out at rot 1 and 3, which is where it is caught. A rounded boulder is not
      exactly symmetric — its outline is seeded — so its ink sits a few px off
      centre by design, the lounger's case. */
-  for (const b of BOULDER_TYPES)
-    cases.push({name:'BOULDER:'+b.id, rec:{type:b.id,t:1},
-      size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y)});
+  /* A rock is not symmetric about its ground centre — its shell is seeded, a
+     standing stone leans and a grouping is laid as a scalene triangle — so its
+     honest ink centre is measured off the shell itself (`lop`), and what is
+     checked is that the drawing lands where its own geometry says it should. */
+  for (const b of BOULDER_TYPES) for (let f=0;f<4;f++)
+    cases.push({name:'BOULDER:'+b.id+'/f'+f, rec:{type:b.id,face:f,t:1},
+      size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y),
+      lop:s=>{ const d=normalizeBoulderDraft(s), [ax,ay]=turnAxes(isoAxes(),d.face), P=fpProjector(0,0,ax,ay);
+        let l=1e9, r=-1e9;
+        for (const m of boulderMeshes(d,tileSeed(x,y))) for (const p of m.V){ const q=P(p[0],p[1],p[2]); if (q[0]<l)l=q[0]; if (q[0]>r)r=q[0]; }
+        return (l+r)/2; }});
   const off=[]; let worst=0, worstName='', n=0;
   try{
     for (let r=0;r<4;r++){
@@ -2430,7 +2462,7 @@ function measureFootprintCentres(){
           const px=((i-3)/4)%cv.width; if (px<l)l=px; if (px>rr)rr=px; }
         if (l>rr) continue;
         n++;
-        const ink=(l+rr)/2-PAD+ax, want=groundCenterRot(x,y,sz,W,H)[0], dx=Math.abs(ink-want);
+        const ink=(l+rr)/2-PAD+ax, want=groundCenterRot(x,y,sz,W,H)[0]+(cse.lop?cse.lop(cse.rec):0), dx=Math.abs(ink-want);
         if (dx>worst){ worst=dx; worstName=cse.name+' rot'+r; }
         if (dx>6) off.push({rot:r, name:cse.name, px:+dx.toFixed(1)});
       }

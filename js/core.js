@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.62';
+const APP_VERSION = '0.9.63';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1481,23 +1481,174 @@ function firepitLabelFor(d){
     : s.wIn===s.dIn ? ' square' : ' rectangular';
   return `${firepitSizeText(s)}${shape} ${firepitMaterialName(d)} ${noun}`;
 }
-const BOULDER_TYPES = [
-  {id:'round1',   label:'Round Boulder',       short:'Round',      shape:'round',  plan:'1x1', w:1, h:1, tone:'#808276'},
-  {id:'small1',   label:'Small Boulder',       short:'Small 1x1',  shape:'round',  plan:'1x1', w:1, h:1, tone:'#77796e'},
-  {id:'small2',   label:'Small Boulder',       short:'Small 2x2',  shape:'round',  plan:'2x2', w:2, h:2, tone:'#86867b'},
-  {id:'medium2',  label:'Medium Boulder',      short:'Medium',     shape:'round',  plan:'2x2', w:2, h:2, tone:'#7d8178'},
-  {id:'large32',  label:'Large Boulder',       short:'Large 3x2',  shape:'round',  plan:'3x2', w:3, h:2, tone:'#87877e'},
-  {id:'large3',   label:'Large Boulder',       short:'Large 3x3',  shape:'round',  plan:'3x3', w:3, h:3, tone:'#777b72'},
-  {id:'oblong21', label:'Oblong Boulder',      short:'Oblong 2x1', shape:'oblong', plan:'2x1', w:2, h:1, tone:'#827d72'},
-  {id:'oblong31', label:'Long Oblong Boulder', short:'Oblong 3x1', shape:'oblong', plan:'3x1', w:3, h:1, tone:'#797b73'},
-  {id:'rect32',   label:'Rectangular Boulder', short:'Rect 3x2',   shape:'rect',   plan:'3x2', w:3, h:2, tone:'#7f7a70'},
+/* ---------- boulders and rocks ----------
+   Three axes, the fire pit's and the water feature's (§12d, §12g). The TYPE is
+   the rock's form and its size together, because the footprint it claims is a
+   fact about both; the STONE is what it is; `face` turns it a quarter at a time.
+
+   Every type states its REAL size — width and depth, and the height that stands
+   above the ground, since a boulder is set a third deep — and the drawing reads
+   those inches through PX_PER_FT, the scale a fence and a bench stand at. Before
+   this the drawn size was a fraction of the footprint and nothing else, so two
+   pairs of rows (small1/round1, small2/medium2) differed only in a grey and drew
+   as the same rock under two names, and no rock had any height at all.
+
+   The ids are the storage key, and every one that shipped keeps its footprint:
+   a rock that grew on reopening would stand on whatever is planted beside it.
+   A record saved before stones existed is FIELDSTONE, the grey every boulder was
+   drawn in (and a dressed block granite, the nearest thing to the old flat grey
+   slab). `wIn` runs along the footprint's `w` and must fit it, which is what
+   keeps every rock inside its own tile diamonds; a test pins it. */
+const BOULDER_FORMS = [
+  {id:'round',    label:'Rounded',  name:'{s} boulder',
+   stones:['fieldstone','granite','river','mossrock','limestone','sandstone','basalt']},
+  {id:'angular',  label:'Angular',  name:'Angular {s} boulder',
+   stones:['granite','basalt','fieldstone','limestone','sandstone','slate']},
+  {id:'ledge',    label:'Ledge',    name:'{s} ledge stone',
+   stones:['limestone','sandstone','slate','granite','fieldstone']},
+  {id:'standing', label:'Standing', name:'{s} standing stone',
+   stones:['granite','slate','basalt','sandstone','limestone','fieldstone']},
+  {id:'group',    label:'Grouping', name:'{s} grouping',
+   stones:['fieldstone','river','granite','mossrock','basalt','sandstone','limestone']},
+  {id:'columns',  label:'Columns',  name:'{s} columns', one:'{s} column', stones:['basalt']},
+  {id:'dressed',  label:'Dressed',  name:'Dressed {s} block', stones:['granite','limestone','sandstone','basalt']},
 ];
-function boulderType(id){ return BOULDER_TYPES.find(b=>b.id===id)||BOULDER_TYPES[0]; }
+const BOULDER_TYPES = [
+  {id:'small1',    form:'round',    w:1, h:1, wIn:12, dIn:11, hIn:8},
+  {id:'round1',    form:'round',    w:1, h:1, wIn:18, dIn:16, hIn:12},
+  {id:'small2',    form:'round',    w:2, h:2, wIn:26, dIn:23, hIn:16},
+  {id:'medium2',   form:'round',    w:2, h:2, wIn:34, dIn:30, hIn:21},
+  {id:'large32',   form:'round',    w:3, h:2, wIn:48, dIn:31, hIn:24},
+  {id:'large3',    form:'round',    w:3, h:3, wIn:48, dIn:45, hIn:30},
+  {id:'round4',    form:'round',    w:4, h:4, wIn:66, dIn:60, hIn:40},
+  {id:'oblong21',  form:'round',    w:2, h:1, wIn:32, dIn:16, hIn:12, long:true},
+  {id:'oblong31',  form:'round',    w:3, h:1, wIn:50, dIn:17, hIn:14, long:true},
+  {id:'angular1',  form:'angular',  w:1, h:1, wIn:18, dIn:15, hIn:14},
+  {id:'angular2',  form:'angular',  w:2, h:2, wIn:32, dIn:27, hIn:24},
+  {id:'angular3',  form:'angular',  w:3, h:3, wIn:48, dIn:43, hIn:34},
+  {id:'ledge2',    form:'ledge',    w:2, h:2, wIn:34, dIn:30, hIn:14},
+  {id:'ledge32',   form:'ledge',    w:3, h:2, wIn:50, dIn:32, hIn:16},
+  {id:'standing1', form:'standing', w:1, h:1, wIn:16, dIn:12, hIn:36},
+  {id:'standing2', form:'standing', w:2, h:1, wIn:26, dIn:16, hIn:60},
+  {id:'group2',    form:'group',    w:2, h:2, wIn:34, dIn:32, hIn:12, rocks:3},
+  {id:'group3',    form:'group',    w:3, h:3, wIn:52, dIn:50, hIn:16, rocks:5},
+  {id:'column1',   form:'columns',  w:1, h:1, wIn:15, dIn:13, hIn:36, rocks:1},
+  {id:'columns2',  form:'columns',  w:2, h:2, wIn:32, dIn:30, hIn:48, rocks:3},
+  {id:'rect32',    form:'dressed',  w:3, h:2, wIn:48, dIn:30, hIn:12},
+  {id:'block21',   form:'dressed',  w:2, h:1, wIn:30, dIn:15, hIn:16},
+];
+/* What each stone looks like and weighs. `lo`/`tone`/`hi` are the shadow, body
+   and lit colours a face is shaded between; the rest are how much of each mark
+   the stone carries — `fleck` grain (granite's salt and pepper, basalt's pale
+   vesicles), `bands` of bedding (slate's cleavage, sandstone's layers), `pits`
+   (limestone's solution holes), `cracks`, `lichen` and `moss`. `smooth` is a
+   water-worn stone: rounder, fainter facets, no cracks. `lbFt3` is the density a
+   take-off weighs it by, because a boulder is ordered by the ton. */
+const BOULDER_STONES = [
+  {id:'fieldstone', label:'Fieldstone', tone:'#838174', lo:'#45433c', hi:'#c2bfad',
+   fleck:['#5e5a51','#aaa694'], fleckN:0.55, cracks:0.7, lichen:0.6, mottle:0.09, lbFt3:165},
+  {id:'granite',    label:'Granite',    tone:'#928d87', lo:'#4a4745', hi:'#d2cdc5',
+   fleck:['#3c3a39','#c4a99d','#ebe7df'], fleckN:1.7, cracks:0.45, lichen:0.3, mottle:0.05, lbFt3:168},
+  {id:'limestone',  label:'Limestone',  tone:'#b7ad97', lo:'#6a6150', hi:'#e3dcc8',
+   fleck:['#9c8f74'], fleckN:0.3, pits:0.9, bands:0.3, bandSp:7, cracks:0.55, lichen:0.4, mottle:0.07, lbFt3:160},
+  {id:'sandstone',  label:'Sandstone',  tone:'#b39274', lo:'#674c37', hi:'#dcc4a5',
+   fleck:['#9a6e47'], fleckN:0.5, bands:0.75, bandSp:4.5, cracks:0.35, lichen:0.15, mottle:0.07, lbFt3:145},
+  {id:'basalt',     label:'Basalt',     tone:'#5a5c5e', lo:'#26272a', hi:'#9a9da0',
+   fleck:['#83868a','#36373a'], fleckN:0.9, cracks:0.5, lichen:0.3, mottle:0.05, lbFt3:180},
+  {id:'slate',      label:'Slate',      tone:'#68727c', lo:'#30363e', hi:'#a7b0b8',
+   fleck:['#525a63'], fleckN:0.25, bands:1, bandSp:2.6, cracks:0.25, lichen:0.2, mottle:0.06, lbFt3:172},
+  {id:'mossrock',   label:'Moss rock',  tone:'#807f71', lo:'#46463e', hi:'#bebcaa',
+   fleck:['#5c5c50','#a3a08c'], fleckN:0.4, cracks:0.45, lichen:1, moss:1, mottle:0.1, lbFt3:165},
+  {id:'river',      label:'River rock', tone:'#8c8375', lo:'#4c463c', hi:'#d2c9b8',
+   fleck:['#6e6557','#aca191'], fleckN:0.35, bands:0.18, bandSp:6, smooth:1, mottle:0.06, lbFt3:165},
+];
+function boulderType(id){ return BOULDER_TYPES.find(b=>b.id===id)||BOULDER_TYPES[1]; }
 function boulderTypeId(id){ return boulderType(id).id; }
-function normalizeBoulderDraft(d){ d=d||{}; return {type:boulderTypeId(d.type)}; }
+function boulderForm(id){ return BOULDER_FORMS.find(f=>f.id===id)||BOULDER_FORMS[0]; }
+function boulderFormTypes(form){ return BOULDER_TYPES.filter(t=>t.form===form); }
+function boulderStone(id){ return BOULDER_STONES.find(s=>s.id===id)||BOULDER_STONES[0]; }
+// the stones a type is really sold in, in its form's order — the first is its default
+function boulderTypeStones(type){ return boulderForm(boulderType(type).form).stones.map(boulderStone); }
+/* A stone a type does not come in SNAPS to the type's first one rather than
+   resetting the draft — the fire pit's rule — so switching a granite boulder to
+   a grouping keeps granite and switching it to columns makes it basalt. */
+function boulderStoneFor(type,stone){
+  const list=boulderForm(boulderType(type).form).stones;
+  return list.includes(stone) ? stone : list[0];
+}
+function normalizeBoulderDraft(d){
+  d=d||{};
+  const type=boulderTypeId(d.type);
+  return {type, stone:boulderStoneFor(type,d.stone), face:normalizeFacing(d.face)};
+}
+// a turned rock that is longer one way swaps its footprint, as a seat does
 function boulderTileSize(b){
-  const spec=boulderType(b&&b.type);
-  return {w:Math.max(1,spec.w||1), h:Math.max(1,spec.h||1), spec};
+  const spec=boulderType(b&&b.type), w=Math.max(1,spec.w||1), h=Math.max(1,spec.h||1);
+  return normalizeFacing(b&&b.face)%2 ? {w:h, h:w, spec} : {w, h, spec};
+}
+/* The size as it reads on a chip and in a label, in the reader's units — the
+   longer of the two, or a grouping's count. ASCII only: the label reaches the
+   planting-list CSV. */
+function boulderSizeText(spec){
+  if (spec.form==='group') return `${spec.rocks} rocks`;
+  if (spec.form==='columns') return spec.rocks>1 ? `set of ${spec.rocks}` : fmtLengthIn(spec.hIn,{ftAt:30});
+  if (spec.form==='standing') return fmtLengthIn(spec.hIn,{ftAt:30})+' tall';
+  const a=Math.max(spec.wIn,spec.dIn), b=Math.min(spec.wIn,spec.dIn);
+  if (spec.w!==spec.h){
+    if (metricUnits()) return `${Math.round(a*CM_PER_IN)} x ${Math.round(b*CM_PER_IN)} cm`;
+    return `${a} x ${b} in`;
+  }
+  return fmtLengthIn(a,{ftAt:40});
+}
+function boulderSizeChip(spec){
+  if (spec.form==='group') return `${spec.rocks} rocks`;
+  if (spec.form==='columns') return spec.rocks>1 ? `Set of ${spec.rocks}` : 'Single';
+  return boulderSizeText(spec).replace(' tall','').replace(' x ','x');
+}
+function boulderLabelFor(d){
+  d=normalizeBoulderDraft(d);
+  const spec=boulderType(d.type), form=boulderForm(spec.form), st=boulderStone(d.stone);
+  let name=((spec.rocks===1&&form.one)||form.name).replace('{s}',st.label.toLowerCase());
+  if (spec.long) name='Long '+name;
+  name=name.charAt(0).toUpperCase()+name.slice(1);
+  return `${name} (${boulderSizeText(spec)})`;
+}
+/* What it weighs, which is how a boulder is ordered. The buried third counts —
+   it is delivered too — so the volume is taken over the WHOLE stone: a lumpy
+   ellipsoid for a boulder (0.52 of its box, the ellipsoid's pi/6, a little more
+   for a fractured or flat-bedded one), a hexagonal prism for a column, a box for
+   a dressed block. A grouping is its rocks' sum. Rough on purpose: a quarry
+   quotes by the ton, and the line reads "about". */
+const BOULDER_BURIED={round:0.3, angular:0.25, ledge:0.25, standing:0.25, group:0.3, columns:0.15, dressed:0.05};
+const BOULDER_FILL_K={round:0.52, angular:0.58, ledge:0.66, standing:0.55, group:0.52, columns:0.65, dressed:0.97};
+function boulderWeightLb(d){
+  d=normalizeBoulderDraft(d);
+  const spec=boulderType(d.type), st=boulderStone(d.stone);
+  const hTot=spec.hIn/(1-(BOULDER_BURIED[spec.form]||0.3)), k=BOULDER_FILL_K[spec.form]||0.52;
+  let cuIn=k*spec.wIn*spec.dIn*hTot;
+  // a grouping's rocks are a fraction of the box each, and a set of columns is three
+  if (spec.form==='group') cuIn*=spec.rocks>3 ? 0.42 : 0.5;
+  if (spec.form==='columns' && spec.rocks>1) cuIn*=0.5;
+  return cuIn/1728*st.lbFt3;
+}
+/* A weight in the reader's units: pounds rounding to a sensible step, then US
+   tons from 2,000 lb; kilograms, then tonnes from 1,000 kg. "about" belongs to
+   the caller. */
+function fmtWeightLb(lb){
+  const v=Math.max(0,+lb||0);
+  if (metricUnits()){
+    const kg=v*0.45359237;
+    if (kg>=1000) return `${trimNum(kg/1000,1)} t`;
+    const step=kg<50?5:kg<250?10:25;
+    return `${Math.max(step,Math.round(kg/step)*step).toLocaleString('en-US')} kg`;
+  }
+  if (v>=2000) return `${trimNum(v/2000,1)} tons`;
+  const step=v<100?5:v<500?25:50;
+  return `${Math.max(step,Math.round(v/step)*step).toLocaleString('en-US')} lb`;
+}
+function boulderTakeoffText(d,n){
+  const each=boulderWeightLb(d); n=Math.max(1,n|0);
+  return n>1 ? `about ${fmtWeightLb(each)} each, ${fmtWeightLb(each*n)} in all` : `about ${fmtWeightLb(each)}`;
 }
 
 /* ---------- vertical supports ----------

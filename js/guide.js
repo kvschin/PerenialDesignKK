@@ -516,7 +516,7 @@ function gsDrawProp(ctx,st,p){
     }
     case 'boulder':{
       const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
-      return drawBoulderArt(ctx,cx,cy,{type:p.type},season,axes,tileSeed(p.x,p.y));
+      return drawBoulderArt(ctx,cx,cy,normalizeBoulderDraft(p),season,axes,tileSeed(p.x,p.y));
     }
     case 'firepit':{
       const [cx,cy]=gsFootCentre(st,p.x,p.y,gsPropSize(p));
@@ -557,7 +557,7 @@ function gsPropSize(p){
     case 'seat':   return seatTileSize({type:p.type,finish:p.finish,face:p.face|0});
     case 'support':return supportTileSize(normalizeSupportDraft(p));
     case 'waterfeature': return waterFeatureTileSize(normalizeWaterFeatureDraft(p));
-    case 'boulder':return boulderTileSize({type:p.type});
+    case 'boulder':return boulderTileSize(normalizeBoulderDraft(p));
     case 'firepit':return firepitTileSize(normalizeFirepitDraft(p));
     default:       return {w:1,h:1};
   }
@@ -2026,7 +2026,7 @@ focal:{ loop:10500, rest:0.94,
       finish:'stone',face:0});
     if (u>0.42) st.props.push({kind:'firepit',x:3,y:5,style:'brick',finish:'tumbled',
       shape:'round',size:'round36'});
-    if (u>0.66) st.props.push({kind:'boulder',x:7,y:4,type:'medium2'});
+    if (u>0.66) st.props.push({kind:'boulder',x:7,y:4,type:'medium2',stone:'fieldstone'});
     const tap=gTap(u,u<0.36?0.12:u<0.6?0.38:0.62);
     const c=gPath(gAt(u,0,0.72),[[7,7],[4,1],[3,5],[7,4]]);
     st.cursor=u<0.76?{x:c[0],y:c[1],down:tap.down,press:tap.press}:null;

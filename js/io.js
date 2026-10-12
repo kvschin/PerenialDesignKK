@@ -953,7 +953,8 @@ function hardscapeRows(){
     // the material is what you order; `face` is only which way it is turned
     const d=normalizeFirepitDraft(f); bump(pits, [d.style,d.finish,d.shape,d.size].join('|')); }
   for (const k in game.boulders||{}){ const b2=game.boulders[k]; if (!b2||b2.removed) continue;
-    bump(rocks, normalizeBoulderDraft(b2).type); }
+    // the stone is what you order; `face` is only which side shows
+    const d=normalizeBoulderDraft(b2); bump(rocks, d.type+'|'+d.stone); }
   for (const k in game.supports||{}){ const sp=game.supports[k]; if (!sp||sp.removed) continue;
     // `face` is which way it is turned, which is not something you order
     const d=normalizeSupportDraft(sp); bump(props, d.style+'|'+d.mat); }
@@ -969,7 +970,10 @@ function hardscapeRows(){
     add('Water feature', `${waterFinish(fi).label} ${waterFeature(fo).label}`, waters[id], waters[id]); }
   for (const id in pits){ const [style,finish,shape,size]=id.split('|'), d={style,finish,shape,size};
     add('Fire pit', firepitLabel(d), pits[id], pits[id], firepitTakeoffText(d,pits[id])); }
-  for (const id in rocks) add('Boulder', boulderLabel({type:id}), rocks[id], rocks[id]);
+  /* A boulder is ordered by the ton, so its sub-line is what it weighs — the
+     buried third included, since that is delivered too (boulderWeightLb). */
+  for (const id in rocks){ const [type,stone]=id.split('|'), d={type,stone};
+    add('Boulder', boulderLabelFor(d), rocks[id], rocks[id], boulderTakeoffText(d,rocks[id])); }
   for (const id in props){ const [style,mat]=id.split('|');
     add('Support', supportLabel({style,mat}), props[id], props[id]); }
   for (const id in lamps){ const [type,tone,finish]=id.split('|');
@@ -2520,20 +2524,27 @@ function drawPlanGround(ctx,g,site){
     }
   }
   // boulders
+  /* Each rock TO SCALE in its real outline: the widest ring of the very shell
+     the garden draws on that tile, turned the way the stone is turned, so the
+     plan and the garden show the same stone and a 34 in boulder measures 34 in
+     off the sheet. It drew a tile-fraction ellipse, the same for every stone. */
   bouldersLive.forEach(k=>{
-    const b=normalizeBoulderDraft(game.boulders[k]), spec=boulderType(b.type), sz=boulderTileSize(b);
+    const b=normalizeBoulderDraft(game.boulders[k]), st=boulderStone(b.stone), sz=boulderTileSize(b);
     const [x,y]=k.split(',').map(Number), px=X(x), py=Y(y), w=sz.w*cell, h=sz.h*cell;
+    const ppi=cell/TILE_IN, f=b.face;
+    // the rock's own (u,v) onto the sheet's world axes, a quarter turn per face
+    const W2=(u,v)=>{ const r=f===1?[-v,u]:f===2?[-u,-v]:f===3?[v,-u]:[u,v];
+      return [px+w/2+r[0]*ppi, py+h/2+r[1]*ppi]; };
     ctx.save();
-    ctx.fillStyle=mixHex(spec.tone||'#7f8178','#f7f3e8',0.2);
-    ctx.strokeStyle=mixHex(spec.tone||'#7f8178','#2c241c',0.25);
-    ctx.lineWidth=1.2;
-    if (spec.shape==='rect'){
-      ctx.fillRect(px+cell*0.08,py+cell*0.18,w-cell*0.16,h-cell*0.28);
-      ctx.strokeRect(px+cell*0.08,py+cell*0.18,w-cell*0.16,h-cell*0.28);
-    } else {
+    ctx.fillStyle=mixHex(st.tone,'#f7f3e8',0.3);
+    ctx.strokeStyle=mixHex(st.lo,'#2c241c',0.3);
+    ctx.lineWidth=1.1; ctx.lineJoin='round';
+    for (const m of boulderMeshes(b,tileSeed(x,y))){
+      // the widest ring is the one the stone stands on: ring 1, or a prism's base
+      const ring=m.V.slice(m.R>2?m.n:0,(m.R>2?2:1)*m.n);
       ctx.beginPath();
-      ctx.ellipse(px+w/2,py+h/2,w*0.42,h*(spec.shape==='oblong'?0.28:0.38),0,0,7);
-      ctx.fill(); ctx.stroke();
+      ring.forEach((p2,i)=>{ const q=W2(p2[0],p2[1]); if (!i) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); });
+      ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     ctx.restore();
   });

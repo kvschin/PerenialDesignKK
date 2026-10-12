@@ -7381,6 +7381,149 @@ test('planting plan includes boulders in the key', () => {
   assert(labels.some(t => t.includes('BOULDER - stone feature (1)')), 'plan key lists boulders');
 });
 
+/* ---------- boulders and rocks: forms, sizes, stones ----------
+   A boulder became a solid at real size, in a stone, and the save had to come
+   along: every id that shipped is a storage key and keeps the footprint it
+   claimed, or a reopened garden's rock would grow over the planting beside it. */
+test('every shipped boulder id keeps its footprint, and an old record is fieldstone', () => {
+  const shipped = { round1:[1,1], small1:[1,1], small2:[2,2], medium2:[2,2], large32:[3,2],
+    large3:[3,3], oblong21:[2,1], oblong31:[3,1], rect32:[3,2] };
+  for (const [id, [w, h]] of Object.entries(shipped)) {
+    const sz = boulderTileSize({ type: id });
+    assertEqual(sz.w + 'x' + sz.h, w + 'x' + h, id + ' claims the footprint it always did');
+  }
+  // the grey every boulder was drawn in; a dressed block the nearest thing to the old slab
+  assertEqual(normalizeBoulderDraft({ type: 'medium2' }).stone, 'fieldstone', 'a stoneless rock is fieldstone');
+  assertEqual(normalizeBoulderDraft({ type: 'rect32' }).stone, 'granite', 'a stoneless dressed block is granite');
+  assertEqual(normalizeBoulderDraft({ type: 'medium2' }).face, 0, 'and faces the way it did');
+  assertEqual(normalizeBoulderDraft({ type: 'nonsense' }).type, 'round1', 'an unknown type falls back to the old default');
+  // the two pairs that used to differ only in a grey are now two sizes each
+  assert(boulderType('small1').wIn < boulderType('round1').wIn, 'small1 is smaller than round1');
+  assert(boulderType('small2').wIn < boulderType('medium2').wIn, 'small2 is smaller than medium2');
+});
+
+test('a boulder type fits its footprint and names stones it is really made in', () => {
+  for (const t of BOULDER_TYPES) {
+    // what keeps every rock inside its own tile diamonds, and the sprite box honest
+    assert(t.wIn <= t.w * TILE_IN && t.dIn <= t.h * TILE_IN, t.id + ' fits the tiles it claims');
+    assert(t.hIn > 0, t.id + ' has a height');
+    const form = boulderForm(t.form);
+    assertEqual(form.id, t.form, t.id + ' has a real form');
+    assert(form.stones.length && form.stones.every(id => BOULDER_STONES.some(s => s.id === id)),
+      t.form + ' names only real stones');
+  }
+  for (const f of BOULDER_FORMS) assert(boulderFormTypes(f.id).length, f.label + ' offers at least one size');
+  // a stone the type does not come in SNAPS to its first, rather than resetting the draft
+  assertEqual(boulderStoneFor('columns2', 'granite'), 'basalt', 'columns are basalt');
+  assertEqual(boulderStoneFor('group3', 'granite'), 'granite', 'a grouping keeps a stone it comes in');
+  assertEqual(boulderStoneFor('ledge2', 'river'), 'limestone', 'there is no river-rock ledge');
+});
+
+/* The sprite box is computed, not measured — structDrawBox reads
+   boulderReachUp — so it is only a bound if no shell can reach past it. rockMesh
+   rescales every shell to its stated size, and this holds it to that, at every
+   rotation and facing, across seeds, in the sandbox where it is pure arithmetic. */
+test('a boulder shell is its stated size and never reaches past its sprite box', () => {
+  const was = game.rot;
+  try {
+    for (const t of BOULDER_TYPES) for (const stone of [boulderTypeStones(t.id)[0].id, boulderStoneFor(t.id,'river')]) {
+      const up = boulderReachUp(t);
+      for (let s = 1; s <= 12; s++) {
+        const d = normalizeBoulderDraft({ type: t.id, stone, face: s % 4 }), seed = tileSeed(s * 7, s * 3);
+        let maxU = 0, maxV = 0, maxZ = 0;
+        for (const m of boulderMeshes(d, seed)) for (const p of m.V) {
+          maxU = Math.max(maxU, Math.abs(p[0])); maxV = Math.max(maxV, Math.abs(p[1])); maxZ = Math.max(maxZ, p[2]);
+        }
+        assert(maxU <= t.wIn / 2 + 0.01 && maxV <= t.dIn / 2 + 0.01, `${t.id}/${stone} stays inside ${t.wIn}x${t.dIn} in`);
+        assert(maxZ <= t.hIn + 0.01, `${t.id}/${stone} is no taller than ${t.hIn} in`);
+        for (let rot = 0; rot < 4; rot++) {
+          const [ax, ay] = turnAxes(isoAxes(rot), d.face), P = fpProjector(0, 0, ax, ay);
+          let top = 0;
+          for (const m of boulderMeshes(d, seed)) for (const p of m.V) top = Math.min(top, P(p[0], p[1], p[2])[1]);
+          assert(-top <= up + 0.5, `${t.id}/${stone} seed ${s} rot ${rot} reaches ${(-top).toFixed(1)}px of ${up.toFixed(1)}`);
+        }
+      }
+    }
+  } finally { game.rot = was; }
+});
+
+test('turning a long stone turns its footprint, and the turn and the stone are kept', () => {
+  setup(13, 13);
+  assertEqual(JSON.stringify(boulderTileSize({ type: 'oblong31', face: 1 })), JSON.stringify(boulderTileSize({ type: 'oblong31', face: 1 })), 'stable');
+  const a = boulderTileSize({ type: 'oblong31', face: 0 }), b = boulderTileSize({ type: 'oblong31', face: 1 });
+  assertEqual(a.w + 'x' + a.h, '3x1', 'along x');
+  assertEqual(b.w + 'x' + b.h, '1x3', 'turned, along y');
+  game.tool = 'boulder';
+  game.boulderDraft = { type: 'oblong31', stone: 'granite', face: 1 };
+  assertEqual(applyToolAt(4, 4), 'boulder', 'placed turned');
+  assert(boulderAt(4, 6) && !boulderAt(6, 4), 'the turned stone claims the turned tiles');
+  assertEqual(game.boulders['4,4'].stone, 'granite', 'the record keeps its stone');
+  // re-armed identically it is a no-op; a different stone on the same spot is a change
+  assertEqual(placeBoulderAt(4, 4), null, 'the same stone again changes nothing');
+  game.boulderDraft = { type: 'oblong31', stone: 'basalt', face: 1 };
+  assertEqual(placeBoulderAt(4, 4), 'boulder', 'a new stone is a real edit');
+  game.tool = 'pick'; pickAt(4, 5);
+  assertEqual(JSON.stringify(game.boulderDraft), JSON.stringify({ type: 'oblong31', stone: 'basalt', face: 1 }),
+    'the eyedropper copies type, stone and turn');
+});
+
+test('the sprite key follows the stone, and the drawing reads only its record', () => {
+  const rec = s => ({ kind: SCENE_K.BOULDER, x: 5, y: 5, bx0: 5, bx1: 6, by0: 5, by1: 6, b: s });
+  const a = computeStructSpriteSpec(rec({ type: 'medium2', stone: 'granite', t: 1 }));
+  const b = computeStructSpriteSpec(rec({ type: 'medium2', stone: 'basalt', t: 2 }));
+  const c = computeStructSpriteSpec(rec({ type: 'medium2', stone: 'granite', t: 3 }));
+  assert(a.key !== b.key, 'two stones are two sprites');
+  assertEqual(a.key, c.key, 'and the timestamp is not part of the drawing');
+  // a 5 ft standing stone stands up out of its box; a flat pebble does not
+  assert(a.up < computeStructSpriteSpec(rec({ type: 'standing2', face: 0, t: 1 })).up, 'the box grows with the stone');
+});
+
+test('a boulder is billed by stone and size, with what it weighs', () => {
+  setup(21, 21);
+  game.boulders['2,2'] = { type: 'medium2', stone: 'granite', t: 1 };
+  game.boulders['6,2'] = { type: 'medium2', stone: 'granite', face: 3, t: 1 };
+  game.boulders['10,2'] = { type: 'medium2', t: 1 };
+  game.boulders['14,2'] = { type: 'large3', stone: 'basalt', t: 1 };
+  withUnits('imperial', () => {
+    const rows = hardscapeRows().filter(r => r.kind === 'Boulder');
+    assertEqual(rows.length, 3, 'one line per type and stone, whichever way each is turned');
+    const g = rows.find(r => r.name.startsWith('Granite boulder'));
+    assertEqual(g.count, 2, 'both granite ones on it');
+    assert(/^about [\d,]+ lb each, [\d,.]+ (lb|tons) in all$/.test(g.detail), 'the sub-line is a weight: ' + g.detail);
+    assert(rows.some(r => r.name === 'Fieldstone boulder (34 in)'), 'an old record bills as fieldstone');
+    assert(boulderWeightLb({ type: 'large3', stone: 'basalt' }) > boulderWeightLb({ type: 'medium2', stone: 'basalt' }),
+      'a bigger stone weighs more');
+    assert(boulderWeightLb({ type: 'medium2', stone: 'basalt' }) > boulderWeightLb({ type: 'medium2', stone: 'sandstone' }),
+      'and basalt is denser than sandstone');
+    assertEqual(fmtWeightLb(243), '250 lb', 'pounds round to a sensible step');
+    assertEqual(fmtWeightLb(4900), '2.5 tons', 'and become tons');
+  });
+  withUnits('metric', () => {
+    assertEqual(fmtWeightLb(243), '110 kg', 'kilograms');
+    assertEqual(fmtWeightLb(4900), '2.2 t', 'tonnes');
+    assert(/cm|m/.test(boulderLabelFor({ type: 'oblong31' })), 'the label follows the units');
+  });
+});
+
+test('the boulder page offers every form, its sizes, its stones and a turn', () => {
+  setup(21, 21);
+  const tray = document.getElementById('toolTray');
+  game.trayCat = 'structures'; game.traySearch = ''; game.drill = 'boulder';
+  game.boulderDraft = { type: 'ledge32', stone: 'slate', face: 0 };
+  game.tool = 'boulder';
+  tray.children.length = 0;
+  buildToolTray(true);
+  const chips = tray.children.filter(c => c.dataset && c.dataset.k === 'boulder');
+  assertEqual(chips.filter(c => c.dataset.boulderForm).length, BOULDER_FORMS.length, 'every form');
+  assertEqual(chips.filter(c => c.dataset.boulderType).map(c => c.dataset.boulderType).join(','),
+    boulderFormTypes('ledge').map(t => t.id).join(','), 'the armed form\'s sizes, in order');
+  assertEqual(chips.filter(c => c.dataset.boulderStone).map(c => c.dataset.boulderStone).join(','),
+    boulderForm('ledge').stones.join(','), 'the stones a ledge comes in, in its order');
+  assertEqual(chips.filter(c => c.dataset.boulderTurn).length, 1, 'one Turn chip');
+  assert(landscapeSearchItems('granite').some(i => i.tool === 'boulder'), 'a stone name finds the boulder');
+  assert(landscapeSearchItems('standing stone').some(i => i.tool === 'boulder'), 'and so does a form');
+});
+
 test('a garden pet places as one-tile decoration, erases as landscape, and is eyedroppable', () => {
   setup(13, 13);
   const forb = firstOfType('forb');

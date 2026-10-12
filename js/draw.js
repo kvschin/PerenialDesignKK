@@ -9263,19 +9263,6 @@ function polyBounds(pts){
   pts.forEach(p=>{ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); });
   return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};
 }
-function irregularBoulderPath(ctx,sx,sy,rx,ry,seed,flatten){
-  const r=mulberry(seed>>>0), n=12;
-  ctx.beginPath();
-  for (let i=0;i<n;i++){
-    const a=(Math.PI*2*i/n)-Math.PI/2;
-    const wob=0.88+r()*0.2;
-    const px=sx+Math.cos(a)*rx*wob;
-    const py=sy+Math.sin(a)*ry*wob*(flatten||1);
-    if (!i) ctx.moveTo(px,py);
-    else ctx.lineTo(px,py);
-  }
-  ctx.closePath();
-}
 /* ---------- containers and seating ----------
    Both draw at real size: ground extent comes from the tile scale (a tile is
    TILE_IN inches across a TILE_W-wide diamond) and HEIGHT from PX_PER_FT, the
@@ -10064,101 +10051,489 @@ function solShadow(ctx,P,r){
   }
 }
 
-/* ---------- boulders ----------
+/* ---------- boulders and rocks ----------
    A rock at a ground point, drawn the container way (§12b): drawBoulder asks
    groundCenterRot where the middle of its tiles is and hands everything else to
-   drawBoulderArt, which reads no camera — so the garden and the guidebook paint
-   through one function, and the guidebook no longer has to lend it one.
+   drawBoulderArt, which reads no camera — so the garden, the tray chip, the plan
+   sheet and the guidebook all paint the same stone, and none of them can
+   advertise a rock the others do not draw.
 
-   It used to find itself through footprintScreenPoly, which put the four
-   footprint CORNERS through screenOf. That is the tile-corner lattice pushed
-   through the TILE transform — §10's trap, right at rot 0 and a tile out
-   everywhere else — so every boulder bigger than a tile slid off the ground it
-   claims as the view turned: measured on the ink, dx +35px at rot 1, dy -39 to
-   -45px at rot 2, dx -41px at rot 3. It also sampled the elevation of tiles
-   OUTSIDE its own footprint, since corner x+w is the next tile's index. The
-   fire pit had the identical bug and the identical fix (§12g). */
+   It used to be two flat seeded outlines a few pixels apart — a pebble seen from
+   directly above, the same from every side, with no height, no material and the
+   same grey for every type. A boulder is now a SOLID: a seeded, lumpy shell in
+   its own frame (u along its width, v along its depth, z up, all in real inches,
+   the fire pit's frame) that is projected through the camera's two tile
+   vectors, so it turns with the view and shows another side of itself at each
+   rotation. Faces turned away from the camera are dropped (solViewDir, the
+   seats' test) and the rest are painted far to near, each shaded by how it
+   meets the one fixed light. Then the marks that make it a particular stone —
+   grain, bedding, cracks, pits, lichen, moss, snow — all laid out in the rock's
+   own frame from the seed BEFORE anything is culled, so turning round a boulder
+   never reshuffles its cracks (the fire pit's rule, fpUnitRng).
+
+   Cost: a few dozen fills and a handful of batched marks, paid once per sprite
+   bake — every boulder in the garden goes through SSPRITE, so a frame pays one
+   blit for it, as before. See dev/boulder-review.html (?bench=1). */
 function drawBoulder(ctx,W,H,season,b,x,y){
   const d=normalizeBoulderDraft(b);
   const [cx,cy]=groundCenterRot(x,y,boulderTileSize(d),W,H);
   drawBoulderArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
 }
-/* Sizes, as fractions of the footprint's screen span (see drawBoulderArt).
-   They are the old numbers exactly — 0.86 of the corner polygon, then 0.48 /
-   0.54 of its bounds for a rounded stone, 0.56 / 0.46 for an oblong one that
-   lies lower and longer, and 0.76 of it again for a dressed stone's top face —
-   so a boulder at rot 0 still draws byte for byte as it did. Measured: rounding
-   these to two places changed 6-10% of a boulder's ink by up to 128/255, the
-   thin outline stroke landing a sub-pixel over. */
-const BOULDER_FILL={
-  round:{rx:0.86*0.48, ry:0.86*0.54},
-  oblong:{rx:0.86*0.56, ry:0.86*0.46},
-  box:0.86*0.76,
+/* The light, in a frame tied to the SCREEN rather than to the stone: x right,
+   y toward the viewer (down the screen), z up. Upper left and a little in front
+   — fpLight's light, the one every pot, seat and fire pit is drawn under — so
+   a stone's top and front-left are lit and its right flank is in shade at every
+   rotation. */
+const RK_LIGHT=[-0.5,0.42,0.76];
+const RK_RAMP_N=14;
+const RK_RAMPS=new Map();
+// shadow -> body -> lit, in RK_RAMP_N steps, once per stone
+function rockRamp(st){
+  let r=RK_RAMPS.get(st.id); if (r) return r;
+  r=[];
+  for (let i=0;i<RK_RAMP_N;i++){ const t=i/(RK_RAMP_N-1);
+    r.push(t<0.5 ? mixHex(st.lo,st.tone,t/0.5) : mixHex(st.tone,st.hi,(t-0.5)/0.5)); }
+  RK_RAMPS.set(st.id,r); return r;
+}
+const RK_SNOW_STONE={id:'~snow', lo:'#9eadbf', tone:'#dfe6ee', hi:'#fafbfc'};
+const RK_LICHEN=['#b5ba9a','#cdc088','#d3d2c6','#c39a52'];
+const RK_MOSS={Spring:['#7a9844','#9fb35c'], Summer:['#69853d','#8ba152'],
+  Fall:['#717c3d','#95974e'], Winter:['#5e6b43','#7d8857']};
+/* The shell of each form, as a PROFILE from the ground up: [height fraction,
+   radius fraction] per ring, `n` points round each. A boulder is set a third
+   deep, so it is widest just above the ground and domes from there; a ledge is
+   a low slab with a flat, tilted top; a standing stone tapers and leans. The
+   noise is low-frequency harmonics round the ring (`harm`, amplitude `amp`)
+   plus a per-point `jit` — lumps, not spikes — and an angular stone takes few
+   points and a lot of jitter, which is what fractures it into planes. Every
+   shell is then rescaled to exactly its stated width, depth and height, so a
+   34 in boulder is 34 in whatever the noise did. */
+/* `smooth` is how much a face's shading is taken from its CORNERS (the average
+   of the faces meeting there) rather than from itself: a weathered boulder is a
+   continuous surface, and shaded face by face its rings of equal height read as
+   the courses of an igloo; a fractured stone is planes, and keeps them. `twist`
+   turns each ring a little against the one below so the facets do not line up
+   into a grid. A ledge is a stack of beds, each set back a little from the one
+   under it — the narrow upward faces where they step in catch the light and are
+   most of what reads as layered stone. */
+const RK_SHAPES={
+  round:   {n:12, prof:[[0,0.94],[0.18,1],[0.42,0.96],[0.66,0.84],[0.86,0.58],[1,0.26]],
+            amp:0.1,  harm:[2,3,4], jit:0.05,  zjit:0.07, tilt:0.08, twist:0.32, smooth:0.7, contrast:1},
+  angular: {n:7,  prof:[[0,0.97],[0.42,1],[0.78,0.8],[1,0.5]],
+            amp:0.1,  harm:[2,3],   jit:0.13,  zjit:0.1,  tilt:0.2,  twist:0.2, smooth:0.12, contrast:1.12},
+  ledge:   {n:10, prof:[[0,0.96],[0.06,1],[0.33,0.99],[0.37,0.94],[0.64,0.94],[0.68,0.89],[1,0.87]],
+            amp:0.06, harm:[2,3],   jit:0.05,  zjit:0.03, tilt:0.09, twist:0.1, smooth:0.2, contrast:1.05},
+  standing:{n:7,  prof:[[0,0.94],[0.22,1],[0.58,0.9],[0.84,0.68],[1,0.38]],
+            amp:0.1,  harm:[2,3],   jit:0.12,  zjit:0.05, tilt:0.18, twist:0.22, smooth:0.25, contrast:1.08, lean:0.08},
+  // a stone under a foot across: four rings are all the eye can resolve
+  pebble:  {n:9,  prof:[[0,0.95],[0.26,1],[0.64,0.84],[1,0.36]],
+            amp:0.1,  harm:[2,3],   jit:0.06,  zjit:0.07, tilt:0.08, twist:0.3, smooth:0.6, contrast:1},
+  column:  {n:6,  prof:[[0,1],[1,1]], amp:0, harm:[], jit:0, zjit:0.035, tilt:0.07, smooth:0, contrast:1.1, hex:true},
+  dressed: {n:8,  prof:[[0,1],[0.86,1],[1,0.95]], amp:0, harm:[], jit:0, zjit:0, tilt:0, smooth:0, contrast:1.02, box:true},
 };
-/* The rock at a ground point. `axes` is the camera's pair of tile vectors, and
-   only the squared-off stone reads them: a rounded boulder is one irregular
-   outline seen from any side, so it needs its centre and its radii and nothing
-   else. `seed` is the tile's; the type is mixed in HERE so that a guidebook
-   stage passing tileSeed gets the rock the garden would draw on that tile. */
+/* The rocks a boulder type is made of, in its own frame: one for most, three or
+   five for a grouping (one big, the rest falling away, set as a scalene
+   triangle the way rocks are grouped — never in a row), one or three hexagonal
+   prisms for basalt columns. A grouping takes angular rocks in a stone that
+   fractures and rounded ones in a stone that weathers. */
+const RK_GROUPS={
+  3:[[0.56,-0.19,-0.13,1],[0.4,0.24,0.08,0.72],[0.3,-0.12,0.31,0.55]],
+  5:[[0.43,-0.18,-0.16,1],[0.33,0.2,-0.18,0.78],[0.27,0.16,0.2,0.62],[0.21,-0.24,0.24,0.5],[0.16,0.35,0.35,0.4]],
+};
+function rockSeedOf(type,seed){
+  let h=(seed||0)^0x6d2b79f5;
+  for (let i=0;i<type.length;i++) h=Math.imul(h^type.charCodeAt(i),0x01000193);
+  return (h>>>0)||1;
+}
+function boulderRocks(d,seed){
+  const spec=boulderType(d.type), st=boulderStone(d.stone), rs=rockSeedOf(d.type,seed);
+  const A=spec.wIn/2, B=spec.dIn/2, sub=i=>(rs^Math.imul(i+1,0x9e3779b1))>>>0;
+  if (spec.form==='group'){
+    const fractured=st.id==='granite'||st.id==='basalt'||st.id==='slate';
+    return RK_GROUPS[spec.rocks].map(([dia,u,v,hk],i)=>({shape:fractured?'angular':'round',
+      u:u*spec.wIn, v:v*spec.dIn, A:dia*A, B:dia*B*0.92, h:spec.hIn*hk, seed:sub(i), smooth:st.smooth}));
+  }
+  if (spec.form==='columns'){
+    const r=Math.min(A,B);
+    if (spec.rocks===1) return [{shape:'column', u:0, v:0, A:r, B:r, h:spec.hIn, seed:sub(0)}];
+    // three hexagons nested as a honeycomb: centres 2 apothems apart, tallest first
+    const R=r*0.48, ap=R*Math.cos(Math.PI/6), c=2*ap/Math.sqrt(3)+0.4;
+    return [[90,1],[210,0.7],[330,0.5]].map(([deg,hk],i)=>{ const a=deg*Math.PI/180;
+      return {shape:'column', u:Math.cos(a)*c, v:Math.sin(a)*c, A:R, B:R, h:spec.hIn*hk, seed:sub(i), hexA:Math.PI/6}; });
+  }
+  const shape=spec.form==='dressed'?'dressed':spec.form==='round'?'round':spec.form;
+  return [{shape, u:0, v:0, A, B, h:spec.hIn, seed:sub(0), smooth:st.smooth}];
+}
+/* A boulder's shells, kept: they are a pure function of the type, whether the
+   stone is water-worn, and the seed — never of the camera, the season or the
+   zoom — and building one was a seventh of a draw. A sprite bake at a new
+   rotation, season or zoom, the garden portrait, a dragged selection's ghost and
+   the guidebook (which redraws its stage every frame) all reuse them. Callers
+   treat a mesh as read-only. Bounded, and dropped wholesale past the bound,
+   like the chip caches. */
+const RK_MESH_CACHE=new Map();
+function boulderMeshes(d,seed){
+  const key=d.type+'|'+(boulderStone(d.stone).smooth?1:0)+'|'+(seed>>>0);
+  let ms=RK_MESH_CACHE.get(key);
+  if (!ms){ if (RK_MESH_CACHE.size>160) RK_MESH_CACHE.clear();
+    ms=boulderRocks(d,seed).map(rockMesh); RK_MESH_CACHE.set(key,ms); }
+  return ms;
+}
+/* One rock's shell, built and normalised in its own frame, with each face's
+   outward normal, centre and area — none of which depend on the camera, so the
+   only per-view work left is the visibility test and the shading. */
+function rockMesh(rk){
+  const S=RK_SHAPES[rk.shape==='round'&&rk.A+rk.B<11 ? 'pebble' : rk.shape]||RK_SHAPES.round, r=mulberry(rk.seed);
+  /* Fewer points round a small stone: a 12 in rock does not need a 48 in rock's
+     facets, and it is a grouping's five small rocks that this pays for. */
+  const soft=rk.smooth?0.42:1, prof=S.prof, R=prof.length;
+  const n=S.hex||S.box ? S.n : Math.max(6,Math.round((S.n+(rk.smooth?2:0))*Math.min(1,0.55+0.45*(rk.A+rk.B)/24)));
+  const harm=S.harm.map(k=>({k, a:S.amp*soft*(0.5+0.5*r())*2/k, p:r()*6.2832, tw:(r()-0.5)*2.4}));
+  const a0=rk.hexA!==undefined ? rk.hexA : S.box ? 0 : r()*6.2832;
+  const tilt=S.tilt*(0.35+0.65*r()), td=r()*6.2832, tu=Math.cos(td)*tilt, tv=Math.sin(td)*tilt;
+  const lean=(S.lean||0)*(0.4+0.6*r()), ld=r()*6.2832;
+  const ang=[], jl=[];
+  for (let j=0;j<n;j++){
+    ang.push(a0+(j+(S.hex||S.box?0:(r()-0.5)*0.55))*6.2832/n);
+    jl.push(1+(r()-0.5)*2*S.jit*soft);
+  }
+  const tw=[0]; for (let i=1;i<R;i++) tw.push((r()-0.5)*(S.twist||0)*6.2832/n);
+  const c=Math.min(rk.A,rk.B)*0.12;          // a dressed block's chamfer
+  const BOX=[[1,-1+c/rk.B],[1,1-c/rk.B],[1-c/rk.A,1],[-1+c/rk.A,1],[-1,1-c/rk.B],[-1,-1+c/rk.B],[-1+c/rk.A,-1],[1-c/rk.A,-1]];
+  const V=[];
+  for (let i=0;i<R;i++){
+    const zf=prof[i][0], rf=prof[i][1];
+    for (let j=0;j<n;j++){
+      const t=ang[j]+tw[i];
+      let m=rf*jl[j]*(i&&S.jit ? 1+(r()-0.5)*S.jit*soft : 1);
+      for (const hm of harm) m*=1+hm.a*Math.cos(hm.k*t+hm.p+zf*hm.tw);
+      let u, v;
+      if (S.box){ u=BOX[j][0]*rk.A*rf; v=BOX[j][1]*rk.B*rf; }
+      else { u=Math.cos(t)*rk.A*m; v=Math.sin(t)*rk.B*m; }
+      let z=zf*rk.h;
+      if (i){ z*=1+(r()-0.5)*2*S.zjit; z+=zf*zf*rk.h*(tu*u/rk.A+tv*v/rk.B); }
+      u+=Math.cos(ld)*lean*zf*rk.h; v+=Math.sin(ld)*lean*zf*rk.h;
+      V.push([u,v,z]);
+    }
+  }
+  // exactly the stated size: the widest point fits A x B and the top reaches h
+  let mu=1e-6, mv=1e-6, mz=1e-6;
+  for (const p of V){ mu=Math.max(mu,Math.abs(p[0])); mv=Math.max(mv,Math.abs(p[1])); mz=Math.max(mz,p[2]); }
+  // (a hexagon and a box are exact by construction, and stretching a hexagon
+  // to its bounding box would stop three of them nesting)
+  const exact=S.hex||S.box, ku=exact?1:rk.A/mu, kv=exact?1:rk.B/mv, kz=rk.h/mz;
+  for (const p of V){ p[0]=p[0]*ku+rk.u; p[1]=p[1]*kv+rk.v; p[2]*=kz; }
+  const F=[];
+  for (let i=0;i<R-1;i++) for (let j=0;j<n;j++){
+    const j2=(j+1)%n; F.push({i, j, q:[i*n+j, i*n+j2, (i+1)*n+j2, (i+1)*n+j]});
+  }
+  const cap=[]; for (let j=0;j<n;j++) cap.push((R-1)*n+j);
+  F.push({i:R-1, j:-1, q:cap, cap:true});
+  // ring centres, for which way is out
+  const rc=[]; for (let i=0;i<R;i++){ let su=0,sv=0; for (let j=0;j<n;j++){ su+=V[i*n+j][0]; sv+=V[i*n+j][1]; } rc.push([su/n,sv/n]); }
+  for (const f of F){
+    // Newell's normal: right for a warped quad and a non-planar cap alike
+    let nx=0, ny=0, nz=0, cu=0, cv=0, cz=0;
+    const q=f.q, L=q.length;
+    for (let k=0;k<L;k++){ const a=V[q[k]], b=V[q[(k+1)%L]];
+      nx+=(a[1]-b[1])*(a[2]+b[2]); ny+=(a[2]-b[2])*(a[0]+b[0]); nz+=(a[0]-b[0])*(a[1]+b[1]);
+      cu+=a[0]; cv+=a[1]; cz+=a[2]; }
+    cu/=L; cv/=L; cz/=L;
+    const len=Math.hypot(nx,ny,nz)||1;
+    nx/=len; ny/=len; nz/=len;
+    const o=rc[Math.min(f.i,R-1)];
+    if (f.cap ? nz<0 : nx*(cu-o[0])+ny*(cv-o[1])<0){ nx=-nx; ny=-ny; nz=-nz; }
+    f.n=[nx,ny,nz]; f.c=[cu,cv,cz]; f.area=len/2;
+  }
+  // a corner's normal: the faces meeting there, weighted by their area
+  const VN=V.map(()=>[0,0,0]);
+  for (const f of F) for (const k of f.q){ const w=f.area, o=VN[k];
+    o[0]+=f.n[0]*w; o[1]+=f.n[1]*w; o[2]+=f.n[2]*w; }
+  for (const o of VN){ const l=Math.hypot(o[0],o[1],o[2])||1; o[0]/=l; o[1]/=l; o[2]/=l; }
+  return {V, VN, F, n, R, h:rk.h, A:rk.A, B:rk.B, cu:rk.u, cv:rk.v, tu, tv, shape:rk.shape, seed:rk.seed};
+}
+/* A point on a face at (s,t) in 0..1: bilinear on a quad, and on the cap a
+   point between its centre and a rim edge. In the rock's frame, so the mark
+   sits on the same spot of stone from every side. */
+function rockFacePoint(m,f,s,t){
+  const V=m.V, q=f.q;
+  if (f.cap){
+    const k=Math.min(q.length-1,Math.floor(s*q.length)), a=V[q[k]], b=V[q[(k+1)%q.length]], e=s*q.length-k;
+    const rim=[a[0]+(b[0]-a[0])*e, a[1]+(b[1]-a[1])*e, a[2]+(b[2]-a[2])*e], tt=Math.sqrt(t)*0.9;
+    return [f.c[0]+(rim[0]-f.c[0])*tt, f.c[1]+(rim[1]-f.c[1])*tt, f.c[2]+(rim[2]-f.c[2])*tt];
+  }
+  const a=V[q[0]], b=V[q[1]], c=V[q[2]], d=V[q[3]], o=[0,0,0];
+  for (let k=0;k<3;k++) o[k]=(a[k]*(1-s)+b[k]*s)*(1-t)+(d[k]*(1-s)+c[k]*s)*t;
+  return o;
+}
+/* A small blotch lying in a face's plane — lichen, moss — as a path of six
+   points round `p`, `rad` inches across. */
+function rockBlotch(ctx,P,f,p,rad,r){
+  const n=f.n, e1=Math.abs(n[2])<0.9 ? [-n[1],n[0],0] : [1,0,0];
+  const l1=Math.hypot(e1[0],e1[1],e1[2])||1; e1[0]/=l1; e1[1]/=l1; e1[2]/=l1;
+  const e2=[n[1]*e1[2]-n[2]*e1[1], n[2]*e1[0]-n[0]*e1[2], n[0]*e1[1]-n[1]*e1[0]];
+  for (let k=0;k<6;k++){
+    const a=k/6*6.2832+r()*0.6, rr=rad*(0.62+0.5*r());
+    const ca=Math.cos(a)*rr, sa=Math.sin(a)*rr;
+    const s=P(p[0]+e1[0]*ca+e2[0]*sa, p[1]+e1[1]*ca+e2[1]*sa, p[2]+e1[2]*ca+e2[2]*sa);
+    if (!k) ctx.moveTo(s[0],s[1]); else ctx.lineTo(s[0],s[1]);
+  }
+  ctx.closePath();
+}
+// the contact shadow under one rock, from the outline of its footing on screen
+function rockShadow(ctx,P,m,one){
+  let x0=1e9, x1=-1e9, y0=1e9, y1=-1e9;
+  for (let j=0;j<m.n;j++){ const p=m.V[m.n+j], s=P(p[0],p[1],0);   // ring 1, the widest, at grade
+    if (s[0]<x0)x0=s[0]; if (s[0]>x1)x1=s[0]; if (s[1]<y0)y0=s[1]; if (s[1]>y1)y1=s[1]; }
+  const rx=(x1-x0)/2, ry=(y1-y0)/2;
+  const sx=(x0+x1)/2+rx*0.1, sy=(y0+y1)/2+ry*0.1;
+  // a grouping's small rocks take one fill each under the group's soft one
+  if (one){ ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.ellipse(sx,sy,rx*1.06,ry*1.08+1,0,0,7); ctx.fill(); return; }
+  drawSoftShadow(ctx,sx,sy,rx*1.1,ry*1.12+1.5,0.36);
+}
+/* Paint one rock. Faces are filled far to near over an UNDERLAY of every
+   visible face at once, which is what keeps the hairline seam between two
+   antialiased fills from showing the ground through the stone. */
+function paintRock(ctx,P,ax,ay,Vw,m,st,season,form){
+  const S=RK_SHAPES[m.shape]||RK_SHAPES.round, ramp=rockRamp(st);
+  const sp=m.V.map(p=>P(p[0],p[1],p[2]));
+  const snow=!!(AMBIENCE[season]&&AMBIENCE[season].snow);
+  const r0=mulberry((m.seed^0x51ed270b)>>>0), tint=(r0()-0.5)*0.08;
+  const contrast=S.contrast*(st.smooth?0.82:1), sm=Math.min(0.85,(S.smooth||0)+(st.smooth?0.15:0));
+  const light=n=>{ const sx=(ax[0]*n[0]+ay[0]*n[1])/(TILE_W/2), sy=(ax[1]*n[0]+ay[1]*n[1])/(TILE_H/2);
+    return (sx*RK_LIGHT[0]+sy*RK_LIGHT[1])*Math.SQRT1_2+n[2]*RK_LIGHT[2]; };
+  const lamV=sm ? m.VN.map(light) : null;
+  const vis=[];
+  for (let k=0;k<m.F.length;k++){ const f=m.F[k], n=f.n;
+    if (n[0]*Vw[0]+n[1]*Vw[1]+n[2]*Vw[2]<=0.015) continue;
+    let lam=light(n);
+    if (sm){ let s2=0; for (const q of f.q) s2+=lamV[q]; lam=lam*(1-sm)+s2/f.q.length*sm; }
+    const ao=Math.min(1,f.c[2]/Math.max(1.5,m.h*0.3));
+    const mot=(fpUnitRng(m.seed,3,k)()-0.5)*2*(st.mottle||0.06);
+    // the body tone sits in the middle of the ramp, so a lit face reaches the
+    // highlight and only the very top approaches it
+    const b=0.38+0.48*lam*contrast-0.18*(1-ao)+mot+tint;
+    vis.push({f, k, b, lam, d:f.c[0]*Vw[0]+f.c[1]*Vw[1]+f.c[2]*Vw[2]});
+  }
+  vis.sort((a,b)=>a.d-b.d);
+  const poly=f=>{ const q=f.q; ctx.moveTo(sp[q[0]][0],sp[q[0]][1]);
+    for (let i=1;i<q.length;i++) ctx.lineTo(sp[q[i]][0],sp[q[i]][1]); ctx.closePath(); };
+  const idx=b=>Math.max(0,Math.min(RK_RAMP_N-1,Math.round(b*(RK_RAMP_N-1))));
+  /* A stone is not convex — a lump, or a ledge's set-back beds — so a face can
+     be turned toward the camera and still be behind the stone. The fill order
+     covers it; the MARKS and the outline, drawn after every fill, would not, and
+     show through as wire across a ledge's top. A face whose centre lands inside
+     a nearer face on screen is hidden: it is filled and gets nothing else. On a
+     convex shell no two visible faces overlap, so nothing is lost there. */
+  for (const e of vis){ let x=0, y=0, x0=1e9, y0=1e9, x1=-1e9, y1=-1e9; const q=e.f.q;
+    for (const i of q){ const p=sp[i]; x+=p[0]; y+=p[1];
+      if (p[0]<x0)x0=p[0]; if (p[0]>x1)x1=p[0]; if (p[1]<y0)y0=p[1]; if (p[1]>y1)y1=p[1]; }
+    e.sx=x/q.length; e.sy=y/q.length; e.bb=[x0,y0,x1,y1]; }
+  for (let a=0;a<vis.length;a++){ const A=vis[a];
+    for (let b=a+1;b<vis.length && !A.hidden;b++){ const B=vis[b], bb=B.bb;
+      if (A.sx<bb[0]||A.sx>bb[2]||A.sy<bb[1]||A.sy>bb[3]) continue;
+      const q=B.f.q; let inside=false;
+      for (let i=0, j=q.length-1; i<q.length; j=i++){ const pi=sp[q[i]], pj=sp[q[j]];
+        if ((pi[1]>A.sy)!==(pj[1]>A.sy) && A.sx<(pj[0]-pi[0])*(A.sy-pi[1])/(pj[1]-pi[1])+pi[0]) inside=!inside; }
+      if (inside) A.hidden=true; } }
+  /* Snow lies on what faces up and stands clear of the ground — the cap and
+     the gentle shoulders whole, the steeper shoulders on their upper half — not
+     on a low lump at the foot, where it read as a stray white bar. */
+  const sr=snow ? rockRamp(RK_SNOW_STONE) : null;
+  const snowsOn=e=>snow && !e.hidden && (e.f.cap || (e.f.n[2]>0.28 && e.f.c[2]>m.h*0.32));
+  const snowed=e=>snowsOn(e) && (e.f.cap || e.f.n[2]>0.5);
+  const live=e=>!e.hidden && !snowed(e);
+  const snowPoly=e=>{ const f=e.f, up=f.n[2];
+    if (f.cap || up>0.5){ poly(f); return; }
+    const q=f.q, a=sp[q[0]], b=sp[q[1]], c=sp[q[2]], d=sp[q[3]], t=up>0.4?0.5:0.72;
+    ctx.moveTo(d[0],d[1]); ctx.lineTo(c[0],c[1]);
+    ctx.lineTo(c[0]+(b[0]-c[0])*(1-t),c[1]+(b[1]-c[1])*(1-t));
+    ctx.lineTo(d[0]+(a[0]-d[0])*(1-t),d[1]+(a[1]-d[1])*(1-t)); ctx.closePath(); };
+  ctx.fillStyle=ramp[4]; ctx.beginPath(); for (const e of vis) poly(e.f); ctx.fill();
+  for (const e of vis){ ctx.fillStyle=ramp[idx(e.b)]; ctx.beginPath(); poly(e.f); ctx.fill(); }
+  const marks=form!=='dressed';
+  /* Bedding: planes of constant height (dipping with the top, so a ledge's
+     courses run parallel to it) cut across every side face, drawn as a dark
+     line with a lit lip under it. */
+  const bands=(st.bands||0)*(form==='dressed'?0.5:form==='ledge'?1.15:1)+(m.shape==='column'?0.45:0);
+  if (bands>0.05){
+    const sp2=m.shape==='column'?11:(st.bandSp||5), rb=mulberry((m.seed^0x2c1b3c6d)>>>0);
+    const dipU=m.tu*m.h/m.A, dipV=m.tv*m.h/m.B, ph=rb()*sp2;
+    const segs=[];
+    for (let z=ph+sp2*0.6; z<m.h*0.97; z+=sp2*(0.75+rb()*0.5)){
+      for (const e of vis){ const f=e.f; if (f.cap || !live(e)) continue;
+        const q=f.q, pts=[];
+        for (const [a,b] of [[q[0],q[3]],[q[1],q[2]]]){
+          const A=m.V[a], B=m.V[b];
+          const ga=A[2]-(z+dipU*(A[0])+dipV*(A[1])), gb=B[2]-(z+dipU*(B[0])+dipV*(B[1]));
+          if (ga*gb>0 || ga===gb) continue;
+          const t=ga/(ga-gb); pts.push([sp[a][0]+(sp[b][0]-sp[a][0])*t, sp[a][1]+(sp[b][1]-sp[a][1])*t]);
+        }
+        if (pts.length===2) segs.push(pts);
+      }
+    }
+    if (segs.length){
+      ctx.lineCap='round';
+      ctx.strokeStyle=st.lo; ctx.globalAlpha=Math.min(0.6,0.16+0.32*bands); ctx.lineWidth=0.8;
+      ctx.beginPath(); for (const [a,b] of segs){ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); } ctx.stroke();
+      ctx.strokeStyle=st.hi; ctx.globalAlpha=Math.min(0.32,0.1+0.16*bands); ctx.lineWidth=0.7;
+      ctx.beginPath(); for (const [a,b] of segs){ ctx.moveTo(a[0],a[1]+0.85); ctx.lineTo(b[0],b[1]+0.85); } ctx.stroke();
+      ctx.globalAlpha=1; ctx.lineCap='butt';
+    }
+  }
+  /* Cracks run down the stone from near its top, wandering a little at each
+     ring. Laid out whole before culling, so a crack keeps its course as the
+     view turns and only its far half goes out of sight. */
+  const ncr=marks&&!st.smooth&&m.shape!=='column' ? (st.cracks||0)*(0.6+m.h/22) : 0;
+  if (ncr>0.2 && m.R>2){
+    const rc=mulberry((m.seed^0x7f4a7c15)>>>0), visAt=new Set(vis.filter(live).map(e=>e.k));
+    const count=Math.floor(ncr)+(rc()<ncr%1?1:0), segs=[];
+    const at=(i,jf)=>{ const j=((Math.floor(jf)%m.n)+m.n)%m.n, e=jf-Math.floor(jf);
+      const a=sp[i*m.n+j], b=sp[i*m.n+(j+1)%m.n]; return [a[0]+(b[0]-a[0])*e, a[1]+(b[1]-a[1])*e]; };
+    for (let c=0;c<count;c++){
+      let jf=rc()*m.n, i=m.R-1-(rc()<0.5?1:0);
+      let p=at(i,jf);
+      const stop=Math.max(0,i-2-Math.floor(rc()*2));
+      while (i>stop){
+        const jn=jf+(rc()-0.5)*0.9, q=at(i-1,jn);
+        const face=(i-1)*m.n+((Math.floor((jf+jn)/2)%m.n)+m.n)%m.n;
+        if (visAt.has(face)) segs.push([p,q]);
+        p=q; jf=jn; i--;
+      }
+    }
+    if (segs.length){
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=st.lo; ctx.globalAlpha=0.55; ctx.lineWidth=0.9;
+      ctx.beginPath(); for (const [a,b] of segs){ ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); } ctx.stroke();
+      ctx.strokeStyle=st.hi; ctx.globalAlpha=0.26; ctx.lineWidth=0.7;
+      ctx.beginPath(); for (const [a,b] of segs){ ctx.moveTo(a[0]+0.6,a[1]+0.8); ctx.lineTo(b[0]+0.6,b[1]+0.8); } ctx.stroke();
+      ctx.globalAlpha=1; ctx.lineCap='butt'; ctx.lineJoin='miter';
+    }
+  }
+  /* Grain, pits, lichen and moss: placed per face from that face's own random
+     stream, by area, so a big stone carries more of them than a small one and
+     a face keeps its marks whichever way the stone is turned. Batched into one
+     fill per colour — a fill is nearly free, a shape instance is the cost. */
+  const fleckCols=st.fleck||[], fl=fleckCols.map(()=>[]), pits=[], lich=RK_LICHEN.map(()=>[]), moss=[[],[]];
+  let area=0; for (const e of vis) if (live(e)) area+=e.f.area;
+  const fleckK=Math.min(1,240/Math.max(1,area*(st.fleckN||0)*0.035));
+  const mossK=(st.moss||0), lichK=marks?(st.lichen||0):0;
+  for (const e of vis){
+    if (!live(e)) continue;
+    const f=e.f, k=e.k;
+    if (fleckCols.length){
+      const rf=fpUnitRng(m.seed,1,k), nf=Math.round(f.area*(st.fleckN||0)*0.035*fleckK);
+      for (let i=0;i<nf;i++){ const p=rockFacePoint(m,f,0.06+rf()*0.88,0.06+rf()*0.88), s=P(p[0],p[1],p[2]);
+        fl[Math.floor(rf()*fleckCols.length)].push(s[0],s[1],0.8+rf()*0.8); }
+    }
+    if (st.pits){
+      const rp=fpUnitRng(m.seed,4,k), np=Math.round(f.area*st.pits*0.012);
+      for (let i=0;i<np;i++){ const p=rockFacePoint(m,f,0.1+rp()*0.8,0.1+rp()*0.8), s=P(p[0],p[1],p[2]);
+        pits.push(s[0],s[1],0.9+rp()*0.9); }
+    }
+    const up=f.n[2];
+    if (lichK && up>(mossK?-0.1:0.18)){
+      const rl=fpUnitRng(m.seed,2,k), nl=f.area*lichK*0.009*(0.4+Math.max(0,up));
+      const cnt=Math.floor(nl)+(rl()<nl%1?1:0);
+      for (let i=0;i<cnt;i++){ const p=rockFacePoint(m,f,0.15+rl()*0.7,0.15+rl()*0.7);
+        lich[rl()<0.08?3:Math.floor(rl()*3)].push([f,p,0.7+rl()*1.7*(mossK?1.4:1),rl]); }
+    }
+    if (mossK && (up>0.3 || (e.lam<0.15 && f.c[2]<m.h*0.4))){
+      const rm=fpUnitRng(m.seed,5,k), nm=f.area*mossK*0.0045;
+      const cnt=Math.floor(nm)+(rm()<nm%1?1:0);
+      for (let i=0;i<cnt;i++){ const p=rockFacePoint(m,f,0.12+rm()*0.76,0.12+rm()*0.76);
+        moss[rm()<0.6?0:1].push([f,p,2.2+rm()*3.4,rm]); }
+    }
+  }
+  fleckCols.forEach((col,i)=>{ const a=fl[i]; if (!a.length) return;
+    ctx.fillStyle=col; ctx.beginPath();
+    for (let j=0;j<a.length;j+=3) ctx.rect(a[j]-a[j+2]/2,a[j+1]-a[j+2]*0.4,a[j+2],a[j+2]*0.8);
+    ctx.fill(); });
+  if (pits.length){
+    ctx.fillStyle=st.lo; ctx.globalAlpha=0.6; ctx.beginPath();
+    for (let j=0;j<pits.length;j+=3) ctx.rect(pits[j]-pits[j+2]/2,pits[j+1]-pits[j+2]*0.45,pits[j+2],pits[j+2]*0.75);
+    ctx.fill();
+    ctx.fillStyle=st.hi; ctx.globalAlpha=0.45; ctx.beginPath();
+    for (let j=0;j<pits.length;j+=3) ctx.rect(pits[j]-pits[j+2]/2,pits[j+1]+pits[j+2]*0.35,pits[j+2],0.6);
+    ctx.fill(); ctx.globalAlpha=1;
+  }
+  const mc=RK_MOSS[season]||RK_MOSS.Summer;
+  moss.forEach((list,i)=>{ if (!list.length) return;
+    ctx.fillStyle=mc[i]; ctx.globalAlpha=0.92; ctx.beginPath();
+    for (const [f,p,rad,r] of list) rockBlotch(ctx,P,f,p,rad,r);
+    ctx.fill(); ctx.globalAlpha=1; });
+  RK_LICHEN.forEach((col,i)=>{ const list=lich[i]; if (!list.length) return;
+    ctx.fillStyle=col; ctx.globalAlpha=0.6; ctx.beginPath();
+    for (const [f,p,rad,r] of list) rockBlotch(ctx,P,f,p,rad,r);
+    ctx.fill(); ctx.globalAlpha=1; });
+  /* The snow goes on last, over the marks and an underlay of its own — laid face by
+     face straight onto dark stone, every seam between two snow facets showed the
+     stone through it and the cap read as the panels of an igloo. Hidden faces
+     take none, so the snow cannot land on a face the stone is in front of. */
+  if (snow){
+    const lay=vis.filter(snowsOn);
+    if (lay.length){
+      ctx.fillStyle=sr[8]; ctx.beginPath(); for (const e of lay) snowPoly(e); ctx.fill();
+      for (const e of lay){ ctx.fillStyle=sr[idx(0.34+0.56*e.lam)]; ctx.beginPath(); snowPoly(e); ctx.fill(); }
+    }
+  }
+  /* The outline: every edge with a visible face on one side only — the rim
+     against the ground and the sky, and a ridge where the stone turns away —
+     among the faces actually in sight. One stroke for the lot. */
+  const edge=new Map();
+  for (const e of vis){ if (e.hidden) continue; const q=e.f.q;
+    for (let i=0;i<q.length;i++){ const a=q[i], b=q[(i+1)%q.length], key=a<b?a*4096+b:b*4096+a;
+      edge.set(key,(edge.get(key)||0)+1); } }
+  ctx.strokeStyle='rgba(30,26,22,0.46)'; ctx.lineWidth=0.95; ctx.lineJoin='round';
+  ctx.beginPath();
+  for (const [key,c] of edge){ if (c!==1) continue;
+    const a=sp[Math.floor(key/4096)], b=sp[key%4096]; ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }
+  ctx.stroke(); ctx.lineJoin='miter';
+}
+/* The stone at a ground point. `axes` is the camera's pair of tile vectors and
+   `seed` the tile's; the type is mixed in HERE so that a guidebook stage passing
+   tileSeed gets the rock the garden would draw on that tile — and the stone is
+   NOT, so recolouring a boulder keeps its shape. */
 function drawBoulderArt(ctx,cx,cy,b,season,axes,seed){
   season=season||'Summer';
-  const d=normalizeBoulderDraft(b), sz=boulderTileSize(d), spec=sz.spec;
-  const sx=cx, base=cy;
-  seed=((seed||0)^0x6d2b79f5^d.type.length)>>>0;
-  const tone=spec.tone||'#7f8178', side=shade(tone,-22), top=shade(tone,16), hi=shade(tone,36);
-  /* Radii from the footprint's real size in tiles. A w x h footprint spans
-     (w+h)*TILE_W/2 across the screen and (w+h)*TILE_H/2 down it at EVERY
-     rotation, because each tile vector is (±TILE_W/2, ±TILE_H/2) — the same
-     fact behind drawPotArt's root-2 rule, that a tile's drawn width is its
-     diagonal. The corner polygon's bounds were exactly this at rot 0 and a box
-     round the wrong centre everywhere else.
-     (The root-2 rule proper — the inscribed ellipse, hypot(w,h)/2 per side —
-     was tried and agrees for a square footprint, but no one constant then
-     reproduces both oblongs: the 2x1 would shrink 6% and the 3x2 grow 2.5%.) */
-  const fill=BOULDER_FILL[spec.shape==='oblong'?'oblong':'round'];
-  const rx=(sz.w+sz.h)*TILE_W/2*fill.rx, ry=(sz.w+sz.h)*TILE_H/2*fill.ry;
+  const d=normalizeBoulderDraft(b), spec=boulderType(d.type), st=boulderStone(d.stone);
+  const [ax,ay]=turnAxes(axes||ISO_AXES_FLAT,d.face);
+  const P=fpProjector(cx,cy,ax,ay), Vw=solViewDir(ax,ay);
+  const meshes=boulderMeshes(d,seed);
   ctx.save();
-  drawSoftShadow(ctx,sx,base+6,rx*0.98,Math.max(5,ry*0.55),0.24);
-  if (spec.shape==='rect'){
-    /* A dressed stone is a low box laid out in its OWN frame — u along its
-       width, v along its depth, in tiles — and projected through the camera's
-       axes, so it turns with the view the way isoBox's pieces do. It stands 7px
-       proud and is bedded 5px into the ground. */
-    const [ax,ay]=axes||ISO_AXES_FLAT, hw=sz.w/2*BOULDER_FILL.box, hd=sz.h/2*BOULDER_FILL.box;
-    const P=(u,v,z)=>[cx+ax[0]*u+ay[0]*v, cy+ax[1]*u+ay[1]*v-z];
-    const c=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]];
-    const topPoly=c.map(([u,v])=>P(u,v,7)), front=c.map(([u,v])=>P(u,v,-5));
-    /* The camera sees the two faces meeting at the corner lowest on screen
-       (isoBox's rule). They are shaded by which SIDE of the screen they fall
-       on rather than by which edge of the stone they are — the light is fixed
-       to the screen, not to the stone — so the left face is always the darker
-       one, as it was at rot 0 before the stone could turn. */
-    let f=0; for (let i=1;i<4;i++) if (topPoly[i][1]>topPoly[f][1]) f=i;
-    const a=(f+3)%4, n=(f+1)%4, [l,r]=topPoly[a][0]<topPoly[n][0] ? [a,n] : [n,a];
-    ctx.fillStyle=side; polyPath(ctx,[topPoly[l],topPoly[f],front[f],front[l]]); ctx.fill();
-    ctx.fillStyle=shade(tone,-10); polyPath(ctx,[topPoly[r],topPoly[f],front[f],front[r]]); ctx.fill();
-    ctx.fillStyle=top; polyPath(ctx,topPoly); ctx.fill();
-    ctx.strokeStyle='rgba(45,42,36,0.24)'; ctx.lineWidth=1.1; polyPath(ctx,topPoly); ctx.stroke();
-    ctx.fillStyle='rgba(239,230,211,0.18)';
-    ctx.fillRect(sx-rx*0.42,base-12,rx*0.55,4);
-  } else {
-    const flat=spec.shape==='oblong'?0.72:1;
-    ctx.fillStyle=side;
-    irregularBoulderPath(ctx,sx,base+3,rx,ry,seed,flat); ctx.fill();
-    ctx.fillStyle=top;
-    irregularBoulderPath(ctx,sx,base-4,rx*0.92,ry*0.92,seed+17,flat); ctx.fill();
-    ctx.strokeStyle='rgba(48,45,38,0.22)'; ctx.lineWidth=1;
-    irregularBoulderPath(ctx,sx,base-4,rx*0.92,ry*0.92,seed+17,flat); ctx.stroke();
-    ctx.fillStyle='rgba(239,230,211,0.22)';
-    ctx.beginPath(); ctx.ellipse(sx-rx*0.2,base-ry*0.35,rx*0.28,Math.max(2,ry*0.12),-0.12,0,7); ctx.fill();
-    ctx.fillStyle=hi;
-    ctx.beginPath(); ctx.ellipse(sx+rx*0.18,base-ry*0.12,rx*0.16,Math.max(1.5,ry*0.08),0.18,0,7); ctx.fill();
-  }
-  if (AMBIENCE[season].snow){
-    ctx.strokeStyle='rgba(240,244,250,0.58)'; ctx.lineWidth=2.2;
-    ctx.beginPath(); ctx.ellipse(sx,base-ry*0.28,rx*0.62,Math.max(2,ry*0.17),0,Math.PI*1.05,Math.PI*1.9); ctx.stroke();
-  }
+  if (meshes.length>1){
+    // the grouping's own soft shadow, then a contact under each rock
+    const e=boulderType(d.type), c=P(0,0,0), k=(TILE_W/2)/TILE_IN;
+    drawSoftShadow(ctx,c[0]+4,c[1]+2,(e.wIn+e.dIn)/2*k*0.72,(e.wIn+e.dIn)/2*k*0.36,0.26);
+    for (const m of meshes) rockShadow(ctx,P,m,true);
+  } else for (const m of meshes) rockShadow(ctx,P,m);
+  // far to near, by where each rock stands
+  meshes.slice().sort((a,b)=>(a.cu*Vw[0]+a.cv*Vw[1])-(b.cu*Vw[0]+b.cv*Vw[1]))
+    .forEach(m=>paintRock(ctx,P,ax,ay,Vw,m,st,season,spec.form));
   ctx.restore();
+}
+/* Where a boulder's drawing reaches, in screen px from its ground point, at the
+   rot-0 axes it is drawn on in a chip — for fitting it to one. */
+function boulderArtExtent(d,seed){
+  d=normalizeBoulderDraft(d);
+  const [ax,ay]=turnAxes(ISO_AXES_FLAT,d.face), P=fpProjector(0,0,ax,ay);
+  let x0=0, x1=0, y0=0, y1=0;
+  for (const m of boulderMeshes(d,seed)) for (const p of m.V){ const s=P(p[0],p[1],p[2]);
+    if (s[0]<x0)x0=s[0]; if (s[0]>x1)x1=s[0]; if (s[1]<y0)y0=s[1]; if (s[1]>y1)y1=s[1]; }
+  // the contact shadow reaches a little past the stone's foot, to the right
+  return {x0:x0-1, x1:x1+3, y0:y0-1, y1:y1+3};
+}
+/* How far above its ground point a boulder can reach on screen, at ANY
+   rotation, for the sprite box: each ring's own height plus how far its width
+   can carry it up the screen, with room for the noise, the tilt and a standing
+   stone's lean. The rescale in rockMesh is what makes this a bound — no point of
+   the shell is wider than the stated size or higher than the stated height. */
+function boulderReachUp(spec){
+  const S=RK_SHAPES[spec.form==='group'?'angular':spec.form==='columns'?'column':spec.form]||RK_SHAPES.round;
+  const span=(spec.wIn+spec.dIn)/2*(TILE_H/2)/TILE_IN, lean=(S.lean||0)*spec.hIn*(TILE_H/2)/TILE_IN;
+  let up=0;
+  for (const [zf,rf] of S.prof) up=Math.max(up, Math.min(1,zf*1.25)*spec.hIn*FP_Z+Math.min(1,rf*1.3)*span);
+  return Math.max(up,spec.hIn*FP_Z)+lean;
 }
 /* ---------- fire pits ----------
    A solid at real size, drawn the container way (§12b): real inches through

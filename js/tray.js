@@ -458,6 +458,33 @@ function drawFirepitChip(tc,d,w,h,capK){
   }
   tc.drawImage(bmp,0,0);
 }
+/* A boulder fitted to a small canvas through drawBoulderArt, the fire pit's
+   chip one stone over: one painter for the garden, the tray and the brush
+   swatch, kept per draft and size because the drawing is a pure function of the
+   draft (a fixed seed, Summer, rot 0). The cap is higher than the fire pit's so
+   a 12 in stone still reads as a stone; past it, a big rock shrinks to fit and
+   the chip's label carries its size. */
+const BOULDER_CHIP_CACHE=new Map();
+function drawBoulderChip(tc,d,w,h,capK){
+  if (!tc) return;
+  d=normalizeBoulderDraft(d);
+  const key=JSON.stringify(d)+'|'+w+'x'+h+'|'+(capK||0.6);
+  let bmp=BOULDER_CHIP_CACHE.get(key);
+  if (!bmp){
+    if (BOULDER_CHIP_CACHE.size>96) BOULDER_CHIP_CACHE.clear();
+    bmp=document.createElement('canvas'); bmp.width=w; bmp.height=h;
+    const c=bmp.getContext('2d');
+    if (c){
+      const e=boulderArtExtent(d,0x3f1e);
+      const k=Math.min(capK||0.6,(w-4)/(e.x1-e.x0),(h-4)/(e.y1-e.y0));
+      c.save(); c.translate(w/2-(e.x0+e.x1)/2*k,h/2-(e.y0+e.y1)/2*k); c.scale(k,k);
+      drawBoulderArt(c,0,0,d,'Summer',ISO_AXES_FLAT,0x3f1e);
+      c.restore();
+    }
+    BOULDER_CHIP_CACHE.set(key,bmp);
+  }
+  tc.drawImage(bmp,0,0);
+}
 /* A seat fitted to a small canvas the same way, through drawSeatArt and fitted
    to seatArtExtent — the drawing's real reach, not its size in inches. The old
    chip scaled by inches (34/the longer side), which is not how big a piece
@@ -549,12 +576,13 @@ function drawBrushSwatchCanvas(c,includeLast){
     drawLightArt(g,c.width/2,c.height-5,ld,true,null,k2); return true; }
   if (k==='firepit'){ drawFirepitChip(g,firepitDraft(),c.width,c.height,0.34); return true; }
   if (k==='seat'){ drawSeatChip(g,seatDraft(),c.width,c.height,0.34); return true; }
+  if (k==='boulder'){ drawBoulderChip(g,boulderDraft(),c.width,c.height,0.4); return true; }
   if (k==='pergola'){ drawPergolaChip(g,pergolaDraft(),c.width,c.height); return true; }
   if (k==='pet'){ drawPet(g,c.width/2,c.height-3,petDraft(),0.62); return true; }
   if (k==='house'){ g.fillStyle=(game.houseDraft||defaultDraft()).wall; g.fillRect(9,11,12,9);
     g.fillStyle=(game.houseDraft||defaultDraft()).roof; g.beginPath(); g.moveTo(7,11); g.lineTo(15,5); g.lineTo(23,11); g.closePath(); g.fill(); return true; }
-  /* Generic fallback for the placement tools with no bespoke swatch — boulder,
-     pot, edging, wall, building. Hiding the canvas (what used to happen
+  /* Generic fallback for the placement tools with no bespoke swatch — pot,
+     edging, wall, building. Hiding the canvas (what used to happen
      here) left the brush bar with a name and no mark, so the armed tool had no
      visual at all. A tinted tile with the tool's initial is not art, but it is
      an unmistakable "this is armed", which is the job. */
@@ -1743,7 +1771,7 @@ const TOOL_SEARCH={
   waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
            hay:'water feature fountain birdbath bird bath bubbler bubbling urn millstone tiered tsukubai stone basin wall spout trough stock tank reflecting pool rill hardscape focal point'},
   boulder:{label:'Boulder',kind:'fill',drill:'boulder',
-           hay:'boulder rock stone hardscape round small medium large rectangular oblong'},
+           hay:'boulder rock stone rocks hardscape rockery outcrop round rounded small medium large rectangular oblong long angular ledge slab sitting standing stone monolith grouping cluster basalt columns dressed block granite limestone sandstone slate fieldstone moss rock river rock'},
   seat:   {label:'Seating',kind:'fill',drill:'seat',
            hay:'seat seating bench chair table stool dining bistro picnic adirondack lounger sun lounger sit hardscape furniture teak weathered white painted green forest black metal stone concrete'},
   light:  {label:'Lighting',kind:'dropper',
@@ -3752,62 +3780,61 @@ function buildToolTrayInner(){
     }
   }
   if (cat.tools.includes('boulder')){
-    const bd=boulderDraft();
+    const bd=boulderDraft(), spec=boulderType(bd.type);
     const sep=t2=>{ const s=document.createElement('span'); s.className='tray-sep';
       s.textContent=t2; tray.appendChild(s); };
-    const miniBoulder=(tc,d)=>{
-      d=normalizeBoulderDraft(d);
-      const spec=boulderType(d.type), cx2=24, cy2=25;
-      const rx=Math.max(10,8*spec.w), ry=Math.max(5,5*spec.h*(spec.shape==='oblong'?0.72:1));
-      tc.fillStyle='rgba(0,0,0,.22)';
-      tc.beginPath(); tc.ellipse(cx2,cy2+7,rx*.92,4,0,0,7); tc.fill();
-      if (spec.shape==='rect'){
-        tc.fillStyle=shade(spec.tone,-18); tc.fillRect(cx2-rx*.72,cy2-2,rx*1.44,ry*.92);
-        tc.fillStyle=shade(spec.tone,16); tc.fillRect(cx2-rx*.64,cy2-9,rx*1.28,ry*.8);
-        tc.strokeStyle='rgba(40,36,30,.28)'; tc.lineWidth=1;
-        tc.strokeRect(cx2-rx*.64,cy2-9,rx*1.28,ry*.8);
-      } else {
-        tc.fillStyle=shade(spec.tone,-18);
-        tc.beginPath(); tc.ellipse(cx2,cy2+1,rx,ry,0,0,7); tc.fill();
-        tc.fillStyle=shade(spec.tone,18);
-        tc.beginPath(); tc.ellipse(cx2,cy2-4,rx*.88,ry*.84,0,0,7); tc.fill();
-        tc.fillStyle='rgba(239,230,211,.23)';
-        tc.beginPath(); tc.ellipse(cx2-rx*.18,cy2-ry*.55,rx*.24,Math.max(2,ry*.12),-0.1,0,7); tc.fill();
-      }
-    };
-    const choose=(type)=>{
-      game.boulderDraft=normalizeBoulderDraft({type});
+    // a form chip lands on that form's stone nearest the current size
+    const nearest=form=>{ const list=boulderFormTypes(form);
+      return list.reduce((a,t)=>Math.abs(t.wIn-spec.wIn)<Math.abs(a.wIn-spec.wIn)?t:a,list[0]); };
+    const choose=patch=>{
+      const next=Object.assign({},boulderDraft(),patch);
+      if (patch.form){ next.type=nearest(patch.form).id; delete next.form; }
+      // the stone snaps to one the new type is made in (normalizeBoulderDraft)
+      game.boulderDraft=normalizeBoulderDraft(next);
       setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray();
     };
-    const toolBtn=(spec)=>{
-      const b=document.createElement('button');
-      b.className='tool'+(bd.type===spec.id?' sel':'');
-      b.dataset.k='boulder'; b.dataset.boulderType=spec.id;
+    /* Every chip is the stone itself, so choosing is looking — the pots' and
+       the fire pit's rule. `data` names the axis a chip sets, which is what
+       refreshTray reads to mark the armed one. */
+    const toolBtn=(label,sel,patch,tip,data)=>{
+      const d=normalizeBoulderDraft(Object.assign({},bd,patch.form?{type:nearest(patch.form).id}:patch));
+      const b=document.createElement('button'); b.className='tool'+(sel?' sel':'');
+      b.dataset.k='boulder'; Object.assign(b.dataset,data||{});
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniBoulder(c.getContext('2d'),{type:spec.id});
-      const sp=document.createElement('span'); sp.textContent=spec.short;
-      b.append(c,sp);
-      b.title=`${spec.label} (${spec.plan})`;
-      b.onclick=()=>choose(spec.id);
-      tray.appendChild(b);
+      drawBoulderChip(c.getContext('2d'),d,48,44);
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(c,sp); b.title=tip||label; b.onclick=()=>choose(patch);
+      tray.appendChild(b); return b;
     };
     if (!game.drill){
       const b=document.createElement('button');
       b.className='tool has-sub'+(game.tool==='boulder'?' sel':'');
       b.dataset.k='boulder';
       const c=document.createElement('canvas'); c.width=48; c.height=44;
-      miniBoulder(c.getContext('2d'),bd);
+      drawBoulderChip(c.getContext('2d'),bd,48,44);
       const sp=document.createElement('span'); sp.textContent='Boulder';
       b.append(c,sp);
-      b.title=`Boulder: ${boulderLabel()}. Open to choose size and shape.`;
+      b.title=`Boulder: ${boulderLabel()}. Open to choose the form, size and stone.`;
       b.onclick=()=>{ setTool('boulder',null); game.drill='boulder'; rememberBrushMenu(game.trayCat,game.drill); buildToolTray(); };
       tray.appendChild(b);
     } else if (game.drill==='boulder'){
       backBtn();
-      sep('Round');
-      BOULDER_TYPES.filter(b=>b.shape==='round').forEach(toolBtn);
-      sep('Oblong');
-      BOULDER_TYPES.filter(b=>b.shape==='oblong'||b.shape==='rect').forEach(toolBtn);
+      sep('Form');
+      BOULDER_FORMS.forEach(f=>toolBtn(f.label, spec.form===f.id, {form:f.id},
+        `${f.label}: ${f.stones.map(id=>boulderStone(id).label.toLowerCase()).join(', ')}`, {boulderForm:f.id}));
+      sep('Size');
+      boulderFormTypes(spec.form).forEach(t=>toolBtn(boulderSizeChip(t), bd.type===t.id, {type:t.id},
+        `${boulderLabelFor(Object.assign({},bd,{type:t.id}))}, about ${fmtWeightLb(boulderWeightLb(Object.assign({},bd,{type:t.id})))}`,
+        {boulderType:t.id}));
+      const stones=boulderTypeStones(bd.type);
+      if (stones.length>1){
+        sep('Stone');
+        stones.forEach(st=>toolBtn(st.label, bd.stone===st.id, {stone:st.id},
+          boulderLabelFor(Object.assign({},bd,{stone:st.id})), {boulderStone:st.id}));
+      }
+      // a stone has a better side: turning it is how you choose which one shows
+      sep('Facing');
+      toolBtn('Turn', false, {face:(bd.face+1)%4}, 'Turn it a quarter, to show another side of the stone', {boulderTurn:'1'});
     }
   }
   if (cat.tools.includes('light')){
@@ -4120,7 +4147,8 @@ function applyTraySearch(){ // hide tray buttons that don't match the query
       +' '+FIREPIT_STYLES.map(s=>s.label).join(' ')+' '+FIREPIT_FINISHES.map(f=>f.label).join(' ');
     if (k==='support') hay+=' hardscape support trellis obelisk arch arbor climber vine frame '+SUPPORT_STYLES.map(s=>s.label).join(' ')+' '+SUPPORT_MATERIALS.map(m=>m.label).join(' ');
     if (k==='waterfeature') hay+=' hardscape water feature fountain birdbath bubbler urn millstone basin spout tank pool '+WATER_FEATURES.map(w=>w.label+' '+(w.short||'')).join(' ')+' '+WATER_FINISHES.map(f=>f.label).join(' ');
-    if (k==='boulder') hay+=' hardscape structures boulder rock stone '+BOULDER_TYPES.map(b=>b.label+' '+b.short+' '+b.plan).join(' ');
+    if (k==='boulder') hay+=' hardscape structures boulder rock stone rockery outcrop slab ledge monolith '
+      +BOULDER_FORMS.map(f=>f.label).join(' ')+' '+BOULDER_STONES.map(st=>st.label).join(' ');
     if (k==='pot') hay+=' decor container pot planter urn trough patio courtyard balcony terrace colour color '+POT_STYLES.map(p=>p.label+' '+p.short).join(' ')+' '+POT_FINISHES.map(f=>f.label).join(' ');
     if (k==='seat') hay+=' hardscape seating seat bench chair table stool dining bistro picnic lounger sit '+SEAT_TYPES.map(t=>t.label+' '+t.short).join(' ')+' '+SEAT_FINISHES.map(f=>f.label).join(' ');
     if (k==='light') hay+=' lighting lights path lantern post outdoor lamp '+LIGHT_TYPES.map(l=>l.label).join(' ')+' '+LIGHT_TONES.map(l=>l.label).join(' ');
@@ -4160,6 +4188,12 @@ function refreshTray(){
       ? game.tool==='firepit' && firepitDraft().size===el.dataset.firepitSize
       : el.dataset.boulderType
       ? game.tool==='boulder' && boulderDraft().type===el.dataset.boulderType
+      : el.dataset.boulderForm
+      ? game.tool==='boulder' && boulderType(boulderDraft().type).form===el.dataset.boulderForm
+      : el.dataset.boulderStone
+      ? game.tool==='boulder' && boulderDraft().stone===el.dataset.boulderStone
+      : el.dataset.boulderTurn
+      ? false
       : el.dataset.lightType
       ? game.tool==='light' && lightDraft().type===el.dataset.lightType
       : el.dataset.lightTone

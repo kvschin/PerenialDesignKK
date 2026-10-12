@@ -1246,10 +1246,7 @@ function placeSupportAt(x,y){
   return 'support';
 }
 function boulderDraft(){ return game.boulderDraft=normalizeBoulderDraft(game.boulderDraft); }
-function boulderLabel(b){
-  const d=normalizeBoulderDraft(b||boulderDraft()), spec=boulderType(d.type);
-  return `${spec.label} (${spec.plan})`;
-}
+function boulderLabel(b){ return boulderLabelFor(b||boulderDraft()); }
 function boulderAt(x,y){
   if (!game.boulders) return null;
   for (const k in game.boulders){
@@ -1283,7 +1280,8 @@ function placeBoulderAt(x,y){
   if (!game.boulders) game.boulders={};
   const d=normalizeBoulderDraft(boulderDraft()), k=`${x},${y}`;
   const cur=game.boulders[k];
-  if (cur && !cur.removed && cur.type===d.type) return null;
+  if (cur && !cur.removed && cur.type===d.type && boulderStoneFor(cur.type,cur.stone)===d.stone
+    && normalizeFacing(cur.face)===d.face) return null;
   if (!canPlaceBoulder(x,y,k)) return null;
   setTile('boulders',k,Object.assign({},d,{t:Date.now()}));
   return 'boulder';
