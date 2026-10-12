@@ -3443,23 +3443,30 @@ function buildToolTrayInner(){
         ()=>{ game.wallDraft=wallStyleId(ws.id); setTool('wall',null); buildToolTray(); },
         ws.id==='none'?'Strip the facing back to bare earth':ws.label));
     }
+    /* Path and bed materials sit under a heading per GROUP (PATH_GROUPS,
+       BED_GROUPS): twenty-odd chips in one row was a wall to read, and the
+       heading says what kind of surface a chip is before its swatch does. */
+    const groupSep=t=>{ const sep=document.createElement('span'); sep.className='tray-sep';
+      sep.textContent=t; tray.appendChild(sep); };
     if (game.tool==='path' && cat.tools.includes('path')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Path color'; tray.appendChild(sep);
-      PATH_COLORS.forEach((pc,i)=>materialBtn('path',pc.label.split(' ')[0],
-        game.tool==='path'&&game.pathColor===pc.id,
-        tc=>drawMat(tc,'path',pc.id),
-        ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); },
-        pc.label).dataset.pathColor=pc.id);
+      for (const [gid,gname] of PATH_GROUPS){
+        groupSep(gname);
+        PATH_COLORS.filter(pc=>pc.group===gid).forEach(pc=>materialBtn('path',pc.short||pc.label,
+          game.tool==='path'&&game.pathColor===pc.id,
+          tc=>drawMat(tc,'path',pc.id),
+          ()=>{ game.pathColor=pc.id; setTool('path',null); buildToolTray(); },
+          pc.label).dataset.pathColor=pc.id);
+      }
     }
     if (game.tool==='bed' && cat.tools.includes('bed')){
-      const sep=document.createElement('span'); sep.className='tray-sep';
-      sep.textContent='Bed type'; tray.appendChild(sep);
-      BED_STYLES.forEach((bs,i)=>materialBtn('bed',bs.short||bs.label,
-        game.tool==='bed'&&game.bedStyle===bs.id,
-        tc=>drawMat(tc,'bed',bs.id),
-        ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
-        bs.label).dataset.bedStyle=bs.id);
+      for (const [gid,gname] of BED_GROUPS){
+        groupSep(gname);
+        BED_STYLES.filter(bs=>bs.group===gid).forEach(bs=>materialBtn('bed',bs.short||bs.label,
+          game.tool==='bed'&&game.bedStyle===bs.id,
+          tc=>drawMat(tc,'bed',bs.id),
+          ()=>{ game.bedStyle=bs.id; setTool('bed',null); buildToolTray(); },
+          bs.label).dataset.bedStyle=bs.id);
+      }
     }
     if (game.tool==='lawn' && cat.tools.includes('lawn')){
       const sep=document.createElement('span'); sep.className='tray-sep';

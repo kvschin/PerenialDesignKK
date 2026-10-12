@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.67';
+const APP_VERSION = '0.9.68';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -794,27 +794,67 @@ const SEASON_LIGHT = {
    brushTrayCatForTool documents -- a chain duplicating a table gets missed by
    every material added after it was written. Omitting `depth` is the safe
    default: a new material with none billed by area, never by an invented volume. */
+/* `group` is the heading a material sits under in the tray (PATH_GROUPS) and
+   `short` the word on its chip; the full `label` is the tooltip, the status
+   line and the planting list. Ids are storage keys and never change, which is
+   why 'slate' is a flagstone and 'warm' a gravel. */
+const PATH_GROUPS = [['loose','Gravel & mulch'],['stone','Stone & paving'],['deck','Decking']];
 const PATH_COLORS = [
-  {id:'warm', label:'Warm gravel', fill:'#bba98c', plan:'#dccdaa', depth:3,
-   texture:'gravel', tones:['#8a7a5d','#ae9d80','#c4b596','#9a8765']},
-  {id:'lime', label:'Limestone', fill:'#d0c6ad', plan:'#e5dcc6', depth:3,
+  {id:'warm', label:'Warm gravel', short:'Warm', group:'loose', fill:'#a39276', plan:'#dccdaa', depth:3,
+   texture:'gravel', tones:['#7c6d52','#b3a283','#cbbc9c','#9a8765']},
+  // Crushed grey stone, the commonest path in North America, which nothing here
+  // was: warm gravel is buff and charcoal is nearly black.
+  {id:'grey', label:'Grey gravel', short:'Grey', group:'loose', fill:'#7f7e78', plan:'#cfcec8', depth:3,
+   texture:'gravel', tones:['#5c5b56','#9c9b95','#b8b7b0','#86827a']},
+  {id:'charcoal', label:'Charcoal gravel', short:'Charcoal', group:'loose', fill:'#2e2c29', plan:'#8f8a7e', depth:3,
+   texture:'gravel', tones:['#22201d','#5f5c55','#7d796f','#4c4943']},
+  // Rounded 3/8in stone, the path the pea-gravel bed already was.
+  {id:'pea', label:'Pea gravel', short:'Pea', group:'loose', fill:'#8e8573', plan:'#d8d1c0', depth:3,
+   texture:'pebble', tones:['#7a7062','#ada38e','#c8bfaa','#a08868']},
+  {id:'lime', label:'Limestone fines', short:'Limestone', group:'loose', fill:'#d0c6ad', plan:'#e5dcc6', depth:3,
    texture:'fines', tones:['#aba189','#c3b99f','#ded5bd','#b9ad92']},
-  {id:'bark', label:'Bark mulch', fill:'#6b4a34', plan:'#b08a68', depth:3,
-   texture:'mulch', tones:['#4a3122','#7a5539','#96775a','#61402a']},
-  {id:'slate', label:'Slate', fill:'#7a8386', plan:'#b8c0c2',
-   texture:'flag', tones:['#5c6567','#7f888a','#98a1a2','#6d7678']},
-  {id:'clay', label:'Red clay', fill:'#a76543', plan:'#d3a184',
+  // Decomposed granite: the gold-tan compacted path of the whole arid West.
+  {id:'dg', label:'Decomposed granite', short:'DG', group:'loose', fill:'#bf9f6e', plan:'#e6d2ad', depth:3,
+   texture:'fines', tones:['#9c7d50','#c9a978','#dcc196','#a8865a']},
+  {id:'clay', label:'Red clay', short:'Clay', group:'loose', fill:'#a76543', plan:'#d3a184',
    texture:'clay', tones:['#8a4f33','#b2704c','#c48a63','#96593a']},
-  {id:'charcoal', label:'Charcoal', fill:'#4c4942', plan:'#8f8a7e', depth:3,
-   texture:'gravel', tones:['#35332e','#5a574f','#726e64','#454239']},
-  /* Laid units. `unit` is the paver size in INCHES and the recipe lays them in
-     running bond; `fill` is the MORTAR, because the joint is the base showing
-     between units, so it stays a shade that still reads as paving from the
-     world thumbnail. */
-  {id:'brick', label:'Brick', fill:'#7a5a4e', plan:'#c98d72',
-   texture:'brick', unit:[8,4], tones:['#8a4633','#a85f45','#bd7358','#94503a']},
-  {id:'paver', label:'Concrete paver', short:'Paver', fill:'#7e7b74', plan:'#c7c4bc',
+  {id:'bark', label:'Bark mulch', short:'Bark', group:'loose', fill:'#5a3c29', plan:'#b08a68', depth:3,
+   texture:'mulch', tones:['#43291b','#7a5539','#9c7c5d','#664530']},
+  // Arborist wood chips: paler and chunkier than shredded bark, and what a
+  // woodland path is usually made of. Fresh they are gold; they weather grey.
+  {id:'chips', label:'Wood chips', short:'Chips', group:'loose', fill:'#7d6650', plan:'#cdb48e', depth:3,
+   texture:'chips', tones:['#5a4734','#a08360','#b89b74','#8a8070']},
+  /* Flagstone is laid stone with JOINTS, so both are a tessellation in view
+     space (the 'flag' recipe) and `fill` is the joint: grout, sand or soil. */
+  {id:'slate', label:'Slate flagstone', short:'Slate', group:'stone', fill:'#4a4f51', plan:'#b8c0c2',
+   texture:'flag', tones:['#5c6567','#77818a','#8a9396','#6a6f78']},
+  // Slate covers the cool greys; a warm flagstone is a different design choice,
+  // not a tint of the same one.
+  {id:'sandstone', label:'Sandstone flagstone', short:'Sandstone', group:'stone', fill:'#7a6850', plan:'#dcc7a4',
+   texture:'flag', tones:['#9a7f5c','#b89c74','#cdb38c','#a88a68']},
+  // Cut bluestone in the random rectangular pattern: the patio of the American
+  // Northeast. Courses and stones of mixed sizes on a 6in module ('ashlar').
+  {id:'bluestone', label:'Bluestone', short:'Bluestone', group:'stone', fill:'#4d5357', plan:'#b3bcc2',
+   texture:'ashlar', tones:['#5d6870','#6f7a80','#808a8f','#66706a']},
+  /* Laid units. `unit` is the size in INCHES; `bond` is running (default),
+     'stack' or 'herringbone'; `joint` overrides JOINT_IN. `fill` is the
+     MORTAR, because the joint is the base showing between units, so it stays a
+     shade that still reads as paving from the world thumbnail. */
+  {id:'brick', label:'Brick', short:'Brick', group:'stone', fill:'#6e5248', plan:'#c98d72',
+   texture:'brick', unit:[8,4], tones:['#87473a','#9e5a45','#ae6a52','#8f5242']},
+  {id:'herring', label:'Herringbone brick', short:'Herringbone', group:'stone', fill:'#6e5248', plan:'#c98d72',
+   texture:'brick', unit:[8,4], bond:'herringbone', tones:['#87473a','#9e5a45','#ae6a52','#8f5242']},
+  // Granite setts: small squared blocks in courses, the street paving of Europe.
+  {id:'setts', label:'Granite setts', short:'Setts', group:'stone', fill:'#4a4945', plan:'#c1c0ba',
+   texture:'brick', unit:[5,4], tones:['#7b7a74','#8d8c85','#9b9992','#7f7b72']},
+  {id:'paver', label:'Concrete paver', short:'Paver', group:'stone', fill:'#7e7b74', plan:'#c7c4bc',
    texture:'brick', unit:[16,16], tones:['#918e86','#a5a29a','#b5b2aa','#8a877f']},
+  // Large-format porcelain, stack bonded with a fine joint: the modern terrace.
+  {id:'porcelain', label:'Porcelain paving', short:'Porcelain', group:'stone', fill:'#8f8a82', plan:'#dedad3',
+   texture:'brick', unit:[24,24], bond:'stack', joint:0.4, tones:['#c4bfb6','#c9c4bb','#cec9c0','#c0bab0']},
+  // Poured slab with saw-cut control joints every `bay` tiles (4.5ft).
+  {id:'concrete', label:'Poured concrete', short:'Concrete', group:'stone', fill:'#b3b0a8', plan:'#dcdad4',
+   texture:'concrete', bay:3, tones:['#8a877f','#aaa79f','#c2bfb7','#a39f95']},
   /* TIMBER DECKING, and a composite beside it. A deck board is a LAID UNIT
      exactly as a paver is -- 5.5in wide, laid in a stagger -- so it needs no new
      recipe, only its real size; `fill` is the shadow gap between boards, which
@@ -822,15 +862,13 @@ const PATH_COLORS = [
      It is the one paving here you would really build ABOVE grade: raise the
      ground under it with the Grade tools and face the drop, and the composition
      is a deck rather than a painted rectangle. There is no `depth` on either,
-     because decking is bought by the board and not by the yard. */
-  {id:'deck', label:'Timber Decking', short:'Deck', fill:'#4a3625', plan:'#c8a87c',
-   texture:'brick', unit:[60,5.5], tones:['#8a6845','#a37e55','#b78f61','#77583a']},
-  {id:'composite', label:'Grey Composite', short:'Composite', fill:'#3f4248', plan:'#b9bcc0',
-   texture:'brick', unit:[60,5.5], tones:['#6f747a','#848a90','#979da3','#63686e']},
-  // Slate covers the cool greys; a warm flagstone is a different design choice,
-  // not a tint of the same one.
-  {id:'sandstone', label:'Sandstone', fill:'#a58e6a', plan:'#dcc7a4',
-   texture:'flag', tones:['#8a7150','#b89c74','#cbb189','#a3855c']},
+     because decking is bought by the board and not by the yard.
+     The tones are close on purpose: boards of one delivery vary a little, and
+     a wide spread read as stripes, composite worst of all. */
+  {id:'deck', label:'Timber decking', short:'Deck', group:'deck', fill:'#4a3625', plan:'#c8a87c',
+   texture:'brick', unit:[60,5.5], tones:['#916d48','#a07b52','#ab865b','#8a6844']},
+  {id:'composite', label:'Grey composite', short:'Composite', group:'deck', fill:'#3f4248', plan:'#b9bcc0',
+   texture:'brick', unit:[60,5.5], tones:['#7a7f85','#82878d','#8b9096','#767b81']},
 ];
 function pathColor(id){ return PATH_COLORS.find(c=>c.id===id)||PATH_COLORS[0]; }
 function pathColorId(id){ return pathColor(id).id; }
@@ -842,39 +880,56 @@ function pathPlanFill(t){ return pathColor(t&&t.c).plan; }
    the planting list quotes, and it is the depth selectionEstimate has always
    defaulted to for mulch. */
 const BED_DEPTH_IN = 3;
+/* `snow` is how far snow buries the bed's colour: soil vanishes, an organic
+   mulch mostly does, stone keeps showing (default 0.52). */
+const BED_GROUPS = [['mulch','Soil & mulch'],['stone','Gravel & stone']];
 const BED_STYLES = [
   // soil follows the season (fill:null -> AMBIENCE.soil), so its grains are
   // derived from whatever that is rather than pinned to one brown
-  {id:'soil', label:'Soil', fill:null, plan:'#ebe2c9', texture:'soil', tones:null},
-  {id:'gravel', label:'Gravel', fill:'#a99f86', plan:'#d6ceb8', texture:'gravel',
-   tones:['#7d7461','#a89d84','#bdb296','#93856c']},
+  {id:'soil', label:'Soil', short:'Soil', group:'mulch', fill:null, plan:'#ebe2c9', texture:'soil', tones:null, snow:0.76},
+  {id:'mulch', label:'Bark mulch', short:'Bark', group:'mulch', fill:'#4a2b1e', plan:'#9d7558', texture:'mulch',
+   tones:['#341d13','#6d4028','#946a4a','#583322'], snow:0.64},
+  // Dyed black hardwood mulch: horticulturally nothing special, and on half the
+  // front gardens in North America, so it is a real design choice to show.
+  {id:'black', label:'Black mulch', short:'Black', group:'mulch', fill:'#24201d', plan:'#8c8680', texture:'mulch',
+   tones:['#171412','#3b3530','#544b44','#2c2622'], snow:0.64},
+  {id:'chips', label:'Wood chips', short:'Chips', group:'mulch', fill:'#6b5641', plan:'#cdb48e', texture:'chips',
+   tones:['#4d3c2b','#977a57','#ad9069','#80776a'], snow:0.64},
+  {id:'leaf', label:'Leaf litter', short:'Leaf', group:'mulch', fill:'#5a3f29', plan:'#b88c60', texture:'leaf',
+   tones:['#47321f','#7d5836','#a07f52','#8a4f2c'], snow:0.64},
+  // The default bed mulch across the whole Southeast, and nothing else in the
+  // list looks remotely like it — long rusty needles rather than chips.
+  {id:'pine', label:'Pine straw', short:'Pine', group:'mulch', fill:'#6b4527', plan:'#c9a173', texture:'needle',
+   tones:['#8a5a30','#a8703c','#c39257','#7a4a26']},
+  {id:'gravel', label:'Gravel', short:'Gravel', group:'stone', fill:'#958b73', plan:'#d6ceb8', texture:'gravel',
+   tones:['#73695a','#ada28a','#c4b99c','#93856c']},
+  // The size between crushed gravel and river cobble, and the one most people
+  // actually mean by "gravel" in a bed or a patio.
+  {id:'pea', label:'Pea gravel', short:'Pea', group:'stone', fill:'#8a8270', plan:'#d4cfc0', texture:'pebble',
+   tones:['#776e60','#aaa18c','#c6beaa','#a08868']},
   // A river bar is grey AND tan AND rust, never one grey — the fourth tone is
   // doing real work here, and the light one stays close to the body tone
   // because where two pale cobbles overlap they merge into one pale blob.
-  {id:'rock', label:'River rock', short:'Rock', fill:'#87877f', plan:'#c5c5bb', texture:'rock',
-   tones:['#4e4e4a','#82827a','#97968a','#8a7a63']},
-  {id:'leaf', label:'Leaf litter', short:'Leaf', fill:'#6d4d32', plan:'#b88c60', texture:'leaf',
-   tones:['#4a3524','#7d5836','#96784c','#66502f']},
-  {id:'mulch', label:'Bark mulch', short:'Bark', fill:'#5b3526', plan:'#9d7558', texture:'mulch',
-   tones:['#3a2016','#6d4028','#8a6446','#4e2c1d']},
-  // The default bed mulch across the whole Southeast, and nothing else in the
-  // list looks remotely like it — long rusty needles rather than chips.
-  {id:'pine', label:'Pine straw', short:'Pine', fill:'#5e3c22', plan:'#c9a173', texture:'needle',
-   tones:['#8a5a30','#a8703c','#c39257','#7a4a26']},
-  // The size between crushed gravel and river cobble, and the one most people
-  // actually mean by "gravel" in a bed or a patio.
-  {id:'pea', label:'Pea gravel', short:'Pea', fill:'#6f6a5c', plan:'#d4cfc0', texture:'pebble',
-   tones:['#9c9482','#bdb5a0','#cfc8b4','#a08a68']},
+  {id:'rock', label:'River rock', short:'Rock', group:'stone', fill:'#56564f', plan:'#c5c5bb', texture:'rock',
+   tones:['#4e4e4a','#86867d','#a09f93','#8f7f68']},
+  // Lava rock: porous, red-brown to near black, the bed stone of the Southwest.
+  {id:'lava', label:'Lava rock', short:'Lava', group:'stone', fill:'#4a2a22', plan:'#c79a8a', texture:'lava',
+   tones:['#24171a','#7a3c2c','#93523b','#5c2f28']},
+  // Slate chippings: flat blue-grey flakes, the bed stone of British gardens.
+  {id:'slatechip', label:'Slate chippings', short:'Slate', group:'stone', fill:'#4a5056', plan:'#b4b9c0', texture:'slatechip',
+   tones:['#30353a','#6c737c','#80878f','#665e6a']},
+  {id:'dg', label:'Decomposed granite', short:'DG', group:'stone', fill:'#b8986a', plan:'#e6d2ad', texture:'fines',
+   tones:['#9c7d50','#c9a978','#dcc196','#a8865a']},
+  // Raked gravel: pale granite gravel combed into lines, the Japanese dry garden.
+  {id:'raked', label:'Raked gravel', short:'Raked', group:'stone', fill:'#c9c5bb', plan:'#ebe8e1', texture:'raked',
+   tones:['#a19c91','#d4d0c6','#e3e0d8','#b7b2a7']},
 ];
 function bedStyle(id){ return BED_STYLES.find(c=>c.id===id)||BED_STYLES[0]; }
 function bedStyleId(id){ return bedStyle(id).id; }
 function bedFill(t,amb){
   const b=bedStyle(t&&t.c), fill=b.fill||amb.soil;
   if (!amb.snow) return fill;
-  const snowMix=b.id==='soil' ? 0.76
-    : (b.id==='leaf'||b.id==='mulch') ? 0.64
-    : 0.52;
-  return mixHex(fill,'#eef2f8',snowMix);
+  return mixHex(fill,'#eef2f8',b.snow||0.52);
 }
 function bedPlanFill(t){ return bedStyle(t&&t.c).plan; }
 /* Water. `fill` is the SHALLOW colour at the bank and `deep` the colour at full

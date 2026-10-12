@@ -2194,6 +2194,88 @@ test('every ground material names a grain recipe with a four-slot palette', () =
     'every derived tone resolves to a colour');
 });
 
+test('every path and bed material sits under a tray heading with a chip-sized name', () => {
+  for (const [rows, groups, what] of [[PATH_COLORS, PATH_GROUPS, 'path'], [BED_STYLES, BED_GROUPS, 'bed']]){
+    const ids = new Set(), gids = new Set(groups.map(g => g[0]));
+    for (const m of rows){
+      assert(!ids.has(m.id), `${what} ${m.id} is listed twice`); ids.add(m.id);
+      assert(gids.has(m.group), `${what} ${m.id} has no tray heading (group ${m.group})`);
+      assert(typeof m.short === 'string' && m.short.length && m.short.length <= 11, `${what} ${m.id} needs a short chip name`);
+      assert(/^#[0-9a-f]{6}$/i.test(m.plan), `${what} ${m.id} needs a plan colour`);
+    }
+    for (const [g] of groups) assert(rows.some(m => m.group === g), `${what} heading ${g} is empty`);
+  }
+});
+
+/* Laid materials are laid out in VIEW space and every tile a unit overlaps
+   draws it, so its colour has to come from the unit. It came from the unit's
+   index in each tile's own staging order, and a unit clipped to the tile — a
+   5ft deck board, a 16in paver — changed colour where it crossed a tile line. */
+const laidAt = (stage, mat, vx, vy) => {
+  const HX = TILE_W * 0.5, HY = TILE_H * 0.5, out = [];
+  grainReset(); stage(mat, (vx - vy) * HX, (vx + vy + 1) * HY, vx, vy);
+  for (let i = 0; i < _gnN; i++) out.push({ x:_gnX[i], y:_gnY[i], a:_gnA[i], b:_gnB[i], tone:_gnC[i] });
+  return out;
+};
+test('a laid unit takes one colour in every tile it crosses', () => {
+  setup(21, 21);
+  for (const [stage, id] of [[stageLaidUnits, 'deck'], [stageLaidUnits, 'paver'], [stageLaidUnits, 'herring'],
+                             [stageLaidUnits, 'porcelain'], [stageAshlar, 'bluestone']]){
+    const mat = pathColor(id);
+    let shared = 0;
+    for (const [dx, dy] of [[1, 0], [0, 1]]){
+      const a = laidAt(stage, mat, 6, 7), b = laidAt(stage, mat, 6 + dx, 7 + dy);
+      const key = u => Math.round(u.x * 100) + ',' + Math.round(u.y * 100);
+      const tones = new Map(a.map(u => [key(u), u.tone]));
+      for (const u of b) if (tones.has(key(u))){ shared++;
+        assertEqual(u.tone, tones.get(key(u)), `${id}: one unit, two colours either side of a tile line`); }
+    }
+    assert(shared > 0, `${id}: some unit really does cross a tile line (${shared})`);
+  }
+});
+
+/* Herringbone is found, not typed in: a staircase of a flat unit over a
+   standing one, repeated every four unit widths. If the repeat is wrong the
+   bricks overlap or leave holes, and the pixels would only show it as a muddle. */
+test('herringbone, running and stack bonds cover a tile with no two units overlapping', () => {
+  setup(21, 21);
+  const HX = TILE_W * 0.5, HY = TILE_H * 0.5;
+  for (const id of ['herring', 'brick', 'setts', 'porcelain']){
+    const mat = pathColor(id), vx = 5, vy = 9, sx = (vx - vy) * HX, cy = (vx + vy + 1) * HY;
+    const units = laidAt(stageLaidUnits, mat, vx, vy).map(u => {
+      const p = (u.x - sx) / HX, q = (u.y - cy) / HY;           // ca-cb, ca+cb
+      return { ca:(p + q) / 2, cb:(q - p) / 2, a:u.a, b:u.b };
+    });
+    let covered = 0, n = 0;
+    for (let i = 0; i < 24; i++) for (let j = 0; j < 24; j++){
+      const ca = (i + 0.5) / 24 - 0.5, cb = (j + 0.5) / 24 - 0.5; n++;
+      const hits = units.filter(u => Math.abs(ca - u.ca) < u.a && Math.abs(cb - u.cb) < u.b).length;
+      assert(hits <= 1, `${id}: two units overlap at ${ca.toFixed(2)},${cb.toFixed(2)}`);
+      covered += hits;
+    }
+    assert(covered / n > 0.6, `${id}: units cover the tile apart from their joints (${(covered / n).toFixed(2)})`);
+  }
+});
+
+test('a flagstone is the same stone in every tile that draws it', () => {
+  setup(21, 21);
+  const HX = TILE_W * 0.5, HY = TILE_H * 0.5;
+  const polys = (vx, vy) => {
+    const out = []; let cur = null, col = '';
+    const ctx = { set fillStyle(c){ col = c; }, get fillStyle(){ return col; },
+      beginPath(){}, closePath(){}, fill(){},
+      moveTo(x, y){ cur = { col, pts:[[x, y]] }; out.push(cur); }, lineTo(x, y){ cur.pts.push([x, y]); } };
+    drawFlagstone(ctx, pathColor('slate'), (vx - vy) * HX, (vx + vy + 1) * HY, vx, vy, ['#111111', '#222222', '#333333', '#444444']);
+    return out;
+  };
+  const key = p => p.pts.map(([x, y]) => Math.round(x * 100) + ':' + Math.round(y * 100)).join('|');
+  const a = new Map(polys(4, 4).map(p => [key(p), p.col]));
+  let shared = 0;
+  for (const p of polys(5, 4).concat(polys(4, 5))) if (a.has(key(p))){ shared++;
+    assertEqual(p.col, a.get(key(p)), 'one stone, two colours either side of a tile line'); }
+  assert(shared > 0, `a stone really does cross a tile line (${shared})`);
+});
+
 test('no grain recipe overflows the scratch it writes into', () => {
   setup(21, 21);
   const ctx = document.createElement('canvas').getContext('2d');

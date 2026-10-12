@@ -2794,6 +2794,44 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     leaf litter / bark mulch / **pine straw** / **pea gravel** — the aggregate
     ones deliberately span three sizes (crushed fines, 3/8in rounded pea,
     2–4in cobble) because that is the distinction a designer is actually making.
+    **The materials pass (0.9.68)** judged every material against what it is
+    called, at 2x zoom in a real garden, and added the common landscape options
+    that were missing. Paths are now 20 under three tray headings
+    (`PATH_GROUPS`: gravel & mulch, stone & paving, decking) and beds 13 under
+    two (`BED_GROUPS`); each row carries its `group`, a `short` chip name and
+    its `plan` colour, and a test holds all three. New paths: grey gravel, pea
+    gravel, decomposed granite, wood chips, bluestone, herringbone brick,
+    granite setts, porcelain and poured concrete. New beds: black mulch, wood
+    chips, lava rock, slate chippings, decomposed granite and raked gravel.
+    Ids are storage keys and never change, so 'slate' is now labelled Slate
+    flagstone; the chip used to be the label's first word, which gave chips
+    reading "Red", "Grey" and "Timber". What was fixed: **flagstone** was a few
+    big shards overlapping on a slab and read as broken crockery, and is now a
+    jittered lattice of stones in view space with an even joint, a quarter of
+    them split corner to corner (`drawFlagstone`, `FLAG_INSET` 0.93); every
+    **gravel** was a flat base with sparse speckle (charcoal read as tarmac),
+    and has the same stones larger, since a polygon costs the same at any size;
+    **bark mulch** was hairlines and is two to three times wider; **river rock**
+    and **pea gravel** read as polka dots, pale stones on a contrasting base,
+    and are close packed over a base in the middle of their own range; **leaf
+    litter** is bigger leaves with a russet among them; decking and composite
+    tones are close, because a wide spread read as stripes. New recipes:
+    `ashlar` (random rectangular on a 6in module, from short cycles offset per
+    course so any stone's position is computable from the tile alone),
+    `concrete` (cure blotches and saw-cut joints every `bay` tiles, drawn by
+    the tile on the joint's far side), `chips`, `lava`, `slatechip`, `raked`
+    (rake lines as thin filled quads: stroked they measured 94ms a plot), and
+    laid-unit `bond:'stack'|'herringbone'` plus a `joint` override. Herringbone
+    was found by search: a staircase of a flat unit over a standing one,
+    repeated every four unit widths. **A laid unit's colour now comes from its
+    own lattice position** (`latHash`), and that fixed a live bug: it came from
+    the unit's index in each tile's own staging order, so a unit clipped to the
+    tile — a 5ft deck board, a 16in paver — changed colour where it crossed a
+    tile line, and on decking most boards did. Units are staged once with
+    their tone and painted a pass per tone (`grainUnitsOf`), and culled to the
+    tile, which took brick from 77.5 to 66ms a plot. `bedFill`'s snow mix is a
+    `snow` field on the row now rather than an id chain. The measured costs of
+    every material are in the block comment over the grain painters.
     A recipe stages its grains once into module-level scratch (`grainSite` /
     `grainPush`, the fcPush/fcDraw pattern from draw.js) and paints them in
     several tones with a **stride**. Painters: `grainGrit` (3-gon fines),
@@ -5244,9 +5282,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     planted tile stores `v`; tool state is `game.tool` + `game.toolVar`. The Landscape
     tab is contextual: select **Lawn** to reveal the lawn surfaces (§11f — mown,
     no-mow fescue, meadow, wildflower, clover, thyme, moss, artificial, with
-    Mown as the row that lifts one back off), Path to reveal path colors, Bed to reveal bed
-    materials (soil, gravel, river rock, leaf litter, bark mulch, pine straw,
-    pea gravel — see §11a), Water
+    Mown as the row that lifts one back off), Path to reveal the 20 path
+    materials and Bed the 13 bed materials, each under its group heading (see
+    §11a), Water
     to reveal pond/river/lake styles, or **Edging** for the strip that
     separates either from the lawn (§11e). The **Grade** tab leads with
     **Terrace** (a raised bed, terrace or sunken patio built with its wall in one

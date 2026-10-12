@@ -2398,7 +2398,17 @@ function fillDiamondFace(ctx,sx,sy,points,fill){
    - Nothing allocates. The scratch is reused and never grown; overflow past
      GRAIN_MAX is dropped rather than reallocated, as fcPush does.
 
-   Colours come from BED_STYLES/PATH_COLORS `tones` (core.js), never from here. */
+   Colours come from BED_STYLES/PATH_COLORS `tones` (core.js), never from here.
+
+   Measured (0.9.68, headless Chrome's software raster, the pessimistic case: a
+   full bake of a 31x31 plot of ONE material, organic edges; bare lawn is 30ms
+   of it). Before the materials pass every material sat at 52-77ms, brick the
+   dearest. After: 53-75ms, river rock the dearest and brick down to 66 — laid
+   units are staged once and culled to the tile now. Fines, clay and concrete
+   ~55, gravels ~68, mulches and flagstone ~68, setts 71, rock 75. Herringbone
+   first measured 127ms (bricks well off the tile) and raked gravel 94ms
+   (stroked lines); both are culled/filled now and sit at ~65. Re-measure any
+   new recipe against this, and keep it under the dearest one here. */
 const GRAIN_MAX = 64;    // the densest recipe stages 38; the rest is headroom
 // Mortar/sand joint between laid units, in real inches. Wider than a mason
 // would lay it, because much under this it stops reading as masonry at all.
@@ -2515,6 +2525,20 @@ function grainUnits(ctx,col,dx,dy,k,ph,md){         // A=halfLen B=halfWid (tile
   }
   ctx.fill();
 }
+// The staged units whose tone (C) is `tone`: a laid material stages each unit
+// once with the tone hashed from its own position, then paints one pass a tone.
+function grainUnitsOf(ctx,col,tone){
+  if (!_gnN) return;
+  const HX=TILE_W*0.5, HY=TILE_H*0.5;
+  ctx.fillStyle=col; ctx.beginPath();
+  for (let i=0;i<_gnN;i++){
+    if (_gnC[i]!==tone) continue;
+    const ax=_gnA[i]*HX, ay=_gnA[i]*HY, bx=-_gnB[i]*HX, by=_gnB[i]*HY, x=_gnX[i], y=_gnY[i];
+    ctx.moveTo(x-ax-bx, y-ay-by); ctx.lineTo(x+ax-bx, y+ay-by);
+    ctx.lineTo(x+ax+bx, y+ay+by); ctx.lineTo(x-ax+bx, y-ay+by); ctx.closePath();
+  }
+  ctx.fill();
+}
 /* Shredded bark is fibrous and directional — it lies the way it was raked — so
    a shred is a tapered quad along its own axis, not a rotated ellipse. Four
    corners, not six: the torn butt and frayed tip of the first cut cost a third
@@ -2532,6 +2556,159 @@ function grainShreds(ctx,col,dx,dy,k,ph,md){        // A=halfLen B=halfWid C,D=u
     ctx.closePath();
   }
   ctx.fill();
+}
+/* A deterministic hash of a lattice point, 0..1. Laid materials (units,
+   flagstone, ashlar) are laid out in VIEW space and every tile that overlaps a
+   stone draws it, so anything about that stone — its colour, its corners —
+   must be a function of the stone and not of the tile drawing it. */
+const _laidCols=['','','',''];   // per-tile tone list, reused rather than allocated
+function latHash(i,j,s){
+  let h=Math.imul(i|0,0x27d4eb2d)^Math.imul(j|0,0x165667b1)^Math.imul(s|0,0x9e3779b1);
+  h=Math.imul(h^(h>>>15),0x85ebca6b); h=Math.imul(h^(h>>>13),0xc2b2ae35); h^=h>>>16;
+  return (h>>>0)/4294967296;
+}
+/* Stage the laid units (brick, setts, pavers, porcelain, decking) that overlap
+   this tile, each carrying its tone in C for grainUnitsOf. A unit's tone is hashed
+   from its own lattice position: it used to be its index in this tile's staging
+   order, which differs from tile to tile, so a unit big enough to be clipped to
+   the tile — a 5ft deck board, a 16in paver — took one colour in one tile and
+   another in the next and changed colour in the middle of itself.
+   Bonds: running (default), 'stack', and 'herringbone', the last on a cell of
+   one unit WIDTH: a staircase of a flat unit over a standing one, repeated
+   every four cells (worked out by search: those two translations tile the
+   plane with no gap and no overlap). */
+let _luSx=0,_luCy=0,_luVx=0,_luVy=0;
+function putLaidUnit(X,Y,a,b,id){
+  const ca=X-(_luVx+0.5), cb=Y-(_luVy+0.5);
+  // only a unit that actually reaches this tile: the loops' margins are
+  // generous, and herringbone's twice over, which measured 127ms a plot
+  if (Math.abs(ca)>=a+0.52 || Math.abs(cb)>=b+0.52) return;
+  grainAt(_luSx+(ca-cb)*TILE_W*0.5, _luCy+(ca+cb)*TILE_H*0.5); grainPush(a,b,(id*4)|0);
+}
+function stageLaidUnits(mat,sx,cy,vx,vy){
+  const U=mat.unit||[8,4], bl=U[0]/TILE_IN, bw=U[1]/TILE_IN;
+  // Joint width is a real dimension, and BOTH neighbours inset by half of it,
+  // or a 16in paver ends up grouted like a brick.
+  const jt=Math.min((mat.joint||JOINT_IN)*0.5/TILE_IN, bl*0.14, bw*0.14);
+  _luSx=sx; _luCy=cy; _luVx=vx; _luVy=vy;
+  const put=putLaidUnit;
+  if (mat.bond==='herringbone'){
+    const c=bw;
+    const X0=Math.floor(vx/c)-3, X1=Math.ceil((vx+1)/c)+1, Y0=Math.floor(vy/c)-3, Y1=Math.ceil((vy+1)/c)+1;
+    for (let t=Y0;t<=Y1;t++){
+      for (let k=Math.ceil((X0-t)/4), k1=Math.floor((X1-t)/4); k<=k1; k++){
+        const x=t+4*k;
+        put((x+1)*c,(t+0.5)*c, c-jt, c*0.5-jt, latHash(x,t,21));     // flat
+        put((x+0.5)*c,(t+2)*c, c*0.5-jt, c-jt, latHash(x,t,22));     // standing
+      }
+    }
+    return;
+  }
+  // margin of half a unit: that is exactly far enough for every unit that
+  // overlaps this tile, and a whole unit either side was a third more fills
+  const j0=Math.floor((vy-bw*0.5)/bw), j1=Math.floor((vy+1+bw*0.5)/bw);
+  for (let j=j0;j<=j1;j++){
+    const off=(mat.bond!=='stack' && (j&1))?bl*0.5:0;
+    const i0=Math.floor((vx-bl*0.5-off)/bl), i1=Math.floor((vx+1+bl*0.5-off)/bl);
+    for (let i=i0;i<=i1;i++) put((i+0.5)*bl+off,(j+0.5)*bw, bl*0.5-jt, bw*0.5-jt, latHash(i,j,23));
+  }
+}
+/* Random rectangular stone ('ashlar', bluestone): courses of 12 and 18in and
+   stones 12 to 30in long, all on a 6in module. Both come from short repeating
+   cycles, offset per course by a hash, so where any stone starts is
+   computable from the tile alone; a cycle of 26 modules is 13ft, too long to
+   see repeat. */
+const ASHLAR_COURSE=[3,2,3,3,2,2], ASHLAR_COURSE_AT=[0,3,5,8,11,13], ASHLAR_COURSE_SUM=15;
+const ASHLAR_LEN=[4,2,3,5,3,2,4,3], ASHLAR_LEN_AT=[0,4,6,9,14,17,19,23], ASHLAR_LEN_SUM=26;
+function stageAshlar(mat,sx,cy,vx,vy){
+  const M=6/TILE_IN, jt=(mat.joint||JOINT_IN)*0.5/TILE_IN, HX=TILE_W*0.5, HY=TILE_H*0.5;
+  const ym0=vy/M-5, ym1=(vy+1)/M+5, xm0=vx/M-5, xm1=(vx+1)/M+5;
+  for (let c=Math.floor(ym0/ASHLAR_COURSE_SUM); c<=Math.floor(ym1/ASHLAR_COURSE_SUM); c++){
+    for (let q=0;q<ASHLAR_COURSE.length;q++){
+      const y0=c*ASHLAR_COURSE_SUM+ASHLAR_COURSE_AT[q], h=ASHLAR_COURSE[q], g=c*6+q;
+      if (y0+h<ym0 || y0>ym1) continue;
+      const o=(latHash(g,0,31)*ASHLAR_LEN_SUM)|0;
+      for (let n=Math.floor((xm0+o)/ASHLAR_LEN_SUM)-1; n<=Math.floor((xm1+o)/ASHLAR_LEN_SUM); n++){
+        for (let r=0;r<ASHLAR_LEN.length;r++){
+          const x0=n*ASHLAR_LEN_SUM-o+ASHLAR_LEN_AT[r], len=ASHLAR_LEN[r];
+          if (x0+len<xm0 || x0>xm1) continue;
+          const ca=(x0+len*0.5)*M-(vx+0.5), cb=(y0+h*0.5)*M-(vy+0.5);
+          if (Math.abs(ca)>=len*M*0.5+0.52 || Math.abs(cb)>=h*M*0.5+0.52) continue;
+          grainAt(sx+(ca-cb)*HX, cy+(ca+cb)*HY);
+          grainPush(len*M*0.5-jt, h*M*0.5-jt, (latHash(g,n*8+r,32)*4)|0);
+        }
+      }
+    }
+  }
+}
+/* Irregular flagstone ('flag'): stones are the cells of a jittered lattice in
+   view space, `pitch` tiles apart, each shrunk toward its centre to open an
+   even joint, and some split corner to corner so the paving reads as random
+   rather than as a warped grid. The old recipe overlapped a few big shards on
+   a slab, which read as broken crockery: laid stone is defined by its joints,
+   and here the joint is the base colour showing through a constant gap.
+   Corners and splits are hashed from the lattice, so neighbouring tiles draw
+   the same stones; the scratch holds up to 16 cells (a tile overlaps 4-9). */
+const FLAG_JITTER=0.62, FLAG_INSET=0.93, FLAG_MAXC=16;
+const _flagPts=new Float64Array(FLAG_MAXC*2*4*2), _flagN=new Int8Array(FLAG_MAXC*2), _flagTone=new Int8Array(FLAG_MAXC*2);
+const _flagCx=new Float64Array(4), _flagCy=new Float64Array(4);
+const FLAG_WHOLE=[[0,1,2,3]], FLAG_SPLIT_A=[[0,1,2],[0,2,3]], FLAG_SPLIT_B=[[0,1,3],[1,2,3]];
+function drawFlagstone(ctx,mat,sx,cy,vx,vy,cols){
+  const s=mat.pitch||1.05, HX=TILE_W*0.5, HY=TILE_H*0.5;
+  // only the cells whose jittered corners can reach this tile: a corner moves
+  // at most FLAG_JITTER/2 of a pitch, so cell i spans i*s-0.31s..(i+1)*s+0.31s.
+  // A margin of a whole cell either side was 9-16 stones a tile, each drawn
+  // whole and clipped, and cost a third again over the paver.
+  const r=FLAG_JITTER*0.5;
+  const i0=Math.floor(vx/s-1-r)+1, i1=Math.ceil((vx+1)/s+r)-1;
+  const j0=Math.floor(vy/s-1-r)+1, j1=Math.ceil((vy+1)/s+r)-1;
+  let n=0;
+  const cxv=_flagCx, cyv=_flagCy;
+  for (let j=j0;j<=j1;j++) for (let i=i0;i<=i1;i++){
+    if (n>=FLAG_MAXC*2-1) break;
+    let xlo=1e9, xhi=-1e9, ylo=1e9, yhi=-1e9;
+    for (let q=0;q<4;q++){
+      const ci=i+((q===1||q===2)?1:0), cj=j+(q>=2?1:0);
+      cxv[q]=ci*s+(latHash(ci,cj,41)-0.5)*FLAG_JITTER*s;
+      cyv[q]=cj*s+(latHash(ci,cj,42)-0.5)*FLAG_JITTER*s;
+      if (cxv[q]<xlo) xlo=cxv[q]; if (cxv[q]>xhi) xhi=cxv[q];
+      if (cyv[q]<ylo) ylo=cyv[q]; if (cyv[q]>yhi) yhi=cyv[q];
+    }
+    if (xhi<=vx || xlo>=vx+1 || yhi<=vy || ylo>=vy+1) continue;
+    const split=latHash(i,j,43)<0.25, diag=latHash(i,j,44)<0.5;
+    const polys = split ? (diag ? FLAG_SPLIT_A : FLAG_SPLIT_B) : FLAG_WHOLE;
+    for (let pi=0;pi<polys.length;pi++){
+      const P=polys[pi], m=P.length; let mx=0,my=0;
+      for (let v=0;v<m;v++){ mx+=cxv[P[v]]; my+=cyv[P[v]]; } mx/=m; my/=m;
+      const base=n*8;
+      for (let v=0;v<m;v++){
+        const X=mx+(cxv[P[v]]-mx)*FLAG_INSET, Y=my+(cyv[P[v]]-my)*FLAG_INSET;
+        const ca=X-(vx+0.5), cb=Y-(vy+0.5);
+        _flagPts[base+v*2]=sx+(ca-cb)*HX; _flagPts[base+v*2+1]=cy+(ca+cb)*HY;
+      }
+      _flagN[n]=m; _flagTone[n]=(latHash(i*2+pi,j,45)*cols.length)|0; n++;
+    }
+  }
+  for (let k=0;k<cols.length;k++){
+    ctx.fillStyle=cols[k]; ctx.beginPath();
+    for (let p=0;p<n;p++){
+      if (_flagTone[p]!==k) continue;
+      const base=p*8, m=_flagN[p];
+      ctx.moveTo(_flagPts[base],_flagPts[base+1]);
+      for (let v=1;v<m;v++) ctx.lineTo(_flagPts[base+v*2],_flagPts[base+v*2+1]);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+}
+// Clip to this tile's diamond, a hair oversize so neighbouring clips overlap
+// rather than leave a hairline of the joint colour along every tile edge.
+function clipTileDiamond(ctx,sx,cy){
+  const HX=TILE_W*0.5, HY=TILE_H*0.5;
+  ctx.save(); ctx.beginPath();
+  ctx.moveTo(sx,cy-HY-0.3); ctx.lineTo(sx+HX+0.6,cy);
+  ctx.lineTo(sx,cy+HY+0.3); ctx.lineTo(sx-HX-0.6,cy); ctx.closePath();
+  ctx.clip();
 }
 /* Materials whose base follows the season (soil reads AMBIENCE) declare no
    palette, so derive one from whatever the base currently is. shade() memoises,
@@ -2558,20 +2735,23 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // under them. A handful of dark mottle grains carry that interstitial
     // shadow for a fraction of what re-painting every grain as a shadow pass
     // would cost.  (~23us)
+    // The stones are larger than they were, at the same count: a polygon costs
+    // the same whatever its size, and at the old sizes the base covered most of
+    // the tile, so every gravel read as speckled sand and charcoal as tarmac.
     for (let i=0;i<7;i++){
       const rx=2.0+rs()*1.9; grainSite(sx,cy,rx,rx*0.56,rs); grainPush(rx,rx*0.56,(rs()*CHIP_SIL)|0);
     }
     grainGrit(ctx,T[0],0,0,1);
     grainReset();
     for (let i=0;i<30;i++){
-      const rx=0.9+rs()*1.4; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
+      const rx=1.3+rs()*1.7; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
     }
     grainGrit(ctx,T[1],0,0,1,0,3);
     grainGrit(ctx,T[2],0,0,1,1,3);
     grainGrit(ctx,T[3],0,0,1,2,3);
     grainReset();
     for (let i=0;i<6;i++){
-      const rx=1.7+rs()*1.5; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
+      const rx=2.0+rs()*1.7; grainSite(sx,cy,rx,rx*0.58,rs); grainPush(rx,rx*0.58,(rs()*CHIP_SIL)|0);
     }
     grainChips(ctx,T[2],0,0,1,0,2);
     grainChips(ctx,T[3],0,0,1,1,2);
@@ -2599,8 +2779,11 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // body tones on a stride of four rather than three, because grains this big
     // merge into one pale mass when two neighbours share a tone — that merging
     // is what read as popcorn.  (~22us)
-    for (let i=0;i<18;i++){
-      const rx=3.4+rs()*3.0, sq=0.44+rs()*0.16;
+    // Close packed is the point: at 18 cobbles a tile the base showed through
+    // half the bed and read as spotted terrazzo. 22 bigger ones cover it, and
+    // the base is now dark enough to read as the shadow between them. (~26us)
+    for (let i=0;i<22;i++){
+      const rx=4.0+rs()*3.0, sq=0.46+rs()*0.16;
       grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
     }
     grainPebble(ctx,T[1],0,0,1,0,4);
@@ -2614,9 +2797,12 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // shreds are dark and the top layer weathers grey-tan; that value split is
     // what makes a mulch bed read as mulch rather than as brown ground. The
     // dark between them is the bed's own base colour.  (~21us)
+    // Chunky, not hairlike: the first shreds were a pixel wide and the bed read
+    // as dirt with hair on it. Shorter and two to three times as wide, at the
+    // same count, so the shreds cover the ground the way mulch does.
     const drift=rs()*6.283, dcx=Math.cos(drift), dsx=Math.sin(drift);
     for (let i=0;i<34;i++){
-      const L=2.2+rs()*2.4, w=0.55+rs()*0.55, a=(rs()-0.5)*1.35;
+      const L=2.6+rs()*2.4, w=2.0+rs()*1.4, a=(rs()-0.5)*1.35;
       const ca=Math.cos(a), sa=Math.sin(a);
       grainSite(sx,cy,L,w+0.6,rs);
       grainPush(L,w, dcx*ca-dsx*sa*0.42, (dsx*ca+dcx*sa)*0.42);   // flattened into the ground plane
@@ -2630,10 +2816,12 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // a deep mat. Longer and far finer than a bark shred, and layered in more
     // than one direction — a single drift reads as combed hair rather than as
     // straw. The dark between them is the bed's own base.  (~24us)
+    // A MAT, so the needles have to cover: a little wider and a few more than
+    // the first cut, over a base close to their own colour.  (~27us)
     const dA=rs()*6.283, dB=dA+1.1+rs()*0.9;
-    for (let i=0;i<38;i++){
+    for (let i=0;i<42;i++){
       const drift=(i%3)?dA:dB, a=drift+(rs()-0.5)*0.55;
-      const L=3.8+rs()*3.6, w=0.28+rs()*0.20;
+      const L=3.8+rs()*3.6, w=0.36+rs()*0.24;
       const ca=Math.cos(a), sa=Math.sin(a);
       grainSite(sx,cy,L,w+0.5,rs);
       grainPush(L,w, ca, sa*0.42);               // flattened into the ground plane
@@ -2645,9 +2833,11 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
   } else if (tex==='pebble'){
     // Pea gravel: 3/8in rounded stone, the size between crushed gravel and
     // river cobble. Rounded like the cobble and small like the grit, packed
-    // tight enough that the base is a shadow rather than a background. (~23us)
-    for (let i=0;i<30;i++){
-      const rx=2.0+rs()*1.9; grainSite(sx,cy,rx,rx*0.52,rs); grainPush(rx,rx*0.52,(rs()*CHIP_SIL)|0);
+    // tight enough that the base is a shadow rather than a background. (~26us)
+    // It read as polka dots: pale stones scattered on a dark base. Denser, and
+    // the base is now the middle of the stones' own range, not a dark ground.
+    for (let i=0;i<34;i++){
+      const rx=2.2+rs()*1.8; grainSite(sx,cy,rx,rx*0.54,rs); grainPush(rx,rx*0.54,(rs()*CHIP_SIL)|0);
     }
     grainPebble(ctx,T[1],0,0,1,0,4);
     grainPebble(ctx,T[3],0,0,1,1,4);
@@ -2666,11 +2856,7 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // nothing where an extra full-tile fill would have cost the most.
     const U=(mat&&mat.unit)||[8,4];
     const bl=U[0]/TILE_IN, bw=U[1]/TILE_IN;      // unit length / width, in tiles
-    // Joint width is a real dimension, and BOTH neighbours inset by half of it,
-    // or a 16in paver ends up grouted like a brick.
-    const jt=Math.min(JOINT_IN*0.5/TILE_IN, bl*0.14, bw*0.14);
     const vv=worldToView(wx|0,wy|0), vx=vv[0], vy=vv[1];
-    const HX=TILE_W*0.5, HY=TILE_H*0.5;
     // Big units get clipped to the tile. They are drawn whole so the bond stays
     // continuous, but a 16in paver is larger than the tile it is being drawn
     // for, so most of every fill lands outside it: unclipped the paver measured
@@ -2679,33 +2865,23 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // there the clip measured as pure overhead — so it is paid for only when a
     // unit is a decent fraction of a tile.
     const clipped = bl>0.5 || bw>0.5;
-    if (clipped){
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(sx,cy-HY-0.3); ctx.lineTo(sx+HX+0.6,cy);
-      ctx.lineTo(sx,cy+HY+0.3); ctx.lineTo(sx-HX-0.6,cy); ctx.closePath();
-      ctx.clip();
-    }
-    // margin of half a unit: that is exactly far enough for every unit that
-    // overlaps this tile, and a whole unit either side was a third more fills
-    const j0=Math.floor((vy-bw*0.5)/bw), j1=Math.floor((vy+1+bw*0.5)/bw);
-    for (let j=j0;j<=j1;j++){
-      const off=(j&1)?bl*0.5:0;
-      const i0=Math.floor((vx-bl*0.5-off)/bl), i1=Math.floor((vx+1+bl*0.5-off)/bl);
-      for (let i=i0;i<=i1;i++){
-        const ca=(i+0.5)*bl+off-(vx+0.5), cb=(j+0.5)*bw-(vy+0.5);
-        grainAt(sx+(ca-cb)*HX, cy+(ca+cb)*HY);
-        grainPush(bl*0.5-jt, bw*0.5-jt, 0);
-      }
-    }
-    // Four tones on a stride of four: units vary batch to batch, and each is
-    // drawn exactly once. A shrunk highlight pass was tried and stamps a dot in
-    // the middle of every unit, which reads as a maker's mark, not as wear.
-    grainUnits(ctx,T[1],0,0,1,0,4);
-    grainUnits(ctx,T[2],0,0,1,1,4);
-    grainUnits(ctx,T[3],0,0,1,2,4);
-    grainUnits(ctx,shade(T[2],9),0,0,1,3,4);
+    if (clipped) clipTileDiamond(ctx,sx,cy);
+    // Four tones, each unit drawn exactly once in the tone hashed from its own
+    // position (stageLaidUnits). A shrunk highlight pass was tried and stamps a
+    // dot in the middle of every unit, which reads as a maker's mark, not wear.
+    const cols=_laidCols; cols[0]=T[1]; cols[1]=T[2]; cols[2]=T[3]; cols[3]=shade(T[2],9);
+    grainReset(); stageLaidUnits(mat,sx,cy,vx,vy);
+    for (let k=0;k<4;k++) grainUnitsOf(ctx,cols[k],k);
     if (clipped) ctx.restore();
+  } else if (tex==='ashlar'){
+    // Bluestone, random rectangular: few stones a tile and most cross its
+    // edge, so always clipped, and coloured by the stone like the units above.
+    const vv=worldToView(wx|0,wy|0);
+    clipTileDiamond(ctx,sx,cy);
+    const cols=_laidCols; cols[0]=T[1]; cols[1]=T[2]; cols[2]=T[3]; cols[3]=T[0];
+    grainReset(); stageAshlar(mat,sx,cy,vv[0],vv[1]);
+    for (let k=0;k<4;k++) grainUnitsOf(ctx,cols[k],k);
+    ctx.restore();
   } else if (tex==='leaf'){
     // Fallen deciduous leaves, lying every which way and overlapping so heavily
     // that what you actually see is edges and partial leaves, not whole ones.
@@ -2714,8 +2890,10 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     // outline carries the leaf on its own, so the rib pass goes away with it —
     // which also makes this the cheapest of the three big-grain materials at
     // ~0.9us a leaf against ~1.4us for the ellipse it replaced.  (~22us)
-    for (let i=0;i<24;i++){
-      const rx=2.8+rs()*3.4, sq=0.46+rs()*0.24;
+    // Bigger leaves, a couple more: at the old size they sat apart on a dark
+    // base like chocolate chips, where leaf litter is a mat.
+    for (let i=0;i<26;i++){
+      const rx=3.4+rs()*3.6, sq=0.46+rs()*0.24;
       grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
     }
     grainChips(ctx,T[1],0,0,1,0,4);
@@ -2763,18 +2941,107 @@ function drawMaterialGrain(ctx,sx,cy,mat,base,rs,wx,wy,amb){
     }
     ctx.stroke();
   } else if (tex==='flag'){
-    // Cut flagstone: a couple of big plates per tile, overlapping so the base
-    // colour showing between them reads as the JOINT. The first cut used four
-    // plates a third this size, which floated as separate shards on a slab —
-    // laid stone is defined by its joints, so the plates have to be large
-    // enough to run off the tile and meet the neighbouring ones.
-    for (let i=0;i<3;i++){
-      const rx=15+rs()*10; grainSite(sx,cy,rx,rx*0.50,rs); grainPush(rx,rx*0.50,(rs()*CHIP_SIL)|0);
+    // Irregular flagstone on a jittered lattice: see drawFlagstone. A few
+    // grains of the stone's own grain over the top, so a big plate is not a
+    // flat swatch.  (~14us)
+    const vv=worldToView(wx|0,wy|0);
+    clipTileDiamond(ctx,sx,cy);
+    const cols=_laidCols; cols[0]=T[1]; cols[1]=T[2]; cols[2]=T[3]; cols[3]=T[0];
+    drawFlagstone(ctx,mat,sx,cy,vv[0],vv[1],cols);
+    ctx.restore();
+    for (let i=0;i<8;i++){
+      const rx=0.7+rs()*0.9; grainSite(sx,cy,rx,rx*0.6,rs); grainPush(rx,rx*0.6,(rs()*CHIP_SIL)|0);
     }
-    grainChips(ctx,T[0],0.6,1.0,1.05);           // joint shadow
+    grainGrit(ctx,shade(T[0],-10),0,0,1,0,2);
+    grainGrit(ctx,shade(T[2],10),0,0,1,1,2);
+  } else if (tex==='concrete'){
+    // A poured slab: almost nothing on the surface but the odd aggregate speck
+    // and the faint blotching of the cure, and saw-cut control joints every
+    // `bay` tiles along both view axes — the joints are what say "concrete"
+    // rather than "a grey bed". Each joint is drawn by the tile on its far
+    // side, a hair inside it, so a later neighbour's base cannot cover it.
+    for (let i=0;i<3;i++){
+      const rx=7+rs()*7; grainSite(sx,cy,rx*0.5,rx*0.3,rs); grainPush(rx,rx*0.55,(rs()*CHIP_SIL)|0);
+    }
+    ctx.globalAlpha=0.16; grainPebble(ctx,T[3],0,0,1); ctx.globalAlpha=1;
+    grainReset();
+    for (let i=0;i<10;i++){
+      const rx=0.6+rs()*0.7; grainSite(sx,cy,rx,rx*0.6,rs); grainPush(rx,rx*0.6,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,2);
+    grainGrit(ctx,T[2],0,0,1,1,2);
+    const P=(mat&&mat.bay)||3, vv=worldToView(wx|0,wy|0), HX=TILE_W*0.5, HY=TILE_H*0.5, e=0.035;
+    const atX=((vv[0]%P)+P)%P===0, atY=((vv[1]%P)+P)%P===0;
+    if (atX||atY){
+      // the joint along view x=0 runs (e,-.5)->(e,.5) in tile-local view
+      // units, along y=0 (-.5,e)->(.5,e); projected, each is one segment
+      const a=-0.5+e;
+      for (let pass=0;pass<2;pass++){
+        const dy=pass?0.8:0;
+        ctx.lineWidth=pass?0.6:0.9; ctx.strokeStyle=pass?T[2]:T[0]; ctx.beginPath();
+        if (atX){ ctx.moveTo(sx+(a+0.5)*HX, cy+(a-0.5)*HY+dy); ctx.lineTo(sx+(a-0.5)*HX, cy+(a+0.5)*HY+dy); }
+        if (atY){ ctx.moveTo(sx+(-0.5-a)*HX, cy+(-0.5+a)*HY+dy); ctx.lineTo(sx+(0.5-a)*HX, cy+(0.5+a)*HY+dy); }
+        ctx.stroke();
+      }
+    }
+  } else if (tex==='chips'){
+    // Arborist wood chips: flat angular flakes of mixed size, a little paler
+    // and chunkier than shredded bark, gold when fresh and greying with age,
+    // which is why the accent tone is a grey-brown.  (~27us)
+    for (let i=0;i<32;i++){
+      const rx=3.0+rs()*2.2, sq=0.42+rs()*0.20;
+      grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[1],0,0,1,0,4);
+    grainChips(ctx,T[3],0,0,1,1,4);
+    grainChips(ctx,T[2],0,0,1,2,4);
+    grainChips(ctx,shade(T[0],14),0,0,1,3,4);
+  } else if (tex==='lava'){
+    // Lava rock: porous angular lumps, red-brown to near black, and the pores
+    // are what make it lava rather than red gravel.  (~26us)
+    for (let i=0;i<24;i++){
+      const rx=3.0+rs()*2.2, sq=0.55+rs()*0.2;
+      grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
+    }
     grainChips(ctx,T[1],0,0,1,0,3);
-    grainChips(ctx,T[2],0,0,1,1,3);
-    grainChips(ctx,T[3],0,0,1,2,3);
+    grainChips(ctx,T[3],0,0,1,1,3);
+    grainChips(ctx,T[2],0,0,1,2,3);
+    grainReset();
+    for (let i=0;i<14;i++){
+      const rx=0.45+rs()*0.45; grainSite(sx,cy,rx,rx*0.7,rs); grainPush(rx,rx*0.7,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1);
+  } else if (tex==='slatechip'){
+    // Slate chippings: flat flakes lying face up, blue-grey with a plum one
+    // among them -- face up, so as wide on the ground plane as any stone here.  (~27us)
+    for (let i=0;i<30;i++){
+      const rx=2.8+rs()*1.9, sq=0.46+rs()*0.14;
+      grainSite(sx,cy,rx,rx*sq,rs); grainPush(rx,rx*sq,(rs()*CHIP_SIL)|0);
+    }
+    grainChips(ctx,T[1],0,0,1,0,4);
+    grainChips(ctx,T[2],0,0,1,1,4);
+    grainChips(ctx,T[3],0,0,1,2,4);
+    grainChips(ctx,shade(T[0],18),0,0,1,3,4);
+  } else if (tex==='raked'){
+    // Raked gravel: pale fine gravel combed into ridges 3in apart along a view
+    // axis, each a shadowed groove with a lit crest beside it. The lines end
+    // on the tile's edges, so the next tile carries them on unbroken.  (~10us)
+    for (let i=0;i<14;i++){
+      const rx=0.6+rs()*0.8; grainSite(sx,cy,rx,rx*0.6,rs); grainPush(rx,rx*0.6,(rs()*CHIP_SIL)|0);
+    }
+    grainGrit(ctx,T[0],0,0,1,0,2);
+    grainGrit(ctx,T[3],0,0,1,1,2);
+    // Each line is a thin quad spanning the tile, drawn by the laid-unit
+    // painter: a stroked line measured 94ms a plot, a filled quad a third of it.
+    const HX=TILE_W*0.5, HY=TILE_H*0.5, N=6;
+    for (let pass=0;pass<2;pass++){
+      grainReset();
+      for (let k=0;k<N;k++){
+        const b=(k+0.5)/N-0.5+(pass?0.5/N:0);
+        grainAt(sx-b*HX, cy+b*HY); grainPush(0.5, 0.011, 0);
+      }
+      grainUnits(ctx,pass?T[2]:T[0],0,0,1);
+    }
   } else if (tex==='tussock' || tex==='meadow' || tex==='flowermeadow'){
     /* Grass is the one grain here that STANDS UP. Every other material in this
        function is stuff LYING on the ground, placed inside the tile diamond; a
