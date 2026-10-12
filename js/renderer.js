@@ -2145,8 +2145,10 @@ function computeStructSpriteSpec(e){
     case SCENE_K.SEAT:
       return Object.assign({key:'S|'+structRecordSig(e.s)}, box);
     case SCENE_K.BOULDER:
-      // shape comes from tileSeed, so two boulders of one type differ
-      return Object.assign({key:'O|'+structRecordSig(e.b)+'|'+tileSeed(e.x,e.y)}, box);
+      /* The shape comes from the stone's own seed (boulderSeedAt), not from
+         where it stands — so a moved stone finds its sprite already baked,
+         and a stone with no seed of its own falls back to its tile's. */
+      return Object.assign({key:'O|'+structRecordSig(e.b)+'|'+boulderSeedAt(e.b,e.x,e.y)}, box);
     case SCENE_K.FIREPIT:
       /* The stones, the logs and the flames are seeded off the tile, like a
          boulder's shape; the night fire is the `lit` flag the caller appends. */
@@ -2444,7 +2446,7 @@ function measureFootprintCentres(){
       size:s=>boulderTileSize(s), draw:(c,s)=>drawBoulder(c,W,H,season,s,x,y),
       lop:s=>{ const d=normalizeBoulderDraft(s), [ax,ay]=turnAxes(isoAxes(),d.face), P=fpProjector(0,0,ax,ay);
         let l=1e9, r=-1e9;
-        for (const m of boulderMeshes(d,tileSeed(x,y))) for (const p of m.V){ const q=P(p[0],p[1],p[2]); if (q[0]<l)l=q[0]; if (q[0]>r)r=q[0]; }
+        for (const m of boulderMeshes(d,boulderSeedAt(s,x,y))) for (const p of m.V){ const q=P(p[0],p[1],p[2]); if (q[0]<l)l=q[0]; if (q[0]>r)r=q[0]; }
         return (l+r)/2; }});
   const off=[]; let worst=0, worstName='', n=0;
   try{

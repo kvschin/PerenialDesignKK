@@ -2539,7 +2539,7 @@ function drawPlanGround(ctx,g,site){
     ctx.fillStyle=mixHex(st.tone,'#f7f3e8',0.3);
     ctx.strokeStyle=mixHex(st.lo,'#2c241c',0.3);
     ctx.lineWidth=1.1; ctx.lineJoin='round';
-    for (const m of boulderMeshes(b,tileSeed(x,y))){
+    for (const m of boulderMeshes(b,boulderSeedAt(game.boulders[k],x,y))){
       // the widest ring is the one the stone stands on: ring 1, or a prism's base
       const ring=m.V.slice(m.R>2?m.n:0,(m.R>2?2:1)*m.n);
       ctx.beginPath();

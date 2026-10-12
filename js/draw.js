@@ -10077,7 +10077,7 @@ function solShadow(ctx,P,r){
 function drawBoulder(ctx,W,H,season,b,x,y){
   const d=normalizeBoulderDraft(b);
   const [cx,cy]=groundCenterRot(x,y,boulderTileSize(d),W,H);
-  drawBoulderArt(ctx,cx,cy,d,season,isoAxes(),tileSeed(x,y));
+  drawBoulderArt(ctx,cx,cy,d,season,isoAxes(),boulderSeedAt(b,x,y));
 }
 /* The light, in a frame tied to the SCREEN rather than to the stone: x right,
    y toward the viewer (down the screen), z up. Upper left and a little in front

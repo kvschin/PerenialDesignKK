@@ -4362,6 +4362,22 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     symmetry. `dev/boulder-review.html` shows every type at four rotations beside
     its chip (`?view=sheet`, `?view=stones&only=<type>`, `?season=`, `?face=`,
     `?ground=`, `?bench=1`).
+    **A stone keeps its shape when it moves** (0.9.64): the record carries the
+    `seed` its shell is built from (`boulderSeedAt`), so Select's move, turn,
+    duplicate and Copy/Paste area all land the SAME stone — and a moved stone
+    keeps its sprite key, so nothing re-bakes. It was the origin tile's seed read
+    at draw time, so dragging a rock two tiles made it a different rock. A record
+    saved before this has no seed and still draws from its tile;
+    `selectionPayload` stamps that tile's seed onto it the moment a selection
+    picks it up, so an old stone survives its first move too. A NEW stone gets a
+    fresh seed (`newBoulderSeed`) rather than its tile's — tied to the tile, a
+    stone moved away and another placed on the spot came out an exact twin;
+    restyling a stone in place keeps its seed, and the draft never carries one,
+    so the eyedropper copies a stone's kind and never its shape. A duplicate IS
+    a twin, deliberately: the drag ghost shows the record it carries, and a copy
+    that landed as a different rock from the one previewed would read as a bug —
+    Turn shows it another way round. The guidebook's props never move and keep
+    the tile seed.
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,

@@ -7467,6 +7467,68 @@ test('turning a long stone turns its footprint, and the turn and the stone are k
     'the eyedropper copies type, stone and turn');
 });
 
+/* A boulder's shape is the stone's, not the tile's: it was the origin tile's
+   seed read at draw time, so dragging a rock two tiles with Select made it a
+   different rock. */
+test('a boulder moved with Select keeps its shape, and finds its sprite already baked', () => {
+  setup(21, 21);
+  const shape = (b, x, y) => JSON.stringify(boulderMeshes(normalizeBoulderDraft(b), boulderSeedAt(b, x, y)).map(m => m.V));
+  const key = (x, y) => { const b = game.boulders[x + ',' + y], sz = boulderTileSize(b);
+    return computeStructSpriteSpec({ kind: SCENE_K.BOULDER, x, y, bx0: x, bx1: x + sz.w - 1, by0: y, by1: y + sz.h - 1, b }).key; };
+  game.tool = 'boulder';
+  game.boulderDraft = { type: 'medium2', stone: 'granite', face: 0 };
+  assertEqual(applyToolAt(4, 4), 'boulder', 'placed');
+  assert(Number.isFinite(game.boulders['4,4'].seed), 'a new stone carries its own seed');
+  const before = shape(game.boulders['4,4'], 4, 4), keyBefore = key(4, 4);
+
+  game.sel = { x0: 4, y0: 4, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assert(commitSelectionOffset(5, 3, false), 'moved');
+  assert(!boulderAt(4, 4) && boulderAt(9, 7), 'it is at the new spot');
+  assertEqual(shape(game.boulders['9,7'], 9, 7), before, 'the same stone where it lands');
+  assertEqual(key(9, 7), keyBefore, 'so its sprite is reused rather than baked again');
+  // and the garden's own painter draws it from the stone's seed, not the tile's
+  const was = globalThis.drawBoulderArt; let got = null;
+  globalThis.drawBoulderArt = (c, x, y, b, s, a, seed) => { got = seed; };
+  try { drawBoulder(makeCanvasCtx({}), 800, 600, 'Summer', game.boulders['9,7'], 9, 7); }
+  finally { globalThis.drawBoulderArt = was; }
+  assertEqual(got, game.boulders['9,7'].seed >>> 0, 'drawBoulder draws the stone it was given');
+
+  rotateSelection();
+  const k2 = Object.keys(game.boulders).find(k => !game.boulders[k].removed);
+  const [rx, ry] = k2.split(',').map(Number);
+  assertEqual(shape(game.boulders[k2], rx, ry), before, 'turning the selection carries the stone too');
+
+  doUndo(); doUndo();
+  assertEqual(shape(game.boulders['4,4'], 4, 4), before, 'and undo puts back the same stone');
+});
+
+test('an old boulder keeps its shape on its first move, and a new stone is never an accidental twin', () => {
+  setup(21, 21);
+  const shape = (b, x, y) => JSON.stringify(boulderMeshes(normalizeBoulderDraft(b), boulderSeedAt(b, x, y)).map(m => m.V));
+  // saved before stones had seeds: drawn from its tile
+  game.boulders['3,3'] = { type: 'large3', stone: 'fieldstone', t: 1 };
+  const before = shape(game.boulders['3,3'], 3, 3);
+  game.sel = { x0: 3, y0: 3, x1: 5, y1: 5 }; game.selItems = selectionPayload(game.sel);
+  assertEqual(game.selItems.find(c => c.boulder).boulder.seed, tileSeed(3, 3),
+    'the selection gives it the seed of the tile it was drawn from');
+  assert(commitSelectionOffset(6, 0, false), 'moved');
+  assertEqual(shape(game.boulders['9,3'], 9, 3), before, 'so it is the same stone after its first move');
+
+  // tied to the tile, a stone moved away and another placed on its spot came out identical
+  game.tool = 'boulder';
+  game.boulderDraft = { type: 'large3', stone: 'fieldstone', face: 0 };
+  assertEqual(applyToolAt(3, 3), 'boulder', 'a new stone on the old spot');
+  assert(shape(game.boulders['3,3'], 3, 3) !== before, 'is a different stone');
+
+  // restyling a stone in place keeps the stone; the eyedropper copies its kind, not its shape
+  const seed = game.boulders['3,3'].seed;
+  game.boulderDraft = { type: 'large3', stone: 'granite', face: 0 };
+  assertEqual(placeBoulderAt(3, 3), 'boulder', 'restyled');
+  assertEqual(game.boulders['3,3'].seed, seed, 'restyling keeps its shape');
+  game.tool = 'pick'; pickAt(3, 3);
+  assertEqual(game.boulderDraft.seed, undefined, 'the draft never carries a shape');
+});
+
 test('the sprite key follows the stone, and the drawing reads only its record', () => {
   const rec = s => ({ kind: SCENE_K.BOULDER, x: 5, y: 5, bx0: 5, bx1: 6, by0: 5, by1: 6, b: s });
   const a = computeStructSpriteSpec(rec({ type: 'medium2', stone: 'granite', t: 1 }));

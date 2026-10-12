@@ -1283,7 +1283,9 @@ function placeBoulderAt(x,y){
   if (cur && !cur.removed && cur.type===d.type && boulderStoneFor(cur.type,cur.stone)===d.stone
     && normalizeFacing(cur.face)===d.face) return null;
   if (!canPlaceBoulder(x,y,k)) return null;
-  setTile('boulders',k,Object.assign({},d,{t:Date.now()}));
+  // restyling a stone in place keeps the stone; a new one is a new shape
+  const seed=cur && !cur.removed ? boulderSeedAt(cur,x,y) : newBoulderSeed(x,y);
+  setTile('boulders',k,Object.assign({},d,{seed,t:Date.now()}));
   return 'boulder';
 }
 
@@ -2001,7 +2003,12 @@ function selectionPayload(r){
     if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
     const wfc=(game.waterFeatures||{})[k];
     if (wfc && !wfc.removed) cell.waterFeature=JSON.parse(JSON.stringify(wfc));
-    if (bo && !bo.removed) cell.boulder=JSON.parse(JSON.stringify(bo));
+    if (bo && !bo.removed){
+      // the shape travels with the stone: an old record is given the seed of the
+      // tile it is drawn from now, before anything moves it (boulderSeedAt)
+      cell.boulder=JSON.parse(JSON.stringify(bo));
+      cell.boulder.seed=boulderSeedAt(bo,x,y);
+    }
     if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
     if (po && !po.removed) cell.pot=JSON.parse(JSON.stringify(po));
     if (se && !se.removed) cell.seat=JSON.parse(JSON.stringify(se));

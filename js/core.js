@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.63';
+const APP_VERSION = '0.9.64';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -1580,6 +1580,26 @@ function normalizeBoulderDraft(d){
   d=d||{};
   const type=boulderTypeId(d.type);
   return {type, stone:boulderStoneFor(type,d.stone), face:normalizeFacing(d.face)};
+}
+/* A boulder's SHAPE belongs to the stone, not to the tile it stands on: its
+   record carries the `seed` its shell is built from, so a stone moved with
+   Select, turned with the selection, copied or pasted is the same stone where
+   it lands. It was the origin tile's seed, read at draw time, so moving a rock
+   two tiles made it a different rock. A record saved before this has none and
+   falls back to the tile, which is the shape it has always had there — and
+   selectionPayload stamps that onto it the moment a selection picks it up, so
+   an old stone keeps its shape on its first move too.
+   The draft never carries one (normalizeBoulderDraft drops it), so the
+   eyedropper copies a stone's kind and never its shape. A new stone gets a
+   fresh seed rather than its tile's: tied to the tile, a rock moved away and
+   another placed on the same spot came out an exact twin. */
+function boulderSeedAt(b,x,y){
+  const s=b&&b.seed;
+  return Number.isFinite(s) ? s>>>0 : tileSeed(x,y);
+}
+let boulderSeedCount=0;
+function newBoulderSeed(x,y){
+  return ((tileSeed(x,y)^Math.imul(Date.now()|0,0x9e3779b1)^Math.imul(++boulderSeedCount,0x85ebca6b))>>>0)||1;
 }
 // a turned rock that is longer one way swaps its footprint, as a seat does
 function boulderTileSize(b){
