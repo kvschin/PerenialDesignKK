@@ -210,7 +210,7 @@ const DAILY_SITES={
     description:'A 30 × 12 ft strip with a deep border along a straight limestone path.',
     conditions:'An open, sunny edge. Build depth with low planting near the path and taller groups behind.'},
   patio:{label:'Patio edge',widthFt:30,lengthFt:24,
-    description:'A 30 × 24 ft garden with an offset paved terrace and generous beds around two sides.',
+    description:'A 30 × 24 ft garden with an offset paved terrace set into generous beds, and a short path out to the lawn.',
     conditions:'Keep the terrace open and compose a planting to enjoy from its edge. Choose plant positions for the conditions shown in their details.'},
   slope:{label:'Gentle terraced slope',widthFt:30,lengthFt:24,
     description:'A 30 × 24 ft site with two shallow planting terraces above a level gravel route.',
@@ -277,8 +277,12 @@ function dailySitePlan(kind){
       c=k==='path'?'warm':'leaf';
     }
     if(kind==='narrow'){k=y<5?'bed':y<7?'path':null;c=k==='path'?'lime':'soil';}
+    // The terrace sits two rows in from the lawn border so its path is three
+    // tiles long. On the border itself the path was a one-tile tab, and the
+    // organic renderer drew its two sides differently: a tab that short is
+    // straightened or kept on a knife edge (0.894 against 0.95 tiles here).
     if(kind==='patio'){
-      k=(x>=11&&x<=17&&y>=8&&y<=14)||(x>=14&&x<=15&&y>=14)?'path':inner?'bed':null;
+      k=(x>=11&&x<=17&&y>=6&&y<=12)||(x>=14&&x<=15&&y>=12)?'path':inner?'bed':null;
       c=k==='path'?'paver':'mulch';
     }
     if(kind==='slope'){

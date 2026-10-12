@@ -40,7 +40,13 @@ CURVES (`dailyRouteTile`: a centreline, tiles within 1.05 of it measured square 
 the line), never stepping more than one tile between rows; they were straight
 strips jogged by one tile, which the organic renderer simplifies into a wobble,
 and the woodland's bark path on leaf-litter beds was 0.011 OKLab from its beds
-(a test now holds every route ≥0.08 from the beds beside it).
+(a test now holds every route ≥0.08 from the beds beside it). The patio's
+terrace sits two rows in from the lawn border so its path is three tiles long
+(0.9.70): on the border the path was a one-tile tab, and a tab that short is
+kept or straightened on a knife edge, so its two sides drew differently. A
+renderer rule keeping the first step square against any hard edge was tried
+for this and reverted: it fixed the tab and put lumps where the hollow's path
+ring merely brushes the plot edge.
 `dailySitePlan` builds a pure, deterministic blueprint, including label/description,
 conditions, dimensions, optional four-point outline, bed/path materials, grade and
 at most two context trees. `normalizeDailySitePlan` bounds and copies that data;

@@ -8766,6 +8766,17 @@ test('winding daily routes are curves that cannot pinch',()=>{
   }
 });
 
+/* The patio's way in is a PATH, not a tab: with the terrace on the lawn border
+   it was one tile long, and the organic renderer drew a tab that short
+   differently on each side. Counted as the rows narrower than the terrace. */
+test('the patio site reaches its terrace by a path at least three tiles long',()=>{
+  const p=dailySitePlan('patio'),widths=[];
+  for(let y=0;y<p.gh;y++){let w=0;for(let x=0;x<p.gw;x++)if(p.terrain[x+','+y]?.k==='path')w++;if(w)widths.push(w);}
+  const terrace=Math.max(...widths),stem=widths.filter(w=>w<terrace);
+  assert(stem.length>=3,'path rows below the terrace: '+stem.length);
+  assert(stem.every(w=>w===2),'the path is two tiles wide all the way');
+});
+
 /* A route has to read against the beds it runs through. The woodland site laid
    a bark path through leaf-litter beds: the two materials' base colours are
    0.011 apart in OKLab (about half a just-noticeable difference), so the path
