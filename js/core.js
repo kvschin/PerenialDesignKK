@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.68';
+const APP_VERSION = '0.9.69';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -818,8 +818,10 @@ const PATH_COLORS = [
    texture:'fines', tones:['#9c7d50','#c9a978','#dcc196','#a8865a']},
   {id:'clay', label:'Red clay', short:'Clay', group:'loose', fill:'#a76543', plan:'#d3a184',
    texture:'clay', tones:['#8a4f33','#b2704c','#c48a63','#96593a']},
-  {id:'bark', label:'Bark mulch', short:'Bark', group:'loose', fill:'#5a3c29', plan:'#b08a68', depth:3,
-   texture:'mulch', tones:['#43291b','#7a5539','#9c7c5d','#664530']},
+  // A path of bark is trodden and weathered, paler than the bed it crosses; at
+  // the bed's own colour it sat 0.009 OKLab from leaf litter and vanished in it.
+  {id:'bark', label:'Bark mulch', short:'Bark', group:'loose', fill:'#7d5f45', plan:'#b08a68', depth:3,
+   texture:'mulch', tones:['#5c4330','#9a7656','#b8977a','#87674b']},
   // Arborist wood chips: paler and chunkier than shredded bark, and what a
   // woodland path is usually made of. Fresh they are gold; they weather grey.
   {id:'chips', label:'Wood chips', short:'Chips', group:'loose', fill:'#7d6650', plan:'#cdb48e', depth:3,

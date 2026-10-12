@@ -2207,6 +2207,16 @@ test('every path and bed material sits under a tray heading with a chip-sized na
   }
 });
 
+/* A bark path through a leaf-litter bed is the commonest woodland walk, and
+   with the path at the bed's own brown the two were 0.009 apart in OKLab: the
+   path disappeared. Winter is left out; snow covers both. */
+test('a bark path reads against the leaf litter it runs through', () => {
+  for (const s of ['Spring', 'Summer', 'Fall']){
+    const d = oklabDist(oklabOf(pathFill({ c:'bark' }, false)), oklabOf(bedFill({ c:'leaf' }, AMBIENCE[s])));
+    assert(d >= 0.08, `bark path on leaf litter in ${s} is only ${d.toFixed(3)} apart`);
+  }
+});
+
 /* Laid materials are laid out in VIEW space and every tile a unit overlaps
    draws it, so its colour has to come from the unit. It came from the unit's
    index in each tile's own staging order, and a unit clipped to the tile — a

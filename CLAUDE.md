@@ -2811,7 +2811,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     them split corner to corner (`drawFlagstone`, `FLAG_INSET` 0.93); every
     **gravel** was a flat base with sparse speckle (charcoal read as tarmac),
     and has the same stones larger, since a polygon costs the same at any size;
-    **bark mulch** was hairlines and is two to three times wider; **river rock**
+    **bark mulch** was hairlines and is two to three times wider, and the bark
+    PATH is paler than the bark bed (trodden, weathered) because at the bed's
+    brown it sat 0.009 OKLab from leaf litter and vanished in a woodland bed —
+    a test holds the pair at least 0.08 apart (0.9.69); **river rock**
     and **pea gravel** read as polka dots, pale stones on a contrasting base,
     and are close packed over a base in the middle of their own range; **leaf
     litter** is bigger leaves with a russet among them; decking and composite
