@@ -8649,6 +8649,47 @@ test('authored sites fit their briefs and leave connected routes and generous pl
   assertEqual(kinds.size,7);
 });
 
+/* The winding routes used to be a straight two-tile strip stepped sideways by
+   one tile, which the organic renderer simplifies away: it read as a wobble, and
+   the "bending" gravel path as a straight band at an angle. A route is now a
+   curve, one run of tiles a row, at least two wide, travelling sideways far
+   enough to read as a bend, and never stepping so far between rows that the two
+   rows only touch at a corner, which pinches the path into lozenges. */
+test('winding daily routes are curves that cannot pinch',()=>{
+  for(const kind of ['woodland','gravel']){
+    const p=dailySitePlan(kind),runs=[];
+    for(let y=0;y<p.gh;y++){
+      const xs=[];for(let x=0;x<p.gw;x++)if(p.terrain[x+','+y]?.k==='path')xs.push(x);
+      assert(xs.length>=2,kind+' row '+y+' is at least two tiles wide');
+      assertEqual(xs[xs.length-1]-xs[0]+1,xs.length,kind+' row '+y+' is one run');
+      runs.push([xs[0],xs[xs.length-1]]);
+    }
+    for(let y=1;y<runs.length;y++){
+      const [a0,a1]=runs[y-1],[b0,b1]=runs[y];
+      assert(Math.min(a1,b1)-Math.max(a0,b0)>=0,kind+' rows '+(y-1)+' and '+y+' share a tile, not just a corner');
+      assert(Math.abs((a0+a1)-(b0+b1))/2<=1,kind+' row '+y+' steps at most one tile');
+    }
+    const mids=runs.map(([a,b])=>(a+b)/2);
+    assert(Math.max(...mids)-Math.min(...mids)>=3,kind+' route really bends ('+(Math.max(...mids)-Math.min(...mids))+' tiles of travel)');
+  }
+});
+
+/* A route has to read against the beds it runs through. The woodland site laid
+   a bark path through leaf-litter beds: the two materials' base colours are
+   0.011 apart in OKLab (about half a just-noticeable difference), so the path
+   was a slightly smoother patch of the same brown. Winter is left out because
+   snow covers both. */
+test('every daily route reads against the beds beside it',()=>{
+  for(const kind of Object.keys(DAILY_SITES)){
+    const p=dailySitePlan(kind),paths=new Set(),beds=new Set();
+    for(const t of Object.values(p.terrain))(t.k==='path'?paths:beds).add(t.c);
+    for(const a of paths)for(const b of beds)for(const s of ['Spring','Summer','Fall']){
+      const d=oklabDist(oklabOf(pathFill({k:'path',c:a},false)),oklabOf(bedFill({k:'bed',c:b},AMBIENCE[s])));
+      assert(d>=0.08,kind+': '+a+' path on '+b+' beds in '+s+' is only '+d.toFixed(3)+' apart');
+    }
+  }
+});
+
 test('all 54 prepared briefs can satisfy strict rules through ordinary placement tools',()=>{
   for(let day=0;day<54;day++){
     const c=dailyChallengeFor(new Date(2026,8,1+day)),p=c.sitePlan;
@@ -12984,6 +13025,117 @@ test('a path laid over a bed keeps the straight edge it was painted with', () =>
   let retreat = -Infinity;
   for (const p of walk) if (p[1] > 15 && p[1] < 19 && Math.abs(p[0] - 8) < 2.5) retreat = Math.max(retreat, p[0] - 8);
   assert(retreat < 0.05, `the path reaches the bed's tile line and does not retreat inside it (${retreat.toFixed(3)} tiles)`);
+});
+
+/* The skirt (terrainSkirts). Region silhouettes and skirts are flattened to
+   rings in TILE space through the real terrainLoopPath / terrainSkirtPath, then
+   asked even-odd questions in plain JS, since the sandbox has no isPointInPath. */
+function skirtRings(region){
+  const flatten = draw => { const rings = []; let ring = null, cur = null;
+    const ctx = { beginPath(){},
+      moveTo(x, y){ ring = [[x, y]]; rings.push(ring); cur = [x, y]; },
+      lineTo(x, y){ ring.push([x, y]); cur = [x, y]; },
+      quadraticCurveTo(cx, cy, x, y){ const a = cur;
+        for (let i = 1; i <= 12; i++){ const t = i / 12, u = 1 - t;
+          ring.push([u*u*a[0] + 2*u*t*cx + t*t*x, u*u*a[1] + 2*u*t*cy + t*t*y]); }
+        cur = [x, y]; },
+      closePath(){} };
+    draw(ctx); return rings; };
+  return {
+    sil: flatten(ctx => { for (const loop of region.loops) terrainLoopPath(ctx, loop, p => p); }),
+    skirts: (region.skirts || []).map(s => flatten(ctx => terrainSkirtPath(ctx, s, p => p))),
+  };
+}
+function inRings(rings, x, y){
+  let inside = false;
+  for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++){
+    const [xi, yi] = r[i], [xj, yj] = r[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/* A one-tile jog in a path through a bed: the simplifier straightens it into a
+   long shallow diagonal that cuts back inside the path's own tiles by more than
+   the bleed, while the bed stops exactly on the tile line — and nothing painted
+   between them, so lawn showed down the joint. This is the layout the daily
+   woodland site shipped with. */
+test('a jogged path laid over a bed shows bed at the joint, never lawn', () => {
+  // exactly the old site: a lawn margin, and the path run out to the plot edge,
+  // whose hard boundary pins the ends of the path's long side arcs
+  setup(20, 16); game.edgeStyle = 'organic';
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 20; x++){
+    const r = y < 5 ? 14 : y < 10 ? 15 : 14, inner = x > 0 && y > 0 && x < 19 && y < 15;
+    if (x >= r && x < r + 2) setTile('terrain', x + ',' + y, { k:'path', c:'warm', t:1 });
+    else if (inner) setTile('terrain', x + ',' + y, { k:'bed', c:'leaf', t:1 });
+  }
+  const regions = buildTerrainRegions().map(skirtRings);
+  const kindAt = (x, y) => game.terrain[x + ',' + y] && game.terrain[x + ',' + y].k;
+  let lawnWithout = 0, lawnWith = 0;
+  // the joint: tiles with terrain all round them and the other material beside
+  // them (the bed's big rounded outer corners are lawn on purpose)
+  for (let y = 2; y < 14; y++) for (let x = 2; x < 18; x++){
+    if (![[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => kindAt(x + dx, y + dy) !== kindAt(x, y))) continue;
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++){
+      const px = x + (i + 0.5) / 8, py = y + (j + 0.5) / 8;
+      const sil = regions.some(r => inRings(r.sil, px, py));
+      if (!sil) lawnWithout++;
+      if (!sil && !regions.some(r => r.skirts.some(s => inRings(s, px, py)))) lawnWith++;
+    }
+  }
+  assert(lawnWithout > 20, `the jog really does cut inside the path (${lawnWithout} bare samples without the skirt)`);
+  assertEqual(lawnWith, 0, 'with the skirt, every sample inside the bed-and-path is painted');
+});
+
+test('a skirt stays under its coverer: never on lawn, a peer or another level', () => {
+  setup(24, 20); game.edgeStyle = 'organic';
+  // a bed with a jogged path along its east side and lawn beyond, so the path
+  // is laid over bed on one side and rounds against lawn on the other
+  for (let y = 2; y < 18; y++){
+    const r = y < 7 ? 12 : y < 12 ? 13 : 12;
+    for (let x = 2; x < r; x++) setTile('terrain', x + ',' + y, { k:'bed', c:x < 6 ? 'gravel' : 'soil', t:1 });
+    setTile('terrain', r + ',' + y, { k:'path', c:'lime', t:1 }); setTile('terrain', (r + 1) + ',' + y, { k:'path', c:'lime', t:1 });
+  }
+  // and a raised path crossing the bed: a terrace face, not a joint
+  for (let x = 2; x < 12; x++){ setTile('terrain', x + ',15', { k:'path', c:'warm', t:1 }); setTile('elevation', x + ',15', { h:1, w:'none', t:1 }); }
+  const regions = buildTerrainRegions();
+  let sampled = 0;
+  for (const region of regions){
+    const rings = skirtRings(region);
+    for (const s of rings.skirts){
+      const xs = s.flat().map(p => p[0]), ys = s.flat().map(p => p[1]);
+      for (let px = Math.min(...xs) + 0.03; px < Math.max(...xs); px += 0.07)
+        for (let py = Math.min(...ys) + 0.03; py < Math.max(...ys); py += 0.07){
+          if (!inRings(s, px, py)) continue;
+          sampled++;
+          const key = Math.floor(px) + ',' + Math.floor(py), t = game.terrain[key];
+          const own = region.tiles.has(key);
+          const coverer = t && !t.removed && terrainRank(t.k) > region.rank && (elevationAt(Math.floor(px), Math.floor(py)) || 0) === region.elev;
+          assert(own || coverer, `a ${region.kind}/${region.c} skirt reaches ${key} (${t ? t.k + '/' + t.c : 'lawn'})`);
+        }
+    }
+  }
+  assert(sampled > 100, `skirts were actually sampled (${sampled})`);
+});
+
+/* Next to lawn the coverer's rounding is the design, so a skirt point that also
+   touches a lawn-facing edge stays put and the band tapers from nothing. Without
+   that, where a bed's side faces lawn and then a path, the band's square corner
+   stands in the path's rounded corner as a spur of bed beyond the bed's own
+   curve. The containment test above cannot see this: the spur is still on a
+   path tile. */
+test('a skirt tapers to nothing where its edge meets lawn', () => {
+  setup(14, 14); game.edgeStyle = 'organic';
+  for (let y = 2; y < 11; y++) for (let x = 2; x < 6; x++) setTile('terrain', x + ',' + y, { k:'bed', c:'soil', t:1 });
+  for (let y = 4; y < 11; y++) setTile('terrain', '6,' + y, { k:'path', c:'lime', t:1 });
+  const bed = buildTerrainRegions().find(r => r.kind === 'bed');
+  assert(bed.skirts && bed.skirts.length === 1, 'one skirt, along the path');
+  const ring = bed.skirts[0].rings[0];
+  const count = (x, y) => ring.filter(p => Math.abs(p[0] - x) < 1e-9 && Math.abs(p[1] - y) < 1e-9).length;
+  // the bed's east side faces lawn for two rows, then the path: (6,4) is where
+  assertEqual(count(6, 4), 2, 'the band has no depth where the edge beside it faces lawn');
+  assertEqual(count(6, 11), 2, 'nor at the far end, where the bed turns to face lawn');
+  assertEqual(count(6 + TERRAIN_SKIRT, 5), 1, 'and full depth one tile along');
 });
 
 /* Raise and lower INCREMENT, where every other brush writes a value. The disc

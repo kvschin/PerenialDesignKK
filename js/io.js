@@ -2457,6 +2457,9 @@ function drawPlanGround(ctx,g,site){
       ctx.beginPath();
       for (const loop of region.loops) terrainLoopPath(ctx,loop,planProj);
       ctx.fill('evenodd');
+      // the same skirt the garden lays under a path's smoothed edge, or the
+      // sheet shows the paper through every joint the path's curve falls short of
+      if (region.skirts) for (const s of region.skirts){ terrainSkirtPath(ctx,s,planProj); ctx.fill('evenodd'); }
       // outline separately: the silhouette fills, but a boundary a higher-ranked
       // region covers must not be drawn as an edge on the sheet either
       ctx.beginPath();

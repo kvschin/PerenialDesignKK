@@ -603,8 +603,12 @@ function mergeCollinearClosed(pts){
      reveals the bed underneath rather than a sliver of lawn.
    That last case is the whole point: judging by "is the neighbour solid" made a
    path smooth over grass and a raw tile staircase the moment it entered a bed,
-   flipping treatment four times along one run. */
-function terrainUnitEdges(loop, set, solid, myRank, rankAt){
+   flipping treatment four times along one run.
+
+   `skirt` marks a covered edge whose coverer stands at MY elevation: the ones
+   terrainSkirts lays this region's material under (see there). A raised path
+   beside a sunken bed is a terrace face, not a joint, and gets none. */
+function terrainUnitEdges(loop, set, solid, myRank, rankAt, myElev, elevAt){
   const edges=[];
   const SOFT=0, HARD=1, COVERED=2;
   const classify=(key)=>{
@@ -635,7 +639,8 @@ function terrainUnitEdges(loop, set, solid, myRank, rankAt){
       const over = cls===SOFT && !!solid[out];
       const oc=out.indexOf(','), ox=+out.slice(0,oc), oy=+out.slice(oc+1);
       const nrm = dx!==0 ? [0, oy===y ? 1 : -1] : [ox===x ? 1 : -1, 0];
-      edges.push({a:[x,y], b:[nx,ny], hard:cls!==SOFT, covered:cls===COVERED, over, n:nrm});
+      const skirt = cls===COVERED && (!elevAt || (elevAt[out]||0)===(myElev||0));
+      edges.push({a:[x,y], b:[nx,ny], hard:cls!==SOFT, covered:cls===COVERED, over, n:nrm, skirt, out});
       x=nx; y=ny;
     }
   }
@@ -757,6 +762,125 @@ function terrainLoopArcs(es, useCount, saddle, fillet){
   }
   arcs.forEach(a=>{ a.fillet=fillet; });
   return {closed:false, arcs};
+}
+/* The SKIRT: a band of this region's own material laid under the region that
+   covers it, TERRAIN_SKIRT tiles deep, so whatever the coverer's curve leaves
+   uncovered shows this material and never the lawn.
+
+   The bleed above is meant to land the winner's curve on the shared tile line,
+   and a straight run does land there. A JOG does not: the simplifier collapses a
+   one-tile step into a long shallow diagonal (a jog deviates ~0.6-0.8 tiles from
+   its chord, under TERRAIN_SIMPLIFY_EPS), which cuts back inside the path's own
+   tiles by more than the 0.45 bleed, while the bed stays exact on the tile line.
+   Nothing painted the strip between them, so lawn showed down the joint. The
+   daily woodland and gravel sites, both "winding" paths built from one-tile
+   steps, measured up to 63% of a path tile showing lawn.
+
+   Raising the bleed instead would push the path's own visible edge out over the
+   bed, changing the shape the gardener drew; the skirt sits UNDER the winner,
+   so wherever the winner covers it, it is invisible. Only an edge facing the
+   coverer at the same elevation skirts, and a point that also touches a SOFT
+   edge (lawn, or something this region is laid over) stays put, so the band
+   tapers to nothing there: next to lawn the winner's rounding is the design,
+   and filling it with bed would poke a square corner into the grass. A mitred
+   corner is kept only if the diagonal tile it reaches into is the coverer too.
+   Returns [{rings, tiles}], `tiles` being the coverer's tiles the band crosses,
+   which the renderer textures in this material.
+   The band's inner side starts TERRAIN_SKIRT_OVERLAP inside this region rather
+   than on its tile line: two antialiased fills that only abut leave a hairline
+   of whatever is under them (the grass base), which drew the outline of every
+   cut triangle faintly along the joint. Overlapping puts the joint under solid
+   fill; the band is painted before the grain, so the grain still covers it. */
+const TERRAIN_SKIRT = 0.5, TERRAIN_SKIRT_OVERLAP = 0.08;
+function terrainSkirts(es, coveredAt){
+  const n=es.length; if (!n || !es.some(e=>e.skirt)) return null;
+  const key=p=>p[0]+','+p[1], off={}, pin={};
+  for (const e of es){
+    if (!e.hard){ pin[key(e.a)]=1; pin[key(e.b)]=1; continue; }
+    if (!e.skirt) continue;
+    for (const p of [e.a,e.b]){ const k=key(p), o=off[k]||(off[k]=[0,0]);
+      o[0]=Math.max(-1,Math.min(1,o[0]+e.n[0]));
+      o[1]=Math.max(-1,Math.min(1,o[1]+e.n[1])); }
+  }
+  const tiles=new Set();
+  const at=p=>{ const k=key(p), o=off[k];
+    if (!o || pin[k] || (!o[0] && !o[1])) return p;
+    if (o[0] && o[1]){
+      const tx=p[0]+(o[0]>0?0:-1), ty=p[1]+(o[1]>0?0:-1);
+      if (!coveredAt(tx,ty)) return p;
+      tiles.add(tx+','+ty);
+    }
+    return [p[0]+o[0]*TERRAIN_SKIRT, p[1]+o[1]*TERRAIN_SKIRT]; };
+  const inner=p=>{ const k=key(p), o=off[k];
+    return (!o || pin[k]) ? p : [p[0]-o[0]*TERRAIN_SKIRT_OVERLAP, p[1]-o[1]*TERRAIN_SKIRT_OVERLAP]; };
+  const out=[];
+  if (es.every(e=>e.skirt)){                  // the whole loop is covered: a ring
+    for (const e of es) tiles.add(e.out);
+    out.push({rings:[es.map(e=>inner(e.a)), es.map(e=>at(e.a))], tiles:[...tiles]});
+    return out;
+  }
+  for (let i=0;i<n;i++){
+    if (!es[i].skirt || es[(i+n-1)%n].skirt) continue;   // start of a run only
+    tiles.clear();
+    const line=[es[i].a];
+    for (let j=i; es[j%n].skirt && j<i+n; j++){ line.push(es[j%n].b); tiles.add(es[j%n].out); }
+    const band=line.map(inner).concat(line.slice().reverse().map(at));
+    out.push({rings:[band], tiles:[...tiles]});
+  }
+  return out.length ? out : null;
+}
+/* Most of a skirt is under its coverer for good — a straight run lands on the
+   tile line — so texturing every tile it crosses paid for grain nobody can see:
+   measured on the demo garden, ~2ms of a ~52ms bake, against ~0.1ms for the
+   flat fill. Once per trace (an edit), keep only the tiles where some of the
+   band falls outside the coverer's silhouette. Both are flattened to rings in
+   tile space and sampled on a grid, so a sliver thinner than a sample step may
+   go untextured; it is still filled, just without grain. */
+function terrainRingsOf(drawLoops){
+  const rings=[]; let ring=null, cur=null;
+  drawLoops({ beginPath(){}, closePath(){},
+    moveTo(x,y){ ring=[[x,y]]; rings.push(ring); cur=[x,y]; },
+    lineTo(x,y){ ring.push([x,y]); cur=[x,y]; },
+    quadraticCurveTo(cx,cy,x,y){ const a=cur;
+      for (let i=1;i<=8;i++){ const t=i/8, u=1-t;
+        ring.push([u*u*a[0]+2*u*t*cx+t*t*x, u*u*a[1]+2*u*t*cy+t*t*y]); }
+      cur=[x,y]; } });
+  return rings;
+}
+function terrainRingsHit(rings, x, y){
+  let inside=false;
+  for (const r of rings) for (let i=0, j=r.length-1; i<r.length; j=i++){
+    const xi=r[i][0], yi=r[i][1], xj=r[j][0], yj=r[j][1];
+    if ((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+function exposeSkirtTiles(regions){
+  const owner={}, sil=new Map(), id=p=>p;
+  for (const r of regions) for (const k of r.tiles) owner[k]=r;
+  const silOf=r=>{ let s=sil.get(r);
+    if (!s){ s=terrainRingsOf(ctx=>{ for (const loop of r.loops) terrainLoopPath(ctx,loop,id); }); sil.set(r,s); }
+    return s; };
+  for (const r of regions) if (r.skirts) for (const s of r.skirts){
+    const band=terrainRingsOf(ctx=>terrainSkirtPath(ctx,s,id));
+    s.tiles=s.tiles.filter(k=>{
+      const cover=owner[k]; if (!cover) return true;
+      const ci=k.indexOf(','), tx=+k.slice(0,ci), ty=+k.slice(ci+1), c=silOf(cover);
+      for (let i=0;i<6;i++) for (let j=0;j<6;j++){
+        const px=tx+(i+0.5)/6, py=ty+(j+0.5)/6;
+        if (terrainRingsHit(band,px,py) && !terrainRingsHit(c,px,py)) return true;
+      }
+      return false;
+    });
+  }
+}
+// One skirt onto a fresh ctx path; fill and clip it 'evenodd' (a ring has two).
+function terrainSkirtPath(ctx, s, proj){
+  ctx.beginPath();
+  for (const ring of s.rings){
+    ring.forEach((p,i)=>{ const q=proj(p); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); });
+    ctx.closePath();
+  }
 }
 /* The corner radius comes from TERRAIN_FILLET (core.js) — per MATERIAL, because
    a bed edge and a paving edge want opposite things. Unbounded reproduces the
@@ -1052,12 +1176,14 @@ function buildTerrainRegions(){
   const solid={};  // every live terrain tile, any material — the hardness lookup
   const keyOf={};  // "x,y" -> kind|colour|elev (regions split at all three)
   const rankAt={}; // "x,y" -> TERRAIN_RANK: which of two materials is laid on top
+  const elevAt={}; // "x,y" -> level, so a skirt only runs under a coverer at its own height
   for (const k in game.terrain){ const o=game.terrain[k];
     if (!o || o.removed) continue;
     const ci=k.indexOf(','), x=+k.slice(0,ci), y=+k.slice(ci+1);
     solid[k]=true;
     rankAt[k]=terrainRank(o.k);
-    keyOf[k]=o.k+'|'+(o.c||'')+'|'+(elevationAt(x,y)||0);
+    elevAt[k]=elevationAt(x,y)||0;
+    keyOf[k]=o.k+'|'+(o.c||'')+'|'+elevAt[k];
   }
   const seen={}, regions=[];
   for (const k in keyOf){
@@ -1077,9 +1203,8 @@ function buildTerrainRegions(){
       }
     }
     const o=game.terrain[k];
-    const ci=k.indexOf(',');
-    const rank=terrainRank(o.k);
-    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt));
+    const rank=terrainRank(o.k), elev=elevAt[k];
+    const unit=traceOutlines(set).map(l=>terrainUnitEdges(l,set,solid,rank,rankAt,elev,elevAt));
     const useCount={};
     for (const es of unit) for (const e of es){
       const vk=e.a.join(','); useCount[vk]=(useCount[vk]||0)+1; }
@@ -1090,13 +1215,18 @@ function buildTerrainRegions(){
       const nw=sTile(x-1,y-1), ne=sTile(x,y-1), sw=sTile(x-1,y), se=sTile(x,y);
       return (nw&&se&&!ne&&!sw)||(ne&&sw&&!nw&&!se);
     };
-    regions.push({ kind:o.k, c:o.c, rank, elev:elevationAt(+k.slice(0,ci),+k.slice(ci+1))||0, tiles:set,
-      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle,terrainFillet(o.k))) });
+    const coveredAt=(tx,ty)=>{ const kk=tx+','+ty; return !!solid[kk] && rankAt[kk]>rank && elevAt[kk]===elev; };
+    const skirts=[];
+    for (const es of unit){ const s=terrainSkirts(es,coveredAt); if (s) skirts.push(...s); }
+    regions.push({ kind:o.k, c:o.c, rank, elev, tiles:set,
+      loops:unit.map(es=>terrainLoopArcs(es,useCount,saddle,terrainFillet(o.k))),
+      skirts:skirts.length?skirts:null });
   }
   // Elevation first — higher terraces paint over lower edges — then rank, so a
   // path lands on the bed it runs through rather than the other way round. The
   // soft-edge classification above assumes exactly this order.
   regions.sort((a,b)=>(a.elev-b.elev)||(a.rank-b.rank));
+  exposeSkirtTiles(regions);
   terrainLoopCache={sig, terrainRef:game.terrain, elevRef:game.elevation, regions};
   dev('trace',tTrace);
   return regions;
@@ -1123,6 +1253,9 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
     ctx.beginPath();
     for (const loop of region.loops) terrainLoopPath(ctx,loop,proj);
     ctx.fillStyle=base; ctx.fill('evenodd');
+    // the skirt's base goes down with the silhouette's, BEFORE any grain: its
+    // overlap into this region is then covered by this region's own grain
+    if (region.skirts) for (const s of region.skirts){ terrainSkirtPath(ctx,s,proj); ctx.fill('evenodd'); }
     // per-tile texture, clipped to the blob (grain/surface marks preserved)
     ctx.save();
     ctx.beginPath();
@@ -1140,6 +1273,23 @@ function paintTerrainBlobs(ctx,x0,x1,y0,y1,W,H,amb,t){
       else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
     }
     ctx.restore();
+    /* The skirt's grain (terrainSkirts), clipped to the band, on the coverer's
+       tiles. The coverer paints after this, so the band only ever shows where
+       its curve falls short. */
+    if (region.skirts) for (const s of region.skirts){
+      ctx.save();
+      terrainSkirtPath(ctx,s,proj);
+      ctx.clip('evenodd');
+      for (const kk of s.tiles){ const c=kk.indexOf(',');
+        const tx=+kk.slice(0,c), ty=+kk.slice(c+1);
+        if (tx<x0-2||tx>x1+2||ty<y0-2||ty>y1+2) continue;
+        const [sx,sy]=screenOf(tx,ty,W,H);
+        const rs=mulberry(tileSeed(tx,ty));
+        if (isWater) drawWaterTexture(ctx,sx,sy,tx,ty,o,amb,true);
+        else drawGroundTexture(ctx,sx,sy,tx,ty,region.kind,region.kind==='path',amb,base,rs,o,true);
+      }
+      ctx.restore();
+    }
     /* One continuous edge stroke (replaces the per-tile diamond strokes),
        skipping boundaries a higher-ranked region is about to cover -- and
        skipped ENTIRELY for a surface that declares itself discontinuous.

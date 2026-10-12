@@ -204,7 +204,7 @@ const DAILY_SITES={
     "lengthFt": 24
   },
   woodland:{label:'Woodland clearing',widthFt:30,lengthFt:24,
-    description:'A 30 × 24 ft clearing with leaf-litter beds, a winding bark path and an established serviceberry.',
+    description:'A 30 × 24 ft clearing with leaf-litter beds, a winding gravel path and an established serviceberry.',
     conditions:'Design for part shade and average moisture. The tree casts shade; move or remove it with the usual tools. The starting tree is excluded from plant counts.'},
   narrow:{label:'Narrow border',widthFt:30,lengthFt:12,
     description:'A 30 × 12 ft strip with a deep border along a straight limestone path.',
@@ -238,6 +238,22 @@ const DAILY_SITE_ROTATION={
   spring:['woodland','woodland','woodland'], foliage:['woodland','woodland','woodland'],
   evergreen:['patio','patio','patio'], sensory:['narrow','gravel','patio']
 };
+/* A winding route, as tiles: `centre(t)` is the path's centreline x at row t,
+   and a tile is on it when its centre lies within DAILY_ROUTE_HALF of that line,
+   measured square to the line rather than along the row, so the path keeps its
+   width where it runs on a slant (a row there takes three tiles, not two).
+   These routes used to be a straight two-tile strip stepped sideways by one tile
+   once or twice. A one-tile jog is under the organic renderer's simplifying
+   tolerance, so it never read as a bend, only as a wobble, and the gravel site's
+   "bending" path came out as a straight band set at an angle. A curve has to be
+   drawn as a curve, and with the step between rows held to one tile, because a
+   path whose rows only touch at a corner pinches into a string of lozenges. */
+const DAILY_ROUTE_HALF=1.05;
+function dailyRouteTile(x,y,gh,centre){
+  const cx=x+0.5,cy=y+0.5;
+  for(let t=-1;t<=gh+1;t+=0.05)if(Math.hypot(cx-centre(t),cy-t)<DAILY_ROUTE_HALF)return true;
+  return false;
+}
 /* Pure blueprint: preview, start and saved brief all consume the same data.
    Legacy layouts remain available only to older saved briefs. */
 function dailySitePlan(kind){
@@ -257,8 +273,8 @@ function dailySitePlan(kind){
       k=r<.65?'bed':r<.86?'path':null;
     }
     if(kind==='woodland'){
-      const route=y<5?14:y<10?15:14;
-      k=x>=route&&x<route+2?'path':inner?'bed':null;c=k==='path'?'bark':'leaf';
+      k=dailyRouteTile(x,y,gh,t=>13.2+2.2*Math.sin((t-1.5)*Math.PI/9))?'path':inner?'bed':null;
+      c=k==='path'?'warm':'leaf';
     }
     if(kind==='narrow'){k=y<5?'bed':y<7?'path':null;c=k==='path'?'lime':'soil';}
     if(kind==='patio'){
@@ -274,8 +290,8 @@ function dailySitePlan(kind){
       k=r<.92?'bed':r<1.3?'path':null;h=k==='bed'?-1:0;
     }
     if(kind==='gravel'){
-      const route=y<4?11:y<9?10:9;
-      k=x>=route&&x<route+2?'path':inner?'bed':null;c=k==='path'?'slate':'gravel';
+      k=dailyRouteTile(x,y,gh,t=>9.6+2*Math.cos(t*Math.PI/13))?'path':inner?'bed':null;
+      c=k==='path'?'slate':'gravel';
     }
     if(kind==='corner'){
       k=(x>=5&&x<=6&&y>=6)||(y>=5&&y<=6&&x>=5)?'path':inner?'bed':null;

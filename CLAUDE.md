@@ -35,6 +35,12 @@ exception to blank plots is an authored, fully editable starting landscape.
 narrow border, patio edge, gentle terraced slope, lowered planting hollow, gravel
 pockets and tapered corner. Sites are 24–30 ft wide and 12–24 ft deep, without a
 house. Legacy border/split/island sites remain available for older saved briefs.
+The woodland's winding gravel path and the gravel site's bending slate path are
+CURVES (`dailyRouteTile`: a centreline, tiles within 1.05 of it measured square to
+the line), never stepping more than one tile between rows; they were straight
+strips jogged by one tile, which the organic renderer simplifies into a wobble,
+and the woodland's bark path on leaf-litter beds was 0.011 OKLab from its beds
+(a test now holds every route ≥0.08 from the beds beside it).
 `dailySitePlan` builds a pure, deterministic blueprint, including label/description,
 conditions, dimensions, optional four-point outline, bed/path materials, grade and
 at most two context trees. `normalizeDailySitePlan` bounds and copies that data;
@@ -2112,6 +2118,35 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     (0.21 ft) on 2 of 5 sides when bled first. The jitter is still seeded from the
     UNBLED integer lattice point, which is what planJitter's "neighbouring blobs
     nest" property depends on.
+    **The bleed is not enough on its own, so the covered region lays a SKIRT**
+    (`terrainSkirts`, `TERRAIN_SKIRT` 0.5, renderer.js; 0.9.67). The bleed lands a
+    straight run on the tile line, but a JOG does not survive simplifying: a
+    one-tile step deviates ~0.6-0.8 tiles from its chord, under the 0.9 eps, so it
+    becomes a long shallow diagonal that cuts back inside the path's own tiles by
+    more than 0.45, while the bed stays exact on the line — and nothing painted
+    the strip between, so LAWN showed down the joint. A 45-degree staircase path
+    through a bed drew a sawtooth of lawn triangles down one side; the daily
+    woodland and gravel sites measured up to 63% of a path tile bare. So each
+    covered edge facing its coverer AT THE SAME ELEVATION carries a band of the
+    covered material half a tile into the coverer's tiles, painted under it:
+    wherever the coverer reaches, the band is invisible; wherever its curve falls
+    short, the bed shows instead of the lawn. Raising the bleed was the
+    alternative and is wrong, because it moves the path's VISIBLE edge out over the
+    bed, i.e. changes the shape the gardener drew. Four rules, each tested and
+    mutation-checked: a band point that also touches a SOFT edge (lawn, or
+    something laid under this region) stays put, so the band TAPERS from nothing
+    there — next to lawn the coverer's rounding is the design, and without the
+    taper a bed whose side faces lawn and then a path stands a square spur in the
+    path's rounded corner; a mitred corner is kept only when the diagonal tile it
+    reaches is the coverer too; the band's inner side starts
+    `TERRAIN_SKIRT_OVERLAP` (0.08) INSIDE the region, because two antialiased fills
+    that only abut leave a hairline of the grass base and drew the outline of
+    every cut triangle; and the band's base is painted BEFORE the region's grain so
+    the grain covers that overlap. The band's own grain is drawn only on the
+    coverer tiles where some of it is actually exposed (`exposeSkirtTiles`, once
+    per trace): texturing every skirt tile cost ~2ms of a ~52ms demo-garden bake
+    for grain nobody could see, and the filter keeps 2 of 44. Net: bake within
+    noise of no skirt, +0.5ms per trace. The plan sheet fills the same bands.
     **`terrainCurveWalk` is the single definition of that curve**, walked by three
     consumers through an emitter: the fill path, the outline stroke, and
     `edgingCurvePoints` (the sampled polyline the edging strip follows). They were
