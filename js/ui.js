@@ -1712,6 +1712,7 @@ function setActButton(){ // the big mobile do-it button, labeled by context
   else if (game.tool==='pet') label='Place pet';
   else if (game.tool==='edging') label='Lay edging';
   else if (game.tool==='wall') label='Face the terrace';
+  else if (game.tool==='terrace') label='Build terrace';
   else if (game.tool==='pot') label='Set down a pot';
   else if (game.tool==='seat') label='Place seating';
   else if (game.tool==='pot') label='Set down a pot';
@@ -1838,6 +1839,10 @@ function updateHUD(){
     ? `Tap or drag to set down ${potLabel().toLowerCase()} — paving is fine`
     : game.tool==='seat'
     ? `Tap or drag to place ${seatLabel().toLowerCase()}`
+    : game.tool==='terrace'
+    ? (game.fillMode ? 'Tap a bed to build all of it to this height' : 'Drag corner to corner for a terrace, or tap for a raised bed')
+    : game.tool==='wall'
+    ? 'Tap or drag along the face of a terrace'
     : game.tool==='pet'
     ? `Tap a clear spot to settle your ${petLabel()}`
     : 'Tap a tile to place · drag to paint a run');

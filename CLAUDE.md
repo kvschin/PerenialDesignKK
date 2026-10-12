@@ -3884,6 +3884,48 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     riding every save from there on. Measured: a 5x5 hollow traces 30 ft where it
     traced none, a stepped hollow gives both its grade->-1 and -1->-2 faces, and
     the raised control is unchanged.
+    **The Terrace tool is the wall-first route (0.9.66)** (`TERRACE_LEVELS`/
+    `normalizeTerraceDraft`, core.js; `setTerraceTile`/`tapTerraceAt`/
+    `finishTerraceDrag`/`terraceRegionAt`, commands.js; `drawTerraceGhost`,
+    renderer.js). Raise then Wall had the gardener build the CONSEQUENCE first:
+    earthwork in 5-inch steps, one level per stroke (`once`), so a 15 in bed was
+    three identical strokes, and a tile missed on one of them stayed a pothole
+    with its own little walls; then a second tool and a material to face it. A
+    terrace SETS a height — `game.terraceDraft` `{h,w}`, the height offered as
+    real inches (`terraceHeightText`), a negative one a sunken patio — and the
+    facing in the same write, so repeating it is a no-op and overlaps leave no
+    step. **It writes the same `{h, w}` elevation record** Raise and Wall do, so
+    the traced runs, the plan, the planting list, older builds and the save
+    format are all untouched. Gestures: drag corner to corner (`TOOLS.terrace.
+    rect`, the pergola's rect drag); a tap on level ground lays a 5x3-tile bed,
+    about 4 by 8 ft (`terraceTapRect`); a tap ON a terrace rebuilds the whole
+    4-connected same-height region to the armed height and facing, which is how a
+    bed goes 10 in to 15 in or bank to brick without redrawing it; and because
+    it `paints`, Fill raises a bed of any shape (lay the bed, Fill it with
+    Terrace). Built whole or refused, naming a building in the way. A SUNKEN
+    terrace faces its RIM (the higher tile owns the face): `setTerraceTile` writes
+    `w` onto neighbours at or below grade that now stand above it, never onto a
+    raised terrace beside the hollow, and removes a grade-level record whose
+    hollow has gone — the paintWallAt tombstone rule, applied as the terrain
+    changes under it. The ghost is a box at the target height, its two
+    camera-facing walls painted through `drawWallRun` (flat tone past
+    `TERRACE_GHOST_UNITS` edges), red where blocked; hovering a terrace traces
+    its boundary. Raise/Lower/Level stay for berms and swales, Wall for
+    refacing a stretch. The guidebook's grade demo teaches Terrace.
+    **The Wall tool's hit-test aims at FACES** (`wallTileAt`/`wallFaceAt`/
+    `wallFaceQuads`, world.js; `evPlacement` uses it when Wall is armed).
+    `tileAt` answers "whose top is under the pointer". On a low raised terrace
+    that happened to work: its grade fallback lands inside the raised tile's own
+    flat footprint, which is where its face hangs (measured: 1-2 steps, every
+    point on the face correct). It failed in two places, measured. On a SUNKEN
+    patio the visible walls are the rim's, hanging over the floor, so a tap on
+    the wall resolved to the floor and was refused with "raise or lower the
+    ground first" beside the wall. On a 3-4 step terrace the upper half of a face
+    resolved to the next tile along the edge. A face under the pointer now wins
+    unless a raised top nearer the camera is drawn over it, and
+    `drawWallFaceHover` lights the face a tap would build on. The refusal now
+    says what is actually wrong (`wallRefusalText`). A test walks all four
+    rotations.
 12d. **Water features** (`WATER_FEATURES`/`WATER_FINISHES`, `drawWaterFeature`) —
     pond, river and lake are AREAS: you paint them, they shelve from a bank, and
     until 0.8.71 they were the only water the app could draw. The water that
@@ -5171,9 +5213,10 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     materials (soil, gravel, river rock, leaf litter, bark mulch, pine straw,
     pea gravel — see §11a), Water
     to reveal pond/river/lake styles, or **Edging** for the strip that
-    separates either from the lawn (§11e). The **Grade** tab carries
-    raise/lower/level and **Wall**, the retaining-wall facing painted onto a
-    terrace face (§12c). Its dedicated debounced search spans all
+    separates either from the lawn (§11e). The **Grade** tab leads with
+    **Terrace** (a raised bed, terrace or sunken patio built with its wall in one
+    gesture, with Height and Wall chips), then raise/lower/level and **Wall**,
+    the retaining-wall facing painted onto a terrace face (§12c). Its dedicated debounced search spans all
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather
     than the legacy horizontal strip. The Hardscape tab draws fences and

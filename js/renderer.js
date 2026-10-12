@@ -3791,6 +3791,8 @@ function render(t){
   if (game.tool==='select') drawSelectionOverlay(cx,W,H,t,cal.season,sway);
   drawRulerOverlay(cx,W,H);
   drawPergolaGhost(cx,W,H,cal.season);
+  drawTerraceGhost(cx,W,H);
+  drawWallFaceHover(cx,W,H);
   drawToolDragMetric(cx,W,H);
   if (game.layerVis.edgeRulers && VW>640) drawSelectionMetrics(cx,W,H,{x0:0,y0:0,x1:GW-1,y1:GH-1});
   if (typeof positionSelectionActions==='function') positionSelectionActions();
@@ -3918,9 +3920,11 @@ function drawRulerOverlay(cx,W,H){
    path's readout reads as the size of the meadow it is cut through. */
 function toolDragMetricLabel(drag){
   if (!drag || !drag.active) return null;
-  // a rectangle (the pergola) reads its footprint, which exists before any tile does
+  // a rectangle (the pergola, a terrace) reads its footprint, which exists
+  // before any tile does — and a terrace its height, which is the other half
   if (drag.rect){ const r=pergolaRect(drag.sx,drag.sy,drag.cx,drag.cy);
-    return pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1); }
+    const size=pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1);
+    return game.tool==='terrace' ? `${size}, ${terraceHeightText(terraceDraft().h).toLowerCase()}` : size; }
   if (!drag.what) return null;
   const meta=toolMeta(game.tool);
   if (meta.measure==='area'){
@@ -3978,6 +3982,122 @@ function drawPergolaGhost(cx,W,H,season){
   for (const [x,y] of tiles){
     const [gx,gy]=groundCenterRot(x,y,null,W,H);
     drawPergolaBay(cx,gx,gy,axes,pergolaFrameIn(has,info,x,y),d,season);
+  }
+  cx.restore();
+}
+/* What a terrace tap or drag is about to build, before the ground bake does:
+   the box it will become, standing (or sunk) at the armed height, its two
+   camera-facing walls painted in the armed facing through the garden's own
+   wall painter. Red where a building is in the way, since a terrace is built
+   whole or not at all. Hovering an existing terrace outlines it instead -- a
+   tap there rebuilds it. With Fill on there is no box to show: the fill takes
+   whatever region the tap lands in. Drawn only with the Terrace armed; the
+   per-tile blocker scan and the region flood are cached on game.rev, so a
+   still pointer costs a few path fills a frame. */
+const TERRACE_GHOST_UNITS=48;      // past this many tile edges the walls draw as flat tone
+const terraceGhostCache={key:null,bad:null,reg:null,regRev:-1};
+function terraceGhostBad(r){
+  const key=`${r.x0},${r.y0},${r.x1},${r.y1},${game.rev},${GW},${GH}`;
+  if (terraceGhostCache.key!==key){
+    const bad=[];
+    for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) if (terraceBlockerAt(x,y)) bad.push([x,y]);
+    terraceGhostCache.key=key; terraceGhostCache.bad=bad;
+  }
+  return terraceGhostCache.bad;
+}
+function terraceGhostRegion(x,y){
+  const c=terraceGhostCache;
+  if (c.regRev!==game.rev || !c.reg || !c.reg.has.has(x+','+y)){
+    c.reg=terraceRegionAt(x,y); c.regRev=game.rev;
+  }
+  return c.reg && c.reg.has.has(x+','+y) ? c.reg : null;
+}
+function drawTerraceGhost(cx,W,H){
+  if (game.tool!=='terrace' || game.fillMode || !layerShown('landscape')) return;
+  const td=typeof toolDrag!=='undefined'?toolDrag:null;
+  let r=null;
+  if (td && td.rect && td.active) r=pergolaRect(td.sx,td.sy,td.cx,td.cy);
+  else if (!td && game.hoverTile){
+    const [hx,hy]=game.hoverTile, reg=terraceGhostRegion(hx,hy);
+    if (reg){
+      /* Its OUTLINE, the tile edges with no terrace on the other side: an
+         outline per tile drew the whole terrace as a dashed grid. */
+      if (reg.tiles.length>1200) return;
+      const sides=[[1,0],[0,1],[-1,0],[0,-1]].map(([vx,vy])=>viewDirToWorld(vx,vy));
+      cx.save(); cx.fillStyle='rgba(243,236,221,0.12)';
+      const edges=[];
+      for (const [x,y] of reg.tiles){
+        const [sx,sy]=screenOf(x,y,W,H), c=[[sx+TILE_W/2,sy+TILE_H/2],[sx,sy+TILE_H],[sx-TILE_W/2,sy+TILE_H/2],[sx,sy]];
+        cx.beginPath(); cx.moveTo(sx,sy); c.forEach(p=>cx.lineTo(p[0],p[1])); cx.closePath(); cx.fill();
+        // view +x is the right->bottom edge, +y bottom->left, -x left->top, -y top->right
+        sides.forEach(([dx,dy],i)=>{ if (!reg.has.has((x+dx)+','+(y+dy))) edges.push(c[i],c[(i+1)%4]); });
+      }
+      cx.beginPath();
+      for (let i=0;i<edges.length;i+=2){ cx.moveTo(edges[i][0],edges[i][1]); cx.lineTo(edges[i+1][0],edges[i+1][1]); }
+      cx.setLineDash([5,4]); cx.lineWidth=1.6; cx.strokeStyle='rgba(243,236,221,0.85)'; cx.stroke();
+      cx.restore();
+      return;
+    }
+    r=terraceTapRect(hx,hy);
+  }
+  if (!r) return;
+  const bad=terraceGhostBad(r), d=terraceDraft(), st=wallStyle(d.w), lift=d.h*ELEV_STEP;
+  const units=(r.x1-r.x0+1)+(r.y1-r.y0+1);
+  const flat=[[r.x0,r.y0],[r.x1+1,r.y0],[r.x1+1,r.y1+1],[r.x0,r.y1+1]].map(([qx,qy])=>screenOfCorner(qx,qy,W,H));
+  const poly=(pts,fill,stroke,dash)=>{ cx.beginPath(); pts.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));
+    cx.closePath(); if (fill){ cx.fillStyle=fill; cx.fill(); }
+    if (stroke){ cx.setLineDash(dash||[]); cx.strokeStyle=stroke; cx.lineWidth=1.6; cx.stroke(); cx.setLineDash([]); } };
+  // a run of two edges meeting at corner i, as the wall painter takes it
+  const run=(pts,i)=>[pts[(i+3)%4],pts[i],pts[(i+1)%4]];
+  const walls=(pts,drop)=>{
+    if (!st.face){ cx.fillStyle='rgba(107,90,68,0.85)';
+      for (const [a,b] of [[pts[0],pts[1]],[pts[1],pts[2]]]){ cx.beginPath(); cx.moveTo(a[0],a[1]); cx.lineTo(b[0],b[1]);
+        cx.lineTo(b[0],b[1]+drop); cx.lineTo(a[0],a[1]+drop); cx.closePath(); cx.fill(); } }
+    else if (units>TERRACE_GHOST_UNITS){ cx.fillStyle=st.tone; cx.beginPath(); cx.moveTo(pts[0][0],pts[0][1]);
+      pts.forEach(p=>cx.lineTo(p[0],p[1])); for (let i=pts.length-1;i>=0;i--) cx.lineTo(pts[i][0],pts[i][1]+drop);
+      cx.closePath(); cx.fill(); }
+    else drawWallRun(cx,pts,drop,st,7,units);
+  };
+  cx.save();
+  if (bad.length){
+    // refused whole: show where, and nothing of the box it will not build
+    poly(flat,'rgba(196,58,44,0.12)','rgba(230,118,92,0.9)',[6,4]);
+    if (bad.length<=400) for (const [x,y] of bad){ const [sx,sy]=screenOf(x,y,W,H);
+      tileDiamond(cx,sx,sy,'rgba(196,58,44,0.42)',null); }
+    cx.restore(); return;
+  }
+  cx.globalAlpha=0.72;
+  if (d.h>0){
+    const top=flat.map(p=>[p[0],p[1]-lift]);
+    let lo=0; for (let i=1;i<4;i++) if (top[i][1]>top[lo][1]) lo=i;   // the corner nearest the camera
+    walls(run(top,lo),lift);
+    poly(top,'rgba(243,236,221,0.2)','rgba(243,236,221,0.9)',[6,4]);
+  } else {
+    const drop=-lift, floor=flat.map(p=>[p[0],p[1]+drop]);
+    let hi=0; for (let i=1;i<4;i++) if (flat[i][1]<flat[hi][1]) hi=i;  // the far corner: its walls face us
+    poly(flat,null,null); cx.save(); cx.clip();
+    poly(floor,'rgba(40,48,32,0.35)',null);
+    walls(run(flat,hi),drop);
+    cx.restore();
+    poly(flat,null,'rgba(243,236,221,0.9)',[6,4]);
+  }
+  cx.restore();
+}
+/* The face a Wall tap would build on, under the pointer, so it is visible
+   which face that is before anything is painted (wallTileAt picks it). Only the
+   two camera-facing faces of a tile can be shown; a tile's far faces take the
+   same facing, out of sight. Nothing lit means nothing there to face. */
+function drawWallFaceHover(cx,W,H){
+  if (game.tool!=='wall' || !game.hoverTile || !layerShown('landscape')) return;
+  const [hx,hy]=game.hoverTile, size=toolBrushSize();
+  const offs=size===1 ? [[0,0]] : brushOffsets(size);
+  cx.save(); cx.lineWidth=1.5; cx.strokeStyle='rgba(243,236,221,0.92)'; cx.fillStyle='rgba(243,236,221,0.2)';
+  for (const [dx,dy] of offs){
+    const x=hx+dx, y=hy+dy; if (!inWorldTile(x,y)) continue;
+    for (const f of wallFaceQuads(x,y,W,H)){
+      cx.beginPath(); cx.moveTo(f.a[0],f.a[1]); cx.lineTo(f.b[0],f.b[1]);
+      cx.lineTo(f.b[0],f.b[1]+f.drop); cx.lineTo(f.a[0],f.a[1]+f.drop); cx.closePath(); cx.fill(); cx.stroke();
+    }
   }
   cx.restore();
 }

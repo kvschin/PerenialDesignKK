@@ -222,10 +222,10 @@ function actHere(opts){
   if (game.tool==='wall'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(wallDraft()==='none'?'Back to bare earth.':`${wallLabel()} faced.`); }
-    else rejectPlacement(elevationDropDirs(x,y).length?'Already faced in that material.'
-      :'A wall needs a level change to hold up — raise or lower the ground first.');
+    else rejectPlacement(wallRefusalText(x,y));
     return;
   }
+  if (game.tool==='terrace'){ tapTerraceAt(x,y); return; }
   if (game.tool==='pot'){
     const r=applyToolAt(x,y,opts);
     if (r){ hapticFeedback('place'); toast(`${potLabel()} set down — now plant it.`); }
@@ -1013,6 +1013,144 @@ function paintWallAt(x,y){
   if (want==='none' && elevationAt(x,y)===0) clearTile('elevation',k);
   else setTile('elevation',k,Object.assign({},e,{h:elevationAt(x,y),w:want,t:Date.now()}));
   return 'wall';
+}
+/* What a tap or E press with the Wall armed says when nothing took. It used to
+   say "raise or lower the ground first" on every refusal, including a tap
+   beside a terrace standing right there -- and, on a sunken patio, a tap on the
+   wall itself, which landed on the floor (see wallTileAt). */
+function wallRefusalText(x,y){
+  if (elevationDropDirs(x,y).length) return 'Already faced in that material.';
+  const any=game.elevation && Object.keys(game.elevation).some(k=>{ const e=game.elevation[k]; return e && !e.removed && +e.h; });
+  return any ? 'Nothing falls away there — tap the face of a terrace.'
+    : 'A wall needs a level change to hold up — build one with Terrace first.';
+}
+
+/* ---------- terraces ----------
+   The wall-first way to build a level change (TERRACE_LEVELS, core.js): every
+   tile it covers is SET to one height and faced in one material, on the same
+   {h, w} elevation record Raise and Wall write. */
+function terraceDraft(){ return game.terraceDraft=normalizeTerraceDraft(game.terraceDraft); }
+// "with dry stone walls" / "with earth banks": the facing as the sentence needs it
+function terraceFacingText(w){
+  const st=wallStyle(w);
+  return st.face ? `with ${(st.short||st.label).toLowerCase()} walls` : 'with earth banks';
+}
+function terraceLabel(d){
+  d=normalizeTerraceDraft(d||terraceDraft());
+  const st=wallStyle(d.w);
+  return `${d.h<0?'Sunken':'Terrace'} ${fmtLengthIn(Math.abs(d.h)*ELEV_RISER_IN)} · ${st.face?(st.short||st.label):'Bank'}`;
+}
+/* One tile to the draft's height and facing. A sunken terrace's walls belong
+   to the ground AROUND it -- a face is the higher tile's (paintWallAt) -- so
+   lowering a tile also faces any neighbour it now drops away from. Only a
+   neighbour at or below grade: a raised terrace beside a hollow keeps the
+   facing its own gardener chose. Returns 'terrace' if anything changed. */
+function setTerraceTile(x,y,d){
+  d=normalizeTerraceDraft(d);
+  const k=`${x},${y}`, cur=game.elevation && game.elevation[k], live=(cur && !cur.removed) ? cur : null;
+  let changed=false;
+  if (elevationAt(x,y)!==d.h || wallStyleAt(x,y)!==d.w){
+    if (!game.elevation) game.elevation={};
+    setTile('elevation',k,Object.assign({},live,{h:d.h,w:d.w,t:Date.now()}));
+    changed=true;
+  }
+  for (const [dx,dy] of ELEV_DIRS){
+    const nx=x+dx, ny=y+dy, nk=`${nx},${ny}`, ne=game.elevation && game.elevation[nk];
+    if (!onPlot(nx,ny) || siteStructureAt(nx,ny) || isDoor(nx,ny)) continue;
+    const nh=elevationAt(nx,ny);
+    /* At grade the record exists only to carry a wall, so once the hollow it
+       faced is gone (rebuilt as a raised terrace) it is a stale wall that would
+       ride every save and surface the day anything beside it is dug. */
+    if (nh===0 && ne && !ne.removed && !elevationDropDirs(nx,ny).length){ clearTile('elevation',nk); changed=true; continue; }
+    if (d.h>=0 || nh<=d.h || nh>0 || wallStyleAt(nx,ny)===d.w) continue;
+    if (d.w==='none' && nh===0) clearTile('elevation',nk);
+    else setTile('elevation',nk,Object.assign({},(ne&&!ne.removed)?ne:null,{h:nh,w:d.w,t:Date.now()}));
+    changed=true;
+  }
+  return changed ? 'terrace' : null;
+}
+/* A terrace is built WHOLE or not at all, like a pergola: one with a building
+   through it would come out with a hole and walls standing round the hole. */
+const TERRACE_BLOCKER_TEXT={
+  off:'Keep the terrace on the plot.',
+  building:'A building is in the way of that terrace.',
+};
+function terraceBlockerAt(x,y){
+  if (!onPlot(x,y)) return 'off';
+  if (siteStructureAt(x,y) || isDoor(x,y)) return 'building';
+  return null;
+}
+function terraceRectBlocker(r){
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const why=terraceBlockerAt(x,y); if (why) return {why,x,y};
+  }
+  return null;
+}
+// what a tap lays: about 4 x 8 ft, the commonest raised bed there is
+const TERRACE_TAP_W = 5, TERRACE_TAP_H = 3;
+function terraceTapRect(x,y){
+  const w=Math.min(TERRACE_TAP_W,GW), h=Math.min(TERRACE_TAP_H,GH);
+  const x0=Math.max(0,Math.min(GW-w,x-((w-1)>>1))), y0=Math.max(0,Math.min(GH-h,y-((h-1)>>1)));
+  return {x0, y0, x1:x0+w-1, y1:y0+h-1};
+}
+function buildTerraceRect(r,d){
+  r=pergolaRect(r.x0,r.y0,r.x1,r.y1);
+  if (terraceRectBlocker(r)) return 0;
+  let n=0;
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++) if (setTerraceTile(x,y,d)) n++;
+  return n;
+}
+/* The terrace a tile belongs to: the 4-connected run of tiles standing at its
+   height. Ground at grade belongs to none. */
+function terraceRegionAt(x,y){
+  if (!onPlot(x,y)) return null;
+  const h=elevationAt(x,y); if (!h) return null;
+  const seen=new Set([x+','+y]), q=[[x,y]], tiles=[];
+  while (q.length){
+    const [tx,ty]=q.pop(); tiles.push([tx,ty]);
+    for (const [dx,dy] of ELEV_DIRS){
+      const nx=tx+dx, ny=ty+dy, nk=nx+','+ny;
+      if (seen.has(nk) || !onPlot(nx,ny) || elevationAt(nx,ny)!==h) continue;
+      seen.add(nk); q.push([nx,ny]);
+    }
+  }
+  return {h, tiles, has:seen};
+}
+function terraceBuiltText(r,d){
+  const size=pergolaSizeText(r.x1-r.x0+1,r.y1-r.y0+1);
+  return d.h<0
+    ? `Sank a ${size} patio ${fmtLengthIn(-d.h*ELEV_RISER_IN)}, ${terraceFacingText(d.w)}.`
+    : `Raised a ${size} terrace ${fmtLengthIn(d.h*ELEV_RISER_IN)}, ${terraceFacingText(d.w)}.`;
+}
+/* A tap ON a terrace rebuilds the whole of it to the armed height and facing --
+   which is how a 10 in bed becomes a 15 in one, or a bank becomes a brick wall,
+   without redrawing it. On level ground a tap lays a 4.5 x 7.5 ft bed, the way
+   a tap with the pergola lays a pergola. Any other size is a drag. */
+function tapTerraceAt(x,y){
+  const d=terraceDraft(), reg=terraceRegionAt(x,y);
+  if (reg){
+    let n=0;
+    for (const [tx,ty] of reg.tiles) if (setTerraceTile(tx,ty,d)) n++;
+    if (n){ hapticFeedback('place');
+      toast(`Changed the ${reg.h<0?'patio':'terrace'} to ${terraceHeightText(d.h).toLowerCase()}, ${terraceFacingText(d.w)}.`); }
+    else toast('Already built like that. Drag corner to corner for another.');
+    return;
+  }
+  const r=terraceTapRect(x,y), bl=terraceRectBlocker(r);
+  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why]+' Drag out a smaller one.'); return; }
+  if (buildTerraceRect(r,d)){
+    hapticFeedback('place');
+    toast(terraceBuiltText(r,d)+' Drag corner to corner for another size.');
+  }
+}
+// a drag builds the rectangle between its two corners (input.js, at pointerup)
+function finishTerraceDrag(x0,y0,x1,y1){
+  const r=pergolaRect(x0,y0,x1,y1), bl=terraceRectBlocker(r), d=terraceDraft();
+  if (bl){ rejectPlacement(TERRACE_BLOCKER_TEXT[bl.why]); return 0; }
+  const n=buildTerraceRect(r,d);
+  if (n){ hapticFeedback('place'); toast(terraceBuiltText(r,d)); }
+  else toast('That terrace is already there.');
+  return n;
 }
 /* ---------- seating ---------- */
 function seatDraft(){ return game.seatDraft=normalizeSeatDraft(game.seatDraft); }
@@ -2359,7 +2497,8 @@ function selPointerUp(){
 function evPlacement(e){ // pointer position -> owning world tile + sub-tile offset
   const W=VW/ZOOM, H=VH/ZOOM;
   const pt=canvasClientPoint(e), sx=pt.x/ZOOM, sy=pt.y/ZOOM;
-  const [x,y]=tileAt(sx, sy, W, H);
+  // the Wall tool aims at a terrace FACE, which is nobody's top (wallTileAt)
+  const [x,y]=game.tool==='wall' ? wallTileAt(sx, sy, W, H) : tileAt(sx, sy, W, H);
   const [wx,wy]=worldPointAt(sx, sy, W, H, elevationAt(x,y));
   return {x,y,wx,wy,ox:wx-x,oy:wy-y};
 }

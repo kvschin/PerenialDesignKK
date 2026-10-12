@@ -447,7 +447,7 @@ function buildSaveBlob(){
     edgeStyle:game.edgeStyle,
     layerVis:normalizeLayerVis(game.layerVis),
     pathColor:game.pathColor,bedStyle:game.bedStyle,waterStyle:game.waterStyle,lawnStyle:game.lawnStyle,
-    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,edgingDraft:game.edgingDraft,
+    fenceDraft:game.fenceDraft,pergolaDraft:game.pergolaDraft,lightDraft:game.lightDraft,firepitDraft:game.firepitDraft,boulderDraft:game.boulderDraft,waterFeatureDraft:game.waterFeatureDraft,supportDraft:game.supportDraft,petDraft:game.petDraft,potDraft:game.potDraft,seatDraft:game.seatDraft,wallDraft:game.wallDraft,terraceDraft:game.terraceDraft,edgingDraft:game.edgingDraft,
     buildingStyleDraft:game.buildingStyleDraft,
     underlay:game.underlay?normalizeUnderlay(game.underlay):null,
     startTs:saveStartTs(),elapsedMs:elapsedGameMs(),savedAt:Date.now(),dayOffset:game.dayOffset};
@@ -779,6 +779,7 @@ async function loadSolo(id){
   game.potDraft=normalizePotDraft(s.potDraft);
   game.seatDraft=normalizeSeatDraft(s.seatDraft);
   game.wallDraft=wallStyleId(s.wallDraft);
+  game.terraceDraft=normalizeTerraceDraft(s.terraceDraft);
   game.edgingDraft=edgingStyleId(s.edgingDraft);
   game.rot=s.rot||0;
   const migratedElapsed = s.elapsedMs!==undefined

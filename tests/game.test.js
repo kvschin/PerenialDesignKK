@@ -7019,6 +7019,199 @@ test('a retaining wall needs a level change to hold up', () => {
   });
 });
 
+/* The Terrace tool builds the wall and lets the grade follow. Raise then Wall
+   made the gardener build the consequence first, in 5-inch steps, one level a
+   stroke — so a 15 in bed was three identical strokes, and missing a tile on
+   one of them left a pothole with its own little walls. A terrace SETS a
+   height, so there is nothing to count and nothing to miss. */
+test('a terrace sets its whole footprint to one height and faces it in the same gesture', () => {
+  setup(21, 21);
+  game.tool = 'terrace'; game.terraceDraft = { h: 3, w: 'brick' };
+  assert(finishTerraceDrag(8, 6, 4, 4) > 0, 'a drag builds, whichever corner it starts from');
+  for (let x = 4; x <= 8; x++) for (let y = 4; y <= 6; y++){
+    assertEqual(elevationAt(x, y), 3, `${x},${y} stands at the armed height`);
+    assertEqual(wallStyleAt(x, y), 'brick', `${x},${y} carries the armed facing`);
+  }
+  assertEqual(elevationAt(3, 5) + elevationAt(9, 5) + elevationAt(6, 3) + elevationAt(6, 7), 0,
+    'nothing outside the rectangle moved');
+  assert(elevationDropDirs(8, 6).length && !elevationDropDirs(6, 5).length, 'its edge falls away and its middle does not');
+
+  // a height is SET, not added: again is a no-op, and an overlap leaves no step
+  assertEqual(finishTerraceDrag(4, 4, 8, 6), 0, 'building it again changes nothing');
+  finishTerraceDrag(6, 5, 11, 8);
+  for (let x = 4; x <= 11; x++) for (let y = 4; y <= 8; y++){
+    const inA = x <= 8 && y <= 6, inB = x >= 6 && y >= 5;
+    if (inA || inB) assertEqual(elevationAt(x, y), 3, `the overlapping terrace is one level at ${x},${y}`);
+  }
+
+  // and the whole drag is one undo step, as the gesture brackets it
+  setup(21, 21);
+  game.tool = 'terrace'; game.terraceDraft = { h: 2, w: 'sleeper' };
+  beginUndo(); finishTerraceDrag(3, 3, 6, 5); commitUndo();
+  assertEqual(elevationAt(4, 4), 2, 'built');
+  doUndo();
+  assertEqual(elevationAt(4, 4), 0, 'one undo takes the whole terrace back');
+  assertEqual(live(game.elevation).length, 0, 'leaving no records behind');
+});
+
+test('a terrace tap lays a raised bed on level ground and rebuilds a terrace it lands on', () => {
+  setup(21, 21);
+  game.tool = 'terrace'; game.terraceDraft = { h: 2, w: 'sleeper' };
+  const r = terraceTapRect(12, 12);
+  assertEqual([r.x0, r.y0, r.x1, r.y1].join(','), '10,11,14,13', 'a tap lays 5 x 3 tiles centred on it');
+  const c = terraceTapRect(0, 0);
+  assertEqual([c.x0, c.y0, c.x1, c.y1].join(','), '0,0,4,2', 'and keeps it on the plot at a corner');
+  game.actX = 12; game.actY = 12; actHere();
+  for (let x = 10; x <= 14; x++) for (let y = 11; y <= 13; y++)
+    assertEqual(elevationAt(x, y), 2, `the bed stands at ${x},${y}`);
+
+  // tapping it rebuilds ALL of it — taller, and faced in something else
+  game.terraceDraft = { h: 4, w: 'corten' };
+  game.actX = 10; game.actY = 11; actHere();
+  for (let x = 10; x <= 14; x++) for (let y = 11; y <= 13; y++){
+    assertEqual(elevationAt(x, y), 4, `rebuilt to the new height at ${x},${y}`);
+    assertEqual(wallStyleAt(x, y), 'corten', `and refaced at ${x},${y}`);
+  }
+  assertEqual(elevationAt(9, 12), 0, 'without spreading past its edge');
+
+  // a bank is a real answer too: 'none' keeps the terrace and drops the wall
+  game.terraceDraft = { h: 4, w: 'none' };
+  game.actX = 12; game.actY = 12; actHere();
+  assertEqual(wallStyleAt(12, 13), 'none', 'a bank');
+  assertEqual(elevationAt(12, 13), 4, 'still standing');
+});
+
+test('a sunken terrace faces the ground round it, and leaves no stale walls when rebuilt', () => {
+  setup(21, 21);
+  game.tool = 'terrace'; game.terraceDraft = { h: -2, w: 'stone' };
+  finishTerraceDrag(5, 5, 8, 8);
+  assertEqual(elevationAt(6, 6), -2, 'the patio is sunk');
+  // a face belongs to the HIGHER tile, so a hollow's walls are its rim's
+  for (const [x, y] of [[4, 6], [9, 6], [6, 4], [6, 9]]){
+    assertEqual(wallStyleAt(x, y), 'stone', `the rim at ${x},${y} is faced`);
+    assertEqual(elevationAt(x, y), 0, `and stays at grade at ${x},${y}`);
+    assert(elevationDropDirs(x, y).length, `with a face to show at ${x},${y}`);
+  }
+  assertEqual(wallStyleAt(4, 4), 'none', 'a diagonal tile has no face into the hollow');
+  // the same rim, painted with the old Wall tool, is what the planting list bills
+  game.tool = 'wall'; game.wallDraft = 'stone';
+  assertEqual(applyToolAt(4, 6), null, 'the Wall tool agrees it is already faced');
+
+  // rebuilt as a bank, the rim records go: at grade they only carried the wall
+  game.tool = 'terrace'; game.terraceDraft = { h: -1, w: 'none' };
+  tapTerraceAt(6, 6);
+  assert(!live(game.elevation).includes('4,6'), 'no bare-earth record left on the rim');
+  assertEqual(elevationAt(6, 6), -1, 'and the hollow is shallower');
+
+  // rebuilt as a RAISED bed, a faced rim no longer faces anything and goes too
+  game.terraceDraft = { h: -2, w: 'brick' }; tapTerraceAt(6, 6);
+  assertEqual(wallStyleAt(4, 6), 'brick', 'faced again');
+  game.terraceDraft = { h: 2, w: 'brick' }; tapTerraceAt(6, 6);
+  assertEqual(elevationAt(6, 6), 2, 'now raised');
+  for (const k of ['4,6', '9,6', '6,4', '6,9'])
+    assert(!live(game.elevation).includes(k), `no stale wall left at grade on ${k}`);
+});
+
+test('a terrace is built whole or not at all, and Fill raises a bed of any shape', () => {
+  setup(21, 21);
+  addBuilding({ id: 'b1', vertices: [[10, 10], [13, 10], [13, 13], [10, 13]], status: 'existing', label: 'Shed', t: 1 });
+  game.tool = 'terrace'; game.terraceDraft = { h: 3, w: 'drystone' };
+  const rev = game.rev;
+  assertEqual(finishTerraceDrag(8, 8, 11, 11), 0, 'a footprint with a building in it is refused');
+  assertEqual(game.rev, rev, 'and nothing at all was built');
+  assertEqual(terraceRectBlocker({ x0: 8, y0: 8, x1: 11, y1: 11 }).why, 'building', 'naming what is in the way');
+
+  // a curved bed is not a rectangle: lay it, then Fill it with the terrace
+  setup(21, 21);
+  game.tool = 'bed'; game.bedStyle = 'soil'; setBrushSize(1);
+  const bed = [[4, 4], [5, 4], [6, 4], [5, 5], [6, 5], [7, 5], [6, 6], [7, 6]];
+  for (const [x, y] of bed) applyToolAt(x, y);
+  game.tool = 'terrace'; game.terraceDraft = { h: 2, w: 'brick' }; game.fillMode = true;
+  assert(fillActive(), 'Fill works with the terrace armed');
+  doFloodFill(5, 5);
+  for (const [x, y] of bed) assertEqual(elevationAt(x, y), 2, `the bed is raised at ${x},${y}`);
+  assertEqual(elevationAt(4, 5), 0, 'and only the bed');
+  assertEqual(wallStyleAt(7, 6), 'brick', 'faced as it rose');
+});
+
+/* The Wall tool aims at a FACE, and a face is nobody's top: it hangs in front
+   of the tile that owns it. tileAt answers "whose top is under the pointer",
+   so on a sunken patio — where the visible walls are the rim's, hanging over
+   the floor — a tap on the wall itself resolved to the floor and was refused,
+   and on a tall terrace the top of a face resolved to the next tile along. */
+test('a press on a wall face lands on the tile that owns the face, at every rotation', () => {
+  const W = 1000, H = 700;
+  const faceAt = (x, y, u, W, H) => {
+    // the camera-facing face toward view +x, read off the drawing's own geometry
+    const [sx, sy] = screenOf(x, y, W, H), [dx, dy] = viewDirToWorld(1, 0);
+    const drop = (elevationAt(x, y) - elevationAt(x + dx, y + dy)) * ELEV_STEP;
+    return [sx + TILE_W / 4, sy + TILE_H * 0.75 + drop * u];
+  };
+  for (let rot = 0; rot < 4; rot++){
+    // a tall raised terrace
+    setup(21, 21); game.rot = rot;
+    game.terraceDraft = { h: 4, w: 'stone' }; finishTerraceDrag(8, 8, 11, 11);
+    let owner = null;
+    for (let x = 8; x <= 11 && !owner; x++) for (let y = 8; y <= 11 && !owner; y++){
+      const [dx, dy] = viewDirToWorld(1, 0);
+      if (elevationAt(x + dx, y + dy) === 0 && elevationAt(x - dy, y + dx) === 4 && elevationAt(x + dy, y - dx) === 4) owner = [x, y];
+    }
+    assert(owner, `rot ${rot}: a tile mid-way along a front edge`);
+    for (const u of [0.08, 0.5, 0.92]){
+      const [px, py] = faceAt(owner[0], owner[1], u, W, H);
+      assertEqual(wallTileAt(px, py, W, H).join(','), owner.join(','), `rot ${rot}: ${u} down the face lands on its owner`);
+    }
+    // a top is still a top
+    const [tx, ty] = screenOf(9, 9, W, H);
+    assertEqual(wallTileAt(tx, ty + TILE_H / 2, W, H).join(','), '9,9', `rot ${rot}: the middle of the terrace is itself`);
+
+    // a sunken patio: the visible walls are the rim's
+    setup(21, 21); game.rot = rot;
+    game.terraceDraft = { h: -2, w: 'stone' }; finishTerraceDrag(8, 8, 11, 11);
+    let rim = null;
+    for (let x = 7; x <= 12 && !rim; x++) for (let y = 7; y <= 12 && !rim; y++){
+      const [dx, dy] = viewDirToWorld(1, 0);
+      if (elevationAt(x, y) === 0 && elevationAt(x + dx, y + dy) === -2
+          && elevationAt(x - dy, y + dx) === 0 && elevationAt(x - dy + dx, y + dx + dy) === -2) rim = [x, y];
+    }
+    assert(rim, `rot ${rot}: a rim tile on the far side of the hollow`);
+    const [px, py] = faceAt(rim[0], rim[1], 0.5, W, H);
+    const was = tileAt(px, py, W, H);
+    assert(elevationAt(was[0], was[1]) === -2, `rot ${rot}: tileAt puts that press on the patio floor`);
+    const hit = wallTileAt(px, py, W, H);
+    assertEqual(hit.join(','), rim.join(','), `rot ${rot}: the Wall tool puts it on the rim that owns the face`);
+    game.tool = 'wall'; game.wallDraft = 'brick';
+    assertEqual(applyToolAt(hit[0], hit[1]), 'wall', `rot ${rot}: and the rim takes the new facing`);
+  }
+});
+
+test('a refused wall says why, and a terrace reads as one tool on the Grade tab', () => {
+  setup(21, 21);
+  assert(/Terrace/.test(wallRefusalText(5, 5)), 'with no level change anywhere, it points at Terrace');
+  game.terraceDraft = { h: 2, w: 'brick' }; finishTerraceDrag(8, 8, 10, 10);
+  assert(/face of a terrace/.test(wallRefusalText(5, 5)), 'with one, it says to tap the face');
+  assert(/Already/.test(wallRefusalText(10, 10)), 'on a faced edge, that it is already faced');
+
+  assertEqual(TRAY_CATS.find(c => c.id === 'leveling').tools[0], 'terrace', 'Terrace leads the Grade tab');
+  assertEqual(brushTrayCatForTool('terrace'), 'leveling', 'and comes back to it from the rail');
+  assert(landscapeSearchItems('raised bed').some(i => i.tool === 'terrace'), '"raised bed" finds it');
+  assert(landscapeSearchItems('sunken patio').some(i => i.tool === 'terrace'), '"sunken patio" finds it');
+  assert(toolMeta('terrace').rect && toolMeta('terrace').paints && !toolMeta('terrace').sizable,
+    'it drags corner to corner, takes Fill, and has no brush size');
+
+  // the heights are offered in real units, and only real elevation steps
+  assert(TERRACE_LEVELS.every(h => h && h >= ELEV_MIN && h <= ELEV_MAX), 'every height is a reachable level');
+  assertEqual(terraceHeightText(3), fmtLengthIn(3 * ELEV_RISER_IN), 'a height reads in the reader’s units');
+  assert(/^Sunk /.test(terraceHeightText(-1)), 'and a hollow says so');
+  assertEqual(normalizeTerraceDraft({ h: 7, w: 'marble' }).h, 3, 'an unknown height falls back');
+  assertEqual(normalizeTerraceDraft({ h: 2, w: 'marble' }).w, 'none', 'an unknown facing is a bank');
+
+  // the draft travels with the garden
+  game.terraceDraft = { h: -1, w: 'gabion' };
+  const blob = buildSaveBlob();
+  assertEqual(JSON.stringify(blob.terraceDraft), JSON.stringify({ h: -1, w: 'gabion' }), 'saved with the garden');
+});
+
 test('lights place as one-tile structures, block plants, and erase with landscape', () => {
   setup(13, 13);
   const forb = firstOfType('forb');

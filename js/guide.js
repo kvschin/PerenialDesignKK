@@ -1896,36 +1896,40 @@ edging:{ loop:10000, rest:0.92,
     }
   }},
 
-grade:{ loop:11000, rest:0.92,
-  where:{path:['Landscape','Grade']},
+/* The Terrace tool, which is the route this demo teaches: the WALL is what you
+   build and the grade follows, in one drag. It taught Raise-then-Wall until
+   0.9.66, two tools in an order nobody thinks in. The heights row is read off
+   TERRACE_LEVELS through terraceHeightText, so it says what the tray says in
+   the reader's own units. */
+grade:{ loop:12000, rest:0.92,
+  where:{path:['Landscape','Grade','Terrace']},
   build(){ const st=guideStage({cols:8,rows:7});
     gsFill(st,'lawn','fescue',0,0,7,6);
-    gsScatter(st,['dropseed','sedge'],[[0,0],[7,0],[0,6],[7,6]]);
+    gsScatter(st,['dropseed','sedge'],[[0,6],[7,6],[7,0]]);
     return st; },
   run(st,u){
-    const terrace=[];
-    for (let y=0;y<=3;y++) for (let x=0;x<8;x++) terrace.push([x,y]);
-    st.chrome={options:['Raise','Lower','Level','Wall'],on:u<0.5?0:3,
-      tapping:gAt(u,0.46,0.6)};
-    const lift=Math.round(gEase(gAt(u,0.08,0.42))*3);
-    terrace.forEach(function(p){ gsSet(st.elev,p[0],p[1],lift); });
-    if (u>0.56){
-      // Painting a facing is what turns bare earth into built retaining; both
-      // are real answers to the same terrace, so it is painted rather than
-      // automatic.
-      const reach=gAt(u,0.58,0.9)*8;
-      for (let x=0;x<8;x++) if (x<reach)
-        gsSet(st.terrain,x,3,{k:'lawn',c:'fescue',w:'drystone'});
+    const x0=1, y0=1, X1=6, Y1=3, drag=gEase(gAt(u,0.08,0.38));
+    const cx1=Math.round(x0+(X1-x0)*drag), cy1=Math.round(y0+(Y1-y0)*drag);
+    const taller=u>=0.66;
+    st.chrome={options:[2,3,4].map(terraceHeightText),on:taller?2:1,tapping:gAt(u,0.56,0.66)};
+    // it rises on release, and again when a tap rebuilds it a course taller
+    const lift=u<0.42 ? 0 : u<0.74 ? 3*gEase(gAt(u,0.42,0.5)) : 3+gEase(gAt(u,0.74,0.8));
+    if (u<0.42) for (let y=y0;y<=cy1;y++) for (let x=x0;x<=cx1;x++)
+      (st.marks=st.marks||[]).push({x,y,fill:'rgba(239,230,211,0.24)',stroke:'rgba(239,230,211,0.6)'});
+    else for (let y=y0;y<=Y1;y++) for (let x=x0;x<=X1;x++){
+      gsSet(st.elev,x,y,Math.round(lift));
+      gsSet(st.terrain,x,y,{k:'bed',c:'mulch',w:'drystone'});
     }
-    if (u<0.5){
-      const c=gPath(gAt(u,0.06,0.44),[[0.6,1],[7,1]]);
-      st.cursor={x:c[0],y:c[1],down:u<0.46,press:0};
-      st.ghost={x:Math.round(c[0]),y:Math.round(c[1]),size:3};
-      st.notes=[{text:'Raise the ground into a terrace',at:[3.5,6.4],dy:28}];
+    if (u>=0.5) gsScatter(st,['echinacea','dropseed','bluestem'],[[2,2],[4,1],[5,3],[3,3]]);
+    if (u<0.42){
+      const c=gPath(drag,[[x0,y0],[X1,Y1]]);
+      st.cursor={x:c[0],y:c[1],down:u>0.06&&u<0.4,press:0};
+      st.notes=[{text:'Drag corner to corner',at:[3.5,6.4],dy:28}];
+    } else if (u<0.56){
+      st.notes=[{text:'It rises with its wall, in one go',at:[3.5,6.4],dy:28,alpha:gAt(u,0.42,0.48)}];
     } else {
-      const c=gPath(gAt(u,0.58,0.9),[[0.4,3],[7.4,3]]);
-      st.cursor={x:c[0],y:c[1],down:u<0.92,press:0};
-      st.notes=[{text:'…then paint the face that holds it back',at:[3.5,6.4],dy:28}];
+      st.cursor={x:3.5,y:2,down:u>0.7&&u<0.74,press:gAt(u,0.7,0.74)};
+      st.notes=[{text:'Tap it to rebuild it taller, or in another wall',at:[3.5,6.4],dy:28}];
     }
   }},
 
@@ -2927,11 +2931,12 @@ function guideChapters(){
        how:['Fill the bed first, then run the edging over it.',
             'It draws only where the bed meets lawn, so an edge that later becomes interior stops drawing on its own.',
             'The planting list bills exactly the feet you can see.']},
-      {id:'grade', demo:'grade', title:'Levels and retaining walls',
-       lead:'Raise or lower the ground into terraces, then paint the face that holds each one back.',
-       how:['Raise, Lower and Level are on the Grade tab, and take the same disc brush.',
-            'Wall paints a facing onto the exposed face: dry stone, brick, sleepers, gabion, corten.',
-            'A grass bank is a real answer too. Paint None to strip a facing and keep the terrace.']},
+      {id:'grade', demo:'grade', title:'Terraces and retaining walls',
+       lead:'A raised bed, a terrace or a sunken patio, built with its wall in one drag.',
+       how:['Pick a height and a wall under Terrace, then drag corner to corner. A tap lays a bed about 4 by 8 feet.',
+            'Tap a terrace to rebuild all of it at the armed height and wall. A bank is a real answer too.',
+            'For a curved bed, lay the bed first, turn on Fill and tap it with Terrace.',
+            'Raise, Lower and Level still shape berms and swales by the brush; Wall refaces one stretch.']},
      ]},
 
     {id:'hardscape', title:'Everything else that stands there',

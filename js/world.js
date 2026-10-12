@@ -273,6 +273,7 @@ const game = {
   potDraft:{style:'terracotta',size:'p18'},          // settings for the next container
   seatDraft:{type:'bench4',finish:'teak'},           // settings for the next seat
   wallDraft:'drystone',                              // material the wall brush paints onto a terrace face
+  terraceDraft:{h:3,w:'drystone'},                   // the height and facing the next terrace is built at
   edgingDraft:'steel',                               // material the edging brush paints onto a bed or path edge
   pathColor:'warm',                                  // selected path swatch for new/repainted paths
   bedStyle:'soil',                                   // selected bed material for new/repainted beds
@@ -2019,6 +2020,63 @@ function tileAt(sx,sy,W,H){
   }
   const [vx,vy]=viewPointAt(sx,sy,W,H);
   return viewToWorld(Math.round(vx), Math.round(vy));
+}
+/* The visible wall faces of one tile, as screen quads: a face is drawn hanging
+   below the HIGHER tile's top edge (drawElevationSides), on the two edges that
+   face the camera, toward an in-grid neighbour it stands above. `a`/`b` are the
+   top edge, `drop` how far it falls; `depth` sorts faces nearest the camera
+   last. The same test elevationDropDirs makes, so a face found here is one
+   paintWallAt will accept. */
+function wallFaceQuads(x,y,W,H){
+  const h=elevationAt(x,y), out=[];
+  const [sx,sy]=screenOf(x,y,W,H), cy=sy+TILE_H/2;
+  const right=[sx+TILE_W/2,cy], bottom=[sx,sy+TILE_H], left=[sx-TILE_W/2,cy];
+  [[1,0,right,bottom],[0,1,bottom,left]].forEach(([dvx,dvy,a,b])=>{
+    const [dx,dy]=viewDirToWorld(dvx,dvy), nx=x+dx, ny=y+dy;
+    if (!inWorldTile(nx,ny)) return;
+    const diff=h-elevationAt(nx,ny);
+    if (diff>0) out.push({a,b,drop:diff*ELEV_STEP,depth:viewDepth(x,y)+0.5});
+  });
+  return out;
+}
+function pointOnWallFace(px,py,f){
+  const x0=Math.min(f.a[0],f.b[0]), x1=Math.max(f.a[0],f.b[0]);
+  if (px<x0 || px>x1) return false;
+  const t=(px-f.a[0])/((f.b[0]-f.a[0])||1), ey=f.a[1]+t*(f.b[1]-f.a[1]);
+  return py>=ey && py<=ey+f.drop;
+}
+/* Which tile's face is under a screen point, nearest the camera first. A face
+   spans at most (ELEV_MAX-ELEV_MIN) steps, under a tile height and a half, so
+   its owner is within three tiles BEHIND the point in view. */
+function wallFaceAt(sx,sy,W,H){
+  if (!game.elevation) return null;
+  const [pvx,pvy]=viewPointAt(sx,sy,W,H).map(Math.round);
+  let best=null;
+  for (let vy=pvy-3;vy<=pvy+1;vy++) for (let vx=pvx-3;vx<=pvx+1;vx++){
+    const [x,y]=viewToWorld(vx,vy);
+    if (!inWorldTile(x,y)) continue;
+    for (const f of wallFaceQuads(x,y,W,H))
+      if (pointOnWallFace(sx,sy,f) && (!best || f.depth>best.depth)) best={x,y,depth:f.depth};
+  }
+  return best;
+}
+/* Where a press lands for the Wall tool. tileAt answers "whose TOP is under the
+   pointer", and a wall face is not anyone's top. On a low raised terrace that
+   happened not to matter: its grade fallback lands inside the raised tile's own
+   flat footprint, which is where its face hangs. It mattered in two places,
+   measured. On a sunken patio the visible walls are the RIM's, hanging over the
+   floor, so a tap on the wall itself resolved to the floor -- no face -- and was
+   refused with "raise or lower the ground first". And on a terrace three or four
+   steps tall the upper half of a face resolved to the next tile along the edge,
+   so the facing went on beside where you tapped. A face under the pointer now
+   wins, unless a raised top nearer the camera is drawn over it. */
+function wallTileAt(sx,sy,W,H){
+  const hit=tileAt(sx,sy,W,H), face=wallFaceAt(sx,sy,W,H);
+  if (!face) return hit;
+  const [hx,hy]=hit;
+  if (inWorldTile(hx,hy) && elevationAt(hx,hy)!==0 && pointInTileDiamond(sx,sy,hx,hy,W,H)
+      && viewDepth(hx,hy)>face.depth) return hit;
+  return [face.x,face.y];
 }
 function footprintDrawDepth(x,y,w,h){
   return Math.max(

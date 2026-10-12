@@ -8,7 +8,7 @@
    stranger names the build it came from), the service worker's cache name (a
    bump is what retires the old precache), and SAVE_VERSION's provenance stamp.
    Keep it in step with package.json. */
-const APP_VERSION = '0.9.65';
+const APP_VERSION = '0.9.66';
 /* Save blob schema. Migrations used to be feature detection — "if the blob has
    a `house` key it is old" — which worked only while every save in existence
    was one of ours. An explicit number is what lets a save written today be
@@ -223,6 +223,26 @@ const WALL_STYLES = [
 function wallStyle(id){ return WALL_STYLES.find(w=>w.id===id)||WALL_STYLES[0]; }
 function wallStyleId(id){ return wallStyle(id).id; }
 function wallLabelFor(id){ return wallStyle(id).label; }
+/* The Terrace tool builds the WALL and lets the grade follow, which is the
+   order a gardener thinks in ("a brick raised bed, 15 inches, here"). Raise
+   and Wall asked for it backwards: the earthwork first, a step per stroke in
+   5-inch steps nobody counts in, then a second tool to face it. A terrace sets
+   every tile it covers to one ABSOLUTE height, so going over it again changes
+   nothing and a half-missed stroke cannot leave a pothole. It writes the same
+   {h, w} elevation record the two old tools did, so the traced wall runs, the
+   planting list and the plan sheet read it unchanged.
+   The heights are the elevation steps (ELEV_RISER_IN each), offered in real
+   inches; a negative one is a sunken patio. */
+const TERRACE_LEVELS = [4,3,2,1,-1,-2];
+function normalizeTerraceDraft(d){
+  d=d||{};
+  const h=TERRACE_LEVELS.includes(+d.h) ? +d.h : 3;
+  return {h, w:wallStyleId(d.w===undefined ? 'drystone' : d.w)};
+}
+// "15 in" up, "Sunk 10 in" down, in the reader's units
+function terraceHeightText(h){
+  return (h<0?'Sunk ':'')+fmtLengthIn(Math.abs(h)*ELEV_RISER_IN);
+}
 function ftToTiles(ft){ return Math.max(2, Math.round(ft*12/TILE_IN)); }
 
 /* Which hardiness zones the app can offer, DERIVED FROM THE CATALOG rather
