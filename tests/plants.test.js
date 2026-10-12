@@ -112,7 +112,7 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,635,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,640,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
   assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),487,
     'canonical nested-choice count');
@@ -536,8 +536,9 @@ test('shrubs declare explicit real dimensions and exact resized cultivars do too
   for (const k of keys){
     const P=PLANTS[k];
     if (P.type!=='shrub') continue;
-    assert(typeof P.heightIn==='number'&&P.heightIn>=12&&P.heightIn<=360,
-      `${k}: shrub heightIn ${P.heightIn} outside 1-30 ft`);
+    // Dwarf woody groundcovers (including bunchberry) can be under one foot.
+    assert(typeof P.heightIn==='number'&&P.heightIn>=6&&P.heightIn<=360,
+      `${k}: shrub heightIn ${P.heightIn} outside 6 in-30 ft`);
     assert(typeof P.spread==='number'&&P.spread>=12&&P.spread<=360,
       `${k}: shrub spread ${P.spread} outside 1-30 ft`);
     for (const [v,C] of Object.entries(P.cv||{})){
@@ -1604,4 +1605,24 @@ test('the article table has no entry for a species that no longer exists', () =>
     assert(!/^https?:/.test(title),
       `${k}: store the article TITLE, not a URL - the loop builds the URL`);
   }
+});
+
+
+test('audit additions preserve exact identities, native ranges and seasonal distinctions', () => {
+  const expected={wildstrawberry:['Fragaria virginiana','north-america','4,5'],spicebush:['Lindera benzoin','north-america','3,4'],bunchberry:['Cornus canadensis','north-america,asia','5,6,7'],pricklyrose:['Rosa acicularis','north-america,europe,asia','5,6,7'],woollygeranium:['Geranium erianthum','north-america,asia','5,6,7']};
+  for(const [key,[latin,range,months]] of Object.entries(expected)){
+    const P=PLANTS[key];assertEqual(P.latin,latin,key+' identity');
+    assertEqual(P.nativeTo.join(','),range,key+' native range');
+    assertEqual(P.provenance,'species',key+' straight species');
+    assertEqual(P.bloomMonths.join(','),months,key+' authored calendar');
+    assert(P.heightIn>0,key+' real height');
+  }
+  for(const key of ['wildstrawberry','spicebush','bunchberry']){
+    assert(!PLANTS[key].sea.Winter.seed,key+' no guaranteed winter berries');
+    assert(!PLANTS[key].sea.Spring.seed,key+' no spring ripe fruit');
+  }
+  assert(PLANTS.pricklyrose.sea.Winter.seed,'rose may retain hips');
+  assert(!PLANTS.pricklyrose.sea.Fall.bloom,'rose is not a repeat-flowering cultivar');
+  assert(PLANTS.woollygeranium.blurb.includes('provisional'),'uncertain zones visible to gardeners');
+  assert(PLANTS.spicebush.blurb.includes('male pollinizer'),'fruit pollination requirement visible');
 });

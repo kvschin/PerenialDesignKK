@@ -211,14 +211,14 @@ Completing the named regions is not enough to claim complete US coverage. Audit 
 
 | ID | Plant | Initial target and role | Source |
 | --- | --- | --- | --- |
-| AK-01 | Woolly geranium — *Geranium erianthum* | Alaska flowering perennial | [UAF landscape checklist](https://www.uaf.edu/afes/publications/database/miscellaneous-publications/files/pdfs/MP_2005-08.pdf) |
-| AK-02 | Bunchberry — *Cornus canadensis* | Northern woodland groundcover | [UAF landscape checklist](https://www.uaf.edu/afes/publications/database/miscellaneous-publications/files/pdfs/MP_2005-08.pdf) |
-| AK-03 | Prickly rose — *Rosa acicularis* | Northern flowering shrub | [UAF landscape checklist](https://www.uaf.edu/afes/publications/database/miscellaneous-publications/files/pdfs/MP_2005-08.pdf) |
+| AK-01 · Added locally 2026-10-08 | Woolly geranium — *Geranium erianthum* | Alaska flowering perennial; catalog zones 3–7 remain provisional | [Source and implementation notes](plant-data/audit-additions.md) |
+| AK-02 · Added locally 2026-10-08 | Bunchberry — *Cornus canadensis* | Northern woodland dwarf shrub; cool summers and acidic, moist soil required | [Source and implementation notes](plant-data/audit-additions.md) |
+| AK-03 · Added locally 2026-10-08 | Prickly rose — *Rosa acicularis* | Northern flowering shrub; suckering and browse retained, upper zone 6 a planning limit | [Source and implementation notes](plant-data/audit-additions.md) |
 | HI-01 | Oahu sedge — *Carex wahuensis* subsp. *wahuensis* | Hawaiian grasslike matrix | [Native Plants Hawaii](https://nativeplants.hawaii.edu/landscape_uses/erosion-control/) |
 | HI-02 | Ilima — *Sida fallax* | Hawaiian low shrub/groundcover; specify growth form | [Native Plants Hawaii](https://nativeplants.hawaii.edu/plants/sida-fallax/) |
 | HI-03 | Hawaiian white hibiscus — *Hibiscus arnottianus* | Hawaiian flowering shrub/small tree | [University of Hawaii](https://www.ctahr.hawaii.edu/hawnprop/plants/hib-arno.htm) |
 
-These are starter candidates for dedicated local review, not complete Alaska/Hawaii palettes. Alaska needs coastal/interior distinctions and local cold performance; Hawaii needs island, elevation, rainfall, and provenance distinctions. Hawaii cannot inherit a continental North America native label. Confirm current nomenclature, conservation status, and appropriate nursery sources before implementation; use the older UAF checklist as evidence of garden experience, not a current invasive-plant clearance.
+The three Alaska entries were added locally October 8, 2026; Phase 6 remains open, including the national coverage audit and all three Hawaii candidates. These are starter choices for dedicated local review, not complete Alaska/Hawaii palettes. Alaska needs coastal/interior distinctions and local cold performance; Hawaii needs island, elevation, rainfall, and provenance distinctions. Hawaii cannot inherit a continental North America native label. Confirm current nomenclature, conservation status, and appropriate nursery sources before further implementation; use the older UAF checklist as evidence of garden experience, not a current invasive-plant clearance.
 
 ## Definition of done for every plant batch
 

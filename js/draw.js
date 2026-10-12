@@ -4689,7 +4689,17 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
       ctx.strokeStyle = P.stem || shade(S.fol,-18);
       ctx.lineWidth=1.3*rec; ctx.beginPath(); ctx.moveTo(ox*0.4,by0);
       ctx.quadraticCurveTo(ox,by0-len*0.55,tx,by0-len); ctx.stroke();
-      if (S.fol && L.stemLeaves && L.stemLeafArrangement){
+      if (S.fol && L.stemLeafArrangement==='terminalWhorl'){
+        // A bounded false whorl immediately below the head, independent of
+        // the lower stem-node grammar. Also retained on nonflowering shoots.
+        const py=by0-len+3*rec, ll=Math.max(2,Math.min(10,L.stemLeafLen||6))*rec;
+        for(let leaf=0;leaf<6;leaf++){
+          const a=leaf/6*Math.PI*2+0.18;
+          drawLeaf(ctx,tx,py,tx+Math.cos(a)*ll,py+Math.sin(a)*ll*0.55,
+            (L.stemLeafHW||2)*rec,S.fol,{shape:L.leafShape||'ovate',rib:false,flat:!art2On(L)});
+        }
+      }
+      else if (S.fol && L.stemLeaves && L.stemLeafArrangement){
         const nodes=Math.max(1,Math.min(6,Math.round(L.stemLeaves)));
         const leaves=L.stemLeafArrangement==='whorled'?3:L.stemLeafArrangement==='opposite'?2:1;
         for(let node=0;node<nodes;node++){
@@ -5106,7 +5116,7 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           } } }
       }
       else if (P.form==='umbel'){ // flat-to-domed corymb of tiny florets
-        const col=(headOn?S.bloom:null)||S.seed;
+        const col=(headOn?S.bloom:null)||((L.bractN&&blooming)?null:S.seed);
         if (col){ ctx.fillStyle=col;
           const rad=L.head||6, dome=(L.dome===undefined?0.4:L.dome), dots=Math.round(rad*2);
           if(!headOn && S.seed && L.seedStyle==='milkweedPods'){
@@ -5125,13 +5135,20 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
               }
             }
           } else if(L.umbelStyle==='bracted'){
-            if(S.bract&&S.fol){
+            if(S.bract&&S.fol&&L.bractN&&headOn){
+              const n=Math.max(3,Math.min(6,Math.round(L.bractN)));
+              for(let b=0;b<n;b++){
+                const a=b/n*Math.PI*2+Math.PI/4;
+                drawLeaf(ctx,hx,hy,hx+Math.cos(a)*(L.bractLen||5),hy+Math.sin(a)*(L.bractLen||5)*0.75,
+                  L.bractW||2,S.bract,{shape:'ovate',rib:false,flat:!art2On(L)});
+              }
+            } else if(S.bract&&S.fol&&!L.bractN){
               for(const side of [-1,1])drawLeaf(ctx,hx,hy+2,hx+side*(L.bractLen||7),hy+0.5,
                 L.bractW||2.6,S.bract,{shape:'ovate',rib:false,flat:!art2On(L)});
             }
             const count=Math.max(4,Math.min(12,L.florets||8));
             for(let f=0;f<count;f++){
-              const a=f/count*Math.PI*2;fcPush(hx+Math.cos(a)*rad*0.7,hy+Math.sin(a)*rad*0.4,headOn?0.9:0.7);
+              const a=f/count*Math.PI*2;fcPush(hx+Math.cos(a)*rad*0.7,hy+Math.sin(a)*rad*0.4,headOn?0.9:(L.bractN?1.1:0.7));
             }
             fcDraw(ctx,col,20,-15);
           } else if(L.umbelStyle==='milkweed'&&headOn){
@@ -6232,6 +6249,14 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
             const bx=px+side*0.6, by=py+0.6, leafLen=L.compoundLen||4.6;
             drawPinnateLeaf(ctx,bx,by,bx+side*leafLen,by-leafLen*0.34,
               L.leafHW||0.62,fol,L);
+          } else if (L.compound==='trifoliate'){
+            const ll=Math.max(2,Math.min(7,L.compoundLen||4.6)), jx=px+side, jy=py-1.5;
+            ctx.strokeStyle=shade(fol,-18); ctx.lineWidth=0.65;
+            ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(jx,jy);ctx.stroke();
+            for(let leaflet=-1;leaflet<=1;leaflet++)
+              drawLeaf(ctx,jx,jy,jx+leaflet*ll*0.85,jy-ll*(leaflet===0?1:0.3),
+                L.leafHW||1.5,fol,{shape:L.leafShape||'ovate',teeth:L.leafTeeth,
+                  teethN:L.leafTeethN,rib:false,flat:!a2});
           } else leafDot(px+side*(1+rnd()*1.4),py,1.6,0.8,side*0.32,fol); }
       }
       ctx.lineCap='butt';
@@ -6293,7 +6318,18 @@ function drawPlant(ctx, x, y, key, growth, season, seed, sway, variant, bloomLvl
           const petals=L.petals||5, petalLen=L.petalLen||4.8, petalW=L.petalW||2.9;
           const cx=ox+sway*2+(rnd()-0.5)*(raisedMat?2.5:(L.matW||25)*0.42);
           const cy=raisedMat?-len:-H*(0.08+rnd()*(L.foliageH||0.18))-1;
-          if (!blooming && S.seed){
+          if (!blooming && S.seed && L.fruitStyle==='fleshy'){
+            // Small hanging fruit with a retained calyx, not a dry seed capsule.
+            const r=Math.max(1.2,Math.min(3.5,L.fruitR||2.2));
+            ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(cx,cy+r*1.25);
+            ctx.bezierCurveTo(cx-r*1.6,cy,cx-r,cy-r,cx,cy-r*0.7);
+            ctx.bezierCurveTo(cx+r,cy-r,cx+r*1.6,cy,cx,cy+r*1.25);ctx.fill();
+            ctx.strokeStyle=S.fol||'#557345';ctx.lineWidth=0.7;ctx.beginPath();
+            for(let p=0;p<5;p++){const a=p/5*Math.PI*2;
+              ctx.moveTo(cx,cy-r*0.6);ctx.lineTo(cx+Math.cos(a)*r,cy-r*0.6+Math.sin(a)*r*0.45);}
+            ctx.stroke();
+            ctx.fillStyle=shade(col,65);ctx.beginPath();ctx.ellipse(cx-r*0.3,cy,r*0.15,r*0.27,0,0,7);ctx.fill();
+          } else if (!blooming && S.seed){
             ctx.fillStyle=shade(col,-14); ctx.beginPath(); ctx.ellipse(cx,cy,1.35,2.15,0.18,0,7); ctx.fill();
             ctx.strokeStyle=shade(col,-28); ctx.lineWidth=0.55;
             if (a2){                        // the schizocarp's beaks, one path

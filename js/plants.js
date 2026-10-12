@@ -6299,6 +6299,47 @@ const PLANTS = {
     look:{leafN:66, leafW:0.11, leafH:0.09, flowerN:18, flowerShape:'star', petals:5, twine:'twine'},
     blurb:'Evergreen, glossy and powerfully scented in early summer — the climber for a warm courtyard wall or a doorway you walk past. Not a true jasmine. It twines slowly to about twenty feet and clips hard, so it takes a trellis panel or a wire grid better than an arch. Hardy only to about zone 8; further north it is a container plant that comes in.',
     sea:{Spring:{fol:'#40684a'}, Summer:{fol:'#37603f',bloom:'#f4f2e4'}, Fall:{fol:'#3b6142'}, Winter:{fol:'#43603f'}}},
+
+  /* Audit additions — sources and planning assumptions: docs/plant-data/audit-additions.md. */
+  wildstrawberry:{ name:'Wild Strawberry', latin:'Fragaria virginiana', form:'shrub', type:'forb', h:12, heightIn:8,
+    space:12, spread:24, zones:[4,9], nativeTo:['north-america'], provenance:'species', sun:'full', moist:'medium', phen:'cool',
+    roles:['groundcover','fruit','pollinator'],
+    look:{art2:true, dormantWhenBare:true, habit:'matflower', runners:8, matW:26, foliageH:0.4,
+      runnerLeaves:2, compound:'trifoliate', compoundLen:4.6, leafShape:'ovate', leafHW:1.5, leafTeeth:0.2, leafTeethN:5,
+      flowers:6, petals:5, petalLen:3.3, petalW:2.5, matHeadRise:0.12, fruitStyle:'fleshy', fruitR:2.2},
+    blurb:'A low North American strawberry with three-part leaves, white spring flowers and small red early-summer fruit. Runners form an expanding colony: the two-foot spread is a planning patch, not a containment boundary. Sun or partial shade and well-drained soil suit it; heat can slow summer growth, and winter foliage varies with climate.',
+    sea:{Spring:{fol:'#63844a',bloom:'#f4efe1',eye:'#ddbd44'}, Summer:{fol:'#537342',seed:'#c44132'}, Fall:{fol:'#92704d'}, Winter:{}}},
+  spicebush:{ name:'Spicebush', latin:'Lindera benzoin', form:'bush', type:'shrub', h:68, cw:82, heightIn:120,
+    space:96, spread:120, zones:[4,9], nativeTo:['north-america'], provenance:'species', sun:'part', moist:'moist', phen:'cool', grow:5,
+    roles:['woodland','structure','fall','fruit'],
+    look:{art2:true, habit:'round', sideScale:0.95, leafShape:'ovate', leafHW:1.05, leafLong:2.7, twigN:10,
+      bloomStyle:'bareStem', flowerShape:'star', flowerN:3, berryN:3, fallMix:['#d7bb4f','#b99c37']},
+    blurb:'An eastern North American woodland shrub, usually six to twelve feet tall and wide, for moist, well-drained soil in sun or partial shade. Tiny yellow flowers open before the aromatic leaves, which turn gold in fall. The illustrated red late-season fruit represents a female plant with a male pollinizer nearby; unpollinated females and males do not fruit.',
+    sea:{Spring:{bloom:'#dace72'}, Summer:{fol:'#597b43'}, Fall:{fol:'#d1b847',seed:'#c54330'}, Winter:{twig:'#7b6950'}}},
+  bunchberry:{ name:'Bunchberry', latin:'Cornus canadensis', synonyms:['Chamaepericlymenum canadense'], form:'umbel', type:'shrub', h:16, cw:26, heightIn:9,
+    space:12, spread:12, zones:[2,6], nativeTo:['north-america','asia'], provenance:'species', sun:'part', moist:'moist', phen:'cool', grow:3,
+    roles:['groundcover','woodland','fruit'],
+    look:{art2:true, dormantWhenBare:true, leaves:0, stems:5, stemSpread:22, lenBase:0.72, lenJitter:0.15,
+      leafShape:'ovate', stemLeafArrangement:'terminalWhorl', stemLeaves:1, stemLeafLen:6, stemLeafHW:2.1,
+      umbelStyle:'bracted', bractN:4, bractLen:4.5, bractW:1.8, florets:6, head:1.5},
+    blurb:'A rhizomatous dwarf shrub from cool northern North America and Asia. Short shoots carry a whorl-like ring of leaves below four white bracts surrounding tiny flowers, followed by red fruit in late summer and fall. Needs cool summers, acidic organic soil, steady moisture and drainage; it can be slow to establish. Not a lawn for foot traffic or a plant for hot, dry shade. Colonies can outgrow the one-foot planning patch.',
+    sea:{Spring:{fol:'#65834c',bloom:'#c5cf8a',bract:'#f2efdd'}, Summer:{fol:'#507540',bloom:'#c5cf8a',bract:'#f2efdd',seed:'#c94331'}, Fall:{fol:'#9c6545',seed:'#b83d2c'}, Winter:{}}},
+  pricklyrose:{ name:'Prickly Rose', latin:'Rosa acicularis', form:'bush', type:'shrub', h:40, cw:60, heightIn:48,
+    space:48, spread:60, zones:[1,6], nativeTo:['north-america','europe','asia'], provenance:'species', sun:'full', moist:'medium', phen:'cool', grow:3,
+    roles:['structure','fruit','pollinator'],
+    look:{art2:true, habit:'arching', sideScale:1.2, compound:'pinnate', pinnatePairs:3, pinnateLen:17, pinnateLeafW:1.4,
+      leafShape:'ovate', leafTeeth:0.16, leafTeethN:5, twigN:10, bloomStyle:'rose', flowerShape:'single', flowerN:10,
+      hipN:3, fallMix:['#bda351','#997448']},
+    blurb:'A cold-hardy northern rose with prickly arching canes, single pink flowers and orange-red hips, some lasting into winter. Flowers once in late spring or early summer; the May-July calendar allows for regional timing, not continuous rebloom. Sun or light shade and well-drained soil suit it. Suckers can form a thicket beyond the five-foot planning spread, and deer and hares may browse it.',
+    sea:{Spring:{fol:'#6b8a50',bloom:'#da8ea9',eye:'#e6c14a'}, Summer:{fol:'#567444',bloom:'#d785a1',eye:'#e6c14a'}, Fall:{fol:'#ad944b',seed:'#c95b34'}, Winter:{twig:'#795948',seed:'#a6472e'}}},
+  woollygeranium:{ name:'Woolly Geranium', latin:'Geranium erianthum', synonyms:['Geranium pratense var. erianthum'], form:'umbel', type:'forb', h:26, heightIn:24,
+    space:18, spread:20, zones:[3,7], nativeTo:['north-america','asia'], provenance:'species', sun:'part', moist:'medium', phen:'cool',
+    roles:['woodland','pollinator'],
+    look:{art2:true, dormantWhenBare:true, leafStyle:'petiolate', leafShape:'palmate', leaves:8, leafHW:7, leafLen:0.25,
+      leafSpread:0.85, petioles:0.3, stems:5, stemSpread:21, lenBase:0.68, lenJitter:0.22,
+      umbelStyle:'looseFlowers', headSpread:6, flowerR:4.2},
+    blurb:'A northern North American and Asian perennial with broad palmate leaves and violet-blue, five-petaled flowers in late spring and summer. A loose clump for sun or partial shade in moist, well-drained soil. Alaska garden experience supports cold tolerance, but zones 3-7 here are a provisional planning range: check local provenance, summer conditions and nursery guidance. Dies back in winter.',
+    sea:{Spring:{fol:'#6d8a5b',bloom:'#8877b7',eye:'#dad3e5'}, Summer:{fol:'#59794b',bloom:'#8070ae',eye:'#dad3e5'}, Fall:{fol:'#ac8754',seed:'#8b7052'}, Winter:{}}},
 };
 
 
@@ -6505,6 +6546,7 @@ for (const [key,P] of Object.entries(PLANTS)){
    month runs also drive the continuous live bloom window unless a species has
    a precise bloomDay override. */
 const BLOOM_MONTHS = {
+  wildstrawberry:[4,5], spicebush:[3,4], bunchberry:[5,6,7], pricklyrose:[5,6,7], woollygeranium:[5,6,7],
   // grasses and grass-like flowering/seed interest
   bluestem:[8,9,10], bigbluestem:[8,9], switchgrass:[7,8], dropseed:[8,9,10], indiangrass:[8,9],
   bluegrama:[6,7,8], karl:[6,7], overdam:[6,7], sesleria:[8,9], bluemoorgrass:[3,4,5],
@@ -6711,6 +6753,11 @@ for (const k in BLOOM_MONTHS) if (PLANTS[k]) PLANTS[k].bloomMonths = BLOOM_MONTH
    renders no "Learn more" row for it. That is the intended state, not a gap to
    be filled with a plausible guess. */
 const WIKIPEDIA_ARTICLES = {
+  wildstrawberry:         "Fragaria virginiana",
+  spicebush:              "Lindera benzoin",
+  bunchberry:             "Cornus canadensis",
+  pricklyrose:            "Rosa acicularis",
+  woollygeranium:         "Geranium erianthum",
   bluestem:               "Schizachyrium scoparium",
   bigbluestem:            "Andropogon gerardi",
   switchgrass:            "Panicum virgatum",

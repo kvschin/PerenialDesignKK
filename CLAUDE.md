@@ -5944,6 +5944,21 @@ on the base record so every cultivar inherits the species-correct seedhead.
 Its hairs lengthen as the August–October bloom window fades, giving late fall
 and winter a fluffier read without adding more visual seasons or month palettes.
 
+**October 2026 audit additions:** Wild Strawberry, Spicebush, Bunchberry,
+Prickly Rose and Woolly Geranium are straight-species records; source notes
+and planning limits live in `docs/plant-data/audit-additions.md`. Bunchberry
+remains `type:'shrub'` with a low `form:'umbel'`: drawing form does not change
+its woody placement/counting contract. Woolly Geranium's zones 3–7 are
+provisional, Prickly Rose's upper zone 6 is a planning limit, and spacing and
+woody `grow` values are estimates rather than promises of colony containment
+or local performance. Four shared options are opt-in: `shrub` with
+`habit:'matflower'` accepts `compound:'trifoliate'` and `fruitStyle:'fleshy'`
+for runner leaflets and post-flower fruit; `stemLeafArrangement:'terminalWhorl'`
+adds six leaves below each shoot tip; `umbelStyle:'bracted'` accepts `bractN`
+clamped to 3–6 with `bractLen`/`bractW`, and omits flowering bracts at fruiting.
+Counts and dimensions remain bounded and seeded; entries without these
+options retain their existing grammar. No species-key drawing branches.
+
 Native status is relational, never inferred from hardiness: `nativeRelation`
 compares a resolved species/cultivar's `nativeTo` with the garden's
 `nativeRegion`, while `passesNativeFilter` also applies provenance. The first

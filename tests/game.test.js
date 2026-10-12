@@ -18199,3 +18199,34 @@ test('every structure kind in the scene is actually drawn', () => {
   }
   assert(n >= 12, 'and the check found the structure kinds to check: ' + n);
 });
+
+
+test('audit groundcover morphology is seasonal, finite and deterministic in both styles', () => {
+ const previous=ART2.on,keys=['wildstrawberry','spicebush','bunchberry','pricklyrose','woollygeranium'];
+ try {for(const mode of [false,true]){
+  ART2.on=mode;
+  for(const key of keys)for(const season of SEASONS)for(const growth of [0.4,1])for(const bloom of [0,1]){
+    const a=nativePerennialTrace(key,season,growth,bloom);
+    assertEqual(a,nativePerennialTrace(key,season,growth,bloom),key+' stable drawing');
+  }
+  for(const key of ['wildstrawberry','bunchberry','woollygeranium'])
+    assertEqual(nativePerennialTrace(key,'Winter'),'[]',key+' dormant without floating stems/snow');
+  const P=PLANTS.bunchberry,bract=P.sea.Summer.bract;
+  const fruit=nativePerennialTrace('bunchberry','Summer',1,0);
+  try {delete P.sea.Summer.bract;assertEqual(nativePerennialTrace('bunchberry','Summer',1,0),fruit,'fruit never keeps white bracts');}
+  finally{P.sea.Summer.bract=bract;}
+  for(const [key,season,field] of [['wildstrawberry','Spring','compound'],['wildstrawberry','Summer','fruitStyle'],['bunchberry','Spring','bractN'],['bunchberry','Summer','stemLeafArrangement']]){
+    const L=PLANTS[key].look,saved=L[field],on=nativePerennialTrace(key,season);
+    try {delete L[field];assert(on!==nativePerennialTrace(key,season),key+' authored '+field+' is rendered');}
+    finally {L[field]=saved;}
+  }
+ }}finally{ART2.on=previous;}
+});
+
+test('audit shrubs use ordinary stem occupancy while their spread stays plantable', () => {
+ for(const key of ['spicebush','bunchberry','pricklyrose']){
+  setup(81,81);game.tool=key;assertEqual(applyToolAt(40,40),'plant',key+' ordinary placement');
+  game.tool='wildstrawberry';assertEqual(applyToolAt(40,40),null,key+' stem occupied');
+  assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
+ }
+});
