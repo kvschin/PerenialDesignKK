@@ -18678,3 +18678,71 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+/* F12/F13/F16: restyling a placed object in place used to be a silent no-op.
+   The light's finish never reached the record, a pot's comparison ignored its
+   colour (and its own planting refused it), and a pet's ignored its socks. Each
+   restyle has to land, undo as one step, and survive a save and reload. */
+test('restyling a light, a pot or a pet in place changes it, undoes, and saves', async () => {
+  setup(21, 21);
+  game.worldId = 'restyle-in-place';
+  const restyle = (x, y) => { let r; withUndo(() => { r = applyToolAt(x, y); }); return r; };
+
+  game.tool = 'light'; game.lightDraft = { type: 'path', tone: 'warm', finish: 'graphite' };
+  assertEqual(applyToolAt(3, 3), 'light', 'a light');
+  assertEqual(lightAt(3, 3).finish, 'graphite', 'the finish rides the record');
+  assertEqual(applyToolAt(3, 3), null, 'the same light again is a no-op');
+  game.lightDraft = { type: 'path', tone: 'warm', finish: 'copper' };
+  assertEqual(restyle(3, 3), 'light', 'a new finish restyles the light');
+  assertEqual(lightColors(lightAt(3, 3)).id, 'copper', 'and the painter reads it');
+  doUndo();
+  assertEqual(lightAt(3, 3).finish, 'graphite', 'one undo puts the old finish back');
+  doRedo();
+  // a record saved before finishes existed reads as its fixture's first finish
+  game.lights['4,4'] = { type: 'path', tone: 'warm', t: 1 };
+  game.lightDraft = { type: 'path', tone: 'warm', finish: 'graphite' };
+  assertEqual(applyToolAt(4, 4), null, 'a legacy light already IS graphite');
+
+  const forb = firstOfType('forb');
+  game.tool = 'pot'; game.potDraft = { style: 'terracotta', size: 'p18', finish: '' };
+  assertEqual(applyToolAt(6, 6), 'pot', 'a pot');
+  game.tool = forb; assertEqual(applyToolAt(6, 6), 'plant', 'planted');
+  const plant = game.plants['6,6'];
+  game.tool = 'pot'; game.potDraft = { style: 'terracotta', size: 'p18', finish: 'charcoal' };
+  assertEqual(restyle(6, 6), 'pot', 'a planted pot recolours in place');
+  assertEqual(potAt(6, 6).finish, 'charcoal', 'the new colour');
+  assert(game.plants['6,6'] === plant, 'and keeps its planting');
+  doUndo();
+  assertEqual(potAt(6, 6).finish, '', 'one undo restores the natural finish');
+  assert(game.plants['6,6'] && !game.plants['6,6'].removed, 'with the planting still there');
+  doRedo();
+  game.potDraft = { style: 'terracotta', size: 'p18', finish: 'charcoal' };
+  assertEqual(applyToolAt(6, 6), null, 'the same pot again is a no-op');
+
+  // a trough that would shrink out from under its own planting refuses
+  game.potDraft = { style: 'trough', size: 'trough54', finish: '' };
+  assertEqual(applyToolAt(10, 10), 'pot', 'a trough');
+  game.tool = forb; assertEqual(applyToolAt(12, 10), 'plant', 'planted at the far end');
+  game.tool = 'pot'; game.potDraft = { style: 'trough', size: 'trough36', finish: '' };
+  assertEqual(applyToolAt(10, 10), null, 'a shorter trough would strand that plant');
+  game.potDraft = { style: 'trough', size: 'trough54', finish: 'sage' };
+  assertEqual(applyToolAt(10, 10), 'pot', 'the same trough recolours');
+
+  game.tool = 'pet'; game.petDraft = { species: 'cat', coat: 'smoke', mark: 'patch', paws: '' };
+  assertEqual(applyToolAt(15, 15), 'pet', 'a cat');
+  const paws = PET_PAWS.find(p => p.id !== petAt(15, 15).paws).id;
+  game.petDraft = Object.assign({}, game.petDraft, { paws });
+  assertEqual(restyle(15, 15), 'pet', 'new socks restyle the cat');
+  assertEqual(petAt(15, 15).paws, paws);
+  doUndo();
+  assert(petAt(15, 15).paws !== paws, 'one undo takes the socks back off');
+  doRedo();
+
+  assert(await saveSolo(true), 'saved');
+  assert(await loadSolo('restyle-in-place'), 'reloaded');
+  assertEqual(lightAt(3, 3).finish, 'copper', 'the light finish survives a reload');
+  assertEqual(potAt(6, 6).finish, 'charcoal', 'so does the pot colour');
+  assert(game.plants['6,6'] && !game.plants['6,6'].removed, 'and its planting');
+  assertEqual(potAt(10, 10).finish, 'sage', 'and the trough');
+  assertEqual(petAt(15, 15).paws, paws, 'and the socks');
+});
