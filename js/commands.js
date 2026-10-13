@@ -827,9 +827,12 @@ function canPlaceLight(x,y){
 function placeLightAt(x,y){
   if (!canPlaceLight(x,y)) return null;
   const d=normalizeLightDraft(lightDraft()), k=`${x},${y}`, now=Date.now();
-  const next={type:lightTypeId(d.type),tone:lightToneId(d.tone),t:now};
+  // the finish rides the record (F12): drawLightArt reads it through
+  // lightColors, and a record without one draws as its fixture's first finish
+  const next={type:lightTypeId(d.type),tone:lightToneId(d.tone),finish:d.finish,t:now};
   const cur=lightAt(x,y);
-  if (cur && cur.type===next.type && cur.tone===next.tone) return null;
+  if (cur && cur.type===next.type && cur.tone===next.tone
+      && lightFinishFor(cur.type,cur.finish)===next.finish) return null;
   setTile('lights',k,next);
   return 'light';
 }
@@ -857,7 +860,8 @@ function placePetAt(x,y){
   if (!canPlacePet(x,y)) return null;
   const d=normalizePetDraft(petDraft()), k=`${x},${y}`;
   const cur=petAt(x,y);
-  if (cur && cur.species===d.species && cur.coat===d.coat && cur.mark===d.mark) return null;
+  if (cur && cur.species===d.species && cur.coat===d.coat && cur.mark===d.mark
+      && petPaw(cur.paws).id===d.paws) return null;
   setTile('pets',k,Object.assign({},d,{t:Date.now()}));
   return 'pet';
 }
@@ -935,9 +939,24 @@ function canPlacePot(x,y,ignoreKey){
     if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
         || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
     const p=potAt(xx,yy); if (p && p.key!==ignoreKey) return false;
-    // an in-ground plant already here would be standing in the pot by accident
+    // an in-ground plant already here would be standing in the pot by accident;
+    // the planting of the very pot being restyled is not in-ground (F13)
+    if (p && p.key===ignoreKey) continue;
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
     if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
+  }
+  /* A restyle that SHRINKS a trough must not strand its planting outside the
+     new vessel, where it would silently become an in-ground plant breaking the
+     spacing it was exempt from — refuse rather than lift it. */
+  const old=ignoreKey&&game.pots&&game.pots[ignoreKey];
+  if (old && !old.removed){
+    const [ox,oy]=ignoreKey.split(',').map(Number);
+    const keep=new Set(potFootprint(x,y,d).map(([a,b])=>`${a},${b}`));
+    for (const [xx,yy] of potFootprint(ox,oy,old)){
+      const k=`${xx},${yy}`; if (keep.has(k)) continue;
+      const pl=game.plants[k], bl=game.bulbs[k];
+      if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
+    }
   }
   return true;
 }
@@ -945,7 +964,8 @@ function placePotAt(x,y){
   if (!game.pots) game.pots={};
   const d=normalizePotDraft(potDraft()), k=`${x},${y}`;
   const cur=game.pots[k];
-  if (cur && !cur.removed && cur.style===d.style && cur.size===d.size && normalizeFacing(cur.face)===d.face) return null;
+  if (cur && !cur.removed && cur.style===d.style && cur.size===d.size && normalizeFacing(cur.face)===d.face
+      && potFinishFor(cur.style,cur.finish)===d.finish) return null;
   if (!canPlacePot(x,y,k)) return null;
   setTile('pots',k,Object.assign({},d,{t:Date.now()}));
   return 'pot';

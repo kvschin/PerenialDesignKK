@@ -3069,6 +3069,13 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     `#6c6958`), so a saved garden reopens looking exactly as it did; a test pins
     that literal. `drawLightArt` reads `lightColors` and never a hardcoded metal,
     which a test greps for.
+    **`placeLightAt` must WRITE the finish** (F12): it stored `{type,tone,t}`,
+    so the finish chips changed the tray and never the garden. It stores
+    `finish` now and compares it through `lightFinishFor`, so a legacy record
+    without one reads as graphite and re-placing graphite on it is a no-op.
+    The same restyle-in-place rule holds for pots (F13: `finish` is compared,
+    and a pot's OWN planting no longer refuses its restyle; a trough that would
+    shrink out from under its planting still refuses) and pets (F16: `paws`).
     **Two fixtures joined the three**, and the UPLIGHT is the one that mattered:
     every other fixture lays a POOL on the ground, and the thing that actually
     makes a garden at night is a can aimed up the trunk of a specimen tree —
@@ -3750,6 +3757,7 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     and never the style directly; the finish rides the record, so
     `structRecordSig` puts it in the sprite key for free, the eyedropper picks
     it up, and the planting list bills each colour as its own order line.
+    Recolouring a planted pot in place keeps its planting (F13).
     **Both pots and seating draw at real size**, and the geometry has two traps
     worth not rediscovering. The tile diamond is `TILE_W` wide but a tile is
     `TILE_IN` inches on a SIDE, so that width spans the tile's DIAGONAL — sizing
