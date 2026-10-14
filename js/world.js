@@ -475,7 +475,14 @@ const LAYER_CACHES={
   houses:    {scene:1, trace:1},
   buildings: {scene:1, trace:1},
 };
+/* A per-LAYER edit counter, for the caches that only one layer can move (the
+   structure footprint indexes in commands.js). sceneRev is the wrong key for
+   those: a planting drag bumps it on every stamp, and a bench cannot have moved.
+   Monotonic and never reset; a wholesale swap (load, undo, new garden) is
+   caught by map identity, as potIndex does. */
+const LAYER_REV=Object.create(null);
 function markLayerCacheChanged(layer,key){
+  LAYER_REV[layer]=(LAYER_REV[layer]||0)+1;
   const c=LAYER_CACHES[layer] || {scene:1, plants:1, trace:1, pots:1, pergolas:1, shade:1};   // unknown layer: assume the worst
   if (c.scene) game.sceneRev++;
   if (c.plants) game.plantsRev++;

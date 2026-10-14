@@ -1152,18 +1152,61 @@ function finishTerraceDrag(x0,y0,x1,y1){
   else toast('That terrace is already there.');
   return n;
 }
-/* ---------- seating ---------- */
-function seatDraft(){ return game.seatDraft=normalizeSeatDraft(game.seatDraft); }
-function seatLabel(s){ return seatLabelFor(s||seatDraft()); }
-function seatAt(x,y){
-  if (!game.seats) return null;
-  for (const k in game.seats){
-    const s=game.seats[k]; if (!s || s.removed) continue;
-    const [sx,sy]=k.split(',').map(Number), sz=seatTileSize(s);
-    if (x>=sx && x<sx+sz.w && y>=sy && y<sy+sz.h) return Object.assign({key:k,x:sx,y:sy},s);
+/* The footprint index for a keyed multi-tile layer (seats, fire pits, water
+   features, boulders): tile -> the record standing on it. seatAt and its
+   siblings scanned the whole layer, tombstones included, with a string split
+   and two array allocations per record per LOOKUP, and they sit under every
+   placement guard (placePlantAt, canPlaceShrubAt, the canPlace* family, each
+   tile of a footprint check, the selection overlay's verdicts) -- so a fat
+   brush stroke over a furnished garden paid O(tiles x structures) on the guard
+   alone. Same shape as potIndex: keyed on the layer's own LAYER_REV + map
+   identity + plot size, numeric keys so a miss allocates nothing.
+   It answers EXACTLY as the scan did, which is what a test pins tile by tile:
+   the first record in key order wins an overlap (set only if absent), a
+   fractional coordinate belongs to the tile it sits inside, and if any record
+   has a non-integer origin or a footprint reaching off the plot (only an odd
+   imported file could) the index declines and the old scan answers instead. */
+const footprintIndexCache=Object.create(null);
+function footprintIndex(layer,sizeOf){
+  const m=game[layer], rev=LAYER_REV[layer]||0, c=footprintIndexCache[layer];
+  if (c && c.rev===rev && c.ref===m && c.gw===GW && c.gh===GH) return c;
+  const map=new Map();
+  let exact=true;
+  for (const k in m){
+    const r=m[k]; if (!r || r.removed) continue;
+    const ci=k.indexOf(','), px=+k.slice(0,ci), py=+k.slice(ci+1), sz=sizeOf(r);
+    if (ci<0 || !Number.isInteger(px) || !Number.isInteger(py) || px<0 || py<0
+        || px+sz.w>GW || py+sz.h>GH){ exact=false; break; }
+    const rec={key:k, x:px, y:py, r};
+    for (let yy=py; yy<py+sz.h; yy++) for (let xx=px; xx<px+sz.w; xx++){
+      const i=yy*GW+xx; if (!map.has(i)) map.set(i,rec);
+    }
+  }
+  return footprintIndexCache[layer]={rev, ref:m, gw:GW, gh:GH, map, exact};
+}
+function footprintScan(m,sizeOf,x,y){   // the original lookup, kept as the fallback
+  for (const k in m){
+    const r=m[k]; if (!r || r.removed) continue;
+    const [rx,ry]=k.split(',').map(Number), sz=sizeOf(r);
+    if (x>=rx && x<rx+sz.w && y>=ry && y<ry+sz.h) return Object.assign({key:k,x:rx,y:ry},r);
   }
   return null;
 }
+function footprintAt(layer,sizeOf,x,y){
+  const m=game[layer];
+  if (!m) return null;
+  const idx=footprintIndex(layer,sizeOf);
+  if (!idx.exact) return footprintScan(m,sizeOf,x,y);
+  if (!idx.map.size) return null;
+  const xi=Math.floor(x), yi=Math.floor(y);
+  if (xi<0 || yi<0 || xi>=GW || yi>=GH) return null;
+  const e=idx.map.get(yi*GW+xi);
+  return e ? Object.assign({key:e.key,x:e.x,y:e.y},e.r) : null;
+}
+/* ---------- seating ---------- */
+function seatDraft(){ return game.seatDraft=normalizeSeatDraft(game.seatDraft); }
+function seatLabel(s){ return seatLabelFor(s||seatDraft()); }
+function seatAt(x,y){ return footprintAt('seats',seatTileSize,x,y); }
 function seatFootprint(x,y,s){
   const sz=seatTileSize(s), tiles=[];
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
@@ -1202,16 +1245,7 @@ function petLabel(p){
 function firepitDraft(){ return game.firepitDraft=normalizeFirepitDraft(game.firepitDraft); }
 // "36 in round tumbled brick fire pit", "24 in copper fire bowl" — see firepitLabelFor
 function firepitLabel(f){ return firepitLabelFor(f||firepitDraft()); }
-function firepitAt(x,y){
-  if (!game.firepits) return null;
-  for (const k in game.firepits){
-    const f=game.firepits[k]; if (!f || f.removed) continue;
-    const [fx,fy]=k.split(',').map(Number), sz=firepitTileSize(f);
-    if (x>=fx && x<fx+sz.w && y>=fy && y<fy+sz.h)
-      return Object.assign({key:k,x:fx,y:fy},f);
-  }
-  return null;
-}
+function firepitAt(x,y){ return footprintAt('firepits',firepitTileSize,x,y); }
 function firepitFootprint(x,y,f){
   const sz=firepitTileSize(f), tiles=[];
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
@@ -1253,15 +1287,7 @@ function placeFirepitAt(x,y){
    than a clean refusal. */
 function waterFeatureDraft(){ return game.waterFeatureDraft=normalizeWaterFeatureDraft(game.waterFeatureDraft); }
 function waterFeatureLabel(w){ return waterFeatureLabelFor(w||waterFeatureDraft()); }
-function waterFeatureAt(x,y){
-  if (!game.waterFeatures) return null;
-  for (const k in game.waterFeatures){
-    const w=game.waterFeatures[k]; if (!w || w.removed) continue;
-    const [wx,wy]=k.split(',').map(Number), sz=waterFeatureTileSize(w);
-    if (x>=wx && x<wx+sz.w && y>=wy && y<wy+sz.h) return Object.assign({key:k,x:wx,y:wy},w);
-  }
-  return null;
-}
+function waterFeatureAt(x,y){ return footprintAt('waterFeatures',waterFeatureTileSize,x,y); }
 function waterFeatureFootprint(x,y,w){
   const sz=waterFeatureTileSize(w), tiles=[];
   for (let dy=0;dy<sz.h;dy++) for (let dx=0;dx<sz.w;dx++) tiles.push([x+dx,y+dy]);
@@ -1385,16 +1411,7 @@ function placeSupportAt(x,y){
 }
 function boulderDraft(){ return game.boulderDraft=normalizeBoulderDraft(game.boulderDraft); }
 function boulderLabel(b){ return boulderLabelFor(b||boulderDraft()); }
-function boulderAt(x,y){
-  if (!game.boulders) return null;
-  for (const k in game.boulders){
-    const b=game.boulders[k]; if (!b || b.removed) continue;
-    const [bx,by]=k.split(',').map(Number), sz=boulderTileSize(b);
-    if (x>=bx && x<bx+sz.w && y>=by && y<by+sz.h)
-      return Object.assign({key:k,x:bx,y:by},b);
-  }
-  return null;
-}
+function boulderAt(x,y){ return footprintAt('boulders',boulderTileSize,x,y); }
 function boulderFootprint(x,y,b){
   const sz=boulderTileSize(b), tiles=[];
   for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
