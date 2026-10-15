@@ -18678,3 +18678,101 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+/* ---------- placement does not depend on order (F08 F09 F11 F14 F15) ---------- */
+const SOLID_PLACERS = {
+  fence:   () => { game.fenceDraft = { style: 'black', height: 4, gate: false }; return placeFenceAt(6, 6); },
+  light:   () => { game.lightDraft = { type: 'path', tone: 'warm' }; return placeLightAt(6, 6); },
+  pot:     () => { game.potDraft = { style: 'terracotta', size: 'p18' }; return placePotAt(6, 6); },
+  seat:    () => { game.seatDraft = { type: 'stool', finish: 'teak', face: 0 }; return placeSeatAt(6, 6); },
+  firepit: () => { game.firepitDraft = { shape: 'round', size: 'round36' }; return placeFirepitAt(6, 6); },
+  water:   () => { game.waterFeatureDraft = { form: 'birdbath', finish: 'stone', face: 0 }; return placeWaterFeatureAt(6, 6); },
+  support: () => { game.supportDraft = { style: 'obelisk', mat: 'timber', face: 0 }; return placeSupportAt(6, 6); },
+  boulder: () => { game.boulderDraft = { type: 'round1' }; return placeBoulderAt(6, 6); },
+};
+test('F08: every pair of solid objects refuses to share a tile in BOTH orders', () => {
+  const names = Object.keys(SOLID_PLACERS), bad = [];
+  for (const a of names) for (const b of names){
+    if (a === b) continue;
+    setup(15, 15);
+    if (!SOLID_PLACERS[a]()) { bad.push(`${a} alone did not place`); continue; }
+    if (SOLID_PLACERS[b]()) bad.push(`${b} placed over ${a}`);
+  }
+  assertEqual(bad.join('; '), '', 'no order lets two solids stand on one tile');
+  // each still restyles itself in place: its own key is not a clash
+  setup(15, 15);
+  SOLID_PLACERS.pot();
+  game.potDraft = { style: 'glazed', size: 'p18' };
+  assertEqual(placePotAt(6, 6), 'pot', 'a pot can still be restyled where it stands');
+  assertEqual(solidBlockerAt(6, 6, 'pot', '6,6'), null, 'it is not its own blocker');
+  assertEqual(solidBlockerAt(6, 6, 'seat', null), 'pot', 'and blocks anything else');
+});
+test('F08: what may stand under a pergola is the same whichever goes first', () => {
+  const under = ['light', 'pot', 'seat', 'boulder', 'water'], never = ['fence', 'firepit', 'support'];
+  const roof = () => { game.pergolaDraft = { mat: 'timber', height: 8 }; return placePergolaRect(pergolaRect(4, 4, 8, 8)); };
+  for (const n of under){
+    setup(15, 15); assert(roof(), 'roof'); assert(SOLID_PLACERS[n](), `${n} goes under a roof`);
+    setup(15, 15); assert(SOLID_PLACERS[n](), n); assert(roof(), `a roof goes over a ${n}`);
+  }
+  for (const n of never){
+    setup(15, 15); assert(roof(), 'roof'); assert(!SOLID_PLACERS[n](), `no ${n} under a roof`);
+    setup(15, 15); assert(SOLID_PLACERS[n](), n); assert(!roof(), `no roof over a ${n}`);
+  }
+});
+test('F09: painting water skips a pot, a seat and a pergola and leaves them standing', () => {
+  setup(15, 15);
+  SOLID_PLACERS.pot();
+  game.seatDraft = { type: 'stool', finish: 'teak', face: 0 }; placeSeatAt(8, 6);
+  game.pergolaDraft = { mat: 'timber', height: 8 }; placePergolaRect(pergolaRect(10, 10, 11, 11));
+  game.tool = 'water';
+  assertEqual(placeTerrainAt(6, 6), null, 'no water under a pot');
+  assertEqual(placeTerrainAt(8, 6), null, 'or a seat');
+  assertEqual(placeTerrainAt(10, 10), null, 'or a pergola');
+  assert(potAt(6, 6) && seatAt(8, 6) && pergolaAt(10, 10), 'all three are still there');
+  assertEqual(placeTerrainAt(3, 3), 'water', 'open ground still floods');
+  game.tool = 'path';
+  assertEqual(placeTerrainAt(6, 6), 'path', 'paving under a pot is still fine');
+});
+test('F11: erasing a fence takes its climber, and one undo puts both back', () => {
+  setup(15, 15);
+  SOLID_PLACERS.fence();
+  game.tool = 'trumpethoneysuckle';
+  assertEqual(placePlantAt(6, 6), 'plant', 'a climber goes on the fence');
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  const counts = { plants: 0, bulbs: 0, terr: 0 };
+  withUndo(() => eraseBrush(6, 6, counts));
+  assert(!fenceAt(6, 6), 'fence erased');
+  assert(!live(game.plants).includes('6,6'), 'its climber goes with it');
+  assertEqual(counts.plants, 1, 'and is counted');
+  doUndo();
+  assert(fenceAt(6, 6) && live(game.plants).includes('6,6'), 'undo restores the fence and the climber together');
+});
+test('F14: levelling a rim beside a hollow keeps its wall; the wall goes once the hollow does', () => {
+  setup(15, 15);
+  setTile('elevation', '6,6', { h: -1, t: 1 });
+  setTile('elevation', '7,6', { h: 1, w: 'drystone', t: 1 });
+  assertEqual(setElevationAt(7, 6, 0), true, 'the terrace is levelled');
+  const r = game.elevation['7,6'];
+  assert(r && !r.removed && r.w === 'drystone' && r.h === 0, 'the tile still faces the hollow, so it keeps its wall');
+  // a terrace with nothing lower beside it loses the record entirely
+  setTile('elevation', '2,2', { h: 1, w: 'drystone', t: 1 });
+  setElevationAt(2, 2, 0);
+  assert(!live(game.elevation).includes('2,2'), 'no lower neighbour: nothing left to face');
+  // filling the hollow retires the rim's grade record
+  setElevationAt(6, 6, 0);
+  assert(!live(game.elevation).includes('7,6'), 'hollow filled: the rim record goes too');
+});
+test('F15: a grade-level wall can be erased, and erasing a hollow leaves no rim records', () => {
+  setup(15, 15);
+  setTile('elevation', '6,6', { h: -1, t: 1 });
+  setTile('elevation', '7,6', { h: 0, w: 'drystone', t: 1 });
+  setTile('elevation', '5,6', { h: 0, w: 'brick', t: 1 });
+  game.eraseMode = 'terrain'; game.brushSize = 1;
+  const c1 = { plants: 0, bulbs: 0, terr: 0 };
+  eraseBrush(7, 6, c1);
+  assert(!live(game.elevation).includes('7,6'), 'the h:0 wall record is erasable');
+  assertEqual(c1.elev, 1, 'and counted');
+  const c2 = { plants: 0, bulbs: 0, terr: 0 };
+  eraseBrush(6, 6, c2);
+  assertEqual(live(game.elevation).length, 0, 'erasing the hollow tidies the rim wall that faced it');
+});

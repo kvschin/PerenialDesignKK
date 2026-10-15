@@ -513,6 +513,10 @@ function placeTerrainAt(x,y){
   if (game.tool==='water' && fenceAt(x,y)) return null;
   if (game.tool==='water' && lightAt(x,y)) return null;
   if (game.tool==='water' && petAt(x,y)) return null;
+  /* Pots and seats stand happily on paving, so they refuse only WATER -- and so
+     does a pergola, whose posts cannot stand in a pond (pergolaBlockerAt).
+     Skipping the tile leaves the object exactly as it was. */
+  if (game.tool==='water' && (potAt(x,y) || seatAt(x,y) || pergolaAt(x,y))) return null;
   if (firepitAt(x,y)) return null;
   if (waterFeatureAt(x,y)) return null;
   if (structureSupportAt(x,y)) return null;
@@ -799,11 +803,39 @@ function finishPergolaDrag(x0,y0,x1,y1){
   } else toast('That pergola is already there.');
   return n;
 }
+/* ---------- one occupancy rule for the solid objects ----------
+   Fences, lights, fire pits, water features, climbing frames, boulders, pots
+   and seats each stand ON their ground, and no two of them share a tile. Each
+   placer used to list the others it refused by hand, and the lists had drifted
+   apart: a pot refused a fence while a fence never asked about pots, so
+   pot-then-fence was legal and fence-then-pot was not, and which one you got
+   depended on the order you drew them in. They all ask this one question now.
+   `kind`/`ignoreKey` name the object being placed, so restyling it in place
+   (or a fence/light repainting its own tile) is not a clash with itself.
+   What MAY share a tile, deliberately: planting with nothing here (each placer
+   refuses an existing plant on its own terms), a pet (it claims nothing --
+   canPlacePet keeps it off the solids, but nothing is refused because of a
+   cat), and the pergola, which is a roof: lights, pots, seats, boulders and
+   water features stand under it, while a fence, a fire pit and a climbing
+   frame do not (pergolaBlockerAt and those three placers say so). */
+function solidBlockerAt(x,y,kind,ignoreKey){
+  const t=`${x},${y}`;
+  const other=(k,key)=>!(k===kind && key===ignoreKey);
+  let o;
+  if (fenceAt(x,y) && other('fence',t)) return 'fence';
+  if (lightAt(x,y) && other('light',t)) return 'light';
+  if ((o=firepitAt(x,y)) && other('firepit',o.key)) return 'firepit';
+  if ((o=waterFeatureAt(x,y)) && other('waterFeature',o.key)) return 'waterFeature';
+  if ((o=structureSupportAt(x,y)) && other('support',o.key)) return 'support';
+  if ((o=boulderAt(x,y)) && other('boulder',o.key)) return 'boulder';
+  if ((o=potAt(x,y)) && other('pot',o.key)) return 'pot';
+  if ((o=seatAt(x,y)) && other('seat',o.key)) return 'seat';
+  return null;
+}
 function canPlaceFence(x,y){
   if (!onPlot(x,y)) return false;
-  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water' || lightAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
-  if (waterFeatureAt(x,y) || pergolaAt(x,y)) return false;
-  const d=fenceDraft();
+  if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
+  if (solidBlockerAt(x,y,'fence',`${x},${y}`) || pergolaAt(x,y)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -819,8 +851,8 @@ function placeFenceAt(x,y){
 function canPlaceLight(x,y){
   if (!onPlot(x,y)) return false;
   if (siteStructureAt(x,y) || isDoor(x,y) || tileTerrain(x,y)==='water') return false;
-  if (fenceAt(x,y) || firepitAt(x,y) || boulderAt(x,y)) return false;
-  if (waterFeatureAt(x,y)) return false;     // under a pergola is fine: it is overhead
+  // under a pergola is fine: it is overhead
+  if (solidBlockerAt(x,y,'light',`${x},${y}`)) return false;
   const k=`${x},${y}`, p=game.plants[k], b=game.bulbs[k];
   return !(p&&!p.removed) && !(b&&!b.removed);
 }
@@ -932,9 +964,7 @@ function canPlacePot(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     // paving is FINE — that is the whole point. Water and structures are not.
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
-    const p=potAt(xx,yy); if (p && p.key!==ignoreKey) return false;
+    if (solidBlockerAt(xx,yy,'pot',ignoreKey)) return false;
     // an in-ground plant already here would be standing in the pot by accident
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
     if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
@@ -1175,9 +1205,7 @@ function canPlaceSeat(x,y,ignoreKey){
   for (const [xx,yy] of seatFootprint(x,y,d)){
     if (!onPlot(xx,yy)) return false;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)
-        || potAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
-    const s=seatAt(xx,yy); if (s && s.key!==ignoreKey) return false;
+    if (solidBlockerAt(xx,yy,'seat',ignoreKey)) return false;
     const k=`${xx},${yy}`, pl=game.plants[k], bl=game.bulbs[k];
     if ((pl&&!pl.removed)||(bl&&!bl.removed)) return false;
   }
@@ -1224,10 +1252,8 @@ function canPlaceFirepit(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || boulderAt(xx,yy)) return false;
     // no fire under a pergola: the other half of pergolaBlockerAt
-    if (waterFeatureAt(xx,yy) || pergolaAt(xx,yy)) return false;
-    const fp=firepitAt(xx,yy); if (fp && fp.key!==ignoreKey) return false;
+    if (solidBlockerAt(xx,yy,'firepit',ignoreKey) || pergolaAt(xx,yy)) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
   }
@@ -1284,9 +1310,7 @@ function canPlaceWaterFeature(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy)) return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)) return false;
-    if (potAt(xx,yy) || seatAt(xx,yy) || structureSupportAt(xx,yy)) return false;
-    const wf=waterFeatureAt(xx,yy); if (wf && wf.key!==ignoreKey) return false;
+    if (solidBlockerAt(xx,yy,'waterFeature',ignoreKey)) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
   }
@@ -1364,10 +1388,8 @@ function canPlaceSupport(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || boulderAt(xx,yy)) return false;
-    if (potAt(xx,yy) || seatAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
+    if (solidBlockerAt(xx,yy,'support',ignoreKey)) return false;
     if (pergolaAt(xx,yy)) return false;      // its posts are the climbing frame there
-    const other=structureSupportAt(xx,yy); if (other && other.key!==ignoreKey) return false;
     // as a pot does: the structure goes down first, then the climber goes on it
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
@@ -1407,8 +1429,7 @@ function canPlaceBoulder(x,y,ignoreKey){
     if (!onPlot(xx,yy)) return false;
     const k=`${xx},${yy}`;
     if (siteStructureAt(xx,yy) || isDoor(xx,yy) || tileTerrain(xx,yy)==='water') return false;
-    if (fenceAt(xx,yy) || lightAt(xx,yy) || firepitAt(xx,yy) || waterFeatureAt(xx,yy)) return false;
-    const bo=boulderAt(xx,yy); if (bo && bo.key!==ignoreKey) return false;
+    if (solidBlockerAt(xx,yy,'boulder',ignoreKey)) return false;
     const p=game.plants[k], b=game.bulbs[k];
     if ((p&&!p.removed) || (b&&!b.removed)) return false;
   }
@@ -1894,9 +1915,19 @@ function eraseBrush(cx,cy,counts){
       clearTile('bulbs',k); counts.bulbs++; }
     if (terrOK && tileTerrain(x,y)){
       clearTile('terrain',k); counts.terr++; }
-    if (terrOK && elevationAt(x,y)){
-      clearTile('elevation',k); counts.elev=(counts.elev||0)+1; }
+    /* The RECORD, not the height: a grade-level wall {h:0,w} reads elevation 0
+       and could not be erased. And lifting a hollow tidies the rim walls that
+       faced it (tidyGradeWallsAround), or they ride every save as tombstones. */
+    const er=game.elevation && game.elevation[k];
+    if (terrOK && er && !er.removed){
+      clearTile('elevation',k); counts.elev=(counts.elev||0)+1;
+      tidyGradeWallsAround(x,y); }
     if (terrOK && fenceAt(x,y)){
+      /* A fence is a support (supportAt), so it takes its climber with it, as
+         a support or a pergola does below: a vine left standing would be on
+         ground placePlantAt refuses. */
+      const pv=game.plants[k];
+      if (pv && !pv.removed && (PLANTS[pv.s]||{}).type==='vine'){ clearTile('plants',k); counts.plants++; }
       clearTile('fences',k); counts.fence=(counts.fence||0)+1; }
     if (terrOK && lightAt(x,y)){
       clearTile('lights',k); counts.light=(counts.light||0)+1; }
