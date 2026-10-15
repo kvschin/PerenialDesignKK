@@ -4502,6 +4502,18 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     that landed as a different rock from the one previewed would read as a bug —
     Turn shows it another way round. The guidebook's props never move and keep
     the tile seed.
+12i. **One occupancy rule for solid objects** (`solidBlockerAt`, commands.js;
+    F08). Fences, lights, fire pits, water features, climbing frames, boulders,
+    pots and seats never share a tile, and every placer asks this one function
+    rather than its own hand list -- the lists had drifted, so pot-then-fence
+    worked and fence-then-pot was refused. What may share: a pet claims nothing
+    (it keeps itself off solids; nothing refuses a cat), and under a pergola
+    roof lights, pots, seats, boulders and water features stand while a fence,
+    fire pit or climbing frame do not. Water paint skips pots, seats and
+    pergolas too (F09); erasing a fence takes its climber as a support does
+    (F11). A grade-level `{h:0,w}` record keeps its wall while a lower neighbour
+    remains, is erasable by the record rather than its height, and
+    `tidyGradeWallsAround` drops it once the hollow it faced is gone (F14, F15).
 13. **Storage** — async `sGet`/`sSet` over IndexedDB, with a localStorage
     fallback when IndexedDB is unavailable. Worlds
     are named slots: `hortus:worlds` is the index `[{id,name,ts,gw,gh}]`,

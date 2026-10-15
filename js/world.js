@@ -1771,10 +1771,31 @@ function setElevationAt(x,y,h){
      height changed — raise a walled bank one more course and the stone was gone,
      with nothing said. Levelling to 0 does drop it, and should: there is no
      exposed face left to hold anything up. */
-  const cur=game.elevation && game.elevation[k];
-  if (n===0) clearTile('elevation',k);
-  else setTile('elevation',k,Object.assign({},(cur&&!cur.removed)?cur:null,{h:n,t:Date.now()}));
+  const cur=game.elevation && game.elevation[k], live=(cur&&!cur.removed)?cur:null;
+  /* At grade the record survives only to carry a wall that still has a face:
+     levelling a terrace beside a sunken patio leaves this tile the patio's RIM,
+     and stripping its facing would undo a wall the gardener painted. A grade
+     tile falls away only toward a lower neighbour, and the neighbours did not
+     move, so asking them is exact. */
+  const keepWall=n===0 && live && wallStyleId(live.w)!=='none'
+    && ELEV_DIRS.some(([dx,dy])=>{ const nx=x+dx, ny=y+dy;
+      return nx>=0 && ny>=0 && nx<GW && ny<GH && elevationAt(nx,ny)<0; });
+  if (n===0 && !keepWall) clearTile('elevation',k);
+  else setTile('elevation',k,Object.assign({},live,{h:n,t:Date.now()}));
+  tidyGradeWallsAround(x,y);
   return true;
+}
+/* A grade-level elevation record exists only to carry a wall facing a hollow
+   (paintWallAt, setTerraceTile). When the hollow beside it is filled or erased
+   there is nothing left to face, and the record is a tombstone that would ride
+   every save -- so drop it. Only the four neighbours can have lost their face. */
+function tidyGradeWallsAround(x,y){
+  if (!game.elevation) return;
+  for (const [dx,dy] of ELEV_DIRS){
+    const nx=x+dx, ny=y+dy, nk=`${nx},${ny}`, ne=game.elevation[nk];
+    if (!ne || ne.removed || elevationAt(nx,ny)!==0) continue;
+    if (!elevationDropDirs(nx,ny).length) clearTile('elevation',nk);
+  }
 }
 /* A retaining wall lives on the exposed face of a level change, and that face
    belongs to the HIGHER tile — it is the higher tile drawElevationSides paints.
