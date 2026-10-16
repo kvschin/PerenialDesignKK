@@ -5301,7 +5301,14 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     the retaining-wall facing painted onto a terrace face (§12c). Its dedicated debounced search spans all
     Landscape categories and routes a result into the correct tool/category;
     its result region is a responsive, vertically scrolling tool grid rather
-    than the legacy horizontal strip. The Hardscape tab draws fences and
+    than the legacy horizontal strip. **It finds every material and fixture ROW,
+    not only the tools** (`SEARCH_OPTION_SOURCES`/`searchOptionItems`, tray.js):
+    each source names a tool, its table and the draft a row is armed into, so
+    "deck", "composite", "stepping", "uplight" or "step light" find their row
+    and a click arms that row, and a row added to a table is searchable without
+    touching the search. Tools no tab lists (Edit footprint) sit in
+    `SEARCH_EXTRA_TOOLS`. A multi-word query matches its words anywhere in a
+    row ("corten fire"). A test walks every row of every table. The Hardscape tab draws fences and
     gates from `game.fenceDraft` at 3/4/5/6/8 ft in twelve materials —
     Black Aluminum, Wood Picket, Cedar Privacy, Horizontal Slat, Split Rail,
     Vinyl, Chainlink, Garden Wire, Brick, Stone Wall, Woven Hurdle and Bamboo
@@ -5899,6 +5906,11 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     viewport and every action below the fold. Rows use a three-column grid;
     the name and size/date metadata span above the overflow control to leave
     readable text beside the larger picture on narrow phones.
+    **A row is a list item, not a button** (U04): it was a `<button>` holding the
+    Actions `<button>`, which is invalid HTML. The garden NAME is the Open
+    button (`.world-open`) and its `::after` covers the whole row, so the
+    picture still opens it; the focus ring is drawn on that overlay, and
+    Actions sits above it (`z-index:1`) as its own button.
     Other screens are plot setup (`#plotScreen`, new solo gardens: name + acre presets + ONE
     always-visible plot diagram that owns size, shape, and orientation
     together. **One size, everywhere**: a plot is whole 18in tiles, so every
