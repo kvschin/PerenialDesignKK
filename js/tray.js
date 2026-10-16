@@ -1817,6 +1817,8 @@ const TOOL_SEARCH={
   firepit:{label:'Fire Pit',kind:'fill',drill:'firepit',
            hay:'fire pit firepit fire ring fire bowl hardscape structure round square rectangle 24 36 48 patio '+
                'stacked stone brick block concrete steel metal corten stainless cast iron copper'},
+  pergola:{label:'Pergola',kind:'fill',drill:'pergola',
+           hay:'pergola arbor arbour overhead roof shade structure rafters beams posts patio hardscape climber'},
   support:{label:'Support / Trellis',kind:'fill',drill:'support',
            hay:'support trellis obelisk tuteur arch arbor climber vine frame vertical hardscape structures willow timber metal'},
   waterfeature:{label:'Water Feature',kind:'fill',drill:'waterfeature',
@@ -1847,12 +1849,106 @@ function searchToolItems(){
   }));
   return out;
 }
+/* Per-OPTION results: every material and fixture row is findable by its own
+   name, derived from the tables that define it (U01). TOOL_SEARCH above finds a
+   tool by its vocabulary; it cannot find "deck", "composite", "stepping",
+   "uplight" or "step light", because those are rows in PATH_COLORS,
+   LAWN_STYLES and LIGHT_TYPES rather than tools, and a hand-kept word list
+   misses every row added after it was written. A source names the tool, the
+   table, the draft the row is armed into and how — so a new row is searchable
+   the moment it exists, and clicking the result arms THAT material or fixture
+   rather than only opening its tool. `field` null means the draft is the bare
+   id (the terrain kinds, edging, wall); otherwise it is a key on a draft object
+   that `norm` normalises, the same normaliser the eyedropper uses. */
+function searchFinishLabels(table,ids){
+  return (ids||[]).map(id=>(table.find(f=>f.id===id)||{}).label||'').join(' ');
+}
+const SEARCH_OPTION_SOURCES=[
+  {tool:'lawn',  rows:()=>LAWN_STYLES,  draft:'lawnStyle',  norm:id=>lawnStyleId(id)},
+  {tool:'path',  rows:()=>PATH_COLORS,  draft:'pathColor',  norm:id=>pathColorId(id), groups:()=>PATH_GROUPS},
+  {tool:'bed',   rows:()=>BED_STYLES,   draft:'bedStyle',   norm:id=>bedStyleId(id),  groups:()=>BED_GROUPS},
+  {tool:'water', rows:()=>WATER_STYLES, draft:'waterStyle', norm:id=>waterStyleId(id)},
+  {tool:'edging',rows:()=>EDGING_STYLES,draft:'edgingDraft',norm:id=>edgingStyleId(id)},
+  {tool:'wall',  rows:()=>WALL_STYLES,  draft:'wallDraft',  norm:id=>wallStyleId(id)},
+  {tool:'fence', rows:()=>FENCE_STYLES, draft:'fenceDraft', field:'style', norm:d=>normalizeFenceDraft(d)},
+  {tool:'pergola',rows:()=>PERGOLA_MATERIALS,draft:'pergolaDraft',field:'mat',norm:d=>normalizePergolaDraft(d),
+   label:r=>r.label+' pergola', icon:(tc,d)=>drawPergolaChip(tc,d,48,44)},
+  {tool:'support',rows:()=>SUPPORT_STYLES,draft:'supportDraft',field:'style',norm:d=>normalizeSupportDraft(d),
+   extra:r=>searchFinishLabels(SUPPORT_MATERIALS,r.materials)},
+  {tool:'firepit',rows:()=>FIREPIT_STYLES,draft:'firepitDraft',field:'style',norm:d=>normalizeFirepitDraft(d),
+   label:r=>r.label+' fire pit', extra:r=>searchFinishLabels(FIREPIT_FINISHES,r.finishes),
+   icon:(tc,d)=>drawFirepitChip(tc,d,48,44)},
+  {tool:'waterfeature',rows:()=>WATER_FEATURES,draft:'waterFeatureDraft',field:'form',norm:d=>normalizeWaterFeatureDraft(d),
+   extra:r=>searchFinishLabels(WATER_FINISHES,r.finishes)},
+  // a boulder's FORM is what a gardener names; arming one takes its first size
+  {tool:'boulder',rows:()=>BOULDER_FORMS,draft:'boulderDraft',field:'type',norm:d=>normalizeBoulderDraft(d),
+   value:r=>(boulderFormTypes(r.id)[0]||BOULDER_TYPES[0]).id,
+   on:(d,r)=>boulderType(d.type).form===r.id,
+   label:r=>r.label+' boulder', extra:r=>searchFinishLabels(BOULDER_STONES,r.stones)+' rock stone',
+   icon:(tc,d)=>drawBoulderChip(tc,d,48,44)},
+  {tool:'seat', rows:()=>SEAT_TYPES,  draft:'seatDraft', field:'type', norm:d=>normalizeSeatDraft(d),
+   extra:r=>searchFinishLabels(SEAT_FINISHES,r.finishes), icon:(tc,d)=>drawSeatChip(tc,d,48,44)},
+  {tool:'light',rows:()=>LIGHT_TYPES, draft:'lightDraft',field:'type', norm:d=>normalizeLightDraft(d),
+   extra:r=>searchFinishLabels(LIGHT_FINISHES,r.finishes)},
+  {tool:'pot',  rows:()=>POT_STYLES,  draft:'potDraft',  field:'style',norm:d=>normalizePotDraft(d),
+   extra:r=>(r.natural||'')+' '+searchFinishLabels(POT_FINISHES,r.finishes)+' pot container planter'},
+  {tool:'pet',  rows:()=>PET_SPECIES, draft:'petDraft',  field:'species',norm:d=>normalizePetDraft(d)}
+];
+/* Tools no tab lists, so neither TRAY_CATS nor the index above can reach them.
+   Edit footprint is armed from the Site tab's own button. */
+const SEARCH_EXTRA_TOOLS=[
+  {cat:'house', tool:'building-edit', label:'Edit footprint', kind:'building',
+   hay:'edit footprint reshape trim add remove rename building house shed garage outline site'}
+];
+function searchOptionItems(){
+  const out=[];
+  SEARCH_OPTION_SOURCES.forEach(src=>{
+    const cat=brushTrayCatForTool(src.tool), meta=TOOL_SEARCH[src.tool]||{};
+    const groups=src.groups ? new Map(src.groups()) : null;
+    src.rows().forEach(r=>{
+      const value=src.value ? src.value(r) : r.id;
+      const draftFor=()=>src.field
+        ? src.norm(Object.assign({},game[src.draft]||{},{[src.field]:value}))
+        : src.norm(value);
+      const label=src.label ? src.label(r) : r.label;
+      out.push({cat, tool:src.tool, option:r.id, label, kind:meta.kind||'fill', drill:meta.drill,
+        hay:[label,r.label,r.short||'',r.id,groups&&groups.get(r.group)||'',src.extra?src.extra(r):'',
+          meta.label||src.tool].join(' ').toLowerCase(),
+        draftFor,
+        arm:()=>{ game[src.draft]=draftFor(); },
+        on:()=>{ if (game.tool!==src.tool) return false;
+          const d=src.norm(game[src.draft]);
+          return src.on ? src.on(d,r) : (src.field ? d[src.field]===value : d===value); },
+        icon:isTerrainKind(src.tool) ? (tc=>drawMaterialIcon(tc,24,22,18,13,src.tool,r.id))
+          : src.icon ? (tc=>src.icon(tc,draftFor())) : null});
+    });
+  });
+  return out;
+}
+/* A query matches when every word in it is somewhere in the item's text, so
+   "corten fire" and "grey gravel" find their rows without the words having to
+   sit next to each other in the hay. */
+function searchHayMatches(hay,label,q){
+  if (hay.includes(q)||label.toLowerCase().includes(q)) return true;
+  const words=q.split(/\s+/).filter(Boolean);
+  return words.length>1 && words.every(w=>hay.includes(w)||label.toLowerCase().includes(w));
+}
 function landscapeSearchItems(query){
   const q=String(query||'').toLowerCase().trim();
-  return q ? searchToolItems().filter(item=>item.hay.includes(q)||item.label.toLowerCase().includes(q)) : [];
+  if (!q) return [];
+  const extras=SEARCH_EXTRA_TOOLS.map(e=>Object.assign({},e,{hay:(e.hay+' '+e.label).toLowerCase()}));
+  const opts=searchOptionItems();
+  const out=[];
+  // each tool, then the rows of it that match, so a result list reads by tool
+  searchToolItems().concat(extras).forEach(item=>{
+    if (searchHayMatches(item.hay,item.label,q)) out.push(item);
+    opts.forEach(o=>{ if (o.tool===item.tool && searchHayMatches(o.hay,o.label,q)) out.push(o); });
+  });
+  return out;
 }
 function drawSearchToolIcon(tc,item){
   tc.clearRect(0,0,48,44);
+  if (item.icon){ item.icon(tc); return; }      // an option draws as the material or piece it arms
   if (isTerrainKind(item.tool)){
     drawMaterialIcon(tc,24,22,18,13,item.tool,terrainDraftId(item.tool));
     return;
@@ -1884,9 +1980,12 @@ function renderSearchPlantButton(tray,k){
 }
 function renderSearchToolButton(tray,item){
   const b=document.createElement('button');
-  b.className='tool'+(game.tool===item.tool?' sel':'')+(item.drill?' has-sub':'');
+  const sel=item.on ? item.on() : game.tool===item.tool;
+  b.className='tool'+(sel?' sel':'')+(item.drill?' has-sub':'');
   b.dataset.k=item.tool;
-  b.title=`${item.label} - ${trayCatLabel(item.cat)}`;
+  if (item.option) b.dataset.option=item.option;
+  const toolLabel=(TOOL_SEARCH[item.tool]||{}).label;
+  b.title=item.option&&toolLabel ? `${item.label} - ${toolLabel}, ${trayCatLabel(item.cat)}` : `${item.label} - ${trayCatLabel(item.cat)}`;
   const c=document.createElement('canvas'); c.width=48; c.height=44;
   drawSearchToolIcon(c.getContext('2d'),item);
   const sp=document.createElement('span'); sp.textContent=item.label;
@@ -1895,6 +1994,7 @@ function renderSearchToolButton(tray,item){
     saveTrayScroll();
     game.trayCat=item.cat; game.searchOpen=false; game.traySearch='';
     game.drill=item.drill||null;
+    if (item.arm) item.arm();                  // the row itself, not just its tool
     setTool(item.tool,null);
     buildToolTray();
   };
@@ -1903,11 +2003,11 @@ function renderSearchToolButton(tray,item){
 function renderLandscapeSearchTray(tray,query){
   const items=landscapeSearchItems(query), status=document.createElement('div');
   status.className='landscape-search-summary'; status.setAttribute('role','status');
-  status.textContent=`${items.length} landscape tool${items.length===1?'':'s'} found`;
+  status.textContent=`${items.length} landscape result${items.length===1?'':'s'} found`;
   tray.appendChild(status);
   if (!items.length){
     const empty=document.createElement('div'); empty.className='tray-empty landscape-search-empty';
-    empty.textContent=`No landscape tools match "${String(query||'').trim()}".`;
+    empty.textContent=`Nothing in the landscape library matches "${String(query||'').trim()}".`;
     tray.appendChild(empty); return;
   }
   items.forEach(item=>renderSearchToolButton(tray,item));

@@ -18678,3 +18678,73 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+/* U01: the landscape search used to be a hand-kept word list, so materials and
+   fixtures that were rows in a table rather than tools — decking, composite,
+   stepping stones, uplight, step light — answered "no match". The option index
+   is derived from the tables, so every row is findable by its own label, and
+   choosing it arms THAT row. */
+test('every landscape material and fixture label is findable, and arms its row', () => {
+  setup();
+  const sources = {
+    lawn: LAWN_STYLES, path: PATH_COLORS, bed: BED_STYLES, water: WATER_STYLES,
+    edging: EDGING_STYLES, wall: WALL_STYLES, fence: FENCE_STYLES, pergola: PERGOLA_MATERIALS,
+    support: SUPPORT_STYLES, firepit: FIREPIT_STYLES, waterfeature: WATER_FEATURES,
+    boulder: BOULDER_FORMS, seat: SEAT_TYPES, light: LIGHT_TYPES, pot: POT_STYLES, pet: PET_SPECIES
+  };
+  for (const tool in sources) sources[tool].forEach(r => {
+    const hits = landscapeSearchItems(r.label).filter(i => i.tool === tool && i.option === r.id);
+    assert(hits.length === 1, `"${r.label}" finds the ${tool} row ${r.id}`);
+  });
+  const arms = (q, tool, check, why) => {
+    const item = landscapeSearchItems(q).find(i => i.tool === tool && i.option);
+    assert(item, `"${q}" finds a ${tool} option`);
+    game.tool = 'hand'; item.arm(); game.tool = tool;
+    assert(check(), why);
+    assert(item.on(), `the "${q}" result reads as selected once armed`);
+  };
+  arms('deck', 'path', () => game.pathColor === 'deck', 'deck arms timber decking');
+  arms('composite', 'path', () => game.pathColor === 'composite', 'composite arms the composite boards');
+  arms('stepping', 'lawn', () => /step/.test(game.lawnStyle), 'stepping arms stepping stones');
+  arms('uplight', 'light', () => game.lightDraft.type === 'uplight', 'uplight arms the uplight');
+  arms('step light', 'light', () => game.lightDraft.type === 'step', 'step light arms the step light');
+  arms('basalt column', 'boulder', () => boulderType(game.boulderDraft.type).form === 'columns', 'columns arm a column type');
+  // multi-word queries match words anywhere in the row, not only as one phrase
+  assert(landscapeSearchItems('corten fire').some(i => i.tool === 'firepit' && i.option), 'corten fire finds a steel fire pit');
+  const edit = landscapeSearchItems('edit footprint');
+  assert(edit.some(i => i.tool === 'building-edit'), 'edit footprint finds the footprint editor');
+  assert(landscapeSearchItems('pergola').some(i => i.tool === 'pergola' && i.drill === 'pergola'), 'pergola opens its own page');
+  assertEqual(landscapeSearchItems('').length, 0, 'still nothing for an empty query');
+});
+
+/* U04: a garden row was a <button> holding the Actions <button>, which is
+   invalid HTML. The row is a list item now; the name is the Open button and
+   Actions is its own control beside it, not inside it. */
+test('a garden row is not a button, and opens and acts through two separate buttons', async () => {
+  setup();
+  await updateWorldsIndex(rows => (rows || []).filter(r => r.id !== 'u04row')
+    .concat([{ id: 'u04row', name: 'Row test', ts: Date.now(), gw: 31, gh: 31 }]));
+  await openWorlds();
+  const list = document.getElementById('worldList');
+  assertEqual(list.getAttribute('role'), 'list', 'the garden list is a list');
+  const row = list.children.find(r => {
+    const info = r.children.find(c => c.className === 'world-info');
+    return info && info.children[0].textContent === 'Row test';
+  });
+  assert(row, 'the seeded garden has a row');
+  assertEqual(row.tagName, 'DIV', 'the row itself is not interactive');
+  assertEqual(row.getAttribute('role'), 'listitem', 'each row is a list item');
+  assert(!String(row.onclick).includes('enterWorld'),
+    'the row does not carry its own open handler');
+  const info = row.children.find(c => c.className === 'world-info');
+  const open = info.children[0], more = row.children.find(c => c.className === 'world-more');
+  assertEqual(open.tagName, 'BUTTON', 'the name is the Open button');
+  assertEqual(open.type, 'button', 'Open is a plain button');
+  assert(String(open.onclick).includes('enterWorld'), 'Open opens the garden');
+  assert(/world-open/.test(open.className), 'Open carries the stretched-target class');
+  assert(open.getAttribute('aria-describedby').includes('world-meta-u04row'), 'the size and date describe Open');
+  assertEqual(more.tagName, 'BUTTON', 'Actions is a button');
+  assertEqual(more.getAttribute('aria-label'), 'Actions for Row test', 'Actions names its garden');
+  assert(!info.children.includes(more) && !open.children.includes(more), 'Actions is not inside Open');
+  await updateWorldsIndex(rows => rows.filter(r => r.id !== 'u04row'));
+});
