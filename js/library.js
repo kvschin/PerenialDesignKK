@@ -120,7 +120,7 @@ function libraryHay(key){
     libraryAllKeys().forEach(k=>{
       const P=PLANTS[k];
       const cvHay=[...Object.values(P.cv||{}),...(P.libraryCultivars||[])]
-        .map(c=>(c.name||'')+' '+(c.latin||'')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
+        .map(c=>(c.name||'')+' '+(c.latin||'')+' '+(c.synonyms||[]).join(' ')+' '+(c.size||'')+' '+(c.note||'')).join(' ');
       libHay[k]=(P.name+' '+P.latin+' '+(P.synonyms||[]).join(' ')+' '+roleSummary(k,12)+' '+cvHay).toLowerCase();
     });
   }

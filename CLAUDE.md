@@ -6128,7 +6128,14 @@ for `cw`. Picked by eye the px-art drifted badly off it: a narrow cultivar's
 small `cw` raises its compression factor, which scales `h` with it, so
 'Slender Silhouette' drew 45% TALLER than the species it is a selection of. A
 test holds every sized tree cultivar within 8% of the curve; a shrub draws near
-true scale and is solved linearly. `fullName` is reserved for the rare nested
+true scale and is solved linearly. **A cultivar of a different taxon carries its own `latin`, `synonyms`,
+`nativeTo`, `provenance` and `zones` inline** (D01-D03): 'Standing Ovation' is
+*Amelanchier alnifolia* 'Obelisk' on the smooth-serviceberry record, 'Lady in
+Red' the North American *Athyrium angustum* on the European lady fern, and
+'Palace Purple' (disputed parentage) is `Heuchera 'Palace Purple'`, a hybrid
+with no wild range. The saved keys are unchanged; the Library indexes a
+cultivar's `synonyms`, and `planBotanicalName` prints its own `latin` alone.
+`fullName` is reserved for the rare nested
 exact-species choice whose common name should replace, rather than append to,
 the base name. `synonyms` is an array of accepted or recent botanical names;
 discovery search indexes it while `latin` remains the canonical display name.

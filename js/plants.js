@@ -2831,7 +2831,12 @@ const PLANTS = {
     blurb:'Lacy, fresh-green, and forgiving — the fern for the north side of anything.',
     sea:{Spring:{fol:'#8ab06a'}, Summer:{fol:'#6f9a55'}, Fall:{fol:'#b09a55'}, Winter:{}},
     cv:{
-      ladyinred:{name:"'Lady in Red'", note:'green lace carried on bright wine-red stems',
+      // A selection of the NORTH AMERICAN northern lady fern, found in Vermont,
+      // not of the European species this record is.
+      ladyinred:{name:"'Lady in Red'", note:'green lace carried on bright wine-red stems; a Vermont selection of the native northern lady fern',
+        latin:"Athyrium angustum f. rubellum 'Lady in Red'",
+        synonyms:['Athyrium filix-femina var. angustum','Athyrium filix-femina subsp. angustum f. rubellum','Northern lady fern'],
+        nativeTo:['north-america'], provenance:'selection', zones:[3,8], heightIn:30,
         look:{art2:true, fronds:11, spread:2.00, arch:0.60, reach:0.84, frondLen:0.68, bow:0.36,
           stipe:'#9c3a44', stipeW:1.2, pinnaN:9, pinnaLen:3.6, pinnaTip:0.6, pinnaW:0.85},
         sea:{Spring:{fol:'#8ab06a'}, Summer:{fol:'#6f9a55'}, Fall:{fol:'#b09a55'}, Winter:{}}},
@@ -3041,7 +3046,13 @@ const PLANTS = {
     cv:{
       greenSpice:{name:"'Green Spice'", note:'silver-green leaves with darker veining',
         sea:{Spring:{fol:'#94a77c'}, Summer:{fol:'#8fa078',bloom:'#e8dcc8'}, Fall:{fol:'#9a8468'}, Winter:{fol:'#7a705f'}}},
-      palacepurple:{name:"'Palace Purple'", note:'deep bronze-purple foliage',
+      // A chance seedling raised at Kew whose parentage is disputed (sold as
+      // H. micrantha var. diversifolia, H. villosa or an americana cross), so it
+      // takes no species and claims no wild range.
+      palacepurple:{name:"'Palace Purple'", note:'deep bronze-purple foliage; a Kew seedling of disputed parentage',
+        latin:"Heuchera 'Palace Purple'",
+        synonyms:["Heuchera micrantha var. diversifolia 'Palace Purple'","Heuchera villosa 'Palace Purple'","Heuchera americana 'Palace Purple'"],
+        nativeTo:[], provenance:'hybrid',
         sea:{Spring:{fol:'#6f4d5a'}, Summer:{fol:'#5e3f4e',bloom:'#eadcca'}, Fall:{fol:'#6e3a46'}, Winter:{fol:'#4f343e'}}},
       caramel:{name:"'Caramel'", note:'warm amber leaves for bright shade',
         sea:{Spring:{fol:'#c79a58'}, Summer:{fol:'#bd8d4e',bloom:'#eadcca'}, Fall:{fol:'#b06f45'}, Winter:{fol:'#7a5640'}}},
@@ -4021,7 +4032,11 @@ const PLANTS = {
         latin:'Amelanchier x grandiflora', sea:{Spring:{bloom:'#f4efe6'}, Summer:{fol:'#5d7a4c',seed:'#42324a'}, Fall:{fol:'#c8583f',seed:'#4a303c'}}},
       robinhill:{look:{crown:'broadcolumn', habit:{}}, name:"'Robin Hill'", note:'pink buds opening pale, upright habit', h:62, cw:50, heightIn:240, spread:168,
         sea:{Spring:{bloom:'#f0cbd0'}, Summer:{fol:'#5d7a4c',seed:'#42324a'}, Fall:{fol:'#d98a3e'}}},
-      standingovation:{name:"'Standing Ovation'", note:'narrow, upright serviceberry for small yards', h:63, cw:27, heightIn:192, spread:60,
+      // Not a smooth serviceberry at all: sold as Standing Ovation, it is the
+      // western saskatoon 'Obelisk', so it carries its own taxon, range and size.
+      standingovation:{name:"'Standing Ovation'", note:"narrow, upright saskatoon for small yards (sold as Standing Ovation; cultivar 'Obelisk')",
+        latin:"Amelanchier alnifolia 'Obelisk'", synonyms:['Saskatoon serviceberry','Standing Ovation serviceberry'],
+        nativeTo:['north-america'], provenance:'selection', zones:[3,7], h:57, cw:33, heightIn:180, spread:84,
         look:{crown:'column', art2:true, trunks:1, trunkW:4.8, bark:'#766f63', branches:5, branchSpread:1.15, flowerN:18, flowerSize:1.7, seedN:8, leafN:42, trunkH:0.14, canopyY:0.42, canopyH:0.44, branchLift:0.4, branchReach:0.2},
         sea:{Spring:{bloom:'#f2efe6'}, Summer:{fol:'#5d7a4c',seed:'#3f3248'}, Fall:{fol:'#d8783e'}}},
     }},
@@ -6478,7 +6493,6 @@ const CV_HYBRID_REFS=new Set(`
 const CV_RANGE_OVERRIDES={
   'meadowsage|maynight':['europe'],
   'meadowsage|bluehill':['europe'],
-  'heuchera|palacepurple':['north-america'],
   'heuchera|caramel':[],
   'astilbe|visions':['asia'],
   'daffodil|kingalfred':[],
@@ -6498,7 +6512,6 @@ const CV_RANGE_OVERRIDES={
   'crabapple|sargent':['asia'],
   'serviceberry|autumnbrilliance':['north-america'],
   'serviceberry|robinhill':['north-america'],
-  'serviceberry|standingovation':['north-america'],
   'magnolia|janemagnolia':[],
   'americanelm|accolade':[],
   'agastache|bluefortune':[],
@@ -6733,6 +6746,12 @@ const BLOOM_MONTHS = {
   // broadleaf evergreen trees from the evergreen audit (the hollies, live oak
   // and holm oak flower too inconspicuously to claim a calendar slot)
   southernmagnolia:[5,6], baylaurel:[3,4], strawberrytree:[10,11,12],
+
+  // flowering climbers (Virginia creeper and hops flower too inconspicuously
+  // to claim a slot); each window sits in the seasons its sea paints a bloom
+  trumpethoneysuckle:[5,6,7,8,9], crossvine:[4,5], americanwisteria:[4,5],
+  clematisviticella:[6,7,8,9], climbinghydrangea:[6,7], climbingrose:[6,7,8,9],
+  starjasmine:[6,7],
 };
 for (const k in BLOOM_MONTHS) if (PLANTS[k]) PLANTS[k].bloomMonths = BLOOM_MONTHS[k];
 /* ---------- Wikipedia references ----------
