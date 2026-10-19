@@ -2481,6 +2481,57 @@ test('high-priority shrub flower and habit families paint distinct traces', () =
   assertEqual(trace('forsythia'),trace('forsythia'),'shrub morphology stays deterministic for cached cards and canvas');
 });
 
+test('three cultivars carry their own botanical identity, not their record\'s (D01 D02 D03)', () => {
+  setup();
+  const north={nativeRegion:'north-america',nativeMode:'regional'};
+  const europe={nativeRegion:'europe',nativeMode:'regional'};
+  // D01: sold as Standing Ovation, it is the western saskatoon 'Obelisk'
+  const so=plantDef('serviceberry','standingovation');
+  assertEqual(so.latin,"Amelanchier alnifolia 'Obelisk'",'Standing Ovation is A. alnifolia');
+  assertEqual(PLANTS.serviceberry.latin,'Amelanchier laevis','the base serviceberry is unchanged');
+  assertEqual(so.provenance,'selection','a named selection of a native species');
+  assertEqual(so.nativeTo.join(','),'north-america','saskatoon is North American');
+  assertEqual(so.zones.join('-'),'3-7','its own hardiness, not smooth serviceberry\'s');
+  assertEqual(so.heightIn,180,'15 ft'); assertEqual(so.spread,84,'7 ft');
+  assert(passesNativeFilter(so,north),'offered to a regional North American garden');
+  // D02: a selection of the North American northern lady fern
+  const lr=plantDef('ladyfern','ladyinred');
+  assert(lr.latin.startsWith('Athyrium angustum'),'Lady in Red is A. angustum');
+  assertEqual(PLANTS.ladyfern.latin,'Athyrium filix-femina','the base lady fern is unchanged');
+  assertEqual(PLANTS.ladyfern.nativeTo.join(','),'europe','and stays European');
+  assertEqual(lr.nativeTo.join(','),'north-america','Lady in Red is North American');
+  assertEqual(lr.provenance,'selection','a named selection');
+  assert(passesNativeFilter(lr,north) && !passesNativeFilter(lr,europe),'native to North America, not Europe');
+  assert(lr.synonyms.includes('Athyrium filix-femina var. angustum'),'the older name is searchable');
+  // D03: disputed parentage, so no species and no wild range
+  const pp=plantDef('heuchera','palacepurple');
+  assertEqual(pp.latin,"Heuchera 'Palace Purple'",'no species claimed');
+  assertEqual(pp.provenance,'hybrid','treated conservatively as a hybrid');
+  assertEqual(pp.nativeTo.length,0,'claims no wild range');
+  assert(!passesNativeFilter(pp,north),'not offered as a native');
+  assert(pp.synonyms.some(n=>/micrantha/.test(n)) && pp.synonyms.some(n=>/villosa/.test(n)),'the historic attributions are searchable');
+  assertEqual(PLANTS.heuchera.latin,'Heuchera americana','the base heuchera is unchanged');
+  // saved keys still resolve, and guidance stays empty for all three
+  [['serviceberry','standingovation'],['ladyfern','ladyinred'],['heuchera','palacepurple']].forEach(([s,v])=>{
+    const g=plantGuidance({s,v});
+    assert(!g.origin.length && !g.site.length && !g.invasive.length,`${s}|${v}: no guidance inherited`);
+    assert(g.selection,`${s}|${v}: reported as a selection, not the species`);
+  });
+  assertEqual(planBotanicalName('serviceberry','standingovation'),"Amelanchier alnifolia 'Obelisk'",'the plan prints the real name once');
+  assertEqual(libraryMatches('ladyfern','var. angustum'),true,'library search finds a cultivar synonym');
+});
+
+test('the flowering climbers carry real bloom months (D09)', () => {
+  const want={trumpethoneysuckle:'5,6,7,8,9',crossvine:'4,5',americanwisteria:'4,5',
+    clematisviticella:'6,7,8,9',climbinghydrangea:'6,7',climbingrose:'6,7,8,9',starjasmine:'6,7'};
+  const season=m=>m>=3&&m<=5?'Spring':m<=8&&m>=6?'Summer':m>=9&&m<=11?'Fall':'Winter';
+  for (const [k,m] of Object.entries(want)){
+    assertEqual((PLANTS[k].bloomMonths||[]).join(','),m,`${k}: bloom calendar`);
+    for (const mo of PLANTS[k].bloomMonths)
+      assert(PLANTS[k].sea[season(mo)].bloom,`${k}: month ${mo} sits in a season that paints a flower`);
+  }
+});
+
 test('native eligibility is range-aware and distinguishes species, selections, and hybrids', () => {
   setup();
   const north={nativeRegion:'north-america',nativeMode:'regional'};
