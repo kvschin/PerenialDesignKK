@@ -7635,9 +7635,15 @@ Live collaboration is not on the roadmap; if it ever returns it starts from
   shared goblet/trumpet/bell/lily/raceme/allium/Dahlia grammars now separate the
   former six generic silhouettes; drumstick allium, golden crocus, straight
   martagon lily, American Turk's-cap lily, English bluebell, and ivy-leaved
-  cyclamen fill the strongest naturalistic and regional gaps. Future bulb work
-  should stay restrained: oriental hyacinth, white Allium 'Mount Everest', and
-  snowdrop 'S. Arnott' are the next candidates only after another balance pass.
+  cyclamen fill the strongest naturalistic and regional gaps. The balance pass
+  that followed (Oct 2026) added the three named candidates: **hyacinth**
+  (*Hyacinthus orientalis*, a base species with 'Delft Blue', 'Pink Pearl' and
+  'Carnegie'), the April bulb with scent and the first real pink of mid-spring;
+  **Allium 'Mount Everest'** (a stipitatum hybrid, `provenance:'hybrid'`), the
+  only WHITE among the eleven ornamental alliums; and snowdrop **'S. Arnott'**
+  (nivalis x plicatus, hybrid), which is depth rather than a gap. Both new
+  bases state `nativeTo`/`provenance` inline; hyacinth is in the browse and
+  squirrel resistance lists. Further bulb work should wait for a real gap.
   A **fern pass** is landed (Aug 2026), and like the shrub passes it extended
   the data grammar rather than adding species branches. The `fern` form had no
   `look` knobs at all — nine fronds, one fan angle, one leaflet size baked in

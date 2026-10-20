@@ -8532,7 +8532,7 @@ test('deer/rabbit resistance tags the right plants', () => {
   const rabbit = k => plantRoles(k).includes('rabbitOk');
   // broadly avoided: grasses, ferns, aromatic mints, toxic forbs/bulbs, tough shrubs
   ['bluestem', 'ladyfern', 'monarda', 'mountainmint', 'meadowsage', 'yarrow', 'baptisia',
-    'butterfly', 'daffodil', 'siberianiris', 'boxwoodround', 'sumac', 'goldenrod', 'rudbeckia']
+    'butterfly', 'daffodil', 'hyacinth', 'alliumMountEverest', 'siberianiris', 'boxwoodround', 'sumac', 'goldenrod', 'rudbeckia']
     .forEach(k => assert(deer(k) && rabbit(k), `${k} should be browse-resistant`));
   // readily browsed: kept off the list on purpose (honest data)
   ['hosta', 'tulip', 'gardentulip', 'crocus', 'newjersey', 'yewlow', 'hydrangea', 'sedum', 'echinacea', 'dahlia']
