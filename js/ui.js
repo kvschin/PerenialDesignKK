@@ -910,7 +910,7 @@ const BROWSE_RESIST_KEYS=new Set([
   // resistant minor bulbs (toxic alkaloids or onion scent)
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
   'muscari','scillaperuviana','puschkinia','ipheion','leucojum','anemoneblanda',
-  'englishbluebell','cyclamenhederifolium',
+  'englishbluebell','cyclamenhederifolium','hyacinth',
   // tough shrubs — berried natives and the resistant viburnums, listed by key
   // rather than by group because doublefile shares group:'viburnum' and is browsed
   'sumac','coralberry','smokebush','winterberry','inkberry','chokeberry',
@@ -919,7 +919,7 @@ const BROWSE_RESIST_KEYS=new Set([
 const SQUIRREL_RESIST_GROUPS=new Set(['allium','alliumbulb']);
 const SQUIRREL_RESIST_KEYS=new Set([
   'daffodil','snowdrop','winteraconite','fritillaria','colchicum','lycoris',
-  'muscari','leucojum','scillaperuviana','puschkinia','ipheion'
+  'muscari','leucojum','scillaperuviana','puschkinia','ipheion','hyacinth'
 ]);
 // readily browsed despite a broad cue (hosta, tulips, crocus, sedum, lilies,
 // New Jersey tea, doublefile viburnum, ninebark, red-twig dogwood, both
