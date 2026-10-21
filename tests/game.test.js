@@ -18678,3 +18678,49 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+test('a save carries no tombstones, and reloads to the same garden the tombstoned save did', async () => {
+  /* clearTile leaves {removed:true,t} on every erased tile and loadSolo drops
+     them, so a tombstone in a stored blob is dead weight that every autosave
+     structuredClones and writes. A session of planting and erasing is what
+     makes the pile: here 25 tiles kept, 200 painted and erased. */
+  setup(31, 31);
+  game.eraseMode = 'all'; setBrushSize(1);
+  const plant = PLANT_KEYS.find(k => PLANTS[k].type === 'grass' && plantFits(k));
+  for (let y = 3; y < 23; y++) for (let x = 3; x < 13; x++){
+    game.tool = plant; game.toolVar = null; applyToolAt(x, y);
+    game.tool = 'bed'; applyToolAt(x + 14, y);
+  }
+  const counts = { plants: 0, bulbs: 0, terr: 0, elev: 0 };
+  for (let y = 3; y < 23; y++) for (let x = 3; x < 13; x++)
+    if (x >= 8 || y >= 8){ eraseBrush(x, y, counts); eraseBrush(x + 14, y, counts); }
+  const tombs = m => Object.values(m).filter(v => v && v.removed).length;
+  const live = m => Object.values(m).filter(v => v && !v.removed).length;
+  assertEqual(live(game.plants), 25, 'the kept corner of the drift');
+  assert(tombs(game.plants) >= 150 && tombs(game.terrain) >= 150, 'the session left tombstones in the live maps');
+
+  // the old path: every keyed layer written as it stands in memory
+  const oldBlob = buildSaveBlob();
+  for (const L of GAME_MAPS) oldBlob[L.k] = game[L.k];
+  const newBlob = buildSaveBlob();
+  let oldRecs = 0, newRecs = 0, newTombs = 0;
+  for (const L of GAME_MAPS){
+    oldRecs += Object.keys(oldBlob[L.k] || {}).length;
+    newRecs += Object.keys(newBlob[L.k] || {}).length;
+    newTombs += tombs(newBlob[L.k] || {});
+    assert(newBlob[L.k] !== game[L.k], L.k + ': the blob never hands out a live map');
+  }
+  assertEqual(newTombs, 0, 'no tombstone reaches the save');
+  assertEqual(newRecs, 25 + 25, 'only live records are written: 25 plants, 25 bed tiles');
+  assert(oldRecs >= newRecs + 300, `the old blob wrote ${oldRecs} records for ${newRecs} live ones`);
+  assert(JSON.stringify(newBlob).length < JSON.stringify(oldBlob).length, 'and is smaller');
+  assert(tombs(game.plants) >= 150, 'the live maps keep their tombstones');
+
+  // identical garden either way: load both and compare every keyed layer
+  await sSet('hortus:world:tomb-old', JSON.parse(JSON.stringify(oldBlob)));
+  await sSet('hortus:world:tomb-new', JSON.parse(JSON.stringify(newBlob)));
+  setup(31, 31); assert(await loadSolo('tomb-old'), 'old blob loads');
+  const fromOld = {}; for (const L of GAME_MAPS) fromOld[L.k] = JSON.stringify(game[L.k]);
+  setup(31, 31); assert(await loadSolo('tomb-new'), 'new blob loads');
+  for (const L of GAME_MAPS) assertEqual(JSON.stringify(game[L.k]), fromOld[L.k], L.k + ' reloads identically');
+});
