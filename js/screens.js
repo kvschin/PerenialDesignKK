@@ -1225,11 +1225,17 @@ function showWorldMenu(anchor,w){
   addEventListener('keydown',worldMenuKey,true);
   const first=pop.querySelector('button'); if (first) first.focus({preventScroll:true});
 }
+/* The row and the blob go in ONE write (updateWorldsIndex's {index,del}). Row
+   first and blob second used to leave an orphan whenever the blob delete
+   failed — and sDel reported success regardless, so the gardener was told
+   nothing while adoptOrphanedWorlds brought the garden back next visit. */
 async function deleteWorld(id){
   closeWorldMenu();
-  await updateWorldsIndex(fresh=>fresh.filter(w=>w.id!==id));
-  await sDel('hortus:world:'+id);       // reclaims the quota in whichever home it sits
-  openWorlds();
+  const done=await updateWorldsIndex(fresh=>({index:fresh.filter(w=>w.id!==id),
+    del:['hortus:world:'+id]}));
+  if (!done) toast('That garden could not be deleted. It is still in your list.');
+  await openWorlds();
+  return !!done;
 }
 /* A garden's name is the title block on its printed plan, the header of its
    planting list, the heading in the garden menu and the filename when it is

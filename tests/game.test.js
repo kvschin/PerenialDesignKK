@@ -18678,3 +18678,85 @@ test('audit shrubs use ordinary stem occupancy while their spread stays plantabl
   assertEqual(applyToolAt(41,40),'plant',key+' neighboring ground stays plantable');
  }
 });
+
+/* F03: a garden delete reports whether it happened, and a failure leaves the
+   row and the garden behind it exactly as they were. A fake IndexedDB stands in
+   for the real one (the sandbox has none) so the transactional path is tested
+   too; it applies a transaction's writes only on oncomplete, as the real one
+   does, and can be told to abort. */
+function fakeIdb(store, failWhen){
+  return { transaction(){
+    const ops = [], tx = {};
+    const req = { result: undefined };
+    tx.objectStore = () => ({
+      get(k){ ops.push(['get', k]); return req; },
+      put(v, k){ ops.push(['put', k, v]); return req; },
+      delete(k){ ops.push(['del', k]); return req; }
+    });
+    // a microtask, not setTimeout: the sandbox's timers never fire
+    Promise.resolve().then(() => {
+      if (failWhen && failWhen(ops)) return tx.onabort && tx.onabort();
+      for (const [op, k, v] of ops){
+        if (op === 'get') req.result = store.has(k) ? store.get(k) : undefined;
+        else if (op === 'put') store.set(k, v); else store.delete(k);
+      }
+      tx.oncomplete && tx.oncomplete();
+    });
+    return tx;
+  } };
+}
+async function withFakeIdb(store, failWhen, fn){
+  const was = [dbPromise, dbBroken];
+  dbPromise = Promise.resolve(fakeIdb(store, failWhen)); dbBroken = false;
+  try { return await fn(); } finally { [dbPromise, dbBroken] = was; }
+}
+
+test('a failed garden delete says so and leaves the garden listed (F03)', async () => {
+  setup(21, 21);
+  await clearStoredWorlds();
+  const blob = { wv: 1, name: 'Keep me', gw: 21, gh: 21, plants: {}, bulbs: {} };
+  await sSet('hortus:world:w-del', blob);
+  await sSet('hortus:worlds', [{ id: 'w-del', name: 'Keep me', ts: 1, gw: 21, gh: 21 }]);
+  const toasts = [], realToast = toast, realRemove = localStorage.removeItem;
+  toast = m => toasts.push(m);
+  localStorage.removeItem = () => { throw new Error('injected'); };
+  let ok;
+  try { ok = await deleteWorld('w-del'); }
+  finally { localStorage.removeItem = realRemove; toast = realToast; }
+  assertEqual(ok, false, 'deleteWorld reports the failure');
+  assert(toasts.some(m => /could not be deleted/.test(m)), 'and tells the gardener');
+  assertEqual((await worldsIndex()).length, 1, 'the row is still in the list');
+  assert(await sGet('hortus:world:w-del'), 'and the garden behind it still opens');
+
+  assertEqual(await deleteWorld('w-del'), true, 'with storage working it deletes');
+  assertEqual((await worldsIndex()).length, 0, 'the row goes');
+  assertEqual(await sGet('hortus:world:w-del'), null, 'and the blob with it');
+  assertEqual((await adoptOrphanedWorlds()).length, 0, 'leaving nothing to resurrect');
+});
+
+test('sDel and the index batch report IndexedDB failure, atomically (F03)', async () => {
+  setup(21, 21);
+  const store = new Map([['hortus:world:w-idb', { wv: 1, name: 'I', gw: 21, gh: 21, plants: {}, bulbs: {} }],
+    ['hortus:worlds', [{ id: 'w-idb', name: 'I', ts: 1, gw: 21, gh: 21 }]]]);
+  const failDeletes = ops => ops.some(o => o[0] === 'del');
+  await withFakeIdb(store, failDeletes, async () => {
+    assertEqual(await sDel('hortus:world:w-idb'), false, 'a failed delete is not reported as done');
+    const realToast = toast; toast = () => {};
+    try { assertEqual(await deleteWorld('w-idb'), false, 'nor is a failed garden delete'); }
+    finally { toast = realToast; }
+  });
+  assertEqual(store.get('hortus:worlds').length, 1, 'the aborted transaction kept the row');
+  assert(store.has('hortus:world:w-idb'), 'and the garden');
+  // a failure on the INDEX write must not have taken the blob either
+  await withFakeIdb(store, ops => ops.some(o => o[0] === 'put'), async () => {
+    const realToast = toast; toast = () => {};
+    try { assertEqual(await deleteWorld('w-idb'), false, 'an index failure is a failure'); }
+    finally { toast = realToast; }
+  });
+  assert(store.has('hortus:world:w-idb'), 'one transaction: the blob survives an index failure');
+  await withFakeIdb(store, null, async () => {
+    assertEqual(await deleteWorld('w-idb'), true, 'and succeeds when storage does');
+  });
+  assertEqual(store.get('hortus:worlds').length, 0, 'row removed');
+  assert(!store.has('hortus:world:w-idb'), 'blob removed in the same write');
+});

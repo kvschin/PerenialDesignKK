@@ -112,11 +112,45 @@ async function sSet(key,val){
   }
   return lsSet(key,val);
 }
+/* A delete REPORTS whether it happened. It used to swallow an IndexedDB error
+   and return true, so deleteWorld removed the row, the blob survived, and the
+   orphan scan quietly brought the "deleted" garden back on the next visit. */
 async function sDel(key){
   const db=await openDB();
   if (db){ try{ await idbRun(db,'readwrite',s=>s.delete(key)); }
-    catch(e){ console.warn('storage delete',key,e); } }
-  try{ localStorage.removeItem(key); }catch(_){ }   // clear both homes
+    catch(e){ console.warn('storage delete',key,e); return false; } }
+  return lsDrop(key);                  // clear both homes
+}
+function lsDrop(key){
+  try{ localStorage.removeItem(key); return localStorage.getItem(key)==null; }
+  catch(_){ return false; }
+}
+/* Several writes as ONE transaction: all of them land or none do. Only
+   updateWorldsIndex uses it, for a mutation that must remove a garden's blob
+   in the same breath as its row. Without IndexedDB it is best effort in the
+   order that fails safe — the deletes first, then the puts, and the deleted
+   values put back if a put fails — so a failure leaves the old row pointing at
+   the old garden rather than an orphan or a row with nothing behind it. */
+async function sWriteBatch(puts,dels){
+  const db=await openDB();
+  if (db){
+    try{ await idbRun(db,'readwrite',s=>{ let r;
+      for (const k of dels) r=s.delete(k);
+      for (const k in puts) r=s.put(puts[k],k);
+      return r; }); }
+    catch(e){ console.error('storage batch',e); return false; }
+    for (const k of dels) lsDrop(k);   // a pre-migration copy must not resurrect it
+    return true;
+  }
+  const kept={};
+  for (const k of dels){
+    kept[k]=lsGet(k);
+    if (!lsDrop(k)){ for (const j in kept) if (kept[j]!=null) lsSet(j,kept[j]); return false; }
+  }
+  for (const k in puts) if (!lsSet(k,puts[k])){
+    for (const j in kept) if (kept[j]!=null) lsSet(j,kept[j]);
+    return false;
+  }
   return true;
 }
 /* Persistence is granted on engagement heuristics, so asking at boot on a
@@ -238,9 +272,12 @@ let worldsIndexChain=Promise.resolve();
 function updateWorldsIndex(mutate){
   const run=worldsIndexChain.then(async()=>{
     const idx=await worldsIndex();
-    const next=await mutate(idx.slice());
-    if (!next) return null;
-    return (await sSet('hortus:worlds',next)) ? next : null;
+    const out=await mutate(idx.slice());
+    if (!out) return null;
+    // {index, del:[keys]} also removes those keys in the same transaction
+    if (!Array.isArray(out)) return (await sWriteBatch({'hortus:worlds':out.index},out.del||[]))
+      ? out.index : null;
+    return (await sSet('hortus:worlds',out)) ? out : null;
   });
   // A throwing mutation must not wedge every later write behind a rejection.
   worldsIndexChain=run.then(()=>{},()=>{});
