@@ -535,6 +535,14 @@ See §13a.
   direction** from `openWorlds`: `storedWorldIds()` — the app's only key
   enumeration, scanning BOTH homes — finds gardens with no index row and adopts
   them back with their own name, date and plot size, toasting what it recovered.
+  **Deleting a garden is ONE write** (F03): `deleteWorld`'s callback returns
+  `{index, del:[blobKey]}`, which `updateWorldsIndex` commits through
+  `sWriteBatch` — a single IndexedDB transaction, so the row and the blob go
+  together or not at all (without IndexedDB, deletes first and restored if the
+  index write fails). `sDel` now returns false on failure; it used to swallow
+  the error and return true, and with the row removed first a failed blob
+  delete became an orphan that `adoptOrphanedWorlds` resurrected next visit.
+  A failure toasts that the garden is still in the list.
   New orphans can no longer be made, but a device that already has one would
   carry it forever, so this is self-healing rather than a one-shot migration. It
   adopts only values that really look like a garden, or a stray key of another
