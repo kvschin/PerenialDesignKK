@@ -1964,60 +1964,63 @@ function eraseShrubBySpread(x,y,counts){
 /* ---------- selection tool: marquee a region, then move/copy/rotate/erase ----------
    game.sel is the committed rect; selDrag is an in-progress marquee; selMove
    is an in-progress move/copy drag. All edits go through withUndo so each is
-   a single undo step. */
-let selDrag=null, selMove=null;
+   a single undo step. selResize is an in-progress drag of one of the committed
+   marquee's handles (selection resize-in-place, below). */
+let selDrag=null, selMove=null, selResize=null;
 const AREA_CLIP_KEY='hortus:areaClipboard';
 let areaClipboard=null;
 function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
   x1:Math.max(a.x,b.x),y1:Math.max(a.y,b.y)}; }
 function inRect(r,x,y){ return r && x>=r.x0 && x<=r.x1 && y>=r.y0 && y<=r.y1; }
 function selValidDest(x,y){ return onPlot(x,y) && !siteStructureAt(x,y) && !isDoor(x,y); }
+/* Everything a selection carries, as [cell field, game layer, dest record gets
+   its {x,y}]. ONE table, read by the payload, the validation sets, the write,
+   the erase and the paste clear, because the hand-kept copies of this list are
+   how pergolas and climbing frames came to stay behind when a patio moved
+   (F04): every one of those five lists had to remember them separately. */
+const SEL_LAYERS=[
+  ['plant','plants',1],['bulb','bulbs',1],['terr','terrain',0],['elev','elevation',0],
+  ['fence','fences',0],['light','lights',0],['firepit','firepits',1],['waterFeature','waterFeatures',1],
+  ['boulder','boulders',1],['pet','pets',0],['pot','pots',1],['seat','seats',1],
+  ['support','supports',1],['pergola','pergolas',0],
+];
+/* The movable things that claim MORE than their origin tile, each with its own
+   size rule (which already swaps for a turned piece) and its live lookup. A
+   selection validates every tile each one claims (F06) — it used to check the
+   footprint of three of the six, so a 3-tile bench could be moved off the
+   plot by its far end. */
+const SEL_FOOTPRINTS={
+  firepit:{layer:'firepits', size:firepitTileSize, at:(x,y)=>firepitAt(x,y)},
+  boulder:{layer:'boulders', size:boulderTileSize, at:(x,y)=>boulderAt(x,y)},
+  waterFeature:{layer:'waterFeatures', size:waterFeatureTileSize, at:(x,y)=>waterFeatureAt(x,y)},
+  pot:{layer:'pots', size:potTileSize, at:(x,y)=>potAt(x,y)},
+  seat:{layer:'seats', size:seatTileSize, at:(x,y)=>seatAt(x,y)},
+  support:{layer:'supports', size:supportTileSize, at:(x,y)=>structureSupportAt(x,y)},
+};
+const SEL_FOOTPRINT_KEYS=Object.keys(SEL_FOOTPRINTS);
 // Selection moves validate against the post-move world: selected source tiles
 // are empty for moves, while selected destination shrubs/terrain already count.
 function liveSelectionValue(v){ return v && !v.removed ? v : null; }
 function selectionEmptySets(){
-  return {plants:new Set(),bulbs:new Set(),terrain:new Set(),elevation:new Set(),
-    fences:new Set(),lights:new Set(),firepits:new Set(),boulders:new Set(),pets:new Set(),waterFeatures:new Set(),
-    pots:new Set(),seats:new Set()};
+  const out={};
+  for (const [,layer] of SEL_LAYERS) out[layer]=new Set();
+  return out;
 }
 function selectionSourceSets(items,copy){
   const out=selectionEmptySets();
   if (copy) return out;
   items.forEach(c=>{
     const k=`${c.x},${c.y}`;
-    if (c.plant) out.plants.add(k);
-    if (c.bulb) out.bulbs.add(k);
-    if (c.terr) out.terrain.add(k);
-    if (c.elev) out.elevation.add(k);
-    if (c.fence) out.fences.add(k);
-    if (c.light) out.lights.add(k);
-    if (c.firepit) out.firepits.add(k);
-    if (c.waterFeature) out.waterFeatures.add(k);
-    if (c.boulder) out.boulders.add(k);
-    if (c.pet) out.pets.add(k);
-    if (c.pot) out.pots.add(k);
-    if (c.seat) out.seats.add(k);
+    for (const [f,layer] of SEL_LAYERS) if (c[f]) out[layer].add(k);
   });
   return out;
 }
 function selectionDestMaps(items,dst){
-  const out={plants:new Map(),bulbs:new Map(),terrain:new Map(),elevation:new Map(),
-    fences:new Map(),lights:new Map(),firepits:new Map(),boulders:new Map(),pets:new Map(),waterFeatures:new Map(),
-    pots:new Map(),seats:new Map()};
+  const out={};
+  for (const [,layer] of SEL_LAYERS) out[layer]=new Map();
   items.forEach(c=>{
     const [x,y]=dst(c), k=`${x},${y}`;
-    if (c.plant) out.plants.set(k,Object.assign({x,y},c.plant));
-    if (c.bulb) out.bulbs.set(k,Object.assign({x,y},c.bulb));
-    if (c.terr) out.terrain.set(k,c.terr);
-    if (c.elev) out.elevation.set(k,c.elev);
-    if (c.fence) out.fences.set(k,c.fence);
-    if (c.light) out.lights.set(k,c.light);
-    if (c.firepit) out.firepits.set(k,Object.assign({x,y},c.firepit));
-    if (c.waterFeature) out.waterFeatures.set(k,Object.assign({x,y},c.waterFeature));
-    if (c.boulder) out.boulders.set(k,Object.assign({x,y},c.boulder));
-    if (c.pet) out.pets.set(k,c.pet);
-    if (c.pot) out.pots.set(k,Object.assign({x,y},c.pot));
-    if (c.seat) out.seats.set(k,Object.assign({x,y},c.seat));
+    for (const [f,layer,xy] of SEL_LAYERS) if (c[f]) out[layer].set(k,xy?Object.assign({x,y},c[f]):c[f]);
   });
   return out;
 }
@@ -2046,6 +2049,12 @@ function selectionPlantAt(x,y,ctx,ownDestKey){
   if (cur) return cur;
   return null;
 }
+function selectionBulbAt(x,y,ctx,ownDestKey){
+  const k=`${x},${y}`, d=selectionDest(ctx,'bulbs',k);
+  if (liveSelectionValue(d) && k!==ownDestKey) return d;
+  if (selectionIgnored(ctx,'bulbs',k)) return null;
+  return liveSelectionValue(game.bulbs[k]);
+}
 function selectionFenceAt(x,y,ctx){
   const k=`${x},${y}`, d=selectionDest(ctx,'fences',k);
   if (liveSelectionValue(d)) return d;
@@ -2058,99 +2067,217 @@ function selectionLightAt(x,y,ctx){
   if (selectionIgnored(ctx,'lights',k)) return null;
   return lightAt(x,y);
 }
-function selectionWaterFeatureAt(x,y,ctx){
-  if (ctx) for (const [key,w] of ctx.dest.waterFeatures){
-    if (!liveSelectionValue(w)) continue;
-    const sz=waterFeatureTileSize(w);
-    if (x>=w.x && x<w.x+sz.w && y>=w.y && y<w.y+sz.h) return Object.assign({key},w);
-  }
-  const wf=waterFeatureAt(x,y);
-  return wf && selectionIgnored(ctx,'waterFeatures',wf.key) ? null : wf;
+function selectionPergolaAt(x,y,ctx){
+  const k=`${x},${y}`, d=selectionDest(ctx,'pergolas',k);
+  if (liveSelectionValue(d)) return {moving:true, p:d};
+  if (selectionIgnored(ctx,'pergolas',k)) return null;
+  const p=pergolaAt(x,y);
+  return p ? {moving:false, p} : null;
 }
-function selectionFirepitAt(x,y,ctx){
-  if (ctx) for (const [key,f] of ctx.dest.firepits){
-    if (!liveSelectionValue(f)) continue;
-    const sz=firepitTileSize(f);
-    if (x>=f.x && x<f.x+sz.w && y>=f.y && y<f.y+sz.h) return Object.assign({key},f);
+/* The multi-tile object of one kind standing on a tile in the post-move world,
+   as {key,x,y,...record}; `ownKey` is the destination origin of the object
+   asking, so it never finds itself. */
+function selectionObjectAt(x,y,ctx,f,ownKey){
+  const F=SEL_FOOTPRINTS[f];
+  if (ctx) for (const [key,o] of ctx.dest[F.layer]){
+    if (key===ownKey || !liveSelectionValue(o)) continue;
+    const sz=F.size(o);
+    if (x>=o.x && x<o.x+sz.w && y>=o.y && y<o.y+sz.h) return Object.assign({key},o);
   }
-  const fp=firepitAt(x,y);
-  return fp && selectionIgnored(ctx,'firepits',fp.key) ? null : fp;
+  const live=F.at(x,y);
+  if (!live || selectionIgnored(ctx,F.layer,live.key)) return null;
+  // a copy onto itself still collides; a live object is never "own"
+  return live;
 }
-function selectionBoulderAt(x,y,ctx){
-  if (ctx) for (const [key,b] of ctx.dest.boulders){
-    if (!liveSelectionValue(b)) continue;
-    const sz=boulderTileSize(b);
-    if (x>=b.x && x<b.x+sz.w && y>=b.y && y<b.y+sz.h) return Object.assign({key},b);
+function selectionWaterFeatureAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'waterFeature'); }
+function selectionFirepitAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'firepit'); }
+function selectionBoulderAt(x,y,ctx){ return selectionObjectAt(x,y,ctx,'boulder'); }
+// any solid piece on the tile other than the asker (a pet claims nothing)
+function selectionSolidAt(x,y,ctx,selfF,selfKey){
+  for (const f of SEL_FOOTPRINT_KEYS)
+    if (selectionObjectAt(x,y,ctx,f,f===selfF?selfKey:undefined)) return f;
+  return null;
+}
+/* What a plant on this tile would climb, in the post-move world: a placed
+   frame, a fence that is not a gate, or a pergola roof. The supportAt rule,
+   asked of the arrangement after the move. */
+function selectionSupportAt(x,y,ctx){
+  if (selectionObjectAt(x,y,ctx,'support')) return {kind:'frame', open:false};
+  const f=selectionFenceAt(x,y,ctx);
+  if (f && !f.gate) return {kind:'fence', open:false};
+  const pg=selectionPergolaAt(x,y,ctx);
+  if (pg){
+    // a roof that moves with the selection keeps its frame, translated; one
+    // that stays put has its posts where they are, climbers aside
+    if (pg.moving) return {kind:'pergola', open:true};
+    const reg=pergolaRegionAt(x,y), fr=reg?pergolaFrameIn(reg.has,reg.info,x,y,null):null;
+    return {kind:'pergola', open:!(fr&&fr.posts.length)};
   }
-  const bo=boulderAt(x,y);
-  return bo && selectionIgnored(ctx,'boulders',bo.key) ? null : bo;
+  return null;
+}
+/* F07: a moved plant obeys placePlantAt's rules on the arrangement AFTER the
+   move — the terrain, pots and supports moving with it count, so a potted
+   plant carried with its pot onto paving is fine and a vine must land on
+   something to climb. What it deliberately does not re-ask is the soft advice
+   (shrub crowding, matrix spacing) and the canopy-shade refusal: those judge a
+   new planting, and an established one dragged a tile along is not that. */
+function selectionPlantDestValid(rec,x,y,ctx,isBulb){
+  const k=`${x},${y}`, P=rec&&PLANTS[rec.s]?plantDef(rec.s,rec.v):null;
+  if (!P) return true;
+  const isVine=P.type==='vine', tree=isTreeDef(P);
+  const pot=selectionObjectAt(x,y,ctx,'pot'), sup=selectionSupportAt(x,y,ctx);
+  if (isVine && !sup) return false;
+  if (sup && !isVine && !sup.open) return false;
+  if (sup && sup.kind==='pergola' && tree) return false;
+  if (selectionLightAt(x,y,ctx)) return false;
+  for (const f of ['firepit','waterFeature','boulder','seat'])
+    if (selectionObjectAt(x,y,ctx,f)) return false;
+  if (pot && tree) return false;
+  const terr=selectionTerrainKindAt(x,y,ctx);
+  if (P.type==='water' && !isBulb){
+    if (terr!=='water') return false;
+  } else if (terr==='water' || (!pot && terr==='path')) return false;
+  if (isBulb){
+    if (selectionBulbAt(x,y,ctx,k)) return false;
+    const above=selectionPlantAt(x,y,ctx,null);
+    return !(above && PLANTS[above.s] && isWoodyDef(plantDef(above.s,above.v)));
+  }
+  if (selectionPlantAt(x,y,ctx,k)) return false;
+  // a tree or shrub stands on its own tile, and a bulb tucked in there is lost —
+  // which a move must not do silently, so it refuses instead
+  if (isWoodyDef(P) && selectionBulbAt(x,y,ctx,null) && !selectionDest(ctx,'bulbs',k)) return false;
+  return true;
 }
 // a tree's trunk or a shrub's stem: the one tile a woody plant claims
 function selectionWoodyStemDestValid(c,x,y,ctx){
-  const k=`${x},${y}`;
-  if (!selValidDest(x,y)) return false;
-  if (selectionFenceAt(x,y,ctx) || selectionLightAt(x,y,ctx) ||
-      selectionFirepitAt(x,y,ctx) || selectionBoulderAt(x,y,ctx) ||
-      selectionWaterFeatureAt(x,y,ctx)) return false;
-  const terr=selectionTerrainKindAt(x,y,ctx);
-  if (terr==='path'||terr==='water') return false;
-  if (selectionPlantAt(x,y,ctx,k)) return false;
-  return true;
+  return selValidDest(x,y) && selectionPlantDestValid(c.plant,x,y,ctx,false);
 }
 function selectionUnderplantDestValid(c,x,y,ctx){
-  const k=`${x},${y}`, p=selectionPlantAt(x,y,ctx,c.plant?k:null);
-  if (p && isWoodyDef(plantDef(p.s,p.v))) return false;
-  return true;
+  return c.plant ? selectionPlantDestValid(c.plant,x,y,ctx,false) : selectionPlantDestValid(c.bulb,x,y,ctx,true);
+}
+// every tile a cell's objects claim at destination (x,y): its own tile, plus
+// each multi-tile object's whole footprint
+function selItemTiles(c,x,y){
+  const tiles=[[x,y]];
+  for (const f of SEL_FOOTPRINT_KEYS){
+    if (!c[f]) continue;
+    const sz=SEL_FOOTPRINTS[f].size(c[f]);
+    for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++) tiles.push([xx,yy]);
+  }
+  return tiles;
 }
 function selItemValidDest(c,x,y){
-  const sz=c.firepit ? firepitTileSize(c.firepit) : c.boulder ? boulderTileSize(c.boulder)
-    : c.waterFeature ? waterFeatureTileSize(c.waterFeature) : null;
-  if (!sz) return selValidDest(x,y);
-  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++)
+  return selItemTiles(c,x,y).every(([xx,yy])=>selValidDest(xx,yy));
+}
+/* A solid piece landing on its footprint: nothing else solid may share a tile,
+   and it refuses what its own placement refuses — a fence or light, water
+   (a water feature is wholly in or wholly out), a planting, and for a fire pit
+   or a climbing frame, a pergola roof. A pot takes no new in-ground plant
+   under it, but its own planting travels with it and is judged from the plant
+   side; a frame carries its climbers. */
+function selectionFootprintDestValid(f,o,x,y,ctx){
+  const sz=SEL_FOOTPRINTS[f].size(o), own=`${x},${y}`;
+  let wet=0, n=0;
+  for (let yy=y;yy<y+sz.h;yy++) for (let xx=x;xx<x+sz.w;xx++){
+    n++;
     if (!selValidDest(xx,yy)) return false;
-  return true;
+    if (selectionSolidAt(xx,yy,ctx,f,own)) return false;
+    if (selectionFenceAt(xx,yy,ctx) || selectionLightAt(xx,yy,ctx)) return false;
+    if (selectionTerrainKindAt(xx,yy,ctx)==='water') wet++;
+    if ((f==='firepit'||f==='support') && selectionPergolaAt(xx,yy,ctx)) return false;
+    const k=`${xx},${yy}`, p=selectionPlantAt(xx,yy,ctx,null), b=selectionBulbAt(xx,yy,ctx,null);
+    if (f==='pot'){
+      // a plant already in the ground there would be standing in the pot by accident
+      if ((p && !selectionDest(ctx,'plants',k)) || (b && !selectionDest(ctx,'bulbs',k))) return false;
+    } else if (f==='support'){
+      if (b || (p && !(PLANTS[p.s] && PLANTS[p.s].type==='vine'))) return false;
+    } else if (p || b) return false;
+  }
+  if (f==='waterFeature') return !wet || wet===n;
+  return !wet;
 }
 function selItemDestValid(c,x,y,ctx){
   if (!selItemValidDest(c,x,y)) return false;
-  if (c.plant){
-    const P=plantDef(c.plant.s,c.plant.v);
-    if (isWoodyDef(P)) return selectionWoodyStemDestValid(c,x,y,ctx);
-    return selectionUnderplantDestValid(c,x,y,ctx);
+  const k=`${x},${y}`;
+  for (const f of SEL_FOOTPRINT_KEYS)
+    if (c[f] && !selectionFootprintDestValid(f,c[f],x,y,ctx)) return false;
+  if (c.fence || c.light){
+    if (selectionSolidAt(x,y,ctx)) return false;
+    if (c.fence && selectionPergolaAt(x,y,ctx)) return false;
   }
-  if (c.bulb) return selectionUnderplantDestValid(c,x,y,ctx);
+  if (c.pergola){
+    if (selectionTerrainKindAt(x,y,ctx)==='water' || selectionFenceAt(x,y,ctx)) return false;
+    if (selectionObjectAt(x,y,ctx,'firepit') || selectionObjectAt(x,y,ctx,'support')) return false;
+    const p=selectionPlantAt(x,y,ctx,null);
+    if (p && PLANTS[p.s] && isTreeDef(plantDef(p.s,p.v))) return false;
+  }
+  if (c.plant && !selectionPlantDestValid(c.plant,x,y,ctx,false)) return false;
+  if (c.bulb && !selectionPlantDestValid(c.bulb,x,y,ctx,true)) return false;
   return true;
 }
-function selectionDestinationsValid(items,dst,copy){
+// the first item that cannot land, or null
+function selectionBlockedItem(items,dst,copy){
   const ctx=selectionValidationContext(items,dst,copy);
-  return items.every(c=>{ const [x,y]=dst(c); return selItemDestValid(c,x,y,ctx); });
+  return items.find(c=>{ const [x,y]=dst(c); return !selItemDestValid(c,x,y,ctx); })||null;
+}
+function selectionDestinationsValid(items,dst,copy){ return !selectionBlockedItem(items,dst,copy); }
+function selectionBlockedText(c,what){
+  const P=c && c.plant && PLANTS[c.plant.s] ? plantDef(c.plant.s,c.plant.v) : null;
+  if (P && P.type==='vine') return 'A climber has to land on something to climb. Move its support with it.';
+  return what;
 }
 function cloneCell(c){ return JSON.parse(JSON.stringify(c)); }
+/* Pergola roofs the rect cuts: a pergola is one roof (pergolaRegions), so a
+   selection takes it only when its whole footprint is inside and otherwise
+   leaves it standing — splitting a roof would leave two frames and a row of
+   orphaned posts. Returns the tile keys of the whole roofs and the count of
+   cut ones, which the move reports. */
+function selectionRoofs(r){
+  const whole=new Set(); let cut=0;
+  if (!game.pergolas) return {whole,cut};
+  const seen=new Set();
+  for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
+    const reg=pergolaRegionAt(x,y);
+    if (!reg || seen.has(reg)) continue;
+    seen.add(reg);
+    if (reg.tiles.every(([tx,ty])=>inRect(r,tx,ty))) reg.tiles.forEach(([tx,ty])=>whole.add(`${tx},${ty}`));
+    else cut++;
+  }
+  return {whole,cut};
+}
+function selectionCutRoofText(r){
+  const n=r?selectionRoofs(r).cut:0;
+  return n ? ` ${n===1?'A pergola':`${n} pergolas`} stayed put: select the whole roof to move it.` : '';
+}
 // snapshot every occupied tile in the rect across plants, bulbs, terrain, elevation, fences, lights, and hardscape
 function selectionPayload(r){
-  const items=[];
+  const items=[], roofs=selectionRoofs(r);
   for (let y=r.y0;y<=r.y1;y++) for (let x=r.x0;x<=r.x1;x++){
-    const k=`${x},${y}`;
-    const p=game.plants[k], b=game.bulbs[k], t=game.terrain[k], e=game.elevation[k], f=game.fences[k], l=game.lights[k], fp=game.firepits[k], bo=game.boulders[k], pet=game.pets[k], po=(game.pots||{})[k], se=(game.seats||{})[k];
-    const cell={x,y};
-    if (p && !p.removed) cell.plant=JSON.parse(JSON.stringify(p));
-    if (b && !b.removed) cell.bulb=JSON.parse(JSON.stringify(b));
-    if (t && !t.removed) cell.terr=JSON.parse(JSON.stringify(t));
-    if (e && !e.removed) cell.elev=JSON.parse(JSON.stringify(e));
-    if (f && !f.removed) cell.fence=JSON.parse(JSON.stringify(f));
-    if (l && !l.removed) cell.light=JSON.parse(JSON.stringify(l));
-    if (fp && !fp.removed) cell.firepit=JSON.parse(JSON.stringify(fp));
-    const wfc=(game.waterFeatures||{})[k];
-    if (wfc && !wfc.removed) cell.waterFeature=JSON.parse(JSON.stringify(wfc));
-    if (bo && !bo.removed){
+    const k=`${x},${y}`, cell={x,y};
+    for (const [f,layer] of SEL_LAYERS){
+      if (f==='pergola' && !roofs.whole.has(k)) continue;
+      const v=(game[layer]||{})[k];
+      if (v && !v.removed) cell[f]=cloneCell(v);
+    }
+    if (cell.boulder){
       // the shape travels with the stone: an old record is given the seed of the
       // tile it is drawn from now, before anything moves it (boulderSeedAt)
-      cell.boulder=JSON.parse(JSON.stringify(bo));
-      cell.boulder.seed=boulderSeedAt(bo,x,y);
+      cell.boulder.seed=boulderSeedAt(game.boulders[k],x,y);
     }
-    if (pet && !pet.removed) cell.pet=JSON.parse(JSON.stringify(pet));
-    if (po && !po.removed) cell.pot=JSON.parse(JSON.stringify(po));
-    if (se && !se.removed) cell.seat=JSON.parse(JSON.stringify(se));
-    if (cell.plant||cell.bulb||cell.terr||cell.elev||cell.fence||cell.light||cell.firepit||cell.boulder||cell.pet||cell.pot||cell.seat||cell.waterFeature) items.push(cell);
+    if (Object.keys(cell).length>2) items.push(cell);
+  }
+  /* A climbing frame carries its climbers, including any on the part of its
+     footprint the rect does not reach: a frame moved out from under a vine
+     would leave it standing on nothing. */
+  const held=new Set(items.map(c=>`${c.x},${c.y}`));
+  for (const c of items.slice()){
+    if (!c.support) continue;
+    const sz=supportTileSize(c.support);
+    for (let yy=c.y;yy<c.y+sz.h;yy++) for (let xx=c.x;xx<c.x+sz.w;xx++){
+      const k=`${xx},${yy}`, p=game.plants[k];
+      if (held.has(k) || !p || p.removed || !PLANTS[p.s] || PLANTS[p.s].type!=='vine') continue;
+      items.push({x:xx,y:yy,plant:cloneCell(p)}); held.add(k);
+    }
   }
   return items;
 }
@@ -2303,6 +2430,13 @@ function clearRectLayers(r){
     const bo=boulderAt(x,y);
     if (bo) clearTile('boulders',bo.key);
     if (petAt(x,y)) clearTile('pets',k);
+    const po=potAt(x,y);
+    if (po) clearTile('pots',po.key);
+    const se=seatAt(x,y);
+    if (se) clearTile('seats',se.key);
+    const su=structureSupportAt(x,y);
+    if (su) clearTile('supports',su.key);
+    if (pergolaAt(x,y)) clearTile('pergolas',k);
   }
 }
 function pasteSavedArea(){
@@ -2370,39 +2504,20 @@ function fillSelectionWithPlant(){
 function selWrite(items, getDst, clearSource){
   if (clearSource){
     for (const c of items){ const k=`${c.x},${c.y}`;
-      if (c.plant) clearTile('plants',k);
-      if (c.bulb)  clearTile('bulbs',k);
-      if (c.terr)  clearTile('terrain',k);
-      if (c.elev)  clearTile('elevation',k);
-      if (c.fence) clearTile('fences',k);
-      if (c.light) clearTile('lights',k);
-      if (c.firepit) clearTile('firepits',k);
-      if (c.waterFeature) clearTile('waterFeatures',k);
-      if (c.boulder) clearTile('boulders',k);
-      if (c.pet)   clearTile('pets',k);
-      if (c.pot)   clearTile('pots',k);
-      if (c.seat)  clearTile('seats',k);
+      for (const [f,layer] of SEL_LAYERS) if (c[f]) clearTile(layer,k);
     }
   }
   const now=Date.now();
   for (const c of items){ const [nx,ny]=getDst(c); const k=`${nx},${ny}`;
-    if (c.plant){
-      const plant=Object.assign({},c.plant,{t:now});
-      if(!clearSource)delete plant.dailySiteId; // a copy is a new planting, even if its source was site context
-      setTile('plants',k,plant);
-      c.plant=plant; // later moves/rotations must use the copied identity too
+    for (const [f,layer] of SEL_LAYERS){
+      if (!c[f]) continue;
+      if (f==='plant'){
+        const plant=Object.assign({},c.plant,{t:now});
+        if(!clearSource)delete plant.dailySiteId; // a copy is a new planting, even if its source was site context
+        setTile('plants',k,plant);
+        c.plant=plant; // later moves/rotations must use the copied identity too
+      } else setTile(layer,k,Object.assign({},c[f],{t:now}));
     }
-    if (c.bulb)  setTile('bulbs',k,Object.assign({},c.bulb,{t:now}));
-    if (c.terr)  setTile('terrain',k,Object.assign({},c.terr,{t:now}));
-    if (c.elev)  setTile('elevation',k,Object.assign({},c.elev,{t:now}));
-    if (c.fence) setTile('fences',k,Object.assign({},c.fence,{t:now}));
-    if (c.light) setTile('lights',k,Object.assign({},c.light,{t:now}));
-    if (c.firepit) setTile('firepits',k,Object.assign({},c.firepit,{t:now}));
-    if (c.waterFeature) setTile('waterFeatures',k,Object.assign({},c.waterFeature,{t:now}));
-    if (c.boulder) setTile('boulders',k,Object.assign({},c.boulder,{t:now}));
-    if (c.pet)   setTile('pets',k,Object.assign({},c.pet,{t:now}));
-    if (c.pot)   setTile('pots',k,Object.assign({},c.pot,{t:now}));
-    if (c.seat)  setTile('seats',k,Object.assign({},c.seat,{t:now}));
   }
 }
 // commit a move or copy by tile offset; returns true if applied. Operates on
@@ -2412,15 +2527,49 @@ function commitSelectionOffset(dx,dy,copy){
   const items=game.selItems||[];
   if (!items.length) return false;
   const dst=c=>[c.x+dx,c.y+dy];
-  if (!selectionDestinationsValid(items,dst,copy)){
-    toast('That spot is blocked for the selected plants or hardscape.'); return false;
+  const blocked=selectionBlockedItem(items,dst,copy);
+  if (blocked){
+    toast(selectionBlockedText(blocked,'That spot is blocked for the selected plants or hardscape.')); return false;
   }
+  const cut=selectionCutRoofText(game.sel);
   withUndo(()=>selWrite(items, dst, !copy));
   items.forEach(c=>{ c.x+=dx; c.y+=dy; });   // the selection now owns the moved/copied tiles
   game.sel={x0:game.sel.x0+dx,y0:game.sel.y0+dy,x1:game.sel.x1+dx,y1:game.sel.y1+dy};
-  toast(copy?`Duplicated ${items.length} tile${items.length>1?'s':''}.`
-            :`Moved ${items.length} tile${items.length>1?'s':''}.`);
+  toast((copy?`Duplicated ${items.length} tile${items.length>1?'s':''}.`
+             :`Moved ${items.length} tile${items.length>1?'s':''}.`)+cut);
   return true;
+}
+/* A quarter turn of a piece that has a facing (F05). Rotating the selection
+   turns the arrangement clockwise in tile space, which is exactly what face+1
+   does to a piece's own axes (turnAxes: u goes to +y), so the drawing and the
+   footprint follow the turn. A fire pit stores only the turns it can show. */
+function turnSelectionRecord(f,rec){
+  const out=cloneCell(rec);
+  if (!SEL_FOOTPRINTS[f]) return out;
+  out.face=normalizeFacing((rec.face|0)+1);
+  if (f==='firepit') out.face=normalizeFirepitDraft(out).face;
+  return out;
+}
+/* The rotated selection as fresh items with their destinations. A multi-tile
+   piece goes into an item of its own, because its origin after a turn is NOT
+   the turned origin tile: it is the turned image of its far corner (the tile
+   at the bottom-left of its old footprint), and the plants and paving on the
+   origin tile go where that tile goes. */
+function rotatedSelectionItems(items,rot){
+  const out=[], dstOf=new Map();
+  for (const c of items){
+    const rest={x:c.x,y:c.y};
+    for (const [f] of SEL_LAYERS){
+      if (!c[f]) continue;
+      if (SEL_FOOTPRINTS[f]){
+        const sz=SEL_FOOTPRINTS[f].size(c[f]), item={x:c.x,y:c.y};
+        item[f]=turnSelectionRecord(f,c[f]);
+        out.push(item); dstOf.set(item,rot(c.x,c.y+sz.h-1));
+      } else rest[f]=cloneCell(c[f]);
+    }
+    if (Object.keys(rest).length>2){ out.push(rest); dstOf.set(rest,rot(c.x,c.y)); }
+  }
+  return {items:out, dst:c=>dstOf.get(c)};
 }
 // rotate the selection's owned contents 90° clockwise in integer tile space.
 // Anchoring at the rect origin avoids half-tile rounding drift for mixed parity
@@ -2432,13 +2581,17 @@ function rotateSelection(){
   const w=r.x1-r.x0+1, h=r.y1-r.y0+1;
   const nr={x0:r.x0,y0:r.y0,x1:r.x0+h-1,y1:r.y0+w-1};
   const rot=(x,y)=>[nr.x0+(r.y1-y), nr.y0+(x-r.x0)];
-  if (nr.x1>=GW || nr.y1>=GH || !selectionDestinationsValid(items,c=>rot(c.x,c.y),false)){
-    toast('Rotated selection would be blocked.'); return;
+  const turned=rotatedSelectionItems(items,rot);
+  const blocked=nr.x1>=GW || nr.y1>=GH ? true : selectionBlockedItem(turned.items,turned.dst,false);
+  if (blocked){
+    toast(selectionBlockedText(blocked,'Rotated selection would be blocked.')); return;
   }
-  withUndo(()=>selWrite(items, c=>rot(c.x,c.y), true));
-  items.forEach(c=>{ const [nx,ny]=rot(c.x,c.y); c.x=nx; c.y=ny; });
+  const cut=selectionCutRoofText(r);
+  withUndo(()=>selWrite(turned.items, turned.dst, true));
+  turned.items.forEach(c=>{ const [nx,ny]=turned.dst(c); c.x=nx; c.y=ny; });
+  game.selItems=turned.items;
   game.sel=nr;
-  toast(`Rotated ${items.length} tile${items.length>1?'s':''}.`);
+  toast(`Rotated ${items.length} tile${items.length>1?'s':''}.`+cut);
 }
 function eraseSelection(){
   if (!game.sel) return;
@@ -2446,24 +2599,86 @@ function eraseSelection(){
   if (!items.length){ toast('Nothing in the selection to erase.'); clearSelection(); return; }
   withUndo(()=>{
     for (const c of items){ const k=`${c.x},${c.y}`;
-      if (c.plant) clearTile('plants',k);
-      if (c.bulb)  clearTile('bulbs',k);
-      if (c.terr)  clearTile('terrain',k);
-      if (c.elev)  clearTile('elevation',k);
-      if (c.fence) clearTile('fences',k);
-      if (c.light) clearTile('lights',k);
-      if (c.firepit) clearTile('firepits',k);
-      if (c.waterFeature) clearTile('waterFeatures',k);
-      if (c.boulder) clearTile('boulders',k);
-      if (c.pet)   clearTile('pets',k);
-      if (c.pot)   clearTile('pots',k);
-      if (c.seat)  clearTile('seats',k);
+      for (const [f,layer] of SEL_LAYERS) if (c[f]) clearTile(layer,k);
     } });
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
-function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; }
+function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; selResize=null; }
 function clearSelection(){ resetSelectionState(); buildToolTray(); refreshCanvasTools(); }
+/* ---------- resizing a committed selection in place ----------
+   Eight handles sit on the marquee's outline: four corners and four edge
+   midpoints. Dragging one moves that side (or two sides) of the rect to the
+   tile under the pointer; it changes WHICH tiles are selected and never scales
+   what is in them, and on release the selection re-owns what is now inside it
+   (selectionPayload), exactly as drawing a fresh marquee does.
+   Handles are hit-tested in SCREEN space, not by tile, because the tiles under
+   a handle belong to the selection and a press inside the selection means
+   'move' — that has to stay true everywhere except within reach of a handle.
+   Each handle names which rect sides it moves: sx/sy are 'x0'|'x1'|null. */
+const SEL_HANDLES=[
+  {id:'nw',sx:'x0',sy:'y0'},{id:'n',sx:null,sy:'y0'},{id:'ne',sx:'x1',sy:'y0'},
+  {id:'e',sx:'x1',sy:null},{id:'se',sx:'x1',sy:'y1'},{id:'s',sx:null,sy:'y1'},
+  {id:'sw',sx:'x0',sy:'y1'},{id:'w',sx:'x0',sy:null}];
+// a 44px target on a finger, 24px for a mouse (the radius, in CSS px)
+const SEL_HANDLE_HIT_PX={coarse:22,fine:12};
+function selHandleHitPx(){
+  const coarse=typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches;
+  return coarse ? SEL_HANDLE_HIT_PX.coarse : SEL_HANDLE_HIT_PX.fine;
+}
+/* World tile-CORNER coordinates of each handle: tile x owns corners x..x+1, so
+   the rect's outline runs x0..x1+1 (screenOfCorner, never screenOf — §10). */
+function selHandleCorners(r){
+  const cx={x0:r.x0, x1:r.x1+1}, cy={y0:r.y0, y1:r.y1+1};
+  const mx=(r.x0+r.x1+1)/2, my=(r.y0+r.y1+1)/2;
+  return SEL_HANDLES.map(h=>({id:h.id, sx:h.sx, sy:h.sy,
+    cx:h.sx?cx[h.sx]:mx, cy:h.sy?cy[h.sy]:my}));
+}
+function selHandlePoints(r,W,H){
+  return selHandleCorners(r).map(h=>{
+    const [px,py]=screenOfCorner(h.cx,h.cy,W,H);
+    return {id:h.id, sx:h.sx, sy:h.sy, x:px, y:py};
+  });
+}
+/* The handle nearest (px,py) within `radius` (draw units), or null. Corners win
+   a tie with an edge midpoint, since on a one-tile selection they crowd. */
+function selHandleAt(points,px,py,radius){
+  let best=null, bd=radius*radius;
+  for (const h of points){
+    const d=(h.x-px)*(h.x-px)+(h.y-py)*(h.y-py);
+    if (d<bd || (d===bd && best && !(best.sx&&best.sy) && h.sx&&h.sy)){ best=h; bd=d; }
+  }
+  return best;
+}
+function clampSelRect(r){
+  const cl=(v,hi)=>Math.max(0,Math.min(hi,v));
+  return {x0:cl(r.x0,GW-1), y0:cl(r.y0,GH-1), x1:cl(r.x1,GW-1), y1:cl(r.y1,GH-1)};
+}
+/* The rect a handle drag gives: the handle's sides move to the tile (tx,ty),
+   dragged past the opposite side the rect flips rather than inverting, and the
+   result stays on the plot's rectangle and at least one tile. */
+function selResizeRect(r0,handle,tx,ty){
+  const r={x0:r0.x0, y0:r0.y0, x1:r0.x1, y1:r0.y1};
+  if (handle.sx) r[handle.sx]=tx;
+  if (handle.sy) r[handle.sy]=ty;
+  return clampSelRect(normRect({x:r.x0,y:r.y0},{x:r.x1,y:r.y1}));
+}
+/* Pointerdown with Select armed and a selection up: start a resize if the press
+   is on a handle. Runs BEFORE the off-plot early return in input.js, because a
+   corner handle of a selection touching the plot edge sits on its outer line. */
+function selHandlePointerDown(e){
+  if (!game.sel || selMove || selDrag || typeof canvasClientPoint!=='function') return false;
+  const W=VW/ZOOM, H=VH/ZOOM, pt=canvasClientPoint(e);
+  const h=selHandleAt(selHandlePoints(game.sel,W,H), pt.x/ZOOM, pt.y/ZOOM, selHandleHitPx()/ZOOM);
+  if (!h) return false;
+  try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+  selResize={handle:h, r0:{...game.sel}};
+  return true;
+}
+function cancelSelResize(){
+  if (!selResize) return false;
+  game.sel=selResize.r0; selResize=null; return true;
+}
 function selPointerDown(x,y,e){
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
@@ -2474,11 +2689,18 @@ function selPointerDown(x,y,e){
   }
 }
 function selPointerMove(x,y){
+  if (selResize){ game.sel=selResizeRect(selResize.r0,selResize.handle,x,y); return true; }
   if (selDrag){ selDrag.x1=x; selDrag.y1=y; return true; }
   if (selMove){ selMove.curX=x; selMove.curY=y; return true; }
   return false;
 }
 function selPointerUp(){
+  if (selResize){
+    selResize=null;
+    game.selItems=selectionPayload(game.sel);   // re-own what is inside it now
+    buildToolTray(); refreshCanvasTools();
+    return;
+  }
   if (selDrag){
     game.sel=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
     // the selection OWNS exactly what was in the box when it was drawn — it

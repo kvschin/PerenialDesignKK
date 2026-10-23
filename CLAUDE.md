@@ -3436,11 +3436,31 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     about the rect center, `eraseSelection` deletes them — each wrapped in
     `withUndo` for a single undo step. Moves/rotations
     are refused if any destination fails `selValidDest` (off-plot or into the
-    house/door). `drawSelectionOverlay` (called near the end of `render`)
+    house/door). **One table, `SEL_LAYERS`, lists everything a selection
+    carries** (payload, validation sets, write, erase) — pergolas and climbing
+    frames were missing from five hand-kept copies of it (F04); a frame carries
+    the climbers on its footprint. Validation runs on the POST-MOVE world: every
+    tile of every multi-tile piece (`SEL_FOOTPRINTS`, F06) and the ordinary
+    planting rules for a moved plant (`selectionPlantDestValid`, F07 — a potted
+    plant may land on paving with its pot, a vine must land on a support; shade
+    and spacing advice are not re-asked). Rotation turns each piece's `face`
+    and lands it on the turned image of its far corner, in an item of its own
+    (`rotatedSelectionItems`, F05); four turns restore the original exactly.
+    `drawSelectionOverlay` (called near the end of `render`)
     draws the marquee, the resting selection (blue fill + outline), and the
     move/copy ghost (destination diamonds tinted green/red for valid/invalid
     plus translucent plant ghosts, blitted from the sprite cache). Escape cancels an
-    in-progress move, then the selection; switching tools drops it.
+    in-progress move or resize, then the selection; switching tools drops it.
+    **A committed selection resizes in place** (`SEL_HANDLES`, `selHandlePoints`,
+    `selHandleAt`, `selResizeRect`, commands.js; `drawSelHandles`, renderer.js):
+    eight handles on the outline (corners round, edge midpoints square) drag that
+    side to the tile under the pointer, flipping past the opposite side, clamped
+    to the plot's rectangle. It changes which tiles are selected, never the
+    contents; release re-owns them through `selectionPayload`, and no undo step
+    is made because no garden data moved. Handles are hit-tested in SCREEN space
+    (44px target on a coarse pointer, 24px on a mouse) before input.js's off-plot
+    return, so a press inside the selection away from a handle still means move,
+    and a corner on the plot's edge is still reachable.
     **A dragged selection ghosts through the SPRITE CACHE, on the SOURCE tile's
     seed** (Sep 2026). Drawn procedurally this was the most expensive thing in
     the app: every selected plant re-ran its whole recipe every frame, so a
@@ -4287,8 +4307,9 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     edge dashed, rafters fine, beams heavier, posts solid. Measured:
     `measureStructBoxes` 0 escaping, `verifyStructureSprites({rot:true})`
     0.18-0.34% of pixels at the four rotations with nothing clipped.
-    Known limits: it is still NOT in `selectionPayload`, with the supports beside
-    it, so a marquee moving a patio leaves its pergola behind; and a climber
+    A selection carries a pergola only when the WHOLE roof is inside the
+    marquee (`selectionRoofs`); a cut roof stays put and the move's toast says
+    so, since splitting it would leave two frames. Known limit: a climber
     still cannot be planted into PAVING under one, because a plant cannot be dug
     into gravel — the answer is a container under the frame (§12b).
 
@@ -7679,7 +7700,8 @@ Live collaboration is not on the roadmap; if it ever returns it starts from
     material onto the brush (`pickAt`); see the canvas-toolbar notes above.
   - *(Built)* **Selection tool** — marquee a region to move, duplicate,
     rotate, or erase the plants/terrain inside it (see the Select tool in the
-    canvas-toolbar notes above). Resize-in-place is still open.
+    canvas-toolbar notes above). Resize-in-place is built too (below the
+    Select notes).
 
 ### UX + design-feature implementation record (waves)
 

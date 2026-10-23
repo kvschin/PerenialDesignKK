@@ -2746,6 +2746,7 @@ function hasActiveGesture(){
     || (typeof panDrag!=='undefined' && !!panDrag)
     || (typeof selDrag!=='undefined' && !!selDrag)
     || (typeof selMove!=='undefined' && !!selMove)
+    || (typeof selResize!=='undefined' && !!selResize)
     || (typeof sweep!=='undefined' && !!sweep);
 }
 function hasTransientGardenWork(){

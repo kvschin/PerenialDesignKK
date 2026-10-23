@@ -129,6 +129,7 @@ addEventListener('keydown',e=>{
   }
   if (e.key==='Escape' && game.tool==='select'){  // back out of a move, then the selection
     if (selMove){ selMove=null; toast('Move cancelled.'); }
+    else if (cancelSelResize()){ toast('Resize cancelled.'); }
     else if (game.sel){ clearSelection(); toast('Selection cleared.'); }
     return;
   }
@@ -241,7 +242,7 @@ function showGestureCancel(msg){
    sweep counts because sweepLift runs on contact — a shovel touch has already
    erased something by the time the second finger lands. */
 function canvasGestureWouldLoseWork(){
-  if (sweep || selDrag || selMove) return true;
+  if (sweep || selDrag || selMove || selResize) return true;
   if (toolDrag && toolDrag.active) return true;
   if (rulerDrag && rulerDrag.moved) return true;
   if (game.tool==='building' && game.buildingDraft) return true;
@@ -249,7 +250,7 @@ function canvasGestureWouldLoseWork(){
 }
 function cancelCanvasGesture(restore,notice){
   cancelPendingUndo(restore);
-  sweep=null; sweepTap=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; photoDrag=null; photoPinch=null;
+  sweep=null; sweepTap=null; toolDrag=null; fillTap=null; rulerDrag=null; panDrag=null; selDrag=null; selMove=null; cancelSelResize(); photoDrag=null; photoPinch=null;
   game.hoverTile=null;
   if (game.tool==='building' && game.buildingDraft) cancelBuildingDraft();
   if (notice) showGestureCancel(notice);
@@ -407,6 +408,7 @@ cnv.addEventListener('pointerdown',e=>{
   }
   const place=evPlacement(e), x=place.x, y=place.y;
   game.hoverTile=(x>=0&&y>=0&&x<GW&&y<GH)?[x,y]:null;
+  if (game.tool==='select' && selHandlePointerDown(e)) return;
   if (x<0||y<0||x>=GW||y>=GH) return;
   if (game.tool==='building'){ buildingPointerDown(place); return; }
   if (game.tool==='select'){ selPointerDown(x,y,e); return; }
@@ -706,7 +708,7 @@ cnv.addEventListener('pointerup',e=>{
     } else tourNote('look');   // it travelled: that was a pan, which is the camera step
     return;
   }
-  if (game.tool==='select' && (selDrag||selMove)){ selPointerUp(); return; }
+  if (game.tool==='select' && (selDrag||selMove||selResize)){ selPointerUp(); return; }
   if (rulerDrag){
     const r=rulerDrag; rulerDrag=null;
     if (r.pending) game.ruler={a:r.pending,b:[r.cx,r.cy],active:false};
