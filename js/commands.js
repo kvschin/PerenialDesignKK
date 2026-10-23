@@ -1964,8 +1964,9 @@ function eraseShrubBySpread(x,y,counts){
 /* ---------- selection tool: marquee a region, then move/copy/rotate/erase ----------
    game.sel is the committed rect; selDrag is an in-progress marquee; selMove
    is an in-progress move/copy drag. All edits go through withUndo so each is
-   a single undo step. */
-let selDrag=null, selMove=null;
+   a single undo step. selResize is an in-progress drag of one of the committed
+   marquee's handles (selection resize-in-place, below). */
+let selDrag=null, selMove=null, selResize=null;
 const AREA_CLIP_KEY='hortus:areaClipboard';
 let areaClipboard=null;
 function normRect(a,b){ return {x0:Math.min(a.x,b.x),y0:Math.min(a.y,b.y),
@@ -2603,8 +2604,81 @@ function eraseSelection(){
   toast(`Erased ${items.length} tile${items.length>1?'s':''}.`);
   clearSelection();
 }
-function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; }
+function resetSelectionState(){ game.sel=null; game.selItems=null; selDrag=null; selMove=null; selResize=null; }
 function clearSelection(){ resetSelectionState(); buildToolTray(); refreshCanvasTools(); }
+/* ---------- resizing a committed selection in place ----------
+   Eight handles sit on the marquee's outline: four corners and four edge
+   midpoints. Dragging one moves that side (or two sides) of the rect to the
+   tile under the pointer; it changes WHICH tiles are selected and never scales
+   what is in them, and on release the selection re-owns what is now inside it
+   (selectionPayload), exactly as drawing a fresh marquee does.
+   Handles are hit-tested in SCREEN space, not by tile, because the tiles under
+   a handle belong to the selection and a press inside the selection means
+   'move' — that has to stay true everywhere except within reach of a handle.
+   Each handle names which rect sides it moves: sx/sy are 'x0'|'x1'|null. */
+const SEL_HANDLES=[
+  {id:'nw',sx:'x0',sy:'y0'},{id:'n',sx:null,sy:'y0'},{id:'ne',sx:'x1',sy:'y0'},
+  {id:'e',sx:'x1',sy:null},{id:'se',sx:'x1',sy:'y1'},{id:'s',sx:null,sy:'y1'},
+  {id:'sw',sx:'x0',sy:'y1'},{id:'w',sx:'x0',sy:null}];
+// a 44px target on a finger, 24px for a mouse (the radius, in CSS px)
+const SEL_HANDLE_HIT_PX={coarse:22,fine:12};
+function selHandleHitPx(){
+  const coarse=typeof matchMedia==='function' && matchMedia('(pointer: coarse)').matches;
+  return coarse ? SEL_HANDLE_HIT_PX.coarse : SEL_HANDLE_HIT_PX.fine;
+}
+/* World tile-CORNER coordinates of each handle: tile x owns corners x..x+1, so
+   the rect's outline runs x0..x1+1 (screenOfCorner, never screenOf — §10). */
+function selHandleCorners(r){
+  const cx={x0:r.x0, x1:r.x1+1}, cy={y0:r.y0, y1:r.y1+1};
+  const mx=(r.x0+r.x1+1)/2, my=(r.y0+r.y1+1)/2;
+  return SEL_HANDLES.map(h=>({id:h.id, sx:h.sx, sy:h.sy,
+    cx:h.sx?cx[h.sx]:mx, cy:h.sy?cy[h.sy]:my}));
+}
+function selHandlePoints(r,W,H){
+  return selHandleCorners(r).map(h=>{
+    const [px,py]=screenOfCorner(h.cx,h.cy,W,H);
+    return {id:h.id, sx:h.sx, sy:h.sy, x:px, y:py};
+  });
+}
+/* The handle nearest (px,py) within `radius` (draw units), or null. Corners win
+   a tie with an edge midpoint, since on a one-tile selection they crowd. */
+function selHandleAt(points,px,py,radius){
+  let best=null, bd=radius*radius;
+  for (const h of points){
+    const d=(h.x-px)*(h.x-px)+(h.y-py)*(h.y-py);
+    if (d<bd || (d===bd && best && !(best.sx&&best.sy) && h.sx&&h.sy)){ best=h; bd=d; }
+  }
+  return best;
+}
+function clampSelRect(r){
+  const cl=(v,hi)=>Math.max(0,Math.min(hi,v));
+  return {x0:cl(r.x0,GW-1), y0:cl(r.y0,GH-1), x1:cl(r.x1,GW-1), y1:cl(r.y1,GH-1)};
+}
+/* The rect a handle drag gives: the handle's sides move to the tile (tx,ty),
+   dragged past the opposite side the rect flips rather than inverting, and the
+   result stays on the plot's rectangle and at least one tile. */
+function selResizeRect(r0,handle,tx,ty){
+  const r={x0:r0.x0, y0:r0.y0, x1:r0.x1, y1:r0.y1};
+  if (handle.sx) r[handle.sx]=tx;
+  if (handle.sy) r[handle.sy]=ty;
+  return clampSelRect(normRect({x:r.x0,y:r.y0},{x:r.x1,y:r.y1}));
+}
+/* Pointerdown with Select armed and a selection up: start a resize if the press
+   is on a handle. Runs BEFORE the off-plot early return in input.js, because a
+   corner handle of a selection touching the plot edge sits on its outer line. */
+function selHandlePointerDown(e){
+  if (!game.sel || selMove || selDrag || typeof canvasClientPoint!=='function') return false;
+  const W=VW/ZOOM, H=VH/ZOOM, pt=canvasClientPoint(e);
+  const h=selHandleAt(selHandlePoints(game.sel,W,H), pt.x/ZOOM, pt.y/ZOOM, selHandleHitPx()/ZOOM);
+  if (!h) return false;
+  try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
+  selResize={handle:h, r0:{...game.sel}};
+  return true;
+}
+function cancelSelResize(){
+  if (!selResize) return false;
+  game.sel=selResize.r0; selResize=null; return true;
+}
 function selPointerDown(x,y,e){
   try{ cnv.setPointerCapture(e.pointerId); }catch(_){}
   if (inRect(game.sel,x,y)){            // grab the selection to move/copy it
@@ -2615,11 +2689,18 @@ function selPointerDown(x,y,e){
   }
 }
 function selPointerMove(x,y){
+  if (selResize){ game.sel=selResizeRect(selResize.r0,selResize.handle,x,y); return true; }
   if (selDrag){ selDrag.x1=x; selDrag.y1=y; return true; }
   if (selMove){ selMove.curX=x; selMove.curY=y; return true; }
   return false;
 }
 function selPointerUp(){
+  if (selResize){
+    selResize=null;
+    game.selItems=selectionPayload(game.sel);   // re-own what is inside it now
+    buildToolTray(); refreshCanvasTools();
+    return;
+  }
   if (selDrag){
     game.sel=normRect({x:selDrag.x0,y:selDrag.y0},{x:selDrag.x1,y:selDrag.y1});
     // the selection OWNS exactly what was in the box when it was drawn — it

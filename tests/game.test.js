@@ -18811,3 +18811,49 @@ test('a moved plant obeys the planting rules where it lands (F07)', () => {
   doUndo();
   assert(game.plants['4,4'] && !game.plants['4,4'].removed, 'one undo step');
 });
+
+test('selection resize: handles hit-test in screen space, the rect follows the tile, and release re-owns', () => {
+  setup(14,14);
+  const forb=firstOfType('forb');
+  game.plants['3,3']={s:forb,d:0,t:1};
+  game.plants['6,3']={s:forb,d:0,t:1};
+  game.sel={x0:2,y0:2,x1:4,y1:4};
+  game.selItems=selectionPayload(game.sel);
+  assertEqual(game.selItems.filter(c=>c.plant).length,1,'starts owning one plant');
+  const W=VW/ZOOM, H=VH/ZOOM, pts=selHandlePoints(game.sel,W,H);
+  assertEqual(pts.length,8,'four corners and four edge midpoints');
+  const ne=pts.find(p=>p.id==='ne');
+  const [cx,cy]=screenOfCorner(5,2,W,H);
+  assert(ne.x===cx && ne.y===cy,'a corner handle sits on the tile-corner lattice, past the last tile');
+  assertEqual(selHandleAt(pts,ne.x+3,ne.y-2,12).id,'ne','a press near a handle finds it');
+  assertEqual(selHandleAt(pts,ne.x+30,ne.y,12),null,'a press out of reach finds nothing');
+  // the middle of the selection is out of reach of every handle: it still means move
+  const [mx,my]=screenOf(3,3,W,H);
+  assertEqual(selHandleAt(pts,mx,my+TILE_H/2,12),null,'the selection interior is not a handle');
+  selPointerDown(3,3,{pointerId:1});
+  assert(selMove && !selResize,'a press inside the selection starts a move');
+  selMove=null;
+  // edges move one side, corners two; past the opposite side the rect flips
+  const e=SEL_HANDLES.find(h=>h.id==='e'), nw=SEL_HANDLES.find(h=>h.id==='nw');
+  const r0={x0:2,y0:2,x1:4,y1:4};
+  assertEqual(JSON.stringify(selResizeRect(r0,e,7,9)),JSON.stringify({x0:2,y0:2,x1:7,y1:4}),'an edge handle moves only its side');
+  assertEqual(JSON.stringify(selResizeRect(r0,nw,1,0)),JSON.stringify({x0:1,y0:0,x1:4,y1:4}),'a corner moves two sides');
+  assertEqual(JSON.stringify(selResizeRect(r0,e,0,3)),JSON.stringify({x0:0,y0:2,x1:2,y1:4}),'dragging past the far side flips the rect');
+  assertEqual(JSON.stringify(selResizeRect(r0,nw,-5,-3)),JSON.stringify({x0:0,y0:0,x1:4,y1:4}),'the rect is clamped to the plot');
+  assertEqual(JSON.stringify(selResizeRect(r0,SEL_HANDLES.find(h=>h.id==='se'),99,99)),JSON.stringify({x0:2,y0:2,x1:13,y1:13}),'and on the far edges too');
+  assertEqual(JSON.stringify(selResizeRect(r0,e,2,2)),JSON.stringify({x0:2,y0:2,x1:2,y1:4}),'a side dragged onto its opposite leaves one tile');
+  // the gesture: drag the east edge out to take the second plant, release re-owns
+  selResize={handle:e, r0:{...game.sel}};
+  selPointerMove(6,8);
+  assertEqual(game.sel.x1,6,'the rect follows the pointer live');
+  assertEqual(game.selItems.filter(c=>c.plant).length,1,'contents are not re-owned until release');
+  selPointerUp();
+  assert(!selResize,'release ends the resize');
+  assertEqual(game.selItems.filter(c=>c.plant).length,2,'release re-snapshots what is now inside');
+  assert(game.plants['6,3'] && game.plants['3,3'],'resizing never moves or scales the contents');
+  assertEqual(undoStack.length,0,'a resize changes no garden data and makes no undo step');
+  // Escape / a cancelled gesture puts the old rect back
+  selResize={handle:e, r0:{...game.sel}};
+  selPointerMove(9,3);
+  assert(cancelSelResize() && game.sel.x1===6 && !selResize,'cancelling restores the rect');
+});

@@ -3450,7 +3450,17 @@ Rough order of the logic, top to bottom (the numbering predates the split):
     draws the marquee, the resting selection (blue fill + outline), and the
     move/copy ghost (destination diamonds tinted green/red for valid/invalid
     plus translucent plant ghosts, blitted from the sprite cache). Escape cancels an
-    in-progress move, then the selection; switching tools drops it.
+    in-progress move or resize, then the selection; switching tools drops it.
+    **A committed selection resizes in place** (`SEL_HANDLES`, `selHandlePoints`,
+    `selHandleAt`, `selResizeRect`, commands.js; `drawSelHandles`, renderer.js):
+    eight handles on the outline (corners round, edge midpoints square) drag that
+    side to the tile under the pointer, flipping past the opposite side, clamped
+    to the plot's rectangle. It changes which tiles are selected, never the
+    contents; release re-owns them through `selectionPayload`, and no undo step
+    is made because no garden data moved. Handles are hit-tested in SCREEN space
+    (44px target on a coarse pointer, 24px on a mouse) before input.js's off-plot
+    return, so a press inside the selection away from a handle still means move,
+    and a corner on the plot's edge is still reachable.
     **A dragged selection ghosts through the SPRITE CACHE, on the SOURCE tile's
     seed** (Sep 2026). Drawn procedurally this was the most expensive thing in
     the app: every selected plant re-ran its whole recipe every frame, so a
@@ -7690,7 +7700,8 @@ Live collaboration is not on the roadmap; if it ever returns it starts from
     material onto the brush (`pickAt`); see the canvas-toolbar notes above.
   - *(Built)* **Selection tool** — marquee a region to move, duplicate,
     rotate, or erase the plants/terrain inside it (see the Select tool in the
-    canvas-toolbar notes above). Resize-in-place is still open.
+    canvas-toolbar notes above). Resize-in-place is built too (below the
+    Select notes).
 
 ### UX + design-feature implementation record (waves)
 
