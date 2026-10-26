@@ -6186,6 +6186,13 @@ dieback, `look.dormantWhenBare` suppresses all drawing when there is no foliage,
 seed, or active bloom, including the shadow and full-growth library/Established
 previews. Virginia bluebells use it with empty Summer/Fall/Winter slots; ordinary
 forbs retain their standing stems and establishment floor.
+**Every herbaceous choice in `SNOW_BARE_FORMS` with an empty Winter slot opts
+in too** (Oct 2026): hosta, brunnera, daylily, the five deciduous ferns,
+Jacob's ladder, forget-me-not, poppy mallow, 'Rozanne', inside-out flower and
+sunshine mimosa. Those forms gate every organ on the season colours, so each
+drew a ground shadow with no plant over it all winter. A test walks the catalog
+and fails on any such choice that still draws. Brunnera lost its Fall `seed`,
+which leafmound never drew and which only earned it a false `seedhead` role.
 
 Shared stemmed forms accept `leaves:0` to omit a basal fan, and opt into
 `stemLeafArrangement:'alternate'|'opposite'|'whorled'`, with `stemLeaves` naming
