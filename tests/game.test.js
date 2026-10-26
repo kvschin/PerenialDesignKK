@@ -12568,6 +12568,36 @@ test('snow only falls on a plant that actually drew something', () => {
       `${k}: holds winter structure, so it must keep its snow`);
 });
 
+test('a perennial that dies down draws nothing in winter, not a lone shadow', () => {
+  // The forms in SNOW_BARE_FORMS gate every organ on the season colours, so an
+  // empty Winter slot put only the ground shadow on the tile: a dark oval with
+  // no plant over it, under every dormant hosta, brunnera, daylily and
+  // deciduous fern. Each such choice must opt into dormantWhenBare.
+  const bad=[];
+  for (const k of PLANT_KEYS){
+    for (const v of [undefined].concat(Object.keys(PLANTS[k].cv||{}))){
+      const P=plantDef(k,v);
+      if (isWoodyDef(P)||P.type==='bulb'||P.type==='vine'||!SNOW_BARE_FORMS[P.form]) continue;
+      const W=P.sea.Winter||{};
+      if (W.fol||W.seed||W.bloom) continue;
+      let ops=0;
+      const ctx=makeCanvasCtx({fill(){ops++;}, stroke(){ops++;}, fillRect(){ops++;}});
+      drawPlant(ctx,0,0,k,1,'Winter',4321,0,v,0);
+      if (ops) bad.push(`${k}${v?'|'+v:''}`);
+    }
+  }
+  assertEqual(bad.join(', '), '', 'empty winter slot must draw nothing');
+  for (const k of ['hosta','brunnera','daylily','ladyfern','japanesepaintedfern'])
+    assert(PLANTS[k].look.dormantWhenBare, `${k} opts into winter dormancy`);
+  // Leafmound draws no seed, and brunnera has no ornamental seedheads, so the
+  // Fall seed colour it carried only earned it a false 'seedhead' role.
+  assert(!staticPlantRoles('brunnera').includes('seedhead'), 'brunnera is not a seedhead plant');
+  // Spring is untouched: the mound is still drawn.
+  let ops=0;
+  drawPlant(makeCanvasCtx({fill(){ops++;}}),0,0,'hosta',1,'Spring',4321,0,undefined,0);
+  assert(ops>10, 'hosta still draws its spring mound');
+});
+
 test('snow caps ride the drawn mass, not the top of the H box', () => {
   // The cap scatter assumed foliage fills the whole H box. It does for a
   // coneflower (drawn top measured at 1.01H) and not for anything whose H is
