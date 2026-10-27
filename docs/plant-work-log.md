@@ -18,3 +18,22 @@ later runs do not redo or touch the same records.
   palmate leaves, astilbe ferny foliage and plumes, 'Jack Frost' veins.
 - Noted, not changed: forget-me-not overwinters as a rosette in reality.
 - Next in priority: (b) heightIn backfill for herbaceous records.
+
+## 2026-10-27 — real heights for ornamental grasses
+
+- Branch: `claude/plants-2026-10-27-grass-heights` (PR #14)
+- Batch: item (b), heightIn backfill, grasses.
+- `heightIn` (flowering height) added to sideoats, bluegrama, karl, overdam,
+  sesleria, bluemoorgrass, lovegrass, mexicanfeather, northernseaoats,
+  giantstipa, molinia, moorhexe, purplemoorgrass, blueoatgrass,
+  quakinggrass, sandlovegrass, arizonacottontop, dropseed, and
+  dropseed 'Tara'. `h` untouched.
+- Deferred (a cultivar lacks a sourced height, which it would otherwise
+  inherit wrongly): indiangrass ('St. Louis'), tuftedhair
+  ('Bronzeschleier'), orientalfountain, koreanfeatherreed, and the large
+  cultivar families bluestem, bigbluestem, switchgrass, pinkmuhly,
+  miscanthus, fountaingrass, bluefescue, hakone.
+- Still to do in (b): those grasses, 30 sedges, 210 forbs, 40 bulbs,
+  6 water plants.
+- Note: missouribotanicalgarden.org and plants.ces.ncsu.edu are blocked
+  from the run environment, so values come from search-result excerpts.
