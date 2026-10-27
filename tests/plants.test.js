@@ -374,6 +374,21 @@ test('woody species declare years-to-size (grow)', () => {
   }
 });
 
+// Herbaceous heightIn backfill (2026-10-27): a sourced flowering height on
+// the grasses that lacked one. A cultivar that redraws its own `h` under a
+// species with heightIn must say its own height, or the card quotes the
+// species' number for it.
+test('backfilled grasses carry a real height, and resized cultivars do not inherit it', () => {
+  const want = { sideoats:30, bluegrama:16, karl:60, overdam:48, sesleria:20, bluemoorgrass:12,
+    lovegrass:20, mexicanfeather:22, northernseaoats:36, giantstipa:72, molinia:72, moorhexe:20,
+    purplemoorgrass:30, blueoatgrass:42, quakinggrass:30, sandlovegrass:36, arizonacottontop:30, dropseed:30 };
+  for (const [k, v] of Object.entries(want)) assertEqual(PLANTS[k].heightIn, v, `${k} heightIn`);
+  assertEqual(PLANTS.dropseed.cv.tara.heightIn, 24, "'Tara' states its own height");
+  for (const k of Object.keys(want))
+    for (const [c, C] of Object.entries(PLANTS[k].cv || {}))
+      if (Object.hasOwn(C, 'h')) assert(typeof C.heightIn === 'number', `${k}.${c}: resized cultivar needs heightIn`);
+});
+
 test('trees declare a real mature height (heightIn)', () => {
   for (const k of keys){
     const P = PLANTS[k];
