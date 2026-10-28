@@ -157,8 +157,11 @@ modes. Expected gain is small: unchanged-class writes cost no style
 invalidation in Blink. It is worth having because it runs at the display's
 refresh rate for the whole session. No version bump.
 
-**Noticed, not mine.** Two `game.test.js` tests fail intermittently on this
-VM, on master as well: "two clumps of one species never share a slot" and
+**Noticed, not mine.** Two `game.test.js` tests failed in 3 of 6 suite runs
+on this VM, including one with master's `ui.js`. They run before any test this
+branch adds, so the change cannot affect them. They did not fail in two clean
+runs of master either, and the failing runs were the ones sharing the CPU with
+another suite. The tests: "two clumps of one species never share a slot" and
 "the slot index does not outlive the sprites it points at". Both call
 `drawPlantMaybeCached` several times in one "frame". I suspect that on a slow
 shared CPU the 4ms `PSPRITE.BAKE_MS` budget runs out, so the second clump gets
