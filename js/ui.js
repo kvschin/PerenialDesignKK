@@ -1679,20 +1679,29 @@ function plantGuidanceButton(ref,always=false){
 
 /* ---------- HUD readouts (hint, mobile action button, top/bottom bars) ---------- */
 let lastHint='', lastAct='';
+/* setHint, setActButton and updatePreviewToggle run on EVERY rendered frame
+   (updateHUD), and a classList.add/remove/toggle is a DOM attribute write even
+   when the class is already in that state — it runs the attribute update steps
+   and queues a mutation record — so they were six class writes a frame that
+   changed nothing. hudClass writes only on a real change, the classList twin of
+   hudText below. */
+function hudClass(el,cls,on){
+  if (el && el.classList.contains(cls)!==!!on) el.classList.toggle(cls,!!on);
+}
 function setHint(txt){
   const el=document.getElementById('actionHint');
   if (!ENABLE_ACTION_HINT){
-    el.classList.add('hidden');
+    hudClass(el,'hidden',true);
     if (lastHint!==''){ lastHint=''; el.textContent=''; }
     return;
   }
-  el.classList.remove('hidden');
+  hudClass(el,'hidden',false);
   if (txt!==lastHint){ lastHint=txt; el.textContent=txt; }
 }
 function setActButton(){ // the big mobile do-it button, labeled by context
   if (!ENABLE_MOBILE_ACT_BUTTON){
-    document.getElementById('btnAct').classList.add('hidden');
-    document.getElementById('actionHint').classList.toggle('hidden',!ENABLE_ACTION_HINT);
+    hudClass(document.getElementById('btnAct'),'hidden',true);
+    hudClass(document.getElementById('actionHint'),'hidden',!ENABLE_ACTION_HINT);
     lastAct='';
     return;
   }
@@ -1768,11 +1777,9 @@ function updateDayNightBtn(){
    the explanatory copy, which is what the chip could never carry anyway. */
 function updatePreviewToggle(){
   const wrap=document.getElementById('previewToggle'); if (!wrap) return;
-  wrap.classList.remove('hidden');
-  const today=document.getElementById('btnPreviewToday');
-  const est=document.getElementById('btnPreviewEstablished');
-  if (today) today.classList.toggle('on',game.previewMode!=='established');
-  if (est) est.classList.toggle('on',game.previewMode==='established');
+  hudClass(wrap,'hidden',false);
+  hudClass(document.getElementById('btnPreviewToday'),'on',game.previewMode!=='established');
+  hudClass(document.getElementById('btnPreviewEstablished'),'on',game.previewMode==='established');
   const note=document.getElementById('previewModeNote');
   if (note && note._mode!==game.previewMode){   // per-frame: write only on change
     note._mode=game.previewMode;
@@ -1796,26 +1803,9 @@ function setPreviewMode(mode){
 // element — the same pattern the season fill below has always used.
 function hudText(id,txt){ const el=document.getElementById(id);
   if (el && el._t!==txt){ el._t=txt; el.textContent=txt; } }
-function updateHUD(){
-  const cal=calClock();
-  syncStartHere();   // returns on booleans unless a new garden's checklist is up
-  hudText('seasonName',cal.season);
-  // A planner: real days are meaningless (a day is 20s), so the readout shows
-  // the season + how far through it. The internal clock is unchanged.
-  const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
-  const phase=seasonFrac<0.34?'Early season':seasonFrac<0.67?'Mid-season':'Late season';
-  hudText('seasonPhase',phase);
-  // the season box fills across the whole season, tinted by the season colour
-  const fill=document.getElementById('seasonFill');
-  if (fill){
-    const w=Math.round(seasonFrac*1000)/10;
-    if (w!==game._fillW){ fill.style.width=w+'%'; game._fillW=w; }
-    const fillBg=game.pausedAt ? '#8c867c' : (SEASON_FILL[cal.season]||'#7fc24e');
-    if (fillBg!==game._fillBg){ fill.style.background=fillBg; game._fillBg=fillBg; }
-  }
-  updateDayNightBtn();
-  updatePreviewToggle();
-  setHint(game.tool==='building'
+/* the per-tool instruction for #actionHint (only built while that hint is enabled) */
+function actionHintText(){
+  return game.tool==='building'
     ? 'Tap exterior corners, then tap the first corner or Close to finish'
     : game.tool==='house'
     ? 'Hover shows where the house lands — click to set it down'
@@ -1845,7 +1835,31 @@ function updateHUD(){
     ? 'Tap or drag along the face of a terrace'
     : game.tool==='pet'
     ? `Tap a clear spot to settle your ${petLabel()}`
-    : 'Tap a tile to place · drag to paint a run');
+    : 'Tap a tile to place · drag to paint a run';
+}
+function updateHUD(){
+  const cal=calClock();
+  syncStartHere();   // returns on booleans unless a new garden's checklist is up
+  hudText('seasonName',cal.season);
+  // A planner: real days are meaningless (a day is 20s), so the readout shows
+  // the season + how far through it. The internal clock is unchanged.
+  const seasonFrac=((cal.day-1)+cal.frac)/DAYS_PER_SEASON;
+  const phase=seasonFrac<0.34?'Early season':seasonFrac<0.67?'Mid-season':'Late season';
+  hudText('seasonPhase',phase);
+  // the season box fills across the whole season, tinted by the season colour
+  const fill=document.getElementById('seasonFill');
+  if (fill){
+    const w=Math.round(seasonFrac*1000)/10;
+    if (w!==game._fillW){ fill.style.width=w+'%'; game._fillW=w; }
+    const fillBg=game.pausedAt ? '#8c867c' : (SEASON_FILL[cal.season]||'#7fc24e');
+    if (fillBg!==game._fillBg){ fill.style.background=fillBg; game._fillBg=fillBg; }
+  }
+  updateDayNightBtn();
+  updatePreviewToggle();
+  /* The hint is switched off (ENABLE_ACTION_HINT), and setHint ignores its
+     argument then, so do not build the string — a template literal and a
+     label lookup per frame for text nobody is shown. */
+  setHint(ENABLE_ACTION_HINT ? actionHintText() : '');
   setActButton();
   const sd=absDay();
   if (sd!==game.lastDay){

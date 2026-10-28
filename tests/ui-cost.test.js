@@ -490,3 +490,62 @@ test('a chrome refresh with the menus shut asks for no computed style', () => {
   const n = counting(['visibleEl'], () => { refreshCanvasTools(); refreshCanvasTools(); });
   assertEqual(n.visibleEl, 0, 'no computed style with every menu shut');
 });
+
+/* ---------- the per-frame HUD: class writes only on a real change ---------- */
+
+/* Wrap the class methods of the elements updateHUD touches and count the WRITES
+   (add/remove/toggle) across repeated frames. A classList write is a DOM
+   attribute write even when the class is already set, and these ran on every
+   rendered frame: six a frame before hudClass. */
+function countClassWrites(ids, fn){
+  const els = ids.map(id => document.getElementById(id)), saved = [];
+  let n = 0;
+  els.forEach(el => {
+    const cl = el.classList, s = { add: cl.add, remove: cl.remove, toggle: cl.toggle };
+    saved.push([cl, s]);
+    cl.add = function(){ n++; return s.add.apply(this, arguments); };
+    cl.remove = function(){ n++; return s.remove.apply(this, arguments); };
+    cl.toggle = function(){ n++; return s.toggle.apply(this, arguments); };
+  });
+  try { fn(); } finally { saved.forEach(([cl, s]) => Object.assign(cl, s)); }
+  return n;
+}
+const HUD_CLASS_IDS = ['actionHint', 'btnAct', 'previewToggle', 'btnPreviewToday', 'btnPreviewEstablished'];
+
+test('a steady HUD frame writes no classes and builds no hint string', () => {
+  uiSetup();
+  game.inGarden = true;
+  const herb = fittingKey(P => P.type === 'forb');
+  for (const tool of ['hand', 'shovel', 'fence', herb]){
+    setTool(tool, null);
+    updateHUD();                                  // the first frame may write
+    let calls;
+    const writes = countClassWrites(HUD_CLASS_IDS, () => {
+      calls = counting(['actionHintText'], () => { for (let i = 0; i < 20; i++) updateHUD(); });
+    });
+    assertEqual(writes, 0, `${tool}: 20 unchanged frames, no class writes (was 120)`);
+    assertEqual(calls.actionHintText, 0, `${tool}: the disabled hint is not built`);
+  }
+});
+
+test('the guarded HUD classes land exactly where the old writes put them', () => {
+  uiSetup();
+  game.inGarden = true;
+  const el = id => document.getElementById(id);
+  for (const mode of ['today', 'established', 'today']){
+    game.previewMode = mode;
+    const writes = countClassWrites(HUD_CLASS_IDS, () => { updateHUD(); updateHUD(); });
+    // the old path's unconditional writes, as states
+    assertEqual(el('actionHint').classList.contains('hidden'), !ENABLE_ACTION_HINT, 'hint hidden while disabled');
+    assertEqual(el('btnAct').classList.contains('hidden'), true, 'act button hidden while disabled');
+    assertEqual(el('previewToggle').classList.contains('hidden'), false, 'preview seg shown');
+    assertEqual(el('btnPreviewToday').classList.contains('on'), mode !== 'established', 'Today pressed');
+    assertEqual(el('btnPreviewEstablished').classList.contains('on'), mode === 'established', 'Established pressed');
+    assert(writes <= 2, `a mode change writes only the two seg classes (${writes})`);
+  }
+  // the moved hint chain still says what it said
+  setTool('hand', null);
+  assertEqual(actionHintText(), 'Hand: drag the map to pan', 'hand hint');
+  game.eraseMode = 'all'; game.brushSize = 3; setTool('shovel', null);
+  assertEqual(actionHintText(), 'Erase (everything, 3-wide) — tap or drag', 'erase hint');
+});
