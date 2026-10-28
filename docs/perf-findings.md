@@ -131,3 +131,78 @@ No version bump.
 4. **`openWorlds` reads `hortus:worlds` three to four times**
    (`migrateLegacyWorld`, `adoptOrphanedWorlds`' chain read, `worldsIndex`).
    - Minor. Risk: low. Only worth doing alongside proposal 1.
+
+## 2026-10-28 — the per-frame HUD and loop path (screens.js `frame`, ui.js `updateHUD`)
+
+**Area.** What runs on every rendered frame outside `render()`: `shouldRenderGarden`
+(`renderStateSig`, `hasTransientGardenWork`), `updateHUD` and its helpers
+(`syncStartHere`, `hudText`, `updateDayNightBtn`, `updatePreviewToggle`,
+`setHint`, `setActButton`), plus a look at the canvas `pointermove` handler.
+Most of it is already change-guarded (`hudText`, the season fill,
+`updateDayNightBtn`, the preview note, `syncStartHere`'s signature).
+
+**Fix.** Branch `claude/perf-2026-10-28-hud-class-writes`.
+- `setHint`, `setActButton` and `updatePreviewToggle` made six
+  `classList.add/remove/toggle` calls a frame whose class was already in that
+  state. Each is still a DOM attribute write (update steps plus a mutation
+  record). A new `hudClass(el,cls,on)` writes only on a real change, as
+  `hudText` does for text.
+- The action-hint string was built every frame (template literals, label
+  lookups) and then thrown away, because `ENABLE_ACTION_HINT` is false. The
+  chain moved to `actionHintText()` and is called only while the hint is on.
+
+Counted in the sandbox over 20 steady frames: class writes **120 → 0**, hint
+builds **20 → 0**. The resulting classes match the old path for both preview
+modes. Expected gain is small: unchanged-class writes cost no style
+invalidation in Blink. It is worth having because it runs at the display's
+refresh rate for the whole session. No version bump.
+
+**Noticed, not mine.** Two `game.test.js` tests fail intermittently on this
+VM, on master as well: "two clumps of one species never share a slot" and
+"the slot index does not outlive the sprites it points at". Both call
+`drawPlantMaybeCached` several times in one "frame". I suspect that on a slow
+shared CPU the 4ms `PSPRITE.BAKE_MS` budget runs out, so the second clump gets
+a sibling stand-in instead of its own bake. If so, the tests are measuring
+wall-clock. They should probably bump `PSPRITE.frame` between draws, or pin
+the budget, so they cannot depend on the machine's speed.
+
+### Proposals (ranked by expected benefit)
+
+1. **`tileAt` (world.js) probes every elevation level on a flat garden.**
+   - Why I suspect it: every canvas `pointermove` goes through `evPlacement` →
+     `tileAt`. That loops ELEV_MAX..ELEV_MIN (six non-zero levels), and each
+     level does a `tileAtElevation` inversion plus an `elevationAt` read before
+     the grade fallback. Most gardens have no elevation at all.
+   - Proposed fix: `elevationGrid` already knows whether any tile is non-zero
+     (it computes `elevationHasSunken`). A matching "has raised" flag, or the
+     grid's min/max, would let `tileAt` loop only the levels present. A flat
+     garden then skips straight to the grade inversion.
+   - How to measure: in the sandbox, count `tileAtElevation` calls per
+     `tileAt` (6 → 0 on a flat garden). Assert the answer is identical tile by
+     tile over a screen-point grid at all four rotations, with and without
+     terraces.
+   - Expected gain: small per call, but it runs on every pointermove, i.e.
+     120–1000Hz with a high-rate mouse. Risk: low (hit-testing only, nothing
+     drawn). I left it for a later run to keep one finding per PR.
+2. **`renderStateSig` (screens.js) builds a ~25-field string every frame.**
+   - Why I suspect it: it builds an array plus a `join` per frame, and
+     `layerVisibilitySig` does `Object.keys().sort().map().join()` each time.
+     Tens of short-lived strings a frame, at refresh rate, even while idle at
+     the 30fps cadence.
+   - Proposed fix: memoise `layerVisibilitySig` on a `layerVis` revision, or
+     compare the fields directly instead of joining them.
+   - How to measure: count allocations is not possible in the sandbox. On your
+     machine, use devtools → Memory → allocation sampling for 10s of idle and
+     10s of pan on the demo garden, and look at `renderStateSig`'s share.
+   - Expected gain: GC churn only. Risk: low, but a missed field means a
+     garden that does not repaint. Keep the string as the fallback if unsure.
+3. **`gardenHasPlanting` (ui.js) walks tombstones every frame.**
+   - Why I suspect it: `syncStartHere` calls `startHereApplies` →
+     `gardenHasPlanting` on every frame. A garden whose plants were all erased
+     walks every `{removed:true}` record of `game.plants` and `game.bulbs`
+     each frame before returning false. (2026-10-21 proposal 2 notes the live
+     maps keep tombstones for the whole session.)
+   - Proposed fix: cache the answer on `game.plantsRev` plus map identity.
+   - How to measure: in the sandbox, count loop iterations per frame after a
+     plant-500-then-erase-all script (500 → 0).
+   - Expected gain: only in that edge case. Risk: low.
