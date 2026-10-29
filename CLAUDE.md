@@ -6396,6 +6396,9 @@ Winter must show *structure*, not bare ground; that's the whole point.
 sorts it into data-driven Sun & meadow, Shade & woodland, and Wet & rain garden
 headings; `moist:'moist'` is the rain-garden classification (the schema has no
 `'wet'` value).
+Every sedge carries a sourced `heightIn` (2026-10-29: typical garden height
+in flower, `h` untouched), so the card and Library quote a real size; a cultivar
+shorter than its species ('Oehme') states its own.
 
 **Sedge visuals:** retain `bunchgrass` as the shared renderer. Use `look` values
 (`mound`, `leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
