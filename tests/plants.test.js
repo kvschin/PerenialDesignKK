@@ -1626,3 +1626,14 @@ test('audit additions preserve exact identities, native ranges and seasonal dist
   assert(PLANTS.woollygeranium.blurb.includes('provisional'),'uncertain zones visible to gardeners');
   assert(PLANTS.spicebush.blurb.includes('male pollinizer'),'fruit pollination requirement visible');
 });
+
+// Herbaceous heightIn backfill, sedges (2026-10-29): every sedge now states a
+// sourced typical height in flower; `h` is unchanged. A cultivar that is
+// shorter than its species states its own, or the card quotes the species'.
+test('sedges carry a real height, and shorter cultivars state their own', () => {
+  for (const k of keys) if (PLANTS[k].type === 'sedge')
+    assert(typeof PLANTS[k].heightIn === 'number' && PLANTS[k].heightIn > 0, `${k}: sedge needs heightIn`);
+  assertEqual(PLANTS.lakesedge.heightIn, 42, 'lake sedge heightIn');
+  assertEqual(PLANTS.pennsedge.heightIn, 8, 'Pennsylvania sedge heightIn');
+  assertEqual(PLANTS.palmsedge.cv.oehme.heightIn, 24, "'Oehme' states its own height");
+});
