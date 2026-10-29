@@ -37,3 +37,15 @@ later runs do not redo or touch the same records.
   6 water plants.
 - Note: missouribotanicalgarden.org and plants.ces.ncsu.edu are blocked
   from the run environment, so values come from search-result excerpts.
+
+## 2026-10-29 — real heights for sedges
+
+- Branch: `claude/plants-2026-10-29-sedge-heights` (PR #16)
+- Batch: item (b), heightIn backfill, sedges.
+- `heightIn` (typical garden height in flower) added to all 30 `type:'sedge'`
+  records that lacked one (sloughsedge already had it), including
+  snowywoodrush, plus palm sedge 'Oehme' (24 in). `h` untouched.
+- Every sedge now has a height; a test holds that.
+- Still to do in (b): the deferred grass cultivar families (see 2026-10-27),
+  210 forbs, 40 bulbs, 6 water plants.
+- Same network limits as before: values from search excerpts.
