@@ -49,3 +49,20 @@ later runs do not redo or touch the same records.
 - Still to do in (b): the deferred grass cultivar families (see 2026-10-27),
   210 forbs, 40 bulbs, 6 water plants.
 - Same network limits as before: values from search excerpts.
+
+## 2026-10-30 — real heights for water plants and single bulbs
+
+- Branch: `claude/plants-2026-10-30-bulb-water-heights` (PR #17)
+- Batch: item (b), heightIn backfill, water plants and bulbs.
+- `heightIn` added to the 6 water plants lacking it (waterlotus,
+  fragrantwaterlily, pickerelweed, waterblueflag, arrowhead, lizardtail) and
+  to all 28 bulbs with no cultivars (the alliums, species tulips, golden
+  crocus, camassias scilloides/quamash, the four lilies, scilla peruviana,
+  puschkinia, English bluebell, winter aconite, trout lily, wood anemone,
+  ivy-leaved cyclamen, lycoris). `h` untouched.
+- Deferred: bulb families with cultivars (crocus, daffodil, muscari,
+  gardentulip, camassialeichtlinii, snowdrop, anemoneblanda, ipheion,
+  leucojum, fritillaria, colchicum, dahlia); snowdrop also overlaps
+  backlog-6.
+- Still to do in (b): those bulb families, the deferred grass families,
+  ~210 forbs.
