@@ -6327,6 +6327,9 @@ branches. Summer-flowering Alliums use warm straw/tan `seed` colors in Fall and
 Winter rather than carrying their purple, red, pink, or blue bloom hue forward;
 flower accents such as a topknot are bloom-only. Omitted values preserve the
 pre-audit renderer for unrelated plants.
+Every water plant, and every bulb without cultivars, carries a sourced
+`heightIn` (2026-10-30: typical height in flower, `h` untouched); bulb
+families with cultivars wait until each cultivar has its own sourced height.
 
 Broadleaf fruit and nut trees can use `look.fruitShape:'round'|'pear'|'fig'|
 'oval'|'pod'|'nut'|'husk'|'bur'|'pomegranate'`, plus an optional bounded

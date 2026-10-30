@@ -1626,3 +1626,18 @@ test('audit additions preserve exact identities, native ranges and seasonal dist
   assert(PLANTS.woollygeranium.blurb.includes('provisional'),'uncertain zones visible to gardeners');
   assert(PLANTS.spicebush.blurb.includes('male pollinizer'),'fruit pollination requirement visible');
 });
+
+// Herbaceous heightIn backfill, water plants and single bulbs (2026-10-30):
+// every water plant and every bulb with no cultivars states a sourced typical
+// height in flower; `h` is unchanged. Bulb families with cultivars are left
+// until each cultivar can state its own.
+test('water plants and cultivar-free bulbs carry a real height', () => {
+  for (const k of keys) {
+    const P = PLANTS[k];
+    if (P.type === 'water' || (P.type === 'bulb' && !P.cv))
+      assert(typeof P.heightIn === 'number' && P.heightIn > 0, `${k}: needs heightIn`);
+  }
+  assertEqual(PLANTS.fragrantwaterlily.heightIn, 4, 'water lily floats');
+  assertEqual(PLANTS.liliumsuperbum.heightIn, 72, "Turk's-cap lily heightIn");
+  assertEqual(PLANTS.alliumGlobemaster.h, 42, 'h untouched');
+});
