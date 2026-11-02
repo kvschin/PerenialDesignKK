@@ -66,3 +66,20 @@ later runs do not redo or touch the same records.
   backlog-6.
 - Still to do in (b): those bulb families, the deferred grass families,
   ~210 forbs.
+
+## 2026-11-02 — real heights for prairie forbs
+
+- Branch: `claude/plants-2026-11-02-prairie-forb-heights` (PR #18)
+- Batch: item (b), heightIn backfill, forbs (first batch).
+- `heightIn` added to 38 cultivar-free prairie forbs: the 8 milkweeds
+  (butterfly … antelopehorns), liatris/pycnostachya/cylindracea, the 6
+  sunflowers, prairie/Baldwin's/giant/'Summer's Swan Song' ironweed,
+  pallida/topeka/angustifolia/paradoxa, both prairie clovers, prairiedock,
+  grayheadedconeflower, mexicanhat, both zizias, lanceleaf, talltickseed,
+  rudbeckiatriloba/maxima, falsesunflower, rattlesnake. `h` untouched.
+- To double-check: rudbeckiamaxima, antelopehorns, heartleafalexander,
+  falsesunflower, rattlesnake, goldenalexander (set from standard references,
+  no fresh citation).
+- Still to do in (b): ~172 forbs (next: Southwest/desert forbs, ferns,
+  woodland forbs, then cultivar families), plus the deferred grass and bulb
+  families.
