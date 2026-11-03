@@ -1626,3 +1626,17 @@ test('audit additions preserve exact identities, native ranges and seasonal dist
   assert(PLANTS.woollygeranium.blurb.includes('provisional'),'uncertain zones visible to gardeners');
   assert(PLANTS.spicebush.blurb.includes('male pollinizer'),'fruit pollination requirement visible');
 });
+
+// Herbaceous heightIn backfill, Southwest/desert forbs (2026-11-03): typical
+// height in flower, except agaves and sotol, which state the rosette (their
+// stalk is rare or monocarpic). `h` is unchanged.
+test('Southwest and desert forbs carry a real height', () => {
+  const ks = ['redyucca','sotol','ocotillo','parryagave','havardagave','blackfootdaisy','fournervedaisy','desertmarigold','chocolateflower',
+    'parrypenstemon','palmerpenstemon','greggmistflower','mealycupsage','autumnsage','pitchersage','desertglobemallow','scarletglobemallow',
+    'prairieverbena','prairiezinnia','desertzinnia','tuftedprimrose','berlandiersundrops','engelmanndaisy','eatonpenstemon','desertpenstemon',
+    'pineleafpenstemon','wrightbuckwheat'];
+  for (const k of ks) assert(typeof PLANTS[k].heightIn === 'number' && PLANTS[k].heightIn > 0, `${k}: needs heightIn`);
+  assertEqual(PLANTS.parryagave.heightIn, 24, 'agave is the rosette, not the once-in-a-lifetime stalk');
+  assertEqual(PLANTS.ocotillo.heightIn, 180, 'ocotillo canes, about 15 ft');
+  assertEqual(PLANTS.palmerpenstemon.heightIn, 54, "Palmer's penstemon flower stalks");
+});
