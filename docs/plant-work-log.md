@@ -83,3 +83,19 @@ later runs do not redo or touch the same records.
 - Still to do in (b): ~172 forbs (next: Southwest/desert forbs, ferns,
   woodland forbs, then cultivar families), plus the deferred grass and bulb
   families.
+
+## 2026-11-03 — real heights for Southwest and desert forbs
+
+- Branch: `claude/plants-2026-11-03-southwest-forb-heights` (PR #19)
+- Batch: item (b), heightIn backfill, forbs (second batch).
+- `heightIn` added to 27 cultivar-free Southwest/desert forbs: redyucca,
+  sotol, ocotillo, parryagave, havardagave, blackfootdaisy, fournervedaisy,
+  desertmarigold, chocolateflower, the penstemons (parry, palmer, eaton,
+  desert, pineleaf), greggmistflower, mealycupsage, autumnsage, pitchersage,
+  both globemallows, prairieverbena, both zinnias, tuftedprimrose,
+  berlandiersundrops, engelmanndaisy, wrightbuckwheat. `h` untouched.
+- Decision: agaves and sotol state the rosette/foliage height, since their
+  stalk is monocarpic or irregular; ocotillo is 180 in (its canes).
+- Still to do in (b): ~145 forbs. Next: ferns (avoid the five that PR #12
+  touches), woodland forbs, then the cultivar families; plus the deferred
+  grass and bulb families.
