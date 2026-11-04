@@ -1675,3 +1675,18 @@ test('sedges carry a real height, and shorter cultivars state their own', () => 
   assertEqual(PLANTS.pennsedge.heightIn, 8, 'Pennsylvania sedge heightIn');
   assertEqual(PLANTS.palmsedge.cv.oehme.heightIn, 24, "'Oehme' states its own height");
 });
+
+// Herbaceous heightIn backfill, water plants and single bulbs (2026-10-30):
+// every water plant and every bulb with no cultivars states a sourced typical
+// height in flower; `h` is unchanged. Bulb families with cultivars are left
+// until each cultivar can state its own.
+test('water plants and cultivar-free bulbs carry a real height', () => {
+  for (const k of keys) {
+    const P = PLANTS[k];
+    if (P.type === 'water' || (P.type === 'bulb' && !P.cv))
+      assert(typeof P.heightIn === 'number' && P.heightIn > 0, `${k}: needs heightIn`);
+  }
+  assertEqual(PLANTS.fragrantwaterlily.heightIn, 4, 'water lily floats');
+  assertEqual(PLANTS.liliumsuperbum.heightIn, 72, "Turk's-cap lily heightIn");
+  assertEqual(PLANTS.alliumGlobemaster.h, 42, 'h untouched');
+});
