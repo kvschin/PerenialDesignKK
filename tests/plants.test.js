@@ -1690,3 +1690,17 @@ test('water plants and cultivar-free bulbs carry a real height', () => {
   assertEqual(PLANTS.liliumsuperbum.heightIn, 72, "Turk's-cap lily heightIn");
   assertEqual(PLANTS.alliumGlobemaster.h, 42, 'h untouched');
 });
+
+// Herbaceous heightIn backfill, prairie forbs (2026-11-02): the milkweeds,
+// blazing stars, sunflowers, ironweeds, prairie coneflowers and clovers state a
+// sourced typical height in flower; `h` is unchanged.
+test('prairie forbs carry a real height in flower', () => {
+  const ks = ['butterfly','swampmilkweed','prairiemilkweed','commonmilkweed','showymilkweed','whorledmilkweed','greenmilkweed','antelopehorns',
+    'liatris','liatrispycnostachya','liatriscylindracea','willowsunflower','maximiliansunflower','sawtoothsunflower','stiffsunflower','ashysunflower','woodlandsunflower',
+    'prairieironweed','baldwinsironweed','giantironweed','swansongironweed','pallida','topeka','angustifolia','paradoxa','purpleprairieclover','whiteprairieclover',
+    'prairiedock','grayheadedconeflower','mexicanhat','goldenalexander','heartleafalexander','lanceleaf','talltickseed','rudbeckiatriloba','rudbeckiamaxima','falsesunflower','rattlesnake'];
+  for (const k of ks) assert(typeof PLANTS[k].heightIn === 'number' && PLANTS[k].heightIn > 0, `${k}: needs heightIn`);
+  assertEqual(PLANTS.prairiedock.heightIn, 96, 'prairie dock flower stalk');
+  assertEqual(PLANTS.liatris.heightIn, 18, 'dotted blazing star');
+  assertEqual(PLANTS.swansongironweed.heightIn, 36, "'Summer's Swan Song' is the compact ironweed");
+});

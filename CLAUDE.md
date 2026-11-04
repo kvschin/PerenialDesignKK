@@ -6477,6 +6477,9 @@ headings; `moist:'moist'` is the rain-garden classification (the schema has no
 Every sedge carries a sourced `heightIn` (2026-10-29: typical garden height
 in flower, `h` untouched), so the card and Library quote a real size; a cultivar
 shorter than its species ('Oehme') states its own.
+Forb `heightIn` backfill is in progress by batch (2026-11-02: 38 prairie forbs
+— milkweeds, blazing stars, sunflowers, ironweeds, coneflowers, prairie
+clovers — typical height in flower, `h` untouched; see the plant work log).
 
 **Sedge visuals:** retain `bunchgrass` as the shared renderer. Use `look` values
 (`mound`, `leaves`, `fan`, `leafLen`, `leafW`, `spread`, `dome`, `edgeDrop`) to
