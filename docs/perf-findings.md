@@ -209,3 +209,38 @@ the budget, so they cannot depend on the machine's speed.
    - How to measure: in the sandbox, count loop iterations per frame after a
      plant-500-then-erase-all script (500 → 0).
    - Expected gain: only in that edge case. Risk: low.
+
+## 2026-11-04 — canvas pointer input and hit-testing, and the undo snapshot (input.js pointermove/pointerdown, `evPlacement`, `tileAt`, `snapshotState`)
+
+**Area.** What one canvas pointer event costs once it reaches placement:
+- the pointermove handler → `evPlacement` → `canvasClientPoint`/`tileAt`/`worldPointAt`;
+- the per-pointerdown undo snapshot (`beginUndo` → `snapshotState`), plus `applySnapshot` on undo/redo.
+
+**Fix.** Branch `claude/perf-2026-11-04-tileat-levels`, PR #20. This is proposal 1 from 2026-10-28.
+- `elevationGrid()` records `lo`/`hi`, the range of levels actually present.
+- `tileAt` probes only that range instead of all six non-zero levels.
+
+Counted: `tileAtElevation` calls per 100 `tileAt` calls went **600 → 0** on a flat garden and **600 → 200** on a garden raised to level 2. The answers match the old loop at every one of ~27k screen points × 4 rotations, across six elevation configurations, tombstone-only included. It is mutation-checked. No version bump.
+
+### Proposals (ranked by expected benefit)
+
+1. **`canvasClientPoint` → `canvasViewportRect` calls `getBoundingClientRect` on every pointermove (view.js).**
+   - Why I suspect it: during a drag, a rendered frame writes DOM in between pointer events (`updateCompass`'s `style.transform`, HUD text, toasts, the brush bar). The next pointermove then reads layout, so this can be a forced synchronous layout per event. That is the same write-then-read pattern `usableCanvasRect` was cached for (§15; 463us per dirty read was measured there). High-rate mice deliver several events a frame.
+   - Proposed fix: cache the rect, invalidated by `settleViewportChange`/`applySheetState`/`setLeftHandedLayout` plus a ResizeObserver on the canvas, exactly as `usableCanvasRect` does. Also drop it on `scroll` if the body can ever scroll.
+   - How to measure: Chrome devtools Performance on the demo garden, desktop profile. Record a 3s bed drag and a 3s plant drag, then look for "Layout (forced)" attributed to `canvasViewportRect`. In the sandbox you can count `getBoundingClientRect` calls per pointermove (1 → 0 at steady state).
+   - Expected gain: a few hundred µs per event when layout is dirty, nothing when it is clean.
+   - Risk: low to medium. A stale rect would offset every tap, so the invalidation list must be complete. Check iOS URL-bar collapse and rotation.
+2. **`snapshotState` shallow-copies every keyed layer on every placement pointerdown (commands.js).**
+   - Why I suspect it: it is O(all records, tombstones included) across ~16 layers, even when the gesture only touches one layer or is a no-op tap. CLAUDE.md measured it at 115µs on a 562-plant garden. It scales with garden size and long sessions, because tombstones accumulate in the live maps (2026-10-21 proposal 2).
+   - Proposed fix: copy-on-write. The snapshot holds references, and `setTile`/`clearTile` materialise a layer's copy into the pending snapshot on its first write.
+   - Why I did not do it unattended: `restoreLayerInPlace` writes terrain and elevation in place during undo, while the redo snapshot just taken may still share them. So the COW bookkeeping must cover that path too, and any future direct writer would silently corrupt undo.
+   - How to measure: `?debug`'s `snap` event on a quarter-acre stress garden (`stressGarden()`) and on the demo garden. In the sandbox, count copied keys per pointerdown.
+   - Expected gain: most of `snap` on large gardens. Risk: medium to high (undo correctness).
+3. **`applySnapshot` stringifies `houses` and `buildings` 8 times per undo** (4 in `applySnapshot`, 4 more in `applySnapshotGround`).
+   - Proposed fix: compute the two equality answers once and pass them in.
+   - Expected gain: tiny (the arrays are small, but buildings carry vertex lists). Risk: low. Only worth doing if commands.js is being touched anyway; `claude/backlog-1-selection` also edits commands.js.
+4. **`sceneBuildSteps` allocates per plant on every scene rebuild (renderer.js).**
+   - Why I suspect it: it allocates via `shrubInfoFromKey` and `treeShadeInfo`, each doing `k.split(',').map(Number)` for every plant, even though the loop has already parsed `x,y`. A planting drag bumps `sceneRev` on every stamp, so this runs per stamp.
+   - Proposed fix: pass the parsed coordinates in. It is pure JS, but it lives in renderer.js and the scene path, so the owner should review it rather than this routine.
+   - How to measure: `?debug`'s `scene` event during a drift drag on the demo garden.
+   - Expected gain: GC churn only. Risk: low.
