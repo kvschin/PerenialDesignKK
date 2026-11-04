@@ -112,9 +112,9 @@ test('a record that states its own native range keeps it through the migration',
 });
 
 test('catalog cleanup leaves only intentional base-taxon aliases', () => {
-  assertEqual(PLANT_KEYS.length,640,'canonical base-record count');
+  assertEqual(PLANT_KEYS.length,642,'canonical base-record count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].hidden).length,0,'no hidden duplicate records remain');
-  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),487,
+  assertEqual(PLANT_KEYS.reduce((n,k)=>n+Object.keys(PLANTS[k].cv||{}).length,0),491,
     'canonical nested-choice count');
   for (const retired of ['creamindigo','salvia','salviaspecies'])
     assertEqual(PLANTS[retired],undefined,`${retired}: retired duplicate key`);
@@ -579,9 +579,9 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
     assertEqual(P.type,'bulb',`${k}: stays in the bulb layer`);
     assertEqual(JSON.stringify(P.bloomMonths),JSON.stringify(months),`${k}: bloom calendar`);
   }
-  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,40,'audited base bulb count');
+  assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb').length,42,'audited base bulb count');
   assertEqual(PLANT_KEYS.filter(k=>PLANTS[k].type==='bulb')
-    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),83,'audited exact bulb count');
+    .reduce((n,k)=>n+1+Object.keys(PLANTS[k].cv||{}).length,0),89,'audited exact bulb count');
 
   assertEqual(PLANTS.alliumChristophii.latin,'Allium cristophii','Star of Persia uses the accepted spelling');
   assertEqual(PLANTS.alliumcarinatum.latin,'Allium cirrhosum','Pretty garlic uses the accepted taxon');
@@ -630,6 +630,29 @@ test('the bulb audit keeps a complete morphology and catalog contract', () => {
   }
   assertEqual(PLANTS.daffodil.cv.actaea.provenance,'selection','Actaea remains a selection');
   assert(PLANTS.daffodil.cv.actaea.nativeTo.includes('europe'),'Actaea retains its European species range');
+});
+
+test('the bulb balance additions carry their real identities', () => {
+  const hy=PLANTS.hyacinth;
+  assertEqual(hy.latin,'Hyacinthus orientalis','hyacinth: botanical name');
+  assertEqual(hy.provenance,'species','hyacinth: the base record is the wild species');
+  assertEqual(hy.nativeTo.join(','),'asia','hyacinth: native to south-west Asia');
+  assertEqual(JSON.stringify(hy.bloomMonths),'[4]','hyacinth: April bloom');
+  assertEqual(hy.look.spikeStyle,'bulbRaceme','hyacinth: drawn through the bulb raceme grammar');
+  for(const v of ['delftBlue','pinkPearl','carnegie']){
+    assertEqual(hy.cv[v].provenance,'selection',`${v}: a selection of the species`);
+    assert(hy.cv[v].sea.Spring.bloom,`${v}: has a spring bloom`);
+  }
+  const me=PLANTS.alliumMountEverest;
+  assertEqual(me.group,'alliumbulb','Mount Everest joins the ornamental allium family');
+  assertEqual(me.provenance,'hybrid','Mount Everest is a stipitatum hybrid');
+  assertEqual(me.nativeTo.length,0,'a hybrid claims no wild range');
+  assert(me.synonyms.includes("Allium stipitatum 'Mount Everest'"),'the stipitatum name is searchable');
+  assertEqual(me.bulbSeason,'summer','Mount Everest flowers on the summer bulb envelope');
+  const sa=PLANTS.snowdrop.cv.sArnott;
+  assertEqual(sa.latin,"Galanthus 'S. Arnott'",'S. Arnott: cultivar name');
+  assertEqual(sa.provenance,'hybrid','S. Arnott: nivalis x plicatus hybrid');
+  assertEqual(sa.nativeTo.length,0,'S. Arnott: no wild range');
 });
 
 test('real-world bloom month metadata is valid when present', () => {
